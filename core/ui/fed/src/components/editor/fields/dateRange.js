@@ -1,5 +1,5 @@
 import React from 'react';
-import DateRangeInput from 'components/dateRangeInput/DateRangeInput';
+import DateRangeInput from 'components/dateRangeInput/dateRangeInput';
 import { getByPath, setByPath } from '../editor.helper';
 
 function DateRangeField({ field, value, errors, onChange, emitChangeMeta }) {

@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, NamedTuple, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, NamedTuple, Optional
 
 from core.modules.strategy.engines.simulator.base_flow import BaseSimulationFlow
 from core.modules.strategy.services.cache.simulator_res_db_cache.helpers import (
@@ -89,10 +89,14 @@ class PriceFactorFlow(BaseSimulationFlow):
         self,
         strategy_name: str,
         strategy_info: Optional["DiscoveredStrategy"] = None,
+        *,
+        progress_callback: Optional[Callable[[float], None]] = None,
     ) -> Any:
         """
         轻量 probe → 指纹解析成功则尝试 DbCache → 否则创建版本目录并
         preprocess（等价）→ execute → postprocess → 再写缓存。
+
+        ``progress_callback``：工作台轮询用；传入 0～100 的磁盘进度百分比（完成前宜小于 100）。
         """
         from core.modules.data_manager import DataManager
         from core.modules.strategy.services.cache.simulator_res_db_cache.snapshot_slot_adapters import (
@@ -106,6 +110,11 @@ class PriceFactorFlow(BaseSimulationFlow):
         self.last_snapshot_id = 0
         self.last_run_used_db_cache = False
 
+        def tick(pct: float) -> None:
+            if progress_callback is not None:
+                progress_callback(float(pct))
+
+        tick(8.0)
         probe = self._probe(strategy_name=strategy_name, strategy_info=strategy_info)
         stock_list = stock_ids_for_db_cache_fingerprint(
             probe.output_version_dir,
@@ -117,7 +126,9 @@ class PriceFactorFlow(BaseSimulationFlow):
 
         data_mgr = DataManager(is_verbose=False)
         latest_completed_trading_date = str(
-            data_mgr.service.calendar.get_latest_completed_trading_date() or ""
+            data_mgr.stock.kline.load_latest_date("daily")
+            or data_mgr.service.calendar.get_latest_completed_trading_date()
+            or ""
         ).strip()
 
         resolved_probe = resolve_db_cache_fingerprints(
@@ -127,6 +138,7 @@ class PriceFactorFlow(BaseSimulationFlow):
             latest_completed_trading_date=latest_completed_trading_date,
         )
 
+        tick(10.0)
         if resolved_probe is not None and not self._force_refresh:
             hit = lookup_price_factor_cache(
                 strategy_name,
@@ -137,11 +149,16 @@ class PriceFactorFlow(BaseSimulationFlow):
                 summary, snapshot_id = hit
                 self.last_snapshot_id = int(snapshot_id or 0)
                 self.last_run_used_db_cache = True
+                tick(92.0)
                 return summary
 
+        tick(12.0)
         preprocessed = self._finish_probe(probe)
-        executed = self.execute(preprocessed)
+        tick(14.0)
+        executed = self.execute(preprocessed, progress_callback=tick)
+        tick(90.0)
         summary = self.postprocess(preprocessed, executed)
+        tick(94.0)
 
         if summary and isinstance(summary, dict):
             raw_save = raw_settings_for_db_cache_fingerprint(
@@ -173,7 +190,12 @@ class PriceFactorFlow(BaseSimulationFlow):
         probe = self._probe(strategy_name=strategy_name, strategy_info=strategy_info)
         return self._finish_probe(probe)
 
-    def execute(self, preprocessed: PriceFactorPreprocessContext) -> PriceFactorExecuteContext:
+    def execute(
+        self,
+        preprocessed: PriceFactorPreprocessContext,
+        *,
+        progress_callback: Optional[Callable[[float], None]] = None,
+    ) -> PriceFactorExecuteContext:
         jobs = self._impl.build_worker_jobs(
             strategy_name=preprocessed.strategy_name,
             sim_version_dir=preprocessed.sim_version_dir,
@@ -181,7 +203,9 @@ class PriceFactorFlow(BaseSimulationFlow):
             config=preprocessed.simulator_config,
         )
         results = self._impl.run_worker_jobs(
-            jobs=jobs, max_workers=preprocessed.simulator_config.max_workers
+            jobs=jobs,
+            max_workers=preprocessed.simulator_config.max_workers,
+            progress_callback=progress_callback,
         )
         collected = self._impl.collect_stock_summaries(results)
         return PriceFactorExecuteContext(

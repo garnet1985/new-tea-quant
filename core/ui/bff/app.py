@@ -7,6 +7,7 @@ from flask_cors import CORS
 from .APIs.health import health_api_bp
 from .APIs.setup import setup_api_bp
 from .APIs.strategy_workbench import strategy_workbench_api_bp
+from .APIs.strategy_scan import strategy_scan_api_bp
 from .conf import conf
 
 def create_app():
@@ -27,6 +28,7 @@ def create_app():
     app.register_blueprint(health_api_bp, url_prefix='/api')
     app.register_blueprint(setup_api_bp, url_prefix='/api')
     app.register_blueprint(strategy_workbench_api_bp, url_prefix='/api')
+    app.register_blueprint(strategy_scan_api_bp, url_prefix='/api')
     
     # 添加根路径重定向到API文档
     @app.route('/', methods=['GET'])
@@ -40,11 +42,7 @@ def create_app():
                 "setup_definition": "/api/v1/setup/definition",
                 "setup_status": "/api/v1/setup/status",
                 "setup_start": "/api/v1/setup/start",
-                "strategies": "/api/v1/strategies",
-                "strategy_settings_get": "/api/v1/strategies/{strategy_name}/settings",
-                "strategy_settings_save": "/api/v1/strategies/{strategy_name}/settings",
-                "strategies_settings_options_allocation_modes": "/api/v1/strategies/settings-options/allocation-modes",
-                "strategies_settings_options_sampling_strategies": "/api/v1/strategies/settings-options/sampling-strategies",
+                "strategy_workbench_v2": "见 core/ui/fed/.../strategyWorkbenchPage/API.md（前缀 /api）",
             },
             "docs": "所有API端点都在 /api 前缀下"
         }
@@ -59,4 +57,9 @@ if __name__ == "__main__":
     port = int(conf["PORT"])
     debug = bool(conf["DEBUG"])
 
-    app.run(host=host, port=port, debug=debug, threaded=True)
+    app.run(
+        host=host,
+        port=port,
+        debug=debug,
+        threaded=bool(conf.get("THREADED", False)),
+    )

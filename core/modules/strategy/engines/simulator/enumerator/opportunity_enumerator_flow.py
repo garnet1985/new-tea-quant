@@ -82,7 +82,9 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
 
         data_mgr = DataManager(is_verbose=False)
         latest_completed_trading_date = str(
-            data_mgr.service.calendar.get_latest_completed_trading_date() or ""
+            data_mgr.stock.kline.load_latest_date("daily")
+            or data_mgr.service.calendar.get_latest_completed_trading_date()
+            or ""
         ).strip()
 
         resolved_probe = resolve_db_cache_fingerprints(
@@ -103,6 +105,27 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
                 summary_list, snapshot_id = hit
                 self.last_snapshot_id = int(snapshot_id or 0)
                 self.last_run_used_db_cache = True
+                # 缓存命中不跑 worker，原无中间进度落盘；工作台 GET progress 在内存丢失时会读此文件，故在此写入终态。
+                wn = self._impl.workbench_strategy_name
+                wr = self._impl.workbench_run_id
+                if wn and wr:
+                    from core.modules.strategy.services.progress import ProgressRecorder
+
+                    sn, rid = str(wn).strip(), str(wr).strip()
+                    rec = ProgressRecorder.for_strategy_run_step(sn, rid, "enum")
+                    sid = int(snapshot_id or 0)
+                    rec.record(
+                        {
+                            "strategy_name": sn,
+                            "run_id": rid,
+                            "step_name": "enum",
+                            "phase": "cache_hit",
+                            "done_jobs": 0,
+                            "total_jobs": 0,
+                            "progress_pct": 100,
+                            "snapshot_id": sid,
+                        }
+                    )
                 return summary_list
 
         preprocessed = self._preprocess_finish(probe)
@@ -232,23 +255,17 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             success_count=aggregate["success_count"],
             aggregate_profiler=preprocessed.aggregate_profiler,
         )
-        self._impl.save_metadata(
+        enum_bff_payload = self._impl.save_metadata(
             strategy_name=preprocessed.strategy_name,
             output_dir=preprocessed.output_dir,
             version_id=preprocessed.version_id,
             version_dir_name=preprocessed.version_dir_name,
-            opportunity_count=aggregate["total_opportunities"],
             settings_snapshot=preprocessed.settings_payload,
             enum_settings=preprocessed.enum_settings,
             fingerprint=result_fingerprint,
             status="completed",
         )
-        self._impl.cleanup_versions(
-            output_dir=preprocessed.output_dir,
-            strategy_name=preprocessed.strategy_name,
-            enum_settings=preprocessed.enum_settings,
-        )
-        return self._impl.build_result_report(
+        summary_list = self._impl.build_result_report(
             strategy_name=preprocessed.strategy_name,
             version_id=preprocessed.version_id,
             version_dir_name=preprocessed.version_dir_name,
@@ -259,7 +276,15 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             completed_count=aggregate["completed_count"],
             unfinished_count=aggregate["unfinished_count"],
             start_time=preprocessed.start_time,
+            output_dir=preprocessed.output_dir,
+            enum_bff_payload=enum_bff_payload,
         )
+        self._impl.cleanup_versions(
+            output_dir=preprocessed.output_dir,
+            strategy_name=preprocessed.strategy_name,
+            enum_settings=preprocessed.enum_settings,
+        )
+        return summary_list
 
 
 __all__ = ["OpportunityEnumeratorFlow"]

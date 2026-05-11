@@ -23,14 +23,11 @@ class ScanDateResolver:
         return scan_date, stock_ids
 
     def _resolve_non_strict_date(self) -> tuple[str, List[str]]:
-        sql = """
-            SELECT MAX(date) as max_date
-            FROM sys_stock_klines
-        """
-        results = self.data_manager.db.execute_sync_query(sql)
-        if not results or not results[0].get("max_date"):
-            raise ValueError("no kline data in db")
-        scan_date = str(results[0]["max_date"])
+        # Non-strict: use DB-resident latest daily kline date as scan cutoff.
+        # Requirement: align with kline model/service ``load_latest_date('daily')``.
+        scan_date = str(self.data_manager.stock.kline.load_latest_date("daily") or "").strip()
+        if not scan_date:
+            raise ValueError("no daily kline data in db")
         stock_ids = self._get_stocks_with_kline(scan_date)
         if not stock_ids:
             raise ValueError(f"no kline data on {scan_date}")

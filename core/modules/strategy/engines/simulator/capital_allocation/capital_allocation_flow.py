@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional
 
 from core.modules.strategy.engines.simulator.base_flow import BaseSimulationFlow
 from core.modules.strategy.engines.simulator.capital_allocation.data_classes.flow_context import (
@@ -35,10 +35,14 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         self,
         strategy_name: str,
         strategy_info: Optional["DiscoveredStrategy"] = None,
+        *,
+        progress_callback: Optional[Callable[[float], None]] = None,
     ) -> Any:
         """
         指纹探针 → DbCache 命中则直接返回 session summary → 否则 preprocess → execute →
         postprocess → 写 ``capital_allocation`` 槽位。
+
+        ``progress_callback``：工作台轮询用；传入 0～100 的磁盘进度百分比（完成前宜小于 100）。
         """
         from core.modules.data_manager import DataManager
         from core.modules.strategy.engines.simulator.price_factor.price_factor_flow_impl import (
@@ -54,6 +58,12 @@ class CapitalAllocationFlow(BaseSimulationFlow):
 
         self.last_snapshot_id = 0
         self.last_run_used_db_cache = False
+
+        def tick(pct: float) -> None:
+            if progress_callback is not None:
+                progress_callback(float(pct))
+
+        tick(8.0)
 
         base_settings = self._impl.load_settings(strategy_name, strategy_info)
         config = self._impl.parse_config(base_settings)
@@ -73,7 +83,9 @@ class CapitalAllocationFlow(BaseSimulationFlow):
 
         data_mgr = DataManager(is_verbose=False)
         latest_completed_trading_date = str(
-            data_mgr.service.calendar.get_latest_completed_trading_date() or ""
+            data_mgr.stock.kline.load_latest_date("daily")
+            or data_mgr.service.calendar.get_latest_completed_trading_date()
+            or ""
         ).strip()
 
         resolved = resolve_db_cache_fingerprints(
@@ -82,6 +94,8 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             stock_list=list(stock_list),
             latest_completed_trading_date=latest_completed_trading_date,
         )
+
+        tick(10.0)
 
         if resolved is not None and not self._force_refresh:
             hit = lookup_capital_allocation_cache(
@@ -93,7 +107,10 @@ class CapitalAllocationFlow(BaseSimulationFlow):
                 summary, snapshot_id = hit
                 self.last_snapshot_id = int(snapshot_id or 0)
                 self.last_run_used_db_cache = True
+                tick(92.0)
                 return summary
+
+        tick(12.0)
 
         sim_version_dir, sim_version_id = self._impl.create_simulation_version(strategy_name)
         profiler = self._impl.create_profiler()
@@ -106,8 +123,11 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             sim_version_id=sim_version_id,
             profiler=profiler,
         )
-        executed = self.execute(preprocessed)
+        tick(14.0)
+        executed = self.execute(preprocessed, progress_callback=tick)
+        tick(90.0)
         summary = self.postprocess(preprocessed, executed)
+        tick(94.0)
 
         if summary and isinstance(summary, dict):
             raw_save = raw_settings_for_db_cache_fingerprint(base_settings, strategy_info)
@@ -162,7 +182,10 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         )
 
     def execute(
-        self, preprocessed: CapitalAllocationPreprocessContext
+        self,
+        preprocessed: CapitalAllocationPreprocessContext,
+        *,
+        progress_callback: Optional[Callable[[float], None]] = None,
     ) -> CapitalAllocationExecuteContext:
         # step1: load ordered event stream from output artifacts
         events = self._impl.load_event_stream(
@@ -172,7 +195,11 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             base_settings=preprocessed.base_settings,
             profiler=preprocessed.profiler,
         )
+        if progress_callback is not None:
+            progress_callback(18.0)
         if not events:
+            if progress_callback is not None:
+                progress_callback(88.0)
             return CapitalAllocationExecuteContext(empty=True)
         # step2: initialize account/funding/allocation execution state
         state = self._impl.create_execution_state(preprocessed.config)
@@ -182,9 +209,12 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             config=preprocessed.config,
             state=state,
             profiler=preprocessed.profiler,
+            progress_callback=progress_callback,
         )
         # step4: flush final day equity snapshot
         self._impl.finalize_equity_curve(config=preprocessed.config, state=state)
+        if progress_callback is not None:
+            progress_callback(89.0)
         return CapitalAllocationExecuteContext(
             empty=False,
             events=events,

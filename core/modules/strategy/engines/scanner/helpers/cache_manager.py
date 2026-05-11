@@ -35,7 +35,7 @@ class ScanCacheManager:
                 elif isinstance(value, dict):
                     import json
 
-                    row[key] = json.dumps(value, ensure_ascii=False)
+                    row[key] = json.dumps(value, ensure_ascii=False, default=str)
                 elif not isinstance(value, (str, int, float, bool)):
                     row[key] = str(value)
             rows.append(row)

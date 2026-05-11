@@ -1,10 +1,9 @@
 """
-后端 **枚举运行期胶水**（启动 ``OpportunityEnumeratorFlow``、universe、运行期指纹等）。
+策略 **launcher**：运行期启动与工作台入口（枚举 Flow、universe、指纹、工作台 latest 等）。
 
-**不属于 DbCache**：与「按指纹读写快照表」无关；位于 ``strategy.services.runtime``，与 ``StrategyEnumeratorBootstrapService`` 等并列。
-``finger_print`` 通过相对导入引用本包中的 ``run_types`` / ``run_service``（惰性子导出），避免循环依赖。
+与 ``cache.simulator_res_db_cache``（DbCache）分列：本包不做「按指纹命中缓存」编排。
 
-惰性导出 ``EnumeratorRuntimeService`` / ``EnumeratorRuntimeContext``，避免顶层直接 import ``enumerator_runtime_service`` 触发初始化顺序问题。
+惰性子导出减轻 import 成本；``fetch_latest_workbench_snapshot`` 见 ``workbench`` 模块。
 """
 
 from __future__ import annotations
@@ -15,6 +14,7 @@ __all__ = [
     "EnumeratorRuntimeContext",
     "EnumeratorRuntimeService",
     "StrategySettingsService",
+    "fetch_latest_workbench_snapshot",
 ]
 
 
@@ -28,9 +28,13 @@ def __getattr__(name: str) -> Any:
 
         return EnumeratorRuntimeService
     if name == "StrategySettingsService":
-        from .strategy_settings_service import StrategySettingsService
+        from .run_service import StrategySettingsService
 
         return StrategySettingsService
+    if name == "fetch_latest_workbench_snapshot":
+        from .workbench import fetch_latest_workbench_snapshot
+
+        return fetch_latest_workbench_snapshot
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 

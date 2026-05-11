@@ -67,7 +67,18 @@ class OpportunityEnumeratorWorker:
             # step3: enumerate opportunities over kline timeline
             all_klines = self.data_manager.get_klines()
             if not all_klines or len(all_klines) < self.settings.min_required_records:
-                return {"success": True, "stock_id": self.stock_id, "opportunity_count": 0}
+                bundle = self._empty_enumeration_report_bundle()
+                return {
+                    "success": True,
+                    "stock_id": self.stock_id,
+                    "opportunity_count": 0,
+                    "completed_count": 0,
+                    "unfinished_count": 0,
+                    "stock_name": str((self.stock_info or {}).get("name") or self.stock_id),
+                    "completion_rate": 0.0,
+                    "avg_opportunity_interval_days": 0.0,
+                    "enumeration_report_bundle": bundle,
+                }
             tracker = self._enumerate_opportunities(all_klines)
             # step4: serialize opportunity objects
             opportunities_dict = self._serialize_opportunities(tracker)
@@ -75,7 +86,18 @@ class OpportunityEnumeratorWorker:
             return self._finalize_success_result(all_klines, opportunities_dict)
         except Exception as exc:
             logger.error("enumeration failed: stock_id=%s, error=%s", self.stock_id, exc, exc_info=True)
-            return {"success": False, "stock_id": self.stock_id, "opportunity_count": 0, "error": str(exc)}
+            return {
+                "success": False,
+                "stock_id": self.stock_id,
+                "opportunity_count": 0,
+                "completed_count": 0,
+                "unfinished_count": 0,
+                "stock_name": str((self.stock_info or {}).get("name") or self.stock_id),
+                "completion_rate": 0.0,
+                "avg_opportunity_interval_days": 0.0,
+                "enumeration_report_bundle": self._empty_enumeration_report_bundle(),
+                "error": str(exc),
+            }
 
     def _prepare_actual_start_date(self) -> str:
         lookback_days = min(self.settings.min_required_records, MAX_LOOKBACK_DAYS)
@@ -172,14 +194,107 @@ class OpportunityEnumeratorWorker:
                     completed_count += 1
         self.profiler.metrics.time_total = self.profiler.end_timer("total")
         metrics = self.profiler.finalize()
+        n = len(opportunities_dict)
+        completion_rate = round((completed_count / n) * 100.0, 1) if n else 0.0
+        avg_gap = self._avg_trigger_gap_days(opportunities_dict)
+        display_name = str((self.stock_info or {}).get("name") or self.stock_id)
+        enum_bundle = self._build_enumeration_report_bundle(opportunities_dict)
         return {
             "success": True,
             "stock_id": self.stock_id,
-            "opportunity_count": len(opportunities_dict),
+            "stock_name": display_name,
+            "opportunity_count": n,
             "completed_count": completed_count,
             "unfinished_count": unfinished_count,
+            "completion_rate": completion_rate,
+            "avg_opportunity_interval_days": avg_gap,
             "performance_metrics": metrics.to_dict(),
+            "enumeration_report_bundle": enum_bundle,
         }
+
+    def _empty_enumeration_report_bundle(self) -> Dict[str, Any]:
+        display_name = str((self.stock_info or {}).get("name") or self.stock_id)
+        return {
+            "stock_name": display_name,
+            "opportunity_count": 0,
+            "report_completed_count": 0,
+            "report_unfinished_count": 0,
+            "status_completed_count": 0,
+            "trigger_gap_days": [],
+            "holding_duration_days": [],
+        }
+
+    def _build_enumeration_report_bundle(self, opportunities_dict: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """供主进程汇总 ``enumMetrics``，避免再读该股 CSV。字段语义与 ``EnumeratorReport.from_opportunities`` 一致。"""
+        display_name = str((self.stock_info or {}).get("name") or self.stock_id)
+        if not opportunities_dict:
+            return {
+                **self._empty_enumeration_report_bundle(),
+                "stock_name": display_name,
+            }
+        report_completed = 0
+        report_unfinished = 0
+        for opportunity in opportunities_dict:
+            sell_reason = str(opportunity.get("sell_reason", "") or "").lower()
+            if sell_reason in {"enumeration_end", "backtest_end"}:
+                report_unfinished += 1
+            else:
+                status = str(opportunity.get("status", "") or "").lower()
+                if status in {"open", "active", "testing"}:
+                    report_unfinished += 1
+                else:
+                    report_completed += 1
+        status_completed = sum(
+            1 for o in opportunities_dict if str((o or {}).get("status") or "").lower() == "completed"
+        )
+        sorted_rows = sorted(
+            opportunities_dict,
+            key=lambda r: str((r or {}).get("trigger_date") or ""),
+        )
+        trigger_dates: List[str] = []
+        for r in sorted_rows:
+            d = DateUtils.normalize_str(str((r or {}).get("trigger_date") or ""))
+            if isinstance(d, str) and d:
+                trigger_dates.append(d)
+        gaps: List[float] = []
+        for idx in range(1, len(trigger_dates)):
+            gaps.append(float(DateUtils.diff_days(trigger_dates[idx - 1], trigger_dates[idx])))
+        durations: List[float] = []
+        for r in sorted_rows:
+            d0 = DateUtils.normalize_str(str((r or {}).get("trigger_date") or ""))
+            d1 = DateUtils.normalize_str(str((r or {}).get("sell_date") or ""))
+            if d0 and d1:
+                durations.append(float(DateUtils.diff_days(d0, d1)))
+        return {
+            "stock_name": display_name,
+            "opportunity_count": len(opportunities_dict),
+            "report_completed_count": report_completed,
+            "report_unfinished_count": report_unfinished,
+            "status_completed_count": status_completed,
+            "trigger_gap_days": gaps,
+            "holding_duration_days": durations,
+        }
+
+    @staticmethod
+    def _avg_trigger_gap_days(opportunities_dict: List[Dict[str, Any]]) -> float:
+        """相邻两次机会触发日（trigger_date）之间的间隔天数均值；不足 2 个触发则 0。"""
+        if not opportunities_dict or len(opportunities_dict) < 2:
+            return 0.0
+        sorted_rows = sorted(
+            opportunities_dict,
+            key=lambda r: str((r or {}).get("trigger_date") or ""),
+        )
+        trigger_dates: List[str] = []
+        for r in sorted_rows:
+            d = DateUtils.normalize_str(str((r or {}).get("trigger_date") or ""))
+            if isinstance(d, str) and d:
+                trigger_dates.append(d)
+        if len(trigger_dates) < 2:
+            return 0.0
+        gaps: List[float] = []
+        for idx in range(1, len(trigger_dates)):
+            gaps.append(float(DateUtils.diff_days(trigger_dates[idx - 1], trigger_dates[idx])))
+        return round(sum(gaps) / len(gaps), 1) if gaps else 0.0
 
     def _get_date_before(self, date_str: str, days: int) -> str:
         try:

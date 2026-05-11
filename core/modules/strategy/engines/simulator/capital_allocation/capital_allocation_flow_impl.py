@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 import json
 
 from core.modules.strategy.engines.analyzer import Analyzer
@@ -37,6 +37,166 @@ if TYPE_CHECKING:
     from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
         DiscoveredStrategy,
     )
+
+
+def _downsample_indices(n: int, max_points: int = 80) -> List[int]:
+    if n <= 0:
+        return []
+    if n <= max_points:
+        return list(range(n))
+    out: List[int] = []
+    for k in range(max_points):
+        idx = int(round(k * (n - 1) / max(1, max_points - 1)))
+        out.append(min(idx, n - 1))
+    return sorted(set(out))
+
+
+def _profit_cv(values: List[float]) -> float:
+    vals = [float(v) for v in values if isinstance(v, (int, float))]
+    if len(vals) < 2:
+        return 0.0
+    mean = sum(vals) / len(vals)
+    if abs(mean) < 1e-12:
+        return 0.0
+    var = sum((x - mean) ** 2 for x in vals) / (len(vals) - 1)
+    return (var**0.5) / abs(mean)
+
+
+def _merge_bff_ui_extensions(
+    core: Dict[str, Any],
+    *,
+    trades: List[Dict[str, Any]],
+    equity_curve: List[Dict[str, Any]],
+    initial_capital: float,
+) -> Dict[str, Any]:
+    """补充 FED 报告 Tab 所需图表序列与仓位/风险派生指标（与 ``CapitalReport.to_dict()`` 并存）。"""
+    out = dict(core)
+    ic = float(out.get("initial_capital", initial_capital) or 0.0)
+    fe = float(out.get("final_total_equity", out.get("final_equity", 0.0)) or 0.0)
+    tr_ratio = float(out.get("total_return", 0.0) or 0.0)
+    mdd_ratio = float(out.get("max_drawdown", 0.0) or 0.0)
+
+    calmar = (
+        (tr_ratio / mdd_ratio) if mdd_ratio > 1e-12 else 0.0
+    )
+
+    points = list(equity_curve or [])
+    if not points and ic >= 0:
+        fcash = float(out.get("final_cash_balance", fe) or 0.0)
+        points = [
+            {"date": "期初", "cash_balance": ic, "total_equity": ic, "open_positions": 0},
+            {
+                "date": "期末",
+                "cash_balance": fcash,
+                "total_equity": fe,
+                "open_positions": 0,
+            },
+        ]
+
+    labels_full: List[str] = []
+    vals_full: List[float] = []
+    opens_full: List[float] = []
+    cash_full: List[float] = []
+    for p in points:
+        raw_d = p.get("date", "")
+        labels_full.append(str(raw_d)[:16] if raw_d is not None else "")
+        vals_full.append(float(p.get("total_equity", 0.0) or 0.0))
+        opens_full.append(float(p.get("open_positions", 0) or 0))
+        te = float(p.get("total_equity", 0.0) or 1.0)
+        cb = float(p.get("cash_balance", 0.0) or 0.0)
+        cash_full.append((cb / te * 100.0) if te > 1e-9 else 0.0)
+
+    idxs = _downsample_indices(len(vals_full), 80)
+    equity_curve_labels = [labels_full[i] for i in idxs]
+    equity_curve_values = [vals_full[i] for i in idxs]
+
+    peak_run = ic
+    drawdown_curve_values: List[float] = []
+    for v in vals_full:
+        peak_run = max(peak_run, v)
+        dd_pct = ((peak_run - v) / peak_run * 100.0) if peak_run > 1e-9 else 0.0
+        drawdown_curve_values.append(round(dd_pct, 4))
+    drawdown_ds = [drawdown_curve_values[i] for i in idxs]
+
+    peak_open = max(opens_full) if opens_full else 0.0
+    avg_open = sum(opens_full) / len(opens_full) if opens_full else 0.0
+    n_days = len(opens_full)
+    full_exp_days = (
+        sum(1 for o in opens_full if peak_open > 0 and o >= peak_open - 0.5)
+        if peak_open > 0
+        else 0
+    )
+    full_exp_ratio_pct = (full_exp_days / n_days * 100.0) if n_days else 0.0
+    avg_cash_pct = sum(cash_full) / len(cash_full) if cash_full else 0.0
+    cap_util_pct = max(0.0, min(100.0, 100.0 - avg_cash_pct))
+
+    dd_thresh = 0.5
+    max_dd_duration = 0
+    run_len = 0
+    for dd in drawdown_curve_values:
+        if dd > dd_thresh:
+            run_len += 1
+            max_dd_duration = max(max_dd_duration, run_len)
+        else:
+            run_len = 0
+
+    sell_trades = [t for t in trades if t.get("side") == "sell"]
+    sell_pnls = [float(t.get("pnl", 0.0) or 0.0) for t in sell_trades]
+    sell_pnls.sort()
+    worst3 = sell_pnls[:3]
+    while len(worst3) < 3:
+        worst3.append(0.0)
+
+    max_loss_streak = 0
+    streak = 0
+    for t in sorted(sell_trades, key=lambda x: str(x.get("date", ""))):
+        pnl = float(t.get("pnl", 0.0) or 0.0)
+        if pnl < 0:
+            streak += 1
+            max_loss_streak = max(max_loss_streak, streak)
+        else:
+            streak = 0
+
+    stock_summary = out.get("stock_summary") or {}
+    per_stock_profit = [
+        float(v.get("total_profit", 0.0) or 0.0)
+        for v in stock_summary.values()
+        if isinstance(v, dict)
+    ]
+    positive_sum = sum(x for x in per_stock_profit if x > 0)
+    top5_sum = sum(sorted((x for x in per_stock_profit if x > 0), reverse=True)[:5])
+    top5_conc_pct = (top5_sum / positive_sum * 100.0) if positive_sum > 1e-9 else 0.0
+    stock_cv = _profit_cv(per_stock_profit)
+
+    sell_n = int(out.get("sell_trades", 0) or 0)
+    stock_cnt = len(stock_summary) if stock_summary else 0
+    avg_trades_ps = sell_n / stock_cnt if stock_cnt else 0.0
+
+    out["equity_curve_labels"] = equity_curve_labels
+    out["equity_curve_values"] = equity_curve_values
+    out["drawdown_curve_values"] = drawdown_ds
+    out["calmar_ratio"] = round(calmar, 4)
+    out["average_open_positions"] = round(avg_open, 3)
+    out["peak_open_positions"] = int(round(peak_open))
+    out["full_exposure_days_ratio_pct"] = round(full_exp_ratio_pct, 2)
+    out["average_cash_ratio_pct"] = round(avg_cash_pct, 2)
+    out["capital_utilization_ratio_pct"] = round(cap_util_pct, 2)
+    out["max_consecutive_losing_sells"] = int(max_loss_streak)
+    out["max_drawdown_duration_days"] = int(max_dd_duration)
+    out["worst_sell_pnls"] = [round(x, 2) for x in worst3[:3]]
+    out["stock_count"] = stock_cnt
+    out["average_trades_per_stock"] = round(avg_trades_ps, 4)
+    out["top5_profit_concentration_pct"] = round(top5_conc_pct, 2)
+    out["stock_profit_coefficient_of_variation"] = round(stock_cv, 4)
+
+    tp = float(out.get("total_profit", 0.0) or 0.0)
+    out["profit"] = tp
+    out["initialCapital"] = ic
+    out["endCapital"] = fe
+    ret_pct_out = tr_ratio * 100.0 if abs(tr_ratio) <= 2.0 else tr_ratio
+    out["retPct"] = round(ret_pct_out, 4)
+
+    return out
 
 
 class CapitalAllocationFlowImpl:
@@ -146,12 +306,15 @@ class CapitalAllocationFlowImpl:
         config: StrategyCapitalSimulatorSettings,
         state: Dict[str, Any],
         profiler: PerformanceProfiler,
+        progress_callback: Optional[Callable[[float], None]] = None,
     ) -> None:
         profiler.start_timer("enumerate")
         account = state["account"]
         allocation_strategy = state["allocation_strategy"]
         fee_calculator = state["fee_calculator"]
-        for event in events:
+        n_ev = len(events)
+        step_report = max(1, n_ev // 80)
+        for i, event in enumerate(events):
             if event.date != state["current_date"]:
                 if state["current_date"] is not None and config.output.save_equity_curve:
                     state["equity_curve"].append(
@@ -182,6 +345,10 @@ class CapitalAllocationFlowImpl:
                 )
                 if trade:
                     state["trades"].append(trade)
+            if progress_callback is not None and n_ev:
+                if i % step_report == 0 or i == n_ev - 1:
+                    frac = (i + 1) / n_ev
+                    progress_callback(min(88.0, 15.0 + frac * 73.0))
         profiler.metrics.time_enumerate = profiler.end_timer("enumerate")
 
     def finalize_equity_curve(
@@ -211,13 +378,19 @@ class CapitalAllocationFlowImpl:
         events: List[SimulationEvent],
         completed_opportunities_map: Dict[str, Dict[str, Any]],
     ) -> Dict[str, Any]:
-        return self._calculate_summary(
+        core = self._calculate_summary(
             account,
             trades,
             equity_curve,
             initial_capital,
             events,
             completed_opportunities_map,
+        )
+        return _merge_bff_ui_extensions(
+            core,
+            trades=trades,
+            equity_curve=equity_curve,
+            initial_capital=float(initial_capital or 0.0),
         )
 
     def save_outputs(

@@ -1,40 +1,60 @@
 import React, { useMemo, useState } from 'react';
 import { Box, Stack, Typography } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
-import { buildCapitalSampleStockRows } from '../../../mocks/strategyReportSampleRows';
 import MetricCard from 'components/metricCard/metricCard';
 import { SectionBlock } from 'components/sectionBlock/sectionBlock';
 import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
+import { formatReportChartDateLabel } from '../lib/reportDateFormat';
+import ReportUnavailableHint from '../components/ReportUnavailableHint';
+import {
+  REPORT_CHART_AXIS_LABEL,
+  REPORT_CHART_AXIS_LINE,
+  REPORT_CHART_GRID_BASE,
+  REPORT_CHART_SPLIT_LINE,
+} from '../lib/reportChartsTheme';
 
-const CAPITAL_STOCK_SORT_MENU = [
-  { value: 'default', label: '接口顺序' },
-  { value: 'pnlDesc', label: '累计盈亏（高到低）' },
-  { value: 'tradeCountDesc', label: '交易次数（高到低）' },
-  { value: 'winRateDesc', label: '胜率（高到低）' },
-];
+/** 资产曲线纵轴按数据区间缩放（不再默认贴 0），少量留白便于读出波动 */
+function equityAxisMinMax(equityCurveValues) {
+  const nums = (equityCurveValues || [])
+    .map((v) => Number(v))
+    .filter((v) => Number.isFinite(v));
+  if (nums.length === 0) return {};
+  const minV = Math.min(...nums);
+  const maxV = Math.max(...nums);
+  const span = Math.max(maxV - minV, Math.abs(minV) * 0.02, Math.abs(maxV) * 0.02, 1);
+  const pad = span * 0.12;
+  return {
+    min: minV - pad,
+    max: maxV + pad,
+  };
+}
 
 function buildEquityCurveOption(metrics) {
+  const { min: yMin, max: yMax } = equityAxisMinMax(metrics.equityCurveValues);
   return {
     animation: false,
-    grid: { left: 36, right: 10, top: 20, bottom: 28 },
+    grid: REPORT_CHART_GRID_BASE,
     xAxis: {
       type: 'category',
       data: metrics.equityCurveLabels,
       axisTick: { show: false },
-      axisLine: { lineStyle: { color: '#D0D7DE' } },
-      axisLabel: { color: '#5F6368', fontSize: 11 },
+      axisLine: REPORT_CHART_AXIS_LINE,
+      axisLabel: {
+        ...REPORT_CHART_AXIS_LABEL,
+        formatter: (v) => formatReportChartDateLabel(v),
+      },
     },
     yAxis: {
       type: 'value',
+      ...((yMin !== undefined && yMax !== undefined) ? { min: yMin, max: yMax } : {}),
       splitNumber: 4,
       axisLine: { show: false },
       axisTick: { show: false },
       axisLabel: {
-        color: '#5F6368',
-        fontSize: 11,
+        ...REPORT_CHART_AXIS_LABEL,
         formatter: (value) => `${(value / 10000).toFixed(0)}w`,
       },
-      splitLine: { lineStyle: { color: '#ECEFF1' } },
+      splitLine: REPORT_CHART_SPLIT_LINE,
     },
     series: [
       {
@@ -51,7 +71,7 @@ function buildEquityCurveOption(metrics) {
       formatter: (params) => {
         const point = params?.[0];
         if (!point) return '';
-        return `${point.axisValue}<br/>总资产：${Number(point.data).toLocaleString()}`;
+        return `${formatReportChartDateLabel(point.axisValue)}<br/>总资产：${Number(point.data).toLocaleString()}`;
       },
     },
   };
@@ -60,13 +80,16 @@ function buildEquityCurveOption(metrics) {
 function buildDrawdownCurveOption(metrics) {
   return {
     animation: false,
-    grid: { left: 36, right: 10, top: 20, bottom: 28 },
+    grid: REPORT_CHART_GRID_BASE,
     xAxis: {
       type: 'category',
       data: metrics.equityCurveLabels,
       axisTick: { show: false },
-      axisLine: { lineStyle: { color: '#D0D7DE' } },
-      axisLabel: { color: '#5F6368', fontSize: 11 },
+      axisLine: REPORT_CHART_AXIS_LINE,
+      axisLabel: {
+        ...REPORT_CHART_AXIS_LABEL,
+        formatter: (v) => formatReportChartDateLabel(v),
+      },
     },
     yAxis: {
       type: 'value',
@@ -74,8 +97,8 @@ function buildDrawdownCurveOption(metrics) {
       splitNumber: 3,
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { color: '#5F6368', fontSize: 11, formatter: '{value}%' },
-      splitLine: { lineStyle: { color: '#ECEFF1' } },
+      axisLabel: { ...REPORT_CHART_AXIS_LABEL, formatter: '{value}%' },
+      splitLine: REPORT_CHART_SPLIT_LINE,
     },
     series: [
       {
@@ -92,34 +115,28 @@ function buildDrawdownCurveOption(metrics) {
       formatter: (params) => {
         const point = params?.[0];
         if (!point) return '';
-        return `${point.axisValue}<br/>回撤：${point.data}%`;
+        return `${formatReportChartDateLabel(point.axisValue)}<br/>回撤：${point.data}%`;
       },
     },
   };
 }
 
-function CapitalAllocationReport({ metrics, stockRows, title = '资金模拟报告（草图）', showStockGrid = true }) {
+function CapitalAllocationReport({ metrics, stockRows, title = '资金模拟报告', showStockGrid = true }) {
   const [stockSearch, setStockSearch] = useState('');
-  const [stockSortBy, setStockSortBy] = useState('default');
 
-  const derivedStockRows = useMemo(() => {
-    if (Array.isArray(stockRows) && stockRows.length > 0) return stockRows;
-    return buildCapitalSampleStockRows(metrics || {});
-  }, [metrics, stockRows]);
+  const derivedStockRows = useMemo(() => (
+    Array.isArray(stockRows) && stockRows.length > 0 ? stockRows : []
+  ), [stockRows]);
 
-  const filteredAndSortedRows = useMemo(() => {
+  const filteredRows = useMemo(() => {
     const keyword = stockSearch.trim().toLowerCase();
     const filtered = keyword
       ? derivedStockRows.filter((row) => (
         row.stockCode.toLowerCase().includes(keyword) || row.stockName.toLowerCase().includes(keyword)
       ))
       : derivedStockRows;
-    const sorted = [...filtered];
-    if (stockSortBy === 'pnlDesc') sorted.sort((a, b) => b.pnl - a.pnl);
-    if (stockSortBy === 'tradeCountDesc') sorted.sort((a, b) => b.tradeCount - a.tradeCount);
-    if (stockSortBy === 'winRateDesc') sorted.sort((a, b) => b.winRate - a.winRate);
-    return sorted.slice(0, 10);
-  }, [derivedStockRows, stockSearch, stockSortBy]);
+    return filtered;
+  }, [derivedStockRows, stockSearch]);
 
   const stockColumns = [
     { field: 'stockCode', headerName: '代码', flex: 1, minWidth: 120 },
@@ -144,21 +161,23 @@ function CapitalAllocationReport({ metrics, stockRows, title = '资金模拟报�
     },
   ];
 
+  if (!metrics || typeof metrics !== 'object') {
+    return <ReportUnavailableHint />;
+  }
+
+  const showStockSampleGrid = Boolean(showStockGrid && derivedStockRows.length > 0);
+
   return (
     <Stack spacing={1.25}>
       <Typography variant="subtitle2" fontWeight={600}>{title}</Typography>
 
-      {showStockGrid ? (
+      {showStockSampleGrid ? (
         <ReportStockSampleGrid
-          title="样本股票（最多 10 只）"
-          tip="用于快速查看资金模拟阶段的单股交易结果，支持搜索和核心参数排序。"
+          title="逐股样本"
+          tip="用于查看资金模拟阶段的单股交易结果；支持搜索、表头排序与底部分页。"
           searchValue={stockSearch}
           onSearchChange={setStockSearch}
-          sortValue={stockSortBy}
-          onSortChange={setStockSortBy}
-          sortSelectLabelId="capital-stock-sort-label"
-          sortMenuItems={CAPITAL_STOCK_SORT_MENU}
-          rows={filteredAndSortedRows}
+          rows={filteredRows}
           columns={stockColumns}
         />
       ) : null}

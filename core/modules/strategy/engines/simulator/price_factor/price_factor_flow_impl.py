@@ -4,9 +4,10 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from contextvars import ContextVar
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 import json
 
 from core.modules.strategy.engines.analyzer import Analyzer
@@ -27,7 +28,31 @@ from core.modules.strategy.services.data.output import (
     StrategyOutputPathService,
     StrategyOutputVersionService,
 )
+from .session_roi_stats import (
+    collect_roi_percents_from_stock_summaries,
+    roi_distribution_session_fields,
+)
 from .worker import PriceFactorWorker
+
+# ``ProcessPoolExecutor`` 会 pickle ``ProcessWorker`` 实例；``on_job_done`` 不能是内联闭包（不可 pickle）。
+# 真实回调通过 ContextVar 注入，仅在主进程、job_finished 时调用。
+_price_factor_workbench_progress_cb: ContextVar[Optional[Callable[[float], None]]] = ContextVar(
+    "price_factor_workbench_progress_cb", default=None
+)
+
+
+def _price_factor_on_process_worker_job_finished(payload: Dict[str, Any]) -> None:
+    """供 ``ProcessWorker(..., on_job_done=...)``；须模块级可 pickle。"""
+    cb = _price_factor_workbench_progress_cb.get()
+    if cb is None:
+        return
+    try:
+        w = float(payload.get("progress_pct") or 0)
+    except (TypeError, ValueError):
+        w = 0.0
+    disk = 15.0 + (max(0.0, min(100.0, w)) / 100.0) * 73.0
+    cb(min(88.0, disk))
+
 
 if TYPE_CHECKING:
     from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
@@ -102,6 +127,7 @@ class PriceFactorFlowImpl:
         *,
         jobs: List[Dict[str, Any]],
         max_workers: "str | int",
+        progress_callback: Optional[Callable[[float], None]] = None,
     ) -> List[Dict[str, Any]]:
         from core.infra.worker import (
             ProcessExecutionMode,
@@ -110,17 +136,34 @@ class PriceFactorFlowImpl:
         )
 
         if not jobs:
+            if progress_callback is not None:
+                progress_callback(88.0)
             return []
-        worker_pool = ProcessWorker(
-            max_workers=ProcessWorker.resolve_max_workers(
-                max_workers, module_name="PriceFactorSimulator"
-            ),
-            execution_mode=ProcessExecutionMode.QUEUE,
-            job_executor=PriceFactorWorker.execute_job,
-            is_verbose=self.is_verbose,
-        )
-        process_jobs = [{"id": job["stock_id"], "payload": job} for job in jobs]
-        worker_pool.run_jobs(process_jobs)
+
+        ctx_token = None
+        if progress_callback is not None:
+            ctx_token = _price_factor_workbench_progress_cb.set(progress_callback)
+        try:
+            worker_pool = ProcessWorker(
+                max_workers=ProcessWorker.resolve_max_workers(
+                    max_workers, module_name="PriceFactorSimulator"
+                ),
+                execution_mode=ProcessExecutionMode.QUEUE,
+                job_executor=PriceFactorWorker.execute_job,
+                on_job_done=(
+                    _price_factor_on_process_worker_job_finished
+                    if progress_callback is not None
+                    else None
+                ),
+                is_verbose=self.is_verbose,
+            )
+            process_jobs = [{"id": job["stock_id"], "payload": job} for job in jobs]
+            worker_pool.run_jobs(process_jobs)
+        finally:
+            if ctx_token is not None:
+                _price_factor_workbench_progress_cb.reset(ctx_token)
+        if progress_callback is not None:
+            progress_callback(88.0)
         results: List[Dict[str, Any]] = []
         for jr in worker_pool.get_results():
             if jr.status == ProcessJobStatus.COMPLETED:
@@ -154,11 +197,17 @@ class PriceFactorFlowImpl:
         sim_version_dir: Path,
         sim_version_id: int,
     ) -> Dict[str, Any]:
+        """聚合整轮逐股 worker 结果；与枚举器不同处：**不存在**「再扫磁盘逐文件」二次汇总——
+        ``stock_summaries`` 已在内存中收齐，落盘 ``0_session_summary.json`` 的单 dict 即为权威摘要。
+        （枚举器曾优化为优先读 ``0_report_enum.json`` 以避免 ``EnumeratorReport.load`` 重负载；价格侧无对等重路径。）
+        """
         if not stock_summaries:
             return {}
 
         report = PriceReport.from_stock_summaries(stock_summaries)
         session_summary = report.to_dict()
+        roi_pcts = collect_roi_percents_from_stock_summaries(stock_summaries)
+        session_summary.update(roi_distribution_session_fields(roi_pcts))
         session_summary["output_version"] = {
             "version_dir": output_version_dir.name,
             "output_root": str(output_root.name),

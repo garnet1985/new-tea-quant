@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Enumerator data classes."""
 
-from core.modules.strategy.services.runtime.run_types import (
+from core.modules.strategy.services.launcher.run_types import (
     StrategyRunFingerprint,
 )
 from .settings import OpportunityEnumeratorSettings

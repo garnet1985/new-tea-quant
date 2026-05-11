@@ -29,7 +29,7 @@
 
 .nav {
   background-color: #333;
-  color: white;
+  color: var(--ntq-text);
 }
 
 .nav-content {
@@ -44,7 +44,7 @@
 }
 
 .nav-links a {
-  color: white;
+  color: var(--ntq-text);
   text-decoration: none;
   padding: 0.5rem 1rem;
   border-radius: 4px;
@@ -80,7 +80,7 @@
 
 .btn {
   background-color: #007bff;
-  color: white;
+  color: var(--ntq-text);
   border: none;
   padding: 0.5rem 1rem;
   border-radius: 4px;
@@ -297,7 +297,7 @@
 
 .btn-small {
   background-color: #007bff;
-  color: white;
+  color: var(--ntq-text);
   border: none;
   padding: 0.35rem 0.75rem;
   border-radius: 4px;

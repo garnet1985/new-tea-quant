@@ -21,8 +21,8 @@ const theme = createTheme({
       paper: 'rgba(255, 255, 255, 0.06)', // glass surface
     },
     text: {
-      primary: 'rgba(255, 255, 255, 0.98)',
-      secondary: 'rgba(255, 255, 255, 0.75)',
+      primary: 'rgba(255, 255, 255, 0.86)',
+      secondary: 'rgba(255, 255, 255, 0.62)',
     },
     divider: 'rgba(255, 255, 255, 0.12)',
   },

@@ -49,9 +49,9 @@ function formatCapitalPct(value) {
 
 function StepRunButtonIcon({ done }) {
   return done ? (
-    <RefreshRoundedIcon sx={{ fontSize: 18 }} />
+    <RefreshRoundedIcon sx={{ fontSize: 22 }} />
   ) : (
-    <PlayCircleIcon width={18} height={18} />
+    <PlayCircleIcon width={22} height={22} />
   );
 }
 
@@ -220,8 +220,8 @@ function StrategyExecutionPanel({
   const getStepSx = (status) => {
     if (status === 'done') {
       return {
-        borderColor: 'success.main',
-        backgroundColor: 'success.50',
+        borderColor: 'rgba(34, 197, 94, 0.32)',
+        backgroundColor: 'rgba(34, 197, 94, 0.10)',
       };
     }
     if (status === 'running') {
@@ -242,10 +242,10 @@ function StrategyExecutionPanel({
     };
   };
 
-  const formatPriceLine = (price, withComparePrefix = false) => (
+  const formatPriceLine = (price) => (
     price
-      ? `${withComparePrefix ? '(对比版本) ' : ''}胜率：${price.winRate}% · ROI：${price.roi}%`
-      : `${withComparePrefix ? '(对比版本) ' : ''}胜率：-- · ROI：--`
+      ? `胜率：${price.winRate}% · ROI：${price.roi}%`
+      : '胜率：-- · ROI：--'
   );
 
   const getCompareResultColor = (currentValue, compareValue) => {
@@ -270,6 +270,12 @@ function StrategyExecutionPanel({
     executionCompareRecentVersionIds,
     lastCompletedWorkbenchVersionId,
   );
+
+  const renderExecutionCompareValue = (selected) => {
+    const s = String(selected ?? '').trim();
+    if (!s) return '对比版本';
+    return `对比版本：${renderCompareSelectValue(s)}`;
+  };
 
   useEffect(() => {
     const cur = String(lastCompletedWorkbenchVersionId || '').trim();
@@ -353,10 +359,14 @@ function StrategyExecutionPanel({
     const compareOpportunities = row?.execLine?.enum?.opportunities;
 
     const gridSx = {
-      display: 'grid',
-      gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+      display: 'flex',
       alignItems: 'center',
-      columnGap: 1,
+      gap: 1,
+      flexWrap: 'nowrap',
+      minWidth: 0,
+      overflowX: 'auto',
+      overflowY: 'hidden',
+      '&::-webkit-scrollbar': { height: 6 },
     };
 
     if (vid && loading) {
@@ -366,7 +376,7 @@ function StrategyExecutionPanel({
             机会总数：{Number.isFinite(currentOpportunities) ? `${currentOpportunities} 个` : '--'}
           </Typography>
           <Typography variant="body2" color="text.secondary">-&gt;</Typography>
-          <Typography variant="body2" color="text.secondary">(对比版本) 读取中…</Typography>
+          <Typography variant="body2" color="text.secondary">读取中…</Typography>
         </Box>
       );
     }
@@ -378,7 +388,7 @@ function StrategyExecutionPanel({
             机会总数：{Number.isFinite(currentOpportunities) ? `${currentOpportunities} 个` : '--'}
           </Typography>
           <Typography variant="body2" color="text.secondary">-&gt;</Typography>
-          <Typography variant="body2" color="error">(对比版本) {errMsg}</Typography>
+          <Typography variant="body2" color="error">{errMsg}</Typography>
         </Box>
       );
     }
@@ -390,7 +400,7 @@ function StrategyExecutionPanel({
             机会总数：{Number.isFinite(currentOpportunities) ? `${currentOpportunities} 个` : '--'}
           </Typography>
           <Typography variant="body2" color="text.secondary">-&gt;</Typography>
-          <Typography variant="body2" color="text.secondary">(对比版本) 该快照无枚举摘要</Typography>
+          <Typography variant="body2" color="text.secondary">该快照无枚举摘要</Typography>
         </Box>
       );
     }
@@ -415,7 +425,7 @@ function StrategyExecutionPanel({
               fontWeight: 600,
             }}
           >
-            (对比版本) 机会总数：{compareOpportunities} 个
+            机会总数：{compareOpportunities} 个
           </Typography>
         </Box>
       );
@@ -437,10 +447,14 @@ function StrategyExecutionPanel({
     const comparePrice = row?.execLine?.price ?? null;
 
     const gridSx = {
-      display: 'grid',
-      gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+      display: 'flex',
       alignItems: 'center',
-      columnGap: 1,
+      gap: 1,
+      flexWrap: 'nowrap',
+      minWidth: 0,
+      overflowX: 'auto',
+      overflowY: 'hidden',
+      '&::-webkit-scrollbar': { height: 6 },
     };
 
     if (vid && loading) {
@@ -450,7 +464,7 @@ function StrategyExecutionPanel({
             {formatPriceLine(currentPrice)}
           </Typography>
           <Typography variant="body2" color="text.secondary">-&gt;</Typography>
-          <Typography variant="body2" color="text.secondary">(对比版本) 读取中…</Typography>
+          <Typography variant="body2" color="text.secondary">读取中…</Typography>
         </Box>
       );
     }
@@ -462,7 +476,7 @@ function StrategyExecutionPanel({
             {formatPriceLine(currentPrice)}
           </Typography>
           <Typography variant="body2" color="text.secondary">-&gt;</Typography>
-          <Typography variant="body2" color="error">(对比版本) {errMsg}</Typography>
+          <Typography variant="body2" color="error">{errMsg}</Typography>
         </Box>
       );
     }
@@ -474,7 +488,7 @@ function StrategyExecutionPanel({
             {formatPriceLine(currentPrice)}
           </Typography>
           <Typography variant="body2" color="text.secondary">-&gt;</Typography>
-          <Typography variant="body2" color="text.secondary">(对比版本) 该快照无价格回测摘要</Typography>
+          <Typography variant="body2" color="text.secondary">该快照无价格回测摘要</Typography>
         </Box>
       );
     }
@@ -501,7 +515,7 @@ function StrategyExecutionPanel({
               whiteSpace: 'nowrap',
             }}
           >
-            {formatPriceLine(comparePrice, true)}
+            {formatPriceLine(comparePrice)}
           </Typography>
         </Box>
       );
@@ -519,10 +533,14 @@ function StrategyExecutionPanel({
     const cmp = row?.execLine?.capital ?? null;
 
     const gridSx = {
-      display: 'grid',
-      gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
-      alignItems: 'start',
-      columnGap: 1,
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: 1,
+      flexWrap: 'nowrap',
+      minWidth: 0,
+      overflowX: 'auto',
+      overflowY: 'hidden',
+      '&::-webkit-scrollbar': { height: 6 },
     };
 
     if (!cur) {
@@ -561,7 +579,7 @@ function StrategyExecutionPanel({
           <Stack justifyContent="center" alignItems="center" sx={{ height: '100%' }}>
             <Typography variant="body2" color="text.secondary">-&gt;</Typography>
           </Stack>
-          <Typography variant="body2" color="text.secondary">(对比版本) 读取中…</Typography>
+          <Typography variant="body2" color="text.secondary">读取中…</Typography>
         </Box>
       );
     }
@@ -580,7 +598,7 @@ function StrategyExecutionPanel({
           <Stack justifyContent="center" alignItems="center" sx={{ height: '100%' }}>
             <Typography variant="body2" color="text.secondary">-&gt;</Typography>
           </Stack>
-          <Typography variant="body2" color="error">(对比版本) {errMsg}</Typography>
+          <Typography variant="body2" color="error">{errMsg}</Typography>
         </Box>
       );
     }
@@ -599,7 +617,7 @@ function StrategyExecutionPanel({
           <Stack justifyContent="center" alignItems="center" sx={{ height: '100%' }}>
             <Typography variant="body2" color="text.secondary">-&gt;</Typography>
           </Stack>
-          <Typography variant="body2" color="text.secondary">(对比版本) 该快照无资金摘要</Typography>
+          <Typography variant="body2" color="text.secondary">该快照无资金摘要</Typography>
         </Box>
       );
     }
@@ -639,7 +657,7 @@ function StrategyExecutionPanel({
               fontWeight: 600,
             }}
           >
-            (对比版本) 收益：{`${cmp.profit >= 0 ? '+' : ''}${formatCapitalMoney(cmp.profit)} (${formatCapitalPct(cmp.retPct)}%)`}
+            收益：{`${cmp.profit >= 0 ? '+' : ''}${formatCapitalMoney(cmp.profit)} (${formatCapitalPct(cmp.retPct)}%)`}
           </Typography>
           <Typography
             variant="caption"
@@ -752,7 +770,7 @@ function StrategyExecutionPanel({
       <AccordionDetails>
         <Stack spacing={1.25}>
           <Typography variant="body2" color="text.secondary">
-            三层执行依赖：价格回测和资金模拟依赖枚举机会；重跑枚举会使下游结果失效。
+            三层回测：枚举机会 - 帮助您看到策略发现机会的能力。价格回测 - 初步验证策略可行性。资金模拟 - 加入资金管理，模拟实际交易。
           </Typography>
 
           {isPollingRun ? (
@@ -784,7 +802,8 @@ function StrategyExecutionPanel({
               <Box
                 sx={{
                   display: 'grid',
-                  gridTemplateColumns: '48px minmax(140px, 220px) minmax(280px, 1fr) minmax(200px, 260px)',
+                  // Give result summary more room; keep compare dropdown stable.
+                  gridTemplateColumns: '48px minmax(110px, 160px) minmax(420px, 1fr) 200px',
                   gap: 1,
                   alignItems: 'center',
                 }}
@@ -805,8 +824,8 @@ function StrategyExecutionPanel({
                 >
                   1
                 </Box>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Typography fontWeight={600}>枚举机会</Typography>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                  <Typography fontWeight={600} noWrap>枚举机会</Typography>
                   <IconButton
                     size="small"
                     onClick={() => runStep(STEP_ENUM)}
@@ -819,12 +838,11 @@ function StrategyExecutionPanel({
                 {renderEnumSummary()}
                 {stepStatus.enum === 'done' && showVersionCompare ? (
                   <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
-                    <Typography variant="caption" color="text.secondary">对比版本</Typography>
                     <Select
                       size="small"
                       displayEmpty
                       value={compareVersion.enum}
-                      renderValue={renderCompareSelectValue}
+                      renderValue={renderExecutionCompareValue}
                       onChange={(e) => handleExecutionCompareChange('enum', e.target.value)}
                       sx={{ minWidth: 168 }}
                     >
@@ -851,7 +869,8 @@ function StrategyExecutionPanel({
               <Box
                 sx={{
                   display: 'grid',
-                  gridTemplateColumns: '48px minmax(140px, 220px) minmax(280px, 1fr) minmax(200px, 260px)',
+                  // Give result summary more room; keep compare dropdown stable.
+                  gridTemplateColumns: '48px minmax(110px, 160px) minmax(420px, 1fr) 200px',
                   gap: 1,
                   alignItems: 'center',
                 }}
@@ -872,8 +891,8 @@ function StrategyExecutionPanel({
                 >
                   2
                 </Box>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Typography fontWeight={600}>价格回测</Typography>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                  <Typography fontWeight={600} noWrap>价格回测</Typography>
                   <IconButton
                     size="small"
                     onClick={() => runStep(STEP_PRICE)}
@@ -888,12 +907,11 @@ function StrategyExecutionPanel({
                 </Box>
                 {stepStatus.price === 'done' && showVersionCompare ? (
                   <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
-                    <Typography variant="caption" color="text.secondary">对比版本</Typography>
                     <Select
                       size="small"
                       displayEmpty
                       value={compareVersion.price}
-                      renderValue={renderCompareSelectValue}
+                      renderValue={renderExecutionCompareValue}
                       onChange={(e) => handleExecutionCompareChange('price', e.target.value)}
                       sx={{ minWidth: 168 }}
                     >
@@ -920,7 +938,8 @@ function StrategyExecutionPanel({
               <Box
                 sx={{
                   display: 'grid',
-                  gridTemplateColumns: '48px minmax(140px, 220px) minmax(280px, 1fr) minmax(200px, 260px)',
+                  // Give result summary more room; keep compare dropdown stable.
+                  gridTemplateColumns: '48px minmax(110px, 160px) minmax(420px, 1fr) 200px',
                   gap: 1,
                   alignItems: 'center',
                 }}
@@ -941,8 +960,8 @@ function StrategyExecutionPanel({
                 >
                   3
                 </Box>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Typography fontWeight={600}>资金模拟</Typography>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
+                  <Typography fontWeight={600} noWrap>资金模拟</Typography>
                   <IconButton
                     size="small"
                     onClick={() => runStep(STEP_CAPITAL)}
@@ -955,12 +974,11 @@ function StrategyExecutionPanel({
                 {renderCapitalSummary()}
                 {stepStatus.capital === 'done' && showVersionCompare ? (
                   <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end">
-                    <Typography variant="caption" color="text.secondary">对比版本</Typography>
                     <Select
                       size="small"
                       displayEmpty
                       value={compareVersion.capital}
-                      renderValue={renderCompareSelectValue}
+                      renderValue={renderExecutionCompareValue}
                       onChange={(e) => handleExecutionCompareChange('capital', e.target.value)}
                       sx={{ minWidth: 168 }}
                     >

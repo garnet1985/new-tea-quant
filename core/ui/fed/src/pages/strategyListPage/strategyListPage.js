@@ -106,14 +106,10 @@ function StrategyListPage() {
   return (
     <PageLayout
       className="strategy-list-page"
-      breadcrumbsItems={[{ label: '策略工作台', to: '/strategy-workbench' }]}
-      breadcrumbsCurrent="策略列表"
-      bannerTitle="策略列表"
-      bannerDescription={(
-        <>
-          这是您所有的现有的策略列表，您可以在表格里任意选择一个进入调试页面，通过修改参数使用历史数据模拟验证策略的有效性。
-        </>
-      )}
+      breadcrumbsItems={[{ label: '策略实验室', to: '/strategy-workbench' }]}
+      breadcrumbsCurrent="选择一个策略"
+      bannerTitle="选择一个策略"
+      bannerDescription="请从表格中选择一个策略进入策略实验室；支持按名称搜索。进入后可调参数、分步回测并对比版本。"
     >
       {loadError ? <Alert severity="error" className="strategy-list-alert">{loadError}</Alert> : null}
 

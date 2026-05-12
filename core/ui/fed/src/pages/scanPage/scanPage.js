@@ -174,9 +174,9 @@ function ScanPage() {
       headerName: '启用',
       width: 110,
       renderCell: (params) => (params.value ? (
-        <Chip size="small" color="success" label="Enabled" />
+        <Chip size="small" color="success" label="已启用" />
       ) : (
-        <Chip size="small" color="default" label="Disabled" />
+        <Chip size="small" color="default" label="已禁用" />
       )),
     },
     {
@@ -334,12 +334,12 @@ function ScanPage() {
   return (
     <PageLayout
       className="scan-page"
-      breadcrumbsItems={[{ label: '策略工作台', to: '/strategy-workbench' }]}
-      breadcrumbsCurrent="机会扫描"
-      bannerTitle="机会扫描"
+      breadcrumbsItems={[{ label: '策略实验室', to: '/strategy-workbench' }]}
+      breadcrumbsCurrent="策略选股"
+      bannerTitle="策略选股"
       bannerDescription={(
         <>
-          勾选下方<strong>已启用</strong>的策略，对当前市场机会进行批量扫描；每个策略按其配置的标的域（target）分别执行。
+          勾选下方<strong>已启用</strong>的策略，在全市场范围内按规则筛选机会；每个策略按其配置的标的域（target）分别执行。
         </>
       )}
       bannerRightSlot={(

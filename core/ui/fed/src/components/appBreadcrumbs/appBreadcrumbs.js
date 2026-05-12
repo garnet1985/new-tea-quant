@@ -47,4 +47,3 @@ AppBreadcrumbs.defaultProps = {
 };
 
 export default AppBreadcrumbs;
-

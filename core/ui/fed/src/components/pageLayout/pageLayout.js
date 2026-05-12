@@ -52,4 +52,3 @@ PageLayout.defaultProps = {
 };
 
 export default PageLayout;
-

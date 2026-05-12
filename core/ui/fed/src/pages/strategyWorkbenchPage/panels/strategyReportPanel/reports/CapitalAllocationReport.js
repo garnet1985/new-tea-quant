@@ -11,6 +11,7 @@ import {
   REPORT_CHART_AXIS_LINE,
   REPORT_CHART_GRID_BASE,
   REPORT_CHART_SPLIT_LINE,
+  REPORT_CHART_TOOLTIP,
 } from '../lib/reportChartsTheme';
 
 /** 资产曲线纵轴按数据区间缩放（不再默认贴 0），少量留白便于读出波动 */
@@ -67,6 +68,7 @@ function buildEquityCurveOption(metrics) {
       },
     ],
     tooltip: {
+      ...REPORT_CHART_TOOLTIP,
       trigger: 'axis',
       formatter: (params) => {
         const point = params?.[0];
@@ -111,6 +113,7 @@ function buildDrawdownCurveOption(metrics) {
       },
     ],
     tooltip: {
+      ...REPORT_CHART_TOOLTIP,
       trigger: 'axis',
       formatter: (params) => {
         const point = params?.[0];

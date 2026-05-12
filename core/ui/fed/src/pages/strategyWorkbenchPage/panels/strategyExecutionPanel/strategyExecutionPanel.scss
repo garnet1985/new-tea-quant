@@ -79,6 +79,10 @@
   display: block;
 }
 
+.exec-step-card.is-pending {
+  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.12);
+}
+
 .ntq-exec-step-grid {
   display: grid;
   grid-template-columns: 48px minmax(110px, 160px) minmax(420px, 1fr) 200px;

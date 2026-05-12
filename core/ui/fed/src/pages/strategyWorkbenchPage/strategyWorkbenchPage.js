@@ -570,9 +570,10 @@ function StrategyWorkbenchPage() {
               const hasUnsavedChanges = JSON.stringify(draftSettings) !== JSON.stringify(savedBaselineSettings);
               const isAppliedSettings = JSON.stringify(draftSettings) === JSON.stringify(appliedSettings);
               const workspaceVersionLabel = selectedConfigVersion || '（尚无快照）';
-              const appliedVersionLabel = appliedVersionId === 'userspace'
-                ? '策略目录 settings.py（无 DB 快照）'
-                : appliedVersionId;
+              const currentVersionDisplay =
+                appliedVersionId === 'userspace'
+                  ? 'settings文件'
+                  : String(appliedVersionId || '').trim() || workspaceVersionLabel;
               const visibleStrategies = strategyRows.filter((row) => row?.name && row.name !== strategyName);
               const disableSettingsActions = isSavingSettings || isLoadingSettings || !strategyName;
               const getDraftSettingsForSubmit = () => (
@@ -656,12 +657,25 @@ function StrategyWorkbenchPage() {
                     }}
                   >
                     <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', md: 'center' }}>
-                      <Typography variant="body2">当前工作台快照：<strong>{workspaceVersionLabel}</strong></Typography>
-                      <Typography variant="body2">加载来源：<strong>{appliedVersionLabel}</strong></Typography>
+                      <Typography variant="body2">当前版本：<strong>{currentVersionDisplay}</strong></Typography>
                       {isAppliedSettings ? (
-                        <Chip size="small" color="success" label="草稿与基线一致" />
+                        <Chip size="small" color="success" label="无设置变化" />
                       ) : (
-                        <Chip size="small" color="warning" label="草稿相对基线已变更" />
+                        <Chip
+                          size="small"
+                          color="warning"
+                          label="发现设置变化，执行任意回测后将会产生新版本"
+                          sx={{
+                            height: 'auto',
+                            py: 0.5,
+                            maxWidth: { xs: '100%', md: 360 },
+                            '& .MuiChip-label': {
+                              whiteSpace: 'normal',
+                              lineHeight: 1.35,
+                              textAlign: 'left',
+                            },
+                          }}
+                        />
                       )}
                     </Stack>
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent={{ xs: 'stretch', md: 'flex-end' }}>

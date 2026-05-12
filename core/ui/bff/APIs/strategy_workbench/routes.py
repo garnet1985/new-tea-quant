@@ -25,6 +25,7 @@ from core.modules.strategy.launcher.workbench_catalog import (
     items_sampling_strategies,
 )
 from core.modules.strategy.execution_manager import (
+    get_run_progress,
     get_step_progress,
     normalize_step,
     submit_workbench_step_via_bff_contract,
@@ -115,8 +116,33 @@ def post_strategy_step_run(strategy_name, step):
         is_force=is_force,
     )
     if out.get("is_triggered"):
-        return ok({"is_triggered": True, "job_id": out["job_id"]})
+        return ok(
+            {
+                "is_triggered": True,
+                "job_id": out["job_id"],
+                "run_id": out.get("run_id") or out["job_id"],
+                "steps": out.get("steps") or [],
+            }
+        )
     return ok({"is_triggered": False, "reason": out.get("reason", "未知错误")})
+
+
+# --- V2-06b：整次 run 编排进度（``steps[]``，不依赖路径 ``step``） ---
+@strategy_workbench_api_bp.route(
+    "/v1/strategy/<strategy_name>/run/progress",
+    methods=["GET"],
+)
+def get_strategy_run_progress(strategy_name):
+    q_job = (request.args.get("job_id") or "").strip()
+    if not q_job:
+        return error("缺少必填 query 参数 job_id", 400)
+    payload = get_run_progress(
+        strategy_name=str(strategy_name),
+        job_id=q_job,
+    )
+    if payload is None:
+        return error("未找到该 job 的编排进度", 404)
+    return ok(payload)
 
 
 # --- V2-06 ---

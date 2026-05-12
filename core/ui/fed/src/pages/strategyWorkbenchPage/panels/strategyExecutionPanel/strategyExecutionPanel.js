@@ -162,8 +162,6 @@ function StrategyExecutionPanel({
     }
   }, [workbenchHydration?.key, strategyName]);
 
-  /** 已有任务 id、正在轮询进度（与标签文案用的 ``runningStep`` 解耦，避免后者被接口推导清空） */
-  const isPollingRun = Boolean(activeRunId);
   const executionBusy = Boolean(activeRunId) || Boolean(runningStep);
 
   const startRun = async (target, { isForce = false, _retryAfterBusy = false } = {}) => {
@@ -190,6 +188,19 @@ function StrategyExecutionPanel({
       setLatestRunId(runId);
       setRunningStep(started?.resolved_chain?.[0] || target);
       setProgress(0);
+      const planSteps = Array.isArray(started?.steps) ? started.steps : [];
+      setStepStatus((prev) => {
+        if (!planSteps.length) {
+          return { enum: 'running', price: 'idle', capital: 'idle' };
+        }
+        const next = { ...prev };
+        planSteps.forEach((row, idx) => {
+          const nm = String(row.step_name || '').trim();
+          if (nm !== STEP_ENUM && nm !== STEP_PRICE && nm !== STEP_CAPITAL) return;
+          next[nm] = idx === 0 ? 'running' : 'pending';
+        });
+        return next;
+      });
       /* 只清空「本次会重跑」的步骤及之后链上的结果；已完成的上一屏摘要保留 */
       setResult((prev) => {
         const order = [STEP_ENUM, STEP_PRICE, STEP_CAPITAL];
@@ -215,11 +226,10 @@ function StrategyExecutionPanel({
     }
   };
 
-  const displayRunStep = activeRunId ? (progressPollStep || runningStep) : runningStep;
-
   const getStepClass = (status) => {
     if (status === 'failed') return 'is-error';
     if (status === 'running') return 'is-running';
+    if (status === 'pending') return 'is-pending';
     if (status === 'done') return 'is-done';
     return 'is-idle';
   };
@@ -239,6 +249,12 @@ function StrategyExecutionPanel({
         backgroundColor: 'rgba(0, 0, 0, 0.22)',
       };
     }
+    if (status === 'pending') {
+      return {
+        borderColor: 'rgba(34, 211, 238, 0.22)',
+        backgroundColor: 'rgba(0, 0, 0, 0.12)',
+      };
+    }
     if (status === 'failed') {
       return {
         borderColor: 'error.main',
@@ -254,6 +270,7 @@ function StrategyExecutionPanel({
   /** 每步卡片内左→右进度：完成满幅；执行中跟 progress_pct；未知进度时 indeterminate */
   const renderStepProgressOverlay = (stepKey) => {
     const st = stepStatus[stepKey];
+    if (st === 'pending') return null;
     if (st === 'failed') return null;
     if (st === 'done') {
       return (
@@ -264,8 +281,7 @@ function StrategyExecutionPanel({
         />
       );
     }
-    const chainHere = isPollingRun && displayRunStep === stepKey;
-    const visuallyRunning = st === 'running' || chainHere;
+    const visuallyRunning = st === 'running';
     if (!visuallyRunning) return null;
     if (progress > 0) {
       const pct = Math.min(100, Math.max(0, Number(progress)));
@@ -721,14 +737,11 @@ function StrategyExecutionPanel({
 
     let stopped = false;
     const applyStatus = (status) => {
-      const nextStepStatus = status?.step_status || {};
-      const normalized = {
-        enum: nextStepStatus.enum || 'idle',
-        price: nextStepStatus.price || 'idle',
-        capital: nextStepStatus.capital || 'idle',
-      };
       if (status?.run_id) setLatestRunId(status.run_id);
-      setStepStatus(normalized);
+      const patch = status?.step_status_merge && typeof status.step_status_merge === 'object'
+        ? status.step_status_merge
+        : {};
+      setStepStatus((prev) => ({ ...prev, ...patch }));
       setRunningStep(status?.running_step || '');
       setProgress(Number(status?.progress_pct || 0));
       const report = status?.result_report || {};
@@ -754,17 +767,15 @@ function StrategyExecutionPanel({
       if (status?.state === 'done' || status?.state === 'cancelled' || status?.state === 'failed') {
         setActiveRunId('');
         setProgressPollStep('');
-        if (status?.state === 'failed') setRunError('执行失败，请检查后端日志。');
+        if (status?.state === 'failed') {
+          setRunError(status?.fail_reason || '执行失败，请检查后端日志。');
+        }
       }
     };
 
     const poll = async () => {
       try {
-        const status = await fetchStrategyRunStatus(
-          strategyName,
-          activeRunId,
-          progressPollStep || STEP_ENUM,
-        );
+        const status = await fetchStrategyRunStatus(strategyName, activeRunId);
         if (stopped) return;
         applyStatus(status);
       } catch (err) {

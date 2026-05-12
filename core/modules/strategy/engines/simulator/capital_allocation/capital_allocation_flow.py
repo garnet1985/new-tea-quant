@@ -144,6 +144,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
                     report_capital_allocation=summary,
                     settings_fingerprint_id=resolved_save.settings_fp,
                     env_fingerprint_id=resolved_save.env_fp,
+                    capital_sim_version_dir=preprocessed.sim_version_dir.name,
                 )
                 self.last_snapshot_id = int(sid or 0)
 

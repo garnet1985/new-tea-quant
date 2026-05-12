@@ -38,16 +38,18 @@
 ### `version_id` 与「本次运行」流水线的关系
 
 - **何时存在**：对**某次** **`POST …/run`** 产生的产出而言，**新的 `version_id`** 仅在 **BED** 侧 **job 成功结束并完成持久化（含写入快照与可缓存的结果）之后**才成立。
-- **谁在何时第一次看到它**：**持久化完成后**，**V2-06** 在 **`status` 为已完成且已有快照 id** 时**可以**在响应里带上 **`version_id`**（便于紧接着拉报告）；**取该步明细正文**须再调 **V2-07 `GET …/report/<version_id>`**。**不是**来自 **`POST …/run`**。
+- **谁在何时第一次看到它**：**持久化完成后**，**V2-06b**（或 **V2-06**）在任务已完成且某步 **`result.version_id`** 可用时呈现锚点；**取该步明细正文**须再调 **V2-07 `GET …/report/<version_id>`**。**不是**来自 **`POST …/run`**。
 
 ### 页面加载时的 `version_id` 与一次 run 结束之后
 
 - **进页时带了 `version_id`**：一般表示**上一次 run 已成功落库**后保存下来的锚点（如路由、会话、或前次 **V2-07** 写入的「当前版本」），**不是**本次还没跑完的工作中间态。
 - **进页时不带 `version_id`**：表示还没有任何一次**可展示的成功运行结果**可锚定（或尚未与 **V2-01** 等拉齐首条版本）。
-- **本次流水线全部结束（含 BED 持久化完成）之后**：用 **V2-06** 返回的 **`version_id`**（或与之一致的锚点）调用 **`GET …/report/<version_id>`** 拉该步报告；**页面锚点**可在 **report 成功响应** 与 **progress completed** 中择一或双重确认（二者 **`version_id` 一致**）。
+- **本次流水线全部结束（含 BED 持久化完成）之后**：用 **V2-06b** 某步 **`result.version_id`**（或 **V2-06**、进页锚点等）调用 **`GET …/report/<version_id>`** 拉该步报告；**页面锚点**可在 **report 成功响应** 与 **编排进度 completed** 中择一或双重确认（二者 **`version_id` 一致**）。
 - **与进页锚点的先后关系（语义上）**：
   - **未命中缓存、产生新版本行**：新的 **`version_id`** 相对进页时的锚点通常是**更新的一个版本**（存储侧递增的一条快照）。
   - **命中缓存、复用已有快照行**：**不会**产生新的版本行，**`version_id` 可以与进页时相同**；不得以「必须比进页大一号」作为契约。
+
+- **`result_report` 体积（2026-05）**：`enum` / `capital_allocation` 等槽位在 DB 中**不内嵌**逐股大块数据；仅保留摘要字段与**相对产物路径**（如 ``enum_report_rel_path``、``capital_sim_version_dir`` + ``capital_full_summary_rel_path``）。完整 ``enumMetrics``、``stock_summary`` 等由服务端在读快照（V2-01 / V2-07、指纹 lookup）时从 ``userspace/strategies/.../results/simulations/...`` 下 JSON **按需合并**；物理文件缺失时与枚举 **report_ref** 一致，由前端提示重新 run。
 
 ### BFF 边界：不做缓存，只做转发与 HTTP 门面
 
@@ -69,14 +71,15 @@
 
 | 阶段 | 接口 | 职责 |
 |------|------|------|
-| 启动 | **`POST …/run`（V2-05）** | **只负责触发 job**；响应**不**含本次将产生的新 **`version_id`**；成功时 **`is_triggered`** 且须返回 **`job_id`**（供 **V2-06** 轮询）。 |
-| 轮询 | **`GET …/progress`（V2-06）** | **只读进度**；**到 100%** 表示本条任务在后端已完结；**已完成且落库后**响应中**可以**含 **`version_id`**（与快照一致）。 |
-| 取结果 | **`GET …/report/<version_id>`（V2-07）** | **在已有 `version_id` 后**调用（通常来自上一步 **V2-06 completed**，或 V2-03 / 进页锚点），取该 **`step`** 的报告正文；响应**回显** **`version_id`**。 |
+| 启动 | **`POST …/run`（V2-05）** | **只负责触发 job**；成功时 **`is_triggered`**、**`job_id`**（= **`run_id`**）；并返回本次 BED 解析后的 **`steps[]`**（仅计划内子步骤：`pending` → `running` → `completed` \| `failed`）。**不**要求返回新 **`version_id`**（新 id 在子步骤落库完成后才成立）。 |
+| 轮询（编排） | **`GET …/run/progress`（V2-06b）** | **整次 run** 的编排进度：正文 **`run_id`**、**`phase`**、**`steps[]`**（每步 **`step_name` / `progress` / `status` / `result`**）。**`result`** 仅含轻量字段（如 **`message`**、**`version_id`**、**`report_step`**），**不**嵌入完整 **`report`** JSON，以免临时进度文件过大；完整指标见 **V2-07**。 |
+| 轮询（兼容） | **`GET …/{step}/progress`（V2-06）** | 按路径 **`step`** 读旧版单文件进度；新前端应优先 **V2-06b**。 |
+| 取结果 | **`GET …/report/<version_id>`（V2-07）** | **在已有 `version_id` 后**调用（可由 **V2-06b** 某步 **`result.version_id`**、或进页锚点），取该 **`step`** 对应 **`result_report`** 槽位正文；响应**回显** **`version_id`**。 |
 
 - **走缓存时**：上述三步都会在很短时间内结束（进度仍可能被建模为 0→100，只是更快）。
-- **不走缓存时**：时间主要花在 **V2-06** 轮询上。
+- **不走缓存时**：时间主要花在 **V2-06b**（或 **V2-06**）轮询上。
 
-**FED**：只做 settings + 策略上下文上报（**V2-05**）、轮询 **V2-06**，在 **completed** 且已有 **`version_id`** 后请求 **`GET …/report/<version_id>`** 拿该步报告；**不**做 normalize；**不**理解指纹。
+**FED**：只做 settings + 策略上下文上报（**V2-05**）、轮询 **V2-06b**（或 **V2-06**），在 run 结束且某步 **`result.version_id`** 可用后请求 **`GET …/report/<version_id>`** 拉该步完整 **`report`**（资金模拟等含曲线字段）；**不**做 normalize；**不**理解指纹。
 
 **BFF**：校验与转发（门面）；对 **`settings`** 可调 **BED** 做 **normalize** 再交给 **BED** 启动 job；**不**参与指纹判断；**不**做任何业务缓存（见上文 **「BFF 边界」**）。
 
@@ -88,8 +91,9 @@
 | V2-02 | GET | `/strategies/list` | 策略列表（分页） |
 | V2-03 | GET | `/strategy/{strategy_name}/versions` | 某策略工作台版本的**最近 10 条**（固定条数、不分页），用于「恢复到某一版本」下拉框 |
 | V2-04 | GET | 多个明确路径（见下） | 选项类 / profile 类全量数据；**非**单一泛化 `/strategy/{entity}`，implementation 按资源拆路由 |
-| V2-05 | POST | `/strategy/{strategy_name}/{step}/run` | **启动**一步对应的 job（仅表示触发成功与否；结果见 progress → report） |
-| V2-06 | GET | `/strategy/{strategy_name}/{step}/progress` | **轮询**该步骤 job 的**进度**（不区分缓存；到 100% 后去拉 report） |
+| V2-05 | POST | `/strategy/{strategy_name}/{step}/run` | **启动**一步对应的 job；成功返回 **`job_id`** / **`run_id`** 与 **`steps[]`**（编排计划） |
+| V2-06b | GET | `/strategy/{strategy_name}/run/progress` | **轮询整次 run**：query **`job_id`**；响应 **`steps[]`** + **`phase`**（编排单一数据源） |
+| V2-06 | GET | `/strategy/{strategy_name}/{step}/progress` | **轮询**该路径 **`step`** 的 legacy 单文件进度（与 V2-06b 并存；新 UI 优先 06b） |
 | V2-07 | GET | `/strategy/{strategy_name}/{step}/report/{version_id}` | **路径** **`version_id`**（``v3`` / ``3``）；响应含该步 **`report`** 并回显 **`version_id`** |
 | V2-07b | GET | `/strategy/{strategy_name}/{step}/report_ref/{version_id}` | 枚举 **`step=enum`**：读取磁盘 **`0_stock_ref.json`**（逐股摘要）；无文件或非枚举步 → **404** |
 | V2-08 | GET | `/strategy/{strategy_name}/version/{version_id}` | 按 **`version_id`** 读完整快照；**路径** `strategy_name` **必填**；响应与 **V2-01** 同形（切换版本后用；内含汇总 summary，见「V2-07 与 V2-08」） |
@@ -127,25 +131,38 @@
 
 #### 响应（本接口的语义终点 =「是否成功触发 job」）
 
-- **成功**响应至少包含 **`is_triggered: true`**，表示 job 已被后端接受并进入可被 **V2-06** 观察的状态。
-- **不要求**、**通常也不返回** **`version_id`**；**不**在本接口返回最终报告正文。
-- **须**返回 **`job_id`**，供 **V2-06** 必填 query 关联；可不返回 **`run_id`**（与本实现无关）。
+- **成功**响应至少包含 **`is_triggered: true`**，表示 job 已被后端接受并进入可被 **V2-06b**（或 **V2-06**）观察的状态。
+- **须**返回 **`job_id`**；**`run_id`** 与 **`job_id`** 相同（别名，便于与「编排 run」语义对齐）。
+- **须**返回 **`steps`**：`array`，元素为 **`{ step_name, progress, status, result }`**，与首次落盘的编排信封一致（初始多为 **`pending`** / **`running`**，**`result`** 多为 **`null`**）。**不**在 **`steps`** 内嵌完整 **`report`** 正文。
+- **不要求**返回新快照 **`version_id`**（新 id 在子步骤持久化完成后才出现在 **V2-06b** 的 **`result`** 或 **V2-07** 中）。
 - **失败**响应：`is_triggered: false`，`reason: object | string`。
+
+### V2-06b `GET /strategy/{strategy_name}/run/progress`
+
+- **职责**：读取**单次 run** 的编排信封（**唯一推荐**的轮询入口）；**不**依赖路径上的 **`{step}`**。
+- **路径参数 `strategy_name`**：与 **V2-05** 一致。
+- **必填** query **`job_id`**（与 **V2-05** 返回的 **`job_id`** / **`run_id`** 一致）。
+- **成功**响应正文（信封内 **`message`**）至少包含：
+  - **`run_id`**：与 **`job_id`** 一致。
+  - **`phase`**：如 **`queued`** / **`running`** / **`completed`** / **`failed`**。
+  - **`steps`**：`array`。每项含 **`step_name`**（`enum` \| `price` \| `capital`）、**`progress`**（0～100）、**`status`**（**`pending`** \| **`running`** \| **`completed`** \| **`failed`**）、**`result`**（未完成多为 **`null`**；完成时为小对象，含 **`message`**，及 **`version_id`**（如 **`v12`**）、**`report_step`**（与 **V2-07** 路径 **`step`** 一致），以及可选 **`card`**：仅含执行面板三行所需的 **`enum` / `price` / `capital`** 标量摘要（非整份 **`report`**）；完整指标仍以 **V2-07** 为准）。
+- **失败**：无对应编排文件或与策略不匹配 → **404**。
+- **与 V2-07**：某步 **`status`** 为 **`completed`** 且 **`result.version_id`** 非空时，FED 应用 **`GET …/{report_step}/report/{version_id}`** 拉曲线与全量指标。
 
 ### V2-06 `GET /strategy/{strategy_name}/{step}/progress`
 
-- **职责**：**只读进度**；**不**区分是否命中缓存。
+- **职责**：**只读进度**（legacy：按 URL **`step`** 读单文件进度）；**不**区分是否命中缓存。新实现请优先 **V2-06b**。
 - **路径参数 `strategy_name`**：与 **V2-05** 一致。
-- **路径参数 `step`**：**枚举**，与引擎侧 **三种回测步骤**一一对应（当前契约占位 `enum` | `price` | `capital`）。**必填** query **`job_id`**（与 **V2-05** 返回一致）。
-- **`version_id`（可选呈现）**：当 **`status`** 为已完成且本次运行已写入快照 **`snapshot_id`** 时，响应**可以**包含 **`version_id`** / **`snapshot_id`**，供紧接着调用 **V2-07 `GET …/report/<version_id>`**（与之一致）。
-- **轮询**：FED 在 **V2-05** 成功后重复请求，直到 **100%**（或失败）；随后用得到的 **`version_id`** 拉 **V2-07**。
+- **路径参数 `step`**：**枚举** `enum` | `price` | `capital`。**必填** query **`job_id`**（与 **V2-05** 返回一致）。
+- **`version_id`（可选呈现）**：当 **`status`** 为已完成且本次运行已写入快照 **`snapshot_id`** 时，响应**可以**包含 **`version_id`** / **`snapshot_id`**，供紧接着调用 **V2-07**。
+- **轮询**：重复请求直到 **100%**（或失败）；随后用 **`version_id`** 拉 **V2-07**。
 - 进度数值保留 **两位小数**；可含 `is_success`、`reason`。
 - **卡住进度超时**属前端行为；网络超时按全局 HTTP。
 - **同一 `strategy_name`** 与 **`step`**（及给定 **`job_id`**）对应唯一一条任务记录；同屏至多一条 active job，与 **V2-05** 互斥一致。
 
 ### V2-07 `GET /strategy/{strategy_name}/{step}/report/{version_id}`
 
-- **路径参数 `version_id`**（`v3` 或 `3`）。典型来源：**V2-06** 在任务完成且已落库后返回的 **`version_id`**；或 **V2-03** / 进页锚点等「已知版本」场景。
+- **路径参数 `version_id`**（`v3` 或 `3`）。典型来源：**V2-06b** / **V2-06** 在任务完成且已落库后给出的 **`version_id`**；或 **V2-03** / 进页锚点等「已知版本」场景。
 - **语义**：读取该快照 **`result_report`** 中与 **`step`** 对应的槽位（`enum` / `price_factor` / `capital_allocation`），作为 **`report`** 返回；**`strategy_name`** 须与快照一致，否则 **404**。
 - **调用时机**：须在已有可信 **`version_id`** 之后（通常 **progress** 已为 **completed** 且带回 **`version_id`**）。
 - 响应须**回显** **`version_id`**；**失败 / 无快照** → **404**。
@@ -205,7 +222,7 @@
 
 | 接口 | 典型时机 | 内容侧重 |
 |------|----------|----------|
-| **V2-07** | **在已持有 `version_id` 后**（多来自 **V2-06 completed**，或列表/锚点） | **按步骤**的 report（路径含 **`step`** 与 **`version_id`**） |
+| **V2-07** | **在已持有 `version_id` 后**（多来自 **V2-06b** / **V2-06** completed，或列表/锚点） | **按步骤**的 report（路径含 **`step`** 与 **`version_id`**） |
 | **V2-08** | 用户在 UI **切换到某一 snapshot（`version_id`）** 之后，拉**整份工作台快照**以恢复表单与步骤状态 | 与 **V2-01** **同形**的整包 DTO |
 
 - **包含关系**：**V2-08**（及 **V2-01**）返回的版本体中的 **`result_report`（或等价聚合字段）** 应**汇总**各步骤结果；其中**包含**与各 **`step`** 对应的 **V2-07** 所能提供的摘要内容（不必重复单独拉 **V2-07**，除非产品要单独刷新某一 `step` 的明细）。

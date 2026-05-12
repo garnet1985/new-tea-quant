@@ -209,19 +209,19 @@ class PathManager:
         """
         枚举（机会枚举）输出根目录（版本子目录与 ``meta.json`` 均在此目录下）。
 
-        路径：``userspace/strategies/{strategy}/results/simulation/enum``
+        约定：``userspace/strategies/{strategy}/results/simulations/enum/{version_dir}``。
         """
-        return PathManager.strategy_results(strategy_name) / "simulation" / "enum"
+        return PathManager.strategy_results(strategy_name) / "simulations" / "enum"
 
     @staticmethod
     def strategy_simulation_price(strategy_name: str) -> Path:
-        """价格因子模拟版本根目录：``.../results/simulation/price``。"""
-        return PathManager.strategy_results(strategy_name) / "simulation" / "price"
+        """价格因子模拟版本根目录：``.../results/simulations/price``。"""
+        return PathManager.strategy_results(strategy_name) / "simulations" / "price"
 
     @staticmethod
     def strategy_simulation_capital(strategy_name: str) -> Path:
-        """资金分配模拟版本根目录：``.../results/simulation/capital``。"""
-        return PathManager.strategy_results(strategy_name) / "simulation" / "capital"
+        """资金分配模拟版本根目录：``.../results/simulations/capital``。"""
+        return PathManager.strategy_results(strategy_name) / "simulations" / "capital"
     
     @staticmethod
     def strategy_scan_results(strategy_name: str) -> Path:

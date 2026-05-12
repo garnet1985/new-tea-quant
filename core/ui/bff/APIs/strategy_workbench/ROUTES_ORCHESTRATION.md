@@ -22,7 +22,8 @@
 | V2-03 | GET | `/v1/strategy/<strategy_name>/versions` | `fetch_strategy_versions_dropdown` → `ok({items})` |
 | V2-04 | GET | `/v1/strategy/settings/capital-allocation-strategies` | `items_capital_allocation_strategies()` → `ok({items})` |
 | V2-04 | GET | `/v1/strategy/settings/sampling-strategies` | `items_sampling_strategies()` → `ok({items})` |
-| V2-05 | POST | `/v1/strategy/<strategy_name>/<step>/run` | `json_payload` → `submit_workbench_step_via_bff_contract` → `ok` |
+| V2-05 | POST | `/v1/strategy/<strategy_name>/<step>/run` | `json_payload` → `submit_workbench_step_via_bff_contract` → `ok`（含 **`run_id`**、**`steps`**） |
+| V2-06b | GET | `/v1/strategy/<strategy_name>/run/progress` | query `job_id` → `execution_manager.get_run_progress` → `ok` / 404 |
 | V2-06 | GET | `/v1/strategy/<strategy_name>/<step>/progress` | query `job_id` → `execution_manager.get_step_progress` → `ok` / 404 |
 | V2-07 | GET | `/v1/strategy/<strategy_name>/<step>/report/<version_id>` | path `version_id` → `build_step_report_message` → `ok` / 404 |
 | V2-07b | GET | `/v1/strategy/<strategy_name>/<step>/report_ref/<version_id>` | path `version_id` → `build_step_report_ref_message`（完整 ``stock_ref``；排序与分页由前端）→ `ok` / 404 |

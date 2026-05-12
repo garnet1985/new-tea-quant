@@ -18,12 +18,9 @@
 ---
 
 ### TODO in upcoming releases
-
-- 扫描系统加入缓存，如果当日扫描过，将直接返回结果
 - bugfix
 - UX improvement
 - 加入updater，可以直接一键升级
-- 清理start cli，清理代码
 
 ---
 
@@ -40,7 +37,10 @@
 - 清理文件夹结构，将backup文件夹放入userspace，将docker以及badge生成还有自动更新readme这类代码放入devtools文件夹并更新代码引用和文档
 - 收敛复权因子的逻辑进入model底层，并且为K线复权做了一条特殊快速通道，以便回测减小IO次数
 - 在userspace里放入tables的文件夹，加入文档引导用户建立自己的数据表
-- 重构strategy核心模块的组织方式，变成更直观的flow流模式
+- 重构strategy核心模块的组织方式，变成更直观的编排层 + flow流模式
+- Strategy里加上了为支持输出的launcher和支持UI的adapter
+- 扫描系统加入缓存，如果当日扫描过，将直接返回结果
+- 清理start cli，变成代理层
 
 
 破坏性改动：
@@ -48,6 +48,7 @@
 - app不再自带userspace文件夹，而是安装的时候自动创建
 - start-cli 的扫描命令现在降级成一次只能用一个策略进行扫描
 - 引入Nodejs依赖
+- simulator的回测report格式发生了变化
 
 ---
 

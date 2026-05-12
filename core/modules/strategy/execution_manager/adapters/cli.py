@@ -40,6 +40,18 @@ class _CliVerboseProgressSink:
         if self._verbose:
             logger.debug("flow %s local %.1f%%", substep, flow_pct)
 
+    def on_substep_finish(
+        self, substep: str, index: int, total: int, snapshot_id: int
+    ) -> None:
+        if self._verbose:
+            logger.info(
+                "substep %s finished (%s/%s) snapshot_id=%s",
+                substep,
+                index + 1,
+                total,
+                snapshot_id,
+            )
+
 
 def run_workbench_step_via_cli_contract(
     *,

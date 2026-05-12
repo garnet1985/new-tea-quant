@@ -23,9 +23,9 @@ import {
   Typography,
 } from '@mui/material';
 import { API_VERSION_PREFIX } from '../../../../api/conf/apiConfig';
-import OpportunityEnumrateReport from './reports/OpportunityEnumerateReport';
-import PriceFactorReport from './reports/PriceFactorReport';
-import CapitalAllocationReport from './reports/CapitalAllocationReport';
+import OpportunityEnumrateReport from './reports/opportunityEnumerateReport';
+import PriceFactorReport from './reports/priceFactorReport';
+import CapitalAllocationReport from './reports/capitalAllocationReport';
 import {
   buildCapitalMetrics,
   buildEnumMetrics,
@@ -34,7 +34,7 @@ import {
   normalizePriceMetricsFromSummary,
   REPORT_BLOCK_UNAVAILABLE_ZH,
 } from '../../mocks/strategyReportMetrics';
-import SettingsJsonDiff from './components/SettingsJsonDiff';
+import SettingsJsonDiff from './components/settingsJsonDiff';
 import { useWorkbenchCompareVersionMenu } from '../../workbenchCompareVersionMenu';
 import {
   COMPARE_EMPTY_OTHER_VERSION_ZH,

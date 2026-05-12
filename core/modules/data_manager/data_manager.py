@@ -21,7 +21,6 @@
   - CorporateFinanceService: 企业财务数据服务（StockService 的子服务）
 """
 from typing import Dict, List, Any, Optional, Union, TYPE_CHECKING, Type
-import pandas as pd
 import logging
 import threading
 import importlib

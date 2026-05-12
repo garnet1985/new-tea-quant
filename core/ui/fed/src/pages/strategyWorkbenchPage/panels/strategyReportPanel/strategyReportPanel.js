@@ -23,9 +23,9 @@ import {
   Typography,
 } from '@mui/material';
 import { API_VERSION_PREFIX } from '../../../../api/conf/apiConfig';
-import OpportunityEnumrateReport from './reports/OpportunityEnumerateReport';
-import PriceFactorReport from './reports/PriceFactorReport';
-import CapitalAllocationReport from './reports/CapitalAllocationReport';
+import OpportunityEnumrateReport from './reports/opportunityEnumerateReport';
+import PriceFactorReport from './reports/priceFactorReport';
+import CapitalAllocationReport from './reports/capitalAllocationReport';
 import {
   buildCapitalMetrics,
   buildEnumMetrics,
@@ -34,7 +34,7 @@ import {
   normalizePriceMetricsFromSummary,
   REPORT_BLOCK_UNAVAILABLE_ZH,
 } from '../../mocks/strategyReportMetrics';
-import SettingsJsonDiff from './components/SettingsJsonDiff';
+import SettingsJsonDiff from './components/settingsJsonDiff';
 import { useWorkbenchCompareVersionMenu } from '../../workbenchCompareVersionMenu';
 import {
   COMPARE_EMPTY_OTHER_VERSION_ZH,
@@ -250,18 +250,18 @@ function StrategyReportPanel({
       );
     }
 
-    /** 快照 ``result_report.*`` 须优先于 ``executionState.result.*``：hydration 里 enum/price 仅为卡片摘要，会遮住完整枚举/价格报告字段导致首屏各区「数据异常」。 */
+    /** 枚举/价格：``GET …/version/latest`` 的 ``result_report`` 常为卡片级摘要；完整 ``enumMetrics`` / 曲线以 **V2-07 单步报告**（``stepReportSlots``）为准，否则摘要会挡住完整槽位导致多块「数据异常」。 */
     const metricsSource = {
       result: {
         enum:
-          snapshotEnumSlot
-          || stepReportSlots?.enum
+          stepReportSlots?.enum
+          || snapshotEnumSlot
           || executionState?.result?.enum
           || remoteReports?.reports?.enum
           || null,
         price:
-          snapshotPriceSlot
-          || stepReportSlots?.price
+          stepReportSlots?.price
+          || snapshotPriceSlot
           || executionState?.result?.price
           || remoteReports?.reports?.price
           || null,

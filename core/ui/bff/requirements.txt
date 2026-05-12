@@ -1,3 +1,12 @@
+# BFF 最小依赖：显式 pin 传递包，避免旧 pip（如 21.x）对 Flask/Jinja2/MarkupSafe 长时间 backtracking 直至 ResolutionImpossible。
+# Python 3.9 + Flask 2.3.x 兼容集（与 Flask 2.3.3 的 Requires 对齐）。
+MarkupSafe==2.1.5
+itsdangerous==2.1.2
+click==8.1.7
+blinker==1.6.3
+Jinja2==3.1.4
+Werkzeug==2.3.8
+importlib-metadata==8.5.0
 Flask==2.3.3
 Flask-CORS==4.0.0
 loguru==0.7.2

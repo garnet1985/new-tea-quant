@@ -7,7 +7,7 @@ from flask import Blueprint, request
 
 import logging
 
-from core.modules.strategy.services.launcher.scanner_run import (
+from core.modules.strategy.launcher.scanner_run import (
     get_scan_progress,
     trigger_strategy_scan_run,
 )

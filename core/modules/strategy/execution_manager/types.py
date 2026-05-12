@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Protocol, Tuple
 
-# 与 ``workbench_step_run.normalize_step`` 合法集一致：enum / price / capital。
+# 与 ``execution_manager.workbench_resolve.normalize_step`` 合法集一致：enum / price / capital。
 WorkbenchSubstep = str
 PlannedSubstep = Tuple[WorkbenchSubstep, bool]
 

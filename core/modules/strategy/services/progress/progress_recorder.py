@@ -53,7 +53,7 @@ class ProgressRecorder:
     ) -> None:
         """删除该策略、该 step 下已不再需要的进度文件（``{strategy}__*__{step}.json``）。
 
-        供定时任务、清缓存按钮等 infra 调用；工作台 ``trigger_workbench_step_run`` 不在此处触发清理。
+        供定时任务、清缓存按钮等 infra 调用；工作台异步 run 不在此处触发清理。
 
         ``preserve_run_ids``：仍应保留的 ``job_id``（例如仍为 queued/running 的任务）。
         """

@@ -35,7 +35,7 @@ def run_workbench_substep_for_snapshot(
     price/capital 有值，其余为 ``None``。
     """
     if step == "enum":
-        from core.modules.strategy.services.launcher.enumerator_runtime_service import (
+        from core.modules.strategy.launcher.enumerator_runtime_service import (
             EnumeratorRuntimeService,
         )
 

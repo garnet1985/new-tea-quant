@@ -2,7 +2,7 @@
 """
 运行期指纹服务层（依赖 StrategySettings / flow_impl）。
 
-与 DbCache 无关；位于 ``strategy.services.launcher``。说明见同包 ``__init__.py``。
+与 DbCache 无关；位于 ``strategy.launcher``。说明见同包 ``__init__.py``。
 """
 
 from __future__ import annotations

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Strategy module public entrypoints."""
+"""Strategy module public entrypoints.
+
+子包：``engines/``（扫描与模拟）、``execution_manager/``（工作台步骤执行规划与宿主适配骨架）、
+``services/``（数据、缓存、启动器等）。
+"""
 
 from importlib import import_module
 from typing import Any

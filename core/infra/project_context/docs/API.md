@@ -213,27 +213,10 @@
 ---
 
 ### 函数名
-`PathManager.strategy_opportunity_enums(strategy_name: str, use_sampling: bool = False) -> Path`
+`PathManager.strategy_simulation_enum(strategy_name: str) -> Path`
 
 - 状态：`stable`
-- 描述：枚举器结果目录；`use_sampling` 为真时使用 `test/` 子目录否则 `output/`。
-- 诞生版本：`0.2.0`
-- params：
-
-| 名字 | 类型 | 说明 |
-|------|------|------|
-| `strategy_name` | `str` | 必填 |
-| `use_sampling` (可选) | `bool` | 默认 `False` |
-
-- 返回值：`Path`
-
----
-
-### 函数名
-`PathManager.strategy_simulations_price_factor(strategy_name: str) -> Path`
-
-- 状态：`stable`
-- 描述：价格因子模拟结果目录。
+- 描述：枚举（机会枚举）输出根目录；版本子目录与 `meta.json` 均位于 `results/simulation/enum` 下。
 - 诞生版本：`0.2.0`
 - params：
 
@@ -246,10 +229,10 @@
 ---
 
 ### 函数名
-`PathManager.strategy_capital_allocation(strategy_name: str) -> Path`
+`PathManager.strategy_simulation_price(strategy_name: str) -> Path`
 
 - 状态：`stable`
-- 描述：资金分配模拟结果目录。
+- 描述：价格因子模拟版本根目录：`results/simulation/price`。
 - 诞生版本：`0.2.0`
 - params：
 
@@ -262,26 +245,10 @@
 ---
 
 ### 函数名
-`PathManager.strategy_simulations_enumerator(strategy_name: str) -> Path`
+`PathManager.strategy_simulation_capital(strategy_name: str) -> Path`
 
 - 状态：`stable`
-- 描述：枚举器回测 session 目录（非 opportunity_enums 输出）。
-- 诞生版本：`0.2.0`
-- params：
-
-| 名字 | 类型 | 说明 |
-|------|------|------|
-| `strategy_name` | `str` | 必填 |
-
-- 返回值：`Path`
-
----
-
-### 函数名
-`PathManager.strategy_scan_cache(strategy_name: str) -> Path`
-
-- 状态：`stable`
-- 描述：扫描缓存目录。
+- 描述：资金分配模拟版本根目录：`results/simulation/capital`。
 - 诞生版本：`0.2.0`
 - params：
 
@@ -297,7 +264,7 @@
 `PathManager.strategy_scan_results(strategy_name: str) -> Path`
 
 - 状态：`stable`
-- 描述：扫描结果目录。
+- 描述：策略扫描结果根目录：`results/scan`；其下为按日期的子目录（如 `YYYYMMDD`），文件命名与原先 `scan_cache` 下一致（例如 `opportunities.csv`）。
 - 诞生版本：`0.2.0`
 - params：
 

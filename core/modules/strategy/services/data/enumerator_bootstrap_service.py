@@ -28,11 +28,10 @@ class StrategyEnumeratorBootstrapService:
         base_version: str,
         strategy_info: Optional["DiscoveredStrategy"] = None,
     ) -> Tuple[Path, Path]:
-        sub_dir = "output"
         raw_version = (base_version or "latest").strip()
         if "/" in raw_version:
             raw_version = raw_version.split("/", 1)[1].strip() or "latest"
-        version_spec = f"{sub_dir}/{raw_version}"
+        version_spec = raw_version
         try:
             return StrategyOutputVersionService.resolve_enumerator_version(
                 strategy_name, version_spec
@@ -41,7 +40,7 @@ class StrategyEnumeratorBootstrapService:
             if raw_version != "latest":
                 try:
                     return StrategyOutputVersionService.resolve_enumerator_version(
-                        strategy_name, f"{sub_dir}/latest"
+                        strategy_name, "latest"
                     )
                 except FileNotFoundError:
                     pass
@@ -55,7 +54,7 @@ class StrategyEnumeratorBootstrapService:
         if resolved_dir is not None:
             return resolved_dir, resolved_dir.parent
         return StrategyOutputVersionService.resolve_enumerator_version(
-            strategy_name, f"{sub_dir}/latest"
+            strategy_name, "latest"
         )
 
     @staticmethod
@@ -96,10 +95,9 @@ class StrategyEnumeratorBootstrapService:
             first = result[0] or {}
             version_dir_name = str(first.get("version_dir", "")).strip()
             if version_dir_name:
-                sub_dir_name = "output"
                 version_dir, _ = StrategyOutputVersionService.resolve_enumerator_version(
                     strategy_name,
-                    f"{sub_dir_name}/{version_dir_name}",
+                    version_dir_name,
                 )
                 return version_dir
         return None

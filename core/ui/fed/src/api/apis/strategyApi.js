@@ -287,7 +287,7 @@ export async function fetchStrategyRunStatus(strategyName, jobId, step = 'enum')
   const hasEnumSlot = Boolean(resultReport.enum && typeof resultReport.enum === 'object');
   const hasPriceSlot = Boolean(resultReport.price && typeof resultReport.price === 'object');
 
-  /** 链式步骤：轮询下游 step 时，上游在 UI 上视为已就绪（数据来自快照依赖） */
+  /** 链式轮询：上游「done」仅在有 result_report 槽位时标绿，避免未跑枚举却显示完成 */
   let enumStatus = 'idle';
   let priceStatus = 'idle';
   let capitalStatus = 'idle';
@@ -295,19 +295,41 @@ export async function fetchStrategyRunStatus(strategyName, jobId, step = 'enum')
     enumStatus = stepVal;
   } else if (step === 'price') {
     priceStatus = stepVal;
-    if (stepVal === 'running' || stepVal === 'done') {
+    if (hasEnumSlot) {
       enumStatus = 'done';
+    } else if (stepVal === 'running' || (prog > 0 && prog < 100)) {
+      enumStatus = 'running';
     } else if (stepVal === 'failed') {
+      enumStatus = 'idle';
+    } else if (stepVal === 'done') {
       enumStatus = hasEnumSlot ? 'done' : 'idle';
+    } else {
+      enumStatus = 'idle';
     }
   } else if (step === 'capital') {
     capitalStatus = stepVal;
-    if (stepVal === 'running' || stepVal === 'done') {
+    if (hasEnumSlot) {
       enumStatus = 'done';
-      priceStatus = 'done';
+    } else if (stepVal === 'running' || (prog > 0 && prog < 100)) {
+      enumStatus = 'running';
     } else if (stepVal === 'failed') {
+      enumStatus = 'idle';
+    } else if (stepVal === 'done') {
       enumStatus = hasEnumSlot ? 'done' : 'idle';
+    } else {
+      enumStatus = 'idle';
+    }
+
+    if (hasPriceSlot) {
+      priceStatus = 'done';
+    } else if (stepVal === 'running' || (prog > 0 && prog < 100)) {
+      priceStatus = 'running';
+    } else if (stepVal === 'failed') {
+      priceStatus = 'idle';
+    } else if (stepVal === 'done') {
       priceStatus = hasPriceSlot ? 'done' : 'idle';
+    } else {
+      priceStatus = 'idle';
     }
   }
 

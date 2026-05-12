@@ -1,9 +1,9 @@
 """工作台单步运行：进程内 ``_JOBS``（后台任务状态）、触发 run（V2-05）；``GET progress`` 读进度文件（V2-06）。
 
-进度 JSON 的清理不在此处触发，由后续 infra / 运维入口统一处理。
+子步骤依赖与顺序、同步执行见 ``core.modules.strategy.execution_manager``；本模块负责 job 表、
+进度落盘与 BFF 触发线程。各 Flow 仅在 ``execution_manager`` 执行子步骤时延迟导入。
 
-模块顶层避免导入 ``price_factor`` / ``capital_allocation`` / ``enumerator``，以免经 DbCache
-链式导入 ``cache_service`` → BFF（Flask）。
+进度 JSON 的清理不在此处触发，由后续 infra / 运维入口统一处理。
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import threading
 import uuid
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from core.infra.project_context.path_manager import PathManager
 from core.modules.strategy.engines.shared.data_classes.discovered_strategy import DiscoveredStrategy
@@ -424,89 +424,6 @@ def _resolve_discovered(
     return discovered, None
 
 
-def _run_step_and_snapshot_id(
-    step: str,
-    strategy_name: str,
-    discovered: DiscoveredStrategy,
-    *,
-    is_force: bool,
-    job_id: str,
-    on_step_progress: Optional[Callable[[float], None]] = None,
-) -> int:
-    if step == "enum":
-        from core.modules.strategy.services.launcher.enumerator_runtime_service import (
-            EnumeratorRuntimeService,
-        )
-
-        ctx = EnumeratorRuntimeService.build_context(
-            strategy_name=strategy_name,
-            strategy_info=discovered,
-            raw_settings_override=discovered.settings.to_dict(),
-            force_refresh=is_force,
-            workbench_run_id=job_id,
-            workbench_strategy_name=strategy_name,
-        )
-        EnumeratorRuntimeService.run_enum(ctx)
-        return int(ctx.flow.last_snapshot_id or 0)
-
-    if step == "price":
-        from core.modules.strategy.engines.simulator.price_factor.price_factor_flow import PriceFactorFlow
-
-        flow = PriceFactorFlow(is_verbose=False, force_refresh=is_force)
-        cb = on_step_progress if callable(on_step_progress) else None
-        flow.run(strategy_name, discovered, progress_callback=cb)
-        return int(flow.last_snapshot_id or 0)
-
-    if step == "capital":
-        from core.modules.strategy.engines.simulator.capital_allocation.capital_allocation_flow import (
-            CapitalAllocationFlow,
-        )
-
-        flow = CapitalAllocationFlow(is_verbose=False, force_refresh=is_force)
-        cb = on_step_progress if callable(on_step_progress) else None
-        flow.run(strategy_name, discovered, progress_callback=cb)
-        return int(flow.last_snapshot_id or 0)
-
-    raise ValueError(f"未知 step: {step!r}")
-
-
-def _background_job(
-    job_id: str,
-    strategy_name: str,
-    step: str,
-    discovered: DiscoveredStrategy,
-    is_force: bool,
-) -> None:
-    job_update(job_id, status="running", progress=1.0)
-    _disk_mark_running(strategy_name, job_id, step)
-    try:
-        job_update(job_id, progress=5.0)
-
-        def _tick_disk_pct(pct: float) -> None:
-            _disk_workbench_step_progress(strategy_name, job_id, step, pct)
-
-        sid = _run_step_and_snapshot_id(
-            step,
-            strategy_name,
-            discovered,
-            is_force=is_force,
-            job_id=job_id,
-            on_step_progress=_tick_disk_pct if step in ("price", "capital") else None,
-        )
-        sid_int = int(sid or 0)
-        job_update(
-            job_id,
-            status="completed",
-            progress=100.0,
-            snapshot_id=sid_int,
-        )
-        _merge_snapshot_into_disk_progress(strategy_name, job_id, step, sid_int)
-    except Exception as exc:  # noqa: BLE001 — 任务边界兜底
-        logger.exception("Workbench step run failed job_id=%s", job_id)
-        job_update(job_id, status="failed", progress=100.0, error=str(exc))
-        _disk_mark_failed(strategy_name, job_id, step, str(exc))
-
-
 def trigger_workbench_step_run(
     *,
     strategy_name: str,
@@ -514,25 +431,14 @@ def trigger_workbench_step_run(
     api_settings: Dict[str, Any],
     is_force: bool,
 ) -> Dict[str, Any]:
-    norm_step = normalize_step(step)
-    if norm_step is None:
-        return {"is_triggered": False, "reason": f"step 须为 enum / price / capital，收到 {step!r}"}
-
-    name = str(strategy_name or "").strip()
-    if not name:
-        return {"is_triggered": False, "reason": "strategy_name 无效"}
-
-    discovered, err = _resolve_discovered(name, api_settings)
-    if err or discovered is None:
-        return {"is_triggered": False, "reason": err or "无法解析策略"}
-
-    jid = job_create(strategy_name=name, step=norm_step, is_force=is_force)
-    _seed_workbench_progress_file(name, jid, norm_step)
-    thread = threading.Thread(
-        target=_background_job,
-        args=(jid, name, norm_step, discovered, is_force),
-        daemon=True,
-        name=f"workbench-run-{jid[:8]}",
+    """委托 ``execution_manager.adapters.bff``；契约不变。"""
+    from core.modules.strategy.execution_manager.adapters.bff import (
+        submit_workbench_step_via_bff_contract,
     )
-    thread.start()
-    return {"is_triggered": True, "job_id": jid}
+
+    return submit_workbench_step_via_bff_contract(
+        strategy_name=strategy_name,
+        step=step,
+        api_settings=api_settings,
+        is_force=is_force,
+    )

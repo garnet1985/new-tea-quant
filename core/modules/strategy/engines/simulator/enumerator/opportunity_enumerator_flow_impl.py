@@ -154,7 +154,7 @@ class OpportunityEnumeratorFlowImpl:
         self, *, strategy_name: str, enum_settings: OpportunityEnumeratorSettings
     ) -> Dict[str, Any]:
         output_dir, version_id = StrategyOutputVersionService.create_enumerator_version(
-            strategy_name=strategy_name, use_sampling=False
+            strategy_name=strategy_name,
         )
         return {
             "output_dir": output_dir,

@@ -248,8 +248,13 @@ function OpportunityEnumrateReport({
             </Box>
             <MetricCard
               title="机会分散度"
-              value={`SD ${metrics.stdGap} 天`}
-              hint={`CV ${metrics.cv} · ${metrics.dispersionConclusion}`}
+              value={Number.isFinite(Number(metrics.stdGap))
+                ? `SD ${metrics.stdGap} 天`
+                : '—'}
+              hint={[
+                Number.isFinite(Number(metrics.cv)) ? `CV ${metrics.cv}` : null,
+                (metrics.dispersionConclusion && String(metrics.dispersionConclusion).trim()) || null,
+              ].filter(Boolean).join(' · ') || '后端未写入标准差/CV 时仅展示间隔与持续。'}
             />
           </Stack>
         ) : <ReportUnavailableHint />}

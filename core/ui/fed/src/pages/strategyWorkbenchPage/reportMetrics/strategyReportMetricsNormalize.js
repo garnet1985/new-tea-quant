@@ -60,9 +60,9 @@ export function normalizeEnumMetricsFromSummary(summary) {
   }
 
   let completedRatio = normalizePercent(pick('completedRatio', 'completed_ratio'));
-  if (!Number.isFinite(completedRatio) || completedRatio === 0) {
+  if (!Number.isFinite(completedRatio)) {
     const alt = normalizePercent(pick('completionRate', 'completion_rate'));
-    if (Number.isFinite(alt) && alt > 0) completedRatio = alt;
+    if (Number.isFinite(alt)) completedRatio = alt;
   }
 
   let completedCount = Number(pick('completedCount', 'completed_count'));
@@ -73,6 +73,9 @@ export function normalizeEnumMetricsFromSummary(summary) {
   ) {
     completedCount = Math.round((completedRatio / 100) * totalOpportunities);
   }
+
+  if (!Number.isFinite(completedRatio)) completedRatio = 0;
+  if (!Number.isFinite(completedCount)) completedCount = 0;
 
   const unfinishedCount = Number(pick('unfinishedCount', 'unfinished_count'));
 
@@ -118,8 +121,7 @@ export function normalizeEnumMetricsFromSummary(summary) {
   const overviewOk = Number.isFinite(totalOpportunities)
     && Number.isFinite(totalStocks)
     && totalStocks > 0
-    && totalOpportunities >= 0
-    && (Number.isFinite(completedCount) || Number.isFinite(completedRatio));
+    && totalOpportunities >= 0;
 
   const stockStatsOk = Number.isFinite(totalStocks)
     && totalStocks > 0
@@ -130,7 +132,7 @@ export function normalizeEnumMetricsFromSummary(summary) {
     && opportunityCountStockCounts.length === opportunityCountLabels.length
     && opportunityCountStockRatios.length === opportunityCountLabels.length;
 
-  const timingOk = [meanGap, meanDuration, stdGap, cv].every((x) => Number.isFinite(Number(x)));
+  const timingOk = [meanGap, meanDuration].every((x) => Number.isFinite(Number(x)));
 
   return {
     totalOpportunities,

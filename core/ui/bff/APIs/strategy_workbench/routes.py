@@ -9,8 +9,8 @@
 
 from flask import Blueprint, request
 
-from core.modules.strategy.services.launcher import fetch_latest_workbench_snapshot
-from core.modules.strategy.services.launcher.workbench import (
+from core.modules.strategy.launcher import fetch_latest_workbench_snapshot
+from core.modules.strategy.launcher.workbench import (
     apply_workbench_snapshot_settings_to_userspace,
     build_step_report_message,
     build_step_report_ref_message,
@@ -18,16 +18,16 @@ from core.modules.strategy.services.launcher.workbench import (
     parse_snapshot_id,
     workbench_latest_ui_flags,
 )
-from core.modules.strategy.services.launcher.workbench_catalog import (
+from core.modules.strategy.launcher.workbench_catalog import (
     fetch_discovered_strategies_page,
     fetch_strategy_versions_dropdown,
     items_capital_allocation_strategies,
     items_sampling_strategies,
 )
-from core.modules.strategy.services.launcher.workbench_step_run import (
+from core.modules.strategy.execution_manager import (
     get_step_progress,
     normalize_step,
-    trigger_workbench_step_run,
+    submit_workbench_step_via_bff_contract,
 )
 from core.ui.bff.shared.response import error, ok
 
@@ -108,7 +108,7 @@ def post_strategy_step_run(strategy_name, step):
     raw_force = payload.get("is_force", False)
     is_force = raw_force if isinstance(raw_force, bool) else bool(raw_force)
 
-    out = trigger_workbench_step_run(
+    out = submit_workbench_step_via_bff_contract(
         strategy_name=strategy_name,
         step=step,
         api_settings=settings,

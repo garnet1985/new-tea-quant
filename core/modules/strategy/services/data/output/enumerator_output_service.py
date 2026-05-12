@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 import json
 
-from core.modules.strategy.services.launcher.run_types import (
+from core.modules.strategy.launcher.run_types import (
     StrategyRunFingerprint,
 )
 

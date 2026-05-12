@@ -34,7 +34,7 @@ from core.modules.strategy.engines.simulator.enumerator.data_classes.report impo
 from core.modules.strategy.engines.simulator.enumerator.session_enum_stats import (
     materialize_enum_report,
 )
-from core.modules.strategy.services.launcher.run_types import (
+from core.modules.strategy.launcher.run_types import (
     StrategyRunFingerprint,
 )
 from core.modules.strategy.engines.simulator.enumerator.worker import OpportunityEnumeratorWorker

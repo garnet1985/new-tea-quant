@@ -6,8 +6,20 @@ import logging
 import threading
 from typing import Any, Dict
 
-from core.modules.strategy.execution_manager.execution import execute_workbench_plan_sync
-from core.modules.strategy.execution_manager.planning import plan_workbench_substeps
+from ..execution import execute_workbench_plan_sync
+from ..planning import plan_workbench_substeps
+from ..workbench_disk_progress import (
+    disk_mark_failed,
+    disk_mark_running,
+    disk_workbench_step_progress,
+    merge_snapshot_into_disk_progress,
+    seed_workbench_progress_file,
+)
+from ..workbench_jobs import job_create, job_update
+from ..workbench_resolve import (
+    normalize_step,
+    resolve_discovered_strategy,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +39,7 @@ class _WorkbenchDiskProgressSink:
         self._user_step = str(user_facing_step).strip()
 
     def on_overall_pct(self, pct: float) -> None:
-        from core.modules.strategy.services.launcher import workbench_step_run as wsr
-
-        wsr._disk_workbench_step_progress(
+        disk_workbench_step_progress(
             self._strategy_name, self._job_id, self._user_step, pct
         )
 
@@ -47,12 +57,10 @@ def _run_workbench_job_in_thread(
     discovered: Any,
     is_force: bool,
 ) -> None:
-    from core.modules.strategy.services.launcher import workbench_step_run as wsr
-
-    wsr.job_update(job_id, status="running", progress=1.0)
-    wsr._disk_mark_running(strategy_name, job_id, norm_step)
+    job_update(job_id, status="running", progress=1.0)
+    disk_mark_running(strategy_name, job_id, norm_step)
     try:
-        wsr.job_update(job_id, progress=5.0)
+        job_update(job_id, progress=5.0)
         plan = plan_workbench_substeps(
             norm_step=norm_step,
             is_force=is_force,
@@ -71,17 +79,17 @@ def _run_workbench_job_in_thread(
             is_verbose=False,
         )
         sid_int = int(result.snapshot_id or 0)
-        wsr.job_update(
+        job_update(
             job_id,
             status="completed",
             progress=100.0,
             snapshot_id=sid_int,
         )
-        wsr._merge_snapshot_into_disk_progress(strategy_name, job_id, norm_step, sid_int)
+        merge_snapshot_into_disk_progress(strategy_name, job_id, norm_step, sid_int)
     except Exception as exc:  # noqa: BLE001
         logger.exception("Workbench step run failed job_id=%s", job_id)
-        wsr.job_update(job_id, status="failed", progress=100.0, error=str(exc))
-        wsr._disk_mark_failed(strategy_name, job_id, norm_step, str(exc))
+        job_update(job_id, status="failed", progress=100.0, error=str(exc))
+        disk_mark_failed(strategy_name, job_id, norm_step, str(exc))
 
 
 def submit_workbench_step_via_bff_contract(
@@ -92,14 +100,12 @@ def submit_workbench_step_via_bff_contract(
     is_force: bool,
 ) -> Dict[str, Any]:
     """
-    与 ``workbench_step_run.trigger_workbench_step_run`` 契约一致：
+    BFF 触发异步工作台一步。
 
     - 成功：``{"is_triggered": True, "job_id": "<uuid>"}``
     - 失败：``{"is_triggered": False, "reason": "..."}``
     """
-    from core.modules.strategy.services.launcher import workbench_step_run as wsr
-
-    norm_step = wsr.normalize_step(step)
+    norm_step = normalize_step(step)
     if norm_step is None:
         return {
             "is_triggered": False,
@@ -110,12 +116,12 @@ def submit_workbench_step_via_bff_contract(
     if not name:
         return {"is_triggered": False, "reason": "strategy_name 无效"}
 
-    discovered, err = wsr._resolve_discovered(name, api_settings)
+    discovered, err = resolve_discovered_strategy(name, api_settings)
     if err or discovered is None:
         return {"is_triggered": False, "reason": err or "无法解析策略"}
 
-    jid = wsr.job_create(strategy_name=name, step=norm_step, is_force=is_force)
-    wsr._seed_workbench_progress_file(name, jid, norm_step)
+    jid = job_create(strategy_name=name, step=norm_step, is_force=is_force)
+    seed_workbench_progress_file(name, jid, norm_step)
     thread = threading.Thread(
         target=_run_workbench_job_in_thread,
         args=(jid, name, norm_step, discovered, is_force),

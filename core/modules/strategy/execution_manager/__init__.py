@@ -6,6 +6,8 @@
 from .adapters import run_workbench_step_via_cli_contract, submit_workbench_step_via_bff_contract
 from .execution import execute_workbench_plan_sync, run_workbench_substep_for_snapshot
 from .planning import plan_workbench_substeps
+from .workbench_disk_progress import get_step_progress
+from .workbench_resolve import normalize_step, resolve_discovered_strategy
 from .plan_schema import (
     WORKBENCH_PLAN_BY_ROOT_STEP,
     WORKBENCH_ROOT_PLANS,
@@ -32,7 +34,10 @@ __all__ = [
     "WorkbenchExecutionResult",
     "WorkbenchSubstep",
     "execute_workbench_plan_sync",
+    "get_step_progress",
+    "normalize_step",
     "plan_workbench_substeps",
+    "resolve_discovered_strategy",
     "resolve_workbench_plan",
     "run_workbench_substep_for_snapshot",
     "run_workbench_step_via_cli_contract",

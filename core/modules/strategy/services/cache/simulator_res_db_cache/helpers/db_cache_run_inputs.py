@@ -41,7 +41,7 @@ def raw_settings_for_db_cache_fingerprint(
     """与 ``StrategyFingerprintManager.canonicalize_settings`` 对齐，失败回退 view。"""
     if strategy_info is not None:
         try:
-            from core.modules.strategy.services.launcher.run_service import (
+            from core.modules.strategy.launcher.run_service import (
                 StrategyFingerprintManager,
             )
 

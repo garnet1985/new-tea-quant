@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
 import { ThemeProvider, createTheme, alpha } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
+import { zhCN as muiZhCN } from '@mui/material/locale';
 import SetupPage from './pages/setupPage';
 import ComingSoonPage from './pages/comingSoonPage';
 import SetupGuard from 'components/setupGuard';
@@ -105,7 +106,7 @@ const theme = createTheme({
       },
     },
   },
-});
+}, muiZhCN);
 
 function App() {
   return (

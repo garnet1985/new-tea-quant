@@ -10,11 +10,11 @@ function ComingSoonPage({ title, description }) {
   return (
     <PageLayout
       className="coming-soon-page"
-      breadcrumbsItems={[{ label: '策略工作台', to: '/strategy-workbench' }]}
+      breadcrumbsItems={[{ label: '策略实验室', to: '/strategy-workbench' }]}
       breadcrumbsCurrent={title}
       bannerTitle={title}
       bannerDescription={desc}
-      bannerRightSlot={<Chip size="small" color="default" label="Coming soon" variant="outlined" />}
+      bannerRightSlot={<Chip size="small" color="default" label="即将推出" variant="outlined" />}
     >
       <Card variant="outlined" sx={{ mt: 2 }}>
         <CardContent>

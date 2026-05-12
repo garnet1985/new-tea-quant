@@ -556,8 +556,8 @@ function StrategyWorkbenchPage() {
     <PageLayout
       className="strategy-workbench-page"
       breadcrumbsItems={[
-        { label: '策略工作台', to: '/strategy-workbench' },
-        { label: '策略列表', to: '/strategy-workbench' },
+        { label: '策略实验室', to: '/strategy-workbench' },
+        { label: '选择策略', to: '/strategy-workbench' },
       ]}
       breadcrumbsCurrent={strategyName ? `调试：${strategyName}` : '策略调试'}
       bannerTitle={strategyName ? `调试：${strategyName}` : '策略调试'}

@@ -64,7 +64,7 @@ function SettingsPage() {
   return (
     <PageLayout
       className="settings-page"
-      breadcrumbsItems={[{ label: '策略工作台', to: '/strategy-workbench' }]}
+      breadcrumbsItems={[{ label: '策略实验室', to: '/strategy-workbench' }]}
       breadcrumbsCurrent="设置"
       bannerTitle="设置"
       bannerDescription="系统安装入口与 userspace 数据库连接（库类型、库名）的快速调整。"

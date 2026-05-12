@@ -22,6 +22,9 @@
 <a href="https://gitee.com/garnet/new-tea-quant"><img alt="Gitee" src="https://img.shields.io/badge/Gitee-new--tea--quant-C71D23?logo=gitee&logoColor=white"></a>&nbsp;
 <a href="https://new-tea.cn"><img alt="Website" src="https://img.shields.io/badge/website-new--tea.cn-009688?logo=google-chrome&logoColor=white"></a>
 
+## 重大更新
+
+**NTQ 支持 Web UI 展示啦**：核心模块里加入前端（`core/ui/fed`）与 BFF（`core/ui/bff`），可在本机启动后通过浏览器使用策略实验室、策略选股、初始化向导、设置等界面。
 
 > ## ⭐ 支持一下项目
 > 如果您对项目有兴趣，并想持续关注，欢迎为仓库点亮一个Star！  
@@ -52,8 +55,9 @@
 
 ### 前提条件
 
-- 本机已安装可用的 Python 3.9+。  
-- 本机已有可用数据库（MySQL 或 PostgreSQL）。
+- 本机需要有 **Python 3.9 或以上**版本。如果您不知道怎么安装，请参考这篇文档：[安装 Python](https://new-tea.cn/zh-hans/install-python)。
+- 本机需要有 **MySQL 或 PostgreSQL** 中的任意一种数据库。如果您不知道如何安装，请参考这篇文档：[安装数据库](https://new-tea.cn/zh-hans/install-database)。
+- 本机需要安装 **Node.js**。请在 [Node.js 官网](https://nodejs.org/) 下载安装包并按向导安装（基本上就是一直点下一步）。
 
 ### 第 1 步：下载代码
 

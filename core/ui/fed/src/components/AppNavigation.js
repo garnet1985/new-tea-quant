@@ -5,9 +5,8 @@ import { ReactComponent as FallbackLogo } from '../assets/icon/tactic.svg';
 import './appNavigation.scss';
 
 const navItems = [
-  { label: '策略工作台', path: '/strategy-workbench' },
-  { label: '机会扫描', path: '/scan' },
-  { label: '高级功能', path: '/advanced' },
+  { label: '策略实验室', path: '/strategy-workbench' },
+  { label: '策略选股', path: '/scan' },
   { label: '设置', path: '/settings' },
 ];
 
@@ -32,7 +31,7 @@ function AppNavigation() {
               className="ntq-brand"
               component={RouterLink}
               to={navItems[0].path}
-              aria-label="Go to New Tea Quant home"
+              aria-label="返回 New Tea Quant 首页"
             >
             {logoFailed ? (
               <FallbackLogo className="ntq-brand__logo" />
@@ -40,7 +39,7 @@ function AppNavigation() {
               <Box
                 component="img"
                 src="/logo.png"
-                alt="New Tea Quant"
+                alt="New Tea Quant 徽标"
                 onError={() => setLogoFailed(true)}
                 className="ntq-brand__logo"
               />

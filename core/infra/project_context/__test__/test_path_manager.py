@@ -3,7 +3,22 @@ PathManager 单元测试
 """
 import pytest
 from pathlib import Path
+
 from core.infra.project_context.path_manager import PathManager
+
+
+def _fake_repo_with_userspace(tmp_path: Path, *, with_strategies: bool = True, with_config: bool = False) -> Path:
+    """在临时目录构造最小「含 userspace」仓库树（CI 检出未必自带 userspace/）。"""
+    fake_root = tmp_path / "repo"
+    fake_root.mkdir()
+    (fake_root / "README.md").touch()
+    us = fake_root / "userspace"
+    us.mkdir()
+    if with_strategies:
+        (us / "strategies").mkdir()
+    if with_config:
+        (us / "config").mkdir()
+    return fake_root
 
 
 class TestPathManager:
@@ -31,21 +46,34 @@ class TestPathManager:
         assert core_dir.exists()
         assert (core_dir / "infra").exists()
     
-    def test_userspace(self):
-        """测试获取 userspace 目录"""
-        userspace_dir = PathManager.userspace()
-        
-        assert isinstance(userspace_dir, Path)
-        assert userspace_dir.exists()
-        assert (userspace_dir / "strategies").exists()
-    
-    def test_config(self):
-        """测试获取 config 目录"""
-        config_dir = PathManager.config()
-        
-        assert isinstance(config_dir, Path)
-        # config 目录应该存在
-        assert config_dir.exists()
+    def test_userspace(self, tmp_path, monkeypatch):
+        """测试获取 userspace 目录（默认 <root>/userspace；仓库可不自带，由安装创建）"""
+        fake_root = _fake_repo_with_userspace(tmp_path, with_strategies=True)
+        monkeypatch.setattr(PathManager, "_root_cache", fake_root)
+        PathManager.invalidate_userspace_cache()
+        try:
+            userspace_dir = PathManager.userspace()
+
+            assert isinstance(userspace_dir, Path)
+            assert userspace_dir == fake_root / "userspace"
+            assert userspace_dir.exists()
+            assert (userspace_dir / "strategies").exists()
+        finally:
+            PathManager.invalidate_userspace_cache()
+
+    def test_config(self, tmp_path, monkeypatch):
+        """测试获取 config 目录（userspace/config）"""
+        fake_root = _fake_repo_with_userspace(tmp_path, with_strategies=False, with_config=True)
+        monkeypatch.setattr(PathManager, "_root_cache", fake_root)
+        PathManager.invalidate_userspace_cache()
+        try:
+            config_dir = PathManager.config()
+
+            assert isinstance(config_dir, Path)
+            assert config_dir == fake_root / "userspace" / "config"
+            assert config_dir.exists()
+        finally:
+            PathManager.invalidate_userspace_cache()
     
     def test_strategy(self):
         """测试获取策略目录"""

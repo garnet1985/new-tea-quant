@@ -4,36 +4,16 @@
 编排说明见 ``ROUTES_ORCHESTRATION.md``。
 应用挂载前缀：``/api``（见 ``core/ui/bff/app.py``）。
 
-路由内直接编排后端调用；若有复杂分支或复用需求再抽到 ``service`` 层。
+工作台实现栈在 ``strategy_stack`` 中首次请求时再 import，避免 BFF 启动即拉 DataManager 等。
 """
 
 from flask import Blueprint, request
 
-from core.modules.strategy.launcher import fetch_latest_workbench_snapshot
-from core.modules.strategy.launcher.workbench import (
-    apply_workbench_snapshot_settings_to_userspace,
-    build_step_report_message,
-    build_step_report_ref_message,
-    fetch_workbench_snapshot_by_snapshot_id,
-    parse_snapshot_id,
-    workbench_latest_ui_flags,
-)
-from core.modules.strategy.launcher.workbench_catalog import (
-    fetch_discovered_strategies_page,
-    fetch_strategy_versions_dropdown,
-    items_capital_allocation_strategies,
-    items_sampling_strategies,
-)
-from core.modules.strategy.execution_manager import (
-    get_run_progress,
-    get_step_progress,
-    normalize_step,
-    submit_workbench_step_via_bff_contract,
-)
 from core.ui.bff.shared.response import error, ok
 
 from .formatting import workbench_snapshot_to_message
 from .helpers import json_payload, pagination_params
+from .strategy_stack import get_strategy_workbench_stack
 
 strategy_workbench_api_bp = Blueprint("strategy_workbench_api", __name__)
 
@@ -44,19 +24,21 @@ strategy_workbench_api_bp = Blueprint("strategy_workbench_api", __name__)
     methods=["GET"],
 )
 def get_strategy_version_latest(strategy_name):
-    row = fetch_latest_workbench_snapshot(strategy_name)
+    s = get_strategy_workbench_stack()
+    row = s.fetch_latest_workbench_snapshot(strategy_name)
     if row is None:
         return error("策略不存在或无法加载工作台数据", 404)
     msg = workbench_snapshot_to_message(row)
-    msg.update(workbench_latest_ui_flags(strategy_name, row))
+    msg.update(s.workbench_latest_ui_flags(strategy_name, row))
     return ok(msg)
 
 
 # --- V2-02 ---
 @strategy_workbench_api_bp.route("/v1/strategies/list", methods=["GET"])
 def get_strategies_list():
+    s = get_strategy_workbench_stack()
     page, limit = pagination_params()
-    items, total = fetch_discovered_strategies_page(page, limit)
+    items, total = s.fetch_discovered_strategies_page(page, limit)
     return ok({"items": items, "total": total, "page": page, "limit": limit})
 
 
@@ -67,7 +49,8 @@ def get_strategies_list():
 )
 def get_strategy_versions(strategy_name):
     """GET /strategy/{strategy_name}/versions — 下拉 / 版本对比，至多 10 条。"""
-    items = fetch_strategy_versions_dropdown(strategy_name)
+    s = get_strategy_workbench_stack()
+    items = s.fetch_strategy_versions_dropdown(strategy_name)
     return ok({"items": items})
 
 
@@ -78,7 +61,8 @@ def get_strategy_versions(strategy_name):
 )
 def get_settings_capital_allocation_strategies():
     """GET /strategy/settings/capital-allocation-strategies"""
-    return ok({"items": items_capital_allocation_strategies()})
+    s = get_strategy_workbench_stack()
+    return ok({"items": s.items_capital_allocation_strategies()})
 
 
 @strategy_workbench_api_bp.route(
@@ -87,7 +71,8 @@ def get_settings_capital_allocation_strategies():
 )
 def get_settings_sampling_strategies():
     """GET /strategy/settings/sampling-strategies"""
-    return ok({"items": items_sampling_strategies()})
+    s = get_strategy_workbench_stack()
+    return ok({"items": s.items_sampling_strategies()})
 
 
 # --- V2-05 ---
@@ -97,6 +82,7 @@ def get_settings_sampling_strategies():
 )
 def post_strategy_step_run(strategy_name, step):
     """POST /strategy/{strategy_name}/{step}/run — 成功时务必携带返回的 ``job_id`` 轮询 progress。"""
+    s = get_strategy_workbench_stack()
     payload = json_payload()
     settings = payload.get("settings")
     if settings is None or not isinstance(settings, dict):
@@ -109,7 +95,7 @@ def post_strategy_step_run(strategy_name, step):
     raw_force = payload.get("is_force", False)
     is_force = raw_force if isinstance(raw_force, bool) else bool(raw_force)
 
-    out = submit_workbench_step_via_bff_contract(
+    out = s.submit_workbench_step_via_bff_contract(
         strategy_name=strategy_name,
         step=step,
         api_settings=settings,
@@ -133,10 +119,11 @@ def post_strategy_step_run(strategy_name, step):
     methods=["GET"],
 )
 def get_strategy_run_progress(strategy_name):
+    s = get_strategy_workbench_stack()
     q_job = (request.args.get("job_id") or "").strip()
     if not q_job:
         return error("缺少必填 query 参数 job_id", 400)
-    payload = get_run_progress(
+    payload = s.get_run_progress(
         strategy_name=str(strategy_name),
         job_id=q_job,
     )
@@ -152,13 +139,14 @@ def get_strategy_run_progress(strategy_name):
 )
 def get_strategy_step_progress(strategy_name, step):
     """GET /strategy/{strategy_name}/{step}/progress — **必填** query ``job_id``（与 V2-05 返回一致）。"""
-    norm = normalize_step(step)
+    s = get_strategy_workbench_stack()
+    norm = s.normalize_step(step)
     if norm is None:
         return error("step 须为 enum / price / capital", 400)
     q_job = (request.args.get("job_id") or "").strip()
     if not q_job:
         return error("缺少必填 query 参数 job_id", 400)
-    payload = get_step_progress(
+    payload = s.get_step_progress(
         strategy_name=strategy_name,
         normalized_step=norm,
         job_id=q_job,
@@ -180,7 +168,8 @@ def get_strategy_step_report(strategy_name, step, version_id):
     **路径** ``version_id``（``v3`` / ``3``）。本轮 run 在 **V2-06** 达 **completed**
     且 ``snapshot_id>0`` 时已下发 ``version_id``，前端用同一值拉取该步明细；历史/对比亦为同一参数。
     """
-    norm = normalize_step(step)
+    s = get_strategy_workbench_stack()
+    norm = s.normalize_step(step)
     if norm is None:
         return error("step 须为 enum / price / capital", 400)
 
@@ -188,10 +177,10 @@ def get_strategy_step_report(strategy_name, step, version_id):
     if not path_vid:
         return error("缺少路径参数 version_id", 400)
 
-    sid = parse_snapshot_id(path_vid)
+    sid = s.parse_snapshot_id(path_vid)
     if sid is None:
         return error("version_id 无效", 400)
-    msg = build_step_report_message(
+    msg = s.build_step_report_message(
         strategy_name=strategy_name,
         normalized_step=norm,
         snapshot_id=sid,
@@ -208,7 +197,8 @@ def get_strategy_step_report(strategy_name, step, version_id):
 )
 def get_strategy_step_report_ref(strategy_name, step, version_id):
     """GET …/report_ref/<version_id> — 仅 ``enum`` 步；``stock_ref`` 可空（磁盘清理属正常；见 ``stock_ref_available``）。"""
-    norm = normalize_step(step)
+    s = get_strategy_workbench_stack()
+    norm = s.normalize_step(step)
     if norm is None:
         return error("step 须为 enum / price / capital", 400)
 
@@ -216,10 +206,10 @@ def get_strategy_step_report_ref(strategy_name, step, version_id):
     if not path_vid:
         return error("缺少路径参数 version_id", 400)
 
-    sid = parse_snapshot_id(path_vid)
+    sid = s.parse_snapshot_id(path_vid)
     if sid is None:
         return error("version_id 无效", 400)
-    msg = build_step_report_ref_message(
+    msg = s.build_step_report_ref_message(
         strategy_name=strategy_name,
         normalized_step=norm,
         snapshot_id=sid,
@@ -236,10 +226,11 @@ def get_strategy_step_report_ref(strategy_name, step, version_id):
 )
 def get_strategy_version_snapshot(strategy_name, version_id):
     """GET /strategy/{strategy_name}/version/{version_id} — 与 latest 同形，按 id 取行（无冷启动）。"""
-    sid = parse_snapshot_id(version_id)
+    s = get_strategy_workbench_stack()
+    sid = s.parse_snapshot_id(version_id)
     if sid is None:
         return error("version_id 无效", 400)
-    row = fetch_workbench_snapshot_by_snapshot_id(strategy_name, sid)
+    row = s.fetch_workbench_snapshot_by_snapshot_id(strategy_name, sid)
     if row is None:
         return error("快照不存在", 404)
     return ok(workbench_snapshot_to_message(row))
@@ -252,7 +243,8 @@ def get_strategy_version_snapshot(strategy_name, version_id):
 )
 def post_apply_settings(strategy_name, version_id):
     """POST /strategy/{strategy_name}/apply-settings/{version_id} — 快照 settings → userspace ``settings.py``。"""
-    sid = parse_snapshot_id(version_id)
+    s = get_strategy_workbench_stack()
+    sid = s.parse_snapshot_id(version_id)
     if sid is None:
         return error("version_id 无效", 400)
 
@@ -260,7 +252,7 @@ def post_apply_settings(strategy_name, version_id):
     raw_pretty = payload.get("pretty", False) if isinstance(payload, dict) else False
     pretty = raw_pretty if isinstance(raw_pretty, bool) else bool(raw_pretty)
 
-    out, err = apply_workbench_snapshot_settings_to_userspace(
+    out, err = s.apply_workbench_snapshot_settings_to_userspace(
         strategy_name=strategy_name,
         snapshot_id=sid,
         pretty=pretty,

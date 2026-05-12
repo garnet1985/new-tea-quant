@@ -7,12 +7,9 @@ from flask import Blueprint, request
 
 import logging
 
-from core.modules.strategy.launcher.scanner_run import (
-    get_scan_progress,
-    get_scan_readiness,
-    trigger_strategy_scan_run,
-)
 from core.ui.bff.shared.response import error, ok
+
+from .scan_stack import get_strategy_scan_stack
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +36,9 @@ def _parse_bool_query(v: str, default: bool = False) -> bool:
 )
 def get_strategy_scan_readiness_route(strategy_name: str):
     """GET /v1/strategy/{strategy_name}/scan?demo=0|1 — 仅返回 ``primary_action``（run|rerun），供按钮文案。"""
+    s = get_strategy_scan_stack()
     demo = _parse_bool_query(request.args.get("demo"), default=False)
-    payload = get_scan_readiness(strategy_name=strategy_name, demo=demo)
+    payload = s.get_scan_readiness(strategy_name=strategy_name, demo=demo)
     return ok(payload)
 
 
@@ -54,13 +52,13 @@ def post_strategy_scan(strategy_name: str):
     - demo: optional query flag, default false.
     - force: optional query flag; when true,跳过磁盘扫描缓存并全量重算。
     """
+    s = get_strategy_scan_stack()
     demo = _parse_bool_query(request.args.get("demo"), default=False)
     force = _parse_bool_query(request.args.get("force"), default=False)
     logger.info("[bff.scan] POST scan strategy=%s demo=%s force=%s", strategy_name, demo, force)
-    out = trigger_strategy_scan_run(strategy_name=strategy_name, demo=demo, force=force)
+    out = s.trigger_strategy_scan_run(strategy_name=strategy_name, demo=demo, force=force)
     if not out.get("is_triggered"):
         reason = str(out.get("reason") or "启动扫描失败")
-        # Single-flight guard / conflicts return 409 for clearer client handling.
         status = 409 if "运行中" in reason or "扫描任务" in reason else 400
         logger.warning(
             "[bff.scan] trigger rejected strategy=%s demo=%s force=%s status=%s reason=%s",
@@ -95,11 +93,11 @@ def post_strategy_scan(strategy_name: str):
 )
 def get_strategy_scan_progress(strategy_name: str):
     """GET /v1/strategy/{strategy_name}/scan/progress?job_id=..."""
+    s = get_strategy_scan_stack()
     q_job = (request.args.get("job_id") or "").strip()
     if not q_job:
         return error("缺少必填 query 参数 job_id", 400)
-    payload = get_scan_progress(strategy_name=strategy_name, job_id=q_job)
+    payload = s.get_scan_progress(strategy_name=strategy_name, job_id=q_job)
     if payload is None:
         return error("任务不存在或与路径不匹配", 404)
     return ok(payload)
-

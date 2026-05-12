@@ -33,6 +33,7 @@ import argparse
 import asyncio
 import warnings
 import logging
+from typing import Optional
 
 # ============================================================================
 # 路径设置（必须在导入其他模块之前）
@@ -244,7 +245,7 @@ def _add_shortcut_flags(parser):
     parser.add_argument('-sc', dest='strategy_scan_flag', action='store_true',
                        help='Strategy scan')
     parser.add_argument('-se', dest='strategy_enum_flag', action='store_true',
-                       help='Strategy enumerate（写入 results/simulation/enum/{version}）')
+                       help='Strategy enumerate（写入 results/simulations/enum/{version}）')
     parser.add_argument('-sp', dest='strategy_price_flag', action='store_true',
                        help='Strategy price factor simulation（基于枚举输出）')
     parser.add_argument('-sa', dest='strategy_capital_flag', action='store_true',
@@ -414,7 +415,7 @@ def resolve_command(args) -> str:
     return 'scan'
 
 
-def _cli_strategy_arg(raw) -> str | None:
+def _cli_strategy_arg(raw: object) -> Optional[str]:
     """``--strategy``：空串视为未传（``None``）。"""
     if raw is None:
         return None

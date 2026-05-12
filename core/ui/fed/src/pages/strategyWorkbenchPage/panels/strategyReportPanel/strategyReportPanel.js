@@ -111,6 +111,7 @@ function StrategyReportPanel({
     enumRefRows,
     availableTabs,
     resolvedActiveTab,
+    stepReportSlots,
   } = useStrategyReportRemoteData({
     strategyName,
     runId,
@@ -254,11 +255,13 @@ function StrategyReportPanel({
       result: {
         enum:
           snapshotEnumSlot
+          || stepReportSlots?.enum
           || executionState?.result?.enum
           || remoteReports?.reports?.enum
           || null,
         price:
           snapshotPriceSlot
+          || stepReportSlots?.price
           || executionState?.result?.price
           || remoteReports?.reports?.price
           || null,
@@ -266,7 +269,10 @@ function StrategyReportPanel({
           executionState?.result?.capital
           || remoteReports?.reports?.capital
           || null,
-        capital_allocation: snapshotCapitalSlot || null,
+        capital_allocation:
+          snapshotCapitalSlot
+          || stepReportSlots?.capital
+          || null,
       },
     };
 

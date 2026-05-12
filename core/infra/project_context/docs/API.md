@@ -216,7 +216,7 @@
 `PathManager.strategy_simulation_enum(strategy_name: str) -> Path`
 
 - 状态：`stable`
-- 描述：枚举（机会枚举）输出根目录；版本子目录与 `meta.json` 均位于 `results/simulation/enum` 下。
+- 描述：枚举（机会枚举）输出根目录；版本子目录与 `meta.json` 均位于 `results/simulations/enum` 下。
 - 诞生版本：`0.2.0`
 - params：
 
@@ -232,7 +232,7 @@
 `PathManager.strategy_simulation_price(strategy_name: str) -> Path`
 
 - 状态：`stable`
-- 描述：价格因子模拟版本根目录：`results/simulation/price`。
+- 描述：价格因子模拟版本根目录：`results/simulations/price`。
 - 诞生版本：`0.2.0`
 - params：
 
@@ -248,7 +248,7 @@
 `PathManager.strategy_simulation_capital(strategy_name: str) -> Path`
 
 - 状态：`stable`
-- 描述：资金分配模拟版本根目录：`results/simulation/capital`。
+- 描述：资金分配模拟版本根目录：`results/simulations/capital`。
 - 诞生版本：`0.2.0`
 - params：
 

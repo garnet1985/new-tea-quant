@@ -21,6 +21,12 @@ class ProgressSink(Protocol):
     def on_flow_progress(self, substep: str, flow_pct: float) -> None:
         pass
 
+    def on_substep_finish(
+        self, substep: str, index: int, total: int, snapshot_id: int
+    ) -> None:
+        """子步骤成功结束（可选；BFF 编排信封用）。"""
+        pass
+
 
 ProgressCallback = Callable[[float], None]
 

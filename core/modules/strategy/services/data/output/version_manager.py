@@ -61,7 +61,9 @@ class StrategyOutputVersionService:
             return sorted(candidates, key=lambda p: p.name)[-1], root
         version_dir = root / version_str
         if not version_dir.exists() or not version_dir.is_dir():
-            raise FileNotFoundError(f"[StrategyOutputVersionService] version dir missing: {version_dir}")
+            raise FileNotFoundError(
+                f"[StrategyOutputVersionService] version dir missing: {version_dir}"
+            )
         return version_dir, root
 
     @staticmethod

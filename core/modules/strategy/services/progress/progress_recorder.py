@@ -32,14 +32,17 @@ class ProgressRecorder:
         return cls(cls.build_path(channel, key))
 
     @classmethod
-    def for_scanner_run(
+    def for_strategy_workbench_run(
         cls,
         strategy_name: str,
         run_id: str,
         *,
-        channel: str = "scanner",
+        channel: str = "strategy-workbench-run",
     ) -> "ProgressRecorder":
-        key = f"{strategy_name}__{run_id}__scan"
+        """单 job 工作台编排进度：``{strategy}__{run_id}.json``（与按 step 分文件并存）。"""
+        sn = str(strategy_name).strip()
+        jid = str(run_id).strip()
+        key = f"{sn}__{jid}"
         return cls(cls.build_path(channel, key))
 
     @classmethod

@@ -7,6 +7,7 @@ from .adapters import run_workbench_step_via_cli_contract, submit_workbench_step
 from .execution import execute_workbench_plan_sync, run_workbench_substep_for_snapshot
 from .planning import plan_workbench_substeps
 from .workbench_disk_progress import get_step_progress
+from .workbench_run_envelope import get_run_progress
 from .workbench_resolve import normalize_step, resolve_discovered_strategy
 from .plan_schema import (
     WORKBENCH_PLAN_BY_ROOT_STEP,
@@ -34,6 +35,7 @@ __all__ = [
     "WorkbenchExecutionResult",
     "WorkbenchSubstep",
     "execute_workbench_plan_sync",
+    "get_run_progress",
     "get_step_progress",
     "normalize_step",
     "plan_workbench_substeps",

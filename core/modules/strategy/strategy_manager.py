@@ -410,7 +410,7 @@ class StrategyManager:
 
     def analyze_simulation_outputs(self, *, session_id: Optional[str] = None) -> None:
         """
-        读取各启用策略下 ``results/simulation/price`` / ``capital`` 最新版本摘要并打日志。
+        读取各启用策略下 ``results/simulations/price`` / ``results/simulations/capital`` 最新版本摘要并打日志。
 
         ``session_id`` 预留，当前未使用。
         """

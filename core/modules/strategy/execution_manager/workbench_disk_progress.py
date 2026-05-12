@@ -120,6 +120,34 @@ def _fed_result_report_slice(
     return out
 
 
+def _fed_execution_step_card_slice(
+    strategy_name: str,
+    normalized_step: str,
+    snapshot_id: int,
+) -> Dict[str, Any]:
+    """仅执行面板三行卡片所需字段，避免把整份 ``result_report`` 塞进 run 进度 JSON。"""
+    full = _fed_result_report_slice(strategy_name, normalized_step, snapshot_id)
+    if not full:
+        return {}
+    out: Dict[str, Any] = {}
+    if "enum" in full and isinstance(full["enum"], dict):
+        e = full["enum"]
+        try:
+            opp = int(e.get("opportunities", 0) or 0)
+        except (TypeError, ValueError):
+            opp = 0
+        out["enum"] = {"opportunities": opp}
+    if "price" in full and isinstance(full["price"], dict):
+        p = full["price"]
+        out["price"] = {
+            "winRate": p.get("winRate"),
+            "roi": p.get("roi"),
+        }
+    if "capital" in full and isinstance(full["capital"], dict):
+        out["capital"] = dict(full["capital"])
+    return out
+
+
 def merge_snapshot_into_disk_progress(
     strategy_name: str,
     job_id: str,

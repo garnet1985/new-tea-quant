@@ -148,6 +148,11 @@ def execute_workbench_plan_sync(
         if sub == "enum" and progress is not None:
             progress.on_overall_pct(min(94.0, base_pct + span * 0.92))
 
+        if progress is not None:
+            fin = getattr(progress, "on_substep_finish", None)
+            if callable(fin):
+                fin(sub, i, n, sid_int)
+
     return WorkbenchExecutionResult(
         snapshot_id=sid_int,
         last_payload=last_payload,

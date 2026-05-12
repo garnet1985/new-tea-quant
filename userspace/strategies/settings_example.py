@@ -8,6 +8,12 @@ from core.modules.data_contract.contract_const import DataKey
 # - 默认行为（不写时系统怎么处理）
 # ---------------------------------------------------------------------------
 #
+# 【schema 约定 v2】采样开关与回测范围统一到 `sampling`：
+# - `sampling.use_sampling`：是否启用「采样选股」（与小样本调试语义对齐）；枚举 / 价格 / 资金不再各自定义 use_sampling。
+# - `sampling.start_date` / `end_date`：三步回测共用的时间窗（空字符串表示沿用内部默认，如对齐枚举产物时间跨度）。
+# - 枚举器磁盘产物目录不再区分 test/ 与 output/ 两套树（统一约定见实现）；本模板中 `enumerator.max_test_versions` 已移除。
+# - 交易费率仅使用根级 `fees`；`price_simulator` / `capital_simulator` 内不再提供 fees 覆盖。
+#
 # 快速上手（最小可用）：
 # - 必填建议：name / core / data.base_required_data / goal
 # - 其他大多数字段可省略，系统会走默认值。
@@ -100,10 +106,20 @@ settings = {
     },
 
     # =======================================================================
-    # 4) 采样配置（供小规模测试策略使用 模式枚举/模拟使用）
+    # 4) 采样与回测范围（枚举 / 价格 / 资金共用）
     # =======================================================================
-    # （必填）股票采样配置
+    # 此处为「采样开关 + 股票采样策略 + 回测起止日期」的唯一推荐配置块。
     "sampling": {
+        # （选填，默认 False）是否启用采样选股
+        # True：按下方 strategy / sampling_amount 等规则缩小股票池（小样本调试等）
+        # False：按引擎约定使用全市场或全量清单（与旧版「全量 output 语义」对齐）
+        "use_sampling": False,
+
+        # （选填，默认 ""）回测起始日，格式建议 YYYYMMDD，如 "20230101"。空字符串表示由运行时解析（如对齐枚举产物或数据日历）。
+        "start_date": "",
+        # （选填，默认 ""）回测结束日，格式同上。
+        "end_date": "",
+
         # （选填）采样策略（默认为 continuous）
         # 可选：uniform / stratified / random / continuous / pool / blacklist
         # 注意：以下所有可选参数里只能保留一种取样方式，不能同时使用多种取样方式。
@@ -219,16 +235,9 @@ settings = {
     # =======================================================================
     # 6) 枚举器配置（大多可省略）
     # =======================================================================
+    # 不再包含 use_sampling / max_test_versions（已迁移到 sampling 与统一目录策略）。
     "enumerator": {
-        # 是否使用 sampling
-        # False=全量输出到 output/；True=采样输出到 test/
-        # 默认：False
-        "use_sampling": False,
-
-        # （选填， 默认 10）最多保留 test 版本数
-        "max_test_versions": 10,
-
-        # （选填， 默认 3）最多保留 output 版本数
+        # （选填， 默认 3）枚举产物在磁盘上最多保留的版本个数（实现跟进）
         "max_output_versions": 3,
 
         # （选填， 默认 "auto"）并发 worker（"auto" 或整数）
@@ -248,9 +257,7 @@ settings = {
     # =======================================================================
     # 7) 公共交易费率（可省略）
     # =======================================================================
-    # （选填）公共交易费率
-    # 说明：
-    # - price_simulator.fees / capital_simulator.fees 可覆盖这里
+    # （选填）全链路模拟共用费率；请勿在 price_simulator / capital_simulator 下再写 fees 覆盖。
     "fees": {
         "commission_rate": 0.00025,  # （必填）佣金率
         "min_commission": 5.0,       # （必填）最低佣金
@@ -261,51 +268,26 @@ settings = {
     # =======================================================================
     # 8) 价格因子模拟器配置（大多可省略）
     # =======================================================================
+    # 不再包含 use_sampling、start_date/end_date（见 sampling）；费率仅根级 fees。
     "price_simulator": {
-        # （选填， 默认 True）版本来源选择：
-        # True=读 test/*，False=读 output/*（默认 True）
-        "use_sampling": False,
-
-        # （选填， 默认 "latest"）基础版本号
-        # 支持："latest" / "1" / "2" ...
-        # 如果use_sampling=True，则读取result/test/目录下的版本；如果use_sampling=False，则读取result/output/目录下的版本。
+        # （选填， 默认 "latest"）读取枚举产物的版本选择
+        # 支持："latest" / "1" / "2" ...（相对策略 results/opportunity_enums 下统一目录，具体名以实现为准）
         "base_version": "latest",
 
         # （选填， 默认 "auto"）并发 worker（"auto" 或整数）
         "max_workers": "auto",
-
-        # （选填， 默认 ""）时间窗口（空=使用枚举输出结果全量时间）
-        # "start_date": "20230101",
-        # "end_date": "20241231",
-
-        # 模拟器专属费用覆盖（可选）
-        # "fees": {
-        #     "commission_rate": 0.0002,
-        #     "min_commission": 5.0,
-        #     "stamp_duty_rate": 0.001,
-        #     "transfer_fee_rate": 0.0,
-        # },
     },
 
     # =======================================================================
     # 9) 资金分配模拟器配置（大多可省略）
     # =======================================================================
+    # 不再包含 use_sampling、start_date/end_date（见 sampling）；费率仅根级 fees。
     "capital_simulator": {
-        # （选填， 默认 True）版本来源选择：
-        # True=读 test/*，False=读 output/*（默认 True）
-        "use_sampling": False,
-
-        # （选填， 默认 "latest"）基础版本号
-        # 支持："latest" / "1" / "2" ...
-        # 如果use_sampling=True，则读取result/test/目录下的版本；如果use_sampling=False，则读取result/output/目录下的版本。
+        # （选填， 默认 "latest"）读取枚举产物的版本选择（含义同 price_simulator.base_version）
         "base_version": "latest",
 
         # （选填， 默认 1_000_000）初始资金
         "initial_capital": 1_000_000,
-
-        # （选填， 默认 ""）时间窗口（空=使用枚举输出结果全量时间）
-        # "start_date": "20230101",
-        # "end_date": "20241231",
 
         # （选填， 默认 {}）资金分配参数
         "allocation": {
@@ -327,14 +309,6 @@ settings = {
             # kelly 模式参数
             "kelly_fraction": 0.5,
         },
-
-        # 覆盖公共费用（可选）
-        # "fees": {
-        #     "commission_rate": 0.00025,
-        #     "min_commission": 5.0,
-        #     "stamp_duty_rate": 0.001,
-        #     "transfer_fee_rate": 0.0,
-        # },
 
         # （选填， 默认 {}）输出开关
         # - save_trades：是否保存逐笔交易日志

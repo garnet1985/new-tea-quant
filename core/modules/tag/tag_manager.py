@@ -20,7 +20,12 @@ from core.modules.tag.config import get_scenarios_root
 from core.infra.project_context import PathManager
 from core.modules.tag.enums import FileName
 from core.modules.tag.models.scenario_model import ScenarioModel
-from core.infra.worker.multi_process.process_worker import ExecutionMode, ProcessWorker
+from core.infra.worker import (
+    ProcessExecutionMode,
+    ProcessJobResult,
+    ProcessJobStatus,
+    ProcessWorker,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -495,7 +500,7 @@ class TagManager:
         
         worker_pool = ProcessWorker(
             max_workers=worker_amount,
-            execution_mode=ExecutionMode.QUEUE,  # 队列模式，持续填充
+            execution_mode=ProcessExecutionMode.QUEUE,  # 队列模式，持续填充
             job_executor=TagManager._execute_single_job,  # 静态方法
             is_verbose=True  # 启用进度展示
         )
@@ -599,7 +604,6 @@ class TagManager:
         2. 实例化 TagWorker（传入完整的 payload）
         3. 调用 worker.run() 执行计算
         """
-        from core.infra.worker.multi_process.process_worker import JobResult, JobStatus
         from datetime import datetime
         
         # ProcessWorker 只传递 payload，不传递整个 job
@@ -642,9 +646,9 @@ class TagManager:
             result = worker.process_entity()
             
             # 4. 返回成功结果
-            return JobResult(
+            return ProcessJobResult(
                 job_id=job_id,
-                status=JobStatus.COMPLETED,
+                status=ProcessJobStatus.COMPLETED,
                 result={
                     'entity_id': job_payload.get('entity_id'),
                     'success': result.get('success', True),
@@ -660,9 +664,9 @@ class TagManager:
             # 返回失败结果
             import traceback
             logger.exception(f"Job {job_id} failed: {e}")
-            return JobResult(
+            return ProcessJobResult(
                 job_id=job_id,
-                status=JobStatus.FAILED,
+                status=ProcessJobStatus.FAILED,
                 error=str(e),
                 result={
                     'entity_id': job_payload.get('entity_id'),

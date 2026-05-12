@@ -18,6 +18,12 @@ class PathManager:
     """路径管理器 - 提供常用路径的快捷访问"""
     
     _root_cache: Optional[Path] = None
+    _userspace_cache: Optional[Path] = None
+
+    @staticmethod
+    def invalidate_userspace_cache() -> None:
+        """清理 userspace 路径缓存。用于 setup 运行时路径切换后强制重读。"""
+        PathManager._userspace_cache = None
     
     @staticmethod
     def get_root() -> Path:
@@ -100,6 +106,9 @@ class PathManager:
            - userspace/（新结构）
            - app/userspace/（旧结构，迁移期间兼容）
         """
+        if PathManager._userspace_cache is not None:
+            return PathManager._userspace_cache
+
         root = PathManager.get_root()
         
         # 1. 环境变量覆盖（允许用户将 userspace 放在项目根目录之外）
@@ -111,14 +120,33 @@ class PathManager:
             if env_path:
                 p = Path(env_path).expanduser().resolve()
                 if p.exists():
+                    PathManager._userspace_cache = p
                     return p
+
+        # 2. 安装步骤写入的 userspace 路径状态
+        state_file = root / ".ntq" / "userspace-path.json"
+        if state_file.is_file():
+            try:
+                import json
+
+                payload = json.loads(state_file.read_text(encoding="utf-8"))
+                state_path = str(payload.get("userspacePath", "")).strip()
+                if state_path:
+                    p = Path(state_path).expanduser().resolve()
+                    if p.exists():
+                        PathManager._userspace_cache = p
+                        return p
+            except Exception:
+                pass
         
         # 2. 优先使用新路径结构（相对项目根目录）
         new_path = root / "userspace"
         if new_path.exists():
+            PathManager._userspace_cache = new_path
             return new_path
 
         # 如果不存在，返回新路径（由调用方决定是否创建）
+        PathManager._userspace_cache = new_path
         return new_path
     
     @staticmethod
@@ -136,6 +164,30 @@ class PathManager:
     def config() -> Path:
         """用户配置目录（同 `user_config()`，供简短调用）。"""
         return PathManager.user_config()
+
+    @staticmethod
+    def backup() -> Path:
+        """
+        备份目录：userspace/backup
+        """
+        return PathManager.userspace() / "backup"
+
+    @staticmethod
+    def backup_data() -> Path:
+        """
+        备份数据目录：userspace/backup/data
+        """
+        return PathManager.backup() / "data"
+
+    @staticmethod
+    def userspace_ntq() -> Path:
+        """NTQ 内部目录：userspace/.ntq"""
+        return PathManager.userspace() / ".ntq"
+
+    @staticmethod
+    def userspace_tmp() -> Path:
+        """临时目录：userspace/.ntq/tmp"""
+        return PathManager.userspace_ntq() / "tmp"
     
     @staticmethod
     def strategy(strategy_name: str) -> Path:
@@ -153,50 +205,32 @@ class PathManager:
         return PathManager.strategy(strategy_name) / "results"
     
     @staticmethod
-    def strategy_opportunity_enums(strategy_name: str, use_sampling: bool = False) -> Path:
+    def strategy_simulation_enum(strategy_name: str) -> Path:
         """
-        枚举器结果目录
-        
-        Args:
-            strategy_name: 策略名称
-            use_sampling: 是否使用采样模式
-                - True: test/ 子目录（采样枚举）
-                - False: output/ 子目录（完整输出）
-        
-        Returns:
-            userspace/strategies/{strategy_name}/results/opportunity_enums/{test|output}
+        枚举（机会枚举）输出根目录（版本子目录与 ``meta.json`` 均在此目录下）。
+
+        约定：``userspace/strategies/{strategy}/results/simulations/enum/{version_dir}``。
         """
-        sub_dir = "test" if use_sampling else "output"
-        return PathManager.strategy_results(strategy_name) / "opportunity_enums" / sub_dir
-    
-    @staticmethod
-    def strategy_simulations_price_factor(strategy_name: str) -> Path:
-        """价格因子模拟器结果目录：userspace/strategies/{strategy_name}/results/simulations/price_factor"""
-        return PathManager.strategy_results(strategy_name) / "simulations" / "price_factor"
-    
-    @staticmethod
-    def strategy_capital_allocation(strategy_name: str) -> Path:
-        """资金分配模拟器结果目录：userspace/strategies/{strategy_name}/results/simulations/capital_allocation"""
-        return PathManager.strategy_results(strategy_name) / "simulations" / "capital_allocation"
+        return PathManager.strategy_results(strategy_name) / "simulations" / "enum"
 
     @staticmethod
-    def strategy_simulations_enumerator(strategy_name: str) -> Path:
-        """
-        枚举器回测（simulate/simulate_enum）结果目录：
-        userspace/strategies/{strategy_name}/results/simulations/enumerator
+    def strategy_simulation_price(strategy_name: str) -> Path:
+        """价格因子模拟版本根目录：``.../results/simulations/price``。"""
+        return PathManager.strategy_results(strategy_name) / "simulations" / "price"
 
-        注意：这不是 opportunity_enums（枚举输出），而是历史回测 session 结果。
-        """
-        return PathManager.strategy_results(strategy_name) / "simulations" / "enumerator"
-    
     @staticmethod
-    def strategy_scan_cache(strategy_name: str) -> Path:
-        """扫描缓存目录：userspace/strategies/{strategy_name}/scan_cache"""
-        return PathManager.strategy(strategy_name) / "scan_cache"
+    def strategy_simulation_capital(strategy_name: str) -> Path:
+        """资金分配模拟版本根目录：``.../results/simulations/capital``。"""
+        return PathManager.strategy_results(strategy_name) / "simulations" / "capital"
     
     @staticmethod
     def strategy_scan_results(strategy_name: str) -> Path:
-        """扫描结果目录：userspace/strategies/{strategy_name}/results/scan"""
+        """
+        扫描结果根目录。
+
+        路径：``userspace/strategies/{strategy_name}/results/scan``；
+        其下按扫描日建子目录（``YYYYMMDD``），内含 ``opportunities.csv`` 等（命名与旧版一致）。
+        """
         return PathManager.strategy_results(strategy_name) / "scan"
     
     # ========== Tag 相关路径 ==========

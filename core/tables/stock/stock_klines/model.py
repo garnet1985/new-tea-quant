@@ -37,6 +37,25 @@ class DataStockKlinesModel(DbBaseModel):
         """查询股票最新日 K 线"""
         return self.load_one("id = %s", (stock_id,), order_by="date DESC")
 
+    def load_latest_date(self, term: str = "daily") -> str:
+        """
+        查询 **全市场** 指定周期的最新 K 线日期（YYYYMMDD）。
+
+        用于：
+        - 作为「数据更新时间」锚点，避免指纹/缓存随日历日期变化而被动失效
+        - scan / 任务 end_date 为空时的合理 fallback（以库内数据为准）
+        """
+        t = str(term or "").strip() or "daily"
+        sql = """
+            SELECT MAX(date) AS max_date
+            FROM sys_stock_klines
+            WHERE term = %s
+        """
+        rows = self.db.execute_sync_query(sql, (t,)) or []
+        if not rows:
+            return ""
+        return str(rows[0].get("max_date") or "").strip()
+
     def save_klines(self, klines: List[Dict[str, Any]]) -> int:
         """批量保存 K 线（按 id+term+date 去重）"""
         return self.upsert_many(klines, unique_keys=["id", "term", "date"])

@@ -1,12 +1,12 @@
 name: modules.strategy
-version: 0.2.0
-compatible_core_versions: ">=0.2.0"
-description: "策略发现与回测：机会枚举（CSV事实表）、扫描、价格因子模拟与资金分配模拟；配置驱动 userspace/strategies。"
+version: 0.3.0
+compatible_core_versions: ">=0.3.0"
+description: "策略执行主模块：StrategyManager 统一 orchestrate scan/simulate，engines 承载 scanner/enumerator/price_factor/capital_allocation/analyzer，services 提供 discovery/data/artifacts/validation 能力。"
 dependencies:
   - modules.data_manager
   - modules.data_contract
   - modules.data_cursor
   - modules.indicator
-  - modules.adapter
   - infra.project_context
   - infra.worker
+

@@ -2,7 +2,7 @@
 DataService - 跨 service 协调器
 
 职责：
-1. 管理各个子 Service（stock, macro, calendar, index, db_cache）
+1. 管理各个子 Service（stock, macro, calendar, index, db_cache, backup_restore）
 2. 统一访问入口（通过 data_mgr.stock / data_mgr.macro 等）
 """
 from . import BaseDataService
@@ -34,9 +34,11 @@ class DataService:
         from .calendar.calendar_service import CalendarService
         from .index.index_service import IndexService
         from .db_cache.db_cache_service import DbCacheService
+        from .backup_and_restore.backup_and_restore_service import BackupAndRestoreService
 
         self.stock = StockService(data_manager)
         self.macro = MacroService(data_manager)
         self.calendar = CalendarService(data_manager)
         self.index = IndexService(data_manager)
         self.db_cache = DbCacheService(data_manager)
+        self.backup_restore = BackupAndRestoreService(data_manager)

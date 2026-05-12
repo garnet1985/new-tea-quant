@@ -1,0 +1,70 @@
+{
+  "id": "db_connection",
+  "name": "DB 配置检查/填写",
+  "description": "校验数据库连接信息并执行数据库就绪检查。",
+  "scriptEntry": "setup/steps/db_connection/install.py",
+  "requiresUserInput": true,
+  "inputSchema": [
+    {
+      "key": "dbType",
+      "label": "Database Type",
+      "type": "select",
+      "required": true,
+      "defaultValue": "postgresql",
+      "options": [
+        {
+          "label": "postgresql",
+          "value": "postgresql"
+        },
+        {
+          "label": "mysql",
+          "value": "mysql"
+        }
+      ]
+    },
+    {
+      "key": "host",
+      "label": "Host",
+      "type": "text",
+      "required": true
+    },
+    {
+      "key": "port",
+      "label": "Port",
+      "type": "text",
+      "required": true
+    },
+    {
+      "key": "database",
+      "label": "Database Name",
+      "type": "text",
+      "required": true
+    },
+    {
+      "key": "user",
+      "label": "User",
+      "type": "text",
+      "required": true
+    },
+    {
+      "key": "password",
+      "label": "Password",
+      "type": "password",
+      "required": true
+    },
+    {
+      "key": "defaultPgsqlSchema",
+      "label": "Schema",
+      "type": "text",
+      "required": false
+    }
+  ],
+  "retryPolicy": {
+    "mode": "input_required_on_failure"
+  },
+  "dependencies": [
+    "init_userspace"
+  ],
+  "order": 4,
+  "uiVisible": true
+}

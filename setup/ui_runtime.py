@@ -25,6 +25,24 @@ FED_LOCKFILE = FED_ROOT / "package-lock.json"
 FED_NODE_MODULES = FED_ROOT / "node_modules"
 
 
+def _bootstrap_pip() -> None:
+    """Upgrade pip/setuptools/wheel so dependency resolution matches modern Flask stacks.
+
+    macOS / venv 默认自带的 pip 21.x 易出现 Jinja2/MarkupSafe 等 ResolutionImpossible。
+    离线或禁止自升级时设 ``NTQ_SKIP_PIP_BOOTSTRAP=1``。
+    """
+    if os.environ.get("NTQ_SKIP_PIP_BOOTSTRAP", "").strip().lower() in ("1", "true", "yes"):
+        return
+    cmd = [sys.executable, "-m", "pip", "install", "--upgrade"]
+    if os.environ.get("NTQ_PIP_NO_CACHE", "").strip().lower() in ("1", "true", "yes"):
+        cmd.append("--no-cache-dir")
+    cmd.extend(["pip>=24.0", "setuptools>=65", "wheel"])
+    print("正在升级 pip / setuptools / wheel（缓解依赖解析冲突）...", flush=True)
+    ret = subprocess.run(cmd, cwd=str(REPO_ROOT))
+    if ret.returncode != 0:
+        print("⚠️ pip 自升级失败，将继续尝试安装 BFF 依赖；若仍失败请手动: python -m pip install -U pip", flush=True)
+
+
 def _sha256_file(path: Path) -> str:
     if not path.is_file():
         return ""
@@ -93,7 +111,9 @@ def install_ui_runtime(force: bool = False) -> None:
 
     print("开始安装 UI 最小依赖（BFF + FED）...", flush=True)
 
-    pip_cmd = [sys.executable, "-m", "pip", "install", "--no-compile"]
+    _bootstrap_pip()
+
+    pip_cmd = [sys.executable, "-m", "pip", "install", "--no-compile", "--prefer-binary"]
     if os.environ.get("NTQ_PIP_NO_CACHE", "").strip().lower() in ("1", "true", "yes"):
         pip_cmd.append("--no-cache-dir")
     pip_cmd.extend(["-r", str(BFF_REQUIREMENTS)])

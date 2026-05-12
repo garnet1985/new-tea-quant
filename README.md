@@ -59,35 +59,90 @@
 - 本机需要有 **MySQL 或 PostgreSQL** 中的任意一种数据库。如果您不知道如何安装，请参考这篇文档：[安装数据库](https://new-tea.cn/zh-hans/install-database)。
 - 本机需要安装 **Node.js**。请在 [Node.js 官网](https://nodejs.org/) 下载安装包并按向导安装（基本上就是一直点下一步）。
 
-### 第 1 步：下载代码
+### 第 1 步：获取代码
 
-可通过 `git clone`，也可以直接下载 zip：
+任选其一：
+
+- **Git clone**（推荐）：
 
 ```bash
-git clone <仓库地址>
+git clone https://github.com/garnet1985/new-tea-quant.git
 cd new-tea-quant
 ```
 
-### 第 2 步：完成数据库设置
+- **下载 ZIP**：在 GitHub 仓库页选择 **Code → Download ZIP**，解压后进入 **`new-tea-quant`** 根目录（与 `launcher.py` 同级）。
 
-- 先创建一个新的数据库。  
-- 在 `userspace/config/database` 填写数据库配置：  
-  - 复制 `common.example.json` 并重命名为 `common.json`，填写要使用的数据库类型（MySQL 或 PostgreSQL）。  
-  - 复制对应数据库配置文件并去掉 `.example`（例如 `mysql.example.json` -> `mysql.json`），填写数据库名、用户名、密码等连接信息。
+### 第 2 步：在仓库根目录启动安装向导
 
-### 第 3 步：安装并验证
+在**项目根目录**（能看到 `launcher.py`）打开终端，执行其一：
 
 ```bash
-python install.py
+python launcher.py
 ```
 
-安装成功后，执行以下命令测试 `example` 策略：
+若系统上 `python` 指向旧版本，可改用：
+
+```bash
+python3 launcher.py
+```
+
+脚本会：切到仓库根目录、确保虚拟环境、检查 Node/npm 等前提，并在需要时安装 Web UI 依赖，然后**启动 BFF + 前端并打开浏览器**，进入图形化 **Setup 安装向导**（由 BFF setup API 驱动步骤）。
+
+### 第 3 步：在浏览器中按向导完成初始化
+
+按页面提示依次完成即可（数据库连接、用户空间路径、数据导入等以当前向导为准）。以下为界面示意（共 5 张；若与您的版本略有差异，以实际页面为准）：
+
+**图 1**
+
+![Setup 向导示意 1](setup/images/step1.png)
+
+系统会自动安装需要的依赖包，这一步只需要点击“开始安装”并等待
+
+**图 2**
+
+![Setup 向导示意 2](setup/images/step2.png)
+
+本步配置 **userspace（用户空间）** 根目录，您可以：
+
+- 使用向导给出的**默认路径**（直接点 **「下一步」**）。
+- 或勾选 **「我想自定义 userspace 路径」**，在输入框中填写本机上的其他目录（请确保磁盘空间充足；若目标目录已有内容，向导会按策略提示是否覆盖）。
+
+**图 3**
+
+![Setup 向导示意 3](setup/images/step3.png)
+
+本步连接 **MySQL** 或 **PostgreSQL**。请事先安装并启动数据库服务，然后按页面填写：
+
+- **数据库类型**（mysql / postgresql）。
+- **主机、端口**（默认一般为本机；若使用云库或远程实例请按实际填写）。
+- **用户名、密码**（需具备连接及**建库**权限；库不存在时，向导会尝试自动创建目标库）。
+- **数据库名**：建议使用**新建或专用的空库**；若指向已有库，初始化会写入/变更表结构，**请勿使用存放重要业务数据的库名**。
+
+连接校验通过后点 **「下一步」** 继续。之后仍可在 **「设置」** 中调整数据库配置。
+
+**图 4**
+
+![Setup 向导示意 4](setup/images/steps.png)
+
+数据库就绪后会进入 **数据导入** 等后续步骤，页面会显示步骤进度；本阶段可能持续较久，请保持页面打开并耐心等待。
+
+**图 5**
+
+![Setup 向导示意 5](setup/images/step4.png)
+
+全部步骤完成后，可点击 **「前往策略实验室」** 进入主界面。
+
+### 您也可以通过命令行来运行策略
+
+在仓库根目录执行：
 
 ```bash
 python start-cli.py -sp
 ```
 
 看到结果即表示已成功跑起第一个策略。
+
+> **说明**：若您从官网下载了更大的演示数据 ZIP，仍需按后文「数据说明」放入 `setup/init_data/` 后执行 **`python install.py`** 导入；日常仅跑内置小数据时，完成向导 + 上条命令即可。
 
 ### 更多常用命令
 

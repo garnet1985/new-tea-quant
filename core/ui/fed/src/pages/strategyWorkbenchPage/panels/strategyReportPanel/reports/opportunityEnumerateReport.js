@@ -4,7 +4,7 @@ import ReactECharts from 'echarts-for-react';
 import MetricCard from 'components/metricCard/metricCard';
 import { SectionBlock } from 'components/sectionBlock/sectionBlock';
 import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
-import ReportUnavailableHint from '../components/ReportUnavailableHint';
+import ReportUnavailableHint from '../components/reportUnavailableHint';
 import {
   REPORT_CHART_AXIS_LABEL,
   REPORT_CHART_AXIS_LINE,

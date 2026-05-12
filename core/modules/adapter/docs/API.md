@@ -192,7 +192,7 @@
 from typing import Any, Dict, List
 
 from core.modules.adapter import BaseOpportunityAdapter
-from core.modules.strategy.models.opportunity import Opportunity
+from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
 
 
 class EchoAdapter(BaseOpportunityAdapter):

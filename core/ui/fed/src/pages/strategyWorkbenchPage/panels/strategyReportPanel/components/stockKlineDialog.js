@@ -10,7 +10,9 @@ import {
   REPORT_CHART_AXIS_LABEL_SM,
   REPORT_CHART_AXIS_LINE,
   REPORT_CHART_GRID_BASE,
+  REPORT_CHART_MARKER_LABEL,
   REPORT_CHART_SPLIT_LINE,
+  REPORT_CHART_TOOLTIP,
 } from '../lib/reportChartsTheme';
 
 function hashString(text) {
@@ -62,8 +64,30 @@ export function buildStockKlineChartOption(stock) {
       splitLine: REPORT_CHART_SPLIT_LINE,
     },
     tooltip: {
+      ...REPORT_CHART_TOOLTIP,
       trigger: 'axis',
       axisPointer: { type: 'cross' },
+      formatter: (params) => {
+        const arr = Array.isArray(params) ? params : [params];
+        if (!arr.length) return '';
+        const lines = [formatReportChartDateLabel(arr[0].axisValue)];
+        arr.forEach((p) => {
+          if (p.seriesType === 'candlestick') {
+            const row = Array.isArray(p.value) && p.value.length >= 4
+              ? p.value
+              : (Array.isArray(p.data) ? p.data : null);
+            if (Array.isArray(row) && row.length >= 4) {
+              const [o, c, l, h] = row;
+              lines.push(`开盘 ${o}　收盘 ${c}　最低 ${l}　最高 ${h}`);
+            }
+          } else if (p.seriesType === 'scatter') {
+            const y = Array.isArray(p.value) ? p.value[1] : null;
+            const tag = p.data?.label?.formatter || '点位';
+            if (y != null && Number.isFinite(Number(y))) lines.push(`${tag}：${y}`);
+          }
+        });
+        return lines.filter(Boolean).join('<br/>');
+      },
     },
     series: [
       {
@@ -80,8 +104,16 @@ export function buildStockKlineChartOption(stock) {
         type: 'scatter',
         symbolSize: 10,
         data: [
-          { value: [buyIndex, buyPrice], itemStyle: { color: '#2E7D32' }, label: { show: true, formatter: '买入', position: 'top' } },
-          { value: [sellIndex, sellPrice], itemStyle: { color: '#C62828' }, label: { show: true, formatter: '卖出', position: 'top' } },
+          {
+            value: [buyIndex, buyPrice],
+            itemStyle: { color: '#2E7D32' },
+            label: { ...REPORT_CHART_MARKER_LABEL, show: true, formatter: '买入', position: 'top' },
+          },
+          {
+            value: [sellIndex, sellPrice],
+            itemStyle: { color: '#C62828' },
+            label: { ...REPORT_CHART_MARKER_LABEL, show: true, formatter: '卖出', position: 'top' },
+          },
         ],
         tooltip: {
           formatter: (params) => `${params.data?.label?.formatter || '点位'}：${params.value?.[1] || '--'}`,
@@ -100,6 +132,7 @@ function buildStockKlineChartOptionFromApi(payload) {
       value: [dates.indexOf(item.date), item.price],
       itemStyle: { color: item.type === 'buy' ? '#2E7D32' : '#C62828' },
       label: {
+        ...REPORT_CHART_MARKER_LABEL,
         show: true,
         formatter: item.type === 'buy' ? '买入' : '卖出',
         position: 'top',
@@ -128,9 +161,10 @@ function buildStockKlineChartOptionFromApi(payload) {
       splitLine: REPORT_CHART_SPLIT_LINE,
     },
     tooltip: {
+      ...REPORT_CHART_TOOLTIP,
       trigger: 'axis',
       axisPointer: { type: 'cross' },
-      formatter(params) {
+      formatter: (params) => {
         const arr = Array.isArray(params) ? params : [params];
         if (!arr.length) return '';
         const lines = [formatReportChartDateLabel(arr[0].axisValue)];

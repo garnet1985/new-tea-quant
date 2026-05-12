@@ -7,8 +7,9 @@ from flask import Blueprint, request
 
 import logging
 
-from core.modules.strategy.services.launcher.scanner_run import (
+from core.modules.strategy.launcher.scanner_run import (
     get_scan_progress,
+    get_scan_readiness,
     trigger_strategy_scan_run,
 )
 from core.ui.bff.shared.response import error, ok
@@ -34,24 +35,58 @@ def _parse_bool_query(v: str, default: bool = False) -> bool:
 
 @strategy_scan_api_bp.route(
     "/v1/strategy/<strategy_name>/scan",
+    methods=["GET"],
+)
+def get_strategy_scan_readiness_route(strategy_name: str):
+    """GET /v1/strategy/{strategy_name}/scan?demo=0|1 — 仅返回 ``primary_action``（run|rerun），供按钮文案。"""
+    demo = _parse_bool_query(request.args.get("demo"), default=False)
+    payload = get_scan_readiness(strategy_name=strategy_name, demo=demo)
+    return ok(payload)
+
+
+@strategy_scan_api_bp.route(
+    "/v1/strategy/<strategy_name>/scan",
     methods=["POST"],
 )
 def post_strategy_scan(strategy_name: str):
-    """POST /v1/strategy/{strategy_name}/scan?demo=0|1
+    """POST /v1/strategy/{strategy_name}/scan?demo=0|1&force=0|1
 
     - demo: optional query flag, default false.
+    - force: optional query flag; when true,跳过磁盘扫描缓存并全量重算。
     """
     demo = _parse_bool_query(request.args.get("demo"), default=False)
-    logger.info("[bff.scan] POST scan strategy=%s demo=%s", strategy_name, demo)
-    out = trigger_strategy_scan_run(strategy_name=strategy_name, demo=demo)
+    force = _parse_bool_query(request.args.get("force"), default=False)
+    logger.info("[bff.scan] POST scan strategy=%s demo=%s force=%s", strategy_name, demo, force)
+    out = trigger_strategy_scan_run(strategy_name=strategy_name, demo=demo, force=force)
     if not out.get("is_triggered"):
         reason = str(out.get("reason") or "启动扫描失败")
         # Single-flight guard / conflicts return 409 for clearer client handling.
         status = 409 if "运行中" in reason or "扫描任务" in reason else 400
-        logger.warning("[bff.scan] trigger rejected strategy=%s demo=%s status=%s reason=%s", strategy_name, demo, status, reason)
+        logger.warning(
+            "[bff.scan] trigger rejected strategy=%s demo=%s force=%s status=%s reason=%s",
+            strategy_name,
+            demo,
+            force,
+            status,
+            reason,
+        )
         return error(reason, status)
-    logger.info("[bff.scan] triggered strategy=%s demo=%s job_id=%s", strategy_name, demo, out.get("job_id"))
-    return ok({"is_triggered": True, "job_id": out["job_id"], "demo": demo, "strategy_name": strategy_name})
+    logger.info(
+        "[bff.scan] triggered strategy=%s demo=%s force=%s job_id=%s",
+        strategy_name,
+        demo,
+        force,
+        out.get("job_id"),
+    )
+    return ok(
+        {
+            "is_triggered": True,
+            "job_id": out["job_id"],
+            "demo": demo,
+            "force": force,
+            "strategy_name": strategy_name,
+        }
+    )
 
 
 @strategy_scan_api_bp.route(

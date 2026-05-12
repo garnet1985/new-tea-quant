@@ -1,0 +1,7 @@
+name: ui
+version: 0.3.0
+compatible_core_versions: ">=0.3.0"
+description: "NTQ 前端UI基础设施：提供可视化的用户界面，通过浏览器展示。"
+dependencies:
+  - modules.strategy
+  - infra.project_context

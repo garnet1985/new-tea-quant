@@ -8,8 +8,11 @@ import ReportUnavailableHint from '../components/ReportUnavailableHint';
 import {
   REPORT_CHART_AXIS_LABEL,
   REPORT_CHART_AXIS_LINE,
+  REPORT_CHART_DATA_LABEL,
   REPORT_CHART_GRID_BASE,
   REPORT_CHART_SPLIT_LINE,
+  REPORT_CHART_TOOLTIP,
+  reportChartSignedBarData,
 } from '../lib/reportChartsTheme';
 
 function buildStockDistributionOption(metrics) {
@@ -41,24 +44,23 @@ function buildStockDistributionOption(metrics) {
     series: [
       {
         type: 'bar',
-        data: yData,
+        data: reportChartSignedBarData(yData),
         barMaxWidth: 28,
-        itemStyle: { color: '#5B8FF9', borderRadius: [4, 4, 0, 0] },
         label: {
           show: true,
           position: 'top',
-          fontSize: 10,
-          color: '#5F6368',
+          ...REPORT_CHART_DATA_LABEL,
           formatter: (params) => {
             const idx = Number(params?.dataIndex ?? -1);
             const count = idx >= 0 ? Number(countData[idx] ?? 0) : 0;
-            const ratio = Number(params?.data ?? 0);
+            const ratio = Number(params?.value ?? params?.data?.value ?? params?.data ?? 0);
             return `${count}（${ratio}%）`;
           },
         },
       },
     ],
     tooltip: {
+      ...REPORT_CHART_TOOLTIP,
       trigger: 'axis',
       axisPointer: { type: 'shadow' },
       formatter: (params) => {
@@ -66,7 +68,8 @@ function buildStockDistributionOption(metrics) {
         if (!point) return '';
         const idx = Number(point?.dataIndex ?? -1);
         const count = idx >= 0 ? Number(countData[idx] ?? 0) : 0;
-        return `${point.axisValue} 次机会<br/>股票数：${count}（${point.data}%）`;
+        const ratio = Number(point?.value ?? point?.data?.value ?? point?.data ?? 0);
+        return `${point.axisValue} 次机会<br/>股票数：${count}（${ratio}%）`;
       },
     },
   };

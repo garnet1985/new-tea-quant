@@ -34,17 +34,34 @@ export async function fetchStrategyList() {
 }
 
 /**
- * 启动单策略扫描（机会扫描页使用）
- * BFF：`POST /api/v1/strategy/{strategy_name}/scan?demo=0|1`
+ * 扫描按钮语义（与当前 demo 模式、磁盘结果对齐）；BFF 仅透传 `primary_action`。
+ * GET /api/v1/strategy/{strategy_name}/scan?demo=0|1
  */
-export async function startStrategyScan(strategyName, { demo = false } = {}) {
+export async function fetchStrategyScanReadiness(strategyName, { demo = false } = {}) {
   const params = new URLSearchParams({ demo: demo ? '1' : '0' });
+  const json = await requestJson(`${apiStrategyPath(strategyName)}/scan?${params.toString()}`, { method: 'GET' });
+  const m = json?.message || {};
+  const report = m.report && typeof m.report === 'object' ? m.report : null;
+  return {
+    primary_action: m.primary_action === 'rerun' ? 'rerun' : 'run',
+    report,
+  };
+}
+
+/**
+ * 启动单策略扫描（机会扫描页使用）
+ * BFF：`POST /api/v1/strategy/{strategy_name}/scan?demo=0|1&force=0|1`
+ */
+export async function startStrategyScan(strategyName, { demo = false, force = false } = {}) {
+  const params = new URLSearchParams({ demo: demo ? '1' : '0' });
+  if (force) params.set('force', '1');
   const json = await requestJson(`${apiStrategyPath(strategyName)}/scan?${params.toString()}`, { method: 'POST' });
   const m = json?.message || {};
   return {
     strategy_name: m.strategy_name || strategyName,
     job_id: m.job_id || '',
     demo: Boolean(m.demo),
+    force: Boolean(m.force),
   };
 }
 
@@ -198,10 +215,13 @@ export async function startStrategyRun(strategyName, targetStep, settings, optio
     throw new Error(typeof reason === 'string' ? reason : '启动失败');
   }
   const jid = m.job_id || '';
+  const steps = Array.isArray(m.steps) ? m.steps : [];
+  const resolved_chain = steps.map((row) => String(row.step_name || '').trim()).filter(Boolean);
   return {
-    run_id: jid,
+    run_id: m.run_id || jid,
     job_id: jid,
-    resolved_chain: [targetStep],
+    steps,
+    resolved_chain: resolved_chain.length ? resolved_chain : [targetStep],
   };
 }
 
@@ -213,12 +233,6 @@ export async function fetchEnumeratorReusePreview(strategyName) {
   return {};
 }
 
-/**
- * V2-06：读取 step 进度（query `job_id`）。返回形状兼容执行面板旧 `applyStatus`。
- * @param {string} strategyName
- * @param {string} jobId
- * @param {'enum'|'price'|'capital'} [step='enum']
- */
 /**
  * V2-07：按路径 ``version_id`` 读取该步 ``report`` 槽位 JSON。
  * @param {string} strategyName
@@ -266,66 +280,114 @@ export async function fetchStrategyStepReportRef(strategyName, step, versionId) 
   return json?.message || null;
 }
 
-export async function fetchStrategyRunStatus(strategyName, jobId, step = 'enum') {
+/**
+ * V2-06b：整次 run 编排进度（``steps[]``），不依赖路径 ``step``。
+ * @param {string} strategyName
+ * @param {string} jobId
+ */
+export async function fetchStrategyRunProgress(strategyName, jobId) {
   const json = await requestJson(
-    `${apiStrategyPath(strategyName)}/${encodeURIComponent(step)}/progress?job_id=${encodeURIComponent(jobId)}`,
+    `${apiStrategyPath(strategyName)}/run/progress?job_id=${encodeURIComponent(jobId)}`,
     { method: 'GET' },
   );
-  const m = json?.message || {};
-  const prog = Number(m.progress ?? 0);
-  const rawStatus = String(m.status || '');
-  const failed = rawStatus === 'failed';
-  const completed = rawStatus === 'completed';
-  const running = rawStatus === 'running' || rawStatus === 'queued';
+  return json?.message || null;
+}
 
-  const stepVal = completed ? 'done' : failed ? 'failed' : (running || (prog > 0 && prog < 100)) ? 'running' : 'idle';
+/**
+ * 将 ``GET …/run/progress`` 正文映射为执行面板 ``applyStatus`` 所需字段。
+ * @param {object|null} envelope
+ */
+export function mapWorkbenchRunProgressToPanel(envelope) {
+  const steps = Array.isArray(envelope?.steps) ? envelope.steps : [];
+  const phase = String(envelope?.phase || '').toLowerCase();
 
-  const snapshotId = m.snapshot_id != null ? Number(m.snapshot_id) : null;
-  const versionId = typeof m.version_id === 'string' ? m.version_id : '';
-  const resultReport = m.result_report && typeof m.result_report === 'object' ? m.result_report : {};
+  const step_status_merge = {};
+  steps.forEach((row) => {
+    const k = String(row.step_name || '').trim();
+    if (k !== 'enum' && k !== 'price' && k !== 'capital') return;
+    const st = String(row.status || '').toLowerCase();
+    if (st === 'pending') step_status_merge[k] = 'pending';
+    else if (st === 'running') step_status_merge[k] = 'running';
+    else if (st === 'completed') step_status_merge[k] = 'done';
+    else if (st === 'failed') step_status_merge[k] = 'failed';
+    else step_status_merge[k] = 'idle';
+  });
 
-  const hasEnumSlot = Boolean(resultReport.enum && typeof resultReport.enum === 'object');
-  const hasPriceSlot = Boolean(resultReport.price && typeof resultReport.price === 'object');
+  const anyFailed = steps.some((r) => String(r.status || '').toLowerCase() === 'failed') || phase === 'failed';
+  const allDone =
+    steps.length > 0
+    && steps.every((r) => String(r.status || '').toLowerCase() === 'completed');
+  let state = 'running';
+  if (anyFailed) state = 'failed';
+  else if (allDone || phase === 'completed') state = 'done';
 
-  /** 链式步骤：轮询下游 step 时，上游在 UI 上视为已就绪（数据来自快照依赖） */
-  let enumStatus = 'idle';
-  let priceStatus = 'idle';
-  let capitalStatus = 'idle';
-  if (step === 'enum') {
-    enumStatus = stepVal;
-  } else if (step === 'price') {
-    priceStatus = stepVal;
-    if (stepVal === 'running' || stepVal === 'done') {
-      enumStatus = 'done';
-    } else if (stepVal === 'failed') {
-      enumStatus = hasEnumSlot ? 'done' : 'idle';
+  let running_step = '';
+  ['enum', 'price', 'capital'].forEach((k) => {
+    if (step_status_merge[k] === 'running') running_step = k;
+  });
+
+  let progress_pct = 0;
+  if (running_step) {
+    const hit = steps.find((r) => String(r.step_name || '').trim() === running_step);
+    progress_pct = Number(hit?.progress ?? 0);
+  } else if (state === 'done') {
+    progress_pct = 100;
+  }
+
+  const result_report = {};
+  let version_id = '';
+  steps.forEach((row) => {
+    const pv = row?.result?.card || row?.result?.preview;
+    if (pv && typeof pv === 'object') {
+      if (pv.enum) result_report.enum = pv.enum;
+      if (pv.price) result_report.price = pv.price;
+      if (pv.capital) result_report.capital = pv.capital;
     }
-  } else if (step === 'capital') {
-    capitalStatus = stepVal;
-    if (stepVal === 'running' || stepVal === 'done') {
-      enumStatus = 'done';
-      priceStatus = 'done';
-    } else if (stepVal === 'failed') {
-      enumStatus = hasEnumSlot ? 'done' : 'idle';
-      priceStatus = hasPriceSlot ? 'done' : 'idle';
-    }
+    const vid = row?.result?.version_id;
+    if (typeof vid === 'string' && vid.trim()) version_id = vid.trim();
+  });
+
+  let fail_reason = '';
+  if (state === 'failed') {
+    const failedRow = steps.find((r) => String(r.status || '').toLowerCase() === 'failed');
+    const msg = failedRow?.result?.message;
+    fail_reason = typeof msg === 'string' && msg.trim() ? msg.trim() : '';
   }
 
   return {
-    run_id: m.job_id || jobId,
-    progress_pct: prog,
-    state: completed ? 'done' : failed ? 'failed' : 'running',
-    /** 与轮询 URL 的 step 一致；未完成前不因 ``status`` 空窗而变成空串（否则下一跳会误用默认 ``enum``） */
-    running_step: completed || failed ? '' : step,
-    step_status: {
-      enum: enumStatus,
-      price: priceStatus,
-      capital: capitalStatus,
-    },
-    snapshot_id: Number.isFinite(snapshotId) && snapshotId > 0 ? snapshotId : null,
-    version_id: versionId,
-    result_report: resultReport,
+    run_id: envelope?.run_id || '',
+    step_status_merge,
+    running_step,
+    progress_pct,
+    state,
+    version_id,
+    result_report,
+    fail_reason,
   };
+}
+
+/**
+ * V2-06b：轮询整次 run 进度（内部聚合 ``steps``）。
+ * 第三参 ``step`` 已废弃，保留签名以兼容旧调用。
+ * @param {string} strategyName
+ * @param {string} jobId
+ * @param {'enum'|'price'|'capital'} [_step]
+ */
+export async function fetchStrategyRunStatus(strategyName, jobId, _step = 'enum') {
+  void _step;
+  const envelope = await fetchStrategyRunProgress(strategyName, jobId);
+  if (!envelope) {
+    return {
+      run_id: jobId,
+      progress_pct: 0,
+      state: 'failed',
+      running_step: '',
+      step_status_merge: {},
+      result_report: {},
+      fail_reason: '无编排进度数据',
+    };
+  }
+  return mapWorkbenchRunProgressToPanel(envelope);
 }
 
 /**

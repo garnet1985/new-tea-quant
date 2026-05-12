@@ -2,5 +2,88 @@
 
 // 策略列表：页面级 scss 与模块同目录
 .strategy-list-page {
+  padding: 16px 0;
   min-width: 0; // 避免 flex 子项内 DataGrid 撑破主内容区（.ntq-content-inner）
+}
+
+.strategy-list-breadcrumbs {
+  margin-bottom: 0; // AppBreadcrumbs already has default margin-bottom
+}
+
+.strategy-list-alert {
+  margin-bottom: 12px;
+}
+
+.strategy-list-grid {
+  padding: 0;
+}
+
+.strategy-list-grid-toolbar {
+  padding: 18px 12px 16px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.strategy-list-search {
+  flex: 0 0 auto;
+  width: 360px;
+  max-width: 100%;
+
+  // Align with refresh button height
+  .MuiOutlinedInput-root {
+    height: 40px;
+    align-items: center;
+  }
+
+  .MuiInputBase-root {
+    font-size: 13px;
+  }
+
+  .MuiInputBase-input {
+    font-size: 13px;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  .MuiInputBase-input::placeholder {
+    font-size: 13px;
+    opacity: 0.7;
+  }
+
+  // Make input feel like same "glass" family.
+  .MuiOutlinedInput-root {
+    background: var(--ntq-white-03);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+}
+
+.strategy-list-refresh-btn {
+  height: 40px; // align with TextField small
+  border-radius: 5px !important;
+  border: 1px solid var(--ntq-white-12) !important;
+  background: var(--ntq-white-03) !important;
+  color: var(--ntq-text) !important;
+  padding: 0 14px !important;
+  line-height: 1 !important;
+
+  &:hover {
+    background: var(--ntq-white-06) !important;
+    border-color: rgba(255, 255, 255, 0.18) !important;
+  }
+}
+
+.strategy-list-refresh-icon {
+  width: 22px;
+  height: 22px;
+  opacity: 0.9;
+}
+
+.strategy-list-grid-body {
+  width: 100%;
+  min-height: 400px;
+  padding: 0 12px 12px 12px;
 }

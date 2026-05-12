@@ -8,7 +8,7 @@
 
 ## Inputs
 
-- `output_version_dir`: enumerator version directory (`.../results/opportunity_enums/{test|output}/{version}`)
+- `output_version_dir`: enumerator version directory (`.../results/simulations/enum/{version_dir}`)
 - `start_date`, `end_date`: inclusive `YYYYMMDD` range
 - `stock_ids` (optional): restrict to specific stocks
 - `include_targets`: include target rows grouped by `opportunity_id`

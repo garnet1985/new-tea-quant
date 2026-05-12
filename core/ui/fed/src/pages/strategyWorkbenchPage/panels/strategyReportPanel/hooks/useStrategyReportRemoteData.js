@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fetchStrategyReportStocks, fetchStrategyReports, fetchStrategyStepReportRef } from '../../../../../api/apis/strategyApi';
+import {
+  fetchStrategyReportStocks,
+  fetchStrategyReports,
+  fetchStrategyStepReport,
+  fetchStrategyStepReportRef,
+} from '../../../../../api/apis/strategyApi';
 import { STEP_TABS } from '../constants/strategyReportConstants';
 import {
   ENUM_REF_DEFAULT_SORT,
@@ -22,6 +27,12 @@ export function useStrategyReportRemoteData({
   const [reportError, setReportError] = useState('');
   const [enumRefStatus, setEnumRefStatus] = useState('idle');
   const [enumRefRows, setEnumRefRows] = useState([]);
+  /** V2-07：按当前 Tab 与 ``anchorVersionId`` 拉该步 ``result_report`` 槽位，避免仅依赖 V2-01 摘要时缺曲线字段。 */
+  const [stepReportSlots, setStepReportSlots] = useState({
+    enum: null,
+    price: null,
+    capital: null,
+  });
 
   const availableTabs = useMemo(() => {
     const remoteTabs = Array.isArray(remoteReports?.availableTabs)
@@ -39,6 +50,34 @@ export function useStrategyReportRemoteData({
     if (availableTabs.some((tab) => tab.key === activeTab)) return activeTab;
     return availableTabs[availableTabs.length - 1].key;
   }, [activeTab, availableTabs]);
+
+  useEffect(() => {
+    if (!anchorVersionId) {
+      setStepReportSlots({ enum: null, price: null, capital: null });
+    }
+  }, [anchorVersionId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!strategyName || !anchorVersionId || !resolvedActiveTab) {
+      return undefined;
+    }
+    const step = resolvedActiveTab;
+    fetchStrategyStepReport(strategyName, step, anchorVersionId)
+      .then((msg) => {
+        if (cancelled) return;
+        const rep = msg?.report;
+        const slot = rep && typeof rep === 'object' ? rep : null;
+        setStepReportSlots((prev) => ({ ...prev, [step]: slot }));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setStepReportSlots((prev) => ({ ...prev, [step]: null }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [strategyName, anchorVersionId, resolvedActiveTab]);
 
   useEffect(() => {
     let cancelled = false;
@@ -162,5 +201,6 @@ export function useStrategyReportRemoteData({
     enumRefRows,
     availableTabs,
     resolvedActiveTab,
+    stepReportSlots,
   };
 }

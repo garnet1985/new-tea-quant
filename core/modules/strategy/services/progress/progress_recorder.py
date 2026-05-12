@@ -32,14 +32,31 @@ class ProgressRecorder:
         return cls(cls.build_path(channel, key))
 
     @classmethod
+    def for_strategy_workbench_run(
+        cls,
+        strategy_name: str,
+        run_id: str,
+        *,
+        channel: str = "strategy-workbench-run",
+    ) -> "ProgressRecorder":
+        """单 job 工作台编排进度：``{strategy}__{run_id}.json``（与按 step 分文件并存）。"""
+        sn = str(strategy_name).strip()
+        jid = str(run_id).strip()
+        key = f"{sn}__{jid}"
+        return cls(cls.build_path(channel, key))
+
+    @classmethod
     def for_scanner_run(
         cls,
         strategy_name: str,
         run_id: str,
         *,
-        channel: str = "scanner",
+        channel: str = "strategy-scan",
     ) -> "ProgressRecorder":
-        key = f"{strategy_name}__{run_id}__scan"
+        """机会扫描异步任务进度：``{strategy}__{job_id}.json``。"""
+        sn = str(strategy_name).strip()
+        jid = str(run_id).strip()
+        key = f"{sn}__{jid}"
         return cls(cls.build_path(channel, key))
 
     @classmethod
@@ -53,7 +70,7 @@ class ProgressRecorder:
     ) -> None:
         """删除该策略、该 step 下已不再需要的进度文件（``{strategy}__*__{step}.json``）。
 
-        供定时任务、清缓存按钮等 infra 调用；工作台 ``trigger_workbench_step_run`` 不在此处触发清理。
+        供定时任务、清缓存按钮等 infra 调用；工作台异步 run 不在此处触发清理。
 
         ``preserve_run_ids``：仍应保留的 ``job_id``（例如仍为 queued/running 的任务）。
         """

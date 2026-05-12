@@ -1,8 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
-  Box,
-  Breadcrumbs,
   Chip,
   Divider,
   Link,
@@ -12,9 +10,9 @@ import {
   Typography,
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
-import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import JSON5 from 'json5';
 import PythonDictInputPanel from 'components/pythonDictInputPanel';
+import PageLayout from '../../components/pageLayout/pageLayout';
 
 const defaultInput = JSON.stringify(
   {
@@ -353,20 +351,13 @@ function JsonFieldTestPage() {
   }, [errorPosition, jsonInput]);
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />} sx={{ mb: 2 }}>
-        <Link component={RouterLink} underline="hover" color="inherit" to="/strategy-workbench">
-          策略工作台
-        </Link>
-        <Typography color="text.primary">Raw JSON 测试</Typography>
-      </Breadcrumbs>
-
-      <Typography variant="h5" sx={{ mb: 1, fontWeight: 600 }}>
-        Raw JSON 编辑与验证测试页
-      </Typography>
-      <Typography color="text.secondary" sx={{ mb: 2 }}>
-        第一版不做字段树渲染，只验证输入体验、错误提示友好性和性能表现。
-      </Typography>
+    <PageLayout
+      className="json-field-test-page"
+      breadcrumbsItems={[{ label: '策略实验室', to: '/strategy-workbench' }]}
+      breadcrumbsCurrent="Raw JSON 测试"
+      bannerTitle="Raw JSON 测试"
+      bannerDescription="第一版不做字段树渲染，只验证输入体验、错误提示友好性和性能表现。"
+    >
 
       {parseError ? (
         <Typography variant="caption" color="error" sx={{ display: 'block', mb: 1 }}>
@@ -440,7 +431,7 @@ function JsonFieldTestPage() {
           />
         </Paper>
       </Stack>
-    </Box>
+    </PageLayout>
   );
 }
 

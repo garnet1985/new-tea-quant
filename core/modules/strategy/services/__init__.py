@@ -36,9 +36,9 @@ def __getattr__(name: str) -> Any:
     if name in {"build_settings", "validate_settings", "normalize_and_validate"}:
         return getattr(import_module(".validation", __name__), name)
     if name in {"EnumeratorRuntimeService", "EnumeratorRuntimeContext"}:
-        return getattr(import_module(".launcher.enumerator_runtime_service", __name__), name)
+        return getattr(import_module("..launcher.enumerator_runtime_service", __name__), name)
     if name in {"StrategyFingerprintManager", "StrategyFingerprintRuntimeService"}:
-        return getattr(import_module(".launcher.run_service", __name__), name)
+        return getattr(import_module("..launcher.run_service", __name__), name)
     if name == "StrategyWorkbenchSnapshotService":
         return getattr(
             import_module(".cache.simulator_res_db_cache.domain.snapshot_service", __name__),

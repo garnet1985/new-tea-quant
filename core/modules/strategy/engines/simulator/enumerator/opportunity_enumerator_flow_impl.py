@@ -34,7 +34,7 @@ from core.modules.strategy.engines.simulator.enumerator.data_classes.report impo
 from core.modules.strategy.engines.simulator.enumerator.session_enum_stats import (
     materialize_enum_report,
 )
-from core.modules.strategy.services.launcher.run_types import (
+from core.modules.strategy.launcher.run_types import (
     StrategyRunFingerprint,
 )
 from core.modules.strategy.engines.simulator.enumerator.worker import OpportunityEnumeratorWorker
@@ -154,7 +154,7 @@ class OpportunityEnumeratorFlowImpl:
         self, *, strategy_name: str, enum_settings: OpportunityEnumeratorSettings
     ) -> Dict[str, Any]:
         output_dir, version_id = StrategyOutputVersionService.create_enumerator_version(
-            strategy_name=strategy_name, use_sampling=False
+            strategy_name=strategy_name,
         )
         return {
             "output_dir": output_dir,

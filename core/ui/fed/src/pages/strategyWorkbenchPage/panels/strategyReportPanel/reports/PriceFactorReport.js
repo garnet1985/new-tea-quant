@@ -12,24 +12,9 @@ import {
   REPORT_CHART_GRID_BASE,
   REPORT_CHART_GRID_ROI_BUCKET,
   REPORT_CHART_SPLIT_LINE,
+  REPORT_CHART_TOOLTIP,
+  reportChartSignedBarData,
 } from '../lib/reportChartsTheme';
-
-const BAR_RADIUS = 4;
-
-/** 纵轴柱状图：正值圆角朝上侧（顶端），负值圆角朝外侧（底端），避免负柱圆角挤在 X 轴一侧 */
-function signedVerticalBarItems(values) {
-  if (!Array.isArray(values)) return [];
-  return values.map((v) => {
-    const n = Number(v);
-    if (!Number.isFinite(n)) {
-      return { value: 0, itemStyle: { borderRadius: [BAR_RADIUS, BAR_RADIUS, 0, 0] } };
-    }
-    if (n >= 0) {
-      return { value: n, itemStyle: { borderRadius: [BAR_RADIUS, BAR_RADIUS, 0, 0] } };
-    }
-    return { value: n, itemStyle: { borderRadius: [0, 0, BAR_RADIUS, BAR_RADIUS] } };
-  });
-}
 
 function tooltipPrimaryValue(point) {
   const raw = point?.data;
@@ -70,12 +55,12 @@ function buildRoiDistributionOption(metrics) {
     series: [
       {
         type: 'bar',
-        data: signedVerticalBarItems(metrics.roiPercentileValues),
+        data: reportChartSignedBarData(metrics.roiPercentileValues),
         barMaxWidth: 28,
-        itemStyle: { color: '#36A2EB' },
       },
     ],
     tooltip: {
+      ...REPORT_CHART_TOOLTIP,
       trigger: 'axis',
       axisPointer: { type: 'shadow' },
       formatter: (params) => {
@@ -110,18 +95,18 @@ function buildRoiBucketOption(metrics) {
     series: [
       {
         type: 'bar',
-        data: metrics.roiBucketCounts,
+        data: reportChartSignedBarData(metrics.roiBucketCounts),
         barMaxWidth: 24,
-        itemStyle: { color: '#7A8DF5', borderRadius: [4, 4, 0, 0] },
       },
     ],
     tooltip: {
+      ...REPORT_CHART_TOOLTIP,
       trigger: 'axis',
       axisPointer: { type: 'shadow' },
       formatter: (params) => {
         const point = params?.[0];
         if (!point) return '';
-        return `${point.axisValue}<br/>投资次数：${point.data}`;
+        return `${point.axisValue}<br/>投资次数：${tooltipPrimaryValue(point)}`;
       },
     },
   };

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 import json
 
-from core.modules.strategy.services.launcher.run_types import (
+from core.modules.strategy.launcher.run_types import (
     StrategyRunFingerprint,
 )
 
@@ -15,10 +15,6 @@ from core.modules.strategy.services.launcher.run_types import (
 SCOPE_STOCK_IDS_FILENAME = "0_scope_stock_ids.txt"
 # 逐股摘要（ref）：``{ 代码: { stock_name, opportunities, completion_rate, avg_opportunity_interval_days } }``
 STOCK_REF_FILENAME = "0_stock_ref.json"
-# 旧文件名兼容读取
-LEGACY_STOCK_SUMMARY_FILENAME = "0_enumerator_stocks.json"
-
-
 class EnumeratorOutputWriterService:
     @staticmethod
     def build_stock_rows(
@@ -161,23 +157,13 @@ class EnumeratorOutputWriterService:
     @staticmethod
     def read_scope_stock_ids(output_dir: Path) -> List[str]:
         """
-        解析枚举目录的股票 universe：``0_stock_ref.json`` / 旧 ``0_enumerator_stocks.json`` 键、
-        侧载 ``0_scope_stock_ids.txt``、或 ``0_metadata.json`` 内嵌 ``stock_ids``。
+        解析枚举目录的股票 universe：``0_stock_ref.json``、侧载 ``0_scope_stock_ids.txt``、
+        或 ``0_metadata.json`` 内嵌 ``stock_ids``。
         """
         ref_path = output_dir / STOCK_REF_FILENAME
         if ref_path.is_file():
             try:
                 data = json.loads(ref_path.read_text(encoding="utf-8"))
-                if isinstance(data, dict) and data:
-                    ids = sorted({str(k).strip() for k in data.keys() if str(k).strip()})
-                    if ids:
-                        return list(ids)
-            except Exception:
-                pass
-        legacy_ref = output_dir / LEGACY_STOCK_SUMMARY_FILENAME
-        if legacy_ref.is_file():
-            try:
-                data = json.loads(legacy_ref.read_text(encoding="utf-8"))
                 if isinstance(data, dict) and data:
                     ids = sorted({str(k).strip() for k in data.keys() if str(k).strip()})
                     if ids:

@@ -1,60 +1,10 @@
-"""工作台单步运行：进程内 ``_JOBS``（后台任务状态）、触发 run（V2-05）；``GET progress`` 读进度文件（V2-06）。
-
-进度 JSON 的清理不在此处触发，由后续 infra / 运维入口统一处理。
-
-模块顶层避免导入 ``price_factor`` / ``capital_allocation`` / ``enumerator``，以免经 DbCache
-链式导入 ``cache_service`` → BFF（Flask）。
-"""
+"""工作台步骤：进度 JSON 落盘与 GET progress 组装（唯一数据源为 ``ProgressRecorder``）。"""
 
 from __future__ import annotations
 
-import logging
-import threading
-import uuid
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
-from core.infra.project_context.path_manager import PathManager
-from core.modules.strategy.engines.shared.data_classes.discovered_strategy import DiscoveredStrategy
-from core.modules.strategy.engines.shared.data_classes.strategy_settings.strategy_settings import (
-    StrategySettings,
-)
-from core.modules.strategy.services.discovery import StrategyDiscoveryHelper
-from core.modules.strategy.services.launcher.run_service import StrategySettingsService
 from core.modules.strategy.services.progress import ProgressRecorder
-
-logger = logging.getLogger(__name__)
-
-_VALID_STEPS = frozenset({"enum", "price", "capital"})
-
-# --- 进程内 job 表 ---
-
-_LOCK = threading.Lock()
-_JOBS: Dict[str, Dict[str, Any]] = {}
-
-
-def job_create(*, strategy_name: str, step: str, is_force: bool) -> str:
-    jid = str(uuid.uuid4())
-    name = str(strategy_name).strip()
-    st = str(step).strip()
-    with _LOCK:
-        _JOBS[jid] = {
-            "strategy_name": name,
-            "step": st,
-            "is_force": bool(is_force),
-            "progress": 0.0,
-            "status": "queued",
-            "error": None,
-            "snapshot_id": 0,
-        }
-    return jid
-
-
-def job_update(job_id: str, **fields: Any) -> None:
-    with _LOCK:
-        row = _JOBS.get(job_id)
-        if row is None:
-            return
-        row.update(fields)
 
 
 def _enum_summary_from_result_report(rr: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -99,7 +49,7 @@ def _fed_result_report_slice(
     if snapshot_id <= 0:
         return {}
     try:
-        from core.modules.strategy.services.launcher.workbench import (
+        from core.modules.strategy.launcher.workbench import (
             fetch_workbench_snapshot_by_snapshot_id,
         )
     except Exception:
@@ -124,7 +74,6 @@ def _fed_result_report_slice(
                 out["enum"] = e
 
     elif normalized_step == "price":
-        # 单独跑价格步时，快照里仍带有本轮依赖的枚举摘要，一并下发供执行面板 / 报告用
         e = _enum_summary_from_result_report(rr)
         if e:
             out["enum"] = e
@@ -133,7 +82,6 @@ def _fed_result_report_slice(
             out["price"] = p
         raw_pf = rr.get("price_factor")
         if isinstance(raw_pf, dict) and raw_pf:
-            # 报告 Tab 需完整会话摘要（含 roi_percentile_* / roi_bucket_*）；执行面板仍只用上面的 ``price`` 摘要
             out["price_factor"] = raw_pf
 
     elif normalized_step == "capital":
@@ -172,7 +120,35 @@ def _fed_result_report_slice(
     return out
 
 
-def _merge_snapshot_into_disk_progress(
+def _fed_execution_step_card_slice(
+    strategy_name: str,
+    normalized_step: str,
+    snapshot_id: int,
+) -> Dict[str, Any]:
+    """仅执行面板三行卡片所需字段，避免把整份 ``result_report`` 塞进 run 进度 JSON。"""
+    full = _fed_result_report_slice(strategy_name, normalized_step, snapshot_id)
+    if not full:
+        return {}
+    out: Dict[str, Any] = {}
+    if "enum" in full and isinstance(full["enum"], dict):
+        e = full["enum"]
+        try:
+            opp = int(e.get("opportunities", 0) or 0)
+        except (TypeError, ValueError):
+            opp = 0
+        out["enum"] = {"opportunities": opp}
+    if "price" in full and isinstance(full["price"], dict):
+        p = full["price"]
+        out["price"] = {
+            "winRate": p.get("winRate"),
+            "roi": p.get("roi"),
+        }
+    if "capital" in full and isinstance(full["capital"], dict):
+        out["capital"] = dict(full["capital"])
+    return out
+
+
+def merge_snapshot_into_disk_progress(
     strategy_name: str,
     job_id: str,
     normalized_step: str,
@@ -203,12 +179,12 @@ def _merge_snapshot_into_disk_progress(
     rec.record(base)
 
 
-def _seed_workbench_progress_file(
+def seed_workbench_progress_file(
     strategy_name: str,
     job_id: str,
     normalized_step: str,
 ) -> None:
-    """POST 返回 ``job_id`` 后立即落盘，轮询只读该文件，不依赖进程内 ``_JOBS``。"""
+    """POST 返回 ``job_id`` 后立即落盘，轮询只读该文件，不依赖进程内 job 表。"""
     sn = str(strategy_name).strip()
     jid = str(job_id).strip()
     step = str(normalized_step).strip()
@@ -223,7 +199,7 @@ def _seed_workbench_progress_file(
     )
 
 
-def _disk_workbench_step_progress(
+def disk_workbench_step_progress(
     strategy_name: str,
     job_id: str,
     normalized_step: str,
@@ -256,7 +232,7 @@ def _disk_workbench_step_progress(
     rec.record(base)
 
 
-def _disk_mark_running(strategy_name: str, job_id: str, normalized_step: str) -> None:
+def disk_mark_running(strategy_name: str, job_id: str, normalized_step: str) -> None:
     sn = str(strategy_name).strip()
     jid = str(job_id).strip()
     step = str(normalized_step).strip()
@@ -275,7 +251,7 @@ def _disk_mark_running(strategy_name: str, job_id: str, normalized_step: str) ->
     rec.record(base)
 
 
-def _disk_mark_failed(
+def disk_mark_failed(
     strategy_name: str,
     job_id: str,
     normalized_step: str,
@@ -378,161 +354,11 @@ def get_step_progress(
     return _progress_payload_from_disk(strategy_name, normalized_step, jid_in)
 
 
-
-
-# --- V2-05：后台线程执行 flow，HTTP 立即返回 job_id 供轮询 ---
-#
-# 枚举耗时较长时，若在请求线程内同步执行，浏览器会一直阻塞在 POST 上无法渲染进度。
-# 另启线程运行步骤；ProcessWorker 在非主线程初始化时需跳过 ``signal.signal``（见
-# ``process_worker._setup_signal_handlers``）。
-
-
-def normalize_step(step: str) -> Optional[str]:
-    s = str(step or "").strip().lower()
-    return s if s in _VALID_STEPS else None
-
-
-def _resolve_discovered(
-    strategy_name: str, api_settings: Dict[str, Any]
-) -> Tuple[Optional[DiscoveredStrategy], Optional[str]]:
-    folder = PathManager.userspace() / "strategies" / strategy_name
-    base = StrategyDiscoveryHelper.load_strategy(folder)
-    if base is None:
-        return None, "策略不存在或无法加载"
-
-    normalized, err = StrategySettingsService.normalize_runtime_settings(
-        strategy_name=strategy_name,
-        api_settings=api_settings,
-    )
-    if err or not normalized:
-        return None, err or "settings 校验失败"
-
-    st = StrategySettings(raw_settings=dict(normalized))
-    vr = st.validate()
-    if not vr.is_usable():
-        return None, "settings 校验失败"
-
-    discovered = DiscoveredStrategy(
-        name=base.name,
-        folder=base.folder,
-        worker_class=base.worker_class,
-        worker_module_path=base.worker_module_path,
-        worker_class_name=base.worker_class_name,
-        settings=st,
-    )
-    discovered.validate_required_fields()
-    return discovered, None
-
-
-def _run_step_and_snapshot_id(
-    step: str,
-    strategy_name: str,
-    discovered: DiscoveredStrategy,
-    *,
-    is_force: bool,
-    job_id: str,
-    on_step_progress: Optional[Callable[[float], None]] = None,
-) -> int:
-    if step == "enum":
-        from core.modules.strategy.services.launcher.enumerator_runtime_service import (
-            EnumeratorRuntimeService,
-        )
-
-        ctx = EnumeratorRuntimeService.build_context(
-            strategy_name=strategy_name,
-            strategy_info=discovered,
-            raw_settings_override=discovered.settings.to_dict(),
-            force_refresh=is_force,
-            workbench_run_id=job_id,
-            workbench_strategy_name=strategy_name,
-        )
-        EnumeratorRuntimeService.run_enum(ctx)
-        return int(ctx.flow.last_snapshot_id or 0)
-
-    if step == "price":
-        from core.modules.strategy.engines.simulator.price_factor.price_factor_flow import PriceFactorFlow
-
-        flow = PriceFactorFlow(is_verbose=False, force_refresh=is_force)
-        cb = on_step_progress if callable(on_step_progress) else None
-        flow.run(strategy_name, discovered, progress_callback=cb)
-        return int(flow.last_snapshot_id or 0)
-
-    if step == "capital":
-        from core.modules.strategy.engines.simulator.capital_allocation.capital_allocation_flow import (
-            CapitalAllocationFlow,
-        )
-
-        flow = CapitalAllocationFlow(is_verbose=False, force_refresh=is_force)
-        cb = on_step_progress if callable(on_step_progress) else None
-        flow.run(strategy_name, discovered, progress_callback=cb)
-        return int(flow.last_snapshot_id or 0)
-
-    raise ValueError(f"未知 step: {step!r}")
-
-
-def _background_job(
-    job_id: str,
-    strategy_name: str,
-    step: str,
-    discovered: DiscoveredStrategy,
-    is_force: bool,
-) -> None:
-    job_update(job_id, status="running", progress=1.0)
-    _disk_mark_running(strategy_name, job_id, step)
-    try:
-        job_update(job_id, progress=5.0)
-
-        def _tick_disk_pct(pct: float) -> None:
-            _disk_workbench_step_progress(strategy_name, job_id, step, pct)
-
-        sid = _run_step_and_snapshot_id(
-            step,
-            strategy_name,
-            discovered,
-            is_force=is_force,
-            job_id=job_id,
-            on_step_progress=_tick_disk_pct if step in ("price", "capital") else None,
-        )
-        sid_int = int(sid or 0)
-        job_update(
-            job_id,
-            status="completed",
-            progress=100.0,
-            snapshot_id=sid_int,
-        )
-        _merge_snapshot_into_disk_progress(strategy_name, job_id, step, sid_int)
-    except Exception as exc:  # noqa: BLE001 — 任务边界兜底
-        logger.exception("Workbench step run failed job_id=%s", job_id)
-        job_update(job_id, status="failed", progress=100.0, error=str(exc))
-        _disk_mark_failed(strategy_name, job_id, step, str(exc))
-
-
-def trigger_workbench_step_run(
-    *,
-    strategy_name: str,
-    step: str,
-    api_settings: Dict[str, Any],
-    is_force: bool,
-) -> Dict[str, Any]:
-    norm_step = normalize_step(step)
-    if norm_step is None:
-        return {"is_triggered": False, "reason": f"step 须为 enum / price / capital，收到 {step!r}"}
-
-    name = str(strategy_name or "").strip()
-    if not name:
-        return {"is_triggered": False, "reason": "strategy_name 无效"}
-
-    discovered, err = _resolve_discovered(name, api_settings)
-    if err or discovered is None:
-        return {"is_triggered": False, "reason": err or "无法解析策略"}
-
-    jid = job_create(strategy_name=name, step=norm_step, is_force=is_force)
-    _seed_workbench_progress_file(name, jid, norm_step)
-    thread = threading.Thread(
-        target=_background_job,
-        args=(jid, name, norm_step, discovered, is_force),
-        daemon=True,
-        name=f"workbench-run-{jid[:8]}",
-    )
-    thread.start()
-    return {"is_triggered": True, "job_id": jid}
+__all__ = [
+    "disk_mark_failed",
+    "disk_mark_running",
+    "disk_workbench_step_progress",
+    "get_step_progress",
+    "merge_snapshot_into_disk_progress",
+    "seed_workbench_progress_file",
+]

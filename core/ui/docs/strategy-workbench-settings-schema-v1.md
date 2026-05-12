@@ -107,7 +107,7 @@
 
 | fieldPath | displayNameZh | type | editable | 说明 |
 |---|---|---|---|---|
-| `enumerator.use_sampling` | 使用采样枚举 | switch | true | false=output，true=test |
+| `enumerator.use_sampling` | 使用采样枚举 | switch | true | 控制全市场/采样股票池（与落盘路径无关） |
 
 ---
 

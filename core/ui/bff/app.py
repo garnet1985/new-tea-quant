@@ -8,6 +8,7 @@ from .APIs.health import health_api_bp
 from .APIs.setup import setup_api_bp
 from .APIs.strategy_workbench import strategy_workbench_api_bp
 from .APIs.strategy_scan import strategy_scan_api_bp
+from .APIs.settings import settings_api_bp
 from .conf import conf
 
 def create_app():
@@ -29,6 +30,7 @@ def create_app():
     app.register_blueprint(setup_api_bp, url_prefix='/api')
     app.register_blueprint(strategy_workbench_api_bp, url_prefix='/api')
     app.register_blueprint(strategy_scan_api_bp, url_prefix='/api')
+    app.register_blueprint(settings_api_bp, url_prefix='/api')
     
     # 添加根路径重定向到API文档
     @app.route('/', methods=['GET'])

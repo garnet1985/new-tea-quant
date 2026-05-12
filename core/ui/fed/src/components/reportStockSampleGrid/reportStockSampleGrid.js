@@ -90,6 +90,10 @@ function ReportStockSampleGrid({
     };
   }, [pagination, rowsFingerprint, safeSetPaginationModel]);
 
+  const effectiveGridHeight = Array.isArray(rows) && rows.length > 0
+    ? gridHeight
+    : Math.min(240, gridHeight);
+
   return (
     <SectionBlock title={title} tip={tip}>
       <Stack spacing={1}>
@@ -117,7 +121,7 @@ function ReportStockSampleGrid({
             </FormControl>
           ) : null}
         </Stack>
-        <Box sx={{ height: gridHeight }}>
+        <Box className="ntq-report-grid" sx={{ height: effectiveGridHeight }}>
           <DataGrid
             rows={rows}
             columns={columns}

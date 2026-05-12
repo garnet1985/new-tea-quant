@@ -9,8 +9,8 @@
 
 from flask import Blueprint, request
 
-from core.modules.strategy.services.launcher import fetch_latest_workbench_snapshot
-from core.modules.strategy.services.launcher.workbench import (
+from core.modules.strategy.launcher import fetch_latest_workbench_snapshot
+from core.modules.strategy.launcher.workbench import (
     apply_workbench_snapshot_settings_to_userspace,
     build_step_report_message,
     build_step_report_ref_message,
@@ -18,16 +18,17 @@ from core.modules.strategy.services.launcher.workbench import (
     parse_snapshot_id,
     workbench_latest_ui_flags,
 )
-from core.modules.strategy.services.launcher.workbench_catalog import (
+from core.modules.strategy.launcher.workbench_catalog import (
     fetch_discovered_strategies_page,
     fetch_strategy_versions_dropdown,
     items_capital_allocation_strategies,
     items_sampling_strategies,
 )
-from core.modules.strategy.services.launcher.workbench_step_run import (
+from core.modules.strategy.execution_manager import (
+    get_run_progress,
     get_step_progress,
     normalize_step,
-    trigger_workbench_step_run,
+    submit_workbench_step_via_bff_contract,
 )
 from core.ui.bff.shared.response import error, ok
 
@@ -108,15 +109,40 @@ def post_strategy_step_run(strategy_name, step):
     raw_force = payload.get("is_force", False)
     is_force = raw_force if isinstance(raw_force, bool) else bool(raw_force)
 
-    out = trigger_workbench_step_run(
+    out = submit_workbench_step_via_bff_contract(
         strategy_name=strategy_name,
         step=step,
         api_settings=settings,
         is_force=is_force,
     )
     if out.get("is_triggered"):
-        return ok({"is_triggered": True, "job_id": out["job_id"]})
+        return ok(
+            {
+                "is_triggered": True,
+                "job_id": out["job_id"],
+                "run_id": out.get("run_id") or out["job_id"],
+                "steps": out.get("steps") or [],
+            }
+        )
     return ok({"is_triggered": False, "reason": out.get("reason", "未知错误")})
+
+
+# --- V2-06b：整次 run 编排进度（``steps[]``，不依赖路径 ``step``） ---
+@strategy_workbench_api_bp.route(
+    "/v1/strategy/<strategy_name>/run/progress",
+    methods=["GET"],
+)
+def get_strategy_run_progress(strategy_name):
+    q_job = (request.args.get("job_id") or "").strip()
+    if not q_job:
+        return error("缺少必填 query 参数 job_id", 400)
+    payload = get_run_progress(
+        strategy_name=str(strategy_name),
+        job_id=q_job,
+    )
+    if payload is None:
+        return error("未找到该 job 的编排进度", 404)
+    return ok(payload)
 
 
 # --- V2-06 ---

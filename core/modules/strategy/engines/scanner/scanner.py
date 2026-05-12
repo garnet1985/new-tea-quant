@@ -37,14 +37,41 @@ class Scanner:
         self.cache_manager = ScanCacheManager(self.strategy_name, self.settings.max_cache_days)
         self.adapter_dispatcher = AdapterDispatcher(self.strategy_name)
 
-    def scan(self, *, on_job_done: Optional[Callable[[Dict[str, Any]], None]] = None) -> Dict[str, Any]:
+    def scan(
+        self,
+        *,
+        force: bool = False,
+        on_job_done: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ) -> Dict[str, Any]:
         scan_date, stock_ids = self.date_resolver.resolve_scan_date(
             use_strict=self.settings.use_strict_previous_trading_day
         )
         self.cache_manager.cleanup_old_cache()
-        opportunities = self._scan_stocks(scan_date, stock_ids, on_job_done=on_job_done)
-        if opportunities:
-            self.cache_manager.save_opportunities(scan_date, opportunities)
+
+        cache_csv = self.cache_manager.cache_base_dir / scan_date / "opportunities.csv"
+        use_cache = (not force) and cache_csv.is_file()
+
+        if use_cache:
+            opportunities = self.cache_manager.load_opportunities(scan_date)
+            if callable(on_job_done):
+                try:
+                    on_job_done(
+                        {
+                            "progress_pct": 99,
+                            "total_jobs": 1,
+                            "completed_jobs": 1,
+                            "failed_jobs": 0,
+                            "cancelled_jobs": 0,
+                            "last_job_id": "__cache__",
+                            "last_job_status": "completed",
+                        }
+                    )
+                except Exception:
+                    logger.exception("[Scanner] on_job_done failed (cache fast-path)")
+        else:
+            opportunities = self._scan_stocks(scan_date, stock_ids, on_job_done=on_job_done)
+            if opportunities:
+                self.cache_manager.save_opportunities(scan_date, opportunities)
         summary = self._calculate_summary(opportunities)
         self.adapter_dispatcher.dispatch(
             adapter_names=self.settings.adapter_names,

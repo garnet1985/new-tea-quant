@@ -12,10 +12,12 @@ import logging
 import threading
 import time
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from core.infra.project_context.path_manager import PathManager
 from core.modules.data_manager import DataManager
+from core.modules.strategy.engines.scanner.data_classes.settings import StrategyScannerSettings
+from core.modules.strategy.engines.scanner.helpers.date_resolver import ScanDateResolver
 from core.modules.strategy.engines.scanner.scanner import Scanner
 from core.modules.strategy.services.discovery import StrategyDiscoveryHelper
 from core.modules.strategy.services.progress import ProgressRecorder
@@ -28,13 +30,14 @@ _JOBS: Dict[str, Dict[str, Any]] = {}
 _ACTIVE_JOB_ID: Optional[str] = None
 
 
-def _job_create(*, strategy_name: str, demo: bool) -> str:
+def _job_create(*, strategy_name: str, demo: bool, force: bool) -> str:
     jid = str(uuid.uuid4())
     name = str(strategy_name).strip()
     # Caller must hold _LOCK when mutating _JOBS / _ACTIVE_JOB_ID.
     _JOBS[jid] = {
         "strategy_name": name,
         "demo": bool(demo),
+        "force": bool(force),
         "progress": 0.0,
         "status": "queued",
         "error": None,
@@ -67,7 +70,7 @@ def _has_active_scan_locked() -> bool:
     return True
 
 
-def _seed_progress_file(strategy_name: str, job_id: str, *, demo: bool) -> None:
+def _seed_progress_file(strategy_name: str, job_id: str, *, demo: bool, force: bool) -> None:
     sn = str(strategy_name).strip()
     jid = str(job_id).strip()
     ProgressRecorder.for_scanner_run(sn, jid).record(
@@ -78,6 +81,7 @@ def _seed_progress_file(strategy_name: str, job_id: str, *, demo: bool) -> None:
             "status": "queued",
             "progress_pct": 0,
             "demo": bool(demo),
+            "force": bool(force),
         }
     )
 
@@ -156,6 +160,20 @@ def _disk_mark_failed(strategy_name: str, job_id: str, error: str) -> None:
     rec.record(base)
 
 
+def _opportunity_rows_for_report(opportunities: List[Any]) -> List[Dict[str, Any]]:
+    """与进度落盘 ``report.opportunities`` 结构一致，供 BFF / 列表预热。"""
+    return [
+        {
+            "stock_id": opp.stock_id,
+            "stock_name": opp.stock_name,
+            "trigger_date": opp.trigger_date,
+            "trigger_price": opp.trigger_price,
+            "extra_fields": opp.extra_fields or {},
+        }
+        for opp in opportunities
+    ]
+
+
 def _disk_mark_completed(strategy_name: str, job_id: str, report: Dict[str, Any]) -> None:
     sn = str(strategy_name).strip()
     jid = str(job_id).strip()
@@ -171,16 +189,7 @@ def _disk_mark_completed(strategy_name: str, job_id: str, report: Dict[str, Any]
 
             cache = ScanCacheManager(sn)
             opportunities = cache.load_opportunities(scan_date)
-            packed_report["opportunities"] = [
-                {
-                    "stock_id": opp.stock_id,
-                    "stock_name": opp.stock_name,
-                    "trigger_date": opp.trigger_date,
-                    "trigger_price": opp.trigger_price,
-                    "extra_fields": opp.extra_fields or {},
-                }
-                for opp in opportunities
-            ]
+            packed_report["opportunities"] = _opportunity_rows_for_report(opportunities)
     except Exception:
         logger.exception("Failed to attach opportunities for job_id=%s strategy=%s", jid, sn)
     base.update(
@@ -210,7 +219,63 @@ def _resolve_discovered_strategy(strategy_name: str):
     return discovered, None
 
 
-def _background_scan_job(job_id: str, strategy_name: str, *, demo: bool) -> None:
+def get_scan_readiness(*, strategy_name: str, demo: bool = False) -> Dict[str, Any]:
+    """Opaque UI hint: ``primary_action`` is ``run`` or ``rerun`` (disk hit for current cutoff).
+
+    若存在与当前截止日对齐的磁盘缓存，额外返回 ``report``（与扫描完成进度里的 ``report`` 同形），
+    便于列表页预热「机会数量」与详情，无需先发起异步任务。
+    """
+    name = str(strategy_name or "").strip()
+    if not name:
+        return {"primary_action": "run"}
+    try:
+        discovered, err = _resolve_discovered_strategy(name)
+        if err or discovered is None:
+            return {"primary_action": "run"}
+
+        data_mgr = DataManager(is_verbose=False)
+        kline_latest = str(data_mgr.stock.kline.load_latest_date("daily") or "").strip()
+        if not kline_latest:
+            return {"primary_action": "run"}
+        if not demo:
+            cal_latest = str(data_mgr.service.calendar.get_latest_completed_trading_date() or "").strip()
+            if not cal_latest or cal_latest != kline_latest:
+                return {"primary_action": "run"}
+
+        settings = StrategyScannerSettings.from_base_settings(discovered.settings)
+        use_strict = bool(settings.use_strict_previous_trading_day)
+        if demo:
+            use_strict = False
+        resolver = ScanDateResolver(data_mgr)
+        scan_date, stock_ids = resolver.resolve_scan_date(use_strict=use_strict)
+        csv_path = PathManager.strategy_scan_results(name) / scan_date / "opportunities.csv"
+        if not csv_path.is_file():
+            return {"primary_action": "run"}
+
+        from core.modules.strategy.engines.scanner.helpers.cache_manager import ScanCacheManager
+
+        cache = ScanCacheManager(name, settings.max_cache_days)
+        opportunities = cache.load_opportunities(scan_date)
+        stocks_with_opps = {o.stock_id for o in opportunities} if opportunities else set()
+        summary = {
+            "total_opportunities": len(opportunities),
+            "total_stocks": len(stocks_with_opps),
+            "stocks_with_opportunities": sorted(stocks_with_opps),
+        }
+        report: Dict[str, Any] = {
+            "date": scan_date,
+            "total_opportunities": len(opportunities),
+            "total_stocks": len(stock_ids),
+            "summary": summary,
+            "opportunities": _opportunity_rows_for_report(opportunities),
+        }
+        return {"primary_action": "rerun", "report": report}
+    except Exception:
+        logger.debug("get_scan_readiness failed strategy=%s", name, exc_info=True)
+        return {"primary_action": "run"}
+
+
+def _background_scan_job(job_id: str, strategy_name: str, *, demo: bool, force: bool) -> None:
     _job_update(job_id, status="running", progress=1.0)
     _disk_mark_running(strategy_name, job_id)
     try:
@@ -250,7 +315,7 @@ def _background_scan_job(job_id: str, strategy_name: str, *, demo: bool) -> None
         def _on_job_done(payload: Dict[str, Any]) -> None:
             _disk_tick_progress(strategy_name, job_id, payload)
 
-        report = scanner.scan(on_job_done=_on_job_done)
+        report = scanner.scan(force=bool(force), on_job_done=_on_job_done)
         _job_update(job_id, status="completed", progress=100.0)
         _disk_mark_completed(strategy_name, job_id, report if isinstance(report, dict) else {})
     except Exception as exc:  # noqa: BLE001
@@ -264,7 +329,7 @@ def _background_scan_job(job_id: str, strategy_name: str, *, demo: bool) -> None
                 _ACTIVE_JOB_ID = None
 
 
-def trigger_strategy_scan_run(*, strategy_name: str, demo: bool = False) -> Dict[str, Any]:
+def trigger_strategy_scan_run(*, strategy_name: str, demo: bool = False, force: bool = False) -> Dict[str, Any]:
     t0 = time.time()
     name = str(strategy_name or "").strip()
     if not name:
@@ -274,20 +339,21 @@ def trigger_strategy_scan_run(*, strategy_name: str, demo: bool = False) -> Dict
     with _LOCK:
         if _has_active_scan_locked():
             return {"is_triggered": False, "reason": "已有扫描任务在运行中，请稍后重试"}
-        jid = _job_create(strategy_name=name, demo=demo)
+        jid = _job_create(strategy_name=name, demo=demo, force=force)
         _ACTIVE_JOB_ID = jid
-    _seed_progress_file(name, jid, demo=demo)
+    _seed_progress_file(name, jid, demo=demo, force=force)
     logger.info(
-        "[scanner_run] triggered job_id=%s strategy=%s demo=%s in %.1fms",
+        "[scanner_run] triggered job_id=%s strategy=%s demo=%s force=%s in %.1fms",
         jid,
         name,
         bool(demo),
+        bool(force),
         (time.time() - t0) * 1000.0,
     )
     thread = threading.Thread(
         target=_background_scan_job,
         args=(jid, name),
-        kwargs={"demo": bool(demo)},
+        kwargs={"demo": bool(demo), "force": bool(force)},
         daemon=True,
         name=f"scanner-run-{jid[:8]}",
     )

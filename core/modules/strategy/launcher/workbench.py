@@ -13,6 +13,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from core.infra.project_context.path_manager import PathManager
 from core.modules.data_manager import DataManager
 from core.modules.strategy.services.discovery import StrategyDiscoveryHelper
+from core.modules.strategy.services.cache.simulator_res_db_cache.report_slot_disk_hydrate import (
+    hydrate_workbench_result_report,
+)
 
 from .run_service import StrategySettingsService
 
@@ -59,7 +62,11 @@ def fetch_workbench_snapshot_by_snapshot_id(
     row = model.load_by_strategy_snapshot_id(name, sid)
     if not row or not _row_usable(row):
         return None
-    return row
+    out = dict(row)
+    rr = out.get("result_report")
+    if isinstance(rr, dict):
+        out["result_report"] = hydrate_workbench_result_report(name, rr)
+    return out
 
 
 def _synthetic_cold_start_snapshot_row(
@@ -113,7 +120,11 @@ def fetch_latest_workbench_snapshot(strategy_name: str) -> Optional[Dict[str, An
         if not row:
             break
         if _row_usable(row):
-            return row
+            out = dict(row)
+            rr = out.get("result_report")
+            if isinstance(rr, dict):
+                out["result_report"] = hydrate_workbench_result_report(name, rr)
+            return out
         sid = int(row.get("snapshot_id") or row.get("version") or 0)
         if sid <= 0:
             logger.warning("Unusable snapshot row for %s (missing version)", name)
@@ -267,7 +278,7 @@ def build_step_report_message(
         return None
 
     name = str(strategy_name).strip()
-    row = model.load_by_strategy_snapshot_id(name, int(snapshot_id))
+    row = fetch_workbench_snapshot_by_snapshot_id(name, int(snapshot_id))
     if not row:
         return None
 
@@ -288,11 +299,7 @@ def build_step_report_message(
     }
 
 
-_STOCK_REF_FILENAMES = ("0_stock_ref.json", "0_enumerator_stocks.json")
-
-
-def _enumerator_output_base(strategy_name: str) -> Path:
-    return PathManager.strategy_opportunity_enums(str(strategy_name).strip(), use_sampling=False)
+_STOCK_REF_FILENAMES = ("0_stock_ref.json",)
 
 
 def build_step_report_ref_message(
@@ -302,7 +309,7 @@ def build_step_report_ref_message(
     snapshot_id: int,
 ) -> Optional[Dict[str, Any]]:
     """
-    读取枚举产物目录下的 ``0_stock_ref.json``（或旧 ``0_enumerator_stocks.json``）。
+    读取枚举产物目录下的 ``0_stock_ref.json``。
 
     仅当快照行不存在（或参数非法）时返回 ``None``，路由 404。磁盘已清理、文件不存在时为正常情况，
     仍返回 dict：``stock_ref_available=False``、``stock_ref=null``。
@@ -320,7 +327,7 @@ def build_step_report_ref_message(
     if not row:
         return None
 
-    base = _enumerator_output_base(name)
+    base = PathManager.strategy_simulation_enum(name)
     candidates_dirs: List[str] = []
 
     rr = row.get("result_report") or {}

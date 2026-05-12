@@ -2,7 +2,7 @@
 """
 枚举器 runtime：CLI / 工作台共用；含 universe 解析（原 ``stock_universe`` 合并入此文件）。
 
-所在包 ``strategy.services.launcher`` 非 DbCache 职责域；说明见同包 ``__init__.py``。
+所在包 ``strategy.launcher`` 非 DbCache 职责域；说明见同包 ``__init__.py``。
 """
 
 from __future__ import annotations

@@ -151,7 +151,7 @@ export function PlaceholderSection({
     <SectionAccordion title={title} defaultExpanded={defaultExpanded}>
       {children || (
         <Typography variant="body2" color="text.secondary">
-          {text || 'Coming soon...'}
+          {text || '敬请期待…'}
         </Typography>
       )}
     </SectionAccordion>

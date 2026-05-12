@@ -25,9 +25,11 @@ import { zhCN } from '@mui/x-data-grid/locales';
 import {
   fetchStrategyList,
   fetchStrategyScanProgress,
+  fetchStrategyScanReadiness,
   getStrategyWorkbenchPath,
   startStrategyScan,
 } from '../../api/apis/strategyApi';
+import PageLayout from '../../components/pageLayout/pageLayout';
 import './scanPage.scss';
 
 const PROTOTYPE_DATA_ASOF_DATE = '2025-12-30';
@@ -63,6 +65,9 @@ function ScanPage() {
   const [reportGeneratedAt, setReportGeneratedAt] = useState('');
   const [reportDemo, setReportDemo] = useState(null); // null | boolean
 
+  /** run | rerun — 与 GET …/scan 的 `primary_action` 对齐，仅影响按钮文案 */
+  const [scanPrimaryById, setScanPrimaryById] = useState({});
+
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailStrategyId, setDetailStrategyId] = useState('');
 
@@ -90,9 +95,50 @@ function ScanPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const refreshScanPrimaryActions = useCallback(() => {
+    const demo = mode === 'demo';
+    const list = Array.isArray(rows) ? rows.filter((r) => r?.name) : [];
+    if (list.length === 0) {
+      setScanPrimaryById({});
+      return;
+    }
+    Promise.all(
+      list.map((r) => fetchStrategyScanReadiness(r.name, { demo }).then((x) => ({
+        id: r.id,
+        action: x.primary_action === 'rerun' ? 'rerun' : 'run',
+        report: x.report,
+      }))),
+    )
+      .then((pairs) => {
+        const next = {};
+        pairs.forEach(({ id, action }) => {
+          next[id] = action;
+        });
+        setScanPrimaryById(next);
+        setResults((prev) => {
+          const o = { ...(prev || {}) };
+          pairs.forEach(({ id, action, report }) => {
+            if (report && typeof report === 'object') {
+              o[id] = report;
+            } else if (action === 'run') {
+              delete o[id];
+            }
+          });
+          return o;
+        });
+      })
+      .catch(() => {
+        setScanPrimaryById({});
+      });
+  }, [rows, mode]);
+
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    refreshScanPrimaryActions();
+  }, [refreshScanPrimaryActions]);
 
   useEffect(() => () => {
     if (pollRef.current.timeoutId) window.clearTimeout(pollRef.current.timeoutId);
@@ -128,9 +174,9 @@ function ScanPage() {
       headerName: '启用',
       width: 110,
       renderCell: (params) => (params.value ? (
-        <Chip size="small" color="success" label="Enabled" />
+        <Chip size="small" color="success" label="已启用" />
       ) : (
-        <Chip size="small" color="default" label="Disabled" />
+        <Chip size="small" color="default" label="已禁用" />
       )),
     },
     {
@@ -169,6 +215,7 @@ function ScanPage() {
         const enabled = Boolean(params.row.is_enabled);
         const id = params.row.id;
         const isThisRunning = running && id === runningStrategyId;
+        const isRerun = scanPrimaryById[id] === 'rerun';
         const disableRun = !enabled || running;
         return (
           <Stack direction="row" spacing={1} alignItems="center">
@@ -176,15 +223,21 @@ function ScanPage() {
               size="small"
               variant="contained"
               disabled={disableRun}
+              title={
+                isRerun
+                  ? '将全量重新扫描并忽略已保存的扫描结果'
+                  : '尚无已保存结果时全量扫描；按住 Shift 再点击可强制重新扫描'
+              }
               onClick={(e) => {
                 e.stopPropagation();
                 if (!enabled || running) return;
+                const force = isRerun || e.shiftKey;
                 setRunError('');
                 setReportVisible(false);
                 setReportStrategyId('');
                 setScanTriggeredAt(new Date().toLocaleString('zh-CN', { hour12: false }));
                 setProgress({ pct: 0, label: '准备扫描…' });
-                startStrategyScan(params.row.name, { demo: mode === 'demo' })
+                startStrategyScan(params.row.name, { demo: mode === 'demo', force })
                   .then((res) => {
                     const jobId = String(res?.job_id || '').trim();
                     if (!jobId) throw new Error('启动失败：未返回 job_id');
@@ -197,7 +250,7 @@ function ScanPage() {
                   });
               }}
             >
-              开始扫描
+              {isRerun ? '重新扫描' : '开始扫描'}
             </Button>
             <Link
               component={RouterLink}
@@ -217,7 +270,7 @@ function ScanPage() {
         );
       },
     },
-  ]), [mode, progress.pct, results, running, runningStrategyId]);
+  ]), [mode, progress.pct, results, running, runningStrategyId, scanPrimaryById]);
 
   useEffect(() => {
     if (!running) return undefined;
@@ -249,6 +302,9 @@ function ScanPage() {
             setReportVisible(true);
             setRunningStrategyId('');
             setRunningJobId('');
+            window.setTimeout(() => {
+              refreshScanPrimaryActions();
+            }, 0);
             return;
           }
           if (status === 'failed') {
@@ -273,25 +329,27 @@ function ScanPage() {
       cancelled = true;
       if (pollRef.current.timeoutId) window.clearTimeout(pollRef.current.timeoutId);
     };
-  }, [mode, rows, running, runningJobId, runningStrategyId]);
+  }, [mode, rows, running, runningJobId, runningStrategyId, refreshScanPrimaryActions]);
 
   return (
-    <Box className="scan-page" sx={{ p: 2, width: '100%' }}>
-      <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
-        <Box>
-          <Typography component="h1" variant="h5" sx={{ fontWeight: 700, mb: 0.75 }}>
-            机会扫描
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            勾选下方<strong>已启用</strong>的策略，对当前市场机会进行批量扫描；每个策略按其配置的标的域（target）分别执行。
-          </Typography>
-        </Box>
+    <PageLayout
+      className="scan-page"
+      breadcrumbsItems={[{ label: '策略实验室', to: '/strategy-workbench' }]}
+      breadcrumbsCurrent="策略选股"
+      bannerTitle="策略选股"
+      bannerDescription={(
+        <>
+          勾选下方<strong>已启用</strong>的策略，在全市场范围内按规则筛选机会；每个策略按其配置的标的域（target）分别执行。
+        </>
+      )}
+      bannerRightSlot={(
         <Chip
           label={running ? '扫描中…' : '就绪'}
           color={running ? 'warning' : 'default'}
           variant={running ? 'filled' : 'outlined'}
         />
-      </Stack>
+      )}
+    >
 
       <Card variant="outlined" sx={{ mb: 2 }}>
         <CardContent>
@@ -407,7 +465,7 @@ function ScanPage() {
       </Card>
 
       {reportVisible ? (
-        <Card variant="outlined">
+      <Card variant="outlined">
           <CardContent>
             <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" gap={1.5} sx={{ mb: 1 }}>
               <Typography variant="subtitle1" fontWeight={700}>扫描报告</Typography>
@@ -557,7 +615,7 @@ function ScanPage() {
           <Button onClick={closeDetail}>关闭</Button>
         </DialogActions>
       </Dialog>
-    </Box>
+    </PageLayout>
   );
 }
 

@@ -1,0 +1,117 @@
+/* 每步卡片：底层为底色，叠一层左→右进度（见 exec-step-card__progress） */
+.exec-step-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.exec-step-card__body {
+  position: relative;
+  z-index: 1;
+}
+
+.exec-step-card__progress {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 0;
+  width: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  transition: width 0.35s ease-out;
+}
+
+.exec-step-card__progress--run {
+  background: linear-gradient(
+    90deg,
+    rgba(34, 211, 238, 0.32) 0%,
+    rgba(34, 211, 238, 0.12) 100%
+  );
+}
+
+.exec-step-card__progress--done {
+  background: linear-gradient(
+    90deg,
+    rgba(34, 197, 94, 0.22) 0%,
+    rgba(34, 197, 94, 0.10) 100%
+  );
+}
+
+.exec-step-card__progress--indeterminate {
+  width: 38% !important;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(34, 211, 238, 0.28) 50%,
+    transparent 100%
+  );
+  animation: ntq-exec-step-progress-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes ntq-exec-step-progress-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .exec-step-card__progress--indeterminate {
+    animation: none;
+    opacity: 0.85;
+    transform: translateX(0);
+  }
+}
+
+.ntq-exec-step-run-btn {
+  padding: 4px !important;
+}
+
+.ntq-exec-step-run-btn .MuiSvgIcon-root {
+  font-size: 29px;
+}
+
+.ntq-exec-step-run-btn svg {
+  width: 29px;
+  height: 29px;
+  display: block;
+}
+
+.exec-step-card.is-pending {
+  box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.12);
+}
+
+.ntq-exec-step-grid {
+  display: grid;
+  grid-template-columns: 48px minmax(110px, 160px) minmax(420px, 1fr) 200px;
+  gap: 8px;
+  align-items: center;
+}
+
+.ntq-exec-step-no {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--ntq-text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ntq-text);
+}
+
+.ntq-exec-step-title {
+  min-width: 0;
+}
+
+.ntq-exec-compare {
+  padding-right: 4px;
+}
+
+.ntq-exec-compare__select {
+  min-width: 168px;
+}
+

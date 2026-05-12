@@ -8,7 +8,6 @@ import React, {
 import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
-  Breadcrumbs,
   Button,
   Chip,
   Dialog,
@@ -29,7 +28,6 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import {
   applyStrategySettingsToUserspace,
@@ -44,7 +42,7 @@ import {
 import StrategySettingsContainer from './panels/strategySettingsPanel/containers/strategySettingsContainer';
 import { normalizeMeta } from './panels/strategySettingsPanel/editorSchemas/strategyMeta';
 import StrategyExecutionPanel from './panels/strategyExecutionPanel/strategyExecutionPanel';
-import StrategyReportPanel from './panels/strategyReportPanel/StrategyReportPanel';
+import StrategyReportPanel from './panels/strategyReportPanel/strategyReportPanel';
 import {
   buildExecutionResultFromWorkbenchReport,
   mapWorkbenchStepStatusToExecutionCards,
@@ -53,6 +51,7 @@ import {
   PlaceholderSection,
   StrategySettingsPanel,
 } from './panels/strategySettingsPanel/strategySettingsPanel';
+import PageLayout from '../../components/pageLayout/pageLayout';
 
 /** 左侧草稿 settings 变更后重置右侧执行/报告（加载完成后首次对齐基线，之后任意变更触发 ``onReset``）。core 由容器在 keyup/粘贴时解析写入 ``draftSettings``，签名仅需序列化草稿。 */
 function WorkbenchDraftChangeResetBridge({
@@ -554,20 +553,16 @@ function StrategyWorkbenchPage() {
   };
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Breadcrumbs separator={<NavigateNextIcon fontSize="small" />} sx={{ mb: 2 }}>
-        <Link component={RouterLink} underline="hover" color="inherit" to="/strategy-workbench">
-          策略工作台
-        </Link>
-        <Link component={RouterLink} underline="hover" color="inherit" to="/strategy-workbench">
-          策略列表
-        </Link>
-        {strategyName ? (
-          <Typography color="text.primary">调试：{strategyName}</Typography>
-        ) : (
-          <Typography color="text.primary">策略调试</Typography>
-        )}
-      </Breadcrumbs>
+    <PageLayout
+      className="strategy-workbench-page"
+      breadcrumbsItems={[
+        { label: '策略实验室', to: '/strategy-workbench' },
+        { label: '选择策略', to: '/strategy-workbench' },
+      ]}
+      breadcrumbsCurrent={strategyName ? `调试：${strategyName}` : '策略调试'}
+      bannerTitle={strategyName ? `调试：${strategyName}` : '策略调试'}
+      bannerDescription="您可以在左侧调整设置参数，然后在执行步骤面板按步骤执行回测和查看报告；也可以支持版本对比与结果复现。"
+    >
       <StrategySettingsContainer initialSettings={initialSettings}>
         {({ draftSettings, updateSection, setDraftSettings, coreEditor }) => (
           <>
@@ -575,9 +570,10 @@ function StrategyWorkbenchPage() {
               const hasUnsavedChanges = JSON.stringify(draftSettings) !== JSON.stringify(savedBaselineSettings);
               const isAppliedSettings = JSON.stringify(draftSettings) === JSON.stringify(appliedSettings);
               const workspaceVersionLabel = selectedConfigVersion || '（尚无快照）';
-              const appliedVersionLabel = appliedVersionId === 'userspace'
-                ? '策略目录 settings.py（无 DB 快照）'
-                : appliedVersionId;
+              const currentVersionDisplay =
+                appliedVersionId === 'userspace'
+                  ? 'settings文件'
+                  : String(appliedVersionId || '').trim() || workspaceVersionLabel;
               const visibleStrategies = strategyRows.filter((row) => row?.name && row.name !== strategyName);
               const disableSettingsActions = isSavingSettings || isLoadingSettings || !strategyName;
               const getDraftSettingsForSubmit = () => (
@@ -614,13 +610,6 @@ function StrategyWorkbenchPage() {
                 gap: 1.5,
               }}
             >
-              <Typography variant="h5" sx={{ mb: 1, fontWeight: 600 }}>
-                策略调试
-                {strategyName ? ` — ${strategyName}` : ''}
-              </Typography>
-              <Typography color="text.secondary">
-                策略作用是调参数并观察结果变化。本页设置区已接入 BFF `SWB-04/05`。
-              </Typography>
               {isLoadingSettings ? (
                 <Typography variant="body2" color="text.secondary">
                   正在加载策略配置...
@@ -658,15 +647,6 @@ function StrategyWorkbenchPage() {
                 }}
               >
                 <Stack spacing={1}>
-                  <Stack direction="row" spacing={0.75} alignItems="center">
-                    <Typography variant="subtitle2" fontWeight={700}>工作台与策略目录</Typography>
-                    <Tooltip title="左侧改动默认保存在 DB 快照（执行任一步会先 PUT 快照）；「应用当前工作台版本到策略」才把当前参数写入 userspace 下的 settings.py。">
-                      <HelpOutlineIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                    </Tooltip>
-                  </Stack>
-                  <Typography variant="caption" color="text.secondary">
-                    字段合法性以后端校验结果为准；策略目录文件仅在显式发布时覆盖。
-                  </Typography>
                   <Box
                     sx={{
                       display: 'flex',
@@ -677,12 +657,25 @@ function StrategyWorkbenchPage() {
                     }}
                   >
                     <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} alignItems={{ xs: 'flex-start', md: 'center' }}>
-                      <Typography variant="body2">选中快照：<strong>{workspaceVersionLabel}</strong></Typography>
-                      <Typography variant="body2">加载来源：<strong>{appliedVersionLabel}</strong></Typography>
+                      <Typography variant="body2">当前版本：<strong>{currentVersionDisplay}</strong></Typography>
                       {isAppliedSettings ? (
-                        <Chip size="small" color="success" label="草稿与基线一致" />
+                        <Chip size="small" color="success" label="无设置变化" />
                       ) : (
-                        <Chip size="small" color="warning" label="草稿相对基线已变更" />
+                        <Chip
+                          size="small"
+                          color="warning"
+                          label="发现设置变化，执行任意回测后将会产生新版本"
+                          sx={{
+                            height: 'auto',
+                            py: 0.5,
+                            maxWidth: { xs: '100%', md: 360 },
+                            '& .MuiChip-label': {
+                              whiteSpace: 'normal',
+                              lineHeight: 1.35,
+                              textAlign: 'left',
+                            },
+                          }}
+                        />
                       )}
                     </Stack>
                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent={{ xs: 'stretch', md: 'flex-end' }}>
@@ -695,8 +688,9 @@ function StrategyWorkbenchPage() {
                           onChange={handleRestoreMenuChange}
                           disabled={disableSettingsActions}
                           sx={{ minWidth: 168 }}
+                          className="ntq-compact-dropdown"
                         >
-                          <ListSubheader disableSticky sx={{ lineHeight: '32px', py: 0 }}>
+                          <ListSubheader disableSticky>
                             恢复到版本…
                           </ListSubheader>
                           {restoreDropdownVersions.map((version) => (
@@ -1022,7 +1016,7 @@ function StrategyWorkbenchPage() {
           </>
         )}
       </StrategySettingsContainer>
-    </Box>
+    </PageLayout>
   );
 }
 

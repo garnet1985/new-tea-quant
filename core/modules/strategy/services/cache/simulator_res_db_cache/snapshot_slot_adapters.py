@@ -12,6 +12,12 @@ from typing import Any, Dict, List, Optional, Tuple
 from core.modules.strategy.enums import Simulator
 
 from .cache_service import SimulatorResDbCacheService
+from .report_slot_disk_hydrate import (
+    compact_capital_slot_for_cache,
+    compact_enum_slot_for_cache,
+    hydrate_capital_slot,
+    hydrate_enum_slot,
+)
 
 
 def sanitize_enum_payload_for_snapshot(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -39,7 +45,8 @@ def lookup_enum_cache(
     enum_raw = rr.get("enum")
     if not isinstance(enum_raw, dict) or not enum_raw:
         return None
-    return ([enum_raw], snapshot_id)
+    hydrated = hydrate_enum_slot(str(strategy_name).strip(), enum_raw)
+    return ([hydrated], snapshot_id)
 
 
 def persist_enum_snapshot(
@@ -51,11 +58,12 @@ def persist_enum_snapshot(
     env_fingerprint_id: str,
 ) -> int:
     """写入或合并 ``enum`` 槽位。"""
+    slim = compact_enum_slot_for_cache(str(strategy_name).strip(), dict(report_enum or {}))
     return SimulatorResDbCacheService().set_cache(
         strategy_name=str(strategy_name),
         settings_snapshot=dict(settings_snapshot_api or {}),
         simulator=Simulator.ENUMERATOR,
-        simulator_report=dict(report_enum or {}),
+        simulator_report=slim,
         settings_fingerprint_id=str(settings_fingerprint_id or "").strip(),
         env_fingerprint_id=str(env_fingerprint_id or "").strip(),
     )
@@ -121,7 +129,8 @@ def lookup_capital_allocation_cache(
     slot = rr.get("capital_allocation")
     if not isinstance(slot, dict) or not slot:
         return None
-    return (slot, snapshot_id)
+    hydrated = hydrate_capital_slot(str(strategy_name).strip(), slot)
+    return (hydrated, snapshot_id)
 
 
 def persist_capital_allocation_snapshot(
@@ -131,13 +140,20 @@ def persist_capital_allocation_snapshot(
     report_capital_allocation: Dict[str, Any],
     settings_fingerprint_id: str,
     env_fingerprint_id: str,
+    capital_sim_version_dir: Optional[str] = None,
 ) -> int:
     """写入或合并 ``capital_allocation`` 槽位。"""
+    sn = str(strategy_name).strip()
+    raw = dict(report_capital_allocation or {})
+    to_save = raw
+    vd = str(capital_sim_version_dir or "").strip()
+    if vd:
+        to_save = compact_capital_slot_for_cache(sn, raw, capital_sim_version_dir=vd)
     return SimulatorResDbCacheService().set_cache(
         strategy_name=str(strategy_name),
         settings_snapshot=dict(settings_snapshot_api or {}),
         simulator=Simulator.CAPITAL_ALLOCATION,
-        simulator_report=dict(report_capital_allocation or {}),
+        simulator_report=to_save,
         settings_fingerprint_id=str(settings_fingerprint_id or "").strip(),
         env_fingerprint_id=str(env_fingerprint_id or "").strip(),
     )

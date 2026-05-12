@@ -19,7 +19,9 @@ export function buildCapitalMetrics(executionState) {
       ...summary,
       totalReturnPct: summary.totalReturnPct !== undefined
         ? Number(summary.totalReturnPct)
-        : Number((Number(summary.totalReturn || 0) * 100).toFixed(2)),
+        : (summary.retPct !== undefined && summary.retPct !== null
+          ? Number(summary.retPct)
+          : Number((Number(summary.totalReturn || 0) * 100).toFixed(2))),
       maxDrawdownPct: summary.maxDrawdownPct !== undefined
         ? Number(summary.maxDrawdownPct)
         : Number((Number(summary.maxDrawdown || 0) * 100).toFixed(2)),

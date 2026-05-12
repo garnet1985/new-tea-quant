@@ -403,16 +403,8 @@ function SetupPage() {
         </Stack>
       </Backdrop>
       <Container maxWidth="lg" sx={{ py: 5, visibility: bootstrapping ? 'hidden' : 'visible' }}>
-        <Stack spacing={3}>
-          <Box>
-            <Typography variant="h4" fontWeight={700}>
-              初始化向导
-            </Typography>
-            <Typography color="text.secondary" sx={{ mt: 1 }}>
-              系统未就绪时的初始化流程。该页面通过 BFF setup API 驱动步骤执行。
-            </Typography>
-          </Box>
-
+        <Box className="setup-page" sx={{ minWidth: 0 }}>
+          <Stack spacing={3}>
           {flowStage !== 'input' && status?.isReady ? (
             <Alert severity="success">
               安装流程已完成。你现在可以进入主业务页面。
@@ -576,7 +568,7 @@ function SetupPage() {
                 </Typography>
                 <Stack direction="row" spacing={2}>
                   <Button component={RouterLink} to="/strategy-workbench" variant="contained">
-                    前往策略工作台
+                    前往策略实验室
                   </Button>
                   <Button component={RouterLink} to="/settings" variant="outlined">
                     前往设置
@@ -630,7 +622,8 @@ function SetupPage() {
               </CardContent>
             </Card>
           ) : null}
-        </Stack>
+          </Stack>
+        </Box>
       </Container>
     </>
   );

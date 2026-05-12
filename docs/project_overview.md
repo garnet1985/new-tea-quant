@@ -127,16 +127,21 @@ new-tea-quant/
 │   │   ├── discovery/             # 自动发现模块和类
 │   │   ├── logging/               # 日志初始化（标准库 logging 配置入口）
 │   │   └── project_context/       # 路径、配置、文件、环境
+│   ├── tables/                    # 内置表 schema / model（sys_*）
 │   └── default_config/            # 框架默认配置（不可变基线）
 ├── userspace/                     # 用户空间（你真正工作的地方）
 │   ├── strategies/                # 用户策略
 │   ├── data_source/               # 用户自定义数据源
+│   ├── data_contract/             # Data Contract 扩展
+│   ├── tables/                    # 用户自定义表（可选）
 │   ├── tags/                      # 用户标签场景
+│   ├── adapters/                  # 扫描输出适配器
+│   ├── backup/                    # 备份数据目录（多为生成物，见该目录 README）
 │   └── config/                    # 用户项目配置（覆盖 core/default_config）
-└── docs/                          # 文档
-    ├── architecture/              # 架构 & 设计文档（当前这个文件在这里）
-    ├── getting-started/           # 安装、配置、上手
-    └── development/               # 测试、覆盖率、Road-map
+├── setup/                         # 安装、初始化数据包等
+├── devtools/                      # 维护用：Docker 说明、自动化脚本等（非运行时核心）
+├── tools/                         # 临时/一次性工具脚本（DB 比对、演示导出等）
+└── docs/                          # 仓库文档
 ```
 
 ---
@@ -184,17 +189,17 @@ new-tea-quant/
 
 `core/modules/strategy/` 的核心是一个**四层架构**：
 
-- **Layer 0：OpportunityEnumerator（底层枚举器 / 枚举输出结果 / 缓存层）**
+- **Layer 0：OpportunityEnumeratorFlow（底层枚举器 / 枚举输出结果 / 缓存层）**
   - 全市场、全周期地枚举所有潜在机会，生成 CSV 双表（opportunities + targets）。
   - 这是整个框架的**底层事实表**，同时也是「回测缓存层」：
     - 一次枚举，多次复用，方便分析软件和机器学习使用。
     - 可追溯：任何一条机会都能追到具体股票、具体日期、具体触发条件。
 - **Layer 1：Scanner**
   - 针对最新一日做扫描，产出实时机会（active Opportunity），用于实盘提示。
-- **Layer 2：PriceFactorSimulator（价格回测）**
+- **Layer 2：PriceFactorFlow（价格回测）**
   - 在不考虑资金约束的前提下，基于枚举器的 枚举输出结果快速验证「价格层策略是否有 alpha」。
   - 速度非常快，适合频繁调参与因子实验。
-- **Layer 3：CapitalAllocationSimulator（带资金的回测）**
+- **Layer 3：CapitalAllocationFlow（带资金的回测）**
   - 在价格层策略被证明有效后，进一步引入资金约束、多股票、费用等，模拟真实交易过程。
   - 仍然复用同一份 枚举输出结果 枚举结果，只是在其上叠加资金管理逻辑。
 

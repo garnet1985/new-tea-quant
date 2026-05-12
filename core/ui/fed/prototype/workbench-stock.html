@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NTQ Prototype - K 线与图层</title>
+  <link rel="stylesheet" href="./global.css" />
+  <link rel="stylesheet" href="./components.css" />
+  <link rel="stylesheet" href="./backtest.css" />
+  <link rel="stylesheet" href="./workbench.css" />
+</head>
+<body>
+  <div class="layout">
+    <header class="top-nav">
+      <div class="brand-wrap">
+        <p class="brand">NTQ Console</p>
+        <p class="brand-sub">Public Users Prototype v1</p>
+      </div>
+      <nav class="nav">
+        <a href="./workbench.html">策略工作台</a>
+        <a href="./scan.html">机会扫描</a>
+        <div class="nav-dropdown">
+          <button type="button" class="nav-parent" aria-haspopup="true" aria-expanded="false">高级功能 ▾</button>
+          <div class="nav-dropdown-menu">
+            <a href="./data-acquire.html">数据接入</a>
+            <a href="./tag-console.html">标签工作台</a>
+            <a href="./backup-and-restore.html">备份与恢复</a>
+          </div>
+        </div>
+        <a href="./settings.html">设置</a>
+      </nav>
+    </header>
+    <main class="content workbench-detail-wide stock-k-page">
+      <div class="stock-k-header">
+        <a class="button ghost-btn stock-k-back" id="stock-k-back" href="./workbench-detail.html">← 返回策略验证</a>
+        <div class="stock-k-meta" id="stock-k-meta"></div>
+      </div>
+
+      <div class="backtest-range-banner stock-k-range-banner" role="note" aria-label="策略回测使用的数据日期区间">
+        <span class="backtest-range-banner-label">回测数据区间</span>
+        <strong id="stock-backtest-range-value" class="backtest-range-banner-range"></strong>
+        <span class="muted backtest-range-banner-note">K 线与图层标注须与此区间一致。</span>
+      </div>
+
+      <div class="stock-k-tabs" role="tablist" aria-label="执行步骤图层">
+        <button type="button" class="stock-k-tab is-active" role="tab" aria-selected="true" data-layer="enum" id="tab-enum">
+          枚举机会
+        </button>
+        <button type="button" class="stock-k-tab" role="tab" aria-selected="false" data-layer="price" id="tab-price">
+          价格回测
+        </button>
+        <button type="button" class="stock-k-tab" role="tab" aria-selected="false" data-layer="capital" id="tab-capital">
+          资金模拟
+        </button>
+      </div>
+
+      <article class="card stock-k-chart-card">
+        <div class="stock-k-chart-placeholder" id="stock-k-chart">
+          K 线图占位区域
+        </div>
+        <p class="stock-k-chart-caption muted" id="stock-k-caption">当前图层：<strong>枚举机会</strong></p>
+        <div class="stock-k-hint muted" id="stock-k-hint"></div>
+      </article>
+    </main>
+  </div>
+  <script>
+    (() => {
+      const TAB_LABEL = { enum: "枚举机会", price: "价格回测", capital: "资金模拟" };
+
+      const TAB_IMPLEMENTATION_HINT = {
+        enum:
+          "实现说明（占位）：接入行情与枚举结果后，在 K 线时间轴上标注本策略识别出的全部「机会」位置（例如信号满足日/下一交易日）；支持图例与悬浮查看机会编号、触发的规则摘要。",
+        price:
+          "实现说明（占位）：接入价格回测成交明细后，在 K 线上标注每一笔买入（Buy）与卖出（Sell），可区分平仓/止损等类型；悬浮展示成交价、数量、持仓区间。",
+        capital:
+          "实现说明（占位）：接入资金模拟流水后，在 K 线上标注实际发生买入的时点，并展示买入数量、成交金额、累计仓位或资金曲线联动（必要时下方副图展示权益）。"
+      };
+
+      const PROTOTYPE_BACKTEST_DATE_RANGE = "2019-01-01 ~ 2025-12-31";
+
+      const params = new URLSearchParams(window.location.search);
+      const strategyId = params.get("strategy") || "";
+      const code = params.get("code") || "";
+      const stockName = params.get("name") || "";
+
+      const STRATEGY_DISPLAY = {
+        "double-bottom-v3": "double-bottom-v3",
+        "momentum-breakout-v2": "momentum-breakout-v2",
+        "activity-high-v1": "activity-high-v1",
+        "mean-revert-test": "mean-revert-test"
+      };
+
+      const back = document.getElementById("stock-k-back");
+      back.href = `./workbench-detail.html${strategyId ? `?id=${encodeURIComponent(strategyId)}` : ""}`;
+
+      const metaEl = document.getElementById("stock-k-meta");
+      const stratLabel = strategyId ? STRATEGY_DISPLAY[strategyId] || strategyId : "—";
+      const namePart = stockName ? `${stockName}` : "—";
+      const codePart = code || "—";
+      metaEl.innerHTML = `
+        <span><span class="muted">策略</span> <strong>${stratLabel}</strong></span>
+        <span class="stock-k-meta-sep">·</span>
+        <span><span class="muted">标的</span> <strong>${namePart}</strong> <span class="muted">${codePart}</span></span>
+        <span class="stock-k-meta-sep">·</span>
+        <span class="muted">周期</span> <strong>日线</strong>
+      `;
+
+      if (!strategyId || !code) {
+        metaEl.insertAdjacentHTML(
+          "beforeend",
+          '<span class="stock-k-meta-warn"> · 缺少 URL 参数 <code>strategy</code> / <code>code</code></span>'
+        );
+      }
+
+      const captionEl = document.getElementById("stock-k-caption");
+      const hintEl = document.getElementById("stock-k-hint");
+      const chartEl = document.getElementById("stock-k-chart");
+      const tabs = Array.from(document.querySelectorAll(".stock-k-tab"));
+
+      function setLayer(layer) {
+        tabs.forEach((btn) => {
+          const active = btn.dataset.layer === layer;
+          btn.classList.toggle("is-active", active);
+          btn.setAttribute("aria-selected", active ? "true" : "false");
+        });
+        captionEl.innerHTML = `当前图层：<strong>${TAB_LABEL[layer]}</strong>`;
+        hintEl.textContent = TAB_IMPLEMENTATION_HINT[layer];
+        chartEl.innerHTML = `K 线图占位 · ${TAB_LABEL[layer]}（蜡烛 / 成交量副图接入后替换）`;
+      }
+
+      tabs.forEach((btn) => {
+        btn.addEventListener("click", () => setLayer(btn.dataset.layer));
+      });
+
+      document.getElementById("stock-backtest-range-value").textContent = PROTOTYPE_BACKTEST_DATE_RANGE;
+
+      setLayer("enum");
+    })();
+  </script>
+</body>
+</html>

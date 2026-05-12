@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NTQ Prototype - 查看标签</title>
+  <link rel="stylesheet" href="./global.css" />
+  <link rel="stylesheet" href="./components.css" />
+  <link rel="stylesheet" href="./backtest.css" />
+  <link rel="stylesheet" href="./workbench.css" />
+</head>
+<body>
+  <div class="layout">
+    <header class="top-nav">
+      <div class="brand-wrap">
+        <p class="brand">NTQ Console</p>
+        <p class="brand-sub">Public Users Prototype v1</p>
+      </div>
+      <nav class="nav">
+        <a href="./workbench.html">策略工作台</a>
+        <a href="./scan.html">机会扫描</a>
+        <div class="nav-dropdown is-active">
+          <button type="button" class="nav-parent" aria-haspopup="true" aria-expanded="true">高级功能 ▾</button>
+          <div class="nav-dropdown-menu">
+            <a href="./data-acquire.html">数据接入</a>
+            <a href="./tag-console.html">标签工作台/配置</a>
+            <a href="./backup-and-restore.html">备份与恢复</a>
+          </div>
+        </div>
+        <a href="./settings.html">设置</a>
+      </nav>
+    </header>
+
+    <main class="content workbench-detail-wide tag-preview-page">
+      <header class="topbar">
+        <div>
+          <h1 class="title">查看标签</h1>
+          <p class="subtitle">仅展示当前 scenario 的标签位置与信息（UI Prototype）。</p>
+        </div>
+        <a class="button ghost-btn" href="./tag-console.html">返回标签工作台</a>
+      </header>
+
+      <section class="grid cards-3">
+        <article class="card">
+          <h3>总 Tag 记录</h3>
+          <div class="metric" id="preview-total-count">6</div>
+          <p class="muted">tag_value 事件记录</p>
+        </article>
+        <article class="card">
+          <h3>覆盖对象数</h3>
+          <div class="metric" id="preview-entity-count">4</div>
+          <p class="muted">entity_type + entity_id 维度</p>
+        </article>
+        <article class="card">
+          <h3>最近 as_of_date</h3>
+          <div class="metric" id="preview-latest-date">2026-04-23</div>
+          <p class="muted">当前 scenario 范围</p>
+        </article>
+      </section>
+
+      <section class="tag-preview-layout">
+        <article class="card">
+          <div class="section-head">
+            <h3>Tag 列表</h3>
+            <span class="muted">scenario: <strong id="preview-current-scenario">--</strong></span>
+          </div>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>entity_type</th>
+                  <th>entity_id</th>
+                  <th>tag_name</th>
+                  <th>as_of_date</th>
+                  <th>json_value</th>
+                </tr>
+              </thead>
+              <tbody id="preview-tags-tbody"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <aside class="card tag-preview-detail">
+          <div class="section-head">
+            <h3>Tag 记录详情</h3>
+          </div>
+          <div class="tag-preview-detail-body" id="preview-detail-body">
+            <p class="muted">点击左侧某条 tag 记录查看详情。</p>
+          </div>
+        </aside>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    (() => {
+      const rows = [
+        { entityType: "stock_kline_daily", entityId: "600519.SH", tagName: "activity_high", scenario: "activity-ratio20", asOfDate: "20260423", jsonValue: '{"value":true}', detail: "成交额活跃度高，触发高活跃标签。" },
+        { entityType: "stock_kline_daily", entityId: "000651.SZ", tagName: "activity_low", scenario: "activity-ratio20", asOfDate: "20260423", jsonValue: '{"value":false}', detail: "活跃度状态未达到 low 阈值，保留 false。" },
+        { entityType: "stock_kline_daily", entityId: "300750.SZ", tagName: "momentum_60_days", scenario: "momentum_mid_term", asOfDate: "20260401", jsonValue: '{"ym":"202604","mom":0.124}', detail: "按月计算 60 天动量，当前值 0.124。" },
+        { entityType: "stock_kline_daily", entityId: "600036.SH", tagName: "momentum_60_days", scenario: "momentum_mid_term", asOfDate: "20260401", jsonValue: '{"ym":"202604","mom":-0.037}', detail: "按月计算 60 天动量，当前值 -0.037。" },
+        { entityType: "general", entityId: "__general__", tagName: "macro_regime", scenario: "macro_regime", asOfDate: "20260331", jsonValue: '{"regime":"neutral"}', detail: "宏观环境示例结果：neutral。" },
+        { entityType: "general", entityId: "__general__", tagName: "macro_regime", scenario: "macro_regime", asOfDate: "20260228", jsonValue: '{"regime":"risk_off"}', detail: "宏观环境示例结果：risk_off。" }
+      ];
+
+      const tbody = document.getElementById("preview-tags-tbody");
+      const detailBody = document.getElementById("preview-detail-body");
+      const totalCount = document.getElementById("preview-total-count");
+      const entityCount = document.getElementById("preview-entity-count");
+      const latestDate = document.getElementById("preview-latest-date");
+      const currentScenarioLabel = document.getElementById("preview-current-scenario");
+      const currentScenario = new URLSearchParams(window.location.search).get("scenario") || "activity-ratio20";
+
+      function renderDetail(row) {
+        detailBody.innerHTML = `
+          <div class="step"><div class="dot">1</div><div><strong>entity_type:</strong> ${row.entityType}</div></div>
+          <div class="step"><div class="dot">2</div><div><strong>entity_id:</strong> ${row.entityId}</div></div>
+          <div class="step"><div class="dot">3</div><div><strong>tag_name:</strong> ${row.tagName}</div></div>
+          <div class="step"><div class="dot">4</div><div><strong>scenario:</strong> ${row.scenario}</div></div>
+          <div class="step"><div class="dot">5</div><div><strong>as_of_date:</strong> ${row.asOfDate}</div></div>
+          <div class="step"><div class="dot">6</div><div><strong>json_value:</strong> <code>${row.jsonValue}</code></div></div>
+          <p class="muted">${row.detail}</p>
+        `;
+      }
+
+      function renderTable() {
+        const filtered = rows.filter((r) => r.scenario === currentScenario);
+        currentScenarioLabel.textContent = currentScenario;
+        tbody.innerHTML = "";
+        filtered.forEach((row, index) => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${row.entityType}</td>
+            <td>${row.entityId}</td>
+            <td>${row.tagName}</td>
+            <td>${row.asOfDate}</td>
+            <td><code>${row.jsonValue}</code></td>
+          `;
+          tr.classList.add("tag-preview-row");
+          tr.addEventListener("click", () => {
+            tbody.querySelectorAll("tr").forEach((item) => item.classList.remove("is-active"));
+            tr.classList.add("is-active");
+            renderDetail(row);
+          });
+          tbody.appendChild(tr);
+          if (index === 0) {
+            tr.classList.add("is-active");
+            renderDetail(row);
+          }
+        });
+
+        if (filtered.length === 0) {
+          detailBody.innerHTML = `<p class="muted">当前 scenario 暂无 tag 记录。</p>`;
+        }
+
+        totalCount.textContent = String(filtered.length);
+        entityCount.textContent = String(new Set(filtered.map((r) => `${r.entityType}:${r.entityId}`)).size);
+        latestDate.textContent = filtered.length > 0 ? filtered[0].asOfDate : "--";
+      }
+
+      renderTable();
+    })();
+  </script>
+</body>
+</html>

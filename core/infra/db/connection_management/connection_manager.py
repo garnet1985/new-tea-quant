@@ -105,6 +105,8 @@ class ConnectionManager:
                 # 如果是包装对象，获取原始连接
                 if hasattr(conn, 'pg_conn'):
                     self.adapter._put_connection(conn.pg_conn)
+                elif hasattr(conn, 'mysql_conn'):
+                    self.adapter._put_connection(conn.mysql_conn)
                 else:
                     self.adapter._put_connection(conn)
     

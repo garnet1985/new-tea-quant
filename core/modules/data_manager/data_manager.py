@@ -445,6 +445,18 @@ class DataManager:
         if not self._data_service:
             raise RuntimeError("DataManager 未初始化，请先调用 initialize()")
         return self._data_service.db_cache
+
+    @property
+    def backup_restore(self):
+        """
+        跨表备份与恢复服务（属性访问）
+
+        Returns:
+            BackupAndRestoreService 实例
+        """
+        if not self._data_service:
+            raise RuntimeError("DataManager 未初始化，请先调用 initialize()")
+        return self._data_service.backup_restore
     
     @property
     def service(self):

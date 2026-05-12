@@ -80,6 +80,33 @@
 
 ---
 
+## 决策 5：`max_workers=1` 默认主进程执行，并统一输出进度事件
+
+1. **背景（Context）**  
+   在金融回测场景中，`max_workers=1` 若仍启动单子进程，容易出现「主进程 + 子进程」并存语义，叠加数据库连接池继承问题，增加单写多读链路的状态混乱风险。与此同时，UI 需要稳定的全局进度信息提升可观测性与交互体验。
+
+2. **决策（Decision）**  
+   - `ProcessWorker` 在 `execution_mode=QUEUE` 且 `max_workers=1` 时，默认走主进程串行执行（`is_main_process_used_if_single_worker=True`）。  
+   - 仅在显式关闭该开关时，`max_workers=1` 才允许走单子进程路径。  
+   - 新增 `on_job_done` 回调，在每个 `job_finished` 时输出进度事件。  
+   - 新增 `ProgressReportConfig`（`none / every_job_done / every_sec_interval / every_progress_interval`）统一控制进度日志上报策略。  
+   - `DatabaseManager.reset_default()` 仅在子进程路径触发，避免主进程执行路径误重置连接上下文。
+
+3. **理由（Rationale）**  
+   主进程串行语义与业务认知一致（`worker=1` 即不并发），可降低连接状态漂移与写读冲突概率；同时保留开关用于少数需要进程隔离的场景。统一事件格式让上层在不引入 pipeline 抽象的前提下也能做全局进度展示，而 dataclass + 枚举模式避免进度参数碎片化。
+
+4. **影响（Consequences）**  
+   - 默认行为更偏向稳定与可解释性，而非进程隔离。  
+   - 需要进程隔离时必须显式配置 `is_main_process_used_if_single_worker=False`。  
+   - 上层可直接消费 `on_job_done` 回调结果构建运行态 UI，无需自行推导进度。  
+   - 日志策略由 `ProgressReportConfig` 集中管理；新增模式时无需继续膨胀构造参数。
+
+5. **备选方案（Alternatives）**  
+   - 保持 `max_workers=1` 仍创建 `ProcessPoolExecutor`（语义不直观且在部分场景引入额外风险）。  
+   - 将进度计算完全留给业务层（重复实现、事件口径难统一）。
+
+---
+
 ## 相关文档
 
 - [架构总览](./ARCHITECTURE.md)

@@ -5,13 +5,13 @@
 `v0.0.x` 段为对历史内部里程碑（原文档中的 v2/v3/v4）的回溯编号。
 
 新版本更新清单：
-[x] 有破坏性更改或者新的模块需要在module_info.yaml里更新core的依赖
-[x] 更改system.py里的版本
-[x] 同步版本徽章
-[x] 检查是不是正确配置了gitignore
-[x] Changlog 里注明改动和可能存在的破坏性改动
-[x] 更新模块文档（模块readme，API，module_info）
-[x] 确保所有test都能跑过
+[] 有破坏性更改或者新的模块需要在module_info.yaml里更新core的依赖
+[] 更改system.py里的版本
+[] 同步版本徽章
+[] 检查是不是正确配置了gitignore
+[] Changlog 里注明改动和可能存在的破坏性改动
+[] 更新模块文档（模块readme，API，module_info）
+[] 确保所有test都能跑过
 [] 检查安装依赖的数据是不是齐全，是不是足够新
 [] 更新项目README文档
 
@@ -29,7 +29,7 @@
 ### v0.3.0 (2026-05-11) - 此次版本更新将会引入破坏性改动
 
 - 重大更新：UI系统发布，引入nodejs依赖
-- 加入Launder.py，一键启动app和UI，自动发现app的安装状态，自动引导安装
+- 加入 `launcher.py`，一键启动 app 和 UI，自动发现安装状态并引导完成 Setup
 - 在核心内加入BFF和UI，引入前端UI
 - 完成策略工作台和策略扫描的UI和BFF
 - 对齐UI和命令行的report，使输出结果保持一致

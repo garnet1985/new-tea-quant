@@ -1,7 +1,7 @@
 {
   "id": "resolve_deps",
   "name": "依赖安装",
-  "description": "安装运行所需依赖（当前由 mock 流程模拟）。",
+  "description": "安装运行所需依赖",
   "scriptEntry": "setup/steps/resolve_deps/install.py",
   "requiresUserInput": false,
   "inputSchema": [],

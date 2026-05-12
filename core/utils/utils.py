@@ -1,11 +1,14 @@
 """
 通用工具模块
 
-提供配置文件的加载、合并等工具方法
+提供配置文件的加载、合并等工具方法。
+pandas 仅在操作 DataFrame/Series 的方法内按需 import，避免轻量路径（如 DateUtils）顶层依赖 pandas。
 """
+from __future__ import annotations
+
 import datetime
-from typing import Dict, Any, List, Set, Tuple
-import pandas as pd
+from typing import Any, Dict, List, Set, Tuple
+
 
 class Utils:
     @staticmethod
@@ -46,16 +49,20 @@ class Utils:
 
     @staticmethod
     def is_df(obj: Any) -> bool:
+        import pandas as pd
+
         return isinstance(obj, pd.DataFrame)
 
     @staticmethod
     def is_df_column(obj: Any) -> bool:
+        import pandas as pd
+
         return isinstance(obj, pd.Series)
 
     @staticmethod
     def deep_merge(defaults: Dict[str, Any], custom: Dict[str, Any]) -> Dict[str, Any]:
         """深度合并两个字典
-        
+
         Args:
             defaults: 默认字典
             custom: 自定义字典
@@ -72,17 +79,29 @@ class Utils:
         return merged
 
     @staticmethod
-    def df_to_dict(df: pd.DataFrame) -> Dict[str, Any]:
+    def df_to_dict(df: Any) -> Dict[str, Any]:
+        import pandas as pd
+
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError("df_to_dict expects a pandas.DataFrame")
         return df.to_dict(orient="records")
 
     @staticmethod
-    def dict_to_df(data: Dict[str, Any]) -> pd.DataFrame:
+    def dict_to_df(data: Dict[str, Any]) -> Any:
+        import pandas as pd
+
         return pd.DataFrame(data)
 
     @staticmethod
-    def df_to_header_and_lines(df: pd.DataFrame) -> Tuple[List[str], List[List[Any]]]:
+    def df_to_header_and_lines(df: Any) -> Tuple[List[str], List[List[Any]]]:
+        import pandas as pd
+
+        if not isinstance(df, pd.DataFrame):
+            raise TypeError("df_to_header_and_lines expects a pandas.DataFrame")
         return df.columns.tolist(), df.values.tolist()
 
     @staticmethod
-    def header_and_lines_to_df(header: List[str], lines: List[List[Any]]) -> pd.DataFrame:
+    def header_and_lines_to_df(header: List[str], lines: List[List[Any]]) -> Any:
+        import pandas as pd
+
         return pd.DataFrame(lines, columns=header)

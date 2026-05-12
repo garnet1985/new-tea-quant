@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import {
@@ -13,7 +13,6 @@ import {
   DialogTitle,
   IconButton,
   MenuItem,
-  LinearProgress,
   Select,
   Stack,
   Typography,
@@ -48,11 +47,13 @@ function formatCapitalPct(value) {
   return Number(value).toFixed(2);
 }
 
+const STEP_RUN_ICON_PX = 29;
+
 function StepRunButtonIcon({ done }) {
   return done ? (
-    <RefreshRoundedIcon sx={{ fontSize: 22 }} />
+    <RefreshRoundedIcon sx={{ fontSize: STEP_RUN_ICON_PX }} />
   ) : (
-    <PlayCircleIcon width={22} height={22} />
+    <PlayCircleIcon width={STEP_RUN_ICON_PX} height={STEP_RUN_ICON_PX} />
   );
 }
 
@@ -189,10 +190,22 @@ function StrategyExecutionPanel({
       setLatestRunId(runId);
       setRunningStep(started?.resolved_chain?.[0] || target);
       setProgress(0);
-      setResult({
-        enum: null,
-        price: null,
-        capital: null,
+      /* 只清空「本次会重跑」的步骤及之后链上的结果；已完成的上一屏摘要保留 */
+      setResult((prev) => {
+        const order = [STEP_ENUM, STEP_PRICE, STEP_CAPITAL];
+        const startIdx = order.indexOf(target);
+        if (startIdx < 0) {
+          return { enum: null, price: null, capital: null };
+        }
+        const next = {
+          enum: prev.enum,
+          price: prev.price,
+          capital: prev.capital,
+        };
+        for (let i = startIdx; i < order.length; i += 1) {
+          next[order[i]] = null;
+        }
+        return next;
       });
     } catch (err) {
       setRunError(err?.message || '启动执行失败');
@@ -203,13 +216,6 @@ function StrategyExecutionPanel({
   };
 
   const displayRunStep = activeRunId ? (progressPollStep || runningStep) : runningStep;
-
-  const runLabel = useMemo(() => {
-    if (!displayRunStep) return '等待开始';
-    if (displayRunStep === STEP_ENUM) return '正在执行：枚举机会';
-    if (displayRunStep === STEP_PRICE) return '正在执行：价格回测';
-    return '正在执行：资金模拟';
-  }, [displayRunStep]);
 
   const getStepClass = (status) => {
     if (status === 'failed') return 'is-error';
@@ -222,13 +228,15 @@ function StrategyExecutionPanel({
     if (status === 'done') {
       return {
         borderColor: 'rgba(34, 197, 94, 0.32)',
-        backgroundColor: 'rgba(34, 197, 94, 0.10)',
+        /* 满幅绿色进度在 exec-step-card__progress--done */
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
       };
     }
     if (status === 'running') {
       return {
-        borderColor: 'warning.main',
-        backgroundColor: 'warning.50',
+        borderColor: 'rgba(34, 211, 238, 0.55)',
+        /* 进度条为左→右 cyan 叠层 */
+        backgroundColor: 'rgba(0, 0, 0, 0.22)',
       };
     }
     if (status === 'failed') {
@@ -241,6 +249,40 @@ function StrategyExecutionPanel({
       borderColor: 'divider',
       backgroundColor: 'background.paper',
     };
+  };
+
+  /** 每步卡片内左→右进度：完成满幅；执行中跟 progress_pct；未知进度时 indeterminate */
+  const renderStepProgressOverlay = (stepKey) => {
+    const st = stepStatus[stepKey];
+    if (st === 'failed') return null;
+    if (st === 'done') {
+      return (
+        <Box
+          className="exec-step-card__progress exec-step-card__progress--done"
+          style={{ width: '100%' }}
+          aria-hidden
+        />
+      );
+    }
+    const chainHere = isPollingRun && displayRunStep === stepKey;
+    const visuallyRunning = st === 'running' || chainHere;
+    if (!visuallyRunning) return null;
+    if (progress > 0) {
+      const pct = Math.min(100, Math.max(0, Number(progress)));
+      return (
+        <Box
+          className="exec-step-card__progress exec-step-card__progress--run"
+          style={{ width: `${pct}%` }}
+          aria-hidden
+        />
+      );
+    }
+    return (
+      <Box
+        className="exec-step-card__progress exec-step-card__progress--indeterminate"
+        aria-hidden
+      />
+    );
   };
 
   const formatPriceLine = (price) => (
@@ -774,18 +816,6 @@ function StrategyExecutionPanel({
             三层回测：枚举机会 - 帮助您看到策略发现机会的能力。价格回测 - 初步验证策略可行性。资金模拟 - 加入资金管理，模拟实际交易。
           </Typography>
 
-          {isPollingRun ? (
-            <Box>
-              <Typography variant="caption" color="text.secondary">
-                {runLabel}
-              </Typography>
-              <LinearProgress
-                variant={progress > 0 ? 'determinate' : 'indeterminate'}
-                value={progress > 0 ? progress : 0}
-                sx={{ mt: 0.5 }}
-              />
-            </Box>
-          ) : null}
           {runError ? (
             <Typography variant="caption" color="error">{runError}</Typography>
           ) : null}
@@ -800,8 +830,9 @@ function StrategyExecutionPanel({
                 ...getStepSx(stepStatus.enum),
               }}
             >
+              {renderStepProgressOverlay('enum')}
               <Box
-                className="ntq-exec-step-grid"
+                className="ntq-exec-step-grid exec-step-card__body"
               >
                 <Box className="ntq-exec-step-no">
                   1
@@ -809,7 +840,7 @@ function StrategyExecutionPanel({
                 <Stack direction="row" spacing={1} alignItems="center" className="ntq-exec-step-title">
                   <Typography fontWeight={600} noWrap>枚举机会</Typography>
                   <IconButton
-                    size="small"
+                    className="ntq-exec-step-run-btn"
                     onClick={() => runStep(STEP_ENUM)}
                     disabled={executionBusy}
                     aria-label={stepStatus.enum === 'done' ? '强制重跑枚举' : '运行枚举'}
@@ -848,8 +879,9 @@ function StrategyExecutionPanel({
                 ...getStepSx(stepStatus.price),
               }}
             >
+              {renderStepProgressOverlay('price')}
               <Box
-                className="ntq-exec-step-grid"
+                className="ntq-exec-step-grid exec-step-card__body"
               >
                 <Box className="ntq-exec-step-no">
                   2
@@ -857,7 +889,7 @@ function StrategyExecutionPanel({
                 <Stack direction="row" spacing={1} alignItems="center" className="ntq-exec-step-title">
                   <Typography fontWeight={600} noWrap>价格回测</Typography>
                   <IconButton
-                    size="small"
+                    className="ntq-exec-step-run-btn"
                     onClick={() => runStep(STEP_PRICE)}
                     disabled={executionBusy}
                     aria-label={stepStatus.price === 'done' ? '强制重跑价格回测' : '运行价格回测'}
@@ -898,8 +930,9 @@ function StrategyExecutionPanel({
                 ...getStepSx(stepStatus.capital),
               }}
             >
+              {renderStepProgressOverlay('capital')}
               <Box
-                className="ntq-exec-step-grid"
+                className="ntq-exec-step-grid exec-step-card__body"
               >
                 <Box className="ntq-exec-step-no">
                   3
@@ -907,7 +940,7 @@ function StrategyExecutionPanel({
                 <Stack direction="row" spacing={1} alignItems="center" className="ntq-exec-step-title">
                   <Typography fontWeight={600} noWrap>资金模拟</Typography>
                   <IconButton
-                    size="small"
+                    className="ntq-exec-step-run-btn"
                     onClick={() => runStep(STEP_CAPITAL)}
                     disabled={executionBusy}
                     aria-label={stepStatus.capital === 'done' ? '强制重跑资金模拟' : '运行资金模拟'}

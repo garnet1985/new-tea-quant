@@ -25,6 +25,7 @@ import { zhCN } from '@mui/x-data-grid/locales';
 import {
   fetchStrategyList,
   fetchStrategyScanProgress,
+  fetchStrategyScanReadiness,
   getStrategyWorkbenchPath,
   startStrategyScan,
 } from '../../api/apis/strategyApi';
@@ -64,6 +65,9 @@ function ScanPage() {
   const [reportGeneratedAt, setReportGeneratedAt] = useState('');
   const [reportDemo, setReportDemo] = useState(null); // null | boolean
 
+  /** run | rerun — 与 GET …/scan 的 `primary_action` 对齐，仅影响按钮文案 */
+  const [scanPrimaryById, setScanPrimaryById] = useState({});
+
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailStrategyId, setDetailStrategyId] = useState('');
 
@@ -91,9 +95,50 @@ function ScanPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const refreshScanPrimaryActions = useCallback(() => {
+    const demo = mode === 'demo';
+    const list = Array.isArray(rows) ? rows.filter((r) => r?.name) : [];
+    if (list.length === 0) {
+      setScanPrimaryById({});
+      return;
+    }
+    Promise.all(
+      list.map((r) => fetchStrategyScanReadiness(r.name, { demo }).then((x) => ({
+        id: r.id,
+        action: x.primary_action === 'rerun' ? 'rerun' : 'run',
+        report: x.report,
+      }))),
+    )
+      .then((pairs) => {
+        const next = {};
+        pairs.forEach(({ id, action }) => {
+          next[id] = action;
+        });
+        setScanPrimaryById(next);
+        setResults((prev) => {
+          const o = { ...(prev || {}) };
+          pairs.forEach(({ id, action, report }) => {
+            if (report && typeof report === 'object') {
+              o[id] = report;
+            } else if (action === 'run') {
+              delete o[id];
+            }
+          });
+          return o;
+        });
+      })
+      .catch(() => {
+        setScanPrimaryById({});
+      });
+  }, [rows, mode]);
+
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    refreshScanPrimaryActions();
+  }, [refreshScanPrimaryActions]);
 
   useEffect(() => () => {
     if (pollRef.current.timeoutId) window.clearTimeout(pollRef.current.timeoutId);
@@ -170,6 +215,7 @@ function ScanPage() {
         const enabled = Boolean(params.row.is_enabled);
         const id = params.row.id;
         const isThisRunning = running && id === runningStrategyId;
+        const isRerun = scanPrimaryById[id] === 'rerun';
         const disableRun = !enabled || running;
         return (
           <Stack direction="row" spacing={1} alignItems="center">
@@ -177,15 +223,21 @@ function ScanPage() {
               size="small"
               variant="contained"
               disabled={disableRun}
+              title={
+                isRerun
+                  ? '将全量重新扫描并忽略已保存的扫描结果'
+                  : '尚无已保存结果时全量扫描；按住 Shift 再点击可强制重新扫描'
+              }
               onClick={(e) => {
                 e.stopPropagation();
                 if (!enabled || running) return;
+                const force = isRerun || e.shiftKey;
                 setRunError('');
                 setReportVisible(false);
                 setReportStrategyId('');
                 setScanTriggeredAt(new Date().toLocaleString('zh-CN', { hour12: false }));
                 setProgress({ pct: 0, label: '准备扫描…' });
-                startStrategyScan(params.row.name, { demo: mode === 'demo' })
+                startStrategyScan(params.row.name, { demo: mode === 'demo', force })
                   .then((res) => {
                     const jobId = String(res?.job_id || '').trim();
                     if (!jobId) throw new Error('启动失败：未返回 job_id');
@@ -198,7 +250,7 @@ function ScanPage() {
                   });
               }}
             >
-              开始扫描
+              {isRerun ? '重新扫描' : '开始扫描'}
             </Button>
             <Link
               component={RouterLink}
@@ -218,7 +270,7 @@ function ScanPage() {
         );
       },
     },
-  ]), [mode, progress.pct, results, running, runningStrategyId]);
+  ]), [mode, progress.pct, results, running, runningStrategyId, scanPrimaryById]);
 
   useEffect(() => {
     if (!running) return undefined;
@@ -250,6 +302,9 @@ function ScanPage() {
             setReportVisible(true);
             setRunningStrategyId('');
             setRunningJobId('');
+            window.setTimeout(() => {
+              refreshScanPrimaryActions();
+            }, 0);
             return;
           }
           if (status === 'failed') {
@@ -274,7 +329,7 @@ function ScanPage() {
       cancelled = true;
       if (pollRef.current.timeoutId) window.clearTimeout(pollRef.current.timeoutId);
     };
-  }, [mode, rows, running, runningJobId, runningStrategyId]);
+  }, [mode, rows, running, runningJobId, runningStrategyId, refreshScanPrimaryActions]);
 
   return (
     <PageLayout

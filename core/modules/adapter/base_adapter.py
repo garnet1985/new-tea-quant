@@ -18,6 +18,16 @@ from core.modules.strategy.engines.shared.data_classes.opportunity import Opport
 logger = logging.getLogger(__name__)
 
 
+def _fmt_scalar_price(v: Any) -> str:
+    """CSV/JSON 反序列化后价格可能为 str，避免 f-string 使用 ``:.2f`` 抛错。"""
+    if v is None or v == "":
+        return ""
+    try:
+        return f"{float(v):.2f}"
+    except (TypeError, ValueError):
+        return str(v)
+
+
 class BaseOpportunityAdapter(ABC):
     """
     机会适配器基类
@@ -177,13 +187,18 @@ class BaseOpportunityAdapter(ABC):
             
             # 价格信息
             if opp.trigger_price:
-                print(f"  价格: {opp.trigger_price:.2f}")
+                px = _fmt_scalar_price(opp.trigger_price)
+                if px:
+                    print(f"  价格: {px}")
             
             # 价格区间（如果有）
             if opp.extra_fields:
                 lower = opp.extra_fields.get('lower_bound')
                 upper = opp.extra_fields.get('upper_bound')
                 if lower is not None and upper is not None:
-                    print(f"  价格区间: {lower:.2f} - {upper:.2f}")
+                    lo = _fmt_scalar_price(lower)
+                    hi = _fmt_scalar_price(upper)
+                    if lo and hi:
+                        print(f"  价格区间: {lo} - {hi}")
         
         print("\n" + "=" * 60)

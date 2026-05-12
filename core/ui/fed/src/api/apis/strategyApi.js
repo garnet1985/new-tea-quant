@@ -34,17 +34,34 @@ export async function fetchStrategyList() {
 }
 
 /**
- * 启动单策略扫描（机会扫描页使用）
- * BFF：`POST /api/v1/strategy/{strategy_name}/scan?demo=0|1`
+ * 扫描按钮语义（与当前 demo 模式、磁盘结果对齐）；BFF 仅透传 `primary_action`。
+ * GET /api/v1/strategy/{strategy_name}/scan?demo=0|1
  */
-export async function startStrategyScan(strategyName, { demo = false } = {}) {
+export async function fetchStrategyScanReadiness(strategyName, { demo = false } = {}) {
   const params = new URLSearchParams({ demo: demo ? '1' : '0' });
+  const json = await requestJson(`${apiStrategyPath(strategyName)}/scan?${params.toString()}`, { method: 'GET' });
+  const m = json?.message || {};
+  const report = m.report && typeof m.report === 'object' ? m.report : null;
+  return {
+    primary_action: m.primary_action === 'rerun' ? 'rerun' : 'run',
+    report,
+  };
+}
+
+/**
+ * 启动单策略扫描（机会扫描页使用）
+ * BFF：`POST /api/v1/strategy/{strategy_name}/scan?demo=0|1&force=0|1`
+ */
+export async function startStrategyScan(strategyName, { demo = false, force = false } = {}) {
+  const params = new URLSearchParams({ demo: demo ? '1' : '0' });
+  if (force) params.set('force', '1');
   const json = await requestJson(`${apiStrategyPath(strategyName)}/scan?${params.toString()}`, { method: 'POST' });
   const m = json?.message || {};
   return {
     strategy_name: m.strategy_name || strategyName,
     job_id: m.job_id || '',
     demo: Boolean(m.demo),
+    force: Boolean(m.force),
   };
 }
 

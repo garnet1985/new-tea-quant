@@ -46,6 +46,20 @@ class ProgressRecorder:
         return cls(cls.build_path(channel, key))
 
     @classmethod
+    def for_scanner_run(
+        cls,
+        strategy_name: str,
+        run_id: str,
+        *,
+        channel: str = "strategy-scan",
+    ) -> "ProgressRecorder":
+        """机会扫描异步任务进度：``{strategy}__{job_id}.json``。"""
+        sn = str(strategy_name).strip()
+        jid = str(run_id).strip()
+        key = f"{sn}__{jid}"
+        return cls(cls.build_path(channel, key))
+
+    @classmethod
     def clear_workspace_runs_for_strategy_step(
         cls,
         strategy_name: str,

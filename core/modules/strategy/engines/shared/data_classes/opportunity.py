@@ -303,4 +303,32 @@ class Opportunity:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Opportunity":
-        return cls(**data)
+        raw = dict(data or {})
+        # 磁盘 CSV 等反序列化后数值常为 str，避免下游 ``{x:.2f}``、算术等失败
+        def _to_float(v: Any, default: float = 0.0) -> float:
+            if v is None or v == "":
+                return default
+            if isinstance(v, (int, float)):
+                return float(v)
+            try:
+                return float(str(v).strip())
+            except (TypeError, ValueError):
+                return default
+
+        def _to_opt_float(v: Any) -> Optional[float]:
+            if v is None or v == "":
+                return None
+            if isinstance(v, (int, float)):
+                return float(v)
+            try:
+                return float(str(v).strip())
+            except (TypeError, ValueError):
+                return None
+
+        for key in ("trigger_price",):
+            if key in raw:
+                raw[key] = _to_float(raw.get(key), 0.0)
+        for key in ("sell_price", "price_return", "max_price", "min_price", "roi"):
+            if key in raw:
+                raw[key] = _to_opt_float(raw.get(key))
+        return cls(**raw)

@@ -93,7 +93,10 @@ def install_ui_runtime(force: bool = False) -> None:
 
     print("开始安装 UI 最小依赖（BFF + FED）...", flush=True)
 
-    pip_cmd = [sys.executable, "-m", "pip", "install", "--no-compile", "-r", str(BFF_REQUIREMENTS)]
+    pip_cmd = [sys.executable, "-m", "pip", "install", "--no-compile"]
+    if os.environ.get("NTQ_PIP_NO_CACHE", "").strip().lower() in ("1", "true", "yes"):
+        pip_cmd.append("--no-cache-dir")
+    pip_cmd.extend(["-r", str(BFF_REQUIREMENTS)])
     pip_ret = subprocess.run(pip_cmd, cwd=str(REPO_ROOT))
     if pip_ret.returncode != 0:
         raise RuntimeError("安装 BFF Python 依赖失败")

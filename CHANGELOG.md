@@ -4,6 +4,54 @@
 自 `v0.1.0` 起采用统一版本规范 `v[a].[b].[c]`（a=Version，b=Function，c=Patch）。  
 `v0.0.x` 段为对历史内部里程碑（原文档中的 v2/v3/v4）的回溯编号。
 
+新版本更新清单：
+[] 有破坏性更改或者新的模块需要在module_info.yaml里更新core的依赖
+[] 更改system.py里的版本
+[] 同步版本徽章
+[] 检查是不是正确配置了gitignore
+[] Changlog 里注明改动和可能存在的破坏性改动
+[] 更新模块文档（模块readme，API，module_info）
+[] 确保所有test都能跑过
+[] 检查安装依赖的数据是不是齐全，是不是足够新
+[] 更新项目README文档
+
+---
+
+### TODO in upcoming releases
+- bugfix
+- UX improvement
+- 加入updater，可以直接一键升级
+
+---
+
+---
+
+### v0.3.0 (2026-05-11) - 此次版本更新将会引入破坏性改动
+
+- 重大更新：UI系统发布，引入nodejs依赖
+- 加入 `launcher.py`，一键启动 app 和 UI，自动发现安装状态并引导完成 Setup
+- 在核心内加入BFF和UI，引入前端UI
+- 完成策略工作台和策略扫描的UI和BFF
+- 对齐UI和命令行的report，使输出结果保持一致
+- 对命令行和UI的回测加入缓存系统，现在重复的回测会直接返回report
+- 清理文件夹结构，将backup文件夹放入userspace，将docker以及badge生成还有自动更新readme这类代码放入devtools文件夹并更新代码引用和文档
+- 收敛复权因子的逻辑进入model底层，并且为K线复权做了一条特殊快速通道，以便回测减小IO次数
+- 在userspace里放入tables的文件夹，加入文档引导用户建立自己的数据表
+- 重构strategy核心模块的组织方式，变成更直观的编排层 + flow流模式
+- Strategy里加上了为支持输出的launcher和支持UI的adapter
+- 扫描系统加入缓存，如果当日扫描过，将直接返回结果
+- 清理start cli，变成代理层
+
+
+破坏性改动：
+- backup文件夹从更目录移动到了userspace
+- app不再自带userspace文件夹，而是安装的时候自动创建
+- start-cli 的扫描命令现在降级成一次只能用一个策略进行扫描
+- 引入Nodejs依赖
+- simulator的回测report格式发生了变化
+
+---
+
 ---
 
 ### v0.2.2 (2026-04-21)

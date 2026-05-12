@@ -1,0 +1,319 @@
+import React, { useMemo, useState } from 'react';
+import { Box, Stack, Typography } from '@mui/material';
+import ReactECharts from 'echarts-for-react';
+import MetricCard from 'components/metricCard/metricCard';
+import { SectionBlock } from 'components/sectionBlock/sectionBlock';
+import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
+import ReportUnavailableHint from '../components/ReportUnavailableHint';
+import {
+  REPORT_CHART_AXIS_LABEL,
+  REPORT_CHART_AXIS_LABEL_SM,
+  REPORT_CHART_AXIS_LINE,
+  REPORT_CHART_GRID_BASE,
+  REPORT_CHART_GRID_ROI_BUCKET,
+  REPORT_CHART_SPLIT_LINE,
+  REPORT_CHART_TOOLTIP,
+  reportChartSignedBarData,
+} from '../lib/reportChartsTheme';
+
+function tooltipPrimaryValue(point) {
+  const raw = point?.data;
+  if (raw != null && typeof raw === 'object' && Object.prototype.hasOwnProperty.call(raw, 'value')) {
+    return raw.value;
+  }
+  return raw;
+}
+
+/** 旧版会话摘要里的固定 ROI 档位（与新版的 [min,max] 等分标签区分） */
+function looksLikeLegacyFixedRoiBuckets(labels) {
+  if (!Array.isArray(labels)) return false;
+  return labels.some((t) => (
+    typeof t === 'string'
+    && (t.includes('≤-20') || t.includes('>50%') || /\(-20,-5]/.test(t))
+  ));
+}
+
+function buildRoiDistributionOption(metrics) {
+  return {
+    animation: false,
+    grid: { ...REPORT_CHART_GRID_BASE, left: 30 },
+    xAxis: {
+      type: 'category',
+      data: metrics.roiPercentileLabels,
+      axisTick: { show: false },
+      axisLine: REPORT_CHART_AXIS_LINE,
+      axisLabel: REPORT_CHART_AXIS_LABEL,
+    },
+    yAxis: {
+      type: 'value',
+      splitNumber: 3,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { ...REPORT_CHART_AXIS_LABEL, formatter: '{value}%' },
+      splitLine: REPORT_CHART_SPLIT_LINE,
+    },
+    series: [
+      {
+        type: 'bar',
+        data: reportChartSignedBarData(metrics.roiPercentileValues),
+        barMaxWidth: 28,
+      },
+    ],
+    tooltip: {
+      ...REPORT_CHART_TOOLTIP,
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: (params) => {
+        const point = params?.[0];
+        if (!point) return '';
+        const val = tooltipPrimaryValue(point);
+        return `${point.axisValue}<br/>ROI：${val}%`;
+      },
+    },
+  };
+}
+
+function buildRoiBucketOption(metrics) {
+  return {
+    animation: false,
+    grid: REPORT_CHART_GRID_ROI_BUCKET,
+    xAxis: {
+      type: 'category',
+      data: metrics.roiBucketLabels,
+      axisTick: { show: false },
+      axisLine: REPORT_CHART_AXIS_LINE,
+      axisLabel: { ...REPORT_CHART_AXIS_LABEL_SM, interval: 0, rotate: 25 },
+    },
+    yAxis: {
+      type: 'value',
+      splitNumber: 3,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: REPORT_CHART_AXIS_LABEL,
+      splitLine: REPORT_CHART_SPLIT_LINE,
+    },
+    series: [
+      {
+        type: 'bar',
+        data: reportChartSignedBarData(metrics.roiBucketCounts),
+        barMaxWidth: 24,
+      },
+    ],
+    tooltip: {
+      ...REPORT_CHART_TOOLTIP,
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: (params) => {
+        const point = params?.[0];
+        if (!point) return '';
+        return `${point.axisValue}<br/>投资次数：${tooltipPrimaryValue(point)}`;
+      },
+    },
+  };
+}
+
+function PriceFactorReport({
+  metrics,
+  stockRows,
+  strategyName: _strategyName,
+  runId: _runId,
+  title = '价格回测报告',
+  showStockGrid = true,
+}) {
+  const [stockSearch, setStockSearch] = useState('');
+
+  const avail = metrics?._availability ?? {
+    overview: false,
+    sampleCoverage: false,
+    profitBasics: false,
+    roiPercentileViz: false,
+    roiBucketViz: false,
+  };
+
+  const derivedStockRows = useMemo(() => (
+    Array.isArray(stockRows) && stockRows.length > 0 ? stockRows : []
+  ), [stockRows]);
+
+  const filteredRows = useMemo(() => {
+    const keyword = stockSearch.trim().toLowerCase();
+    const filtered = keyword
+      ? derivedStockRows.filter((row) => (
+        row.stockCode.toLowerCase().includes(keyword) || row.stockName.toLowerCase().includes(keyword)
+      ))
+      : derivedStockRows;
+    return filtered;
+  }, [derivedStockRows, stockSearch]);
+
+  const stockColumns = useMemo(() => [
+    { field: 'stockCode', headerName: '代码', flex: 1, minWidth: 120 },
+    { field: 'stockName', headerName: '名称', flex: 1, minWidth: 120 },
+    {
+      field: 'winRate',
+      headerName: '胜率',
+      width: 110,
+      valueFormatter: (params) => `${params.value}%`,
+    },
+    {
+      field: 'roi',
+      headerName: 'ROI',
+      width: 110,
+      valueFormatter: (params) => `${params.value > 0 ? '+' : ''}${params.value}%`,
+    },
+    {
+      field: 'holdDays',
+      headerName: '平均投资天数',
+      width: 110,
+      valueFormatter: (params) => `${params.value} 天`,
+    },
+  ], []);
+
+  if (!metrics || typeof metrics !== 'object') {
+    return <ReportUnavailableHint />;
+  }
+
+  const volCardHint = (() => {
+    if (!avail.roiPercentileViz) return '';
+    if (Number.isFinite(metrics.roiStdPct)) {
+      return [
+        Number.isFinite(metrics.roiP50) ? `P50 ${metrics.roiP50}%` : '',
+        Number.isFinite(metrics.roiIqr) ? `IQR ${metrics.roiIqr}%` : '',
+      ].filter(Boolean).join(' · ');
+    }
+    return [
+      Number.isFinite(metrics.roiIqr) ? `IQR ${metrics.roiIqr}%` : '',
+      metrics.roiConclusion || '',
+    ].filter(Boolean).join(' · ');
+  })();
+
+  return (
+    <Stack spacing={1.25}>
+      <Typography variant="subtitle2" fontWeight={600}>{title}</Typography>
+
+      <Typography variant="caption" color="text.secondary">
+        K 线与买卖点透视暂未启用（需加载行情并描点后再接）。
+      </Typography>
+
+      {showStockGrid && derivedStockRows.length > 0 ? (
+        <ReportStockSampleGrid
+          title="逐股样本"
+          tip="用于查看本次价格回测中单股表现；支持搜索、表头排序与底部分页。"
+          searchValue={stockSearch}
+          onSearchChange={setStockSearch}
+          rows={filteredRows}
+          columns={stockColumns}
+        />
+      ) : null}
+
+      <SectionBlock
+        title="回测总体"
+        tip="用于判断信号层是否具备正向收益，且收益效率是否可接受。"
+      >
+        {avail.overview ? (
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
+            <MetricCard title="胜率" value={`${metrics.winRate}%`} />
+            <MetricCard title="平均每笔 ROI" value={`${metrics.avgRoi}%`} />
+            <MetricCard title="平均持有时长" value={`${metrics.avgDurationDays} 天`} />
+            <MetricCard title="年化收益（自然日）" value={`${metrics.annualReturn}%`} />
+          </Box>
+        ) : <ReportUnavailableHint />}
+      </SectionBlock>
+
+      <SectionBlock
+        title="样本与覆盖"
+        tip="用于确认结果是否来自足够样本，避免小样本导致结论失真。"
+      >
+        {avail.sampleCoverage ? (
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
+            <MetricCard title="总投资次数" value={metrics.totalInvestments.toLocaleString()} />
+            <MetricCard title="产生机会股票数" value={metrics.stocksWithOpportunities.toLocaleString()} />
+            <MetricCard title="每股平均投资次数" value={metrics.avgInvestmentsPerStock.toFixed(2)} />
+            <MetricCard title="未完成持仓数" value={metrics.totalOpenInvestments.toLocaleString()} />
+          </Box>
+        ) : <ReportUnavailableHint />}
+      </SectionBlock>
+
+      <SectionBlock
+        title="盈亏结构（含 ROI 分位）"
+        tip="用于观察收益分布是否健康，避免只靠少数大盈利机会拉高均值。"
+      >
+        {avail.profitBasics ? (
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
+            <MetricCard
+              title="盈亏次数"
+              value={`${metrics.totalWinInvestments} / ${metrics.totalLossInvestments}`}
+              hint="赢单 / 亏单"
+            />
+            <MetricCard title="每笔平均盈利" value={metrics.avgProfitPerInvestment.toLocaleString()} />
+            <MetricCard title="每股平均盈利" value={metrics.avgProfitPerStock.toLocaleString()} />
+            {avail.roiPercentileViz ? (
+              <MetricCard
+                title="ROI 波动"
+                value={
+                  Number.isFinite(metrics.roiStdPct)
+                    ? `标准差 ${metrics.roiStdPct}%（样本）`
+                    : `P25 ${metrics.roiP25}% · P50 ${metrics.roiP50}% · P75 ${metrics.roiP75}%`
+                }
+                hint={volCardHint}
+              />
+            ) : null}
+          </Box>
+        ) : <ReportUnavailableHint />}
+        {!avail.roiPercentileViz ? (
+          <Box sx={{ mt: avail.profitBasics ? 1 : 0 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+              ROI 分位图：需价格回测摘要中含 roi_percentile_values（长度 9）；会话级汇总正常产出后即展示。
+            </Typography>
+            <ReportUnavailableHint />
+          </Box>
+        ) : (
+          <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.75, mt: 1 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+              ROI 分位图（10% / 20% / … / 90%）
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontSize: 10 }}>
+              横轴为固定的分位点（10%～90%），纵轴为该分位上的 ROI 水平；区间不随样本自动重划。
+            </Typography>
+            <ReactECharts
+              option={buildRoiDistributionOption(metrics)}
+              style={{ height: 170, width: '100%' }}
+              notMerge
+              lazyUpdate
+            />
+          </Box>
+        )}
+        {!avail.roiBucketViz ? (
+          <Box sx={{ mt: 1 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+              ROI 桶分布：需 roi_bucket_labels / roi_bucket_counts 与摘要一同下发。
+            </Typography>
+            <ReportUnavailableHint />
+          </Box>
+        ) : (
+          <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.75, mt: 1 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+              ROI 收益分布（区间内投资笔数）
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontSize: 10 }}>
+              {metrics.roiBucketBinCount > 0
+                ? `将本轮 ROI 的 min～max 等分为 ${metrics.roiBucketBinCount} 段，统计落入各段的投资笔数；末段含右端点 max。`
+                : '将本轮 ROI 的 min～max 等分为若干段，统计落入各段的投资笔数；末段含右端点 max。'}
+            </Typography>
+            {looksLikeLegacyFixedRoiBuckets(metrics.roiBucketLabels) ? (
+              <Typography variant="caption" color="warning.main" sx={{ display: 'block', mb: 0.75, fontSize: 10 }}>
+                当前摘要仍为旧版固定档位（如 ≤-20%）；请重新执行一次价格回测以写入新版 min～max 等分区间。
+              </Typography>
+            ) : null}
+            <ReactECharts
+              option={buildRoiBucketOption(metrics)}
+              style={{ height: 190, width: '100%' }}
+              notMerge
+              lazyUpdate
+            />
+          </Box>
+        )}
+      </SectionBlock>
+    </Stack>
+  );
+}
+
+export default PriceFactorReport;

@@ -15,6 +15,27 @@
 - [数据源使用](../userspace/data_source/USER_GUIDE.md)
 - [标签系统](../userspace/tags/USER_GUIDE.md)
 
+## 仓库辅助工具（devtools）
+
+面向维护者与本地开发：**不参与**运行时业务逻辑。结构与入口如下（路径均相对仓库根目录）。
+
+| 路径 | 说明 |
+|------|------|
+| [devtools/docker/README.md](../devtools/docker/README.md) | Docker Compose 用法；**`Dockerfile`**、**`docker-compose.yml`** 仍在仓库根目录 |
+| `devtools/automation/badge_updating/update_readme_version_badge.py` | 将根目录 `README.md` 中版本徽章与 `core/system.py` 对齐 |
+| `devtools/automation/table_exporting/export_table.py` | 基于 `model.export_data` 的按表导出 CLI（维护/Demo 用） |
+
+## UI（`core/ui/`）
+
+当前仓库内已有 UI 代码骨架：
+
+- `core/ui/fed/`：React 前端（ECharts，可接入 MUI）
+- `core/ui/bff/`：Python Flask BFF
+
+## 零散工具（`tools/`）
+
+与 `devtools` 区分：偏**数据比对、一次性迁移、演示导出**等，见 [tools/README.md](../tools/README.md)。
+
 ## 架构与设计
 
 - [项目概览](project_overview.md)

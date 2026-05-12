@@ -153,10 +153,10 @@ class BundleExecutionService:
             return result
 
         # 多个 bundle：使用多线程框架
-        from core.infra.worker.multi_thread.futures_worker import (
+        from core.infra.worker import (
             MultiThreadWorker,
-            ExecutionMode,
-            JobStatus,
+            ThreadExecutionMode,
+            ThreadJobStatus,
         )
 
         def _decide_workers(bundle_count: int) -> int:
@@ -180,7 +180,7 @@ class BundleExecutionService:
 
         worker = MultiThreadWorker(
             max_workers=max_workers,
-            execution_mode=ExecutionMode.PARALLEL,
+            execution_mode=ThreadExecutionMode.PARALLEL,
             job_executor=_bundle_executor,
             enable_monitoring=True,
             timeout=3600,
@@ -299,12 +299,12 @@ class BundleExecutionService:
                                 continue
 
                             job_bundle = bundle_id_to_item.get(result.job_id)
-                            if job_bundle is not None and result.status == JobStatus.COMPLETED:
+                            if job_bundle is not None and result.status == ThreadJobStatus.COMPLETED:
                                 enriched = enrich_result_for_batch(context, job_bundle, result.result)
                                 if enriched is not None:
                                     result.result = enriched
 
-                            if result.status == JobStatus.COMPLETED and _has_actual_data(result.result):
+                            if result.status == ThreadJobStatus.COMPLETED and _has_actual_data(result.result):
                                 pending_results.append(result)
 
                                 if save_mode == "unified":
@@ -337,11 +337,11 @@ class BundleExecutionService:
                                         _run_batch_save()
                                     else:
                                         batch_save_executor.submit(_run_batch_save)
-                            elif result.status == JobStatus.FAILED:
+                            elif result.status == ThreadJobStatus.FAILED:
                                 processed_results.add(result.job_id)
                                 error_msg = getattr(result, "error", None) or "未知错误"
                                 logger.warning(f"⚠️ [批量保存] Bundle {result.job_id} 失败，跳过: {error_msg}")
-                            elif result.status == JobStatus.COMPLETED:
+                            elif result.status == ThreadJobStatus.COMPLETED:
                                 processed_results.add(result.job_id)
                     time.sleep(0.5)
                 except Exception as e:
@@ -382,7 +382,7 @@ class BundleExecutionService:
 
                 processed_results.add(pending_result.job_id)
 
-                if pending_result.status == JobStatus.COMPLETED and _has_actual_data(pending_result.result):
+                if pending_result.status == ThreadJobStatus.COMPLETED and _has_actual_data(pending_result.result):
                     if pending_result.job_id in bundle_id_to_item:
                         try:
                             on_after_single_bundle_complete(
@@ -409,12 +409,12 @@ class BundleExecutionService:
                 continue
 
             job_bundle = bundle_id_to_item.get(r.job_id)
-            if job_bundle is not None and r.status == JobStatus.COMPLETED:
+            if job_bundle is not None and r.status == ThreadJobStatus.COMPLETED:
                 enriched = enrich_result_for_batch(context, job_bundle, r.result)
                 if enriched is not None:
                     r.result = enriched
 
-            if r.status == JobStatus.COMPLETED and _has_actual_data(r.result):
+            if r.status == ThreadJobStatus.COMPLETED and _has_actual_data(r.result):
                 merged.update(r.result)
                 if save_mode != "unified" and r.job_id in bundle_id_to_item:
                     try:
@@ -430,9 +430,9 @@ class BundleExecutionService:
                 else:
                     processed_results.add(r.job_id)
                     completed_count += 1
-            elif r.status == JobStatus.COMPLETED and not _has_actual_data(r.result):
+            elif r.status == ThreadJobStatus.COMPLETED and not _has_actual_data(r.result):
                 processed_results.add(r.job_id)
-            elif r.status == JobStatus.FAILED and r.error:
+            elif r.status == ThreadJobStatus.FAILED and r.error:
                 logger.warning(f"Bundle {r.job_id} 失败: {r.error}")
                 completed_count += 1
 

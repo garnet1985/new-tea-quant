@@ -1,0 +1,171 @@
+// MUI visual overrides (CSS-first).
+// Keep layout-critical defaults here to avoid mixing theme overrides / inline styles.
+
+// --- Inputs (TextField / Select / Autocomplete) ---
+.MuiInputBase-root {
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.MuiInputBase-input {
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.MuiInputLabel-root {
+  font-size: 13px;
+}
+
+.MuiFormHelperText-root {
+  font-size: 12px;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+// Outlined input: default glass surface + consistent height/padding
+.MuiOutlinedInput-root {
+  border-radius: 5px;
+  background: var(--ntq-white-03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  min-height: 40px;
+  align-items: center;
+  transition: background 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.MuiOutlinedInput-notchedOutline {
+  border-color: var(--ntq-white-12);
+}
+
+.MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+// --- Report grids (DataGrid overlay) ---
+// Reduce "white mask" on empty/loading overlays; strengthen slightly on hover.
+.ntq-report-grid {
+  .MuiDataGrid-overlay {
+    background: rgba(255, 255, 255, 0.04);
+    border-top: 1px solid var(--ntq-white-12);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: var(--ntq-text-muted);
+  }
+
+  &:hover .MuiDataGrid-overlay {
+    background: rgba(255, 255, 255, 0.08);
+  }
+}
+
+.MuiOutlinedInput-input {
+  padding: 0 12px;
+}
+
+// Multiline: don't force 40px height
+.MuiOutlinedInput-root.MuiOutlinedInput-multiline {
+  min-height: unset;
+  align-items: stretch;
+}
+
+.MuiOutlinedInput-inputMultiline {
+  padding: 10px 12px;
+}
+
+// --- Dropdowns (Select / Menu) ---
+// Global dropdown font sizing
+.MuiSelect-select {
+  font-size: 12px !important;
+}
+
+.MuiMenuItem-root {
+  font-size: 12px !important;
+}
+
+.MuiListSubheader-root {
+  font-size: 12px !important;
+}
+
+// Menu/Popover paper: keep readable, but DO NOT blur globally
+.MuiMenu-paper,
+.MuiPopover-paper {
+  background-color: rgba(0, 0, 0, 0.78) !important;
+  border: 1px solid var(--ntq-white-12);
+  color: var(--ntq-text);
+}
+
+// Keep dropdown option typography consistent (avoid mixed sizes from nested Typography)
+.MuiMenu-paper,
+.MuiPopover-paper {
+  .MuiMenuItem-root,
+  .MuiListSubheader-root {
+    font-size: 12px;
+    line-height: 1.25;
+    padding: 8px 14px;
+  }
+
+  .MuiMenuItem-root {
+    min-height: 36px;
+  }
+
+  .MuiMenuItem-root .MuiTypography-root,
+  .MuiListSubheader-root .MuiTypography-root {
+    font-size: inherit;
+    line-height: inherit;
+  }
+}
+
+// --- Buttons (base typography) ---
+.MuiButton-root {
+  text-transform: none;
+}
+
+// --- Chips / tags ---
+.MuiChip-root {
+  border-radius: 5px !important;
+  font-size: 11px !important;
+  font-weight: 650;
+  border: 1px solid var(--ntq-white-12);
+  background: var(--ntq-white-03);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  height: auto;
+  line-height: 1.2;
+  color: var(--ntq-text);
+}
+
+.MuiChip-sizeSmall {
+  padding: 2px 10px;
+}
+
+.MuiChip-labelSmall {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+// --- Accordions ---
+// Stack accordion items with shared borders.
+.MuiAccordion-root {
+  &.Mui-expanded {
+    margin: 0;
+  }
+}
+
+.MuiAccordion-root + .MuiAccordion-root {
+  margin-top: -1px;
+}
+
+// Compact dropdown text (opt-in via className)
+.ntq-compact-dropdown {
+  .MuiSelect-select {
+    font-size: 12px;
+  }
+
+  .MuiSvgIcon-root {
+    font-size: 18px;
+  }
+}
+

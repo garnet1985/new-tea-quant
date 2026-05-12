@@ -9,6 +9,7 @@ import MainLayout from './layouts/mainLayout';
 import StrategyListPage from './pages/strategyListPage';
 import StrategyWorkbenchPage from './pages/strategyWorkbenchPage';
 import ScanPage from './pages/scanPage';
+import SettingsPage from './pages/settingsPage';
 
 /** iOS 风格 Switch：改总宽时只改 `SWITCH_ROOT_WIDTH_PX`，滑块行程 = 轨宽 − 球径 − 左右 padding */
 const SWITCH_ROOT_WIDTH_PX = 36;
@@ -137,7 +138,7 @@ function App() {
             />
             <Route
               path="/settings"
-              element={<ComingSoonPage title="设置" description="系统、数据路径与运行参数等将在此配置。" />}
+              element={<SettingsPage />}
             />
           </Route>
           <Route path="*" element={<Navigate to="/strategy-workbench" replace />} />

@@ -205,50 +205,32 @@ class PathManager:
         return PathManager.strategy(strategy_name) / "results"
     
     @staticmethod
-    def strategy_opportunity_enums(strategy_name: str, use_sampling: bool = False) -> Path:
+    def strategy_simulation_enum(strategy_name: str) -> Path:
         """
-        枚举器结果目录
-        
-        Args:
-            strategy_name: 策略名称
-            use_sampling: 是否使用采样模式
-                - True: test/ 子目录（采样枚举）
-                - False: output/ 子目录（完整输出）
-        
-        Returns:
-            userspace/strategies/{strategy_name}/results/opportunity_enums/{test|output}
+        枚举（机会枚举）输出根目录（版本子目录与 ``meta.json`` 均在此目录下）。
+
+        路径：``userspace/strategies/{strategy}/results/simulation/enum``
         """
-        sub_dir = "test" if use_sampling else "output"
-        return PathManager.strategy_results(strategy_name) / "opportunity_enums" / sub_dir
-    
-    @staticmethod
-    def strategy_simulations_price_factor(strategy_name: str) -> Path:
-        """价格因子模拟器结果目录：userspace/strategies/{strategy_name}/results/simulations/price_factor"""
-        return PathManager.strategy_results(strategy_name) / "simulations" / "price_factor"
-    
-    @staticmethod
-    def strategy_capital_allocation(strategy_name: str) -> Path:
-        """资金分配模拟器结果目录：userspace/strategies/{strategy_name}/results/simulations/capital_allocation"""
-        return PathManager.strategy_results(strategy_name) / "simulations" / "capital_allocation"
+        return PathManager.strategy_results(strategy_name) / "simulation" / "enum"
 
     @staticmethod
-    def strategy_simulations_enumerator(strategy_name: str) -> Path:
-        """
-        枚举器回测（simulate/simulate_enum）结果目录：
-        userspace/strategies/{strategy_name}/results/simulations/enumerator
+    def strategy_simulation_price(strategy_name: str) -> Path:
+        """价格因子模拟版本根目录：``.../results/simulation/price``。"""
+        return PathManager.strategy_results(strategy_name) / "simulation" / "price"
 
-        注意：这不是 opportunity_enums（枚举输出），而是历史回测 session 结果。
-        """
-        return PathManager.strategy_results(strategy_name) / "simulations" / "enumerator"
-    
     @staticmethod
-    def strategy_scan_cache(strategy_name: str) -> Path:
-        """扫描缓存目录：userspace/strategies/{strategy_name}/scan_cache"""
-        return PathManager.strategy(strategy_name) / "scan_cache"
+    def strategy_simulation_capital(strategy_name: str) -> Path:
+        """资金分配模拟版本根目录：``.../results/simulation/capital``。"""
+        return PathManager.strategy_results(strategy_name) / "simulation" / "capital"
     
     @staticmethod
     def strategy_scan_results(strategy_name: str) -> Path:
-        """扫描结果目录：userspace/strategies/{strategy_name}/results/scan"""
+        """
+        扫描结果根目录。
+
+        路径：``userspace/strategies/{strategy_name}/results/scan``；
+        其下按扫描日建子目录（``YYYYMMDD``），内含 ``opportunities.csv`` 等（命名与旧版一致）。
+        """
         return PathManager.strategy_results(strategy_name) / "scan"
     
     # ========== Tag 相关路径 ==========

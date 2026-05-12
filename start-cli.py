@@ -243,10 +243,10 @@ class App:
     
     def analysis(self, session_id: str = None):
         """
-        分析策略结果（读取 results/simulations 下的输出）。
+        分析策略结果（读取 ``results/simulation/price`` 与 ``results/simulation/capital`` 下的输出）。
 
-        约定：对外只保留三类结果目录（opportunity_enums / simulations / scan），
-        analysis 也应基于 simulations（price_factor / capital_allocation）做汇总展示。
+        约定：价格 / 资金模拟结果在 ``results/simulation/price``、``results/simulation/capital``，
+        analysis 基于上述目录做汇总展示。
         """
         import json
         from core.infra.project_context import PathManager
@@ -268,8 +268,8 @@ class App:
 
         found = False
         for strategy_name in strategy_names:
-            pf_root = PathManager.strategy_simulations_price_factor(strategy_name)
-            ca_root = PathManager.strategy_capital_allocation(strategy_name)
+            pf_root = PathManager.strategy_simulation_price(strategy_name)
+            ca_root = PathManager.strategy_simulation_capital(strategy_name)
 
             pf_latest = _read_latest_version(pf_root) if (pf_root / "meta.json").is_file() else None
             ca_latest = _read_latest_version(ca_root) if (ca_root / "meta.json").is_file() else None
@@ -326,34 +326,47 @@ class App:
     ):
         """
         枚举投资机会
-        
+
         Args:
             strategy_name: 策略名称
             stock_count: 测试股票数量（可选，如果不提供则从 settings 读取）
         """
-        from core.modules.strategy.services import EnumeratorRuntimeService
+        from core.modules.strategy.execution_manager.adapters.cli import (
+            run_workbench_step_via_cli_contract,
+        )
         from core.modules.strategy.strategy_manager import StrategyManager
-        
-        # 1. 加载策略配置
+
         strategy_manager = StrategyManager()
         strategy_info = strategy_manager.get_strategy_info(strategy_name)
         if not strategy_info:
             logger.error(f"策略不存在: {strategy_name}")
             return []
 
-        context = EnumeratorRuntimeService.build_context(
-            strategy_name=strategy_name,
-            strategy_info=strategy_info,
-            stock_count=stock_count,
-            force_refresh=force_refresh,
-        )
-        print(f"📅 时间范围: {context.start_date} ~ {context.end_date}")
-        print(f"📊 股票数量: {len(context.stock_list)}")
-        summary_results = EnumeratorRuntimeService.run_enum(context)
+        api_settings = dict(strategy_info.settings.to_dict())
+        try:
+            done = run_workbench_step_via_cli_contract(
+                strategy_name=strategy_name,
+                step="enum",
+                api_settings=api_settings,
+                is_force=force_refresh,
+                verbose=self.is_verbose,
+                engine_verbose=self.is_verbose,
+                stock_count=stock_count,
+            )
+        except ValueError as exc:
+            logger.error("%s", exc)
+            return []
 
-        # 4. 显示结果
+        summary_results = (
+            done.last_payload if isinstance(done.last_payload, list) else []
+        )
+        if self.is_verbose:
+            print(
+                f"🏁 枚举完成 · strategy={strategy_name} · snapshot_id={done.snapshot_id}"
+            )
+
         self._display_enumerate_results(strategy_name, summary_results)
-        
+
         return summary_results
 
     def _display_enumerate_results(self, strategy_name, summary_results):
@@ -409,12 +422,14 @@ class App:
     def price_factor_simulate(self, strategy_name: str = 'example', *, force_refresh: bool = False):
         """
         基于枚举输出结果的价格因子回放模拟（PriceFactorFlow）
-        
+
         Args:
             strategy_name: 策略名称
             force_refresh: 为 True 时跳过 Simulator Res DB 指纹读缓存，强制完整重算（仍会写回缓存）。
         """
-        from core.modules.strategy.engines.simulator.price_factor import PriceFactorFlow
+        from core.modules.strategy.execution_manager.adapters.cli import (
+            run_workbench_step_via_cli_contract,
+        )
 
         manager = self._ensure_strategy_manager()
         strategy_info = manager.get_strategy_info(strategy_name)
@@ -424,18 +439,29 @@ class App:
         print(f"🎯 PriceFactorFlow · strategy={strategy_name}")
         if force_refresh:
             print("🔁 --force：跳过 price_factor DbCache 读路径，强制重跑模拟")
-        flow = PriceFactorFlow(is_verbose=self.is_verbose, force_refresh=force_refresh)
-        summary = flow.run(
-            strategy_name=str(strategy_name),
-            strategy_info=strategy_info,
-        )
-        if not summary:
+
+        api_settings = dict(strategy_info.settings.to_dict())
+        try:
+            done = run_workbench_step_via_cli_contract(
+                strategy_name=strategy_name,
+                step="price",
+                api_settings=api_settings,
+                is_force=force_refresh,
+                verbose=self.is_verbose,
+                engine_verbose=self.is_verbose,
+            )
+        except ValueError as exc:
+            logger.warning("%s", exc)
+            return
+
+        summary = done.last_payload
+        if not summary or not isinstance(summary, dict):
             logger.warning("PriceFactorFlow 未返回任何结果")
             return
         self._display_price_factor_summary(
             strategy_name,
             summary,
-            used_db_cache=getattr(flow, "last_run_used_db_cache", False),
+            used_db_cache=bool(done.last_used_db_cache),
         )
 
     def capital_allocation_simulate(
@@ -448,8 +474,8 @@ class App:
             strategy_name: 策略名称
             force_refresh: 为 True 时跳过 DbCache 读路径，强制完整重算（仍会写回缓存）。
         """
-        from core.modules.strategy.engines.simulator.capital_allocation import (
-            CapitalAllocationFlow,
+        from core.modules.strategy.execution_manager.adapters.cli import (
+            run_workbench_step_via_cli_contract,
         )
 
         manager = self._ensure_strategy_manager()
@@ -460,22 +486,31 @@ class App:
         print(f"💰 CapitalAllocationFlow · strategy={strategy_name}")
         if force_refresh:
             print("🔁 --force：跳过 capital_allocation DbCache 读路径，强制重跑模拟")
-        flow = CapitalAllocationFlow(
-            is_verbose=self.is_verbose, force_refresh=force_refresh
-        )
-        summary = flow.run(
-            strategy_name=str(strategy_name),
-            strategy_info=strategy_info,
-        )
-        if not summary:
+
+        api_settings = dict(strategy_info.settings.to_dict())
+        try:
+            done = run_workbench_step_via_cli_contract(
+                strategy_name=strategy_name,
+                step="capital",
+                api_settings=api_settings,
+                is_force=force_refresh,
+                verbose=self.is_verbose,
+                engine_verbose=self.is_verbose,
+            )
+        except ValueError as exc:
+            logger.warning("%s", exc)
+            return
+
+        summary = done.last_payload
+        if not summary or not isinstance(summary, dict):
             logger.warning("CapitalAllocationFlow 未返回任何结果")
             return
         self._display_capital_allocation_summary(
             strategy_name,
             summary,
-            used_db_cache=getattr(flow, "last_run_used_db_cache", False),
+            used_db_cache=bool(done.last_used_db_cache),
         )
-    
+
     # ========================================================================
     # 工具方法
     # ========================================================================
@@ -579,7 +614,7 @@ def _add_shortcut_flags(parser):
     parser.add_argument('-sc', dest='strategy_scan_flag', action='store_true',
                        help='Strategy scan')
     parser.add_argument('-se', dest='strategy_enum_flag', action='store_true',
-                       help='Strategy enumerate（写入 results/opportunity_enums/{test|output}）')
+                       help='Strategy enumerate（写入 results/simulation/enum/{version}）')
     parser.add_argument('-sp', dest='strategy_price_flag', action='store_true',
                        help='Strategy price factor simulation（基于枚举输出）')
     parser.add_argument('-sa', dest='strategy_capital_flag', action='store_true',

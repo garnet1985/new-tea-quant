@@ -61,12 +61,10 @@ class MLAnalyzer(BaseAnalyzer):
                 return None
             output_root = Path(output_root_raw)
             if not output_root.is_absolute():
-                # Reconstruct via PathManager if metadata stores subdir ("test"/"output")
                 from core.infra.project_context import PathManager
 
-                use_sampling = str(output_root_raw).strip().lower() == "test"
-                output_root = PathManager.strategy_opportunity_enums(
-                    self.context.strategy_name, use_sampling=use_sampling
+                output_root = PathManager.strategy_simulation_enum(
+                    self.context.strategy_name
                 )
             output_version_dir = output_root / version_dir
             records: List[Dict[str, Any]] = []

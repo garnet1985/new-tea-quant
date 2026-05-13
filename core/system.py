@@ -64,6 +64,23 @@ class SystemMeta:
         else:
             self.new_features = list(_FALLBACK["new_features"])
 
+        plan = data.get("update_plan") if isinstance(data.get("update_plan"), dict) else {}
+        ms = plan.get("managed_scope")
+        if not (isinstance(ms, list) and all(isinstance(x, str) for x in ms)):
+            ms = data.get("managed_scope")
+        if isinstance(ms, list) and all(isinstance(x, str) for x in ms):
+            self.managed_scope: List[str] = list(ms)
+        else:
+            self.managed_scope = []
+
+        ig = plan.get("update_ignored_paths")
+        if not (isinstance(ig, list) and all(isinstance(x, str) for x in ig)):
+            ig = data.get("update_ignored_paths")
+        if isinstance(ig, list) and all(isinstance(x, str) for x in ig):
+            self.update_ignored_paths: List[str] = list(ig)
+        else:
+            self.update_ignored_paths = []
+
     @property
     def version(self) -> str:
         return self._version
@@ -87,6 +104,10 @@ class SystemMeta:
             "description": self._description,
             "python": {"minimum": list(self.python["minimum"])},
             "new_features": list(self.new_features),
+            "update_plan": {
+                "managed_scope": list(self.managed_scope),
+                "update_ignored_paths": list(self.update_ignored_paths),
+            },
         }
 
 

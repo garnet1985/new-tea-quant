@@ -214,19 +214,24 @@ def _download_latest_version_package(ctx: UpgradeContext) -> None:
     dest = inbox / f"ntq-src-{ref}.zip"
 
     for base in helper.REMOTE_REPO:
-        url = helper.archive_zip_url(base, ref)
-        if not url:
-            continue
         label = helper.remote_repo_label(base)
-        helper.pipeline_step_note(f"正在从 {label} 下载（分支 {ref}）…")
-        if helper.download_url_to_file(url, dest, helper.ZIP_DOWNLOAD_TIMEOUT_SEC):
-            if helper.is_zip_archive(dest):
-                ctx.zip_path = dest
-                return
-            dest.unlink(missing_ok=True)
-        helper.pipeline_step_note(f"{label} 下载失败，尝试下一镜像…")
+        helper.pipeline_step_note(f"正在从 {label} 获取更新包（分支 {ref}）…")
+        ok, reason = helper.download_branch_archive_zip(
+            base,
+            ref,
+            dest,
+            timeout_sec=helper.ZIP_DOWNLOAD_TIMEOUT_SEC,
+        )
+        if ok:
+            ctx.zip_path = dest
+            return
+        helper.pipeline_step_note(f"{label} 失败：{reason}；尝试下一镜像…")
 
-    raise RuntimeError("NTQ updater: failed to download branch archive zip from all remotes")
+    raise RuntimeError(
+        "NTQ updater: 无法从任何镜像获取分支 zip。"
+        "Gitee 不支持 GitHub 风格 /archive/{branch}.zip；可设置 NTQ_GITEE_ACCESS_TOKEN，"
+        "或使用 NTQ_UPDATE_LOCAL_ZIP / git 回退。"
+    )
 
 
 def _extract_zip_to_staging(ctx: UpgradeContext) -> None:

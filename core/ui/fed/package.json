@@ -22,6 +22,8 @@
   "scripts": {
     "start": "PORT=8888 react-scripts start",
     "build": "react-scripts build",
+    "lint": "eslint src --ext .js,.jsx",
+    "lint:ci": "CI=true npm run build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },

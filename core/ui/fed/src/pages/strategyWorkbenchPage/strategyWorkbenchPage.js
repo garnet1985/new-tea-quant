@@ -5,7 +5,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -18,17 +18,14 @@ import {
   List,
   ListItemButton,
   ListItemText,
-  Link,
   ListSubheader,
   Pagination,
   Select,
   MenuItem,
   Stack,
   TextField,
-  Tooltip,
   Typography,
 } from '@mui/material';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import {
   applyStrategySettingsToUserspace,
   fetchCapitalAllocationModeConfig,

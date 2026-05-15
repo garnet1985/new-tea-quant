@@ -2,8 +2,8 @@
 """
 UI 启动入口。
 
-  python3 launcher.py           生产模式：BFF 托管 fed/build（无需 Node）
-  python3 launcher.py -d          开发模式：BFF + npm start（8888）
+  python3 launcher.py           生产模式：BFF:8888 托管 fed/build（无需 Node）
+  python3 launcher.py -d          开发模式：BFF(8888) + FED dev server(6666)
   python3 launcher.py -dev        同上
 """
 from __future__ import annotations
@@ -27,7 +27,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--dev",
         action="store_true",
         dest="dev",
-        help="开发模式：启动 FED 开发服务器（npm start，端口 8888）",
+        help="开发模式：FED 开发服务器 npm start（端口 6666），BFF 仍为 8888",
     )
     return parser.parse_args(argv)
 

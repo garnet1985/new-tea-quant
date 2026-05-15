@@ -1,37 +1,33 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-UI 初始化安装入口（最小依赖）：
-- 检查运行环境
-- 安装 BFF/FED 启动依赖
-- 启动 UI（BFF + FED）
+CLI 应用安装入口（与 ``launcher.py`` 对称）：
+
+  python install.py    检测并按需执行 CLI 安装（setup 步骤）
+
+``launcher.py`` 负责 UI 安装与启动；本脚本仅负责 CLI，不启动 UI。
 """
 from __future__ import annotations
 
+from setup.cli_runtime import install_cli_runtime
+from setup.install_runtime import needs_install
 from setup.setup import NewTeaQuantSetup
-from setup.ui_runtime import check_runtime_prerequisites, install_ui_runtime, launch_ui_stack
 
 
 def main() -> int:
     NewTeaQuantSetup.to_root_dir()
-    NewTeaQuantSetup.ensure_venv()
+    NewTeaQuantSetup.ensure_venv(entry_script=NewTeaQuantSetup.repo_root / "install.py")
 
-    ok, msg = check_runtime_prerequisites()
-    if not ok:
-        print(f"❌ 环境检查失败: {msg}", flush=True)
-        return 1
+    if needs_install("cli"):
+        print("检测到需要初始化安装，开始 CLI 安装...", flush=True)
+        try:
+            install_cli_runtime(force=True)
+        except Exception as e:
+            print(f"❌ CLI 安装失败: {e}", flush=True)
+            return 1
+    else:
+        print("CLI 安装状态已就绪。", flush=True)
 
-    try:
-        install_ui_runtime(force=True)
-    except Exception as e:
-        print(f"❌ 初始化安装失败: {e}", flush=True)
-        return 1
-
-    try:
-        launch_ui_stack()
-    except Exception as e:
-        print(f"❌ UI 启动失败: {e}", flush=True)
-        return 1
     return 0
 
 

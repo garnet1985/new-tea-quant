@@ -66,6 +66,53 @@ def ensure_venv_for_cli() -> None:
 
 ensure_venv_for_cli()
 
+
+def _skip_auto_install_from_argv() -> bool:
+    """与 ``-h`` / ``-v`` / ``-u`` 等无需拉起应用的参数对齐。"""
+    raw = os.environ.get("NTQ_SKIP_AUTO_INSTALL", "").strip().lower()
+    if raw in ("1", "true", "yes"):
+        return True
+    argv = sys.argv[1:]
+    if not argv:
+        return False
+    skip_flags = {
+        "-h",
+        "--help",
+        "-v",
+        "--version",
+        "-u",
+        "-update",
+        "--update",
+    }
+    return any(token in skip_flags for token in argv)
+
+
+def ensure_app_installed_if_needed() -> None:
+    """
+    执行业务命令前：若 CLI 应用未安装，自动运行 ``install.py``（与 launcher 触发 UI 安装对称）。
+    """
+    if _skip_auto_install_from_argv():
+        return
+
+    try:
+        from setup.install_runtime import needs_install
+    except ModuleNotFoundError:
+        # core 尚不可导入时，交给后续 import 块的错误提示
+        return
+
+    if not needs_install("cli"):
+        return
+
+    print("检测到应用尚未完成安装，正在运行 install.py …", flush=True)
+    from setup.cli_runtime import ensure_cli_install_via_install_py
+
+    code = ensure_cli_install_via_install_py()
+    if code != 0:
+        raise SystemExit(code)
+
+
+ensure_app_installed_if_needed()
+
 # ============================================================================
 # 警告抑制（必须在导入第三方库之前）
 # ============================================================================
@@ -101,6 +148,7 @@ except ModuleNotFoundError as e:
                 "",
                 "建议：在仓库根目录先执行一次安装（会创建 venv/ 并安装 requirements.txt）：",
                 "  python3 install.py",
+                "  或：python3 start-cli.py -sp  （将自动尝试 install.py）",
                 "",
                 "如果你已手动管理虚拟环境，请激活对应 venv 后再运行：",
                 "  pip install -r requirements.txt",

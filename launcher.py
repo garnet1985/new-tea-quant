@@ -2,24 +2,24 @@
 from __future__ import annotations
 
 from setup.setup import NewTeaQuantSetup
+from setup.install_runtime import needs_install
 from setup.ui_runtime import (
     check_runtime_prerequisites,
     install_ui_runtime,
     launch_ui_stack,
-    needs_install,
 )
 
 
 def main() -> int:
     NewTeaQuantSetup.to_root_dir()
-    NewTeaQuantSetup.ensure_venv()
+    NewTeaQuantSetup.ensure_venv(entry_script=NewTeaQuantSetup.repo_root / "launcher.py")
 
     ok, msg = check_runtime_prerequisites()
     if not ok:
         print(f"❌ 运行环境检查失败: {msg}", flush=True)
         return 1
 
-    required = needs_install()
+    required = needs_install("ui")
     if required:
         print("检测到需要初始化安装，开始安装最小 UI 依赖...", flush=True)
         try:

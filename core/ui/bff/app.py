@@ -10,6 +10,7 @@ from .APIs.strategy_workbench import strategy_workbench_api_bp
 from .APIs.strategy_scan import strategy_scan_api_bp
 from .APIs.settings import settings_api_bp
 from .conf import conf
+from .static_ui import fed_build_ready, register_fed_static_routes, resolve_fed_build_dir
 
 def create_app():
     """创建Flask应用"""
@@ -31,23 +32,23 @@ def create_app():
     app.register_blueprint(strategy_workbench_api_bp, url_prefix='/api')
     app.register_blueprint(strategy_scan_api_bp, url_prefix='/api')
     app.register_blueprint(settings_api_bp, url_prefix='/api')
-    
-    # 添加根路径重定向到API文档
-    @app.route('/', methods=['GET'])
-    def index():
-        """API根路径"""
-        return {
-            "message": "BFF API 服务",
-            "version": "1.0.0",
-            "endpoints": {
-                "health": "/api/health",
-                "setup_definition": "/api/v1/setup/definition",
-                "setup_status": "/api/v1/setup/status",
-                "setup_start": "/api/v1/setup/start",
-                "strategy_workbench_v2": "见 core/ui/fed/.../strategyWorkbenchPage/API.md（前缀 /api）",
-            },
-            "docs": "所有API端点都在 /api 前缀下"
-        }
+
+    # 生产 UI：挂载 ``fed/build``（launcher 默认）；无 build 时保留 JSON 根路径说明
+    if not register_fed_static_routes(app):
+        @app.route('/', methods=['GET'])
+        def index():
+            build_dir = resolve_fed_build_dir()
+            return {
+                "message": "BFF API 服务（未挂载前端静态资源）",
+                "version": "1.0.0",
+                "fed_build": str(build_dir),
+                "fed_build_ready": fed_build_ready(build_dir),
+                "hint": "在 core/ui/fed 执行 npm run build，或使用 python launcher.py -d 开发模式",
+                "endpoints": {
+                    "health": "/api/health",
+                    "setup_definition": "/api/v1/setup/definition",
+                },
+            }
     
     return app
 

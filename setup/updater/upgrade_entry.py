@@ -3,6 +3,7 @@
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Optional
@@ -41,9 +42,21 @@ def repo_root_from_updater(updater_dir: Path) -> Path:
     return u.parent.resolve()
 
 
+def _warn_dev_overrides() -> None:
+    forced = (os.environ.get("NTQ_UPDATE_FORCE_NEWER_VERSION") or "").strip()
+    if forced or helper._env_truthy("NTQ_UPDATE_FORCE_RUN"):
+        label = forced or "dev (NTQ_UPDATE_FORCE_RUN)"
+        print(f"[dev] 版本探测已绕过，假定远端版本：{label}", file=sys.stderr)
+    local_zip = (os.environ.get("NTQ_UPDATE_LOCAL_ZIP") or "").strip()
+    if local_zip:
+        print(f"[dev] 将使用本地 zip：{local_zip}", file=sys.stderr)
+
+
 def _user_confirms_upgrade(newer_version: str) -> bool:
     try:
-        ans = input(f"发现更新版本：{newer_version}，是否自动升级？").strip().lower()
+        ans = input(
+            f"发现更新版本：{newer_version}，是否自动升级？（输入 y 或 yes 进行升级）"
+        ).strip().lower()
     except (EOFError, KeyboardInterrupt):
         return False
     return ans in ("y", "yes", "是", "好", "ok")
@@ -66,6 +79,7 @@ def run_interactive_upgrade(
         print("无法读取本地版本（缺少 core/system.json 或 version 字段）", file=sys.stderr)
         return 1
 
+    _warn_dev_overrides()
     newer = check_remote_has_newer_version(repo_root)
     if newer is None:
         print(f"已经是最新版本了（{local_ver}）")

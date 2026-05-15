@@ -6,9 +6,12 @@
 勿依赖 ``core/``、``setup/`` 内同名模块，以免升级时被覆盖。
 
 开发时可在仓库根执行::
+
     python setup/updater/run_apply.py
 
-安装后与 ``<repo>/userspace/updater/run_apply.py`` 为同一套文件。
+安装后::
+
+    python userspace/updater/run_apply.py
 """
 from __future__ import annotations
 
@@ -19,13 +22,8 @@ _UPDATER_DIR = Path(__file__).resolve().parent
 if str(_UPDATER_DIR) not in sys.path:
     sys.path.insert(0, str(_UPDATER_DIR))
 
-from pipeline import run_upgrade_pipeline  # noqa: E402
-
-
-def main() -> None:
-    """占位：后续解析仓库根、zip 路径、构造 UpgradeContext 并调用 ``run_upgrade_pipeline``。"""
-    pass
+from upgrade_entry import main  # noqa: E402
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

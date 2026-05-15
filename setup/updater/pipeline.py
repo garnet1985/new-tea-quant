@@ -28,6 +28,7 @@ VERSION_FILE = helper.VERSION_FILE
 UPDATE_PLAN_FILE = helper.UPDATE_PLAN_FILE
 REQUEST_TIMEOUT_SEC = helper.REQUEST_TIMEOUT_SEC
 ZIP_DOWNLOAD_TIMEOUT_SEC = helper.ZIP_DOWNLOAD_TIMEOUT_SEC
+PIPELINE_STEP_TOTAL = helper.PIPELINE_STEP_TOTAL
 
 # CLI / 后续 UI 可调用的依赖安装接口（实现均在 ``helper``）
 reinstall_runtime_dependencies_cli = helper.reinstall_runtime_dependencies_cli
@@ -60,10 +61,16 @@ def check_remote_has_newer_version(repo_root: Path) -> Optional[str]:
 
     分支名由环境变量 ``NTQ_REMOTE_REF`` 指定，未设置时默认 ``helper.DEFAULT_REMOTE_REF``。
     单次 HTTP 超时由 ``NTQ_UPDATE_CHECK_TIMEOUT``（秒）控制，见 ``helper.REQUEST_TIMEOUT_SEC``。
+
+    开发/测试绕过 HTTP：``NTQ_UPDATE_FORCE_NEWER_VERSION``、``NTQ_UPDATE_FORCE_RUN``（见 ``helper.dev_force_newer_version``）。
     """
     local_ver = helper.read_local_version(repo_root)
     if local_ver is None:
         return None
+
+    dev_newer = helper.dev_force_newer_version(local_ver)
+    if dev_newer is not None:
+        return dev_newer
 
     ref = helper.default_remote_ref()
     for base in helper.REMOTE_REPO:
@@ -89,18 +96,86 @@ def run_upgrade_pipeline(ctx: UpgradeContext) -> None:
 
     大步骤顺序见本仓库 ``userspace/updater/README.md`` §8。
     """
+    helper.pipeline_step_begin(1, "正在获取更新包")
     _download_latest_version_package(ctx)
+    helper.pipeline_step_done(1, f"更新包已就绪（{ctx.zip_path}）")
+
+    helper.pipeline_step_begin(2, "正在解压更新包到临时目录")
     _extract_zip_to_staging(ctx)
+    helper.pipeline_step_done(2, f"已解压到 {ctx.staging_dir}")
+
+    helper.pipeline_step_begin(3, "正在读取升级计划（managed_scope）")
     _load_update_plan(ctx)
+    managed_count = len(ctx.update_plan.get("managed_scope", [])) if ctx.update_plan else 0
+    helper.pipeline_step_done(3, f"共 {managed_count} 项待更新")
+
+    helper.pipeline_step_begin(4, "正在停止运行中的应用")
     _kill_running_app(ctx)
+    helper.pipeline_step_done(4, "已尝试停止主进程（未配置停服钩子时跳过）")
+
+    helper.pipeline_step_begin(5, "正在备份需保留的用户数据（lift-out）")
     _backup_exceptions(ctx)
+    if ctx.lift_out_backup_dir is not None:
+        helper.pipeline_step_done(5, f"已备份至 {ctx.lift_out_backup_dir}")
+    else:
+        helper.pipeline_step_done(5, "无需备份的路径")
+
+    helper.pipeline_step_begin(6, "正在快照数据库表结构（供迁移对照）")
     _snapshot_core_table_schemas_before_managed_scope(ctx)
+    if ctx.pre_mirror_schema_snapshot_path is not None:
+        helper.pipeline_step_done(6, f"快照已保存（{ctx.pre_mirror_schema_snapshot_path}）")
+    else:
+        helper.pipeline_step_done(6, "已跳过 schema 快照")
+
+    helper.pipeline_step_begin(7, "正在将新版本文件写入仓库（镜像 managed_scope）")
     _update_managed_scope(ctx)
+    helper.pipeline_step_done(7, "核心文件已更新")
+
+    helper.pipeline_step_begin(8, "正在还原 lift-out 备份")
     _restore_exceptions(ctx)
-    _reinstall_dependencies(ctx)
+    if ctx.lift_out_backup_dir is not None:
+        helper.pipeline_step_done(8, "用户数据已还原")
+    else:
+        helper.pipeline_step_done(8, "无备份需还原")
+
+    helper.pipeline_step_begin(9, "正在重装运行依赖（pip / UI）")
+    if helper._env_truthy("NTQ_UPDATE_SKIP_RUNTIME_REINSTALL"):
+        helper.pipeline_step_done(9, "已跳过（NTQ_UPDATE_SKIP_RUNTIME_REINSTALL）")
+    else:
+        _reinstall_dependencies(ctx)
+        helper.pipeline_step_done(9, "运行依赖已重装")
+
+    helper.pipeline_step_begin(10, "正在执行数据库迁移")
     _run_database_migrations(ctx)
+    mig = ctx.database_migration
+    if mig is not None and mig.skipped:
+        reason = mig.skipped_reason or "已跳过"
+        helper.pipeline_step_done(10, reason)
+    elif mig is not None and mig.log_path is not None:
+        helper.pipeline_step_done(10, f"迁移完成，日志 {mig.log_path}")
+    else:
+        helper.pipeline_step_done(10, "迁移完成")
+
+    helper.pipeline_step_begin(11, "正在执行升级后收尾动作")
     _trigger_core_extra_actions(ctx)
+    pu = ctx.post_upgrade
+    if pu is not None and pu.skipped:
+        reason = pu.skipped_reason or "无注册动作，已跳过"
+        helper.pipeline_step_done(11, reason)
+    elif pu is not None and pu.executed_count:
+        helper.pipeline_step_done(11, f"已执行 {pu.executed_count} 项收尾动作")
+    else:
+        helper.pipeline_step_done(11, "收尾完成")
+
+    helper.pipeline_step_begin(12, "正在清理临时文件")
     _cleanup_staging(ctx)
+    cleanup = ctx.cleanup
+    if cleanup is not None and cleanup.skipped:
+        helper.pipeline_step_done(12, cleanup.skipped_reason or "已跳过清理")
+    elif cleanup is not None and cleanup.removed_paths:
+        helper.pipeline_step_done(12, f"已清理 {len(cleanup.removed_paths)} 处临时文件")
+    else:
+        helper.pipeline_step_done(12, "无需清理的临时文件")
 
 
 def _trigger_core_extra_actions(ctx: UpgradeContext) -> None:
@@ -120,9 +195,17 @@ def _download_latest_version_package(ctx: UpgradeContext) -> None:
     写入 ``userspace/.ntq/update/inbox/ntq-src-<ref>.zip``，并设置 ``ctx.zip_path``。
 
     若调用方已设置 ``ctx.zip_path`` 且文件存在，则跳过下载。
+    开发/测试：``NTQ_UPDATE_LOCAL_ZIP`` 使用本地 zip（见 ``helper.dev_local_zip_path``）。
     全部远端失败时抛出 ``RuntimeError``。
     """
     if ctx.zip_path is not None and ctx.zip_path.is_file():
+        helper.pipeline_step_note(f"使用已有更新包：{ctx.zip_path}")
+        return
+
+    local_zip = helper.dev_local_zip_path()
+    if local_zip is not None:
+        helper.pipeline_step_note(f"使用本地 zip：{local_zip}")
+        ctx.zip_path = local_zip
         return
 
     ref = helper.default_remote_ref()
@@ -134,11 +217,14 @@ def _download_latest_version_package(ctx: UpgradeContext) -> None:
         url = helper.archive_zip_url(base, ref)
         if not url:
             continue
+        label = helper.remote_repo_label(base)
+        helper.pipeline_step_note(f"正在从 {label} 下载（分支 {ref}）…")
         if helper.download_url_to_file(url, dest, helper.ZIP_DOWNLOAD_TIMEOUT_SEC):
             if helper.is_zip_archive(dest):
                 ctx.zip_path = dest
                 return
             dest.unlink(missing_ok=True)
+        helper.pipeline_step_note(f"{label} 下载失败，尝试下一镜像…")
 
     raise RuntimeError("NTQ updater: failed to download branch archive zip from all remotes")
 
@@ -278,6 +364,11 @@ def _reinstall_dependencies(ctx: UpgradeContext) -> None:
     调试跳过：``NTQ_UPDATE_SKIP_RUNTIME_REINSTALL=1``；仅跳过根 requirements：
     ``NTQ_UPDATE_SKIP_ROOT_REQUIREMENTS=1``。
     """
+    if helper._env_truthy("NTQ_UPDATE_SKIP_ROOT_REQUIREMENTS"):
+        helper.pipeline_step_note("跳过根目录 requirements.txt（NTQ_UPDATE_SKIP_ROOT_REQUIREMENTS）")
+    else:
+        helper.pipeline_step_note("正在 pip install -r requirements.txt …")
+    helper.pipeline_step_note("正在安装 UI 运行依赖（BFF / FED）…")
     helper.reinstall_runtime_dependencies_cli(ctx.repo_root, force=True)
 
 
@@ -289,6 +380,7 @@ def _run_database_migrations(ctx: UpgradeContext) -> None:
     ``NTQ_UPDATE_ALLOW_MISSING_SCHEMA_SNAPSHOT``）。结果写入 ``ctx.database_migration``。
     跳过整步：``NTQ_UPDATE_SKIP_DB_MIGRATION=1``。
     """
+    helper.pipeline_step_note("正在调用 core.infra.db.migrate apply …")
     ctx.database_migration = helper.spawn_database_migration_cli(
         ctx.repo_root,
         ctx.pre_mirror_schema_snapshot_path,

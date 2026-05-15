@@ -40,6 +40,32 @@ except ValueError:
 if ZIP_DOWNLOAD_TIMEOUT_SEC <= 0:
     ZIP_DOWNLOAD_TIMEOUT_SEC = 300.0
 
+PIPELINE_STEP_TOTAL = 12
+
+
+def pipeline_step_begin(step: int, message: str) -> None:
+    """升级流水线步骤开始（立即 flush，避免终端看似卡住）。"""
+    print(f"[{step}/{PIPELINE_STEP_TOTAL}] {message}…", flush=True)
+
+
+def pipeline_step_done(step: int, message: str) -> None:
+    """升级流水线步骤完成。"""
+    print(f"[{step}/{PIPELINE_STEP_TOTAL}] 完成：{message}", flush=True)
+
+
+def pipeline_step_note(message: str) -> None:
+    """步骤内的补充说明（缩进显示）。"""
+    print(f"      {message}", flush=True)
+
+
+def remote_repo_label(repo_base: str) -> str:
+    base = repo_base.rstrip("/")
+    if "gitee.com" in base:
+        return "Gitee"
+    if "github.com" in base:
+        return "GitHub"
+    return base
+
 
 def update_bundle_dir(repo_root: Path) -> Path:
     """缓存 zip、staging 等：``<repo>/userspace/.ntq/update``。"""
@@ -87,6 +113,40 @@ def snapshot_core_table_schemas_for_migration(repo_root: Path) -> Optional[Path]
 
 def default_remote_ref() -> str:
     return (os.environ.get("NTQ_REMOTE_REF") or _DEFAULT_REMOTE_REF).strip() or _DEFAULT_REMOTE_REF
+
+
+def dev_force_newer_version(local_ver: str) -> Optional[str]:
+    """
+    开发/测试：绕过 HTTP 版本探测。
+
+    - ``NTQ_UPDATE_FORCE_NEWER_VERSION=<ver>``：伪造远端版本；若严格大于本地则返回。
+    - ``NTQ_UPDATE_FORCE_RUN=1``：即使伪造版本不大于本地也继续（同版本回放测试）；未设版本时返回 ``dev``。
+    """
+    forced = (os.environ.get("NTQ_UPDATE_FORCE_NEWER_VERSION") or "").strip()
+    if forced:
+        if semver_gt(forced, local_ver) or _env_truthy("NTQ_UPDATE_FORCE_RUN"):
+            return forced
+        return None
+    if _env_truthy("NTQ_UPDATE_FORCE_RUN"):
+        return "dev"
+    return None
+
+
+def dev_local_zip_path() -> Optional[Path]:
+    """
+    ``NTQ_UPDATE_LOCAL_ZIP``：使用本地 zip，跳过远端下载（开发/测试）。
+
+    路径不存在或不是 zip 时抛出 ``RuntimeError``。
+    """
+    raw = (os.environ.get("NTQ_UPDATE_LOCAL_ZIP") or "").strip()
+    if not raw:
+        return None
+    p = Path(raw).expanduser().resolve()
+    if not p.is_file():
+        raise RuntimeError(f"NTQ_UPDATE_LOCAL_ZIP is not a file: {p}")
+    if not is_zip_archive(p):
+        raise RuntimeError(f"NTQ_UPDATE_LOCAL_ZIP is not a zip archive: {p}")
+    return p
 
 
 def read_local_version(repo_root: Path, relative_path: str = VERSION_FILE) -> Optional[str]:
@@ -822,6 +882,7 @@ def install_managed_items_from_staging(
     for item in unique_managed_scope_preserve_order(new_managed_scope):
         if is_global_preserve_managed_entry(item):
             continue
+        pipeline_step_note(f"正在更新：{item}")
         src = staging_source_for_managed_item(staging_dir, payload_root, item)
         if not src.exists():
             raise RuntimeError(f"NTQ updater: staging missing managed item {item!r} (expected {src})")

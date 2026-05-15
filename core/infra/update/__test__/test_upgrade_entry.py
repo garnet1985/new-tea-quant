@@ -56,3 +56,33 @@ def test_cancel_on_empty_input():
             code = entry.run_interactive_upgrade(repo)
     assert code == 0
     mock_run.assert_not_called()
+
+
+def test_force_newer_version_bypasses_remote(monkeypatch):
+    entry = _load_entry()
+    monkeypatch.setenv("NTQ_UPDATE_FORCE_NEWER_VERSION", "9.9.9")
+    with tempfile.TemporaryDirectory() as td:
+        repo = Path(td)
+        (repo / "core").mkdir(parents=True)
+        (repo / "core" / "system.json").write_text(
+            '{"version": "0.3.0"}', encoding="utf-8"
+        )
+        assert entry.check_remote_has_newer_version(repo) == "9.9.9"
+        with patch.object(entry, "run_upgrade_pipeline") as mock_run, patch(
+            "builtins.input", return_value=""
+        ):
+            code = entry.run_interactive_upgrade(repo)
+    assert code == 0
+    mock_run.assert_not_called()
+
+
+def test_force_run_allows_same_version(monkeypatch):
+    entry = _load_entry()
+    monkeypatch.setenv("NTQ_UPDATE_FORCE_RUN", "1")
+    with tempfile.TemporaryDirectory() as td:
+        repo = Path(td)
+        (repo / "core").mkdir(parents=True)
+        (repo / "core" / "system.json").write_text(
+            '{"version": "0.3.0"}', encoding="utf-8"
+        )
+        assert entry.check_remote_has_newer_version(repo) == "dev"

@@ -14,7 +14,8 @@ from .static_ui import fed_build_ready, register_fed_static_routes, resolve_fed_
 
 def create_app():
     """创建Flask应用"""
-    app = Flask(__name__)
+    # 禁用 Flask 默认 ``/static/*``（会抢走 CRA build 里的 ``/static/js|css/...``）
+    app = Flask(__name__, static_folder=None, static_url_path=None)
     
     # 启用CORS
     CORS(
@@ -34,7 +35,8 @@ def create_app():
     app.register_blueprint(settings_api_bp, url_prefix='/api')
 
     # 生产 UI：挂载 ``fed/build``（launcher 默认）；无 build 时保留 JSON 根路径说明
-    if not register_fed_static_routes(app):
+    build_dir = resolve_fed_build_dir()
+    if not register_fed_static_routes(app, build_dir=build_dir):
         @app.route('/', methods=['GET'])
         def index():
             build_dir = resolve_fed_build_dir()

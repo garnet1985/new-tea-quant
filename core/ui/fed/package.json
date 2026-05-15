@@ -20,7 +20,7 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "PORT=8888 react-scripts start",
+    "start": "PORT=6666 react-scripts start",
     "build": "react-scripts build",
     "lint": "eslint src --ext .js,.jsx",
     "lint:ci": "CI=true npm run build",
@@ -45,7 +45,7 @@
       "last 1 safari version"
     ]
   },
-  "proxy": "http://localhost:5001",
+  "proxy": "http://localhost:8888",
   "overrides": {
     "nth-check": "^2.1.1",
     "postcss": "^8.5.10",

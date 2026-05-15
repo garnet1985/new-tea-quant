@@ -33,6 +33,8 @@ FED_ROOT = UI_FED_ROOT
 BFF_REQUIREMENTS = UI_BFF_REQUIREMENTS
 FED_LOCKFILE = UI_FED_LOCKFILE
 FED_NODE_MODULES = REPO_ROOT / "core" / "ui" / "fed" / "node_modules"
+FED_DEV_PORT = 6666
+BFF_DEFAULT_PORT = 8888
 
 
 def _env_truthy(name: str) -> bool:
@@ -153,13 +155,12 @@ def install_ui_runtime(force: bool = False) -> None:
     print("UI 运行依赖安装完成。", flush=True)
 
 
-def _wait_bff_ready(host: str, port: int, timeout_sec: int = 30) -> bool:
-    url = f"http://{host}:{port}/api/health"
+def _wait_http_ok(url: str, timeout_sec: int = 30) -> bool:
     deadline = time.time() + timeout_sec
     while time.time() < deadline:
         try:
             with urllib.request.urlopen(url, timeout=2) as resp:
-                if resp.status == 200:
+                if 200 <= resp.status < 400:
                     return True
         except (urllib.error.URLError, TimeoutError, ConnectionError):
             pass
@@ -167,9 +168,19 @@ def _wait_bff_ready(host: str, port: int, timeout_sec: int = 30) -> bool:
     return False
 
 
+def _wait_bff_ready(host: str, port: int, timeout_sec: int = 30) -> bool:
+    return _wait_http_ok(f"http://{host}:{port}/api/health", timeout_sec)
+
+
+def _public_ui_url(host: str, port: int, *, dev: bool) -> str:
+    if dev:
+        return f"http://127.0.0.1:{FED_DEV_PORT}/strategy-workbench"
+    return f"http://{host}:{port}/strategy-workbench"
+
+
 def launch_ui_stack() -> None:
     host = os.getenv("NTQ_BFF_HOST", "127.0.0.1")
-    port = int(os.getenv("NTQ_BFF_PORT", "5001"))
+    port = int(os.getenv("NTQ_BFF_PORT", str(BFF_DEFAULT_PORT)))
 
     bff_env = os.environ.copy()
     bff_env["NTQ_BFF_HOST"] = host
@@ -181,16 +192,24 @@ def launch_ui_stack() -> None:
         bff_proc.terminate()
         raise RuntimeError("BFF 启动超时，未通过健康检查 /api/health")
 
-    ui_url = f"http://{host}:{port}/strategy-workbench"
+    dev = ui_dev_mode()
+    ui_url = _public_ui_url(host, port, dev=dev)
     fed_proc = None
 
-    if ui_dev_mode():
+    if dev:
         fed_env = os.environ.copy()
         fed_cmd = ["npm", "start"]
         fed_proc = subprocess.Popen(fed_cmd, cwd=str(FED_ROOT), env=fed_env)
-        ui_url = "http://localhost:8888/strategy-workbench"
         print("UI 已启动：BFF + FED 开发服务器", flush=True)
-        print("FED 开发地址: http://localhost:8888/strategy-workbench", flush=True)
+        print(f"等待 FED 开发服务就绪（端口 {FED_DEV_PORT}，首次编译可能需 1–2 分钟）…", flush=True)
+        if not _wait_http_ok(ui_url, timeout_sec=180):
+            print(
+                f"⚠️ FED 开发服务未在 {FED_DEV_PORT} 端口就绪。"
+                f"请查看终端 npm 输出，或手动访问: {ui_url}",
+                flush=True,
+            )
+        else:
+            print(f"FED 开发地址: {ui_url}", flush=True)
     else:
         if not fed_build_ready():
             bff_proc.terminate()
@@ -198,12 +217,25 @@ def launch_ui_stack() -> None:
                 "FED 静态资源未就绪。请运行：cd core/ui/fed && npm run build"
             )
         print("UI 已启动：BFF（托管 FED 构建产物）", flush=True)
+        if not _wait_http_ok(ui_url, timeout_sec=30):
+            bff_proc.terminate()
+            raise RuntimeError(
+                f"前端页面未就绪: {ui_url}。"
+                "请确认 core/ui/fed/build 已提交且 BFF 静态路由正常。"
+            )
         print(f"访问地址: {ui_url}", flush=True)
+        print(
+            f"（生产模式端口 {port}；开发模式 FED 端口 {FED_DEV_PORT}，请使用 launcher.py -d）",
+            flush=True,
+        )
 
-    try:
-        webbrowser.open(ui_url)
-    except Exception:
-        pass
+    if _wait_http_ok(ui_url, timeout_sec=3):
+        try:
+            webbrowser.open(ui_url)
+        except Exception:
+            pass
+    else:
+        print(f"请手动在浏览器打开: {ui_url}", flush=True)
 
     try:
         if fed_proc is not None:

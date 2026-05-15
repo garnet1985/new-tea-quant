@@ -4,7 +4,12 @@ conf = {
     "DEBUG": False,
     "PORT": 5001,
     "HOST": '127.0.0.1',
-    "CORS_ALLOW_ORIGINS": ['http://localhost:3000'],
+    # 开发：CRA dev server (8888)；生产：BFF 同源。launcher.py -d 时使用
+    "CORS_ALLOW_ORIGINS": [
+        'http://localhost:3000',
+        'http://localhost:8888',
+        'http://127.0.0.1:8888',
+    ],
     "CORS_ALLOW_METHODS": ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     "CORS_ALLOW_HEADERS": ['Content-Type', 'Authorization'],
     "CORS_ALLOW_CREDENTIALS": True,

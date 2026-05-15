@@ -10,12 +10,25 @@ from .APIs.strategy_workbench import strategy_workbench_api_bp
 from .APIs.strategy_scan import strategy_scan_api_bp
 from .APIs.settings import settings_api_bp
 from .conf import conf
-from .static_ui import fed_build_ready, register_fed_static_routes, resolve_fed_build_dir
+from .static_ui import (
+    fed_build_ready,
+    fed_build_static_dir,
+    register_fed_static_routes,
+    resolve_fed_build_dir,
+)
 
 def create_app():
     """创建Flask应用"""
-    # 禁用 Flask 默认 ``/static/*``（会抢走 CRA build 里的 ``/static/js|css/...``）
-    app = Flask(__name__, static_folder=None, static_url_path=None)
+    build_dir = resolve_fed_build_dir()
+    static_folder = None
+    static_url_path = None
+    if fed_build_ready(build_dir):
+        static_root = fed_build_static_dir(build_dir).resolve()
+        if static_root.is_dir():
+            static_folder = str(static_root)
+            static_url_path = "/static"
+
+    app = Flask(__name__, static_folder=static_folder, static_url_path=static_url_path)
     
     # 启用CORS
     CORS(
@@ -34,8 +47,7 @@ def create_app():
     app.register_blueprint(strategy_scan_api_bp, url_prefix='/api')
     app.register_blueprint(settings_api_bp, url_prefix='/api')
 
-    # 生产 UI：挂载 ``fed/build``（launcher 默认）；无 build 时保留 JSON 根路径说明
-    build_dir = resolve_fed_build_dir()
+    # 生产 UI：``/static/*`` 由 static_folder；SPA 回退见 static_ui
     if not register_fed_static_routes(app, build_dir=build_dir):
         @app.route('/', methods=['GET'])
         def index():

@@ -4,11 +4,11 @@ conf = {
     "DEBUG": False,
     "PORT": 8888,
     "HOST": '127.0.0.1',
-    # 开发：CRA dev server (6666)；生产：BFF 托管 build（8888）。launcher.py -d 时使用前者
+    # 开发：CRA dev server (5173)；生产：BFF 托管 build（8888）。launcher.py -d 时使用前者
     "CORS_ALLOW_ORIGINS": [
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
         'http://localhost:3000',
-        'http://localhost:6666',
-        'http://127.0.0.1:6666',
     ],
     "CORS_ALLOW_METHODS": ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     "CORS_ALLOW_HEADERS": ['Content-Type', 'Authorization'],

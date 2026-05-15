@@ -25,6 +25,8 @@
     python start-cli.py -sp                  # Strategy price factor simulate
     python start-cli.py -sa                  # Strategy capital allocation simulate
     python start-cli.py -sy                  # Strategy analysis
+    python start-cli.py -u                   # 检查并应用 core 版本更新
+    python start-cli.py -update              # 同上
     python start-cli.py -h                   # 查看帮助
 """
 import sys
@@ -253,6 +255,43 @@ def _add_shortcut_flags(parser):
     parser.add_argument('-sy', dest='strategy_analysis_flag', action='store_true',
                        help='Strategy analysis（分析模拟结果）')
 
+    parser.add_argument('-u', '-update', dest='update_flag', action='store_true',
+                       help='检查远端 core 版本并在确认后执行应用升级')
+
+
+def _run_app_update() -> int:
+    """``-u`` / ``-update``：探测版本并可选运行 userspace updater 流水线。"""
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parent
+    updater_dir = None
+    for candidate in (
+        repo_root / "userspace" / "updater",
+        repo_root / "setup" / "updater",
+    ):
+        if (candidate / "upgrade_entry.py").is_file():
+            updater_dir = candidate
+            break
+    if updater_dir is None:
+        sys.stderr.write(
+            "未找到升级器（userspace/updater 或 setup/updater）。"
+            "请先完成 init userspace 或从仓库安装 updater。\n"
+        )
+        return 1
+
+    upd_path = str(updater_dir.resolve())
+    if upd_path not in sys.path:
+        sys.path.insert(0, upd_path)
+
+    from upgrade_entry import run_interactive_upgrade  # noqa: E402
+
+    assume_yes = os.environ.get("NTQ_UPDATE_ASSUME_YES", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    return run_interactive_upgrade(repo_root, assume_yes=assume_yes)
+
 
 def _add_extra_arguments(parser):
     """添加额外参数"""
@@ -304,6 +343,7 @@ def _get_help_epilog() -> str:
   -sp          Strategy price factor simulation
   -sa          Strategy capital allocation simulation
   -sy          Strategy analysis
+  -u, -update  检查 core 远端版本并在确认后升级
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 使用示例:
@@ -329,6 +369,7 @@ def _get_help_epilog() -> str:
     %(prog)s -sp -f               Strategy price factor（跳过指纹读缓存，强制重算）
     %(prog)s -sa                  Strategy capital allocation simulation
     %(prog)s -sy                  Strategy analysis
+    %(prog)s -u                   检查并应用 core 版本更新
 
   额外参数:
     %(prog)s simulate --strategy example    只运行指定策略
@@ -552,7 +593,10 @@ def main():
     parser = create_argument_parser()
     args = parser.parse_args()
 
-    # 版本查询（尽早返回，避免初始化重资源）
+    # 版本 / 应用升级（尽早返回，避免初始化重资源）
+    if getattr(args, "update_flag", False):
+        raise SystemExit(_run_app_update())
+
     if args.version:
         print(f"NTQ Core Version: {system_meta.version}")
         print(f"Release Date: {system_meta.release_date}")

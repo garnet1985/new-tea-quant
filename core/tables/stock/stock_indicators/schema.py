@@ -5,6 +5,7 @@ data_stock_indicators 表结构定义（Python，变量名 schema）
 主键、时序列 id/date nullable=false；其余 nullable=true。
 """
 schema = {
+    "update_key": "stock_stock_indicators",
     "name": "sys_stock_indicators",
     "primaryKey": ["id", "date"],
     "fields": [

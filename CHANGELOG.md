@@ -6,7 +6,7 @@
 
 新版本更新清单：
 [] 有破坏性更改或者新的模块需要在module_info.yaml里更新core的依赖
-[] 更改system.py里的版本
+[] 同步 ``core/system.json`` 中的版本（与发版 tag / 远端 manifest 对齐；运行期由 ``core/system.py`` 加载）
 [] 同步版本徽章
 [] 检查是不是正确配置了gitignore
 [] Changlog 里注明改动和可能存在的破坏性改动

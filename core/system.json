@@ -1,0 +1,51 @@
+{
+  "version": "0.3.0",
+  "release_date": "2026-05-11",
+  "description": "版本发布",
+  "python": {
+    "minimum": [3, 9]
+  },
+  "new_features": [
+    "重大更新：UI 系统发布（BFF + FED），引入 Node.js 依赖",
+    "加入 Launder.py：一键启动与安装引导",
+    "完成策略工作台与策略扫描的 UI 能力",
+    "对齐 UI 与命令行的 Report 输出与展示",
+    "回测加入缓存：重复回测将直接返回 Report",
+    "Strategy 模块重构：按 flow 组织，更直观可维护"
+  ],
+  "update_plan": {
+    "managed_scope": [
+      ".github",
+      "core",
+      "devtools",
+      "docs",
+      "setup",
+      ".gitignore",
+      ".dockerignore",
+      "CHANGELOG.md",
+      "CODE_OF_CONDUCT.md",
+      "CONTRIBUTING.md",
+      "DISCLAIMER.md",
+      "docker-compose.yml",
+      "Dockerfile",
+      "install.py",
+      "launcher.py",
+      "LICENSE",
+      "pytest.ini",
+      "README_en.md",
+      "README.md",
+      "requirements-dev.in",
+      "requirements-dev.txt",
+      "requirements.in",
+      "requirements.txt",
+      "ROADMAP.md",
+      "SECURITY.md",
+      "start-cli.py",
+      "SUPPORT.md"
+    ],
+    "update_ignored_paths": [
+      "userspace",
+      "setup/init_data"
+    ]
+  }
+}

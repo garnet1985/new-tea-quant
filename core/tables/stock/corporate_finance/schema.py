@@ -4,6 +4,7 @@ data_corporate_finance 表结构定义（Python，变量名 schema）
 企业财务数据。主键 id/quarter nullable=false；其余 nullable=true。
 """
 schema = {
+    "update_key": "stock_corporate_finance",
     "name": "sys_corporate_finance",
     "primaryKey": ["id", "quarter"],
     "fields": [

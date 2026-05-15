@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Card, CardContent, Chip, Stack, Typography } from '@mui/material';
+import { Card, CardContent, Chip, Stack, Typography } from '@mui/material';
 import PageLayout from '../../components/pageLayout/pageLayout';
 
 /**

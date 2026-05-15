@@ -144,12 +144,12 @@ function ScanPage() {
     if (pollRef.current.timeoutId) window.clearTimeout(pollRef.current.timeoutId);
   }, []);
 
-  const openDetail = (strategyId) => {
+  const openDetail = useCallback((strategyId) => {
     if (!strategyId) return;
     if (!results?.[strategyId]) return;
     setDetailStrategyId(strategyId);
     setDetailOpen(true);
-  };
+  }, [results]);
 
   const closeDetail = () => {
     setDetailOpen(false);
@@ -270,7 +270,7 @@ function ScanPage() {
         );
       },
     },
-  ]), [mode, progress.pct, results, running, runningStrategyId, scanPrimaryById]);
+  ]), [mode, openDetail, progress.pct, results, running, runningStrategyId, scanPrimaryById]);
 
   useEffect(() => {
     if (!running) return undefined;
@@ -278,6 +278,7 @@ function ScanPage() {
     if (!strategyName) return undefined;
 
     let cancelled = false;
+    const pollSlot = pollRef.current;
 
     const pollOnce = () => {
       fetchStrategyScanProgress(strategyName, runningJobId)
@@ -314,7 +315,7 @@ function ScanPage() {
             return;
           }
 
-          pollRef.current.timeoutId = window.setTimeout(pollOnce, 600);
+          pollSlot.timeoutId = window.setTimeout(pollOnce, 600);
         })
         .catch((err) => {
           if (cancelled) return;
@@ -327,7 +328,7 @@ function ScanPage() {
     pollOnce();
     return () => {
       cancelled = true;
-      if (pollRef.current.timeoutId) window.clearTimeout(pollRef.current.timeoutId);
+      if (pollSlot.timeoutId) window.clearTimeout(pollSlot.timeoutId);
     };
   }, [mode, rows, running, runningJobId, runningStrategyId, refreshScanPrimaryActions]);
 

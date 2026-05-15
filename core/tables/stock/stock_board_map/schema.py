@@ -4,6 +4,7 @@
 主键 (stock_id, board_id)。
 """
 schema = {
+    "update_key": "stock_stock_board_map",
     "name": "sys_stock_board_map",
     "primaryKey": ["stock_id", "board_id"],
     "fields": [

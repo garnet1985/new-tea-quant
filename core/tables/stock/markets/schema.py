@@ -4,6 +4,7 @@
 主键 id nullable=false；其余 nullable=true。
 """
 schema = {
+    "update_key": "stock_markets",
     "name": "sys_markets",
     "primaryKey": "id",
     "fields": [

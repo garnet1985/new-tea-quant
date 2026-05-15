@@ -15,6 +15,7 @@
 core/infra/db/
 ├── module_info.yaml
 ├── db_manager.py
+├── migration/
 ├── connection_management/
 ├── schema_management/
 ├── table_management/
@@ -39,9 +40,20 @@ core/infra/db/
 - 不包含 SQLite 适配器与配置解析支持。
 - 默认实例通过 `DatabaseManager.set_default/get_default` 管理。
 
-## Schema 与升级（约定，实施中）
+## Schema 与升级（约定 + 部分实现）
 
 本模块负责 **数据库结构** 与 **升级时的 schema 迁移**；**应用升级编排**在 `userspace/updater/`（见该目录 `README.md` §8 / §8.1）。
+
+### 已实现（期望 schema 代码侧）
+
+- 包路径：**`core/infra/db/migration/`**  
+  - **`diff_expected_schemas(old, new)`**：两份 `{表名: schema dict}` 的字段/索引 diff（不含库 introspection）。  
+  - **`plan_from_schema_diff(...)`**：编译为 DDL 步骤（`ExecutionPlan`）；删列/改列/删表等保守地 **`MigrationPlanError`**。  
+  - **`execute_plan(db, plan)`**：对已初始化的 **`DatabaseManager`** 拓扑顺序执行。  
+  - **`run_schema_migration(...)`** / **`python -m core.infra.db.migrate`**：加载快照 + 新 ``core/tables`` → diff → plan →（连库时 **introspection 裁剪**）→ apply。  
+- **幂等**：``sys_schema_migration_log`` 按 ``step_id`` 记录已执行步骤；``execute_plan`` 自动跳过。  
+- **数据脚本**：``core/infra/update/db/registry.py`` + ``@register_data_script``；plan 中 ``RUN_DATA_SCRIPT`` 步骤由执行器调用。  
+- **仍待**：将破坏性变更自动挂接注册脚本、更细的「期望 vs 实际库」diff。
 
 ### `update_key`（`core/tables`）
 
@@ -56,7 +68,7 @@ core/infra/db/
 2. **Execution plan**：由 diff 编译出的可执行单元，带 **`depends_on` / `action_id`**；**拓扑排序**后执行。  
 3. **索引（简化策略）**：若某表存在 **字段类变更**，则对该表先 **删除全部二级索引**，字段 DDL 完成后再按期望 schema **重建索引**；仅索引变化且无字段变更时，可对索引做增量 DROP/CREATE。  
 4. **新列**：默认 **`NULL`**；若存在与 `action_id` 对应的 **数据脚本** 则执行（脚本/registry 路径在实现时定）；无脚本则保持全空。破坏性变更（改类型、缩 `varchar`、删列等）走 **显式脚本或拒绝自动**。  
-5. **执行入口**：由本包提供 **单一 CLI/模块入口**（如 `python -m core.infra.db.migrate`），由 updater **子进程**调用；**编排**（何时 spawn、传参、成败是否阻断升级）在 updater，**diff → plan → 执行 plan（DDL + 调度数据脚本）** 在本包内完成。子命令/阶段（如 `plan` / `apply` 或单进程内连续阶段）在首次落地代码时与此处对齐。
+5. **执行入口**：**`python -m core.infra.db.migrate`**（子命令 ``plan`` / ``apply``）；由 updater **`helper.spawn_database_migration_cli`** 子进程调用；**编排**在 updater，**diff → plan → 执行 plan** 在本包内完成。
 
 ### 与 updater / 数据脚本的边界
 

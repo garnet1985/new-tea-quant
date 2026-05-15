@@ -12,4 +12,8 @@
 
 ### ``updater/``（升级 bootstrap）
 
-目录 **`updater/`**（与本 README 同级）为 **init userspace zip 必须包含** 的内容之一：解压后为 **`userspace/updater/`**，内含 ``pipeline.py``、``run_apply.py``（占位）。应用升级会替换 ``core/``、``setup/`` 等，**不能把升级编排放在那些路径**；详见 **`userspace/updater/README.md`**（运行时文档）。
+**版本库源树**：仓库根下 **`setup/updater/`**（可编辑、可跑 pytest；**不要**把 ``__test__`` 打进 zip）。
+
+打 **init userspace zip** 时，将 ``setup/updater/`` 下的运行时文件（``pipeline.py``、``helper.py``、``run_apply.py``、``README.md``）放进包内 ``updater/``，解压后为 **`userspace/updater/`**。应用升级会替换 ``core/``、``setup/`` 等，**不能把升级编排放在那些路径**；运行时说明见解压后的 **`userspace/updater/README.md`**。
+
+**测试**：在 **`core/infra/db/__test__/test_updater_migration_spawn.py`**（``pytest`` 的 ``testpaths=core`` 会收集），导入 ``setup/updater/helper.py``。

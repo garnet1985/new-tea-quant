@@ -8,8 +8,10 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 from dataclasses import dataclass, field
@@ -185,23 +187,85 @@ def raw_system_json_url(repo_base: str, ref: str, relative_path: str) -> str:
     return ""
 
 
+def parse_remote_owner_repo(repo_base: str) -> Optional[tuple[str, str]]:
+    """从 ``REMOTE_REPO`` 风格的 base URL 解析 ``(owner, repo)``。"""
+    base = repo_base.rstrip("/")
+    if "gitee.com/" in base:
+        tail = base.split("gitee.com/", 1)[-1].strip("/")
+    elif "github.com/" in base:
+        tail = base.split("github.com/", 1)[-1].strip("/")
+    else:
+        return None
+    parts = [p for p in tail.split("/") if p]
+    if len(parts) < 2:
+        return None
+    return parts[0], parts[1]
+
+
+def gitee_access_token() -> str:
+    return (os.environ.get("NTQ_GITEE_ACCESS_TOKEN") or "").strip()
+
+
 def archive_zip_url(repo_base: str, ref: str) -> str:
     """
     与 ``raw_system_json_url`` 同一套 ``REMOTE_REPO`` base，指向 **分支源码 zip**（非 Release 资产）。
 
-    - Gitee: ``{base}/repository/archive/{ref}.zip``
+    - Gitee: ``GET /api/v5/repos/{owner}/{repo}/zipball?ref={ref}``（建议 ``NTQ_GITEE_ACCESS_TOKEN``）
     - GitHub: ``{base}/archive/refs/heads/{ref}.zip``
     """
+    urls = archive_zip_candidate_urls(repo_base, ref)
+    return urls[0] if urls else ""
+
+
+def archive_zip_candidate_urls(repo_base: str, ref: str) -> List[str]:
+    """按优先级返回可尝试的 zip 下载 URL 列表。"""
     base = repo_base.rstrip("/")
+    ref_q = urllib.parse.quote(ref, safe="")
     if "gitee.com" in base:
-        return f"{base}/repository/archive/{ref}.zip"
+        parsed = parse_remote_owner_repo(base)
+        if parsed is None:
+            return []
+        owner, repo = parsed
+        q: Dict[str, str] = {"ref": ref}
+        token = gitee_access_token()
+        if token:
+            q["access_token"] = token
+        query = urllib.parse.urlencode(q)
+        return [f"https://gitee.com/api/v5/repos/{owner}/{repo}/zipball?{query}"]
     if "github.com" in base:
-        return f"{base}/archive/refs/heads/{ref}.zip"
-    return ""
+        return [f"{base}/archive/refs/heads/{ref_q}.zip"]
+    return []
+
+
+def _file_looks_like_html(path: Path) -> bool:
+    try:
+        head = path.read_bytes()[:256].lstrip().lower()
+    except OSError:
+        return False
+    return head.startswith(b"<!doctype") or head.startswith(b"<html") or head.startswith(b"<!")
+
+
+def download_zip_reason(path: Path) -> Optional[str]:
+    """若 ``path`` 不是有效 zip，返回人类可读原因；有效 zip 返回 ``None``。"""
+    if not path.is_file():
+        return "文件未写入"
+    if is_zip_archive(path):
+        return None
+    if _file_looks_like_html(path):
+        return "收到 HTML 页面（Gitee 网页下载需验证码，不能用于脚本直链）"
+    return "响应不是有效的 zip 文件"
 
 
 def download_url_to_file(url: str, dest: Path, timeout_sec: float) -> bool:
     """HTTP GET 写入 ``dest``（先写同目录 ``.part`` 再 ``replace``）。成功返回 True。"""
+    ok, _ = download_url_to_file_detail(url, dest, timeout_sec)
+    return ok
+
+
+def download_url_to_file_detail(
+    url: str, dest: Path, timeout_sec: float
+) -> tuple[bool, Optional[str]]:
+    """同 ``download_url_to_file``，失败时返回原因字符串。"""
     dest = dest.resolve()
     dest.parent.mkdir(parents=True, exist_ok=True)
     part = dest.with_name(dest.name + ".part")
@@ -213,30 +277,152 @@ def download_url_to_file(url: str, dest: Path, timeout_sec: float) -> bool:
         )
         with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
             code = getattr(resp, "status", None) or resp.getcode()
+            if code == 401:
+                return False, "HTTP 401（Gitee 需配置 NTQ_GITEE_ACCESS_TOKEN 或使用 git 回退）"
+            if code == 404:
+                return False, "HTTP 404（URL 不存在；Gitee 不支持 GitHub 风格 /archive/{branch}.zip）"
             if code != 200:
-                return False
+                return False, f"HTTP {code}"
             with open(part, "wb") as out:
                 shutil.copyfileobj(resp, out, length=64 * 1024)
+    except urllib.error.HTTPError as exc:
+        if part.is_file():
+            part.unlink(missing_ok=True)
+        if exc.code == 401:
+            return False, "HTTP 401（Gitee 需配置 NTQ_GITEE_ACCESS_TOKEN 或使用 git 回退）"
+        if exc.code == 404:
+            return False, "HTTP 404（URL 不存在）"
+        return False, f"HTTP {exc.code}"
     except (
         urllib.error.URLError,
         TimeoutError,
         OSError,
         TypeError,
         ValueError,
-    ):
+    ) as exc:
         if part.is_file():
             part.unlink(missing_ok=True)
-        return False
+        return False, str(exc)
 
     try:
         if dest.is_file():
             dest.unlink()
         part.replace(dest)
-    except OSError:
+    except OSError as exc:
         if part.is_file():
             part.unlink(missing_ok=True)
-        return False
-    return True
+        return False, str(exc)
+
+    zip_reason = download_zip_reason(dest)
+    if zip_reason is not None:
+        dest.unlink(missing_ok=True)
+        return False, zip_reason
+    return True, None
+
+
+def git_shallow_archive_zip(
+    repo_base: str,
+    ref: str,
+    dest: Path,
+    *,
+    timeout_sec: float,
+) -> tuple[bool, Optional[str]]:
+    """
+    ``git clone --depth 1`` + ``git archive`` 生成 zip（Gitee HTTP zip 不可用时的回退）。
+
+    跳过：``NTQ_UPDATE_DISABLE_GIT_CLONE_FALLBACK=1``。需要系统已安装 ``git``。
+    """
+    if _env_truthy("NTQ_UPDATE_DISABLE_GIT_CLONE_FALLBACK"):
+        return False, "已禁用 git 回退（NTQ_UPDATE_DISABLE_GIT_CLONE_FALLBACK）"
+
+    git_bin = shutil.which("git")
+    if not git_bin:
+        return False, "未找到 git 命令"
+
+    dest = dest.resolve()
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    git_url = repo_base.rstrip("/") + ".git"
+
+    with tempfile.TemporaryDirectory(prefix="ntq-update-clone-") as td:
+        clone_dir = Path(td) / "repo"
+        try:
+            r = subprocess.run(
+                [
+                    git_bin,
+                    "clone",
+                    "--depth",
+                    "1",
+                    "--branch",
+                    ref,
+                    git_url,
+                    str(clone_dir),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=timeout_sec,
+            )
+        except subprocess.TimeoutExpired:
+            return False, f"git clone 超时（>{timeout_sec:.0f}s）"
+        if r.returncode != 0:
+            err = (r.stderr or r.stdout or "").strip().splitlines()
+            tail = err[-1] if err else f"exit {r.returncode}"
+            return False, f"git clone 失败：{tail}"
+
+        part = dest.with_name(dest.name + ".part")
+        try:
+            r2 = subprocess.run(
+                [git_bin, "archive", "--format=zip", "-o", str(part), "HEAD"],
+                cwd=str(clone_dir),
+                capture_output=True,
+                text=True,
+                timeout=min(timeout_sec, 120.0),
+            )
+        except subprocess.TimeoutExpired:
+            part.unlink(missing_ok=True)
+            return False, "git archive 超时"
+        if r2.returncode != 0:
+            part.unlink(missing_ok=True)
+            err = (r2.stderr or r2.stdout or "").strip().splitlines()
+            tail = err[-1] if err else f"exit {r2.returncode}"
+            return False, f"git archive 失败：{tail}"
+
+        if not is_zip_archive(part):
+            part.unlink(missing_ok=True)
+            return False, "git archive 未生成有效 zip"
+
+        if dest.is_file():
+            dest.unlink()
+        part.replace(dest)
+    return True, None
+
+
+def download_branch_archive_zip(
+    repo_base: str,
+    ref: str,
+    dest: Path,
+    *,
+    timeout_sec: float,
+) -> tuple[bool, Optional[str]]:
+    """
+    从远端镜像下载分支 zip：先 HTTP 候选 URL，再 git shallow archive 回退。
+    """
+    label = remote_repo_label(repo_base)
+    for url in archive_zip_candidate_urls(repo_base, ref):
+        ok, reason = download_url_to_file_detail(url, dest, timeout_sec)
+        if ok:
+            return True, None
+        last = reason or "下载失败"
+    else:
+        last = "无可用下载 URL"
+
+    if "gitee.com" in repo_base:
+        pipeline_step_note(f"{label} HTTP zip 不可用（{last}），尝试 git clone…")
+        ok, reason = git_shallow_archive_zip(repo_base, ref, dest, timeout_sec=timeout_sec)
+        if ok:
+            return True, None
+        last = reason or last
+
+    return False, last
 
 
 def safe_extract_zip(zip_path: Path, dest_dir: Path) -> None:

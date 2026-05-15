@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import json
 import os
 import shutil
 import subprocess
@@ -11,26 +9,29 @@ import urllib.error
 import urllib.request
 import webbrowser
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Tuple
 
-from core.system import python_minimum, system_meta
+from core.system import python_minimum
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+from setup.install_runtime import (
+    REPO_ROOT,
+    UI_BFF_REQUIREMENTS,
+    UI_FED_LOCKFILE,
+    mark_runtime,
+    needs_install,
+    sha256_file,
+)
+
 UI_ROOT = REPO_ROOT / "core" / "ui"
 BFF_ROOT = UI_ROOT / "bff"
 FED_ROOT = UI_ROOT / "fed"
-STATE_FILE = REPO_ROOT / ".ntq" / "install-state.json"
-BFF_REQUIREMENTS = BFF_ROOT / "requirements.txt"
-FED_LOCKFILE = FED_ROOT / "package-lock.json"
-FED_NODE_MODULES = FED_ROOT / "node_modules"
+BFF_REQUIREMENTS = UI_BFF_REQUIREMENTS
+FED_LOCKFILE = UI_FED_LOCKFILE
+FED_NODE_MODULES = REPO_ROOT / "core" / "ui" / "fed" / "node_modules"
 
 
 def _bootstrap_pip() -> None:
-    """Upgrade pip/setuptools/wheel so dependency resolution matches modern Flask stacks.
-
-    macOS / venv 默认自带的 pip 21.x 易出现 Jinja2/MarkupSafe 等 ResolutionImpossible。
-    离线或禁止自升级时设 ``NTQ_SKIP_PIP_BOOTSTRAP=1``。
-    """
+    """Upgrade pip/setuptools/wheel so dependency resolution matches modern Flask stacks."""
     if os.environ.get("NTQ_SKIP_PIP_BOOTSTRAP", "").strip().lower() in ("1", "true", "yes"):
         return
     cmd = [sys.executable, "-m", "pip", "install", "--upgrade"]
@@ -43,34 +44,13 @@ def _bootstrap_pip() -> None:
         print("⚠️ pip 自升级失败，将继续尝试安装 BFF 依赖；若仍失败请手动: python -m pip install -U pip", flush=True)
 
 
-def _sha256_file(path: Path) -> str:
-    if not path.is_file():
-        return ""
-    h = hashlib.sha256()
-    with path.open("rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def _load_state() -> Dict[str, Any]:
-    if not STATE_FILE.is_file():
-        return {}
-    try:
-        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-
-
-def _save_state(state: Dict[str, Any]) -> None:
-    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
 def check_runtime_prerequisites() -> Tuple[bool, str]:
     py_min = python_minimum()
     if sys.version_info < py_min:
-        return False, f"Python 版本过低，当前 {sys.version_info.major}.{sys.version_info.minor}，需要 >= {py_min[0]}.{py_min[1]}"
+        return False, (
+            f"Python 版本过低，当前 {sys.version_info.major}.{sys.version_info.minor}，"
+            f"需要 >= {py_min[0]}.{py_min[1]}"
+        )
     if shutil.which("node") is None:
         return False, "未检测到 node，请先安装 Node.js"
     if shutil.which("npm") is None:
@@ -82,30 +62,8 @@ def check_runtime_prerequisites() -> Tuple[bool, str]:
     return True, "ok"
 
 
-def needs_install() -> bool:
-    state = _load_state()
-    if not state:
-        return True
-
-    if state.get("coreVersion") != system_meta.version:
-        return True
-
-    python_state = state.get("python", {})
-    node_state = state.get("node", {})
-    if python_state.get("uiRequirementsHash") != _sha256_file(BFF_REQUIREMENTS):
-        return True
-    if node_state.get("fedLockHash") != _sha256_file(FED_LOCKFILE):
-        return True
-    if not FED_NODE_MODULES.is_dir():
-        return True
-
-    if state.get("setupRuntime", {}).get("lastStatus") != "success":
-        return True
-    return False
-
-
 def install_ui_runtime(force: bool = False) -> None:
-    if not force and not needs_install():
+    if not force and not needs_install("ui"):
         print("安装检查通过，跳过依赖安装。", flush=True)
         return
 
@@ -126,22 +84,20 @@ def install_ui_runtime(force: bool = False) -> None:
     if npm_ret.returncode != 0:
         raise RuntimeError("安装 FED Node 依赖失败")
 
-    state = {
-        "coreVersion": system_meta.version,
-        "python": {
-            "uiRequirementsHash": _sha256_file(BFF_REQUIREMENTS),
-            "lastInstallAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    mark_runtime(
+        "ui",
+        success=True,
+        fingerprints={
+            "python": {
+                "uiRequirementsHash": sha256_file(BFF_REQUIREMENTS),
+                "lastInstallAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            },
+            "node": {
+                "fedLockHash": sha256_file(FED_LOCKFILE),
+                "lastInstallAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            },
         },
-        "node": {
-            "fedLockHash": _sha256_file(FED_LOCKFILE),
-            "lastInstallAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        },
-        "setupRuntime": {
-            "lastStatus": "success",
-            "lastFailedStepId": "",
-        },
-    }
-    _save_state(state)
+    )
     print("UI 最小依赖安装完成。", flush=True)
 
 

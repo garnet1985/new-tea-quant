@@ -40,8 +40,22 @@ class NewTeaQuantSetup:
         return sys.prefix != sys.base_prefix
 
     @classmethod
-    def ensure_venv(cls) -> None:
-        """未在 venv 中时创建 venv/ 并用其解释器替换当前进程，避免后续装到全局。"""
+    def _resolve_entry_script(cls, entry_script: str | Path | None) -> Path:
+        """解析入口脚本路径（``launcher.py`` / ``install.py`` 等，而非固定 install.py）。"""
+        if entry_script is not None:
+            return Path(entry_script).resolve()
+        raw = Path(sys.argv[0])
+        if raw.is_absolute():
+            return raw.resolve()
+        return (cls.repo_root / raw).resolve()
+
+    @classmethod
+    def ensure_venv(cls, entry_script: str | Path | None = None) -> None:
+        """
+        未在 venv 中时创建 venv/ 并用其解释器替换当前进程。
+
+        重启时保留**当前入口脚本**（``sys.argv[0]``），避免 ``launcher.py`` 被误换成 ``install.py``。
+        """
         if cls.in_virtualenv():
             print(f"使用虚拟环境解释器: {sys.executable}", flush=True)
             return
@@ -60,8 +74,9 @@ class NewTeaQuantSetup:
             )
         else:
             print(f"检测到已有虚拟环境: {vpy}", flush=True)
+        entry = cls._resolve_entry_script(entry_script)
         print(f"切换到虚拟环境解释器: {vpy}", flush=True)
-        argv = [str(vpy), str(cls.repo_root / "install.py")] + sys.argv[1:]
+        argv = [str(vpy), str(entry)] + sys.argv[1:]
         os.execv(str(vpy), argv)
 
     @classmethod
@@ -69,7 +84,7 @@ class NewTeaQuantSetup:
         """
         setup/*/install.py 直接执行时，也默认切到项目 venv 解释器。
 
-        - 与 ensure_venv() 的区别：这里重启的是“当前脚本”，不是根目录 install.py。
+        - 与 ensure_venv() 相同：均重启当前入口脚本；本方法用于 setup 子步骤路径解析。
         - 目的：避免用户只跑某一步时把依赖装到系统 Python，或运行时缺少依赖（如 pandas）。
         - 可用 NTQ_SKIP_AUTO_VENV=1 关闭该行为。
         """

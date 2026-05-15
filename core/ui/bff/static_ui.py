@@ -1,7 +1,8 @@
 """
 将 CRA 构建产物（``core/ui/fed/build``）挂到 BFF，供 ``launcher`` 生产模式使用。
 
-API 仍走 ``/api/*`` 蓝图；``/static/*`` 与 SPA 回退单独注册（避免与 Flask 默认 static 冲突）。
+``/static/*`` 由 Flask ``static_folder``（见 ``app.create_app``）提供；
+本模块只注册 SPA 回退与其它根级资源。
 """
 from __future__ import annotations
 
@@ -18,6 +19,10 @@ def resolve_fed_build_dir() -> Path:
     if raw:
         return Path(raw).expanduser().resolve()
     return _FED_BUILD_DIR.resolve()
+
+
+def fed_build_static_dir(build_dir: Path | None = None) -> Path:
+    return (build_dir or resolve_fed_build_dir()) / "static"
 
 
 def fed_build_ready(build_dir: Path | None = None) -> bool:
@@ -42,7 +47,7 @@ def _safe_send(root: Path, rel: str):
 
 def register_fed_static_routes(app: Flask, build_dir: Path | None = None) -> bool:
     """
-    注册静态资源与 SPA 回退路由。
+    注册 SPA 回退与根级静态文件（``/static/*`` 由 Flask ``static_folder`` 处理）。
 
     Returns:
         是否成功挂载（``index.html`` 存在）。
@@ -50,14 +55,6 @@ def register_fed_static_routes(app: Flask, build_dir: Path | None = None) -> boo
     root = (build_dir or resolve_fed_build_dir()).resolve()
     if not fed_build_ready(root):
         return False
-
-    static_root = root / "static"
-
-    @app.route("/static/<path:asset_path>", methods=["GET", "HEAD"])
-    def serve_fed_static(asset_path: str):
-        if not static_root.is_dir():
-            abort(404)
-        return send_from_directory(str(static_root.resolve()), asset_path)
 
     @app.route("/favicon.ico", methods=["GET", "HEAD"])
     def serve_fed_favicon():
@@ -76,13 +73,15 @@ def register_fed_static_routes(app: Flask, build_dir: Path | None = None) -> boo
     def serve_fed_spa(path: str):
         if path.startswith("api/") or path == "api":
             abort(404)
-        if path.startswith("static/") or path in ("favicon.ico", "asset-manifest.json"):
-            abort(404)
         if path:
             candidate = root / path
             if candidate.is_file():
                 return _safe_send(root, path)
         return send_from_directory(str(root), "index.html")
 
-    print(f"FED 静态资源已挂载: {root}", flush=True)
+    static_dir = fed_build_static_dir(root)
+    print(
+        f"FED 静态资源已挂载: build={root} static_url=/static -> {static_dir}",
+        flush=True,
+    )
     return True

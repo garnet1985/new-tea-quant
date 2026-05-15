@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -33,7 +34,8 @@ FED_ROOT = UI_FED_ROOT
 BFF_REQUIREMENTS = UI_BFF_REQUIREMENTS
 FED_LOCKFILE = UI_FED_LOCKFILE
 FED_NODE_MODULES = REPO_ROOT / "core" / "ui" / "fed" / "node_modules"
-FED_DEV_PORT = 6666
+# Chrome 会拦截 6665–6669（ERR_UNSAFE_PORT），勿用 6666
+FED_DEV_PORT = 8000
 BFF_DEFAULT_PORT = 8888
 
 
@@ -155,6 +157,65 @@ def install_ui_runtime(force: bool = False) -> None:
     print("UI 运行依赖安装完成。", flush=True)
 
 
+def _pids_listening_on(port: int) -> list[int]:
+    try:
+        out = subprocess.run(
+            ["lsof", "-ti", f":{port}", "-sTCP:LISTEN"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return []
+    pids: list[int] = []
+    for line in out.stdout.splitlines():
+        line = line.strip()
+        if line.isdigit():
+            pids.append(int(line))
+    return pids
+
+
+def _process_cmdline(pid: int) -> str:
+    try:
+        out = subprocess.run(
+            ["ps", "-p", str(pid), "-o", "command="],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return ""
+    return (out.stdout or "").strip()
+
+
+def _release_stale_listen_port(port: int, *, match_substrings: tuple[str, ...]) -> None:
+    """结束占用端口的本仓库旧 UI 进程，避免 CRA 交互式换端口或 BFF 启动失败。"""
+    fed_root = str(FED_ROOT.resolve())
+    for pid in _pids_listening_on(port):
+        cmd = _process_cmdline(pid)
+        if not cmd:
+            continue
+        if not any(s in cmd for s in match_substrings) and fed_root not in cmd:
+            continue
+        print(f"正在结束占用端口 {port} 的旧进程 (pid {pid})…", flush=True)
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            continue
+    if _pids_listening_on(port):
+        time.sleep(1)
+        for pid in _pids_listening_on(port):
+            cmd = _process_cmdline(pid)
+            if not cmd:
+                continue
+            if not any(s in cmd for s in match_substrings) and fed_root not in cmd:
+                continue
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+
+
 def _wait_http_ok(url: str, timeout_sec: int = 30) -> bool:
     deadline = time.time() + timeout_sec
     while time.time() < deadline:
@@ -174,13 +235,15 @@ def _wait_bff_ready(host: str, port: int, timeout_sec: int = 30) -> bool:
 
 def _public_ui_url(host: str, port: int, *, dev: bool) -> str:
     if dev:
-        return f"http://127.0.0.1:{FED_DEV_PORT}/strategy-workbench"
+        return f"http://localhost:{FED_DEV_PORT}/strategy-workbench"
     return f"http://{host}:{port}/strategy-workbench"
 
 
 def launch_ui_stack() -> None:
     host = os.getenv("NTQ_BFF_HOST", "127.0.0.1")
     port = int(os.getenv("NTQ_BFF_PORT", str(BFF_DEFAULT_PORT)))
+
+    _release_stale_listen_port(port, match_substrings=("core.ui.bff.app",))
 
     bff_env = os.environ.copy()
     bff_env["NTQ_BFF_HOST"] = host
@@ -197,19 +260,31 @@ def launch_ui_stack() -> None:
     fed_proc = None
 
     if dev:
+        _release_stale_listen_port(
+            FED_DEV_PORT,
+            match_substrings=("react-scripts", "webpack", "node"),
+        )
         fed_env = os.environ.copy()
+        fed_env.setdefault("BROWSER", "none")
+        fed_env.setdefault("PORT", str(FED_DEV_PORT))
+        fed_env.setdefault("DANGEROUSLY_DISABLE_HOST_CHECK", "true")
         fed_cmd = ["npm", "start"]
         fed_proc = subprocess.Popen(fed_cmd, cwd=str(FED_ROOT), env=fed_env)
         print("UI 已启动：BFF + FED 开发服务器", flush=True)
-        print(f"等待 FED 开发服务就绪（端口 {FED_DEV_PORT}，首次编译可能需 1–2 分钟）…", flush=True)
+        print(f"等待 FED 编译就绪（端口 {FED_DEV_PORT}，首次约 1–2 分钟）…", flush=True)
         if not _wait_http_ok(ui_url, timeout_sec=180):
             print(
                 f"⚠️ FED 开发服务未在 {FED_DEV_PORT} 端口就绪。"
-                f"请查看终端 npm 输出，或手动访问: {ui_url}",
+                f"请查看终端 npm 是否出现 Compiled successfully；就绪后访问: {ui_url}",
                 flush=True,
             )
         else:
             print(f"FED 开发地址: {ui_url}", flush=True)
+            print(
+                "请在 Chrome/Safari 打开上述地址；勿用 Cursor 内置预览，"
+                "勿用 127.0.0.1（与 localhost 等效即可）；Chrome 禁止访问 6666 等端口。",
+                flush=True,
+            )
     else:
         if not fed_build_ready():
             bff_proc.terminate()

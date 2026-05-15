@@ -4,6 +4,7 @@ data_lpr 表结构定义（Python，变量名 schema）
 贷款基础利率，一年期和五年期。主键 date nullable=false；其余 nullable=true。
 """
 schema = {
+    "update_key": "macro_lpr",
     "name": "sys_lpr",
     "primaryKey": ["date"],
     "fields": [

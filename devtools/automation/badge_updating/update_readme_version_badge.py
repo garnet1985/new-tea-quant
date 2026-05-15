@@ -1,29 +1,27 @@
 #!/usr/bin/env python3
 """
-Sync README version badge with core/system.py version.
+Sync README version badge with core/system.json version.
 
 Usage (from repository root):
   python3 devtools/automation/badge_updating/update_readme_version_badge.py
 """
 from __future__ import annotations
 
+import json
 import pathlib
-import re
 import sys
 
 # devtools/automation/badge_updating/this_file -> parents[3] = repo root
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
-SYSTEM_PY = REPO_ROOT / "core" / "system.py"
+SYSTEM_JSON = REPO_ROOT / "core" / "system.json"
 README_MD = REPO_ROOT / "README.md"
 
 
 def read_core_version() -> str:
-    content = SYSTEM_PY.read_text(encoding="utf-8")
-    # Example: self._version = "0.2.1"
-    m = re.search(r'self\._version\s*=\s*"([^"]+)"', content)
-    if not m:
-        raise RuntimeError("Cannot parse version from core/system.py")
-    return m.group(1).strip()
+    raw = json.loads(SYSTEM_JSON.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict) or not isinstance(raw.get("version"), str):
+        raise RuntimeError("Cannot read version from core/system.json")
+    return raw["version"].strip()
 
 
 def update_badge(version: str) -> bool:

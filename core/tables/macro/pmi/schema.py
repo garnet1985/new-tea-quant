@@ -5,6 +5,7 @@ data_pmi 表结构定义（Python，变量名 schema）
 主键 date nullable=false；其余 nullable=true。
 """
 schema = {
+    "update_key": "macro_pmi",
     "name": "sys_pmi",
     "primaryKey": "date",
     "fields": [

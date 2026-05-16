@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import hashlib
-import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -11,147 +10,192 @@ import urllib.error
 import urllib.request
 import webbrowser
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Tuple
 
-from core.system import python_minimum, system_meta
+from core.system import python_minimum
+from core.ui.ports import BFF_DEFAULT_PORT, FED_DEV_PORT
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
-UI_ROOT = REPO_ROOT / "core" / "ui"
-BFF_ROOT = UI_ROOT / "bff"
-FED_ROOT = UI_ROOT / "fed"
-STATE_FILE = REPO_ROOT / ".ntq" / "install-state.json"
-BFF_REQUIREMENTS = BFF_ROOT / "requirements.txt"
-FED_LOCKFILE = FED_ROOT / "package-lock.json"
-FED_NODE_MODULES = FED_ROOT / "node_modules"
+from setup.install_runtime import (
+    REPO_ROOT,
+    UI_BFF_REQUIREMENTS,
+    UI_FED_BUILD_DIR,
+    UI_FED_LOCKFILE,
+    UI_FED_ROOT,
+    fed_build_fingerprint,
+    fed_build_ready,
+    mark_runtime,
+    needs_install,
+    sha256_file,
+    ui_dev_mode,
+)
+
+FED_ROOT = UI_FED_ROOT
+BFF_REQUIREMENTS = UI_BFF_REQUIREMENTS
+FED_LOCKFILE = UI_FED_LOCKFILE
+
+
+def _env_truthy(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes")
 
 
 def _bootstrap_pip() -> None:
-    """Upgrade pip/setuptools/wheel so dependency resolution matches modern Flask stacks.
-
-    macOS / venv 默认自带的 pip 21.x 易出现 Jinja2/MarkupSafe 等 ResolutionImpossible。
-    离线或禁止自升级时设 ``NTQ_SKIP_PIP_BOOTSTRAP=1``。
-    """
-    if os.environ.get("NTQ_SKIP_PIP_BOOTSTRAP", "").strip().lower() in ("1", "true", "yes"):
+    if _env_truthy("NTQ_SKIP_PIP_BOOTSTRAP"):
         return
     cmd = [sys.executable, "-m", "pip", "install", "--upgrade"]
-    if os.environ.get("NTQ_PIP_NO_CACHE", "").strip().lower() in ("1", "true", "yes"):
+    if _env_truthy("NTQ_PIP_NO_CACHE"):
         cmd.append("--no-cache-dir")
     cmd.extend(["pip>=24.0", "setuptools>=65", "wheel"])
-    print("正在升级 pip / setuptools / wheel（缓解依赖解析冲突）...", flush=True)
+    print("正在升级 pip / setuptools / wheel…", flush=True)
     ret = subprocess.run(cmd, cwd=str(REPO_ROOT))
     if ret.returncode != 0:
-        print("⚠️ pip 自升级失败，将继续尝试安装 BFF 依赖；若仍失败请手动: python -m pip install -U pip", flush=True)
+        print("⚠️ pip 自升级失败，将继续尝试安装 BFF 依赖", flush=True)
 
 
-def _sha256_file(path: Path) -> str:
-    if not path.is_file():
-        return ""
-    h = hashlib.sha256()
-    with path.open("rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def _load_state() -> Dict[str, Any]:
-    if not STATE_FILE.is_file():
-        return {}
-    try:
-        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-
-
-def _save_state(state: Dict[str, Any]) -> None:
-    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+def _node_toolchain_available() -> bool:
+    return shutil.which("node") is not None and shutil.which("npm") is not None
 
 
 def check_runtime_prerequisites() -> Tuple[bool, str]:
     py_min = python_minimum()
     if sys.version_info < py_min:
-        return False, f"Python 版本过低，当前 {sys.version_info.major}.{sys.version_info.minor}，需要 >= {py_min[0]}.{py_min[1]}"
-    if shutil.which("node") is None:
-        return False, "未检测到 node，请先安装 Node.js"
-    if shutil.which("npm") is None:
-        return False, "未检测到 npm，请先安装 npm"
+        return False, (
+            f"Python 版本过低，当前 {sys.version_info.major}.{sys.version_info.minor}，"
+            f"需要 >= {py_min[0]}.{py_min[1]}"
+        )
     if not BFF_REQUIREMENTS.is_file():
         return False, f"缺少 BFF 依赖文件: {BFF_REQUIREMENTS}"
-    if not (FED_ROOT / "package.json").is_file():
-        return False, f"缺少 FED package.json: {FED_ROOT / 'package.json'}"
-    return True, "ok"
+
+    if ui_dev_mode():
+        if not _node_toolchain_available():
+            return False, "开发模式（launcher.py -d）需要 Node.js 与 npm"
+        if not (FED_ROOT / "package.json").is_file():
+            return False, f"缺少 FED package.json: {FED_ROOT / 'package.json'}"
+        return True, "ok"
+
+    if fed_build_ready():
+        return True, "ok"
+
+    if _node_toolchain_available():
+        return True, "ok"
+
+    return (
+        False,
+        "未找到 core/ui/fed/build/。请 npm run build，或使用 launcher.py -d",
+    )
 
 
-def needs_install() -> bool:
-    state = _load_state()
-    if not state:
-        return True
+def _pip_install_bff() -> None:
+    pip_cmd = [sys.executable, "-m", "pip", "install", "--no-compile", "--prefer-binary"]
+    if _env_truthy("NTQ_PIP_NO_CACHE"):
+        pip_cmd.append("--no-cache-dir")
+    pip_cmd.extend(["-r", str(BFF_REQUIREMENTS)])
+    if subprocess.run(pip_cmd, cwd=str(REPO_ROOT)).returncode != 0:
+        raise RuntimeError("安装 BFF Python 依赖失败")
 
-    if state.get("coreVersion") != system_meta.version:
-        return True
 
-    python_state = state.get("python", {})
-    node_state = state.get("node", {})
-    if python_state.get("uiRequirementsHash") != _sha256_file(BFF_REQUIREMENTS):
-        return True
-    if node_state.get("fedLockHash") != _sha256_file(FED_LOCKFILE):
-        return True
-    if not FED_NODE_MODULES.is_dir():
-        return True
+def _npm_install_fed() -> None:
+    if subprocess.run(["npm", "install"], cwd=str(FED_ROOT)).returncode != 0:
+        raise RuntimeError("安装 FED Node 依赖失败")
 
-    if state.get("setupRuntime", {}).get("lastStatus") != "success":
-        return True
-    return False
+
+def _npm_build_fed() -> None:
+    print("正在构建 FED（npm run build）…", flush=True)
+    if subprocess.run(["npm", "run", "build"], cwd=str(FED_ROOT)).returncode != 0:
+        raise RuntimeError("FED 构建失败")
+    if not fed_build_ready():
+        raise RuntimeError(f"构建完成但未找到 {UI_FED_BUILD_DIR / 'index.html'}")
 
 
 def install_ui_runtime(force: bool = False) -> None:
-    if not force and not needs_install():
+    if not force and not needs_install("ui"):
         print("安装检查通过，跳过依赖安装。", flush=True)
         return
 
-    print("开始安装 UI 最小依赖（BFF + FED）...", flush=True)
-
     _bootstrap_pip()
+    _pip_install_bff()
 
-    pip_cmd = [sys.executable, "-m", "pip", "install", "--no-compile", "--prefer-binary"]
-    if os.environ.get("NTQ_PIP_NO_CACHE", "").strip().lower() in ("1", "true", "yes"):
-        pip_cmd.append("--no-cache-dir")
-    pip_cmd.extend(["-r", str(BFF_REQUIREMENTS)])
-    pip_ret = subprocess.run(pip_cmd, cwd=str(REPO_ROOT))
-    if pip_ret.returncode != 0:
-        raise RuntimeError("安装 BFF Python 依赖失败")
-
-    npm_cmd = ["npm", "install"]
-    npm_ret = subprocess.run(npm_cmd, cwd=str(FED_ROOT))
-    if npm_ret.returncode != 0:
-        raise RuntimeError("安装 FED Node 依赖失败")
-
-    state = {
-        "coreVersion": system_meta.version,
+    fingerprints: dict = {
         "python": {
-            "uiRequirementsHash": _sha256_file(BFF_REQUIREMENTS),
+            "uiRequirementsHash": sha256_file(BFF_REQUIREMENTS),
             "lastInstallAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        },
-        "node": {
-            "fedLockHash": _sha256_file(FED_LOCKFILE),
-            "lastInstallAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        },
-        "setupRuntime": {
-            "lastStatus": "success",
-            "lastFailedStepId": "",
         },
     }
-    _save_state(state)
-    print("UI 最小依赖安装完成。", flush=True)
+
+    if ui_dev_mode():
+        print("安装 UI 开发依赖（BFF + node_modules）…", flush=True)
+        _npm_install_fed()
+        fingerprints["node"] = {
+            "fedLockHash": sha256_file(FED_LOCKFILE),
+            "lastInstallAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+    else:
+        print("安装 UI 运行依赖（BFF + fed/build）…", flush=True)
+        if not fed_build_ready():
+            if not _node_toolchain_available():
+                raise RuntimeError("缺少 fed/build 且未检测到 Node.js")
+            _npm_install_fed()
+            _npm_build_fed()
+        fingerprints["fedBuild"] = {
+            "buildFingerprint": fed_build_fingerprint(),
+            "lastInstallAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+
+    mark_runtime("ui", success=True, fingerprints=fingerprints)
+    print("UI 运行依赖安装完成。", flush=True)
 
 
-def _wait_bff_ready(host: str, port: int, timeout_sec: int = 30) -> bool:
-    url = f"http://{host}:{port}/api/health"
+def _pids_listening_on(port: int) -> list[int]:
+    try:
+        out = subprocess.run(
+            ["lsof", "-ti", f":{port}", "-sTCP:LISTEN"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return []
+    return [int(line) for line in out.stdout.splitlines() if line.strip().isdigit()]
+
+
+def _process_cmdline(pid: int) -> str:
+    try:
+        out = subprocess.run(
+            ["ps", "-p", str(pid), "-o", "command="],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return ""
+    return (out.stdout or "").strip()
+
+
+def _release_stale_listen_port(port: int, *, match_substrings: tuple[str, ...]) -> None:
+    fed_root = str(FED_ROOT.resolve())
+
+    def _should_kill(cmd: str) -> bool:
+        return bool(cmd) and (any(s in cmd for s in match_substrings) or fed_root in cmd)
+
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        for pid in _pids_listening_on(port):
+            if _should_kill(_process_cmdline(pid)):
+                print(f"结束占用 {port} 的旧进程 pid={pid}", flush=True)
+                try:
+                    os.kill(pid, sig)
+                except ProcessLookupError:
+                    pass
+        if not _pids_listening_on(port):
+            return
+        if sig == signal.SIGTERM:
+            time.sleep(1)
+
+
+def _wait_http_ok(url: str, timeout_sec: int = 30) -> bool:
     deadline = time.time() + timeout_sec
     while time.time() < deadline:
         try:
             with urllib.request.urlopen(url, timeout=2) as resp:
-                if resp.status == 200:
+                if 200 <= resp.status < 400:
                     return True
         except (urllib.error.URLError, TimeoutError, ConnectionError):
             pass
@@ -159,39 +203,84 @@ def _wait_bff_ready(host: str, port: int, timeout_sec: int = 30) -> bool:
     return False
 
 
+def _ui_url(*, dev: bool, bff_host: str, bff_port: int) -> str:
+    if dev:
+        return f"http://localhost:{FED_DEV_PORT}/strategy-workbench"
+    return f"http://{bff_host}:{bff_port}/strategy-workbench"
+
+
+def _fed_dev_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env["BROWSER"] = "none"
+    env["PORT"] = str(FED_DEV_PORT)
+    env["DANGEROUSLY_DISABLE_HOST_CHECK"] = "true"
+    return env
+
+
 def launch_ui_stack() -> None:
-    host = os.getenv("NTQ_BFF_HOST", "127.0.0.1")
-    port = int(os.getenv("NTQ_BFF_PORT", "5001"))
+    bff_host = os.getenv("NTQ_BFF_HOST", "127.0.0.1")
+    bff_port = int(os.getenv("NTQ_BFF_PORT", str(BFF_DEFAULT_PORT)))
+    dev = ui_dev_mode()
+    ui_url = _ui_url(dev=dev, bff_host=bff_host, bff_port=bff_port)
+
+    _release_stale_listen_port(bff_port, match_substrings=("core.ui.bff.app",))
 
     bff_env = os.environ.copy()
-    bff_env["NTQ_BFF_HOST"] = host
-    bff_env["NTQ_BFF_PORT"] = str(port)
-    bff_cmd = [sys.executable, "-m", "core.ui.bff.app"]
-    bff_proc = subprocess.Popen(bff_cmd, cwd=str(REPO_ROOT), env=bff_env)
+    bff_env["NTQ_BFF_HOST"] = bff_host
+    bff_env["NTQ_BFF_PORT"] = str(bff_port)
+    bff_proc = subprocess.Popen(
+        [sys.executable, "-m", "core.ui.bff.app"],
+        cwd=str(REPO_ROOT),
+        env=bff_env,
+    )
 
-    if not _wait_bff_ready(host, port):
+    if not _wait_http_ok(f"http://{bff_host}:{bff_port}/api/health"):
         bff_proc.terminate()
-        raise RuntimeError("BFF 启动超时，未通过健康检查 /api/health")
+        raise RuntimeError("BFF 启动超时（/api/health）")
 
-    fed_env = os.environ.copy()
-    fed_cmd = ["npm", "start"]
-    fed_proc = subprocess.Popen(fed_cmd, cwd=str(FED_ROOT), env=fed_env)
+    fed_proc = None
+    if dev:
+        _release_stale_listen_port(
+            FED_DEV_PORT,
+            match_substrings=("react-scripts", "webpack"),
+        )
+        fed_proc = subprocess.Popen(
+            ["npm", "start"],
+            cwd=str(FED_ROOT),
+            env=_fed_dev_env(),
+        )
+        print(f"开发模式：BFF :{bff_port} + FED :{FED_DEV_PORT}", flush=True)
+        if not _wait_http_ok(ui_url, timeout_sec=180):
+            print(f"⚠️ FED 未就绪，请查看 npm 输出；目标地址: {ui_url}", flush=True)
+    else:
+        if not fed_build_ready():
+            bff_proc.terminate()
+            raise RuntimeError("缺少 fed/build，请 npm run build")
+        print(f"生产模式：BFF :{bff_port} 托管静态资源", flush=True)
+        if not _wait_http_ok(ui_url, timeout_sec=30):
+            bff_proc.terminate()
+            raise RuntimeError(f"前端未就绪: {ui_url}")
 
-    print("UI 已启动：BFF + FED", flush=True)
-    print("FED 默认地址: http://localhost:8888/strategy-workbench", flush=True)
+    if _wait_http_ok(ui_url, timeout_sec=3):
+        print(f"访问: {ui_url}", flush=True)
+        try:
+            webbrowser.open(ui_url)
+        except Exception:
+            pass
+    else:
+        print(f"请手动打开: {ui_url}", flush=True)
+
     try:
-        webbrowser.open("http://localhost:8888/strategy-workbench")
-    except Exception:
-        pass
-    try:
-        fed_proc.wait()
+        (fed_proc or bff_proc).wait()
     except KeyboardInterrupt:
-        print("\n收到中断，正在关闭服务...", flush=True)
+        print("\n正在关闭…", flush=True)
     finally:
         for proc in (fed_proc, bff_proc):
-            if proc.poll() is None:
+            if proc is not None and proc.poll() is None:
                 proc.terminate()
         for proc in (fed_proc, bff_proc):
+            if proc is None:
+                continue
             try:
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:

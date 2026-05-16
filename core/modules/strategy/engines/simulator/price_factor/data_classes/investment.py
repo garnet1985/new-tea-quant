@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from core.modules.strategy.engines.shared.data_classes import BaseInvestment
 from core.modules.strategy.enums import OpportunityStatus
+from core.modules.strategy.services.data.output.event import parse_opportunity_buy_fill
 
 
 @dataclass
@@ -14,6 +15,8 @@ class PriceFactorInvestment(BaseInvestment):
     completed_targets: List[Dict[str, Any]] = field(default_factory=list)
     overall_annual_return: float = 0.0
     shares: int = 1
+    trigger_date: str = ""
+    trigger_price: float = 0.0
 
     @classmethod
     def from_opportunity(
@@ -25,7 +28,13 @@ class PriceFactorInvestment(BaseInvestment):
         opp_id = str(opportunity.get("opportunity_id", "")).strip()
         stock_id = opportunity.get("stock_id", "")
         trigger_date = opportunity.get("trigger_date", "")
-        exit_date = opportunity.get("exit_date", "")
+        buy_fill = parse_opportunity_buy_fill(opportunity)
+        if buy_fill is None:
+            raise ValueError(
+                f"机会缺少有效 buy_date/buy_price，无法构建 PriceFactorInvestment: {opp_id!r}"
+            )
+        buy_date, buy_price = buy_fill
+        exit_date = opportunity.get("exit_date", "") or opportunity.get("sell_date", "")
         try:
             trigger_price = float(opportunity.get("trigger_price", 0.0) or 0.0)
         except (ValueError, TypeError):
@@ -38,14 +47,15 @@ class PriceFactorInvestment(BaseInvestment):
         profit = (
             sum(float(t.get("weighted_profit", 0.0) or 0.0) for t in targets)
             if targets
-            else trigger_price * roi
+            else buy_price * roi
         )
         holding_days = 1
-        if trigger_date and exit_date:
+        start_for_hold = buy_date
+        if start_for_hold and exit_date:
             try:
                 from core.modules.strategy.engines.simulator.price_factor.helpers import parse_yyyymmdd
 
-                start_dt = parse_yyyymmdd(trigger_date)
+                start_dt = parse_yyyymmdd(start_for_hold)
                 end_dt = parse_yyyymmdd(exit_date)
                 if start_dt and end_dt:
                     holding_days = max((end_dt - start_dt).days, 1)
@@ -60,8 +70,8 @@ class PriceFactorInvestment(BaseInvestment):
             except Exception:
                 pass
 
-        tracking = cls._build_tracking(opportunity, trigger_price, trigger_date, exit_date)
-        completed_targets = cls._build_completed_targets(targets, trigger_price)
+        tracking = cls._build_tracking(opportunity, buy_price, buy_date, exit_date)
+        completed_targets = cls._build_completed_targets(targets, buy_price)
         status_str = (opportunity.get("status") or "").lower()
         if status_str in (
             OpportunityStatus.WIN.value,
@@ -80,9 +90,9 @@ class PriceFactorInvestment(BaseInvestment):
             opportunity_id=opp_id,
             stock_id=stock_id,
             stock_name=stock_name,
-            buy_date=trigger_date,
+            buy_date=buy_date,
             sell_date=exit_date if exit_date else None,
-            buy_price=trigger_price,
+            buy_price=buy_price,
             sell_price=None,
             profit=profit,
             roi=roi,
@@ -92,6 +102,8 @@ class PriceFactorInvestment(BaseInvestment):
             completed_targets=completed_targets,
             overall_annual_return=overall_annual_return,
             shares=1,
+            trigger_date=trigger_date,
+            trigger_price=trigger_price,
         )
 
     @classmethod
@@ -107,8 +119,8 @@ class PriceFactorInvestment(BaseInvestment):
     @staticmethod
     def _build_tracking(
         opportunity: Dict[str, Any],
-        trigger_price: float,
-        trigger_date: str,
+        cost_basis: float,
+        entry_date: str,
         exit_date: str,
     ) -> Dict[str, Any]:
         try:
@@ -119,21 +131,21 @@ class PriceFactorInvestment(BaseInvestment):
             min_price = float(opportunity.get("min_price", 0.0) or 0.0)
         except (ValueError, TypeError):
             min_price = 0.0
-        if trigger_price > 0:
-            max_ratio = (max_price - trigger_price) / trigger_price if max_price > 0 else 0.0
-            min_ratio = (min_price - trigger_price) / trigger_price if min_price > 0 else 0.0
+        if cost_basis > 0:
+            max_ratio = (max_price - cost_basis) / cost_basis if max_price > 0 else 0.0
+            min_ratio = (min_price - cost_basis) / cost_basis if min_price > 0 else 0.0
         else:
             max_ratio = 0.0
             min_ratio = 0.0
         return {
             "max_close_reached": {
-                "price": max_price if max_price > 0 else trigger_price,
+                "price": max_price if max_price > 0 else cost_basis,
                 "date": exit_date,
                 "ratio": max_ratio,
             },
             "min_close_reached": {
-                "price": min_price if min_price > 0 else trigger_price,
-                "date": trigger_date,
+                "price": min_price if min_price > 0 else cost_basis,
+                "date": entry_date,
                 "ratio": min_ratio,
             },
         }
@@ -141,7 +153,7 @@ class PriceFactorInvestment(BaseInvestment):
     @staticmethod
     def _build_completed_targets(
         targets: List[Dict[str, Any]],
-        trigger_price: float,
+        cost_basis: float,
     ) -> List[Dict[str, Any]]:
         completed_targets: List[Dict[str, Any]] = []
         for t in targets:
@@ -195,7 +207,7 @@ class PriceFactorInvestment(BaseInvestment):
                     "profit": profit,
                     "weighted_profit": weighted_profit,
                     "profit_ratio": t_roi,
-                    "target_price": trigger_price,
+                    "target_price": cost_basis,
                     "extra_fields": {},
                 }
             )

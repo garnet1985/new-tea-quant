@@ -4,6 +4,7 @@ data_shibor 表结构定义（Python，变量名 schema）
 上海银行间同业拆放利率。主键 date nullable=false；其余 nullable=true。
 """
 schema = {
+    "update_key": "macro_shibor",
     "name": "sys_shibor",
     "primaryKey": ["date"],
     "fields": [

@@ -205,6 +205,7 @@ class EnumeratorOutputWriterService:
         fingerprint: StrategyRunFingerprint,
         status: str = "completed",
         created_at: Optional[str] = None,
+        simulation_effective: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Dict[str, Any], List[str]]:
         fp_meta, scope_stock_ids = EnumeratorOutputWriterService.fingerprint_dict_for_metadata(
             fingerprint
@@ -221,6 +222,8 @@ class EnumeratorOutputWriterService:
             "fingerprint": fp_meta,
             "status": status,
         }
+        if simulation_effective:
+            metadata["simulation"] = simulation_effective
         return metadata, scope_stock_ids
 
 

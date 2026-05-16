@@ -227,6 +227,7 @@ class PriceFactorFlowImpl:
         output_version_dir: Path,
         session_summary: Dict[str, Any],
         settings_snapshot: Dict[str, Any],
+        simulation_effective: Optional[Dict[str, Any]] = None,
     ) -> None:
         self._save_results(
             strategy_name=strategy_name,
@@ -235,6 +236,7 @@ class PriceFactorFlowImpl:
             output_version_dir=output_version_dir,
             session_summary=session_summary,
             settings_snapshot=settings_snapshot,
+            simulation_effective=simulation_effective,
         )
 
     def save_performance_report(
@@ -286,6 +288,7 @@ class PriceFactorFlowImpl:
         output_version_dir: Path,
         session_summary: Dict[str, Any],
         settings_snapshot: Dict[str, Any],
+        simulation_effective: Optional[Dict[str, Any]] = None,
     ) -> None:
         path_mgr = StrategyOutputPathService(sim_version_dir=sim_version_dir)
         with path_mgr.session_summary_path().open("w", encoding="utf-8") as f:
@@ -304,6 +307,8 @@ class PriceFactorFlowImpl:
             "session_summary": session_summary,
             "settings_snapshot": settings_snapshot,
         }
+        if simulation_effective:
+            metadata["simulation"] = simulation_effective
         with path_mgr.metadata_path().open("w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
 

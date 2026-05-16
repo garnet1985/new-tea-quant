@@ -4,7 +4,7 @@ Base Strategy Worker - 策略 Worker 基类
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 import logging
 
 from core.modules.data_contract.cache import ContractCacheManager
@@ -12,6 +12,18 @@ from core.modules.data_contract.contract_const import DataKey
 from core.modules.data_contract.data_contract_manager import DataContractManager
 from core.modules.strategy.enums import ExecutionMode, OpportunityStatus
 from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
+from core.modules.strategy.engines.shared.helpers.simulation_day_execution import (
+    execute_pending_exits_on_active,
+    fill_pending_buys,
+    queue_deferred_buy,
+    resolve_pending_buys_at_end,
+    resolve_pending_exits_on_active_at_end,
+)
+from core.modules.strategy.engines.shared.helpers.simulation_pricing import (
+    apply_buy_slippage,
+    trade_price_defers_to_next_session,
+    trade_theoretical_price_same_day,
+)
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
@@ -19,6 +31,11 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_vi
 logger = logging.getLogger(__name__)
 
 MAX_LOOKBACK_DAYS = 60
+
+
+def _active_list_from_investing(tracker: Dict[str, Any]) -> List[Opportunity]:
+    investing = tracker.get("investing")
+    return [investing] if investing is not None else []
 
 
 class BaseStrategyWorker(ABC):
@@ -30,6 +47,7 @@ class BaseStrategyWorker(ABC):
         self.execution_mode = job_payload["execution_mode"]
         self.strategy_name = job_payload["strategy_name"]
         self.settings = StrategySettingsView.from_dict(job_payload["settings"])
+        self.simulation = self.settings.simulation_settings
 
         self.contract_cache = ContractCacheManager()
         self.stock_info = self._load_stock_info()
@@ -126,10 +144,17 @@ class BaseStrategyWorker(ABC):
             logger.warning("没有K线数据: stock=%s", self.stock_id)
             return {"success": True, "stock_id": self.stock_id, "settled": []}
 
-        tracker = {"stock_id": self.stock_id, "passed_dates": [], "investing": None, "settled": []}
+        tracker = {
+            "stock_id": self.stock_id,
+            "passed_dates": [],
+            "pending_buys": [],
+            "investing": None,
+            "settled": [],
+        }
         min_required_kline = self.settings.min_required_records
         last_kline = None
-        for current_kline in all_klines:
+        last_idx = -1
+        for idx, current_kline in enumerate(all_klines):
             virtual_date_of_today = current_kline["date"]
             tracker["passed_dates"].append(virtual_date_of_today)
             if len(tracker["passed_dates"]) < min_required_kline:
@@ -137,9 +162,25 @@ class BaseStrategyWorker(ABC):
             data_of_today = self.data_manager.get_data_until(virtual_date_of_today)
             self._execute_single_day(tracker, current_kline, data_of_today)
             last_kline = current_kline
+            last_idx = idx
 
-        if tracker["investing"] and last_kline:
-            self._settle_open_opportunity(tracker, last_kline)
+        if last_kline:
+            resolve_pending_buys_at_end(
+                tracker["pending_buys"],
+                _active_list_from_investing(tracker),
+                [],
+                sim=self.simulation,
+            )
+            if tracker["pending_buys"]:
+                tracker["investing"] = tracker["pending_buys"][0]
+                tracker["pending_buys"].clear()
+            resolve_pending_exits_on_active_at_end(
+                _active_list_from_investing(tracker),
+                last_bar=last_kline,
+                sim=self.simulation,
+            )
+            if tracker["investing"]:
+                self._settle_open_opportunity(tracker, last_kline)
 
         del tracker["passed_dates"]
         del tracker["investing"]
@@ -151,14 +192,25 @@ class BaseStrategyWorker(ABC):
         current_kline: Dict[str, Any],
         data_of_today: Dict[str, Any],
     ) -> None:
+        active = _active_list_from_investing(tracker)
+        fill_pending_buys(
+            tracker["pending_buys"],
+            active,
+            bar=current_kline,
+            sim=self.simulation,
+        )
+        if active and tracker["investing"] is None:
+            tracker["investing"] = active[0]
+
         if tracker["investing"]:
-            is_completed = tracker["investing"].check_targets(
-                current_kline=current_kline,
-                goal_config=self.settings.goal,
+            exit_indices = execute_pending_exits_on_active(
+                active,
+                bar=current_kline,
+                sim=self.simulation,
             )
-            if is_completed:
+            if exit_indices:
                 completed_opportunity = tracker["investing"]
-                tracker["settled"].append(tracker["investing"].to_dict())
+                tracker["settled"].append(completed_opportunity.to_dict())
                 tracker["investing"] = None
                 logger.debug(
                     "投资完成: stock=%s, date=%s, reason=%s",
@@ -166,12 +218,47 @@ class BaseStrategyWorker(ABC):
                     current_kline["date"],
                     completed_opportunity.sell_reason,
                 )
+            else:
+                is_completed = tracker["investing"].check_targets(
+                    self.simulation,
+                    current_kline=current_kline,
+                    goal_config=self.settings.goal,
+                )
+                if is_completed:
+                    completed_opportunity = tracker["investing"]
+                    tracker["settled"].append(tracker["investing"].to_dict())
+                    tracker["investing"] = None
+                    logger.debug(
+                        "投资完成: stock=%s, date=%s, reason=%s",
+                        self.stock_id,
+                        current_kline["date"],
+                        completed_opportunity.sell_reason,
+                    )
 
-        if tracker["investing"] is None:
+        if tracker["investing"] is None and not tracker["pending_buys"]:
             opportunity = self.scan_opportunity_with_data(data_of_today)
             if opportunity:
                 opportunity.trigger_date = current_kline["date"]
-                opportunity.trigger_price = current_kline["close"]
+                opportunity.trigger_price = float(current_kline.get("close") or 0.0)
+                if trade_price_defers_to_next_session(self.simulation.buy_price_model):
+                    queue_deferred_buy(opportunity, signal_bar=current_kline)
+                    tracker["pending_buys"].append(opportunity)
+                    logger.debug(
+                        "发现机会(待次日开盘买入): stock=%s, date=%s",
+                        self.stock_id,
+                        current_kline["date"],
+                    )
+                    return
+                buy_raw = trade_theoretical_price_same_day(
+                    self.simulation.buy_price_model,
+                    side="buy",
+                    bar=current_kline,
+                    no_next_bar=self.simulation.edges_no_next_bar,
+                )
+                if buy_raw is None:
+                    return
+                opportunity.buy_price = apply_buy_slippage(buy_raw, self.simulation.slippage_buy_bps)
+                opportunity.buy_date = str(current_kline.get("date") or "")
                 opportunity.status = OpportunityStatus.ACTIVE.value
                 tracker["investing"] = opportunity
                 logger.debug(
@@ -181,11 +268,19 @@ class BaseStrategyWorker(ABC):
                     current_kline["close"],
                 )
 
-    def _settle_open_opportunity(self, tracker: Dict[str, Any], last_kline: Dict[str, Any]) -> None:
+    def _settle_open_opportunity(
+        self,
+        tracker: Dict[str, Any],
+        last_kline: Dict[str, Any],
+    ) -> None:
         opportunity = tracker.get("investing")
         if not opportunity:
             return
-        opportunity.settle(last_kline=last_kline, reason="backtest_end")
+        opportunity.settle(
+            self.simulation,
+            last_kline=last_kline,
+            reason="backtest_end",
+        )
         tracker["settled"].append(opportunity.to_dict())
         tracker["investing"] = None
         logger.debug(

@@ -5,6 +5,7 @@
 主键 key nullable=false；其余 nullable=true。
 """
 schema = {
+    "update_key": "system_system_cache",
     "name": "sys_cache",
     "primaryKey": "key",
     "fields": [

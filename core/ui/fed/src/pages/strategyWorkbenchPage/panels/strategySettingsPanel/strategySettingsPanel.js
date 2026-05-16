@@ -23,6 +23,11 @@ import {
   cleanupSamplingByStrategy,
   normalizeSamplingSettings,
 } from './editorSchemas/strategySampling';
+import {
+  buildStrategySimulationSchema,
+  cleanupSimulationByTemplate,
+  normalizeSimulationSettings,
+} from './editorSchemas/strategySimulation';
 
 function SectionAccordion({ title, defaultExpanded = false, children }) {
   return (
@@ -53,10 +58,12 @@ export function StrategySettingsPanel({
   onGoalChange,
   onSamplingChange,
   onFeesChange,
+  onSimulationChange,
   onPriceSimulatorChange,
   onCapitalSimulatorChange,
   allocationModeOptions,
   samplingStrategyOptions,
+  simulationTemplateOptions,
 }) {
   const shouldShowCore = hasNonEmptyCore(settings?.core);
   const [samplingEditorErrors, setSamplingEditorErrors] = useState({});
@@ -67,6 +74,10 @@ export function StrategySettingsPanel({
   const samplingSchema = useMemo(
     () => buildStrategySamplingSchema(samplingStrategyOptions),
     [samplingStrategyOptions],
+  );
+  const simulationSchema = useMemo(
+    () => buildStrategySimulationSchema(simulationTemplateOptions),
+    [simulationTemplateOptions],
   );
 
   return (
@@ -100,6 +111,15 @@ export function StrategySettingsPanel({
             schema={strategyFeesSchema}
             value={settings?.fees}
             onChange={onFeesChange}
+          />
+        </SectionAccordion>
+        <SectionAccordion title="回测执行假设">
+          <Editor
+            schema={simulationSchema}
+            value={normalizeSimulationSettings(settings?.simulation)}
+            onChange={(nextSimulation) => {
+              onSimulationChange(cleanupSimulationByTemplate(nextSimulation));
+            }}
           />
         </SectionAccordion>
         <SectionAccordion title="采样配置">

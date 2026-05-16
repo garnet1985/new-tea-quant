@@ -4,6 +4,7 @@ index_weight 表结构定义（Python，变量名 schema）
 指数成分股权重。主键 id/date/stock_id nullable=false；其余 nullable=true。
 """
 schema = {
+    "update_key": "index_stock_index_weight",
     "name": "sys_index_weight",
     "primaryKey": ["id", "date", "stock_id"],
     "fields": [

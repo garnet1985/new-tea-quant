@@ -90,7 +90,6 @@ devbackup/
 *.log
 logs/
 tools/
-core/ui/fed/build/
 
 ########################
 # Test Coverage

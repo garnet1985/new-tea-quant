@@ -9,6 +9,8 @@ from typing import Any, Dict, List
 
 from core.modules.data_contract.contract_const import DataKey
 
+from .simulation_settings import StrategySimulationSettings
+
 
 class StrategySettingsView:
     def __init__(self, settings_dict: Dict[str, Any]):
@@ -22,6 +24,17 @@ class StrategySettingsView:
         self.price_simulator = settings_dict.get("price_simulator", {})
         self.goal = settings_dict.get("goal", {})
         self.performance = settings_dict.get("performance", {})
+
+    @property
+    def simulation(self) -> Dict[str, Any]:
+        """根级 ``simulation`` 原始 dict 片段（与 ``StrategySettingsView`` 其它块一致）。"""
+        s = self._settings.get("simulation")
+        return s if isinstance(s, dict) else {}
+
+    @property
+    def simulation_settings(self) -> StrategySimulationSettings:
+        """与 ``StrategySettings.simulation`` 同构；盯盘/买卖价模型等用其属性读取。"""
+        return StrategySimulationSettings.from_strategy_root(self._settings)
 
     @staticmethod
     def normalize_base_required_data(raw: Dict[str, Any]) -> Dict[str, Any]:

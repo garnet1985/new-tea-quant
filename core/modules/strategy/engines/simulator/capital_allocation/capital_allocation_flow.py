@@ -10,6 +10,10 @@ from core.modules.strategy.engines.simulator.capital_allocation.data_classes.flo
     CapitalAllocationExecuteContext,
     CapitalAllocationPreprocessContext,
 )
+from core.modules.strategy.engines.shared.helpers.simulation_flow import (
+    prepare_simulation_settings,
+    simulation_effective_snapshot,
+)
 from core.modules.strategy.services.cache.simulator_res_db_cache.helpers import (
     raw_settings_for_db_cache_fingerprint,
     stock_ids_for_db_cache_fingerprint,
@@ -66,6 +70,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         tick(8.0)
 
         base_settings = self._impl.load_settings(strategy_name, strategy_info)
+        simulation_settings = prepare_simulation_settings(base_settings)
         config = self._impl.parse_config(base_settings)
         output_version_dir = self._impl.resolve_source_version(
             strategy_name=strategy_name,
@@ -117,6 +122,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         preprocessed = CapitalAllocationPreprocessContext(
             strategy_name=strategy_name,
             base_settings=base_settings,
+            simulation_settings=simulation_settings,
             config=config,
             output_version_dir=output_version_dir,
             sim_version_dir=sim_version_dir,
@@ -158,6 +164,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
     ) -> CapitalAllocationPreprocessContext:
         # step1: read raw strategy settings
         base_settings = self._impl.load_settings(strategy_name, strategy_info)
+        simulation_settings = prepare_simulation_settings(base_settings)
         # step2: parse simulator-specific config from settings
         config = self._impl.parse_config(base_settings)
         # step3: resolve source data version and create simulation version
@@ -175,6 +182,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         return CapitalAllocationPreprocessContext(
             strategy_name=strategy_name,
             base_settings=base_settings,
+            simulation_settings=simulation_settings,
             config=config,
             output_version_dir=output_version_dir,
             sim_version_dir=sim_version_dir,
@@ -243,6 +251,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         )
         # step2: persist output artifacts and metadata
         preprocessed.profiler.start_timer("save_csv")
+        settings_snapshot = preprocessed.base_settings.to_dict()
         self._impl.save_outputs(
             sim_version_dir=preprocessed.sim_version_dir,
             sim_version_id=preprocessed.sim_version_id,
@@ -251,7 +260,10 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             equity_curve=executed.equity_curve or [],
             summary=summary,
             config=preprocessed.config,
-            settings_snapshot=preprocessed.base_settings.to_dict(),
+            settings_snapshot=settings_snapshot,
+            simulation_effective=simulation_effective_snapshot(
+                preprocessed.simulation_settings
+            ),
         )
         preprocessed.profiler.metrics.time_save_csv = preprocessed.profiler.end_timer(
             "save_csv"

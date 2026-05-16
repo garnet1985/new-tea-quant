@@ -85,7 +85,7 @@ class SchemaManager:
         if not isinstance(schema, dict):
             raise ValueError(f"schema 必须为 dict: {schema_file}")
         
-        self._validate_schema(schema)
+        self._validate_schema(schema, schema_path.resolve())
         return schema
     
     def load_all_schemas(self) -> Dict[str, Dict]:
@@ -113,6 +113,7 @@ class SchemaManager:
             except Exception as e:
                 logger.error(f"❌ 加载 schema 失败 {schema_py}: {e}")
         
+        self._assert_unique_update_keys(schemas)
         return schemas
     
     def load_schema_from_file(self, schema_file: str) -> Dict:
@@ -135,11 +136,36 @@ class SchemaManager:
         schema = json.loads(content)
         
         # 验证 schema
-        self._validate_schema(schema)
+        self._validate_schema(schema, schema_path.resolve())
         
         return schema
     
-    def _validate_schema(self, schema: Dict):
+    def _requires_update_key(self, schema_file_path: Optional[Path]) -> bool:
+        """仅 ``core/tables`` 下的 Python schema 必须带 ``update_key``（迁移/脚本稳定锚点）。"""
+        if schema_file_path is None:
+            return False
+        core_tables = (PathManager.core() / "tables").resolve()
+        try:
+            schema_file_path.resolve().relative_to(core_tables)
+            return True
+        except ValueError:
+            return False
+
+    def _assert_unique_update_keys(self, schemas: Dict[str, Dict]) -> None:
+        """``core/tables`` 中 ``update_key`` 全局唯一。"""
+        seen: Dict[str, str] = {}
+        for table_name, schema in schemas.items():
+            uk = schema.get("update_key")
+            if not isinstance(uk, str) or not uk.strip():
+                continue
+            uk = uk.strip()
+            if uk in seen:
+                raise ValueError(
+                    f"update_key 重复: {uk!r} 被表 {seen[uk]!r} 与 {table_name!r} 同时使用"
+                )
+            seen[uk] = table_name
+
+    def _validate_schema(self, schema: Dict, schema_file_path: Optional[Path] = None):
         """
         验证 schema 格式
         
@@ -153,6 +179,14 @@ class SchemaManager:
         for field in required_fields:
             if field not in schema:
                 raise ValueError(f"Schema 缺少必需字段: {field}")
+
+        if self._requires_update_key(schema_file_path):
+            uk = schema.get("update_key")
+            if not isinstance(uk, str) or not uk.strip():
+                loc = f" ({schema_file_path})" if schema_file_path else ""
+                raise ValueError(
+                    f"core/tables 下的 schema 缺少非空字符串字段 update_key{loc}，表名: {schema.get('name')!r}"
+                )
         
         # 验证字段定义（使用 Field 对象进行验证）
         for field_dict in schema['fields']:

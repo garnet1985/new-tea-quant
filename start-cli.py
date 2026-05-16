@@ -25,6 +25,8 @@
     python start-cli.py -sp                  # Strategy price factor simulate
     python start-cli.py -sa                  # Strategy capital allocation simulate
     python start-cli.py -sy                  # Strategy analysis
+    python start-cli.py -u                   # 检查并应用 core 版本更新
+    python start-cli.py -update              # 同上
     python start-cli.py -h                   # 查看帮助
 """
 import sys
@@ -64,6 +66,53 @@ def ensure_venv_for_cli() -> None:
 
 ensure_venv_for_cli()
 
+
+def _skip_auto_install_from_argv() -> bool:
+    """与 ``-h`` / ``-v`` / ``-u`` 等无需拉起应用的参数对齐。"""
+    raw = os.environ.get("NTQ_SKIP_AUTO_INSTALL", "").strip().lower()
+    if raw in ("1", "true", "yes"):
+        return True
+    argv = sys.argv[1:]
+    if not argv:
+        return False
+    skip_flags = {
+        "-h",
+        "--help",
+        "-v",
+        "--version",
+        "-u",
+        "-update",
+        "--update",
+    }
+    return any(token in skip_flags for token in argv)
+
+
+def ensure_app_installed_if_needed() -> None:
+    """
+    执行业务命令前：若 CLI 应用未安装，自动运行 ``install.py``（与 launcher 触发 UI 安装对称）。
+    """
+    if _skip_auto_install_from_argv():
+        return
+
+    try:
+        from setup.install_runtime import needs_install
+    except ModuleNotFoundError:
+        # core 尚不可导入时，交给后续 import 块的错误提示
+        return
+
+    if not needs_install("cli"):
+        return
+
+    print("检测到应用尚未完成安装，正在运行 install.py …", flush=True)
+    from setup.cli_runtime import ensure_cli_install_via_install_py
+
+    code = ensure_cli_install_via_install_py()
+    if code != 0:
+        raise SystemExit(code)
+
+
+ensure_app_installed_if_needed()
+
 # ============================================================================
 # 警告抑制（必须在导入第三方库之前）
 # ============================================================================
@@ -99,6 +148,7 @@ except ModuleNotFoundError as e:
                 "",
                 "建议：在仓库根目录先执行一次安装（会创建 venv/ 并安装 requirements.txt）：",
                 "  python3 install.py",
+                "  或：python3 start-cli.py -sp  （将自动尝试 install.py）",
                 "",
                 "如果你已手动管理虚拟环境，请激活对应 venv 后再运行：",
                 "  pip install -r requirements.txt",
@@ -253,6 +303,43 @@ def _add_shortcut_flags(parser):
     parser.add_argument('-sy', dest='strategy_analysis_flag', action='store_true',
                        help='Strategy analysis（分析模拟结果）')
 
+    parser.add_argument('-u', '-update', dest='update_flag', action='store_true',
+                       help='检查远端 core 版本并在确认后执行应用升级')
+
+
+def _run_app_update() -> int:
+    """``-u`` / ``-update``：探测版本并可选运行 userspace updater 流水线。"""
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parent
+    updater_dir = None
+    for candidate in (
+        repo_root / "userspace" / "updater",
+        repo_root / "setup" / "updater",
+    ):
+        if (candidate / "upgrade_entry.py").is_file():
+            updater_dir = candidate
+            break
+    if updater_dir is None:
+        sys.stderr.write(
+            "未找到升级器（userspace/updater 或 setup/updater）。"
+            "请先完成 init userspace 或从仓库安装 updater。\n"
+        )
+        return 1
+
+    upd_path = str(updater_dir.resolve())
+    if upd_path not in sys.path:
+        sys.path.insert(0, upd_path)
+
+    from upgrade_entry import run_interactive_upgrade  # noqa: E402
+
+    assume_yes = os.environ.get("NTQ_UPDATE_ASSUME_YES", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    return run_interactive_upgrade(repo_root, assume_yes=assume_yes)
+
 
 def _add_extra_arguments(parser):
     """添加额外参数"""
@@ -304,6 +391,7 @@ def _get_help_epilog() -> str:
   -sp          Strategy price factor simulation
   -sa          Strategy capital allocation simulation
   -sy          Strategy analysis
+  -u, -update  检查 core 远端版本并在确认后升级
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 使用示例:
@@ -329,6 +417,7 @@ def _get_help_epilog() -> str:
     %(prog)s -sp -f               Strategy price factor（跳过指纹读缓存，强制重算）
     %(prog)s -sa                  Strategy capital allocation simulation
     %(prog)s -sy                  Strategy analysis
+    %(prog)s -u                   检查并应用 core 版本更新
 
   额外参数:
     %(prog)s simulate --strategy example    只运行指定策略
@@ -552,7 +641,10 @@ def main():
     parser = create_argument_parser()
     args = parser.parse_args()
 
-    # 版本查询（尽早返回，避免初始化重资源）
+    # 版本 / 应用升级（尽早返回，避免初始化重资源）
+    if getattr(args, "update_flag", False):
+        raise SystemExit(_run_app_update())
+
     if args.version:
         print(f"NTQ Core Version: {system_meta.version}")
         print(f"Release Date: {system_meta.release_date}")

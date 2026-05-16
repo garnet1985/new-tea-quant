@@ -4,6 +4,7 @@ sys_tag_value 表结构定义（Python，变量名 schema）
 标签值。主键 entity_id/tag_definition_id/as_of_date nullable=false；其余 nullable=true。
 """
 schema = {
+    "update_key": "tag_tag_value",
     "name": "sys_tag_value",
     "primaryKey": ["entity_id", "tag_definition_id", "as_of_date"],
     "fields": [

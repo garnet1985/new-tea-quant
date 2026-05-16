@@ -160,7 +160,7 @@ function StrategyExecutionPanel({
     if (typeof wbVid === 'string') {
       setLastCompletedWorkbenchVersionId(wbVid);
     }
-  }, [workbenchHydration?.key, strategyName]);
+  }, [workbenchHydration, strategyName]);
 
   const executionBusy = Boolean(activeRunId) || Boolean(runningStep);
 

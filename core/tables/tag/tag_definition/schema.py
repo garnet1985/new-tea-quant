@@ -4,6 +4,7 @@ sys_tag_definition 表结构定义（Python，变量名 schema）
 标签定义。主键 id nullable=false；其余 nullable=true。
 """
 schema = {
+    "update_key": "tag_tag_definition",
     "name": "sys_tag_definition",
     "primaryKey": "id",
     "fields": [

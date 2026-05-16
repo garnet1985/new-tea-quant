@@ -109,6 +109,13 @@
 |--------|------|
 | `GET /strategy/settings/capital-allocation-strategies` | 资金分配方式等枚举选项（表单下拉 / radio） |
 | `GET /strategy/settings/sampling-strategies` | 采样策略等枚举选项 |
+| `GET /strategy/settings/simulation-templates` | 回测执行模板等枚举选项（label 中文，value 英文） |
+
+### `result_report.capital_allocation`（FED 仅认此格式，snake_case）
+
+资金报告 Tab / 对比 **必须** 由 V2-07 或快照合并返回完整槽位；旧 camelCase 摘要、`result.capital`、无 `equity_curve_*` 的缓存一律视为无效（UI 显示「数据异常」）。清缓存后重跑 **资金模拟**。
+
+必填：`initial_capital`, `final_total_equity`, `total_return`, `max_drawdown`, `win_rate`, `total_profit`, `total_trades`, `buy_trades`, `sell_trades`, `win_trades`, `loss_trades`, `avg_pnl_per_trade`, `equity_curve_labels`, `equity_curve_values`（等长且 ≥2 点）。可选 BFF 扩展：`calmar_ratio`, `drawdown_curve_values`, `average_open_positions`, `worst_sell_pnls`, `stock_summary`, 等（见 ``capital_allocation_flow_impl._merge_bff_ui_extensions``）。
 
 - **与「profiles」**：见上文 **「FED 对接说明 · 表单选项与 profiles」**；本表接口**不隐含**返回 SWB 式 `profiles`，除非后续扩展并写明字段。
 - 其它选项资源：**路径命名与上表同一风格**（`/strategy/settings/...`），上线前完成上表与编排文档的同步增补。

@@ -5,6 +5,7 @@ data_money_supply 表结构定义（Python，变量名 schema）
 主键 date nullable=false；其余 nullable=true。
 """
 schema = {
+    "update_key": "macro_money_supply",
     "name": "sys_money_supply",
     "primaryKey": "date",
     "fields": [

@@ -26,24 +26,24 @@ class AllocationStrategy:
         self.per_trade_capital = initial_capital / max_portfolio_size
 
     def calculate_shares_to_buy(
-        self, account: Account, trigger_price: float, win_rate: Optional[float] = None
+        self, account: Account, buy_price: float, win_rate: Optional[float] = None
     ) -> int:
         if self.mode == "equal_capital":
-            return self._calculate_equal_capital(account, trigger_price)
+            return self._calculate_equal_capital(account, buy_price)
         if self.mode == "equal_shares":
-            return self._calculate_equal_shares(account, trigger_price)
+            return self._calculate_equal_shares(account, buy_price)
         if self.mode == "kelly":
-            return self._calculate_kelly(account, trigger_price, win_rate)
+            return self._calculate_kelly(account, buy_price, win_rate)
         return 0
 
-    def _calculate_equal_capital(self, account: Account, trigger_price: float) -> int:
+    def _calculate_equal_capital(self, account: Account, buy_price: float) -> int:
         if account.cash < self.per_trade_capital:
             return 0
-        max_shares = int(self.per_trade_capital / trigger_price)
+        max_shares = int(self.per_trade_capital / buy_price)
         buy_shares = (max_shares // self.lot_size) * self.lot_size
         if buy_shares == 0:
             return 0
-        gross_amount = buy_shares * trigger_price
+        gross_amount = buy_shares * buy_price
         total_cost = (
             self.fee_calculator.calculate_total_cost(gross_amount, "buy")
             if self.fee_calculator
@@ -52,16 +52,16 @@ class AllocationStrategy:
         if account.cash < total_cost:
             available_capital = min(account.cash, self.per_trade_capital)
             max_affordable_shares = int(
-                (available_capital / (trigger_price * (1 + self.fee_calculator.commission_rate)))
+                (available_capital / (buy_price * (1 + self.fee_calculator.commission_rate)))
                 if self.fee_calculator
-                else (available_capital / trigger_price)
+                else (available_capital / buy_price)
             )
             buy_shares = (max_affordable_shares // self.lot_size) * self.lot_size
         return buy_shares
 
-    def _calculate_equal_shares(self, account: Account, trigger_price: float) -> int:
+    def _calculate_equal_shares(self, account: Account, buy_price: float) -> int:
         target_shares = self.lot_size * self.lots_per_trade
-        gross_amount = target_shares * trigger_price
+        gross_amount = target_shares * buy_price
         total_cost = (
             self.fee_calculator.calculate_total_cost(gross_amount, "buy")
             if self.fee_calculator
@@ -70,7 +70,7 @@ class AllocationStrategy:
         return target_shares if account.cash >= total_cost else 0
 
     def _calculate_kelly(
-        self, account: Account, trigger_price: float, win_rate: Optional[float] = None
+        self, account: Account, buy_price: float, win_rate: Optional[float] = None
     ) -> int:
         if win_rate is None:
             return 0
@@ -79,10 +79,10 @@ class AllocationStrategy:
             return 0
         kelly_divisor = 1.0 / self.kelly_fraction if self.kelly_fraction > 0 else 1.0
         target_capital = (f_raw / kelly_divisor) * account.cash
-        buy_shares = (int(target_capital / trigger_price) // self.lot_size) * self.lot_size
+        buy_shares = (int(target_capital / buy_price) // self.lot_size) * self.lot_size
         if buy_shares == 0:
             return 0
-        gross_amount = buy_shares * trigger_price
+        gross_amount = buy_shares * buy_price
         total_cost = (
             self.fee_calculator.calculate_total_cost(gross_amount, "buy")
             if self.fee_calculator
@@ -90,9 +90,9 @@ class AllocationStrategy:
         )
         if account.cash < total_cost:
             max_affordable = int(
-                (account.cash / (trigger_price * (1 + self.fee_calculator.commission_rate)))
+                (account.cash / (buy_price * (1 + self.fee_calculator.commission_rate)))
                 if self.fee_calculator
-                else (account.cash / trigger_price)
+                else (account.cash / buy_price)
             )
             buy_shares = (max_affordable // self.lot_size) * self.lot_size
         return buy_shares

@@ -7,6 +7,7 @@ sys_stock_market_map 解耦，本表不再包含 industry_id / market_id / board
 主键、时序列 nullable=false；其余 nullable=true。
 """
 schema = {
+    "update_key": "stock_stock_list",
     "name": "sys_stock_list",
     "primaryKey": "id",
     "fields": [

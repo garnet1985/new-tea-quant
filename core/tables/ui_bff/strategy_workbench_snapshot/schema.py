@@ -5,6 +5,7 @@
 """
 
 schema = {
+    "update_key": "ui_bff_strategy_workbench_snapshot",
     "name": "sys_strategy_workbench_snapshot",
     "primaryKey": "id",
     "fields": [

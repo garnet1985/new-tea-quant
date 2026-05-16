@@ -22,7 +22,7 @@
 | 路径 | 说明 |
 |------|------|
 | [devtools/docker/README.md](../devtools/docker/README.md) | Docker Compose 用法；**`Dockerfile`**、**`docker-compose.yml`** 仍在仓库根目录 |
-| `devtools/automation/badge_updating/update_readme_version_badge.py` | 将根目录 `README.md` 中版本徽章与 `core/system.py` 对齐 |
+| `devtools/automation/badge_updating/update_readme_version_badge.py` | 将根目录 `README.md` 中版本徽章与 `core/system.json` 对齐 |
 | `devtools/automation/table_exporting/export_table.py` | 基于 `model.export_data` 的按表导出 CLI（维护/Demo 用） |
 
 ## UI（`core/ui/`）

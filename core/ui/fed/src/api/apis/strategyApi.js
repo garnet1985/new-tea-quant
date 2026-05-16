@@ -10,6 +10,7 @@ function apiStrategyPath(strategyName) {
 /** V2-04 全局选项（无 strategy_name 路径段） */
 const API_SETTINGS_CAPITAL = `${API_VERSION_PREFIX}/strategy/settings/capital-allocation-strategies`;
 const API_SETTINGS_SAMPLING = `${API_VERSION_PREFIX}/strategy/settings/sampling-strategies`;
+const API_SETTINGS_SIMULATION_TEMPLATES = `${API_VERSION_PREFIX}/strategy/settings/simulation-templates`;
 
 /** @typedef {{ value: string, label: string }} StrategySettingOption */
 /** @typedef {{ configurable_fields: string[], required_fields: string[] }} StrategySettingProfile */
@@ -508,6 +509,29 @@ export async function fetchSamplingStrategyOptions() {
  */
 export async function fetchSamplingStrategyConfig() {
   const json = await requestJson(API_SETTINGS_SAMPLING, { method: 'GET' });
+  const items = json?.message?.items ?? [];
+  return {
+    options: items.map((row) => ({ value: row.value, label: row.label })),
+    profiles: {},
+  };
+}
+
+/**
+ * SWB：回测执行模板选项（`simulation.template`）
+ * @returns {Promise<StrategySettingOption[]>}
+ */
+export async function fetchSimulationTemplateOptions() {
+  const json = await requestJson(API_SETTINGS_SIMULATION_TEMPLATES, { method: 'GET' });
+  const items = json?.message?.items ?? [];
+  return items.map((row) => ({ value: row.value, label: row.label }));
+}
+
+/**
+ * SWB：回测模板选项 + 联动字段 profile（当前无 profile，与 sampling 对齐）。
+ * @returns {Promise<{ options: StrategySettingOption[], profiles: Record<string, StrategySettingProfile> }>}
+ */
+export async function fetchSimulationTemplateConfig() {
+  const json = await requestJson(API_SETTINGS_SIMULATION_TEMPLATES, { method: 'GET' });
   const items = json?.message?.items ?? [];
   return {
     options: items.map((row) => ({ value: row.value, label: row.label })),

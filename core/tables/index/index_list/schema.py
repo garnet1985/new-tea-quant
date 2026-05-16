@@ -4,6 +4,7 @@
 主键 id；data.json 为该表初始值（上证、沪深300、科创50、深证成指、创业板指等）。
 """
 schema = {
+    "update_key": "index_index_list",
     "name": "sys_index_list",
     "primaryKey": "id",
     "fields": [

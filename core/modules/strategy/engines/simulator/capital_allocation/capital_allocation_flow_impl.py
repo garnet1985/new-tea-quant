@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 import json
+import logging
 
 from core.modules.strategy.engines.analyzer import Analyzer
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
@@ -27,11 +28,14 @@ from core.modules.strategy.services.data.output import (
     StrategyOutputPathService,
     StrategyOutputVersionService,
 )
+from core.modules.strategy.services.data.output.event import parse_opportunity_buy_fill
 from .data_classes.account import Account, Position
 from .data_classes.report import CapitalReport
 from .helpers.allocation import AllocationStrategy
 from .helpers.core import DateTimeEncoder
 from .helpers.fees import FeeCalculator
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
@@ -266,6 +270,13 @@ class CapitalAllocationFlowImpl:
         )
         profiler.metrics.time_load_data = profiler.end_timer("load_data")
         profiler.metrics.opportunity_count = len(events)
+        if not events:
+            logger.warning(
+                "资金模拟无事件：枚举目录 %s 下无有效买入（须含 buy_date/buy_price），"
+                "请先跑 enum 并确认 sampling.pool 路径相对策略目录名 %s",
+                output_version_dir,
+                strategy_name,
+            )
         return events
 
     def create_execution_state(
@@ -404,6 +415,7 @@ class CapitalAllocationFlowImpl:
         summary: Dict[str, Any],
         config: StrategyCapitalSimulatorSettings,
         settings_snapshot: Dict[str, Any],
+        simulation_effective: Optional[Dict[str, Any]] = None,
     ) -> None:
         self._save_results(
             sim_version_dir,
@@ -414,6 +426,7 @@ class CapitalAllocationFlowImpl:
             summary,
             config,
             settings_snapshot,
+            simulation_effective,
         )
 
     def save_performance_report(
@@ -458,9 +471,16 @@ class CapitalAllocationFlowImpl:
         stock_id = event.stock_id
         opportunity = event.opportunity or {}
         opp_id = str(opportunity.get("opportunity_id", "")).strip()
-        trigger_price = float(opportunity.get("trigger_price", 0.0) or 0.0)
-        if not stock_id or not opp_id or trigger_price <= 0:
+        buy_fill = parse_opportunity_buy_fill(opportunity)
+        if not stock_id or not opp_id or buy_fill is None:
+            if opp_id and stock_id and buy_fill is None:
+                logger.warning(
+                    "跳过买入：机会缺少有效 buy_date/buy_price stock=%s opp=%s",
+                    stock_id,
+                    opp_id,
+                )
             return None
+        buy_event_date, buy_price = buy_fill
         if (
             account.has_position(stock_id)
             or account.get_portfolio_size() >= allocation_strategy.max_portfolio_size
@@ -472,11 +492,11 @@ class CapitalAllocationFlowImpl:
             else None
         )
         buy_shares = allocation_strategy.calculate_shares_to_buy(
-            account, trigger_price, win_rate
+            account, buy_price, win_rate
         )
         if buy_shares == 0:
             return None
-        gross_amount = buy_shares * trigger_price
+        gross_amount = buy_shares * buy_price
         fees = allocation_strategy.fee_calculator.calculate_fees(gross_amount, "buy")
         total_cost = gross_amount + fees
         if account.cash < total_cost:
@@ -488,17 +508,17 @@ class CapitalAllocationFlowImpl:
         position.avg_cost = total_cost / buy_shares
         position.current_opportunity_id = opp_id
         return {
-            "date": event.date,
+            "date": buy_event_date,
             "stock_id": stock_id,
             "opportunity_id": opp_id,
             "side": "buy",
             "shares": buy_shares,
-            "price": trigger_price,
+            "price": buy_price,
             "amount": gross_amount,
             "fees": fees,
             "total_cost": total_cost,
             "cash_after": account.cash,
-            "equity_after": account.get_equity({stock_id: trigger_price}),
+            "equity_after": account.get_equity({stock_id: buy_price}),
         }
 
     def _handle_target_event(
@@ -677,6 +697,7 @@ class CapitalAllocationFlowImpl:
         summary: Dict[str, Any],
         config: StrategyCapitalSimulatorSettings,
         settings_snapshot: Dict[str, Any],
+        simulation_effective: Optional[Dict[str, Any]] = None,
     ) -> None:
         from core.utils.io.csv_io import write_dicts_to_csv
 
@@ -702,6 +723,8 @@ class CapitalAllocationFlowImpl:
             "settings_snapshot": settings_snapshot,
             "created_at": datetime.now().isoformat(),
         }
+        if simulation_effective:
+            metadata["simulation"] = simulation_effective
         with path_mgr.metadata_path().open("w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
 

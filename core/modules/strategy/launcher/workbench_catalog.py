@@ -10,6 +10,9 @@ from core.modules.strategy.engines.shared.data_classes.discovered_strategy impor
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.sampling_settings import (
     KNOWN_STRATEGIES,
 )
+from core.modules.strategy.engines.shared.data_classes.strategy_settings.simulation_settings import (
+    KNOWN_SIMULATION_TEMPLATES,
+)
 from core.modules.strategy.engines.simulator.capital_allocation.data_classes.settings import (
     _VALID_MODES,
 )
@@ -99,6 +102,12 @@ _SAMPLING_LABELS: Dict[str, str] = {
     "blacklist": "黑名单",
 }
 
+_SIMULATION_TEMPLATE_LABELS: Dict[str, str] = {
+    "deterministic": "确定性（收盘信号 / 次日开盘买 / 收盘卖）",
+    "extreme": "极值压力（盯盘与成交均用极值近似）",
+    "custom": "自定义（逐项指定盯盘与买卖价模型）",
+}
+
 
 def items_capital_allocation_strategies() -> List[Dict[str, Any]]:
     """``capital_simulator.allocation.mode`` 可选值。"""
@@ -120,4 +129,15 @@ def items_sampling_strategies() -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     for k in keys + rest:
         out.append({"value": k, "label": _SAMPLING_LABELS.get(k, k)})
+    return out
+
+
+def items_simulation_templates() -> List[Dict[str, Any]]:
+    """根级 ``simulation.template`` 可选值（label 中文，value 与 settings 英文枚举一致）。"""
+    ordered = ("deterministic", "extreme", "custom")
+    keys = [k for k in ordered if k in KNOWN_SIMULATION_TEMPLATES]
+    rest = sorted(k for k in KNOWN_SIMULATION_TEMPLATES if k not in keys)
+    out: List[Dict[str, Any]] = []
+    for k in keys + rest:
+        out.append({"value": k, "label": _SIMULATION_TEMPLATE_LABELS.get(k, k)})
     return out

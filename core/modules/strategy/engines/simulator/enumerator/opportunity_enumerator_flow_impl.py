@@ -526,6 +526,7 @@ class OpportunityEnumeratorFlowImpl:
         fingerprint: StrategyRunFingerprint,
         status: str = "completed",
         stock_summary_by_id: Optional[Dict[str, Dict[str, Any]]] = None,
+        simulation_settings: Any = None,
     ) -> Optional[Dict[str, Any]]:
         summary_map = stock_summary_by_id if stock_summary_by_id is not None else self._stock_summary_by_id
         if summary_map:
@@ -534,6 +535,13 @@ class OpportunityEnumeratorFlowImpl:
                 by_stock_id=summary_map,
             )
 
+        sim_effective = None
+        if simulation_settings is not None:
+            from core.modules.strategy.engines.shared.helpers.simulation_flow import (
+                simulation_effective_snapshot,
+            )
+
+            sim_effective = simulation_effective_snapshot(simulation_settings)
         metadata, _scope_unused = EnumeratorOutputWriterService.build_metadata(
             strategy_name=str(strategy_name),
             start_date=self.start_date,
@@ -545,6 +553,7 @@ class OpportunityEnumeratorFlowImpl:
             fingerprint=fingerprint,
             status=status,
             created_at=datetime.now().isoformat(),
+            simulation_effective=sim_effective,
         )
         EnumeratorOutputWriterService.write_metadata(
             output_dir=output_dir, metadata=metadata

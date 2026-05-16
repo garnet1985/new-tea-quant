@@ -15,8 +15,15 @@ from core.modules.strategy.engines.simulator.enumerator.data_classes import (
     EnumeratorPreprocessContext,
     EnumeratorProbeContext,
 )
+from core.modules.strategy.engines.simulator.enumerator.data_classes.settings import (
+    OpportunityEnumeratorSettings,
+)
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
+)
+from core.modules.strategy.engines.shared.helpers.simulation_flow import (
+    prepare_simulation_settings,
+    simulation_effective_snapshot,
 )
 if TYPE_CHECKING:
     from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
@@ -162,10 +169,11 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         base_settings = self._impl.load_settings(
             strategy_name=strategy_name, strategy_info=strategy_info
         )
+        simulation_settings = prepare_simulation_settings(base_settings)
         worker_ref = self._impl.resolve_worker_blueprint(
             strategy_name=strategy_name, strategy_info=strategy_info
         )
-        enum_settings = self._impl.parse_enum_settings(base_settings)
+        enum_settings = OpportunityEnumeratorSettings.from_base(base_settings)
         settings_payload = enum_settings.to_dict()
         raw_full = copy.deepcopy(base_settings.to_dict())
         # API 形态转换器未接入时使用 runtime 快照（与校验 / 指纹路径同源 dict）。
@@ -179,6 +187,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         )
         return EnumeratorProbeContext(
             strategy_name=strategy_name,
+            simulation_settings=simulation_settings,
             enum_settings=enum_settings,
             settings_payload=settings_payload,
             settings_for_fingerprint=settings_for_fingerprint,
@@ -209,6 +218,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         runtime = self._impl.create_runtime_context()
         return EnumeratorPreprocessContext(
             strategy_name=probe.strategy_name,
+            simulation_settings=probe.simulation_settings,
             enum_settings=probe.enum_settings,
             full_settings_snapshot_api=probe.full_settings_snapshot_api,
             settings_payload=probe.settings_payload,
@@ -264,6 +274,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             enum_settings=preprocessed.enum_settings,
             fingerprint=result_fingerprint,
             status="completed",
+            simulation_settings=preprocessed.simulation_settings,
         )
         summary_list = self._impl.build_result_report(
             strategy_name=preprocessed.strategy_name,

@@ -58,21 +58,17 @@ export function buildExecutionResultFromWorkbenchReport(resultReport) {
 
   const cap = resultReport.capital_allocation;
   if (cap && typeof cap === 'object') {
-    const profit = Number(cap.profit ?? cap.total_profit);
-    const ic = Number(cap.initialCapital ?? cap.initial_capital);
-    const ec = Number(
-      cap.endCapital
-        ?? cap.final_total_equity
-        ?? cap.final_equity
-        ?? cap.end_capital,
-    );
-    const retPct = Number(cap.retPct ?? cap.return_pct ?? cap.ret_pct);
-    if ([profit, ic, ec, retPct].some((x) => Number.isFinite(x))) {
+    const profit = Number(cap.total_profit);
+    const ic = Number(cap.initial_capital);
+    const ec = Number(cap.final_total_equity);
+    const tr = Number(cap.total_return);
+    const retPct = Number.isFinite(tr) ? tr * 100 : NaN;
+    if ([profit, ic, ec, retPct].every((x) => Number.isFinite(x))) {
       out.capital = {
-        profit: Number.isFinite(profit) ? profit : 0,
-        retPct: Number.isFinite(retPct) ? retPct : 0,
-        initialCapital: Number.isFinite(ic) ? ic : 0,
-        endCapital: Number.isFinite(ec) ? ec : 0,
+        profit,
+        retPct,
+        initialCapital: ic,
+        endCapital: ec,
       };
     }
   }

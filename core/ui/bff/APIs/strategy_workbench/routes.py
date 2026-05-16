@@ -75,6 +75,16 @@ def get_settings_sampling_strategies():
     return ok({"items": s.items_sampling_strategies()})
 
 
+@strategy_workbench_api_bp.route(
+    "/v1/strategy/settings/simulation-templates",
+    methods=["GET"],
+)
+def get_settings_simulation_templates():
+    """GET /strategy/settings/simulation-templates"""
+    s = get_strategy_workbench_stack()
+    return ok({"items": s.items_simulation_templates()})
+
+
 # --- V2-05 ---
 @strategy_workbench_api_bp.route(
     "/v1/strategy/<strategy_name>/<step>/run",

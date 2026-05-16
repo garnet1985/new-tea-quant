@@ -37,8 +37,7 @@ def _stock_ids_for_enumerator_view(
         data_manager = DataManager(is_verbose=False)
         universe = data_manager.service.stock.list.load(filtered=True)
 
-    helper_strategy_name = str(settings_view.name or "").strip() or strategy_name
-
+    # 股票池文件路径相对 ``userspace/strategies/<目录名>/``，须用发现名 strategy_name，非 settings.name 展示名
     if enum_settings.use_sampling:
         sampling_amount = stock_count if stock_count is not None else settings_view.sampling_amount
         sampling_config = (
@@ -50,7 +49,7 @@ def _stock_ids_for_enumerator_view(
             all_stocks=universe,
             sampling_amount=sampling_amount,
             sampling_config=sampling_config,
-            strategy_name=helper_strategy_name,
+            strategy_name=strategy_name,
         )
 
     return [s["id"] for s in universe]

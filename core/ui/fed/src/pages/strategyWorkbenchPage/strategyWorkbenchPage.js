@@ -33,6 +33,7 @@ import {
   fetchStrategySettings,
   fetchStrategyVersions,
   fetchSamplingStrategyConfig,
+  fetchSimulationTemplateConfig,
   restoreStrategyVersion,
   getStrategyWorkbenchPath,
 } from '../../api/apis/strategyApi';
@@ -146,6 +147,7 @@ function StrategyWorkbenchPage() {
   const [settingsOptionError, setSettingsOptionError] = useState('');
   const [allocationModeOptions, setAllocationModeOptions] = useState([]);
   const [samplingStrategyOptions, setSamplingStrategyOptions] = useState([]);
+  const [simulationTemplateOptions, setSimulationTemplateOptions] = useState([]);
   const [executionState, setExecutionState] = useState({
     stepStatus: {
       enum: 'idle',
@@ -287,11 +289,13 @@ function StrategyWorkbenchPage() {
     Promise.all([
       fetchCapitalAllocationModeConfig(),
       fetchSamplingStrategyConfig(),
+      fetchSimulationTemplateConfig(),
     ])
-      .then(([allocationConfig, samplingConfig]) => {
+      .then(([allocationConfig, samplingConfig, simulationConfig]) => {
         if (cancelled) return;
         setAllocationModeOptions(allocationConfig?.options || []);
         setSamplingStrategyOptions(samplingConfig?.options || []);
+        setSimulationTemplateOptions(simulationConfig?.options || []);
         setSettingsOptionError('');
       })
       .catch((err) => {
@@ -299,6 +303,7 @@ function StrategyWorkbenchPage() {
         setSettingsOptionError(err?.message || '读取设置选项失败，已使用默认值');
         setAllocationModeOptions([]);
         setSamplingStrategyOptions([]);
+        setSimulationTemplateOptions([]);
       });
     return () => {
       cancelled = true;
@@ -723,9 +728,11 @@ function StrategyWorkbenchPage() {
                   coreEditor={coreEditor}
                   allocationModeOptions={allocationModeOptions}
                   samplingStrategyOptions={samplingStrategyOptions}
+                  simulationTemplateOptions={simulationTemplateOptions}
                   onGoalChange={(nextGoal) => updateSection('goal', nextGoal)}
                   onSamplingChange={(nextSampling) => updateSection('sampling', nextSampling)}
                   onFeesChange={(nextFees) => updateSection('fees', nextFees)}
+                  onSimulationChange={(nextSimulation) => updateSection('simulation', nextSimulation)}
                   onPriceSimulatorChange={(nextPriceSimulator) => updateSection('price_simulator', nextPriceSimulator)}
                   onCapitalSimulatorChange={(nextCapitalSimulator) => updateSection('capital_simulator', nextCapitalSimulator)}
                 />

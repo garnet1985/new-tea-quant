@@ -11,6 +11,7 @@ from typing import Any, Dict
 
 from .fees_settings import StrategyFeesSettings
 from .settings_base import SettingsBase, ValidationReport
+from .simulation_settings import StrategySimulationSettings
 
 
 @dataclass
@@ -40,6 +41,7 @@ class StrategySettings(SettingsBase):
 
         object.__setattr__(self, "meta", StrategyMetaSettings.from_raw(rs))
         object.__setattr__(self, "fees", StrategyFeesSettings.from_strategy_root(rs))
+        object.__setattr__(self, "simulation", StrategySimulationSettings.from_strategy_root(rs))
         object.__setattr__(self, "data", StrategyDataSettings.from_strategy_root(rs))
         object.__setattr__(self, "sampling", StrategySamplingSettings.from_strategy_root(rs))
         object.__setattr__(self, "goal", StrategyGoalSettings.from_strategy_root(rs))
@@ -64,6 +66,7 @@ class StrategySettings(SettingsBase):
         rs["core"] = self.meta.core
         rs["is_enabled"] = self.meta.is_enabled
         self.fees.apply_defaults()
+        self.simulation.apply_defaults()
         self.data.apply_defaults()
         self.sampling.apply_defaults()
         self.goal.apply_defaults()
@@ -80,6 +83,7 @@ class StrategySettings(SettingsBase):
         merged = SettingsBase.merge_validation_results(
             self.meta.validate(),
             self.fees.validate(),
+            self.simulation.validate(),
             self.data.validate(),
             self.sampling.validate(),
             self.goal.validate(),
@@ -101,6 +105,7 @@ class StrategySettings(SettingsBase):
         out.pop("meta", None)
         out.update(self.meta.to_dict())
         out["fees"] = self.fees.to_dict()
+        out["simulation"] = self.simulation.to_dict()
         out["data"] = self.data.to_dict()
         out["sampling"] = self.sampling.to_dict()
         out["goal"] = self.goal.to_dict()
@@ -150,6 +155,12 @@ from .data_settings import StrategyDataSettings  # noqa: E402
 from .goal_settings import StrategyGoalSettings  # noqa: E402
 from .meta_settings import StrategyMetaSettings  # noqa: E402
 from .sampling_settings import StrategySamplingSettings  # noqa: E402
+from .simulation_settings import (  # noqa: E402
+    ExtremeSameBarOrder,
+    MonitorPriceModel,
+    NoNextBarPolicy,
+    TradePriceModel,
+)
 from core.modules.strategy.engines.scanner.data_classes.settings import (  # noqa: E402
     ScannerSettings,
     StrategyScannerSettings,
@@ -174,9 +185,13 @@ __all__ = [
     "BaseSettings",
     "CapitalAllocationSettings",
     "EnumeratorSettings",
+    "ExtremeSameBarOrder",
+    "MonitorPriceModel",
+    "NoNextBarPolicy",
     "OutputConfig",
     "StrategyDataSettings",
     "StrategyFeesSettings",
+    "StrategySimulationSettings",
     "StrategyEnumeratorSettings",
     "StrategyGoalSettings",
     "StrategyCapitalSimulatorSettings",
@@ -187,6 +202,7 @@ __all__ = [
     "ScannerSettings",
     "StrategySamplingSettings",
     "StrategyScannerSettings",
+    "TradePriceModel",
     "SettingsBase",
     "ValidationReport",
 ]

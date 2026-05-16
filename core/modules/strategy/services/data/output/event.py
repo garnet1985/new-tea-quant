@@ -4,7 +4,29 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
+
+
+def parse_opportunity_buy_fill(
+    opportunity: Dict[str, Any],
+) -> Optional[Tuple[str, float]]:
+    """真实成交：``buy_date`` 与 ``buy_price`` 均须有效；否则 ``None``（下游应跳过）。"""
+    buy_date = str(opportunity.get("buy_date") or "").strip()
+    if not buy_date:
+        return None
+    try:
+        buy_price = float(opportunity.get("buy_price") or 0.0)
+    except (TypeError, ValueError):
+        return None
+    if buy_price <= 0:
+        return None
+    return buy_date, buy_price
+
+
+def opportunity_buy_event_date(opportunity: Dict[str, Any]) -> str:
+    """资金回放买入事件日：仅 ``buy_date``；无有效成交则空字符串。"""
+    parsed = parse_opportunity_buy_fill(opportunity)
+    return parsed[0] if parsed else ""
 
 
 @dataclass
@@ -23,4 +45,8 @@ class SimulationEvent:
         return self.event_type == "target"
 
 
-__all__ = ["SimulationEvent"]
+__all__ = [
+    "SimulationEvent",
+    "opportunity_buy_event_date",
+    "parse_opportunity_buy_fill",
+]

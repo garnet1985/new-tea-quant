@@ -1,12 +1,25 @@
 #!/usr/bin/env python3
 """Opportunity Model - 投资机会模型"""
 
-from dataclasses import asdict, dataclass
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass, fields
 from datetime import datetime
 import logging
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from core.modules.strategy.enums import OpportunityStatus
+from core.modules.strategy.engines.shared.helpers.simulation_pricing import (
+    apply_sell_slippage,
+    monitor_bar_price,
+    trade_price_defers_to_next_session,
+    trade_theoretical_price_on_bar,
+)
+
+if TYPE_CHECKING:
+    from core.modules.strategy.engines.shared.data_classes.strategy_settings.simulation_settings import (
+        StrategySimulationSettings,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +37,15 @@ class Opportunity:
     scan_date: str = ""
     trigger_date: str = ""
     trigger_price: float = 0.0
+    """信号日参考价（通常为当日 close），与真实买入成本分离。"""
+    buy_price: float = 0.0
+    """真实买入成本（含滑点）；清算与止盈止损比例以该价为分母。"""
+    buy_date: str = ""
+    """真实成交日；可与 ``trigger_date``（信号日）不同。"""
+    buy_fill_pending: bool = False
+    """``next_open`` 买入：信号日置 True，下一交易日 open 成交后置 False。"""
+    pending_exit: Optional[Dict[str, Any]] = None
+    """``next_open`` 卖出：触发日写入，下一交易日 open 成交。"""
     sell_date: Optional[str] = None
     sell_price: Optional[float] = None
     sell_reason: Optional[str] = None
@@ -48,6 +70,74 @@ class Opportunity:
     updated_at: str = ""
     metadata: Dict[str, Any] = None
 
+    def _cost_basis(self) -> float:
+        if self.buy_price and self.buy_price > 0:
+            return float(self.buy_price)
+        return float(self.trigger_price or 0.0)
+
+    def _exit_price(
+        self,
+        sim: "StrategySimulationSettings",
+        bar: Dict[str, Any],
+    ) -> Optional[float]:
+        raw = trade_theoretical_price_on_bar(
+            sim.sell_price_model,
+            side="sell",
+            bar=bar,
+        )
+        if raw is None:
+            return None
+        return apply_sell_slippage(raw, sim.slippage_sell_bps)
+
+    def _settle_on_bar(
+        self,
+        sim: "StrategySimulationSettings",
+        bar: Dict[str, Any],
+        reason: str,
+        *,
+        sell_ratio: float = 1.0,
+    ) -> bool:
+        exit_px = self._exit_price(sim, bar)
+        if exit_px is None:
+            return False
+        basis = self._cost_basis()
+        current_date = bar["date"]
+        price_return = (exit_px - basis) / basis if basis > 0 else 0.0
+        self._settle(current_date, exit_px, reason, price_return, sell_ratio=sell_ratio)
+        return True
+
+    def _defer_exit(self, reason: str, *, sell_ratio: float = 1.0) -> bool:
+        self.pending_exit = {"reason": reason, "sell_ratio": sell_ratio}
+        return True
+
+    def _request_exit(
+        self,
+        sim: "StrategySimulationSettings",
+        bar: Dict[str, Any],
+        reason: str,
+        *,
+        sell_ratio: float = 1.0,
+    ) -> bool:
+        if trade_price_defers_to_next_session(sim.sell_price_model):
+            return self._defer_exit(reason, sell_ratio=sell_ratio)
+        return self._settle_on_bar(sim, bar, reason, sell_ratio=sell_ratio)
+
+    def execute_pending_exit(
+        self,
+        sim: "StrategySimulationSettings",
+        bar: Dict[str, Any],
+    ) -> bool:
+        if not self.pending_exit:
+            return False
+        pe = self.pending_exit
+        self.pending_exit = None
+        return self._settle_on_bar(
+            sim,
+            bar,
+            str(pe.get("reason") or "exit"),
+            sell_ratio=float(pe.get("sell_ratio") or 1.0),
+        )
+
     def __post_init__(self):
         if not self.stock_id and self.stock:
             self.stock_id = self.stock.get("id", "")
@@ -56,7 +146,12 @@ class Opportunity:
         if not self.trigger_date and self.record_of_today:
             self.trigger_date = self.record_of_today.get("date", "")
         if not self.trigger_price and self.record_of_today:
-            self.trigger_price = self.record_of_today.get("close", 0.0)
+            self.trigger_price = float(self.record_of_today.get("close") or 0.0)
+        if not self.buy_fill_pending:
+            if (not self.buy_price or self.buy_price <= 0) and self.trigger_price > 0:
+                self.buy_price = float(self.trigger_price)
+            if not self.buy_date and self.trigger_date:
+                self.buy_date = str(self.trigger_date)
         if self.stock:
             if "id" not in self.stock and self.stock_id:
                 self.stock["id"] = self.stock_id
@@ -85,22 +180,37 @@ class Opportunity:
             return 0.0
         return self.price_return * (250 / self.holding_days)
 
-    def settle(self, last_kline: Dict[str, Any], reason: str = "backtest_end"):
-        current_price = last_kline["close"]
-        current_date = last_kline["date"]
-        price_return = (current_price - self.trigger_price) / self.trigger_price
-        self._settle(current_date, current_price, reason, price_return, sell_ratio=1.0)
+    def settle(
+        self,
+        sim: "StrategySimulationSettings",
+        last_kline: Dict[str, Any],
+        reason: str = "backtest_end",
+    ) -> None:
+        if self.pending_exit and trade_price_defers_to_next_session(sim.sell_price_model):
+            pe = self.pending_exit
+            self.pending_exit = None
+            self._settle_on_bar(
+                sim,
+                last_kline,
+                str(pe.get("reason") or reason),
+                sell_ratio=float(pe.get("sell_ratio") or 1.0),
+            )
+            return
+        self._settle_on_bar(sim, last_kline, reason, sell_ratio=1.0)
 
     def check_targets(
         self,
+        sim: "StrategySimulationSettings",
         current_kline: Dict[str, Any],
         goal_config: Dict[str, Any],
     ) -> bool:
-        current_price = current_kline["close"]
+        current_price = monitor_bar_price(current_kline, sim.monitor_price_model)
         current_date = current_kline["date"]
+        basis = self._cost_basis()
 
-        holding_days = self._calculate_holding_days(self.trigger_date, current_date)
-        price_return = (current_price - self.trigger_price) / self.trigger_price
+        # expiration / 持仓天数：自真实买入日计；``next_open`` 成交前未建仓，不会进入本方法
+        holding_days = self._calculate_holding_days(self.buy_date or self.trigger_date, current_date)
+        price_return = (current_price - basis) / basis if basis > 0 else 0.0
 
         self.max_price = max(self.max_price or 0, current_price)
         self.min_price = min(self.min_price or float("inf"), current_price)
@@ -109,46 +219,28 @@ class Opportunity:
         if expiration_config:
             fixed_window_in_days = expiration_config.get("fixed_window_in_days", 0)
             if fixed_window_in_days > 0 and holding_days >= fixed_window_in_days:
-                self._settle(
-                    current_date,
-                    current_price,
-                    "expiration",
-                    price_return,
-                    sell_ratio=1.0,
-                )
-                return True
+                if self._request_exit(sim, current_kline, "expiration", sell_ratio=1.0):
+                    return self.pending_exit is None
 
         if self.protect_loss_active:
             protect_loss_config = goal_config.get("protect_loss", {})
             protect_ratio = protect_loss_config.get("ratio", 0)
             if price_return <= protect_ratio:
-                self._settle(
-                    current_date,
-                    current_price,
-                    "protect_loss",
-                    price_return,
-                    sell_ratio=1.0,
-                )
-                return True
+                if self._request_exit(sim, current_kline, "protect_loss", sell_ratio=1.0):
+                    return self.pending_exit is None
 
         if self.dynamic_loss_active:
             dynamic_loss_config = goal_config.get("dynamic_loss", {})
             dynamic_ratio = dynamic_loss_config.get("ratio", -0.1)
             if not self.dynamic_loss_highest:
-                self.dynamic_loss_highest = self.trigger_price
+                self.dynamic_loss_highest = basis
             self.dynamic_loss_highest = max(self.dynamic_loss_highest, current_price)
             dynamic_threshold = (
                 current_price - self.dynamic_loss_highest
-            ) / self.dynamic_loss_highest
+            ) / self.dynamic_loss_highest if self.dynamic_loss_highest else 0.0
             if dynamic_threshold <= dynamic_ratio:
-                self._settle(
-                    current_date,
-                    current_price,
-                    "dynamic_loss",
-                    price_return,
-                    sell_ratio=1.0,
-                )
-                return True
+                if self._request_exit(sim, current_kline, "dynamic_loss", sell_ratio=1.0):
+                    return self.pending_exit is None
 
         stop_loss_stages = goal_config.get("stop_loss", {}).get("stages", [])
         for idx, stage in enumerate(stop_loss_stages):
@@ -164,14 +256,8 @@ class Opportunity:
                     else:
                         ratio_percent = int(stage_ratio * 100)
                         reason = f"stop_loss_{ratio_percent}%"
-                    self._settle(
-                        current_date,
-                        current_price,
-                        reason,
-                        price_return,
-                        sell_ratio=1.0,
-                    )
-                    return True
+                    if self._request_exit(sim, current_kline, reason, sell_ratio=1.0):
+                        return self.pending_exit is None
 
         take_profit_stages = goal_config.get("take_profit", {}).get("stages", [])
         for idx, stage in enumerate(take_profit_stages):
@@ -195,31 +281,30 @@ class Opportunity:
                     reason = f"take_profit_{ratio_percent}%"
 
                 if stage.get("close_invest", False):
-                    self._settle(
-                        current_date,
-                        current_price,
-                        reason,
-                        price_return,
-                        sell_ratio=1.0,
-                    )
-                    return True
-                else:
-                    if not self.completed_targets:
-                        self.completed_targets = []
-                    sell_ratio = stage.get("sell_ratio", 1.0)
-                    profit = current_price - self.trigger_price
-                    weighted_profit = profit * sell_ratio
-                    self.completed_targets.append(
-                        {
-                            "date": current_date,
-                            "price": current_price,
-                            "reason": reason,
-                            "roi": price_return,
-                            "sell_ratio": sell_ratio,
-                            "profit": profit,
-                            "weighted_profit": weighted_profit,
-                        }
-                    )
+                    if self._request_exit(sim, current_kline, reason, sell_ratio=1.0):
+                        return self.pending_exit is None
+                if not self.completed_targets:
+                    self.completed_targets = []
+                sell_ratio = stage.get("sell_ratio", 1.0)
+                if trade_price_defers_to_next_session(sim.sell_price_model):
+                    self._defer_exit(reason, sell_ratio=sell_ratio)
+                    continue
+                exit_px = self._exit_price(sim, current_kline)
+                if exit_px is None:
+                    continue
+                profit = exit_px - basis
+                weighted_profit = profit * sell_ratio
+                self.completed_targets.append(
+                    {
+                        "date": current_date,
+                        "price": exit_px,
+                        "reason": reason,
+                        "roi": price_return,
+                        "sell_ratio": sell_ratio,
+                        "profit": profit,
+                        "weighted_profit": weighted_profit,
+                    }
+                )
 
         return False
 
@@ -244,7 +329,8 @@ class Opportunity:
         self.sell_reason = sell_reason
         if not self.completed_targets:
             self.completed_targets = []
-        profit = sell_price - self.trigger_price
+        basis = self._cost_basis()
+        profit = sell_price - basis
         weighted_profit = profit * sell_ratio
         self.completed_targets.append(
             {
@@ -260,7 +346,7 @@ class Opportunity:
         total_weighted_profit = sum(
             target.get("weighted_profit", 0) for target in self.completed_targets
         )
-        self.roi = total_weighted_profit / self.trigger_price if self.trigger_price > 0 else 0.0
+        self.roi = total_weighted_profit / basis if basis > 0 else 0.0
         total_sell_ratio = sum(target.get("sell_ratio", 0) for target in self.completed_targets)
         is_fully_completed = total_sell_ratio >= 1.0
         if is_fully_completed:
@@ -296,15 +382,16 @@ class Opportunity:
         if not self.trigger_date and self.record_of_today:
             self.trigger_date = self.record_of_today.get("date", "")
         if not self.trigger_price and self.record_of_today:
-            self.trigger_price = self.record_of_today.get("close", 0.0)
+            self.trigger_price = float(self.record_of_today.get("close") or 0.0)
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        d = asdict(self)
+        return d
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Opportunity":
         raw = dict(data or {})
-        # 磁盘 CSV 等反序列化后数值常为 str，避免下游 ``{x:.2f}``、算术等失败
+
         def _to_float(v: Any, default: float = 0.0) -> float:
             if v is None or v == "":
                 return default
@@ -325,10 +412,12 @@ class Opportunity:
             except (TypeError, ValueError):
                 return None
 
-        for key in ("trigger_price",):
+        for key in ("trigger_price", "buy_price"):
             if key in raw:
                 raw[key] = _to_float(raw.get(key), 0.0)
         for key in ("sell_price", "price_return", "max_price", "min_price", "roi"):
             if key in raw:
                 raw[key] = _to_opt_float(raw.get(key))
+        allowed = {f.name for f in fields(cls)}
+        raw = {k: v for k, v in raw.items() if k in allowed}
         return cls(**raw)

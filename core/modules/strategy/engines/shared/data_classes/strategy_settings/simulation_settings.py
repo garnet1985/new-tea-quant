@@ -42,6 +42,9 @@ class ExtremeSameBarOrder(str, Enum):
 
 NoNextBarPolicy = Literal["use_last_close", "skip_trade", "unfinished"]
 
+# 工作台表单 ``simulation.template`` 合法取值（与 ``_default_snapshot_for_template`` 一致）
+KNOWN_SIMULATION_TEMPLATES = frozenset({"deterministic", "extreme", "custom"})
+
 
 @dataclass(frozen=True)
 class _ParsedSnapshot:

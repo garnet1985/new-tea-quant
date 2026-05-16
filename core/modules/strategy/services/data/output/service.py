@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from core.modules.strategy.services.data.helper import coerce_float
 from core.modules.strategy.services.data.output.event import (
     SimulationEvent,
+    opportunity_slice_date,
     parse_opportunity_buy_fill,
 )
 
@@ -275,10 +276,10 @@ class StrategyOutputReaderService:
             with opportunities_path.open("r", encoding="utf-8") as file_opps:
                 reader = csv.DictReader(file_opps)
                 for row in reader:
-                    trigger_date = row.get("trigger_date") or ""
-                    if start_date and trigger_date < start_date:
+                    slice_date = opportunity_slice_date(row)
+                    if start_date and slice_date and slice_date < start_date:
                         continue
-                    if end_date and trigger_date > end_date:
+                    if end_date and slice_date and slice_date > end_date:
                         continue
                     opp_rows.append(row)
         else:
@@ -309,10 +310,10 @@ class StrategyOutputReaderService:
         with opportunities_path.open("r", encoding="utf-8") as file_opps:
             reader = csv.DictReader(file_opps)
             for row in reader:
-                trigger_date = row.get("trigger_date") or ""
-                if start_date and trigger_date < start_date:
+                slice_date = opportunity_slice_date(row)
+                if start_date and slice_date and slice_date < start_date:
                     continue
-                if end_date and trigger_date > end_date:
+                if end_date and slice_date and slice_date > end_date:
                     continue
                 opportunities.append(row)
         return opportunities, targets_map
@@ -329,10 +330,10 @@ class StrategyOutputReaderService:
         with opportunities_path.open("r", encoding="utf-8") as file_opps:
             reader = csv.DictReader(file_opps)
             for row in reader:
-                trigger_date = row.get("trigger_date") or ""
-                if start_date and trigger_date < start_date:
+                slice_date = opportunity_slice_date(row)
+                if start_date and slice_date and slice_date < start_date:
                     continue
-                if end_date and trigger_date > end_date:
+                if end_date and slice_date and slice_date > end_date:
                     continue
                 opportunities.append(row)
         return opportunities

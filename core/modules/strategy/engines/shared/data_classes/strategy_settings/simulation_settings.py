@@ -166,7 +166,7 @@ def _parse_snapshot(raw: Dict[str, Any]) -> _ParsedSnapshot:
             raise ValueError("simulation.edges 必须为 dict")
         nnb_raw = edges.get("no_next_bar", nnb)
         nnb_s = str(nnb_raw).strip().lower() if nnb_raw is not None else "use_last_close"
-        if nnb_s == "mark_unfinished":
+        if nnb_s == "mark_unfinished":  # 历史配置别名
             nnb_s = "unfinished"
         allowed: Tuple[NoNextBarPolicy, ...] = ("use_last_close", "skip_trade", "unfinished")
         if nnb_s not in allowed:

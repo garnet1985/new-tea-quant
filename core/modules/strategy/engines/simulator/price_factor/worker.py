@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Per-stock worker for price factor simulation.
 
-与历史 master 分支 ``PriceFactorSimulatorWorker`` 对齐：
-- 按 ``trigger_date``、``opportunity_id`` 排序机会；
-- 同一只股票在 **当前持仓未结束**（``trigger_date <= holding_until``）时 **不接受** 新机会；
-- 使用 ``sell_date`` → ``exit_date`` → ``trigger_date`` 解析平仓日，与 master 的 ``InvestmentBuilder`` 约定一致。
+- 按 ``buy_date``、``opportunity_id`` 排序；须具备有效 ``buy_date`` / ``buy_price``（枚举器产出）。
+- 同股持仓未结束前（``buy_date <= holding_until``）跳过后续机会。
+- 平仓日：``sell_date`` → ``exit_date`` → ``buy_date``。
 """
 
 from __future__ import annotations
@@ -138,7 +137,7 @@ class PriceFactorWorker:
         order = sorted(
             range(len(opportunities_rows)),
             key=lambda i: (
-                str(opportunities_rows[i].get("trigger_date") or ""),
+                str(opportunities_rows[i].get("buy_date") or ""),
                 str(opportunities_rows[i].get("opportunity_id") or ""),
             ),
         )
@@ -155,7 +154,6 @@ class PriceFactorWorker:
             )
             modified_row = dict(hooked) if isinstance(hooked, dict) else dict(row)
 
-            trigger_date = str(modified_row.get("trigger_date") or "").strip()
             buy_fill = parse_opportunity_buy_fill(modified_row)
             if buy_fill is None:
                 continue

@@ -1,11 +1,23 @@
 #!/usr/bin/env python3
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import logging
 import time
 
 from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
+)
+from core.modules.strategy.engines.shared.helpers.simulation_day_execution import (
+    execute_pending_exits_on_active,
+    fill_pending_buys,
+    queue_deferred_buy,
+    resolve_pending_buys_at_end,
+    resolve_pending_exits_on_active_at_end,
+)
+from core.modules.strategy.engines.shared.helpers.simulation_pricing import (
+    apply_buy_slippage,
+    trade_price_defers_to_next_session,
+    trade_theoretical_price,
 )
 from core.modules.strategy.engines.shared.helpers.strategy_runtime import resolve_worker_class
 from core.modules.strategy.engines.shared.performance_profiler import PerformanceProfiler
@@ -38,6 +50,7 @@ class OpportunityEnumeratorWorker:
             global_extra_cache=self.job_payload.get("global_extra_cache"),
         )
         self.opportunity_counter = 0
+        self.simulation = self.settings.simulation_settings
         self._load_user_strategy()
 
     def _load_user_strategy(self):
@@ -140,12 +153,13 @@ class OpportunityEnumeratorWorker:
         tracker = {
             "stock_id": self.stock_id,
             "passed_dates": [],
+            "pending_buys": [],
             "active_opportunities": [],
             "all_opportunities": [],
         }
         self.profiler.start_timer("enumerate")
         last_kline = None
-        for current_kline in all_klines:
+        for idx, current_kline in enumerate(all_klines):
             virtual_date_of_today = current_kline["date"]
             tracker["passed_dates"].append(virtual_date_of_today)
             if len(tracker["passed_dates"]) < self.settings.min_required_records:
@@ -154,8 +168,20 @@ class OpportunityEnumeratorWorker:
             self._enumerate_single_day(tracker, current_kline, data_of_today)
             last_kline = current_kline
         self.profiler.metrics.time_enumerate = self.profiler.end_timer("enumerate")
-        if tracker["active_opportunities"] and last_kline:
-            self._close_all_open_opportunities(tracker, last_kline)
+        if last_kline is not None:
+            resolve_pending_buys_at_end(
+                tracker["pending_buys"],
+                tracker["active_opportunities"],
+                tracker["all_opportunities"],
+                sim=self.simulation,
+            )
+            resolve_pending_exits_on_active_at_end(
+                tracker["active_opportunities"],
+                last_bar=last_kline,
+                sim=self.simulation,
+            )
+            if tracker["active_opportunities"]:
+                self._close_all_open_opportunities(tracker, last_kline)
         return tracker
 
     def _serialize_opportunities(self, tracker: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -302,13 +328,37 @@ class OpportunityEnumeratorWorker:
         except Exception:
             return date_str
 
-    def _enumerate_single_day(self, tracker: Dict[str, Any], current_kline: Dict[str, Any], data_of_today: Dict[str, Any]):
+    def _enumerate_single_day(
+        self,
+        tracker: Dict[str, Any],
+        current_kline: Dict[str, Any],
+        data_of_today: Dict[str, Any],
+    ):
+        fill_pending_buys(
+            tracker["pending_buys"],
+            tracker["active_opportunities"],
+            bar=current_kline,
+            sim=self.simulation,
+        )
+        exit_indices = execute_pending_exits_on_active(
+            tracker["active_opportunities"],
+            bar=current_kline,
+            sim=self.simulation,
+        )
+        for idx in reversed(exit_indices):
+            tracker["active_opportunities"].pop(idx)
+
         completed_indices = []
         for idx, opportunity in enumerate(tracker["active_opportunities"]):
-            if opportunity.check_targets(current_kline=current_kline, goal_config=self.settings.goal):
+            if opportunity.check_targets(
+                self.simulation,
+                current_kline=current_kline,
+                goal_config=self.settings.goal,
+            ):
                 completed_indices.append(idx)
         for idx in reversed(completed_indices):
             tracker["active_opportunities"].pop(idx)
+
         opportunity = self._scan_opportunity_with_data(data_of_today)
         if not opportunity:
             return
@@ -319,21 +369,50 @@ class OpportunityEnumeratorWorker:
         opportunity.stock_id = self.stock_id
         opportunity.strategy_name = self.strategy_name
         opportunity.trigger_date = current_kline["date"]
-        opportunity.trigger_price = current_kline["close"]
-        opportunity.status = OpportunityStatus.ACTIVE.value
+        opportunity.trigger_price = float(current_kline.get("close") or 0.0)
         opportunity.completed_targets = []
         self.opportunity_counter += 1
         opportunity.opportunity_id = str(self.opportunity_counter)
-        opportunity.enrich_from_framework(strategy_name=self.strategy_name, strategy_version="1.0", opportunity_id=opportunity.opportunity_id)
-        tracker["active_opportunities"].append(opportunity)
+        opportunity.enrich_from_framework(
+            strategy_name=self.strategy_name,
+            strategy_version="1.0",
+            opportunity_id=opportunity.opportunity_id,
+        )
         tracker["all_opportunities"].append(opportunity)
+
+        if trade_price_defers_to_next_session(self.simulation.buy_price_model):
+            queue_deferred_buy(opportunity, signal_bar=current_kline)
+            tracker["pending_buys"].append(opportunity)
+            return
+
+        buy_raw = trade_theoretical_price(
+            self.simulation.buy_price_model,
+            side="buy",
+            bar=current_kline,
+            no_next_bar=self.simulation.edges_no_next_bar,
+        )
+        if buy_raw is None:
+            tracker["all_opportunities"].pop()
+            return
+        opportunity.buy_price = apply_buy_slippage(buy_raw, self.simulation.slippage_buy_bps)
+        opportunity.buy_date = str(current_kline.get("date") or opportunity.trigger_date)
+        opportunity.status = OpportunityStatus.ACTIVE.value
+        tracker["active_opportunities"].append(opportunity)
 
     def _scan_opportunity_with_data(self, data: Dict[str, Any]):
         return self.strategy_instance.scan_opportunity(data, self.settings_dict)
 
-    def _close_all_open_opportunities(self, tracker: Dict[str, Any], last_kline: Dict[str, Any]):
+    def _close_all_open_opportunities(
+        self,
+        tracker: Dict[str, Any],
+        last_kline: Dict[str, Any],
+    ):
         for opportunity in tracker["active_opportunities"]:
-            opportunity.settle(last_kline=last_kline, reason="enumeration_end")
+            opportunity.settle(
+                self.simulation,
+                last_kline=last_kline,
+                reason="enumeration_end",
+            )
         tracker["active_opportunities"].clear()
 
     def _save_stock_results(self, output_dir: str, opportunities: List[Dict[str, Any]]):

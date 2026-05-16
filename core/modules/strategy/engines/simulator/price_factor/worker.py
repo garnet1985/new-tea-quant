@@ -22,6 +22,7 @@ from core.modules.strategy.engines.simulator.price_factor.data_classes.investmen
 )
 from core.modules.strategy.engines.simulator.price_factor.helpers import DateTimeEncoder
 from core.modules.strategy.services.data import StrategyOutputReaderService
+from core.modules.strategy.services.data.output.event import parse_opportunity_buy_fill
 from core.modules.strategy.services.data.output import StrategyOutputPathService
 
 
@@ -155,16 +156,20 @@ class PriceFactorWorker:
             modified_row = dict(hooked) if isinstance(hooked, dict) else dict(row)
 
             trigger_date = str(modified_row.get("trigger_date") or "").strip()
+            buy_fill = parse_opportunity_buy_fill(modified_row)
+            if buy_fill is None:
+                continue
+            buy_date, _buy_price = buy_fill
             sell_date = str(modified_row.get("sell_date") or "").strip()
             exit_from_row = str(modified_row.get("exit_date") or "").strip()
-            resolved_exit = sell_date or exit_from_row or trigger_date
+            resolved_exit = sell_date or exit_from_row or buy_date
 
-            # master：持仓未结束时若新机会触发日仍早于等于持仓结束日则跳过（``YYYYMMDD`` 字符串序）
-            if holding_until is not None and trigger_date and holding_until:
-                if trigger_date <= holding_until:
+            # 持仓未结束时若新机会买入日仍早于等于持仓结束日则跳过（``YYYYMMDD`` 字符串序）
+            if holding_until is not None and buy_date and holding_until:
+                if buy_date <= holding_until:
                     continue
 
-            holding_until = resolved_exit or trigger_date
+            holding_until = resolved_exit or buy_date
 
             opp_id = str(modified_row.get("opportunity_id") or "").strip()
             merged = dict(modified_row)

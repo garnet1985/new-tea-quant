@@ -11,6 +11,9 @@ from core.modules.strategy.engines.shared.performance_profiler import AggregateP
 from core.modules.strategy.launcher.run_types import (
     StrategyRunFingerprint,
 )
+from core.modules.strategy.engines.shared.data_classes.strategy_settings.simulation_settings import (
+    StrategySimulationSettings,
+)
 from .settings import OpportunityEnumeratorSettings
 
 
@@ -19,6 +22,7 @@ class EnumeratorProbeContext:
     """Lightweight preprocess phase: settings + fingerprint only (no output dirs / worker pool)."""
 
     strategy_name: str
+    simulation_settings: StrategySimulationSettings
     enum_settings: OpportunityEnumeratorSettings
     settings_payload: Dict[str, Any]
     settings_for_fingerprint: Dict[str, Any]
@@ -30,6 +34,7 @@ class EnumeratorProbeContext:
 @dataclass
 class EnumeratorPreprocessContext:
     strategy_name: str
+    simulation_settings: Optional[StrategySimulationSettings] = None
     enum_settings: Optional[OpportunityEnumeratorSettings] = None
     # Full validated strategy settings (API shape) for DB snapshot rows.
     full_settings_snapshot_api: Optional[Dict[str, Any]] = None

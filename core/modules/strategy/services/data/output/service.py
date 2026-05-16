@@ -10,7 +10,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.modules.strategy.services.data.helper import coerce_float
-from core.modules.strategy.services.data.output.event import SimulationEvent
+from core.modules.strategy.services.data.output.event import (
+    SimulationEvent,
+    parse_opportunity_buy_fill,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -143,14 +146,22 @@ class StrategyOutputReaderService:
 
             for opportunity in opp_rows:
                 opp_id = str(opportunity.get("opportunity_id") or "").strip()
-                trigger_date = opportunity.get("trigger_date") or ""
-                if not opp_id or not trigger_date:
+                fill = parse_opportunity_buy_fill(opportunity)
+                if not opp_id or fill is None:
+                    if opp_id and fill is None:
+                        logger.warning(
+                            "跳过无有效买入的机会: stock=%s opp_id=%s "
+                            "(缺少 buy_date 或 buy_price)",
+                            stock_id,
+                            opp_id,
+                        )
                     continue
+                buy_event_date, _buy_price = fill
 
                 events.append(
                     SimulationEvent(
                         event_type="trigger",
-                        date=trigger_date,
+                        date=buy_event_date,
                         stock_id=stock_id,
                         opportunity_id=opp_id,
                         opportunity=opportunity,

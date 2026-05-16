@@ -57,7 +57,7 @@
 
 - 本机需要有 **Python 3.9 或以上**版本。如果您不知道怎么安装，请参考这篇文档：[安装 Python](https://new-tea.cn/zh-hans/install-python)。
 - 本机需要有 **MySQL 或 PostgreSQL** 中的任意一种数据库。如果您不知道如何安装，请参考这篇文档：[安装数据库](https://new-tea.cn/zh-hans/install-database)。
-- 本机需要安装 **Node.js**。请在 [Node.js 官网](https://nodejs.org/) 下载安装包并按向导安装（基本上就是一直点下一步）。
+- (仅限于开发，纯使用不需要这个依赖) 本机需要安装 **Node.js**。请在 [Node.js 官网](https://nodejs.org/) 下载安装包并按向导安装（基本上就是一直点下一步）。
 
 ### 第 1 步：获取代码
 
@@ -86,7 +86,7 @@ python launcher.py
 python3 launcher.py
 ```
 
-脚本会：切到仓库根目录、确保虚拟环境、检查 Node/npm 等前提，并在需要时安装 Web UI 依赖，然后**启动 BFF + 前端并打开浏览器**，进入图形化 **Setup 安装向导**（由 BFF setup API 驱动步骤）。
+脚本会：切到仓库根目录、确保虚拟环境、然后**启动 BFF + 前端并打开浏览器**，进入图形化 **Setup 安装向导**（由 BFF setup API 驱动步骤）。
 
 ### 第 3 步：在浏览器中按向导完成初始化
 

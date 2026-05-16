@@ -1,6 +1,6 @@
 /**
  * 策略报告 metrics：API/BFF 快照字段 → 面板展示用结构。
- * **枚举**仅以快照/API 字段为准，不合成草图数据；资金汇总见 ``../mocks/strategyReportMetrics.js`` 的 ``buildCapitalMetrics``（无后端数据时返回 ``null``）。
+ * **枚举/资金**仅以 BFF snake_case 槽位为准，不合成占位数据；无完整字段时返回 ``null``（见各 ``normalize*`` 注释）。
  */
 
 /** 枚举报告某结果块缺少所需字段时的统一提示 */
@@ -323,120 +323,22 @@ export function buildPriceMetrics(executionState) {
   return normalizePriceMetricsFromSummary(executionState?.result?.price);
 }
 
-export function buildCapitalMetricsFromBase(base) {
-  if (!base) return null;
-  const initialCapital = Number(base.initialCapital ?? 1_000_000);
-  const totalReturnPct = Number(
-    base.totalReturnPct
-      ?? (base.totalReturn !== undefined ? Number(base.totalReturn) * 100 : 0),
-  );
-  const maxDrawdownPct = Number(
-    base.maxDrawdownPct
-      ?? (base.maxDrawdown !== undefined ? Number(base.maxDrawdown) * 100 : 0),
-  );
-  const winRatePct = Number(
-    base.winRatePct
-      ?? (base.winRate !== undefined ? Number(base.winRate) * 100 : 0),
-  );
-
-  const finalEquity = Number(base.finalEquity ?? Math.round(initialCapital * (1 + totalReturnPct / 100)));
-  const totalProfit = Number(base.totalProfit ?? (finalEquity - initialCapital));
-  const calmarRatio = maxDrawdownPct > 0 ? Number((totalReturnPct / maxDrawdownPct).toFixed(2)) : 0;
-
-  const derivedSellTrades = Math.max(80, Math.round(140 + winRatePct * 1.1));
-  const sellTrades = Number(base.sellTrades ?? derivedSellTrades);
-  const buyTrades = Number(base.buyTrades ?? sellTrades);
-  const totalTrades = Number(base.totalTrades ?? (buyTrades + sellTrades));
-  const winTrades = Number(base.winTrades ?? Math.round(sellTrades * (winRatePct / 100)));
-  const lossTrades = Number(base.lossTrades ?? Math.max(0, sellTrades - winTrades));
-  const avgPnlPerTrade = Number(base.avgPnlPerTrade ?? (sellTrades > 0 ? Math.round(totalProfit / sellTrades) : 0));
-
-  const peakPositions = 10;
-  const avgOpenPositions = Number((peakPositions * (0.56 + winRatePct / 250)).toFixed(1));
-  const fullExposureDaysRatio = Number((10 + winRatePct / 3).toFixed(1));
-  const avgCashRatio = Number((34 - totalReturnPct * 0.45).toFixed(1));
-  const capitalUtilizationRatio = Number((100 - avgCashRatio).toFixed(1));
-
-  const maxLossStreak = Math.max(2, Math.round(9 - winRatePct / 10));
-  const maxDrawdownDurationDays = Math.max(8, Math.round(42 - totalReturnPct / 1.8));
-  const worstTradePnls = [
-    -Math.round(initialCapital * (maxDrawdownPct / 100) * 0.17),
-    -Math.round(initialCapital * (maxDrawdownPct / 100) * 0.14),
-    -Math.round(initialCapital * (maxDrawdownPct / 100) * 0.11),
-  ];
-
-  const stockCount = Math.max(25, Math.round(46 + winRatePct / 2));
-  const avgTradesPerStock = Number((sellTrades / stockCount).toFixed(2));
-  const top5ContributionRatio = Number((34 + totalReturnPct * 0.5).toFixed(1));
-  const stockPnlCv = Number((1.6 - totalReturnPct / 65).toFixed(2));
-
-  const equityCurveLabels = ['T0', 'T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11'];
-  const equityRatios = [0, 0.03, 0.08, 0.06, 0.12, 0.16, 0.13, 0.21, 0.24, 0.22, 0.28, 0.318];
-  const normalizedTarget = totalReturnPct / 100;
-  const normalizedBase = 0.318;
-  const equityCurveValues = equityRatios.map((ratio) => (
-    Math.round(initialCapital * (1 + (ratio / normalizedBase) * normalizedTarget))
-  ));
-  const runningPeak = [];
-  let peak = equityCurveValues[0];
-  for (let i = 0; i < equityCurveValues.length; i += 1) {
-    peak = Math.max(peak, equityCurveValues[i]);
-    runningPeak.push(peak);
-  }
-  const drawdownCurveValues = equityCurveValues.map((value, index) => {
-    const dd = runningPeak[index] > 0 ? ((runningPeak[index] - value) / runningPeak[index]) * 100 : 0;
-    return Number(dd.toFixed(2));
-  });
-  const maxDrawdownRealized = Math.max(...drawdownCurveValues, maxDrawdownPct);
-  const maxDrawdownDisplay = Number(maxDrawdownRealized.toFixed(2));
-
-  return {
-    initialCapital,
-    finalEquity,
-    totalProfit,
-    totalReturnPct: Number(totalReturnPct.toFixed(2)),
-    maxDrawdownPct: maxDrawdownDisplay,
-    calmarRatio,
-    totalTrades,
-    buyTrades,
-    sellTrades,
-    winTrades,
-    lossTrades,
-    winRatePct: Number(winRatePct.toFixed(2)),
-    avgPnlPerTrade,
-    avgOpenPositions,
-    peakPositions,
-    fullExposureDaysRatio,
-    avgCashRatio,
-    capitalUtilizationRatio,
-    maxLossStreak,
-    maxDrawdownDurationDays,
-    worstTradePnls,
-    stockCount,
-    avgTradesPerStock,
-    top5ContributionRatio,
-    stockPnlCv,
-    equityCurveLabels,
-    equityCurveValues,
-    drawdownCurveValues,
-  };
-}
-
 /**
- * ``result_report.capital_allocation`` 槽位（``CapitalReport.to_dict()`` + BFF 图表字段，snake_case / camelCase）
+ * ``result_report.capital_allocation``（``CapitalReport.to_dict()`` + ``_merge_bff_ui_extensions``，仅 snake_case）。
+ *
+ * 必填（缺任一则返回 null，请清工作台/模拟缓存后重跑资金步）：
+ * - initial_capital, final_total_equity, total_return, max_drawdown, win_rate（0~1 比例）
+ * - total_profit, total_trades, buy_trades, sell_trades, win_trades, loss_trades, avg_pnl_per_trade
+ * - equity_curve_labels, equity_curve_values（等长且 length >= 2）
  */
 export function normalizeCapitalMetricsFromSummary(slot) {
   if (!slot || typeof slot !== 'object') return null;
 
-  const m = { ...slot };
-
-  const firstNum = (keys) => {
-    for (const k of keys) {
-      if (m[k] === undefined || m[k] === null) continue;
-      const n = Number(m[k]);
-      if (Number.isFinite(n)) return n;
-    }
-    return NaN;
+  const num = (key) => {
+    const v = slot[key];
+    if (v === undefined || v === null) return NaN;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : NaN;
   };
 
   const ratioToPct = (v) => {
@@ -446,172 +348,123 @@ export function normalizeCapitalMetricsFromSummary(slot) {
     return x;
   };
 
-  const toStrList = (arr) => (Array.isArray(arr) ? arr.map((v) => String(v ?? '')) : []);
-  const toNumList = (arr) => (Array.isArray(arr) ? arr.map((v) => Number(v ?? 0)) : []);
+  const equityCurveLabels = Array.isArray(slot.equity_curve_labels)
+    ? slot.equity_curve_labels.map((v) => String(v ?? ''))
+    : [];
+  const equityCurveValues = Array.isArray(slot.equity_curve_values)
+    ? slot.equity_curve_values.map((v) => Number(v ?? 0))
+    : [];
 
-  const equityCurveLabels = toStrList(m.equityCurveLabels || m.equity_curve_labels);
-  const equityCurveValues = toNumList(m.equityCurveValues || m.equity_curve_values);
+  const initialCapital = num('initial_capital');
+  const finalEquity = num('final_total_equity');
+  const totalReturnPct = ratioToPct(slot.total_return);
+  const maxDrawdownPct = ratioToPct(slot.max_drawdown);
+  const winRatePct = ratioToPct(slot.win_rate);
+  const totalProfit = num('total_profit');
+  const totalTrades = num('total_trades');
+  const buyTrades = num('buy_trades');
+  const sellTrades = num('sell_trades');
+  const winTrades = num('win_trades');
+  const lossTrades = num('loss_trades');
+  const avgPnlPerTrade = num('avg_pnl_per_trade');
 
-  let initialCapital = firstNum(['initialCapital', 'initial_capital']);
-  let finalEquity = firstNum(['finalEquity', 'final_total_equity', 'final_equity', 'endCapital']);
-  if (!Number.isFinite(initialCapital) && equityCurveValues.length > 0) {
-    initialCapital = equityCurveValues[0];
-  }
-  if (!Number.isFinite(finalEquity) && equityCurveValues.length > 0) {
-    finalEquity = equityCurveValues[equityCurveValues.length - 1];
-  }
+  const hasCharts = equityCurveLabels.length >= 2
+    && equityCurveValues.length === equityCurveLabels.length
+    && equityCurveValues.every((v) => Number.isFinite(v));
 
-  let totalReturnPct = firstNum(['totalReturnPct', 'total_return_pct']);
-  if (!Number.isFinite(totalReturnPct)) {
-    const tr = firstNum(['total_return', 'totalReturn']);
-    if (Number.isFinite(tr)) totalReturnPct = ratioToPct(tr);
-  }
-  if (!Number.isFinite(totalReturnPct)) {
-    const rp = firstNum(['retPct', 'return_pct', 'ret_pct']);
-    if (Number.isFinite(rp)) totalReturnPct = ratioToPct(rp);
-  }
-  if (!Number.isFinite(totalReturnPct) && Number.isFinite(initialCapital) && initialCapital > 1e-9
-    && Number.isFinite(finalEquity)) {
-    totalReturnPct = ((finalEquity - initialCapital) / initialCapital) * 100;
-  }
-
-  let maxDrawdownPct = firstNum(['maxDrawdownPct', 'max_drawdown_pct']);
-  if (!Number.isFinite(maxDrawdownPct)) {
-    const md = firstNum(['max_drawdown', 'maxDrawdown']);
-    if (Number.isFinite(md)) maxDrawdownPct = ratioToPct(md);
+  const required = [
+    initialCapital, finalEquity, totalReturnPct, maxDrawdownPct, winRatePct,
+    totalProfit, totalTrades, buyTrades, sellTrades, winTrades, lossTrades, avgPnlPerTrade,
+  ];
+  if (!required.every((x) => Number.isFinite(x)) || !hasCharts) {
+    return null;
   }
 
-  let winRatePct = firstNum(['winRatePct', 'win_rate_pct']);
-  if (!Number.isFinite(winRatePct)) {
-    const wr = firstNum(['win_rate', 'winRate']);
-    if (Number.isFinite(wr)) winRatePct = ratioToPct(wr);
+  let calmarRatio = num('calmar_ratio');
+  if (!Number.isFinite(calmarRatio) && maxDrawdownPct > 1e-9) {
+    calmarRatio = totalReturnPct / maxDrawdownPct;
   }
 
-  const totalProfitRaw = firstNum(['totalProfit', 'total_profit', 'profit']);
-  const totalTrades = firstNum(['total_trades', 'totalTrades']);
-  const buyTrades = firstNum(['buy_trades', 'buyTrades']);
-  const sellTrades = firstNum(['sell_trades', 'sellTrades']);
-  const winTrades = firstNum(['win_trades', 'winTrades']);
-  const lossTrades = firstNum(['loss_trades', 'lossTrades']);
-  const avgPnlPerTrade = firstNum(['avg_pnl_per_trade', 'avgPnlPerTrade']);
-
-  const calmarRatio = firstNum(['calmarRatio', 'calmar_ratio']);
-
-  let drawdownCurveValues = toNumList(m.drawdownCurveValues || m.drawdown_curve_values);
-
-  const avgOpenPositions = firstNum(['avgOpenPositions', 'average_open_positions']);
-  const peakPositions = firstNum(['peakPositions', 'peak_open_positions']);
-  const fullExposureDaysRatio = firstNum(['fullExposureDaysRatio', 'full_exposure_days_ratio_pct']);
-  const avgCashRatio = firstNum(['avgCashRatio', 'average_cash_ratio_pct']);
-  const capitalUtilizationRatio = firstNum(['capitalUtilizationRatio', 'capital_utilization_ratio_pct']);
-
-  const maxLossStreak = firstNum(['maxLossStreak', 'max_consecutive_losing_sells']);
-  const maxDrawdownDurationDays = firstNum(['maxDrawdownDurationDays', 'max_drawdown_duration_days']);
-
-  let worstTradePnls = toNumList(m.worstTradePnls || m.worst_sell_pnls);
-  while (worstTradePnls.length < 3) worstTradePnls.push(0);
-
-  const stockCount = firstNum(['stockCount', 'stock_count']);
-  const avgTradesPerStock = firstNum(['avgTradesPerStock', 'average_trades_per_stock']);
-  const top5ContributionRatio = firstNum(['top5ContributionRatio', 'top5_profit_concentration_pct']);
-  const stockPnlCv = firstNum(['stockPnlCv', 'stock_profit_coefficient_of_variation']);
-
-  const hasCore = Number.isFinite(initialCapital) && Number.isFinite(finalEquity);
-  const hasCharts = equityCurveLabels.length > 0 && equityCurveValues.length === equityCurveLabels.length;
-  const hasAny = hasCore || hasCharts;
-
-  if (!hasAny) return null;
-
-  const fillFromDerived = !hasCharts && hasCore;
-  const derivedBase = fillFromDerived
-    ? buildCapitalMetricsFromBase({
-      initialCapital,
-      totalReturnPct: Number.isFinite(totalReturnPct) ? totalReturnPct : 0,
-      maxDrawdownPct: Number.isFinite(maxDrawdownPct) ? maxDrawdownPct : 0,
-      winRatePct: Number.isFinite(winRatePct) ? winRatePct : 0,
-      totalProfit: Number.isFinite(totalProfitRaw) ? totalProfitRaw : (finalEquity - initialCapital),
-      sellTrades,
-      buyTrades,
-      totalTrades,
-      winTrades,
-      lossTrades,
-      avgPnlPerTrade,
-      finalEquity,
-    })
-    : null;
-
-  let ddOut = drawdownCurveValues;
-  if (hasCharts && ddOut.length !== equityCurveLabels.length) {
-    const vs = equityCurveValues;
-    let peak = vs[0] ?? 0;
-    ddOut = vs.map((v) => {
+  let drawdownCurveValues = Array.isArray(slot.drawdown_curve_values)
+    ? slot.drawdown_curve_values.map((v) => Number(v ?? 0))
+    : [];
+  if (drawdownCurveValues.length !== equityCurveLabels.length) {
+    let peak = equityCurveValues[0] ?? 0;
+    drawdownCurveValues = equityCurveValues.map((v) => {
       peak = Math.max(peak, v);
       return peak > 1e-12 ? Number((((peak - v) / peak) * 100).toFixed(2)) : 0;
     });
-  } else if (!hasCharts) {
-    ddOut = derivedBase?.drawdownCurveValues ?? [];
   }
 
-  const totalProfit = Number.isFinite(totalProfitRaw)
-    ? totalProfitRaw
-    : (derivedBase?.totalProfit ?? (finalEquity - initialCapital));
+  let worstTradePnls = Array.isArray(slot.worst_sell_pnls)
+    ? slot.worst_sell_pnls.map((v) => Number(v ?? 0))
+    : [];
+  while (worstTradePnls.length < 3) worstTradePnls.push(0);
+
+  const stockSummary = slot.stock_summary && typeof slot.stock_summary === 'object'
+    ? slot.stock_summary
+    : {};
+  const stockCount = Object.keys(stockSummary).length;
 
   return {
     initialCapital,
-    finalEquity: Number.isFinite(finalEquity) ? finalEquity : (derivedBase?.finalEquity ?? 0),
+    finalEquity,
     totalProfit,
-    totalReturnPct: Number.isFinite(totalReturnPct)
-      ? Number(totalReturnPct.toFixed(2))
-      : (derivedBase?.totalReturnPct ?? 0),
-    maxDrawdownPct: Number.isFinite(maxDrawdownPct)
-      ? Number(maxDrawdownPct.toFixed(2))
-      : (derivedBase?.maxDrawdownPct ?? 0),
-    calmarRatio: Number.isFinite(calmarRatio) ? calmarRatio : (derivedBase?.calmarRatio ?? 0),
-    totalTrades: Number.isFinite(totalTrades) ? Math.round(totalTrades) : (derivedBase?.totalTrades ?? 0),
-    buyTrades: Number.isFinite(buyTrades) ? Math.round(buyTrades) : (derivedBase?.buyTrades ?? 0),
-    sellTrades: Number.isFinite(sellTrades) ? Math.round(sellTrades) : (derivedBase?.sellTrades ?? 0),
-    winTrades: Number.isFinite(winTrades) ? Math.round(winTrades) : (derivedBase?.winTrades ?? 0),
-    lossTrades: Number.isFinite(lossTrades) ? Math.round(lossTrades) : (derivedBase?.lossTrades ?? 0),
-    winRatePct: Number.isFinite(winRatePct) ? Number(winRatePct.toFixed(2)) : (derivedBase?.winRatePct ?? 0),
-    avgPnlPerTrade: Number.isFinite(avgPnlPerTrade)
-      ? Math.round(avgPnlPerTrade)
-      : (derivedBase?.avgPnlPerTrade ?? 0),
-    avgOpenPositions: Number.isFinite(avgOpenPositions)
-      ? Number(avgOpenPositions.toFixed(1))
-      : (derivedBase?.avgOpenPositions ?? 0),
-    peakPositions: Number.isFinite(peakPositions)
-      ? Math.round(peakPositions)
-      : (derivedBase?.peakPositions ?? 0),
-    fullExposureDaysRatio: Number.isFinite(fullExposureDaysRatio)
-      ? Number(fullExposureDaysRatio.toFixed(1))
-      : (derivedBase?.fullExposureDaysRatio ?? 0),
-    avgCashRatio: Number.isFinite(avgCashRatio)
-      ? Number(avgCashRatio.toFixed(1))
-      : (derivedBase?.avgCashRatio ?? 0),
-    capitalUtilizationRatio: Number.isFinite(capitalUtilizationRatio)
-      ? Number(capitalUtilizationRatio.toFixed(1))
-      : (derivedBase?.capitalUtilizationRatio ?? 0),
-    maxLossStreak: Number.isFinite(maxLossStreak)
-      ? Math.round(maxLossStreak)
-      : (derivedBase?.maxLossStreak ?? 0),
-    maxDrawdownDurationDays: Number.isFinite(maxDrawdownDurationDays)
-      ? Math.round(maxDrawdownDurationDays)
-      : (derivedBase?.maxDrawdownDurationDays ?? 0),
+    totalReturnPct: Number(totalReturnPct.toFixed(2)),
+    maxDrawdownPct: Number(maxDrawdownPct.toFixed(2)),
+    calmarRatio: Number.isFinite(calmarRatio) ? Number(calmarRatio.toFixed(4)) : 0,
+    totalTrades: Math.round(totalTrades),
+    buyTrades: Math.round(buyTrades),
+    sellTrades: Math.round(sellTrades),
+    winTrades: Math.round(winTrades),
+    lossTrades: Math.round(lossTrades),
+    winRatePct: Number(winRatePct.toFixed(2)),
+    avgPnlPerTrade: Math.round(avgPnlPerTrade),
+    avgOpenPositions: (() => {
+      const v = num('average_open_positions');
+      return Number.isFinite(v) ? Number(v.toFixed(1)) : 0;
+    })(),
+    peakPositions: (() => {
+      const v = num('peak_open_positions');
+      return Number.isFinite(v) ? Math.round(v) : 0;
+    })(),
+    fullExposureDaysRatio: (() => {
+      const v = num('full_exposure_days_ratio_pct');
+      return Number.isFinite(v) ? Number(v.toFixed(1)) : 0;
+    })(),
+    avgCashRatio: (() => {
+      const v = num('average_cash_ratio_pct');
+      return Number.isFinite(v) ? Number(v.toFixed(1)) : 0;
+    })(),
+    capitalUtilizationRatio: (() => {
+      const v = num('capital_utilization_ratio_pct');
+      return Number.isFinite(v) ? Number(v.toFixed(1)) : 0;
+    })(),
+    maxLossStreak: (() => {
+      const v = num('max_consecutive_losing_sells');
+      return Number.isFinite(v) ? Math.round(v) : 0;
+    })(),
+    maxDrawdownDurationDays: (() => {
+      const v = num('max_drawdown_duration_days');
+      return Number.isFinite(v) ? Math.round(v) : 0;
+    })(),
     worstTradePnls: worstTradePnls.slice(0, 3),
-    stockCount: Number.isFinite(stockCount)
-      ? Math.round(stockCount)
-      : (derivedBase?.stockCount ?? 0),
-    avgTradesPerStock: Number.isFinite(avgTradesPerStock)
-      ? Number(avgTradesPerStock.toFixed(2))
-      : (derivedBase?.avgTradesPerStock ?? 0),
-    top5ContributionRatio: Number.isFinite(top5ContributionRatio)
-      ? Number(top5ContributionRatio.toFixed(1))
-      : (derivedBase?.top5ContributionRatio ?? 0),
-    stockPnlCv: Number.isFinite(stockPnlCv)
-      ? Number(stockPnlCv.toFixed(2))
-      : (derivedBase?.stockPnlCv ?? 0),
-    equityCurveLabels: hasCharts ? equityCurveLabels : (derivedBase?.equityCurveLabels ?? []),
-    equityCurveValues: hasCharts ? equityCurveValues : (derivedBase?.equityCurveValues ?? []),
-    drawdownCurveValues: hasCharts ? ddOut : (derivedBase?.drawdownCurveValues ?? []),
+    stockCount,
+    avgTradesPerStock: (() => {
+      if (stockCount > 0) return Number((sellTrades / stockCount).toFixed(2));
+      const v = num('average_trades_per_stock');
+      return Number.isFinite(v) ? Number(v.toFixed(2)) : 0;
+    })(),
+    top5ContributionRatio: (() => {
+      const v = num('top5_profit_concentration_pct');
+      return Number.isFinite(v) ? Number(v.toFixed(1)) : 0;
+    })(),
+    stockPnlCv: (() => {
+      const v = num('stock_profit_coefficient_of_variation');
+      return Number.isFinite(v) ? Number(v.toFixed(2)) : 0;
+    })(),
+    equityCurveLabels,
+    equityCurveValues,
+    drawdownCurveValues,
   };
 }

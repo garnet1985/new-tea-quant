@@ -265,13 +265,9 @@ function StrategyReportPanel({
           || executionState?.result?.price
           || remoteReports?.reports?.price
           || null,
-        capital:
-          executionState?.result?.capital
-          || remoteReports?.reports?.capital
-          || null,
         capital_allocation:
-          snapshotCapitalSlot
-          || stepReportSlots?.capital
+          stepReportSlots?.capital
+          || snapshotCapitalSlot
           || null,
       },
     };
@@ -376,7 +372,7 @@ function StrategyReportPanel({
           {renderTabContent()}
           <Divider />
           <Typography variant="caption" color="text.secondary">
-            注：枚举汇总仅使用快照返回字段，缺项的区块会单独提示。价格/资金等报告在数据未齐时可能仍含占位内容。
+            注：枚举/价格/资金报告仅认 BFF 当前 snake_case 槽位；缺字段或旧缓存格式将显示「数据异常」，请清缓存后重跑对应步骤。
           </Typography>
         </Stack>
       </AccordionDetails>
@@ -440,15 +436,8 @@ function StrategyReportPanel({
                             capitalMetrics: buildCapitalMetrics({
                               result: {
                                 capital_allocation: comparePayload?.base_report?.capital_allocation
+                                  ?? stepReportSlots?.capital
                                   ?? snapshotCapitalSlot
-                                  ?? null,
-                                capital: (comparePayload?.base_report && typeof comparePayload.base_report === 'object'
-                                  && (comparePayload.base_report.profit !== undefined
-                                    || comparePayload.base_report.initialCapital !== undefined)
-                                  ? comparePayload.base_report
-                                  : null)
-                                  ?? remoteReports?.reports?.capital
-                                  ?? executionState?.result?.capital
                                   ?? null,
                               },
                             }),
@@ -491,13 +480,6 @@ function StrategyReportPanel({
                                         comparePayload?.compare_report?.capital_allocation
                                         ?? compareResultReport?.capital_allocation
                                         ?? null,
-                                      capital:
-                                        comparePayload?.compare_report
-                                        && typeof comparePayload.compare_report === 'object'
-                                        && (comparePayload.compare_report.profit !== undefined
-                                          || comparePayload.compare_report.initialCapital !== undefined)
-                                          ? comparePayload.compare_report
-                                          : null,
                                     },
                                   }),
                                 },

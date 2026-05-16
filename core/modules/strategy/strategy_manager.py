@@ -399,7 +399,10 @@ class StrategyManager:
             return None
         summary = done.last_payload
         if not summary or not isinstance(summary, dict):
-            logger.warning("CapitalAllocationFlow 未返回任何结果")
+            logger.warning(
+                "CapitalAllocationFlow 未返回任何结果（常见原因：枚举 0 机会、无 buy 事件，"
+                "或 sampling.pool.file 路径须相对策略目录名而非 settings.name）"
+            )
             return None
         self._present_capital_summary(
             strategy_name,

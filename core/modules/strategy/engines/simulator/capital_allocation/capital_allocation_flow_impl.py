@@ -270,6 +270,13 @@ class CapitalAllocationFlowImpl:
         )
         profiler.metrics.time_load_data = profiler.end_timer("load_data")
         profiler.metrics.opportunity_count = len(events)
+        if not events:
+            logger.warning(
+                "资金模拟无事件：枚举目录 %s 下无有效买入（须含 buy_date/buy_price），"
+                "请先跑 enum 并确认 sampling.pool 路径相对策略目录名 %s",
+                output_version_dir,
+                strategy_name,
+            )
         return events
 
     def create_execution_state(

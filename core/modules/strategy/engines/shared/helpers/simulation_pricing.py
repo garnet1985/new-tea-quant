@@ -52,15 +52,14 @@ def trade_theoretical_price_on_bar(
     return _f(bar, "low") or _f(bar, "close")
 
 
-def trade_theoretical_price(
+def trade_theoretical_price_same_day(
     model: TradePriceModel,
     *,
     side: Side,
     bar: Dict[str, Any],
-    next_bar: Optional[Dict[str, Any]] = None,
     no_next_bar: NoNextBarPolicy = "use_last_close",
 ) -> Optional[float]:
-    """同日可成交模型；``next_open`` 请走延迟队列，勿传 ``next_bar``。"""
+    """信号当日可成交的模型；``next_open`` 应走 ``simulation_day_execution`` 延迟队列。"""
     if trade_price_defers_to_next_session(model):
         return apply_no_next_bar_buy_fallback_price(bar, no_next_bar=no_next_bar)
     return trade_theoretical_price_on_bar(model, side=side, bar=bar)
@@ -90,6 +89,6 @@ __all__ = [
     "apply_sell_slippage",
     "monitor_bar_price",
     "trade_price_defers_to_next_session",
-    "trade_theoretical_price",
     "trade_theoretical_price_on_bar",
+    "trade_theoretical_price_same_day",
 ]

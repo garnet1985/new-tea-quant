@@ -7,6 +7,14 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
 
+def opportunity_slice_date(opportunity: Dict[str, Any]) -> str:
+    """回测时间窗切片：有成交日用 ``buy_date``，否则用 ``trigger_date``（未完成机会）。"""
+    buy = str(opportunity.get("buy_date") or "").strip()
+    if buy:
+        return buy
+    return str(opportunity.get("trigger_date") or "").strip()
+
+
 def parse_opportunity_buy_fill(
     opportunity: Dict[str, Any],
 ) -> Optional[Tuple[str, float]]:
@@ -48,5 +56,6 @@ class SimulationEvent:
 __all__ = [
     "SimulationEvent",
     "opportunity_buy_event_date",
+    "opportunity_slice_date",
     "parse_opportunity_buy_fill",
 ]

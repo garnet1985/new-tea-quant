@@ -72,7 +72,7 @@ def apply_no_next_bar_buy_fallback(
     if raw is None or raw <= 0:
         return policy != "skip_trade"
     opportunity.buy_price = apply_buy_slippage(raw, sim.slippage_buy_bps)
-    opportunity.buy_date = str(signal_bar.get("date") or opportunity.trigger_date or "")
+    opportunity.buy_date = str(signal_bar.get("date") or "")
     if policy == "unfinished":
         opportunity.status = OpportunityStatus.TESTING.value
     return True

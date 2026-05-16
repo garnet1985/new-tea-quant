@@ -17,7 +17,7 @@ from core.modules.strategy.engines.shared.helpers.simulation_day_execution impor
 from core.modules.strategy.engines.shared.helpers.simulation_pricing import (
     apply_buy_slippage,
     trade_price_defers_to_next_session,
-    trade_theoretical_price,
+    trade_theoretical_price_same_day,
 )
 from core.modules.strategy.engines.shared.helpers.strategy_runtime import resolve_worker_class
 from core.modules.strategy.engines.shared.performance_profiler import PerformanceProfiler
@@ -385,7 +385,7 @@ class OpportunityEnumeratorWorker:
             tracker["pending_buys"].append(opportunity)
             return
 
-        buy_raw = trade_theoretical_price(
+        buy_raw = trade_theoretical_price_same_day(
             self.simulation.buy_price_model,
             side="buy",
             bar=current_kline,
@@ -395,7 +395,7 @@ class OpportunityEnumeratorWorker:
             tracker["all_opportunities"].pop()
             return
         opportunity.buy_price = apply_buy_slippage(buy_raw, self.simulation.slippage_buy_bps)
-        opportunity.buy_date = str(current_kline.get("date") or opportunity.trigger_date)
+        opportunity.buy_date = str(current_kline.get("date") or "")
         opportunity.status = OpportunityStatus.ACTIVE.value
         tracker["active_opportunities"].append(opportunity)
 

@@ -29,6 +29,7 @@ class AllocationConfig:
     max_weight_per_stock: float = 0.3
     lots_per_trade: int = 1
     kelly_fraction: float = 0.5
+    skip_trade_when_insufficient: bool = False
 
 
 @dataclass
@@ -70,7 +71,9 @@ class StrategyCapitalSimulatorSettings(SettingsBase):
         alloc.setdefault("max_weight_per_stock", 0.3)
         alloc.setdefault("lots_per_trade", 1)
         alloc.pop("lot_size", None)
+        alloc.pop("on_insufficient_funds", None)
         alloc.setdefault("kelly_fraction", 0.5)
+        alloc.setdefault("skip_trade_when_insufficient", False)
         out = c.get("output")
         if not isinstance(out, dict):
             out = {}
@@ -125,6 +128,7 @@ class StrategyCapitalSimulatorSettings(SettingsBase):
         except (TypeError, ValueError):
             mw = 0.3
         a.pop("lot_size", None)
+        a.pop("on_insufficient_funds", None)
         try:
             lots = max(int(a.get("lots_per_trade", 1)), 1)
         except (TypeError, ValueError):
@@ -134,12 +138,19 @@ class StrategyCapitalSimulatorSettings(SettingsBase):
         except (TypeError, ValueError):
             kf = 0.5
         mode = str(a.get("mode", "equal_capital") or "equal_capital")
+        skip_insufficient = bool(a.get("skip_trade_when_insufficient", False))
+        if "on_insufficient_funds" in a:
+            legacy = str(a.get("on_insufficient_funds") or "").strip().lower()
+            skip_insufficient = legacy in ("skip", "true", "1")
+            a.pop("on_insufficient_funds", None)
+        a["skip_trade_when_insufficient"] = skip_insufficient
         return AllocationConfig(
             mode=mode,
             max_portfolio_size=mps,
             max_weight_per_stock=mw,
             lots_per_trade=lots,
             kelly_fraction=kf,
+            skip_trade_when_insufficient=skip_insufficient,
         )
 
     def _parse_output(self) -> OutputConfig:

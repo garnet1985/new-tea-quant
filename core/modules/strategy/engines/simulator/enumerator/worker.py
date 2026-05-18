@@ -8,9 +8,12 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_vi
     StrategySettingsView,
 )
 from core.modules.strategy.engines.shared.helpers.market_profile_runtime import (
-    bar_prev_close,
     load_market_profile_for_settings,
-    should_skip_limit_up_buy,
+    stamp_buy_tradability,
+)
+from core.modules.strategy.engines.shared.helpers.tradability_stats import (
+    count_tradability_in_opportunities,
+    tradability_ratios,
 )
 from core.modules.strategy.engines.shared.helpers.simulation_day_execution import (
     execute_pending_exits_on_active,
@@ -56,7 +59,7 @@ class OpportunityEnumeratorWorker:
         )
         self.opportunity_counter = 0
         self.simulation = self.settings.simulation_settings
-        self.market_profile = load_market_profile_for_settings(self.settings_dict)
+        self.tradability_profile = load_market_profile_for_settings(self.settings_dict)
         self._load_user_strategy()
 
     def _load_user_strategy(self):
@@ -181,11 +184,13 @@ class OpportunityEnumeratorWorker:
                 tracker["active_opportunities"],
                 tracker["all_opportunities"],
                 sim=self.simulation,
+                tradability_profile=self.tradability_profile,
             )
             resolve_pending_exits_on_active_at_end(
                 tracker["active_opportunities"],
                 last_bar=last_kline,
                 sim=self.simulation,
+                tradability_profile=self.tradability_profile,
             )
             if tracker["active_opportunities"]:
                 self._close_all_open_opportunities(tracker, last_kline)
@@ -255,6 +260,12 @@ class OpportunityEnumeratorWorker:
             "status_completed_count": 0,
             "trigger_gap_days": [],
             "holding_duration_days": [],
+            "buy_tradability_sample_count": 0,
+            "buy_at_limit_up_count": 0,
+            "sell_tradability_sample_count": 0,
+            "sell_at_limit_down_count": 0,
+            "limit_up_buy_ratio": 0.0,
+            "limit_down_sell_ratio": 0.0,
         }
 
     def _build_enumeration_report_bundle(self, opportunities_dict: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -298,6 +309,8 @@ class OpportunityEnumeratorWorker:
             d1 = DateUtils.normalize_str(str((r or {}).get("sell_date") or ""))
             if d0 and d1:
                 durations.append(float(DateUtils.diff_days(d0, d1)))
+        tradability = count_tradability_in_opportunities(opportunities_dict)
+        ratios = tradability_ratios(tradability)
         return {
             "stock_name": display_name,
             "opportunity_count": len(opportunities_dict),
@@ -306,6 +319,8 @@ class OpportunityEnumeratorWorker:
             "status_completed_count": status_completed,
             "trigger_gap_days": gaps,
             "holding_duration_days": durations,
+            **tradability,
+            **ratios,
         }
 
     @staticmethod
@@ -348,14 +363,14 @@ class OpportunityEnumeratorWorker:
             tracker["active_opportunities"],
             bar=current_kline,
             sim=self.simulation,
-            market_profile=self.market_profile,
+            tradability_profile=self.tradability_profile,
             prev_bar=prev_kline,
         )
         exit_indices = execute_pending_exits_on_active(
             tracker["active_opportunities"],
             bar=current_kline,
             sim=self.simulation,
-            market_profile=self.market_profile,
+            tradability_profile=self.tradability_profile,
             prev_bar=prev_kline,
         )
         for idx in reversed(exit_indices):
@@ -367,7 +382,7 @@ class OpportunityEnumeratorWorker:
                 self.simulation,
                 current_kline=current_kline,
                 goal_config=self.settings.goal,
-                market_profile=self.market_profile,
+                tradability_profile=self.tradability_profile,
                 prev_bar=prev_kline,
             ):
                 completed_indices.append(idx)
@@ -410,17 +425,15 @@ class OpportunityEnumeratorWorker:
             tracker["all_opportunities"].pop()
             return
         buy_price = apply_buy_slippage(buy_raw, self.simulation.slippage_buy_bps)
-        if should_skip_limit_up_buy(
-            self.market_profile,
-            self.stock_id,
-            bar_prev_close(prev_kline),
-            buy_price,
-            enabled=self.simulation.skip_limit_up_buy,
-        ):
-            tracker["all_opportunities"].pop()
-            return
         opportunity.buy_price = buy_price
         opportunity.buy_date = str(current_kline.get("date") or "")
+        stamp_buy_tradability(
+            opportunity,
+            self.tradability_profile,
+            self.stock_id,
+            prev_kline,
+            buy_price,
+        )
         opportunity.status = OpportunityStatus.ACTIVE.value
         tracker["active_opportunities"].append(opportunity)
 
@@ -437,6 +450,7 @@ class OpportunityEnumeratorWorker:
                 self.simulation,
                 last_kline=last_kline,
                 reason="enumeration_end",
+                tradability_profile=self.tradability_profile,
             )
         tracker["active_opportunities"].clear()
 

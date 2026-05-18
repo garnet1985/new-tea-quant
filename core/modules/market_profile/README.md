@@ -1,6 +1,6 @@
 # Market Profile 模块设计
 
-> 状态：加载 / parse / 对外 API 已实现；strategy 集成待做。配置发现与合并委托 `core.infra.project_context.DiscoveryManager`。
+> 状态：加载 / parse / 对外 API 已实现；已与 strategy 枚举标注、price_sim / capital 成交过滤集成。配置发现与合并委托 `core.infra.project_context.DiscoveryManager`。
 
 ## 1. 目标与边界
 
@@ -11,7 +11,7 @@
 
 ### 1.2 不负责（属于策略回测 / `simulation`）
 
-- 涨跌停日 **能否成交**（`skip_trade`、作废机会、卖不出是否继续持有）。
+- 涨跌停日 **是否仍允许成交**（`simulation.edges.allow_buy_at_limit_up` / `allow_sell_at_limit_down`）——在 **price_sim / capital** 执行，不在本模块内决定默认值。
 - 滑点、`buy_price_model` / `sell_price_model`、费率（`fees`）。
 - 信号、仓位、止盈止损（`goal`）。
 
@@ -25,7 +25,8 @@
 **涨跌停拆分**
 
 - **Profile**：`ratio` + `matching` → 计算 `limit_up` / `limit_down`。
-- **Simulation**：触及涨跌停时的成交策略。
+- **Enumerator**：在机会 / 目标行上 **标注** `buy_at_limit_up`、`sell_at_limit_down` 等，**不删除**机会（保留策略信号完整性）。
+- **Simulation.edges**：`allow_buy_at_limit_up` / `allow_sell_at_limit_down`（默认 `true`）在 **price_sim、capital** 读取标注后决定是否跳过该笔买卖。
 
 ---
 
@@ -63,7 +64,7 @@
 - Settings 根级字段：**`market_profile`**（与模块名一致）。
 - 选填；缺省 `china_a_stock`。
 - 示例：`setup/init_userspace/userspace/strategies/settings_example.py`。
-- **校验与加载**：在 strategy settings 集成阶段实现；本模块仅接受 `profile_id` 字符串，找不到合并后配置则报错。
+- **校验与加载**：`StrategyMarketProfileSettings`（`strategy_settings`）校验 `profile_id` 是否存在；运行时经 `get_market_profile(profile_id)` 加载。
 
 ---
 
@@ -164,13 +165,15 @@ get_market_profile(profile_id?)
 
 ---
 
-## 7. 调用方（集成阶段，当前未接）
+## 7. 调用方
 
 | 调用方 | 用法 |
 |--------|------|
-| Enum 成交 / 限价 | `compute_limit_prices`；能否成交读 `simulation` |
-| Capital allocation | `resolve_lot_rules`、`floor_buy_quantity` |
+| Enumerator | `stamp_buy_tradability` / `stamp_target_tradability`；CSV 含 `buy_at_limit_up`、`sell_at_limit_down` |
+| Price factor | `allow_*_at_limit_*` 过滤投资与目标；读 CSV 标注或 `buy_prev_close` 重算 |
+| Capital allocation | `resolve_lot_rules`、`floor_buy_quantity`；`allow_*` / `skip_trade_when_insufficient` |
 | Strategy 入口 | `settings["market_profile"]` → `get_market_profile(...)` |
+| Scanner | 信号日触及涨停时标注 `buy_at_limit_up` 与 `metadata.tradability_hint`，不过滤机会 |
 
 ---
 

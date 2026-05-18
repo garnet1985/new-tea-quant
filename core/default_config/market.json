@@ -1,10 +1,59 @@
 {
-  "_comment": "市场配置，未来扩展（当前关注A股）",
-  "_future": {
-    "trading_rule": {
-      "_comment": "交易规则：T+0/T+1、做空支持等",
-      "settlement_days": 1,
-      "short_selling": false
+  "name": "china_a_stock_market",
+  "description": "中国A股市场规则",
+  "rules": {
+    "amplitude_limit": {
+      "default_ratio": 0.1,
+      "rules": [
+        {
+          "key": "ke_chuang_ban",
+          "description": "科创板股票的涨跌幅限制为20%",
+          "ratio": 0.2,
+          "matching": {
+            "id": {
+              "start_with": ["688"]
+            }
+          }
+        },
+        {
+          "key": "chuang_ye_ban",
+          "description": "创业板股票的涨跌幅限制为20%",
+          "ratio": 0.2,
+          "matching": {
+            "id": {
+              "start_with": ["300"]
+            }
+          }
+        },
+        {
+          "key": "bei_jiao_suo",
+          "description": "北交所股票的涨跌幅限制为30%",
+          "ratio": 0.3,
+          "matching": {
+            "id": {
+              "start_with": ["43", "83", "87", "88", "92"],
+              "relation": "or"
+            }
+          }
+        }
+      ]
+    },
+    "lot_size": {
+      "default_min_lot": 100,
+      "default_lot_step": 100,
+      "rules": [
+        {
+          "key": "ke_chuang_ban",
+          "description": "科创板股票的最小买入手数为200股，每手步长为1股",
+          "min_lot": 200,
+          "lot_step": 1 ,
+          "matching": {
+            "id": {
+              "start_with": ["688"]
+            }
+          }
+        }
+      ]
     }
   }
 }

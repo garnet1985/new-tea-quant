@@ -5,8 +5,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from core.modules.market_profile.profile import MarketProfile
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.simulation_settings import (
     TradePriceModel,
+)
+from core.modules.strategy.engines.shared.helpers.market_profile_runtime import (
+    bar_prev_close,
+    should_skip_limit_up_buy,
 )
 from core.modules.strategy.engines.shared.helpers.simulation_pricing import (
     apply_buy_slippage,
@@ -29,13 +34,21 @@ def fill_pending_buys(
     *,
     bar: Dict[str, Any],
     sim: "StrategySimulationSettings",
+    market_profile: Optional[MarketProfile] = None,
+    prev_bar: Optional[Dict[str, Any]] = None,
 ) -> None:
     """在当日 bar 的 open 上完成昨日信号的 ``next_open`` 买入。"""
     if not pending:
         return
     still_pending: List["Opportunity"] = []
     for opportunity in pending:
-        if _fill_buy_on_bar(opportunity, bar=bar, sim=sim):
+        if _fill_buy_on_bar(
+            opportunity,
+            bar=bar,
+            sim=sim,
+            market_profile=market_profile,
+            prev_bar=prev_bar,
+        ):
             opportunity.buy_fill_pending = False
             opportunity.status = OpportunityStatus.ACTIVE.value
             active.append(opportunity)
@@ -49,11 +62,18 @@ def execute_pending_exits_on_active(
     *,
     bar: Dict[str, Any],
     sim: "StrategySimulationSettings",
+    market_profile: Optional[MarketProfile] = None,
+    prev_bar: Optional[Dict[str, Any]] = None,
 ) -> List[int]:
     """在当日 open 上完成昨日触发的 ``next_open`` 卖出。返回应从 active 移除的下标。"""
     completed: List[int] = []
     for idx, opportunity in enumerate(active):
-        if opportunity.execute_pending_exit(sim, bar):
+        if opportunity.execute_pending_exit(
+            sim,
+            bar,
+            market_profile=market_profile,
+            prev_bar=prev_bar,
+        ):
             completed.append(idx)
     return completed
 
@@ -140,6 +160,8 @@ def _fill_buy_on_bar(
     *,
     bar: Dict[str, Any],
     sim: "StrategySimulationSettings",
+    market_profile: Optional[MarketProfile] = None,
+    prev_bar: Optional[Dict[str, Any]] = None,
 ) -> bool:
     raw = trade_theoretical_price_on_bar(
         TradePriceModel.NEXT_OPEN,
@@ -148,7 +170,16 @@ def _fill_buy_on_bar(
     )
     if raw is None or raw <= 0:
         return False
-    opportunity.buy_price = apply_buy_slippage(raw, sim.slippage_buy_bps)
+    buy_price = apply_buy_slippage(raw, sim.slippage_buy_bps)
+    if market_profile is not None and should_skip_limit_up_buy(
+        market_profile,
+        opportunity.stock_id,
+        bar_prev_close(prev_bar),
+        buy_price,
+        enabled=sim.skip_limit_up_buy,
+    ):
+        return False
+    opportunity.buy_price = buy_price
     opportunity.buy_date = str(bar.get("date") or "")
     return True
 

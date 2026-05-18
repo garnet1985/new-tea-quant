@@ -1,30 +1,34 @@
 """
 Project Management Module - 项目管理模块
 
-提供项目路径、文件操作和配置管理的统一接口。
+提供项目路径、配置发现、配置合并的统一接口。
 
 架构：
 - PathManager: 路径管理（提供常用路径的快捷访问）
-- FileManager: 文件管理（文件查找、读取等操作）
-- ConfigManager: 配置管理（默认配置和用户配置的合并）
-- ProjectContextManager: Facade，组合三个 Manager 提供统一入口
-
-使用示例：
-    from core.infra.project_context import ProjectContextManager
-    
-    ctx = ProjectContextManager()
-    core_dir = ctx.path.core()
-    settings = ctx.config.load_with_defaults(default_path, user_path)
+- DiscoveryManager: 约定目录下的配置发现与可覆盖加载
+- ConfigManager: 配置读取与合并（已知路径或专项加载器）
+- FileManager: 文件 I/O 原语（查找、读取、目录）
+- ProjectContextManager: Facade，组合上述 Manager
 """
 
 from .project_context_manager import ProjectContextManager
 from .path_manager import PathManager
 from .file_manager import FileManager
 from .config_manager import ConfigManager
+from .discovery_manager import (
+    DiscoveredConfig,
+    DiscoveryManager,
+    OverridableConfigNotFoundError,
+)
+from .config_merge_policies import merge_market_profile_dicts
 
 __all__ = [
-    'ProjectContextManager',
-    'PathManager',
-    'FileManager',
-    'ConfigManager',
+    "ProjectContextManager",
+    "PathManager",
+    "DiscoveryManager",
+    "DiscoveredConfig",
+    "OverridableConfigNotFoundError",
+    "ConfigManager",
+    "FileManager",
+    "merge_market_profile_dicts",
 ]

@@ -9,6 +9,10 @@ import logging
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from core.modules.strategy.enums import OpportunityStatus
+from core.modules.strategy.engines.shared.helpers.market_profile_runtime import (
+    bar_prev_close,
+    should_skip_limit_down_sell,
+)
 from core.modules.strategy.engines.shared.helpers.simulation_pricing import (
     apply_sell_slippage,
     monitor_bar_price,
@@ -17,6 +21,7 @@ from core.modules.strategy.engines.shared.helpers.simulation_pricing import (
 )
 
 if TYPE_CHECKING:
+    from core.modules.market_profile.profile import MarketProfile
     from core.modules.strategy.engines.shared.data_classes.strategy_settings.simulation_settings import (
         StrategySimulationSettings,
     )
@@ -94,9 +99,19 @@ class Opportunity:
         reason: str,
         *,
         sell_ratio: float = 1.0,
+        market_profile: Optional["MarketProfile"] = None,
+        prev_bar: Optional[Dict[str, Any]] = None,
     ) -> bool:
         exit_px = self._exit_price(sim, bar)
         if exit_px is None:
+            return False
+        if market_profile is not None and should_skip_limit_down_sell(
+            market_profile,
+            self.stock_id,
+            bar_prev_close(prev_bar),
+            exit_px,
+            enabled=sim.skip_limit_down_sell,
+        ):
             return False
         basis = self._cost_basis()
         current_date = bar["date"]
@@ -115,15 +130,27 @@ class Opportunity:
         reason: str,
         *,
         sell_ratio: float = 1.0,
+        market_profile: Optional["MarketProfile"] = None,
+        prev_bar: Optional[Dict[str, Any]] = None,
     ) -> bool:
         if trade_price_defers_to_next_session(sim.sell_price_model):
             return self._defer_exit(reason, sell_ratio=sell_ratio)
-        return self._settle_on_bar(sim, bar, reason, sell_ratio=sell_ratio)
+        return self._settle_on_bar(
+            sim,
+            bar,
+            reason,
+            sell_ratio=sell_ratio,
+            market_profile=market_profile,
+            prev_bar=prev_bar,
+        )
 
     def execute_pending_exit(
         self,
         sim: "StrategySimulationSettings",
         bar: Dict[str, Any],
+        *,
+        market_profile: Optional["MarketProfile"] = None,
+        prev_bar: Optional[Dict[str, Any]] = None,
     ) -> bool:
         if not self.pending_exit:
             return False
@@ -134,6 +161,8 @@ class Opportunity:
             bar,
             str(pe.get("reason") or "exit"),
             sell_ratio=float(pe.get("sell_ratio") or 1.0),
+            market_profile=market_profile,
+            prev_bar=prev_bar,
         )
 
     def __post_init__(self):
@@ -196,6 +225,9 @@ class Opportunity:
         sim: "StrategySimulationSettings",
         current_kline: Dict[str, Any],
         goal_config: Dict[str, Any],
+        *,
+        market_profile: Optional["MarketProfile"] = None,
+        prev_bar: Optional[Dict[str, Any]] = None,
     ) -> bool:
         current_price = monitor_bar_price(current_kline, sim.monitor_price_model)
         current_date = current_kline["date"]
@@ -214,14 +246,28 @@ class Opportunity:
         if expiration_config:
             fixed_window_in_days = expiration_config.get("fixed_window_in_days", 0)
             if fixed_window_in_days > 0 and holding_days >= fixed_window_in_days:
-                if self._request_exit(sim, current_kline, "expiration", sell_ratio=1.0):
+                if self._request_exit(
+                    sim,
+                    current_kline,
+                    "expiration",
+                    sell_ratio=1.0,
+                    market_profile=market_profile,
+                    prev_bar=prev_bar,
+                ):
                     return self.pending_exit is None
 
         if self.protect_loss_active:
             protect_loss_config = goal_config.get("protect_loss", {})
             protect_ratio = protect_loss_config.get("ratio", 0)
             if price_return <= protect_ratio:
-                if self._request_exit(sim, current_kline, "protect_loss", sell_ratio=1.0):
+                if self._request_exit(
+                    sim,
+                    current_kline,
+                    "protect_loss",
+                    sell_ratio=1.0,
+                    market_profile=market_profile,
+                    prev_bar=prev_bar,
+                ):
                     return self.pending_exit is None
 
         if self.dynamic_loss_active:
@@ -234,7 +280,14 @@ class Opportunity:
                 current_price - self.dynamic_loss_highest
             ) / self.dynamic_loss_highest if self.dynamic_loss_highest else 0.0
             if dynamic_threshold <= dynamic_ratio:
-                if self._request_exit(sim, current_kline, "dynamic_loss", sell_ratio=1.0):
+                if self._request_exit(
+                    sim,
+                    current_kline,
+                    "dynamic_loss",
+                    sell_ratio=1.0,
+                    market_profile=market_profile,
+                    prev_bar=prev_bar,
+                ):
                     return self.pending_exit is None
 
         stop_loss_stages = goal_config.get("stop_loss", {}).get("stages", [])
@@ -251,7 +304,14 @@ class Opportunity:
                     else:
                         ratio_percent = int(stage_ratio * 100)
                         reason = f"stop_loss_{ratio_percent}%"
-                    if self._request_exit(sim, current_kline, reason, sell_ratio=1.0):
+                    if self._request_exit(
+                        sim,
+                        current_kline,
+                        reason,
+                        sell_ratio=1.0,
+                        market_profile=market_profile,
+                        prev_bar=prev_bar,
+                    ):
                         return self.pending_exit is None
 
         take_profit_stages = goal_config.get("take_profit", {}).get("stages", [])
@@ -276,7 +336,14 @@ class Opportunity:
                     reason = f"take_profit_{ratio_percent}%"
 
                 if stage.get("close_invest", False):
-                    if self._request_exit(sim, current_kline, reason, sell_ratio=1.0):
+                    if self._request_exit(
+                        sim,
+                        current_kline,
+                        reason,
+                        sell_ratio=1.0,
+                        market_profile=market_profile,
+                        prev_bar=prev_bar,
+                    ):
                         return self.pending_exit is None
                 if not self.completed_targets:
                     self.completed_targets = []
@@ -286,6 +353,14 @@ class Opportunity:
                     continue
                 exit_px = self._exit_price(sim, current_kline)
                 if exit_px is None:
+                    continue
+                if market_profile is not None and should_skip_limit_down_sell(
+                    market_profile,
+                    self.stock_id,
+                    bar_prev_close(prev_bar),
+                    exit_px,
+                    enabled=sim.skip_limit_down_sell,
+                ):
                     continue
                 profit = exit_px - basis
                 weighted_profit = profit * sell_ratio

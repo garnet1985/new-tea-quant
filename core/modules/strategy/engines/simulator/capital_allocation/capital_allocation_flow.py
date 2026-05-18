@@ -211,7 +211,10 @@ class CapitalAllocationFlow(BaseSimulationFlow):
                 progress_callback(88.0)
             return CapitalAllocationExecuteContext(empty=True)
         # step2: initialize account/funding/allocation execution state
-        state = self._impl.create_execution_state(preprocessed.config)
+        state = self._impl.create_execution_state(
+            preprocessed.config,
+            raw_settings=preprocessed.base_settings.to_dict(),
+        )
         # step3: replay trigger/target events into trades and positions
         self._impl.replay_events(
             events=events,

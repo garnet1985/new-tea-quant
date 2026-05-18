@@ -10,7 +10,7 @@
 `ProjectContextManager()`
 
 - 状态：`stable`
-- 描述：Facade：构造后 `path` / `file` / `config` 分别绑定 `PathManager` / `FileManager` / `ConfigManager` 类对象。
+- 描述：Facade：构造后 `path` / `discovery` / `config` / `file` 分别绑定各 Manager 类对象。
 - 诞生版本：`0.2.0`
 - params：
 
@@ -397,24 +397,6 @@
 ---
 
 ### 函数名
-`PathManager.find_config_recursively(base_dir: Path, data_source_key: str, config_filename: str = "config.py") -> Optional[Path]`
-
-- 状态：`stable`
-- 描述：在 `base_dir` 下查找数据源配置；先直路径再 `rglob`。
-- 诞生版本：`0.2.0`
-- params：
-
-| 名字 | 类型 | 说明 |
-|------|------|------|
-| `base_dir` | `Path` | 必填 |
-| `data_source_key` | `str` | 必填 |
-| `config_filename` (可选) | `str` | 默认 `config.py` |
-
-- 返回值：`Optional[Path]`
-
----
-
-### 函数名
 `PathManager.data_contract() -> Path`
 
 - 状态：`stable`
@@ -709,19 +691,81 @@
 
 ---
 
+## DiscoveryManager
+
+以下均为类静态方法，签名前缀 `DiscoveryManager.`。
+
 ### 函数名
-`ConfigManager.load_market_config() -> Dict[str, Any]`
+`DiscoveryManager.discover_configs(domain: str = "", *, pattern: str = "*.json") -> List[str]`
 
 - 状态：`stable`
-- 描述：`load_core_config('market')`。
-- 诞生版本：`0.2.0`
+- 描述：扫描 `default_config[/domain]/` 与 `userspace/config[/domain]/` 下匹配文件的 config id（无后缀）并集。
+- 诞生版本：`0.3.0`
 - params：
 
-无
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `domain` | `str` | 空串为根级 `data.json` 等；`markets` 为子目录 |
+| `pattern` (可选) | `str` | 默认 `*.json` |
+
+- 返回值：`List[str]`
+
+---
+
+### 函数名
+`DiscoveryManager.discover_config(domain: str, config_id: str) -> DiscoveredConfig`
+
+- 状态：`stable`
+- 描述：解析 core / userspace 路径，不读取内容。
+- 诞生版本：`0.3.0`
+- params：
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `domain` | `str` | 配置域 |
+| `config_id` | `str` | 配置 id |
+
+- 返回值：`DiscoveredConfig`
+
+---
+
+### 函数名
+`DiscoveryManager.load_overridable_config(domain, config_id, *, merge_fn=None, deep_merge_fields=None, override_fields=None, file_type="json") -> Dict[str, Any]`
+
+- 状态：`stable`
+- 描述：发现路径后加载并合并；`merge_fn` 为 `None` 时使用 `ConfigManager.load_with_defaults`。
+- 诞生版本：`0.3.0`
+- params：
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `domain` | `str` | 配置域 |
+| `config_id` | `str` | 配置 id |
+| `merge_fn` | 可选 callable | 如 `merge_market_profile_dicts` |
 
 - 返回值：`Dict[str, Any]`
 
 ---
+
+### 函数名
+`DiscoveryManager.find_in_tree(base_dir: Path, key: str, config_filename: str = "config.py") -> Optional[Path]`
+
+- 状态：`stable`
+- 描述：在任意目录树中查找配置（如 data source handlers）。
+- 诞生版本：`0.3.0`
+- params：
+
+| 名字 | 类型 | 说明 |
+|------|------|------|
+| `base_dir` | `Path` | 搜索根 |
+| `key` | `str` | 目录名匹配键 |
+| `config_filename` (可选) | `str` | 默认 `config.py` |
+
+- 返回值：`Optional[Path]`
+
+---
+
+## ConfigManager（续）
 
 ### 函数名
 `ConfigManager.load_worker_config() -> Dict[str, Any]`
@@ -851,23 +895,14 @@
 
 ---
 
-## 已废弃别名（`ConfigManager`）
-
-以下仍可用，请改用 `load_*_config`：
-
-- `get_data_config` → `load_data_config`
-- `get_database_config` → `load_database_config`
-- `get_market_config` → `load_market_config`
-- `get_worker_config` → `load_worker_config`
-- `get_system_config` → `load_system_config`
-- `get_logging_config` → `load_logging_config`
-
 ## 示例
 
 ```python
-from core.infra.project_context import PathManager, ConfigManager
+from core.infra.project_context import PathManager, DiscoveryManager, ConfigManager
 
 root = PathManager.get_root()
+profiles = DiscoveryManager.discover_configs("markets")
+raw = DiscoveryManager.load_overridable_config("markets", "china_a_stock")
 db_cfg = ConfigManager.load_database_config()
 data = ConfigManager.load_data_config()
 ```

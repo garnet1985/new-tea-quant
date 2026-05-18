@@ -55,6 +55,8 @@ class _ParsedSnapshot:
     slippage_buy_bps: float
     slippage_sell_bps: float
     edges_no_next_bar: NoNextBarPolicy
+    skip_limit_up_buy: bool
+    skip_limit_down_sell: bool
     extreme_same_bar_order: ExtremeSameBarOrder
     extreme_same_bar_random_seed: Optional[int]
 
@@ -88,6 +90,8 @@ def _default_snapshot_for_template(tmpl: str) -> _ParsedSnapshot:
             slippage_buy_bps=0.0,
             slippage_sell_bps=0.0,
             edges_no_next_bar="use_last_close",
+            skip_limit_up_buy=False,
+            skip_limit_down_sell=False,
             extreme_same_bar_order=ExtremeSameBarOrder.STOP_FIRST,
             extreme_same_bar_random_seed=None,
         )
@@ -100,6 +104,8 @@ def _default_snapshot_for_template(tmpl: str) -> _ParsedSnapshot:
             slippage_buy_bps=0.0,
             slippage_sell_bps=0.0,
             edges_no_next_bar="use_last_close",
+            skip_limit_up_buy=False,
+            skip_limit_down_sell=False,
             extreme_same_bar_order=ExtremeSameBarOrder.STOP_FIRST,
             extreme_same_bar_random_seed=None,
         )
@@ -164,6 +170,8 @@ def _parse_snapshot(raw: Dict[str, Any]) -> _ParsedSnapshot:
 
     edges = raw.get("edges")
     nnb: NoNextBarPolicy = base.edges_no_next_bar
+    skip_limit_up_buy = base.skip_limit_up_buy
+    skip_limit_down_sell = base.skip_limit_down_sell
     if edges is not None:
         if not isinstance(edges, dict):
             raise ValueError("simulation.edges 必须为 dict")
@@ -175,6 +183,10 @@ def _parse_snapshot(raw: Dict[str, Any]) -> _ParsedSnapshot:
         if nnb_s not in allowed:
             raise ValueError(f"simulation.edges.no_next_bar 非法: {nnb_raw!r}；允许 {list(allowed)}")
         nnb = nnb_s  # type: ignore[assignment]
+        if "skip_limit_up_buy" in edges:
+            skip_limit_up_buy = bool(edges.get("skip_limit_up_buy"))
+        if "skip_limit_down_sell" in edges:
+            skip_limit_down_sell = bool(edges.get("skip_limit_down_sell"))
 
     resolved_tpl = "extreme" if tmpl == "extreme" else ("custom" if tmpl == "custom" else "deterministic")
     return _ParsedSnapshot(
@@ -185,6 +197,8 @@ def _parse_snapshot(raw: Dict[str, Any]) -> _ParsedSnapshot:
         slippage_buy_bps=buy_bps,
         slippage_sell_bps=sell_bps,
         edges_no_next_bar=nnb,
+        skip_limit_up_buy=skip_limit_up_buy,
+        skip_limit_down_sell=skip_limit_down_sell,
         extreme_same_bar_order=order,
         extreme_same_bar_random_seed=seed_out,
     )
@@ -221,6 +235,8 @@ class StrategySimulationSettings(SettingsBase):
         if not isinstance(sim["edges"], dict):
             sim["edges"] = {}
         sim["edges"].setdefault("no_next_bar", "use_last_close")
+        sim["edges"].setdefault("skip_limit_up_buy", False)
+        sim["edges"].setdefault("skip_limit_down_sell", False)
 
     @property
     def _parsed(self) -> _ParsedSnapshot:
@@ -259,6 +275,14 @@ class StrategySimulationSettings(SettingsBase):
     @property
     def edges_no_next_bar(self) -> NoNextBarPolicy:
         return self._parsed.edges_no_next_bar
+
+    @property
+    def skip_limit_up_buy(self) -> bool:
+        return self._parsed.skip_limit_up_buy
+
+    @property
+    def skip_limit_down_sell(self) -> bool:
+        return self._parsed.skip_limit_down_sell
 
     @property
     def extreme_same_bar_order(self) -> ExtremeSameBarOrder:

@@ -234,21 +234,14 @@ class ConfigManager:
         Returns:
             合并后的配置字典
         """
-        from .path_manager import PathManager
-        
-        # 1. 默认配置路径
-        default_path = PathManager.default_config() / f"{config_name}.json"
-        
-        # 2. 用户配置路径
-        user_path = PathManager.user_config() / f"{config_name}.json"
-        
-        # 3. 使用现有的 load_with_defaults 方法
-        return ConfigManager.load_with_defaults(
-            default_path=default_path,
-            user_path=user_path,
+        from .discovery_manager import DiscoveryManager
+
+        return DiscoveryManager.load_overridable_config(
+            "",
+            config_name,
             deep_merge_fields=deep_merge_fields,
             override_fields=override_fields,
-            file_type="json"
+            file_type="json",
         )
 
     # =========================
@@ -492,21 +485,6 @@ class ConfigManager:
             override_fields=set()
         )
     
-    
-    @staticmethod
-    def load_market_config() -> Dict[str, Any]:
-        """
-        加载市场配置（合并后的完整配置）
-        
-        Returns:
-            市场配置字典
-        """
-        return ConfigManager.load_core_config(
-            'market',
-            deep_merge_fields=set(),
-            override_fields=set()
-        )
-    
     @staticmethod
     def load_worker_config() -> Dict[str, Any]:
         """
@@ -549,38 +527,6 @@ class ConfigManager:
             deep_merge_fields=set(),
             override_fields=set()
         )
-    
-    # ==================== 向后兼容别名（已废弃，请使用 load_xxx_config）====================
-    
-    @staticmethod
-    def get_data_config() -> Dict[str, Any]:
-        """已废弃：请使用 load_data_config()"""
-        return ConfigManager.load_data_config()
-    
-    @staticmethod
-    def get_database_config(database_type: str = None) -> Dict[str, Any]:
-        """已废弃：请使用 load_database_config()"""
-        return ConfigManager.load_database_config(database_type)
-    
-    @staticmethod
-    def get_market_config() -> Dict[str, Any]:
-        """已废弃：请使用 load_market_config()"""
-        return ConfigManager.load_market_config()
-    
-    @staticmethod
-    def get_worker_config() -> Dict[str, Any]:
-        """已废弃：请使用 load_worker_config()"""
-        return ConfigManager.load_worker_config()
-    
-    @staticmethod
-    def get_system_config() -> Dict[str, Any]:
-        """已废弃：请使用 load_system_config()"""
-        return ConfigManager.load_system_config()
-    
-    @staticmethod
-    def get_logging_config() -> Dict[str, Any]:
-        """已废弃：请使用 load_logging_config()"""
-        return ConfigManager.load_logging_config()
     
     # ==================== 便捷访问接口（频繁使用的配置）====================
     

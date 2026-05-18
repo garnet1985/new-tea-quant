@@ -17,6 +17,9 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_vi
 from core.modules.strategy.engines.simulator.capital_allocation.data_classes.settings import (
     StrategyCapitalSimulatorSettings,
 )
+from core.modules.strategy.engines.shared.helpers.market_profile_runtime import (
+    load_market_profile_for_settings,
+)
 from core.modules.strategy.engines.shared.helpers.strategy_runtime import (
     load_strategy_settings_view,
 )
@@ -280,10 +283,15 @@ class CapitalAllocationFlowImpl:
         return events
 
     def create_execution_state(
-        self, config: StrategyCapitalSimulatorSettings
+        self,
+        config: StrategyCapitalSimulatorSettings,
+        *,
+        raw_settings: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         allocation_cfg = config.allocation
         fees_cfg = config.get_fees_config_with_priority()
+        settings_root = raw_settings if isinstance(raw_settings, dict) else config.raw_settings
+        market_profile = load_market_profile_for_settings(settings_root)
         account = Account(initial_cash=config.initial_capital, cash=config.initial_capital)
         fee_calculator = FeeCalculator(
             commission_rate=float(fees_cfg.get("commission_rate", 0.00025) or 0.00025),
@@ -295,7 +303,7 @@ class CapitalAllocationFlowImpl:
             mode=allocation_cfg.mode,
             initial_capital=config.initial_capital,
             max_portfolio_size=allocation_cfg.max_portfolio_size,
-            lot_size=allocation_cfg.lot_size,
+            market_profile=market_profile,
             lots_per_trade=allocation_cfg.lots_per_trade,
             kelly_fraction=allocation_cfg.kelly_fraction,
             fee_calculator=fee_calculator,
@@ -492,7 +500,7 @@ class CapitalAllocationFlowImpl:
             else None
         )
         buy_shares = allocation_strategy.calculate_shares_to_buy(
-            account, buy_price, win_rate
+            account, buy_price, stock_id, win_rate
         )
         if buy_shares == 0:
             return None

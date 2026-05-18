@@ -1,6 +1,6 @@
 # Market Profile 模块设计
 
-> 状态：设计已定稿，实现占位中（`pass`）。细节可在实现阶段微调。
+> 状态：加载 / parse / 对外 API 已实现；strategy 集成待做。配置发现与合并委托 `core.infra.project_context.DiscoveryManager`。
 
 ## 1. 目标与边界
 
@@ -73,8 +73,7 @@
 core/modules/market_profile/
 ├── README.md                      # 本文档
 ├── module_info.yaml
-├── constants.py
-├── discovery.py                   # 列 profile、按文件 merge
+├── constants.py                   # DEFAULT_PROFILE_ID、MARKETS_CONFIG_DIR
 ├── profile.py                     # MarketProfile 聚合（类似 StrategySettings）
 ├── market_profile_manager.py      # 对外入口、缓存、registry 调度
 ├── __init__.py
@@ -102,8 +101,8 @@ core/modules/market_profile/
 
 ```text
 get_market_profile(profile_id?)
-  → discovery.load_merged_profile(profile_id)
-  → MarketProfileManager.build(raw)
+  → DiscoveryManager.load_overridable_config(MARKETS_CONFIG_DIR, profile_id, merge_fn=...)
+  → MarketProfile.from_raw(profile_id, raw)
        → 遍历 REGISTRY 中各 Engine
        → block = raw["rules"].get(engine.rule_key)
        → 无 block：跳过；有 block：compiled = engine.parse(block)
@@ -154,9 +153,13 @@ get_market_profile(profile_id?)
 
 ---
 
-## 6. 依赖
+## 6. 依赖与 project_context
 
-- **允许**：`core.infra.project_context`（`PathManager`、`ConfigManager` 或专用 merge 辅助）。
+- **配置发现 / 可覆盖加载**：`core.infra.project_context.DiscoveryManager`
+  - `discover_configs("markets")`
+  - `load_overridable_config("markets", profile_id, merge_fn=merge_market_profile_dicts)`
+- **market 专用合并策略**：`core.infra.project_context.config_merge_policies.merge_market_profile_dicts`
+- **本模块**：`constants.MARKETS_CONFIG_DIR`（`"markets"`），配置 IO 不重复实现。
 - **禁止**：依赖 `modules.strategy`（避免环依赖）。
 
 ---
@@ -174,7 +177,7 @@ get_market_profile(profile_id?)
 ## 8. 测试计划（实现时）
 
 - `matching`：`000001.SZ`、`688981.SH`、北交所 OR 前缀。
-- `discovery`：userspace 按 `key` 覆盖一条 rule。
+- `DiscoveryManager`：userspace 按 `key` 覆盖一条 rule。
 - Engine：未知 `rules` 顶层 key 被忽略。
 - `MarketProfile`：主板 10%、科创 20%、lot 200/1。
 

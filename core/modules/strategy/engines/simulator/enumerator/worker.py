@@ -7,6 +7,11 @@ from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
+from core.modules.strategy.engines.shared.helpers.market_profile_runtime import (
+    bar_prev_close,
+    load_market_profile_for_settings,
+    should_skip_limit_up_buy,
+)
 from core.modules.strategy.engines.shared.helpers.simulation_day_execution import (
     execute_pending_exits_on_active,
     fill_pending_buys,
@@ -51,6 +56,7 @@ class OpportunityEnumeratorWorker:
         )
         self.opportunity_counter = 0
         self.simulation = self.settings.simulation_settings
+        self.market_profile = load_market_profile_for_settings(self.settings_dict)
         self._load_user_strategy()
 
     def _load_user_strategy(self):
@@ -165,7 +171,8 @@ class OpportunityEnumeratorWorker:
             if len(tracker["passed_dates"]) < self.settings.min_required_records:
                 continue
             data_of_today = self.data_manager.get_data_until(virtual_date_of_today)
-            self._enumerate_single_day(tracker, current_kline, data_of_today)
+            prev_kline = all_klines[idx - 1] if idx > 0 else None
+            self._enumerate_single_day(tracker, current_kline, data_of_today, prev_kline=prev_kline)
             last_kline = current_kline
         self.profiler.metrics.time_enumerate = self.profiler.end_timer("enumerate")
         if last_kline is not None:
@@ -333,17 +340,23 @@ class OpportunityEnumeratorWorker:
         tracker: Dict[str, Any],
         current_kline: Dict[str, Any],
         data_of_today: Dict[str, Any],
+        *,
+        prev_kline: Optional[Dict[str, Any]] = None,
     ):
         fill_pending_buys(
             tracker["pending_buys"],
             tracker["active_opportunities"],
             bar=current_kline,
             sim=self.simulation,
+            market_profile=self.market_profile,
+            prev_bar=prev_kline,
         )
         exit_indices = execute_pending_exits_on_active(
             tracker["active_opportunities"],
             bar=current_kline,
             sim=self.simulation,
+            market_profile=self.market_profile,
+            prev_bar=prev_kline,
         )
         for idx in reversed(exit_indices):
             tracker["active_opportunities"].pop(idx)
@@ -354,6 +367,8 @@ class OpportunityEnumeratorWorker:
                 self.simulation,
                 current_kline=current_kline,
                 goal_config=self.settings.goal,
+                market_profile=self.market_profile,
+                prev_bar=prev_kline,
             ):
                 completed_indices.append(idx)
         for idx in reversed(completed_indices):
@@ -394,7 +409,17 @@ class OpportunityEnumeratorWorker:
         if buy_raw is None:
             tracker["all_opportunities"].pop()
             return
-        opportunity.buy_price = apply_buy_slippage(buy_raw, self.simulation.slippage_buy_bps)
+        buy_price = apply_buy_slippage(buy_raw, self.simulation.slippage_buy_bps)
+        if should_skip_limit_up_buy(
+            self.market_profile,
+            self.stock_id,
+            bar_prev_close(prev_kline),
+            buy_price,
+            enabled=self.simulation.skip_limit_up_buy,
+        ):
+            tracker["all_opportunities"].pop()
+            return
+        opportunity.buy_price = buy_price
         opportunity.buy_date = str(current_kline.get("date") or "")
         opportunity.status = OpportunityStatus.ACTIVE.value
         tracker["active_opportunities"].append(opportunity)

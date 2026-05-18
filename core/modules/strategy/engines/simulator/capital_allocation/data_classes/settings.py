@@ -27,7 +27,6 @@ class AllocationConfig:
     mode: str = "equal_capital"
     max_portfolio_size: int = 10
     max_weight_per_stock: float = 0.3
-    lot_size: int = 100
     lots_per_trade: int = 1
     kelly_fraction: float = 0.5
 
@@ -69,8 +68,8 @@ class StrategyCapitalSimulatorSettings(SettingsBase):
         alloc.setdefault("mode", "equal_capital")
         alloc.setdefault("max_portfolio_size", 10)
         alloc.setdefault("max_weight_per_stock", 0.3)
-        alloc.setdefault("lot_size", 100)
         alloc.setdefault("lots_per_trade", 1)
+        alloc.pop("lot_size", None)
         alloc.setdefault("kelly_fraction", 0.5)
         out = c.get("output")
         if not isinstance(out, dict):
@@ -125,10 +124,7 @@ class StrategyCapitalSimulatorSettings(SettingsBase):
             mw = max(min(float(a.get("max_weight_per_stock", 0.3)), 1.0), 0.0)
         except (TypeError, ValueError):
             mw = 0.3
-        try:
-            lot = max(int(a.get("lot_size", 100)), 1)
-        except (TypeError, ValueError):
-            lot = 100
+        a.pop("lot_size", None)
         try:
             lots = max(int(a.get("lots_per_trade", 1)), 1)
         except (TypeError, ValueError):
@@ -138,7 +134,13 @@ class StrategyCapitalSimulatorSettings(SettingsBase):
         except (TypeError, ValueError):
             kf = 0.5
         mode = str(a.get("mode", "equal_capital") or "equal_capital")
-        return AllocationConfig(mode=mode, max_portfolio_size=mps, max_weight_per_stock=mw, lot_size=lot, lots_per_trade=lots, kelly_fraction=kf)
+        return AllocationConfig(
+            mode=mode,
+            max_portfolio_size=mps,
+            max_weight_per_stock=mw,
+            lots_per_trade=lots,
+            kelly_fraction=kf,
+        )
 
     def _parse_output(self) -> OutputConfig:
         o = self.capital_simulator.get("output") or {}

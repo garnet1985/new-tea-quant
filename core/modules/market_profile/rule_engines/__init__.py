@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """Rule engine 注册表。"""
 
-# REGISTRY: 显式列出各 MarketRuleEngineBase 子类（实现阶段填充）
-REGISTRY = []
+from .amplitude_limit import AmplitudeLimitEngine
+from .lot_size import LotSizeEngine
 
-__all__ = ["REGISTRY"]
+REGISTRY = [
+    AmplitudeLimitEngine,
+    LotSizeEngine,
+]
+
+__all__ = ["REGISTRY", "AmplitudeLimitEngine", "LotSizeEngine"]

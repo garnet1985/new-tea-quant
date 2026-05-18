@@ -209,9 +209,12 @@ class PriceFactorFlow(BaseSimulationFlow):
             config=preprocessed.simulator_config,
         )
         sim_snap = simulation_effective_snapshot(preprocessed.simulation_settings)
+        base_settings = preprocessed.base_settings.to_dict()
         for job in jobs:
             cfg = dict(job.get("config") or {})
             cfg["simulation"] = sim_snap
+            if "market_profile" in base_settings:
+                cfg["market_profile"] = base_settings["market_profile"]
             job["config"] = cfg
         results = self._impl.run_worker_jobs(
             jobs=jobs,

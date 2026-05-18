@@ -138,12 +138,19 @@ class Scanner:
 
     def _calculate_summary(self, opportunities: List[Opportunity]) -> Dict[str, Any]:
         if not opportunities:
-            return {"total_opportunities": 0, "total_stocks": 0, "stocks_with_opportunities": []}
-        stocks_with_opps = set([opp.stock_id for opp in opportunities])
+            return {
+                "total_opportunities": 0,
+                "total_stocks": 0,
+                "stocks_with_opportunities": [],
+                "at_limit_up_count": 0,
+            }
+        stocks_with_opps = {opp.stock_id for opp in opportunities}
+        at_limit_up = sum(1 for opp in opportunities if opp.buy_at_limit_up is True)
         return {
             "total_opportunities": len(opportunities),
             "total_stocks": len(stocks_with_opps),
             "stocks_with_opportunities": list(stocks_with_opps),
+            "at_limit_up_count": at_limit_up,
         }
 
 

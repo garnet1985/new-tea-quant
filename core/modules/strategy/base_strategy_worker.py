@@ -19,6 +19,7 @@ from core.modules.strategy.engines.shared.helpers.simulation_day_execution impor
     resolve_pending_buys_at_end,
     resolve_pending_exits_on_active_at_end,
 )
+from core.modules.strategy.engines.scanner.helpers.tradability import annotate_scan_opportunity
 from core.modules.strategy.engines.shared.helpers.simulation_pricing import (
     apply_buy_slippage,
     trade_price_defers_to_next_session,
@@ -127,6 +128,13 @@ class BaseStrategyWorker(ABC):
         opportunity = self.scan_opportunity(data, self.settings.to_dict())
         if opportunity and opportunity.stock:
             opportunity.stock = {**self.stock_info, **opportunity.stock}
+        if opportunity:
+            annotate_scan_opportunity(
+                opportunity,
+                settings_dict=self.settings.to_dict(),
+                klines=self.data_manager.get_klines(),
+                scan_date=getattr(self, "scan_date", None),
+            )
         self.on_after_scan(opportunity)
         return {
             "success": True,

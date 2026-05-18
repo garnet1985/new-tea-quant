@@ -12,6 +12,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import json
 
+from core.modules.strategy.engines.shared.helpers.market_profile_runtime import (
+    load_market_profile_for_settings,
+    should_skip_buy_for_tradability,
+    should_skip_sell_for_tradability,
+    tradability_from_simulation_config,
+)
 from core.modules.strategy.engines.shared.performance_profiler import PerformanceProfiler
 from core.modules.strategy.engines.shared.simulator_hooks_dispatcher import (
     SimulatorHooksDispatcher,
@@ -98,6 +104,8 @@ class PriceFactorWorker:
 
     def _simulate(self) -> Dict[str, Any]:
         cfg = self.config_dict or {}
+        market_profile = load_market_profile_for_settings(cfg)
+        allow_buy_at_limit_up, allow_sell_at_limit_down = tradability_from_simulation_config(cfg)
         self.profiler.start_timer("load_data")
         data_loader = StrategyOutputReaderService(
             strategy_name=self.strategy_name, cache_enabled=False
@@ -157,7 +165,15 @@ class PriceFactorWorker:
             buy_fill = parse_opportunity_buy_fill(modified_row)
             if buy_fill is None:
                 continue
-            buy_date, _buy_price = buy_fill
+            buy_date, buy_price = buy_fill
+            if should_skip_buy_for_tradability(
+                modified_row,
+                market_profile,
+                self.stock_id,
+                buy_price,
+                allow_at_limit=allow_buy_at_limit_up,
+            ):
+                continue
             sell_date = str(modified_row.get("sell_date") or "").strip()
             exit_from_row = str(modified_row.get("exit_date") or "").strip()
             resolved_exit = sell_date or exit_from_row or buy_date
@@ -184,9 +200,26 @@ class PriceFactorWorker:
                     merged,
                     cfg,
                 )
-                processed_targets.append(
-                    dict(modified_t if isinstance(modified_t, dict) else t_row)
+                target_dict = dict(modified_t if isinstance(modified_t, dict) else t_row)
+                raw_sell = (
+                    target_dict.get("sell_price")
+                    or target_dict.get("price")
+                    or target_dict.get("target_price")
+                    or 0.0
                 )
+                try:
+                    sell_px = float(raw_sell or 0.0)
+                except (TypeError, ValueError):
+                    sell_px = 0.0
+                if should_skip_sell_for_tradability(
+                    target_dict,
+                    market_profile,
+                    self.stock_id,
+                    sell_px,
+                    allow_at_limit=allow_sell_at_limit_down,
+                ):
+                    continue
+                processed_targets.append(target_dict)
 
             investment = PriceFactorInvestment.from_opportunity(
                 merged,

@@ -40,3 +40,34 @@ class TestStrategySimulationSettings:
         sim.apply_defaults()
         assert sim.monitor_price_model.value == "extreme"
         assert sim.buy_price_model == TradePriceModel.EXTREME
+
+    def test_allow_at_limit_from_legacy_skip_keys(self):
+        sim = StrategySimulationSettings.from_strategy_root(
+            {
+                "simulation": {
+                    "template": "deterministic",
+                    "edges": {
+                        "skip_limit_up_buy": True,
+                        "skip_limit_down_sell": False,
+                    },
+                }
+            }
+        )
+        sim.apply_defaults()
+        assert sim.allow_buy_at_limit_up is False
+        assert sim.allow_sell_at_limit_down is True
+
+    def test_allow_at_limit_explicit(self):
+        sim = StrategySimulationSettings.from_strategy_root(
+            {
+                "simulation": {
+                    "template": "deterministic",
+                    "edges": {
+                        "allow_buy_at_limit_up": False,
+                        "allow_sell_at_limit_down": True,
+                    },
+                }
+            }
+        )
+        assert sim.allow_buy_at_limit_up is False
+        assert sim.allow_sell_at_limit_down is True

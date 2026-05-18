@@ -62,6 +62,8 @@ class EnumeratorOutputWriterService:
                         "weighted_profit": target.get("weighted_profit", ""),
                         "reason": target.get("reason", ""),
                         "roi": target.get("roi", ""),
+                        "sell_prev_close": target.get("sell_prev_close", ""),
+                        "sell_at_limit_down": target.get("sell_at_limit_down", ""),
                     }
                 )
             row = {k: v for k, v in opportunity.items() if k not in excluded}

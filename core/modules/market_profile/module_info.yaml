@@ -1,0 +1,6 @@
+name: modules.market_profile
+version: 0.1.0
+compatible_core_versions: ">=0.3.0"
+description: "市场制度配置：加载 markets/*.json，按 rule engine 解析涨跌幅、整手等，供回测与资金模拟查询。"
+dependencies:
+  - infra.project_context

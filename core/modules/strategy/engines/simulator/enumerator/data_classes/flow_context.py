@@ -22,6 +22,7 @@ class EnumeratorProbeContext:
     """Lightweight preprocess phase: settings + fingerprint only (no output dirs / worker pool)."""
 
     strategy_name: str
+    market_profile: "MarketProfileContext"
     simulation_settings: StrategySimulationSettings
     enum_settings: OpportunityEnumeratorSettings
     settings_payload: Dict[str, Any]
@@ -34,6 +35,7 @@ class EnumeratorProbeContext:
 @dataclass
 class EnumeratorPreprocessContext:
     strategy_name: str
+    market_profile: Optional["MarketProfileContext"] = None
     simulation_settings: Optional[StrategySimulationSettings] = None
     enum_settings: Optional[OpportunityEnumeratorSettings] = None
     # Full validated strategy settings (API shape) for DB snapshot rows.

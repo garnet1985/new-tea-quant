@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 from core.modules.data_contract.contract_const import DataKey
+from core.modules.market_profile.constants import DEFAULT_PROFILE_ID
 
 from .simulation_settings import StrategySimulationSettings
 
@@ -24,6 +25,12 @@ class StrategySettingsView:
         self.price_simulator = settings_dict.get("price_simulator", {})
         self.goal = settings_dict.get("goal", {})
         self.performance = settings_dict.get("performance", {})
+
+    @property
+    def market_profile(self) -> str:
+        raw = self._settings.get("market_profile", DEFAULT_PROFILE_ID)
+        pid = str(raw or DEFAULT_PROFILE_ID).strip()
+        return pid or DEFAULT_PROFILE_ID
 
     @property
     def simulation(self) -> Dict[str, Any]:

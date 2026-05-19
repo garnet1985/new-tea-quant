@@ -17,6 +17,16 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_vi
 from core.modules.strategy.engines.simulator.capital_allocation.data_classes.settings import (
     StrategyCapitalSimulatorSettings,
 )
+from core.modules.strategy.engines.shared.data_classes.market_profile_context import (
+    MarketProfileContext,
+)
+from core.modules.strategy.engines.shared.data_classes.strategy_settings.simulation_settings import (
+    StrategySimulationSettings,
+)
+from core.modules.strategy.engines.shared.helpers.tradability import (
+    should_skip_buy,
+    should_skip_sell,
+)
 from core.modules.strategy.engines.shared.helpers.strategy_runtime import (
     load_strategy_settings_view,
 )
@@ -280,7 +290,11 @@ class CapitalAllocationFlowImpl:
         return events
 
     def create_execution_state(
-        self, config: StrategyCapitalSimulatorSettings
+        self,
+        config: StrategyCapitalSimulatorSettings,
+        *,
+        market_profile: MarketProfileContext,
+        simulation_settings: StrategySimulationSettings,
     ) -> Dict[str, Any]:
         allocation_cfg = config.allocation
         fees_cfg = config.get_fees_config_with_priority()
@@ -295,10 +309,13 @@ class CapitalAllocationFlowImpl:
             mode=allocation_cfg.mode,
             initial_capital=config.initial_capital,
             max_portfolio_size=allocation_cfg.max_portfolio_size,
-            lot_size=allocation_cfg.lot_size,
+            market_profile=market_profile.profile,
             lots_per_trade=allocation_cfg.lots_per_trade,
             kelly_fraction=allocation_cfg.kelly_fraction,
             fee_calculator=fee_calculator,
+            allow_buy_at_limit_up=simulation_settings.allow_buy_at_limit_up,
+            allow_sell_at_limit_down=simulation_settings.allow_sell_at_limit_down,
+            skip_trade_when_insufficient=allocation_cfg.skip_trade_when_insufficient,
         )
         return {
             "account": account,
@@ -308,6 +325,7 @@ class CapitalAllocationFlowImpl:
             "equity_curve": [],
             "current_date": None,
             "completed_opportunities_map": {},
+            "tradability_skips": {"buy_at_limit_up": 0, "sell_at_limit_down": 0},
         }
 
     def replay_events(
@@ -344,6 +362,7 @@ class CapitalAllocationFlowImpl:
                     account,
                     allocation_strategy,
                     state["completed_opportunities_map"],
+                    tradability_skips=state["tradability_skips"],
                 )
                 if trade:
                     state["trades"].append(trade)
@@ -352,7 +371,9 @@ class CapitalAllocationFlowImpl:
                     event,
                     account,
                     fee_calculator,
+                    allocation_strategy,
                     completed_opportunities_map=state["completed_opportunities_map"],
+                    tradability_skips=state["tradability_skips"],
                 )
                 if trade:
                     state["trades"].append(trade)
@@ -388,6 +409,7 @@ class CapitalAllocationFlowImpl:
         initial_capital: float,
         events: List[SimulationEvent],
         completed_opportunities_map: Dict[str, Dict[str, Any]],
+        tradability_skips: Optional[Dict[str, int]] = None,
     ) -> Dict[str, Any]:
         core = self._calculate_summary(
             account,
@@ -397,6 +419,9 @@ class CapitalAllocationFlowImpl:
             events,
             completed_opportunities_map,
         )
+        skips = tradability_skips or {}
+        core["skipped_buy_at_limit_up"] = int(skips.get("buy_at_limit_up", 0) or 0)
+        core["skipped_sell_at_limit_down"] = int(skips.get("sell_at_limit_down", 0) or 0)
         return _merge_bff_ui_extensions(
             core,
             trades=trades,
@@ -467,6 +492,8 @@ class CapitalAllocationFlowImpl:
         account: Account,
         allocation_strategy: AllocationStrategy,
         completed_opportunities_map: Dict[str, Dict[str, Any]],
+        *,
+        tradability_skips: Optional[Dict[str, int]] = None,
     ) -> Optional[Dict[str, Any]]:
         stock_id = event.stock_id
         opportunity = event.opportunity or {}
@@ -481,6 +508,18 @@ class CapitalAllocationFlowImpl:
                 )
             return None
         buy_event_date, buy_price = buy_fill
+        if should_skip_buy(
+            opportunity,
+            allocation_strategy.market_profile,
+            stock_id,
+            buy_price,
+            allow_at_limit=allocation_strategy.allow_buy_at_limit_up,
+        ):
+            if tradability_skips is not None:
+                tradability_skips["buy_at_limit_up"] = (
+                    int(tradability_skips.get("buy_at_limit_up", 0) or 0) + 1
+                )
+            return None
         if (
             account.has_position(stock_id)
             or account.get_portfolio_size() >= allocation_strategy.max_portfolio_size
@@ -492,7 +531,7 @@ class CapitalAllocationFlowImpl:
             else None
         )
         buy_shares = allocation_strategy.calculate_shares_to_buy(
-            account, buy_price, win_rate
+            account, buy_price, stock_id, win_rate
         )
         if buy_shares == 0:
             return None
@@ -526,8 +565,10 @@ class CapitalAllocationFlowImpl:
         event: SimulationEvent,
         account: Account,
         fee_calculator: FeeCalculator,
+        allocation_strategy: AllocationStrategy,
         *,
         completed_opportunities_map: Dict[str, Dict[str, Any]],
+        tradability_skips: Optional[Dict[str, int]] = None,
     ) -> Optional[Dict[str, Any]]:
         stock_id = event.stock_id
         target = event.target or {}
@@ -539,6 +580,18 @@ class CapitalAllocationFlowImpl:
         )
         sell_price = float(raw_sell_price or 0.0)
         if not stock_id or not opp_id or sell_price <= 0:
+            return None
+        if should_skip_sell(
+            target,
+            allocation_strategy.market_profile,
+            stock_id,
+            sell_price,
+            allow_at_limit=allocation_strategy.allow_sell_at_limit_down,
+        ):
+            if tradability_skips is not None:
+                tradability_skips["sell_at_limit_down"] = (
+                    int(tradability_skips.get("sell_at_limit_down", 0) or 0) + 1
+                )
             return None
         position = account.get_position(stock_id)
         if (

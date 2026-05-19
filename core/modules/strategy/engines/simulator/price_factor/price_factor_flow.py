@@ -11,6 +11,9 @@ from core.modules.strategy.services.cache.simulator_res_db_cache.helpers import 
     raw_settings_for_db_cache_fingerprint,
     stock_ids_for_db_cache_fingerprint,
 )
+from core.modules.strategy.engines.shared.data_classes.market_profile_context import (
+    MarketProfileContext,
+)
 from core.modules.strategy.engines.shared.helpers.simulation_flow import (
     prepare_simulation_settings,
     simulation_effective_snapshot,
@@ -79,9 +82,11 @@ class PriceFactorFlow(BaseSimulationFlow):
             probe.strategy_name
         )
         simulation_settings = prepare_simulation_settings(probe.base_settings)
+        market_profile = MarketProfileContext.from_settings_view(probe.base_settings)
         return PriceFactorPreprocessContext(
             strategy_name=probe.strategy_name,
             base_settings=probe.base_settings,
+            market_profile=market_profile,
             simulation_settings=simulation_settings,
             simulator_config=probe.simulator_config,
             output_version_dir=probe.output_version_dir,
@@ -209,7 +214,9 @@ class PriceFactorFlow(BaseSimulationFlow):
             config=preprocessed.simulator_config,
         )
         sim_snap = simulation_effective_snapshot(preprocessed.simulation_settings)
+        mp_id = preprocessed.market_profile.profile_id
         for job in jobs:
+            job["market_profile_id"] = mp_id
             cfg = dict(job.get("config") or {})
             cfg["simulation"] = sim_snap
             job["config"] = cfg

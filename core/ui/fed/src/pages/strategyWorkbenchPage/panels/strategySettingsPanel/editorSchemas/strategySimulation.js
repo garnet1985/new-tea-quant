@@ -64,7 +64,18 @@ function ensureCustomDefaults(simulation) {
     next.slippage = { buy_bps: 0, sell_bps: 0 };
   }
   if (!next.edges || typeof next.edges !== 'object') {
-    next.edges = { no_next_bar: 'use_last_close' };
+    next.edges = {
+      no_next_bar: 'use_last_close',
+      allow_buy_at_limit_up: true,
+      allow_sell_at_limit_down: true,
+    };
+  } else {
+    if (next.edges.allow_buy_at_limit_up === undefined) {
+      next.edges.allow_buy_at_limit_up = true;
+    }
+    if (next.edges.allow_sell_at_limit_down === undefined) {
+      next.edges.allow_sell_at_limit_down = true;
+    }
   }
   if (!next.extreme_same_bar_order) {
     next.extreme_same_bar_order = 'stop_first';
@@ -129,8 +140,22 @@ export function buildStrategySimulationSchema(simulationTemplateOptions = DEFAUL
       {
         name: 'edges.no_next_bar',
         type: 'select',
-        label: '样本末日无下一根 K 线 (edges.no_next_bar)',
+        label: '样本末日无下一根 K 线',
         options: NO_NEXT_BAR_OPTIONS,
+        visibleWhen: ({ values }) => isCustomTemplate(values),
+      },
+      {
+        name: 'edges.allow_buy_at_limit_up',
+        type: 'switch',
+        label: '涨停日允许买入',
+        description: '关闭时，价格/资金回放遇到涨停买入价将跳过该笔',
+        visibleWhen: ({ values }) => isCustomTemplate(values),
+      },
+      {
+        name: 'edges.allow_sell_at_limit_down',
+        type: 'switch',
+        label: '跌停日允许卖出',
+        description: '关闭时，价格/资金回放遇到跌停卖出价将跳过该笔',
         visibleWhen: ({ values }) => isCustomTemplate(values),
       },
       {

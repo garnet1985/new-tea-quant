@@ -33,6 +33,7 @@ import {
   REPORT_BLOCK_UNAVAILABLE_ZH,
 } from '../../mocks/strategyReportMetrics';
 import SettingsJsonDiff from './components/settingsJsonDiff';
+import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
 import { useWorkbenchCompareVersionMenu } from '../../workbenchCompareVersionMenu';
 import {
   COMPARE_EMPTY_OTHER_VERSION_ZH,
@@ -467,9 +468,7 @@ function StrategyReportPanel({
                               </Typography>
                             ) : null}
                             {!compareError && compareSideReportBusy ? (
-                              <Typography variant="caption" color="text.secondary">
-                                正在加载对比报告…
-                              </Typography>
+                              <InlineLoadingState compact block message="正在加载对比报告…" />
                             ) : null}
                             {!compareError && !compareSideReportBusy
                               ? renderReportByTab(
@@ -500,13 +499,13 @@ function StrategyReportPanel({
                         </Typography>
                       ) : null}
                       {resolvedReportVersionId && baseSettingsPayload.loading ? (
-                        <Typography variant="caption" color="text.secondary">正在加载当前快照设置…</Typography>
+                        <InlineLoadingState compact row message="正在加载当前快照设置…" />
                       ) : null}
                       {baseSettingsPayload.error ? (
                         <Typography variant="caption" color="error">{baseSettingsPayload.error}</Typography>
                       ) : null}
                       {compareVersion && compareWorkbenchSnapshot.loading ? (
-                        <Typography variant="caption" color="text.secondary">正在加载对比快照设置…</Typography>
+                        <InlineLoadingState compact row message="正在加载对比快照设置…" />
                       ) : null}
                       {compareWorkbenchSnapshot.error ? (
                         <Typography variant="caption" color="error">{compareWorkbenchSnapshot.error}</Typography>

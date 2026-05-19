@@ -1,0 +1,17 @@
+.ntq-page-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  min-height: var(--ntq-page-loading-min-height, 420px);
+  padding: 48px 24px;
+  box-sizing: border-box;
+}
+
+.ntq-page-loading__message {
+  margin: 0;
+  color: var(--ntq-text-muted);
+  text-align: center;
+  line-height: 1.5;
+}

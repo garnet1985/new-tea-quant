@@ -51,6 +51,7 @@ import {
   StrategySettingsPanel,
 } from './panels/strategySettingsPanel/strategySettingsPanel';
 import PageLayout from '../../components/pageLayout/pageLayout';
+import PageLoadingState from '../../components/pageLoadingState/pageLoadingState';
 
 /** 左侧草稿 settings 变更后重置右侧执行/报告（加载完成后首次对齐基线，之后任意变更触发 ``onReset``）。core 由容器在 keyup/粘贴时解析写入 ``draftSettings``，签名仅需序列化草稿。 */
 function WorkbenchDraftChangeResetBridge({
@@ -570,6 +571,10 @@ function StrategyWorkbenchPage() {
       bannerTitle={strategyName ? `调试：${strategyName}` : '策略调试'}
       bannerDescription="您可以在左侧调整设置参数，然后在执行步骤面板按步骤执行回测和查看报告；也可以支持版本对比与结果复现。"
     >
+      {isLoadingSettings && strategyName ? (
+        <PageLoadingState message="正在加载策略配置…" minHeight="min(52vh, 520px)" />
+      ) : null}
+      {!(isLoadingSettings && strategyName) ? (
       <StrategySettingsContainer initialSettings={initialSettings}>
         {({ draftSettings, updateSection, setDraftSettings, coreEditor }) => (
           <>
@@ -617,11 +622,6 @@ function StrategyWorkbenchPage() {
                 gap: 1.5,
               }}
             >
-              {isLoadingSettings ? (
-                <Typography variant="body2" color="text.secondary">
-                  正在加载策略配置...
-                </Typography>
-              ) : null}
               {settingsError ? (
                 <Typography variant="body2" color="error">
                   无法加载策略配置：{settingsError}
@@ -1031,6 +1031,7 @@ function StrategyWorkbenchPage() {
           </>
         )}
       </StrategySettingsContainer>
+      ) : null}
     </PageLayout>
   );
 }

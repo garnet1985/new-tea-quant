@@ -18,6 +18,7 @@ import {
   Typography,
 } from '@mui/material';
 import { ReactComponent as PlayCircleIcon } from '../../../../assets/icon/play_circle.svg';
+import LoadingBars from 'components/loadingBars/loadingBars';
 import './strategyExecutionPanel.scss';
 import {
   fetchStrategyRunStatus,
@@ -435,7 +436,7 @@ function StrategyExecutionPanel({
             机会总数：{Number.isFinite(currentOpportunities) ? `${currentOpportunities} 个` : '--'}
           </Typography>
           <Typography variant="body2" color="text.secondary">-&gt;</Typography>
-          <Typography variant="body2" color="text.secondary">读取中…</Typography>
+          <LoadingBars className="ntq-loading-bars--sm" barCount={4} aria-label="读取中" />
         </Box>
       );
     }
@@ -523,7 +524,7 @@ function StrategyExecutionPanel({
             {formatPriceLine(currentPrice)}
           </Typography>
           <Typography variant="body2" color="text.secondary">-&gt;</Typography>
-          <Typography variant="body2" color="text.secondary">读取中…</Typography>
+          <LoadingBars className="ntq-loading-bars--sm" barCount={4} aria-label="读取中" />
         </Box>
       );
     }
@@ -638,7 +639,7 @@ function StrategyExecutionPanel({
           <Stack justifyContent="center" alignItems="center" sx={{ height: '100%' }}>
             <Typography variant="body2" color="text.secondary">-&gt;</Typography>
           </Stack>
-          <Typography variant="body2" color="text.secondary">读取中…</Typography>
+          <LoadingBars className="ntq-loading-bars--sm" barCount={4} aria-label="读取中" />
         </Box>
       );
     }

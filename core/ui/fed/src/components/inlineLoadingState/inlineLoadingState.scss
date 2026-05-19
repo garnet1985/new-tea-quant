@@ -1,0 +1,32 @@
+.ntq-inline-loading {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 0;
+  box-sizing: border-box;
+}
+
+.ntq-inline-loading.is-row {
+  flex-direction: row;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.ntq-inline-loading__message {
+  margin: 0;
+  color: var(--ntq-text-muted);
+  text-align: center;
+  line-height: 1.45;
+}
+
+.ntq-inline-loading.is-row .ntq-inline-loading__message {
+  text-align: left;
+}
+
+.ntq-inline-loading--block {
+  display: flex;
+  width: 100%;
+  padding: 16px 0;
+}

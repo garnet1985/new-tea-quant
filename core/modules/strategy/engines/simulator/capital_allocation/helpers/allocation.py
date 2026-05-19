@@ -1,12 +1,56 @@
 #!/usr/bin/env python3
-from typing import Optional, Literal
+from typing import Callable, Optional, Literal
 
 from core.modules.market_profile.profile import MarketProfile
 from core.modules.strategy.engines.simulator.capital_allocation.data_classes.account import Account
-from core.modules.strategy.engines.simulator.capital_allocation.helpers.insufficient_funds import (
-    resolve_shares_when_insufficient,
-)
 from .fees import FeeCalculator
+
+
+def _buy_total_cost(
+    shares: int,
+    buy_price: float,
+    fee_calculator: Optional[FeeCalculator],
+) -> float:
+    if shares <= 0 or buy_price <= 0:
+        return 0.0
+    gross = shares * buy_price
+    if fee_calculator is not None:
+        return fee_calculator.calculate_total_cost(gross, "buy")
+    return gross
+
+
+def _max_affordable_shares(
+    cash: float,
+    buy_price: float,
+    fee_calculator: Optional[FeeCalculator],
+) -> int:
+    if cash <= 0 or buy_price <= 0:
+        return 0
+    if fee_calculator is not None:
+        denom = buy_price * (1.0 + float(fee_calculator.commission_rate or 0.0))
+        return int(cash / denom) if denom > 0 else 0
+    return int(cash / buy_price)
+
+
+def _resolve_shares_when_insufficient(
+    *,
+    planned_shares: int,
+    min_lot_shares: int,
+    cash: float,
+    buy_price: float,
+    skip_trade_when_insufficient: bool,
+    fee_calculator: Optional[FeeCalculator],
+    floor_shares_fn: Callable[[int], int],
+) -> int:
+    if planned_shares <= 0 or buy_price <= 0 or min_lot_shares <= 0:
+        return 0
+    if _buy_total_cost(min_lot_shares, buy_price, fee_calculator) > cash:
+        return 0
+    if _buy_total_cost(planned_shares, buy_price, fee_calculator) <= cash:
+        return planned_shares
+    if skip_trade_when_insufficient:
+        return 0
+    return floor_shares_fn(_max_affordable_shares(cash, buy_price, fee_calculator))
 
 
 class AllocationStrategy:
@@ -67,14 +111,14 @@ class AllocationStrategy:
         buy_price: float,
         available_cash: Optional[float] = None,
     ) -> int:
-        return resolve_shares_when_insufficient(
+        cash = float(available_cash if available_cash is not None else account.cash)
+        return _resolve_shares_when_insufficient(
             planned_shares=planned_shares,
             min_lot_shares=self._min_buy_shares(stock_id),
-            account=account,
+            cash=cash,
             buy_price=buy_price,
             skip_trade_when_insufficient=self.skip_trade_when_insufficient,
             fee_calculator=self.fee_calculator,
-            available_cash=available_cash,
             floor_shares_fn=lambda cap: self._floor_buy_shares(cap, stock_id),
         )
 

@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
+    from core.modules.strategy.engines.shared.data_classes.market_profile_context import (
+        MarketProfileContext,
+    )
     from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
         StrategySettingsView,
     )
@@ -25,6 +28,7 @@ if TYPE_CHECKING:
 class CapitalAllocationPreprocessContext:
     strategy_name: str
     base_settings: "StrategySettingsView"
+    market_profile: "MarketProfileContext"
     simulation_settings: "StrategySimulationSettings"
     config: "StrategyCapitalSimulatorSettings"
     output_version_dir: Path

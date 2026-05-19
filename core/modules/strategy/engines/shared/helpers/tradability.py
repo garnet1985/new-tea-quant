@@ -1,28 +1,14 @@
 #!/usr/bin/env python3
-"""策略运行时：market profile 加载、涨跌停标注（enum）与成交过滤（price / capital）。"""
+"""涨跌停辅助计算与机会标注（无 settings 解析；profile / 策略字段由调用方传入）。"""
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple
 
-from core.modules.market_profile import get_market_profile
-from core.modules.market_profile.constants import DEFAULT_PROFILE_ID
 from core.modules.market_profile.profile import MarketProfile
 
 _LIMIT_EPS = 1e-4
-
-
-def resolve_market_profile_id(settings: Dict[str, Any]) -> str:
-    raw = (
-        settings.get("market_profile", DEFAULT_PROFILE_ID)
-        if isinstance(settings, dict)
-        else None
-    )
-    return str(raw or DEFAULT_PROFILE_ID).strip() or DEFAULT_PROFILE_ID
-
-
-def load_market_profile_for_settings(settings: Dict[str, Any]) -> MarketProfile:
-    return get_market_profile(resolve_market_profile_id(settings))
+_LIMIT_UP_HINT = "涨停附近，可能难以买入"
 
 
 def bar_prev_close(prev_bar: Optional[Dict[str, Any]]) -> Optional[float]:
@@ -33,6 +19,19 @@ def bar_prev_close(prev_bar: Optional[Dict[str, Any]]) -> Optional[float]:
     except (TypeError, ValueError):
         return None
     return px if px > 0 else None
+
+
+def signal_and_prev_bars(
+    klines: List[Dict[str, Any]],
+    signal_date: str,
+) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    if not klines or not signal_date:
+        return None, None
+    ordered = sorted(klines, key=lambda b: str((b or {}).get("date") or ""))
+    for idx, bar in enumerate(ordered):
+        if str((bar or {}).get("date") or "") == str(signal_date):
+            return bar, ordered[idx - 1] if idx > 0 else None
+    return None, None
 
 
 def is_at_limit_up(
@@ -65,36 +64,6 @@ def is_at_limit_down(
     return sell_price <= limit_down + _LIMIT_EPS
 
 
-def stamp_buy_tradability(
-    opportunity: Any,
-    profile: MarketProfile,
-    stock_id: str,
-    prev_bar: Optional[Dict[str, Any]],
-    buy_price: float,
-) -> None:
-    """枚举阶段仅标注，不决定是否保留机会。"""
-    prev = bar_prev_close(prev_bar)
-    at_limit_up = is_at_limit_up(profile, stock_id, prev, buy_price) if prev else None
-    if hasattr(opportunity, "buy_prev_close"):
-        opportunity.buy_prev_close = prev
-    if hasattr(opportunity, "buy_at_limit_up"):
-        opportunity.buy_at_limit_up = at_limit_up
-
-
-def stamp_target_tradability(
-    target: Dict[str, Any],
-    profile: MarketProfile,
-    stock_id: str,
-    prev_bar: Optional[Dict[str, Any]],
-    sell_price: float,
-) -> None:
-    prev = bar_prev_close(prev_bar)
-    target["sell_prev_close"] = prev if prev is not None else ""
-    target["sell_at_limit_down"] = (
-        is_at_limit_down(profile, stock_id, prev, sell_price) if prev else False
-    )
-
-
 def _coerce_bool(raw: Any) -> Optional[bool]:
     if raw is None or raw == "":
         return None
@@ -118,36 +87,49 @@ def row_sell_at_limit_down(target_or_row: Dict[str, Any]) -> Optional[bool]:
     return _coerce_bool(target_or_row.get("sell_at_limit_down"))
 
 
-def tradability_from_simulation_config(config: Dict[str, Any]) -> tuple[bool, bool]:
-    """返回 ``(allow_buy_at_limit_up, allow_sell_at_limit_down)``。"""
-    sim = config.get("simulation") if isinstance(config, dict) else None
-    if not isinstance(sim, dict):
-        return True, True
-    edges = sim.get("edges")
-    if isinstance(edges, dict):
-        if "allow_buy_at_limit_up" in edges:
-            allow_buy = bool(edges.get("allow_buy_at_limit_up"))
-        elif "skip_limit_up_buy" in edges:
-            allow_buy = not bool(edges.get("skip_limit_up_buy"))
-        else:
-            allow_buy = bool(sim.get("allow_buy_at_limit_up", True))
-        if "allow_sell_at_limit_down" in edges:
-            allow_sell = bool(edges.get("allow_sell_at_limit_down"))
-        elif "skip_limit_down_sell" in edges:
-            allow_sell = not bool(edges.get("skip_limit_down_sell"))
-        else:
-            allow_sell = bool(sim.get("allow_sell_at_limit_down", True))
-        return allow_buy, allow_sell
-    allow_buy = bool(sim.get("allow_buy_at_limit_up", True))
-    allow_sell = bool(sim.get("allow_sell_at_limit_down", True))
-    if "skip_limit_up_buy" in sim:
-        allow_buy = not bool(sim.get("skip_limit_up_buy"))
-    if "skip_limit_down_sell" in sim:
-        allow_sell = not bool(sim.get("skip_limit_down_sell"))
-    return allow_buy, allow_sell
+def _set_metadata_hint(opportunity: Any, hint: str) -> None:
+    meta = getattr(opportunity, "metadata", None)
+    if meta is None:
+        opportunity.metadata = {}
+        meta = opportunity.metadata
+    if isinstance(meta, dict):
+        meta["tradability_hint"] = hint
 
 
-def should_skip_buy_for_tradability(
+def stamp_buy_tradability(
+    opportunity: Any,
+    profile: MarketProfile,
+    stock_id: str,
+    prev_bar: Optional[Dict[str, Any]],
+    buy_price: float,
+    *,
+    hint_on_limit_up: bool = False,
+) -> None:
+    prev = bar_prev_close(prev_bar)
+    at_limit_up = is_at_limit_up(profile, stock_id, prev, buy_price) if prev else None
+    if hasattr(opportunity, "buy_prev_close"):
+        opportunity.buy_prev_close = prev
+    if hasattr(opportunity, "buy_at_limit_up"):
+        opportunity.buy_at_limit_up = at_limit_up
+    if hint_on_limit_up and at_limit_up is True:
+        _set_metadata_hint(opportunity, _LIMIT_UP_HINT)
+
+
+def stamp_target_tradability(
+    target: Dict[str, Any],
+    profile: MarketProfile,
+    stock_id: str,
+    prev_bar: Optional[Dict[str, Any]],
+    sell_price: float,
+) -> None:
+    prev = bar_prev_close(prev_bar)
+    target["sell_prev_close"] = prev if prev is not None else ""
+    target["sell_at_limit_down"] = (
+        is_at_limit_down(profile, stock_id, prev, sell_price) if prev else False
+    )
+
+
+def should_skip_buy(
     row: Dict[str, Any],
     profile: MarketProfile,
     stock_id: str,
@@ -171,7 +153,7 @@ def should_skip_buy_for_tradability(
     return is_at_limit_up(profile, stock_id, prev, buy_price)
 
 
-def should_skip_sell_for_tradability(
+def should_skip_sell(
     target_row: Dict[str, Any],
     profile: MarketProfile,
     stock_id: str,
@@ -195,17 +177,50 @@ def should_skip_sell_for_tradability(
     return is_at_limit_down(profile, stock_id, prev, sell_price)
 
 
+def annotate_scan_opportunity(
+    opportunity: Any,
+    *,
+    profile: MarketProfile,
+    klines: List[Dict[str, Any]],
+    scan_date: Optional[str] = None,
+) -> None:
+    if opportunity is None:
+        return
+    signal_date = str(scan_date or getattr(opportunity, "trigger_date", None) or "").strip()
+    signal_bar, prev_bar = signal_and_prev_bars(klines, signal_date)
+    if signal_bar is None:
+        return
+    stock_id = str(getattr(opportunity, "stock_id", None) or "").strip()
+    if not stock_id:
+        stock = getattr(opportunity, "stock", None)
+        if isinstance(stock, dict) and stock.get("id"):
+            stock_id = str(stock["id"]).strip()
+    try:
+        ref_price = float(getattr(opportunity, "trigger_price", None) or 0.0)
+    except (TypeError, ValueError):
+        ref_price = 0.0
+    if ref_price <= 0:
+        try:
+            ref_price = float(signal_bar.get("close") or 0.0)
+        except (TypeError, ValueError):
+            ref_price = 0.0
+    if not stock_id or ref_price <= 0:
+        return
+    stamp_buy_tradability(
+        opportunity, profile, stock_id, prev_bar, ref_price, hint_on_limit_up=True
+    )
+
+
 __all__ = [
+    "annotate_scan_opportunity",
     "bar_prev_close",
     "is_at_limit_down",
     "is_at_limit_up",
-    "load_market_profile_for_settings",
-    "resolve_market_profile_id",
     "row_buy_at_limit_up",
     "row_sell_at_limit_down",
-    "should_skip_buy_for_tradability",
-    "should_skip_sell_for_tradability",
+    "should_skip_buy",
+    "should_skip_sell",
+    "signal_and_prev_bars",
     "stamp_buy_tradability",
     "stamp_target_tradability",
-    "tradability_from_simulation_config",
 ]

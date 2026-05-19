@@ -9,9 +9,7 @@ from core.modules.market_profile.profile import MarketProfile
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.simulation_settings import (
     TradePriceModel,
 )
-from core.modules.strategy.engines.shared.helpers.market_profile_runtime import (
-    stamp_buy_tradability,
-)
+from core.modules.strategy.engines.shared.helpers.tradability import stamp_buy_tradability
 from core.modules.strategy.engines.shared.helpers.simulation_pricing import (
     apply_buy_slippage,
     apply_no_next_bar_buy_fallback_price,
@@ -33,7 +31,7 @@ def fill_pending_buys(
     *,
     bar: Dict[str, Any],
     sim: "StrategySimulationSettings",
-    tradability_profile: Optional[MarketProfile] = None,
+    market_profile: Optional[MarketProfile] = None,
     prev_bar: Optional[Dict[str, Any]] = None,
 ) -> None:
     """在当日 bar 的 open 上完成昨日信号的 ``next_open`` 买入。"""
@@ -45,7 +43,7 @@ def fill_pending_buys(
             opportunity,
             bar=bar,
             sim=sim,
-            tradability_profile=tradability_profile,
+            market_profile=market_profile,
             prev_bar=prev_bar,
         ):
             opportunity.buy_fill_pending = False
@@ -61,7 +59,7 @@ def execute_pending_exits_on_active(
     *,
     bar: Dict[str, Any],
     sim: "StrategySimulationSettings",
-    tradability_profile: Optional[MarketProfile] = None,
+    market_profile: Optional[MarketProfile] = None,
     prev_bar: Optional[Dict[str, Any]] = None,
 ) -> List[int]:
     """在当日 open 上完成昨日触发的 ``next_open`` 卖出。返回应从 active 移除的下标。"""
@@ -70,7 +68,7 @@ def execute_pending_exits_on_active(
         if opportunity.execute_pending_exit(
             sim,
             bar,
-            tradability_profile=tradability_profile,
+            market_profile=market_profile,
             prev_bar=prev_bar,
         ):
             completed.append(idx)
@@ -82,7 +80,7 @@ def apply_no_next_bar_buy_fallback(
     *,
     signal_bar: Dict[str, Any],
     sim: "StrategySimulationSettings",
-    tradability_profile: Optional[MarketProfile] = None,
+    market_profile: Optional[MarketProfile] = None,
     prev_bar: Optional[Dict[str, Any]] = None,
 ) -> bool:
     """样本末尾仍 pending 的买入：按 ``edges.no_next_bar`` 处理。返回是否保留该机会。"""
@@ -95,10 +93,10 @@ def apply_no_next_bar_buy_fallback(
     buy_price = apply_buy_slippage(raw, sim.slippage_buy_bps)
     opportunity.buy_price = buy_price
     opportunity.buy_date = str(signal_bar.get("date") or "")
-    if tradability_profile is not None:
+    if market_profile is not None:
         stamp_buy_tradability(
             opportunity,
-            tradability_profile,
+            market_profile,
             opportunity.stock_id,
             prev_bar,
             buy_price,
@@ -114,7 +112,7 @@ def resolve_pending_buys_at_end(
     all_opportunities: List["Opportunity"],
     *,
     sim: "StrategySimulationSettings",
-    tradability_profile: Optional[MarketProfile] = None,
+    market_profile: Optional[MarketProfile] = None,
 ) -> None:
     """回测最后一根 bar 之后：样本内再无「下一交易日」时的边角处理。"""
     if not pending:
@@ -125,7 +123,7 @@ def resolve_pending_buys_at_end(
             opportunity,
             signal_bar=signal_bar,
             sim=sim,
-            tradability_profile=tradability_profile,
+            market_profile=market_profile,
         )
         pending.remove(opportunity)
         if not keep:
@@ -143,7 +141,7 @@ def resolve_pending_exits_on_active_at_end(
     *,
     last_bar: Dict[str, Any],
     sim: "StrategySimulationSettings",
-    tradability_profile: Optional[MarketProfile] = None,
+    market_profile: Optional[MarketProfile] = None,
 ) -> None:
     for opportunity in active:
         if not opportunity.pending_exit:
@@ -155,13 +153,13 @@ def resolve_pending_exits_on_active_at_end(
                 sim,
                 last_kline=last_bar,
                 reason=pe.get("reason") or "enumeration_end",
-                tradability_profile=tradability_profile,
+                market_profile=market_profile,
             )
         else:
             opportunity.execute_pending_exit(
                 sim,
                 last_bar,
-                tradability_profile=tradability_profile,
+                market_profile=market_profile,
             )
 
 
@@ -178,7 +176,7 @@ def _fill_buy_on_bar(
     *,
     bar: Dict[str, Any],
     sim: "StrategySimulationSettings",
-    tradability_profile: Optional[MarketProfile] = None,
+    market_profile: Optional[MarketProfile] = None,
     prev_bar: Optional[Dict[str, Any]] = None,
 ) -> bool:
     raw = trade_theoretical_price_on_bar(
@@ -191,10 +189,10 @@ def _fill_buy_on_bar(
     buy_price = apply_buy_slippage(raw, sim.slippage_buy_bps)
     opportunity.buy_price = buy_price
     opportunity.buy_date = str(bar.get("date") or "")
-    if tradability_profile is not None:
+    if market_profile is not None:
         stamp_buy_tradability(
             opportunity,
-            tradability_profile,
+            market_profile,
             opportunity.stock_id,
             prev_bar,
             buy_price,

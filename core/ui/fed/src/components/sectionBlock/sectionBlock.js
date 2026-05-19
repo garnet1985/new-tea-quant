@@ -1,14 +1,12 @@
 import React from 'react';
-import NtqIcon from '../ntqIcon/ntqIcon';
-import { Box, Stack, Tooltip, Typography } from '@mui/material';
+import NtqHelpTooltip from '../ntqHelpTooltip/ntqHelpTooltip';
+import { Box, Stack, Typography } from '@mui/material';
 
 function SectionTitle({ title, tip }) {
   return (
     <Stack direction="row" spacing={0.5} alignItems="center">
       <Typography variant="subtitle2" fontWeight={700}>{title}</Typography>
-      <Tooltip title={tip} placement="top">
-        <NtqIcon name="info" size={15} tone="muted" />
-      </Tooltip>
+      {tip ? <NtqHelpTooltip title={tip} /> : null}
     </Stack>
   );
 }

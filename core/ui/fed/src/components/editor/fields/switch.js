@@ -1,9 +1,8 @@
 import React from 'react';
-import NtqIcon from '../../ntqIcon/ntqIcon';
+import NtqHelpTooltip from '../../ntqHelpTooltip/ntqHelpTooltip';
 import {
   Stack,
   Switch,
-  Tooltip,
   Typography,
 } from '@mui/material';
 import { getByPath, runFieldEvents, setByPath } from '../editor.helper';
@@ -32,9 +31,7 @@ function SwitchField({ field, value, onChange, emitChangeMeta }) {
       <Stack direction="row" spacing={0.5} alignItems="center">
         <Typography variant="body2">{field.label}</Typography>
         {field.description ? (
-          <Tooltip title={field.description} arrow>
-            <NtqIcon name="info" size={20} tone="muted" />
-          </Tooltip>
+          <NtqHelpTooltip title={field.description} />
         ) : null}
       </Stack>
       <Switch size="small" checked={Boolean(current)} onChange={(e) => applyChange(e.target.checked)} disabled={isReadonly} />

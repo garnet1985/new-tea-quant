@@ -1,0 +1,189 @@
+// --- 触发器：沿用 SVG 自带外圈，不再加 CSS border ---
+.ntq-help-tooltip-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 50%;
+  color: var(--ntq-text);
+  background: transparent;
+  cursor: help;
+  vertical-align: middle;
+  line-height: 0;
+  transition: color 160ms ease, opacity 160ms ease;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--ntq-white-98);
+    outline: none;
+  }
+
+  .ntq-icon-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+// 可选 shine（参考 .ntq-attention-btn）
+.ntq-help-tooltip-trigger--shine {
+  overflow: hidden;
+  color: var(--ntq-cyan);
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    bottom: -50%;
+    width: 48%;
+    left: -70%;
+    transform: skewX(-18deg);
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0) 18%,
+      rgba(255, 255, 255, 0.32) 50%,
+      rgba(255, 255, 255, 0) 82%,
+      transparent 100%
+    );
+    filter: blur(0.5px);
+    opacity: 0.9;
+    animation: ntq-help-tooltip-shine 4.2s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  &:hover {
+    color: var(--ntq-cyan);
+    opacity: 1;
+  }
+}
+
+@keyframes ntq-help-tooltip-shine {
+  0% {
+    left: -70%;
+    opacity: 0;
+  }
+  72% {
+    left: -70%;
+    opacity: 0;
+  }
+  78% {
+    opacity: 0.95;
+  }
+  92% {
+    left: 120%;
+    opacity: 0.95;
+  }
+  100% {
+    left: 120%;
+    opacity: 0;
+  }
+}
+
+// --- 气泡 ---
+.ntq-help-tooltip__popper {
+  z-index: 1500;
+}
+
+.ntq-help-tooltip__tooltip {
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--ntq-text);
+  background: rgba(12, 12, 28, 0.96);
+  border: 1px solid var(--ntq-white-12);
+  border-radius: 6px;
+  box-shadow:
+    0 12px 32px rgba(6, 6, 18, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  padding: 8px 12px;
+  max-width: min(360px, 90vw);
+}
+
+.ntq-help-tooltip__arrow {
+  color: rgba(12, 12, 28, 0.96);
+
+  &::before {
+    border: 1px solid var(--ntq-white-12);
+  }
+}
+
+// --- 浮入动画 ---
+.ntq-help-tooltip-transition {
+  display: block;
+}
+
+.ntq-help-tooltip-transition--from-bottom {
+  &.ntq-help-tooltip-transition--entering,
+  &.ntq-help-tooltip-transition--entered {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  &.ntq-help-tooltip-transition--exiting,
+  &.ntq-help-tooltip-transition--exited {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  &.ntq-help-tooltip-transition--entering {
+    transition:
+      opacity 220ms ease,
+      transform 220ms ease;
+  }
+
+  &.ntq-help-tooltip-transition--exiting {
+    transition:
+      opacity 160ms ease,
+      transform 160ms ease;
+  }
+}
+
+.ntq-help-tooltip-transition--from-top {
+  &.ntq-help-tooltip-transition--entering,
+  &.ntq-help-tooltip-transition--entered {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  &.ntq-help-tooltip-transition--exiting,
+  &.ntq-help-tooltip-transition--exited {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  &.ntq-help-tooltip-transition--entering {
+    transition:
+      opacity 220ms ease,
+      transform 220ms ease;
+  }
+
+  &.ntq-help-tooltip-transition--exiting {
+    transition:
+      opacity 160ms ease,
+      transform 160ms ease;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ntq-help-tooltip-trigger--shine::after {
+    animation: none;
+  }
+
+  .ntq-help-tooltip-transition--from-bottom,
+  .ntq-help-tooltip-transition--from-top {
+    &.ntq-help-tooltip-transition--entering,
+    &.ntq-help-tooltip-transition--exiting {
+      transition: none;
+    }
+
+    &.ntq-help-tooltip-transition--entering,
+    &.ntq-help-tooltip-transition--entered {
+      transform: none;
+    }
+  }
+}

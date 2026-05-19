@@ -5,6 +5,8 @@
 `v0.0.x` 段为对历史内部里程碑（原文档中的 v2/v3/v4）的回溯编号。
 
 新版本更新清单：
+python dev-cli -p -vx.x.x
+
 [] 有破坏性更改或者新的模块需要在module_info.yaml里更新core的依赖
 [] 同步 ``core/system.json`` 中的版本（与发版 tag / 远端 manifest 对齐；运行期由 ``core/system.py`` 加载）
 [] 同步版本徽章

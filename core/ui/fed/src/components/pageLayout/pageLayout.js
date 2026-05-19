@@ -11,7 +11,6 @@ function PageLayout({
   bannerTitle,
   bannerDescription,
   bannerRightSlot,
-  bannerBackgroundImage,
   children,
   className,
 }) {
@@ -22,7 +21,6 @@ function PageLayout({
         title={bannerTitle}
         description={bannerDescription}
         rightSlot={bannerRightSlot}
-        backgroundImage={bannerBackgroundImage}
       />
       <Box className="ntq-page__body">
         {children}
@@ -37,7 +35,6 @@ PageLayout.propTypes = {
   bannerTitle: PropTypes.string.isRequired,
   bannerDescription: PropTypes.node,
   bannerRightSlot: PropTypes.node,
-  bannerBackgroundImage: PropTypes.string,
   children: PropTypes.node,
   className: PropTypes.string,
 };
@@ -46,7 +43,6 @@ PageLayout.defaultProps = {
   breadcrumbsItems: [],
   bannerDescription: null,
   bannerRightSlot: null,
-  bannerBackgroundImage: '',
   children: null,
   className: '',
 };

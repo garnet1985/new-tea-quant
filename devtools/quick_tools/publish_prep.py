@@ -6,7 +6,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -16,6 +18,7 @@ from typing import Iterable, List, Sequence, Tuple
 
 from core.utils import i as icon
 from devtools.quick_tools._paths import REPO_ROOT
+from setup.install_runtime import UI_FED_ROOT, fed_build_ready
 
 SYSTEM_JSON = REPO_ROOT / "core" / "system.json"
 SYSTEM_PY = REPO_ROOT / "core" / "system.py"
@@ -39,6 +42,7 @@ class PublishPrepOptions:
     check_only: bool = False
     skip_tests: bool = False
     skip_ic: bool = False
+    skip_fed_build: bool = False
 
 
 def normalize_version(raw: str) -> str:
@@ -178,6 +182,39 @@ def run_pytest() -> int:
     return int(proc.returncode or 0)
 
 
+def _node_toolchain_available() -> bool:
+    return shutil.which("node") is not None and shutil.which("npm") is not None
+
+
+def run_fed_build() -> int:
+    """``core/ui/fed`` 生产构建（BFF 生产模式依赖 ``fed/build``）。"""
+    print("\n[检查] FED 前端构建（npm run build）…", flush=True)
+    if not _node_toolchain_available():
+        print(f"  {icon('error')} 未检测到 node / npm", flush=True)
+        return 1
+    if not (UI_FED_ROOT / "package.json").is_file():
+        print(f"  {icon('error')} 缺少 {UI_FED_ROOT.relative_to(REPO_ROOT)}/package.json", flush=True)
+        return 1
+    if not (UI_FED_ROOT / "node_modules").is_dir():
+        print("  正在安装 FED 依赖（npm install）…", flush=True)
+        install = subprocess.run(["npm", "install"], cwd=str(UI_FED_ROOT))
+        if install.returncode != 0:
+            return int(install.returncode or 1)
+    env = {**os.environ, "CI": "true"}
+    proc = subprocess.run(["npm", "run", "build"], cwd=str(UI_FED_ROOT), env=env)
+    if proc.returncode != 0:
+        return int(proc.returncode or 1)
+    if not fed_build_ready():
+        print(
+            f"  {icon('error')} 构建完成但未找到 "
+            f"{(UI_FED_ROOT / 'build' / 'index.html').relative_to(REPO_ROOT)}",
+            flush=True,
+        )
+        return 1
+    print(f"  {icon('success')} {UI_FED_ROOT.relative_to(REPO_ROOT)}/build 已就绪", flush=True)
+    return 0
+
+
 def run_publish_prep(opts: PublishPrepOptions) -> int:
     version = normalize_version(opts.version)
     release_date = date.today().isoformat()
@@ -218,6 +255,12 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
     else:
         print("\n[跳过] UI 最小依赖 import", flush=True)
 
+    if not opts.skip_fed_build:
+        if run_fed_build() != 0:
+            failures.append("FED npm run build 失败")
+    else:
+        print("\n[跳过] FED 前端构建", flush=True)
+
     if not opts.skip_tests:
         if run_pytest() != 0:
             failures.append("pytest 失败")
@@ -248,6 +291,7 @@ def parse_publish_argv(argv: Sequence[str]) -> Tuple[PublishPrepOptions | None, 
     check_only = False
     skip_tests = False
     skip_ic = False
+    skip_fed_build = False
     j = 0
     while j < len(rest):
         tok = rest[j]
@@ -261,6 +305,10 @@ def parse_publish_argv(argv: Sequence[str]) -> Tuple[PublishPrepOptions | None, 
             continue
         if tok == "--skip-ic":
             skip_ic = True
+            del rest[j]
+            continue
+        if tok == "--skip-fed-build":
+            skip_fed_build = True
             del rest[j]
             continue
         if tok.startswith("-v") and len(tok) > 2:
@@ -283,6 +331,7 @@ def parse_publish_argv(argv: Sequence[str]) -> Tuple[PublishPrepOptions | None, 
             check_only=check_only,
             skip_tests=skip_tests,
             skip_ic=skip_ic,
+            skip_fed_build=skip_fed_build,
         ),
         rest,
     )

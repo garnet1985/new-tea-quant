@@ -30,6 +30,8 @@ class CapitalReport(ReportBase):
     unfinished_opportunities: int
     completion_rate: float
     stock_summary: Dict[str, Any]
+    skipped_buy_at_limit_up: int = 0
+    skipped_sell_at_limit_down: int = 0
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "CapitalReport":
@@ -62,6 +64,8 @@ class CapitalReport(ReportBase):
             unfinished_opportunities=int(data.get("unfinished_opportunities", 0) or 0),
             completion_rate=float(data.get("completion_rate", 0.0) or 0.0),
             stock_summary=data.get("stock_summary", {}) or {},
+            skipped_buy_at_limit_up=int(data.get("skipped_buy_at_limit_up", 0) or 0),
+            skipped_sell_at_limit_down=int(data.get("skipped_sell_at_limit_down", 0) or 0),
         )
 
     def to_console_lines(self) -> List[str]:
@@ -76,6 +80,10 @@ class CapitalReport(ReportBase):
             f"📊 最终总资产: {self.final_total_equity:,.2f}",
             f"{ret_icon} 总收益率: {self.total_return * 100:.2f}%",
             f"📉 最大回撤: {self.max_drawdown * 100:.2f}%",
+            (
+                f"⏭️ 涨跌停跳过买入: {self.skipped_buy_at_limit_up} · "
+                f"跳过卖出: {self.skipped_sell_at_limit_down}"
+            ),
             (
                 f"🔄 成交笔数: {self.total_trades} "
                 f"(开仓买入 {self.buy_trades} / 减仓卖出 {self.sell_trades}"

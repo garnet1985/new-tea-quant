@@ -231,6 +231,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             trades=state["trades"],
             equity_curve=state["equity_curve"],
             completed_opportunities_map=state["completed_opportunities_map"],
+            tradability_skips=dict(state.get("tradability_skips") or {}),
         )
 
     def postprocess(
@@ -248,6 +249,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             initial_capital=preprocessed.config.initial_capital,
             events=executed.events or [],
             completed_opportunities_map=executed.completed_opportunities_map or {},
+            tradability_skips=executed.tradability_skips,
         )
         # step2: persist output artifacts and metadata
         preprocessed.profiler.start_timer("save_csv")

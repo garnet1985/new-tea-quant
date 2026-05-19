@@ -160,6 +160,8 @@ class PriceFactorWorker:
 
         investments: List[Dict[str, Any]] = []
         holding_until: Optional[str] = None
+        skipped_buy_at_limit_up = 0
+        skipped_sell_at_limit_down = 0
 
         for idx in order:
             row = opportunities_rows[idx]
@@ -181,6 +183,7 @@ class PriceFactorWorker:
                 buy_price,
                 allow_at_limit=sim_settings.allow_buy_at_limit_up,
             ):
+                skipped_buy_at_limit_up += 1
                 continue
             sell_date = str(modified_row.get("sell_date") or "").strip()
             exit_from_row = str(modified_row.get("exit_date") or "").strip()
@@ -226,6 +229,7 @@ class PriceFactorWorker:
                     sell_px,
                     allow_at_limit=sim_settings.allow_sell_at_limit_down,
                 ):
+                    skipped_sell_at_limit_down += 1
                     continue
                 processed_targets.append(target_dict)
 
@@ -242,6 +246,8 @@ class PriceFactorWorker:
             "stock": {"id": self.stock_id},
             "investments": investments,
             "summary": self._summary_from_investments(investments),
+            "skipped_buy_at_limit_up": skipped_buy_at_limit_up,
+            "skipped_sell_at_limit_down": skipped_sell_at_limit_down,
         }
         modified_summary = self.hooks_dispatcher.call_hook(
             "on_price_factor_after_process_stock",

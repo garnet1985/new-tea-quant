@@ -45,6 +45,7 @@ class CapitalAllocationExecuteContext:
     trades: Optional[List[Dict[str, Any]]] = None
     equity_curve: Optional[List[Dict[str, Any]]] = None
     completed_opportunities_map: Optional[Dict[str, Dict[str, Any]]] = None
+    tradability_skips: Optional[Dict[str, int]] = None
 
 
 __all__ = ["CapitalAllocationPreprocessContext", "CapitalAllocationExecuteContext"]

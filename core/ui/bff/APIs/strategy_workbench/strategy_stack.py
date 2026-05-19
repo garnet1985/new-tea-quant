@@ -31,6 +31,7 @@ def get_strategy_workbench_stack() -> SimpleNamespace:
         items_capital_allocation_strategies,
         items_sampling_strategies,
         items_simulation_templates,
+        items_market_profiles,
     )
     from core.modules.strategy.execution_manager import (
         get_run_progress,
@@ -52,6 +53,7 @@ def get_strategy_workbench_stack() -> SimpleNamespace:
         items_capital_allocation_strategies=items_capital_allocation_strategies,
         items_sampling_strategies=items_sampling_strategies,
         items_simulation_templates=items_simulation_templates,
+        items_market_profiles=items_market_profiles,
         get_run_progress=get_run_progress,
         get_step_progress=get_step_progress,
         normalize_step=normalize_step,

@@ -24,15 +24,6 @@ function tooltipPrimaryValue(point) {
   return raw;
 }
 
-/** 旧版会话摘要里的固定 ROI 档位（与新版的 [min,max] 等分标签区分） */
-function looksLikeLegacyFixedRoiBuckets(labels) {
-  if (!Array.isArray(labels)) return false;
-  return labels.some((t) => (
-    typeof t === 'string'
-    && (t.includes('≤-20') || t.includes('>50%') || /\(-20,-5]/.test(t))
-  ));
-}
-
 function buildRoiDistributionOption(metrics) {
   return {
     animation: false,
@@ -115,8 +106,6 @@ function buildRoiBucketOption(metrics) {
 function PriceFactorReport({
   metrics,
   stockRows,
-  strategyName: _strategyName,
-  runId: _runId,
   title = '价格回测报告',
   showStockGrid = true,
 }) {
@@ -298,11 +287,6 @@ function PriceFactorReport({
                 ? `将本轮 ROI 的 min～max 等分为 ${metrics.roiBucketBinCount} 段，统计落入各段的投资笔数；末段含右端点 max。`
                 : '将本轮 ROI 的 min～max 等分为若干段，统计落入各段的投资笔数；末段含右端点 max。'}
             </Typography>
-            {looksLikeLegacyFixedRoiBuckets(metrics.roiBucketLabels) ? (
-              <Typography variant="caption" color="warning.main" sx={{ display: 'block', mb: 0.75, fontSize: 10 }}>
-                当前摘要仍为旧版固定档位（如 ≤-20%）；请重新执行一次价格回测以写入新版 min～max 等分区间。
-              </Typography>
-            ) : null}
             <ReactECharts
               option={buildRoiBucketOption(metrics)}
               style={{ height: 190, width: '100%' }}

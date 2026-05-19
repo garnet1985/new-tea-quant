@@ -110,6 +110,7 @@
 | `GET /strategy/settings/capital-allocation-strategies` | 资金分配方式等枚举选项（表单下拉 / radio） |
 | `GET /strategy/settings/sampling-strategies` | 采样策略等枚举选项 |
 | `GET /strategy/settings/simulation-templates` | 回测执行模板等枚举选项（label 中文，value 英文） |
+| `GET /strategy/settings/market-profiles` | 根级 `market_profile` 可选值（扫描 markets 配置） |
 
 ### `result_report.capital_allocation`（FED 仅认此格式，snake_case）
 

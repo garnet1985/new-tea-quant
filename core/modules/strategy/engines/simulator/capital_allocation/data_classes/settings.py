@@ -16,6 +16,11 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.setting
 logger = logging.getLogger(__name__)
 _VALID_MODES = frozenset({"equal_capital", "equal_shares", "kelly", "custom"})
 
+_REMOVED_ALLOCATION_KEYS: Dict[str, str] = {
+    "lot_size": "手数由 market_profile 决定；使用 lots_per_trade",
+    "on_insufficient_funds": "改用 skip_trade_when_insufficient（bool）",
+}
+
 if TYPE_CHECKING:
     from core.modules.strategy.engines.shared.data_classes.strategy_settings.strategy_settings import (
         StrategySettings,
@@ -27,9 +32,9 @@ class AllocationConfig:
     mode: str = "equal_capital"
     max_portfolio_size: int = 10
     max_weight_per_stock: float = 0.3
-    lot_size: int = 100
     lots_per_trade: int = 1
     kelly_fraction: float = 0.5
+    skip_trade_when_insufficient: bool = False
 
 
 @dataclass
@@ -69,9 +74,9 @@ class StrategyCapitalSimulatorSettings(SettingsBase):
         alloc.setdefault("mode", "equal_capital")
         alloc.setdefault("max_portfolio_size", 10)
         alloc.setdefault("max_weight_per_stock", 0.3)
-        alloc.setdefault("lot_size", 100)
         alloc.setdefault("lots_per_trade", 1)
         alloc.setdefault("kelly_fraction", 0.5)
+        alloc.setdefault("skip_trade_when_insufficient", False)
         out = c.get("output")
         if not isinstance(out, dict):
             out = {}
@@ -79,9 +84,22 @@ class StrategyCapitalSimulatorSettings(SettingsBase):
         out.setdefault("save_trades", True)
         out.setdefault("save_equity_curve", True)
 
+    def _validate_removed_allocation_keys(self, result: ValidationReport) -> None:
+        alloc = self.capital_simulator.get("allocation")
+        if not isinstance(alloc, dict):
+            return
+        for key, hint in _REMOVED_ALLOCATION_KEYS.items():
+            if key in alloc:
+                SettingsBase.add_critical(
+                    result,
+                    f"capital_simulator.allocation.{key}",
+                    f"已移除 {key!r}；{hint}",
+                )
+
     def validate(self) -> ValidationReport:
         result = SettingsBase.new_validation()
         self.apply_defaults()
+        self._validate_removed_allocation_keys(result)
 
         alloc = self._parse_allocation()
         try:
@@ -126,10 +144,6 @@ class StrategyCapitalSimulatorSettings(SettingsBase):
         except (TypeError, ValueError):
             mw = 0.3
         try:
-            lot = max(int(a.get("lot_size", 100)), 1)
-        except (TypeError, ValueError):
-            lot = 100
-        try:
             lots = max(int(a.get("lots_per_trade", 1)), 1)
         except (TypeError, ValueError):
             lots = 1
@@ -138,7 +152,16 @@ class StrategyCapitalSimulatorSettings(SettingsBase):
         except (TypeError, ValueError):
             kf = 0.5
         mode = str(a.get("mode", "equal_capital") or "equal_capital")
-        return AllocationConfig(mode=mode, max_portfolio_size=mps, max_weight_per_stock=mw, lot_size=lot, lots_per_trade=lots, kelly_fraction=kf)
+        skip_insufficient = bool(a.get("skip_trade_when_insufficient", False))
+        a["skip_trade_when_insufficient"] = skip_insufficient
+        return AllocationConfig(
+            mode=mode,
+            max_portfolio_size=mps,
+            max_weight_per_stock=mw,
+            lots_per_trade=lots,
+            kelly_fraction=kf,
+            skip_trade_when_insufficient=skip_insufficient,
+        )
 
     def _parse_output(self) -> OutputConfig:
         o = self.capital_simulator.get("output") or {}

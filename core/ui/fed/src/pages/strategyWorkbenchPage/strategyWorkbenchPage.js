@@ -34,6 +34,7 @@ import {
   fetchStrategyVersions,
   fetchSamplingStrategyConfig,
   fetchSimulationTemplateConfig,
+  fetchMarketProfileOptions,
   restoreStrategyVersion,
   getStrategyWorkbenchPath,
 } from '../../api/apis/strategyApi';
@@ -148,6 +149,7 @@ function StrategyWorkbenchPage() {
   const [allocationModeOptions, setAllocationModeOptions] = useState([]);
   const [samplingStrategyOptions, setSamplingStrategyOptions] = useState([]);
   const [simulationTemplateOptions, setSimulationTemplateOptions] = useState([]);
+  const [marketProfileOptions, setMarketProfileOptions] = useState([]);
   const [executionState, setExecutionState] = useState({
     stepStatus: {
       enum: 'idle',
@@ -290,12 +292,14 @@ function StrategyWorkbenchPage() {
       fetchCapitalAllocationModeConfig(),
       fetchSamplingStrategyConfig(),
       fetchSimulationTemplateConfig(),
+      fetchMarketProfileOptions(),
     ])
-      .then(([allocationConfig, samplingConfig, simulationConfig]) => {
+      .then(([allocationConfig, samplingConfig, simulationConfig, marketProfiles]) => {
         if (cancelled) return;
         setAllocationModeOptions(allocationConfig?.options || []);
         setSamplingStrategyOptions(samplingConfig?.options || []);
         setSimulationTemplateOptions(simulationConfig?.options || []);
+        setMarketProfileOptions(marketProfiles || []);
         setSettingsOptionError('');
       })
       .catch((err) => {
@@ -304,6 +308,7 @@ function StrategyWorkbenchPage() {
         setAllocationModeOptions([]);
         setSamplingStrategyOptions([]);
         setSimulationTemplateOptions([]);
+        setMarketProfileOptions([]);
       });
     return () => {
       cancelled = true;
@@ -729,6 +734,7 @@ function StrategyWorkbenchPage() {
                   allocationModeOptions={allocationModeOptions}
                   samplingStrategyOptions={samplingStrategyOptions}
                   simulationTemplateOptions={simulationTemplateOptions}
+                  marketProfileOptions={marketProfileOptions}
                   onGoalChange={(nextGoal) => updateSection('goal', nextGoal)}
                   onSamplingChange={(nextSampling) => updateSection('sampling', nextSampling)}
                   onFeesChange={(nextFees) => updateSection('fees', nextFees)}
@@ -782,6 +788,11 @@ function StrategyWorkbenchPage() {
                     executionCompareRecentVersionIds={latestFiveVersions.map((v) => v.id)}
                     configVersions={configVersions}
                     workbenchResultReport={workbenchResultReport}
+                    reportVersionId={(
+                      selectedConfigVersion
+                      || executionState.lastCompletedWorkbenchVersionId
+                      || ''
+                    ).trim()}
                     reportTabFocusRequest={reportTabFocusRequest}
                     onForceEnumerate={() => forceRunHandlersRef.current?.forceEnum?.()}
                     showReportCompare={hasOtherVersions}

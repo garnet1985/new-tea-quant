@@ -16,7 +16,10 @@ from core.modules.strategy.enums import OpportunityStatus
 def _sim(**edges) -> StrategySimulationSettings:
     root = {
         "simulation": {
-            "template": "deterministic",
+            "template": "custom",
+            "monitor_price_model": "close",
+            "buy_price_model": "next_open",
+            "sell_price_model": "close",
             "slippage": {"buy_bps": 0.0, "sell_bps": 0.0},
             "edges": edges or {"no_next_bar": "skip_trade"},
         }

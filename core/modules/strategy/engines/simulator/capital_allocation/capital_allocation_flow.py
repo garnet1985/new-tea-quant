@@ -10,6 +10,9 @@ from core.modules.strategy.engines.simulator.capital_allocation.data_classes.flo
     CapitalAllocationExecuteContext,
     CapitalAllocationPreprocessContext,
 )
+from core.modules.strategy.engines.shared.data_classes.market_profile_context import (
+    MarketProfileContext,
+)
 from core.modules.strategy.engines.shared.helpers.simulation_flow import (
     prepare_simulation_settings,
     simulation_effective_snapshot,
@@ -70,7 +73,6 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         tick(8.0)
 
         base_settings = self._impl.load_settings(strategy_name, strategy_info)
-        simulation_settings = prepare_simulation_settings(base_settings)
         config = self._impl.parse_config(base_settings)
         output_version_dir = self._impl.resolve_source_version(
             strategy_name=strategy_name,
@@ -117,17 +119,9 @@ class CapitalAllocationFlow(BaseSimulationFlow):
 
         tick(12.0)
 
-        sim_version_dir, sim_version_id = self._impl.create_simulation_version(strategy_name)
-        profiler = self._impl.create_profiler()
-        preprocessed = CapitalAllocationPreprocessContext(
+        preprocessed = self.preprocess(
             strategy_name=strategy_name,
-            base_settings=base_settings,
-            simulation_settings=simulation_settings,
-            config=config,
-            output_version_dir=output_version_dir,
-            sim_version_dir=sim_version_dir,
-            sim_version_id=sim_version_id,
-            profiler=profiler,
+            strategy_info=strategy_info,
         )
         tick(14.0)
         executed = self.execute(preprocessed, progress_callback=tick)
@@ -179,9 +173,11 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         )
         # step4: initialize runtime profiling context
         profiler = self._impl.create_profiler()
+        market_profile = MarketProfileContext.from_settings_view(base_settings)
         return CapitalAllocationPreprocessContext(
             strategy_name=strategy_name,
             base_settings=base_settings,
+            market_profile=market_profile,
             simulation_settings=simulation_settings,
             config=config,
             output_version_dir=output_version_dir,
@@ -211,7 +207,11 @@ class CapitalAllocationFlow(BaseSimulationFlow):
                 progress_callback(88.0)
             return CapitalAllocationExecuteContext(empty=True)
         # step2: initialize account/funding/allocation execution state
-        state = self._impl.create_execution_state(preprocessed.config)
+        state = self._impl.create_execution_state(
+            preprocessed.config,
+            market_profile=preprocessed.market_profile,
+            simulation_settings=preprocessed.simulation_settings,
+        )
         # step3: replay trigger/target events into trades and positions
         self._impl.replay_events(
             events=events,
@@ -231,6 +231,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             trades=state["trades"],
             equity_curve=state["equity_curve"],
             completed_opportunities_map=state["completed_opportunities_map"],
+            tradability_skips=dict(state.get("tradability_skips") or {}),
         )
 
     def postprocess(
@@ -248,6 +249,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             initial_capital=preprocessed.config.initial_capital,
             events=executed.events or [],
             completed_opportunities_map=executed.completed_opportunities_map or {},
+            tradability_skips=executed.tradability_skips,
         )
         # step2: persist output artifacts and metadata
         preprocessed.profiler.start_timer("save_csv")

@@ -9,7 +9,7 @@ import {
 } from '@mui/material';
 import Editor from 'components/editor/editor';
 import strategyCoreSchema from './editorSchemas/strategyCore';
-import strategyMetaSchema from './editorSchemas/strategyMeta';
+import { buildStrategyMetaSchema } from './editorSchemas/strategyMeta';
 import {
   applyGoalActions,
   normalizeGoalSettings,
@@ -64,9 +64,14 @@ export function StrategySettingsPanel({
   allocationModeOptions,
   samplingStrategyOptions,
   simulationTemplateOptions,
+  marketProfileOptions,
 }) {
   const shouldShowCore = hasNonEmptyCore(settings?.core);
   const [samplingEditorErrors, setSamplingEditorErrors] = useState({});
+  const metaSchema = useMemo(
+    () => buildStrategyMetaSchema(marketProfileOptions),
+    [marketProfileOptions],
+  );
   const capitalSimulatorSchema = useMemo(
     () => buildStrategyCapitalSimulatorSchema(allocationModeOptions),
     [allocationModeOptions],
@@ -84,7 +89,7 @@ export function StrategySettingsPanel({
     <SectionAccordion title="策略参数设置" defaultExpanded>
       <Stack spacing={1}>
         <Editor
-          schema={strategyMetaSchema}
+          schema={metaSchema}
           value={settings}
           onChange={onSettingsChange}
         />

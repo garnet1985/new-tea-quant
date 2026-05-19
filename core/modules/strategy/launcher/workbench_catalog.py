@@ -5,7 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+from core.infra.project_context import DiscoveryManager
 from core.modules.data_manager import DataManager
+from core.modules.market_profile.constants import MARKETS_CONFIG_DIR
 from core.modules.strategy.engines.shared.data_classes.discovered_strategy import DiscoveredStrategy
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.sampling_settings import (
     KNOWN_STRATEGIES,
@@ -140,4 +142,22 @@ def items_simulation_templates() -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     for k in keys + rest:
         out.append({"value": k, "label": _SIMULATION_TEMPLATE_LABELS.get(k, k)})
+    return out
+
+
+def items_market_profiles() -> List[Dict[str, Any]]:
+    """根级 ``market_profile`` 可选值（扫描 markets 配置目录）。"""
+    known = DiscoveryManager.discover_configs(MARKETS_CONFIG_DIR)
+    out: List[Dict[str, Any]] = []
+    for pid in known:
+        label = pid
+        try:
+            raw = DiscoveryManager.load_overridable_config(MARKETS_CONFIG_DIR, pid)
+            if isinstance(raw, dict):
+                desc = str(raw.get("description") or "").strip()
+                if desc:
+                    label = desc
+        except Exception:
+            pass
+        out.append({"value": pid, "label": label})
     return out

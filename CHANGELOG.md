@@ -7,14 +7,14 @@
 新版本更新清单：
 python dev-cli -p -vx.x.x
 
+[] (已自动化)同步 ``core/system.json`` 中的版本
+[] (已自动化)同步版本徽章
+[] (已自动化)确保所有test都能跑过
+[] (已自动化)检查安装依赖的数据是不是齐全，是不是足够新
 [] 有破坏性更改或者新的模块需要在module_info.yaml里更新core的依赖
-[] 同步 ``core/system.json`` 中的版本（与发版 tag / 远端 manifest 对齐；运行期由 ``core/system.py`` 加载）
-[] 同步版本徽章
 [] 检查是不是正确配置了gitignore
 [] Changlog 里注明改动和可能存在的破坏性改动
 [] 更新模块文档（模块readme，API，module_info）
-[] 确保所有test都能跑过
-[] 检查安装依赖的数据是不是齐全，是不是足够新
 [] 更新项目README文档
 
 ---

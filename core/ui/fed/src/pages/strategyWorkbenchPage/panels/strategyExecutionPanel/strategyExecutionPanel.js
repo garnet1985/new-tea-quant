@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
+import NtqIcon from 'components/ntqIcon/ntqIcon';
 import {
   Accordion,
   AccordionDetails,
@@ -17,7 +16,6 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import { ReactComponent as PlayCircleIcon } from '../../../../assets/icon/play_circle.svg';
 import LoadingBars from 'components/loadingBars/loadingBars';
 import './strategyExecutionPanel.scss';
 import {
@@ -52,9 +50,9 @@ const STEP_RUN_ICON_PX = 29;
 
 function StepRunButtonIcon({ done }) {
   return done ? (
-    <RefreshRoundedIcon sx={{ fontSize: STEP_RUN_ICON_PX }} />
+    <NtqIcon name="refresh" size={STEP_RUN_ICON_PX} />
   ) : (
-    <PlayCircleIcon width={STEP_RUN_ICON_PX} height={STEP_RUN_ICON_PX} />
+    <NtqIcon name="playCircle" size={STEP_RUN_ICON_PX} />
   );
 }
 
@@ -819,7 +817,7 @@ function StrategyExecutionPanel({
   return (
     <>
     <Accordion defaultExpanded disableGutters>
-      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+      <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
         <Typography fontWeight={600}>执行面板</Typography>
       </AccordionSummary>
       <AccordionDetails>

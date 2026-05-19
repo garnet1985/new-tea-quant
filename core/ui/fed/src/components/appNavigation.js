@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { AppBar, Box, Toolbar, Typography, Button, Stack } from '@mui/material';
-import { ReactComponent as FallbackLogo } from '../assets/icon/tactic.svg';
+import { ReactComponent as FallbackLogo } from './ntqIcon/icons/tactic.svg';
 import './appNavigation.scss';
 
 const navItems = [

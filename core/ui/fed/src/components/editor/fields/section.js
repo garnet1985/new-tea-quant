@@ -1,5 +1,5 @@
 import React from 'react';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import NtqIcon from '../../ntqIcon/ntqIcon';
 import {
   Accordion,
   AccordionDetails,
@@ -14,7 +14,7 @@ function SectionField({ node, value, onChange, errors, emitChangeMeta, renderNod
 
   return (
     <Accordion key={node.name} defaultExpanded={Boolean(node.defaultExpanded)} disableGutters>
-      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+      <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
         <Typography fontWeight={600}>{node.label}</Typography>
       </AccordionSummary>
       <AccordionDetails>

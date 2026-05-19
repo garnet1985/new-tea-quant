@@ -46,10 +46,14 @@ class PriceReport(ReportBase):
     avg_profit_per_stock: float
     avg_investments_per_stock: float
     stocks_have_opportunities: int
+    skipped_buy_at_limit_up: int = 0
+    skipped_sell_at_limit_down: int = 0
 
     @classmethod
     def from_stock_summaries(cls, stock_summaries: List[Dict[str, Any]]) -> "PriceReport":
         total_investments = 0
+        skipped_buy_at_limit_up = 0
+        skipped_sell_at_limit_down = 0
         total_win = 0
         total_loss = 0
         total_open = 0
@@ -59,6 +63,10 @@ class PriceReport(ReportBase):
         stocks_with_opportunities = len(stock_summaries)
 
         for stock_summary in stock_summaries:
+            skipped_buy_at_limit_up += int(stock_summary.get("skipped_buy_at_limit_up", 0) or 0)
+            skipped_sell_at_limit_down += int(
+                stock_summary.get("skipped_sell_at_limit_down", 0) or 0
+            )
             summary = stock_summary.get("summary", {}) or {}
             investment_count = int(summary.get("total_investments", 0) or 0)
             if investment_count <= 0:
@@ -106,6 +114,8 @@ class PriceReport(ReportBase):
                 ReportBase.safe_div(total_investments, stocks_with_opportunities), 2
             ),
             stocks_have_opportunities=stocks_with_opportunities,
+            skipped_buy_at_limit_up=skipped_buy_at_limit_up,
+            skipped_sell_at_limit_down=skipped_sell_at_limit_down,
         )
 
     @classmethod
@@ -129,6 +139,8 @@ class PriceReport(ReportBase):
             avg_profit_per_stock=float(data.get("avg_profit_per_stock", 0.0) or 0.0),
             avg_investments_per_stock=float(data.get("avg_investments_per_stock", 0.0) or 0.0),
             stocks_have_opportunities=int(data.get("stocks_have_opportunities", 0) or 0),
+            skipped_buy_at_limit_up=int(data.get("skipped_buy_at_limit_up", 0) or 0),
+            skipped_sell_at_limit_down=int(data.get("skipped_sell_at_limit_down", 0) or 0),
         )
 
     def to_console_lines(self) -> List[str]:
@@ -164,6 +176,10 @@ class PriceReport(ReportBase):
             ),
             f"📊 每只股票平均投资次数: {self.avg_investments_per_stock:.2f}",
             f"💰 产生机会的股票数: {self.stocks_have_opportunities}",
+            (
+                f"⏭️ 涨跌停跳过买入: {self.skipped_buy_at_limit_up} · "
+                f"跳过卖出: {self.skipped_sell_at_limit_down}"
+            ),
         ]
         return lines
 

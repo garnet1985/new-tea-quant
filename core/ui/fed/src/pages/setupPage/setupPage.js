@@ -7,7 +7,6 @@ import {
   Card,
   CardContent,
   Checkbox,
-  CircularProgress,
   Container,
   FormControlLabel,
   MenuItem,
@@ -23,6 +22,7 @@ import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
 import RadioButtonUncheckedRoundedIcon from '@mui/icons-material/RadioButtonUncheckedRounded';
+import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   getSetupDefinition,
@@ -397,10 +397,7 @@ function SetupPage() {
   return (
     <>
       <Backdrop open={bootstrapping} sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
-        <Stack spacing={1.5} alignItems="center">
-          <CircularProgress color="inherit" />
-          <Typography variant="body2">正在加载安装状态...</Typography>
-        </Stack>
+        <InlineLoadingState message="正在加载安装状态…" />
       </Backdrop>
       <Container maxWidth="lg" sx={{ py: 5, visibility: bootstrapping ? 'hidden' : 'visible' }}>
         <Box className="setup-page" sx={{ minWidth: 0 }}>

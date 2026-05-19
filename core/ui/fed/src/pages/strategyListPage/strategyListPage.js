@@ -16,6 +16,7 @@ import { zhCN } from '@mui/x-data-grid/locales';
 import SearchIcon from '@mui/icons-material/Search';
 import { fetchStrategyList, getStrategyWorkbenchPath } from '../../api/apis/strategyApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
+import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
 import { ReactComponent as RefreshIcon } from '../../assets/icon/refresh.svg';
 import './strategyListPage.scss';
 
@@ -152,6 +153,7 @@ function StrategyListPage() {
             rows={displayRows}
             columns={columns}
             loading={loading}
+            slots={NTQ_DATA_GRID_LOADING_SLOTS}
             localeText={zhCN}
             disableRowSelectionOnClick
             onRowDoubleClick={(params) => {

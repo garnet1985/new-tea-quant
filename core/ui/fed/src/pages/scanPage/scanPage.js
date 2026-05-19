@@ -30,6 +30,7 @@ import {
   startStrategyScan,
 } from '../../api/apis/strategyApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
+import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
 import './scanPage.scss';
 
 const PROTOTYPE_DATA_ASOF_DATE = '2025-12-30';
@@ -454,6 +455,7 @@ function ScanPage() {
               rows={rows}
               columns={columns}
               loading={loading}
+              slots={NTQ_DATA_GRID_LOADING_SLOTS}
               localeText={zhCN}
               disableRowSelectionOnClick
               pageSizeOptions={[10]}

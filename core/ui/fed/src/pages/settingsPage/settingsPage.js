@@ -16,6 +16,7 @@ import {
 } from '@mui/material';
 import { fetchDatabaseSettings, saveDatabaseSettings } from '../../api/apis/settingsApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
+import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
 
 function SettingsPage() {
   const [loading, setLoading] = useState(true);
@@ -119,6 +120,9 @@ function SettingsPage() {
             {saveError ? <Alert severity="error" sx={{ mb: 2 }}>{saveError}</Alert> : null}
             {saveOk ? <Alert severity="success" sx={{ mb: 2 }}>{saveOk}</Alert> : null}
 
+            {loading ? (
+              <InlineLoadingState block message="正在加载数据库配置…" />
+            ) : (
             <Stack spacing={2} sx={{ maxWidth: 420 }}>
               <FormControl fullWidth size="small" disabled={loading}>
                 <InputLabel id="settings-db-type-label">数据库类型</InputLabel>
@@ -150,6 +154,7 @@ function SettingsPage() {
                 </Button>
               </Box>
             </Stack>
+            )}
           </CardContent>
         </Card>
       </Stack>

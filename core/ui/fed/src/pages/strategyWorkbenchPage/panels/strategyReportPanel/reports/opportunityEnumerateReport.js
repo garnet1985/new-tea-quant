@@ -5,6 +5,7 @@ import MetricCard from 'components/metricCard/metricCard';
 import { SectionBlock } from 'components/sectionBlock/sectionBlock';
 import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
 import ReportUnavailableHint from '../components/reportUnavailableHint';
+import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
 import {
   REPORT_CHART_AXIS_LABEL,
   REPORT_CHART_AXIS_LINE,
@@ -164,9 +165,7 @@ function OpportunityEnumrateReport({
       {showStockGrid ? (
         <Box sx={{ position: 'relative' }}>
           {stockGridLoading ? (
-            <Typography variant="body2" color="text.secondary" sx={{ py: 0.5 }}>
-              正在加载逐股数据…
-            </Typography>
+            <InlineLoadingState block compact message="正在加载逐股数据…" />
           ) : (
             <>
               {stockGridOverlay}

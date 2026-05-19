@@ -45,6 +45,21 @@ jobs:
       - name: Run core tests
         run: python -m pytest -v
 
+  # UI 仅装 BFF 依赖时，launcher / BFF 冷启动链不得 import 未声明的三方包
+  minimal-ui-imports:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: UI minimal import smoke
+        run: python -m devtools.quick_tools.minimal_import_check
+
   # 确保 Dockerfile 可构建（不跑完整 install，避免 CI 时间过长）
   docker-build:
     runs-on: ubuntu-latest

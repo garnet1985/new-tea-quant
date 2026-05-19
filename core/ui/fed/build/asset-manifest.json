@@ -1,7 +1,7 @@
 {
   "files": {
-    "main.css": "/static/css/main.c801a728.css",
-    "main.js": "/static/js/main.7b68399b.js",
+    "main.css": "/static/css/main.41cfb4cd.css",
+    "main.js": "/static/js/main.a430e032.js",
     "static/media/help.svg": "/static/media/help.25c81a75932167b65b22f475d4dda3ef.svg",
     "static/media/tactic.svg": "/static/media/tactic.3680c5f0cf9dc2220c6cf58c18b08037.svg",
     "static/media/info.svg": "/static/media/info.a3b594ddc29b56449c417e6fe7cc8374.svg",
@@ -13,14 +13,15 @@
     "static/media/search.svg": "/static/media/search.9098059782b5dfcf2dead18fee45d96f.svg",
     "index.html": "/index.html",
     "static/media/refresh.svg": "/static/media/refresh.b1add2995ef5d596829e45901473542c.svg",
+    "static/media/warning.svg": "/static/media/warning.8d9f97a2c386656fd923c23c597e778b.svg",
     "static/media/radio_button_unchecked.svg": "/static/media/radio_button_unchecked.8276e62dd6aed31837877aecd1d5f0eb.svg",
     "static/media/sync_alt.svg": "/static/media/sync_alt.d3c047b3988f611f75444c182279fddc.svg",
     "static/media/arrow_right.svg": "/static/media/arrow_right.b12ab75420bfc29eb3db441ee0d5bb91.svg",
-    "main.c801a728.css.map": "/static/css/main.c801a728.css.map",
-    "main.7b68399b.js.map": "/static/js/main.7b68399b.js.map"
+    "main.41cfb4cd.css.map": "/static/css/main.41cfb4cd.css.map",
+    "main.a430e032.js.map": "/static/js/main.a430e032.js.map"
   },
   "entrypoints": [
-    "static/css/main.c801a728.css",
-    "static/js/main.7b68399b.js"
+    "static/css/main.41cfb4cd.css",
+    "static/js/main.a430e032.js"
   ]
 }

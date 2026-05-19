@@ -1,11 +1,9 @@
 import React from 'react';
-import NtqIcon from '../ntqIcon/ntqIcon';
+import NtqHelpTooltip from '../ntqHelpTooltip/ntqHelpTooltip';
 import {
   Box,
-  IconButton,
   Stack,
   TextField,
-  Tooltip,
   Typography,
 } from '@mui/material';
 
@@ -35,15 +33,7 @@ export default function DateRangeInput({
             </Typography>
           ) : null}
           {tooltipTitle ? (
-            <Tooltip title={tooltipTitle} arrow placement="top">
-              <IconButton
-                size="small"
-                aria-label="时间段说明"
-                sx={{ p: 0.25, color: 'text.secondary' }}
-              >
-                <NtqIcon name="help" size={18} tone="muted" />
-              </IconButton>
-            </Tooltip>
+            <NtqHelpTooltip title={tooltipTitle} ariaLabel="时间段说明" />
           ) : null}
         </Stack>
       ) : null}

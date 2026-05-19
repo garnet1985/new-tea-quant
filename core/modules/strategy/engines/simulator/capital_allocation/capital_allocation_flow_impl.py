@@ -17,11 +17,15 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_vi
 from core.modules.strategy.engines.simulator.capital_allocation.data_classes.settings import (
     StrategyCapitalSimulatorSettings,
 )
-from core.modules.strategy.engines.shared.helpers.market_profile_runtime import (
-    load_market_profile_for_settings,
-    should_skip_buy_for_tradability,
-    should_skip_sell_for_tradability,
-    tradability_from_simulation_config,
+from core.modules.strategy.engines.shared.data_classes.market_profile_context import (
+    MarketProfileContext,
+)
+from core.modules.strategy.engines.shared.data_classes.strategy_settings.simulation_settings import (
+    StrategySimulationSettings,
+)
+from core.modules.strategy.engines.shared.helpers.tradability import (
+    should_skip_buy,
+    should_skip_sell,
 )
 from core.modules.strategy.engines.shared.helpers.strategy_runtime import (
     load_strategy_settings_view,
@@ -289,15 +293,11 @@ class CapitalAllocationFlowImpl:
         self,
         config: StrategyCapitalSimulatorSettings,
         *,
-        raw_settings: Optional[Dict[str, Any]] = None,
+        market_profile: MarketProfileContext,
+        simulation_settings: StrategySimulationSettings,
     ) -> Dict[str, Any]:
         allocation_cfg = config.allocation
         fees_cfg = config.get_fees_config_with_priority()
-        settings_root = raw_settings if isinstance(raw_settings, dict) else config.raw_settings
-        market_profile = load_market_profile_for_settings(settings_root)
-        allow_buy_at_limit_up, allow_sell_at_limit_down = tradability_from_simulation_config(
-            settings_root
-        )
         account = Account(initial_cash=config.initial_capital, cash=config.initial_capital)
         fee_calculator = FeeCalculator(
             commission_rate=float(fees_cfg.get("commission_rate", 0.00025) or 0.00025),
@@ -309,12 +309,12 @@ class CapitalAllocationFlowImpl:
             mode=allocation_cfg.mode,
             initial_capital=config.initial_capital,
             max_portfolio_size=allocation_cfg.max_portfolio_size,
-            market_profile=market_profile,
+            market_profile=market_profile.profile,
             lots_per_trade=allocation_cfg.lots_per_trade,
             kelly_fraction=allocation_cfg.kelly_fraction,
             fee_calculator=fee_calculator,
-            allow_buy_at_limit_up=allow_buy_at_limit_up,
-            allow_sell_at_limit_down=allow_sell_at_limit_down,
+            allow_buy_at_limit_up=simulation_settings.allow_buy_at_limit_up,
+            allow_sell_at_limit_down=simulation_settings.allow_sell_at_limit_down,
             skip_trade_when_insufficient=allocation_cfg.skip_trade_when_insufficient,
         )
         return {
@@ -499,7 +499,7 @@ class CapitalAllocationFlowImpl:
                 )
             return None
         buy_event_date, buy_price = buy_fill
-        if should_skip_buy_for_tradability(
+        if should_skip_buy(
             opportunity,
             allocation_strategy.market_profile,
             stock_id,
@@ -567,7 +567,7 @@ class CapitalAllocationFlowImpl:
         sell_price = float(raw_sell_price or 0.0)
         if not stock_id or not opp_id or sell_price <= 0:
             return None
-        if should_skip_sell_for_tradability(
+        if should_skip_sell(
             target,
             allocation_strategy.market_profile,
             stock_id,

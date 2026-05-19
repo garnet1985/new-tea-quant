@@ -9,9 +9,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from core.modules.strategy.enums import OpportunityStatus
-from core.modules.strategy.engines.shared.helpers.market_profile_runtime import (
-    stamp_target_tradability,
-)
+from core.modules.strategy.engines.shared.helpers.tradability import stamp_target_tradability
 from core.modules.strategy.engines.shared.helpers.simulation_pricing import (
     apply_sell_slippage,
     monitor_bar_price,
@@ -102,7 +100,7 @@ class Opportunity:
         reason: str,
         *,
         sell_ratio: float = 1.0,
-        tradability_profile: Optional["MarketProfile"] = None,
+        market_profile: Optional["MarketProfile"] = None,
         prev_bar: Optional[Dict[str, Any]] = None,
     ) -> bool:
         exit_px = self._exit_price(sim, bar)
@@ -125,7 +123,7 @@ class Opportunity:
         reason: str,
         *,
         sell_ratio: float = 1.0,
-        tradability_profile: Optional["MarketProfile"] = None,
+        market_profile: Optional["MarketProfile"] = None,
         prev_bar: Optional[Dict[str, Any]] = None,
     ) -> bool:
         if trade_price_defers_to_next_session(sim.sell_price_model):
@@ -135,7 +133,7 @@ class Opportunity:
             bar,
             reason,
             sell_ratio=sell_ratio,
-            tradability_profile=tradability_profile,
+            market_profile=market_profile,
             prev_bar=prev_bar,
         )
 
@@ -144,7 +142,7 @@ class Opportunity:
         sim: "StrategySimulationSettings",
         bar: Dict[str, Any],
         *,
-        tradability_profile: Optional["MarketProfile"] = None,
+        market_profile: Optional["MarketProfile"] = None,
         prev_bar: Optional[Dict[str, Any]] = None,
     ) -> bool:
         if not self.pending_exit:
@@ -156,7 +154,7 @@ class Opportunity:
             bar,
             str(pe.get("reason") or "exit"),
             sell_ratio=float(pe.get("sell_ratio") or 1.0),
-            tradability_profile=tradability_profile,
+            market_profile=market_profile,
             prev_bar=prev_bar,
         )
 
@@ -203,7 +201,7 @@ class Opportunity:
         last_kline: Dict[str, Any],
         reason: str = "backtest_end",
         *,
-        tradability_profile: Optional["MarketProfile"] = None,
+        market_profile: Optional["MarketProfile"] = None,
     ) -> None:
         if self.pending_exit and trade_price_defers_to_next_session(sim.sell_price_model):
             pe = self.pending_exit
@@ -213,7 +211,7 @@ class Opportunity:
                 last_kline,
                 str(pe.get("reason") or reason),
                 sell_ratio=float(pe.get("sell_ratio") or 1.0),
-                tradability_profile=tradability_profile,
+                market_profile=market_profile,
             )
             return
         self._settle_on_bar(
@@ -221,7 +219,7 @@ class Opportunity:
             last_kline,
             reason,
             sell_ratio=1.0,
-            tradability_profile=tradability_profile,
+            market_profile=market_profile,
         )
 
     def check_targets(
@@ -230,7 +228,7 @@ class Opportunity:
         current_kline: Dict[str, Any],
         goal_config: Dict[str, Any],
         *,
-        tradability_profile: Optional["MarketProfile"] = None,
+        market_profile: Optional["MarketProfile"] = None,
         prev_bar: Optional[Dict[str, Any]] = None,
     ) -> bool:
         current_price = monitor_bar_price(current_kline, sim.monitor_price_model)
@@ -255,7 +253,7 @@ class Opportunity:
                     current_kline,
                     "expiration",
                     sell_ratio=1.0,
-                    tradability_profile=tradability_profile,
+                    market_profile=market_profile,
                     prev_bar=prev_bar,
                 ):
                     return self.pending_exit is None
@@ -269,7 +267,7 @@ class Opportunity:
                     current_kline,
                     "protect_loss",
                     sell_ratio=1.0,
-                    tradability_profile=tradability_profile,
+                    market_profile=market_profile,
                     prev_bar=prev_bar,
                 ):
                     return self.pending_exit is None
@@ -289,7 +287,7 @@ class Opportunity:
                     current_kline,
                     "dynamic_loss",
                     sell_ratio=1.0,
-                    tradability_profile=tradability_profile,
+                    market_profile=market_profile,
                     prev_bar=prev_bar,
                 ):
                     return self.pending_exit is None
@@ -313,7 +311,7 @@ class Opportunity:
                         current_kline,
                         reason,
                         sell_ratio=1.0,
-                        tradability_profile=tradability_profile,
+                        market_profile=market_profile,
                         prev_bar=prev_bar,
                     ):
                         return self.pending_exit is None
@@ -345,7 +343,7 @@ class Opportunity:
                         current_kline,
                         reason,
                         sell_ratio=1.0,
-                        tradability_profile=tradability_profile,
+                        market_profile=market_profile,
                         prev_bar=prev_bar,
                     ):
                         return self.pending_exit is None
@@ -369,10 +367,10 @@ class Opportunity:
                     "profit": profit,
                     "weighted_profit": weighted_profit,
                 }
-                if tradability_profile is not None:
+                if market_profile is not None:
                     stamp_target_tradability(
                         target_entry,
-                        tradability_profile,
+                        market_profile,
                         self.stock_id,
                         prev_bar,
                         exit_px,

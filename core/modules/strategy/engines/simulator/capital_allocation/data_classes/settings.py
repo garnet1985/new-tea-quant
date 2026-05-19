@@ -16,6 +16,11 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.setting
 logger = logging.getLogger(__name__)
 _VALID_MODES = frozenset({"equal_capital", "equal_shares", "kelly", "custom"})
 
+_REMOVED_ALLOCATION_KEYS: Dict[str, str] = {
+    "lot_size": "手数由 market_profile 决定；使用 lots_per_trade",
+    "on_insufficient_funds": "改用 skip_trade_when_insufficient（bool）",
+}
+
 if TYPE_CHECKING:
     from core.modules.strategy.engines.shared.data_classes.strategy_settings.strategy_settings import (
         StrategySettings,
@@ -70,8 +75,6 @@ class StrategyCapitalSimulatorSettings(SettingsBase):
         alloc.setdefault("max_portfolio_size", 10)
         alloc.setdefault("max_weight_per_stock", 0.3)
         alloc.setdefault("lots_per_trade", 1)
-        alloc.pop("lot_size", None)
-        alloc.pop("on_insufficient_funds", None)
         alloc.setdefault("kelly_fraction", 0.5)
         alloc.setdefault("skip_trade_when_insufficient", False)
         out = c.get("output")
@@ -81,9 +84,22 @@ class StrategyCapitalSimulatorSettings(SettingsBase):
         out.setdefault("save_trades", True)
         out.setdefault("save_equity_curve", True)
 
+    def _validate_removed_allocation_keys(self, result: ValidationReport) -> None:
+        alloc = self.capital_simulator.get("allocation")
+        if not isinstance(alloc, dict):
+            return
+        for key, hint in _REMOVED_ALLOCATION_KEYS.items():
+            if key in alloc:
+                SettingsBase.add_critical(
+                    result,
+                    f"capital_simulator.allocation.{key}",
+                    f"已移除 {key!r}；{hint}",
+                )
+
     def validate(self) -> ValidationReport:
         result = SettingsBase.new_validation()
         self.apply_defaults()
+        self._validate_removed_allocation_keys(result)
 
         alloc = self._parse_allocation()
         try:
@@ -127,8 +143,6 @@ class StrategyCapitalSimulatorSettings(SettingsBase):
             mw = max(min(float(a.get("max_weight_per_stock", 0.3)), 1.0), 0.0)
         except (TypeError, ValueError):
             mw = 0.3
-        a.pop("lot_size", None)
-        a.pop("on_insufficient_funds", None)
         try:
             lots = max(int(a.get("lots_per_trade", 1)), 1)
         except (TypeError, ValueError):
@@ -139,10 +153,6 @@ class StrategyCapitalSimulatorSettings(SettingsBase):
             kf = 0.5
         mode = str(a.get("mode", "equal_capital") or "equal_capital")
         skip_insufficient = bool(a.get("skip_trade_when_insufficient", False))
-        if "on_insufficient_funds" in a:
-            legacy = str(a.get("on_insufficient_funds") or "").strip().lower()
-            skip_insufficient = legacy in ("skip", "true", "1")
-            a.pop("on_insufficient_funds", None)
         a["skip_trade_when_insufficient"] = skip_insufficient
         return AllocationConfig(
             mode=mode,

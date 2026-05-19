@@ -95,12 +95,14 @@ class Scanner:
         from core.infra.worker import ProcessExecutionMode, ProcessWorker
 
         info = self._strategy_info
+        market_profile_id = str(info.settings.market_profile.profile_id or "").strip()
         jobs = [
             {
                 "stock_id": stock_id,
                 "execution_mode": ExecutionMode.SCAN.value,
                 "strategy_name": self.strategy_name,
                 "settings": info.settings.to_dict(),
+                "market_profile_id": market_profile_id,
                 "scan_date": scan_date,
                 "worker_module_path": info.worker_module_path,
                 "worker_class_name": info.worker_class_name,

@@ -1,0 +1,5 @@
+name: infra.update
+version: 0.4.1
+compatible_core_versions: ">=0.4.1"
+description: "NTQ 更新基础设施：版本探测、升级编排、schema 快照、迁移执行。"
+dependencies: []

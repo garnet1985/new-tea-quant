@@ -6,7 +6,15 @@ import PageBackground from 'components/pageBackground/pageBackground';
 
 function MainLayout() {
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+    <Box
+      className="ntq-main-layout"
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'relative',
+      }}
+    >
       <AppNavigation />
       <PageBackground />
       <Box

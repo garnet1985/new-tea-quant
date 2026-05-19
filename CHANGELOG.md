@@ -20,16 +20,7 @@ python dev-cli -p -vx.x.x
 
 ---
 
-### TODO in upcoming releases
-- bugfix
-- UX improvement
-- 加入updater，可以直接一键升级
-
----
-
----
-
-### v0.3.2 (TBD)
+### v0.3.2 (2026-5-20)
 - 增加market rule配置，略微细化回测时候的交易规则
 - 最小买入手数从100股变成了不同板块不同股数
 - 增加手续费的最小值
@@ -41,6 +32,8 @@ python dev-cli -p -vx.x.x
 - 优化了策略工作台执行步骤的进度显示
 - 修复了版本差异状态的变化
 - 提供了集中显示全局信息的位置
+- UI header上的版本号改为从API获取
+- 去除了Nodejs依赖
 
 ---
 

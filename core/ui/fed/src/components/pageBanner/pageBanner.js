@@ -6,7 +6,7 @@ import './pageBanner.scss';
 function PageBanner({ title, description, rightSlot }) {
   return (
     <Box className="ntq-page-banner">
-      <Box className="ntq-page-banner__inner ntq-content-inner">
+      <Box className="ntq-page-banner__inner">
         <Box className="ntq-page-banner__row">
           <Typography variant="h5" className="ntq-page-banner__title">
             {title}

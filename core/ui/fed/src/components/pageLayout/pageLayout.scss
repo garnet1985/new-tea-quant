@@ -1,10 +1,31 @@
+@use '../../assets/scss/variables' as *;
+
+// 宽度由 main.ntq-content-inner 统一约束；不在页面层再叠 min-width，避免与 88vw 父级冲突
 .ntq-page {
   padding: 16px 0;
-  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+// 面包屑、Banner、正文同一竖线对齐
+.ntq-page__shell {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+
+  > .ntq-breadcrumbs {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: 8px;
+  }
 }
 
 .ntq-page__body {
   margin-top: 12px;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
+  box-sizing: border-box;
 }
-

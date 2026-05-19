@@ -8,7 +8,9 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_vi
     StrategySettingsView,
 )
 from core.modules.market_profile import get_market_profile
-from core.modules.strategy.engines.shared.helpers.strategy_runtime import resolve_market_profile_id
+from core.modules.strategy.engines.shared.helpers.market_profile_id import (
+    resolve_market_profile_id,
+)
 from core.modules.strategy.engines.shared.helpers.tradability import stamp_buy_tradability
 from core.modules.strategy.engines.shared.helpers.tradability_stats import (
     tradability_bundle_from_opportunities,

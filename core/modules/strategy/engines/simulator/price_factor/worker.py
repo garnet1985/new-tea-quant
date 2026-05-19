@@ -13,7 +13,9 @@ from typing import Any, Dict, List, Optional
 import json
 
 from core.modules.market_profile import get_market_profile
-from core.modules.strategy.engines.shared.helpers.strategy_runtime import resolve_market_profile_id
+from core.modules.strategy.engines.shared.helpers.market_profile_id import (
+    resolve_market_profile_id,
+)
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.simulation_settings import (
     StrategySimulationSettings,
 )

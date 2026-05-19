@@ -8,12 +8,11 @@ import inspect
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Type
 
 from core.infra.project_context import PathManager
-from core.modules.market_profile.constants import DEFAULT_PROFILE_ID
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
-from core.modules.strategy.engines.shared.data_classes.strategy_settings.strategy_settings import (
-    StrategySettings,
+from core.modules.strategy.engines.shared.helpers.market_profile_id import (
+    resolve_market_profile_id,
 )
 
 if TYPE_CHECKING:
@@ -38,6 +37,10 @@ def load_strategy_settings_view(
     strategy_info: Optional["DiscoveredStrategy"] = None,
 ) -> StrategySettingsView:
     """加载并完整校验 ``StrategySettings``（含 market_profile / simulation / capital 等）。"""
+    from core.modules.strategy.engines.shared.data_classes.strategy_settings.strategy_settings import (
+        StrategySettings,
+    )
+
     if strategy_info is not None:
         raw = strategy_info.settings.to_dict()
     else:
@@ -51,19 +54,6 @@ def load_strategy_settings_view(
     report = validated.validate()
     report.raise_if_critical()
     return StrategySettingsView.from_dict(validated.to_dict())
-
-
-def resolve_market_profile_id(
-    job_payload: Dict[str, Any],
-    *,
-    settings_market_profile: str = "",
-) -> str:
-    """Flow 注入 ``market_profile_id`` 优先；否则用 settings 根级字符串。"""
-    pid = str((job_payload or {}).get("market_profile_id") or "").strip()
-    if pid:
-        return pid
-    fallback = str(settings_market_profile or "").strip()
-    return fallback or DEFAULT_PROFILE_ID
 
 
 def resolve_worker_class(

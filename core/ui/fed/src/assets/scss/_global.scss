@@ -6,6 +6,8 @@
 
 html {
   height: 100%;
+  // 与 body 同步：窄视口时允许横向滚动，避免内容被 hidden 裁切后压扁
+  overflow-x: auto;
 }
 
 body {
@@ -53,7 +55,7 @@ body {
   background-position: 0 0, center, center, center;
   background-blend-mode: soft-light, normal, normal, normal;
   line-height: 1.68;
-  overflow-x: hidden;
+  overflow-x: auto;
 }
 
 // --- Glass blocks (new-tea style, adapted for MUI) ---
@@ -231,9 +233,8 @@ body {
     inset 0 -1px 0 rgba(6, 6, 18, 0.45) !important;
 }
 
-// 当视口宽度 < 1280 时，不再使用 vw 缩放内容宽度：
-// 固定为 1280 并在视口中居中（允许左右等量溢出，用户可横向滚动查看）。
-@media (max-width: 1279.98px) {
+// 当视口宽度 ≤ 1280 时，不再用 vw 压缩主内容；固定 1280，由 html/body 横向滚动查看。
+@media (max-width: $ntq-body-min-width) {
   body {
     width: $ntq-body-min-width;
     margin-left: auto;
@@ -244,8 +245,13 @@ body {
   .ntq-content {
     width: $ntq-body-min-width;
     max-width: none;
+    min-width: $ntq-body-min-width;
     margin-left: auto;
     margin-right: auto;
+  }
+
+  .ntq-app-header {
+    min-width: $ntq-body-min-width;
   }
 }
 
@@ -256,6 +262,11 @@ code {
 
 #root {
   min-height: 100%;
+  min-width: $ntq-body-min-width;
+}
+
+.ntq-main-layout {
+  min-width: $ntq-body-min-width;
 }
 
 // 与 $ntq-content-width / $ntq-content-max-width 一致；用于 header 内条、<main>、footer 内条，保持同一竖线对齐

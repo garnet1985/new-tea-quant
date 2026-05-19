@@ -1,31 +1,23 @@
-// Full-width banner; inner content constrained by .ntq-content-inner
+@use '../../assets/scss/variables' as *;
+
+// 与面包屑、页面主体共用同一列宽（由外层 main.ntq-content-inner 约束），不再 100vw 出血
 .ntq-page-banner {
-  // Use viewport width (100vw) and center it, so it can bleed outside the constrained main content.
-  width: 100vw;
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
   min-height: 116px;
   position: relative;
   overflow: hidden;
   border-radius: 5px;
-}
-
-// When body is forced to 1280px (small viewports), the banner should follow the same width
-// so it still "fills" the scrollable page width rather than the viewport width.
-@media (max-width: 1279.98px) {
-  .ntq-page-banner {
-    width: 1280px;
-    margin-left: 0;
-    margin-right: 0;
-    left: 50%;
-    transform: translateX(-50%);
-  }
+  box-sizing: border-box;
 }
 
 .ntq-page-banner__inner {
   box-sizing: border-box;
   position: relative;
   z-index: 1;
+  width: 100%;
+  max-width: 100%;
   padding: 24px 0;
 }
 
@@ -34,6 +26,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  min-width: 0;
 }
 
 .ntq-page-banner__right {
@@ -45,11 +38,14 @@
   font-weight: 700;
   margin: 0 0 16px 0 !important;
   font-size: 28px !important;
+  min-width: 0;
 }
 
 .ntq-page-banner__desc {
   margin: 0;
-  line-height: 2 !important;
+  line-height: 1.65 !important;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 
   code {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
@@ -61,4 +57,3 @@
     color: var(--ntq-text);
   }
 }
-

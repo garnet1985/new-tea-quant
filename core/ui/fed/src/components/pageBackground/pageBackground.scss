@@ -40,7 +40,7 @@
   );
 }
 
-@media (max-width: 1279.98px) {
+@media (max-width: $ntq-body-min-width) {
   .ntq-page-background {
     width: $ntq-body-min-width;
     left: 50%;

@@ -16,14 +16,16 @@ function PageLayout({
 }) {
   return (
     <Box className={['ntq-page', className].filter(Boolean).join(' ')}>
-      <AppBreadcrumbs items={breadcrumbsItems} current={breadcrumbsCurrent} />
-      <PageBanner
-        title={bannerTitle}
-        description={bannerDescription}
-        rightSlot={bannerRightSlot}
-      />
-      <Box className="ntq-page__body">
-        {children}
+      <Box className="ntq-page__shell">
+        <AppBreadcrumbs items={breadcrumbsItems} current={breadcrumbsCurrent} />
+        <PageBanner
+          title={bannerTitle}
+          description={bannerDescription}
+          rightSlot={bannerRightSlot}
+        />
+        <Box className="ntq-page__body">
+          {children}
+        </Box>
       </Box>
     </Box>
   );

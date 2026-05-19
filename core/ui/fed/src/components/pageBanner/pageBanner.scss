@@ -8,36 +8,6 @@
   position: relative;
   overflow: hidden;
   border-radius: 5px;
-  background: rgba(255, 255, 255, 0.03);
-
-  // Background image layer (blurred), fills full width
-  &::before {
-    content: '';
-    position: absolute;
-    inset: -20px;
-    background-image: var(--ntq-banner-bg);
-    background-size: cover;
-    background-position: center;
-    filter: blur(18px);
-    transform: scale(1.04);
-    opacity: 0.45;
-    pointer-events: none;
-  }
-
-  // Gradient mask so banner blends into page background naturally
-  &::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      180deg,
-      rgba(6, 6, 18, 0.15) 0%,
-      rgba(6, 6, 18, 0.35) 15%,
-      rgba(6, 6, 18, 0.35) 85%,
-      rgba(6, 6, 18, 0.15) 100%
-    );
-    pointer-events: none;
-  }
 }
 
 // When body is forced to 1280px (small viewports), the banner should follow the same width

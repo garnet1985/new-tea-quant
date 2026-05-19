@@ -11,6 +11,7 @@ python dev-cli -p -vx.x.x
 [] (已自动化)同步版本徽章
 [] (已自动化)确保所有test都能跑过
 [] (已自动化)检查安装依赖的数据是不是齐全，是不是足够新
+[] (已自动化)npm run build 产生UI资产
 [] 有破坏性更改或者新的模块需要在module_info.yaml里更新core的依赖
 [] 检查是不是正确配置了gitignore
 [] Changlog 里注明改动和可能存在的破坏性改动

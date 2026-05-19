@@ -1,0 +1,50 @@
+@use '../../assets/scss/variables' as *;
+
+// Fixed decorative layer: starts below app header, does not cover navigation.
+.ntq-page-background {
+  position: fixed;
+  top: $ntq-header-height;
+  left: 0;
+  right: 0;
+  height: $ntq-page-bg-height;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+// Photo layer (::before equivalent): full-bleed image with blur.
+.ntq-page-background__photo {
+  position: absolute;
+  inset: -24px;
+  background-image: var(--ntq-page-bg-url);
+  background-size: cover;
+  background-position: center;
+  filter: blur(22px);
+  transform: scale(1.05);
+  opacity: 0.42;
+}
+
+// Veil layer (::after equivalent): extra blur + ink fade for blending into page base.
+.ntq-page-background__veil {
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  background: linear-gradient(
+    180deg,
+    var(--ntq-ink) 0%,
+    rgba(6, 6, 18, 0.55) 14%,
+    rgba(6, 6, 18, 0.12) 48%,
+    rgba(6, 6, 18, 0.55) 86%,
+    var(--ntq-ink) 100%
+  );
+}
+
+@media (max-width: 1279.98px) {
+  .ntq-page-background {
+    width: $ntq-body-min-width;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+  }
+}

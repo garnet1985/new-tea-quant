@@ -1,6 +1,5 @@
 import React from 'react';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import AddIcon from '@mui/icons-material/Add';
+import NtqIcon from '../../ntqIcon/ntqIcon';
 import {
   Box,
   Button,
@@ -75,7 +74,7 @@ function FieldCollectionField({ field, value, onChange, emitChangeMeta }) {
     <Paper variant="outlined" sx={{ p: 1.25 }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
         <Typography fontWeight={600}>{field.label}</Typography>
-        <Button size="small" startIcon={<AddIcon />} onClick={addItem} disabled={!canAdd}>
+        <Button size="small" startIcon={<NtqIcon name="add" size={20} />} onClick={addItem} disabled={!canAdd}>
           {field.addLabel || '新增'}
         </Button>
       </Stack>
@@ -148,7 +147,7 @@ function FieldCollectionField({ field, value, onChange, emitChangeMeta }) {
               </Stack>
 
               <IconButton size="small" color="error" onClick={() => removeItem(index)} disabled={!canRemove}>
-                <DeleteOutlineIcon fontSize="small" />
+                <NtqIcon name="delete" size={20} tone="error" />
               </IconButton>
             </Stack>
           </Box>

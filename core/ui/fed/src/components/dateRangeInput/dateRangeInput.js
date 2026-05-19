@@ -1,5 +1,5 @@
 import React from 'react';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import NtqIcon from '../ntqIcon/ntqIcon';
 import {
   Box,
   IconButton,
@@ -41,7 +41,7 @@ export default function DateRangeInput({
                 aria-label="时间段说明"
                 sx={{ p: 0.25, color: 'text.secondary' }}
               >
-                <HelpOutlineIcon sx={{ fontSize: 18 }} />
+                <NtqIcon name="help" size={18} tone="muted" />
               </IconButton>
             </Tooltip>
           ) : null}

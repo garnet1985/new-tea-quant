@@ -1,5 +1,5 @@
 import React from 'react';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import NtqIcon from '../ntqIcon/ntqIcon';
 import { Box, Stack, Tooltip, Typography } from '@mui/material';
 
 function SectionTitle({ title, tip }) {
@@ -7,7 +7,7 @@ function SectionTitle({ title, tip }) {
     <Stack direction="row" spacing={0.5} alignItems="center">
       <Typography variant="subtitle2" fontWeight={700}>{title}</Typography>
       <Tooltip title={tip} placement="top">
-        <InfoOutlinedIcon sx={{ fontSize: 15, color: 'text.secondary' }} />
+        <NtqIcon name="info" size={15} tone="muted" />
       </Tooltip>
     </Stack>
   );

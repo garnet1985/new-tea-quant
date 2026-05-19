@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import NtqIcon from 'components/ntqIcon/ntqIcon';
 import {
   Accordion,
   AccordionDetails,
@@ -32,7 +32,7 @@ import {
 function SectionAccordion({ title, defaultExpanded = false, children }) {
   return (
     <Accordion defaultExpanded={defaultExpanded} disableGutters>
-      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+      <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
         <Typography fontWeight={600}>{title}</Typography>
       </AccordionSummary>
       <AccordionDetails>{children}</AccordionDetails>

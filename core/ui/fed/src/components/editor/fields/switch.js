@@ -1,5 +1,5 @@
 import React from 'react';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import NtqIcon from '../../ntqIcon/ntqIcon';
 import {
   Stack,
   Switch,
@@ -33,7 +33,7 @@ function SwitchField({ field, value, onChange, emitChangeMeta }) {
         <Typography variant="body2">{field.label}</Typography>
         {field.description ? (
           <Tooltip title={field.description} arrow>
-            <InfoOutlinedIcon fontSize="small" color="action" />
+            <NtqIcon name="info" size={20} tone="muted" />
           </Tooltip>
         ) : null}
       </Stack>

@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
+import NtqIcon from 'components/ntqIcon/ntqIcon';
 import {
   Accordion,
   AccordionDetails,
@@ -316,7 +315,7 @@ function StrategyReportPanel({
             className="ntq-stock-grid-overlay"
           >
             <Stack spacing={1} alignItems="center">
-              <RefreshRoundedIcon className="ntq-stock-grid-overlay__icon" />
+              <NtqIcon name="refresh" size={60} className="ntq-stock-grid-overlay__icon" />
               <Typography variant="body2" color="text.secondary">
                 此结果需要重新执行步骤才能看到结果，点击重新执行
               </Typography>
@@ -363,7 +362,7 @@ function StrategyReportPanel({
 
   return (
     <Accordion defaultExpanded disableGutters>
-      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+      <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
         <Typography fontWeight={600}>模拟结果</Typography>
       </AccordionSummary>
       <AccordionDetails>

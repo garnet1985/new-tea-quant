@@ -28,6 +28,8 @@ body {
   --ntq-cyan: #22d3ee;
   --ntq-violet: #a855f7;
   --ntq-green: #22c55e;
+  --ntq-brand-text-gradient: linear-gradient(90deg, var(--ntq-violet), var(--ntq-cyan), var(--ntq-green));
+  --ntq-brand-text-glow: 0 0 16px rgba(34, 211, 238, 0.38);
 
   // Unified text tones (only 2 whites)
   --ntq-text: rgba(255, 255, 255, 0.86);
@@ -103,7 +105,8 @@ body {
 }
 
 .ntq-stock-grid-overlay__icon {
-  font-size: 60px !important;
+  width: 60px;
+  height: 60px;
   opacity: 0.9;
   color: var(--ntq-text);
 }

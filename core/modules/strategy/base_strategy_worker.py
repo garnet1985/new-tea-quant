@@ -19,7 +19,9 @@ from core.modules.strategy.engines.shared.helpers.simulation_day_execution impor
     resolve_pending_buys_at_end,
     resolve_pending_exits_on_active_at_end,
 )
-from core.modules.strategy.engines.shared.helpers.strategy_runtime import resolve_market_profile_id
+from core.modules.strategy.engines.shared.helpers.market_profile_id import (
+    resolve_market_profile_id,
+)
 from core.modules.strategy.engines.shared.helpers.tradability import annotate_scan_opportunity
 from core.modules.strategy.engines.shared.helpers.simulation_pricing import (
     apply_buy_slippage,

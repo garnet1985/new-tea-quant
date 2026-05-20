@@ -25,11 +25,17 @@ DROPDOWN_LIMIT = 10
 
 
 def _summary(ds: DiscoveredStrategy) -> Dict[str, Any]:
+    desc = ""
+    try:
+        desc = str(ds.settings.meta.description or "").strip()
+    except Exception:
+        desc = ""
     return {
         "name": ds.name,
         "is_enabled": bool(ds.is_enabled),
         "worker_class_name": ds.worker_class_name,
         "folder": str(ds.folder),
+        "description": desc,
     }
 
 

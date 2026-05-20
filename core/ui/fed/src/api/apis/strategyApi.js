@@ -29,7 +29,7 @@ export async function fetchStrategyList() {
     data: list.map((item) => ({
       id: item.name,
       name: item.name,
-      description: item.worker_class_name || item.folder || '',
+      description: String(item.description || '').trim(),
       is_enabled: Boolean(item.is_enabled),
     })),
   };

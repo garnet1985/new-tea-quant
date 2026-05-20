@@ -39,7 +39,10 @@ import {
   getStrategyWorkbenchPath,
 } from '../../api/apis/strategyApi';
 import StrategySettingsContainer from './panels/strategySettingsPanel/containers/strategySettingsContainer';
-import { normalizeMeta } from './panels/strategySettingsPanel/editorSchemas/strategyMeta';
+import {
+  extractStrategyDescription,
+  normalizeMeta,
+} from './panels/strategySettingsPanel/editorSchemas/strategyMeta';
 import StrategyExecutionPanel from './panels/strategyExecutionPanel/strategyExecutionPanel';
 import StrategyReportPanel from './panels/strategyReportPanel/strategyReportPanel';
 import {
@@ -140,6 +143,7 @@ function StrategyWorkbenchPage() {
   const [versionSearch, setVersionSearch] = useState('');
   const [versionPickerPage, setVersionPickerPage] = useState(1);
   const [strategyRows, setStrategyRows] = useState([]);
+  const [strategyDescription, setStrategyDescription] = useState('');
   const [pendingStrategyName, setPendingStrategyName] = useState('');
   const [switchStrategyConfirmOpen, setSwitchStrategyConfirmOpen] = useState(false);
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
@@ -338,6 +342,7 @@ function StrategyWorkbenchPage() {
         activeRunId: '',
         lastCompletedWorkbenchVersionId: '',
       });
+      setStrategyDescription('');
       setIsLoadingSettings(false);
       setSettingsError('');
       return () => {
@@ -345,6 +350,7 @@ function StrategyWorkbenchPage() {
       };
     }
 
+    setStrategyDescription('');
     setIsLoadingSettings(true);
     setSettingsError('');
     setWorkbenchExecutionHydration(null);
@@ -385,9 +391,11 @@ function StrategyWorkbenchPage() {
             }),
           });
           setInitialSettings(nextSettings);
+          setStrategyDescription(extractStrategyDescription(nextSettings));
           setSettingsError('');
         } else {
           setInitialSettings(mergeBase);
+          setStrategyDescription('');
           setSettingsError('未返回有效策略配置（settings 为空）。');
         }
         setWorkbenchResultReport(res?.result_report ?? null);
@@ -569,7 +577,7 @@ function StrategyWorkbenchPage() {
       ]}
       breadcrumbsCurrent={strategyName ? `调试：${strategyName}` : '策略调试'}
       bannerTitle={strategyName ? `调试：${strategyName}` : '策略调试'}
-      bannerDescription="您可以在左侧调整设置参数，然后在执行步骤面板按步骤执行回测和查看报告；也可以支持版本对比与结果复现。"
+      bannerDescription={strategyDescription || ''}
     >
       {isLoadingSettings && strategyName ? (
         <PageLoadingState message="正在加载策略配置…" minHeight="min(52vh, 520px)" />
@@ -751,7 +759,7 @@ function StrategyWorkbenchPage() {
                         <ListItemButton key={row.id} onClick={() => requestSwitchStrategy(row.name)}>
                           <ListItemText
                             primary={row.name}
-                            secondary={row.description || '点击进入策略调试页'}
+                            secondary={row.description || ''}
                           />
                         </ListItemButton>
                       ))}
@@ -916,6 +924,7 @@ function StrategyWorkbenchPage() {
                         });
                         const wb = wbVerRestore || restoreMeta?.version_id || '';
                         setInitialSettings(mergedSettings);
+                        setStrategyDescription(extractStrategyDescription(mergedSettings));
                         setDraftSettings(deepClone(mergedSettings));
                         setSelectedConfigVersion(wb);
                         setSavedBaselineSettings(deepClone(mergedSettings));

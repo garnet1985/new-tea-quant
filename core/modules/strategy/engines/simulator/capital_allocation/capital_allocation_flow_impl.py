@@ -269,14 +269,31 @@ class CapitalAllocationFlowImpl:
         base_settings: StrategySettingsView,
         profiler: PerformanceProfiler,
     ) -> List[SimulationEvent]:
+        from core.modules.data_manager import DataManager
+        from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+            resolve_backtest_date_range,
+            resolve_latest_completed_trading_date,
+        )
+        from core.modules.strategy.services.data.output.enumerator_output_service import (
+            EnumeratorOutputWriterService,
+        )
+
         profiler.start_timer("load_data")
+        stock_ids = EnumeratorOutputWriterService.read_scope_stock_ids(output_version_dir)
+        data_mgr = DataManager(is_verbose=False)
+        period = resolve_backtest_date_range(
+            settings_view=base_settings,
+            stock_ids=stock_ids,
+            latest_completed_trading_date=resolve_latest_completed_trading_date(data_mgr),
+            data_manager=data_mgr,
+        )
         data_loader = StrategyOutputReaderService(
             strategy_name=strategy_name, cache_enabled=True
         )
         events = data_loader.build_event_stream(
             output_version_dir,
-            start_date=(config.start_date or base_settings.start_date or ""),
-            end_date=(config.end_date or base_settings.end_date or ""),
+            start_date=period.start_date,
+            end_date=period.end_date,
         )
         profiler.metrics.time_load_data = profiler.end_timer("load_data")
         profiler.metrics.opportunity_count = len(events)

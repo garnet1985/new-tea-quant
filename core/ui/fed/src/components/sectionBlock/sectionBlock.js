@@ -1,14 +1,12 @@
 import React from 'react';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import { Box, Stack, Tooltip, Typography } from '@mui/material';
+import NtqHelpTooltip from '../ntqHelpTooltip/ntqHelpTooltip';
+import { Box, Stack, Typography } from '@mui/material';
 
 function SectionTitle({ title, tip }) {
   return (
     <Stack direction="row" spacing={0.5} alignItems="center">
       <Typography variant="subtitle2" fontWeight={700}>{title}</Typography>
-      <Tooltip title={tip} placement="top">
-        <InfoOutlinedIcon sx={{ fontSize: 15, color: 'text.secondary' }} />
-      </Tooltip>
+      {tip ? <NtqHelpTooltip title={tip} /> : null}
     </Stack>
   );
 }

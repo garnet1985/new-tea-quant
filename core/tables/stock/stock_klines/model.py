@@ -1,7 +1,7 @@
 """
 stock_klines 表 Model
 """
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Sequence
 from core.infra.db import DbBaseModel
 
 from core.tables.stock.stock_klines.schema import schema as _schema
@@ -55,6 +55,39 @@ class DataStockKlinesModel(DbBaseModel):
         if not rows:
             return ""
         return str(rows[0].get("max_date") or "").strip()
+
+    def load_earliest_date(
+        self,
+        term: str = "daily",
+        stock_ids: Optional[Sequence[str]] = None,
+    ) -> str:
+        """
+        查询指定周期最早 K 线日期（YYYYMMDD）。
+
+        ``stock_ids`` 为空或未传：全市场该周期 MIN(date)。
+        传入股票列表：仅在这些样本内取 MIN(date)，用于未配置 sampling.start_date 时的回测下界。
+        """
+        t = str(term or "").strip() or "daily"
+        ids = [str(s).strip() for s in (stock_ids or []) if str(s).strip()]
+        if ids:
+            placeholders = ",".join(["%s"] * len(ids))
+            sql = f"""
+                SELECT MIN(date) AS min_date
+                FROM sys_stock_klines
+                WHERE term = %s AND id IN ({placeholders})
+            """
+            params: tuple = (t, *ids)
+        else:
+            sql = """
+                SELECT MIN(date) AS min_date
+                FROM sys_stock_klines
+                WHERE term = %s
+            """
+            params = (t,)
+        rows = self.db.execute_sync_query(sql, params) or []
+        if not rows:
+            return ""
+        return str(rows[0].get("min_date") or "").strip()
 
     def save_klines(self, klines: List[Dict[str, Any]]) -> int:
         """批量保存 K 线（按 id+term+date 去重）"""

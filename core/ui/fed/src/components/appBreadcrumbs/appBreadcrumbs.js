@@ -1,7 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Breadcrumbs, Link, Typography } from '@mui/material';
-import NavigateNextIcon from '@mui/icons-material/NavigateNext';
+import NtqIcon from '../ntqIcon/ntqIcon';
 import { Link as RouterLink } from 'react-router-dom';
 import './appBreadcrumbs.scss';
 
@@ -14,7 +14,7 @@ function AppBreadcrumbs({ items, current, className }) {
   const safeItems = Array.isArray(items) ? items.filter((x) => x && x.label && x.to) : [];
   return (
     <Breadcrumbs
-      separator={<NavigateNextIcon fontSize="small" />}
+      separator={<NtqIcon name="chevronRight" size={14} tone="muted" />}
       className={['ntq-breadcrumbs', className].filter(Boolean).join(' ')}
     >
       {safeItems.map((it) => (
@@ -24,11 +24,16 @@ function AppBreadcrumbs({ items, current, className }) {
           underline="hover"
           color="inherit"
           to={it.to}
+          className="ntq-breadcrumbs__item"
         >
           {it.label}
         </Link>
       ))}
-      <Typography color="text.primary" className="ntq-breadcrumbs__current">
+      <Typography
+        component="span"
+        color="text.primary"
+        className="ntq-breadcrumbs__current"
+      >
         {current}
       </Typography>
     </Breadcrumbs>

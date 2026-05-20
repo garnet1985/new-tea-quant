@@ -6,16 +6,19 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Iterable, List, Sequence, Tuple
+from typing import List, Sequence, Tuple
 
 from core.utils import i as icon
 from devtools.quick_tools._paths import REPO_ROOT
+from setup.install_runtime import UI_FED_ROOT, fed_build_ready
 
 SYSTEM_JSON = REPO_ROOT / "core" / "system.json"
 SYSTEM_PY = REPO_ROOT / "core" / "system.py"
@@ -39,6 +42,7 @@ class PublishPrepOptions:
     check_only: bool = False
     skip_tests: bool = False
     skip_ic: bool = False
+    skip_fed_build: bool = False
 
 
 def normalize_version(raw: str) -> str:
@@ -62,14 +66,6 @@ def _module_package_dirs(root: Path) -> List[Path]:
     return out
 
 
-def _iter_module_info_paths() -> Iterable[Path]:
-    for _label, root in _MODULE_PACKAGE_ROOTS:
-        for pkg in _module_package_dirs(root):
-            yield pkg
-    for _label, root in _SINGLE_MODULE_ROOTS:
-        yield root
-
-
 def check_module_info_files() -> List[str]:
     """返回缺少 module_info.yaml 的模块目录（相对路径）。"""
     missing: List[str] = []
@@ -82,24 +78,6 @@ def check_module_info_files() -> List[str]:
         if not (root / "module_info.yaml").is_file():
             missing.append(f"{label} ({root.relative_to(REPO_ROOT).as_posix()})")
     return missing
-
-
-def warn_module_info_version_drift(target_version: str) -> List[str]:
-    """module_info.version 与目标 core 版本不一致时给出警告（不阻断）。"""
-    warnings: List[str] = []
-    for pkg in _iter_module_info_paths():
-        info = pkg / "module_info.yaml"
-        if not info.is_file():
-            continue
-        text = info.read_text(encoding="utf-8")
-        m = re.search(r"^version:\s*['\"]?([^'\"\n]+)", text, re.MULTILINE)
-        if not m:
-            continue
-        mod_ver = m.group(1).strip().strip("'\"")
-        if mod_ver and mod_ver != target_version:
-            rel = pkg.relative_to(REPO_ROOT).as_posix()
-            warnings.append(f"{rel} module_info.version={mod_ver}（目标 {target_version}）")
-    return warnings
 
 
 def update_system_json(version: str, release_date: str) -> None:
@@ -178,6 +156,39 @@ def run_pytest() -> int:
     return int(proc.returncode or 0)
 
 
+def _node_toolchain_available() -> bool:
+    return shutil.which("node") is not None and shutil.which("npm") is not None
+
+
+def run_fed_build() -> int:
+    """``core/ui/fed`` 生产构建（BFF 生产模式依赖 ``fed/build``）。"""
+    print("\n[检查] FED 前端构建（npm run build）…", flush=True)
+    if not _node_toolchain_available():
+        print(f"  {icon('error')} 未检测到 node / npm", flush=True)
+        return 1
+    if not (UI_FED_ROOT / "package.json").is_file():
+        print(f"  {icon('error')} 缺少 {UI_FED_ROOT.relative_to(REPO_ROOT)}/package.json", flush=True)
+        return 1
+    if not (UI_FED_ROOT / "node_modules").is_dir():
+        print("  正在安装 FED 依赖（npm install）…", flush=True)
+        install = subprocess.run(["npm", "install"], cwd=str(UI_FED_ROOT))
+        if install.returncode != 0:
+            return int(install.returncode or 1)
+    env = {**os.environ, "CI": "true"}
+    proc = subprocess.run(["npm", "run", "build"], cwd=str(UI_FED_ROOT), env=env)
+    if proc.returncode != 0:
+        return int(proc.returncode or 1)
+    if not fed_build_ready():
+        print(
+            f"  {icon('error')} 构建完成但未找到 "
+            f"{(UI_FED_ROOT / 'build' / 'index.html').relative_to(REPO_ROOT)}",
+            flush=True,
+        )
+        return 1
+    print(f"  {icon('success')} {UI_FED_ROOT.relative_to(REPO_ROOT)}/build 已就绪", flush=True)
+    return 0
+
+
 def run_publish_prep(opts: PublishPrepOptions) -> int:
     version = normalize_version(opts.version)
     release_date = date.today().isoformat()
@@ -197,7 +208,7 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
             flush=True,
         )
 
-    print("\n[检查] module_info.yaml …", flush=True)
+    print("\n[检查] module_info.yaml 是否齐全（仅检查文件存在，不比对各模块 version 字段）…", flush=True)
     missing = check_module_info_files()
     if missing:
         failures.append("module_info 缺失")
@@ -209,14 +220,17 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
             flush=True,
         )
 
-    for w in warn_module_info_version_drift(version):
-        print(f"  {icon('warning')} {w}", flush=True)
-
     if not opts.skip_ic:
         if run_minimal_import_check() != 0:
             failures.append("minimal import check 失败")
     else:
         print("\n[跳过] UI 最小依赖 import", flush=True)
+
+    if not opts.skip_fed_build:
+        if run_fed_build() != 0:
+            failures.append("FED npm run build 失败")
+    else:
+        print("\n[跳过] FED 前端构建", flush=True)
 
     if not opts.skip_tests:
         if run_pytest() != 0:
@@ -232,7 +246,10 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
 
     print(f"{icon('success')} 自动化项已通过。", flush=True)
     if not opts.check_only:
-        print(f"请继续：更新 CHANGELOG v{version}、核对 module_info 版本与文档，然后提交/打 tag。", flush=True)
+        print(
+            f"请继续：更新 CHANGELOG v{version}、按需更新模块文档与 module_info 依赖项，然后提交/打 tag。",
+            flush=True,
+        )
     return 0
 
 
@@ -248,6 +265,7 @@ def parse_publish_argv(argv: Sequence[str]) -> Tuple[PublishPrepOptions | None, 
     check_only = False
     skip_tests = False
     skip_ic = False
+    skip_fed_build = False
     j = 0
     while j < len(rest):
         tok = rest[j]
@@ -261,6 +279,10 @@ def parse_publish_argv(argv: Sequence[str]) -> Tuple[PublishPrepOptions | None, 
             continue
         if tok == "--skip-ic":
             skip_ic = True
+            del rest[j]
+            continue
+        if tok == "--skip-fed-build":
+            skip_fed_build = True
             del rest[j]
             continue
         if tok.startswith("-v") and len(tok) > 2:
@@ -283,6 +305,7 @@ def parse_publish_argv(argv: Sequence[str]) -> Tuple[PublishPrepOptions | None, 
             check_only=check_only,
             skip_tests=skip_tests,
             skip_ic=skip_ic,
+            skip_fed_build=skip_fed_build,
         ),
         rest,
     )

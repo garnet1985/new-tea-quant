@@ -1,10 +1,33 @@
 .ntq-breadcrumbs {
   font-size: 12px;
+  line-height: 1;
   color: var(--ntq-text-muted);
+
+  .MuiBreadcrumbs-ol {
+    align-items: center;
+  }
+
+  .MuiBreadcrumbs-li,
+  .MuiBreadcrumbs-separator {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .MuiBreadcrumbs-separator {
+    margin-left: 6px;
+    margin-right: 6px;
+
+    .ntq-icon-wrap {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+  }
 
   .MuiTypography-root,
   .MuiLink-root {
     font-size: 12px;
+    line-height: 1;
   }
 
   .MuiLink-root {
@@ -17,6 +40,13 @@
       color: var(--ntq-text);
     }
   }
+}
+
+.ntq-breadcrumbs__item,
+.ntq-breadcrumbs__current {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
 }
 
 .ntq-breadcrumbs__current {

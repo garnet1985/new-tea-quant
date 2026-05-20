@@ -25,11 +25,17 @@ DROPDOWN_LIMIT = 10
 
 
 def _summary(ds: DiscoveredStrategy) -> Dict[str, Any]:
+    desc = ""
+    try:
+        desc = str(ds.settings.meta.description or "").strip()
+    except Exception:
+        desc = ""
     return {
         "name": ds.name,
         "is_enabled": bool(ds.is_enabled),
         "worker_class_name": ds.worker_class_name,
         "folder": str(ds.folder),
+        "description": desc,
     }
 
 
@@ -88,26 +94,47 @@ def fetch_strategy_versions_dropdown(strategy_name: str) -> List[Dict[str, Any]]
 
 # --- V2-04 静态选项（与校验层合法取值一致） ---
 
-_CAPITAL_LABELS: Dict[str, str] = {
-    "equal_capital": "等额资金",
-    "equal_shares": "等额股数",
-    "kelly": "凯莉公式",
-    "custom": "自定义",
+_CAPITAL_ALLOCATION_META: Dict[str, tuple] = {
+    "equal_capital": (
+        "等额资金",
+        "每个新开仓机会分配相近的现金额度（总资金 ÷ 最大持股数），股数随价格浮动。",
+    ),
+    "equal_shares": (
+        "等额股数",
+        "每个机会买入相同手数（由「每次买入手数」与市场最小交易单位决定）。",
+    ),
+    "kelly": (
+        "凯莉公式",
+        "按凯莉公式估算建议仓位，再乘以「凯莉折扣系数」做保守缩放；需策略提供胜率/赔率等输入。",
+    ),
+    "custom": (
+        "自定义",
+        "使用策略或引擎扩展的自定义分配逻辑（高级用法）。",
+    ),
 }
 
-_SAMPLING_LABELS: Dict[str, str] = {
-    "uniform": "均匀采样",
-    "stratified": "分层采样",
-    "random": "随机采样",
-    "continuous": "连续采样",
-    "pool": "股票池",
-    "blacklist": "黑名单",
+_SAMPLING_STRATEGY_META: Dict[str, tuple] = {
+    "continuous": ("连续采样", "从某一位置起连续顺序抽样。比如，从第1个开始连续抽取5个股票"),
+    "uniform": ("均匀采样", "对所有集合进行等间距抽样。比如一共100个股票，抽取10个，那么就是每隔10个抽取一个。"),
+    "stratified": ("分层采样", "按分层规则抽样（如行业、市值桶），需配置随机种子以便复现。比如，深市沪市各抽取5个。"),
+    "random": ("随机采样", "在集合中随机抽样；可设种子固定随机结果。"),
+    "pool": ("股票池", "在指定的列表内回测。"),
+    "blacklist": ("黑名单", "抽取所有的集合，再排除黑名单列表后的样本。"),
 }
 
-_SIMULATION_TEMPLATE_LABELS: Dict[str, str] = {
-    "deterministic": "确定性（收盘信号 / 次日开盘买 / 收盘卖）",
-    "extreme": "极值压力（盯盘与成交均用极值近似）",
-    "custom": "自定义（逐项指定盯盘与买卖价模型）",
+_SIMULATION_TEMPLATE_META: Dict[str, tuple] = {
+    "deterministic": (
+        "确定性",
+        "收盘确认信号，次日开盘买入、收盘卖出；盯盘用收盘价。系统默认预设，偏乐观。",
+    ),
+    "extreme": (
+        "极值压力",
+        "盯盘与成交均按当日最高/最低价等极值近似，用于压力测试，结果通常更保守。",
+    ),
+    "custom": (
+        "自定义",
+        "逐项指定盯盘价、买卖价、滑点与涨跌停等规则；仅在此模式下可改细项。",
+    ),
 }
 
 
@@ -118,8 +145,12 @@ def items_capital_allocation_strategies() -> List[Dict[str, Any]]:
     rest = sorted(m for m in _VALID_MODES if m not in modes)
     out: List[Dict[str, Any]] = []
     for m in modes + rest:
-        label = _CAPITAL_LABELS.get(m, m)
-        out.append({"value": m, "label": label})
+        meta = _CAPITAL_ALLOCATION_META.get(m)
+        if meta:
+            label, tooltip = meta
+            out.append({"value": m, "label": label, "tooltip": tooltip})
+        else:
+            out.append({"value": m, "label": m})
     return out
 
 
@@ -130,7 +161,12 @@ def items_sampling_strategies() -> List[Dict[str, Any]]:
     rest = sorted(k for k in KNOWN_STRATEGIES if k not in keys)
     out: List[Dict[str, Any]] = []
     for k in keys + rest:
-        out.append({"value": k, "label": _SAMPLING_LABELS.get(k, k)})
+        meta = _SAMPLING_STRATEGY_META.get(k)
+        if meta:
+            label, tooltip = meta
+            out.append({"value": k, "label": label, "tooltip": tooltip})
+        else:
+            out.append({"value": k, "label": k})
     return out
 
 
@@ -141,7 +177,12 @@ def items_simulation_templates() -> List[Dict[str, Any]]:
     rest = sorted(k for k in KNOWN_SIMULATION_TEMPLATES if k not in keys)
     out: List[Dict[str, Any]] = []
     for k in keys + rest:
-        out.append({"value": k, "label": _SIMULATION_TEMPLATE_LABELS.get(k, k)})
+        meta = _SIMULATION_TEMPLATE_META.get(k)
+        if meta:
+            label, tooltip = meta
+            out.append({"value": k, "label": label, "tooltip": tooltip})
+        else:
+            out.append({"value": k, "label": k})
     return out
 
 

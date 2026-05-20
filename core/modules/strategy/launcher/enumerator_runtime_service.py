@@ -14,15 +14,17 @@ from core.modules.data_manager import DataManager
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
+from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+    backtest_period_to_dict,
+    resolve_backtest_date_range,
+    resolve_latest_completed_trading_date,
+)
 from core.modules.strategy.engines.shared.helpers.stock_sampling import StockSamplingHelper
 from core.modules.strategy.engines.simulator.enumerator import (
     OpportunityEnumeratorFlow,
     OpportunityEnumeratorSettings,
 )
 from .run_service import StrategyFingerprintManager
-from core.utils.date.date_utils import DateUtils
-
-
 def _stock_ids_for_enumerator_view(
     *,
     strategy_name: str,
@@ -98,9 +100,16 @@ class EnumeratorRuntimeService:
             stock_count=stock_count,
         )
         data_manager = DataManager(is_verbose=False)
-        latest_date = data_manager.service.calendar.get_latest_completed_trading_date()
-        start_date = settings_view.start_date or DateUtils.DEFAULT_START_DATE
-        end_date = settings_view.end_date or latest_date
+        period = resolve_backtest_date_range(
+            settings_view=settings_view,
+            stock_ids=stock_list,
+            latest_completed_trading_date=resolve_latest_completed_trading_date(
+                data_manager
+            ),
+            data_manager=data_manager,
+        )
+        start_date = period.start_date
+        end_date = period.end_date
         flow = OpportunityEnumeratorFlow(
             start_date=start_date,
             end_date=end_date,
@@ -110,6 +119,7 @@ class EnumeratorRuntimeService:
             workbench_strategy_name=workbench_strategy_name,
             workbench_run_id=workbench_run_id,
             force_refresh=force_refresh,
+            backtest_period=backtest_period_to_dict(period),
         )
         return EnumeratorRuntimeContext(
             strategy_name=strategy_name,

@@ -9,6 +9,11 @@ from typing import TYPE_CHECKING, Optional, Tuple
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
+from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+    backtest_period_to_dict,
+    resolve_backtest_date_range,
+    resolve_latest_completed_trading_date,
+)
 from core.modules.strategy.engines.shared.helpers.stock_sampling import StockSamplingHelper
 from core.modules.strategy.services.data.output import StrategyOutputVersionService
 
@@ -69,8 +74,6 @@ class StrategyEnumeratorBootstrapService:
         from core.modules.strategy.engines.simulator.enumerator import (
             OpportunityEnumeratorFlow,
         )
-        from core.utils.date.date_utils import DateUtils
-
         data_mgr = DataManager(is_verbose=False)
         all_stocks = data_mgr.service.stock.list.load(filtered=True)
         if use_sampling:
@@ -83,12 +86,19 @@ class StrategyEnumeratorBootstrapService:
         else:
             stock_list = [stock["id"] for stock in all_stocks]
 
+        period = resolve_backtest_date_range(
+            settings_view=base_settings,
+            stock_ids=stock_list,
+            latest_completed_trading_date=resolve_latest_completed_trading_date(data_mgr),
+            data_manager=data_mgr,
+        )
         flow = OpportunityEnumeratorFlow(
-            start_date=DateUtils.DEFAULT_START_DATE,
-            end_date=data_mgr.service.calendar.get_latest_completed_trading_date(),
+            start_date=period.start_date,
+            end_date=period.end_date,
             stock_list=stock_list,
             max_workers="auto",
             base_settings=base_settings,
+            backtest_period=backtest_period_to_dict(period),
         )
         result = flow.run(strategy_name=strategy_name, strategy_info=strategy_info)
         if result and isinstance(result, list):

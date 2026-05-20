@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import JSON5 from 'json5';
 
 function stripHashComments(text) {
@@ -165,14 +165,54 @@ function getErrorContextLines(text, line, radius = 2) {
   return out;
 }
 
+function parseCoreInput(text) {
+  let result;
+  try {
+    const parsed = JSON.parse(text);
+    result = {
+      parsed,
+      pretty: JSON.stringify(parsed, null, 2),
+      mode: 'JSON',
+    };
+  } catch (_jsonErr) {
+    result = tryParsePythonDictLike(text);
+  }
+  if (!result?.parsed || typeof result.parsed !== 'object' || Array.isArray(result.parsed)) {
+    throw new Error('core 必须是 dict/object');
+  }
+  return result;
+}
+
+/** 展示用 pretty JSON；``core`` 为对象或 JSON/Python dict 字符串均可。 */
+function formatCoreToDisplayText(core) {
+  if (core === undefined || core === null) return '{\n}';
+  if (typeof core === 'string') {
+    const trimmed = core.trim();
+    if (!trimmed) return '{\n}';
+    try {
+      return parseCoreInput(trimmed).pretty;
+    } catch {
+      return core;
+    }
+  }
+  if (typeof core === 'object' && !Array.isArray(core)) {
+    try {
+      return parseCoreInput(JSON.stringify(core)).pretty;
+    } catch {
+      return JSON.stringify(core, null, 2);
+    }
+  }
+  return '{\n}';
+}
+
 function StrategySettingsContainer({ initialSettings, children }) {
   const normalizedInitial = useMemo(() => initialSettings || {}, [initialSettings]);
   const [draftSettings, setDraftSettings] = useState(normalizedInitial);
-  const coreValueText = useMemo(
-    () => JSON.stringify(draftSettings?.core || {}, null, 2),
-    [draftSettings?.core],
+  const defaultCoreText = useMemo(
+    () => formatCoreToDisplayText(normalizedInitial?.core),
+    [normalizedInitial],
   );
-  const [coreInputText, setCoreInputText] = useState(coreValueText);
+  const [coreInputText, setCoreInputText] = useState(() => formatCoreToDisplayText(normalizedInitial?.core));
   const [coreParseError, setCoreParseError] = useState('');
   const [coreLineHint, setCoreLineHint] = useState('');
   const [coreErrorLine, setCoreErrorLine] = useState(0);
@@ -180,41 +220,55 @@ function StrategySettingsContainer({ initialSettings, children }) {
   const [coreErrorPosition, setCoreErrorPosition] = useState(-1);
   const [coreParseMode, setCoreParseMode] = useState('');
   const coreInputRef = useRef(null);
+  const coreFullscreenInputRef = useRef(null);
+  const coreFormatTimerRef = useRef(null);
+
+  const getActiveCoreInputEl = () => coreFullscreenInputRef.current || coreInputRef.current;
+
+  useEffect(() => () => {
+    if (coreFormatTimerRef.current) clearTimeout(coreFormatTimerRef.current);
+  }, []);
 
   useEffect(() => {
+    const text = formatCoreToDisplayText(normalizedInitial?.core);
     setDraftSettings(normalizedInitial);
+    setCoreInputText(text);
+    try {
+      const result = parseCoreInput(text);
+      setCoreParseError('');
+      setCoreLineHint('');
+      setCoreErrorLine(0);
+      setCoreErrorColumn(0);
+      setCoreErrorPosition(-1);
+      setCoreParseMode(result.mode);
+    } catch (err) {
+      const msg = err?.message || '解析失败';
+      let pos = extractErrorPosition(msg);
+      let loc = getLineColumnByPosition(text, pos);
+      if (loc.line <= 0 || loc.column <= 0) {
+        const lc = extractErrorLineColumn(msg);
+        if (lc.line > 0 && lc.column > 0) {
+          loc = lc;
+          pos = getPositionByLineColumn(text, lc.line, lc.column);
+        }
+      }
+      setCoreParseError(msg);
+      setCoreLineHint(pos >= 0 ? `错误大致在第 ${pos} 个字符附近。` : '');
+      setCoreErrorLine(loc.line);
+      setCoreErrorColumn(loc.column);
+      setCoreErrorPosition(-1);
+      setCoreParseMode('');
+    }
   }, [normalizedInitial]);
 
-  useEffect(() => {
-    setCoreInputText(coreValueText);
-  }, [coreValueText]);
-
-  const updateSection = (sectionKey, nextSectionValue) => {
+  const updateSection = useCallback((sectionKey, nextSectionValue) => {
     setDraftSettings((prev) => ({
       ...prev,
       [sectionKey]: nextSectionValue,
     }));
-  };
+  }, []);
 
-  const parseCoreInput = (text) => {
-    let result;
-    try {
-      const parsed = JSON.parse(text);
-      result = {
-        parsed,
-        pretty: JSON.stringify(parsed, null, 2),
-        mode: 'JSON',
-      };
-    } catch (_jsonErr) {
-      result = tryParsePythonDictLike(text);
-    }
-    if (!result?.parsed || typeof result.parsed !== 'object' || Array.isArray(result.parsed)) {
-      throw new Error('core 必须是 dict/object');
-    }
-    return result;
-  };
-
-  const applyCoreSourceFailure = (text, err, focusOnError) => {
+  const applyCoreSourceFailure = useCallback((text, err, focusOnError) => {
     const msg = err?.message || '解析失败';
     let pos = extractErrorPosition(msg);
     let loc = getLineColumnByPosition(text, pos);
@@ -231,16 +285,18 @@ function StrategySettingsContainer({ initialSettings, children }) {
     setCoreErrorColumn(loc.column);
     setCoreErrorPosition(focusOnError ? pos : -1);
     setCoreParseMode('');
-  };
+  }, []);
 
   /** 解析 ``text`` 并写入草稿；可选失焦时 pretty-print。keyup / blur / 粘贴后同步用 DOM 当前值，避免仅依赖闭包里的 ``coreInputText``。 */
-  const applyCoreSourceText = (
+  const applyCoreSourceText = useCallback((
     text,
     { formatOnSuccess = false, focusOnError = false } = {},
   ) => {
     try {
       const result = parseCoreInput(text);
-      if (formatOnSuccess) setCoreInputText(result.pretty);
+      if (formatOnSuccess) {
+        setCoreInputText(result.pretty);
+      }
       setDraftSettings((prev) => ({ ...prev, core: result.parsed }));
       setCoreParseError('');
       setCoreLineHint('');
@@ -251,25 +307,40 @@ function StrategySettingsContainer({ initialSettings, children }) {
     } catch (err) {
       applyCoreSourceFailure(text, err, focusOnError);
     }
-  };
+  }, [applyCoreSourceFailure]);
 
-  const applyCoreAndFormat = ({ focusOnError = true } = {}) => {
+  const applyCoreAndFormat = useCallback(({ focusOnError = true } = {}) => {
     applyCoreSourceText(coreInputText, { formatOnSuccess: true, focusOnError });
-  };
+  }, [applyCoreSourceText, coreInputText]);
 
-  const onCoreEditorLiveSync = (e) => {
+  const scheduleCoreFormat = useCallback(() => {
+    if (coreFormatTimerRef.current) clearTimeout(coreFormatTimerRef.current);
+    coreFormatTimerRef.current = setTimeout(() => {
+      const el = getActiveCoreInputEl();
+      if (!el) return;
+      applyCoreSourceText(el.value, { formatOnSuccess: true, focusOnError: false });
+    }, 500);
+  }, [applyCoreSourceText]);
+
+  const onCoreEditorLiveSync = useCallback((e) => {
     applyCoreSourceText(e.target.value, { formatOnSuccess: false, focusOnError: false });
-  };
+    scheduleCoreFormat();
+  }, [applyCoreSourceText, scheduleCoreFormat]);
 
-  const onCoreEditorPaste = () => {
+  const onCoreEditorPaste = useCallback(() => {
     requestAnimationFrame(() => {
-      const el = coreInputRef.current;
+      const el = getActiveCoreInputEl();
       if (!el) return;
       applyCoreSourceText(el.value, { formatOnSuccess: false, focusOnError: false });
+      scheduleCoreFormat();
     });
-  };
+  }, [applyCoreSourceText, scheduleCoreFormat]);
 
-  const getDraftSettingsForSubmit = () => {
+  const resetCoreToDefault = useCallback(() => {
+    applyCoreSourceText(defaultCoreText, { formatOnSuccess: true, focusOnError: false });
+  }, [applyCoreSourceText, defaultCoreText]);
+
+  const getDraftSettingsForSubmit = useCallback(() => {
     try {
       const result = parseCoreInput(coreInputText);
       setCoreParseError('');
@@ -301,7 +372,7 @@ function StrategySettingsContainer({ initialSettings, children }) {
       setCoreParseMode('');
       throw new Error(`core 参数格式不合法：${msg}`);
     }
-  };
+  }, [coreInputText, draftSettings]);
 
   const coreErrorContext = useMemo(
     () => getErrorContextLines(coreInputText, coreErrorLine, 2),
@@ -309,8 +380,9 @@ function StrategySettingsContainer({ initialSettings, children }) {
   );
 
   useEffect(() => {
-    if (coreErrorPosition < 0 || !coreInputRef.current) return;
-    const textarea = coreInputRef.current;
+    if (coreErrorPosition < 0) return;
+    const textarea = getActiveCoreInputEl();
+    if (!textarea) return;
     const pos = Math.max(0, Math.min(coreErrorPosition, coreInputText.length));
     textarea.focus();
     textarea.setSelectionRange(pos, Math.min(pos + 1, coreInputText.length));
@@ -319,20 +391,32 @@ function StrategySettingsContainer({ initialSettings, children }) {
     textarea.scrollTop = Math.max(0, (lineNo - 2) * lineHeight);
   }, [coreErrorPosition, coreInputText]);
 
-  return children({
-    draftSettings,
-    updateSection,
-    setDraftSettings,
-    coreEditor: {
+  const onCoreTextChange = useCallback((nextText) => {
+    setCoreInputText(nextText);
+  }, []);
+
+  const onCoreBlur = useCallback(() => {
+    if (coreFormatTimerRef.current) {
+      clearTimeout(coreFormatTimerRef.current);
+      coreFormatTimerRef.current = null;
+    }
+    const el = getActiveCoreInputEl();
+    const text = el?.value ?? coreInputText;
+    applyCoreSourceText(text, { formatOnSuccess: true, focusOnError: false });
+  }, [coreInputText, applyCoreSourceText]);
+
+  const coreEditor = useMemo(
+    () => ({
       value: coreInputText,
-      onChange: (nextText) => {
-        setCoreInputText(nextText);
-      },
+      onChange: onCoreTextChange,
       onKeyUp: onCoreEditorLiveSync,
       onPaste: onCoreEditorPaste,
-      onBlur: () => applyCoreSourceText(coreInputText, { formatOnSuccess: true, focusOnError: false }),
+      onBlur: onCoreBlur,
       onApply: applyCoreAndFormat,
+      onResetToDefault: resetCoreToDefault,
+      defaultCoreText,
       inputRef: coreInputRef,
+      fullscreenInputRef: coreFullscreenInputRef,
       parseError: coreParseError,
       lineHint: coreLineHint,
       errorLine: coreErrorLine,
@@ -340,7 +424,62 @@ function StrategySettingsContainer({ initialSettings, children }) {
       errorContext: coreErrorContext,
       parseMode: coreParseMode,
       getDraftSettingsForSubmit,
-    },
+    }),
+    [
+      coreInputText,
+      onCoreTextChange,
+      onCoreEditorLiveSync,
+      onCoreEditorPaste,
+      onCoreBlur,
+      applyCoreAndFormat,
+      resetCoreToDefault,
+      defaultCoreText,
+      coreParseError,
+      coreLineHint,
+      coreErrorLine,
+      coreErrorColumn,
+      coreErrorContext,
+      coreParseMode,
+      getDraftSettingsForSubmit,
+    ],
+  );
+
+  const onGoalChange = useCallback(
+    (nextGoal) => updateSection('goal', nextGoal),
+    [updateSection],
+  );
+  const onSamplingChange = useCallback(
+    (nextSampling) => updateSection('sampling', nextSampling),
+    [updateSection],
+  );
+  const onFeesChange = useCallback(
+    (nextFees) => updateSection('fees', nextFees),
+    [updateSection],
+  );
+  const onSimulationChange = useCallback(
+    (nextSimulation) => updateSection('simulation', nextSimulation),
+    [updateSection],
+  );
+  const onPriceSimulatorChange = useCallback(
+    (nextPriceSimulator) => updateSection('price_simulator', nextPriceSimulator),
+    [updateSection],
+  );
+  const onCapitalSimulatorChange = useCallback(
+    (nextCapitalSimulator) => updateSection('capital_simulator', nextCapitalSimulator),
+    [updateSection],
+  );
+
+  return children({
+    draftSettings,
+    updateSection,
+    setDraftSettings,
+    coreEditor,
+    onGoalChange,
+    onSamplingChange,
+    onFeesChange,
+    onSimulationChange,
+    onPriceSimulatorChange,
+    onCapitalSimulatorChange,
   });
 }
 

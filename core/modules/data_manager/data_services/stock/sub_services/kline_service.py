@@ -10,7 +10,7 @@ K线数据服务（KlineService）
 - stock_kline: K线数据
 - adj_factor_event: 复权因子事件
 """
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional, Sequence, Union
 import logging
 
 from ... import BaseDataService
@@ -94,7 +94,22 @@ class KlineService(BaseDataService):
         if not self._stock_kline:
             return ""
         return str(self._stock_kline.load_latest_date(term)).strip()
-    
+
+    def load_earliest_date(
+        self,
+        term: str = "daily",
+        stock_ids: Optional[Sequence[str]] = None,
+    ) -> str:
+        """
+        加载指定周期最早 K 线日期（YYYYMMDD）。
+
+        ``stock_ids`` 未传或为空：全市场该周期最早日期。
+        传入本次回测样本股票 id 列表：仅在该样本内取最早日期。
+        """
+        if not self._stock_kline:
+            return ""
+        return str(self._stock_kline.load_earliest_date(term, stock_ids=stock_ids)).strip()
+
     def load_by_date(self, date: str) -> List[Dict[str, Any]]:
         """
         加载指定日期的所有股票K线

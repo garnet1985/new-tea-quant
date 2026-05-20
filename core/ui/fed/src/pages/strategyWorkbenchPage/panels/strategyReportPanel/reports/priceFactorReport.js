@@ -1,8 +1,16 @@
 import React, { useMemo, useState } from 'react';
 import { Box, Stack, Typography } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
+import NtqHelpTooltip from 'components/ntqHelpTooltip/ntqHelpTooltip';
 import MetricCard from 'components/metricCard/metricCard';
 import { SectionBlock } from 'components/sectionBlock/sectionBlock';
+import {
+  PRICE_CHART_TIPS,
+  PRICE_METRIC_TIPS,
+  PRICE_SECTION_TIPS,
+  REPORT_STOCK_GRID_TIPS,
+} from '../reportMetricTips';
+import { formatReportMoney } from '../lib/formatReportMoney';
 import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
 import ReportUnavailableHint from '../components/reportUnavailableHint';
 import {
@@ -22,15 +30,6 @@ function tooltipPrimaryValue(point) {
     return raw.value;
   }
   return raw;
-}
-
-/** 旧版会话摘要里的固定 ROI 档位（与新版的 [min,max] 等分标签区分） */
-function looksLikeLegacyFixedRoiBuckets(labels) {
-  if (!Array.isArray(labels)) return false;
-  return labels.some((t) => (
-    typeof t === 'string'
-    && (t.includes('≤-20') || t.includes('>50%') || /\(-20,-5]/.test(t))
-  ));
 }
 
 function buildRoiDistributionOption(metrics) {
@@ -67,7 +66,7 @@ function buildRoiDistributionOption(metrics) {
         const point = params?.[0];
         if (!point) return '';
         const val = tooltipPrimaryValue(point);
-        return `${point.axisValue}<br/>ROI：${val}%`;
+        return `${point.axisValue}<br/>收益率（ROI）：${val}%`;
       },
     },
   };
@@ -115,10 +114,9 @@ function buildRoiBucketOption(metrics) {
 function PriceFactorReport({
   metrics,
   stockRows,
-  strategyName: _strategyName,
-  runId: _runId,
   title = '价格回测报告',
   showStockGrid = true,
+  hideTitle = false,
 }) {
   const [stockSearch, setStockSearch] = useState('');
 
@@ -155,7 +153,7 @@ function PriceFactorReport({
     },
     {
       field: 'roi',
-      headerName: 'ROI',
+      headerName: '收益率（ROI）',
       width: 110,
       valueFormatter: (params) => `${params.value > 0 ? '+' : ''}${params.value}%`,
     },
@@ -187,16 +185,14 @@ function PriceFactorReport({
 
   return (
     <Stack spacing={1.25}>
-      <Typography variant="subtitle2" fontWeight={600}>{title}</Typography>
-
-      <Typography variant="caption" color="text.secondary">
-        K 线与买卖点透视暂未启用（需加载行情并描点后再接）。
-      </Typography>
+      {!hideTitle ? (
+        <Typography variant="subtitle2" fontWeight={600}>{title}</Typography>
+      ) : null}
 
       {showStockGrid && derivedStockRows.length > 0 ? (
         <ReportStockSampleGrid
           title="逐股样本"
-          tip="用于查看本次价格回测中单股表现；支持搜索、表头排序与底部分页。"
+          tip={REPORT_STOCK_GRID_TIPS.price}
           searchValue={stockSearch}
           onSearchChange={setStockSearch}
           rows={filteredRows}
@@ -206,48 +202,86 @@ function PriceFactorReport({
 
       <SectionBlock
         title="回测总体"
-        tip="用于判断信号层是否具备正向收益，且收益效率是否可接受。"
+        tip={PRICE_SECTION_TIPS.overview}
       >
         {avail.overview ? (
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
-            <MetricCard title="胜率" value={`${metrics.winRate}%`} />
-            <MetricCard title="平均每笔 ROI" value={`${metrics.avgRoi}%`} />
-            <MetricCard title="平均持有时长" value={`${metrics.avgDurationDays} 天`} />
-            <MetricCard title="年化收益（自然日）" value={`${metrics.annualReturn}%`} />
+            <MetricCard title="胜率" titleTip={PRICE_METRIC_TIPS.winRate} value={`${metrics.winRate}%`} />
+            <MetricCard
+              title="平均每笔收益率（ROI）"
+              titleTip={PRICE_METRIC_TIPS.avgRoi}
+              value={`${metrics.avgRoi}%`}
+            />
+            <MetricCard
+              title="平均持有时长"
+              titleTip={PRICE_METRIC_TIPS.avgDurationDays}
+              value={`${metrics.avgDurationDays} 天`}
+            />
+            <MetricCard
+              title="年化收益（自然日）"
+              titleTip={PRICE_METRIC_TIPS.annualReturn}
+              value={`${metrics.annualReturn}%`}
+            />
           </Box>
         ) : <ReportUnavailableHint />}
       </SectionBlock>
 
       <SectionBlock
         title="样本与覆盖"
-        tip="用于确认结果是否来自足够样本，避免小样本导致结论失真。"
+        tip={PRICE_SECTION_TIPS.sampleCoverage}
       >
         {avail.sampleCoverage ? (
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
-            <MetricCard title="总投资次数" value={metrics.totalInvestments.toLocaleString()} />
-            <MetricCard title="产生机会股票数" value={metrics.stocksWithOpportunities.toLocaleString()} />
-            <MetricCard title="每股平均投资次数" value={metrics.avgInvestmentsPerStock.toFixed(2)} />
-            <MetricCard title="未完成持仓数" value={metrics.totalOpenInvestments.toLocaleString()} />
+            <MetricCard
+              title="总投资次数"
+              titleTip={PRICE_METRIC_TIPS.totalInvestments}
+              value={metrics.totalInvestments.toLocaleString()}
+            />
+            <MetricCard
+              title="产生机会股票数"
+              titleTip={PRICE_METRIC_TIPS.stocksWithOpportunities}
+              value={metrics.stocksWithOpportunities.toLocaleString()}
+            />
+            <MetricCard
+              title="每股平均投资次数"
+              titleTip={PRICE_METRIC_TIPS.avgInvestmentsPerStock}
+              value={metrics.avgInvestmentsPerStock.toFixed(2)}
+            />
+            <MetricCard
+              title="未完成持仓数"
+              titleTip={PRICE_METRIC_TIPS.totalOpenInvestments}
+              value={metrics.totalOpenInvestments.toLocaleString()}
+            />
           </Box>
         ) : <ReportUnavailableHint />}
       </SectionBlock>
 
       <SectionBlock
-        title="盈亏结构（含 ROI 分位）"
-        tip="用于观察收益分布是否健康，避免只靠少数大盈利机会拉高均值。"
+        title="盈亏结构（含收益率分位）"
+        tip={PRICE_SECTION_TIPS.profitStructure}
       >
         {avail.profitBasics ? (
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
             <MetricCard
               title="盈亏次数"
+              titleTip={PRICE_METRIC_TIPS.winLossCount}
               value={`${metrics.totalWinInvestments} / ${metrics.totalLossInvestments}`}
               hint="赢单 / 亏单"
             />
-            <MetricCard title="每笔平均盈利" value={metrics.avgProfitPerInvestment.toLocaleString()} />
-            <MetricCard title="每股平均盈利" value={metrics.avgProfitPerStock.toLocaleString()} />
+            <MetricCard
+              title="每笔平均盈利"
+              titleTip={PRICE_METRIC_TIPS.avgProfitPerInvestment}
+              value={formatReportMoney(metrics.avgProfitPerInvestment)}
+            />
+            <MetricCard
+              title="每股平均盈利"
+              titleTip={PRICE_METRIC_TIPS.avgProfitPerStock}
+              value={formatReportMoney(metrics.avgProfitPerStock)}
+            />
             {avail.roiPercentileViz ? (
               <MetricCard
-                title="ROI 波动"
+                title="收益率（ROI）波动"
+                titleTip={PRICE_METRIC_TIPS.roiVolatility}
                 value={
                   Number.isFinite(metrics.roiStdPct)
                     ? `标准差 ${metrics.roiStdPct}%（样本）`
@@ -261,18 +295,18 @@ function PriceFactorReport({
         {!avail.roiPercentileViz ? (
           <Box sx={{ mt: avail.profitBasics ? 1 : 0 }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-              ROI 分位图：需价格回测摘要中含 roi_percentile_values（长度 9）；会话级汇总正常产出后即展示。
+              {PRICE_CHART_TIPS.roiPercentileUnavailable}
             </Typography>
             <ReportUnavailableHint />
           </Box>
         ) : (
           <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.75, mt: 1 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-              ROI 分位图（10% / 20% / … / 90%）
-            </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontSize: 10 }}>
-              横轴为固定的分位点（10%～90%），纵轴为该分位上的 ROI 水平；区间不随样本自动重划。
-            </Typography>
+            <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.75 }}>
+              <Typography variant="caption" color="text.secondary">
+                收益率（ROI）分位图
+              </Typography>
+              <NtqHelpTooltip title={PRICE_CHART_TIPS.roiPercentileCaption} />
+            </Stack>
             <ReactECharts
               option={buildRoiDistributionOption(metrics)}
               style={{ height: 170, width: '100%' }}
@@ -284,25 +318,18 @@ function PriceFactorReport({
         {!avail.roiBucketViz ? (
           <Box sx={{ mt: 1 }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-              ROI 桶分布：需 roi_bucket_labels / roi_bucket_counts 与摘要一同下发。
+              {PRICE_CHART_TIPS.roiBucketUnavailable}
             </Typography>
             <ReportUnavailableHint />
           </Box>
         ) : (
           <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.75, mt: 1 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-              ROI 收益分布（区间内投资笔数）
-            </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75, fontSize: 10 }}>
-              {metrics.roiBucketBinCount > 0
-                ? `将本轮 ROI 的 min～max 等分为 ${metrics.roiBucketBinCount} 段，统计落入各段的投资笔数；末段含右端点 max。`
-                : '将本轮 ROI 的 min～max 等分为若干段，统计落入各段的投资笔数；末段含右端点 max。'}
-            </Typography>
-            {looksLikeLegacyFixedRoiBuckets(metrics.roiBucketLabels) ? (
-              <Typography variant="caption" color="warning.main" sx={{ display: 'block', mb: 0.75, fontSize: 10 }}>
-                当前摘要仍为旧版固定档位（如 ≤-20%）；请重新执行一次价格回测以写入新版 min～max 等分区间。
+            <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.75 }}>
+              <Typography variant="caption" color="text.secondary">
+                收益率（ROI）分布
               </Typography>
-            ) : null}
+              <NtqHelpTooltip title={PRICE_CHART_TIPS.roiBucketCaption} />
+            </Stack>
             <ReactECharts
               option={buildRoiBucketOption(metrics)}
               style={{ height: 190, width: '100%' }}

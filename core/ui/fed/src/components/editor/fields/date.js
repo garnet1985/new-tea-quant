@@ -1,8 +1,9 @@
 import React from 'react';
-import { TextField } from '@mui/material';
+import { TextField, Typography } from '@mui/material';
 import { getByPath, runFieldEvents, setByPath } from '../editor.helper';
+import EditorFieldLabel from './editorFieldLabel';
 
-function DateField({ field, value, errors, onChange, emitChangeMeta }) {
+function DateField({ field, value, errors, onChange, emitChangeMeta, context = {} }) {
   if (typeof field?.visibleWhen === 'function' && !field.visibleWhen({ values: value })) {
     return null;
   }
@@ -22,20 +23,33 @@ function DateField({ field, value, errors, onChange, emitChangeMeta }) {
     }
   };
 
+  const helperBelow = fieldError
+    || (field.description && !field.tooltip ? field.description : '')
+    || '';
+
   return (
-    <TextField
-      key={field.name}
-      size="small"
-      type="date"
-      label={field.label}
-      value={current || ''}
-      fullWidth
-      onChange={(e) => applyChange(e.target.value)}
-      InputLabelProps={{ shrink: true }}
-      InputProps={{ readOnly: isReadonly }}
-      error={Boolean(fieldError)}
-      helperText={fieldError || field.description || ''}
-    />
+    <div key={field.name}>
+      <EditorFieldLabel field={field} context={context} />
+      <TextField
+        size="small"
+        type="date"
+        value={current || ''}
+        fullWidth
+        onChange={(e) => applyChange(e.target.value)}
+        InputLabelProps={{ shrink: true }}
+        InputProps={{ readOnly: isReadonly }}
+        error={Boolean(fieldError)}
+      />
+      {helperBelow ? (
+        <Typography
+          variant="caption"
+          color={fieldError ? 'error' : 'text.secondary'}
+          sx={{ mt: 0.5, display: 'block' }}
+        >
+          {helperBelow}
+        </Typography>
+      ) : null}
+    </div>
   );
 }
 

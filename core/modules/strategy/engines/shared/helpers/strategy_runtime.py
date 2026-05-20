@@ -5,11 +5,14 @@ from __future__ import annotations
 
 import importlib
 import inspect
-from typing import TYPE_CHECKING, Optional, Tuple, Type
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Type
 
 from core.infra.project_context import PathManager
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
+)
+from core.modules.strategy.engines.shared.helpers.market_profile_id import (
+    resolve_market_profile_id,
 )
 
 if TYPE_CHECKING:
@@ -33,13 +36,24 @@ def load_strategy_settings_view(
     *,
     strategy_info: Optional["DiscoveredStrategy"] = None,
 ) -> StrategySettingsView:
+    """加载并完整校验 ``StrategySettings``（含 market_profile / simulation / capital 等）。"""
+    from core.modules.strategy.engines.shared.data_classes.strategy_settings.strategy_settings import (
+        StrategySettings,
+    )
+
     if strategy_info is not None:
-        return StrategySettingsView.from_dict(strategy_info.settings.to_dict())
-    module = importlib.import_module(f"userspace.strategies.{strategy_name}.settings")
-    settings = getattr(module, "settings", None)
-    if not isinstance(settings, dict):
-        raise ValueError(f"invalid settings for strategy: {strategy_name}")
-    return StrategySettingsView.from_dict(settings)
+        raw = strategy_info.settings.to_dict()
+    else:
+        module = importlib.import_module(f"userspace.strategies.{strategy_name}.settings")
+        settings = getattr(module, "settings", None)
+        if not isinstance(settings, dict):
+            raise ValueError(f"invalid settings for strategy: {strategy_name}")
+        raw = settings
+    validated = StrategySettings(raw_settings=dict(raw))
+    validated.apply_defaults()
+    report = validated.validate()
+    report.raise_if_critical()
+    return StrategySettingsView.from_dict(validated.to_dict())
 
 
 def resolve_worker_class(
@@ -94,6 +108,7 @@ def resolve_worker_ref(
 __all__ = [
     "load_strategy_info",
     "load_strategy_settings_view",
+    "resolve_market_profile_id",
     "resolve_worker_class",
     "resolve_worker_ref",
 ]

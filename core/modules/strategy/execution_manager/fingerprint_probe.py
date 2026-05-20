@@ -16,13 +16,11 @@ __all__ = [
 
 def _latest_trading_date_for_db_cache() -> str:
     from core.modules.data_manager import DataManager
+    from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+        resolve_latest_completed_trading_date,
+    )
 
-    data_mgr = DataManager(is_verbose=False)
-    return str(
-        data_mgr.stock.kline.load_latest_date("daily")
-        or data_mgr.service.calendar.get_latest_completed_trading_date()
-        or ""
-    ).strip()
+    return resolve_latest_completed_trading_date(DataManager(is_verbose=False))
 
 
 def _try_resolve_existing_enumerator_dir(

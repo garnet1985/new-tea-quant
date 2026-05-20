@@ -10,6 +10,9 @@ from core.modules.strategy.engines.simulator.capital_allocation.data_classes.flo
     CapitalAllocationExecuteContext,
     CapitalAllocationPreprocessContext,
 )
+from core.modules.strategy.engines.shared.data_classes.market_profile_context import (
+    MarketProfileContext,
+)
 from core.modules.strategy.engines.shared.helpers.simulation_flow import (
     prepare_simulation_settings,
     simulation_effective_snapshot,
@@ -49,6 +52,9 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         ``progress_callback``：工作台轮询用；传入 0～100 的磁盘进度百分比（完成前宜小于 100）。
         """
         from core.modules.data_manager import DataManager
+        from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+            resolve_latest_completed_trading_date,
+        )
         from core.modules.strategy.engines.simulator.price_factor.price_factor_flow_impl import (
             PriceFactorFlowImpl,
         )
@@ -70,7 +76,6 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         tick(8.0)
 
         base_settings = self._impl.load_settings(strategy_name, strategy_info)
-        simulation_settings = prepare_simulation_settings(base_settings)
         config = self._impl.parse_config(base_settings)
         output_version_dir = self._impl.resolve_source_version(
             strategy_name=strategy_name,
@@ -87,11 +92,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         raw_for_fp = raw_settings_for_db_cache_fingerprint(base_settings, strategy_info)
 
         data_mgr = DataManager(is_verbose=False)
-        latest_completed_trading_date = str(
-            data_mgr.stock.kline.load_latest_date("daily")
-            or data_mgr.service.calendar.get_latest_completed_trading_date()
-            or ""
-        ).strip()
+        latest_completed_trading_date = resolve_latest_completed_trading_date(data_mgr)
 
         resolved = resolve_db_cache_fingerprints(
             strategy_name=str(strategy_name),
@@ -117,17 +118,9 @@ class CapitalAllocationFlow(BaseSimulationFlow):
 
         tick(12.0)
 
-        sim_version_dir, sim_version_id = self._impl.create_simulation_version(strategy_name)
-        profiler = self._impl.create_profiler()
-        preprocessed = CapitalAllocationPreprocessContext(
+        preprocessed = self.preprocess(
             strategy_name=strategy_name,
-            base_settings=base_settings,
-            simulation_settings=simulation_settings,
-            config=config,
-            output_version_dir=output_version_dir,
-            sim_version_dir=sim_version_dir,
-            sim_version_id=sim_version_id,
-            profiler=profiler,
+            strategy_info=strategy_info,
         )
         tick(14.0)
         executed = self.execute(preprocessed, progress_callback=tick)
@@ -179,9 +172,11 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         )
         # step4: initialize runtime profiling context
         profiler = self._impl.create_profiler()
+        market_profile = MarketProfileContext.from_settings_view(base_settings)
         return CapitalAllocationPreprocessContext(
             strategy_name=strategy_name,
             base_settings=base_settings,
+            market_profile=market_profile,
             simulation_settings=simulation_settings,
             config=config,
             output_version_dir=output_version_dir,
@@ -211,7 +206,11 @@ class CapitalAllocationFlow(BaseSimulationFlow):
                 progress_callback(88.0)
             return CapitalAllocationExecuteContext(empty=True)
         # step2: initialize account/funding/allocation execution state
-        state = self._impl.create_execution_state(preprocessed.config)
+        state = self._impl.create_execution_state(
+            preprocessed.config,
+            market_profile=preprocessed.market_profile,
+            simulation_settings=preprocessed.simulation_settings,
+        )
         # step3: replay trigger/target events into trades and positions
         self._impl.replay_events(
             events=events,
@@ -231,6 +230,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             trades=state["trades"],
             equity_curve=state["equity_curve"],
             completed_opportunities_map=state["completed_opportunities_map"],
+            tradability_skips=dict(state.get("tradability_skips") or {}),
         )
 
     def postprocess(
@@ -248,6 +248,26 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             initial_capital=preprocessed.config.initial_capital,
             events=executed.events or [],
             completed_opportunities_map=executed.completed_opportunities_map or {},
+            tradability_skips=executed.tradability_skips,
+        )
+        from core.modules.data_manager import DataManager
+        from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+            resolve_backtest_period_payload,
+            resolve_latest_completed_trading_date,
+        )
+        from core.modules.strategy.services.data.output.enumerator_output_service import (
+            EnumeratorOutputWriterService,
+        )
+
+        stock_ids = EnumeratorOutputWriterService.read_scope_stock_ids(
+            preprocessed.output_version_dir
+        )
+        data_mgr = DataManager(is_verbose=False)
+        summary["backtest_period"] = resolve_backtest_period_payload(
+            settings_view=preprocessed.base_settings,
+            stock_ids=stock_ids,
+            data_manager=data_mgr,
+            latest_completed_trading_date=resolve_latest_completed_trading_date(data_mgr),
         )
         # step2: persist output artifacts and metadata
         preprocessed.profiler.start_timer("save_csv")

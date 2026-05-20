@@ -6,34 +6,111 @@ function parseNumber(raw) {
 
 const TEMPLATE_DEFAULT = 'deterministic';
 
-const DEFAULT_SIMULATION_TEMPLATE_OPTIONS = [
-  { label: '确定性（收盘信号 / 次日开盘买 / 收盘卖）', value: 'deterministic' },
-  { label: '极值压力（盯盘与成交均用极值近似）', value: 'extreme' },
-  { label: '自定义（逐项指定盯盘与买卖价模型）', value: 'custom' },
-];
+const SIMULATION_TEMPLATE_META = {
+  deterministic: {
+    label: '确定性',
+    tooltip:
+      '收盘确认信号，次日开盘买入、收盘卖出；盯盘用收盘价。系统默认预设，偏乐观。',
+  },
+  extreme: {
+    label: '极值压力',
+    tooltip:
+      '盯盘与成交均按当日最高/最低价等极值近似，用于压力测试，结果通常更保守。',
+  },
+  custom: {
+    label: '自定义',
+    tooltip:
+      '逐项指定盯盘价、买卖价、滑点与涨跌停等规则；仅在此模式下可改细项。',
+  },
+};
+
+const DEFAULT_SIMULATION_TEMPLATE_OPTIONS = Object.entries(SIMULATION_TEMPLATE_META).map(
+  ([value, meta]) => ({ value, ...meta }),
+);
+
+function resolveTemplateOptions(simulationTemplateOptions) {
+  const raw = Array.isArray(simulationTemplateOptions) && simulationTemplateOptions.length > 0
+    ? simulationTemplateOptions
+    : DEFAULT_SIMULATION_TEMPLATE_OPTIONS;
+  return raw.map((row) => {
+    const meta = SIMULATION_TEMPLATE_META[row.value];
+    if (meta) {
+      return {
+        value: row.value,
+        label: meta.label,
+        tooltip: row.tooltip || meta.tooltip,
+      };
+    }
+    return {
+      value: row.value,
+      label: row.label,
+      tooltip: row.tooltip || '',
+    };
+  });
+}
 
 const MONITOR_PRICE_OPTIONS = [
-  { label: '收盘价 (close)', value: 'close' },
-  { label: '极值 (extreme)', value: 'extreme' },
+  {
+    label: '收盘价',
+    value: 'close',
+    tooltip: '持仓期间用当日收盘价判断止盈、止损与到期等目标。',
+  },
+  {
+    label: '极值',
+    value: 'extreme',
+    tooltip: '用当日最高/最低价做最不利方向的盯盘判断（压力情景）。',
+  },
 ];
 
 const TRADE_PRICE_OPTIONS = [
-  { label: '收盘价 (close)', value: 'close' },
-  { label: '开盘价 (open)', value: 'open' },
-  { label: '次日开盘 (next_open)', value: 'next_open' },
-  { label: '极值 (extreme)', value: 'extreme' },
+  { label: '收盘价', value: 'close', tooltip: '按信号对应 K 线的收盘价作为理论成交价。' },
+  { label: '开盘价', value: 'open', tooltip: '按信号对应 K 线的开盘价作为理论成交价。' },
+  {
+    label: '次日开盘',
+    value: 'next_open',
+    tooltip: '信号确认后，在下一根 K 线开盘价成交（常见于 T+1 买入）。',
+  },
+  {
+    label: '极值',
+    value: 'extreme',
+    tooltip: '按当日最高/最低价等极值近似成交，用于压力测试。',
+  },
 ];
 
 const NO_NEXT_BAR_OPTIONS = [
-  { label: '用信号日收盘价代替 (use_last_close)', value: 'use_last_close' },
-  { label: '放弃该笔 (skip_trade)', value: 'skip_trade' },
-  { label: '保留为未完成 (unfinished)', value: 'unfinished' },
+  {
+    label: '用信号日收盘价代替',
+    value: 'use_last_close',
+    tooltip: '样本最后一根 K 线无法取得次日价时，用当日收盘价完成记账。',
+  },
+  {
+    label: '放弃该笔',
+    value: 'skip_trade',
+    tooltip: '无法取得下一根 K 线时，跳过该笔买入或卖出，不记入成交。',
+  },
+  {
+    label: '保留为未完成',
+    value: 'unfinished',
+    tooltip: '无法取得下一根 K 线时，将该笔标记为未完成，不强制平仓。',
+  },
 ];
 
 const EXTREME_SAME_BAR_ORDER_OPTIONS = [
-  { label: '先止损 (stop_first)', value: 'stop_first' },
-  { label: '先止盈 (take_profit_first)', value: 'take_profit_first' },
-  { label: '随机 (random)', value: 'random' },
+  {
+    label: '先止损',
+    value: 'stop_first',
+    tooltip: '同一交易日内若同时触发止损与止盈条件，优先按止损处理。',
+  },
+  {
+    label: '先止盈',
+    value: 'take_profit_first',
+    tooltip: '同一交易日内若同时触发止损与止盈条件，优先按止盈处理。',
+  },
+  {
+    label: '随机',
+    value: 'random',
+    tooltip: '同一交易日内同时触发时，按随机顺序处理；可配合下方种子复现结果。',
+  },
 ];
 
 const isCustomTemplate = (values) => (values?.template || TEMPLATE_DEFAULT) === 'custom';
@@ -64,7 +141,18 @@ function ensureCustomDefaults(simulation) {
     next.slippage = { buy_bps: 0, sell_bps: 0 };
   }
   if (!next.edges || typeof next.edges !== 'object') {
-    next.edges = { no_next_bar: 'use_last_close' };
+    next.edges = {
+      no_next_bar: 'use_last_close',
+      allow_buy_at_limit_up: true,
+      allow_sell_at_limit_down: true,
+    };
+  } else {
+    if (next.edges.allow_buy_at_limit_up === undefined) {
+      next.edges.allow_buy_at_limit_up = true;
+    }
+    if (next.edges.allow_sell_at_limit_down === undefined) {
+      next.edges.allow_sell_at_limit_down = true;
+    }
   }
   if (!next.extreme_same_bar_order) {
     next.extreme_same_bar_order = 'stop_first';
@@ -73,9 +161,7 @@ function ensureCustomDefaults(simulation) {
 }
 
 export function buildStrategySimulationSchema(simulationTemplateOptions = DEFAULT_SIMULATION_TEMPLATE_OPTIONS) {
-  const templateOptions = Array.isArray(simulationTemplateOptions) && simulationTemplateOptions.length > 0
-    ? simulationTemplateOptions
-    : DEFAULT_SIMULATION_TEMPLATE_OPTIONS;
+  const templateOptions = resolveTemplateOptions(simulationTemplateOptions);
 
   return {
     name: 'strategySimulation',
@@ -86,64 +172,84 @@ export function buildStrategySimulationSchema(simulationTemplateOptions = DEFAUL
         name: 'template',
         type: 'select',
         label: '回测模板',
+        tooltip: '选择回测如何取价、成交与边角处理；除「自定义」外，细项由预设锁定。',
         options: templateOptions,
       },
       {
         name: 'monitor_price_model',
         type: 'select',
-        label: '盯盘价模型 (monitor_price_model)',
-        description: '持仓期间用于止盈/止损/到期比较的每日价格',
+        label: '盯盘价模型',
+        tooltip: '持仓期间用于止盈、止损、到期等目标比较的每日价格口径。',
         options: MONITOR_PRICE_OPTIONS,
         visibleWhen: ({ values }) => isCustomTemplate(values),
       },
       {
         name: 'buy_price_model',
         type: 'select',
-        label: '买入价模型 (buy_price_model)',
+        label: '买入价模型',
+        tooltip: '执行买入时，从 K 线按何种价格语义取理论成交价。',
         options: TRADE_PRICE_OPTIONS,
         visibleWhen: ({ values }) => isCustomTemplate(values),
       },
       {
         name: 'sell_price_model',
         type: 'select',
-        label: '卖出价模型 (sell_price_model)',
+        label: '卖出价模型',
+        tooltip: '执行卖出时，从 K 线按何种价格语义取理论成交价。',
         options: TRADE_PRICE_OPTIONS,
         visibleWhen: ({ values }) => isCustomTemplate(values),
       },
       {
         name: 'slippage.buy_bps',
         type: 'number',
-        label: '买入滑点 (bps)',
-        description: '理论买入价 × (1 + bps/10000)',
+        label: '买入滑点',
+        tooltip: '在理论买入价上叠加滑点，单位为基点（bps）；实际价 ≈ 理论价 × (1 + bps/10000)。',
         parse: parseNumber,
         visibleWhen: ({ values }) => isCustomTemplate(values),
       },
       {
         name: 'slippage.sell_bps',
         type: 'number',
-        label: '卖出滑点 (bps)',
-        description: '理论卖出价 × (1 - bps/10000)',
+        label: '卖出滑点',
+        tooltip: '在理论卖出价上叠加滑点，单位为基点（bps）；实际价 ≈ 理论价 × (1 - bps/10000)。',
         parse: parseNumber,
         visibleWhen: ({ values }) => isCustomTemplate(values),
       },
       {
         name: 'edges.no_next_bar',
         type: 'select',
-        label: '样本末日无下一根 K 线 (edges.no_next_bar)',
+        label: '样本末日无下一根 K 线',
+        tooltip: '采样区间最后一根 K 线无法取得「次日」价格时的处理方式。',
         options: NO_NEXT_BAR_OPTIONS,
+        visibleWhen: ({ values }) => isCustomTemplate(values),
+      },
+      {
+        name: 'edges.allow_buy_at_limit_up',
+        type: 'switch',
+        label: '涨停日允许买入',
+        tooltip: '关闭后，遇到涨停且无法按规则买入时将跳过该笔买入。',
+        visibleWhen: ({ values }) => isCustomTemplate(values),
+      },
+      {
+        name: 'edges.allow_sell_at_limit_down',
+        type: 'switch',
+        label: '跌停日允许卖出',
+        tooltip: '关闭后，遇到跌停且无法按规则卖出时将跳过该笔卖出。',
         visibleWhen: ({ values }) => isCustomTemplate(values),
       },
       {
         name: 'extreme_same_bar_order',
         type: 'select',
         label: '同 bar 内止损/止盈顺序',
+        tooltip: '使用极值盯盘且同一交易日内可能同时触发止损与止盈时的优先顺序。',
         options: EXTREME_SAME_BAR_ORDER_OPTIONS,
         visibleWhen: ({ values }) => isCustomTemplate(values),
       },
       {
         name: 'extreme_same_bar_random_seed',
         type: 'number',
-        label: '随机顺序种子（random 时）',
+        label: '随机顺序种子',
+        tooltip: '当顺序选「随机」时填写，用于固定随机结果以便复现回测。',
         parse: parseNumber,
         visibleWhen: ({ values }) => (
           isCustomTemplate(values) && values?.extreme_same_bar_order === 'random'

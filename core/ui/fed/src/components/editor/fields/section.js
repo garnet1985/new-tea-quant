@@ -1,5 +1,5 @@
 import React from 'react';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import NtqIcon from '../../ntqIcon/ntqIcon';
 import {
   Accordion,
   AccordionDetails,
@@ -13,9 +13,16 @@ function SectionField({ node, value, onChange, errors, emitChangeMeta, renderNod
   const getChildKey = (child, index) => child?.name || child?.label || `${node.name || 'section'}-${index}`;
 
   return (
-    <Accordion key={node.name} defaultExpanded={Boolean(node.defaultExpanded)} disableGutters>
-      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-        <Typography fontWeight={600}>{node.label}</Typography>
+    <Accordion
+      key={node.name}
+      defaultExpanded={Boolean(node.defaultExpanded)}
+      disableGutters
+      TransitionProps={{ timeout: 0, unmountOnExit: false }}
+    >
+      <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
+        <Typography component="span" fontWeight={600}>
+          {node.label}
+        </Typography>
       </AccordionSummary>
       <AccordionDetails>
         <Stack spacing={1.25}>

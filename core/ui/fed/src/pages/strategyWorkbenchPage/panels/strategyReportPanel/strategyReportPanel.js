@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
+import NtqIcon from 'components/ntqIcon/ntqIcon';
 import {
   Accordion,
   AccordionDetails,
@@ -11,7 +10,6 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  Divider,
   List,
   ListItemButton,
   ListItemText,
@@ -22,19 +20,18 @@ import {
   Tabs,
   Typography,
 } from '@mui/material';
-import { API_VERSION_PREFIX } from '../../../../api/conf/apiConfig';
+import SettingsAccordionTitle from 'components/settingsAccordionTitle/settingsAccordionTitle';
 import OpportunityEnumrateReport from './reports/opportunityEnumerateReport';
 import PriceFactorReport from './reports/priceFactorReport';
 import CapitalAllocationReport from './reports/capitalAllocationReport';
 import {
-  buildCapitalMetrics,
-  buildEnumMetrics,
-  buildPriceMetrics,
+  normalizeCapitalMetricsFromSummary,
   normalizeEnumMetricsFromSummary,
   normalizePriceMetricsFromSummary,
   REPORT_BLOCK_UNAVAILABLE_ZH,
 } from '../../mocks/strategyReportMetrics';
 import SettingsJsonDiff from './components/settingsJsonDiff';
+import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
 import { useWorkbenchCompareVersionMenu } from '../../workbenchCompareVersionMenu';
 import {
   COMPARE_EMPTY_OTHER_VERSION_ZH,
@@ -44,6 +41,20 @@ import {
 } from './constants/strategyReportConstants';
 import { useStrategyReportCompareDialog } from './hooks/useStrategyReportCompareDialog';
 import { useStrategyReportRemoteData } from './hooks/useStrategyReportRemoteData';
+import {
+  resolveCapitalReportSlot,
+  resolveCapitalReportSlotForCompare,
+  resolveEnumReportSlot,
+  resolveEnumReportSlotForCompare,
+  resolvePriceReportSlot,
+  resolvePriceReportSlotForCompare,
+} from './lib/strategyReportSlotResolve';
+import {
+  REPORT_PANEL_TITLE,
+  REPORT_PANEL_TOOLTIP,
+  REPORT_TAB_SECTION_TITLES,
+} from './reportSectionMeta';
+import BacktestPeriodBanner from './components/backtestPeriodBanner';
 import './strategyReportPanel.scss';
 
 function StrategyReportPanel({
@@ -59,6 +70,8 @@ function StrategyReportPanel({
   onForceEnumerate,
   /** 至少两条快照时可对比报告；仅一条时隐藏「对比结果」 */
   showReportCompare = true,
+  /** 当前工作台查看的快照 id（``v4``）；用于 V2-07 report / 对比左侧 */
+  reportVersionId = '',
 }) {
   /** V2-01 ``result_report.enum``：含 ``enumMetrics.opportunityCount*``，由页面 ``GET …/version/latest`` 注入 */
   const snapshotEnumSlot = useMemo(() => {
@@ -74,28 +87,35 @@ function StrategyReportPanel({
     const slot = workbenchResultReport?.capital_allocation;
     return slot && typeof slot === 'object' ? slot : null;
   }, [workbenchResultReport]);
-  const runId = executionState?.runId || '';
-
-  /** 仅绑定「本轮会话最近一次跑单完成」的快照 id；草稿变更 reset 后为空，不再回退到工作台选中快照，以免参数已改仍拉旧版 report_ref（404 / 条数不一致） */
-  const anchorVersionId = useMemo(() => {
+  const resolvedReportVersionId = useMemo(() => {
+    const fromProp = String(reportVersionId || '').trim();
+    if (fromProp) return fromProp;
     const run = typeof executionState?.lastCompletedWorkbenchVersionId === 'string'
       ? executionState.lastCompletedWorkbenchVersionId.trim()
       : '';
     return run;
-  }, [executionState?.lastCompletedWorkbenchVersionId]);
+  }, [reportVersionId, executionState?.lastCompletedWorkbenchVersionId]);
+
+  /** 枚举 report_ref 仍绑定本轮跑单完成的快照，避免草稿变更后 ref 与当前查看版本不一致 */
+  const enumRefVersionId = useMemo(() => {
+    const run = typeof executionState?.lastCompletedWorkbenchVersionId === 'string'
+      ? executionState.lastCompletedWorkbenchVersionId.trim()
+      : '';
+    return run || resolvedReportVersionId;
+  }, [executionState?.lastCompletedWorkbenchVersionId, resolvedReportVersionId]);
 
   const {
     compareDropdownVersionIds,
     compareBaselineMenuLabel,
     renderCompareSelectValue,
-  } = useWorkbenchCompareVersionMenu(executionCompareRecentVersionIds, anchorVersionId);
+  } = useWorkbenchCompareVersionMenu(executionCompareRecentVersionIds, resolvedReportVersionId);
 
   const reportComparePickerVersions = useMemo(() => {
-    const cur = String(anchorVersionId || '').trim();
+    const cur = String(resolvedReportVersionId || '').trim();
     const rows = Array.isArray(configVersions) ? configVersions : [];
     if (!cur) return rows;
     return rows.filter((v) => v.id !== cur);
-  }, [configVersions, anchorVersionId]);
+  }, [configVersions, resolvedReportVersionId]);
   let reportComparePickerEmptyHint = '暂无可选版本。';
   if (Array.isArray(configVersions) && configVersions.length > 0) {
     reportComparePickerEmptyHint = '没有其它可对比版本（已排除当前工作台快照）。';
@@ -104,9 +124,7 @@ function StrategyReportPanel({
   const [activeTab, setActiveTab] = useState('');
 
   const {
-    remoteReports,
     reportStocks,
-    reportError,
     enumRefStatus,
     enumRefRows,
     availableTabs,
@@ -114,8 +132,7 @@ function StrategyReportPanel({
     stepReportSlots,
   } = useStrategyReportRemoteData({
     strategyName,
-    runId,
-    anchorVersionId,
+    reportVersionId: resolvedReportVersionId,
     activeTab,
     executionState,
   });
@@ -131,15 +148,13 @@ function StrategyReportPanel({
     compareWorkbenchSnapshot,
     compareVersion,
     setCompareVersion,
-    comparePayload,
     compareError,
     handleReportCompareSelectChange,
-    compareResultReport,
+    compareStepReport,
     compareSideReportBusy,
   } = useStrategyReportCompareDialog({
     strategyName,
-    runId,
-    anchorVersionId,
+    reportVersionId: resolvedReportVersionId,
     resolvedActiveTab,
     showReportCompare,
   });
@@ -160,10 +175,45 @@ function StrategyReportPanel({
     setActiveTab(step);
   }, [reportTabFocusRequest, availableTabs]);
 
-  const enumReportRefUrl = useMemo(() => {
-    if (enumRefStatus !== 'ok' || !anchorVersionId) return '';
-    return `${API_VERSION_PREFIX}/strategy/${encodeURIComponent(strategyName)}/enum/report_ref/${encodeURIComponent(anchorVersionId)}`;
-  }, [enumRefStatus, anchorVersionId, strategyName]);
+  const buildMetricsPayloadForTab = (
+    tabKey,
+    {
+      stepSlots,
+      snapshotEnum,
+      snapshotPrice,
+      snapshotCapital,
+      compareSlot = null,
+    } = {},
+  ) => {
+    if (tabKey === 'enum') {
+      const slot = compareSlot
+        ? resolveEnumReportSlotForCompare(compareSlot)
+        : resolveEnumReportSlot({
+          stepReportSlots: stepSlots,
+          snapshotSlot: snapshotEnum,
+        });
+      return { enumMetrics: normalizeEnumMetricsFromSummary(slot), stockRows: enumStockRowsForGrid };
+    }
+    if (tabKey === 'price') {
+      const slot = compareSlot
+        ? resolvePriceReportSlotForCompare(compareSlot)
+        : resolvePriceReportSlot({
+          stepReportSlots: stepSlots,
+          snapshotSlot: snapshotPrice,
+        });
+      return { priceMetrics: normalizePriceMetricsFromSummary(slot), stockRows: reportStocks.price };
+    }
+    const slot = compareSlot
+      ? resolveCapitalReportSlotForCompare(compareSlot)
+      : resolveCapitalReportSlot({
+        stepReportSlots: stepSlots,
+        snapshotSlot: snapshotCapital,
+      });
+    return {
+      capitalMetrics: normalizeCapitalMetricsFromSummary(slot),
+      stockRows: reportStocks.capital,
+    };
+  };
 
   const handleTabChange = (_event, nextValue) => {
     setActiveTab(nextValue);
@@ -200,8 +250,8 @@ function StrategyReportPanel({
           title={title}
           showStockGrid={options.showStockGrid !== false}
           stockGridOverlay={options.stockGridOverlay}
-          reportRefUrl={options.reportRefUrl || ''}
           enumRefStockTotal={options.enumRefStockTotal}
+          hideTitle={Boolean(options.hideTitle)}
           stockGridLoading={Boolean(options.stockGridLoading)}
         />
       );
@@ -216,10 +266,9 @@ function StrategyReportPanel({
         <PriceFactorReport
           metrics={reportData.priceMetrics}
           stockRows={reportData.stockRows}
-          strategyName={strategyName}
-          runId={runId}
           title={title}
           showStockGrid={options.showStockGrid !== false}
+          hideTitle={Boolean(options.hideTitle)}
         />
       );
     }
@@ -235,11 +284,21 @@ function StrategyReportPanel({
           stockRows={reportData?.stockRows}
           title={title}
           showStockGrid={options.showStockGrid !== false}
+          hideTitle={Boolean(options.hideTitle)}
         />
       );
     }
     return null;
   };
+
+  const activeTabSectionTitle = REPORT_TAB_SECTION_TITLES[resolvedActiveTab] ?? '';
+
+  const activeReportSlotForPeriod = useMemo(() => {
+    if (resolvedActiveTab === 'enum') return snapshotEnumSlot;
+    if (resolvedActiveTab === 'price') return snapshotPriceSlot;
+    if (resolvedActiveTab === 'capital') return snapshotCapitalSlot;
+    return null;
+  }, [resolvedActiveTab, snapshotEnumSlot, snapshotPriceSlot, snapshotCapitalSlot]);
 
   const renderTabContent = () => {
     if (!resolvedActiveTab) {
@@ -250,31 +309,9 @@ function StrategyReportPanel({
       );
     }
 
-    /** 枚举/价格：``GET …/version/latest`` 的 ``result_report`` 常为卡片级摘要；完整 ``enumMetrics`` / 曲线以 **V2-07 单步报告**（``stepReportSlots``）为准，否则摘要会挡住完整槽位导致多块「数据异常」。 */
-    const metricsSource = {
-      result: {
-        enum:
-          stepReportSlots?.enum
-          || snapshotEnumSlot
-          || executionState?.result?.enum
-          || remoteReports?.reports?.enum
-          || null,
-        price:
-          stepReportSlots?.price
-          || snapshotPriceSlot
-          || executionState?.result?.price
-          || remoteReports?.reports?.price
-          || null,
-        capital_allocation:
-          stepReportSlots?.capital
-          || snapshotCapitalSlot
-          || null,
-      },
-    };
-
     if (resolvedActiveTab === 'enum') {
       let stockGridOverlay = null;
-      if (anchorVersionId && enumRefStatus === 'missing' && typeof onForceEnumerate === 'function') {
+      if (enumRefVersionId && enumRefStatus === 'missing' && typeof onForceEnumerate === 'function') {
         stockGridOverlay = (
           <Box
             role="button"
@@ -289,7 +326,7 @@ function StrategyReportPanel({
             className="ntq-stock-grid-overlay"
           >
             <Stack spacing={1} alignItems="center">
-              <RefreshRoundedIcon className="ntq-stock-grid-overlay__icon" />
+              <NtqIcon name="refresh" size={60} className="ntq-stock-grid-overlay__icon" />
               <Typography variant="body2" color="text.secondary">
                 此结果需要重新执行步骤才能看到结果，点击重新执行
               </Typography>
@@ -299,13 +336,16 @@ function StrategyReportPanel({
       }
       return renderReportByTab(
         'enum',
-        { enumMetrics: buildEnumMetrics(metricsSource), stockRows: enumStockRowsForGrid },
-        '枚举核心结论',
+        buildMetricsPayloadForTab('enum', {
+          stepSlots: stepReportSlots,
+          snapshotEnum: snapshotEnumSlot,
+        }),
+        REPORT_TAB_SECTION_TITLES.enum,
         {
           stockGridOverlay,
-          reportRefUrl: enumReportRefUrl,
           enumRefStockTotal: enumRefStatus === 'ok' ? enumRefRows.length : undefined,
-          stockGridLoading: Boolean(anchorVersionId) && enumRefStatus === 'loading',
+          stockGridLoading: Boolean(enumRefVersionId) && enumRefStatus === 'loading',
+          hideTitle: true,
         },
       );
     }
@@ -313,28 +353,34 @@ function StrategyReportPanel({
     if (resolvedActiveTab === 'price') {
       return renderReportByTab(
         'price',
-        {
-          priceMetrics: buildPriceMetrics(metricsSource),
-          stockRows: reportStocks.price,
-        },
-        '价格回测报告',
+        buildMetricsPayloadForTab('price', {
+          stepSlots: stepReportSlots,
+          snapshotPrice: snapshotPriceSlot,
+        }),
+        REPORT_TAB_SECTION_TITLES.price,
+        { hideTitle: true },
       );
     }
 
     return renderReportByTab(
       'capital',
-      {
-        capitalMetrics: buildCapitalMetrics(metricsSource),
-        stockRows: reportStocks.capital,
-      },
-      '资金模拟报告',
+      buildMetricsPayloadForTab('capital', {
+        stepSlots: stepReportSlots,
+        snapshotCapital: snapshotCapitalSlot,
+      }),
+      REPORT_TAB_SECTION_TITLES.capital,
+      { hideTitle: true },
     );
   };
 
   return (
     <Accordion defaultExpanded disableGutters>
-      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-        <Typography fontWeight={600}>模拟结果</Typography>
+      <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
+        <SettingsAccordionTitle
+          title={REPORT_PANEL_TITLE}
+          tooltip={REPORT_PANEL_TOOLTIP}
+          context={{ defaultTooltipShine: true }}
+        />
       </AccordionSummary>
       <AccordionDetails>
         <Stack spacing={1.25}>
@@ -350,30 +396,35 @@ function StrategyReportPanel({
               ))}
             </Tabs>
           ) : null}
-          {showReportCompare ? (
-            <Stack direction="row" justifyContent="flex-end">
-              <Button
-                size="small"
-                variant="outlined"
-                disabled={!resolvedActiveTab}
-                className="ntq-attention-btn"
-                onClick={() => {
-                  setCompareDialogSubTab('report');
-                  setCompareDialogOpen(true);
-                }}
-              >
-                对比结果
-              </Button>
+          {resolvedActiveTab && activeTabSectionTitle ? (
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={1.5}
+              className="ntq-report-section-head"
+            >
+              <Typography variant="subtitle2" fontWeight={600} className="ntq-report-section-head__title">
+                {activeTabSectionTitle}
+              </Typography>
+              {showReportCompare ? (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  className="ntq-attention-btn ntq-report-section-head__compare"
+                  onClick={() => {
+                    setCompareDialogSubTab('report');
+                    setCompareDialogOpen(true);
+                  }}
+                >
+                  对比结果
+                </Button>
+              ) : null}
             </Stack>
           ) : null}
-          {reportError ? (
-            <Typography variant="caption" color="error">{reportError}</Typography>
+          {resolvedActiveTab ? (
+            <BacktestPeriodBanner slot={activeReportSlotForPeriod} />
           ) : null}
           {renderTabContent()}
-          <Divider />
-          <Typography variant="caption" color="text.secondary">
-            注：枚举/价格/资金报告仅认 BFF 当前 snake_case 槽位；缺字段或旧缓存格式将显示「数据异常」，请清缓存后重跑对应步骤。
-          </Typography>
         </Stack>
       </AccordionDetails>
 
@@ -415,33 +466,16 @@ function StrategyReportPanel({
                     <Box className="ntq-report-compare__grid">
                       <Stack spacing={1}>
                         <Typography variant="body2" color="text.primary">
-                          {`当前版本（${anchorVersionId || '—'}）`}
+                          {`当前版本（${resolvedReportVersionId || '—'}）`}
                         </Typography>
                         {renderReportByTab(
                           resolvedActiveTab,
-                          {
-                            enumMetrics: normalizeEnumMetricsFromSummary(
-                              comparePayload?.base_report
-                                ?? snapshotEnumSlot
-                                ?? executionState?.result?.enum
-                                ?? remoteReports?.reports?.enum,
-                            ),
-                            priceMetrics: normalizePriceMetricsFromSummary(
-                              comparePayload?.base_report?.price_factor
-                                ?? comparePayload?.base_report
-                                ?? snapshotPriceSlot
-                                ?? remoteReports?.reports?.price
-                                ?? executionState?.result?.price,
-                            ),
-                            capitalMetrics: buildCapitalMetrics({
-                              result: {
-                                capital_allocation: comparePayload?.base_report?.capital_allocation
-                                  ?? stepReportSlots?.capital
-                                  ?? snapshotCapitalSlot
-                                  ?? null,
-                              },
-                            }),
-                          },
+                          buildMetricsPayloadForTab(resolvedActiveTab, {
+                            stepSlots: stepReportSlots,
+                            snapshotEnum: snapshotEnumSlot,
+                            snapshotPrice: snapshotPriceSlot,
+                            snapshotCapital: snapshotCapitalSlot,
+                          }),
                           compareDialogReportKindLabel,
                           { showStockGrid: false },
                         )}
@@ -452,37 +486,20 @@ function StrategyReportPanel({
                         </Typography>
                         {compareVersion ? (
                           <>
-                            {(compareWorkbenchSnapshot.error || compareError) ? (
+                            {compareError ? (
                               <Typography variant="caption" color="error">
-                                {compareWorkbenchSnapshot.error || compareError}
+                                {compareError}
                               </Typography>
                             ) : null}
-                            {!(compareWorkbenchSnapshot.error || compareError) && compareSideReportBusy ? (
-                              <Typography variant="caption" color="text.secondary">
-                                正在加载对比快照…
-                              </Typography>
+                            {!compareError && compareSideReportBusy ? (
+                              <InlineLoadingState compact block message="正在加载对比报告…" />
                             ) : null}
-                            {!(compareWorkbenchSnapshot.error || compareError) && !compareSideReportBusy
+                            {!compareError && !compareSideReportBusy
                               ? renderReportByTab(
                                 resolvedActiveTab,
-                                {
-                                  enumMetrics: normalizeEnumMetricsFromSummary(
-                                    comparePayload?.compare_report ?? compareResultReport?.enum,
-                                  ),
-                                  priceMetrics: normalizePriceMetricsFromSummary(
-                                    comparePayload?.compare_report?.price_factor
-                                      ?? comparePayload?.compare_report
-                                      ?? compareResultReport?.price_factor,
-                                  ),
-                                  capitalMetrics: buildCapitalMetrics({
-                                    result: {
-                                      capital_allocation:
-                                        comparePayload?.compare_report?.capital_allocation
-                                        ?? compareResultReport?.capital_allocation
-                                        ?? null,
-                                    },
-                                  }),
-                                },
+                                buildMetricsPayloadForTab(resolvedActiveTab, {
+                                  compareSlot: compareStepReport,
+                                }),
                                 compareDialogReportKindLabel,
                                 {
                                   showStockGrid: false,
@@ -500,25 +517,25 @@ function StrategyReportPanel({
                     </Box>
                   ) : (
                     <Stack spacing={2} className="ntq-report-compare__settings">
-                      {!anchorVersionId ? (
+                      {!resolvedReportVersionId ? (
                         <Typography variant="body2" color="text.secondary">
                           暂无绑定工作台快照版本，无法加载当前设置。
                         </Typography>
                       ) : null}
-                      {anchorVersionId && baseSettingsPayload.loading ? (
-                        <Typography variant="caption" color="text.secondary">正在加载当前快照设置…</Typography>
+                      {resolvedReportVersionId && baseSettingsPayload.loading ? (
+                        <InlineLoadingState compact row message="正在加载当前快照设置…" />
                       ) : null}
                       {baseSettingsPayload.error ? (
                         <Typography variant="caption" color="error">{baseSettingsPayload.error}</Typography>
                       ) : null}
                       {compareVersion && compareWorkbenchSnapshot.loading ? (
-                        <Typography variant="caption" color="text.secondary">正在加载对比快照设置…</Typography>
+                        <InlineLoadingState compact row message="正在加载对比快照设置…" />
                       ) : null}
                       {compareWorkbenchSnapshot.error ? (
                         <Typography variant="caption" color="error">{compareWorkbenchSnapshot.error}</Typography>
                       ) : null}
 
-                      {anchorVersionId && !baseSettingsPayload.loading && !baseSettingsPayload.error
+                      {resolvedReportVersionId && !baseSettingsPayload.loading && !baseSettingsPayload.error
                       && baseSettingsPayload.settings && !compareVersion ? (
                         <Stack spacing={1}>
                           <Typography variant="subtitle2" fontWeight={700}>当前快照 settings</Typography>
@@ -536,13 +553,13 @@ function StrategyReportPanel({
                         </Box>
                       ) : null}
 
-                      {compareVersion && anchorVersionId && !baseSettingsPayload.loading && !baseSettingsPayload.error
+                      {compareVersion && resolvedReportVersionId && !baseSettingsPayload.loading && !baseSettingsPayload.error
                       && baseSettingsPayload.settings && !compareWorkbenchSnapshot.loading
                       && !compareWorkbenchSnapshot.error && compareWorkbenchSnapshot.detail?.settings ? (
                         <SettingsJsonDiff
                           left={baseSettingsPayload.settings}
                           right={compareWorkbenchSnapshot.detail.settings}
-                          leftTitle={`当前版本（${anchorVersionId || '—'}）`}
+                          leftTitle={`当前版本（${resolvedReportVersionId || '—'}）`}
                           rightTitle={`对比版本（${compareVersion || '—'}）`}
                         />
                       ) : null}

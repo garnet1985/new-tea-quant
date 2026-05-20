@@ -2,7 +2,7 @@ import React from 'react';
 import DateRangeInput from 'components/dateRangeInput/dateRangeInput';
 import { getByPath, setByPath } from '../editor.helper';
 
-function DateRangeField({ field, value, errors, onChange, emitChangeMeta }) {
+function DateRangeField({ field, value, errors, onChange, emitChangeMeta, context = {} }) {
   if (typeof field?.visibleWhen === 'function' && !field.visibleWhen({ values: value })) {
     return null;
   }
@@ -40,6 +40,8 @@ function DateRangeField({ field, value, errors, onChange, emitChangeMeta }) {
     <DateRangeInput
       label={field.label}
       tooltipTitle={field.tooltip}
+      context={context}
+      layout={field.layout || 'horizontal'}
       startLabel={field.startLabel}
       endLabel={field.endLabel}
       startValue={startValue}

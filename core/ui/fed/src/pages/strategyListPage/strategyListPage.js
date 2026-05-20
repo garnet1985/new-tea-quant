@@ -13,10 +13,10 @@ import {
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import { zhCN } from '@mui/x-data-grid/locales';
-import SearchIcon from '@mui/icons-material/Search';
 import { fetchStrategyList, getStrategyWorkbenchPath } from '../../api/apis/strategyApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
-import { ReactComponent as RefreshIcon } from '../../assets/icon/refresh.svg';
+import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
+import NtqIcon from '../../components/ntqIcon/ntqIcon';
 import './strategyListPage.scss';
 
 function StrategyListPage() {
@@ -99,7 +99,13 @@ function StrategyListPage() {
         </Link>
       ),
     },
-    { field: 'description', headerName: '描述', minWidth: 240, flex: 1.5 },
+    {
+      field: 'description',
+      headerName: '描述',
+      minWidth: 240,
+      flex: 1.5,
+      valueFormatter: (params) => params.value || '—',
+    },
   ];
 
   return (
@@ -129,7 +135,7 @@ function StrategyListPage() {
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon color="action" fontSize="small" />
+                  <NtqIcon name="search" size={22} tone="muted" />
                 </InputAdornment>
               ),
             }}
@@ -140,7 +146,7 @@ function StrategyListPage() {
             onClick={load}
             disabled={loading}
             className="strategy-list-refresh-btn"
-            startIcon={<RefreshIcon className="strategy-list-refresh-icon" />}
+            startIcon={<NtqIcon name="refresh" size={22} />}
           >
             刷新策略
           </Button>
@@ -152,6 +158,7 @@ function StrategyListPage() {
             rows={displayRows}
             columns={columns}
             loading={loading}
+            slots={NTQ_DATA_GRID_LOADING_SLOTS}
             localeText={zhCN}
             disableRowSelectionOnClick
             onRowDoubleClick={(params) => {

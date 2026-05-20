@@ -40,3 +40,59 @@ class TestStrategySimulationSettings:
         sim.apply_defaults()
         assert sim.monitor_price_model.value == "extreme"
         assert sim.buy_price_model == TradePriceModel.EXTREME
+
+    def test_removed_skip_limit_keys_fail_validation(self):
+        sim = StrategySimulationSettings.from_strategy_root(
+            {
+                "simulation": {
+                    "template": "deterministic",
+                    "edges": {"skip_limit_up_buy": True},
+                }
+            }
+        )
+        report = sim.validate()
+        assert report.has_critical_errors()
+
+    def test_removed_mark_unfinished_fails_validation(self):
+        sim = StrategySimulationSettings.from_strategy_root(
+            {
+                "simulation": {
+                    "template": "deterministic",
+                    "edges": {"no_next_bar": "mark_unfinished"},
+                }
+            }
+        )
+        report = sim.validate()
+        assert report.has_critical_errors()
+
+    def test_preset_template_rejects_detail_overrides(self):
+        sim = StrategySimulationSettings.from_strategy_root(
+            {
+                "simulation": {
+                    "template": "deterministic",
+                    "edges": {"allow_buy_at_limit_up": False},
+                }
+            }
+        )
+        report = sim.validate()
+        assert report.has_critical_errors()
+
+    def test_allow_at_limit_explicit_requires_custom(self):
+        sim = StrategySimulationSettings.from_strategy_root(
+            {
+                "simulation": {
+                    "template": "custom",
+                    "monitor_price_model": "close",
+                    "buy_price_model": "next_open",
+                    "sell_price_model": "close",
+                    "edges": {
+                        "allow_buy_at_limit_up": False,
+                        "allow_sell_at_limit_down": True,
+                    },
+                }
+            }
+        )
+        report = sim.validate()
+        assert not report.has_critical_errors()
+        assert sim.allow_buy_at_limit_up is False
+        assert sim.allow_sell_at_limit_down is True

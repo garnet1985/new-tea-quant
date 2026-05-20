@@ -3,9 +3,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
+from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+    _normalize_backtest_period_dict,
+    backtest_period_console_lines,
+)
 from core.modules.strategy.engines.shared.report_base import ReportBase
 
 
@@ -30,6 +34,9 @@ class CapitalReport(ReportBase):
     unfinished_opportunities: int
     completion_rate: float
     stock_summary: Dict[str, Any]
+    skipped_buy_at_limit_up: int = 0
+    skipped_sell_at_limit_down: int = 0
+    backtest_period: Dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "CapitalReport":
@@ -42,6 +49,7 @@ class CapitalReport(ReportBase):
         if avg_pnl == 0.0 and sell_trades > 0:
             avg_pnl = total_profit / sell_trades
 
+        backtest_period = _normalize_backtest_period_dict(data.get("backtest_period"))
         return cls(
             initial_capital=float(data.get("initial_capital", 0.0) or 0.0),
             final_cash_balance=float(data.get("final_cash_balance", 0.0) or 0.0),
@@ -62,20 +70,29 @@ class CapitalReport(ReportBase):
             unfinished_opportunities=int(data.get("unfinished_opportunities", 0) or 0),
             completion_rate=float(data.get("completion_rate", 0.0) or 0.0),
             stock_summary=data.get("stock_summary", {}) or {},
+            skipped_buy_at_limit_up=int(data.get("skipped_buy_at_limit_up", 0) or 0),
+            skipped_sell_at_limit_down=int(data.get("skipped_sell_at_limit_down", 0) or 0),
+            backtest_period=backtest_period,
         )
 
     def to_console_lines(self) -> List[str]:
+        lines: List[str] = []
+        lines.extend(backtest_period_console_lines(self.backtest_period))
         ret_icon = "🟢" if self.total_return >= 0 else "🔴"
         pnl_icon = "🟢" if self.total_profit >= 0 else "🔴"
         wr_icon = "🟢" if self.win_rate >= 0.5 else "🟡" if self.win_rate >= 0.4 else "🔴"
         sell_buy_ratio = (
             round(self.sell_trades / self.buy_trades, 2) if self.buy_trades > 0 else 0.0
         )
-        lines = [
+        lines.extend([
             f"💵 初始资金: {self.initial_capital:,.2f}",
             f"📊 最终总资产: {self.final_total_equity:,.2f}",
             f"{ret_icon} 总收益率: {self.total_return * 100:.2f}%",
             f"📉 最大回撤: {self.max_drawdown * 100:.2f}%",
+            (
+                f"⏭️ 涨跌停跳过买入: {self.skipped_buy_at_limit_up} · "
+                f"跳过卖出: {self.skipped_sell_at_limit_down}"
+            ),
             (
                 f"🔄 成交笔数: {self.total_trades} "
                 f"(开仓买入 {self.buy_trades} / 减仓卖出 {self.sell_trades}"
@@ -99,7 +116,7 @@ class CapitalReport(ReportBase):
                 f"{self.completed_opportunities}/{self.unfinished_opportunities}"
             ),
             f"📈 机会完成率: {self.completion_rate * 100:.2f}%",
-        ]
+        ])
         return lines
 
     @classmethod
@@ -114,6 +131,10 @@ class CapitalReport(ReportBase):
         if not isinstance(summary, dict) or not summary:
             return
         report = cls.from_dict(summary)
+        if not report.backtest_period:
+            bp = _normalize_backtest_period_dict(summary.get("backtest_period"))
+            if bp:
+                report.backtest_period = bp
         label = (strategy_name or "").strip() or "策略"
         sep = "=" * 60
         print(sep)

@@ -12,6 +12,17 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import json
 
+from core.modules.market_profile import get_market_profile
+from core.modules.strategy.engines.shared.helpers.market_profile_id import (
+    resolve_market_profile_id,
+)
+from core.modules.strategy.engines.shared.data_classes.strategy_settings.simulation_settings import (
+    StrategySimulationSettings,
+)
+from core.modules.strategy.engines.shared.helpers.tradability import (
+    should_skip_buy,
+    should_skip_sell,
+)
 from core.modules.strategy.engines.shared.performance_profiler import PerformanceProfiler
 from core.modules.strategy.engines.shared.simulator_hooks_dispatcher import (
     SimulatorHooksDispatcher,
@@ -98,6 +109,13 @@ class PriceFactorWorker:
 
     def _simulate(self) -> Dict[str, Any]:
         cfg = self.config_dict or {}
+        sim_settings = StrategySimulationSettings.from_strategy_root(cfg)
+        profile_id = resolve_market_profile_id(self.job_payload)
+        if not str(self.job_payload.get("market_profile_id") or "").strip():
+            raise ValueError(
+                "price_factor job 缺少 market_profile_id（应由 PriceFactorFlow.execute 注入）"
+            )
+        market_profile = get_market_profile(profile_id)
         self.profiler.start_timer("load_data")
         data_loader = StrategyOutputReaderService(
             strategy_name=self.strategy_name, cache_enabled=False
@@ -144,6 +162,8 @@ class PriceFactorWorker:
 
         investments: List[Dict[str, Any]] = []
         holding_until: Optional[str] = None
+        skipped_buy_at_limit_up = 0
+        skipped_sell_at_limit_down = 0
 
         for idx in order:
             row = opportunities_rows[idx]
@@ -157,7 +177,16 @@ class PriceFactorWorker:
             buy_fill = parse_opportunity_buy_fill(modified_row)
             if buy_fill is None:
                 continue
-            buy_date, _buy_price = buy_fill
+            buy_date, buy_price = buy_fill
+            if should_skip_buy(
+                modified_row,
+                market_profile,
+                self.stock_id,
+                buy_price,
+                allow_at_limit=sim_settings.allow_buy_at_limit_up,
+            ):
+                skipped_buy_at_limit_up += 1
+                continue
             sell_date = str(modified_row.get("sell_date") or "").strip()
             exit_from_row = str(modified_row.get("exit_date") or "").strip()
             resolved_exit = sell_date or exit_from_row or buy_date
@@ -184,9 +213,27 @@ class PriceFactorWorker:
                     merged,
                     cfg,
                 )
-                processed_targets.append(
-                    dict(modified_t if isinstance(modified_t, dict) else t_row)
+                target_dict = dict(modified_t if isinstance(modified_t, dict) else t_row)
+                raw_sell = (
+                    target_dict.get("sell_price")
+                    or target_dict.get("price")
+                    or target_dict.get("target_price")
+                    or 0.0
                 )
+                try:
+                    sell_px = float(raw_sell or 0.0)
+                except (TypeError, ValueError):
+                    sell_px = 0.0
+                if should_skip_sell(
+                    target_dict,
+                    market_profile,
+                    self.stock_id,
+                    sell_px,
+                    allow_at_limit=sim_settings.allow_sell_at_limit_down,
+                ):
+                    skipped_sell_at_limit_down += 1
+                    continue
+                processed_targets.append(target_dict)
 
             investment = PriceFactorInvestment.from_opportunity(
                 merged,
@@ -201,6 +248,8 @@ class PriceFactorWorker:
             "stock": {"id": self.stock_id},
             "investments": investments,
             "summary": self._summary_from_investments(investments),
+            "skipped_buy_at_limit_up": skipped_buy_at_limit_up,
+            "skipped_sell_at_limit_down": skipped_sell_at_limit_down,
         }
         modified_summary = self.hooks_dispatcher.call_hook(
             "on_price_factor_after_process_stock",

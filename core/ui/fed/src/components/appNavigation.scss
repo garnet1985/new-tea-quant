@@ -1,4 +1,8 @@
+@use '../assets/scss/variables' as *;
+
 .ntq-app-header {
+  position: relative;
+  z-index: 2;
   width: 100%;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -7,7 +11,7 @@
 }
 
 .ntq-app-header__toolbar {
-  min-height: 64px;
+  min-height: $ntq-header-height;
   display: block;
   width: 100%;
 }
@@ -16,7 +20,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 64px;
+  min-height: $ntq-header-height;
   padding-left: 16px;
   padding-right: 16px;
   box-sizing: border-box;
@@ -38,7 +42,7 @@
 
 .ntq-brand__logo {
   width: auto;
-  height: 40px;
+  height: 50px;
   object-fit: contain;
   display: block;
 }
@@ -49,9 +53,28 @@
   gap: 2px;
 }
 
+// 与 new-tea 官网 .site-brand .site-name a 一致（紫 → 青 → 绿渐变字标）
 .ntq-brand__name {
-  font-weight: 800;
-  line-height: 1.1;
+  display: inline-block;
+  font-size: 1.3rem !important;
+  font-weight: 800 !important;
+  line-height: 1;
+  letter-spacing: -0.1em;
+  text-transform: uppercase;
+  background: var(--ntq-brand-text-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+  text-shadow: var(--ntq-brand-text-glow);
+
+  &.MuiTypography-root {
+    background: var(--ntq-brand-text-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent;
+  }
 }
 
 .ntq-brand__version {
@@ -67,7 +90,7 @@
 }
 
 .ntq-nav-btn {
-  height: 64px;
+  height: $ntq-header-height;
   border-radius: 0 !important; // override MUI global button radius
   border: none;
   background: transparent;

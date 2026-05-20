@@ -155,10 +155,12 @@ class DataSourceManager:
         """
         递归查找 config.py 文件
         
-        使用 PathManager.find_config_recursively 进行查找。
+        使用 DiscoveryManager.find_in_tree 进行查找。
         """
+        from core.infra.project_context import DiscoveryManager
+
         handlers_dir = PathManager.data_source_handlers()
-        return PathManager.find_config_recursively(handlers_dir, data_source_key, "config.py")
+        return DiscoveryManager.find_in_tree(handlers_dir, data_source_key, "config.py")
 
 
     def _discover_handler(

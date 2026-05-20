@@ -34,6 +34,13 @@ def simulation_effective_snapshot(sim: StrategySimulationSettings) -> Dict[str, 
         "slippage_buy_bps": sim.slippage_buy_bps,
         "slippage_sell_bps": sim.slippage_sell_bps,
         "edges_no_next_bar": sim.edges_no_next_bar,
+        "allow_buy_at_limit_up": sim.allow_buy_at_limit_up,
+        "allow_sell_at_limit_down": sim.allow_sell_at_limit_down,
+        "edges": {
+            "no_next_bar": sim.edges_no_next_bar,
+            "allow_buy_at_limit_up": sim.allow_buy_at_limit_up,
+            "allow_sell_at_limit_down": sim.allow_sell_at_limit_down,
+        },
         "extreme_same_bar_order": sim.extreme_same_bar_order.value,
         "extreme_same_bar_random_seed": sim.extreme_same_bar_random_seed,
     }

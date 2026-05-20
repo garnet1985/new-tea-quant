@@ -1,14 +1,14 @@
 import React from 'react';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
-import AddIcon from '@mui/icons-material/Add';
+import NtqIcon from '../../ntqIcon/ntqIcon';
+import EditorFieldLabel from './editorFieldLabel';
 import {
   Box,
   Button,
-  IconButton,
   MenuItem,
   Paper,
   Select,
   Stack,
+  Switch,
   TextField,
   Typography,
 } from '@mui/material';
@@ -17,6 +17,17 @@ import { getByPath, setByPath } from '../editor.helper';
 function isVisible(config, item, index, items) {
   if (typeof config?.visibleWhen !== 'function') return true;
   return Boolean(config.visibleWhen({ item, index, items }));
+}
+
+function isItemFieldDisabled(itemField, item, canEdit) {
+  if (!canEdit) return true;
+  if (typeof itemField?.readonlyWhen === 'function') {
+    return Boolean(itemField.readonlyWhen({ item }));
+  }
+  if (typeof itemField?.disabledWhen === 'function') {
+    return Boolean(itemField.disabledWhen({ item }));
+  }
+  return false;
 }
 
 function parseItemValue(config, rawValue, item) {
@@ -29,7 +40,7 @@ function parseItemValue(config, rawValue, item) {
   return rawValue;
 }
 
-function FieldCollectionField({ field, value, onChange, emitChangeMeta }) {
+function FieldCollectionField({ field, value, onChange, emitChangeMeta, context = {} }) {
   if (typeof field?.visibleWhen === 'function' && !field.visibleWhen({ values: value })) {
     return null;
   }
@@ -39,9 +50,16 @@ function FieldCollectionField({ field, value, onChange, emitChangeMeta }) {
   const allowedActions = Array.isArray(field.allowedActions)
     ? field.allowedActions
     : ['add', 'remove', 'edit'];
-  const canAdd = allowedActions.includes('add');
+  const canAddAllowed = allowedActions.includes('add');
   const canRemove = allowedActions.includes('remove');
   const canEdit = allowedActions.includes('edit');
+  const hasCloseInvestStage = items.some((item) => Boolean(item?.close_invest));
+  const canAdd = canAddAllowed && !hasCloseInvestStage;
+  const addLabel = field.addLabel || '增加阶段目标';
+  const removeLabel = field.removeLabel || '删除阶段目标';
+  const showHeaderLabel = Boolean(field.label?.trim());
+  const embedded = Boolean(field.embedded);
+
   const emit = (nextItems, meta) => {
     if (!onChange) return;
     const updated = setByPath(value, field.name, nextItems);
@@ -71,96 +89,149 @@ function FieldCollectionField({ field, value, onChange, emitChangeMeta }) {
     emit([...items, nextItem], { changedKey: 'add' });
   };
 
-  return (
-    <Paper variant="outlined" sx={{ p: 1.25 }}>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+  const renderItemFields = (item, index) => template.map((itemField) => {
+    if (!isVisible(itemField, item, index, items)) return null;
+    const current = item[itemField.key];
+    const fieldDisabled = isItemFieldDisabled(itemField, item, canEdit);
+    const labelField = {
+      label: itemField.label,
+      tooltip: itemField.tooltip || '',
+    };
+
+    if (itemField.type === 'switch') {
+      return (
+        <Stack
+          key={itemField.key}
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+        >
+          <EditorFieldLabel field={labelField} context={context} sx={{ mb: 0 }} />
+          <Switch
+            size="small"
+            checked={Boolean(current)}
+            disabled={fieldDisabled}
+            onChange={(e) => updateItem(index, { [itemField.key]: e.target.checked })}
+          />
+        </Stack>
+      );
+    }
+
+    if (itemField.type === 'select') {
+      const options = itemField.options || [];
+      const emptyOption = options.find((opt) => opt.value === '' || opt.value == null);
+      const selectValue = itemField.multiple
+        ? (Array.isArray(current) ? current : [])
+        : (current ?? (emptyOption ? '' : ''));
+      const renderSelectValue = (selected) => {
+        if (itemField.multiple) return selected;
+        const matched = options.find((opt) => opt.value === selected);
+        return matched?.label ?? selected;
+      };
+
+      return (
+        <Box key={itemField.key}>
+          <EditorFieldLabel field={labelField} context={context} />
+          <Select
+            size="small"
+            multiple={Boolean(itemField.multiple)}
+            displayEmpty={Boolean(emptyOption) && !itemField.multiple}
+            value={selectValue}
+            disabled={fieldDisabled}
+            renderValue={renderSelectValue}
+            onChange={(e) => updateItem(index, { [itemField.key]: e.target.value })}
+            fullWidth
+          >
+            {options.map((opt) => (
+              <MenuItem key={String(opt.value)} value={opt.value}>
+                {opt.label}
+              </MenuItem>
+            ))}
+          </Select>
+        </Box>
+      );
+    }
+
+    return (
+      <Box key={itemField.key}>
+        <EditorFieldLabel field={labelField} context={context} />
+        <TextField
+          size="small"
+          type={itemField.type === 'number' ? 'number' : 'text'}
+          value={current ?? ''}
+          fullWidth
+          disabled={fieldDisabled}
+          onChange={(e) => {
+            const next = parseItemValue(itemField, e.target.value, item);
+            updateItem(index, { [itemField.key]: next });
+          }}
+        />
+      </Box>
+    );
+  });
+
+  const body = (
+    <Stack spacing={1.25} alignItems="stretch">
+      {showHeaderLabel ? (
         <Typography fontWeight={600}>{field.label}</Typography>
-        <Button size="small" startIcon={<AddIcon />} onClick={addItem} disabled={!canAdd}>
-          {field.addLabel || '新增'}
+      ) : null}
+
+      <Stack direction="row" justifyContent="flex-start">
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<NtqIcon name="add" size={18} />}
+          onClick={addItem}
+          disabled={!canAdd}
+        >
+          {addLabel}
         </Button>
       </Stack>
 
-      <Stack spacing={1}>
-        {items.map((item, index) => (
-          <Box key={`${field.name}-${index}`} sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1 }}>
-            <Stack direction="row" spacing={1} alignItems="flex-start">
-              <Stack spacing={1} sx={{ flex: 1 }}>
-                {template.map((itemField) => {
-                  if (!isVisible(itemField, item, index, items)) return null;
-                  const current = item[itemField.key];
-
-                  if (itemField.type === 'switch') {
-                    return (
-                      <Stack key={itemField.key} direction="row" spacing={1} alignItems="center">
-                        <Box
-                          component="input"
-                          type="checkbox"
-                          checked={Boolean(current)}
-                          disabled={!canEdit}
-                          onChange={(e) => updateItem(index, { [itemField.key]: e.target.checked })}
-                        />
-                        <Typography variant="body2">{itemField.label}</Typography>
-                      </Stack>
-                    );
-                  }
-
-                  if (itemField.type === 'select') {
-                    return (
-                      <Box key={itemField.key}>
-                        <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                          {itemField.label}
-                        </Typography>
-                        <Select
-                          size="small"
-                          multiple={Boolean(itemField.multiple)}
-                          value={current || (itemField.multiple ? [] : '')}
-                          disabled={!canEdit}
-                          onChange={(e) => updateItem(index, { [itemField.key]: e.target.value })}
-                          fullWidth
-                        >
-                          {(itemField.options || []).map((opt) => (
-                            <MenuItem key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </Box>
-                    );
-                  }
-
-                  return (
-                    <TextField
-                      key={itemField.key}
+      {items.length > 0 ? (
+        <Stack spacing={1}>
+          {items.map((item, index) => (
+            <Box
+              key={`${field.name}-${index}`}
+              sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 1.25 }}
+            >
+              <Stack spacing={1.5}>
+                {renderItemFields(item, index)}
+                {canRemove ? (
+                  <Stack direction="row" justifyContent="flex-start" sx={{ pt: 0.25 }}>
+                    <Button
                       size="small"
-                      label={itemField.label}
-                      type={itemField.type === 'number' ? 'number' : 'text'}
-                      value={current ?? ''}
-                      InputProps={{ readOnly: !canEdit }}
-                      disabled={!canEdit}
-                      onChange={(e) => {
-                        const next = parseItemValue(itemField, e.target.value, item);
-                        updateItem(index, { [itemField.key]: next });
-                      }}
-                      fullWidth
-                    />
-                  );
-                })}
+                      variant="outlined"
+                      color="error"
+                      startIcon={<NtqIcon name="delete" size={18} />}
+                      onClick={() => removeItem(index)}
+                      disabled={!canRemove}
+                    >
+                      {removeLabel}
+                    </Button>
+                  </Stack>
+                ) : null}
               </Stack>
+            </Box>
+          ))}
+        </Stack>
+      ) : (
+        <Typography variant="body2" color="text.secondary">
+          {field.emptyText || `暂无阶段目标，请点击「${addLabel}」。`}
+        </Typography>
+      )}
+    </Stack>
+  );
 
-              <IconButton size="small" color="error" onClick={() => removeItem(index)} disabled={!canRemove}>
-                <DeleteOutlineIcon fontSize="small" />
-              </IconButton>
-            </Stack>
-          </Box>
-        ))}
-        {items.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">
-            {field.emptyText || `暂无${field.label || '数据'}，请点击“${field.addLabel || '新增'}”。`}
-          </Typography>
-        ) : null}
-      </Stack>
+  if (embedded) {
+    return <Box className="ntq-editor-field-collection ntq-editor-field-collection--embedded">{body}</Box>;
+  }
+
+  return (
+    <Paper variant="outlined" className="ntq-editor-field-collection" sx={{ p: 1.25 }}>
+      {body}
     </Paper>
   );
 }
 
-export default FieldCollectionField;
+export default React.memo(FieldCollectionField);

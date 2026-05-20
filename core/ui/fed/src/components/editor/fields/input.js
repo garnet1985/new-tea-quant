@@ -1,8 +1,9 @@
 import React from 'react';
-import { TextField } from '@mui/material';
+import { TextField, Typography } from '@mui/material';
 import { getByPath, runFieldEvents, setByPath } from '../editor.helper';
+import EditorFieldLabel from './editorFieldLabel';
 
-function InputField({ field, value, errors, onChange, emitChangeMeta }) {
+function InputField({ field, value, errors, onChange, emitChangeMeta, context = {} }) {
   if (typeof field?.visibleWhen === 'function' && !field.visibleWhen({ values: value })) {
     return null;
   }
@@ -25,37 +26,51 @@ function InputField({ field, value, errors, onChange, emitChangeMeta }) {
     }
   };
 
+  const helperBelow = fieldError
+    || (field.description && !field.tooltip ? field.description : '')
+    || '';
+
   return (
-    <TextField
-      key={field.name}
-      size="small"
-      type={field.type === 'number' ? 'number' : 'text'}
-      multiline={Boolean(field.multiline)}
-      minRows={field.multiline ? (field.minRows || 4) : undefined}
-      label={field.label}
-      value={uiValue}
-      fullWidth
-      error={Boolean(fieldError)}
-      onChange={(e) => {
-        if (typeof field.parse === 'function') {
-          applyChange(field.parse(e.target.value, value));
-          return;
-        }
-        if (field.type === 'number') {
-          const raw = e.target.value;
-          if (raw === '') {
-            applyChange('');
+    <div key={field.name}>
+      <EditorFieldLabel field={field} context={context} />
+      <TextField
+        size="small"
+        type={field.type === 'number' ? 'number' : 'text'}
+        multiline={Boolean(field.multiline)}
+        minRows={field.multiline ? (field.minRows || 4) : undefined}
+        value={uiValue}
+        fullWidth
+        error={Boolean(fieldError)}
+        onChange={(e) => {
+          if (typeof field.parse === 'function') {
+            applyChange(field.parse(e.target.value, value));
             return;
           }
-          const n = Number(raw);
-          applyChange(Number.isNaN(n) ? '' : n);
-          return;
-        }
-        applyChange(e.target.value);
-      }}
-      InputProps={{ readOnly: isReadonly }}
-      helperText={fieldError || field.description || ''}
-    />
+          if (field.type === 'number') {
+            const raw = e.target.value;
+            if (raw === '') {
+              applyChange('');
+              return;
+            }
+            const n = Number(raw);
+            applyChange(Number.isNaN(n) ? '' : n);
+            return;
+          }
+          applyChange(e.target.value);
+        }}
+        InputProps={{ readOnly: isReadonly }}
+        placeholder={field.placeholder || ''}
+      />
+      {helperBelow ? (
+        <Typography
+          variant="caption"
+          color={fieldError ? 'error' : 'text.secondary'}
+          sx={{ mt: 0.5, display: 'block' }}
+        >
+          {helperBelow}
+        </Typography>
+      ) : null}
+    </div>
   );
 }
 

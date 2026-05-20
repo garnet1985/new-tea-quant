@@ -95,12 +95,14 @@ class Scanner:
         from core.infra.worker import ProcessExecutionMode, ProcessWorker
 
         info = self._strategy_info
+        market_profile_id = str(info.settings.market_profile.profile_id or "").strip()
         jobs = [
             {
                 "stock_id": stock_id,
                 "execution_mode": ExecutionMode.SCAN.value,
                 "strategy_name": self.strategy_name,
                 "settings": info.settings.to_dict(),
+                "market_profile_id": market_profile_id,
                 "scan_date": scan_date,
                 "worker_module_path": info.worker_module_path,
                 "worker_class_name": info.worker_class_name,
@@ -138,12 +140,19 @@ class Scanner:
 
     def _calculate_summary(self, opportunities: List[Opportunity]) -> Dict[str, Any]:
         if not opportunities:
-            return {"total_opportunities": 0, "total_stocks": 0, "stocks_with_opportunities": []}
-        stocks_with_opps = set([opp.stock_id for opp in opportunities])
+            return {
+                "total_opportunities": 0,
+                "total_stocks": 0,
+                "stocks_with_opportunities": [],
+                "at_limit_up_count": 0,
+            }
+        stocks_with_opps = {opp.stock_id for opp in opportunities}
+        at_limit_up = sum(1 for opp in opportunities if opp.buy_at_limit_up is True)
         return {
             "total_opportunities": len(opportunities),
             "total_stocks": len(stocks_with_opps),
             "stocks_with_opportunities": list(stocks_with_opps),
+            "at_limit_up_count": at_limit_up,
         }
 
 

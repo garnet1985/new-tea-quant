@@ -3,7 +3,8 @@
  * 接入真实行情与买卖点后再挂载到报告「逐股」交互；当前仓库内无引用，避免误触演示数据。
  */
 import React from 'react';
-import { Dialog, DialogContent, DialogTitle, Typography } from '@mui/material';
+import { Box, Dialog, DialogContent, DialogTitle, Typography } from '@mui/material';
+import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
 import ReactECharts from 'echarts-for-react';
 import { formatReportChartDateLabel } from '../lib/reportDateFormat';
 import {
@@ -226,18 +227,21 @@ function StockKlineDialog({
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
           展示该股票区间 K 线，以及本次回测中的买入/卖出点位。
         </Typography>
-        {loading ? (
-          <Typography variant="caption" color="text.secondary">正在加载 K 线数据...</Typography>
-        ) : null}
         {error ? (
           <Typography variant="caption" color="error">{error}</Typography>
         ) : null}
-        <ReactECharts
-          option={option}
-          style={{ height: 420, width: '100%' }}
-          notMerge
-          lazyUpdate
-        />
+        {loading ? (
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 420 }}>
+            <InlineLoadingState message="正在加载 K 线数据…" />
+          </Box>
+        ) : (
+          <ReactECharts
+            option={option}
+            style={{ height: 420, width: '100%' }}
+            notMerge
+            lazyUpdate
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

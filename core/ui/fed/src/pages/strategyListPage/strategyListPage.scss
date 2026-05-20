@@ -38,18 +38,18 @@
     align-items: center;
   }
 
-  .MuiInputBase-root {
-    font-size: 13px;
+  .MuiInputBase-root,
+  .MuiInputBase-input,
+  .MuiInputBase-input::placeholder {
+    font-size: var(--ntq-form-control-font-size, 14px);
   }
 
   .MuiInputBase-input {
-    font-size: 13px;
     padding-top: 0;
     padding-bottom: 0;
   }
 
   .MuiInputBase-input::placeholder {
-    font-size: 13px;
     opacity: 0.7;
   }
 

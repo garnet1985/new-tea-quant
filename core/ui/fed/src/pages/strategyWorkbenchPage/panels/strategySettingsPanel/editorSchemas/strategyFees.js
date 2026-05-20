@@ -4,70 +4,50 @@ function parseNumber(raw) {
   return Number.isNaN(n) ? '' : n;
 }
 
+const feeFieldDefs = [
+  {
+    name: 'commission_rate',
+    label: '佣金率',
+    tooltip: '券商佣金占成交金额的比例，例如 0.00025 表示万分之 2.5。',
+  },
+  {
+    name: 'min_commission',
+    label: '最低佣金',
+    tooltip: '单笔交易佣金的下限（元）；按比例算出的佣金低于该值时，按此金额收取。',
+  },
+  {
+    name: 'stamp_duty_rate',
+    label: '印花税率',
+    tooltip: '卖出时按成交金额征收的印花税比例，仅卖出侧计费；买入为 0。',
+  },
+  {
+    name: 'transfer_fee_rate',
+    label: '过户费率',
+    tooltip: '按成交金额收取的过户费比例，买入与卖出均计入（A 股常见为 0 或由券商代扣）。',
+  },
+];
+
+function toFeeField({ name, label, tooltip }, { readonly = false } = {}) {
+  return {
+    name,
+    type: 'number',
+    label,
+    tooltip,
+    parse: parseNumber,
+    readonly,
+  };
+}
+
 export function createStrategyFeesSchema({ readonly = false } = {}) {
   return {
     name: 'strategyFees',
     type: 'fieldGroup',
     label: '',
-    children: [
-      {
-        name: 'commission_rate',
-        type: 'number',
-        label: '佣金率 (commission_rate)',
-        parse: parseNumber,
-        readonly,
-      },
-      {
-        name: 'min_commission',
-        type: 'number',
-        label: '最低佣金 (min_commission)',
-        parse: parseNumber,
-        readonly,
-      },
-      {
-        name: 'stamp_duty_rate',
-        type: 'number',
-        label: '印花税率 (stamp_duty_rate)',
-        parse: parseNumber,
-        readonly,
-      },
-      {
-        name: 'transfer_fee_rate',
-        type: 'number',
-        label: '过户费率 (transfer_fee_rate)',
-        parse: parseNumber,
-        readonly,
-      },
-    ],
+    children: feeFieldDefs.map((def) => toFeeField(def, { readonly })),
   };
 }
 
-export const strategyFeeFields = [
-  {
-    name: 'commission_rate',
-    type: 'number',
-    label: '佣金率 (commission_rate)',
-    parse: parseNumber,
-  },
-  {
-    name: 'min_commission',
-    type: 'number',
-    label: '最低佣金 (min_commission)',
-    parse: parseNumber,
-  },
-  {
-    name: 'stamp_duty_rate',
-    type: 'number',
-    label: '印花税率 (stamp_duty_rate)',
-    parse: parseNumber,
-  },
-  {
-    name: 'transfer_fee_rate',
-    type: 'number',
-    label: '过户费率 (transfer_fee_rate)',
-    parse: parseNumber,
-  },
-];
+export const strategyFeeFields = feeFieldDefs.map((def) => toFeeField(def));
 
 const strategyFeesSchema = createStrategyFeesSchema();
 

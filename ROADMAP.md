@@ -1,12 +1,51 @@
 ROAD MAPs
 
-- BFF + UI （data visualization）
-- Support and exposes more config for simulation to results more reliable
-- Make modules easier to deploy as SaaS
-- Add market profile & template to exend app to general fincial market
-- Add vector calulations to dramatically increase calc speed
-- Add mid file cache (parquets) to reduce IO
-- Enhance adapter
-- Refactor worker with a formal Queue/Pipeline system for simulation orchestration
-- Add persistent run-state tracking for workbench execution (run_id, status, progress)
-- Keep API polling as v1 execution status channel; evaluate SSE/WS after Queue/Pipeline refactor
+---
+
+### upcoming releases (0.3.3)
+- 增加report里K线的点击界面
+- 为新版本的更新增加清除缓存的步骤
+- 给设置里增加清除缓存的功能
+- 为dev-cli加入数据打包功能
+
+---
+
+---
+
+### Backlog
+
+回测准确性
+- 增加交易日历表
+- 增加ST，*ST，和退市股票数据
+- 回测中加入退市和ST判断
+
+提高用户体验
+- 重新打包1年测试数据和3年测试数据
+- 为官网加入Release版本下载
+- UI可以自动更新版本
+- 引入更多经典策略
+- 加强analysis的report
+- 让模块更容易按照sass方式部署
+
+提高系统效率
+- 将单进程单股回测变成单进程多股回测，自动设置股票bundle size，从而大幅度提高回测效率
+- 重构一下回测器，让管道和步骤独立（低优先级，不影响使用，目前对效率的渴求没有那么大）
+- 引入向量计算，提高计算效率（低优先级，因为目前效率瓶颈在数据库IO）
+
+功能拓展
+- 完成adapter的基本功能
+- 拓展db模块，开始支持parquet
+- 将数据中间产物变成可选，再需要的时候才产生
+- 加入金融计算工具箱 - 例如切分K线趋势等等
+- 降级tag变成只对股票进行标签分类
+- 完善market profile，以便适应港股或者更多金融市场
+
+
+
+Pro版本：
+- 引入AI评价结果
+- 引入AI辅助策略代码
+- 增加因子挖掘模块
+- 增加一些基本结论并且变成金融工具箱
+
+---

@@ -41,14 +41,6 @@ function SectionAccordion({ title, defaultExpanded = false, children }) {
   );
 }
 
-function isPlainObject(value) {
-  return Object.prototype.toString.call(value) === '[object Object]';
-}
-
-function hasNonEmptyCore(value) {
-  return isPlainObject(value) && Object.keys(value).length > 0;
-}
-
 const hasPriceSimulatorFields = Array.isArray(strategyPriceSimulatorSchema.children)
   && strategyPriceSimulatorSchema.children.length > 0;
 
@@ -67,7 +59,6 @@ export function StrategySettingsPanel({
   simulationTemplateOptions,
   marketProfileOptions,
 }) {
-  const shouldShowCore = hasNonEmptyCore(settings?.core);
   const [samplingEditorErrors, setSamplingEditorErrors] = useState({});
   const metaSchema = useMemo(
     () => buildStrategyMetaSchema(marketProfileOptions),
@@ -104,14 +95,12 @@ export function StrategySettingsPanel({
             context={workbenchEditorContext}
           />
         </SectionAccordion>
-        {shouldShowCore ? (
-          <Editor
-            schema={strategyCoreSchema}
-            value={settings}
-            onChange={() => {}}
-            context={{ ...workbenchEditorContext, coreEditor }}
-          />
-        ) : null}
+        <Editor
+          schema={strategyCoreSchema}
+          value={settings}
+          onChange={() => {}}
+          context={{ ...workbenchEditorContext, coreEditor }}
+        />
         <SectionAccordion title="策略目标设置">
           <Editor
             schema={strategyGoalSchema}

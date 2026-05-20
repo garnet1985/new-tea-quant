@@ -7,6 +7,7 @@ import { ReactComponent as InfoIcon } from './icons/info.svg';
 import { ReactComponent as PlayCircleIcon } from './icons/play_circle.svg';
 import { ReactComponent as RadioUncheckedIcon } from './icons/radio_button_unchecked.svg';
 import { ReactComponent as RefreshIcon } from './icons/refresh.svg';
+import { ReactComponent as RemoveIcon } from './icons/remove.svg';
 import { ReactComponent as SearchIcon } from './icons/search.svg';
 import { ReactComponent as SuccessIcon } from './icons/success.svg';
 import { ReactComponent as SyncAltIcon } from './icons/sync_alt.svg';
@@ -24,6 +25,7 @@ export const NTQ_ICON_MAP = {
   playCircle: PlayCircleIcon,
   radioUnchecked: RadioUncheckedIcon,
   refresh: RefreshIcon,
+  remove: RemoveIcon,
   search: SearchIcon,
   success: SuccessIcon,
   syncAlt: SyncAltIcon,

@@ -1,15 +1,16 @@
 """Health routes (endpoint + logic)."""
 
-from flask import Blueprint, jsonify
+from core.system import get_version
+from core.ui.bff.shared.response import ok
+from flask import Blueprint
 
 health_api_bp = Blueprint("health_api", __name__)
 
 
 @health_api_bp.route('/health', methods=['GET'])
 def health_check():
-    """健康检查接口"""
-    return jsonify({
-        "success": True,
-        "message": "BFF API 运行正常",
-        "timestamp": "当前时间"
+    """健康检查；``message.version`` 与 ``core/system.json`` / ``get_version()`` 一致。"""
+    return ok({
+        "healthy": True,
+        "version": get_version(),
     })

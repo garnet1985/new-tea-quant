@@ -63,6 +63,19 @@ def hydrate_enum_slot(strategy_name: str, slot: Dict[str, Any]) -> Dict[str, Any
     for key, value in slot.items():
         if key != "enumMetrics":
             out[key] = value
+    if not isinstance(out.get("backtest_period"), dict):
+        meta = _read_json(PathManager.strategy_simulation_enum(sn) / vdir / "0_metadata.json")
+        if isinstance(meta, dict):
+            bp = meta.get("backtest_period")
+            if isinstance(bp, dict) and bp.get("start_date") and bp.get("end_date"):
+                out["backtest_period"] = dict(bp)
+            elif meta.get("start_date") and meta.get("end_date"):
+                out["backtest_period"] = {
+                    "start_date": str(meta.get("start_date") or "").strip(),
+                    "end_date": str(meta.get("end_date") or "").strip(),
+                    "start_source": "",
+                    "end_source": "",
+                }
     return out
 
 

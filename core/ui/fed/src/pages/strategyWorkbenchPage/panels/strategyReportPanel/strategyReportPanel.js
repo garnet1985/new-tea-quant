@@ -54,6 +54,7 @@ import {
   REPORT_PANEL_TOOLTIP,
   REPORT_TAB_SECTION_TITLES,
 } from './reportSectionMeta';
+import BacktestPeriodBanner from './components/backtestPeriodBanner';
 import './strategyReportPanel.scss';
 
 function StrategyReportPanel({
@@ -292,6 +293,13 @@ function StrategyReportPanel({
 
   const activeTabSectionTitle = REPORT_TAB_SECTION_TITLES[resolvedActiveTab] ?? '';
 
+  const activeReportSlotForPeriod = useMemo(() => {
+    if (resolvedActiveTab === 'enum') return snapshotEnumSlot;
+    if (resolvedActiveTab === 'price') return snapshotPriceSlot;
+    if (resolvedActiveTab === 'capital') return snapshotCapitalSlot;
+    return null;
+  }, [resolvedActiveTab, snapshotEnumSlot, snapshotPriceSlot, snapshotCapitalSlot]);
+
   const renderTabContent = () => {
     if (!resolvedActiveTab) {
       return (
@@ -412,6 +420,9 @@ function StrategyReportPanel({
                 </Button>
               ) : null}
             </Stack>
+          ) : null}
+          {resolvedActiveTab ? (
+            <BacktestPeriodBanner slot={activeReportSlotForPeriod} />
           ) : null}
           {renderTabContent()}
         </Stack>

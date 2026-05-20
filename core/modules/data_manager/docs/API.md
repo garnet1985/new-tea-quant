@@ -163,6 +163,7 @@ data_mgr = DataManager(is_verbose=True)  # 已触发 initialize
 | `load_qfq` | `(stock_id, term='daily', start_date=None, end_date=None) -> List[Dict]` | 前复权 K 线。 |
 | `load_latest` | `(stock_id: str) -> Optional[Dict]` | 单只股票最新一条 K 线。 |
 | `load_latest_date` | `(term: str = 'daily') -> str` | **全市场**指定周期最新 K 线日期（YYYYMMDD）。用于缓存/指纹以“库内数据更新时间”为准。 |
+| `load_earliest_date` | `(term: str = 'daily', stock_ids: Sequence[str] \| None = None) -> str` | 指定周期最早 K 线日期。未传 ``stock_ids`` 为全市场 MIN；传入则为样本池内 MIN。用于回测 ``start_date`` 未配置时的下界。 |
 | `load_by_date` | `(date: str) -> List[Dict]` | 指定交易日全市场 K 线（日度）。 |
 | `load_multiple` | `(stock_id: str, settings: Dict) -> Dict[str, List[Dict]]` | 按配置加载多周期 K 线。 |
 | `load_batch` | `(stock_ids, term, start_date, end_date, ...) -> Dict[str, List[Dict]]` | 多股票批量加载。 |

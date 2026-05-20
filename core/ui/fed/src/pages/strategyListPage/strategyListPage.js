@@ -99,7 +99,13 @@ function StrategyListPage() {
         </Link>
       ),
     },
-    { field: 'description', headerName: '描述', minWidth: 240, flex: 1.5 },
+    {
+      field: 'description',
+      headerName: '描述',
+      minWidth: 240,
+      flex: 1.5,
+      valueFormatter: (params) => params.value || '—',
+    },
   ];
 
   return (

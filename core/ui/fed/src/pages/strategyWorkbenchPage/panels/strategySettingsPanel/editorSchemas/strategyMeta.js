@@ -6,6 +6,19 @@ export function normalizeMeta(rawMeta) {
   };
 }
 
+/** 从 V2-01 settings / 列表项中取出策略说明（``meta.description`` 或根级 ``description``）。 */
+export function extractStrategyDescription(settings) {
+  if (!settings || typeof settings !== 'object') return '';
+  const meta = settings.meta && typeof settings.meta === 'object'
+    ? settings.meta
+    : {
+      name: settings.name,
+      description: settings.description,
+      is_enabled: settings.is_enabled,
+    };
+  return normalizeMeta(meta).description.trim();
+}
+
 const DEFAULT_MARKET_PROFILE_OPTIONS = [
   { label: '中国A股市场规则', value: 'china_a_stock' },
 ];

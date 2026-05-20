@@ -3,7 +3,10 @@
   "release_date": "2026-05-20",
   "description": "版本发布",
   "python": {
-    "minimum": [3, 9]
+    "minimum": [
+      3,
+      9
+    ]
   },
   "new_features": [
     "增加market rule配置，略微细化回测时候的交易规则",

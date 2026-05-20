@@ -268,7 +268,7 @@ function StrategySettingsContainer({ initialSettings, children }) {
     }));
   }, []);
 
-  const applyCoreSourceFailure = (text, err, focusOnError) => {
+  const applyCoreSourceFailure = useCallback((text, err, focusOnError) => {
     const msg = err?.message || '解析失败';
     let pos = extractErrorPosition(msg);
     let loc = getLineColumnByPosition(text, pos);
@@ -285,10 +285,10 @@ function StrategySettingsContainer({ initialSettings, children }) {
     setCoreErrorColumn(loc.column);
     setCoreErrorPosition(focusOnError ? pos : -1);
     setCoreParseMode('');
-  };
+  }, []);
 
   /** 解析 ``text`` 并写入草稿；可选失焦时 pretty-print。keyup / blur / 粘贴后同步用 DOM 当前值，避免仅依赖闭包里的 ``coreInputText``。 */
-  const applyCoreSourceText = (
+  const applyCoreSourceText = useCallback((
     text,
     { formatOnSuccess = false, focusOnError = false } = {},
   ) => {
@@ -307,40 +307,40 @@ function StrategySettingsContainer({ initialSettings, children }) {
     } catch (err) {
       applyCoreSourceFailure(text, err, focusOnError);
     }
-  };
+  }, [applyCoreSourceFailure]);
 
-  const applyCoreAndFormat = ({ focusOnError = true } = {}) => {
+  const applyCoreAndFormat = useCallback(({ focusOnError = true } = {}) => {
     applyCoreSourceText(coreInputText, { formatOnSuccess: true, focusOnError });
-  };
+  }, [applyCoreSourceText, coreInputText]);
 
-  const scheduleCoreFormat = () => {
+  const scheduleCoreFormat = useCallback(() => {
     if (coreFormatTimerRef.current) clearTimeout(coreFormatTimerRef.current);
     coreFormatTimerRef.current = setTimeout(() => {
       const el = getActiveCoreInputEl();
       if (!el) return;
       applyCoreSourceText(el.value, { formatOnSuccess: true, focusOnError: false });
     }, 500);
-  };
+  }, [applyCoreSourceText]);
 
-  const onCoreEditorLiveSync = (e) => {
+  const onCoreEditorLiveSync = useCallback((e) => {
     applyCoreSourceText(e.target.value, { formatOnSuccess: false, focusOnError: false });
     scheduleCoreFormat();
-  };
+  }, [applyCoreSourceText, scheduleCoreFormat]);
 
-  const onCoreEditorPaste = () => {
+  const onCoreEditorPaste = useCallback(() => {
     requestAnimationFrame(() => {
       const el = getActiveCoreInputEl();
       if (!el) return;
       applyCoreSourceText(el.value, { formatOnSuccess: false, focusOnError: false });
       scheduleCoreFormat();
     });
-  };
+  }, [applyCoreSourceText, scheduleCoreFormat]);
 
-  const resetCoreToDefault = () => {
+  const resetCoreToDefault = useCallback(() => {
     applyCoreSourceText(defaultCoreText, { formatOnSuccess: true, focusOnError: false });
-  };
+  }, [applyCoreSourceText, defaultCoreText]);
 
-  const getDraftSettingsForSubmit = () => {
+  const getDraftSettingsForSubmit = useCallback(() => {
     try {
       const result = parseCoreInput(coreInputText);
       setCoreParseError('');
@@ -372,7 +372,7 @@ function StrategySettingsContainer({ initialSettings, children }) {
       setCoreParseMode('');
       throw new Error(`core 参数格式不合法：${msg}`);
     }
-  };
+  }, [coreInputText, draftSettings]);
 
   const coreErrorContext = useMemo(
     () => getErrorContextLines(coreInputText, coreErrorLine, 2),
@@ -403,7 +403,7 @@ function StrategySettingsContainer({ initialSettings, children }) {
     const el = getActiveCoreInputEl();
     const text = el?.value ?? coreInputText;
     applyCoreSourceText(text, { formatOnSuccess: true, focusOnError: false });
-  }, [coreInputText]);
+  }, [coreInputText, applyCoreSourceText]);
 
   const coreEditor = useMemo(
     () => ({

@@ -17,7 +17,16 @@ import {
   Typography,
 } from '@mui/material';
 import LoadingBars from 'components/loadingBars/loadingBars';
+import NtqHelpTooltip from 'components/ntqHelpTooltip/ntqHelpTooltip';
+import SettingsAccordionTitle from 'components/settingsAccordionTitle/settingsAccordionTitle';
 import './strategyExecutionPanel.scss';
+import {
+  EXECUTION_PANEL_TITLE,
+  EXECUTION_PANEL_TOOLTIP,
+  EXEC_STEP_CAPITAL_TOOLTIP,
+  EXEC_STEP_ENUM_TOOLTIP,
+  EXEC_STEP_PRICE_TOOLTIP,
+} from './executionSectionMeta';
 import {
   fetchStrategyRunStatus,
   fetchStrategyVersionDetail,
@@ -46,13 +55,102 @@ function formatCapitalPct(value) {
   return Number(value).toFixed(2);
 }
 
-const STEP_RUN_ICON_PX = 29;
+function ExecStepRunButton({ done, disabled, onClick, ariaLabel }) {
+  const glyphClass = done
+    ? 'ntq-exec-step-run-btn__glyph--refresh'
+    : 'ntq-exec-step-run-btn__glyph--play';
+  return (
+    <IconButton
+      className="ntq-exec-step-run-btn"
+      disabled={disabled}
+      onClick={onClick}
+      aria-label={ariaLabel}
+      disableRipple
+    >
+      <span className="ntq-exec-step-run-btn__ring" aria-hidden />
+      <span className={`ntq-exec-step-run-btn__glyph ${glyphClass}`} aria-hidden>
+        <span className="ntq-exec-step-run-btn__glyph-aurora" />
+      </span>
+    </IconButton>
+  );
+}
 
-function StepRunButtonIcon({ done }) {
-  return done ? (
-    <NtqIcon name="refresh" size={STEP_RUN_ICON_PX} />
-  ) : (
-    <NtqIcon name="playCircle" size={STEP_RUN_ICON_PX} />
+/** 序号 + 名称（间距略大）+ 圆形运行钮（紧贴名称） */
+function ExecStepLeadBlock({
+  stepNo,
+  title,
+  tooltip,
+  done,
+  disabled,
+  onClick,
+  ariaLabel,
+}) {
+  return (
+    <Stack direction="row" spacing={2} alignItems="center" className="ntq-exec-step-lead">
+      <Box className="ntq-exec-step-no">{stepNo}</Box>
+      <Stack
+        direction="row"
+        spacing={0}
+        alignItems="center"
+        className="ntq-exec-step-lead-main"
+      >
+        <ExecutionStepTitle title={title} tooltip={tooltip} />
+        <ExecStepRunButton
+          done={done}
+          disabled={disabled}
+          onClick={onClick}
+          ariaLabel={ariaLabel}
+        />
+      </Stack>
+    </Stack>
+  );
+}
+
+function ExecutionStepTitle({ title, tooltip }) {
+  return (
+    <Stack direction="row" spacing={0.75} alignItems="center" sx={{ minWidth: 0 }}>
+      <Typography component="span" fontWeight={600} noWrap>
+        {title}
+      </Typography>
+      {tooltip ? <NtqHelpTooltip title={tooltip} shine /> : null}
+    </Stack>
+  );
+}
+
+const EXEC_COMPARE_ROW_SX = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 1,
+  flexWrap: 'nowrap',
+  minWidth: 0,
+  overflowX: 'auto',
+  overflowY: 'hidden',
+  '&::-webkit-scrollbar': { height: 6 },
+};
+
+function ExecCompareDivider() {
+  return <Box component="span" className="ntq-exec-compare-divider" aria-hidden />;
+}
+
+/** 仅标在对比版本数值后：相对当前版本更高 ↑ 绿、更低 ↓ 红 */
+function ExecCompareDeltaArrow({ compareValue, baselineValue }) {
+  if (!Number.isFinite(compareValue) || !Number.isFinite(baselineValue)) return null;
+  if (compareValue === baselineValue) return null;
+  const up = compareValue > baselineValue;
+  return (
+    <Typography
+      component="span"
+      variant="body2"
+      sx={{
+        ml: 0.35,
+        color: up ? 'success.main' : 'error.main',
+        fontWeight: 700,
+        lineHeight: 1,
+      }}
+      aria-hidden
+    >
+      {up ? '↑' : '↓'}
+    </Typography>
   );
 }
 
@@ -306,20 +404,6 @@ function StrategyExecutionPanel({
       : '胜率：-- · ROI：--'
   );
 
-  const getCompareResultColor = (currentValue, compareValue) => {
-    if (!Number.isFinite(currentValue) || !Number.isFinite(compareValue)) return 'text.secondary';
-    if (currentValue > compareValue) return 'success.main';
-    if (currentValue < compareValue) return 'error.main';
-    return 'text.secondary';
-  };
-
-  const getCurrentResultColor = (currentValue, compareValue) => {
-    if (!Number.isFinite(currentValue) || !Number.isFinite(compareValue)) return 'text.primary';
-    if (currentValue > compareValue) return 'success.main';
-    if (currentValue < compareValue) return 'error.main';
-    return 'text.primary';
-  };
-
   const {
     compareDropdownVersionIds,
     compareBaselineMenuLabel,
@@ -416,24 +500,13 @@ function StrategyExecutionPanel({
     const errMsg = row?.error;
     const compareOpportunities = row?.execLine?.enum?.opportunities;
 
-    const gridSx = {
-      display: 'flex',
-      alignItems: 'center',
-      gap: 1,
-      flexWrap: 'nowrap',
-      minWidth: 0,
-      overflowX: 'auto',
-      overflowY: 'hidden',
-      '&::-webkit-scrollbar': { height: 6 },
-    };
-
     if (vid && loading) {
       return (
-        <Box sx={gridSx}>
+        <Box sx={EXEC_COMPARE_ROW_SX}>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
             机会总数：{Number.isFinite(currentOpportunities) ? `${currentOpportunities} 个` : '--'}
           </Typography>
-          <Typography variant="body2" color="text.secondary">-&gt;</Typography>
+          <ExecCompareDivider />
           <LoadingBars className="ntq-loading-bars--sm" barCount={4} aria-label="读取中" />
         </Box>
       );
@@ -441,11 +514,11 @@ function StrategyExecutionPanel({
 
     if (vid && errMsg) {
       return (
-        <Box sx={gridSx}>
+        <Box sx={EXEC_COMPARE_ROW_SX}>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
             机会总数：{Number.isFinite(currentOpportunities) ? `${currentOpportunities} 个` : '--'}
           </Typography>
-          <Typography variant="body2" color="text.secondary">-&gt;</Typography>
+          <ExecCompareDivider />
           <Typography variant="body2" color="error">{errMsg}</Typography>
         </Box>
       );
@@ -453,11 +526,11 @@ function StrategyExecutionPanel({
 
     if (vid && row?.execLine && !Number.isFinite(compareOpportunities)) {
       return (
-        <Box sx={gridSx}>
+        <Box sx={EXEC_COMPARE_ROW_SX}>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
             机会总数：{Number.isFinite(currentOpportunities) ? `${currentOpportunities} 个` : '--'}
           </Typography>
-          <Typography variant="body2" color="text.secondary">-&gt;</Typography>
+          <ExecCompareDivider />
           <Typography variant="body2" color="text.secondary">该快照无枚举摘要</Typography>
         </Box>
       );
@@ -465,25 +538,17 @@ function StrategyExecutionPanel({
 
     if (Number.isFinite(currentOpportunities) && Number.isFinite(compareOpportunities)) {
       return (
-        <Box sx={gridSx}>
-          <Typography
-            variant="body2"
-            sx={{
-              color: getCurrentResultColor(currentOpportunities, compareOpportunities),
-              fontWeight: 600,
-            }}
-          >
+        <Box sx={EXEC_COMPARE_ROW_SX}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
             机会总数：{currentOpportunities} 个
           </Typography>
-          <Typography variant="body2" color="text.secondary">-&gt;</Typography>
-          <Typography
-            variant="body2"
-            sx={{
-              color: getCompareResultColor(compareOpportunities, currentOpportunities),
-              fontWeight: 600,
-            }}
-          >
+          <ExecCompareDivider />
+          <Typography variant="body2" component="span" sx={{ fontWeight: 600 }}>
             机会总数：{compareOpportunities} 个
+            <ExecCompareDeltaArrow
+              compareValue={compareOpportunities}
+              baselineValue={currentOpportunities}
+            />
           </Typography>
         </Box>
       );
@@ -504,24 +569,13 @@ function StrategyExecutionPanel({
     const errMsg = row?.error;
     const comparePrice = row?.execLine?.price ?? null;
 
-    const gridSx = {
-      display: 'flex',
-      alignItems: 'center',
-      gap: 1,
-      flexWrap: 'nowrap',
-      minWidth: 0,
-      overflowX: 'auto',
-      overflowY: 'hidden',
-      '&::-webkit-scrollbar': { height: 6 },
-    };
-
     if (vid && loading) {
       return (
-        <Box sx={gridSx}>
+        <Box sx={EXEC_COMPARE_ROW_SX}>
           <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
             {formatPriceLine(currentPrice)}
           </Typography>
-          <Typography variant="body2" color="text.secondary">-&gt;</Typography>
+          <ExecCompareDivider />
           <LoadingBars className="ntq-loading-bars--sm" barCount={4} aria-label="读取中" />
         </Box>
       );
@@ -529,11 +583,11 @@ function StrategyExecutionPanel({
 
     if (vid && errMsg) {
       return (
-        <Box sx={gridSx}>
+        <Box sx={EXEC_COMPARE_ROW_SX}>
           <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
             {formatPriceLine(currentPrice)}
           </Typography>
-          <Typography variant="body2" color="text.secondary">-&gt;</Typography>
+          <ExecCompareDivider />
           <Typography variant="body2" color="error">{errMsg}</Typography>
         </Box>
       );
@@ -541,11 +595,11 @@ function StrategyExecutionPanel({
 
     if (vid && row?.execLine && currentPrice && !comparePrice) {
       return (
-        <Box sx={gridSx}>
+        <Box sx={EXEC_COMPARE_ROW_SX}>
           <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
             {formatPriceLine(currentPrice)}
           </Typography>
-          <Typography variant="body2" color="text.secondary">-&gt;</Typography>
+          <ExecCompareDivider />
           <Typography variant="body2" color="text.secondary">该快照无价格回测摘要</Typography>
         </Box>
       );
@@ -553,27 +607,17 @@ function StrategyExecutionPanel({
 
     if (currentPrice && comparePrice) {
       return (
-        <Box sx={gridSx}>
-          <Typography
-            variant="body2"
-            sx={{
-              color: getCurrentResultColor(currentPrice.roi, comparePrice.roi),
-              fontWeight: 600,
-              whiteSpace: 'nowrap',
-            }}
-          >
+        <Box sx={EXEC_COMPARE_ROW_SX}>
+          <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
             {formatPriceLine(currentPrice)}
           </Typography>
-          <Typography variant="body2" color="text.secondary">-&gt;</Typography>
-          <Typography
-            variant="body2"
-            sx={{
-              color: getCompareResultColor(comparePrice.roi, currentPrice.roi),
-              fontWeight: 600,
-              whiteSpace: 'nowrap',
-            }}
-          >
+          <ExecCompareDivider />
+          <Typography variant="body2" component="span" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
             {formatPriceLine(comparePrice)}
+            <ExecCompareDeltaArrow
+              compareValue={comparePrice.roi}
+              baselineValue={currentPrice.roi}
+            />
           </Typography>
         </Box>
       );
@@ -591,14 +635,8 @@ function StrategyExecutionPanel({
     const cmp = row?.execLine?.capital ?? null;
 
     const gridSx = {
-      display: 'flex',
+      ...EXEC_COMPARE_ROW_SX,
       alignItems: 'flex-start',
-      gap: 1,
-      flexWrap: 'nowrap',
-      minWidth: 0,
-      overflowX: 'auto',
-      overflowY: 'hidden',
-      '&::-webkit-scrollbar': { height: 6 },
     };
 
     if (!cur) {
@@ -634,9 +672,7 @@ function StrategyExecutionPanel({
               {`${formatCapitalMoney(cur.initialCapital)} -> ${formatCapitalMoney(cur.endCapital)}`}
             </Typography>
           </Stack>
-          <Stack justifyContent="center" alignItems="center" sx={{ height: '100%' }}>
-            <Typography variant="body2" color="text.secondary">-&gt;</Typography>
-          </Stack>
+          <ExecCompareDivider />
           <LoadingBars className="ntq-loading-bars--sm" barCount={4} aria-label="读取中" />
         </Box>
       );
@@ -653,9 +689,7 @@ function StrategyExecutionPanel({
               {`${formatCapitalMoney(cur.initialCapital)} -> ${formatCapitalMoney(cur.endCapital)}`}
             </Typography>
           </Stack>
-          <Stack justifyContent="center" alignItems="center" sx={{ height: '100%' }}>
-            <Typography variant="body2" color="text.secondary">-&gt;</Typography>
-          </Stack>
+          <ExecCompareDivider />
           <Typography variant="body2" color="error">{errMsg}</Typography>
         </Box>
       );
@@ -672,9 +706,7 @@ function StrategyExecutionPanel({
               {`${formatCapitalMoney(cur.initialCapital)} -> ${formatCapitalMoney(cur.endCapital)}`}
             </Typography>
           </Stack>
-          <Stack justifyContent="center" alignItems="center" sx={{ height: '100%' }}>
-            <Typography variant="body2" color="text.secondary">-&gt;</Typography>
-          </Stack>
+          <ExecCompareDivider />
           <Typography variant="body2" color="text.secondary">该快照无资金摘要</Typography>
         </Box>
       );
@@ -683,47 +715,22 @@ function StrategyExecutionPanel({
     return (
       <Box sx={gridSx}>
         <Stack spacing={0.25}>
-          <Typography
-            variant="body2"
-            sx={{
-              color: getCurrentResultColor(cur.profit, cmp.profit),
-              fontWeight: 600,
-            }}
-          >
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
             收益：{`${cur.profit >= 0 ? '+' : ''}${formatCapitalMoney(cur.profit)} (${formatCapitalPct(cur.retPct)}%)`}
           </Typography>
-          <Typography
-            variant="caption"
-            sx={{
-              color: getCurrentResultColor(cur.endCapital, cmp.endCapital),
-              fontWeight: 600,
-            }}
-          >
+          <Typography variant="caption" color="text.secondary">
             {`${formatCapitalMoney(cur.initialCapital)} -> ${formatCapitalMoney(cur.endCapital)}`}
           </Typography>
         </Stack>
 
-        <Stack justifyContent="center" alignItems="center" sx={{ height: '100%' }}>
-          <Typography variant="body2" color="text.secondary">-&gt;</Typography>
-        </Stack>
+        <ExecCompareDivider />
 
         <Stack spacing={0.25}>
-          <Typography
-            variant="body2"
-            sx={{
-              color: getCompareResultColor(cmp.profit, cur.profit),
-              fontWeight: 600,
-            }}
-          >
+          <Typography variant="body2" component="span" sx={{ fontWeight: 600 }}>
             收益：{`${cmp.profit >= 0 ? '+' : ''}${formatCapitalMoney(cmp.profit)} (${formatCapitalPct(cmp.retPct)}%)`}
+            <ExecCompareDeltaArrow compareValue={cmp.profit} baselineValue={cur.profit} />
           </Typography>
-          <Typography
-            variant="caption"
-            sx={{
-              color: getCompareResultColor(cmp.endCapital, cur.endCapital),
-              fontWeight: 600,
-            }}
-          >
+          <Typography variant="caption" color="text.secondary">
             {`${formatCapitalMoney(cmp.initialCapital)} -> ${formatCapitalMoney(cmp.endCapital)}`}
           </Typography>
         </Stack>
@@ -818,14 +825,14 @@ function StrategyExecutionPanel({
     <>
     <Accordion defaultExpanded disableGutters>
       <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
-        <Typography fontWeight={600}>执行面板</Typography>
+        <SettingsAccordionTitle
+          title={EXECUTION_PANEL_TITLE}
+          tooltip={EXECUTION_PANEL_TOOLTIP}
+          context={{ defaultTooltipShine: true }}
+        />
       </AccordionSummary>
       <AccordionDetails>
         <Stack spacing={1.25}>
-          <Typography variant="body2" color="text.secondary">
-            三层回测：枚举机会 - 帮助您看到策略发现机会的能力。价格回测 - 初步验证策略可行性。资金模拟 - 加入资金管理，模拟实际交易。
-          </Typography>
-
           {runError ? (
             <Typography variant="caption" color="error">{runError}</Typography>
           ) : null}
@@ -836,7 +843,7 @@ function StrategyExecutionPanel({
               sx={{
                 border: 1,
                 borderRadius: 1,
-                p: 1,
+                p: 1.25,
                 ...getStepSx(stepStatus.enum),
               }}
             >
@@ -844,20 +851,15 @@ function StrategyExecutionPanel({
               <Box
                 className="ntq-exec-step-grid exec-step-card__body"
               >
-                <Box className="ntq-exec-step-no">
-                  1
-                </Box>
-                <Stack direction="row" spacing={1} alignItems="center" className="ntq-exec-step-title">
-                  <Typography fontWeight={600} noWrap>枚举机会</Typography>
-                  <IconButton
-                    className="ntq-exec-step-run-btn"
-                    onClick={() => runStep(STEP_ENUM)}
-                    disabled={executionBusy}
-                    aria-label={stepStatus.enum === 'done' ? '强制重跑枚举' : '运行枚举'}
-                  >
-                    <StepRunButtonIcon done={stepStatus.enum === 'done'} />
-                  </IconButton>
-                </Stack>
+                <ExecStepLeadBlock
+                  stepNo={1}
+                  title="枚举机会"
+                  tooltip={EXEC_STEP_ENUM_TOOLTIP}
+                  done={stepStatus.enum === 'done'}
+                  disabled={executionBusy}
+                  onClick={() => runStep(STEP_ENUM)}
+                  ariaLabel={stepStatus.enum === 'done' ? '强制重跑枚举' : '运行枚举'}
+                />
                 {renderEnumSummary()}
                 {stepStatus.enum === 'done' && showVersionCompare ? (
                   <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end" className="ntq-exec-compare">
@@ -885,7 +887,7 @@ function StrategyExecutionPanel({
               sx={{
                 border: 1,
                 borderRadius: 1,
-                p: 1,
+                p: 1.25,
                 ...getStepSx(stepStatus.price),
               }}
             >
@@ -893,20 +895,15 @@ function StrategyExecutionPanel({
               <Box
                 className="ntq-exec-step-grid exec-step-card__body"
               >
-                <Box className="ntq-exec-step-no">
-                  2
-                </Box>
-                <Stack direction="row" spacing={1} alignItems="center" className="ntq-exec-step-title">
-                  <Typography fontWeight={600} noWrap>价格回测</Typography>
-                  <IconButton
-                    className="ntq-exec-step-run-btn"
-                    onClick={() => runStep(STEP_PRICE)}
-                    disabled={executionBusy}
-                    aria-label={stepStatus.price === 'done' ? '强制重跑价格回测' : '运行价格回测'}
-                  >
-                    <StepRunButtonIcon done={stepStatus.price === 'done'} />
-                  </IconButton>
-                </Stack>
+                <ExecStepLeadBlock
+                  stepNo={2}
+                  title="价格回测"
+                  tooltip={EXEC_STEP_PRICE_TOOLTIP}
+                  done={stepStatus.price === 'done'}
+                  disabled={executionBusy}
+                  onClick={() => runStep(STEP_PRICE)}
+                  ariaLabel={stepStatus.price === 'done' ? '强制重跑价格回测' : '运行价格回测'}
+                />
                 <Box sx={{ overflowX: 'auto', overflowY: 'hidden', '&::-webkit-scrollbar': { height: 6 } }}>
                   {renderPriceSummary()}
                 </Box>
@@ -936,7 +933,7 @@ function StrategyExecutionPanel({
               sx={{
                 border: 1,
                 borderRadius: 1,
-                p: 1,
+                p: 1.25,
                 ...getStepSx(stepStatus.capital),
               }}
             >
@@ -944,20 +941,15 @@ function StrategyExecutionPanel({
               <Box
                 className="ntq-exec-step-grid exec-step-card__body"
               >
-                <Box className="ntq-exec-step-no">
-                  3
-                </Box>
-                <Stack direction="row" spacing={1} alignItems="center" className="ntq-exec-step-title">
-                  <Typography fontWeight={600} noWrap>资金模拟</Typography>
-                  <IconButton
-                    className="ntq-exec-step-run-btn"
-                    onClick={() => runStep(STEP_CAPITAL)}
-                    disabled={executionBusy}
-                    aria-label={stepStatus.capital === 'done' ? '强制重跑资金模拟' : '运行资金模拟'}
-                  >
-                    <StepRunButtonIcon done={stepStatus.capital === 'done'} />
-                  </IconButton>
-                </Stack>
+                <ExecStepLeadBlock
+                  stepNo={3}
+                  title="资金模拟"
+                  tooltip={EXEC_STEP_CAPITAL_TOOLTIP}
+                  done={stepStatus.capital === 'done'}
+                  disabled={executionBusy}
+                  onClick={() => runStep(STEP_CAPITAL)}
+                  ariaLabel={stepStatus.capital === 'done' ? '强制重跑资金模拟' : '运行资金模拟'}
+                />
                 {renderCapitalSummary()}
                 {stepStatus.capital === 'done' && showVersionCompare ? (
                   <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end" className="ntq-exec-compare">

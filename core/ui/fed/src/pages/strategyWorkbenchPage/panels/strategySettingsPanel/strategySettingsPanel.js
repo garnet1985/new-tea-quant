@@ -101,7 +101,7 @@ export function StrategySettingsPanel({
           onChange={() => {}}
           context={{ ...workbenchEditorContext, coreEditor }}
         />
-        <SectionAccordion title="策略目标设置">
+        <SectionAccordion title="目标设置">
           <Editor
             schema={strategyGoalSchema}
             value={normalizeGoalSettings(settings?.goal)}

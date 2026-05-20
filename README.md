@@ -16,7 +16,7 @@
 
 > For an English introduction, please see **[here](README_en.md)**.
 
-作者：Garnet Xin
+作者：Garnet Xin & 他的AI小伙伴
 
 <a href="https://github.com/garnet1985/new-tea-quant"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-new--tea--quant-181717?logo=github&logoColor=white"></a>&nbsp;
 <a href="https://gitee.com/garnet/new-tea-quant"><img alt="Gitee" src="https://img.shields.io/badge/Gitee-new--tea--quant-C71D23?logo=gitee&logoColor=white"></a>&nbsp;

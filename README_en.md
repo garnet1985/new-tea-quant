@@ -16,7 +16,7 @@
 
 > For the **canonical, fully maintained documentation** (Chinese), see **[README.md](README.md)**.
 
-Author: Garnet Xin
+Author: Garnet Xin & His AI dude
 
 <a href="https://github.com/garnet1985/new-tea-quant"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-new--tea--quant-181717?logo=github&logoColor=white"></a>&nbsp;
 <a href="https://gitee.com/garnet/new-tea-quant"><img alt="Gitee" src="https://img.shields.io/badge/Gitee-new--tea--quant-C71D23?logo=gitee&logoColor=white"></a>&nbsp;

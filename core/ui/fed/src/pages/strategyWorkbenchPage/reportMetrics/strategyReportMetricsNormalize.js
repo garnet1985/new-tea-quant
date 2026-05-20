@@ -121,8 +121,9 @@ export function normalizePriceMetricsFromSummary(slot) {
   const avgRoiRaw = num('avg_roi');
   const avgRoi = Number.isFinite(avgRoiRaw) && Math.abs(avgRoiRaw) < 1 ? avgRoiRaw * 100 : avgRoiRaw;
   const avgDurationDays = num('avg_duration_in_days');
+  // PriceReport.annual_return 为小数比例（1.05 = 105%），与控制台 ann_cal * 100 一致；不可沿用「<1 才 ×100」
   const annualRaw = num('annual_return');
-  const annualReturn = Number.isFinite(annualRaw) && Math.abs(annualRaw) < 1 ? annualRaw * 100 : annualRaw;
+  const annualReturn = Number.isFinite(annualRaw) ? annualRaw * 100 : NaN;
 
   const totalInvestments = num('total_investments');
   const totalOpenInvestments = num('total_open_investments');
@@ -286,7 +287,7 @@ export function normalizeCapitalMetricsFromSummary(slot) {
     winTrades: Math.round(winTrades),
     lossTrades: Math.round(lossTrades),
     winRatePct: Number(winRatePct.toFixed(2)),
-    avgPnlPerTrade: Math.round(avgPnlPerTrade),
+    avgPnlPerTrade: Number.isFinite(avgPnlPerTrade) ? Number(avgPnlPerTrade.toFixed(2)) : NaN,
     avgOpenPositions: num('average_open_positions'),
     peakPositions: num('peak_open_positions'),
     fullExposureDaysRatio: num('full_exposure_days_ratio_pct'),

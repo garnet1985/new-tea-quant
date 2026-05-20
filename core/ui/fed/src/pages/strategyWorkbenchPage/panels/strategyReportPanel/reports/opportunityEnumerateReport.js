@@ -1,8 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { Box, Stack, Typography } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
+import NtqHelpTooltip from 'components/ntqHelpTooltip/ntqHelpTooltip';
 import MetricCard from 'components/metricCard/metricCard';
 import { SectionBlock } from 'components/sectionBlock/sectionBlock';
+import {
+  ENUM_CHART_TIPS,
+  ENUM_METRIC_TIPS,
+  ENUM_SECTION_TIPS,
+  REPORT_STOCK_GRID_TIPS,
+} from '../reportMetricTips';
 import ReportStockSampleGrid from 'components/reportStockSampleGrid/reportStockSampleGrid';
 import ReportUnavailableHint from '../components/reportUnavailableHint';
 import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
@@ -79,12 +86,12 @@ function buildStockDistributionOption(metrics) {
 function OpportunityEnumrateReport({
   metrics,
   stockRows,
-  title = '枚举核心结论',
+  title = '枚举机会报告',
   showStockGrid = true,
   stockGridOverlay = null,
-  reportRefUrl = '',
   enumRefStockTotal,
   stockGridLoading = false,
+  hideTitle = false,
 }) {
   const [stockSearch, setStockSearch] = useState('');
 
@@ -131,15 +138,8 @@ function OpportunityEnumrateReport({
       valueFormatter: (params) => `${params.value} 天`,
     },
   ];
-  const opportunityCountMin = Number(metrics?.opportunityCountMin ?? 0);
-  const opportunityCountMax = Number(metrics?.opportunityCountMax ?? 0);
-  const opportunityCountBucketCount = Number(metrics?.opportunityCountBucketCount ?? 0);
-  const distributionTip = avail.distribution && opportunityCountBucketCount > 0
-    ? `每股机会数分布图（${opportunityCountMin}~${opportunityCountMax}，近似 ${opportunityCountBucketCount} 等分；显示：股票数（占比））`
-    : '每股机会数分布图（显示：股票数（占比））';
-
   const stockGridTip = [
-    '用于查看枚举阶段的单股指标；支持搜索、表头排序与底部分页（数据一次加载后在前端分页）。',
+    REPORT_STOCK_GRID_TIPS.enum,
     typeof enumRefStockTotal === 'number' && enumRefStockTotal > 0
       ? `当前共 ${enumRefStockTotal} 只股票。`
       : '',
@@ -153,13 +153,8 @@ function OpportunityEnumrateReport({
 
   return (
     <Stack spacing={1.25}>
-      <Typography variant="subtitle2" fontWeight={600}>{title}</Typography>
-
-      {typeof reportRefUrl === 'string' && reportRefUrl.trim() !== '' ? (
-        <Typography variant="caption" color="text.secondary" sx={{ wordBreak: 'break-all' }}>
-          逐股数据：
-          {reportRefUrl}
-        </Typography>
+      {!hideTitle ? (
+        <Typography variant="subtitle2" fontWeight={600}>{title}</Typography>
       ) : null}
 
       {showStockGrid ? (
@@ -188,16 +183,18 @@ function OpportunityEnumrateReport({
 
       <SectionBlock
         title="机会总体统计"
-        tip="用于判断当前策略是否给出足够机会，以及机会完成质量是否达标。"
+        tip={ENUM_SECTION_TIPS.overview}
       >
         {avail.overview ? (
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
             <MetricCard
               title="机会总数"
+              titleTip={ENUM_METRIC_TIPS.totalOpportunities}
               value={`${metrics.totalOpportunities.toLocaleString()}（共 ${metrics.totalStocks.toLocaleString()} 只股票）`}
             />
             <MetricCard
               title="机会完整度"
+              titleTip={ENUM_METRIC_TIPS.completeness}
               value={`${metrics.completedCount.toLocaleString()} / ${metrics.totalOpportunities.toLocaleString()} (${metrics.completedRatio}%)`}
             />
           </Box>
@@ -206,24 +203,29 @@ function OpportunityEnumrateReport({
 
       <SectionBlock
         title="股票机会统计"
-        tip="用于判断机会是否集中在少数股票，以及每股机会分布的分位结构。"
+        tip={ENUM_SECTION_TIPS.stockStats}
       >
         {avail.stockStats ? (
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
             <MetricCard
               title="触发机会的股票占比"
+              titleTip={ENUM_METRIC_TIPS.triggerStocksRatio}
               value={`${metrics.triggerStocks} / ${metrics.totalStocks} (${metrics.triggerRatio}%)`}
             />
             <MetricCard
               title="平均每股产生机会数"
+              titleTip={ENUM_METRIC_TIPS.avgPerStock}
               value={Number(metrics.avgPerStock).toFixed(2)}
             />
           </Box>
         ) : <ReportUnavailableHint />}
         <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.75, mt: avail.stockStats ? 1 : 0 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-            {distributionTip}
-          </Typography>
+          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 0.5 }}>
+            <Typography variant="caption" color="text.secondary">
+              每股机会数分布
+            </Typography>
+            <NtqHelpTooltip title={ENUM_CHART_TIPS.opportunityDistribution} />
+          </Stack>
           {avail.distribution ? (
             <ReactECharts
               option={buildStockDistributionOption(metrics)}
@@ -237,23 +239,32 @@ function OpportunityEnumrateReport({
 
       <SectionBlock
         title="机会出现"
-        tip="用于衡量机会生成节奏是否稳定，避免机会扎堆导致资金使用不均。"
+        tip={ENUM_SECTION_TIPS.timing}
       >
         {avail.timing ? (
           <Stack spacing={1}>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
-              <MetricCard title="平均每股机会间隔" value={`${metrics.meanGap} 天`} />
-              <MetricCard title="平均每股机会持续（天）" value={`${metrics.meanDuration} 天`} />
+              <MetricCard
+                title="平均每股机会间隔"
+                titleTip={ENUM_METRIC_TIPS.meanGap}
+                value={`${metrics.meanGap} 天`}
+              />
+              <MetricCard
+                title="平均每股机会持续（天）"
+                titleTip={ENUM_METRIC_TIPS.meanDuration}
+                value={`${metrics.meanDuration} 天`}
+              />
             </Box>
             <MetricCard
               title="机会分散度"
+              titleTip={ENUM_METRIC_TIPS.dispersion}
               value={Number.isFinite(Number(metrics.stdGap))
                 ? `SD ${metrics.stdGap} 天`
                 : '—'}
               hint={[
                 Number.isFinite(Number(metrics.cv)) ? `CV ${metrics.cv}` : null,
                 (metrics.dispersionConclusion && String(metrics.dispersionConclusion).trim()) || null,
-              ].filter(Boolean).join(' · ') || '后端未写入标准差/CV 时仅展示间隔与持续。'}
+              ].filter(Boolean).join(' · ') || undefined}
             />
           </Stack>
         ) : <ReportUnavailableHint />}

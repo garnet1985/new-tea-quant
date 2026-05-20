@@ -1,13 +1,12 @@
 import React from 'react';
-import NtqHelpTooltip from '../../ntqHelpTooltip/ntqHelpTooltip';
 import {
   Stack,
   Switch,
-  Typography,
 } from '@mui/material';
 import { getByPath, runFieldEvents, setByPath } from '../editor.helper';
+import EditorFieldLabel from './editorFieldLabel';
 
-function SwitchField({ field, value, onChange, emitChangeMeta }) {
+function SwitchField({ field, value, onChange, emitChangeMeta, context = {} }) {
   if (typeof field?.visibleWhen === 'function' && !field.visibleWhen({ values: value })) {
     return null;
   }
@@ -28,12 +27,12 @@ function SwitchField({ field, value, onChange, emitChangeMeta }) {
 
   return (
     <Stack key={field.name} direction="row" justifyContent="space-between" alignItems="center">
-      <Stack direction="row" spacing={0.5} alignItems="center">
-        <Typography variant="body2">{field.label}</Typography>
-        {field.description ? (
-          <NtqHelpTooltip title={field.description} />
-        ) : null}
-      </Stack>
+      <EditorFieldLabel
+        field={field}
+        context={context}
+        tooltipTitle={field.tooltip || field.description}
+        sx={{ mb: 0 }}
+      />
       <Switch size="small" checked={Boolean(current)} onChange={(e) => applyChange(e.target.checked)} disabled={isReadonly} />
     </Stack>
   );

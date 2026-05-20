@@ -1,8 +1,9 @@
 import React from 'react';
 import { MenuItem, Select, Typography } from '@mui/material';
 import { getByPath, runFieldEvents, setByPath } from '../editor.helper';
+import EditorFieldLabel from './editorFieldLabel';
 
-function SelectField({ field, value, onChange, emitChangeMeta }) {
+function SelectField({ field, value, onChange, emitChangeMeta, context = {} }) {
   if (typeof field?.visibleWhen === 'function' && !field.visibleWhen({ values: value })) {
     return null;
   }
@@ -21,11 +22,11 @@ function SelectField({ field, value, onChange, emitChangeMeta }) {
     }
   };
 
+  const helperText = field.description && !field.tooltip ? field.description : '';
+
   return (
     <div key={field.name}>
-      <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-        {field.label}
-      </Typography>
+      <EditorFieldLabel field={field} context={context} />
       <Select
         size="small"
         fullWidth
@@ -40,6 +41,11 @@ function SelectField({ field, value, onChange, emitChangeMeta }) {
           </MenuItem>
         ))}
       </Select>
+      {helperText ? (
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+          {helperText}
+        </Typography>
+      ) : null}
     </div>
   );
 }

@@ -58,11 +58,14 @@ function NtqHelpTooltip({
     >
       <span
         className={triggerClass}
+        style={{ '--ntq-help-tooltip-size': `${iconSize}px` }}
         role="button"
         tabIndex={0}
         aria-label={ariaLabel || VARIANT_LABEL[variant] || VARIANT_LABEL.help}
       >
-        <NtqIcon name={iconName} size={iconSize} />
+        <span className="ntq-help-tooltip-trigger__icon" aria-hidden>
+          <NtqIcon name={iconName} size={iconSize} />
+        </span>
       </span>
     </Tooltip>
   );
@@ -72,7 +75,7 @@ NtqHelpTooltip.defaultProps = {
   variant: 'help',
   shine: false,
   placement: 'top',
-  iconSize: 22,
+  iconSize: 20,
   ariaLabel: '',
   className: '',
 };

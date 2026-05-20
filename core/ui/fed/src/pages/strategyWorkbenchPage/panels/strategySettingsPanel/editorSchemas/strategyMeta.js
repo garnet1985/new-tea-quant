@@ -30,29 +30,22 @@ export function buildStrategyMetaSchema(marketProfileOptions = DEFAULT_MARKET_PR
 
   return {
     name: 'strategyMeta',
-    label: '策略基本信息',
-    description: '启用状态与基础数据约束',
+    label: '基本设定',
     type: 'section',
     defaultExpanded: true,
     children: [
       {
-        name: 'market_profile',
-        label: '市场规则',
-        description: '涨跌停、最小交易单位等由所选 market profile 决定',
-        type: 'select',
-        options: profileOptions,
-      },
-      {
         name: 'meta.is_enabled',
-        label: '是否启用策略',
-        description: '控制策略启用状态',
+        label: '策略启用开关',
+        tooltip: '是否启用该策略：启用的策略可以在扫描中使用',
         type: 'switch',
       },
       {
-        name: 'data.min_required_records',
-        label: '最小K线记录数',
-        description: '至少满足该历史记录条数才执行策略（默认 100）',
-        type: 'number',
+        name: 'market_profile',
+        label: '市场规则',
+        tooltip: '选择使用哪种市场的交易规则进行回测',
+        type: 'select',
+        options: profileOptions,
       },
     ],
   };

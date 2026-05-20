@@ -44,18 +44,54 @@ function renderNode(node, value, onChange, errors, emitChangeMeta, context) {
   }
 
   if (node.type === 'switch') {
-    return <SwitchField field={node} value={value} onChange={onChange} errors={errors} emitChangeMeta={emitChangeMeta} />;
+    return (
+      <SwitchField
+        field={node}
+        value={value}
+        onChange={onChange}
+        errors={errors}
+        emitChangeMeta={emitChangeMeta}
+        context={context}
+      />
+    );
   }
 
   if (node.type === 'date') {
-    return <DateField field={node} value={value} onChange={onChange} errors={errors} emitChangeMeta={emitChangeMeta} />;
+    return (
+      <DateField
+        field={node}
+        value={value}
+        onChange={onChange}
+        errors={errors}
+        emitChangeMeta={emitChangeMeta}
+        context={context}
+      />
+    );
   }
 
   if (node.type === 'select') {
-    return <SelectField field={node} value={value} onChange={onChange} errors={errors} emitChangeMeta={emitChangeMeta} />;
+    return (
+      <SelectField
+        field={node}
+        value={value}
+        onChange={onChange}
+        errors={errors}
+        emitChangeMeta={emitChangeMeta}
+        context={context}
+      />
+    );
   }
 
-  return <InputField field={node} value={value} onChange={onChange} errors={errors} emitChangeMeta={emitChangeMeta} />;
+  return (
+    <InputField
+      field={node}
+      value={value}
+      onChange={onChange}
+      errors={errors}
+      emitChangeMeta={emitChangeMeta}
+      context={context}
+    />
+  );
 }
 
 function Editor({

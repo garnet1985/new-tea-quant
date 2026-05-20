@@ -805,6 +805,7 @@ function StrategyWorkbenchPage() {
                       forceRunHandlersRef.current = api || {};
                     }}
                     showVersionCompare={hasOtherVersions}
+                    configVersions={configVersions}
                   />
                   <StrategyReportPanel
                     key={`report-${strategyName || ''}-${panelsResetEpoch}`}

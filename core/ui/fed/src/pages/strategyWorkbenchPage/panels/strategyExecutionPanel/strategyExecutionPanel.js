@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import NtqIcon from 'components/ntqIcon/ntqIcon';
 import {
   Accordion,
@@ -11,9 +11,14 @@ import {
   DialogContent,
   DialogTitle,
   IconButton,
+  List,
+  ListItemButton,
+  ListItemText,
   MenuItem,
+  Pagination,
   Select,
   Stack,
+  TextField,
   Typography,
 } from '@mui/material';
 import LoadingBars from 'components/loadingBars/loadingBars';
@@ -39,8 +44,9 @@ const STEP_ENUM = 'enum';
 const STEP_PRICE = 'price';
 const STEP_CAPITAL = 'capital';
 
-/** 下拉末项：打开完整历史版本选择（占位）；勿写入 ``compareVersion`` */
+/** 下拉末项：打开完整历史版本选择；勿写入 ``compareVersion`` */
 const EXEC_COMPARE_MORE_MENU_VALUE = '__exec_compare_more_versions__';
+const VERSION_PICKER_PAGE_SIZE = 8;
 
 const CAPITAL_NUM_FMT = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
 
@@ -161,6 +167,8 @@ function StrategyExecutionPanel({
   onExecutionStateChange,
   /** 工作台版本列表中的最近 5 条 ``version_id``（与 GET …/versions 顺序一致，新→旧） */
   executionCompareRecentVersionIds = [],
+  /** 完整工作台快照列表（与设置区「更多版本」同源） */
+  configVersions = [],
   onProgressResultReport,
   /** 单步 run 成功结束（与 progress 的 ``result_report`` 合并后）；用于报告 Tab 切到对应回测器 */
   onRunStepComplete,
@@ -188,6 +196,10 @@ function StrategyExecutionPanel({
     capital: '',
   });
   const [executionMoreVersionsOpen, setExecutionMoreVersionsOpen] = useState(false);
+  /** 打开「更多版本」时记录 enum / price / capital，选中后写入对应 ``compareVersion`` */
+  const [executionMoreVersionsStepKey, setExecutionMoreVersionsStepKey] = useState('');
+  const [versionSearch, setVersionSearch] = useState('');
+  const [versionPickerPage, setVersionPickerPage] = useState(1);
   /** ``version_id`` → 该快照 ``result_report`` 解析后的执行摘要（与 ``buildExecutionResultFromWorkbenchReport`` 一致） */
   const [compareLinesByVersionId, setCompareLinesByVersionId] = useState({});
   const [activeRunId, setActiveRunId] = useState('');
@@ -500,12 +512,64 @@ function StrategyExecutionPanel({
     });
   }, [lastCompletedWorkbenchVersionId]);
 
+  const executionComparePickerVersions = useMemo(() => {
+    const cur = String(lastCompletedWorkbenchVersionId || '').trim();
+    const rows = Array.isArray(configVersions) ? configVersions : [];
+    if (!cur) return rows;
+    return rows.filter((v) => v.id !== cur);
+  }, [configVersions, lastCompletedWorkbenchVersionId]);
+
+  const versionPickerFiltered = useMemo(() => {
+    const keyword = versionSearch.trim().toLowerCase();
+    if (!keyword) return executionComparePickerVersions;
+    return executionComparePickerVersions.filter((version) => (
+      version.id.toLowerCase().includes(keyword)
+      || version.createdAt.toLowerCase().includes(keyword)
+      || version.updatedAt.toLowerCase().includes(keyword)
+    ));
+  }, [executionComparePickerVersions, versionSearch]);
+
+  const versionPickerTotalPages = Math.max(
+    1,
+    Math.ceil(versionPickerFiltered.length / VERSION_PICKER_PAGE_SIZE) || 1,
+  );
+
+  const versionPickerSlice = useMemo(() => {
+    const page = Math.min(versionPickerPage, versionPickerTotalPages);
+    const start = (page - 1) * VERSION_PICKER_PAGE_SIZE;
+    return versionPickerFiltered.slice(start, start + VERSION_PICKER_PAGE_SIZE);
+  }, [versionPickerFiltered, versionPickerPage, versionPickerTotalPages]);
+
+  useEffect(() => {
+    setVersionPickerPage(1);
+  }, [versionSearch]);
+
+  useEffect(() => {
+    setVersionPickerPage((p) => Math.min(p, versionPickerTotalPages));
+  }, [versionPickerTotalPages]);
+
+  const openExecutionMoreVersions = (stepKey) => {
+    setExecutionMoreVersionsStepKey(stepKey);
+    setVersionSearch('');
+    setVersionPickerPage(1);
+    setExecutionMoreVersionsOpen(true);
+  };
+
   const handleExecutionCompareChange = (stepKey, nextValue) => {
     if (nextValue === EXEC_COMPARE_MORE_MENU_VALUE) {
-      window.setTimeout(() => setExecutionMoreVersionsOpen(true), 0);
+      window.setTimeout(() => openExecutionMoreVersions(stepKey), 0);
       return;
     }
     setCompareVersion((prev) => ({ ...prev, [stepKey]: nextValue }));
+  };
+
+  const handlePickExecutionCompareVersion = (versionId) => {
+    const stepKey = executionMoreVersionsStepKey;
+    if (stepKey && versionId) {
+      setCompareVersion((prev) => ({ ...prev, [stepKey]: versionId }));
+    }
+    setExecutionMoreVersionsOpen(false);
+    setExecutionMoreVersionsStepKey('');
   };
 
   useEffect(() => {
@@ -1024,18 +1088,80 @@ function StrategyExecutionPanel({
 
     <Dialog
       open={executionMoreVersionsOpen}
-      onClose={() => setExecutionMoreVersionsOpen(false)}
+      onClose={() => {
+        setExecutionMoreVersionsOpen(false);
+        setExecutionMoreVersionsStepKey('');
+      }}
       maxWidth="xs"
       fullWidth
     >
-      <DialogTitle>选择历史版本</DialogTitle>
+      <DialogTitle>选择对比版本</DialogTitle>
       <DialogContent dividers>
-        <Typography variant="body2" color="text.secondary">
-          完整版本列表将在此提供（占位）。后续可接入分页搜索或与设置区「更多版本」一致的选择器。
-        </Typography>
+        <Stack spacing={1}>
+          <TextField
+            size="small"
+            fullWidth
+            placeholder="搜索版本 ID、创建或更新时间"
+            value={versionSearch}
+            onChange={(event) => setVersionSearch(event.target.value)}
+          />
+          <Typography variant="caption" color="text.secondary">
+            {executionComparePickerVersions.length > 0
+              ? `共 ${versionPickerFiltered.length} 条${versionPickerFiltered.length !== executionComparePickerVersions.length ? `（已筛选，可选 ${executionComparePickerVersions.length} 条）` : ''}`
+              : '暂无可对比的历史版本'}
+          </Typography>
+          <List
+            sx={{
+              maxHeight: 340,
+              overflow: 'auto',
+              border: 1,
+              borderColor: 'divider',
+              borderRadius: 1,
+            }}
+          >
+            {versionPickerSlice.length > 0 ? versionPickerSlice.map((version) => (
+              <ListItemButton
+                key={version.id}
+                selected={version.id === compareVersion[executionMoreVersionsStepKey]}
+                onClick={() => handlePickExecutionCompareVersion(version.id)}
+              >
+                <ListItemText
+                  primary={version.id}
+                  secondary={version.updatedAt || version.createdAt}
+                />
+              </ListItemButton>
+            )) : (
+              <Box sx={{ p: 1.5 }}>
+                <Typography variant="body2" color="text.secondary">
+                  {executionComparePickerVersions.length > 0
+                    ? '没有匹配的版本。'
+                    : '需要至少两条工作台快照才能对比；请先保存或运行生成新版本。'}
+                </Typography>
+              </Box>
+            )}
+          </List>
+          {versionPickerFiltered.length > VERSION_PICKER_PAGE_SIZE ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', pt: 0.5 }}>
+              <Pagination
+                count={versionPickerTotalPages}
+                page={Math.min(versionPickerPage, versionPickerTotalPages)}
+                onChange={(_event, nextPage) => setVersionPickerPage(nextPage)}
+                size="small"
+                color="primary"
+              />
+            </Box>
+          ) : null}
+        </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={() => setExecutionMoreVersionsOpen(false)}>关闭</Button>
+        <Button
+          onClick={() => {
+            setExecutionMoreVersionsOpen(false);
+            setExecutionMoreVersionsStepKey('');
+          }}
+        >
+          关闭
+        </Button>
       </DialogActions>
     </Dialog>
     </>

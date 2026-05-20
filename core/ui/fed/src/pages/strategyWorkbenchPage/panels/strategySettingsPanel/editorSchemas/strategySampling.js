@@ -17,14 +17,64 @@ function parseNumber(raw) {
 
 const STRATEGY_DEFAULT = 'continuous';
 const STRATEGY_KEYS = ['continuous', 'uniform', 'stratified', 'random', 'pool', 'blacklist'];
-const DEFAULT_SAMPLING_STRATEGY_OPTIONS = [
-  { label: '连续采样（默认）', value: 'continuous' },
-  { label: '均匀采样', value: 'uniform' },
-  { label: '分层采样', value: 'stratified' },
-  { label: '随机采样', value: 'random' },
-  { label: '指定股票池采样', value: 'pool' },
-  { label: '排除黑名单采样', value: 'blacklist' },
-];
+
+const SAMPLING_STRATEGY_META = {
+  continuous: {
+    label: '连续采样',
+    tooltip: '按股票排序从某一位置起连续截取指定数量，适合固定窗口遍历。',
+  },
+  uniform: {
+    label: '均匀采样',
+    tooltip: '在候选股票中均匀间隔抽取，覆盖更广但可能跳过局部簇。',
+  },
+  stratified: {
+    label: '分层采样',
+    tooltip: '按分层规则抽样（如行业、市值桶），需配置随机种子以便复现。',
+  },
+  random: {
+    label: '随机采样',
+    tooltip: '在候选池中随机抽取指定数量；可设种子固定随机结果。',
+  },
+  pool: {
+    label: '股票池',
+    tooltip: '仅在您指定的股票列表（或文件）内回测。',
+  },
+  blacklist: {
+    label: '黑名单',
+    tooltip: '从默认候选池中排除列表中的股票后再抽样。',
+  },
+};
+
+const DEFAULT_SAMPLING_STRATEGY_OPTIONS = Object.entries(SAMPLING_STRATEGY_META).map(
+  ([value, meta]) => ({ value, ...meta }),
+);
+
+function resolveSamplingStrategyOptions(samplingStrategyOptions) {
+  const raw = Array.isArray(samplingStrategyOptions) && samplingStrategyOptions.length > 0
+    ? samplingStrategyOptions
+    : DEFAULT_SAMPLING_STRATEGY_OPTIONS;
+  return raw.map((row) => {
+    const meta = SAMPLING_STRATEGY_META[row.value];
+    if (meta) {
+      return {
+        value: row.value,
+        label: meta.label,
+        tooltip: row.tooltip || meta.tooltip,
+      };
+    }
+    return {
+      value: row.value,
+      label: row.label,
+      tooltip: row.tooltip || '',
+    };
+  });
+}
+
+const whenSamplingEnabled = ({ values }) => Boolean(values?.use_sampling);
+
+const whenSamplingEnabledAnd = (predicate) => (ctx) => (
+  whenSamplingEnabled(ctx) && predicate(ctx)
+);
 
 export function normalizeSamplingSettings(sampling) {
   const next = sampling && typeof sampling === 'object' ? { ...sampling } : {};
@@ -49,94 +99,107 @@ export function cleanupSamplingByStrategy(sampling) {
 }
 
 export function buildStrategySamplingSchema(samplingStrategyOptions = DEFAULT_SAMPLING_STRATEGY_OPTIONS) {
+  const strategyOptions = resolveSamplingStrategyOptions(samplingStrategyOptions);
+
   return {
     name: 'strategySampling',
     type: 'fieldGroup',
     label: '',
     children: [
-    {
-      name: 'use_sampling',
-      type: 'switch',
-      label: '是否使用采样',
-    },
-    {
-      name: 'sampling.dateRange',
-      label: '时间段',
-      tooltip: '不填写开始或结束日期时，表示使用默认的全部时间区间。',
-      type: 'dateRange',
-      startName: 'start_date',
-      endName: 'end_date',
-      startLabel: '开始日期',
-      endLabel: '结束日期',
-    },
-    {
-      name: 'strategy',
-      type: 'select',
-      label: '采样策略',
-      options: Array.isArray(samplingStrategyOptions) && samplingStrategyOptions.length > 0
-        ? samplingStrategyOptions
-        : DEFAULT_SAMPLING_STRATEGY_OPTIONS,
-    },
-    {
-      name: 'sampling_amount',
-      type: 'number',
-      label: '采样数量',
-      parse: parseNumber,
-    },
-    {
-      name: 'continuous.start_idx',
-      type: 'number',
-      label: '连续采样起始索引',
-      description: '仅在“连续采样”模式生效',
-      parse: parseNumber,
-      visibleWhen: ({ values }) => values?.strategy === 'continuous',
-    },
-    {
-      name: 'stratified.seed',
-      type: 'number',
-      label: '分层采样随机种子',
-      parse: parseNumber,
-      visibleWhen: ({ values }) => values?.strategy === 'stratified',
-    },
-    {
-      name: 'random.seed',
-      type: 'number',
-      label: '随机采样随机种子',
-      parse: parseNumber,
-      visibleWhen: ({ values }) => values?.strategy === 'random',
-    },
-    {
-      name: 'pool.stock_ids',
-      type: 'text',
-      multiline: true,
-      minRows: 4,
-      label: '股票池列表（每行一个，或逗号分隔）',
-      visibleWhen: ({ values }) => values?.strategy === 'pool',
-      format: (value) => joinStockIds(value),
-      parse: (raw) => splitStockIds(raw),
-    },
-    {
-      name: 'pool.file',
-      type: 'text',
-      label: '股票池文件路径（可选）',
-      visibleWhen: ({ values }) => values?.strategy === 'pool',
-    },
-    {
-      name: 'blacklist.stock_ids',
-      type: 'text',
-      multiline: true,
-      minRows: 4,
-      label: '黑名单列表（每行一个，或逗号分隔）',
-      visibleWhen: ({ values }) => values?.strategy === 'blacklist',
-      format: (value) => joinStockIds(value),
-      parse: (raw) => splitStockIds(raw),
-    },
-    {
-      name: 'blacklist.file',
-      type: 'text',
-      label: '黑名单文件路径（可选）',
-      visibleWhen: ({ values }) => values?.strategy === 'blacklist',
-    },
+      {
+        name: 'use_sampling',
+        type: 'switch',
+        label: '是否使用采样',
+        tooltip: '开启后按下方规则缩小回测股票池与日期区间；关闭时使用策略默认范围。',
+      },
+      {
+        name: 'sampling.dateRange',
+        label: '时间段',
+        tooltip: '回测使用的行情区间（YYYYMMDD）。开始或结束留空表示由系统自动推断。',
+        type: 'dateRange',
+        layout: 'vertical',
+        startName: 'start_date',
+        endName: 'end_date',
+        startLabel: '开始日期',
+        endLabel: '结束日期',
+        visibleWhen: whenSamplingEnabled,
+      },
+      {
+        name: 'strategy',
+        type: 'select',
+        label: '采样策略',
+        tooltip: '选择如何从候选股票中抽取本轮回测的样本。',
+        options: strategyOptions,
+        visibleWhen: whenSamplingEnabled,
+      },
+      {
+        name: 'sampling_amount',
+        type: 'number',
+        label: '采样数量',
+        tooltip: '本轮回测纳入的股票数量上限；具体截取方式由「采样策略」决定。',
+        parse: parseNumber,
+        visibleWhen: whenSamplingEnabled,
+      },
+      {
+        name: 'continuous.start_idx',
+        type: 'number',
+        label: '连续采样起始索引',
+        tooltip: '仅在「连续采样」下生效：从排序列表的第 N 只股票开始截取（从 0 起计）。',
+        parse: parseNumber,
+        visibleWhen: whenSamplingEnabledAnd(({ values }) => values?.strategy === 'continuous'),
+      },
+      {
+        name: 'stratified.seed',
+        type: 'number',
+        label: '分层采样随机种子',
+        tooltip: '仅在「分层采样」下生效：固定种子可复现分层抽样结果。',
+        parse: parseNumber,
+        visibleWhen: whenSamplingEnabledAnd(({ values }) => values?.strategy === 'stratified'),
+      },
+      {
+        name: 'random.seed',
+        type: 'number',
+        label: '随机采样随机种子',
+        tooltip: '仅在「随机采样」下生效：固定种子可复现随机抽样结果。',
+        parse: parseNumber,
+        visibleWhen: whenSamplingEnabledAnd(({ values }) => values?.strategy === 'random'),
+      },
+      {
+        name: 'pool.stock_ids',
+        type: 'text',
+        multiline: true,
+        minRows: 4,
+        label: '股票池列表',
+        tooltip: '每行一个股票代码，或用英文逗号分隔；与下方文件路径可配合使用。',
+        visibleWhen: whenSamplingEnabledAnd(({ values }) => values?.strategy === 'pool'),
+        format: (value) => joinStockIds(value),
+        parse: (raw) => splitStockIds(raw),
+      },
+      {
+        name: 'pool.file',
+        type: 'text',
+        label: '股票池文件路径',
+        tooltip: '可选：从文本文件加载股票列表（相对 userspace 或绝对路径，依部署而定）。',
+        visibleWhen: whenSamplingEnabledAnd(({ values }) => values?.strategy === 'pool'),
+      },
+      {
+        name: 'blacklist.stock_ids',
+        type: 'text',
+        multiline: true,
+        minRows: 4,
+        label: '黑名单列表',
+        tooltip: '每行一个股票代码，或用英文逗号分隔；这些股票将不参与抽样。',
+        visibleWhen: whenSamplingEnabledAnd(({ values }) => values?.strategy === 'blacklist'),
+        format: (value) => joinStockIds(value),
+        parse: (raw) => splitStockIds(raw),
+      },
+      {
+        name: 'blacklist.file',
+        type: 'text',
+        label: '黑名单文件路径',
+        tooltip: '可选：从文件加载黑名单列表。',
+        visibleWhen: whenSamplingEnabledAnd(({ values }) => values?.strategy === 'blacklist'),
+      },
     ],
   };
 }

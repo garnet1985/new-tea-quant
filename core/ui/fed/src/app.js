@@ -19,6 +19,12 @@ const SWITCH_THUMB_PX = 16;
 const SWITCH_PAD_X_TOTAL_PX = 4;
 const SWITCH_THUMB_TRAVEL_PX = SWITCH_ROOT_WIDTH_PX - SWITCH_THUMB_PX - SWITCH_PAD_X_TOTAL_PX;
 
+/** 与 ``body`` 上 ``--ntq-form-control-font-size`` 对齐；勿在 InputBase 使用 ``typography.body1``（默认 16px 会盖过变量） */
+const formControlTypography = {
+  fontSize: 'var(--ntq-form-control-font-size, 0.875rem)',
+  lineHeight: 'var(--ntq-form-control-line-height, 1.5)',
+};
+
 const theme = createTheme({
   palette: {
     mode: 'dark',
@@ -43,6 +49,28 @@ const theme = createTheme({
     button: { textTransform: 'none', fontWeight: 650, fontSize: 13, letterSpacing: '0.2px' },
   },
   components: {
+    MuiInputBase: {
+      styleOverrides: {
+        root: formControlTypography,
+        input: {
+          height: 'auto',
+          lineHeight: 'inherit',
+        },
+      },
+    },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: formControlTypography,
+        input: {
+          lineHeight: 'inherit',
+        },
+      },
+    },
+    MuiSelect: {
+      styleOverrides: {
+        select: formControlTypography,
+      },
+    },
     /** iOS 式：滑块直径小于轨道高度，圆球完全落在胶囊轨道内（不靠默认「大球突出细条」） */
     MuiSwitch: {
       defaultProps: { disableRipple: true },

@@ -189,11 +189,12 @@ def _print_help() -> None:
   -ic      UI 最小依赖 import 检查
   -cc      删除 userspace/.ntq（不碰仓库根 .ntq / install-state）
   -cu      删除各策略 results/ 与 DB 工作台快照表
-  -p -vX.Y.Z   发布准备（写 system.json / 徽章、检查 module_info、-ic、pytest）
+  -p -vX.Y.Z   发布准备（写 system.json / 徽章、检查 module_info、FED build、-ic、pytest）
 
-  -p 附加: --check-only  只检查不写文件
-           --skip-tests   跳过 pytest
-           --skip-ic      跳过最小依赖 import 检查
+  -p 附加: --check-only      只检查不写版本文件（仍会跑 FED build）
+           --skip-tests       跳过 pytest
+           --skip-ic          跳过最小依赖 import 检查
+           --skip-fed-build   跳过 core/ui/fed 的 npm run build
 
 子命令（等价）:
   ui [--kill-first]   kill [-ntq-only]   import-check   clear-cache   clear-userspace
@@ -239,6 +240,7 @@ def _build_subcommand_parser() -> argparse.ArgumentParser:
     p_pub.add_argument("--check-only", action="store_true")
     p_pub.add_argument("--skip-tests", action="store_true")
     p_pub.add_argument("--skip-ic", action="store_true")
+    p_pub.add_argument("--skip-fed-build", action="store_true")
     p_pub.set_defaults(func=_cmd_publish, forward=[])
 
     return parser
@@ -253,6 +255,7 @@ def _cmd_publish(args: argparse.Namespace) -> int:
             check_only=args.check_only,
             skip_tests=args.skip_tests,
             skip_ic=args.skip_ic,
+            skip_fed_build=args.skip_fed_build,
         )
     )
 

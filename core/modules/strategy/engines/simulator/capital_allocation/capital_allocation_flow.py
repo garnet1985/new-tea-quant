@@ -52,6 +52,9 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         ``progress_callback``：工作台轮询用；传入 0～100 的磁盘进度百分比（完成前宜小于 100）。
         """
         from core.modules.data_manager import DataManager
+        from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+            resolve_latest_completed_trading_date,
+        )
         from core.modules.strategy.engines.simulator.price_factor.price_factor_flow_impl import (
             PriceFactorFlowImpl,
         )
@@ -89,11 +92,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         raw_for_fp = raw_settings_for_db_cache_fingerprint(base_settings, strategy_info)
 
         data_mgr = DataManager(is_verbose=False)
-        latest_completed_trading_date = str(
-            data_mgr.stock.kline.load_latest_date("daily")
-            or data_mgr.service.calendar.get_latest_completed_trading_date()
-            or ""
-        ).strip()
+        latest_completed_trading_date = resolve_latest_completed_trading_date(data_mgr)
 
         resolved = resolve_db_cache_fingerprints(
             strategy_name=str(strategy_name),
@@ -250,6 +249,25 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             events=executed.events or [],
             completed_opportunities_map=executed.completed_opportunities_map or {},
             tradability_skips=executed.tradability_skips,
+        )
+        from core.modules.data_manager import DataManager
+        from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+            resolve_backtest_period_payload,
+            resolve_latest_completed_trading_date,
+        )
+        from core.modules.strategy.services.data.output.enumerator_output_service import (
+            EnumeratorOutputWriterService,
+        )
+
+        stock_ids = EnumeratorOutputWriterService.read_scope_stock_ids(
+            preprocessed.output_version_dir
+        )
+        data_mgr = DataManager(is_verbose=False)
+        summary["backtest_period"] = resolve_backtest_period_payload(
+            settings_view=preprocessed.base_settings,
+            stock_ids=stock_ids,
+            data_manager=data_mgr,
+            latest_completed_trading_date=resolve_latest_completed_trading_date(data_mgr),
         )
         # step2: persist output artifacts and metadata
         preprocessed.profiler.start_timer("save_csv")

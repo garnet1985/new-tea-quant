@@ -208,6 +208,7 @@ class EnumeratorOutputWriterService:
         status: str = "completed",
         created_at: Optional[str] = None,
         simulation_effective: Optional[Dict[str, Any]] = None,
+        backtest_period: Optional[Dict[str, str]] = None,
     ) -> Tuple[Dict[str, Any], List[str]]:
         fp_meta, scope_stock_ids = EnumeratorOutputWriterService.fingerprint_dict_for_metadata(
             fingerprint
@@ -226,6 +227,8 @@ class EnumeratorOutputWriterService:
         }
         if simulation_effective:
             metadata["simulation"] = simulation_effective
+        if isinstance(backtest_period, dict) and backtest_period:
+            metadata["backtest_period"] = dict(backtest_period)
         return metadata, scope_stock_ids
 
 

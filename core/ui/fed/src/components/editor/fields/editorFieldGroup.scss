@@ -1,0 +1,36 @@
+// 轻量分组：标题 + 边框内容区（比 MUI Paper 更疏朗）
+.ntq-editor-field-group {
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  &--plain {
+    margin-bottom: 0;
+  }
+
+  &__label {
+    margin: 0 0 6px;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.45;
+    color: var(--ntq-text);
+  }
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px 8px;
+    border: 1px solid var(--ntq-white-12);
+    border-radius: 2px;
+  }
+
+  &__body--plain {
+    gap: 14px;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+  }
+}

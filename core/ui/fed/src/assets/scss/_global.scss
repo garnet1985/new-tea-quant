@@ -37,6 +37,10 @@ body {
   --ntq-text: rgba(255, 255, 255, 0.86);
   --ntq-text-muted: rgba(255, 255, 255, 0.62);
 
+  // Input / Select / Textarea 控件内文字（与 MUI body2 一致）
+  --ntq-form-control-font-size: .8rem;
+  --ntq-form-control-line-height: 1.5;
+
   // Global glass background used by large blocks
   --ntq-glass-bg:
     radial-gradient(900px 420px at 12% 0%, rgba(255, 255, 255, 0.02), transparent 55%),

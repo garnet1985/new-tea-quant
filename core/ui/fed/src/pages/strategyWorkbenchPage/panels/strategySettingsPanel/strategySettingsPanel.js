@@ -9,6 +9,7 @@ import {
 } from '@mui/material';
 import Editor from 'components/editor/editor';
 import strategyCoreSchema from './editorSchemas/strategyCore';
+import strategyDataSchema from './editorSchemas/strategyData';
 import { buildStrategyMetaSchema } from './editorSchemas/strategyMeta';
 import {
   applyGoalActions,
@@ -84,6 +85,7 @@ export function StrategySettingsPanel({
     () => buildStrategySimulationSchema(simulationTemplateOptions),
     [simulationTemplateOptions],
   );
+  const workbenchEditorContext = useMemo(() => ({ defaultTooltipShine: true }), []);
 
   return (
     <SectionAccordion title="策略参数设置" defaultExpanded>
@@ -92,13 +94,22 @@ export function StrategySettingsPanel({
           schema={metaSchema}
           value={settings}
           onChange={onSettingsChange}
+          context={workbenchEditorContext}
         />
+        <SectionAccordion title="数据设置">
+          <Editor
+            schema={strategyDataSchema}
+            value={settings}
+            onChange={onSettingsChange}
+            context={workbenchEditorContext}
+          />
+        </SectionAccordion>
         {shouldShowCore ? (
           <Editor
             schema={strategyCoreSchema}
             value={settings}
             onChange={() => {}}
-            context={{ coreEditor }}
+            context={{ ...workbenchEditorContext, coreEditor }}
           />
         ) : null}
         <SectionAccordion title="策略目标设置">
@@ -109,6 +120,7 @@ export function StrategySettingsPanel({
               const nextGoal = applyGoalActions(nextValue || {});
               onGoalChange(nextGoal);
             }}
+            context={workbenchEditorContext}
           />
         </SectionAccordion>
         <SectionAccordion title="全局费用设置">
@@ -116,6 +128,7 @@ export function StrategySettingsPanel({
             schema={strategyFeesSchema}
             value={settings?.fees}
             onChange={onFeesChange}
+            context={workbenchEditorContext}
           />
         </SectionAccordion>
         <SectionAccordion title="回测执行假设">
@@ -125,6 +138,7 @@ export function StrategySettingsPanel({
             onChange={(nextSimulation) => {
               onSimulationChange(cleanupSimulationByTemplate(nextSimulation));
             }}
+            context={workbenchEditorContext}
           />
         </SectionAccordion>
         <SectionAccordion title="采样配置">
@@ -143,6 +157,7 @@ export function StrategySettingsPanel({
               return errors;
             }}
             onValidationChange={setSamplingEditorErrors}
+            context={workbenchEditorContext}
           />
         </SectionAccordion>
         {hasPriceSimulatorFields ? (
@@ -151,6 +166,7 @@ export function StrategySettingsPanel({
               schema={strategyPriceSimulatorSchema}
               value={settings?.price_simulator}
               onChange={onPriceSimulatorChange}
+              context={workbenchEditorContext}
             />
           </SectionAccordion>
         ) : null}
@@ -159,6 +175,7 @@ export function StrategySettingsPanel({
             schema={capitalSimulatorSchema}
             value={settings?.capital_simulator}
             onChange={onCapitalSimulatorChange}
+            context={workbenchEditorContext}
           />
         </SectionAccordion>
       </Stack>

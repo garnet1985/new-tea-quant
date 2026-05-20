@@ -1,6 +1,5 @@
 // --- 触发器：沿用 SVG 自带外圈，不再加 CSS border ---
 .ntq-help-tooltip-trigger {
-  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -8,7 +7,6 @@
   padding: 0;
   margin: 0;
   border: none;
-  border-radius: 50%;
   color: var(--ntq-text);
   background: transparent;
   cursor: help;
@@ -21,6 +19,20 @@
     color: var(--ntq-white-98);
     outline: none;
   }
+}
+
+// 与图标同尺寸的裁剪区，shine 不超出可见图形
+.ntq-help-tooltip-trigger__icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ntq-help-tooltip-size, 20px);
+  height: var(--ntq-help-tooltip-size, 20px);
+  flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  color: inherit;
 
   .ntq-icon-wrap {
     display: inline-flex;
@@ -29,57 +41,53 @@
   }
 }
 
-// 可选 shine（参考 .ntq-attention-btn）
+// 可选 shine（参考 .ntq-attention-btn），限制在图标裁剪区内
 .ntq-help-tooltip-trigger--shine {
-  overflow: hidden;
-  color: var(--ntq-cyan);
+  color: var(--ntq-text);
 
-  &::after {
+  .ntq-help-tooltip-trigger__icon::after {
     content: '';
     position: absolute;
-    top: -50%;
-    bottom: -50%;
-    width: 48%;
-    left: -70%;
-    transform: skewX(-18deg);
+    inset: 0;
+    width: 42%;
+    transform: skewX(-18deg) translateX(-120%);
     background: linear-gradient(
       90deg,
       transparent 0%,
       rgba(255, 255, 255, 0) 18%,
-      rgba(255, 255, 255, 0.32) 50%,
+      rgba(255, 255, 255, 0.36) 50%,
       rgba(255, 255, 255, 0) 82%,
       transparent 100%
     );
-    filter: blur(0.5px);
-    opacity: 0.9;
+    opacity: 0.85;
     animation: ntq-help-tooltip-shine 4.2s ease-in-out infinite;
     pointer-events: none;
   }
 
   &:hover {
-    color: var(--ntq-cyan);
+    color: var(--ntq-white-98);
     opacity: 1;
   }
 }
 
 @keyframes ntq-help-tooltip-shine {
   0% {
-    left: -70%;
+    transform: skewX(-18deg) translateX(-120%);
     opacity: 0;
   }
   72% {
-    left: -70%;
+    transform: skewX(-18deg) translateX(-120%);
     opacity: 0;
   }
   78% {
-    opacity: 0.95;
+    opacity: 0.9;
   }
   92% {
-    left: 120%;
-    opacity: 0.95;
+    transform: skewX(-18deg) translateX(220%);
+    opacity: 0.9;
   }
   100% {
-    left: 120%;
+    transform: skewX(-18deg) translateX(220%);
     opacity: 0;
   }
 }
@@ -90,22 +98,22 @@
 }
 
 .ntq-help-tooltip__tooltip {
-  font-size: 13px;
-  line-height: 1.5;
-  font-weight: 400;
+  font-size: .875rem !important;
+  line-height: 1.5 !important;
+  font-weight: 400 !important;
   color: var(--ntq-text);
-  background: rgba(12, 12, 28, 0.96);
+  background: rgba(12, 12, 28, 0.98);
   border: 1px solid var(--ntq-white-12);
   border-radius: 6px;
   box-shadow:
     0 12px 32px rgba(6, 6, 18, 0.45),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  padding: 8px 12px;
-  max-width: min(360px, 90vw);
+  padding: .75rem !important;
+  max-width: min(380px, 90vw) !important;
 }
 
 .ntq-help-tooltip__arrow {
-  color: rgba(12, 12, 28, 0.96);
+  color: rgba(12, 12, 28, 0.98);
 
   &::before {
     border: 1px solid var(--ntq-white-12);
@@ -170,7 +178,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ntq-help-tooltip-trigger--shine::after {
+  .ntq-help-tooltip-trigger--shine .ntq-help-tooltip-trigger__icon::after {
     animation: none;
   }
 

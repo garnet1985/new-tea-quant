@@ -10,8 +10,8 @@ import {
 /** 与 ``TextField`` multiline 输入一致，供只读 JSON / diff 视图复用核心设置编辑区观感 */
 export const DICT_PARSER_TEXT_FONT = {
   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-  fontSize: 13,
-  lineHeight: 1.5,
+  fontSize: 'var(--ntq-form-control-font-size, 14px)',
+  lineHeight: 'var(--ntq-form-control-line-height, 1.5)',
 };
 
 function DictParserField({ field, context = {} }) {

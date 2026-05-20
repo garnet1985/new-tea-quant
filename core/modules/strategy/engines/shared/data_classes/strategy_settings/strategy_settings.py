@@ -24,6 +24,7 @@ class StrategySettings(SettingsBase):
         rs = self.raw_settings
         from .data_settings import StrategyDataSettings
         from .goal_settings import StrategyGoalSettings
+        from .market_profile_settings import StrategyMarketProfileSettings
         from .meta_settings import StrategyMetaSettings
         from .sampling_settings import StrategySamplingSettings
         from core.modules.strategy.engines.scanner.data_classes.settings import (
@@ -40,6 +41,7 @@ class StrategySettings(SettingsBase):
         )
 
         object.__setattr__(self, "meta", StrategyMetaSettings.from_raw(rs))
+        object.__setattr__(self, "market_profile", StrategyMarketProfileSettings.from_strategy_root(rs))
         object.__setattr__(self, "fees", StrategyFeesSettings.from_strategy_root(rs))
         object.__setattr__(self, "simulation", StrategySimulationSettings.from_strategy_root(rs))
         object.__setattr__(self, "data", StrategyDataSettings.from_strategy_root(rs))
@@ -61,6 +63,8 @@ class StrategySettings(SettingsBase):
     def apply_defaults(self) -> None:
         rs = self.raw_settings
         self.meta.apply_defaults()
+        self.market_profile.apply_defaults()
+        rs["market_profile"] = self.market_profile.profile_id
         rs["name"] = self.meta.name
         rs["description"] = self.meta.description
         rs["core"] = self.meta.core
@@ -81,6 +85,7 @@ class StrategySettings(SettingsBase):
     def validate_base_settings(self) -> ValidationReport:
         self.apply_defaults()
         merged = SettingsBase.merge_validation_results(
+            self.market_profile.validate(),
             self.meta.validate(),
             self.fees.validate(),
             self.simulation.validate(),
@@ -104,6 +109,7 @@ class StrategySettings(SettingsBase):
         # API/BFF 有时会同时带根级 name/description 与嵌套 meta；引擎语义只用根级（见 meta.to_dict）。
         out.pop("meta", None)
         out.update(self.meta.to_dict())
+        out.update(self.market_profile.to_dict())
         out["fees"] = self.fees.to_dict()
         out["simulation"] = self.simulation.to_dict()
         out["data"] = self.data.to_dict()
@@ -119,6 +125,7 @@ class StrategySettings(SettingsBase):
         normalized = self.to_dict()
         return {
             "name": normalized.get("name", ""),
+            "market_profile": normalized.get("market_profile", ""),
             "core": normalized.get("core", {}) or {},
             "data": normalized.get("data", {}) or {},
             "goal": normalized.get("goal", {}) or {},

@@ -3,7 +3,12 @@ ProjectContextManager 单元测试
 """
 import pytest
 from core.infra.project_context.project_context_manager import ProjectContextManager
-from core.infra.project_context import PathManager, FileManager, ConfigManager
+from core.infra.project_context import (
+    PathManager,
+    DiscoveryManager,
+    FileManager,
+    ConfigManager,
+)
 
 
 class TestProjectContextManager:
@@ -15,8 +20,9 @@ class TestProjectContextManager:
         
         # 验证 Manager 属性
         assert ctx.path == PathManager
-        assert ctx.file == FileManager
+        assert ctx.discovery == DiscoveryManager
         assert ctx.config == ConfigManager
+        assert ctx.file == FileManager
     
     def test_core_info(self):
         """测试获取 core meta 信息"""

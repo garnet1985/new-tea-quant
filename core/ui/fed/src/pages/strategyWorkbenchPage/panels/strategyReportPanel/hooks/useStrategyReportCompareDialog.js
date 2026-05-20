@@ -1,17 +1,16 @@
 import { useEffect, useState } from 'react';
 import {
-  fetchStrategyReportCompare,
+  fetchStrategyStepReport,
   fetchStrategyVersionDetail,
 } from '../../../../../api/apis/strategyApi';
 import { REPORT_COMPARE_MORE_MENU_VALUE } from '../constants/strategyReportConstants';
 
 /**
- * 「对比结果」弹窗：对比版本选择、报告对比 API、当前/对比快照 settings 加载。
+ * 「对比结果」弹窗：对比版本选择、V2-07 对比侧 report、settings 快照 diff。
  */
 export function useStrategyReportCompareDialog({
   strategyName,
-  runId,
-  anchorVersionId,
+  reportVersionId,
   resolvedActiveTab,
   showReportCompare,
 }) {
@@ -29,9 +28,9 @@ export function useStrategyReportCompareDialog({
     detail: null,
   });
   const [compareVersion, setCompareVersion] = useState('');
-  const [comparePayload, setComparePayload] = useState(null);
-  const [compareLoading, setCompareLoading] = useState(false);
   const [compareError, setCompareError] = useState('');
+  const [compareStepReport, setCompareStepReport] = useState(null);
+  const [compareStepReportLoading, setCompareStepReportLoading] = useState(false);
 
   useEffect(() => {
     if (!showReportCompare && compareDialogOpen) setCompareDialogOpen(false);
@@ -39,37 +38,33 @@ export function useStrategyReportCompareDialog({
 
   useEffect(() => {
     let cancelled = false;
-    if (!compareDialogOpen || !strategyName || !runId || !resolvedActiveTab || !compareVersion) {
-      setComparePayload(null);
+    const cmpVid = String(compareVersion || '').trim();
+    if (!compareDialogOpen || !strategyName || !resolvedActiveTab || !cmpVid) {
+      setCompareStepReport(null);
+      setCompareStepReportLoading(false);
       setCompareError('');
-      setCompareLoading(false);
       return undefined;
     }
-    const loadCompare = async () => {
-      try {
-        setCompareLoading(true);
-        setCompareError('');
-        const data = await fetchStrategyReportCompare(
-          strategyName,
-          runId,
-          compareVersion,
-          resolvedActiveTab,
-        );
+    setCompareStepReportLoading(true);
+    setCompareError('');
+    fetchStrategyStepReport(strategyName, resolvedActiveTab, cmpVid)
+      .then((msg) => {
         if (cancelled) return;
-        setComparePayload(data || null);
-      } catch (err) {
+        const rep = msg?.report;
+        setCompareStepReport(rep && typeof rep === 'object' ? rep : null);
+      })
+      .catch((err) => {
         if (cancelled) return;
+        setCompareStepReport(null);
         setCompareError(err?.message || '读取对比报告失败');
-        setComparePayload(null);
-      } finally {
-        if (!cancelled) setCompareLoading(false);
-      }
-    };
-    loadCompare();
+      })
+      .finally(() => {
+        if (!cancelled) setCompareStepReportLoading(false);
+      });
     return () => {
       cancelled = true;
     };
-  }, [compareDialogOpen, compareVersion, resolvedActiveTab, runId, strategyName]);
+  }, [compareDialogOpen, compareVersion, resolvedActiveTab, strategyName]);
 
   useEffect(() => {
     if (!compareDialogOpen) {
@@ -84,7 +79,7 @@ export function useStrategyReportCompareDialog({
       return undefined;
     }
     let cancelled = false;
-    const curId = String(anchorVersionId || '').trim();
+    const curId = String(reportVersionId || '').trim();
 
     if (!curId) {
       setBaseSettingsPayload({ loading: false, error: '', settings: null });
@@ -112,10 +107,15 @@ export function useStrategyReportCompareDialog({
     return () => {
       cancelled = true;
     };
-  }, [compareDialogOpen, compareDialogSubTab, strategyName, anchorVersionId]);
+  }, [compareDialogOpen, compareDialogSubTab, strategyName, reportVersionId]);
 
   useEffect(() => {
-    if (!compareDialogOpen || !strategyName || !String(compareVersion || '').trim()) {
+    if (
+      !compareDialogOpen
+      || compareDialogSubTab !== 'settings'
+      || !strategyName
+      || !String(compareVersion || '').trim()
+    ) {
       setCompareWorkbenchSnapshot({ loading: false, error: '', detail: null });
       return undefined;
     }
@@ -138,7 +138,7 @@ export function useStrategyReportCompareDialog({
     return () => {
       cancelled = true;
     };
-  }, [compareDialogOpen, compareVersion, strategyName]);
+  }, [compareDialogOpen, compareDialogSubTab, compareVersion, strategyName]);
 
   const handleReportCompareSelectChange = (event) => {
     const value = event.target.value;
@@ -152,14 +152,7 @@ export function useStrategyReportCompareDialog({
     window.setTimeout(proceed, 0);
   };
 
-  const compareResultReport = compareWorkbenchSnapshot.detail?.result_report
-    && typeof compareWorkbenchSnapshot.detail.result_report === 'object'
-    ? compareWorkbenchSnapshot.detail.result_report
-    : null;
-
-  const compareSideReportBusy = Boolean(
-    compareVersion && (compareLoading || compareWorkbenchSnapshot.loading),
-  );
+  const compareSideReportBusy = Boolean(compareVersion && compareStepReportLoading);
 
   return {
     compareDialogOpen,
@@ -172,11 +165,9 @@ export function useStrategyReportCompareDialog({
     compareWorkbenchSnapshot,
     compareVersion,
     setCompareVersion,
-    comparePayload,
-    compareLoading,
     compareError,
     handleReportCompareSelectChange,
-    compareResultReport,
+    compareStepReport,
     compareSideReportBusy,
   };
 }

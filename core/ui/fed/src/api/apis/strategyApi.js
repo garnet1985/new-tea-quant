@@ -11,6 +11,7 @@ function apiStrategyPath(strategyName) {
 const API_SETTINGS_CAPITAL = `${API_VERSION_PREFIX}/strategy/settings/capital-allocation-strategies`;
 const API_SETTINGS_SAMPLING = `${API_VERSION_PREFIX}/strategy/settings/sampling-strategies`;
 const API_SETTINGS_SIMULATION_TEMPLATES = `${API_VERSION_PREFIX}/strategy/settings/simulation-templates`;
+const API_SETTINGS_MARKET_PROFILES = `${API_VERSION_PREFIX}/strategy/settings/market-profiles`;
 
 /** @typedef {{ value: string, label: string }} StrategySettingOption */
 /** @typedef {{ configurable_fields: string[], required_fields: string[] }} StrategySettingProfile */
@@ -28,7 +29,7 @@ export async function fetchStrategyList() {
     data: list.map((item) => ({
       id: item.name,
       name: item.name,
-      description: item.worker_class_name || item.folder || '',
+      description: String(item.description || '').trim(),
       is_enabled: Boolean(item.is_enabled),
     })),
   };
@@ -415,34 +416,6 @@ export async function fetchStrategyVersionHistory(strategyName) {
 }
 
 /**
- * SWB-11：读取报告摘要。
- * @param {string} strategyName
- * @param {string} runId
- * @param {string[]} [reportTypes]
- */
-export async function fetchStrategyReports(strategyName, runId, reportTypes) {
-  void strategyName;
-  void runId;
-  void reportTypes;
-  return {};
-}
-
-/**
- * SWB-12：读取报告样本股票表。
- * @param {string} strategyName
- * @param {string} runId
- * @param {'enum'|'price'|'capital'} reportType
- * @param {{limit?: number, search?: string, sortBy?: string, sortOrder?: 'asc'|'desc'}} [options]
- */
-export async function fetchStrategyReportStocks(strategyName, runId, reportType, options = {}) {
-  void strategyName;
-  void runId;
-  void reportType;
-  void options;
-  return {};
-}
-
-/**
  * SWB-13：读取单股票 K 线与买卖点。
  * @param {string} strategyName
  * @param {string} runId
@@ -456,28 +429,17 @@ export async function fetchStrategyReportStockKline(strategyName, runId, stockId
 }
 
 /**
- * SWB-14：读取报告对比数据。
- * @param {string} strategyName
- * @param {string} baseRunId
- * @param {string} compareVersion
- * @param {'enum'|'price'|'capital'} [reportType]
- */
-export async function fetchStrategyReportCompare(strategyName, baseRunId, compareVersion, reportType) {
-  void strategyName;
-  void baseRunId;
-  void compareVersion;
-  void reportType;
-  return {};
-}
-
-/**
  * SWB-02：资金分配模式选项（`capital_simulator.allocation.mode`）
  * @returns {Promise<StrategySettingOption[]>}
  */
 export async function fetchCapitalAllocationModeOptions() {
   const json = await requestJson(API_SETTINGS_CAPITAL, { method: 'GET' });
   const items = json?.message?.items ?? [];
-  return items.map((row) => ({ value: row.value, label: row.label }));
+  return items.map((row) => ({
+    value: row.value,
+    label: row.label,
+    tooltip: row.tooltip || '',
+  }));
 }
 
 /**
@@ -488,7 +450,11 @@ export async function fetchCapitalAllocationModeConfig() {
   const json = await requestJson(API_SETTINGS_CAPITAL, { method: 'GET' });
   const items = json?.message?.items ?? [];
   return {
-    options: items.map((row) => ({ value: row.value, label: row.label })),
+    options: items.map((row) => ({
+      value: row.value,
+      label: row.label,
+      tooltip: row.tooltip || '',
+    })),
     profiles: {},
   };
 }
@@ -500,7 +466,11 @@ export async function fetchCapitalAllocationModeConfig() {
 export async function fetchSamplingStrategyOptions() {
   const json = await requestJson(API_SETTINGS_SAMPLING, { method: 'GET' });
   const items = json?.message?.items ?? [];
-  return items.map((row) => ({ value: row.value, label: row.label }));
+  return items.map((row) => ({
+    value: row.value,
+    label: row.label,
+    tooltip: row.tooltip || '',
+  }));
 }
 
 /**
@@ -511,7 +481,11 @@ export async function fetchSamplingStrategyConfig() {
   const json = await requestJson(API_SETTINGS_SAMPLING, { method: 'GET' });
   const items = json?.message?.items ?? [];
   return {
-    options: items.map((row) => ({ value: row.value, label: row.label })),
+    options: items.map((row) => ({
+      value: row.value,
+      label: row.label,
+      tooltip: row.tooltip || '',
+    })),
     profiles: {},
   };
 }
@@ -523,7 +497,11 @@ export async function fetchSamplingStrategyConfig() {
 export async function fetchSimulationTemplateOptions() {
   const json = await requestJson(API_SETTINGS_SIMULATION_TEMPLATES, { method: 'GET' });
   const items = json?.message?.items ?? [];
-  return items.map((row) => ({ value: row.value, label: row.label }));
+  return items.map((row) => ({
+    value: row.value,
+    label: row.label,
+    tooltip: row.tooltip || '',
+  }));
 }
 
 /**
@@ -534,7 +512,21 @@ export async function fetchSimulationTemplateConfig() {
   const json = await requestJson(API_SETTINGS_SIMULATION_TEMPLATES, { method: 'GET' });
   const items = json?.message?.items ?? [];
   return {
-    options: items.map((row) => ({ value: row.value, label: row.label })),
+    options: items.map((row) => ({
+      value: row.value,
+      label: row.label,
+      tooltip: row.tooltip || '',
+    })),
     profiles: {},
   };
+}
+
+/**
+ * SWB：市场规则 profile（根级 `market_profile`）
+ * @returns {Promise<StrategySettingOption[]>}
+ */
+export async function fetchMarketProfileOptions() {
+  const json = await requestJson(API_SETTINGS_MARKET_PROFILES, { method: 'GET' });
+  const items = json?.message?.items ?? [];
+  return items.map((row) => ({ value: row.value, label: row.label }));
 }

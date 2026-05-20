@@ -7,7 +7,6 @@ import {
   Card,
   CardContent,
   Checkbox,
-  CircularProgress,
   Container,
   FormControlLabel,
   MenuItem,
@@ -19,10 +18,8 @@ import {
   Typography,
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
-import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
-import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
-import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
-import RadioButtonUncheckedRoundedIcon from '@mui/icons-material/RadioButtonUncheckedRounded';
+import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
+import NtqIcon from '../../components/ntqIcon/ntqIcon';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   getSetupDefinition,
@@ -183,16 +180,7 @@ function SetupPage() {
     if (runningStep && params.row.id === runningStep) {
       return (
         <Stack direction="row" spacing={1} alignItems="center">
-          <AutorenewRoundedIcon
-            color="primary"
-            sx={{
-              animation: 'spin 1s linear infinite',
-              '@keyframes spin': {
-                '0%': { transform: 'rotate(0deg)' },
-                '100%': { transform: 'rotate(360deg)' },
-              },
-            }}
-          />
+          <NtqIcon name="syncAlt" size={24} spin />
           <Typography variant="body2">执行中...</Typography>
         </Stack>
       );
@@ -200,7 +188,7 @@ function SetupPage() {
     if (params.value === '已完成') {
       return (
         <Stack direction="row" spacing={1} alignItems="center">
-          <CheckCircleRoundedIcon sx={{ color: 'success.main' }} />
+          <NtqIcon name="success" size={24} tone="success" />
           <Typography variant="body2">已完成</Typography>
         </Stack>
       );
@@ -208,7 +196,7 @@ function SetupPage() {
     if (params.value === '失败') {
       return (
         <Stack direction="row" spacing={1} alignItems="center">
-          <CancelRoundedIcon sx={{ color: 'error.main' }} />
+          <NtqIcon name="cancel" size={24} tone="error" />
           <Typography variant="body2">失败</Typography>
         </Stack>
       );
@@ -216,14 +204,14 @@ function SetupPage() {
     if (params.value === '待输入') {
       return (
         <Stack direction="row" spacing={1} alignItems="center">
-          <RadioButtonUncheckedRoundedIcon sx={{ color: 'warning.main' }} />
+          <NtqIcon name="radioUnchecked" size={24} tone="warning" />
           <Typography variant="body2">待输入</Typography>
         </Stack>
       );
     }
     return (
       <Stack direction="row" spacing={1} alignItems="center">
-        <RadioButtonUncheckedRoundedIcon color="disabled" />
+        <NtqIcon name="radioUnchecked" size={24} tone="disabled" />
         <Typography variant="body2">{pendingLabel}</Typography>
       </Stack>
     );
@@ -397,10 +385,7 @@ function SetupPage() {
   return (
     <>
       <Backdrop open={bootstrapping} sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
-        <Stack spacing={1.5} alignItems="center">
-          <CircularProgress color="inherit" />
-          <Typography variant="body2">正在加载安装状态...</Typography>
-        </Stack>
+        <InlineLoadingState message="正在加载安装状态…" />
       </Backdrop>
       <Container maxWidth="lg" sx={{ py: 5, visibility: bootstrapping ? 'hidden' : 'visible' }}>
         <Box className="setup-page" sx={{ minWidth: 0 }}>
@@ -550,17 +535,17 @@ function SetupPage() {
             <Card variant="outlined">
               <CardContent>
                 <Stack alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                  <CheckCircleRoundedIcon
+                  <Box
                     sx={{
-                      fontSize: 72,
-                      color: 'success.main',
                       animation: 'ySpinFast 0.3s ease',
                       '@keyframes ySpinFast': {
                         '0%': { transform: 'rotateY(0deg) scale(0.9)', opacity: 0.4 },
                         '100%': { transform: 'rotateY(360deg) scale(1)', opacity: 1 },
                       },
                     }}
-                  />
+                  >
+                    <NtqIcon name="success" size={72} tone="success" />
+                  </Box>
                   <Typography variant="h6">成功</Typography>
                 </Stack>
                 <Typography color="text.secondary" sx={{ mt: 1, mb: 2 }}>
@@ -585,17 +570,17 @@ function SetupPage() {
             <Card variant="outlined">
               <CardContent>
                 <Stack alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                  <CancelRoundedIcon
+                  <Box
                     sx={{
-                      fontSize: 72,
-                      color: 'error.main',
                       animation: 'ySpinFast 0.3s ease',
                       '@keyframes ySpinFast': {
                         '0%': { transform: 'rotateY(0deg) scale(0.9)', opacity: 0.5 },
                         '100%': { transform: 'rotateY(360deg) scale(1)', opacity: 1 },
                       },
                     }}
-                  />
+                  >
+                    <NtqIcon name="cancel" size={72} tone="error" />
+                  </Box>
                   <Typography variant="h6">失败</Typography>
                 </Stack>
                 <Alert severity="error" sx={{ mt: 1, mb: 2 }}>

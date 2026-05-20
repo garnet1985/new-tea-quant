@@ -1,14 +1,13 @@
 const strategyCoreSchema = {
   name: 'strategyCore',
   label: '策略核心设置',
-  description: '用户自定义策略核心参数',
   type: 'section',
   defaultExpanded: false,
   children: [
     {
       name: 'strategyCore.dictParser',
-      label: '核心参数 Dict 编辑器',
-      description: '支持 JSON / Python dict 风格输入',
+      label: '核心参数',
+      tooltip: '在策略代码里的一些自定义阈值或者参数，来源于策略设置文件里的core参数块',
       type: 'dictParser',
       sourceKey: 'coreEditor',
       placeholder: '输入 settings.core（dict）',

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { AppBar, Box, Toolbar, Typography, Button, Stack } from '@mui/material';
-import { ReactComponent as FallbackLogo } from '../assets/icon/tactic.svg';
+import { ReactComponent as FallbackLogo } from './ntqIcon/icons/tactic.svg';
+import { useAppVersion } from '../hooks/useAppVersion';
 import './appNavigation.scss';
 
 const navItems = [
@@ -13,6 +14,7 @@ const navItems = [
 function AppNavigation() {
   const location = useLocation();
   const [logoFailed, setLogoFailed] = useState(false);
+  const appVersionLabel = useAppVersion();
 
   return (
     <AppBar
@@ -48,9 +50,11 @@ function AppNavigation() {
               <Typography variant="h6" className="ntq-brand__name">
                 New Tea Quant
               </Typography>
-              <Typography variant="caption" className="ntq-brand__version">
-                v0.3.0
-              </Typography>
+              {appVersionLabel ? (
+                <Typography variant="caption" className="ntq-brand__version" component="span">
+                  {appVersionLabel}
+                </Typography>
+              ) : null}
             </Box>
             </Box>
             <Stack direction="row" spacing={0} flexWrap="wrap" className="ntq-nav">

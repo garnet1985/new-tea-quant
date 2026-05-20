@@ -11,6 +11,9 @@ from core.modules.strategy.services.cache.simulator_res_db_cache.helpers import 
     raw_settings_for_db_cache_fingerprint,
     stock_ids_for_db_cache_fingerprint,
 )
+from core.modules.strategy.engines.shared.data_classes.market_profile_context import (
+    MarketProfileContext,
+)
 from core.modules.strategy.engines.shared.helpers.simulation_flow import (
     prepare_simulation_settings,
     simulation_effective_snapshot,
@@ -79,9 +82,11 @@ class PriceFactorFlow(BaseSimulationFlow):
             probe.strategy_name
         )
         simulation_settings = prepare_simulation_settings(probe.base_settings)
+        market_profile = MarketProfileContext.from_settings_view(probe.base_settings)
         return PriceFactorPreprocessContext(
             strategy_name=probe.strategy_name,
             base_settings=probe.base_settings,
+            market_profile=market_profile,
             simulation_settings=simulation_settings,
             simulator_config=probe.simulator_config,
             output_version_dir=probe.output_version_dir,
@@ -105,6 +110,10 @@ class PriceFactorFlow(BaseSimulationFlow):
         ``progress_callback``：工作台轮询用；传入 0～100 的磁盘进度百分比（完成前宜小于 100）。
         """
         from core.modules.data_manager import DataManager
+        from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+            resolve_backtest_date_range,
+            resolve_latest_completed_trading_date,
+        )
         from core.modules.strategy.services.cache.simulator_res_db_cache.snapshot_slot_adapters import (
             lookup_price_factor_cache,
             persist_price_factor_snapshot,
@@ -131,11 +140,7 @@ class PriceFactorFlow(BaseSimulationFlow):
         )
 
         data_mgr = DataManager(is_verbose=False)
-        latest_completed_trading_date = str(
-            data_mgr.stock.kline.load_latest_date("daily")
-            or data_mgr.service.calendar.get_latest_completed_trading_date()
-            or ""
-        ).strip()
+        latest_completed_trading_date = resolve_latest_completed_trading_date(data_mgr)
 
         resolved_probe = resolve_db_cache_fingerprints(
             strategy_name=str(strategy_name),
@@ -202,16 +207,33 @@ class PriceFactorFlow(BaseSimulationFlow):
         *,
         progress_callback: Optional[Callable[[float], None]] = None,
     ) -> PriceFactorExecuteContext:
+        from core.modules.data_manager import DataManager
+        from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+            resolve_backtest_date_range,
+            resolve_latest_completed_trading_date,
+        )
+
         jobs = self._impl.build_worker_jobs(
             strategy_name=preprocessed.strategy_name,
             sim_version_dir=preprocessed.sim_version_dir,
             stock_files=preprocessed.stock_files,
             config=preprocessed.simulator_config,
         )
+        data_mgr = DataManager(is_verbose=False)
+        period = resolve_backtest_date_range(
+            settings_view=preprocessed.base_settings,
+            stock_ids=sorted(preprocessed.stock_files.keys()),
+            latest_completed_trading_date=resolve_latest_completed_trading_date(data_mgr),
+            data_manager=data_mgr,
+        )
         sim_snap = simulation_effective_snapshot(preprocessed.simulation_settings)
+        mp_id = preprocessed.market_profile.profile_id
         for job in jobs:
+            job["market_profile_id"] = mp_id
             cfg = dict(job.get("config") or {})
             cfg["simulation"] = sim_snap
+            cfg["start_date"] = period.start_date
+            cfg["end_date"] = period.end_date
             job["config"] = cfg
         results = self._impl.run_worker_jobs(
             jobs=jobs,
@@ -238,6 +260,19 @@ class PriceFactorFlow(BaseSimulationFlow):
         )
         if not session_summary:
             return {}
+        from core.modules.data_manager import DataManager
+        from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+            resolve_backtest_period_payload,
+            resolve_latest_completed_trading_date,
+        )
+
+        data_mgr = DataManager(is_verbose=False)
+        session_summary["backtest_period"] = resolve_backtest_period_payload(
+            settings_view=preprocessed.base_settings,
+            stock_ids=sorted(preprocessed.stock_files.keys()),
+            data_manager=data_mgr,
+            latest_completed_trading_date=resolve_latest_completed_trading_date(data_mgr),
+        )
         self._impl.save_session_outputs(
             strategy_name=preprocessed.strategy_name,
             sim_version_dir=preprocessed.sim_version_dir,

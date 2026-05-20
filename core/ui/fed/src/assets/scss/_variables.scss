@@ -2,6 +2,8 @@
 // 在页面/组件的 scss 中通过 @use '../../assets/scss/variables' as *; 引用
 
 // 视区与主内容
+$ntq-header-height: 64px; // 与 .ntq-app-header__toolbar 一致
+$ntq-page-bg-height: clamp(350px, 50vh, 450px); // 顶栏下方装饰背景高度
 $ntq-body-min-width: 1280px; // 页面最小宽度（窄于此时出现横向滚动条）
 $ntq-content-width: 88vw; // 主内容区、header inner、footer inner 共用相对视口宽度
 $ntq-content-max-width: 1920px; // 超宽屏下内容不无限变宽，可按需再调

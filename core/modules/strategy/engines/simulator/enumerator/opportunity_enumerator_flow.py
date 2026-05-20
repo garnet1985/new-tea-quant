@@ -21,6 +21,9 @@ from core.modules.strategy.engines.simulator.enumerator.data_classes.settings im
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
+from core.modules.strategy.engines.shared.data_classes.market_profile_context import (
+    MarketProfileContext,
+)
 from core.modules.strategy.engines.shared.helpers.simulation_flow import (
     prepare_simulation_settings,
     simulation_effective_snapshot,
@@ -43,6 +46,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         workbench_strategy_name: Optional[str] = None,
         workbench_run_id: Optional[str] = None,
         force_refresh: bool = False,
+        backtest_period: Optional[Dict[str, str]] = None,
     ) -> None:
         self.start_date = start_date
         self.end_date = end_date
@@ -60,6 +64,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             workbench_strategy_name=workbench_strategy_name,
             workbench_run_id=workbench_run_id,
             force_refresh=force_refresh,
+            backtest_period=backtest_period,
         )
 
     def run(
@@ -75,6 +80,9 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         """
         # Deferred import: ``cache`` / ``simulator_res_db_cache`` / ``DataManager`` 避免与枚举器初始化循环依赖。
         from core.modules.data_manager import DataManager
+        from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+            resolve_latest_completed_trading_date,
+        )
         from core.modules.strategy.services.cache.simulator_res_db_cache.snapshot_slot_adapters import (
             lookup_enum_cache,
             persist_enum_snapshot,
@@ -88,17 +96,16 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         probe = self._preprocess_probe(strategy_name=strategy_name, strategy_info=strategy_info)
 
         data_mgr = DataManager(is_verbose=False)
-        latest_completed_trading_date = str(
-            data_mgr.stock.kline.load_latest_date("daily")
-            or data_mgr.service.calendar.get_latest_completed_trading_date()
-            or ""
-        ).strip()
+        latest_completed_trading_date = resolve_latest_completed_trading_date(data_mgr)
 
         resolved_probe = resolve_db_cache_fingerprints(
             strategy_name=str(strategy_name),
             raw_settings=dict(probe.settings_for_fingerprint or {}),
             stock_list=list(self.stock_list or []),
             latest_completed_trading_date=latest_completed_trading_date,
+            data_manager=data_mgr,
+            env_start_date=self.start_date,
+            env_end_date=self.end_date,
         )
 
         # 指纹条件不足（settings / env / worker 等）时不走读缓存，直接跑完整 flow。
@@ -147,6 +154,9 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
                 raw_settings=raw_for_resolve,
                 stock_list=list(self.stock_list or []),
                 latest_completed_trading_date=latest_completed_trading_date,
+                data_manager=data_mgr,
+                env_start_date=self.start_date,
+                env_end_date=self.end_date,
             )
             if resolved_save is not None:
                 first = summary_list[0] if summary_list else {}
@@ -170,6 +180,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             strategy_name=strategy_name, strategy_info=strategy_info
         )
         simulation_settings = prepare_simulation_settings(base_settings)
+        market_profile = MarketProfileContext.from_settings_view(base_settings)
         worker_ref = self._impl.resolve_worker_blueprint(
             strategy_name=strategy_name, strategy_info=strategy_info
         )
@@ -187,6 +198,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         )
         return EnumeratorProbeContext(
             strategy_name=strategy_name,
+            market_profile=market_profile,
             simulation_settings=simulation_settings,
             enum_settings=enum_settings,
             settings_payload=settings_payload,
@@ -208,6 +220,9 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             worker_ref=probe.worker_ref,
             stock_ids=self.stock_list,
         )
+        mp_id = probe.market_profile.profile_id
+        for job in jobs:
+            job["market_profile_id"] = mp_id
         result_fingerprint = self._impl.build_request_fingerprint(
             strategy_name=probe.strategy_name,
             settings_payload=probe.settings_for_fingerprint,
@@ -218,6 +233,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         runtime = self._impl.create_runtime_context()
         return EnumeratorPreprocessContext(
             strategy_name=probe.strategy_name,
+            market_profile=probe.market_profile,
             simulation_settings=probe.simulation_settings,
             enum_settings=probe.enum_settings,
             full_settings_snapshot_api=probe.full_settings_snapshot_api,

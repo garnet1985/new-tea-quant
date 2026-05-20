@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import React, { useCallback, useMemo, useState } from 'react';
+import NtqIcon from 'components/ntqIcon/ntqIcon';
 import {
   Accordion,
   AccordionDetails,
@@ -9,43 +9,52 @@ import {
 } from '@mui/material';
 import Editor from 'components/editor/editor';
 import strategyCoreSchema from './editorSchemas/strategyCore';
-import strategyMetaSchema from './editorSchemas/strategyMeta';
-import {
-  applyGoalActions,
-  normalizeGoalSettings,
-} from './editorSchemas/strategyGoal';
-import strategyGoalSchema from './editorSchemas/strategyGoal';
+import strategyDataSchema from './editorSchemas/strategyData';
+import { buildStrategyMetaSchema } from './editorSchemas/strategyMeta';
 import strategyFeesSchema from './editorSchemas/strategyFees';
+import {
+  STRATEGY_SETTINGS_ROOT_TITLE,
+  STRATEGY_SETTINGS_ROOT_TOOLTIP,
+} from './settingsSectionMeta';
+import SettingsAccordionTitle from 'components/settingsAccordionTitle/settingsAccordionTitle';
 import strategyPriceSimulatorSchema from './editorSchemas/strategyPriceSimulator';
 import { buildStrategyCapitalSimulatorSchema } from './editorSchemas/strategyCapitalSimulator';
+import { buildStrategySamplingSchema } from './editorSchemas/strategySampling';
+import { buildStrategySimulationSchema } from './editorSchemas/strategySimulation';
 import {
-  buildStrategySamplingSchema,
-  cleanupSamplingByStrategy,
-  normalizeSamplingSettings,
-} from './editorSchemas/strategySampling';
-import {
-  buildStrategySimulationSchema,
-  cleanupSimulationByTemplate,
-  normalizeSimulationSettings,
-} from './editorSchemas/strategySimulation';
+  GoalSettingsEditor,
+  SamplingSettingsEditor,
+  SettingsSchemaEditor,
+  SimulationSettingsEditor,
+} from './settingsEditorSections';
 
-function SectionAccordion({ title, defaultExpanded = false, children }) {
+function SectionAccordion({
+  title,
+  tooltip = '',
+  defaultExpanded = false,
+  children,
+  context = {},
+}) {
+  const summaryTitle = tooltip ? (
+    <SettingsAccordionTitle title={title} tooltip={tooltip} context={context} />
+  ) : (
+    <Typography component="span" fontWeight={600}>
+      {title}
+    </Typography>
+  );
+
   return (
-    <Accordion defaultExpanded={defaultExpanded} disableGutters>
-      <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-        <Typography fontWeight={600}>{title}</Typography>
+    <Accordion
+      defaultExpanded={defaultExpanded}
+      disableGutters
+      TransitionProps={{ timeout: 0, unmountOnExit: false }}
+    >
+      <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
+        {summaryTitle}
       </AccordionSummary>
       <AccordionDetails>{children}</AccordionDetails>
     </Accordion>
   );
-}
-
-function isPlainObject(value) {
-  return Object.prototype.toString.call(value) === '[object Object]';
-}
-
-function hasNonEmptyCore(value) {
-  return isPlainObject(value) && Object.keys(value).length > 0;
 }
 
 const hasPriceSimulatorFields = Array.isArray(strategyPriceSimulatorSchema.children)
@@ -64,9 +73,13 @@ export function StrategySettingsPanel({
   allocationModeOptions,
   samplingStrategyOptions,
   simulationTemplateOptions,
+  marketProfileOptions,
 }) {
-  const shouldShowCore = hasNonEmptyCore(settings?.core);
   const [samplingEditorErrors, setSamplingEditorErrors] = useState({});
+  const metaSchema = useMemo(
+    () => buildStrategyMetaSchema(marketProfileOptions),
+    [marketProfileOptions],
+  );
   const capitalSimulatorSchema = useMemo(
     () => buildStrategyCapitalSimulatorSchema(allocationModeOptions),
     [allocationModeOptions],
@@ -79,81 +92,100 @@ export function StrategySettingsPanel({
     () => buildStrategySimulationSchema(simulationTemplateOptions),
     [simulationTemplateOptions],
   );
+  const workbenchEditorContext = useMemo(() => ({ defaultTooltipShine: true }), []);
+  const coreEditorContext = useMemo(
+    () => ({ ...workbenchEditorContext, coreEditor }),
+    [workbenchEditorContext, coreEditor],
+  );
+
+  const validateSamplingDates = useCallback((nextValue) => {
+    const start = nextValue?.start_date || '';
+    const end = nextValue?.end_date || '';
+    const errors = {};
+    if (start && end && end < start) {
+      errors.end_date = '结束日期不能早于开始日期';
+    }
+    return errors;
+  }, []);
 
   return (
-    <SectionAccordion title="策略参数设置" defaultExpanded>
+    <SectionAccordion
+      title={STRATEGY_SETTINGS_ROOT_TITLE}
+      tooltip={STRATEGY_SETTINGS_ROOT_TOOLTIP}
+      context={workbenchEditorContext}
+      defaultExpanded
+    >
       <Stack spacing={1}>
-        <Editor
-          schema={strategyMetaSchema}
+        <SettingsSchemaEditor
+          schema={metaSchema}
           value={settings}
           onChange={onSettingsChange}
+          context={workbenchEditorContext}
         />
-        {shouldShowCore ? (
-          <Editor
-            schema={strategyCoreSchema}
+        <SectionAccordion title="数据设置">
+          <SettingsSchemaEditor
+            schema={strategyDataSchema}
             value={settings}
-            onChange={() => {}}
-            context={{ coreEditor }}
-          />
-        ) : null}
-        <SectionAccordion title="策略目标设置">
-          <Editor
-            schema={strategyGoalSchema}
-            value={normalizeGoalSettings(settings?.goal)}
-            onChange={(nextValue) => {
-              const nextGoal = applyGoalActions(nextValue || {});
-              onGoalChange(nextGoal);
-            }}
+            onChange={onSettingsChange}
+            context={workbenchEditorContext}
           />
         </SectionAccordion>
-        <SectionAccordion title="全局费用设置">
-          <Editor
+        <Editor
+          schema={strategyCoreSchema}
+          value={settings}
+          onChange={() => {}}
+          context={coreEditorContext}
+        />
+        <SectionAccordion title="目标设置">
+          <GoalSettingsEditor
+            goal={settings?.goal}
+            onGoalChange={onGoalChange}
+            context={workbenchEditorContext}
+          />
+        </SectionAccordion>
+        <SectionAccordion title="交易费用">
+          <SettingsSchemaEditor
             schema={strategyFeesSchema}
             value={settings?.fees}
             onChange={onFeesChange}
+            context={workbenchEditorContext}
           />
         </SectionAccordion>
         <SectionAccordion title="回测执行假设">
-          <Editor
+          <SimulationSettingsEditor
+            simulation={settings?.simulation}
+            onSimulationChange={onSimulationChange}
             schema={simulationSchema}
-            value={normalizeSimulationSettings(settings?.simulation)}
-            onChange={(nextSimulation) => {
-              onSimulationChange(cleanupSimulationByTemplate(nextSimulation));
-            }}
+            context={workbenchEditorContext}
           />
         </SectionAccordion>
         <SectionAccordion title="采样配置">
-          <Editor
+          <SamplingSettingsEditor
+            sampling={settings?.sampling}
+            onSamplingChange={onSamplingChange}
             schema={samplingSchema}
-            value={normalizeSamplingSettings(settings?.sampling)}
-            onChange={(nextSampling) => onSamplingChange(cleanupSamplingByStrategy(nextSampling))}
             errors={samplingEditorErrors}
-            onValidate={(nextValue) => {
-              const start = nextValue?.start_date || '';
-              const end = nextValue?.end_date || '';
-              const errors = {};
-              if (start && end && end < start) {
-                errors.end_date = '结束日期不能早于开始日期';
-              }
-              return errors;
-            }}
+            onValidate={validateSamplingDates}
             onValidationChange={setSamplingEditorErrors}
+            context={workbenchEditorContext}
           />
         </SectionAccordion>
         {hasPriceSimulatorFields ? (
           <SectionAccordion title="价格回测参数">
-            <Editor
+            <SettingsSchemaEditor
               schema={strategyPriceSimulatorSchema}
               value={settings?.price_simulator}
               onChange={onPriceSimulatorChange}
+              context={workbenchEditorContext}
             />
           </SectionAccordion>
         ) : null}
         <SectionAccordion title="资金模拟参数">
-          <Editor
+          <SettingsSchemaEditor
             schema={capitalSimulatorSchema}
             value={settings?.capital_simulator}
             onChange={onCapitalSimulatorChange}
+            context={workbenchEditorContext}
           />
         </SectionAccordion>
       </Stack>

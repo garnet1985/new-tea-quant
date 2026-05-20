@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.3.0-8A2BE2"></a>&nbsp;
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.3.2-8A2BE2"></a>&nbsp;
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
   <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
@@ -16,37 +16,55 @@
 
 > For an English introduction, please see **[here](README_en.md)**.
 
-作者：Garnet Xin
+作者：Garnet Xin & 他的AI小伙伴
 
 <a href="https://github.com/garnet1985/new-tea-quant"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-new--tea--quant-181717?logo=github&logoColor=white"></a>&nbsp;
 <a href="https://gitee.com/garnet/new-tea-quant"><img alt="Gitee" src="https://img.shields.io/badge/Gitee-new--tea--quant-C71D23?logo=gitee&logoColor=white"></a>&nbsp;
 <a href="https://new-tea.cn"><img alt="Website" src="https://img.shields.io/badge/website-new--tea.cn-009688?logo=google-chrome&logoColor=white"></a>
 
-## 重大更新
+## 当前版本（v0.3.x）
 
-**NTQ 支持 Web UI 展示啦**：核心模块里加入前端（`core/ui/fed`）与 BFF（`core/ui/bff`），可在本机启动后通过浏览器使用策略实验室、策略选股、初始化向导、设置等界面。
+自 **v0.3.0** 起，NTQ 提供本机 **Web UI**（`launcher.py` 启动 BFF + 前端）：策略实验室（分层回测与报告）、策略扫描、图形化安装向导、应用设置等。日常**使用**无需自行安装 Node.js（前端以构建产物由 BFF 托管；仅 `-d` 开发模式或改前端源码时需要 Node）。
 
-> ## ⭐ 支持一下项目
-> 如果您对项目有兴趣，并想持续关注，欢迎为仓库点亮一个Star！  
-> 这是我第一次尝试做开源项目，您的认可就是我前进的最大动力，谢谢您！
+**v0.3.2** 起支持按板块配置最小买入单位、涨跌停与交易规则（**market profile**），回测报告展示统一回测区间等。完整变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## NTQ 是什么？
 
-您是不是心里有一些对股票操作策略的想法需要验证？比如是不是周线的RSI低于20我就可以买入？MACD的金叉银叉会有作用吗？追逐热门股票到底有多大胜率？我能不能把这些想法验证一下制定一个我自己的策略，然后用这个策略去扫描实时行情，找到我的投资机会？
+您是不是心里有一些对股票操作策略的想法需要验证？比如周线 RSI 低于 20 是否值得买、MACD 金叉有没有统计优势、追热点到底胜率如何——想把它整理成**自己的策略**，用历史数据看证据，再拿去扫描最新行情找机会？
 
-当然可以，在NTQ里，这些都可以实现！
+**NTQ**（New Tea Quant）就是为这类**个人量化研究**准备的：一套可在本机完整跑通的 A 股研究框架，帮您把「有个想法」推进到「有依据的结论」，而不是只做一次性黑盒回测。
 
-**NTQ**（New Tea Quant）是专门为了验证您的想法而诞生的一个量化策略框架，除了验证您的想法，这套框架还包含了一套完整的研究策略所需要的基础建设，可以单机使用。框架所有核心运算都支持多进程和多线程，只要您的电脑配置不是很低，框架都能高效地为您验证您的策略并且将策略应用的实时行情并把您的策略找到的机会反馈给您。
+### 核心价值：分层回测，把问题拆开看清
 
-**特点** 框架不但能帮助您验证想法，并且提供了详细的日志和中间值，用多层方法验证策略的可行性，让您清晰看到策略如果不可行问题在哪里，可行的地方在哪里，让您能够更加精准地定位和调试。任何中间产生的数据都可回溯，结果都能复现。 
+NTQ 把研究拆成三步，每一步回答不同的问题：
 
-**请注意** NTQ本身是免费的，但里边有些功能是需要您对接第三方平台的，例如：
-- **数据获取**：NTQ包含数据获取的功能，但不包括数据获取的付费/免费认证，您需要在第三方平台购买/注册数据后方可接入NTQ
-- **机会通知**：如果您想要把您的策略扫描到的机会以某种方式进行通知、学习、交易等，此框架无法提供功能，需要您对接您的第三方平台（例如短信，邮件，云，交易软件等等）来完成后续动作，框架默认只在命令行里显示结果。
+1. **机会枚举** — 您的逻辑在样本里**何时、在哪些股票上**会触发？
+2. **价格层验证** — 触发之后，**单笔买卖**在手续费、滑点等设定下表现如何？
+3. **资金层回测** — 在**有限资金、仓位与交易规则**下，组合层面还成不成？
 
-**另外** 此框架需要您有一些轻微的编程基础，或者使用AI辅助您。整个项目使用Python语言和PostgreSQL或者MySQL完成，您需要在您的本机上装有相应的语言和数据库软件（Python，PostgreSQL和MySQL都是免费的）
+逻辑、单笔表现和资金约束分开检验，更容易定位「信号不行」还是「仓位/规则把收益吃掉了」。枚举结果会沉淀为标准产物，可复用、可对比，也便于后续分析。
 
-本项目 **Apache 2.0 开源**，您可以自由学习、改造与扩展。**更完整的教程、概念说明与可视化阅读体验**在官方网站：**[new-tea.cn](https://new-tea.cn)**（中文）。
+### 您还能得到什么
+
+- **本地一体化**：数据接入与存储、指标/标签计算、回测、全市场扫描在同一套工程里完成；`core` 与 `userspace` 分离，升级框架时您的策略与配置可保留。
+- **配置驱动**：多数实验通过改配置完成，复杂逻辑再写 Python；配合**策略实验室 Web UI**（回测、报告、版本对比）和命令行，同一策略可反复对照。
+- **可复现**：版本快照、指纹与结构化产物目录，中间结果可追溯，便于回答「这次和上次差在哪」。
+- **性能**：核心计算支持多进程/多线程，在普通台式机上也能承担较大样本的回测与扫描。
+
+研究跑通后，可用**策略扫描**对库内最新行情做全市场筛选；机会默认在终端或 Web 界面展示，后续通知或下单需您自行对接第三方。
+
+### 请注意
+
+NTQ 本身免费开源，但部分能力依赖您自备资源：
+
+- **数据**：框架提供接入与存储能力，**不含**数据源的付费账号或 token；需在第三方平台注册/购买后自行配置。
+- **通知与交易**：短信、邮件、推送、下单等**不在框架内**；扫描结果可通过 Adapter 等扩展点交给您自己的程序处理。
+
+### 另外
+
+需要**轻微的 Python/配置能力**（或使用 AI 辅助）。运行环境为 **Python 3.9+** 与 **PostgreSQL 或 MySQL**（均可免费安装）。更完整的教程与概念说明见官网 **[new-tea.cn](https://new-tea.cn)**（中文）。
+
+本项目采用 **Apache 2.0** 许可，可自由学习、改造与扩展。
 
 
 ## 快速安装（5分钟跑起来）
@@ -57,7 +75,7 @@
 
 - 本机需要有 **Python 3.9 或以上**版本。如果您不知道怎么安装，请参考这篇文档：[安装 Python](https://new-tea.cn/zh-hans/install-python)。
 - 本机需要有 **MySQL 或 PostgreSQL** 中的任意一种数据库。如果您不知道如何安装，请参考这篇文档：[安装数据库](https://new-tea.cn/zh-hans/install-database)。
-- (仅限于开发，纯使用不需要这个依赖) 本机需要安装 **Node.js**。请在 [Node.js 官网](https://nodejs.org/) 下载安装包并按向导安装（基本上就是一直点下一步）。
+- **Node.js**（**仅**在 `python launcher.py -d` 开发模式，或需要修改 `core/ui/fed` 前端源码时安装）。纯使用 / 跑回测 / 命令行**不需要** Node。详见 [Node.js 官网](https://nodejs.org/)。
 
 ### 第 1 步：获取代码
 
@@ -132,17 +150,31 @@ python3 launcher.py
 
 全部步骤完成后，可点击 **「前往策略实验室」** 进入主界面。
 
-### 您也可以通过命令行来运行策略
+### 跑通第一个策略（Web 或命令行）
 
-在仓库根目录执行：
+**推荐（Web）**：在项目根目录启动 UI（若安装向导已拉起过，也可直接复用该终端）：
 
 ```bash
-python start-cli.py -sp
+python launcher.py
 ```
 
-看到结果即表示已成功跑起第一个策略。
+浏览器打开策略实验室，选择 **`example`** 策略，按界面执行枚举 / 价格层 / 资金层回测并查看报告。
 
-> **说明**：若您从官网下载了更大的演示数据 ZIP，仍需按后文「数据说明」放入 `setup/init_data/` 后执行 **`python install.py`** 导入；日常仅跑内置小数据时，完成向导 + 上条命令即可。
+**命令行（价格层示例）**：
+
+```bash
+python start-cli.py -sp --strategy example
+```
+
+终端出现回测摘要即表示 CLI 链路可用。完整分层流程还可使用 `-se`（枚举）、`-sa`（资金层）；见下文「命令行」表。
+
+> **说明**：根目录 **`python install.py`** 用于 **CLI 应用首次安装**（依赖、userspace、库表、内置小数据等），安装向导完成后通常不必再跑。若从官网下载**更大的演示数据 ZIP**，请放入 `setup/init_data/`（该目录内**只能有 1 个 zip**），再执行：
+>
+> ```bash
+> python setup/steps/import_data/install.py
+> ```
+>
+> 需要全量重导时可加 `--force`。日常仅用向导导入的内置小数据时，完成向导 + 上节任一路径即可。
 
 ### 更多常用命令
 
@@ -152,10 +184,22 @@ python start-cli.py -sp
 python start-cli.py -h
 ```
 
+机会枚举（分层回测第一步）：
+
+```bash
+python start-cli.py -se --strategy example
+```
+
 带资金的策略模拟：
 
 ```bash
-python start-cli.py -sa
+python start-cli.py -sa --strategy example
+```
+
+全市场扫描（无参数时 `start-cli.py` 默认也是扫描）：
+
+```bash
+python start-cli.py -sc --strategy example
 ```
 
 生成特征标签：
@@ -171,8 +215,22 @@ Have fun `^_^`, 更多用法请参考这里 [更多用例](https://new-tea.cn/zh
 ### 数据说明（请先看）
 
 1. **仓库内置小数据**：只覆盖部分表，用于快速启动和演示。  
-2. **获取更多(3年)演示数据包**：用于更完整的策略验证/回测，请在 **[new-tea.cn](https://new-tea.cn)** 注册后下载放入setup/init_data后运行 python install.py 安装。（注意需要清空文件夹后再放入你的数据包，文件夹内只能有1个zip包）  
+2. **获取更多（约 3 年）演示数据包**：用于更完整的策略验证/回测，请在 **[new-tea.cn](https://new-tea.cn)** 注册后下载，**清空** `setup/init_data/` 后只放入 **1 个** zip，再执行 `python setup/steps/import_data/install.py`（必要时加 `--force`）。  
 3. **自有数据源**：也可自行接入（如 Tushare），详见 [userspace/data_source/README.md](userspace/data_source/README.md)。
+
+## 支持一下项目
+
+当您看到这里，说明您已经了解 NTQ 在做什么，也走过了安装与第一次跑策略的路径。若 NTQ 对您有用、您愿意持续关注它的演进，欢迎在 [GitHub](https://github.com/garnet1985/new-tea-quant) 或 [Gitee](https://gitee.com/garnet/new-tea-quant) 上为仓库点亮一颗 **Star**——这对个人开源项目而言，是非常实在的支持。
+
+这是我第一次认真做开源，您的认可与反馈，是我继续打磨框架的最大动力。谢谢您！
+
+### 欢迎一起交流早期使用体验
+
+NTQ 目前在 **v0.x** 阶段，安装向导、文档和 Web UI 都还在改。不同系统、数据库和研究习惯差别很大，我一个人很难把所有情况都想到——如果您也愿意在本机按上文试试看，很欢迎一起聊聊：**哪里不顺手、哪句说明不好懂、哪段流程可以更省事**。
+
+**互相交流、一起摸索**：您在实际研究里卡住的点，往往也是我需要补上的理解；您怎么用策略、怎么看回测结果，也常常能提醒我框架还缺什么。期待与您的交流。
+
+**如何找到我？**您可以直接在gitee或者github私信我，或者到官网 **[联系我](https://new-tea.cn/zh-hans/contact)** 留言（无需注册也可填表单）。很期待听到您声音。
 
 ## 请注意
 当前版本仍然是非正式版本 **v0.x** 框架现阶段不能保证任何API的稳定性，当版本进入1.0之后，API将基本稳定。详见 [CHANGELOG.md](CHANGELOG.md)。
@@ -190,18 +248,17 @@ Have fun `^_^`, 更多用法请参考这里 [更多用例](https://new-tea.cn/zh
 
 | 内容 | 说明 |
 |------|------|
-| **框架代码** | `core/` 与命令行工具，可本地运行 |
+| **框架代码** | `core/`、命令行（`start-cli.py`）与 UI 启动（`launcher.py`） |
+| **Web UI** | `core/ui/bff` + `core/ui/fed`（发布构建产物已纳入仓库，日常无需 Node） |
 | **示例策略** | 仅内置 **`example`** 策略，用于对照配置与接口 |
 | **演示行情等数据** | 包含一份可快速启动的小数据；更完整数据可从官网下载 |
 | **辅助工具** | `devtools/`：Docker 说明、维护用自动化脚本等（非业务核心，索引见 [docs/README.md](docs/README.md) 中「仓库辅助工具」一节） |
 
 ## 如何联系到我？
 
-您可以在以下网址给我留言（不用注册也可）：
-
-**[new-tea.cn/zh-hans/contact](https://new-tea.cn/zh-hans/contact)**
-
-框架是由我一人完成，工程量巨大，如有问题请您包容并及时反馈，谢谢您使用 NTQ。
+- **留言**：[new-tea.cn/zh-hans/contact](https://new-tea.cn/zh-hans/contact)（无需注册也可填表单）
+- **Issue**：[GitHub Issues](https://github.com/garnet1985/new-tea-quant/issues) · [Gitee Issues](https://gitee.com/garnet/new-tea-quant/issues)
+- 反馈预期与贡献方式见 [SUPPORT.md](SUPPORT.md)
 
 ## 分支策略是什么？
 
@@ -219,13 +276,15 @@ Have fun `^_^`, 更多用法请参考这里 [更多用例](https://new-tea.cn/zh
 
 ## 有了新版本如何升级？
 
-下载最新的master到您的本地，保留您本地的userspace文件夹，其他的都替换成新版本的文件即可。
+1. 拉取或下载最新 **master**，**保留**本机 `userspace/`（及其中策略、备份与配置），其余按新版本覆盖。
+2. 在项目根目录执行 `python install.py`（或 `python start-cli.py` 触发自动安装），以刷新依赖与安装状态；若发布说明要求重导数据，再按「数据说明」运行 `setup/steps/import_data/install.py`。
+3. 使用 Web UI 时，用 `python launcher.py` 启动即可（一般无需本地 `npm run build`，除非您自行改前端或文档另有说明）。
 
 ---
 
 ## 命令行（`start-cli.py`）
 
-入口脚本：**`start-cli.py`**（无参时默认执行与 `simulate_enum` 等价流程）。
+入口脚本：**`start-cli.py`**（无参时默认执行 **策略扫描 `scan`**，等同 `-sc`）。
 
 ```bash
 python start-cli.py -h
@@ -235,13 +294,15 @@ python start-cli.py -h
 |------|----------|
 | 查看帮助 | `python start-cli.py -h` |
 | 更新数据（renew） | `python start-cli.py -r` |
+| 扫描机会（默认） | `python start-cli.py` 或 `python start-cli.py -sc --strategy example` |
 | 仅枚举机会 | `python start-cli.py enumerate --strategy example` |
 | 枚举器模拟 | `python start-cli.py -se --strategy example` |
 | 价格因子模拟 | `python start-cli.py -sp --strategy example` |
 | 资金分配模拟 | `python start-cli.py -sa --strategy example` |
-| 扫描机会 | `python start-cli.py -c --strategy example` |
+| 价格+资金链路 | `python start-cli.py simulate --strategy example` |
 | 分析结果摘要 | `python start-cli.py -a` |
 | 标签计算 | `python start-cli.py -t` |
+| 检查 core 更新（实现中...） | `python start-cli.py -u` |
 
 **`--strategy`**：未指定时，若只有一个 `is_enabled=True` 的策略会自动选用；多个启用时默认取名称排序第一个并 **告警**，建议显式写 `--strategy`。
 

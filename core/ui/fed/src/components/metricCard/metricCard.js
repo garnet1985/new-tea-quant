@@ -1,7 +1,8 @@
 import React from 'react';
+import NtqHelpTooltip from 'components/ntqHelpTooltip/ntqHelpTooltip';
 import { Box, Stack, Typography } from '@mui/material';
 
-function MetricCard({ title, value, hint }) {
+function MetricCard({ title, value, hint, titleTip }) {
   return (
     <Box
       sx={{
@@ -12,11 +13,25 @@ function MetricCard({ title, value, hint }) {
         backgroundColor: 'background.paper',
       }}
     >
-      <Stack spacing={0.25}>
-        <Typography variant="caption" color="text.secondary">{title}</Typography>
-        <Typography variant="h6" fontWeight={700} lineHeight={1.2}>{value}</Typography>
-        {hint ? <Typography variant="caption" color="text.secondary">{hint}</Typography> : null}
-      </Stack>
+      <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+        <Stack direction="row" spacing={0.5} alignItems="center">
+          <Typography variant="caption" color="text.secondary">{title}</Typography>
+          {titleTip ? <NtqHelpTooltip title={titleTip} /> : null}
+        </Stack>
+        <Typography
+          variant="h6"
+          fontWeight={700}
+          lineHeight={1.2}
+          sx={{ mt: .75 }}
+        >
+          {value}
+        </Typography>
+        {hint ? (
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+            {hint}
+          </Typography>
+        ) : null}
+      </Box>
     </Box>
   );
 }

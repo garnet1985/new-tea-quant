@@ -11,21 +11,21 @@ function PageLayout({
   bannerTitle,
   bannerDescription,
   bannerRightSlot,
-  bannerBackgroundImage,
   children,
   className,
 }) {
   return (
     <Box className={['ntq-page', className].filter(Boolean).join(' ')}>
-      <AppBreadcrumbs items={breadcrumbsItems} current={breadcrumbsCurrent} />
-      <PageBanner
-        title={bannerTitle}
-        description={bannerDescription}
-        rightSlot={bannerRightSlot}
-        backgroundImage={bannerBackgroundImage}
-      />
-      <Box className="ntq-page__body">
-        {children}
+      <Box className="ntq-page__shell">
+        <AppBreadcrumbs items={breadcrumbsItems} current={breadcrumbsCurrent} />
+        <PageBanner
+          title={bannerTitle}
+          description={bannerDescription}
+          rightSlot={bannerRightSlot}
+        />
+        <Box className="ntq-page__body">
+          {children}
+        </Box>
       </Box>
     </Box>
   );
@@ -37,7 +37,6 @@ PageLayout.propTypes = {
   bannerTitle: PropTypes.string.isRequired,
   bannerDescription: PropTypes.node,
   bannerRightSlot: PropTypes.node,
-  bannerBackgroundImage: PropTypes.string,
   children: PropTypes.node,
   className: PropTypes.string,
 };
@@ -46,7 +45,6 @@ PageLayout.defaultProps = {
   breadcrumbsItems: [],
   bannerDescription: null,
   bannerRightSlot: null,
-  bannerBackgroundImage: '',
   children: null,
   className: '',
 };

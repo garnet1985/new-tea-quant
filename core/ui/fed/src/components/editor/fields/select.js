@@ -1,8 +1,9 @@
 import React from 'react';
 import { MenuItem, Select, Typography } from '@mui/material';
 import { getByPath, runFieldEvents, setByPath } from '../editor.helper';
+import EditorFieldLabel from './editorFieldLabel';
 
-function SelectField({ field, value, onChange, emitChangeMeta }) {
+function SelectField({ field, value, onChange, emitChangeMeta, context = {} }) {
   if (typeof field?.visibleWhen === 'function' && !field.visibleWhen({ values: value })) {
     return null;
   }
@@ -21,11 +22,14 @@ function SelectField({ field, value, onChange, emitChangeMeta }) {
     }
   };
 
+  const options = field.options || [];
+  const selectedOption = options.find((item) => item.value === current);
+  const helperText = selectedOption?.tooltip
+    || (field.description && !field.tooltip ? field.description : '');
+
   return (
     <div key={field.name}>
-      <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-        {field.label}
-      </Typography>
+      <EditorFieldLabel field={field} context={context} />
       <Select
         size="small"
         fullWidth
@@ -33,13 +37,26 @@ function SelectField({ field, value, onChange, emitChangeMeta }) {
         value={current ?? (field.multiple ? [] : '')}
         onChange={(e) => applyChange(e.target.value)}
         disabled={isReadonly}
+        renderValue={(selected) => {
+          const matched = options.find((item) => item.value === selected);
+          return matched?.label ?? selected;
+        }}
       >
-        {(field.options || []).map((item) => (
-          <MenuItem key={item.value} value={item.value}>
+        {options.map((item) => (
+          <MenuItem
+            key={item.value}
+            value={item.value}
+            title={item.tooltip || undefined}
+          >
             {item.label}
           </MenuItem>
         ))}
       </Select>
+      {helperText ? (
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+          {helperText}
+        </Typography>
+      ) : null}
     </div>
   );
 }

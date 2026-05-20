@@ -85,6 +85,16 @@ def get_settings_simulation_templates():
     return ok({"items": s.items_simulation_templates()})
 
 
+@strategy_workbench_api_bp.route(
+    "/v1/strategy/settings/market-profiles",
+    methods=["GET"],
+)
+def get_settings_market_profiles():
+    """GET /strategy/settings/market-profiles"""
+    s = get_strategy_workbench_stack()
+    return ok({"items": s.items_market_profiles()})
+
+
 # --- V2-05 ---
 @strategy_workbench_api_bp.route(
     "/v1/strategy/<strategy_name>/<step>/run",

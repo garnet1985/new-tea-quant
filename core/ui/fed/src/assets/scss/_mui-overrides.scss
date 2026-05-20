@@ -3,17 +3,23 @@
 
 // --- Inputs (TextField / Select / Autocomplete) ---
 .MuiInputBase-root {
-  font-size: 13px;
-  line-height: 1.25;
+  font-size: var(--ntq-form-control-font-size, 14px);
+  line-height: var(--ntq-form-control-line-height, 1.5);
 }
 
-.MuiInputBase-input {
-  font-size: 13px;
-  line-height: 1.25;
+.MuiInputBase-input,
+.MuiOutlinedInput-input {
+  font-size: var(--ntq-form-control-font-size, 0.875rem) !important;
+  line-height: var(--ntq-form-control-line-height, 1.5) !important;
+}
+
+.MuiInputBase-inputMultiline {
+  font-size: var(--ntq-form-control-font-size, 14px);
+  line-height: var(--ntq-form-control-line-height, 1.5);
 }
 
 .MuiInputLabel-root {
-  font-size: 13px;
+  font-size: var(--ntq-form-control-font-size, 14px);
 }
 
 .MuiFormHelperText-root {
@@ -61,7 +67,7 @@
   }
 }
 
-.MuiOutlinedInput-input {
+.MuiOutlinedInput-root .MuiOutlinedInput-input {
   padding: 0 12px;
 }
 
@@ -73,20 +79,22 @@
 
 .MuiOutlinedInput-inputMultiline {
   padding: 10px 12px;
+  font-size: var(--ntq-form-control-font-size, 14px);
+  line-height: var(--ntq-form-control-line-height, 1.5);
 }
 
 // --- Dropdowns (Select / Menu) ---
-// Global dropdown font sizing
 .MuiSelect-select {
-  font-size: 12px !important;
+  font-size: var(--ntq-form-control-font-size, 14px) !important;
+  line-height: var(--ntq-form-control-line-height, 1.5) !important;
 }
 
 .MuiMenuItem-root {
-  font-size: 12px !important;
+  font-size: var(--ntq-form-control-font-size, 14px) !important;
 }
 
 .MuiListSubheader-root {
-  font-size: 12px !important;
+  font-size: var(--ntq-form-control-font-size, 14px) !important;
 }
 
 // Menu/Popover paper: keep readable, but DO NOT blur globally
@@ -102,8 +110,8 @@
 .MuiPopover-paper {
   .MuiMenuItem-root,
   .MuiListSubheader-root {
-    font-size: 12px;
-    line-height: 1.25;
+    font-size: var(--ntq-form-control-font-size, 14px);
+    line-height: var(--ntq-form-control-line-height, 1.5);
     padding: 8px 14px;
   }
 

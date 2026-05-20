@@ -1,18 +1,18 @@
 /** 与 ``sortMappedEnumRows`` 字段一致；仅用于首屏默认顺序（后续排序为 DataGrid 客户端） */
 export const ENUM_REF_DEFAULT_SORT = { sortBy: 'opportunities', order: 'desc' };
 
+/** ``0_stock_ref.json`` 逐股条目（snake_case）。 */
 export function mapStockRefToRows(stockRef) {
   if (!stockRef || typeof stockRef !== 'object') return [];
   return Object.entries(stockRef).map(([code, v]) => {
     const row = v && typeof v === 'object' ? v : {};
-    const opp = row.opportunities ?? row.opportunity_count ?? row.opportunityCount;
     return {
       id: String(code),
       stockCode: String(code),
-      stockName: String(row.stock_name || row.stockName || code),
-      opportunities: Number(opp ?? 0),
-      completionRate: Number(row.completion_rate ?? row.completionRate ?? 0),
-      triggerSpanDays: Number(row.avg_opportunity_interval_days ?? row.triggerSpanDays ?? 0),
+      stockName: String(row.stock_name || code),
+      opportunities: Number(row.opportunities ?? 0),
+      completionRate: Number(row.completion_rate ?? 0),
+      triggerSpanDays: Number(row.trigger_span_days ?? 0),
     };
   });
 }

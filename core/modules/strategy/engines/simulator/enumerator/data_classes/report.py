@@ -5,11 +5,22 @@ from __future__ import annotations
 
 import csv
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from core.infra.project_context import PathManager
+from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+    _normalize_backtest_period_dict,
+    backtest_period_console_lines,
+    read_backtest_period_from_enum_output_dir,
+)
+from core.modules.strategy.engines.shared.helpers.tradability_stats import (
+    collect_target_tradability_from_dir,
+    count_tradability_in_opportunities,
+    merge_tradability_counts,
+    tradability_ratios,
+)
 from core.modules.strategy.engines.shared.report_base import ReportBase
 from core.utils.date.date_utils import DateUtils
 
@@ -37,7 +48,14 @@ class EnumeratorReport(ReportBase):
     opportunity_count_labels: List[str]
     opportunity_count_stock_counts: List[int]
     opportunity_count_stock_ratios: List[float]
+    buy_at_limit_up_count: int
+    buy_tradability_sample_count: int
+    limit_up_buy_ratio: float
+    sell_at_limit_down_count: int
+    sell_tradability_sample_count: int
+    limit_down_sell_ratio: float
     stock_rows: List[Dict[str, Any]]
+    backtest_period: Dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def collect(cls, source: Path, **kwargs: Any) -> List[Dict[str, Any]]:
@@ -138,12 +156,26 @@ class EnumeratorReport(ReportBase):
             total_stocks_hint=None,
         )
 
+    @staticmethod
+    def _tradability_metrics(
+        opportunities: List[Dict[str, Any]],
+        *,
+        extra_counts: Dict[str, int] | None = None,
+    ) -> Dict[str, int | float]:
+        counts = merge_tradability_counts(
+            count_tradability_in_opportunities(opportunities),
+            extra_counts or {},
+        )
+        ratios = tradability_ratios(counts)
+        return {**counts, **ratios}
+
     @classmethod
     def from_opportunities_with_total_stocks(
         cls,
         *,
         opportunities: List[Dict[str, Any]],
         total_stocks_hint: int | None,
+        target_tradability: Dict[str, int] | None = None,
     ) -> "EnumeratorReport":
         by_stock: Dict[str, List[Dict[str, Any]]] = {}
         for row in opportunities:
@@ -261,6 +293,11 @@ class EnumeratorReport(ReportBase):
         else:
             dispersion = "机会集中出现，节奏波动较大"
 
+        tradability = cls._tradability_metrics(
+            opportunities,
+            extra_counts=target_tradability,
+        )
+
         return cls(
             total_opportunities=total_opportunities,
             total_stocks=total_stocks,
@@ -283,6 +320,16 @@ class EnumeratorReport(ReportBase):
             opportunity_count_labels=opportunity_count_labels,
             opportunity_count_stock_counts=opportunity_count_stock_counts,
             opportunity_count_stock_ratios=opportunity_count_stock_ratios,
+            buy_at_limit_up_count=int(tradability.get("buy_at_limit_up_count") or 0),
+            buy_tradability_sample_count=int(
+                tradability.get("buy_tradability_sample_count") or 0
+            ),
+            limit_up_buy_ratio=float(tradability.get("limit_up_buy_ratio") or 0.0),
+            sell_at_limit_down_count=int(tradability.get("sell_at_limit_down_count") or 0),
+            sell_tradability_sample_count=int(
+                tradability.get("sell_tradability_sample_count") or 0
+            ),
+            limit_down_sell_ratio=float(tradability.get("limit_down_sell_ratio") or 0.0),
             stock_rows=stock_rows,
         )
 
@@ -293,9 +340,10 @@ class EnumeratorReport(ReportBase):
         *,
         total_stocks_hint: int | None = None,
     ) -> "EnumeratorReport":
-        return cls.compute(
-            cls.collect(output_dir),
+        return cls.from_opportunities_with_total_stocks(
+            opportunities=cls.collect(output_dir),
             total_stocks_hint=total_stocks_hint,
+            target_tradability=collect_target_tradability_from_dir(output_dir),
         )
 
     @classmethod
@@ -420,6 +468,28 @@ class EnumeratorReport(ReportBase):
         else:
             dispersion = "机会集中出现，节奏波动较大"
 
+        tradability_counts = merge_tradability_counts(
+            {
+                "buy_tradability_sample_count": sum(
+                    int(_bundle_for(sid).get("buy_tradability_sample_count") or 0)
+                    for sid in stock_universe
+                ),
+                "buy_at_limit_up_count": sum(
+                    int(_bundle_for(sid).get("buy_at_limit_up_count") or 0)
+                    for sid in stock_universe
+                ),
+                "sell_tradability_sample_count": sum(
+                    int(_bundle_for(sid).get("sell_tradability_sample_count") or 0)
+                    for sid in stock_universe
+                ),
+                "sell_at_limit_down_count": sum(
+                    int(_bundle_for(sid).get("sell_at_limit_down_count") or 0)
+                    for sid in stock_universe
+                ),
+            }
+        )
+        tradability = {**tradability_counts, **tradability_ratios(tradability_counts)}
+
         return cls(
             total_opportunities=total_opportunities,
             total_stocks=total_stocks,
@@ -442,6 +512,16 @@ class EnumeratorReport(ReportBase):
             opportunity_count_labels=opportunity_count_labels,
             opportunity_count_stock_counts=opportunity_count_stock_counts,
             opportunity_count_stock_ratios=opportunity_count_stock_ratios,
+            buy_at_limit_up_count=int(tradability.get("buy_at_limit_up_count") or 0),
+            buy_tradability_sample_count=int(
+                tradability.get("buy_tradability_sample_count") or 0
+            ),
+            limit_up_buy_ratio=float(tradability.get("limit_up_buy_ratio") or 0.0),
+            sell_at_limit_down_count=int(tradability.get("sell_at_limit_down_count") or 0),
+            sell_tradability_sample_count=int(
+                tradability.get("sell_tradability_sample_count") or 0
+            ),
+            limit_down_sell_ratio=float(tradability.get("limit_down_sell_ratio") or 0.0),
             stock_rows=stock_rows,
         )
 
@@ -473,6 +553,12 @@ class EnumeratorReport(ReportBase):
             opportunity_count_stock_ratios=[
                 float(v or 0.0) for v in (data.get("opportunity_count_stock_ratios", []) or [])
             ],
+            buy_at_limit_up_count=int(data.get("buy_at_limit_up_count", 0) or 0),
+            buy_tradability_sample_count=int(data.get("buy_tradability_sample_count", 0) or 0),
+            limit_up_buy_ratio=float(data.get("limit_up_buy_ratio", 0.0) or 0.0),
+            sell_at_limit_down_count=int(data.get("sell_at_limit_down_count", 0) or 0),
+            sell_tradability_sample_count=int(data.get("sell_tradability_sample_count", 0) or 0),
+            limit_down_sell_ratio=float(data.get("limit_down_sell_ratio", 0.0) or 0.0),
             stock_rows=list(data.get("stock_rows", []) or []),
         )
 
@@ -501,10 +587,18 @@ class EnumeratorReport(ReportBase):
                 "opportunityCountLabels": self.opportunity_count_labels,
                 "opportunityCountStockCounts": self.opportunity_count_stock_counts,
                 "opportunityCountStockRatios": self.opportunity_count_stock_ratios,
+                "buyAtLimitUpCount": self.buy_at_limit_up_count,
+                "buyTradabilitySampleCount": self.buy_tradability_sample_count,
+                "limitUpBuyRatio": self.limit_up_buy_ratio,
+                "sellAtLimitDownCount": self.sell_at_limit_down_count,
+                "sellTradabilitySampleCount": self.sell_tradability_sample_count,
+                "limitDownSellRatio": self.limit_down_sell_ratio,
             },
         }
         if include_stock_rows:
             out["stockRows"] = self.stock_rows
+        if self.backtest_period.get("start_date") and self.backtest_period.get("end_date"):
+            out["backtest_period"] = dict(self.backtest_period)
         return out
 
     @classmethod
@@ -512,6 +606,9 @@ class EnumeratorReport(ReportBase):
         metrics = payload.get("enumMetrics") if isinstance(payload, dict) else {}
         if not isinstance(metrics, dict):
             metrics = {}
+        backtest_period = _normalize_backtest_period_dict(
+            payload.get("backtest_period") if isinstance(payload, dict) else None
+        )
         return cls(
             total_opportunities=int(metrics.get("totalOpportunities", 0) or 0),
             total_stocks=int(metrics.get("totalStocks", 0) or 0),
@@ -538,11 +635,20 @@ class EnumeratorReport(ReportBase):
             opportunity_count_stock_ratios=[
                 float(v or 0.0) for v in (metrics.get("opportunityCountStockRatios", []) or [])
             ],
+            buy_at_limit_up_count=int(metrics.get("buyAtLimitUpCount", 0) or 0),
+            buy_tradability_sample_count=int(metrics.get("buyTradabilitySampleCount", 0) or 0),
+            limit_up_buy_ratio=float(metrics.get("limitUpBuyRatio", 0.0) or 0.0),
+            sell_at_limit_down_count=int(metrics.get("sellAtLimitDownCount", 0) or 0),
+            sell_tradability_sample_count=int(metrics.get("sellTradabilitySampleCount", 0) or 0),
+            limit_down_sell_ratio=float(metrics.get("limitDownSellRatio", 0.0) or 0.0),
             stock_rows=list(payload.get("stockRows", []) or []) if isinstance(payload, dict) else [],
+            backtest_period=backtest_period,
         )
 
     def to_console_lines(self) -> List[str]:
-        lines = [
+        lines: List[str] = []
+        lines.extend(backtest_period_console_lines(self.backtest_period))
+        lines.extend([
             f"📊 机会总数: {self.total_opportunities}",
             f"🏷️ 扫描股票数: {self.total_stocks}",
             f"🎯 至少出现过机会的股票数: {self.trigger_stocks}",
@@ -556,7 +662,17 @@ class EnumeratorReport(ReportBase):
             f"📏 触发间隔标准差: {self.std_gap} 天",
             f"📐 变异系数(CV): {self.cv}",
             f"💡 节奏结论: {self.dispersion_conclusion}",
-        ]
+        ])
+        if self.buy_tradability_sample_count > 0:
+            lines.append(
+                f"🔺 买入触及涨停: {self.buy_at_limit_up_count}/{self.buy_tradability_sample_count} "
+                f"({self.limit_up_buy_ratio}%)"
+            )
+        if self.sell_tradability_sample_count > 0:
+            lines.append(
+                f"🔻 卖出触及跌停: {self.sell_at_limit_down_count}/{self.sell_tradability_sample_count} "
+                f"({self.limit_down_sell_ratio}%)"
+            )
         if self.percentile_labels and self.percentile_values:
             pct_pairs = zip(self.percentile_labels, self.percentile_values)
             pv = " · ".join(f"{lb} {val}" for lb, val in pct_pairs)
@@ -600,9 +716,12 @@ class EnumeratorReport(ReportBase):
             return cls.from_bff_payload({})
         try:
             payload = json.loads(report_path.read_text(encoding="utf-8"))
-            return cls.from_bff_payload(payload if isinstance(payload, dict) else {})
+            report = cls.from_bff_payload(payload if isinstance(payload, dict) else {})
         except Exception:
-            return cls.from_bff_payload({})
+            report = cls.from_bff_payload({})
+        if not report.backtest_period:
+            report.backtest_period = read_backtest_period_from_enum_output_dir(source)
+        return report
 
     def write(self, output_dir: Path, **kwargs: Any) -> None:
         self.write_bff_payload(output_dir)
@@ -632,10 +751,20 @@ class EnumeratorReport(ReportBase):
                 PathManager.strategy_simulation_enum(sn or label) / version_name,
             ]
             report = cls.from_bff_payload({})
+            loaded_dir: Optional[Path] = None
             for output_dir in candidates:
                 if output_dir.exists():
                     report = cls.load(output_dir)
+                    loaded_dir = output_dir
                     break
+            if not report.backtest_period:
+                bp = _normalize_backtest_period_dict(res.get("backtest_period"))
+                if bp:
+                    report.backtest_period = bp
+                elif loaded_dir is not None:
+                    report.backtest_period = read_backtest_period_from_enum_output_dir(
+                        loaded_dir
+                    )
             print(f"🔖 strategy={sn or label}")
             print(f"📁 version_dir={res.get('version_dir')}")
             print("")

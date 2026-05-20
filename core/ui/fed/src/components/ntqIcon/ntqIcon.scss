@@ -1,0 +1,59 @@
+.ntq-icon-wrap {
+  display: inline-flex;
+  line-height: 0;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.ntq-icon {
+  display: block;
+  flex-shrink: 0;
+  fill: currentColor;
+  transform-origin: center;
+}
+
+// expandMore：arrow_right 顺时针 90° ≈ 向下（与 MUI Accordion 默认一致）
+.ntq-icon--expand-more {
+  transform: rotate(90deg);
+}
+
+.ntq-icon--muted {
+  color: var(--ntq-text-muted);
+}
+
+.ntq-icon--success {
+  color: var(--ntq-green);
+}
+
+.ntq-icon--error {
+  color: #ef4444;
+}
+
+.ntq-icon--warning {
+  color: #fbbf24;
+}
+
+.ntq-icon--disabled {
+  color: var(--ntq-text-muted);
+  opacity: 0.55;
+}
+
+.ntq-icon--spin {
+  animation: ntq-icon-spin 1s linear infinite;
+}
+
+@keyframes ntq-icon-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ntq-icon--spin {
+    animation: none;
+  }
+}

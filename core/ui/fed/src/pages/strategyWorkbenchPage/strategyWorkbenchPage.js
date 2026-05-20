@@ -34,11 +34,15 @@ import {
   fetchStrategyVersions,
   fetchSamplingStrategyConfig,
   fetchSimulationTemplateConfig,
+  fetchMarketProfileOptions,
   restoreStrategyVersion,
   getStrategyWorkbenchPath,
 } from '../../api/apis/strategyApi';
 import StrategySettingsContainer from './panels/strategySettingsPanel/containers/strategySettingsContainer';
-import { normalizeMeta } from './panels/strategySettingsPanel/editorSchemas/strategyMeta';
+import {
+  extractStrategyDescription,
+  normalizeMeta,
+} from './panels/strategySettingsPanel/editorSchemas/strategyMeta';
 import StrategyExecutionPanel from './panels/strategyExecutionPanel/strategyExecutionPanel';
 import StrategyReportPanel from './panels/strategyReportPanel/strategyReportPanel';
 import {
@@ -50,6 +54,7 @@ import {
   StrategySettingsPanel,
 } from './panels/strategySettingsPanel/strategySettingsPanel';
 import PageLayout from '../../components/pageLayout/pageLayout';
+import PageLoadingState from '../../components/pageLoadingState/pageLoadingState';
 
 /** 左侧草稿 settings 变更后重置右侧执行/报告（加载完成后首次对齐基线，之后任意变更触发 ``onReset``）。core 由容器在 keyup/粘贴时解析写入 ``draftSettings``，签名仅需序列化草稿。 */
 function WorkbenchDraftChangeResetBridge({
@@ -138,6 +143,7 @@ function StrategyWorkbenchPage() {
   const [versionSearch, setVersionSearch] = useState('');
   const [versionPickerPage, setVersionPickerPage] = useState(1);
   const [strategyRows, setStrategyRows] = useState([]);
+  const [strategyDescription, setStrategyDescription] = useState('');
   const [pendingStrategyName, setPendingStrategyName] = useState('');
   const [switchStrategyConfirmOpen, setSwitchStrategyConfirmOpen] = useState(false);
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
@@ -148,6 +154,7 @@ function StrategyWorkbenchPage() {
   const [allocationModeOptions, setAllocationModeOptions] = useState([]);
   const [samplingStrategyOptions, setSamplingStrategyOptions] = useState([]);
   const [simulationTemplateOptions, setSimulationTemplateOptions] = useState([]);
+  const [marketProfileOptions, setMarketProfileOptions] = useState([]);
   const [executionState, setExecutionState] = useState({
     stepStatus: {
       enum: 'idle',
@@ -213,7 +220,7 @@ function StrategyWorkbenchPage() {
   const [userspaceApplyOk, setUserspaceApplyOk] = useState('');
   /** V2-01 初次加载；单步跑完后由 V2-06 progress 的 ``result_report`` 切片合并写入，避免再打一枪 ``version/latest`` */
   const [workbenchResultReport, setWorkbenchResultReport] = useState(null);
-  /** 单步跑完后让「模拟结果」 accordion 内 Tab 切到刚完成的回测步 */
+  /** 单步跑完后让「回测报告」 accordion 内 Tab 切到刚完成的回测步 */
   const reportTabFocusSeqRef = useRef(0);
   const [reportTabFocusRequest, setReportTabFocusRequest] = useState(null);
   /** V2-01 扩展：是否有 DB 快照、是否还有其它可对比版本（GET …/version/latest） */
@@ -253,13 +260,19 @@ function StrategyWorkbenchPage() {
     setReportTabFocusRequest(null);
   }, []);
 
+  const forceRunHandlersRef = useRef({ forceEnum: null });
+  /** 与左侧表单 ``draftSettings`` 同步，供跑完后对齐 ``appliedSettings`` */
+  const draftSettingsRef = useRef(null);
+
   const handleRunStepComplete = useCallback((step) => {
     if (step !== 'enum' && step !== 'price' && step !== 'capital') return;
     reportTabFocusSeqRef.current += 1;
     setReportTabFocusRequest({ step, tick: reportTabFocusSeqRef.current });
+    const draft = draftSettingsRef.current;
+    if (draft && typeof draft === 'object') {
+      setAppliedSettings(deepClone(draft));
+    }
   }, []);
-
-  const forceRunHandlersRef = useRef({ forceEnum: null });
 
   const mergeWorkbenchResultReportFromProgress = useCallback((slice) => {
     if (!slice || typeof slice !== 'object' || Object.keys(slice).length === 0) return;
@@ -290,12 +303,14 @@ function StrategyWorkbenchPage() {
       fetchCapitalAllocationModeConfig(),
       fetchSamplingStrategyConfig(),
       fetchSimulationTemplateConfig(),
+      fetchMarketProfileOptions(),
     ])
-      .then(([allocationConfig, samplingConfig, simulationConfig]) => {
+      .then(([allocationConfig, samplingConfig, simulationConfig, marketProfiles]) => {
         if (cancelled) return;
         setAllocationModeOptions(allocationConfig?.options || []);
         setSamplingStrategyOptions(samplingConfig?.options || []);
         setSimulationTemplateOptions(simulationConfig?.options || []);
+        setMarketProfileOptions(marketProfiles || []);
         setSettingsOptionError('');
       })
       .catch((err) => {
@@ -304,6 +319,7 @@ function StrategyWorkbenchPage() {
         setAllocationModeOptions([]);
         setSamplingStrategyOptions([]);
         setSimulationTemplateOptions([]);
+        setMarketProfileOptions([]);
       });
     return () => {
       cancelled = true;
@@ -332,6 +348,7 @@ function StrategyWorkbenchPage() {
         activeRunId: '',
         lastCompletedWorkbenchVersionId: '',
       });
+      setStrategyDescription('');
       setIsLoadingSettings(false);
       setSettingsError('');
       return () => {
@@ -339,6 +356,7 @@ function StrategyWorkbenchPage() {
       };
     }
 
+    setStrategyDescription('');
     setIsLoadingSettings(true);
     setSettingsError('');
     setWorkbenchExecutionHydration(null);
@@ -379,9 +397,11 @@ function StrategyWorkbenchPage() {
             }),
           });
           setInitialSettings(nextSettings);
+          setStrategyDescription(extractStrategyDescription(nextSettings));
           setSettingsError('');
         } else {
           setInitialSettings(mergeBase);
+          setStrategyDescription('');
           setSettingsError('未返回有效策略配置（settings 为空）。');
         }
         setWorkbenchResultReport(res?.result_report ?? null);
@@ -563,10 +583,24 @@ function StrategyWorkbenchPage() {
       ]}
       breadcrumbsCurrent={strategyName ? `调试：${strategyName}` : '策略调试'}
       bannerTitle={strategyName ? `调试：${strategyName}` : '策略调试'}
-      bannerDescription="您可以在左侧调整设置参数，然后在执行步骤面板按步骤执行回测和查看报告；也可以支持版本对比与结果复现。"
+      bannerDescription={strategyDescription || ''}
     >
+      {isLoadingSettings && strategyName ? (
+        <PageLoadingState message="正在加载策略配置…" minHeight="min(52vh, 520px)" />
+      ) : null}
+      {!(isLoadingSettings && strategyName) ? (
       <StrategySettingsContainer initialSettings={initialSettings}>
-        {({ draftSettings, updateSection, setDraftSettings, coreEditor }) => (
+        {({
+          draftSettings,
+          setDraftSettings,
+          coreEditor,
+          onGoalChange,
+          onSamplingChange,
+          onFeesChange,
+          onSimulationChange,
+          onPriceSimulatorChange,
+          onCapitalSimulatorChange,
+        }) => (
           <>
             {(() => {
               const hasUnsavedChanges = JSON.stringify(draftSettings) !== JSON.stringify(savedBaselineSettings);
@@ -583,6 +617,7 @@ function StrategyWorkbenchPage() {
                   ? coreEditor.getDraftSettingsForSubmit()
                   : draftSettings
               );
+              draftSettingsRef.current = draftSettings;
 
               const requestSwitchStrategy = (nextStrategyName) => {
                 if (!nextStrategyName) return;
@@ -612,11 +647,6 @@ function StrategyWorkbenchPage() {
                 gap: 1.5,
               }}
             >
-              {isLoadingSettings ? (
-                <Typography variant="body2" color="text.secondary">
-                  正在加载策略配置...
-                </Typography>
-              ) : null}
               {settingsError ? (
                 <Typography variant="body2" color="error">
                   无法加载策略配置：{settingsError}
@@ -729,12 +759,13 @@ function StrategyWorkbenchPage() {
                   allocationModeOptions={allocationModeOptions}
                   samplingStrategyOptions={samplingStrategyOptions}
                   simulationTemplateOptions={simulationTemplateOptions}
-                  onGoalChange={(nextGoal) => updateSection('goal', nextGoal)}
-                  onSamplingChange={(nextSampling) => updateSection('sampling', nextSampling)}
-                  onFeesChange={(nextFees) => updateSection('fees', nextFees)}
-                  onSimulationChange={(nextSimulation) => updateSection('simulation', nextSimulation)}
-                  onPriceSimulatorChange={(nextPriceSimulator) => updateSection('price_simulator', nextPriceSimulator)}
-                  onCapitalSimulatorChange={(nextCapitalSimulator) => updateSection('capital_simulator', nextCapitalSimulator)}
+                  marketProfileOptions={marketProfileOptions}
+                  onGoalChange={onGoalChange}
+                  onSamplingChange={onSamplingChange}
+                  onFeesChange={onFeesChange}
+                  onSimulationChange={onSimulationChange}
+                  onPriceSimulatorChange={onPriceSimulatorChange}
+                  onCapitalSimulatorChange={onCapitalSimulatorChange}
                 />
                 <PlaceholderSection
                   title="其他策略"
@@ -745,7 +776,7 @@ function StrategyWorkbenchPage() {
                         <ListItemButton key={row.id} onClick={() => requestSwitchStrategy(row.name)}>
                           <ListItemText
                             primary={row.name}
-                            secondary={row.description || '点击进入策略调试页'}
+                            secondary={row.description || ''}
                           />
                         </ListItemButton>
                       ))}
@@ -774,6 +805,7 @@ function StrategyWorkbenchPage() {
                       forceRunHandlersRef.current = api || {};
                     }}
                     showVersionCompare={hasOtherVersions}
+                    configVersions={configVersions}
                   />
                   <StrategyReportPanel
                     key={`report-${strategyName || ''}-${panelsResetEpoch}`}
@@ -782,6 +814,11 @@ function StrategyWorkbenchPage() {
                     executionCompareRecentVersionIds={latestFiveVersions.map((v) => v.id)}
                     configVersions={configVersions}
                     workbenchResultReport={workbenchResultReport}
+                    reportVersionId={(
+                      selectedConfigVersion
+                      || executionState.lastCompletedWorkbenchVersionId
+                      || ''
+                    ).trim()}
                     reportTabFocusRequest={reportTabFocusRequest}
                     onForceEnumerate={() => forceRunHandlersRef.current?.forceEnum?.()}
                     showReportCompare={hasOtherVersions}
@@ -905,6 +942,7 @@ function StrategyWorkbenchPage() {
                         });
                         const wb = wbVerRestore || restoreMeta?.version_id || '';
                         setInitialSettings(mergedSettings);
+                        setStrategyDescription(extractStrategyDescription(mergedSettings));
                         setDraftSettings(deepClone(mergedSettings));
                         setSelectedConfigVersion(wb);
                         setSavedBaselineSettings(deepClone(mergedSettings));
@@ -1020,6 +1058,7 @@ function StrategyWorkbenchPage() {
           </>
         )}
       </StrategySettingsContainer>
+      ) : null}
     </PageLayout>
   );
 }

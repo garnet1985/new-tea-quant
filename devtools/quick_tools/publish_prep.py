@@ -14,7 +14,7 @@ import sys
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Iterable, List, Sequence, Tuple
+from typing import List, Sequence, Tuple
 
 from core.utils import i as icon
 from devtools.quick_tools._paths import REPO_ROOT
@@ -66,14 +66,6 @@ def _module_package_dirs(root: Path) -> List[Path]:
     return out
 
 
-def _iter_module_info_paths() -> Iterable[Path]:
-    for _label, root in _MODULE_PACKAGE_ROOTS:
-        for pkg in _module_package_dirs(root):
-            yield pkg
-    for _label, root in _SINGLE_MODULE_ROOTS:
-        yield root
-
-
 def check_module_info_files() -> List[str]:
     """返回缺少 module_info.yaml 的模块目录（相对路径）。"""
     missing: List[str] = []
@@ -86,24 +78,6 @@ def check_module_info_files() -> List[str]:
         if not (root / "module_info.yaml").is_file():
             missing.append(f"{label} ({root.relative_to(REPO_ROOT).as_posix()})")
     return missing
-
-
-def warn_module_info_version_drift(target_version: str) -> List[str]:
-    """module_info.version 与目标 core 版本不一致时给出警告（不阻断）。"""
-    warnings: List[str] = []
-    for pkg in _iter_module_info_paths():
-        info = pkg / "module_info.yaml"
-        if not info.is_file():
-            continue
-        text = info.read_text(encoding="utf-8")
-        m = re.search(r"^version:\s*['\"]?([^'\"\n]+)", text, re.MULTILINE)
-        if not m:
-            continue
-        mod_ver = m.group(1).strip().strip("'\"")
-        if mod_ver and mod_ver != target_version:
-            rel = pkg.relative_to(REPO_ROOT).as_posix()
-            warnings.append(f"{rel} module_info.version={mod_ver}（目标 {target_version}）")
-    return warnings
 
 
 def update_system_json(version: str, release_date: str) -> None:
@@ -234,7 +208,7 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
             flush=True,
         )
 
-    print("\n[检查] module_info.yaml …", flush=True)
+    print("\n[检查] module_info.yaml 是否齐全（仅检查文件存在，不比对各模块 version 字段）…", flush=True)
     missing = check_module_info_files()
     if missing:
         failures.append("module_info 缺失")
@@ -245,9 +219,6 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
             f"  {icon('success')} core/modules/*、core/infra/*、core/ui 均已具备 module_info.yaml",
             flush=True,
         )
-
-    for w in warn_module_info_version_drift(version):
-        print(f"  {icon('warning')} {w}", flush=True)
 
     if not opts.skip_ic:
         if run_minimal_import_check() != 0:
@@ -275,7 +246,10 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
 
     print(f"{icon('success')} 自动化项已通过。", flush=True)
     if not opts.check_only:
-        print(f"请继续：更新 CHANGELOG v{version}、核对 module_info 版本与文档，然后提交/打 tag。", flush=True)
+        print(
+            f"请继续：更新 CHANGELOG v{version}、按需更新模块文档与 module_info 依赖项，然后提交/打 tag。",
+            flush=True,
+        )
     return 0
 
 

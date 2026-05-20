@@ -144,7 +144,7 @@ function DictParserToolbar({
     <Button
       size="small"
       variant="outlined"
-      startIcon={<NtqIcon name="remove" size={18} />}
+      startIcon={<NtqIcon name="delete" size={18} />}
       onClick={onCollapse}
     >
       回到侧边栏

@@ -1,7 +1,6 @@
 const strategyCoreSchema = {
   name: 'strategyCore',
   label: '策略核心设置',
-  description: '用户自定义策略核心参数',
   type: 'section',
   defaultExpanded: false,
   children: [

@@ -22,7 +22,10 @@ function SelectField({ field, value, onChange, emitChangeMeta, context = {} }) {
     }
   };
 
-  const helperText = field.description && !field.tooltip ? field.description : '';
+  const options = field.options || [];
+  const selectedOption = options.find((item) => item.value === current);
+  const helperText = selectedOption?.tooltip
+    || (field.description && !field.tooltip ? field.description : '');
 
   return (
     <div key={field.name}>
@@ -34,9 +37,17 @@ function SelectField({ field, value, onChange, emitChangeMeta, context = {} }) {
         value={current ?? (field.multiple ? [] : '')}
         onChange={(e) => applyChange(e.target.value)}
         disabled={isReadonly}
+        renderValue={(selected) => {
+          const matched = options.find((item) => item.value === selected);
+          return matched?.label ?? selected;
+        }}
       >
-        {(field.options || []).map((item) => (
-          <MenuItem key={item.value} value={item.value}>
+        {options.map((item) => (
+          <MenuItem
+            key={item.value}
+            value={item.value}
+            title={item.tooltip || undefined}
+          >
             {item.label}
           </MenuItem>
         ))}

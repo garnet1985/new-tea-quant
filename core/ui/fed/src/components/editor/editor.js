@@ -28,7 +28,16 @@ function renderNode(node, value, onChange, errors, emitChangeMeta, context) {
   }
 
   if (node.type === 'dateRange') {
-    return <DateRangeField field={node} value={value} onChange={onChange} errors={errors} emitChangeMeta={emitChangeMeta} />;
+    return (
+      <DateRangeField
+        field={node}
+        value={value}
+        onChange={onChange}
+        errors={errors}
+        emitChangeMeta={emitChangeMeta}
+        context={context}
+      />
+    );
   }
 
   if (node.type === 'dictParser') {

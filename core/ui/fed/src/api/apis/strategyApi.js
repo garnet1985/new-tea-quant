@@ -435,7 +435,11 @@ export async function fetchStrategyReportStockKline(strategyName, runId, stockId
 export async function fetchCapitalAllocationModeOptions() {
   const json = await requestJson(API_SETTINGS_CAPITAL, { method: 'GET' });
   const items = json?.message?.items ?? [];
-  return items.map((row) => ({ value: row.value, label: row.label }));
+  return items.map((row) => ({
+    value: row.value,
+    label: row.label,
+    tooltip: row.tooltip || '',
+  }));
 }
 
 /**
@@ -446,7 +450,11 @@ export async function fetchCapitalAllocationModeConfig() {
   const json = await requestJson(API_SETTINGS_CAPITAL, { method: 'GET' });
   const items = json?.message?.items ?? [];
   return {
-    options: items.map((row) => ({ value: row.value, label: row.label })),
+    options: items.map((row) => ({
+      value: row.value,
+      label: row.label,
+      tooltip: row.tooltip || '',
+    })),
     profiles: {},
   };
 }
@@ -458,7 +466,11 @@ export async function fetchCapitalAllocationModeConfig() {
 export async function fetchSamplingStrategyOptions() {
   const json = await requestJson(API_SETTINGS_SAMPLING, { method: 'GET' });
   const items = json?.message?.items ?? [];
-  return items.map((row) => ({ value: row.value, label: row.label }));
+  return items.map((row) => ({
+    value: row.value,
+    label: row.label,
+    tooltip: row.tooltip || '',
+  }));
 }
 
 /**
@@ -469,7 +481,11 @@ export async function fetchSamplingStrategyConfig() {
   const json = await requestJson(API_SETTINGS_SAMPLING, { method: 'GET' });
   const items = json?.message?.items ?? [];
   return {
-    options: items.map((row) => ({ value: row.value, label: row.label })),
+    options: items.map((row) => ({
+      value: row.value,
+      label: row.label,
+      tooltip: row.tooltip || '',
+    })),
     profiles: {},
   };
 }
@@ -481,7 +497,11 @@ export async function fetchSamplingStrategyConfig() {
 export async function fetchSimulationTemplateOptions() {
   const json = await requestJson(API_SETTINGS_SIMULATION_TEMPLATES, { method: 'GET' });
   const items = json?.message?.items ?? [];
-  return items.map((row) => ({ value: row.value, label: row.label }));
+  return items.map((row) => ({
+    value: row.value,
+    label: row.label,
+    tooltip: row.tooltip || '',
+  }));
 }
 
 /**
@@ -492,7 +512,11 @@ export async function fetchSimulationTemplateConfig() {
   const json = await requestJson(API_SETTINGS_SIMULATION_TEMPLATES, { method: 'GET' });
   const items = json?.message?.items ?? [];
   return {
-    options: items.map((row) => ({ value: row.value, label: row.label })),
+    options: items.map((row) => ({
+      value: row.value,
+      label: row.label,
+      tooltip: row.tooltip || '',
+    })),
     profiles: {},
   };
 }

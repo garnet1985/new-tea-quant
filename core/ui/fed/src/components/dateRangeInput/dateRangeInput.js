@@ -1,10 +1,9 @@
 import React from 'react';
-import NtqHelpTooltip from '../ntqHelpTooltip/ntqHelpTooltip';
+import EditorFieldLabel from '../editor/fields/editorFieldLabel';
 import {
   Box,
   Stack,
   TextField,
-  Typography,
 } from '@mui/material';
 
 /**
@@ -14,6 +13,8 @@ import {
 export default function DateRangeInput({
   label,
   tooltipTitle,
+  context = {},
+  layout = 'horizontal',
   startLabel = '开始',
   endLabel = '结束',
   startValue = '',
@@ -23,25 +24,24 @@ export default function DateRangeInput({
   startError = '',
   endError = '',
 }) {
+  const isVertical = layout === 'vertical';
+  const labelGap = isVertical ? 2 : 1;
+  const fieldGap = isVertical ? 1.5 : 1;
+
   return (
-    <Stack spacing={1}>
-      {(label || tooltipTitle) ? (
-        <Stack direction="row" alignItems="center" spacing={0.25}>
-          {label ? (
-            <Typography component="span" variant="subtitle2" fontWeight={600}>
-              {label}
-            </Typography>
-          ) : null}
-          {tooltipTitle ? (
-            <NtqHelpTooltip title={tooltipTitle} ariaLabel="时间段说明" />
-          ) : null}
-        </Stack>
+    <Stack spacing={labelGap}>
+      {label ? (
+        <EditorFieldLabel
+          field={{ label, tooltip: tooltipTitle || '' }}
+          context={context}
+          sx={{ mb: 0 }}
+        />
       ) : null}
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-          gap: 1,
+          gridTemplateColumns: isVertical ? '1fr' : { xs: '1fr', md: '1fr 1fr' },
+          gap: fieldGap,
         }}
       >
         <TextField

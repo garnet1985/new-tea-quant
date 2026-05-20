@@ -4,6 +4,7 @@ import { ReactComponent as CancelIcon } from './icons/cancel.svg';
 import { ReactComponent as DeleteIcon } from './icons/delete.svg';
 import { ReactComponent as HelpIcon } from './icons/help.svg';
 import { ReactComponent as InfoIcon } from './icons/info.svg';
+import { ReactComponent as PlayIcon } from './icons/play.svg';
 import { ReactComponent as PlayCircleIcon } from './icons/play_circle.svg';
 import { ReactComponent as RadioUncheckedIcon } from './icons/radio_button_unchecked.svg';
 import { ReactComponent as RefreshIcon } from './icons/refresh.svg';
@@ -22,6 +23,7 @@ export const NTQ_ICON_MAP = {
   expandMore: ArrowRightIcon,
   help: HelpIcon,
   info: InfoIcon,
+  play: PlayIcon,
   playCircle: PlayCircleIcon,
   radioUnchecked: RadioUncheckedIcon,
   refresh: RefreshIcon,

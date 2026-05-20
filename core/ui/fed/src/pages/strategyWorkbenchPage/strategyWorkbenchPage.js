@@ -260,13 +260,19 @@ function StrategyWorkbenchPage() {
     setReportTabFocusRequest(null);
   }, []);
 
+  const forceRunHandlersRef = useRef({ forceEnum: null });
+  /** 与左侧表单 ``draftSettings`` 同步，供跑完后对齐 ``appliedSettings`` */
+  const draftSettingsRef = useRef(null);
+
   const handleRunStepComplete = useCallback((step) => {
     if (step !== 'enum' && step !== 'price' && step !== 'capital') return;
     reportTabFocusSeqRef.current += 1;
     setReportTabFocusRequest({ step, tick: reportTabFocusSeqRef.current });
+    const draft = draftSettingsRef.current;
+    if (draft && typeof draft === 'object') {
+      setAppliedSettings(deepClone(draft));
+    }
   }, []);
-
-  const forceRunHandlersRef = useRef({ forceEnum: null });
 
   const mergeWorkbenchResultReportFromProgress = useCallback((slice) => {
     if (!slice || typeof slice !== 'object' || Object.keys(slice).length === 0) return;
@@ -601,6 +607,7 @@ function StrategyWorkbenchPage() {
                   ? coreEditor.getDraftSettingsForSubmit()
                   : draftSettings
               );
+              draftSettingsRef.current = draftSettings;
 
               const requestSwitchStrategy = (nextStrategyName) => {
                 if (!nextStrategyName) return;

@@ -10,7 +10,6 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  Divider,
   List,
   ListItemButton,
   ListItemText,
@@ -21,7 +20,7 @@ import {
   Tabs,
   Typography,
 } from '@mui/material';
-import { API_VERSION_PREFIX } from '../../../../api/conf/apiConfig';
+import SettingsAccordionTitle from 'components/settingsAccordionTitle/settingsAccordionTitle';
 import OpportunityEnumrateReport from './reports/opportunityEnumerateReport';
 import PriceFactorReport from './reports/priceFactorReport';
 import CapitalAllocationReport from './reports/capitalAllocationReport';
@@ -50,6 +49,11 @@ import {
   resolvePriceReportSlot,
   resolvePriceReportSlotForCompare,
 } from './lib/strategyReportSlotResolve';
+import {
+  REPORT_PANEL_TITLE,
+  REPORT_PANEL_TOOLTIP,
+  REPORT_TAB_SECTION_TITLES,
+} from './reportSectionMeta';
 import './strategyReportPanel.scss';
 
 function StrategyReportPanel({
@@ -170,11 +174,6 @@ function StrategyReportPanel({
     setActiveTab(step);
   }, [reportTabFocusRequest, availableTabs]);
 
-  const enumReportRefUrl = useMemo(() => {
-    if (enumRefStatus !== 'ok' || !enumRefVersionId) return '';
-    return `${API_VERSION_PREFIX}/strategy/${encodeURIComponent(strategyName)}/enum/report_ref/${encodeURIComponent(enumRefVersionId)}`;
-  }, [enumRefStatus, enumRefVersionId, strategyName]);
-
   const buildMetricsPayloadForTab = (
     tabKey,
     {
@@ -250,8 +249,8 @@ function StrategyReportPanel({
           title={title}
           showStockGrid={options.showStockGrid !== false}
           stockGridOverlay={options.stockGridOverlay}
-          reportRefUrl={options.reportRefUrl || ''}
           enumRefStockTotal={options.enumRefStockTotal}
+          hideTitle={Boolean(options.hideTitle)}
           stockGridLoading={Boolean(options.stockGridLoading)}
         />
       );
@@ -268,6 +267,7 @@ function StrategyReportPanel({
           stockRows={reportData.stockRows}
           title={title}
           showStockGrid={options.showStockGrid !== false}
+          hideTitle={Boolean(options.hideTitle)}
         />
       );
     }
@@ -283,11 +283,14 @@ function StrategyReportPanel({
           stockRows={reportData?.stockRows}
           title={title}
           showStockGrid={options.showStockGrid !== false}
+          hideTitle={Boolean(options.hideTitle)}
         />
       );
     }
     return null;
   };
+
+  const activeTabSectionTitle = REPORT_TAB_SECTION_TITLES[resolvedActiveTab] ?? '';
 
   const renderTabContent = () => {
     if (!resolvedActiveTab) {
@@ -329,12 +332,12 @@ function StrategyReportPanel({
           stepSlots: stepReportSlots,
           snapshotEnum: snapshotEnumSlot,
         }),
-        '枚举核心结论',
+        REPORT_TAB_SECTION_TITLES.enum,
         {
           stockGridOverlay,
-          reportRefUrl: enumReportRefUrl,
           enumRefStockTotal: enumRefStatus === 'ok' ? enumRefRows.length : undefined,
           stockGridLoading: Boolean(enumRefVersionId) && enumRefStatus === 'loading',
+          hideTitle: true,
         },
       );
     }
@@ -346,7 +349,8 @@ function StrategyReportPanel({
           stepSlots: stepReportSlots,
           snapshotPrice: snapshotPriceSlot,
         }),
-        '价格回测报告',
+        REPORT_TAB_SECTION_TITLES.price,
+        { hideTitle: true },
       );
     }
 
@@ -356,14 +360,19 @@ function StrategyReportPanel({
         stepSlots: stepReportSlots,
         snapshotCapital: snapshotCapitalSlot,
       }),
-      '资金模拟报告',
+      REPORT_TAB_SECTION_TITLES.capital,
+      { hideTitle: true },
     );
   };
 
   return (
     <Accordion defaultExpanded disableGutters>
       <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
-        <Typography fontWeight={600}>模拟结果</Typography>
+        <SettingsAccordionTitle
+          title={REPORT_PANEL_TITLE}
+          tooltip={REPORT_PANEL_TOOLTIP}
+          context={{ defaultTooltipShine: true }}
+        />
       </AccordionSummary>
       <AccordionDetails>
         <Stack spacing={1.25}>
@@ -379,27 +388,32 @@ function StrategyReportPanel({
               ))}
             </Tabs>
           ) : null}
-          {showReportCompare ? (
-            <Stack direction="row" justifyContent="flex-end">
-              <Button
-                size="small"
-                variant="outlined"
-                disabled={!resolvedActiveTab}
-                className="ntq-attention-btn"
-                onClick={() => {
-                  setCompareDialogSubTab('report');
-                  setCompareDialogOpen(true);
-                }}
-              >
-                对比结果
-              </Button>
+          {resolvedActiveTab && activeTabSectionTitle ? (
+            <Stack
+              direction="row"
+              alignItems="center"
+              spacing={1.5}
+              className="ntq-report-section-head"
+            >
+              <Typography variant="subtitle2" fontWeight={600} className="ntq-report-section-head__title">
+                {activeTabSectionTitle}
+              </Typography>
+              {showReportCompare ? (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  className="ntq-attention-btn ntq-report-section-head__compare"
+                  onClick={() => {
+                    setCompareDialogSubTab('report');
+                    setCompareDialogOpen(true);
+                  }}
+                >
+                  对比结果
+                </Button>
+              ) : null}
             </Stack>
           ) : null}
           {renderTabContent()}
-          <Divider />
-          <Typography variant="caption" color="text.secondary">
-            注：枚举 ``enumMetrics``（camelCase）与价格/资金槽位（snake_case）须由 BFF V2-07 完整下发；缺字段将显示「数据异常」，请重跑对应步骤。
-          </Typography>
         </Stack>
       </AccordionDetails>
 

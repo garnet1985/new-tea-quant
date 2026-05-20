@@ -18,6 +18,7 @@
   width: 0;
   pointer-events: none;
   border-radius: inherit;
+  /* 仅随轮询前进时过渡；done↔running 由 React key 拆节点，避免 100%→0% 回退动画 */
   transition: width 0.35s ease-out;
 }
 
@@ -234,8 +235,22 @@ $ntq-exec-run-aurora: conic-gradient(
   background: var(--ntq-white-12);
 }
 
+/* 有对比列时运行中即占位，避免 done 后 Select 撑高行高导致闪动 */
+.exec-step-card--has-compare {
+  .ntq-exec-compare-slot {
+    min-height: 40px;
+  }
+}
+
 .ntq-exec-compare {
   padding-right: 4px;
+}
+
+.ntq-exec-compare__placeholder {
+  flex-shrink: 0;
+  width: 168px;
+  max-width: 100%;
+  height: 40px;
 }
 
 .ntq-exec-compare__select {

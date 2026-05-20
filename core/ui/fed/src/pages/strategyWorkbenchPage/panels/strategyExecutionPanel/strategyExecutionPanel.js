@@ -196,6 +196,25 @@ function StrategyExecutionPanel({
   const [latestRunId, setLatestRunId] = useState('');
   const [runError, setRunError] = useState('');
   const [lastCompletedWorkbenchVersionId, setLastCompletedWorkbenchVersionId] = useState('');
+  /** 同一 run + 同一 running 步内进度只增不减，避免轮询回退（如 5% → 2%） */
+  const progressRunKeyRef = useRef('');
+  const progressPctHighWaterRef = useRef(0);
+
+  const applyOptimisticRunStepStatus = (target) => {
+    const order = [STEP_ENUM, STEP_PRICE, STEP_CAPITAL];
+    const startIdx = order.indexOf(target);
+    setStepStatus((prev) => {
+      if (startIdx < 0) {
+        return { enum: 'running', price: 'idle', capital: 'idle' };
+      }
+      const next = { ...prev };
+      order.forEach((key, i) => {
+        if (i < startIdx) return;
+        next[key] = i === startIdx ? 'running' : 'idle';
+      });
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!onExecutionStateChange) return;
@@ -243,6 +262,8 @@ function StrategyExecutionPanel({
     setLatestRunId('');
     setRunError('');
     setLastCompletedWorkbenchVersionId('');
+    progressRunKeyRef.current = '';
+    progressPctHighWaterRef.current = 0;
   }, [strategyName]);
 
   useEffect(() => {
@@ -275,7 +296,11 @@ function StrategyExecutionPanel({
       setProgressPollStep(target);
       setRunningStep(target);
       setProgress(0);
+      progressRunKeyRef.current = '';
+      progressPctHighWaterRef.current = 0;
       setLastCompletedWorkbenchVersionId('');
+      /* 立即标 running，避免上一步仍为 done 时先闪 100% 绿条再归零 */
+      applyOptimisticRunStepStatus(target);
       const resolvedSettings = getSettingsForRun ? getSettingsForRun() : settings;
       if (!resolvedSettings) throw new Error('当前参数不可用，无法执行');
       const started = await startStrategyRun(strategyName, target, resolvedSettings, { is_force: isForce });
@@ -369,9 +394,12 @@ function StrategyExecutionPanel({
     const st = stepStatus[stepKey];
     if (st === 'pending') return null;
     if (st === 'failed') return null;
+    /* 本步正在重跑时勿画完成满条（且避免 done→running 复用同一节点触发 width 回退动画） */
     if (st === 'done') {
+      if (activeRunId && progressPollStep === stepKey) return null;
       return (
         <Box
+          key={`${stepKey}-done`}
           className="exec-step-card__progress exec-step-card__progress--done"
           style={{ width: '100%' }}
           aria-hidden
@@ -384,6 +412,7 @@ function StrategyExecutionPanel({
       const pct = Math.min(100, Math.max(0, Number(progress)));
       return (
         <Box
+          key={`${stepKey}-run-pct-${activeRunId || 'local'}`}
           className="exec-step-card__progress exec-step-card__progress--run"
           style={{ width: `${pct}%` }}
           aria-hidden
@@ -392,6 +421,7 @@ function StrategyExecutionPanel({
     }
     return (
       <Box
+        key={`${stepKey}-run-indeterminate-${activeRunId || 'local'}`}
         className="exec-step-card__progress exec-step-card__progress--indeterminate"
         aria-hidden
       />
@@ -417,6 +447,41 @@ function StrategyExecutionPanel({
     const s = String(selected ?? '').trim();
     if (!s) return '对比版本';
     return `对比版本：${renderCompareSelectValue(s)}`;
+  };
+
+  /** 对比下拉仅在 done 时启用，但占位始终保留，避免完成瞬间行高跳变 */
+  const renderCompareSlot = (stepKey) => {
+    if (!showVersionCompare) return null;
+    const compareDone = stepStatus[stepKey] === 'done';
+    const selectProps = {
+      size: 'small',
+      displayEmpty: true,
+      value: compareVersion[stepKey],
+      renderValue: renderExecutionCompareValue,
+      onChange: (e) => handleExecutionCompareChange(stepKey, e.target.value),
+      className: 'ntq-exec-compare__select',
+    };
+    return (
+      <Stack
+        direction="row"
+        spacing={1}
+        alignItems="center"
+        justifyContent="flex-end"
+        className="ntq-exec-compare ntq-exec-compare-slot"
+      >
+        {compareDone ? (
+          <Select {...selectProps}>
+            <MenuItem value="">{compareBaselineMenuLabel}</MenuItem>
+            {compareDropdownVersionIds.map((id) => (
+              <MenuItem key={id} value={id}>{id}</MenuItem>
+            ))}
+            <MenuItem value={EXEC_COMPARE_MORE_MENU_VALUE}>更多版本…</MenuItem>
+          </Select>
+        ) : (
+          <Box className="ntq-exec-compare__placeholder" aria-hidden />
+        )}
+      </Stack>
+    );
   };
 
   useEffect(() => {
@@ -748,8 +813,28 @@ function StrategyExecutionPanel({
         ? status.step_status_merge
         : {};
       setStepStatus((prev) => ({ ...prev, ...patch }));
-      setRunningStep(status?.running_step || '');
-      setProgress(Number(status?.progress_pct || 0));
+      const nextRunningStep = status?.running_step || '';
+      setRunningStep(nextRunningStep);
+
+      const runKey = `${status?.run_id || activeRunId}:${nextRunningStep}`;
+      if (runKey !== progressRunKeyRef.current) {
+        progressRunKeyRef.current = runKey;
+        progressPctHighWaterRef.current = 0;
+      }
+
+      let nextPct = Number(status?.progress_pct || 0);
+      if (status?.state === 'done') {
+        nextPct = 100;
+        progressPctHighWaterRef.current = 0;
+      } else if (nextRunningStep) {
+        nextPct = Math.min(100, Math.max(0, nextPct));
+        nextPct = Math.max(progressPctHighWaterRef.current, nextPct);
+        progressPctHighWaterRef.current = nextPct;
+      } else {
+        nextPct = 0;
+        progressPctHighWaterRef.current = 0;
+      }
+      setProgress(nextPct);
       const report = status?.result_report || {};
       setResult((prev) => ({
         enum: Object.prototype.hasOwnProperty.call(report, 'enum') ? report.enum : prev.enum,
@@ -839,7 +924,11 @@ function StrategyExecutionPanel({
 
           <Stack spacing={1}>
             <Box
-              className={`exec-step-card ${getStepClass(stepStatus.enum)}`}
+              className={[
+                'exec-step-card',
+                getStepClass(stepStatus.enum),
+                showVersionCompare ? 'exec-step-card--has-compare' : '',
+              ].filter(Boolean).join(' ')}
               sx={{
                 border: 1,
                 borderRadius: 1,
@@ -861,29 +950,16 @@ function StrategyExecutionPanel({
                   ariaLabel={stepStatus.enum === 'done' ? '强制重跑枚举' : '运行枚举'}
                 />
                 {renderEnumSummary()}
-                {stepStatus.enum === 'done' && showVersionCompare ? (
-                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end" className="ntq-exec-compare">
-                    <Select
-                      size="small"
-                      displayEmpty
-                      value={compareVersion.enum}
-                      renderValue={renderExecutionCompareValue}
-                      onChange={(e) => handleExecutionCompareChange('enum', e.target.value)}
-                      className="ntq-exec-compare__select"
-                    >
-                      <MenuItem value="">{compareBaselineMenuLabel}</MenuItem>
-                      {compareDropdownVersionIds.map((id) => (
-                        <MenuItem key={id} value={id}>{id}</MenuItem>
-                      ))}
-                      <MenuItem value={EXEC_COMPARE_MORE_MENU_VALUE}>更多版本…</MenuItem>
-                    </Select>
-                  </Stack>
-                ) : null}
+                {renderCompareSlot('enum')}
               </Box>
             </Box>
 
             <Box
-              className={`exec-step-card ${getStepClass(stepStatus.price)}`}
+              className={[
+                'exec-step-card',
+                getStepClass(stepStatus.price),
+                showVersionCompare ? 'exec-step-card--has-compare' : '',
+              ].filter(Boolean).join(' ')}
               sx={{
                 border: 1,
                 borderRadius: 1,
@@ -907,29 +983,16 @@ function StrategyExecutionPanel({
                 <Box sx={{ overflowX: 'auto', overflowY: 'hidden', '&::-webkit-scrollbar': { height: 6 } }}>
                   {renderPriceSummary()}
                 </Box>
-                {stepStatus.price === 'done' && showVersionCompare ? (
-                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end" className="ntq-exec-compare">
-                    <Select
-                      size="small"
-                      displayEmpty
-                      value={compareVersion.price}
-                      renderValue={renderExecutionCompareValue}
-                      onChange={(e) => handleExecutionCompareChange('price', e.target.value)}
-                      className="ntq-exec-compare__select"
-                    >
-                      <MenuItem value="">{compareBaselineMenuLabel}</MenuItem>
-                      {compareDropdownVersionIds.map((id) => (
-                        <MenuItem key={id} value={id}>{id}</MenuItem>
-                      ))}
-                      <MenuItem value={EXEC_COMPARE_MORE_MENU_VALUE}>更多版本…</MenuItem>
-                    </Select>
-                  </Stack>
-                ) : null}
+                {renderCompareSlot('price')}
               </Box>
             </Box>
 
             <Box
-              className={`exec-step-card ${getStepClass(stepStatus.capital)}`}
+              className={[
+                'exec-step-card',
+                getStepClass(stepStatus.capital),
+                showVersionCompare ? 'exec-step-card--has-compare' : '',
+              ].filter(Boolean).join(' ')}
               sx={{
                 border: 1,
                 borderRadius: 1,
@@ -951,24 +1014,7 @@ function StrategyExecutionPanel({
                   ariaLabel={stepStatus.capital === 'done' ? '强制重跑资金模拟' : '运行资金模拟'}
                 />
                 {renderCapitalSummary()}
-                {stepStatus.capital === 'done' && showVersionCompare ? (
-                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="flex-end" className="ntq-exec-compare">
-                    <Select
-                      size="small"
-                      displayEmpty
-                      value={compareVersion.capital}
-                      renderValue={renderExecutionCompareValue}
-                      onChange={(e) => handleExecutionCompareChange('capital', e.target.value)}
-                      className="ntq-exec-compare__select"
-                    >
-                      <MenuItem value="">{compareBaselineMenuLabel}</MenuItem>
-                      {compareDropdownVersionIds.map((id) => (
-                        <MenuItem key={id} value={id}>{id}</MenuItem>
-                      ))}
-                      <MenuItem value={EXEC_COMPARE_MORE_MENU_VALUE}>更多版本…</MenuItem>
-                    </Select>
-                  </Stack>
-                ) : null}
+                {renderCompareSlot('capital')}
               </Box>
             </Box>
           </Stack>

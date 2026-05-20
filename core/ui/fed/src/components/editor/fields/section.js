@@ -13,9 +13,16 @@ function SectionField({ node, value, onChange, errors, emitChangeMeta, renderNod
   const getChildKey = (child, index) => child?.name || child?.label || `${node.name || 'section'}-${index}`;
 
   return (
-    <Accordion key={node.name} defaultExpanded={Boolean(node.defaultExpanded)} disableGutters>
+    <Accordion
+      key={node.name}
+      defaultExpanded={Boolean(node.defaultExpanded)}
+      disableGutters
+      TransitionProps={{ timeout: 0, unmountOnExit: false }}
+    >
       <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
-        <Typography fontWeight={600}>{node.label}</Typography>
+        <Typography component="span" fontWeight={600}>
+          {node.label}
+        </Typography>
       </AccordionSummary>
       <AccordionDetails>
         <Stack spacing={1.25}>

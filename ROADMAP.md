@@ -1,16 +1,4 @@
 ROAD MAPs
-
----
-
-### upcoming releases (0.3.3)
-- 增加report里K线的点击界面
-- 为新版本的更新增加清除缓存的步骤
-- 给设置里增加清除缓存的功能
-- 为dev-cli加入数据打包功能
-- import和export策略的支持
-
----
-
 ---
 
 ### Backlog
@@ -42,11 +30,30 @@ ROAD MAPs
 - 完善market profile，以便适应港股或者更多金融市场
 
 
-
 Pro版本：
 - 引入AI评价结果
 - 引入AI辅助策略代码
 - 增加因子挖掘模块
 - 增加一些基本结论并且变成金融工具箱
+
+---
+
+---
+
+### upcoming releases (0.4.x)
+- 新加决策者模式
+- 修正幸存者偏差
+- UI一键升级
+
+---
+
+---
+
+### upcoming releases (0.3.3)
+- 增加report里K线的点击界面
+- 为新版本的更新增加清除缓存的步骤
+- 给设置里增加清除缓存的功能
+- 为dev-cli加入数据打包功能
+- import和export策略的支持
 
 ---

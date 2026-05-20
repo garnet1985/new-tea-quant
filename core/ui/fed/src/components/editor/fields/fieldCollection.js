@@ -234,4 +234,4 @@ function FieldCollectionField({ field, value, onChange, emitChangeMeta, context 
   );
 }
 
-export default FieldCollectionField;
+export default React.memo(FieldCollectionField);

@@ -590,7 +590,17 @@ function StrategyWorkbenchPage() {
       ) : null}
       {!(isLoadingSettings && strategyName) ? (
       <StrategySettingsContainer initialSettings={initialSettings}>
-        {({ draftSettings, updateSection, setDraftSettings, coreEditor }) => (
+        {({
+          draftSettings,
+          setDraftSettings,
+          coreEditor,
+          onGoalChange,
+          onSamplingChange,
+          onFeesChange,
+          onSimulationChange,
+          onPriceSimulatorChange,
+          onCapitalSimulatorChange,
+        }) => (
           <>
             {(() => {
               const hasUnsavedChanges = JSON.stringify(draftSettings) !== JSON.stringify(savedBaselineSettings);
@@ -750,12 +760,12 @@ function StrategyWorkbenchPage() {
                   samplingStrategyOptions={samplingStrategyOptions}
                   simulationTemplateOptions={simulationTemplateOptions}
                   marketProfileOptions={marketProfileOptions}
-                  onGoalChange={(nextGoal) => updateSection('goal', nextGoal)}
-                  onSamplingChange={(nextSampling) => updateSection('sampling', nextSampling)}
-                  onFeesChange={(nextFees) => updateSection('fees', nextFees)}
-                  onSimulationChange={(nextSimulation) => updateSection('simulation', nextSimulation)}
-                  onPriceSimulatorChange={(nextPriceSimulator) => updateSection('price_simulator', nextPriceSimulator)}
-                  onCapitalSimulatorChange={(nextCapitalSimulator) => updateSection('capital_simulator', nextCapitalSimulator)}
+                  onGoalChange={onGoalChange}
+                  onSamplingChange={onSamplingChange}
+                  onFeesChange={onFeesChange}
+                  onSimulationChange={onSimulationChange}
+                  onPriceSimulatorChange={onPriceSimulatorChange}
+                  onCapitalSimulatorChange={onCapitalSimulatorChange}
                 />
                 <PlaceholderSection
                   title="其他策略"

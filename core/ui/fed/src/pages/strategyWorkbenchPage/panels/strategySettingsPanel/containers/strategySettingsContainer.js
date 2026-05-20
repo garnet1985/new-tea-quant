@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import JSON5 from 'json5';
 
 function stripHashComments(text) {
@@ -261,12 +261,12 @@ function StrategySettingsContainer({ initialSettings, children }) {
     }
   }, [normalizedInitial]);
 
-  const updateSection = (sectionKey, nextSectionValue) => {
+  const updateSection = useCallback((sectionKey, nextSectionValue) => {
     setDraftSettings((prev) => ({
       ...prev,
       [sectionKey]: nextSectionValue,
     }));
-  };
+  }, []);
 
   const applyCoreSourceFailure = (text, err, focusOnError) => {
     const msg = err?.message || '解析失败';
@@ -391,26 +391,27 @@ function StrategySettingsContainer({ initialSettings, children }) {
     textarea.scrollTop = Math.max(0, (lineNo - 2) * lineHeight);
   }, [coreErrorPosition, coreInputText]);
 
-  return children({
-    draftSettings,
-    updateSection,
-    setDraftSettings,
-    coreEditor: {
+  const onCoreTextChange = useCallback((nextText) => {
+    setCoreInputText(nextText);
+  }, []);
+
+  const onCoreBlur = useCallback(() => {
+    if (coreFormatTimerRef.current) {
+      clearTimeout(coreFormatTimerRef.current);
+      coreFormatTimerRef.current = null;
+    }
+    const el = getActiveCoreInputEl();
+    const text = el?.value ?? coreInputText;
+    applyCoreSourceText(text, { formatOnSuccess: true, focusOnError: false });
+  }, [coreInputText]);
+
+  const coreEditor = useMemo(
+    () => ({
       value: coreInputText,
-      onChange: (nextText) => {
-        setCoreInputText(nextText);
-      },
+      onChange: onCoreTextChange,
       onKeyUp: onCoreEditorLiveSync,
       onPaste: onCoreEditorPaste,
-      onBlur: () => {
-        if (coreFormatTimerRef.current) {
-          clearTimeout(coreFormatTimerRef.current);
-          coreFormatTimerRef.current = null;
-        }
-        const el = getActiveCoreInputEl();
-        const text = el?.value ?? coreInputText;
-        applyCoreSourceText(text, { formatOnSuccess: true, focusOnError: false });
-      },
+      onBlur: onCoreBlur,
       onApply: applyCoreAndFormat,
       onResetToDefault: resetCoreToDefault,
       defaultCoreText,
@@ -423,7 +424,62 @@ function StrategySettingsContainer({ initialSettings, children }) {
       errorContext: coreErrorContext,
       parseMode: coreParseMode,
       getDraftSettingsForSubmit,
-    },
+    }),
+    [
+      coreInputText,
+      onCoreTextChange,
+      onCoreEditorLiveSync,
+      onCoreEditorPaste,
+      onCoreBlur,
+      applyCoreAndFormat,
+      resetCoreToDefault,
+      defaultCoreText,
+      coreParseError,
+      coreLineHint,
+      coreErrorLine,
+      coreErrorColumn,
+      coreErrorContext,
+      coreParseMode,
+      getDraftSettingsForSubmit,
+    ],
+  );
+
+  const onGoalChange = useCallback(
+    (nextGoal) => updateSection('goal', nextGoal),
+    [updateSection],
+  );
+  const onSamplingChange = useCallback(
+    (nextSampling) => updateSection('sampling', nextSampling),
+    [updateSection],
+  );
+  const onFeesChange = useCallback(
+    (nextFees) => updateSection('fees', nextFees),
+    [updateSection],
+  );
+  const onSimulationChange = useCallback(
+    (nextSimulation) => updateSection('simulation', nextSimulation),
+    [updateSection],
+  );
+  const onPriceSimulatorChange = useCallback(
+    (nextPriceSimulator) => updateSection('price_simulator', nextPriceSimulator),
+    [updateSection],
+  );
+  const onCapitalSimulatorChange = useCallback(
+    (nextCapitalSimulator) => updateSection('capital_simulator', nextCapitalSimulator),
+    [updateSection],
+  );
+
+  return children({
+    draftSettings,
+    updateSection,
+    setDraftSettings,
+    coreEditor,
+    onGoalChange,
+    onSamplingChange,
+    onFeesChange,
+    onSimulationChange,
+    onPriceSimulatorChange,
+    onCapitalSimulatorChange,
   });
 }
 

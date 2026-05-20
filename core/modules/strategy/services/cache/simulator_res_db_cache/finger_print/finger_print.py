@@ -100,6 +100,9 @@ def resolve_db_cache_fingerprints(
     raw_settings: Dict[str, Any],
     stock_list: List[str],
     latest_completed_trading_date: str,
+    data_manager: Optional[Any] = None,
+    env_start_date: str = "",
+    env_end_date: str = "",
 ) -> Optional[DbCacheFingerprintResolution]:
     """
     ``raw_settings`` → 规范化快照 → env 因子 → ``settings_fp`` + ``env_fp``。
@@ -122,6 +125,9 @@ def resolve_db_cache_fingerprints(
         normalized_settings_dict=normalized_settings_dict,
         stock_list=stock_list,
         latest_completed_trading_date=latest_completed_trading_date,
+        data_manager=data_manager,
+        env_start_date=str(env_start_date or "").strip(),
+        env_end_date=str(env_end_date or "").strip(),
     )
     if env is None:
         return None

@@ -5,11 +5,16 @@ from __future__ import annotations
 
 import csv
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from core.infra.project_context import PathManager
+from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+    _normalize_backtest_period_dict,
+    backtest_period_console_lines,
+    read_backtest_period_from_enum_output_dir,
+)
 from core.modules.strategy.engines.shared.helpers.tradability_stats import (
     collect_target_tradability_from_dir,
     count_tradability_in_opportunities,
@@ -50,6 +55,7 @@ class EnumeratorReport(ReportBase):
     sell_tradability_sample_count: int
     limit_down_sell_ratio: float
     stock_rows: List[Dict[str, Any]]
+    backtest_period: Dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def collect(cls, source: Path, **kwargs: Any) -> List[Dict[str, Any]]:
@@ -591,6 +597,8 @@ class EnumeratorReport(ReportBase):
         }
         if include_stock_rows:
             out["stockRows"] = self.stock_rows
+        if self.backtest_period.get("start_date") and self.backtest_period.get("end_date"):
+            out["backtest_period"] = dict(self.backtest_period)
         return out
 
     @classmethod
@@ -598,6 +606,9 @@ class EnumeratorReport(ReportBase):
         metrics = payload.get("enumMetrics") if isinstance(payload, dict) else {}
         if not isinstance(metrics, dict):
             metrics = {}
+        backtest_period = _normalize_backtest_period_dict(
+            payload.get("backtest_period") if isinstance(payload, dict) else None
+        )
         return cls(
             total_opportunities=int(metrics.get("totalOpportunities", 0) or 0),
             total_stocks=int(metrics.get("totalStocks", 0) or 0),
@@ -631,10 +642,13 @@ class EnumeratorReport(ReportBase):
             sell_tradability_sample_count=int(metrics.get("sellTradabilitySampleCount", 0) or 0),
             limit_down_sell_ratio=float(metrics.get("limitDownSellRatio", 0.0) or 0.0),
             stock_rows=list(payload.get("stockRows", []) or []) if isinstance(payload, dict) else [],
+            backtest_period=backtest_period,
         )
 
     def to_console_lines(self) -> List[str]:
-        lines = [
+        lines: List[str] = []
+        lines.extend(backtest_period_console_lines(self.backtest_period))
+        lines.extend([
             f"📊 机会总数: {self.total_opportunities}",
             f"🏷️ 扫描股票数: {self.total_stocks}",
             f"🎯 至少出现过机会的股票数: {self.trigger_stocks}",
@@ -648,7 +662,7 @@ class EnumeratorReport(ReportBase):
             f"📏 触发间隔标准差: {self.std_gap} 天",
             f"📐 变异系数(CV): {self.cv}",
             f"💡 节奏结论: {self.dispersion_conclusion}",
-        ]
+        ])
         if self.buy_tradability_sample_count > 0:
             lines.append(
                 f"🔺 买入触及涨停: {self.buy_at_limit_up_count}/{self.buy_tradability_sample_count} "
@@ -702,9 +716,12 @@ class EnumeratorReport(ReportBase):
             return cls.from_bff_payload({})
         try:
             payload = json.loads(report_path.read_text(encoding="utf-8"))
-            return cls.from_bff_payload(payload if isinstance(payload, dict) else {})
+            report = cls.from_bff_payload(payload if isinstance(payload, dict) else {})
         except Exception:
-            return cls.from_bff_payload({})
+            report = cls.from_bff_payload({})
+        if not report.backtest_period:
+            report.backtest_period = read_backtest_period_from_enum_output_dir(source)
+        return report
 
     def write(self, output_dir: Path, **kwargs: Any) -> None:
         self.write_bff_payload(output_dir)
@@ -734,10 +751,20 @@ class EnumeratorReport(ReportBase):
                 PathManager.strategy_simulation_enum(sn or label) / version_name,
             ]
             report = cls.from_bff_payload({})
+            loaded_dir: Optional[Path] = None
             for output_dir in candidates:
                 if output_dir.exists():
                     report = cls.load(output_dir)
+                    loaded_dir = output_dir
                     break
+            if not report.backtest_period:
+                bp = _normalize_backtest_period_dict(res.get("backtest_period"))
+                if bp:
+                    report.backtest_period = bp
+                elif loaded_dir is not None:
+                    report.backtest_period = read_backtest_period_from_enum_output_dir(
+                        loaded_dir
+                    )
             print(f"🔖 strategy={sn or label}")
             print(f"📁 version_dir={res.get('version_dir')}")
             print("")

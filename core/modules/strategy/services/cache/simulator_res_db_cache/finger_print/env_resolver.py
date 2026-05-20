@@ -19,12 +19,14 @@ from core.infra.project_context import PathManager
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
+from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+    resolve_backtest_date_range,
+)
 from core.modules.strategy.engines.shared.helpers.strategy_runtime import (
     load_strategy_info,
     resolve_worker_ref,
 )
 from core.system import get_version
-from core.utils.date.date_utils import DateUtils
 
 from ..config import derive_run_mode
 
@@ -37,19 +39,24 @@ class ResolveEnv:
         *,
         strategy_name: str,
         normalized_settings_dict: Dict[str, Any],
+        stock_list: Sequence[str],
         latest_completed_trading_date: str,
+        data_manager: Optional[Any] = None,
     ) -> Tuple[str, str]:
         """
-        从规范化快照读 ``sampling`` 区间；空 ``end_date`` 用 **调用方传入的** ``latest_completed_trading_date``（**不修改**传入 dict）。
+        与回测 flow 一致的日历窗：``sampling`` → 样本最早 K 线 → 默认起点；空 ``end_date`` 用调用方 ``latest_completed_trading_date``。
 
-        ``strategy_name`` 预留与枚举日志对齐；当前区间解析不依赖目录名。
+        ``stock_list`` 须与本次 flow / build_jobs 使用的列表一致。
         """
         _ = strategy_name
         view = StrategySettingsView.from_dict(dict(normalized_settings_dict or {}))
-        latest_date = str(latest_completed_trading_date or "").strip()
-        start_date = view.start_date.strip() or DateUtils.DEFAULT_START_DATE
-        end_date = view.end_date.strip() or latest_date
-        return start_date, end_date
+        period = resolve_backtest_date_range(
+            settings_view=view,
+            stock_ids=stock_list,
+            latest_completed_trading_date=str(latest_completed_trading_date or "").strip(),
+            data_manager=data_manager,
+        )
+        return period.as_tuple()
 
     @staticmethod
     def worker_code_identity(*, strategy_name: str) -> Dict[str, str]:
@@ -135,20 +142,31 @@ class ResolveEnv:
         normalized_settings_dict: Dict[str, Any],
         stock_list: List[str],
         latest_completed_trading_date: str,
+        data_manager: Optional[Any] = None,
+        env_start_date: str = "",
+        env_end_date: str = "",
     ) -> Optional[EnvFingerprintInputs]:
         """
         由已通过校验的规范化快照解析 env。
 
         ``stock_list`` 须与本次回测 / 枚举 flow 在 build jobs 阶段使用的列表一致（不由 settings 推导）。
         ``latest_completed_trading_date`` 须与 flow 侧解析的最新已完成交易日一致（用于空 ``end_date`` fallback）。
+        若调用方已解析 ``env_start_date`` / ``env_end_date``（与 flow 一致），则不再查库。
         Worker 身份解析失败时返回 ``None``。
         """
         stock_ids = ResolveEnv._collect_stock_ids(stock_list)
-        env_start_date, env_end_date = ResolveEnv.date_range_for_fingerprint(
-            strategy_name=strategy_name,
-            normalized_settings_dict=normalized_settings_dict,
-            latest_completed_trading_date=latest_completed_trading_date,
-        )
+        preset_start = str(env_start_date or "").strip()
+        preset_end = str(env_end_date or "").strip()
+        if preset_start and preset_end:
+            resolved_start, resolved_end = preset_start, preset_end
+        else:
+            resolved_start, resolved_end = ResolveEnv.date_range_for_fingerprint(
+                strategy_name=strategy_name,
+                normalized_settings_dict=normalized_settings_dict,
+                stock_list=stock_list,
+                latest_completed_trading_date=latest_completed_trading_date,
+                data_manager=data_manager,
+            )
         run_mode = derive_run_mode(normalized_settings_dict)
         engine_version = get_version()
 
@@ -161,8 +179,8 @@ class ResolveEnv:
 
         return EnvFingerprintInputs(
             stock_ids=stock_ids,
-            env_start_date=env_start_date,
-            env_end_date=env_end_date,
+            env_start_date=resolved_start,
+            env_end_date=resolved_end,
             run_mode=run_mode,
             engine_version=engine_version,
             worker_module_path=worker["worker_module_path"],

@@ -101,6 +101,7 @@ class OpportunityEnumeratorFlowImpl:
         workbench_strategy_name: Optional[str] = None,
         workbench_run_id: Optional[str] = None,
         force_refresh: bool = False,
+        backtest_period: Optional[Dict[str, str]] = None,
     ) -> None:
         self.start_date = start_date
         self.end_date = end_date
@@ -110,9 +111,34 @@ class OpportunityEnumeratorFlowImpl:
         self.workbench_strategy_name = workbench_strategy_name
         self.workbench_run_id = workbench_run_id
         self.force_refresh = bool(force_refresh)
+        self._backtest_period_cache: Dict[str, str] = dict(backtest_period or {})
         # 在 ``aggregate_job_results``（postprocess）里单次遍历 ``job_results`` 填满；``save_metadata`` 再写 ``0_stock_ref.json``。
         self._stock_summary_by_id: Dict[str, Dict[str, Any]] = {}
         self._enumeration_bundles_by_id: Dict[str, Dict[str, Any]] = {}
+
+    def resolved_backtest_period(self) -> Dict[str, str]:
+        """单次 run 内缓存；构造时已注入则不再查库。"""
+        cached = self._backtest_period_cache
+        if cached.get("start_date") and cached.get("end_date"):
+            return dict(cached)
+
+        from core.modules.data_manager import DataManager
+        from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+            resolve_backtest_period_payload,
+            resolve_latest_completed_trading_date,
+        )
+
+        data_mgr = DataManager(is_verbose=False)
+        payload = resolve_backtest_period_payload(
+            settings_view=self.base_settings,
+            stock_ids=self.stock_list,
+            data_manager=data_mgr,
+            latest_completed_trading_date=resolve_latest_completed_trading_date(data_mgr),
+            fallback_start_date=self.start_date,
+            fallback_end_date=self.end_date,
+        )
+        self._backtest_period_cache = dict(payload)
+        return payload
 
     def resolve_runtime_workers(self) -> int:
         from core.infra.worker import ProcessWorker
@@ -253,9 +279,7 @@ class OpportunityEnumeratorFlowImpl:
         worker_ref: Dict[str, str],
         stock_ids: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
-        from core.utils.date.date_utils import DateUtils
-
-        enum_start_date = DateUtils.DEFAULT_START_DATE
+        enum_start_date = self.start_date
         target_stock_ids = stock_ids if stock_ids is not None else self.stock_list
         jobs = [
             {
@@ -542,6 +566,7 @@ class OpportunityEnumeratorFlowImpl:
             )
 
             sim_effective = simulation_effective_snapshot(simulation_settings)
+        backtest_period = self.resolved_backtest_period()
         metadata, _scope_unused = EnumeratorOutputWriterService.build_metadata(
             strategy_name=str(strategy_name),
             start_date=self.start_date,
@@ -554,6 +579,7 @@ class OpportunityEnumeratorFlowImpl:
             status=status,
             created_at=datetime.now().isoformat(),
             simulation_effective=sim_effective,
+            backtest_period=backtest_period,
         )
         EnumeratorOutputWriterService.write_metadata(
             output_dir=output_dir, metadata=metadata
@@ -567,7 +593,10 @@ class OpportunityEnumeratorFlowImpl:
                 output_dir=output_dir,
             )
             bff_out = report.to_bff_payload(include_stock_rows=False)
-            report.write_bff_payload(output_dir, include_stock_rows=False)
+            if isinstance(bff_out, dict):
+                bff_out["backtest_period"] = backtest_period
+                with (output_dir / "0_report_enum.json").open("w", encoding="utf-8") as f:
+                    json.dump(bff_out, f, indent=2, ensure_ascii=False)
         except Exception:
             bff_out = None
         return bff_out
@@ -618,6 +647,15 @@ class OpportunityEnumeratorFlowImpl:
             "completionRate": completion_rate,
             "elapsed_seconds": time.time() - start_time,
         }
+        bp = None
+        if enum_bff_payload and isinstance(enum_bff_payload, dict):
+            cand_bp = enum_bff_payload.get("backtest_period")
+            if isinstance(cand_bp, dict) and cand_bp.get("start_date") and cand_bp.get("end_date"):
+                bp = cand_bp
+        if bp is None:
+            bp = dict(self._backtest_period_cache)
+        if isinstance(bp, dict) and bp.get("start_date") and bp.get("end_date"):
+            summary["backtest_period"] = bp
         # ``enumMetrics``：优先使用 ``save_metadata`` 里与落盘同源的内存 ``to_bff_payload``；
         # 再读 ``0_report_enum.json``，最后 ``EnumeratorReport.load`` 目录兜底。
         em: Optional[Dict[str, Any]] = None

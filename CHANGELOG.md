@@ -25,6 +25,7 @@ python dev-cli -p -vx.x.x
 - **stock_list**：`sys_stock_list` 增加 `list_status` / `list_date` / `delist_date`，移除 `is_active`；Tushare 拉取合并 L+D+P（`get_stock_list_full`）。
 - **维度表**：`sys_industries` / `sys_boards` / `sys_markets` 的 `is_active` 改为 `is_alive`；新增 `sys_areas` + `sys_stock_area_map`。
 - **ListService**：淘汰 `load_filtered` / `load_universe_as_of`；新增 `load_single` / `load_meta` / 关键字-only `load(period_*, as_of_date, …)` / `load_listed|delisted|suspended`；枚举器用 `load(period_start, period_end)` 定池。
+- **ST 时段**：新增 `sys_stock_st_periods`、`stock_st_periods` data source（Tushare `namechange`）、`data_mgr.stock.st`（`StPeriodService`）。
 - 移除未使用的 legacy 维度表定义：`sys_stock_industries`、`sys_stock_boards`、`sys_stock_markets`（请 DROP 对应物理表）。
 
 ### v0.3.2 (2026-5-20)

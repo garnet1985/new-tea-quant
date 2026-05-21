@@ -154,6 +154,21 @@ data_mgr = DataManager(is_verbose=True)  # 已触发 initialize
 | `is_tradable_on` | `(stock, trade_date) -> bool` | 资格层：模拟日是否可交易（执行层仍以 K 线为准）。 |
 | `save` | `(stocks: List[Dict]) -> int` | 批量保存股票列表（upsert，unique_keys=['id']）。 |
 
+### 2.2.1 StPeriodService（ST / *ST 时段）
+
+访问方式：`data_mgr.stock.st`。表：`sys_stock_st_periods`（由 data source `stock_st_periods` 从 Tushare `namechange` 同步）。
+
+| 方法 | 签名 | 说明 |
+|------|------|------|
+| `load_by_stock` | `(stock_id) -> List[Dict]` | 该股全部警示时段（行数很少）。 |
+| `load_overlapping` | `(stock_ids, *, period_start, period_end) -> Dict[str, List[Dict]]` | 与回测窗有交集的时段，按股分组；**每个 run 调一次**。 |
+| `is_on` | `(stock_id, trade_date, *, levels=None, periods=None) -> bool` | 某日是否处于指定 level；`periods` 传入则不再查库。 |
+| `is_star_st_on` | `(stock_id, trade_date, *, periods=None) -> bool` | 是否为 `*ST`（`STAR_ST`）。 |
+| `is_st_on` | `(stock_id, trade_date, *, include_star_st=True, periods=None) -> bool` | 是否为 ST（默认含 *ST）。 |
+| `level_at` | `(trade_date, periods, *, levels=None) -> Optional[str]` | 静态：当日生效 level（*ST 优先）。 |
+
+生效区间：`start_date <= trade_date <= end_date`（`end_date` 空=仍有效）。与 `ann_date` 无关。
+
 ### 2.3 KlineService（K 线）
 
 访问方式：`data_mgr.stock.kline`。

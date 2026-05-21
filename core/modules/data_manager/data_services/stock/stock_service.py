@@ -11,6 +11,7 @@
 
 子服务：
 - list: 股票列表服务（load_single / load(period_*|as_of_date|…) / load_by_* / load_all）
+- st: ST/*ST 风险警示时段（is_on / load_overlapping）
 - kline: K线数据服务（data_mgr.stock.kline.load_qfq()）
 - tags: 标签数据服务（data_mgr.stock.tags.load_scenario()）
 - corporate_finance: 财务数据服务（data_mgr.stock.corporate_finance.load()）
@@ -49,12 +50,19 @@ class StockService(BaseDataService):
         super().__init__(data_manager)
         
         # 初始化子服务（从 sub_services 目录导入）
-        from .sub_services import ListService, KlineService, TagDataService, CorporateFinanceService
+        from .sub_services import (
+            ListService,
+            KlineService,
+            TagDataService,
+            CorporateFinanceService,
+            StPeriodService,
+        )
         
         self.list = ListService(data_manager)
         self.kline = KlineService(data_manager)
         self.tags = TagDataService(data_manager)
         self.corporate_finance = CorporateFinanceService(data_manager)
+        self.st = StPeriodService(data_manager)
         
         # 获取相关 Model（表名由 DataManager 发现并注册）
         self._stock_list = data_manager.get_table("sys_stock_list")

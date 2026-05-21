@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple
 
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
@@ -75,23 +75,31 @@ class StrategyEnumeratorBootstrapService:
             OpportunityEnumeratorFlow,
         )
         data_mgr = DataManager(is_verbose=False)
-        all_stocks = data_mgr.service.stock.list.load(filtered=True)
+        list_svc = data_mgr.service.stock.list
+
+        bootstrap_ids: List[str] = []
+        if not base_settings.start_date.strip():
+            bootstrap_ids = [r["id"] for r in list_svc.load_all() if r.get("id")]
+
+        period = resolve_backtest_date_range(
+            settings_view=base_settings,
+            stock_ids=bootstrap_ids,
+            latest_completed_trading_date=resolve_latest_completed_trading_date(data_mgr),
+            data_manager=data_mgr,
+        )
+        universe = list_svc.load(
+            period_start=period.start_date,
+            period_end=period.end_date,
+        )
         if use_sampling:
             stock_list = StockSamplingHelper.get_stock_list(
-                all_stocks=all_stocks,
-                sampling_amount=base_settings.sampling_amount or len(all_stocks),
+                all_stocks=universe,
+                sampling_amount=base_settings.sampling_amount or len(universe),
                 sampling_config=base_settings.sampling_config or {},
                 strategy_name=strategy_name,
             )
         else:
-            stock_list = [stock["id"] for stock in all_stocks]
-
-        period = resolve_backtest_date_range(
-            settings_view=base_settings,
-            stock_ids=stock_list,
-            latest_completed_trading_date=resolve_latest_completed_trading_date(data_mgr),
-            data_manager=data_mgr,
-        )
+            stock_list = [stock["id"] for stock in universe if stock.get("id")]
         flow = OpportunityEnumeratorFlow(
             start_date=period.start_date,
             end_date=period.end_date,

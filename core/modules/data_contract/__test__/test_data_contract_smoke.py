@@ -40,7 +40,7 @@ class TestIssueShape(unittest.TestCase):
 
     def test_stock_list_issue(self) -> None:
         try:
-            c = self.mgr.issue(DataKey.STOCK_LIST, filtered=False)
+            c = self.mgr.issue(DataKey.STOCK_LIST)
         except Exception as e:
             raise unittest.SkipTest(f"数据库不可用，跳过 stock.list issue 形态检查：{e}") from e
         self.assertEqual(c.meta.data_id, DataKey.STOCK_LIST)
@@ -75,7 +75,7 @@ class TestLoadIntegration(unittest.TestCase):
 
     def test_load_stock_list(self) -> None:
         try:
-            c = self.mgr.issue(DataKey.STOCK_LIST, filtered=False)
+            c = self.mgr.issue(DataKey.STOCK_LIST)
             rows = c.data
         except Exception as e:
             raise unittest.SkipTest(f"数据库不可用，跳过 stock.list load：{e}") from e
@@ -85,7 +85,7 @@ class TestLoadIntegration(unittest.TestCase):
 
     def test_load_kline_after_stock_id(self) -> None:
         try:
-            c_list = self.mgr.issue(DataKey.STOCK_LIST, filtered=False)
+            c_list = self.mgr.issue(DataKey.STOCK_LIST)
             stocks = c_list.data
         except Exception as e:
             raise unittest.SkipTest(f"数据库不可用：{e}") from e
@@ -127,7 +127,7 @@ class TestLoadIntegration(unittest.TestCase):
             raise unittest.SkipTest("无 tag scenario 数据")
         name = str(scenario_row["name"])
         try:
-            c_list = self.mgr.issue(DataKey.STOCK_LIST, filtered=False)
+            c_list = self.mgr.issue(DataKey.STOCK_LIST)
             stocks = c_list.data
         except Exception as e:
             raise unittest.SkipTest(f"股票列表不可用：{e}") from e

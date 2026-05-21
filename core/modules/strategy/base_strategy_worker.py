@@ -8,8 +8,7 @@ from typing import Any, Dict, List, Optional
 import logging
 
 from core.modules.data_contract.cache import ContractCacheManager
-from core.modules.data_contract.contract_const import DataKey
-from core.modules.data_contract.data_contract_manager import DataContractManager
+from core.modules.data_manager import DataManager
 from core.modules.strategy.enums import ExecutionMode, OpportunityStatus
 from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
 from core.modules.strategy.engines.shared.helpers.simulation_day_execution import (
@@ -74,10 +73,7 @@ class BaseStrategyWorker(ABC):
 
     def _load_stock_info(self) -> Dict[str, Any]:
         try:
-            dcm = DataContractManager(contract_cache=self.contract_cache)
-            stock_list_contract = dcm.issue(DataKey.STOCK_LIST, filtered=False)
-            stock_list = list(stock_list_contract.data or [])
-            stock_info = next((x for x in stock_list if x.get("id") == self.stock_id), None)
+            stock_info = DataManager().stock.list.load_single(self.stock_id)
             if isinstance(stock_info, dict):
                 return stock_info
             if str(self.stock_id).upper() != "DUMMY":

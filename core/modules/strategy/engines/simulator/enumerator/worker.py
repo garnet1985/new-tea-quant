@@ -28,6 +28,7 @@ from core.modules.strategy.engines.shared.helpers.simulation_pricing import (
     trade_theoretical_price_same_day,
 )
 from core.modules.strategy.engines.shared.helpers.strategy_runtime import resolve_worker_class
+from core.modules.indicator import IndicatorService
 from core.modules.strategy.engines.shared.performance_profiler import PerformanceProfiler
 from core.modules.strategy.enums import ExecutionMode, OpportunityStatus
 from core.modules.strategy.services.data import StrategyDataInjectionService
@@ -37,6 +38,17 @@ from core.utils.date.date_utils import DateUtils
 logger = logging.getLogger(__name__)
 
 MAX_LOOKBACK_DAYS = 60
+
+# 多进程 spawn 下每个子进程独立；首只股票 job 时预热 pandas-ta，后续 job 复用。
+_indicator_runtime_warmed = False
+
+
+def _warmup_indicator_runtime_once() -> None:
+    global _indicator_runtime_warmed
+    if _indicator_runtime_warmed:
+        return
+    IndicatorService.warmup()
+    _indicator_runtime_warmed = True
 
 
 class OpportunityEnumeratorWorker:
@@ -57,6 +69,7 @@ class OpportunityEnumeratorWorker:
             contract_cache=self.contract_cache,
             global_extra_cache=self.job_payload.get("global_extra_cache"),
         )
+        self.data_manager.attach_load_profiler(self.profiler)
         self.opportunity_counter = 0
         self.simulation = self.settings.simulation_settings
         profile_id = resolve_market_profile_id(
@@ -84,6 +97,7 @@ class OpportunityEnumeratorWorker:
             self.strategy_instance.stock_info = self.stock_info
 
     def run(self) -> Dict[str, Any]:
+        _warmup_indicator_runtime_once()
         self.profiler.start_timer("total")
         try:
             # step1: prepare query time range
@@ -93,18 +107,12 @@ class OpportunityEnumeratorWorker:
             # step3: enumerate opportunities over kline timeline
             all_klines = self.data_manager.get_klines()
             if not all_klines or len(all_klines) < self.settings.min_required_records:
-                bundle = self._empty_enumeration_report_bundle()
-                return {
-                    "success": True,
-                    "stock_id": self.stock_id,
-                    "opportunity_count": 0,
-                    "completed_count": 0,
-                    "unfinished_count": 0,
-                    "stock_name": str((self.stock_info or {}).get("name") or self.stock_id),
-                    "completion_rate": 0.0,
-                    "avg_opportunity_interval_days": 0.0,
-                    "enumeration_report_bundle": bundle,
-                }
+                return self._finish_with_metrics(
+                    success=True,
+                    opportunities_dict=[],
+                    all_klines=all_klines or [],
+                    skipped_short_data=True,
+                )
             tracker = self._enumerate_opportunities(all_klines)
             # step4: serialize opportunity objects
             opportunities_dict = self._serialize_opportunities(tracker)
@@ -112,18 +120,12 @@ class OpportunityEnumeratorWorker:
             return self._finalize_success_result(all_klines, opportunities_dict)
         except Exception as exc:
             logger.error("enumeration failed: stock_id=%s, error=%s", self.stock_id, exc, exc_info=True)
-            return {
-                "success": False,
-                "stock_id": self.stock_id,
-                "opportunity_count": 0,
-                "completed_count": 0,
-                "unfinished_count": 0,
-                "stock_name": str((self.stock_info or {}).get("name") or self.stock_id),
-                "completion_rate": 0.0,
-                "avg_opportunity_interval_days": 0.0,
-                "enumeration_report_bundle": self._empty_enumeration_report_bundle(),
-                "error": str(exc),
-            }
+            return self._finish_with_metrics(
+                success=False,
+                opportunities_dict=[],
+                all_klines=[],
+                error=str(exc),
+            )
 
     def _prepare_actual_start_date(self) -> str:
         lookback_days = min(self.settings.min_required_records, MAX_LOOKBACK_DAYS)
@@ -132,34 +134,50 @@ class OpportunityEnumeratorWorker:
     def _load_runtime_data(self, actual_start_date: str) -> None:
         self.profiler.start_timer("load_data")
         if "_preloaded_klines" in self.job_payload:
+            self.profiler.metrics.load_path = "preloaded"
             self.data_manager.preload_klines(
                 self.job_payload["_preloaded_klines"],
                 start_date=actual_start_date,
                 end_date=self.end_date,
             )
+            t0 = time.perf_counter()
             self.data_manager.apply_indicators()
+            self.profiler.metrics.time_calculate_indicators += time.perf_counter() - t0
             extras = getattr(self.settings, "extra_required_data_sources", []) or []
             if extras:
-                query_start = time.perf_counter()
+                t0 = time.perf_counter()
                 self.data_manager.load_declared_items(
                     extras,
                     start_date=actual_start_date,
                     end_date=self.end_date,
                 )
-                query_elapsed = time.perf_counter() - query_start
-                for _ in range(len(extras)):
-                    self.profiler.record_db_query(query_elapsed / max(len(extras), 1))
+                self.profiler.metrics.time_load_extras += time.perf_counter() - t0
+            t0 = time.perf_counter()
             self.data_manager.rebuild_data_cursor()
+            self.profiler.metrics.time_build_cursor += time.perf_counter() - t0
         else:
-            query_start = time.perf_counter()
-            self.data_manager.load_historical_data(
-                start_date=actual_start_date, end_date=self.end_date
-            )
-            query_elapsed = time.perf_counter() - query_start
-            required_sources = getattr(self.settings, "required_data_sources", []) or []
-            estimated = max(len(required_sources), 1)
-            for _ in range(estimated):
-                self.profiler.record_db_query(query_elapsed / estimated)
+            self.profiler.metrics.load_path = "storage"
+            dm = self.data_manager
+            dm._current_data = {"klines": []}
+            dm._slot_contracts = {}
+            t0 = time.perf_counter()
+            dm.hydrate_row_slots(actual_start_date, self.end_date)
+            self.profiler.metrics.time_load_contracts += time.perf_counter() - t0
+            t0 = time.perf_counter()
+            dm.apply_indicators()
+            self.profiler.metrics.time_calculate_indicators += time.perf_counter() - t0
+            extras = getattr(self.settings, "extra_required_data_sources", []) or []
+            if extras:
+                t0 = time.perf_counter()
+                dm.load_declared_items(
+                    extras,
+                    start_date=actual_start_date,
+                    end_date=self.end_date,
+                )
+                self.profiler.metrics.time_load_extras += time.perf_counter() - t0
+            t0 = time.perf_counter()
+            dm.rebuild_data_cursor()
+            self.profiler.metrics.time_build_cursor += time.perf_counter() - t0
         self.profiler.metrics.time_load_data = self.profiler.end_timer("load_data")
 
     def _enumerate_opportunities(self, all_klines: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -215,12 +233,28 @@ class OpportunityEnumeratorWorker:
             self.profiler.start_timer("save_csv")
             self._save_stock_results(self.job_payload["output_dir"], opportunities_dict)
             self.profiler.metrics.time_save_csv = self.profiler.end_timer("save_csv")
-        self.profiler.metrics.kline_count = len(all_klines)
+        return self._finish_with_metrics(
+            success=True,
+            opportunities_dict=opportunities_dict,
+            all_klines=all_klines,
+        )
+
+    def _finish_with_metrics(
+        self,
+        *,
+        success: bool,
+        opportunities_dict: List[Dict[str, Any]],
+        all_klines: List[Dict[str, Any]],
+        skipped_short_data: bool = False,
+        error: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        self.profiler.metrics.kline_count = len(all_klines or [])
         self.profiler.metrics.opportunity_count = len(opportunities_dict)
         self.profiler.metrics.target_count = sum(
             len(opportunity.get("completed_targets", []) or [])
             for opportunity in opportunities_dict
         )
+        self.profiler.metrics.skipped_short_data = skipped_short_data
         completed_count = 0
         unfinished_count = 0
         for opportunity in opportunities_dict:
@@ -228,7 +262,6 @@ class OpportunityEnumeratorWorker:
             if sell_reason in {"enumeration_end", "backtest_end"}:
                 unfinished_count += 1
             else:
-                # 兜底：若未写 sell_reason 但仍显示持仓态，仍视为未完成
                 status = str(opportunity.get("status", "") or "").lower()
                 if status in {"open", "active", "testing"}:
                     unfinished_count += 1
@@ -240,9 +273,13 @@ class OpportunityEnumeratorWorker:
         completion_rate = round((completed_count / n) * 100.0, 1) if n else 0.0
         avg_gap = self._avg_trigger_gap_days(opportunities_dict)
         display_name = str((self.stock_info or {}).get("name") or self.stock_id)
-        enum_bundle = self._build_enumeration_report_bundle(opportunities_dict)
-        return {
-            "success": True,
+        enum_bundle = (
+            self._build_enumeration_report_bundle(opportunities_dict)
+            if opportunities_dict
+            else self._empty_enumeration_report_bundle()
+        )
+        payload: Dict[str, Any] = {
+            "success": success,
             "stock_id": self.stock_id,
             "stock_name": display_name,
             "opportunity_count": n,
@@ -253,6 +290,9 @@ class OpportunityEnumeratorWorker:
             "performance_metrics": metrics.to_dict(),
             "enumeration_report_bundle": enum_bundle,
         }
+        if error:
+            payload["error"] = error
+        return payload
 
     def _empty_enumeration_report_bundle(self) -> Dict[str, Any]:
         display_name = str((self.stock_info or {}).get("name") or self.stock_id)

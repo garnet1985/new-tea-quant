@@ -537,6 +537,7 @@ class OpportunityEnumeratorFlowImpl:
             output_dir=output_dir,
             performance_summary=performance_summary,
         )
+        aggregate_profiler.print_report()
 
     def save_metadata(
         self,

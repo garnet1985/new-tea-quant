@@ -37,7 +37,7 @@ def _stock_ids_for_enumerator_view(
     universe = all_stocks
     if universe is None:
         data_manager = DataManager(is_verbose=False)
-        universe = data_manager.service.stock.list.load(filtered=True)
+        universe = data_manager.service.stock.list.load_all()
 
     # 股票池文件路径相对 ``userspace/strategies/<目录名>/``，须用发现名 strategy_name，非 settings.name 展示名
     if enum_settings.use_sampling:
@@ -93,20 +93,30 @@ class EnumeratorRuntimeService:
         raw_settings = raw_settings_override if raw_settings_override is not None else strategy_info.settings.to_dict()
         settings_view = cls.build_canonical_settings(raw_settings)
         enum_settings = OpportunityEnumeratorSettings.from_base(settings_view)
-        stock_list = _stock_ids_for_enumerator_view(
-            strategy_name=strategy_name,
-            settings_view=settings_view,
-            all_stocks=None,
-            stock_count=stock_count,
-        )
         data_manager = DataManager(is_verbose=False)
+        list_svc = data_manager.service.stock.list
+
+        bootstrap_ids: List[str] = []
+        if not settings_view.start_date.strip():
+            bootstrap_ids = [r["id"] for r in list_svc.load_all() if r.get("id")]
+
         period = resolve_backtest_date_range(
             settings_view=settings_view,
-            stock_ids=stock_list,
+            stock_ids=bootstrap_ids,
             latest_completed_trading_date=resolve_latest_completed_trading_date(
                 data_manager
             ),
             data_manager=data_manager,
+        )
+        universe = list_svc.load(
+            period_start=period.start_date,
+            period_end=period.end_date,
+        )
+        stock_list = _stock_ids_for_enumerator_view(
+            strategy_name=strategy_name,
+            settings_view=settings_view,
+            all_stocks=universe,
+            stock_count=stock_count,
         )
         start_date = period.start_date
         end_date = period.end_date

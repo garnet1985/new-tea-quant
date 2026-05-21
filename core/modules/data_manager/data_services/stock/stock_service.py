@@ -10,7 +10,7 @@
 - sys_stock_list、sys_industries、sys_stock_industry_map、sys_stock_klines 等（由 DataManager 发现）
 
 子服务：
-- list: 股票列表服务（data_mgr.stock.list.load()）
+- list: 股票列表服务（load_single / load(period_*|as_of_date|…) / load_by_* / load_all）
 - kline: K线数据服务（data_mgr.stock.kline.load_qfq()）
 - tags: 标签数据服务（data_mgr.stock.tags.load_scenario()）
 - corporate_finance: 财务数据服务（data_mgr.stock.corporate_finance.load()）
@@ -19,9 +19,10 @@
     # 单个股票信息
     stock_info = data_mgr.stock.load_info('000001.SZ')
     
-    # 股票列表（通过 list 服务）
-    stock_list = data_mgr.stock.list.load(filtered=True)
+    # 股票列表（通过 list 服务；板块筛选由 Tag 等上层负责）
     all_stocks = data_mgr.stock.list.load_all()
+    one = data_mgr.stock.list.load_single("000001.SZ")
+    window = data_mgr.stock.list.load(period_start="20150101", period_end="20241231")
     
     # 跨表查询
     stock_with_price = data_mgr.stock.load_with_latest_price('000001.SZ')
@@ -74,7 +75,7 @@ class StockService(BaseDataService):
         Returns:
             Optional[Dict[str, Any]]: 股票信息字典，如果不存在返回 None
         """
-        return self._stock_list.load_one("id = %s", (stock_id,))
+        return self.list.load_single(stock_id)
     
     # ==================== 跨表查询 ====================
     
@@ -112,7 +113,7 @@ class StockService(BaseDataService):
         # 使用 JOIN 一次查询出股票信息、行业（经映射表）、最新K线
         sql = """
         SELECT
-            s.id, s.name, s.is_active, s.last_update,
+            s.id, s.name, s.list_status, s.list_date, s.delist_date, s.last_update,
             map.industry_id,
             ind.value AS industry,
             k.date AS kline_date,

@@ -1,20 +1,20 @@
 """
-市场定义表 Model（表名 sys_markets）
+地域定义表 Model（表名 sys_areas）
 """
 from typing import List, Dict, Any, Optional
 from core.infra.db import DbBaseModel
 
-from core.tables.stock.markets.schema import schema as _schema
+from core.tables.stock.areas.schema import schema as _schema
 
 
-class MarketsModel(DbBaseModel):
-    """市场定义表 Model（表名 sys_markets）"""
+class AreasModel(DbBaseModel):
+    """地域定义表 Model（表名 sys_areas）"""
 
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)
 
-    def load_by_id(self, market_id: int) -> Optional[Dict[str, Any]]:
-        return self.load_one("id = %s", (market_id,))
+    def load_by_id(self, area_id: int) -> Optional[Dict[str, Any]]:
+        return self.load_one("id = %s", (area_id,))
 
     def load_by_value(self, value: str) -> Optional[Dict[str, Any]]:
         return self.load_one("value = %s", (value,))

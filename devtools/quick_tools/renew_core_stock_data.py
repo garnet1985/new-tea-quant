@@ -24,10 +24,11 @@ if str(REPO_ROOT) not in sys.path:
 logger = logging.getLogger(__name__)
 
 DEFAULT_START = "20241001"
-SOURCES_ORDER = ("stock_list", "stock_st_periods", "stock_klines")
+SOURCES_ORDER = ("stock_list", "trade_calendar", "stock_st_periods", "stock_klines")
 
 # 本分支改动的表：先 DROP 再按当前 schema 重建（全量重拉，不做列级兼容迁移）
 TABLES_RECREATE_ORDER = (
+    "sys_trade_calendar",
     "sys_stock_st_periods",
     "sys_stock_area_map",
     "sys_stock_board_map",
@@ -42,7 +43,10 @@ TABLES_RECREATE_ORDER = (
 
 
 def _ensure_tushare_token() -> None:
-    dst = REPO_ROOT / "userspace" / "data_source" / "providers" / "tushare" / "auth_token.txt"
+    from core.infra.project_context.path_manager import PathManager
+
+    us = PathManager.userspace()
+    dst = us / "data_source" / "providers" / "tushare" / "auth_token.txt"
     if dst.is_file():
         return
     src = (
@@ -211,7 +215,9 @@ def main() -> int:
         format="%(levelname)s %(message)s",
     )
 
-    data_cfg = REPO_ROOT / "userspace" / "config" / "data.json"
+    from core.infra.project_context.path_manager import PathManager
+
+    data_cfg = PathManager.userspace() / "config" / "data.json"
     if not data_cfg.is_file():
         logger.error("缺少 %s（需 default_start_date=%s）", data_cfg, DEFAULT_START)
         return 1

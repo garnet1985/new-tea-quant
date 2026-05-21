@@ -12,21 +12,32 @@ python dev-cli -p -vx.x.x
 [] (已自动化)确保所有test都能跑过
 [] (已自动化)检查安装依赖的数据是不是齐全，是不是足够新
 [] (已自动化)npm run build 产生UI资产
+[] (TODO: 需要自动化)检查是不是有py3.9不支持的格式
 [] 有破坏性更改或者新的模块需要在module_info.yaml里更新core的依赖
 [] 检查是不是正确配置了gitignore
 [] Changlog 里注明改动和可能存在的破坏性改动
 [] 更新模块文档（模块readme，API，module_info）
 [] 更新项目README文档
 
+
+
+
+---
+### v0.3.3 (TBD)
+
+- 重构获取股票列表的handler，获取全量股票列表，包括退市的
+- 增加风险时段表，记录每个股票的黑历史
+- 增加交易日历表和数据获取逻辑
+- 清理老的数据表，减小对用户的认知负担
+- 集成新表和API进入回测系统，大幅减小幸存者偏差 - TODO
+- 在dev-cli里加入自动检查python 3.9不支持语法的检查 - TODO
+- 在dev-cli加入数据打包功能 - TODO
+
 ---
 
-### Unreleased
 
-- **stock_list**：`sys_stock_list` 增加 `list_status` / `list_date` / `delist_date`，移除 `is_active`；Tushare 拉取合并 L+D+P（`get_stock_list_full`）。
-- **维度表**：`sys_industries` / `sys_boards` / `sys_markets` 的 `is_active` 改为 `is_alive`；新增 `sys_areas` + `sys_stock_area_map`。
-- **ListService**：淘汰 `load_filtered` / `load_universe_as_of`；新增 `load_single` / `load_meta` / 关键字-only `load(period_*, as_of_date, …)` / `load_listed|delisted|suspended`；枚举器用 `load(period_start, period_end)` 定池。
-- **ST 时段**：新增 `sys_stock_st_periods`、`stock_st_periods` data source（Tushare `namechange`）、`data_mgr.stock.st`（`StPeriodService`）。
-- 移除未使用的 legacy 维度表定义：`sys_stock_industries`、`sys_stock_boards`、`sys_stock_markets`（请 DROP 对应物理表）。
+
+---
 
 ### v0.3.2 (2026-5-20)
 - 为非开发用户去除了Nodejs依赖

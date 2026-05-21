@@ -8,7 +8,7 @@
 
 ```
 userspace/config/                  # 用户配置（可选）
-├── data.json                      # 数据相关（开始日期、小数位、股票过滤等）
+├── data.json                      # 数据相关（默认开始日期、小数位、基准指数列表等）
 ├── market.json                    # 市场配置
 ├── system.json                    # 系统配置
 ├── worker.json                    # Worker 并发等
@@ -47,18 +47,17 @@ userspace/config/                  # 用户配置（可选）
 
 再在 `userspace/config/database/mysql.json` 里写 MySQL 的 user/password 等。
 
-**股票过滤**（只覆盖过滤规则）：
+**数据配置**（只覆盖需要的字段）：
 
 ```json
 // userspace/config/data.json
 {
-  "stock_list_filter": {
-    "exclude_patterns": {
-      "start_with": { "id": ["688", "8"] }
-    }
-  }
+  "default_start_date": "20100101",
+  "decimal_places": 2
 }
 ```
+
+回测/策略用的**股票池**不在 `data.json` 里配置：由 `ListService`（回测窗口 `period_start` / `period_end`）、策略 `pool` 文件、以及未来的 **Tag** 负责筛选。API 见 [`core/modules/data_manager/docs/API.md`](../../core/modules/data_manager/docs/API.md) 中 ListService 一节。
 
 **Worker 并发**：在 `worker.json` 中按需覆盖 `default_task_config`、`module_task_config` 等（参见 `core/default_config/worker.json` 结构）。
 

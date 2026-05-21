@@ -1,6 +1,6 @@
 """
-板块定义表（sys_boards）：id、value（板块名）、is_active。
-如主板、科创板、创业板、北交所。与 sys_stock_board_map 配合，stock_list 不再挂 board_id。
+板块定义表（sys_boards）：id、value（板块名）、is_alive。
+如主板、科创板、创业板、北交所。与 sys_stock_board_map 配合。
 主键 id nullable=false；其余 nullable=true。
 """
 schema = {
@@ -25,15 +25,15 @@ schema = {
             "description": "板块名称（如主板、科创板、创业板、北交所）",
         },
         {
-            "name": "is_active",
+            "name": "is_alive",
             "type": "tinyint",
             "isRequired": True,
             "nullable": True,
-            "description": "是否有效 1/0",
+            "description": "本批 stock_list 是否仍引用该字典项 1/0",
         },
     ],
     "indexes": [
         {"name": "idx_value", "fields": ["value"], "unique": True},
-        {"name": "idx_is_active", "fields": ["is_active"]},
+        {"name": "idx_is_alive", "fields": ["is_alive"]},
     ],
 }

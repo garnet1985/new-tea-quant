@@ -137,7 +137,7 @@ data_mgr = DataManager(is_verbose=True)  # 已触发 initialize
 | 方法 | 签名 | 说明 |
 |------|------|------|
 | `load_info` | `(stock_id: str) -> Optional[Dict]` | 按股票代码加载基本信息（sys_stock_list 单条）。 |
-| `load_with_latest_price` | `(stock_id: str) -> Optional[Dict]` | 股票信息 + 最新日线（JOIN sys_stock_list、sys_stock_klines、sys_stock_industries）。返回含 `id`、`name`、`industry_id`、`industry`、`current_price`、`current_price_date` 等。 |
+| `load_with_latest_price` | `(stock_id: str) -> Optional[Dict]` | 股票信息 + 最新日线（JOIN sys_stock_list、sys_stock_klines、sys_industries）。返回含 `id`、`name`、`industry_id`、`industry`、`current_price`、`current_price_date` 等。 |
 
 ### 2.2 ListService（股票列表）
 
@@ -145,12 +145,29 @@ data_mgr = DataManager(is_verbose=True)  # 已触发 initialize
 
 | 方法 | 签名 | 说明 |
 |------|------|------|
-| `load` | `(filtered: bool = True, order_by: str = 'id') -> List[Dict]` | 加载股票列表；`filtered=True` 时排除科创板、ST、退市等。 |
-| `load_all` | `() -> List[Dict]` | 加载全部活跃股票，无过滤。 |
-| `load_filtered` | `(exclude_patterns=None, order_by: str = 'id') -> List[Dict]` | 按自定义排除规则过滤；默认排除 id 以 688 开头、name 以 *ST/ST/退 开头。 |
-| `load_by_industry` | `(industry: Union[str, int], filtered: bool = True, order_by: str = 'id') -> List[Dict]` | 按行业加载；`industry` 可为行业名称或 sys_stock_industries.id；名称未找到时返回 []。 |
-| `load_by_board` | `(board: Union[str, int], filtered: bool = True, order_by: str = 'id') -> List[Dict]` | 按板块加载；`board` 可为板块名称（如「创业板」「科创板」）或 sys_stock_boards.id；未找到时返回 []。 |
-| `save` | `(stocks: List[Dict]) -> int` | 批量保存股票列表（replace，unique_keys=['id']）。 |
+| `load_single` | `(stock_id: str) -> Optional[Dict]` | 按 ts_code 加载单条完整行。 |
+| `load_meta` | `(stock_id: str) -> Optional[Dict]` | 单条简要字段（id、name、list_status、list_date、delist_date）。 |
+| `load_all` | `(order_by: str = 'id') -> List[Dict]` | 加载 `sys_stock_list` 全表。 |
+| `load` | `(*, period_start, period_end, as_of_date, list_status, industry, board, market, area, order_by) -> List[Dict]` | **仅关键字参数**。`period_*`：回测窗口参与者；`as_of_date`：某日仍在市；维度与 `list_status` 见实现优先级。 |
+| `load_listed` / `load_delisted` / `load_suspended` | `(order_by='id') -> List[Dict]` | 按 `list_status` L / D / P。 |
+| `load_by_industry` / `load_by_board` / `load_by_market` / `load_by_area` | 同前 | 糖方法，内部调用 `load(...)`。 |
+| `is_tradable_on` | `(stock, trade_date) -> bool` | 资格层：模拟日是否可交易（执行层仍以 K 线为准）。 |
+| `save` | `(stocks: List[Dict]) -> int` | 批量保存股票列表（upsert，unique_keys=['id']）。 |
+
+### 2.2.1 StPeriodService（ST / *ST 时段）
+
+访问方式：`data_mgr.stock.st`。表：`sys_stock_st_periods`（由 data source `stock_st_periods` 从 Tushare `namechange` 同步）。
+
+| 方法 | 签名 | 说明 |
+|------|------|------|
+| `load_by_stock` | `(stock_id) -> List[Dict]` | 该股全部警示时段（行数很少）。 |
+| `load_overlapping` | `(stock_ids, *, period_start, period_end) -> Dict[str, List[Dict]]` | 与回测窗有交集的时段，按股分组；**每个 run 调一次**。 |
+| `is_on` | `(stock_id, trade_date, *, levels=None, periods=None) -> bool` | 某日是否处于指定 level；`periods` 传入则不再查库。 |
+| `is_star_st_on` | `(stock_id, trade_date, *, periods=None) -> bool` | 是否为 `*ST`（`STAR_ST`）。 |
+| `is_st_on` | `(stock_id, trade_date, *, include_star_st=True, periods=None) -> bool` | 是否为 ST（默认含 *ST）。 |
+| `level_at` | `(trade_date, periods, *, levels=None) -> Optional[str]` | 静态：当日生效 level（*ST 优先）。 |
+
+生效区间：`start_date <= trade_date <= end_date`（`end_date` 空=仍有效）。与 `ann_date` 无关。
 
 ### 2.3 KlineService（K 线）
 
@@ -308,7 +325,7 @@ DataService 仅作为子服务入口，无跨服务聚合方法。数据按需�
 
 ## 9. 表名约定
 
-- **Core 表**：由 `core/tables` 与 `userspace/tables` 发现，core 表名以 `sys_` 开头（如 `sys_stock_list`、`sys_stock_klines`、`sys_stock_industries`、`sys_stock_boards`、`sys_stock_markets`、`sys_corporate_finance`、`sys_gdp`、`sys_cpi` 等）。
+- **Core 表**：由 `core/tables` 与 `userspace/tables` 发现，core 表名以 `sys_` 开头（如 `sys_stock_list`、`sys_stock_klines`、`sys_industries`、`sys_boards`、`sys_markets`、`sys_areas`、`sys_corporate_finance`、`sys_gdp`、`sys_cpi` 等）。
 - **获取 Model**：`data_mgr.get_table("sys_xxx")`，返回对应 Model 实例（供 DataService 内部使用，一般业务代码用各 Service 的 load/save 即可）。
 
 ---
@@ -320,10 +337,11 @@ from core.modules.data_manager import DataManager
 
 data_mgr = DataManager(is_verbose=True)
 
-# 股票列表与筛选
-stocks = data_mgr.stock.list.load(filtered=True)
-gem_stocks = data_mgr.stock.list.load_by_board('创业板', filtered=True)
-bank_stocks = data_mgr.stock.list.load_by_industry('银行', filtered=True)
+# 股票列表（筛选由 Tag 等负责）
+stocks = data_mgr.stock.list.load_all()
+window = data_mgr.stock.list.load(period_start="20150101", period_end="20241231")
+one = data_mgr.stock.list.load_single("000001.SZ")
+gem_stocks = data_mgr.stock.list.load_by_board("创业板")
 
 # 单股信息与最新价
 info = data_mgr.stock.load_info('000001.SZ')

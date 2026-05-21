@@ -1162,7 +1162,7 @@ class DbBaseModel:
             # 获取批量大小配置
             batch_size = self._get_insert_batch_size()
             
-            # 使用 BatchInsertHelper 执行批量插入
+            dt = DBHelper.normalize_database_type(self.db.config)
             with self.db.get_sync_cursor() as cursor:
                 return BatchOperation.execute_batch_insert(
                     executor=cursor,
@@ -1170,8 +1170,9 @@ class DbBaseModel:
                     columns=columns,
                     values=values,
                     batch_size=batch_size,
+                    database_type=dt,
                     unique_keys=unique_keys if unique_keys else None,
-                    update_clause=update_clause
+                    update_clause=update_clause,
                 )
         except Exception as e:
             logger.error(f"Failed to batch insert data into {self.table_name}: {e}")

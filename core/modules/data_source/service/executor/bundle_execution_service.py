@@ -75,32 +75,11 @@ class BundleExecutionService:
             return await executor.execute(api_jobs)
 
         def _run_async_in_sync(coro):
-            """在同步上下文中运行 async coro。若当前线程已有运行中的 loop 则在单独线程中起新 loop 执行。"""
+            """在同步/线程池上下文中运行 async coro（Python 3.9+ 线程内不用 get_event_loop）。"""
+            import asyncio
             import concurrent.futures
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # 当前线程已有运行中的 loop，在单独线程中执行
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                        def _in_thread():
-                            new_loop = asyncio.new_event_loop()
-                            try:
-                                asyncio.set_event_loop(new_loop)
-                                return new_loop.run_until_complete(coro)
-                            finally:
-                                try:
-                                    pending = asyncio.all_tasks(new_loop)
-                                    if pending:
-                                        new_loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                                except Exception:
-                                    pass
-                                new_loop.close()
-                        future = pool.submit(_in_thread)
-                        return future.result()
-                # 当前线程没有运行中的 loop，直接使用
-                return loop.run_until_complete(coro)
-            except RuntimeError:
-                # 无法获取 event loop，创建新的
+
+            def _run_in_new_loop() -> Any:
                 loop = asyncio.new_event_loop()
                 try:
                     asyncio.set_event_loop(loop)
@@ -109,10 +88,24 @@ class BundleExecutionService:
                     try:
                         pending = asyncio.all_tasks(loop)
                         if pending:
-                            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                            loop.run_until_complete(
+                                asyncio.gather(*pending, return_exceptions=True)
+                            )
+                    except Exception:
+                        pass
+                    try:
+                        asyncio.set_event_loop(None)
                     except Exception:
                         pass
                     loop.close()
+
+            try:
+                asyncio.get_running_loop()
+            except RuntimeError:
+                return _run_in_new_loop()
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                return pool.submit(_run_in_new_loop).result()
 
         # 仅一个 bundle：直接执行
         if len(bundles) == 1:

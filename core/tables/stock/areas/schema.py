@@ -1,11 +1,11 @@
 """
-板块维度表（sys_stock_boards）：id、value（板块名）、is_alive。
-在 stock list renew 时从 API 返回的 board 聚合填充（如主板、科创板、创业板、北交所）；stock_list 通过 board_id 关联。
+地域定义表（sys_areas）：id、value（地域名）、is_alive。
+与 sys_stock_area_map 配合（Tushare area，如深圳、北京）。
 主键 id nullable=false；其余 nullable=true。
 """
 schema = {
-    "update_key": "stock_stock_boards",
-    "name": "sys_stock_boards",
+    "update_key": "stock_areas",
+    "name": "sys_areas",
     "primaryKey": "id",
     "fields": [
         {
@@ -13,7 +13,8 @@ schema = {
             "type": "int",
             "isRequired": True,
             "nullable": False,
-            "description": "主键",
+            "autoIncrement": True,
+            "description": "主键自增",
         },
         {
             "name": "value",
@@ -21,14 +22,14 @@ schema = {
             "length": 64,
             "isRequired": True,
             "nullable": True,
-            "description": "板块名称（如主板、科创板、创业板、北交所）",
+            "description": "地域名称",
         },
         {
             "name": "is_alive",
             "type": "tinyint",
             "isRequired": True,
             "nullable": True,
-            "description": "是否有效 1/0",
+            "description": "本批 stock_list 是否仍引用该字典项 1/0",
         },
     ],
     "indexes": [

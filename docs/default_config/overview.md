@@ -34,7 +34,7 @@
 
 ```text
 core/default_config/            # 默认配置（只包含 JSON）
-├── data.json                   # 数据配置（开始日期、小数位数、股票过滤等）
+├── data.json                   # 数据配置（默认开始日期、小数位数、基准指数列表等）
 ├── market.json                 # 市场配置（为未来扩展预留）
 ├── system.json                 # 系统级配置
 ├── worker.json                 # Worker 配置（任务类型、核心数等）
@@ -114,22 +114,19 @@ export DB_POSTGRESQL_PASSWORD=my_password
 
 随后再在 `userspace/config/database/mysql.json` 里补充必要字段即可。
 
-### 3. 股票过滤规则
+### 3. 数据配置（`data.json`）
 
 ```json
 // userspace/config/data.json
 {
-  "stock_list_filter": {
-    "exclude_patterns": {
-      "start_with": {
-        "id": ["688", "8"]
-      }
-    }
-  }
+  "default_start_date": "20100101",
+  "decimal_places": 2
 }
 ```
 
-只配置自己关心的部分，其余数据配置（开始日期、小数位数等）继续使用默认值。
+只配置自己关心的字段；例如 `benchmark_stock_index_list` 等未写明的项继续使用 `core/default_config/data.json` 中的默认值。
+
+**股票池与筛选**不在配置 JSON 中维护：回测窗口参与者用 `data_mgr.stock.list.load(period_start=..., period_end=...)`；策略可在 settings 中指定 `pool` 文件；更复杂的排除规则由 **Tag** 承担（原 `stock_list_filter` 已移除）。
 
 > 上述示例只描述「**配置文件怎么写**」。  
 > 具体「在代码中如何读取这些配置」的 API，请参考 [`core/infra/project_context/docs/API.md`](../../core/infra/project_context/docs/API.md)。

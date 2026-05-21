@@ -477,11 +477,11 @@ class ConfigManager:
         加载数据配置（合并后的完整配置）
         
         Returns:
-            数据配置字典，包含 default_start_date, decimal_places, stock_list_filter 等
+            数据配置字典，包含 default_start_date, decimal_places 等
         """
         return ConfigManager.load_core_config(
             'data',
-            deep_merge_fields={'stock_list_filter'},
+            deep_merge_fields=set(),
             override_fields=set()
         )
     
@@ -551,23 +551,6 @@ class ConfigManager:
         """
         data_config = ConfigManager.load_data_config()
         return data_config.get('decimal_places', 2)
-    
-    @staticmethod
-    def get_stock_list_filter() -> Dict[str, Any]:
-        """
-        获取股票清单过滤配置
-        
-        Returns:
-            股票过滤配置字典，包含 enable 和 exclude_patterns
-        """
-        data_config = ConfigManager.load_data_config()
-        return data_config.get('stock_list_filter', {
-            'enable': True,
-            'exclude_patterns': {
-                'start_with': {'id': ['688'], 'name': ['*ST', 'ST', '退']},
-                'contains': {}
-            }
-        })
     
     @staticmethod
     def get_database_type() -> str:

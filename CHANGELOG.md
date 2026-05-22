@@ -15,14 +15,13 @@ python dev-cli -p -vx.x.x
 [] (TODO: 需要自动化)检查是不是有py3.9不支持的格式
 [] 有破坏性更改或者新的模块需要在module_info.yaml里更新core的依赖
 [] 检查是不是正确配置了gitignore
-[] Changlog 里注明改动和可能存在的破坏性改动
+[] Changelog 里注明改动和可能存在的破坏性改动
 [] 更新模块文档（模块readme，API，module_info）
 [] 更新项目README文档
 
 
-
-
 ---
+
 ### v0.3.3 (TBD)
 
 - 重构获取股票列表的handler，获取全量股票列表，包括退市的
@@ -32,6 +31,7 @@ python dev-cli -p -vx.x.x
 - 集成新表和API进入回测系统，大幅减小幸存者偏差 - TODO
 - 在dev-cli里加入自动检查python 3.9不支持语法的检查 - TODO
 - 在dev-cli加入数据打包功能 - TODO
+- 优化了K线指标计算逻辑，指标计算速度提升65%以上
 
 ---
 
@@ -123,7 +123,7 @@ python dev-cli -p -vx.x.x
 - 重构所有文档的位置和内容，让文档保持最新状态
 - 重构userspace里的用户readme文档，让概念和例子更加易懂
 - 定义了文档标准并记录在`docs/module-doc-standard.md`
-- cli增加显示版本信息的命令`python start-cli --verison`
+- cli增加显示版本信息的命令`python start-cli --version`
 
 ---
 

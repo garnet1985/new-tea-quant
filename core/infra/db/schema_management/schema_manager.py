@@ -10,7 +10,7 @@ SchemaManager - Schema 管理和表初始化
 import importlib.util
 import json
 import logging
-from typing import Dict, List, Optional, Callable
+from typing import Any, Dict, List, Optional, Callable, Set
 from pathlib import Path
 
 from core.infra.project_context import PathManager, FileManager
@@ -312,6 +312,93 @@ class SchemaManager:
         
         sql = f"CREATE {unique_keyword} INDEX IF NOT EXISTS {index_name_quoted} ON {table_name_quoted} ({fields_str})"
         return sql
+
+    def generate_add_column_sql(self, table_name: str, field_dict: Dict[str, Any]) -> str:
+        """
+        为已存在表生成 ADD COLUMN SQL（仅加列，不删不改）。
+        新增列一律 nullable，避免旧表已有数据时 NOT NULL 无默认值导致失败。
+        """
+        fd = dict(field_dict)
+        fd["nullable"] = True
+        fd["isNullable"] = True
+        field_obj = Field.from_dict(fd)
+        col = self.quote_ddl_identifier(field_obj.name)
+        qt = self.quote_ddl_identifier(table_name)
+        frag = f"{col} {field_obj.to_sql(self.database_type)}"
+        frag += field_obj.get_not_null_sql()
+        frag += field_obj.get_default_sql(self.database_type)
+        return f"ALTER TABLE {qt} ADD COLUMN {frag}"
+
+    def _fetch_existing_column_names(
+        self, table_name: str, get_connection_func: Callable
+    ) -> Set[str]:
+        """从 information_schema 读取表上已有列名。"""
+        if self.database_type == "mysql":
+            sql = (
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema = DATABASE() AND table_name = %s"
+            )
+            params: Any = (table_name,)
+        else:
+            sql = (
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema = current_schema() AND table_name = %s"
+            )
+            params = (table_name,)
+
+        with get_connection_func() as conn:
+            with conn.cursor() as cursor:
+                if params is not None:
+                    cursor.execute(sql, params)
+                else:
+                    cursor.execute(sql)
+                rows = cursor.fetchall() or []
+
+        names: Set[str] = set()
+        for row in rows:
+            if isinstance(row, dict):
+                val = row.get("column_name") or row.get("COLUMN_NAME")
+                if val is None and row:
+                    val = next(iter(row.values()))
+            else:
+                val = row[0] if row else None
+            if val is not None:
+                names.add(str(val))
+        return names
+
+    def sync_missing_columns(
+        self, schema: Dict, get_connection_func: Callable
+    ) -> List[str]:
+        """
+        将 schema 中定义但库里缺失的列补齐（CREATE TABLE IF NOT EXISTS 不会自动加列）。
+        """
+        table_name = schema.get("name")
+        if not table_name:
+            return []
+
+        try:
+            existing = self._fetch_existing_column_names(table_name, get_connection_func)
+        except Exception as e:
+            logger.debug("跳过列同步（无法读取表结构）%s: %s", table_name, e)
+            return []
+
+        if not existing:
+            return []
+
+        added: List[str] = []
+        for field_dict in schema.get("fields", []):
+            col = field_dict.get("name")
+            if not col or col in existing:
+                continue
+            try:
+                alter_sql = self.generate_add_column_sql(table_name, field_dict)
+                with get_connection_func() as conn:
+                    conn.execute(alter_sql)
+                added.append(str(col))
+                logger.info("✅ 表 '%s' 已补齐列: %s", table_name, col)
+            except Exception as e:
+                logger.error("❌ 表 '%s' 补齐列 '%s' 失败: %s", table_name, col, e)
+        return added
     
     # ==================== 表创建 ====================
     
@@ -348,13 +435,23 @@ class SchemaManager:
             conn.execute(create_sql)
         
         logger.debug(f"✅ 表 '{table_name}' 创建成功")
+
+        # 旧库仅有早期 CREATE TABLE：先补列再建索引
+        self.sync_missing_columns(schema, get_connection_func)
         
         # 创建索引
         indexes = schema.get('indexes', [])
         if indexes:
-            self.create_indexes(table_name, indexes, get_connection_func)
+            self.create_indexes(table_name, indexes, get_connection_func, schema=schema)
     
-    def create_indexes(self, table_name: str, indexes: List[Dict], get_connection_func: Callable):
+    def create_indexes(
+        self,
+        table_name: str,
+        indexes: List[Dict],
+        get_connection_func: Callable,
+        *,
+        schema: Optional[Dict] = None,
+    ):
         """
         创建索引
         
@@ -362,8 +459,29 @@ class SchemaManager:
             table_name: 表名
             indexes: 索引定义列表
             get_connection_func: 获取数据库连接的函数（上下文管理器）
+            schema: 可选，用于校验索引列是否已存在
         """
+        existing_cols: Optional[Set[str]] = None
+        if schema is not None:
+            try:
+                existing_cols = self._fetch_existing_column_names(
+                    table_name, get_connection_func
+                )
+            except Exception:
+                existing_cols = None
+
         for index in indexes:
+            index_fields = index.get("fields") or []
+            if existing_cols is not None:
+                missing = [f for f in index_fields if f not in existing_cols]
+                if missing:
+                    logger.warning(
+                        "⏭️  跳过索引 '%s'：列 %s 不存在于表 '%s'（请先 sync 列或跑 migrate）",
+                        index.get("name"),
+                        missing,
+                        table_name,
+                    )
+                    continue
             try:
                 index_sql = self.generate_create_index_sql(table_name, index)
                 with get_connection_func() as conn:

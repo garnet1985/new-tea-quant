@@ -22,6 +22,13 @@ _LIST_STATUS_LISTED = "L"
 _LIST_STATUS_DELISTED = "D"
 _LIST_STATUS_SUSPENDED = "P"
 
+# Tushare 等源对「未退市」常写入 0 / 0.0，须视为无退市日（否则 PIT 会漏掉全体 L 股）
+_PIT_DELIST_EMPTY_SQL = (
+    "delist_date IS NULL OR delist_date = '' "
+    "OR delist_date IN ('0', '0.0')"
+)
+_PIT_PERIOD_WHERE = f"list_date <= %s AND ({_PIT_DELIST_EMPTY_SQL} OR delist_date > %s)"
+
 
 class ListService(BaseDataService):
     """股票列表服务"""
@@ -123,11 +130,11 @@ class ListService(BaseDataService):
 
         period（回测窗口参与者）::
             list_date <= period_end
-            AND (delist_date IS NULL OR delist_date = '' OR delist_date > period_start)
+            AND (无退市日 sentinel 或 delist_date > period_start)
 
         as_of_date（某日仍在市）::
             list_date <= as_of_date
-            AND (delist_date IS NULL OR delist_date = '' OR delist_date > as_of_date)
+            AND (无退市日 sentinel 或 delist_date > as_of_date)
         """
         if period_start is not None or period_end is not None:
             if not period_start or not period_end:
@@ -135,7 +142,7 @@ class ListService(BaseDataService):
             if as_of_date:
                 raise ValueError("period_* 与 as_of_date 不能同时使用")
             rows = self._stock_list.load(
-                "list_date <= %s AND (delist_date IS NULL OR delist_date = '' OR delist_date > %s)",
+                _PIT_PERIOD_WHERE,
                 (period_end, period_start),
                 order_by=f"{order_by} ASC",
             )
@@ -143,7 +150,7 @@ class ListService(BaseDataService):
 
         if as_of_date:
             rows = self._stock_list.load(
-                "list_date <= %s AND (delist_date IS NULL OR delist_date = '' OR delist_date > %s)",
+                _PIT_PERIOD_WHERE,
                 (as_of_date, as_of_date),
                 order_by=f"{order_by} ASC",
             )
@@ -205,12 +212,20 @@ class ListService(BaseDataService):
         return self.load(area=area, order_by=order_by)
 
     @staticmethod
+    def _normalize_delist_date(raw: Any) -> Optional[str]:
+        """将源数据中的占位退市日（0 / 0.0）视为未退市。"""
+        s = str(raw or "").strip()
+        if not s or s.lower() in ("none", "nan", "0", "0.0"):
+            return None
+        return s
+
+    @staticmethod
     def is_tradable_on(stock: Dict[str, Any], trade_date: str) -> bool:
         """模拟日是否可交易（资格层；执行层仍以 K 线是否存在为准）。"""
         listed = str(stock.get("list_date") or "").strip()
         if listed and trade_date < listed:
             return False
-        delisted = str(stock.get("delist_date") or "").strip()
+        delisted = ListService._normalize_delist_date(stock.get("delist_date"))
         if delisted and trade_date >= delisted:
             return False
         return True

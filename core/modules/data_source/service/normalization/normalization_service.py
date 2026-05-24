@@ -74,12 +74,8 @@ class NormalizationService:
                 target_format=target_format,
             )
 
-        # 注意：调用方（BaseHandler）仍负责 on_after_mapping / on_after_normalize 等 hook，
-        # 这里仅负责公共部分。
-
-        # 步骤 5 & 6：使用 schema 约束字段集和类型（只保留 schema 定义的字段，并做类型转换/默认值填充）
-        normalized_records = nh.apply_schema(mapped_records, schema)
-
-        # 步骤 7：将最终记录包装为 {"data": [...]} 返回
-        return nh.build_normalized_payload(normalized_records)
+        # 注意：调用方（BaseHandler）在 on_after_mapping 之后才会 apply_schema。
+        # 此处不得裁剪到表字段，否则 hook 里拿不到 result_mapping 中的维度字段
+        #（如 stock_list 的 industry / board / area / market）。
+        return nh.build_normalized_payload(mapped_records)
 

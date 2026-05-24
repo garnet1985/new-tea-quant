@@ -324,7 +324,8 @@ class ListService(BaseDataService):
             return {}
 
         vals = tuple(current_values)
-        existing = model.load(f'"{value_col}" IN %s', (vals,))
+        # 勿用双引号包列名：MySQL 默认把 "value" 当字符串字面量，导致 IN 永远匹配不到行
+        existing = model.load(f"{value_col} IN %s", (vals,))
         val_to_id: Dict[str, int] = {
             row[value_col]: int(row["id"])
             for row in existing
@@ -335,7 +336,7 @@ class ListService(BaseDataService):
         if new_values:
             rows = [{"value": v, "is_alive": 1} for v in new_values]
             model.insert_many(rows)
-            new_rows = model.load(f'"{value_col}" IN %s', (tuple(new_values),))
+            new_rows = model.load(f"{value_col} IN %s", (tuple(new_values),))
             for row in new_rows:
                 if row.get(value_col) and row.get("id") is not None:
                     val_to_id[row[value_col]] = int(row["id"])
@@ -354,7 +355,7 @@ class ListService(BaseDataService):
             return {}
 
         vals = tuple(current_values)
-        existing = model.load('"value" IN %s', (vals,))
+        existing = model.load("value IN %s", (vals,))
         val_to_id: Dict[str, int] = {
             row["value"]: int(row["id"])
             for row in existing
@@ -370,7 +371,7 @@ class ListService(BaseDataService):
                     payload["code"] = v
                 rows.append(payload)
             model.insert_many(rows)
-            new_rows = model.load('"value" IN %s', (tuple(new_values),))
+            new_rows = model.load("value IN %s", (tuple(new_values),))
             for row in new_rows:
                 if row.get("value") and row.get("id") is not None:
                     val_to_id[row["value"]] = int(row["id"])
@@ -387,12 +388,12 @@ class ListService(BaseDataService):
             return
         if current_values:
             vals = tuple(current_values)
-            rows_deactivate = model.load(f'"{value_col}" NOT IN %s', (vals,))
+            rows_deactivate = model.load(f"{value_col} NOT IN %s", (vals,))
             if rows_deactivate:
                 for r in rows_deactivate:
                     r["is_alive"] = 0
                 model.upsert(rows_deactivate, unique_keys)
-            rows_activate = model.load(f'"{value_col}" IN %s', (vals,))
+            rows_activate = model.load(f"{value_col} IN %s", (vals,))
             if rows_activate:
                 for r in rows_activate:
                     r["is_alive"] = 1

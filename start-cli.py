@@ -241,20 +241,40 @@ class App:
     # 工具方法
     # ========================================================================
     
-    def export_adj_factor_csv(self, base_date: str = None):
+    def export_adj_factor_csv(
+        self,
+        base_date: str = None,
+        *,
+        start_date: str = "20200101",
+        end_date: str = None,
+        file_path: str = None,
+    ):
         """
-        手动导出复权因子事件季度 CSV
-        
+        手动导出复权因子事件 CSV。
+
         Args:
-            base_date: 基准日期（YYYYMMDD 或 YYYY-MM-DD），用于推断"上一个完整季度"
-                      如果不提供，则使用当前日期所在季度的上一个季度
+            base_date: 未指定 ``file_path`` 时用于季度文件名（``adj_factor_events_YYYYQn.csv``）。
+            start_date: 导出起始 ``event_date``（YYYYMMDD），默认 20200101。
+            end_date: 导出结束日期；默认库内 MAX(event_date)。
+            file_path: 输出路径；默认 ``csv_dir/adj_factor_events_{start}_{end}.csv``。
         """
         adj_model = self.data_manager.stock.kline._adj_factor_event
-        file_name = adj_model.get_current_quarter_csv_name(base_date=base_date)
-        file_path = os.path.join(adj_model.csv_dir, file_name)
-        logger.info(f"📤 准备导出复权因子事件 CSV: {file_name}")
-        exported = adj_model.export_to_csv(file_path=file_path)
-        logger.info(f"✅ 手动导出复权因子事件 CSV 完成: {exported} 条记录 -> {file_path}")
+        end = end_date or adj_model.get_max_event_date()
+        if file_path:
+            out = file_path
+        elif base_date and not end_date and start_date == "20200101":
+            file_name = adj_model.get_current_quarter_csv_name(base_date=base_date)
+            out = os.path.join(adj_model.csv_dir, file_name)
+        else:
+            out = os.path.join(
+                adj_model.csv_dir,
+                f"adj_factor_events_{str(start_date).replace('-', '')[:8]}_{end or 'latest'}.csv",
+            )
+        logger.info("📤 导出复权因子事件 CSV: %s .. %s -> %s", start_date, end or "?", out)
+        exported = adj_model.export_to_csv(
+            file_path=out, start_date=start_date, end_date=end_date
+        )
+        logger.info(f"✅ 导出完成: {exported} 条 -> {out}")
 
 
 # ============================================================================

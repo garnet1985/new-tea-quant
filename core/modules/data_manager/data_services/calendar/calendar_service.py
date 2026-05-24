@@ -9,7 +9,7 @@
 - 内存缓存：快速访问，进程内共享
 - 智能刷新：每天只请求一次 API
 - 数据库缓存：使用 system_cache 持久化缓存，降低API调用频率
-- 多Fallback机制：东方财富 → 新浪财经 → 系统猜测
+- 多Fallback机制：新浪财经 → 东方财富 → 系统猜测
 - 线程安全：支持多线程访问
 """
 from datetime import datetime, timedelta
@@ -104,7 +104,7 @@ class CalendarService(BaseDataService):
         """
         真实世界最新已完成交易日（不是今天）
 
-        优先级：内存缓存 → ``sys_cache`` → 免费 API（东财/新浪）→ 工作日猜测。
+        优先级：内存缓存 → ``sys_cache`` → 免费 API（新浪/东财）→ 工作日猜测。
         不读 ``sys_trade_calendar``。
         """
         today = DateUtils.today()
@@ -288,22 +288,22 @@ class CalendarService(BaseDataService):
         使用多fallback机制获取最新交易日
         
         Fallback 优先级：
-        1. 东方财富API - 查询上证指数K线，取最后2根判断
-        2. 新浪财经API - 查询上证指数K线，取最后2根判断
+        1. 新浪财经API - 查询上证指数K线，取最后2根判断
+        2. 东方财富API - 查询上证指数K线，取最后2根判断
         3. 系统猜测 - 从昨天开始排除周末
         
         Returns:
             Tuple[最新交易日（YYYYMMDD）, 数据来源（provider名称）]
         """
-        # Fallback 1: 东方财富API
-        latest_date = self._try_fetch_from_provider('东方财富', self._fetch_from_eastmoney)
-        if latest_date:
-            return latest_date, 'eastmoney'
-        
-        # Fallback 2: 新浪财经API
+        # Fallback 1: 新浪财经API（首选，端点稳定）
         latest_date = self._try_fetch_from_provider('新浪财经', self._fetch_from_sina)
         if latest_date:
             return latest_date, 'sina'
+        
+        # Fallback 2: 东方财富API
+        latest_date = self._try_fetch_from_provider('东方财富', self._fetch_from_eastmoney)
+        if latest_date:
+            return latest_date, 'eastmoney'
         
         # Fallback 3: 系统猜测（排除周末）
         logger.warning("⚠️  所有API都失败，使用系统猜测（排除周末）")

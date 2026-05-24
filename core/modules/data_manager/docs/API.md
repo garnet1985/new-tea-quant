@@ -266,8 +266,12 @@ data_mgr = DataManager(is_verbose=True)  # 已触发 initialize
 
 | 方法 | 签名 | 说明 |
 |------|------|------|
-| `get_latest_completed_trading_date` | `() -> str` | 最新已完成的交易日（YYYYMMDD），非当日；含内存与 DB 缓存。 |
-| `refresh` | `() -> str` | 强制刷新并返回最新交易日。 |
+| 配置项 ``default_start_date`` / ``default_end_date`` | `userspace/config/data.json` | renew 拉数下界/上界；未配置 ``default_end_date`` 时不截断 end。 |
+| ``DataSourceManager.renew(table_name, force=)`` | 核心入口 | 单表（表名或 source key）或全部已启用数据源；``force=True`` 强制 refresh。 |
+| `get_real_world_latest_completed_trading_date` | `() -> str` | 真实世界最新已完成交易日（API / cache）；不读 ``sys_trade_calendar``。 |
+| `get_db_latest_completed_trading_date` | `(*, as_of_date=None) -> str` | 库内日历最新开市日（``is_open=1``）；数据同步进度锚点。 |
+| `get_db_latest_trading_date` | `(*, as_of_date=None, is_open_only=False) -> str` | 库内日历最新 ``cal_date``；默认含休市，`is_open_only=True` 等同上。 |
+| `refresh` | `() -> str` | 强制刷新并返回真实世界最新交易日。 |
 | `get_cached_date` | `() -> Optional[str]` | 当前缓存的交易日，不请求外部。 |
 
 ---
@@ -361,7 +365,7 @@ lpr = data_mgr.macro.load_lpr('20240101', '20241231')
 snapshot = data_mgr.macro.load_macro_snapshot('20240601')
 
 # 日历
-last_trade = data_mgr.calendar.get_latest_completed_trading_date()
+last_trade = data_mgr.calendar.get_real_world_latest_completed_trading_date()
 
 # 跨表备份/恢复
 backup_results = data_mgr.backup_restore.backup(

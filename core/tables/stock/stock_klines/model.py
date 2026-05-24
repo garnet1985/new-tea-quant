@@ -41,9 +41,7 @@ class DataStockKlinesModel(DbBaseModel):
         """
         查询 **全市场** 指定周期的最新 K 线日期（YYYYMMDD）。
 
-        用于：
-        - 作为「数据更新时间」锚点，避免指纹/缓存随日历日期变化而被动失效
-        - scan / 任务 end_date 为空时的合理 fallback（以库内数据为准）
+        行情入库进度锚点；交易日截止请用 ``sys_trade_calendar`` / ``CalendarService``。
         """
         t = str(term or "").strip() or "daily"
         sql = """

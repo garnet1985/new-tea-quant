@@ -30,7 +30,7 @@ class JobHelper:
 
 
     @staticmethod
-    def _resolve_latest_completed_trading_date() -> str:
+    def _resolve_real_world_latest_completed_trading_date() -> str:
         """
         解析最新已完成交易日。
         这里先使用 today 作为无外部依赖的安全默认值，后续可替换为独立日历 contract。
@@ -66,7 +66,7 @@ class JobHelper:
         if default_end_date:
             end_date = default_end_date
         else:
-            end_date = JobHelper._resolve_latest_completed_trading_date()
+            end_date = JobHelper._resolve_real_world_latest_completed_trading_date()
         
         # 确定 start_date（根据 update_mode）
         if update_mode == TagUpdateMode.REFRESH:

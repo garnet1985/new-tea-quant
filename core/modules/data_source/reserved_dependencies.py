@@ -53,10 +53,10 @@ def _resolve_latest_trading_date() -> List[dict]:
         fallback = DateUtils.today()
         return [{"date": fallback}]
     calendar = getattr(data_manager.service, "calendar", None)
-    if not calendar or not hasattr(calendar, "get_latest_completed_trading_date"):
+    if not calendar or not hasattr(calendar, "get_real_world_latest_completed_trading_date"):
         logger.warning("CalendarService 不可用，保留依赖 latest_trading_date 使用当前日期兜底")
         from core.utils.date.date_utils import DateUtils
         fallback = DateUtils.today()
         return [{"date": fallback}]
-    date_str = calendar.get_latest_completed_trading_date()
+    date_str = calendar.get_real_world_latest_completed_trading_date()
     return [{"date": date_str}]

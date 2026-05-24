@@ -81,7 +81,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         # Deferred import: ``cache`` / ``simulator_res_db_cache`` / ``DataManager`` 避免与枚举器初始化循环依赖。
         from core.modules.data_manager import DataManager
         from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
-            resolve_latest_completed_trading_date,
+            resolve_real_world_latest_completed_trading_date,
         )
         from core.modules.strategy.services.cache.simulator_res_db_cache.snapshot_slot_adapters import (
             lookup_enum_cache,
@@ -96,7 +96,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         probe = self._preprocess_probe(strategy_name=strategy_name, strategy_info=strategy_info)
 
         data_mgr = DataManager(is_verbose=False)
-        latest_completed_trading_date = resolve_latest_completed_trading_date(data_mgr)
+        latest_completed_trading_date = resolve_real_world_latest_completed_trading_date(data_mgr)
 
         resolved_probe = resolve_db_cache_fingerprints(
             strategy_name=str(strategy_name),

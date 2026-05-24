@@ -41,3 +41,72 @@ class TradeCalendarModel(DbBaseModel):
             sql += " AND is_open = %s"
             params.append(is_open)
         return self.load(sql, tuple(params), order_by="cal_date ASC")
+
+    def load_max_cal_date_on_or_before(
+        self,
+        as_of_date: str,
+        *,
+        market: str = DEFAULT_MARKET,
+        is_open_only: bool = False,
+    ) -> str:
+        """
+        ``<= as_of_date`` 的 MAX(cal_date)。
+
+        ``is_open_only=True``：仅 ``is_open=1``；否则含休市日在内所有已记载自然日。
+        """
+        d = str(as_of_date or "").strip()
+        if not d:
+            return ""
+        if is_open_only:
+            sql = """
+                SELECT MAX(cal_date) AS max_date
+                FROM sys_trade_calendar
+                WHERE market = %s AND is_open = 1 AND cal_date <= %s
+            """
+        else:
+            sql = """
+                SELECT MAX(cal_date) AS max_date
+                FROM sys_trade_calendar
+                WHERE market = %s AND cal_date <= %s
+            """
+        rows = self.db.execute_sync_query(sql, (market, d)) or []
+        if not rows:
+            return ""
+        return str(rows[0].get("max_date") or "").strip()
+
+    def load_db_latest_completed_trading_date(
+        self,
+        *,
+        market: str = DEFAULT_MARKET,
+        as_of_date: Optional[str] = None,
+    ) -> str:
+        """库内已同步日历中，``<= as_of_date`` 最近一个开市日（``is_open=1``）。"""
+        from core.utils.date.date_utils import DateUtils
+
+        anchor = str(as_of_date or DateUtils.today()).strip()
+        return self.load_max_cal_date_on_or_before(
+            anchor, market=market, is_open_only=True
+        )
+
+    def load_db_latest_trading_date(
+        self,
+        *,
+        market: str = DEFAULT_MARKET,
+        as_of_date: Optional[str] = None,
+        is_open_only: bool = False,
+    ) -> str:
+        """
+        库内已同步日历中 ``<= as_of_date`` 最近一条记载。
+
+        ``is_open_only=True`` 等同 ``load_db_latest_completed_trading_date``；默认含休市日。
+        """
+        if is_open_only:
+            return self.load_db_latest_completed_trading_date(
+                market=market, as_of_date=as_of_date
+            )
+        from core.utils.date.date_utils import DateUtils
+
+        anchor = str(as_of_date or DateUtils.today()).strip()
+        return self.load_max_cal_date_on_or_before(
+            anchor, market=market, is_open_only=False
+        )

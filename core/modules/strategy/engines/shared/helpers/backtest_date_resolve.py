@@ -56,26 +56,62 @@ class BacktestDateRange:
         return self.start_date, self.end_date
 
 
-def resolve_latest_completed_trading_date(data_manager: Any) -> str:
-    """K 线最新日优先，否则日历「最新已完成交易日」。"""
+def resolve_real_world_latest_completed_trading_date(data_manager: Any) -> str:
+    """
+    真实世界最新已完成交易日：``get_real_world_latest_completed_trading_date``。
+    """
+    cal_svc = _calendar_service(data_manager)
+    if cal_svc is None:
+        return ""
+    try:
+        return str(
+            cal_svc.get_real_world_latest_completed_trading_date() or ""
+        ).strip()
+    except Exception:
+        return ""
+
+
+def resolve_db_latest_completed_trading_date(
+    data_manager: Any,
+    *,
+    term: str = "daily",
+) -> str:
+    """
+    库内数据进度锚点：``sys_trade_calendar`` 最新开市日；无日历表时回退 K 线 MAX(date)。
+    """
+    cal_svc = _calendar_service(data_manager)
+    if cal_svc is not None:
+        try:
+            db_cal = str(
+                cal_svc.get_db_latest_completed_trading_date() or ""
+            ).strip()
+            if db_cal:
+                return db_cal
+        except Exception:
+            pass
+    kline_svc = _kline_service(data_manager)
+    if kline_svc is None:
+        return ""
+    try:
+        return str(kline_svc.load_latest_date(term) or "").strip()
+    except Exception:
+        return ""
+
+
+def _calendar_service(data_manager: Any) -> Any:
     if hasattr(data_manager, "service"):
-        kline_svc = data_manager.service.stock.kline
-        cal_svc = data_manager.service.calendar
-    elif hasattr(data_manager, "stock"):
-        kline_svc = data_manager.stock.kline
-        cal_svc = data_manager.service.calendar
-    else:
-        return ""
-    try:
-        kline_latest = str(kline_svc.load_latest_date("daily") or "").strip()
-    except Exception:
-        kline_latest = ""
-    if kline_latest:
-        return kline_latest
-    try:
-        return str(cal_svc.get_latest_completed_trading_date() or "").strip()
-    except Exception:
-        return ""
+        return data_manager.service.calendar
+    if hasattr(data_manager, "stock"):
+        return getattr(data_manager, "calendar", None) or data_manager.service.calendar
+    return None
+
+
+def _kline_service(data_manager: Any) -> Any:
+    if hasattr(data_manager, "service"):
+        return data_manager.service.stock.kline
+    if hasattr(data_manager, "stock"):
+        return data_manager.stock.kline
+    return None
 
 
 def kline_term_from_settings_view(view: StrategySettingsView) -> str:
@@ -159,7 +195,7 @@ def resolve_backtest_date_range(
             from core.modules.data_manager import DataManager
 
             dm = DataManager(is_verbose=False)
-        latest = resolve_latest_completed_trading_date(dm)
+        latest = resolve_real_world_latest_completed_trading_date(dm)
     elif dm is None and not settings_view.start_date.strip():
         from core.modules.data_manager import DataManager
 
@@ -340,5 +376,6 @@ __all__ = [
     "resolve_backtest_end_date",
     "resolve_backtest_period_payload",
     "resolve_backtest_start_date",
-    "resolve_latest_completed_trading_date",
+    "resolve_real_world_latest_completed_trading_date",
+    "resolve_db_latest_completed_trading_date",
 ]

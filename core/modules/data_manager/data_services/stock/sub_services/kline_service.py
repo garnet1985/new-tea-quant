@@ -88,8 +88,8 @@ class KlineService(BaseDataService):
         """
         加载 **全市场** 指定周期最新 K 线日期（YYYYMMDD）。
 
-        与 ``load_latest(stock_id)`` 的区别：
-        - 本方法不依赖单只股票，避免个股缺数导致「最新日期」偏旧。
+        与 ``load_latest(stock_id)`` 的区别：不依赖单只股票。
+        行情入库进度；优先用 ``calendar.get_db_latest_completed_trading_date()``。
         """
         if not self._stock_kline:
             return ""

@@ -231,7 +231,7 @@ def calc_last_update_based_on_renew_mode(
                 data_manager, "service", None
             ):
                 latest_completed_trading_date = (
-                    data_manager.service.calendar.get_latest_completed_trading_date()
+                    data_manager.service.calendar.get_real_world_latest_completed_trading_date()
                 )
         except Exception:
             latest_completed_trading_date = None
@@ -323,7 +323,7 @@ def compute_entity_date_ranges(
         try:
             if data_manager and getattr(data_manager, "service", None):
                 latest_completed_trading_date = (
-                    data_manager.service.calendar.get_latest_completed_trading_date()
+                    data_manager.service.calendar.get_real_world_latest_completed_trading_date()
                 )
             else:
                 latest_completed_trading_date = DateUtils.today()
@@ -372,6 +372,9 @@ def compute_entity_date_ranges(
         这是第一层检查：判断距离上次更新是否已经过去了足够长的时间。
         如果时间间隔不够，直接返回 False，不进行后续的完整周期检查。
         """
+        if context.get("force_refresh"):
+            return True
+
         if not threshold_cfg:
             return True
 
@@ -400,6 +403,9 @@ def compute_entity_date_ranges(
 
     # 公共：根据模式计算起点
     def compute_start_for_mode(last_update: Optional[str]) -> str:
+        if context.get("force_refresh"):
+            return default_start_date
+
         # refresh: 总是从默认起点开始刷全量
         if renew_mode == UpdateMode.REFRESH:
             return default_start_date
@@ -657,7 +663,7 @@ def check_renew_if_over_days(
     latest_completed_trading_date = context.get("latest_completed_trading_date")
     if not latest_completed_trading_date:
         try:
-            latest_completed_trading_date = data_manager.service.calendar.get_latest_completed_trading_date()
+            latest_completed_trading_date = data_manager.service.calendar.get_real_world_latest_completed_trading_date()
         except Exception as e:  # pragma: no cover - 防御性日志
             logger.warning(f"获取最新完成交易日失败: {e}")
             latest_completed_trading_date = DateUtils.today()

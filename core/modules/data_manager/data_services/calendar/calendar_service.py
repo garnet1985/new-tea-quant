@@ -32,7 +32,7 @@ class CalendarService(BaseDataService):
     
     使用方式：
         calendar = CalendarService(data_manager)
-        latest_date = calendar.get_latest_trading_date()
+        latest_date = calendar.get_real_world_latest_completed_trading_date()
     """
     
     # 类级别的内存缓存（进程内共享）
@@ -50,30 +50,70 @@ class CalendarService(BaseDataService):
             data_manager: DataManager 实例
         """
         super().__init__(data_manager)
-    
-    def get_latest_completed_trading_date(self) -> str:
-        # TODO: need to be refactored, now data is handled by data_source
+        self._trade_calendar = data_manager.get_table("sys_trade_calendar")
+
+    def get_db_latest_completed_trading_date(
+        self, *, as_of_date: Optional[str] = None
+    ) -> str:
         """
-        获取最新已完成交易日（不是今天，即使今天已经收盘）
-        
-        逻辑：
-        1. 检查内存缓存（进程内缓存）
-        2. 如果今天已经请求过，直接返回缓存
-        3. 检查数据库缓存（system_cache）
-        4. 如果数据库缓存是今天更新的，直接返回并更新内存缓存
-        5. 如果缓存过期，从多个API fallback获取
-        6. 更新内存缓存和数据库缓存
-        
-        Returns:
-            最新已完成交易日（YYYYMMDD，不是今天）
+        库内 ``sys_trade_calendar`` 最新开市日（``is_open=1``）。
+
+        行情/复权等数据进度锚点；不等于真实世界已完成交易日。
+        """
+        if not self._trade_calendar:
+            return ""
+        try:
+            return str(
+                self._trade_calendar.load_db_latest_completed_trading_date(
+                    as_of_date=as_of_date
+                )
+                or ""
+            ).strip()
+        except Exception as e:
+            logger.debug("读取 sys_trade_calendar 最新开市日失败: %s", e)
+            return ""
+
+    def get_db_latest_trading_date(
+        self,
+        *,
+        as_of_date: Optional[str] = None,
+        is_open_only: bool = False,
+    ) -> str:
+        """
+        库内 ``sys_trade_calendar`` 最新日历日。
+
+        默认含开市与休市；``is_open_only=True`` 时等同 ``get_db_latest_completed_trading_date``。
+        """
+        if is_open_only:
+            return self.get_db_latest_completed_trading_date(as_of_date=as_of_date)
+        if not self._trade_calendar:
+            return ""
+        try:
+            return str(
+                self._trade_calendar.load_db_latest_trading_date(
+                    as_of_date=as_of_date,
+                    is_open_only=False,
+                )
+                or ""
+            ).strip()
+        except Exception as e:
+            logger.debug("读取 sys_trade_calendar 最新日历日失败: %s", e)
+            return ""
+
+    def get_real_world_latest_completed_trading_date(self) -> str:
+        """
+        真实世界最新已完成交易日（不是今天）
+
+        优先级：内存缓存 → ``sys_cache`` → 免费 API（东财/新浪）→ 工作日猜测。
+        不读 ``sys_trade_calendar``。
         """
         today = DateUtils.today()
-        
+
         # 1. 检查内存缓存（如果今天已请求过，直接返回）
         cached_date = self._get_cache_from_memory()
         if cached_date:
             return cached_date
-        
+
         # 2. 检查数据库缓存
         db_cache_result = self._get_cache_from_db()
         if db_cache_result:

@@ -6,7 +6,13 @@
     python start-cli.py                      # 默认: scan
     python start-cli.py scan                 # 扫描投资机会
     python start-cli.py simulate             # 运行模拟链路（price_factor + capital_allocation）
-    python start-cli.py renew                # 更新数据
+    python start-cli.py -d                   # 更新全部已启用数据源
+    python start-cli.py -d sys_stock_klines  # 仅 renew 单个 data source（表名或 key）
+    python start-cli.py -r stock_klines      # 同上（推荐写法）
+    python start-cli.py renew stock_klines   # 同上
+    python start-cli.py renew list           # 列出可 renew 的表名 / key
+    python start-cli.py -r stock_klines -f   # 强制 refresh（从 default_start_date 重拉）
+    python start-cli.py -rf gdp              # 等同 -r gdp -f
     python start-cli.py analysis             # 分析结果
     python start-cli.py tag                  # 执行所有标签场景
     python start-cli.py tag --scenario xxx   # 执行指定标签场景
@@ -190,17 +196,20 @@ class App:
     # 数据更新相关
     # ========================================================================
 
-    async def renew_data(self):
+    async def renew_data(
+        self,
+        table_name: Optional[str] = None,
+        *,
+        force: bool = False,
+    ):
         """
-        一站式更新行情 + 标签数据（由 DataSourceManager 统一调度）
-        
+        更新数据（``DataSourceManager.renew``）。
+
         Args:
-            latest_completed_trading_date: 最新交易日（可选）
-            stock_list: 预先准备好的股票列表（可选，全局共用）
-            test_mode: 测试模式，只处理少量股票
-            dry_run: 干运行模式，只检查流程，不写入标签
+            table_name: 表名或 data source key；``None`` 表示全部已启用。
+            force: 强制全量重拉（见 userspace/config/data.json）。
         """
-        self.data_source.execute()
+        self.data_source.renew(table_name=table_name, force=force)
 
     # ========================================================================
     # 策略（StrategyManager 由 CommandExecutor 直接拉取）
@@ -259,11 +268,17 @@ def create_argument_parser() -> argparse.ArgumentParser:
         epilog=_get_help_epilog()
     )
     
-    # 位置参数（主命令）
+    # 位置参数（主命令；与 -d 合用时第一个也可为表名，见 resolve_command）
     parser.add_argument(
         'command',
         nargs='?',
-        help='要执行的命令（scan/simulate/simulate_price/simulate_allocation/renew/analysis/tag/enumerate/price_factor/capital_allocation/export_adj_factor_csv）'
+        help='命令名；或 ``-d <表名>`` 时写表名 / data source key（如 sys_stock_klines）',
+    )
+    parser.add_argument(
+        'table_name',
+        nargs='?',
+        default='',
+        help='renew 目标表（与 renew 命令合用，如 ``renew sys_stock_klines``）',
     )
     
     # 快捷 flag
@@ -279,9 +294,28 @@ def _add_shortcut_flags(parser):
     """添加快捷 flag"""
     # DataSource
     parser.add_argument('-d', dest='data_flag', action='store_true',
-                       help='DataSource 模块（默认 renew）')
+                       help='DataSource renew（全部）；表名用位置参数或 ``-r``')
     parser.add_argument('-dr', dest='data_renew_flag', action='store_true',
-                       help='DataSource renew（等同 -d）')
+                       help='等同 -d')
+    parser.add_argument(
+        '-r',
+        '--renew',
+        dest='renew_arg',
+        nargs='?',
+        const='',
+        default=None,
+        metavar='SOURCE',
+        help='Renew：无 SOURCE=全部；有 SOURCE=单个表名或 data source key（如 stock_klines）',
+    )
+    parser.add_argument(
+        '-rf',
+        dest='renew_force_arg',
+        nargs='?',
+        const='',
+        default=None,
+        metavar='SOURCE',
+        help='强制 refresh：无 SOURCE=全部；-rf gdp=单个（等同 -r SOURCE -f）',
+    )
 
     # Tag
     parser.add_argument('-t', dest='tag_flag', action='store_true',
@@ -353,8 +387,15 @@ def _add_extra_arguments(parser):
                        help='指定场景名称（用于 tag）')
     parser.add_argument('--stocks', type=int, default=None,
                        help='测试股票数量（用于 enumerate，如果不提供则从 settings 读取）')
-    parser.add_argument('-f', '--force', dest='force_enumerate', action='store_true',
-                       help='强制/放宽模式：scan 时表示 demo；枚举(-se)跳过 DbCache；价格因子(-sp)跳过 Simulator Res DB 读缓存')
+    parser.add_argument(
+        '-f',
+        '--force',
+        '--force-refresh',
+        dest='force_flag',
+        action='store_true',
+        help='renew/-r/-d：强制 refresh（default_start_date 起全量重拉，跳过日缓存）；'
+             'scan：demo；enumerate(-se)：跳过 DbCache',
+    )
     parser.add_argument('--base-date', type=str,
                        help='基准日期（YYYYMMDD 或 YYYY-MM-DD，用于 export_adj_factor_csv）')
     parser.add_argument('-v', '--version', action='store_true',
@@ -372,7 +413,11 @@ def _get_help_epilog() -> str:
   simulate             上层模拟链路（依赖枚举输出）：price_factor + capital_allocation
   simulate_price       价格因子回放模拟（基于枚举输出机会结果）
   simulate_allocation  资金分配模拟（基于枚举输出机会结果，真实资金约束）
-  renew                更新数据（更新股票行情、标签等数据）
+  renew [SOURCE]       更新数据；省略则全部；``renew list`` 列出可选 SOURCE
+  -r [SOURCE]          同上（推荐：``-r stock_klines`` 只跑一个 data source）
+  -d                   更新全部已启用 data source（表名请用 ``-r`` 或 ``renew``）
+  -f                   与 renew/-r 合用：强制 refresh 单表或全部
+  -rf [SOURCE]         等同 ``-r [SOURCE] -f``（推荐写法语义）
   analysis             分析结果（分析模拟回测的结果）
   tag                  执行标签计算（计算并存储所有或指定场景的标签）
   enumerate            枚举投资机会（测试用，枚举所有可能的机会）
@@ -408,7 +453,11 @@ def _get_help_epilog() -> str:
     %(prog)s tag --scenario xxx   执行指定标签场景
 
   快捷方式:
-    %(prog)s -d                   DataSource renew
+    %(prog)s -d                   更新全部 data source
+    %(prog)s -r stock_klines      仅更新单个 data source
+    %(prog)s -r gdp -f            强制 refresh 单个 data source
+    %(prog)s -rf stock_klines     同上（-r + -f）
+    %(prog)s renew list           列出可 renew 的表名 / key
     %(prog)s -t                   Tag generating
     %(prog)s -s                   Strategy scan
     %(prog)s -se                  Strategy enumerate
@@ -430,6 +479,26 @@ def _get_help_epilog() -> str:
     '''
 
 
+_VALID_CLI_COMMANDS = frozenset({
+    'scan', 'simulate', 'simulate_price', 'simulate_allocation',
+    'renew', 'analysis', 'tag', 'enumerate', 'price_factor', 'capital_allocation',
+    'export_adj_factor_csv',
+})
+
+
+def _normalize_cli_flags(args) -> None:
+    """合并互斥/等价 flag（在 resolve_command 之前调用）。"""
+    renew_force_arg = getattr(args, "renew_force_arg", None)
+    if renew_force_arg is None:
+        return
+
+    args.force_flag = True
+    if getattr(args, "renew_arg", None) is not None:
+        logger.error("❌ 不能同时使用 -r 与 -rf")
+        sys.exit(1)
+    args.renew_arg = renew_force_arg
+
+
 def resolve_command(args) -> str:
     """
     解析本次运行要执行的命令
@@ -443,11 +512,6 @@ def resolve_command(args) -> str:
     Raises:
         SystemExit: 如果命令冲突或无效
     """
-    valid_commands = {
-        'scan', 'simulate', 'simulate_price', 'simulate_allocation',
-        'renew', 'analysis', 'tag', 'enumerate', 'price_factor', 'capital_allocation', 'export_adj_factor_csv'
-    }
-    
     # 从位置参数获取命令
     cmd_from_positional = None
     if args.command:
@@ -456,11 +520,25 @@ def resolve_command(args) -> str:
             "capital_allocation": "simulate_allocation",
         }
         normalized = aliases.get(args.command, args.command)
-        if normalized not in valid_commands:
-            logger.error(f"❌ 无效的命令: {args.command}")
-            logger.info(f"有效命令: {', '.join(sorted(valid_commands))}")
-            sys.exit(1)
-        cmd_from_positional = normalized
+        if normalized not in _VALID_CLI_COMMANDS:
+            if (
+                args.data_flag
+                or args.data_renew_flag
+                or getattr(args, "renew_arg", None) is not None
+            ):
+                if str(getattr(args, "table_name", "") or "").strip():
+                    logger.error("❌ 不能同时指定两个表名（command 与 table_name）")
+                    sys.exit(1)
+                if getattr(args, "renew_table_name", ""):
+                    logger.error("❌ 不能同时用 -r 与位置参数指定两个 SOURCE")
+                    sys.exit(1)
+                args.renew_table_name = str(args.command).strip()
+            else:
+                logger.error(f"❌ 无效的命令: {args.command}")
+                logger.info(f"有效命令: {', '.join(sorted(_VALID_CLI_COMMANDS))}")
+                sys.exit(1)
+        else:
+            cmd_from_positional = normalized
     
     # 从快捷 flag 获取命令
     flag_to_command = {
@@ -482,7 +560,9 @@ def resolve_command(args) -> str:
     }
     
     flags = [flag_to_command[k] for k, v in flag_to_command.items() if getattr(args, k, False)]
-    
+    if getattr(args, "renew_arg", None) is not None:
+        flags.append("renew")
+
     # 验证命令一致性
     if cmd_from_positional and flags and cmd_from_positional not in flags:
         logger.error("❌ 命令冲突：位置参数和快捷 flag 指定了不同的命令")
@@ -502,6 +582,31 @@ def resolve_command(args) -> str:
     
     # 默认：scan
     return 'scan'
+
+
+def attach_renew_cli_context(args, command: str) -> None:
+    """解析 renew 的 SOURCE（表名 / data source key）与 -f（仅 command == renew 时生效）。"""
+    if command != 'renew':
+        args.renew_table_name = ''
+        args.renew_force = False
+        return
+
+    args.renew_force = bool(getattr(args, 'force_flag', False))
+
+    renew_arg = getattr(args, 'renew_arg', None)
+    if renew_arg is not None:
+        source = str(renew_arg).strip()
+        if source:
+            if getattr(args, 'renew_table_name', ''):
+                logger.error("❌ 不能同时用 -r 与其它方式指定两个 SOURCE")
+                sys.exit(1)
+            args.renew_table_name = source
+        return
+
+    if getattr(args, 'renew_table_name', ''):
+        return
+
+    args.renew_table_name = str(getattr(args, 'table_name', '') or '').strip()
 
 
 def _cli_strategy_arg(raw: object) -> Optional[str]:
@@ -560,9 +665,29 @@ class CommandExecutor:
         handler(args)
     
     def _handle_renew(self, args):
-        """处理 renew 命令"""
-        logger.info("🔄 更新数据...")
-        asyncio.run(self.app.renew_data())
+        """处理 renew / -d / -r（单 data source 或全部；``-f`` 为强制 refresh）。"""
+        table_name = str(getattr(args, "renew_table_name", "") or "").strip() or None
+        force = bool(getattr(args, "renew_force", False))
+
+        if table_name and table_name.lower() == "list":
+            from core.modules.data_source.data_source_manager import DataSourceManager
+
+            logger.info("%s", DataSourceManager.format_renew_targets_help())
+            return
+
+        if table_name:
+            logger.info(
+                "🔄 更新数据: %s%s",
+                table_name,
+                " [force refresh]" if force else "",
+            )
+        else:
+            logger.info("🔄 更新全部已启用数据源%s", " [force]" if force else "")
+        try:
+            asyncio.run(self.app.renew_data(table_name=table_name, force=force))
+        except ValueError as e:
+            logger.error("❌ %s", e)
+            sys.exit(1)
     
     def _handle_scan(self, args):
         """处理 scan 命令"""
@@ -570,7 +695,7 @@ class CommandExecutor:
         mgr = self.app._ensure_strategy_manager()
         mgr.scan(
             strategy_name=_cli_strategy_arg(getattr(args, "strategy", None)),
-            demo=bool(getattr(args, "force_enumerate", False)),
+            demo=bool(getattr(args, "force_flag", False)),
         )
 
     def _handle_simulate(self, args):
@@ -584,7 +709,7 @@ class CommandExecutor:
         mgr.simulate(
             "full",
             strategy_name=_cli_strategy_arg(getattr(args, "strategy", None)),
-            force_refresh=bool(getattr(args, "force_enumerate", False)),
+            force_refresh=bool(getattr(args, "force_flag", False)),
         )
 
     def _handle_analysis(self, args):
@@ -604,7 +729,7 @@ class CommandExecutor:
         mgr.simulate(
             "enumerate",
             strategy_name=_cli_strategy_arg(getattr(args, "strategy", None)),
-            force_refresh=bool(getattr(args, "force_enumerate", False)),
+            force_refresh=bool(getattr(args, "force_flag", False)),
             stock_count=getattr(args, "stocks", None),
         )
 
@@ -614,7 +739,7 @@ class CommandExecutor:
         mgr.simulate(
             "price_factor",
             strategy_name=_cli_strategy_arg(getattr(args, "strategy", None)),
-            force_refresh=bool(getattr(args, "force_enumerate", False)),
+            force_refresh=bool(getattr(args, "force_flag", False)),
         )
 
     def _handle_simulate_allocation(self, args):
@@ -623,7 +748,7 @@ class CommandExecutor:
         mgr.simulate(
             "capital_allocation",
             strategy_name=_cli_strategy_arg(getattr(args, "strategy", None)),
-            force_refresh=bool(getattr(args, "force_enumerate", False)),
+            force_refresh=bool(getattr(args, "force_flag", False)),
         )
 
     def _handle_export_adj_factor_csv(self, args):
@@ -656,9 +781,12 @@ def main():
         # verbose 模式下，将根 logger 提升到 DEBUG
         logging.getLogger().setLevel(logging.DEBUG)
     
+    args.renew_table_name = ''
+    _normalize_cli_flags(args)
     # 解析命令
     command = resolve_command(args)
-    
+    attach_renew_cli_context(args, command)
+
     # 创建应用实例
     app = App(is_verbose=args.verbose)
     

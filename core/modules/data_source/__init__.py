@@ -1,6 +1,6 @@
 """数据源模块（`modules.data_source`）：见模块 `README.md` 与 `docs/`。"""
 
-from .data_source_manager import DataSourceManager
+from .data_source_manager import DataSourceManager  # renew / resolve_renew_target / execute
 from .base_class.base_provider import BaseProvider
 from .base_class.base_handler import BaseHandler
 from .data_class.api_job import ApiJob

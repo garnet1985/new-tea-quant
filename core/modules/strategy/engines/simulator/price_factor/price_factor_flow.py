@@ -112,7 +112,7 @@ class PriceFactorFlow(BaseSimulationFlow):
         from core.modules.data_manager import DataManager
         from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
             resolve_backtest_date_range,
-            resolve_latest_completed_trading_date,
+            resolve_real_world_latest_completed_trading_date,
         )
         from core.modules.strategy.services.cache.simulator_res_db_cache.snapshot_slot_adapters import (
             lookup_price_factor_cache,
@@ -140,7 +140,7 @@ class PriceFactorFlow(BaseSimulationFlow):
         )
 
         data_mgr = DataManager(is_verbose=False)
-        latest_completed_trading_date = resolve_latest_completed_trading_date(data_mgr)
+        latest_completed_trading_date = resolve_real_world_latest_completed_trading_date(data_mgr)
 
         resolved_probe = resolve_db_cache_fingerprints(
             strategy_name=str(strategy_name),
@@ -210,7 +210,7 @@ class PriceFactorFlow(BaseSimulationFlow):
         from core.modules.data_manager import DataManager
         from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
             resolve_backtest_date_range,
-            resolve_latest_completed_trading_date,
+            resolve_real_world_latest_completed_trading_date,
         )
 
         jobs = self._impl.build_worker_jobs(
@@ -223,7 +223,7 @@ class PriceFactorFlow(BaseSimulationFlow):
         period = resolve_backtest_date_range(
             settings_view=preprocessed.base_settings,
             stock_ids=sorted(preprocessed.stock_files.keys()),
-            latest_completed_trading_date=resolve_latest_completed_trading_date(data_mgr),
+            latest_completed_trading_date=resolve_real_world_latest_completed_trading_date(data_mgr),
             data_manager=data_mgr,
         )
         sim_snap = simulation_effective_snapshot(preprocessed.simulation_settings)
@@ -263,7 +263,7 @@ class PriceFactorFlow(BaseSimulationFlow):
         from core.modules.data_manager import DataManager
         from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
             resolve_backtest_period_payload,
-            resolve_latest_completed_trading_date,
+            resolve_real_world_latest_completed_trading_date,
         )
 
         data_mgr = DataManager(is_verbose=False)
@@ -271,7 +271,7 @@ class PriceFactorFlow(BaseSimulationFlow):
             settings_view=preprocessed.base_settings,
             stock_ids=sorted(preprocessed.stock_files.keys()),
             data_manager=data_mgr,
-            latest_completed_trading_date=resolve_latest_completed_trading_date(data_mgr),
+            latest_completed_trading_date=resolve_real_world_latest_completed_trading_date(data_mgr),
         )
         self._impl.save_session_outputs(
             strategy_name=preprocessed.strategy_name,

@@ -74,6 +74,26 @@ class TradeCalendarModel(DbBaseModel):
             return ""
         return str(rows[0].get("max_date") or "").strip()
 
+    def load_previous_open_date_before(
+        self,
+        before_date: str,
+        *,
+        market: str = DEFAULT_MARKET,
+    ) -> str:
+        """``< before_date`` 的最近一个开市日（``is_open=1``）。"""
+        d = str(before_date or "").strip()
+        if not d:
+            return ""
+        sql = """
+            SELECT MAX(cal_date) AS max_date
+            FROM sys_trade_calendar
+            WHERE market = %s AND is_open = 1 AND cal_date < %s
+        """
+        rows = self.db.execute_sync_query(sql, (market, d)) or []
+        if not rows:
+            return ""
+        return str(rows[0].get("max_date") or "").strip()
+
     def load_db_latest_completed_trading_date(
         self,
         *,

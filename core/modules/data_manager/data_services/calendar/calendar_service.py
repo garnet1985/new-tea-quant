@@ -5,12 +5,12 @@
 - 封装交易日相关的查询和缓存
 - 提供日期相关的业务方法
 
-特性：
-- 内存缓存：快速访问，进程内共享
-- 智能刷新：每天只请求一次 API
-- 数据库缓存：使用 system_cache 持久化缓存，降低API调用频率
-- 多Fallback机制：新浪财经 → 东方财富 → 系统猜测
-- 线程安全：支持多线程访问
+对外读入口：
+- ``get_latest_completed_trading_date()``：全系统 latest completed 的唯一权威 API
+  （DB 日历推导 → real-world API → K 线 MAX → 猜测；最后可选 ``default_end_date`` 截断）
+
+内部 / 遗留：
+- ``get_real_world_latest_completed_trading_date()``：仅网络侧（新浪/东财/猜测），不读 ``sys_trade_calendar``
 """
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
@@ -18,6 +18,7 @@ import logging
 import threading
 import json
 
+from core.infra.project_context import ConfigManager
 from core.utils.date.date_utils import DateUtils
 from core.modules.data_source.service.provider_helper import DataSourceProviderHelper
 from .. import BaseDataService
@@ -29,13 +30,13 @@ logger = logging.getLogger(__name__)
 class CalendarService(BaseDataService):
     """
     日历服务
-    
+
     使用方式：
         calendar = CalendarService(data_manager)
-        latest_date = calendar.get_real_world_latest_completed_trading_date()
+        latest_date = calendar.get_latest_completed_trading_date()
     """
     
-    # 类级别的内存缓存（进程内共享）
+    # 类级别的内存缓存（进程内共享，供 real-world 网络路径使用）
     _memory_cache = {
         "last_trading_date": None,      # 上次交易日（YYYYMMDD）
         "last_request_date": None,       # 上次请求日期（YYYYMMDD）
@@ -52,13 +53,136 @@ class CalendarService(BaseDataService):
         super().__init__(data_manager)
         self._trade_calendar = data_manager.get_table("sys_trade_calendar")
 
+    def get_latest_completed_trading_date(
+        self,
+        *,
+        as_of_date: Optional[str] = None,
+        apply_default_end_date_cap: bool = True,
+    ) -> str:
+        """
+        最新已完成交易日（全系统统一读入口）。
+
+        Fallback 链（均由本方法内部决定，调用方勿再散落 fallback）：
+
+        1. ``sys_trade_calendar``：``MAX(cal_date)`` 且 ``is_open=1``、``cal_date <= as_of``；
+           若结果等于 ``as_of``（当天可能未收盘完成），保守回退至前一开市日。
+        2. real-world：新浪 / 东财 K 线（含 ``sys_cache`` 日缓存）→ 周末猜测。
+        3. 全市场日 K 线 ``MAX(date)``。
+        4. 周末猜测（最后兜底）。
+
+        ``apply_default_end_date_cap=True`` 时，对结果施加
+        ``min(computed, userspace/config/data.json default_end_date)``，并在被截断时打醒目日志。
+
+        Args:
+            as_of_date: 截止自然日（YYYYMMDD），默认今天。
+            apply_default_end_date_cap: 是否应用 ``default_end_date`` 上界。
+
+        Returns:
+            最新已完成交易日（YYYYMMDD），无法解析时可能为空字符串。
+        """
+        raw_date, source = self._resolve_raw_latest_completed(as_of_date=as_of_date)
+        if not raw_date:
+            return ""
+        if apply_default_end_date_cap:
+            return self._apply_default_end_date_cap(raw_date, source=source)
+        return raw_date
+
+    def _resolve_raw_latest_completed(
+        self, *, as_of_date: Optional[str] = None
+    ) -> Tuple[str, str]:
+        db_date = self._derive_completed_from_trade_calendar(as_of_date=as_of_date)
+        if db_date:
+            return db_date, "trade_calendar"
+
+        try:
+            rw_date = self.get_real_world_latest_completed_trading_date()
+            if rw_date:
+                return rw_date, "real_world"
+        except Exception as exc:
+            logger.warning("real-world latest completed 解析失败: %s", exc)
+
+        kline_date = self._fallback_from_kline_max()
+        if kline_date:
+            logger.warning(
+                "sys_trade_calendar 与 real-world 均不可用，使用 K 线 MAX 兜底: %s",
+                kline_date,
+            )
+            return kline_date, "kline_max"
+
+        guess = self._guess_latest_trading_date()
+        return guess, "guess"
+
+    def _derive_completed_from_trade_calendar(
+        self, *, as_of_date: Optional[str] = None
+    ) -> str:
+        anchor = str(as_of_date or DateUtils.today()).strip()
+        if not anchor or not self._trade_calendar:
+            return ""
+        try:
+            cal_max = str(
+                self._trade_calendar.load_db_latest_completed_trading_date(
+                    as_of_date=anchor
+                )
+                or ""
+            ).strip()
+            if not cal_max:
+                return ""
+            if cal_max == anchor:
+                prev = str(
+                    self._trade_calendar.load_previous_open_date_before(anchor) or ""
+                ).strip()
+                if prev:
+                    logger.debug(
+                        "trade_calendar cal_max 等于 as_of=%s，保守回退至前一开市日 %s",
+                        anchor,
+                        prev,
+                    )
+                    return prev
+                return ""
+            return cal_max
+        except Exception as exc:
+            logger.debug("从 sys_trade_calendar 推导 latest completed 失败: %s", exc)
+            return ""
+
+    def _fallback_from_kline_max(self) -> str:
+        try:
+            kline_svc = getattr(getattr(self.data_manager, "service", None), "stock", None)
+            if kline_svc is None:
+                kline_svc = getattr(self.data_manager, "stock", None)
+            if kline_svc is None:
+                return ""
+            loader = getattr(getattr(kline_svc, "kline", None), "load_latest_date", None)
+            if loader is None:
+                return ""
+            return str(loader("daily") or "").strip()
+        except Exception as exc:
+            logger.debug("K 线 MAX 兜底失败: %s", exc)
+            return ""
+
+    def _apply_default_end_date_cap(self, date: str, *, source: str) -> str:
+        cap = ConfigManager.get_default_end_date()
+        if not cap or not date:
+            return date
+        if date <= cap:
+            return date
+        logger.warning(
+            "⚠️  latest completed trading date 已被 default_end_date=%s 截断 "
+            "（推算=%s，来源=%s）。"
+            "如需追最新数据：调高或移除 userspace/config/data.json 的 default_end_date，"
+            "并 renew trade_calendar 与相关数据表。",
+            cap,
+            date,
+            source,
+        )
+        return cap
+
     def get_db_latest_completed_trading_date(
         self, *, as_of_date: Optional[str] = None
     ) -> str:
         """
-        库内 ``sys_trade_calendar`` 最新开市日（``is_open=1``）。
+        库内 ``sys_trade_calendar`` 原始最新开市日（``is_open=1``，``<= as_of``）。
 
-        行情/复权等数据进度锚点；不等于真实世界已完成交易日。
+        不含「当天未完成则回退」规则；业务读请用 ``get_latest_completed_trading_date()``。
         """
         if not self._trade_calendar:
             return ""
@@ -102,10 +226,10 @@ class CalendarService(BaseDataService):
 
     def get_real_world_latest_completed_trading_date(self) -> str:
         """
-        真实世界最新已完成交易日（不是今天）
+        真实世界最新已完成交易日（网络侧，不读 ``sys_trade_calendar``）。
 
-        优先级：内存缓存 → ``sys_cache`` → 免费 API（新浪/东财）→ 工作日猜测。
-        不读 ``sys_trade_calendar``。
+        供 ``get_latest_completed_trading_date()`` 内部 fallback 及 calendar renew 使用；
+        其他模块请改用 ``get_latest_completed_trading_date()``。
         """
         today = DateUtils.today()
 

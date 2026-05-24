@@ -4,7 +4,7 @@
 导出：
 - `DataManager`：数据管理器（主入口）
 - `BaseTableNames`：基础表名枚举
-- `CalendarService` / `TradingDateCache` / `get_trading_date_cache`：日历与交易日缓存
+- `CalendarService`：日历与交易日服务
 
 职责：
 - 持有并初始化 `DatabaseManager`
@@ -22,7 +22,7 @@
 
 from .data_manager import DataManager
 from .enums import BaseTableNames
-from .data_services.calendar import CalendarService, TradingDateCache, get_trading_date_cache
+from .data_services.calendar import CalendarService
 
-__all__ = ['DataManager', 'BaseTableNames', 'CalendarService', 'TradingDateCache', 'get_trading_date_cache']
+__all__ = ['DataManager', 'BaseTableNames', 'CalendarService']
 

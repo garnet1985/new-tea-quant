@@ -9,8 +9,8 @@
 - ``get_latest_completed_trading_date()``：全系统 latest completed 的唯一权威 API
   （DB 日历推导 → real-world API → K 线 MAX → 猜测；最后可选 ``default_end_date`` 截断）
 
-内部 / 遗留：
-- ``get_real_world_latest_completed_trading_date()``：仅网络侧（新浪/东财/猜测），不读 ``sys_trade_calendar``
+网络侧（Scanner 严格模式 / unified API fallback）：
+- ``get_real_world_latest_completed_trading_date()``：新浪/东财 K 线，不读 ``sys_trade_calendar``
 """
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
@@ -228,8 +228,7 @@ class CalendarService(BaseDataService):
         """
         真实世界最新已完成交易日（网络侧，不读 ``sys_trade_calendar``）。
 
-        供 ``get_latest_completed_trading_date()`` 内部 fallback 及 calendar renew 使用；
-        其他模块请改用 ``get_latest_completed_trading_date()``。
+        用于 Scanner 严格模式，以及 ``get_latest_completed_trading_date()`` 的 fallback。
         """
         today = DateUtils.today()
 

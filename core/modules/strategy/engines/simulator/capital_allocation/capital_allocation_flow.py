@@ -53,7 +53,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         """
         from core.modules.data_manager import DataManager
         from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
-            resolve_real_world_latest_completed_trading_date,
+            resolve_latest_completed_trading_date,
         )
         from core.modules.strategy.engines.simulator.price_factor.price_factor_flow_impl import (
             PriceFactorFlowImpl,
@@ -92,7 +92,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         raw_for_fp = raw_settings_for_db_cache_fingerprint(base_settings, strategy_info)
 
         data_mgr = DataManager(is_verbose=False)
-        latest_completed_trading_date = resolve_real_world_latest_completed_trading_date(data_mgr)
+        latest_completed_trading_date = resolve_latest_completed_trading_date(data_mgr)
 
         resolved = resolve_db_cache_fingerprints(
             strategy_name=str(strategy_name),
@@ -253,7 +253,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         from core.modules.data_manager import DataManager
         from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
             resolve_backtest_period_payload,
-            resolve_real_world_latest_completed_trading_date,
+            resolve_latest_completed_trading_date,
         )
         from core.modules.strategy.services.data.output.enumerator_output_service import (
             EnumeratorOutputWriterService,
@@ -267,7 +267,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             settings_view=preprocessed.base_settings,
             stock_ids=stock_ids,
             data_manager=data_mgr,
-            latest_completed_trading_date=resolve_real_world_latest_completed_trading_date(data_mgr),
+            latest_completed_trading_date=resolve_latest_completed_trading_date(data_mgr),
         )
         # step2: persist output artifacts and metadata
         preprocessed.profiler.start_timer("save_csv")

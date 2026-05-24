@@ -272,7 +272,7 @@ class CapitalAllocationFlowImpl:
         from core.modules.data_manager import DataManager
         from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
             resolve_backtest_date_range,
-            resolve_real_world_latest_completed_trading_date,
+            resolve_latest_completed_trading_date,
         )
         from core.modules.strategy.services.data.output.enumerator_output_service import (
             EnumeratorOutputWriterService,
@@ -284,7 +284,7 @@ class CapitalAllocationFlowImpl:
         period = resolve_backtest_date_range(
             settings_view=base_settings,
             stock_ids=stock_ids,
-            latest_completed_trading_date=resolve_real_world_latest_completed_trading_date(data_mgr),
+            latest_completed_trading_date=resolve_latest_completed_trading_date(data_mgr),
             data_manager=data_mgr,
         )
         data_loader = StrategyOutputReaderService(

@@ -281,39 +281,15 @@ class StrategyDataInjectionService:
         return "_".join(parts)
 
     def _get_latest_trading_date(self) -> str:
-        try:
-            from core.modules.data_manager import DataManager
-            from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
-                resolve_latest_completed_trading_date,
-            )
+        from core.modules.data_manager import DataManager
+        from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+            resolve_latest_completed_trading_date,
+        )
 
-            dm = DataManager.get_default()
-            if dm is not None:
-                anchor = resolve_latest_completed_trading_date(dm)
-                if anchor:
-                    return anchor
-        except Exception:
-            pass
-        try:
-            params = dict(self.settings.resolved_base_required_data.get("params") or {})
-            contract = self._contract_manager().issue(
-                DataKey.STOCK_KLINE,
-                entity_id=self.stock_id,
-                start=DateUtils.get_query_date_range_min(),
-                end=DateUtils.QUERY_DATE_RANGE_MAX,
-                **params,
-            )
-            rows = contract.load(
-                start=DateUtils.get_query_date_range_min(),
-                end=DateUtils.QUERY_DATE_RANGE_MAX,
-            )
-            if rows:
-                last = rows[-1]
-                if isinstance(last, dict) and last.get("date"):
-                    return str(last["date"])
-            return datetime.now().strftime("%Y%m%d")
-        except Exception:
-            return datetime.now().strftime("%Y%m%d")
+        dm = DataManager.get_default()
+        if dm is None:
+            return ""
+        return resolve_latest_completed_trading_date(dm)
 
     def _get_date_before(self, date: str, days: int) -> str:
         try:

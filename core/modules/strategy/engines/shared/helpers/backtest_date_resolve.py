@@ -67,34 +67,11 @@ def resolve_latest_completed_trading_date(data_manager: Any) -> str:
         return ""
 
 
-def resolve_real_world_latest_completed_trading_date(data_manager: Any) -> str:
-    """兼容别名，请改用 ``resolve_latest_completed_trading_date``。"""
-    return resolve_latest_completed_trading_date(data_manager)
-
-
-def resolve_db_latest_completed_trading_date(
-    data_manager: Any,
-    *,
-    term: str = "daily",
-) -> str:
-    """兼容别名，请改用 ``resolve_latest_completed_trading_date``。"""
-    _ = term
-    return resolve_latest_completed_trading_date(data_manager)
-
-
 def _calendar_service(data_manager: Any) -> Any:
     if hasattr(data_manager, "service"):
         return data_manager.service.calendar
     if hasattr(data_manager, "stock"):
         return getattr(data_manager, "calendar", None) or data_manager.service.calendar
-    return None
-
-
-def _kline_service(data_manager: Any) -> Any:
-    if hasattr(data_manager, "service"):
-        return data_manager.service.stock.kline
-    if hasattr(data_manager, "stock"):
-        return data_manager.stock.kline
     return None
 
 
@@ -363,6 +340,4 @@ __all__ = [
     "resolve_backtest_period_payload",
     "resolve_backtest_start_date",
     "resolve_latest_completed_trading_date",
-    "resolve_real_world_latest_completed_trading_date",
-    "resolve_db_latest_completed_trading_date",
 ]

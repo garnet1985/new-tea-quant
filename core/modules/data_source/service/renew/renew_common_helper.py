@@ -102,19 +102,6 @@ class RenewCommonHelper:
             return date_str  # YYYYMMDD
 
     @staticmethod
-    def apply_default_end_date_cap(end_date: str, date_format: str) -> str:
-        """
-        兼容保留：``default_end_date`` 截断已由 ``CalendarService.get_latest_completed_trading_date`` 统一处理。
-        """
-        _ = date_format
-        return end_date
-
-    @staticmethod
-    def apply_default_end_cap(end_date: str, date_format: str) -> str:
-        """``apply_default_end_date_cap`` 的别名（兼容旧调用）。"""
-        return RenewCommonHelper.apply_default_end_date_cap(end_date, date_format)
-    
-    @staticmethod
     def get_end_date(date_format: str, context: Dict[str, Any]) -> str:
         """
         获取结束日期（所有股票统一使用 latest_completed_trading_date）。

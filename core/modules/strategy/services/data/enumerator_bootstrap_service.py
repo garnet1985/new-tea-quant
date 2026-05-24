@@ -12,7 +12,7 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_vi
 from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
     backtest_period_to_dict,
     resolve_backtest_date_range,
-    resolve_real_world_latest_completed_trading_date,
+    resolve_latest_completed_trading_date,
 )
 from core.modules.strategy.engines.shared.helpers.stock_sampling import StockSamplingHelper
 from core.modules.strategy.services.data.output import StrategyOutputVersionService
@@ -84,7 +84,7 @@ class StrategyEnumeratorBootstrapService:
         period = resolve_backtest_date_range(
             settings_view=base_settings,
             stock_ids=bootstrap_ids,
-            latest_completed_trading_date=resolve_real_world_latest_completed_trading_date(data_mgr),
+            latest_completed_trading_date=resolve_latest_completed_trading_date(data_mgr),
             data_manager=data_mgr,
         )
         universe = list_svc.load(

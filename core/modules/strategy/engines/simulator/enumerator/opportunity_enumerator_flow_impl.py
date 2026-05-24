@@ -125,7 +125,7 @@ class OpportunityEnumeratorFlowImpl:
         from core.modules.data_manager import DataManager
         from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
             resolve_backtest_period_payload,
-            resolve_real_world_latest_completed_trading_date,
+            resolve_latest_completed_trading_date,
         )
 
         data_mgr = DataManager(is_verbose=False)
@@ -133,7 +133,7 @@ class OpportunityEnumeratorFlowImpl:
             settings_view=self.base_settings,
             stock_ids=self.stock_list,
             data_manager=data_mgr,
-            latest_completed_trading_date=resolve_real_world_latest_completed_trading_date(data_mgr),
+            latest_completed_trading_date=resolve_latest_completed_trading_date(data_mgr),
             fallback_start_date=self.start_date,
             fallback_end_date=self.end_date,
         )

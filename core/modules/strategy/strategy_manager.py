@@ -219,7 +219,7 @@ class StrategyManager:
         cal_latest = ""
         if not demo:
             cal_latest = str(
-                self.data_mgr.service.calendar.get_real_world_latest_completed_trading_date() or ""
+                self.data_mgr.service.calendar.get_latest_completed_trading_date() or ""
             ).strip()
             if not cal_latest:
                 logger.error("无法解析最新已完成交易日（日历服务不可用）")

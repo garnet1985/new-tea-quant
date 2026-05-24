@@ -56,19 +56,20 @@ class BacktestDateRange:
         return self.start_date, self.end_date
 
 
-def resolve_real_world_latest_completed_trading_date(data_manager: Any) -> str:
-    """
-    真实世界最新已完成交易日：``get_real_world_latest_completed_trading_date``。
-    """
+def resolve_latest_completed_trading_date(data_manager: Any) -> str:
+    """全系统 latest completed 统一读入口（``CalendarService.get_latest_completed_trading_date``）。"""
     cal_svc = _calendar_service(data_manager)
     if cal_svc is None:
         return ""
     try:
-        return str(
-            cal_svc.get_real_world_latest_completed_trading_date() or ""
-        ).strip()
+        return str(cal_svc.get_latest_completed_trading_date() or "").strip()
     except Exception:
         return ""
+
+
+def resolve_real_world_latest_completed_trading_date(data_manager: Any) -> str:
+    """兼容别名，请改用 ``resolve_latest_completed_trading_date``。"""
+    return resolve_latest_completed_trading_date(data_manager)
 
 
 def resolve_db_latest_completed_trading_date(
@@ -76,26 +77,9 @@ def resolve_db_latest_completed_trading_date(
     *,
     term: str = "daily",
 ) -> str:
-    """
-    库内数据进度锚点：``sys_trade_calendar`` 最新开市日；无日历表时回退 K 线 MAX(date)。
-    """
-    cal_svc = _calendar_service(data_manager)
-    if cal_svc is not None:
-        try:
-            db_cal = str(
-                cal_svc.get_db_latest_completed_trading_date() or ""
-            ).strip()
-            if db_cal:
-                return db_cal
-        except Exception:
-            pass
-    kline_svc = _kline_service(data_manager)
-    if kline_svc is None:
-        return ""
-    try:
-        return str(kline_svc.load_latest_date(term) or "").strip()
-    except Exception:
-        return ""
+    """兼容别名，请改用 ``resolve_latest_completed_trading_date``。"""
+    _ = term
+    return resolve_latest_completed_trading_date(data_manager)
 
 
 def _calendar_service(data_manager: Any) -> Any:
@@ -172,9 +156,11 @@ def resolve_backtest_end_date(
     latest_completed_trading_date: str,
 ) -> ResolvedBacktestDate:
     configured = settings_view.end_date.strip()
-    if configured:
-        return ResolvedBacktestDate(configured, SOURCE_SETTINGS)
     latest = str(latest_completed_trading_date or "").strip()
+    if configured:
+        if latest and configured > latest:
+            return ResolvedBacktestDate(latest, SOURCE_LATEST_TRADING_DAY)
+        return ResolvedBacktestDate(configured, SOURCE_SETTINGS)
     if latest:
         return ResolvedBacktestDate(latest, SOURCE_LATEST_TRADING_DAY)
     return ResolvedBacktestDate("", SOURCE_MISSING)
@@ -195,7 +181,7 @@ def resolve_backtest_date_range(
             from core.modules.data_manager import DataManager
 
             dm = DataManager(is_verbose=False)
-        latest = resolve_real_world_latest_completed_trading_date(dm)
+        latest = resolve_latest_completed_trading_date(dm)
     elif dm is None and not settings_view.start_date.strip():
         from core.modules.data_manager import DataManager
 
@@ -376,6 +362,7 @@ __all__ = [
     "resolve_backtest_end_date",
     "resolve_backtest_period_payload",
     "resolve_backtest_start_date",
+    "resolve_latest_completed_trading_date",
     "resolve_real_world_latest_completed_trading_date",
     "resolve_db_latest_completed_trading_date",
 ]

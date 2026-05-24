@@ -238,7 +238,7 @@ def get_scan_readiness(*, strategy_name: str, demo: bool = False) -> Dict[str, A
         if not kline_latest:
             return {"primary_action": "run"}
         if not demo:
-            cal_latest = str(data_mgr.service.calendar.get_real_world_latest_completed_trading_date() or "").strip()
+            cal_latest = str(data_mgr.service.calendar.get_latest_completed_trading_date() or "").strip()
             if not cal_latest or cal_latest != kline_latest:
                 return {"primary_action": "run"}
 
@@ -292,7 +292,7 @@ def _background_scan_job(job_id: str, strategy_name: str, *, demo: bool, force: 
         if not kline_latest:
             raise ValueError("无法解析 K 线最新日期（sys_stock_klines 可能为空）")
         if not demo:
-            cal_latest = str(data_mgr.service.calendar.get_real_world_latest_completed_trading_date() or "").strip()
+            cal_latest = str(data_mgr.service.calendar.get_latest_completed_trading_date() or "").strip()
             if not cal_latest:
                 raise ValueError("无法解析最新已完成交易日（日历服务不可用）")
             if cal_latest != kline_latest:

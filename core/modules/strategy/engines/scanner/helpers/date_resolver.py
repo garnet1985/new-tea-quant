@@ -11,27 +11,17 @@ class ScanDateResolver:
     data_manager: any
 
     def resolve_scan_date(self, use_strict: bool) -> tuple[str, List[str]]:
-        return self._resolve_strict_date() if use_strict else self._resolve_non_strict_date()
+        _ = use_strict
+        return self._resolve_scan_date()
 
-    def _resolve_strict_date(self) -> tuple[str, List[str]]:
-        scan_date = (
-            self.data_manager.service.calendar.get_real_world_latest_completed_trading_date()
-        )
-        if not scan_date:
-            raise ValueError("failed to resolve strict scan date")
-        stock_ids = self._get_stocks_with_kline(scan_date)
-        if not stock_ids:
-            raise ValueError(f"no kline data on {scan_date}")
-        return scan_date, stock_ids
-
-    def _resolve_non_strict_date(self) -> tuple[str, List[str]]:
+    def _resolve_scan_date(self) -> tuple[str, List[str]]:
         from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
-            resolve_db_latest_completed_trading_date,
+            resolve_latest_completed_trading_date,
         )
 
-        scan_date = resolve_db_latest_completed_trading_date(self.data_manager)
+        scan_date = resolve_latest_completed_trading_date(self.data_manager)
         if not scan_date:
-            raise ValueError("no trade calendar or daily kline anchor date in db")
+            raise ValueError("failed to resolve scan date from calendar service")
         stock_ids = self._get_stocks_with_kline(scan_date)
         if not stock_ids:
             raise ValueError(f"no kline data on {scan_date}")

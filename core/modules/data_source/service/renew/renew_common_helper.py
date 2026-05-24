@@ -20,6 +20,18 @@ class RenewCommonHelper:
     
     提供所有 renew service 共用的静态方法。
     """
+
+    @staticmethod
+    def resolve_latest_completed_trading_date(data_manager) -> str:
+        if not data_manager or not getattr(data_manager, "service", None):
+            return ""
+        try:
+            return str(
+                data_manager.service.calendar.get_latest_completed_trading_date() or ""
+            ).strip()
+        except Exception as exc:
+            logger.warning("获取 latest completed trading date 失败: %s", exc)
+            return ""
     
     @staticmethod
     def get_default_date_range(data_manager, date_format: str, context: Dict[str, Any] = None) -> Tuple[str, str]:
@@ -43,22 +55,16 @@ class RenewCommonHelper:
         
         # 获取最近完成的交易日（优先从 context 读取）
         latest_completed_trading_date = context.get("latest_completed_trading_date")
-        if not latest_completed_trading_date and data_manager:
-            try:
-                latest_completed_trading_date = data_manager.service.calendar.get_real_world_latest_completed_trading_date()
-            except Exception as e:
-                logger.warning(f"获取最新交易日失败: {e}，使用当前日期")
-                latest_completed_trading_date = DateUtils.today()
-        
         if not latest_completed_trading_date:
-            latest_completed_trading_date = DateUtils.today()
+            latest_completed_trading_date = RenewCommonHelper.resolve_latest_completed_trading_date(
+                data_manager
+            )
         
         # 根据 date_format 转换日期格式
         start_date = RenewCommonHelper.convert_date_to_format(default_start_date, date_format)
         end_date = RenewCommonHelper.convert_date_to_format(
             latest_completed_trading_date, date_format
         )
-        end_date = RenewCommonHelper.apply_default_end_cap(end_date, date_format)
 
         return start_date, end_date
     
@@ -96,25 +102,17 @@ class RenewCommonHelper:
             return date_str  # YYYYMMDD
 
     @staticmethod
-    def apply_default_end_cap(end_date: str, date_format: str) -> str:
+    def apply_default_end_date_cap(end_date: str, date_format: str) -> str:
         """
-        若配置了 default_end_date，将 end 截断到该日上界（按 date_format 对齐周期）。
-
-        Args:
-            end_date: 待截断的结束日期（已与 date_format 对齐）
-            date_format: 日期格式（quarter | month | day）
-
-        Returns:
-            str: 截断后的结束日期
+        兼容保留：``default_end_date`` 截断已由 ``CalendarService.get_latest_completed_trading_date`` 统一处理。
         """
-        cap = ConfigManager.get_default_end_date()
-        if not cap or not end_date:
-            return end_date
-        period_type = DateUtils.normalize_period_type(date_format)
-        cap_period = DateUtils.to_period_str(cap, period_type)
-        if end_date > cap_period:
-            return cap_period
+        _ = date_format
         return end_date
+
+    @staticmethod
+    def apply_default_end_cap(end_date: str, date_format: str) -> str:
+        """``apply_default_end_date_cap`` 的别名（兼容旧调用）。"""
+        return RenewCommonHelper.apply_default_end_date_cap(end_date, date_format)
     
     @staticmethod
     def get_end_date(date_format: str, context: Dict[str, Any]) -> str:
@@ -129,6 +127,10 @@ class RenewCommonHelper:
             str: 结束日期
         """
         latest_completed_trading_date = context.get("latest_completed_trading_date")
+        if not latest_completed_trading_date:
+            latest_completed_trading_date = RenewCommonHelper.resolve_latest_completed_trading_date(
+                context.get("data_manager")
+            )
         if latest_completed_trading_date:
             if date_format == "day":
                 end = latest_completed_trading_date
@@ -136,10 +138,8 @@ class RenewCommonHelper:
                 period_type = DateUtils.normalize_period_type(date_format)
                 end = DateUtils.to_period_str(latest_completed_trading_date, period_type)
         else:
-            current_date = DateUtils.today()
-            period_type = DateUtils.normalize_period_type(date_format)
-            end = DateUtils.to_period_str(current_date, period_type)
-        return RenewCommonHelper.apply_default_end_cap(end, date_format)
+            end = ""
+        return end
     
     @staticmethod
     def get_needs_stock_grouping(context: Dict[str, Any]) -> Optional[bool]:

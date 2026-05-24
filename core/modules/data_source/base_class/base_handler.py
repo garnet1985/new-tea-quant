@@ -524,14 +524,9 @@ class BaseHandler:
             data_manager = context.get("data_manager")
             if data_manager:
                 try:
-                    from core.infra.project_context import ConfigManager
-
                     latest_completed_trading_date = (
-                        data_manager.service.calendar.get_real_world_latest_completed_trading_date()
+                        data_manager.service.calendar.get_latest_completed_trading_date()
                     )
-                    cap = ConfigManager.get_default_end_date()
-                    if cap and latest_completed_trading_date and latest_completed_trading_date > cap:
-                        latest_completed_trading_date = cap
                     context["latest_completed_trading_date"] = latest_completed_trading_date
                 except Exception:
                     # 如果获取失败，保持原样（可能后续步骤会处理）

@@ -284,12 +284,12 @@ class StrategyDataInjectionService:
         try:
             from core.modules.data_manager import DataManager
             from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
-                resolve_db_latest_completed_trading_date,
+                resolve_latest_completed_trading_date,
             )
 
             dm = DataManager.get_default()
             if dm is not None:
-                anchor = resolve_db_latest_completed_trading_date(dm)
+                anchor = resolve_latest_completed_trading_date(dm)
                 if anchor:
                     return anchor
         except Exception:

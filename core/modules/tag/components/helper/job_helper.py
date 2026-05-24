@@ -28,18 +28,31 @@ class JobHelper:
     所有方法都是静态方法，不需要实例化
     """
 
+    @staticmethod
+    def _resolve_latest_completed_trading_date() -> str:
+        try:
+            from core.modules.data_manager import DataManager
+
+            dm = DataManager.get_instance()
+            if dm is None:
+                dm = DataManager(is_verbose=False)
+            if dm and getattr(dm, "service", None):
+                return str(
+                    dm.service.calendar.get_latest_completed_trading_date() or ""
+                ).strip()
+        except Exception as exc:
+            logger.warning("获取 latest completed trading date 失败: %s", exc)
+        return ""
 
     @staticmethod
-    def _resolve_real_world_latest_completed_trading_date() -> str:
-        """
-        解析最新已完成交易日。
-        这里先使用 today 作为无外部依赖的安全默认值，后续可替换为独立日历 contract。
-        """
-        try:
-            return DateUtils.today()
-        except Exception as e:
-            logger.warning(f"获取最新交易日失败，使用空字符串: {e}")
-            return ""
+    def _cap_end_date_to_latest(end_date: str, latest_completed: str) -> str:
+        configured = str(end_date or "").strip()
+        latest = str(latest_completed or "").strip()
+        if not configured:
+            return latest
+        if latest and configured > latest:
+            return latest
+        return configured
 
     @staticmethod
     def calculate_start_and_end_date(
@@ -55,18 +68,18 @@ class JobHelper:
             update_mode: 更新模式（TagUpdateMode.REFRESH 或 TagUpdateMode.INCREMENTAL）
             entity_last_update_date: 该 entity 的最后更新日期（INCREMENTAL 模式使用）
             default_start_date: 默认开始日期（REFRESH 模式使用，如果为 None 则从 conf 获取）
-            default_end_date: 默认结束日期（如果为 None 则从 DataManager 获取）
+            default_end_date: 场景配置的结束日期；若晚于 latest completed 则截断到后者
             
         Returns:
             Tuple[str, str]: (start_date, end_date)
         """
         from core.infra.project_context import ConfigManager
-        
-        # 确定 end_date（两种模式都使用最新已完成交易日）
+
+        latest_completed = JobHelper._resolve_latest_completed_trading_date()
         if default_end_date:
-            end_date = default_end_date
+            end_date = JobHelper._cap_end_date_to_latest(default_end_date, latest_completed)
         else:
-            end_date = JobHelper._resolve_real_world_latest_completed_trading_date()
+            end_date = latest_completed
         
         # 确定 start_date（根据 update_mode）
         if update_mode == TagUpdateMode.REFRESH:

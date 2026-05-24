@@ -41,7 +41,7 @@ def resolve_reserved_dependency(dep_key: str) -> Any:
 
 def _resolve_latest_trading_date() -> List[dict]:
     """
-    通过 CalendarService 解析最新已完成交易日（先缓存、再 fallback、再写回 sys_cache）。
+    通过 CalendarService.get_latest_completed_trading_date 解析最新已完成交易日。
     返回 [{"date": "YYYYMMDD"}]，与原 latest_trading_date handler 的 data 形状一致。
     """
     from core.modules.data_manager.data_manager import DataManager
@@ -53,10 +53,10 @@ def _resolve_latest_trading_date() -> List[dict]:
         fallback = DateUtils.today()
         return [{"date": fallback}]
     calendar = getattr(data_manager.service, "calendar", None)
-    if not calendar or not hasattr(calendar, "get_real_world_latest_completed_trading_date"):
+    if not calendar or not hasattr(calendar, "get_latest_completed_trading_date"):
         logger.warning("CalendarService 不可用，保留依赖 latest_trading_date 使用当前日期兜底")
         from core.utils.date.date_utils import DateUtils
         fallback = DateUtils.today()
         return [{"date": fallback}]
-    date_str = calendar.get_real_world_latest_completed_trading_date()
+    date_str = calendar.get_latest_completed_trading_date()
     return [{"date": date_str}]

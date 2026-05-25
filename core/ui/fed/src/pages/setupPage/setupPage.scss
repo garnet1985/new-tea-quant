@@ -1,0 +1,26 @@
+// 安装向导：交互表单（DB / userspace 等）输入样式统一
+.setup-interaction-form {
+  .MuiTextField-root {
+    .MuiInputLabel-root {
+      font-size: var(--ntq-form-control-font-size, 0.8rem);
+      line-height: var(--ntq-form-control-line-height, 1.5);
+    }
+
+    .MuiInputBase-input,
+    .MuiSelect-select {
+      font-size: var(--ntq-form-control-font-size, 0.8rem) !important;
+      line-height: var(--ntq-form-control-line-height, 1.5) !important;
+    }
+
+    .MuiFormHelperText-root {
+      font-size: 0.75rem;
+    }
+  }
+}
+
+.setup-step-state {
+  .MuiTypography-body2 {
+    font-size: var(--ntq-form-control-font-size, 0.8rem);
+    line-height: var(--ntq-form-control-line-height, 1.5);
+  }
+}

@@ -43,6 +43,15 @@ import {
 } from './setup.helpers';
 import SetupDialogs from './setupDialogs';
 import SetupExecutionPanel from './setupExecutionPanel';
+import './setupPage.scss';
+
+/** 安装向导表单：统一尺寸、描边标签始终上浮，避免部分字段像 placeholder */
+const SETUP_TEXT_FIELD_COMMON = {
+  size: 'small',
+  variant: 'outlined',
+  fullWidth: true,
+  InputLabelProps: { shrink: true },
+};
 
 function SetupPage() {
   const [definition, setDefinition] = useState([]);
@@ -161,8 +170,14 @@ function SetupPage() {
       setStatus(result.status);
       setFlowStage('interaction');
       setPausedStep(result.pausedStepId || defaultFailedStep);
-      const initialValues = result.status?.inputsByStep?.[result.pausedStepId || defaultFailedStep] || {};
-      setFormValues(initialValues);
+      const pausedId = result.pausedStepId || defaultFailedStep;
+      const initialValues = result.status?.inputsByStep?.[pausedId] || {};
+      let nextForm = { ...initialValues };
+      if (pausedId === 'db_connection') {
+        const dbType = nextForm.dbType || 'postgresql';
+        nextForm = applyDbTypeDefaults({ ...nextForm, dbType }, 'dbType', dbType);
+      }
+      setFormValues(nextForm);
       setUserspacePathEditable(false);
       setUserspacePathExists(false);
       setProgressText('等待用户输入...');
@@ -179,8 +194,8 @@ function SetupPage() {
   const renderStepStateCell = useCallback((params, pendingLabel = '待完成') => {
     if (runningStep && params.row.id === runningStep) {
       return (
-        <Stack direction="row" spacing={1} alignItems="center">
-          <NtqIcon name="syncAlt" size={24} spin />
+        <Stack direction="row" spacing={1} alignItems="center" className="setup-step-state">
+          <NtqIcon name="refresh" size={24} spin />
           <Typography variant="body2">执行中...</Typography>
         </Stack>
       );
@@ -442,7 +457,21 @@ function SetupPage() {
                 <Typography variant="h6" sx={{ mb: 2 }}>
                   需要用户输入：{pausedStepDef?.name || pausedStep}
                 </Typography>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} useFlexGap flexWrap="wrap">
+                <Box
+                  component="form"
+                  className="setup-interaction-form"
+                  noValidate
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSubmitInteractionStep({});
+                  }}
+                >
+                <Stack
+                  direction={{ xs: 'column', sm: 'row' }}
+                  spacing={2}
+                  useFlexGap
+                  flexWrap="wrap"
+                >
                   {(pausedStepDef?.requiredUserInputs || []).map((field) => {
                     if (field.key === 'defaultPgsqlSchema' && formValues.dbType !== 'postgresql') return null;
                     if (!shouldShowUserspaceConflictPolicy(field, userspacePathEditable, userspacePathExists)) return null;
@@ -456,6 +485,7 @@ function SetupPage() {
                           value={formValues[field.key] ?? field.defaultValue ?? ''}
                           onChange={(e) => handleInputChange(field.key, e.target.value)}
                           sx={{ minWidth: 240, flex: 1 }}
+                          {...SETUP_TEXT_FIELD_COMMON}
                         >
                           {(field.options || []).map((opt) => (
                             <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
@@ -472,7 +502,11 @@ function SetupPage() {
                           value={getFieldDisplayValue(formValues, field)}
                           onChange={(e) => handleInputChange(field.key, e.target.value)}
                           onBlur={field.key === 'userspaceTargetPath' ? handleUserspacePathBlur : undefined}
-                          placeholder={field.placeholder || ''}
+                          autoComplete={
+                            field.type === 'password'
+                              ? 'new-password'
+                              : (field.key === 'user' ? 'username' : undefined)
+                          }
                           helperText={
                             field.key === 'userspaceTargetPath'
                               ? (checkingUserspacePath ? '正在检查目标路径...' : (field.helperText || ''))
@@ -480,6 +514,7 @@ function SetupPage() {
                           }
                           disabled={field.editableByCheckbox ? !userspacePathEditable : false}
                           sx={{ width: '100%' }}
+                          {...SETUP_TEXT_FIELD_COMMON}
                         />
                         {field.editableByCheckbox ? (
                           <FormControlLabel
@@ -504,10 +539,11 @@ function SetupPage() {
                   })}
                 </Stack>
                 <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
-                  <Button variant="contained" onClick={() => handleSubmitInteractionStep({})}>
+                  <Button type="submit" variant="contained">
                     下一步
                   </Button>
                 </Stack>
+                </Box>
               </CardContent>
             </Card>
           ) : null}

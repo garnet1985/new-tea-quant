@@ -23,6 +23,10 @@ from core.modules.strategy.engines.shared.data_classes.market_profile_context im
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.simulation_settings import (
     StrategySimulationSettings,
 )
+from core.modules.strategy.engines.shared.helpers.skip_investment_when import (
+    ROW_SKIP_REASON_KEY,
+    should_skip_investment,
+)
 from core.modules.strategy.engines.shared.helpers.tradability import (
     should_skip_buy,
     should_skip_sell,
@@ -334,6 +338,7 @@ class CapitalAllocationFlowImpl:
             allow_buy_at_limit_up=simulation_settings.allow_buy_at_limit_up,
             allow_sell_at_limit_down=simulation_settings.allow_sell_at_limit_down,
             skip_trade_when_insufficient=allocation_cfg.skip_trade_when_insufficient,
+            skip_investment_when=simulation_settings.skip_investment_when,
         )
         return {
             "account": account,
@@ -343,7 +348,11 @@ class CapitalAllocationFlowImpl:
             "equity_curve": [],
             "current_date": None,
             "completed_opportunities_map": {},
-            "tradability_skips": {"buy_at_limit_up": 0, "sell_at_limit_down": 0},
+            "tradability_skips": {
+                "buy_at_limit_up": 0,
+                "sell_at_limit_down": 0,
+                "stock_status": 0,
+            },
             "backtest_calendar": dict(backtest_calendar or {}),
         }
 
@@ -441,6 +450,7 @@ class CapitalAllocationFlowImpl:
         skips = tradability_skips or {}
         core["skipped_buy_at_limit_up"] = int(skips.get("buy_at_limit_up", 0) or 0)
         core["skipped_sell_at_limit_down"] = int(skips.get("sell_at_limit_down", 0) or 0)
+        core["skipped_stock_status"] = int(skips.get("stock_status", 0) or 0)
         return _merge_bff_ui_extensions(
             core,
             trades=trades,
@@ -527,6 +537,16 @@ class CapitalAllocationFlowImpl:
                 )
             return None
         buy_event_date, buy_price = buy_fill
+        skip_status = should_skip_investment(
+            opportunity,
+            allocation_strategy.skip_investment_when,
+        )
+        if skip_status:
+            if tradability_skips is not None:
+                tradability_skips["stock_status"] = (
+                    int(tradability_skips.get("stock_status", 0) or 0) + 1
+                )
+            return None
         if should_skip_buy(
             opportunity,
             allocation_strategy.market_profile,

@@ -21,7 +21,13 @@ from core.modules.strategy.engines.shared.helpers.simulation_day_execution impor
 from core.modules.strategy.engines.shared.helpers.market_profile_id import (
     resolve_market_profile_id,
 )
+from core.modules.strategy.engines.shared.helpers.skip_investment_when import (
+    stamp_stock_status_at_trigger,
+)
 from core.modules.strategy.engines.shared.helpers.tradability import annotate_scan_opportunity
+from core.modules.strategy.engines.shared.helpers.stock_status_risk_context import (
+    build_stock_status_risk_runtime_context,
+)
 from core.modules.strategy.engines.shared.helpers.simulation_pricing import (
     apply_buy_slippage,
     trade_price_defers_to_next_session,
@@ -54,6 +60,15 @@ class BaseStrategyWorker(ABC):
 
         self.contract_cache = ContractCacheManager()
         self.stock_info = self._load_stock_info()
+        period_start = str(job_payload.get("start_date") or self.settings.start_date or "")
+        period_end = str(job_payload.get("end_date") or self.settings.end_date or "")
+        self.stock_status_risk = build_stock_status_risk_runtime_context(
+            stock_meta=self.stock_info,
+            settings=self.settings.stock_status_risk,
+            stock_id=self.stock_id,
+            period_start=period_start,
+            period_end=period_end,
+        )
         from core.modules.strategy.services.data import StrategyDataInjectionService
 
         self.data_manager = StrategyDataInjectionService(
@@ -130,6 +145,16 @@ class BaseStrategyWorker(ABC):
         if opportunity:
             from core.modules.market_profile import get_market_profile
 
+            trigger_day = str(
+                opportunity.trigger_date
+                or getattr(self, "scan_date", None)
+                or ""
+            ).strip()
+            stamp_stock_status_at_trigger(
+                opportunity,
+                trade_date=trigger_day,
+                tier_periods=self.stock_status_risk.tier_periods,
+            )
             profile_id = resolve_market_profile_id(
                 self.job_payload,
                 settings_market_profile=self.settings.market_profile,
@@ -139,6 +164,7 @@ class BaseStrategyWorker(ABC):
                 profile=get_market_profile(profile_id),
                 klines=self.data_manager.get_klines(),
                 scan_date=getattr(self, "scan_date", None),
+                stock_status_risk=self.stock_status_risk,
             )
         self.on_after_scan(opportunity)
         return {
@@ -173,7 +199,13 @@ class BaseStrategyWorker(ABC):
             if len(tracker["passed_dates"]) < min_required_kline:
                 continue
             data_of_today = self.data_manager.get_data_until(virtual_date_of_today)
-            self._execute_single_day(tracker, current_kline, data_of_today)
+            prev_kline = all_klines[idx - 1] if idx > 0 else None
+            self._execute_single_day(
+                tracker,
+                current_kline,
+                data_of_today,
+                prev_kline=prev_kline,
+            )
             last_kline = current_kline
             last_idx = idx
 
@@ -204,6 +236,8 @@ class BaseStrategyWorker(ABC):
         tracker: Dict[str, Any],
         current_kline: Dict[str, Any],
         data_of_today: Dict[str, Any],
+        *,
+        prev_kline: Optional[Dict[str, Any]] = None,
     ) -> None:
         active = _active_list_from_investing(tracker)
         fill_pending_buys(
@@ -236,6 +270,8 @@ class BaseStrategyWorker(ABC):
                     self.simulation,
                     current_kline=current_kline,
                     goal_config=self.settings.goal,
+                    prev_bar=prev_kline,
+                    stock_status_risk=self.stock_status_risk,
                 )
                 if is_completed:
                     completed_opportunity = tracker["investing"]

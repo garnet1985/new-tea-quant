@@ -136,3 +136,81 @@ def consolidate_st_periods(periods: List[Dict[str, Any]]) -> List[Dict[str, Any]
             period["end_date"] = end
 
     return ordered
+
+
+TIER_ST = "st"
+TIER_STAR_ST = "star_st"
+
+_LEVEL_TO_TIER: Dict[str, str] = {
+    ST_LEVEL_ST: TIER_ST,
+    ST_LEVEL_SST: TIER_ST,
+    ST_LEVEL_STAR_ST: TIER_STAR_ST,
+    ST_LEVEL_S_STAR_ST: TIER_STAR_ST,
+}
+
+
+def _merge_interval_bounds(
+    intervals: List[Tuple[str, Optional[str]]],
+) -> List[Tuple[str, Optional[str]]]:
+    if not intervals:
+        return []
+    ordered = sorted(intervals, key=lambda x: x[0])
+    merged: List[Tuple[str, Optional[str]]] = [ordered[0]]
+    for start, end in ordered[1:]:
+        prev_start, prev_end = merged[-1]
+        if prev_end is None:
+            continue
+        if start <= DateUtils.add_days(prev_end, 1):
+            if end is None:
+                merged[-1] = (prev_start, None)
+            else:
+                merged[-1] = (prev_start, max(prev_end, end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
+def merge_periods_to_tiers(
+    periods: Sequence[Dict[str, Any]],
+) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    将 DB 四档 ST 时段合并为口语两档：``st``（ST+SST）、``star_st``（*ST+S*ST）。
+    返回每档合并后的区间列表（``st_level`` 字段为 tier 名，供 ``is_active_on`` 使用）。
+    """
+    buckets: Dict[str, List[Tuple[str, Optional[str]]]] = {
+        TIER_ST: [],
+        TIER_STAR_ST: [],
+    }
+    for row in periods:
+        tier = _LEVEL_TO_TIER.get(str(row.get("st_level") or "").strip())
+        if not tier:
+            continue
+        start = normalize_yyyymmdd(row.get("start_date"))
+        if not start:
+            continue
+        end = normalize_yyyymmdd(row.get("end_date")) or None
+        buckets[tier].append((start, end))
+
+    out: Dict[str, List[Dict[str, Any]]] = {TIER_ST: [], TIER_STAR_ST: []}
+    for tier, bounds in buckets.items():
+        for start, end in _merge_interval_bounds(bounds):
+            out[tier].append(
+                {
+                    "st_level": tier,
+                    "start_date": start,
+                    "end_date": end,
+                }
+            )
+    return out
+
+
+def is_tier_active_on(
+    tier_periods: Sequence[Dict[str, Any]],
+    trade_date: str,
+    *,
+    tier: str,
+) -> bool:
+    for period in tier_periods:
+        if is_active_on(period, trade_date, levels=(tier,)):
+            return True
+    return False

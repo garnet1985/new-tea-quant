@@ -19,6 +19,10 @@ from core.modules.strategy.engines.shared.helpers.market_profile_id import (
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.simulation_settings import (
     StrategySimulationSettings,
 )
+from core.modules.strategy.engines.shared.helpers.skip_investment_when import (
+    ROW_SKIP_REASON_KEY,
+    should_skip_investment,
+)
 from core.modules.strategy.engines.shared.helpers.tradability import (
     should_skip_buy,
     should_skip_sell,
@@ -164,6 +168,7 @@ class PriceFactorWorker:
         holding_until: Optional[str] = None
         skipped_buy_at_limit_up = 0
         skipped_sell_at_limit_down = 0
+        skipped_stock_status = 0
 
         for idx in order:
             row = opportunities_rows[idx]
@@ -173,6 +178,15 @@ class PriceFactorWorker:
                 cfg,
             )
             modified_row = dict(hooked) if isinstance(hooked, dict) else dict(row)
+
+            skip_reason = should_skip_investment(
+                modified_row,
+                sim_settings.skip_investment_when,
+            )
+            if skip_reason:
+                modified_row[ROW_SKIP_REASON_KEY] = skip_reason
+                skipped_stock_status += 1
+                continue
 
             buy_fill = parse_opportunity_buy_fill(modified_row)
             if buy_fill is None:
@@ -252,6 +266,7 @@ class PriceFactorWorker:
             "summary": self._summary_from_investments(investments),
             "skipped_buy_at_limit_up": skipped_buy_at_limit_up,
             "skipped_sell_at_limit_down": skipped_sell_at_limit_down,
+            "skipped_stock_status": skipped_stock_status,
         }
         modified_summary = self.hooks_dispatcher.call_hook(
             "on_price_factor_after_process_stock",

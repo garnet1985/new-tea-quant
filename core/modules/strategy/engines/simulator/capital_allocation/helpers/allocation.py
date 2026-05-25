@@ -67,6 +67,7 @@ class AllocationStrategy:
         allow_buy_at_limit_up: bool = True,
         allow_sell_at_limit_down: bool = True,
         skip_trade_when_insufficient: bool = False,
+        skip_investment_when: tuple = (),
     ):
         self.mode = mode
         self.initial_capital = initial_capital
@@ -75,6 +76,7 @@ class AllocationStrategy:
         self.allow_buy_at_limit_up = allow_buy_at_limit_up
         self.allow_sell_at_limit_down = allow_sell_at_limit_down
         self.skip_trade_when_insufficient = skip_trade_when_insufficient
+        self.skip_investment_when = tuple(skip_investment_when or ())
         self.lots_per_trade = lots_per_trade
         self.kelly_fraction = kelly_fraction
         self.fee_calculator = fee_calculator

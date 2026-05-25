@@ -14,6 +14,12 @@ from core.modules.strategy.engines.shared.helpers.market_profile_id import (
 from core.modules.strategy.engines.shared.helpers.backtest_calendar_context import (
     BacktestCalendarContext,
 )
+from core.modules.strategy.engines.shared.helpers.skip_investment_when import (
+    stamp_stock_status_at_trigger,
+)
+from core.modules.strategy.engines.shared.helpers.stock_status_risk_context import (
+    build_stock_status_risk_runtime_context,
+)
 from core.modules.strategy.engines.shared.helpers.tradability import stamp_buy_tradability
 from core.modules.strategy.engines.shared.helpers.tradability_stats import (
     tradability_bundle_from_opportunities,
@@ -64,7 +70,7 @@ class OpportunityEnumeratorWorker:
         self.profiler = PerformanceProfiler(self.stock_id)
         self.settings = StrategySettingsView.from_dict(job_payload["settings"])
         self.settings_dict = self.settings.to_dict()
-        self.stock_info = {"id": self.stock_id, "name": self.stock_id, "industry": "", "type": "", "exchange_center": ""}
+        self.stock_info = self._load_stock_info()
         self.contract_cache = ContractCacheManager()
         self.data_manager = StrategyDataInjectionService(
             stock_id=self.stock_id,
@@ -83,7 +89,40 @@ class OpportunityEnumeratorWorker:
         self.backtest_calendar = BacktestCalendarContext.from_dict(
             job_payload.get("backtest_calendar")
         )
+        self.stock_status_risk = build_stock_status_risk_runtime_context(
+            stock_meta=self.stock_info,
+            settings=self.settings.stock_status_risk,
+            stock_id=self.stock_id,
+            period_start=self.start_date,
+            period_end=self.end_date,
+        )
         self._load_user_strategy()
+
+    def _load_stock_info(self) -> Dict[str, Any]:
+        fallback = {
+            "id": self.stock_id,
+            "name": self.stock_id,
+            "industry": "",
+            "type": "",
+            "exchange_center": "",
+        }
+        try:
+            from core.modules.data_manager import DataManager
+
+            row = DataManager().stock.list.load_meta(self.stock_id)
+            if isinstance(row, dict) and row.get("id"):
+                return {
+                    **fallback,
+                    **row,
+                }
+        except Exception as exc:
+            if str(self.stock_id).upper() != "DUMMY":
+                logger.warning(
+                    "加载股票元数据失败: %s, error=%s",
+                    self.stock_id,
+                    exc,
+                )
+        return fallback
 
     def _load_user_strategy(self):
         strategy_class = resolve_worker_class(
@@ -412,6 +451,7 @@ class OpportunityEnumeratorWorker:
             sim=self.simulation,
             market_profile=self.market_profile,
             prev_bar=prev_kline,
+            stock_status_risk=self.stock_status_risk,
         )
         exit_indices = execute_pending_exits_on_active(
             tracker["active_opportunities"],
@@ -419,6 +459,7 @@ class OpportunityEnumeratorWorker:
             sim=self.simulation,
             market_profile=self.market_profile,
             prev_bar=prev_kline,
+            stock_status_risk=self.stock_status_risk,
         )
         for idx in reversed(exit_indices):
             tracker["active_opportunities"].pop(idx)
@@ -432,6 +473,7 @@ class OpportunityEnumeratorWorker:
                 market_profile=self.market_profile,
                 prev_bar=prev_kline,
                 backtest_calendar=self.backtest_calendar,
+                stock_status_risk=self.stock_status_risk,
             ):
                 completed_indices.append(idx)
         for idx in reversed(completed_indices):
@@ -448,6 +490,11 @@ class OpportunityEnumeratorWorker:
         opportunity.strategy_name = self.strategy_name
         opportunity.trigger_date = current_kline["date"]
         opportunity.trigger_price = float(current_kline.get("close") or 0.0)
+        stamp_stock_status_at_trigger(
+            opportunity,
+            trade_date=opportunity.trigger_date,
+            tier_periods=self.stock_status_risk.tier_periods,
+        )
         opportunity.completed_targets = []
         self.opportunity_counter += 1
         opportunity.opportunity_id = str(self.opportunity_counter)
@@ -481,6 +528,8 @@ class OpportunityEnumeratorWorker:
             self.stock_id,
             prev_kline,
             buy_price,
+            stock_status_risk=self.stock_status_risk,
+            trade_date=opportunity.buy_date,
         )
         opportunity.status = OpportunityStatus.ACTIVE.value
         tracker["active_opportunities"].append(opportunity)
@@ -499,6 +548,7 @@ class OpportunityEnumeratorWorker:
                 last_kline=last_kline,
                 reason="enumeration_end",
                 market_profile=self.market_profile,
+                stock_status_risk=self.stock_status_risk,
             )
         tracker["active_opportunities"].clear()
 

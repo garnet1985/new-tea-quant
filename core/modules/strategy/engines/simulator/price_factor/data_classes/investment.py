@@ -212,6 +212,9 @@ class PriceFactorInvestment(BaseInvestment):
             elif "expiration" in reason:
                 target_type = "expired"
                 name = "expiration"
+            elif "stock_status" in reason:
+                target_type = "stock_status"
+                name = reason
             else:
                 target_type = "unknown"
                 name = reason or "unknown"

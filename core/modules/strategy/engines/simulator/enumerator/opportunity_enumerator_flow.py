@@ -221,8 +221,29 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             stock_ids=self.stock_list,
         )
         mp_id = probe.market_profile.profile_id
+        from core.modules.data_manager import DataManager
+        from core.modules.strategy.engines.shared.helpers.backtest_calendar_context import (
+            build_backtest_calendar_context,
+        )
+        from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+            BacktestDateRange,
+        )
+
+        data_mgr = DataManager(is_verbose=False)
+        calendar_ctx = build_backtest_calendar_context(
+            data_manager=data_mgr,
+            period=BacktestDateRange(
+                self._impl.start_date,
+                self._impl.end_date,
+                "",
+                "",
+            ),
+            market_profile_id=mp_id,
+        )
+        calendar_dict = calendar_ctx.to_dict()
         for job in jobs:
             job["market_profile_id"] = mp_id
+            job["backtest_calendar"] = calendar_dict
         result_fingerprint = self._impl.build_request_fingerprint(
             strategy_name=probe.strategy_name,
             settings_payload=probe.settings_for_fingerprint,

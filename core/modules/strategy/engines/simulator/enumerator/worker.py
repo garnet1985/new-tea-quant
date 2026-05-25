@@ -11,6 +11,9 @@ from core.modules.market_profile import get_market_profile
 from core.modules.strategy.engines.shared.helpers.market_profile_id import (
     resolve_market_profile_id,
 )
+from core.modules.strategy.engines.shared.helpers.backtest_calendar_context import (
+    BacktestCalendarContext,
+)
 from core.modules.strategy.engines.shared.helpers.tradability import stamp_buy_tradability
 from core.modules.strategy.engines.shared.helpers.tradability_stats import (
     tradability_bundle_from_opportunities,
@@ -77,6 +80,9 @@ class OpportunityEnumeratorWorker:
             settings_market_profile=self.settings.market_profile,
         )
         self.market_profile = get_market_profile(profile_id)
+        self.backtest_calendar = BacktestCalendarContext.from_dict(
+            job_payload.get("backtest_calendar")
+        )
         self._load_user_strategy()
 
     def _load_user_strategy(self):
@@ -425,6 +431,7 @@ class OpportunityEnumeratorWorker:
                 goal_config=self.settings.goal,
                 market_profile=self.market_profile,
                 prev_bar=prev_kline,
+                backtest_calendar=self.backtest_calendar,
             ):
                 completed_indices.append(idx)
         for idx in reversed(completed_indices):

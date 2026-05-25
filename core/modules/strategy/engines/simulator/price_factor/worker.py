@@ -239,6 +239,8 @@ class PriceFactorWorker:
                 merged,
                 processed_targets,
                 stock_name=str(modified_row.get("stock_name") or ""),
+                goal_config=self.config_dict.get("goal"),
+                backtest_calendar=self.config_dict.get("backtest_calendar"),
             ).to_dict()
             investments.append(investment)
 

@@ -173,6 +173,29 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         # step4: initialize runtime profiling context
         profiler = self._impl.create_profiler()
         market_profile = MarketProfileContext.from_settings_view(base_settings)
+        from core.modules.data_manager import DataManager
+        from core.modules.strategy.engines.shared.helpers.backtest_calendar_context import (
+            build_backtest_calendar_context,
+        )
+        from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+            resolve_backtest_date_range,
+            resolve_latest_completed_trading_date,
+        )
+        from core.modules.strategy.services.data.output import EnumeratorOutputWriterService
+
+        data_mgr = DataManager(is_verbose=False)
+        scope_ids = EnumeratorOutputWriterService.read_scope_stock_ids(output_version_dir)
+        period = resolve_backtest_date_range(
+            settings_view=base_settings,
+            stock_ids=scope_ids,
+            latest_completed_trading_date=resolve_latest_completed_trading_date(data_mgr),
+            data_manager=data_mgr,
+        )
+        calendar_dict = build_backtest_calendar_context(
+            data_manager=data_mgr,
+            period=period,
+            market_profile_id=market_profile.profile_id,
+        ).to_dict()
         return CapitalAllocationPreprocessContext(
             strategy_name=strategy_name,
             base_settings=base_settings,
@@ -183,6 +206,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             sim_version_dir=sim_version_dir,
             sim_version_id=sim_version_id,
             profiler=profiler,
+            backtest_calendar=calendar_dict,
         )
 
     def execute(
@@ -210,6 +234,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             preprocessed.config,
             market_profile=preprocessed.market_profile,
             simulation_settings=preprocessed.simulation_settings,
+            backtest_calendar=preprocessed.backtest_calendar,
         )
         # step3: replay trigger/target events into trades and positions
         self._impl.replay_events(

@@ -228,12 +228,24 @@ class PriceFactorFlow(BaseSimulationFlow):
         )
         sim_snap = simulation_effective_snapshot(preprocessed.simulation_settings)
         mp_id = preprocessed.market_profile.profile_id
+        from core.modules.strategy.engines.shared.helpers.backtest_calendar_context import (
+            build_backtest_calendar_context,
+        )
+
+        calendar_dict = build_backtest_calendar_context(
+            data_manager=data_mgr,
+            period=period,
+            market_profile_id=mp_id,
+        ).to_dict()
         for job in jobs:
             job["market_profile_id"] = mp_id
+            job["backtest_calendar"] = calendar_dict
             cfg = dict(job.get("config") or {})
             cfg["simulation"] = sim_snap
             cfg["start_date"] = period.start_date
             cfg["end_date"] = period.end_date
+            cfg["backtest_calendar"] = calendar_dict
+            cfg["goal"] = dict(preprocessed.base_settings.goal or {})
             job["config"] = cfg
         results = self._impl.run_worker_jobs(
             jobs=jobs,

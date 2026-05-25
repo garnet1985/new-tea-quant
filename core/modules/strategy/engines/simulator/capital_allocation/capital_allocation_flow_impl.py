@@ -312,6 +312,7 @@ class CapitalAllocationFlowImpl:
         *,
         market_profile: MarketProfileContext,
         simulation_settings: StrategySimulationSettings,
+        backtest_calendar: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         allocation_cfg = config.allocation
         fees_cfg = config.get_fees_config_with_priority()
@@ -343,6 +344,7 @@ class CapitalAllocationFlowImpl:
             "current_date": None,
             "completed_opportunities_map": {},
             "tradability_skips": {"buy_at_limit_up": 0, "sell_at_limit_down": 0},
+            "backtest_calendar": dict(backtest_calendar or {}),
         }
 
     def replay_events(

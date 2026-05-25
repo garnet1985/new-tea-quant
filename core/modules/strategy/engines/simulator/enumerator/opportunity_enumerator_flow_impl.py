@@ -413,6 +413,7 @@ class OpportunityEnumeratorFlowImpl:
                     "end_date": job["end_date"],
                     "output_dir": job["output_dir"],
                     "global_extra_cache": global_extra_cache,
+                    "backtest_calendar": job.get("backtest_calendar"),
                     "worker_module_path": job["worker_module_path"],
                     "worker_class_name": job["worker_class_name"],
                 },

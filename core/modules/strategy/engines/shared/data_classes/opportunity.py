@@ -230,6 +230,7 @@ class Opportunity:
         *,
         market_profile: Optional["MarketProfile"] = None,
         prev_bar: Optional[Dict[str, Any]] = None,
+        backtest_calendar: Optional[Any] = None,
     ) -> bool:
         current_price = monitor_bar_price(current_kline, sim.monitor_price_model)
         current_date = current_kline["date"]
@@ -238,16 +239,23 @@ class Opportunity:
         # expiration / 持仓天数：自真实买入日计；无 buy_date 时不应进入盯盘
         if not self.buy_date:
             return False
-        holding_days = self._calculate_holding_days(self.buy_date, current_date)
         price_return = (current_price - basis) / basis if basis > 0 else 0.0
 
         self.max_price = max(self.max_price or 0, current_price)
         self.min_price = min(self.min_price or float("inf"), current_price)
 
-        expiration_config = goal_config.get("expiration", {})
-        if expiration_config:
-            fixed_window_in_days = expiration_config.get("fixed_window_in_days", 0)
-            if fixed_window_in_days > 0 and holding_days >= fixed_window_in_days:
+        from core.modules.strategy.engines.shared.helpers.backtest_calendar_context import (
+            parse_expiration_hold_spec,
+        )
+
+        hold_spec = parse_expiration_hold_spec(goal_config)
+        if hold_spec is not None:
+            holding_days = self._expiration_holding_days(
+                current_date,
+                hold_spec,
+                backtest_calendar=backtest_calendar,
+            )
+            if holding_days >= hold_spec.fixed_window_in_days:
                 if self._request_exit(
                     sim,
                     current_kline,
@@ -379,13 +387,83 @@ class Opportunity:
 
         return False
 
-    def _calculate_holding_days(self, start_date: str, end_date: str) -> int:
-        try:
-            start = datetime.strptime(start_date, "%Y%m%d")
-            end = datetime.strptime(end_date, "%Y%m%d")
-            return (end - start).days
-        except Exception:
+    def _init_expiration_holding_tracker(
+        self,
+        *,
+        backtest_calendar: Optional[Any],
+    ) -> None:
+        """买入成交后初始化交易日持有计数（仅 ``is_trading_days`` 路径）。"""
+        buy = str(self.buy_date or "").strip()
+        self._exp_hold_last_date = buy
+        ctx = backtest_calendar
+        if ctx is not None and hasattr(ctx, "count_open_days_between"):
+            self._exp_hold_trading_count = int(
+                ctx.count_open_days_between(buy, buy)
+            )
+        else:
+            self._exp_hold_trading_count = 0
+        self._exp_hold_inited = True
+
+    def _expiration_holding_days(
+        self,
+        current_date: str,
+        hold_spec: Any,
+        *,
+        backtest_calendar: Optional[Any] = None,
+    ) -> int:
+        """
+        持有期天数：自然日 O(1)；交易日沿 K 线单调递增时 O(1) 增量（否则区间二分）。
+        """
+        from core.modules.strategy.engines.shared.helpers.backtest_calendar_context import (
+            BacktestCalendarContext,
+            ExpirationHoldSpec,
+            resolve_holding_days,
+        )
+
+        if not isinstance(hold_spec, ExpirationHoldSpec):
             return 0
+        buy = str(self.buy_date or "").strip()
+        cur = str(current_date or "").strip()
+        if not buy or not cur:
+            return 0
+
+        if not hold_spec.is_trading_days:
+            return resolve_holding_days(
+                buy,
+                cur,
+                expiration_config={"is_trading_days": False},
+                backtest_calendar=None,
+            )
+
+        ctx = (
+            backtest_calendar
+            if isinstance(backtest_calendar, BacktestCalendarContext)
+            else BacktestCalendarContext.from_dict(backtest_calendar)
+        )
+        if ctx is None:
+            return resolve_holding_days(
+                buy,
+                cur,
+                expiration_config={"is_trading_days": True},
+                backtest_calendar=None,
+            )
+
+        if not getattr(self, "_exp_hold_inited", False):
+            self._init_expiration_holding_tracker(backtest_calendar=ctx)
+
+        last = str(getattr(self, "_exp_hold_last_date", buy) or buy)
+        if cur > last:
+            if ctx.is_open_date(cur):
+                self._exp_hold_trading_count = int(
+                    getattr(self, "_exp_hold_trading_count", 0)
+                ) + 1
+            self._exp_hold_last_date = cur
+            return int(getattr(self, "_exp_hold_trading_count", 0))
+
+        if cur < last:
+            return int(ctx.count_open_days_between(buy, cur))
+
+        return int(getattr(self, "_exp_hold_trading_count", 0))
 
     def _settle(
         self,

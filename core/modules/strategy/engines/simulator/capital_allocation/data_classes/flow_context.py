@@ -35,6 +35,7 @@ class CapitalAllocationPreprocessContext:
     sim_version_dir: Path
     sim_version_id: int
     profiler: "PerformanceProfiler"
+    backtest_calendar: Optional[Dict[str, Any]] = None
 
 
 @dataclass

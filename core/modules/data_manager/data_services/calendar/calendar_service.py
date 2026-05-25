@@ -13,7 +13,7 @@
 - ``get_real_world_latest_completed_trading_date()``：新浪/东财 K 线，不读 ``sys_trade_calendar``
 """
 from datetime import datetime, timedelta
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 import logging
 import threading
 import json
@@ -223,6 +223,35 @@ class CalendarService(BaseDataService):
         except Exception as e:
             logger.debug("读取 sys_trade_calendar 最新日历日失败: %s", e)
             return ""
+
+    def load_open_dates(
+        self,
+        period_start: str,
+        period_end: str,
+        *,
+        market: str = "SSE",
+    ) -> List[str]:
+        """回测窗内开市日列表（``is_open=1``），``cal_date`` 升序 YYYYMMDD。"""
+        start = str(period_start or "").strip()
+        end = str(period_end or "").strip()
+        if not start or not end or not self._trade_calendar:
+            return []
+        try:
+            rows = self._trade_calendar.load_range(
+                start,
+                end,
+                market=str(market or "SSE").strip() or "SSE",
+                is_open=1,
+            )
+        except Exception as e:
+            logger.debug("读取 sys_trade_calendar 开市日区间失败: %s", e)
+            return []
+        out: List[str] = []
+        for row in rows or []:
+            d = str((row or {}).get("cal_date") or "").strip()
+            if d:
+                out.append(d)
+        return out
 
     def get_real_world_latest_completed_trading_date(self) -> str:
         """

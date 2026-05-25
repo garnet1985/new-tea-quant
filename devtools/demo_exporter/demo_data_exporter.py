@@ -17,6 +17,8 @@ import json
 import logging
 import re
 import sys
+from datetime import datetime, timezone
+import shutil
 import tempfile
 import zipfile
 from pathlib import Path
@@ -29,6 +31,8 @@ from devtools.demo_exporter.config import (
     DEFAULT_START_QUARTER,
     EXCLUDED_GENERATED_TABLES,
     EXPORT_TABLES,
+    GIT_DATA_META_NAME,
+    GIT_DATA_ZIP_NAME,
     INIT_DATA_DIR,
     LIST_STATUS_LABELS,
     PACKAGE_NAME_PREFIX,
@@ -253,6 +257,47 @@ def export_demo_data_package(
     return output_zip
 
 
+def _write_data_meta(
+    *,
+    meta_path: Path,
+    core_version: str,
+    stock_count: int,
+    start_date: str,
+    end_date: str,
+    zip_path: Path,
+) -> None:
+    payload = {
+        "core_version": core_version,
+        "stock_count": stock_count,
+        "start_date": start_date,
+        "end_date": end_date,
+        "zip_file": zip_path.name,
+        "built_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    meta_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    logger.info("已写入元数据 %s", meta_path.name)
+
+
+def _prune_stale_init_data_packages(keep_zip: Path) -> None:
+    """删除 init_data 下旧的 data_v* 等副本，只保留固定 data_demo.zip（及 example_*）。"""
+    if not INIT_DATA_DIR.is_dir():
+        return
+    keep = keep_zip.resolve()
+    for pattern in ("data_v*.zip", "data_*.zip"):
+        for p in INIT_DATA_DIR.glob(pattern):
+            if p.resolve() == keep:
+                continue
+            if p.name.startswith("example_"):
+                continue
+            if p.name == GIT_DATA_ZIP_NAME:
+                continue
+            try:
+                p.unlink()
+                logger.info("已删除旧数据包 %s", p.name)
+            except OSError as e:
+                logger.warning("无法删除 %s: %s", p.name, e)
+
+
 def _warn_init_data_zip_conflict(target: Path) -> None:
     if not INIT_DATA_DIR.is_dir():
         return
@@ -278,12 +323,17 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "-o",
         "--output",
         type=Path,
-        help="输出 zip 完整路径（默认写入 setup/init_data/ 并按命名规则生成文件名）",
+        help=f"输出 zip 完整路径（默认 {INIT_DATA_DIR.relative_to(REPO_ROOT)}/{GIT_DATA_ZIP_NAME}）",
     )
     parser.add_argument(
         "--export-dir",
         type=Path,
         help=f"输出目录（默认 {INIT_DATA_DIR.relative_to(REPO_ROOT)}/；与 -o 二选一）",
+    )
+    parser.add_argument(
+        "--tagged",
+        action="store_true",
+        help="除 data_demo.zip 外，再写一份 data_v{version}_{n}_{from}_{to}.zip（勿提交 Git）",
     )
     parser.add_argument("--tables", help="逗号分隔逻辑表名，覆盖 config.EXPORT_TABLES")
     parser.add_argument("--full", action="store_true", help="忽略日期窗（仍按股票池过滤）")
@@ -351,7 +401,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         log_sampling_report(report, status_labels=LIST_STATUS_LABELS)
 
-    zip_name = package_zip_basename(
+    tagged_name = package_zip_basename(
         core_version=core_version,
         stock_count=len(stock_ids),
         start_date=start_date,
@@ -360,11 +410,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.output:
         output_zip = args.output
+        write_init_data = False
     else:
         out_dir = args.export_dir or INIT_DATA_DIR
-        output_zip = out_dir / zip_name
+        output_zip = out_dir / GIT_DATA_ZIP_NAME
+        write_init_data = out_dir.resolve() == INIT_DATA_DIR.resolve()
 
-    if output_zip.parent.resolve() == INIT_DATA_DIR.resolve():
+    if write_init_data:
         _warn_init_data_zip_conflict(output_zip)
 
     explicit_tables = None
@@ -386,6 +438,26 @@ def main(argv: Sequence[str] | None = None) -> int:
             end_quarter=end_quarter,
             archive_format=args.format,
         )
+        if write_init_data:
+            _write_data_meta(
+                meta_path=INIT_DATA_DIR / GIT_DATA_META_NAME,
+                core_version=core_version,
+                stock_count=len(stock_ids),
+                start_date=start_date,
+                end_date=end_date,
+                zip_path=output_zip,
+            )
+            _prune_stale_init_data_packages(output_zip)
+            if args.tagged:
+                tagged_path = INIT_DATA_DIR / tagged_name
+                shutil.copy2(output_zip, tagged_path)
+                logger.info("已额外写入带版本号文件 %s（勿提交 Git）", tagged_name)
+            logger.info(
+                "提交 Git 时请只 add %s 与 %s；若曾提交过 data_v*.zip，执行: "
+                "git rm --cached setup/init_data/data_v*.zip",
+                GIT_DATA_ZIP_NAME,
+                GIT_DATA_META_NAME,
+            )
     except Exception as e:
         logger.error("%s", e)
         return 1

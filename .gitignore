@@ -28,9 +28,9 @@ backup
 .pytest_cache/
 .ntq/
 
-# setup/init_data：除 example 演示数据 zip 外全部忽略（解压目录、其它 zip、断点文件等）
+# setup/init_data：除 data_v*.zip 演示数据 zip 外全部忽略（解压目录、其它 zip、断点文件等）
 setup/init_data/*
-!setup/init_data/example_*.zip
+!setup/init_data/data_v*.zip
 
 ########################
 # Strategy Results

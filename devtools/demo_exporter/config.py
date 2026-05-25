@@ -2,7 +2,7 @@
 演示数据导出配置。
 
 ``python dev-cli.py -ex`` 默认行为（本文件为唯一配置源）：
-- 股票池：分层抽样 **300** 只（``TARGET_STOCK_COUNT``）
+- 股票池：``TARGET_STOCK_COUNT > 0`` 时分层抽样（默认 **300**）；``<= 0`` 为全市场
 - 时序日期窗：**20250101** ~ **20260101**（``DEFAULT_START_DATE`` / ``DEFAULT_END_DATE``）
 - 季度窗：**2025Q1** ~ **2025Q4**（财报等季度表）
 - 输出：``setup/init_data/data_v{version}_300_20250101_20260101.zip``
@@ -30,7 +30,7 @@ DEFAULT_END_DATE = "20260101"
 DEFAULT_START_QUARTER = "2025Q1"
 DEFAULT_END_QUARTER = "2025Q4"
 
-# 分层抽样：目标股票数（全市场按比例缩样）
+# 分层抽样目标股票数；<= 0 表示不抽样，导出全市场股票
 TARGET_STOCK_COUNT = 500
 SAMPLE_RANDOM_SEED = 20250525
 

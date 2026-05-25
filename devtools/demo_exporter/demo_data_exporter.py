@@ -291,7 +291,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--end-date", default=DEFAULT_END_DATE)
     parser.add_argument("--start-quarter", default=DEFAULT_START_QUARTER)
     parser.add_argument("--end-quarter", default=DEFAULT_END_QUARTER)
-    parser.add_argument("--stock-count", type=int, default=TARGET_STOCK_COUNT, help="分层抽样目标股票数")
+    parser.add_argument(
+        "--stock-count",
+        type=int,
+        default=TARGET_STOCK_COUNT,
+        help="分层抽样目标股票数；<= 0 表示全市场（与 --skip-sample 相同）",
+    )
     parser.add_argument("--seed", type=int, default=SAMPLE_RANDOM_SEED, help="抽样随机种子")
     parser.add_argument(
         "--skip-sample",
@@ -319,9 +324,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise SystemExit(f"日期区间非法: {start_date} > {end_date}")
     if start_quarter > end_quarter:
         raise SystemExit(f"季度区间非法: {start_quarter} > {end_quarter}")
-    if args.stock_count < 1:
-        raise SystemExit("--stock-count 须 >= 1")
-
     core_version = read_core_version()
 
     from core.modules.data_manager import DataManager
@@ -332,13 +334,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         logger.error("数据库不可用")
         return 1
 
-    if args.skip_sample:
+    use_full_universe = args.skip_sample or args.stock_count <= 0
+    if use_full_universe:
         stock_model = dm.get_table("sys_stock_list")
         if stock_model is None:
             logger.error("未注册 sys_stock_list")
             return 1
         stock_ids = sorted(r["id"] for r in stock_model.load("1=1") if r.get("id"))
-        logger.info("未抽样：使用全市场 %d 只股票", len(stock_ids))
+        logger.info("全市场：共 %d 只股票（未分层抽样）", len(stock_ids))
     else:
         universe = load_stock_universe(dm)
         stock_ids, report = sample_stratified_stock_pool(

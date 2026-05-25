@@ -143,10 +143,9 @@ def collect_api_limits(
     """
     聚合每个 ApiJob 的限流信息。
 
-    约定（与当前设计对齐）：
-    - **只使用 handler config / ApiJob 上的 rate_limit** 作为限流配置来源；
-    - Provider 中声明的 api_limits 仅作为文档/提示，不再参与运行时决策；
-    - 如果某个 Job 未配置 rate_limit，则退化为 default_limit（保守默认值）。
+    约定：
+    - 限流唯一来源：Provider.api_limits[method]（经 get_api_limit）；
+    - 未声明时使用 Provider.default_rate_limit，再退化为 default_limit。
     """
     api_limits: Dict[str, int] = {}
 
@@ -154,15 +153,22 @@ def collect_api_limits(
         job_id = job.job_id or job.api_name or job.method
         limit: int = 0
 
-        # 1. 优先使用 ApiJob 自身的 rate_limit（来自 handler config 的 max_per_minute）
-        if getattr(job, "rate_limit", None):
-            try:
-                limit = int(job.rate_limit)
-            except (TypeError, ValueError):
-                limit = 0
+        provider = (providers or {}).get(job.provider_name) if job.provider_name else None
+        if provider is not None and hasattr(provider, "get_api_limit"):
+            raw = provider.get_api_limit(job.method or "")
+            if raw is not None:
+                try:
+                    limit = int(raw)
+                except (TypeError, ValueError):
+                    limit = 0
 
-        # 2. 未配置时使用默认值
         if not limit:
+            logger.warning(
+                "限流未配置: provider=%s method=%s，使用默认 %s/分钟",
+                job.provider_name,
+                job.method,
+                default_limit,
+            )
             limit = default_limit
 
         api_limits[job_id] = limit

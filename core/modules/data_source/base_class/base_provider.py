@@ -30,8 +30,8 @@ class BaseProvider(ABC):
     requires_auth: bool = False            # 是否需要认证
     auth_type: Optional[str] = None        # 认证类型: "token" | "api_key" | None
     
-    # API 限流信息（每分钟请求数）- 只声明，不执行
-    # 例如：{"get_daily_kline": 100, "get_weekly_kline": 50}
+    # API 限流（每分钟请求数）— 唯一配置源，运行时由 collect_api_limits 读取
+    # 例如：{"get_daily_kline": 700, "get_daily_basic": 500}
     api_limits: Dict[str, int] = {}
     
     # 默认限流（如果 API 没有单独配置）

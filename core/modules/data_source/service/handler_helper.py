@@ -50,7 +50,6 @@ class DataSourceHandlerHelper:
                     **api_cfg.params,
                 },
                 depends_on=[],
-                rate_limit=api_cfg.max_per_minute,
                 job_id=api_name,
             )
             jobs.append(job)

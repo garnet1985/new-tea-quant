@@ -32,7 +32,7 @@ class TestBaseHandler:
                 "last_update_info": {"date_field": "date", "date_format": "day"},
                 "job_execution": {"list": "stock_list", "key": "id"},
             },
-            "apis": {"api1": {"provider_name": "tushare", "method": "get_xxx", "max_per_minute": 100}},
+            "apis": {"api1": {"provider_name": "tushare", "method": "get_xxx"}},
         }
         config = DataSourceConfig.from_dict(config_dict, "test_key")
         providers = {}
@@ -63,7 +63,7 @@ class TestBaseHandler:
                     "last_update_info": {"date_field": "date", "date_format": "day"},
                     "job_execution": {"list": "x", "key": "id"},
                 },
-                "apis": {"a": {"provider_name": "p", "method": "m", "max_per_minute": 1}},
+                "apis": {"a": {"provider_name": "p", "method": "m"}},
             },
             "k",
         )

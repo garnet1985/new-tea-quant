@@ -237,15 +237,18 @@ def get_scan_readiness(*, strategy_name: str, demo: bool = False) -> Dict[str, A
         kline_latest = str(data_mgr.stock.kline.load_latest_date("daily") or "").strip()
         if not kline_latest:
             return {"primary_action": "run"}
-        if not demo:
-            cal_latest = str(data_mgr.service.calendar.get_latest_completed_trading_date() or "").strip()
-            if not cal_latest or cal_latest != kline_latest:
-                return {"primary_action": "run"}
 
         settings = StrategyScannerSettings.from_base_settings(discovered.settings)
         use_strict = bool(settings.use_strict_previous_trading_day)
         if demo:
             use_strict = False
+        if not demo:
+            cal_latest = ScanDateResolver.resolve_anchor_date(
+                data_mgr, use_strict=use_strict
+            )
+            if not cal_latest or cal_latest != kline_latest:
+                return {"primary_action": "run"}
+
         resolver = ScanDateResolver(data_mgr)
         scan_date, stock_ids = resolver.resolve_scan_date(use_strict=use_strict)
         csv_path = PathManager.strategy_scan_results(name) / scan_date / "opportunities.csv"
@@ -287,16 +290,26 @@ def _background_scan_job(job_id: str, strategy_name: str, *, demo: bool, force: 
 
         # demo rules (backend-only):
         # - demo=True: scan cutoff uses DB latest daily kline date.
-        # - demo=False: require calendar latest completed trading date == DB latest daily kline date.
+        # - demo=False: require scan anchor (strict=real-world / non-strict=calendar) == kline latest.
         kline_latest = str(data_mgr.stock.kline.load_latest_date("daily") or "").strip()
         if not kline_latest:
             raise ValueError("无法解析 K 线最新日期（sys_stock_klines 可能为空）")
+
+        settings = StrategyScannerSettings.from_base_settings(discovered.settings)
+        use_strict = bool(settings.use_strict_previous_trading_day)
+        if demo:
+            use_strict = False
         if not demo:
-            cal_latest = str(data_mgr.service.calendar.get_latest_completed_trading_date() or "").strip()
+            cal_latest = ScanDateResolver.resolve_anchor_date(
+                data_mgr, use_strict=use_strict
+            )
             if not cal_latest:
                 raise ValueError("无法解析最新已完成交易日（日历服务不可用）")
             if cal_latest != kline_latest:
-                raise ValueError(f"数据未对齐最新交易日：calendar={cal_latest}，kline={kline_latest}")
+                raise ValueError(
+                    f"数据未对齐最新交易日：anchor={cal_latest}，kline={kline_latest} "
+                    f"(strict={use_strict})"
+                )
 
         # demo == True: relax strict-previous-trading-day check (use latest available)
         # We do this by overriding scanner settings temporarily.

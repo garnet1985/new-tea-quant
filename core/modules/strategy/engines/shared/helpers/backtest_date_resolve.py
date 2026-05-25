@@ -57,25 +57,22 @@ class BacktestDateRange:
 
 
 def resolve_latest_completed_trading_date(data_manager: Any) -> str:
-    """K 线最新日优先，否则日历「最新已完成交易日」。"""
-    if hasattr(data_manager, "service"):
-        kline_svc = data_manager.service.stock.kline
-        cal_svc = data_manager.service.calendar
-    elif hasattr(data_manager, "stock"):
-        kline_svc = data_manager.stock.kline
-        cal_svc = data_manager.service.calendar
-    else:
+    """全系统 latest completed 统一读入口（``CalendarService.get_latest_completed_trading_date``）。"""
+    cal_svc = _calendar_service(data_manager)
+    if cal_svc is None:
         return ""
-    try:
-        kline_latest = str(kline_svc.load_latest_date("daily") or "").strip()
-    except Exception:
-        kline_latest = ""
-    if kline_latest:
-        return kline_latest
     try:
         return str(cal_svc.get_latest_completed_trading_date() or "").strip()
     except Exception:
         return ""
+
+
+def _calendar_service(data_manager: Any) -> Any:
+    if hasattr(data_manager, "service"):
+        return data_manager.service.calendar
+    if hasattr(data_manager, "stock"):
+        return getattr(data_manager, "calendar", None) or data_manager.service.calendar
+    return None
 
 
 def kline_term_from_settings_view(view: StrategySettingsView) -> str:
@@ -136,9 +133,11 @@ def resolve_backtest_end_date(
     latest_completed_trading_date: str,
 ) -> ResolvedBacktestDate:
     configured = settings_view.end_date.strip()
-    if configured:
-        return ResolvedBacktestDate(configured, SOURCE_SETTINGS)
     latest = str(latest_completed_trading_date or "").strip()
+    if configured:
+        if latest and configured > latest:
+            return ResolvedBacktestDate(latest, SOURCE_LATEST_TRADING_DAY)
+        return ResolvedBacktestDate(configured, SOURCE_SETTINGS)
     if latest:
         return ResolvedBacktestDate(latest, SOURCE_LATEST_TRADING_DAY)
     return ResolvedBacktestDate("", SOURCE_MISSING)

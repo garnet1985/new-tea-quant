@@ -540,6 +540,21 @@ class ConfigManager:
         """
         data_config = ConfigManager.load_data_config()
         return data_config.get('default_start_date')
+
+    @staticmethod
+    def get_default_end_date() -> Optional[str]:
+        """
+        获取数据拉取上界（可选）。
+
+        配置后，renew 的 end_date 取 min(真实世界最新已完成交易日, default_end_date)。
+        未配置或空字符串时返回 None，表示不截断。
+        """
+        data_config = ConfigManager.load_data_config()
+        raw = data_config.get('default_end_date')
+        if raw is None:
+            return None
+        s = str(raw).strip()
+        return s if s else None
     
     @staticmethod
     def get_decimal_places() -> int:

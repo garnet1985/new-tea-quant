@@ -293,7 +293,14 @@ class BaseHandler:
 
     def _inject_dependencies(self, dependencies_data):
         """注入依赖数据；无依赖时设为空字典，避免后续 .get 报错。"""
-        self.context["dependencies"] = dependencies_data if dependencies_data is not None else {}
+        deps = dependencies_data if dependencies_data is not None else {}
+        self.context["dependencies"] = deps
+        exec_meta = deps.get("_execution")
+        self.context["force_refresh"] = (
+            bool(exec_meta.get("force_refresh"))
+            if isinstance(exec_meta, dict)
+            else False
+        )
         # 从保留依赖 latest_trading_date 提取日期，供 context["latest_completed_trading_date"] 使用
         if dependencies_data and "latest_trading_date" in dependencies_data:
             val = dependencies_data["latest_trading_date"]
@@ -511,16 +518,20 @@ class BaseHandler:
             Dict[str, Any]: 处理后的上下文字典
         """
         # 如果 latest_completed_trading_date 缺失，自动获取
-        if "latest_completed_trading_date" not in context or not context.get("latest_completed_trading_date"):
+        if "latest_completed_trading_date" not in context or not context.get(
+            "latest_completed_trading_date"
+        ):
             data_manager = context.get("data_manager")
             if data_manager:
                 try:
-                    latest_completed_trading_date = data_manager.service.calendar.get_latest_completed_trading_date()
+                    latest_completed_trading_date = (
+                        data_manager.service.calendar.get_latest_completed_trading_date()
+                    )
                     context["latest_completed_trading_date"] = latest_completed_trading_date
                 except Exception:
                     # 如果获取失败，保持原样（可能后续步骤会处理）
                     pass
-        
+
         return context
 
     def on_calculate_date_range(

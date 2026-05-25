@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """
-同步核心股票表结构并拉取数据（默认 20241001 至今）。
+同步核心股票表结构并拉取数据。
 
-顺序：schema 迁移（若有快照）→ stock_list → stock_st_periods（全量，800/min 限流）→ stock_klines
+日期区间由 ``userspace/config/data.json`` 的 ``default_start_date`` / ``default_end_date`` 控制
+（当前试跑建议 20240101～20240601）。
+
+顺序：schema 迁移（若有快照）→ stock_list → trade_calendar → stock_st_periods → stock_klines
 
 用法（仓库根目录）::
     python devtools/quick_tools/renew_core_stock_data.py
@@ -23,7 +26,7 @@ if str(REPO_ROOT) not in sys.path:
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_START = "20241001"
+DEFAULT_START = "20240101"
 SOURCES_ORDER = ("stock_list", "trade_calendar", "stock_st_periods", "stock_klines")
 
 # 本分支改动的表：先 DROP 再按当前 schema 重建（全量重拉，不做列级兼容迁移）
@@ -127,70 +130,14 @@ def _recreate_modified_tables() -> None:
         logger.info("已重建表 %s", name)
 
 
-def _execute_sources(keys: tuple[str, ...]) -> None:
+def _execute_sources(keys: tuple[str, ...], *, force: bool = False) -> None:
     from core.modules.data_manager import DataManager
     from core.modules.data_source.data_source_manager import DataSourceManager
 
-    dm = DataManager(is_verbose=True)
-    dm.initialize()
-    from core.modules.data_source.execution_scheduler import DataSourceExecutionScheduler
-    from core.modules.data_source.reserved_dependencies import (
-        RESERVED_DEPENDENCY_KEYS,
-        resolve_reserved_dependency,
-    )
-
+    DataManager(is_verbose=True).initialize()
     mgr = DataSourceManager(is_verbose=True)
-    mgr._flush_cache()
-    mappings = mgr._discover_mappings()
-    providers = mgr._discover_providers()
-    handlers = mgr._discover_handlers(mappings, providers)
-    by_key = {h.get_key(): h for h in handlers}
-
-    scheduler = DataSourceExecutionScheduler(is_verbose=True)
-    scheduler.mappings = mappings
-
-    need_list = any(
-        mappings.get_depend_on_data_source_names(k) and "stock_list" in mappings.get_depend_on_data_source_names(k)
-        for k in keys
-        if k in by_key
-    )
-    if need_list and "stock_list" not in keys:
-        rows = dm.stock.list.load_all()
-        scheduler._dependency_cache["stock_list"] = rows
-        logger.info("从 DB 注入 stock_list 依赖：%s 只", len(rows))
-
-    handlers_for_topo = [by_key[k] for k in keys if k in by_key]
-    if need_list and "stock_list" not in keys and "stock_list" in by_key:
-        handlers_for_topo = [by_key["stock_list"]] + handlers_for_topo
-    sorted_all = scheduler._preprocess(handlers_for_topo)
-    sorted_handlers = [h for h in sorted_all if h.get_key() in keys]
-
-    def run_once(*, keep_list_dep: bool = False) -> None:
-        preserved_list = (
-            scheduler._dependency_cache.get("stock_list") if keep_list_dep else None
-        )
-        scheduler._dependency_cache.clear()
-        if preserved_list is not None:
-            scheduler._dependency_cache["stock_list"] = preserved_list
-        scheduler._failed_data_sources.clear()
-        for idx, handler in enumerate(sorted_handlers):
-            key = handler.get_key()
-            logger.info("执行数据源 [%s/%s]: %s", idx + 1, len(sorted_handlers), key)
-            deps = {}
-            for dep_name in mappings.get_depend_on_data_source_names(key):
-                if dep_name in RESERVED_DEPENDENCY_KEYS:
-                    deps[dep_name] = resolve_reserved_dependency(dep_name)
-                elif dep_name in scheduler._dependency_cache:
-                    deps[dep_name] = scheduler._dependency_cache[dep_name]
-                else:
-                    raise ValueError(f"依赖未就绪: {key} -> {dep_name}")
-            result = handler.execute(deps)
-            if mappings.is_dependency_for_downstream(key):
-                if result and "data" in result:
-                    scheduler._dependency_cache[key] = result["data"]
-            logger.info("完成: %s", key)
-
-    run_once(keep_list_dep=need_list and "stock_list" not in keys)
+    for key in keys:
+        mgr.renew(key, force=force)
 
 
 def main() -> int:
@@ -206,6 +153,11 @@ def main() -> int:
         type=str,
         default="",
         help="逗号分隔，如 stock_st_periods,stock_klines；默认全部",
+    )
+    parser.add_argument(
+        "--renew-force",
+        action="store_true",
+        help="强制全量重拉（等同 start-cli renew --renew-force）",
     )
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
@@ -239,15 +191,19 @@ def main() -> int:
         sources = SOURCES_ORDER
 
     try:
-        _execute_sources(sources)
+        _execute_sources(sources, force=bool(args.renew_force))
     except Exception as e:
         logger.exception("数据拉取失败: %s", e)
         return 1
 
+    from core.infra.project_context import ConfigManager
+
+    end_hint = ConfigManager.get_default_end_date() or "（未配置，至真实世界最新交易日）"
     logger.info(
-        "完成。K 线等增量自 %s 起（userspace/config/data.json）；"
-        "stock_st_periods 一次 execute 即全量（约 5800 只 / 800 per min）",
-        DEFAULT_START,
+        "完成。K 线区间 %s ~ %s（userspace/config/data.json）；"
+        "stock_st_periods 按股全量 namechange（约 5800 只 / 800 per min）",
+        ConfigManager.get_default_start_date(),
+        end_hint,
     )
     return 0
 

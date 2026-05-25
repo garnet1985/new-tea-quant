@@ -8,6 +8,7 @@
   python dev-cli.py -cc     # 清空 userspace/.ntq（不动仓库根 .ntq / 安装状态）
   python dev-cli.py -cu     # 清空 userspace：各策略 results/ + DB 工作台快照
   python dev-cli.py -p -v0.3.2   # 发布前：写版本/徽章 + module_info + -ic + pytest
+  python dev-cli.py -ex          # 打包演示数据（分层抽样 → setup/import_data 可导入 zip）
 
 也支持子命令：``ui``、``kill``、``import-check``（见 ``-h``）。
 """
@@ -37,6 +38,7 @@ _SHORT_FLAGS: dict[str, tuple[str, dict]] = {
     "-ic": ("import-check", {}),
     "-cc": ("clear-global", {}),
     "-cu": ("clear-userspace", {}),
+    "-ex": ("export-init-data", {}),
 }
 
 
@@ -115,6 +117,11 @@ def _cmd_kill(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_export_init_data(args: argparse.Namespace) -> int:
+    cmd = [sys.executable, "-m", "devtools.demo_exporter.demo_data_exporter", *args.forward]
+    return subprocess.run(cmd, cwd=str(REPO_ROOT)).returncode
+
+
 def _cmd_import_check(args: argparse.Namespace) -> int:
     cmd = [sys.executable, "-m", "devtools.quick_tools.minimal_import_check", *args.forward]
     return subprocess.run(cmd, cwd=str(REPO_ROOT)).returncode
@@ -164,6 +171,8 @@ def _dispatch(handler: str, forward: list[str], extra: dict) -> int:
         return _cmd_kill(ns)
     if handler == "import-check":
         return _cmd_import_check(ns)
+    if handler == "export-init-data":
+        return _cmd_export_init_data(ns)
     if handler == "clear-global":
         return _cmd_clear_global(ns)
     if handler == "clear-userspace":
@@ -190,6 +199,7 @@ def _print_help() -> None:
   -cc      删除 userspace/.ntq（不碰仓库根 .ntq / install-state）
   -cu      删除各策略 results/ 与 DB 工作台快照表
   -p -vX.Y.Z   发布准备（写 system.json / 徽章、检查 module_info、FED build、-ic、pytest）
+  -ex         打包演示数据 zip（见 devtools/demo_exporter/demo_data_exporter.py）
 
   -p 附加: --check-only      只检查不写版本文件（仍会跑 FED build）
            --skip-tests       跳过 pytest
@@ -199,6 +209,7 @@ def _print_help() -> None:
 子命令（等价）:
   ui [--kill-first]   kill [-ntq-only]   import-check   clear-cache   clear-userspace
   publish -v X.Y.Z    同 -p -vX.Y.Z
+  export-init-data    同 -ex（参数用 -- 转发，如 -ex -- --to-init-data）
 
 示例:
   python dev-cli.py -p -v0.3.2
@@ -234,6 +245,14 @@ def _build_subcommand_parser() -> argparse.ArgumentParser:
 
     p_cu = sub.add_parser("clear-userspace", aliases=["cu", "clear-us"])
     p_cu.set_defaults(func=_cmd_clear_userspace, forward=[])
+
+    p_ex = sub.add_parser(
+        "export-init-data",
+        aliases=["ex", "export-data", "export-demo"],
+        help="打包演示数据为 setup/import_data 可导入 zip",
+    )
+    p_ex.add_argument("forward", nargs=argparse.REMAINDER)
+    p_ex.set_defaults(func=_cmd_export_init_data)
 
     p_pub = sub.add_parser("publish", aliases=["p", "prep-release"])
     p_pub.add_argument("-v", "--version", required=True, help="目标版本 X.Y.Z 或 vX.Y.Z")

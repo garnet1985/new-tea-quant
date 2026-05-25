@@ -216,21 +216,7 @@ class StrategyManager:
             logger.error("无法解析 K 线最新日期（sys_stock_klines 可能为空）")
             return {}
 
-        cal_latest = ""
-        if not demo:
-            cal_latest = str(
-                self.data_mgr.service.calendar.get_latest_completed_trading_date() or ""
-            ).strip()
-            if not cal_latest:
-                logger.error("无法解析最新已完成交易日（日历服务不可用）")
-                return {}
-            if cal_latest != kline_latest:
-                logger.error(
-                    "❌ 数据未对齐最新交易日：calendar=%s，kline=%s", cal_latest, kline_latest
-                )
-                return {}
-        else:
-            cal_latest = ""
+        from core.modules.strategy.engines.scanner.helpers.date_resolver import ScanDateResolver
 
         last_pct = {"v": -1}
 
@@ -252,16 +238,6 @@ class StrategyManager:
         results: Dict[str, Any] = {}
         for info in targets:
             name = info.name
-            if len(targets) > 1:
-                print(f"--- strategy={name} ---")
-            else:
-                if demo:
-                    print(f"🔍 扫描（DEMO）· strategy={name} · asof(kline_latest)={kline_latest}")
-                else:
-                    print(
-                        f"🔍 扫描（STRICT）· strategy={name} · latest_completed={cal_latest}"
-                    )
-
             scanner = Scanner(
                 strategy_name=name,
                 data_manager=self.data_mgr,
@@ -273,6 +249,43 @@ class StrategyManager:
                     scanner.settings.scanner["use_strict_previous_trading_day"] = False
                 except Exception:
                     pass
+
+            use_strict = bool(scanner.settings.use_strict_previous_trading_day)
+            if not demo:
+                anchor = ScanDateResolver.resolve_anchor_date(
+                    self.data_mgr, use_strict=use_strict
+                )
+                if not anchor:
+                    logger.error(
+                        "无法解析最新已完成交易日（strategy=%s strict=%s）",
+                        name,
+                        use_strict,
+                    )
+                    continue
+                if anchor != kline_latest:
+                    logger.error(
+                        "❌ 数据未对齐最新交易日：strategy=%s anchor=%s kline=%s strict=%s",
+                        name,
+                        anchor,
+                        kline_latest,
+                        use_strict,
+                    )
+                    continue
+                cal_latest = anchor
+            else:
+                cal_latest = kline_latest
+
+            if len(targets) > 1:
+                print(f"--- strategy={name} ---")
+            else:
+                if demo:
+                    print(f"🔍 扫描（DEMO）· strategy={name} · asof(kline_latest)={kline_latest}")
+                else:
+                    print(
+                        f"🔍 扫描（{'STRICT' if use_strict else 'RELAXED'}）· "
+                        f"strategy={name} · latest_completed={cal_latest}"
+                    )
+
             results[name] = scanner.scan(on_job_done=_on_job_done)
 
         print("✅ 扫描完成")

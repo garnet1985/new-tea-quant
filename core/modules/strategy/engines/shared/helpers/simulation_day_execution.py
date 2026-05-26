@@ -104,6 +104,7 @@ def apply_no_next_bar_buy_fallback(
             opportunity.stock_id,
             prev_bar,
             buy_price,
+            exec_bar=signal_bar,
         )
     if policy == "unfinished":
         opportunity.status = OpportunityStatus.TESTING.value
@@ -206,6 +207,7 @@ def _fill_buy_on_bar(
             buy_price,
             stock_status_risk=stock_status_risk,
             trade_date=opportunity.buy_date,
+            exec_bar=bar,
         )
     return True
 

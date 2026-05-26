@@ -140,6 +140,7 @@ def _settle_stock_status_exit(
             exit_px,
             stock_status_risk=stock_status_risk,
             trade_date=current_date,
+            exec_bar=price_bar,
         )
     opportunity.completed_targets.append(target_entry)
     total_weighted = sum(

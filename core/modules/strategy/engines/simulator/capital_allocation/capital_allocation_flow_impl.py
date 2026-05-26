@@ -27,6 +27,11 @@ from core.modules.strategy.engines.shared.helpers.skip_investment_when import (
     ROW_SKIP_REASON_KEY,
     should_skip_investment,
 )
+from core.modules.strategy.engines.shared.helpers.participation import (
+    apply_participation_to_shares,
+    row_buy_bar_volume,
+    row_sell_bar_volume,
+)
 from core.modules.strategy.engines.shared.helpers.tradability import (
     should_skip_buy,
     should_skip_sell,
@@ -339,6 +344,8 @@ class CapitalAllocationFlowImpl:
             allow_sell_at_limit_down=simulation_settings.allow_sell_at_limit_down,
             skip_trade_when_insufficient=allocation_cfg.skip_trade_when_insufficient,
             skip_investment_when=simulation_settings.skip_investment_when,
+            max_participation_rate=simulation_settings.max_participation_rate,
+            participation_on_exceed=simulation_settings.participation_on_exceed,
         )
         return {
             "account": account,
@@ -352,6 +359,10 @@ class CapitalAllocationFlowImpl:
                 "buy_at_limit_up": 0,
                 "sell_at_limit_down": 0,
                 "stock_status": 0,
+                "buy_participation_skip": 0,
+                "buy_participation_clipped": 0,
+                "sell_participation_skip": 0,
+                "sell_participation_clipped": 0,
             },
             "backtest_calendar": dict(backtest_calendar or {}),
         }
@@ -451,6 +462,10 @@ class CapitalAllocationFlowImpl:
         core["skipped_buy_at_limit_up"] = int(skips.get("buy_at_limit_up", 0) or 0)
         core["skipped_sell_at_limit_down"] = int(skips.get("sell_at_limit_down", 0) or 0)
         core["skipped_stock_status"] = int(skips.get("stock_status", 0) or 0)
+        core["skipped_buy_participation"] = int(skips.get("buy_participation_skip", 0) or 0)
+        core["skipped_sell_participation"] = int(skips.get("sell_participation_skip", 0) or 0)
+        core["clipped_buy_participation"] = int(skips.get("buy_participation_clipped", 0) or 0)
+        core["clipped_sell_participation"] = int(skips.get("sell_participation_clipped", 0) or 0)
         return _merge_bff_ui_extensions(
             core,
             trades=trades,
@@ -574,6 +589,26 @@ class CapitalAllocationFlowImpl:
         )
         if buy_shares == 0:
             return None
+        buy_shares, part_tag = apply_participation_to_shares(
+            buy_shares,
+            bar_volume=row_buy_bar_volume(opportunity),
+            max_participation_rate=allocation_strategy.max_participation_rate,
+            on_exceed=allocation_strategy.participation_on_exceed,
+            floor_shares_fn=lambda n: allocation_strategy._floor_buy_shares(n, stock_id),
+            stock_id=stock_id,
+        )
+        if part_tag == "participation_skip" or part_tag == "participation_clip_zero":
+            if tradability_skips is not None:
+                tradability_skips["buy_participation_skip"] = (
+                    int(tradability_skips.get("buy_participation_skip", 0) or 0) + 1
+                )
+            return None
+        if part_tag == "participation_clipped" and tradability_skips is not None:
+            tradability_skips["buy_participation_clipped"] = (
+                int(tradability_skips.get("buy_participation_clipped", 0) or 0) + 1
+            )
+        if buy_shares == 0:
+            return None
         gross_amount = buy_shares * buy_price
         fees = allocation_strategy.fee_calculator.calculate_fees(gross_amount, "buy")
         total_cost = gross_amount + fees
@@ -647,6 +682,26 @@ class CapitalAllocationFlowImpl:
         except (TypeError, ValueError):
             sell_ratio = 1.0
         sell_shares = int(position.shares * sell_ratio)
+        if sell_shares == 0:
+            return None
+        sell_shares, part_tag = apply_participation_to_shares(
+            sell_shares,
+            bar_volume=row_sell_bar_volume(target),
+            max_participation_rate=allocation_strategy.max_participation_rate,
+            on_exceed=allocation_strategy.participation_on_exceed,
+            floor_shares_fn=lambda n: allocation_strategy._floor_buy_shares(n, stock_id),
+            stock_id=stock_id,
+        )
+        if part_tag == "participation_skip" or part_tag == "participation_clip_zero":
+            if tradability_skips is not None:
+                tradability_skips["sell_participation_skip"] = (
+                    int(tradability_skips.get("sell_participation_skip", 0) or 0) + 1
+                )
+            return None
+        if part_tag == "participation_clipped" and tradability_skips is not None:
+            tradability_skips["sell_participation_clipped"] = (
+                int(tradability_skips.get("sell_participation_clipped", 0) or 0) + 1
+            )
         if sell_shares == 0:
             return None
         gross_amount = sell_shares * sell_price

@@ -168,8 +168,11 @@ function mergeNestedDefaults(target, defaults) {
   if (defaults.edges && typeof defaults.edges === 'object') {
     next.edges = { ...defaults.edges, ...(next.edges || {}) };
   }
+  if (defaults.liquidity && typeof defaults.liquidity === 'object') {
+    next.liquidity = { ...defaults.liquidity, ...(next.liquidity || {}) };
+  }
   Object.keys(defaults).forEach((key) => {
-    if (key === 'slippage' || key === 'edges') return;
+    if (key === 'slippage' || key === 'edges' || key === 'liquidity') return;
     if (next[key] === undefined || next[key] === null || next[key] === '') {
       next[key] = defaults[key];
     }
@@ -211,8 +214,33 @@ function ensureCustomDefaults(simulation) {
     next.extreme_same_bar_order = 'stop_first';
   }
   next.skip_investment_when = normalizeSkipInvestmentWhen(next.skip_investment_when);
+  if (!next.liquidity || typeof next.liquidity !== 'object') {
+    next.liquidity = { max_participation_rate: 0.1, participation_on_exceed: 'clip' };
+  } else {
+    if (next.liquidity.max_participation_rate === undefined
+      || next.liquidity.max_participation_rate === null
+      || next.liquidity.max_participation_rate === '') {
+      next.liquidity.max_participation_rate = 0.1;
+    }
+    if (!next.liquidity.participation_on_exceed) {
+      next.liquidity.participation_on_exceed = 'clip';
+    }
+  }
   return next;
 }
+
+const PARTICIPATION_ON_EXCEED_OPTIONS = [
+  {
+    label: '缩量成交',
+    value: 'clip',
+    tooltip: '计划股数超过当日成交量×参与率时，按上限向下取整到最小交易单位后成交。',
+  },
+  {
+    label: '跳过',
+    value: 'skip',
+    tooltip: '计划股数超过参与率上限时，整笔买卖跳过。',
+  },
+];
 
 export function normalizeSimulationSettings(simulation, simulationTemplateProfiles = {}) {
   const next = simulation && typeof simulation === 'object' ? { ...simulation } : {};
@@ -336,6 +364,22 @@ export function buildStrategySimulationSchema(
         type: 'switch',
         label: '跌停日允许卖出',
         tooltip: '关闭后，遇到跌停且无法按规则卖出时将跳过该笔卖出。',
+        readonlyWhen: readonlyUnlessCustom,
+      },
+      {
+        name: 'liquidity.max_participation_rate',
+        type: 'number',
+        label: '最大参与率',
+        tooltip: '单笔成交不超过买入/卖出当日 K 线成交量（股）的该比例；默认 0.1 即 10%。',
+        parse: parseNumber,
+        readonlyWhen: readonlyUnlessCustom,
+      },
+      {
+        name: 'liquidity.participation_on_exceed',
+        type: 'select',
+        label: '超参与率时',
+        tooltip: '计划股数超过当日成交量×参与率时的处理方式。',
+        options: PARTICIPATION_ON_EXCEED_OPTIONS,
         readonlyWhen: readonlyUnlessCustom,
       },
       {

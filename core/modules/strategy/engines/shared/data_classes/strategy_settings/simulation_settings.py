@@ -12,6 +12,12 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, Literal, Optional, Tuple, TypeVar
 
+from core.modules.strategy.engines.shared.helpers.participation import (
+    ParticipationOnExceed,
+    parse_max_participation_rate,
+    parse_participation_on_exceed,
+)
+
 from .settings_base import SettingsBase, ValidationReport
 
 _E = TypeVar("_E")
@@ -62,6 +68,9 @@ _SIMULATION_DETAIL_KEYS = frozenset(
         "extreme_same_bar_order",
         "extreme_same_bar_random_seed",
         "skip_investment_when",
+        "liquidity",
+        "max_participation_rate",
+        "participation_on_exceed",
     }
 )
 
@@ -80,6 +89,8 @@ class _ParsedSnapshot:
     extreme_same_bar_order: ExtremeSameBarOrder
     extreme_same_bar_random_seed: Optional[int]
     skip_investment_when: Tuple[str, ...]
+    max_participation_rate: float
+    participation_on_exceed: ParticipationOnExceed
 
 
 def canonical_simulation_template_id(raw: Any) -> str:
@@ -118,6 +129,8 @@ def _realistic_daily_snapshot(
     template: str,
     allow_at_limit: bool,
     skip_investment_when: Tuple[str, ...],
+    max_participation_rate: float = 0.1,
+    participation_on_exceed: ParticipationOnExceed = "clip",
 ) -> _ParsedSnapshot:
     return _ParsedSnapshot(
         template=template,
@@ -132,6 +145,8 @@ def _realistic_daily_snapshot(
         extreme_same_bar_order=ExtremeSameBarOrder.STOP_FIRST,
         extreme_same_bar_random_seed=None,
         skip_investment_when=skip_investment_when,
+        max_participation_rate=max_participation_rate,
+        participation_on_exceed=participation_on_exceed,
     )
 
 
@@ -142,18 +157,24 @@ def _default_snapshot_for_template(tmpl: str) -> _ParsedSnapshot:
             template="standard",
             allow_at_limit=False,
             skip_investment_when=(),
+            max_participation_rate=0.1,
+            participation_on_exceed="clip",
         )
     if t == "strict":
         return _realistic_daily_snapshot(
             template="strict",
             allow_at_limit=False,
             skip_investment_when=("st", "star_st"),
+            max_participation_rate=0.1,
+            participation_on_exceed="skip",
         )
     if t == "ideal":
         return _realistic_daily_snapshot(
             template="ideal",
             allow_at_limit=True,
             skip_investment_when=(),
+            max_participation_rate=0.1,
+            participation_on_exceed="clip",
         )
     if t == "extreme":
         return _ParsedSnapshot(
@@ -169,6 +190,8 @@ def _default_snapshot_for_template(tmpl: str) -> _ParsedSnapshot:
             extreme_same_bar_order=ExtremeSameBarOrder.STOP_FIRST,
             extreme_same_bar_random_seed=None,
             skip_investment_when=(),
+            max_participation_rate=0.1,
+            participation_on_exceed="skip",
         )
     if t == "custom":
         return _default_snapshot_for_template("standard")
@@ -195,7 +218,33 @@ def simulation_template_defaults_payload(tmpl: str) -> Dict[str, Any]:
         "extreme_same_bar_order": snap.extreme_same_bar_order.value,
         "extreme_same_bar_random_seed": seed if seed is not None else "",
         "skip_investment_when": list(snap.skip_investment_when),
+        "liquidity": {
+            "max_participation_rate": snap.max_participation_rate,
+            "participation_on_exceed": snap.participation_on_exceed,
+        },
     }
+
+
+def _parse_liquidity_from_raw(
+    raw: Dict[str, Any],
+    *,
+    default_rate: float,
+    default_on_exceed: ParticipationOnExceed,
+) -> Tuple[float, ParticipationOnExceed]:
+    liq = raw.get("liquidity")
+    block: Dict[str, Any] = liq if isinstance(liq, dict) else {}
+    rate_raw = block.get("max_participation_rate", raw.get("max_participation_rate"))
+    exceed_raw = block.get("participation_on_exceed", raw.get("participation_on_exceed"))
+    rate = parse_max_participation_rate(
+        rate_raw if rate_raw is not None and rate_raw != "" else default_rate,
+        default=default_rate,
+    )
+    on_exceed = (
+        parse_participation_on_exceed(exceed_raw)
+        if exceed_raw is not None and exceed_raw != ""
+        else default_on_exceed
+    )
+    return rate, on_exceed
 
 
 def _is_preset_template(tmpl: str) -> bool:
@@ -274,6 +323,11 @@ def _parse_custom_snapshot(raw: Dict[str, Any]) -> _ParsedSnapshot:
             allow_sell_at_limit_down = bool(edges.get("allow_sell_at_limit_down"))
 
     skip = parse_skip_investment_when(raw.get("skip_investment_when", ()))
+    max_rate, on_exceed = _parse_liquidity_from_raw(
+        raw,
+        default_rate=base.max_participation_rate,
+        default_on_exceed=base.participation_on_exceed,
+    )
 
     return _ParsedSnapshot(
         template="custom",
@@ -288,6 +342,8 @@ def _parse_custom_snapshot(raw: Dict[str, Any]) -> _ParsedSnapshot:
         extreme_same_bar_order=order,
         extreme_same_bar_random_seed=seed_out,
         skip_investment_when=skip,
+        max_participation_rate=max_rate,
+        participation_on_exceed=on_exceed,
     )
 
 
@@ -347,6 +403,12 @@ class StrategySimulationSettings(SettingsBase):
             sim["skip_investment_when"] = []
         elif sim.get("skip_investment_when") is None:
             sim["skip_investment_when"] = []
+        sim.setdefault("liquidity", {})
+        if not isinstance(sim["liquidity"], dict):
+            sim["liquidity"] = {}
+        liq = sim["liquidity"]
+        liq.setdefault("max_participation_rate", 0.1)
+        liq.setdefault("participation_on_exceed", "clip")
 
     @property
     def _parsed(self) -> _ParsedSnapshot:
@@ -405,6 +467,30 @@ class StrategySimulationSettings(SettingsBase):
     @property
     def skip_investment_when(self) -> Tuple[str, ...]:
         return self._parsed.skip_investment_when
+
+    @property
+    def max_participation_rate(self) -> float:
+        return self._parsed.max_participation_rate
+
+    @property
+    def participation_on_exceed(self) -> ParticipationOnExceed:
+        return self._parsed.participation_on_exceed
+
+    def _validate_liquidity(self, result: ValidationReport) -> None:
+        try:
+            tmpl = canonical_simulation_template_id(self.simulation.get("template", "standard"))
+        except ValueError:
+            return
+        if tmpl != "custom":
+            return
+        try:
+            _parse_liquidity_from_raw(
+                self.simulation,
+                default_rate=0.1,
+                default_on_exceed="clip",
+            )
+        except ValueError as exc:
+            SettingsBase.add_critical(result, "simulation.liquidity", str(exc))
 
     def _validate_skip_investment_when(self, result: ValidationReport) -> None:
         try:
@@ -470,6 +556,7 @@ class StrategySimulationSettings(SettingsBase):
             self._validate_preset_template_no_detail_overrides(result)
         self.apply_defaults()
         self._validate_removed_edge_keys(result)
+        self._validate_liquidity(result)
         self._validate_skip_investment_when(result)
         try:
             object.__setattr__(self, "_parsed_cache", None)

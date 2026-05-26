@@ -322,6 +322,10 @@ export function normalizeCapitalMetricsFromSummary(slot) {
   const skippedBuyAtLimitUp = num('skipped_buy_at_limit_up');
   const skippedSellAtLimitDown = num('skipped_sell_at_limit_down');
   const skippedStockStatus = num('skipped_stock_status');
+  const skippedBuyParticipationRaw = num('skipped_buy_participation');
+  const skippedSellParticipationRaw = num('skipped_sell_participation');
+  const clippedBuyParticipationRaw = num('clipped_buy_participation');
+  const clippedSellParticipationRaw = num('clipped_sell_participation');
   const executionSkipsOk = [
     skippedBuyAtLimitUp,
     skippedSellAtLimitDown,
@@ -362,6 +366,18 @@ export function normalizeCapitalMetricsFromSummary(slot) {
       ? Math.round(skippedSellAtLimitDown)
       : 0,
     skippedStockStatus: Number.isFinite(skippedStockStatus) ? Math.round(skippedStockStatus) : 0,
+    skippedBuyParticipation: Number.isFinite(skippedBuyParticipationRaw)
+      ? Math.round(skippedBuyParticipationRaw)
+      : 0,
+    skippedSellParticipation: Number.isFinite(skippedSellParticipationRaw)
+      ? Math.round(skippedSellParticipationRaw)
+      : 0,
+    clippedBuyParticipation: Number.isFinite(clippedBuyParticipationRaw)
+      ? Math.round(clippedBuyParticipationRaw)
+      : 0,
+    clippedSellParticipation: Number.isFinite(clippedSellParticipationRaw)
+      ? Math.round(clippedSellParticipationRaw)
+      : 0,
     _availability: {
       executionSkips: executionSkipsOk,
     },

@@ -369,12 +369,6 @@ class BaseStrategyWorker(ABC):
     def on_after_scan(self, opportunity: Optional["Opportunity"]) -> None:
         pass
 
-    def on_before_simulate(self, opportunity: "Opportunity") -> None:
-        pass
-
-    def on_after_simulate(self, opportunity: "Opportunity") -> None:
-        pass
-
     def on_price_factor_before_process_stock(
         self,
         stock_id: str,
@@ -405,55 +399,3 @@ class BaseStrategyWorker(ABC):
         config: "dict",
     ) -> "dict":
         return target_row
-
-    def on_capital_allocation_before_trigger_event(
-        self,
-        event: "Any",
-        account: "Any",
-        config: "Any",
-    ):
-        return event
-
-    def on_capital_allocation_after_trigger_event(
-        self,
-        event: "Any",
-        trade: "dict",
-        account: "Any",
-        config: "Any",
-    ):
-        return trade
-
-    def on_capital_allocation_before_target_event(
-        self,
-        event: "Any",
-        account: "Any",
-        config: "Any",
-    ):
-        return event
-
-    def on_capital_allocation_after_target_event(
-        self,
-        event: "Any",
-        trade: "dict",
-        account: "Any",
-        config: "Any",
-    ):
-        return trade
-
-    def on_capital_allocation_calculate_shares_to_buy(
-        self,
-        event: "Any",
-        account: "Any",
-        config: "Any",
-        default_shares: int,
-    ):
-        return None
-
-    def on_capital_allocation_calculate_shares_to_sell(
-        self,
-        event: "Any",
-        position: "Any",
-        config: "Any",
-        default_shares: int,
-    ):
-        return None

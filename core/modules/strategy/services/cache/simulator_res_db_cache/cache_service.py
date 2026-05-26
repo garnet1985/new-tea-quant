@@ -45,7 +45,7 @@ class SimulatorResDbCacheService:
     ) -> int:
         """
         双指纹命中则合并更新 ``reports`` / ``result_report`` 聚合 JSON 中对应槽位；否则新建一行。
-        返回 ``snapshot_id``（``version``），失败为 ``0``。
+        返回工作台 ``version``，失败为 ``0``。
         """
         model = self.table_operator
         if model is None:
@@ -65,7 +65,7 @@ class SimulatorResDbCacheService:
         )
         merged: Dict[str, Any]
         if rows:
-            sid = int((rows[0] or {}).get("snapshot_id") or 0)
+            sid = int((rows[0] or {}).get("version") or 0)
             if sid <= 0:
                 return 0
             merged = dict((rows[0] or {}).get("result_report") or {})
@@ -88,7 +88,7 @@ class SimulatorResDbCacheService:
             settings_finger_print_id=sfp,
             env_fingerprint_id=efp,
         )
-        sid = int((created or {}).get("snapshot_id") or 0)
+        sid = int((created or {}).get("version") or 0)
         if sid > 0:
             self._prune_oldest_if_over_limit(str(strategy_name))
         return sid
@@ -100,10 +100,10 @@ class SimulatorResDbCacheService:
         rows = model.list_versions_asc(strategy_name, limit=MAX_SNAPSHOT_ROWS_PER_STRATEGY + 50)
         while len(rows) > MAX_SNAPSHOT_ROWS_PER_STRATEGY:
             oldest = rows[0]
-            sid = int((oldest or {}).get("snapshot_id") or (oldest or {}).get("version") or 0)
+            sid = int((oldest or {}).get("version") or 0)
             if sid <= 0:
                 break
-            model.delete_snapshot_row(strategy_name, sid)
+            model.delete_version_row(strategy_name, sid)
             rows = rows[1:]
 
     def load_cache_by_fingerprints(
@@ -131,11 +131,11 @@ class SimulatorResDbCacheService:
         strategy_name: str,
         version: int,
     ) -> Dict[str, Any]:
-        """按 ``strategy_name`` + ``version``（表列 ``version`` / 领域 snapshot_id）加载一行；无则 ``{}``。"""
+        """按 ``strategy_name`` + 工作台 ``version`` 加载一行；无则 ``{}``。"""
         model = self.table_operator
         if model is None:
             return {}
-        row = model.load_by_strategy_snapshot_id(str(strategy_name), int(version))
+        row = model.load_by_strategy_version(str(strategy_name), int(version))
         if not row:
             return {}
         return dict(row)
@@ -195,12 +195,12 @@ class SimulatorResDbCacheService:
                 self._prune_oldest_if_over_limit(name.strip())
 
     def delete_cache_by_version(self, strategy_name: str, version: int) -> bool:
-        """删除 ``strategy_name`` + ``version``（snapshot_id）对应的一行。"""
+        """删除 ``strategy_name`` + 工作台 ``version`` 对应的一行。"""
         model = self.table_operator
         if model is None:
             return False
         model._ensure_table_ready()
-        n = model.delete_snapshot_row(str(strategy_name), int(version))
+        n = model.delete_version_row(str(strategy_name), int(version))
         return int(n or 0) > 0
 
     def delete_cache_for_strategy(self, strategy_name: str) -> bool:
@@ -213,9 +213,6 @@ class SimulatorResDbCacheService:
         return int(n or 0) > 0
 
 
-DbCacheService = SimulatorResDbCacheService
-
 __all__ = [
-    "DbCacheService",
     "SimulatorResDbCacheService",
 ]

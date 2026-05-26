@@ -153,7 +153,7 @@ def run_envelope_on_substep_finish(
     index: int,
     total: int,
     substep: str,
-    snapshot_id: int,
+    version: int,
 ) -> None:
     _ = total
     sn = str(strategy_name).strip()
@@ -172,7 +172,7 @@ def run_envelope_on_substep_finish(
             st.get("step_name"),
             substep,
         )
-    sid = int(snapshot_id or 0)
+    sid = int(version or 0)
     st["status"] = "completed"
     st["progress"] = 100.0
     msg = f"{str(substep).strip()} 已完成"

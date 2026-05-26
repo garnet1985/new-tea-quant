@@ -1,8 +1,8 @@
 """
 sys_strategy_workbench_snapshot 表 Model。
 
-命名约定：表中列 ``version`` 在领域含义上就是 **snapshot_id**（整型，一条快照一行）；
-``version_id`` / ``v{n}`` 仅作展示用字符串。
+命名约定：表中列 ``version`` 为工作台快照整型版本号（一条快照一行）；
+``version_id`` / ``v{n}`` 仅作展示用字符串。与磁盘模拟产物 ``output_version`` 无关。
 
 JSON 聚合列在 schema 中为 ``reports``；读出行上同时提供 ``result_report`` 键（与 ``reports`` 同一 dict），便于调用方沿用原有命名。
 """
@@ -55,14 +55,14 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
                 self.db.schema_manager.create_table_with_indexes(self.schema, self.db.get_connection)
             self.__class__._table_ready = True
 
-    def load_by_strategy_snapshot_id(
-        self, strategy_name: str, snapshot_id: int
+    def load_by_strategy_version(
+        self, strategy_name: str, version: int
     ) -> Optional[Dict[str, Any]]:
         self._ensure_table_ready()
-        row = self.load_one("strategy_name = %s AND version = %s", (strategy_name, int(snapshot_id)))
+        row = self.load_one("strategy_name = %s AND version = %s", (strategy_name, int(version)))
         return self._normalize_row(row) if row else None
 
-    def touch_snapshot_updated_at(self, strategy_name: str, snapshot_id: int) -> int:
+    def touch_version_updated_at(self, strategy_name: str, version: int) -> int:
         """仅刷新 ``updated_at``（V2-09 apply-settings 落盘后与会话对齐）。"""
         self._ensure_table_ready()
         return self.execute_raw_update(
@@ -70,7 +70,7 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
                 f"UPDATE {self.table_name} SET updated_at = %s "
                 "WHERE strategy_name = %s AND version = %s"
             ),
-            (datetime.now(), str(strategy_name), int(snapshot_id)),
+            (datetime.now(), str(strategy_name), int(version)),
         )
 
     def list_by_strategy(self, strategy_name: str, limit: int = 100) -> List[Dict[str, Any]]:
@@ -91,10 +91,10 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
         out[COL_REPORTS] = blob
         out["result_report"] = blob
         if "version" in out:
-            out["snapshot_id"] = int(out.get("version") or 0)
+            out["version"] = int(out.get("version") or 0)
         return out
 
-    def get_next_snapshot_id(self, strategy_name: str) -> int:
+    def get_next_version(self, strategy_name: str) -> int:
         self._ensure_table_ready()
         latest = self.load(
             "strategy_name = %s",
@@ -116,11 +116,11 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
         env_fingerprint_id: str = "",
     ) -> Dict[str, Any]:
         self._ensure_table_ready()
-        snapshot_id = self.get_next_snapshot_id(strategy_name)
+        version = self.get_next_version(strategy_name)
         now = datetime.now()
         payload = {
             "strategy_name": strategy_name,
-            "version": snapshot_id,
+            "version": version,
             "settings_snapshot": settings_snapshot or {},
             COL_REPORTS: result_report or {},
             COL_SETTINGS_FP: str(settings_finger_print_id or ""),
@@ -129,19 +129,19 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
             "updated_at": now,
         }
         self.upsert_one(payload, unique_keys=["strategy_name", "version"])
-        return {"strategy_name": strategy_name, "snapshot_id": snapshot_id}
+        return {"strategy_name": strategy_name, "version": version}
 
     def update_result_report(
         self,
         strategy_name: str,
-        snapshot_id: int,
+        version: int,
         result_report: Dict[str, Any],
         settings_finger_print_id: str = "",
         env_fingerprint_id: str = "",
     ) -> int:
         """更新聚合 JSON（物理列 ``reports``）。"""
         self._ensure_table_ready()
-        current = self.load_by_strategy_snapshot_id(strategy_name, snapshot_id)
+        current = self.load_by_strategy_version(strategy_name, version)
         if not current:
             return 0
         target_settings_fp = (
@@ -166,7 +166,7 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
                 target_env_fp,
                 datetime.now(),
                 strategy_name,
-                int(snapshot_id),
+                int(version),
             ),
         )
 
@@ -204,10 +204,10 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
         rows = self.load(where, params, order_by="version DESC", limit=safe_limit)
         return [self._normalize_row(row) for row in rows]
 
-    def delete_snapshot_row(self, strategy_name: str, snapshot_id: int) -> int:
+    def delete_version_row(self, strategy_name: str, version: int) -> int:
         """删除指定策略版本行（``strategy_name`` + ``version``）。"""
         self._ensure_table_ready()
-        return self.delete_one("strategy_name = %s AND version = %s", (strategy_name, int(snapshot_id)))
+        return self.delete_one("strategy_name = %s AND version = %s", (strategy_name, int(version)))
 
     def list_versions_asc(self, strategy_name: str, *, limit: int = 500) -> List[Dict[str, Any]]:
         """同一策略下按 ``version`` 升序（用于淘汰最早版本）。"""

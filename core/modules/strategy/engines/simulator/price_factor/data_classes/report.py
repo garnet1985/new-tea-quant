@@ -212,7 +212,7 @@ class PriceReport(ReportBase):
         payload = {
             k: v
             for k, v in summary.items()
-            if k not in ("output_version", "sim_version")
+            if k not in ("output_version", "output_version_run", "sim_version")
         }
         report = cls.from_dict(payload)
         if not report.backtest_period:
@@ -227,14 +227,18 @@ class PriceReport(ReportBase):
         for line in report.to_console_lines():
             print(line)
         ov = summary.get("output_version") if isinstance(summary.get("output_version"), dict) else {}
-        sv = summary.get("sim_version") if isinstance(summary.get("sim_version"), dict) else {}
+        run = summary.get("output_version_run")
+        if not isinstance(run, dict):
+            run = summary.get("sim_version") if isinstance(summary.get("sim_version"), dict) else {}
+        run_dir = run.get("output_version_dir") or run.get("version_dir")
+        run_id = run.get("output_version_id", run.get("version_id", ""))
         print("")
         print(
             "📂 枚举输出版本目录: "
             f"{ov.get('version_dir') or '—'}  │  "
             "本次模拟目录: "
-            f"{sv.get('version_dir') or '—'} "
-            f"(version_id={sv.get('version_id', '')})"
+            f"{run_dir or '—'} "
+            f"(output_version_id={run_id})"
         )
         if used_db_cache:
             print("💾 本次结果来自 Simulator DB 缓存，未新建模拟输出目录。")

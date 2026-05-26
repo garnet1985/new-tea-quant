@@ -47,7 +47,7 @@ class PriceFactorWorker:
         self.strategy_name: str = job_payload["strategy_name"]
         self.opportunities_path = Path(job_payload["opportunities_path"])
         self.targets_path = Path(job_payload["targets_path"])
-        self.sim_version_dir = Path(job_payload["sim_version_dir"])
+        self.output_version_dir = Path(job_payload["output_version_dir"])
         self.config_dict: Dict[str, Any] = job_payload.get("config", {})
         self.hooks_dispatcher = SimulatorHooksDispatcher(self.strategy_name)
         self.profiler = PerformanceProfiler(self.stock_id)
@@ -279,7 +279,7 @@ class PriceFactorWorker:
     def _save_stock_json(self, stock_summary: Dict[str, Any]) -> None:
         from core.utils.io.csv_io import write_dicts_to_csv
 
-        path_mgr = StrategyOutputPathService(sim_version_dir=self.sim_version_dir)
+        path_mgr = StrategyOutputPathService(output_version_dir=self.output_version_dir)
         stock_path = path_mgr.stock_json_path(self.stock_id)
         self.profiler.start_timer("save_csv")
         before = stock_path.stat().st_size if stock_path.exists() else 0

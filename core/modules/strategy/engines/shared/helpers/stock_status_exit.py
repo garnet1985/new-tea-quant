@@ -269,41 +269,6 @@ def apply_stock_status_risk_management_from_settings(
         stock=stock,
     )
 
-
-# 兼容旧调用方
-def force_exit_delisted(
-    opportunity: "Opportunity",
-    sim: "StrategySimulationSettings",
-    current_bar: Dict[str, Any],
-    *,
-    prev_bar: Optional[Dict[str, Any]] = None,
-    stock: Optional[Dict[str, Any]] = None,
-) -> bool:
-    from core.modules.strategy.engines.shared.data_classes.strategy_settings.stock_status_risk_settings import (
-        StockStatusRiskManagementSettings,
-    )
-    from core.modules.strategy.engines.shared.helpers.stock_status_risk_context import (
-        build_stock_status_risk_runtime_context,
-    )
-
-    meta = stock if stock is not None else (opportunity.stock or {})
-    sid = str(meta.get("id") or opportunity.stock_id or "").strip()
-    ctx = build_stock_status_risk_runtime_context(
-        stock_meta=meta,
-        settings=StockStatusRiskManagementSettings(),
-        stock_id=sid,
-    )
-    return apply_stock_status_risk_management(
-        opportunity,
-        sim,
-        current_bar,
-        ctx,
-        prev_bar=prev_bar,
-        market_profile=None,
-        stock=meta,
-    )
-
-
 def last_tradable_bar_for_delist(
     current_bar: Dict[str, Any],
     prev_bar: Optional[Dict[str, Any]],
@@ -316,7 +281,6 @@ __all__ = [
     "STOCK_STATUS_REASON_DELISTED",
     "apply_stock_status_risk_management",
     "apply_stock_status_risk_management_from_settings",
-    "force_exit_delisted",
     "last_tradable_bar_for_delist",
     "price_bar_for_exit",
     "should_force_exit_delisted",

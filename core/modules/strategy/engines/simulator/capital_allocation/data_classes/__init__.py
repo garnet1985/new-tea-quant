@@ -3,7 +3,6 @@
 
 from .settings import (
     AllocationConfig,
-    CapitalAllocationSettings,
     OutputConfig,
     StrategyCapitalSimulatorSettings,
 )
@@ -22,7 +21,6 @@ __all__ = [
     "AllocationConfig",
     "OutputConfig",
     "StrategyCapitalSimulatorSettings",
-    "CapitalAllocationSettings",
     "CapitalAllocationPreprocessContext",
     "CapitalAllocationExecuteContext",
 ]

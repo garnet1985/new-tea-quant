@@ -341,9 +341,9 @@ def read_backtest_period_from_enum_output_dir(output_dir: Path) -> Dict[str, str
     return {}
 
 
-def read_backtest_period_from_price_sim_dir(sim_version_dir: Path) -> Dict[str, str]:
+def read_backtest_period_from_price_output_dir(output_version_dir: Path) -> Dict[str, str]:
     """价格因子模拟目录：``0_session_summary.json`` → ``0_metadata.json``。"""
-    base = Path(sim_version_dir)
+    base = Path(output_version_dir)
     for name in ("0_session_summary.json", "0_metadata.json"):
         bp = read_backtest_period_from_json_file(base / name)
         if bp:
@@ -351,9 +351,9 @@ def read_backtest_period_from_price_sim_dir(sim_version_dir: Path) -> Dict[str, 
     return {}
 
 
-def read_backtest_period_from_capital_sim_dir(sim_version_dir: Path) -> Dict[str, str]:
+def read_backtest_period_from_capital_output_dir(output_version_dir: Path) -> Dict[str, str]:
     """资金模拟目录：``summary_strategy.json`` → ``0_metadata.json``。"""
-    base = Path(sim_version_dir)
+    base = Path(output_version_dir)
     for name in ("summary_strategy.json", "0_metadata.json"):
         bp = read_backtest_period_from_json_file(base / name)
         if bp:
@@ -383,10 +383,10 @@ __all__ = [
     "backtest_period_console_lines",
     "backtest_period_to_dict",
     "format_backtest_date_display",
-    "read_backtest_period_from_capital_sim_dir",
+    "read_backtest_period_from_capital_output_dir",
     "read_backtest_period_from_enum_output_dir",
     "read_backtest_period_from_json_file",
-    "read_backtest_period_from_price_sim_dir",
+    "read_backtest_period_from_price_output_dir",
     "SOURCE_DEFAULT",
     "SOURCE_LATEST_TRADING_DAY",
     "SOURCE_SAMPLE_EARLIEST_KLINE",

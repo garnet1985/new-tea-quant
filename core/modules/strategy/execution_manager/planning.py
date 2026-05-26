@@ -20,14 +20,14 @@ __all__ = [
 def plan_workbench_substeps(
     *,
     norm_step: str,
-    is_force: bool,
+    force_refresh: bool,
     strategy_name: str,
     discovered: "DiscoveredStrategy",
 ) -> List[PlannedSubstep]:
-    """见 ``plan_schema.resolve_workbench_plan`` 与 ``WORKBENCH_PLAN_BY_ROOT_STEP``。"""
+    """见 ``plan_schema.resolve_workbench_plan`` 与 ``WORKBENCH_ROOT_PLANS``。"""
     return resolve_workbench_plan(
         norm_step=norm_step,
-        is_force=is_force,
+        force_refresh=force_refresh,
         strategy_name=strategy_name,
         discovered=discovered,
     )

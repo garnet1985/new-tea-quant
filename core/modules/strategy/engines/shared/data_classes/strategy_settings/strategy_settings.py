@@ -156,8 +156,6 @@ class StrategySettings(SettingsBase):
         return False
 
 
-BaseSettings = StrategySettings
-
 from .data_settings import StrategyDataSettings  # noqa: E402
 from .goal_settings import StrategyGoalSettings  # noqa: E402
 from .meta_settings import StrategyMetaSettings  # noqa: E402
@@ -169,29 +167,22 @@ from .simulation_settings import (  # noqa: E402
     TradePriceModel,
 )
 from core.modules.strategy.engines.scanner.data_classes.settings import (  # noqa: E402
-    ScannerSettings,
     StrategyScannerSettings,
 )
 from core.modules.strategy.engines.simulator.capital_allocation.data_classes.settings import (  # noqa: E402
     AllocationConfig,
-    CapitalAllocationSettings,
     OutputConfig,
     StrategyCapitalSimulatorSettings,
 )
 from core.modules.strategy.engines.simulator.enumerator.data_classes.strategy_settings import (  # noqa: E402
-    EnumeratorSettings,
     StrategyEnumeratorSettings,
 )
 from core.modules.strategy.engines.simulator.price_factor.data_classes.settings import (  # noqa: E402
-    StrategyPriceFactorSimulationSettings,
     StrategyPriceSimulatorSettings,
 )
 
 __all__ = [
     "AllocationConfig",
-    "BaseSettings",
-    "CapitalAllocationSettings",
-    "EnumeratorSettings",
     "ExtremeSameBarOrder",
     "MonitorPriceModel",
     "NoNextBarPolicy",
@@ -203,10 +194,8 @@ __all__ = [
     "StrategyGoalSettings",
     "StrategyCapitalSimulatorSettings",
     "StrategyMetaSettings",
-    "StrategyPriceFactorSimulationSettings",
     "StrategyPriceSimulatorSettings",
     "StrategySettings",
-    "ScannerSettings",
     "StrategySamplingSettings",
     "StrategyScannerSettings",
     "TradePriceModel",

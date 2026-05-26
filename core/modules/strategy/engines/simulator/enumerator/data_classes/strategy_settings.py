@@ -132,6 +132,4 @@ class StrategyEnumeratorSettings(SettingsBase):
         return bool(self.enumerator.get("is_verbose", False))
 
 
-EnumeratorSettings = StrategyEnumeratorSettings
-
-__all__ = ["StrategyEnumeratorSettings", "EnumeratorSettings"]
+__all__ = ["StrategyEnumeratorSettings"]

@@ -35,8 +35,8 @@ class CapitalAllocationFlow(BaseSimulationFlow):
     def __init__(self, is_verbose: bool = False, *, force_refresh: bool = False) -> None:
         self._impl = CapitalAllocationFlowImpl(is_verbose=is_verbose)
         self._force_refresh = bool(force_refresh)
-        self.last_snapshot_id: int = 0
-        self.last_run_used_db_cache: bool = False
+        self.last_version: int = 0
+        self.used_db_cache: bool = False
 
     def run(
         self,
@@ -66,8 +66,8 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             resolve_db_cache_fingerprints,
         )
 
-        self.last_snapshot_id = 0
-        self.last_run_used_db_cache = False
+        self.last_version = 0
+        self.used_db_cache = False
 
         def tick(pct: float) -> None:
             if progress_callback is not None:
@@ -77,16 +77,16 @@ class CapitalAllocationFlow(BaseSimulationFlow):
 
         base_settings = self._impl.load_settings(strategy_name, strategy_info)
         config = self._impl.parse_config(base_settings)
-        output_version_dir = self._impl.resolve_source_version(
+        base_output_version_dir = self._impl.resolve_source_version(
             strategy_name=strategy_name,
             base_settings=base_settings,
             config=config,
             strategy_info=strategy_info,
         )
 
-        scan = PriceFactorFlowImpl(is_verbose=False).scan_stock_files(output_version_dir)
+        scan = PriceFactorFlowImpl(is_verbose=False).scan_stock_files(base_output_version_dir)
         stock_list = stock_ids_for_db_cache_fingerprint(
-            output_version_dir,
+            base_output_version_dir,
             fallback_ids=sorted(scan.keys()),
         )
         raw_for_fp = raw_settings_for_db_cache_fingerprint(base_settings, strategy_info)
@@ -110,9 +110,9 @@ class CapitalAllocationFlow(BaseSimulationFlow):
                 resolved.env_fp,
             )
             if hit:
-                summary, snapshot_id = hit
-                self.last_snapshot_id = int(snapshot_id or 0)
-                self.last_run_used_db_cache = True
+                summary, wb_version = hit
+                self.last_version = int(wb_version or 0)
+                self.used_db_cache = True
                 tick(92.0)
                 return summary
 
@@ -143,9 +143,9 @@ class CapitalAllocationFlow(BaseSimulationFlow):
                     report_capital_allocation=summary,
                     settings_fingerprint_id=resolved_save.settings_fp,
                     env_fingerprint_id=resolved_save.env_fp,
-                    capital_sim_version_dir=preprocessed.sim_version_dir.name,
+                    capital_output_version_dir=preprocessed.output_version_dir.name,
                 )
-                self.last_snapshot_id = int(sid or 0)
+                self.last_version = int(sid or 0)
 
         return summary
 
@@ -161,13 +161,13 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         # step2: parse simulator-specific config from settings
         config = self._impl.parse_config(base_settings)
         # step3: resolve source data version and create simulation version
-        output_version_dir = self._impl.resolve_source_version(
+        base_output_version_dir = self._impl.resolve_source_version(
             strategy_name=strategy_name,
             base_settings=base_settings,
             config=config,
             strategy_info=strategy_info,
         )
-        sim_version_dir, sim_version_id = self._impl.create_simulation_version(
+        output_version_dir, output_version_id = self._impl.create_output_version(
             strategy_name
         )
         # step4: initialize runtime profiling context
@@ -184,7 +184,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         from core.modules.strategy.services.data.output import EnumeratorOutputWriterService
 
         data_mgr = DataManager(is_verbose=False)
-        scope_ids = EnumeratorOutputWriterService.read_scope_stock_ids(output_version_dir)
+        scope_ids = EnumeratorOutputWriterService.read_scope_stock_ids(base_output_version_dir)
         period = resolve_backtest_date_range(
             settings_view=base_settings,
             stock_ids=scope_ids,
@@ -202,9 +202,9 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             market_profile=market_profile,
             simulation_settings=simulation_settings,
             config=config,
+            base_output_version_dir=base_output_version_dir,
             output_version_dir=output_version_dir,
-            sim_version_dir=sim_version_dir,
-            sim_version_id=sim_version_id,
+            output_version_id=output_version_id,
             profiler=profiler,
             backtest_calendar=calendar_dict,
         )
@@ -218,7 +218,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         # step1: load ordered event stream from output artifacts
         events = self._impl.load_event_stream(
             strategy_name=preprocessed.strategy_name,
-            output_version_dir=preprocessed.output_version_dir,
+            base_output_version_dir=preprocessed.base_output_version_dir,
             config=preprocessed.config,
             base_settings=preprocessed.base_settings,
             profiler=preprocessed.profiler,
@@ -285,7 +285,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         )
 
         stock_ids = EnumeratorOutputWriterService.read_scope_stock_ids(
-            preprocessed.output_version_dir
+            preprocessed.base_output_version_dir
         )
         data_mgr = DataManager(is_verbose=False)
         summary["backtest_period"] = resolve_backtest_period_payload(
@@ -298,9 +298,9 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         preprocessed.profiler.start_timer("save_csv")
         settings_snapshot = preprocessed.base_settings.to_dict()
         self._impl.save_outputs(
-            sim_version_dir=preprocessed.sim_version_dir,
-            sim_version_id=preprocessed.sim_version_id,
-            output_version=preprocessed.output_version_dir.name,
+            output_version_dir=preprocessed.output_version_dir,
+            output_version_id=preprocessed.output_version_id,
+            output_version=preprocessed.base_output_version_dir.name,
             trades=executed.trades or [],
             equity_curve=executed.equity_curve or [],
             summary=summary,
@@ -318,13 +318,13 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         )
         # step3: persist performance report
         self._impl.save_performance_report(
-            sim_version_dir=preprocessed.sim_version_dir,
+            output_version_dir=preprocessed.output_version_dir,
             profiler=preprocessed.profiler,
         )
         # step4: trigger analyzer hooks
         self._impl.run_analyzer_hook(
             strategy_name=preprocessed.strategy_name,
-            sim_version_dir=preprocessed.sim_version_dir,
+            output_version_dir=preprocessed.output_version_dir,
             raw_settings=preprocessed.base_settings.to_dict(),
         )
         from core.modules.strategy.services.data.output.version_manager import (

@@ -21,8 +21,8 @@ def get_strategy_workbench_stack() -> SimpleNamespace:
         apply_workbench_snapshot_settings_to_userspace,
         build_step_report_message,
         build_step_report_ref_message,
-        fetch_workbench_snapshot_by_snapshot_id,
-        parse_snapshot_id,
+        fetch_workbench_by_version,
+        parse_version_id,
         workbench_latest_ui_flags,
     )
     from core.modules.strategy.launcher.workbench_catalog import (
@@ -45,8 +45,8 @@ def get_strategy_workbench_stack() -> SimpleNamespace:
         apply_workbench_snapshot_settings_to_userspace=apply_workbench_snapshot_settings_to_userspace,
         build_step_report_message=build_step_report_message,
         build_step_report_ref_message=build_step_report_ref_message,
-        fetch_workbench_snapshot_by_snapshot_id=fetch_workbench_snapshot_by_snapshot_id,
-        parse_snapshot_id=parse_snapshot_id,
+        fetch_workbench_by_version=fetch_workbench_by_version,
+        parse_version_id=parse_version_id,
         workbench_latest_ui_flags=workbench_latest_ui_flags,
         fetch_discovered_strategies_page=fetch_discovered_strategies_page,
         fetch_strategy_versions_dropdown=fetch_strategy_versions_dropdown,

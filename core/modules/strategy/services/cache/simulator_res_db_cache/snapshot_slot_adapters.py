@@ -31,7 +31,7 @@ def lookup_enum_cache(
     settings_finger_print_id: str,
     env_fingerprint_id: str,
 ) -> Optional[Tuple[List[Dict[str, Any]], int]]:
-    """双指纹命中且 ``result_report.enum`` 为非空 dict 时返回 ``([payload], snapshot_id)``；否则 ``None``。"""
+    """双指纹命中且 ``result_report.enum`` 为非空 dict 时返回 ``([payload], workbench_version)``；否则 ``None``。"""
     svc = SimulatorResDbCacheService()
     row = svc.load_cache_by_fingerprints(
         str(strategy_name),
@@ -40,13 +40,13 @@ def lookup_enum_cache(
     )
     if not row:
         return None
-    snapshot_id = int((row or {}).get("snapshot_id") or 0)
+    wb_version = int((row or {}).get("version") or 0)
     rr = dict((row or {}).get("result_report") or {})
     enum_raw = rr.get("enum")
     if not isinstance(enum_raw, dict) or not enum_raw:
         return None
     hydrated = hydrate_enum_slot(str(strategy_name).strip(), enum_raw)
-    return ([hydrated], snapshot_id)
+    return ([hydrated], wb_version)
 
 
 def persist_enum_snapshot(
@@ -74,7 +74,7 @@ def lookup_price_factor_cache(
     settings_finger_print_id: str,
     env_fingerprint_id: str,
 ) -> Optional[Tuple[Dict[str, Any], int]]:
-    """双指纹命中且 ``result_report.price_factor`` 为非空 dict 时返回 ``(payload, snapshot_id)``。"""
+    """双指纹命中且 ``result_report.price_factor`` 为非空 dict 时返回 ``(payload, workbench_version)``。"""
     svc = SimulatorResDbCacheService()
     row = svc.load_cache_by_fingerprints(
         str(strategy_name),
@@ -83,12 +83,12 @@ def lookup_price_factor_cache(
     )
     if not row:
         return None
-    snapshot_id = int((row or {}).get("snapshot_id") or 0)
+    wb_version = int((row or {}).get("version") or 0)
     rr = dict((row or {}).get("result_report") or {})
     slot = rr.get("price_factor")
     if not isinstance(slot, dict) or not slot:
         return None
-    return (slot, snapshot_id)
+    return (slot, wb_version)
 
 
 def persist_price_factor_snapshot(
@@ -115,7 +115,7 @@ def lookup_capital_allocation_cache(
     settings_finger_print_id: str,
     env_fingerprint_id: str,
 ) -> Optional[Tuple[Dict[str, Any], int]]:
-    """双指纹命中且 ``result_report.capital_allocation`` 为非空 dict 时返回 ``(payload, snapshot_id)``。"""
+    """双指纹命中且 ``result_report.capital_allocation`` 为非空 dict 时返回 ``(payload, workbench_version)``。"""
     svc = SimulatorResDbCacheService()
     row = svc.load_cache_by_fingerprints(
         str(strategy_name),
@@ -124,13 +124,13 @@ def lookup_capital_allocation_cache(
     )
     if not row:
         return None
-    snapshot_id = int((row or {}).get("snapshot_id") or 0)
+    wb_version = int((row or {}).get("version") or 0)
     rr = dict((row or {}).get("result_report") or {})
     slot = rr.get("capital_allocation")
     if not isinstance(slot, dict) or not slot:
         return None
     hydrated = hydrate_capital_slot(str(strategy_name).strip(), slot)
-    return (hydrated, snapshot_id)
+    return (hydrated, wb_version)
 
 
 def persist_capital_allocation_snapshot(
@@ -140,15 +140,16 @@ def persist_capital_allocation_snapshot(
     report_capital_allocation: Dict[str, Any],
     settings_fingerprint_id: str,
     env_fingerprint_id: str,
+    capital_output_version_dir: Optional[str] = None,
     capital_sim_version_dir: Optional[str] = None,
 ) -> int:
     """写入或合并 ``capital_allocation`` 槽位。"""
     sn = str(strategy_name).strip()
     raw = dict(report_capital_allocation or {})
     to_save = raw
-    vd = str(capital_sim_version_dir or "").strip()
+    vd = str(capital_output_version_dir or capital_sim_version_dir or "").strip()
     if vd:
-        to_save = compact_capital_slot_for_cache(sn, raw, capital_sim_version_dir=vd)
+        to_save = compact_capital_slot_for_cache(sn, raw, capital_output_version_dir=vd)
     return SimulatorResDbCacheService().set_cache(
         strategy_name=str(strategy_name),
         settings_snapshot=dict(settings_snapshot_api or {}),

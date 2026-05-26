@@ -31,9 +31,9 @@ class CapitalAllocationPreprocessContext:
     market_profile: "MarketProfileContext"
     simulation_settings: "StrategySimulationSettings"
     config: "StrategyCapitalSimulatorSettings"
+    base_output_version_dir: Path
     output_version_dir: Path
-    sim_version_dir: Path
-    sim_version_id: int
+    output_version_id: int
     profiler: "PerformanceProfiler"
     backtest_calendar: Optional[Dict[str, Any]] = None
 

@@ -24,7 +24,7 @@ class ReportBuilder:
             "",
             f"**Strategy**: {report.get('strategy_name', 'N/A')}",
             f"**Simulator**: {report.get('sim_type', 'N/A')}",
-            f"**Version Dir**: {report.get('sim_version_dir', 'N/A')}",
+            f"**Version Dir**: {report.get('output_version_dir', 'N/A')}",
             "",
             "---",
             "",

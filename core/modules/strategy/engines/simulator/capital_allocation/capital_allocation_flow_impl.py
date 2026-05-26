@@ -463,7 +463,7 @@ class CapitalAllocationFlowImpl:
         *,
         output_version_dir: Path,
         output_version_id: int,
-        output_version: str,
+        base_output_version_dir: Path,
         trades: List[Dict[str, Any]],
         equity_curve: List[Dict[str, Any]],
         summary: Dict[str, Any],
@@ -474,7 +474,7 @@ class CapitalAllocationFlowImpl:
         self._save_results(
             output_version_dir,
             output_version_id,
-            output_version,
+            base_output_version_dir,
             trades,
             equity_curve,
             summary,
@@ -783,7 +783,7 @@ class CapitalAllocationFlowImpl:
         self,
         output_version_dir: Path,
         output_version_id: int,
-        output_version: str,
+        base_output_version_dir: Path,
         trades: List[Dict[str, Any]],
         equity_curve: List[Dict[str, Any]],
         summary: Dict[str, Any],
@@ -809,8 +809,15 @@ class CapitalAllocationFlowImpl:
         with path_mgr.strategy_summary_path().open("w", encoding="utf-8") as f:
             json.dump(summary, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
         metadata = {
-            "sim_version": f"{output_version_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-            "output_version": output_version,
+            "output_version_run": {
+                "output_version_id": output_version_id,
+                "output_version_dir": output_version_dir.name,
+                "run_label": f"{output_version_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            },
+            "output_version": {
+                "enumerator_output_dir": base_output_version_dir.name,
+                "output_root": str(base_output_version_dir.parent.name),
+            },
             "config": config.to_dict(),
             "settings_snapshot": settings_snapshot,
             "created_at": datetime.now().isoformat(),

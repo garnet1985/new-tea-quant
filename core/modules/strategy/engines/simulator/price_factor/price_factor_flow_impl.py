@@ -209,7 +209,7 @@ class PriceFactorFlowImpl:
         roi_pcts = collect_roi_percents_from_stock_summaries(stock_summaries)
         session_summary.update(roi_distribution_session_fields(roi_pcts))
         session_summary["output_version"] = {
-            "version_dir": base_output_version_dir.name,
+            "enumerator_output_dir": base_output_version_dir.name,
             "output_root": str(output_root.name),
         }
         session_summary["output_version_run"] = {
@@ -301,7 +301,7 @@ class PriceFactorFlowImpl:
             "output_version_dir": output_version_dir.name,
             "created_at": datetime.now().isoformat(),
             "output_version": {
-                "version_dir": base_output_version_dir.name,
+                "enumerator_output_dir": base_output_version_dir.name,
                 "output_root": str(base_output_version_dir.parent.name),
             },
             "session_summary": session_summary,

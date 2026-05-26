@@ -129,6 +129,11 @@ def fetch_latest_workbench_snapshot(strategy_name: str) -> Optional[Dict[str, An
             logger.warning("Unusable snapshot row for %s (missing version)", name)
             break
         logger.warning("Removing unusable workbench snapshot row strategy=%s version=%s", name, sid)
+        from core.modules.strategy.services.data.output.workbench_snapshot_retention import (
+            log_workbench_version_deleted,
+        )
+
+        log_workbench_version_deleted(name, sid, row)
         model.delete_version_row(name, sid)
 
     folder = PathManager.userspace() / "strategies" / name
@@ -313,8 +318,7 @@ def build_step_report_ref_message(
     仅当快照行不存在（或参数非法）时返回 ``None``，路由 404。磁盘已清理、文件不存在时为正常情况，
     仍返回 dict：``stock_ref_available=False``、``stock_ref=null``。
 
-    查找路径仅使用快照 ``result_report.enum`` 内记录的 ``enumerator_output_dir`` / ``version_dir`` /
-    ``version_id`` 及工作台 ``version``；不做全盘扫描或猜测。
+    查找路径仅使用快照 ``result_report.enum`` 内记录的 ``enumerator_output_dir`` 及工作台 ``version``；不做全盘扫描或猜测。
     """
     if normalized_step != "enum":
         return None
@@ -335,10 +339,7 @@ def build_step_report_ref_message(
         out_d = str(enum_raw.get("enumerator_output_dir") or "").strip()
         if out_d:
             candidates_dirs.append(out_d)
-        vd = str(enum_raw.get("version_dir") or "").strip()
-        if vd and vd not in candidates_dirs:
-            candidates_dirs.append(vd)
-        vid = enum_raw.get("version_id")
+        vid = enum_raw.get("output_version_id")
         if vid is not None:
             try:
                 vs = str(int(vid))

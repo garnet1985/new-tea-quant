@@ -160,6 +160,13 @@ class PriceFactorFlow(BaseSimulationFlow):
                 summary, wb_version = hit
                 self.last_version = int(wb_version or 0)
                 self.used_db_cache = True
+                from core.modules.strategy.services.data.output.simulation_output_retention import (
+                    prune_disk_outputs_for_strategy,
+                )
+
+                prune_disk_outputs_for_strategy(
+                    strategy_name, probe.base_settings.to_dict()
+                )
                 tick(92.0)
                 return summary
 
@@ -305,11 +312,11 @@ class PriceFactorFlow(BaseSimulationFlow):
             output_version_dir=preprocessed.output_version_dir,
             raw_settings=preprocessed.base_settings.to_dict(),
         )
-        from core.modules.strategy.services.data.output.version_manager import (
-            prune_strategy_simulation_tree,
+        from core.modules.strategy.services.data.output.simulation_output_retention import (
+            prune_disk_output_after_sim_run,
         )
 
-        prune_strategy_simulation_tree(
+        prune_disk_output_after_sim_run(
             preprocessed.strategy_name,
             "price",
             preprocessed.base_settings.to_dict(),

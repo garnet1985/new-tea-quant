@@ -34,7 +34,7 @@ def _read_json(path: Path) -> Optional[Dict[str, Any]]:
 def compact_enum_slot_for_cache(strategy_name: str, slot: Dict[str, Any]) -> Dict[str, Any]:
     """落库前：产物目录已有 ``0_report_enum.json`` 时移除 ``enumMetrics``，只保留路径引用。"""
     base = _strip_none_values(dict(slot or {}))
-    vdir = str(base.get("enumerator_output_dir") or base.get("version_dir") or "").strip()
+    vdir = str(base.get("enumerator_output_dir") or "").strip()
     if not vdir:
         return base
     report_path = PathManager.strategy_simulation_enum(str(strategy_name).strip()) / vdir / _ENUM_REPORT_FILE
@@ -51,7 +51,7 @@ def hydrate_enum_slot(strategy_name: str, slot: Dict[str, Any]) -> Dict[str, Any
     if not isinstance(slot, dict) or not slot:
         return slot
     sn = str(strategy_name or "").strip()
-    vdir = str(slot.get("enumerator_output_dir") or slot.get("version_dir") or "").strip()
+    vdir = str(slot.get("enumerator_output_dir") or "").strip()
     if not (vdir and sn):
         return slot
     rel = str(slot.get("enum_report_rel_path") or _ENUM_REPORT_FILE).strip() or _ENUM_REPORT_FILE
@@ -106,9 +106,7 @@ def hydrate_capital_slot(strategy_name: str, slot: Dict[str, Any]) -> Dict[str, 
     if not isinstance(slot, dict) or not slot:
         return slot
     sn = str(strategy_name or "").strip()
-    vd = str(
-        slot.get("capital_output_version_dir") or slot.get("capital_sim_version_dir") or ""
-    ).strip()
+    vd = str(slot.get("capital_output_version_dir") or "").strip()
     if not (vd and sn):
         return slot
     rel = str(slot.get("capital_full_summary_rel_path") or _CAPITAL_SUMMARY_FILE).strip() or _CAPITAL_SUMMARY_FILE

@@ -50,7 +50,6 @@ class StrategyEnumeratorSettings(SettingsBase):
 
     def apply_defaults(self) -> None:
         e = self.enumerator
-        e.setdefault("max_output_versions", 3)
         e.setdefault("max_workers", "auto")
         e.setdefault("is_verbose", False)
         e.setdefault("memory_budget_mb", "auto")
@@ -81,16 +80,6 @@ class StrategyEnumeratorSettings(SettingsBase):
 
     def _validate_numeric_fields(self, result: ValidationReport) -> None:
         e = self.enumerator
-        for key, default in (("max_output_versions", 3),):
-            val = e.get(key, default)
-            try:
-                n = int(val)
-                if n < 1:
-                    raise ValueError
-                e[key] = n
-            except (TypeError, ValueError):
-                SettingsBase.add_critical(result, f"enumerator.{key}", f"{key} 必须为正整数")
-
         SettingsBase.validate_max_workers_field(
             report=result,
             container=e,
@@ -115,13 +104,6 @@ class StrategyEnumeratorSettings(SettingsBase):
         if isinstance(s, dict):
             return bool(s.get("use_sampling", False))
         return False
-
-    @property
-    def max_output_versions(self) -> int:
-        try:
-            return max(int(self.enumerator.get("max_output_versions", 3)), 1)
-        except (TypeError, ValueError):
-            return 3
 
     @property
     def max_workers(self) -> Union[Literal["auto"], int]:

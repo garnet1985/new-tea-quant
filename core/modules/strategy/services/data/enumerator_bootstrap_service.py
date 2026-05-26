@@ -102,7 +102,7 @@ class StrategyEnumeratorBootstrapService:
         result = flow.run(strategy_name=strategy_name, strategy_info=strategy_info)
         if result and isinstance(result, list):
             first = result[0] or {}
-            version_dir_name = str(first.get("version_dir", "")).strip()
+            version_dir_name = str(first.get("enumerator_output_dir", "")).strip()
             if version_dir_name:
                 version_dir, _ = StrategyOutputVersionService.resolve_enumerator_version(
                     strategy_name,

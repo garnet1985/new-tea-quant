@@ -113,6 +113,11 @@ class CapitalAllocationFlow(BaseSimulationFlow):
                 summary, wb_version = hit
                 self.last_version = int(wb_version or 0)
                 self.used_db_cache = True
+                from core.modules.strategy.services.data.output.simulation_output_retention import (
+                    prune_disk_outputs_for_strategy,
+                )
+
+                prune_disk_outputs_for_strategy(strategy_name, base_settings.to_dict())
                 tick(92.0)
                 return summary
 
@@ -300,7 +305,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         self._impl.save_outputs(
             output_version_dir=preprocessed.output_version_dir,
             output_version_id=preprocessed.output_version_id,
-            output_version=preprocessed.base_output_version_dir.name,
+            base_output_version_dir=preprocessed.base_output_version_dir,
             trades=executed.trades or [],
             equity_curve=executed.equity_curve or [],
             summary=summary,
@@ -327,11 +332,11 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             output_version_dir=preprocessed.output_version_dir,
             raw_settings=preprocessed.base_settings.to_dict(),
         )
-        from core.modules.strategy.services.data.output.version_manager import (
-            prune_strategy_simulation_tree,
+        from core.modules.strategy.services.data.output.simulation_output_retention import (
+            prune_disk_output_after_sim_run,
         )
 
-        prune_strategy_simulation_tree(
+        prune_disk_output_after_sim_run(
             preprocessed.strategy_name,
             "capital",
             preprocessed.base_settings.to_dict(),

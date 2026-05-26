@@ -440,7 +440,7 @@ class StrategyManager:
 
         def _read_latest_version(root):
             meta = json.loads((root / "meta.json").read_text(encoding="utf-8"))
-            latest_id = int(meta.get("next_output_version") or meta.get("next_version_id") or 1) - 1
+            latest_id = int(meta.get("next_output_version") or 1) - 1
             if latest_id <= 0:
                 return None
             return root / str(latest_id)

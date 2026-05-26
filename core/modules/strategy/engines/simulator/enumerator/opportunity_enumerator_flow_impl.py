@@ -603,23 +603,6 @@ class OpportunityEnumeratorFlowImpl:
             bff_out = None
         return bff_out
 
-    def cleanup_versions(
-        self,
-        *,
-        output_dir: Path,
-        strategy_name: str,
-        enum_settings: OpportunityEnumeratorSettings,
-    ) -> None:
-        from core.modules.strategy.services.data.output.version_manager import (
-            prune_strategy_simulation_tree,
-        )
-
-        prune_strategy_simulation_tree(
-            strategy_name,
-            "enum",
-            enum_settings.to_dict(),
-        )
-
     def build_result_report(
         self,
         *,
@@ -642,9 +625,7 @@ class OpportunityEnumeratorFlowImpl:
         )
         summary: Dict[str, Any] = {
             "strategy_name": strategy_name,
-            "version_id": version_id,
-            "version_dir": version_dir_name,
-            # 与 ``version_dir`` 同义；工作台 ``report_ref`` 查找优先使用该字段（枚举产物子目录名）
+            "output_version_id": version_id,
             "enumerator_output_dir": version_dir_name,
             "opportunities": total_opportunities,
             "totalStocks": total_stocks,

@@ -11,7 +11,7 @@ import json
 import logging
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Literal, Tuple
+from typing import Any, Dict, FrozenSet, Literal, Optional, Set, Tuple
 
 from core.infra.project_context import PathManager
 
@@ -22,9 +22,9 @@ _SimKind = Literal["enum", "price", "capital"]
 
 
 def _read_next_output_version(meta: Dict[str, Any]) -> int:
-    """``meta.json`` 下一磁盘 ``output_version`` 序号（兼容旧键 ``next_version_id``）。"""
+    """``meta.json`` 下一磁盘 ``output_version`` 序号。"""
     try:
-        return max(int(meta.get("next_output_version") or meta.get("next_version_id") or 1), 1)
+        return max(int(meta.get("next_output_version") or 1), 1)
     except (TypeError, ValueError):
         return 1
 
@@ -33,43 +33,8 @@ def _write_meta_after_create(meta: Dict[str, Any], created_id: int, **extra: Any
     out = dict(meta or {})
     out.update(extra)
     out["next_output_version"] = int(created_id) + 1
-    out["next_version_id"] = int(created_id) + 1
     out["last_updated"] = datetime.now().isoformat()
     return out
-
-
-def resolve_max_output_versions(settings: Dict[str, Any]) -> int:
-    """``enumerator.max_output_versions``：各模拟器磁盘产物共用保留上限。"""
-    enumerator = settings.get("enumerator") if isinstance(settings, dict) else None
-    if not isinstance(enumerator, dict):
-        enumerator = {}
-    try:
-        return max(int(enumerator.get("max_output_versions", 3)), 1)
-    except (TypeError, ValueError):
-        return 3
-
-
-def prune_strategy_simulation_tree(
-    strategy_name: str,
-    sim_kind: _SimKind,
-    settings: Dict[str, Any],
-) -> None:
-    """按 ``enumerator.max_output_versions`` 清理 enum / price / capital 磁盘版本目录。"""
-    sn = str(strategy_name or "").strip()
-    if not sn:
-        return
-    roots = {
-        "enum": PathManager.strategy_simulation_enum,
-        "price": PathManager.strategy_simulation_price,
-        "capital": PathManager.strategy_simulation_capital,
-    }
-    root_fn = roots.get(sim_kind)
-    if root_fn is None:
-        return
-    StrategyOutputVersionService.prune_simulation_versions(
-        root_fn(sn),
-        resolve_max_output_versions(settings),
-    )
 
 
 class StrategyOutputVersionService:
@@ -241,12 +206,22 @@ class StrategyOutputVersionService:
         return version_dir, version_dir.parent
 
     @staticmethod
-    def prune_simulation_versions(root_dir: Path, max_keep_versions: int) -> None:
+    def prune_simulation_versions(
+        root_dir: Path,
+        max_keep_versions: int,
+        *,
+        protected_dir_names: Optional[FrozenSet[str]] = None,
+    ) -> Set[str]:
         """
-        按版本目录名（数字 id，与 ``create_*_version`` 一致）保留最新 ``max_keep_versions`` 个。
+        按版本目录名（数字 id）保留最新 ``max_keep_versions`` 个。
+
+        ``protected_dir_names`` 中的目录名（如 ``"18"``）即使超出保留数也不删除；
+        返回因保护而未删的目录名集合。
         """
+        protected = frozenset(protected_dir_names or ())
+        skipped: Set[str] = set()
         if max_keep_versions < 1 or not root_dir.is_dir():
-            return
+            return skipped
         versions: list[tuple[int, Path]] = []
         for item in root_dir.iterdir():
             if not item.is_dir() or item.name in {"__pycache__"}:
@@ -259,29 +234,25 @@ class StrategyOutputVersionService:
                 continue
             versions.append((version_id, item))
         if len(versions) <= max_keep_versions:
-            return
+            return skipped
         versions.sort(key=lambda x: x[0], reverse=True)
         for _, version_dir in versions[max_keep_versions:]:
+            if version_dir.name in protected:
+                skipped.add(version_dir.name)
+                continue
             try:
                 shutil.rmtree(version_dir)
                 logger.info(
-                    "pruned simulation version %s under %s (keep=%d)",
+                    "pruned simulation output_version %s under %s (keep=%d)",
                     version_dir.name,
                     root_dir,
                     max_keep_versions,
                 )
             except Exception as exc:
                 logger.warning("prune failed for %s: %s", version_dir, exc)
-
-    @staticmethod
-    def prune_enumerator_versions(root_dir: Path, max_keep_versions: int) -> None:
-        StrategyOutputVersionService.prune_simulation_versions(
-            root_dir, max_keep_versions
-        )
+        return skipped
 
 
 __all__ = [
     "StrategyOutputVersionService",
-    "prune_strategy_simulation_tree",
-    "resolve_max_output_versions",
 ]

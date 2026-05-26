@@ -212,7 +212,7 @@ class PriceReport(ReportBase):
         payload = {
             k: v
             for k, v in summary.items()
-            if k not in ("output_version", "output_version_run", "sim_version")
+            if k not in ("output_version", "output_version_run")
         }
         report = cls.from_dict(payload)
         if not report.backtest_period:
@@ -229,13 +229,13 @@ class PriceReport(ReportBase):
         ov = summary.get("output_version") if isinstance(summary.get("output_version"), dict) else {}
         run = summary.get("output_version_run")
         if not isinstance(run, dict):
-            run = summary.get("sim_version") if isinstance(summary.get("sim_version"), dict) else {}
-        run_dir = run.get("output_version_dir") or run.get("version_dir")
-        run_id = run.get("output_version_id", run.get("version_id", ""))
+            run = {}
+        run_dir = run.get("output_version_dir")
+        run_id = run.get("output_version_id", "")
         print("")
         print(
             "📂 枚举输出版本目录: "
-            f"{ov.get('version_dir') or '—'}  │  "
+            f"{ov.get('enumerator_output_dir') or '—'}  │  "
             "本次模拟目录: "
             f"{run_dir or '—'} "
             f"(output_version_id={run_id})"

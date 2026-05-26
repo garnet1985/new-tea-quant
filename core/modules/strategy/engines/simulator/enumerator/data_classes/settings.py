@@ -69,15 +69,6 @@ class OpportunityEnumeratorSettings:
         self.use_sampling = bool(sampling_block.get("use_sampling", False))
 
         enumerator = dict(settings.get("enumerator") or {})
-        max_output_versions = enumerator.get("max_output_versions", 3)
-        try:
-            max_output_versions_int = int(max_output_versions)
-        except (TypeError, ValueError):
-            max_output_versions_int = 3
-        if max_output_versions_int < 1:
-            max_output_versions_int = 3
-        self.max_output_versions = max_output_versions_int
-
         max_workers = enumerator.get("max_workers", "auto")
         self.max_workers = max_workers
         self.is_verbose = bool(enumerator.get("is_verbose", False))
@@ -109,7 +100,6 @@ class OpportunityEnumeratorSettings:
             merged["enumerator"] = {}
         merged["enumerator"].pop("use_sampling", None)
         merged["enumerator"].pop("max_test_versions", None)
-        merged["enumerator"]["max_output_versions"] = self.max_output_versions
         merged["enumerator"]["max_workers"] = self.max_workers
         merged["enumerator"]["is_verbose"] = self.is_verbose
         merged["enumerator"]["memory_budget_mb"] = self.memory_budget_mb

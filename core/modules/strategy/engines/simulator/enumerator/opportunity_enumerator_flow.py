@@ -119,6 +119,14 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
                 summary_list, wb_version = hit
                 self.last_version = int(wb_version or 0)
                 self.used_db_cache = True
+                from core.modules.strategy.services.data.output.simulation_output_retention import (
+                    prune_disk_outputs_for_strategy,
+                )
+
+                prune_disk_outputs_for_strategy(
+                    strategy_name,
+                    dict(probe.settings_for_fingerprint or {}),
+                )
                 # 缓存命中不跑 worker，原无中间进度落盘；工作台 GET progress 在内存丢失时会读此文件，故在此写入终态。
                 wn = self._impl.workbench_strategy_name
                 wr = self._impl.workbench_run_id
@@ -327,10 +335,14 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             output_dir=preprocessed.output_dir,
             enum_bff_payload=enum_bff_payload,
         )
-        self._impl.cleanup_versions(
-            output_dir=preprocessed.output_dir,
-            strategy_name=preprocessed.strategy_name,
-            enum_settings=preprocessed.enum_settings,
+        from core.modules.strategy.services.data.output.simulation_output_retention import (
+            prune_disk_output_after_sim_run,
+        )
+
+        prune_disk_output_after_sim_run(
+            preprocessed.strategy_name,
+            "enum",
+            preprocessed.enum_settings.to_dict(),
         )
         return summary_list
 

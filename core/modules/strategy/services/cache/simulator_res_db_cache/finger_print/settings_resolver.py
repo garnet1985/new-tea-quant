@@ -66,8 +66,15 @@ _IGNORE_ENUMERATOR_KEYS: FrozenSet[str] = frozenset(
         "max_batch_size",
         "monitor_interval",
         "max_test_versions",
-        "max_output_versions",
         "use_sampling",
+    }
+)
+
+# 保留策略不参与 settings 语义指纹（改保留份数不应导致缓存失效）
+_IGNORE_SIMULATION_RETENTION_KEYS: FrozenSet[str] = frozenset(
+    {
+        "max_output_versions",
+        "max_workbench_versions",
     }
 )
 
@@ -142,6 +149,19 @@ def _strip_to_semantic_core(canonical_settings: Dict[str, Any]) -> Dict[str, Any
 
     if not sampling_used:
         out.pop("sampling", None)
+
+    sim_block = dict(out.get("simulation") or {})
+    ret_block = dict(sim_block.get("retention") or {})
+    for key in _IGNORE_SIMULATION_RETENTION_KEYS:
+        ret_block.pop(key, None)
+    if ret_block:
+        sim_block["retention"] = ret_block
+    else:
+        sim_block.pop("retention", None)
+    if sim_block:
+        out["simulation"] = sim_block
+    else:
+        out.pop("simulation", None)
 
     return out
 

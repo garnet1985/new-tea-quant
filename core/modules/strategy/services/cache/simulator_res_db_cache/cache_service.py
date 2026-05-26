@@ -8,15 +8,21 @@ Simulator Res DB Cache：``SimulatorResDbCacheService`` 负责表行读写与 ``
 
 from __future__ import annotations
 
+import logging
 import pprint
 from typing import Any, Dict
 
 from core.modules.strategy.enums import Simulator
 
-from .config import MAX_SNAPSHOT_ROWS_PER_STRATEGY
+from .audit.result_report_audit import (
+    attach_initial_write_meta,
+    bump_write_count,
+    exceeds_max_row_updates,
+)
 from core.modules.data_manager import DataManager
 from core.infra.project_context.path_manager import PathManager
-from core.ui.bff.shared.file_ops import atomic_write_text, backup_file
+
+logger = logging.getLogger(__name__)
 
 
 def _simulator_to_reports_slot_key(simulator: Simulator) -> str:
@@ -33,6 +39,16 @@ class SimulatorResDbCacheService:
     def __init__(self) -> None:
         data_mgr = DataManager()
         self.table_operator = data_mgr.get_table("sys_strategy_workbench_snapshot")
+        self._row_retention = None
+
+    def _retention(self):
+        if self._row_retention is None:
+            from core.modules.strategy.services.data.output.workbench_snapshot_retention import (
+                WorkbenchSnapshotRetention,
+            )
+
+            self._row_retention = WorkbenchSnapshotRetention(self.table_operator)
+        return self._row_retention
 
     def set_cache(
         self,
@@ -56,33 +72,55 @@ class SimulatorResDbCacheService:
         slot_key = _simulator_to_reports_slot_key(simulator)
         sfp = str(settings_fingerprint_id or "").strip()
         efp = str(env_fingerprint_id or "").strip()
+        sn = str(strategy_name)
 
         rows = model.list_by_strategy_fingerprints(
-            strategy_name=str(strategy_name),
+            strategy_name=sn,
             settings_finger_print_id=sfp,
             env_fingerprint_id=efp,
             limit=1,
         )
-        merged: Dict[str, Any]
         if rows:
-            sid = int((rows[0] or {}).get("version") or 0)
+            row = rows[0] or {}
+            sid = int(row.get("version") or 0)
             if sid <= 0:
                 return 0
-            merged = dict((rows[0] or {}).get("result_report") or {})
+            merged = dict(row.get("result_report") or {})
             merged[slot_key] = step
+            merged, write_count = bump_write_count(merged)
+            if exceeds_max_row_updates(write_count):
+                from core.modules.strategy.services.data.output.workbench_snapshot_retention import (
+                    log_workbench_version_deleted,
+                )
+
+                log_workbench_version_deleted(sn, sid, row)
+                model.delete_version_row(sn, sid)
+                merged = attach_initial_write_meta({slot_key: step})
+                created = model.create_snapshot(
+                    sn,
+                    dict(settings_snapshot or {}),
+                    merged,
+                    settings_finger_print_id=sfp,
+                    env_fingerprint_id=efp,
+                )
+                new_sid = int((created or {}).get("version") or 0)
+                if new_sid > 0:
+                    self._retention().prune_oldest_if_over_limit(sn)
+                return new_sid
+
             model.update_result_report(
-                strategy_name,
+                sn,
                 sid,
                 merged,
                 settings_finger_print_id=sfp,
                 env_fingerprint_id=efp,
             )
-            self._prune_oldest_if_over_limit(str(strategy_name))
+            self._retention().prune_oldest_if_over_limit(sn)
             return sid
 
-        merged = {slot_key: step}
+        merged = attach_initial_write_meta({slot_key: step})
         created = model.create_snapshot(
-            str(strategy_name),
+            sn,
             dict(settings_snapshot or {}),
             merged,
             settings_finger_print_id=sfp,
@@ -90,21 +128,8 @@ class SimulatorResDbCacheService:
         )
         sid = int((created or {}).get("version") or 0)
         if sid > 0:
-            self._prune_oldest_if_over_limit(str(strategy_name))
+            self._retention().prune_oldest_if_over_limit(sn)
         return sid
-
-    def _prune_oldest_if_over_limit(self, strategy_name: str) -> None:
-        model = self.table_operator
-        if model is None:
-            return
-        rows = model.list_versions_asc(strategy_name, limit=MAX_SNAPSHOT_ROWS_PER_STRATEGY + 50)
-        while len(rows) > MAX_SNAPSHOT_ROWS_PER_STRATEGY:
-            oldest = rows[0]
-            sid = int((oldest or {}).get("version") or 0)
-            if sid <= 0:
-                break
-            model.delete_version_row(strategy_name, sid)
-            rows = rows[1:]
 
     def load_cache_by_fingerprints(
         self,
@@ -153,9 +178,10 @@ class SimulatorResDbCacheService:
             return {}
         return dict(rows[0] or {})
 
-
     def backup_settings_file_for_strategy(self, strategy_name: str) -> None:
         """若存在 ``userspace/strategies/{name}/settings.py``，则备份为 ``settings.py.bak``。"""
+        from core.ui.bff.shared.file_ops import backup_file
+
         settings_file = PathManager.strategy_settings(str(strategy_name))
         if settings_file.is_file():
             backup_file(settings_file)
@@ -167,6 +193,8 @@ class SimulatorResDbCacheService:
         pretty: bool,
     ) -> None:
         """将 API 形态的 ``settings`` dict 写入 ``settings.py``（与 Workbench 写入风格一致）。"""
+        from core.ui.bff.shared.file_ops import atomic_write_text
+
         settings_file = PathManager.strategy_settings(str(strategy_name))
         if pretty:
             literal = pprint.pformat(dict(settings or {}), width=100, sort_dicts=True)
@@ -189,10 +217,11 @@ class SimulatorResDbCacheService:
             f"SELECT DISTINCT strategy_name FROM {model.table_name}",
             (),
         )
+        retention = self._retention()
         for row in rows or []:
             name = row.get("strategy_name")
             if isinstance(name, str) and name.strip():
-                self._prune_oldest_if_over_limit(name.strip())
+                retention.prune_oldest_if_over_limit(name.strip())
 
     def delete_cache_by_version(self, strategy_name: str, version: int) -> bool:
         """删除 ``strategy_name`` + 工作台 ``version`` 对应的一行。"""
@@ -200,7 +229,16 @@ class SimulatorResDbCacheService:
         if model is None:
             return False
         model._ensure_table_ready()
-        n = model.delete_version_row(str(strategy_name), int(version))
+        sn = str(strategy_name)
+        sid = int(version)
+        row = model.load_by_strategy_version(sn, sid)
+        if row:
+            from core.modules.strategy.services.data.output.workbench_snapshot_retention import (
+                log_workbench_version_deleted,
+            )
+
+            log_workbench_version_deleted(sn, sid, row)
+        n = model.delete_version_row(sn, sid)
         return int(n or 0) > 0
 
     def delete_cache_for_strategy(self, strategy_name: str) -> bool:

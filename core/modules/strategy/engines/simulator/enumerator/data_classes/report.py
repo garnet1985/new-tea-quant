@@ -745,7 +745,7 @@ class EnumeratorReport(ReportBase):
             return
         print("")
         for res in summary_results:
-            version_name = str(res.get("version_dir") or "").strip()
+            version_name = str(res.get("enumerator_output_dir") or "").strip()
             sn = str(res.get("strategy_name") or strategy_name or "").strip()
             candidates = [
                 PathManager.strategy_simulation_enum(sn or label) / version_name,
@@ -766,7 +766,7 @@ class EnumeratorReport(ReportBase):
                         loaded_dir
                     )
             print(f"🔖 strategy={sn or label}")
-            print(f"📁 version_dir={res.get('version_dir')}")
+            print(f"📁 enumerator_output_dir={res.get('enumerator_output_dir')}")
             print("")
             for line in report.to_console_lines():
                 print(f"   {line}")

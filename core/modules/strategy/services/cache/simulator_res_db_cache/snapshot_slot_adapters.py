@@ -141,13 +141,12 @@ def persist_capital_allocation_snapshot(
     settings_fingerprint_id: str,
     env_fingerprint_id: str,
     capital_output_version_dir: Optional[str] = None,
-    capital_sim_version_dir: Optional[str] = None,
 ) -> int:
     """写入或合并 ``capital_allocation`` 槽位。"""
     sn = str(strategy_name).strip()
     raw = dict(report_capital_allocation or {})
     to_save = raw
-    vd = str(capital_output_version_dir or capital_sim_version_dir or "").strip()
+    vd = str(capital_output_version_dir or "").strip()
     if vd:
         to_save = compact_capital_slot_for_cache(sn, raw, capital_output_version_dir=vd)
     return SimulatorResDbCacheService().set_cache(

@@ -112,7 +112,7 @@ def post_strategy_step_run(strategy_name, step):
     if body_name is not None and str(body_name).strip() != str(strategy_name).strip():
         return error("strategy_name 与路径不一致", 400)
 
-    raw_force = payload.get("force_refresh", payload.get("is_force", False))
+    raw_force = payload.get("force_refresh", False)
     force_refresh = raw_force if isinstance(raw_force, bool) else bool(raw_force)
 
     out = s.submit_workbench_step_via_bff_contract(

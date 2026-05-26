@@ -126,6 +126,7 @@ function PriceFactorReport({
     profitBasics: false,
     roiPercentileViz: false,
     roiBucketViz: false,
+    executionSkips: false,
   };
 
   const derivedStockRows = useMemo(() => (
@@ -251,6 +252,31 @@ function PriceFactorReport({
               title="未完成持仓数"
               titleTip={PRICE_METRIC_TIPS.totalOpenInvestments}
               value={metrics.totalOpenInvestments.toLocaleString()}
+            />
+          </Box>
+        ) : <ReportUnavailableHint />}
+      </SectionBlock>
+
+      <SectionBlock
+        title="成交跳过统计"
+        tip={PRICE_SECTION_TIPS.executionSkips}
+      >
+        {avail.executionSkips ? (
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 1 }}>
+            <MetricCard
+              title="涨停跳过买入"
+              titleTip={PRICE_METRIC_TIPS.skippedBuyAtLimitUp}
+              value={metrics.skippedBuyAtLimitUp.toLocaleString()}
+            />
+            <MetricCard
+              title="跌停跳过卖出"
+              titleTip={PRICE_METRIC_TIPS.skippedSellAtLimitDown}
+              value={metrics.skippedSellAtLimitDown.toLocaleString()}
+            />
+            <MetricCard
+              title="状态跳过投资"
+              titleTip={PRICE_METRIC_TIPS.skippedStockStatus}
+              value={metrics.skippedStockStatus.toLocaleString()}
             />
           </Box>
         ) : <ReportUnavailableHint />}

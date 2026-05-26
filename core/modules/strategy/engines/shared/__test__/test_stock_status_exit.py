@@ -20,7 +20,7 @@ from core.modules.strategy.enums import OpportunityStatus
 
 def _sim() -> StrategySimulationSettings:
     return StrategySimulationSettings.from_strategy_root(
-        {"simulation": {"template": "deterministic"}}
+        {"simulation": {"template": "standard"}}
     )
 
 

@@ -4,18 +4,51 @@
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.simulation_settings import (
     StrategySimulationSettings,
     TradePriceModel,
+    simulation_template_defaults_payload,
 )
 
 
 class TestStrategySimulationSettings:
-    def test_deterministic_defaults(self):
-        sim = StrategySimulationSettings.from_strategy_root({"simulation": {"template": "deterministic"}})
+    def test_standard_defaults(self):
+        sim = StrategySimulationSettings.from_strategy_root({"simulation": {"template": "standard"}})
         sim.apply_defaults()
-        assert sim.template == "deterministic"
+        assert sim.template == "standard"
         assert sim.buy_price_model == TradePriceModel.NEXT_OPEN
         assert sim.sell_price_model == TradePriceModel.CLOSE
-        assert sim.slippage_buy_bps == 0.0
+        assert sim.allow_buy_at_limit_up is False
+        assert sim.skip_investment_when == ()
 
+    def test_strict_skips_st(self):
+        sim = StrategySimulationSettings.from_strategy_root({"simulation": {"template": "strict"}})
+        sim.apply_defaults()
+        assert sim.template == "strict"
+        assert sim.skip_investment_when == ("st", "star_st")
+        assert sim.allow_buy_at_limit_up is False
+
+    def test_ideal_allows_limit_trades(self):
+        sim = StrategySimulationSettings.from_strategy_root({"simulation": {"template": "ideal"}})
+        sim.apply_defaults()
+        assert sim.allow_buy_at_limit_up is True
+        assert sim.skip_investment_when == ()
+
+    def test_unknown_template_fails(self):
+        sim = StrategySimulationSettings.from_strategy_root(
+            {"simulation": {"template": "deterministic"}}
+        )
+        report = sim.validate()
+        assert report.has_critical_errors()
+
+    def test_preset_with_skip_investment_when_fails(self):
+        sim = StrategySimulationSettings.from_strategy_root(
+            {
+                "simulation": {
+                    "template": "strict",
+                    "skip_investment_when": ["st"],
+                }
+            }
+        )
+        report = sim.validate()
+        assert report.has_critical_errors()
     def test_custom_requires_models(self):
         sim = StrategySimulationSettings.from_strategy_root(
             {
@@ -45,7 +78,10 @@ class TestStrategySimulationSettings:
         sim = StrategySimulationSettings.from_strategy_root(
             {
                 "simulation": {
-                    "template": "deterministic",
+                    "template": "custom",
+                    "monitor_price_model": "close",
+                    "buy_price_model": "next_open",
+                    "sell_price_model": "close",
                     "edges": {"skip_limit_up_buy": True},
                 }
             }
@@ -57,7 +93,10 @@ class TestStrategySimulationSettings:
         sim = StrategySimulationSettings.from_strategy_root(
             {
                 "simulation": {
-                    "template": "deterministic",
+                    "template": "custom",
+                    "monitor_price_model": "close",
+                    "buy_price_model": "next_open",
+                    "sell_price_model": "close",
                     "edges": {"no_next_bar": "mark_unfinished"},
                 }
             }
@@ -69,8 +108,20 @@ class TestStrategySimulationSettings:
         sim = StrategySimulationSettings.from_strategy_root(
             {
                 "simulation": {
-                    "template": "deterministic",
+                    "template": "standard",
                     "edges": {"allow_buy_at_limit_up": False},
+                }
+            }
+        )
+        report = sim.validate()
+        assert report.has_critical_errors()
+
+    def test_preset_template_rejects_skip_investment_when(self):
+        sim = StrategySimulationSettings.from_strategy_root(
+            {
+                "simulation": {
+                    "template": "standard",
+                    "skip_investment_when": ["st"],
                 }
             }
         )
@@ -96,3 +147,8 @@ class TestStrategySimulationSettings:
         assert not report.has_critical_errors()
         assert sim.allow_buy_at_limit_up is False
         assert sim.allow_sell_at_limit_down is True
+
+    def test_template_defaults_payload_strict(self):
+        payload = simulation_template_defaults_payload("strict")
+        assert payload["skip_investment_when"] == ["st", "star_st"]
+        assert payload["edges"]["allow_buy_at_limit_up"] is False

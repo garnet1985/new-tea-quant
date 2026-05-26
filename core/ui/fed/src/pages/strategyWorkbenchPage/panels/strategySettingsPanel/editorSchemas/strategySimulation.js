@@ -4,29 +4,49 @@ function parseNumber(raw) {
   return Number.isNaN(n) ? '' : n;
 }
 
-const TEMPLATE_DEFAULT = 'deterministic';
+const TEMPLATE_DEFAULT = 'standard';
 
 const SIMULATION_TEMPLATE_META = {
-  deterministic: {
-    label: '确定性',
-    tooltip:
-      '收盘确认信号，次日开盘买入、收盘卖出；盯盘用收盘价。系统默认预设，偏乐观。',
+  standard: {
+    label: '标准',
+    tooltip: '日常回测默认；常见成交节奏，涨跌停不成交。不知道选什么就用这个。',
+  },
+  strict: {
+    label: '严格',
+    tooltip: '更贴近 A 股现实；在标准基础上，触发日 ST/*ST 不参与 price/capital 模拟。',
+  },
+  ideal: {
+    label: '理想',
+    tooltip: '少市场摩擦的对照组；与「标准」对比，看策略信号本身好不好。',
   },
   extreme: {
     label: '极值压力',
-    tooltip:
-      '盯盘与成交均按当日最高/最低价等极值近似，用于压力测试，结果通常更保守。',
+    tooltip: '压力测试；盯盘与成交按极值取价，结果通常更差。',
   },
   custom: {
     label: '自定义',
-    tooltip:
-      '逐项指定盯盘价、买卖价、滑点与涨跌停等规则；仅在此模式下可改细项。',
+    tooltip: '自行配置价模型、涨跌停、ST 跳过等；熟悉执行假设时使用。',
   },
 };
 
 const DEFAULT_SIMULATION_TEMPLATE_OPTIONS = Object.entries(SIMULATION_TEMPLATE_META).map(
   ([value, meta]) => ({ value, ...meta }),
 );
+
+const DEFAULT_SKIP_INVESTMENT_WHEN_OPTIONS = [
+  {
+    value: 'st',
+    label: 'ST',
+    tooltip: '触发日处于 ST（含 SST）时，价格/资金回测跳过该笔投资；枚举机会仍保留。',
+  },
+  {
+    value: 'star_st',
+    label: '*ST',
+    tooltip: '触发日处于 *ST（含 S*ST）时，价格/资金回测跳过该笔投资；枚举机会仍保留。',
+  },
+];
+
+const KNOWN_SKIP_INVESTMENT_TAGS = new Set(['st', 'star_st']);
 
 function resolveTemplateOptions(simulationTemplateOptions) {
   const raw = Array.isArray(simulationTemplateOptions) && simulationTemplateOptions.length > 0
@@ -113,23 +133,56 @@ const EXTREME_SAME_BAR_ORDER_OPTIONS = [
   },
 ];
 
-const isCustomTemplate = (values) => (values?.template || TEMPLATE_DEFAULT) === 'custom';
+export const isCustomSimulationTemplate = (values) => (
+  (values?.template || TEMPLATE_DEFAULT) === 'custom'
+);
 
-export function normalizeSimulationSettings(simulation) {
-  const next = simulation && typeof simulation === 'object' ? { ...simulation } : {};
-  if (!next.template) {
-    next.template = TEMPLATE_DEFAULT;
+export function normalizeSkipInvestmentWhen(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  raw.forEach((item) => {
+    const tag = String(item || '').trim().toLowerCase();
+    if (!KNOWN_SKIP_INVESTMENT_TAGS.has(tag) || out.includes(tag)) return;
+    out.push(tag);
+  });
+  return out;
+}
+
+function resolveSkipInvestmentWhenOptions(skipInvestmentWhenOptions) {
+  const raw = Array.isArray(skipInvestmentWhenOptions) && skipInvestmentWhenOptions.length > 0
+    ? skipInvestmentWhenOptions
+    : DEFAULT_SKIP_INVESTMENT_WHEN_OPTIONS;
+  return raw.map((row) => ({
+    value: row.value,
+    label: row.label || row.value,
+    tooltip: row.tooltip || '',
+  }));
+}
+
+function mergeNestedDefaults(target, defaults) {
+  const next = { ...(target && typeof target === 'object' ? target : {}) };
+  if (!defaults || typeof defaults !== 'object') return next;
+  if (defaults.slippage && typeof defaults.slippage === 'object') {
+    next.slippage = { ...defaults.slippage, ...(next.slippage || {}) };
   }
+  if (defaults.edges && typeof defaults.edges === 'object') {
+    next.edges = { ...defaults.edges, ...(next.edges || {}) };
+  }
+  Object.keys(defaults).forEach((key) => {
+    if (key === 'slippage' || key === 'edges') return;
+    if (next[key] === undefined || next[key] === null || next[key] === '') {
+      next[key] = defaults[key];
+    }
+  });
   return next;
 }
 
-/** 非 custom 模板仅保留 template，其余由后端按模板补默认。 */
-export function cleanupSimulationByTemplate(simulation) {
-  const next = normalizeSimulationSettings(simulation);
-  if (isCustomTemplate(next)) {
-    return ensureCustomDefaults(next);
-  }
-  return { template: next.template };
+function resolveTemplateDefaults(template, simulationTemplateProfiles) {
+  const tpl = template || TEMPLATE_DEFAULT;
+  const profiles = simulationTemplateProfiles && typeof simulationTemplateProfiles === 'object'
+    ? simulationTemplateProfiles
+    : {};
+  return profiles[tpl] || profiles.standard || {};
 }
 
 function ensureCustomDefaults(simulation) {
@@ -143,25 +196,73 @@ function ensureCustomDefaults(simulation) {
   if (!next.edges || typeof next.edges !== 'object') {
     next.edges = {
       no_next_bar: 'use_last_close',
-      allow_buy_at_limit_up: true,
-      allow_sell_at_limit_down: true,
+      allow_buy_at_limit_up: false,
+      allow_sell_at_limit_down: false,
     };
   } else {
     if (next.edges.allow_buy_at_limit_up === undefined) {
-      next.edges.allow_buy_at_limit_up = true;
+      next.edges.allow_buy_at_limit_up = false;
     }
     if (next.edges.allow_sell_at_limit_down === undefined) {
-      next.edges.allow_sell_at_limit_down = true;
+      next.edges.allow_sell_at_limit_down = false;
     }
   }
   if (!next.extreme_same_bar_order) {
     next.extreme_same_bar_order = 'stop_first';
   }
+  next.skip_investment_when = normalizeSkipInvestmentWhen(next.skip_investment_when);
   return next;
 }
 
-export function buildStrategySimulationSchema(simulationTemplateOptions = DEFAULT_SIMULATION_TEMPLATE_OPTIONS) {
+export function normalizeSimulationSettings(simulation, simulationTemplateProfiles = {}) {
+  const next = simulation && typeof simulation === 'object' ? { ...simulation } : {};
+  if (!next.template) {
+    next.template = TEMPLATE_DEFAULT;
+  }
+  if (isCustomSimulationTemplate(next)) {
+    return ensureCustomDefaults(next);
+  }
+  const defaults = resolveTemplateDefaults(next.template, simulationTemplateProfiles);
+  return mergeNestedDefaults(
+    {
+      ...next,
+      skip_investment_when: normalizeSkipInvestmentWhen(defaults.skip_investment_when),
+    },
+    defaults,
+  );
+}
+
+/** preset 展示值：合并后端 defaults；custom 用用户配置。 */
+export function resolveSimulationDisplayValue(
+  simulation,
+  simulationTemplateProfiles = {},
+) {
+  return normalizeSimulationSettings(simulation, simulationTemplateProfiles);
+}
+
+/** preset 仅持久化 template（及 retention 等块外字段由上层保留）；custom 保留完整细项。 */
+export function cleanupSimulationByTemplate(simulation) {
+  const next = simulation && typeof simulation === 'object' ? { ...simulation } : {};
+  if (!next.template) {
+    next.template = TEMPLATE_DEFAULT;
+  }
+  if (isCustomSimulationTemplate(next)) {
+    return ensureCustomDefaults(next);
+  }
+  const out = { template: next.template };
+  if (next.retention && typeof next.retention === 'object') {
+    out.retention = { ...next.retention };
+  }
+  return out;
+}
+
+export function buildStrategySimulationSchema(
+  simulationTemplateOptions = DEFAULT_SIMULATION_TEMPLATE_OPTIONS,
+  skipInvestmentWhenOptions = DEFAULT_SKIP_INVESTMENT_WHEN_OPTIONS,
+) {
   const templateOptions = resolveTemplateOptions(simulationTemplateOptions);
+  const skipOptions = resolveSkipInvestmentWhenOptions(skipInvestmentWhenOptions);
+  const readonlyUnlessCustom = ({ values }) => !isCustomSimulationTemplate(values);
 
   return {
     name: 'strategySimulation',
@@ -172,7 +273,7 @@ export function buildStrategySimulationSchema(simulationTemplateOptions = DEFAUL
         name: 'template',
         type: 'select',
         label: '回测模板',
-        tooltip: '选择回测如何取价、成交与边角处理；除「自定义」外，细项由预设锁定。',
+        tooltip: '快捷选择回测假设；除「自定义」外，下方参数只读展示模板默认值。',
         options: templateOptions,
       },
       {
@@ -181,7 +282,7 @@ export function buildStrategySimulationSchema(simulationTemplateOptions = DEFAUL
         label: '盯盘价模型',
         tooltip: '持仓期间用于止盈、止损、到期等目标比较的每日价格口径。',
         options: MONITOR_PRICE_OPTIONS,
-        visibleWhen: ({ values }) => isCustomTemplate(values),
+        readonlyWhen: readonlyUnlessCustom,
       },
       {
         name: 'buy_price_model',
@@ -189,7 +290,7 @@ export function buildStrategySimulationSchema(simulationTemplateOptions = DEFAUL
         label: '买入价模型',
         tooltip: '执行买入时，从 K 线按何种价格语义取理论成交价。',
         options: TRADE_PRICE_OPTIONS,
-        visibleWhen: ({ values }) => isCustomTemplate(values),
+        readonlyWhen: readonlyUnlessCustom,
       },
       {
         name: 'sell_price_model',
@@ -197,7 +298,7 @@ export function buildStrategySimulationSchema(simulationTemplateOptions = DEFAUL
         label: '卖出价模型',
         tooltip: '执行卖出时，从 K 线按何种价格语义取理论成交价。',
         options: TRADE_PRICE_OPTIONS,
-        visibleWhen: ({ values }) => isCustomTemplate(values),
+        readonlyWhen: readonlyUnlessCustom,
       },
       {
         name: 'slippage.buy_bps',
@@ -205,7 +306,7 @@ export function buildStrategySimulationSchema(simulationTemplateOptions = DEFAUL
         label: '买入滑点',
         tooltip: '在理论买入价上叠加滑点，单位为基点（bps）；实际价 ≈ 理论价 × (1 + bps/10000)。',
         parse: parseNumber,
-        visibleWhen: ({ values }) => isCustomTemplate(values),
+        readonlyWhen: readonlyUnlessCustom,
       },
       {
         name: 'slippage.sell_bps',
@@ -213,7 +314,7 @@ export function buildStrategySimulationSchema(simulationTemplateOptions = DEFAUL
         label: '卖出滑点',
         tooltip: '在理论卖出价上叠加滑点，单位为基点（bps）；实际价 ≈ 理论价 × (1 - bps/10000)。',
         parse: parseNumber,
-        visibleWhen: ({ values }) => isCustomTemplate(values),
+        readonlyWhen: readonlyUnlessCustom,
       },
       {
         name: 'edges.no_next_bar',
@@ -221,21 +322,30 @@ export function buildStrategySimulationSchema(simulationTemplateOptions = DEFAUL
         label: '样本末日无下一根 K 线',
         tooltip: '采样区间最后一根 K 线无法取得「次日」价格时的处理方式。',
         options: NO_NEXT_BAR_OPTIONS,
-        visibleWhen: ({ values }) => isCustomTemplate(values),
+        readonlyWhen: readonlyUnlessCustom,
       },
       {
         name: 'edges.allow_buy_at_limit_up',
         type: 'switch',
         label: '涨停日允许买入',
         tooltip: '关闭后，遇到涨停且无法按规则买入时将跳过该笔买入。',
-        visibleWhen: ({ values }) => isCustomTemplate(values),
+        readonlyWhen: readonlyUnlessCustom,
       },
       {
         name: 'edges.allow_sell_at_limit_down',
         type: 'switch',
         label: '跌停日允许卖出',
         tooltip: '关闭后，遇到跌停且无法按规则卖出时将跳过该笔卖出。',
-        visibleWhen: ({ values }) => isCustomTemplate(values),
+        readonlyWhen: readonlyUnlessCustom,
+      },
+      {
+        name: 'skip_investment_when',
+        type: 'checkboxGroup',
+        label: '跳过投资机会如果股票是：',
+        tooltip:
+          '勾选后，价格/资金回测在触发日处于对应股票状态时跳过该笔投资；枚举机会仍会保留。退市不可勾选（无新 K 线机会）。',
+        options: skipOptions,
+        readonlyWhen: readonlyUnlessCustom,
       },
       {
         name: 'extreme_same_bar_order',
@@ -243,7 +353,7 @@ export function buildStrategySimulationSchema(simulationTemplateOptions = DEFAUL
         label: '同 bar 内止损/止盈顺序',
         tooltip: '使用极值盯盘且同一交易日内可能同时触发止损与止盈时的优先顺序。',
         options: EXTREME_SAME_BAR_ORDER_OPTIONS,
-        visibleWhen: ({ values }) => isCustomTemplate(values),
+        readonlyWhen: readonlyUnlessCustom,
       },
       {
         name: 'extreme_same_bar_random_seed',
@@ -251,8 +361,8 @@ export function buildStrategySimulationSchema(simulationTemplateOptions = DEFAUL
         label: '随机顺序种子',
         tooltip: '当顺序选「随机」时填写，用于固定随机结果以便复现回测。',
         parse: parseNumber,
-        visibleWhen: ({ values }) => (
-          isCustomTemplate(values) && values?.extreme_same_bar_order === 'random'
+        readonlyWhen: ({ values }) => (
+          !isCustomSimulationTemplate(values) || values?.extreme_same_bar_order !== 'random'
         ),
       },
     ],

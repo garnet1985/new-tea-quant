@@ -57,12 +57,22 @@ def test_simulation_settings_skip_property():
     sim = StrategySimulationSettings.from_strategy_root(
         {
             "simulation": {
-                "template": "deterministic",
+                "template": "custom",
+                "monitor_price_model": "close",
+                "buy_price_model": "next_open",
+                "sell_price_model": "close",
                 "skip_investment_when": ["st"],
             }
         }
     )
     assert sim.skip_investment_when == ("st",)
+
+
+def test_strict_preset_skip_from_template():
+    sim = StrategySimulationSettings.from_strategy_root(
+        {"simulation": {"template": "strict"}}
+    )
+    assert sim.skip_investment_when == ("st", "star_st")
 
 
 def test_stamp_at_trigger():

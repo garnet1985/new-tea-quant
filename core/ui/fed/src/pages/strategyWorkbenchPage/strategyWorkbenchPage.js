@@ -34,6 +34,7 @@ import {
   fetchStrategyVersions,
   fetchSamplingStrategyConfig,
   fetchSimulationTemplateConfig,
+  fetchSkipInvestmentWhenOptions,
   fetchMarketProfileOptions,
   restoreStrategyVersion,
   getStrategyWorkbenchPath,
@@ -154,6 +155,8 @@ function StrategyWorkbenchPage() {
   const [allocationModeOptions, setAllocationModeOptions] = useState([]);
   const [samplingStrategyOptions, setSamplingStrategyOptions] = useState([]);
   const [simulationTemplateOptions, setSimulationTemplateOptions] = useState([]);
+  const [simulationTemplateProfiles, setSimulationTemplateProfiles] = useState({});
+  const [skipInvestmentWhenOptions, setSkipInvestmentWhenOptions] = useState([]);
   const [marketProfileOptions, setMarketProfileOptions] = useState([]);
   const [executionState, setExecutionState] = useState({
     stepStatus: {
@@ -303,13 +306,16 @@ function StrategyWorkbenchPage() {
       fetchCapitalAllocationModeConfig(),
       fetchSamplingStrategyConfig(),
       fetchSimulationTemplateConfig(),
+      fetchSkipInvestmentWhenOptions(),
       fetchMarketProfileOptions(),
     ])
-      .then(([allocationConfig, samplingConfig, simulationConfig, marketProfiles]) => {
+      .then(([allocationConfig, samplingConfig, simulationConfig, skipWhenOptions, marketProfiles]) => {
         if (cancelled) return;
         setAllocationModeOptions(allocationConfig?.options || []);
         setSamplingStrategyOptions(samplingConfig?.options || []);
         setSimulationTemplateOptions(simulationConfig?.options || []);
+        setSimulationTemplateProfiles(simulationConfig?.profiles || {});
+        setSkipInvestmentWhenOptions(skipWhenOptions || []);
         setMarketProfileOptions(marketProfiles || []);
         setSettingsOptionError('');
       })
@@ -319,6 +325,8 @@ function StrategyWorkbenchPage() {
         setAllocationModeOptions([]);
         setSamplingStrategyOptions([]);
         setSimulationTemplateOptions([]);
+        setSimulationTemplateProfiles({});
+        setSkipInvestmentWhenOptions([]);
         setMarketProfileOptions([]);
       });
     return () => {
@@ -759,6 +767,8 @@ function StrategyWorkbenchPage() {
                   allocationModeOptions={allocationModeOptions}
                   samplingStrategyOptions={samplingStrategyOptions}
                   simulationTemplateOptions={simulationTemplateOptions}
+                  simulationTemplateProfiles={simulationTemplateProfiles}
+                  skipInvestmentWhenOptions={skipInvestmentWhenOptions}
                   marketProfileOptions={marketProfileOptions}
                   onGoalChange={onGoalChange}
                   onSamplingChange={onSamplingChange}

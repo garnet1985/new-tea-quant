@@ -27,7 +27,7 @@
 
 ```python
 "simulation": {
-    "template": "deterministic",
+    "template": "standard",
     "retention": {
         "max_output_versions": 3,
     },

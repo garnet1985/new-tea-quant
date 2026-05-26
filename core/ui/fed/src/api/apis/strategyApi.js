@@ -11,6 +11,7 @@ function apiStrategyPath(strategyName) {
 const API_SETTINGS_CAPITAL = `${API_VERSION_PREFIX}/strategy/settings/capital-allocation-strategies`;
 const API_SETTINGS_SAMPLING = `${API_VERSION_PREFIX}/strategy/settings/sampling-strategies`;
 const API_SETTINGS_SIMULATION_TEMPLATES = `${API_VERSION_PREFIX}/strategy/settings/simulation-templates`;
+const API_SETTINGS_SKIP_INVESTMENT_WHEN = `${API_VERSION_PREFIX}/strategy/settings/skip-investment-when`;
 const API_SETTINGS_MARKET_PROFILES = `${API_VERSION_PREFIX}/strategy/settings/market-profiles`;
 
 /** @typedef {{ value: string, label: string }} StrategySettingOption */
@@ -511,14 +512,34 @@ export async function fetchSimulationTemplateOptions() {
 export async function fetchSimulationTemplateConfig() {
   const json = await requestJson(API_SETTINGS_SIMULATION_TEMPLATES, { method: 'GET' });
   const items = json?.message?.items ?? [];
+  const profiles = {};
+  items.forEach((row) => {
+    if (row?.value && row?.defaults && typeof row.defaults === 'object') {
+      profiles[row.value] = row.defaults;
+    }
+  });
   return {
     options: items.map((row) => ({
       value: row.value,
       label: row.label,
       tooltip: row.tooltip || '',
     })),
-    profiles: {},
+    profiles,
   };
+}
+
+/**
+ * ``simulation.skip_investment_when`` 可勾选标签（``st`` / ``star_st``）。
+ * @returns {Promise<StrategySettingOption[]>}
+ */
+export async function fetchSkipInvestmentWhenOptions() {
+  const json = await requestJson(API_SETTINGS_SKIP_INVESTMENT_WHEN, { method: 'GET' });
+  const items = json?.message?.items ?? [];
+  return items.map((row) => ({
+    value: row.value,
+    label: row.label,
+    tooltip: row.tooltip || '',
+  }));
 }
 
 /**

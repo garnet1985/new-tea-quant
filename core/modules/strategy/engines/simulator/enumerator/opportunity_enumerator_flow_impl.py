@@ -413,6 +413,7 @@ class OpportunityEnumeratorFlowImpl:
                     "end_date": job["end_date"],
                     "output_dir": job["output_dir"],
                     "global_extra_cache": global_extra_cache,
+                    "backtest_calendar": job.get("backtest_calendar"),
                     "worker_module_path": job["worker_module_path"],
                     "worker_class_name": job["worker_class_name"],
                 },
@@ -609,9 +610,14 @@ class OpportunityEnumeratorFlowImpl:
         strategy_name: str,
         enum_settings: OpportunityEnumeratorSettings,
     ) -> None:
-        sub_dir = output_dir.parent
-        StrategyOutputVersionService.prune_enumerator_versions(
-            sub_dir, enum_settings.max_output_versions
+        from core.modules.strategy.services.data.output.version_manager import (
+            prune_strategy_simulation_tree,
+        )
+
+        prune_strategy_simulation_tree(
+            strategy_name,
+            "enum",
+            enum_settings.to_dict(),
         )
 
     def build_result_report(

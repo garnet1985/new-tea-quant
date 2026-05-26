@@ -53,8 +53,8 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         self.stock_list = stock_list
         self.max_workers = max_workers
         self.base_settings = base_settings
-        self.last_snapshot_id: int = 0
-        self.last_run_used_db_cache: bool = False
+        self.last_version: int = 0
+        self.used_db_cache: bool = False
         self._impl = OpportunityEnumeratorFlowImpl(
             start_date=start_date,
             end_date=end_date,
@@ -91,8 +91,8 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             resolve_db_cache_fingerprints,
         )
 
-        self.last_snapshot_id = 0
-        self.last_run_used_db_cache = False
+        self.last_version = 0
+        self.used_db_cache = False
         probe = self._preprocess_probe(strategy_name=strategy_name, strategy_info=strategy_info)
 
         data_mgr = DataManager(is_verbose=False)
@@ -116,9 +116,9 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
                 resolved_probe.env_fp,
             )
             if hit:
-                summary_list, snapshot_id = hit
-                self.last_snapshot_id = int(snapshot_id or 0)
-                self.last_run_used_db_cache = True
+                summary_list, wb_version = hit
+                self.last_version = int(wb_version or 0)
+                self.used_db_cache = True
                 # 缓存命中不跑 worker，原无中间进度落盘；工作台 GET progress 在内存丢失时会读此文件，故在此写入终态。
                 wn = self._impl.workbench_strategy_name
                 wr = self._impl.workbench_run_id
@@ -127,7 +127,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
 
                     sn, rid = str(wn).strip(), str(wr).strip()
                     rec = ProgressRecorder.for_strategy_run_step(sn, rid, "enum")
-                    sid = int(snapshot_id or 0)
+                    sid = int(wb_version or 0)
                     rec.record(
                         {
                             "strategy_name": sn,
@@ -137,7 +137,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
                             "done_jobs": 0,
                             "total_jobs": 0,
                             "progress_pct": 100,
-                            "snapshot_id": sid,
+                            "version": sid,
                         }
                     )
                 return summary_list
@@ -167,7 +167,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
                     settings_fingerprint_id=resolved_save.settings_fp,
                     env_fingerprint_id=resolved_save.env_fp,
                 )
-                self.last_snapshot_id = int(persisted_sid or 0)
+                self.last_version = int(persisted_sid or 0)
         return summary_list
 
     def _preprocess_probe(
@@ -221,8 +221,29 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             stock_ids=self.stock_list,
         )
         mp_id = probe.market_profile.profile_id
+        from core.modules.data_manager import DataManager
+        from core.modules.strategy.engines.shared.helpers.backtest_calendar_context import (
+            build_backtest_calendar_context,
+        )
+        from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+            BacktestDateRange,
+        )
+
+        data_mgr = DataManager(is_verbose=False)
+        calendar_ctx = build_backtest_calendar_context(
+            data_manager=data_mgr,
+            period=BacktestDateRange(
+                self._impl.start_date,
+                self._impl.end_date,
+                "",
+                "",
+            ),
+            market_profile_id=mp_id,
+        )
+        calendar_dict = calendar_ctx.to_dict()
         for job in jobs:
             job["market_profile_id"] = mp_id
+            job["backtest_calendar"] = calendar_dict
         result_fingerprint = self._impl.build_request_fingerprint(
             strategy_name=probe.strategy_name,
             settings_payload=probe.settings_for_fingerprint,

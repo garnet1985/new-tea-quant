@@ -52,6 +52,7 @@ class PriceReport(ReportBase):
     stocks_have_opportunities: int
     skipped_buy_at_limit_up: int = 0
     skipped_sell_at_limit_down: int = 0
+    skipped_stock_status: int = 0
     backtest_period: Dict[str, str] = field(default_factory=dict)
 
     @classmethod
@@ -59,6 +60,7 @@ class PriceReport(ReportBase):
         total_investments = 0
         skipped_buy_at_limit_up = 0
         skipped_sell_at_limit_down = 0
+        skipped_stock_status = 0
         total_win = 0
         total_loss = 0
         total_open = 0
@@ -72,6 +74,7 @@ class PriceReport(ReportBase):
             skipped_sell_at_limit_down += int(
                 stock_summary.get("skipped_sell_at_limit_down", 0) or 0
             )
+            skipped_stock_status += int(stock_summary.get("skipped_stock_status", 0) or 0)
             summary = stock_summary.get("summary", {}) or {}
             investment_count = int(summary.get("total_investments", 0) or 0)
             if investment_count <= 0:
@@ -121,6 +124,7 @@ class PriceReport(ReportBase):
             stocks_have_opportunities=stocks_with_opportunities,
             skipped_buy_at_limit_up=skipped_buy_at_limit_up,
             skipped_sell_at_limit_down=skipped_sell_at_limit_down,
+            skipped_stock_status=skipped_stock_status,
         )
 
     @classmethod
@@ -147,6 +151,7 @@ class PriceReport(ReportBase):
             stocks_have_opportunities=int(data.get("stocks_have_opportunities", 0) or 0),
             skipped_buy_at_limit_up=int(data.get("skipped_buy_at_limit_up", 0) or 0),
             skipped_sell_at_limit_down=int(data.get("skipped_sell_at_limit_down", 0) or 0),
+            skipped_stock_status=int(data.get("skipped_stock_status", 0) or 0),
             backtest_period=backtest_period,
         )
 
@@ -187,7 +192,8 @@ class PriceReport(ReportBase):
             f"💰 产生机会的股票数: {self.stocks_have_opportunities}",
             (
                 f"⏭️ 涨跌停跳过买入: {self.skipped_buy_at_limit_up} · "
-                f"跳过卖出: {self.skipped_sell_at_limit_down}"
+                f"跳过卖出: {self.skipped_sell_at_limit_down} · "
+                f"状态跳过投资: {self.skipped_stock_status}"
             ),
         ])
         return lines
@@ -206,7 +212,7 @@ class PriceReport(ReportBase):
         payload = {
             k: v
             for k, v in summary.items()
-            if k not in ("output_version", "sim_version")
+            if k not in ("output_version", "output_version_run", "sim_version")
         }
         report = cls.from_dict(payload)
         if not report.backtest_period:
@@ -221,14 +227,18 @@ class PriceReport(ReportBase):
         for line in report.to_console_lines():
             print(line)
         ov = summary.get("output_version") if isinstance(summary.get("output_version"), dict) else {}
-        sv = summary.get("sim_version") if isinstance(summary.get("sim_version"), dict) else {}
+        run = summary.get("output_version_run")
+        if not isinstance(run, dict):
+            run = summary.get("sim_version") if isinstance(summary.get("sim_version"), dict) else {}
+        run_dir = run.get("output_version_dir") or run.get("version_dir")
+        run_id = run.get("output_version_id", run.get("version_id", ""))
         print("")
         print(
             "📂 枚举输出版本目录: "
             f"{ov.get('version_dir') or '—'}  │  "
             "本次模拟目录: "
-            f"{sv.get('version_dir') or '—'} "
-            f"(version_id={sv.get('version_id', '')})"
+            f"{run_dir or '—'} "
+            f"(output_version_id={run_id})"
         )
         if used_db_cache:
             print("💾 本次结果来自 Simulator DB 缓存，未新建模拟输出目录。")

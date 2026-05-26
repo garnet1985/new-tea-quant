@@ -24,14 +24,16 @@ python dev-cli -p -vx.x.x
 
 ### v0.3.3 (TBD)
 
+- 回测持仓遇退市日（``delist_date``）强制全平，退出原因 ``stock_status:delisted``，按上一根可交易 K 线收盘价成交；price 阶段 ``target_type=stock_status``
 - 重构获取股票列表的handler，获取全量股票列表，包括退市的
 - 增加风险时段表，记录每个股票的黑历史
 - 增加交易日历表和数据获取逻辑
 - 清理老的数据表，减小对用户的认知负担
 - 集成新表和API进入回测系统，大幅减小幸存者偏差 - TODO
 - 在dev-cli里加入自动检查python 3.9不支持语法的检查 - TODO
-- 在dev-cli加入数据打包功能 - TODO
+- 在dev-cli加入数据打包功能（-ex）
 - 优化了K线指标计算逻辑，指标计算速度提升65%以上
+- 重新打包了init_data里边包含回测期间已经退市的股票，消除幸存者偏差
 
 ---
 

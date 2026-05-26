@@ -141,8 +141,8 @@ export async function fetchStrategyVersions(strategyName) {
   const items = json?.message?.items ?? [];
   return {
     versions: items.map((row) => ({
-      version_id: row.version_id || (row.snapshot_id != null ? `v${row.snapshot_id}` : ''),
-      version: Number(row.snapshot_id || 0),
+      version_id: row.version_id || (row.version != null ? `v${row.version}` : ''),
+      version: Number(row.version ?? 0),
       created_at: row.created_at || '',
       updated_at: row.updated_at || '',
     })),
@@ -202,10 +202,10 @@ export async function createStrategyVersion(strategyName, settings, source = 'ma
  * @param {object=} settings
  */
 export async function startStrategyRun(strategyName, targetStep, settings, options = {}) {
-  const isForce = Boolean(options?.is_force);
+  const forceRefresh = Boolean(options?.force_refresh ?? options?.is_force);
   const body = {
     settings: settings && typeof settings === 'object' ? settings : {},
-    is_force: isForce,
+    force_refresh: forceRefresh,
   };
   const json = await requestJson(
     `${apiStrategyPath(strategyName)}/${encodeURIComponent(targetStep)}/run`,

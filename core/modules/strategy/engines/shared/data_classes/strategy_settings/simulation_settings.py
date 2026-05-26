@@ -249,6 +249,10 @@ class StrategySimulationSettings(SettingsBase):
         object.__setattr__(self, "_parsed_cache", None)
         sim = self.simulation
         sim.setdefault("template", "deterministic")
+        if "skip_investment_when" not in sim:
+            sim["skip_investment_when"] = []
+        elif sim.get("skip_investment_when") is None:
+            sim["skip_investment_when"] = []
         tmpl = str(sim.get("template") or "deterministic").strip().lower()
         if tmpl != "custom":
             return
@@ -319,6 +323,20 @@ class StrategySimulationSettings(SettingsBase):
     def extreme_same_bar_random_seed(self) -> Optional[int]:
         return self._parsed.extreme_same_bar_random_seed
 
+    @property
+    def skip_investment_when(self) -> Tuple[str, ...]:
+        from core.modules.strategy.engines.shared.helpers.skip_investment_when import (
+            parse_skip_investment_when,
+        )
+
+        return parse_skip_investment_when(self.simulation.get("skip_investment_when"))
+
+    def _validate_skip_investment_when(self, result: ValidationReport) -> None:
+        try:
+            _ = self.skip_investment_when
+        except ValueError as exc:
+            SettingsBase.add_critical(result, "simulation.skip_investment_when", str(exc))
+
     def _validate_preset_template_no_detail_overrides(self, result: ValidationReport) -> None:
         sim = self.simulation
         tmpl = str(sim.get("template") or "deterministic").strip().lower()
@@ -361,6 +379,7 @@ class StrategySimulationSettings(SettingsBase):
         self.apply_defaults()
         self._validate_preset_template_no_detail_overrides(result)
         self._validate_removed_edge_keys(result)
+        self._validate_skip_investment_when(result)
         try:
             object.__setattr__(self, "_parsed_cache", None)
             _ = _parse_snapshot(dict(self.simulation))

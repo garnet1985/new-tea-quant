@@ -7,6 +7,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 import json
 
+from core.modules.strategy.engines.shared.helpers.skip_investment_when import (
+    stock_status_tags_csv_value,
+)
 from core.modules.strategy.launcher.run_types import (
     StrategyRunFingerprint,
 )
@@ -67,6 +70,7 @@ class EnumeratorOutputWriterService:
                     }
                 )
             row = {k: v for k, v in opportunity.items() if k not in excluded}
+            row["stock_status_at_trigger"] = stock_status_tags_csv_value(opportunity)
             for key, value in row.items():
                 if isinstance(value, (dict, list)):
                     row[key] = json.dumps(value, ensure_ascii=False)

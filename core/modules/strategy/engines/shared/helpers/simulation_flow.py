@@ -43,6 +43,7 @@ def simulation_effective_snapshot(sim: StrategySimulationSettings) -> Dict[str, 
         },
         "extreme_same_bar_order": sim.extreme_same_bar_order.value,
         "extreme_same_bar_random_seed": sim.extreme_same_bar_random_seed,
+        "skip_investment_when": list(sim.skip_investment_when),
     }
 
 

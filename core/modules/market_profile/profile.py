@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 from .rule_engines import REGISTRY
 from .rule_engines.amplitude_limit.models import AmplitudeLimitCompiled
@@ -75,21 +75,26 @@ class MarketProfile:
         obj = self._compiled.get("lot_size")
         return obj if isinstance(obj, LotSizeCompiled) else None
 
-    def resolve_limit_ratio(self, stock_id: str) -> float:
+    def resolve_limit_ratio(
+        self,
+        stock_id: str,
+        status_tags: Optional[Sequence[str]] = None,
+    ) -> float:
         amp = self.amplitude_limit
         if amp is None:
             raise KeyError("当前 profile 未配置 rules.amplitude_limit")
-        return amp.resolve_ratio(stock_id)
+        return amp.resolve_ratio(stock_id, status_tags)
 
     def compute_limit_prices(
         self,
         stock_id: str,
         prev_close: float,
+        status_tags: Optional[Sequence[str]] = None,
     ) -> Tuple[float, float]:
         amp = self.amplitude_limit
         if amp is None:
             raise KeyError("当前 profile 未配置 rules.amplitude_limit")
-        return amp.compute_limit_prices(stock_id, prev_close)
+        return amp.compute_limit_prices(stock_id, prev_close, status_tags)
 
     def resolve_lot_rules(self, stock_id: str) -> LotSizeResolved:
         lot = self.lot_size

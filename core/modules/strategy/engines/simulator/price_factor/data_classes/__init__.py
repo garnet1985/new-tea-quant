@@ -16,7 +16,6 @@ __all__ = [
     "PriceReport",
     "PriceFactorInvestment",
     "StrategyPriceSimulatorSettings",
-    "StrategyPriceFactorSimulationSettings",
 ]
 
 
@@ -33,10 +32,6 @@ def __getattr__(name: str) -> Any:
         from .settings import StrategyPriceSimulatorSettings
 
         return StrategyPriceSimulatorSettings
-    if name == "StrategyPriceFactorSimulationSettings":
-        from .settings import StrategyPriceFactorSimulationSettings
-
-        return StrategyPriceFactorSimulationSettings
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 

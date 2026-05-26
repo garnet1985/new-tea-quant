@@ -15,7 +15,7 @@ from typing import Any, Dict, Optional
 class AnalysisContext:
     strategy_name: str
     sim_type: str
-    sim_version_dir: Path
+    output_version_dir: Path
     raw_settings: Dict[str, Any]
     enum_version_dir: Optional[Path] = None
     data_manager: Optional[Any] = None

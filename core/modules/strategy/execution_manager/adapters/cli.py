@@ -41,15 +41,15 @@ class _CliVerboseProgressSink:
             logger.debug("flow %s local %.1f%%", substep, flow_pct)
 
     def on_substep_finish(
-        self, substep: str, index: int, total: int, snapshot_id: int
+        self, substep: str, index: int, total: int, version: int
     ) -> None:
         if self._verbose:
             logger.info(
-                "substep %s finished (%s/%s) snapshot_id=%s",
+                "substep %s finished (%s/%s) version=%s",
                 substep,
                 index + 1,
                 total,
-                snapshot_id,
+                version,
             )
 
 
@@ -58,7 +58,7 @@ def run_workbench_step_via_cli_contract(
     strategy_name: str,
     step: str,
     api_settings: Dict[str, Any],
-    is_force: bool,
+    force_refresh: bool,
     verbose: bool = False,
     engine_verbose: bool = False,
     stock_count: Optional[int] = None,
@@ -84,7 +84,7 @@ def run_workbench_step_via_cli_contract(
 
     plan = plan_workbench_substeps(
         norm_step=norm,
-        is_force=is_force,
+        force_refresh=force_refresh,
         strategy_name=name,
         discovered=discovered,
     )

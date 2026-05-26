@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, fields
 from datetime import datetime
 import logging
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from core.modules.strategy.enums import OpportunityStatus
 from core.modules.strategy.engines.shared.helpers.tradability import stamp_target_tradability
@@ -66,6 +66,7 @@ class Opportunity:
     dynamic_loss_highest: Optional[float] = None
     triggered_stop_loss_idx: int = -1
     triggered_take_profit_idx: int = -1
+    triggered_stock_status_names: Optional[List[str]] = None
     roi: Optional[float] = None
     completed_targets: Optional[list] = None
     status: str = "active"
@@ -102,6 +103,7 @@ class Opportunity:
         sell_ratio: float = 1.0,
         market_profile: Optional["MarketProfile"] = None,
         prev_bar: Optional[Dict[str, Any]] = None,
+        stock_status_risk: Optional[Any] = None,
     ) -> bool:
         exit_px = self._exit_price(sim, bar)
         if exit_px is None:
@@ -109,7 +111,16 @@ class Opportunity:
         basis = self._cost_basis()
         current_date = bar["date"]
         price_return = (exit_px - basis) / basis if basis > 0 else 0.0
-        self._settle(current_date, exit_px, reason, price_return, sell_ratio=sell_ratio)
+        self._settle(
+            current_date,
+            exit_px,
+            reason,
+            price_return,
+            sell_ratio=sell_ratio,
+            market_profile=market_profile,
+            prev_bar=prev_bar,
+            stock_status_risk=stock_status_risk,
+        )
         return True
 
     def _defer_exit(self, reason: str, *, sell_ratio: float = 1.0) -> bool:
@@ -125,6 +136,7 @@ class Opportunity:
         sell_ratio: float = 1.0,
         market_profile: Optional["MarketProfile"] = None,
         prev_bar: Optional[Dict[str, Any]] = None,
+        stock_status_risk: Optional[Any] = None,
     ) -> bool:
         if trade_price_defers_to_next_session(sim.sell_price_model):
             return self._defer_exit(reason, sell_ratio=sell_ratio)
@@ -135,6 +147,7 @@ class Opportunity:
             sell_ratio=sell_ratio,
             market_profile=market_profile,
             prev_bar=prev_bar,
+            stock_status_risk=stock_status_risk,
         )
 
     def execute_pending_exit(
@@ -144,6 +157,7 @@ class Opportunity:
         *,
         market_profile: Optional["MarketProfile"] = None,
         prev_bar: Optional[Dict[str, Any]] = None,
+        stock_status_risk: Optional[Any] = None,
     ) -> bool:
         if not self.pending_exit:
             return False
@@ -156,6 +170,7 @@ class Opportunity:
             sell_ratio=float(pe.get("sell_ratio") or 1.0),
             market_profile=market_profile,
             prev_bar=prev_bar,
+            stock_status_risk=stock_status_risk,
         )
 
     def __post_init__(self):
@@ -202,6 +217,8 @@ class Opportunity:
         reason: str = "backtest_end",
         *,
         market_profile: Optional["MarketProfile"] = None,
+        prev_bar: Optional[Dict[str, Any]] = None,
+        stock_status_risk: Optional[Any] = None,
     ) -> None:
         if self.pending_exit and trade_price_defers_to_next_session(sim.sell_price_model):
             pe = self.pending_exit
@@ -212,6 +229,8 @@ class Opportunity:
                 str(pe.get("reason") or reason),
                 sell_ratio=float(pe.get("sell_ratio") or 1.0),
                 market_profile=market_profile,
+                prev_bar=prev_bar,
+                stock_status_risk=stock_status_risk,
             )
             return
         self._settle_on_bar(
@@ -220,6 +239,8 @@ class Opportunity:
             reason,
             sell_ratio=1.0,
             market_profile=market_profile,
+            prev_bar=prev_bar,
+            stock_status_risk=stock_status_risk,
         )
 
     def check_targets(
@@ -230,6 +251,8 @@ class Opportunity:
         *,
         market_profile: Optional["MarketProfile"] = None,
         prev_bar: Optional[Dict[str, Any]] = None,
+        backtest_calendar: Optional[Any] = None,
+        stock_status_risk: Optional[Any] = None,
     ) -> bool:
         current_price = monitor_bar_price(current_kline, sim.monitor_price_model)
         current_date = current_kline["date"]
@@ -238,16 +261,50 @@ class Opportunity:
         # expiration / 持仓天数：自真实买入日计；无 buy_date 时不应进入盯盘
         if not self.buy_date:
             return False
-        holding_days = self._calculate_holding_days(self.buy_date, current_date)
+
+        from core.modules.strategy.engines.shared.helpers.stock_status_exit import (
+            apply_stock_status_risk_management,
+            apply_stock_status_risk_management_from_settings,
+        )
+
+        if stock_status_risk is not None:
+            if apply_stock_status_risk_management(
+                self,
+                sim,
+                current_kline,
+                stock_status_risk,
+                prev_bar=prev_bar,
+                market_profile=market_profile,
+                stock=self.stock,
+            ):
+                return self.pending_exit is None
+        elif apply_stock_status_risk_management_from_settings(
+            self,
+            sim,
+            current_kline,
+            prev_bar=prev_bar,
+            market_profile=market_profile,
+            stock=self.stock,
+        ):
+            return self.pending_exit is None
+
         price_return = (current_price - basis) / basis if basis > 0 else 0.0
 
         self.max_price = max(self.max_price or 0, current_price)
         self.min_price = min(self.min_price or float("inf"), current_price)
 
-        expiration_config = goal_config.get("expiration", {})
-        if expiration_config:
-            fixed_window_in_days = expiration_config.get("fixed_window_in_days", 0)
-            if fixed_window_in_days > 0 and holding_days >= fixed_window_in_days:
+        from core.modules.strategy.engines.shared.helpers.backtest_calendar_context import (
+            parse_expiration_hold_spec,
+        )
+
+        hold_spec = parse_expiration_hold_spec(goal_config)
+        if hold_spec is not None:
+            holding_days = self._expiration_holding_days(
+                current_date,
+                hold_spec,
+                backtest_calendar=backtest_calendar,
+            )
+            if holding_days >= hold_spec.fixed_window_in_days:
                 if self._request_exit(
                     sim,
                     current_kline,
@@ -255,6 +312,7 @@ class Opportunity:
                     sell_ratio=1.0,
                     market_profile=market_profile,
                     prev_bar=prev_bar,
+                    stock_status_risk=stock_status_risk,
                 ):
                     return self.pending_exit is None
 
@@ -269,6 +327,7 @@ class Opportunity:
                     sell_ratio=1.0,
                     market_profile=market_profile,
                     prev_bar=prev_bar,
+                    stock_status_risk=stock_status_risk,
                 ):
                     return self.pending_exit is None
 
@@ -289,6 +348,7 @@ class Opportunity:
                     sell_ratio=1.0,
                     market_profile=market_profile,
                     prev_bar=prev_bar,
+                    stock_status_risk=stock_status_risk,
                 ):
                     return self.pending_exit is None
 
@@ -313,6 +373,7 @@ class Opportunity:
                         sell_ratio=1.0,
                         market_profile=market_profile,
                         prev_bar=prev_bar,
+                        stock_status_risk=stock_status_risk,
                     ):
                         return self.pending_exit is None
 
@@ -345,6 +406,7 @@ class Opportunity:
                         sell_ratio=1.0,
                         market_profile=market_profile,
                         prev_bar=prev_bar,
+                        stock_status_risk=stock_status_risk,
                     ):
                         return self.pending_exit is None
                 if not self.completed_targets:
@@ -374,18 +436,90 @@ class Opportunity:
                         self.stock_id,
                         prev_bar,
                         exit_px,
+                        stock_status_risk=stock_status_risk,
+                        trade_date=current_date,
                     )
                 self.completed_targets.append(target_entry)
 
         return False
 
-    def _calculate_holding_days(self, start_date: str, end_date: str) -> int:
-        try:
-            start = datetime.strptime(start_date, "%Y%m%d")
-            end = datetime.strptime(end_date, "%Y%m%d")
-            return (end - start).days
-        except Exception:
+    def _init_expiration_holding_tracker(
+        self,
+        *,
+        backtest_calendar: Optional[Any],
+    ) -> None:
+        """买入成交后初始化交易日持有计数（仅 ``is_trading_days`` 路径）。"""
+        buy = str(self.buy_date or "").strip()
+        self._exp_hold_last_date = buy
+        ctx = backtest_calendar
+        if ctx is not None and hasattr(ctx, "count_open_days_between"):
+            self._exp_hold_trading_count = int(
+                ctx.count_open_days_between(buy, buy)
+            )
+        else:
+            self._exp_hold_trading_count = 0
+        self._exp_hold_inited = True
+
+    def _expiration_holding_days(
+        self,
+        current_date: str,
+        hold_spec: Any,
+        *,
+        backtest_calendar: Optional[Any] = None,
+    ) -> int:
+        """
+        持有期天数：自然日 O(1)；交易日沿 K 线单调递增时 O(1) 增量（否则区间二分）。
+        """
+        from core.modules.strategy.engines.shared.helpers.backtest_calendar_context import (
+            BacktestCalendarContext,
+            ExpirationHoldSpec,
+            resolve_holding_days,
+        )
+
+        if not isinstance(hold_spec, ExpirationHoldSpec):
             return 0
+        buy = str(self.buy_date or "").strip()
+        cur = str(current_date or "").strip()
+        if not buy or not cur:
+            return 0
+
+        if not hold_spec.is_trading_days:
+            return resolve_holding_days(
+                buy,
+                cur,
+                expiration_config={"is_trading_days": False},
+                backtest_calendar=None,
+            )
+
+        ctx = (
+            backtest_calendar
+            if isinstance(backtest_calendar, BacktestCalendarContext)
+            else BacktestCalendarContext.from_dict(backtest_calendar)
+        )
+        if ctx is None:
+            return resolve_holding_days(
+                buy,
+                cur,
+                expiration_config={"is_trading_days": True},
+                backtest_calendar=None,
+            )
+
+        if not getattr(self, "_exp_hold_inited", False):
+            self._init_expiration_holding_tracker(backtest_calendar=ctx)
+
+        last = str(getattr(self, "_exp_hold_last_date", buy) or buy)
+        if cur > last:
+            if ctx.is_open_date(cur):
+                self._exp_hold_trading_count = int(
+                    getattr(self, "_exp_hold_trading_count", 0)
+                ) + 1
+            self._exp_hold_last_date = cur
+            return int(getattr(self, "_exp_hold_trading_count", 0))
+
+        if cur < last:
+            return int(ctx.count_open_days_between(buy, cur))
+
+        return int(getattr(self, "_exp_hold_trading_count", 0))
 
     def _settle(
         self,
@@ -394,6 +528,10 @@ class Opportunity:
         sell_reason: str,
         roi: float,
         sell_ratio: float = 1.0,
+        *,
+        market_profile: Optional["MarketProfile"] = None,
+        prev_bar: Optional[Dict[str, Any]] = None,
+        stock_status_risk: Optional[Any] = None,
     ):
         self.sell_date = sell_date
         self.sell_price = sell_price
@@ -403,17 +541,26 @@ class Opportunity:
         basis = self._cost_basis()
         profit = sell_price - basis
         weighted_profit = profit * sell_ratio
-        self.completed_targets.append(
-            {
-                "date": sell_date,
-                "price": sell_price,
-                "reason": sell_reason,
-                "roi": roi,
-                "sell_ratio": sell_ratio,
-                "profit": profit,
-                "weighted_profit": weighted_profit,
-            }
-        )
+        target_entry = {
+            "date": sell_date,
+            "price": sell_price,
+            "reason": sell_reason,
+            "roi": roi,
+            "sell_ratio": sell_ratio,
+            "profit": profit,
+            "weighted_profit": weighted_profit,
+        }
+        if market_profile is not None:
+            stamp_target_tradability(
+                target_entry,
+                market_profile,
+                self.stock_id,
+                prev_bar,
+                sell_price,
+                stock_status_risk=stock_status_risk,
+                trade_date=sell_date,
+            )
+        self.completed_targets.append(target_entry)
         total_weighted_profit = sum(
             target.get("weighted_profit", 0) for target in self.completed_targets
         )

@@ -143,6 +143,63 @@ def resolve_backtest_end_date(
     return ResolvedBacktestDate("", SOURCE_MISSING)
 
 
+def resolve_backtest_universe(
+    *,
+    list_svc: Any,
+    settings_view: StrategySettingsView,
+    latest_completed_trading_date: str = "",
+    data_manager: Optional[Any] = None,
+    kline_term: Optional[str] = None,
+) -> Tuple[BacktestDateRange, List[Dict[str, Any]]]:
+    """
+    解析回测日历窗，并 ``list_svc.load(period_start=..., period_end=...)`` 取 PIT 参与者。
+
+    未配置 ``start_date`` 时：先用默认起点拉 universe，再按样本最早 K 线收紧
+    ``period_start`` 后必要时二次 ``load``。
+    """
+    dm = data_manager
+    latest = str(latest_completed_trading_date or "").strip()
+    if not latest:
+        if dm is None:
+            from core.modules.data_manager import DataManager
+
+            dm = DataManager(is_verbose=False)
+        latest = resolve_latest_completed_trading_date(dm)
+    elif dm is None and not settings_view.start_date.strip():
+        from core.modules.data_manager import DataManager
+
+        dm = DataManager(is_verbose=False)
+
+    end = resolve_backtest_end_date(
+        settings_view=settings_view,
+        latest_completed_trading_date=latest,
+    )
+    if not end.date:
+        raise ValueError("无法解析回测结束日（请配置 sampling.end_date 或确保交易日历可用）")
+
+    configured_start = settings_view.start_date.strip()
+    provisional_start = configured_start or DateUtils.DEFAULT_START_DATE
+    universe = list_svc.load(
+        period_start=provisional_start,
+        period_end=end.date,
+    )
+    bootstrap_ids = [str(r["id"]).strip() for r in universe if r.get("id")]
+
+    period = resolve_backtest_date_range(
+        settings_view=settings_view,
+        stock_ids=bootstrap_ids,
+        latest_completed_trading_date=latest,
+        data_manager=dm,
+        kline_term=kline_term,
+    )
+    if period.start_date != provisional_start:
+        universe = list_svc.load(
+            period_start=period.start_date,
+            period_end=period.end_date,
+        )
+    return period, universe
+
+
 def resolve_backtest_date_range(
     *,
     settings_view: StrategySettingsView,
@@ -284,9 +341,9 @@ def read_backtest_period_from_enum_output_dir(output_dir: Path) -> Dict[str, str
     return {}
 
 
-def read_backtest_period_from_price_sim_dir(sim_version_dir: Path) -> Dict[str, str]:
+def read_backtest_period_from_price_output_dir(output_version_dir: Path) -> Dict[str, str]:
     """价格因子模拟目录：``0_session_summary.json`` → ``0_metadata.json``。"""
-    base = Path(sim_version_dir)
+    base = Path(output_version_dir)
     for name in ("0_session_summary.json", "0_metadata.json"):
         bp = read_backtest_period_from_json_file(base / name)
         if bp:
@@ -294,9 +351,9 @@ def read_backtest_period_from_price_sim_dir(sim_version_dir: Path) -> Dict[str, 
     return {}
 
 
-def read_backtest_period_from_capital_sim_dir(sim_version_dir: Path) -> Dict[str, str]:
+def read_backtest_period_from_capital_output_dir(output_version_dir: Path) -> Dict[str, str]:
     """资金模拟目录：``summary_strategy.json`` → ``0_metadata.json``。"""
-    base = Path(sim_version_dir)
+    base = Path(output_version_dir)
     for name in ("summary_strategy.json", "0_metadata.json"):
         bp = read_backtest_period_from_json_file(base / name)
         if bp:
@@ -326,15 +383,16 @@ __all__ = [
     "backtest_period_console_lines",
     "backtest_period_to_dict",
     "format_backtest_date_display",
-    "read_backtest_period_from_capital_sim_dir",
+    "read_backtest_period_from_capital_output_dir",
     "read_backtest_period_from_enum_output_dir",
     "read_backtest_period_from_json_file",
-    "read_backtest_period_from_price_sim_dir",
+    "read_backtest_period_from_price_output_dir",
     "SOURCE_DEFAULT",
     "SOURCE_LATEST_TRADING_DAY",
     "SOURCE_SAMPLE_EARLIEST_KLINE",
     "SOURCE_SETTINGS",
     "kline_term_from_settings_view",
+    "resolve_backtest_universe",
     "resolve_backtest_date_range",
     "resolve_backtest_end_date",
     "resolve_backtest_period_payload",

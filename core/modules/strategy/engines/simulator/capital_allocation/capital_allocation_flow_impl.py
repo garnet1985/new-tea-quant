@@ -23,6 +23,10 @@ from core.modules.strategy.engines.shared.data_classes.market_profile_context im
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.simulation_settings import (
     StrategySimulationSettings,
 )
+from core.modules.strategy.engines.shared.helpers.skip_investment_when import (
+    ROW_SKIP_REASON_KEY,
+    should_skip_investment,
+)
 from core.modules.strategy.engines.shared.helpers.tradability import (
     should_skip_buy,
     should_skip_sell,
@@ -239,7 +243,7 @@ class CapitalAllocationFlowImpl:
         config: StrategyCapitalSimulatorSettings,
         strategy_info: "DiscoveredStrategy | None",
     ) -> Path:
-        output_version_dir, _ = (
+        base_output_version_dir, _ = (
             StrategyEnumeratorBootstrapService.resolve_or_build_enumerator_version(
             strategy_name=strategy_name,
             base_settings=base_settings,
@@ -248,9 +252,9 @@ class CapitalAllocationFlowImpl:
             strategy_info=strategy_info,
             )
         )
-        return output_version_dir
+        return base_output_version_dir
 
-    def create_simulation_version(self, strategy_name: str):
+    def create_output_version(self, strategy_name: str):
         return StrategyOutputVersionService.create_capital_allocation_version(
             strategy_name
         )
@@ -264,7 +268,7 @@ class CapitalAllocationFlowImpl:
         self,
         *,
         strategy_name: str,
-        output_version_dir: Path,
+        base_output_version_dir: Path,
         config: StrategyCapitalSimulatorSettings,
         base_settings: StrategySettingsView,
         profiler: PerformanceProfiler,
@@ -279,7 +283,7 @@ class CapitalAllocationFlowImpl:
         )
 
         profiler.start_timer("load_data")
-        stock_ids = EnumeratorOutputWriterService.read_scope_stock_ids(output_version_dir)
+        stock_ids = EnumeratorOutputWriterService.read_scope_stock_ids(base_output_version_dir)
         data_mgr = DataManager(is_verbose=False)
         period = resolve_backtest_date_range(
             settings_view=base_settings,
@@ -291,7 +295,7 @@ class CapitalAllocationFlowImpl:
             strategy_name=strategy_name, cache_enabled=True
         )
         events = data_loader.build_event_stream(
-            output_version_dir,
+            base_output_version_dir,
             start_date=period.start_date,
             end_date=period.end_date,
         )
@@ -301,7 +305,7 @@ class CapitalAllocationFlowImpl:
             logger.warning(
                 "资金模拟无事件：枚举目录 %s 下无有效买入（须含 buy_date/buy_price），"
                 "请先跑 enum 并确认 sampling.pool 路径相对策略目录名 %s",
-                output_version_dir,
+                base_output_version_dir,
                 strategy_name,
             )
         return events
@@ -312,6 +316,7 @@ class CapitalAllocationFlowImpl:
         *,
         market_profile: MarketProfileContext,
         simulation_settings: StrategySimulationSettings,
+        backtest_calendar: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         allocation_cfg = config.allocation
         fees_cfg = config.get_fees_config_with_priority()
@@ -333,6 +338,7 @@ class CapitalAllocationFlowImpl:
             allow_buy_at_limit_up=simulation_settings.allow_buy_at_limit_up,
             allow_sell_at_limit_down=simulation_settings.allow_sell_at_limit_down,
             skip_trade_when_insufficient=allocation_cfg.skip_trade_when_insufficient,
+            skip_investment_when=simulation_settings.skip_investment_when,
         )
         return {
             "account": account,
@@ -342,7 +348,12 @@ class CapitalAllocationFlowImpl:
             "equity_curve": [],
             "current_date": None,
             "completed_opportunities_map": {},
-            "tradability_skips": {"buy_at_limit_up": 0, "sell_at_limit_down": 0},
+            "tradability_skips": {
+                "buy_at_limit_up": 0,
+                "sell_at_limit_down": 0,
+                "stock_status": 0,
+            },
+            "backtest_calendar": dict(backtest_calendar or {}),
         }
 
     def replay_events(
@@ -439,6 +450,7 @@ class CapitalAllocationFlowImpl:
         skips = tradability_skips or {}
         core["skipped_buy_at_limit_up"] = int(skips.get("buy_at_limit_up", 0) or 0)
         core["skipped_sell_at_limit_down"] = int(skips.get("sell_at_limit_down", 0) or 0)
+        core["skipped_stock_status"] = int(skips.get("stock_status", 0) or 0)
         return _merge_bff_ui_extensions(
             core,
             trades=trades,
@@ -449,8 +461,8 @@ class CapitalAllocationFlowImpl:
     def save_outputs(
         self,
         *,
-        sim_version_dir: Path,
-        sim_version_id: int,
+        output_version_dir: Path,
+        output_version_id: int,
         output_version: str,
         trades: List[Dict[str, Any]],
         equity_curve: List[Dict[str, Any]],
@@ -460,8 +472,8 @@ class CapitalAllocationFlowImpl:
         simulation_effective: Optional[Dict[str, Any]] = None,
     ) -> None:
         self._save_results(
-            sim_version_dir,
-            sim_version_id,
+            output_version_dir,
+            output_version_id,
             output_version,
             trades,
             equity_curve,
@@ -472,11 +484,11 @@ class CapitalAllocationFlowImpl:
         )
 
     def save_performance_report(
-        self, *, sim_version_dir: Path, profiler: PerformanceProfiler
+        self, *, output_version_dir: Path, profiler: PerformanceProfiler
     ) -> None:
         try:
             perf_path = (
-                StrategyOutputPathService(sim_version_dir=sim_version_dir).ensure_root()
+                StrategyOutputPathService(output_version_dir=output_version_dir).ensure_root()
                 / "0_performance_report.json"
             )
             with perf_path.open("w", encoding="utf-8") as file:
@@ -491,13 +503,13 @@ class CapitalAllocationFlowImpl:
             pass
 
     def run_analyzer_hook(
-        self, *, strategy_name: str, sim_version_dir: Path, raw_settings: Dict[str, Any]
+        self, *, strategy_name: str, output_version_dir: Path, raw_settings: Dict[str, Any]
     ) -> None:
         try:
             Analyzer.run_for_simulator(
                 strategy_name=strategy_name,
                 sim_type="capital_allocation",
-                sim_version_dir=sim_version_dir,
+                output_version_dir=output_version_dir,
                 raw_settings=raw_settings,
             )
         except Exception:
@@ -525,6 +537,16 @@ class CapitalAllocationFlowImpl:
                 )
             return None
         buy_event_date, buy_price = buy_fill
+        skip_status = should_skip_investment(
+            opportunity,
+            allocation_strategy.skip_investment_when,
+        )
+        if skip_status:
+            if tradability_skips is not None:
+                tradability_skips["stock_status"] = (
+                    int(tradability_skips.get("stock_status", 0) or 0) + 1
+                )
+            return None
         if should_skip_buy(
             opportunity,
             allocation_strategy.market_profile,
@@ -759,8 +781,8 @@ class CapitalAllocationFlowImpl:
 
     def _save_results(
         self,
-        sim_version_dir: Path,
-        sim_version_id: int,
+        output_version_dir: Path,
+        output_version_id: int,
         output_version: str,
         trades: List[Dict[str, Any]],
         equity_curve: List[Dict[str, Any]],
@@ -771,7 +793,7 @@ class CapitalAllocationFlowImpl:
     ) -> None:
         from core.utils.io.csv_io import write_dicts_to_csv
 
-        path_mgr = StrategyOutputPathService(sim_version_dir=sim_version_dir)
+        path_mgr = StrategyOutputPathService(output_version_dir=output_version_dir)
         if config.output.save_trades and trades:
             trades_path = path_mgr.trades_path()
             with trades_path.open("w", encoding="utf-8") as f:
@@ -787,7 +809,7 @@ class CapitalAllocationFlowImpl:
         with path_mgr.strategy_summary_path().open("w", encoding="utf-8") as f:
             json.dump(summary, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
         metadata = {
-            "sim_version": f"{sim_version_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            "sim_version": f"{output_version_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
             "output_version": output_version,
             "config": config.to_dict(),
             "settings_snapshot": settings_snapshot,

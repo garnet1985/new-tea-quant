@@ -1,15 +1,75 @@
 #!/usr/bin/env python3
-"""Output version manager for strategy artifacts."""
+"""磁盘模拟产物 ``output_version`` 管理（enum / price / capital 目录编号）。
+
+与 **工作台** ``version``（``sys_strategy_workbench_snapshot.version``）无关：
+- ``output_version_id`` / ``output_version_dir``：本次 price 或 capital 运行产物目录；
+- ``base_output_version_dir``：上游枚举 ``output_version`` 目录（price/capital 输入）。
+"""
 
 from datetime import datetime
 import json
 import logging
+import shutil
 from pathlib import Path
-from typing import Tuple
+from typing import Any, Dict, Literal, Tuple
 
 from core.infra.project_context import PathManager
 
 logger = logging.getLogger(__name__)
+
+
+_SimKind = Literal["enum", "price", "capital"]
+
+
+def _read_next_output_version(meta: Dict[str, Any]) -> int:
+    """``meta.json`` 下一磁盘 ``output_version`` 序号（兼容旧键 ``next_version_id``）。"""
+    try:
+        return max(int(meta.get("next_output_version") or meta.get("next_version_id") or 1), 1)
+    except (TypeError, ValueError):
+        return 1
+
+
+def _write_meta_after_create(meta: Dict[str, Any], created_id: int, **extra: Any) -> Dict[str, Any]:
+    out = dict(meta or {})
+    out.update(extra)
+    out["next_output_version"] = int(created_id) + 1
+    out["next_version_id"] = int(created_id) + 1
+    out["last_updated"] = datetime.now().isoformat()
+    return out
+
+
+def resolve_max_output_versions(settings: Dict[str, Any]) -> int:
+    """``enumerator.max_output_versions``：各模拟器磁盘产物共用保留上限。"""
+    enumerator = settings.get("enumerator") if isinstance(settings, dict) else None
+    if not isinstance(enumerator, dict):
+        enumerator = {}
+    try:
+        return max(int(enumerator.get("max_output_versions", 3)), 1)
+    except (TypeError, ValueError):
+        return 3
+
+
+def prune_strategy_simulation_tree(
+    strategy_name: str,
+    sim_kind: _SimKind,
+    settings: Dict[str, Any],
+) -> None:
+    """按 ``enumerator.max_output_versions`` 清理 enum / price / capital 磁盘版本目录。"""
+    sn = str(strategy_name or "").strip()
+    if not sn:
+        return
+    roots = {
+        "enum": PathManager.strategy_simulation_enum,
+        "price": PathManager.strategy_simulation_price,
+        "capital": PathManager.strategy_simulation_capital,
+    }
+    root_fn = roots.get(sim_kind)
+    if root_fn is None:
+        return
+    StrategyOutputVersionService.prune_simulation_versions(
+        root_fn(sn),
+        resolve_max_output_versions(settings),
+    )
 
 
 class StrategyOutputVersionService:
@@ -27,17 +87,13 @@ class StrategyOutputVersionService:
         else:
             meta = {}
 
-        next_version_id = int(meta.get("next_version_id", 1))
-        version_dir = root / str(next_version_id)
+        output_version_id = _read_next_output_version(meta)
+        version_dir = root / str(output_version_id)
         version_dir.mkdir(parents=True, exist_ok=True)
-        new_meta = {
-            "next_version_id": next_version_id + 1,
-            "last_updated": datetime.now().isoformat(),
-            "strategy_name": strategy_name,
-        }
+        new_meta = _write_meta_after_create(meta, output_version_id, strategy_name=strategy_name)
         with meta_path.open("w", encoding="utf-8") as f:
             json.dump(new_meta, f, indent=2, ensure_ascii=False)
-        return version_dir, next_version_id
+        return version_dir, output_version_id
 
     @staticmethod
     def resolve_enumerator_version(
@@ -79,21 +135,17 @@ class StrategyOutputVersionService:
                 meta = {}
         else:
             meta = {}
-        next_version_id = int(meta.get("next_version_id", 1))
-        version_dir = root_dir / str(next_version_id)
+        output_version_id = _read_next_output_version(meta)
+        version_dir = root_dir / str(output_version_id)
         version_dir.mkdir(parents=True, exist_ok=True)
         with meta_path.open("w", encoding="utf-8") as f:
             json.dump(
-                {
-                    "next_version_id": next_version_id + 1,
-                    "last_updated": datetime.now().isoformat(),
-                    "strategy_name": strategy_name,
-                },
+                _write_meta_after_create(meta, output_version_id, strategy_name=strategy_name),
                 f,
                 indent=2,
                 ensure_ascii=False,
             )
-        return version_dir, next_version_id
+        return version_dir, output_version_id
 
     @staticmethod
     def resolve_price_factor_version(
@@ -127,28 +179,29 @@ class StrategyOutputVersionService:
         base_dir = PathManager.strategy_simulation_capital(strategy_name)
         base_dir.mkdir(parents=True, exist_ok=True)
         meta_file = base_dir / "meta.json"
-        next_version_id = 1
+        meta: Dict[str, Any] = {}
         if meta_file.exists():
             try:
                 with meta_file.open("r", encoding="utf-8") as f:
                     meta = json.load(f)
-                next_version_id = int(meta.get("next_version_id", 1))
             except (json.JSONDecodeError, KeyError, ValueError):
-                next_version_id = 1
-        version_dir = base_dir / str(next_version_id)
+                meta = {}
+        output_version_id = _read_next_output_version(meta)
+        version_dir = base_dir / str(output_version_id)
         version_dir.mkdir(parents=True, exist_ok=True)
         with meta_file.open("w", encoding="utf-8") as f:
             json.dump(
-                {
-                    "next_version_id": next_version_id + 1,
-                    "last_created_version": str(next_version_id),
-                    "last_created_at": datetime.now().isoformat(),
-                },
+                _write_meta_after_create(
+                    meta,
+                    output_version_id,
+                    last_created_version=str(output_version_id),
+                    last_created_at=datetime.now().isoformat(),
+                ),
                 f,
                 indent=2,
                 ensure_ascii=False,
             )
-        return version_dir, next_version_id
+        return version_dir, output_version_id
 
     @staticmethod
     def resolve_capital_allocation_version(
@@ -188,37 +241,47 @@ class StrategyOutputVersionService:
         return version_dir, version_dir.parent
 
     @staticmethod
-    def prune_enumerator_versions(root_dir: Path, max_keep_versions: int) -> None:
-        if max_keep_versions < 1:
+    def prune_simulation_versions(root_dir: Path, max_keep_versions: int) -> None:
+        """
+        按版本目录名（数字 id，与 ``create_*_version`` 一致）保留最新 ``max_keep_versions`` 个。
+        """
+        if max_keep_versions < 1 or not root_dir.is_dir():
             return
-        version_dirs = [
-            item
-            for item in root_dir.iterdir()
-            if item.is_dir() and item.name != "__pycache__" and item.name[0].isdigit()
-        ]
-        versions = []
-        for version_dir in version_dirs:
-            metadata_path = version_dir / "0_metadata.json"
-            if not metadata_path.exists():
-                try:
-                    version_id = int(version_dir.name)
-                except ValueError:
-                    continue
-            else:
-                try:
-                    with metadata_path.open("r", encoding="utf-8") as f:
-                        version_id = int((json.load(f) or {}).get("version_id", 0))
-                except Exception:
-                    continue
-            versions.append((version_id, version_dir))
+        versions: list[tuple[int, Path]] = []
+        for item in root_dir.iterdir():
+            if not item.is_dir() or item.name in {"__pycache__"}:
+                continue
+            if not item.name.isdigit():
+                continue
+            try:
+                version_id = int(item.name)
+            except ValueError:
+                continue
+            versions.append((version_id, item))
+        if len(versions) <= max_keep_versions:
+            return
         versions.sort(key=lambda x: x[0], reverse=True)
         for _, version_dir in versions[max_keep_versions:]:
             try:
-                import shutil
-
                 shutil.rmtree(version_dir)
+                logger.info(
+                    "pruned simulation version %s under %s (keep=%d)",
+                    version_dir.name,
+                    root_dir,
+                    max_keep_versions,
+                )
             except Exception as exc:
                 logger.warning("prune failed for %s: %s", version_dir, exc)
 
+    @staticmethod
+    def prune_enumerator_versions(root_dir: Path, max_keep_versions: int) -> None:
+        StrategyOutputVersionService.prune_simulation_versions(
+            root_dir, max_keep_versions
+        )
 
-__all__ = ["StrategyOutputVersionService"]
+
+__all__ = [
+    "StrategyOutputVersionService",
+    "prune_strategy_simulation_tree",
+    "resolve_max_output_versions",
+]

@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from core.infra.project_context import PathManager
@@ -185,7 +184,7 @@ class StrategyManager:
                 strategy_name=strategy_name,
                 step=step,
                 api_settings=api_settings,
-                is_force=force_refresh,
+                force_refresh=force_refresh,
                 verbose=self.is_verbose,
                 engine_verbose=self.is_verbose,
                 stock_count=stock_count,
@@ -376,7 +375,7 @@ class StrategyManager:
             done.last_payload if isinstance(done.last_payload, list) else []
         )
         if self.is_verbose:
-            print(f"🏁 枚举完成 · strategy={strategy_name} · snapshot_id={done.snapshot_id}")
+            print(f"🏁 枚举完成 · strategy={strategy_name} · version={done.version}")
 
         self._present_enumerate(strategy_name, summary_results)
         return summary_results
@@ -397,7 +396,7 @@ class StrategyManager:
         self._present_price_summary(
             strategy_name,
             summary,
-            used_db_cache=bool(done.last_used_db_cache),
+            used_db_cache=bool(done.used_db_cache),
         )
         return summary
 
@@ -420,7 +419,7 @@ class StrategyManager:
         self._present_capital_summary(
             strategy_name,
             summary,
-            used_db_cache=bool(done.last_used_db_cache),
+            used_db_cache=bool(done.used_db_cache),
         )
         return summary
 
@@ -441,7 +440,7 @@ class StrategyManager:
 
         def _read_latest_version(root):
             meta = json.loads((root / "meta.json").read_text(encoding="utf-8"))
-            latest_id = int(meta.get("next_version_id", 1)) - 1
+            latest_id = int(meta.get("next_output_version") or meta.get("next_version_id") or 1) - 1
             if latest_id <= 0:
                 return None
             return root / str(latest_id)
@@ -486,62 +485,9 @@ class StrategyManager:
         if not found:
             logger.warning("未找到可分析的 simulations 结果（请先运行 -sp/-sa）")
 
-    # --- 旧版「直接 Flow」多策略模拟（不经工作台编排）；供非 CLI 调用方保留 ---
-
-    def run_legacy_flow_simulate(
-        self,
-        strategy_name: Optional[str] = None,
-        *,
-        session_id: Optional[str] = None,
-        date: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """不经 ``execution_manager``，对解析到的策略依次跑 PriceFactor + Capital Flow。"""
-        if date is None:
-            date = datetime.now().strftime("%Y%m%d")
-        _ = date
-
-        targets = self._resolve_targets_legacy(strategy_name, enabled_only=True)
-        if not targets:
-            logger.warning("没有可模拟的策略")
-            return {}
-
-        if session_id:
-            logger.info(
-                "run_legacy_flow_simulate(session_id) 暂未接管，当前由引擎内部规则处理"
-            )
-
-        results: Dict[str, Any] = {}
-        for info in targets:
-            price_result = PriceFactorFlow(is_verbose=self.is_verbose).run(
-                info.name, strategy_info=info
-            )
-            capital_result = CapitalAllocationFlow(is_verbose=self.is_verbose).run(
-                info.name, strategy_info=info
-            )
-            results[info.name] = {
-                "price_factor": price_result,
-                "capital_allocation": capital_result,
-            }
-        return results
-
     @property
     def contract_cache(self) -> ContractCacheManager:
         return self._contract_cache
 
     def clear_contract_cache(self) -> None:
         self._contract_cache.clear_all()
-
-    def _resolve_targets_legacy(
-        self, strategy_name: Optional[str], enabled_only: bool = True
-    ) -> List[DiscoveredStrategy]:
-        explicit = self._normalize_optional_name(strategy_name)
-        if explicit is not None:
-            info = self.lookup_strategy_info(explicit)
-            if not info:
-                return []
-            if enabled_only and not info.is_enabled:
-                return []
-            return [info]
-        if enabled_only:
-            return [i for i in self.validated_strategies.values() if i.is_enabled]
-        return list(self.validated_strategies.values())

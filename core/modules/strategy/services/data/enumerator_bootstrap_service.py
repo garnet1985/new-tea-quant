@@ -11,7 +11,7 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_vi
 )
 from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
     backtest_period_to_dict,
-    resolve_backtest_date_range,
+    resolve_backtest_universe,
     resolve_latest_completed_trading_date,
 )
 from core.modules.strategy.engines.shared.helpers.stock_sampling import StockSamplingHelper
@@ -76,20 +76,11 @@ class StrategyEnumeratorBootstrapService:
         )
         data_mgr = DataManager(is_verbose=False)
         list_svc = data_mgr.service.stock.list
-
-        bootstrap_ids: List[str] = []
-        if not base_settings.start_date.strip():
-            bootstrap_ids = [r["id"] for r in list_svc.load_all() if r.get("id")]
-
-        period = resolve_backtest_date_range(
+        period, universe = resolve_backtest_universe(
+            list_svc=list_svc,
             settings_view=base_settings,
-            stock_ids=bootstrap_ids,
             latest_completed_trading_date=resolve_latest_completed_trading_date(data_mgr),
             data_manager=data_mgr,
-        )
-        universe = list_svc.load(
-            period_start=period.start_date,
-            period_end=period.end_date,
         )
         if use_sampling:
             stock_list = StockSamplingHelper.get_stock_list(

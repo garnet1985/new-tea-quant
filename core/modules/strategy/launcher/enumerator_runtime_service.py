@@ -16,7 +16,7 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_vi
 )
 from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
     backtest_period_to_dict,
-    resolve_backtest_date_range,
+    resolve_backtest_universe,
     resolve_latest_completed_trading_date,
 )
 from core.modules.strategy.engines.shared.helpers.stock_sampling import StockSamplingHelper
@@ -34,10 +34,8 @@ def _stock_ids_for_enumerator_view(
 ) -> List[str]:
     """与枚举 run 一致的 ``stock_ids``；``stock_count`` 非空时与 workbench 连续窗采样覆盖一致。"""
     enum_settings = OpportunityEnumeratorSettings.from_base(settings_view)
-    universe = all_stocks
-    if universe is None:
-        data_manager = DataManager(is_verbose=False)
-        universe = data_manager.service.stock.list.load_all()
+    if not all_stocks:
+        return []
 
     # 股票池文件路径相对 ``userspace/strategies/<目录名>/``，须用发现名 strategy_name，非 settings.name 展示名
     if enum_settings.use_sampling:
@@ -48,13 +46,13 @@ def _stock_ids_for_enumerator_view(
             else settings_view.sampling_config
         )
         return StockSamplingHelper.get_stock_list(
-            all_stocks=universe,
+            all_stocks=all_stocks,
             sampling_amount=sampling_amount,
             sampling_config=sampling_config,
             strategy_name=strategy_name,
         )
 
-    return [s["id"] for s in universe]
+    return [s["id"] for s in all_stocks if s.get("id")]
 
 
 @dataclass
@@ -95,22 +93,13 @@ class EnumeratorRuntimeService:
         enum_settings = OpportunityEnumeratorSettings.from_base(settings_view)
         data_manager = DataManager(is_verbose=False)
         list_svc = data_manager.service.stock.list
-
-        bootstrap_ids: List[str] = []
-        if not settings_view.start_date.strip():
-            bootstrap_ids = [r["id"] for r in list_svc.load_all() if r.get("id")]
-
-        period = resolve_backtest_date_range(
+        period, universe = resolve_backtest_universe(
+            list_svc=list_svc,
             settings_view=settings_view,
-            stock_ids=bootstrap_ids,
             latest_completed_trading_date=resolve_latest_completed_trading_date(
                 data_manager
             ),
             data_manager=data_manager,
-        )
-        universe = list_svc.load(
-            period_start=period.start_date,
-            period_end=period.end_date,
         )
         stock_list = _stock_ids_for_enumerator_view(
             strategy_name=strategy_name,

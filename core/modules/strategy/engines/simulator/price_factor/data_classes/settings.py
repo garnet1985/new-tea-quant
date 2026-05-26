@@ -112,9 +112,6 @@ class StrategyPriceSimulatorSettings(SettingsBase):
         return f if isinstance(f, dict) else {}
 
 
-StrategyPriceFactorSimulationSettings = StrategyPriceSimulatorSettings
-
 __all__ = [
     "StrategyPriceSimulatorSettings",
-    "StrategyPriceFactorSimulationSettings",
 ]

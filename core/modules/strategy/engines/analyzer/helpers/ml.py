@@ -46,9 +46,9 @@ class MLAnalyzer(BaseAnalyzer):
         }
 
     def _load_enumerator_data(self) -> pd.DataFrame | None:
-        metadata_path = self.context.sim_version_dir / "metadata.json"
+        metadata_path = self.context.output_version_dir / "metadata.json"
         if not metadata_path.exists():
-            metadata_path = self.context.sim_version_dir / "0_metadata.json"
+            metadata_path = self.context.output_version_dir / "0_metadata.json"
         if not metadata_path.exists():
             return None
         try:

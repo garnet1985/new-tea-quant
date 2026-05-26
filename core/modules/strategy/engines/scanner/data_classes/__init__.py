@@ -2,7 +2,7 @@
 """Scanner data classes."""
 
 from .context import ScannerContext
-from .settings import ScannerSettings, StrategyScannerSettings
+from .settings import StrategyScannerSettings
 
-__all__ = ["ScannerContext", "StrategyScannerSettings", "ScannerSettings"]
+__all__ = ["ScannerContext", "StrategyScannerSettings"]
 

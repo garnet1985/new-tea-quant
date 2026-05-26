@@ -10,7 +10,6 @@ from .workbench_disk_progress import get_step_progress
 from .workbench_run_envelope import get_run_progress
 from .workbench_resolve import normalize_step, resolve_discovered_strategy
 from .plan_schema import (
-    WORKBENCH_PLAN_BY_ROOT_STEP,
     WORKBENCH_ROOT_PLANS,
     StepModeConfig,
     WorkbenchRootPlanSpec,
@@ -25,7 +24,6 @@ from .types import (
 )
 
 __all__ = [
-    "WORKBENCH_PLAN_BY_ROOT_STEP",
     "WORKBENCH_ROOT_PLANS",
     "StepModeConfig",
     "WorkbenchRootPlanSpec",

@@ -30,10 +30,10 @@ class PriceFactorPreprocessContext:
     market_profile: "MarketProfileContext"
     simulation_settings: "StrategySimulationSettings"
     simulator_config: "StrategyPriceSimulatorSettings"
-    output_version_dir: Path
+    base_output_version_dir: Path
     output_root: Path
-    sim_version_dir: Path
-    sim_version_id: int
+    output_version_dir: Path
+    output_version_id: int
     stock_files: Dict[str, Dict[str, Path]]
 
 

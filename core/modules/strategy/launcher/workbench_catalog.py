@@ -78,13 +78,13 @@ def fetch_strategy_versions_dropdown(strategy_name: str) -> List[Dict[str, Any]]
     rows = model.list_by_strategy(name, limit=DROPDOWN_LIMIT)
     items: List[Dict[str, Any]] = []
     for row in rows:
-        sid = int(row.get("snapshot_id") or row.get("version") or 0)
+        sid = int(row.get("version") or 0)
         if sid <= 0:
             continue
         items.append(
             {
                 "version_id": f"v{sid}",
-                "snapshot_id": sid,
+                "version": sid,
                 "updated_at": _iso(row.get("updated_at")),
                 "created_at": _iso(row.get("created_at")),
             }

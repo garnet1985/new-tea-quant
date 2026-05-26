@@ -10,7 +10,7 @@ _LOCK = threading.Lock()
 _JOBS: Dict[str, Dict[str, Any]] = {}
 
 
-def job_create(*, strategy_name: str, step: str, is_force: bool) -> str:
+def job_create(*, strategy_name: str, step: str, force_refresh: bool) -> str:
     jid = str(uuid.uuid4())
     name = str(strategy_name).strip()
     st = str(step).strip()
@@ -18,11 +18,11 @@ def job_create(*, strategy_name: str, step: str, is_force: bool) -> str:
         _JOBS[jid] = {
             "strategy_name": name,
             "step": st,
-            "is_force": bool(is_force),
+            "force_refresh": bool(force_refresh),
             "progress": 0.0,
             "status": "queued",
             "error": None,
-            "snapshot_id": 0,
+            "version": 0,
         }
     return jid
 

@@ -530,6 +530,7 @@ class OpportunityEnumeratorWorker:
             buy_price,
             stock_status_risk=self.stock_status_risk,
             trade_date=opportunity.buy_date,
+            exec_bar=current_kline,
         )
         opportunity.status = OpportunityStatus.ACTIVE.value
         tracker["active_opportunities"].append(opportunity)

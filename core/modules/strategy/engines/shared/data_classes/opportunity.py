@@ -48,6 +48,8 @@ class Opportunity:
     """买入日前一交易日收盘价（枚举标注，供下游涨跌停过滤）。"""
     buy_at_limit_up: Optional[bool] = None
     """买入价是否触及涨停（枚举标注，非过滤条件）。"""
+    buy_bar_volume: Optional[float] = None
+    """买入成交日 K 线成交量（股），供资金层参与率约束。"""
     buy_fill_pending: bool = False
     """``next_open`` 买入：信号日置 True，下一交易日 open 成交后置 False。"""
     pending_exit: Optional[Dict[str, Any]] = None
@@ -120,6 +122,7 @@ class Opportunity:
             market_profile=market_profile,
             prev_bar=prev_bar,
             stock_status_risk=stock_status_risk,
+            exec_bar=bar,
         )
         return True
 
@@ -438,6 +441,7 @@ class Opportunity:
                         exit_px,
                         stock_status_risk=stock_status_risk,
                         trade_date=current_date,
+                        exec_bar=current_kline,
                     )
                 self.completed_targets.append(target_entry)
 
@@ -532,6 +536,7 @@ class Opportunity:
         market_profile: Optional["MarketProfile"] = None,
         prev_bar: Optional[Dict[str, Any]] = None,
         stock_status_risk: Optional[Any] = None,
+        exec_bar: Optional[Dict[str, Any]] = None,
     ):
         self.sell_date = sell_date
         self.sell_price = sell_price
@@ -559,6 +564,7 @@ class Opportunity:
                 sell_price,
                 stock_status_risk=stock_status_risk,
                 trade_date=sell_date,
+                exec_bar=exec_bar,
             )
         self.completed_targets.append(target_entry)
         total_weighted_profit = sum(

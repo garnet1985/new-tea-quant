@@ -105,6 +105,52 @@ def test_capital_trigger_skips_buy_at_limit_up():
     assert account.cash == 1_000_000.0
 
 
+def test_capital_trigger_buys_when_buy_bar_volume_missing():
+    from core.modules.strategy.engines.simulator.capital_allocation.capital_allocation_flow_impl import (
+        CapitalAllocationFlowImpl,
+    )
+
+    from core.modules.strategy.engines.simulator.capital_allocation.helpers.fees import (
+        FeeCalculator,
+    )
+
+    profile = get_market_profile("china_a_stock")
+    impl = CapitalAllocationFlowImpl()
+    account = Account(initial_cash=1_000_000.0, cash=1_000_000.0)
+    allocation = AllocationStrategy(
+        mode="equal_capital",
+        initial_capital=1_000_000.0,
+        max_portfolio_size=10,
+        market_profile=profile,
+        fee_calculator=FeeCalculator(
+            commission_rate=0.00025,
+            min_commission=5.0,
+            stamp_duty_rate=0.001,
+            transfer_fee_rate=0.0,
+        ),
+        max_participation_rate=0.1,
+        participation_on_exceed="skip",
+    )
+    event = SimulationEvent(
+        event_type="trigger",
+        date="20240103",
+        stock_id="000001.SZ",
+        opportunity_id="opp1",
+        opportunity={
+            "opportunity_id": "opp1",
+            "buy_date": "20240103",
+            "buy_price": 10.0,
+            "buy_at_limit_up": False,
+            "buy_prev_close": 10.0,
+        },
+    )
+    trade = impl._handle_trigger_event(event, account, allocation, {})
+    assert trade is not None
+    assert trade["side"] == "buy"
+    assert trade["shares"] > 0
+    assert account.cash < 1_000_000.0
+
+
 def test_capital_target_skips_sell_at_limit_down():
     from core.modules.strategy.engines.simulator.capital_allocation.capital_allocation_flow_impl import (
         CapitalAllocationFlowImpl,

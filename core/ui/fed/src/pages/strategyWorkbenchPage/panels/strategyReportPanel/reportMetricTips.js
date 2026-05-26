@@ -152,6 +152,20 @@ export const PRICE_METRIC_TIPS = {
     '因触发日股票状态命中「跳过投资机会」配置而跳过的投资笔数。'
     + '数值越大，越多 ST/*ST 等机会未模拟。'
     + '需与策略风控设定一并理解，无单纯优劣。',
+
+  skippedBuyParticipation:
+    '因计划买入股数超过当日成交量×最大参与率且选择「跳过」而未成交的笔数。'
+    + '反映流动性约束下的可执行性。',
+
+  skippedSellParticipation:
+    '因计划卖出股数超过当日成交量×最大参与率且选择「跳过」而未成交的笔数。',
+
+  clippedBuyParticipation:
+    '买入时因参与率上限被缩量至可成交股数、仍完成成交的笔数。'
+    + '与「跳过」对照，反映 clip 模式下的部分成交。',
+
+  clippedSellParticipation:
+    '卖出时因参与率上限被缩量、仍完成成交的笔数。',
 };
 
 export const PRICE_CHART_TIPS = {
@@ -173,7 +187,8 @@ export const CAPITAL_SECTION_TIPS = {
   utilization: '观察仓位与现金占用，评估资金是否闲置或长期满负荷。',
   risk: '关注回撤深度、持续时间、连续亏损及大额单笔亏损。',
   concentration: '评估收益是否过度依赖少数股票。',
-  executionSkips: '因涨跌停或股票状态设置而跳过模拟投资的笔数，用于对照资金层成交假设。',
+  executionSkips:
+    '因涨跌停、股票状态或成交量参与率约束而跳过/缩量的笔数，用于对照资金层成交假设。',
 };
 
 export const CAPITAL_METRIC_TIPS = {
@@ -279,6 +294,10 @@ export const CAPITAL_METRIC_TIPS = {
   skippedBuyAtLimitUp: PRICE_METRIC_TIPS.skippedBuyAtLimitUp,
   skippedSellAtLimitDown: PRICE_METRIC_TIPS.skippedSellAtLimitDown,
   skippedStockStatus: PRICE_METRIC_TIPS.skippedStockStatus,
+  skippedBuyParticipation: PRICE_METRIC_TIPS.skippedBuyParticipation,
+  skippedSellParticipation: PRICE_METRIC_TIPS.skippedSellParticipation,
+  clippedBuyParticipation: PRICE_METRIC_TIPS.clippedBuyParticipation,
+  clippedSellParticipation: PRICE_METRIC_TIPS.clippedSellParticipation,
 };
 
 export const CAPITAL_CHART_TIPS = {

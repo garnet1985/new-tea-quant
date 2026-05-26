@@ -286,7 +286,7 @@ class StrategyDataInjectionService:
             resolve_latest_completed_trading_date,
         )
 
-        dm = DataManager.get_default()
+        dm = DataManager(is_verbose=False)
         if dm is None:
             return ""
         return resolve_latest_completed_trading_date(dm)

@@ -296,6 +296,26 @@ function CapitalAllocationReport({
               titleTip={CAPITAL_METRIC_TIPS.skippedStockStatus}
               value={metrics.skippedStockStatus.toLocaleString()}
             />
+            <MetricCard
+              title="参与率跳过买入"
+              titleTip={CAPITAL_METRIC_TIPS.skippedBuyParticipation}
+              value={metrics.skippedBuyParticipation.toLocaleString()}
+            />
+            <MetricCard
+              title="参与率跳过卖出"
+              titleTip={CAPITAL_METRIC_TIPS.skippedSellParticipation}
+              value={metrics.skippedSellParticipation.toLocaleString()}
+            />
+            <MetricCard
+              title="参与率缩量买入"
+              titleTip={CAPITAL_METRIC_TIPS.clippedBuyParticipation}
+              value={metrics.clippedBuyParticipation.toLocaleString()}
+            />
+            <MetricCard
+              title="参与率缩量卖出"
+              titleTip={CAPITAL_METRIC_TIPS.clippedSellParticipation}
+              value={metrics.clippedSellParticipation.toLocaleString()}
+            />
           </Box>
         ) : <ReportUnavailableHint />}
       </SectionBlock>

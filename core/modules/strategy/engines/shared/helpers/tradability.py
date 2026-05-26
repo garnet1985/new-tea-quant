@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from core.modules.market_profile.profile import MarketProfile
+from core.modules.strategy.engines.shared.helpers.participation import bar_volume_shares
 from core.modules.strategy.engines.shared.helpers.skip_investment_when import (
     active_tags_at_trigger_from_row,
 )
@@ -144,6 +145,7 @@ def stamp_buy_tradability(
     status_tags: Optional[Sequence[str]] = None,
     stock_status_risk: Any = None,
     trade_date: Optional[str] = None,
+    exec_bar: Optional[Dict[str, Any]] = None,
 ) -> None:
     prev = bar_prev_close(prev_bar)
     tags = resolve_limit_status_tags(
@@ -161,6 +163,9 @@ def stamp_buy_tradability(
         opportunity.buy_prev_close = prev
     if hasattr(opportunity, "buy_at_limit_up"):
         opportunity.buy_at_limit_up = at_limit_up
+    vol = bar_volume_shares(exec_bar)
+    if hasattr(opportunity, "buy_bar_volume"):
+        opportunity.buy_bar_volume = vol
     if hint_on_limit_up and at_limit_up is True:
         _set_metadata_hint(opportunity, _LIMIT_UP_HINT)
 
@@ -175,6 +180,7 @@ def stamp_target_tradability(
     status_tags: Optional[Sequence[str]] = None,
     stock_status_risk: Any = None,
     trade_date: Optional[str] = None,
+    exec_bar: Optional[Dict[str, Any]] = None,
 ) -> None:
     prev = bar_prev_close(prev_bar)
     tags = resolve_limit_status_tags(
@@ -188,6 +194,8 @@ def stamp_target_tradability(
         if prev
         else False
     )
+    vol = bar_volume_shares(exec_bar)
+    target["sell_bar_volume"] = vol if vol is not None else ""
 
 
 def should_skip_buy(

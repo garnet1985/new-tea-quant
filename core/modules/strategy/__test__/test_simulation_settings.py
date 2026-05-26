@@ -17,6 +17,8 @@ class TestStrategySimulationSettings:
         assert sim.sell_price_model == TradePriceModel.CLOSE
         assert sim.allow_buy_at_limit_up is False
         assert sim.skip_investment_when == ()
+        assert sim.max_participation_rate == 0.1
+        assert sim.participation_on_exceed == "clip"
 
     def test_strict_skips_st(self):
         sim = StrategySimulationSettings.from_strategy_root({"simulation": {"template": "strict"}})
@@ -24,6 +26,7 @@ class TestStrategySimulationSettings:
         assert sim.template == "strict"
         assert sim.skip_investment_when == ("st", "star_st")
         assert sim.allow_buy_at_limit_up is False
+        assert sim.participation_on_exceed == "skip"
 
     def test_ideal_allows_limit_trades(self):
         sim = StrategySimulationSettings.from_strategy_root({"simulation": {"template": "ideal"}})
@@ -152,3 +155,32 @@ class TestStrategySimulationSettings:
         payload = simulation_template_defaults_payload("strict")
         assert payload["skip_investment_when"] == ["st", "star_st"]
         assert payload["edges"]["allow_buy_at_limit_up"] is False
+        assert payload["liquidity"]["max_participation_rate"] == 0.1
+        assert payload["liquidity"]["participation_on_exceed"] == "skip"
+
+    def test_custom_liquidity_parsed(self):
+        sim = StrategySimulationSettings.from_strategy_root(
+            {
+                "simulation": {
+                    "template": "custom",
+                    "monitor_price_model": "close",
+                    "buy_price_model": "next_open",
+                    "sell_price_model": "close",
+                    "liquidity": {
+                        "max_participation_rate": 0.2,
+                        "participation_on_exceed": "skip",
+                    },
+                }
+            }
+        )
+        report = sim.validate()
+        assert not report.has_critical_errors()
+        assert sim.max_participation_rate == 0.2
+        assert sim.participation_on_exceed == "skip"
+
+    def test_preset_rejects_liquidity_override(self):
+        sim = StrategySimulationSettings.from_strategy_root(
+            {"simulation": {"template": "standard", "liquidity": {"max_participation_rate": 0.5}}}
+        )
+        report = sim.validate()
+        assert report.has_critical_errors()

@@ -46,13 +46,13 @@ def _stock_ids_for_enumerator_view(
             else settings_view.sampling_config
         )
         return StockSamplingHelper.get_stock_list(
-            all_stocks=universe,
+            all_stocks=all_stocks,
             sampling_amount=sampling_amount,
             sampling_config=sampling_config,
             strategy_name=strategy_name,
         )
 
-    return [s["id"] for s in universe]
+    return [s["id"] for s in all_stocks if s.get("id")]
 
 
 @dataclass

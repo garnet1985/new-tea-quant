@@ -305,6 +305,15 @@ class PriceFactorFlow(BaseSimulationFlow):
             sim_version_dir=preprocessed.sim_version_dir,
             raw_settings=preprocessed.base_settings.to_dict(),
         )
+        from core.modules.strategy.services.data.output.version_manager import (
+            prune_strategy_simulation_tree,
+        )
+
+        prune_strategy_simulation_tree(
+            preprocessed.strategy_name,
+            "price",
+            preprocessed.base_settings.to_dict(),
+        )
         return session_summary
 
 

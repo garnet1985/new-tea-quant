@@ -9,7 +9,7 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.simulat
 def test_settle_stamps_sell_at_limit_down():
     profile = get_market_profile("china_a_stock")
     sim = StrategySimulationSettings.from_strategy_root(
-        {"simulation": {"template": "deterministic"}}
+        {"simulation": {"template": "standard"}}
     )
     opp = Opportunity(
         stock={"id": "000001.SZ"},

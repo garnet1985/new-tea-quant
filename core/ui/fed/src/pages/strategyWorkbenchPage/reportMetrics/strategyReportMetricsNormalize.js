@@ -60,6 +60,13 @@ export function normalizeEnumMetricsFromSummary(slot) {
   const percentileLabels = toStringList(m.percentileLabels);
   const percentileValues = toNumberList(m.percentileValues);
 
+  const buyAtLimitUpCount = numOrNaN(m.buyAtLimitUpCount);
+  const buyTradabilitySampleCount = numOrNaN(m.buyTradabilitySampleCount);
+  const limitUpBuyRatio = numOrNaN(m.limitUpBuyRatio);
+  const sellAtLimitDownCount = numOrNaN(m.sellAtLimitDownCount);
+  const sellTradabilitySampleCount = numOrNaN(m.sellTradabilitySampleCount);
+  const limitDownSellRatio = numOrNaN(m.limitDownSellRatio);
+
   const overviewOk = Number.isFinite(totalOpportunities)
     && Number.isFinite(totalStocks)
     && totalStocks > 0
@@ -76,7 +83,16 @@ export function normalizeEnumMetricsFromSummary(slot) {
 
   const timingOk = Number.isFinite(meanGap) && Number.isFinite(meanDuration);
 
-  if (!overviewOk && !distributionOk && !timingOk) {
+  const tradabilityOk = [
+    buyAtLimitUpCount,
+    buyTradabilitySampleCount,
+    limitUpBuyRatio,
+    sellAtLimitDownCount,
+    sellTradabilitySampleCount,
+    limitDownSellRatio,
+  ].every((x) => Number.isFinite(x));
+
+  if (!overviewOk && !distributionOk && !timingOk && !tradabilityOk) {
     return null;
   }
 
@@ -102,11 +118,24 @@ export function normalizeEnumMetricsFromSummary(slot) {
     dispersionConclusion,
     percentileLabels,
     percentileValues,
+    buyAtLimitUpCount: Number.isFinite(buyAtLimitUpCount) ? Math.round(buyAtLimitUpCount) : 0,
+    buyTradabilitySampleCount: Number.isFinite(buyTradabilitySampleCount)
+      ? Math.round(buyTradabilitySampleCount)
+      : 0,
+    limitUpBuyRatio: Number.isFinite(limitUpBuyRatio) ? Number(limitUpBuyRatio.toFixed(1)) : NaN,
+    sellAtLimitDownCount: Number.isFinite(sellAtLimitDownCount) ? Math.round(sellAtLimitDownCount) : 0,
+    sellTradabilitySampleCount: Number.isFinite(sellTradabilitySampleCount)
+      ? Math.round(sellTradabilitySampleCount)
+      : 0,
+    limitDownSellRatio: Number.isFinite(limitDownSellRatio)
+      ? Number(limitDownSellRatio.toFixed(1))
+      : NaN,
     _availability: {
       overview: overviewOk,
       stockStats: overviewOk,
       distribution: distributionOk,
       timing: timingOk,
+      tradability: tradabilityOk,
     },
   };
 }
@@ -157,6 +186,10 @@ export function normalizePriceMetricsFromSummary(slot) {
   const roiBucketCounts = toNumberList(slot.roi_bucket_counts);
   const roiBucketBinCount = num('roi_bucket_bin_count');
 
+  const skippedBuyAtLimitUp = num('skipped_buy_at_limit_up');
+  const skippedSellAtLimitDown = num('skipped_sell_at_limit_down');
+  const skippedStockStatus = num('skipped_stock_status');
+
   const overviewOk = [winRate, avgRoi, avgDurationDays, annualReturn].every((x) => Number.isFinite(x));
   const sampleCoverageOk = [totalInvestments, stocksWithOpportunities, avgInvestmentsPerStock, totalOpenInvestments]
     .every((x) => Number.isFinite(x));
@@ -166,7 +199,13 @@ export function normalizePriceMetricsFromSummary(slot) {
   const roiBucketVizOk = roiBucketLabels.length > 0
     && roiBucketCounts.length === roiBucketLabels.length;
 
-  if (!overviewOk && !sampleCoverageOk && !profitBasicsOk) {
+  const executionSkipsOk = [
+    skippedBuyAtLimitUp,
+    skippedSellAtLimitDown,
+    skippedStockStatus,
+  ].every((x) => Number.isFinite(x));
+
+  if (!overviewOk && !sampleCoverageOk && !profitBasicsOk && !executionSkipsOk) {
     return null;
   }
 
@@ -204,12 +243,18 @@ export function normalizePriceMetricsFromSummary(slot) {
     roiBucketBinCount: Number.isFinite(roiBucketBinCount) ? Math.round(roiBucketBinCount) : 0,
     roiPercentileLabels: roiPctLabelsIn.length === 9 ? roiPctLabelsIn : [],
     roiPercentileValues: pv,
+    skippedBuyAtLimitUp: Number.isFinite(skippedBuyAtLimitUp) ? Math.round(skippedBuyAtLimitUp) : 0,
+    skippedSellAtLimitDown: Number.isFinite(skippedSellAtLimitDown)
+      ? Math.round(skippedSellAtLimitDown)
+      : 0,
+    skippedStockStatus: Number.isFinite(skippedStockStatus) ? Math.round(skippedStockStatus) : 0,
     _availability: {
       overview: overviewOk,
       sampleCoverage: sampleCoverageOk,
       profitBasics: profitBasicsOk,
       roiPercentileViz: roiPercentileVizOk,
       roiBucketViz: roiBucketVizOk,
+      executionSkips: executionSkipsOk,
     },
   };
 }
@@ -274,6 +319,15 @@ export function normalizeCapitalMetricsFromSummary(slot) {
     : {};
   const stockCount = Object.keys(stockSummary).length;
 
+  const skippedBuyAtLimitUp = num('skipped_buy_at_limit_up');
+  const skippedSellAtLimitDown = num('skipped_sell_at_limit_down');
+  const skippedStockStatus = num('skipped_stock_status');
+  const executionSkipsOk = [
+    skippedBuyAtLimitUp,
+    skippedSellAtLimitDown,
+    skippedStockStatus,
+  ].every((x) => Number.isFinite(x));
+
   return {
     initialCapital,
     finalEquity,
@@ -303,5 +357,13 @@ export function normalizeCapitalMetricsFromSummary(slot) {
     equityCurveLabels,
     equityCurveValues,
     drawdownCurveValues,
+    skippedBuyAtLimitUp: Number.isFinite(skippedBuyAtLimitUp) ? Math.round(skippedBuyAtLimitUp) : 0,
+    skippedSellAtLimitDown: Number.isFinite(skippedSellAtLimitDown)
+      ? Math.round(skippedSellAtLimitDown)
+      : 0,
+    skippedStockStatus: Number.isFinite(skippedStockStatus) ? Math.round(skippedStockStatus) : 0,
+    _availability: {
+      executionSkips: executionSkipsOk,
+    },
   };
 }

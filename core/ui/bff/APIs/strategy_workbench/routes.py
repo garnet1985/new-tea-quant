@@ -86,6 +86,16 @@ def get_settings_simulation_templates():
 
 
 @strategy_workbench_api_bp.route(
+    "/v1/strategy/settings/skip-investment-when",
+    methods=["GET"],
+)
+def get_settings_skip_investment_when():
+    """GET /strategy/settings/skip-investment-when"""
+    s = get_strategy_workbench_stack()
+    return ok({"items": s.items_skip_investment_when()})
+
+
+@strategy_workbench_api_bp.route(
     "/v1/strategy/settings/market-profiles",
     methods=["GET"],
 )

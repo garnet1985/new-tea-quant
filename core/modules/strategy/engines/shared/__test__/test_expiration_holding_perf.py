@@ -57,7 +57,7 @@ def test_check_targets_skips_holding_when_no_expiration_window():
         StrategySimulationSettings,
     )
 
-    sim = StrategySimulationSettings.from_strategy_root({"simulation": {"template": "deterministic"}})
+    sim = StrategySimulationSettings.from_strategy_root({"simulation": {"template": "standard"}})
     # 不应因缺少 expiration 而访问日历
     opp.check_targets(
         sim,

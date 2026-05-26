@@ -11,7 +11,7 @@ import {
 } from './editorSchemas/strategySampling';
 import {
   cleanupSimulationByTemplate,
-  normalizeSimulationSettings,
+  resolveSimulationDisplayValue,
 } from './editorSchemas/strategySimulation';
 
 const editorAreEqual = (prev, next) => (
@@ -54,8 +54,12 @@ export const SimulationSettingsEditor = React.memo(function SimulationSettingsEd
   onSimulationChange,
   context,
   schema,
+  simulationTemplateProfiles = {},
 }) {
-  const value = useMemo(() => normalizeSimulationSettings(simulation), [simulation]);
+  const value = useMemo(
+    () => resolveSimulationDisplayValue(simulation, simulationTemplateProfiles),
+    [simulation, simulationTemplateProfiles],
+  );
   const handleChange = useCallback(
     (nextValue) => onSimulationChange(cleanupSimulationByTemplate(nextValue)),
     [onSimulationChange],

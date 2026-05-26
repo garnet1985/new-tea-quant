@@ -14,8 +14,8 @@ from typing import Any, Dict, List, Tuple
 _DATA_PATH = Path(__file__).resolve().with_name("system.json")
 
 _FALLBACK: Dict[str, Any] = {
-    "version": "0.3.2",
-    "release_date": "2026-05-20",
+    "version": "0.3.3",
+    "release_date": "2026-05-26",
     "description": "版本发布",
     "python": {"minimum": [3, 9]},
     "new_features": [

@@ -1,6 +1,6 @@
 name: modules.data_contract
-version: 0.2.0
-compatible_core_versions: ">=0.2.0"
+version: 0.3.3
+compatible_core_versions: ">=0.3.3"
 description: "DataKey 白名单、DataSpec 路由、ContractIssuer 签发句柄、DataContractManager.issue 与进程内缓存、各业务 Loader 取数；支持 userspace 合并映射。"
 dependencies:
   - modules.data_manager

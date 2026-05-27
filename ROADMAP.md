@@ -22,13 +22,6 @@ ROAD MAPs
 - 引入向量计算，提高计算效率（低优先级，因为目前效率瓶颈在数据库IO）
 
 功能拓展
-- **Portfolio 执行器与组合级钩子**（capital 之上的一层，非逐股 hook）
-  - 在枚举切片（`enum` / `price_factor` 产出）之后、资金回放（`capital_allocation` replay）之前，引入独立的 **portfolio executor**
-  - 输入：按交易日（或配置窗口）聚合的候选机会全集 + 当前账户状态 + `capital_simulator.allocation` 约束
-  - 输出：当日实际执行的 buy/sell 计划（排序、择优、满仓时的取舍），再交给现有 replay 落账
-  - 暴露 **组合级钩子**（全局决策，非 `on_capital_allocation_before_trigger` 式单事件钩子），供策略自定义：槽位竞争时的优先级、排队、换仓等
-  - 与现有引擎边界：`price_factor` = 单机会统计；`capital_allocation` = 资金/持仓/费用约束下的落账；portfolio = **「看谁进组合」**
-  - 暂不在 `strategy_worker` 上挂逐股 capital 钩子（已明确不符合语义）
 - 完成adapter的基本功能
 - 拓展db模块，开始支持parquet
 - 将数据中间产物变成可选，再需要的时候才产生
@@ -45,19 +38,37 @@ Pro版本：
 
 ---
 
+---
+
+### upcoming releases (0.8.x)
+目标：加强adapter
 
 ---
 
-### upcoming releases (0.4.2)
+---
+
+### upcoming releases (0.7.x)
+目标：加强分析系统
+- 集成基本数据分析
+- 增加常用统计/金融/分析工具箱
+
+---
+
+---
+
+### upcoming releases (0.6.x)
+目标：工程可持续性演进
 - UI一键升级
 
 ---
 
 ---
 
-### upcoming releases (0.4.1)
+### upcoming releases (0.5.x)
 
-目标：增强demo
+目标：增加决策者模式
+- 新加决策者模式
+- 增加决策者模式的report
 - 增加至少8个demo策略
 - 增加使用tag的策略
 
@@ -65,19 +76,10 @@ Pro版本：
 
 ---
 
-### upcoming releases (0.4.0)
-
-目标：增加决策者模式
-- 新加决策者模式
-- 增加决策者模式的report
-
----
-
----
-
-### upcoming releases (0.3.5)
-
-目标：UX增强
+目标：降低使用认知成本
+### upcoming releases (0.4.x)
+- 引入parquet，让引擎支持
+- 调整默认数据格式为parquet，消除数据库安装成本
 - 增加report里K线的点击界面
 - 为新版本的更新增加清除缓存的步骤
 - 给设置里增加清除缓存的功能
@@ -87,17 +89,8 @@ Pro版本：
 
 ---
 
-目标：降低使用认知成本
-### upcoming releases (0.3.4)
-- 引入parquet，让引擎支持
-- 调整默认数据格式为parquet，消除数据库安装成本
-
----
-
----
-
-目标：消除幸存者偏差
-### upcoming releases (0.3.3)
+目标：消除幸存者偏差，大幅提高回测准确性
+### releases (0.3.3) ✅ 已完成
 - 修正幸存者偏差
 - 为dev-cli加入数据打包功能
 

@@ -17,8 +17,10 @@ _ROOT = Path(__file__).resolve().parents[4]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-# 必须在 import core.* 之前：DataManager 会 import pandas（当前实现里可未使用）。
-if "pandas" not in sys.modules:
+# 无 pandas 时注入占位模块；已安装则使用真实 pandas，避免污染后续用例的 sys.modules。
+try:
+    import pandas as _pandas  # noqa: F401
+except ImportError:
     import types
 
     _pd = types.ModuleType("pandas")

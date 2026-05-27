@@ -7,7 +7,7 @@
   python dev-cli.py -ic     # UI 最小依赖 import 冒烟
   python dev-cli.py -cc     # 清空 userspace/.ntq（不动仓库根 .ntq / 安装状态）
   python dev-cli.py -cu     # 清空 userspace：各策略 results/ + DB 工作台快照
-  python dev-cli.py -p -v0.3.2   # 发布前：写版本/徽章 + module_info + -ic + pytest
+  python dev-cli.py -p -v0.3.2   # 发布前：写版本/徽章 + module_info + py39 扫描 + -ic + pytest
   python dev-cli.py -ex          # 打包演示数据（分层抽样 → setup/import_data 可导入 zip）
 
 也支持子命令：``ui``、``kill``、``import-check``（见 ``-h``）。
@@ -203,6 +203,7 @@ def _print_help() -> None:
 
   -p 附加: --check-only      只检查不写版本文件（仍会跑 FED build）
            --skip-tests       跳过 pytest
+           --skip-py39        跳过 Python 3.9 兼容性扫描
            --skip-ic          跳过最小依赖 import 检查
            --skip-fed-build   跳过 core/ui/fed 的 npm run build
 
@@ -260,6 +261,7 @@ def _build_subcommand_parser() -> argparse.ArgumentParser:
     p_pub.add_argument("--skip-tests", action="store_true")
     p_pub.add_argument("--skip-ic", action="store_true")
     p_pub.add_argument("--skip-fed-build", action="store_true")
+    p_pub.add_argument("--skip-py39", action="store_true")
     p_pub.set_defaults(func=_cmd_publish, forward=[])
 
     return parser
@@ -275,6 +277,7 @@ def _cmd_publish(args: argparse.Namespace) -> int:
             skip_tests=args.skip_tests,
             skip_ic=args.skip_ic,
             skip_fed_build=args.skip_fed_build,
+            skip_py39=args.skip_py39,
         )
     )
 

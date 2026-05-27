@@ -229,10 +229,6 @@ def calc_last_update_based_on_renew_mode(
         if not latest_completed_trading_date and data_manager and getattr(
             data_manager, "service", None
         ):
-            from core.modules.data_source.service.renew.renew_common_helper import (
-                RenewCommonHelper,
-            )
-
             latest_completed_trading_date = (
                 RenewCommonHelper.resolve_latest_completed_trading_date(data_manager)
             )

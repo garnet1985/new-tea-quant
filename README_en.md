@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.3.2-8A2BE2"></a>&nbsp;
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.3.3-8A2BE2"></a>&nbsp;
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
   <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
@@ -25,6 +25,8 @@ Author: Garnet Xin & His AI dude
 ## Major update
 
 **NTQ now ships with a Web UI**: a React frontend (`core/ui/fed`) and a Python BFF (`core/ui/bff`). After you start them locally, you can use the browser for Strategy Lab, strategy scanning, the graphical setup wizard, app settings, and more.
+
+As of **v0.3.3**, NTQ revamped the backtest data injection pipeline and added practical A-share execution constraints (e.g. limit-up buy / limit-down sell rules) to reduce survivorship bias. See [CHANGELOG.md](CHANGELOG.md).
 
 > **Tip:** This file is a shorter English overview. Screenshots below are from the Chinese UI; labels on your screen may read in Chinese.
 

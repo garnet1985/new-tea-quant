@@ -12,31 +12,54 @@ python dev-cli -p -vx.x.x
 [] (已自动化)确保所有test都能跑过
 [] (已自动化)检查安装依赖的数据是不是齐全，是不是足够新
 [] (已自动化)npm run build 产生UI资产
-[] (TODO: 需要自动化)检查是不是有py3.9不支持的格式
+[] (已自动化)检查是不是有py3.9不支持的格式
+[] 是否需要更新init data和init userspace，网站的数据和策略
 [] 有破坏性更改或者新的模块需要在module_info.yaml里更新core的依赖
 [] 检查是不是正确配置了gitignore
 [] Changelog 里注明改动和可能存在的破坏性改动
 [] 更新模块文档（模块readme，API，module_info）
 [] 更新项目README文档
 
+---
+
+### v0.5.x (TBD)
+
+目标，决策者模式
+- 全线重命名capital allocation simulator成portfolio simulator
+- 加入portfolio在选股时的决策函数
 
 ---
 
-### v0.3.3 (TBD)
 
-- 回测持仓遇退市日（``delist_date``）强制全平，退出原因 ``stock_status:delisted``，按上一根可交易 K 线收盘价成交；price 阶段 ``target_type=stock_status``
+---
+
+### v0.4.x (TBD)
+
+目标，让整个项目的安装仅依赖python
+- 系统支持parquet文件存储，使用duckDB进行调度，默认消除对第三方数据库的依赖
+- 增加report里K线的点击界面
+- 为新版本的更新增加清除缓存的步骤
+- 给设置里增加清除缓存的功能
+- import和export策略的支持
+
+---
+
+
+---
+
+### v0.3.3 (2026-5-27)
+
 - 重构获取股票列表的handler，获取全量股票列表，包括退市的
-- 增加风险时段表，记录每个股票的黑历史
 - 增加交易日历表和数据获取逻辑
-- 清理老的数据表，减小对用户的认知负担
-- 集成新表和API进入回测系统，大幅减小幸存者偏差 - TODO
-- 在dev-cli里加入自动检查python 3.9不支持语法的检查 - TODO
-- 在dev-cli加入数据打包功能（-ex）
+- 增加风险时段表，记录每个股票的黑历史
+- 资金回测过程中加入交易量限制，提高模拟准确性
+- 重新打包了init_data里边包含回测期间已经退市的股票，清理老的数据表，减小对用户的认知负担
+- 集成新表，数据和API进入回测系统，大幅减小幸存者偏差
 - 优化了K线指标计算逻辑，指标计算速度提升65%以上
-- 重新打包了init_data里边包含回测期间已经退市的股票，消除幸存者偏差
+- 在dev-cli里加入自动检查python 3.9不支持语法的检查
+- 在dev-cli加入数据打包功能（-ex）
 
 ---
-
 
 
 ---

@@ -1,9 +1,10 @@
-"""stock_list 维度字段须在 on_after_mapping 前保留（不依赖 DB）。"""
-from userspace.data_source.handlers.stock_list.handler import TushareStockListHandler
+"""stock_list 维度字段须在 normalize 裁剪前可从映射记录中读出（不依赖 userspace / DB）。"""
+from core.modules.data_source.service.utils.stock_list_dimension_values import (
+    group_stock_list_dimension_values,
+)
 
 
 def test_group_dimension_values_from_mapped_record():
-    handler = TushareStockListHandler.__new__(TushareStockListHandler)
     raw = [
         {
             "id": "000001.SZ",
@@ -14,7 +15,7 @@ def test_group_dimension_values_from_mapped_record():
             "area": "深圳",
         }
     ]
-    boards, markets, industries, areas = handler._group_dimension_values(raw)
+    boards, markets, industries, areas = group_stock_list_dimension_values(raw)
     assert boards == ["主板"]
     assert markets == ["SZSE"]
     assert industries == ["银行"]

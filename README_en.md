@@ -26,6 +26,8 @@ Author: Garnet Xin & His AI dude
 
 **NTQ now ships with a Web UI**: a React frontend (`core/ui/fed`) and a Python BFF (`core/ui/bff`). After you start them locally, you can use the browser for Strategy Lab, strategy scanning, the graphical setup wizard, app settings, and more.
 
+As of **v0.3.3**, NTQ revamped the backtest data injection pipeline and added practical A-share execution constraints (e.g. limit-up buy / limit-down sell rules) to reduce survivorship bias. See [CHANGELOG.md](CHANGELOG.md).
+
 > **Tip:** This file is a shorter English overview. Screenshots below are from the Chinese UI; labels on your screen may read in Chinese.
 
 ### What is NTQ?

@@ -131,6 +131,4 @@ class StrategyScannerSettings(SettingsBase):
         return "" if v is None else str(v)
 
 
-ScannerSettings = StrategyScannerSettings
-
-__all__ = ["StrategyScannerSettings", "ScannerSettings"]
+__all__ = ["StrategyScannerSettings"]

@@ -4,14 +4,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple
 
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
 from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
     backtest_period_to_dict,
-    resolve_backtest_date_range,
+    resolve_backtest_universe,
     resolve_latest_completed_trading_date,
 )
 from core.modules.strategy.engines.shared.helpers.stock_sampling import StockSamplingHelper
@@ -75,23 +75,22 @@ class StrategyEnumeratorBootstrapService:
             OpportunityEnumeratorFlow,
         )
         data_mgr = DataManager(is_verbose=False)
-        all_stocks = data_mgr.service.stock.list.load(filtered=True)
+        list_svc = data_mgr.service.stock.list
+        period, universe = resolve_backtest_universe(
+            list_svc=list_svc,
+            settings_view=base_settings,
+            latest_completed_trading_date=resolve_latest_completed_trading_date(data_mgr),
+            data_manager=data_mgr,
+        )
         if use_sampling:
             stock_list = StockSamplingHelper.get_stock_list(
-                all_stocks=all_stocks,
-                sampling_amount=base_settings.sampling_amount or len(all_stocks),
+                all_stocks=universe,
+                sampling_amount=base_settings.sampling_amount or len(universe),
                 sampling_config=base_settings.sampling_config or {},
                 strategy_name=strategy_name,
             )
         else:
-            stock_list = [stock["id"] for stock in all_stocks]
-
-        period = resolve_backtest_date_range(
-            settings_view=base_settings,
-            stock_ids=stock_list,
-            latest_completed_trading_date=resolve_latest_completed_trading_date(data_mgr),
-            data_manager=data_mgr,
-        )
+            stock_list = [stock["id"] for stock in universe if stock.get("id")]
         flow = OpportunityEnumeratorFlow(
             start_date=period.start_date,
             end_date=period.end_date,
@@ -103,7 +102,7 @@ class StrategyEnumeratorBootstrapService:
         result = flow.run(strategy_name=strategy_name, strategy_info=strategy_info)
         if result and isinstance(result, list):
             first = result[0] or {}
-            version_dir_name = str(first.get("version_dir", "")).strip()
+            version_dir_name = str(first.get("enumerator_output_dir", "")).strip()
             if version_dir_name:
                 version_dir, _ = StrategyOutputVersionService.resolve_enumerator_version(
                     strategy_name,

@@ -4,35 +4,69 @@
   "rules": {
     "amplitude_limit": {
       "default_ratio": 0.1,
+      "default_risk": {
+        "st": {
+          "ratio": 0.05,
+          "description": "沪深主板等适用 default_ratio 的股票：其他风险警示（ST）±5%"
+        },
+        "star_st": {
+          "ratio": 0.05,
+          "description": "沪深主板等适用 default_ratio 的股票：退市风险警示（*ST）±5%"
+        }
+      },
       "rules": [
         {
           "key": "ke_chuang_ban",
-          "description": "科创板股票的涨跌幅限制为20%",
+          "description": "科创板：常态 ±20%；ST/*ST 警示期仍 ±20%",
           "ratio": 0.2,
           "matching": {
             "id": {
               "start_with": ["688"]
             }
+          },
+          "risk": {
+            "st": {
+              "ratio": 0.2
+            },
+            "star_st": {
+              "ratio": 0.2
+            }
           }
         },
         {
           "key": "chuang_ye_ban",
-          "description": "创业板股票的涨跌幅限制为20%",
+          "description": "创业板：常态 ±20%；ST/*ST 警示期仍 ±20%",
           "ratio": 0.2,
           "matching": {
             "id": {
               "start_with": ["300"]
             }
+          },
+          "risk": {
+            "st": {
+              "ratio": 0.2
+            },
+            "star_st": {
+              "ratio": 0.2
+            }
           }
         },
         {
           "key": "bei_jiao_suo",
-          "description": "北交所股票的涨跌幅限制为30%",
+          "description": "北交所：常态 ±30%；ST/*ST 警示期仍 ±30%",
           "ratio": 0.3,
           "matching": {
             "id": {
               "start_with": ["43", "83", "87", "88", "92"],
               "relation": "or"
+            }
+          },
+          "risk": {
+            "st": {
+              "ratio": 0.3
+            },
+            "star_st": {
+              "ratio": 0.3
             }
           }
         }
@@ -46,7 +80,7 @@
           "key": "ke_chuang_ban",
           "description": "科创板股票的最小买入手数为200股，每手步长为1股",
           "min_lot": 200,
-          "lot_step": 1 ,
+          "lot_step": 1,
           "matching": {
             "id": {
               "start_with": ["688"]

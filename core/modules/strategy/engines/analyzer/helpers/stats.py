@@ -41,7 +41,7 @@ class StatisticalAnalyzer(BaseAnalyzer):
         report: Dict[str, Any] = {
             "strategy_name": self.context.strategy_name,
             "sim_type": self.context.sim_type,
-            "sim_version_dir": str(self.context.sim_version_dir),
+            "output_version_dir": str(self.context.output_version_dir),
             "metrics": {},
         }
         df = self._load_data()
@@ -64,14 +64,14 @@ class StatisticalAnalyzer(BaseAnalyzer):
 
     def _load_data(self) -> pd.DataFrame | None:
         if self.context.sim_type == "price_factor":
-            return self._load_price_factor_data(self.context.sim_version_dir)
+            return self._load_price_factor_data(self.context.output_version_dir)
         if self.context.sim_type == "capital_allocation":
-            return self._load_capital_allocation_data(self.context.sim_version_dir)
+            return self._load_capital_allocation_data(self.context.output_version_dir)
         return None
 
-    def _load_price_factor_data(self, sim_version_dir: Path) -> pd.DataFrame | None:
+    def _load_price_factor_data(self, output_version_dir: Path) -> pd.DataFrame | None:
         records: List[Dict[str, Any]] = []
-        for json_file in sim_version_dir.glob("*.json"):
+        for json_file in output_version_dir.glob("*.json"):
             if json_file.name in ["0_session_summary.json", "0_metadata.json", "0_performance_report.json"]:
                 continue
             try:
@@ -100,8 +100,8 @@ class StatisticalAnalyzer(BaseAnalyzer):
             df["end_date"] = pd.to_datetime(df["end_date"], errors="coerce")
         return df
 
-    def _load_capital_allocation_data(self, sim_version_dir: Path) -> pd.DataFrame | None:
-        trades_path = sim_version_dir / "trades.json"
+    def _load_capital_allocation_data(self, output_version_dir: Path) -> pd.DataFrame | None:
+        trades_path = output_version_dir / "trades.json"
         if not trades_path.exists():
             return None
         with trades_path.open("r", encoding="utf-8") as f:

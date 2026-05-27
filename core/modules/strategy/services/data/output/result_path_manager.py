@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class StrategyOutputPathService:
-    sim_version_dir: Path
+    output_version_dir: Path
 
     SESSION_SUMMARY_FILE: str = "0_session_summary.json"
     TRADES_FILE: str = "trades.json"
@@ -20,15 +20,15 @@ class StrategyOutputPathService:
 
     def ensure_root(self) -> Path:
         try:
-            self.sim_version_dir.mkdir(parents=True, exist_ok=True)
+            self.output_version_dir.mkdir(parents=True, exist_ok=True)
         except Exception as exc:
             logger.warning(
                 "[StrategyOutputPathService] failed to create result dir: dir=%s, error=%s",
-                self.sim_version_dir,
+                self.output_version_dir,
                 exc,
             )
             raise
-        return self.sim_version_dir
+        return self.output_version_dir
 
     def session_summary_path(self) -> Path:
         return self.ensure_root() / self.SESSION_SUMMARY_FILE

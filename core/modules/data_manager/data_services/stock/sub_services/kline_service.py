@@ -88,8 +88,8 @@ class KlineService(BaseDataService):
         """
         加载 **全市场** 指定周期最新 K 线日期（YYYYMMDD）。
 
-        与 ``load_latest(stock_id)`` 的区别：
-        - 本方法不依赖单只股票，避免个股缺数导致「最新日期」偏旧。
+        与 ``load_latest(stock_id)`` 的区别：不依赖单只股票。
+        行情入库进度；优先用 ``calendar.get_db_latest_completed_trading_date()``。
         """
         if not self._stock_kline:
             return ""
@@ -255,12 +255,53 @@ class KlineService(BaseDataService):
             qfq_klines.append(qfq_kline)
         return qfq_klines
 
+    def load_qfq_split(
+        self,
+        stock_id: str,
+        term: str = 'daily',
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        *,
+        is_strict: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """
+        前复权：K 线与复权事件分两次简单查询，在内存合并（无大 JOIN）。
+
+        与 ``load_qfq(..., use_join=False)`` 等价，单独暴露便于批量路径复用。
+        """
+        start_date = self._normalize_date(start_date)
+        end_date = self._normalize_date(end_date)
+
+        raw_klines = self.load_raw(stock_id, term, start_date, end_date)
+        if not raw_klines:
+            return []
+
+        events: List[Dict[str, Any]] = []
+        if self._adj_factor_event and end_date:
+            events = (
+                self._adj_factor_event.load(
+                    "id = %s AND event_date <= %s",
+                    (stock_id, end_date),
+                    order_by="event_date ASC",
+                )
+                or []
+            )
+
+        return self._merge_qfq_from_raw_and_events(
+            stock_id=stock_id,
+            raw_rows=raw_klines,
+            events=events,
+            is_strict=is_strict,
+        )
+
     def load_qfq_strict(
         self,
         stock_id: str,
         term: str = 'daily',
         start_date: Optional[str] = None,
-        end_date: Optional[str] = None
+        end_date: Optional[str] = None,
+        *,
+        use_join: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         严格模式前复权：
@@ -279,7 +320,14 @@ class KlineService(BaseDataService):
         Returns:
             List[Dict]: 严格前复权K线数据列表
         """
-        return self.load_qfq(stock_id, term, start_date, end_date, is_strict=True)
+        return self.load_qfq(
+            stock_id,
+            term,
+            start_date,
+            end_date,
+            is_strict=True,
+            use_join=use_join,
+        )
 
     def load_qfq(
         self,
@@ -288,15 +336,28 @@ class KlineService(BaseDataService):
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         is_strict: bool = False,
+        *,
+        use_join: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         前复权加载统一入口：
+        - use_join=False（默认）：``load_qfq_split``，K 线 + 复权事件分查后在内存合并
+        - use_join=True：单条 SQL 大 JOIN（兼容旧路径）
         - is_strict=False（默认连续）：缺历史事件时沿用最早可用事件的 qfq_diff 补齐
         - is_strict=True（严格）：缺历史事件不推断，按原价（qfq_diff=0）
         输出标记字段：
             qfq_is_adjusted: 是否使用了复权差值
             qfq_is_inferred: 是否属于默认连续模式下的推断补齐
         """
+        if not use_join:
+            return self.load_qfq_split(
+                stock_id,
+                term,
+                start_date,
+                end_date,
+                is_strict=is_strict,
+            )
+
         start_date = self._normalize_date(start_date)
         end_date = self._normalize_date(end_date)
 
@@ -309,8 +370,8 @@ class KlineService(BaseDataService):
             return self._build_qfq_rows_default(stock_id=stock_id, results=results)
         except Exception as e:
             logger.error(f"查询 QFQ K 线数据失败: {e}")
-            logger.warning("回退到多次查询方式")
-            return self._load_qfq_fallback(
+            logger.warning("回退到拆分查询 + 内存合并")
+            return self.load_qfq_split(
                 stock_id,
                 term,
                 start_date,
@@ -674,7 +735,112 @@ class KlineService(BaseDataService):
         return self.db.execute_sync_query(sql, (date,))
     
     # ==================== 私有方法（复权计算）====================
-    
+
+    def _effective_event_map_in_memory(
+        self,
+        *,
+        raw_rows: List[Dict[str, Any]],
+        events: List[Dict[str, Any]],
+        is_strict: bool,
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        基于已加载的复权事件行，在内存构造 date -> 生效事件信息（不再查库）。
+        规则对齐 ``AdjFactorEventModel.load_effective_events_for_dates``。
+        """
+        normalized_dates = sorted(
+            {
+                d
+                for d in (self._normalize_date(r.get("date")) for r in raw_rows)
+                if d is not None
+            }
+        )
+        if not normalized_dates:
+            return {}
+
+        max_date = normalized_dates[-1]
+        filtered = [
+            e
+            for e in events
+            if self._normalize_date(e.get("event_date")) is not None
+            and self._normalize_date(e.get("event_date")) <= max_date
+        ]
+        earliest_event = None if is_strict else (events[0] if events else None)
+
+        out: Dict[str, Dict[str, Any]] = {}
+        event_idx = 0
+        latest_event = None
+        n = len(filtered)
+        for d in normalized_dates:
+            while event_idx < n:
+                ed = self._normalize_date(filtered[event_idx].get("event_date"))
+                if ed is not None and ed <= d:
+                    latest_event = filtered[event_idx]
+                    event_idx += 1
+                else:
+                    break
+
+            selected = latest_event
+            inferred = False
+            if selected is None and (not is_strict) and earliest_event is not None:
+                selected = earliest_event
+                inferred = True
+
+            if selected is None:
+                out[d] = {
+                    "qfq_diff": 0.0,
+                    "is_adjusted": False,
+                    "is_inferred": False,
+                }
+            else:
+                qfq_diff = self._to_float_or_none(selected.get("qfq_diff"))
+                if qfq_diff is None:
+                    qfq_diff = 0.0
+                out[d] = {
+                    "qfq_diff": qfq_diff,
+                    "is_adjusted": True,
+                    "is_inferred": inferred,
+                }
+        return out
+
+    def _merge_qfq_from_raw_and_events(
+        self,
+        *,
+        stock_id: str,
+        raw_rows: List[Dict[str, Any]],
+        events: List[Dict[str, Any]],
+        is_strict: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """将原始 K 线与已加载的复权事件在内存合并为前复权 K 线。"""
+        del stock_id  # 保留参数便于与 load_qfq_split 调用形态一致
+        if not raw_rows:
+            return []
+
+        event_map = self._effective_event_map_in_memory(
+            raw_rows=raw_rows,
+            events=events,
+            is_strict=is_strict,
+        )
+
+        qfq_klines: List[Dict[str, Any]] = []
+        for row in raw_rows:
+            qfq_kline = dict(row)
+            date_key = self._normalize_date(qfq_kline.get("date"))
+            info = event_map.get(
+                date_key,
+                {"qfq_diff": 0.0, "is_adjusted": False, "is_inferred": False},
+            )
+            qfq_diff = self._to_float_or_none(info.get("qfq_diff"))
+            if qfq_diff is None:
+                qfq_diff = 0.0
+            is_adjusted = bool(info.get("is_adjusted", False))
+            is_inferred = bool(info.get("is_inferred", False))
+
+            self._apply_qfq_prices(qfq_kline, qfq_diff)
+            qfq_kline["qfq_is_adjusted"] = is_adjusted
+            qfq_kline["qfq_is_inferred"] = is_inferred
+            qfq_klines.append(qfq_kline)
+        return qfq_klines
+
     def _load_qfq_fallback(
         self,
         stock_id: str,
@@ -684,19 +850,14 @@ class KlineService(BaseDataService):
         *,
         is_strict: bool = False,
     ) -> List[Dict[str, Any]]:
-        """
-        回退方法：使用多次查询的方式加载 QFQ K 线数据
-        
-        当 JOIN 查询失败时使用此方法
-        """
-        # 获取日期范围内的raw data
-        raw_klines = self.load_raw(stock_id, term, start_date, end_date)
-        if not raw_klines:
-            return []
-        
-        if is_strict:
-            return self._build_qfq_rows_strict(stock_id=stock_id, results=raw_klines)
-        return self._build_qfq_rows_default(stock_id=stock_id, results=raw_klines)
+        """JOIN 失败时的回退：拆分查询 + 内存合并。"""
+        return self.load_qfq_split(
+            stock_id,
+            term,
+            start_date,
+            end_date,
+            is_strict=is_strict,
+        )
      
     # ==================== 辅助方法 ====================
     

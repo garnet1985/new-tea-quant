@@ -315,7 +315,7 @@ function StrategyExecutionPanel({
       applyOptimisticRunStepStatus(target);
       const resolvedSettings = getSettingsForRun ? getSettingsForRun() : settings;
       if (!resolvedSettings) throw new Error('当前参数不可用，无法执行');
-      const started = await startStrategyRun(strategyName, target, resolvedSettings, { is_force: isForce });
+      const started = await startStrategyRun(strategyName, target, resolvedSettings, { force_refresh: isForce });
       const runId = started?.run_id;
       if (!runId) throw new Error('启动执行失败：缺少 run_id');
       setActiveRunId(runId);
@@ -960,7 +960,7 @@ function StrategyExecutionPanel({
     return () => onRegisterForceHandlers(null);
   }, [onRegisterForceHandlers]);
 
-  /** 该步已为完成态时点播放 = 强制重跑（与 V2-05 ``is_force`` 一致） */
+  /** 该步已为完成态时点播放 = 强制重跑（与 V2-05 ``force_refresh`` 一致） */
   const runStep = (target) => {
     const st =
       target === STEP_ENUM ? stepStatus.enum

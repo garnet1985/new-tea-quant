@@ -43,6 +43,13 @@ def simulation_effective_snapshot(sim: StrategySimulationSettings) -> Dict[str, 
         },
         "extreme_same_bar_order": sim.extreme_same_bar_order.value,
         "extreme_same_bar_random_seed": sim.extreme_same_bar_random_seed,
+        "skip_investment_when": list(sim.skip_investment_when),
+        "max_participation_rate": sim.max_participation_rate,
+        "participation_on_exceed": sim.participation_on_exceed,
+        "liquidity": {
+            "max_participation_rate": sim.max_participation_rate,
+            "participation_on_exceed": sim.participation_on_exceed,
+        },
     }
 
 

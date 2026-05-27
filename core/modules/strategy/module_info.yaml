@@ -1,6 +1,6 @@
 name: modules.strategy
-version: 0.3.0
-compatible_core_versions: ">=0.3.0"
+version: 0.3.3
+compatible_core_versions: ">=0.3.3"
 description: "策略执行主模块：StrategyManager 统一 orchestrate scan/simulate，engines 承载 scanner/enumerator/price_factor/capital_allocation/analyzer，services 提供 discovery/data/artifacts/validation 能力。"
 dependencies:
   - modules.data_manager

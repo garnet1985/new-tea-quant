@@ -4,8 +4,12 @@
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core.modules.strategy.engines.shared.performance_profiler import PerformanceProfiler
 
 from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.data_contract.contract_const import ContractScope, DataKey
@@ -45,6 +49,19 @@ class StrategyDataInjectionService:
         self._slot_contracts: Dict[str, DataContract] = {}
         self._cursor_mgr = DataCursorManager()
         self._cursor_name = f"strategy:{self.stock_id}"
+        self._load_profiler: Optional["PerformanceProfiler"] = None
+
+    def attach_load_profiler(self, profiler: Optional["PerformanceProfiler"]) -> None:
+        """可选：记录 contract.load 墙钟（storage / DB 读取）。"""
+        self._load_profiler = profiler
+
+    def _record_contract_load(self, slot: str, load_fn) -> None:
+        if self._load_profiler is None:
+            load_fn()
+            return
+        t0 = time.perf_counter()
+        load_fn()
+        self._load_profiler.record_storage_load(slot, time.perf_counter() - t0)
 
     def _contract_manager(self) -> DataContractManager:
         if self._dcf_mgr is None:
@@ -129,7 +146,10 @@ class StrategyDataInjectionService:
                 self._slot_contracts[slot] = contract
                 continue
             if contract.needs_load:
-                contract.load(start=start_date, end=end_date)
+                self._record_contract_load(
+                    slot,
+                    lambda c=contract, s=start_date, e=end_date: c.load(start=s, end=e),
+                )
             self._current_data[slot] = list(contract.data or [])
             self._slot_contracts[slot] = contract
 
@@ -186,7 +206,10 @@ class StrategyDataInjectionService:
                 contract.data = rows
             else:
                 if contract.needs_load:
-                    contract.load(start=start_date, end=end_date)
+                    self._record_contract_load(
+                        slot,
+                        lambda c=contract, s=start_date, e=end_date: c.load(start=s, end=e),
+                    )
                 rows = list(contract.data or [])
             self._current_data[slot] = rows
             self._slot_contracts[slot] = contract
@@ -225,41 +248,31 @@ class StrategyDataInjectionService:
         klines = self._current_data.get("klines") or []
         if not indicators_cfg or not klines:
             return
-        for name, configs in indicators_cfg.items():
-            if not configs:
-                continue
-            if not isinstance(configs, list):
-                configs = [configs]
-            for cfg in configs:
-                try:
-                    result = IndicatorService.calculate(name, klines, **cfg)
-                    if not result:
-                        continue
-                    if isinstance(result, list):
-                        field = self._build_indicator_field_name(name, cfg)
-                        for rec, val in zip(klines, result):
+        for name, cfg, result in IndicatorService.compute_batch(klines, indicators_cfg):
+            try:
+                if isinstance(result, list):
+                    field = self._build_indicator_field_name(name, cfg)
+                    for rec, val in zip(klines, result):
+                        rec[field] = val
+                elif isinstance(result, dict):
+                    for key, series in result.items():
+                        field = self._build_indicator_field_name(f"{name}_{key}", cfg)
+                        for rec, val in zip(klines, series):
                             rec[field] = val
-                    elif isinstance(result, dict):
-                        for key, series in result.items():
-                            field = self._build_indicator_field_name(
-                                f"{name}_{key}", cfg
-                            )
-                            for rec, val in zip(klines, series):
-                                rec[field] = val
-                except Exception as exc:
-                    logger.error(
-                        "计算指标失败: stock=%s, indicator=%s, params=%s, error=%s",
-                        self.stock_id,
-                        name,
-                        cfg,
-                        exc,
-                    )
+            except Exception as exc:
+                logger.error(
+                    "写入指标失败: stock=%s, indicator=%s, params=%s, error=%s",
+                    self.stock_id,
+                    name,
+                    cfg,
+                    exc,
+                )
 
     def _build_indicator_field_name(self, name: str, params: Dict[str, Any]) -> str:
         name = name.lower()
-        period = params.get("period") or params.get("length")
-        if period is not None and isinstance(period, (int, float, str)):
-            return f"{name}{int(period)}"
+        length = params.get("length")
+        if length is not None and isinstance(length, (int, float, str)):
+            return f"{name}{int(length)}"
         parts = [name]
         for key in sorted(params.keys()):
             value = params[key]
@@ -268,26 +281,15 @@ class StrategyDataInjectionService:
         return "_".join(parts)
 
     def _get_latest_trading_date(self) -> str:
-        try:
-            params = dict(self.settings.resolved_base_required_data.get("params") or {})
-            contract = self._contract_manager().issue(
-                DataKey.STOCK_KLINE,
-                entity_id=self.stock_id,
-                start=DateUtils.get_query_date_range_min(),
-                end=DateUtils.QUERY_DATE_RANGE_MAX,
-                **params,
-            )
-            rows = contract.load(
-                start=DateUtils.get_query_date_range_min(),
-                end=DateUtils.QUERY_DATE_RANGE_MAX,
-            )
-            if rows:
-                last = rows[-1]
-                if isinstance(last, dict) and last.get("date"):
-                    return str(last["date"])
-            return datetime.now().strftime("%Y%m%d")
-        except Exception:
-            return datetime.now().strftime("%Y%m%d")
+        from core.modules.data_manager import DataManager
+        from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+            resolve_latest_completed_trading_date,
+        )
+
+        dm = DataManager(is_verbose=False)
+        if dm is None:
+            return ""
+        return resolve_latest_completed_trading_date(dm)
 
     def _get_date_before(self, date: str, days: int) -> str:
         try:

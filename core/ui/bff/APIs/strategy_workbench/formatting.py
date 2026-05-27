@@ -20,7 +20,7 @@ def _step_status_from_result_report(result_report: Dict[str, Any]) -> Dict[str, 
 
 def workbench_snapshot_to_message(row: Dict[str, Any]) -> Dict[str, Any]:
     """``strategy_snapshot`` row → envelope ``message`` payload for GET …/version/latest."""
-    sid = int(row.get("snapshot_id") or row.get("version") or 0)
+    sid = int(row.get("version") or 0)
     # 无持久化快照（冷启动合成行 ``sid==0``）时约定 ``version_id`` 为空串，前端不展示工作台/目录栏。
     version_id = f"v{sid}" if sid > 0 else ""
     settings = dict(row.get("settings_snapshot") or {})

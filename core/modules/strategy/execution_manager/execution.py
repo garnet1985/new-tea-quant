@@ -22,7 +22,7 @@ def run_workbench_substep_for_snapshot(
     strategy_name: str,
     discovered: "DiscoveredStrategy",
     *,
-    is_force: bool,
+    force_refresh: bool,
     job_id: str,
     on_step_progress: Optional[Callable[[float], None]] = None,
     stock_count: Optional[int] = None,
@@ -31,7 +31,7 @@ def run_workbench_substep_for_snapshot(
     """
     执行单个子步骤（enum / price / capital）。
 
-    返回 ``(last_snapshot_id, last_payload, used_db_cache)``；``used_db_cache`` 仅对
+    返回 ``(version, last_payload, used_db_cache)``；``used_db_cache`` 仅对
     price/capital 有值，其余为 ``None``。
     """
     if step == "enum":
@@ -43,26 +43,26 @@ def run_workbench_substep_for_snapshot(
             strategy_name=strategy_name,
             strategy_info=discovered,
             raw_settings_override=discovered.settings.to_dict(),
-            force_refresh=is_force,
+            force_refresh=force_refresh,
             workbench_run_id=job_id,
             workbench_strategy_name=strategy_name,
             stock_count=stock_count,
         )
         payload = EnumeratorRuntimeService.run_enum(ctx)
-        return int(ctx.flow.last_snapshot_id or 0), payload, None
+        return int(ctx.flow.last_version or 0), payload, None
 
     if step == "price":
         from core.modules.strategy.engines.simulator.price_factor.price_factor_flow import (
             PriceFactorFlow,
         )
 
-        flow = PriceFactorFlow(is_verbose=is_verbose, force_refresh=is_force)
+        flow = PriceFactorFlow(is_verbose=is_verbose, force_refresh=force_refresh)
         cb = on_step_progress if callable(on_step_progress) else None
         summary = flow.run(strategy_name, discovered, progress_callback=cb)
         return (
-            int(flow.last_snapshot_id or 0),
+            int(flow.last_version or 0),
             summary,
-            bool(getattr(flow, "last_run_used_db_cache", False)),
+            bool(getattr(flow, "used_db_cache", False)),
         )
 
     if step == "capital":
@@ -70,13 +70,13 @@ def run_workbench_substep_for_snapshot(
             CapitalAllocationFlow,
         )
 
-        flow = CapitalAllocationFlow(is_verbose=is_verbose, force_refresh=is_force)
+        flow = CapitalAllocationFlow(is_verbose=is_verbose, force_refresh=force_refresh)
         cb = on_step_progress if callable(on_step_progress) else None
         summary = flow.run(strategy_name, discovered, progress_callback=cb)
         return (
-            int(flow.last_snapshot_id or 0),
+            int(flow.last_version or 0),
             summary,
-            bool(getattr(flow, "last_run_used_db_cache", False)),
+            bool(getattr(flow, "used_db_cache", False)),
         )
 
     raise ValueError(f"未知 workbench 子步骤: {step!r}")
@@ -102,7 +102,7 @@ def execute_workbench_plan_sync(
     name = str(strategy_name).strip()
     jid = str(job_id).strip()
     n = max(len(plan), 1)
-    sid_int = 0
+    version_int = 0
     last_payload: Any = None
     last_used: Optional[bool] = None
     for i, (sub, force_sub) in enumerate(plan):
@@ -130,17 +130,17 @@ def execute_workbench_plan_sync(
         else:
             on_prog_cb = None
 
-        sid_int, payload, used = run_workbench_substep_for_snapshot(
+        version_int, payload, used = run_workbench_substep_for_snapshot(
             sub,
             name,
             discovered,
-            is_force=bool(force_sub),
+            force_refresh=bool(force_sub),
             job_id=jid,
             on_step_progress=on_prog_cb if sub in ("price", "capital") else None,
             stock_count=enum_stock_count if sub == "enum" else None,
             is_verbose=is_verbose,
         )
-        sid_int = int(sid_int or 0)
+        version_int = int(version_int or 0)
         last_payload = payload
         if used is not None:
             last_used = used
@@ -151,10 +151,10 @@ def execute_workbench_plan_sync(
         if progress is not None:
             fin = getattr(progress, "on_substep_finish", None)
             if callable(fin):
-                fin(sub, i, n, sid_int)
+                fin(sub, i, n, version_int)
 
     return WorkbenchExecutionResult(
-        snapshot_id=sid_int,
+        version=version_int,
         last_payload=last_payload,
-        last_used_db_cache=last_used,
+        used_db_cache=last_used,
     )

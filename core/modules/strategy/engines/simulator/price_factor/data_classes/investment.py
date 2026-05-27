@@ -24,6 +24,9 @@ class PriceFactorInvestment(BaseInvestment):
         opportunity: Dict[str, Any],
         targets: List[Dict[str, Any]],
         stock_name: str = "",
+        *,
+        goal_config: Optional[Dict[str, Any]] = None,
+        backtest_calendar: Optional[Any] = None,
     ) -> "PriceFactorInvestment":
         opp_id = str(opportunity.get("opportunity_id", "")).strip()
         stock_id = opportunity.get("stock_id", "")
@@ -49,24 +52,39 @@ class PriceFactorInvestment(BaseInvestment):
             if targets
             else buy_price * roi
         )
-        holding_days = 1
-        start_for_hold = buy_date
-        if start_for_hold and exit_date:
-            try:
-                from core.modules.strategy.engines.simulator.price_factor.helpers import parse_yyyymmdd
+        from core.modules.strategy.engines.shared.helpers.backtest_calendar_context import (
+            BacktestCalendarContext,
+            resolve_holding_days,
+        )
 
-                start_dt = parse_yyyymmdd(start_for_hold)
-                end_dt = parse_yyyymmdd(exit_date)
-                if start_dt and end_dt:
-                    holding_days = max((end_dt - start_dt).days, 1)
-            except Exception:
-                pass
+        exp_cfg = None
+        if isinstance(goal_config, dict):
+            exp_cfg = goal_config.get("expiration")
+        cal_ctx = (
+            backtest_calendar
+            if isinstance(backtest_calendar, BacktestCalendarContext)
+            else BacktestCalendarContext.from_dict(backtest_calendar)
+        )
+        holding_days = 1
+        if buy_date and exit_date:
+            counted = resolve_holding_days(
+                buy_date,
+                exit_date,
+                expiration_config=exp_cfg if isinstance(exp_cfg, dict) else None,
+                backtest_calendar=cal_ctx,
+            )
+            holding_days = max(counted, 1)
+        use_trading_days = True
+        if isinstance(exp_cfg, dict) and "is_trading_days" in exp_cfg:
+            use_trading_days = bool(exp_cfg.get("is_trading_days"))
         overall_annual_return = 0.0
         if holding_days > 0:
             try:
                 from core.modules.strategy.engines.simulator.price_factor.helpers import get_annual_return
 
-                overall_annual_return = get_annual_return(roi, holding_days)
+                overall_annual_return = get_annual_return(
+                    roi, holding_days, is_trading_days=use_trading_days
+                )
             except Exception:
                 pass
 
@@ -194,6 +212,9 @@ class PriceFactorInvestment(BaseInvestment):
             elif "expiration" in reason:
                 target_type = "expired"
                 name = "expiration"
+            elif "stock_status" in reason:
+                target_type = "stock_status"
+                name = reason
             else:
                 target_type = "unknown"
                 name = reason or "unknown"

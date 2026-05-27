@@ -2,7 +2,7 @@
 """
 **Env 步骤层**：在已有 **规范化 settings 快照** 上，收集并组装 **env 指纹载荷 dict**（再由 ``finger_print`` 做 SHA256）。
 
-含 universe（``stock_ids``）、**日历窗**（``latest_completed_trading_date`` 与 flow 一致，不由本模块查库）、run_mode、系统版本、worker 三联、``data_contract_mapping``；
+含 universe（``stock_ids``，规范化排序）、run_mode、系统版本、worker 三联、``data_contract_mapping``；日历窗仅用于 flow 运行，**不入 env 载荷**。
 实现内联在此模块（原 ``orchestration.write.resolve_*``）。
 """
 
@@ -194,8 +194,6 @@ class ResolveEnv:
         *,
         strategy_name: str,
         stock_ids: Sequence[str],
-        start_date: str,
-        end_date: str,
         run_mode: str,
         engine_version: str,
         worker_module_path: str = "",
@@ -204,18 +202,16 @@ class ResolveEnv:
         data_contract_mapping: str = "",
     ) -> Dict[str, Any]:
         """
-        组装 env 指纹 **载荷 dict**（``v=4``），**不含** settings 语义核。
+        组装 env 指纹 **载荷 dict**（``v=5``），**不含** settings 语义核与日历窗。
 
-        稳定哈希由 ``finger_print.to_env_hash``（内部 ``_stable_sha256``）完成。
+        回测 scope 以规范化后的 ``stock_ids`` 列表为准（与 ``compute_scope_fingerprint_id`` 同源列表）。
         """
         normalized_stock_ids = ResolveEnv._collect_stock_ids(list(stock_ids))
         return {
-            "v": 4,
+            "v": 5,
             "kind": "strategy_db_cache_env",
             "strategy_name": str(strategy_name),
             "stock_ids": normalized_stock_ids,
-            "start_date": str(start_date),
-            "end_date": str(end_date),
             "run_mode": str(run_mode),
             "engine_version": str(engine_version),
             "worker_module_path": str(worker_module_path),

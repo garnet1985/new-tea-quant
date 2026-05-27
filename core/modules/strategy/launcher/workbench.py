@@ -41,16 +41,16 @@ def _row_usable(row: Dict[str, Any]) -> bool:
     return isinstance(row.get("settings_snapshot"), dict)
 
 
-def fetch_workbench_snapshot_by_snapshot_id(
-    strategy_name: str, snapshot_id: int
+def fetch_workbench_by_version(
+    strategy_name: str, version: int
 ) -> Optional[Dict[str, Any]]:
     """
-    按 ``strategy_name`` + 快照主键（表中 ``version``）读取一行。
+    按 ``strategy_name`` + 工作台 ``version``（表中列名）读取一行。
 
-    不存在、``snapshot_id`` 非正、或 ``settings_snapshot`` 不可用 → ``None``（与 **V2-08** 404 对齐）。
+    不存在、``version`` 非正、或 ``settings_snapshot`` 不可用 → ``None``（与 **V2-08** 404 对齐）。
     """
     name = str(strategy_name or "").strip()
-    sid = int(snapshot_id)
+    sid = int(version)
     if not name or sid <= 0:
         return None
 
@@ -59,7 +59,7 @@ def fetch_workbench_snapshot_by_snapshot_id(
         logger.error("Workbench snapshot table is not registered")
         return None
 
-    row = model.load_by_strategy_snapshot_id(name, sid)
+    row = model.load_by_strategy_version(name, sid)
     if not row or not _row_usable(row):
         return None
     out = dict(row)
@@ -72,11 +72,10 @@ def fetch_workbench_snapshot_by_snapshot_id(
 def _synthetic_cold_start_snapshot_row(
     strategy_name: str, settings_api: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """未落库时的合成行：仅 settings，``version==0`` / ``snapshot_id==0``（不落 DB）。"""
+    """未落库时的合成行：仅 settings，``version==0``（不落 DB）。"""
     name = str(strategy_name or "").strip()
     return {
         "strategy_name": name,
-        "snapshot_id": 0,
         "version": 0,
         "settings_snapshot": dict(settings_api or {}),
         "reports": {},
@@ -88,7 +87,7 @@ def _synthetic_cold_start_snapshot_row(
 
 def workbench_latest_ui_flags(strategy_name: str, row: Dict[str, Any]) -> Dict[str, bool]:
     """供 V2-01：是否已有持久化快照、是否存在可对比的其它版本（≥2 条快照）。"""
-    sid = int(row.get("snapshot_id") or row.get("version") or 0)
+    sid = int(row.get("version") or 0)
     model = _snapshot_model()
     n = 0
     if model is not None:
@@ -125,12 +124,17 @@ def fetch_latest_workbench_snapshot(strategy_name: str) -> Optional[Dict[str, An
             if isinstance(rr, dict):
                 out["result_report"] = hydrate_workbench_result_report(name, rr)
             return out
-        sid = int(row.get("snapshot_id") or row.get("version") or 0)
+        sid = int(row.get("version") or 0)
         if sid <= 0:
             logger.warning("Unusable snapshot row for %s (missing version)", name)
             break
-        logger.warning("Removing unusable workbench snapshot row strategy=%s snapshot_id=%s", name, sid)
-        model.delete_snapshot_row(name, sid)
+        logger.warning("Removing unusable workbench snapshot row strategy=%s version=%s", name, sid)
+        from core.modules.strategy.services.data.output.workbench_snapshot_retention import (
+            log_workbench_version_deleted,
+        )
+
+        log_workbench_version_deleted(name, sid, row)
+        model.delete_version_row(name, sid)
 
     folder = PathManager.userspace() / "strategies" / name
     discovered = StrategyDiscoveryHelper.load_strategy(folder)
@@ -184,7 +188,7 @@ def _write_settings_py(strategy_name: str, settings: Dict[str, Any], pretty: boo
 def apply_workbench_snapshot_settings_to_userspace(
     *,
     strategy_name: str,
-    snapshot_id: int,
+    version: int,
     pretty: bool = False,
 ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     """
@@ -193,11 +197,11 @@ def apply_workbench_snapshot_settings_to_userspace(
     成功返回 ``({"applied": True, "strategy_name", "version_id"}, None)``。
     """
     name = str(strategy_name or "").strip()
-    sid = int(snapshot_id)
+    sid = int(version)
     if not name or sid <= 0:
         return None, "参数无效"
 
-    row = fetch_workbench_snapshot_by_snapshot_id(name, sid)
+    row = fetch_workbench_by_version(name, sid)
     if not row:
         return None, "快照不存在"
 
@@ -213,7 +217,7 @@ def apply_workbench_snapshot_settings_to_userspace(
         _backup_settings_file(name)
         _write_settings_py(name, normalized, pretty)
     except Exception as e:
-        logger.exception("apply-settings 写盘失败 strategy=%s snapshot_id=%s", name, sid)
+        logger.exception("apply-settings 写盘失败 strategy=%s version=%s", name, sid)
         return None, f"写盘失败: {e}"
 
     model = _snapshot_model()
@@ -222,11 +226,11 @@ def apply_workbench_snapshot_settings_to_userspace(
         return None, "存储不可用"
 
     try:
-        n = int(model.touch_snapshot_updated_at(name, sid) or 0)
+        n = int(model.touch_version_updated_at(name, sid) or 0)
         if n <= 0:
             return None, "更新快照时间失败: 行不存在或无法更新"
     except Exception as e:
-        logger.exception("touch_snapshot_updated_at failed")
+        logger.exception("touch_version_updated_at failed")
         return None, f"更新快照时间失败: {e}"
 
     return (
@@ -248,7 +252,7 @@ _STEP_TO_REPORT_SLOT = {
 }
 
 
-def parse_snapshot_id(version_id: str) -> Optional[int]:
+def parse_version_id(version_id: str) -> Optional[int]:
     """接受 ``v3`` / ``3`` 等形式。"""
     s = str(version_id or "").strip()
     if not s:
@@ -266,7 +270,7 @@ def build_step_report_message(
     *,
     strategy_name: str,
     normalized_step: str,
-    snapshot_id: int,
+    version: int,
 ) -> Optional[Dict[str, Any]]:
     """读快照一行该 step 槽位报告；行不存在 ``None``。"""
     slot = _STEP_TO_REPORT_SLOT.get(normalized_step)
@@ -278,7 +282,7 @@ def build_step_report_message(
         return None
 
     name = str(strategy_name).strip()
-    row = fetch_workbench_snapshot_by_snapshot_id(name, int(snapshot_id))
+    row = fetch_workbench_by_version(name, int(version))
     if not row:
         return None
 
@@ -292,7 +296,7 @@ def build_step_report_message(
         report = raw
 
     return {
-        "version_id": f"v{int(snapshot_id)}",
+        "version_id": f"v{int(version)}",
         "strategy_name": name,
         "step": normalized_step,
         "report": report,
@@ -306,7 +310,7 @@ def build_step_report_ref_message(
     *,
     strategy_name: str,
     normalized_step: str,
-    snapshot_id: int,
+    version: int,
 ) -> Optional[Dict[str, Any]]:
     """
     读取枚举产物目录下的 ``0_stock_ref.json``。
@@ -314,16 +318,15 @@ def build_step_report_ref_message(
     仅当快照行不存在（或参数非法）时返回 ``None``，路由 404。磁盘已清理、文件不存在时为正常情况，
     仍返回 dict：``stock_ref_available=False``、``stock_ref=null``。
 
-    查找路径仅使用快照 ``result_report.enum`` 内记录的 ``enumerator_output_dir`` / ``version_dir`` /
-    ``version_id`` 及 ``snapshot_id``；不做全盘扫描或猜测。
+    查找路径仅使用快照 ``result_report.enum`` 内记录的 ``enumerator_output_dir`` 及工作台 ``version``；不做全盘扫描或猜测。
     """
     if normalized_step != "enum":
         return None
     name = str(strategy_name).strip()
-    if not name or snapshot_id <= 0:
+    if not name or version <= 0:
         return None
 
-    row = fetch_workbench_snapshot_by_snapshot_id(name, int(snapshot_id))
+    row = fetch_workbench_by_version(name, int(version))
     if not row:
         return None
 
@@ -336,10 +339,7 @@ def build_step_report_ref_message(
         out_d = str(enum_raw.get("enumerator_output_dir") or "").strip()
         if out_d:
             candidates_dirs.append(out_d)
-        vd = str(enum_raw.get("version_dir") or "").strip()
-        if vd and vd not in candidates_dirs:
-            candidates_dirs.append(vd)
-        vid = enum_raw.get("version_id")
+        vid = enum_raw.get("output_version_id")
         if vid is not None:
             try:
                 vs = str(int(vid))
@@ -348,7 +348,7 @@ def build_step_report_ref_message(
             except (TypeError, ValueError):
                 pass
 
-    sid_s = str(int(snapshot_id))
+    sid_s = str(int(version))
     if sid_s not in candidates_dirs:
         candidates_dirs.append(sid_s)
 
@@ -378,7 +378,7 @@ def build_step_report_ref_message(
             break
 
     common = {
-        "version_id": f"v{int(snapshot_id)}",
+        "version_id": f"v{int(version)}",
         "strategy_name": name,
         "step": normalized_step,
     }

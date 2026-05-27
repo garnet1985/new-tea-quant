@@ -46,9 +46,9 @@ class MLAnalyzer(BaseAnalyzer):
         }
 
     def _load_enumerator_data(self) -> pd.DataFrame | None:
-        metadata_path = self.context.sim_version_dir / "metadata.json"
+        metadata_path = self.context.output_version_dir / "metadata.json"
         if not metadata_path.exists():
-            metadata_path = self.context.sim_version_dir / "0_metadata.json"
+            metadata_path = self.context.output_version_dir / "0_metadata.json"
         if not metadata_path.exists():
             return None
         try:
@@ -56,8 +56,8 @@ class MLAnalyzer(BaseAnalyzer):
                 metadata = json.load(f)
             output_version_info = metadata.get("output_version", {})
             output_root_raw = output_version_info.get("output_root", "")
-            version_dir = output_version_info.get("version_dir", "")
-            if not output_root_raw or not version_dir:
+            enum_dir = output_version_info.get("enumerator_output_dir", "")
+            if not output_root_raw or not enum_dir:
                 return None
             output_root = Path(output_root_raw)
             if not output_root.is_absolute():
@@ -66,7 +66,7 @@ class MLAnalyzer(BaseAnalyzer):
                 output_root = PathManager.strategy_simulation_enum(
                     self.context.strategy_name
                 )
-            output_version_dir = output_root / version_dir
+            output_version_dir = output_root / enum_dir
             records: List[Dict[str, Any]] = []
             for csv_file in output_version_dir.glob("*_opportunities.csv"):
                 try:

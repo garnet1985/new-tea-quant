@@ -33,6 +33,7 @@ def fill_pending_buys(
     sim: "StrategySimulationSettings",
     market_profile: Optional[MarketProfile] = None,
     prev_bar: Optional[Dict[str, Any]] = None,
+    stock_status_risk: Optional[Any] = None,
 ) -> None:
     """在当日 bar 的 open 上完成昨日信号的 ``next_open`` 买入。"""
     if not pending:
@@ -45,6 +46,7 @@ def fill_pending_buys(
             sim=sim,
             market_profile=market_profile,
             prev_bar=prev_bar,
+            stock_status_risk=stock_status_risk,
         ):
             opportunity.buy_fill_pending = False
             opportunity.status = OpportunityStatus.ACTIVE.value
@@ -61,6 +63,7 @@ def execute_pending_exits_on_active(
     sim: "StrategySimulationSettings",
     market_profile: Optional[MarketProfile] = None,
     prev_bar: Optional[Dict[str, Any]] = None,
+    stock_status_risk: Optional[Any] = None,
 ) -> List[int]:
     """在当日 open 上完成昨日触发的 ``next_open`` 卖出。返回应从 active 移除的下标。"""
     completed: List[int] = []
@@ -70,6 +73,7 @@ def execute_pending_exits_on_active(
             bar,
             market_profile=market_profile,
             prev_bar=prev_bar,
+            stock_status_risk=stock_status_risk,
         ):
             completed.append(idx)
     return completed
@@ -100,6 +104,7 @@ def apply_no_next_bar_buy_fallback(
             opportunity.stock_id,
             prev_bar,
             buy_price,
+            exec_bar=signal_bar,
         )
     if policy == "unfinished":
         opportunity.status = OpportunityStatus.TESTING.value
@@ -142,6 +147,7 @@ def resolve_pending_exits_on_active_at_end(
     last_bar: Dict[str, Any],
     sim: "StrategySimulationSettings",
     market_profile: Optional[MarketProfile] = None,
+    stock_status_risk: Optional[Any] = None,
 ) -> None:
     for opportunity in active:
         if not opportunity.pending_exit:
@@ -154,12 +160,14 @@ def resolve_pending_exits_on_active_at_end(
                 last_kline=last_bar,
                 reason=pe.get("reason") or "enumeration_end",
                 market_profile=market_profile,
+                stock_status_risk=stock_status_risk,
             )
         else:
             opportunity.execute_pending_exit(
                 sim,
                 last_bar,
                 market_profile=market_profile,
+                stock_status_risk=stock_status_risk,
             )
 
 
@@ -178,6 +186,7 @@ def _fill_buy_on_bar(
     sim: "StrategySimulationSettings",
     market_profile: Optional[MarketProfile] = None,
     prev_bar: Optional[Dict[str, Any]] = None,
+    stock_status_risk: Optional[Any] = None,
 ) -> bool:
     raw = trade_theoretical_price_on_bar(
         TradePriceModel.NEXT_OPEN,
@@ -196,6 +205,9 @@ def _fill_buy_on_bar(
             opportunity.stock_id,
             prev_bar,
             buy_price,
+            stock_status_risk=stock_status_risk,
+            trade_date=opportunity.buy_date,
+            exec_bar=bar,
         )
     return True
 

@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Tuple, Optional, Sequence
 from pathlib import Path
 import logging
 
@@ -7,6 +7,7 @@ from core.modules.data_manager.data_manager import DataManager
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.data_class.handler_mapping import HandlerMapping
 from core.modules.data_source.execution_scheduler import DataSourceExecutionScheduler
+from core.modules.data_source.reserved_dependencies import RESERVED_DEPENDENCY_KEYS
 from core.modules.data_source.service.manager_helper import DataSourceManagerHelper
 from core.modules.data_source.service.provider_helper import DataSourceProviderHelper
 from core.modules.data_source.base_class.base_handler import BaseHandler
@@ -33,17 +34,214 @@ class DataSourceManager:
 
         self._execution_scheduler = DataSourceExecutionScheduler()
 
-
-    def execute(self):
+    def renew(
+        self,
+        table_name: Optional[str] = None,
+        *,
+        force: bool = False,
+    ) -> None:
         """
-        执行所有启用的数据源：发现 mapping/config/handler → 按依赖顺序执行。
+        按配置 renew 数据（CLI / 脚本统一入口）。
+
+        Args:
+            table_name: 绑定表名（如 ``sys_stock_klines``）或 data source key（如 ``stock_klines``）。
+                ``None`` 表示所有 ``is_enabled`` 的数据源。
+            force: 强制 refresh：从 ``default_start_date`` 重拉，跳过日缓存与 ``renew_if_over_days``。
+        """
+        if table_name:
+            key = self.resolve_renew_target(table_name)
+            self.execute(sources=(key,), force=force)
+            return
+        self.execute(sources=None, force=force)
+
+    def resolve_renew_target(self, table_or_source: str) -> str:
+        """
+        将表名或 data source key 解析为 mapping 中的 data source key。
+
+        Raises:
+            ValueError: 未启用或不存在。
+        """
+        name = str(table_or_source or "").strip()
+        if not name:
+            raise ValueError("table_name 不能为空")
+
+        self._flush_cache()
+        mappings = self._discover_mappings()
+        enabled = mappings.get_enabled()
+        if name in enabled:
+            return name
+
+        for key in enabled:
+            cfg = self._discover_config(key)
+            if cfg and cfg.get_table_name() == name:
+                return key
+
+        raise ValueError(
+            f"未找到表或数据源: {name}\n{self.format_renew_targets_help()}"
+        )
+
+    def list_renew_targets(self) -> List[Dict[str, str]]:
+        """已启用 renew 目标：``source``（key）与 ``table``（绑定表名）。"""
+        self._flush_cache()
+        mappings = self._discover_mappings()
+        rows: List[Dict[str, str]] = []
+        for key in sorted(mappings.get_enabled().keys()):
+            cfg = self._discover_config(key)
+            rows.append(
+                {
+                    "source": key,
+                    "table": str(cfg.get_table_name() if cfg else ""),
+                }
+            )
+        return rows
+
+    @classmethod
+    def format_renew_targets_help(cls) -> str:
+        """格式化 renew 可选表名，供 CLI 报错提示。"""
+        mgr = cls(is_verbose=False)
+        lines = ["可选表名 / data source key："]
+        for row in mgr.list_renew_targets():
+            table = row.get("table") or "?"
+            source = row.get("source") or "?"
+            if table == source:
+                lines.append(f"  - {table}")
+            else:
+                lines.append(f"  - {table}  (source: {source})")
+        return "\n".join(lines)
+
+    def execute(
+        self,
+        sources: Optional[Sequence[str]] = None,
+        *,
+        force: bool = False,
+    ):
+        """
+        执行数据源：发现 mapping/config/handler → 按依赖顺序执行。
+
+        对外推荐 ``renew(table_name=..., force=...)``；本方法供多源或内部调度。
+
+        Args:
+            sources: 仅执行这些 data source key；``None`` 表示全部已启用。
+            force: 强制全量重拉（见 ``renew``）。
+
         是否写库由各 handler 的 config 顶层 is_dry_run 控制（True 则不执行 DB 写入）。
         """
         self._flush_cache()
         mappings = self._discover_mappings()
         providers = self._discover_providers()
         handler_instances = self._discover_handlers(mappings, providers)
-        self._execution_scheduler.run(handler_instances, mappings)
+        enabled = set(mappings.get_enabled().keys())
+        by_key = {h.get_key(): h for h in handler_instances if h.get_key()}
+
+        if force:
+            self._clear_force_refresh_caches(sources, enabled)
+
+        if sources:
+            keys = tuple(str(k).strip() for k in sources if str(k).strip())
+            unknown = [k for k in keys if k not in enabled]
+            if unknown:
+                raise ValueError(
+                    f"未知或未启用的 data source: {unknown}；可选: {sorted(enabled)}"
+                )
+            self._execute_source_subset(keys, mappings, by_key, force=force)
+            return
+
+        self._execution_scheduler.run(handler_instances, mappings, force=force)
+
+    @staticmethod
+    def list_enabled_source_keys() -> List[str]:
+        """返回 mapping 中已启用的 data source key 列表。"""
+        mapping_path = PathManager.data_source_mapping()
+        mapping = DataSourceManagerHelper.discover_mappings(mapping_path)
+        return sorted(HandlerMapping(data_sources=mapping).get_enabled().keys())
+
+    def _clear_force_refresh_caches(
+        self,
+        sources: Optional[Sequence[str]],
+        enabled: set,
+    ) -> None:
+        """强制刷新时清理会短路 API 的 sys_cache 项。"""
+        run_list = sources is None or "stock_list" in set(sources or ())
+        if not run_list or "stock_list" not in enabled:
+            return
+        try:
+            dm = DataManager.get_instance()
+            if dm and dm.db_cache:
+                dm.db_cache.delete("stock_list_last_update")
+                logger.info("force_refresh：已清除 stock_list 日缓存")
+        except Exception as e:
+            logger.warning("force_refresh：清除 stock_list 缓存失败: %s", e)
+
+    def _execute_source_subset(
+        self,
+        keys: Tuple[str, ...],
+        mappings: HandlerMapping,
+        by_key: Dict[str, BaseHandler],
+        *,
+        force: bool,
+    ) -> None:
+        """只执行指定 data source；依赖从缓存或 DB 注入。"""
+        from core.modules.data_source.reserved_dependencies import resolve_reserved_dependency
+
+        missing = [k for k in keys if k not in by_key]
+        if missing:
+            raise ValueError(f"Handler 未就绪: {missing}")
+
+        dm = DataManager.get_instance()
+        if dm is None:
+            dm = DataManager(is_verbose=False)
+            dm.initialize()
+
+        scheduler = self._execution_scheduler
+        scheduler.mappings = mappings
+
+        need_list = any(
+            "stock_list" in mappings.get_depend_on_data_source_names(k)
+            for k in keys
+        )
+        if need_list and "stock_list" not in keys:
+            rows = dm.stock.list.load_all()
+            scheduler._dependency_cache["stock_list"] = rows
+            logger.info("从 DB 注入 stock_list 依赖：%s 只", len(rows))
+
+        handlers_for_topo = [by_key[k] for k in keys]
+        if need_list and "stock_list" not in keys and "stock_list" in by_key:
+            handlers_for_topo = [by_key["stock_list"]] + handlers_for_topo
+
+        sorted_all = scheduler._preprocess(handlers_for_topo)
+        sorted_handlers = [h for h in sorted_all if h.get_key() in keys]
+
+        preserved_list = (
+            scheduler._dependency_cache.get("stock_list")
+            if need_list and "stock_list" not in keys
+            else None
+        )
+        scheduler._dependency_cache.clear()
+        if preserved_list is not None:
+            scheduler._dependency_cache["stock_list"] = preserved_list
+        scheduler._failed_data_sources.clear()
+
+        total = len(sorted_handlers)
+        for idx, handler in enumerate(sorted_handlers):
+            key = handler.get_key()
+            logger.info("执行数据源 [%s/%s]: %s", idx + 1, total, key)
+            deps: Dict[str, Any] = {}
+            for dep_name in mappings.get_depend_on_data_source_names(key):
+                if dep_name in RESERVED_DEPENDENCY_KEYS:
+                    deps[dep_name] = resolve_reserved_dependency(dep_name)
+                elif dep_name in scheduler._dependency_cache:
+                    deps[dep_name] = scheduler._dependency_cache[dep_name]
+                else:
+                    raise ValueError(f"依赖未就绪: {key} -> {dep_name}（请先执行 {dep_name}）")
+            if force:
+                deps["_execution"] = {"force_refresh": True}
+            result = handler.execute(deps)
+            if mappings.is_dependency_for_downstream(key):
+                if result and "data" in result:
+                    scheduler._dependency_cache[key] = result["data"]
+            logger.info("完成: %s", key)
+
+        scheduler._retry_failed_data_sources()
 
     def _flush_cache(self):
         self._all_valid_configs_cache.clear()

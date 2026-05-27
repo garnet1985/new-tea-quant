@@ -41,7 +41,7 @@ def resolve_reserved_dependency(dep_key: str) -> Any:
 
 def _resolve_latest_trading_date() -> List[dict]:
     """
-    通过 CalendarService 解析最新已完成交易日（先缓存、再 fallback、再写回 sys_cache）。
+    通过 CalendarService.get_latest_completed_trading_date 解析最新已完成交易日。
     返回 [{"date": "YYYYMMDD"}]，与原 latest_trading_date handler 的 data 形状一致。
     """
     from core.modules.data_manager.data_manager import DataManager

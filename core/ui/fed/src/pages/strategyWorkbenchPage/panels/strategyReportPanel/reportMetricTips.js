@@ -10,6 +10,7 @@ export const ENUM_SECTION_TIPS = {
   overview: '汇总机会数量与完成比例，用于判断样本是否充足、结果是否可信。',
   stockStats: '观察机会在股票间的分布是否均衡；下方柱状图为「每股机会数」的分布形态。',
   timing: '观察机会在时间上的疏密与持续长度，评估是否易出现集中触发。',
+  tradability: '统计目标日处于涨跌停等不可成交情形的机会占比，用于评估信号可执行性。',
 };
 
 export const ENUM_METRIC_TIPS = {
@@ -48,6 +49,16 @@ export const ENUM_METRIC_TIPS = {
     '各股机会间隔的离散程度（SD 为天数标准差，CV 为变异系数）。'
     + '数值越大，节奏越不均匀；越小则越接近。'
     + '通常宜适中或偏小，以利于资金安排；下方为系统摘要。',
+
+  limitUpBuy:
+    '目标卖出日处于涨停、按回测假设无法买入的机会次数及占可评估买入样本的比例。'
+    + '比例越高，越多信号在实盘中可能买不到。'
+    + '通常越低越好。',
+
+  limitDownSell:
+    '目标卖出日处于跌停、按回测假设无法卖出的机会次数及占可评估卖出样本的比例。'
+    + '比例越高，平仓越可能受阻。'
+    + '通常越低越好。',
 };
 
 export const ENUM_CHART_TIPS = {
@@ -61,6 +72,7 @@ export const PRICE_SECTION_TIPS = {
   overview: '价格层单股规则下的胜率、收益率、持仓与年化折算，用于评估信号质量。',
   sampleCoverage: '核对交易笔数、覆盖股票数及未平仓数量，样本不足或尾仓过多会影响结论。',
   profitStructure: '除平均盈亏外，关注赢亏结构及收益率（ROI）分布是否均衡。',
+  executionSkips: '因涨跌停或股票状态设置而跳过模拟投资的笔数，用于对照回测假设是否过于乐观。',
 };
 
 export const PRICE_METRIC_TIPS = {
@@ -125,6 +137,35 @@ export const PRICE_METRIC_TIPS = {
     '各笔收益率（ROI）的离散程度；有标准差时展示波动，否则展示分位数。'
     + '波动越大，收益越不稳定；越平稳则分布越集中。'
     + '在平均收益相近时，通常越小越稳健。',
+
+  skippedBuyAtLimitUp:
+    '因涨停且规则不允许买入而跳过的投资笔数。'
+    + '数值越大，越多机会未进入回测。'
+    + '通常越低越好（或反映你关闭「涨停日允许买入」后的保守程度）。',
+
+  skippedSellAtLimitDown:
+    '因跌停且规则不允许卖出而跳过的卖出笔数。'
+    + '数值越大，平仓假设越受阻。'
+    + '通常越低越好。',
+
+  skippedStockStatus:
+    '因触发日股票状态命中「跳过投资机会」配置而跳过的投资笔数。'
+    + '数值越大，越多 ST/*ST 等机会未模拟。'
+    + '需与策略风控设定一并理解，无单纯优劣。',
+
+  skippedBuyParticipation:
+    '因计划买入股数超过当日成交量×最大参与率且选择「跳过」而未成交的笔数。'
+    + '反映流动性约束下的可执行性。',
+
+  skippedSellParticipation:
+    '因计划卖出股数超过当日成交量×最大参与率且选择「跳过」而未成交的笔数。',
+
+  clippedBuyParticipation:
+    '买入时因参与率上限被缩量至可成交股数、仍完成成交的笔数。'
+    + '与「跳过」对照，反映 clip 模式下的部分成交。',
+
+  clippedSellParticipation:
+    '卖出时因参与率上限被缩量、仍完成成交的笔数。',
 };
 
 export const PRICE_CHART_TIPS = {
@@ -146,6 +187,8 @@ export const CAPITAL_SECTION_TIPS = {
   utilization: '观察仓位与现金占用，评估资金是否闲置或长期满负荷。',
   risk: '关注回撤深度、持续时间、连续亏损及大额单笔亏损。',
   concentration: '评估收益是否过度依赖少数股票。',
+  executionSkips:
+    '因涨跌停、股票状态或成交量参与率约束而跳过/缩量的笔数，用于对照资金层成交假设。',
 };
 
 export const CAPITAL_METRIC_TIPS = {
@@ -247,6 +290,14 @@ export const CAPITAL_METRIC_TIPS = {
     '各股盈亏的变异系数（CV）。'
     + '数值越大，个股差异越大、结果越依赖个别股票。'
     + '在总收益相近时，通常越小越好。',
+
+  skippedBuyAtLimitUp: PRICE_METRIC_TIPS.skippedBuyAtLimitUp,
+  skippedSellAtLimitDown: PRICE_METRIC_TIPS.skippedSellAtLimitDown,
+  skippedStockStatus: PRICE_METRIC_TIPS.skippedStockStatus,
+  skippedBuyParticipation: PRICE_METRIC_TIPS.skippedBuyParticipation,
+  skippedSellParticipation: PRICE_METRIC_TIPS.skippedSellParticipation,
+  clippedBuyParticipation: PRICE_METRIC_TIPS.clippedBuyParticipation,
+  clippedSellParticipation: PRICE_METRIC_TIPS.clippedSellParticipation,
 };
 
 export const CAPITAL_CHART_TIPS = {

@@ -29,7 +29,6 @@ def _api(params_mapping: Dict[str, str]) -> Dict[str, Any]:
     return {
         "provider_name": "p",
         "method": "m",
-        "max_per_minute": 60,
         "params_mapping": params_mapping,
     }
 

@@ -164,51 +164,31 @@ userspace/config/                # 用户覆盖配置（可选）
 
 ### 深度合并（示意）
 
+以 `data.json` 中的 `benchmark_stock_index_list` 为例：
+
 ```json
-// core/default_config/data.json
+// core/default_config/data.json（节选）
 {
   "default_start_date": "20080101",
   "decimal_places": 2,
-  "stock_list_filter": {
-    "exclude_patterns": {
-      "start_with": {
-        "id": ["688", "8"],
-        "name": ["ST", "*ST"]
-      }
-    }
-  }
+  "benchmark_stock_index_list": [
+    { "id": "000001.SH", "name": "上证指数", "description": "…" },
+    { "id": "000300.SH", "name": "沪深300", "description": "…" }
+  ]
 }
 
 // userspace/config/data.json
 {
-  "stock_list_filter": {
-    "exclude_patterns": {
-      "start_with": {
-        "id": ["688", "8"]
-      }
-    }
-  }
+  "benchmark_stock_index_list": [
+    { "id": "000001.SH", "name": "上证指数", "description": "…" },
+    { "id": "399006.SZ", "name": "创业板指", "description": "自定义说明" }
+  ]
 }
 ```
 
-合并结果：
+合并结果：用户提供的 `benchmark_stock_index_list` **整段替换**默认列表（数组按字段整体覆盖，不做元素级合并）；`default_start_date`、`decimal_places` 等未在用户文件中出现的字段仍继承默认值。
 
-```json
-{
-  "default_start_date": "20080101",
-  "decimal_places": 2,
-  "stock_list_filter": {
-    "exclude_patterns": {
-      "start_with": {
-        "id": ["688", "8"],
-        "name": ["ST", "*ST"]
-      }
-    }
-  }
-}
-```
-
-> 可以看到：用户只覆盖了 `id` 部分，其余字段保持不变。
+> 股票列表筛选不再通过 `data.json` 配置；见 ListService / Tag / 策略 `pool`。
 
 关于「在代码中如何访问这些配置值」（例如提供按域获取完整配置、或语义化便捷方法），  
 请参考 [`core/infra/project_context/docs/ARCHITECTURE.md`](../../core/infra/project_context/docs/ARCHITECTURE.md) 中关于配置管理组件的说明。

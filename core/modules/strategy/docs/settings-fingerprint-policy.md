@@ -70,7 +70,7 @@
 |------|------|
 | **`use_sampling`** | **参与**（`test/` 与 `output/`；若工作台已统一「全链路采样开关」，实现上勿与价格/资金两处重复矛盾）。 |
 | **`max_test_versions`** | **剔除**（仅磁盘保留个数，不改变单次计算结果）。 |
-| **`max_output_versions`** | **剔除** |
+| **`simulation.retention.max_output_versions`** | **剔除**（磁盘保留份数） |
 | **`max_workers`** | **剔除**（并发与性能） |
 | **`is_verbose`** | **剔除** |
 | **`memory_budget_mb`** | **剔除** |

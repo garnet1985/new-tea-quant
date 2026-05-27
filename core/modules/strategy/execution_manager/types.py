@@ -22,7 +22,7 @@ class ProgressSink(Protocol):
         pass
 
     def on_substep_finish(
-        self, substep: str, index: int, total: int, snapshot_id: int
+        self, substep: str, index: int, total: int, version: int
     ) -> None:
         """子步骤成功结束（可选；BFF 编排信封用）。"""
         pass
@@ -40,22 +40,22 @@ __all__ = [
 
 
 class WorkbenchExecutionResult:
-    """同步执行结束：快照 id、可选的最后子步骤产物（供 CLI 展示）。"""
+    """同步执行结束：工作台快照 version、可选的最后子步骤产物（供 CLI 展示）。"""
 
-    snapshot_id: int
+    version: int
     error: Any
     last_payload: Any
-    last_used_db_cache: Any
+    used_db_cache: Any
 
     def __init__(
         self,
         *,
-        snapshot_id: int = 0,
+        version: int = 0,
         error: Any = None,
         last_payload: Any = None,
-        last_used_db_cache: Any = None,
+        used_db_cache: Any = None,
     ) -> None:
-        self.snapshot_id = snapshot_id
+        self.version = version
         self.error = error
         self.last_payload = last_payload
-        self.last_used_db_cache = last_used_db_cache
+        self.used_db_cache = used_db_cache

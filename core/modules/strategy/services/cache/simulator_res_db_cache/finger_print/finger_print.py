@@ -35,8 +35,6 @@ def to_env_hash(
     *,
     strategy_name: str,
     stock_ids: Sequence[str],
-    start_date: str,
-    end_date: str,
     run_mode: str,
     engine_version: str,
     worker_module_path: str = "",
@@ -51,8 +49,6 @@ def to_env_hash(
         env_fingerprint_payload(
             strategy_name=strategy_name,
             stock_ids=stock_ids,
-            start_date=start_date,
-            end_date=end_date,
             run_mode=run_mode,
             engine_version=engine_version,
             worker_module_path=worker_module_path,
@@ -165,8 +161,6 @@ def _fingerprint_pair_from_env(
         settings=validated_settings,
         strategy_name=strategy_name,
         stock_ids=env.stock_ids,
-        start_date=env.env_start_date,
-        end_date=env.env_end_date,
         run_mode=env.run_mode,
         engine_version=env.engine_version,
         worker_module_path=env.worker_module_path,
@@ -181,8 +175,6 @@ def db_cache_fingerprint_pair(
     settings: Any,
     strategy_name: str,
     stock_ids: Sequence[str],
-    start_date: str,
-    end_date: str,
     run_mode: Optional[str] = None,
     engine_version: Optional[str] = None,
     worker_module_path: str = "",
@@ -208,8 +200,6 @@ def db_cache_fingerprint_pair(
         to_env_hash(
             strategy_name=strategy_name,
             stock_ids=stock_ids,
-            start_date=str(start_date),
-            end_date=str(end_date),
             run_mode=str(rm),
             engine_version=str(engine_version),
             worker_module_path=worker_module_path,
@@ -225,8 +215,6 @@ def db_cache_fingerprint_pair_from_parts(
     semantic_core_payload: Dict[str, Any],
     strategy_name: str,
     stock_ids: Sequence[str],
-    start_date: str,
-    end_date: str,
     run_mode: str,
     engine_version: Optional[str] = None,
     worker_module_path: str = "",
@@ -244,8 +232,6 @@ def db_cache_fingerprint_pair_from_parts(
         to_env_hash(
             strategy_name=strategy_name,
             stock_ids=stock_ids,
-            start_date=str(start_date),
-            end_date=str(end_date),
             run_mode=str(run_mode),
             engine_version=str(ev),
             worker_module_path=worker_module_path,
@@ -254,18 +240,6 @@ def db_cache_fingerprint_pair_from_parts(
             data_contract_mapping=data_contract_mapping,
         ),
     )
-
-
-def __getattr__(name: str):
-    """惰性导出（兼容旧路径 ``finger_print.StrategySettingsService``）。"""
-    if name == "StrategySettingsService":
-        from core.modules.strategy.launcher.run_service import (
-            StrategySettingsService as _StrategySettingsService,
-        )
-
-        return _StrategySettingsService
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
 
 __all__ = [
     "DbCacheFingerprintResolution",

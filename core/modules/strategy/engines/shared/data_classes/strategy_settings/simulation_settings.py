@@ -2,8 +2,8 @@
 """根级 ``simulation``：回测执行假设（盯盘 / 买卖价模型 / 滑点 / 边角），与 ``fees`` 等同模式。
 
 - **trigger**：信号由扫描步骤决定，不在此块配置。
-- **template**（``deterministic`` / ``extreme``）：仅允许写 ``template`` 字段，执行假设由预设快照决定，**不可**在同块覆盖细项。
-- **template**（``custom``）：必须提供 monitor/buy/sell 价模型，并可配置 slippage、edges 等。
+- **template**（``standard`` / ``strict`` / ``ideal`` / ``extreme``）：预设快照；settings 仅写 ``template``（及 ``retention``）。
+- **template**（``custom``）：必须提供 monitor/buy/sell 价模型，并可配置 slippage、edges、skip_investment_when 等。
 """
 
 from __future__ import annotations
@@ -11,6 +11,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, Literal, Optional, Tuple, TypeVar
+
+from core.modules.strategy.engines.shared.helpers.participation import (
+    ParticipationOnExceed,
+    parse_max_participation_rate,
+    parse_participation_on_exceed,
+)
 
 from .settings_base import SettingsBase, ValidationReport
 
@@ -43,17 +49,15 @@ class ExtremeSameBarOrder(str, Enum):
 
 NoNextBarPolicy = Literal["use_last_close", "skip_trade", "unfinished"]
 
-# 工作台表单 ``simulation.template`` 合法取值（与 ``_default_snapshot_for_template`` 一致）
-KNOWN_SIMULATION_TEMPLATES = frozenset({"deterministic", "extreme", "custom"})
+PRESET_SIMULATION_TEMPLATE_NAMES = frozenset({"standard", "strict", "ideal", "extreme"})
+KNOWN_SIMULATION_TEMPLATES = PRESET_SIMULATION_TEMPLATE_NAMES | frozenset({"custom"})
 
-# 已移除的 edges 键（不再解析，validate 报 critical）
+# 已移除的 edges 键（validate 报 critical）
 _REMOVED_SIMULATION_EDGE_KEYS: Dict[str, str] = {
     "skip_limit_up_buy": "改用 simulation.edges.allow_buy_at_limit_up",
     "skip_limit_down_sell": "改用 simulation.edges.allow_sell_at_limit_down",
 }
 
-# deterministic / extreme：仅允许写 template，细节由预设提供；改细节须用 custom
-_PRESET_TEMPLATE_NAMES = frozenset({"deterministic", "default", "extreme"})
 _SIMULATION_DETAIL_KEYS = frozenset(
     {
         "monitor_price_model",
@@ -63,6 +67,10 @@ _SIMULATION_DETAIL_KEYS = frozenset(
         "edges",
         "extreme_same_bar_order",
         "extreme_same_bar_random_seed",
+        "skip_investment_when",
+        "liquidity",
+        "max_participation_rate",
+        "participation_on_exceed",
     }
 )
 
@@ -80,6 +88,22 @@ class _ParsedSnapshot:
     allow_sell_at_limit_down: bool
     extreme_same_bar_order: ExtremeSameBarOrder
     extreme_same_bar_random_seed: Optional[int]
+    skip_investment_when: Tuple[str, ...]
+    max_participation_rate: float
+    participation_on_exceed: ParticipationOnExceed
+
+
+def canonical_simulation_template_id(raw: Any) -> str:
+    """将 settings 规范为合法 ``simulation.template``。"""
+    t = str(raw or "").strip().lower()
+    if t == "":
+        return "standard"
+    if t in KNOWN_SIMULATION_TEMPLATES:
+        return t
+    raise ValueError(
+        f"simulation.template 非法: {raw!r}；"
+        f"允许: {', '.join(sorted(KNOWN_SIMULATION_TEMPLATES))}"
+    )
 
 
 def _enum_value(enum_cls: type[_E], raw: Any, field: str) -> _E:
@@ -100,21 +124,57 @@ def _optional_enum(enum_cls: type[_E], raw: Any, field: str, default: _E) -> _E:
     return _enum_value(enum_cls, raw, field)
 
 
+def _realistic_daily_snapshot(
+    *,
+    template: str,
+    allow_at_limit: bool,
+    skip_investment_when: Tuple[str, ...],
+    max_participation_rate: float = 0.1,
+    participation_on_exceed: ParticipationOnExceed = "clip",
+) -> _ParsedSnapshot:
+    return _ParsedSnapshot(
+        template=template,
+        monitor_price_model=MonitorPriceModel.CLOSE,
+        buy_price_model=TradePriceModel.NEXT_OPEN,
+        sell_price_model=TradePriceModel.CLOSE,
+        slippage_buy_bps=0.0,
+        slippage_sell_bps=0.0,
+        edges_no_next_bar="use_last_close",
+        allow_buy_at_limit_up=allow_at_limit,
+        allow_sell_at_limit_down=allow_at_limit,
+        extreme_same_bar_order=ExtremeSameBarOrder.STOP_FIRST,
+        extreme_same_bar_random_seed=None,
+        skip_investment_when=skip_investment_when,
+        max_participation_rate=max_participation_rate,
+        participation_on_exceed=participation_on_exceed,
+    )
+
+
 def _default_snapshot_for_template(tmpl: str) -> _ParsedSnapshot:
-    t = tmpl.strip().lower()
-    if t in ("", "deterministic", "default"):
-        return _ParsedSnapshot(
-            template="deterministic",
-            monitor_price_model=MonitorPriceModel.CLOSE,
-            buy_price_model=TradePriceModel.NEXT_OPEN,
-            sell_price_model=TradePriceModel.CLOSE,
-            slippage_buy_bps=0.0,
-            slippage_sell_bps=0.0,
-            edges_no_next_bar="use_last_close",
-            allow_buy_at_limit_up=True,
-            allow_sell_at_limit_down=True,
-            extreme_same_bar_order=ExtremeSameBarOrder.STOP_FIRST,
-            extreme_same_bar_random_seed=None,
+    t = canonical_simulation_template_id(tmpl)
+    if t == "standard":
+        return _realistic_daily_snapshot(
+            template="standard",
+            allow_at_limit=False,
+            skip_investment_when=(),
+            max_participation_rate=0.1,
+            participation_on_exceed="clip",
+        )
+    if t == "strict":
+        return _realistic_daily_snapshot(
+            template="strict",
+            allow_at_limit=False,
+            skip_investment_when=("st", "star_st"),
+            max_participation_rate=0.1,
+            participation_on_exceed="skip",
+        )
+    if t == "ideal":
+        return _realistic_daily_snapshot(
+            template="ideal",
+            allow_at_limit=True,
+            skip_investment_when=(),
+            max_participation_rate=0.1,
+            participation_on_exceed="clip",
         )
     if t == "extreme":
         return _ParsedSnapshot(
@@ -129,18 +189,77 @@ def _default_snapshot_for_template(tmpl: str) -> _ParsedSnapshot:
             allow_sell_at_limit_down=True,
             extreme_same_bar_order=ExtremeSameBarOrder.STOP_FIRST,
             extreme_same_bar_random_seed=None,
+            skip_investment_when=(),
+            max_participation_rate=0.1,
+            participation_on_exceed="skip",
         )
     if t == "custom":
-        return _default_snapshot_for_template("deterministic")
-    raise ValueError(f"simulation.template 非法: {tmpl!r}；允许 deterministic | extreme | custom")
+        return _default_snapshot_for_template("standard")
+    raise ValueError(f"simulation.template 非法: {tmpl!r}")
+
+
+def simulation_template_defaults_payload(tmpl: str) -> Dict[str, Any]:
+    """工作台只读展示：某 preset / custom 基线的嵌套 dict（与表单字段一致）。"""
+    snap = _default_snapshot_for_template(tmpl)
+    seed = snap.extreme_same_bar_random_seed
+    return {
+        "monitor_price_model": snap.monitor_price_model.value,
+        "buy_price_model": snap.buy_price_model.value,
+        "sell_price_model": snap.sell_price_model.value,
+        "slippage": {
+            "buy_bps": snap.slippage_buy_bps,
+            "sell_bps": snap.slippage_sell_bps,
+        },
+        "edges": {
+            "no_next_bar": snap.edges_no_next_bar,
+            "allow_buy_at_limit_up": snap.allow_buy_at_limit_up,
+            "allow_sell_at_limit_down": snap.allow_sell_at_limit_down,
+        },
+        "extreme_same_bar_order": snap.extreme_same_bar_order.value,
+        "extreme_same_bar_random_seed": seed if seed is not None else "",
+        "skip_investment_when": list(snap.skip_investment_when),
+        "liquidity": {
+            "max_participation_rate": snap.max_participation_rate,
+            "participation_on_exceed": snap.participation_on_exceed,
+        },
+    }
+
+
+def _parse_liquidity_from_raw(
+    raw: Dict[str, Any],
+    *,
+    default_rate: float,
+    default_on_exceed: ParticipationOnExceed,
+) -> Tuple[float, ParticipationOnExceed]:
+    liq = raw.get("liquidity")
+    block: Dict[str, Any] = liq if isinstance(liq, dict) else {}
+    rate_raw = block.get("max_participation_rate", raw.get("max_participation_rate"))
+    exceed_raw = block.get("participation_on_exceed", raw.get("participation_on_exceed"))
+    rate = parse_max_participation_rate(
+        rate_raw if rate_raw is not None and rate_raw != "" else default_rate,
+        default=default_rate,
+    )
+    on_exceed = (
+        parse_participation_on_exceed(exceed_raw)
+        if exceed_raw is not None and exceed_raw != ""
+        else default_on_exceed
+    )
+    return rate, on_exceed
 
 
 def _is_preset_template(tmpl: str) -> bool:
-    t = str(tmpl or "deterministic").strip().lower()
-    return t in _PRESET_TEMPLATE_NAMES or t == ""
+    try:
+        t = canonical_simulation_template_id(tmpl)
+    except ValueError:
+        return False
+    return t in PRESET_SIMULATION_TEMPLATE_NAMES
 
 
 def _parse_custom_snapshot(raw: Dict[str, Any]) -> _ParsedSnapshot:
+    from core.modules.strategy.engines.shared.helpers.skip_investment_when import (
+        parse_skip_investment_when,
+    )
+
     base = _default_snapshot_for_template("custom")
     monitor = raw.get("monitor_price_model")
     buy = raw.get("buy_price_model")
@@ -203,6 +322,13 @@ def _parse_custom_snapshot(raw: Dict[str, Any]) -> _ParsedSnapshot:
         if "allow_sell_at_limit_down" in edges:
             allow_sell_at_limit_down = bool(edges.get("allow_sell_at_limit_down"))
 
+    skip = parse_skip_investment_when(raw.get("skip_investment_when", ()))
+    max_rate, on_exceed = _parse_liquidity_from_raw(
+        raw,
+        default_rate=base.max_participation_rate,
+        default_on_exceed=base.participation_on_exceed,
+    )
+
     return _ParsedSnapshot(
         template="custom",
         monitor_price_model=monitor_m,
@@ -215,16 +341,24 @@ def _parse_custom_snapshot(raw: Dict[str, Any]) -> _ParsedSnapshot:
         allow_sell_at_limit_down=allow_sell_at_limit_down,
         extreme_same_bar_order=order,
         extreme_same_bar_random_seed=seed_out,
+        skip_investment_when=skip,
+        max_participation_rate=max_rate,
+        participation_on_exceed=on_exceed,
     )
 
 
 def _parse_snapshot(raw: Dict[str, Any]) -> _ParsedSnapshot:
-    tmpl = str(raw.get("template") or "deterministic").strip().lower()
+    tmpl = canonical_simulation_template_id(raw.get("template"))
     if tmpl == "custom":
         return _parse_custom_snapshot(raw)
-    if _is_preset_template(tmpl):
-        return _default_snapshot_for_template(tmpl)
-    raise ValueError(f"simulation.template 非法: {tmpl!r}；允许 deterministic | extreme | custom")
+    return _default_snapshot_for_template(tmpl)
+
+
+def _apply_simulation_template_default(sim: Dict[str, Any]) -> None:
+    """省略 template 时写入 ``standard``。"""
+    raw_tpl = sim.get("template")
+    if raw_tpl is None or str(raw_tpl).strip() == "":
+        sim["template"] = "standard"
 
 
 @dataclass
@@ -248,8 +382,9 @@ class StrategySimulationSettings(SettingsBase):
     def apply_defaults(self) -> None:
         object.__setattr__(self, "_parsed_cache", None)
         sim = self.simulation
-        sim.setdefault("template", "deterministic")
-        tmpl = str(sim.get("template") or "deterministic").strip().lower()
+        sim.setdefault("template", "standard")
+        _apply_simulation_template_default(sim)
+        tmpl = str(sim.get("template") or "standard").strip().lower()
         if tmpl != "custom":
             return
         sim.setdefault("slippage", {})
@@ -262,8 +397,18 @@ class StrategySimulationSettings(SettingsBase):
             sim["edges"] = {}
         sim["edges"].setdefault("no_next_bar", "use_last_close")
         edges = sim["edges"]
-        edges.setdefault("allow_buy_at_limit_up", True)
-        edges.setdefault("allow_sell_at_limit_down", True)
+        edges.setdefault("allow_buy_at_limit_up", False)
+        edges.setdefault("allow_sell_at_limit_down", False)
+        if "skip_investment_when" not in sim:
+            sim["skip_investment_when"] = []
+        elif sim.get("skip_investment_when") is None:
+            sim["skip_investment_when"] = []
+        sim.setdefault("liquidity", {})
+        if not isinstance(sim["liquidity"], dict):
+            sim["liquidity"] = {}
+        liq = sim["liquidity"]
+        liq.setdefault("max_participation_rate", 0.1)
+        liq.setdefault("participation_on_exceed", "clip")
 
     @property
     def _parsed(self) -> _ParsedSnapshot:
@@ -319,9 +464,58 @@ class StrategySimulationSettings(SettingsBase):
     def extreme_same_bar_random_seed(self) -> Optional[int]:
         return self._parsed.extreme_same_bar_random_seed
 
+    @property
+    def skip_investment_when(self) -> Tuple[str, ...]:
+        return self._parsed.skip_investment_when
+
+    @property
+    def max_participation_rate(self) -> float:
+        return self._parsed.max_participation_rate
+
+    @property
+    def participation_on_exceed(self) -> ParticipationOnExceed:
+        return self._parsed.participation_on_exceed
+
+    def _validate_liquidity(self, result: ValidationReport) -> None:
+        try:
+            tmpl = canonical_simulation_template_id(self.simulation.get("template", "standard"))
+        except ValueError:
+            return
+        if tmpl != "custom":
+            return
+        try:
+            _parse_liquidity_from_raw(
+                self.simulation,
+                default_rate=0.1,
+                default_on_exceed="clip",
+            )
+        except ValueError as exc:
+            SettingsBase.add_critical(result, "simulation.liquidity", str(exc))
+
+    def _validate_skip_investment_when(self, result: ValidationReport) -> None:
+        try:
+            tmpl = canonical_simulation_template_id(self.simulation.get("template", "standard"))
+        except ValueError:
+            return
+        if tmpl != "custom":
+            return
+        try:
+            from core.modules.strategy.engines.shared.helpers.skip_investment_when import (
+                parse_skip_investment_when,
+            )
+
+            _ = parse_skip_investment_when(self.simulation.get("skip_investment_when"))
+        except ValueError as exc:
+            SettingsBase.add_critical(result, "simulation.skip_investment_when", str(exc))
+
     def _validate_preset_template_no_detail_overrides(self, result: ValidationReport) -> None:
         sim = self.simulation
-        tmpl = str(sim.get("template") or "deterministic").strip().lower()
+        raw_tpl = sim.get("template")
+        try:
+            tmpl = canonical_simulation_template_id(raw_tpl if raw_tpl is not None else "standard")
+        except ValueError as exc:
+            SettingsBase.add_critical(result, "simulation.template", str(exc))
+            return
         if not _is_preset_template(tmpl):
             return
         for key in _SIMULATION_DETAIL_KEYS:
@@ -358,9 +552,12 @@ class StrategySimulationSettings(SettingsBase):
         if sim is not None and not isinstance(sim, dict):
             SettingsBase.add_critical(result, "simulation", "simulation 必须为 dict")
             return result
+        if isinstance(sim, dict):
+            self._validate_preset_template_no_detail_overrides(result)
         self.apply_defaults()
-        self._validate_preset_template_no_detail_overrides(result)
         self._validate_removed_edge_keys(result)
+        self._validate_liquidity(result)
+        self._validate_skip_investment_when(result)
         try:
             object.__setattr__(self, "_parsed_cache", None)
             _ = _parse_snapshot(dict(self.simulation))
@@ -375,8 +572,12 @@ class StrategySimulationSettings(SettingsBase):
 
 __all__ = [
     "ExtremeSameBarOrder",
+    "KNOWN_SIMULATION_TEMPLATES",
     "MonitorPriceModel",
     "NoNextBarPolicy",
+    "PRESET_SIMULATION_TEMPLATE_NAMES",
     "StrategySimulationSettings",
     "TradePriceModel",
+    "canonical_simulation_template_id",
+    "simulation_template_defaults_payload",
 ]

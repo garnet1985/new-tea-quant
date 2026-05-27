@@ -6,16 +6,19 @@
 - kline_service: K线数据服务
 - tag_service: 标签数据服务
 - corporate_finance_service: 企业财务数据服务
+- st_period_service: ST/*ST 风险警示时段
 """
 
 from .list_service import ListService
 from .kline_service import KlineService
 from .tag_service import TagDataService
 from .corporate_finance_service import CorporateFinanceService
+from .st_period_service import StPeriodService
 
 __all__ = [
     'ListService',
     'KlineService',
     'TagDataService',
     'CorporateFinanceService',
+    'StPeriodService',
 ]

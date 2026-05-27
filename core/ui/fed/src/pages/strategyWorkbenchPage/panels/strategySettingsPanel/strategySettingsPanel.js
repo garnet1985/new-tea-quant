@@ -73,6 +73,8 @@ export function StrategySettingsPanel({
   allocationModeOptions,
   samplingStrategyOptions,
   simulationTemplateOptions,
+  simulationTemplateProfiles,
+  skipInvestmentWhenOptions,
   marketProfileOptions,
 }) {
   const [samplingEditorErrors, setSamplingEditorErrors] = useState({});
@@ -89,8 +91,8 @@ export function StrategySettingsPanel({
     [samplingStrategyOptions],
   );
   const simulationSchema = useMemo(
-    () => buildStrategySimulationSchema(simulationTemplateOptions),
-    [simulationTemplateOptions],
+    () => buildStrategySimulationSchema(simulationTemplateOptions, skipInvestmentWhenOptions),
+    [simulationTemplateOptions, skipInvestmentWhenOptions],
   );
   const workbenchEditorContext = useMemo(() => ({ defaultTooltipShine: true }), []);
   const coreEditorContext = useMemo(
@@ -156,6 +158,7 @@ export function StrategySettingsPanel({
             simulation={settings?.simulation}
             onSimulationChange={onSimulationChange}
             schema={simulationSchema}
+            simulationTemplateProfiles={simulationTemplateProfiles}
             context={workbenchEditorContext}
           />
         </SectionAccordion>

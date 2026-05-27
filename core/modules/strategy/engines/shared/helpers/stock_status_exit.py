@@ -250,16 +250,19 @@ def apply_stock_status_risk_management_from_settings(
         )
 
         settings = StockStatusRiskManagementSettings.from_goal_block(None)
-        sid = str(
-            (stock or opportunity.stock or {}).get("id")
-            or opportunity.stock_id
-            or ""
-        ).strip()
-        stock_status_risk = build_stock_status_risk_runtime_context(
-            stock_meta=stock or opportunity.stock or {},
-            settings=settings,
-            stock_id=sid,
-        )
+        stock_meta = stock or opportunity.stock or {}
+        if settings.rules:
+            sid = str(stock_meta.get("id") or opportunity.stock_id or "").strip()
+            stock_status_risk = build_stock_status_risk_runtime_context(
+                stock_meta=stock_meta,
+                settings=settings,
+                stock_id=sid,
+            )
+        else:
+            stock_status_risk = StockStatusRiskRuntimeContext.build(
+                stock_meta=stock_meta,
+                settings=settings,
+            )
     return apply_stock_status_risk_management(
         opportunity,
         sim,

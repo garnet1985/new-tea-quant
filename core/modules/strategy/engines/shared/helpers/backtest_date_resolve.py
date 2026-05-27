@@ -115,9 +115,17 @@ def resolve_backtest_start_date(
         return ResolvedBacktestDate(configured, SOURCE_SETTINGS)
 
     term = (kline_term or kline_term_from_settings_view(settings_view)).strip() or "daily"
-    if data_manager is not None:
+    dm = data_manager
+    if dm is None and stock_ids:
+        try:
+            from core.modules.data_manager import DataManager
+
+            dm = DataManager(is_verbose=False)
+        except Exception:
+            dm = None
+    if dm is not None:
         earliest = _load_earliest_kline_date(
-            data_manager=data_manager,
+            data_manager=dm,
             term=term,
             stock_ids=stock_ids,
         )
@@ -165,10 +173,6 @@ def resolve_backtest_universe(
 
             dm = DataManager(is_verbose=False)
         latest = resolve_latest_completed_trading_date(dm)
-    elif dm is None and not settings_view.start_date.strip():
-        from core.modules.data_manager import DataManager
-
-        dm = DataManager(is_verbose=False)
 
     end = resolve_backtest_end_date(
         settings_view=settings_view,
@@ -216,10 +220,6 @@ def resolve_backtest_date_range(
 
             dm = DataManager(is_verbose=False)
         latest = resolve_latest_completed_trading_date(dm)
-    elif dm is None and not settings_view.start_date.strip():
-        from core.modules.data_manager import DataManager
-
-        dm = DataManager(is_verbose=False)
 
     start = resolve_backtest_start_date(
         settings_view=settings_view,

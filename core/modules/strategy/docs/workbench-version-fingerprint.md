@@ -30,7 +30,7 @@
 |------|------|----------------|
 | **核心 settings** | 去掉不参与回测结果的字段后的规范化对象（`settings_core`） | 前端 API 形态 → BED 规范化与校验 → 再按策略文档剔除（见 [`settings-fingerprint-policy.md`](./settings-fingerprint-policy.md)） |
 | **股票列表** | 本次运行实际使用的标的集合 | 规范化：排序、去重、统一代码格式；若以采样展开后的列表为准，须在契约中写明（建议与枚举器实际使用列表一致） |
-| **回测时间段** | 起始日、结束日 | 与三步链路共用的一套解析结果（含默认值展开后的最终字符串） |
+| **回测时间段** | 起始日、结束日 | 与三步链路共用的一套解析结果（写入 metadata / 运行；**不参与** DbCache ``env_fp``，scope 以 ``stock_ids`` 为准） |
 | **采样 / 全量（运行模式）** | 统一开关：全流程走采样（如 `test/`）或全流程全量（如 `output/`） | 建议单一来源（例如写回 settings 的字段，或单独 **`run_mode`**），避免多处 `use_sampling` 不一致 |
 | **核心（引擎）版本** | 影响数值或路径的策略模块 / 核心代码版本号 | 例如 `core/modules/strategy/module_info.yaml` 中的 **`version`**，或仓库约定的 **`CORE_SEMVER`**；仅在破坏性变更时递增 |
 | **策略代码身份** | 用户空间策略包 / worker 代码变更 | 见 **§3** |
@@ -39,7 +39,7 @@
 
 | 因子 | 说明 |
 |------|------|
-| **数据契约 mapping 指纹** | `data_contract_mapping`：core / userspace `mapping.py` 变更时结果可能不同（实现载荷见 `finger_print.env_fingerprint_id`，`v=4`） |
+| **数据契约 mapping 指纹** | `data_contract_mapping`：core / userspace `mapping.py` 变更时结果可能不同（实现载荷见 `finger_print.env_fingerprint_id`，`v=5`，scope 为 ``stock_ids`` 无日历窗） |
 
 ---
 

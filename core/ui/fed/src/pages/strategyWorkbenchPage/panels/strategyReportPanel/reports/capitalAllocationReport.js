@@ -182,6 +182,8 @@ function CapitalAllocationReport({
     return <ReportUnavailableHint />;
   }
 
+  const executionSkipsAvail = metrics?._availability?.executionSkips ?? false;
+
   const showStockSampleGrid = Boolean(showStockGrid && derivedStockRows.length > 0);
 
   return (
@@ -271,6 +273,51 @@ function CapitalAllocationReport({
             value={formatReportMoney(metrics.avgPnlPerTrade)}
           />
         </Box>
+      </SectionBlock>
+
+      <SectionBlock
+        title="成交跳过统计"
+        tip={CAPITAL_SECTION_TIPS.executionSkips}
+      >
+        {executionSkipsAvail ? (
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr' }, gap: 1 }}>
+            <MetricCard
+              title="涨停跳过买入"
+              titleTip={CAPITAL_METRIC_TIPS.skippedBuyAtLimitUp}
+              value={metrics.skippedBuyAtLimitUp.toLocaleString()}
+            />
+            <MetricCard
+              title="跌停跳过卖出"
+              titleTip={CAPITAL_METRIC_TIPS.skippedSellAtLimitDown}
+              value={metrics.skippedSellAtLimitDown.toLocaleString()}
+            />
+            <MetricCard
+              title="状态跳过投资"
+              titleTip={CAPITAL_METRIC_TIPS.skippedStockStatus}
+              value={metrics.skippedStockStatus.toLocaleString()}
+            />
+            <MetricCard
+              title="参与率跳过买入"
+              titleTip={CAPITAL_METRIC_TIPS.skippedBuyParticipation}
+              value={metrics.skippedBuyParticipation.toLocaleString()}
+            />
+            <MetricCard
+              title="参与率跳过卖出"
+              titleTip={CAPITAL_METRIC_TIPS.skippedSellParticipation}
+              value={metrics.skippedSellParticipation.toLocaleString()}
+            />
+            <MetricCard
+              title="参与率缩量买入"
+              titleTip={CAPITAL_METRIC_TIPS.clippedBuyParticipation}
+              value={metrics.clippedBuyParticipation.toLocaleString()}
+            />
+            <MetricCard
+              title="参与率缩量卖出"
+              titleTip={CAPITAL_METRIC_TIPS.clippedSellParticipation}
+              value={metrics.clippedSellParticipation.toLocaleString()}
+            />
+          </Box>
+        ) : <ReportUnavailableHint />}
       </SectionBlock>
 
       <SectionBlock

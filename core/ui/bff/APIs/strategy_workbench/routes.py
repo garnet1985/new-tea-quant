@@ -86,6 +86,16 @@ def get_settings_simulation_templates():
 
 
 @strategy_workbench_api_bp.route(
+    "/v1/strategy/settings/skip-investment-when",
+    methods=["GET"],
+)
+def get_settings_skip_investment_when():
+    """GET /strategy/settings/skip-investment-when"""
+    s = get_strategy_workbench_stack()
+    return ok({"items": s.items_skip_investment_when()})
+
+
+@strategy_workbench_api_bp.route(
     "/v1/strategy/settings/market-profiles",
     methods=["GET"],
 )
@@ -112,14 +122,14 @@ def post_strategy_step_run(strategy_name, step):
     if body_name is not None and str(body_name).strip() != str(strategy_name).strip():
         return error("strategy_name 与路径不一致", 400)
 
-    raw_force = payload.get("is_force", False)
-    is_force = raw_force if isinstance(raw_force, bool) else bool(raw_force)
+    raw_force = payload.get("force_refresh", False)
+    force_refresh = raw_force if isinstance(raw_force, bool) else bool(raw_force)
 
     out = s.submit_workbench_step_via_bff_contract(
         strategy_name=strategy_name,
         step=step,
         api_settings=settings,
-        is_force=is_force,
+        force_refresh=force_refresh,
     )
     if out.get("is_triggered"):
         return ok(
@@ -186,7 +196,7 @@ def get_strategy_step_report(strategy_name, step, version_id):
     GET …/report/<version_id>
 
     **路径** ``version_id``（``v3`` / ``3``）。本轮 run 在 **V2-06** 达 **completed**
-    且 ``snapshot_id>0`` 时已下发 ``version_id``，前端用同一值拉取该步明细；历史/对比亦为同一参数。
+    且工作台 ``version>0`` 时已下发 ``version_id``，前端用同一值拉取该步明细；历史/对比亦为同一参数。
     """
     s = get_strategy_workbench_stack()
     norm = s.normalize_step(step)
@@ -197,13 +207,13 @@ def get_strategy_step_report(strategy_name, step, version_id):
     if not path_vid:
         return error("缺少路径参数 version_id", 400)
 
-    sid = s.parse_snapshot_id(path_vid)
+    sid = s.parse_version_id(path_vid)
     if sid is None:
         return error("version_id 无效", 400)
     msg = s.build_step_report_message(
         strategy_name=strategy_name,
         normalized_step=norm,
-        snapshot_id=sid,
+        version=sid,
     )
     if msg is None:
         return error("快照不存在", 404)
@@ -226,13 +236,13 @@ def get_strategy_step_report_ref(strategy_name, step, version_id):
     if not path_vid:
         return error("缺少路径参数 version_id", 400)
 
-    sid = s.parse_snapshot_id(path_vid)
+    sid = s.parse_version_id(path_vid)
     if sid is None:
         return error("version_id 无效", 400)
     msg = s.build_step_report_ref_message(
         strategy_name=strategy_name,
         normalized_step=norm,
-        snapshot_id=sid,
+        version=sid,
     )
     if msg is None:
         return error("快照不存在", 404)
@@ -247,10 +257,10 @@ def get_strategy_step_report_ref(strategy_name, step, version_id):
 def get_strategy_version_snapshot(strategy_name, version_id):
     """GET /strategy/{strategy_name}/version/{version_id} — 与 latest 同形，按 id 取行（无冷启动）。"""
     s = get_strategy_workbench_stack()
-    sid = s.parse_snapshot_id(version_id)
+    sid = s.parse_version_id(version_id)
     if sid is None:
         return error("version_id 无效", 400)
-    row = s.fetch_workbench_snapshot_by_snapshot_id(strategy_name, sid)
+    row = s.fetch_workbench_by_version(strategy_name, sid)
     if row is None:
         return error("快照不存在", 404)
     return ok(workbench_snapshot_to_message(row))
@@ -264,7 +274,7 @@ def get_strategy_version_snapshot(strategy_name, version_id):
 def post_apply_settings(strategy_name, version_id):
     """POST /strategy/{strategy_name}/apply-settings/{version_id} — 快照 settings → userspace ``settings.py``。"""
     s = get_strategy_workbench_stack()
-    sid = s.parse_snapshot_id(version_id)
+    sid = s.parse_version_id(version_id)
     if sid is None:
         return error("version_id 无效", 400)
 
@@ -274,7 +284,7 @@ def post_apply_settings(strategy_name, version_id):
 
     out, err = s.apply_workbench_snapshot_settings_to_userspace(
         strategy_name=strategy_name,
-        snapshot_id=sid,
+        version=sid,
         pretty=pretty,
     )
     if err:

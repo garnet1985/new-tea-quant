@@ -47,15 +47,23 @@ class DataSourceExecutionScheduler:
         
         self._dependency_cache: Dict[str, Any] = {}
 
-    def run(self, handler_instances: List[BaseHandler], mappings: HandlerMapping):
+    def run(
+        self,
+        handler_instances: List[BaseHandler],
+        mappings: HandlerMapping,
+        *,
+        force: bool = False,
+    ):
         """
         执行所有数据源
         
         Args:
             handler_instances: Handler 实例列表
             mappings: HandlerMapping 实例
+            force: 强制全量重拉（忽略 last_update / stock_list 日缓存等）
         """
         self.mappings = mappings
+        self._force_refresh = bool(force)
         sorted_handler_instances = self._preprocess(handler_instances)
         self._execute(sorted_handler_instances)
         self._postprocess()
@@ -176,6 +184,9 @@ class DataSourceExecutionScheduler:
                 data_source_key = handler_instance.get_key()
                 logger.info(f"📊 [{idx+1}/{total}] 执行数据源: {data_source_key}")
                 dependencies_data = self._get_dependencies_data(data_source_key)
+                if getattr(self, "_force_refresh", False):
+                    dependencies_data = dict(dependencies_data or {})
+                    dependencies_data["_execution"] = {"force_refresh": True}
                 normalized_data = handler_instance.execute(dependencies_data)
                 if self.mappings.is_dependency_for_downstream(data_source_key):
                     self._cache_result(data_source_key, normalized_data)

@@ -362,3 +362,72 @@ class DataAdjFactorEventModel(DbBaseModel):
             "UPDATE sys_adj_factor_events SET last_update = %s WHERE id = %s",
             (now, stock_id),
         )
+
+    @property
+    def csv_dir(self) -> Path:
+        """季度/全量 CSV 默认目录（userspace handler）。"""
+        from core.infra.project_context import PathManager
+
+        d = PathManager.data_source_handler("adj_factor_event")
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def get_max_event_date(self) -> Optional[str]:
+        rows = self.db.execute_sync_query(
+            f"SELECT MAX(event_date) AS max_d FROM {self.table_name}", ()
+        )
+        if not rows or rows[0].get("max_d") is None:
+            return None
+        return str(rows[0]["max_d"])
+
+    def get_current_quarter_csv_name(self, base_date: Optional[str] = None) -> str:
+        """``adj_factor_events_YYYYQn.csv``（base_date 默认今天）。"""
+        from core.utils.date import DateUtils
+
+        if base_date:
+            d = str(base_date).replace("-", "")[:8]
+        else:
+            d = datetime.now().strftime("%Y%m%d")
+        return f"adj_factor_events_{DateUtils.get_current_quarter(d)}.csv"
+
+    def get_latest_csv_file(self) -> Optional[str]:
+        """``csv_dir`` 下最新的 ``adj_factor_events_*.csv``。"""
+        files = sorted(self.csv_dir.glob("adj_factor_events_*.csv"), key=lambda p: p.stat().st_mtime)
+        return str(files[-1]) if files else None
+
+    def export_to_csv(
+        self,
+        *,
+        file_path: Union[str, Path],
+        start_date: str = "20200101",
+        end_date: Optional[str] = None,
+    ) -> int:
+        """导出事件到 CSV；默认从 ``start_date`` 到库内最新 ``event_date``。"""
+        end = end_date or self.get_max_event_date()
+        if not end:
+            csv_io.write_dicts_to_csv(file_path, [], preferred_order=["id", "event_date", "factor", "qfq_diff", "last_update"])
+            return 0
+        rows = self.load(
+            "event_date >= %s AND event_date <= %s",
+            (str(start_date).replace("-", "")[:8], str(end).replace("-", "")[:8]),
+            order_by="id ASC, event_date ASC",
+        )
+        path = Path(file_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        csv_io.write_dicts_to_csv(
+            path,
+            rows,
+            preferred_order=["id", "event_date", "factor", "qfq_diff", "last_update"],
+        )
+        return len(rows)
+
+    def import_from_csv(self, file_path: Optional[str] = None) -> int:
+        """从 CSV 导入（默认 ``get_latest_csv_file()``）。"""
+        import pandas as pd
+
+        path = Path(file_path) if file_path else Path(self.get_latest_csv_file() or "")
+        if not path.is_file():
+            return 0
+        df = pd.read_csv(path)
+        events = df.to_dict("records")
+        return self.save_events(events)

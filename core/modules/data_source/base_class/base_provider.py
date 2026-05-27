@@ -30,8 +30,8 @@ class BaseProvider(ABC):
     requires_auth: bool = False            # 是否需要认证
     auth_type: Optional[str] = None        # 认证类型: "token" | "api_key" | None
     
-    # API 限流信息（每分钟请求数）- 只声明，不执行
-    # 例如：{"get_daily_kline": 100, "get_weekly_kline": 50}
+    # API 限流（每分钟请求数）— 唯一配置源，运行时由 collect_api_limits 读取
+    # 例如：{"get_daily_kline": 700, "get_daily_basic": 500}
     api_limits: Dict[str, int] = {}
     
     # 默认限流（如果 API 没有单独配置）
@@ -170,7 +170,53 @@ class BaseProvider(ABC):
         }
     
     # ========== 错误处理 ==========
-    
+
+    @staticmethod
+    def is_retryable_error(error: Exception) -> bool:
+        """连接中断、远端关闭等瞬时错误可重试。"""
+        err_name = type(error).__name__
+        err_str = str(error).lower()
+        return (
+            "Connection" in err_name
+            or "connection" in err_str
+            or "RemoteDisconnected" in err_str
+            or "aborted" in err_str
+            or "closed" in err_str
+            or "timeout" in err_str
+        )
+
+    def invoke_with_retry(
+        self,
+        api_name: str,
+        fn,
+        *,
+        max_retries: int = 3,
+        base_delay: float = 1.5,
+    ):
+        """执行 Provider API 调用，对可重试的网络错误做指数退避。"""
+        import time
+
+        last_error: Optional[Exception] = None
+        for attempt in range(max_retries):
+            try:
+                return fn()
+            except Exception as e:
+                last_error = e
+                if not self.is_retryable_error(e) or attempt >= max_retries - 1:
+                    raise self.handle_error(e, api_name) from e
+                delay = base_delay * (2 ** attempt)
+                logger.warning(
+                    "%s.%s 失败（%s/%s），%.1fs 后重试: %s",
+                    self.provider_name,
+                    api_name,
+                    attempt + 1,
+                    max_retries,
+                    delay,
+                    e,
+                )
+                time.sleep(delay)
+        raise self.handle_error(last_error or RuntimeError("未知错误"), api_name)
+
     def handle_error(self, error: Exception, api_name: str) -> ProviderError:
         """
         将第三方 API 错误转换为统一格式

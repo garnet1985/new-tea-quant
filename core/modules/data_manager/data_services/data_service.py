@@ -16,7 +16,7 @@ class DataService:
         data_service = DataService(data_manager)
         klines = data_service.stock.kline.load('000001.SZ')
         gdp = data_service.macro.load_gdp('2020Q1', '2024Q4')
-        latest_date = data_service.calendar.get_latest_trading_date()
+        latest_date = data_service.calendar.get_latest_completed_trading_date()
     """
 
     def __init__(self, data_manager):

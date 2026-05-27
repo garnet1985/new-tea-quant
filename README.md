@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.3.2-8A2BE2"></a>&nbsp;
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.3.3-8A2BE2"></a>&nbsp;
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
   <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
@@ -26,7 +26,7 @@
 
 自 **v0.3.0** 起，NTQ 提供本机 **Web UI**（`launcher.py` 启动 BFF + 前端）：策略实验室（分层回测与报告）、策略扫描、图形化安装向导、应用设置等。日常**使用**无需自行安装 Node.js（前端以构建产物由 BFF 托管；仅 `-d` 开发模式或改前端源码时需要 Node）。
 
-**v0.3.2** 起支持按板块配置最小买入单位、涨跌停与交易规则（**market profile**），回测报告展示统一回测区间等。完整变更见 [CHANGELOG.md](CHANGELOG.md)。
+**v0.3.3** 重制回测的数据注入，加入涨跌停的买入和卖出限制，避免了幸存者偏差 [CHANGELOG.md](CHANGELOG.md)。
 
 ## NTQ 是什么？
 

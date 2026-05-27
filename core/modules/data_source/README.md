@@ -11,7 +11,7 @@
 ## 快速开始
 
 ```python
-from core.modules.data_source import DataSourceManager
+from core.modules.data_source.data_source_manager import DataSourceManager
 
 mgr = DataSourceManager(is_verbose=True)
 mgr.execute()  # 运行 mapping 中所有 is_enabled 的数据源

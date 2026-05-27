@@ -11,8 +11,10 @@ _ROOT = Path(__file__).resolve().parents[4]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-# 与 smoke test 保持一致：在 import core.* 前注入 pandas 占位，避免环境差异导致导入失败。
-if "pandas" not in sys.modules:
+# 与 smoke test 保持一致：无 pandas 时注入占位，已安装则用真实包。
+try:
+    import pandas as _pandas  # noqa: F401
+except ImportError:
     import types
 
     _pd = types.ModuleType("pandas")

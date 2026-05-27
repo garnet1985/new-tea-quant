@@ -2,6 +2,7 @@ export { default as SectionField } from './section';
 export { default as EditorFieldGroup } from './editorFieldGroup';
 export { default as FieldGroupField } from './fieldGroup';
 export { default as SwitchField } from './switch';
+export { default as CheckboxGroupField } from './checkboxGroup';
 export { default as DateField } from './date';
 export { default as SelectField } from './select';
 export { default as InputField } from './input';

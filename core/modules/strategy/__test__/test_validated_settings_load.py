@@ -13,7 +13,7 @@ def test_strategy_settings_validate_unknown_market_profile():
             "name": "t",
             "market_profile": "not_a_real_profile_id_zzz",
             "data": {"base_required_data": {"params": {"term": "daily"}}},
-            "simulation": {"template": "deterministic"},
+            "simulation": {"template": "standard"},
         }
     )
     settings.apply_defaults()

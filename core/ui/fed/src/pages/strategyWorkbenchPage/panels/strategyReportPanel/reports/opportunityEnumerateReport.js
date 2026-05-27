@@ -100,6 +100,7 @@ function OpportunityEnumrateReport({
     stockStats: false,
     distribution: false,
     timing: false,
+    tradability: false,
   };
 
   const derivedStockRows = useMemo(() => (
@@ -235,6 +236,28 @@ function OpportunityEnumrateReport({
             />
           ) : <ReportUnavailableHint />}
         </Box>
+      </SectionBlock>
+
+      <SectionBlock
+        title="涨跌停可成交性"
+        tip={ENUM_SECTION_TIPS.tradability}
+      >
+        {avail.tradability ? (
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
+            <MetricCard
+              title="涨停无法买入"
+              titleTip={ENUM_METRIC_TIPS.limitUpBuy}
+              value={`${metrics.buyAtLimitUpCount.toLocaleString()} / ${metrics.buyTradabilitySampleCount.toLocaleString()}`}
+              hint={`占比 ${metrics.limitUpBuyRatio}%`}
+            />
+            <MetricCard
+              title="跌停无法卖出"
+              titleTip={ENUM_METRIC_TIPS.limitDownSell}
+              value={`${metrics.sellAtLimitDownCount.toLocaleString()} / ${metrics.sellTradabilitySampleCount.toLocaleString()}`}
+              hint={`占比 ${metrics.limitDownSellRatio}%`}
+            />
+          </Box>
+        ) : <ReportUnavailableHint />}
       </SectionBlock>
 
       <SectionBlock

@@ -94,17 +94,17 @@ class PriceFactorFlowImpl:
             strategy_info=strategy_info,
         )
 
-    def scan_stock_files(self, output_version_dir: Path) -> Dict[str, Dict[str, Path]]:
-        return self._scan_output_files(output_version_dir)
+    def scan_stock_files(self, base_output_version_dir: Path) -> Dict[str, Dict[str, Path]]:
+        return self._scan_output_files(base_output_version_dir)
 
-    def create_simulation_version(self, strategy_name: str):
+    def create_output_version(self, strategy_name: str):
         return StrategyOutputVersionService.create_price_factor_version(strategy_name)
 
     def build_worker_jobs(
         self,
         *,
         strategy_name: str,
-        sim_version_dir: Path,
+        output_version_dir: Path,
         stock_files: Dict[str, Dict[str, Path]],
         config: StrategyPriceSimulatorSettings,
     ) -> List[Dict[str, Any]]:
@@ -114,7 +114,7 @@ class PriceFactorFlowImpl:
                 {
                     "stock_id": stock_id,
                     "strategy_name": strategy_name,
-                    "sim_version_dir": str(sim_version_dir),
+                    "output_version_dir": str(output_version_dir),
                     "opportunities_path": str(paths["opportunities"]),
                     "targets_path": str(paths["targets"]),
                     "config": config.to_dict(),
@@ -192,10 +192,10 @@ class PriceFactorFlowImpl:
         self,
         *,
         stock_summaries: List[Dict[str, Any]],
-        output_version_dir: Path,
+        base_output_version_dir: Path,
         output_root: Path,
-        sim_version_dir: Path,
-        sim_version_id: int,
+        output_version_dir: Path,
+        output_version_id: int,
     ) -> Dict[str, Any]:
         """聚合整轮逐股 worker 结果；与枚举器不同处：**不存在**「再扫磁盘逐文件」二次汇总——
         ``stock_summaries`` 已在内存中收齐，落盘 ``0_session_summary.json`` 的单 dict 即为权威摘要。
@@ -209,12 +209,12 @@ class PriceFactorFlowImpl:
         roi_pcts = collect_roi_percents_from_stock_summaries(stock_summaries)
         session_summary.update(roi_distribution_session_fields(roi_pcts))
         session_summary["output_version"] = {
-            "version_dir": output_version_dir.name,
+            "enumerator_output_dir": base_output_version_dir.name,
             "output_root": str(output_root.name),
         }
-        session_summary["sim_version"] = {
-            "version_id": sim_version_id,
-            "version_dir": sim_version_dir.name,
+        session_summary["output_version_run"] = {
+            "output_version_id": output_version_id,
+            "output_version_dir": output_version_dir.name,
         }
         return session_summary
 
@@ -222,41 +222,41 @@ class PriceFactorFlowImpl:
         self,
         *,
         strategy_name: str,
-        sim_version_dir: Path,
-        sim_version_id: int,
         output_version_dir: Path,
+        output_version_id: int,
+        base_output_version_dir: Path,
         session_summary: Dict[str, Any],
         settings_snapshot: Dict[str, Any],
         simulation_effective: Optional[Dict[str, Any]] = None,
     ) -> None:
         self._save_results(
             strategy_name=strategy_name,
-            sim_version_dir=sim_version_dir,
-            sim_version_id=sim_version_id,
             output_version_dir=output_version_dir,
+            output_version_id=output_version_id,
+            base_output_version_dir=base_output_version_dir,
             session_summary=session_summary,
             settings_snapshot=settings_snapshot,
             simulation_effective=simulation_effective,
         )
 
     def save_performance_report(
-        self, *, sim_version_dir: Path, aggregate_profiler: AggregateProfiler
+        self, *, output_version_dir: Path, aggregate_profiler: AggregateProfiler
     ) -> None:
         perf_summary = aggregate_profiler.get_summary()
         if perf_summary:
-            with (sim_version_dir / "0_performance_report.json").open(
+            with (output_version_dir / "0_performance_report.json").open(
                 "w", encoding="utf-8"
             ) as f:
                 json.dump(perf_summary, f, indent=2, ensure_ascii=False)
 
     def run_analyzer_hook(
-        self, *, strategy_name: str, sim_version_dir: Path, raw_settings: Dict[str, Any]
+        self, *, strategy_name: str, output_version_dir: Path, raw_settings: Dict[str, Any]
     ) -> None:
         try:
             Analyzer.run_for_simulator(
                 strategy_name=strategy_name,
                 sim_type="price_factor",
-                sim_version_dir=sim_version_dir,
+                output_version_dir=output_version_dir,
                 raw_settings=raw_settings,
             )
         except Exception:
@@ -283,26 +283,26 @@ class PriceFactorFlowImpl:
     def _save_results(
         self,
         strategy_name: str,
-        sim_version_dir: Path,
-        sim_version_id: int,
         output_version_dir: Path,
+        output_version_id: int,
+        base_output_version_dir: Path,
         session_summary: Dict[str, Any],
         settings_snapshot: Dict[str, Any],
         simulation_effective: Optional[Dict[str, Any]] = None,
     ) -> None:
-        path_mgr = StrategyOutputPathService(sim_version_dir=sim_version_dir)
+        path_mgr = StrategyOutputPathService(output_version_dir=output_version_dir)
         with path_mgr.session_summary_path().open("w", encoding="utf-8") as f:
             json.dump(
                 session_summary, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder
             )
         metadata = {
             "strategy_name": strategy_name,
-            "sim_version_id": sim_version_id,
-            "sim_version_dir": sim_version_dir.name,
+            "output_version_id": output_version_id,
+            "output_version_dir": output_version_dir.name,
             "created_at": datetime.now().isoformat(),
             "output_version": {
-                "version_dir": output_version_dir.name,
-                "output_root": str(output_version_dir.parent.name),
+                "enumerator_output_dir": base_output_version_dir.name,
+                "output_root": str(base_output_version_dir.parent.name),
             },
             "session_summary": session_summary,
             "settings_snapshot": settings_snapshot,

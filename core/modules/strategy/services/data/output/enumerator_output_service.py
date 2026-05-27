@@ -7,6 +7,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 import json
 
+from core.modules.strategy.engines.shared.helpers.skip_investment_when import (
+    stock_status_tags_csv_value,
+)
 from core.modules.strategy.launcher.run_types import (
     StrategyRunFingerprint,
 )
@@ -64,9 +67,11 @@ class EnumeratorOutputWriterService:
                         "roi": target.get("roi", ""),
                         "sell_prev_close": target.get("sell_prev_close", ""),
                         "sell_at_limit_down": target.get("sell_at_limit_down", ""),
+                        "sell_bar_volume": target.get("sell_bar_volume", ""),
                     }
                 )
             row = {k: v for k, v in opportunity.items() if k not in excluded}
+            row["stock_status_at_trigger"] = stock_status_tags_csv_value(opportunity)
             for key, value in row.items():
                 if isinstance(value, (dict, list)):
                     row[key] = json.dumps(value, ensure_ascii=False)
@@ -218,8 +223,8 @@ class EnumeratorOutputWriterService:
             "start_date": start_date,
             "end_date": end_date,
             "created_at": created_at,
-            "version_id": version_id,
-            "version_dir": version_dir_name,
+            "output_version_id": version_id,
+            "enumerator_output_dir": version_dir_name,
             "settings_snapshot": settings_snapshot,
             "is_full_enumeration": is_full_enumeration,
             "fingerprint": fp_meta,

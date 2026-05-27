@@ -26,7 +26,7 @@ from .finger_print import (
 )
 from .simulator_res_db_cache import SimulatorResDbCacheWriteRequest
 
-_CACHE_SERVICE_NAMES = frozenset({"DbCacheService", "SimulatorResDbCacheService"})
+_CACHE_SERVICE_NAMES = frozenset({"SimulatorResDbCacheService"})
 _SNAPSHOT_SLOT_NAMES = frozenset(
     {
         "lookup_capital_allocation_cache",
@@ -40,7 +40,6 @@ _SNAPSHOT_SLOT_NAMES = frozenset(
 _LAZY_NAMES = _CACHE_SERVICE_NAMES | _SNAPSHOT_SLOT_NAMES
 
 __all__ = [
-    "DbCacheService",
     "Simulator",
     "SimulatorResDbCacheService",
     "SimulatorResDbCacheWriteRequest",

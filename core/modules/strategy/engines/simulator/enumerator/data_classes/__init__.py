@@ -10,13 +10,12 @@ from .flow_context import (
     EnumeratorPreprocessContext,
     EnumeratorProbeContext,
 )
-from .strategy_settings import EnumeratorSettings, StrategyEnumeratorSettings
+from .strategy_settings import StrategyEnumeratorSettings
 from .report import EnumeratorReport
 
 __all__ = [
     "OpportunityEnumeratorSettings",
     "StrategyEnumeratorSettings",
-    "EnumeratorSettings",
     "StrategyRunFingerprint",
     "EnumeratorReport",
     "EnumeratorPreprocessContext",

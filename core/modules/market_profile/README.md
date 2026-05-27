@@ -131,7 +131,7 @@ get_market_profile(profile_id?)
 
 | `rule_key` | 目录 | 输出（resolve） |
 |------------|------|-----------------|
-| `amplitude_limit` | `rule_engines/amplitude_limit/` | `limit_ratio`；`compute_limit_prices(prev_close)` |
+| `amplitude_limit` | `rule_engines/amplitude_limit/` | `limit_ratio`；`compute_limit_prices(prev_close, status_tags?)`；可选 `default_risk` / `rules[].risk`（`st` / `star_st` 覆盖比例） |
 | `lot_size` | `rule_engines/lot_size/` | `min_lot`、`lot_step`；`floor_buy_quantity` |
 
 新增 rule：新增子包 + 在 `rule_engines/__init__.py` 的 `REGISTRY` 注册；未知 key 不注册即忽略。
@@ -141,8 +141,8 @@ get_market_profile(profile_id?)
 - 持有 `profile_id`、`name`、`description`。
 - 持有 `Dict[str, CompiledRuleBase]` 或显式属性（`amplitude_limit`、`lot_size`）。
 - 对外 typed 方法（供 simulator 使用）：
-  - `resolve_limit_ratio(stock_id)`
-  - `compute_limit_prices(stock_id, prev_close) -> (up, down)`
+  - `resolve_limit_ratio(stock_id, status_tags=None)`
+  - `compute_limit_prices(stock_id, prev_close, status_tags=None) -> (up, down)`
   - `resolve_lot_rules(stock_id)`
   - `floor_buy_quantity(shares, stock_id)`（可选）
 - 可选：`get_compiled(rule_key)` 用于调试。
@@ -169,7 +169,7 @@ get_market_profile(profile_id?)
 
 | 调用方 | 用法 |
 |--------|------|
-| Enumerator | `stamp_buy_tradability` / `stamp_target_tradability`；CSV 含 `buy_at_limit_up`、`sell_at_limit_down` |
+| Enumerator | `stamp_buy_tradability` / `stamp_target_tradability`；CSV 含 `buy_at_limit_up`、`sell_at_limit_down`、`stock_status_at_trigger`（供价/资 `skip_investment_when`） |
 | Price factor | `allow_*_at_limit_*` 过滤投资与目标；读 CSV 标注或 `buy_prev_close` 重算 |
 | Capital allocation | `resolve_lot_rules`、`floor_buy_quantity`；`allow_*` / `skip_trade_when_insufficient` |
 | Strategy 入口 | `settings["market_profile"]` → `get_market_profile(...)` |

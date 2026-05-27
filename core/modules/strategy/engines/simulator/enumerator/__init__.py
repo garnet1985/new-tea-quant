@@ -25,7 +25,6 @@ _LAZY_EXPORTS: dict[str, Tuple[str, str]] = {
         ".data_classes",
         "StrategyEnumeratorSettings",
     ),
-    "EnumeratorSettings": (".data_classes", "EnumeratorSettings"),
     "EnumeratorReport": (".data_classes", "EnumeratorReport"),
     "EnumeratorPreprocessContext": (
         ".data_classes",

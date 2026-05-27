@@ -228,12 +228,9 @@ class StrategyCapitalSimulatorSettings(SettingsBase):
         return self._parse_output()
 
 
-CapitalAllocationSettings = StrategyCapitalSimulatorSettings
-
 __all__ = [
     "_VALID_MODES",
     "AllocationConfig",
     "OutputConfig",
     "StrategyCapitalSimulatorSettings",
-    "CapitalAllocationSettings",
 ]

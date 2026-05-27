@@ -10,6 +10,7 @@ from typing import Any, Dict, List
 from core.modules.data_contract.contract_const import DataKey
 from core.modules.market_profile.constants import DEFAULT_PROFILE_ID
 
+from .goal_settings import StrategyGoalSettings
 from .simulation_settings import StrategySimulationSettings
 
 
@@ -42,6 +43,14 @@ class StrategySettingsView:
     def simulation_settings(self) -> StrategySimulationSettings:
         """与 ``StrategySettings.simulation`` 同构；盯盘/买卖价模型等用其属性读取。"""
         return StrategySimulationSettings.from_strategy_root(self._settings)
+
+    @property
+    def goal_settings(self) -> StrategyGoalSettings:
+        return StrategyGoalSettings.from_strategy_root(self._settings)
+
+    @property
+    def stock_status_risk(self):
+        return self.goal_settings.stock_status_risk
 
     @staticmethod
     def normalize_base_required_data(raw: Dict[str, Any]) -> Dict[str, Any]:

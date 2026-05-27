@@ -681,7 +681,7 @@
 `ConfigManager.load_data_config() -> Dict[str, Any]`
 
 - 状态：`stable`
-- 描述：`load_core_config('data', deep_merge_fields={'stock_list_filter'})`。
+- 描述：`load_core_config('data')`。
 - 诞生版本：`0.2.0`
 - params：
 
@@ -848,20 +848,6 @@
 无
 
 - 返回值：`int`
-
----
-
-### 函数名
-`ConfigManager.get_stock_list_filter() -> Dict[str, Any]`
-
-- 状态：`stable`
-- 描述：股票过滤配置。
-- 诞生版本：`0.2.0`
-- params：
-
-无
-
-- 返回值：`Dict[str, Any]`
 
 ---
 

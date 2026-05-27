@@ -477,11 +477,11 @@ class ConfigManager:
         加载数据配置（合并后的完整配置）
         
         Returns:
-            数据配置字典，包含 default_start_date, decimal_places, stock_list_filter 等
+            数据配置字典，包含 default_start_date, decimal_places 等
         """
         return ConfigManager.load_core_config(
             'data',
-            deep_merge_fields={'stock_list_filter'},
+            deep_merge_fields=set(),
             override_fields=set()
         )
     
@@ -540,6 +540,21 @@ class ConfigManager:
         """
         data_config = ConfigManager.load_data_config()
         return data_config.get('default_start_date')
+
+    @staticmethod
+    def get_default_end_date() -> Optional[str]:
+        """
+        获取数据拉取上界（可选）。
+
+        配置后，renew 的 end_date 取 min(真实世界最新已完成交易日, default_end_date)。
+        未配置或空字符串时返回 None，表示不截断。
+        """
+        data_config = ConfigManager.load_data_config()
+        raw = data_config.get('default_end_date')
+        if raw is None:
+            return None
+        s = str(raw).strip()
+        return s if s else None
     
     @staticmethod
     def get_decimal_places() -> int:
@@ -551,23 +566,6 @@ class ConfigManager:
         """
         data_config = ConfigManager.load_data_config()
         return data_config.get('decimal_places', 2)
-    
-    @staticmethod
-    def get_stock_list_filter() -> Dict[str, Any]:
-        """
-        获取股票清单过滤配置
-        
-        Returns:
-            股票过滤配置字典，包含 enable 和 exclude_patterns
-        """
-        data_config = ConfigManager.load_data_config()
-        return data_config.get('stock_list_filter', {
-            'enable': True,
-            'exclude_patterns': {
-                'start_with': {'id': ['688'], 'name': ['*ST', 'ST', '退']},
-                'contains': {}
-            }
-        })
     
     @staticmethod
     def get_database_type() -> str:

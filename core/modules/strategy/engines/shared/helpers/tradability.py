@@ -3,9 +3,13 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from core.modules.market_profile.profile import MarketProfile
+from core.modules.strategy.engines.shared.helpers.participation import bar_volume_shares
+from core.modules.strategy.engines.shared.helpers.skip_investment_when import (
+    active_tags_at_trigger_from_row,
+)
 
 _LIMIT_EPS = 1e-4
 _LIMIT_UP_HINT = "涨停附近，可能难以买入"
@@ -34,16 +38,47 @@ def signal_and_prev_bars(
     return None, None
 
 
+def resolve_limit_status_tags(
+    *,
+    status_tags: Optional[Sequence[str]] = None,
+    opportunity: Any = None,
+    stock_status_risk: Any = None,
+    trade_date: Optional[str] = None,
+    row: Optional[Dict[str, Any]] = None,
+) -> Optional[Sequence[str]]:
+    """成交日 PIT 标签优先；否则枚举 ``metadata.stock_status_at_trigger``。"""
+    if status_tags is not None:
+        return status_tags
+    day = str(trade_date or "").strip()
+    if stock_status_risk is not None and day:
+        tags = stock_status_risk.active_status_tags_at(day)
+        if tags:
+            return tags
+    if row is not None:
+        tags = active_tags_at_trigger_from_row(row)
+        if tags:
+            return tags
+    if opportunity is not None:
+        meta = getattr(opportunity, "metadata", None) or {}
+        tags = active_tags_at_trigger_from_row({"metadata": meta})
+        if tags:
+            return tags
+    return None
+
+
 def is_at_limit_up(
     profile: MarketProfile,
     stock_id: str,
     prev_close: Optional[float],
     buy_price: float,
+    status_tags: Optional[Sequence[str]] = None,
 ) -> bool:
     if prev_close is None or prev_close <= 0 or buy_price <= 0:
         return False
     try:
-        limit_up, _ = profile.compute_limit_prices(stock_id, prev_close)
+        limit_up, _ = profile.compute_limit_prices(
+            stock_id, prev_close, status_tags=status_tags
+        )
     except KeyError:
         return False
     return buy_price >= limit_up - _LIMIT_EPS
@@ -54,11 +89,14 @@ def is_at_limit_down(
     stock_id: str,
     prev_close: Optional[float],
     sell_price: float,
+    status_tags: Optional[Sequence[str]] = None,
 ) -> bool:
     if prev_close is None or prev_close <= 0 or sell_price <= 0:
         return False
     try:
-        _, limit_down = profile.compute_limit_prices(stock_id, prev_close)
+        _, limit_down = profile.compute_limit_prices(
+            stock_id, prev_close, status_tags=status_tags
+        )
     except KeyError:
         return False
     return sell_price <= limit_down + _LIMIT_EPS
@@ -104,13 +142,30 @@ def stamp_buy_tradability(
     buy_price: float,
     *,
     hint_on_limit_up: bool = False,
+    status_tags: Optional[Sequence[str]] = None,
+    stock_status_risk: Any = None,
+    trade_date: Optional[str] = None,
+    exec_bar: Optional[Dict[str, Any]] = None,
 ) -> None:
     prev = bar_prev_close(prev_bar)
-    at_limit_up = is_at_limit_up(profile, stock_id, prev, buy_price) if prev else None
+    tags = resolve_limit_status_tags(
+        status_tags=status_tags,
+        opportunity=opportunity,
+        stock_status_risk=stock_status_risk,
+        trade_date=trade_date or getattr(opportunity, "buy_date", None),
+    )
+    at_limit_up = (
+        is_at_limit_up(profile, stock_id, prev, buy_price, status_tags=tags)
+        if prev
+        else None
+    )
     if hasattr(opportunity, "buy_prev_close"):
         opportunity.buy_prev_close = prev
     if hasattr(opportunity, "buy_at_limit_up"):
         opportunity.buy_at_limit_up = at_limit_up
+    vol = bar_volume_shares(exec_bar)
+    if hasattr(opportunity, "buy_bar_volume"):
+        opportunity.buy_bar_volume = vol
     if hint_on_limit_up and at_limit_up is True:
         _set_metadata_hint(opportunity, _LIMIT_UP_HINT)
 
@@ -121,12 +176,26 @@ def stamp_target_tradability(
     stock_id: str,
     prev_bar: Optional[Dict[str, Any]],
     sell_price: float,
+    *,
+    status_tags: Optional[Sequence[str]] = None,
+    stock_status_risk: Any = None,
+    trade_date: Optional[str] = None,
+    exec_bar: Optional[Dict[str, Any]] = None,
 ) -> None:
     prev = bar_prev_close(prev_bar)
+    tags = resolve_limit_status_tags(
+        status_tags=status_tags,
+        stock_status_risk=stock_status_risk,
+        trade_date=trade_date or target.get("date"),
+    )
     target["sell_prev_close"] = prev if prev is not None else ""
     target["sell_at_limit_down"] = (
-        is_at_limit_down(profile, stock_id, prev, sell_price) if prev else False
+        is_at_limit_down(profile, stock_id, prev, sell_price, status_tags=tags)
+        if prev
+        else False
     )
+    vol = bar_volume_shares(exec_bar)
+    target["sell_bar_volume"] = vol if vol is not None else ""
 
 
 def should_skip_buy(
@@ -150,7 +219,10 @@ def should_skip_buy(
         prev = None
     if prev is None or prev <= 0:
         return False
-    return is_at_limit_up(profile, stock_id, prev, buy_price)
+    tags = resolve_limit_status_tags(row=row)
+    return is_at_limit_up(
+        profile, stock_id, prev, buy_price, status_tags=tags
+    )
 
 
 def should_skip_sell(
@@ -174,7 +246,10 @@ def should_skip_sell(
         prev = None
     if prev is None or prev <= 0:
         return False
-    return is_at_limit_down(profile, stock_id, prev, sell_price)
+    tags = resolve_limit_status_tags(row=target_row)
+    return is_at_limit_down(
+        profile, stock_id, prev, sell_price, status_tags=tags
+    )
 
 
 def annotate_scan_opportunity(
@@ -183,6 +258,7 @@ def annotate_scan_opportunity(
     profile: MarketProfile,
     klines: List[Dict[str, Any]],
     scan_date: Optional[str] = None,
+    stock_status_risk: Any = None,
 ) -> None:
     if opportunity is None:
         return
@@ -207,7 +283,14 @@ def annotate_scan_opportunity(
     if not stock_id or ref_price <= 0:
         return
     stamp_buy_tradability(
-        opportunity, profile, stock_id, prev_bar, ref_price, hint_on_limit_up=True
+        opportunity,
+        profile,
+        stock_id,
+        prev_bar,
+        ref_price,
+        hint_on_limit_up=True,
+        trade_date=signal_date,
+        stock_status_risk=stock_status_risk,
     )
 
 
@@ -216,6 +299,7 @@ __all__ = [
     "bar_prev_close",
     "is_at_limit_down",
     "is_at_limit_up",
+    "resolve_limit_status_tags",
     "row_buy_at_limit_up",
     "row_sell_at_limit_down",
     "should_skip_buy",

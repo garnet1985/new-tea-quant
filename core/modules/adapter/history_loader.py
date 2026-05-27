@@ -59,7 +59,7 @@ class HistoryLoader:
                 return None
             
             # 2. 读取股票结果文件
-            path_manager = StrategyOutputPathService(sim_version_dir=version_dir)
+            path_manager = StrategyOutputPathService(output_version_dir=version_dir)
             stock_file = path_manager.stock_json_path(stock_id)
             
             if not stock_file.exists():
@@ -200,7 +200,7 @@ class HistoryLoader:
                 logger.debug(f"[HistoryLoader] 无法获取最新模拟版本: {e}")
                 return None
             
-            path_manager = StrategyOutputPathService(sim_version_dir=version_dir)
+            path_manager = StrategyOutputPathService(output_version_dir=version_dir)
             summary_file = path_manager.session_summary_path()
             
             if not summary_file.exists():

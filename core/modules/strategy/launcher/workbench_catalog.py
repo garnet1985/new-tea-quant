@@ -14,6 +14,10 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.samplin
 )
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.simulation_settings import (
     KNOWN_SIMULATION_TEMPLATES,
+    simulation_template_defaults_payload,
+)
+from core.modules.strategy.engines.shared.helpers.skip_investment_when import (
+    KNOWN_SKIP_INVESTMENT_TAGS,
 )
 from core.modules.strategy.engines.simulator.capital_allocation.data_classes.settings import (
     _VALID_MODES,
@@ -78,13 +82,13 @@ def fetch_strategy_versions_dropdown(strategy_name: str) -> List[Dict[str, Any]]
     rows = model.list_by_strategy(name, limit=DROPDOWN_LIMIT)
     items: List[Dict[str, Any]] = []
     for row in rows:
-        sid = int(row.get("snapshot_id") or row.get("version") or 0)
+        sid = int(row.get("version") or 0)
         if sid <= 0:
             continue
         items.append(
             {
                 "version_id": f"v{sid}",
-                "snapshot_id": sid,
+                "version": sid,
                 "updated_at": _iso(row.get("updated_at")),
                 "created_at": _iso(row.get("created_at")),
             }
@@ -122,18 +126,37 @@ _SAMPLING_STRATEGY_META: Dict[str, tuple] = {
     "blacklist": ("黑名单", "抽取所有的集合，再排除黑名单列表后的样本。"),
 }
 
+_SKIP_INVESTMENT_WHEN_META: Dict[str, tuple] = {
+    "st": (
+        "ST",
+        "触发日处于 ST（含 SST）时，价格/资金回测跳过该笔投资；枚举机会仍保留。",
+    ),
+    "star_st": (
+        "*ST",
+        "触发日处于 *ST（含 S*ST）时，价格/资金回测跳过该笔投资；枚举机会仍保留。",
+    ),
+}
+
 _SIMULATION_TEMPLATE_META: Dict[str, tuple] = {
-    "deterministic": (
-        "确定性",
-        "收盘确认信号，次日开盘买入、收盘卖出；盯盘用收盘价。系统默认预设，偏乐观。",
+    "standard": (
+        "标准",
+        "日常回测默认；常见成交节奏，涨跌停不成交。不知道选什么就用这个。",
+    ),
+    "strict": (
+        "严格",
+        "更贴近 A 股现实；在标准基础上，触发日 ST/*ST 不参与 price/capital 模拟。",
+    ),
+    "ideal": (
+        "理想",
+        "少市场摩擦的对照组；与「标准」对比，看策略信号本身好不好。",
     ),
     "extreme": (
         "极值压力",
-        "盯盘与成交均按当日最高/最低价等极值近似，用于压力测试，结果通常更保守。",
+        "压力测试；盯盘与成交按极值取价，结果通常更差。",
     ),
     "custom": (
         "自定义",
-        "逐项指定盯盘价、买卖价、滑点与涨跌停等规则；仅在此模式下可改细项。",
+        "自行配置价模型、涨跌停、ST 跳过等；熟悉执行假设时使用。",
     ),
 }
 
@@ -170,9 +193,25 @@ def items_sampling_strategies() -> List[Dict[str, Any]]:
     return out
 
 
+def items_skip_investment_when() -> List[Dict[str, Any]]:
+    """根级 ``simulation.skip_investment_when`` 可选标签（与 ``KNOWN_SKIP_INVESTMENT_TAGS`` 一致）。"""
+    ordered = ("st", "star_st")
+    keys = [k for k in ordered if k in KNOWN_SKIP_INVESTMENT_TAGS]
+    rest = sorted(k for k in KNOWN_SKIP_INVESTMENT_TAGS if k not in keys)
+    out: List[Dict[str, Any]] = []
+    for k in keys + rest:
+        meta = _SKIP_INVESTMENT_WHEN_META.get(k)
+        if meta:
+            label, tooltip = meta
+            out.append({"value": k, "label": label, "tooltip": tooltip})
+        else:
+            out.append({"value": k, "label": k})
+    return out
+
+
 def items_simulation_templates() -> List[Dict[str, Any]]:
-    """根级 ``simulation.template`` 可选值（label 中文，value 与 settings 英文枚举一致）。"""
-    ordered = ("deterministic", "extreme", "custom")
+    """根级 ``simulation.template`` 可选值（含 ``defaults`` 供工作台只读展示）。"""
+    ordered = ("standard", "strict", "ideal", "extreme", "custom")
     keys = [k for k in ordered if k in KNOWN_SIMULATION_TEMPLATES]
     rest = sorted(k for k in KNOWN_SIMULATION_TEMPLATES if k not in keys)
     out: List[Dict[str, Any]] = []
@@ -180,9 +219,14 @@ def items_simulation_templates() -> List[Dict[str, Any]]:
         meta = _SIMULATION_TEMPLATE_META.get(k)
         if meta:
             label, tooltip = meta
-            out.append({"value": k, "label": label, "tooltip": tooltip})
+            row: Dict[str, Any] = {"value": k, "label": label, "tooltip": tooltip}
         else:
-            out.append({"value": k, "label": k})
+            row = {"value": k, "label": k}
+        if k != "custom":
+            row["defaults"] = simulation_template_defaults_payload(k)
+        else:
+            row["defaults"] = simulation_template_defaults_payload("standard")
+        out.append(row)
     return out
 
 

@@ -17,8 +17,10 @@ _ROOT = Path(__file__).resolve().parents[4]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-# 必须在 import core.* 之前：DataManager 会 import pandas（当前实现里可未使用）。
-if "pandas" not in sys.modules:
+# 无 pandas 时注入占位模块；已安装则使用真实 pandas，避免污染后续用例的 sys.modules。
+try:
+    import pandas as _pandas  # noqa: F401
+except ImportError:
     import types
 
     _pd = types.ModuleType("pandas")
@@ -40,7 +42,7 @@ class TestIssueShape(unittest.TestCase):
 
     def test_stock_list_issue(self) -> None:
         try:
-            c = self.mgr.issue(DataKey.STOCK_LIST, filtered=False)
+            c = self.mgr.issue(DataKey.STOCK_LIST)
         except Exception as e:
             raise unittest.SkipTest(f"数据库不可用，跳过 stock.list issue 形态检查：{e}") from e
         self.assertEqual(c.meta.data_id, DataKey.STOCK_LIST)
@@ -75,7 +77,7 @@ class TestLoadIntegration(unittest.TestCase):
 
     def test_load_stock_list(self) -> None:
         try:
-            c = self.mgr.issue(DataKey.STOCK_LIST, filtered=False)
+            c = self.mgr.issue(DataKey.STOCK_LIST)
             rows = c.data
         except Exception as e:
             raise unittest.SkipTest(f"数据库不可用，跳过 stock.list load：{e}") from e
@@ -85,7 +87,7 @@ class TestLoadIntegration(unittest.TestCase):
 
     def test_load_kline_after_stock_id(self) -> None:
         try:
-            c_list = self.mgr.issue(DataKey.STOCK_LIST, filtered=False)
+            c_list = self.mgr.issue(DataKey.STOCK_LIST)
             stocks = c_list.data
         except Exception as e:
             raise unittest.SkipTest(f"数据库不可用：{e}") from e
@@ -127,7 +129,7 @@ class TestLoadIntegration(unittest.TestCase):
             raise unittest.SkipTest("无 tag scenario 数据")
         name = str(scenario_row["name"])
         try:
-            c_list = self.mgr.issue(DataKey.STOCK_LIST, filtered=False)
+            c_list = self.mgr.issue(DataKey.STOCK_LIST)
             stocks = c_list.data
         except Exception as e:
             raise unittest.SkipTest(f"股票列表不可用：{e}") from e

@@ -43,6 +43,7 @@ class PublishPrepOptions:
     skip_tests: bool = False
     skip_ic: bool = False
     skip_fed_build: bool = False
+    skip_py39: bool = False
 
 
 def normalize_version(raw: str) -> str:
@@ -220,6 +221,14 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
             flush=True,
         )
 
+    if not opts.skip_py39:
+        from devtools.quick_tools.py39_compat_check import run_py39_compat_check
+
+        if run_py39_compat_check() != 0:
+            failures.append("Python 3.9 兼容性检查未通过")
+    else:
+        print("\n[跳过] Python 3.9 兼容性检查", flush=True)
+
     if not opts.skip_ic:
         if run_minimal_import_check() != 0:
             failures.append("minimal import check 失败")
@@ -266,6 +275,7 @@ def parse_publish_argv(argv: Sequence[str]) -> Tuple[PublishPrepOptions | None, 
     skip_tests = False
     skip_ic = False
     skip_fed_build = False
+    skip_py39 = False
     j = 0
     while j < len(rest):
         tok = rest[j]
@@ -283,6 +293,10 @@ def parse_publish_argv(argv: Sequence[str]) -> Tuple[PublishPrepOptions | None, 
             continue
         if tok == "--skip-fed-build":
             skip_fed_build = True
+            del rest[j]
+            continue
+        if tok == "--skip-py39":
+            skip_py39 = True
             del rest[j]
             continue
         if tok.startswith("-v") and len(tok) > 2:
@@ -306,6 +320,7 @@ def parse_publish_argv(argv: Sequence[str]) -> Tuple[PublishPrepOptions | None, 
             skip_tests=skip_tests,
             skip_ic=skip_ic,
             skip_fed_build=skip_fed_build,
+            skip_py39=skip_py39,
         ),
         rest,
     )

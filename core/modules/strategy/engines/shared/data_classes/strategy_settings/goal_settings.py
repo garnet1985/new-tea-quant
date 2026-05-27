@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any, Dict
 
 from .settings_base import SettingsBase, ValidationReport
+from .stock_status_risk_settings import StockStatusRiskManagementSettings
 
 
 @dataclass
@@ -34,6 +35,13 @@ class StrategyGoalSettings(SettingsBase):
                 exp["fixed_window_in_days"] = 30
             if "is_trading_days" not in exp:
                 exp["is_trading_days"] = True
+        StockStatusRiskManagementSettings().apply_defaults_to_goal_block(self.goal)
+
+    @property
+    def stock_status_risk(self) -> StockStatusRiskManagementSettings:
+        return StockStatusRiskManagementSettings.from_goal_block(
+            self.goal.get("stock_status_risk_management")
+        )
 
     def validate(self) -> ValidationReport:
         self.apply_defaults()
@@ -112,6 +120,14 @@ class StrategyGoalSettings(SettingsBase):
                 field_path,
                 "goal 配置不完整：缺少 stop_loss 配置",
             )
+
+        status_result = StockStatusRiskManagementSettings.validate_block(
+            goal_config, f"{field_path}.stock_status_risk_management"
+        )
+        result.errors.extend(status_result.errors)
+        result.warnings.extend(status_result.warnings)
+        if not status_result.is_valid:
+            result.is_valid = False
 
         return result
 

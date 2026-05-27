@@ -44,7 +44,7 @@ class Analyzer:
     def run_for_simulator(
         strategy_name: str,
         sim_type: str,
-        sim_version_dir: Path,
+        output_version_dir: Path,
         raw_settings: Dict[str, Any],
     ) -> None:
         try:
@@ -57,10 +57,10 @@ class Analyzer:
         context = AnalysisContext(
             strategy_name=strategy_name,
             sim_type=sim_type,
-            sim_version_dir=sim_version_dir,
+            output_version_dir=output_version_dir,
             raw_settings=raw_settings,
         )
-        analysis_root = sim_version_dir / "analysis"
+        analysis_root = output_version_dir / "analysis"
         analysis_root.mkdir(parents=True, exist_ok=True)
         if cfg.statistical_enabled:
             try:

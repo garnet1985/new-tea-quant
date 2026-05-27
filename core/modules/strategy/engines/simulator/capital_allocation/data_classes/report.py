@@ -36,6 +36,11 @@ class CapitalReport(ReportBase):
     stock_summary: Dict[str, Any]
     skipped_buy_at_limit_up: int = 0
     skipped_sell_at_limit_down: int = 0
+    skipped_stock_status: int = 0
+    skipped_buy_participation: int = 0
+    skipped_sell_participation: int = 0
+    clipped_buy_participation: int = 0
+    clipped_sell_participation: int = 0
     backtest_period: Dict[str, str] = field(default_factory=dict)
 
     @classmethod
@@ -72,6 +77,11 @@ class CapitalReport(ReportBase):
             stock_summary=data.get("stock_summary", {}) or {},
             skipped_buy_at_limit_up=int(data.get("skipped_buy_at_limit_up", 0) or 0),
             skipped_sell_at_limit_down=int(data.get("skipped_sell_at_limit_down", 0) or 0),
+            skipped_stock_status=int(data.get("skipped_stock_status", 0) or 0),
+            skipped_buy_participation=int(data.get("skipped_buy_participation", 0) or 0),
+            skipped_sell_participation=int(data.get("skipped_sell_participation", 0) or 0),
+            clipped_buy_participation=int(data.get("clipped_buy_participation", 0) or 0),
+            clipped_sell_participation=int(data.get("clipped_sell_participation", 0) or 0),
             backtest_period=backtest_period,
         )
 
@@ -91,7 +101,14 @@ class CapitalReport(ReportBase):
             f"📉 最大回撤: {self.max_drawdown * 100:.2f}%",
             (
                 f"⏭️ 涨跌停跳过买入: {self.skipped_buy_at_limit_up} · "
-                f"跳过卖出: {self.skipped_sell_at_limit_down}"
+                f"跳过卖出: {self.skipped_sell_at_limit_down} · "
+                f"状态跳过投资: {self.skipped_stock_status}"
+            ),
+            (
+                f"📊 参与率约束跳过买入: {self.skipped_buy_participation} · "
+                f"跳过卖出: {self.skipped_sell_participation} · "
+                f"缩量买入: {self.clipped_buy_participation} · "
+                f"缩量卖出: {self.clipped_sell_participation}"
             ),
             (
                 f"🔄 成交笔数: {self.total_trades} "

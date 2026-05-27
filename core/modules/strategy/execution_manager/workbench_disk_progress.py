@@ -43,21 +43,21 @@ def _price_factor_summary_from_result_report(rr: Dict[str, Any]) -> Optional[Dic
 def _fed_result_report_slice(
     strategy_name: str,
     normalized_step: str,
-    snapshot_id: int,
+    version: int,
 ) -> Dict[str, Any]:
     """从工作台快照 ``result_report`` 取出当前 step  execution 条需要的摘要（与 FED 执行面板字段对齐）。"""
-    if snapshot_id <= 0:
+    if version <= 0:
         return {}
     try:
         from core.modules.strategy.launcher.workbench import (
-            fetch_workbench_snapshot_by_snapshot_id,
+            fetch_workbench_by_version,
         )
     except Exception:
         return {}
 
-    row = fetch_workbench_snapshot_by_snapshot_id(
+    row = fetch_workbench_by_version(
         str(strategy_name).strip(),
-        int(snapshot_id),
+        int(version),
     )
     if not row:
         return {}
@@ -123,10 +123,10 @@ def _fed_result_report_slice(
 def _fed_execution_step_card_slice(
     strategy_name: str,
     normalized_step: str,
-    snapshot_id: int,
+    version: int,
 ) -> Dict[str, Any]:
     """仅执行面板三行卡片所需字段，避免把整份 ``result_report`` 塞进 run 进度 JSON。"""
-    full = _fed_result_report_slice(strategy_name, normalized_step, snapshot_id)
+    full = _fed_result_report_slice(strategy_name, normalized_step, version)
     if not full:
         return {}
     out: Dict[str, Any] = {}
@@ -148,14 +148,14 @@ def _fed_execution_step_card_slice(
     return out
 
 
-def merge_snapshot_into_disk_progress(
+def merge_version_into_disk_progress(
     strategy_name: str,
     job_id: str,
     normalized_step: str,
-    snapshot_id: int,
+    version: int,
 ) -> None:
-    """完成后把 ``snapshot_id`` 写入进度 JSON（轮询只读该文件）。"""
-    sid = int(snapshot_id or 0)
+    """完成后把工作台 ``version`` 写入进度 JSON（轮询只读该文件）。"""
+    sid = int(version or 0)
     if sid <= 0:
         return
     sn = str(strategy_name).strip()
@@ -170,7 +170,7 @@ def merge_snapshot_into_disk_progress(
             "run_id": jid,
             "step_name": step,
             "progress_pct": 100,
-            "snapshot_id": sid,
+            "version": sid,
             "status": "completed",
             "phase": "completed",
         }
@@ -207,7 +207,7 @@ def disk_workbench_step_progress(
     *,
     phase: str = "running",
 ) -> None:
-    """运行中段更新进度文件中的 ``progress_pct``（不写 ``snapshot_id``；完成仍由 merge 写 100）。"""
+    """运行中段更新进度文件中的 ``progress_pct``（不写 ``version``；完成仍由 merge 写 100）。"""
     sn = str(strategy_name).strip()
     jid = str(job_id).strip()
     step = str(normalized_step).strip()
@@ -316,7 +316,7 @@ def _progress_payload_from_disk(
         pct = float(disk.get("progress_pct") or 0)
     except (TypeError, ValueError):
         pct = 0.0
-    sid_disk = int(disk.get("snapshot_id") or 0)
+    sid_disk = int(disk.get("version") or 0)
     if sid_disk > 0 and pct < 100.0:
         pct = 100.0
     pct = max(0.0, min(100.0, pct))
@@ -331,7 +331,7 @@ def _progress_payload_from_disk(
         out["is_success"] = True
         sid = sid_disk
         if sid > 0:
-            out["snapshot_id"] = sid
+            out["version"] = sid
             out["version_id"] = f"v{sid}"
             fed = _fed_result_report_slice(name, step, sid)
             if fed:
@@ -359,6 +359,6 @@ __all__ = [
     "disk_mark_running",
     "disk_workbench_step_progress",
     "get_step_progress",
-    "merge_snapshot_into_disk_progress",
+    "merge_version_into_disk_progress",
     "seed_workbench_progress_file",
 ]

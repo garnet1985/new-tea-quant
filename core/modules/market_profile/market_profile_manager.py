@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Sequence, Tuple
 
 from core.infra.project_context import DiscoveryManager, merge_market_profile_dicts
 
@@ -36,9 +36,15 @@ class MarketProfileManager:
         self._cache.clear()
 
     def resolve_limit_ratio(
-        self, stock_id: str, *, profile_id: Optional[str] = None
+        self,
+        stock_id: str,
+        *,
+        profile_id: Optional[str] = None,
+        status_tags: Optional[Sequence[str]] = None,
     ) -> float:
-        return self.get_profile(profile_id).resolve_limit_ratio(stock_id)
+        return self.get_profile(profile_id).resolve_limit_ratio(
+            stock_id, status_tags
+        )
 
     def compute_limit_prices(
         self,
@@ -46,8 +52,11 @@ class MarketProfileManager:
         prev_close: float,
         *,
         profile_id: Optional[str] = None,
+        status_tags: Optional[Sequence[str]] = None,
     ) -> Tuple[float, float]:
-        return self.get_profile(profile_id).compute_limit_prices(stock_id, prev_close)
+        return self.get_profile(profile_id).compute_limit_prices(
+            stock_id, prev_close, status_tags
+        )
 
     def resolve_lot_rules(
         self, stock_id: str, *, profile_id: Optional[str] = None

@@ -49,14 +49,15 @@ class ApiConfig:
     """
     单个 API 的配置。
 
-    必填：provider_name, method, max_per_minute
+    必填：provider_name, method
     可选：params_mapping, result_mapping（默认空字典）, params（静态 API 参数，默认空字典）
+
+    限流：在 Provider.api_limits[method] 声明，运行时由 collect_api_limits 读取。
     """
 
     api_name: str
     provider_name: str
     method: str
-    max_per_minute: int
     params_mapping: Dict[str, str]
     result_mapping: Dict[str, str]
     params: Dict[str, Any]
@@ -80,9 +81,11 @@ class ApiConfig:
             d.get("provider_name"), "provider_name", api_name, data_source_key
         )
         method = _require_str(d.get("method"), "method", api_name, data_source_key)
-        max_per_minute = _require_int(
-            d.get("max_per_minute"), "max_per_minute", api_name, data_source_key
-        )
+        if d.get("max_per_minute") is not None:
+            raise DataSourceConfigError(
+                f"{data_source_key}: apis.{api_name}.max_per_minute 已移除，"
+                f"请在 Provider '{provider_name}'.api_limits['{method}'] 配置限流"
+            )
         params_mapping = _dict_str_str(d.get("params_mapping"), "params_mapping", api_name)
         result_mapping = _dict_str_str(d.get("result_mapping"), "result_mapping", api_name)
 
@@ -93,7 +96,6 @@ class ApiConfig:
             api_name=api_name,
             provider_name=provider_name,
             method=method,
-            max_per_minute=max_per_minute,
             params_mapping=params_mapping,
             result_mapping=result_mapping,
             params=params,

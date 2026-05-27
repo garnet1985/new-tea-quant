@@ -413,6 +413,7 @@ class OpportunityEnumeratorFlowImpl:
                     "end_date": job["end_date"],
                     "output_dir": job["output_dir"],
                     "global_extra_cache": global_extra_cache,
+                    "backtest_calendar": job.get("backtest_calendar"),
                     "worker_module_path": job["worker_module_path"],
                     "worker_class_name": job["worker_class_name"],
                 },
@@ -537,6 +538,7 @@ class OpportunityEnumeratorFlowImpl:
             output_dir=output_dir,
             performance_summary=performance_summary,
         )
+        aggregate_profiler.print_report()
 
     def save_metadata(
         self,
@@ -601,18 +603,6 @@ class OpportunityEnumeratorFlowImpl:
             bff_out = None
         return bff_out
 
-    def cleanup_versions(
-        self,
-        *,
-        output_dir: Path,
-        strategy_name: str,
-        enum_settings: OpportunityEnumeratorSettings,
-    ) -> None:
-        sub_dir = output_dir.parent
-        StrategyOutputVersionService.prune_enumerator_versions(
-            sub_dir, enum_settings.max_output_versions
-        )
-
     def build_result_report(
         self,
         *,
@@ -635,9 +625,7 @@ class OpportunityEnumeratorFlowImpl:
         )
         summary: Dict[str, Any] = {
             "strategy_name": strategy_name,
-            "version_id": version_id,
-            "version_dir": version_dir_name,
-            # 与 ``version_dir`` 同义；工作台 ``report_ref`` 查找优先使用该字段（枚举产物子目录名）
+            "output_version_id": version_id,
             "enumerator_output_dir": version_dir_name,
             "opportunities": total_opportunities,
             "totalStocks": total_stocks,

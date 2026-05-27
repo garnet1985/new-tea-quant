@@ -12,7 +12,7 @@ from ..workbench_disk_progress import (
     disk_mark_failed,
     disk_mark_running,
     disk_workbench_step_progress,
-    merge_snapshot_into_disk_progress,
+    merge_version_into_disk_progress,
     seed_workbench_progress_file,
 )
 from ..workbench_jobs import job_create, job_update
@@ -72,7 +72,7 @@ class _WorkbenchRunProgressSink:
         )
 
     def on_substep_finish(
-        self, substep: str, index: int, total: int, snapshot_id: int
+        self, substep: str, index: int, total: int, version: int
     ) -> None:
         run_envelope_on_substep_finish(
             self._strategy_name,
@@ -80,7 +80,7 @@ class _WorkbenchRunProgressSink:
             index,
             total,
             substep,
-            int(snapshot_id or 0),
+            int(version or 0),
         )
 
 
@@ -89,7 +89,7 @@ def _run_workbench_job_in_thread(
     strategy_name: str,
     norm_step: str,
     discovered: Any,
-    is_force: bool,
+    force_refresh: bool,
 ) -> None:
     sink: Optional[_WorkbenchRunProgressSink] = None
     job_update(job_id, status="running", progress=1.0)
@@ -98,7 +98,7 @@ def _run_workbench_job_in_thread(
         job_update(job_id, progress=5.0)
         plan = plan_workbench_substeps(
             norm_step=norm_step,
-            is_force=is_force,
+            force_refresh=force_refresh,
             strategy_name=strategy_name,
             discovered=discovered,
         )
@@ -113,14 +113,14 @@ def _run_workbench_job_in_thread(
             enum_stock_count=None,
             is_verbose=False,
         )
-        sid_int = int(result.snapshot_id or 0)
+        ver_int = int(result.version or 0)
         job_update(
             job_id,
             status="completed",
             progress=100.0,
-            snapshot_id=sid_int,
+            version=ver_int,
         )
-        merge_snapshot_into_disk_progress(strategy_name, job_id, norm_step, sid_int)
+        merge_version_into_disk_progress(strategy_name, job_id, norm_step, ver_int)
         run_envelope_mark_phase_completed(strategy_name, job_id)
     except Exception as exc:  # noqa: BLE001
         logger.exception("Workbench step run failed job_id=%s", job_id)
@@ -135,7 +135,7 @@ def submit_workbench_step_via_bff_contract(
     strategy_name: str,
     step: str,
     api_settings: Dict[str, Any],
-    is_force: bool,
+    force_refresh: bool,
 ) -> Dict[str, Any]:
     """
     BFF 触发异步工作台一步。
@@ -160,12 +160,12 @@ def submit_workbench_step_via_bff_contract(
 
     plan: List[Tuple[str, bool]] = plan_workbench_substeps(
         norm_step=norm_step,
-        is_force=is_force,
+        force_refresh=force_refresh,
         strategy_name=name,
         discovered=discovered,
     )
 
-    jid = job_create(strategy_name=name, step=norm_step, is_force=is_force)
+    jid = job_create(strategy_name=name, step=norm_step, force_refresh=force_refresh)
     seed_workbench_progress_file(name, jid, norm_step)
     steps_payload = seed_workbench_run_envelope(name, jid, plan)
     run_envelope_mark_started(name, jid)
@@ -174,7 +174,7 @@ def submit_workbench_step_via_bff_contract(
         steps_payload = packed["steps"]
     thread = threading.Thread(
         target=_run_workbench_job_in_thread,
-        args=(jid, name, norm_step, discovered, is_force),
+        args=(jid, name, norm_step, discovered, force_refresh),
         daemon=True,
         name=f"workbench-run-{jid[:8]}",
     )

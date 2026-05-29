@@ -70,8 +70,7 @@ core/default_config/             # 默认配置（只包含 JSON）
     ├── common.json              # 数据库公共配置（database_type 等）
     ├── postgresql.json          # PostgreSQL 默认配置
     ├── mysql.json               # MySQL 默认配置
-    ├── sqlite.json              # SQLite 默认配置
-    └── db_conf.json             # DuckDB / 迁移工具配置
+    └── duckdb.json              # DuckDB 三存储域配置
 
 userspace/config/                # 用户覆盖配置（可选）
 ├── data.json
@@ -81,8 +80,7 @@ userspace/config/                # 用户覆盖配置（可选）
 └── database/
     ├── common.json
     ├── postgresql.json
-    ├── mysql.json
-    └── sqlite.json
+    └── mysql.json
 ```
 
 ### 高层关系图（概念）
@@ -146,7 +144,7 @@ userspace/config/                # 用户覆盖配置（可选）
 ```text
 1. 读取默认配置
    - core/default_config/database/common.json
-   - core/default_config/database/postgresql.json / mysql.json / sqlite.json
+   - core/default_config/database/postgresql.json / mysql.json / duckdb.json
 
 2. 读取用户配置（如果存在）
    - userspace/config/database/common.json

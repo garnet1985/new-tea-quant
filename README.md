@@ -216,7 +216,7 @@ Have fun `^_^`, 更多用法请参考这里 [更多用例](https://new-tea.cn/zh
 
 1. **仓库内置小数据**：只覆盖部分表，用于快速启动和演示。  
 2. **获取更多（约 3 年）演示数据包**：用于更完整的策略验证/回测，请在 **[new-tea.cn](https://new-tea.cn)** 注册后下载，**清空** `setup/init_data/` 后只放入 **1 个** zip，再执行 `python setup/steps/import_data/install.py`（必要时加 `--force`）。  
-3. **自有数据源**：也可自行接入（如 Tushare），详见 [userspace/data_source/README.md](userspace/data_source/README.md)。
+3. **自有数据源**：也可自行接入（如 Tushare），详见 [userspace/extensions/data_source/README.md](userspace/extensions/data_source/README.md)。
 
 ## 支持一下项目
 

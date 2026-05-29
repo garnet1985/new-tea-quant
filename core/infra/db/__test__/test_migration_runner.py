@@ -40,6 +40,7 @@ def _schema(name: str, uk: str, *, with_note: bool = False) -> dict:
     return {
         "update_key": uk,
         "name": name,
+        "storage_domain": "data",
         "primaryKey": "id",
         "fields": fields,
         "indexes": [],

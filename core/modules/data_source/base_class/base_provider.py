@@ -75,7 +75,7 @@ class BaseProvider(ABC):
         - 如果 requires_auth=False，返回空配置；
         - 如果 requires_auth=True 且 auth_type == "token"：
           1. 对于 provider_name == "tushare"：
-             - 优先从 userspace/data_source/providers/tushare/auth_token.txt 读取 token；
+             - 优先从 userspace/extensions/data_source/providers/tushare/auth_token.txt 读取 token；
              - 否则从环境变量 TUSHARE_TOKEN 读取；
              - 如果仍然没有，抛出带有清晰指引的错误；
           2. 其他 provider：

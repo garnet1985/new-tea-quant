@@ -43,8 +43,7 @@ core/default_config/            # 默认配置（只包含 JSON）
     ├── common.json             # 公共配置（database_type、batch_write 等）
     ├── postgresql.json         # PostgreSQL 默认配置
     ├── mysql.json              # MySQL 默认配置
-    ├── sqlite.json             # SQLite 默认配置
-    └── db_conf.json            # DuckDB / 迁移工具相关
+    └── duckdb.json             # DuckDB 三存储域配置（默认推荐）
 ```
 
 ### 用户配置：`userspace/config/`
@@ -60,7 +59,7 @@ userspace/config/               # 用户覆盖配置（可选）
     ├── common.json             # 用户数据库公共配置（如 database_type）
     ├── postgresql.json         # 用户 PostgreSQL 配置（通常只需 user/password）
     ├── mysql.json              # 用户 MySQL 配置
-    └── sqlite.json             # 用户 SQLite 配置
+    └── duckdb.json             # 用户 DuckDB 配置（可选覆盖 db_path 等）
 ```
 
 > **约定**：所有实际生效的 `*.json` 文件都**不提交到 Git**，仓库中只保留 `*.example.json` 作为模板（模板说明详见 `core/default_config/README.md` 与 `userspace/config/README.md`）。

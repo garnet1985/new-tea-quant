@@ -10,6 +10,7 @@ DatabaseManager - 数据库管理器（支持多种数据库后端）
 """
 from typing import Optional, Dict, List, Any, Callable
 from contextlib import contextmanager
+from pathlib import Path
 import logging
 
 from core.infra.project_context import ConfigManager
@@ -17,6 +18,7 @@ from core.infra.db.connection_management.connection_manager import ConnectionMan
 from core.infra.db.schema_management.schema_manager import SchemaManager
 from core.infra.db.table_management.table_manager import TableManager
 from core.infra.db.helpers.db_helpers import DBHelper
+from core.infra.db.storage_registry import StorageRegistry, PRIMARY_DUCKDB_DOMAIN
 
 
 logger = logging.getLogger(__name__)
@@ -56,9 +58,11 @@ class DatabaseManager:
         
         self.is_verbose = is_verbose
         self._initialized = False
+
+        database_type = self.config.get("database_type", "postgresql")
+        self.storage_registry = StorageRegistry(database_type)
         
         # 初始化三个管理器
-        database_type = self.config.get('database_type', 'postgresql')
         
         # 1. ConnectionManager - 连接和事务管理
         self.connection_manager = ConnectionManager(
@@ -160,7 +164,10 @@ class DatabaseManager:
                 config=self.config,
             )
             
-            # 3. 批量写入队列延迟初始化（只在需要写入时才初始化）
+            # 3. 构建表 → 存储域映射（DuckDB 路由依赖）
+            self.rebuild_storage_registry()
+
+            # 4. 批量写入队列延迟初始化（只在需要写入时才初始化）
             # 注意：枚举器等只读场景不需要初始化写入队列，可以节省资源
             # 写入队列会在第一次调用 queue_write() 时自动初始化
             
@@ -174,6 +181,12 @@ class DatabaseManager:
             elif database_type == 'mysql':
                 mysql_config = self.config.get('mysql', {})
                 logger.debug(f"✅ DatabaseManager 初始化完成（MySQL: {mysql_config.get('database', 'unknown')}）")
+            elif database_type == 'duckdb':
+                n = len(self.storage_registry.table_to_domain)
+                logger.debug(
+                    "✅ DatabaseManager 初始化完成（DuckDB 三域，已注册 %s 张表）",
+                    n,
+                )
                 
         except Exception as e:
             logger.error(f"❌ DatabaseManager 初始化失败: {e}")
@@ -182,9 +195,48 @@ class DatabaseManager:
     # ==================== ConnectionManager 委托方法 ====================
     
     @property
+    def database_type(self) -> str:
+        """当前进程缓存的数据库类型（mysql | postgresql | duckdb）。"""
+        return str(self.config.get("database_type", "postgresql")).lower()
+
+    @property
+    def is_duckdb(self) -> bool:
+        return self.storage_registry.is_duckdb
+
+    @property
     def adapter(self):
-        """获取适配器（向后兼容）"""
+        """主适配器（DuckDB 为 data 域）。"""
         return self.connection_manager.adapter
+
+    def adapter_for_table(self, table_name: str):
+        """按表 storage_domain 解析适配器。"""
+        if self.is_duckdb:
+            return self.connection_manager.adapter_for_domain(
+                self.storage_registry.get_domain(table_name)
+            )
+        return self.adapter
+
+    def get_table_domain(self, table_name: str) -> str:
+        """查询表所属 storage_domain。"""
+        return self.storage_registry.get_domain(table_name)
+
+    def rebuild_storage_registry(self) -> None:
+        """从 core/tables 重新加载 schema 并刷新表→域映射。"""
+        self.storage_registry = StorageRegistry(self.database_type)
+        tables_path = Path(self.schema_manager.tables_dir)
+        if not tables_path.exists():
+            return
+        for schema_py in sorted(tables_path.rglob("schema.py")):
+            if not schema_py.is_file():
+                continue
+            try:
+                schema = self.schema_manager.load_schema_from_python(str(schema_py))
+                if schema:
+                    self.storage_registry.register_schema(schema)
+            except Exception as e:
+                logger.error("注册 storage_domain 失败 %s: %s", schema_py, e)
+        for schema in self.schema_manager.registered_tables.values():
+            self.storage_registry.register_schema(schema)
     
     @contextmanager
     def get_connection(self):
@@ -199,14 +251,41 @@ class DatabaseManager:
             yield cursor
     
     @contextmanager
-    def get_sync_cursor(self):
+    def get_sync_cursor(self, domain: Optional[str] = None):
         """获取数据库游标（委托给 ConnectionManager）"""
-        with self.connection_manager.get_sync_cursor() as cursor:
+        with self.connection_manager.get_sync_cursor(domain=domain) as cursor:
             yield cursor
+
+    @contextmanager
+    def get_sync_cursor_for_table(self, table_name: str):
+        """按表 storage_domain 获取游标。"""
+        domain = self.get_table_domain(table_name) if self.is_duckdb else None
+        with self.connection_manager.get_sync_cursor(domain=domain) as cursor:
+            yield cursor
+
+    def connection_factory_for_table(self, table_name: str) -> Callable:
+        """SchemaManager 建表用的连接工厂（按表路由域）。"""
+        domain = self.get_table_domain(table_name) if self.is_duckdb else None
+
+        @contextmanager
+        def get_connection_func():
+            with self.connection_manager.get_connection(domain=domain) as conn:
+                yield conn
+
+        return get_connection_func
     
-    def execute_sync_query(self, query: str, params: Any = None) -> List[Dict[str, Any]]:
+    def execute_sync_query(
+        self, query: str, params: Any = None, domain: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """执行同步查询（委托给 ConnectionManager）"""
-        return self.connection_manager.execute_sync_query(query, params)
+        return self.connection_manager.execute_sync_query(query, params, domain=domain)
+
+    def execute_sync_query_for_table(
+        self, table_name: str, query: str, params: Any = None
+    ) -> List[Dict[str, Any]]:
+        """按表名路由域后执行查询。"""
+        d = self.get_table_domain(table_name) if self.is_duckdb else None
+        return self.execute_sync_query(query, params, domain=d)
     
     # ==================== SchemaManager 委托方法 ====================
     
@@ -219,10 +298,12 @@ class DatabaseManager:
             schema: 表的 schema 定义
         """
         self.schema_manager.register_table(table_name, schema)
+        self.storage_registry.register_schema(schema)
         
         if self._initialized:
-            # 如果已经初始化，立即创建表
-            self.schema_manager.create_table_with_indexes(schema, self.get_connection)
+            self.schema_manager.create_table_with_indexes(
+                schema, self.connection_factory_for_table(table_name)
+            )
     
     def create_registered_tables(self):
         """创建所有注册的表（策略表）"""
@@ -241,7 +322,25 @@ class DatabaseManager:
         if not self._initialized:
             raise RuntimeError("数据库未初始化，请先调用 initialize()")
         
-        return self.schema_manager.is_table_exists(table_name, self.connection_manager.adapter)
+        return self.schema_manager.is_table_exists(
+            table_name, self.adapter_for_table(table_name)
+        )
+
+    def create_all_base_tables(self) -> None:
+        """
+        创建 core/tables 下所有基表。
+
+        DuckDB 按 storage_domain 写入对应 .duckdb 文件；其它后端单库创建。
+        """
+        schemas = self.schema_manager.load_all_schemas()
+        for table_name, schema in schemas.items():
+            self.storage_registry.register_schema(schema)
+            try:
+                self.schema_manager.create_table_with_indexes(
+                    schema, self.connection_factory_for_table(table_name)
+                )
+            except Exception as e:
+                logger.error("❌ 创建表失败 '%s': %s", table_name, e)
     
     def get_table_schema(self, table_name: str) -> Optional[Dict]:
         """
@@ -356,7 +455,14 @@ class DatabaseManager:
                 'port': mysql_config.get('port', 3306),
                 'database': mysql_config.get('database', ''),
             })
-        
+        elif database_type == 'duckdb':
+            duck = self.config.get('duckdb', {})
+            stats['duckdb_domains'] = {
+                d: (a.config.get('db_path') if getattr(a, 'config', None) else None)
+                for d, a in self.connection_manager.domain_adapters.items()
+            }
+            stats['table_domain_map_size'] = len(self.storage_registry.table_to_domain)
+
         return stats
     
     def __del__(self):

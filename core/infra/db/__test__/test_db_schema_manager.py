@@ -37,6 +37,7 @@ class TestSchemaManager:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             schema_data = {
                 'name': 'test_table',
+                'storage_domain': 'data',
                 'fields': [
                     {'name': 'id', 'type': 'VARCHAR', 'length': 50, 'primary_key': True},
                     {'name': 'name', 'type': 'VARCHAR', 'length': 100}

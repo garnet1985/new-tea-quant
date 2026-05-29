@@ -7,6 +7,7 @@
 数据来源以 Tushare namechange 的 name + start_date/end_date 为主。
 """
 schema = {
+    "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "stock_stock_st_periods",
     "name": "sys_stock_st_periods",
     "primaryKey": ["stock_id", "st_level", "start_date"],

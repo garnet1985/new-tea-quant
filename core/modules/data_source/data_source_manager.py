@@ -252,7 +252,7 @@ class DataSourceManager:
         发现并加载数据源的 mapping 配置。
 
         约定：
-        - 使用 userspace/data_source/mapping.py（DATA_SOURCES）作为入口；兼容 mapping.json。
+        - 使用 userspace/extensions/data_source/mapping.py（DATA_SOURCES）作为入口；兼容 mapping.json。
         - 返回 HandlerMapping(data_sources=...)
         """
         mapping_path = PathManager.data_source_mapping()

@@ -25,6 +25,8 @@ def quote_ddl_identifier(database_type: str, name: str) -> str:
     if name is None:
         return name
     s = str(name)
+    if database_type in ("postgresql", "duckdb"):
+        return f'"{name}"'
     if database_type == "mysql":
         return "`" + s.replace("`", "``") + "`"
     return '"' + s.replace('"', '""') + '"'

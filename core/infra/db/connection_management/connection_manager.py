@@ -6,6 +6,7 @@ ConnectionManager - 连接和事务管理
 - 连接获取和释放
 - 事务管理
 - 游标管理
+- DuckDB 多存储域：每域独立适配器，主连接为 data 域
 """
 from typing import Optional, Dict, Any
 from contextlib import contextmanager
@@ -14,6 +15,7 @@ import logging
 from core.infra.db.table_queriers.adapters.factory import DatabaseAdapterFactory
 from core.infra.db.table_queriers.adapters.base_adapter import BaseDatabaseAdapter
 from core.infra.db.helpers.db_helpers import DatabaseCursor
+from core.infra.db.storage_registry import STORAGE_DOMAINS, PRIMARY_DUCKDB_DOMAIN
 
 
 logger = logging.getLogger(__name__)
@@ -39,117 +41,144 @@ class ConnectionManager:
             is_verbose: 是否输出详细日志
         """
         self.config = config
-        # is_verbose 参数仅用于向后兼容；详细日志由 logging 配置控制
         self.is_verbose = is_verbose
         self.adapter: Optional[BaseDatabaseAdapter] = None
+        self.domain_adapters: Dict[str, BaseDatabaseAdapter] = {}
         self._initialized = False
+
+    @property
+    def database_type(self) -> str:
+        return str(self.config.get("database_type", "postgresql")).lower()
+
+    @property
+    def is_duckdb(self) -> bool:
+        return self.database_type == "duckdb"
     
     def initialize(self):
         """
         初始化数据库连接
         
         步骤：
-        1. 使用适配器工厂创建适配器
+        1. 使用适配器工厂创建适配器（或 DuckDB 多域适配器）
         2. 连接数据库
         
         注意：此方法是幂等的，多次调用只会执行一次
         """
-        # 幂等检查：如果已经初始化，直接返回
         if self._initialized and self.adapter:
             return
         
         try:
-            # 创建适配器
-            self.adapter = DatabaseAdapterFactory.create(
-                self.config,
-                is_verbose=self.is_verbose,
-            )
+            if self.is_duckdb:
+                self._initialize_duckdb_domains()
+            else:
+                self.adapter = DatabaseAdapterFactory.create(
+                    self.config,
+                    is_verbose=self.is_verbose,
+                )
+                self.domain_adapters = {}
             
             self._initialized = True
-            
-            # 显示初始化信息
-            database_type = self.config.get('database_type', 'postgresql')
-            if database_type == 'postgresql':
-                pg_config = self.config.get('postgresql', {})
-                logger.debug(f"✅ 数据库连接已建立（PostgreSQL: {pg_config.get('database', 'unknown')}）")
-            elif database_type == 'mysql':
-                mysql_config = self.config.get('mysql', {})
-                logger.debug(f"✅ 数据库连接已建立（MySQL: {mysql_config.get('database', 'unknown')}）")
+            self._log_initialized()
                 
         except Exception as e:
             logger.error(f"❌ 数据库连接初始化失败: {e}")
             raise
+
+    def _initialize_duckdb_domains(self) -> None:
+        duck_cfg = dict(self.config.get("duckdb") or {})
+        domains_cfg = dict(duck_cfg.get("domains") or {})
+        shared = {k: v for k, v in duck_cfg.items() if k != "domains"}
+
+        self.domain_adapters = {}
+        for domain in sorted(STORAGE_DOMAINS):
+            domain_raw = domains_cfg.get(domain)
+            if not domain_raw:
+                raise ValueError(f"DuckDB 配置缺少域: {domain}")
+            merged = {**shared, **domain_raw}
+            self.domain_adapters[domain] = (
+                DatabaseAdapterFactory.create_duckdb_domain_adapter(
+                    merged, is_verbose=self.is_verbose
+                )
+            )
+
+        self.adapter = self.domain_adapters.get(PRIMARY_DUCKDB_DOMAIN)
+        if self.adapter is None:
+            raise RuntimeError("DuckDB 主域 data 适配器未创建")
+
+    def _resolve_adapter(self, domain: Optional[str] = None) -> BaseDatabaseAdapter:
+        """解析目标适配器；DuckDB 默认 data 域。"""
+        if not self._initialized:
+            self.initialize()
+        if not self.is_duckdb:
+            if not self.adapter:
+                raise RuntimeError("数据库未初始化")
+            return self.adapter
+        d = str(domain or PRIMARY_DUCKDB_DOMAIN).lower()
+        adapter = self.domain_adapters.get(d)
+        if adapter is None:
+            raise KeyError(f"未知 DuckDB 存储域: {domain!r}")
+        return adapter
+
+    def adapter_for_domain(self, domain: str) -> BaseDatabaseAdapter:
+        """按存储域获取适配器；非 DuckDB 时始终返回主适配器。"""
+        return self._resolve_adapter(domain)
+
+    def _log_initialized(self) -> None:
+        database_type = self.database_type
+        if database_type == "postgresql":
+            pg_config = self.config.get("postgresql", {})
+            logger.debug(
+                "✅ 数据库连接已建立（PostgreSQL: %s）",
+                pg_config.get("database", "unknown"),
+            )
+        elif database_type == "mysql":
+            mysql_config = self.config.get("mysql", {})
+            logger.debug(
+                "✅ 数据库连接已建立（MySQL: %s）",
+                mysql_config.get("database", "unknown"),
+            )
+        elif database_type == "duckdb":
+            paths = {
+                d: (a.config.get("db_path") if hasattr(a, "config") else "?")
+                for d, a in self.domain_adapters.items()
+            }
+            logger.debug("✅ DuckDB 多域连接已建立: %s", paths)
     
     @contextmanager
-    def get_connection(self):
+    def get_connection(self, domain: Optional[str] = None):
         """
         获取数据库连接（上下文管理器）
         
-        使用方式:
-            with connection_manager.get_connection() as conn:
-                # 连接对象可以直接执行 SQL
-                conn.execute("SELECT ...")
+        Args:
+            domain: DuckDB 存储域；省略时使用主域（data）
         """
-        if not self._initialized:
-            # 尝试自动初始化
-            self.initialize()
+        adapter = self._resolve_adapter(domain)
         
-        if not self.adapter:
-            raise RuntimeError("数据库未初始化，请先调用 initialize()")
-        
-        conn = self.adapter.get_connection()
+        conn = adapter.get_connection()
         try:
             yield conn
         finally:
-            if hasattr(self.adapter, '_put_connection'):
-                # 如果是包装对象，获取原始连接
-                if hasattr(conn, 'pg_conn'):
-                    self.adapter._put_connection(conn.pg_conn)
-                elif hasattr(conn, 'mysql_conn'):
-                    self.adapter._put_connection(conn.mysql_conn)
+            if hasattr(adapter, "_put_connection"):
+                if hasattr(conn, "pg_conn"):
+                    adapter._put_connection(conn.pg_conn)
+                elif hasattr(conn, "mysql_conn"):
+                    adapter._put_connection(conn.mysql_conn)
                 else:
-                    self.adapter._put_connection(conn)
+                    adapter._put_connection(conn)
     
     @contextmanager
-    def transaction(self):
-        """
-        事务上下文管理器
-        
-        使用方式:
-            with connection_manager.transaction() as cursor:
-                cursor.execute("UPDATE ...")
-                cursor.execute("INSERT ...")
-                # 自动提交，出错自动回滚
-        """
-        if not self._initialized:
-            # 尝试自动初始化
-            self.initialize()
-        
-        if not self.adapter:
-            raise RuntimeError("数据库未初始化，请先调用 initialize()")
-        
-        # 使用适配器的事务管理器
-        with self.adapter.transaction() as cursor:
+    def transaction(self, domain: Optional[str] = None):
+        """事务上下文管理器；DuckDB 可指定域。"""
+        adapter = self._resolve_adapter(domain)
+        with adapter.transaction() as cursor:
             yield cursor
     
     @contextmanager
-    def get_sync_cursor(self):
-        """
-        获取数据库游标的上下文管理器
+    def get_sync_cursor(self, domain: Optional[str] = None):
+        """获取数据库游标；DuckDB 可指定域。"""
+        adapter = self._resolve_adapter(domain)
         
-        使用方式:
-            with connection_manager.get_sync_cursor() as cursor:
-                cursor.execute("SELECT * FROM table")
-                results = cursor.fetchall()
-        """
-        if not self._initialized:
-            # 尝试自动初始化
-            self.initialize()
-        
-        if not self.adapter:
-            raise RuntimeError("ConnectionManager not initialized. Call initialize() first.")
-        
-        cursor = DatabaseCursor(self.adapter)
+        cursor = DatabaseCursor(adapter)
         try:
             yield cursor
         except Exception as e:
@@ -158,35 +187,25 @@ class ConnectionManager:
         finally:
             cursor.close()
     
-    def execute_sync_query(self, query: str, params: Any = None):
-        """
-        执行同步查询语句
-        
-        Args:
-            query: SQL 查询语句（使用 %s 占位符，适配器会自动转换）
-            params: 查询参数
-            
-        Returns:
-            查询结果列表（字典格式）
-        """
-        if not self._initialized:
-            # 尝试自动初始化
-            self.initialize()
-        
-        if not self.adapter:
-            raise RuntimeError("ConnectionManager not initialized. Call initialize() first.")
-        
-        # 使用适配器的 execute_query 方法（会自动处理占位符转换）
-        return self.adapter.execute_query(query, params)
+    def execute_sync_query(
+        self, query: str, params: Any = None, domain: Optional[str] = None
+    ):
+        """执行同步查询；DuckDB 可指定域。"""
+        return self._resolve_adapter(domain).execute_query(query, params)
     
     def close(self):
         """关闭数据库连接"""
-        if self.adapter:
+        if self.domain_adapters:
+            for adapter in self.domain_adapters.values():
+                if adapter:
+                    adapter.close()
+            self.domain_adapters = {}
+        elif self.adapter:
             self.adapter.close()
-            self.adapter = None
-            self._initialized = False
-            if self.is_verbose:
-                logger.info("✅ 数据库连接已关闭")
+        self.adapter = None
+        self._initialized = False
+        if self.is_verbose:
+            logger.info("✅ 数据库连接已关闭")
     
     @property
     def is_initialized(self) -> bool:

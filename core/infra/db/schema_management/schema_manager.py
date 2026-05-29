@@ -16,6 +16,7 @@ from pathlib import Path
 from core.infra.project_context import PathManager, FileManager
 from core.infra.db.helpers.db_helpers import DBHelper
 from core.infra.db.schema_management.field import Field
+from core.infra.db.storage_registry import normalize_storage_domain
 
 
 logger = logging.getLogger(__name__)
@@ -46,7 +47,6 @@ class SchemaManager:
         else:
             # 默认指向 core/tables（sys_ 前缀表定义在此）
             self.tables_dir = str(PathManager.core() / 'tables')
-        # is_verbose 参数仅用于向后兼容，实际详细程度由 logging 配置控制
         self.is_verbose = is_verbose
         self.database_type = database_type or 'postgresql'  # 默认 PostgreSQL
         
@@ -55,6 +55,11 @@ class SchemaManager:
         
         # 注册的自定义表（策略表）
         self.registered_tables = {}
+
+    @property
+    def ddl_database_type(self) -> str:
+        """DDL 方言（DuckDB 复用 postgresql 类型）。"""
+        return DBHelper.sql_dialect_for_schema({"database_type": self.database_type})
     
     # ==================== Schema 加载 ====================
     
@@ -198,6 +203,15 @@ class SchemaManager:
                 Field.from_dict(field_dict)
             except ValueError as e:
                 raise ValueError(f"字段 '{field_dict.get('name', 'unknown')}' 定义无效: {e}")
+
+        self._normalize_storage_domain(schema)
+    
+    def _normalize_storage_domain(self, schema: Dict) -> None:
+        """校验 schema 必须包含 storage_domain。"""
+        table_name = str(schema.get("name") or "")
+        schema["storage_domain"] = normalize_storage_domain(
+            schema.get("storage_domain"), table_name=table_name
+        )
     
     def quote_ddl_identifier(self, name: str) -> str:
         """
@@ -245,13 +259,14 @@ class SchemaManager:
         
         for field_obj in field_objects:
             col_name = self.quote_ddl_identifier(field_obj.name)
-            field_sql = f"{col_name} {field_obj.to_sql(self.database_type)}"
+            ddl = self.ddl_database_type
+            field_sql = f"{col_name} {field_obj.to_sql(ddl)}"
             field_sql += field_obj.get_not_null_sql()
-            field_sql += field_obj.get_default_sql(self.database_type)
+            field_sql += field_obj.get_default_sql(ddl)
             field_defs.append(field_sql)
             
             # 处理 COMMENT（PostgreSQL；MySQL 列注释若需可另走 ALTER，此处保持原行为）
-            if field_obj.comment and self.database_type == "postgresql":
+            if field_obj.comment and self.ddl_database_type == "postgresql":
                 escaped_comment = field_obj.comment.replace("'", "''")
                 qt = self.quote_ddl_identifier(table_name)
                 qc = self.quote_ddl_identifier(field_obj.name)
@@ -324,9 +339,10 @@ class SchemaManager:
         field_obj = Field.from_dict(fd)
         col = self.quote_ddl_identifier(field_obj.name)
         qt = self.quote_ddl_identifier(table_name)
-        frag = f"{col} {field_obj.to_sql(self.database_type)}"
+        ddl = self.ddl_database_type
+        frag = f"{col} {field_obj.to_sql(ddl)}"
         frag += field_obj.get_not_null_sql()
-        frag += field_obj.get_default_sql(self.database_type)
+        frag += field_obj.get_default_sql(ddl)
         return f"ALTER TABLE {qt} ADD COLUMN {frag}"
 
     def _fetch_existing_column_names(
@@ -339,6 +355,12 @@ class SchemaManager:
                 "WHERE table_schema = DATABASE() AND table_name = %s"
             )
             params: Any = (table_name,)
+        elif self.database_type == "duckdb":
+            sql = (
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema = 'main' AND table_name = ?"
+            )
+            params = (table_name,)
         else:
             sql = (
                 "SELECT column_name FROM information_schema.columns "
@@ -347,12 +369,16 @@ class SchemaManager:
             params = (table_name,)
 
         with get_connection_func() as conn:
-            with conn.cursor() as cursor:
-                if params is not None:
+            if self.database_type == "duckdb":
+                rel = conn.execute(sql, params)
+                df = rel.fetchdf()
+                rows = df.to_dict(orient="records") if df is not None and not df.empty else []
+            elif hasattr(conn, "cursor"):
+                with conn.cursor() as cursor:
                     cursor.execute(sql, params)
-                else:
-                    cursor.execute(sql)
-                rows = cursor.fetchall() or []
+                    rows = cursor.fetchall() or []
+            else:
+                rows = []
 
         names: Set[str] = set()
         for row in rows:

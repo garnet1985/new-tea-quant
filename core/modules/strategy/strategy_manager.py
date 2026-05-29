@@ -52,7 +52,7 @@ class StrategyManager:
         info = self.validated_strategies.get(strategy_name)
         if info is not None:
             return info
-        folder = PathManager.userspace() / "strategies" / strategy_name
+        folder = PathManager.strategy(strategy_name)
         if not folder.is_dir():
             return None
         return StrategyDiscoveryHelper.load_strategy(folder)

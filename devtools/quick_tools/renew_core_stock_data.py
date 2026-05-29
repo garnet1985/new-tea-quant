@@ -169,7 +169,7 @@ def main() -> int:
 
     from core.infra.project_context.path_manager import PathManager
 
-    data_cfg = PathManager.userspace() / "config" / "data.json"
+    data_cfg = PathManager.user_config() / "data.json"
     if not data_cfg.is_file():
         logger.error("缺少 %s（需 default_start_date=%s）", data_cfg, DEFAULT_START)
         return 1

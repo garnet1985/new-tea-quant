@@ -4,6 +4,7 @@ index_klines 表结构定义（Python，变量名 schema）
 股指K线。主键、时序列 id/term/date nullable=false；其余 nullable=true。
 """
 schema = {
+    "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "index_stock_index_klines",
     "name": "sys_index_klines",
     "primaryKey": ["id", "term", "date"],

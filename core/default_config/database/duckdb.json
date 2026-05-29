@@ -1,0 +1,16 @@
+{
+  "domains": {
+    "data": {
+      "db_path": "data.duckdb"
+    },
+    "tag": {
+      "db_path": "tag.duckdb"
+    },
+    "strategy": {
+      "db_path": "strategy.duckdb"
+    }
+  },
+  "threads": 4,
+  "memory_limit": "8GB",
+  "_comment": "DuckDB 三存储域，文件位于 userspace/system/db/"
+}

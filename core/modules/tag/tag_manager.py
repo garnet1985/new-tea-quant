@@ -160,7 +160,7 @@ class TagManager:
         # 获取 worker_class 的模块路径和类名（用于子进程重新导入，避免 pickle 问题）
         worker_class_name = worker_class.__name__
         # 构建完整的模块路径（相对于项目根目录）
-        # 例如：userspace/tags/momentum/tag_worker.py -> userspace.tags.momentum.tag_worker
+        # 例如：userspace/extensions/tags/momentum/tag_worker.py -> userspace.extensions.tags.momentum.tag_worker
         worker_module_full_path = self._calculate_module_path(worker_class_path)
 
         return {
@@ -183,10 +183,10 @@ class TagManager:
         计算文件路径对应的模块路径
         
         Args:
-            file_path: 文件路径（如 userspace/tags/momentum/tag_worker.py）
+            file_path: 文件路径（如 userspace/extensions/tags/momentum/tag_worker.py）
             
         Returns:
-            模块路径（如 userspace.tags.momentum.tag_worker）
+            模块路径（如 userspace.extensions.tags.momentum.tag_worker）
         """
         try:
             # 相对于项目根目录计算

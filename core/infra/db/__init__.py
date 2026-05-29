@@ -2,6 +2,7 @@
 Database Package - 数据库基础设施层
 """
 from .db_manager import DatabaseManager
+from .storage_registry import StorageRegistry, STORAGE_DOMAINS
 from .table_queriers.db_base_model import DbBaseModel
 from .schema_management.field import Field
 
@@ -14,6 +15,8 @@ from .table_queriers.services import BatchOperation, BatchWriteQueue
 __all__ = [
     # Database Manager
     'DatabaseManager',
+    'StorageRegistry',
+    'STORAGE_DOMAINS',
 
     # DB Model
     'DbBaseModel',

@@ -70,8 +70,8 @@ def remote_repo_label(repo_base: str) -> str:
 
 
 def update_bundle_dir(repo_root: Path) -> Path:
-    """缓存 zip、staging 等：``<repo>/userspace/.ntq/update``。"""
-    return (repo_root / "userspace" / ".ntq" / "update").resolve()
+    """缓存 zip、staging 等：``<repo>/userspace/system/.ntq/update``。"""
+    return (repo_root / "userspace" / "system" / ".ntq" / "update").resolve()
 
 
 PRE_MIRROR_CORE_TABLE_SCHEMAS_FILE = "pre_mirror_core_table_schemas.json"
@@ -80,7 +80,7 @@ PRE_MIRROR_CORE_TABLE_SCHEMAS_FILE = "pre_mirror_core_table_schemas.json"
 def snapshot_core_table_schemas_for_migration(repo_root: Path) -> Optional[Path]:
     """
     在 ``managed_scope`` 覆盖本地 ``core/`` **之前**，把当前 ``core/tables`` 下全部 ``schema.py``
-    解析结果写入 ``userspace/.ntq/update/cache/pre_mirror_core_table_schemas.json``，
+    解析结果写入 ``userspace/system/.ntq/update/cache/pre_mirror_core_table_schemas.json``，
     供 ``core/infra/db`` 迁移与旧版期望 schema 对照（镜像后磁盘上的旧版 ``core/tables`` 可能已不存在）。
 
     **跳过**（返回 ``None``）：环境变量 ``NTQ_UPDATE_SKIP_SCHEMA_SNAPSHOT=1``；
@@ -811,7 +811,7 @@ def repo_path_under_root(repo_root: Path, rel_posix: str) -> Path:
 
 
 def _is_under_ntq_update_bundle(path: Path, repo_root: Path) -> bool:
-    """避免把 ``userspace/.ntq/update`` 自身拷进 lift-out（递归/膨胀）。"""
+    """避免把 ``userspace/system/.ntq/update`` 自身拷进 lift-out（递归/膨胀）。"""
     try:
         path.resolve().relative_to(update_bundle_dir(repo_root).resolve())
         return True
@@ -852,7 +852,7 @@ def run_lift_out_backup(
 ) -> Optional[Path]:
     """
     将「在管辖内且被忽略」的已存在路径递归 **复制** 到
-    ``userspace/.ntq/update/lift-out/<UTC 时间>/``，并写入 ``lift_out_manifest.json``。
+    ``userspace/system/.ntq/update/lift-out/<UTC 时间>/``，并写入 ``lift_out_manifest.json``。
 
     若无候选、或候选在磁盘上均不存在、或均在 ``.ntq/update`` bundle 内被跳过，则返回 ``None``。
     """
@@ -924,7 +924,7 @@ def run_lift_out_restore(repo_root: Path, backup_dir: Path) -> None:
     按 manifest 将 ``backup_dir`` 下的树 **覆盖写回** ``repo_root`` 下对应 ``repo_rel``。
 
     条目按路径深度 **从深到浅** 还原，避免父子条目互相覆盖。备份侧缺失的条目跳过。
-    禁止还原目标落在 ``userspace/.ntq/update`` 下。
+    禁止还原目标落在 ``userspace/system/.ntq/update`` 下。
     """
     backup_dir = backup_dir.resolve()
     root = repo_root.resolve()
@@ -1167,7 +1167,7 @@ def spawn_database_migration_cli(
     dry_run: bool = False,
 ) -> DatabaseMigrationResult:
     """
-    子进程调用 ``python -m core.infra.db.migrate apply``，stdout/stderr 写入 ``userspace/.ntq/update/logs/``。
+    子进程调用 ``python -m core.infra.db.migrate apply``，stdout/stderr 写入 ``userspace/system/.ntq/update/logs/``。
 
     - 跳过整步：``NTQ_UPDATE_SKIP_DB_MIGRATION=1``
     - 无快照文件：默认 **抛出 RuntimeError**；设 ``NTQ_UPDATE_ALLOW_MISSING_SCHEMA_SNAPSHOT=1`` 则跳过并返回 ``skipped=True``
@@ -1391,7 +1391,7 @@ def cleanup_after_upgrade(
     pre_mirror_snapshot_path: Optional[Path] = None,
 ) -> UpgradeCleanupResult:
     """
-    升级成功后清理 ``userspace/.ntq/update`` 下的 **临时** 产物。
+    升级成功后清理 ``userspace/system/.ntq/update`` 下的 **临时** 产物。
 
     默认删除：
     - ``staging/``（含 ``staging/current`` 解压树）

@@ -71,4 +71,5 @@ DatabaseManager
 ## 相关文档
 
 - [详细设计](./DESIGN.md)：与实现一致的类图、数据流、配置与扩展点说明。
+- [存储域设计](./storage-domains.md)：DuckDB 三域（data / tag / strategy）定案与 DataManager 隐患审计。
 - [API](./API.md)、[决策记录](./DECISIONS.md)

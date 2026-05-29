@@ -27,7 +27,7 @@ labels: bug
 
 - 操作系统（OS）：例如 macOS 14 / Ubuntu 22.04 / Windows 11
 - Python 版本：
-- 数据库类型及版本（PostgreSQL / MySQL / SQLite 等）：
+- 数据库类型及版本（DuckDB / PostgreSQL / MySQL 等）：
 - 项目版本（例如 git 提交哈希或 README 中的版本号）：
 
 ## 其他信息（Additional context）

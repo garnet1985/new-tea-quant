@@ -276,7 +276,7 @@ class BatchWriteQueue:
             # 通过 adapter 获取连接并执行 SQL
             conn = self.table_manager.adapter.get_connection()
             try:
-                dt = DBHelper.normalize_database_type(self.table_manager.config)
+                dt = DBHelper.sql_dialect_for_upsert(self.table_manager.config)
                 BatchOperation.execute_batch_insert(
                     executor=conn,
                     table_name=table_name,

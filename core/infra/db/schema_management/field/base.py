@@ -78,7 +78,16 @@ class Field(ABC):
         Returns:
             是否支持
         """
+        if database_type == "duckdb":
+            return "postgresql" in self.supported_databases
         return database_type in self.supported_databases
+
+    @staticmethod
+    def _ddl_database_type(database_type: str) -> str:
+        """DDL 方言：DuckDB 复用 PostgreSQL 类型生成。"""
+        if database_type == "duckdb":
+            return "postgresql"
+        return database_type
     
     @abstractmethod
     def _to_sql_impl(self, database_type: str) -> str:
@@ -112,7 +121,7 @@ class Field(ABC):
                 f"支持的数据库: {', '.join(self.supported_databases)}。"
                 f"请使用兼容的类型或切换到支持的数据库。"
             )
-        return self._to_sql_impl(database_type)
+        return self._to_sql_impl(self._ddl_database_type(database_type))
     
     def get_default_sql(self, database_type: str) -> str:
         """

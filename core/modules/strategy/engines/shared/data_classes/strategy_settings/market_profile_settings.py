@@ -39,7 +39,7 @@ class StrategyMarketProfileSettings(SettingsBase):
                 f"未知 market_profile {self.profile_id!r}；可用: {', '.join(known)}",
                 suggested_fix=(
                     f'在 settings.py 中设置 "market_profile": "china_a_stock" 等，'
-                    f"或于 userspace/config/markets/ 添加对应 JSON"
+                    f"或于 userspace/system/config/markets/ 添加对应 JSON"
                 ),
             )
         return result

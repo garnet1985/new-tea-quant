@@ -173,7 +173,7 @@ class BaseProvider(ABC):
 
     @staticmethod
     def is_retryable_error(error: Exception) -> bool:
-        """连接中断、远端关闭等瞬时错误可重试。"""
+        """连接中断、DNS 瞬时失败、远端关闭等错误可重试。"""
         err_name = type(error).__name__
         err_str = str(error).lower()
         return (
@@ -183,6 +183,10 @@ class BaseProvider(ABC):
             or "aborted" in err_str
             or "closed" in err_str
             or "timeout" in err_str
+            or "nodename" in err_str
+            or "servname" in err_str
+            or "getaddrinfo" in err_str
+            or "name or service not known" in err_str
         )
 
     def invoke_with_retry(

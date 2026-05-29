@@ -742,7 +742,7 @@ class BaseHandler:
         batch_items: List[Tuple[Any, Dict[str, Any]]],
     ) -> None:
         """
-        batch 模式：save_batch_size 个 bundle 完成后 **合并一次** 写入绑定表。
+        batch 模式：save_batch_size 个 bundle（或 auto 动态阈值）完成后 **合并一次** 写入绑定表。
 
         子类可覆盖；默认逐 bundle 标准化后合并 rows，调用 _system_save 一次。
         """

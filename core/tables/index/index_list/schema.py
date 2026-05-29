@@ -1,7 +1,7 @@
 """
 指数列表（sys_index_list）表结构定义。
 
-主键 id；data.json 为该表初始值（上证、沪深300、科创50、深证成指、创业板指等）。
+主键 id；运行时由 IndexService.sync_list_from_config() 从 data.json 的 benchmark_stock_index_list 同步写入。
 """
 schema = {
     "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）

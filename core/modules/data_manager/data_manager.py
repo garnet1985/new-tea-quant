@@ -204,6 +204,10 @@ class DataManager:
                 logger.info("🔧 初始化 DataService...")
             from core.modules.data_manager.data_services import DataService
             self._data_service = DataService(self)
+            try:
+                self._data_service.index.sync_list_from_config()
+            except Exception as e:
+                logger.warning("sys_index_list 配置同步失败（可稍后由 renew 重试）: %s", e)
 
             self._initialized = True
             

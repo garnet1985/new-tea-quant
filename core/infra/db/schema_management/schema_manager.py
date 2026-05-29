@@ -58,8 +58,15 @@ class SchemaManager:
 
     @property
     def ddl_database_type(self) -> str:
-        """DDL 方言（DuckDB 复用 postgresql 类型）。"""
+        """DDL 方言（mysql | postgresql | duckdb）。"""
         return DBHelper.sql_dialect_for_schema({"database_type": self.database_type})
+
+    @staticmethod
+    def _duckdb_sequence_name(table_name: str, column_name: str) -> str:
+        """DuckDB 自增列配套 sequence 名（表级 CREATE SEQUENCE）。"""
+        safe_table = str(table_name or "table").replace(".", "_")
+        safe_col = str(column_name or "id").replace(".", "_")
+        return f"seq_{safe_table}_{safe_col}"
     
     # ==================== Schema 加载 ====================
     
@@ -255,18 +262,29 @@ class SchemaManager:
         
         # 构建字段定义
         field_defs = []
-        comments = []  # 存储 COMMENT 语句（PostgreSQL/MySQL）
+        sequence_stmts: List[str] = []
+        comments = []  # 存储 COMMENT 语句（PostgreSQL / DuckDB）
         
         for field_obj in field_objects:
             col_name = self.quote_ddl_identifier(field_obj.name)
             ddl = self.ddl_database_type
-            field_sql = f"{col_name} {field_obj.to_sql(ddl)}"
+            if ddl == "duckdb" and field_obj.auto_increment:
+                seq_name = self._duckdb_sequence_name(table_name, field_obj.name)
+                sequence_stmts.append(
+                    f"CREATE SEQUENCE IF NOT EXISTS {seq_name} START 1;"
+                )
+                field_sql = (
+                    f"{col_name} {field_obj.to_sql(ddl)} "
+                    f"DEFAULT nextval('{seq_name}')"
+                )
+            else:
+                field_sql = f"{col_name} {field_obj.to_sql(ddl)}"
             field_sql += field_obj.get_not_null_sql()
             field_sql += field_obj.get_default_sql(ddl)
             field_defs.append(field_sql)
             
-            # 处理 COMMENT（PostgreSQL；MySQL 列注释若需可另走 ALTER，此处保持原行为）
-            if field_obj.comment and self.ddl_database_type == "postgresql":
+            # 处理 COMMENT（PostgreSQL / DuckDB；MySQL 列注释若需可另走 ALTER）
+            if field_obj.comment and self.ddl_database_type in ("postgresql", "duckdb"):
                 escaped_comment = field_obj.comment.replace("'", "''")
                 qt = self.quote_ddl_identifier(table_name)
                 qc = self.quote_ddl_identifier(field_obj.name)
@@ -282,9 +300,12 @@ class SchemaManager:
         table_sql_name = self.quote_ddl_identifier(table_name)
         create_sql = f"CREATE TABLE IF NOT EXISTS {table_sql_name} (\n    {fields_sql}\n);"
         
-        # 添加 COMMENT 语句（PostgreSQL）
+        # 添加 COMMENT 语句（PostgreSQL / DuckDB）
         if comments:
             create_sql += "\n" + "\n".join(comments)
+
+        if sequence_stmts:
+            create_sql = "\n".join(sequence_stmts) + "\n" + create_sql
         
         return create_sql.strip()
     

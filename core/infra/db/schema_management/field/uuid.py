@@ -7,8 +7,7 @@ from .base import Field
 class UuidField(Field):
     """UUID 字段（仅 PostgreSQL 支持）"""
     
-    # UUID 仅支持 PostgreSQL
-    supported_databases = ['postgresql']
+    supported_databases = ['postgresql', 'duckdb']
     
     def _to_sql_impl(self, database_type: str) -> str:
         return "UUID"

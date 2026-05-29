@@ -76,9 +76,16 @@ class PersistenceService:
 
         try:
             affected = model.upsert_many(records, unique_keys)
+            data_source_key = context.get("data_source_key") or table_name
             logger.info(
-                f"系统写入 {table_name}: upsert {affected} 条记录"
-                f"（原始 {original_count} 条，去重后 {len(records)} 条，unique_keys={unique_keys}）"
+                "[%s] 写入 %s: upsert %s 条"
+                "（原始 %s 条，去重后 %s 条，unique_keys=%s）",
+                data_source_key,
+                table_name,
+                affected,
+                original_count,
+                len(records),
+                unique_keys,
             )
         except Exception as e:
             logger.error(f"系统写入 {table_name} 失败: {e}")

@@ -48,10 +48,7 @@ class DuckDBAdapter(BaseDatabaseAdapter):
             raise ValueError("DuckDB 配置缺少 db_path")
 
         read_only = bool(self.config.get("read_only", False))
-        if read_only:
-            self._conn = duckdb.connect(str(db_path), read_only=True)
-        else:
-            self._conn = duckdb.connect(str(db_path))
+        self._conn = self._open_connection(str(db_path), read_only=read_only)
 
         threads = self.config.get("threads")
         if threads is not None:
@@ -71,6 +68,35 @@ class DuckDBAdapter(BaseDatabaseAdapter):
         if self.is_verbose:
             logger.info("✅ DuckDB 已连接: %s (read_only=%s)", db_path, read_only)
         return self._conn
+
+    def _open_connection(self, db_path: str, *, read_only: bool) -> Any:
+        """打开连接；WAL 回放失败时删除孤立 .wal 并重试一次。"""
+        import duckdb
+
+        try:
+            if read_only:
+                return duckdb.connect(db_path, read_only=True)
+            return duckdb.connect(db_path)
+        except Exception as e:
+            if not self._is_corrupt_wal_error(e):
+                raise
+            wal_path = f"{db_path}.wal"
+            logger.warning(
+                "DuckDB WAL 回放失败，将删除孤立 WAL 后重试: %s (%s)",
+                wal_path,
+                e,
+            )
+            from pathlib import Path
+
+            Path(wal_path).unlink(missing_ok=True)
+            if read_only:
+                return duckdb.connect(db_path, read_only=True)
+            return duckdb.connect(db_path)
+
+    @staticmethod
+    def _is_corrupt_wal_error(exc: BaseException) -> bool:
+        msg = str(exc).lower()
+        return "replaying wal" in msg or "wal file" in msg
 
     def close(self) -> None:
         if self._conn is not None:

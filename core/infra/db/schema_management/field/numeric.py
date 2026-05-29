@@ -15,11 +15,13 @@ class IntField(Field):
     
     def _to_sql_impl(self, database_type: str) -> str:
         if self.auto_increment:
+            if database_type == "duckdb":
+                return "INTEGER"
             if database_type == 'postgresql':
                 return "SERIAL"
             if database_type == 'mysql':
                 return "INT AUTO_INCREMENT"
-            return "SERIAL"
+            return "INTEGER"
         return "INTEGER"
     
     def get_type_name(self) -> str:
@@ -34,11 +36,13 @@ class BigIntField(Field):
     
     def _to_sql_impl(self, database_type: str) -> str:
         if self.auto_increment:
+            if database_type == "duckdb":
+                return "BIGINT"
             if database_type == 'postgresql':
                 return "BIGSERIAL"
             if database_type == 'mysql':
                 return "BIGINT AUTO_INCREMENT"
-            return "BIGSERIAL"
+            return "BIGINT"
         return "BIGINT"
     
     def get_type_name(self) -> str:
@@ -69,7 +73,7 @@ class DoubleField(Field):
     """DOUBLE 字段（通用类型，所有数据库支持）"""
     
     def _to_sql_impl(self, database_type: str) -> str:
-        if database_type == 'postgresql':
+        if database_type in ("postgresql", "duckdb"):
             return "DOUBLE PRECISION"
         if database_type == 'mysql':
             return "DOUBLE"

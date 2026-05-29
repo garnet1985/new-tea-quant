@@ -109,7 +109,7 @@ class BaseHandler:
         data_source_key = self.get_key()
         is_dry_run = self.context.get("is_dry_run", False)
         dry_run_status = " [DRY RUN]" if is_dry_run else ""
-        logger.info(f"🔧 [{data_source_key}] 开始预处理阶段{dry_run_status}")
+        logger.debug(f"[{data_source_key}] 开始预处理阶段{dry_run_status}")
 
         # 1. 上下文准备
         self.on_prepare_context(self.context)
@@ -144,7 +144,7 @@ class BaseHandler:
         data_source_key = self.get_key()
         is_dry_run = self.context.get("is_dry_run", False)
         dry_run_status = " [DRY RUN]" if is_dry_run else ""
-        logger.info(f"🔧 [{data_source_key}] 预处理完成: {len(jobs)} 个 job bundles{dry_run_status}")
+        logger.debug(f"[{data_source_key}] 预处理完成: {len(jobs)} 个 job bundles{dry_run_status}")
 
         return jobs
 
@@ -339,6 +339,7 @@ class BaseHandler:
                 self.context,
                 apis_job_bundles,
                 on_after_single_bundle_complete=self.on_after_single_api_job_bundle_complete,
+                on_after_batch_bundles_complete=self.on_after_batch_api_job_bundles_complete,
                 enrich_result_for_batch=self.enrich_result_for_batch,
             )
 
@@ -362,11 +363,17 @@ class BaseHandler:
     # Postprocess stage
     # ================================
     def _postprocess(self, fetched_data: Any) -> Dict[str, Any]:
-        logger.info(f"🔧 [_postprocess] 开始后处理阶段，fetched_data keys: {list(fetched_data.keys())[:5] if isinstance(fetched_data, dict) else 'N/A'}...")
+        logger.debug(
+            "[_postprocess] fetched_data keys: %s",
+            list(fetched_data.keys())[:5] if isinstance(fetched_data, dict) else "N/A",
+        )
         
         # 调用 normalize_data（子类可以覆盖此方法）
         normalized_data = self.normalize_data(self.context, fetched_data)
-        logger.info(f"🔧 [_postprocess] normalize_data 完成，返回数据条数: {len(normalized_data.get('data', [])) if isinstance(normalized_data, dict) else 0}")
+        logger.debug(
+            "[_postprocess] normalize_data 完成，条数: %s",
+            len(normalized_data.get("data", [])) if isinstance(normalized_data, dict) else 0,
+        )
 
         normalized_data = self.on_after_normalize(self.context, normalized_data)
 
@@ -470,18 +477,22 @@ class BaseHandler:
         if save_mode in ["immediate", "batch"]:
             data_list = normalized_data.get("data", []) if isinstance(normalized_data, dict) else []
             if not data_list:
-                logger.info(f"🔧 [_do_save] save_mode='{save_mode}' 且数据为空，跳过统一保存（数据已在 on_after_single_api_job_bundle_complete 中保存）")
+                logger.debug(
+                    "[_do_save] save_mode=%r 且数据为空，跳过统一保存",
+                    save_mode,
+                )
                 return normalized_data
         
-        logger.info(f"🔧 [_do_save] 开始保存阶段，normalized_data 数据条数: {len(normalized_data.get('data', [])) if isinstance(normalized_data, dict) else 0}")
+        logger.debug(
+            "[_do_save] 保存 %s 条",
+            len(normalized_data.get("data", [])) if isinstance(normalized_data, dict) else 0,
+        )
         if self._is_dry_run():
-            logger.info(f"🔧 [_do_save] Dry run 模式，跳过保存")
+            logger.debug("[_do_save] dry run，跳过保存")
             return normalized_data
         resolved = self.on_before_save(self.context, normalized_data)
         data_to_save = resolved if resolved is not None else normalized_data
-        logger.info(f"🔧 [_do_save] 准备调用 _system_save，数据条数: {len(data_to_save.get('data', [])) if isinstance(data_to_save, dict) else 0}")
         self._system_save(data_to_save)
-        logger.info(f"🔧 [_do_save] _system_save 完成")
         return data_to_save
 
     def _system_save(self, normalized_data: Dict[str, Any]) -> None:
@@ -711,19 +722,73 @@ class BaseHandler:
         """
         return raw_result
 
-    def on_after_single_api_job_bundle_complete(self, context: Dict[str, Any], job_bundle: ApiJobBundle, fetched_data: Dict[str, Any]):
+    def on_after_single_api_job_bundle_complete(
+        self, context: Dict[str, Any], job_bundle: Any, fetched_data: Dict[str, Any]
+    ):
         """
-        执行单个 api job bundle 后的钩子。
-        
-        保存时机由 config.save_mode 控制：
-        - "unified"（默认）：不在此钩子中保存，数据会在 _do_save 中统一保存
-        - "immediate"：每个 bundle 完成后立即调用此钩子保存数据
-        - "batch"：累计 save_batch_size 个 bundle 后批量调用此钩子保存数据
-        
-        如果 save_mode != "unified"，子类应该在此钩子中保存数据，
-        并在 normalize_data 中返回空数据，避免重复保存。
+        immediate 模式：单 bundle 完成后保存。
+
+        默认实现委托给 on_after_batch_api_job_bundles_complete（单元素列表）。
+        batch 模式由执行器直接调用 batch 钩子，不会经过本方法。
         """
+        self.on_after_batch_api_job_bundles_complete(
+            context, [(job_bundle, fetched_data)]
+        )
         return fetched_data
+
+    def on_after_batch_api_job_bundles_complete(
+        self,
+        context: Dict[str, Any],
+        batch_items: List[Tuple[Any, Dict[str, Any]]],
+    ) -> None:
+        """
+        batch 模式：save_batch_size 个 bundle 完成后 **合并一次** 写入绑定表。
+
+        子类可覆盖；默认逐 bundle 标准化后合并 rows，调用 _system_save 一次。
+        """
+        if context.get("is_dry_run") or not batch_items:
+            return
+        all_rows: List[Dict[str, Any]] = []
+        for job_bundle, fetched_data in batch_items:
+            all_rows.extend(
+                self._extract_normalized_rows_for_bundle(
+                    context, job_bundle, fetched_data
+                )
+            )
+        if not all_rows:
+            return
+        self._system_save({"data": all_rows})
+        logger.debug(
+            "[%s] batch 写入 %s bundles / %s 行",
+            context.get("data_source_key"),
+            len(batch_items),
+            len(all_rows),
+        )
+
+    def _extract_normalized_rows_for_bundle(
+        self,
+        context: Dict[str, Any],
+        job_bundle: Any,
+        fetched_data: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        """从单个 bundle 抓取结果提取待写入行（供 batch 合并）。子类可覆盖。"""
+        apis = self._apis_for_save_bundle(job_bundle)
+        if not apis or not isinstance(fetched_data, dict):
+            return []
+        partial = {k: v for k, v in fetched_data.items() if v is not None}
+        if not partial:
+            return []
+        unified = self.on_after_fetch(context, partial, apis)
+        normalized = self._normalize_data(context, unified)
+        return list(normalized.get("data") or [])
+
+    @staticmethod
+    def _apis_for_save_bundle(job_bundle: Any) -> List[ApiJob]:
+        if isinstance(job_bundle, ApiJob):
+            return [job_bundle]
+        if isinstance(job_bundle, ApiJobBundle):
+            return list(job_bundle.apis or [])
+        return []
 
     def on_job_bundle_failed():
         pass

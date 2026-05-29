@@ -8,7 +8,7 @@ class BooleanField(Field):
     """BOOLEAN 字段（通用类型，所有数据库支持，自动映射）"""
     
     def _to_sql_impl(self, database_type: str) -> str:
-        if database_type == 'postgresql':
+        if database_type in ("postgresql", "duckdb"):
             return "BOOLEAN"
         if database_type == 'mysql':
             return "TINYINT(1)"

@@ -82,13 +82,6 @@ class Field(ABC):
             return "postgresql" in self.supported_databases
         return database_type in self.supported_databases
 
-    @staticmethod
-    def _ddl_database_type(database_type: str) -> str:
-        """DDL 方言：DuckDB 复用 PostgreSQL 类型生成。"""
-        if database_type == "duckdb":
-            return "postgresql"
-        return database_type
-    
     @abstractmethod
     def _to_sql_impl(self, database_type: str) -> str:
         """
@@ -121,7 +114,7 @@ class Field(ABC):
                 f"支持的数据库: {', '.join(self.supported_databases)}。"
                 f"请使用兼容的类型或切换到支持的数据库。"
             )
-        return self._to_sql_impl(self._ddl_database_type(database_type))
+        return self._to_sql_impl(database_type)
     
     def get_default_sql(self, database_type: str) -> str:
         """
@@ -154,6 +147,14 @@ class Field(ABC):
             
             # 处理标准的时间戳默认值
             if default_value.upper() in ['CURRENT_TIMESTAMP', 'CURRENT_DATE', 'CURRENT_TIME']:
+                if database_type == "duckdb":
+                    if default_value.upper() == "CURRENT_TIMESTAMP":
+                        return (
+                            " DEFAULT (strftime(CURRENT_TIMESTAMP, '%Y-%m-%d %H:%M:%S'))"
+                        )
+                    if default_value.upper() == "CURRENT_DATE":
+                        return " DEFAULT (strftime(CURRENT_DATE, '%Y%m%d'))"
+                    return " DEFAULT (strftime(CURRENT_TIME, '%H:%M:%S'))"
                 return f" DEFAULT {default_value}"
             
             # 字符串默认值需要加引号

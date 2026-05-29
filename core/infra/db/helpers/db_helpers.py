@@ -251,12 +251,9 @@ class DBHelper:
         """
         DDL / 字段类型生成使用的方言。
 
-        DuckDB 与 PostgreSQL 类型相近，复用 postgresql 分支生成 SQL。
+        DuckDB 单独分支（无 SERIAL/JSONB 等 PG 专有类型）。
         """
-        t = DBHelper.normalize_database_type(config)
-        if t == "duckdb":
-            return "postgresql"
-        return t
+        return DBHelper.normalize_database_type(config)
 
     @staticmethod
     def quote_identifier(config: Dict, name: str) -> str:

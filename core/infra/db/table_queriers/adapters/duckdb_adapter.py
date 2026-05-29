@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
 
 from .base_adapter import BaseDatabaseAdapter
+from core.infra.db.duckdb_wal_policy import apply_connect_settings
 
 logger = logging.getLogger(__name__)
 
@@ -64,14 +65,26 @@ class DuckDBAdapter(BaseDatabaseAdapter):
             except Exception as e:
                 logger.debug("DuckDB PRAGMA memory_limit 跳过: %s", e)
 
+        if not read_only:
+            apply_connect_settings(self._conn, self.config)
+
         self._initialized = True
         if self.is_verbose:
             logger.info("✅ DuckDB 已连接: %s (read_only=%s)", db_path, read_only)
         return self._conn
 
     def _open_connection(self, db_path: str, *, read_only: bool) -> Any:
-        """打开连接；WAL 回放失败时删除孤立 .wal 并重试一次。"""
+        """
+        打开连接。
+
+        WAL 回放失败时：
+        - 只读：绝不删除 .wal（避免审计/旁路读库抹掉未 checkpoint 的写入）
+        - 读写：默认也不删，仅当配置 recover_wal_on_replay_failure=true 时删 .wal 重试一次
+        """
         import duckdb
+        from pathlib import Path
+
+        allow_wal_delete = bool(self.config.get("recover_wal_on_replay_failure", False))
 
         try:
             if read_only:
@@ -81,16 +94,20 @@ class DuckDBAdapter(BaseDatabaseAdapter):
             if not self._is_corrupt_wal_error(e):
                 raise
             wal_path = f"{db_path}.wal"
+            if read_only or not allow_wal_delete:
+                raise RuntimeError(
+                    f"无法打开 DuckDB（WAL 回放失败）: {db_path}。"
+                    f" 可能原因：另有进程正在写入、或上次 Ctrl+C 中断后 WAL 与主库不一致。"
+                    f" 请先结束所有 renew/写库进程，再用同一进程正常打开以合并 WAL；"
+                    f" 不要在写库进行中用只读连接检查数据库。"
+                    f" 原始错误: {e}"
+                ) from e
             logger.warning(
-                "DuckDB WAL 回放失败，将删除孤立 WAL 后重试: %s (%s)",
+                "DuckDB WAL 回放失败，将按配置删除 .wal 后重试: %s (%s)",
                 wal_path,
                 e,
             )
-            from pathlib import Path
-
             Path(wal_path).unlink(missing_ok=True)
-            if read_only:
-                return duckdb.connect(db_path, read_only=True)
             return duckdb.connect(db_path)
 
     @staticmethod
@@ -101,11 +118,28 @@ class DuckDBAdapter(BaseDatabaseAdapter):
     def close(self) -> None:
         if self._conn is not None:
             try:
+                if not bool(self.config.get("read_only", False)):
+                    self.checkpoint()
                 self._conn.close()
             except Exception:
                 pass
             self._conn = None
         self._initialized = False
+
+    def checkpoint(self) -> None:
+        """将 WAL 合并进主库文件（正常退出时调用，降低 Ctrl+C 后只留 WAL 的风险）。"""
+        if self._conn is None or bool(self.config.get("read_only", False)):
+            return
+        try:
+            with self._lock:
+                self._conn.execute("CHECKPOINT")
+            if self.is_verbose:
+                logger.info("DuckDB CHECKPOINT 完成: %s", self.config.get("db_path"))
+        except Exception as e:
+            logger.warning(
+                "DuckDB CHECKPOINT 失败（可下次独占打开时由 DuckDB 回放 WAL）: %s",
+                e,
+            )
 
     def _ensure_conn(self) -> Any:
         if not self._initialized or self._conn is None:

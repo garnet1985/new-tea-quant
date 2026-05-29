@@ -115,9 +115,23 @@ DomainRouter（按 schema.storage_domain 选连接）
 - **strategy** 工作台 `update_result_report` / `create_snapshot`：strategy 域管道；UI 关键路径需 `flush`。
 - **enumerator/scanner 子进程**：对 **data**（及读 tag 时 **tag**）使用**只读**连接；不写 strategy 库。
 
-### 4.2 读并发
+### 4.2 读并发与 WAL
 
-- renew 写 data 时，回测读 K 线：一般可读，可能变慢；data 与 strategy **分文件** 后 UI 写快照不与 K 线 renew 共抢一文件。
+- **同进程**（`DataManager` 已打开的连接）：renew 写入过程中查询 **可以**，走同一 DuckDB 连接。
+- **第二进程** `read_only` 打开同一 `.duckdb`：在 renew 仍占用写连接、且存在未合并 `.wal` 时 **不推荐**（易 WAL 回放失败）。查库请等 renew 结束，或 `python dev-cli.py -dbc` 合并后再只读打开，或复制库文件到临时目录。
+- renew 写 data 时，回测子进程对 data **只读** 连接：一般可读，可能变慢；data 与 strategy **分文件** 后 UI 写快照不与 K 线 renew 共抢一文件。
+
+**WAL 合并（实现于 `core/infra/db/duckdb_wal_policy.py`）：**
+
+| 时机 | 行为 |
+|------|------|
+| 连接 | `wal_autocheckpoint`（默认 4MB，`duckdb.json`） |
+| 每批 renew 写库后 | `CHECKPOINT`（`checkpoint_after_batch_save`） |
+| Ctrl+C | SIGINT 先 `CHECKPOINT` 再中断 |
+| 关闭连接 | `close()` 时 `CHECKPOINT` |
+| 手动 | `python dev-cli.py -dbc` |
+
+只读连接 **永不删除** `.wal`；`recover_wal_on_replay_failure` 仅运维显式开启。
 
 ### 4.3 跨域 JOIN
 

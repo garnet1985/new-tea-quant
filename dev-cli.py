@@ -39,6 +39,7 @@ _SHORT_FLAGS: dict[str, tuple[str, dict]] = {
     "-cc": ("clear-global", {}),
     "-cu": ("clear-userspace", {}),
     "-ex": ("export-init-data", {}),
+    "-dbc": ("db-checkpoint", {}),
 }
 
 
@@ -158,6 +159,69 @@ def _cmd_clear_userspace(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_db_checkpoint(args: argparse.Namespace) -> int:
+    """将 DuckDB 各域 WAL 合并进 .duckdb 主文件（renew 中断后可手动执行）。"""
+    from pathlib import Path
+
+    from core.infra.db import DatabaseManager
+    from core.infra.db.duckdb_wal_policy import checkpoint_connection_manager
+
+    recover = bool(getattr(args, "recover_corrupt_wal", False))
+    config = None
+    if recover:
+        from core.infra.project_context import ConfigManager
+
+        config = dict(ConfigManager.load_database_config())
+        duck = dict(config.get("duckdb") or {})
+        duck["recover_wal_on_replay_failure"] = True
+        config["duckdb"] = duck
+        print(
+            "已启用 recover_wal_on_replay_failure：损坏的 .wal 将在打开失败时被删除后重试。",
+            flush=True,
+        )
+
+    db = DatabaseManager(config=config, is_verbose=True)
+    try:
+        db.initialize()
+    except RuntimeError as e:
+        print(f"无法打开数据库: {e}", flush=True)
+        print(
+            "若提示 WAL 回放失败，可确认无 renew 进程后执行:\n"
+            "  python dev-cli.py db-checkpoint --recover",
+            flush=True,
+        )
+        return 1
+
+    try:
+        if str(db.config.get("database_type", "")).lower() != "duckdb":
+            print("当前 database_type 不是 duckdb，跳过。", flush=True)
+            return 1
+        paths = {
+            d: (a.config.get("db_path") if getattr(a, "config", None) else "?")
+            for d, a in db.connection_manager.domain_adapters.items()
+        }
+        print(f"CHECKPOINT 目标: {paths}", flush=True)
+        results = checkpoint_connection_manager(db.connection_manager)
+        for domain, ok in sorted(results.items()):
+            print(f"  {domain}: {'ok' if ok else 'failed'}", flush=True)
+        db_dir = None
+        for adapter in db.connection_manager.domain_adapters.values():
+            raw = (getattr(adapter, "config", None) or {}).get("db_path")
+            if raw:
+                db_dir = Path(str(raw)).resolve().parent
+                break
+        remaining = sorted(db_dir.glob("*.duckdb.wal")) if db_dir and db_dir.is_dir() else []
+        if remaining:
+            print("仍存在的 WAL 文件:", flush=True)
+            for p in remaining:
+                print(f"  {p}", flush=True)
+        else:
+            print("未发现残留 .wal 文件。", flush=True)
+        return 0 if results and all(results.values()) else (1 if results else 0)
+    finally:
+        db.close()
+
+
 def _dispatch(handler: str, forward: list[str], extra: dict) -> int:
     ns = argparse.Namespace(
         forward=forward,
@@ -177,6 +241,8 @@ def _dispatch(handler: str, forward: list[str], extra: dict) -> int:
         return _cmd_clear_global(ns)
     if handler == "clear-userspace":
         return _cmd_clear_userspace(ns)
+    if handler == "db-checkpoint":
+        return _cmd_db_checkpoint(ns)
     print(f"未知命令: {handler}", file=sys.stderr)
     return 2
 
@@ -200,6 +266,7 @@ def _print_help() -> None:
   -cu      删除各策略 results/ 与 DB 工作台快照表
   -p -vX.Y.Z   发布准备（写 system.json / 徽章、检查 module_info、FED build、-ic、pytest）
   -ex         打包演示数据 zip（见 devtools/demo_exporter/demo_data_exporter.py）
+  -dbc        DuckDB：将各域 .wal 合并进 .duckdb（renew/Ctrl+C 后可用）
 
   -p 附加: --check-only      只检查不写版本文件（仍会跑 FED build）
            --skip-tests       跳过 pytest
@@ -209,6 +276,7 @@ def _print_help() -> None:
 
 子命令（等价）:
   ui [--kill-first]   kill [-ntq-only]   import-check   clear-cache   clear-userspace
+  db-checkpoint       同 -dbc
   publish -v X.Y.Z    同 -p -vX.Y.Z
   export-init-data    同 -ex（参数用 -- 转发，如 -ex -- --to-init-data）
 
@@ -254,6 +322,19 @@ def _build_subcommand_parser() -> argparse.ArgumentParser:
     )
     p_ex.add_argument("forward", nargs=argparse.REMAINDER)
     p_ex.set_defaults(func=_cmd_export_init_data)
+
+    p_dbc = sub.add_parser(
+        "db-checkpoint",
+        aliases=["dbc", "checkpoint-duckdb"],
+        help="DuckDB：CHECKPOINT 合并 WAL（需无其它进程占用写库）",
+    )
+    p_dbc.add_argument(
+        "--recover",
+        dest="recover_corrupt_wal",
+        action="store_true",
+        help="打开时若 WAL 损坏则删除 .wal 后重试（可能丢失未合并写入）",
+    )
+    p_dbc.set_defaults(func=_cmd_db_checkpoint, forward=[])
 
     p_pub = sub.add_parser("publish", aliases=["p", "prep-release"])
     p_pub.add_argument("-v", "--version", required=True, help="目标版本 X.Y.Z 或 vX.Y.Z")

@@ -19,9 +19,28 @@ from core.modules.data_source.service.executor.bundle_progress import (
     install as install_bundle_progress,
 )
 from core.modules.data_source.service.executor.save_batch_sizer import SaveBatchSizer
+from core.infra.db.duckdb_wal_policy import (
+    checkpoint_connection_manager,
+    should_checkpoint_after_batch,
+)
 
 
 logger = logging.getLogger(__name__)
+
+
+def _checkpoint_after_batch_save(context: Dict[str, Any]) -> None:
+    """batch 合并写入后 CHECKPOINT，尽量消除 .wal 中间态。"""
+    dm = context.get("data_manager")
+    db = getattr(dm, "db", None) if dm is not None else None
+    if db is None or not should_checkpoint_after_batch(db.config):
+        return
+    cm = getattr(db, "connection_manager", None)
+    if cm is None:
+        return
+    try:
+        checkpoint_connection_manager(cm)
+    except Exception as e:
+        logger.warning("批量写入后 CHECKPOINT 失败: %s", e)
 
 BundleSaveItem = Tuple[Any, Dict[str, Any]]
 
@@ -389,6 +408,7 @@ class BundleExecutionService:
                                         finally:
                                             save_batch_sizer.after_batch_saved(len(b), b)
                                             bundle_progress.add_saved(len(b))
+                                            _checkpoint_after_batch_save(context)
 
                                     if batch_threshold == 1:
                                         _run_batch_save()
@@ -445,8 +465,10 @@ class BundleExecutionService:
             if interrupted:
                 batch_save_executor.shutdown(wait=False)
                 logger.warning("📋 [批量保存] 已收到中断信号，跳过等待 pending save，快速退出")
+                _checkpoint_after_batch_save(context)
             else:
                 batch_save_executor.shutdown(wait=True)
+                _checkpoint_after_batch_save(context)
             logger.debug(
                 "批量保存共触发 %s 次",
                 _batch_save_trigger_count[0],
@@ -491,6 +513,7 @@ class BundleExecutionService:
                         len(tail_batch_results), tail_batch_results
                     )
                     bundle_progress.add_saved(len(tail_batch_results))
+                    _checkpoint_after_batch_save(context)
             pending_results.clear()
 
         # 合并为 {job_id: result}

@@ -416,6 +416,11 @@ class DatabaseManager:
     
     # ==================== 工具方法 ====================
     
+    def checkpoint_duckdb(self, domains: Optional[list] = None) -> None:
+        """DuckDB：将 WAL 合并进主库（renew 批量写入后或手动调用）。"""
+        if self.connection_manager:
+            self.connection_manager.checkpoint_duckdb(domains=domains)
+
     def close(self):
         """关闭数据库连接和写入队列"""
         # 关闭 TableManager（会关闭写入队列）

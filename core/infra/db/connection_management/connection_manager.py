@@ -16,6 +16,10 @@ from core.infra.db.table_queriers.adapters.factory import DatabaseAdapterFactory
 from core.infra.db.table_queriers.adapters.base_adapter import BaseDatabaseAdapter
 from core.infra.db.helpers.db_helpers import DatabaseCursor
 from core.infra.db.storage_registry import STORAGE_DOMAINS, PRIMARY_DUCKDB_DOMAIN
+from core.infra.db.duckdb_wal_policy import (
+    checkpoint_connection_manager,
+    install_sigint_checkpoint_handler,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -105,6 +109,8 @@ class ConnectionManager:
         if self.adapter is None:
             raise RuntimeError("DuckDB 主域 data 适配器未创建")
 
+        install_sigint_checkpoint_handler(self, self.config)
+
     def _resolve_adapter(self, domain: Optional[str] = None) -> BaseDatabaseAdapter:
         """解析目标适配器；DuckDB 默认 data 域。"""
         if not self._initialized:
@@ -193,6 +199,10 @@ class ConnectionManager:
         """执行同步查询；DuckDB 可指定域。"""
         return self._resolve_adapter(domain).execute_query(query, params)
     
+    def checkpoint_duckdb(self, domains: Optional[list] = None) -> None:
+        """将所有 DuckDB 域的 WAL 合并进 .duckdb 主文件。"""
+        checkpoint_connection_manager(self, domains=domains)
+
     def close(self):
         """关闭数据库连接"""
         if self.domain_adapters:

@@ -213,10 +213,11 @@ class BatchWriteQueue:
         del self._queues[table_name]
         
         # 释放锁后执行写入
-        if all_data and unique_keys:
-            # 在锁外执行写入
+        if all_data:
             try:
-                self.table_manager._direct_write(table_name, all_data, unique_keys, None)
+                self.table_manager._direct_write(
+                    table_name, all_data, unique_keys or [], None
+                )
                 self._stats['total_writes'] += 1
                 
                 # 执行回调

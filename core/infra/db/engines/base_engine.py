@@ -1,8 +1,11 @@
 """
 BaseDatabaseEngine - 三种数据库后端的统一抽象
 
-⚠️ 草案，未采纳。定案架构见同目录 ARCHITECTURE.md 与 docs/DECISIONS.md 决策 7、8。
-   目标方向：无胖基类；duckdb/mysql/pgsql 平级包 + engine 编排子模块。
+⚠️ 已 superseded。请改用：
+   - core.infra.db.engines.abc.engine_abc.DbEngineAbc
+   - core.infra.db.engines.abc.table_abc.DbTableAbc
+   - core.infra.db.engines.meta.EngineConfigMeta
+   定案见 engines/ARCHITECTURE.md。本文件待旧路径删除后移除。
 
 ================================================================================
 职责边界（Review 用）

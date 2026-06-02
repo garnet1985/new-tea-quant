@@ -110,10 +110,30 @@ class DbBaseModel:
         self.verbose = False
         self.is_base_table = False
 
+    def _uses_engine_table_operator(self) -> bool:
+        return (
+            getattr(self.db, "uses_engine_path", False)
+            and self.db._initialized
+            and self.db.engine is not None
+        )
+
+    def _table_op(self):
+        """mysql/postgresql：Engine 表级 CRUD 句柄。"""
+        if not self._uses_engine_table_operator():
+            return None
+        return self.db.engine.table_operator(self.table_name)
+
     @contextmanager
     def _table_cursor(self):
         """按表 storage_domain 路由游标。"""
-        if self.db.is_duckdb:
+        if self._uses_engine_table_operator():
+            if self.db.is_duckdb:
+                with self.db.engine.get_sync_cursor_for_table(self.table_name) as cursor:
+                    yield cursor
+            else:
+                with self.db.engine.get_sync_cursor() as cursor:
+                    yield cursor
+        elif self.db.is_duckdb:
             with self.db.get_sync_cursor_for_table(self.table_name) as cursor:
                 yield cursor
         else:
@@ -121,15 +141,30 @@ class DbBaseModel:
                 yield cursor
 
     def _table_query(self, query: str, params: Any = None) -> List[Dict[str, Any]]:
+        if self._uses_engine_table_operator():
+            if self.db.is_duckdb:
+                return self.db.engine.execute_sync_query_for_table(
+                    self.table_name, query, params
+                )
+            return self.db.engine.execute_sync_query(query, params)
         if self.db.is_duckdb:
             return self.db.execute_sync_query_for_table(self.table_name, query, params)
         return self.db.execute_sync_query(query, params)
 
     @contextmanager
     def _table_transaction(self):
-        domain = self.db.get_table_domain(self.table_name) if self.db.is_duckdb else None
-        with self.db.connection_manager.transaction(domain=domain) as cursor:
-            yield cursor
+        if self._uses_engine_table_operator():
+            if self.db.is_duckdb:
+                domain = self.db.get_table_domain(self.table_name)
+                with self.db.engine.connector.transaction(domain=domain) as cursor:
+                    yield cursor
+            else:
+                with self.db.engine.transaction() as cursor:
+                    yield cursor
+        else:
+            domain = self.db.get_table_domain(self.table_name) if self.db.is_duckdb else None
+            with self.db.connection_manager.transaction(domain=domain) as cursor:
+                yield cursor
 
     # ***********************************
     #        table operations
@@ -142,6 +177,13 @@ class DbBaseModel:
         子类无需覆盖，只需在 __init__ 中传入正确的 table_name 即可。
         """
         from core.infra.db.schema_management.schema_manager import SchemaManager
+
+        op = self._table_op()
+        if op is not None:
+            try:
+                return op.load_schema()
+            except ValueError:
+                pass
         
         # 使用 SchemaManager 加载 schema
         schema_manager = SchemaManager()
@@ -182,6 +224,9 @@ class DbBaseModel:
 
     def clear_table(self) -> int:
         """清空表数据"""
+        op = self._table_op()
+        if op is not None:
+            return op.clear_table()
         with self._table_cursor() as cursor:
             cursor.execute(f"DELETE FROM {self.table_name}")
             return cursor.rowcount
@@ -907,6 +952,9 @@ class DbBaseModel:
             model.count("term = %s", ("daily",))  # term=daily 的行数
         """
         try:
+            op = self._table_op()
+            if op is not None:
+                return op.count(condition, params)
             query = f"SELECT COUNT(*) AS cnt FROM {self.table_name} WHERE {condition}"
             result = self._table_query(query, params)
             if not result or len(result) == 0:
@@ -931,6 +979,13 @@ class DbBaseModel:
 
     def load(self, condition: str = "1=1", params: tuple = (), order_by: str = None, limit: int = None, offset: int = None) -> List[Dict[str, Any]]:
         """查找记录"""
+        op = self._table_op()
+        if op is not None:
+            try:
+                return op.load(condition, params, order_by=order_by, limit=limit, offset=offset)
+            except Exception as e:
+                logger.error(f"Failed to load records from {self.table_name}: {e}")
+                return []
         query = f"SELECT * FROM {self.table_name} WHERE {condition}"
         if order_by:
             query += f" ORDER BY {order_by}"
@@ -1063,6 +1118,9 @@ class DbBaseModel:
     
     def delete(self, condition: str, params: tuple = (), limit: int = None) -> int:
         """删除数据（带重试机制）"""
+        op = self._table_op()
+        if op is not None:
+            return op.delete(condition, params, limit=limit)
         max_retries = 3
         retry_delay = 0.1
         
@@ -1163,6 +1221,10 @@ class DbBaseModel:
         """
         if not data_list:
             return 0
+
+        op = self._table_op()
+        if op is not None:
+            return op.insert(data_list, unique_keys)
         
         try:
             # 准备数据
@@ -1254,6 +1316,9 @@ class DbBaseModel:
         """
         if not rows:
             return 0
+        op = self._table_op()
+        if op is not None:
+            return op.upsert(rows, unique_keys)
         try:
             columns, values, update_clause = DBHelper.to_upsert_params(rows, unique_keys)
             if not columns:
@@ -1308,8 +1373,11 @@ class DbBaseModel:
     def execute_raw_update(self, query: str, params: tuple = ()) -> int:
         """执行原始SQL更新语句"""
         try:
-            # 转换占位符 %s -> ?
-            query = query.replace("%s", "?")
+            op = self._table_op()
+            if op is not None:
+                return op.execute_write(query, params)
+            if self.db.is_duckdb:
+                query = query.replace("%s", "?")
             
             with self._table_cursor() as cursor:
                 cursor.execute(query, params)

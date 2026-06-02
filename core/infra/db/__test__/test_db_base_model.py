@@ -43,6 +43,9 @@ class TestDBHelper:
 def _mock_database_manager(**attrs):
     db = Mock()
     db.is_duckdb = False
+    db.uses_engine_path = False
+    db._initialized = False
+    db.engine = None
     db.config = {"database_type": "postgresql"}
     for k, v in attrs.items():
         setattr(db, k, v)
@@ -110,11 +113,32 @@ class TestDbBaseModel:
         """测试加载单条数据（无结果）"""
         mock_db = _mock_database_manager()
         mock_db.execute_sync_query.return_value = []
-        
+
         model = DbBaseModel('test_table', db=mock_db)
         result = model.load_one("id = %s", ('001',))
-        
+
         assert result is None
+
+
+class TestDbBaseModelEnginePath:
+    """mysql/postgresql Engine 路径下的 DbBaseModel 委托。"""
+
+    def test_load_delegates_to_table_operator(self):
+        mock_db = _mock_database_manager(
+            uses_engine_path=True,
+            _initialized=True,
+        )
+        mock_db.engine = Mock()
+        mock_op = Mock()
+        mock_op.load.return_value = [{"id": "001"}]
+        mock_db.engine.table_operator.return_value = mock_op
+
+        model = DbBaseModel("sys_stock_list", db=mock_db)
+        rows = model.load("id = %s", ("001",))
+
+        mock_db.engine.table_operator.assert_called_with("sys_stock_list")
+        mock_op.load.assert_called_once()
+        assert rows == [{"id": "001"}]
     
     def test_insert_one(self):
         """插入单条走同步 batch_insert，不经过 queue_write。"""

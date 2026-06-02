@@ -86,6 +86,44 @@ def should_checkpoint_after_tag_run(db_config: Dict[str, Any]) -> bool:
     return bool(duckdb_shared_config(db_config).get("checkpoint_after_tag_run", True))
 
 
+def checkpoint_duckdb_engine(
+    engine: Any,
+    *,
+    domains: Optional[list] = None,
+) -> Dict[str, bool]:
+    """对 DuckdbEngine 执行 CHECKPOINT。"""
+    if hasattr(engine, "checkpoint"):
+        return engine.checkpoint(domains=domains)
+    return {}
+
+
+def install_sigint_checkpoint_handler_for_engine(
+    engine: Any,
+    db_config: Dict[str, Any],
+) -> None:
+    """主线程 SIGINT：对 DuckdbEngine 合并 WAL。"""
+    if not should_checkpoint_on_sigint(db_config):
+        return
+    if threading.current_thread() is not threading.main_thread():
+        return
+    global _sigint_installed
+    with _sigint_lock:
+        if _sigint_installed:
+            return
+
+        def _handler(signum, frame):
+            logger.info("收到 Ctrl+C，正在将 DuckDB WAL 合并进主库…")
+            try:
+                checkpoint_duckdb_engine(engine)
+            except Exception as e:
+                logger.warning("中断时 CHECKPOINT 未完全成功: %s", e)
+            signal.signal(signal.SIGINT, signal.SIG_DFL)
+            raise KeyboardInterrupt
+
+        signal.signal(signal.SIGINT, _handler)
+        _sigint_installed = True
+
+
 def install_sigint_checkpoint_handler(
     connection_manager: ConnectionManager,
     db_config: Dict[str, Any],

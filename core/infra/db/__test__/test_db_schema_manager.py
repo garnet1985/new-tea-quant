@@ -7,7 +7,7 @@ import tempfile
 import os
 from pathlib import Path
 from unittest.mock import Mock, patch
-from core.infra.db.schema_management.schema_manager import SchemaManager
+from core.infra.db.schema_manager import SchemaManager
 
 
 class TestSchemaManager:

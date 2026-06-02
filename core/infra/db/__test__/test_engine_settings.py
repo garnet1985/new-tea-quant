@@ -3,8 +3,8 @@ from core.infra.db.engines.duckdb.settings import DuckdbSettings
 from core.infra.db.engines.meta import build_engine_meta
 from core.infra.db.engines.mysql.settings import MysqlSettings
 from core.infra.db.engines.pgsql.settings import PgsqlSettings
-from core.infra.db.helpers.db_helpers import DBHelper
-from core.infra.db.settings.common import BatchWriteSettings
+from core.infra.db.engines._shared.config_parse import parse_database_config
+from core.infra.db.engines._shared.batch_write_settings import BatchWriteSettings
 
 
 def test_build_engine_meta_mysql():
@@ -21,7 +21,7 @@ def test_build_engine_meta_mysql():
         },
         "batch_write": {"batch_size": 500, "_advanced": {"insert_batch_size": 2000}},
     }
-    parsed = DBHelper.parse_database_config(raw)
+    parsed = parse_database_config(raw)
     meta = build_engine_meta(parsed)
     assert isinstance(meta.backend, MysqlSettings)
     assert meta.backend.pool_minconn == 2
@@ -44,7 +44,7 @@ def test_build_engine_meta_duckdb_checkpoint_keys():
         },
         "batch_write": {"enable": True},
     }
-    parsed = DBHelper.parse_database_config(raw)
+    parsed = parse_database_config(raw)
     meta = build_engine_meta(parsed)
     assert isinstance(meta.backend, DuckdbSettings)
     assert meta.backend.checkpoint_after_batch_save is False
@@ -64,7 +64,7 @@ def test_build_engine_meta_pgsql_schema():
             "default_pgsql_schema": "app",
         },
     }
-    parsed = DBHelper.parse_database_config(raw)
+    parsed = parse_database_config(raw)
     meta = build_engine_meta(parsed)
     assert isinstance(meta.backend, PgsqlSettings)
     assert meta.backend.pgsql_schema == "app"

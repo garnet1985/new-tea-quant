@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Mapping, Optional, TYPE_CHECKING
 
-from core.infra.db.helpers.duckdb_paths import resolve_duckdb_db_path
+from core.infra.db.engines.duckdb.paths import resolve_duckdb_db_path
 from core.infra.db.storage_registry import (
     PRIMARY_DUCKDB_DOMAIN,
     STORAGE_DOMAINS,

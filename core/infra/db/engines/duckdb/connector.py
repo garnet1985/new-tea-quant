@@ -11,10 +11,10 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 
-from core.infra.db.duckdb_wal_policy import apply_connect_settings
+from core.infra.db.engines.duckdb.wal_policy import apply_connect_settings
 from core.infra.db.engines.duckdb.settings import DuckdbSettings
 from core.infra.db.engines.duckdb.sql_adapter import DuckdbSqlAdapter
-from core.infra.db.helpers.duckdb_paths import resolve_duckdb_db_path
+from core.infra.db.engines.duckdb.paths import resolve_duckdb_db_path
 from core.infra.db.storage_registry import PRIMARY_DUCKDB_DOMAIN, STORAGE_DOMAINS
 
 logger = logging.getLogger(__name__)
@@ -364,5 +364,3 @@ class DuckdbConnector:
         return results
 
 
-# 旧路径兼容
-DuckDBAdapter = DuckdbDomainConnection

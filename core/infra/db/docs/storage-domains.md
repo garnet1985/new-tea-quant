@@ -149,7 +149,7 @@ TagWritePipeline / DataWritePipeline / …  →  batch upsert → CHECKPOINT（�
 - **不替代**：多进程占文件规则；CHECKPOINT 后 RW 连接仍可占锁。
 - **禁止**：只读连接或 routine 路径 **手删 `.wal`**（未 checkpoint 的已提交数据会丢）。
 
-**WAL 合并（实现于 `core/infra/db/duckdb_wal_policy.py`）：**
+**WAL 合并（实现于 `core/infra/db/engines/duckdb/wal_policy.py`）：**
 
 | 时机 | 行为 |
 |------|------|
@@ -178,7 +178,7 @@ TagWritePipeline / DataWritePipeline / …  →  batch upsert → CHECKPOINT（�
 `DataManager.initialize()` → `DatabaseManager.initialize()` 时，通过 `ConfigManager.load_database_config()` 读取配置**一次**，在内存中保留（例如挂在 `DatabaseManager.config` 或 `StorageRegistry`）：
 
 - `database_type`：`mysql` | `postgresql` | `duckdb`
-- duckdb 时附加：`domain → db_path`、`domain → ConnectionManager`、每域写管道句柄
+- duckdb 时附加：`domain → db_path`、`DuckdbEngine.connector` 各域连接、每域 `WritePipeline`
 
 运行期间按 `database_type` 分支，**不再重复读配置文件**：
 
@@ -229,7 +229,11 @@ get_table(table_name)
 StorageRegistry
   .database_type: str
   .table_to_domain: Dict[str, str]
-  .domain_connections: Dict[str, ConnectionManager]   # duckdb 时有效
+
+DuckdbEngine（duckdb 时）
+  .connector.domain_connections
+  ._file_catalog   # 表 → 域 → 绝对路径
+  ._write_pipelines
 ```
 
 `get_table` 多一次 dict 查找，开销可忽略。
@@ -264,9 +268,9 @@ StorageRegistry
 
 | 位置 | 风险 | 建议 |
 |------|------|------|
-| `DatabaseManager` / `ConnectionManager` | 单 adapter、单配置 | 引入 `DomainConnectionRegistry`；`get_sync_cursor(domain)` 或 model 绑定域连接 |
-| `DbBaseModel.__init__` | 所有 model 共用 `DatabaseManager.get_default()` | model 按表 schema 解析 domain，持有对应 `db` 句柄 |
-| `SchemaManager.create_all_tables` | 一次建所有表于同一库 | 按 domain 分组建表到对应 duckdb |
+| `DatabaseManager` | 单 adapter 假设 | **已实现**：mount `DuckdbEngine`；`get_sync_cursor_for_table` / `execute_sync_query_for_table` |
+| `DbBaseModel` | 单连接 | **已实现**：按表转发 `engine.table_operator`；裸 SQL 用 `*_for_table` |
+| `SchemaManager.create_all_tables` | 单库建表 | **已实现**：`create_all_base_tables` → engine 按表域 `connection_factory` 建表 |
 | `migration/*` introspection | 单库 information_schema | 每域迁移或主域 catalog + 域版本表 |
 | `DataManager.get_physical_table_name` | 仅 PG schema 前缀 | DuckDB 跨 attach 时改为 `data.sys_stock_list` 等形式 |
 

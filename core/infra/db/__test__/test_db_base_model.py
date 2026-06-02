@@ -4,24 +4,24 @@ DbBaseModel 单元测试
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 from core.infra.db.table_queriers.db_base_model import DbBaseModel
-from core.infra.db.helpers.db_helpers import DBHelper
+from core.infra.db.engines._shared import row_sql
 
 
-class TestDBHelper:
-    """DBHelper 测试类"""
+class TestRowSql:
+    """row_sql 工具测试"""
     
     def test_to_columns_and_values(self):
         """测试转换为列名和占位符"""
         data_list = [
             {'id': '001', 'name': 'test', 'price': 10.0}
         ]
-        columns, placeholders = DBHelper.to_columns_and_values(data_list)
+        columns, placeholders = row_sql.to_columns_and_values(data_list)
         assert columns == ['id', 'name', 'price']
         assert placeholders == '%s, %s, %s'
     
     def test_to_columns_and_values_empty(self):
         """测试空数据列表"""
-        columns, placeholders = DBHelper.to_columns_and_values([])
+        columns, placeholders = row_sql.to_columns_and_values([])
         assert columns == []
         assert placeholders == ""
     
@@ -30,7 +30,7 @@ class TestDBHelper:
         data_list = [
             {'id': '001', 'name': 'test', 'price': 10.0}
         ]
-        columns, values, update_clause = DBHelper.to_upsert_params(
+        columns, values, update_clause = row_sql.to_upsert_params(
             data_list, 
             unique_keys=['id']
         )

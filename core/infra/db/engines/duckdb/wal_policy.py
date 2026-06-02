@@ -9,10 +9,7 @@ from __future__ import annotations
 import logging
 import signal
 import threading
-from typing import Any, Dict, Optional, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from core.infra.db.connection_management.connection_manager import ConnectionManager
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -37,37 +34,6 @@ def apply_connect_settings(conn: Any, adapter_config: Dict[str, Any]) -> None:
         conn.execute(f"SET wal_autocheckpoint = '{_sql_string_literal(wal_ac)}'")
     except Exception as e:
         logger.debug("SET wal_autocheckpoint 跳过: %s", e)
-
-
-def checkpoint_connection_manager(
-    connection_manager: ConnectionManager,
-    *,
-    domains: Optional[list] = None,
-) -> Dict[str, bool]:
-    """
-    对 DuckDB 各域执行 CHECKPOINT（无 .wal 或已合并则无副作用）。
-
-    Returns:
-        {domain: True 成功 / False 失败}
-    """
-    results: Dict[str, bool] = {}
-    if not getattr(connection_manager, "is_duckdb", False):
-        return results
-    adapters = getattr(connection_manager, "domain_adapters", None) or {}
-    targets = domains if domains is not None else sorted(adapters.keys())
-    for domain in targets:
-        adapter = adapters.get(domain)
-        if adapter is None:
-            continue
-        if bool(getattr(adapter, "config", {}).get("read_only", False)):
-            continue
-        try:
-            adapter.checkpoint()
-            results[str(domain)] = True
-        except Exception as e:
-            logger.warning("DuckDB CHECKPOINT 失败 domain=%s: %s", domain, e)
-            results[str(domain)] = False
-    return results
 
 
 def should_checkpoint_after_batch(db_config: Dict[str, Any]) -> bool:
@@ -117,33 +83,6 @@ def install_sigint_checkpoint_handler_for_engine(
                 checkpoint_duckdb_engine(engine)
             except Exception as e:
                 logger.warning("中断时 CHECKPOINT 未完全成功: %s", e)
-            signal.signal(signal.SIGINT, signal.SIG_DFL)
-            raise KeyboardInterrupt
-
-        signal.signal(signal.SIGINT, _handler)
-        _sigint_installed = True
-
-
-def install_sigint_checkpoint_handler(
-    connection_manager: ConnectionManager,
-    db_config: Dict[str, Any],
-) -> None:
-    """主线程注册 SIGINT：合并 WAL 后再抛出 KeyboardInterrupt。"""
-    global _sigint_installed
-    if not should_checkpoint_on_sigint(db_config):
-        return
-    if threading.current_thread() is not threading.main_thread():
-        return
-    with _sigint_lock:
-        if _sigint_installed:
-            return
-
-        def _handler(signum, frame):
-            logger.info("收到 Ctrl+C，正在将 DuckDB WAL 合并进主库…")
-            try:
-                checkpoint_connection_manager(connection_manager)
-            except Exception as e:
-                logger.warning("中断时 CHECKPOINT 未完全成功（下次独占打开仍会回放 WAL）: %s", e)
             signal.signal(signal.SIGINT, signal.SIG_DFL)
             raise KeyboardInterrupt
 

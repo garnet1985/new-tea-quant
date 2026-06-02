@@ -211,7 +211,7 @@ def _cmd_db_checkpoint(args: argparse.Namespace) -> int:
         print(f"CHECKPOINT 目标: {paths}", flush=True)
         for domain, ok in sorted(results.items()):
             print(f"  {domain}: {'ok' if ok else 'failed'}", flush=True)
-        from core.infra.db.helpers.duckdb_paths import resolve_duckdb_db_path
+        from core.infra.db.engines.duckdb.paths import resolve_duckdb_db_path
 
         db_dir = None
         if isinstance(eng, DuckdbEngine):

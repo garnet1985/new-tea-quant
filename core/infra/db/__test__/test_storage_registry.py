@@ -2,7 +2,7 @@
 import pytest
 
 from core.infra.db.storage_registry import StorageRegistry, normalize_storage_domain
-from core.infra.db.helpers.db_helpers import DBHelper
+from core.infra.db.engines._shared.config_parse import parse_database_config
 
 
 class TestStorageRegistry:
@@ -27,7 +27,7 @@ class TestStorageRegistry:
             reg.get_domain("sys_missing")
 
     def test_parse_duckdb_config(self):
-        cfg = DBHelper.parse_database_config(
+        cfg = parse_database_config(
             {
                 "database_type": "duckdb",
                 "duckdb": {

@@ -9,7 +9,7 @@ import logging
 
 from core.modules.data_source.data_class.config import DataSourceConfig
 from core.modules.data_manager.data_manager import DataManager
-from core.infra.db.duckdb_wal_policy import should_checkpoint_after_persist
+from core.infra.db.engines.duckdb.wal_policy import should_checkpoint_after_persist
 
 
 logger = logging.getLogger(__name__)

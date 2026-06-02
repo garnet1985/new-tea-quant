@@ -55,7 +55,7 @@ from pathlib import Path
 from contextlib import contextmanager
 from typing import Dict, List, Any, Optional, Literal
 
-from core.infra.db.helpers.db_helpers import DBHelper
+from core.infra.db.engines._shared import dialect as db_dialect, row_sql
 from core.infra.db.table_queriers.services.batch_operation import BatchOperation
 from core.utils.io import csv_io
 from core.utils.io import file_io
@@ -177,7 +177,7 @@ class DbBaseModel:
         sm = getattr(self.db, "schema_manager", None)
         if sm is not None:
             return sm
-        from core.infra.db.schema_management.schema_manager import SchemaManager
+        from core.infra.db.schema_manager import SchemaManager
 
         return SchemaManager(
             database_type=self.db.config.get("database_type", "postgresql")
@@ -522,7 +522,7 @@ class DbBaseModel:
         """
         if source_sql == target_sql:
             return
-        db_type = DBHelper.normalize_database_type(self.db.config)
+        db_type = db_dialect.normalize_database_type(self.db.config)
         if db_type == "postgresql":
             cursor.execute(f"DROP TABLE IF EXISTS {target_sql}")
             cursor.execute(
@@ -629,7 +629,7 @@ class DbBaseModel:
         MySQL 另受 max_allowed_packet 约束，再限制每批最多 ``_MYSQL_INSERT_BATCH_ROW_CAP`` 行。
         """
         nc = max(num_columns, 1)
-        t = DBHelper.normalize_database_type(self.db.config)
+        t = db_dialect.normalize_database_type(self.db.config)
         _cap_pg = 10_000
         by_ph = max(1, 65535 // nc)
         if t == "postgresql":
@@ -682,7 +682,7 @@ class DbBaseModel:
         archive_name: str,
     ) -> int:
         """多行 VALUES 批量插入；返回插入行数。"""
-        col_list = DBHelper.quote_identifier_list(self.db.config, field_names)
+        col_list = db_dialect.quote_identifier_list(self.db.config, field_names)
         one_row = "(" + ", ".join(["%s"] * len(field_names)) + ")"
         n = len(rows)
         if n == 0:
@@ -734,7 +734,7 @@ class DbBaseModel:
         """PostgreSQL：psycopg2.extras.execute_values 批量展开 VALUES，减少客户端拼接与往返。"""
         from psycopg2.extras import execute_values
 
-        col_list = DBHelper.quote_identifier_list(self.db.config, field_names)
+        col_list = db_dialect.quote_identifier_list(self.db.config, field_names)
         sql = f"INSERT INTO {target_sql} ({col_list}) VALUES %s"
         n = len(rows)
         if n == 0:
@@ -847,9 +847,9 @@ class DbBaseModel:
         覆盖导入前清空目标表：MySQL/PostgreSQL 优先 TRUNCATE（大表远快于 DELETE），
         失败（如外键）时回退 DELETE。
         """
-        dialect = DBHelper.normalize_database_type(self.db.config)
+        db_type = db_dialect.normalize_database_type(self.db.config)
         t_clear = time.perf_counter()
-        if dialect not in ("mysql", "postgresql"):
+        if db_type not in ("mysql", "postgresql"):
             logger.info("覆盖导入：开始清空目标表 %s（DELETE FROM）", target_sql)
             cursor.execute(f"DELETE FROM {target_sql}")
             logger.info(
@@ -924,11 +924,11 @@ class DbBaseModel:
             logger.info("未提供任何文件，跳过导入表 %s", self.table_name)
             return
 
-        source_sql = DBHelper.sql_qualify_table_name(self.db.config, self.table_name)
+        source_sql = db_dialect.sql_qualify_table_name(self.db.config, self.table_name)
         target_logical = (target_table or self.table_name).strip()
-        target_sql = DBHelper.sql_qualify_table_name(self.db.config, target_logical)
+        target_sql = db_dialect.sql_qualify_table_name(self.db.config, target_logical)
 
-        db_type = DBHelper.normalize_database_type(self.db.config)
+        db_type = db_dialect.normalize_database_type(self.db.config)
         pg_ev = db_type == "postgresql"
         with self._table_transaction() as cursor:
             total_rows = self._import_data_overwrite_run(
@@ -1240,9 +1240,9 @@ class DbBaseModel:
         try:
             # 准备数据
             if unique_keys:
-                columns, values, update_clause = DBHelper.to_upsert_params(data_list, unique_keys)
+                columns, values, update_clause = row_sql.to_upsert_params(data_list, unique_keys)
             else:
-                columns, _ = DBHelper.to_columns_and_values(data_list)
+                columns, _ = row_sql.to_columns_and_values(data_list)
                 values = [tuple(data[col] for col in columns) for data in data_list]
                 update_clause = None
             
@@ -1252,7 +1252,7 @@ class DbBaseModel:
             # 获取批量大小配置
             batch_size = self._get_insert_batch_size()
             
-            dt = DBHelper.normalize_database_type(self.db.config)
+            dt = db_dialect.normalize_database_type(self.db.config)
             with self._table_cursor() as cursor:
                 return BatchOperation.execute_batch_insert(
                     executor=cursor,
@@ -1331,11 +1331,11 @@ class DbBaseModel:
         if op is not None:
             return op.upsert(rows, unique_keys)
         try:
-            columns, values, update_clause = DBHelper.to_upsert_params(rows, unique_keys)
+            columns, values, update_clause = row_sql.to_upsert_params(rows, unique_keys)
             if not columns:
                 return 0
             batch_size = self._get_insert_batch_size()
-            dt = DBHelper.normalize_database_type(self.db.config)
+            dt = db_dialect.normalize_database_type(self.db.config)
             with self._table_cursor() as cursor:
                 return BatchOperation.execute_batch_insert(
                     executor=cursor,

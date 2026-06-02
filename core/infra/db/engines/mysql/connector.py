@@ -35,7 +35,7 @@ class MysqlConnector:
         self.config = settings.as_dict()
         self.is_verbose = is_verbose
         self.sql_adapter = MysqlSqlAdapter()
-        self.conn: Optional[pymysql.Connection] = None  # 兼容旧 ConnectionManager
+        self.conn: Optional[pymysql.Connection] = None
         self._pool: Optional[LifoQueue] = None
         self._pool_lock = threading.Lock()
         self._all_connections = set()
@@ -377,5 +377,3 @@ class MysqlConnector:
             return False
 
 
-# 旧名兼容（ConnectionManager / factory re-export）
-MySQLAdapter = MysqlConnector

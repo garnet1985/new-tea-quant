@@ -14,8 +14,8 @@ from typing import Any, Dict, List, Optional, Callable, Set
 from pathlib import Path
 
 from core.infra.project_context import PathManager, FileManager
-from core.infra.db.helpers.db_helpers import DBHelper
-from core.infra.db.schema_management.field import Field
+from core.infra.db.engines._shared.dialect import sql_dialect_for_schema
+from core.infra.db.engines._shared.fields import Field
 from core.infra.db.storage_registry import normalize_storage_domain
 from core.infra.db.engines.schema_parser_factory import get_schema_parser
 from core.infra.db.engines._shared.schema_parser_base import SchemaParserBase
@@ -63,7 +63,7 @@ class SchemaManager:
     @property
     def ddl_database_type(self) -> str:
         """DDL 方言（mysql | postgresql | duckdb）。"""
-        return DBHelper.sql_dialect_for_schema({"database_type": self.database_type})
+        return sql_dialect_for_schema({"database_type": self.database_type})
 
     @staticmethod
     def _duckdb_sequence_name(table_name: str, column_name: str) -> str:

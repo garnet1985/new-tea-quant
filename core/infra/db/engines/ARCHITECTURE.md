@@ -1,10 +1,10 @@
 # Database Engines 架构（定案）
 
-**状态：** 已定案，逐步迁移中  
-**版本：** `1.2.0`  
-**日期：** 2026-05-28（§8 库单元/Pipeline §9–§10 DbBaseModel/JOIN 定案）
+**状态：** 已定案，**运行时已挂载**  
+**版本：** `1.3.0`  
+**日期：** 2026-06（Engine 为默认路径；旧 ConnectionManager/TableManager 已删除）
 
-本文档记录 `core/infra/db/engines/` 的目标结构与职责边界。实现尚未完全落地；当前运行时仍以 `DatabaseManager` + 三层管理（Connection / Schema / Table）为主，见 [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)。
+本文档记录 `core/infra/db/engines/` 的结构与职责边界。`DatabaseManager` 通过 `factory.create_engine` 挂载唯一 Engine，见 [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)。
 
 ---
 
@@ -89,11 +89,11 @@ Engine **只消费** Manager 传入的 meta，**不**向上声明「我是 duckd
 | 现状 | 目标归属 |
 |------|----------|
 | `ConnectionManager` | 各 engine 的 **connector**（私有化，不再作为 Manager 的公开子系统） |
-| `table_queriers/adapters/*` | 各 engine 的 **connector**（旧名 adapter；re-export 兼容） |
+| `table_queriers/adapters/*` | 已移除；连接在各 engine **connector** |
 | `SchemaManager` 中的方言分支 | 各 engine 的 **schema_parser** |
 | `TableManager` + `BatchWriteQueue` | mysql/pgsql 的 **table_ops**；DuckDB 的 **table_ops** + **write_pipeline** |
 | `StorageRegistry` / 表→域 | Manager 或 **duckdb engine** 私有（server DB 无此概念） |
-| `schema_management/field/*` | 仍为跨 backend 的 **schema 语言**；parser 负责 field → DDL |
+| `engines/_shared/fields` | 跨 backend 的 **schema 语言**；parser 负责 field → DDL |
 
 ---
 
@@ -114,7 +114,7 @@ Engine **只消费** Manager 传入的 meta，**不**向上声明「我是 duckd
 
 **合并**仍在 `project_context.ConfigManager.load_database_config()`（`core/default_config` + `userspace/system/config` + env），**不在** engine 包内读 JSON。
 
-`DatabaseManager` → `DBHelper.parse_database_config` → `build_engine_meta()` 解析为类型化配置：
+`DatabaseManager` → `config_parse.parse_database_config` → `build_engine_meta()` 解析为类型化配置：
 
 | 字段 | 说明 |
 |------|------|
@@ -173,7 +173,7 @@ DuckDB 三存储域（data / tag / strategy）的**产品决策**见 [决策 6](
 
 - `CHECKPOINT` 为 **同步** SQL：将 WAL 中 **已提交** 数据合并进主库；成功后 WAL 由 DuckDB 截断/清空，**禁止**手删 `.wal`。
 - 策略：**批末积极 CHECKPOINT**（renew 每批、pipeline flush、`close()`），缩短 WAL 尾巴；设计上 **仍假设** WAL 可能存在（崩溃、批间窗口）。
-- 实现沿用 `duckdb_wal_policy.py`；duckdb `connector` / `write_pipeline` 在批边界调用。
+- 实现于 `engines/duckdb/wal_policy.py`；duckdb `connector` / `write_pipeline` 在批边界调用。
 
 ### 8.3 Per-domain WritePipeline（域间并行、域内串行）
 
@@ -309,4 +309,4 @@ Engine 只需实现白名单对应能力；表作者遵守契约即可保证三�
 
 - [../docs/DECISIONS.md](../docs/DECISIONS.md) — 决策 7–11
 - [../docs/storage-domains.md](../docs/storage-domains.md) — DuckDB 存储域、§4.2 并发与 WAL
-- [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) — 当前（迁移前）三层架构说明
+- [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) — DatabaseManager + Engine 当前架构

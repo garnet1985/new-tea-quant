@@ -9,7 +9,8 @@ from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from core.infra.db.engines.abc.table_abc import DbTableAbc
-from core.infra.db.helpers.db_helpers import DBHelper, DatabaseCursor
+from core.infra.db.engines._shared.cursor import DatabaseCursor
+from core.infra.db.engines._shared import dialect, row_sql
 from core.infra.db.table_queriers.services.batch_operation import BatchOperation
 
 if TYPE_CHECKING:
@@ -32,7 +33,7 @@ class PgsqlTableOperator(DbTableAbc):
         return self._engine.connector
 
     def _sql_table(self) -> str:
-        return DBHelper.sql_qualify_table_name(self._engine.meta.raw_config, self.table_name)
+        return dialect.sql_qualify_table_name(self._engine.meta.raw_config, self.table_name)
 
     def _insert_batch_size(self) -> int:
         return self._engine.meta.batch_write.insert_batch_size
@@ -82,9 +83,9 @@ class PgsqlTableOperator(DbTableAbc):
             return 0
         try:
             if unique_keys:
-                columns, values, update_clause = DBHelper.to_upsert_params(rows, unique_keys)
+                columns, values, update_clause = row_sql.to_upsert_params(rows, unique_keys)
             else:
-                columns, _ = DBHelper.to_columns_and_values(rows)
+                columns, _ = row_sql.to_columns_and_values(rows)
                 values = [tuple(row[col] for col in columns) for row in rows]
                 update_clause = None
             if not columns:
@@ -108,7 +109,7 @@ class PgsqlTableOperator(DbTableAbc):
         if not rows:
             return 0
         try:
-            columns, values, update_clause = DBHelper.to_upsert_params(rows, unique_keys)
+            columns, values, update_clause = row_sql.to_upsert_params(rows, unique_keys)
             if not columns:
                 return 0
             with self._cursor() as cursor:

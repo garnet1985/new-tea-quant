@@ -19,7 +19,7 @@ from core.modules.data_source.service.executor.bundle_progress import (
     install as install_bundle_progress,
 )
 from core.modules.data_source.service.executor.save_batch_sizer import SaveBatchSizer
-from core.infra.db.duckdb_wal_policy import should_checkpoint_after_batch
+from core.infra.db.engines.duckdb.wal_policy import should_checkpoint_after_batch
 
 
 logger = logging.getLogger(__name__)

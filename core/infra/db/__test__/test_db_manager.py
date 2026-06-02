@@ -57,7 +57,6 @@ class TestDatabaseManager:
             assert db is not None
             assert db.engine is not None
             assert db.uses_engine_path
-            assert db.table_manager is None
             DatabaseManager.reset_default()
     
     def test_reset_default(self):
@@ -79,7 +78,6 @@ class TestDatabaseManager:
             assert db.uses_engine_path
             assert db.engine is not None
             assert db.engine.is_initialized is True
-            assert db.table_manager is None
             assert db.adapter is db.engine.adapter
     
     def test_execute_sync_query(self):

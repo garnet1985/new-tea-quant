@@ -171,7 +171,7 @@ class Field(ABC):
         return ""
     
     def to_dict(self) -> Dict[str, Any]:
-        """转换为字典格式（用于向后兼容）"""
+        """转换为字典格式（与 schema.py 中 field dict 互转）"""
         result = {
             'name': self.name,
             'type': self.get_type_name(),

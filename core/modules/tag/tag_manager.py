@@ -31,7 +31,7 @@ from core.infra.job_dispatcher import (
 from core.modules.tag.components.job_staging.tag_job_stager import TagJobStager
 from core.modules.tag.components.job_staging.tag_run_profile import TagRunProfile
 from core.modules.tag.components.report_save_buffer import TagReportSaveBuffer
-from core.infra.db.duckdb_wal_policy import should_checkpoint_after_tag_run
+from core.infra.db.engines.duckdb.wal_policy import should_checkpoint_after_tag_run
 
 logger = logging.getLogger(__name__)
 

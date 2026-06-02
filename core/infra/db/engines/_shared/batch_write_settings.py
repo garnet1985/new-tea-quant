@@ -1,5 +1,5 @@
 """
-跨 backend 公用配置（来自 merged config 顶层 batch_write）。
+跨 backend 公用配置（来自 merged config 顶层 batch_write，mysql/pgsql 写队列使用）。
 """
 from __future__ import annotations
 

@@ -10,7 +10,7 @@ from core.infra.db.engines import (
 from core.infra.db.engines.duckdb.engine import DuckdbEngine
 from core.infra.db.engines.mysql.engine import MysqlEngine
 from core.infra.db.engines.pgsql.engine import PgsqlEngine
-from core.infra.db.helpers.db_helpers import DBHelper
+from core.infra.db.engines._shared.config_parse import parse_database_config
 
 _MYSQL = {
     "host": "127.0.0.1",
@@ -37,7 +37,7 @@ _DUCKDB = {
 
 def _meta(engine_key: str):
     raw = {"database_type": engine_key, engine_key: _MYSQL if engine_key == "mysql" else _PGSQL if engine_key == "postgresql" else _DUCKDB}
-    return build_engine_meta(DBHelper.parse_database_config(raw))
+    return build_engine_meta(parse_database_config(raw))
 
 
 @pytest.mark.parametrize(

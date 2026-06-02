@@ -6,7 +6,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict
 
-from core.infra.db.settings.common import BatchWriteSettings, parse_batch_write
+from core.infra.db.engines._shared.batch_write_settings import (
+    BatchWriteSettings,
+    parse_batch_write,
+)
 
 if TYPE_CHECKING:
     from core.infra.db.engines.duckdb.settings import DuckdbSettings
@@ -58,7 +61,7 @@ class EngineConfigMeta:
     """
     DatabaseManager 挂载 Engine 前构造的配置快照；Engine 只读，不回写。
 
-    ``backend`` 为类型化配置；``backend_config`` 保留 merge 后的 dict 视图（兼容）。
+    ``backend`` 为类型化配置；``backend_config`` 为 merge 后的 dict 视图。
     """
 
     engine_key: str

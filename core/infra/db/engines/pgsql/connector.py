@@ -301,4 +301,3 @@ class PgsqlConnector:
             return False
 
 
-PostgreSQLAdapter = PgsqlConnector

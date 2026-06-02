@@ -12,15 +12,16 @@ from core.infra.db.engines.abc.table_abc import DbTableAbc
 from core.infra.db.engines.meta import EngineConfigMeta
 from core.infra.db.engines.mysql.connector import MysqlConnector
 from core.infra.db.engines.mysql.table_operator import MysqlTableOperator
-from core.infra.db.helpers.db_helpers import DBHelper, DatabaseCursor
-from core.infra.db.schema_management.schema_manager import SchemaManager
+from core.infra.db.engines._shared.cursor import DatabaseCursor
+from core.infra.db.engines._shared import dialect
+from core.infra.db.schema_manager import SchemaManager
 from core.infra.db.table_queriers.services.batch_operation_queue import BatchWriteQueue
 
 logger = logging.getLogger(__name__)
 
 
 class _WriteQueueHost:
-    """BatchWriteQueue 需要的 table_manager 兼容面。"""
+    """BatchWriteQueue 挂载的 engine 宿主。"""
 
     def __init__(self, engine: MysqlEngine) -> None:
         self._engine = engine
@@ -57,7 +58,7 @@ class MysqlEngine(DbEngineAbc):
 
     @property
     def adapter(self):
-        """兼容 DatabaseManager.adapter / 旧 BatchWriteQueue。"""
+        """当前 engine 的 connector（写队列与 DatabaseManager.adapter 使用）。"""
         return self.connector
 
     def initialize(self) -> None:
@@ -148,8 +149,8 @@ class MysqlEngine(DbEngineAbc):
 
     def drop_table(self, table_name: str) -> None:
         self._require_ready()
-        qualified = DBHelper.sql_qualify_table_name(self.meta.raw_config, table_name)
-        quoted = DBHelper.quote_identifier_for_dialect(self.engine_key, qualified)
+        qualified = dialect.sql_qualify_table_name(self.meta.raw_config, table_name)
+        quoted = dialect.quote_identifier_for_dialect(self.engine_key, qualified)
         self.connector.execute_write(f"DROP TABLE IF EXISTS {quoted}")
 
     def get_table_schema(self, table_name: str) -> Optional[Dict[str, Any]]:

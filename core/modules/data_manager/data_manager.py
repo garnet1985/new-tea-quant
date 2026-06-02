@@ -237,7 +237,7 @@ class DataManager:
         """
         from core.infra.db import DbBaseModel
         from core.infra.project_context import FileManager
-        from core.infra.db.schema_management.schema_manager import SchemaManager
+        from core.infra.db.schema_manager import SchemaManager
 
         try:
             table_folder = Path(table_folder_path)

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from core.infra.db.helpers.db_helpers import DBHelper
+from core.infra.db.engines._shared.sql_identifiers import quote_ddl_identifier
 from core.infra.db.engines._shared.fields import Field
 
 
@@ -15,7 +15,7 @@ class SchemaParserBase:
     dialect: str = "postgresql"
 
     def quote_identifier(self, name: str) -> str:
-        return DBHelper.quote_identifier_for_dialect(self.dialect, name)
+        return quote_ddl_identifier(self.dialect, name)
 
     @staticmethod
     def duckdb_sequence_name(table_name: str, column_name: str) -> str:

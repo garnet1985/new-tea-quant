@@ -7,7 +7,7 @@ import logging
 from contextlib import contextmanager
 from typing import Any, Callable, Dict, Iterator, Optional
 
-from core.infra.db.duckdb_wal_policy import install_sigint_checkpoint_handler_for_engine
+from core.infra.db.engines.duckdb.wal_policy import install_sigint_checkpoint_handler_for_engine
 from core.infra.db.engines.abc.engine_abc import DbEngineAbc
 from core.infra.db.engines.abc.table_abc import DbTableAbc
 from core.infra.db.engines.duckdb.connector import DuckdbConnector
@@ -18,8 +18,9 @@ from core.infra.db.engines.duckdb.domain_catalog import (
 from core.infra.db.engines.duckdb.table_operator import DuckdbTableOperator
 from core.infra.db.engines.duckdb.write_pipeline import WritePipeline
 from core.infra.db.engines.meta import EngineConfigMeta
-from core.infra.db.helpers.db_helpers import DBHelper, DatabaseCursor
-from core.infra.db.schema_management.schema_manager import SchemaManager
+from core.infra.db.engines._shared.cursor import DatabaseCursor
+from core.infra.db.engines._shared.dialect import quote_identifier_for_dialect
+from core.infra.db.schema_manager import SchemaManager
 from core.infra.db.storage_registry import (
     PRIMARY_DUCKDB_DOMAIN,
     normalize_storage_domain,
@@ -69,10 +70,6 @@ class DuckdbEngine(DbEngineAbc):
         )
         return self._file_catalog
 
-    def bind_domain_map(self, table_to_domain: Dict[str, str]) -> None:
-        """兼容：等价于 ``rebuild_table_file_map(table_to_domain=...)``。"""
-        self.rebuild_table_file_map(table_to_domain=table_to_domain)
-
     def file_map_for_table(self, table_name: str) -> DuckdbTableFileMap:
         """传入表名，返回域 + 配置路径 + 绝对路径。"""
         return self._require_file_catalog().file_map_for_table(table_name)
@@ -85,7 +82,7 @@ class DuckdbEngine(DbEngineAbc):
 
     @property
     def adapter(self):
-        """兼容 DatabaseManager.adapter（主域 data）。"""
+        """主域 ``data`` 的 domain connection。"""
         if not self._initialized:
             raise RuntimeError("DuckdbEngine 未 initialize")
         return self.connector.primary()
@@ -239,7 +236,7 @@ class DuckdbEngine(DbEngineAbc):
 
     def drop_table(self, table_name: str) -> None:
         self._require_ready()
-        quoted = DBHelper.quote_identifier_for_dialect("duckdb", table_name)
+        quoted = quote_identifier_for_dialect("duckdb", table_name)
         domain = self.resolve_domain(table_name)
         self.connector.execute_write(
             f"DROP TABLE IF EXISTS {quoted}",

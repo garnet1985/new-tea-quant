@@ -2,7 +2,7 @@
 import duckdb
 import pytest
 
-from core.infra.db.table_queriers.adapters.duckdb_adapter import DuckDBAdapter
+from core.infra.db.engines.duckdb.connector import DuckdbDomainConnection
 
 
 def test_read_only_wal_replay_failure_does_not_delete_wal(tmp_path, monkeypatch):
@@ -23,7 +23,7 @@ def test_read_only_wal_replay_failure_does_not_delete_wal(tmp_path, monkeypatch)
         lambda self, *a, **k: deleted.append(self),
     )
 
-    adapter = DuckDBAdapter({"db_path": str(db_path), "read_only": True})
+    adapter = DuckdbDomainConnection({"db_path": str(db_path), "read_only": True})
     with pytest.raises(RuntimeError, match="不要在写库进行中用只读连接"):
         adapter._open_connection(str(db_path), read_only=True)
 

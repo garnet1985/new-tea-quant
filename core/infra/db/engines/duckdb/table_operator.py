@@ -10,7 +10,9 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from core.infra.db.engines.abc.table_abc import DbTableAbc
 from core.infra.db.engines.duckdb.write_pipeline import _WriteJob
-from core.infra.db.helpers.db_helpers import DBHelper, DatabaseCursor
+from core.infra.db.engines._shared.cursor import DatabaseCursor
+from core.infra.db.engines._shared.dialect import quote_identifier_for_dialect
+from core.infra.db.engines._shared import row_sql
 from core.infra.db.table_queriers.services.batch_operation import BatchOperation
 
 if TYPE_CHECKING:
@@ -34,7 +36,7 @@ class DuckdbTableOperator(DbTableAbc):
         return self._engine.connector.connection_for_domain(self._domain)
 
     def _sql_table(self) -> str:
-        return DBHelper.quote_identifier_for_dialect("duckdb", self.table_name)
+        return quote_identifier_for_dialect("duckdb", self.table_name)
 
     def _insert_batch_size(self) -> int:
         return self._engine.meta.batch_write.insert_batch_size
@@ -128,9 +130,9 @@ class DuckdbTableOperator(DbTableAbc):
             return 0
         try:
             if unique_keys:
-                columns, values, update_clause = DBHelper.to_upsert_params(rows, unique_keys)
+                columns, values, update_clause = row_sql.to_upsert_params(rows, unique_keys)
             else:
-                columns, _ = DBHelper.to_columns_and_values(rows)
+                columns, _ = row_sql.to_columns_and_values(rows)
                 values = [tuple(row[col] for col in columns) for row in rows]
                 update_clause = None
             if not columns:

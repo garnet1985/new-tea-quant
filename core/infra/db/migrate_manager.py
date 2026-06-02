@@ -1,12 +1,12 @@
 """
-数据库 schema 升级 CLI（由 ``userspace/system/updater`` 子进程调用）。
+Schema 升级门面：diff → plan → apply；CLI 供 updater 子进程调用。
 
 用法::
 
-    PYTHONPATH=<repo_root> python -m core.infra.db.migrate apply \\
+    PYTHONPATH=<repo_root> python -m core.infra.db.migrate_manager apply \\
         --pre-mirror-snapshot userspace/system/.ntq/update/cache/pre_mirror_core_table_schemas.json
 
-    python -m core.infra.db.migrate plan --pre-mirror-snapshot <path>   # 仅生成 plan，不连库写 DDL
+    python -m core.infra.db.migrate_manager plan --pre-mirror-snapshot <path>
 """
 from __future__ import annotations
 
@@ -15,12 +15,12 @@ import json
 import logging
 import sys
 from pathlib import Path
+from typing import Any, Dict, Optional
 
 from core.infra.db.db_manager import DatabaseManager
 from core.infra.db.migration.execution_plan import MigrationPlanError, ordered_plan
-from core.infra.db.migration.introspection import introspect_database
-from core.infra.db.migration.plan_prune import prune_plan_for_database
 from core.infra.db.migration.runner import (
+    MigrationRunResult,
     build_migration_plan,
     default_pre_mirror_snapshot_path,
     load_current_table_schemas,
@@ -31,8 +31,56 @@ from core.infra.db.migration.runner import (
 logger = logging.getLogger(__name__)
 
 
-def _write_migration_result_json(path: Path, result) -> None:
-    """写入供 updater 读取的摘要 JSON。"""
+class MigrationManager:
+    """core/tables schema 升级编排（实现细节在 ``migration/`` 子包）。"""
+
+    @staticmethod
+    def default_snapshot_path(repo_root: Path) -> Path:
+        return default_pre_mirror_snapshot_path(repo_root)
+
+    @staticmethod
+    def load_snapshot(path: Path) -> Dict[str, Dict[str, Any]]:
+        return load_schemas_from_snapshot(path)
+
+    @staticmethod
+    def load_current_schemas(
+        repo_root: Optional[Path] = None,
+        *,
+        tables_dir: Optional[Path] = None,
+    ) -> Dict[str, Dict[str, Any]]:
+        return load_current_table_schemas(repo_root, tables_dir=tables_dir)
+
+    @staticmethod
+    def build_plan(
+        old_schemas: Dict[str, Dict[str, Any]],
+        new_schemas: Dict[str, Dict[str, Any]],
+        *,
+        database_type: str = "postgresql",
+        db: Optional[DatabaseManager] = None,
+    ):
+        return build_migration_plan(old_schemas, new_schemas, database_type=database_type, db=db)
+
+    @staticmethod
+    def run(
+        pre_mirror_snapshot: Path,
+        *,
+        repo_root: Optional[Path] = None,
+        tables_dir: Optional[Path] = None,
+        apply: bool = True,
+        against_database: bool = False,
+        database_type: str = "postgresql",
+    ) -> MigrationRunResult:
+        return run_schema_migration(
+            pre_mirror_snapshot=pre_mirror_snapshot,
+            repo_root=repo_root,
+            tables_dir=tables_dir,
+            apply=apply,
+            against_database=against_database,
+            database_type=database_type,
+        )
+
+
+def _write_migration_result_json(path: Path, result: MigrationRunResult) -> None:
     payload = {
         "skipped_reason": result.skipped_reason,
         "applied": result.applied,
@@ -53,14 +101,14 @@ def _resolve_snapshot_path(args: argparse.Namespace) -> Path:
     if args.pre_mirror_snapshot:
         return Path(args.pre_mirror_snapshot).resolve()
     if args.repo_root:
-        return default_pre_mirror_snapshot_path(Path(args.repo_root).resolve())
-    return default_pre_mirror_snapshot_path(Path.cwd().resolve())
+        return MigrationManager.default_snapshot_path(Path(args.repo_root).resolve())
+    return MigrationManager.default_snapshot_path(Path.cwd().resolve())
 
 
-def _cmd_plan(args: argparse.Namespace) -> int:
+def cmd_plan(args: argparse.Namespace) -> int:
     snap = _resolve_snapshot_path(args)
-    old = load_schemas_from_snapshot(snap)
-    new = load_current_table_schemas(
+    old = MigrationManager.load_snapshot(snap)
+    new = MigrationManager.load_current_schemas(
         Path(args.repo_root).resolve() if args.repo_root else None,
         tables_dir=Path(args.tables_dir).resolve() if args.tables_dir else None,
     )
@@ -69,7 +117,7 @@ def _cmd_plan(args: argparse.Namespace) -> int:
             db = DatabaseManager()
             db.initialize()
             try:
-                diff, plan = build_migration_plan(
+                diff, plan = MigrationManager.build_plan(
                     old,
                     new,
                     database_type=db.config.get("database_type", args.database_type),
@@ -78,7 +126,9 @@ def _cmd_plan(args: argparse.Namespace) -> int:
             finally:
                 db.close()
         else:
-            diff, plan = build_migration_plan(old, new, database_type=args.database_type)
+            diff, plan = MigrationManager.build_plan(
+                old, new, database_type=args.database_type
+            )
     except MigrationPlanError as e:
         logger.error("%s", e)
         return 2
@@ -114,14 +164,14 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_apply(args: argparse.Namespace) -> int:
+def cmd_apply(args: argparse.Namespace) -> int:
     snap = _resolve_snapshot_path(args)
     if not snap.is_file():
         logger.error("schema 快照不存在: %s", snap)
         return 1
     try:
-        result = run_schema_migration(
-            pre_mirror_snapshot=snap,
+        result = MigrationManager.run(
+            snap,
             repo_root=Path(args.repo_root).resolve() if args.repo_root else None,
             tables_dir=Path(args.tables_dir).resolve() if args.tables_dir else None,
             apply=not args.dry_run,
@@ -186,7 +236,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="连库 introspection 并裁剪已在库中的步骤（不执行 DDL）",
     )
-    plan_p.set_defaults(func=_cmd_plan)
+    plan_p.set_defaults(func=cmd_plan)
 
     apply_p = sub.add_parser("apply", parents=[shared], help="diff + plan + 执行 DDL")
     apply_p.add_argument("--dry-run", action="store_true", help="只生成 plan，不执行 DDL")
@@ -194,7 +244,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--result-json",
         help="将 MigrationRunResult 摘要写入 JSON（updater 子进程使用）",
     )
-    apply_p.set_defaults(func=_cmd_apply)
+    apply_p.set_defaults(func=cmd_apply)
 
     return p
 

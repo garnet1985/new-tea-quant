@@ -12,8 +12,9 @@ from core.infra.db.engines.abc.table_abc import DbTableAbc
 from core.infra.db.engines.meta import EngineConfigMeta
 from core.infra.db.engines.pgsql.connector import PgsqlConnector
 from core.infra.db.engines.pgsql.table_operator import PgsqlTableOperator
-from core.infra.db.helpers.db_helpers import DBHelper, DatabaseCursor
-from core.infra.db.schema_management.schema_manager import SchemaManager
+from core.infra.db.engines._shared.cursor import DatabaseCursor
+from core.infra.db.engines._shared import dialect
+from core.infra.db.schema_manager import SchemaManager
 from core.infra.db.table_queriers.services.batch_operation_queue import BatchWriteQueue
 
 logger = logging.getLogger(__name__)
@@ -145,15 +146,15 @@ class PgsqlEngine(DbEngineAbc):
 
     def drop_table(self, table_name: str) -> None:
         self._require_ready()
-        qualified = DBHelper.sql_qualify_table_name(self.meta.raw_config, table_name)
+        qualified = dialect.sql_qualify_table_name(self.meta.raw_config, table_name)
         if "." in qualified:
             schema_part, name_part = qualified.split(".", 1)
             quoted = (
-                f"{DBHelper.quote_identifier_for_dialect(self.engine_key, schema_part)}."
-                f"{DBHelper.quote_identifier_for_dialect(self.engine_key, name_part)}"
+                f"{dialect.quote_identifier_for_dialect(self.engine_key, schema_part)}."
+                f"{dialect.quote_identifier_for_dialect(self.engine_key, name_part)}"
             )
         else:
-            quoted = DBHelper.quote_identifier_for_dialect(self.engine_key, qualified)
+            quoted = dialect.quote_identifier_for_dialect(self.engine_key, qualified)
         self.connector.execute_write(f"DROP TABLE IF EXISTS {quoted}")
 
     def get_table_schema(self, table_name: str) -> Optional[Dict[str, Any]]:

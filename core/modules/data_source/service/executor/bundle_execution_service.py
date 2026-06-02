@@ -11,9 +11,59 @@ from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
 from core.modules.data_source.data_class.config import DataSourceConfig
 from core.modules.data_source.service.api_job_executor import ApiJobExecutor
+from core.modules.data_source.service.executor.bundle_progress import (
+    AUTO_MAX_SAVE_BATCH_SIZE,
+    BundleExecutionProgress,
+    clear as clear_bundle_progress,
+    current as current_bundle_progress,
+    install as install_bundle_progress,
+)
+from core.modules.data_source.service.executor.save_batch_sizer import SaveBatchSizer
+from core.infra.db.duckdb_wal_policy import (
+    checkpoint_connection_manager,
+    should_checkpoint_after_batch,
+)
 
 
 logger = logging.getLogger(__name__)
+
+
+def _checkpoint_after_batch_save(context: Dict[str, Any]) -> None:
+    """batch 合并写入后 CHECKPOINT，尽量消除 .wal 中间态。"""
+    dm = context.get("data_manager")
+    db = getattr(dm, "db", None) if dm is not None else None
+    if db is None or not should_checkpoint_after_batch(db.config):
+        return
+    cm = getattr(db, "connection_manager", None)
+    if cm is None:
+        return
+    try:
+        checkpoint_connection_manager(cm)
+    except Exception as e:
+        logger.warning("批量写入后 CHECKPOINT 失败: %s", e)
+
+BundleSaveItem = Tuple[Any, Dict[str, Any]]
+
+
+def _invoke_bundle_save(
+    context: Dict[str, Any],
+    batch_items: List[BundleSaveItem],
+    save_mode: str,
+    on_single_bundle_complete: Callable[[Dict[str, Any], Any, Dict[str, Any]], Any],
+    on_batch_bundles_complete: Callable[[Dict[str, Any], List[BundleSaveItem]], Any],
+) -> int:
+    """
+    batch：N 个 bundle 合并一次 on_batch_bundles_complete。
+    immediate：逐 bundle 调用 on_single_bundle_complete。
+    """
+    if not batch_items:
+        return 0
+    if save_mode == "batch":
+        on_batch_bundles_complete(context, batch_items)
+        return len(batch_items)
+    for job_bundle, fetched in batch_items:
+        on_single_bundle_complete(context, job_bundle, fetched)
+    return len(batch_items)
 
 
 class BundleExecutionService:
@@ -21,8 +71,9 @@ class BundleExecutionService:
     执行一批 ApiJobBundle 的服务。
 
     约定：
-    - 不直接依赖 BaseHandler，而是通过回调访问 Hook（如 on_after_single_api_job_bundle_complete）。
-    - save_mode / save_batch_size 等由 context.config 提供。
+    - 不直接依赖 BaseHandler，而是通过回调访问保存钩子。
+    - save_mode=batch 时，每 save_batch_size 个 bundle（或 auto 动态阈值）触发 **一次** on_after_batch_bundles_complete。
+    - save_mode=immediate 时，每个 bundle 触发 on_after_single_bundle_complete。
     """
 
     def execute(
@@ -30,7 +81,8 @@ class BundleExecutionService:
         context: Dict[str, Any],
         jobs: List[Union[ApiJobBundle, ApiJob]],
         *,
-        on_after_single_bundle_complete: Callable[[Dict[str, Any], ApiJobBundle, Dict[str, Any]], None],
+        on_after_single_bundle_complete: Callable[[Dict[str, Any], Any, Dict[str, Any]], Any],
+        on_after_batch_bundles_complete: Callable[[Dict[str, Any], List[BundleSaveItem]], Any],
         enrich_result_for_batch: Callable[[Dict[str, Any], ApiJobBundle, Dict[str, Any]], Dict[str, Any]],
     ) -> Dict[str, Any]:
         """
@@ -39,7 +91,8 @@ class BundleExecutionService:
         Args:
             context: 执行上下文
             jobs: ApiJobBundle 或 ApiJob 列表
-            on_after_single_bundle_complete: per-bundle 保存回调（由 Handler 提供）
+            on_after_single_bundle_complete: immediate 模式单 bundle 保存
+            on_after_batch_bundles_complete: batch 模式多 bundle 合并保存
             enrich_result_for_batch: 批量模式下增强 result 的回调（由 Handler 提供）
 
         Returns:
@@ -99,9 +152,13 @@ class BundleExecutionService:
                         pass
                     loop.close()
 
+            has_running_loop = True
             try:
                 asyncio.get_running_loop()
             except RuntimeError:
+                has_running_loop = False
+
+            if not has_running_loop:
                 return _run_in_new_loop()
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
@@ -110,11 +167,12 @@ class BundleExecutionService:
         # 仅一个 bundle：直接执行
         if len(bundles) == 1:
             bundle_id, apis, item = bundles[0]
-            logger.info(f"开始执行 1 个 bundle: bundle_id={bundle_id}")
+            logger.debug("执行 1 个 bundle: bundle_id=%s", bundle_id)
             result = _run_async_in_sync(run_one_bundle(apis))
-            logger.info(
-                f"🔧 [single_bundle] 执行完成，准备调用钩子: bundle_id={bundle_id}, "
-                f"result_keys={list(result.keys())[:5] if isinstance(result, dict) else 'N/A'}..."
+            logger.debug(
+                "single_bundle 完成: bundle_id=%s, result_keys=%s",
+                bundle_id,
+                list(result.keys())[:5] if isinstance(result, dict) else "N/A",
             )
 
             # 获取 save_mode 配置
@@ -123,26 +181,30 @@ class BundleExecutionService:
                 raise ValueError("config 必须配置 save_mode")
             save_mode = config.get_save_mode()
 
-            # 根据 save_mode 决定是否调用钩子
-            if save_mode != "unified" and isinstance(item, ApiJobBundle):
+            # 根据 save_mode 决定是否调用保存钩子
+            if save_mode != "unified":
                 try:
-                    logger.info(f"🔧 [single_bundle] 调用 on_after_single_api_job_bundle_complete: bundle_id={bundle_id}")
-                    on_after_single_bundle_complete(context, item, result)
-                    logger.info(f"✅ [single_bundle] on_after_single_api_job_bundle_complete 调用成功: bundle_id={bundle_id}")
+                    _invoke_bundle_save(
+                        context,
+                        [(item, result)],
+                        save_mode,
+                        on_after_single_bundle_complete,
+                        on_after_batch_bundles_complete,
+                    )
                 except Exception as e:
                     logger.error(
-                        f"❌ [single_bundle] on_after_single_api_job_bundle_complete 调用失败: "
-                        f"bundle_id={bundle_id}, error={e}",
+                        "single_bundle 保存失败: bundle_id=%s, error=%s",
+                        bundle_id,
+                        e,
                         exc_info=True,
                     )
             elif save_mode == "unified":
                 logger.debug(
-                    "🔧 [single_bundle] save_mode='unified'，跳过 on_after_single_api_job_bundle_complete"
-                    "（将在 _do_save 中统一保存）"
+                    "single_bundle save_mode=unified，跳过 per-bundle 保存（统一在 _do_save）"
                 )
             else:
                 logger.debug("save_mode='unified' 或 item 非 ApiJobBundle，跳过 per-bundle 钩子")
-            logger.info("执行完成: 1/1 个 bundles")
+            logger.debug("执行完成: 1/1 个 bundles")
             return result
 
         # 多个 bundle：使用多线程框架
@@ -186,38 +248,46 @@ class BundleExecutionService:
             bundle_id_to_item[bundle_id] = item
 
         total_bundles = len(bundles)
+        bundle_progress = install_bundle_progress(
+            context.get("data_source_key", "data_source"), total_bundles
+        )
 
         # 启动进度监控线程
         import threading
         import time
 
         progress_stop = threading.Event()
-        last_reported_count = 0
-        PROGRESS_INTERVAL = 50  # 每完成50个job输出一次进度
+        last_reported_done = 0
+        PROGRESS_LOG_INTERVAL_SEC = 45
+        PROGRESS_LOG_EVERY_N = 100
+        last_progress_log_at = time.time()
 
         def _progress_monitor():
-            """后台线程：定期输出进度"""
-            nonlocal last_reported_count
+            """后台线程：定期输出抓取进度（INFO）。"""
+            nonlocal last_reported_done, last_progress_log_at
             while not progress_stop.is_set():
                 try:
                     stats = worker.get_stats()
-                    completed = stats.get("completed_jobs", 0) + stats.get("failed_jobs", 0)
+                    bundle_progress.update_from_worker_stats(stats)
+                    snap = bundle_progress.snapshot()
+                    done = snap["done"]
+                    now = time.time()
 
-                    if completed >= last_reported_count + PROGRESS_INTERVAL:
-                        current_percent = int((completed / total_bundles * 100)) if total_bundles > 0 else 0
-                        ds_key = context.get("data_source_key")
-                        logger.info(f"📊 [{ds_key}] 进度: {completed}/{total_bundles} ({current_percent}%)")
-                        last_reported_count = (completed // PROGRESS_INTERVAL) * PROGRESS_INTERVAL
+                    should_log = (
+                        done >= last_reported_done + PROGRESS_LOG_EVERY_N
+                        or (now - last_progress_log_at >= PROGRESS_LOG_INTERVAL_SEC and done > last_reported_done)
+                        or (done >= total_bundles and done > last_reported_done)
+                    )
+                    if should_log and total_bundles > 0:
+                        logger.info(bundle_progress.format_short())
+                        last_reported_done = done
+                        last_progress_log_at = now
 
-                    if completed >= total_bundles:
-                        if completed > last_reported_count:
-                            current_percent = int((completed / total_bundles * 100)) if total_bundles > 0 else 0
-                            ds_key = context.get("data_source_key")
-                            logger.info(f"📊 [{ds_key}] 进度: {completed}/{total_bundles} ({current_percent}%)")
+                    if done >= total_bundles:
                         break
                 except Exception:
                     pass
-                time.sleep(1)
+                time.sleep(2)
 
         progress_thread = threading.Thread(target=_progress_monitor, daemon=True)
         progress_thread.start()
@@ -234,17 +304,12 @@ class BundleExecutionService:
         batch_save_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
         context["_batch_save_executor"] = batch_save_executor  # batch 模式时异步执行 _run_batch_save
 
-        # 根据配置决定批量保存大小
+        # 根据配置决定批量保存大小（支持 save_batch_size: auto）
         config: DataSourceConfig = context.get("config")
         if not config:
             raise ValueError("config 必须配置 save_mode")
         save_mode = config.get_save_mode()
-        if save_mode == "immediate":
-            BATCH_SAVE_SIZE = 1  # 立即保存：每个 bundle 完成后立即保存
-        elif save_mode == "batch":
-            BATCH_SAVE_SIZE = config.get_save_batch_size() if config else 50
-        else:  # unified
-            BATCH_SAVE_SIZE = float("inf")  # 统一保存：不在这里保存，在 _do_save 中统一保存
+        save_batch_sizer = SaveBatchSizer(config, len(bundles), save_mode)
 
         def _has_actual_data(result_dict: Dict[str, Any]) -> bool:
             """
@@ -304,29 +369,48 @@ class BundleExecutionService:
                                     processed_results.add(result.job_id)
                                     continue
 
-                                if len(pending_results) >= BATCH_SAVE_SIZE:
+                                batch_threshold = save_batch_sizer.current_size()
+                                if len(pending_results) >= batch_threshold:
                                     batch = list(pending_results)
                                     pending_results.clear()
                                     for pr in batch:
                                         processed_results.add(pr.job_id)
                                     _batch_save_trigger_count[0] += 1
+                                    save_batch_sizer.record_batch_start()
 
-                                    def _run_batch_save(b=batch, bim=bundle_id_to_item):
-                                        saved = 0
-                                        for pr in b:
-                                            if pr.job_id in bim:
-                                                try:
-                                                    on_after_single_bundle_complete(context, bim[pr.job_id], pr.result)
-                                                    saved += 1
-                                                except Exception as e:
-                                                    logger.error(
-                                                        "❌ [批量保存] on_after_single_api_job_bundle_complete 调用失败: "
-                                                        f"bundle_id={pr.job_id}, error={e}",
-                                                        exc_info=True,
-                                                    )
-                                        logger.info(f"✅ [批量保存] 完成 {saved}/{len(b)} 个 bundles 的保存")
+                                    def _run_batch_save(
+                                        b=batch,
+                                        bim=bundle_id_to_item,
+                                    ):
+                                        try:
+                                            n = _invoke_bundle_save(
+                                                context,
+                                                [
+                                                    (bim[pr.job_id], pr.result)
+                                                    for pr in b
+                                                    if pr.job_id in bim
+                                                ],
+                                                save_mode,
+                                                on_after_single_bundle_complete,
+                                                on_after_batch_bundles_complete,
+                                            )
+                                            logger.debug(
+                                                "批量保存 %s bundles（%s 次写库调度）",
+                                                len(b),
+                                                1 if save_mode == "batch" and n else n,
+                                            )
+                                        except Exception as e:
+                                            logger.error(
+                                                "批量保存失败: %s",
+                                                e,
+                                                exc_info=True,
+                                            )
+                                        finally:
+                                            save_batch_sizer.after_batch_saved(len(b), b)
+                                            bundle_progress.add_saved(len(b))
+                                            _checkpoint_after_batch_save(context)
 
-                                    if BATCH_SAVE_SIZE == 1:
+                                    if batch_threshold == 1:
                                         _run_batch_save()
                                     else:
                                         batch_save_executor.submit(_run_batch_save)
@@ -344,6 +428,12 @@ class BundleExecutionService:
         results_processing_thread = threading.Thread(target=_process_completed_results, daemon=True)
         results_processing_thread.start()
 
+        logger.info(
+            "[%s] 开始抓取，共 %s 个 bundle",
+            bundle_progress.data_source_key,
+            total_bundles,
+        )
+
         try:
             worker.run_jobs()
         finally:
@@ -351,51 +441,90 @@ class BundleExecutionService:
             results_processing_stop.set()
             progress_thread.join(timeout=2)
             results_processing_thread.join(timeout=2)
+            bundle_progress.update_from_worker_stats(worker.get_stats())
+            snap = bundle_progress.snapshot()
+            if snap["failed"]:
+                logger.warning(
+                    "[%s] 抓取结束 %s/%s（%s%%），失败 %s",
+                    bundle_progress.data_source_key,
+                    snap["done"],
+                    snap["total"],
+                    snap["pct"],
+                    snap["failed"],
+                )
+            else:
+                logger.info(
+                    "[%s] 抓取结束 %s/%s（%s%%）",
+                    bundle_progress.data_source_key,
+                    snap["done"],
+                    snap["total"],
+                    snap["pct"],
+                )
+            clear_bundle_progress()
             interrupted = getattr(worker, "_interrupted_by_signal", False)
             if interrupted:
                 batch_save_executor.shutdown(wait=False)
                 logger.warning("📋 [批量保存] 已收到中断信号，跳过等待 pending save，快速退出")
+                _checkpoint_after_batch_save(context)
             else:
                 batch_save_executor.shutdown(wait=True)
-            logger.info(f"📋 [批量保存] 处理线程期间共触发 {_batch_save_trigger_count[0]} 次 batch 保存")
+                _checkpoint_after_batch_save(context)
+            logger.debug(
+                "批量保存共触发 %s 次",
+                _batch_save_trigger_count[0],
+            )
 
         # 处理剩余结果
         results_list = worker.get_results()
-        logger.info(
-            f"🔧 [multi_thread] worker.run_jobs() 完成，获取到 {len(results_list)} 个剩余结果"
-            f"（处理线程已触发 {_batch_save_trigger_count[0]} 次 batch 保存）"
+        logger.debug(
+            "multi_thread 剩余结果 %s 个（batch 保存已触发 %s 次）",
+            len(results_list),
+            _batch_save_trigger_count[0],
         )
 
         if pending_results and save_mode != "unified":
-            logger.info(f"🔧 [批量保存] 处理最后一批 {len(pending_results)} 个有数据的结果...")
-            saved_count = 0
-            for pending_result in pending_results:
-                if pending_result.job_id in processed_results:
+            tail_items: List[BundleSaveItem] = []
+            tail_batch_results = []
+            for pr in pending_results:
+                if pr.job_id in processed_results:
                     continue
-
-                processed_results.add(pending_result.job_id)
-
-                if pending_result.status == ThreadJobStatus.COMPLETED and _has_actual_data(pending_result.result):
-                    if pending_result.job_id in bundle_id_to_item:
-                        try:
-                            on_after_single_bundle_complete(
-                                context, bundle_id_to_item[pending_result.job_id], pending_result.result
-                            )
-                            saved_count += 1
-                        except Exception as e:
-                            logger.error(
-                                "❌ [批量保存] on_after_single_api_job_bundle_complete 调用失败: "
-                                f"bundle_id={pending_result.job_id}, error={e}",
-                                exc_info=True,
-                            )
-            logger.info(f"✅ [批量保存] 完成最后一批 {saved_count}/{len(pending_results)} 个 bundles 的保存")
+                processed_results.add(pr.job_id)
+                if (
+                    pr.status == ThreadJobStatus.COMPLETED
+                    and _has_actual_data(pr.result)
+                    and pr.job_id in bundle_id_to_item
+                ):
+                    tail_items.append((bundle_id_to_item[pr.job_id], pr.result))
+                    tail_batch_results.append(pr)
+            if tail_items:
+                save_batch_sizer.record_batch_start()
+                try:
+                    _invoke_bundle_save(
+                        context,
+                        tail_items,
+                        save_mode,
+                        on_after_single_bundle_complete,
+                        on_after_batch_bundles_complete,
+                    )
+                except Exception as e:
+                    logger.error("批量保存最后一批失败: %s", e, exc_info=True)
+                finally:
+                    save_batch_sizer.after_batch_saved(
+                        len(tail_batch_results), tail_batch_results
+                    )
+                    bundle_progress.add_saved(len(tail_batch_results))
+                    _checkpoint_after_batch_save(context)
             pending_results.clear()
 
         # 合并为 {job_id: result}
         merged: Dict[str, Any] = {}
         completed_count = len(processed_results)
 
-        logger.info(f"🔧 [multi_thread] 开始处理 {len(results_list)} 个剩余结果（已批量处理 {completed_count} 个）")
+        logger.debug(
+            "multi_thread 处理剩余 %s 个结果（已处理 %s 个）",
+            len(results_list),
+            completed_count,
+        )
 
         for r in results_list:
             if r.job_id in processed_results:
@@ -411,13 +540,20 @@ class BundleExecutionService:
                 merged.update(r.result)
                 if save_mode != "unified" and r.job_id in bundle_id_to_item:
                     try:
-                        on_after_single_bundle_complete(context, bundle_id_to_item[r.job_id], r.result)
+                        _invoke_bundle_save(
+                            context,
+                            [(bundle_id_to_item[r.job_id], r.result)],
+                            save_mode,
+                            on_after_single_bundle_complete,
+                            on_after_batch_bundles_complete,
+                        )
                         processed_results.add(r.job_id)
                         completed_count += 1
                     except Exception as e:
                         logger.error(
-                            "❌ [剩余结果] on_after_single_api_job_bundle_complete 调用失败: "
-                            f"bundle_id={r.job_id}, error={e}",
+                            "剩余结果保存失败: bundle_id=%s, error=%s",
+                            r.job_id,
+                            e,
                             exc_info=True,
                         )
                 else:
@@ -429,7 +565,11 @@ class BundleExecutionService:
                 logger.warning(f"Bundle {r.job_id} 失败: {r.error}")
                 completed_count += 1
 
-        logger.info(f"执行完成: {completed_count}/{total_bundles} 个 bundles（批量处理 {len(processed_results)} 个）")
+        logger.debug(
+            "执行完成: %s/%s 个 bundles",
+            completed_count,
+            total_bundles,
+        )
 
         return merged
 

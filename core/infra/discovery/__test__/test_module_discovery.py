@@ -25,9 +25,9 @@ class TestModuleDiscovery:
         
         # 测试发现 Schema
         schemas = discovery.discover_objects(
-            base_module_path="userspace.data_source.handlers",
+            base_module_path="userspace.extensions.data_source.handlers",
             object_name="SCHEMA",
-            module_pattern="userspace.data_source.handlers.{name}.schema"
+            module_pattern="userspace.extensions.data_source.handlers.{name}.schema"
         )
         
         assert isinstance(schemas, dict)
@@ -49,7 +49,7 @@ class TestModuleDiscovery:
         handlers_path = PathManager.data_source_handlers()
         modules = discovery.discover_modules_by_path(
             base_path=handlers_path,
-            module_pattern="userspace.data_source.handlers.{name}",
+            module_pattern="userspace.extensions.data_source.handlers.{name}",
             object_name=None  # 返回整个模块
         )
         

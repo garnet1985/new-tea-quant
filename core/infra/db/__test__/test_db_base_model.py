@@ -40,12 +40,21 @@ class TestDBHelper:
         assert 'price = EXCLUDED.price' in update_clause
 
 
+def _mock_database_manager(**attrs):
+    db = Mock()
+    db.is_duckdb = False
+    db.config = {"database_type": "postgresql"}
+    for k, v in attrs.items():
+        setattr(db, k, v)
+    return db
+
+
 class TestDbBaseModel:
     """DbBaseModel 测试类"""
     
     def test_init_with_db(self):
         """测试使用传入的 db 初始化"""
-        mock_db = Mock()
+        mock_db = _mock_database_manager()
         model = DbBaseModel('test_table', db=mock_db)
         assert model.db == mock_db
         assert model.table_name == 'test_table'
@@ -53,7 +62,7 @@ class TestDbBaseModel:
     def test_init_without_db(self):
         """测试使用默认 db 初始化"""
         with patch('core.infra.db.db_manager.DatabaseManager.get_default') as mock_get_default:
-            mock_db = Mock()
+            mock_db = _mock_database_manager()
             mock_get_default.return_value = mock_db
             
             model = DbBaseModel('test_table')
@@ -62,7 +71,7 @@ class TestDbBaseModel:
     
     def test_load_schema(self):
         """测试加载 schema"""
-        mock_db = Mock()
+        mock_db = _mock_database_manager()
         with patch('core.infra.db.schema_management.schema_manager.SchemaManager') as mock_schema_manager:
             mock_manager_instance = Mock()
             mock_manager_instance.get_table_schema.return_value = {'fields': {'id': {'type': 'string'}}}
@@ -74,7 +83,7 @@ class TestDbBaseModel:
     
     def test_load(self):
         """测试加载数据"""
-        mock_db = Mock()
+        mock_db = _mock_database_manager()
         mock_db.execute_sync_query.return_value = [
             {'id': '001', 'name': 'test'}
         ]
@@ -87,7 +96,7 @@ class TestDbBaseModel:
     
     def test_load_one(self):
         """测试加载单条数据"""
-        mock_db = Mock()
+        mock_db = _mock_database_manager()
         mock_db.execute_sync_query.return_value = [
             {'id': '001', 'name': 'test'}
         ]
@@ -99,7 +108,7 @@ class TestDbBaseModel:
     
     def test_load_one_empty(self):
         """测试加载单条数据（无结果）"""
-        mock_db = Mock()
+        mock_db = _mock_database_manager()
         mock_db.execute_sync_query.return_value = []
         
         model = DbBaseModel('test_table', db=mock_db)
@@ -109,8 +118,8 @@ class TestDbBaseModel:
     
     def test_insert_one(self):
         """插入单条走同步 batch_insert，不经过 queue_write。"""
-        mock_db = Mock()
-        mock_db.config = {'batch_write': {'_advanced': {}}}
+        mock_db = _mock_database_manager()
+        mock_db.config = {'database_type': 'postgresql', 'batch_write': {'_advanced': {}}}
 
         model = DbBaseModel('test_table', db=mock_db)
         with patch.object(model, 'batch_insert', return_value=1) as mock_batch:
@@ -119,8 +128,8 @@ class TestDbBaseModel:
     
     def test_insert(self):
         """批量插入走同步 batch_insert。"""
-        mock_db = Mock()
-        mock_db.config = {'batch_write': {'_advanced': {}}}
+        mock_db = _mock_database_manager()
+        mock_db.config = {'database_type': 'postgresql', 'batch_write': {'_advanced': {}}}
 
         model = DbBaseModel('test_table', db=mock_db)
         data_list = [

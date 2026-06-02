@@ -30,7 +30,6 @@ python dev-cli -p -vx.x.x
 
 ---
 
-
 ---
 
 ### v0.4.x (TBD)
@@ -41,6 +40,18 @@ python dev-cli -p -vx.x.x
 - 为新版本的更新增加清除缓存的步骤
 - 给设置里增加清除缓存的功能
 - import和export策略的支持
+
+---
+
+
+---
+
+### v0.4.0 (TBD)
+
+- 引入duckdb，在table schema引入domain的概念以区分duckdb的工作领域，从而避免多worker同时写入风险
+- 修复关键性bug - data source（数据源）系统不是批量写入的bug
+- 加入data source的自动结果收集量，能根据内存占用动态调整数据获取批次的大小，减小硬盘IO，提高效率
+- 重组和收纳userspace的文件夹结构，并且更新path manager（路径管理器）的引用，让userspace更加整洁
 
 ---
 

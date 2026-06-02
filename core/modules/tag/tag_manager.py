@@ -5,7 +5,7 @@ Tag Manager - 统一管理所有业务场景（Scenario）
 """
 import os
 import time
-from typing import Dict, List, Optional, Type, Any, Tuple
+from typing import Dict, List, Optional, Type, Any, Tuple, Union
 import logging
 from pathlib import Path
 from core.modules.tag.enums import TagTargetType, TagUpdateMode
@@ -20,11 +20,20 @@ from core.modules.tag.config import get_scenarios_root
 from core.infra.project_context import PathManager
 from core.modules.tag.enums import FileName
 from core.modules.tag.models.scenario_model import ScenarioModel
-from core.infra.worker import (
-    ProcessExecutionMode,
-    ProcessJobResult,
-    ProcessJobStatus,
-    ProcessWorker,
+from core.infra.job_dispatcher import (
+    ExecutionBackend,
+    JobDispatcher,
+    JobReport,
+    JobShell,
+    StagedJob,
+    create_job_executor,
+)
+from core.modules.tag.components.job_staging.tag_job_stager import TagJobStager
+from core.modules.tag.components.job_staging.tag_run_profile import TagRunProfile
+from core.modules.tag.components.report_save_buffer import TagReportSaveBuffer
+from core.infra.db.duckdb_wal_policy import (
+    checkpoint_connection_manager,
+    should_checkpoint_after_tag_run,
 )
 
 logger = logging.getLogger(__name__)
@@ -160,7 +169,7 @@ class TagManager:
         # 获取 worker_class 的模块路径和类名（用于子进程重新导入，避免 pickle 问题）
         worker_class_name = worker_class.__name__
         # 构建完整的模块路径（相对于项目根目录）
-        # 例如：userspace/tags/momentum/tag_worker.py -> userspace.tags.momentum.tag_worker
+        # 例如：userspace/extensions/tags/momentum/tag_worker.py -> userspace.extensions.tags.momentum.tag_worker
         worker_module_full_path = self._calculate_module_path(worker_class_path)
 
         return {
@@ -183,10 +192,10 @@ class TagManager:
         计算文件路径对应的模块路径
         
         Args:
-            file_path: 文件路径（如 userspace/tags/momentum/tag_worker.py）
+            file_path: 文件路径（如 userspace/extensions/tags/momentum/tag_worker.py）
             
         Returns:
-            模块路径（如 userspace.tags.momentum.tag_worker）
+            模块路径（如 userspace.extensions.tags.momentum.tag_worker）
         """
         try:
             # 相对于项目根目录计算
@@ -347,8 +356,20 @@ class TagManager:
         # 从 settings 中获取 max_workers 配置
         performance = settings.get("performance", {})
         max_workers = performance.get("max_workers", "auto")
-        worker_amount = self._resolve_worker_amount(max_workers)
-        self._execute_jobs(jobs, scenario_name, worker_class, worker_amount)
+        profile_enabled = bool(
+            self.is_verbose
+            or performance.get("profile")
+            or os.environ.get("NTQ_TAG_PROFILE", "").strip() in ("1", "true", "yes")
+        )
+        save_batch_size = int(performance.get("save_batch_size", 5000))
+        self._execute_jobs(
+            jobs,
+            scenario_name,
+            worker_class,
+            max_workers=max_workers,
+            profile_enabled=profile_enabled,
+            save_batch_size=save_batch_size,
+        )
 
     def _build_jobs(self, entity_list: List[str], settings: Dict[str, Any], scenario_model: ScenarioModel, worker_class: Type[BaseTagWorker]):
         """
@@ -496,64 +517,154 @@ class TagManager:
 
         return jobs
 
-    def _execute_jobs(self, jobs: List[Dict[str, Any]], scenario_name: str, worker_class: Type[BaseTagWorker], worker_amount: int):
-        
-        worker_pool = ProcessWorker(
-            max_workers=worker_amount,
-            execution_mode=ProcessExecutionMode.QUEUE,  # 队列模式，持续填充
-            job_executor=TagManager._execute_single_job,  # 静态方法
-            is_verbose=True  # 启用进度展示
-        )
-
-        # 执行 jobs 并实时反馈进度
+    def _execute_jobs(
+        self,
+        jobs: List[Dict[str, Any]],
+        scenario_name: str,
+        worker_class: Type[BaseTagWorker],
+        *,
+        max_workers: Union[str, int] = "auto",
+        profile_enabled: bool = False,
+        save_batch_size: int = 5000,
+    ):
         total_jobs = len(jobs)
         start_time = time.time()
+        profile = TagRunProfile(enabled=profile_enabled)
 
-        logger.info(f"🚀 开始执行 {total_jobs} 个 jobs (scenario: {scenario_name}, workers: {worker_amount})...")
-        
-        # 执行 jobs（ProcessWorker 内部会处理多进程和进度）
-        # ProcessWorker 会实时显示进度：完成数/总数、百分比、成功/失败数、预计剩余时间
-        stats = worker_pool.run_jobs(jobs)
-        
-        # 在等待期间，定期输出进度（如果 ProcessWorker 支持）
-        # 由于 ProcessWorker 内部已经处理了进度，我们主要在这里做最终统计
-        
-        # 4. 收集结果和统计信息
-        successful_results = worker_pool.get_successful_results()
-        failed_results = worker_pool.get_failed_results()
-        
-        # 计算最终统计
-        completed_jobs = len(successful_results)
-        failed_jobs = len(failed_results)
+        progress = {"finished": 0, "ok": 0, "fail": 0, "last_pct": -1}
+        stager = TagJobStager(
+            data_mgr=self.data_mgr,
+            contract_cache=self._contract_cache,
+        )
+        save_buffer = TagReportSaveBuffer(
+            self.tag_data_service.save_batch,
+            batch_size=save_batch_size,
+        )
+
+        def on_stage_job(shell: JobShell) -> StagedJob:
+            t0 = time.perf_counter()
+            staged = stager.stage(shell)
+            profile.record_stage(
+                elapsed_sec=time.perf_counter() - t0,
+                payload=staged.payload,
+            )
+            return staged
+
+        def on_report(report: JobReport) -> None:
+            t0 = time.perf_counter()
+            progress["finished"] += 1
+            save_batch_sec = 0.0
+            if not report.success:
+                progress["fail"] += 1
+                logger.error(
+                    "Tag job 失败: job_id=%s error=%s",
+                    report.job_id,
+                    report.error,
+                )
+            else:
+                progress["ok"] += 1
+                data = report.data if isinstance(report.data, dict) else {}
+                exec_sec = data.get("_profile_execute_sec")
+                if isinstance(exec_sec, (int, float)):
+                    profile.record_execute(float(exec_sec))
+                tag_values = data.get("tag_values") or []
+                if tag_values:
+                    save_batch_sec = save_buffer.extend(tag_values)
+
+            profile.record_report(
+                elapsed_sec=time.perf_counter() - t0,
+                save_batch_sec=save_batch_sec,
+            )
+
+            finished = progress["finished"]
+            pct = int(finished * 100 / total_jobs) if total_jobs else 100
+            if finished == total_jobs or pct >= progress["last_pct"] + 5:
+                logger.info(
+                    "Tag 进度: %s/%s (%s%%) 成功=%s 失败=%s",
+                    finished,
+                    total_jobs,
+                    pct,
+                    progress["ok"],
+                    progress["fail"],
+                )
+                progress["last_pct"] = pct
+
+        shells = [JobShell(job_id=job["id"], payload=job["payload"]) for job in jobs]
+        executor = create_job_executor(
+            ExecutionBackend.PROCESS,
+            max_workers=max_workers,
+            execute=TagManager._execute_single_job,
+            module_name="TagManager",
+        )
+        logger.info(
+            "🚀 开始执行 %s 个 jobs (scenario=%s, workers=%s, config=%r)",
+            total_jobs,
+            scenario_name,
+            executor.max_workers,
+            max_workers,
+        )
+        dispatcher = JobDispatcher(
+            on_stage_job=on_stage_job,
+            on_report=on_report,
+            executor=executor,
+        )
+        dispatch_result = dispatcher.run(shells)
+
+        save_buffer.flush()
+
+        completed_jobs = dispatch_result.completed
+        failed_jobs = dispatch_result.failed
         elapsed_time = time.time() - start_time
-        
+        saved_tag_count = save_buffer.saved_row_count
+
         logger.info(
             f"Tag计算完成: scenario={scenario_name}, "
             f"总jobs={total_jobs}, 成功={completed_jobs}, 失败={failed_jobs}, "
-            f"耗时={elapsed_time:.2f}秒"
+            f"写入tag_values={saved_tag_count}, "
+            f"save_batch次数={save_buffer.flush_count}, 耗时={elapsed_time:.2f}秒"
         )
-        
-        # 打印详细统计信息
-        if self.is_verbose:
-            worker_pool.print_stats()
-        
-        # 等待所有批量写入完成
-        # 注意：每个子进程都有自己的 DatabaseManager 实例，但写入队列是共享的
-        # 这里等待主进程的写入队列完成
+        db_type = ""
+        if self.data_mgr and getattr(self.data_mgr, "db", None):
+            db_type = str(self.data_mgr.db.config.get("database_type") or "")
+        for line in profile.summary_lines(total_jobs=total_jobs, database_type=db_type):
+            logger.info(line)
+
         if self.data_mgr and self.data_mgr.db:
             logger.info("⏳ 等待所有 tag 数据写入完成...")
             self.data_mgr.db.wait_for_writes(timeout=60.0)
             logger.info("✅ 所有 tag 数据写入完成")
-        
-        # 返回统计信息（可选，用于上层调用）
+            self._maybe_checkpoint_duckdb_after_tag_run()
+
         return {
-            'scenario_name': scenario_name,
-            'total_jobs': total_jobs,
-            'completed_jobs': completed_jobs,
-            'failed_jobs': failed_jobs,
-            'elapsed_time': elapsed_time,
-            'stats': stats
+            "scenario_name": scenario_name,
+            "total_jobs": total_jobs,
+            "completed_jobs": completed_jobs,
+            "failed_jobs": failed_jobs,
+            "saved_tag_values": saved_tag_count,
+            "elapsed_time": elapsed_time,
+            "dispatch_result": dispatch_result,
         }
+
+    def _maybe_checkpoint_duckdb_after_tag_run(self) -> None:
+        """DuckDB：Tag 写库结束后合并 WAL，避免下次启动回放失败。"""
+        db = getattr(self.data_mgr, "db", None) if self.data_mgr else None
+        if db is None or str(db.config.get("database_type") or "").lower() != "duckdb":
+            return
+        if not should_checkpoint_after_tag_run(db.config):
+            return
+        try:
+            logger.info("DuckDB CHECKPOINT（Tag 完成后合并 WAL）…")
+            results = checkpoint_connection_manager(db.connection_manager)
+            failed = [d for d, ok in (results or {}).items() if not ok]
+            if failed:
+                logger.warning("DuckDB CHECKPOINT 部分失败: %s", failed)
+            else:
+                logger.info("✅ DuckDB WAL 已合并（domains=%s）", sorted((results or {}).keys()))
+        except Exception as exc:
+            logger.warning(
+                "Tag 完成后 CHECKPOINT 失败（若下次启动报 WAL，可执行: python dev-cli.py -dbc --recover）: %s",
+                exc,
+            )
 
     def _build_global_extra_cache(
         self,
@@ -595,85 +706,49 @@ class TagManager:
     @staticmethod
     def _execute_single_job(payload: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Tag Worker 包装函数（用于 ProcessWorker 的 job_executor）
-        
-        注意：ProcessWorker 只传递 job['payload']，不传递整个 job
-        
-        在子进程中：
-        1. 从 payload 中提取信息
-        2. 实例化 TagWorker（传入完整的 payload）
-        3. 调用 worker.run() 执行计算
+        Tag Worker 包装函数（JobExecutor execute）。
+
+        子进程只计算并返回 tag_values；主进程 on_report 负责 save_batch。
         """
-        from datetime import datetime
-        
-        # ProcessWorker 只传递 payload，不传递整个 job
-        # 所以 payload 就是完整的 job payload
-        job_id = payload.get('entity_id', 'unknown')  # 从 payload 中获取 entity_id 作为 job_id
+        job_id = payload.get("entity_id", "unknown")
         job_payload = payload
-        
-        # 调试：检查 payload 内容
-        logger.info(f"🔍 _execute_single_job: job_id={job_id}")
-        logger.info(f"   payload keys: {list(job_payload.keys())}")
-        logger.info(f"   worker_module_path in payload: {'worker_module_path' in job_payload}")
-        logger.info(f"   worker_class_name in payload: {'worker_class_name' in job_payload}")
-        if 'worker_module_path' in job_payload:
-            logger.info(f"   worker_module_path value: {job_payload.get('worker_module_path')}")
-        if 'worker_class_name' in job_payload:
-            logger.info(f"   worker_class_name value: {job_payload.get('worker_class_name')}")
-        
+        exec_t0 = time.perf_counter()
+
         try:
-            # 1. 在子进程中重新导入 worker_class（避免 pickle 问题）
             import importlib
-            worker_module_path = job_payload.get('worker_module_path')
-            worker_class_name = job_payload.get('worker_class_name')
-            
+
+            worker_module_path = job_payload.get("worker_module_path")
+            worker_class_name = job_payload.get("worker_class_name")
+
             if not worker_module_path or not worker_class_name:
-                logger.error(f"❌ Payload 中缺少 worker 模块信息!")
-                logger.error(f"   Full payload: {payload}")
-                raise ValueError(f"缺少 worker 模块信息: worker_module_path={worker_module_path}, worker_class_name={worker_class_name}")
-            
-            # 动态导入模块和类
+                raise ValueError(
+                    f"缺少 worker 模块信息: worker_module_path={worker_module_path}, "
+                    f"worker_class_name={worker_class_name}"
+                )
+
             worker_module = importlib.import_module(worker_module_path)
             worker_class = getattr(worker_module, worker_class_name)
-            
-            # 2. 创建 worker 实例（子进程中）
-            # 注意：
-            # - 直接传入 job_payload，包含所有必要信息
-            # - DataManager 是单例模式，在 BaseTagWorker.__init__ 中会自动初始化
             worker = worker_class(job_payload=job_payload)
-            
-            # 3. 调用 process_entity() 方法执行计算
             result = worker.process_entity()
-            
-            # 4. 返回成功结果
-            return ProcessJobResult(
-                job_id=job_id,
-                status=ProcessJobStatus.COMPLETED,
-                result={
-                    'entity_id': job_payload.get('entity_id'),
-                    'success': result.get('success', True),
-                    'total_tags': result.get('total_tags_created', 0),
-                    'processed_dates': result.get('processed_dates', 0),
-                    'total_dates': result.get('total_dates', 0)
-                },
-                start_time=datetime.now(),
-                end_time=datetime.now()
-            )
-            
+            execute_sec = time.perf_counter() - exec_t0
+
+            return {
+                "success": bool(result.get("success", True)),
+                "entity_id": job_payload.get("entity_id"),
+                "tag_values": result.get("tag_values") or [],
+                "total_tags": result.get("total_tags_created", 0),
+                "processed_dates": result.get("processed_dates", 0),
+                "total_dates": result.get("total_dates", 0),
+                "errors": result.get("errors") or [],
+                "_profile_execute_sec": execute_sec,
+            }
         except Exception as e:
-            # 返回失败结果
-            import traceback
-            logger.exception(f"Job {job_id} failed: {e}")
-            return ProcessJobResult(
-                job_id=job_id,
-                status=ProcessJobStatus.FAILED,
-                error=str(e),
-                result={
-                    'entity_id': job_payload.get('entity_id'),
-                    'success': False,
-                    'error': str(e)
-                },
-                start_time=datetime.now(),
-                end_time=datetime.now()
-            )
+            logger.exception("Job %s failed: %s", job_id, e)
+            return {
+                "success": False,
+                "entity_id": job_payload.get("entity_id"),
+                "tag_values": [],
+                "error": str(e),
+                "_profile_execute_sec": time.perf_counter() - exec_t0,
+            }
 

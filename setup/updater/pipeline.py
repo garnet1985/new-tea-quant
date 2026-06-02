@@ -1,15 +1,15 @@
 """
 升级「应用阶段」流水线。
 
-**为何放在 ``userspace/updater``（发版源树见仓库根 ``setup/updater/``）：**
+**为何放在 ``userspace/system/updater``（发版源树见仓库根 ``setup/updater/``）：**
 
 - **不能放在 ``core/``**：镜像时会覆盖 ``core/``，进程自身正在加载其中的模块，易导致文件占用。
 - **不能放在 ``setup/``**：``setup/`` 也可能纳入 ``managed_scope``，覆盖时同样会换掉正在执行的脚本。
-- **应放在 ``userspace/updater``**：通常不在发行 zip 的替换范围内；随 **init userspace** 解压到用户目录后长期存在。
+- **应放在 ``userspace/system/updater``**：通常不在发行 zip 的替换范围内；随 **init userspace** 解压到用户目录后长期存在。
 
 版本探测（仅 GET 远端 ``system.json``）可由旧版 launcher/BFF 调用；**写盘升级**须在本模块所在路径执行（或单独子进程）。
 
-约定摘要（详见 ``userspace/updater/README.md``）：
+约定摘要（详见 ``userspace/system/updater/README.md``）：
 - 以新版 zip + ``managed_scope`` 对管辖路径做递归镜像；管辖外不动。
 - **数据库迁移用的旧版期望 schema** 须在 ``_update_managed_scope`` **之前** 固化（见 ``_snapshot_core_table_schemas_before_managed_scope``）；收尾顺序：安装依赖 → 数据库迁移。
 """
@@ -94,7 +94,7 @@ def run_upgrade_pipeline(ctx: UpgradeContext) -> None:
     """
     应用升级：自洽的一条龙编排（须在 **停掉主应用** 后调用）。
 
-    大步骤顺序见本仓库 ``userspace/updater/README.md`` §8。
+    大步骤顺序见本仓库 ``userspace/system/updater/README.md`` §8。
     """
     helper.pipeline_step_begin(1, "正在获取更新包")
     _download_latest_version_package(ctx)
@@ -182,7 +182,7 @@ def _trigger_core_extra_actions(ctx: UpgradeContext) -> None:
     """
     主流程结束后，子进程执行新版 ``core/infra/update/post_upgrade`` 已注册的收尾动作。
 
-    用于 updater 在主镜像阶段无法安全完成的「反向」写盘（如同步 ``userspace/updater``）。
+    用于 updater 在主镜像阶段无法安全完成的「反向」写盘（如同步 ``userspace/system/updater``）。
     注册表为空则跳过；结果写入 ``ctx.post_upgrade``。
     跳过整步：``NTQ_UPDATE_SKIP_POST_UPGRADE=1``。
     """
@@ -192,7 +192,7 @@ def _trigger_core_extra_actions(ctx: UpgradeContext) -> None:
 def _download_latest_version_package(ctx: UpgradeContext) -> None:
     """
     从 ``REMOTE_REPO`` 按顺序下载 **与 ``NTQ_REMOTE_REF`` 一致的分支** 的源码 zip（Gitee → GitHub），
-    写入 ``userspace/.ntq/update/inbox/ntq-src-<ref>.zip``，并设置 ``ctx.zip_path``。
+    写入 ``userspace/system/.ntq/update/inbox/ntq-src-<ref>.zip``，并设置 ``ctx.zip_path``。
 
     若调用方已设置 ``ctx.zip_path`` 且文件存在，则跳过下载。
     开发/测试：``NTQ_UPDATE_LOCAL_ZIP`` 使用本地 zip（见 ``helper.dev_local_zip_path``）。
@@ -236,7 +236,7 @@ def _download_latest_version_package(ctx: UpgradeContext) -> None:
 
 def _extract_zip_to_staging(ctx: UpgradeContext) -> None:
     """
-    将 ``ctx.zip_path`` 解压到 ``userspace/.ntq/update/staging/current``，
+    将 ``ctx.zip_path`` 解压到 ``userspace/system/.ntq/update/staging/current``，
     并把 ``ctx.staging_dir`` 设为 zip 内仓库根（单层 ``repo-ref/`` 时进入该子目录）。
     """
     z = ctx.zip_path
@@ -271,7 +271,7 @@ def _load_update_plan(ctx: UpgradeContext) -> None:
 def _snapshot_core_table_schemas_before_managed_scope(ctx: UpgradeContext) -> None:
     """
     在 ``_update_managed_scope`` 覆盖或删除 ``core/`` 下文件 **之前**，把当前 ``core/tables`` 全量
-    schema 写入 ``userspace/.ntq/update/cache/``；否则镜像后无法再读取升级前的代码期望。
+    schema 写入 ``userspace/system/.ntq/update/cache/``；否则镜像后无法再读取升级前的代码期望。
 
     结果路径写入 ``ctx.pre_mirror_schema_snapshot_path``（跳过或未写入时为 ``None``）。
     """
@@ -283,10 +283,10 @@ def _snapshot_core_table_schemas_before_managed_scope(ctx: UpgradeContext) -> No
 def _backup_exceptions(ctx: UpgradeContext) -> None:
     """
     **Lift-out**：对 ``update_ignored_paths`` 中落在 ``managed_scope`` 前缀下的已存在路径，
-    在 ``_update_managed_scope`` 之前复制到 ``userspace/.ntq/update/lift-out/<UTC>/``，
+    在 ``_update_managed_scope`` 之前复制到 ``userspace/system/.ntq/update/lift-out/<UTC>/``，
     并写入 ``lift_out_manifest.json``；路径记在 ``ctx.lift_out_backup_dir``（无则 ``None``）。
 
-    跳过位于 ``userspace/.ntq/update`` 下的路径，避免把缓存/ staging 拷进备份。
+    跳过位于 ``userspace/system/.ntq/update`` 下的路径，避免把缓存/ staging 拷进备份。
     """
     if ctx.update_plan is None:
         raise RuntimeError("NTQ updater: update_plan is missing before backup_exceptions")
@@ -394,7 +394,7 @@ def _run_database_migrations(ctx: UpgradeContext) -> None:
 
 def _cleanup_staging(ctx: UpgradeContext) -> None:
     """
-    清理本次升级在 ``userspace/.ntq/update`` 下产生的临时文件（staging、inbox zip、lift-out 等）。
+    清理本次升级在 ``userspace/system/.ntq/update`` 下产生的临时文件（staging、inbox zip、lift-out 等）。
 
     结果写入 ``ctx.cleanup``；并清空 ``ctx.staging_dir`` / ``ctx.zip_path``。
     跳过：``NTQ_UPDATE_SKIP_CLEANUP=1``；保留项见 ``helper.cleanup_after_upgrade`` 文档。

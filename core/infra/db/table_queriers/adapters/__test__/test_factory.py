@@ -59,3 +59,26 @@ class TestDatabaseAdapterFactory:
         
         with pytest.raises(ValueError, match="不支持的数据库类型"):
             DatabaseAdapterFactory.create(config)
+
+    def test_create_duckdb_rejected(self):
+        """DuckDB 不得经 create() 创建"""
+        config = {"database_type": "duckdb", "duckdb": {"domains": {}}}
+        with pytest.raises(ValueError, match="ConnectionManager"):
+            DatabaseAdapterFactory.create(config)
+
+    def test_create_duckdb_domain_adapter(self):
+        with patch(
+            "core.infra.db.table_queriers.adapters.duckdb_adapter.DuckDBAdapter"
+        ) as mock_cls:
+            mock_adapter = Mock()
+            mock_cls.return_value = mock_adapter
+            with patch(
+                "core.infra.db.helpers.duckdb_paths.resolve_duckdb_db_path",
+                side_effect=lambda p: p,
+            ):
+                adapter = DatabaseAdapterFactory.create_duckdb_domain_adapter(
+                    {"db_path": ":memory:"}, is_verbose=False
+                )
+            mock_cls.assert_called_once()
+            mock_adapter.connect.assert_called_once()
+            assert adapter is mock_adapter

@@ -47,7 +47,7 @@ class TestClassDiscovery:
         
         # 测试发现 Handler 的 config_class
         config_class = discovery.discover_class_attribute(
-            class_path="userspace.data_source.handlers.kline.KlineHandler",
+            class_path="userspace.extensions.data_source.handlers.kline.KlineHandler",
             attribute_name="config_class"
         )
         
@@ -65,13 +65,13 @@ class TestClassDiscovery:
         
         config = DiscoveryConfig(
             base_class=BaseProvider,
-            module_name_pattern="userspace.data_source.providers.{name}.provider",
+            module_name_pattern="userspace.extensions.data_source.providers.{name}.provider",
             key_extractor=lambda cls: getattr(cls, 'provider_name', None),
             class_filter=lambda cls: hasattr(cls, 'provider_name') and cls.provider_name
         )
         
         discovery = ClassDiscovery(config)
-        result = discovery.discover("userspace.data_source.providers")
+        result = discovery.discover("userspace.extensions.data_source.providers")
         
         assert isinstance(result.classes, dict)
         print(f"✅ 发现 {len(result.classes)} 个类")
@@ -83,22 +83,22 @@ class TestClassDiscovery:
         
         config = DiscoveryConfig(
             base_class=BaseProvider,
-            module_name_pattern="userspace.data_source.providers.{name}.provider"
+            module_name_pattern="userspace.extensions.data_source.providers.{name}.provider"
         )
         discovery = ClassDiscovery(config)
         
         # 第一次发现
-        result1 = discovery.discover("userspace.data_source.providers", use_cache=True)
+        result1 = discovery.discover("userspace.extensions.data_source.providers", use_cache=True)
         
         # 第二次发现（应该使用缓存）
-        result2 = discovery.discover("userspace.data_source.providers", use_cache=True)
+        result2 = discovery.discover("userspace.extensions.data_source.providers", use_cache=True)
         
         # 结果应该相同
         assert result1.classes == result2.classes
         
         # 清除缓存后应该重新发现
-        discovery.clear_cache("userspace.data_source.providers")
-        result3 = discovery.discover("userspace.data_source.providers", use_cache=True)
+        discovery.clear_cache("userspace.extensions.data_source.providers")
+        result3 = discovery.discover("userspace.extensions.data_source.providers", use_cache=True)
         
         # 结果应该仍然相同（内容相同，但可能是新对象）
         assert len(result1.classes) == len(result3.classes)

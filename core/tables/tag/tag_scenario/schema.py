@@ -4,6 +4,7 @@ sys_tag_scenario 表结构定义（Python，变量名 schema）
 业务场景。主键 id nullable=false；其余 nullable=true。
 """
 schema = {
+    "storage_domain": "tag",  # 标签定义与取值（tag 域）
     "update_key": "tag_tag_scenario",
     "name": "sys_tag_scenario",
     "primaryKey": "id",

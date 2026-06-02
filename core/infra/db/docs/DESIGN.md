@@ -177,7 +177,7 @@ Database 模块是项目的数据库基础设施层，提供统一的数据库�
 
 ## 🎯 设计目标
 
-1. **多数据库支持**：通过适配器模式支持 PostgreSQL、MySQL、SQLite
+1. **多数据库支持**：通过适配器模式支持 DuckDB、PostgreSQL、MySQL
 2. **性能优先**：使用连接池、批量操作、直接 SQL（无 ORM 开销）
 3. **多进程安全**：支持多进程场景下的自动初始化和只读模式
 4. **使用简单**：90% 的场景不需要显式传递数据库实例
@@ -246,17 +246,17 @@ DatabaseManager 采用三层架构，职责清晰分离：
 **目的**：抹平不同数据库之间的差异，提供统一的接口
 
 **核心适配点**：
-- 占位符转换：PostgreSQL/MySQL 使用 `%s`，SQLite 使用 `?`
-- 连接管理：PostgreSQL/MySQL 使用连接池，SQLite 使用单连接
+- 占位符转换：PostgreSQL/MySQL 使用 `%s`，DuckDB 使用 `?`
+- 连接管理：PostgreSQL/MySQL 使用连接池；DuckDB 每存储域单文件单连接（带线程锁）
 - 结果格式：统一转换为字典列表
 - 事务处理：统一接口，隐藏实现差异
 
 **适配器层次**：
 ```
 BaseDatabaseAdapter（抽象基类）
+├── DuckDBAdapter（DuckDB 适配器，按 storage_domain 多实例）
 ├── PostgreSQLAdapter（PostgreSQL 适配器）
-├── MySQLAdapter（MySQL 适配器）
-└── SQLiteAdapter（SQLite 适配器）
+└── MySQLAdapter（MySQL 适配器）
 ```
 
 **工厂模式**：`DatabaseAdapterFactory` 根据配置自动创建对应的适配器
@@ -445,8 +445,8 @@ PostgreSQL 和 MySQL 使用连接池，减少连接创建开销。
    - 子进程检测到默认实例不存在时，自动创建只读实例
 
 2. **只读模式**：
-   - 子进程自动使用只读模式（SQLite 支持）
-   - 避免写锁冲突
+   - 子进程可对 DuckDB 使用 `read_only` 连接读行情
+   - 避免与主进程写管道抢锁
 
 3. **自动初始化**：
    - 子进程自动检测并重新初始化
@@ -510,12 +510,12 @@ PostgreSQL 和 MySQL 使用连接池，减少连接创建开销。
 
 ### 为什么支持多种数据库？
 
-**决策**：支持 PostgreSQL、MySQL、SQLite
+**决策**：支持 DuckDB、PostgreSQL、MySQL
 
 **原因**：
-1. 开发环境：SQLite 便于本地开发
-2. 生产环境：PostgreSQL 支持多进程并发读
-3. 兼容性：MySQL 兼容现有系统
+1. 默认本地：DuckDB 嵌入式三域文件，免运维
+2. 可选服务端：PostgreSQL / MySQL 用于已有部署或迁移
+3. 统一 API：适配器 + `storage_domain` 路由，业务无感切换后端
 
 ### 为什么使用默认实例机制？
 

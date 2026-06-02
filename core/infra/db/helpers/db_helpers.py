@@ -40,7 +40,7 @@ class DBHelper:
             raise ValueError("配置中缺少 'database_type' 字段")
         
         database_type = database_type.lower()
-        valid_types = ['postgresql', 'mysql']
+        valid_types = ['postgresql', 'mysql', 'duckdb']
         if database_type not in valid_types:
             raise ValueError(
                 f"不支持的数据库类型: {database_type}，"
@@ -56,12 +56,25 @@ class DBHelper:
             )
         
         # 3. 验证数据库配置的必需字段
-        required_fields = ['host', 'port', 'database', 'user', 'password']
-        missing_fields = [f for f in required_fields if f not in db_config]
-        if missing_fields:
-            raise ValueError(
-                f"{database_type.upper()} 配置中缺少必需字段: {', '.join(missing_fields)}"
-            )
+        if database_type == 'duckdb':
+            domains = db_config.get('domains')
+            if not isinstance(domains, dict) or not domains:
+                raise ValueError(
+                    "DuckDB 配置中缺少非空 'domains' 对象（data / tag / strategy）"
+                )
+            from core.infra.db.storage_registry import STORAGE_DOMAINS
+            for domain in STORAGE_DOMAINS:
+                if domain not in domains:
+                    raise ValueError(f"DuckDB domains 缺少域: {domain}")
+                if not domains[domain].get('db_path'):
+                    raise ValueError(f"DuckDB 域 {domain!r} 缺少 db_path")
+        else:
+            required_fields = ['host', 'port', 'database', 'user', 'password']
+            missing_fields = [f for f in required_fields if f not in db_config]
+            if missing_fields:
+                raise ValueError(
+                    f"{database_type.upper()} 配置中缺少必需字段: {', '.join(missing_fields)}"
+                )
 
         # PostgreSQL: 补全 pgsql_schema，默认 public
         if database_type == 'postgresql':
@@ -210,14 +223,37 @@ class DBHelper:
 
     @staticmethod
     def normalize_database_type(config: Dict) -> str:
-        """归一化为 postgresql | mysql。"""
+        """归一化为 postgresql | mysql | duckdb。"""
         raw = config.get("database_type") or "postgresql"
         t = str(raw).lower()
         if t in ("postgresql", "postgres", "pg"):
             return "postgresql"
         if t in ("mysql", "mariadb"):
             return "mysql"
+        if t == "duckdb":
+            return "duckdb"
         return "postgresql"
+
+    @staticmethod
+    def sql_dialect_for_upsert(config: Dict) -> str:
+        """
+        批量 upsert 使用的 SQL 方言。
+
+        DuckDB 使用与 PostgreSQL 相同的 ON CONFLICT 语法。
+        """
+        t = DBHelper.normalize_database_type(config)
+        if t == "duckdb":
+            return "postgresql"
+        return t
+
+    @staticmethod
+    def sql_dialect_for_schema(config: Dict) -> str:
+        """
+        DDL / 字段类型生成使用的方言。
+
+        DuckDB 单独分支（无 SERIAL/JSONB 等 PG 专有类型）。
+        """
+        return DBHelper.normalize_database_type(config)
 
     @staticmethod
     def quote_identifier(config: Dict, name: str) -> str:
@@ -267,6 +303,8 @@ class DBHelper:
             pg = config.get("postgresql") or {}
             schema = pg.get("pgsql_schema") or pg.get("default_pgsql_schema") or "public"
             return f"{schema}.{name}"
+        if t == "duckdb":
+            return name
         return name
 
 

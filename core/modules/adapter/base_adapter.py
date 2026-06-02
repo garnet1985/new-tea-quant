@@ -64,7 +64,7 @@ class BaseOpportunityAdapter(ABC):
         """加载 adapter 配置（从 settings.py）"""
         try:
             # 尝试从 userspace/adapters/{adapter_name}/settings.py 加载
-            module_path = f"userspace.adapters.{self.adapter_name}.settings"
+            module_path = f"userspace.extensions.adapters.{self.adapter_name}.settings"
             settings_module = importlib.import_module(module_path)
             
             # 查找 settings 字典或 config 字典

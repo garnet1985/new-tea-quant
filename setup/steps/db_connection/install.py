@@ -23,7 +23,7 @@ from core.infra.project_context.path_manager import PathManager
 # 允许用户直接运行该步骤，也默认使用项目 venv
 NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
 
-USER_DB_CONFIG_DIR = PathManager.userspace() / "config" / "database"
+USER_DB_CONFIG_DIR = PathManager.user_config() / "database"
 
 
 def _mask_password(cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -201,7 +201,9 @@ def main() -> int:
         if db_type == "postgresql":
             NewTeaQuantSetup.print_check_ok(f"schema: {db_cfg.get('default_pgsql_schema')}")
     else:
-        NewTeaQuantSetup.print_check_ok(f"未检测到使用数据库类型: 请检查userspace/config/database/{db_type}.json文件是否正确")
+        NewTeaQuantSetup.print_check_ok(
+            f"未检测到使用数据库类型: 请检查 userspace/system/config/database/{db_type}.json 是否正确"
+        )
 
     if db_type in ("postgresql", "mysql") and isinstance(db_cfg, dict):
         pw = db_cfg.get("password")

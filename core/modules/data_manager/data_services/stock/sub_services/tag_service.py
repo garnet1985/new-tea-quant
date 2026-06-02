@@ -19,6 +19,8 @@ from ... import BaseDataService
 
 logger = logging.getLogger(__name__)
 
+_TAG_VALUE_TABLE = "sys_tag_value"
+
 
 class TagDataService(BaseDataService):
     """Tag 数据服务"""
@@ -430,16 +432,16 @@ class TagDataService(BaseDataService):
         Returns:
             None
         """
-        # 使用 JOIN 一次删除，避免先查询 tag_definitions
-        # 注意：实际表名为 sys_tag_value / sys_tag_definition
+        # 子查询删除（MySQL / PostgreSQL / DuckDB 均支持；DuckDB 不支持 DELETE alias FROM ... JOIN）
         sql = """
-        DELETE tv FROM sys_tag_value tv
-        INNER JOIN sys_tag_definition td ON tv.tag_definition_id = td.id
-        WHERE td.scenario_id = %s
+        DELETE FROM sys_tag_value
+        WHERE tag_definition_id IN (
+            SELECT id FROM sys_tag_definition WHERE scenario_id = %s
+        )
         """
         
         try:
-            with self.db.get_sync_cursor() as cursor:
+            with self.db.get_sync_cursor_for_table(_TAG_VALUE_TABLE) as cursor:
                 cursor.execute(sql, (scenario_id,))
                 affected_rows = cursor.rowcount
                 logger.info(f"已删除 scenario {scenario_id} 下的 {affected_rows} 条 tag values")
@@ -469,7 +471,9 @@ class TagDataService(BaseDataService):
                 WHERE tag_definition_id IN ({placeholders})
             """
             
-            result = self.db.execute_sync_query(sql, tuple(tag_definition_ids))
+            result = self.db.execute_sync_query_for_table(
+                _TAG_VALUE_TABLE, sql, tuple(tag_definition_ids)
+            )
             if result and result[0].get('max_date'):
                 max_date = result[0]['max_date']
                 # 转换为 YYYYMMDD 格式
@@ -525,7 +529,9 @@ class TagDataService(BaseDataService):
         """
         
         try:
-            results = self.db.execute_sync_query(sql, tuple(tag_definition_ids))
+            results = self.db.execute_sync_query_for_table(
+                _TAG_VALUE_TABLE, sql, tuple(tag_definition_ids)
+            )
             result = {}
             for row in results:
                 entity_id = row.get('entity_id')
@@ -607,7 +613,7 @@ class TagDataService(BaseDataService):
                 end_date,
             )
 
-            results = self.db.execute_sync_query(sql, params)
+            results = self.db.execute_sync_query_for_table(_TAG_VALUE_TABLE, sql, params)
             return results or []
         except Exception as e:
             logger.error(

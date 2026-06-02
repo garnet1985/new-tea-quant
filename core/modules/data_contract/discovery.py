@@ -10,7 +10,7 @@ from core.modules.data_contract.mapping import DataSpec, DataSpecMap
 
 def discover_userspace_map() -> DataSpecMap:
     """
-    Discover userspace map from `userspace.data_contract.mapping`.
+    Discover userspace map from `userspace.extensions.data_contract.mapping`.
 
     Uses `PathManager.data_contract()` to decide whether userspace package should exist.
     Supported variable names in userspace mapping module:
@@ -27,7 +27,7 @@ def discover_userspace_map() -> DataSpecMap:
     if not mapping_file.exists():
         return {}
 
-    module_name = "userspace.data_contract.mapping"
+    module_name = "userspace.extensions.data_contract.mapping"
     try:
         mod = importlib.import_module(module_name)
     except ImportError:

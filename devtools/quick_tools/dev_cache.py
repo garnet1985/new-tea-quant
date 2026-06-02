@@ -16,7 +16,7 @@ def _rm_tree(path: Path) -> None:
 
 def clear_userspace_ntq_dir() -> None:
     """
-    删除 ``userspace/.ntq/``（升级 inbox、update 缓存、tmp 等）。
+    删除 ``userspace/system/.ntq/``（升级 inbox、update 缓存、tmp 等）。
 
     不触碰仓库根 ``.ntq/``（含 ``install-state.json`` 与其它开发缓存）。
     """
@@ -31,13 +31,13 @@ def clear_userspace_ntq_dir() -> None:
         else:
             print(f"无 {us_ntq}，跳过。", flush=True)
     except Exception as exc:
-        print(f"userspace/.ntq 清理失败: {exc}", flush=True)
+        print(f"userspace/system/.ntq 清理失败: {exc}", flush=True)
 
 
 def _strategy_names_on_disk() -> list[str]:
     from core.infra.project_context.path_manager import PathManager
 
-    root = PathManager.userspace() / "strategies"
+    root = PathManager.strategies_root()
     if not root.is_dir():
         return []
     return sorted(p.name for p in root.iterdir() if p.is_dir() and not p.name.startswith("."))

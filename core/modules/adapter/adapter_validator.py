@@ -32,7 +32,7 @@ def validate_adapter(adapter_name: str) -> Tuple[bool, str]:
         return False, "适配器名称不能为空"
     
     # 尝试加载 adapter 模块
-    module_path = f"userspace.adapters.{adapter_name}.adapter"
+    module_path = f"userspace.extensions.adapters.{adapter_name}.adapter"
     
     try:
         module = importlib.import_module(module_path)

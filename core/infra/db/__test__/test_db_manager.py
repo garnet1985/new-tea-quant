@@ -47,10 +47,15 @@ class TestDatabaseManager:
     def test_get_default_auto_init(self):
         """测试自动初始化默认实例"""
         DatabaseManager.reset_default()
-        with patch('core.infra.db.table_queriers.adapters.factory.DatabaseAdapterFactory.create') as mock_factory:
+        with patch(
+            "core.infra.db.db_manager.ConfigManager.load_database_config",
+            return_value=_minimal_mysql_config(),
+        ), patch(
+            "core.infra.db.table_queriers.adapters.factory.DatabaseAdapterFactory.create"
+        ) as mock_factory:
             mock_adapter = Mock()
             mock_factory.return_value = mock_adapter
-            
+
             db = DatabaseManager.get_default()
             assert db is not None
             DatabaseManager.reset_default()

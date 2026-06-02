@@ -17,7 +17,7 @@ def _fake_repo_with_userspace(tmp_path: Path, *, with_strategies: bool = True, w
     if with_strategies:
         (us / "strategies").mkdir()
     if with_config:
-        (us / "config").mkdir()
+        (us / "system" / "config").mkdir(parents=True)
     return fake_root
 
 
@@ -62,7 +62,7 @@ class TestPathManager:
             PathManager.invalidate_userspace_cache()
 
     def test_config(self, tmp_path, monkeypatch):
-        """测试获取 config 目录（userspace/config）"""
+        """测试获取 config 目录（userspace/system/config）"""
         fake_root = _fake_repo_with_userspace(tmp_path, with_strategies=False, with_config=True)
         monkeypatch.setattr(PathManager, "_root_cache", fake_root)
         PathManager.invalidate_userspace_cache()
@@ -70,7 +70,7 @@ class TestPathManager:
             config_dir = PathManager.config()
 
             assert isinstance(config_dir, Path)
-            assert config_dir == fake_root / "userspace" / "config"
+            assert config_dir == fake_root / "userspace" / "system" / "config"
             assert config_dir.exists()
         finally:
             PathManager.invalidate_userspace_cache()
@@ -93,7 +93,7 @@ class TestPathManager:
         assert isinstance(backup_data_dir, Path)
         assert backup_data_dir == backup_dir / "data"
         assert backup_dir.is_relative_to(root)
-        assert "userspace" in backup_dir.parts and "backup" in backup_dir.parts
+        assert "userspace" in backup_dir.parts and "system" in backup_dir.parts and "backup" in backup_dir.parts
     
     def test_root_caching(self):
         """测试根目录缓存"""

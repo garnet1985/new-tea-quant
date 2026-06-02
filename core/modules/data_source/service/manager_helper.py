@@ -116,7 +116,7 @@ class DataSourceManagerHelper:
 
         约定：
         - mapping 中的 handler 字段必须写成：
-          - 完整路径: "userspace.data_source.handlers.kline.KlineHandler"
+          - 完整路径: "userspace.extensions.data_source.handlers.kline.KlineHandler"
           - 或简写:   "kline.KlineHandler"
         """
         handler_path_raw = mapping.get("handler")
@@ -134,7 +134,7 @@ class DataSourceManagerHelper:
             return None
 
         # 从 {name}.handler 模块加载类，无需各 handler 目录下的 __init__.py
-        if module_path.startswith("userspace.data_source.handlers."):
+        if module_path.startswith("userspace.extensions.data_source.handlers."):
             handler_module_path = module_path + ".handler"
         else:
             handler_module_path = module_path
@@ -185,19 +185,19 @@ class DataSourceManagerHelper:
         标准化 handler 路径。
 
         支持三种形式：
-        - 完整路径: "userspace.data_source.handlers.kline.KlineHandler"
+        - 完整路径: "userspace.extensions.data_source.handlers.kline.KlineHandler"
         - 多级简写: "stock_klines.kline_daily.KlineDailyHandler"（支持嵌套目录）
         - 单级简写: "kline.KlineHandler"
         """
         # 已经是完整路径，直接返回
-        if handler_path.startswith("userspace.data_source.handlers."):
+        if handler_path.startswith("userspace.extensions.data_source.handlers."):
             return handler_path
 
         parts = handler_path.split(".")
         if len(parts) < 2:
             logger.error(
                 f"Handler 路径格式不正确: {handler_path}，"
-                f"期望 'module.ClassName' 或 'userspace.data_source.handlers.module.ClassName'"
+                f"期望 'module.ClassName' 或 'userspace.extensions.data_source.handlers.module.ClassName'"
             )
             raise ValueError(f"Invalid handler path: {handler_path}")
         
@@ -208,7 +208,7 @@ class DataSourceManagerHelper:
         
         # 构建完整路径
         module_path = ".".join(module_parts)
-        return f"userspace.data_source.handlers.{module_path}.{class_name}"
+        return f"userspace.extensions.data_source.handlers.{module_path}.{class_name}"
 
     @staticmethod
     def is_valid_handler(handler_cls: Any) -> bool:

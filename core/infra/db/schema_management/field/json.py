@@ -21,21 +21,19 @@ class JsonField(Field):
         # JSON 支持 PostgreSQL 和 MySQL
         # JSONB 仅支持 PostgreSQL
         if is_jsonb:
-            self.supported_databases = ['postgresql']
+            self.supported_databases = ['postgresql', 'duckdb']
         else:
-            self.supported_databases = ['postgresql', 'mysql']
+            self.supported_databases = ['postgresql', 'mysql', 'duckdb']
         super().__init__(name, is_required, default, comment, nullable=nullable)
     
     def _to_sql_impl(self, database_type: str) -> str:
         if database_type == 'postgresql':
             if self.is_jsonb:
                 return "JSONB"
-            else:
-                return "JSON"
-        elif database_type == 'mysql':
             return "JSON"
-        else:
+        if database_type in ("mysql", "duckdb"):
             return "JSON"
+        return "JSON"
     
     def get_type_name(self) -> str:
         return "jsonb" if self.is_jsonb else "json"

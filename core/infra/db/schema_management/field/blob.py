@@ -10,6 +10,8 @@ class BlobField(Field):
     def _to_sql_impl(self, database_type: str) -> str:
         if database_type == 'postgresql':
             return "BYTEA"
+        if database_type == "duckdb":
+            return "BLOB"
         return "BLOB"
     
     def get_type_name(self) -> str:

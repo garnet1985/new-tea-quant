@@ -7,6 +7,7 @@
 # Database adapters
 pymysql
 psycopg2-binary
+duckdb
 
 # Data
 pandas

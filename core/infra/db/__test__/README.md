@@ -92,7 +92,7 @@ pytest core/infra/db/__test__/test_db_manager.py::TestDatabaseManager::test_init
 - ✅ `shutdown()` - 关闭队列
 
 ### DatabaseAdapterFactory 测试
-- ✅ `create()` - 创建适配器（PostgreSQL/MySQL/SQLite）
+- ✅ `create()` - 创建适配器（PostgreSQL/MySQL）；DuckDB 经 `create_duckdb_domain_adapter`
 
 ## 🔧 测试框架
 

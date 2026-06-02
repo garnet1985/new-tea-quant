@@ -22,7 +22,7 @@ _DB_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_\-.]+$")
 
 
 def _database_config_dir() -> Path:
-    return PathManager.userspace() / "config" / "database"
+    return PathManager.user_config() / "database"
 
 
 def _read_flat_type_config(type_path: Path, database_type: str) -> dict:

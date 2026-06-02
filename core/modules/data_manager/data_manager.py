@@ -9,7 +9,7 @@
 - 协调各个 DataService
 
 表名定义：
--   表名由 DataManager 配合 PathManager 发现（core/tables、userspace/tables），
+-   表名由 DataManager 配合 PathManager 发现（core/tables、userspace/extensions/tables），
   core 表须 sys_ 前缀，userspace 表无前缀限制；get_table(table_name) 使用实际表名字符串。
 
 架构：
@@ -190,13 +190,13 @@ class DataManager:
             if self.db:
                 if self.is_verbose:
                     logger.info("🔧 创建 Base Tables...")
-                self.db.schema_manager.create_all_tables(self.db.get_connection)
+                self.db.create_all_base_tables()
             elif self.is_verbose:
                 logger.info("ℹ️  只读模式，跳过 Base Tables 创建")
 
-            # 3. 自动发现并缓存表（core/tables -> sys_*，userspace/tables -> cust_*）
+            # 3. 自动发现并缓存表（core/tables -> sys_*，userspace/extensions/tables -> cust_*）
             if self.is_verbose:
-                logger.info("🔧 自动发现表（core/tables + userspace/tables）...")
+                logger.info("🔧 自动发现表（core/tables + userspace/extensions/tables）...")
             self._discover_tables()
 
             # 4. 初始化 DataService（跨service协调器）
@@ -204,6 +204,10 @@ class DataManager:
                 logger.info("🔧 初始化 DataService...")
             from core.modules.data_manager.data_services import DataService
             self._data_service = DataService(self)
+            try:
+                self._data_service.index.sync_list_from_config()
+            except Exception as e:
+                logger.warning("sys_index_list 配置同步失败（可稍后由 renew 重试）: %s", e)
 
             self._initialized = True
             
@@ -225,7 +229,7 @@ class DataManager:
         表文件夹结构：schema.py + model.py，表名取自 schema["name"]。
         
         Args:
-            table_folder_path: 表文件夹路径（core/tables/xxx 或 userspace/tables/xxx）
+            table_folder_path: 表文件夹路径（core/tables/xxx 或 userspace/extensions/tables/xxx）
             from_core: 若为 True 表示来自 core/tables，则 schema["name"] 须以 sys_ 开头，否则跳过
         
         Returns:
@@ -262,6 +266,9 @@ class DataManager:
                 if self.is_verbose:
                     logger.debug(f"⏭️  跳过 core 表（非 sys_ 前缀）: {table_name} ({table_folder_path})")
                 return None
+
+            if self.db is not None:
+                self.db.storage_registry.register_schema(schema)
             
             # 2. 查找并加载 model.py
             model_file_path = FileManager.find_file("model.py", table_folder, recursive=False)
@@ -304,10 +311,10 @@ class DataManager:
     
     def _discover_tables(self):
         """
-        配合 PathManager 递归发现 core/tables 与 userspace/tables 下的表并缓存。
+        配合 PathManager 递归发现 core/tables 与 userspace/extensions/tables 下的表并缓存。
         不依赖目录层级：递归查找所有 schema.py，以其所在目录为表目录并注册。
         - core/tables：仅注册 schema["name"] 以 sys_ 开头的表，否则跳过。
-        - userspace/tables：表名无前缀限制，全部注册。
+        - userspace/extensions/tables：表名无前缀限制，全部注册。
         仅在初始化时调用一次，结果缓存在 _table_cache 中。
         """
         from core.infra.project_context import PathManager
@@ -323,8 +330,8 @@ class DataManager:
                 for table_folder in sorted(_dirs_with_schema(core_tables_dir)):
                     self.register_table(str(table_folder), from_core=True)
 
-            # 2. userspace/tables（表名无限制）
-            userspace_tables_dir = PathManager.userspace() / "tables"
+            # 2. userspace/extensions/tables（表名无限制）
+            userspace_tables_dir = PathManager.extensions_tables()
             if userspace_tables_dir.exists():
                 for table_folder in sorted(_dirs_with_schema(userspace_tables_dir)):
                     self.register_table(str(table_folder), from_core=False)

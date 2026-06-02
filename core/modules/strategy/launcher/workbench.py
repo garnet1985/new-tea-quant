@@ -136,7 +136,7 @@ def fetch_latest_workbench_snapshot(strategy_name: str) -> Optional[Dict[str, An
         log_workbench_version_deleted(name, sid, row)
         model.delete_version_row(name, sid)
 
-    folder = PathManager.userspace() / "strategies" / name
+    folder = PathManager.strategy(name)
     discovered = StrategyDiscoveryHelper.load_strategy(folder)
     if discovered is None:
         return None

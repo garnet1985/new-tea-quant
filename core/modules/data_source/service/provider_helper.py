@@ -30,14 +30,14 @@ class DataSourceProviderHelper:
         发现 userspace 下所有的 Provider 类。
 
         约定：
-        - 扫描路径: userspace.data_source.providers
+        - 扫描路径: userspace.extensions.data_source.providers
         - Provider 必须继承 BaseProvider，并声明 provider_name
         """
         from core.infra.discovery import ClassDiscovery, DiscoveryConfig
 
         config = DiscoveryConfig(
             base_class=BaseProvider,
-            module_name_pattern="userspace.data_source.providers.{name}.provider",
+            module_name_pattern="userspace.extensions.data_source.providers.{name}.provider",
             key_extractor=lambda cls: getattr(cls, "provider_name", None),
             class_filter=lambda cls: (
                 hasattr(cls, "provider_name")
@@ -47,7 +47,7 @@ class DataSourceProviderHelper:
         )
 
         discovery = ClassDiscovery(config)
-        result = discovery.discover("userspace.data_source.providers")
+        result = discovery.discover("userspace.extensions.data_source.providers")
 
         return result.classes
 

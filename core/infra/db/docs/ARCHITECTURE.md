@@ -68,7 +68,22 @@ DatabaseManager
 
 ---
 
+## 目标架构（已定案，迁移中）
+
+原「Manager + Connection / Schema / Table 三层」将演进为 **Manager 挂载 per-backend Engine**。各 engine 包内自含 connector、schema_parser、sql_adapter 等模块；DuckDB 另含 write pipeline 等专有模块。
+
+- **三个平级 engine 包**：`duckdb/`、`mysql/`、`pgsql/` — **不**合并为 `server/`。
+- **DbBaseModel**：绑定 `for_table()` 并转发；extension 仅用白名单 API + `query`（见 engines §9–§10）。
+- **DuckDB 写并发**：每域 WritePipeline、域间并行；多进程 Collector（见 engines §8、决策 11）。
+- 决策与目录约定：[engines/ARCHITECTURE.md](../engines/ARCHITECTURE.md)、[决策 7–11](./DECISIONS.md)
+
+当前代码仍以本文 §工作拆分 描述的结构运行为主，直至 engines 迁移完成。
+
+---
+
 ## 相关文档
 
-- [详细设计](./DESIGN.md)：与实现一致的类图、数据流、配置与扩展点说明。
+- [engines 架构（目标）](../engines/ARCHITECTURE.md)：per-backend Engine 定案与 `_shared/` 规则。
+- [详细设计](./DESIGN.md)：与**当前实现**一致的类图、数据流、配置与扩展点说明。
+- [存储域设计](./storage-domains.md)：DuckDB 三域（data / tag / strategy）定案与 DataManager 隐患审计。
 - [API](./API.md)、[决策记录](./DECISIONS.md)

@@ -78,8 +78,10 @@ class Field(ABC):
         Returns:
             是否支持
         """
+        if database_type == "duckdb":
+            return "postgresql" in self.supported_databases
         return database_type in self.supported_databases
-    
+
     @abstractmethod
     def _to_sql_impl(self, database_type: str) -> str:
         """
@@ -145,6 +147,14 @@ class Field(ABC):
             
             # 处理标准的时间戳默认值
             if default_value.upper() in ['CURRENT_TIMESTAMP', 'CURRENT_DATE', 'CURRENT_TIME']:
+                if database_type == "duckdb":
+                    if default_value.upper() == "CURRENT_TIMESTAMP":
+                        return (
+                            " DEFAULT (strftime(CURRENT_TIMESTAMP, '%Y-%m-%d %H:%M:%S'))"
+                        )
+                    if default_value.upper() == "CURRENT_DATE":
+                        return " DEFAULT (strftime(CURRENT_DATE, '%Y%m%d'))"
+                    return " DEFAULT (strftime(CURRENT_TIME, '%H:%M:%S'))"
                 return f" DEFAULT {default_value}"
             
             # 字符串默认值需要加引号

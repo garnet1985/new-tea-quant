@@ -96,7 +96,7 @@ class BatchOperation:
         # 引用列名（避免 key/text/json 等保留字在 MySQL 报错）
         from core.infra.db.helpers.db_helpers import DBHelper
 
-        dt = DBHelper.normalize_database_type({"database_type": database_type})
+        dt = DBHelper.sql_dialect_for_upsert({"database_type": database_type})
         qcols = [DBHelper.quote_identifier_for_dialect(dt, c) for c in columns]
         columns_sql = ", ".join(qcols)
         values_sql = ', '.join(values_list)

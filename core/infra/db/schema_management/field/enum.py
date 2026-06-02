@@ -33,7 +33,7 @@ class EnumField(Field):
             escaped_values.append(f"'{escaped_v}'")
         values_str = ', '.join(escaped_values)
         
-        if database_type == 'postgresql':
+        if database_type in ("postgresql", "duckdb"):
             return f"VARCHAR(255) CHECK ({self.name} IN ({values_str}))"
         if database_type == 'mysql':
             return f"ENUM({values_str})"

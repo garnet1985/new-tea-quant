@@ -40,16 +40,54 @@ class IndexService(BaseDataService):
     
     # ==================== 指数指标数据 ====================
 
-    def load_list(self, order_by: str = "id") -> List[Dict[str, Any]]:
+    def sync_list_from_config(self) -> int:
+        """
+        将 data.json 中的 benchmark_stock_index_list upsert 到 sys_index_list。
+
+        配置为权威来源；表供 DataManager / DataContract 查询。
+        """
+        from core.infra.project_context.config_manager import ConfigManager
+
+        raw = ConfigManager.load_benchmark_stock_index_list()
+        records: List[Dict[str, Any]] = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            index_id = str(item.get("id") or "").strip()
+            if not index_id:
+                continue
+            records.append(
+                {
+                    "id": index_id,
+                    "name": item.get("name"),
+                    "description": item.get("description"),
+                    "type": item.get("type") or "stock",
+                }
+            )
+        index_list_model = self.data_manager.get_table("sys_index_list")
+        if not index_list_model:
+            logger.warning("sys_index_list 未注册，跳过指数列表同步")
+            return 0
+        if not records:
+            logger.warning("benchmark_stock_index_list 为空，跳过指数列表同步")
+            return 0
+        affected = index_list_model.save_records(records)
+        logger.info("sys_index_list 已从配置同步 %s 条（upsert）", affected)
+        return affected
+
+    def load_list(self, order_by: str = "id", *, sync_from_config: bool = True) -> List[Dict[str, Any]]:
         """
         加载指数列表（sys_index_list）。
 
         Args:
             order_by: 排序字段，默认 id
+            sync_from_config: 为 True 时先按 benchmark_stock_index_list 同步再读取
 
         Returns:
             指数列表
         """
+        if sync_from_config:
+            self.sync_list_from_config()
         index_list_model = self.data_manager.get_table("sys_index_list")
         if not index_list_model:
             return []

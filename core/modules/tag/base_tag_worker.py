@@ -43,14 +43,20 @@ class BaseTagWorker(ABC):
         tag_defs_dict = job_payload.get('tag_definitions', [])
         self.tag_definitions = [TagModel.from_dict(t) for t in tag_defs_dict]
         self.settings = job_payload.get('settings', {})
-        
-        self.data_mgr = DataManager(is_verbose=False)
-        self.tag_data_service = self.data_mgr.stock.tags
+        self._inject_mode = bool(job_payload.get("_inject"))
+
         self.tracker = {}
         self._extract_settings()
-        
+
         from core.modules.data_contract.cache import ContractCacheManager
         from core.modules.tag.components.data_management.tag_data_manager import TagDataManager
+
+        if self._inject_mode:
+            self.data_mgr = None
+            self.tag_data_service = None
+        else:
+            self.data_mgr = DataManager(is_verbose=False)
+            self.tag_data_service = self.data_mgr.stock.tags
 
         self.tag_data_manager = TagDataManager(
             entity_id=self.entity['id'],
@@ -63,6 +69,28 @@ class BaseTagWorker(ABC):
         )
         
         self.on_init()
+
+    def load_latest_tag_value_json(self, tag_definition_id: int) -> Optional[Any]:
+        """读取 entity 在某 tag_definition 下的最新 json_value（inject 优先）。"""
+        from core.modules.tag.components.job_staging.tag_prior_values import (
+            load_latest_tag_value_json,
+        )
+
+        return load_latest_tag_value_json(
+            self.job_payload,
+            self.tag_data_service,
+            entity_id=str(self.entity["id"]),
+            tag_definition_id=int(tag_definition_id),
+        )
+
+    def load_latest_tag_bool(self, tag_definition_id: int, *, default: bool = False) -> bool:
+        """解析最新 tag_value 的布尔 value 字段。"""
+        from core.modules.tag.components.job_staging.tag_prior_values import parse_tag_value_bool
+
+        return parse_tag_value_bool(
+            self.load_latest_tag_value_json(tag_definition_id),
+            default=default,
+        )
     
     def _extract_settings(self):
         """从 settings 中提取配置"""
@@ -101,21 +129,33 @@ class BaseTagWorker(ABC):
                 "total_dates": 0,
                 "processed_dates": 0,
                 "total_tags_created": 0,
+                "tag_values": [],
                 "errors": [str(e)],
                 "success": False
             }
     
     def _preprocess(self):
         """预处理阶段"""
-        self.tag_data_manager.hydrate_row_slots(
-            self.job['start_date'],
-            self.job['end_date'],
-        )
-        self.tag_data_manager.rebuild_data_cursor()
-        self.trading_dates = self.tag_data_manager.get_trading_dates(
-            self.job['start_date'],
-            self.job['end_date']
-        )
+        if self._inject_mode:
+            inject = dict(self.job_payload.get("_inject") or {})
+            slot_data = inject.get("slot_data") or {}
+            trading_dates = list(inject.get("trading_dates") or [])
+            self.tag_data_manager.apply_injected_bundle(
+                slot_data,
+                trading_dates=trading_dates,
+                time_field_overrides=inject.get("time_field_overrides"),
+            )
+            self.trading_dates = trading_dates
+        else:
+            self.tag_data_manager.hydrate_row_slots(
+                self.job['start_date'],
+                self.job['end_date'],
+            )
+            self.tag_data_manager.rebuild_data_cursor()
+            self.trading_dates = self.tag_data_manager.get_trading_dates(
+                self.job['start_date'],
+                self.job['end_date']
+            )
         
         self.on_before_execute_tagging()
     
@@ -217,6 +257,7 @@ class BaseTagWorker(ABC):
             "total_dates": total_dates,
             "processed_dates": processed_dates,
             "total_tags_created": total_tags_created,
+            "tag_values": tag_values_to_save,
             "errors": errors,
             "success": len(errors) == 0
         }
@@ -224,15 +265,9 @@ class BaseTagWorker(ABC):
     def _postprocess(self, result: Dict[str, Any]):
         """
         后处理阶段
-        
-        1. 批量保存 tag values
-        2. 调用 on_after_execute_tagging 钩子
+
+        批量写库由 TagManager.on_report（主进程）负责；Worker 只返回 tag_values。
         """
-        # 批量保存 tag values
-        if hasattr(self, '_tag_values_to_save') and self._tag_values_to_save:
-            self._batch_save_tag_values(self._tag_values_to_save)
-        
-        # 调用执行后钩子
         self.on_after_execute_tagging(result)
     
     def _batch_save_tag_values(self, tag_values: List[Dict[str, Any]]):

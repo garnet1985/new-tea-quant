@@ -1,6 +1,6 @@
 # Database 模块（`infra.db`）
 
-数据库基础设施层，负责 NTQ 在 PostgreSQL/MySQL 上的统一连接、schema 与表写入能力。
+数据库基础设施层，负责 NTQ 在 DuckDB / PostgreSQL / MySQL 上的统一连接、schema 与表写入能力。
 
 ## 适用场景
 
@@ -36,8 +36,7 @@ core/infra/db/
 
 ## 当前实现说明（代码对齐）
 
-- 当前支持数据库类型：`postgresql`、`mysql`。
-- 不包含 SQLite 适配器与配置解析支持。
+- 当前支持数据库类型：`duckdb`（默认推荐，三存储域）、`postgresql`、`mysql`。
 - 默认实例通过 `DatabaseManager.set_default/get_default` 管理。
 
 ## Schema 与升级（约定 + 部分实现）

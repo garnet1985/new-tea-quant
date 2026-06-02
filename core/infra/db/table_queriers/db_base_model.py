@@ -161,9 +161,11 @@ class DbBaseModel:
             else:
                 with self.db.engine.transaction() as cursor:
                     yield cursor
+        elif self.db.is_duckdb:
+            with self.db.get_sync_cursor_for_table(self.table_name) as cursor:
+                yield cursor
         else:
-            domain = self.db.get_table_domain(self.table_name) if self.db.is_duckdb else None
-            with self.db.connection_manager.transaction(domain=domain) as cursor:
+            with self.db.transaction() as cursor:
                 yield cursor
 
     # ***********************************

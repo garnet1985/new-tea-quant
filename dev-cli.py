@@ -201,42 +201,23 @@ def _cmd_db_checkpoint(args: argparse.Namespace) -> int:
         if str(db.config.get("database_type", "")).lower() != "duckdb":
             print("当前 database_type 不是 duckdb，跳过。", flush=True)
             return 1
-        if db.uses_engine_path and db.engine is not None:
-            from core.infra.db.engines.duckdb.engine import DuckdbEngine
+        from core.infra.db.engines.duckdb.engine import DuckdbEngine
 
-            eng = db.engine
-            if isinstance(eng, DuckdbEngine):
-                paths = {
-                    d: cfg.db_path for d, cfg in eng._duckdb_settings.domains.items()
-                }
-            else:
-                paths = {}
-            results = db.checkpoint_duckdb()
-        else:
-            paths = {
-                d: (a.config.get("db_path") if getattr(a, "config", None) else "?")
-                for d, a in db.connection_manager.domain_adapters.items()
-            }
-            results = db.connection_manager.checkpoint_duckdb()
+        eng = db.engine
+        paths = {}
+        if isinstance(eng, DuckdbEngine):
+            paths = {d: cfg.db_path for d, cfg in eng._duckdb_settings.domains.items()}
+        results = db.checkpoint_duckdb()
         print(f"CHECKPOINT 目标: {paths}", flush=True)
         for domain, ok in sorted(results.items()):
             print(f"  {domain}: {'ok' if ok else 'failed'}", flush=True)
-        db_dir = None
-        if db.uses_engine_path and db.engine is not None:
-            from core.infra.db.engines.duckdb.engine import DuckdbEngine
-            from core.infra.db.helpers.duckdb_paths import resolve_duckdb_db_path
+        from core.infra.db.helpers.duckdb_paths import resolve_duckdb_db_path
 
-            eng = db.engine
-            if isinstance(eng, DuckdbEngine):
-                for cfg in eng._duckdb_settings.domains.values():
-                    if cfg.db_path:
-                        db_dir = Path(resolve_duckdb_db_path(cfg.db_path)).parent
-                        break
-        else:
-            for adapter in db.connection_manager.domain_adapters.values():
-                raw = (getattr(adapter, "config", None) or {}).get("db_path")
-                if raw:
-                    db_dir = Path(str(raw)).resolve().parent
+        db_dir = None
+        if isinstance(eng, DuckdbEngine):
+            for cfg in eng._duckdb_settings.domains.values():
+                if cfg.db_path:
+                    db_dir = Path(resolve_duckdb_db_path(cfg.db_path)).parent
                     break
         remaining = sorted(db_dir.glob("*.duckdb.wal")) if db_dir and db_dir.is_dir() else []
         if remaining:

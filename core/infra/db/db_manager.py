@@ -364,8 +364,10 @@ class DatabaseManager:
                 schema, self.connection_factory_for_table(table_name)
             )
     
-    def create_registered_tables(self):
-        """创建所有注册的表（策略表）"""
+    def create_registered_tables(self) -> None:
+        """创建所有通过 register_table 注册的策略/扩展表。"""
+        if not self._initialized:
+            raise RuntimeError("数据库未初始化，请先调用 initialize()")
         if self.uses_engine_path and self.engine is not None:
             self.engine.create_registered_tables()
             return
@@ -423,6 +425,10 @@ class DatabaseManager:
         with self.get_sync_cursor_for_table(table_name) as cursor:
             cursor.execute(f"DROP TABLE IF EXISTS {quoted}")
     
+    def load_schema_from_python(self, schema_file: str) -> Dict:
+        """从 schema.py 加载 schema（委托 mounted SchemaManager）。"""
+        return self.schema_manager.load_schema_from_python(schema_file)
+
     def get_table_schema(self, table_name: str) -> Optional[Dict]:
         """
         获取表的 schema
@@ -433,6 +439,8 @@ class DatabaseManager:
         Returns:
             schema 字典，不存在返回 None
         """
+        if self.uses_engine_path and self.engine is not None:
+            return self.engine.get_table_schema(table_name)
         return self.schema_manager.get_table_schema(table_name)
     
     def get_table_fields(self, table_name: str) -> List[str]:
@@ -445,8 +453,10 @@ class DatabaseManager:
         Returns:
             字段名列表
         """
+        if self.uses_engine_path and self.engine is not None:
+            return self.engine.get_table_fields(table_name)
         return self.schema_manager.get_table_fields(table_name)
-    
+
     # ==================== TableManager 委托方法 ====================
     
     def queue_write(

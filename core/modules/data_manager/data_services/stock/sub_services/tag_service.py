@@ -20,6 +20,7 @@ from ... import BaseDataService
 logger = logging.getLogger(__name__)
 
 _TAG_VALUE_TABLE = "sys_tag_value"
+_TAG_DEFINITION_TABLE = "sys_tag_definition"
 
 
 class TagDataService(BaseDataService):
@@ -342,7 +343,7 @@ class TagDataService(BaseDataService):
         query = f"UPDATE tag_definition SET {', '.join(set_clauses)} WHERE {where_clause}"
         
         try:
-            with self.db.get_sync_cursor() as cursor:
+            with self.db.get_sync_cursor_for_table(_TAG_DEFINITION_TABLE) as cursor:
                 cursor.execute(query, params)
                 logger.info(f"批量更新 tag definitions: 更新了 {cursor.rowcount} 条记录")
         except Exception as e:

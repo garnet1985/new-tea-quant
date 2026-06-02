@@ -1,10 +1,10 @@
 # Database Engines 架构（定案）
 
-**状态：** 已定案，逐步迁移中  
-**版本：** `1.2.0`  
-**日期：** 2026-05-28（§8 库单元/Pipeline §9–§10 DbBaseModel/JOIN 定案）
+**状态：** 已定案，**运行时已挂载**  
+**版本：** `1.3.0`  
+**日期：** 2026-06（Engine 为默认路径；旧 ConnectionManager/TableManager 已删除）
 
-本文档记录 `core/infra/db/engines/` 的目标结构与职责边界。实现尚未完全落地；当前运行时仍以 `DatabaseManager` + 三层管理（Connection / Schema / Table）为主，见 [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)。
+本文档记录 `core/infra/db/engines/` 的结构与职责边界。`DatabaseManager` 通过 `factory.create_engine` 挂载唯一 Engine，见 [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)。
 
 ---
 
@@ -75,10 +75,11 @@ Engine 是**编排者**，组装本包内模块，对外提供挂载面（方法
 
 | 模块 | 职责 |
 |------|------|
-| **connector** | 连接生命周期、事务/游标、backend 特有连接策略（如 DuckDB 多 storage_domain、只读子进程、放锁） |
-| **sql_adapter** | 占位符、标识符引用、SQL 规范化与执行委托 |
+| **connector** | 连接池生命周期、事务/游标、**执行**已准备好的 SQL（无方言分支以外的 I/O） |
+| **sql_adapter** | **仅方言**：占位符、`?`→`%s`、exists/introspection SQL 文本、upsert 片段等（**无 I/O**） |
 | **schema_parser** | 将项目 schema 定义转为本方言 DDL / introspection |
-| **table_ops** | 表级查询、批量写入、队列聚合（MySQL/PG 的 BatchWrite 路径） |
+| **table_operator**（或 `table_ops.py`） | 表级 CRUD；调用 connector + sql_adapter / `BatchOperation(database_type=…)` |
+| **engine.py** | 编排上述模块；**不**放入 `_shared/` 与其它 backend 合并 |
 | **其它（按需）** | DuckDB：`write_pipeline`、`worker_scope`；其它 backend 仅在本包内扩展 |
 
 Engine **只消费** Manager 传入的 meta，**不**向上声明「我是 duckdb/mysql」；上层通过 Manager 获知 backend 类型。
@@ -88,11 +89,11 @@ Engine **只消费** Manager 传入的 meta，**不**向上声明「我是 duckd
 | 现状 | 目标归属 |
 |------|----------|
 | `ConnectionManager` | 各 engine 的 **connector**（私有化，不再作为 Manager 的公开子系统） |
-| `table_queriers/adapters/*` | 各 engine 的 **sql_adapter** |
+| `table_queriers/adapters/*` | 已移除；连接在各 engine **connector** |
 | `SchemaManager` 中的方言分支 | 各 engine 的 **schema_parser** |
 | `TableManager` + `BatchWriteQueue` | mysql/pgsql 的 **table_ops**；DuckDB 的 **table_ops** + **write_pipeline** |
 | `StorageRegistry` / 表→域 | Manager 或 **duckdb engine** 私有（server DB 无此概念） |
-| `schema_management/field/*` | 仍为跨 backend 的 **schema 语言**；parser 负责 field → DDL |
+| `engines/_shared/fields` | 跨 backend 的 **schema 语言**；parser 负责 field → DDL |
 
 ---
 
@@ -109,14 +110,22 @@ Engine **只消费** Manager 传入的 meta，**不**向上声明「我是 duckd
 
 ---
 
-## 5. EngineConfigMeta
+## 5. EngineConfigMeta 与配置
 
-由 `DatabaseManager` 解析配置后传入 Engine，Engine 只读：
+**合并**仍在 `project_context.ConfigManager.load_database_config()`（`core/default_config` + `userspace/system/config` + env），**不在** engine 包内读 JSON。
 
-- `engine_key` — `mysql` | `postgresql` | `duckdb`（factory 选型）
-- `raw_config` — 解析后的完整 db 配置
-- `backend_config` — 当前 backend 专属块
-- `options` — 能力开关（如 batch_write、verbose 等）
+`DatabaseManager` → `config_parse.parse_database_config` → `build_engine_meta()` 解析为类型化配置：
+
+| 字段 | 说明 |
+|------|------|
+| `engine_key` | factory 选型 |
+| `raw_config` | merge 后的完整 dict |
+| `backend` | `MysqlSettings` / `PgsqlSettings` / `DuckdbSettings`（各 engine 包内 `settings.py`） |
+| `batch_write` | `BatchWriteSettings`（`infra/db/settings/common.py`） |
+| `backend_config` | merge 后的 backend dict 视图（兼容） |
+| `options` | 运行时开关（verbose、DuckDB checkpoint 等） |
+
+Engine / connector 优先使用 `meta.require_mysql()` 等，不再散落 `config.get(...)`。
 
 ---
 
@@ -164,7 +173,7 @@ DuckDB 三存储域（data / tag / strategy）的**产品决策**见 [决策 6](
 
 - `CHECKPOINT` 为 **同步** SQL：将 WAL 中 **已提交** 数据合并进主库；成功后 WAL 由 DuckDB 截断/清空，**禁止**手删 `.wal`。
 - 策略：**批末积极 CHECKPOINT**（renew 每批、pipeline flush、`close()`），缩短 WAL 尾巴；设计上 **仍假设** WAL 可能存在（崩溃、批间窗口）。
-- 实现沿用 `duckdb_wal_policy.py`；duckdb `connector` / `write_pipeline` 在批边界调用。
+- 实现于 `engines/duckdb/wal_policy.py`；duckdb `connector` / `write_pipeline` 在批边界调用。
 
 ### 8.3 Per-domain WritePipeline（域间并行、域内串行）
 
@@ -300,4 +309,4 @@ Engine 只需实现白名单对应能力；表作者遵守契约即可保证三�
 
 - [../docs/DECISIONS.md](../docs/DECISIONS.md) — 决策 7–11
 - [../docs/storage-domains.md](../docs/storage-domains.md) — DuckDB 存储域、§4.2 并发与 WAL
-- [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) — 当前（迁移前）三层架构说明
+- [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) — DatabaseManager + Engine 当前架构

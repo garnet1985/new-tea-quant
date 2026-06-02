@@ -924,7 +924,7 @@ class BaseHandler:
         """
         清理一批记录中的 NaN/None 等异常数值，返回清洗后的记录列表。
 
-        内部委托 record_utils 和 DBHelper 实现，子类无需关心具体细节。
+        内部委托 record_utils 实现，子类无需关心具体细节。
         """
         from core.modules.data_source.service.utils import record_utils
 

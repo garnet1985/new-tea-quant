@@ -19,10 +19,7 @@ from core.modules.data_source.service.executor.bundle_progress import (
     install as install_bundle_progress,
 )
 from core.modules.data_source.service.executor.save_batch_sizer import SaveBatchSizer
-from core.infra.db.duckdb_wal_policy import (
-    checkpoint_connection_manager,
-    should_checkpoint_after_batch,
-)
+from core.infra.db.engines.duckdb.wal_policy import should_checkpoint_after_batch
 
 
 logger = logging.getLogger(__name__)
@@ -34,11 +31,10 @@ def _checkpoint_after_batch_save(context: Dict[str, Any]) -> None:
     db = getattr(dm, "db", None) if dm is not None else None
     if db is None or not should_checkpoint_after_batch(db.config):
         return
-    cm = getattr(db, "connection_manager", None)
-    if cm is None:
+    if str(db.config.get("database_type") or "").lower() != "duckdb":
         return
     try:
-        checkpoint_connection_manager(cm)
+        db.checkpoint_duckdb()
     except Exception as e:
         logger.warning("批量写入后 CHECKPOINT 失败: %s", e)
 

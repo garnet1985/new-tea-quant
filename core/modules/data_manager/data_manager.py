@@ -237,8 +237,8 @@ class DataManager:
         """
         from core.infra.db import DbBaseModel
         from core.infra.project_context import FileManager
-        from core.infra.db.schema_management.schema_manager import SchemaManager
-        
+        from core.infra.db.schema_manager import SchemaManager
+
         try:
             table_folder = Path(table_folder_path)
             if not table_folder.is_absolute():
@@ -253,11 +253,20 @@ class DataManager:
             if not schema_py.exists():
                 logger.error(f"❌ 表文件夹中未找到 schema.py: {table_folder_path}")
                 return None
-            schema_manager = SchemaManager()
-            schema = schema_manager.load_schema_from_python(str(schema_py))
+            if self.db is not None and getattr(self.db, "schema_manager", None) is not None:
+                schema = self.db.schema_manager.load_schema_from_python(str(schema_py))
+            else:
+                db_type = (
+                    self.db.config.get("database_type", "postgresql")
+                    if self.db is not None
+                    else "postgresql"
+                )
+                schema = SchemaManager(database_type=db_type).load_schema_from_python(
+                    str(schema_py)
+                )
             if not schema:
                 return None
-            
+
             table_name = schema.get("name")
             if not table_name:
                 logger.error(f"❌ schema 中未找到 name: {table_folder_path}")
@@ -268,7 +277,7 @@ class DataManager:
                 return None
 
             if self.db is not None:
-                self.db.storage_registry.register_schema(schema)
+                self.db.register_table(table_name, schema)
             
             # 2. 查找并加载 model.py
             model_file_path = FileManager.find_file("model.py", table_folder, recursive=False)

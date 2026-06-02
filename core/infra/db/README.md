@@ -13,19 +13,13 @@
 
 ```text
 core/infra/db/
-├── module_info.yaml
-├── db_manager.py
-├── migration/
-├── connection_management/
-├── schema_management/
-├── table_management/
-├── table_queriers/
-├── helpers/
+├── db_manager.py          # 挂载 Engine，对外统一入口
+├── engines/               # mysql | pgsql | duckdb（connector / engine / table_operator …）
+├── schema_manager.py      # 加载 core/tables、建表编排
+├── migrate_manager.py     # 升级门面（CLI: python -m core.infra.db.migrate_manager）
+├── table_queriers/        # DbBaseModel、BatchOperation、写队列
+├── migration/             # diff / plan / execute 实现
 └── docs/
-    ├── ARCHITECTURE.md
-    ├── DESIGN.md
-    ├── API.md
-    └── DECISIONS.md
 ```
 
 升级用 **单步数据脚本** 放在同级包 **`core/infra/update/db/`**（由本模块注册表引用，见下文「与 updater / 数据脚本的边界」）。
@@ -36,8 +30,12 @@ core/infra/db/
 
 ## 当前实现说明（代码对齐）
 
-- 当前支持数据库类型：`duckdb`（默认推荐，三存储域）、`postgresql`、`mysql`。
-- 默认实例通过 `DatabaseManager.set_default/get_default` 管理。
+- 支持：`duckdb`（三存储域）、`postgresql`、`mysql`。
+- `DatabaseManager.initialize()` → `create_engine` → `engine.initialize()`；无旧三层 `ConnectionManager` / `TableManager`。
+- 业务访问：`db.engine.table_operator(name)` 或 `DbBaseModel`（内部转发 engine）。
+- DuckDB：`db.checkpoint_duckdb()`、`db.duckdb_file_map_for_table(name)`。
+- 默认实例：`DatabaseManager.set_default` / `get_default`。
+- 架构说明：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)、[engines/ARCHITECTURE.md](engines/ARCHITECTURE.md)。
 
 ## Schema 与升级（约定 + 部分实现）
 
@@ -49,7 +47,7 @@ core/infra/db/
   - **`diff_expected_schemas(old, new)`**：两份 `{表名: schema dict}` 的字段/索引 diff（不含库 introspection）。  
   - **`plan_from_schema_diff(...)`**：编译为 DDL 步骤（`ExecutionPlan`）；删列/改列/删表等保守地 **`MigrationPlanError`**。  
   - **`execute_plan(db, plan)`**：对已初始化的 **`DatabaseManager`** 拓扑顺序执行。  
-  - **`run_schema_migration(...)`** / **`python -m core.infra.db.migrate`**：加载快照 + 新 ``core/tables`` → diff → plan →（连库时 **introspection 裁剪**）→ apply。  
+  - **`run_schema_migration(...)`** / **`python -m core.infra.db.migrate_manager`**：加载快照 + 新 ``core/tables`` → diff → plan →（连库时 **introspection 裁剪**）→ apply。  
 - **幂等**：``sys_schema_migration_log`` 按 ``step_id`` 记录已执行步骤；``execute_plan`` 自动跳过。  
 - **数据脚本**：``core/infra/update/db/registry.py`` + ``@register_data_script``；plan 中 ``RUN_DATA_SCRIPT`` 步骤由执行器调用。  
 - **仍待**：将破坏性变更自动挂接注册脚本、更细的「期望 vs 实际库」diff。
@@ -67,7 +65,7 @@ core/infra/db/
 2. **Execution plan**：由 diff 编译出的可执行单元，带 **`depends_on` / `action_id`**；**拓扑排序**后执行。  
 3. **索引（简化策略）**：若某表存在 **字段类变更**，则对该表先 **删除全部二级索引**，字段 DDL 完成后再按期望 schema **重建索引**；仅索引变化且无字段变更时，可对索引做增量 DROP/CREATE。  
 4. **新列**：默认 **`NULL`**；若存在与 `action_id` 对应的 **数据脚本** 则执行（脚本/registry 路径在实现时定）；无脚本则保持全空。破坏性变更（改类型、缩 `varchar`、删列等）走 **显式脚本或拒绝自动**。  
-5. **执行入口**：**`python -m core.infra.db.migrate`**（子命令 ``plan`` / ``apply``）；由 updater **`helper.spawn_database_migration_cli`** 子进程调用；**编排**在 updater，**diff → plan → 执行 plan** 在本包内完成。
+5. **执行入口**：**`python -m core.infra.db.migrate_manager`**（子命令 ``plan`` / ``apply``）；由 updater **`helper.spawn_database_migration_cli`** 子进程调用；**编排**在 updater，**diff → plan → 执行 plan** 在本包内完成。
 
 ### 与 updater / 数据脚本的边界
 

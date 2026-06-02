@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from core.infra.db.migrate import main as migrate_main
+from core.infra.db.migrate_manager import main as migrate_main
 from core.infra.db.migration.runner import (
     build_migration_plan,
     load_schemas_from_snapshot,

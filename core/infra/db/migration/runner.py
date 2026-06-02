@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 from core.infra.db.db_manager import DatabaseManager
 from core.infra.db.migration.introspection import introspect_database
 from core.infra.db.migration.plan_prune import prune_plan_for_database
-from core.infra.db.schema_management.schema_manager import SchemaManager
+from core.infra.db.schema_manager import SchemaManager
 from core.infra.db.migration.schema_diff import SchemaDiffResult, diff_expected_schemas
 from core.infra.db.migration.execution_plan import (
     ExecutionPlan,

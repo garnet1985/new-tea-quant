@@ -55,7 +55,7 @@ class BatchWriteQueue:
         初始化批量写入队列
         
         Args:
-            table_manager: TableManager 实例（提供 adapter 和写入方法）
+            table_manager: 写队列宿主（提供 adapter 与 _direct_write，如 Engine _WriteQueueHost）
             batch_size: 批量写入阈值（达到此数量后立即写入）
             flush_interval: 刷新间隔（秒，超过此时间自动刷新）
             enable: 是否启用批量写入（False 时直接写入，用于调试）
@@ -213,10 +213,11 @@ class BatchWriteQueue:
         del self._queues[table_name]
         
         # 释放锁后执行写入
-        if all_data and unique_keys:
-            # 在锁外执行写入
+        if all_data:
             try:
-                self.table_manager._direct_write(table_name, all_data, unique_keys, None)
+                self.table_manager._direct_write(
+                    table_name, all_data, unique_keys or [], None
+                )
                 self._stats['total_writes'] += 1
                 
                 # 执行回调
@@ -254,29 +255,29 @@ class BatchWriteQueue:
             return
         
         try:
-            from core.infra.db.helpers.db_helpers import DBHelper
+            from core.infra.db.engines._shared import dialect, row_sql
             from core.infra.db.table_queriers.services.batch_operation import BatchOperation
             
             if not unique_keys:
                 # 纯 INSERT（不需要去重）
-                columns, _ = DBHelper.to_columns_and_values(data_list)
+                columns, _ = row_sql.to_columns_and_values(data_list)
                 values = [tuple(data[col] for col in columns) for data in data_list]
                 update_clause = None
             else:
                 # 使用 INSERT ... ON CONFLICT DO UPDATE（PostgreSQL Upsert）
-                columns, values, update_clause = DBHelper.to_upsert_params(data_list, unique_keys)
+                columns, values, update_clause = row_sql.to_upsert_params(data_list, unique_keys)
                 
                 if not columns:
                     return
             
             if not self.table_manager or not self.table_manager.adapter:
-                raise RuntimeError("TableManager not initialized.")
+                raise RuntimeError("写队列宿主未初始化。")
             
             # 使用 BatchInsertHelper 执行批量插入
             # 通过 adapter 获取连接并执行 SQL
             conn = self.table_manager.adapter.get_connection()
             try:
-                dt = DBHelper.sql_dialect_for_upsert(self.table_manager.config)
+                dt = dialect.sql_dialect_for_upsert(self.table_manager.config)
                 BatchOperation.execute_batch_insert(
                     executor=conn,
                     table_name=table_name,

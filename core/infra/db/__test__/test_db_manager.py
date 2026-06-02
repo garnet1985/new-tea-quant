@@ -51,13 +51,12 @@ class TestDatabaseManager:
             "core.infra.db.db_manager.ConfigManager.load_database_config",
             return_value=_minimal_mysql_config(),
         ), patch(
-            "core.infra.db.table_queriers.adapters.factory.DatabaseAdapterFactory.create"
-        ) as mock_factory:
-            mock_adapter = Mock()
-            mock_factory.return_value = mock_adapter
-
+            "core.infra.db.engines.mysql.connector.MysqlConnector.connect"
+        ):
             db = DatabaseManager.get_default()
             assert db is not None
+            assert db.engine is not None
+            assert db.uses_engine_path
             DatabaseManager.reset_default()
     
     def test_reset_default(self):
@@ -69,65 +68,69 @@ class TestDatabaseManager:
         assert DatabaseManager._default_instance is None
     
     def test_initialize(self):
-        """测试初始化数据库管理器"""
+        """测试初始化数据库管理器（MySQL Engine 路径）"""
         config = _minimal_mysql_config()
         db = DatabaseManager(config=config, is_verbose=False)
-        
-        with patch('core.infra.db.table_queriers.adapters.factory.DatabaseAdapterFactory.create') as mock_factory:
-            mock_adapter = Mock()
-            mock_factory.return_value = mock_adapter
-            
+
+        with patch("core.infra.db.engines.mysql.connector.MysqlConnector.connect"):
             db.initialize()
             assert db._initialized is True
-            assert db.adapter == mock_adapter
+            assert db.uses_engine_path
+            assert db.engine is not None
+            assert db.engine.is_initialized is True
+            assert db.adapter is db.engine.adapter
     
     def test_execute_sync_query(self):
         """测试执行同步查询"""
         config = _minimal_mysql_config()
         db = DatabaseManager(config=config, is_verbose=False)
-        
-        # Mock connection_manager.execute_sync_query（因为 execute_sync_query 委托给它）
-        db.connection_manager.execute_sync_query = Mock(return_value=[{'id': '001', 'name': 'test'}])
-        db._initialized = True
-        
-        # execute_sync_query 内部会转换 %s 为 ?，所以可以使用 %s
-        results = db.execute_sync_query("SELECT * FROM test_table WHERE id = %s", ('001',))
-        assert results == [{'id': '001', 'name': 'test'}]
-        # 验证 connection_manager.execute_sync_query 被调用
-        db.connection_manager.execute_sync_query.assert_called_once()
+
+        with patch("core.infra.db.engines.mysql.connector.MysqlConnector.connect"):
+            db.initialize()
+
+        db.engine.execute_sync_query = Mock(return_value=[{"id": "001", "name": "test"}])
+
+        results = db.execute_sync_query(
+            "SELECT * FROM test_table WHERE id = %s", ("001",)
+        )
+        assert results == [{"id": "001", "name": "test"}]
+        db.engine.execute_sync_query.assert_called_once()
     
     def test_get_stats(self):
         """测试获取统计信息"""
         config = {
-            'database_type': 'postgresql',
-            'postgresql': {
-                'host': 'localhost',
-                'port': 5432,
-                'database': 'test_db',
-                'user': 'test_user',
-                'password': 'test_pass'
-            }
+            "database_type": "postgresql",
+            "postgresql": {
+                "host": "localhost",
+                "port": 5432,
+                "database": "test_db",
+                "user": "test_user",
+                "password": "test_pass",
+            },
         }
         db = DatabaseManager(config=config, is_verbose=False)
-        db._initialized = True
-        
+        with patch("core.infra.db.engines.pgsql.connector.PgsqlConnector.connect"):
+            db.initialize()
+
         stats = db.get_stats()
-        assert stats['initialized'] is True
-        assert stats['database_type'] == 'postgresql'
-        assert stats['host'] == 'localhost'
-        assert stats['port'] == 5432
-        assert stats['database'] == 'test_db'
+        assert stats["initialized"] is True
+        assert stats["engine_key"] == "postgresql"
+        assert stats["database"] == "test_db"
+        assert stats["host"] == "localhost"
     
     def test_close(self):
         """测试关闭数据库连接"""
         config = _minimal_mysql_config()
         db = DatabaseManager(config=config, is_verbose=False)
-        
-        mock_adapter = Mock()
-        db.connection_manager.adapter = mock_adapter
+
+        with patch("core.infra.db.engines.mysql.connector.MysqlConnector.connect"):
+            db.initialize()
+
+        mock_engine_close = Mock()
+        db.engine.close = mock_engine_close
         db._initialized = True
-        
+
         db.close()
-        mock_adapter.close.assert_called_once()
-        assert db.connection_manager.adapter is None
+        mock_engine_close.assert_called_once()
+        assert db.engine is None
         assert db._initialized is False

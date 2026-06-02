@@ -88,11 +88,11 @@ def _write_schema_snapshot_if_missing() -> Path:
 
 
 def _run_migrate() -> None:
-    from core.infra.db.migrate import _cmd_apply
+    from core.infra.db.migrate_manager import cmd_apply
     from argparse import Namespace
 
     snap = _write_schema_snapshot_if_missing()
-    code = _cmd_apply(
+    code = cmd_apply(
         Namespace(
             pre_mirror_snapshot=str(snap),
             repo_root=str(REPO_ROOT),

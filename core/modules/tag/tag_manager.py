@@ -21,12 +21,13 @@ from core.infra.project_context import PathManager
 from core.modules.tag.enums import FileName
 from core.modules.tag.models.scenario_model import ScenarioModel
 from core.infra.job_dispatcher import (
+    ExecuteMode,
     ExecutionBackend,
+    Job,
     JobDispatcher,
+    JobDispatchSettings,
     JobReport,
-    JobShell,
-    StagedJob,
-    create_job_executor,
+    RunProgress,
 )
 from core.modules.tag.components.job_staging.tag_job_stager import TagJobStager
 from core.modules.tag.components.job_staging.tag_run_profile import TagRunProfile
@@ -35,12 +36,19 @@ from core.infra.db.engines.duckdb.wal_policy import should_checkpoint_after_tag_
 
 logger = logging.getLogger(__name__)
 
+# DEBUG：dispatcher 调试期间限制实体数量；None = 全量
+_DEBUG_ENTITY_LIMIT: Optional[int] = None
+# DEBUG：每 job 打包 N 股（bulk stage IO）；None 则用 settings.performance.entities_per_job
+_DEBUG_ENTITIES_PER_JOB: Optional[int] = 50
+
+
 class TagManager:
     """Tag Manager - 统一管理所有业务场景"""
     
-    def __init__(self, is_verbose = False):
+    def __init__(self, is_verbose=False, dispatch_overrides: Optional[Dict[str, Any]] = None):
         """初始化 TagManager"""
         self.is_verbose = is_verbose
+        self._dispatch_overrides = dict(dispatch_overrides or {})
         self.data_mgr = DataManager()
         self.tag_data_service = self.data_mgr.stock.tags
         self._contract_cache = ContractCacheManager()
@@ -51,13 +59,10 @@ class TagManager:
 
     @staticmethod
     def _resolve_worker_amount(max_workers: Any) -> int:
-        """解析 worker 数量配置，保证返回 >=1 的整数。"""
-        if max_workers == "auto" or max_workers is None:
-            return os.cpu_count() or 10
-        try:
-            return max(1, int(max_workers))
-        except Exception:
-            return os.cpu_count() or 10
+        """已废弃：并行度由 JobDispatchSettings / WorkerProbe 解析。"""
+        from core.infra.job_dispatcher.probe import WorkerProbe
+
+        return WorkerProbe.resolve(max_workers if max_workers is not None else "auto")
 
     def refresh_scenario(self):
         self._clear_cache()
@@ -312,6 +317,12 @@ class TagManager:
         scenario_model.ensure_metadata(tag_data_service)
 
         settings = scenario_model.get_settings()
+        performance = dict(settings.get("performance") or {})
+        performance.update(self._dispatch_overrides)
+        execute_mode = self._parse_execute_mode(performance.get("execute_mode"))
+        if execute_mode == ExecuteMode.ELASTIC:
+            raise NotImplementedError("ExecuteMode.ELASTIC is not implemented yet")
+
         tag_target_type = str(settings.get("tag_target_type") or TagTargetType.ENTITY_BASED.value).strip().lower()
         # 获取实体列表
         if tag_target_type == TagTargetType.GENERAL.value:
@@ -321,10 +332,14 @@ class TagManager:
         if not entity_list:
             logger.info(f"无法获取实体列表，跳过执行")
             return
-        
-        # 测试模式：只使用前2个实体进行测试（如果启用）
-        # 注意：这个测试逻辑应该通过配置控制，而不是硬编码
-        # TODO: 通过 settings 或 context 控制测试模式
+
+        if _DEBUG_ENTITY_LIMIT is not None and len(entity_list) > _DEBUG_ENTITY_LIMIT:
+            logger.warning(
+                "DEBUG: 实体列表截断 %d → %d（TagManager._DEBUG_ENTITY_LIMIT）",
+                len(entity_list),
+                _DEBUG_ENTITY_LIMIT,
+            )
+            entity_list = entity_list[:_DEBUG_ENTITY_LIMIT]
 
         # 获取 worker_class（从 cache 中获取，如果不在 cache 中则尝试从 settings 加载）
         scenario_name = scenario_model.get_name()
@@ -343,32 +358,47 @@ class TagManager:
             if scenario_name in self.scenario_cache:
                 logger.debug(f"   Cache has worker_module_path: {'worker_module_path' in self.scenario_cache[scenario_name]}")
 
-        jobs = self._build_jobs(entity_list, settings, scenario_model, worker_class)
+        performance = dict(settings.get("performance") or {})
+        performance.update(self._dispatch_overrides)
+        jobs = self._build_jobs(
+            entity_list,
+            settings,
+            scenario_model,
+            worker_class,
+            entities_per_job=self._resolve_entities_per_job(performance),
+        )
 
         if not jobs:
             logger.warning(f"没有新的计算任务，跳过执行: scenario={scenario_name}")
             return
 
-        # 执行 jobs
-        # 从 settings 中获取 max_workers 配置
-        performance = settings.get("performance", {})
-        max_workers = performance.get("max_workers", "auto")
-        profile_enabled = bool(
-            self.is_verbose
-            or performance.get("profile")
-            or os.environ.get("NTQ_TAG_PROFILE", "").strip() in ("1", "true", "yes")
-        )
-        save_batch_size = int(performance.get("save_batch_size", 5000))
         self._execute_jobs(
             jobs,
             scenario_name,
             worker_class,
-            max_workers=max_workers,
-            profile_enabled=profile_enabled,
-            save_batch_size=save_batch_size,
+            performance=performance,
+            profile_enabled=bool(
+                self.is_verbose
+                or performance.get("profile")
+                or os.environ.get("NTQ_TAG_PROFILE", "").strip() in ("1", "true", "yes")
+            ),
         )
 
-    def _build_jobs(self, entity_list: List[str], settings: Dict[str, Any], scenario_model: ScenarioModel, worker_class: Type[BaseTagWorker]):
+    @staticmethod
+    def _resolve_entities_per_job(performance: Dict[str, Any]) -> int:
+        if _DEBUG_ENTITIES_PER_JOB is not None:
+            return max(1, int(_DEBUG_ENTITIES_PER_JOB))
+        return max(1, int(performance.get("entities_per_job") or 1))
+
+    def _build_jobs(
+        self,
+        entity_list: List[str],
+        settings: Dict[str, Any],
+        scenario_model: ScenarioModel,
+        worker_class: Type[BaseTagWorker],
+        *,
+        entities_per_job: int = 1,
+    ):
         """
         构建 jobs（每个 entity 一个 job）
         
@@ -425,94 +455,88 @@ class TagManager:
         
         jobs = []
         global_extra_cache = self._build_global_extra_cache(settings, start=default_start_date, end=default_end_date)
+        latest_completed = JobHelper._resolve_latest_completed_trading_date()
+        entity_specs: List[Dict[str, Any]] = []
+
+        scenario_cache = self.scenario_cache.get(scenario_name)
+        if not scenario_cache:
+            raise ValueError(f"Scenario {scenario_name} 不在缓存中")
+        worker_module_path = scenario_cache.get("worker_module_path")
+        worker_class_name = scenario_cache.get("worker_class_name")
+        if not worker_module_path or not worker_class_name:
+            raise ValueError(
+                f"缺少 worker 模块信息: worker_module_path={worker_module_path}, "
+                f"worker_class_name={worker_class_name}"
+            )
 
         for entity_id in entity_list:
-            # 获取该 entity 的最后更新日期（INCREMENTAL 模式）
-            # 从该 scenario 下所有 tag values 中找到该 entity 的最大 as_of_date
             entity_last_update_date = None
             if update_mode == TagUpdateMode.INCREMENTAL:
                 entity_info = entity_last_update_info.get(entity_id, {})
                 entity_last_update_date = entity_info.get("max_as_of_date")
-            
-            # 计算该 entity 的 start_date 和 end_date
+
             start_date, end_date = JobHelper.calculate_start_and_end_date(
                 update_mode=update_mode,
                 entity_last_update_date=entity_last_update_date,
                 default_start_date=default_start_date,
-                default_end_date=default_end_date
+                default_end_date=default_end_date,
+                latest_completed_trading_date=latest_completed,
             )
-            
-            # 从 cache 获取 worker 模块信息（用于子进程重新导入）
-            # 注意：每次循环都要重新获取，确保获取到最新的缓存
-            scenario_cache = self.scenario_cache.get(scenario_name)
-            if not scenario_cache:
-                logger.error(f"❌ Scenario {scenario_name} 不在缓存中!")
-                logger.error(f"   Available scenarios: {list(self.scenario_cache.keys())}")
-                logger.error(f"   scenario_cache type: {type(self.scenario_cache)}")
-                logger.error(f"   scenario_cache content: {self.scenario_cache}")
-                raise ValueError(f"Scenario {scenario_name} 不在缓存中")
-            
-            worker_module_path = scenario_cache.get("worker_module_path")
-            worker_class_name = scenario_cache.get("worker_class_name")
-            
-            # 调试：如果值为 None，记录详细警告
-            if not worker_module_path or not worker_class_name:
-                logger.error(f"❌ Scenario {scenario_name} 的缓存中缺少 worker 模块信息!")
-                logger.error(f"   worker_module_path={worker_module_path}")
-                logger.error(f"   worker_class_name={worker_class_name}")
-                logger.error(f"   scenario_cache type: {type(scenario_cache)}")
-                logger.error(f"   scenario_cache keys: {list(scenario_cache.keys()) if isinstance(scenario_cache, dict) else 'Not a dict'}")
-                logger.error(f"   scenario_cache full content: {scenario_cache}")
-                logger.error(f"   Available scenarios: {list(self.scenario_cache.keys())}")
-                raise ValueError(f"缺少 worker 模块信息: worker_module_path={worker_module_path}, worker_class_name={worker_class_name}")
-            
-            # 确保 worker_module_path 和 worker_class_name 不为 None
-            if not worker_module_path or not worker_class_name:
-                logger.error(f"❌ 在构建 job 时发现 worker 模块信息为 None!")
-                logger.error(f"   entity_id: {entity_id}")
-                logger.error(f"   scenario_name: {scenario_name}")
-                logger.error(f"   worker_module_path: {worker_module_path}")
-                logger.error(f"   worker_class_name: {worker_class_name}")
-                logger.error(f"   scenario_cache exists: {scenario_name in self.scenario_cache}")
-                if scenario_name in self.scenario_cache:
-                    logger.error(f"   Cache keys: {list(self.scenario_cache[scenario_name].keys())}")
-                    logger.error(f"   Full cache: {self.scenario_cache[scenario_name]}")
-                raise ValueError(f"缺少 worker 模块信息: worker_module_path={worker_module_path}, worker_class_name={worker_class_name}")
-            
-            job = {
-                "id": scenario_model.get_identifier() + "_" + entity_id,
-                "payload": {
+
+            entity_specs.append(
+                {
                     "entity_id": entity_id,
-                    "entity_type": entity_type,  # 添加 entity_type
-                    "scenario_name": scenario_name,
-                    "update_mode": update_mode,
-                    "tag_definitions": tag_definitions,  # 使用 tag_definitions 列表
                     "start_date": start_date,
                     "end_date": end_date,
-                    "settings": settings,  # 添加完整的 settings
-                    "worker_module_path": worker_module_path,  # 用于子进程重新导入
-                    "worker_class_name": worker_class_name,  # 用于子进程重新导入
-                    "global_extra_cache": global_extra_cache,
-                },
-            }
-            
-            # 调试：验证 payload 中是否包含 worker 模块信息
-            payload_worker_module_path = job["payload"].get("worker_module_path")
-            payload_worker_class_name = job["payload"].get("worker_class_name")
-            if not payload_worker_module_path or not payload_worker_class_name:
-                logger.error(f"❌ Job payload 中缺少 worker 模块信息!")
-                logger.error(f"   Payload keys: {list(job['payload'].keys())}")
-                logger.error(f"   worker_module_path in payload: {'worker_module_path' in job['payload']}")
-                logger.error(f"   worker_class_name in payload: {'worker_class_name' in job['payload']}")
-                logger.error(f"   payload_worker_module_path value: {payload_worker_module_path}")
-                logger.error(f"   payload_worker_class_name value: {payload_worker_class_name}")
-                logger.error(f"   Original worker_module_path: {worker_module_path}")
-                logger.error(f"   Original worker_class_name: {worker_class_name}")
-                raise ValueError(f"Job payload 中缺少 worker 模块信息: worker_module_path={payload_worker_module_path}, worker_class_name={payload_worker_class_name}")
-                raise ValueError(f"Job payload 中缺少 worker 模块信息")
-            jobs.append(job)
+                }
+            )
+
+        shared_payload = {
+            "entity_type": entity_type,
+            "scenario_name": scenario_name,
+            "update_mode": update_mode,
+            "tag_definitions": tag_definitions,
+            "settings": settings,
+            "worker_module_path": worker_module_path,
+            "worker_class_name": worker_class_name,
+            "global_extra_cache": global_extra_cache,
+        }
+        batch_size = max(1, int(entities_per_job))
+        scenario_id = scenario_model.get_identifier()
+        for batch_idx in range(0, len(entity_specs), batch_size):
+            batch = entity_specs[batch_idx : batch_idx + batch_size]
+            if batch_size == 1:
+                ent = batch[0]
+                jobs.append(
+                    {
+                        "id": f"{scenario_id}_{ent['entity_id']}",
+                        "payload": {**shared_payload, **ent},
+                    }
+                )
+            else:
+                jobs.append(
+                    {
+                        "id": f"{scenario_id}_batch{batch_idx // batch_size}",
+                        "payload": {**shared_payload, "entities": batch},
+                    }
+                )
+
+        if batch_size > 1:
+            logger.info(
+                "Tag jobs 分组: entities=%d, entities_per_job=%d, dispatch_jobs=%d",
+                len(entity_specs),
+                batch_size,
+                len(jobs),
+            )
 
         return jobs
+
+    @staticmethod
+    def _parse_execute_mode(raw: Any) -> ExecuteMode:
+        try:
+            return ExecuteMode(str(raw or "queue").lower())
+        except ValueError:
+            return ExecuteMode.QUEUE
 
     def _execute_jobs(
         self,
@@ -520,15 +544,29 @@ class TagManager:
         scenario_name: str,
         worker_class: Type[BaseTagWorker],
         *,
-        max_workers: Union[str, int] = "auto",
+        performance: Optional[Dict[str, Any]] = None,
         profile_enabled: bool = False,
-        save_batch_size: int = 5000,
     ):
+        performance = performance or {}
+        save_batch_size = int(performance.get("save_batch_size", 5000))
+        dispatch_settings = JobDispatchSettings(
+            worker=ExecutionBackend.PROCESS,
+            execute_mode=self._parse_execute_mode(performance.get("execute_mode")),
+            max_workers=performance.get("max_workers", "auto"),
+            batch_size=int(performance.get("batch_size", 10)),
+            prefetch_ahead=int(performance.get("prefetch_ahead", 2)),
+            reserve_cores=int(performance.get("reserve_cores", 1)),
+            max_workers_cap=performance.get("max_workers_cap"),
+        )
+        run_name = f"tag:{scenario_name}"
         total_jobs = len(jobs)
+        entity_count = sum(
+            len(j["payload"].get("entities") or [{"entity_id": j["payload"].get("entity_id")}])
+            for j in jobs
+            if j.get("payload")
+        )
         start_time = time.time()
         profile = TagRunProfile(enabled=profile_enabled)
-
-        progress = {"finished": 0, "ok": 0, "fail": 0, "last_pct": -1}
         stager = TagJobStager(
             data_mgr=self.data_mgr,
             contract_cache=self._contract_cache,
@@ -537,29 +575,27 @@ class TagManager:
             self.tag_data_service.save_batch,
             batch_size=save_batch_size,
         )
+        progress_state = {"last_pct": -1}
 
-        def on_stage_job(shell: JobShell) -> StagedJob:
+        def to_executable_job(job: Job) -> Job:
             t0 = time.perf_counter()
-            staged = stager.stage(shell)
+            enriched = stager.to_executable_job(job)
             profile.record_stage(
                 elapsed_sec=time.perf_counter() - t0,
-                payload=staged.payload,
+                payload=enriched.payload,
             )
-            return staged
+            return enriched
 
-        def on_report(report: JobReport) -> None:
+        def on_result(report: JobReport, progress: RunProgress) -> None:
             t0 = time.perf_counter()
-            progress["finished"] += 1
             save_batch_sec = 0.0
             if not report.success:
-                progress["fail"] += 1
                 logger.error(
                     "Tag job 失败: job_id=%s error=%s",
                     report.job_id,
                     report.error,
                 )
             else:
-                progress["ok"] += 1
                 data = report.data if isinstance(report.data, dict) else {}
                 exec_sec = data.get("_profile_execute_sec")
                 if isinstance(exec_sec, (int, float)):
@@ -573,39 +609,38 @@ class TagManager:
                 save_batch_sec=save_batch_sec,
             )
 
-            finished = progress["finished"]
+            finished = progress.finished
             pct = int(finished * 100 / total_jobs) if total_jobs else 100
-            if finished == total_jobs or pct >= progress["last_pct"] + 5:
+            if finished == total_jobs or pct >= progress_state["last_pct"] + 5:
                 logger.info(
-                    "Tag 进度: %s/%s (%s%%) 成功=%s 失败=%s",
+                    "[%s] Tag 进度: %s/%s (%s%%) 成功=%s 失败=%s",
+                    run_name,
                     finished,
                     total_jobs,
                     pct,
-                    progress["ok"],
-                    progress["fail"],
+                    progress.ok,
+                    progress.fail,
                 )
-                progress["last_pct"] = pct
+                progress_state["last_pct"] = pct
 
-        shells = [JobShell(job_id=job["id"], payload=job["payload"]) for job in jobs]
-        executor = create_job_executor(
-            ExecutionBackend.PROCESS,
-            max_workers=max_workers,
+        dispatcher_jobs = [Job(job_id=job["id"], payload=job["payload"]) for job in jobs]
+        dispatcher = JobDispatcher(
+            settings=dispatch_settings,
             execute=TagManager._execute_single_job,
-            module_name="TagManager",
+            to_executable_job=to_executable_job,
+            on_result=on_result,
         )
         logger.info(
-            "🚀 开始执行 %s 个 jobs (scenario=%s, workers=%s, config=%r)",
+            "[%s] 🚀 开始执行 dispatch_jobs=%s entities=%s (workers=%s, max_workers=%r, reserve_cores=%s, mode=%s)",
+            run_name,
             total_jobs,
-            scenario_name,
-            executor.max_workers,
-            max_workers,
+            entity_count,
+            dispatcher.executor.max_workers,
+            dispatch_settings.max_workers,
+            dispatch_settings.reserve_cores,
+            dispatch_settings.execute_mode.value,
         )
-        dispatcher = JobDispatcher(
-            on_stage_job=on_stage_job,
-            on_report=on_report,
-            executor=executor,
-        )
-        dispatch_result = dispatcher.run(shells)
+        dispatch_result = dispatcher.run(dispatcher_jobs, run_name=run_name)
 
         save_buffer.flush()
 
@@ -616,7 +651,8 @@ class TagManager:
 
         logger.info(
             f"Tag计算完成: scenario={scenario_name}, "
-            f"总jobs={total_jobs}, 成功={completed_jobs}, 失败={failed_jobs}, "
+            f"dispatch_jobs={total_jobs}, entities={entity_count}, "
+            f"成功={completed_jobs}, 失败={failed_jobs}, "
             f"写入tag_values={saved_tag_count}, "
             f"save_batch次数={save_buffer.flush_count}, 耗时={elapsed_time:.2f}秒"
         )
@@ -705,33 +741,20 @@ class TagManager:
         """
         Tag Worker 包装函数（JobExecutor execute）。
 
-        子进程只计算并返回 tag_values；主进程 on_report 负责 save_batch。
+        子进程只计算并返回 tag_values；主进程 on_result 负责 save_batch。
+        支持单股 payload 或多股 ``entities`` + ``_inject.by_entity`` batch payload。
         """
-        job_id = payload.get("entity_id", "unknown")
-        job_payload = payload
+        entities = payload.get("entities")
+        if isinstance(entities, list) and len(entities) > 1:
+            return TagManager._execute_batch_entities(payload, entities)
+
         exec_t0 = time.perf_counter()
-
         try:
-            import importlib
-
-            worker_module_path = job_payload.get("worker_module_path")
-            worker_class_name = job_payload.get("worker_class_name")
-
-            if not worker_module_path or not worker_class_name:
-                raise ValueError(
-                    f"缺少 worker 模块信息: worker_module_path={worker_module_path}, "
-                    f"worker_class_name={worker_class_name}"
-                )
-
-            worker_module = importlib.import_module(worker_module_path)
-            worker_class = getattr(worker_module, worker_class_name)
-            worker = worker_class(job_payload=job_payload)
-            result = worker.process_entity()
+            result = TagManager._run_worker_for_payload(payload)
             execute_sec = time.perf_counter() - exec_t0
-
             return {
                 "success": bool(result.get("success", True)),
-                "entity_id": job_payload.get("entity_id"),
+                "entity_id": payload.get("entity_id"),
                 "tag_values": result.get("tag_values") or [],
                 "total_tags": result.get("total_tags_created", 0),
                 "processed_dates": result.get("processed_dates", 0),
@@ -740,12 +763,90 @@ class TagManager:
                 "_profile_execute_sec": execute_sec,
             }
         except Exception as e:
-            logger.exception("Job %s failed: %s", job_id, e)
+            logger.exception("Job %s failed: %s", payload.get("entity_id", "unknown"), e)
             return {
                 "success": False,
-                "entity_id": job_payload.get("entity_id"),
+                "entity_id": payload.get("entity_id"),
                 "tag_values": [],
                 "error": str(e),
                 "_profile_execute_sec": time.perf_counter() - exec_t0,
             }
+
+    @staticmethod
+    def _execute_batch_entities(
+        payload: Dict[str, Any],
+        entities: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        exec_t0 = time.perf_counter()
+        inject_root = payload.get("_inject") or {}
+        by_entity = inject_root.get("by_entity") or {}
+        all_tag_values: List[Dict[str, Any]] = []
+        errors: List[str] = []
+        ok = True
+
+        for ent in entities:
+            eid = str(ent.get("entity_id") or "")
+            slice_inject = by_entity.get(eid)
+            if slice_inject is None:
+                ok = False
+                errors.append(f"missing inject slice for entity_id={eid}")
+                continue
+            sub_payload = TagManager._entity_sub_payload(payload, ent, slice_inject)
+            try:
+                result = TagManager._run_worker_for_payload(sub_payload)
+                if not result.get("success", True):
+                    ok = False
+                all_tag_values.extend(result.get("tag_values") or [])
+                errors.extend(result.get("errors") or [])
+            except Exception as exc:
+                ok = False
+                msg = f"entity_id={eid}: {exc}"
+                logger.exception("Batch job entity failed: %s", msg)
+                errors.append(msg)
+
+        return {
+            "success": ok,
+            "entity_count": len(entities),
+            "tag_values": all_tag_values,
+            "total_tags": len(all_tag_values),
+            "errors": errors,
+            "_profile_execute_sec": time.perf_counter() - exec_t0,
+        }
+
+    @staticmethod
+    def _entity_sub_payload(
+        payload: Dict[str, Any],
+        entity: Dict[str, Any],
+        inject_slice: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        keys = (
+            "entity_type",
+            "scenario_name",
+            "update_mode",
+            "tag_definitions",
+            "settings",
+            "worker_module_path",
+            "worker_class_name",
+            "global_extra_cache",
+        )
+        sub = {key: payload[key] for key in keys if key in payload}
+        sub.update(entity)
+        sub["_inject"] = inject_slice
+        return sub
+
+    @staticmethod
+    def _run_worker_for_payload(job_payload: Dict[str, Any]) -> Dict[str, Any]:
+        import importlib
+
+        worker_module_path = job_payload.get("worker_module_path")
+        worker_class_name = job_payload.get("worker_class_name")
+        if not worker_module_path or not worker_class_name:
+            raise ValueError(
+                f"缺少 worker 模块信息: worker_module_path={worker_module_path}, "
+                f"worker_class_name={worker_class_name}"
+            )
+        worker_module = importlib.import_module(worker_module_path)
+        worker_class = getattr(worker_module, worker_class_name)
+        worker = worker_class(job_payload=job_payload)
+        return worker.process_entity()
 

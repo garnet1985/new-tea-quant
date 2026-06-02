@@ -13,7 +13,7 @@ Dispatcher 只认：`jobs`、`execute`、`on_result`、可选 `to_executable_job
 
 ## 2. 废弃 module_name auto
 
-`max_workers="auto"` 由 **WorkerProbe**（CPU + reserve + cap）解析，不再读 `worker.json` 的 `module_task_config`。
+`max_workers="auto"` 由 **WorkerProbe** 解析：`mp.cpu_count() - reserve_cores`（为 OS + 主进程留核）。**auto 不看内存**；内存调节留给 ELASTIC（未实现）。不再读 `worker.json` 的 `module_task_config`。
 
 `run_name` 仅用于日志，与并行度配置无关。
 

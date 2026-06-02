@@ -61,10 +61,11 @@ result = dispatcher.run(jobs, run_name="tag:scenario_x")
 ## WorkerProbe
 
 ```python
-WorkerProbe.resolve("auto", reserve_cores=2, cap=8) -> int
+WorkerProbe.resolve("auto", reserve_cores=1, cap=8) -> int
+# auto = mp.cpu_count() - reserve_cores
 ```
 
-不读 `module_name` / `worker.json`。
+不读 `module_name` / `worker.json`。内存限流仅 ELASTIC（未实现）。
 
 ---
 

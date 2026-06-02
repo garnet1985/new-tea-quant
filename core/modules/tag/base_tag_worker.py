@@ -266,7 +266,7 @@ class BaseTagWorker(ABC):
         """
         后处理阶段
 
-        批量写库由 TagManager.on_report（主进程）负责；Worker 只返回 tag_values。
+        批量写库由 TagManager.on_result（主进程）负责；Worker 只返回 tag_values。
         """
         self.on_after_execute_tagging(result)
     

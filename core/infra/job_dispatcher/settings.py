@@ -25,7 +25,7 @@ class JobDispatchSettings:
     """默认 max_workers + prefetch_ahead。"""
     continue_on_failure: bool = True
     start_method: str = "spawn"
-    reserve_cores: int = 2
-    """auto 时为主进程保留的核心数。"""
+    reserve_cores: int = 1
+    """auto 时为 OS + 主进程（stage/report）保留的逻辑核数。"""
     max_workers_cap: Optional[int] = None
     """auto 结果的上限（可选）。"""

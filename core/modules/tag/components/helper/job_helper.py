@@ -59,7 +59,9 @@ class JobHelper:
         update_mode: TagUpdateMode,
         entity_last_update_date: Optional[str] = None,
         default_start_date: Optional[str] = None,
-        default_end_date: Optional[str] = None
+        default_end_date: Optional[str] = None,
+        *,
+        latest_completed_trading_date: Optional[str] = None,
     ) -> Tuple[str, str]:
         """
         计算起始日期和结束日期
@@ -69,13 +71,17 @@ class JobHelper:
             entity_last_update_date: 该 entity 的最后更新日期（INCREMENTAL 模式使用）
             default_start_date: 默认开始日期（REFRESH 模式使用，如果为 None 则从 conf 获取）
             default_end_date: 场景配置的结束日期；若晚于 latest completed 则截断到后者
+            latest_completed_trading_date: 可选；传入则不再逐 entity 查 CalendarService
             
         Returns:
             Tuple[str, str]: (start_date, end_date)
         """
         from core.infra.project_context import ConfigManager
 
-        latest_completed = JobHelper._resolve_latest_completed_trading_date()
+        latest_completed = (
+            str(latest_completed_trading_date or "").strip()
+            or JobHelper._resolve_latest_completed_trading_date()
+        )
         if default_end_date:
             end_date = JobHelper._cap_end_date_to_latest(default_end_date, latest_completed)
         else:

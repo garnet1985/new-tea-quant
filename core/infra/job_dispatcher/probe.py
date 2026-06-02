@@ -16,13 +16,13 @@ class WorkerProbe:
         cls,
         max_workers: Union[str, int],
         *,
-        reserve_cores: int = 2,
+        reserve_cores: int = 1,
         cap: Optional[int] = None,
     ) -> int:
         """
         解析并行 worker 数。
 
-        - ``"auto"``：按 CPU 估算（物理核近似 = cpu//2，减 reserve）
+        - ``"auto"``：``mp.cpu_count() - reserve_cores``（为 OS + 主进程留核）
         - 整数：校验 ∈ [1, cpu×2]
         """
         if isinstance(max_workers, str) and max_workers.lower() == "auto":
@@ -49,10 +49,10 @@ class WorkerProbe:
     @staticmethod
     def _auto(*, reserve_cores: int, cap: Optional[int]) -> int:
         cpu_count = mp.cpu_count() or 1
-        physical_cores = max(1, cpu_count // 2)
-        workers = max(1, physical_cores - max(0, reserve_cores))
+        reserve = max(0, min(int(reserve_cores), cpu_count - 1))
+        workers = max(1, cpu_count - reserve)
         if cap is not None:
-            workers = min(workers, max(1, cap))
+            workers = min(workers, max(1, int(cap)))
         return WorkerProbe._validate_int(workers)
 
     @staticmethod

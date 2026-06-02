@@ -7,6 +7,7 @@
     python -m core.modules.tag --list
     python -m core.modules.tag my_scenario
     python -m core.modules.tag my_scenario -v
+    python -m core.modules.tag my_scenario -v --execute-mode batch --batch-size 50
     python -m core.modules.tag --all -v
 """
 from __future__ import annotations
@@ -15,6 +16,7 @@ import argparse
 import logging
 import sys
 from pathlib import Path
+from typing import Any, Dict, Union
 
 
 def _repo_root() -> Path:
@@ -26,6 +28,12 @@ def _ensure_import_path() -> None:
     root = str(_repo_root())
     if root not in sys.path:
         sys.path.insert(0, root)
+
+
+def _parse_max_workers(raw: str) -> Union[str, int]:
+    if raw.lower() == "auto":
+        return "auto"
+    return int(raw)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -53,16 +61,63 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="输出 INFO 日志（含 JobDispatcher 进度）",
     )
+    parser.add_argument(
+        "--execute-mode",
+        choices=("queue", "batch", "elastic"),
+        help="覆盖 settings.performance.execute_mode（JobDispatcher ExecuteMode）",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        metavar="N",
+        help="覆盖 settings.performance.batch_size（仅 batch 模式）",
+    )
+    parser.add_argument(
+        "--max-workers",
+        metavar="N|auto",
+        help="覆盖 settings.performance.max_workers",
+    )
+    parser.add_argument(
+        "--prefetch-ahead",
+        type=int,
+        metavar="N",
+        help="覆盖 settings.performance.prefetch_ahead（queue 模式）",
+    )
+    parser.add_argument(
+        "--profile",
+        action="store_true",
+        help="启用 TagRunProfile（等同 performance.profile / NTQ_TAG_PROFILE）",
+    )
+    parser.add_argument(
+        "--entities-per-job",
+        type=int,
+        metavar="N",
+        help="覆盖 settings.performance.entities_per_job（一 job N 股 bulk stage）",
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(
         level=logging.INFO if args.verbose else logging.WARNING,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
     )
 
     from core.modules.tag import TagManager
 
-    mgr = TagManager(is_verbose=args.verbose)
+    dispatch_overrides: Dict[str, Any] = {}
+    if args.execute_mode:
+        dispatch_overrides["execute_mode"] = args.execute_mode
+    if args.batch_size is not None:
+        dispatch_overrides["batch_size"] = args.batch_size
+    if args.max_workers is not None:
+        dispatch_overrides["max_workers"] = _parse_max_workers(args.max_workers)
+    if args.prefetch_ahead is not None:
+        dispatch_overrides["prefetch_ahead"] = args.prefetch_ahead
+    if args.profile:
+        dispatch_overrides["profile"] = True
+    if args.entities_per_job is not None:
+        dispatch_overrides["entities_per_job"] = max(1, int(args.entities_per_job))
+
+    mgr = TagManager(is_verbose=args.verbose, dispatch_overrides=dispatch_overrides)
 
     if args.list or (not args.all and not args.scenario):
         names = sorted(mgr.scenario_cache.keys())
@@ -75,6 +130,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.list:
             return 0
         print("\n示例: python -m core.modules.tag <scenario> -v")
+        print("调度: --execute-mode queue|batch|elastic [--batch-size N]")
         return 0
 
     if args.all:

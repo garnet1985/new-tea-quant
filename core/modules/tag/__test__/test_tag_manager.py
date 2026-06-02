@@ -241,7 +241,6 @@ class TestTagManager:
             args, _ = mock_build_jobs.call_args
             assert args[0] == ["__general__"]
 
-    @patch("core.modules.tag.tag_manager.create_job_executor")
     @patch("core.modules.tag.tag_manager.JobDispatcher")
     @patch("core.modules.tag.tag_manager.TagJobStager")
     @patch("core.modules.tag.tag_manager.DataManager")
@@ -252,10 +251,9 @@ class TestTagManager:
         mock_data_manager,
         mock_stager_cls,
         mock_dispatcher_cls,
-        mock_create_executor,
     ):
-        """Worker 返回 tag_values，主进程 on_report 调用 save_batch。"""
-        from core.infra.job_dispatcher import DispatchResult, JobReport
+        """Worker 返回 tag_values，主进程 on_result 调用 save_batch。"""
+        from core.infra.job_dispatcher import DispatchResult, JobReport, RunProgress
         from core.modules.tag.tag_manager import TagManager
 
         mock_get_scenarios_root.return_value = Path("/test/scenarios")
@@ -272,45 +270,47 @@ class TestTagManager:
             def __init__(
                 self,
                 *,
-                on_stage_job,
-                on_report,
-                executor,
-                on_release_staged=None,
-                config=None,
+                settings,
+                execute,
+                on_result,
+                to_executable_job=None,
+                **kwargs,
             ):
-                captured["on_stage_job"] = on_stage_job
-                captured["on_report"] = on_report
-                captured["executor"] = executor
+                captured["on_result"] = on_result
+                captured["settings"] = settings
+                self.executor = type("E", (), {"max_workers": settings.max_workers})()
 
-            def run(self, shells):
-                captured["on_report"](
+            def run(self, jobs, run_name=""):
+                captured["on_result"](
                     JobReport(
                         job_id="job1",
                         success=True,
                         data={"tag_values": [{"entity_id": "000001", "json_value": "1"}]},
-                    )
+                    ),
+                    RunProgress(finished=1, total=1, ok=1, fail=0),
                 )
                 return DispatchResult(total=1, completed=1, failed=0)
 
         mock_dispatcher_cls.side_effect = _FakeDispatcher
-        mock_create_executor.return_value = MagicMock(max_workers=2)
         mock_stager_cls.return_value = MagicMock()
 
         with patch.object(TagManager, "_discover_scenarios_from_folder"):
             manager = TagManager(is_verbose=False)
             jobs = [{"id": "job1", "payload": {"entity_id": "000001"}}]
             result = manager._execute_jobs(
-                jobs, "test_scenario", MagicMock(), max_workers=2
+                jobs,
+                "test_scenario",
+                MagicMock(),
+                performance={"max_workers": 2},
             )
 
-        mock_create_executor.assert_called_once()
         mock_tag_service.save_batch.assert_called_once_with(
             [{"entity_id": "000001", "json_value": "1"}]
         )
         assert result["completed_jobs"] == 1
         assert result["saved_tag_values"] == 1
+        assert captured["settings"].max_workers == 2
 
-    @patch("core.modules.tag.tag_manager.create_job_executor")
     @patch("core.modules.tag.tag_manager.JobDispatcher")
     @patch("core.modules.tag.tag_manager.TagJobStager")
     @patch("core.modules.tag.tag_manager.DataManager")
@@ -321,10 +321,9 @@ class TestTagManager:
         mock_data_manager,
         mock_stager_cls,
         mock_dispatcher_cls,
-        mock_create_executor,
     ):
         """多个 job 的 tag_values 按 save_batch_size 合并 upsert。"""
-        from core.infra.job_dispatcher import DispatchResult, JobReport
+        from core.infra.job_dispatcher import DispatchResult, JobReport, RunProgress
         from core.modules.tag.tag_manager import TagManager
 
         mock_get_scenarios_root.return_value = Path("/test/scenarios")
@@ -338,22 +337,23 @@ class TestTagManager:
         captured = {}
 
         class _FakeDispatcher:
-            def __init__(self, *, on_stage_job, on_report, executor, **kwargs):
-                captured["on_report"] = on_report
+            def __init__(self, *, settings, execute, on_result, **kwargs):
+                captured["on_result"] = on_result
+                self.executor = type("E", (), {"max_workers": settings.max_workers})()
 
-            def run(self, shells):
+            def run(self, jobs, run_name=""):
                 for i in range(3):
-                    captured["on_report"](
+                    captured["on_result"](
                         JobReport(
                             job_id=f"job{i}",
                             success=True,
                             data={"tag_values": [{"entity_id": f"00000{i}", "json_value": "1"}]},
-                        )
+                        ),
+                        RunProgress(finished=i + 1, total=3, ok=i + 1, fail=0),
                     )
                 return DispatchResult(total=3, completed=3, failed=0)
 
         mock_dispatcher_cls.side_effect = _FakeDispatcher
-        mock_create_executor.return_value = MagicMock(max_workers=2)
         mock_stager_cls.return_value = MagicMock()
 
         with patch.object(TagManager, "_discover_scenarios_from_folder"):
@@ -363,8 +363,7 @@ class TestTagManager:
                 jobs,
                 "test_scenario",
                 MagicMock(),
-                max_workers=2,
-                save_batch_size=2,
+                performance={"max_workers": 2, "save_batch_size": 2},
             )
 
         assert mock_tag_service.save_batch.call_count == 2

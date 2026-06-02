@@ -31,10 +31,7 @@ from core.infra.job_dispatcher import (
 from core.modules.tag.components.job_staging.tag_job_stager import TagJobStager
 from core.modules.tag.components.job_staging.tag_run_profile import TagRunProfile
 from core.modules.tag.components.report_save_buffer import TagReportSaveBuffer
-from core.infra.db.duckdb_wal_policy import (
-    checkpoint_connection_manager,
-    should_checkpoint_after_tag_run,
-)
+from core.infra.db.duckdb_wal_policy import should_checkpoint_after_tag_run
 
 logger = logging.getLogger(__name__)
 
@@ -654,7 +651,7 @@ class TagManager:
             return
         try:
             logger.info("DuckDB CHECKPOINT（Tag 完成后合并 WAL）…")
-            results = checkpoint_connection_manager(db.connection_manager)
+            results = db.checkpoint_duckdb()
             failed = [d for d, ok in (results or {}).items() if not ok]
             if failed:
                 logger.warning("DuckDB CHECKPOINT 部分失败: %s", failed)

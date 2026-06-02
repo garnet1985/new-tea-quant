@@ -170,54 +170,63 @@ class DbBaseModel:
     #        table operations
     # ***********************************
     
+    def _schema_manager(self):
+        """已 initialize 时用 mounted engine 的 SchemaManager，否则按 config 构造。"""
+        sm = getattr(self.db, "schema_manager", None)
+        if sm is not None:
+            return sm
+        from core.infra.db.schema_management.schema_manager import SchemaManager
+
+        return SchemaManager(
+            database_type=self.db.config.get("database_type", "postgresql")
+        )
+
     def load_schema(self) -> dict:
         """
         加载表的 schema。由基类统一实现：通过 SchemaManager 按 self.table_name
         从 core/tables 下各表目录的 schema.py 加载（按 schema["name"] 索引）；
         子类无需覆盖，只需在 __init__ 中传入正确的 table_name 即可。
         """
-        from core.infra.db.schema_management.schema_manager import SchemaManager
-
         op = self._table_op()
         if op is not None:
             try:
                 return op.load_schema()
             except ValueError:
                 pass
-        
-        # 使用 SchemaManager 加载 schema
-        schema_manager = SchemaManager()
-        schema = schema_manager.get_table_schema(self.table_name)
-        
+
+        schema = self._schema_manager().get_table_schema(self.table_name)
         if schema:
             return schema
-        
-        # 如果不存在，可能是策略自定义表（暂不处理）
+
         logger.warning(f"Schema not found for table {self.table_name}")
         return None
 
     def create_table(self, custom_table_name: str = None) -> None:
         if not self.schema:
-            logger.error(f"Failed create table: {self.table_name}, because schema is not found")
+            logger.error(
+                f"Failed create table: {self.table_name}, because schema is not found"
+            )
             return
 
-        # 使用 SchemaManager 生成 SQL
-        from core.infra.db.schema_management.schema_manager import SchemaManager
-        schema_manager = SchemaManager(database_type=self.db.config.get('database_type', 'postgresql'))
-        
-        # 如果有自定义表名，修改 schema
         schema_to_use = self.schema.copy()
         if custom_table_name:
-            schema_to_use['name'] = custom_table_name
-        
-        sql = schema_manager.generate_create_table_sql(schema_to_use)
+            schema_to_use["name"] = custom_table_name
 
+        if self._uses_engine_table_operator():
+            self.db.engine.create_table(schema_to_use)
+            logger.debug(f"Table '{schema_to_use.get('name', self.table_name)}' is ready")
+            return
+
+        sql = self._schema_manager().generate_create_table_sql(schema_to_use)
         with self._table_cursor() as cursor:
             cursor.execute(sql)
-            # 详细日志由 logging 配置控制
             logger.debug(f"Table '{self.table_name}' is ready")
 
     def drop_table(self) -> None:
+        if self._uses_engine_table_operator():
+            self.db.engine.drop_table(self.table_name)
+            logger.debug(f"Table '{self.table_name}' is dropped")
+            return
         with self._table_cursor() as cursor:
             cursor.execute(f"DROP TABLE IF EXISTS {self.table_name}")
             logger.debug(f"Table '{self.table_name}' is dropped")

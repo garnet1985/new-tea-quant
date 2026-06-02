@@ -4,7 +4,7 @@ DbEngineAbc — 挂载在 DatabaseManager 上的引擎契约。
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.infra.db.engines.abc.table_abc import DbTableAbc
@@ -75,8 +75,18 @@ class DbEngineAbc(ABC):
         pass
 
     @abstractmethod
-    def create_all_tables(self, schemas: Dict[str, Dict[str, Any]]) -> None:
+    def create_all_tables(self, schemas: Optional[Dict[str, Dict[str, Any]]] = None) -> None:
         """批量建表。"""
+        pass
+
+    @abstractmethod
+    def register_table(self, table_name: str, schema: Dict[str, Any]) -> None:
+        """注册策略等自定义表；已 initialize 时可顺带建表。"""
+        pass
+
+    @abstractmethod
+    def create_registered_tables(self) -> None:
+        """创建所有已注册表。"""
         pass
 
     @abstractmethod
@@ -85,6 +95,14 @@ class DbEngineAbc(ABC):
 
     @abstractmethod
     def drop_table(self, table_name: str) -> None:
+        pass
+
+    @abstractmethod
+    def get_table_schema(self, table_name: str) -> Optional[Dict[str, Any]]:
+        pass
+
+    @abstractmethod
+    def get_table_fields(self, table_name: str) -> List[str]:
         pass
 
     # ------------------------------------------------------------------
@@ -99,6 +117,25 @@ class DbEngineAbc(ABC):
     @abstractmethod
     def wait_for_writes(self, timeout: float = 30.0) -> None:
         pass
+
+    @abstractmethod
+    def queue_write(
+        self,
+        table_name: str,
+        data_list: List[Dict[str, Any]],
+        unique_keys: List[str],
+        callback: Optional[Callable] = None,
+    ) -> None:
+        """异步入队写入（无队列时由各 backend 同步直写）。"""
+        pass
+
+    def get_write_stats(self) -> Dict[str, Any]:
+        """写入队列 / pipeline 统计；默认空。"""
+        return {}
+
+    def checkpoint(self, domains: Optional[list] = None) -> Dict[str, bool]:
+        """DuckDB 专有；其它 backend 默认无操作。"""
+        return {}
 
     # ------------------------------------------------------------------
     # Observability

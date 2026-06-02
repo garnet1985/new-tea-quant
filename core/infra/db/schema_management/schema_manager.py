@@ -17,6 +17,10 @@ from core.infra.project_context import PathManager, FileManager
 from core.infra.db.helpers.db_helpers import DBHelper
 from core.infra.db.schema_management.field import Field
 from core.infra.db.storage_registry import normalize_storage_domain
+from core.infra.db.engines.schema_parser_factory import get_schema_parser
+from core.infra.db.engines._shared.schema_parser_base import SchemaParserBase
+from core.infra.db.engines._shared.ddl_executor import execute_ddl
+from core.infra.db.engines._shared.schema_introspection import fetch_column_names
 
 
 logger = logging.getLogger(__name__)
@@ -64,9 +68,10 @@ class SchemaManager:
     @staticmethod
     def _duckdb_sequence_name(table_name: str, column_name: str) -> str:
         """DuckDB 自增列配套 sequence 名（表级 CREATE SEQUENCE）。"""
-        safe_table = str(table_name or "table").replace(".", "_")
-        safe_col = str(column_name or "id").replace(".", "_")
-        return f"seq_{safe_table}_{safe_col}"
+        return SchemaParserBase.duckdb_sequence_name(table_name, column_name)
+
+    def _ddl_parser(self):
+        return get_schema_parser(self.ddl_database_type)
     
     # ==================== Schema 加载 ====================
     
@@ -221,197 +226,29 @@ class SchemaManager:
         )
     
     def quote_ddl_identifier(self, name: str) -> str:
-        """
-        为当前 ``database_type`` 引用 DDL 标识符。
-        方言差异由 :meth:`DBHelper.quote_identifier_for_dialect` 统一处理。
-        """
-        return DBHelper.quote_identifier_for_dialect(self.database_type, name)
-    
-    # ==================== SQL 生成 ====================
-    
-    def generate_create_table_sql(self, schema: Dict) -> str:
-        """
-        根据 schema 生成 CREATE TABLE SQL（支持多种数据库）
-        
-        Args:
-            schema: schema 字典
-            
-        Returns:
-            CREATE TABLE SQL 语句
-        """
-        table_name = schema['name']
-        fields = schema['fields']
-        primary_key = schema.get('primaryKey')
-        
-        # 验证 fields 是列表类型
-        if not isinstance(fields, list):
-            raise ValueError(
-                f"Schema '{table_name}' 的 'fields' 必须是列表类型，"
-                f"但得到 {type(fields).__name__}: {fields}. "
-                f"这可能是参数传递错误导致的。"
-            )
-        
-        # 将字段字典转换为 Field 对象
-        field_objects = []
-        for field_dict in fields:
-            try:
-                field_obj = Field.from_dict(field_dict)
-                field_objects.append(field_obj)
-            except Exception as e:
-                raise ValueError(f"字段 '{field_dict.get('name', 'unknown')}' 定义无效: {e}")
-        
-        # 构建字段定义
-        field_defs = []
-        sequence_stmts: List[str] = []
-        comments = []  # 存储 COMMENT 语句（PostgreSQL / DuckDB）
-        
-        for field_obj in field_objects:
-            col_name = self.quote_ddl_identifier(field_obj.name)
-            ddl = self.ddl_database_type
-            if ddl == "duckdb" and field_obj.auto_increment:
-                seq_name = self._duckdb_sequence_name(table_name, field_obj.name)
-                sequence_stmts.append(
-                    f"CREATE SEQUENCE IF NOT EXISTS {seq_name} START 1;"
-                )
-                field_sql = (
-                    f"{col_name} {field_obj.to_sql(ddl)} "
-                    f"DEFAULT nextval('{seq_name}')"
-                )
-            else:
-                field_sql = f"{col_name} {field_obj.to_sql(ddl)}"
-            field_sql += field_obj.get_not_null_sql()
-            field_sql += field_obj.get_default_sql(ddl)
-            field_defs.append(field_sql)
-            
-            # 处理 COMMENT（PostgreSQL / DuckDB；MySQL 列注释若需可另走 ALTER）
-            if field_obj.comment and self.ddl_database_type in ("postgresql", "duckdb"):
-                escaped_comment = field_obj.comment.replace("'", "''")
-                qt = self.quote_ddl_identifier(table_name)
-                qc = self.quote_ddl_identifier(field_obj.name)
-                comments.append(f"COMMENT ON COLUMN {qt}.{qc} IS '{escaped_comment}';")
-        
-        # 添加主键（如果字段定义中没有包含）
-        if primary_key:
-            pk_def = self._generate_primary_key_definition(primary_key)
-            field_defs.append(pk_def)
-        
-        # 生成完整 SQL
-        fields_sql = ',\n    '.join(field_defs)
-        table_sql_name = self.quote_ddl_identifier(table_name)
-        create_sql = f"CREATE TABLE IF NOT EXISTS {table_sql_name} (\n    {fields_sql}\n);"
-        
-        # 添加 COMMENT 语句（PostgreSQL / DuckDB）
-        if comments:
-            create_sql += "\n" + "\n".join(comments)
+        """为当前方言引用 DDL 标识符（委托 engine schema_parser）。"""
+        return self._ddl_parser().quote_identifier(name)
 
-        if sequence_stmts:
-            create_sql = "\n".join(sequence_stmts) + "\n" + create_sql
-        
-        return create_sql.strip()
-    
-    def _generate_primary_key_definition(self, primary_key) -> str:
-        """
-        生成主键定义（支持多种数据库）
-        
-        Args:
-            primary_key: 主键字段（字符串或列表）
-            
-        Returns:
-            PRIMARY KEY SQL 定义
-        """
-        if isinstance(primary_key, list):
-            pk_fields = ", ".join(self.quote_ddl_identifier(f) for f in primary_key)
-        else:
-            pk_fields = self.quote_ddl_identifier(primary_key)
-        return f"PRIMARY KEY ({pk_fields})"
-    
+    # ==================== SQL 生成（委托各 engine schema_parser）====================
+
+    def generate_create_table_sql(self, schema: Dict) -> str:
+        """根据 schema 生成 CREATE TABLE SQL。"""
+        return self._ddl_parser().generate_create_table_sql(schema)
+
     def generate_create_index_sql(self, table_name: str, index: Dict) -> str:
-        """
-        生成创建索引的 SQL
-        
-        Args:
-            table_name: 表名
-            index: 索引定义
-            
-        Returns:
-            CREATE INDEX SQL 语句
-        """
-        index_name = index['name']
-        index_fields = index['fields']
-        is_unique = index.get('unique', False)
-        
-        unique_keyword = 'UNIQUE' if is_unique else ''
-        
-        fields_str = ", ".join(self.quote_ddl_identifier(f) for f in index_fields)
-        table_name_quoted = self.quote_ddl_identifier(table_name)
-        index_name_quoted = self.quote_ddl_identifier(index_name)
-        
-        sql = f"CREATE {unique_keyword} INDEX IF NOT EXISTS {index_name_quoted} ON {table_name_quoted} ({fields_str})"
-        return sql
+        """生成创建索引的 SQL。"""
+        return self._ddl_parser().generate_create_index_sql(table_name, index)
 
     def generate_add_column_sql(self, table_name: str, field_dict: Dict[str, Any]) -> str:
-        """
-        为已存在表生成 ADD COLUMN SQL（仅加列，不删不改）。
-        新增列一律 nullable，避免旧表已有数据时 NOT NULL 无默认值导致失败。
-        """
-        fd = dict(field_dict)
-        fd["nullable"] = True
-        fd["isNullable"] = True
-        field_obj = Field.from_dict(fd)
-        col = self.quote_ddl_identifier(field_obj.name)
-        qt = self.quote_ddl_identifier(table_name)
-        ddl = self.ddl_database_type
-        frag = f"{col} {field_obj.to_sql(ddl)}"
-        frag += field_obj.get_not_null_sql()
-        frag += field_obj.get_default_sql(ddl)
-        return f"ALTER TABLE {qt} ADD COLUMN {frag}"
+        """为已存在表生成 ADD COLUMN SQL。"""
+        return self._ddl_parser().generate_add_column_sql(table_name, field_dict)
 
     def _fetch_existing_column_names(
         self, table_name: str, get_connection_func: Callable
     ) -> Set[str]:
-        """从 information_schema 读取表上已有列名。"""
-        if self.database_type == "mysql":
-            sql = (
-                "SELECT column_name FROM information_schema.columns "
-                "WHERE table_schema = DATABASE() AND table_name = %s"
-            )
-            params: Any = (table_name,)
-        elif self.database_type == "duckdb":
-            sql = (
-                "SELECT column_name FROM information_schema.columns "
-                "WHERE table_schema = 'main' AND table_name = ?"
-            )
-            params = (table_name,)
-        else:
-            sql = (
-                "SELECT column_name FROM information_schema.columns "
-                "WHERE table_schema = current_schema() AND table_name = %s"
-            )
-            params = (table_name,)
-
+        """从 information_schema 读取表上已有列名（方言由 ddl_database_type 决定）。"""
         with get_connection_func() as conn:
-            if self.database_type == "duckdb":
-                rel = conn.execute(sql, params)
-                df = rel.fetchdf()
-                rows = df.to_dict(orient="records") if df is not None and not df.empty else []
-            elif hasattr(conn, "cursor"):
-                with conn.cursor() as cursor:
-                    cursor.execute(sql, params)
-                    rows = cursor.fetchall() or []
-            else:
-                rows = []
-
-        names: Set[str] = set()
-        for row in rows:
-            if isinstance(row, dict):
-                val = row.get("column_name") or row.get("COLUMN_NAME")
-                if val is None and row:
-                    val = next(iter(row.values()))
-            else:
-                val = row[0] if row else None
-            if val is not None:
-                names.add(str(val))
-        return names
+            return fetch_column_names(self.ddl_database_type, table_name, conn)
 
     def sync_missing_columns(
         self, schema: Dict, get_connection_func: Callable
@@ -440,7 +277,7 @@ class SchemaManager:
             try:
                 alter_sql = self.generate_add_column_sql(table_name, field_dict)
                 with get_connection_func() as conn:
-                    conn.execute(alter_sql)
+                    execute_ddl(conn, alter_sql)
                 added.append(str(col))
                 logger.info("✅ 表 '%s' 已补齐列: %s", table_name, col)
             except Exception as e:
@@ -477,9 +314,8 @@ class SchemaManager:
         # 生成 CREATE TABLE SQL
         create_sql = self.generate_create_table_sql(schema)
         
-        # 执行创建表
         with get_connection_func() as conn:
-            conn.execute(create_sql)
+            execute_ddl(conn, create_sql)
         
         logger.debug(f"✅ 表 '{table_name}' 创建成功")
 

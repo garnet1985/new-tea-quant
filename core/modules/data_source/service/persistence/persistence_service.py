@@ -9,10 +9,7 @@ import logging
 
 from core.modules.data_source.data_class.config import DataSourceConfig
 from core.modules.data_manager.data_manager import DataManager
-from core.infra.db.duckdb_wal_policy import (
-    should_checkpoint_after_persist,
-    checkpoint_connection_manager,
-)
+from core.infra.db.duckdb_wal_policy import should_checkpoint_after_persist
 
 
 logger = logging.getLogger(__name__)
@@ -107,13 +104,12 @@ class PersistenceService:
         db = getattr(data_manager, "db", None)
         if db is None or not should_checkpoint_after_persist(db.config):
             return
-        cm = getattr(db, "connection_manager", None)
-        if cm is None or not cm.is_duckdb:
+        if str(db.config.get("database_type") or "").lower() != "duckdb":
             return
         domain = None
         reg = getattr(db, "storage_registry", None)
         if reg is not None:
             domain = reg.get_domain(table_name)
         domains = [domain] if domain else None
-        checkpoint_connection_manager(cm, domains=domains)
+        db.checkpoint_duckdb(domains=domains)
 

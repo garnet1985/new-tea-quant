@@ -73,16 +73,51 @@ class TestDbBaseModel:
             assert model.table_name == 'test_table'
     
     def test_load_schema(self):
-        """测试加载 schema"""
+        """测试加载 schema（db.schema_manager）"""
         mock_db = _mock_database_manager()
-        with patch('core.infra.db.schema_management.schema_manager.SchemaManager') as mock_schema_manager:
-            mock_manager_instance = Mock()
-            mock_manager_instance.get_table_schema.return_value = {'fields': {'id': {'type': 'string'}}}
-            mock_schema_manager.return_value = mock_manager_instance
-            
-            model = DbBaseModel('test_table', db=mock_db)
-            # schema 应该被加载
-            assert hasattr(model, 'schema')
+        mock_db.schema_manager = Mock()
+        mock_db.schema_manager.get_table_schema.return_value = {
+            "name": "test_table",
+            "fields": [{"name": "id", "type": "VARCHAR", "length": 16}],
+        }
+        model = DbBaseModel("test_table", db=mock_db)
+        assert model.schema["name"] == "test_table"
+
+    def test_create_table_delegates_to_engine(self):
+        """engine 路径：create_table 走 engine.create_table（含索引）。"""
+        mock_engine = Mock()
+        mock_engine.table_operator.return_value = None
+        mock_db = _mock_database_manager(
+            uses_engine_path=True,
+            _initialized=True,
+            engine=mock_engine,
+        )
+        schema = {
+            "name": "test_table",
+            "fields": [{"name": "id", "type": "VARCHAR", "length": 16}],
+        }
+        mock_db.schema_manager = Mock()
+        mock_db.schema_manager.get_table_schema.return_value = schema
+        model = DbBaseModel("test_table", db=mock_db)
+        model.create_table()
+        mock_engine.create_table.assert_called_once_with(schema)
+
+    def test_drop_table_delegates_to_engine(self):
+        mock_engine = Mock()
+        mock_engine.table_operator.return_value = None
+        mock_db = _mock_database_manager(
+            uses_engine_path=True,
+            _initialized=True,
+            engine=mock_engine,
+        )
+        mock_db.schema_manager = Mock()
+        mock_db.schema_manager.get_table_schema.return_value = {
+            "name": "test_table",
+            "fields": [],
+        }
+        model = DbBaseModel("test_table", db=mock_db)
+        model.drop_table()
+        mock_engine.drop_table.assert_called_once_with("test_table")
     
     def test_load(self):
         """测试加载数据"""

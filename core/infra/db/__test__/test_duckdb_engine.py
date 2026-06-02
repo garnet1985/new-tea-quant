@@ -25,7 +25,7 @@ def duckdb_engine():
     meta = build_engine_meta(DUCKDB_CONFIG, is_verbose=False)
     engine = create_engine(meta)
     assert isinstance(engine, DuckdbEngine)
-    engine.bind_domain_map({"sys_stock_list": "data"})
+    engine.rebuild_table_file_map(table_to_domain={"sys_stock_list": "data"})
     with patch.object(engine.connector, "connect_all_domains"), patch.object(
         engine.connector, "close_all"
     ):
@@ -42,7 +42,14 @@ def duckdb_engine():
 
 def test_duckdb_engine_resolve_domain(duckdb_engine):
     assert duckdb_engine.resolve_domain("sys_stock_list") == "data"
-    assert duckdb_engine.resolve_domain("unknown_table") == "data"
+    with pytest.raises(KeyError):
+        duckdb_engine.resolve_domain("unknown_table")
+
+
+def test_duckdb_engine_file_map_for_table(duckdb_engine):
+    fm = duckdb_engine.file_map_for_table("sys_stock_list")
+    assert fm.domain == "data"
+    assert fm.db_path == "data.duckdb"
 
 
 def test_duckdb_table_operator_cached(duckdb_engine):

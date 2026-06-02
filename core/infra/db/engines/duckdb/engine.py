@@ -11,12 +11,19 @@ from core.infra.db.duckdb_wal_policy import install_sigint_checkpoint_handler_fo
 from core.infra.db.engines.abc.engine_abc import DbEngineAbc
 from core.infra.db.engines.abc.table_abc import DbTableAbc
 from core.infra.db.engines.duckdb.connector import DuckdbConnector
+from core.infra.db.engines.duckdb.domain_catalog import (
+    DuckdbDomainCatalog,
+    DuckdbTableFileMap,
+)
 from core.infra.db.engines.duckdb.table_operator import DuckdbTableOperator
 from core.infra.db.engines.duckdb.write_pipeline import WritePipeline
 from core.infra.db.engines.meta import EngineConfigMeta
 from core.infra.db.helpers.db_helpers import DBHelper, DatabaseCursor
 from core.infra.db.schema_management.schema_manager import SchemaManager
-from core.infra.db.storage_registry import PRIMARY_DUCKDB_DOMAIN, normalize_storage_domain
+from core.infra.db.storage_registry import (
+    PRIMARY_DUCKDB_DOMAIN,
+    normalize_storage_domain,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,20 +39,49 @@ class DuckdbEngine(DbEngineAbc):
             is_verbose=is_verbose,
             database_type=self.engine_key,
         )
-        self._domain_map: Dict[str, str] = {}
+        self._file_catalog: Optional[DuckdbDomainCatalog] = None
         self._write_pipelines: Dict[str, WritePipeline] = {}
         self._checkpoint_after_write = self._duckdb_settings.checkpoint_after_write
 
+    def rebuild_table_file_map(
+        self,
+        schemas: Optional[Dict[str, Dict[str, Any]]] = None,
+        *,
+        table_to_domain: Optional[Dict[str, str]] = None,
+    ) -> DuckdbDomainCatalog:
+        """
+        根据 schema 动态构建表 → 域 → 文件映射（内存）。
+
+        ``schemas``：``load_all_schemas()`` 结果；省略则现加载 core/tables + 已注册表。
+        ``table_to_domain``：若 Manager 已 ``rebuild_storage_registry``，可直接传入其 ``table_to_domain``。
+        """
+        if table_to_domain is not None:
+            self._file_catalog = DuckdbDomainCatalog.build(
+                self._duckdb_settings, table_to_domain
+            )
+            return self._file_catalog
+
+        if schemas is None:
+            schemas = dict(self.schema_manager.load_all_schemas())
+            schemas.update(self.schema_manager.registered_tables)
+        self._file_catalog = DuckdbDomainCatalog.from_schemas(
+            self._duckdb_settings, schemas
+        )
+        return self._file_catalog
+
     def bind_domain_map(self, table_to_domain: Dict[str, str]) -> None:
-        """由 DatabaseManager 在 rebuild_storage_registry 后注入表→域映射。"""
-        self._domain_map = dict(table_to_domain or {})
+        """兼容：等价于 ``rebuild_table_file_map(table_to_domain=...)``。"""
+        self.rebuild_table_file_map(table_to_domain=table_to_domain)
+
+    def file_map_for_table(self, table_name: str) -> DuckdbTableFileMap:
+        """传入表名，返回域 + 配置路径 + 绝对路径。"""
+        return self._require_file_catalog().file_map_for_table(table_name)
 
     def resolve_domain(self, table_name: str) -> str:
-        name = str(table_name or "").strip()
-        domain = self._domain_map.get(name)
-        if domain:
-            return domain
-        return PRIMARY_DUCKDB_DOMAIN
+        return self._require_file_catalog().resolve_domain(table_name)
+
+    def resolve_db_path(self, table_name: str) -> str:
+        return self._require_file_catalog().resolve_db_path(table_name)
 
     @property
     def adapter(self):
@@ -57,6 +93,8 @@ class DuckdbEngine(DbEngineAbc):
     def initialize(self) -> None:
         if self._initialized:
             return
+        if self._file_catalog is None:
+            self.rebuild_table_file_map()
         self.connector.connect_all_domains()
         for domain, _conn in self.connector.domain_connections.items():
             self._write_pipelines[domain] = WritePipeline(
@@ -67,7 +105,11 @@ class DuckdbEngine(DbEngineAbc):
         install_sigint_checkpoint_handler_for_engine(self, self.meta.raw_config)
         self._initialized = True
         if self.is_verbose:
-            logger.debug("duckdb Engine 初始化完成（%s 域）", len(self._write_pipelines))
+            logger.debug(
+                "duckdb Engine 初始化完成（%s 域，%s 张表已映射）",
+                len(self._write_pipelines),
+                self._file_catalog.table_count if self._file_catalog else 0,
+            )
 
     def close(self) -> None:
         for pipeline in self._write_pipelines.values():
@@ -170,11 +212,14 @@ class DuckdbEngine(DbEngineAbc):
                 logger.error("创建表失败 %r: %s", table_name, e)
 
     def register_table(self, table_name: str, schema: Dict[str, Any]) -> None:
-        if schema.get("storage_domain"):
-            normalize_storage_domain(
-                schema.get("storage_domain"), table_name=table_name
-            )
+        normalize_storage_domain(
+            schema.get("storage_domain"), table_name=table_name
+        )
         self.schema_manager.register_table(table_name, schema)
+        if self._file_catalog is None:
+            self.rebuild_table_file_map({table_name: schema})
+        else:
+            self._file_catalog.register_schema(self._duckdb_settings, schema)
         if self._initialized:
             self.create_table(schema)
 
@@ -245,7 +290,16 @@ class DuckdbEngine(DbEngineAbc):
             "domains": list(self.connector.domain_connections.keys()),
             "write_pipelines": self.get_write_stats(),
         }
+        if self._file_catalog is not None:
+            stats["table_file_map_size"] = self._file_catalog.table_count
         return stats
+
+    def _require_file_catalog(self) -> DuckdbDomainCatalog:
+        if self._file_catalog is None:
+            raise RuntimeError(
+                "DuckDB 表文件映射未构建，请先 initialize() 或 rebuild_table_file_map()"
+            )
+        return self._file_catalog
 
     def checkpoint(self, domains: Optional[list] = None) -> Dict[str, bool]:
         """DuckDB 专有：合并 WAL。"""

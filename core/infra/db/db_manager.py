@@ -67,11 +67,8 @@ class DatabaseManager:
         
         # 初始化三个管理器
         
-        # 1. ConnectionManager - 连接和事务管理
-        self.connection_manager = ConnectionManager(
-            config=self.config,
-            is_verbose=is_verbose,
-        )
+        # 1. ConnectionManager — engine 路径延迟构造（mysql/pgsql/duckdb 不 eagerly 建池）
+        self._connection_manager: Optional[ConnectionManager] = None
         
         # 2. SchemaManager - Schema 管理和表初始化
         self.schema_manager = SchemaManager(
@@ -153,6 +150,16 @@ class DatabaseManager:
         """mysql / postgresql / duckdb 走 mounted engine。"""
         return self.database_type in ("mysql", "postgresql", "duckdb")
 
+    @property
+    def connection_manager(self) -> ConnectionManager:
+        """旧三层路径用；engine 路径仅在显式访问时惰性创建。"""
+        if self._connection_manager is None:
+            self._connection_manager = ConnectionManager(
+                config=self.config,
+                is_verbose=self.is_verbose,
+            )
+        return self._connection_manager
+
     def initialize(self):
         """
         初始化数据库管理器
@@ -165,7 +172,9 @@ class DatabaseManager:
             from core.infra.db.engines.duckdb.engine import DuckdbEngine
 
             if isinstance(self.engine, DuckdbEngine):
-                self.engine.bind_domain_map(self.storage_registry.table_to_domain)
+                self.engine.rebuild_table_file_map(
+                    table_to_domain=self.storage_registry.table_to_domain
+                )
             self.engine.initialize()
             self.schema_manager = self.engine.schema_manager
             self._initialized = True
@@ -227,7 +236,22 @@ class DatabaseManager:
 
     def get_table_domain(self, table_name: str) -> str:
         """查询表所属 storage_domain。"""
+        if self.is_duckdb and self.engine is not None:
+            from core.infra.db.engines.duckdb.engine import DuckdbEngine
+
+            if isinstance(self.engine, DuckdbEngine):
+                return self.engine.resolve_domain(table_name)
         return self.storage_registry.get_domain(table_name)
+
+    def duckdb_file_map_for_table(self, table_name: str):
+        """DuckDB：表 → 域 + db_path + 绝对路径（需已 initialize）。"""
+        if not self.is_duckdb or self.engine is None:
+            raise RuntimeError("当前 backend 不是 duckdb")
+        from core.infra.db.engines.duckdb.engine import DuckdbEngine
+
+        if not isinstance(self.engine, DuckdbEngine):
+            raise RuntimeError("mounted engine 不是 DuckdbEngine")
+        return self.engine.file_map_for_table(table_name)
 
     def rebuild_storage_registry(self) -> None:
         """从 core/tables 重新加载 schema 并刷新表→域映射。"""
@@ -372,6 +396,32 @@ class DatabaseManager:
                 )
             except Exception as e:
                 logger.error("❌ 创建表失败 '%s': %s", table_name, e)
+
+    def create_table(self, schema: Dict) -> None:
+        """按 schema 建单表（含索引、补列）。"""
+        if not self._initialized:
+            raise RuntimeError("数据库未初始化，请先调用 initialize()")
+        if schema:
+            self.storage_registry.register_schema(schema)
+        if self.uses_engine_path and self.engine is not None:
+            self.engine.create_table(schema)
+            return
+        table_name = str(schema.get("name") or "")
+        self.schema_manager.create_table_with_indexes(
+            schema, self.connection_factory_for_table(table_name)
+        )
+
+    def drop_table(self, table_name: str) -> None:
+        """删除表。"""
+        if not self._initialized:
+            raise RuntimeError("数据库未初始化，请先调用 initialize()")
+        if self.uses_engine_path and self.engine is not None:
+            self.engine.drop_table(table_name)
+            return
+        qualified = DBHelper.sql_qualify_table_name(self.config, table_name)
+        quoted = DBHelper.quote_identifier_for_dialect(self.database_type, qualified)
+        with self.get_sync_cursor_for_table(table_name) as cursor:
+            cursor.execute(f"DROP TABLE IF EXISTS {quoted}")
     
     def get_table_schema(self, table_name: str) -> Optional[Dict]:
         """
@@ -440,12 +490,13 @@ class DatabaseManager:
     
     # ==================== 工具方法 ====================
     
-    def checkpoint_duckdb(self, domains: Optional[list] = None) -> None:
+    def checkpoint_duckdb(self, domains: Optional[list] = None) -> Dict[str, bool]:
         """DuckDB：将 WAL 合并进主库（renew 批量写入后或手动调用）。"""
         if self.engine is not None and hasattr(self.engine, "checkpoint"):
-            self.engine.checkpoint(domains=domains)
-        elif self.connection_manager:
-            self.connection_manager.checkpoint_duckdb(domains=domains)
+            return self.engine.checkpoint(domains=domains)
+        if self.connection_manager:
+            return self.connection_manager.checkpoint_duckdb(domains=domains)
+        return {}
 
     def close(self):
         """关闭数据库连接和写入队列"""

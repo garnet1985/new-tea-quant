@@ -110,16 +110,44 @@ DomainRouter（按 schema.storage_domain 选连接）
 
 ### 4.1 写并发
 
-- **每域一个写管道**（可复用现有 `BatchWriteQueue` 思路）：同文件禁止多线程裸写。
-- **data_source** 的 `PersistenceService.upsert_many` 目前**同步直写**，DuckDB 阶段应接入 data 域管道或在 adapter 层串行化。
-- **strategy** 工作台 `update_result_report` / `create_snapshot`：strategy 域管道；UI 关键路径需 `flush`。
-- **enumerator/scanner 子进程**：对 **data**（及读 tag 时 **tag**）使用**只读**连接；不写 strategy 库。
+- **每域一个 WritePipeline**（`data` / `tag` / `strategy` 各一套）：**域内**写 job 队列串行、单写者连接；**域间** pipeline **可并行**（renew 写 data 与 Tag 写 tag 不同时占同一文件）。
+- **禁止** 全 DuckDB 单一 global 写锁导致三文件轮流写。
+- **data_source** 的 `PersistenceService.upsert_many` 接入 **data 域** pipeline（或在 adapter 层串行化）。
+- **strategy** 工作台写 snapshot：strategy 域 pipeline；UI 关键路径需 `flush`。
+- **多进程 Tag 等**：worker **不直连** 库；主进程 **Result Collector** → 按表 domain 入对应 pipeline 批量写（见 §4.2.1）。
+- **enumerator/scanner 子进程**：理想 **不连库**；若只读 data/tag，须与主进程写错开或接受 WAL/占锁风险（非首选）。
 
-### 4.2 读并发与 WAL
+#### 4.2.1 多进程写路径（定案）
+
+```text
+ProcessWorker × N  →  只产出结果（无 DB）
+        ↓
+主进程 Collector   →  按 storage_domain 分发
+        ↓
+TagWritePipeline / DataWritePipeline / …  →  batch upsert → CHECKPOINT（批末策略）
+```
+
+### 4.2 读并发、库单元与 WAL
+
+#### 库单元（不变量）
+
+```text
+库单元 = .duckdb + .duckdb.wal? + RW 连接持有者
+```
+
+备份/并发规则始终按 **库单元** 考虑；CHECKPOINT 后 WAL 可很短，但 **RW 未 close** 时子进程仍可能无法打开同一文件。
+
+#### 读并发
 
 - **同进程**（`DataManager` 已打开的连接）：renew 写入过程中查询 **可以**，走同一 DuckDB 连接。
-- **第二进程** `read_only` 打开同一 `.duckdb`：在 renew 仍占用写连接、且存在未合并 `.wal` 时 **不推荐**（易 WAL 回放失败）。查库请等 renew 结束，或 `python dev-cli.py -dbc` 合并后再只读打开，或复制库文件到临时目录。
-- renew 写 data 时，回测子进程对 data **只读** 连接：一般可读，可能变慢；data 与 strategy **分文件** 后 UI 写快照不与 K 线 renew 共抢一文件。
+- **第二进程** `read_only` 打开同一库单元：主进程 **RW 仍占连接** 和/或 **WAL 未合并** 时 **高风险**（macOS 文件锁、WAL 回放失败）。查库请等写段结束 + checkpoint，或 `python dev-cli.py -dbc`，或复制库到临时目录。
+- renew 写 data 时，回测子进程对 data 只读：可能可读但变慢；**data 与 strategy 分文件** 后 UI 写 strategy 不与 renew 共抢一文件。
+
+#### CHECKPOINT（运行策略，与不变量并存）
+
+- **目标**：批末 **同步** `CHECKPOINT`，合并 WAL 进主库，缩短 WAL 尾巴（**无** DuckDB 内置 callback；`execute` 返回即完成）。
+- **不替代**：多进程占文件规则；CHECKPOINT 后 RW 连接仍可占锁。
+- **禁止**：只读连接或 routine 路径 **手删 `.wal`**（未 checkpoint 的已提交数据会丢）。
 
 **WAL 合并（实现于 `core/infra/db/duckdb_wal_policy.py`）：**
 
@@ -135,9 +163,11 @@ DomainRouter（按 schema.storage_domain 选连接）
 
 ### 4.3 跨域 JOIN
 
-- 同域内 JOIN（如 `sys_stock_klines` + `sys_adj_factor_events`）：单库内 SQL，无变化。
-- 跨域（如 `workbench` 读 `sys_stock_list`）：`ATTACH data AS data; SELECT ... FROM data.sys_stock_list`。
-- 实现前：**禁止**假设 `execute_sync_query` 无前缀表名能跨库 JOIN。
+- **同域内 JOIN**（如 `sys_stock_klines` + `sys_adj_factor_events`）：单库内 SQL，**支持**；与 MySQL 无差别。
+- **跨域读**（如 strategy 域 Model 读 `sys_stock_list`）：技术上 `ATTACH` + qualify（`data.main.sys_stock_list`）；由 duckdb engine **QueryPlanner** 在 `DbBaseModel.query` 路径上自动处理（扫描注册表名 → 映射 domain → ATTACH → qualify）。无法安全解析时 **fail fast**。
+- **跨域写**（含跨文件 `INSERT … SELECT … JOIN`、`UPDATE`/`DELETE` 跨域等）：**v1 不支持**；当前无产品用例。表 Model 写操作使用单表 `upsert` / `upsert_many`；跨表复杂 JOIN 优先 **DataService**。
+- 实现前：**禁止**假设无前缀表名的裸 SQL 能跨库 JOIN；须走 engine 路由或显式 qualify。
+- 定案详见：[engines/ARCHITECTURE.md §10](../engines/ARCHITECTURE.md)、[决策 10](./DECISIONS.md)。
 
 ### 4.4 运行时解析（定案）
 

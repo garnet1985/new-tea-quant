@@ -82,6 +82,10 @@ def should_checkpoint_on_sigint(db_config: Dict[str, Any]) -> bool:
     return bool(duckdb_shared_config(db_config).get("checkpoint_on_sigint", True))
 
 
+def should_checkpoint_after_tag_run(db_config: Dict[str, Any]) -> bool:
+    return bool(duckdb_shared_config(db_config).get("checkpoint_after_tag_run", True))
+
+
 def install_sigint_checkpoint_handler(
     connection_manager: ConnectionManager,
     db_config: Dict[str, Any],

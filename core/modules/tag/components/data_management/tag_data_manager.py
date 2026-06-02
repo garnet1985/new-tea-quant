@@ -103,6 +103,36 @@ class TagDataManager:
             item["params"] = params
         return item
 
+    def get_slot_data(self) -> Dict[str, List[Dict[str, Any]]]:
+        """返回已装填的 slot 行数据（主进程 inject / spill 用）。"""
+        return {k: list(v or []) for k, v in self._current_data.items()}
+
+    def get_time_field_overrides(self) -> Dict[str, Optional[str]]:
+        """各 slot 的时间轴字段（供 DataCursor.from_rows）。"""
+        overrides: Dict[str, Optional[str]] = {}
+        for slot, contract in self._slot_contracts.items():
+            time_field = "date"
+            if contract.meta and isinstance(contract.meta.attrs, dict):
+                time_field = str(contract.meta.attrs.get("time_axis_field") or "date")
+            overrides[str(slot)] = time_field
+        return overrides
+
+    def apply_injected_bundle(
+        self,
+        slot_data: Dict[str, List[Dict[str, Any]]],
+        *,
+        trading_dates: List[str],
+        time_field_overrides: Optional[Dict[str, Optional[str]]] = None,
+    ) -> None:
+        """Worker inject 路径：不触库，直接从 spill / 内存灌入。"""
+        self._current_data = {k: list(v or []) for k, v in slot_data.items()}
+        self._injected_trading_dates = list(trading_dates)
+        self._cursor_mgr.create_cursor_from_rows(
+            self._cursor_name,
+            self._current_data,
+            time_field_overrides=time_field_overrides,
+        )
+
     def hydrate_row_slots(self, start_date: str, end_date: str) -> None:
         self._contract_cache.enter_strategy_run()
         self._slot_contracts = {}
@@ -144,6 +174,9 @@ class TagDataManager:
         return self._adapt_worker_data(sliced)
 
     def get_trading_dates(self, start_date: str, end_date: str) -> List[str]:
+        injected = getattr(self, "_injected_trading_dates", None)
+        if injected is not None:
+            return list(injected)
         axis_key = self._axis_data_id
         if axis_key is None:
             axis_key = DataKey.STOCK_KLINE

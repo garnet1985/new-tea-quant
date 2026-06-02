@@ -199,9 +199,9 @@ class ConnectionManager:
         """执行同步查询；DuckDB 可指定域。"""
         return self._resolve_adapter(domain).execute_query(query, params)
     
-    def checkpoint_duckdb(self, domains: Optional[list] = None) -> None:
+    def checkpoint_duckdb(self, domains: Optional[list] = None) -> Dict[str, bool]:
         """将所有 DuckDB 域的 WAL 合并进 .duckdb 主文件。"""
-        checkpoint_connection_manager(self, domains=domains)
+        return checkpoint_connection_manager(self, domains=domains)
 
     def close(self):
         """关闭数据库连接"""

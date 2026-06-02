@@ -192,6 +192,13 @@ def _cmd_db_checkpoint(args: argparse.Namespace) -> int:
         )
         return 1
 
+    if recover:
+        print(
+            "数据库已打开。"
+            " 若上方出现「WAL 回放失败…将删除…后重试」，表示已自动丢弃损坏 .wal 并成功重连（非最终失败）。",
+            flush=True,
+        )
+
     try:
         if str(db.config.get("database_type", "")).lower() != "duckdb":
             print("当前 database_type 不是 duckdb，跳过。", flush=True)

@@ -14,7 +14,9 @@
   "memory_limit": "8GB",
   "wal_autocheckpoint": "4MB",
   "checkpoint_after_batch_save": true,
+  "checkpoint_after_tag_run": true,
   "checkpoint_on_sigint": true,
   "checkpoint_after_persist": false,
-  "_comment": "DuckDB 三存储域，文件位于 userspace/system/db/；wal_autocheckpoint/checkpoint_* 控制 WAL 合并频率"
+  "recover_wal_on_replay_failure": true,
+  "_comment": "DuckDB 三存储域，文件位于 userspace/system/db/。Tag/renew 结束后应 CHECKPOINT；WAL 回放失败时 recover 会删 .wal 重试（可能丢未合并写入，开发环境默认开）"
 }

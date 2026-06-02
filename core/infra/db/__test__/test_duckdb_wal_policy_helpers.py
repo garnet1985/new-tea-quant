@@ -2,6 +2,7 @@
 from core.infra.db.duckdb_wal_policy import (
     duckdb_shared_config,
     should_checkpoint_after_batch,
+    should_checkpoint_after_tag_run,
     should_checkpoint_on_sigint,
 )
 
@@ -12,6 +13,7 @@ def test_should_checkpoint_defaults():
     assert shared.get("wal_autocheckpoint") is None
     assert should_checkpoint_after_batch(cfg) is True
     assert should_checkpoint_on_sigint(cfg) is True
+    assert should_checkpoint_after_tag_run(cfg) is True
 
 
 def test_should_checkpoint_can_disable():

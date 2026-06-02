@@ -100,15 +100,30 @@ class DuckDBAdapter(BaseDatabaseAdapter):
                     f" 可能原因：另有进程正在写入、或上次 Ctrl+C 中断后 WAL 与主库不一致。"
                     f" 请先结束所有 renew/写库进程，再用同一进程正常打开以合并 WAL；"
                     f" 不要在写库进行中用只读连接检查数据库。"
-                    f" 原始错误: {e}"
+                    f" 原始错误: {self._short_exc(e)}"
                 ) from e
             logger.warning(
-                "DuckDB WAL 回放失败，将按配置删除 .wal 后重试: %s (%s)",
+                "DuckDB WAL 回放失败，将删除 %s 后重试（未合并的 WAL 写入会丢失）: %s",
                 wal_path,
-                e,
+                self._short_exc(e),
             )
             Path(wal_path).unlink(missing_ok=True)
-            return duckdb.connect(db_path)
+            try:
+                conn = duckdb.connect(db_path) if not read_only else duckdb.connect(db_path, read_only=True)
+            except Exception as retry_exc:
+                raise RuntimeError(
+                    f"删除 .wal 后仍无法打开 DuckDB: {db_path}。"
+                    f" 请检查是否有其它进程占用，或从备份恢复主库。"
+                    f" 原始错误: {self._short_exc(retry_exc)}"
+                ) from retry_exc
+            logger.info("DuckDB 已重连（已丢弃损坏 WAL）: %s", db_path)
+            return conn
+
+    @staticmethod
+    def _short_exc(exc: BaseException) -> str:
+        msg = str(exc).strip()
+        first = msg.split("\n", 1)[0].strip()
+        return first or repr(exc)
 
     @staticmethod
     def _is_corrupt_wal_error(exc: BaseException) -> bool:

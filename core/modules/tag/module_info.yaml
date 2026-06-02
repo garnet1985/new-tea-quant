@@ -8,3 +8,4 @@ dependencies:
   - modules.data_cursor
   - infra.project_context
   - infra.worker
+  - infra.job_dispatcher

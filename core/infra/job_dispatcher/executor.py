@@ -1,16 +1,14 @@
 """
 JobExecutor - Dispatcher 使用的并发执行后端协议。
-
-多进程 / 多线程由 executors/pool 实现；JobDispatcher 只依赖本协议。
-并行度（max_workers）与 execute 仅在 create_job_executor 配置。
 """
 from __future__ import annotations
 
-from typing import Any, Protocol, Union, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from core.infra.job_dispatcher.executors.pool import ProcessJobExecutor, ThreadJobExecutor
 from core.infra.job_dispatcher.hooks import ExecuteFn
-from core.infra.job_dispatcher.resolve import resolve_max_workers
+from core.infra.job_dispatcher.probe import WorkerProbe
+from core.infra.job_dispatcher.settings import JobDispatchSettings
 from core.infra.job_dispatcher.types import ExecutionBackend
 
 
@@ -36,22 +34,19 @@ class JobExecutor(Protocol):
         ...
 
 
-def create_job_executor(
-    backend: ExecutionBackend,
-    *,
-    max_workers: Union[str, int] = 1,
-    execute: ExecuteFn,
-    module_name: str = "default",
-    start_method: str = "spawn",
-) -> JobExecutor:
-    """构造 Process / Thread JobExecutor。"""
-    resolved = resolve_max_workers(max_workers, module_name)
-    if backend == ExecutionBackend.PROCESS:
+def create_job_executor(settings: JobDispatchSettings, *, execute: ExecuteFn) -> JobExecutor:
+    """由 JobDispatchSettings 构造 Process / Thread JobExecutor。"""
+    resolved = WorkerProbe.resolve(
+        settings.max_workers,
+        reserve_cores=settings.reserve_cores,
+        cap=settings.max_workers_cap,
+    )
+    if settings.worker == ExecutionBackend.PROCESS:
         return ProcessJobExecutor(
             max_workers=resolved,
             execute=execute,
-            start_method=start_method,
+            start_method=settings.start_method,
         )
-    if backend == ExecutionBackend.THREAD:
+    if settings.worker == ExecutionBackend.THREAD:
         return ThreadJobExecutor(max_workers=resolved, execute=execute)
-    raise ValueError(f"Unsupported ExecutionBackend: {backend!r}")
+    raise ValueError(f"Unsupported ExecutionBackend: {settings.worker!r}")

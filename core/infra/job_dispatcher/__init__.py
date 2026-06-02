@@ -1,43 +1,47 @@
 """
-infra.job_dispatcher - 任务装填、分发与结果回收（与 infra.worker 平级组合）。
+infra.job_dispatcher - 任务装填、分发与结果回收。
 """
 from core.infra.job_dispatcher.executor import JobExecutor, create_job_executor
 from core.infra.job_dispatcher.hooks import (
     ExecuteFn,
-    OnReleaseStagedHook,
-    OnReportHook,
-    OnStageJobHook,
+    OnReleaseHook,
+    OnResultHook,
+    ToExecutableJobHook,
 )
 from core.infra.job_dispatcher.job_dispatcher import JobDispatcher
+from core.infra.job_dispatcher.probe import WorkerProbe
+from core.infra.job_dispatcher.settings import JobDispatchSettings
 from core.infra.job_dispatcher.types import (
     DataRef,
-    DispatchConfig,
     DispatchResult,
+    ExecuteMode,
     ExecutionBackend,
-    FillStrategy,
+    Job,
     JobFailure,
     JobFailurePhase,
     JobReport,
-    JobShell,
-    StagedJob,
+    PreparedJob,
+    RunProgress,
 )
 
 __all__ = [
     "DataRef",
-    "DispatchConfig",
     "DispatchResult",
     "ExecuteFn",
+    "ExecuteMode",
     "ExecutionBackend",
-    "FillStrategy",
+    "Job",
+    "JobDispatchSettings",
     "JobDispatcher",
     "JobExecutor",
-    "create_job_executor",
     "JobFailure",
     "JobFailurePhase",
     "JobReport",
-    "JobShell",
-    "OnReleaseStagedHook",
-    "OnReportHook",
-    "OnStageJobHook",
-    "StagedJob",
+    "OnReleaseHook",
+    "OnResultHook",
+    "PreparedJob",
+    "RunProgress",
+    "ToExecutableJobHook",
+    "WorkerProbe",
+    "create_job_executor",
 ]

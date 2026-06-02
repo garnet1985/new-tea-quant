@@ -48,7 +48,7 @@ class ProcessJobExecutor:
         return self._pool
 
     def submit(self, job_id: str, payload: dict[str, Any]) -> Future:
-        del job_id  # Future 由 Dispatcher 关联 StagedJob
+        del job_id  # Future 由 Dispatcher 关联 PreparedJob
         self._submitted += 1
         pool = self._ensure_pool()
         return pool.submit(invoke_execute, self._execute, payload)

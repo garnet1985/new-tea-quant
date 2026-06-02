@@ -1,7 +1,7 @@
 name: infra.job_dispatcher
-version: 0.4.0
+version: 0.5.0
 compatible_core_versions: ">=0.4.0"
-description: "任务装填与分发：JobShell → on_stage_job → Worker → on_report；与 infra.worker 平级组合。"
+description: "任务分发流水线：jobs → [to_executable_job?] → execute → on_result。"
 dependencies:
   - infra.worker
   - infra.project_context

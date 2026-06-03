@@ -34,6 +34,15 @@ from core.infra.job_dispatcher import (
     RunProgress,
 )
 from core.infra.job_dispatcher.probe import WorkerProbe
+from core.modules.tag.components.dispatch_planner import (
+    DEFAULT_ENTITIES_PER_JOB_MIN,
+    resolve_tag_dispatch_plan,
+)
+from core.modules.tag.components.tag_dispatch_probe import (
+    DEFAULT_PROBE_ENTITIES,
+    run_tag_dispatch_probe,
+    should_run_dispatch_probe,
+)
 from core.modules.tag.components.job_staging.tag_run_profile import TagRunProfile
 from core.modules.tag.components.report_save_buffer import TagReportSaveBuffer
 from core.infra.db.engines.duckdb.wal_policy import should_checkpoint_after_tag_run
@@ -44,10 +53,6 @@ logger = logging.getLogger(__name__)
 _DEBUG_ENTITY_LIMIT: Optional[int] = None
 # DEBUG：覆盖 entities_per_job；None 则用 performance 或 DEFAULT_ENTITIES_PER_JOB
 _DEBUG_ENTITIES_PER_JOB: Optional[int] = None
-# 全量 Tag 默认每 job 股数（bulk stage）；1 股/job ≈ 五千 dispatch，wall 会回到 ~60s
-DEFAULT_ENTITIES_PER_JOB: int = 100
-
-
 class TagManager:
     """Tag Manager - 统一管理所有业务场景"""
     
@@ -369,17 +374,106 @@ class TagManager:
 
         performance = dict(settings.get("performance") or {})
         performance.update(self._dispatch_overrides)
+        measured_mb: Optional[float] = None
+        ep_explicit = (
+            _DEBUG_ENTITIES_PER_JOB is not None
+            or performance.get("entities_per_job") not in (None, "", "auto")
+        )
+        if should_run_dispatch_probe(
+            performance,
+            total_entities=len(entity_list),
+            entities_per_job_explicit=ep_explicit,
+        ):
+            probe_n = max(
+                DEFAULT_ENTITIES_PER_JOB_MIN,
+                min(
+                    int(performance.get("dispatch_probe_entities", DEFAULT_PROBE_ENTITIES)),
+                    len(entity_list),
+                ),
+            )
+            probe_jobs = self._build_jobs(
+                entity_list,
+                settings,
+                scenario_model,
+                worker_class,
+                entities_per_job=probe_n,
+                log_job_grouping=False,
+            )
+            if probe_jobs and probe_jobs[0].get("payload"):
+                logger.info(
+                    "[%s] Tag 调度探针: 子进程试跑 %d 股（与生产相同 stage+算）…",
+                    scenario_name,
+                    probe_n,
+                )
+                payload = dict(probe_jobs[0]["payload"])
+                payload["_run_name"] = f"tag:{scenario_name}"
+                probe_released_main_db = False
+                if self._backend_is_duckdb(self.data_mgr):
+                    from core.modules.tag.components.job_staging.worker_runtime import (
+                        release_main_duckdb_domains_for_workers,
+                    )
+
+                    release_main_duckdb_domains_for_workers(self.data_mgr)
+                    probe_released_main_db = True
+                    logger.info(
+                        "[%s] DuckDB：探针前已释放主进程 data/tag 连接，供子进程 read_only stage",
+                        scenario_name,
+                    )
+                try:
+                    probe_result = run_tag_dispatch_probe(
+                        payload,
+                        performance=performance,
+                    )
+                    measured_mb = probe_result.mb_per_entity
+                except Exception as exc:
+                    logger.warning(
+                        "Tag 调度探针失败，回退默认 mb 估算: %s",
+                        exc,
+                    )
+                finally:
+                    if probe_released_main_db:
+                        from core.modules.tag.components.job_staging.worker_runtime import (
+                            _wait_pool_children_done,
+                        )
+
+                        _wait_pool_children_done(timeout_sec=15.0)
+                        # DuckDB：探针后保持 suspend，避免主进程占 data.duckdb；
+                        # _build_jobs 前再 resume。
+        if self._backend_is_duckdb(self.data_mgr) and getattr(
+            self.data_mgr, "db", None
+        ) is None:
+            from core.modules.tag.components.job_staging.worker_runtime import (
+                resume_main_database_with_retry,
+            )
+
+            resume_main_database_with_retry(self.data_mgr)
+            self.tag_data_service = self.data_mgr.stock.tags
+        dispatch_plan = resolve_tag_dispatch_plan(
+            total_entities=len(entity_list),
+            performance=performance,
+            debug_entities_per_job=_DEBUG_ENTITIES_PER_JOB,
+            measured_mb_per_entity=measured_mb,
+        )
+        performance["max_workers"] = dispatch_plan.max_workers
+        performance["prefetch_ahead"] = dispatch_plan.prefetch_ahead
         jobs = self._build_jobs(
             entity_list,
             settings,
             scenario_model,
             worker_class,
-            entities_per_job=self._resolve_entities_per_job(performance),
+            entities_per_job=dispatch_plan.entities_per_job,
         )
 
         if not jobs:
             logger.warning(f"没有新的计算任务，跳过执行: scenario={scenario_name}")
             return
+
+        if self._backend_is_duckdb(self.data_mgr):
+            from core.modules.tag.components.job_staging.worker_runtime import (
+                release_all_main_db_handles,
+            )
+
+            release_all_main_db_handles(self.data_mgr)
 
         self._execute_jobs(
             jobs,
@@ -393,15 +487,6 @@ class TagManager:
             ),
         )
 
-    @staticmethod
-    def _resolve_entities_per_job(performance: Dict[str, Any]) -> int:
-        if _DEBUG_ENTITIES_PER_JOB is not None:
-            return max(1, int(_DEBUG_ENTITIES_PER_JOB))
-        raw = performance.get("entities_per_job")
-        if raw is None:
-            return max(1, DEFAULT_ENTITIES_PER_JOB)
-        return max(1, int(raw))
-
     def _build_jobs(
         self,
         entity_list: List[str],
@@ -410,6 +495,7 @@ class TagManager:
         worker_class: Type[BaseTagWorker],
         *,
         entities_per_job: int = 1,
+        log_job_grouping: bool = True,
     ):
         """
         构建 jobs（每个 entity 一个 job）
@@ -519,13 +605,14 @@ class TagManager:
                     }
                 )
 
-        logger.info(
-            "Tag jobs 分组: entities=%d, entities_per_job=%d, dispatch_jobs=%d",
-            len(entity_specs),
-            batch_size,
-            len(jobs),
-        )
-        if batch_size == 1 and len(entity_specs) > 100:
+        if log_job_grouping:
+            logger.info(
+                "Tag jobs 分组: entities=%d, entities_per_job=%d, dispatch_jobs=%d",
+                len(entity_specs),
+                batch_size,
+                len(jobs),
+            )
+        if log_job_grouping and batch_size == 1 and len(entity_specs) > 100:
             logger.warning(
                 "entities_per_job=1：约 %d 次 dispatch，wall 通常 ~60s；"
                 "建议 performance.entities_per_job=100（子进程 bulk stage 才有效）",
@@ -535,12 +622,18 @@ class TagManager:
         return jobs
 
     @staticmethod
+    def _configured_database_type(data_mgr: Optional[DataManager] = None) -> str:
+        """库类型：优先已连接 db；suspend 后从 userspace 配置读取。"""
+        db = getattr(data_mgr, "db", None) if data_mgr else None
+        if db is not None:
+            return str(db.config.get("database_type") or "").lower()
+        from core.infra.project_context import ConfigManager
+
+        return str(ConfigManager.load_database_config().get("database_type") or "").lower()
+
+    @staticmethod
     def _backend_is_duckdb(data_mgr: DataManager) -> bool:
-        db = getattr(data_mgr, "db", None)
-        return (
-            db is not None
-            and str(db.config.get("database_type") or "").lower() == "duckdb"
-        )
+        return TagManager._configured_database_type(data_mgr) == "duckdb"
 
     @staticmethod
     def _parse_execute_mode(raw: Any) -> ExecuteMode:
@@ -577,7 +670,7 @@ class TagManager:
             execute_mode=self._parse_execute_mode(performance.get("execute_mode")),
             max_workers=performance.get("max_workers", "auto"),
             batch_size=int(performance.get("batch_size", 10)),
-            prefetch_ahead=int(performance.get("prefetch_ahead", 2)),
+            prefetch_ahead=int(performance.get("prefetch_ahead", 1)),
             reserve_cores=int(performance.get("reserve_cores", 1)),
             max_workers_cap=performance.get("max_workers_cap"),
         )
@@ -682,6 +775,7 @@ class TagManager:
         dispatch_result = DispatchResult(total=total_jobs, run_name=run_name)
         interrupted = False
         spill_rows = int(performance.get("stage_spill_rows") or 50_000)
+        duckdb_worker_pool = duckdb_stage_spill
         try:
             dispatch_result = self._run_tag_dispatch(
                 dispatcher_jobs=dispatcher_jobs,
@@ -708,7 +802,14 @@ class TagManager:
             )
             raise
         finally:
+            if duckdb_worker_pool:
+                from core.modules.tag.components.job_staging.worker_runtime import (
+                    restore_main_after_duckdb_worker_pool,
+                )
+
+                restore_main_after_duckdb_worker_pool()
             if duckdb_stage_spill:
+                logger.info("[%s] ⏳ 等待 tag 数据写入完成…", run_name)
                 from core.modules.tag.components.job_staging.worker_runtime import (
                     digest_stage_in_worker_save_buffer,
                     resume_main_database_with_retry,
@@ -722,7 +823,7 @@ class TagManager:
                     )
                     if save_sec > 0:
                         logger.info(
-                            "[%s] stage 收尾写库 %.2fs (saved_total=%s, spills=%s)",
+                            "[%s] DuckDB 收尾写库 %.2fs（%s 行，spills=%s）",
                             run_name,
                             save_sec,
                             save_buffer.saved_row_count,
@@ -730,21 +831,23 @@ class TagManager:
                         )
                     resume_main_database_with_retry(self.data_mgr)
                     self.tag_data_service = self.data_mgr.stock.tags
-                    logger.info("[%s] 已恢复主进程 DuckDB 连接", run_name)
                 except Exception as exc:
                     logger.warning("[%s] stage 收尾失败: %s", run_name, exc)
                 save_buffer.cleanup_spill_dir()
             else:
+                logger.info("[%s] ⏳ 等待 tag 数据写入完成…", run_name)
                 try:
                     save_buffer.flush()
                 except Exception as exc:
                     logger.warning("[%s] 收尾 flush 失败: %s", run_name, exc)
-            if interrupted and self.data_mgr and getattr(self.data_mgr, "db", None):
+            db = getattr(self.data_mgr, "db", None) if self.data_mgr else None
+            if db is not None:
                 try:
-                    self.data_mgr.db.wait_for_writes(timeout=15.0)
+                    db.wait_for_writes(timeout=60.0 if not interrupted else 15.0)
+                    logger.info("[%s] ✅ tag 数据写入完成", run_name)
                     self._maybe_checkpoint_duckdb_after_tag_run()
                 except Exception as exc:
-                    logger.warning("[%s] 中断后 CHECKPOINT 跳过: %s", run_name, exc)
+                    logger.warning("[%s] 等待写入或 CHECKPOINT 失败: %s", run_name, exc)
 
         completed_jobs = dispatch_result.completed
         failed_jobs = dispatch_result.failed
@@ -759,16 +862,10 @@ class TagManager:
             f"save_batch次数={save_buffer.flush_count}, 耗时={elapsed_time:.2f}秒"
         )
         db_type = ""
-        if self.data_mgr and getattr(self.data_mgr, "db", None):
-            db_type = str(self.data_mgr.db.config.get("database_type") or "")
+        if self.data_mgr:
+            db_type = self._configured_database_type(self.data_mgr)
         for line in profile.summary_lines(total_jobs=total_jobs, database_type=db_type):
             logger.info(line)
-
-        if self.data_mgr and self.data_mgr.db:
-            logger.info("⏳ 等待所有 tag 数据写入完成...")
-            self.data_mgr.db.wait_for_writes(timeout=60.0)
-            logger.info("✅ 所有 tag 数据写入完成")
-            self._maybe_checkpoint_duckdb_after_tag_run()
 
         return {
             "scenario_name": scenario_name,
@@ -794,13 +891,12 @@ class TagManager:
         """单次 JobDispatcher.run；子进程 execute 内 stage+算，DuckDB 另 suspend/spill/digest。"""
         if stage_in_worker and duckdb_spill:
             from core.modules.tag.components.job_staging.worker_runtime import (
-                release_main_duckdb_domains_for_workers,
+                prepare_main_for_duckdb_workers,
             )
 
-            release_main_duckdb_domains_for_workers(self.data_mgr)
+            prepare_main_for_duckdb_workers(self.data_mgr)
             logger.info(
-                "[%s] 已 suspend 主进程 DuckDB；stage_in_worker "
-                "(buffer≥%d 行 spill Parquet，结束后写 tag)",
+                "[%s] stage_in_worker + DuckDB spill（buffer≥%d 行 Parquet，池结束后写 tag）",
                 run_name,
                 spill_rows,
             )
@@ -808,7 +904,7 @@ class TagManager:
             logger.info(
                 "[%s] stage_in_worker（%s：on_result 攒批直接 save_batch）",
                 run_name,
-                self.data_mgr.db.config.get("database_type"),
+                self._configured_database_type(self.data_mgr),
             )
         dispatcher = JobDispatcher(
             settings=dispatch_settings,
@@ -825,16 +921,23 @@ class TagManager:
         if not should_checkpoint_after_tag_run(db.config):
             return
         try:
-            logger.info("DuckDB CHECKPOINT（Tag 完成后合并 WAL）…")
             results = db.checkpoint_duckdb()
-            failed = [d for d, ok in (results or {}).items() if not ok]
+            if not results:
+                return
+            failed = [d for d, ok in results.items() if not ok]
+            ok_domains = sorted(d for d, ok in results.items() if ok)
             if failed:
-                logger.warning("DuckDB CHECKPOINT 部分失败: %s", failed)
+                logger.warning(
+                    "DuckDB WAL 合并未完成: 失败 domain=%s；成功=%s。"
+                    "（写队列忙时可重试 dev-cli.py -dbc --recover）",
+                    failed,
+                    ok_domains,
+                )
             else:
-                logger.info("✅ DuckDB WAL 已合并（domains=%s）", sorted((results or {}).keys()))
+                logger.info("DuckDB WAL 已合并（domains=%s）", ok_domains)
         except Exception as exc:
             logger.warning(
-                "Tag 完成后 CHECKPOINT 失败（若下次启动报 WAL，可执行: python dev-cli.py -dbc --recover）: %s",
+                "Tag 完成后 CHECKPOINT 异常（若下次启动报 WAL: python dev-cli.py -dbc --recover）: %s",
                 exc,
             )
 

@@ -448,8 +448,19 @@ class TagDataService(BaseDataService):
         try:
             with self.db.get_sync_cursor_for_table(_TAG_VALUE_TABLE) as cursor:
                 cursor.execute(sql, (scenario_id,))
-                affected_rows = cursor.rowcount
-                logger.info(f"已删除 scenario {scenario_id} 下的 {affected_rows} 条 tag values")
+                affected_rows = int(cursor.rowcount)
+                if affected_rows < 0:
+                    # DuckDB 等对 DELETE 常返回 -1（未知行数），不代表删了 -1 行
+                    logger.info(
+                        "已清空 scenario %s 的 tag values（存储未返回删除行数，通常为 recompute 全量重算前清理）",
+                        scenario_id,
+                    )
+                else:
+                    logger.info(
+                        "已删除 scenario %s 下的 %s 条 tag values",
+                        scenario_id,
+                        affected_rows,
+                    )
         except Exception as e:
             logger.error(f"删除 tag values 失败: scenario_id={scenario_id}, error={e}")
             raise

@@ -109,19 +109,78 @@ def create_worker_data_manager() -> Any:
     return dm
 
 
+def _collect_db_managers_from_data_mgr(data_mgr: Any) -> list[Any]:
+    """收集主进程上可能仍占 DuckDB 文件锁的 DatabaseManager（含缓存 Model.db）。"""
+    from core.infra.db import DatabaseManager
+
+    found: list[Any] = []
+    seen: set[int] = set()
+
+    def add(db: Any) -> None:
+        if db is None or not isinstance(db, DatabaseManager):
+            return
+        key = id(db)
+        if key in seen:
+            return
+        seen.add(key)
+        found.append(db)
+
+    add(getattr(data_mgr, "db", None))
+    add(DatabaseManager._default_instance)
+
+    ds = getattr(data_mgr, "_data_service", None)
+    service_blocks: list[Any] = []
+    if ds is not None:
+        for name in ("stock", "macro", "calendar", "index", "db_cache", "backup_restore"):
+            service_blocks.append(getattr(ds, name, None))
+    for block in service_blocks:
+        if block is None:
+            continue
+        add(getattr(block, "db", None))
+        for attr in dir(block):
+            try:
+                child = getattr(block, attr)
+            except Exception:
+                continue
+            if isinstance(child, DatabaseManager):
+                add(child)
+            else:
+                add(getattr(child, "db", None))
+    return found
+
+
+def _clear_db_attr_holder(holder: Any) -> None:
+    """仅断开引用（关闭由 release_all_main_db_handles 统一完成）。"""
+    try:
+        holder.db = None
+    except Exception:
+        pass
+
+
+def release_all_main_db_handles(data_mgr: Any) -> None:
+    """
+    关闭主进程全部 DuckDB 连接（data_mgr、get_default、DataService / Model 缓存）。
+    worker 池开跑前必须调用，否则子进程 read_only stage 会遇 Conflicting lock。
+    """
+    from core.infra.db import DatabaseManager
+
+    for db in _collect_db_managers_from_data_mgr(data_mgr):
+        try:
+            db.close()
+        except Exception as exc:
+            logger.debug("release_all db.close: %s", exc)
+    data_mgr.db = None
+    data_mgr._initialized = False
+    _invalidate_data_service_db_refs(data_mgr)
+    DatabaseManager.reset_default()
+
+
 def suspend_main_database(data_mgr: Any) -> None:
     """
     关闭主进程 DatabaseManager，让子进程独占 DuckDB 文件（read_only）。
     on_result 前须 resume_main_database 再写 tag。
     """
-    from core.infra.db import DatabaseManager
-
-    db = getattr(data_mgr, "db", None)
-    if db is not None:
-        db.close()
-    data_mgr.db = None
-    data_mgr._initialized = False
-    DatabaseManager.reset_default()
+    release_all_main_db_handles(data_mgr)
 
 
 def _attach_data_manager_db(data_mgr: Any, db: Any) -> None:
@@ -215,9 +274,48 @@ def resume_main_database_with_retry(
         raise last_exc
 
 
+def _invalidate_data_service_db_refs(data_mgr: Any) -> None:
+    """主进程 suspend 后清掉 DataService / 子服务 / Model 上缓存的 db 引用。"""
+    ds = getattr(data_mgr, "_data_service", None)
+    blocks: list[Any] = []
+    if ds is not None:
+        for name in ("stock", "macro", "calendar", "index", "db_cache", "backup_restore"):
+            blocks.append(getattr(ds, name, None))
+    for block in blocks:
+        if block is None:
+            continue
+        _clear_db_attr_holder(block)
+        for attr in dir(block):
+            try:
+                child = getattr(block, attr)
+            except Exception:
+                continue
+            if child is not None and hasattr(child, "db"):
+                _clear_db_attr_holder(child)
+
+
+def prepare_main_for_duckdb_workers(data_mgr: Any) -> None:
+    """
+    进程池开跑前：等待遗留子进程退出、关闭主库、禁止 get_default(auto_init) 抢锁。
+    """
+    from core.infra.db import DatabaseManager
+
+    _wait_pool_children_done(timeout_sec=30.0)
+    release_all_main_db_handles(data_mgr)
+    DatabaseManager._auto_init_enabled = False
+    logger.info("DuckDB worker 阶段：主进程已释放 data/tag 连接，已禁用 DB auto_init")
+
+
+def restore_main_after_duckdb_worker_pool() -> None:
+    """进程池结束后恢复 get_default(auto_init)（具体连接由 resume_* 再打开）。"""
+    from core.infra.db import DatabaseManager
+
+    DatabaseManager._auto_init_enabled = True
+
+
 def release_main_duckdb_domains_for_workers(data_mgr: Any) -> None:
-    """试验：整库 suspend（DuckDB 不允许主进程 rw 与子进程 ro 同文件并存）。"""
-    suspend_main_database(data_mgr)
+    """关闭主进程 DuckDB（探针等短路径；全量 worker 池请用 prepare_main_for_duckdb_workers）。"""
+    release_all_main_db_handles(data_mgr)
 
 
 def reconnect_main_duckdb_domains(data_mgr: Any) -> None:

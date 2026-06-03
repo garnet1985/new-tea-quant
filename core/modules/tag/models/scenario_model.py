@@ -304,7 +304,7 @@ class ScenarioModel:
             performance["max_workers"] = "auto"
 
         if "entities_per_job" not in performance:
-            performance["entities_per_job"] = 100
+            performance["entities_per_job"] = "auto"
 
         if "stage_in_worker" not in performance:
             performance["stage_in_worker"] = True

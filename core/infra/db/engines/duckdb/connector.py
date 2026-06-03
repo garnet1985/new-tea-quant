@@ -133,14 +133,30 @@ class DuckdbDomainConnection:
             self._conn = None
         self._initialized = False
 
-    def checkpoint(self) -> None:
+    def checkpoint(self) -> bool:
+        """合并 WAL；有并发写事务时尝试 FORCE CHECKPOINT。"""
         if self._conn is None or bool(self.config.get("read_only", False)):
-            return
+            return True
         try:
             with self._lock:
                 self._conn.execute("CHECKPOINT")
+            return True
         except Exception as e:
+            msg = str(e)
+            if "Cannot CHECKPOINT" in msg or "other write transactions" in msg:
+                try:
+                    with self._lock:
+                        self._conn.execute("FORCE CHECKPOINT")
+                    return True
+                except Exception as e2:
+                    logger.warning(
+                        "DuckDB CHECKPOINT 失败 domain=%s: %s",
+                        self.domain,
+                        e2,
+                    )
+                    return False
             logger.warning("DuckDB CHECKPOINT 失败 domain=%s: %s", self.domain, e)
+            return False
 
     def _ensure_conn(self) -> Any:
         if not self._initialized or self._conn is None:
@@ -355,12 +371,7 @@ class DuckdbConnector:
                 continue
             if bool(conn.config.get("read_only", False)):
                 continue
-            try:
-                conn.checkpoint()
-                results[d] = True
-            except Exception as e:
-                logger.warning("DuckDB CHECKPOINT 失败 domain=%s: %s", d, e)
-                results[d] = False
+            results[d] = conn.checkpoint()
         return results
 
 

@@ -320,6 +320,7 @@ class PriceFactorFlow(BaseSimulationFlow):
             preprocessed.strategy_name,
             "price",
             preprocessed.base_settings.to_dict(),
+            protect_output_version_dir=preprocessed.output_version_dir,
         )
         return session_summary
 

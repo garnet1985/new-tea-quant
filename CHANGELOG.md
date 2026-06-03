@@ -52,6 +52,7 @@ python dev-cli -p -vx.x.x
 - 加入data source的自动结果收集量，能根据内存占用动态调整数据获取批次的大小，减小硬盘IO，提高效率
 - 重组和收纳userspace的文件夹结构，并且更新path manager（路径管理器）的引用，让userspace更加整洁
 - 重构infra/db模块，让结构变成引擎模式，引入duckdb的写管道和自动生成文件和表的地图功能
+- 让单进程模块支持一次处理多个股票，大幅度降低IO，效率提高一倍
 
 ---
 

@@ -8,5 +8,6 @@ dependencies:
   - modules.data_cursor
   - modules.indicator
   - infra.project_context
+  - infra.job_pipeline
   - infra.worker
 

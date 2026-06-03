@@ -343,6 +343,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             preprocessed.strategy_name,
             "enum",
             preprocessed.enum_settings.to_dict(),
+            protect_output_version_dir=preprocessed.version_dir_name,
         )
         return summary_list
 

@@ -92,7 +92,10 @@ class Scanner:
         *,
         on_job_done: Optional[Callable[[Dict[str, Any]], None]] = None,
     ) -> List[Opportunity]:
-        from core.infra.worker import ProcessExecutionMode, ProcessWorker
+        from core.infra.worker.multi_process.process_worker import JobStatus
+        from core.modules.strategy.services.execution.scanner_job_pipeline import (
+            run_scanner_jobs_via_pipeline,
+        )
 
         info = self._strategy_info
         market_profile_id = str(info.settings.market_profile.profile_id or "").strip()
@@ -109,34 +112,33 @@ class Scanner:
             }
             for stock_id in stock_ids
         ]
-        worker_pool = ProcessWorker(
-            max_workers=ProcessWorker.resolve_max_workers(self.settings.max_workers, module_name="Scanner"),
-            execution_mode=ProcessExecutionMode.QUEUE,
-            job_executor=Scanner._execute_single_job,
-            on_job_done=on_job_done if callable(on_job_done) else None,
-            is_verbose=self.is_verbose,
+        if not jobs:
+            return []
+
+        job_results = run_scanner_jobs_via_pipeline(
+            stock_jobs=jobs,
+            max_workers=self.settings.max_workers,
+            total_jobs=len(jobs),
+            run_name=f"scanner:{self.strategy_name}",
+            on_legacy_progress=on_job_done if callable(on_job_done) else None,
         )
-        worker_pool.run_jobs([{"id": job["stock_id"], "payload": job} for job in jobs])
         opportunities: List[Opportunity] = []
-        for job_result in worker_pool.get_results():
-            if job_result.status.value == "completed":
-                result = job_result.result
-                if result.get("success") and result.get("opportunity"):
-                    opportunities.append(Opportunity.from_dict(result["opportunity"]))
+        for job_result in job_results:
+            if job_result.status != JobStatus.COMPLETED or not job_result.result:
+                continue
+            result = job_result.result
+            if result.get("success") and result.get("opportunity"):
+                opportunities.append(Opportunity.from_dict(result["opportunity"]))
         return opportunities
 
     @staticmethod
     def _execute_single_job(payload: Dict[str, Any]) -> Dict[str, Any]:
-        import importlib
+        """兼容旧调用；扫描并行请走 ``run_scanner_jobs_via_pipeline``。"""
+        from core.modules.strategy.services.execution.scanner_job_pipeline import (
+            run_scanner_worker_payload,
+        )
 
-        stock_id = payload["stock_id"]
-        try:
-            worker_module = importlib.import_module(payload["worker_module_path"])
-            worker_class = getattr(worker_module, payload["worker_class_name"])
-            return worker_class(payload).run()
-        except Exception as exc:
-            logger.error("[Scanner] stock scan failed: %s - %s", stock_id, exc, exc_info=True)
-            return {"success": False, "stock_id": stock_id, "opportunity": None, "error": str(exc)}
+        return run_scanner_worker_payload(payload)
 
     def _calculate_summary(self, opportunities: List[Opportunity]) -> Dict[str, Any]:
         if not opportunities:

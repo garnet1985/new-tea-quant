@@ -7,7 +7,7 @@ import csv
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.infra.project_context import PathManager
 from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
@@ -726,6 +726,40 @@ class EnumeratorReport(ReportBase):
     def write(self, output_dir: Path, **kwargs: Any) -> None:
         self.write_bff_payload(output_dir)
 
+    @staticmethod
+    def _enum_metrics_from_summary(res: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        em = res.get("enumMetrics") if isinstance(res, dict) else None
+        if not isinstance(em, dict) or not em:
+            return None
+        return em
+
+    @classmethod
+    def _report_for_present(
+        cls,
+        *,
+        res: Dict[str, Any],
+        strategy_name: str,
+        version_name: str,
+    ) -> Tuple["EnumeratorReport", Optional[Path]]:
+        """优先用 postprocess 带回的 ``enumMetrics``，再读落盘目录（可能已被 retention 删掉）。"""
+        sn = str(res.get("strategy_name") or strategy_name or "").strip()
+        label = strategy_name.strip() or "策略"
+        em = cls._enum_metrics_from_summary(res)
+        if em is not None:
+            payload: Dict[str, Any] = {"enumMetrics": em}
+            bp = _normalize_backtest_period_dict(res.get("backtest_period"))
+            if bp:
+                payload["backtest_period"] = bp
+            return cls.from_bff_payload(payload), None
+
+        candidates = [
+            PathManager.strategy_simulation_enum(sn or label) / version_name,
+        ]
+        for output_dir in candidates:
+            if output_dir.exists():
+                return cls.load(output_dir), output_dir
+        return cls.from_bff_payload({}), None
+
     @classmethod
     def present(cls, **kwargs: Any) -> None:
         strategy_name = str(kwargs.get("strategy_name") or "")
@@ -747,16 +781,11 @@ class EnumeratorReport(ReportBase):
         for res in summary_results:
             version_name = str(res.get("enumerator_output_dir") or "").strip()
             sn = str(res.get("strategy_name") or strategy_name or "").strip()
-            candidates = [
-                PathManager.strategy_simulation_enum(sn or label) / version_name,
-            ]
-            report = cls.from_bff_payload({})
-            loaded_dir: Optional[Path] = None
-            for output_dir in candidates:
-                if output_dir.exists():
-                    report = cls.load(output_dir)
-                    loaded_dir = output_dir
-                    break
+            report, loaded_dir = cls._report_for_present(
+                res=res if isinstance(res, dict) else {},
+                strategy_name=strategy_name,
+                version_name=version_name,
+            )
             if not report.backtest_period:
                 bp = _normalize_backtest_period_dict(res.get("backtest_period"))
                 if bp:

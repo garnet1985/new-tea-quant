@@ -340,6 +340,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             preprocessed.strategy_name,
             "capital",
             preprocessed.base_settings.to_dict(),
+            protect_output_version_dir=preprocessed.output_version_dir,
         )
         return summary
 

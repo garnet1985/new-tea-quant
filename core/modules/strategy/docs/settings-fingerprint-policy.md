@@ -119,8 +119,8 @@
 - 去掉 **`meta`** 根块（若仍嵌在结构中）
 - 去掉 **`IGNORE_ROOT_KEYS`**（如 `description`、`is_enabled`）
 - 整块去掉 **`scanner`**（`DROP_ROOT_BLOCKS`）
-- 按 **是否启用 sampling** 决定是否保留 **`sampling`** 块（`resolve_sampling_is_used`，与旧版 `enumerator` / 模拟器内开关兼容）
-- 按忽略表去掉 **enumerator / price_simulator / capital_simulator** 中非语义键
+- **始终保留根级 `sampling` 块**（含 `use_sampling`、`strategy`、`sampling_amount`、pool 等）；`env_fp` 另含 `run_mode`（`sampling` | `full`）
+- 按忽略表去掉 **enumerator / price_simulator / capital_simulator** 中非语义键（**不含** `use_sampling`）
 
 工作台的 **`settings_core`** 应与上表 **语义一致**；单测应对齐 **`semantic_core_strip`** 与本文。
 

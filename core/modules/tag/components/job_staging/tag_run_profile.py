@@ -1,4 +1,4 @@
-"""Tag JobDispatcher 运行剖面（stage / execute / report）。"""
+"""Tag JobPipeline 运行剖面（stage / execute / report）。"""
 from __future__ import annotations
 
 import pickle
@@ -61,7 +61,7 @@ class TagRunProfile:
         db_label = f", db={database_type}" if database_type else ""
         lines = [
             "Tag 剖面 (wall=%.2fs, jobs=%s%s):" % (wall, total_jobs, db_label),
-            "  stage(on_stage_job):  %.2fs  (%d jobs, avg %.1fms/job, pickle %.1fKB/job, rows %d)"
+            "  stage(worker): %.2fs  (%d jobs, avg %.1fms/job, pickle %.1fKB/job, rows %d)"
             % (
                 self.stage_sec,
                 self.stage_jobs,
@@ -75,7 +75,7 @@ class TagRunProfile:
                 self.execute_jobs,
                 (self.execute_sec / self.execute_jobs * 1000) if self.execute_jobs else 0,
             ),
-            "  report(on_report):    %.2fs  (save_batch %.2fs, %d jobs, avg %.1fms/job)"
+            "  report(on_result):    %.2fs  (save_batch %.2fs, %d jobs, avg %.1fms/job)"
             % (
                 self.report_sec,
                 self.save_batch_sec,

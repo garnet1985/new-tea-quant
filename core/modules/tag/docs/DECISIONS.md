@@ -7,7 +7,7 @@
 ## 决策 3：主进程 batch stage IO（待集成，先跑通再优化）
 
 **背景（Context）**  
-Tag 已切到 **JobDispatcher + inject/report**：主进程 `on_stage_job` 每股执行 `hydrate_row_slots`（kline）+ `fetch_prior_tag_values`（prior 点查）。profile 与专用 benchmark 表明 **stage 读库是主要瓶颈**（全量 ~47s / ~60s wall），而非 checkpoint、pickle 或子进程计算。
+Tag 已切到 **JobPipeline + inject/report**：主进程 `on_stage_job` 每股执行 `hydrate_row_slots`（kline）+ `fetch_prior_tag_values`（prior 点查）。profile 与专用 benchmark 表明 **stage 读库是主要瓶颈**（全量 ~47s / ~60s wall），而非 checkpoint、pickle 或子进程计算。
 
 **决策（Decision）**  
 **暂不实现**；pipeline 稳定后再做 **主进程 bulk SQL stage**：

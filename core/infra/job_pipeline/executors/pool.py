@@ -5,9 +5,9 @@ import multiprocessing as mp
 from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor
 from typing import Any, Callable, Optional
 
-from core.infra.job_dispatcher.hooks import ExecuteFn
-from core.infra.job_dispatcher.types import ExecutionBackend
-from core.infra.job_dispatcher.worker_invoke import invoke_execute
+from core.infra.job_pipeline.hooks import ExecuteFn
+from core.infra.job_pipeline.types import ExecutionBackend, JobContext
+from core.infra.job_pipeline.worker_invoke import invoke_execute
 
 
 class ProcessJobExecutor:
@@ -27,8 +27,6 @@ class ProcessJobExecutor:
         self._timeout = timeout
         self._pool: Optional[ProcessPoolExecutor] = None
         self._submitted = 0
-        self._completed = 0
-        self._failed = 0
 
     @property
     def max_workers(self) -> int:
@@ -47,24 +45,26 @@ class ProcessJobExecutor:
             )
         return self._pool
 
-    def submit(self, job_id: str, payload: dict[str, Any]) -> Future:
-        del job_id  # Future 由 Dispatcher 关联 StagedJob
+    def submit(self, context: JobContext) -> Future:
         self._submitted += 1
         pool = self._ensure_pool()
-        return pool.submit(invoke_execute, self._execute, payload)
+        return pool.submit(invoke_execute, self._execute, context)
 
     def shutdown(self, *, wait: bool = True, timeout: float | None = None) -> None:
-        if self._pool is not None:
+        del timeout
+        if self._pool is None:
+            return
+        try:
             self._pool.shutdown(wait=wait, cancel_futures=not wait)
-            self._pool = None
+        except Exception:
+            pass
+        self._pool = None
 
     def get_stats(self) -> dict[str, Any]:
         return {
             "backend": ExecutionBackend.PROCESS.value,
             "max_workers": self._max_workers,
             "submitted": self._submitted,
-            "completed": self._completed,
-            "failed": self._failed,
         }
 
 
@@ -95,11 +95,10 @@ class ThreadJobExecutor:
             self._pool = ThreadPoolExecutor(max_workers=self._max_workers)
         return self._pool
 
-    def submit(self, job_id: str, payload: dict[str, Any]) -> Future:
-        del job_id
+    def submit(self, context: JobContext) -> Future:
         self._submitted += 1
         pool = self._ensure_pool()
-        return pool.submit(invoke_execute, self._execute, payload)
+        return pool.submit(invoke_execute, self._execute, context)
 
     def shutdown(self, *, wait: bool = True, timeout: float | None = None) -> None:
         del timeout

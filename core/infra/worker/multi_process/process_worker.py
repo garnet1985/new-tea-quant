@@ -4,9 +4,9 @@
 """
 多进程 Worker（已废弃）。
 
-队列填池、BATCH/QUEUE pipeline 已移除，请使用 ``core.infra.job_dispatcher``：
+队列填池、BATCH/QUEUE pipeline 已移除，请使用 ``core.infra.job_pipeline``：
 
-    JobDispatcher(on_stage_job=..., on_report=..., executor=create_job_executor(...)).run(shells)
+    JobPipeline(execute=..., on_result=..., executor=create_job_executor(...)).run(jobs)
 
 本模块保留 ``JobStatus`` / ``JobResult`` 与 ``resolve_max_workers`` 等工具符号，供迁移期引用。
 """
@@ -19,9 +19,9 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
 _DEPRECATED_RUN_MSG = (
-    "ProcessWorker.run_jobs 已移除。请使用 core.infra.job_dispatcher.JobDispatcher："
-    "on_stage_job / on_report + create_job_executor(...)。"
-    "队列填池与 auto max_workers 已上移至 JobDispatcher。"
+    "ProcessWorker.run_jobs 已移除。请使用 core.infra.job_pipeline.JobPipeline："
+    "execute(JobContext) / on_result + create_job_executor(...)。"
+    "队列填池与 auto max_workers 已上移至 JobPipeline。"
 )
 
 
@@ -33,7 +33,7 @@ class ExecutionMode(Enum):
 
 
 class JobStatus(Enum):
-    """任务状态（worker 模块结果类型，与 JobDispatcher 无直接耦合）。"""
+    """任务状态（worker 模块结果类型，与 JobPipeline 无直接耦合）。"""
 
     PENDING = "pending"
     RUNNING = "running"
@@ -85,20 +85,30 @@ class ProcessWorker:
     """
     已废弃的多进程任务执行器壳。
 
-    新代码请组合 ``JobDispatcher`` + ``create_job_executor``。
+    新代码请组合 ``JobPipeline`` + ``create_job_executor``。
     """
 
     @staticmethod
     def calculate_workers(task_type, reserve_cores: int = 2) -> int:
-        from core.infra.job_dispatcher.resolve import calculate_workers as _fn
+        """已废弃：请使用 ``WorkerProbe.resolve``。"""
+        import multiprocessing as mp
 
-        return _fn(task_type, reserve_cores)
+        from core.infra.worker.multi_process.task_type import TaskType
+
+        cpu_count = mp.cpu_count() or 1
+        if task_type == TaskType.CPU_INTENSIVE:
+            physical_cores = max(1, cpu_count // 2)
+            return max(1, physical_cores - reserve_cores)
+        if task_type == TaskType.IO_INTENSIVE:
+            return max(2, cpu_count - reserve_cores + 1)
+        return max(1, cpu_count - reserve_cores)
 
     @staticmethod
-    def resolve_max_workers(max_workers, module_name: str) -> int:
-        from core.infra.job_dispatcher.resolve import resolve_max_workers as _fn
+    def resolve_max_workers(max_workers, module_name: str = "default") -> int:
+        del module_name  # 已废弃；并行度由 WorkerProbe 解析
+        from core.infra.job_pipeline.probe import WorkerProbe
 
-        return _fn(max_workers, module_name)
+        return WorkerProbe.resolve(max_workers)
 
     def __init__(
         self,

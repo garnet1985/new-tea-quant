@@ -83,10 +83,14 @@ class WritePipeline:
                     job.result_holder.append(0)
             finally:
                 if self.checkpoint_after_write:
-                    try:
-                        self._engine.connector.checkpoint(self.domain)
-                    except Exception as e:
-                        logger.debug("批后 CHECKPOINT 跳过 domain=%s: %s", self.domain, e)
+                    ok = self._engine.connector.checkpoint(self.domain).get(
+                        self.domain, False
+                    )
+                    if not ok:
+                        logger.debug(
+                            "批后 CHECKPOINT 延后 domain=%s（写队列仍忙）",
+                            self.domain,
+                        )
 
     def _execute_job(self, job: _WriteJob) -> int:
         op = self._engine._table_operator_for_domain(job.table_name, self.domain)

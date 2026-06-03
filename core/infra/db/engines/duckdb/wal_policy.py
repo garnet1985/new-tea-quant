@@ -80,7 +80,13 @@ def install_sigint_checkpoint_handler_for_engine(
         def _handler(signum, frame):
             logger.info("收到 Ctrl+C，正在将 DuckDB WAL 合并进主库…")
             try:
-                checkpoint_duckdb_engine(engine)
+                if getattr(engine, "_initialized", False):
+                    checkpoint_duckdb_engine(engine)
+                else:
+                    logger.info(
+                        "主库 DuckDB 未连接（如 Tag stage_in_worker suspend），"
+                        "跳过 SIGINT CHECKPOINT，由业务 finally 恢复后再合并 WAL"
+                    )
             except Exception as e:
                 logger.warning("中断时 CHECKPOINT 未完全成功: %s", e)
             signal.signal(signal.SIGINT, signal.SIG_DFL)

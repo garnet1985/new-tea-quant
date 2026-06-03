@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.infra.job_dispatcher.resolve import calculate_workers, resolve_max_workers
+from core.infra.job_pipeline.probe import WorkerProbe
 from core.infra.worker.multi_process.process_worker import (
     ExecutionMode,
     JobStatus,
@@ -32,7 +32,7 @@ def test_init_with_config():
 
 
 def test_resolve_max_workers_manual():
-    assert resolve_max_workers(8, "TestModule") == 8
+    assert WorkerProbe.resolve(8) == 8
     assert ProcessWorker.resolve_max_workers(8, "TestModule") == 8
 
 
@@ -48,7 +48,6 @@ def test_calculate_workers():
         TaskType.IO_INTENSIVE,
         TaskType.MIXED,
     ):
-        workers = calculate_workers(task_type, reserve_cores=2)
+        workers = ProcessWorker.calculate_workers(task_type, reserve_cores=2)
         assert isinstance(workers, int)
         assert workers > 0
-        assert ProcessWorker.calculate_workers(task_type, reserve_cores=2) == workers

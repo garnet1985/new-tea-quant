@@ -35,7 +35,6 @@ python dev-cli -p -vx.x.x
 ### v0.4.x (TBD)
 
 目标，让整个项目的安装仅依赖python
-- 系统支持parquet文件存储，使用duckDB进行调度，默认消除对第三方数据库的依赖
 - 增加report里K线的点击界面
 - 为新版本的更新增加清除缓存的步骤
 - 给设置里增加清除缓存的功能
@@ -52,6 +51,7 @@ python dev-cli -p -vx.x.x
 - 修复关键性bug - data source（数据源）系统不是批量写入的bug
 - 加入data source的自动结果收集量，能根据内存占用动态调整数据获取批次的大小，减小硬盘IO，提高效率
 - 重组和收纳userspace的文件夹结构，并且更新path manager（路径管理器）的引用，让userspace更加整洁
+- 重构infra/db模块，让结构变成引擎模式，引入duckdb的写管道和自动生成文件和表的地图功能
 
 ---
 

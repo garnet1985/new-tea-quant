@@ -107,22 +107,22 @@
 
 ---
 
-## 决策 6：队列 pipeline 上移至 JobDispatcher，ProcessWorker 收薄
+## 决策 6：队列 pipeline 上移至 JobPipeline，ProcessWorker 收薄
 
 1. **背景（Context）**  
    DuckDB 多进程 Tag 场景暴露「Worker 内做 DB + 队列填池」的职责混杂；需要主进程 inject/report、子进程只 execute。
 
 2. **决策（Decision）**  
-   - 新增 `core.infra.job_dispatcher`：`JobDispatcher.run(shells)` + `on_stage_job` / `on_report` + `create_job_executor`。  
+   - 新增 `core.infra.job_pipeline`：`JobPipeline.run(shells)` + `on_stage_job` / `on_report` + `create_job_executor`。  
    - `ProcessWorker.run_jobs`、旧 QUEUE/BATCH pipeline **移除**（调用即 `RuntimeError`）。  
-   - `resolve_max_workers` / `calculate_workers` 迁至 `job_dispatcher.resolve`；`invoke_execute` 迁至 `job_dispatcher.worker_invoke`。  
+   - `resolve_max_workers` / `calculate_workers` 迁至 `job_pipeline.resolve`；`invoke_execute` 迁至 `job_pipeline.worker_invoke`。  
    - **本阶段不改** Tag / Strategy 等业务方；集成时再切换。
 
 3. **理由（Rationale）**  
    调度（装填、有界 ready 队列、填池）与运行时（submit execute）分离，便于 DuckDB 主进程写、Worker 无 DB。
 
 4. **影响（Consequences）**  
-   - 不保证向后兼容；旧 `ProcessWorker` / `ProcessExecutor.run_jobs` 调用需改为 JobDispatcher。  
+   - 不保证向后兼容；旧 `ProcessWorker` / `ProcessExecutor.run_jobs` 调用需改为 JobPipeline。  
    - `MultiThreadWorker` / Orchestrator 线程路径暂保留，后续可同样收薄。
 
 5. **备选方案（Alternatives）**  
@@ -135,4 +135,4 @@
 - [架构总览](./ARCHITECTURE.md)
 - [详细设计](./DESIGN.md)
 - [API](./API.md)
-- [../../job_dispatcher/ARCHITECTURE.md](../../job_dispatcher/ARCHITECTURE.md)
+- [../../job_pipeline/ARCHITECTURE.md](../../job_pipeline/ARCHITECTURE.md)

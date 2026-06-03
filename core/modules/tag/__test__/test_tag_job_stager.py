@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from core.infra.job_dispatcher.types import JobShell
+from core.infra.job_pipeline.types import Job
 from core.modules.tag.components.job_staging.tag_job_stager import TagJobStager
 
 
 def test_tag_job_stager_builds_inline_inject_payload():
-    shell = JobShell(
+    job = Job(
         job_id="scenario_000001",
         payload={
             "entity_id": "000001",
@@ -39,11 +39,10 @@ def test_tag_job_stager_builds_inline_inject_payload():
         return_value={"1": '{"value": true}'},
     ):
         stager = TagJobStager(data_mgr=MagicMock())
-        staged = stager.stage(shell)
+        enriched = stager.stage_job(job)
 
     mock_tdm.hydrate_row_slots.assert_called_once_with("20250101", "20250102")
-    inject = staged.payload["_inject"]
+    inject = enriched.payload["_inject"]
     assert inject["trading_dates"] == ["20250101", "20250102"]
     assert inject["slot_data"]["stock.kline"] == [{"date": "20250101", "close": 1.0}]
     assert inject["prior_tag_values"] == {"1": '{"value": true}'}
-    assert staged.data_refs == []

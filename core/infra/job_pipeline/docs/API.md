@@ -1,13 +1,15 @@
-# JobDispatcher API
+# JobPipeline API
 
 **版本：** `0.6.0`（2026-06）
 
+**失败语义：** `execute` 未捕获异常 → 仅 `DispatchResult.failures`；返回 `success=False` 的 dict → 仍触发 `on_result`。
+
 ```python
-from core.infra.job_dispatcher import (
+from core.infra.job_pipeline import (
     Job,
     JobContext,
-    JobDispatcher,
-    JobDispatchSettings,
+    JobPipeline,
+    JobPipelineSettings,
     ExecuteMode,
     ExecutionBackend,
 )
@@ -15,13 +17,13 @@ from core.infra.job_dispatcher import (
 
 ---
 
-## JobDispatcher
+## JobPipeline
 
 ```python
 def execute(context: JobContext) -> Any: ...
 
-dispatcher = JobDispatcher(
-    settings=JobDispatchSettings(...),
+dispatcher = JobPipeline(
+    settings=JobPipelineSettings(...),
     execute=execute,
     on_result=callback,             # (JobReport, RunProgress) -> None
     on_release=optional_cleanup,    # (JobContext) -> None
@@ -51,7 +53,7 @@ result = dispatcher.run(jobs, run_name="tag:scenario_x")
 
 ---
 
-## JobDispatchSettings
+## JobPipelineSettings
 
 | 字段 | 默认 | 说明 |
 |------|------|------|

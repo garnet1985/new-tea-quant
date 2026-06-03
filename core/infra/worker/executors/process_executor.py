@@ -4,7 +4,7 @@
 """
 多进程执行器（Orchestrator 用 Executor 协议包装）。
 
-旧 ProcessWorker pipeline 已移除；请使用 ``core.infra.job_dispatcher``。
+旧 ProcessWorker pipeline 已移除；请使用 ``core.infra.job_pipeline``。
 """
 
 from typing import Any, Callable, Dict, List, Optional
@@ -16,12 +16,12 @@ from ..multi_process.process_worker import (
 )
 
 _DEPRECATED_MSG = (
-    "ProcessExecutor.run_jobs 已移除。请使用 JobDispatcher + create_job_executor(...)。"
+    "ProcessExecutor.run_jobs 已移除。请使用 JobPipeline + create_job_executor(...)。"
 )
 
 
 class ProcessExecutor(Executor):
-    """已废弃：请改用 JobDispatcher。"""
+    """已废弃：请改用 JobPipeline。"""
 
     def __init__(
         self,

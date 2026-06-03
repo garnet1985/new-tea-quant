@@ -1,5 +1,5 @@
 """
-JobDispatcher - 任务分发与结果回收。
+JobPipeline - 并行 Job 执行管道（线程/进程池 + on_result 回收）。
 
 jobs[] → executor(JobContext) → on_result
 """
@@ -10,10 +10,10 @@ import time
 from concurrent.futures import FIRST_COMPLETED, Future, wait
 from typing import Dict, List, Optional
 
-from core.infra.job_dispatcher.executor import JobExecutor, create_job_executor
-from core.infra.job_dispatcher.hooks import ExecuteFn, OnReleaseHook, OnResultHook
-from core.infra.job_dispatcher.settings import JobDispatchSettings
-from core.infra.job_dispatcher.types import (
+from core.infra.job_pipeline.executor import JobExecutor, create_job_executor
+from core.infra.job_pipeline.hooks import ExecuteFn, OnReleaseHook, OnResultHook
+from core.infra.job_pipeline.settings import JobPipelineSettings
+from core.infra.job_pipeline.types import (
     DispatchResult,
     ExecuteMode,
     Job,
@@ -27,9 +27,9 @@ from core.infra.job_dispatcher.types import (
 logger = logging.getLogger(__name__)
 
 
-class JobDispatcher:
+class JobPipeline:
     """
-    任务调度器：提交 JobExecutor → on_result。
+    顶层执行管道：经 JobExecutor 并发 execute，主进程 on_result 回收。
 
     Hooks:
         execute(context)  — 子进程/线程内执行（load/算由使用方决定）
@@ -40,14 +40,13 @@ class JobDispatcher:
     def __init__(
         self,
         *,
-        settings: JobDispatchSettings,
+        settings: JobPipelineSettings,
         execute: ExecuteFn,
         on_result: OnResultHook,
         on_release: Optional[OnReleaseHook] = None,
         executor: Optional[JobExecutor] = None,
     ) -> None:
         self._settings = settings
-        self._execute = execute
         self._on_result = on_result
         self._on_release = on_release
         self._executor = executor or create_job_executor(settings, execute=execute)
@@ -62,7 +61,7 @@ class JobDispatcher:
         self._run_name = ""
 
     @property
-    def settings(self) -> JobDispatchSettings:
+    def settings(self) -> JobPipelineSettings:
         return self._settings
 
     @property
@@ -104,19 +103,8 @@ class JobDispatcher:
                         break
                     continue
 
-                done, _ = wait(futures.keys(), return_when=FIRST_COMPLETED)
-                for future in done:
-                    context = futures.pop(future)
-                    try:
-                        raw = future.result()
-                        self._handle_worker_success(context, raw)
-                    except Exception as exc:
-                        self._handle_worker_failure(context, str(exc))
-                    finally:
-                        self._release_context(context)
-                    if not self._settings.continue_on_failure and self._failed > 0:
-                        self._cancelled = True
-                        break
+                if not self._drain_completed_futures(futures):
+                    break
         except KeyboardInterrupt:
             self._cancelled = True
             if self._run_name:
@@ -158,19 +146,8 @@ class JobDispatcher:
                     if not futures:
                         break
 
-                    done, _ = wait(futures.keys(), return_when=FIRST_COMPLETED)
-                    for future in done:
-                        context = futures.pop(future)
-                        try:
-                            raw = future.result()
-                            self._handle_worker_success(context, raw)
-                        except Exception as exc:
-                            self._handle_worker_failure(context, str(exc))
-                        finally:
-                            self._release_context(context)
-                        if not self._settings.continue_on_failure and self._failed > 0:
-                            self._cancelled = True
-                            break
+                    if not self._drain_completed_futures(futures):
+                        break
         except KeyboardInterrupt:
             self._cancelled = True
             if self._run_name:
@@ -196,6 +173,30 @@ class JobDispatcher:
         if self._settings.ready_queue_limit is not None:
             return max(1, self._settings.ready_queue_limit)
         return self._executor.max_workers + max(0, self._settings.prefetch_ahead)
+
+    def _drain_completed_futures(self, futures: Dict[Future, JobContext]) -> bool:
+        """
+        等待并处理已完成的 future。
+
+        Returns:
+            False 表示应停止调度（cancel 或 continue_on_failure 触发）。
+        """
+        if not futures:
+            return True
+        done, _ = wait(futures.keys(), return_when=FIRST_COMPLETED)
+        for future in done:
+            context = futures.pop(future)
+            try:
+                raw = future.result()
+                self._handle_worker_success(context, raw)
+            except Exception as exc:
+                self._handle_worker_failure(context, str(exc))
+            finally:
+                self._release_context(context)
+            if not self._settings.continue_on_failure and self._failed > 0:
+                self._cancelled = True
+                return False
+        return True
 
     def _prefetch_until_ready(self, *, in_flight_count: int) -> None:
         cap = self._ready_queue_capacity()

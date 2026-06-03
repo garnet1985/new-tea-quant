@@ -1,4 +1,4 @@
-# JobDispatcher 单元测试
+# JobPipeline 单元测试
 from __future__ import annotations
 
 from concurrent.futures import Future
@@ -6,17 +6,17 @@ from typing import Any, List
 
 import pytest
 
-from core.infra.job_dispatcher import (
+from core.infra.job_pipeline import (
     ExecuteMode,
     ExecutionBackend,
     Job,
     JobContext,
-    JobDispatchSettings,
-    JobDispatcher,
+    JobPipelineSettings,
+    JobPipeline,
     JobReport,
     RunProgress,
 )
-from core.infra.job_dispatcher.executors.pool import ProcessJobExecutor, ThreadJobExecutor
+from core.infra.job_pipeline.executors.pool import ProcessJobExecutor, ThreadJobExecutor
 
 
 class _CollectingExecutor:
@@ -60,12 +60,12 @@ def test_dispatcher_queue_passes_job_context():
     def on_result(report: JobReport, progress: RunProgress) -> None:
         reports.append(report)
 
-    settings = JobDispatchSettings(
+    settings = JobPipelineSettings(
         worker=ExecutionBackend.THREAD,
         max_workers=2,
         prefetch_ahead=1,
     )
-    dispatcher = JobDispatcher(
+    dispatcher = JobPipeline(
         settings=settings,
         execute=execute,
         on_result=on_result,
@@ -94,8 +94,8 @@ def test_thread_executor_integration():
     def on_result(report: JobReport, progress: RunProgress) -> None:
         reports.append(report)
 
-    settings = JobDispatchSettings(worker=ExecutionBackend.THREAD, max_workers=2)
-    dispatcher = JobDispatcher(
+    settings = JobPipelineSettings(worker=ExecutionBackend.THREAD, max_workers=2)
+    dispatcher = JobPipeline(
         settings=settings,
         execute=execute,
         on_result=on_result,
@@ -117,12 +117,12 @@ def test_process_executor_integration():
     def on_result(report: JobReport, progress: RunProgress) -> None:
         reports.append(report)
 
-    settings = JobDispatchSettings(
+    settings = JobPipelineSettings(
         worker=ExecutionBackend.PROCESS,
         max_workers=2,
         start_method="spawn",
     )
-    dispatcher = JobDispatcher(
+    dispatcher = JobPipeline(
         settings=settings,
         execute=_process_execute_double,
         on_result=on_result,
@@ -142,13 +142,13 @@ def test_batch_mode():
     def on_result(report: JobReport, progress: RunProgress) -> None:
         reports.append(report)
 
-    settings = JobDispatchSettings(
+    settings = JobPipelineSettings(
         worker=ExecutionBackend.THREAD,
         execute_mode=ExecuteMode.BATCH,
         max_workers=2,
         batch_size=2,
     )
-    dispatcher = JobDispatcher(
+    dispatcher = JobPipeline(
         settings=settings,
         execute=lambda ctx: {"success": True, "n": ctx.payload["n"]},
         on_result=on_result,
@@ -160,9 +160,27 @@ def test_batch_mode():
     assert len(reports) == 4
 
 
+def test_execute_exception_does_not_call_on_result():
+    reports: List[JobReport] = []
+
+    def execute(ctx: JobContext) -> None:
+        raise RuntimeError("boom")
+
+    dispatcher = JobPipeline(
+        settings=JobPipelineSettings(worker=ExecutionBackend.THREAD, max_workers=1),
+        execute=execute,
+        on_result=lambda report, progress: reports.append(report),
+    )
+    result = dispatcher.run([Job("x", {})])
+
+    assert result.failed == 1
+    assert len(reports) == 0
+    assert result.failures[0].phase.value == "execute"
+
+
 def test_elastic_mode_not_implemented():
-    dispatcher = JobDispatcher(
-        settings=JobDispatchSettings(execute_mode=ExecuteMode.ELASTIC),
+    dispatcher = JobPipeline(
+        settings=JobPipelineSettings(execute_mode=ExecuteMode.ELASTIC),
         execute=lambda ctx: ctx,
         on_result=lambda r, p: None,
         executor=_CollectingExecutor(max_workers=1),

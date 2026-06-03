@@ -8,7 +8,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from core.infra.job_dispatcher.types import JobContext
+from core.infra.job_pipeline.types import JobContext
 from core.modules.tag.components.job_staging.worker_runtime import release_worker_runtime
 
 logger = logging.getLogger(__name__)

@@ -1,4 +1,4 @@
-# Tag × JobDispatcher 调度模式实测记录
+# Tag × JobPipeline 调度模式实测记录
 
 ## 约定模式（2026-06-03，后续默认）
 
@@ -60,7 +60,7 @@ Tag计算完成: scenario=activity-ratio20, dispatch_jobs=117, entities=5850,
 
 ---
 
-## 基线（1 股/job · JobDispatcher 新 API · 2026-06-02）
+## 基线（1 股/job · JobPipeline 新 API · 2026-06-02）
 
 ```text
 Tag计算完成: scenario=activity-ratio20, 总jobs=5850, 成功=5850, 失败=0,

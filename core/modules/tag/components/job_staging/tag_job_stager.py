@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from core.infra.job_dispatcher.types import Job
+from core.infra.job_pipeline.types import Job
 from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.tag.components.data_management.tag_data_manager import TagDataManager
 from core.modules.tag.components.job_staging.tag_batch_stage import stage_entities_batch

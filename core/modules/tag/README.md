@@ -1,6 +1,6 @@
 # Tag 模块（`modules.tag`）
 
-**`TagManager`** 在 **`userspace/tags/`**（或 `PathManager.tags()` 指向的目录）下发现场景：每个子目录含 **`settings.py`** 与 **`tag_worker.py`**（继承 **`BaseTagWorker`**）。执行时按 **`TagUpdateMode`**（增量 / 全量刷新）构建 Job，经 **`JobDispatcher`**（主进程 inject/report + 多进程 `execute`）逐实体、逐交易日调用 **`calculate_tag`**，结果经 **`DataManager.stock.tags`** 批量写入。
+**`TagManager`** 在 **`userspace/tags/`**（或 `PathManager.tags()` 指向的目录）下发现场景：每个子目录含 **`settings.py`** 与 **`tag_worker.py`**（继承 **`BaseTagWorker`**）。执行时按 **`TagUpdateMode`**（增量 / 全量刷新）构建 Job，经 **`JobPipeline`**（主进程 inject/report + 多进程 `execute`）逐实体、逐交易日调用 **`calculate_tag`**，结果经 **`DataManager.stock.tags`** 批量写入。
 
 仓库内专题说明见 **[用户指南：标签系统](../../../userspace/tags/USER_GUIDE.md)**；示例配置见 **`userspace/tags/`**。
 

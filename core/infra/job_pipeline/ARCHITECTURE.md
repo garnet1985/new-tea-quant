@@ -1,6 +1,6 @@
-# JobDispatcher 架构
+# JobPipeline 架构
 
-**状态：** v0.6.0 — `JobContext` + 无 `to_executable_job`  
+**状态：** v0.7.0 — `job_pipeline`  
 **日期：** 2026-06-03
 
 ---
@@ -9,7 +9,7 @@
 
 | 本模块 | 业务职责 |
 |--------|----------|
-| `core/infra/job_dispatcher/*` | 分发、并行、进度、失败阶段 |
+| `core/infra/job_pipeline/*` | 并行执行、进度、失败阶段 |
 | Tag / Strategy 等 | load 数据、算、写库 — 均在 `execute` / `on_result` 或 run 前建 `Job` |
 
 ---
@@ -51,7 +51,15 @@ Dispatcher 为每个 submit 构造：
 
 ---
 
-## 5. 相关文档
+## 5. 行为说明
+
+- **execute 抛错**：记入 `DispatchResult.failures`，**不**调用 `on_result`（业务可从 `failures` 或 `failed` 汇总）。
+- **execute 返回 `success=False`**：走 `on_result`，计入 `failed`。
+- **`on_release`**：每个 job 的 future 结束后调用（含失败），与 `execute` 配对做清理。
+
+---
+
+## 6. 相关文档
 
 - [docs/API.md](./docs/API.md)
 - [docs/DECISIONS.md](./docs/DECISIONS.md)

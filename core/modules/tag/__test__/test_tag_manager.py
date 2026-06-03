@@ -241,7 +241,7 @@ class TestTagManager:
             args, _ = mock_build_jobs.call_args
             assert args[0] == ["__general__"]
 
-    @patch("core.modules.tag.tag_manager.JobDispatcher")
+    @patch("core.modules.tag.tag_manager.JobPipeline")
     @patch("core.modules.tag.tag_manager.DataManager")
     @patch("core.modules.tag.tag_manager.get_scenarios_root")
     def test_execute_jobs_uses_dispatcher_and_saves_on_report(
@@ -251,7 +251,7 @@ class TestTagManager:
         mock_dispatcher_cls,
     ):
         """Worker 返回 tag_values，主进程 on_result 调用 save_batch。"""
-        from core.infra.job_dispatcher import DispatchResult, JobReport, RunProgress
+        from core.infra.job_pipeline import DispatchResult, JobReport, RunProgress
         from core.modules.tag.tag_manager import TagManager
 
         mock_get_scenarios_root.return_value = Path("/test/scenarios")
@@ -306,7 +306,7 @@ class TestTagManager:
         assert result["saved_tag_values"] == 1
         assert captured["settings"].max_workers == 2
 
-    @patch("core.modules.tag.tag_manager.JobDispatcher")
+    @patch("core.modules.tag.tag_manager.JobPipeline")
     @patch("core.modules.tag.tag_manager.DataManager")
     @patch("core.modules.tag.tag_manager.get_scenarios_root")
     def test_execute_jobs_batches_save_on_report(
@@ -316,7 +316,7 @@ class TestTagManager:
         mock_dispatcher_cls,
     ):
         """多个 job 的 tag_values 按 save_batch_size 合并 upsert。"""
-        from core.infra.job_dispatcher import DispatchResult, JobReport, RunProgress
+        from core.infra.job_pipeline import DispatchResult, JobReport, RunProgress
         from core.modules.tag.tag_manager import TagManager
 
         mock_get_scenarios_root.return_value = Path("/test/scenarios")

@@ -5,11 +5,11 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
-from core.infra.job_dispatcher.executors.pool import ProcessJobExecutor, ThreadJobExecutor
-from core.infra.job_dispatcher.hooks import ExecuteFn
-from core.infra.job_dispatcher.probe import WorkerProbe
-from core.infra.job_dispatcher.settings import JobDispatchSettings
-from core.infra.job_dispatcher.types import ExecutionBackend, JobContext
+from core.infra.job_pipeline.executors.pool import ProcessJobExecutor, ThreadJobExecutor
+from core.infra.job_pipeline.hooks import ExecuteFn
+from core.infra.job_pipeline.probe import WorkerProbe
+from core.infra.job_pipeline.settings import JobPipelineSettings
+from core.infra.job_pipeline.types import ExecutionBackend, JobContext
 
 
 @runtime_checkable
@@ -34,8 +34,8 @@ class JobExecutor(Protocol):
         ...
 
 
-def create_job_executor(settings: JobDispatchSettings, *, execute: ExecuteFn) -> JobExecutor:
-    """由 JobDispatchSettings 构造 Process / Thread JobExecutor。"""
+def create_job_executor(settings: JobPipelineSettings, *, execute: ExecuteFn) -> JobExecutor:
+    """由 JobPipelineSettings 构造 Process / Thread JobExecutor。"""
     resolved = WorkerProbe.resolve(
         settings.max_workers,
         reserve_cores=settings.reserve_cores,

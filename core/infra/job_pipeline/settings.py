@@ -1,14 +1,14 @@
-"""JobDispatcher 调度与执行配置。"""
+"""JobPipeline 管道配置（线程/进程后端、QUEUE/BATCH 等）。"""
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional, Union
 
-from core.infra.job_dispatcher.types import ExecuteMode, ExecutionBackend
+from core.infra.job_pipeline.types import ExecuteMode, ExecutionBackend
 
 
 @dataclass
-class JobDispatchSettings:
+class JobPipelineSettings:
     """
     调度 + 执行后端配置。
 

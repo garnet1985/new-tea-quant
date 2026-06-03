@@ -1,9 +1,9 @@
-"""JobDispatcher 钩子协议。"""
+"""JobPipeline 钩子协议。"""
 from __future__ import annotations
 
 from typing import Any, Callable, Protocol
 
-from core.infra.job_dispatcher.types import JobContext, JobReport, RunProgress
+from core.infra.job_pipeline.types import JobContext, JobReport, RunProgress
 
 
 class OnResultHook(Protocol):

@@ -1,4 +1,4 @@
-"""子进程内 Tag stage（JobDispatcher execute 内调用）。"""
+"""子进程内 Tag stage（JobPipeline execute 内调用）。"""
 from __future__ import annotations
 
 import logging
@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-from core.infra.job_dispatcher.types import Job
+from core.infra.job_pipeline.types import Job
 from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.tag.components.job_staging.tag_job_stager import TagJobStager
 

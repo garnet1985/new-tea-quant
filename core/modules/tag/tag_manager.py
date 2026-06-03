@@ -22,18 +22,18 @@ from core.modules.tag.config import get_scenarios_root
 from core.infra.project_context import PathManager
 from core.modules.tag.enums import FileName
 from core.modules.tag.models.scenario_model import ScenarioModel
-from core.infra.job_dispatcher import (
+from core.infra.job_pipeline import (
     DispatchResult,
     ExecuteMode,
     ExecutionBackend,
     Job,
     JobContext,
-    JobDispatcher,
-    JobDispatchSettings,
+    JobPipeline,
+    JobPipelineSettings,
     JobReport,
     RunProgress,
 )
-from core.infra.job_dispatcher.probe import WorkerProbe
+from core.infra.job_pipeline.probe import WorkerProbe
 from core.modules.tag.components.dispatch_planner import (
     DEFAULT_ENTITIES_PER_JOB_MIN,
     resolve_tag_dispatch_plan,
@@ -70,8 +70,8 @@ class TagManager:
 
     @staticmethod
     def _resolve_worker_amount(max_workers: Any) -> int:
-        """已废弃：并行度由 JobDispatchSettings / WorkerProbe 解析。"""
-        from core.infra.job_dispatcher.probe import WorkerProbe
+        """已废弃：并行度由 JobPipelineSettings / WorkerProbe 解析。"""
+        from core.infra.job_pipeline.probe import WorkerProbe
 
         return WorkerProbe.resolve(max_workers if max_workers is not None else "auto")
 
@@ -665,7 +665,7 @@ class TagManager:
             stage_in_worker = True
         duckdb_stage_spill = stage_in_worker and self._backend_is_duckdb(self.data_mgr)
         save_batch_size = int(performance.get("save_batch_size", 5000))
-        dispatch_settings = JobDispatchSettings(
+        dispatch_settings = JobPipelineSettings(
             worker=ExecutionBackend.PROCESS,
             execute_mode=self._parse_execute_mode(performance.get("execute_mode")),
             max_workers=performance.get("max_workers", "auto"),
@@ -881,14 +881,14 @@ class TagManager:
         self,
         *,
         dispatcher_jobs: List[Job],
-        dispatch_settings: JobDispatchSettings,
+        dispatch_settings: JobPipelineSettings,
         on_result,
         run_name: str,
         stage_in_worker: bool,
         duckdb_spill: bool,
         spill_rows: int,
     ) -> DispatchResult:
-        """单次 JobDispatcher.run；子进程 execute 内 stage+算，DuckDB 另 suspend/spill/digest。"""
+        """单次 JobPipeline.run；子进程 execute 内 stage+算，DuckDB 另 suspend/spill/digest。"""
         if stage_in_worker and duckdb_spill:
             from core.modules.tag.components.job_staging.worker_runtime import (
                 prepare_main_for_duckdb_workers,
@@ -906,7 +906,7 @@ class TagManager:
                 run_name,
                 self._configured_database_type(self.data_mgr),
             )
-        dispatcher = JobDispatcher(
+        dispatcher = JobPipeline(
             settings=dispatch_settings,
             execute=TagManager._execute_single_job,
             on_result=on_result,
@@ -994,7 +994,7 @@ class TagManager:
     @staticmethod
     def _execute_single_job(context: JobContext) -> Dict[str, Any]:
         """
-        Tag Worker（JobDispatcher execute）：子进程内 stage（可选）+ 计算。
+        Tag Worker（JobPipeline execute）：子进程内 stage（可选）+ 计算。
 
         主进程 on_result 负责 save_batch；load 数据由本函数与 worker_runtime 完成。
         """

@@ -1,0 +1,7 @@
+name: infra.job_pipeline
+version: 0.7.0
+compatible_core_versions: ">=0.4.0"
+description: "并行 Job 执行管道：jobs → execute(JobContext) → on_result（线程/进程池）。"
+dependencies:
+  - infra.worker
+  - infra.project_context

@@ -1,4 +1,4 @@
-"""Tag JobDispatcher 运行剖面（stage / execute / report）。"""
+"""Tag JobPipeline 运行剖面（stage / execute / report）。"""
 from __future__ import annotations
 
 import pickle

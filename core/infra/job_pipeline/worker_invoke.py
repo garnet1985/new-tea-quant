@@ -4,7 +4,7 @@ from __future__ import annotations
 import multiprocessing as mp
 from typing import Any, Callable
 
-from core.infra.job_dispatcher.types import JobContext
+from core.infra.job_pipeline.types import JobContext
 
 
 def invoke_execute(execute: Callable[[JobContext], Any], context: JobContext) -> Any:

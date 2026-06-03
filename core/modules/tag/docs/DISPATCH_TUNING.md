@@ -11,7 +11,7 @@
 1. 探针：子进程跑 1 个 job（默认 20 股，与生产相同 stage+算）
 2. 采样 worker RSS 峰值 + pickle 体积 → mb_per_entity（× safety_factor）
 3. 规划：可用内存预算 + CPU → entities_per_job、max_workers（封顶/保底）
-4. 按规划 _build_jobs → 全量 JobDispatcher.run
+4. 按规划 _build_jobs → 全量 JobPipeline.run
 ```
 
 中途动态取样（ELASTIC）**未做**；探针一次通常足够，且避免与跑批中抢锁。
@@ -119,8 +119,8 @@ max_workers = min(cpu_workers, memory_workers)
 
 ---
 
-## 与 JobDispatcher 边界
+## 与 JobPipeline 边界
 
-- **infra** 只负责 `JobContext` + 进程池 + `max_workers` / `prefetch`（来自 `JobDispatchSettings`）
+- **infra** 只负责 `JobContext` + 进程池 + `max_workers` / `prefetch`（来自 `JobPipelineSettings`）
 - **Tag** 负责 `entities_per_job` 分组与内存规划（本模块）
 - 不在 Dispatcher 做 ELASTIC / 主进程 prepare

@@ -4,9 +4,9 @@
 """
 多进程 Worker（已废弃）。
 
-队列填池、BATCH/QUEUE pipeline 已移除，请使用 ``core.infra.job_dispatcher``：
+队列填池、BATCH/QUEUE pipeline 已移除，请使用 ``core.infra.job_pipeline``：
 
-    JobDispatcher(execute=..., on_result=..., executor=create_job_executor(...)).run(jobs)
+    JobPipeline(execute=..., on_result=..., executor=create_job_executor(...)).run(jobs)
 
 本模块保留 ``JobStatus`` / ``JobResult`` 与 ``resolve_max_workers`` 等工具符号，供迁移期引用。
 """
@@ -19,9 +19,9 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
 _DEPRECATED_RUN_MSG = (
-    "ProcessWorker.run_jobs 已移除。请使用 core.infra.job_dispatcher.JobDispatcher："
+    "ProcessWorker.run_jobs 已移除。请使用 core.infra.job_pipeline.JobPipeline："
     "execute(JobContext) / on_result + create_job_executor(...)。"
-    "队列填池与 auto max_workers 已上移至 JobDispatcher。"
+    "队列填池与 auto max_workers 已上移至 JobPipeline。"
 )
 
 
@@ -33,7 +33,7 @@ class ExecutionMode(Enum):
 
 
 class JobStatus(Enum):
-    """任务状态（worker 模块结果类型，与 JobDispatcher 无直接耦合）。"""
+    """任务状态（worker 模块结果类型，与 JobPipeline 无直接耦合）。"""
 
     PENDING = "pending"
     RUNNING = "running"
@@ -85,7 +85,7 @@ class ProcessWorker:
     """
     已废弃的多进程任务执行器壳。
 
-    新代码请组合 ``JobDispatcher`` + ``create_job_executor``。
+    新代码请组合 ``JobPipeline`` + ``create_job_executor``。
     """
 
     @staticmethod
@@ -106,7 +106,7 @@ class ProcessWorker:
     @staticmethod
     def resolve_max_workers(max_workers, module_name: str = "default") -> int:
         del module_name  # 已废弃；并行度由 WorkerProbe 解析
-        from core.infra.job_dispatcher.probe import WorkerProbe
+        from core.infra.job_pipeline.probe import WorkerProbe
 
         return WorkerProbe.resolve(max_workers)
 

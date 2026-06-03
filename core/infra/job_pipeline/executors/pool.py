@@ -5,9 +5,9 @@ import multiprocessing as mp
 from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor
 from typing import Any, Callable, Optional
 
-from core.infra.job_dispatcher.hooks import ExecuteFn
-from core.infra.job_dispatcher.types import ExecutionBackend, JobContext
-from core.infra.job_dispatcher.worker_invoke import invoke_execute
+from core.infra.job_pipeline.hooks import ExecuteFn
+from core.infra.job_pipeline.types import ExecutionBackend, JobContext
+from core.infra.job_pipeline.worker_invoke import invoke_execute
 
 
 class ProcessJobExecutor:
@@ -27,8 +27,6 @@ class ProcessJobExecutor:
         self._timeout = timeout
         self._pool: Optional[ProcessPoolExecutor] = None
         self._submitted = 0
-        self._completed = 0
-        self._failed = 0
 
     @property
     def max_workers(self) -> int:
@@ -67,8 +65,6 @@ class ProcessJobExecutor:
             "backend": ExecutionBackend.PROCESS.value,
             "max_workers": self._max_workers,
             "submitted": self._submitted,
-            "completed": self._completed,
-            "failed": self._failed,
         }
 
 

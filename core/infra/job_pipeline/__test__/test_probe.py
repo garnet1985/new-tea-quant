@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import multiprocessing as mp
 
-from core.infra.job_dispatcher.probe import WorkerProbe
+from core.infra.job_pipeline.probe import WorkerProbe
 
 
 def test_resolve_auto_logical_minus_reserve():

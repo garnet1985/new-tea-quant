@@ -11,7 +11,7 @@ import multiprocessing as mp
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from core.infra.job_dispatcher.probe import WorkerProbe
+from core.infra.job_pipeline.probe import WorkerProbe
 
 logger = logging.getLogger(__name__)
 

@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class WorkerProbe:
-    """解析 max_workers，供 create_job_executor / JobDispatcher 使用。"""
+    """解析 max_workers，供 create_job_executor / JobPipeline 使用。"""
 
     @classmethod
     def resolve(

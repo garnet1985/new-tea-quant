@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from core.infra.job_dispatcher.types import Job
+from core.infra.job_pipeline.types import Job
 from core.modules.tag.components.job_staging.tag_job_stager import TagJobStager
 
 

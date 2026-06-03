@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-运行 Tag 场景（TagManager + JobDispatcher）。
+运行 Tag 场景（TagManager + JobPipeline）。
 
 用法（仓库根目录）::
 
@@ -59,12 +59,12 @@ def main(argv: list[str] | None = None) -> int:
         "-v",
         "--verbose",
         action="store_true",
-        help="输出 INFO 日志（含 JobDispatcher 进度）",
+        help="输出 INFO 日志（含 JobPipeline 进度）",
     )
     parser.add_argument(
         "--execute-mode",
         choices=("queue", "batch", "elastic"),
-        help="覆盖 settings.performance.execute_mode（JobDispatcher ExecuteMode）",
+        help="覆盖 settings.performance.execute_mode（JobPipeline ExecuteMode）",
     )
     parser.add_argument(
         "--batch-size",

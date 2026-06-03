@@ -1,6 +1,6 @@
-# JobDispatcher 设计决策
+# JobPipeline 设计决策
 
-**版本：** `0.5.0`
+**版本：** `0.6.0`
 
 ---
 
@@ -29,7 +29,7 @@ Dispatcher 只认：`jobs`、`execute(JobContext)`、`on_result`。
 
 - **QUEUE**：默认，低延迟流水线
 - **BATCH**：控峰值内存、批间 checkpoint 友好
-- **ELASTIC**：运行时探针调节 prepare/submit 窗口（见 [docs/DECISIONS.md](./docs/DECISIONS.md) §7 草案）
+- **ELASTIC**：运行时探针调节 in-flight / ready 窗口（见 §7 草案，未实现）
 
 ---
 
@@ -41,7 +41,7 @@ Dispatcher 只认：`jobs`、`execute(JobContext)`、`on_result`。
 
 ## 6. ProcessWorker
 
-`ProcessWorker.run_jobs` 已移除。新代码使用 `JobDispatcher`；`ProcessWorker.resolve_max_workers` 转发至 `WorkerProbe`（`module_name` 参数忽略）。
+`ProcessWorker.run_jobs` 已移除。新代码使用 `JobPipeline`；`ProcessWorker.resolve_max_workers` 转发至 `WorkerProbe`（`module_name` 参数忽略）。
 
 ---
 
@@ -117,7 +117,7 @@ elastic_prefetch: int = 0                       # 默认不预取大 payload
 ### 7.6 实现位置
 
 - 新模块 `elastic_controller.py`（或 `admission.py`）：`ElasticAdmission` 封装探针 + limit 计算
-- `JobDispatcher._run_elastic()`：与 `_run_queue` 同骨架，limit 来自 controller
+- `JobPipeline._run_elastic()`：与 `_run_queue` 同骨架，limit 来自 controller
 - **不** 再引入 Orchestrator 第二条 pipeline；可 **import** `MemoryMonitor`，不复制逻辑
 
 ### 7.7 何时值得做

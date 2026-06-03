@@ -1,5 +1,5 @@
 """
-JobDispatcher 类型定义。
+Job 执行管道类型定义。
 
 jobs[] → executor(JobContext) → on_result
 """
@@ -26,11 +26,11 @@ class ExecutionBackend(str, Enum):
 
 class ExecuteMode(str, Enum):
     """
-    主进程装填 + 提交节奏。
+    提交节奏（装填/load 由业务的 execute 或 run 前 payload 负责）。
 
     - QUEUE：有空位就 submit；完成 1 补 1
     - BATCH：每批 batch_size 个；批内并行、批间串行
-    - ELASTIC：预留，动态调池（未实现）
+    - ELASTIC：预留，动态 in-flight 门控（未实现）
     """
 
     QUEUE = "queue"

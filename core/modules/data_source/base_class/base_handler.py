@@ -251,7 +251,12 @@ class BaseHandler:
         """
         from copy import deepcopy
 
+        from core.modules.data_source.data_class.config import DataSourceConfig
+
         start_date, end_date = date_range
+        config = self.context.get("config")
+        if not isinstance(config, DataSourceConfig):
+            config = None
 
         # 基于 config.apis 构造 ApiJob 列表（每个实体一份拷贝，避免共享 params）
         base_jobs = DataSourceHandlerHelper.build_api_jobs(apis_conf)
@@ -271,6 +276,18 @@ class BaseHandler:
 
         # 注入统一的日期范围（per-entity 已由 entity_date_ranges 决定）
         apis = DataSourceHandlerHelper.add_date_range(apis, start_date, end_date)
+
+        # 按 params_mapping 注入实体字段（如 ts_code/symbol <- id），再由 on_build_job_payload 做格式转换
+        if entity_info is not None:
+            group_fields = config.get_group_fields() if config else []
+            entity_key_field = (
+                group_fields[0]
+                if group_fields
+                else (config.get_group_by_key() if config else "id")
+            )
+            DataSourceHandlerHelper.apply_entity_params_mapping(
+                entity_info, apis, apis_conf, entity_key_field or "id"
+            )
 
         # per-entity 场景：构建 job payload（使用钩子方法，允许子类自定义如何提取实体 ID 并注入参数）
         entity_id = self.on_build_job_payload(entity_info, apis, self.context)

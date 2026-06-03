@@ -242,14 +242,12 @@ class TestTagManager:
             assert args[0] == ["__general__"]
 
     @patch("core.modules.tag.tag_manager.JobDispatcher")
-    @patch("core.modules.tag.tag_manager.TagJobStager")
     @patch("core.modules.tag.tag_manager.DataManager")
     @patch("core.modules.tag.tag_manager.get_scenarios_root")
     def test_execute_jobs_uses_dispatcher_and_saves_on_report(
         self,
         mock_get_scenarios_root,
         mock_data_manager,
-        mock_stager_cls,
         mock_dispatcher_cls,
     ):
         """Worker 返回 tag_values，主进程 on_result 调用 save_batch。"""
@@ -273,7 +271,6 @@ class TestTagManager:
                 settings,
                 execute,
                 on_result,
-                to_executable_job=None,
                 **kwargs,
             ):
                 captured["on_result"] = on_result
@@ -292,8 +289,6 @@ class TestTagManager:
                 return DispatchResult(total=1, completed=1, failed=0)
 
         mock_dispatcher_cls.side_effect = _FakeDispatcher
-        mock_stager_cls.return_value = MagicMock()
-
         with patch.object(TagManager, "_discover_scenarios_from_folder"):
             manager = TagManager(is_verbose=False)
             jobs = [{"id": "job1", "payload": {"entity_id": "000001"}}]
@@ -312,14 +307,12 @@ class TestTagManager:
         assert captured["settings"].max_workers == 2
 
     @patch("core.modules.tag.tag_manager.JobDispatcher")
-    @patch("core.modules.tag.tag_manager.TagJobStager")
     @patch("core.modules.tag.tag_manager.DataManager")
     @patch("core.modules.tag.tag_manager.get_scenarios_root")
     def test_execute_jobs_batches_save_on_report(
         self,
         mock_get_scenarios_root,
         mock_data_manager,
-        mock_stager_cls,
         mock_dispatcher_cls,
     ):
         """多个 job 的 tag_values 按 save_batch_size 合并 upsert。"""
@@ -354,8 +347,6 @@ class TestTagManager:
                 return DispatchResult(total=3, completed=3, failed=0)
 
         mock_dispatcher_cls.side_effect = _FakeDispatcher
-        mock_stager_cls.return_value = MagicMock()
-
         with patch.object(TagManager, "_discover_scenarios_from_folder"):
             manager = TagManager(is_verbose=False)
             jobs = [{"id": f"job{i}", "payload": {}} for i in range(3)]

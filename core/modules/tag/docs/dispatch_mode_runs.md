@@ -1,5 +1,33 @@
 # Tag × JobDispatcher 调度模式实测记录
 
+## 约定模式（2026-06-03，后续默认）
+
+| 环节 | DuckDB | MySQL / PostgreSQL |
+|------|--------|---------------------|
+| **Stage / 读** | 子进程 `execute` 内 stage（默认） | 同左 |
+| **算** | 子进程 Worker | 同左 |
+| **写** | `on_result` 攒批 → 达 `save_batch_size` 写 tag | 同左（**直接 `save_batch`**） |
+| **仅 DuckDB 额外** | 主进程 **suspend**；缓冲过大 **Parquet spill**；池结束后 **digest** 写 tag（文件锁） | 无 suspend / spill / digest |
+
+推荐 CLI（全量 ~5850、`entities_per_job=100`）：
+
+```bash
+python -m core.modules.tag activity-ratio20 -v \
+  --entities-per-job 100 --max-workers 9 --stage-in-worker
+```
+
+- 代码：`TagManager._backend_is_duckdb()` → 仅 DuckDB 走 `duckdb_stage_spill`；其余库 `TagReportSaveBuffer` 边算边写。
+- 试验性多波次 digest、7 读 2 算等已废弃，不再扩展。
+
+**实测（activity-ratio20 · 5847 entities · 100/job · 9 workers · stage_in_worker）：**
+
+| 库 | wall | 备注 |
+|----|------|------|
+| DuckDB + Parquet spill | ~26–38s | 视收尾写库、锁状态 |
+| **MySQL 直接 save_batch** | **~26s** | 2026-06-03，59/59 成功，506677 rows |
+
+---
+
 **场景：** `activity-ratio20` · DuckDB · 全量 ~5850 股  
 **环境：** 本地 dev（2026-06-02）
 

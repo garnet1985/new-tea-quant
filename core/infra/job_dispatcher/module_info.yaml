@@ -1,7 +1,7 @@
 name: infra.job_dispatcher
 version: 0.5.0
 compatible_core_versions: ">=0.4.0"
-description: "任务分发流水线：jobs → [to_executable_job?] → execute → on_result。"
+description: "任务分发流水线：jobs → execute(JobContext) → on_result。"
 dependencies:
   - infra.worker
   - infra.project_context

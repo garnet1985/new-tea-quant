@@ -6,8 +6,8 @@
 
 ## 1. 四输入模型
 
-Dispatcher 只认：`jobs`、`execute`、`on_result`、可选 `to_executable_job`。  
-业务分组（一股一 job / 多股一 job）由应用构建 `List[Job]` 决定。
+Dispatcher 只认：`jobs`、`execute(JobContext)`、`on_result`。  
+业务分组与 load 数据由应用构建 `Job` 或在 `execute` 内完成。
 
 ---
 
@@ -21,7 +21,7 @@ Dispatcher 只认：`jobs`、`execute`、`on_result`、可选 `to_executable_job
 
 ## 3. 无 infra 级 CHUNK
 
-原 `FillStrategy.CHUNK` 移除。bulk stage / IO 频率由应用在 `to_executable_job` 或 payload 形状控制。
+原 `FillStrategy.CHUNK` 与 `to_executable_job` 已移除。bulk stage / IO 由 `execute` 或 run 前 payload 形状控制。
 
 ---
 
@@ -33,11 +33,9 @@ Dispatcher 只认：`jobs`、`execute`、`on_result`、可选 `to_executable_job
 
 ---
 
-## 5. spill（payload 外部化，非 overflow）
+## 5. 大 payload 外部化
 
-`spill.py` 保留，默认不接线；profiling 后再决定是否启用。
-
-**TODO（命名）：** 当前 `spill` 易误解为「内存溢出落盘」。实际语义是 **optional inline 的替代路径**（`DataRef` + 外部存储，减轻 pickle/IPC 与双份内存）。后续集成时考虑更名为 `payload_offload` / `external_payload` 等。
+不在 infra 实现。若业务需要减轻 pickle/IPC，在 `execute` 内或 payload 约定里自行处理（如 Tag 的 DuckDB Parquet 写缓冲在 `core/modules/tag`）。
 
 ---
 
@@ -75,7 +73,7 @@ ready queue（已 prepare、未 submit）
 executor in-flight
 ```
 
-- **prepare 门控**：`to_executable_job` 最吃主进程内存（Tag 的 kline/prior inline）；内存紧时 **少 prepare、少堆 ready**
+- **prepare 门控**：主进程预装填 payload 时最吃内存；Tag 默认在 worker `execute` 内 stage，ready 队列保持轻 payload
 - **submit 门控**：限制同时跑在 worker 里的 job 数（≈ QUEUE 的 in-flight）
 - **prefetch**：ELASTIC 下应为 **小值或 0**，避免探针说缩窗口时 ready 里仍堆大 payload
 

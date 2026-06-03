@@ -1,4 +1,4 @@
-"""Tag to_executable_job：主进程装填数据，inline 传入子进程。"""
+"""Tag job stage：在 worker 内装填 kline/prior 等，写入 payload _inject。"""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
@@ -25,7 +25,7 @@ class TagJobStager:
         self._data_mgr = data_mgr
         self._contract_cache = contract_cache or ContractCacheManager()
 
-    def to_executable_job(self, job: Job) -> Job:
+    def stage_job(self, job: Job) -> Job:
         payload = dict(job.payload)
         entities = payload.get("entities")
         if isinstance(entities, list) and len(entities) > 1:

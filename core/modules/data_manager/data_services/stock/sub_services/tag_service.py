@@ -40,9 +40,13 @@ class TagDataService(BaseDataService):
         self._tag_definition_model = data_manager.get_table("sys_tag_definition")
         self._tag_value_model = data_manager.get_table("sys_tag_value")
         
-        # 获取 DatabaseManager 用于复杂 SQL 查询
         from core.infra.db import DatabaseManager
-        self.db = DatabaseManager.get_default(auto_init=True)
+
+        dm_db = getattr(data_manager, "db", None)
+        if dm_db is not None and getattr(dm_db, "_initialized", False):
+            self.db = dm_db
+        else:
+            self.db = DatabaseManager.get_default(auto_init=True)
     
     # ========================================================================
     # Scenario 相关 API

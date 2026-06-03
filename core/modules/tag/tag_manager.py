@@ -4,7 +4,9 @@ Tag Manager - 统一管理所有业务场景（Scenario）
 负责发现、验证和执行所有 scenario workers。
 """
 import os
+import tempfile
 import time
+from pathlib import Path
 from typing import Dict, List, Optional, Type, Any, Tuple, Union
 import logging
 from pathlib import Path
@@ -21,15 +23,17 @@ from core.infra.project_context import PathManager
 from core.modules.tag.enums import FileName
 from core.modules.tag.models.scenario_model import ScenarioModel
 from core.infra.job_dispatcher import (
+    DispatchResult,
     ExecuteMode,
     ExecutionBackend,
     Job,
+    JobContext,
     JobDispatcher,
     JobDispatchSettings,
     JobReport,
     RunProgress,
 )
-from core.modules.tag.components.job_staging.tag_job_stager import TagJobStager
+from core.infra.job_dispatcher.probe import WorkerProbe
 from core.modules.tag.components.job_staging.tag_run_profile import TagRunProfile
 from core.modules.tag.components.report_save_buffer import TagReportSaveBuffer
 from core.infra.db.engines.duckdb.wal_policy import should_checkpoint_after_tag_run
@@ -38,8 +42,10 @@ logger = logging.getLogger(__name__)
 
 # DEBUG：dispatcher 调试期间限制实体数量；None = 全量
 _DEBUG_ENTITY_LIMIT: Optional[int] = None
-# DEBUG：每 job 打包 N 股（bulk stage IO）；None 则用 settings.performance.entities_per_job
-_DEBUG_ENTITIES_PER_JOB: Optional[int] = 50
+# DEBUG：覆盖 entities_per_job；None 则用 performance 或 DEFAULT_ENTITIES_PER_JOB
+_DEBUG_ENTITIES_PER_JOB: Optional[int] = None
+# 全量 Tag 默认每 job 股数（bulk stage）；1 股/job ≈ 五千 dispatch，wall 会回到 ~60s
+DEFAULT_ENTITIES_PER_JOB: int = 100
 
 
 class TagManager:
@@ -333,13 +339,16 @@ class TagManager:
             logger.info(f"无法获取实体列表，跳过执行")
             return
 
-        if _DEBUG_ENTITY_LIMIT is not None and len(entity_list) > _DEBUG_ENTITY_LIMIT:
+        stock_limit = self._dispatch_overrides.get("stock_limit")
+        if stock_limit is None:
+            stock_limit = _DEBUG_ENTITY_LIMIT
+        if stock_limit is not None and len(entity_list) > int(stock_limit):
             logger.warning(
-                "DEBUG: 实体列表截断 %d → %d（TagManager._DEBUG_ENTITY_LIMIT）",
+                "实体列表截断 %d → %d（stock_limit）",
                 len(entity_list),
-                _DEBUG_ENTITY_LIMIT,
+                int(stock_limit),
             )
-            entity_list = entity_list[:_DEBUG_ENTITY_LIMIT]
+            entity_list = entity_list[: int(stock_limit)]
 
         # 获取 worker_class（从 cache 中获取，如果不在 cache 中则尝试从 settings 加载）
         scenario_name = scenario_model.get_name()
@@ -388,7 +397,10 @@ class TagManager:
     def _resolve_entities_per_job(performance: Dict[str, Any]) -> int:
         if _DEBUG_ENTITIES_PER_JOB is not None:
             return max(1, int(_DEBUG_ENTITIES_PER_JOB))
-        return max(1, int(performance.get("entities_per_job") or 1))
+        raw = performance.get("entities_per_job")
+        if raw is None:
+            return max(1, DEFAULT_ENTITIES_PER_JOB)
+        return max(1, int(raw))
 
     def _build_jobs(
         self,
@@ -413,23 +425,7 @@ class TagManager:
         """
         update_mode = scenario_model.calculate_update_mode()
         scenario_name = scenario_model.get_name()
-        
-        # 调试：检查缓存状态（强制输出，不依赖 is_verbose）
-        logger.info(f"🔍 _build_jobs: 开始构建 jobs for scenario: {scenario_name}")
-        logger.info(f"   scenario_cache exists: {scenario_name in self.scenario_cache}")
-        logger.info(f"   All cached scenarios: {list(self.scenario_cache.keys())}")
-        if scenario_name in self.scenario_cache:
-            cache_keys = list(self.scenario_cache[scenario_name].keys())
-            logger.info(f"   Cache keys for {scenario_name}: {cache_keys}")
-            logger.info(f"   worker_module_path in cache: {'worker_module_path' in self.scenario_cache[scenario_name]}")
-            logger.info(f"   worker_class_name in cache: {'worker_class_name' in self.scenario_cache[scenario_name]}")
-            if 'worker_module_path' in self.scenario_cache[scenario_name]:
-                logger.info(f"   worker_module_path value: {self.scenario_cache[scenario_name].get('worker_module_path')}")
-            if 'worker_class_name' in self.scenario_cache[scenario_name]:
-                logger.info(f"   worker_class_name value: {self.scenario_cache[scenario_name].get('worker_class_name')}")
-        else:
-            logger.error(f"   ❌ Scenario {scenario_name} 不在缓存中!")
-        
+
         # 获取默认日期
         default_start_date = settings.get("start_date")
         default_end_date = settings.get("end_date")
@@ -507,29 +503,44 @@ class TagManager:
             batch = entity_specs[batch_idx : batch_idx + batch_size]
             if batch_size == 1:
                 ent = batch[0]
+                job_id = f"{scenario_id}_{ent['entity_id']}"
                 jobs.append(
                     {
-                        "id": f"{scenario_id}_{ent['entity_id']}",
-                        "payload": {**shared_payload, **ent},
+                        "id": job_id,
+                        "payload": {**shared_payload, **ent, "_job_id": job_id},
                     }
                 )
             else:
+                job_id = f"{scenario_id}_batch{batch_idx // batch_size}"
                 jobs.append(
                     {
-                        "id": f"{scenario_id}_batch{batch_idx // batch_size}",
-                        "payload": {**shared_payload, "entities": batch},
+                        "id": job_id,
+                        "payload": {**shared_payload, "entities": batch, "_job_id": job_id},
                     }
                 )
 
-        if batch_size > 1:
-            logger.info(
-                "Tag jobs 分组: entities=%d, entities_per_job=%d, dispatch_jobs=%d",
-                len(entity_specs),
-                batch_size,
+        logger.info(
+            "Tag jobs 分组: entities=%d, entities_per_job=%d, dispatch_jobs=%d",
+            len(entity_specs),
+            batch_size,
+            len(jobs),
+        )
+        if batch_size == 1 and len(entity_specs) > 100:
+            logger.warning(
+                "entities_per_job=1：约 %d 次 dispatch，wall 通常 ~60s；"
+                "建议 performance.entities_per_job=100（子进程 bulk stage 才有效）",
                 len(jobs),
             )
 
         return jobs
+
+    @staticmethod
+    def _backend_is_duckdb(data_mgr: DataManager) -> bool:
+        db = getattr(data_mgr, "db", None)
+        return (
+            db is not None
+            and str(db.config.get("database_type") or "").lower() == "duckdb"
+        )
 
     @staticmethod
     def _parse_execute_mode(raw: Any) -> ExecuteMode:
@@ -548,6 +559,18 @@ class TagManager:
         profile_enabled: bool = False,
     ):
         performance = performance or {}
+        stage_in_worker = performance.get("stage_in_worker", True)
+        if isinstance(stage_in_worker, str):
+            stage_in_worker = stage_in_worker.strip().lower() in ("1", "true", "yes")
+        else:
+            stage_in_worker = bool(stage_in_worker)
+        if os.environ.get("NTQ_TAG_STAGE_IN_WORKER", "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+        ):
+            stage_in_worker = True
+        duckdb_stage_spill = stage_in_worker and self._backend_is_duckdb(self.data_mgr)
         save_batch_size = int(performance.get("save_batch_size", 5000))
         dispatch_settings = JobDispatchSettings(
             worker=ExecutionBackend.PROCESS,
@@ -567,24 +590,31 @@ class TagManager:
         )
         start_time = time.time()
         profile = TagRunProfile(enabled=profile_enabled)
-        stager = TagJobStager(
-            data_mgr=self.data_mgr,
-            contract_cache=self._contract_cache,
-        )
-        save_buffer = TagReportSaveBuffer(
-            self.tag_data_service.save_batch,
-            batch_size=save_batch_size,
-        )
-        progress_state = {"last_pct": -1}
+        for job in jobs:
+            if job.get("payload") and stage_in_worker:
+                job["payload"]["_stage_in_worker"] = True
 
-        def to_executable_job(job: Job) -> Job:
-            t0 = time.perf_counter()
-            enriched = stager.to_executable_job(job)
-            profile.record_stage(
-                elapsed_sec=time.perf_counter() - t0,
-                payload=enriched.payload,
+        tag_data_service_ref = self.tag_data_service
+        real_save_fn = tag_data_service_ref.save_batch
+        spill_dir: Optional[Path] = None
+        if duckdb_stage_spill:
+            spill_rows = int(performance.get("stage_spill_rows") or 50_000)
+            spill_dir = Path(
+                tempfile.mkdtemp(prefix=f"ntq_tag_{scenario_name}_")
             )
-            return enriched
+            save_buffer = TagReportSaveBuffer(
+                real_save_fn,
+                batch_size=save_batch_size,
+                accumulate_only=True,
+                spill_row_threshold=spill_rows,
+                spill_dir=spill_dir,
+            )
+        else:
+            save_buffer = TagReportSaveBuffer(
+                real_save_fn,
+                batch_size=save_batch_size,
+            )
+        progress_state = {"last_pct": -1, "finished": 0}
 
         def on_result(report: JobReport, progress: RunProgress) -> None:
             t0 = time.perf_counter()
@@ -597,19 +627,26 @@ class TagManager:
                 )
             else:
                 data = report.data if isinstance(report.data, dict) else {}
+                stage_sec = data.get("_profile_stage_sec")
+                if isinstance(stage_sec, (int, float)):
+                    profile.record_stage(
+                        elapsed_sec=float(stage_sec),
+                        payload=data.get("_stage_payload_hint") or {},
+                    )
                 exec_sec = data.get("_profile_execute_sec")
                 if isinstance(exec_sec, (int, float)):
                     profile.record_execute(float(exec_sec))
                 tag_values = data.get("tag_values") or []
                 if tag_values:
-                    save_batch_sec = save_buffer.extend(tag_values)
+                    save_batch_sec = save_buffer.extend_in_chunks(tag_values)
 
             profile.record_report(
                 elapsed_sec=time.perf_counter() - t0,
                 save_batch_sec=save_batch_sec,
             )
 
-            finished = progress.finished
+            progress_state["finished"] = progress.finished
+            finished = progress_state["finished"]
             pct = int(finished * 100 / total_jobs) if total_jobs else 100
             if finished == total_jobs or pct >= progress_state["last_pct"] + 5:
                 logger.info(
@@ -624,25 +661,90 @@ class TagManager:
                 progress_state["last_pct"] = pct
 
         dispatcher_jobs = [Job(job_id=job["id"], payload=job["payload"]) for job in jobs]
-        dispatcher = JobDispatcher(
-            settings=dispatch_settings,
-            execute=TagManager._execute_single_job,
-            to_executable_job=to_executable_job,
-            on_result=on_result,
+        resolved_workers = WorkerProbe.resolve(
+            dispatch_settings.max_workers,
+            reserve_cores=dispatch_settings.reserve_cores,
+            cap=dispatch_settings.max_workers_cap,
         )
         logger.info(
-            "[%s] 🚀 开始执行 dispatch_jobs=%s entities=%s (workers=%s, max_workers=%r, reserve_cores=%s, mode=%s)",
+            "[%s] 🚀 开始执行 dispatch_jobs=%s entities=%s (workers=%s, max_workers=%r, "
+            "reserve_cores=%s, mode=%s, stage_in_worker=%s)",
             run_name,
             total_jobs,
             entity_count,
-            dispatcher.executor.max_workers,
+            resolved_workers,
             dispatch_settings.max_workers,
             dispatch_settings.reserve_cores,
             dispatch_settings.execute_mode.value,
+            stage_in_worker,
         )
-        dispatch_result = dispatcher.run(dispatcher_jobs, run_name=run_name)
 
-        save_buffer.flush()
+        dispatch_result = DispatchResult(total=total_jobs, run_name=run_name)
+        interrupted = False
+        spill_rows = int(performance.get("stage_spill_rows") or 50_000)
+        try:
+            dispatch_result = self._run_tag_dispatch(
+                dispatcher_jobs=dispatcher_jobs,
+                dispatch_settings=dispatch_settings,
+                on_result=on_result,
+                run_name=run_name,
+                stage_in_worker=stage_in_worker,
+                duckdb_spill=duckdb_stage_spill,
+                spill_rows=spill_rows,
+            )
+            if dispatch_result.failed and dispatch_result.failures:
+                for item in dispatch_result.failures[:5]:
+                    logger.error(
+                        "Dispatch failure: job_id=%s phase=%s error=%s",
+                        item.job_id,
+                        getattr(item.phase, "value", item.phase),
+                        item.error,
+                    )
+        except KeyboardInterrupt:
+            interrupted = True
+            logger.warning(
+                "[%s] 用户中断 (Ctrl+C)：等待 worker 退出后 flush 已攒批数据…",
+                run_name,
+            )
+            raise
+        finally:
+            if duckdb_stage_spill:
+                from core.modules.tag.components.job_staging.worker_runtime import (
+                    digest_stage_in_worker_save_buffer,
+                    resume_main_database_with_retry,
+                )
+
+                try:
+                    save_sec = digest_stage_in_worker_save_buffer(
+                        self.data_mgr,
+                        save_buffer,
+                        batch_size=save_batch_size,
+                    )
+                    if save_sec > 0:
+                        logger.info(
+                            "[%s] stage 收尾写库 %.2fs (saved_total=%s, spills=%s)",
+                            run_name,
+                            save_sec,
+                            save_buffer.saved_row_count,
+                            save_buffer.spill_count,
+                        )
+                    resume_main_database_with_retry(self.data_mgr)
+                    self.tag_data_service = self.data_mgr.stock.tags
+                    logger.info("[%s] 已恢复主进程 DuckDB 连接", run_name)
+                except Exception as exc:
+                    logger.warning("[%s] stage 收尾失败: %s", run_name, exc)
+                save_buffer.cleanup_spill_dir()
+            else:
+                try:
+                    save_buffer.flush()
+                except Exception as exc:
+                    logger.warning("[%s] 收尾 flush 失败: %s", run_name, exc)
+            if interrupted and self.data_mgr and getattr(self.data_mgr, "db", None):
+                try:
+                    self.data_mgr.db.wait_for_writes(timeout=15.0)
+                    self._maybe_checkpoint_duckdb_after_tag_run()
+                except Exception as exc:
+                    logger.warning("[%s] 中断后 CHECKPOINT 跳过: %s", run_name, exc)
 
         completed_jobs = dispatch_result.completed
         failed_jobs = dispatch_result.failed
@@ -677,6 +779,43 @@ class TagManager:
             "elapsed_time": elapsed_time,
             "dispatch_result": dispatch_result,
         }
+
+    def _run_tag_dispatch(
+        self,
+        *,
+        dispatcher_jobs: List[Job],
+        dispatch_settings: JobDispatchSettings,
+        on_result,
+        run_name: str,
+        stage_in_worker: bool,
+        duckdb_spill: bool,
+        spill_rows: int,
+    ) -> DispatchResult:
+        """单次 JobDispatcher.run；子进程 execute 内 stage+算，DuckDB 另 suspend/spill/digest。"""
+        if stage_in_worker and duckdb_spill:
+            from core.modules.tag.components.job_staging.worker_runtime import (
+                release_main_duckdb_domains_for_workers,
+            )
+
+            release_main_duckdb_domains_for_workers(self.data_mgr)
+            logger.info(
+                "[%s] 已 suspend 主进程 DuckDB；stage_in_worker "
+                "(buffer≥%d 行 spill Parquet，结束后写 tag)",
+                run_name,
+                spill_rows,
+            )
+        elif stage_in_worker:
+            logger.info(
+                "[%s] stage_in_worker（%s：on_result 攒批直接 save_batch）",
+                run_name,
+                self.data_mgr.db.config.get("database_type"),
+            )
+        dispatcher = JobDispatcher(
+            settings=dispatch_settings,
+            execute=TagManager._execute_single_job,
+            on_result=on_result,
+        )
+        return dispatcher.run(dispatcher_jobs, run_name=run_name)
 
     def _maybe_checkpoint_duckdb_after_tag_run(self) -> None:
         """DuckDB：Tag 写库结束后合并 WAL，避免下次启动回放失败。"""
@@ -737,40 +876,74 @@ class TagManager:
         return out
 
     @staticmethod
-    def _execute_single_job(payload: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Tag Worker 包装函数（JobExecutor execute）。
+    def _maybe_stage_in_worker(payload: Dict[str, Any]) -> Tuple[Dict[str, Any], float]:
+        from core.modules.tag.components.job_staging.worker_runtime import (
+            payload_needs_worker_stage,
+            stage_payload_in_worker,
+        )
 
-        子进程只计算并返回 tag_values；主进程 on_result 负责 save_batch。
-        支持单股 payload 或多股 ``entities`` + ``_inject.by_entity`` batch payload。
-        """
-        entities = payload.get("entities")
-        if isinstance(entities, list) and len(entities) > 1:
-            return TagManager._execute_batch_entities(payload, entities)
+        if not payload_needs_worker_stage(payload):
+            return payload, 0.0
+        stage_t0 = time.perf_counter()
+        staged = stage_payload_in_worker(payload)
+        return staged, time.perf_counter() - stage_t0
 
-        exec_t0 = time.perf_counter()
+    @staticmethod
+    def _execute_single_job(context: JobContext) -> Dict[str, Any]:
+        """
+        Tag Worker（JobDispatcher execute）：子进程内 stage（可选）+ 计算。
+
+        主进程 on_result 负责 save_batch；load 数据由本函数与 worker_runtime 完成。
+        """
+        payload = context.payload
+        stage_in_worker = bool(payload.get("_stage_in_worker"))
         try:
-            result = TagManager._run_worker_for_payload(payload)
-            execute_sec = time.perf_counter() - exec_t0
-            return {
-                "success": bool(result.get("success", True)),
-                "entity_id": payload.get("entity_id"),
-                "tag_values": result.get("tag_values") or [],
-                "total_tags": result.get("total_tags_created", 0),
-                "processed_dates": result.get("processed_dates", 0),
-                "total_dates": result.get("total_dates", 0),
-                "errors": result.get("errors") or [],
-                "_profile_execute_sec": execute_sec,
-            }
-        except Exception as e:
-            logger.exception("Job %s failed: %s", payload.get("entity_id", "unknown"), e)
-            return {
-                "success": False,
-                "entity_id": payload.get("entity_id"),
-                "tag_values": [],
-                "error": str(e),
-                "_profile_execute_sec": time.perf_counter() - exec_t0,
-            }
+            payload, stage_sec = TagManager._maybe_stage_in_worker(payload)
+            entities = payload.get("entities")
+            if isinstance(entities, list) and len(entities) > 1:
+                out = TagManager._execute_batch_entities(payload, entities)
+                if stage_sec > 0:
+                    out["_profile_stage_sec"] = stage_sec
+                return out
+
+            exec_t0 = time.perf_counter()
+            try:
+                result = TagManager._run_worker_for_payload(payload)
+                execute_sec = time.perf_counter() - exec_t0
+                out = {
+                    "success": bool(result.get("success", True)),
+                    "entity_id": payload.get("entity_id"),
+                    "tag_values": result.get("tag_values") or [],
+                    "total_tags": result.get("total_tags_created", 0),
+                    "processed_dates": result.get("processed_dates", 0),
+                    "total_dates": result.get("total_dates", 0),
+                    "errors": result.get("errors") or [],
+                    "_profile_execute_sec": execute_sec,
+                }
+                if stage_sec > 0:
+                    out["_profile_stage_sec"] = stage_sec
+                return out
+            except Exception as e:
+                logger.exception(
+                    "Job %s failed: %s", payload.get("entity_id", "unknown"), e
+                )
+                out = {
+                    "success": False,
+                    "entity_id": payload.get("entity_id"),
+                    "tag_values": [],
+                    "error": str(e),
+                    "_profile_execute_sec": time.perf_counter() - exec_t0,
+                }
+                if stage_sec > 0:
+                    out["_profile_stage_sec"] = stage_sec
+                return out
+        finally:
+            if stage_in_worker:
+                from core.modules.tag.components.job_staging.worker_runtime import (
+                    release_worker_runtime,
+                )
+
+                release_worker_runtime()
 
     @staticmethod
     def _execute_batch_entities(

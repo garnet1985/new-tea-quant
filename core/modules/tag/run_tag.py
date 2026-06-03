@@ -94,6 +94,23 @@ def main(argv: list[str] | None = None) -> int:
         metavar="N",
         help="覆盖 settings.performance.entities_per_job（一 job N 股 bulk stage）",
     )
+    parser.add_argument(
+        "--no-stage-in-worker",
+        action="store_true",
+        help="关闭子进程内 bulk stage（默认在 execute 内 stage）",
+    )
+    parser.add_argument(
+        "--stage-spill-rows",
+        type=int,
+        metavar="N",
+        help="DuckDB + stage_in_worker：内存缓冲达 N 行则 spill Parquet（默认 50000）",
+    )
+    parser.add_argument(
+        "--stock-limit",
+        type=int,
+        metavar="N",
+        help="只跑前 N 只股票（试验对比用）",
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -116,6 +133,12 @@ def main(argv: list[str] | None = None) -> int:
         dispatch_overrides["profile"] = True
     if args.entities_per_job is not None:
         dispatch_overrides["entities_per_job"] = max(1, int(args.entities_per_job))
+    if args.no_stage_in_worker:
+        dispatch_overrides["stage_in_worker"] = False
+    if args.stage_spill_rows is not None:
+        dispatch_overrides["stage_spill_rows"] = max(1, int(args.stage_spill_rows))
+    if args.stock_limit is not None:
+        dispatch_overrides["stock_limit"] = max(1, int(args.stock_limit))
 
     mgr = TagManager(is_verbose=args.verbose, dispatch_overrides=dispatch_overrides)
 

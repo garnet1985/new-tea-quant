@@ -1,7 +1,7 @@
 """
 JobDispatcher 类型定义。
 
-jobs[] → [to_executable_job?] → executor.execute(payload) → on_result
+jobs[] → executor(JobContext) → on_result
 """
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from typing import Any, Dict, List, Optional
 class JobFailurePhase(str, Enum):
     """失败发生在哪一阶段。"""
 
-    TO_EXECUTABLE = "to_executable"
     EXECUTE = "execute"
     REPORT = "report"
 
@@ -29,7 +28,7 @@ class ExecuteMode(str, Enum):
     """
     主进程装填 + 提交节奏。
 
-    - QUEUE：有空位就 prepare/submit；完成 1 补 1
+    - QUEUE：有空位就 submit；完成 1 补 1
     - BATCH：每批 batch_size 个；批内并行、批间串行
     - ELASTIC：预留，动态调池（未实现）
     """
@@ -40,20 +39,20 @@ class ExecuteMode(str, Enum):
 
 
 @dataclass(frozen=True)
-class DataRef:
-    """大数据引用（spill / shared memory 等可选路径）。"""
-
-    slot: str
-    uri: str
-    meta: Dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True)
 class Job:
     """任务单元：job_id + payload（业务自定 shape）。"""
 
     job_id: str
     payload: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class JobContext:
+    """子进程 execute 收到的当前 job 作用域（由 Dispatcher 注入 job_id / run_name）。"""
+
+    job_id: str
+    payload: Dict[str, Any]
+    run_name: str = ""
 
 
 @dataclass
@@ -93,12 +92,3 @@ class DispatchResult:
     failures: List[JobFailure] = field(default_factory=list)
     elapsed_seconds: float = 0.0
     run_name: str = ""
-
-
-@dataclass
-class PreparedJob:
-    """主进程 prepare 后的可提交任务（内部）。"""
-
-    job_id: str
-    payload: Dict[str, Any]
-    source: Job

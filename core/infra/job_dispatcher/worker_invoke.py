@@ -4,8 +4,10 @@ from __future__ import annotations
 import multiprocessing as mp
 from typing import Any, Callable
 
+from core.infra.job_dispatcher.types import JobContext
 
-def invoke_execute(execute: Callable[[dict[str, Any]], Any], payload: dict[str, Any]) -> Any:
+
+def invoke_execute(execute: Callable[[JobContext], Any], context: JobContext) -> Any:
     """在 worker 内调用 execute；子进程重置 DatabaseManager 默认实例。"""
     if mp.current_process().name != "MainProcess":
         try:
@@ -14,4 +16,4 @@ def invoke_execute(execute: Callable[[dict[str, Any]], Any], payload: dict[str, 
             DatabaseManager.reset_default()
         except Exception:
             pass
-    return execute(payload)
+    return execute(context)

@@ -39,7 +39,7 @@ def test_tag_job_stager_builds_inline_inject_payload():
         return_value={"1": '{"value": true}'},
     ):
         stager = TagJobStager(data_mgr=MagicMock())
-        enriched = stager.to_executable_job(job)
+        enriched = stager.stage_job(job)
 
     mock_tdm.hydrate_row_slots.assert_called_once_with("20250101", "20250102")
     inject = enriched.payload["_inject"]

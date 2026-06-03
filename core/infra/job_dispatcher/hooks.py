@@ -1,30 +1,23 @@
 """JobDispatcher 钩子协议。"""
 from __future__ import annotations
 
-from typing import Any, Callable, Optional, Protocol
+from typing import Any, Callable, Protocol
 
-from core.infra.job_dispatcher.types import Job, JobReport, PreparedJob, RunProgress
-
-
-class ToExecutableJobHook(Protocol):
-    """job → 装填后的 Job（主进程 IO）。"""
-
-    def __call__(self, job: Job) -> Job:
-        ...
+from core.infra.job_dispatcher.types import JobContext, JobReport, RunProgress
 
 
 class OnResultHook(Protocol):
-    """处理 Worker 返回的报告（主进程 IO）。"""
+    """处理 Worker 返回的报告（主进程）。"""
 
     def __call__(self, report: JobReport, progress: RunProgress) -> None:
         ...
 
 
 class OnReleaseHook(Protocol):
-    """PreparedJob 生命周期结束（释放 spill / 内存）。"""
+    """单 job 执行结束后的可选清理（主进程，与 execute 配对）。"""
 
-    def __call__(self, prepared: PreparedJob) -> None:
+    def __call__(self, context: JobContext) -> None:
         ...
 
 
-ExecuteFn = Callable[[dict[str, Any]], Any]
+ExecuteFn = Callable[[JobContext], Any]

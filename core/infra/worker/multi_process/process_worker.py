@@ -6,7 +6,7 @@
 
 队列填池、BATCH/QUEUE pipeline 已移除，请使用 ``core.infra.job_dispatcher``：
 
-    JobDispatcher(on_stage_job=..., on_report=..., executor=create_job_executor(...)).run(shells)
+    JobDispatcher(execute=..., on_result=..., executor=create_job_executor(...)).run(jobs)
 
 本模块保留 ``JobStatus`` / ``JobResult`` 与 ``resolve_max_workers`` 等工具符号，供迁移期引用。
 """
@@ -20,7 +20,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 _DEPRECATED_RUN_MSG = (
     "ProcessWorker.run_jobs 已移除。请使用 core.infra.job_dispatcher.JobDispatcher："
-    "on_stage_job / on_report + create_job_executor(...)。"
+    "execute(JobContext) / on_result + create_job_executor(...)。"
     "队列填池与 auto max_workers 已上移至 JobDispatcher。"
 )
 

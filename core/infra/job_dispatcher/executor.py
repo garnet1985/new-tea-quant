@@ -9,12 +9,12 @@ from core.infra.job_dispatcher.executors.pool import ProcessJobExecutor, ThreadJ
 from core.infra.job_dispatcher.hooks import ExecuteFn
 from core.infra.job_dispatcher.probe import WorkerProbe
 from core.infra.job_dispatcher.settings import JobDispatchSettings
-from core.infra.job_dispatcher.types import ExecutionBackend
+from core.infra.job_dispatcher.types import ExecutionBackend, JobContext
 
 
 @runtime_checkable
 class JobExecutor(Protocol):
-    """流式 submit execute(payload) 的执行后端。"""
+    """流式 submit execute(JobContext) 的执行后端。"""
 
     @property
     def max_workers(self) -> int:
@@ -24,7 +24,7 @@ class JobExecutor(Protocol):
     def requires_picklable_payload(self) -> bool:
         ...
 
-    def submit(self, job_id: str, payload: dict[str, Any]) -> Any:
+    def submit(self, context: JobContext) -> Any:
         ...
 
     def shutdown(self, *, wait: bool = True, timeout: float | None = None) -> None:

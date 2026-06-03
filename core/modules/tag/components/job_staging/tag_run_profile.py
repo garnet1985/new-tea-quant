@@ -61,7 +61,7 @@ class TagRunProfile:
         db_label = f", db={database_type}" if database_type else ""
         lines = [
             "Tag 剖面 (wall=%.2fs, jobs=%s%s):" % (wall, total_jobs, db_label),
-            "  stage(to_executable_job): %.2fs  (%d jobs, avg %.1fms/job, pickle %.1fKB/job, rows %d)"
+            "  stage(worker): %.2fs  (%d jobs, avg %.1fms/job, pickle %.1fKB/job, rows %d)"
             % (
                 self.stage_sec,
                 self.stage_jobs,

@@ -8,6 +8,5 @@ pytest core/infra/job_dispatcher/__test__/ -q
 |------|------|
 | `test_job_dispatcher.py` | QUEUE/BATCH、optional prepare、失败阶段、thread/process 池 |
 | `test_probe.py` | auto / cap / clamp |
-| `test_spill.py` | spill 工具（未接线） |
 
-集成测试（Tag / Strategy）在业务模块迁移后补充。
+集成测试（Tag / Strategy）在业务模块 `__test__` 中。

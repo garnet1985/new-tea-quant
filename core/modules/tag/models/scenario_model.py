@@ -302,6 +302,12 @@ class ScenarioModel:
         # calculator.performance.max_workers: 默认 "auto"
         if "max_workers" not in performance:
             performance["max_workers"] = "auto"
+
+        if "entities_per_job" not in performance:
+            performance["entities_per_job"] = 100
+
+        if "stage_in_worker" not in performance:
+            performance["stage_in_worker"] = True
         
         # calculator.performance.data_chunk_size: 默认 500
         if "data_chunk_size" not in performance:

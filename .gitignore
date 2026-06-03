@@ -93,6 +93,7 @@ devbackup/
 *.log
 logs/
 tools/
+experiments/
 
 ########################
 # Test Coverage

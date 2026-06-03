@@ -1,6 +1,6 @@
 # Data Source 架构文档
 
-**版本：** `0.2.0`
+**版本：** `0.3.4`
 
 ---
 
@@ -24,7 +24,7 @@
 - **`DataSourceExecutionScheduler`**：对 handler 列表拓扑排序、按序 `execute`、合并依赖数据源返回值、失败收集与后处理。
 - **`BaseHandler`**：同步管线（`on_before_run`、预处理、执行 API 批次、标准化、保存等，见源码）。
 - **`BaseProvider`**：第三方 API 封装与认证、声明式限流元数据。
-- **`service/`**：`manager_helper`、`provider_helper`、`handler_helper`、`api_job_executor`、**renew** 子包等。
+- **`service/`**：`manager_helper`、`provider_helper`、`handler_helper`、`api_job_executor`（单 bundle 内 ApiJob）、`pipeline/`（多 bundle → **`infra.job_pipeline`**）、**renew** 子包等。
 
 ---
 

@@ -30,11 +30,12 @@ class SaveBatchSizer:
             self._fixed_size = 1
         elif save_mode == "batch":
             if config.is_save_batch_size_auto():
-                from core.infra.worker import MemoryAwareScheduler
+                from core.modules.data_source.service.executor.save_batch_auto_sizer import (
+                    SaveBatchAutoSizer,
+                )
 
-                placeholders = [None] * max(total_bundles, 1)
-                self._scheduler = MemoryAwareScheduler(
-                    jobs=placeholders,
+                self._scheduler = SaveBatchAutoSizer(
+                    total_bundles=total_bundles,
                     max_batch_size=AUTO_MAX_SAVE_BATCH_SIZE,
                     log=logger,
                 )
@@ -57,7 +58,7 @@ class SaveBatchSizer:
 
     def record_batch_start(self) -> None:
         if self._scheduler is not None:
-            self._scheduler.monitor.record_batch_start()
+            self._scheduler.record_batch_start()
 
     def after_batch_saved(self, batch_size: int, batch_results: List[Any]) -> None:
         if self._scheduler is None:

@@ -13,3 +13,10 @@
 直接运行：`python -m devtools.quick_tools.minimal_import_check`
 
 导出演示数据包：`python dev-cli.py -ex` → 默认输出到 `setup/init_data/`（配置见 `devtools/demo_exporter/config.py`）
+
+Data source JobPipeline 样本试跑（从 stock_list 截取 N 只，非全量）::
+
+    python devtools/quick_tools/renew_pipeline_sample.py
+    python devtools/quick_tools/renew_pipeline_sample.py --n 120 --source stock_st_periods -v
+
+或手动：`NTQ_DS_SAMPLE_N=80 python start-cli.py -r stock_klines`（默认 80，够测并行+限流）

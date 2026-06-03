@@ -162,15 +162,19 @@ class BaseHandler:
         group_by_entity_list_name = (config.get_group_by_entity_list_name() if config else None) or ""
 
         if group_by_entity_list_name == "stock_list":
+            from core.modules.data_source.service.sample_stock_list import slice_stock_list
+
             # 优先使用 context 中的 stock_list（handler 可能在 on_prepare_context 中修改了）
             if "stock_list" in self.context:
                 entity_list = self.context["stock_list"]
-                return entity_list or []
-            
+                return slice_stock_list(entity_list or [])
+
             # 回退到 dependencies
             deps = self.context.get("dependencies") or {}
             entity_list = deps.get("stock_list")
-            return (entity_list or []) if entity_list is not None else []
+            if entity_list is None:
+                return []
+            return slice_stock_list(entity_list or [])
         if group_by_entity_list_name:
             # 其他 list 名（如 index_list）：从 dependencies 或 context 获取，由 handler 在 on_prepare_context 中注入
             deps = self.context.get("dependencies") or {}
@@ -293,7 +297,12 @@ class BaseHandler:
 
     def _inject_dependencies(self, dependencies_data):
         """注入依赖数据；无依赖时设为空字典，避免后续 .get 报错。"""
+        from core.modules.data_source.service.sample_stock_list import (
+            slice_stock_list_in_dependencies,
+        )
+
         deps = dependencies_data if dependencies_data is not None else {}
+        deps = slice_stock_list_in_dependencies(deps)
         self.context["dependencies"] = deps
         exec_meta = deps.get("_execution")
         self.context["force_refresh"] = (
@@ -329,13 +338,12 @@ class BaseHandler:
         Returns:
             Dict[str, Any]: 汇总后的抓取结果 {job_id: result}
         """
-        from core.modules.data_source.service.executor.bundle_execution_service import (
-            BundleExecutionService,
+        from core.modules.data_source.service.pipeline.runner import (
+            DataSourcePipelineRunner,
         )
 
         try:
-            executor = BundleExecutionService()
-            fetched_data = executor.execute(
+            fetched_data = DataSourcePipelineRunner().run_bundles(
                 self.context,
                 apis_job_bundles,
                 on_after_single_bundle_complete=self.on_after_single_api_job_bundle_complete,
@@ -693,27 +701,6 @@ class BaseHandler:
         """
         return apis
 
-    def on_after_single_api_job_complete(self, context: Dict[str, Any], job: ApiJobBundle, fetched_data: Dict[str, Any]) -> ApiJobBundle:
-        """
-        批次构建后的钩子。
-
-        在 job batch 构建完成后调用，子类可以：
-        - 检查批次配置
-        - 调整批次内的 ApiJobs
-        - 记录批次信息
-
-        Args:
-            context: 上下文信息
-            job_batch: 构建好的批次
-
-        Returns:
-            ApiJobBatch: 处理后的批次（默认返回原批次）
-        """
-        return fetched_data
-
-    def on_single_job_failed():
-        pass
-
     def enrich_result_for_batch(self, context: Dict[str, Any], job_bundle: Any, raw_result: Dict[str, Any]) -> Dict[str, Any]:
         """
         在 batch 模式检查 _has_actual_data 之前，允许子类丰富 result，使空结果也包含元数据（如 last_update）。
@@ -789,37 +776,6 @@ class BaseHandler:
         if isinstance(job_bundle, ApiJobBundle):
             return list(job_bundle.apis or [])
         return []
-
-    def on_job_bundle_failed():
-        pass
-
-    def on_one_thread_execution_complete(self, context: Dict[str, Any], fetched_data: Dict[str, Any]):
-        """
-        单线程执行完成后的钩子。
-        """
-        return fetched_data
-    
-    def on_thread_execution_error(self, error: Exception, context: Dict[str, Any], apis: List[ApiJob]) -> None:
-        """
-        执行错误时的钩子。
-
-        当执行阶段（_executing）出现异常时调用此钩子。
-        子类可以覆盖此方法来实现自定义错误处理逻辑，例如：
-        - 记录错误日志
-        - 清理资源
-        - 重试机制
-        - 错误通知
-
-        注意：此钩子不会阻止异常传播，异常仍会向上抛出。
-
-        Args:
-            error: 发生的异常
-            context: 上下文信息
-            apis: 执行时的 ApiJob 列表
-        """
-        data_source_key = context.get("data_source_key", "unknown")
-        logger.error(f"❌ 数据源 {data_source_key} 执行失败: {error}")
-
 
     def on_after_fetch(self, context: Dict[str, Any], fetched_data: Dict[str, Any], apis: List[ApiJob]):
         """

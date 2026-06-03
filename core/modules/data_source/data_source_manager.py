@@ -200,9 +200,15 @@ class DataSourceManager:
             for k in keys
         )
         if need_list and "stock_list" not in keys:
-            rows = dm.stock.list.load_all()
+            from core.modules.data_source.service.sample_stock_list import (
+                is_sample_active,
+                slice_stock_list,
+            )
+
+            rows = slice_stock_list(dm.stock.list.load_all())
             scheduler._dependency_cache["stock_list"] = rows
-            logger.info("从 DB 注入 stock_list 依赖：%s 只", len(rows))
+            suffix = "（样本）" if is_sample_active() else ""
+            logger.info("从 DB 注入 stock_list 依赖：%s 只%s", len(rows), suffix)
 
         handlers_for_topo = [by_key[k] for k in keys]
         if need_list and "stock_list" not in keys and "stock_list" in by_key:
@@ -252,7 +258,7 @@ class DataSourceManager:
         发现并加载数据源的 mapping 配置。
 
         约定：
-        - 使用 userspace/extensions/data_source/mapping.py（DATA_SOURCES）作为入口；兼容 mapping.json。
+        - 使用 userspace/extensions/data_source/mapping.py（DATA_SOURCES）作为入口。
         - 返回 HandlerMapping(data_sources=...)
         """
         mapping_path = PathManager.data_source_mapping()
@@ -318,13 +324,13 @@ class DataSourceManager:
         发现并加载指定数据源的 Config。仅支持 config.py，其中必须定义 CONFIG 字典。
         
         支持递归查找：
-        1. 首先尝试直接路径：handlers/{data_source_key}/config.py（向后兼容）
-        2. 如果找不到，递归搜索 handlers 目录下的所有子目录，查找包含 {data_source_key} 的目录
+        1. 首先尝试 handlers/{data_source_key}/config.py
+        2. 找不到则递归搜索 handlers 下含该 key 的目录
         """
         if data_source_key in self._all_valid_configs_cache:
             return self._all_valid_configs_cache[data_source_key]
 
-        # 首先尝试直接路径（向后兼容）
+        # 首先尝试直接路径
         handler_dir = PathManager.data_source_handler(data_source_key)
         config_path = handler_dir / "config.py"
         

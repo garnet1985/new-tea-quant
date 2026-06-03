@@ -17,6 +17,10 @@ mgr = DataSourceManager(is_verbose=True)
 mgr.execute()  # 运行 mapping 中所有 is_enabled 的数据源
 ```
 
+多 bundle 并发经 **`infra.job_pipeline`**（线程池 + 主进程 `on_result` 攒批写库，适配 DuckDB）。见 `service/pipeline/`。
+
+**样本试跑（非全量）**：从 `stock_list` 顺序截取一段 — 默认 `NTQ_DS_SAMPLE_N=80`（够 JobPipeline 并行与 Provider 限流；可加大），或 `python devtools/quick_tools/renew_pipeline_sample.py`。
+
 用户侧目录约定见 [`docs/DESIGN.md`](docs/DESIGN.md)；扩展说明另见 **`userspace/data_source/README.md`**（若存在）。
 
 ## 目录结构（本模块）

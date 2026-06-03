@@ -1,9 +1,7 @@
 """batch 保存调度：batch 模式应一次 batch 回调，immediate 应多次 single 回调。"""
 from unittest.mock import Mock
 
-from core.modules.data_source.service.executor.bundle_execution_service import (
-    _invoke_bundle_save,
-)
+from core.modules.data_source.service.pipeline.save_utils import invoke_bundle_save as _invoke_bundle_save
 
 
 def test_invoke_bundle_save_batch_mode_calls_batch_once():

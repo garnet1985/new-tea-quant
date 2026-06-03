@@ -44,7 +44,7 @@ class DataSourcePipelineRunner:
     def run_bundles(
         self,
         context: Dict[str, Any],
-        bundles: List[BundleRow],
+        jobs: List[Union[ApiJobBundle, ApiJob]],
         *,
         on_after_single_bundle_complete: Callable[
             [Dict[str, Any], Any, Dict[str, Any]], Any
@@ -56,6 +56,7 @@ class DataSourcePipelineRunner:
             [Dict[str, Any], ApiJobBundle, Dict[str, Any]], Dict[str, Any]
         ],
     ) -> Dict[str, Any]:
+        bundles = normalize_job_bundles(context, jobs)
         if not bundles:
             return {}
 

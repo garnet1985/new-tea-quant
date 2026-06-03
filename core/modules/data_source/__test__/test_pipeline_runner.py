@@ -55,11 +55,7 @@ def test_run_bundles_batch_save_flushes_via_on_result(mock_config_batch):
         runner = DataSourcePipelineRunner()
         merged = runner.run_bundles(
             context,
-            [
-                ("b1", [job_a], bundle1),
-                ("b2", [job_b], bundle2),
-                ("b3", [job_a], bundle3),
-            ],
+            [bundle1, bundle2, bundle3],
             on_after_single_bundle_complete=on_single,
             on_after_batch_bundles_complete=on_batch,
             enrich_result_for_batch=lambda _ctx, _b, r: r,

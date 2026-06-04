@@ -122,8 +122,24 @@ class StrategyDataInjectionService:
     ) -> Dict[str, Any]:
         return normalize_declaration_item(settings, raw)
 
-    def hydrate_row_slots(self, start_date: str, end_date: str) -> None:
-        self._contract_cache.enter_strategy_run()
+    def clear_working_state(self) -> None:
+        """释放当前股槽位与 cursor（同 job 内处理下一股前调用）。"""
+        self._current_data = {"klines": []}
+        self._slot_contracts = {}
+        try:
+            self._cursor_mgr.drop_cursor(self._cursor_name)
+        except Exception:
+            pass
+
+    def hydrate_row_slots(
+        self,
+        start_date: str,
+        end_date: str,
+        *,
+        fresh_strategy_cache: bool = True,
+    ) -> None:
+        if fresh_strategy_cache:
+            self._contract_cache.enter_strategy_run()
         self._slot_contracts = {}
         contracts = self.issue_contracts(
             start=start_date,

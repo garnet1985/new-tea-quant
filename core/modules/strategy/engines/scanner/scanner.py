@@ -120,7 +120,7 @@ class Scanner:
             max_workers=self.settings.max_workers,
             total_jobs=len(jobs),
             run_name=f"scanner:{self.strategy_name}",
-            on_legacy_progress=on_job_done if callable(on_job_done) else None,
+            on_job_progress=on_job_done if callable(on_job_done) else None,
         )
         opportunities: List[Opportunity] = []
         for job_result in job_results:
@@ -133,7 +133,7 @@ class Scanner:
 
     @staticmethod
     def _execute_single_job(payload: Dict[str, Any]) -> Dict[str, Any]:
-        """兼容旧调用；扫描并行请走 ``run_scanner_jobs_via_pipeline``。"""
+        """扫描并行请走 ``run_scanner_jobs_via_pipeline``。"""
         from core.modules.strategy.services.execution.scanner_job_pipeline import (
             run_scanner_worker_payload,
         )

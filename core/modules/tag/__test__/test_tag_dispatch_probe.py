@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from core.modules.tag.components.dispatch_planner import resolve_tag_dispatch_plan
+from core.infra.worker.dispatch_planner import resolve_dispatch_plan
 from core.modules.tag.components.tag_dispatch_probe import should_run_dispatch_probe
 
 
@@ -41,11 +41,12 @@ def test_probe_mb_per_entity_uses_rss_delta_not_peak():
 
 
 def test_plan_uses_measured_mb_per_entity():
-    plan = resolve_tag_dispatch_plan(
+    plan = resolve_dispatch_plan(
         total_entities=5000,
         performance={"entities_per_job": "auto", "max_workers": 9},
+        log_label="Tag",
         measured_mb_per_entity=0.42,
     )
     assert plan.source_mb_per_entity == "probe"
     assert plan.mb_per_entity == 0.42
-    assert plan.worker_job_budget_mb == 100 * 0.42
+    assert plan.worker_job_budget_mb == plan.entities_per_job * 0.42

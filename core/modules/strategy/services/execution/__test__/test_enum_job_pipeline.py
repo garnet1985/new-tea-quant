@@ -3,8 +3,8 @@ from core.infra.job_pipeline.types import JobReport, RunProgress
 from core.infra.worker.multi_process.process_worker import JobStatus
 from core.modules.strategy.services.execution.enum_job_pipeline import (
     job_report_to_job_result,
-    legacy_progress_from_counts,
-    legacy_progress_from_run_progress,
+    job_progress_from_run,
+    job_progress_payload,
 )
 
 
@@ -27,8 +27,8 @@ def test_job_report_to_job_result_failed():
     assert jr.error == "boom"
 
 
-def test_legacy_progress_from_run_progress():
-    payload = legacy_progress_from_run_progress(
+def test_job_progress_from_run():
+    payload = job_progress_from_run(
         RunProgress(finished=10, total=100, ok=9, fail=1),
         total_jobs=100,
         finished_offset=40,
@@ -38,8 +38,8 @@ def test_legacy_progress_from_run_progress():
     assert payload["progress_pct"] == 50
 
 
-def test_legacy_progress_from_counts():
-    payload = legacy_progress_from_counts(
+def test_job_progress_payload():
+    payload = job_progress_payload(
         total_jobs=100,
         finished=50,
         completed_jobs=48,

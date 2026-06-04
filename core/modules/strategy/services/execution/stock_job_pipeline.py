@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ def job_report_to_job_result(report: JobReport) -> JobResult:
     )
 
 
-def legacy_progress_from_counts(
+def job_progress_payload(
     *,
     total_jobs: int,
     finished: int,
@@ -41,7 +41,7 @@ def legacy_progress_from_counts(
     last_job_id: str = "",
     last_job_status: str = "",
 ) -> Dict[str, Any]:
-    """适配 Workbench / ProcessWorker 风格的 on_job_done payload（全量累计）。"""
+    """Workbench / CLI 进度回调 payload（全量累计）。"""
     pct = int(finished * 100 / total_jobs) if total_jobs else 100
     pct = min(100, max(0, pct))
     return {
@@ -55,7 +55,7 @@ def legacy_progress_from_counts(
     }
 
 
-def legacy_progress_from_run_progress(
+def job_progress_from_run(
     progress: RunProgress,
     *,
     total_jobs: int,
@@ -65,7 +65,7 @@ def legacy_progress_from_run_progress(
 ) -> Dict[str, Any]:
     """单批 JobPipeline.run 的 RunProgress + 全局 offset（MemoryAwareScheduler 多批）。"""
     finished = finished_offset + progress.finished
-    return legacy_progress_from_counts(
+    return job_progress_payload(
         total_jobs=total_jobs,
         finished=finished,
         completed_jobs=progress.ok,
@@ -86,9 +86,13 @@ def run_stock_jobs_via_pipeline(
     finished_offset: int = 0,
     completed_offset: int = 0,
     failed_offset: int = 0,
-    on_legacy_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
+    on_job_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
     log_progress: bool = True,
     progress_log_label: Optional[str] = None,
+    job_id_fn: Optional[Callable[[Dict[str, Any]], str]] = None,
+    progress_units_from_report: Optional[
+        Callable[[JobReport], Tuple[int, int, int]]
+    ] = None,
 ) -> List[JobResult]:
     """
     对一批单股任务跑 JobPipeline（QUEUE + PROCESS），返回 JobResult 列表。
@@ -97,8 +101,9 @@ def run_stock_jobs_via_pipeline(
         return []
 
     label = progress_log_label or run_name
+    resolve_job_id = job_id_fn or (lambda job: str(job.get("stock_id") or job.get("job_id")))
     pipeline_jobs = [
-        Job(job_id=str(job["stock_id"]), payload=build_payload(job))
+        Job(job_id=resolve_job_id(job), payload=build_payload(job))
         for job in stock_jobs
     ]
 
@@ -108,7 +113,7 @@ def run_stock_jobs_via_pipeline(
     log_state = {"last_pct": -1, "last_log_at": time.time(), "last_done": 0}
 
     def _emit_progress(*, finished: int, ok: int, fail: int) -> None:
-        payload = legacy_progress_from_counts(
+        payload = job_progress_payload(
             total_jobs=total_jobs,
             finished=finished,
             completed_jobs=ok,
@@ -116,8 +121,8 @@ def run_stock_jobs_via_pipeline(
             last_job_id=progress_meta["last_job_id"],
             last_job_status=progress_meta["last_job_status"],
         )
-        if on_legacy_progress is not None:
-            on_legacy_progress(payload)
+        if on_job_progress is not None:
+            on_job_progress(payload)
         if not log_progress:
             return
         pct = int(payload["progress_pct"])
@@ -145,16 +150,28 @@ def run_stock_jobs_via_pipeline(
             log_state["last_log_at"] = now
             log_state["last_pct"] = pct
 
+    stock_finished = finished_offset
+    stock_ok = completed_offset
+    stock_fail = failed_offset
+
     def on_result(report: JobReport, progress: RunProgress) -> None:
         reported_ids.add(report.job_id)
         progress_meta["last_job_id"] = report.job_id
         progress_meta["last_job_status"] = "completed" if report.success else "failed"
         results.append(job_report_to_job_result(report))
-        _emit_progress(
-            finished=finished_offset + progress.finished,
-            ok=completed_offset + progress.ok,
-            fail=failed_offset + progress.fail,
-        )
+        if progress_units_from_report is not None:
+            units, ok_u, fail_u = progress_units_from_report(report)
+            nonlocal stock_finished, stock_ok, stock_fail
+            stock_finished += units
+            stock_ok += ok_u
+            stock_fail += fail_u
+            _emit_progress(finished=stock_finished, ok=stock_ok, fail=stock_fail)
+        else:
+            _emit_progress(
+                finished=finished_offset + progress.finished,
+                ok=completed_offset + progress.ok,
+                fail=failed_offset + progress.fail,
+            )
 
     settings = JobPipelineSettings(
         worker=ExecutionBackend.PROCESS,
@@ -171,13 +188,14 @@ def run_stock_jobs_via_pipeline(
     logged_first_execute_failure = False
     dispatch = dispatcher.run(pipeline_jobs, run_name=run_name)
 
-    batch_ok = dispatch.completed
-    batch_fail = dispatch.failed
-    _emit_progress(
-        finished=finished_offset + batch_ok + batch_fail,
-        ok=completed_offset + batch_ok,
-        fail=failed_offset + batch_fail,
-    )
+    if progress_units_from_report is None:
+        batch_ok = dispatch.completed
+        batch_fail = dispatch.failed
+        _emit_progress(
+            finished=finished_offset + batch_ok + batch_fail,
+            ok=completed_offset + batch_ok,
+            fail=failed_offset + batch_fail,
+        )
 
     for failure in dispatch.failures:
         if failure.phase != JobFailurePhase.EXECUTE:

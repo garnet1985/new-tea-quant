@@ -34,11 +34,11 @@ def resolve_price_max_workers(max_workers: Any) -> int:
     return WorkerProbe.resolve(max_workers)
 
 
-def workbench_disk_progress_from_legacy(
+def workbench_disk_progress(
     payload: Dict[str, Any],
     progress_callback: Callable[[float], None],
 ) -> None:
-    """将 legacy ``progress_pct`` 映射为工作台磁盘进度 15%～88%。"""
+    """将 job ``progress_pct`` 映射为工作台磁盘进度 15%～88%。"""
     try:
         w = float(payload.get("progress_pct") or 0)
     except (TypeError, ValueError):
@@ -57,9 +57,9 @@ def run_price_factor_jobs_via_pipeline(
 ) -> List[JobResult]:
     """对单股价格任务跑 JobPipeline，返回 JobResult 列表。"""
     n = total_jobs if total_jobs is not None else len(stock_jobs)
-    on_legacy = None
+    on_progress = None
     if on_workbench_progress is not None:
-        on_legacy = lambda p: workbench_disk_progress_from_legacy(p, on_workbench_progress)
+        on_progress = lambda p: workbench_disk_progress(p, on_workbench_progress)
 
     return run_stock_jobs_via_pipeline(
         stock_jobs=stock_jobs,
@@ -68,6 +68,6 @@ def run_price_factor_jobs_via_pipeline(
         max_workers=resolve_price_max_workers(max_workers),
         total_jobs=n,
         run_name=run_name,
-        on_legacy_progress=on_legacy,
+        on_job_progress=on_progress,
         progress_log_label="price",
     )

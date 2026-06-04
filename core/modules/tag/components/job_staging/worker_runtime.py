@@ -5,36 +5,22 @@ import logging
 import os
 from typing import Any, Dict, Tuple
 
-from core.infra.db.engines.duckdb import process_pool_scope as _duckdb_pool
 from core.infra.db.engines.duckdb.process_pool_scope import (
     connect_duckdb_domains,
     database_config_read_only,
-    reconnect_main_duckdb_domains,
+    reconnect_main_database,
     release_main_for_workers,
     release_worker_db_handles,
     resume_main_database_with_retry,
     suspend_main_database,
     wait_pool_children_done,
 )
-
-# 兼容旧 import 路径（TagManager / 探针 / digest）
-prepare_main_for_duckdb_workers = _duckdb_pool.prepare_main_for_worker_pool
-prepare_main_for_worker_pool = _duckdb_pool.prepare_main_for_worker_pool
-release_all_main_db_handles = _duckdb_pool.release_all_main_db_handles
-release_main_duckdb_domains_for_workers = _duckdb_pool.release_main_for_workers
-restore_main_after_duckdb_worker_pool = _duckdb_pool.restore_after_worker_pool
-resume_main_database = _duckdb_pool.resume_main_database
-resume_main_database_tag_write_only = _duckdb_pool.resume_main_database_tag_write_only
-wait_pool_children_done = _duckdb_pool.wait_pool_children_done
-_wait_pool_children_done = wait_pool_children_done
-collect_db_managers_from_data_mgr = _duckdb_pool._collect_db_managers_from_data_mgr
 from core.infra.job_pipeline.types import Job
 from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.tag.components.job_staging.tag_job_stager import TagJobStager
 
 logger = logging.getLogger(__name__)
 
-# 每个子进程复用一套 DataManager + TagJobStager（不共享连接，仅少初始化）
 _PID_STAGER: Dict[int, Tuple[Any, TagJobStager]] = {}
 
 
@@ -128,7 +114,7 @@ def release_main_data_domain(data_mgr: Any) -> None:
 
 
 def reconnect_main_data_domain(data_mgr: Any) -> None:
-    reconnect_main_duckdb_domains(data_mgr)
+    reconnect_main_database(data_mgr)
 
 
 def digest_stage_in_worker_save_buffer(

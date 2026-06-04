@@ -61,9 +61,19 @@ def _warmup_indicator_runtime_once() -> None:
 
 
 class OpportunityEnumeratorWorker:
-    def __init__(self, job_payload: Dict[str, Any]):
+    def __init__(
+        self,
+        job_payload: Dict[str, Any],
+        *,
+        stock_id: Optional[str] = None,
+        contract_cache: Optional[ContractCacheManager] = None,
+        fresh_strategy_cache: bool = True,
+    ):
         self.job_payload = job_payload
-        self.stock_id = job_payload["stock_id"]
+        self.stock_id = str(stock_id or job_payload.get("stock_id") or "").strip()
+        if not self.stock_id:
+            raise ValueError("OpportunityEnumeratorWorker 缺少 stock_id")
+        self._fresh_strategy_cache = bool(fresh_strategy_cache)
         self.strategy_name = job_payload["strategy_name"]
         self.start_date = job_payload["start_date"]
         self.end_date = job_payload["end_date"]
@@ -71,7 +81,7 @@ class OpportunityEnumeratorWorker:
         self.settings = StrategySettingsView.from_dict(job_payload["settings"])
         self.settings_dict = self.settings.to_dict()
         self.stock_info = self._load_stock_info()
-        self.contract_cache = ContractCacheManager()
+        self.contract_cache = contract_cache or ContractCacheManager()
         self.data_manager = StrategyDataInjectionService(
             stock_id=self.stock_id,
             settings=self.settings,
@@ -206,7 +216,11 @@ class OpportunityEnumeratorWorker:
             dm._current_data = {"klines": []}
             dm._slot_contracts = {}
             t0 = time.perf_counter()
-            dm.hydrate_row_slots(actual_start_date, self.end_date)
+            dm.hydrate_row_slots(
+                actual_start_date,
+                self.end_date,
+                fresh_strategy_cache=self._fresh_strategy_cache,
+            )
             self.profiler.metrics.time_load_contracts += time.perf_counter() - t0
             t0 = time.perf_counter()
             dm.apply_indicators()
@@ -274,7 +288,11 @@ class OpportunityEnumeratorWorker:
         all_klines: List[Dict[str, Any]],
         opportunities_dict: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        if self.job_payload.get("output_dir") and opportunities_dict:
+        if (
+            self.job_payload.get("output_dir")
+            and opportunities_dict
+            and not self.job_payload.get("_dispatch_probe")
+        ):
             self.profiler.start_timer("save_csv")
             self._save_stock_results(self.job_payload["output_dir"], opportunities_dict)
             self.profiler.metrics.time_save_csv = self.profiler.end_timer("save_csv")
@@ -568,4 +586,65 @@ class OpportunityEnumeratorWorker:
         )
 
 
-__all__ = ["OpportunityEnumeratorWorker"]
+def run_enumeration_payload(job_payload: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    执行单股或多股 dispatch job。
+
+    多股时在同一子进程内顺序处理，共享 ``ContractCacheManager``。
+    """
+    stock_ids = job_payload.get("stock_ids")
+    if not isinstance(stock_ids, list) or len(stock_ids) <= 1:
+        sid = str(job_payload.get("stock_id") or (stock_ids or [None])[0] or "").strip()
+        single = dict(job_payload)
+        single["stock_id"] = sid
+        return OpportunityEnumeratorWorker(single).run()
+
+    ids = [str(s).strip() for s in stock_ids if str(s).strip()]
+    if not ids:
+        return {"success": False, "bulk": True, "stock_results": [], "error": "empty stock_ids"}
+
+    shared_cache = ContractCacheManager()
+    shared_cache.enter_strategy_run()
+    stock_results: List[Dict[str, Any]] = []
+    for sid in ids:
+        sub_payload = dict(job_payload)
+        sub_payload["stock_id"] = sid
+        worker: Optional[OpportunityEnumeratorWorker] = None
+        try:
+            worker = OpportunityEnumeratorWorker(
+                sub_payload,
+                stock_id=sid,
+                contract_cache=shared_cache,
+                fresh_strategy_cache=False,
+            )
+            stock_results.append(worker.run())
+        except Exception as exc:
+            logger.error(
+                "enumeration failed: stock_id=%s, error=%s", sid, exc, exc_info=True
+            )
+            stock_results.append(
+                {
+                    "success": False,
+                    "stock_id": sid,
+                    "stock_name": sid,
+                    "opportunity_count": 0,
+                    "completed_count": 0,
+                    "unfinished_count": 0,
+                    "completion_rate": 0.0,
+                    "avg_opportunity_interval_days": 0.0,
+                    "error": str(exc),
+                }
+            )
+        finally:
+            if worker is not None:
+                worker.data_manager.clear_working_state()
+
+    return {
+        "success": all(bool(r.get("success")) for r in stock_results),
+        "bulk": True,
+        "stock_results": stock_results,
+        "stock_ids": ids,
+    }
+
+
+__all__ = ["OpportunityEnumeratorWorker", "run_enumeration_payload"]

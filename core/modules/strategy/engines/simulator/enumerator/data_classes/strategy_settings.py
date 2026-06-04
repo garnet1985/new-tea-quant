@@ -57,6 +57,9 @@ class StrategyEnumeratorSettings(SettingsBase):
         e.setdefault("min_batch_size", "auto")
         e.setdefault("max_batch_size", "auto")
         e.setdefault("monitor_interval", 5)
+        e.setdefault("entities_per_job", "auto")
+        e.setdefault("dispatch_probe", True)
+        e.setdefault("memory_floor_mb", "auto")
 
     def validate(self) -> ValidationReport:
         result = SettingsBase.new_validation()
@@ -94,6 +97,20 @@ class StrategyEnumeratorSettings(SettingsBase):
         except (TypeError, ValueError):
             SettingsBase.add_warning(result, "enumerator.monitor_interval", "monitor_interval 非法，已回退 5")
             e["monitor_interval"] = 5
+
+        epj = e.get("entities_per_job", "auto")
+        if epj in (None, "", "auto"):
+            e["entities_per_job"] = "auto"
+        else:
+            try:
+                e["entities_per_job"] = max(1, int(epj))
+            except (TypeError, ValueError):
+                SettingsBase.add_warning(
+                    result,
+                    "enumerator.entities_per_job",
+                    'entities_per_job 须为 "auto" 或正整数，已回退 auto',
+                )
+                e["entities_per_job"] = "auto"
 
     def to_dict(self) -> Dict[str, Any]:
         return self.deep_copy_dict(dict(self.enumerator))

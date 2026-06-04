@@ -18,8 +18,8 @@ from .scanner_job_pipeline import (
 )
 from .stock_job_pipeline import (
     job_report_to_job_result,
-    legacy_progress_from_counts,
-    legacy_progress_from_run_progress,
+    job_progress_from_run,
+    job_progress_payload,
     run_stock_jobs_via_pipeline,
 )
 from .worker_runtime import (
@@ -36,8 +36,8 @@ __all__ = [
     "execute_enumeration_job",
     "execute_price_factor_job",
     "job_report_to_job_result",
-    "legacy_progress_from_counts",
-    "legacy_progress_from_run_progress",
+    "job_progress_payload",
+    "job_progress_from_run",
     "release_strategy_worker_runtime",
     "run_enumeration_jobs_via_pipeline",
     "run_price_factor_jobs_via_pipeline",

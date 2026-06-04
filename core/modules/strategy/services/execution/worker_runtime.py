@@ -14,20 +14,12 @@ from typing import Any, Dict, Optional, Tuple
 from core.infra.db.engines.duckdb.process_pool_scope import (
     connect_duckdb_domains,
     database_config_read_only,
-    duckdb_worker_pool_main_process,
-    is_duckdb_backend,
     release_worker_db_handles,
-    resolve_data_manager,
 )
 
 logger = logging.getLogger(__name__)
 
 _PID_DATA_MANAGER: Dict[int, Any] = {}
-
-# 兼容旧名
-strategy_duckdb_worker_pool_main_process = duckdb_worker_pool_main_process
-is_strategy_duckdb_backend = is_duckdb_backend
-resolve_data_mgr_for_duckdb_pool = resolve_data_manager
 
 
 def _connect_duckdb_data_domain_readonly(db: Any) -> None:

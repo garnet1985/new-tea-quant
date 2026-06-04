@@ -60,7 +60,7 @@ def run_scanner_jobs_via_pipeline(
     max_workers: Any,
     total_jobs: Optional[int] = None,
     run_name: str = "scanner",
-    on_legacy_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
+    on_job_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> List[JobResult]:
     """对单股扫描任务跑 JobPipeline，返回 JobResult 列表。"""
     n = total_jobs if total_jobs is not None else len(stock_jobs)
@@ -71,6 +71,6 @@ def run_scanner_jobs_via_pipeline(
         max_workers=resolve_scanner_max_workers(max_workers),
         total_jobs=n,
         run_name=run_name,
-        on_legacy_progress=on_legacy_progress,
+        on_job_progress=on_job_progress,
         progress_log_label="scanner",
     )

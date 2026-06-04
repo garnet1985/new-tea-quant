@@ -306,6 +306,12 @@ class ScenarioModel:
         if "entities_per_job" not in performance:
             performance["entities_per_job"] = "auto"
 
+        if "dispatch_probe" not in performance:
+            performance["dispatch_probe"] = True
+
+        if "memory_floor_mb" not in performance:
+            performance["memory_floor_mb"] = "auto"
+
         if "stage_in_worker" not in performance:
             performance["stage_in_worker"] = True
         

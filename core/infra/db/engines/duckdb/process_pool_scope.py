@@ -309,11 +309,7 @@ def prepare_main_for_worker_pool(data_mgr: Any) -> None:
     wait_pool_children_done(timeout_sec=30.0)
     release_all_main_db_handles(data_mgr)
     DatabaseManager._auto_init_enabled = False
-    logger.info("DuckDB worker 阶段：主进程已释放 data/tag 连接，已禁用 DB auto_init")
-
-
-# 兼容旧名
-prepare_main_for_duckdb_workers = prepare_main_for_worker_pool
+    logger.debug("DuckDB worker 阶段：主进程已释放 data/tag 连接，已禁用 DB auto_init")
 
 
 def restore_after_worker_pool() -> None:
@@ -323,22 +319,13 @@ def restore_after_worker_pool() -> None:
     DatabaseManager._auto_init_enabled = True
 
 
-restore_main_after_duckdb_worker_pool = restore_after_worker_pool
-
-
 def release_main_for_workers(data_mgr: Any) -> None:
     """短路径（探针等）：仅关闭主进程 DuckDB，不等待子进程、不改 auto_init。"""
     release_all_main_db_handles(data_mgr)
 
 
-release_main_duckdb_domains_for_workers = release_main_for_workers
-
-
 def reconnect_main_database(data_mgr: Any) -> None:
     resume_main_database(data_mgr)
-
-
-reconnect_main_duckdb_domains = reconnect_main_database
 
 
 def release_worker_db_handles(data_mgr: Optional[Any] = None) -> None:

@@ -3,7 +3,7 @@ from core.infra.job_pipeline.types import JobReport
 from core.infra.worker.multi_process.process_worker import JobStatus
 from core.modules.strategy.services.execution.price_job_pipeline import (
     build_price_factor_payload,
-    workbench_disk_progress_from_legacy,
+    workbench_disk_progress,
 )
 from core.modules.strategy.services.execution.stock_job_pipeline import job_report_to_job_result
 
@@ -37,6 +37,6 @@ def test_workbench_disk_progress_mapping():
     def cb(v: float) -> None:
         seen.append(v)
 
-    workbench_disk_progress_from_legacy({"progress_pct": 50}, cb)
+    workbench_disk_progress({"progress_pct": 50}, cb)
     assert len(seen) == 1
     assert 50.0 < seen[0] < 52.0

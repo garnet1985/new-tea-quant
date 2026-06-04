@@ -154,8 +154,14 @@ def prune_disk_output_after_sim_run(
     strategy_name: str,
     sim_kind: _SimKind,
     settings: Dict[str, Any],
+    *,
+    protect_output_version_dir: Optional[str] = None,
 ) -> None:
-    """单次模拟成功或 cache 维护后：按种类 prune，并跳过仍被工作台/下游引用的目录。"""
+    """单次模拟成功或 cache 维护后：按种类 prune，并跳过仍被工作台/下游引用的目录。
+
+    ``protect_output_version_dir``：本轮刚写入的版本目录名（如 ``"5"``），避免 postprocess
+    末尾 prune 删掉当前产物（CLI ``present`` 仍要读盘时尤其需要）。
+    """
     sn = str(strategy_name or "").strip()
     if not sn:
         return
@@ -169,6 +175,9 @@ def prune_disk_output_after_sim_run(
     if sim_kind == "enum":
         # enum 目录常被 price/capital 的 metadata / DB 槽位引用为上游 base_output_version
         protected = set(protected) | refs["price"] | refs["capital"]
+    extra = str(protect_output_version_dir or "").strip()
+    if extra:
+        protected = set(protected) | {extra}
 
     skipped = StrategyOutputVersionService.prune_simulation_versions(
         root,

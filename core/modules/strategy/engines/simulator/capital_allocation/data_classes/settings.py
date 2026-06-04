@@ -100,6 +100,9 @@ class StrategyCapitalSimulatorSettings(SettingsBase):
         result = SettingsBase.new_validation()
         self.apply_defaults()
         self._validate_removed_allocation_keys(result)
+        SettingsBase.warn_ignored_pipeline_pool_keys(
+            result, self.capital_simulator, field_prefix="capital_simulator"
+        )
 
         alloc = self._parse_allocation()
         try:
@@ -116,19 +119,9 @@ class StrategyCapitalSimulatorSettings(SettingsBase):
         bv = str(self.capital_simulator.get("base_version") or "latest")
         if bv != "latest":
             SettingsBase.add_warning(result, "capital_simulator.base_version", f"指定 base_version={bv}")
-        self._validate_max_workers(result)
         SettingsBase.log_warnings(result, logger)
         self._capital_simulator_validated = True
         return result
-
-    def _validate_max_workers(self, result: ValidationReport) -> None:
-        SettingsBase.validate_max_workers_field(
-            report=result,
-            container=self.capital_simulator,
-            key="max_workers",
-            field_path="capital_simulator.max_workers",
-            invalid_message='capital_simulator.max_workers 须为 "auto" 或正整数',
-        )
 
     def _parse_allocation(self) -> AllocationConfig:
         a = self.capital_simulator.get("allocation") or {}
@@ -179,6 +172,7 @@ class StrategyCapitalSimulatorSettings(SettingsBase):
 
     def to_dict(self) -> Dict[str, Any]:
         out = self.deep_copy_dict(dict(self.capital_simulator))
+        SettingsBase.strip_ignored_pipeline_pool_keys(out)
         for key in ("use_sampling", "start_date", "end_date", "fees"):
             out.pop(key, None)
         return out
@@ -212,12 +206,6 @@ class StrategyCapitalSimulatorSettings(SettingsBase):
     def end_date(self) -> str:
         s = self._root_sampling()
         return str(s.get("end_date", "") or "").strip()
-
-    @property
-    def max_workers(self) -> Union[Literal["auto"], int]:
-        return SettingsBase.parse_max_workers(
-            self.capital_simulator.get("max_workers", "auto")
-        )
 
     @property
     def allocation(self) -> AllocationConfig:

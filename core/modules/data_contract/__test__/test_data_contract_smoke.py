@@ -27,7 +27,7 @@ except ImportError:
     _pd.DataFrame = object  # type: ignore[attr-defined]
     sys.modules["pandas"] = _pd
 
-from core.modules.data_contract import DataContractManager, DataKey
+from core.modules.data_contract import DataContractManager, DataKey, IssueResult
 from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.data_contract.contract_const import ContractScope, ContractType
 from core.modules.data_contract.contracts import NonTimeSeriesContract, TimeSeriesContract
@@ -42,9 +42,11 @@ class TestIssueShape(unittest.TestCase):
 
     def test_stock_list_issue(self) -> None:
         try:
-            c = self.mgr.issue(DataKey.STOCK_LIST)
+            result = self.mgr.issue(DataKey.STOCK_LIST)
         except Exception as e:
             raise unittest.SkipTest(f"数据库不可用，跳过 stock.list issue 形态检查：{e}") from e
+        self.assertIsInstance(result, IssueResult)
+        c = result.require_contract()
         self.assertEqual(c.meta.data_id, DataKey.STOCK_LIST)
         self.assertEqual(c.meta.scope, ContractScope.GLOBAL)
         self.assertIsInstance(c, NonTimeSeriesContract)
@@ -52,7 +54,10 @@ class TestIssueShape(unittest.TestCase):
         self.assertIsNotNone(c.data)
 
     def test_kline_qfq_issue(self) -> None:
-        c = self.mgr.issue(DataKey.STOCK_KLINE, entity_id="600000.SH", adjust="qfq")
+        result = self.mgr.issue(DataKey.STOCK_KLINE, entity_id="600000.SH", adjust="qfq")
+        self.assertIsInstance(result, IssueResult)
+        self.assertEqual(result.entity_count, 1)
+        c = result.require_one()
         self.assertEqual(c.meta.data_id, DataKey.STOCK_KLINE)
         self.assertEqual(c.meta.scope, ContractScope.PER_ENTITY)
         self.assertIsInstance(c, TimeSeriesContract)
@@ -61,7 +66,8 @@ class TestIssueShape(unittest.TestCase):
         self.assertIsNone(c.data)
 
     def test_tag_issue(self) -> None:
-        c = self.mgr.issue(DataKey.TAG, entity_id="000001.SZ")
+        result = self.mgr.issue(DataKey.TAG, entity_id="000001.SZ")
+        c = result.require_one()
         self.assertEqual(c.meta.data_id, DataKey.TAG)
         self.assertIsInstance(c, TimeSeriesContract)
         self.assertIsInstance(c.loader, TagLoader)
@@ -77,7 +83,7 @@ class TestLoadIntegration(unittest.TestCase):
 
     def test_load_stock_list(self) -> None:
         try:
-            c = self.mgr.issue(DataKey.STOCK_LIST)
+            c = self.mgr.issue(DataKey.STOCK_LIST).require_contract()
             rows = c.data
         except Exception as e:
             raise unittest.SkipTest(f"数据库不可用，跳过 stock.list load：{e}") from e
@@ -87,7 +93,7 @@ class TestLoadIntegration(unittest.TestCase):
 
     def test_load_kline_after_stock_id(self) -> None:
         try:
-            c_list = self.mgr.issue(DataKey.STOCK_LIST)
+            c_list = self.mgr.issue(DataKey.STOCK_LIST).require_contract()
             stocks = c_list.data
         except Exception as e:
             raise unittest.SkipTest(f"数据库不可用：{e}") from e
@@ -95,23 +101,54 @@ class TestLoadIntegration(unittest.TestCase):
             raise unittest.SkipTest("股票列表为空，无法测 kline")
         sid = stocks[0]["id"]
         try:
-            c = self.mgr.issue(
+            result = self.mgr.issue(
                 DataKey.STOCK_KLINE,
                 entity_id=sid,
                 start="20200101",
                 end="20201231",
                 adjust="qfq",
             )
-            bars = c.load(start="20200101", end="20201231")
+            c = result.require_one()
+            self.assertFalse(c.needs_load)
+            bars = c.data
+            if not bars:
+                bars = c.load(start="20200101", end="20201231")
         except Exception as e:
             raise unittest.SkipTest(f"kline load 失败（可能无行情数据）：{e}") from e
         self.assertIsInstance(bars, list)
         for row in bars[:5]:
             self.assertIn("date", row)
 
+    def test_kline_batch_issue(self) -> None:
+        try:
+            c_list = self.mgr.issue(DataKey.STOCK_LIST).require_contract()
+            stocks = c_list.data
+        except Exception as e:
+            raise unittest.SkipTest(f"数据库不可用：{e}") from e
+        if len(stocks) < 2:
+            raise unittest.SkipTest("股票列表不足 2 只，无法测 batch issue")
+        ids = [stocks[0]["id"], stocks[1]["id"]]
+        try:
+            result = self.mgr.issue(
+                DataKey.STOCK_KLINE,
+                entity_ids=ids,
+                start="20200101",
+                end="20201231",
+                adjust="qfq",
+            )
+        except Exception as e:
+            raise unittest.SkipTest(f"kline batch issue 失败：{e}") from e
+        self.assertEqual(result.entity_count, 2)
+        for sid in ids:
+            c = result.entity(sid)
+            self.assertFalse(c.needs_load)
+            self.assertIsInstance(c.data, list)
+
     def test_tag_load_requires_scenario(self) -> None:
         with self.assertRaises(ValueError) as ctx:
-            self.mgr.issue(DataKey.TAG, entity_id="000001.SZ").load(start="20200101", end="20201231")
+            self.mgr.issue(DataKey.TAG, entity_id="000001.SZ").require_one().load(
+                start="20200101", end="20201231"
+            )
         self.assertIn("scenario", str(ctx.exception).lower())
 
     def test_tag_load_if_configured(self) -> None:
@@ -129,7 +166,7 @@ class TestLoadIntegration(unittest.TestCase):
             raise unittest.SkipTest("无 tag scenario 数据")
         name = str(scenario_row["name"])
         try:
-            c_list = self.mgr.issue(DataKey.STOCK_LIST)
+            c_list = self.mgr.issue(DataKey.STOCK_LIST).require_contract()
             stocks = c_list.data
         except Exception as e:
             raise unittest.SkipTest(f"股票列表不可用：{e}") from e
@@ -143,7 +180,7 @@ class TestLoadIntegration(unittest.TestCase):
                 start="20200101",
                 end="20201231",
                 tag_scenario=name,
-            )
+            ).require_one()
             rows = c.load(start="20200101", end="20201231")
         except Exception as e:
             raise unittest.SkipTest(f"tag load 失败：{e}") from e

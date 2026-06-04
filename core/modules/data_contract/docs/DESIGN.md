@@ -1,10 +1,10 @@
 # Data Contract 设计说明
 
-**版本：** `0.2.0`
+**版本：** `0.3.0`（0.3.0 中 **IssueResult / load_batch** 见下文「PER_ENTITY plural」；**已实现**）
 
 本文档描述 **`DataSpec` 字段**、**core 默认路由表摘要**、**缓存策略**、**userspace 合并**及 **Tag 专用 `DataKey.TAG`**。实现以 `mapping.py`、`data_contract_manager.py`、`cache/policy.py`、`discovery.py` 为准。
 
-**相关文档**：[架构总览](./ARCHITECTURE.md)
+**相关文档**：[架构总览](./ARCHITECTURE.md) · [演进路线](./ROADMAP.md)
 
 ---
 
@@ -16,7 +16,7 @@
 | `type` | `ContractType.TIME_SERIES` 或 `NON_TIME_SERIES`。 |
 | `unique_keys` | `validate_raw` 时要求行记录上存在的列（轻量校验）。 |
 | `time_axis_field` / `time_axis_format` | 时序模板使用（如 `date` + `YYYYMMDD`，或 `quarter` + `YYYYQ`）。 |
-| `loader` | `BaseLoader` 子类（非实例）。 |
+| `loader` | `BaseLoader` 子类（非实例）；可选 override **`load_batch`**，见下文。 |
 | `entity_list_data_id` | 部分 per-entity loader 依赖的全局列表类 `DataKey`（如股票池）。 |
 | `display_name` | 展示用名称。 |
 | `defaults` | 与 `issue(..., **override_params)` 合并为 `loader_params`，后者覆盖前者。 |
@@ -45,7 +45,45 @@
 
 - **非时序**：`start`/`end` 不参与业务语义；DCM 内部用占位窗口参与 cache key（见 `DataContractManager._effective_load_window`）。
 - **时序**：须 **同时提供** `start` 与 `end`，或 **同时省略**（省略表示 **全量语义**，内部用 `__full__` 标记参与缓存键）。只传其一 → **`ValueError`**。
-- **PER_ENTITY**：`entity_id` 必须非空字符串；GLOBAL 映射下误传的 `entity_id` 在 DCM 内会被忽略以免污染缓存键。
+- **PER_ENTITY（0.3.0）**：须 **`entity_ids`**（非空序列）；**`entity_id="A"`** 糖化为 **`["A"]`**。返回 **`IssueResult.by_entity`**，见 [`DECISIONS.md`](DECISIONS.md) 决策 8–9。
+- **GLOBAL**：不要求 entity 维度；误传 `entity_id` / `entity_ids` 在 DCM 内忽略以免污染缓存键。
+
+---
+
+## PER_ENTITY plural 与 `load_batch`（0.3.0）
+
+### 签发与返回
+
+```text
+issue(STOCK_KLINE, entity_ids=[A, B, C], start=..., end=..., **params)
+  → IssueResult(by_entity={
+        A: DataContract(meta=..., data=rows_A),
+        B: DataContract(...),
+        C: DataContract(...),
+    })
+```
+
+一股：`entity_ids=[A]`，`by_entity` 仅一个键。
+
+GLOBAL 不变：
+
+```text
+issue(STOCK_LIST) → IssueResult(contract=DataContract(...))
+```
+
+### Loader 双路径（同一类）
+
+```text
+load_batch(entity_ids, params, context)
+  ├─ override 且可 bulk IO → 一次取数，返回 {entity_id: raw}
+  └─ 默认实现 → for id in entity_ids: load(..., context 含 id)
+```
+
+DCM **优先** loader 的 **`load_batch`**（相对 `BaseLoader` 默认实现）；无优化实现时自动 fallback，语义与循环 **`load`** 一致。
+
+### 与 `DataCursor` 的衔接
+
+每个 **`DataContract`** 的 **`data`** 仍为 **单 entity 的 `List[Dict]`**（时序）或等价 payload；**不**在一个句柄内存 `Dict[entity_id, rows]`。多 entity 在 **`IssueResult.by_entity`** 层拆分；Strategy / Tag 每股取 **`by_entity[stock_id]`** 再建 cursor。
 
 ---
 
@@ -80,3 +118,4 @@
 
 - [API.md](API.md)
 - [DECISIONS.md](DECISIONS.md)
+- [ROADMAP.md](ROADMAP.md)

@@ -478,16 +478,59 @@ class KlineService(BaseDataService):
             if stock_id in result:
                 result[stock_id].append(kline)
         
-        # 如果需要前复权，对每只股票的数据进行复权计算
+        # 前复权：batch raw + batch adj(event_date<=end) + 内存 merge
         if adjust == 'qfq':
+            adj_by_stock = self._load_adj_events_for_qfq_batch(stock_ids, end_date)
             for stock_id in stock_ids:
                 klines = result.get(stock_id) or []
                 if not klines:
                     continue
-                result[stock_id] = self._apply_qfq_to_klines(klines, stock_id)
-        
+                events = adj_by_stock.get(stock_id) or []
+                result[stock_id] = self._merge_qfq_from_raw_and_events(
+                    stock_id=stock_id,
+                    raw_rows=klines,
+                    events=events,
+                )
+
         return result
-    
+
+    def _load_adj_events_for_qfq_batch(
+        self,
+        stock_ids: List[str],
+        end_date: Optional[str],
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        QFQ 批量路径：``id IN (...)`` 且 ``event_date <= end``（不按 start 截断）。
+        """
+        if not stock_ids or not self._adj_factor_event:
+            return {sid: [] for sid in stock_ids}
+
+        end_norm = self._normalize_date(end_date)
+        placeholders = ','.join(['%s'] * len(stock_ids))
+        if end_norm:
+            where_clause = f"id IN ({placeholders}) AND event_date <= %s"
+            params: tuple = (*stock_ids, end_norm)
+        else:
+            where_clause = f"id IN ({placeholders})"
+            params = tuple(stock_ids)
+
+        all_events = (
+            self._adj_factor_event.load(
+                where_clause,
+                params,
+                order_by="id ASC, event_date ASC",
+            )
+            or []
+        )
+
+        result: Dict[str, List[Dict[str, Any]]] = {stock_id: [] for stock_id in stock_ids}
+        for event in all_events:
+            stock_id = event.get('id')
+            if stock_id in result:
+                result[stock_id].append(event)
+
+        return result
+
     def _load_batch_adj_events(self, stock_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
         """
         批量加载多个股票的复权因子事件

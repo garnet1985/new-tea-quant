@@ -34,10 +34,12 @@ from core.infra.job_pipeline import (
     RunProgress,
 )
 from core.infra.job_pipeline.probe import WorkerProbe
-from core.modules.tag.components.dispatch_planner import (
-    DEFAULT_ENTITIES_PER_JOB_MIN,
-    resolve_tag_dispatch_plan,
+from core.infra.job_pipeline.worker_profile import (
+    WorkerProfiles,
+    profile_max_parallel_jobs_cap,
+    profile_reserve_cores,
 )
+from core.infra.worker.dispatch_planner import resolve_dispatch_plan
 from core.modules.tag.components.tag_dispatch_probe import (
     DEFAULT_PROBE_ENTITIES,
     run_tag_dispatch_probe,
@@ -251,7 +253,7 @@ class TagManager:
                 per_entity_data_id.value,
             )
             return []
-        list_contract = self._data_contract_manager.issue(list_data_id)
+        list_contract = self._data_contract_manager.issue(list_data_id).require_contract()
         list_rows = list(list_contract.data or [])
         list_spec = self._data_contract_manager.map.get(list_data_id) or {}
         keys = list_spec.get("unique_keys") or ["id"]
@@ -385,7 +387,7 @@ class TagManager:
             entities_per_job_explicit=ep_explicit,
         ):
             probe_n = max(
-                DEFAULT_ENTITIES_PER_JOB_MIN,
+                1,
                 min(
                     int(performance.get("dispatch_probe_entities", DEFAULT_PROBE_ENTITIES)),
                     len(entity_list),
@@ -407,52 +409,42 @@ class TagManager:
                 )
                 payload = dict(probe_jobs[0]["payload"])
                 payload["_run_name"] = f"tag:{scenario_name}"
-                probe_released_main_db = False
-                if self._backend_is_duckdb(self.data_mgr):
-                    from core.modules.tag.components.job_staging.worker_runtime import (
-                        release_main_duckdb_domains_for_workers,
+                try:
+                    from core.infra.db.engines.duckdb.process_pool_scope import (
+                        duckdb_worker_pool_main_process,
                     )
 
-                    release_main_duckdb_domains_for_workers(self.data_mgr)
-                    probe_released_main_db = True
-                    logger.info(
-                        "[%s] DuckDB：探针前已释放主进程 data/tag 连接，供子进程 read_only stage",
-                        scenario_name,
-                    )
-                try:
-                    probe_result = run_tag_dispatch_probe(
-                        payload,
-                        performance=performance,
-                    )
-                    measured_mb = probe_result.mb_per_entity
+                    with duckdb_worker_pool_main_process(
+                        self.data_mgr,
+                        resume_main_after=False,
+                        wait_children_timeout_sec=15.0,
+                    ):
+                        probe_result = run_tag_dispatch_probe(
+                            payload,
+                            performance=performance,
+                        )
+                        measured_mb = probe_result.mb_per_entity
                 except Exception as exc:
                     logger.warning(
                         "Tag 调度探针失败，回退默认 mb 估算: %s",
                         exc,
                     )
-                finally:
-                    if probe_released_main_db:
-                        from core.modules.tag.components.job_staging.worker_runtime import (
-                            _wait_pool_children_done,
-                        )
-
-                        _wait_pool_children_done(timeout_sec=15.0)
-                        # DuckDB：探针后保持 suspend，避免主进程占 data.duckdb；
-                        # _build_jobs 前再 resume。
         if self._backend_is_duckdb(self.data_mgr) and getattr(
             self.data_mgr, "db", None
         ) is None:
-            from core.modules.tag.components.job_staging.worker_runtime import (
+            from core.infra.db.engines.duckdb.process_pool_scope import (
                 resume_main_database_with_retry,
             )
 
             resume_main_database_with_retry(self.data_mgr)
             self.tag_data_service = self.data_mgr.stock.tags
-        dispatch_plan = resolve_tag_dispatch_plan(
+        dispatch_plan = resolve_dispatch_plan(
             total_entities=len(entity_list),
             performance=performance,
+            log_label="Tag",
             debug_entities_per_job=_DEBUG_ENTITIES_PER_JOB,
             measured_mb_per_entity=measured_mb,
+            worker_profile=WorkerProfiles.TAG,
         )
         performance["max_workers"] = dispatch_plan.max_workers
         performance["prefetch_ahead"] = dispatch_plan.prefetch_ahead
@@ -467,13 +459,6 @@ class TagManager:
         if not jobs:
             logger.warning(f"没有新的计算任务，跳过执行: scenario={scenario_name}")
             return
-
-        if self._backend_is_duckdb(self.data_mgr):
-            from core.modules.tag.components.job_staging.worker_runtime import (
-                release_all_main_db_handles,
-            )
-
-            release_all_main_db_handles(self.data_mgr)
 
         self._execute_jobs(
             jobs,
@@ -671,8 +656,10 @@ class TagManager:
             max_workers=performance.get("max_workers", "auto"),
             batch_size=int(performance.get("batch_size", 10)),
             prefetch_ahead=int(performance.get("prefetch_ahead", 1)),
-            reserve_cores=int(performance.get("reserve_cores", 1)),
-            max_workers_cap=performance.get("max_workers_cap"),
+            worker_profile=WorkerProfiles.TAG,
+            duckdb_process_pool_scope="auto",
+            duckdb_data_mgr=self.data_mgr,
+            duckdb_resume_main_after_pool=not duckdb_stage_spill,
         )
         run_name = f"tag:{scenario_name}"
         total_jobs = len(jobs)
@@ -756,8 +743,8 @@ class TagManager:
         dispatcher_jobs = [Job(job_id=job["id"], payload=job["payload"]) for job in jobs]
         resolved_workers = WorkerProbe.resolve(
             dispatch_settings.max_workers,
-            reserve_cores=dispatch_settings.reserve_cores,
-            cap=dispatch_settings.max_workers_cap,
+            reserve_cores=profile_reserve_cores(WorkerProfiles.TAG),
+            cap=profile_max_parallel_jobs_cap(WorkerProfiles.TAG),
         )
         logger.info(
             "[%s] 🚀 开始执行 dispatch_jobs=%s entities=%s (workers=%s, max_workers=%r, "
@@ -802,17 +789,13 @@ class TagManager:
             )
             raise
         finally:
-            if duckdb_worker_pool:
-                from core.modules.tag.components.job_staging.worker_runtime import (
-                    restore_main_after_duckdb_worker_pool,
-                )
-
-                restore_main_after_duckdb_worker_pool()
             if duckdb_stage_spill:
                 logger.info("[%s] ⏳ 等待 tag 数据写入完成…", run_name)
+                from core.infra.db.engines.duckdb.process_pool_scope import (
+                    resume_main_database_with_retry,
+                )
                 from core.modules.tag.components.job_staging.worker_runtime import (
                     digest_stage_in_worker_save_buffer,
-                    resume_main_database_with_retry,
                 )
 
                 try:
@@ -888,13 +871,8 @@ class TagManager:
         duckdb_spill: bool,
         spill_rows: int,
     ) -> DispatchResult:
-        """单次 JobPipeline.run；子进程 execute 内 stage+算，DuckDB 另 suspend/spill/digest。"""
+        """单次 JobPipeline.run；子进程 execute 内 stage+算，DuckDB 锁由 JobPipeline + process_pool_scope 协作。"""
         if stage_in_worker and duckdb_spill:
-            from core.modules.tag.components.job_staging.worker_runtime import (
-                prepare_main_for_duckdb_workers,
-            )
-
-            prepare_main_for_duckdb_workers(self.data_mgr)
             logger.info(
                 "[%s] stage_in_worker + DuckDB spill（buffer≥%d 行 Parquet，池结束后写 tag）",
                 run_name,
@@ -974,7 +952,7 @@ class TagManager:
                 start=start,
                 end=end,
                 **params,
-            )
+            ).require_contract()
             out[dk.value] = list(c.data or [])
         return out
 

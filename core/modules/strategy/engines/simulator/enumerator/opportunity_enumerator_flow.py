@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 import copy
+import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+
+logger = logging.getLogger(__name__)
 
 from core.modules.strategy.engines.simulator.base_flow import BaseSimulationFlow
 from core.modules.strategy.engines.simulator.enumerator.opportunity_enumerator_flow_impl import (
@@ -119,6 +122,20 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
                 summary_list, wb_version = hit
                 self.last_version = int(wb_version or 0)
                 self.used_db_cache = True
+                total_opps = 0
+                if summary_list and isinstance(summary_list[0], dict):
+                    total_opps = int(summary_list[0].get("opportunities", 0) or 0)
+                out_dir = ""
+                if summary_list and isinstance(summary_list[0], dict):
+                    out_dir = str(summary_list[0].get("enumerator_output_dir") or "").strip()
+                logger.info(
+                    "枚举 DbCache 命中 · strategy=%s · version=%s · dir=%s · opportunities=%s "
+                    "（未跑 worker；改 settings/切库后请 -f/--force）",
+                    strategy_name,
+                    wb_version,
+                    out_dir or "—",
+                    total_opps,
+                )
                 from core.modules.strategy.services.data.output.simulation_output_retention import (
                     prune_disk_outputs_for_strategy,
                 )
@@ -217,18 +234,6 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         )
 
     def _preprocess_finish(self, probe: EnumeratorProbeContext) -> EnumeratorPreprocessContext:
-        resolved_workers = self._impl.resolve_runtime_workers()
-        version_info = self._impl.create_output_version(
-            strategy_name=probe.strategy_name, enum_settings=probe.enum_settings
-        )
-        jobs = self._impl.build_jobs(
-            strategy_name=probe.strategy_name,
-            settings_payload=probe.settings_payload,
-            output_dir=version_info["output_dir"],
-            worker_ref=probe.worker_ref,
-            stock_ids=self.stock_list,
-        )
-        mp_id = probe.market_profile.profile_id
         from core.modules.data_manager import DataManager
         from core.modules.strategy.engines.shared.helpers.backtest_calendar_context import (
             build_backtest_calendar_context,
@@ -236,7 +241,15 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
             BacktestDateRange,
         )
+        from core.modules.strategy.services.execution.enum_dispatch import (
+            maybe_run_enum_dispatch_probe,
+            resolve_enum_dispatch_plan,
+        )
 
+        version_info = self._impl.create_output_version(
+            strategy_name=probe.strategy_name, enum_settings=probe.enum_settings
+        )
+        mp_id = probe.market_profile.profile_id
         data_mgr = DataManager(is_verbose=False)
         calendar_ctx = build_backtest_calendar_context(
             data_manager=data_mgr,
@@ -249,6 +262,36 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             market_profile_id=mp_id,
         )
         calendar_dict = calendar_ctx.to_dict()
+
+        measured_mb = maybe_run_enum_dispatch_probe(
+            strategy_name=probe.strategy_name,
+            stock_ids=list(self.stock_list),
+            settings_payload=probe.settings_payload,
+            output_dir=version_info["output_dir"],
+            worker_ref=probe.worker_ref,
+            start_date=self._impl.start_date,
+            end_date=self._impl.end_date,
+            enum_settings=probe.enum_settings,
+            global_extra_cache={},
+            market_profile_id=mp_id,
+            backtest_calendar=calendar_dict,
+            data_mgr=data_mgr,
+        )
+        dispatch_plan = resolve_enum_dispatch_plan(
+            total_stocks=len(self.stock_list),
+            enum_settings=probe.enum_settings,
+            measured_mb_per_entity=measured_mb,
+        )
+        resolved_workers = dispatch_plan.max_workers
+        entities_per_job = dispatch_plan.entities_per_job
+        jobs = self._impl.build_jobs(
+            strategy_name=probe.strategy_name,
+            settings_payload=probe.settings_payload,
+            output_dir=version_info["output_dir"],
+            worker_ref=probe.worker_ref,
+            stock_ids=self.stock_list,
+            entities_per_job=entities_per_job,
+        )
         for job in jobs:
             job["market_profile_id"] = mp_id
             job["backtest_calendar"] = calendar_dict
@@ -343,6 +386,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             preprocessed.strategy_name,
             "enum",
             preprocessed.enum_settings.to_dict(),
+            protect_output_version_dir=preprocessed.version_dir_name,
         )
         return summary_list
 

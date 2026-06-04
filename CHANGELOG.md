@@ -52,6 +52,11 @@ python dev-cli -p -vx.x.x
 - 加入data source的自动结果收集量，能根据内存占用动态调整数据获取批次的大小，减小硬盘IO，提高效率
 - 重组和收纳userspace的文件夹结构，并且更新path manager（路径管理器）的引用，让userspace更加整洁
 - 重构infra/db模块，让结构变成引擎模式，引入duckdb的写管道和自动生成文件和表的地图功能
+- 让单进程模块支持一次处理多个股票，大幅度降低IO，效率提高一倍
+- **JobPipeline 并行度**：`worker.json` → `job_pipeline` 分 profile（default / enumerator / tag / price_factor / scanner）；`max_parallel_jobs_cap` 为 ProcessPool 同时 in-flight job 上限；userspace 同名文件可覆盖
+- 修改了策略使用采样发生变化依然会触发缓存的bug
+- 将回测引擎和标签引擎的数据加载收入数据契约中，删除硬编码。
+- 优化K线加载查询逻辑，让演示策略的回测速度提高7-10倍。（DuckDB全量3年数据回测现在需要跑约21秒，mysql约26秒，峰值内存约3GB内）
 
 ---
 

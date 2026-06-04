@@ -22,10 +22,21 @@ def test_resolve_anchor_date_non_strict_uses_calendar_service():
     cal.get_latest_completed_trading_date.return_value = "20250520"
     dm = MagicMock()
     dm.service.calendar = cal
+    dm.stock.kline.load_latest_date.return_value = "20250520"
 
     assert ScanDateResolver.resolve_anchor_date(dm, use_strict=False) == "20250520"
     cal.get_latest_completed_trading_date.assert_called_once()
     cal.get_real_world_latest_completed_trading_date.assert_not_called()
+
+
+def test_resolve_anchor_date_non_strict_clamps_when_calendar_ahead_of_kline():
+    cal = MagicMock()
+    cal.get_latest_completed_trading_date.return_value = "20260101"
+    dm = MagicMock()
+    dm.service.calendar = cal
+    dm.stock.kline.load_latest_date.return_value = "20251231"
+
+    assert ScanDateResolver.resolve_anchor_date(dm, use_strict=False) == "20251231"
 
 
 def test_resolve_scan_date_routes_by_mode():

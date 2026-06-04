@@ -86,7 +86,7 @@ max_workers = min(cpu_workers, memory_workers)
 | `entities_per_job` | `"auto"` | 整数或 `"auto"` |
 | `max_workers` | `"auto"` | 整数 / `"auto"`；最终可能被内存 cap |
 | `reserve_cores` | `1` | auto worker 时为主进程留核 |
-| `max_workers_cap` | — | auto 上限 |
+| `max_parallel_jobs_cap` | — | auto 时 ProcessPool 同时 in-flight job 上限 |
 | `prefetch_ahead` | `1` | QUEUE ready 窗口 |
 | `dispatch_memory_budget_mb` | `"auto"` | 固定 MB 或按可用内存算 |
 | `worker_memory_fraction` | `0.65` | 可用内存中给 worker 池的比例 |

@@ -50,13 +50,15 @@ class StrategyEnumeratorSettings(SettingsBase):
 
     def apply_defaults(self) -> None:
         e = self.enumerator
-        e.setdefault("max_workers", "auto")
         e.setdefault("is_verbose", False)
         e.setdefault("memory_budget_mb", "auto")
         e.setdefault("warmup_batch_size", "auto")
         e.setdefault("min_batch_size", "auto")
         e.setdefault("max_batch_size", "auto")
         e.setdefault("monitor_interval", 5)
+        e.setdefault("entities_per_job", "auto")
+        e.setdefault("dispatch_probe", True)
+        e.setdefault("memory_floor_mb", "auto")
 
     def validate(self) -> ValidationReport:
         result = SettingsBase.new_validation()
@@ -74,19 +76,15 @@ class StrategyEnumeratorSettings(SettingsBase):
             result.is_valid = False
 
         self._validate_numeric_fields(result)
+        SettingsBase.warn_ignored_pipeline_pool_keys(
+            result, self.enumerator, field_prefix="enumerator"
+        )
         SettingsBase.log_warnings(result, logger)
         self._enumerator_validated = True
         return result
 
     def _validate_numeric_fields(self, result: ValidationReport) -> None:
         e = self.enumerator
-        SettingsBase.validate_max_workers_field(
-            report=result,
-            container=e,
-            key="max_workers",
-            field_path="enumerator.max_workers",
-            invalid_message='enumerator.max_workers 须为 "auto" 或正整数',
-        )
 
         mi = e.get("monitor_interval", 5)
         try:
@@ -95,8 +93,24 @@ class StrategyEnumeratorSettings(SettingsBase):
             SettingsBase.add_warning(result, "enumerator.monitor_interval", "monitor_interval 非法，已回退 5")
             e["monitor_interval"] = 5
 
+        epj = e.get("entities_per_job", "auto")
+        if epj in (None, "", "auto"):
+            e["entities_per_job"] = "auto"
+        else:
+            try:
+                e["entities_per_job"] = max(1, int(epj))
+            except (TypeError, ValueError):
+                SettingsBase.add_warning(
+                    result,
+                    "enumerator.entities_per_job",
+                    'entities_per_job 须为 "auto" 或正整数，已回退 auto',
+                )
+                e["entities_per_job"] = "auto"
+
     def to_dict(self) -> Dict[str, Any]:
-        return self.deep_copy_dict(dict(self.enumerator))
+        out = self.deep_copy_dict(dict(self.enumerator))
+        SettingsBase.strip_ignored_pipeline_pool_keys(out)
+        return out
 
     @property
     def use_sampling(self) -> bool:
@@ -104,10 +118,6 @@ class StrategyEnumeratorSettings(SettingsBase):
         if isinstance(s, dict):
             return bool(s.get("use_sampling", False))
         return False
-
-    @property
-    def max_workers(self) -> Union[Literal["auto"], int]:
-        return SettingsBase.parse_max_workers(self.enumerator.get("max_workers", "auto"))
 
     @property
     def is_verbose(self) -> bool:

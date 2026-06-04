@@ -41,6 +41,9 @@ from core.modules.indicator import IndicatorService
 from core.modules.strategy.engines.shared.performance_profiler import PerformanceProfiler
 from core.modules.strategy.enums import ExecutionMode, OpportunityStatus
 from core.modules.strategy.services.data import StrategyDataInjectionService
+from core.modules.strategy.services.data.injection.job_contract_batch import (
+    StrategyJobContractBatch,
+)
 from core.modules.strategy.services.data.output import EnumeratorOutputWriterService
 from core.utils.date.date_utils import DateUtils
 
@@ -60,10 +63,31 @@ def _warmup_indicator_runtime_once() -> None:
     _indicator_runtime_warmed = True
 
 
+def enumeration_actual_start_date(start_date: str, min_required_records: int) -> str:
+    lookback_days = min(min_required_records, MAX_LOOKBACK_DAYS)
+    try:
+        adjusted_days = int(lookback_days * 1.5)
+        return DateUtils.sub_days(start_date, adjusted_days)
+    except Exception:
+        return start_date
+
+
 class OpportunityEnumeratorWorker:
-    def __init__(self, job_payload: Dict[str, Any]):
+    def __init__(
+        self,
+        job_payload: Dict[str, Any],
+        *,
+        stock_id: Optional[str] = None,
+        contract_cache: Optional[ContractCacheManager] = None,
+        fresh_strategy_cache: bool = True,
+        job_contract_batch: Optional[StrategyJobContractBatch] = None,
+    ):
         self.job_payload = job_payload
-        self.stock_id = job_payload["stock_id"]
+        self.stock_id = str(stock_id or job_payload.get("stock_id") or "").strip()
+        if not self.stock_id:
+            raise ValueError("OpportunityEnumeratorWorker 缺少 stock_id")
+        self._fresh_strategy_cache = bool(fresh_strategy_cache)
+        self._job_contract_batch = job_contract_batch
         self.strategy_name = job_payload["strategy_name"]
         self.start_date = job_payload["start_date"]
         self.end_date = job_payload["end_date"]
@@ -71,7 +95,7 @@ class OpportunityEnumeratorWorker:
         self.settings = StrategySettingsView.from_dict(job_payload["settings"])
         self.settings_dict = self.settings.to_dict()
         self.stock_info = self._load_stock_info()
-        self.contract_cache = ContractCacheManager()
+        self.contract_cache = contract_cache or ContractCacheManager()
         self.data_manager = StrategyDataInjectionService(
             stock_id=self.stock_id,
             settings=self.settings,
@@ -99,6 +123,7 @@ class OpportunityEnumeratorWorker:
         self._load_user_strategy()
 
     def _load_stock_info(self) -> Dict[str, Any]:
+        # 编排层元数据：不在 settings.data 声明范围内，直调 list 服务（决策 11）。
         fallback = {
             "id": self.stock_id,
             "name": self.stock_id,
@@ -173,56 +198,36 @@ class OpportunityEnumeratorWorker:
             )
 
     def _prepare_actual_start_date(self) -> str:
-        lookback_days = min(self.settings.min_required_records, MAX_LOOKBACK_DAYS)
-        return self._get_date_before(self.start_date, lookback_days)
+        return enumeration_actual_start_date(
+            self.start_date,
+            self.settings.min_required_records,
+        )
 
     def _load_runtime_data(self, actual_start_date: str) -> None:
         self.profiler.start_timer("load_data")
-        if "_preloaded_klines" in self.job_payload:
-            self.profiler.metrics.load_path = "preloaded"
-            self.data_manager.preload_klines(
-                self.job_payload["_preloaded_klines"],
-                start_date=actual_start_date,
-                end_date=self.end_date,
-            )
+        dm = self.data_manager
+        if self._job_contract_batch is not None:
+            self.profiler.metrics.load_path = "contract_batch"
             t0 = time.perf_counter()
-            self.data_manager.apply_indicators()
-            self.profiler.metrics.time_calculate_indicators += time.perf_counter() - t0
-            extras = getattr(self.settings, "extra_required_data_sources", []) or []
-            if extras:
-                t0 = time.perf_counter()
-                self.data_manager.load_declared_items(
-                    extras,
-                    start_date=actual_start_date,
-                    end_date=self.end_date,
-                )
-                self.profiler.metrics.time_load_extras += time.perf_counter() - t0
-            t0 = time.perf_counter()
-            self.data_manager.rebuild_data_cursor()
-            self.profiler.metrics.time_build_cursor += time.perf_counter() - t0
+            dm.adopt_job_batch(self._job_contract_batch)
+            self.profiler.metrics.time_load_contracts += time.perf_counter() - t0
         else:
-            self.profiler.metrics.load_path = "storage"
-            dm = self.data_manager
-            dm._current_data = {"klines": []}
+            self.profiler.metrics.load_path = "contract"
+            dm._current_data = {}
             dm._slot_contracts = {}
             t0 = time.perf_counter()
-            dm.hydrate_row_slots(actual_start_date, self.end_date)
+            dm.hydrate_row_slots(
+                actual_start_date,
+                self.end_date,
+                fresh_strategy_cache=self._fresh_strategy_cache,
+            )
             self.profiler.metrics.time_load_contracts += time.perf_counter() - t0
-            t0 = time.perf_counter()
-            dm.apply_indicators()
-            self.profiler.metrics.time_calculate_indicators += time.perf_counter() - t0
-            extras = getattr(self.settings, "extra_required_data_sources", []) or []
-            if extras:
-                t0 = time.perf_counter()
-                dm.load_declared_items(
-                    extras,
-                    start_date=actual_start_date,
-                    end_date=self.end_date,
-                )
-                self.profiler.metrics.time_load_extras += time.perf_counter() - t0
-            t0 = time.perf_counter()
-            dm.rebuild_data_cursor()
-            self.profiler.metrics.time_build_cursor += time.perf_counter() - t0
+        t0 = time.perf_counter()
+        dm.apply_indicators()
+        self.profiler.metrics.time_calculate_indicators += time.perf_counter() - t0
+        t0 = time.perf_counter()
+        dm.rebuild_data_cursor()
+        self.profiler.metrics.time_build_cursor += time.perf_counter() - t0
         self.profiler.metrics.time_load_data = self.profiler.end_timer("load_data")
 
     def _enumerate_opportunities(self, all_klines: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -274,7 +279,11 @@ class OpportunityEnumeratorWorker:
         all_klines: List[Dict[str, Any]],
         opportunities_dict: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        if self.job_payload.get("output_dir") and opportunities_dict:
+        if (
+            self.job_payload.get("output_dir")
+            and opportunities_dict
+            and not self.job_payload.get("_dispatch_probe")
+        ):
             self.profiler.start_timer("save_csv")
             self._save_stock_results(self.job_payload["output_dir"], opportunities_dict)
             self.profiler.metrics.time_save_csv = self.profiler.end_timer("save_csv")
@@ -568,4 +577,85 @@ class OpportunityEnumeratorWorker:
         )
 
 
-__all__ = ["OpportunityEnumeratorWorker"]
+def run_enumeration_payload(job_payload: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    执行单股或多股 dispatch job。
+
+    多股时在同一子进程内顺序处理，共享 ``ContractCacheManager``。
+    """
+    stock_ids = job_payload.get("stock_ids")
+    if not isinstance(stock_ids, list) or len(stock_ids) <= 1:
+        sid = str(job_payload.get("stock_id") or (stock_ids or [None])[0] or "").strip()
+        single = dict(job_payload)
+        single["stock_id"] = sid
+        return OpportunityEnumeratorWorker(single).run()
+
+    ids = [str(s).strip() for s in stock_ids if str(s).strip()]
+    if not ids:
+        return {"success": False, "bulk": True, "stock_results": [], "error": "empty stock_ids"}
+
+    settings = StrategySettingsView.from_dict(job_payload["settings"])
+    actual_start_date = enumeration_actual_start_date(
+        str(job_payload["start_date"]),
+        settings.min_required_records,
+    )
+
+    shared_cache = ContractCacheManager()
+    job_batch = StrategyJobContractBatch.hydrate(
+        entity_ids=ids,
+        settings=settings,
+        start=actual_start_date,
+        end=str(job_payload["end_date"]),
+        contract_cache=shared_cache,
+        global_extra_cache=job_payload.get("global_extra_cache"),
+        fresh_strategy_cache=True,
+    )
+
+    stock_results: List[Dict[str, Any]] = []
+    for sid in ids:
+        sub_payload = dict(job_payload)
+        sub_payload["stock_id"] = sid
+        worker: Optional[OpportunityEnumeratorWorker] = None
+        try:
+            worker = OpportunityEnumeratorWorker(
+                sub_payload,
+                stock_id=sid,
+                contract_cache=shared_cache,
+                fresh_strategy_cache=False,
+                job_contract_batch=job_batch,
+            )
+            stock_results.append(worker.run())
+        except Exception as exc:
+            logger.error(
+                "enumeration failed: stock_id=%s, error=%s", sid, exc, exc_info=True
+            )
+            stock_results.append(
+                {
+                    "success": False,
+                    "stock_id": sid,
+                    "stock_name": sid,
+                    "opportunity_count": 0,
+                    "completed_count": 0,
+                    "unfinished_count": 0,
+                    "completion_rate": 0.0,
+                    "avg_opportunity_interval_days": 0.0,
+                    "error": str(exc),
+                }
+            )
+        finally:
+            if worker is not None:
+                worker.data_manager.clear_working_state()
+
+    return {
+        "success": all(bool(r.get("success")) for r in stock_results),
+        "bulk": True,
+        "stock_results": stock_results,
+        "stock_ids": ids,
+    }
+
+
+__all__ = [
+    "OpportunityEnumeratorWorker",
+    "enumeration_actual_start_date",
+    "run_enumeration_payload",
+]

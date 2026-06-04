@@ -27,6 +27,7 @@ class OpportunityEnumeratorSettings:
     min_batch_size: Union[int, str] = field(init=False)
     max_batch_size: Union[int, str] = field(init=False)
     monitor_interval: int = field(init=False)
+    entities_per_job: int = field(init=False)
 
     def __post_init__(self) -> None:
         self._normalize_views()
@@ -81,6 +82,14 @@ class OpportunityEnumeratorSettings:
         max_size = enumerator.get("max_batch_size", "auto")
         self.max_batch_size = max_size if max_size == "auto" else int(max_size)
         self.monitor_interval = int(enumerator.get("monitor_interval", 5))
+        raw_epj = enumerator.get("entities_per_job", "auto")
+        if raw_epj in (None, "", "auto"):
+            self.entities_per_job = 1
+        else:
+            try:
+                self.entities_per_job = max(1, int(raw_epj))
+            except (TypeError, ValueError):
+                self.entities_per_job = 1
 
         simulator = dict(settings.get("price_simulator") or {})
         raw_goal = settings.get("goal")
@@ -107,4 +116,8 @@ class OpportunityEnumeratorSettings:
         merged["enumerator"]["min_batch_size"] = self.min_batch_size
         merged["enumerator"]["max_batch_size"] = self.max_batch_size
         merged["enumerator"]["monitor_interval"] = self.monitor_interval
+        raw_epj = (self.raw.get("enumerator") or {}).get("entities_per_job")
+        merged["enumerator"]["entities_per_job"] = (
+            raw_epj if raw_epj not in (None, "") else self.entities_per_job
+        )
         return merged

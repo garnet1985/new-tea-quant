@@ -594,7 +594,9 @@ class CapitalAllocationFlowImpl:
             bar_volume=row_buy_bar_volume(opportunity),
             max_participation_rate=allocation_strategy.max_participation_rate,
             on_exceed=allocation_strategy.participation_on_exceed,
-            floor_shares_fn=lambda n: allocation_strategy._floor_buy_shares(n, stock_id),
+            floor_shares_fn=lambda n, _sid: allocation_strategy._floor_buy_shares(
+                n, stock_id
+            ),
             stock_id=stock_id,
         )
         if part_tag == "participation_skip" or part_tag == "participation_clip_zero":
@@ -689,7 +691,9 @@ class CapitalAllocationFlowImpl:
             bar_volume=row_sell_bar_volume(target),
             max_participation_rate=allocation_strategy.max_participation_rate,
             on_exceed=allocation_strategy.participation_on_exceed,
-            floor_shares_fn=lambda n: allocation_strategy._floor_buy_shares(n, stock_id),
+            floor_shares_fn=lambda n, _sid: allocation_strategy._floor_buy_shares(
+                n, stock_id
+            ),
             stock_id=stock_id,
         )
         if part_tag == "participation_skip" or part_tag == "participation_clip_zero":

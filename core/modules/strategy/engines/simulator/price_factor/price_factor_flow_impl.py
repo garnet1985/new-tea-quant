@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from contextvars import ContextVar
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
@@ -32,28 +31,6 @@ from .session_roi_stats import (
     collect_roi_percents_from_stock_summaries,
     roi_distribution_session_fields,
 )
-from .worker import PriceFactorWorker
-
-# ``ProcessPoolExecutor`` 会 pickle ``ProcessWorker`` 实例；``on_job_done`` 不能是内联闭包（不可 pickle）。
-# 真实回调通过 ContextVar 注入，仅在主进程、job_finished 时调用。
-_price_factor_workbench_progress_cb: ContextVar[Optional[Callable[[float], None]]] = ContextVar(
-    "price_factor_workbench_progress_cb", default=None
-)
-
-
-def _price_factor_on_process_worker_job_finished(payload: Dict[str, Any]) -> None:
-    """供 ``ProcessWorker(..., on_job_done=...)``；须模块级可 pickle。"""
-    cb = _price_factor_workbench_progress_cb.get()
-    if cb is None:
-        return
-    try:
-        w = float(payload.get("progress_pct") or 0)
-    except (TypeError, ValueError):
-        w = 0.0
-    disk = 15.0 + (max(0.0, min(100.0, w)) / 100.0) * 73.0
-    cb(min(88.0, disk))
-
-
 if TYPE_CHECKING:
     from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
         DiscoveredStrategy,
@@ -125,49 +102,42 @@ class PriceFactorFlowImpl:
     def run_worker_jobs(
         self,
         *,
-        jobs: List[Dict[str, Any]],
-        max_workers: "str | int",
+        dispatch_jobs: List[Dict[str, Any]],
+        dispatch_plan: Any,
+        total_stocks: int,
         progress_callback: Optional[Callable[[float], None]] = None,
     ) -> List[Dict[str, Any]]:
-        from core.infra.worker import (
-            ProcessExecutionMode,
-            ProcessJobStatus,
-            ProcessWorker,
+        from core.infra.worker.multi_process.process_worker import JobStatus
+        from core.modules.strategy.services.execution.price_job_pipeline import (
+            run_price_factor_in_main_process,
+            run_price_factor_jobs_via_pipeline,
         )
 
-        if not jobs:
+        if not dispatch_jobs:
             if progress_callback is not None:
                 progress_callback(88.0)
             return []
 
-        ctx_token = None
-        if progress_callback is not None:
-            ctx_token = _price_factor_workbench_progress_cb.set(progress_callback)
-        try:
-            worker_pool = ProcessWorker(
-                max_workers=ProcessWorker.resolve_max_workers(
-                    max_workers, module_name="PriceFactorSimulator"
-                ),
-                execution_mode=ProcessExecutionMode.QUEUE,
-                job_executor=PriceFactorWorker.execute_job,
-                on_job_done=(
-                    _price_factor_on_process_worker_job_finished
-                    if progress_callback is not None
-                    else None
-                ),
-                is_verbose=self.is_verbose,
+        if getattr(dispatch_plan, "run_in_main_process", False):
+            results = run_price_factor_in_main_process(dispatch_jobs)
+        else:
+            from core.modules.strategy.services.execution.price_dispatch import (
+                release_main_duckdb_handles,
             )
-            process_jobs = [{"id": job["stock_id"], "payload": job} for job in jobs]
-            worker_pool.run_jobs(process_jobs)
-        finally:
-            if ctx_token is not None:
-                _price_factor_workbench_progress_cb.reset(ctx_token)
+
+            release_main_duckdb_handles()
+            job_results = run_price_factor_jobs_via_pipeline(
+                dispatch_jobs=dispatch_jobs,
+                max_workers=dispatch_plan.max_workers,
+                total_stocks=total_stocks,
+                on_workbench_progress=progress_callback,
+            )
+            results = []
+            for jr in job_results:
+                if jr.status == JobStatus.COMPLETED and jr.result:
+                    results.append(jr.result)
         if progress_callback is not None:
             progress_callback(88.0)
-        results: List[Dict[str, Any]] = []
-        for jr in worker_pool.get_results():
-            if jr.status == ProcessJobStatus.COMPLETED:
-                results.append(jr.result or {})
         return results
 
     def collect_stock_summaries(

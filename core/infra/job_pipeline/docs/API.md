@@ -66,7 +66,7 @@ result = dispatcher.run(jobs, run_name="tag:scenario_x")
 | `continue_on_failure` | `True` | `False` 时首个失败后 cancel |
 | `start_method` | `"spawn"` | 进程池 context |
 | `reserve_cores` | `1` | auto 时为 OS 保留核数 |
-| `max_workers_cap` | `None` | auto 结果上限 |
+| `max_parallel_jobs_cap` | `None` | auto 时 ProcessPool 同时 in-flight job 数上限 |
 
 ---
 

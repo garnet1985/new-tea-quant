@@ -158,9 +158,12 @@ def resolve_backtest_universe(
     latest_completed_trading_date: str = "",
     data_manager: Optional[Any] = None,
     kline_term: Optional[str] = None,
-) -> Tuple[BacktestDateRange, List[Dict[str, Any]]]:
+    ) -> Tuple[BacktestDateRange, List[Dict[str, Any]]]:
     """
     解析回测日历窗，并 ``list_svc.load(period_start=..., period_end=...)`` 取 PIT 参与者。
+
+    **编排层**：不在 strategy ``settings.data`` contract 注入范围内（决策 11）；除非用户
+    将 ``stock.list`` 写入 ``extra_required_data_sources``。
 
     未配置 ``start_date`` 时：先用默认起点拉 universe，再按样本最早 K 线收紧
     ``period_start`` 后必要时二次 ``load``。

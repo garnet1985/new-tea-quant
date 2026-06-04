@@ -1,6 +1,6 @@
 # Data Contract 架构文档
 
-**版本：** `0.2.0`
+**版本：** `0.3.0`（PER_ENTITY plural / `load_batch`：**已实现**；Tag 旁路清理见 [`ROADMAP.md`](ROADMAP.md)）
 
 ---
 
@@ -12,9 +12,10 @@
 
 ## 模块目标
 
-- **声明式取数**：业务只使用稳定的 `DataKey` 与显式 `entity_id` / `start` / `end` / `**params`，由 mapping 决定如何加载。
+- **声明式取数**：业务只使用稳定的 `DataKey` 与显式 **`entity_ids`**（PER_ENTITY）或 **`start` / `end` / **params**（GLOBAL），由 mapping 决定如何加载。
 - **可合并扩展**：`userspace.data_contract.mapping` 导出映射表，与 core **按 `DataKey` 合并**，重复键 fail-fast。
-- **缓存可控**：仅对部分 GLOBAL 规格写入缓存；PER_ENTITY 默认 **NONE**（不走路径缓存），由 loader 按需拉数。
+- **缓存可控**：仅对部分 GLOBAL 规格写入缓存；PER_ENTITY 默认 **NONE**（不走路径缓存），由 loader 按需拉数；batch 加载不改变该 policy（0.3.0 首版）。
+- **应用层不旁路（已声明项）**：Strategy / Tag 对 settings **已声明** `DataKey` 仅经 **`issue`** 取数；编排层（股票池、日历、元数据）可直调 DataManager（决策 11）。
 
 ---
 
@@ -27,7 +28,8 @@
 - **`data_contract_manager`**：`issue` 主流程、时序窗口与 `entity_id` 校验、缓存读写与 payload 克隆。
 - **`cache`**：`ContractCacheManager`、两层 `Store`、`resolve_cache_scope`（按 scope+type 决定 GLOBAL / PER_STRATEGY / NONE）。
 - **`contracts`**：`DataContract` 基类与 `validate_raw`（时序/非时序子类实现轻量校验）。
-- **`loaders`**：按数据类型实现的 `BaseLoader.load(params, context)`。
+- **`loaders`**：按数据类型实现的 `BaseLoader.load`；0.3.0 起可选 **`load_batch`**（默认 fallback 循环 `load`）。
+- **`issue_result`**（0.3.0 计划）：`IssueResult` 信封类型。
 
 ---
 
@@ -69,7 +71,12 @@ flowchart TB
   U --> I
   I --> C
   I --> Issuer[ContractIssuer]
-  Issuer --> L[BaseLoader.load]
+  Issuer --> L{BaseLoader}
+  L -->|PER_ENTITY 优先| LB[load_batch]
+  L -->|fallback| LS[load]
+  I --> IR[IssueResult]
+  IR -->|GLOBAL| SC[contract]
+  IR -->|PER_ENTITY| BE[by_entity map]
 ```
 
 ---
@@ -80,4 +87,5 @@ flowchart TB
 - [API.md](API.md)
 - [DECISIONS.md](DECISIONS.md)
 - [CONCEPTS.md](CONCEPTS.md)
+- [ROADMAP.md](ROADMAP.md)
 - 多源 **`DataContract.data`** 的 **`as_of`** 前缀累计视图：[`modules.data_cursor`](../../data_cursor/README.md)

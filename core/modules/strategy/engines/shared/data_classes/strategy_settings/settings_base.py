@@ -187,6 +187,35 @@ class SettingsBase(ABC):
         container[key] = SettingsBase.parse_max_workers(container.get(key, "auto"))
 
     @staticmethod
+    def warn_ignored_pipeline_pool_keys(
+        report: ValidationReport,
+        container: Dict[str, Any],
+        *,
+        field_prefix: str,
+    ) -> None:
+        from core.infra.job_pipeline.worker_profile import USER_PIPELINE_POOL_KEYS
+
+        ignored = [
+            key
+            for key in USER_PIPELINE_POOL_KEYS
+            if container.get(key) not in (None, "", "auto")
+        ]
+        if not ignored:
+            return
+        SettingsBase.add_warning(
+            report,
+            field_prefix,
+            f"忽略 {', '.join(ignored)}：ProcessPool 并行度由系统 worker.json 决定",
+        )
+
+    @staticmethod
+    def strip_ignored_pipeline_pool_keys(container: Dict[str, Any]) -> None:
+        from core.infra.job_pipeline.worker_profile import USER_PIPELINE_POOL_KEYS
+
+        for key in USER_PIPELINE_POOL_KEYS:
+            container.pop(key, None)
+
+    @staticmethod
     def validate_max_workers_field(
         *,
         report: ValidationReport,

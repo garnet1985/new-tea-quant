@@ -16,7 +16,7 @@ import argparse
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any, Dict
 
 
 def _repo_root() -> Path:
@@ -28,12 +28,6 @@ def _ensure_import_path() -> None:
     root = str(_repo_root())
     if root not in sys.path:
         sys.path.insert(0, root)
-
-
-def _parse_max_workers(raw: str) -> Union[str, int]:
-    if raw.lower() == "auto":
-        return "auto"
-    return int(raw)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -71,11 +65,6 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         metavar="N",
         help="覆盖 settings.performance.batch_size（仅 batch 模式）",
-    )
-    parser.add_argument(
-        "--max-workers",
-        metavar="N|auto",
-        help="覆盖 settings.performance.max_workers",
     )
     parser.add_argument(
         "--prefetch-ahead",
@@ -125,8 +114,6 @@ def main(argv: list[str] | None = None) -> int:
         dispatch_overrides["execute_mode"] = args.execute_mode
     if args.batch_size is not None:
         dispatch_overrides["batch_size"] = args.batch_size
-    if args.max_workers is not None:
-        dispatch_overrides["max_workers"] = _parse_max_workers(args.max_workers)
     if args.prefetch_ahead is not None:
         dispatch_overrides["prefetch_ahead"] = args.prefetch_ahead
     if args.profile:

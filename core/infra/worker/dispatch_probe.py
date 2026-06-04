@@ -15,6 +15,7 @@ DEFAULT_PROBE_SAFETY_FACTOR: float = 1.25
 # spawn 下须用模块级 worker + 字符串选择执行器（不可 pickle 闭包）
 PROBE_EXECUTOR_TAG = "tag"
 PROBE_EXECUTOR_STRATEGY_ENUM = "strategy.enum"
+PROBE_EXECUTOR_STRATEGY_PRICE = "strategy.price"
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,12 @@ def _run_probe_executor(payload: Dict[str, Any]) -> Dict[str, Any]:
         )
 
         return execute_enum_probe_payload(payload)
+    if key == PROBE_EXECUTOR_STRATEGY_PRICE:
+        from core.modules.strategy.services.execution.price_dispatch_probe import (
+            execute_price_probe_payload,
+        )
+
+        return execute_price_probe_payload(payload)
     if key == PROBE_EXECUTOR_TAG:
         from core.modules.tag.components.tag_dispatch_probe import (
             execute_tag_probe_payload,

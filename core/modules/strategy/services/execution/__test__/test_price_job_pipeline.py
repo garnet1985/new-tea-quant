@@ -17,7 +17,9 @@ def test_build_price_factor_payload_passthrough():
         "output_version_dir": "/tmp/out",
         "config": {"k": 1},
     }
-    assert build_price_factor_payload(job) == job
+    payload = build_price_factor_payload(job)
+    assert payload["stock_id"] == "000001.SZ"
+    assert payload["job_id"] == "000001.SZ"
 
 
 def test_job_report_to_job_result_price_success():

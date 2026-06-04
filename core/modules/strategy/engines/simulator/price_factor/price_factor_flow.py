@@ -244,6 +244,11 @@ class PriceFactorFlow(BaseSimulationFlow):
             period=period,
             market_profile_id=mp_id,
         ).to_dict()
+        from core.modules.strategy.services.execution.price_dispatch import (
+            release_main_duckdb_handles,
+        )
+
+        release_main_duckdb_handles(data_mgr)
         for job in jobs:
             job["market_profile_id"] = mp_id
             job["backtest_calendar"] = calendar_dict
@@ -254,9 +259,33 @@ class PriceFactorFlow(BaseSimulationFlow):
             cfg["backtest_calendar"] = calendar_dict
             cfg["goal"] = dict(preprocessed.base_settings.goal or {})
             job["config"] = cfg
+
+        from core.modules.strategy.engines.simulator.price_factor.dispatch_jobs import (
+            build_price_dispatch_jobs,
+        )
+        from core.modules.strategy.services.execution.price_dispatch import (
+            maybe_run_price_dispatch_probe,
+            resolve_price_dispatch_plan,
+        )
+
+        measured = maybe_run_price_dispatch_probe(
+            per_stock_jobs=jobs,
+            config=preprocessed.simulator_config,
+            data_mgr=data_mgr,
+        )
+        dispatch_plan = resolve_price_dispatch_plan(
+            total_stocks=len(jobs),
+            config=preprocessed.simulator_config,
+            measured_timing=measured,
+        )
+        dispatch_jobs = build_price_dispatch_jobs(
+            per_stock_jobs=jobs,
+            entities_per_job=dispatch_plan.entities_per_job,
+        )
         results = self._impl.run_worker_jobs(
-            jobs=jobs,
-            max_workers=preprocessed.simulator_config.max_workers,
+            dispatch_jobs=dispatch_jobs,
+            dispatch_plan=dispatch_plan,
+            total_stocks=len(jobs),
             progress_callback=progress_callback,
         )
         collected = self._impl.collect_stock_summaries(results)

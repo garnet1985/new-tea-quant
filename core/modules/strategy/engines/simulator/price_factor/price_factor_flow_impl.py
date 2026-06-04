@@ -102,32 +102,42 @@ class PriceFactorFlowImpl:
     def run_worker_jobs(
         self,
         *,
-        jobs: List[Dict[str, Any]],
-        max_workers: "str | int",
+        dispatch_jobs: List[Dict[str, Any]],
+        dispatch_plan: Any,
+        total_stocks: int,
         progress_callback: Optional[Callable[[float], None]] = None,
     ) -> List[Dict[str, Any]]:
         from core.infra.worker.multi_process.process_worker import JobStatus
         from core.modules.strategy.services.execution.price_job_pipeline import (
+            run_price_factor_in_main_process,
             run_price_factor_jobs_via_pipeline,
         )
 
-        if not jobs:
+        if not dispatch_jobs:
             if progress_callback is not None:
                 progress_callback(88.0)
             return []
 
-        job_results = run_price_factor_jobs_via_pipeline(
-            stock_jobs=jobs,
-            max_workers=max_workers,
-            total_jobs=len(jobs),
-            on_workbench_progress=progress_callback,
-        )
+        if getattr(dispatch_plan, "run_in_main_process", False):
+            results = run_price_factor_in_main_process(dispatch_jobs)
+        else:
+            from core.modules.strategy.services.execution.price_dispatch import (
+                release_main_duckdb_handles,
+            )
+
+            release_main_duckdb_handles()
+            job_results = run_price_factor_jobs_via_pipeline(
+                dispatch_jobs=dispatch_jobs,
+                max_workers=dispatch_plan.max_workers,
+                total_stocks=total_stocks,
+                on_workbench_progress=progress_callback,
+            )
+            results = []
+            for jr in job_results:
+                if jr.status == JobStatus.COMPLETED and jr.result:
+                    results.append(jr.result)
         if progress_callback is not None:
             progress_callback(88.0)
-        results: List[Dict[str, Any]] = []
-        for jr in job_results:
-            if jr.status == JobStatus.COMPLETED and jr.result:
-                results.append(jr.result)
         return results
 
     def collect_stock_summaries(

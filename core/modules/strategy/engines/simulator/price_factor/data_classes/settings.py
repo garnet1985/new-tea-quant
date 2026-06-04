@@ -47,6 +47,10 @@ class StrategyPriceSimulatorSettings(SettingsBase):
             ps["base_version"] = ps.get("output_version") or "latest"
         ps.setdefault("base_version", "latest")
         ps.setdefault("max_workers", "auto")
+        ps.setdefault("entities_per_job", "auto")
+        ps.setdefault("dispatch_probe", True)
+        ps.setdefault("reserve_cores", 1)
+        ps.setdefault("max_workers_cap", 4)
 
     def validate(self) -> ValidationReport:
         result = SettingsBase.new_validation()
@@ -105,6 +109,31 @@ class StrategyPriceSimulatorSettings(SettingsBase):
         return SettingsBase.parse_max_workers(
             self.price_simulator.get("max_workers", "auto")
         )
+
+    @property
+    def entities_per_job(self) -> Union[Literal["auto"], int]:
+        raw = self.price_simulator.get("entities_per_job", "auto")
+        if raw in (None, "", "auto"):
+            return "auto"
+        return max(1, int(raw))
+
+    @property
+    def dispatch_probe(self) -> bool:
+        return bool(self.price_simulator.get("dispatch_probe", True))
+
+    @property
+    def max_workers_cap(self) -> int:
+        try:
+            return max(1, int(self.price_simulator.get("max_workers_cap", 4)))
+        except (TypeError, ValueError):
+            return 4
+
+    @property
+    def reserve_cores(self) -> int:
+        try:
+            return max(0, int(self.price_simulator.get("reserve_cores", 1)))
+        except (TypeError, ValueError):
+            return 1
 
     @property
     def fees(self) -> Dict[str, Any]:

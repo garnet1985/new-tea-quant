@@ -80,7 +80,7 @@ class TagDataManager:
                 start=start,
                 end=end,
                 **params,
-            )
+            ).require_contract(entity_id=ent)
             if dk in out:
                 raise ValueError(
                     f"data 声明中重复的 data_id：{dk.value!r}（dict 存储下无法同时保留两条）"

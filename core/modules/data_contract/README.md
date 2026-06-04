@@ -1,6 +1,8 @@
 # Data Contract 模块（`modules.data_contract`）
 
-用 **`DataKey`** 声明「要哪类数据」，由 **`DataSpecMap`**（core `default_map` + userspace 合并）描述 **scope、时序/非时序、loader、唯一键、时间轴字段** 等；**`DataContractManager.issue`** 统一签发 **`DataContract`** 句柄，并在 **可缓存的 GLOBAL** 场景下按需 **物化 `data`**；**`PER_ENTITY`** 等则句柄上 **`data` 为空**，需再 **`load(start=..., end=...)`**。Strategy / Tag 等通过 **`ContractCacheManager`** 在 run 边界清理缓存。
+用 **`DataKey`** 声明「要哪类数据」，由 **`DataSpecMap`**（core `default_map` + userspace 合并）描述 **scope、时序/非时序、loader、唯一键、时间轴字段** 等；**`DataContractManager.issue`** 统一签发数据句柄，并在 **可缓存的 GLOBAL** 场景下按需 **物化 `data`**。**0.3.0（待实现）** 起 PER_ENTITY 统一 **`entity_ids` → `IssueResult.by_entity`** map，loader 可选 **`load_batch`**。
+
+> 当前代码仍为 **0.2.0**（单 `entity_id`，返回裸 `DataContract`）。设计与路线见 [`docs/DECISIONS.md`](docs/DECISIONS.md)、[`docs/ROADMAP.md`](docs/ROADMAP.md)。
 
 ## 适用场景
 
@@ -25,7 +27,7 @@ dcm = DataContractManager(contract_cache=cache)
 c = dcm.issue(DataKey.STOCK_LIST)
 rows = c.data if c.data is not None else c.load()
 
-# PER_ENTITY 时序：须 entity_id；数据通常需再 load
+# PER_ENTITY 时序（0.2.0 当前代码）
 k = dcm.issue(
     DataKey.STOCK_KLINE,
     entity_id="000001.SZ",
@@ -35,10 +37,21 @@ k = dcm.issue(
     term="D",
 )
 data = k.load()
+
+# PER_ENTITY 时序（0.3.0 计划）
+# result = dcm.issue(
+#     DataKey.STOCK_KLINE,
+#     entity_ids=["000001.SZ", "000002.SZ"],
+#     start="20240101",
+#     end="20241231",
+#     adjust="qfq",
+#     term="daily",
+# )
+# rows_a = result.by_entity["000001.SZ"].data
 cache.exit_strategy_run()
 ```
 
-更多参数与缓存语义见 [`docs/DECISIONS.md`](docs/DECISIONS.md) 与 [`docs/DESIGN.md`](docs/DESIGN.md)。
+更多参数与缓存语义见 [`docs/DECISIONS.md`](docs/DECISIONS.md)、[`docs/DESIGN.md`](docs/DESIGN.md)、[`docs/ROADMAP.md`](docs/ROADMAP.md)。
 
 ## 目录结构（本模块）
 
@@ -60,7 +73,8 @@ core/modules/data_contract/
     ├── DESIGN.md
     ├── API.md
     ├── DECISIONS.md
-    └── CONCEPTS.md
+    ├── CONCEPTS.md
+    └── ROADMAP.md
 ```
 
 ## 模块依赖（`module_info.yaml`）
@@ -83,3 +97,4 @@ python3 -m pytest core/modules/data_contract/__test__/ -q
 - [公开 API](docs/API.md)
 - [设计决策（issue / 缓存）](docs/DECISIONS.md)
 - [术语与概念](docs/CONCEPTS.md)
+- [演进路线（0.3.0）](docs/ROADMAP.md)

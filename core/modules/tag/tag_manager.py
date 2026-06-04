@@ -248,7 +248,7 @@ class TagManager:
                 per_entity_data_id.value,
             )
             return []
-        list_contract = self._data_contract_manager.issue(list_data_id)
+        list_contract = self._data_contract_manager.issue(list_data_id).require_contract()
         list_rows = list(list_contract.data or [])
         list_spec = self._data_contract_manager.map.get(list_data_id) or {}
         keys = list_spec.get("unique_keys") or ["id"]
@@ -947,7 +947,7 @@ class TagManager:
                 start=start,
                 end=end,
                 **params,
-            )
+            ).require_contract()
             out[dk.value] = list(c.data or [])
         return out
 

@@ -1,4 +1,5 @@
 from core.modules.data_contract.contract_const import ContractScope, ContractType, DataKey
+from core.modules.data_contract.data_class.issue_result import IssueResult
 from core.modules.data_contract.data_contract_manager import DataContractManager
 from core.modules.data_contract.cache import (
     ContractCacheEntry,
@@ -12,6 +13,7 @@ from core.modules.data_contract.cache import (
 
 __all__ = [
     "DataContractManager",
+    "IssueResult",
     "DataKey",
     "ContractScope",
     "ContractType",

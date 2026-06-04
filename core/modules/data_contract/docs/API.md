@@ -1,8 +1,31 @@
 # Data Contract 模块 API 文档
 
+**版本：** `0.3.0`（**IssueResult / plural issue** 条目状态为 **`planned`**，尚未在代码中实现；0.2.0 行为仍以当前 `issue → DataContract` 为准。）
+
 本文档采用统一 API 条目格式：函数名、状态、描述、诞生版本、参数（三列表格）、返回值。
 
 包级常用导出见 `core.modules.data_contract` 的 `__all__`；下文含内部协作类型（如 `ContractIssuer`）仅作索引时可略。
+
+---
+
+## IssueResult（0.3.0）
+
+### 类型名
+`IssueResult`
+
+- 状态：`planned`
+- 描述：**`issue`** 的统一返回信封。GLOBAL 使用 **`contract`**；PER_ENTITY 使用 **`by_entity`**（`entity_id → DataContract`）。见 [`DECISIONS.md`](DECISIONS.md) 决策 9。
+- 诞生版本：`0.3.0`
+- 字段（概念）：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `data_id` | `DataKey` | 本次签发的 data key |
+| `scope` | `ContractScope` | `GLOBAL` 或 `PER_ENTITY` |
+| `contract` | `DataContract \| None` | **GLOBAL** 时非空 |
+| `by_entity` | `Mapping[str, DataContract] \| None` | **PER_ENTITY** 时非空 |
+
+- 方法（推荐）：**`entity_count()`**、**`entity(entity_id)`**、**`require_one()`**
 
 ---
 
@@ -25,21 +48,32 @@
 ---
 
 ### 函数名
-`issue(self, data_id: DataKey, *, entity_id: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None, **override_params: Any) -> DataContract`
+`issue(self, data_id: DataKey, *, entity_id: Optional[str] = None, entity_ids: Optional[Sequence[str]] = None, start: Optional[str] = None, end: Optional[str] = None, **override_params: Any) -> IssueResult`
 
-- 状态：`stable`
-- 描述：签发 **`DataContract`**。对 **`ContractCacheScope` 非 `NONE`** 的规格：尝试读缓存；未命中则 **`load`** 后写入缓存并把 **`data`** 拷回句柄。对 **`NONE`**：仅 **`issuer.issue`**，**`data` 一般为空**，需调用方再 **`load`**。参数与缓存语义见 [`DECISIONS.md`](DECISIONS.md)。
-- 诞生版本：`0.2.0`
+- 状态：`stable`（0.2.0 返回 `DataContract`）；**0.3.0 起返回 `IssueResult`（`planned`）**
+- 描述：签发数据契约。 **`GLOBAL`**：返回 **`IssueResult.contract`**（缓存与物化规则同 [`DECISIONS.md`](DECISIONS.md) 决策 4）。 **`PER_ENTITY`**：须 **`entity_ids`**（或糖 **`entity_id`**）；DCM 通过 loader **`load_batch`**（优先）或循环 **`load`** 物化 **`IssueResult.by_entity`**。参数与缓存语义见 [`DECISIONS.md`](DECISIONS.md)。
+- 诞生版本：`0.2.0`（签名扩展与 `IssueResult`：`0.3.0`）
 - params：
 
 | 名字 | 类型 | 说明 |
 |------|------|------|
 | `data_id` | `DataKey` | 必选；须在合并后的 `map` 中存在 |
-| `entity_id` (可选) | `Optional[str]` | `PER_ENTITY` 时必填非空 |
+| `entity_id` (可选) | `Optional[str]` | **PER_ENTITY 糖**：等价 `entity_ids=[entity_id]`；与 `entity_ids` 互斥 |
+| `entity_ids` (可选) | `Optional[Sequence[str]]` | **PER_ENTITY**：非空 entity 列表（0.3.0） |
 | `start` (可选) | `Optional[str]` | 时序：与 `end` 同传或同省略 |
 | `end` (可选) | `Optional[str]` | 时序：与 `start` 同传或同省略 |
 | `**override_params` | `Any` | 覆盖 mapping 中 `defaults` 的 loader 参数 |
 
+- 返回值：**0.2.0** `DataContract`；**0.3.0** `IssueResult`
+
+---
+
+### 函数名（历史，0.2.0 当前实现）
+`issue(...) -> DataContract`
+
+- 状态：`stable`（将被 0.3.0 `IssueResult` 替代）
+- 描述：见上；当前代码仍为单 `entity_id`、返回裸 `DataContract`。
+- params：见 0.2.0 实现（无 `entity_ids`）
 - 返回值：`DataContract`
 
 ---

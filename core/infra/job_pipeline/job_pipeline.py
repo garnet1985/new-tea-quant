@@ -8,14 +8,17 @@ from __future__ import annotations
 import logging
 import time
 from concurrent.futures import FIRST_COMPLETED, Future, wait
+from contextlib import nullcontext
 from typing import Dict, List, Optional
 
+from core.infra.db.engines.duckdb.process_pool_scope import maybe_duckdb_worker_pool_scope
 from core.infra.job_pipeline.executor import JobExecutor, create_job_executor
 from core.infra.job_pipeline.hooks import ExecuteFn, OnReleaseHook, OnResultHook
 from core.infra.job_pipeline.settings import JobPipelineSettings
 from core.infra.job_pipeline.types import (
     DispatchResult,
     ExecuteMode,
+    ExecutionBackend,
     Job,
     JobContext,
     JobFailure,
@@ -73,9 +76,21 @@ class JobPipeline:
         mode = self._settings.execute_mode
         if mode == ExecuteMode.ELASTIC:
             raise NotImplementedError("ExecuteMode.ELASTIC is not implemented yet")
-        if mode == ExecuteMode.BATCH:
-            return self._run_batch(jobs, run_name=run_name)
-        return self._run_queue(jobs, run_name=run_name)
+        use_process = self._settings.worker == ExecutionBackend.PROCESS
+        scope_ctx = (
+            maybe_duckdb_worker_pool_scope(
+                mode=self._settings.duckdb_process_pool_scope,
+                use_process_pool=use_process,
+                data_mgr=self._settings.duckdb_data_mgr,
+                resume_main_after=self._settings.duckdb_resume_main_after_pool,
+            )
+            if use_process
+            else nullcontext()
+        )
+        with scope_ctx:
+            if mode == ExecuteMode.BATCH:
+                return self._run_batch(jobs, run_name=run_name)
+            return self._run_queue(jobs, run_name=run_name)
 
     def cancel(self) -> None:
         self._cancelled = True

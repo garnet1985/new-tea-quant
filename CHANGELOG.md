@@ -53,6 +53,7 @@ python dev-cli -p -vx.x.x
 - 重组和收纳userspace的文件夹结构，并且更新path manager（路径管理器）的引用，让userspace更加整洁
 - 重构infra/db模块，让结构变成引擎模式，引入duckdb的写管道和自动生成文件和表的地图功能
 - 让单进程模块支持一次处理多个股票，大幅度降低IO，效率提高一倍
+- 修改了策略使用采样发生变化依然会触发缓存的bug
 
 ---
 

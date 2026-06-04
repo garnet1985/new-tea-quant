@@ -673,6 +673,9 @@ class TagManager:
             prefetch_ahead=int(performance.get("prefetch_ahead", 1)),
             reserve_cores=int(performance.get("reserve_cores", 1)),
             max_workers_cap=performance.get("max_workers_cap"),
+            duckdb_process_pool_scope="auto",
+            duckdb_data_mgr=self.data_mgr,
+            duckdb_resume_main_after_pool=not duckdb_stage_spill,
         )
         run_name = f"tag:{scenario_name}"
         total_jobs = len(jobs)
@@ -888,13 +891,8 @@ class TagManager:
         duckdb_spill: bool,
         spill_rows: int,
     ) -> DispatchResult:
-        """单次 JobPipeline.run；子进程 execute 内 stage+算，DuckDB 另 suspend/spill/digest。"""
+        """单次 JobPipeline.run；子进程 execute 内 stage+算，DuckDB 锁由 JobPipeline + process_pool_scope 协作。"""
         if stage_in_worker and duckdb_spill:
-            from core.modules.tag.components.job_staging.worker_runtime import (
-                prepare_main_for_duckdb_workers,
-            )
-
-            prepare_main_for_duckdb_workers(self.data_mgr)
             logger.info(
                 "[%s] stage_in_worker + DuckDB spill（buffer≥%d 行 Parquet，池结束后写 tag）",
                 run_name,

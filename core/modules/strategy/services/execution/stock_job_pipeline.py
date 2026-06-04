@@ -161,12 +161,14 @@ def run_stock_jobs_via_pipeline(
         execute_mode=ExecuteMode.QUEUE,
         max_workers=max_workers,
         continue_on_failure=True,
+        duckdb_process_pool_scope="auto",
     )
     dispatcher = JobPipeline(
         settings=settings,
         execute=execute,
         on_result=on_result,
     )
+    logged_first_execute_failure = False
     dispatch = dispatcher.run(pipeline_jobs, run_name=run_name)
 
     batch_ok = dispatch.completed
@@ -182,6 +184,14 @@ def run_stock_jobs_via_pipeline(
             continue
         if failure.job_id in reported_ids:
             continue
+        if not logged_first_execute_failure:
+            logged_first_execute_failure = True
+            logger.warning(
+                "[%s] 首个 execute 失败 job=%s: %s",
+                label,
+                failure.job_id,
+                failure.error,
+            )
         results.append(
             JobResult(
                 job_id=failure.job_id,

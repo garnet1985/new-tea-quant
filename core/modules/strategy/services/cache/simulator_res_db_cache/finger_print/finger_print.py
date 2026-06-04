@@ -41,9 +41,10 @@ def to_env_hash(
     worker_class_name: str = "",
     worker_code_hash: str = "",
     data_contract_mapping: str = "",
+    database_type: str = "",
 ) -> str:
     """env 因子 → **env 列**稳定哈希（内部先 ``env_fingerprint_payload`` 再 SHA256）。"""
-    from .env_resolver import env_fingerprint_payload
+    from .env_resolver import ResolveEnv, env_fingerprint_payload
 
     return _stable_sha256(
         env_fingerprint_payload(
@@ -55,6 +56,7 @@ def to_env_hash(
             worker_class_name=worker_class_name,
             worker_code_hash=worker_code_hash,
             data_contract_mapping=data_contract_mapping,
+            database_type=database_type or ResolveEnv.resolve_storage_database_type(),
         )
     )
 

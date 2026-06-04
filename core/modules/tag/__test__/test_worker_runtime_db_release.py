@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from core.modules.tag.components.job_staging.worker_runtime import (
+from core.infra.db.engines.duckdb.process_pool_scope import (
     _collect_db_managers_from_data_mgr,
     release_all_main_db_handles,
 )

@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 import copy
+import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+
+logger = logging.getLogger(__name__)
 
 from core.modules.strategy.engines.simulator.base_flow import BaseSimulationFlow
 from core.modules.strategy.engines.simulator.enumerator.opportunity_enumerator_flow_impl import (
@@ -119,6 +122,20 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
                 summary_list, wb_version = hit
                 self.last_version = int(wb_version or 0)
                 self.used_db_cache = True
+                total_opps = 0
+                if summary_list and isinstance(summary_list[0], dict):
+                    total_opps = int(summary_list[0].get("opportunities", 0) or 0)
+                out_dir = ""
+                if summary_list and isinstance(summary_list[0], dict):
+                    out_dir = str(summary_list[0].get("enumerator_output_dir") or "").strip()
+                logger.info(
+                    "枚举 DbCache 命中 · strategy=%s · version=%s · dir=%s · opportunities=%s "
+                    "（未跑 worker；改 settings/切库后请 -f/--force）",
+                    strategy_name,
+                    wb_version,
+                    out_dir or "—",
+                    total_opps,
+                )
                 from core.modules.strategy.services.data.output.simulation_output_retention import (
                     prune_disk_outputs_for_strategy,
                 )

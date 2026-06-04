@@ -1,53 +1,37 @@
 """
 策略 JobPipeline 子进程：初始化只读 DataManager。
 
-``invoke_execute`` 会在每个 job 前 ``DatabaseManager.reset_default()``（并 close 连接），
-若 ``DataManager`` 单例仍标记为已初始化，会继续使用已关闭的 db → 读表报「数据库未初始化」。
+主进程 DuckDB 文件锁由 ``JobPipelineSettings.duckdb_process_pool_scope``（默认 auto）
+或 ``core.infra.db.engines.duckdb.process_pool_scope`` 处理。
 """
 from __future__ import annotations
 
 import logging
 import multiprocessing as mp
 import os
-from copy import deepcopy
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
+
+from core.infra.db.engines.duckdb.process_pool_scope import (
+    connect_duckdb_domains,
+    database_config_read_only,
+    duckdb_worker_pool_main_process,
+    is_duckdb_backend,
+    release_worker_db_handles,
+    resolve_data_manager,
+)
 
 logger = logging.getLogger(__name__)
 
 _PID_DATA_MANAGER: Dict[int, Any] = {}
 
-
-def _database_config_for_worker() -> Dict[str, Any]:
-    from core.infra.project_context import ConfigManager
-
-    cfg = deepcopy(ConfigManager.load_database_config())
-    if str(cfg.get("database_type") or "").lower() != "duckdb":
-        return cfg
-    duck = cfg.setdefault("duckdb", {})
-    domains = duck.setdefault("domains", {})
-    if isinstance(domains, dict):
-        for block in domains.values():
-            if isinstance(block, dict):
-                block["read_only"] = True
-    return cfg
+# 兼容旧名
+strategy_duckdb_worker_pool_main_process = duckdb_worker_pool_main_process
+is_strategy_duckdb_backend = is_duckdb_backend
+resolve_data_mgr_for_duckdb_pool = resolve_data_manager
 
 
 def _connect_duckdb_data_domain_readonly(db: Any) -> None:
-    from core.infra.db.engines._shared.config_parse import parse_database_config
-    from core.infra.db.engines.duckdb.connector import DuckdbDomainConnection
-    from core.infra.db.engines.duckdb.settings import DuckdbSettings
-
-    parsed = parse_database_config(_database_config_for_worker())
-    settings = DuckdbSettings.from_dict(parsed.get("duckdb") or parsed)
-    eng = db.engine
-    eng.connector._domains = {}
-    shared = settings.shared_connector_dict()
-    dom = settings.domains["data"]
-    merged = dom.as_dict(shared)
-    conn = DuckdbDomainConnection(merged, is_verbose=False, domain="data")
-    conn.connect()
-    eng.connector._domains["data"] = conn
-    eng._initialized = True
+    connect_duckdb_domains(db, domains=("data",), read_only=True)
 
 
 def create_strategy_worker_data_manager() -> Any:
@@ -58,7 +42,7 @@ def create_strategy_worker_data_manager() -> Any:
     from core.modules.data_manager import DataManager
     from core.modules.data_manager.data_services import DataService
 
-    db = DatabaseManager(config=_database_config_for_worker(), is_verbose=False)
+    db = DatabaseManager(config=database_config_read_only(), is_verbose=False)
     db.engine = create_engine(db.engine_meta)
     db.rebuild_storage_registry()
     if isinstance(db.engine, DuckdbEngine):
@@ -89,23 +73,6 @@ def create_strategy_worker_data_manager() -> Any:
     return dm
 
 
-def _close_worker_data_manager(data_mgr: Any) -> None:
-    from core.infra.db import DatabaseManager
-    from core.modules.data_manager import DataManager
-
-    db = getattr(data_mgr, "db", None)
-    if db is not None:
-        try:
-            db.close()
-        except Exception as exc:
-            logger.debug("strategy worker db.close: %s", exc)
-    data_mgr.db = None
-    data_mgr._initialized = False
-    DatabaseManager.reset_default()
-    if DataManager.get_instance() is data_mgr:
-        DataManager.reset_instance()
-
-
 def bootstrap_strategy_worker_data_manager() -> Any:
     """
     在子进程 execute 入口调用：在 ``reset_default`` 之后重建 DataManager。
@@ -131,8 +98,7 @@ def bootstrap_strategy_worker_data_manager() -> Any:
         return cached
 
     if cached is not None:
-        _close_worker_data_manager(cached)
-        _PID_DATA_MANAGER.pop(pid, None)
+        release_strategy_worker_runtime()
 
     dm = create_strategy_worker_data_manager()
     _PID_DATA_MANAGER[pid] = dm
@@ -140,10 +106,14 @@ def bootstrap_strategy_worker_data_manager() -> Any:
 
 
 def release_strategy_worker_runtime() -> None:
-    """可选：子进程 job 结束时释放连接（与 Tag ``release_worker_runtime`` 同思路）。"""
+    """子进程 job 结束时释放连接。"""
     if mp.current_process().name == "MainProcess":
         return
     pid = os.getpid()
     cached = _PID_DATA_MANAGER.pop(pid, None)
     if cached is not None:
-        _close_worker_data_manager(cached)
+        release_worker_db_handles(cached)
+        from core.modules.data_manager import DataManager
+
+        if DataManager.get_instance() is cached:
+            DataManager.reset_instance()

@@ -1,4 +1,4 @@
-"""Strategy 单股 JobPipeline 公共调度（enum / price 等）。"""
+"""Strategy 多股 dispatch JobPipeline 公共调度（enum / price 等）。"""
 from __future__ import annotations
 
 import logging
@@ -19,6 +19,7 @@ from core.infra.job_pipeline import (
     RunProgress,
 )
 from core.infra.job_pipeline.types import ExecuteMode, ExecutionBackend, JobFailurePhase
+from core.infra.job_pipeline.worker_profile import WorkerProfiles
 from core.infra.worker.multi_process.process_worker import JobResult, JobStatus
 
 
@@ -93,6 +94,7 @@ def run_stock_jobs_via_pipeline(
     progress_units_from_report: Optional[
         Callable[[JobReport], Tuple[int, int, int]]
     ] = None,
+    worker_profile: str = WorkerProfiles.DEFAULT,
 ) -> List[JobResult]:
     """
     对一批单股任务跑 JobPipeline（QUEUE + PROCESS），返回 JobResult 列表。
@@ -179,6 +181,7 @@ def run_stock_jobs_via_pipeline(
         max_workers=max_workers,
         continue_on_failure=True,
         duckdb_process_pool_scope="auto",
+        worker_profile=worker_profile,
     )
     dispatcher = JobPipeline(
         settings=settings,

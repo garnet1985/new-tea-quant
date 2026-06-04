@@ -1,8 +1,8 @@
 # Data Contract 模块（`modules.data_contract`）
 
-用 **`DataKey`** 声明「要哪类数据」，由 **`DataSpecMap`**（core `default_map` + userspace 合并）描述 **scope、时序/非时序、loader、唯一键、时间轴字段** 等；**`DataContractManager.issue`** 统一签发数据句柄，并在 **可缓存的 GLOBAL** 场景下按需 **物化 `data`**。**0.3.0（待实现）** 起 PER_ENTITY 统一 **`entity_ids` → `IssueResult.by_entity`** map，loader 可选 **`load_batch`**。
+用 **`DataKey`** 声明「要哪类数据」，由 **`DataSpecMap`**（core `default_map` + userspace 合并）描述 **scope、时序/非时序、loader、唯一键、时间轴字段** 等；**`DataContractManager.issue`** 统一签发数据句柄，并在 **可缓存的 GLOBAL** 场景下按需 **物化 `data`**。**0.3.0** 起 PER_ENTITY 统一 **`entity_ids` → `IssueResult.by_entity`** map，loader 可选 **`load_batch`**。
 
-> 当前代码仍为 **0.2.0**（单 `entity_id`，返回裸 `DataContract`）。设计与路线见 [`docs/DECISIONS.md`](docs/DECISIONS.md)、[`docs/ROADMAP.md`](docs/ROADMAP.md)。
+> 当前代码为 **0.3.0**（`IssueResult`、plural `entity_ids`、`load_batch`）。设计与路线见 [`docs/DECISIONS.md`](docs/DECISIONS.md)、[`docs/ROADMAP.md`](docs/ROADMAP.md)。
 
 ## 适用场景
 
@@ -27,27 +27,16 @@ dcm = DataContractManager(contract_cache=cache)
 c = dcm.issue(DataKey.STOCK_LIST)
 rows = c.data if c.data is not None else c.load()
 
-# PER_ENTITY 时序（0.2.0 当前代码）
-k = dcm.issue(
+# PER_ENTITY 时序
+result = dcm.issue(
     DataKey.STOCK_KLINE,
-    entity_id="000001.SZ",
+    entity_ids=["000001.SZ", "000002.SZ"],
     start="20240101",
     end="20241231",
     adjust="qfq",
-    term="D",
+    term="daily",
 )
-data = k.load()
-
-# PER_ENTITY 时序（0.3.0 计划）
-# result = dcm.issue(
-#     DataKey.STOCK_KLINE,
-#     entity_ids=["000001.SZ", "000002.SZ"],
-#     start="20240101",
-#     end="20241231",
-#     adjust="qfq",
-#     term="daily",
-# )
-# rows_a = result.by_entity["000001.SZ"].data
+rows_a = result.by_entity["000001.SZ"].data
 cache.exit_strategy_run()
 ```
 

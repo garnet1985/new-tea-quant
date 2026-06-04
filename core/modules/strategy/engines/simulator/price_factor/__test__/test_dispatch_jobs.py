@@ -13,3 +13,5 @@ def test_build_price_dispatch_jobs_chunks():
     assert jobs[0]["stock_ids"] == ["s0", "s1"]
     assert len(jobs[0]["stock_jobs"]) == 2
     assert jobs[-1]["stock_ids"] == ["s4"]
+    assert "stock_jobs" in jobs[-1]
+    assert jobs[-1]["stock_jobs"][0]["stock_id"] == "s4"

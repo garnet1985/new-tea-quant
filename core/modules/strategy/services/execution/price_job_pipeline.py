@@ -4,14 +4,13 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from core.infra.job_pipeline import JobContext
-from core.infra.job_pipeline.probe import WorkerProbe
+from core.infra.job_pipeline.worker_profile import WorkerProfiles, resolve_pipeline_workers
 from core.infra.worker.multi_process.process_worker import JobResult, JobStatus
 
 from .stock_job_pipeline import run_stock_jobs_via_pipeline
 
 __all__ = [
     "build_price_factor_payload",
-    "count_progress_units_from_price_job_result",
     "execute_price_factor_job",
     "expand_bulk_price_job_results",
     "run_price_factor_in_main_process",
@@ -22,21 +21,18 @@ __all__ = [
 
 
 def _dispatch_job_id(job: Dict[str, Any]) -> str:
-    return str(job.get("job_id") or job.get("stock_id") or "price_job")
+    return str(job.get("job_id") or "price_job")
 
 
 def build_price_factor_payload(job: Dict[str, Any]) -> Dict[str, Any]:
-    """Worker 入参（pickle 友好）。"""
+    """Worker 入参（pickle 友好）；要求 ``stock_jobs``。"""
+    stock_jobs = job.get("stock_jobs")
+    if not isinstance(stock_jobs, list) or not stock_jobs:
+        raise ValueError("price dispatch job 缺少非空 stock_jobs")
     payload = dict(job)
     payload.setdefault("job_id", _dispatch_job_id(job))
-    stock_ids = job.get("stock_ids")
-    if isinstance(stock_ids, list) and stock_ids:
-        payload["stock_ids"] = list(stock_ids)
-        if len(stock_ids) == 1 and not payload.get("stock_id"):
-            payload["stock_id"] = stock_ids[0]
-    stock_jobs = job.get("stock_jobs")
-    if isinstance(stock_jobs, list) and stock_jobs:
-        payload["stock_jobs"] = [dict(row) for row in stock_jobs]
+    payload["stock_ids"] = list(job.get("stock_ids") or [])
+    payload["stock_jobs"] = [dict(row) for row in stock_jobs]
     return payload
 
 
@@ -49,33 +45,6 @@ def execute_price_factor_job(context: JobContext) -> Dict[str, Any]:
     return run_price_factor_payload(context.payload, in_subprocess=True)
 
 
-def count_progress_units_from_price_job_result(job_result: Any) -> Tuple[int, int, int]:
-    status = getattr(job_result, "status", None)
-    status_value = getattr(status, "value", str(status))
-    if str(status_value).lower() != "completed":
-        data = getattr(job_result, "result", None) or {}
-        if isinstance(data, dict) and data.get("bulk"):
-            ids = data.get("stock_ids") or []
-            n = len(ids) if isinstance(ids, list) else 1
-            return n, 0, n
-        return 1, 0, 1
-
-    result = getattr(job_result, "result", None) or {}
-    if not isinstance(result, dict):
-        return 1, 0, 1
-    if result.get("bulk") and isinstance(result.get("stock_results"), list):
-        ok = fail = 0
-        for row in result["stock_results"]:
-            if isinstance(row, dict) and row.get("success"):
-                ok += 1
-            else:
-                fail += 1
-        return ok + fail, ok, fail
-    if result.get("success"):
-        return 1, 1, 0
-    return 1, 0, 1
-
-
 def expand_bulk_price_job_results(job_results: List[Any]) -> List[Any]:
     expanded: List[Any] = []
     for jr in job_results:
@@ -84,7 +53,6 @@ def expand_bulk_price_job_results(job_results: List[Any]) -> List[Any]:
             expanded.append(jr)
             continue
         parent_id = getattr(jr, "job_id", "")
-        status = getattr(jr, "status", None)
         for row in result.get("stock_results") or []:
             if not isinstance(row, dict):
                 continue
@@ -103,20 +71,14 @@ def expand_bulk_price_job_results(job_results: List[Any]) -> List[Any]:
 
 def _progress_units_from_execute_report(report: Any) -> Tuple[int, int, int]:
     data = getattr(report, "data", None) or {}
-    if not isinstance(data, dict):
-        ok = 1 if getattr(report, "success", False) else 0
-        fail = 0 if ok else 1
-        return ok + fail, ok, fail
-    if data.get("bulk") and isinstance(data.get("stock_results"), list):
-        ok = fail = 0
-        for row in data["stock_results"]:
-            if isinstance(row, dict) and row.get("success"):
-                ok += 1
-            else:
-                fail += 1
-        return ok + fail, ok, fail
-    ok = 1 if data.get("success") else 0
-    fail = 0 if ok else 1
+    if not isinstance(data, dict) or not data.get("bulk"):
+        return 0, 0, 0
+    ok = fail = 0
+    for row in data.get("stock_results") or []:
+        if isinstance(row, dict) and row.get("success"):
+            ok += 1
+        else:
+            fail += 1
     return ok + fail, ok, fail
 
 
@@ -128,26 +90,15 @@ def run_price_factor_in_main_process(
         run_price_factor_payload,
     )
 
-    if not dispatch_jobs:
-        return []
-    if len(dispatch_jobs) == 1:
-        out = run_price_factor_payload(dispatch_jobs[0], in_subprocess=False)
-        if out.get("bulk"):
-            return list(out.get("stock_results") or [])
-        return [out] if isinstance(out, dict) else []
-
     results: List[Dict[str, Any]] = []
     for job in dispatch_jobs:
         out = run_price_factor_payload(job, in_subprocess=False)
-        if out.get("bulk"):
-            results.extend(list(out.get("stock_results") or []))
-        elif isinstance(out, dict):
-            results.append(out)
+        results.extend(list(out.get("stock_results") or []))
     return results
 
 
 def resolve_price_max_workers(max_workers: Any) -> int:
-    return WorkerProbe.resolve(max_workers)
+    return resolve_pipeline_workers(worker_id=WorkerProfiles.PRICE_FACTOR)
 
 
 def workbench_disk_progress(
@@ -188,6 +139,7 @@ def run_price_factor_jobs_via_pipeline(
         progress_log_label="price",
         job_id_fn=_dispatch_job_id,
         progress_units_from_report=_progress_units_from_execute_report,
+        worker_profile=WorkerProfiles.PRICE_FACTOR,
     )
     return expand_bulk_price_job_results(job_results)
 
@@ -200,6 +152,4 @@ def _count_stocks(jobs: List[Dict[str, Any]]) -> int:
             total += len(ids)
         elif job.get("stock_jobs"):
             total += len(job.get("stock_jobs") or [])
-        elif job.get("stock_id"):
-            total += 1
     return total

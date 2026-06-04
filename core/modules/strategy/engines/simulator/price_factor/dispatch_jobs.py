@@ -35,19 +35,18 @@ def build_price_dispatch_jobs(
         if not stock_jobs:
             continue
         head = stock_jobs[0]
-        job: Dict[str, Any] = {
-            "job_id": dispatch_job_id(idx, chunk),
-            "stock_ids": list(chunk),
-            "stock_jobs": stock_jobs,
-            "strategy_name": head.get("strategy_name"),
-            "output_version_dir": head.get("output_version_dir"),
-            "config": head.get("config"),
-            "market_profile_id": head.get("market_profile_id"),
-            "backtest_calendar": head.get("backtest_calendar"),
-        }
-        if len(chunk) == 1:
-            job.update(stock_jobs[0])
-        dispatch_jobs.append(job)
+        dispatch_jobs.append(
+            {
+                "job_id": dispatch_job_id(idx, chunk),
+                "stock_ids": list(chunk),
+                "stock_jobs": stock_jobs,
+                "strategy_name": head.get("strategy_name"),
+                "output_version_dir": head.get("output_version_dir"),
+                "config": head.get("config"),
+                "market_profile_id": head.get("market_profile_id"),
+                "backtest_calendar": head.get("backtest_calendar"),
+            }
+        )
     return dispatch_jobs
 
 

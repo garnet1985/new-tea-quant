@@ -298,10 +298,6 @@ class ScenarioModel:
         # calculator.performance.update_mode: 默认 "incremental"
         if "update_mode" not in performance:
             performance["update_mode"] = "incremental"
-        
-        # calculator.performance.max_workers: 默认 "auto"
-        if "max_workers" not in performance:
-            performance["max_workers"] = "auto"
 
         if "entities_per_job" not in performance:
             performance["entities_per_job"] = "auto"

@@ -29,8 +29,8 @@ class JobPipelineSettings:
     start_method: str = "spawn"
     reserve_cores: int = 1
     """auto 时为 OS + 主进程（stage/report）保留的逻辑核数。"""
-    max_workers_cap: Optional[int] = None
-    """auto 结果的上限（可选）。"""
+    max_parallel_jobs_cap: Optional[int] = None
+    """``max_workers=auto`` 时 ProcessPool 同时 in-flight 的 job 数上限（可选）。"""
     duckdb_process_pool_scope: DuckdbProcessPoolScopeMode = "auto"
     """
     DuckDB + PROCESS 时主进程文件锁协作：
@@ -42,3 +42,5 @@ class JobPipelineSettings:
     """可选；默认用 DataManager 单例或临时实例。"""
     duckdb_resume_main_after_pool: bool = True
     """池结束后是否 resume 主库；Tag spill 收尾写库前可设为 False。"""
+    worker_profile: str = "default"
+    """``worker.json`` → ``job_pipeline`` profile 名（``max_workers=auto`` 时使用）。"""

@@ -1,13 +1,20 @@
-"""价格因子：时间探针 + dispatch 规划。"""
+"""价格因子：dispatch 规划（entities_per_job 为主旋钮）。"""
 from __future__ import annotations
 
+import logging
+import math
 from typing import Any, Dict, List, Optional
 
+from core.infra.job_pipeline.worker_profile import (
+    WorkerProfiles,
+    resolve_pipeline_workers,
+)
 from core.infra.worker.dispatch_time_planner import (
     TimeDispatchPlan,
     resolve_time_dispatch_plan,
 )
 from core.modules.strategy.engines.simulator.price_factor.data_classes.settings import (
+    DEFAULT_PRICE_ENTITIES_PER_JOB,
     StrategyPriceSimulatorSettings,
 )
 from core.modules.strategy.services.execution.price_dispatch_probe import (
@@ -15,6 +22,7 @@ from core.modules.strategy.services.execution.price_dispatch_probe import (
 )
 
 LOG_LABEL = "价格因子"
+logger = logging.getLogger(__name__)
 
 
 def release_main_duckdb_handles(data_mgr: Any = None) -> None:
@@ -37,13 +45,10 @@ def release_main_duckdb_handles(data_mgr: Any = None) -> None:
 def price_performance_dict(config: StrategyPriceSimulatorSettings) -> Dict[str, Any]:
     raw = dict(config.price_simulator)
     perf: Dict[str, Any] = {
-        "max_workers": config.max_workers,
-        "entities_per_job": raw.get("entities_per_job", "auto"),
-        "reserve_cores": raw.get("reserve_cores", 1),
-        "dispatch_probe": raw.get("dispatch_probe", True),
+        "entities_per_job": raw.get("entities_per_job", DEFAULT_PRICE_ENTITIES_PER_JOB),
+        "dispatch_probe": raw.get("dispatch_probe", False),
     }
     for key in (
-        "max_workers_cap",
         "dispatch_probe_entities",
         "dispatch_probe_safety_factor",
         "sec_per_entity_staged",
@@ -94,6 +99,40 @@ def resolve_price_timing_metrics(
     )
 
 
+def _resolve_explicit_entities_plan(
+    *,
+    total_stocks: int,
+    performance: Dict[str, Any],
+) -> TimeDispatchPlan:
+    entities_per_job = max(1, int(performance["entities_per_job"]))
+    dispatch_jobs = max(1, math.ceil(total_stocks / entities_per_job)) if total_stocks else 0
+    max_workers = resolve_pipeline_workers(
+        worker_id=WorkerProfiles.PRICE_FACTOR,
+        dispatch_jobs=dispatch_jobs,
+    )
+    run_in_main = bool(performance.get("force_main_process", False))
+    plan = TimeDispatchPlan(
+        entities_per_job=entities_per_job,
+        max_workers=max_workers,
+        dispatch_jobs=dispatch_jobs,
+        run_in_main_process=run_in_main,
+        sec_per_entity=0.0,
+        sec_per_job_overhead=0.0,
+        estimated_wall_sec=0.0,
+        source_entities_per_job="settings",
+        source_max_workers="profile_auto",
+    )
+    logger.info(
+        "%s 调度: entities=%s, entities_per_job=%s, jobs=%s, pool_workers=%s",
+        LOG_LABEL,
+        total_stocks,
+        plan.entities_per_job,
+        plan.dispatch_jobs,
+        plan.max_workers,
+    )
+    return plan
+
+
 def resolve_price_dispatch_plan(
     *,
     total_stocks: int,
@@ -101,6 +140,12 @@ def resolve_price_dispatch_plan(
     measured_timing: Optional[Any] = None,
 ) -> TimeDispatchPlan:
     perf = price_performance_dict(config)
+    if entities_per_job_is_explicit(perf):
+        return _resolve_explicit_entities_plan(
+            total_stocks=total_stocks,
+            performance=perf,
+        )
+
     sec_c, sec_o = resolve_price_timing_metrics(
         performance=perf,
         measured=measured_timing,
@@ -111,6 +156,7 @@ def resolve_price_dispatch_plan(
         sec_per_entity=sec_c,
         sec_per_job_overhead=sec_o,
         log_label=LOG_LABEL,
+        worker_profile=WorkerProfiles.PRICE_FACTOR,
     )
 
 

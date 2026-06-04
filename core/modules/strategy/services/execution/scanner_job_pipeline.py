@@ -6,7 +6,7 @@ import logging
 from typing import Any, Callable, Dict, List, Optional
 
 from core.infra.job_pipeline import JobContext
-from core.infra.job_pipeline.probe import WorkerProbe
+from core.infra.job_pipeline.worker_profile import WorkerProfiles, resolve_pipeline_workers
 from core.infra.worker.multi_process.process_worker import JobResult
 
 from .stock_job_pipeline import run_stock_jobs_via_pipeline
@@ -51,7 +51,7 @@ def execute_scanner_job(context: JobContext) -> Dict[str, Any]:
 
 
 def resolve_scanner_max_workers(max_workers: Any) -> int:
-    return WorkerProbe.resolve(max_workers)
+    return resolve_pipeline_workers(worker_id=WorkerProfiles.SCANNER)
 
 
 def run_scanner_jobs_via_pipeline(
@@ -73,4 +73,5 @@ def run_scanner_jobs_via_pipeline(
         run_name=run_name,
         on_job_progress=on_job_progress,
         progress_log_label="scanner",
+        worker_profile=WorkerProfiles.SCANNER,
     )

@@ -15,6 +15,8 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.setting
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_PRICE_ENTITIES_PER_JOB: int = 1000
+
 if TYPE_CHECKING:
     from core.modules.strategy.engines.shared.data_classes.strategy_settings.strategy_settings import (
         StrategySettings,
@@ -43,14 +45,9 @@ class StrategyPriceSimulatorSettings(SettingsBase):
 
     def apply_defaults(self) -> None:
         ps = self.price_simulator
-        if "base_version" not in ps and "output_version" in ps:
-            ps["base_version"] = ps.get("output_version") or "latest"
         ps.setdefault("base_version", "latest")
-        ps.setdefault("max_workers", "auto")
-        ps.setdefault("entities_per_job", "auto")
-        ps.setdefault("dispatch_probe", True)
-        ps.setdefault("reserve_cores", 1)
-        ps.setdefault("max_workers_cap", 4)
+        ps.setdefault("entities_per_job", DEFAULT_PRICE_ENTITIES_PER_JOB)
+        ps.setdefault("dispatch_probe", False)
 
     def validate(self) -> ValidationReport:
         result = SettingsBase.new_validation()
@@ -59,23 +56,16 @@ class StrategyPriceSimulatorSettings(SettingsBase):
         bv = str(self.price_simulator.get("base_version") or "latest")
         if bv != "latest":
             SettingsBase.add_warning(result, "price_simulator.base_version", f"指定 base_version={bv}")
-        self._validate_max_workers(result)
+        SettingsBase.warn_ignored_pipeline_pool_keys(
+            result, self.price_simulator, field_prefix="price_simulator"
+        )
         SettingsBase.log_warnings(result, logger)
         self._price_simulator_validated = True
         return result
 
-    def _validate_max_workers(self, result: ValidationReport) -> None:
-        ps = self.price_simulator
-        SettingsBase.validate_max_workers_field(
-            report=result,
-            container=ps,
-            key="max_workers",
-            field_path="price_simulator.max_workers",
-            invalid_message='price_simulator.max_workers 须为 "auto" 或正整数',
-        )
-
     def to_dict(self) -> Dict[str, Any]:
         out = self.deep_copy_dict(dict(self.price_simulator))
+        SettingsBase.strip_ignored_pipeline_pool_keys(out)
         for key in ("use_sampling", "start_date", "end_date", "fees"):
             out.pop(key, None)
         return out
@@ -92,7 +82,7 @@ class StrategyPriceSimulatorSettings(SettingsBase):
     @property
     def base_version(self) -> str:
         ps = self.price_simulator
-        return str(ps.get("base_version") or ps.get("output_version") or "latest") or "latest"
+        return str(ps.get("base_version") or "latest") or "latest"
 
     @property
     def start_date(self) -> str:
@@ -105,35 +95,15 @@ class StrategyPriceSimulatorSettings(SettingsBase):
         return str(s.get("end_date", "") or "").strip()
 
     @property
-    def max_workers(self) -> Union[Literal["auto"], int]:
-        return SettingsBase.parse_max_workers(
-            self.price_simulator.get("max_workers", "auto")
-        )
-
-    @property
     def entities_per_job(self) -> Union[Literal["auto"], int]:
-        raw = self.price_simulator.get("entities_per_job", "auto")
+        raw = self.price_simulator.get("entities_per_job", DEFAULT_PRICE_ENTITIES_PER_JOB)
         if raw in (None, "", "auto"):
             return "auto"
         return max(1, int(raw))
 
     @property
     def dispatch_probe(self) -> bool:
-        return bool(self.price_simulator.get("dispatch_probe", True))
-
-    @property
-    def max_workers_cap(self) -> int:
-        try:
-            return max(1, int(self.price_simulator.get("max_workers_cap", 4)))
-        except (TypeError, ValueError):
-            return 4
-
-    @property
-    def reserve_cores(self) -> int:
-        try:
-            return max(0, int(self.price_simulator.get("reserve_cores", 1)))
-        except (TypeError, ValueError):
-            return 1
+        return bool(self.price_simulator.get("dispatch_probe", False))
 
     @property
     def fees(self) -> Dict[str, Any]:
@@ -142,5 +112,6 @@ class StrategyPriceSimulatorSettings(SettingsBase):
 
 
 __all__ = [
+    "DEFAULT_PRICE_ENTITIES_PER_JOB",
     "StrategyPriceSimulatorSettings",
 ]

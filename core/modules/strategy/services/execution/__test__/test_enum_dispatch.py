@@ -18,7 +18,7 @@ def _enum_settings(raw: dict) -> OpportunityEnumeratorSettings:
 
 
 def test_explicit_entities_per_job():
-    settings = _enum_settings({"entities_per_job": 50, "max_workers": 4})
+    settings = _enum_settings({"entities_per_job": 50})
     assert resolve_entities_per_job(total_stocks=100, enum_settings=settings) == 50
 
 
@@ -27,7 +27,7 @@ def test_explicit_entities_per_job():
     return_value=(16384.0, 8192.0),
 )
 def test_auto_with_measured_mb(mock_vm):
-    settings = _enum_settings({"entities_per_job": "auto", "max_workers": "auto"})
+    settings = _enum_settings({"entities_per_job": "auto"})
     plan = resolve_enum_dispatch_plan(
         total_stocks=1000,
         enum_settings=settings,

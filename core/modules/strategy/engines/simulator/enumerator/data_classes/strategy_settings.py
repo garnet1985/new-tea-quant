@@ -50,7 +50,6 @@ class StrategyEnumeratorSettings(SettingsBase):
 
     def apply_defaults(self) -> None:
         e = self.enumerator
-        e.setdefault("max_workers", "auto")
         e.setdefault("is_verbose", False)
         e.setdefault("memory_budget_mb", "auto")
         e.setdefault("warmup_batch_size", "auto")
@@ -77,19 +76,15 @@ class StrategyEnumeratorSettings(SettingsBase):
             result.is_valid = False
 
         self._validate_numeric_fields(result)
+        SettingsBase.warn_ignored_pipeline_pool_keys(
+            result, self.enumerator, field_prefix="enumerator"
+        )
         SettingsBase.log_warnings(result, logger)
         self._enumerator_validated = True
         return result
 
     def _validate_numeric_fields(self, result: ValidationReport) -> None:
         e = self.enumerator
-        SettingsBase.validate_max_workers_field(
-            report=result,
-            container=e,
-            key="max_workers",
-            field_path="enumerator.max_workers",
-            invalid_message='enumerator.max_workers 须为 "auto" 或正整数',
-        )
 
         mi = e.get("monitor_interval", 5)
         try:
@@ -113,7 +108,9 @@ class StrategyEnumeratorSettings(SettingsBase):
                 e["entities_per_job"] = "auto"
 
     def to_dict(self) -> Dict[str, Any]:
-        return self.deep_copy_dict(dict(self.enumerator))
+        out = self.deep_copy_dict(dict(self.enumerator))
+        SettingsBase.strip_ignored_pipeline_pool_keys(out)
+        return out
 
     @property
     def use_sampling(self) -> bool:
@@ -121,10 +118,6 @@ class StrategyEnumeratorSettings(SettingsBase):
         if isinstance(s, dict):
             return bool(s.get("use_sampling", False))
         return False
-
-    @property
-    def max_workers(self) -> Union[Literal["auto"], int]:
-        return SettingsBase.parse_max_workers(self.enumerator.get("max_workers", "auto"))
 
     @property
     def is_verbose(self) -> bool:

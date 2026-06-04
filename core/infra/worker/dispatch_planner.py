@@ -15,7 +15,11 @@ import math
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
-from core.infra.job_pipeline.probe import WorkerProbe
+from core.infra.job_pipeline.worker_profile import (
+    WorkerProfiles,
+    profile_reserve_cores,
+    resolve_pipeline_workers,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +140,7 @@ def resolve_dispatch_plan(
     log_label: str = "调度",
     debug_entities_per_job: Optional[int] = None,
     measured_mb_per_entity: Optional[float] = None,
+    worker_profile: str = WorkerProfiles.DEFAULT,
 ) -> DispatchPlan:
     """
     解析一次 run 的分组与进程数。
@@ -155,11 +160,7 @@ def resolve_dispatch_plan(
     )
     memory_budget_mb, memory_floor_mb = resolve_memory_budget_mb(performance)
 
-    cpu_workers = WorkerProbe.resolve(
-        performance.get("max_workers", "auto"),
-        reserve_cores=int(performance.get("reserve_cores", 1)),
-        cap=performance.get("max_workers_cap"),
-    )
+    cpu_workers = resolve_pipeline_workers(worker_id=worker_profile)
 
     if ep_override is not None:
         entities_per_job = _clamp_entities(ep_override, performance)
@@ -183,13 +184,9 @@ def resolve_dispatch_plan(
 
     memory_workers = max(1, int(memory_budget_mb / worker_job_budget_mb))
     max_workers = max(1, min(cpu_workers, memory_workers))
-    mw_source = "auto"
-    if performance.get("max_workers") not in (None, "", "auto") and not isinstance(
-        performance.get("max_workers"), str
-    ):
-        mw_source = "settings"
+    mw_source = "profile_auto"
     if max_workers < cpu_workers:
-        mw_source = f"{mw_source}+memory_cap"
+        mw_source = "profile_auto+memory_cap"
 
     prefetch = performance.get("prefetch_ahead")
     if prefetch is None:

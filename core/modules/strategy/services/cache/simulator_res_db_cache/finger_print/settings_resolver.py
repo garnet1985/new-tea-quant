@@ -59,6 +59,7 @@ _DROP_ROOT_BLOCKS: FrozenSet[str] = frozenset({"scanner"})
 _IGNORE_ENUMERATOR_KEYS: FrozenSet[str] = frozenset(
     {
         "max_workers",
+        "max_parallel_jobs_cap",
         "is_verbose",
         "memory_budget_mb",
         "warmup_batch_size",
@@ -80,6 +81,11 @@ _IGNORE_SIMULATION_RETENTION_KEYS: FrozenSet[str] = frozenset(
 _IGNORE_PRICE_SIMULATOR_KEYS: FrozenSet[str] = frozenset(
     {
         "max_workers",
+        "max_parallel_jobs_cap",
+        "entities_per_job",
+        "dispatch_probe",
+        "sec_per_entity_staged",
+        "sec_per_job_overhead_staged",
         "start_date",
         "end_date",
         "fees",
@@ -89,6 +95,7 @@ _IGNORE_PRICE_SIMULATOR_KEYS: FrozenSet[str] = frozenset(
 _IGNORE_CAPITAL_SIMULATOR_KEYS: FrozenSet[str] = frozenset(
     {
         "max_workers",
+        "max_parallel_jobs_cap",
         "start_date",
         "end_date",
         "fees",

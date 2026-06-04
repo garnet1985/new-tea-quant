@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from core.infra.job_pipeline.worker_profile import WorkerProfiles
 from core.infra.worker.dispatch_planner import DispatchPlan, resolve_dispatch_plan
 from core.infra.worker.dispatch_probe import should_run_dispatch_probe
 from core.modules.strategy.engines.simulator.enumerator.data_classes.settings import (
@@ -22,15 +23,12 @@ def enumerator_performance_dict(
     """将 enumerator 配置转为 dispatch_planner 可读形态。"""
     raw = dict(enum_settings.raw.get("enumerator") or {})
     perf: Dict[str, Any] = {
-        "max_workers": enum_settings.max_workers,
         "memory_budget_mb": raw.get("memory_budget_mb", "auto"),
         "memory_floor_mb": raw.get("memory_floor_mb", "auto"),
         "entities_per_job": raw.get("entities_per_job", "auto"),
-        "reserve_cores": raw.get("reserve_cores", 1),
         "dispatch_probe": raw.get("dispatch_probe", True),
     }
     for key in (
-        "max_workers_cap",
         "entities_per_job_min",
         "entities_per_job_max",
         "mb_per_entity_staged",
@@ -75,6 +73,7 @@ def resolve_enum_dispatch_plan(
         performance=enumerator_performance_dict(enum_settings),
         log_label=LOG_LABEL,
         measured_mb_per_entity=measured_mb_per_entity,
+        worker_profile=WorkerProfiles.ENUMERATOR,
     )
 
 

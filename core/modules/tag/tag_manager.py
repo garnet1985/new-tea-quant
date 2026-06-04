@@ -34,6 +34,11 @@ from core.infra.job_pipeline import (
     RunProgress,
 )
 from core.infra.job_pipeline.probe import WorkerProbe
+from core.infra.job_pipeline.worker_profile import (
+    WorkerProfiles,
+    profile_max_parallel_jobs_cap,
+    profile_reserve_cores,
+)
 from core.infra.worker.dispatch_planner import resolve_dispatch_plan
 from core.modules.tag.components.tag_dispatch_probe import (
     DEFAULT_PROBE_ENTITIES,
@@ -439,6 +444,7 @@ class TagManager:
             log_label="Tag",
             debug_entities_per_job=_DEBUG_ENTITIES_PER_JOB,
             measured_mb_per_entity=measured_mb,
+            worker_profile=WorkerProfiles.TAG,
         )
         performance["max_workers"] = dispatch_plan.max_workers
         performance["prefetch_ahead"] = dispatch_plan.prefetch_ahead
@@ -650,8 +656,7 @@ class TagManager:
             max_workers=performance.get("max_workers", "auto"),
             batch_size=int(performance.get("batch_size", 10)),
             prefetch_ahead=int(performance.get("prefetch_ahead", 1)),
-            reserve_cores=int(performance.get("reserve_cores", 1)),
-            max_workers_cap=performance.get("max_workers_cap"),
+            worker_profile=WorkerProfiles.TAG,
             duckdb_process_pool_scope="auto",
             duckdb_data_mgr=self.data_mgr,
             duckdb_resume_main_after_pool=not duckdb_stage_spill,
@@ -738,8 +743,8 @@ class TagManager:
         dispatcher_jobs = [Job(job_id=job["id"], payload=job["payload"]) for job in jobs]
         resolved_workers = WorkerProbe.resolve(
             dispatch_settings.max_workers,
-            reserve_cores=dispatch_settings.reserve_cores,
-            cap=dispatch_settings.max_workers_cap,
+            reserve_cores=profile_reserve_cores(WorkerProfiles.TAG),
+            cap=profile_max_parallel_jobs_cap(WorkerProfiles.TAG),
         )
         logger.info(
             "[%s] 🚀 开始执行 dispatch_jobs=%s entities=%s (workers=%s, max_workers=%r, "

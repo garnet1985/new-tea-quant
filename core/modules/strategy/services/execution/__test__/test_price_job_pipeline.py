@@ -8,18 +8,33 @@ from core.modules.strategy.services.execution.price_job_pipeline import (
 from core.modules.strategy.services.execution.stock_job_pipeline import job_report_to_job_result
 
 
-def test_build_price_factor_payload_passthrough():
+def test_build_price_factor_payload_batch():
     job = {
-        "stock_id": "000001.SZ",
-        "strategy_name": "demo",
-        "opportunities_path": "/tmp/o.csv",
-        "targets_path": "/tmp/t.csv",
-        "output_version_dir": "/tmp/out",
-        "config": {"k": 1},
+        "job_id": "price_0",
+        "stock_ids": ["000001.SZ", "000002.SZ"],
+        "stock_jobs": [
+            {
+                "stock_id": "000001.SZ",
+                "strategy_name": "demo",
+                "opportunities_path": "/tmp/o1.csv",
+                "targets_path": "/tmp/t1.csv",
+                "output_version_dir": "/tmp/out",
+                "config": {"k": 1},
+            },
+            {
+                "stock_id": "000002.SZ",
+                "strategy_name": "demo",
+                "opportunities_path": "/tmp/o2.csv",
+                "targets_path": "/tmp/t2.csv",
+                "output_version_dir": "/tmp/out",
+                "config": {"k": 1},
+            },
+        ],
     }
     payload = build_price_factor_payload(job)
-    assert payload["stock_id"] == "000001.SZ"
-    assert payload["job_id"] == "000001.SZ"
+    assert payload["job_id"] == "price_0"
+    assert len(payload["stock_jobs"]) == 2
+    assert payload["stock_ids"] == ["000001.SZ", "000002.SZ"]
 
 
 def test_job_report_to_job_result_price_success():

@@ -1,4 +1,27 @@
 {
+  "job_pipeline": {
+    "_comment": "ProcessPool 并行度；策略/标签 settings 不可覆盖。default 为兜底；各 worker 可单独调 reserve_cores / max_parallel_jobs_cap（auto 时 ProcessPool 同时 in-flight job 上限）。用户可在 userspace/config/worker.json 用相同结构覆盖。",
+    "default": {
+      "reserve_cores": 1,
+      "max_parallel_jobs_cap": null
+    },
+    "enumerator": {
+      "reserve_cores": 2,
+      "max_parallel_jobs_cap": null
+    },
+    "tag": {
+      "reserve_cores": 1,
+      "max_parallel_jobs_cap": null
+    },
+    "price_factor": {
+      "reserve_cores": 1,
+      "max_parallel_jobs_cap": null
+    },
+    "scanner": {
+      "reserve_cores": 1,
+      "max_parallel_jobs_cap": null
+    }
+  },
   "module_task_config": {
     "OpportunityEnumerator": {
       "task_type": "MIXED",

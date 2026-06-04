@@ -117,7 +117,7 @@ class Scanner:
 
         job_results = run_scanner_jobs_via_pipeline(
             stock_jobs=jobs,
-            max_workers=self.settings.max_workers,
+            max_workers="auto",
             total_jobs=len(jobs),
             run_name=f"scanner:{self.strategy_name}",
             on_job_progress=on_job_done if callable(on_job_done) else None,

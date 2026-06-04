@@ -7,6 +7,11 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 from core.infra.job_pipeline.probe import WorkerProbe
+from core.infra.job_pipeline.worker_profile import (
+    WorkerProfiles,
+    profile_max_parallel_jobs_cap,
+    profile_reserve_cores,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +61,7 @@ def resolve_time_dispatch_plan(
     sec_per_entity: float,
     sec_per_job_overhead: float,
     log_label: str = "调度",
+    worker_profile: str = WorkerProfiles.PRICE_FACTOR,
 ) -> TimeDispatchPlan:
     """
     时间探针驱动的 dispatch 规划。
@@ -66,22 +72,6 @@ def resolve_time_dispatch_plan(
     total_entities = max(0, int(total_entities))
     c = max(0.0, float(sec_per_entity))
     o = max(0.0, float(sec_per_job_overhead))
-
-    ep_override = _parse_int_override(performance, "entities_per_job")
-    mw_override_raw = performance.get("max_workers")
-    mw_explicit = mw_override_raw not in (None, "", "auto")
-
-    wmax = WorkerProbe.resolve(
-        "auto",
-        reserve_cores=int(performance.get("reserve_cores", 1)),
-        cap=int(performance.get("max_workers_cap", DEFAULT_MAX_WORKERS_CAP)),
-    )
-    if mw_explicit:
-        wmax = WorkerProbe.resolve(
-            mw_override_raw,
-            reserve_cores=int(performance.get("reserve_cores", 1)),
-            cap=performance.get("max_workers_cap"),
-        )
 
     if total_entities <= 0:
         return TimeDispatchPlan(
@@ -96,24 +86,22 @@ def resolve_time_dispatch_plan(
             source_max_workers="empty",
         )
 
+    wmax = WorkerProbe.resolve(
+        "auto",
+        reserve_cores=profile_reserve_cores(worker_profile),
+        cap=profile_max_parallel_jobs_cap(worker_profile),
+    )
+
+    ep_override = _parse_int_override(performance, "entities_per_job")
     run_in_main = bool(performance.get("force_main_process", False))
     ep_source = "auto"
-    mw_source = "auto"
+    mw_source = "profile_auto"
 
     if ep_override is not None:
         entities_per_job = ep_override
         ep_source = "settings"
         dispatch_jobs = max(1, math.ceil(total_entities / entities_per_job))
-        max_workers = (
-            WorkerProbe.resolve(
-                mw_override_raw if mw_explicit else dispatch_jobs,
-                reserve_cores=int(performance.get("reserve_cores", 1)),
-                cap=performance.get("max_workers_cap"),
-            )
-            if mw_explicit
-            else min(wmax, dispatch_jobs)
-        )
-        mw_source = "settings" if mw_explicit else "auto_from_jobs"
+        max_workers = min(wmax, dispatch_jobs)
         wall = estimate_dispatch_wall_sec(
             total_entities=total_entities,
             max_workers=max_workers,
@@ -147,15 +135,6 @@ def resolve_time_dispatch_plan(
             if trial < best_wall:
                 best_wall = trial
                 best_w = w
-        if mw_explicit:
-            best_w = min(best_w, wmax)
-            best_wall = estimate_dispatch_wall_sec(
-                total_entities=total_entities,
-                max_workers=best_w,
-                sec_per_entity=c,
-                sec_per_job_overhead=o,
-            )
-            mw_source = "settings"
         max_workers = best_w
         entities_per_job = max(1, math.ceil(total_entities / max_workers))
         dispatch_jobs = max(1, math.ceil(total_entities / entities_per_job))

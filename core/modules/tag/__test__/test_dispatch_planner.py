@@ -10,14 +10,14 @@ def test_explicit_entities_per_job():
         total_entities=500,
         performance={
             "entities_per_job": 50,
-            "max_workers": 4,
             "mb_per_entity_staged": 0.5,
         },
         log_label="Tag",
     )
     assert plan.entities_per_job == 50
     assert plan.dispatch_jobs == 10
-    assert plan.max_workers == 4
+    assert plan.max_workers >= 1
+    assert plan.source_max_workers.startswith("profile")
     assert plan.source_entities_per_job == "settings"
 
 
@@ -30,7 +30,6 @@ def test_auto_entities_with_probe_mb(mock_vm):
         total_entities=5000,
         performance={
             "entities_per_job": "auto",
-            "max_workers": "auto",
             "memory_floor_mb": 1024,
             "worker_memory_fraction": 0.85,
         },

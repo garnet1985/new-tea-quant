@@ -57,10 +57,6 @@ class PriceFactorWorker:
         if skip:
             self._save_stock_json = lambda _summary: None  # type: ignore[method-assign]
 
-    @staticmethod
-    def execute_job(job_payload: Dict[str, Any]) -> Dict[str, Any]:
-        return PriceFactorWorker(job_payload).run()
-
     def run(self) -> Dict[str, Any]:
         self.profiler.start_timer("total")
         try:
@@ -304,11 +300,7 @@ def run_price_factor_payload(
     *,
     in_subprocess: bool = True,
 ) -> Dict[str, Any]:
-    """
-    执行单股或多股 price dispatch job。
-
-    多股时在同一进程内顺序处理（一次 bootstrap）。
-    """
+    """执行 price dispatch job（``stock_jobs`` 内顺序多股，一次 bootstrap）。"""
     import multiprocessing as mp
 
     from core.modules.strategy.services.execution.worker_runtime import (
@@ -318,19 +310,7 @@ def run_price_factor_payload(
 
     stock_jobs = job_payload.get("stock_jobs")
     if not isinstance(stock_jobs, list) or not stock_jobs:
-        single = dict(job_payload)
-        if not single.get("stock_id"):
-            ids = job_payload.get("stock_ids")
-            if isinstance(ids, list) and ids:
-                single["stock_id"] = str(ids[0])
-        use_sub = in_subprocess and mp.current_process().name != "MainProcess"
-        if use_sub:
-            bootstrap_strategy_worker_data_manager()
-        try:
-            return PriceFactorWorker.execute_job(single)
-        finally:
-            if use_sub:
-                release_strategy_worker_runtime()
+        raise ValueError("price dispatch job 缺少非空 stock_jobs")
 
     rows = [dict(j) for j in stock_jobs if isinstance(j, dict)]
     if not rows:

@@ -8,6 +8,8 @@
   python dev-cli.py -cc     # 清空 userspace/.ntq（不动仓库根 .ntq / 安装状态）
   python dev-cli.py -cu     # 清空 userspace：各策略 results/ + DB 工作台快照
   python dev-cli.py -p -v0.3.2   # 发布前：写版本/徽章 + module_info + py39 扫描 + -ic + pytest
+  python dev-cli.py -p -v0.3.2 -userspace   # 发布通过后同步 init userspace 源树与 userspace.zip
+  python dev-cli.py -userspace   # 仅打包 init userspace（不跑发布检查）
   python dev-cli.py -ex          # 打包演示数据（分层抽样 → setup/import_data 可导入 zip）
 
 也支持子命令：``ui``、``kill``、``import-check``（见 ``-h``）。
@@ -40,6 +42,7 @@ _SHORT_FLAGS: dict[str, tuple[str, dict]] = {
     "-cu": ("clear-userspace", {}),
     "-ex": ("export-init-data", {}),
     "-dbc": ("db-checkpoint", {}),
+    "-userspace": ("package-userspace", {}),
 }
 
 
@@ -159,6 +162,12 @@ def _cmd_clear_userspace(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_package_userspace(args: argparse.Namespace) -> int:
+    from devtools.quick_tools.package_init_userspace import package_init_userspace
+
+    return package_init_userspace(write_zip=not getattr(args, "no_zip", False))
+
+
 def _cmd_db_checkpoint(args: argparse.Namespace) -> int:
     """将 DuckDB 各域 WAL 合并进 .duckdb 主文件（renew 中断后可手动执行）。"""
     from pathlib import Path
@@ -252,6 +261,9 @@ def _dispatch(handler: str, forward: list[str], extra: dict) -> int:
         return _cmd_clear_userspace(ns)
     if handler == "db-checkpoint":
         return _cmd_db_checkpoint(ns)
+    if handler == "package-userspace":
+        ns = argparse.Namespace(no_zip="--no-zip" in forward)
+        return _cmd_package_userspace(ns)
     print(f"未知命令: {handler}", file=sys.stderr)
     return 2
 
@@ -274,6 +286,7 @@ def _print_help() -> None:
   -cc      删除 userspace/.ntq（不碰仓库根 .ntq / install-state）
   -cu      删除各策略 results/ 与 DB 工作台快照表
   -p -vX.Y.Z   发布准备（写 system.json / 徽章、检查 module_info、FED build、-ic、pytest）
+  -userspace   将根目录 userspace/ 打包为 setup/init_userspace（清理密钥/缓存后写 userspace.zip）
   -ex         打包演示数据 zip（见 devtools/demo_exporter/demo_data_exporter.py）
   -dbc        DuckDB：将各域 .wal 合并进 .duckdb（renew/Ctrl+C 后可用）
 
@@ -282,15 +295,19 @@ def _print_help() -> None:
            --skip-py39        跳过 Python 3.9 兼容性扫描
            --skip-ic          跳过最小依赖 import 检查
            --skip-fed-build   跳过 core/ui/fed 的 npm run build
+           -userspace         发布检查通过后同步 init userspace 源树与 zip
 
 子命令（等价）:
   ui [--kill-first]   kill [-ntq-only]   import-check   clear-cache   clear-userspace
   db-checkpoint       同 -dbc
+  package-userspace   同 -userspace
   publish -v X.Y.Z    同 -p -vX.Y.Z
   export-init-data    同 -ex（参数用 -- 转发，如 -ex -- --to-init-data）
 
 示例:
   python dev-cli.py -p -v0.3.2
+  python dev-cli.py -p -v0.3.2 -userspace
+  python dev-cli.py -userspace
   python dev-cli.py -ic -- --no-create-venv --python .ntq/ci-minimal-venv/bin/python
 """
     )
@@ -345,6 +362,18 @@ def _build_subcommand_parser() -> argparse.ArgumentParser:
     )
     p_dbc.set_defaults(func=_cmd_db_checkpoint, forward=[])
 
+    p_pu = sub.add_parser(
+        "package-userspace",
+        aliases=["pu", "pack-userspace"],
+        help="同步根 userspace/ → setup/init_userspace 并写 userspace.zip",
+    )
+    p_pu.add_argument(
+        "--no-zip",
+        action="store_true",
+        help="只更新 setup/init_userspace/userspace 源树，不写 zip",
+    )
+    p_pu.set_defaults(func=_cmd_package_userspace, forward=[])
+
     p_pub = sub.add_parser("publish", aliases=["p", "prep-release"])
     p_pub.add_argument("-v", "--version", required=True, help="目标版本 X.Y.Z 或 vX.Y.Z")
     p_pub.add_argument("--check-only", action="store_true")
@@ -352,6 +381,12 @@ def _build_subcommand_parser() -> argparse.ArgumentParser:
     p_pub.add_argument("--skip-ic", action="store_true")
     p_pub.add_argument("--skip-fed-build", action="store_true")
     p_pub.add_argument("--skip-py39", action="store_true")
+    p_pub.add_argument(
+        "-userspace",
+        "--package-userspace",
+        action="store_true",
+        help="检查通过后打包 init userspace",
+    )
     p_pub.set_defaults(func=_cmd_publish, forward=[])
 
     return parser
@@ -368,6 +403,7 @@ def _cmd_publish(args: argparse.Namespace) -> int:
             skip_ic=args.skip_ic,
             skip_fed_build=args.skip_fed_build,
             skip_py39=args.skip_py39,
+            package_userspace=getattr(args, "package_userspace", False),
         )
     )
 

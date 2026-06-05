@@ -53,10 +53,12 @@ python dev-cli -p -vx.x.x
 - 重组和收纳userspace的文件夹结构，并且更新path manager（路径管理器）的引用，让userspace更加整洁
 - 重构infra/db模块，让结构变成引擎模式，引入duckdb的写管道和自动生成文件和表的地图功能
 - 让单进程模块支持一次处理多个股票，大幅度降低IO，效率提高一倍
-- **JobPipeline 并行度**：`worker.json` → `job_pipeline` 分 profile；枚举/价格 dispatch 与 MemoryAwareScheduler 参数在各自 profile 的 `dispatch` 块；userspace 同名文件可覆盖
+- 将所有的回测引擎的性能参数收纳入global config，不再暴露给用户来config
 - 修改了策略使用采样发生变化依然会触发缓存的bug
 - 将回测引擎和标签引擎的数据加载收入数据契约中，删除硬编码。
 - 优化K线加载查询逻辑，让演示策略的回测速度提高7-10倍。（DuckDB全量3年数据回测现在需要跑约21秒，mysql约26秒，峰值内存约3GB内）
+- 清理所有模块的module info，并且加入每个模块的change log
+- 加入userspace打包命令
 
 ---
 

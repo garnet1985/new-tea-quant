@@ -44,6 +44,7 @@ class PublishPrepOptions:
     skip_ic: bool = False
     skip_fed_build: bool = False
     skip_py39: bool = False
+    package_userspace: bool = False
 
 
 def normalize_version(raw: str) -> str:
@@ -296,6 +297,17 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
         return 1
 
     print(f"{icon('success')} 自动化项已通过。", flush=True)
+
+    if opts.package_userspace:
+        if opts.check_only:
+            print("\n[跳过] init userspace 打包（--check-only）", flush=True)
+        else:
+            from devtools.quick_tools.package_init_userspace import package_init_userspace
+
+            print("\n[执行] 打包 init userspace…", flush=True)
+            if package_init_userspace() != 0:
+                return 1
+
     if not opts.check_only:
         print(
             f"请继续：更新 CHANGELOG v{version}、按需更新模块文档与 module_info 依赖项，然后提交/打 tag。",
@@ -318,9 +330,14 @@ def parse_publish_argv(argv: Sequence[str]) -> Tuple[PublishPrepOptions | None, 
     skip_ic = False
     skip_fed_build = False
     skip_py39 = False
+    package_userspace = False
     j = 0
     while j < len(rest):
         tok = rest[j]
+        if tok in ("-userspace", "--package-userspace"):
+            package_userspace = True
+            del rest[j]
+            continue
         if tok == "--check-only":
             check_only = True
             del rest[j]
@@ -363,6 +380,7 @@ def parse_publish_argv(argv: Sequence[str]) -> Tuple[PublishPrepOptions | None, 
             skip_ic=skip_ic,
             skip_fed_build=skip_fed_build,
             skip_py39=skip_py39,
+            package_userspace=package_userspace,
         ),
         rest,
     )

@@ -43,20 +43,3 @@ def test_auto_with_measured_mb(_mock_perf, mock_vm):
 def test_auto_without_probe_raises(_mock):
     with pytest.raises(ValueError, match="探针"):
         resolve_enum_dispatch_plan(total_stocks=100)
-
-
-def test_profile_dispatch_merges_defaults_and_overrides():
-    block = {
-        "enumerator": {
-            "dispatch": {"entities_per_job": 80},
-        }
-    }
-    with patch(
-        "core.infra.job_pipeline.profile.resolver._job_pipeline_block",
-        return_value=block,
-    ):
-        from core.infra.job_pipeline.profile import profile_dispatch_config
-
-        cfg = profile_dispatch_config("enumerator")
-    assert cfg["entities_per_job"] == 80
-    assert cfg["dispatch_probe"] is True

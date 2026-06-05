@@ -44,3 +44,18 @@ def test_profile_dispatch_merges_defaults():
         cfg = profile_dispatch_config(WorkerProfiles.PRICE_FACTOR)
     assert cfg["entities_per_job"] == 500
     assert cfg["dispatch_probe"] is False
+
+
+def test_profile_dispatch_merges_enumerator_defaults():
+    block = {
+        "enumerator": {
+            "dispatch": {"entities_per_job": 80},
+        }
+    }
+    with patch(
+        "core.infra.job_pipeline.profile.resolver._job_pipeline_block",
+        return_value=block,
+    ):
+        cfg = profile_dispatch_config(WorkerProfiles.ENUMERATOR)
+    assert cfg["entities_per_job"] == 80
+    assert cfg["dispatch_probe"] is True

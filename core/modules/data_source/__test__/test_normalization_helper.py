@@ -7,21 +7,10 @@ normalization_helper 单元测试
 - validate_normalized_data
 - normalize_date_field
 """
-
-import sys
-from pathlib import Path
 from typing import Any, Dict, List
 from unittest.mock import patch
 
-# 添加项目根目录到路径（与现有 UT 风格保持一致）
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
-
-try:
-    import pytest
-
-    HAS_PYTEST = True
-except ImportError:  # pragma: no cover
-    HAS_PYTEST = False
+import pytest
 
 
 class TestNormalizationHelper:
@@ -134,23 +123,4 @@ class TestNormalizationHelper:
         assert records[1]["date"] == "norm:2024/01/03"
         # 没有 date 字段的记录保持不变
         assert "date" not in records[2]
-
-
-if __name__ == "__main__":  # pragma: no cover
-    if HAS_PYTEST:
-        pytest.main([__file__])
-    else:
-        test = TestNormalizationHelper()
-        for name in [
-            "test_result_to_records_with_dataframe_like",
-            "test_result_to_records_with_list_of_dict",
-            "test_apply_schema_and_build_normalized_payload",
-            "test_validate_normalized_data_success_and_failure",
-            "test_normalize_date_field_uses_dateutils_and_updates_records",
-        ]:
-            try:
-                getattr(test, name)()
-                print(f"✅ {name} 通过")
-            except Exception as e:
-                print(f"❌ {name} 失败: {e}")
 

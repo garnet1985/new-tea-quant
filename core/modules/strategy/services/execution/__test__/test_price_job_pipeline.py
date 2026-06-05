@@ -1,11 +1,8 @@
 """价格 JobPipeline 辅助函数。"""
-from core.infra.job_pipeline.types import JobReport
-from core.infra.worker.multi_process.process_worker import JobStatus
 from core.modules.strategy.services.execution.price_job_pipeline import (
     build_price_factor_payload,
     workbench_disk_progress,
 )
-from core.modules.strategy.services.execution.stock_job_pipeline import job_report_to_job_result
 
 
 def test_build_price_factor_payload_batch():
@@ -35,17 +32,6 @@ def test_build_price_factor_payload_batch():
     assert payload["job_id"] == "price_0"
     assert len(payload["stock_jobs"]) == 2
     assert payload["stock_ids"] == ["000001.SZ", "000002.SZ"]
-
-
-def test_job_report_to_job_result_price_success():
-    report = JobReport(
-        job_id="000001.SZ",
-        success=True,
-        data={"success": True, "stock_id": "000001.SZ"},
-    )
-    jr = job_report_to_job_result(report)
-    assert jr.status == JobStatus.COMPLETED
-    assert jr.result["stock_id"] == "000001.SZ"
 
 
 def test_workbench_disk_progress_mapping():

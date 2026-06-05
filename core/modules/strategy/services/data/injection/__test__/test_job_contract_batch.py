@@ -3,13 +3,9 @@ from __future__ import annotations
 
 import sys
 import unittest
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-_ROOT = Path(__file__).resolve().parents[6]
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
-
+# 无 pandas 时注入占位模块；已安装则使用真实 pandas。
 try:
     import pandas as _pandas  # noqa: F401
 except ImportError:

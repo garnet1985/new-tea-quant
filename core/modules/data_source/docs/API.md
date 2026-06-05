@@ -1,6 +1,6 @@
 # Data Source 模块 API 文档
 
-**版本：** `0.2.0`
+**版本：** `0.3.6`
 
 本文档采用统一 API 条目格式。`BaseHandler` 除 **`execute`** 外还有大量内部阶段方法与钩子，**以 `base_class/base_handler.py` 为准**；此处只列对外主入口与数据类。
 

@@ -1,6 +1,6 @@
 # Data Contract 设计说明
 
-**版本：** `0.3.0`（0.3.0 中 **IssueResult / load_batch** 见下文「PER_ENTITY plural」；**已实现**）
+**版本：** `0.3.3`（0.3.0 中 **IssueResult / load_batch** 见下文「PER_ENTITY plural」；**已实现**）
 
 本文档描述 **`DataSpec` 字段**、**core 默认路由表摘要**、**缓存策略**、**userspace 合并**及 **Tag 专用 `DataKey.TAG`**。实现以 `mapping.py`、`data_contract_manager.py`、`cache/policy.py`、`discovery.py` 为准。
 

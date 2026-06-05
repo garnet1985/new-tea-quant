@@ -1,6 +1,6 @@
 # JobPipeline API
 
-**版本：** `0.1.0`（2026-06）
+**版本：** `0.2.0`（2026-06）
 
 **失败语义：** `execute` 未捕获异常 → 仅 `DispatchResult.failures`；返回 `success=False` 的 dict → 仍触发 `on_result`。
 

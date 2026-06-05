@@ -1,6 +1,6 @@
 # JobPipeline 架构
 
-**状态：** v0.1.0 — `job_pipeline`  
+**状态：** v0.2.0 — `job_pipeline`  
 **日期：** 2026-06-03
 
 ---

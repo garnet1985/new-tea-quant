@@ -1,6 +1,6 @@
 # Data Contract 模块 API 文档
 
-**版本：** `0.3.0`（`IssueResult` / plural `issue` **已实现**；单 `entity_id` 糖仍可用。）
+**版本：** `0.3.3`（`IssueResult` / plural `issue` **已实现**；单 `entity_id` 糖仍可用。）
 
 本文档采用统一 API 条目格式：函数名、状态、描述、诞生版本、参数（三列表格）、返回值。
 

@@ -1,6 +1,6 @@
 # Data Contract 演进路线（PER_ENTITY batch）
 
-**版本：** `0.3.0`（contract + Strategy 枚举：**已实现**；Tag 对称改造：**待做**）
+**版本：** `0.3.3`（contract + Strategy 枚举：**已实现**；Tag 对称改造：**待做**）
 
 本文档记录 **PER_ENTITY 批量签发 / 加载** 的落地顺序，与 [`DECISIONS.md`](DECISIONS.md) 决策 8–11 配套。
 

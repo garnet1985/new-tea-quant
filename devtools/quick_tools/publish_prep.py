@@ -81,6 +81,40 @@ def check_module_info_files() -> List[str]:
     return missing
 
 
+def validate_module_info_changelog() -> List[str]:
+    """``version`` 与 ``changelog[0].version`` 不一致或缺少 changelog 时返回问题描述。"""
+    import yaml
+
+    issues: List[str] = []
+    paths: List[Path] = []
+    for _, root in _MODULE_PACKAGE_ROOTS:
+        paths.extend(pkg / "module_info.yaml" for pkg in _module_package_dirs(root))
+    for _, root in _SINGLE_MODULE_ROOTS:
+        paths.append(root / "module_info.yaml")
+    for info_path in paths:
+        if not info_path.is_file():
+            continue
+        rel = info_path.relative_to(REPO_ROOT).as_posix()
+        try:
+            data = yaml.safe_load(info_path.read_text(encoding="utf-8")) or {}
+        except Exception as exc:
+            issues.append(f"{rel}: 无法解析 YAML ({exc})")
+            continue
+        ver = data.get("version")
+        changelog = data.get("changelog") or []
+        if not changelog:
+            issues.append(f"{rel}: 缺少 changelog")
+            continue
+        head = changelog[0] if isinstance(changelog[0], dict) else {}
+        if str(head.get("version")) != str(ver):
+            issues.append(
+                f"{rel}: version={ver!r} 与 changelog[0].version={head.get('version')!r} 不一致"
+            )
+        if not head.get("changes"):
+            issues.append(f"{rel}: changelog 首条 changes 为空")
+    return issues
+
+
 def update_system_json(version: str, release_date: str) -> None:
     data = json.loads(SYSTEM_JSON.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
@@ -209,7 +243,7 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
             flush=True,
         )
 
-    print("\n[检查] module_info.yaml 是否齐全（仅检查文件存在，不比对各模块 version 字段）…", flush=True)
+    print("\n[检查] module_info.yaml 是否齐全…", flush=True)
     missing = check_module_info_files()
     if missing:
         failures.append("module_info 缺失")
@@ -220,6 +254,14 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
             f"  {icon('success')} core/modules/*、core/infra/*、core/ui 均已具备 module_info.yaml",
             flush=True,
         )
+
+    changelog_issues = validate_module_info_changelog()
+    if changelog_issues:
+        failures.append("module_info changelog 校验未通过")
+        for line in changelog_issues:
+            print(f"  {icon('error')} {line}", flush=True)
+    else:
+        print(f"  {icon('success')} 各 module_info changelog 与 version 一致", flush=True)
 
     if not opts.skip_py39:
         from devtools.quick_tools.py39_compat_check import run_py39_compat_check

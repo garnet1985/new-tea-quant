@@ -17,7 +17,7 @@ python dev-cli -p -vx.x.x
 [] 有破坏性更改或者新的模块需要在module_info.yaml里更新core的依赖
 [] 检查是不是正确配置了gitignore
 [] Changelog 里注明改动和可能存在的破坏性改动
-[] 更新模块文档（模块readme，API，module_info）
+[] 更新模块文档（模块 readme，API，module_info 含 changelog）
 [] 更新项目README文档
 
 ---

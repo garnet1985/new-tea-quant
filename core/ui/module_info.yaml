@@ -5,3 +5,11 @@ description: "NTQ 前端UI基础设施：提供可视化的用户界面，通过
 dependencies:
   - modules.strategy
   - infra.project_context
+changelog:
+  - version: "0.3.0"
+    changes:
+      - 策略工作台、设置编辑与回测进度 UI
+      - Python 静态服务托管 FED 资产；header 版本号从 API 读取
+  - version: "0.2.0"
+    changes:
+      - 基础 Fed 构建链路与 launcher 集成

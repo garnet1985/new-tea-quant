@@ -1,6 +1,6 @@
 # Tag 模块 API 文档
 
-**版本：** `0.2.0`
+**版本：** `0.2.1`
 
 本文档描述包 **`core.modules.tag`** 的公开导出及 **`BaseTagWorker`** 约定实现面。配置字段与 **`TagModel`** 细节以代码与场景 **`settings.py`** 为准。
 

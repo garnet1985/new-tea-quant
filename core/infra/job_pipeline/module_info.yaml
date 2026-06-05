@@ -1,7 +1,16 @@
 name: infra.job_pipeline
-version: 0.1.0
+version: 0.2.0
 compatible_core_versions: ">=0.4.0"
 description: "并行 Job 执行管道：jobs → execute(JobContext) → on_result（线程/进程池）。"
 dependencies:
   - infra.worker
   - infra.project_context
+changelog:
+  - version: "0.2.0"
+    changes:
+      - 目录拆分为 pipeline（编排）/ runtime（执行后端）/ profile（worker.json 配置）
+      - worker.json job_pipeline 分 profile；max_parallel_jobs_cap 命名明确化
+      - 枚举/价格 dispatch 默认值迁入 profile.dispatch（不再读策略 settings）
+  - version: "0.1.0"
+    changes:
+      - 初始 JobPipeline：QUEUE / BATCH、ProcessPool / ThreadPool、JobContext 协议

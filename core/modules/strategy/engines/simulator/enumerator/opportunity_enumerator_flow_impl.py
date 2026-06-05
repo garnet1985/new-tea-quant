@@ -141,7 +141,7 @@ class OpportunityEnumeratorFlowImpl:
         return payload
 
     def resolve_runtime_workers(self) -> int:
-        from core.infra.job_pipeline.probe import WorkerProbe
+        from core.infra.job_pipeline.profile.probe import WorkerProbe
 
         return WorkerProbe.resolve(self.max_workers)
 
@@ -319,6 +319,10 @@ class OpportunityEnumeratorFlowImpl:
         max_workers: int,
         enum_settings: OpportunityEnumeratorSettings,
     ) -> List[Any]:
+        from core.infra.job_pipeline.profile import (
+            WorkerProfiles,
+            profile_dispatch_config,
+        )
         from core.infra.worker import MemoryAwareScheduler
         from core.modules.strategy.engines.simulator.enumerator.dispatch_jobs import (
             count_stocks_in_dispatch_jobs,
@@ -327,7 +331,13 @@ class OpportunityEnumeratorFlowImpl:
         from core.modules.strategy.services.progress import ProgressRecorder
 
         total_stocks = count_stocks_in_dispatch_jobs(jobs)
-        entities_per_job = max(1, int(getattr(enum_settings, "entities_per_job", 1) or 1))
+        dispatch_cfg = profile_dispatch_config(WorkerProfiles.ENUMERATOR)
+        if jobs:
+            payload = jobs[0].get("payload", jobs[0])
+            stock_ids = payload.get("stock_ids") or []
+            entities_per_job = max(1, len(stock_ids)) if stock_ids else 1
+        else:
+            entities_per_job = 1
 
         on_job_done: Optional[Callable[[Dict[str, Any]], None]] = None
         if self.workbench_strategy_name and self.workbench_run_id:
@@ -350,11 +360,11 @@ class OpportunityEnumeratorFlowImpl:
 
         scheduler = MemoryAwareScheduler(
             jobs=jobs,
-            memory_budget_mb=enum_settings.memory_budget_mb,
-            warmup_batch_size=enum_settings.warmup_batch_size,
-            min_batch_size=enum_settings.min_batch_size,
-            max_batch_size=enum_settings.max_batch_size,
-            monitor_interval=enum_settings.monitor_interval,
+            memory_budget_mb=dispatch_cfg["memory_budget_mb"],
+            warmup_batch_size=dispatch_cfg["warmup_batch_size"],
+            min_batch_size=dispatch_cfg["min_batch_size"],
+            max_batch_size=dispatch_cfg["max_batch_size"],
+            monitor_interval=int(dispatch_cfg["monitor_interval"]),
             units_per_job=entities_per_job,
             log=logger,
         )

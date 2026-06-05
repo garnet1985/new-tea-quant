@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from core.infra.job_pipeline import JobContext
-from core.infra.job_pipeline.worker_profile import WorkerProfiles
+from core.infra.job_pipeline.profile import WorkerProfiles
 from core.infra.worker.multi_process.process_worker import JobResult, JobStatus
 
 from .stock_job_pipeline import (

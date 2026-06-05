@@ -19,7 +19,7 @@ from core.infra.job_pipeline import (
     RunProgress,
 )
 from core.infra.job_pipeline.types import ExecuteMode, ExecutionBackend, JobFailurePhase
-from core.infra.job_pipeline.worker_profile import WorkerProfiles
+from core.infra.job_pipeline.profile import WorkerProfiles
 from core.infra.worker.multi_process.process_worker import JobResult, JobStatus
 
 

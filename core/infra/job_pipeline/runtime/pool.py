@@ -3,16 +3,14 @@ from __future__ import annotations
 
 import multiprocessing as mp
 from concurrent.futures import Future, ProcessPoolExecutor, ThreadPoolExecutor
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
-from core.infra.job_pipeline.hooks import ExecuteFn
+from core.infra.job_pipeline.pipeline.hooks import ExecuteFn
+from core.infra.job_pipeline.runtime.invoke import invoke_execute
 from core.infra.job_pipeline.types import ExecutionBackend, JobContext
-from core.infra.job_pipeline.worker_invoke import invoke_execute
 
 
 class ProcessJobExecutor:
-    """多进程 JobExecutor。"""
-
     def __init__(
         self,
         *,
@@ -69,8 +67,6 @@ class ProcessJobExecutor:
 
 
 class ThreadJobExecutor:
-    """多线程 JobExecutor。"""
-
     def __init__(
         self,
         *,

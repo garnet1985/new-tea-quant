@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.infra.job_pipeline.probe import WorkerProbe
+from core.infra.job_pipeline.profile.probe import WorkerProbe
 from core.infra.worker.multi_process.process_worker import (
     ExecutionMode,
     JobStatus,

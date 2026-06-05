@@ -4,7 +4,7 @@ Opportunity Enumerator Settings
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Union
+from typing import Any, Dict
 
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
@@ -22,12 +22,6 @@ class OpportunityEnumeratorSettings:
     max_workers: "str | int" = field(init=False)
     min_required_records: int = field(init=False)
     is_verbose: bool = field(init=False)
-    memory_budget_mb: Union[float, str] = field(init=False)
-    warmup_batch_size: Union[int, str] = field(init=False)
-    min_batch_size: Union[int, str] = field(init=False)
-    max_batch_size: Union[int, str] = field(init=False)
-    monitor_interval: int = field(init=False)
-    entities_per_job: int = field(init=False)
 
     def __post_init__(self) -> None:
         self._normalize_views()
@@ -73,23 +67,6 @@ class OpportunityEnumeratorSettings:
         max_workers = enumerator.get("max_workers", "auto")
         self.max_workers = max_workers
         self.is_verbose = bool(enumerator.get("is_verbose", False))
-        memory_budget = enumerator.get("memory_budget_mb", "auto")
-        self.memory_budget_mb = memory_budget if memory_budget == "auto" else float(memory_budget)
-        warmup = enumerator.get("warmup_batch_size", "auto")
-        self.warmup_batch_size = warmup if warmup == "auto" else int(warmup)
-        min_size = enumerator.get("min_batch_size", "auto")
-        self.min_batch_size = min_size if min_size == "auto" else int(min_size)
-        max_size = enumerator.get("max_batch_size", "auto")
-        self.max_batch_size = max_size if max_size == "auto" else int(max_size)
-        self.monitor_interval = int(enumerator.get("monitor_interval", 5))
-        raw_epj = enumerator.get("entities_per_job", "auto")
-        if raw_epj in (None, "", "auto"):
-            self.entities_per_job = 1
-        else:
-            try:
-                self.entities_per_job = max(1, int(raw_epj))
-            except (TypeError, ValueError):
-                self.entities_per_job = 1
 
         simulator = dict(settings.get("price_simulator") or {})
         raw_goal = settings.get("goal")
@@ -111,13 +88,4 @@ class OpportunityEnumeratorSettings:
         merged["enumerator"].pop("max_test_versions", None)
         merged["enumerator"]["max_workers"] = self.max_workers
         merged["enumerator"]["is_verbose"] = self.is_verbose
-        merged["enumerator"]["memory_budget_mb"] = self.memory_budget_mb
-        merged["enumerator"]["warmup_batch_size"] = self.warmup_batch_size
-        merged["enumerator"]["min_batch_size"] = self.min_batch_size
-        merged["enumerator"]["max_batch_size"] = self.max_batch_size
-        merged["enumerator"]["monitor_interval"] = self.monitor_interval
-        raw_epj = (self.raw.get("enumerator") or {}).get("entities_per_job")
-        merged["enumerator"]["entities_per_job"] = (
-            raw_epj if raw_epj not in (None, "") else self.entities_per_job
-        )
         return merged

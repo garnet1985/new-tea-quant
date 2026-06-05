@@ -33,8 +33,8 @@ from core.infra.job_pipeline import (
     JobReport,
     RunProgress,
 )
-from core.infra.job_pipeline.probe import WorkerProbe
-from core.infra.job_pipeline.worker_profile import (
+from core.infra.job_pipeline.profile.probe import WorkerProbe
+from core.infra.job_pipeline.profile import (
     WorkerProfiles,
     profile_max_parallel_jobs_cap,
     profile_reserve_cores,
@@ -73,7 +73,7 @@ class TagManager:
     @staticmethod
     def _resolve_worker_amount(max_workers: Any) -> int:
         """已废弃：并行度由 JobPipelineSettings / WorkerProbe 解析。"""
-        from core.infra.job_pipeline.probe import WorkerProbe
+        from core.infra.job_pipeline.profile.probe import WorkerProbe
 
         return WorkerProbe.resolve(max_workers if max_workers is not None else "auto")
 

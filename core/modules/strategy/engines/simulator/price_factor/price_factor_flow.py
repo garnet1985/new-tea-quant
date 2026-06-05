@@ -270,12 +270,10 @@ class PriceFactorFlow(BaseSimulationFlow):
 
         measured = maybe_run_price_dispatch_probe(
             per_stock_jobs=jobs,
-            config=preprocessed.simulator_config,
             data_mgr=data_mgr,
         )
         dispatch_plan = resolve_price_dispatch_plan(
             total_stocks=len(jobs),
-            config=preprocessed.simulator_config,
             measured_timing=measured,
         )
         dispatch_jobs = build_price_dispatch_jobs(

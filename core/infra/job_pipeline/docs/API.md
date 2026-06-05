@@ -1,6 +1,6 @@
 # JobPipeline API
 
-**版本：** `0.6.0`（2026-06）
+**版本：** `0.1.0`（2026-06）
 
 **失败语义：** `execute` 未捕获异常 → 仅 `DispatchResult.failures`；返回 `success=False` 的 dict → 仍触发 `on_result`。
 
@@ -14,6 +14,15 @@ from core.infra.job_pipeline import (
     ExecutionBackend,
 )
 ```
+
+子模块（按需深入）：
+
+| 路径 | 内容 |
+|------|------|
+| `pipeline/` | `JobPipeline`、`JobPipelineSettings`、hooks |
+| `runtime/` | `create_job_executor`、`ProcessJobExecutor` |
+| `profile/` | `WorkerProbe`、`WorkerProfiles`、`profile_dispatch_config` |
+| `types.py` | `Job`、`JobReport`、`DispatchResult` 等 |
 
 ---
 

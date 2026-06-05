@@ -8,7 +8,6 @@ from core.infra.job_pipeline.types import JobContext
 
 
 def invoke_execute(execute: Callable[[JobContext], Any], context: JobContext) -> Any:
-    """在 worker 内调用 execute；子进程重置 DatabaseManager 默认实例。"""
     if mp.current_process().name != "MainProcess":
         try:
             from core.infra.db import DatabaseManager

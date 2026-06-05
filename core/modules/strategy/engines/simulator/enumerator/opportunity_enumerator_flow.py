@@ -271,7 +271,6 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             worker_ref=probe.worker_ref,
             start_date=self._impl.start_date,
             end_date=self._impl.end_date,
-            enum_settings=probe.enum_settings,
             global_extra_cache={},
             market_profile_id=mp_id,
             backtest_calendar=calendar_dict,
@@ -279,7 +278,6 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         )
         dispatch_plan = resolve_enum_dispatch_plan(
             total_stocks=len(self.stock_list),
-            enum_settings=probe.enum_settings,
             measured_mb_per_entity=measured_mb,
         )
         resolved_workers = dispatch_plan.max_workers

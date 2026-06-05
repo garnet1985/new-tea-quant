@@ -6,7 +6,7 @@ import logging
 from typing import Any, Callable, Dict, List, Optional
 
 from core.infra.job_pipeline import JobContext
-from core.infra.job_pipeline.worker_profile import WorkerProfiles, resolve_pipeline_workers
+from core.infra.job_pipeline.profile import WorkerProfiles, resolve_pipeline_workers
 from core.infra.worker.multi_process.process_worker import JobResult
 
 from .stock_job_pipeline import run_stock_jobs_via_pipeline

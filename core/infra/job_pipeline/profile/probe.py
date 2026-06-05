@@ -1,4 +1,4 @@
-"""Worker 并行度探针（替代 module_name + worker.json 路径）。"""
+"""Worker 并行度探针：解析 max_workers（CPU / reserve / cap）。"""
 from __future__ import annotations
 
 import logging
@@ -19,12 +19,6 @@ class WorkerProbe:
         reserve_cores: int = 1,
         cap: Optional[int] = None,
     ) -> int:
-        """
-        解析并行 worker 数。
-
-        - ``"auto"``：``mp.cpu_count() - reserve_cores``（为 OS + 主进程留核）
-        - 整数：校验 ∈ [1, cpu×2]
-        """
         if isinstance(max_workers, str) and max_workers.lower() == "auto":
             resolved = cls._auto(reserve_cores=reserve_cores, cap=cap)
             logger.info(

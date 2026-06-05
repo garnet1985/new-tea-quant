@@ -16,7 +16,7 @@ from core.infra.job_pipeline import (
     JobReport,
     RunProgress,
 )
-from core.infra.job_pipeline.executors.pool import ProcessJobExecutor, ThreadJobExecutor
+from core.infra.job_pipeline.runtime.pool import ProcessJobExecutor, ThreadJobExecutor
 
 
 class _CollectingExecutor:

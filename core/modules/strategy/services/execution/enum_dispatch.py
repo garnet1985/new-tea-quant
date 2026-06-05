@@ -3,12 +3,12 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from core.infra.job_pipeline.worker_profile import WorkerProfiles
+from core.infra.job_pipeline.profile import (
+    WorkerProfiles,
+    profile_dispatch_config,
+)
 from core.infra.worker.dispatch_planner import DispatchPlan, resolve_dispatch_plan
 from core.infra.worker.dispatch_probe import should_run_dispatch_probe
-from core.modules.strategy.engines.simulator.enumerator.data_classes.settings import (
-    OpportunityEnumeratorSettings,
-)
 from core.modules.strategy.services.execution.enum_dispatch_probe import (
     default_probe_entity_count,
     run_enum_dispatch_probe,
@@ -17,29 +17,9 @@ from core.modules.strategy.services.execution.enum_dispatch_probe import (
 LOG_LABEL = "策略枚举"
 
 
-def enumerator_performance_dict(
-    enum_settings: OpportunityEnumeratorSettings,
-) -> Dict[str, Any]:
-    """将 enumerator 配置转为 dispatch_planner 可读形态。"""
-    raw = dict(enum_settings.raw.get("enumerator") or {})
-    perf: Dict[str, Any] = {
-        "memory_budget_mb": raw.get("memory_budget_mb", "auto"),
-        "memory_floor_mb": raw.get("memory_floor_mb", "auto"),
-        "entities_per_job": raw.get("entities_per_job", "auto"),
-        "dispatch_probe": raw.get("dispatch_probe", True),
-    }
-    for key in (
-        "entities_per_job_min",
-        "entities_per_job_max",
-        "mb_per_entity_staged",
-        "worker_memory_fraction",
-        "dispatch_probe_entities",
-        "dispatch_probe_safety_factor",
-        "main_process_reserve_mb",
-    ):
-        if raw.get(key) not in (None, ""):
-            perf[key] = raw[key]
-    return perf
+def enumerator_dispatch_dict() -> Dict[str, Any]:
+    """``worker.json`` → ``job_pipeline.enumerator.dispatch``。"""
+    return profile_dispatch_config(WorkerProfiles.ENUMERATOR)
 
 
 def entities_per_job_is_explicit(performance: Dict[str, Any]) -> bool:
@@ -49,15 +29,13 @@ def entities_per_job_is_explicit(performance: Dict[str, Any]) -> bool:
 def resolve_entities_per_job(
     *,
     total_stocks: int,
-    enum_settings: OpportunityEnumeratorSettings,
     measured_mb_per_entity: Optional[float] = None,
 ) -> int:
-    perf = enumerator_performance_dict(enum_settings)
+    perf = enumerator_dispatch_dict()
     if entities_per_job_is_explicit(perf):
         return max(1, int(perf["entities_per_job"]))
     return resolve_enum_dispatch_plan(
         total_stocks=total_stocks,
-        enum_settings=enum_settings,
         measured_mb_per_entity=measured_mb_per_entity,
     ).entities_per_job
 
@@ -65,12 +43,11 @@ def resolve_entities_per_job(
 def resolve_enum_dispatch_plan(
     *,
     total_stocks: int,
-    enum_settings: OpportunityEnumeratorSettings,
     measured_mb_per_entity: Optional[float] = None,
 ) -> DispatchPlan:
     return resolve_dispatch_plan(
         total_entities=total_stocks,
-        performance=enumerator_performance_dict(enum_settings),
+        performance=enumerator_dispatch_dict(),
         log_label=LOG_LABEL,
         measured_mb_per_entity=measured_mb_per_entity,
         worker_profile=WorkerProfiles.ENUMERATOR,
@@ -86,7 +63,6 @@ def maybe_run_enum_dispatch_probe(
     worker_ref: Dict[str, str],
     start_date: str,
     end_date: str,
-    enum_settings: OpportunityEnumeratorSettings,
     global_extra_cache: Dict[str, Any],
     market_profile_id: str,
     backtest_calendar: Dict[str, Any],
@@ -95,7 +71,7 @@ def maybe_run_enum_dispatch_probe(
     """
     auto 且未手写 mb_per_entity_staged 时试跑 1 个 bulk job，返回 measured_mb_per_entity。
     """
-    perf = enumerator_performance_dict(enum_settings)
+    perf = enumerator_dispatch_dict()
     if not should_run_dispatch_probe(
         perf,
         total_entities=len(stock_ids),

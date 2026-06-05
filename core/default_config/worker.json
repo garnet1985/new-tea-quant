@@ -1,13 +1,25 @@
 {
   "job_pipeline": {
-    "_comment": "ProcessPool 并行度；策略/标签 settings 不可覆盖。default 为兜底；各 worker 可单独调 reserve_cores / max_parallel_jobs_cap（auto 时 ProcessPool 同时 in-flight job 上限）。用户可在 userspace/config/worker.json 用相同结构覆盖。",
+    "_comment": "ProcessPool 与 dispatch 调度；策略 settings 不可覆盖。default 为兜底；各 worker 可设 reserve_cores / max_parallel_jobs_cap / dispatch。用户可在 userspace/config/worker.json 用相同结构覆盖。",
     "default": {
       "reserve_cores": 1,
       "max_parallel_jobs_cap": null
     },
     "enumerator": {
       "reserve_cores": 2,
-      "max_parallel_jobs_cap": null
+      "max_parallel_jobs_cap": null,
+      "dispatch": {
+        "memory_budget_mb": "auto",
+        "memory_floor_mb": "auto",
+        "warmup_batch_size": "auto",
+        "min_batch_size": "auto",
+        "max_batch_size": "auto",
+        "monitor_interval": 5,
+        "entities_per_job": "auto",
+        "dispatch_probe": true,
+        "entities_per_job_min": 1,
+        "entities_per_job_max": 500
+      }
     },
     "tag": {
       "reserve_cores": 1,
@@ -15,7 +27,11 @@
     },
     "price_factor": {
       "reserve_cores": 1,
-      "max_parallel_jobs_cap": null
+      "max_parallel_jobs_cap": null,
+      "dispatch": {
+        "entities_per_job": 1000,
+        "dispatch_probe": false
+      }
     },
     "scanner": {
       "reserve_cores": 1,

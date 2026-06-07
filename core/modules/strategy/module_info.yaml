@@ -8,11 +8,13 @@ dependencies:
   - modules.data_cursor
   - modules.indicator
   - infra.project_context
+  - infra.export_import
   - infra.job_pipeline
   - infra.worker
 changelog:
   - version: "0.4.0"
     changes:
+      - 策略交流包 services/package：依赖解析、export/preview/import（基于 infra.export_import）
       - 枚举/价格 performance 与 dispatch 参数迁出策略 settings，改由 worker.json profile
       - settings 指纹剔除调度键；price entities_per_job 默认改由 profile 提供
       - 回测/标签数据加载走 data_contract，去除硬编码数据源

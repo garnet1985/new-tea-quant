@@ -39,6 +39,10 @@ setup/init_data/*
 # Strategy Results
 ########################
 
+# CLI 导出的策略交流包（本地产物）
+*.strategy.zip
+*.ntq-bundle.zip
+
 ########################
 # Node / Frontend
 ########################

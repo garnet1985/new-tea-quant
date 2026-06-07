@@ -13,6 +13,7 @@ from core.modules.strategy.enums import Simulator
 
 from .cache_service import SimulatorResDbCacheService
 from .report_slot_disk_hydrate import (
+    attach_enum_opportunities_field,
     compact_capital_slot_for_cache,
     compact_enum_slot_for_cache,
     hydrate_capital_slot,
@@ -31,21 +32,22 @@ def lookup_enum_cache(
     settings_finger_print_id: str,
     env_fingerprint_id: str,
 ) -> Optional[Tuple[List[Dict[str, Any]], int]]:
-    """双指纹命中且 ``result_report.enum`` 为非空 dict 时返回 ``([payload], workbench_version)``；否则 ``None``。"""
+    """双指纹命中且 ``result_report.enum`` 为非空 dict 时返回 ``([payload], workbench_version)``。"""
+    sn = str(strategy_name).strip()
+    sfp = str(settings_finger_print_id or "").strip()
+    efp = str(env_fingerprint_id or "").strip()
     svc = SimulatorResDbCacheService()
-    row = svc.load_cache_by_fingerprints(
-        str(strategy_name),
-        str(settings_finger_print_id or "").strip(),
-        str(env_fingerprint_id or "").strip(),
-    )
+    row = svc.load_cache_by_fingerprints(sn, sfp, efp)
     if not row:
         return None
     wb_version = int((row or {}).get("version") or 0)
     rr = dict((row or {}).get("result_report") or {})
-    enum_raw = rr.get("enum")
-    if not isinstance(enum_raw, dict) or not enum_raw:
+    slot = rr.get("enum")
+    if not isinstance(slot, dict) or not slot:
         return None
-    hydrated = hydrate_enum_slot(str(strategy_name).strip(), enum_raw)
+    hydrated = attach_enum_opportunities_field(hydrate_enum_slot(sn, slot))
+    if not isinstance(hydrated, dict) or not hydrated:
+        return None
     return ([hydrated], wb_version)
 
 

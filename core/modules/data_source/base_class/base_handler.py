@@ -109,7 +109,7 @@ class BaseHandler:
         data_source_key = self.get_key()
         is_dry_run = self.context.get("is_dry_run", False)
         dry_run_status = " [DRY RUN]" if is_dry_run else ""
-        logger.info(f"🔧 [{data_source_key}] 开始预处理阶段{dry_run_status}")
+        logger.debug(f"[{data_source_key}] 开始预处理阶段{dry_run_status}")
 
         # 1. 上下文准备
         self.on_prepare_context(self.context)
@@ -144,7 +144,7 @@ class BaseHandler:
         data_source_key = self.get_key()
         is_dry_run = self.context.get("is_dry_run", False)
         dry_run_status = " [DRY RUN]" if is_dry_run else ""
-        logger.info(f"🔧 [{data_source_key}] 预处理完成: {len(jobs)} 个 job bundles{dry_run_status}")
+        logger.debug(f"[{data_source_key}] 预处理完成: {len(jobs)} 个 job bundles{dry_run_status}")
 
         return jobs
 
@@ -162,15 +162,19 @@ class BaseHandler:
         group_by_entity_list_name = (config.get_group_by_entity_list_name() if config else None) or ""
 
         if group_by_entity_list_name == "stock_list":
+            from core.modules.data_source.service.sample_stock_list import slice_stock_list
+
             # 优先使用 context 中的 stock_list（handler 可能在 on_prepare_context 中修改了）
             if "stock_list" in self.context:
                 entity_list = self.context["stock_list"]
-                return entity_list or []
-            
+                return slice_stock_list(entity_list or [])
+
             # 回退到 dependencies
             deps = self.context.get("dependencies") or {}
             entity_list = deps.get("stock_list")
-            return (entity_list or []) if entity_list is not None else []
+            if entity_list is None:
+                return []
+            return slice_stock_list(entity_list or [])
         if group_by_entity_list_name:
             # 其他 list 名（如 index_list）：从 dependencies 或 context 获取，由 handler 在 on_prepare_context 中注入
             deps = self.context.get("dependencies") or {}
@@ -247,7 +251,12 @@ class BaseHandler:
         """
         from copy import deepcopy
 
+        from core.modules.data_source.data_class.config import DataSourceConfig
+
         start_date, end_date = date_range
+        config = self.context.get("config")
+        if not isinstance(config, DataSourceConfig):
+            config = None
 
         # 基于 config.apis 构造 ApiJob 列表（每个实体一份拷贝，避免共享 params）
         base_jobs = DataSourceHandlerHelper.build_api_jobs(apis_conf)
@@ -267,6 +276,18 @@ class BaseHandler:
 
         # 注入统一的日期范围（per-entity 已由 entity_date_ranges 决定）
         apis = DataSourceHandlerHelper.add_date_range(apis, start_date, end_date)
+
+        # 按 params_mapping 注入实体字段（如 ts_code/symbol <- id），再由 on_build_job_payload 做格式转换
+        if entity_info is not None:
+            group_fields = config.get_group_fields() if config else []
+            entity_key_field = (
+                group_fields[0]
+                if group_fields
+                else (config.get_group_by_key() if config else "id")
+            )
+            DataSourceHandlerHelper.apply_entity_params_mapping(
+                entity_info, apis, apis_conf, entity_key_field or "id"
+            )
 
         # per-entity 场景：构建 job payload（使用钩子方法，允许子类自定义如何提取实体 ID 并注入参数）
         entity_id = self.on_build_job_payload(entity_info, apis, self.context)
@@ -293,7 +314,12 @@ class BaseHandler:
 
     def _inject_dependencies(self, dependencies_data):
         """注入依赖数据；无依赖时设为空字典，避免后续 .get 报错。"""
+        from core.modules.data_source.service.sample_stock_list import (
+            slice_stock_list_in_dependencies,
+        )
+
         deps = dependencies_data if dependencies_data is not None else {}
+        deps = slice_stock_list_in_dependencies(deps)
         self.context["dependencies"] = deps
         exec_meta = deps.get("_execution")
         self.context["force_refresh"] = (
@@ -329,16 +355,16 @@ class BaseHandler:
         Returns:
             Dict[str, Any]: 汇总后的抓取结果 {job_id: result}
         """
-        from core.modules.data_source.service.executor.bundle_execution_service import (
-            BundleExecutionService,
+        from core.modules.data_source.service.pipeline.runner import (
+            DataSourcePipelineRunner,
         )
 
         try:
-            executor = BundleExecutionService()
-            fetched_data = executor.execute(
+            fetched_data = DataSourcePipelineRunner().run_bundles(
                 self.context,
                 apis_job_bundles,
                 on_after_single_bundle_complete=self.on_after_single_api_job_bundle_complete,
+                on_after_batch_bundles_complete=self.on_after_batch_api_job_bundles_complete,
                 enrich_result_for_batch=self.enrich_result_for_batch,
             )
 
@@ -362,11 +388,17 @@ class BaseHandler:
     # Postprocess stage
     # ================================
     def _postprocess(self, fetched_data: Any) -> Dict[str, Any]:
-        logger.info(f"🔧 [_postprocess] 开始后处理阶段，fetched_data keys: {list(fetched_data.keys())[:5] if isinstance(fetched_data, dict) else 'N/A'}...")
+        logger.debug(
+            "[_postprocess] fetched_data keys: %s",
+            list(fetched_data.keys())[:5] if isinstance(fetched_data, dict) else "N/A",
+        )
         
         # 调用 normalize_data（子类可以覆盖此方法）
         normalized_data = self.normalize_data(self.context, fetched_data)
-        logger.info(f"🔧 [_postprocess] normalize_data 完成，返回数据条数: {len(normalized_data.get('data', [])) if isinstance(normalized_data, dict) else 0}")
+        logger.debug(
+            "[_postprocess] normalize_data 完成，条数: %s",
+            len(normalized_data.get("data", [])) if isinstance(normalized_data, dict) else 0,
+        )
 
         normalized_data = self.on_after_normalize(self.context, normalized_data)
 
@@ -470,18 +502,22 @@ class BaseHandler:
         if save_mode in ["immediate", "batch"]:
             data_list = normalized_data.get("data", []) if isinstance(normalized_data, dict) else []
             if not data_list:
-                logger.info(f"🔧 [_do_save] save_mode='{save_mode}' 且数据为空，跳过统一保存（数据已在 on_after_single_api_job_bundle_complete 中保存）")
+                logger.debug(
+                    "[_do_save] save_mode=%r 且数据为空，跳过统一保存",
+                    save_mode,
+                )
                 return normalized_data
         
-        logger.info(f"🔧 [_do_save] 开始保存阶段，normalized_data 数据条数: {len(normalized_data.get('data', [])) if isinstance(normalized_data, dict) else 0}")
+        logger.debug(
+            "[_do_save] 保存 %s 条",
+            len(normalized_data.get("data", [])) if isinstance(normalized_data, dict) else 0,
+        )
         if self._is_dry_run():
-            logger.info(f"🔧 [_do_save] Dry run 模式，跳过保存")
+            logger.debug("[_do_save] dry run，跳过保存")
             return normalized_data
         resolved = self.on_before_save(self.context, normalized_data)
         data_to_save = resolved if resolved is not None else normalized_data
-        logger.info(f"🔧 [_do_save] 准备调用 _system_save，数据条数: {len(data_to_save.get('data', [])) if isinstance(data_to_save, dict) else 0}")
         self._system_save(data_to_save)
-        logger.info(f"🔧 [_do_save] _system_save 完成")
         return data_to_save
 
     def _system_save(self, normalized_data: Dict[str, Any]) -> None:
@@ -682,27 +718,6 @@ class BaseHandler:
         """
         return apis
 
-    def on_after_single_api_job_complete(self, context: Dict[str, Any], job: ApiJobBundle, fetched_data: Dict[str, Any]) -> ApiJobBundle:
-        """
-        批次构建后的钩子。
-
-        在 job batch 构建完成后调用，子类可以：
-        - 检查批次配置
-        - 调整批次内的 ApiJobs
-        - 记录批次信息
-
-        Args:
-            context: 上下文信息
-            job_batch: 构建好的批次
-
-        Returns:
-            ApiJobBatch: 处理后的批次（默认返回原批次）
-        """
-        return fetched_data
-
-    def on_single_job_failed():
-        pass
-
     def enrich_result_for_batch(self, context: Dict[str, Any], job_bundle: Any, raw_result: Dict[str, Any]) -> Dict[str, Any]:
         """
         在 batch 模式检查 _has_actual_data 之前，允许子类丰富 result，使空结果也包含元数据（如 last_update）。
@@ -711,50 +726,73 @@ class BaseHandler:
         """
         return raw_result
 
-    def on_after_single_api_job_bundle_complete(self, context: Dict[str, Any], job_bundle: ApiJobBundle, fetched_data: Dict[str, Any]):
+    def on_after_single_api_job_bundle_complete(
+        self, context: Dict[str, Any], job_bundle: Any, fetched_data: Dict[str, Any]
+    ):
         """
-        执行单个 api job bundle 后的钩子。
-        
-        保存时机由 config.save_mode 控制：
-        - "unified"（默认）：不在此钩子中保存，数据会在 _do_save 中统一保存
-        - "immediate"：每个 bundle 完成后立即调用此钩子保存数据
-        - "batch"：累计 save_batch_size 个 bundle 后批量调用此钩子保存数据
-        
-        如果 save_mode != "unified"，子类应该在此钩子中保存数据，
-        并在 normalize_data 中返回空数据，避免重复保存。
+        immediate 模式：单 bundle 完成后保存。
+
+        默认实现委托给 on_after_batch_api_job_bundles_complete（单元素列表）。
+        batch 模式由执行器直接调用 batch 钩子，不会经过本方法。
         """
+        self.on_after_batch_api_job_bundles_complete(
+            context, [(job_bundle, fetched_data)]
+        )
         return fetched_data
 
-    def on_job_bundle_failed():
-        pass
-
-    def on_one_thread_execution_complete(self, context: Dict[str, Any], fetched_data: Dict[str, Any]):
+    def on_after_batch_api_job_bundles_complete(
+        self,
+        context: Dict[str, Any],
+        batch_items: List[Tuple[Any, Dict[str, Any]]],
+    ) -> None:
         """
-        单线程执行完成后的钩子。
+        batch 模式：save_batch_size 个 bundle（或 auto 动态阈值）完成后 **合并一次** 写入绑定表。
+
+        子类可覆盖；默认逐 bundle 标准化后合并 rows，调用 _system_save 一次。
         """
-        return fetched_data
-    
-    def on_thread_execution_error(self, error: Exception, context: Dict[str, Any], apis: List[ApiJob]) -> None:
-        """
-        执行错误时的钩子。
+        if context.get("is_dry_run") or not batch_items:
+            return
+        all_rows: List[Dict[str, Any]] = []
+        for job_bundle, fetched_data in batch_items:
+            all_rows.extend(
+                self._extract_normalized_rows_for_bundle(
+                    context, job_bundle, fetched_data
+                )
+            )
+        if not all_rows:
+            return
+        self._system_save({"data": all_rows})
+        logger.debug(
+            "[%s] batch 写入 %s bundles / %s 行",
+            context.get("data_source_key"),
+            len(batch_items),
+            len(all_rows),
+        )
 
-        当执行阶段（_executing）出现异常时调用此钩子。
-        子类可以覆盖此方法来实现自定义错误处理逻辑，例如：
-        - 记录错误日志
-        - 清理资源
-        - 重试机制
-        - 错误通知
+    def _extract_normalized_rows_for_bundle(
+        self,
+        context: Dict[str, Any],
+        job_bundle: Any,
+        fetched_data: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        """从单个 bundle 抓取结果提取待写入行（供 batch 合并）。子类可覆盖。"""
+        apis = self._apis_for_save_bundle(job_bundle)
+        if not apis or not isinstance(fetched_data, dict):
+            return []
+        partial = {k: v for k, v in fetched_data.items() if v is not None}
+        if not partial:
+            return []
+        unified = self.on_after_fetch(context, partial, apis)
+        normalized = self._normalize_data(context, unified)
+        return list(normalized.get("data") or [])
 
-        注意：此钩子不会阻止异常传播，异常仍会向上抛出。
-
-        Args:
-            error: 发生的异常
-            context: 上下文信息
-            apis: 执行时的 ApiJob 列表
-        """
-        data_source_key = context.get("data_source_key", "unknown")
-        logger.error(f"❌ 数据源 {data_source_key} 执行失败: {error}")
-
+    @staticmethod
+    def _apis_for_save_bundle(job_bundle: Any) -> List[ApiJob]:
+        if isinstance(job_bundle, ApiJob):
+            return [job_bundle]
+        if isinstance(job_bundle, ApiJobBundle):
+            return list(job_bundle.apis or [])
+        return []
 
     def on_after_fetch(self, context: Dict[str, Any], fetched_data: Dict[str, Any], apis: List[ApiJob]):
         """
@@ -859,7 +897,7 @@ class BaseHandler:
         """
         清理一批记录中的 NaN/None 等异常数值，返回清洗后的记录列表。
 
-        内部委托 record_utils 和 DBHelper 实现，子类无需关心具体细节。
+        内部委托 record_utils 实现，子类无需关心具体细节。
         """
         from core.modules.data_source.service.utils import record_utils
 

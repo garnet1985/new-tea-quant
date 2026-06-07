@@ -18,7 +18,7 @@ import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.infra.db.helpers.db_helpers import DBHelper
+from core.infra.db.engines._shared.dialect import sql_qualify_table_name
 
 from .archives import collect_table_archives
 
@@ -138,7 +138,7 @@ class SetupDataInstaller:
             existing_rows = 0
             qualified = ""
             if registered and db:
-                qualified = DBHelper.sql_qualify_table_name(db.config, target)
+                qualified = sql_qualify_table_name(db.config, target)
                 existing_rows = _count_rows_in_table(db, qualified)
             arch_names = [p.name for p in paths]
             if len(arch_names) == 1:
@@ -224,111 +224,121 @@ class SetupDataInstaller:
         if not db:
             raise RuntimeError("数据库不可用")
 
-        t_plan = time.perf_counter()
-        rows = self._build_plan_rows(dm, plan)
-        importable = [r for r in rows if r["will_import"]]
-        if not importable:
-            raise RuntimeError("没有可导入的表（均在框架中未注册 model）")
-        dt_plan = time.perf_counter() - t_plan
+        try:
+            t_plan = time.perf_counter()
+            rows = self._build_plan_rows(dm, plan)
+            importable = [r for r in rows if r["will_import"]]
+            if not importable:
+                raise RuntimeError("没有可导入的表（均在框架中未注册 model）")
+            dt_plan = time.perf_counter() - t_plan
 
-        NewTeaQuantSetup.print_check_item(
-            "done",
-            f"创建导入清单：可导入 {len(importable)} 张表（清单构建 {dt_plan:.1f}s）",
-        )
-
-        prev = self._load_progress() if not force else {}
-        same_profile = prev.get("fingerprint") == fingerprint
-        completed = prev.get("completed_tables", {}) if same_profile else {}
-        pending = [r for r in importable if completed.get(r["logical"]) != "done"]
-
-        progress_payload: Dict[str, Any] = {
-            "fingerprint": fingerprint,
-            "data_dir": str(data_dir),
-            "updated_at": int(time.time()),
-            "completed_tables": completed.copy(),
-            "total_tables": len(importable),
-            "table_order": [r["logical"] for r in importable],
-            "in_progress_table": None,
-            "interrupted_at": None,
-        }
-        self._save_progress(progress_payload)
-
-        if not pending:
-            dt_setup = time.perf_counter() - t0_all
             NewTeaQuantSetup.print_check_item(
                 "done",
-                f"所有表已在当前数据包指纹下导入完成（import_data 本步 {dt_setup:.1f}s）",
+                f"创建导入清单：可导入 {len(importable)} 张表（清单构建 {dt_plan:.1f}s）",
             )
-            self._clear_progress()
-            return
 
-        total = len(pending)
-        errors: List[Tuple[str, str]] = []
-        t_import_loop = time.perf_counter()
-        for idx, r in enumerate(pending, start=1):
-            logical = r["logical"]
-            target = r["target"]
-            paths = r["archives"]
-            model = dm.get_table(logical)
-            assert model is not None
+            prev = self._load_progress() if not force else {}
+            same_profile = prev.get("fingerprint") == fingerprint
+            completed = prev.get("completed_tables", {}) if same_profile else {}
+            pending = [r for r in importable if completed.get(r["logical"]) != "done"]
 
-            try:
-                progress_payload["in_progress_table"] = logical
-                progress_payload["updated_at"] = int(time.time())
-                self._save_progress(progress_payload)
+            progress_payload: Dict[str, Any] = {
+                "fingerprint": fingerprint,
+                "data_dir": str(data_dir),
+                "updated_at": int(time.time()),
+                "completed_tables": completed.copy(),
+                "total_tables": len(importable),
+                "table_order": [r["logical"] for r in importable],
+                "in_progress_table": None,
+                "interrupted_at": None,
+            }
+            self._save_progress(progress_payload)
 
-                t0 = time.perf_counter()
-                NewTeaQuantSetup.print_check_item(
-                    "running",
-                    f"[{idx}/{total}] 导入 {logical} -> {target}",
-                )
-                model.import_data(paths, target_table=target)
-                dt = time.perf_counter() - t0
+            if not pending:
+                dt_setup = time.perf_counter() - t0_all
                 NewTeaQuantSetup.print_check_item(
                     "done",
-                    f"[{idx}/{total}] {logical} 完成（{dt:.1f}s）",
+                    f"所有表已在当前数据包指纹下导入完成（import_data 本步 {dt_setup:.1f}s）",
                 )
-                progress_payload["completed_tables"][logical] = "done"
-                progress_payload["in_progress_table"] = None
-                progress_payload["updated_at"] = int(time.time())
-                self._save_progress(progress_payload)
-            except KeyboardInterrupt:
-                progress_payload["completed_tables"].pop(logical, None)
-                progress_payload["in_progress_table"] = None
-                progress_payload["interrupted_at"] = int(time.time())
-                progress_payload["updated_at"] = int(time.time())
-                self._save_progress(progress_payload)
+                self._clear_progress()
+                return
+
+            total = len(pending)
+            errors: List[Tuple[str, str]] = []
+            t_import_loop = time.perf_counter()
+            for idx, r in enumerate(pending, start=1):
+                logical = r["logical"]
+                target = r["target"]
+                paths = r["archives"]
+                model = dm.get_table(logical)
+                assert model is not None
+
+                try:
+                    progress_payload["in_progress_table"] = logical
+                    progress_payload["updated_at"] = int(time.time())
+                    self._save_progress(progress_payload)
+
+                    t0 = time.perf_counter()
+                    NewTeaQuantSetup.print_check_item(
+                        "running",
+                        f"[{idx}/{total}] 导入 {logical} -> {target}",
+                    )
+                    model.import_data(paths, target_table=target)
+                    dt = time.perf_counter() - t0
+                    NewTeaQuantSetup.print_check_item(
+                        "done",
+                        f"[{idx}/{total}] {logical} 完成（{dt:.1f}s）",
+                    )
+                    progress_payload["completed_tables"][logical] = "done"
+                    progress_payload["in_progress_table"] = None
+                    progress_payload["updated_at"] = int(time.time())
+                    self._save_progress(progress_payload)
+                except KeyboardInterrupt:
+                    progress_payload["completed_tables"].pop(logical, None)
+                    progress_payload["in_progress_table"] = None
+                    progress_payload["interrupted_at"] = int(time.time())
+                    progress_payload["updated_at"] = int(time.time())
+                    self._save_progress(progress_payload)
+                    NewTeaQuantSetup.print_check_item(
+                        "fail",
+                        f"[{idx}/{total}] {logical} 被中断（可重跑继续）",
+                    )
+                    raise
+                except Exception as e:
+                    logger.exception("导入失败: %s -> %s", logical, target)
+                    errors.append((logical, str(e)))
+                    progress_payload["completed_tables"].pop(logical, None)
+                    progress_payload["in_progress_table"] = None
+                    progress_payload["updated_at"] = int(time.time())
+                    self._save_progress(progress_payload)
+                    NewTeaQuantSetup.print_check_item(
+                        "fail",
+                        f"[{idx}/{total}] {logical} 失败",
+                    )
+
+            dt_import_tables = time.perf_counter() - t_import_loop
+            dt_setup_all = time.perf_counter() - t0_all
+
+            if remove_extract and not errors:
+                shutil.rmtree(extract_root, ignore_errors=True)
+
+            if errors:
                 NewTeaQuantSetup.print_check_item(
                     "fail",
-                    f"[{idx}/{total}] {logical} 被中断（可重跑继续）",
+                    f"初始化数据导入存在失败项（导入各表 {dt_import_tables:.1f}s，import_data 全程 {dt_setup_all:.1f}s）",
                 )
-                raise
-            except Exception as e:
-                logger.exception("导入失败: %s -> %s", logical, target)
-                errors.append((logical, str(e)))
-                progress_payload["completed_tables"].pop(logical, None)
-                progress_payload["in_progress_table"] = None
-                progress_payload["updated_at"] = int(time.time())
-                self._save_progress(progress_payload)
-                NewTeaQuantSetup.print_check_item(
-                    "fail",
-                    f"[{idx}/{total}] {logical} 失败",
-                )
+                raise RuntimeError(f"部分表导入失败: {errors}")
 
-        dt_import_tables = time.perf_counter() - t_import_loop
-        dt_setup_all = time.perf_counter() - t0_all
-        if remove_extract and not errors:
-            shutil.rmtree(extract_root, ignore_errors=True)
-
-        if errors:
             NewTeaQuantSetup.print_check_item(
-                "fail",
-                f"初始化数据导入存在失败项（导入各表 {dt_import_tables:.1f}s，import_data 全程 {dt_setup_all:.1f}s）",
+                "done",
+                f"初始化数据导入完成（导入各表 {dt_import_tables:.1f}s；import_data 全程 {dt_setup_all:.1f}s）",
             )
-            raise RuntimeError(f"部分表导入失败: {errors}")
-
-        NewTeaQuantSetup.print_check_item(
-            "done",
-            f"初始化数据导入完成（导入各表 {dt_import_tables:.1f}s；import_data 全程 {dt_setup_all:.1f}s）",
-        )
-        self._clear_progress()
+            self._clear_progress()
+        finally:
+            try:
+                if db is not None:
+                    db.checkpoint_duckdb()
+                    db.close()
+            except Exception as exc:
+                logger.warning("导入结束后 DuckDB CHECKPOINT/close 未完全成功: %s", exc)
+            DataManager.reset_instance()

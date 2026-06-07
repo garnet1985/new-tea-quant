@@ -56,7 +56,7 @@ def save_state(state: Dict[str, Any]) -> None:
 def userspace_ready() -> bool:
     from core.infra.project_context.path_manager import PathManager
 
-    return (PathManager.userspace() / "config" / "database" / "common.json").is_file()
+    return (PathManager.user_config() / "database" / "common.json").is_file()
 
 
 def _runtime_status(state: Dict[str, Any], profile: InstallProfileName) -> str:

@@ -51,10 +51,11 @@ class PriceFactorWorker:
         self.config_dict: Dict[str, Any] = job_payload.get("config", {})
         self.hooks_dispatcher = SimulatorHooksDispatcher(self.strategy_name)
         self.profiler = PerformanceProfiler(self.stock_id)
+        self._apply_skip_save(bool(job_payload.get("_bench_skip_save")))
 
-    @staticmethod
-    def execute_job(job_payload: Dict[str, Any]) -> Dict[str, Any]:
-        return PriceFactorWorker(job_payload).run()
+    def _apply_skip_save(self, skip: bool) -> None:
+        if skip:
+            self._save_stock_json = lambda _summary: None  # type: ignore[method-assign]
 
     def run(self) -> Dict[str, Any]:
         self.profiler.start_timer("total")
@@ -294,4 +295,61 @@ class PriceFactorWorker:
             write_dicts_to_csv(stock_path.with_suffix(".csv"), investments)
 
 
-__all__ = ["PriceFactorWorker"]
+def run_price_factor_payload(
+    job_payload: Dict[str, Any],
+    *,
+    in_subprocess: bool = True,
+) -> Dict[str, Any]:
+    """执行 price dispatch job（``stock_jobs`` 内顺序多股，一次 bootstrap）。"""
+    import multiprocessing as mp
+
+    from core.modules.strategy.services.execution.worker_runtime import (
+        bootstrap_strategy_worker_data_manager,
+        release_strategy_worker_runtime,
+    )
+
+    stock_jobs = job_payload.get("stock_jobs")
+    if not isinstance(stock_jobs, list) or not stock_jobs:
+        raise ValueError("price dispatch job 缺少非空 stock_jobs")
+
+    rows = [dict(j) for j in stock_jobs if isinstance(j, dict)]
+    if not rows:
+        return {"success": False, "bulk": True, "stock_results": [], "error": "empty stock_jobs"}
+
+    skip_save = bool(job_payload.get("_bench_skip_save"))
+    if skip_save:
+        for row in rows:
+            row["_bench_skip_save"] = True
+
+    use_sub = in_subprocess and mp.current_process().name != "MainProcess"
+    if use_sub:
+        bootstrap_strategy_worker_data_manager()
+    stock_results: List[Dict[str, Any]] = []
+    try:
+        for sub in rows:
+            try:
+                worker = PriceFactorWorker(sub)
+                stock_results.append(worker.run())
+            except Exception as exc:
+                sid = str(sub.get("stock_id") or "")
+                stock_results.append(
+                    {
+                        "success": False,
+                        "stock_id": sid,
+                        "error": str(exc),
+                    }
+                )
+    finally:
+        if use_sub:
+            release_strategy_worker_runtime()
+
+    ids = [str(r.get("stock_id") or "") for r in stock_results if r.get("stock_id")]
+    return {
+        "success": all(bool(r.get("success")) for r in stock_results),
+        "bulk": True,
+        "stock_results": stock_results,
+        "stock_ids": ids or [str(r.get("stock_id") or "") for r in rows],
+    }
+
+
+__all__ = ["PriceFactorWorker", "run_price_factor_payload"]

@@ -1,412 +1,220 @@
 # Database 模块 API 文档
 
-本文档采用统一 API 条目格式：函数名、状态、描述、诞生版本、参数（三列表格）、返回值。
+**版本：** `0.3.0`（Engine 挂载架构，2026-06）
+
+业务代码优先使用 `from core.infra.db import ...`；infra 内部按职责使用 `engines._shared.*`、`schema_manager`、`migrate_manager` 等子模块。总览见 [ARCHITECTURE.md](./ARCHITECTURE.md)、[DESIGN.md](./DESIGN.md)。
+
+---
+
+## 包导出（`core.infra.db`）
+
+| 符号 | 说明 |
+|------|------|
+| `DatabaseManager` | 统一入口，挂载一个 backend Engine |
+| `DbBaseModel` | 单表 CRUD / 导入导出 |
+| `StorageRegistry`, `STORAGE_DOMAINS` | 表 → `storage_domain`（DuckDB 路由） |
+| `Field` | 列类型定义（`engines._shared.fields`） |
+| `DbEngineAbc`, `DbTableAbc` | Engine / 表操作抽象 |
+| `EngineConfigMeta`, `build_engine_meta`, `create_engine` | 配置元信息与工厂 |
+| `BatchOperation`, `BatchWriteQueue` | 批量 SQL 与 mysql/pgsql 写队列 |
+
+未从包根导出、按需直接 import：`SchemaManager`、`MigrationManager`、`parse_database_config`、`dialect`、`row_sql` 等（见下文）。
 
 ---
 
 ## DatabaseManager
 
-### 函数名
-`DatabaseManager(config: Dict | None = None, is_verbose: bool = False)`
+按 `database_type` 挂载 **一个** Engine（`mysql` | `postgresql` | `duckdb`）。初始化后通过 `db.engine` 或本类转发方法访问连接与表操作。
 
-- 状态：`stable`
-- 描述：创建数据库管理器实例。
-- 诞生版本：`0.2.0`
-- params：
+### 构造与生命周期
 
-| 名字 | 类型 | 说明 |
+| 方法 / 属性 | 说明 | 版本 |
+|-------------|------|------|
+| `DatabaseManager(config=None, is_verbose=False)` | `config` 缺省则 `ConfigManager.load_database_config()`，经 `parse_database_config` 校验 | `0.3.0` |
+| `initialize()` | `create_engine` → `rebuild_storage_registry` →（duckdb）`rebuild_table_file_map` → `engine.initialize()`；`schema_manager` 与 engine 共享 | `0.3.0` |
+| `close()` | 关闭 engine、写队列/写管道 | `0.3.0` |
+| `set_default` / `get_default` / `reset_default` | 进程内默认实例 | `0.2.0` |
+
+### 属性
+
+| 属性 | 说明 |
+|------|------|
+| `config` | 解析后的数据库配置 dict |
+| `engine` | `DbEngineAbc` 实例（`initialize` 后非空） |
+| `engine_meta` | `EngineConfigMeta` |
+| `schema_manager` | `SchemaManager`（加载 `core/tables`、建表编排） |
+| `storage_registry` | `StorageRegistry` |
+| `database_type` | `postgresql` \| `mysql` \| `duckdb` |
+| `is_duckdb` | 是否 DuckDB backend |
+| `adapter` | 当前 engine 的主 connector（duckdb 为主域 `data`） |
+
+### 查询与连接
+
+| 方法 | 说明 | 版本 |
 |------|------|------|
-| `config` (可选) | `Dict | None` | 未传则按项目上下文加载默认配置 |
-| `is_verbose` (可选) | `bool` | 默认 `False`；是否输出详细日志 |
+| `execute_sync_query(query, params=None, domain=None)` | 同步查询，返回 `List[Dict]`；duckdb 可指定 `domain` | `0.3.0` |
+| `execute_sync_query_for_table(table_name, query, params=None)` | 按表路由域（duckdb） | `0.3.0` |
+| `get_connection()` | 连接上下文管理器 | `0.2.0` |
+| `transaction()` | 事务上下文 | `0.2.0` |
+| `get_sync_cursor(domain=None)` | `DatabaseCursor` 上下文 | `0.3.0` |
+| `get_sync_cursor_for_table(table_name)` | 按表选域（duckdb） | `0.3.0` |
+| `connection_factory_for_table(table_name)` | 供 `SchemaManager.create_table` 等使用 | `0.3.0` |
 
-- 返回值：`DatabaseManager`
+### Schema 与表
 
-### 函数名
-`initialize() -> None`
-
-- 状态：`stable`
-- 描述：初始化连接、表管理器和基础表结构。
-- 诞生版本：`0.2.0`
-- params：无
-- 返回值：`None`
-
-### 函数名
-`set_default(instance: DatabaseManager) -> None`
-
-- 状态：`stable`
-- 描述：设置全局默认数据库实例。
-- 诞生版本：`0.2.0`
-- params：
-
-| 名字 | 类型 | 说明 |
+| 方法 | 说明 | 版本 |
 |------|------|------|
-| `instance` | `DatabaseManager` | 必填 |
+| `register_table(table_name, schema)` | 注册策略等自定义表；更新 `storage_registry` | `0.3.0` |
+| `create_registered_tables()` | 创建已注册表 | `0.3.0` |
+| `create_all_base_tables()` | 加载 `core/tables` 并建表 | `0.3.0` |
+| `create_table(schema)` / `drop_table(table_name)` | DDL | `0.3.0` |
+| `load_schema_from_python(schema_file)` | 加载单个 `schema.py` | `0.3.0` |
+| `is_table_exists(table_name)` | 表是否存在 | `0.2.0` |
+| `get_table_schema` / `get_table_fields` | 读 schema 元数据 | `0.2.0` |
+| `rebuild_storage_registry()` | 从 `core/tables` 重建域映射 | `0.3.0` |
 
-- 返回值：`None`
+### DuckDB 专有
 
-### 函数名
-`get_default(auto_init: bool = True) -> DatabaseManager`
-
-- 状态：`stable`
-- 描述：获取默认数据库实例，可自动初始化。
-- 诞生版本：`0.2.0`
-- params：
-
-| 名字 | 类型 | 说明 |
+| 方法 | 说明 | 版本 |
 |------|------|------|
-| `auto_init` (可选) | `bool` | 默认 `True`；无默认实例时可自动初始化 |
+| `get_table_domain(table_name)` | 解析 `storage_domain` | `0.3.0` |
+| `duckdb_file_map_for_table(table_name)` | 域 + 配置路径 + 绝对路径 | `0.3.0` |
+| `adapter_for_table(table_name)` | 该表所在域的 connector | `0.3.0` |
+| `checkpoint_duckdb(domains=None)` | WAL CHECKPOINT | `0.3.0` |
 
-- 返回值：`DatabaseManager`
+### 批量写入
 
-### 函数名
-`reset_default() -> None`
-
-- 状态：`stable`
-- 描述：重置默认数据库实例。
-- 诞生版本：`0.2.0`
-- params：无
-- 返回值：`None`
-
-### 函数名
-`execute_sync_query(query: str, params: Any = None) -> List[Dict[str, Any]]`
-
-- 状态：`stable`
-- 描述：执行同步 SQL 查询并返回字典列表。
-- 诞生版本：`0.2.0`
-- params：
-
-| 名字 | 类型 | 说明 |
+| 方法 | 说明 | 版本 |
 |------|------|------|
-| `query` | `str` | 必填 |
-| `params` (可选) | `Any` | 参数化查询绑定值；默认 `None` |
-
-- 返回值：`List[Dict[str, Any]]`
-
-### 函数名
-`transaction() -> ContextManager[Cursor]`
-
-- 状态：`stable`
-- 描述：事务上下文，支持自动提交/回滚。
-- 诞生版本：`0.2.0`
-- params：无
-- 返回值：`ContextManager[Cursor]`
-
-### 函数名
-`get_connection() -> ContextManager[Connection]`
-
-- 状态：`stable`
-- 描述：获取数据库连接上下文。
-- 诞生版本：`0.2.0`
-- params：无
-- 返回值：`ContextManager[Connection]`
-
-### 函数名
-`get_sync_cursor() -> ContextManager[Cursor]`
-
-- 状态：`stable`
-- 描述：获取同步游标上下文。
-- 诞生版本：`0.2.0`
-- params：无
-- 返回值：`ContextManager[Cursor]`
-
-### 函数名
-`register_table(table_name: str, schema: Dict) -> None`
-
-- 状态：`stable`
-- 描述：注册自定义表 schema。
-- 诞生版本：`0.2.0`
-- params：
-
-| 名字 | 类型 | 说明 |
-|------|------|------|
-| `table_name` | `str` | 必填 |
-| `schema` | `Dict` | 必填 |
-
-- 返回值：`None`
-
-### 函数名
-`create_registered_tables() -> None`
-
-- 状态：`stable`
-- 描述：创建所有已注册的自定义表。
-- 诞生版本：`0.2.0`
-- params：无
-- 返回值：`None`
-
-### 函数名
-`is_table_exists(table_name: str) -> bool`
-
-- 状态：`stable`
-- 描述：检查表是否存在。
-- 诞生版本：`0.2.0`
-- params：
-
-| 名字 | 类型 | 说明 |
-|------|------|------|
-| `table_name` | `str` | 必填 |
-
-- 返回值：`bool`
-
-### 函数名
-`get_table_schema(table_name: str) -> Dict | None`
-
-- 状态：`stable`
-- 描述：获取指定表 schema。
-- 诞生版本：`0.2.0`
-- params：
-
-| 名字 | 类型 | 说明 |
-|------|------|------|
-| `table_name` | `str` | 必填 |
-
-- 返回值：`Dict | None`
-
-### 函数名
-`get_table_fields(table_name: str) -> List[str]`
-
-- 状态：`stable`
-- 描述：获取指定表字段列表。
-- 诞生版本：`0.2.0`
-- params：
-
-| 名字 | 类型 | 说明 |
-|------|------|------|
-| `table_name` | `str` | 必填 |
-
-- 返回值：`List[str]`
-
-### 函数名
-`queue_write(table_name: str, data_list: List[Dict], unique_keys: List[str], callback: Callable | None = None) -> None`
-
-- 状态：`stable`
-- 描述：提交批量写入任务到队列。
-- 诞生版本：`0.2.0`
-- params：
-
-| 名字 | 类型 | 说明 |
-|------|------|------|
-| `table_name` | `str` | 必填 |
-| `data_list` | `List[Dict]` | 必填 |
-| `unique_keys` | `List[str]` | 必填 |
-| `callback` (可选) | `Callable | None` | 队列刷盘后回调；默认 `None` |
-
-- 返回值：`None`
-
-### 函数名
-`flush_writes(table_name: str | None = None) -> None`
-
-- 状态：`stable`
-- 描述：主动 flush 指定表或全部写入队列。
-- 诞生版本：`0.2.0`
-- params：
-
-| 名字 | 类型 | 说明 |
-|------|------|------|
-| `table_name` (可选) | `str | None` | 仅 flush 指定表；默认 `None` 表示全部 |
-
-- 返回值：`None`
-
-### 函数名
-`wait_for_writes(timeout: float = 30.0) -> None`
-
-- 状态：`stable`
-- 描述：等待写入队列处理完成。
-- 诞生版本：`0.2.0`
-- params：
-
-| 名字 | 类型 | 说明 |
-|------|------|------|
-| `timeout` (可选) | `float` | 秒；默认 `30.0` |
-
-- 返回值：`None`
-
-### 函数名
-`get_write_stats() -> Dict[str, Any]`
-
-- 状态：`stable`
-- 描述：获取写入队列统计信息。
-- 诞生版本：`0.2.0`
-- params：无
-- 返回值：`Dict[str, Any]`
-
-### 函数名
-`get_stats() -> Dict[str, Any]`
-
-- 状态：`stable`
-- 描述：获取数据库实例状态统计。
-- 诞生版本：`0.2.0`
-- params：无
-- 返回值：`Dict[str, Any]`
-
-### 函数名
-`close() -> None`
-
-- 状态：`stable`
-- 描述：关闭连接与写入队列资源。
-- 诞生版本：`0.2.0`
-- params：无
-- 返回值：`None`
+| `queue_write(table_name, data_list, unique_keys, callback=None)` | mysql/pgsql 队列；duckdb 走 WritePipeline | `0.2.0` |
+| `flush_writes(table_name=None)` | 刷盘 | `0.2.0` |
+| `wait_for_writes(timeout=30.0)` | 等待队列/管道 | `0.2.0` |
+| `get_write_stats()` | 写入统计 | `0.2.0` |
+| `get_stats()` | 实例与 engine 状态 | `0.2.0` |
 
 ---
 
-## DbBaseModel
+## DbEngineAbc / Engine 工厂
 
-### 函数名
-`DbBaseModel(table_name: str, db: DatabaseManager | None = None)`
+| 符号 | 说明 |
+|------|------|
+| `build_engine_meta(raw_config, is_verbose=False)` | 合并配置 → `EngineConfigMeta`（含 `MysqlSettings` / `PgsqlSettings` / `DuckdbSettings`、`BatchWriteSettings`） |
+| `create_engine(meta)` | 返回 `MysqlEngine` / `PgsqlEngine` / `DuckdbEngine` |
+| `engine.table_operator(table_name)` | 单表 CRUD（`DbTableAbc`） |
+| `engine.schema_manager` | 与 `DatabaseManager.schema_manager` 同一实例 |
 
-- 状态：`stable`
-- 描述：单表操作基类构造函数。
-- 诞生版本：`0.2.0`
-- params：
+业务层**不应**直接依赖各 engine 的 `connector`，除非维护 infra 本身。
 
-| 名字 | 类型 | 说明 |
-|------|------|------|
-| `table_name` | `str` | 必填 |
-| `db` (可选) | `DatabaseManager | None` | 默认使用全局 `DatabaseManager.get_default()` |
+---
 
-- 返回值：`DbBaseModel`
+## SchemaManager（`schema_manager.py`）
 
-### 函数名
-`count(condition: str = "1=1", params: tuple = ()) -> int`
+| 职责 | 方法示例 |
+|------|----------|
+| 加载 `core/tables/**/schema.py` | `load_all_schemas`, `load_schema_from_python` |
+| DDL 生成（委托 `engines/*/schema_parser`） | `generate_create_table_sql`, `generate_add_column_sql` |
+| 建表 | `create_table`, `create_table_with_indexes`, `create_all_tables` |
+| 注册表 | `register_table`, `create_registered_tables` |
 
-- 状态：`stable`
-- 描述：按条件统计记录数。
-- 诞生版本：`0.2.0`
-- params：
+`core/tables` 下 schema 须含 `update_key`、`storage_domain`（见 [README.md](../README.md)）。
 
-| 名字 | 类型 | 说明 |
-|------|------|------|
-| `condition` (可选) | `str` | 默认 `"1=1"` |
-| `params` (可选) | `tuple` | SQL 条件绑定参数；默认 `()` |
+---
 
-- 返回值：`int`
+## MigrationManager（`migrate_manager.py`）
 
-### 函数名
-`is_exists(condition: str, params: tuple = ()) -> bool`
+升级编排门面；实现位于 `migration/`。CLI：
 
-- 状态：`stable`
-- 描述：按条件判断记录是否存在。
-- 诞生版本：`0.2.0`
-- params：
+```bash
+PYTHONPATH=<repo_root> python -m core.infra.db.migrate_manager plan --pre-mirror-snapshot <path>
+PYTHONPATH=<repo_root> python -m core.infra.db.migrate_manager apply --pre-mirror-snapshot <path> [--result-json <path>]
+```
 
-| 名字 | 类型 | 说明 |
-|------|------|------|
-| `condition` | `str` | 必填 |
-| `params` (可选) | `tuple` | SQL 条件绑定参数；默认 `()` |
+| 静态方法 | 说明 |
+|----------|------|
+| `default_snapshot_path(repo_root)` | 默认 pre-mirror 快照路径 |
+| `load_snapshot(path)` / `load_current_schemas(...)` | 旧版 / 当前期望 schema |
+| `build_plan(old, new, database_type=..., db=...)` | diff + `ExecutionPlan` |
+| `run(pre_mirror_snapshot, ...)` | `MigrationRunResult`；`apply=False` 仅 plan |
 
-- 返回值：`bool`
+Updater 子进程入口：`setup/updater/helper.spawn_database_migration_cli`。
 
-### 函数名
-`load(...) -> List[Dict[str, Any]]`
+---
 
-- 状态：`stable`
-- 描述：按条件查询多条记录（支持排序与限制）。
-- 诞生版本：`0.2.0`
-- params：见函数签名
-- 返回值：`List[Dict[str, Any]]`
+## DbBaseModel（`table_queriers/db_base_model.py`）
 
-### 函数名
-`load_one(...) -> Dict[str, Any] | None`
+单表模型；已 `initialize` 时读写优先转发 `engine.table_operator(table_name)`。
 
-- 状态：`stable`
-- 描述：按条件查询单条记录。
-- 诞生版本：`0.2.0`
-- params：见函数签名
-- 返回值：`Dict[str, Any] | None`
+常用方法：`count`, `is_exists`, `load`, `load_one`, `load_paginated`, `insert_many`, `upsert_many`, `delete`, `delete_all`，以及表级 `create_table` / `drop_table`、CSV 导入导出等（见源码与 `__test__/test_db_base_model.py`）。
 
-### 函数名
-`load_paginated(page: int = 1, page_size: int = 20, order_by: str | None = None) -> Dict[str, Any]`
+构造：`DbBaseModel(table_name, db=None)`，`db` 默认 `DatabaseManager.get_default()`。
 
-- 状态：`stable`
-- 描述：分页查询记录。
-- 诞生版本：`0.2.0`
-- params：
+---
 
-| 名字 | 类型 | 说明 |
-|------|------|------|
-| `page` (可选) | `int` | 默认 `1` |
-| `page_size` (可选) | `int` | 默认 `20` |
-| `order_by` (可选) | `str | None` | 排序子句；默认 `None` |
+## 内部领域模块（`engines/_shared`）
 
-- 返回值：`Dict[str, Any]`
+供 infra 与少量工具脚本使用，**非**包根导出：
 
-### 函数名
-`insert_many(rows: List[Dict[str, Any]], unique_keys: List[str] | None = None) -> int`
+| 模块 | 职责 |
+|------|------|
+| `config_parse` | `parse_database_config` |
+| `dialect` | 方言归一、标识符引用、`sql_qualify_table_name` |
+| `sql_identifiers` | `quote_ddl_identifier` |
+| `row_sql` | `to_columns_and_values`, `to_upsert_params`, NaN 清洗 |
+| `cursor` | `DatabaseCursor` |
+| `query_executor` | `DbQueryExecutor` Protocol |
+| `fields` | `Field` 及子类 |
+| `batch_write_settings` | mysql/pgsql 写队列配置 |
 
-- 状态：`stable`
-- 描述：批量插入数据。
-- 诞生版本：`0.2.0`
-- params：
-
-| 名字 | 类型 | 说明 |
-|------|------|------|
-| `rows` | `List[Dict[str, Any]]` | 必填 |
-| `unique_keys` (可选) | `List[str] | None` | 唯一约束列；默认 `None` |
-
-- 返回值：`int`
-
-### 函数名
-`upsert_many(rows: List[Dict[str, Any]], unique_keys: List[str]) -> int`
-
-- 状态：`stable`
-- 描述：批量 upsert 数据。
-- 诞生版本：`0.2.0`
-- params：
-
-| 名字 | 类型 | 说明 |
-|------|------|------|
-| `rows` | `List[Dict[str, Any]]` | 必填 |
-| `unique_keys` | `List[str]` | 必填 |
-
-- 返回值：`int`
-
-### 函数名
-`delete(condition: str, params: tuple = (), limit: int | None = None) -> int`
-
-- 状态：`stable`
-- 描述：按条件删除记录。
-- 诞生版本：`0.2.0`
-- params：
-
-| 名字 | 类型 | 说明 |
-|------|------|------|
-| `condition` | `str` | 必填 |
-| `params` (可选) | `tuple` | SQL 条件绑定参数；默认 `()` |
-| `limit` (可选) | `int | None` | 最大删除行数；默认 `None` 表示不限制 |
-
-- 返回值：`int`
-
-### 函数名
-`delete_all() -> int`
-
-- 状态：`stable`
-- 描述：删除表中所有记录。
-- 诞生版本：`0.2.0`
-- params：无
-- 返回值：`int`
+DuckDB 专有：`engines.duckdb.paths.resolve_duckdb_db_path`、`engines.duckdb.wal_policy`。
 
 ---
 
 ## 示例
 
 ```python
-from core.infra.db import DatabaseManager
+from core.infra.db import DatabaseManager, DbBaseModel
 
-db = DatabaseManager(is_verbose=True)
+db = DatabaseManager()
 db.initialize()
 DatabaseManager.set_default(db)
 
 rows = db.execute_sync_query(
-    "SELECT * FROM stock_list WHERE id = %s",
+    "SELECT * FROM sys_stock_list WHERE code = %s",
     ("000001.SZ",),
 )
-print(rows)
+
+model = DbBaseModel("sys_stock_list")
+n = model.count("code = %s", ("000001.SZ",))
 ```
+
+DuckDB 按表查询：
+
+```python
+rows = db.execute_sync_query_for_table(
+    "sys_tag_definition",
+    "SELECT * FROM sys_tag_definition LIMIT 10",
+)
+db.checkpoint_duckdb()
+```
+
+---
+
+## 已移除（v0.3.0 勿引用）
+
+- `ConnectionManager`、`TableManager`
+- `table_queriers/adapters/`、`DatabaseAdapterFactory`、`BaseDatabaseAdapter`
+- `core.infra.db.helpers`、`DBHelper` 门面
+- `python -m core.infra.db.migrate`（改为 `migrate_manager`）
+- Connector 别名 `MySQLAdapter` / `PostgreSQLAdapter` / `DuckDBAdapter`
 
 ---
 
 ## 相关文档
 
-- `../README.md`
-- `./ARCHITECTURE.md`
-- `./DECISIONS.md`
+- [../README.md](../README.md)
+- [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [DESIGN.md](./DESIGN.md)
+- [storage-domains.md](./storage-domains.md)
+- [DECISIONS.md](./DECISIONS.md)
+- [../engines/ARCHITECTURE.md](../engines/ARCHITECTURE.md)
+- [../__test__/README.md](../__test__/README.md)

@@ -1,6 +1,6 @@
 name: modules.strategy
-version: 0.3.3
-compatible_core_versions: ">=0.3.3"
+version: 0.4.0
+compatible_core_versions: ">=0.4.0"
 description: "策略执行主模块：StrategyManager 统一 orchestrate scan/simulate，engines 承载 scanner/enumerator/price_factor/capital_allocation/analyzer，services 提供 discovery/data/artifacts/validation 能力。"
 dependencies:
   - modules.data_manager
@@ -8,5 +8,22 @@ dependencies:
   - modules.data_cursor
   - modules.indicator
   - infra.project_context
+  - infra.job_pipeline
   - infra.worker
-
+changelog:
+  - version: "0.4.0"
+    changes:
+      - 枚举/价格 performance 与 dispatch 参数迁出策略 settings，改由 worker.json profile
+      - settings 指纹剔除调度键；price entities_per_job 默认改由 profile 提供
+      - 回测/标签数据加载走 data_contract，去除硬编码数据源
+      - 价格因子 bulk dispatch（entities_per_job）与 JobPipeline profile 集成
+  - version: "0.3.3"
+    changes:
+      - 交易日历与风险时段集成；资金回测交易量限制
+      - 枚举 metadata.stock_status_at_trigger；dev-cli py39 检查
+  - version: "0.3.2"
+    changes:
+      - simulation 模板与 market_profile 集成；工作台进度与版本指纹改进
+  - version: "0.3.0"
+    changes:
+      - 策略工作台与 UI 联动；settings 校验与指纹体系基线

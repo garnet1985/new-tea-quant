@@ -299,7 +299,7 @@ class ConfigManager:
         # 2. 确定数据库类型（优先级：参数 > 用户 common > 默认 common > 默认值）
         if database_type is None:
             # 先检查用户配置
-            common_user_path = PathManager.userspace() / "config" / "database" / "common.json"
+            common_user_path = PathManager.user_config() / "database" / "common.json"
             common_user = ConfigManager.load_json(common_user_path) or {}
             database_type = (
                 common_user.get('database_type') or 
@@ -322,11 +322,11 @@ class ConfigManager:
         }
         
         # 5. 加载用户公用配置（如果存在）
-        common_user_path = PathManager.userspace() / "config" / "database" / "common.json"
+        common_user_path = PathManager.user_config() / "database" / "common.json"
         common_user = ConfigManager.load_json(common_user_path) or {}
         
         # 6. 加载用户数据库专用配置（如果存在）
-        db_user_path = PathManager.userspace() / "config" / "database" / f"{database_type}.json"
+        db_user_path = PathManager.user_config() / "database" / f"{database_type}.json"
         db_user_raw = ConfigManager.load_json(db_user_path) or {}
         # 支持两种格式：
         #  - 扁平：{ "user": "...", "password": "..." }

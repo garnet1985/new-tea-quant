@@ -368,7 +368,7 @@ def _run_app_update() -> int:
     repo_root = Path(__file__).resolve().parent
     updater_dir = None
     for candidate in (
-        repo_root / "userspace" / "updater",
+        repo_root / "userspace" / "system" / "updater",
         repo_root / "setup" / "updater",
     ):
         if (candidate / "upgrade_entry.py").is_file():
@@ -376,7 +376,7 @@ def _run_app_update() -> int:
             break
     if updater_dir is None:
         sys.stderr.write(
-            "未找到升级器（userspace/updater 或 setup/updater）。"
+            "未找到升级器（userspace/system/updater 或 setup/updater）。"
             "请先完成 init userspace 或从仓库安装 updater。\n"
         )
         return 1
@@ -825,6 +825,14 @@ def main():
         logger.info("=" * 60)
     except KeyboardInterrupt:
         logger.warning("\n⚠️  用户中断执行")
+        try:
+            from core.infra.db.engines.duckdb.process_pool_scope import (
+                recover_after_worker_pool_interrupt,
+            )
+
+            recover_after_worker_pool_interrupt()
+        except Exception as exc:
+            logger.warning("DuckDB / worker 中断收尾未完全成功: %s", exc)
         sys.exit(0)
     except Exception as e:
         logger.error(f"❌ 执行失败: {e}")

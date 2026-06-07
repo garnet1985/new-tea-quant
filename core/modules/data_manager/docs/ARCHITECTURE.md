@@ -1,6 +1,6 @@
 # Data Manager 架构文档
 
-**版本：** `0.2.0`
+**版本：** `0.3.4`
 
 ---
 
@@ -69,3 +69,4 @@ flowchart TB
 - [API.md](API.md)
 - [DECISIONS.md](DECISIONS.md)
 - [data_services/README.md](../data_services/README.md)
+- [存储域（DuckDB）](../../../infra/db/docs/storage-domains.md)：三域划分与 `DataManager` 调用面审计

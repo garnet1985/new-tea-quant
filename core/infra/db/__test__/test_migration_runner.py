@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from core.infra.db.migrate import main as migrate_main
+from core.infra.db.migrate_manager import main as migrate_main
 from core.infra.db.migration.runner import (
     build_migration_plan,
     load_schemas_from_snapshot,
@@ -40,6 +40,7 @@ def _schema(name: str, uk: str, *, with_note: bool = False) -> dict:
     return {
         "update_key": uk,
         "name": name,
+        "storage_domain": "data",
         "primaryKey": "id",
         "fields": fields,
         "indexes": [],

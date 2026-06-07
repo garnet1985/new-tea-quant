@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 from core.infra.db.db_manager import DatabaseManager
 from core.infra.db.migration.introspection import introspect_database
 from core.infra.db.migration.plan_prune import prune_plan_for_database
-from core.infra.db.schema_management.schema_manager import SchemaManager
+from core.infra.db.schema_manager import SchemaManager
 from core.infra.db.migration.schema_diff import SchemaDiffResult, diff_expected_schemas
 from core.infra.db.migration.execution_plan import (
     ExecutionPlan,
@@ -56,10 +56,11 @@ def load_schemas_from_snapshot(path: Path) -> Dict[str, Dict[str, Any]]:
 
 
 def default_pre_mirror_snapshot_path(repo_root: Path) -> Path:
+    from core.infra.project_context.path_manager import PathManager
+
+    _ = repo_root  # 保留参数；实际路径以 PathManager.userspace() 为准
     return (
-        repo_root
-        / "userspace"
-        / ".ntq"
+        PathManager.userspace_ntq()
         / "update"
         / "cache"
         / DEFAULT_PRE_MIRROR_FILENAME

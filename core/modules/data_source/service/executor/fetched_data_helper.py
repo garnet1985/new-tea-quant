@@ -8,7 +8,7 @@ Fetched Data Helper
 - `has_group_by_config`：根据 config / apis 判断是否应走 per-entity 分组流程。
 
 该模块的实现从 `DataSourceHandlerHelper` 中抽取而来，作为独立 helper 提供给
-`BundleExecutionService` / `BaseHandler` 等调用方使用。
+`BaseHandler` / `DataSourcePipelineRunner` 等调用方使用。
 """
 
 from typing import Any, Dict, List

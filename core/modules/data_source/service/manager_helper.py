@@ -3,7 +3,7 @@ import importlib
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import logging
-from core.infra.project_context import ConfigManager, PathManager
+from core.infra.project_context import PathManager
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.data_class.config import DataSourceConfig
@@ -23,7 +23,7 @@ class DataSourceManagerHelper:
         """
         从 mapping.py 加载 DATA_SOURCES。
 
-        约定：mapping.py 中必须定义 DATA_SOURCES 字典，结构与原 mapping.json 的 data_sources 一致。
+        约定：mapping.py 中必须定义 DATA_SOURCES 字典。
         """
         if not mapping_path.exists() or mapping_path.suffix != ".py":
             return None
@@ -44,25 +44,18 @@ class DataSourceManagerHelper:
 
     @staticmethod
     def discover_mappings(mapping_path: Path):
-        """
-        发现并加载 mapping 配置。优先从 mapping.py 加载 DATA_SOURCES；
-        若路径为 .json 则从 JSON 加载（兼容旧配置）。
-        """
+        """发现并加载 mapping.py 中的 DATA_SOURCES。"""
         if not mapping_path.exists():
             logger.error(f"❌ 数据源配置文件不存在: {mapping_path}")
             raise FileNotFoundError(f"data source mapping not found: {mapping_path}")
 
-        if mapping_path.suffix == ".py":
-            data_sources = DataSourceManagerHelper.load_mapping_from_py(mapping_path)
-            if not data_sources:
-                raise ValueError(f"mapping.py 未定义或无效的 DATA_SOURCES，路径: {mapping_path}")
-        else:
-            raw = ConfigManager.load_json(mapping_path)
-            data_sources = raw.get("data_sources", {})
-            if not isinstance(data_sources, dict):
-                raise ValueError(
-                    f"data_sources 字段必须是对象(dict)，当前类型: {type(data_sources)}，文件: {mapping_path}"
-                )
+        if mapping_path.suffix != ".py":
+            raise ValueError(
+                f"data source mapping 须为 mapping.py，当前: {mapping_path}"
+            )
+        data_sources = DataSourceManagerHelper.load_mapping_from_py(mapping_path)
+        if not data_sources:
+            raise ValueError(f"mapping.py 未定义或无效的 DATA_SOURCES，路径: {mapping_path}")
 
         # 轻度校验：每个 data source 至少要有 handler 字段
         for name, cfg in data_sources.items():
@@ -98,25 +91,13 @@ class DataSourceManagerHelper:
             return None
 
     @staticmethod
-    def load_config(config_path: Path) -> Dict[str, Any]:
-        """
-        Load the config from JSON (deprecated). Prefer load_config_from_py.
-        """
-        config: Dict[str, Any] = None
-        if config_path.exists():
-            raw = ConfigManager.load_json(config_path)
-            config = {k: v for k, v in (raw or {}).items() if not k.startswith("_")}
-        return config
-
-
-    @staticmethod
     def find_handler_class_from_mappings(mapping: Dict[str, Any], name: str) -> Any:
         """
         根据 data_source 名称解析出 Handler 类。
 
         约定：
         - mapping 中的 handler 字段必须写成：
-          - 完整路径: "userspace.data_source.handlers.kline.KlineHandler"
+          - 完整路径: "userspace.extensions.data_source.handlers.kline.KlineHandler"
           - 或简写:   "kline.KlineHandler"
         """
         handler_path_raw = mapping.get("handler")
@@ -134,7 +115,7 @@ class DataSourceManagerHelper:
             return None
 
         # 从 {name}.handler 模块加载类，无需各 handler 目录下的 __init__.py
-        if module_path.startswith("userspace.data_source.handlers."):
+        if module_path.startswith("userspace.extensions.data_source.handlers."):
             handler_module_path = module_path + ".handler"
         else:
             handler_module_path = module_path
@@ -185,19 +166,19 @@ class DataSourceManagerHelper:
         标准化 handler 路径。
 
         支持三种形式：
-        - 完整路径: "userspace.data_source.handlers.kline.KlineHandler"
+        - 完整路径: "userspace.extensions.data_source.handlers.kline.KlineHandler"
         - 多级简写: "stock_klines.kline_daily.KlineDailyHandler"（支持嵌套目录）
         - 单级简写: "kline.KlineHandler"
         """
         # 已经是完整路径，直接返回
-        if handler_path.startswith("userspace.data_source.handlers."):
+        if handler_path.startswith("userspace.extensions.data_source.handlers."):
             return handler_path
 
         parts = handler_path.split(".")
         if len(parts) < 2:
             logger.error(
                 f"Handler 路径格式不正确: {handler_path}，"
-                f"期望 'module.ClassName' 或 'userspace.data_source.handlers.module.ClassName'"
+                f"期望 'module.ClassName' 或 'userspace.extensions.data_source.handlers.module.ClassName'"
             )
             raise ValueError(f"Invalid handler path: {handler_path}")
         
@@ -208,7 +189,7 @@ class DataSourceManagerHelper:
         
         # 构建完整路径
         module_path = ".".join(module_parts)
-        return f"userspace.data_source.handlers.{module_path}.{class_name}"
+        return f"userspace.extensions.data_source.handlers.{module_path}.{class_name}"
 
     @staticmethod
     def is_valid_handler(handler_cls: Any) -> bool:

@@ -21,7 +21,7 @@
 
 - **入口**：`WorkbenchSnapshotRetention.prune_oldest_if_over_limit`（`SimulatorResDbCacheService.set_cache` 后调用）。
 - **删行**：记录日志中的磁盘路径引用（**不**随删行 `rmtree` 磁盘目录）。
-- **行级复写**：`result_report._db_cache_meta.write_count`；超过 `MAX_SNAPSHOT_ROW_UPDATES`（默认 10）则删行并 `create_snapshot` 新行（见 `audit/result_report_audit.py`）。
+- **`write_count`**：`result_report._db_cache_meta.write_count` 仅作同行 merge **次数审计**；**不**触发删行、**不**分配新 `version`。工作台 `version` 仅在 **`settings_fp` / `env_fp` 变化** 时递增新行（见 [`db-cache-service.md`](./db-cache-service.md) §6.1）。
 
 ## 配置示例
 

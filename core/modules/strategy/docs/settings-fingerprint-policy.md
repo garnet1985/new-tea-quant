@@ -71,13 +71,12 @@
 | **`use_sampling`** | **参与**（`test/` 与 `output/`；若工作台已统一「全链路采样开关」，实现上勿与价格/资金两处重复矛盾）。 |
 | **`max_test_versions`** | **剔除**（仅磁盘保留个数，不改变单次计算结果）。 |
 | **`simulation.retention.max_output_versions`** | **剔除**（磁盘保留份数） |
-| **`max_workers`** | **剔除**（并发与性能） |
+| **`max_workers`** | **剔除**（全模块忽略；由 `worker.json` → JobPipeline 决定） |
+| **`max_parallel_jobs_cap`** | **剔除**（同上，系统 profile） |
 | **`is_verbose`** | **剔除** |
-| **`memory_budget_mb`** | **剔除** |
-| **`warmup_batch_size` / `min_batch_size` / `max_batch_size`** | **剔除** |
-| **`monitor_interval`** | **剔除** |
+| **调度/性能字段**（`memory_budget_mb`、`entities_per_job`、`dispatch_probe` 等） | **剔除**（已迁至 `worker.json` → `job_pipeline.*.dispatch`；策略内若仍存在则校验告警） |
 
-与代码对应：`settings_fingerprint_core.py` 中的 **`IGNORE_ENUMERATOR_KEYS`**（及同文件其它 `IGNORE_*` / **`DROP_ROOT_BLOCKS`**）。
+与代码对应：`settings_resolver.py` 中的 **`_IGNORE_ENUMERATOR_KEYS`**（及同模块其它 `IGNORE_*` / **`DROP_ROOT_BLOCKS`**）。
 
 ### `price_simulator`（第 8 节）
 
@@ -87,7 +86,11 @@
 | **`base_version`** | **参与**（锁定读取哪一版枚举产物）。 |
 | **`start_date` / `end_date`** | **参与**（若与工作台「运行范围」重复，建议 **二选一**：要么只在全局范围里算日期，要么只在 settings 里算，避免重复计入）。 |
 | **`fees`**（覆盖） | **参与**（若存在）。 |
-| **`max_workers`** | **剔除** |
+| **`max_workers`** | **剔除**（全模块忽略；由 `worker.json` → JobPipeline 决定） |
+| **`max_parallel_jobs_cap`** | **剔除** |
+| **调度/性能字段**（`entities_per_job`、`dispatch_probe`、`sec_per_entity_staged` 等） | **剔除**（已迁至 `worker.json` → `job_pipeline.price_factor.dispatch`） |
+
+与代码对应：`settings_resolver.py` 中的 **`_IGNORE_PRICE_SIMULATOR_KEYS`**。
 
 ### `capital_simulator`（第 9 节）
 
@@ -100,7 +103,6 @@
 | **`allocation`** | **整对象参与** |
 | **`fees`**（覆盖） | **参与**（若存在） |
 | **`output.save_trades` / `output.save_equity_curve`** | **剔除**（仅是否多落盘日志/曲线文件，默认不改变同一口径下的数值摘要；若产品将输出体量纳入契约再改为参与）。 |
-| **`max_workers`** | **剔除**（若配置中存在，与价格侧一致） |
 
 ### `scanner`（第 10 节）
 
@@ -119,8 +121,8 @@
 - 去掉 **`meta`** 根块（若仍嵌在结构中）
 - 去掉 **`IGNORE_ROOT_KEYS`**（如 `description`、`is_enabled`）
 - 整块去掉 **`scanner`**（`DROP_ROOT_BLOCKS`）
-- 按 **是否启用 sampling** 决定是否保留 **`sampling`** 块（`resolve_sampling_is_used`，与旧版 `enumerator` / 模拟器内开关兼容）
-- 按忽略表去掉 **enumerator / price_simulator / capital_simulator** 中非语义键
+- **始终保留根级 `sampling` 块**（含 `use_sampling`、`strategy`、`sampling_amount`、pool 等）；`env_fp` 另含 `run_mode`（`sampling` | `full`）
+- 按忽略表去掉 **enumerator / price_simulator / capital_simulator** 中非语义键（**不含** `use_sampling`）
 
 工作台的 **`settings_core`** 应与上表 **语义一致**；单测应对齐 **`semantic_core_strip`** 与本文。
 

@@ -43,7 +43,6 @@ class StrategyScannerSettings(SettingsBase):
 
     def apply_defaults(self) -> None:
         s = self.scanner
-        s.setdefault("max_workers", "auto")
         s.setdefault("adapters", ["console"])
         s.setdefault("use_strict_previous_trading_day", True)
         s.setdefault("max_cache_days", 10)
@@ -55,6 +54,9 @@ class StrategyScannerSettings(SettingsBase):
 
         self._normalize_fields()
         self._validate_adapters(result)
+        SettingsBase.warn_ignored_pipeline_pool_keys(
+            result, self.scanner, field_prefix="scanner"
+        )
         SettingsBase.log_warnings(result, logger)
         self._scanner_validated = True
         return result
@@ -62,11 +64,13 @@ class StrategyScannerSettings(SettingsBase):
     def to_dict(self) -> Dict[str, Any]:
         self.apply_defaults()
         self._normalize_fields()
-        return self.deep_copy_dict(dict(self.scanner))
+        out = self.deep_copy_dict(dict(self.scanner))
+        SettingsBase.strip_ignored_pipeline_pool_keys(out)
+        return out
 
     def _normalize_fields(self) -> None:
         s = self.scanner
-        SettingsBase.normalize_max_workers_inplace(s, "max_workers")
+        SettingsBase.strip_ignored_pipeline_pool_keys(s)
 
         adapter_config = s.get("adapters", [])
         if isinstance(adapter_config, str):
@@ -99,10 +103,6 @@ class StrategyScannerSettings(SettingsBase):
                     f"scanner.adapters[{adapter_name}]",
                     f"适配器 '{adapter_name}' 不可用: {error_message}",
                 )
-
-    @property
-    def max_workers(self) -> Union[Literal["auto"], int]:
-        return SettingsBase.parse_max_workers(self.scanner.get("max_workers", "auto"))
 
     @property
     def adapter_names(self) -> List[str]:

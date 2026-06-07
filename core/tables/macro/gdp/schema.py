@@ -4,6 +4,7 @@ data_gdp 表结构定义（Python，变量名 schema）
 国内生产总值。主键 quarter nullable=false；其余 nullable=true。
 """
 schema = {
+    "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "macro_gdp",
     "name": "sys_gdp",
     "primaryKey": ["quarter"],

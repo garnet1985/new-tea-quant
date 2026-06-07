@@ -39,9 +39,15 @@ export function buildExecutionResultFromWorkbenchReport(resultReport) {
 
   const enumSlot = resultReport.enum;
   if (enumSlot && typeof enumSlot === 'object') {
-    const opp = enumSlot.opportunities ?? enumSlot.total_opportunities;
+    const em = enumSlot.enumMetrics;
+    const opp = enumSlot.opportunities
+      ?? enumSlot.total_opportunities
+      ?? (em && typeof em === 'object' ? em.totalOpportunities : undefined);
     if (opp !== undefined && opp !== null) {
-      out.enum = { opportunities: Number(opp) || 0 };
+      const n = Number(opp);
+      if (Number.isFinite(n)) {
+        out.enum = { opportunities: n };
+      }
     }
   }
 

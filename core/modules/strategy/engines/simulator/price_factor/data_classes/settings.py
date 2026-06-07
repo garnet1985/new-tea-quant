@@ -5,9 +5,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import logging
-from typing import Any, Dict, Literal, Union
+from typing import Any, Dict
 from typing import TYPE_CHECKING
 
+from core.infra.job_pipeline.profile.constants import DEFAULT_PRICE_ENTITIES_PER_JOB
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.settings_base import (
     SettingsBase,
     ValidationReport,
@@ -42,36 +43,40 @@ class StrategyPriceSimulatorSettings(SettingsBase):
         return cls.from_strategy_root(base_settings.raw_settings)
 
     def apply_defaults(self) -> None:
-        ps = self.price_simulator
-        if "base_version" not in ps and "output_version" in ps:
-            ps["base_version"] = ps.get("output_version") or "latest"
-        ps.setdefault("base_version", "latest")
-        ps.setdefault("max_workers", "auto")
+        self.price_simulator.setdefault("base_version", "latest")
 
     def validate(self) -> ValidationReport:
+        from core.infra.job_pipeline.profile.constants import (
+            PRICE_STRATEGY_DISPATCH_KEYS,
+        )
+
         result = SettingsBase.new_validation()
         self.apply_defaults()
 
         bv = str(self.price_simulator.get("base_version") or "latest")
         if bv != "latest":
             SettingsBase.add_warning(result, "price_simulator.base_version", f"指定 base_version={bv}")
-        self._validate_max_workers(result)
+        SettingsBase.warn_ignored_pipeline_pool_keys(
+            result, self.price_simulator, field_prefix="price_simulator"
+        )
+        SettingsBase.warn_ignored_dispatch_keys(
+            result,
+            self.price_simulator,
+            field_prefix="price_simulator",
+            keys=PRICE_STRATEGY_DISPATCH_KEYS,
+        )
         SettingsBase.log_warnings(result, logger)
         self._price_simulator_validated = True
         return result
 
-    def _validate_max_workers(self, result: ValidationReport) -> None:
-        ps = self.price_simulator
-        SettingsBase.validate_max_workers_field(
-            report=result,
-            container=ps,
-            key="max_workers",
-            field_path="price_simulator.max_workers",
-            invalid_message='price_simulator.max_workers 须为 "auto" 或正整数',
+    def to_dict(self) -> Dict[str, Any]:
+        from core.infra.job_pipeline.profile.constants import (
+            PRICE_STRATEGY_DISPATCH_KEYS,
         )
 
-    def to_dict(self) -> Dict[str, Any]:
         out = self.deep_copy_dict(dict(self.price_simulator))
+        SettingsBase.strip_ignored_pipeline_pool_keys(out)
+        SettingsBase.strip_ignored_dispatch_keys(out, PRICE_STRATEGY_DISPATCH_KEYS)
         for key in ("use_sampling", "start_date", "end_date", "fees"):
             out.pop(key, None)
         return out
@@ -88,7 +93,7 @@ class StrategyPriceSimulatorSettings(SettingsBase):
     @property
     def base_version(self) -> str:
         ps = self.price_simulator
-        return str(ps.get("base_version") or ps.get("output_version") or "latest") or "latest"
+        return str(ps.get("base_version") or "latest") or "latest"
 
     @property
     def start_date(self) -> str:
@@ -101,17 +106,12 @@ class StrategyPriceSimulatorSettings(SettingsBase):
         return str(s.get("end_date", "") or "").strip()
 
     @property
-    def max_workers(self) -> Union[Literal["auto"], int]:
-        return SettingsBase.parse_max_workers(
-            self.price_simulator.get("max_workers", "auto")
-        )
-
-    @property
     def fees(self) -> Dict[str, Any]:
         f = self.raw_settings.get("fees")
         return f if isinstance(f, dict) else {}
 
 
 __all__ = [
+    "DEFAULT_PRICE_ENTITIES_PER_JOB",
     "StrategyPriceSimulatorSettings",
 ]

@@ -38,19 +38,23 @@ def raw_settings_for_db_cache_fingerprint(
     base_settings: "StrategySettingsView",
     strategy_info: Optional["DiscoveredStrategy"],
 ) -> Dict[str, Any]:
-    """与 ``StrategyFingerprintManager.canonicalize_settings`` 对齐，失败回退 view。"""
-    if strategy_info is not None:
-        try:
-            from core.modules.strategy.launcher.run_service import (
-                StrategyFingerprintManager,
-            )
+    """与 flow 同源：优先 ``base_settings``（本次 run 已校验的快照），再规范化。"""
+    raw = dict(base_settings.to_dict())
+    try:
+        from core.modules.strategy.launcher.run_service import (
+            StrategyFingerprintManager,
+        )
 
-            return StrategyFingerprintManager.canonicalize_settings(
-                dict(strategy_info.settings.to_dict())
-            )
-        except Exception:
-            pass
-    return dict(base_settings.to_dict())
+        return StrategyFingerprintManager.canonicalize_settings(raw)
+    except Exception:
+        if strategy_info is not None:
+            try:
+                return StrategyFingerprintManager.canonicalize_settings(
+                    dict(strategy_info.settings.to_dict())
+                )
+            except Exception:
+                pass
+        return raw
 
 
 __all__ = [

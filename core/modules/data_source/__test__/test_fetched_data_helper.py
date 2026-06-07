@@ -8,19 +8,7 @@ fetched_data_helper 单元测试
 
 实现依赖强类型 `DataSourceConfig`（与 executor 一致），不再使用 Mock 冒充 config。
 """
-
-import sys
-from pathlib import Path
 from typing import Any, Dict, List
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
-
-try:
-    import pytest
-
-    HAS_PYTEST = True
-except ImportError:  # pragma: no cover
-    HAS_PYTEST = False
 
 from core.modules.data_source.data_class.config import DataSourceConfig
 
@@ -147,20 +135,3 @@ class TestFetchedDataHelper:
         )
         assert fd.has_group_by_config({"config": cfg_false}, apis) is False
 
-
-if __name__ == "__main__":  # pragma: no cover
-    if HAS_PYTEST:
-        pytest.main([__file__])
-    else:
-        test = TestFetchedDataHelper()
-        for name in [
-            "test_build_grouped_fetched_data_single_field",
-            "test_build_grouped_fetched_data_multi_fields",
-            "test_build_unified_fetched_data",
-            "test_has_group_by_config_true_and_false",
-        ]:
-            try:
-                getattr(test, name)()
-                print(f"✅ {name} 通过")
-            except Exception as e:
-                print(f"❌ {name} 失败: {e}")

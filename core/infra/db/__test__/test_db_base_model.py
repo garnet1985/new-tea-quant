@@ -4,24 +4,24 @@ DbBaseModel 单元测试
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 from core.infra.db.table_queriers.db_base_model import DbBaseModel
-from core.infra.db.helpers.db_helpers import DBHelper
+from core.infra.db.engines._shared import row_sql
 
 
-class TestDBHelper:
-    """DBHelper 测试类"""
+class TestRowSql:
+    """row_sql 工具测试"""
     
     def test_to_columns_and_values(self):
         """测试转换为列名和占位符"""
         data_list = [
             {'id': '001', 'name': 'test', 'price': 10.0}
         ]
-        columns, placeholders = DBHelper.to_columns_and_values(data_list)
+        columns, placeholders = row_sql.to_columns_and_values(data_list)
         assert columns == ['id', 'name', 'price']
         assert placeholders == '%s, %s, %s'
     
     def test_to_columns_and_values_empty(self):
         """测试空数据列表"""
-        columns, placeholders = DBHelper.to_columns_and_values([])
+        columns, placeholders = row_sql.to_columns_and_values([])
         assert columns == []
         assert placeholders == ""
     
@@ -30,7 +30,7 @@ class TestDBHelper:
         data_list = [
             {'id': '001', 'name': 'test', 'price': 10.0}
         ]
-        columns, values, update_clause = DBHelper.to_upsert_params(
+        columns, values, update_clause = row_sql.to_upsert_params(
             data_list, 
             unique_keys=['id']
         )
@@ -40,12 +40,24 @@ class TestDBHelper:
         assert 'price = EXCLUDED.price' in update_clause
 
 
+def _mock_database_manager(**attrs):
+    db = Mock()
+    db.is_duckdb = False
+    db.uses_engine_path = False
+    db._initialized = False
+    db.engine = None
+    db.config = {"database_type": "postgresql"}
+    for k, v in attrs.items():
+        setattr(db, k, v)
+    return db
+
+
 class TestDbBaseModel:
     """DbBaseModel 测试类"""
     
     def test_init_with_db(self):
         """测试使用传入的 db 初始化"""
-        mock_db = Mock()
+        mock_db = _mock_database_manager()
         model = DbBaseModel('test_table', db=mock_db)
         assert model.db == mock_db
         assert model.table_name == 'test_table'
@@ -53,7 +65,7 @@ class TestDbBaseModel:
     def test_init_without_db(self):
         """测试使用默认 db 初始化"""
         with patch('core.infra.db.db_manager.DatabaseManager.get_default') as mock_get_default:
-            mock_db = Mock()
+            mock_db = _mock_database_manager()
             mock_get_default.return_value = mock_db
             
             model = DbBaseModel('test_table')
@@ -61,20 +73,55 @@ class TestDbBaseModel:
             assert model.table_name == 'test_table'
     
     def test_load_schema(self):
-        """测试加载 schema"""
-        mock_db = Mock()
-        with patch('core.infra.db.schema_management.schema_manager.SchemaManager') as mock_schema_manager:
-            mock_manager_instance = Mock()
-            mock_manager_instance.get_table_schema.return_value = {'fields': {'id': {'type': 'string'}}}
-            mock_schema_manager.return_value = mock_manager_instance
-            
-            model = DbBaseModel('test_table', db=mock_db)
-            # schema 应该被加载
-            assert hasattr(model, 'schema')
+        """测试加载 schema（db.schema_manager）"""
+        mock_db = _mock_database_manager()
+        mock_db.schema_manager = Mock()
+        mock_db.schema_manager.get_table_schema.return_value = {
+            "name": "test_table",
+            "fields": [{"name": "id", "type": "VARCHAR", "length": 16}],
+        }
+        model = DbBaseModel("test_table", db=mock_db)
+        assert model.schema["name"] == "test_table"
+
+    def test_create_table_delegates_to_engine(self):
+        """engine 路径：create_table 走 engine.create_table（含索引）。"""
+        mock_engine = Mock()
+        mock_engine.table_operator.return_value = None
+        mock_db = _mock_database_manager(
+            uses_engine_path=True,
+            _initialized=True,
+            engine=mock_engine,
+        )
+        schema = {
+            "name": "test_table",
+            "fields": [{"name": "id", "type": "VARCHAR", "length": 16}],
+        }
+        mock_db.schema_manager = Mock()
+        mock_db.schema_manager.get_table_schema.return_value = schema
+        model = DbBaseModel("test_table", db=mock_db)
+        model.create_table()
+        mock_engine.create_table.assert_called_once_with(schema)
+
+    def test_drop_table_delegates_to_engine(self):
+        mock_engine = Mock()
+        mock_engine.table_operator.return_value = None
+        mock_db = _mock_database_manager(
+            uses_engine_path=True,
+            _initialized=True,
+            engine=mock_engine,
+        )
+        mock_db.schema_manager = Mock()
+        mock_db.schema_manager.get_table_schema.return_value = {
+            "name": "test_table",
+            "fields": [],
+        }
+        model = DbBaseModel("test_table", db=mock_db)
+        model.drop_table()
+        mock_engine.drop_table.assert_called_once_with("test_table")
     
     def test_load(self):
         """测试加载数据"""
-        mock_db = Mock()
+        mock_db = _mock_database_manager()
         mock_db.execute_sync_query.return_value = [
             {'id': '001', 'name': 'test'}
         ]
@@ -87,7 +134,7 @@ class TestDbBaseModel:
     
     def test_load_one(self):
         """测试加载单条数据"""
-        mock_db = Mock()
+        mock_db = _mock_database_manager()
         mock_db.execute_sync_query.return_value = [
             {'id': '001', 'name': 'test'}
         ]
@@ -99,18 +146,39 @@ class TestDbBaseModel:
     
     def test_load_one_empty(self):
         """测试加载单条数据（无结果）"""
-        mock_db = Mock()
+        mock_db = _mock_database_manager()
         mock_db.execute_sync_query.return_value = []
-        
+
         model = DbBaseModel('test_table', db=mock_db)
         result = model.load_one("id = %s", ('001',))
-        
+
         assert result is None
+
+
+class TestDbBaseModelEnginePath:
+    """mysql/postgresql Engine 路径下的 DbBaseModel 委托。"""
+
+    def test_load_delegates_to_table_operator(self):
+        mock_db = _mock_database_manager(
+            uses_engine_path=True,
+            _initialized=True,
+        )
+        mock_db.engine = Mock()
+        mock_op = Mock()
+        mock_op.load.return_value = [{"id": "001"}]
+        mock_db.engine.table_operator.return_value = mock_op
+
+        model = DbBaseModel("sys_stock_list", db=mock_db)
+        rows = model.load("id = %s", ("001",))
+
+        mock_db.engine.table_operator.assert_called_with("sys_stock_list")
+        mock_op.load.assert_called_once()
+        assert rows == [{"id": "001"}]
     
     def test_insert_one(self):
         """插入单条走同步 batch_insert，不经过 queue_write。"""
-        mock_db = Mock()
-        mock_db.config = {'batch_write': {'_advanced': {}}}
+        mock_db = _mock_database_manager()
+        mock_db.config = {'database_type': 'postgresql', 'batch_write': {'_advanced': {}}}
 
         model = DbBaseModel('test_table', db=mock_db)
         with patch.object(model, 'batch_insert', return_value=1) as mock_batch:
@@ -119,8 +187,8 @@ class TestDbBaseModel:
     
     def test_insert(self):
         """批量插入走同步 batch_insert。"""
-        mock_db = Mock()
-        mock_db.config = {'batch_write': {'_advanced': {}}}
+        mock_db = _mock_database_manager()
+        mock_db.config = {'database_type': 'postgresql', 'batch_write': {'_advanced': {}}}
 
         model = DbBaseModel('test_table', db=mock_db)
         data_list = [

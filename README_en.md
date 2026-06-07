@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.3.3-8A2BE2"></a>&nbsp;
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.4.0-8A2BE2"></a>&nbsp;
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
   <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
@@ -22,38 +22,32 @@ Author: Garnet Xin & His AI dude
 <a href="https://gitee.com/garnet/new-tea-quant"><img alt="Gitee" src="https://img.shields.io/badge/Gitee-new--tea--quant-C71D23?logo=gitee&logoColor=white"></a>&nbsp;
 <a href="https://new-tea.cn"><img alt="Website" src="https://img.shields.io/badge/website-new--tea.cn-009688?logo=google-chrome&logoColor=white"></a>
 
-## Major update
+## Current release (v0.4.x)
 
-**NTQ now ships with a Web UI**: a React frontend (`core/ui/fed`) and a Python BFF (`core/ui/bff`). After you start them locally, you can use the browser for Strategy Lab, strategy scanning, the graphical setup wizard, app settings, and more.
+Since **v0.3.0**, NTQ has supported **embedded DuckDB** file storage. As of **v0.4.0**:
 
-As of **v0.3.3**, NTQ revamped the backtest data injection pipeline and added practical A-share execution constraints (e.g. limit-up buy / limit-down sell rules) to reduce survivorship bias. See [CHANGELOG.md](CHANGELOG.md).
+- **DuckDB is the default** — you only need **Python 3.9+** to run; **MySQL / PostgreSQL remain optional** in the setup wizard.
+- **Engine / pipeline updates** — full layered backtests are roughly **6× faster** than before. See [CHANGELOG.md](CHANGELOG.md).
 
 > **Tip:** This file is a shorter English overview. Screenshots below are from the Chinese UI; labels on your screen may read in Chinese.
 
 ### What is NTQ?
 
-**NTQ (New Tea Quant)** is a local, single-machine quantitative research framework for A-share strategies.  
-It focuses on helping you **verify trading ideas quickly**, and then **apply the same logic to real-time market data** to enumerate opportunities.
+**NTQ (New Tea Quant)** is a local quantitative research framework for A-share strategies. It helps you turn ideas into evidence-backed conclusions with **layered backtesting**:
 
-Examples of ideas you can validate:
+1. **Opportunity enumeration** — when and on which stocks does your logic trigger?
+2. **Price-factor validation** — how does a single round-trip perform under fees and slippage?
+3. **Capital / portfolio simulation** — does the idea still work with position limits and cash constraints?
 
-- "Is weekly RSI < 20 a good entry signal?"
-- "Do MACD golden / dead crosses really work on my universe?"
-- "What is the win rate of chasing 'hot' stocks under my own rules?"
+You also get a **Strategy Lab Web UI** (backtests, reports, version compare), CLI tools, reproducible snapshots, and optional full-market scanning.
 
-NTQ provides:
-
-- A **strategy research framework** (multi-process / multi-threaded)
-- Detailed **logs and intermediate values** so that every result is traceable and reproducible
-- The ability to **plug in your own data source** and **your own notification / trading layer**
-
-> NTQ itself is free and open source (Apache 2.0). Some capabilities (data, notifications, trading) require you to integrate third-party platforms or APIs by yourself.
+> NTQ is free and open source (Apache 2.0). Market data, notifications, and live trading require your own third-party accounts and integrations.
 
 ### Tech stack
 
 - **Language**: Python 3.9+
-- **Database**: PostgreSQL or MySQL
-- **Runtime for UI**: Node.js (for installing/running the frontend)
+- **Database**: **DuckDB** (default, file-based under `userspace/system/db/`), or **MySQL / PostgreSQL** if you choose them in setup
+- **Web UI**: pre-built assets are in the repo — **Node.js is not required** for normal use (`python launcher.py`)
 - **License**: Apache 2.0
 
 ---
@@ -64,9 +58,9 @@ NTQ provides:
 
 ### Prerequisites
 
-- **Python 3.9+**. If you need a step-by-step install guide (Chinese): [install-python](https://new-tea.cn/zh-hans/install-python).
-- **MySQL or PostgreSQL**. Install walkthrough (Chinese): [install-database](https://new-tea.cn/zh-hans/install-database).
-- **Node.js** (for the Web UI). Download from [nodejs.org](https://nodejs.org/) and run the installer (defaults are usually fine).
+- **Python 3.9+**. Install guide (Chinese): [install-python](https://new-tea.cn/zh-hans/install-python).
+- **No separate database server required** for the default DuckDB path.
+- **MySQL or PostgreSQL** only if you opt out of DuckDB in the wizard (Chinese guide: [install-database](https://new-tea.cn/zh-hans/install-database)).
 
 ### Step 1: Get the code
 
@@ -95,90 +89,101 @@ If `python` is not 3.9+, try:
 python3 launcher.py
 ```
 
-The entry point switches to the repo root, ensures the virtual environment, checks Node/npm, installs Web UI dependencies when needed, then starts **BFF + frontend** and opens the browser to the **Setup** wizard (driven by the BFF setup API).
+The script ensures the virtual environment, starts **BFF + frontend**, and opens the browser to the **Setup** wizard.
 
 ### Step 3: Complete setup in the browser
 
-Follow the on-page steps (database, userspace path, data import, etc.). The UI may be Chinese-only. Below are **five reference screenshots**; wording on your build may differ slightly.
+Follow the on-page steps. Reference screenshots (UI may be Chinese):
 
-**Figure 1**
+**Figure 1** — dependency install: click **「开始安装」** and wait.
 
 ![Setup wizard 1](setup/images/step1.png)
 
-The first screen installs required dependencies (duration depends on your network). Click **「开始安装」** (*Start installation*) and wait.
-
-**Figure 2**
+**Figure 2** — **userspace** root: use the default path or a custom directory.
 
 ![Setup wizard 2](setup/images/step2.png)
 
-Configure the **userspace** root directory:
-
-- Use the **default path** shown by the wizard (click **「下一步」** — *Next*).
-- Or tick **「我想自定义 userspace 路径」** (*I want a custom userspace path*) and enter another directory on your machine (ensure free disk space; if the folder already exists, the wizard will ask how to handle conflicts).
-
-**Figure 3**
+**Figure 3** — **database**: the wizard defaults to **DuckDB** (no extra server). To use **MySQL / PostgreSQL**, configure your server first, then enter connection details in the wizard.
 
 ![Setup wizard 3](setup/images/step3.png)
 
-Connect **MySQL** or **PostgreSQL**. Have the server running, then fill in:
-
-- **Database type** (`mysql` / `postgresql`).
-- **Host** and **port** (defaults are usually local; use your cloud/remote values if applicable).
-- **User** and **password** (must allow connections and **creating databases**; if the database does not exist yet, the wizard will try to create it).
-- **Database name**: prefer a **new or dedicated empty database**. If you point to an existing database, initialization will write/alter schemas — **do not use a production database** that holds important data.
-
-After the connection check passes, click **「下一步」** to continue. You can change database settings later under **「设置」** (*Settings*).
-
-**Figure 4**
+**Figure 4** — data import and remaining steps (may take a while).
 
 ![Setup wizard 4](setup/images/steps.png)
 
-After the database step, the pipeline continues with **data import** and other steps; the page shows progress. This phase can take a while — keep the tab open and wait until it finishes.
-
-**Figure 5**
+**Figure 5** — when finished, open **Strategy Lab**.
 
 ![Setup wizard 5](setup/images/step4.png)
 
-When all steps succeed, click **「前往策略实验室」** (*Go to Strategy Lab*) to enter the main UI.
+### Run the `example` strategy
 
-### Run the `example` strategy from the CLI
-
-From the repository root:
+**Web (recommended):**
 
 ```bash
-python start-cli.py -sp
+python launcher.py
 ```
 
-If you see output in the terminal, the first strategy run succeeded.
+Open Strategy Lab, select **`example`**, and run enum / price / capital steps.
 
-> **Note:** If you downloaded the **larger demo ZIP** from the official site, put it under `setup/init_data/` as described in **Data** below, then run **`python install.py`** to import it. For the small bundled dataset only, finishing the wizard + the command above is enough.
-
-### More common commands
+**CLI (price layer example):**
 
 ```bash
-python start-cli.py -h      # show help
-python start-cli.py -sa     # simulate with capital
-python start-cli.py -t      # generate labels / features
+python start-cli.py -sp --strategy example
 ```
 
-The default CLI entry is **`start-cli.py`**. If older docs mention `start.py`, treat **`start-cli.py`** as the source of truth.
+Enumeration: `python start-cli.py -se --strategy example`  
+Capital simulation: `python start-cli.py -sa --strategy example`
 
-You can edit files under `userspace/strategies/` (for example `settings.py` or workers) to customize algorithms and goals.
+> **Note:** Root **`python install.py`** is for **first-time CLI install**. For a **larger demo ZIP** from the site, place a single zip under `setup/init_data/` and run `python setup/steps/import_data/install.py` (add `--force` to re-import).
+
+### More common commands (`start-cli.py`)
+
+```bash
+python start-cli.py -h
+python start-cli.py -sc --strategy example   # scan (default entry)
+python start-cli.py -t                        # labels / features
+```
+
+Use **`--strategy`** when multiple strategies are enabled. Older docs mentioning `start.py` are obsolete — use **`start-cli.py`**.
+
+Edit files under `userspace/strategies/` to customize settings and workers.
+
+---
+
+## Developer commands (`dev-cli.py`)
+
+From the repository root (local dev / troubleshooting):
+
+```bash
+python dev-cli.py -h
+```
+
+| Purpose | Example |
+|---------|---------|
+| Start UI (free ports, then `launcher.py -d`) | `python dev-cli.py -ui` |
+| Kill processes on ports 8000 / 8888 | `python dev-cli.py -kui` |
+| Clear simulation **disk + DB** workbench cache | `python dev-cli.py -csc` (same as `-cu`) |
+| Clear **DB** workbench snapshot table only | `python dev-cli.py -cdc` |
+| Delete strategy **`results/`** dirs only | `python dev-cli.py -cmc` |
+| DuckDB WAL checkpoint | `python dev-cli.py -dbc` |
+
+HTTP cache APIs: see [db-cache-service.md](core/modules/strategy/docs/db-cache-service.md) §8 (V2-11 / V2-12).
 
 ---
 
 ## Data
 
 - The repo ships with a **small demo dataset** for a fast first run.
-- For a **larger (3-year) demo dataset**, register on **[new-tea.cn](https://new-tea.cn)**, download the ZIP, place it under **`setup/init_data/`** (only one ZIP in that folder; clear the folder first if needed), then run **`python install.py`**.
-- You can also **connect your own data source** (for example Tushare); see **`userspace/data_source/README.md`**.
+- For a **larger (~3-year) demo pack**, register on **[new-tea.cn](https://new-tea.cn)**, download the ZIP, clear **`setup/init_data/`**, place **one** zip there, then run `python setup/steps/import_data/install.py`.
+- **Your own data source** (e.g. Tushare): [userspace/extensions/data_source/README.md](userspace/extensions/data_source/README.md).
 
 ---
 
 ## Documentation & website
 
-- Official site (Chinese, richer docs and examples): **[new-tea.cn](https://new-tea.cn)**
-- Canonical project README (Chinese): **[README.md](README.md)**
+- Official site (Chinese, richer docs): **[new-tea.cn](https://new-tea.cn)**
+- Canonical README (Chinese): **[README.md](README.md)**
+- Offline doc index: [docs/README.md](docs/README.md)
 
 ---
 
@@ -194,5 +199,5 @@ Please ensure tests pass before submitting a PR.
 
 ## License & disclaimer
 
-This project is licensed under **Apache License 2.0** (see `LICENSE`).  
+This project is licensed under **Apache License 2.0** (see [LICENSE](LICENSE)).  
 **Disclaimer**: for learning and research only, not investment advice; backtest results do not guarantee future performance.

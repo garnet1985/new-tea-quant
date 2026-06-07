@@ -12,6 +12,7 @@
 主键 id nullable=false；其余 nullable=true。
 """
 schema = {
+    "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "stock_stock_list",
     "name": "sys_stock_list",
     "primaryKey": "id",

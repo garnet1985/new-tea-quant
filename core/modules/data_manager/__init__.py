@@ -8,7 +8,7 @@
 
 职责：
 - 持有并初始化 `DatabaseManager`
-- 发现并注册 `core/tables` 与 `userspace/tables` 下的 ORM 模型
+- 发现并注册 `core/tables` 与 `userspace/extensions/tables` 下的 ORM 模型
 - 通过 `data_services` 提供股票、宏观、日历、指数等访问 API
 
 使用方式：

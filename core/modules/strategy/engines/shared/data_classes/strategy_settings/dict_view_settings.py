@@ -155,6 +155,7 @@ class StrategySettingsView:
 
     @property
     def required_data_sources(self) -> List[Dict[str, Any]]:
+        """Contract 注入边界：base + extras；未在此列表的 DataKey 由回测编排自行加载。"""
         base = self.normalize_base_required_data(self.base_required_data)
         rest = [
             self.normalize_extra_required_data_item(x)

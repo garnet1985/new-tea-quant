@@ -34,6 +34,39 @@ from ..workbench_run_envelope import (
 
 logger = logging.getLogger(__name__)
 
+_active_workbench_jobs: Dict[str, threading.Thread] = {}
+_workbench_jobs_lock = threading.Lock()
+
+
+def _workbench_duckdb_prepare_for_run() -> None:
+    try:
+        from core.infra.db.engines.duckdb.process_pool_scope import (
+            is_duckdb_backend,
+            recover_after_worker_pool_interrupt,
+        )
+
+        if is_duckdb_backend():
+            recover_after_worker_pool_interrupt()
+    except Exception as exc:
+        logger.warning("Workbench DuckDB 启动前收尾: %s", exc)
+
+
+def _workbench_duckdb_finalize_after_run() -> None:
+    try:
+        from core.infra.db.engines.duckdb.process_pool_scope import (
+            ensure_data_manager_restored,
+            is_duckdb_backend,
+            wait_pool_children_done,
+        )
+
+        if not is_duckdb_backend():
+            return
+        wait_pool_children_done(timeout_sec=30.0)
+        ensure_data_manager_restored()
+    except Exception as exc:
+        logger.warning("Workbench DuckDB 结束后恢复: %s", exc)
+
+
 __all__ = [
     "submit_workbench_step_via_bff_contract",
 ]
@@ -94,8 +127,8 @@ def _run_workbench_job_in_thread(
     sink: Optional[_WorkbenchRunProgressSink] = None
     job_update(job_id, status="running", progress=1.0)
     disk_mark_running(strategy_name, job_id, norm_step)
+    _workbench_duckdb_prepare_for_run()
     try:
-        job_update(job_id, progress=5.0)
         plan = plan_workbench_substeps(
             norm_step=norm_step,
             force_refresh=force_refresh,
@@ -128,6 +161,11 @@ def _run_workbench_job_in_thread(
         fail_idx = int(getattr(sink, "_last_idx", 0) or 0) if sink is not None else 0
         run_envelope_fail(strategy_name, job_id, fail_idx, str(exc))
         disk_mark_failed(strategy_name, job_id, norm_step, str(exc))
+    finally:
+        _workbench_duckdb_finalize_after_run()
+        with _workbench_jobs_lock:
+            if _active_workbench_jobs.get(strategy_name) is threading.current_thread():
+                _active_workbench_jobs.pop(strategy_name, None)
 
 
 def submit_workbench_step_via_bff_contract(
@@ -172,13 +210,22 @@ def submit_workbench_step_via_bff_contract(
     packed = get_run_progress(strategy_name=name, job_id=jid)
     if packed and isinstance(packed.get("steps"), list):
         steps_payload = packed["steps"]
-    thread = threading.Thread(
-        target=_run_workbench_job_in_thread,
-        args=(jid, name, norm_step, discovered, force_refresh),
-        daemon=True,
-        name=f"workbench-run-{jid[:8]}",
-    )
-    thread.start()
+    with _workbench_jobs_lock:
+        prev = _active_workbench_jobs.get(name)
+        if prev is not None and prev.is_alive():
+            logger.warning(
+                "策略 %s 仍有工作台任务运行中，新任务启动前将尝试回收 DuckDB / worker",
+                name,
+            )
+            _workbench_duckdb_prepare_for_run()
+        thread = threading.Thread(
+            target=_run_workbench_job_in_thread,
+            args=(jid, name, norm_step, discovered, force_refresh),
+            daemon=True,
+            name=f"workbench-run-{jid[:8]}",
+        )
+        _active_workbench_jobs[name] = thread
+        thread.start()
     return {
         "is_triggered": True,
         "job_id": jid,

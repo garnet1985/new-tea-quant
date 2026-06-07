@@ -75,7 +75,7 @@ class BaseProvider(ABC):
         - 如果 requires_auth=False，返回空配置；
         - 如果 requires_auth=True 且 auth_type == "token"：
           1. 对于 provider_name == "tushare"：
-             - 优先从 userspace/data_source/providers/tushare/auth_token.txt 读取 token；
+             - 优先从 userspace/extensions/data_source/providers/tushare/auth_token.txt 读取 token；
              - 否则从环境变量 TUSHARE_TOKEN 读取；
              - 如果仍然没有，抛出带有清晰指引的错误；
           2. 其他 provider：
@@ -173,17 +173,42 @@ class BaseProvider(ABC):
 
     @staticmethod
     def is_retryable_error(error: Exception) -> bool:
-        """连接中断、远端关闭等瞬时错误可重试。"""
-        err_name = type(error).__name__
-        err_str = str(error).lower()
-        return (
-            "Connection" in err_name
-            or "connection" in err_str
-            or "RemoteDisconnected" in err_str
-            or "aborted" in err_str
-            or "closed" in err_str
-            or "timeout" in err_str
-        )
+        """连接中断、DNS 瞬时失败、远端 reset 等错误可重试（含 __cause__ / __context__ 链）。"""
+        seen: set = set()
+
+        def _check(exc: BaseException) -> bool:
+            if exc is None or id(exc) in seen:
+                return False
+            seen.add(id(exc))
+            err_name = type(exc).__name__
+            err_str = str(exc).lower()
+            if (
+                "Connection" in err_name
+                or "Protocol" in err_name
+                or "ChunkedEncoding" in err_name
+                or "connection" in err_str
+                or "connectionreset" in err_str
+                or "reset by peer" in err_str
+                or "remoteDisconnected" in err_str
+                or "aborted" in err_str
+                or "broken pipe" in err_str
+                or "closed" in err_str
+                or "timeout" in err_str
+                or "nodename" in err_str
+                or "servname" in err_str
+                or "getaddrinfo" in err_str
+                or "name or service not known" in err_str
+            ):
+                return True
+            cause = exc.__cause__
+            context = exc.__context__
+            if cause and _check(cause):
+                return True
+            if context is not cause and context and _check(context):
+                return True
+            return False
+
+        return _check(error)
 
     def invoke_with_retry(
         self,

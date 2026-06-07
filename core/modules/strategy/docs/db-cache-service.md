@@ -80,7 +80,7 @@
 
 **version**：仅用于展示与按版本读写；**不作为**指纹命中的替代条件。
 
-**读路径（当前实现）**：``lookup_enum_cache`` 在双指纹 AND 命中后，**不**再按 `updated_at` 做时间窗过滤；若产品仍需 §7 的时间失效，应在离线清理或写入侧处理。
+**读路径（当前实现）**：``lookup_enum_cache`` 在双指纹 AND 命中后，仅读取该行 **`result_report.enum`**（见 §6.1）；**不**跨兄弟行、**不**从 `price_factor` 推断；**不**再按 `updated_at` 做时间窗过滤；若产品仍需 §7 的时间失效，应在离线清理或写入侧处理。
 
 ---
 
@@ -103,23 +103,111 @@
 
 指纹在行更新时 **不因「只填了 enum」而改变**，除非 settings 或 env 因子实际发生变化。
 
+**同一 `(settings_fp, env_fp)` 下**：三步依次落库只会 **反复 merge 同一 `version` 行**；**不得**因累计写入次数而删行并分配新 `version`（见 §6.1、§7）。
+
+---
+
+## 6.1 三槽位契约与读路径（禁止自动修补）
+
+本节是工作台 **「有就是有、没有就是没有」** 的权威约定：UI / 报告 API **只展示** DB 快照行里各步骤**自己写入**的槽位；**禁止**用其它槽位或兄弟行去「补全」缺失数据。
+
+### 6.1.1 指纹 ↔ 版本行
+
+| 事件 | 行为 |
+|------|------|
+| **`settings_fp` 或 `env_fp` 任一变化** | **新建**快照行 → 新的 `version`（v1、v2… 递增） |
+| **双指纹均与已有行相同** | **命中同一行**，按步骤 merge 对应槽位，**不**新建 `version` |
+| **仅跑完其中一步** | 允许该行暂时只有部分槽位（例如仅有 `enum`） |
+
+**禁止**：用「仅 `settings_fp` 相同」或「兄弟 `version` 上有 enum」去命中/合并另一指纹行；缓存查找与 `set_cache` 目标行解析均为 **`strategy_name + settings_fp + env_fp` 三条件 AND**。
+
+### 6.1.2 谁写哪个槽（写侧唯一来源）
+
+| 模拟器（`Simulator`） | `result_report` 键 | 写入入口（实现） |
+|----------------------|-------------------|------------------|
+| 枚举回测器 | `enum` | `persist_enum_snapshot`（枚举 job 成功后） |
+| 价格因素回测器 | `price_factor` | `persist_price_factor_snapshot` |
+| 资金回测器 | `capital_allocation` | `persist_capital_allocation_snapshot` |
+
+- **每一步只写自己的槽**；其它键保持上一状态或为空。
+- **`price_factor` 内可含 `output_version.enumerator_output_dir`**：表示**本价格回测所依赖的枚举磁盘目录**（运行血缘元数据），**不等于** `enum` 槽已落库。
+- **禁止的写侧行为**（曾导致 opportunities 从 140 刷成 23206 等错乱，已移除）：
+  - 价格步落库时 **不得** 向同行注入 `enum` 路径 stub（原 `_maybe_merge_enum_path_stub`）。
+  - 价格步落库时 **不得** 向同行注入 `capital_allocation` 路径 stub。
+  - 资金步落库时 **不得** 根据 `price_factor` 反推并写入 `enum` 槽。
+
+若某行 **仅有 `price_factor`、没有 `enum`**：视为 **落库/流程 bug**，应由修复枚举步或持久化链路解决，**不在读路径掩盖**。
+
+### 6.1.3 DB 摘要 vs 磁盘明细
+
+| 层级 | 存放位置 | 内容 |
+|------|----------|------|
+| **步骤摘要** | `result_report` 对应槽位（DB JSON） | `enumMetrics`、`initial_capital`、曲线标签等**汇总指标**；可经 `compact_*_for_cache` 去掉逐股大块，但**摘要字段应可独立展示** |
+| **逐股 / 大块明细** | `userspace/strategies/{name}/results/simulations/{enum\|price\|capital}/<dir>/` | 如 `0_stock_ref.json`、单股 K 线依赖文件等 |
+
+**读时 hydrate**（`hydrate_enum_slot` / `hydrate_capital_slot` / `hydrate_workbench_result_report`）：在槽位**已存在**且内含相对路径或已存摘要时，从磁盘 **补全** 展示字段。**这不是**跨槽推断——槽位为空则 hydrate 无输入，结果为空。
+
+物理文件缺失：与 **V2-07 `report_ref`** 一致，由 **UI 提示用户对该步重新 run**；服务端 **不** 从 `price_factor` 猜枚举目录。
+
+### 6.1.4 读路径（报告 API、latest、按 version、指纹 lookup）
+
+实现落点：`workbench.py`（`fetch_workbench_by_version`、`_resolve_*_report_slot`）、`snapshot_slot_adapters.lookup_*_cache`、`SimulatorResDbCacheService.load_cache_by_fingerprints`。
+
+**规则**：
+
+1. 只读 **当前请求所指定快照行**（或双指纹 AND 命中的那一行）上的 `enum` / `price_factor` / `capital_allocation`。
+2. **不得** 读取 `price_factor.output_version.enumerator_output_dir` 来构造 enum 报告。
+3. **不得** 在同 `settings_fp` 的其它 `version` 兄弟行上查找 `enum` 并覆盖当前行展示（原 `resolve_enum_slot_for_fingerprints` 兄弟行逻辑已移除）。
+4. **不得** 从 price 目录反查 capital 并假装当前行已有 `capital_allocation`。
+5. 槽位缺失 → API / `result_report` 中该步为 **空**；FED 按步骤状态显示「未运行」或「数据异常」，**不** 静默填数。
+
+**与 UI 的对应关系**：
+
+- 执行面板 opportunities 等标量：来自 **当前 `version_id` 行** 的 `enum` 槽（经 hydrate 后的 `enumMetrics` / `opportunities`），**不是** price 元数据。
+- **V2-07**：`step=enum` 时 `report` 仅来自该行 `enum` 槽；无槽 → 空 `report` 或 404（以实现为准，但**不得** fallback 到 price 引用的旧 enum 目录）。
+
+### 6.1.5 `_db_cache_meta.write_count`
+
+- 仍在每次 merge 前递增，供审计与排障。
+- **仅统计**，**不** 触发删行、**不** 分配新 `version`（原 `MAX_SNAPSHOT_ROW_UPDATES` 轮转已废弃，见 §7）。
+
 ---
 
 ## 7. 失效、清理与强制刷新
 
-下列规则中的 **数值均为可配置常量**（文档中用 **n、m、T** 表示；当前讨论过的默认值：单行最多 **n=10** 次更新、每策略最多 **m=50** 行版本、**T=24 小时**未更新视为过期）。
+下列规则中的 **数值均为可配置常量**（文档中用 **m、T** 表示；当前默认值：每策略最多 **m=50** 行版本、**T=24 小时**未更新视为过期）。
 
 1. **时间（热度）**：距 **`updated_at`** 超过 **T** 的记录视为过期：**不得命中**；实现上应先保证 **不使用该缓存**（可先删行或命中时再删，以简单为准）；后续可迁移到定时任务统一清理。
-2. **每策略版本个数上限**：每个 `strategy_name` 最多保留 **m** 条版本行；当出现第 **m+1** 条新版本需求时，**删除最早版本**（以实现定义的「最早」为准，通常最低 `version` 或最旧 `updated_at`），再写入新版本。
-3. **单行复写次数**：若同一缓存行累计 **UPDATE**（每次持久化算一次写入）超过 **n** 次，则触发删除或整行重建策略（实现择简：删记录再插入或清空内容再写，以 IO 小为准）。  
-   **实现（已定）**：不在表上新增列；在 **`result_report` JSON** 内保留元键 **`_db_cache_meta`**（与各模拟器业务键隔离），其中 **`write_count`** 为累计写入次数；新建行置为 1，每次合并更新前递增；超过 **`MAX_SNAPSHOT_ROW_UPDATES`**（默认 **10**，见 ``core/modules/strategy/services/cache/simulator_res_db_cache/config.py``）则 **DELETE** 该行。枚举等持久化路径在删行后 **按当前指纹与 settings 快照再 INSERT**（见 ``audit/result_report_audit.py``、``SimulatorResDbCacheService``）。领域 **`StrategyWorkbenchSnapshotService`** 新建仅 settings 的快照行时同样写入初始 **`write_count`**，避免「只有枚举路径才有审计」的分叉。
+2. **每策略版本个数上限**：每个 `strategy_name` 最多保留 **m** 条版本行；当出现第 **m+1** 条新版本需求时，**删除最早版本**（以实现定义的「最早」为准，通常最低 `version` 或最旧 `updated_at`），再写入新版本。详见 [`retention.md`](./retention.md)。**删 DB 行不删磁盘 output 目录**（可能产生孤儿目录）。
+3. **`write_count`（审计）**：`result_report._db_cache_meta.write_count` 记录同行累计 merge 次数；**不改变 `version`**，**不** 因超限删行重建。常量 `MAX_SNAPSHOT_ROW_UPDATES` 保留在 `config.py` 仅为历史兼容，**无运行时轮转语义**。
 4. **`force_refresh`**：调用方显式要求 **忽略缓存命中**、强制完整重算；完成后 **重写**缓存。被跳过的那一行命中记录应 **删除或作废**，避免后续误用（删整条或等价标记均可，择简）。
 
 **说明**：短期可在读写路径内联清理；长期可将过期扫描迁入 **cron job**，但语义不变：**过期资源不得作为有效命中**。
 
 ---
 
-## 8. 对外 API 形状（方向约定）
+## 8. HTTP 清理接口（V2-11 / V2-12）
+
+BFF 暴露两条 **DELETE** 路由（完整路径前缀 ``/api``），仅删 ``sys_strategy_workbench_snapshot`` **DB 行**，不删磁盘模拟产物：
+
+| 编号 | 方法 | 路径 | BED 入口 |
+|------|------|------|----------|
+| V2-11 | DELETE | `/v1/strategy/workbench-snapshot-cache` | `clear_workbench_simulation_cache_all` → `SimulatorResDbCacheService.delete_all_cache` |
+| V2-12 | DELETE | `/v1/strategy/<strategy_name>/version/<version_id>/workbench-snapshot-cache` | `clear_workbench_simulation_cache_by_version` → `delete_cache_by_version` |
+
+删行前对每行调用 ``log_workbench_version_deleted`` 记录 ``result_report`` 中的磁盘路径引用（便于排查 orphan 目录）。契约细则见 ``core/ui/fed/.../API.md``。
+
+开发与 CLI：
+
+| 命令 | 作用 |
+|------|------|
+| ``python dev-cli.py -csc`` | 物理 ``results/`` + DB 全清（``-cu`` 同义） |
+| ``python dev-cli.py -cdc`` | 仅 DB 工作台快照表 |
+| ``python dev-cli.py -cmc`` | 仅物理 ``results/`` |
+
+---
+
+## 9. 对外 API 形状（方向约定）
 
 - 上游 **仅通过 DbCache 暴露的少量公共方法** 访问缓存（名称以实现为准）。
 - **对外编排入口**：``facade.write_cache`` 暴露 ``simulator_name``、``strategy_name``、``raw_settings``、``partial_result_report``、``force_refresh`` 及与 env 相关的显式入参（股票列表、交易日等由 ``resolve_db_cache_fingerprints`` 消费）；内部调用 ``SimulatorResDbCacheService.generate_cache``。
@@ -130,7 +218,7 @@
 
 ---
 
-## 9. 实现注意（避免下一任重复踩坑）
+## 10. 实现注意（避免下一任重复踩坑）
 
 1. **单一契约**：DbCache 对「写入 dict / 表内槽位 JSON」**只实现一种形状**，不做多形态猜测或静默降级；旧形态需在迁移脚本或调用层显式处理，**不在**缓存内核分叉。  
 2. **命中查询**：必须 **`strategy_name + settings_fp + env_fp` 三条件 AND**，参见 §4。  
@@ -140,7 +228,7 @@
 
 ---
 
-## 10. 变更记录
+## 11. 变更记录
 
 | 日期 | 说明 |
 |------|------|
@@ -149,3 +237,5 @@
 | 2026-05 | 单行复写次数：``result_report`` 内 ``_db_cache_meta.write_count``、``audit/result_report_audit`` + `MAX_SNAPSHOT_ROW_UPDATES`；超限时删行并在各持久化路径上按指纹重建；`Model` 层去除未再使用的 ``clear_enum_cache_for_snapshot_id`` / ``replace_enum_cache_by_fingerprints``；`DbCacheService.generate_cache` 已对接枚举 `persist_enum_snapshot`（`force_refresh` 先 ``replace_enum_cache_by_fingerprints``）。 |
 | 2026-05 | ``persist_simulator_report_patch`` / ``strip_result_report_keys_by_fingerprints``；`generate_cache` 支持 **price_factor**、**capital_allocation**，``force_refresh`` 按模拟器分支剥离键。 |
 | 2026-05 | 对外编排骨架 ``simulator_res_db_cache.write_cache``：收窄入参；env 侧日期/版本/worker/data_contract/股票列表由内部解析（见 §8）。 |
+| 2026-06 | **三槽位契约（§6.1）**：移除写侧 enum/capital 路径 stub、读侧 price→enum / 兄弟行 enum / price→capital 自动修补；`version` 仅随指纹变化，**不再**因 `write_count` 超限删行建新 version；UI/报告 **有就是有、没有就是没有**。 |
+| 2026-06 | **V2-11 / V2-12**：HTTP DELETE 清空全表或按 `version` 删单行；`delete_all_cache` / `delete_cache_by_version`。 |

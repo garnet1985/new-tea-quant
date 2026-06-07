@@ -38,8 +38,10 @@ import {
   EMPTY_IMPORT_PROGRESS,
   getFieldDisplayValue,
   getFieldInputId,
+  shouldShowDbConnectionField,
   shouldShowUserspaceConflictPolicy,
   STEP_STATUS,
+  validateDbConnectionSubmit,
 } from './setup.helpers';
 import SetupDialogs from './setupDialogs';
 import SetupExecutionPanel from './setupExecutionPanel';
@@ -174,7 +176,7 @@ function SetupPage() {
       const initialValues = result.status?.inputsByStep?.[pausedId] || {};
       let nextForm = { ...initialValues };
       if (pausedId === 'db_connection') {
-        const dbType = nextForm.dbType || 'postgresql';
+        const dbType = nextForm.dbType || 'duckdb';
         nextForm = applyDbTypeDefaults({ ...nextForm, dbType }, 'dbType', dbType);
       }
       setFormValues(nextForm);
@@ -327,12 +329,23 @@ function SetupPage() {
     if (pausedStep === 'init_userspace' && !userspacePathExists) {
       submitValues.userspaceConflictPolicy = 'skip';
     }
-    if (pausedStep === 'db_connection' && !confirmedDbRisk) {
-      const dbCheck = await precheckDbConnection(submitValues);
-      if (dbCheck.dbExists) {
-        setDbRiskContext({ dbType: dbCheck.dbType || '', database: dbCheck.database || '' });
-        setDbRiskConfirmOpen(true);
+    if (pausedStep === 'db_connection') {
+      const validationError = validateDbConnectionSubmit(submitValues);
+      if (validationError) {
+        setErrorMessage(validationError);
         return;
+      }
+      if (!confirmedDbRisk) {
+        const dbCheck = await precheckDbConnection(submitValues);
+        if (dbCheck.dbExists) {
+          setDbRiskContext({
+            dbType: dbCheck.dbType || '',
+            database: dbCheck.database || '',
+            isDuckdb: Boolean(dbCheck.isDuckdb) || dbCheck.dbType === 'duckdb',
+          });
+          setDbRiskConfirmOpen(true);
+          return;
+        }
       }
     }
     setFlowStage('executing');
@@ -473,7 +486,8 @@ function SetupPage() {
                   flexWrap="wrap"
                 >
                   {(pausedStepDef?.requiredUserInputs || []).map((field) => {
-                    if (field.key === 'defaultPgsqlSchema' && formValues.dbType !== 'postgresql') return null;
+                    const dbType = formValues.dbType || 'duckdb';
+                    if (!shouldShowDbConnectionField(field.key, dbType)) return null;
                     if (!shouldShowUserspaceConflictPolicy(field, userspacePathEditable, userspacePathExists)) return null;
                     if (field.type === 'select') {
                       return (

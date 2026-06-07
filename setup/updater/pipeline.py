@@ -1,15 +1,15 @@
 """
 升级「应用阶段」流水线。
 
-**为何放在 ``userspace/updater``（发版源树见仓库根 ``setup/updater/``）：**
+**为何放在 ``userspace/system/updater``（发版源树见仓库根 ``setup/updater/``）：**
 
 - **不能放在 ``core/``**：镜像时会覆盖 ``core/``，进程自身正在加载其中的模块，易导致文件占用。
 - **不能放在 ``setup/``**：``setup/`` 也可能纳入 ``managed_scope``，覆盖时同样会换掉正在执行的脚本。
-- **应放在 ``userspace/updater``**：通常不在发行 zip 的替换范围内；随 **init userspace** 解压到用户目录后长期存在。
+- **应放在 ``userspace/system/updater``**：通常不在发行 zip 的替换范围内；随 **init userspace** 解压到用户目录后长期存在。
 
 版本探测（仅 GET 远端 ``system.json``）可由旧版 launcher/BFF 调用；**写盘升级**须在本模块所在路径执行（或单独子进程）。
 
-约定摘要（详见 ``userspace/updater/README.md``）：
+约定摘要（详见 ``userspace/system/updater/README.md``）：
 - 以新版 zip + ``managed_scope`` 对管辖路径做递归镜像；管辖外不动。
 - **数据库迁移用的旧版期望 schema** 须在 ``_update_managed_scope`` **之前** 固化（见 ``_snapshot_core_table_schemas_before_managed_scope``）；收尾顺序：安装依赖 → 数据库迁移。
 """
@@ -94,7 +94,7 @@ def run_upgrade_pipeline(ctx: UpgradeContext) -> None:
     """
     应用升级：自洽的一条龙编排（须在 **停掉主应用** 后调用）。
 
-    大步骤顺序见本仓库 ``userspace/updater/README.md`` §8。
+    大步骤顺序见本仓库 ``userspace/system/updater/README.md`` §8。
     """
     helper.pipeline_step_begin(1, "正在获取更新包")
     _download_latest_version_package(ctx)
@@ -182,7 +182,7 @@ def _trigger_core_extra_actions(ctx: UpgradeContext) -> None:
     """
     主流程结束后，子进程执行新版 ``core/infra/update/post_upgrade`` 已注册的收尾动作。
 
-    用于 updater 在主镜像阶段无法安全完成的「反向」写盘（如同步 ``userspace/updater``）。
+    用于 updater 在主镜像阶段无法安全完成的「反向」写盘（如同步 ``userspace/system/updater``）。
     注册表为空则跳过；结果写入 ``ctx.post_upgrade``。
     跳过整步：``NTQ_UPDATE_SKIP_POST_UPGRADE=1``。
     """
@@ -379,13 +379,13 @@ def _reinstall_dependencies(ctx: UpgradeContext) -> None:
 
 def _run_database_migrations(ctx: UpgradeContext) -> None:
     """
-    子进程调用 ``core.infra.db.migrate apply``（见 ``helper.spawn_database_migration_cli``）。
+    子进程调用 ``core.infra.db.migrate_manager apply``（见 ``helper.spawn_database_migration_cli``）。
 
     使用 ``ctx.pre_mirror_schema_snapshot_path``；无快照时默认 **失败**（见
     ``NTQ_UPDATE_ALLOW_MISSING_SCHEMA_SNAPSHOT``）。结果写入 ``ctx.database_migration``。
     跳过整步：``NTQ_UPDATE_SKIP_DB_MIGRATION=1``。
     """
-    helper.pipeline_step_note("正在调用 core.infra.db.migrate apply …")
+    helper.pipeline_step_note("正在调用 core.infra.db.migrate_manager apply …")
     ctx.database_migration = helper.spawn_database_migration_cli(
         ctx.repo_root,
         ctx.pre_mirror_schema_snapshot_path,

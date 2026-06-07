@@ -49,7 +49,11 @@
   - **未命中缓存、产生新版本行**：新的 **`version_id`** 相对进页时的锚点通常是**更新的一个版本**（存储侧递增的一条快照）。
   - **命中缓存、复用已有快照行**：**不会**产生新的版本行，**`version_id` 可以与进页时相同**；不得以「必须比进页大一号」作为契约。
 
-- **`result_report` 体积（2026-05）**：`enum` / `capital_allocation` 等槽位在 DB 中**不内嵌**逐股大块数据；仅保留摘要字段与**相对产物路径**（如 ``enum_report_rel_path``、``capital_sim_version_dir`` + ``capital_full_summary_rel_path``）。完整 ``enumMetrics``、``stock_summary`` 等由服务端在读快照（V2-01 / V2-07、指纹 lookup）时从 ``userspace/strategies/.../results/simulations/...`` 下 JSON **按需合并**；物理文件缺失时与枚举 **report_ref** 一致，由前端提示重新 run。
+- **`result_report` 三槽位（2026-06，BED 权威说明见 `core/modules/strategy/docs/db-cache-service.md` §6.1）**：
+  - 每个快照行最多三个业务键：`enum`、`price_factor`、`capital_allocation`；**仅对应步骤 job 成功后**由 BED 写入，**禁止**其它步骤代写（例如价格步**不得**注入 `enum` 路径）。
+  - **读路径**：V2-01 / V2-07 / V2-08 只读**该 `version_id` 行**上对应槽位；**无槽即无数据**，服务端**不得**从 `price_factor.enumerator_output_dir`、兄弟 `version` 或磁盘猜测补全。仅有 `price_factor` 却无 `enum` → **视为 BED bug**，FED 显示空/异常并提示重跑枚举，**不**展示伪造的 opportunities。
+  - **体积**：槽位在 DB 中**不内嵌**逐股大块；保留摘要指标与可选相对路径。`enumMetrics`、`stock_summary` 等可在槽位内直接存摘要，或由服务端在槽位**已有路径引用**时从 ``userspace/strategies/.../results/simulations/...`` **hydrate** 补全；物理文件缺失时与 **V2-07b `report_ref`** 一致，由前端提示对该步 **重新 run**。
+  - **`price_factor.output_version.enumerator_output_dir`**：价格回测依赖的枚举磁盘目录（血缘元数据），**不能**代替 `enum` 槽用于 UI 指标或 V2-07 `step=enum` 报告。
 
 ### BFF 边界：不做缓存，只做转发与 HTTP 门面
 
@@ -99,6 +103,8 @@
 | V2-08 | GET | `/strategy/{strategy_name}/version/{version_id}` | 按 **`version_id`** 读完整快照；**路径** `strategy_name` **必填**；响应与 **V2-01** 同形（切换版本后用；内含汇总 summary，见「V2-07 与 V2-08」） |
 | V2-09 | POST | `/strategy/{strategy_name}/apply-settings/{version_id}` | 将某工作台版本的 **`settings` 快照** **永久化**到该策略目录的 **`settings.py`**（反向写磁盘）；**路径** `strategy_name` **必填** |
 | V2-10 | GET | `/strategy/{strategy_name}/versions/range` | 按**时间段**筛选版本列表，**必须分页**（浏览 / 检索历史版本） |
+| V2-11 | DELETE | `/strategy/workbench-snapshot-cache` | 清空模拟结果 DbCache 表（`sys_strategy_workbench_snapshot`）**全部行** |
+| V2-12 | DELETE | `/strategy/{strategy_name}/version/{version_id}/workbench-snapshot-cache` | 删除指定策略工作台 **version** 对应的一条快照行 |
 
 ### V2-04 说明（选项类家族）
 
@@ -171,7 +177,7 @@
 ### V2-07 `GET /strategy/{strategy_name}/{step}/report/{version_id}`
 
 - **路径参数 `version_id`**（`v3` 或 `3`）。典型来源：**V2-06b** / **V2-06** 在任务完成且已落库后给出的 **`version_id`**；或 **V2-03** / 进页锚点等「已知版本」场景。
-- **语义**：读取该快照 **`result_report`** 中与 **`step`** 对应的槽位（`enum` / `price_factor` / `capital_allocation`），作为 **`report`** 返回；**`strategy_name`** 须与快照一致，否则 **404**。
+- **语义**：读取该快照 **`result_report`** 中与 **`step`** 对应的槽位（`enum` / `price_factor` / `capital_allocation`），作为 **`report`** 返回；**`strategy_name`** 须与快照一致，否则 **404**。槽位缺失时 **`report` 为空对象或实现约定之 404**；**禁止** BFF/BED 用其它槽位或历史版本自动修补（见上文 **三槽位**）。
 - **调用时机**：须在已有可信 **`version_id`** 之后（通常 **progress** 已为 **completed** 且带回 **`version_id`**）。
 - 响应须**回显** **`version_id`**；**失败 / 无快照** → **404**。
 
@@ -200,6 +206,20 @@
 - **策略作用域**：路径参数 **`strategy_name`** 必填；表示「哪一个策略」的工作台快照版本。
 - **条数**：服务端**固定返回至多 10 条**，按版本从新到旧（或按 `updated_at` 降序，实现阶段择一并在 BED 固定）；**不支持**客户端改 `limit`（避免与「下拉专用」语义混淆）。
 - **用途**：恢复版本下拉、对比目标列表的快速数据源（与其他「全量浏览」接口区分）。
+
+### V2-11 `DELETE /strategy/workbench-snapshot-cache`
+
+- **语义**：删除 ``sys_strategy_workbench_snapshot`` 表内**全部**快照行（所有策略、所有 `version`）。
+- **范围**：**仅 DB**；**不**删除 ``userspace/strategies/.../results/simulations/`` 磁盘目录（与 ``dev-cli.py -cu`` 不同）。
+- **成功**：`{ "cleared": true, "deleted_count": <int> }`（`deleted_count` 可为 0，表示表本已空）。
+- **失败**：表未注册 / 存储不可用 → **503**。
+
+### V2-12 `DELETE /strategy/{strategy_name}/version/{version_id}/workbench-snapshot-cache`
+
+- **路径参数**：``strategy_name``、``version_id``（``v3`` / ``3``，与 V2-08 一致）。
+- **语义**：删除该策略下**指定工作台 version** 的一行快照；其它 version 保留。
+- **成功**：`{ "deleted": true, "strategy_name": "...", "version_id": "v3" }`。
+- **失败**：``version_id`` 无效 → **400**；行不存在 → **404**；存储不可用 → **503**。
 
 ### V2-10 `GET /strategy/{strategy_name}/versions/range`
 

@@ -598,10 +598,43 @@ class IndicatorService:
         return trimmed
 
     @classmethod
+    def _patch_pandas_ta_verify_series(cls) -> None:
+        """将 pandas-ta 数据不足告警改为中文 DEBUG，避免刷屏。"""
+        from typing import Optional, Union
+
+        from pandas import Series
+
+        import pandas_ta_classic.utils._core as pta_core
+
+        if getattr(pta_core.verify_series, "_tea_patched", False):
+            return
+
+        def verify_series(
+            series: Series,
+            min_length: Optional[Union[int, float]] = None,
+        ) -> Optional[Series]:
+            has_length = min_length is not None and isinstance(min_length, int)
+            if series is not None and isinstance(series, Series):
+                if has_length and series.size < min_length:
+                    logger.debug(
+                        "序列仅 %s 行，指标至少需要 %s 行，跳过计算",
+                        series.size,
+                        min_length,
+                    )
+                    return None
+                return series
+            return None
+
+        verify_series._tea_patched = True  # type: ignore[attr-defined]
+        pta_core.verify_series = verify_series
+
+    @classmethod
     def _init_ta(cls):
         """延迟加载 pandas-ta-classic"""
         try:
             import pandas_ta_classic as ta
+
+            cls._patch_pandas_ta_verify_series()
             cls._ta = ta
             logger.info("✅ pandas-ta-classic 加载成功")
         except ImportError as e:

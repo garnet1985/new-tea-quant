@@ -25,8 +25,9 @@ function SettingsPage() {
   const [saveOk, setSaveOk] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const [databaseType, setDatabaseType] = useState('postgresql');
+  const [databaseType, setDatabaseType] = useState('duckdb');
   const [databaseName, setDatabaseName] = useState('');
+  const [duckdbDomains, setDuckdbDomains] = useState({});
 
   const load = useCallback(() => {
     setLoading(true);
@@ -35,6 +36,7 @@ function SettingsPage() {
       .then((r) => {
         setDatabaseType(r.database_type);
         setDatabaseName(r.database);
+        setDuckdbDomains(r.duckdb_domains || {});
       })
       .catch((e) => {
         setLoadError(e?.message || '读取数据库配置失败');
@@ -54,7 +56,8 @@ function SettingsPage() {
       .then((r) => {
         setDatabaseType(r.database_type);
         setDatabaseName(r.database);
-        setSaveOk('已保存到 userspace/config/database/ 下的配置文件。重启 BFF 或相关进程后生效。');
+        setDuckdbDomains(r.duckdb_domains || {});
+        setSaveOk('已保存到 userspace/system/config/database/ 下的配置文件。重启 BFF 或相关进程后生效。');
       })
       .catch((e) => {
         setSaveError(e?.message || '保存失败');
@@ -62,13 +65,15 @@ function SettingsPage() {
       .finally(() => setSaving(false));
   };
 
+  const isDuckdb = databaseType === 'duckdb';
+
   return (
     <PageLayout
       className="settings-page"
       breadcrumbsItems={[{ label: '策略实验室', to: '/strategy-workbench' }]}
       breadcrumbsCurrent="设置"
       bannerTitle="设置"
-      bannerDescription="系统安装入口与 userspace 数据库连接（库类型、库名）的快速调整。"
+      bannerDescription="系统安装入口与 userspace 数据库连接的快速调整。"
     >
       <Stack spacing={2.5} sx={{ maxWidth: 720 }}>
         <Card variant="outlined">
@@ -91,29 +96,29 @@ function SettingsPage() {
               数据库
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              对应 userspace 内
+              对应
               {' '}
               <Typography component="span" variant="body2" sx={{ fontFamily: 'ui-monospace, monospace' }}>
-                config/database/common.json
+                userspace/system/config/database/common.json
               </Typography>
               {' '}
               中的
               {' '}
               <code>database_type</code>
-              ，以及
+              。
+              DuckDB 使用
               {' '}
               <Typography component="span" variant="body2" sx={{ fontFamily: 'ui-monospace, monospace' }}>
-                postgresql.json
+                duckdb.json
               </Typography>
-              {' / '}
+              {' '}
+              中的三域文件路径（相对
+              {' '}
               <Typography component="span" variant="body2" sx={{ fontFamily: 'ui-monospace, monospace' }}>
-                mysql.json
+                userspace/system/db/
               </Typography>
-              {' '}
-              中的
-              {' '}
-              <code>database</code>
-              （库名）。其它连接字段请直接编辑上述文件或通过环境变量覆盖。
+              ）。
+              PostgreSQL / MySQL 另需编辑对应 json 中的连接字段。
             </Typography>
 
             {loadError ? <Alert severity="error" sx={{ mb: 2 }}>{loadError}</Alert> : null}
@@ -132,19 +137,43 @@ function SettingsPage() {
                   value={databaseType}
                   onChange={(e) => setDatabaseType(e.target.value)}
                 >
+                  <MenuItem value="duckdb">DuckDB（推荐，本地文件）</MenuItem>
                   <MenuItem value="postgresql">PostgreSQL</MenuItem>
                   <MenuItem value="mysql">MySQL</MenuItem>
                 </Select>
               </FormControl>
-              <TextField
-                label="数据库名（库名）"
-                size="small"
-                fullWidth
-                disabled={loading}
-                value={databaseName}
-                onChange={(e) => setDatabaseName(e.target.value)}
-                helperText="仅允许字母、数字、下划线、连字符与点号。"
-              />
+              {isDuckdb ? (
+                <Alert severity="info">
+                  当前使用 DuckDB。数据文件位于 userspace/system/db/，默认域：
+                  {Object.keys(duckdbDomains).length > 0 ? (
+                    <Box component="ul" sx={{ mt: 1, mb: 0, pl: 2 }}>
+                      {Object.entries(duckdbDomains).map(([domain, path]) => (
+                        <li key={domain}>
+                          <code>{domain}</code>
+                          :
+                          {' '}
+                          <code>{path}</code>
+                        </li>
+                      ))}
+                    </Box>
+                  ) : (
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      data.duckdb / tag.duckdb / strategy.duckdb（使用 core 默认配置）
+                    </Typography>
+                  )}
+                  高级参数请直接编辑 duckdb.json。
+                </Alert>
+              ) : (
+                <TextField
+                  label="数据库名（库名）"
+                  size="small"
+                  fullWidth
+                  disabled={loading}
+                  value={databaseName}
+                  onChange={(e) => setDatabaseName(e.target.value)}
+                  helperText="仅允许字母、数字、下划线、连字符与点号。"
+                />
+              )}
               <Box>
                 <Button variant="contained" onClick={handleSave} disabled={loading || saving}>
                   {saving ? '保存中…' : '保存数据库设置'}

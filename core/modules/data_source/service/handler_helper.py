@@ -27,6 +27,36 @@ class DataSourceHandlerHelper:
     # ========== ApiJob 构造 ==========
 
     @staticmethod
+    def apply_entity_params_mapping(
+        entity_info: Any,
+        apis: List[ApiJob],
+        apis_conf: Dict[str, ApiConfig],
+        entity_key_field: str,
+    ) -> None:
+        """
+        按 apis.*.params_mapping 将实体字段注入 ApiJob.params（api 参数名 <- 实体字段名）。
+        子类 on_build_job_payload 可在此基础上做格式转换（如 Tushare id -> 腾讯 sz/sh）。
+        """
+        if not entity_info or not apis or not apis_conf:
+            return
+
+        if isinstance(entity_info, dict):
+            entity_values = entity_info
+        else:
+            entity_values = {entity_key_field: entity_info}
+
+        for job in apis:
+            api_conf = apis_conf.get(job.api_name or "") or apis_conf.get(job.job_id or "")
+            if not api_conf or not api_conf.params_mapping:
+                continue
+            params = job.params or {}
+            for param_name, field_name in api_conf.params_mapping.items():
+                val = entity_values.get(field_name)
+                if val is not None and str(val).strip():
+                    params[param_name] = str(val)
+            job.params = params
+
+    @staticmethod
     def build_api_jobs(apis: Dict[str, ApiConfig]) -> List[ApiJob]:
         """
         将 config 中的 apis 定义转换为 ApiJob 列表。

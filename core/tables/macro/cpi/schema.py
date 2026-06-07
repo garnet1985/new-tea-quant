@@ -5,6 +5,7 @@ data_cpi 表结构定义（Python，变量名 schema）
 主键 date nullable=false；其余 nullable=true。
 """
 schema = {
+    "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "macro_cpi",
     "name": "sys_cpi",
     "primaryKey": "date",

@@ -5,6 +5,7 @@ data_stock_kline_daily 表结构定义（Python，变量名 schema）
 主键、时序列 id/date nullable=false；其余 nullable=true。
 """
 schema = {
+    "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "stock_stock_klines",
     "name": "sys_stock_klines",
     "primaryKey": ["id", "term", "date"],

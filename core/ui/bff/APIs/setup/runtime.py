@@ -15,6 +15,13 @@ from setup.meta_loader import load_setup_step_meta
 REPO_ROOT = Path(__file__).resolve().parents[5]
 STATE_FILE = REPO_ROOT / ".ntq" / "setup-runtime.json"
 
+_DEFAULT_DUCKDB_DOMAINS = {
+    "data": {"db_path": "data.duckdb"},
+    "tag": {"db_path": "tag.duckdb"},
+    "strategy": {"db_path": "strategy.duckdb"},
+}
+_DUCKDB_DOMAIN_FILES = ("data.duckdb", "tag.duckdb", "strategy.duckdb")
+
 
 class SetupRuntimeManager:
     STATUS_NOT_STARTED = "not_started"
@@ -68,15 +75,16 @@ class SetupRuntimeManager:
 
     def precheck_db_connection(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         payload = inputs or {}
-        db_type = str(payload.get("dbType", "")).strip().lower()
+        db_type = str(payload.get("dbType", "duckdb")).strip().lower() or "duckdb"
         db_name = str(payload.get("database", "")).strip()
-        exists = self._db_exists_precheck(payload)
+        exists = self._db_exists_precheck(payload, state=None)
         return {
             "status": "ok",
             "message": {
                 "dbExists": bool(exists),
                 "dbType": db_type,
                 "database": db_name,
+                "isDuckdb": db_type == "duckdb",
             },
         }
 
@@ -205,7 +213,7 @@ class SetupRuntimeManager:
             step_inputs = state.get("inputsByStep", {}).get(step_id, {}) or {}
             db_existed_before = None
             if step_id == "db_connection":
-                db_existed_before = self._db_exists_precheck(step_inputs)
+                db_existed_before = self._db_exists_precheck(step_inputs, state=state)
 
             self._prepare_inputs_for_step(state, step_id, step_inputs)
             script_rel = str(step.get("scriptEntry", "")).strip()
@@ -247,11 +255,16 @@ class SetupRuntimeManager:
                     "已存在（跳过创建）" in combined_output
                     or "数据库" in combined_output and "已存在" in combined_output
                 )
-                db_type = str(step_inputs.get("dbType", "")).strip().lower()
+                db_type = str(step_inputs.get("dbType", "duckdb")).strip().lower() or "duckdb"
                 db_name = str(step_inputs.get("database", "")).strip()
                 if db_existed_before is True or output_indicates_exists:
-                    name_text = f"{db_type}:{db_name}" if db_name else "当前目标数据库"
-                    notices[step_id] = f"检测到 {name_text} 已存在：后续初始化数据导入可能覆盖部分表数据，请确认后继续。"
+                    if db_type == "duckdb":
+                        name_text = "userspace/system/db/ 下的 DuckDB 文件"
+                    else:
+                        name_text = f"{db_type}:{db_name}" if db_name else "当前目标数据库"
+                    notices[step_id] = (
+                        f"检测到 {name_text} 已存在：后续初始化数据导入可能覆盖部分表数据，请确认后继续。"
+                    )
                 else:
                     notices.pop(step_id, None)
 
@@ -274,12 +287,12 @@ class SetupRuntimeManager:
     def _prepare_inputs_for_step(self, state: Dict[str, Any], step_id: str, inputs: Dict[str, Any]) -> None:
         if step_id != "db_connection":
             return
-        db_type = str((inputs or {}).get("dbType", "postgresql")).strip().lower() or "postgresql"
-        if db_type not in ("postgresql", "mysql"):
-            db_type = "postgresql"
+        db_type = str((inputs or {}).get("dbType", "duckdb")).strip().lower() or "duckdb"
+        if db_type not in ("postgresql", "mysql", "duckdb"):
+            db_type = "duckdb"
 
         userspace_root = self._resolve_userspace_root(state)
-        db_cfg_dir = userspace_root / "config" / "database"
+        db_cfg_dir = userspace_root / "system" / "config" / "database"
         db_cfg_dir.mkdir(parents=True, exist_ok=True)
 
         common_json = db_cfg_dir / "common.json"
@@ -287,6 +300,14 @@ class SetupRuntimeManager:
         common_json.write_text(json.dumps(common_payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
         detail_json = db_cfg_dir / f"{db_type}.json"
+        if db_type == "duckdb":
+            if not detail_json.is_file():
+                detail_json.write_text(
+                    json.dumps({"domains": dict(_DEFAULT_DUCKDB_DOMAINS)}, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+            return
+
         wrapper: Dict[str, Any] = {
             db_type: {
                 "host": (inputs or {}).get("host", ""),
@@ -352,8 +373,28 @@ class SetupRuntimeManager:
     def _bump_version(self, state: Dict[str, Any]) -> None:
         state["version"] = int(state.get("version", 1)) + 1
 
-    def _db_exists_precheck(self, inputs: Dict[str, Any]) -> Optional[bool]:
-        db_type = str((inputs or {}).get("dbType", "postgresql")).strip().lower() or "postgresql"
+    def _duckdb_files_exist(self, state: Optional[Dict[str, Any]] = None) -> bool:
+        userspace_root = self._resolve_userspace_root(state) if state else PathManager.userspace()
+        db_dir = userspace_root / "system" / "db"
+        for name in _DUCKDB_DOMAIN_FILES:
+            path = db_dir / name
+            try:
+                if path.is_file() and path.stat().st_size > 0:
+                    return True
+            except OSError:
+                continue
+        return False
+
+    def _db_exists_precheck(
+        self,
+        inputs: Dict[str, Any],
+        *,
+        state: Optional[Dict[str, Any]] = None,
+    ) -> Optional[bool]:
+        db_type = str((inputs or {}).get("dbType", "duckdb")).strip().lower() or "duckdb"
+        if db_type == "duckdb":
+            return self._duckdb_files_exist(state)
+
         host = str((inputs or {}).get("host", "localhost")).strip() or "localhost"
         user = str((inputs or {}).get("user", "")).strip()
         password = str((inputs or {}).get("password", ""))

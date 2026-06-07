@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Dict, Set
 
-from core.infra.db.helpers.db_helpers import DBHelper
+from core.infra.db.engines._shared.dialect import normalize_database_type
 
 if TYPE_CHECKING:
     from core.infra.db.db_manager import DatabaseManager
@@ -45,7 +45,7 @@ def introspect_database(db: "DatabaseManager") -> DatabaseCatalog:
         raise RuntimeError("DatabaseManager 未初始化，无法 introspection")
 
     cfg = db.config
-    db_type = DBHelper.normalize_database_type(cfg)
+    db_type = normalize_database_type(cfg)
     catalog = DatabaseCatalog()
 
     if db_type == "postgresql":

@@ -3,20 +3,33 @@ Path Manager - 路径管理器
 
 职责：提供常用路径的快捷访问，所有路径基于项目根目录。
 
-设计原则：
-- 所有路径都基于项目根目录（通过 __file__ 自动检测）
-- 提供静态方法，无状态
-- 支持路径不存在时的处理（返回 Path 对象，不强制创建）
+userspace 顶层三分：
+- strategies/   策略（日常使用）
+- extensions/   框架扩展（tags、data_source、data_contract、tables、adapters）
+- system/       系统（config、db、backup、updater）
 """
-
 from pathlib import Path
 from typing import Optional
+import logging
 import os
+import shutil
+
+logger = logging.getLogger(__name__)
+
+
+# userspace/extensions 下 Python 包前缀（import 路径）
+EXTENSIONS_MODULE_PREFIX = "userspace.extensions"
+
+
+def extensions_module(*parts: str) -> str:
+    """拼接 extensions 包下模块路径，如 extensions_module('data_source', 'handlers')。"""
+    base = EXTENSIONS_MODULE_PREFIX
+    return ".".join((base,) + parts) if parts else base
 
 
 class PathManager:
     """路径管理器 - 提供常用路径的快捷访问"""
-    
+
     _root_cache: Optional[Path] = None
     _userspace_cache: Optional[Path] = None
 
@@ -24,106 +37,65 @@ class PathManager:
     def invalidate_userspace_cache() -> None:
         """清理 userspace 路径缓存。用于 setup 运行时路径切换后强制重读。"""
         PathManager._userspace_cache = None
-    
+
     @staticmethod
     def get_root() -> Path:
-        """
-        获取项目根目录
-        
-        检测逻辑：
-        1. 从当前文件（__file__）向上查找，直到找到包含特定标记的目录
-        2. 标记可以是：.git、pyproject.toml、setup.py、README.md 等
-        3. 缓存结果，避免重复检测
-        
-        Returns:
-            项目根目录的 Path 对象
-        """
+        """获取项目根目录。"""
         if PathManager._root_cache is not None:
             return PathManager._root_cache
-        
-        # 从当前文件向上查找项目根目录
+
         current_file = Path(__file__).resolve()
         current_dir = current_file.parent
-        
-        # 项目根目录的标记文件/目录
+
         root_markers = [
-            '.git',
-            'pyproject.toml',
-            'setup.py',
-            'requirements.txt',
-            'start.py',  # 项目入口文件
+            ".git",
+            "pyproject.toml",
+            "setup.py",
+            "requirements.txt",
+            "start.py",
         ]
-        
-        # 向上查找，直到找到包含标记的目录
+
         for parent in [current_dir] + list(current_dir.parents):
-            # 检查是否有标记文件/目录
             for marker in root_markers:
-                marker_path = parent / marker
-                if marker_path.exists():
+                if (parent / marker).exists():
                     PathManager._root_cache = parent
                     return parent
-        
-        # 如果没找到，使用当前文件的第5层父目录（app/core/infra/path -> 项目根）
-        # 这是fallback方案
+
         fallback_root = current_dir.parent.parent.parent.parent.parent
         PathManager._root_cache = fallback_root
         return fallback_root
-    
+
     @staticmethod
     def core() -> Path:
-        """
-        core/ 目录
-        
-        支持两种路径结构：
-        1. core/（新结构）
-        2. app/core/（旧结构，迁移期间兼容）
-        """
+        """core/ 目录。"""
         root = PathManager.get_root()
-        
-        # 优先使用新路径结构
         new_path = root / "core"
         if new_path.exists():
             return new_path
-        
-        # 兼容旧路径结构
-        old_path = root / "app" / "core"
-        if old_path.exists():
-            return old_path
-        
-        # 如果都不存在，返回新路径（由调用方决定是否创建）
         return new_path
-    
+
     @staticmethod
     def userspace() -> Path:
         """
-        userspace/ 目录
-        
-        优先级：
-        1. 环境变量覆盖：
-           - NEW_TEA_QUANT_USERSPACE_ROOT
-           - 或 NTQ_USERSPACE_ROOT（别名）
-        2. 相对项目根目录：
-           - userspace/（新结构）
-           - app/userspace/（旧结构，迁移期间兼容）
+        userspace/ 目录。
+
+        优先级：环境变量 > .ntq/userspace-path.json > 项目根/userspace
         """
         if PathManager._userspace_cache is not None:
             return PathManager._userspace_cache
 
         root = PathManager.get_root()
-        
-        # 1. 环境变量覆盖（允许用户将 userspace 放在项目根目录之外）
-        env_paths = [
+
+        for env_path in (
             os.getenv("NEW_TEA_QUANT_USERSPACE_ROOT"),
             os.getenv("NTQ_USERSPACE_ROOT"),
-        ]
-        for env_path in env_paths:
+        ):
             if env_path:
                 p = Path(env_path).expanduser().resolve()
                 if p.exists():
                     PathManager._userspace_cache = p
                     return p
 
-        # 2. 安装步骤写入的 userspace 路径状态
         state_file = root / ".ntq" / "userspace-path.json"
         if state_file.is_file():
             try:
@@ -138,177 +110,203 @@ class PathManager:
                         return p
             except Exception:
                 pass
-        
-        # 2. 优先使用新路径结构（相对项目根目录）
-        new_path = root / "userspace"
-        if new_path.exists():
-            PathManager._userspace_cache = new_path
-            return new_path
 
-        # 如果不存在，返回新路径（由调用方决定是否创建）
+        new_path = root / "userspace"
         PathManager._userspace_cache = new_path
         return new_path
-    
+
+    @staticmethod
+    def strategies_root() -> Path:
+        """策略根目录：userspace/strategies/"""
+        return PathManager.userspace() / "strategies"
+
+    @staticmethod
+    def extensions_root() -> Path:
+        """扩展根目录：userspace/extensions/"""
+        return PathManager.userspace() / "extensions"
+
+    @staticmethod
+    def system_root() -> Path:
+        """系统根目录：userspace/system/"""
+        return PathManager.userspace() / "system"
+
     @staticmethod
     def default_config() -> Path:
         """默认配置目录：core/default_config/"""
-        root = PathManager.get_root()
-        return root / "core" / "default_config"
+        return PathManager.get_root() / "core" / "default_config"
 
     @staticmethod
     def user_config() -> Path:
-        """用户配置目录：userspace/config/"""
-        return PathManager.userspace() / "config"
+        """用户配置目录：userspace/system/config/"""
+        return PathManager.system_root() / "config"
 
     @staticmethod
     def config() -> Path:
-        """用户配置目录（同 `user_config()`，供简短调用）。"""
+        """用户配置目录（同 ``user_config()``）。"""
         return PathManager.user_config()
 
     @staticmethod
+    def system_db() -> Path:
+        """DuckDB 等数据库文件目录：userspace/system/db/"""
+        return PathManager.system_root() / "db"
+
+    @staticmethod
     def backup() -> Path:
-        """
-        备份目录：userspace/backup
-        """
-        return PathManager.userspace() / "backup"
+        """备份目录：userspace/system/backup/"""
+        return PathManager.system_root() / "backup"
 
     @staticmethod
     def backup_data() -> Path:
-        """
-        备份数据目录：userspace/backup/data
-        """
+        """备份数据目录：userspace/system/backup/data/"""
         return PathManager.backup() / "data"
 
     @staticmethod
+    def updater() -> Path:
+        """应用升级器目录：userspace/system/updater/"""
+        return PathManager.system_root() / "updater"
+
+    @staticmethod
     def userspace_ntq() -> Path:
-        """NTQ 内部目录：userspace/.ntq"""
-        return PathManager.userspace() / ".ntq"
+        """
+        NTQ 内部目录（userspace 下唯一）：``userspace/.ntq/``。
+
+        旧路径 ``userspace/system/.ntq/`` 若仍存在，会在首次访问时合并迁入并删除。
+        """
+        canonical = PathManager.userspace() / ".ntq"
+        legacy = PathManager.system_root() / ".ntq"
+        if legacy.is_dir():
+            PathManager._migrate_legacy_userspace_ntq(legacy, canonical)
+        return canonical
+
+    @staticmethod
+    def _migrate_legacy_userspace_ntq(legacy: Path, canonical: Path) -> None:
+        """一次性：``system/.ntq`` → ``userspace/.ntq``。"""
+        try:
+            canonical.mkdir(parents=True, exist_ok=True)
+            for item in legacy.iterdir():
+                dest = canonical / item.name
+                if not dest.exists():
+                    shutil.move(str(item), str(dest))
+                    continue
+                if item.is_dir() and dest.is_dir():
+                    for sub in item.iterdir():
+                        sub_dest = dest / sub.name
+                        if not sub_dest.exists():
+                            shutil.move(str(sub), str(sub_dest))
+            shutil.rmtree(legacy)
+            logger.info("已合并旧路径 %s → %s", legacy, canonical)
+        except Exception as exc:
+            logger.warning("合并 legacy userspace .ntq 失败（可手动迁移）: %s", exc)
 
     @staticmethod
     def userspace_tmp() -> Path:
-        """临时目录：userspace/.ntq/tmp"""
+        """临时目录：userspace/.ntq/tmp/"""
         return PathManager.userspace_ntq() / "tmp"
-    
+
     @staticmethod
     def strategy(strategy_name: str) -> Path:
-        """策略目录：userspace/strategies/{strategy_name}"""
-        return PathManager.userspace() / "strategies" / strategy_name
-    
+        """策略目录：userspace/strategies/{strategy_name}/"""
+        return PathManager.strategies_root() / strategy_name
+
     @staticmethod
     def strategy_settings(strategy_name: str) -> Path:
-        """策略配置文件：userspace/strategies/{strategy_name}/settings.py"""
+        """策略配置：userspace/strategies/{strategy_name}/settings.py"""
         return PathManager.strategy(strategy_name) / "settings.py"
-    
+
     @staticmethod
     def strategy_results(strategy_name: str) -> Path:
-        """策略结果目录：userspace/strategies/{strategy_name}/results"""
+        """策略结果：userspace/strategies/{strategy_name}/results/"""
         return PathManager.strategy(strategy_name) / "results"
-    
+
     @staticmethod
     def strategy_simulation_enum(strategy_name: str) -> Path:
-        """
-        枚举（机会枚举）输出根目录（版本子目录与 ``meta.json`` 均在此目录下）。
-
-        约定：``userspace/strategies/{strategy}/results/simulations/enum/{version_dir}``。
-        """
+        """枚举模拟根：.../results/simulations/enum/"""
         return PathManager.strategy_results(strategy_name) / "simulations" / "enum"
 
     @staticmethod
     def strategy_simulation_price(strategy_name: str) -> Path:
-        """价格因子模拟版本根目录：``.../results/simulations/price``。"""
+        """价格模拟根：.../results/simulations/price/"""
         return PathManager.strategy_results(strategy_name) / "simulations" / "price"
 
     @staticmethod
     def strategy_simulation_capital(strategy_name: str) -> Path:
-        """资金分配模拟版本根目录：``.../results/simulations/capital``。"""
+        """资金模拟根：.../results/simulations/capital/"""
         return PathManager.strategy_results(strategy_name) / "simulations" / "capital"
-    
+
     @staticmethod
     def strategy_scan_results(strategy_name: str) -> Path:
-        """
-        扫描结果根目录。
-
-        路径：``userspace/strategies/{strategy_name}/results/scan``；
-        其下按扫描日建子目录（``YYYYMMDD``），内含 ``opportunities.csv`` 等（命名与旧版一致）。
-        """
+        """扫描结果根：.../results/scan/"""
         return PathManager.strategy_results(strategy_name) / "scan"
-    
-    # ========== Tag 相关路径 ==========
-    
+
+    # ========== extensions: Tag ==========
+
     @staticmethod
     def tags() -> Path:
-        """Tag 根目录：userspace/tags"""
-        return PathManager.userspace() / "tags"
-    
+        """Tag 根目录：userspace/extensions/tags/"""
+        return PathManager.extensions_root() / "tags"
+
     @staticmethod
     def tag_scenario(scenario_name: str) -> Path:
-        """标签场景目录：userspace/tags/{scenario_name}"""
         return PathManager.tags() / scenario_name
-    
+
     @staticmethod
     def tag_scenario_settings(scenario_name: str) -> Path:
-        """标签场景配置文件：userspace/tags/{scenario_name}/settings.py"""
         return PathManager.tag_scenario(scenario_name) / "settings.py"
-    
+
     @staticmethod
     def tag_scenario_worker(scenario_name: str) -> Path:
-        """标签场景 Worker 文件：userspace/tags/{scenario_name}/tag_worker.py"""
         return PathManager.tag_scenario(scenario_name) / "tag_worker.py"
-    
-    # ========== Data Source 相关路径 ==========
-    
+
+    # ========== extensions: Data Source ==========
+
     @staticmethod
     def data_source() -> Path:
-        """Data Source 根目录：userspace/data_source"""
-        return PathManager.userspace() / "data_source"
-    
+        """Data Source 根：userspace/extensions/data_source/"""
+        return PathManager.extensions_root() / "data_source"
+
     @staticmethod
     def data_source_mapping() -> Path:
-        """Data Source 用户配置文件：userspace/data_source/mapping.py"""
         return PathManager.data_source() / "mapping.py"
-    
+
     @staticmethod
     def data_source_handlers() -> Path:
-        """Data Source Handlers 目录：userspace/data_source/handlers"""
         return PathManager.data_source() / "handlers"
-    
+
     @staticmethod
     def data_source_handler(handler_name: str) -> Path:
-        """Data Source Handler 目录：userspace/data_source/handlers/{handler_name}"""
         return PathManager.data_source_handlers() / handler_name
-    
+
+    @staticmethod
+    def data_source_providers() -> Path:
+        return PathManager.data_source() / "providers"
+
+    @staticmethod
+    def data_source_provider(provider_name: str) -> Path:
+        return PathManager.data_source_providers() / provider_name
+
+    # ========== extensions: Data Contract ==========
+
     @staticmethod
     def data_contract() -> Path:
-        """
-        Data Contract 用户注册目录：userspace/data_contract
-
-        与 Python 包 `userspace.data_contract` 对应；路径受 `PathManager.userspace()`
-        （含环境变量覆盖）影响，供发现/诊断与文件侧约定一致。
-        """
-        return PathManager.userspace() / "data_contract"
+        """Data Contract：userspace/extensions/data_contract/"""
+        return PathManager.extensions_root() / "data_contract"
 
     @staticmethod
     def data_contract_mapping() -> Path:
-        """
-        Data Contract userspace mapping 文件：
-        userspace/data_contract/mapping.py
-        """
         return PathManager.data_contract() / "mapping.py"
 
     @staticmethod
     def data_contract_loaders() -> Path:
-        """
-        Data Contract userspace loaders 目录：
-        userspace/data_contract/loaders
-        """
         return PathManager.data_contract() / "loaders"
 
+    # ========== extensions: Tables / Adapters ==========
+
     @staticmethod
-    def data_source_providers() -> Path:
-        """Data Source Providers 目录：userspace/data_source/providers"""
-        return PathManager.data_source() / "providers"
-    
+    def extensions_tables() -> Path:
+        """用户自定义表：userspace/extensions/tables/"""
+        return PathManager.extensions_root() / "tables"
+
     @staticmethod
-    def data_source_provider(provider_name: str) -> Path:
-        """Data Source Provider 目录：userspace/data_source/providers/{provider_name}"""
-        return PathManager.data_source_providers() / provider_name
+    def adapters() -> Path:
+        """扫描适配器：userspace/extensions/adapters/"""
+        return PathManager.extensions_root() / "adapters"

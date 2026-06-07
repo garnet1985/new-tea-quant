@@ -24,7 +24,7 @@ class ModuleDiscovery:
         # 发现所有 schema 模块
         discovery = ModuleDiscovery()
         schemas = discovery.discover_objects(
-            base_module_path="userspace.data_source.handlers",
+            base_module_path="userspace.extensions.data_source.handlers",
             object_name="SCHEMA",
             module_pattern="{base_module}.{name}.schema"
         )
@@ -42,7 +42,7 @@ class ModuleDiscovery:
         发现所有模块中的特定对象
         
         Args:
-            base_module_path: 基础模块路径（如 "userspace.data_source.handlers"）
+            base_module_path: 基础模块路径（如 "userspace.extensions.data_source.handlers"）
             object_name: 对象名（如 "SCHEMA", "CONFIG"）
             module_pattern: 模块路径模式（如 "{base_module}.{name}.schema"）
             skip_modules: 跳过的模块名集合
@@ -107,7 +107,7 @@ class ModuleDiscovery:
         
         Args:
             base_path: 基础路径（如 PathManager.data_source_handlers()）
-            module_pattern: 模块路径模式（如 "userspace.data_source.handlers.{name}.schema"）
+            module_pattern: 模块路径模式（如 "userspace.extensions.data_source.handlers.{name}.schema"）
             object_name: 要提取的对象名（可选）
         
         Returns:

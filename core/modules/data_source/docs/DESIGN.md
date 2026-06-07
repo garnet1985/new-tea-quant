@@ -1,6 +1,6 @@
 # Data Source 设计说明
 
-**版本：** `0.2.0`
+**版本：** `0.3.6`
 
 本文档描述 **userspace 配置布局**、**schema 来源**与 **handler 发现规则**。实现以 `data_source_manager.py`、`service/manager_helper.py` 为准。
 
@@ -12,7 +12,7 @@
 
 | 路径 | 作用 |
 | --- | --- |
-| `userspace/data_source/mapping.py` | 定义 **`DATA_SOURCES`**（或兼容 `mapping.json` 的发现逻辑，见 `DataSourceManagerHelper`） |
+| `userspace/data_source/mapping.py` | 定义 **`DATA_SOURCES`**（见 `DataSourceManagerHelper.discover_mappings`） |
 | `userspace/data_source/handlers/<name>/config.py` | 各数据源 **`CONFIG`**（顶层 **`table`** 绑定物理表名） |
 | `userspace/data_source/handlers/.../handler.py`（或 mapping 指向的模块） | **Handler** 类实现 |
 | `userspace/data_source/providers/` | **Provider** 包，供 `ClassDiscovery` 扫描 |

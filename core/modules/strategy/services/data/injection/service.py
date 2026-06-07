@@ -1,12 +1,27 @@
 #!/usr/bin/env python3
-"""Input-side data injection service."""
+"""
+策略侧 **contract 注入** 服务。
+
+**范围（决策 11）** — 仅处理用户在 ``settings.data`` 中声明的数据：
+
+- ``base_required_data`` + ``extra_required_data_sources`` → ``required_data_sources``
+- 经 ``DataContractManager.issue`` / ``StrategyJobContractBatch`` 物化后装入 slot 与 ``DataCursor``
+
+**不在此服务内、由回测编排直调 DataManager 的示例：**
+
+- 股票池 / PIT universe（``stock.list.load``）
+- 单票元数据（``load_meta`` / ``load_single``）
+- 交易日历、最新已完成交易日
+
+若用户将 ``stock.list`` 等写入 ``extra_required_data_sources``，则纳入本服务与 contract 路径。
+"""
 
 from __future__ import annotations
 
 import logging
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.modules.strategy.engines.shared.performance_profiler import PerformanceProfiler
@@ -24,12 +39,15 @@ from core.modules.strategy.services.data.helper import (
     normalize_declaration_item,
     storage_key_for,
 )
+from core.modules.strategy.services.data.injection.job_contract_batch import (
+    StrategyJobContractBatch,
+)
 from core.utils.date.date_utils import DateUtils
 
 logger = logging.getLogger(__name__)
 
 class StrategyDataInjectionService:
-    """Service for preparing and injecting strategy input data."""
+    """为单股 worker 装填 **settings 已声明** 的 contract 数据（见模块 docstring）。"""
 
     def __init__(
         self,
@@ -45,7 +63,7 @@ class StrategyDataInjectionService:
         self._contract_cache = contract_cache
         self._dcf_mgr: Optional[DataContractManager] = None
 
-        self._current_data: Dict[str, List[Dict[str, Any]]] = {"klines": []}
+        self._current_data: Dict[str, List[Dict[str, Any]]] = {}
         self._slot_contracts: Dict[str, DataContract] = {}
         self._cursor_mgr = DataCursorManager()
         self._cursor_name = f"strategy:{self.stock_id}"
@@ -78,11 +96,34 @@ class StrategyDataInjectionService:
         start: str,
         end: str,
         entity_id: Optional[str] = None,
+        entity_ids: Optional[Sequence[str]] = None,
         data_block: Optional[Dict[str, Any]] = None,
     ) -> Dict[DataKey, DataContract]:
         block = data_block if data_block is not None else self.settings.data
         st = StrategySettingsView({"data": block})
         declarations = st.required_data_sources
+
+        if entity_id is not None and entity_ids is not None:
+            raise ValueError("issue_contracts：entity_id 与 entity_ids 互斥")
+
+        if entity_ids is not None:
+            ids = [str(x).strip() for x in entity_ids if str(x).strip()]
+            if not ids:
+                raise ValueError("issue_contracts：entity_ids 不能为空")
+            batch = StrategyJobContractBatch.hydrate(
+                entity_ids=ids,
+                settings=st,
+                start=start,
+                end=end,
+                contract_cache=self._contract_cache,
+                global_extra_cache=self._global_extra_cache,
+            )
+            if len(ids) == 1:
+                return batch.contracts_for_entity(ids[0])
+            raise ValueError(
+                "issue_contracts 仅支持单 entity；多 entity 请用 StrategyJobContractBatch.hydrate"
+            )
+
         eff_entity = entity_id.strip() if entity_id and str(entity_id).strip() else None
 
         out: Dict[DataKey, DataContract] = {}
@@ -99,14 +140,21 @@ class StrategyDataInjectionService:
             if scope == ContractScope.PER_ENTITY and eff_entity is None:
                 continue
 
-            ent = eff_entity if scope == ContractScope.PER_ENTITY else None
-            contract = dcm.issue(
-                dk,
-                entity_id=ent,
-                start=start,
-                end=end,
-                **params,
-            )
+            if scope == ContractScope.PER_ENTITY:
+                contract = dcm.issue(
+                    dk,
+                    entity_ids=[eff_entity],
+                    start=start,
+                    end=end,
+                    **params,
+                ).require_contract(entity_id=eff_entity)
+            else:
+                contract = dcm.issue(
+                    dk,
+                    start=start,
+                    end=end,
+                    **params,
+                ).require_contract()
             if dk in out:
                 raise ValueError(
                     f"data 声明中重复的 data_id：{dk.value!r}（dict 存储下无法同时保留两条）"
@@ -122,15 +170,25 @@ class StrategyDataInjectionService:
     ) -> Dict[str, Any]:
         return normalize_declaration_item(settings, raw)
 
-    def hydrate_row_slots(self, start_date: str, end_date: str) -> None:
-        self._contract_cache.enter_strategy_run()
+    def clear_working_state(self) -> None:
+        """释放当前股槽位与 cursor（同 job 内处理下一股前调用）。"""
+        self._current_data = {}
         self._slot_contracts = {}
-        contracts = self.issue_contracts(
-            start=start_date,
-            end=end_date,
-            entity_id=self.stock_id,
-        )
+        try:
+            self._cursor_mgr.drop_cursor(self._cursor_name)
+        except Exception:
+            pass
+
+    def _apply_contracts_to_slots(
+        self,
+        contracts: Dict[DataKey, DataContract],
+        *,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> None:
         dcm = self._contract_manager()
+        self._slot_contracts = {}
+        self._current_data = {}
         for dk, contract in contracts.items():
             spec = dcm.map.get(dk)
             slot = self.storage_key_for(dk)
@@ -145,13 +203,37 @@ class StrategyDataInjectionService:
                 self._current_data[slot] = cached_rows
                 self._slot_contracts[slot] = contract
                 continue
-            if contract.needs_load:
+            if contract.needs_load and start_date is not None and end_date is not None:
                 self._record_contract_load(
                     slot,
                     lambda c=contract, s=start_date, e=end_date: c.load(start=s, end=e),
                 )
             self._current_data[slot] = list(contract.data or [])
             self._slot_contracts[slot] = contract
+
+    def adopt_job_batch(
+        self,
+        batch: StrategyJobContractBatch,
+    ) -> None:
+        """从 job 级 batch issue 装填当前 ``stock_id`` 的 slot（不再触库）。"""
+        contracts = batch.contracts_for_entity(self.stock_id)
+        self._apply_contracts_to_slots(contracts)
+
+    def hydrate_row_slots(
+        self,
+        start_date: str,
+        end_date: str,
+        *,
+        fresh_strategy_cache: bool = True,
+    ) -> None:
+        if fresh_strategy_cache:
+            self._contract_cache.enter_strategy_run()
+        contracts = self.issue_contracts(
+            start=start_date,
+            end=end_date,
+            entity_id=self.stock_id,
+        )
+        self._apply_contracts_to_slots(contracts, start_date=start_date, end_date=end_date)
 
     def rebuild_data_cursor(self) -> None:
         if not self._slot_contracts:
@@ -160,20 +242,6 @@ class StrategyDataInjectionService:
             self._cursor_name,
             contracts=self._slot_contracts,
         )
-
-    def preload_klines(
-        self, rows: List[Dict[str, Any]], *, start_date: str, end_date: str
-    ) -> None:
-        contract = self._contract_manager().issue(
-            DataKey.STOCK_KLINE,
-            entity_id=self.stock_id,
-            start=start_date,
-            end=end_date,
-            term="daily",
-        )
-        contract.data = list(rows or [])
-        self._current_data["klines"] = list(rows or [])
-        self._slot_contracts["klines"] = contract
 
     def load_declared_items(
         self,
@@ -187,15 +255,23 @@ class StrategyDataInjectionService:
             item = self._normalize_declaration_item(st, raw)
             dk = DataKey(str(item["data_id"]))
             params = dict(item.get("params") or {})
-            contract = self._contract_manager().issue(
-                dk,
-                entity_id=self.stock_id,
-                start=start_date,
-                end=end_date,
-                **params,
-            )
-            slot = self.storage_key_for(dk)
             spec = self._contract_manager().map.get(dk)
+            if spec and spec.get("scope") == ContractScope.PER_ENTITY:
+                contract = self._contract_manager().issue(
+                    dk,
+                    entity_ids=[self.stock_id],
+                    start=start_date,
+                    end=end_date,
+                    **params,
+                ).require_contract()
+            else:
+                contract = self._contract_manager().issue(
+                    dk,
+                    start=start_date,
+                    end=end_date,
+                    **params,
+                ).require_contract()
+            slot = self.storage_key_for(dk)
             if (
                 spec
                 and spec.get("scope") == ContractScope.GLOBAL
@@ -224,7 +300,7 @@ class StrategyDataInjectionService:
         self.rebuild_data_cursor()
 
     def load_historical_data(self, start_date: str, end_date: str) -> None:
-        self._current_data = {"klines": []}
+        self._current_data = {}
         self._slot_contracts = {}
         self.hydrate_row_slots(start_date, end_date)
         self.apply_indicators()
@@ -320,7 +396,7 @@ class StrategyDataInjectionService:
                 continue
 
             params = dict(item.get("params") or {})
-            c = dcm.issue(dk, start=start_date, end=end_date, **params)
+            c = dcm.issue(dk, start=start_date, end=end_date, **params).require_contract()
             out[storage_key_for(dk)] = list(c.data or [])
         return out
 

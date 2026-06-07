@@ -44,6 +44,7 @@ class PublishPrepOptions:
     skip_ic: bool = False
     skip_fed_build: bool = False
     skip_py39: bool = False
+    package_userspace: bool = False
 
 
 def normalize_version(raw: str) -> str:
@@ -79,6 +80,40 @@ def check_module_info_files() -> List[str]:
         if not (root / "module_info.yaml").is_file():
             missing.append(f"{label} ({root.relative_to(REPO_ROOT).as_posix()})")
     return missing
+
+
+def validate_module_info_changelog() -> List[str]:
+    """``version`` 与 ``changelog[0].version`` 不一致或缺少 changelog 时返回问题描述。"""
+    import yaml
+
+    issues: List[str] = []
+    paths: List[Path] = []
+    for _, root in _MODULE_PACKAGE_ROOTS:
+        paths.extend(pkg / "module_info.yaml" for pkg in _module_package_dirs(root))
+    for _, root in _SINGLE_MODULE_ROOTS:
+        paths.append(root / "module_info.yaml")
+    for info_path in paths:
+        if not info_path.is_file():
+            continue
+        rel = info_path.relative_to(REPO_ROOT).as_posix()
+        try:
+            data = yaml.safe_load(info_path.read_text(encoding="utf-8")) or {}
+        except Exception as exc:
+            issues.append(f"{rel}: 无法解析 YAML ({exc})")
+            continue
+        ver = data.get("version")
+        changelog = data.get("changelog") or []
+        if not changelog:
+            issues.append(f"{rel}: 缺少 changelog")
+            continue
+        head = changelog[0] if isinstance(changelog[0], dict) else {}
+        if str(head.get("version")) != str(ver):
+            issues.append(
+                f"{rel}: version={ver!r} 与 changelog[0].version={head.get('version')!r} 不一致"
+            )
+        if not head.get("changes"):
+            issues.append(f"{rel}: changelog 首条 changes 为空")
+    return issues
 
 
 def update_system_json(version: str, release_date: str) -> None:
@@ -209,7 +244,7 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
             flush=True,
         )
 
-    print("\n[检查] module_info.yaml 是否齐全（仅检查文件存在，不比对各模块 version 字段）…", flush=True)
+    print("\n[检查] module_info.yaml 是否齐全…", flush=True)
     missing = check_module_info_files()
     if missing:
         failures.append("module_info 缺失")
@@ -220,6 +255,14 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
             f"  {icon('success')} core/modules/*、core/infra/*、core/ui 均已具备 module_info.yaml",
             flush=True,
         )
+
+    changelog_issues = validate_module_info_changelog()
+    if changelog_issues:
+        failures.append("module_info changelog 校验未通过")
+        for line in changelog_issues:
+            print(f"  {icon('error')} {line}", flush=True)
+    else:
+        print(f"  {icon('success')} 各 module_info changelog 与 version 一致", flush=True)
 
     if not opts.skip_py39:
         from devtools.quick_tools.py39_compat_check import run_py39_compat_check
@@ -254,6 +297,17 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
         return 1
 
     print(f"{icon('success')} 自动化项已通过。", flush=True)
+
+    if opts.package_userspace:
+        if opts.check_only:
+            print("\n[跳过] init userspace 打包（--check-only）", flush=True)
+        else:
+            from devtools.quick_tools.package_init_userspace import package_init_userspace
+
+            print("\n[执行] 打包 init userspace…", flush=True)
+            if package_init_userspace() != 0:
+                return 1
+
     if not opts.check_only:
         print(
             f"请继续：更新 CHANGELOG v{version}、按需更新模块文档与 module_info 依赖项，然后提交/打 tag。",
@@ -276,9 +330,14 @@ def parse_publish_argv(argv: Sequence[str]) -> Tuple[PublishPrepOptions | None, 
     skip_ic = False
     skip_fed_build = False
     skip_py39 = False
+    package_userspace = False
     j = 0
     while j < len(rest):
         tok = rest[j]
+        if tok in ("-userspace", "--package-userspace"):
+            package_userspace = True
+            del rest[j]
+            continue
         if tok == "--check-only":
             check_only = True
             del rest[j]
@@ -321,6 +380,7 @@ def parse_publish_argv(argv: Sequence[str]) -> Tuple[PublishPrepOptions | None, 
             skip_ic=skip_ic,
             skip_fed_build=skip_fed_build,
             skip_py39=skip_py39,
+            package_userspace=package_userspace,
         ),
         rest,
     )

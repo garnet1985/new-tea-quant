@@ -7,6 +7,7 @@ A 股交易日历（sys_trade_calendar）。
 数据来源：Tushare trade_cal（建议仅同步 SSE）。
 """
 schema = {
+    "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "system_trade_calendar",
     "name": "sys_trade_calendar",
     "primaryKey": ["market", "cal_date"],

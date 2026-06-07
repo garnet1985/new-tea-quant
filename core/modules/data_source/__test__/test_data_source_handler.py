@@ -1,18 +1,7 @@
 """
 BaseHandler 单元测试（当前 API：data_source_key, schema dict, config, providers）
 """
-import sys
-from pathlib import Path
-from unittest.mock import Mock, MagicMock
-
-# 添加项目根目录到路径
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
-
-try:
-    import pytest
-    HAS_PYTEST = True
-except ImportError:
-    HAS_PYTEST = False
+from unittest.mock import MagicMock, Mock
 
 
 class TestBaseHandler:
@@ -76,15 +65,3 @@ class TestBaseHandler:
         )
         assert handler.get_dependency_data_source_names() == ["stock_list", "latest_trading_date"]
 
-
-if __name__ == "__main__":
-    if HAS_PYTEST:
-        pytest.main([__file__])
-    else:
-        test = TestBaseHandler()
-        for name in ["test_init_and_get_key", "test_get_dependency_data_source_names"]:
-            try:
-                getattr(test, name)()
-                print(f"✅ {name} 通过")
-            except Exception as e:
-                print(f"❌ {name} 失败: {e}")

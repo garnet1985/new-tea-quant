@@ -73,8 +73,6 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             if progress_callback is not None:
                 progress_callback(float(pct))
 
-        tick(8.0)
-
         base_settings = self._impl.load_settings(strategy_name, strategy_info)
         config = self._impl.parse_config(base_settings)
         base_output_version_dir = self._impl.resolve_source_version(
@@ -101,8 +99,6 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             latest_completed_trading_date=latest_completed_trading_date,
         )
 
-        tick(10.0)
-
         if resolved is not None and not self._force_refresh:
             hit = lookup_capital_allocation_cache(
                 strategy_name,
@@ -111,27 +107,43 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             )
             if hit:
                 summary, wb_version = hit
-                self.last_version = int(wb_version or 0)
                 self.used_db_cache = True
+                cdir = ""
+                if isinstance(summary, dict) and summary and resolved is not None:
+                    cdir = str(summary.get("capital_output_version_dir") or "").strip()
+                    sid = persist_capital_allocation_snapshot(
+                        strategy_name,
+                        settings_snapshot_api=dict(
+                            resolved.normalized_settings_dict or {}
+                        ),
+                        report_capital_allocation=summary,
+                        settings_fingerprint_id=resolved.settings_fp,
+                        env_fingerprint_id=resolved.env_fp,
+                        capital_output_version_dir=cdir or None,
+                    )
+                    self.last_version = int(sid or wb_version or 0)
+                else:
+                    self.last_version = int(wb_version or 0)
                 from core.modules.strategy.services.data.output.simulation_output_retention import (
-                    prune_disk_outputs_for_strategy,
+                    prune_disk_output_after_sim_run,
                 )
 
-                prune_disk_outputs_for_strategy(strategy_name, base_settings.to_dict())
+                prune_disk_output_after_sim_run(
+                    strategy_name,
+                    "capital",
+                    base_settings.to_dict(),
+                    protect_output_version_dir=cdir or None,
+                )
                 tick(92.0)
                 return summary
 
-        tick(12.0)
 
         preprocessed = self.preprocess(
             strategy_name=strategy_name,
             strategy_info=strategy_info,
         )
-        tick(14.0)
         executed = self.execute(preprocessed, progress_callback=tick)
-        tick(90.0)
-        summary = self.postprocess(preprocessed, executed)
-        tick(94.0)
+        summary = self.postprocess(preprocessed, executed, prune_disk=False)
 
         if summary and isinstance(summary, dict):
             raw_save = raw_settings_for_db_cache_fingerprint(base_settings, strategy_info)
@@ -151,6 +163,17 @@ class CapitalAllocationFlow(BaseSimulationFlow):
                     capital_output_version_dir=preprocessed.output_version_dir.name,
                 )
                 self.last_version = int(sid or 0)
+
+        from core.modules.strategy.services.data.output.simulation_output_retention import (
+            prune_disk_output_after_sim_run,
+        )
+
+        prune_disk_output_after_sim_run(
+            preprocessed.strategy_name,
+            "capital",
+            preprocessed.base_settings.to_dict(),
+            protect_output_version_dir=preprocessed.output_version_dir.name,
+        )
 
         return summary
 
@@ -267,6 +290,8 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         self,
         preprocessed: CapitalAllocationPreprocessContext,
         executed: CapitalAllocationExecuteContext,
+        *,
+        prune_disk: bool = True,
     ) -> Dict[str, object]:
         if executed.empty:
             return {}
@@ -332,16 +357,17 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             output_version_dir=preprocessed.output_version_dir,
             raw_settings=preprocessed.base_settings.to_dict(),
         )
-        from core.modules.strategy.services.data.output.simulation_output_retention import (
-            prune_disk_output_after_sim_run,
-        )
+        if prune_disk:
+            from core.modules.strategy.services.data.output.simulation_output_retention import (
+                prune_disk_output_after_sim_run,
+            )
 
-        prune_disk_output_after_sim_run(
-            preprocessed.strategy_name,
-            "capital",
-            preprocessed.base_settings.to_dict(),
-            protect_output_version_dir=preprocessed.output_version_dir,
-        )
+            prune_disk_output_after_sim_run(
+                preprocessed.strategy_name,
+                "capital",
+                preprocessed.base_settings.to_dict(),
+                protect_output_version_dir=preprocessed.output_version_dir.name,
+            )
         return summary
 
 

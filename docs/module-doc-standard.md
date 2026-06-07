@@ -201,24 +201,52 @@
 
 ## 4.6 `module_info.yaml`（模块信息）
 
-固定字段（键名简短，不加 `module_` 前缀）：
+固定字段：
 
 - `name`：机器名（示例：`infra.db`）
-- `version`：模块版本（当前统一从 `0.2.0` 起步）
-- `compatible_core_versions`：兼容的 core 版本范围（semver range，示例：`>=0.2.0`）
+- `version`：**当前模块版本**（semver `MAJOR.MINOR.PATCH`；文档中的「模块版本」均指此字段）
+- `compatible_core_versions`：兼容的 **core 发行版** semver range（示例：`>=0.4.0`），与模块 `version` 独立
 - `description`：模块简述
 - `dependencies`：模块依赖列表（模块级粒度）
+- `changelog`：**本模块**版本变更记录（必填；每次 bump `version` 须追加一条）
 
-版本规则：
+### 版本号规则（`MAJOR.MINOR.PATCH`）
 
-- 所有模块的初始 `version` 统一为 `0.2.0`。
-- 所有模块的初始 `compatible_core_versions` 统一为 `>=0.2.0`。
-- 当模块逻辑变更并依赖更高版本 core 能力时，必须同步提高 `compatible_core_versions` 的最低版本。
+在 **core 整体未到 `1.x` 之前，所有模块的 MAJOR（第一位）必须为 `0`**。
+
+| 段 | 何时递增 | 示例 |
+|----|----------|------|
+| **MAJOR** | core 颠覆性大版本（将来 `1.0.0` 起） | `0.x` → `1.0.0` |
+| **MINOR** | 模块内重构、职责调整、**破坏性** API/配置变更 | `0.2.0` → `0.3.0` |
+| **PATCH** | 小实现、结构整理（无破坏性）、修 bug、文档与实现对齐 | `0.2.0` → `0.2.1` |
+
+- `version` 表示**该模块**当前发布版本，**不是**根目录 `CHANGELOG.md` 的 core 版本。
+- `compatible_core_versions` 表示模块依赖的 core 能力下限；core 大版本发布时按需提高。
+
+### `changelog` 格式
+
+按时间**新 → 旧**排列；**第一条 `version` 必须与顶层 `version` 一致**：
+
+```yaml
+changelog:
+  - version: "0.2.0"
+    changes:
+      - pipeline / runtime / profile 子包拆分
+      - worker.json profile 并行度与 dispatch 默认值
+  - version: "0.1.0"
+    changes:
+      - 初始 JobPipeline（QUEUE / BATCH、ProcessPool）
+```
+
+- 每条 `changes` 为字符串列表，写**用户/维护者可理解**的摘要；无法追溯的早期历史可只保留当前版本的基线条目。
+- 发布前：`module_info.version`、`changelog[0].version`、模块 `docs/ARCHITECTURE.md` / `docs/API.md` 文首版本号须一致。
 
 建议可选字段（为未来模块生态预留）：
 
 - `status`：`stable` / `beta` / `experimental` / `deprecated`
 - `entry`：模块入口（如 `python_path` 或脚本路径）
+
+旧规范中「所有模块初始 `0.2.0`」已废止；以各模块 `changelog` 与当前代码为准。
 
 ---
 

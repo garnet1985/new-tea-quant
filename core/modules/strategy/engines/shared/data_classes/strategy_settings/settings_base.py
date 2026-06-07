@@ -8,7 +8,7 @@ from __future__ import annotations
 import copy
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple, Union
+from typing import Any, Dict, FrozenSet, Iterable, List, Literal, Optional, Tuple, Union
 
 
 @dataclass
@@ -193,7 +193,7 @@ class SettingsBase(ABC):
         *,
         field_prefix: str,
     ) -> None:
-        from core.infra.job_pipeline.worker_profile import USER_PIPELINE_POOL_KEYS
+        from core.infra.job_pipeline.profile.constants import USER_PIPELINE_POOL_KEYS
 
         ignored = [
             key
@@ -210,9 +210,31 @@ class SettingsBase(ABC):
 
     @staticmethod
     def strip_ignored_pipeline_pool_keys(container: Dict[str, Any]) -> None:
-        from core.infra.job_pipeline.worker_profile import USER_PIPELINE_POOL_KEYS
+        from core.infra.job_pipeline.profile.constants import USER_PIPELINE_POOL_KEYS
 
         for key in USER_PIPELINE_POOL_KEYS:
+            container.pop(key, None)
+
+    @staticmethod
+    def warn_ignored_dispatch_keys(
+        report: ValidationReport,
+        container: Dict[str, Any],
+        *,
+        field_prefix: str,
+        keys: FrozenSet[str],
+    ) -> None:
+        ignored = [key for key in keys if key in container]
+        if not ignored:
+            return
+        SettingsBase.add_warning(
+            report,
+            field_prefix,
+            f"忽略 {', '.join(ignored)}：调度/性能参数由系统 worker.json profile 决定",
+        )
+
+    @staticmethod
+    def strip_ignored_dispatch_keys(container: Dict[str, Any], keys: FrozenSet[str]) -> None:
+        for key in keys:
             container.pop(key, None)
 
     @staticmethod

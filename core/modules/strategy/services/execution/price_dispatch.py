@@ -5,17 +5,15 @@ import logging
 import math
 from typing import Any, Dict, List, Optional
 
-from core.infra.job_pipeline.worker_profile import (
+from core.infra.job_pipeline.profile.constants import DEFAULT_PRICE_ENTITIES_PER_JOB
+from core.infra.job_pipeline.profile import (
     WorkerProfiles,
+    profile_dispatch_config,
     resolve_pipeline_workers,
 )
 from core.infra.worker.dispatch_time_planner import (
     TimeDispatchPlan,
     resolve_time_dispatch_plan,
-)
-from core.modules.strategy.engines.simulator.price_factor.data_classes.settings import (
-    DEFAULT_PRICE_ENTITIES_PER_JOB,
-    StrategyPriceSimulatorSettings,
 )
 from core.modules.strategy.services.execution.price_dispatch_probe import (
     run_price_dispatch_timing_probe,
@@ -27,37 +25,25 @@ logger = logging.getLogger(__name__)
 
 def release_main_duckdb_handles(data_mgr: Any = None) -> None:
     """主进程释放 DuckDB 文件锁，便于子进程 probe / ProcessPool。"""
+    from core.infra.db import DatabaseManager
     from core.infra.db.engines.duckdb.process_pool_scope import (
         release_all_main_db_handles,
         wait_pool_children_done,
     )
     from core.modules.data_manager import DataManager
 
-    dm = data_mgr
-    if dm is None:
-        dm = DataManager.get_instance()
+    dm = data_mgr if data_mgr is not None else DataManager.get_instance()
     if dm is not None:
         release_all_main_db_handles(dm)
+    elif DatabaseManager._default_instance is not None:
+        DatabaseManager.reset_default()
     DataManager.reset_instance()
     wait_pool_children_done(timeout_sec=15.0)
 
 
-def price_performance_dict(config: StrategyPriceSimulatorSettings) -> Dict[str, Any]:
-    raw = dict(config.price_simulator)
-    perf: Dict[str, Any] = {
-        "entities_per_job": raw.get("entities_per_job", DEFAULT_PRICE_ENTITIES_PER_JOB),
-        "dispatch_probe": raw.get("dispatch_probe", False),
-    }
-    for key in (
-        "dispatch_probe_entities",
-        "dispatch_probe_safety_factor",
-        "sec_per_entity_staged",
-        "sec_per_job_overhead_staged",
-        "force_main_process",
-    ):
-        if raw.get(key) not in (None, ""):
-            perf[key] = raw[key]
-    return perf
+def price_dispatch_dict() -> Dict[str, Any]:
+    """``worker.json`` → ``job_pipeline.price_factor.dispatch``。"""
+    return profile_dispatch_config(WorkerProfiles.PRICE_FACTOR)
 
 
 def entities_per_job_is_explicit(performance: Dict[str, Any]) -> bool:
@@ -95,7 +81,7 @@ def resolve_price_timing_metrics(
         )
     raise ValueError(
         f"{LOG_LABEL}: entities_per_job=auto 需要 dispatch_probe 或 "
-        "settings 中的 sec_per_entity_staged / sec_per_job_overhead_staged"
+        "worker.json 中 sec_per_entity_staged / sec_per_job_overhead_staged"
     )
 
 
@@ -119,7 +105,7 @@ def _resolve_explicit_entities_plan(
         sec_per_entity=0.0,
         sec_per_job_overhead=0.0,
         estimated_wall_sec=0.0,
-        source_entities_per_job="settings",
+        source_entities_per_job="profile",
         source_max_workers="profile_auto",
     )
     logger.info(
@@ -136,10 +122,9 @@ def _resolve_explicit_entities_plan(
 def resolve_price_dispatch_plan(
     *,
     total_stocks: int,
-    config: StrategyPriceSimulatorSettings,
     measured_timing: Optional[Any] = None,
 ) -> TimeDispatchPlan:
-    perf = price_performance_dict(config)
+    perf = price_dispatch_dict()
     if entities_per_job_is_explicit(perf):
         return _resolve_explicit_entities_plan(
             total_stocks=total_stocks,
@@ -163,10 +148,9 @@ def resolve_price_dispatch_plan(
 def maybe_run_price_dispatch_probe(
     *,
     per_stock_jobs: List[Dict[str, Any]],
-    config: StrategyPriceSimulatorSettings,
     data_mgr: Any,
 ) -> Optional[Any]:
-    perf = price_performance_dict(config)
+    perf = price_dispatch_dict()
     if not should_run_price_dispatch_probe(perf, total_stocks=len(per_stock_jobs)):
         return None
 
@@ -178,9 +162,10 @@ def maybe_run_price_dispatch_probe(
 
 
 __all__ = [
+    "DEFAULT_PRICE_ENTITIES_PER_JOB",
     "LOG_LABEL",
     "maybe_run_price_dispatch_probe",
-    "price_performance_dict",
+    "price_dispatch_dict",
     "release_main_duckdb_handles",
     "resolve_price_dispatch_plan",
     "should_run_price_dispatch_probe",

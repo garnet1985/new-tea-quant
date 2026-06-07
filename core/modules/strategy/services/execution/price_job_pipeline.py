@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from core.infra.job_pipeline import JobContext
-from core.infra.job_pipeline.worker_profile import WorkerProfiles, resolve_pipeline_workers
+from core.infra.job_pipeline.profile import WorkerProfiles, resolve_pipeline_workers
 from core.infra.worker.multi_process.process_worker import JobResult, JobStatus
 
 from .stock_job_pipeline import run_stock_jobs_via_pipeline
@@ -121,6 +121,7 @@ def run_price_factor_jobs_via_pipeline(
     total_stocks: Optional[int] = None,
     run_name: str = "price",
     on_workbench_progress: Optional[Callable[[float], None]] = None,
+    duckdb_data_mgr: Any = None,
 ) -> List[JobResult]:
     """对 dispatch jobs 跑 JobPipeline；``total_stocks`` 为股票总数。"""
     n = total_stocks if total_stocks is not None else _count_stocks(dispatch_jobs)
@@ -140,6 +141,7 @@ def run_price_factor_jobs_via_pipeline(
         job_id_fn=_dispatch_job_id,
         progress_units_from_report=_progress_units_from_execute_report,
         worker_profile=WorkerProfiles.PRICE_FACTOR,
+        duckdb_data_mgr=duckdb_data_mgr,
     )
     return expand_bulk_price_job_results(job_results)
 

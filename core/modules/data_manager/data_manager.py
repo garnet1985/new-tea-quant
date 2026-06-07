@@ -72,7 +72,8 @@ class DataManager:
     
     # 单例实例（每个进程独立）
     _instance: Optional['DataManager'] = None
-    _lock = threading.Lock()  # 线程安全锁
+    _lock = threading.Lock()  # 单例 __new__ 锁
+    _initialize_lock = threading.Lock()  # 首次 initialize 锁（BFF 并发 API 防双开 DuckDB）
     
     @classmethod
     def reset_instance(cls):
@@ -167,56 +168,70 @@ class DataManager:
             - 此方法是幂等的，多次调用只会执行一次
             - 在 __init__ 中会自动调用，通常无需手动调用
         """
-        # 幂等检查：如果已经初始化，直接返回
         if self._initialized:
             return
-        
-        try:
-            
-            # 1. 初始化 DatabaseManager（只初始化连接池，不创建表）
-            if self.db is None:
-                if self.is_verbose:
-                    logger.info("🔧 初始化 DatabaseManager...")
-                
-                self.db = DatabaseManager(is_verbose=self.is_verbose)
-                self.db.initialize()
-                # 设置为默认实例，便于 DbBaseModel 等自动获取 db
-                DatabaseManager.set_default(self.db)
-            else:
-                if self.is_verbose:
-                    logger.info("🔧 使用已提供的 DatabaseManager 实例...")
 
-            # 2. 创建所有 Base Tables（业务逻辑）
-            if self.db:
-                if self.is_verbose:
-                    logger.info("🔧 创建 Base Tables...")
-                self.db.create_all_base_tables()
-            elif self.is_verbose:
-                logger.info("ℹ️  只读模式，跳过 Base Tables 创建")
+        with self._initialize_lock:
+            if self._initialized:
+                return
 
-            # 3. 自动发现并缓存表（core/tables -> sys_*，userspace/extensions/tables -> cust_*）
-            if self.is_verbose:
-                logger.info("🔧 自动发现表（core/tables + userspace/extensions/tables）...")
-            self._discover_tables()
-
-            # 4. 初始化 DataService（跨service协调器）
-            if self.is_verbose:
-                logger.info("🔧 初始化 DataService...")
-            from core.modules.data_manager.data_services import DataService
-            self._data_service = DataService(self)
             try:
-                self._data_service.index.sync_list_from_config()
-            except Exception as e:
-                logger.warning("sys_index_list 配置同步失败（可稍后由 renew 重试）: %s", e)
+                from core.infra.project_context import ConfigManager
 
-            self._initialized = True
-            
-            if self.is_verbose:
-                logger.info("✅ DataManager 初始化完成")
-                
-        except Exception as e:
-            logger.error(f"❌ DataManager 初始化失败: {e}")
-            raise
+                db_cfg = ConfigManager.load_database_config()
+                if str(db_cfg.get("database_type") or "").lower() == "duckdb":
+                    from core.infra.db.engines.duckdb.process_pool_scope import (
+                        wait_for_main_duckdb_worker_pool_end,
+                    )
+
+                    wait_for_main_duckdb_worker_pool_end()
+
+                # 1. 初始化 DatabaseManager（只初始化连接池，不创建表）
+                if self.db is None:
+                    if self.is_verbose:
+                        logger.info("🔧 初始化 DatabaseManager...")
+
+                    self.db = DatabaseManager(is_verbose=self.is_verbose)
+                    self.db.initialize()
+                    # 设置为默认实例，便于 DbBaseModel 等自动获取 db
+                    DatabaseManager.set_default(self.db)
+                else:
+                    if self.is_verbose:
+                        logger.info("🔧 使用已提供的 DatabaseManager 实例...")
+
+                # 2. 创建所有 Base Tables（业务逻辑）
+                if self.db:
+                    if self.is_verbose:
+                        logger.info("🔧 创建 Base Tables...")
+                    self.db.create_all_base_tables()
+                elif self.is_verbose:
+                    logger.info("ℹ️  只读模式，跳过 Base Tables 创建")
+
+                # 3. 自动发现并缓存表（core/tables -> sys_*，userspace/extensions/tables -> cust_*）
+                if self.is_verbose:
+                    logger.info("🔧 自动发现表（core/tables + userspace/extensions/tables）...")
+                self._discover_tables()
+
+                # 4. 初始化 DataService（跨service协调器）
+                if self.is_verbose:
+                    logger.info("🔧 初始化 DataService...")
+                from core.modules.data_manager.data_services import DataService
+                self._data_service = DataService(self)
+                try:
+                    self._data_service.index.sync_list_from_config()
+                except Exception as e:
+                    logger.warning(
+                        "sys_index_list 配置同步失败（可稍后由 renew 重试）: %s", e
+                    )
+
+                self._initialized = True
+
+                if self.is_verbose:
+                    logger.info("✅ DataManager 初始化完成")
+
+            except Exception as e:
+                logger.error("❌ DataManager 初始化失败: %s", e)
+                raise
 
     # ------------------------------------------------------------------
     # Table 发现与注册

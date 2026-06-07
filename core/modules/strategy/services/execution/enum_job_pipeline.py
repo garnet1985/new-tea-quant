@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from core.infra.job_pipeline import JobContext
-from core.infra.job_pipeline.worker_profile import WorkerProfiles
+from core.infra.job_pipeline.profile import WorkerProfiles
 from core.infra.worker.multi_process.process_worker import JobResult, JobStatus
 
 from .stock_job_pipeline import (
@@ -139,6 +139,7 @@ def run_enumeration_jobs_via_pipeline(
     failed_offset: int = 0,
     on_job_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
     log_progress: bool = True,
+    duckdb_data_mgr: Any = None,
 ) -> List[Any]:
     """
     对 dispatch jobs 跑 JobPipeline（QUEUE + PROCESS）。
@@ -161,6 +162,7 @@ def run_enumeration_jobs_via_pipeline(
         job_id_fn=_dispatch_job_id,
         progress_units_from_report=_progress_units_from_execute_report,
         worker_profile=WorkerProfiles.ENUMERATOR,
+        duckdb_data_mgr=duckdb_data_mgr,
     )
 
 

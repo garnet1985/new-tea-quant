@@ -1,8 +1,4 @@
-"""
-JobPipeline - 并行 Job 执行管道（线程/进程池 + on_result 回收）。
-
-jobs[] → executor(JobContext) → on_result
-"""
+"""JobPipeline：并行 Job 执行管道（线程/进程池 + on_result 回收）。"""
 from __future__ import annotations
 
 import logging
@@ -12,9 +8,9 @@ from contextlib import nullcontext
 from typing import Dict, List, Optional
 
 from core.infra.db.engines.duckdb.process_pool_scope import maybe_duckdb_worker_pool_scope
-from core.infra.job_pipeline.executor import JobExecutor, create_job_executor
-from core.infra.job_pipeline.hooks import ExecuteFn, OnReleaseHook, OnResultHook
-from core.infra.job_pipeline.settings import JobPipelineSettings
+from core.infra.job_pipeline.pipeline.hooks import ExecuteFn, OnReleaseHook, OnResultHook
+from core.infra.job_pipeline.pipeline.settings import JobPipelineSettings
+from core.infra.job_pipeline.runtime.executor import JobExecutor, create_job_executor
 from core.infra.job_pipeline.types import (
     DispatchResult,
     ExecuteMode,
@@ -31,15 +27,6 @@ logger = logging.getLogger(__name__)
 
 
 class JobPipeline:
-    """
-    顶层执行管道：经 JobExecutor 并发 execute，主进程 on_result 回收。
-
-    Hooks:
-        execute(context)  — 子进程/线程内执行（load/算由使用方决定）
-        on_result(report, progress)
-        on_release(context) — 可选 cleanup
-    """
-
     def __init__(
         self,
         *,
@@ -72,7 +59,6 @@ class JobPipeline:
         return self._executor
 
     def run(self, jobs: List[Job], *, run_name: str = "") -> DispatchResult:
-        """消费 job 列表，并行执行并回收结果。"""
         mode = self._settings.execute_mode
         if mode == ExecuteMode.ELASTIC:
             raise NotImplementedError("ExecuteMode.ELASTIC is not implemented yet")
@@ -190,12 +176,6 @@ class JobPipeline:
         return self._executor.max_workers + max(0, self._settings.prefetch_ahead)
 
     def _drain_completed_futures(self, futures: Dict[Future, JobContext]) -> bool:
-        """
-        等待并处理已完成的 future。
-
-        Returns:
-            False 表示应停止调度（cancel 或 continue_on_failure 触发）。
-        """
         if not futures:
             return True
         done, _ = wait(futures.keys(), return_when=FIRST_COMPLETED)

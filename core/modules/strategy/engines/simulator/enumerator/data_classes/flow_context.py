@@ -49,6 +49,7 @@ class EnumeratorPreprocessContext:
     jobs: Optional[List[Dict[str, Any]]] = None
     global_extra_cache: Optional[Dict[str, List[Dict[str, Any]]]] = None
     max_workers: Optional[int] = None
+    data_mgr: Any = None
     start_time: float = 0.0
     aggregate_profiler: Optional[AggregateProfiler] = None
 

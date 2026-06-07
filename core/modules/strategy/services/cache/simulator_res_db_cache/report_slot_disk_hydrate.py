@@ -46,6 +46,36 @@ def compact_enum_slot_for_cache(strategy_name: str, slot: Dict[str, Any]) -> Dic
     return _strip_none_values(out)
 
 
+def enum_opportunity_count_from_slot(slot: Optional[Dict[str, Any]]) -> Optional[int]:
+    """从 enum 槽位或 hydrate 后的 ``enumMetrics`` 解析机会总数（执行面板 ``opportunities``）。"""
+    if not isinstance(slot, dict) or not slot:
+        return None
+    for key in ("opportunities", "total_opportunities"):
+        if key in slot and slot.get(key) is not None:
+            try:
+                return int(slot[key])
+            except (TypeError, ValueError):
+                pass
+    em = slot.get("enumMetrics")
+    if isinstance(em, dict) and em.get("totalOpportunities") is not None:
+        try:
+            return int(em["totalOpportunities"])
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def attach_enum_opportunities_field(slot: Dict[str, Any]) -> Dict[str, Any]:
+    """为执行面板 / progress 切片补齐顶层 ``opportunities``（与 ``enumMetrics`` 同源）。"""
+    if not isinstance(slot, dict) or not slot:
+        return slot
+    out = dict(slot)
+    count = enum_opportunity_count_from_slot(out)
+    if count is not None:
+        out["opportunities"] = count
+    return out
+
+
 def hydrate_enum_slot(strategy_name: str, slot: Dict[str, Any]) -> Dict[str, Any]:
     """有 ``enumerator_output_dir`` 且磁盘报告存在时，以 ``0_report_enum.json`` 为正文，叠加路径元数据。"""
     if not isinstance(slot, dict) or not slot:
@@ -77,6 +107,91 @@ def hydrate_enum_slot(strategy_name: str, slot: Dict[str, Any]) -> Dict[str, Any
                     "end_source": "",
                 }
     return out
+
+
+def _metadata_refs_enum_output_dir(meta: Dict[str, Any]) -> str:
+    """从 capital ``0_metadata.json`` 解析其依赖的枚举产物目录名。"""
+    if not isinstance(meta, dict):
+        return ""
+    ov = meta.get("output_version")
+    if isinstance(ov, dict):
+        return str(ov.get("enumerator_output_dir") or "").strip()
+    return ""
+
+
+def _metadata_refs_price_output_dir(meta: Dict[str, Any]) -> str:
+    """从 capital ``0_metadata.json`` 解析其依赖的 price 产物目录名。"""
+    if not isinstance(meta, dict):
+        return ""
+    ov = meta.get("output_version")
+    if isinstance(ov, dict):
+        ref = str(ov.get("output_version_dir") or "").strip()
+        if ref:
+            return ref
+    elif isinstance(ov, str):
+        ref = str(ov).strip()
+        if ref:
+            return ref
+    run = meta.get("output_version_run")
+    if isinstance(run, dict):
+        ref = str(run.get("output_version_dir") or run.get("price_output_version_dir") or "").strip()
+        if ref:
+            return ref
+    return ""
+
+
+def _resolve_capital_output_dir(
+    strategy_name: str,
+    *,
+    match: Any,
+) -> Optional[str]:
+    sn = str(strategy_name or "").strip()
+    needle = str(match or "").strip()
+    if not (sn and needle):
+        return None
+    root = PathManager.strategy_simulation_capital(sn)
+    if not root.is_dir():
+        return None
+    best_name = ""
+    best_id = -1
+    for child in root.iterdir():
+        if not child.is_dir() or not child.name.isdigit():
+            continue
+        meta = _read_json(child / "0_metadata.json")
+        if not meta:
+            continue
+        if not (
+            _metadata_refs_enum_output_dir(meta) == needle
+            or _metadata_refs_price_output_dir(meta) == needle
+        ):
+            continue
+        summary = child / _CAPITAL_SUMMARY_FILE
+        if not summary.is_file():
+            continue
+        try:
+            vid = int(child.name)
+        except ValueError:
+            continue
+        if vid > best_id:
+            best_id = vid
+            best_name = child.name
+    return best_name or None
+
+
+def resolve_capital_output_dir_for_enum_run(
+    strategy_name: str,
+    enum_output_dir: str,
+) -> Optional[str]:
+    """按枚举 ``enumerator_output_dir`` 查找最新 capital 产物目录。"""
+    return _resolve_capital_output_dir(strategy_name, match=enum_output_dir)
+
+
+def resolve_capital_output_dir_for_price_run(
+    strategy_name: str,
+    price_output_dir: str,
+) -> Optional[str]:
+    """按 price ``output_version_run.output_version_dir`` 查找最新 capital 产物目录。"""
+    return _resolve_capital_output_dir(strategy_name, match=price_output_dir)
 
 
 def compact_capital_slot_for_cache(
@@ -129,7 +244,7 @@ def hydrate_workbench_result_report(strategy_name: str, result_report: Optional[
         return rr
     en = rr.get("enum")
     if isinstance(en, dict) and en:
-        rr["enum"] = hydrate_enum_slot(sn, en)
+        rr["enum"] = attach_enum_opportunities_field(hydrate_enum_slot(sn, en))
     cap = rr.get("capital_allocation")
     if isinstance(cap, dict) and cap:
         rr["capital_allocation"] = hydrate_capital_slot(sn, cap)
@@ -137,9 +252,13 @@ def hydrate_workbench_result_report(strategy_name: str, result_report: Optional[
 
 
 __all__ = [
+    "attach_enum_opportunities_field",
     "compact_capital_slot_for_cache",
     "compact_enum_slot_for_cache",
+    "enum_opportunity_count_from_slot",
     "hydrate_capital_slot",
     "hydrate_enum_slot",
     "hydrate_workbench_result_report",
+    "resolve_capital_output_dir_for_enum_run",
+    "resolve_capital_output_dir_for_price_run",
 ]

@@ -5,17 +5,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import logging
-from typing import Any, Dict, Literal, Union
+from typing import Any, Dict
 from typing import TYPE_CHECKING
 
+from core.infra.job_pipeline.profile.constants import DEFAULT_PRICE_ENTITIES_PER_JOB
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.settings_base import (
     SettingsBase,
     ValidationReport,
 )
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_PRICE_ENTITIES_PER_JOB: int = 1000
 
 if TYPE_CHECKING:
     from core.modules.strategy.engines.shared.data_classes.strategy_settings.strategy_settings import (
@@ -44,12 +43,13 @@ class StrategyPriceSimulatorSettings(SettingsBase):
         return cls.from_strategy_root(base_settings.raw_settings)
 
     def apply_defaults(self) -> None:
-        ps = self.price_simulator
-        ps.setdefault("base_version", "latest")
-        ps.setdefault("entities_per_job", DEFAULT_PRICE_ENTITIES_PER_JOB)
-        ps.setdefault("dispatch_probe", False)
+        self.price_simulator.setdefault("base_version", "latest")
 
     def validate(self) -> ValidationReport:
+        from core.infra.job_pipeline.profile.constants import (
+            PRICE_STRATEGY_DISPATCH_KEYS,
+        )
+
         result = SettingsBase.new_validation()
         self.apply_defaults()
 
@@ -59,13 +59,24 @@ class StrategyPriceSimulatorSettings(SettingsBase):
         SettingsBase.warn_ignored_pipeline_pool_keys(
             result, self.price_simulator, field_prefix="price_simulator"
         )
+        SettingsBase.warn_ignored_dispatch_keys(
+            result,
+            self.price_simulator,
+            field_prefix="price_simulator",
+            keys=PRICE_STRATEGY_DISPATCH_KEYS,
+        )
         SettingsBase.log_warnings(result, logger)
         self._price_simulator_validated = True
         return result
 
     def to_dict(self) -> Dict[str, Any]:
+        from core.infra.job_pipeline.profile.constants import (
+            PRICE_STRATEGY_DISPATCH_KEYS,
+        )
+
         out = self.deep_copy_dict(dict(self.price_simulator))
         SettingsBase.strip_ignored_pipeline_pool_keys(out)
+        SettingsBase.strip_ignored_dispatch_keys(out, PRICE_STRATEGY_DISPATCH_KEYS)
         for key in ("use_sampling", "start_date", "end_date", "fees"):
             out.pop(key, None)
         return out
@@ -93,17 +104,6 @@ class StrategyPriceSimulatorSettings(SettingsBase):
     def end_date(self) -> str:
         s = self._root_sampling()
         return str(s.get("end_date", "") or "").strip()
-
-    @property
-    def entities_per_job(self) -> Union[Literal["auto"], int]:
-        raw = self.price_simulator.get("entities_per_job", DEFAULT_PRICE_ENTITIES_PER_JOB)
-        if raw in (None, "", "auto"):
-            return "auto"
-        return max(1, int(raw))
-
-    @property
-    def dispatch_probe(self) -> bool:
-        return bool(self.price_simulator.get("dispatch_probe", False))
 
     @property
     def fees(self) -> Dict[str, Any]:

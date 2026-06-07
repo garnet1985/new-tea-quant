@@ -8,7 +8,7 @@ from typing import Any, Dict
 # 每个 strategy_name 最多保留的快照行数；超出则删最早 version
 MAX_SNAPSHOT_ROWS_PER_STRATEGY: int = 50
 
-# 同一快照行累计 UPDATE 超过此次数则触发删行；持久化路径按指纹重建新行（见 ``audit.result_report_audit``）
+# 历史常量：曾用于单行复写上限轮转，已废弃；write_count 仅审计，见 ``docs/db-cache-service.md`` §6.1 / §7
 MAX_SNAPSHOT_ROW_UPDATES: int = 10
 
 

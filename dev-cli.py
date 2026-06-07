@@ -2,12 +2,17 @@
 """
 开发常用命令（仓库根目录，短选项与 ``start-cli.py`` 风格一致）。
 
-  python dev-cli.py -ui     # 先清 8000/8888，再 launcher.py -d
-  python dev-cli.py -kui    # 结束占用 8000 / 8888 的监听进程
+  python dev-cli.py -ui     # 清 8000/8888 后 launcher.py -d（浏览器 :8000）
+  python dev-cli.py -kui    # 结束占用 8000 / 8888 的 NTQ UI 监听进程
   python dev-cli.py -ic     # UI 最小依赖 import 冒烟
   python dev-cli.py -cc     # 清空 userspace/.ntq（不动仓库根 .ntq / 安装状态）
-  python dev-cli.py -cu     # 清空 userspace：各策略 results/ + DB 工作台快照
+  python dev-cli.py -cu     # 同 -csc（兼容旧用法）
+  python dev-cli.py -csc    # 删除所有物理模拟 results/ + DB 工作台快照
+  python dev-cli.py -cdc    # 仅清空 DB 工作台快照表
+  python dev-cli.py -cmc    # 仅删除各策略 results/ 物理目录
   python dev-cli.py -p -v0.3.2   # 发布前：写版本/徽章 + module_info + py39 扫描 + -ic + pytest
+  python dev-cli.py -p -v0.3.2 -userspace   # 发布通过后同步 init userspace 源树与 userspace.zip
+  python dev-cli.py -userspace   # 仅打包 init userspace（不跑发布检查）
   python dev-cli.py -ex          # 打包演示数据（分层抽样 → setup/import_data 可导入 zip）
 
 也支持子命令：``ui``、``kill``、``import-check``（见 ``-h``）。
@@ -27,9 +32,9 @@ REPO_ROOT = Path(__file__).resolve().parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from core.ui.ports import BFF_DEFAULT_PORT, FED_DEV_PORT
+from core.ui.ports import ALL_UI_PORTS
 
-UI_PORTS = (FED_DEV_PORT, BFF_DEFAULT_PORT)
+UI_PORTS = ALL_UI_PORTS
 
 # 短选项 → (handler_key, extra_kwargs)
 _SHORT_FLAGS: dict[str, tuple[str, dict]] = {
@@ -37,9 +42,13 @@ _SHORT_FLAGS: dict[str, tuple[str, dict]] = {
     "-kui": ("kill", {"ntq_only": False}),
     "-ic": ("import-check", {}),
     "-cc": ("clear-global", {}),
-    "-cu": ("clear-userspace", {}),
+    "-cu": ("clear-simulation-cache", {}),
+    "-csc": ("clear-simulation-cache", {}),
+    "-cdc": ("clear-db-cache", {}),
+    "-cmc": ("clear-disk-cache", {}),
     "-ex": ("export-init-data", {}),
     "-dbc": ("db-checkpoint", {}),
+    "-userspace": ("package-userspace", {}),
 }
 
 
@@ -75,12 +84,15 @@ def kill_listeners_on_ports(
     *,
     ntq_only: bool = False,
 ) -> int:
+    from core.ui.process_cleanup import kill_process_group
+
     fed_root = str((REPO_ROOT / "core" / "ui" / "fed").resolve())
     repo_s = str(REPO_ROOT)
     ntq_markers = (
         "core.ui.bff.app",
         "react-scripts",
         "webpack",
+        "webpack-dev-server",
         "launcher.py",
         "dev-cli.py",
         fed_root,
@@ -88,7 +100,7 @@ def kill_listeners_on_ports(
     )
     killed = 0
     for port in ports:
-        for sig in (signal.SIGTERM, signal.SIGKILL):
+        for attempt in range(2):
             pids = _pids_listening_on(port)
             if not pids:
                 break
@@ -99,14 +111,15 @@ def kill_listeners_on_ports(
                     continue
                 print(f"结束 pid={pid}（:{port}） {cmd[:100]}", flush=True)
                 try:
-                    os.kill(pid, sig)
+                    kill_process_group(pid, grace_sec=2.0 if attempt == 0 else 0.5)
                     killed += 1
                 except ProcessLookupError:
                     pass
+            deadline = time.time() + 8.0
+            while time.time() < deadline and _pids_listening_on(port):
+                time.sleep(0.25)
             if not _pids_listening_on(port):
                 break
-            if sig == signal.SIGTERM:
-                time.sleep(0.5)
     return killed
 
 
@@ -151,12 +164,34 @@ def _cmd_clear_global(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_clear_userspace(args: argparse.Namespace) -> int:
-    from devtools.quick_tools.dev_cache import clear_userspace_simulation_cache
+def _cmd_clear_simulation_cache(args: argparse.Namespace) -> int:
+    from devtools.quick_tools.dev_cache import clear_simulation_cache_all
 
-    clear_userspace_simulation_cache()
-    print("userspace 模拟缓存已清理。", flush=True)
+    clear_simulation_cache_all()
+    print("物理模拟 results/ 与 DB 工作台快照已清理。", flush=True)
     return 0
+
+
+def _cmd_clear_db_cache(args: argparse.Namespace) -> int:
+    from devtools.quick_tools.dev_cache import clear_workbench_db_cache
+
+    clear_workbench_db_cache()
+    print("DB 工作台快照已清理。", flush=True)
+    return 0
+
+
+def _cmd_clear_disk_cache(args: argparse.Namespace) -> int:
+    from devtools.quick_tools.dev_cache import clear_simulation_disk_cache
+
+    clear_simulation_disk_cache()
+    print("物理模拟 results/ 已清理。", flush=True)
+    return 0
+
+
+def _cmd_package_userspace(args: argparse.Namespace) -> int:
+    from devtools.quick_tools.package_init_userspace import package_init_userspace
+
+    return package_init_userspace(write_zip=not getattr(args, "no_zip", False))
 
 
 def _cmd_db_checkpoint(args: argparse.Namespace) -> int:
@@ -248,10 +283,17 @@ def _dispatch(handler: str, forward: list[str], extra: dict) -> int:
         return _cmd_export_init_data(ns)
     if handler == "clear-global":
         return _cmd_clear_global(ns)
-    if handler == "clear-userspace":
-        return _cmd_clear_userspace(ns)
+    if handler == "clear-simulation-cache":
+        return _cmd_clear_simulation_cache(ns)
+    if handler == "clear-db-cache":
+        return _cmd_clear_db_cache(ns)
+    if handler == "clear-disk-cache":
+        return _cmd_clear_disk_cache(ns)
     if handler == "db-checkpoint":
         return _cmd_db_checkpoint(ns)
+    if handler == "package-userspace":
+        ns = argparse.Namespace(no_zip="--no-zip" in forward)
+        return _cmd_package_userspace(ns)
     print(f"未知命令: {handler}", file=sys.stderr)
     return 2
 
@@ -268,12 +310,16 @@ def _print_help() -> None:
         """用法: python dev-cli.py <命令> [参数…]
 
 短选项（推荐）:
-  -ui      先 kill :8000/:8888，再 python launcher.py -d
-  -kui     结束占用 8000、8888 的监听进程
+  -ui      清 8000/8888 后 python launcher.py -d
+  -kui     结束占用 8000、8888 的 NTQ UI 进程
   -ic      UI 最小依赖 import 检查
   -cc      删除 userspace/.ntq（不碰仓库根 .ntq / install-state）
-  -cu      删除各策略 results/ 与 DB 工作台快照表
+  -cu      同 -csc（兼容）
+  -csc     删除各策略 results/ 与 DB 工作台快照表（物理 + DB）
+  -cdc     仅清空 DB 工作台快照表（sys_strategy_workbench_snapshot）
+  -cmc     仅删除各策略 results/ 物理目录
   -p -vX.Y.Z   发布准备（写 system.json / 徽章、检查 module_info、FED build、-ic、pytest）
+  -userspace   将根目录 userspace/ 打包为 setup/init_userspace（清理密钥/缓存后写 userspace.zip）
   -ex         打包演示数据 zip（见 devtools/demo_exporter/demo_data_exporter.py）
   -dbc        DuckDB：将各域 .wal 合并进 .duckdb（renew/Ctrl+C 后可用）
 
@@ -282,15 +328,21 @@ def _print_help() -> None:
            --skip-py39        跳过 Python 3.9 兼容性扫描
            --skip-ic          跳过最小依赖 import 检查
            --skip-fed-build   跳过 core/ui/fed 的 npm run build
+           -userspace         发布检查通过后同步 init userspace 源树与 zip
 
 子命令（等价）:
-  ui [--kill-first]   kill [-ntq-only]   import-check   clear-cache   clear-userspace
+  ui [--kill-first]   kill [-ntq-only]   import-check   clear-cache
+  clear-simulation-cache | clear-db-cache | clear-disk-cache
+  clear-userspace（同 clear-simulation-cache）
   db-checkpoint       同 -dbc
+  package-userspace   同 -userspace
   publish -v X.Y.Z    同 -p -vX.Y.Z
   export-init-data    同 -ex（参数用 -- 转发，如 -ex -- --to-init-data）
 
 示例:
   python dev-cli.py -p -v0.3.2
+  python dev-cli.py -p -v0.3.2 -userspace
+  python dev-cli.py -userspace
   python dev-cli.py -ic -- --no-create-venv --python .ntq/ci-minimal-venv/bin/python
 """
     )
@@ -321,8 +373,26 @@ def _build_subcommand_parser() -> argparse.ArgumentParser:
     )
     p_cc.set_defaults(func=_cmd_clear_global, forward=[])
 
-    p_cu = sub.add_parser("clear-userspace", aliases=["cu", "clear-us"])
-    p_cu.set_defaults(func=_cmd_clear_userspace, forward=[])
+    p_csc = sub.add_parser(
+        "clear-simulation-cache",
+        aliases=["csc", "cu", "clear-us", "clear-userspace"],
+        help="删除各策略 results/ 与 DB 工作台快照",
+    )
+    p_csc.set_defaults(func=_cmd_clear_simulation_cache, forward=[])
+
+    p_cdc = sub.add_parser(
+        "clear-db-cache",
+        aliases=["cdc"],
+        help="仅清空 sys_strategy_workbench_snapshot 表",
+    )
+    p_cdc.set_defaults(func=_cmd_clear_db_cache, forward=[])
+
+    p_cmc = sub.add_parser(
+        "clear-disk-cache",
+        aliases=["cmc"],
+        help="仅删除各策略 results/ 物理目录",
+    )
+    p_cmc.set_defaults(func=_cmd_clear_disk_cache, forward=[])
 
     p_ex = sub.add_parser(
         "export-init-data",
@@ -345,6 +415,18 @@ def _build_subcommand_parser() -> argparse.ArgumentParser:
     )
     p_dbc.set_defaults(func=_cmd_db_checkpoint, forward=[])
 
+    p_pu = sub.add_parser(
+        "package-userspace",
+        aliases=["pu", "pack-userspace"],
+        help="同步根 userspace/ → setup/init_userspace 并写 userspace.zip",
+    )
+    p_pu.add_argument(
+        "--no-zip",
+        action="store_true",
+        help="只更新 setup/init_userspace/userspace 源树，不写 zip",
+    )
+    p_pu.set_defaults(func=_cmd_package_userspace, forward=[])
+
     p_pub = sub.add_parser("publish", aliases=["p", "prep-release"])
     p_pub.add_argument("-v", "--version", required=True, help="目标版本 X.Y.Z 或 vX.Y.Z")
     p_pub.add_argument("--check-only", action="store_true")
@@ -352,6 +434,12 @@ def _build_subcommand_parser() -> argparse.ArgumentParser:
     p_pub.add_argument("--skip-ic", action="store_true")
     p_pub.add_argument("--skip-fed-build", action="store_true")
     p_pub.add_argument("--skip-py39", action="store_true")
+    p_pub.add_argument(
+        "-userspace",
+        "--package-userspace",
+        action="store_true",
+        help="检查通过后打包 init userspace",
+    )
     p_pub.set_defaults(func=_cmd_publish, forward=[])
 
     return parser
@@ -368,6 +456,7 @@ def _cmd_publish(args: argparse.Namespace) -> int:
             skip_ic=args.skip_ic,
             skip_fed_build=args.skip_fed_build,
             skip_py39=args.skip_py39,
+            package_userspace=getattr(args, "package_userspace", False),
         )
     )
 

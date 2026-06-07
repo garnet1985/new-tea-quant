@@ -4,7 +4,7 @@ Schema 升级门面：diff → plan → apply；CLI 供 updater 子进程调用�
 用法::
 
     PYTHONPATH=<repo_root> python -m core.infra.db.migrate_manager apply \\
-        --pre-mirror-snapshot userspace/system/.ntq/update/cache/pre_mirror_core_table_schemas.json
+        --pre-mirror-snapshot userspace/.ntq/update/cache/pre_mirror_core_table_schemas.json
 
     python -m core.infra.db.migrate_manager plan --pre-mirror-snapshot <path>
 """
@@ -214,7 +214,7 @@ def build_parser() -> argparse.ArgumentParser:
     shared.add_argument("--repo-root", help="仓库根（定位 core/tables 与默认快照路径）")
     shared.add_argument(
         "--pre-mirror-snapshot",
-        help="镜像前 schema 快照 JSON（默认 userspace/system/.ntq/update/cache/pre_mirror_core_table_schemas.json）",
+        help="镜像前 schema 快照 JSON（默认 userspace/.ntq/update/cache/pre_mirror_core_table_schemas.json）",
     )
     shared.add_argument("--tables-dir", help="覆盖 core/tables 目录（测试用）")
     shared.add_argument(

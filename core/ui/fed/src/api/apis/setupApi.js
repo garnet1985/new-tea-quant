@@ -145,6 +145,7 @@ export async function precheckDbConnection(inputs) {
     dbExists: Boolean(json?.message?.dbExists),
     dbType: json?.message?.dbType || '',
     database: json?.message?.database || '',
+    isDuckdb: Boolean(json?.message?.isDuckdb),
   };
 }
 

@@ -15,7 +15,7 @@ import math
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
-from core.infra.job_pipeline.worker_profile import (
+from core.infra.job_pipeline.profile import (
     WorkerProfiles,
     profile_reserve_cores,
     resolve_pipeline_workers,
@@ -128,8 +128,8 @@ def _resolve_mb_per_entity(
     if measured_mb_per_entity is not None and measured_mb_per_entity > 0:
         return max(0.01, float(measured_mb_per_entity)), "probe"
     raise ValueError(
-        f"{log_label}: entities_per_job=auto 需要调度探针或 settings 中的 "
-        "mb_per_entity_staged；请开启 dispatch_probe（默认 true）或手写 mb_per_entity_staged"
+        f"{log_label}: entities_per_job=auto 需要调度探针或 worker.json 中的 "
+        "mb_per_entity_staged；请开启 dispatch_probe（默认 true）或配置 mb_per_entity_staged"
     )
 
 

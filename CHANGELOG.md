@@ -17,8 +17,9 @@ python dev-cli -p -vx.x.x
 [] 有破坏性更改或者新的模块需要在module_info.yaml里更新core的依赖
 [] 检查是不是正确配置了gitignore
 [] Changelog 里注明改动和可能存在的破坏性改动
-[] 更新模块文档（模块readme，API，module_info）
+[] 更新模块文档（模块 readme，API，module_info 含 changelog）
 [] 更新项目README文档
+
 
 ---
 
@@ -33,8 +34,6 @@ python dev-cli -p -vx.x.x
 ---
 
 ### v0.4.x (TBD)
-
-目标，让整个项目的安装仅依赖python
 - 增加report里K线的点击界面
 - 为新版本的更新增加清除缓存的步骤
 - 给设置里增加清除缓存的功能
@@ -45,18 +44,22 @@ python dev-cli -p -vx.x.x
 
 ---
 
-### v0.4.0 (TBD)
+### v0.4.0 (2026-6-7)
 
-- 引入duckdb，在table schema引入domain的概念以区分duckdb的工作领域，从而避免多worker同时写入风险
-- 修复关键性bug - data source（数据源）系统不是批量写入的bug
-- 加入data source的自动结果收集量，能根据内存占用动态调整数据获取批次的大小，减小硬盘IO，提高效率
-- 重组和收纳userspace的文件夹结构，并且更新path manager（路径管理器）的引用，让userspace更加整洁
-- 重构infra/db模块，让结构变成引擎模式，引入duckdb的写管道和自动生成文件和表的地图功能
-- 让单进程模块支持一次处理多个股票，大幅度降低IO，效率提高一倍
-- **JobPipeline 并行度**：`worker.json` → `job_pipeline` 分 profile（default / enumerator / tag / price_factor / scanner）；`max_parallel_jobs_cap` 为 ProcessPool 同时 in-flight job 上限；userspace 同名文件可覆盖
+- （重大更新）引入duckdb，当前项目不再依赖任何第三方数据库，只要有python就可以运行了
+- （重大更新）计算管道与多进程更新：现在回测效率提高了6倍以上：以前全流程约180秒，现在约30秒
+- （破坏性改动）修改了userspace的文件夹结构，对原来的平铺结构进行收纳，突出核心文件夹，并且配有中文文件夹结构说明文档
+- 在dev-cli里加入init userspace的自动打包命令和清除缓存命令
+- duckdb：更新data source模块，使用批量写入以避免duckdb单写瓶颈
+- duckdb：更新并加入duckdb锁管理器，避免子进程和主进程抢占duckdb的单进程锁
+- duckdb：给所有写入操作加入完成后自动checkpoint之类，避免wal和db文件双重锁导致的随机错误，牺牲一小点写入代价换取数据库锁的稳定和可预测性
+- 性能更新：原单进程处理单只股票变成单进程处理多只股票，降低数据库读取时的IO，大幅度提升效率
+- 性能更新：更改了K线读取，复权还有计算指标的逻辑，提高内存使用，降低数据查询次数，大幅提高效率
+- 性能更新：加入探针模式，让内存和进程进行自动分配。
+- 性能更新（破坏性改动）：从原来策略的设置里去掉了性能配置，放入全局设置，减小用户心智
+- 将回测引擎的数据加载和缓存彻底委托给数据契约，现在的数据读取和缓存全部由数据契约完成。
+- 清理所有模块的module info，并且加入每个模块的change log
 - 修改了策略使用采样发生变化依然会触发缓存的bug
-- 将回测引擎和标签引擎的数据加载收入数据契约中，删除硬编码。
-- 优化K线加载查询逻辑，让演示策略的回测速度提高7-10倍。（DuckDB全量3年数据回测现在需要跑约21秒，mysql约26秒，峰值内存约3GB内）
 
 ---
 

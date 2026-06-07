@@ -33,6 +33,23 @@ DuckdbProcessPoolScopeMode = Literal["auto", "on", "off"]
 _MAIN_SUSPEND_DEPTH = 0
 
 
+def is_main_duckdb_worker_pool_active() -> bool:
+    """主进程是否处于 DuckDB ProcessPool suspend（子进程读库）阶段。"""
+    return _MAIN_SUSPEND_DEPTH > 0
+
+
+def wait_for_main_duckdb_worker_pool_end(*, timeout_sec: float = 600.0) -> None:
+    """其它线程在 suspend 期间不得打开 DuckDB 写连接；阻塞直到 worker 池结束。"""
+    deadline = time.monotonic() + timeout_sec
+    while _MAIN_SUSPEND_DEPTH > 0:
+        if time.monotonic() >= deadline:
+            raise TimeoutError(
+                "等待 DuckDB ProcessPool 主进程释放文件锁超时 "
+                f"({timeout_sec}s)"
+            )
+        time.sleep(0.05)
+
+
 def is_duckdb_backend(data_mgr: Any = None) -> bool:
     if data_mgr is not None:
         db = getattr(data_mgr, "db", None)
@@ -44,7 +61,11 @@ def is_duckdb_backend(data_mgr: Any = None) -> bool:
     return str(cfg.get("database_type") or "").lower() == "duckdb"
 
 
-def resolve_data_manager(data_mgr: Optional[Any] = None) -> Any:
+def resolve_data_manager(
+    data_mgr: Optional[Any] = None,
+    *,
+    allow_create: bool = False,
+) -> Any:
     from core.modules.data_manager import DataManager
 
     if data_mgr is not None:
@@ -52,7 +73,9 @@ def resolve_data_manager(data_mgr: Optional[Any] = None) -> Any:
     inst = DataManager.get_instance()
     if inst is not None:
         return inst
-    return DataManager(is_verbose=False)
+    if allow_create:
+        return DataManager(is_verbose=False)
+    return None
 
 
 def should_apply_process_pool_scope(
@@ -188,15 +211,50 @@ def release_all_main_db_handles(data_mgr: Any) -> None:
     """
     from core.infra.db import DatabaseManager
 
-    for db in _collect_db_managers_from_data_mgr(data_mgr):
+    found = _collect_db_managers_from_data_mgr(data_mgr)
+    closed_ids: set[int] = set()
+    for db in found:
         try:
             db.close()
+            closed_ids.add(id(db))
         except Exception as exc:
             logger.debug("release_all db.close: %s", exc)
-    data_mgr.db = None
-    data_mgr._initialized = False
-    _invalidate_data_service_db_refs(data_mgr)
-    DatabaseManager.reset_default()
+    if data_mgr is not None:
+        try:
+            data_mgr.db = None
+            data_mgr._initialized = False
+            _invalidate_data_service_db_refs(data_mgr)
+        except Exception:
+            pass
+
+    default_db = DatabaseManager._default_instance
+    if default_db is not None:
+        if id(default_db) not in closed_ids:
+            try:
+                default_db.close()
+            except Exception as exc:
+                logger.debug("release_all default db.close: %s", exc)
+        DatabaseManager.reset_default()
+
+
+def release_all_process_duckdb_handles(data_mgr: Any = None) -> None:
+    """进程内所有 DataManager / DatabaseManager 句柄（BFF refresh / 并发工作台）。"""
+    from core.infra.db import DatabaseManager
+    from core.modules.data_manager import DataManager
+
+    wait_pool_children_done(timeout_sec=30.0)
+    inst = DataManager.get_instance()
+    if inst is not None:
+        release_all_main_db_handles(inst)
+    if data_mgr is not None and inst is not data_mgr:
+        release_all_main_db_handles(data_mgr)
+    if DatabaseManager._default_instance is not None:
+        try:
+            DatabaseManager._default_instance.close()
+        except Exception as exc:
+            logger.debug("release_all_process default db.close: %s", exc)
+        DatabaseManager.reset_default()
+    DataManager.reset_instance()
 
 
 def suspend_main_database(data_mgr: Any) -> None:
@@ -205,12 +263,16 @@ def suspend_main_database(data_mgr: Any) -> None:
 
 def _attach_data_manager_db(data_mgr: Any, db: Any) -> None:
     from core.infra.db import DatabaseManager
+    from core.modules.data_manager import DataManager
     from core.modules.data_manager.data_services import DataService
 
     data_mgr.db = db
+    if not getattr(data_mgr, "_table_cache", None):
+        data_mgr._discover_tables()
     data_mgr._data_service = DataService(data_mgr)
     data_mgr._initialized = True
     DatabaseManager.set_default(db)
+    DataManager._instance = data_mgr
 
 
 def resume_main_database(data_mgr: Any) -> None:
@@ -257,13 +319,20 @@ def resume_main_database_tag_write_only(data_mgr: Any) -> None:
 
 
 def resume_main_database_with_retry(
-    data_mgr: Any,
+    data_mgr: Any = None,
     *,
     attempts: int = 8,
     delay_sec: float = 0.25,
     tag_write_only: bool = False,
 ) -> None:
     """worker 退出后偶发仍占 DuckDB 锁，短暂重试 resume。"""
+    from core.modules.data_manager import DataManager
+
+    dm = data_mgr
+    if dm is None:
+        dm = DataManager.get_instance()
+    if dm is None:
+        dm = DataManager(is_verbose=False)
     resume_fn = (
         resume_main_database_tag_write_only
         if tag_write_only
@@ -272,7 +341,7 @@ def resume_main_database_with_retry(
     last_exc: Optional[BaseException] = None
     for attempt in range(1, attempts + 1):
         try:
-            resume_fn(data_mgr)
+            resume_fn(dm)
             return
         except Exception as exc:
             last_exc = exc
@@ -300,14 +369,98 @@ def wait_pool_children_done(*, timeout_sec: float = 15.0) -> None:
     alive = [p.name for p in mp.active_children() if p.is_alive()]
     if alive:
         logger.warning("进程池子进程仍未退出（可能影响 DuckDB 锁）: %s", alive[:8])
+        try:
+            from core.ui.process_cleanup import terminate_multiprocessing_children
+
+            terminate_multiprocessing_children(grace_sec=2.0)
+        except Exception as exc:
+            logger.debug("terminate_multiprocessing_children: %s", exc)
 
 
-def prepare_main_for_worker_pool(data_mgr: Any) -> None:
+def ensure_data_manager_restored(data_mgr: Any = None) -> Any:
+    """
+    ProcessPool 或 Ctrl+C 后恢复主进程 DatabaseManager + DataManager 表缓存。
+
+    若 ``data_mgr`` 已有可写连接则仅补全 ``_table_cache`` / DataService。
+    """
+    if not is_duckdb_backend(data_mgr):
+        return resolve_data_manager(data_mgr, allow_create=True)
+
+    from core.modules.data_manager import DataManager
+
+    dm = resolve_data_manager(data_mgr, allow_create=False)
+    if dm is None:
+        return DataManager(is_verbose=False)
+
+    db = getattr(dm, "db", None)
+    if db is not None and getattr(db, "_initialized", False):
+        if not getattr(dm, "_table_cache", None):
+            dm._discover_tables()
+        if getattr(dm, "_data_service", None) is None:
+            from core.modules.data_manager.data_services import DataService
+
+            dm._data_service = DataService(dm)
+        dm._initialized = True
+        DataManager._instance = dm
+        return dm
+
+    resume_main_database_with_retry(dm)
+    return dm
+
+
+def recover_after_worker_pool_interrupt(data_mgr: Any = None) -> None:
+    """CLI / 工作台 Ctrl+C：终止遗留 worker、恢复 auto_init 与主库连接。"""
+    global _MAIN_SUSPEND_DEPTH
+
+    _MAIN_SUSPEND_DEPTH = 0
+    try:
+        from core.ui.process_cleanup import terminate_multiprocessing_children
+
+        terminate_multiprocessing_children(grace_sec=2.0)
+    except Exception as exc:
+        logger.debug("terminate_multiprocessing_children: %s", exc)
+    wait_pool_children_done(timeout_sec=30.0)
+    restore_after_worker_pool()
+    if not is_duckdb_backend(data_mgr):
+        return
+    try:
+        dm = ensure_data_manager_restored(data_mgr)
+        db = getattr(dm, "db", None)
+        if db is not None and hasattr(db, "checkpoint_duckdb"):
+            db.checkpoint_duckdb()
+    except Exception as exc:
+        logger.warning("DuckDB 中断恢复未完成: %s", exc)
+
+
+def _finalize_worker_pool_main_process(
+    data_mgr: Any,
+    *,
+    resume_main_after: bool,
+    wait_children_timeout_sec: float,
+) -> None:
+    global _MAIN_SUSPEND_DEPTH
+
+    _MAIN_SUSPEND_DEPTH = 0
+    try:
+        wait_pool_children_done(timeout_sec=wait_children_timeout_sec)
+    finally:
+        restore_after_worker_pool()
+    if not resume_main_after:
+        return
+    try:
+        dm = ensure_data_manager_restored(data_mgr)
+        db = getattr(dm, "db", None)
+        if db is not None and hasattr(db, "checkpoint_duckdb"):
+            db.checkpoint_duckdb()
+    except Exception as exc:
+        logger.warning("DuckDB ProcessPool 收尾恢复失败: %s", exc)
+
+
+def prepare_main_for_worker_pool(data_mgr: Any = None) -> None:
     """进程池开跑前：等待遗留子进程退出、关闭主库、禁止 get_default(auto_init) 抢锁。"""
     from core.infra.db import DatabaseManager
 
-    wait_pool_children_done(timeout_sec=30.0)
-    release_all_main_db_handles(data_mgr)
+    release_all_process_duckdb_handles(data_mgr)
     DatabaseManager._auto_init_enabled = False
     logger.debug("DuckDB worker 阶段：主进程已释放 data/tag 连接，已禁用 DB auto_init")
 
@@ -364,15 +517,16 @@ def duckdb_worker_pool_main_process(
     """
     global _MAIN_SUSPEND_DEPTH
 
-    dm = resolve_data_manager(data_mgr)
-    if not is_duckdb_backend(dm):
-        yield dm
+    if not is_duckdb_backend(data_mgr):
+        yield resolve_data_manager(data_mgr, allow_create=True)
         return
+
+    dm = data_mgr if data_mgr is not None else resolve_data_manager(None)
 
     if _MAIN_SUSPEND_DEPTH > 0:
         _MAIN_SUSPEND_DEPTH += 1
         try:
-            yield dm
+            yield dm if dm is not None else resolve_data_manager(None, allow_create=True)
         finally:
             _MAIN_SUSPEND_DEPTH -= 1
         return
@@ -380,13 +534,13 @@ def duckdb_worker_pool_main_process(
     prepare_main_for_worker_pool(dm)
     _MAIN_SUSPEND_DEPTH = 1
     try:
-        yield dm
+        yield dm if dm is not None else resolve_data_manager(None, allow_create=True)
     finally:
-        _MAIN_SUSPEND_DEPTH = 0
-        wait_pool_children_done(timeout_sec=wait_children_timeout_sec)
-        restore_after_worker_pool()
-        if resume_main_after:
-            resume_main_database_with_retry(dm)
+        _finalize_worker_pool_main_process(
+            dm,
+            resume_main_after=resume_main_after,
+            wait_children_timeout_sec=wait_children_timeout_sec,
+        )
 
 
 @contextmanager
@@ -403,7 +557,7 @@ def maybe_duckdb_worker_pool_scope(
         use_process_pool=use_process_pool,
         data_mgr=data_mgr,
     ):
-        yield resolve_data_manager(data_mgr)
+        yield resolve_data_manager(data_mgr, allow_create=True)
         return
     with duckdb_worker_pool_main_process(
         data_mgr,

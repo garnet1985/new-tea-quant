@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from concurrent.futures import Future
+from contextlib import contextmanager
 from typing import Any, List
+from unittest.mock import patch
 
 import pytest
 
@@ -16,7 +18,6 @@ from core.infra.job_pipeline import (
     JobReport,
     RunProgress,
 )
-from core.infra.job_pipeline.executors.pool import ProcessJobExecutor, ThreadJobExecutor
 
 
 class _CollectingExecutor:
@@ -111,6 +112,11 @@ def _process_execute_double(ctx: JobContext) -> dict:
     return {"success": True, "doubled": ctx.payload["n"] * 2}
 
 
+@contextmanager
+def _noop_duckdb_scope(*_args, **_kwargs):
+    yield None
+
+
 def test_process_executor_integration():
     reports: List[JobReport] = []
 
@@ -127,9 +133,13 @@ def test_process_executor_integration():
         execute=_process_execute_double,
         on_result=on_result,
     )
-    result = dispatcher.run(
-        [Job("a", {"n": 3}), Job("b", {"n": 5}), Job("c", {"n": 7})]
-    )
+    with patch(
+        "core.infra.job_pipeline.pipeline.runner.maybe_duckdb_worker_pool_scope",
+        _noop_duckdb_scope,
+    ):
+        result = dispatcher.run(
+            [Job("a", {"n": 3}), Job("b", {"n": 5}), Job("c", {"n": 7})]
+        )
 
     assert result.completed == 3
     assert result.failed == 0

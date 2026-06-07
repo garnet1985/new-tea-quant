@@ -19,7 +19,7 @@ from core.infra.job_pipeline import (
     RunProgress,
 )
 from core.infra.job_pipeline.types import ExecuteMode, ExecutionBackend, JobFailurePhase
-from core.infra.job_pipeline.worker_profile import WorkerProfiles
+from core.infra.job_pipeline.profile import WorkerProfiles
 from core.infra.worker.multi_process.process_worker import JobResult, JobStatus
 
 
@@ -95,6 +95,7 @@ def run_stock_jobs_via_pipeline(
         Callable[[JobReport], Tuple[int, int, int]]
     ] = None,
     worker_profile: str = WorkerProfiles.DEFAULT,
+    duckdb_data_mgr: Any = None,
 ) -> List[JobResult]:
     """
     对一批单股任务跑 JobPipeline（QUEUE + PROCESS），返回 JobResult 列表。
@@ -113,6 +114,16 @@ def run_stock_jobs_via_pipeline(
     reported_ids: set[str] = set()
     progress_meta = {"last_job_id": "", "last_job_status": ""}
     log_state = {"last_pct": -1, "last_log_at": time.time(), "last_done": 0}
+
+    if on_job_progress is not None and total_jobs > 0:
+        on_job_progress(
+            job_progress_payload(
+                total_jobs=total_jobs,
+                finished=finished_offset,
+                completed_jobs=completed_offset,
+                failed_jobs=failed_offset,
+            )
+        )
 
     def _emit_progress(*, finished: int, ok: int, fail: int) -> None:
         payload = job_progress_payload(
@@ -181,6 +192,8 @@ def run_stock_jobs_via_pipeline(
         max_workers=max_workers,
         continue_on_failure=True,
         duckdb_process_pool_scope="auto",
+        duckdb_data_mgr=duckdb_data_mgr,
+        duckdb_resume_main_after_pool=duckdb_data_mgr is None,
         worker_profile=worker_profile,
     )
     dispatcher = JobPipeline(

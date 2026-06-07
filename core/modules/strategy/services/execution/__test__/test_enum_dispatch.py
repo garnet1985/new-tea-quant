@@ -4,33 +4,31 @@ from unittest.mock import patch
 
 import pytest
 
-from core.modules.strategy.engines.simulator.enumerator.data_classes.settings import (
-    OpportunityEnumeratorSettings,
-)
 from core.modules.strategy.services.execution.enum_dispatch import (
-    resolve_entities_per_job,
     resolve_enum_dispatch_plan,
+    resolve_entities_per_job,
 )
 
 
-def _enum_settings(raw: dict) -> OpportunityEnumeratorSettings:
-    return OpportunityEnumeratorSettings.from_raw("example", {"enumerator": raw})
-
-
-def test_explicit_entities_per_job():
-    settings = _enum_settings({"entities_per_job": 50})
-    assert resolve_entities_per_job(total_stocks=100, enum_settings=settings) == 50
+@patch(
+    "core.modules.strategy.services.execution.enum_dispatch.enumerator_dispatch_dict",
+    return_value={"entities_per_job": 50},
+)
+def test_explicit_entities_per_job(_mock):
+    assert resolve_entities_per_job(total_stocks=100) == 50
 
 
 @patch(
     "core.infra.worker.dispatch_planner._get_virtual_memory_mb",
     return_value=(16384.0, 8192.0),
 )
-def test_auto_with_measured_mb(mock_vm):
-    settings = _enum_settings({"entities_per_job": "auto"})
+@patch(
+    "core.modules.strategy.services.execution.enum_dispatch.enumerator_dispatch_dict",
+    return_value={"entities_per_job": "auto", "dispatch_probe": True},
+)
+def test_auto_with_measured_mb(_mock_perf, mock_vm):
     plan = resolve_enum_dispatch_plan(
         total_stocks=1000,
-        enum_settings=settings,
         measured_mb_per_entity=1.2,
     )
     assert plan.source_entities_per_job == "auto"
@@ -38,7 +36,10 @@ def test_auto_with_measured_mb(mock_vm):
     assert plan.max_workers >= 1
 
 
-def test_auto_without_probe_raises():
-    settings = _enum_settings({"entities_per_job": "auto", "dispatch_probe": False})
+@patch(
+    "core.modules.strategy.services.execution.enum_dispatch.enumerator_dispatch_dict",
+    return_value={"entities_per_job": "auto", "dispatch_probe": False},
+)
+def test_auto_without_probe_raises(_mock):
     with pytest.raises(ValueError, match="探针"):
-        resolve_enum_dispatch_plan(total_stocks=100, enum_settings=settings)
+        resolve_enum_dispatch_plan(total_stocks=100)

@@ -2,9 +2,11 @@
 
 在这里放置干净的 userspace 初始化包（zip）。
 
-- 默认文件名：`userspace.zip`
-- `init_userspace` 步骤会读取该 zip 并解压到目标目录
-- 若未指定目标目录，默认解压到项目根目录下的 `userspace/`
+| 文件 | 说明 |
+|------|------|
+| `userspace.zip` | **固定文件名**，`python dev-cli.py -userspace` 每次覆盖 |
+| `userspace.meta.json` | 记录打包时的 core 版本、zip 大小、git rev（便于核对） |
+| `userspace/` | 可编辑源树（开发时可指向，不必每次打 zip） |
 
 ## 维护 zip 源树
 
@@ -22,6 +24,16 @@ export NTQ_USERSPACE_ROOT="$(git rev-parse --show-toplevel)/setup/init_userspace
 ```
 
 打包前在本目录重新生成 `userspace.zip`（见上节「维护 zip 源树」）。
+
+**推荐（自动清理密钥与缓存）：**
+
+```bash
+python dev-cli.py -userspace
+# 或发布检查通过后一并打包：
+python dev-cli.py -p -v0.4.0 -userspace
+```
+
+会从仓库根 `userspace/` 复制到本目录 `userspace/`，删除数据库连接、数据源 token、`.ntq`、策略 `results/`、`extensions/data_source/handlers/` 下运行时 `.csv` 等，并同步 `setup/updater/` 到 `userspace/system/updater/`，最后写入 `userspace.zip` 与 `userspace.meta.json`。
 
 ### ``updater/``（升级 bootstrap）
 

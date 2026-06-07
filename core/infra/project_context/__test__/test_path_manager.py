@@ -102,3 +102,20 @@ class TestPathManager:
         
         # 应该返回同一个对象（缓存）
         assert root1 is root2
+
+    def test_userspace_ntq_at_root_migrates_legacy(self, tmp_path, monkeypatch):
+        fake_root = _fake_repo_with_userspace(tmp_path, with_strategies=True)
+        us = fake_root / "userspace"
+        legacy = us / "system" / ".ntq" / "tmp" / "progress"
+        legacy.mkdir(parents=True)
+        (legacy / "x.json").write_text("{}", encoding="utf-8")
+
+        monkeypatch.setattr(PathManager, "_root_cache", fake_root)
+        PathManager.invalidate_userspace_cache()
+        try:
+            ntq = PathManager.userspace_ntq()
+            assert ntq == us / ".ntq"
+            assert (ntq / "tmp" / "progress" / "x.json").is_file()
+            assert not (us / "system" / ".ntq").exists()
+        finally:
+            PathManager.invalidate_userspace_cache()

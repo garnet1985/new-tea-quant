@@ -165,16 +165,49 @@ def main() -> int:
     ):
         NewTeaQuantSetup.print_check_info(f"下一步的操作:")
         NewTeaQuantSetup.print_check_info(f"复制: {USER_DB_CONFIG_DIR / 'common.example.json'} 并重新命名为 common.json")
-        NewTeaQuantSetup.print_check_info(f"修改 common.json 中的 database_type 为您当前使用的db种类(postgresql/mysql)")
+        NewTeaQuantSetup.print_check_info(f"修改 common.json 中的 database_type 为您当前使用的db种类(postgresql/mysql/duckdb)")
         NewTeaQuantSetup.print_check_info(f"完成之后再次运行install.py脚本，直到这一步成功为止")
         return 1
 
     common_cfg = _load_json_dict(common_json)
     db_type = str(common_cfg.get("database_type") or "").strip().lower()
-    if db_type not in ("postgresql", "mysql"):
-        NewTeaQuantSetup.print_check_fail(f"common.json 里的 database_type 无效: {db_type!r}（可选: postgresql/mysql）")
+    if db_type not in ("postgresql", "mysql", "duckdb"):
+        NewTeaQuantSetup.print_check_fail(
+            f"common.json 里的 database_type 无效: {db_type!r}（可选: postgresql/mysql/duckdb）"
+        )
         return 1
     NewTeaQuantSetup.print_check_ok(f"您当前要使用的数据库: {db_type}")
+
+    if db_type == "duckdb":
+        duckdb_json = USER_DB_CONFIG_DIR / "duckdb.json"
+        if not duckdb_json.is_file():
+            NewTeaQuantSetup.print_check_info(
+                "未找到 duckdb.json，将使用 core/default_config/database/duckdb.json 默认配置"
+            )
+        config = ConfigManager.load_database_config(db_type)
+        duck_cfg = config.get("duckdb") or {}
+        domains = duck_cfg.get("domains") if isinstance(duck_cfg, dict) else {}
+        if isinstance(domains, dict):
+            for name, block in domains.items():
+                if isinstance(block, dict) and block.get("db_path"):
+                    NewTeaQuantSetup.print_check_ok(
+                        f"域 {name}: db_path={block.get('db_path')!r}"
+                    )
+        try:
+            from core.infra.db.db_manager import DatabaseManager
+
+            db = DatabaseManager(config=config, is_verbose=False)
+            db.initialize()
+            rows = db.execute_sync_query("SELECT 1 as ok")
+            ok_val = rows[0].get("ok") if rows else None
+            NewTeaQuantSetup.print_check_ok(f"DB ready（SELECT 1 -> {ok_val}）")
+            db.close()
+            return 0
+        except Exception as e:
+            NewTeaQuantSetup.print_check_fail(f"DB not ready: {e}")
+            print("\n--- traceback ---", file=sys.stderr)
+            traceback.print_exc()
+            return 1
 
     db_json = USER_DB_CONFIG_DIR / f"{db_type}.json"
     if not NewTeaQuantSetup.check_file_exists(

@@ -6,8 +6,8 @@ import math
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from core.infra.job_pipeline.probe import WorkerProbe
-from core.infra.job_pipeline.worker_profile import (
+from core.infra.job_pipeline.profile.probe import WorkerProbe
+from core.infra.job_pipeline.profile import (
     WorkerProfiles,
     profile_max_parallel_jobs_cap,
     profile_reserve_cores,
@@ -99,7 +99,7 @@ def resolve_time_dispatch_plan(
 
     if ep_override is not None:
         entities_per_job = ep_override
-        ep_source = "settings"
+        ep_source = "profile"
         dispatch_jobs = max(1, math.ceil(total_entities / entities_per_job))
         max_workers = min(wmax, dispatch_jobs)
         wall = estimate_dispatch_wall_sec(

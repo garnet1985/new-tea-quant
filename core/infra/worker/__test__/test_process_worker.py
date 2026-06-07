@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import pytest
 
-from core.infra.job_pipeline.probe import WorkerProbe
 from core.infra.worker.multi_process.process_worker import (
     ExecutionMode,
     JobStatus,
@@ -32,7 +31,6 @@ def test_init_with_config():
 
 
 def test_resolve_max_workers_manual():
-    assert WorkerProbe.resolve(8) == 8
     assert ProcessWorker.resolve_max_workers(8, "TestModule") == 8
 
 

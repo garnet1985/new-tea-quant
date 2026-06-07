@@ -1,37 +1,14 @@
-"""JobPipeline 并行度：按 worker profile 读取系统配置（非用户策略 settings）。"""
+"""从 worker.json job_pipeline profile 解析并行度与 dispatch 配置。"""
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Any, Dict, FrozenSet, Optional
+from typing import Any, Dict, Optional
 
-from core.infra.job_pipeline.probe import WorkerProbe
-
-USER_PIPELINE_POOL_KEYS = frozenset(
-    {
-        "max_workers",
-        "max_parallel_jobs_cap",
-    }
+from core.infra.job_pipeline.profile.constants import (
+    DISPATCH_DEFAULTS_BY_PROFILE,
+    WorkerProfiles,
 )
-
-_PROFILE_KEYS: FrozenSet[str] = frozenset(
-    {
-        "default",
-        "enumerator",
-        "tag",
-        "price_factor",
-        "scanner",
-    }
-)
-
-
-class WorkerProfiles:
-    """``worker.json`` → ``job_pipeline`` 下的 profile 名。"""
-
-    DEFAULT = "default"
-    ENUMERATOR = "enumerator"
-    TAG = "tag"
-    PRICE_FACTOR = "price_factor"
-    SCANNER = "scanner"
+from core.infra.job_pipeline.profile.probe import WorkerProbe
 
 
 def _parse_reserve_cores(raw: Any, *, fallback: int = 1) -> int:
@@ -72,12 +49,6 @@ def _default_profile_block(block: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def resolve_worker_profile(worker_id: str = WorkerProfiles.DEFAULT) -> Dict[str, Any]:
-    """
-    合并 ``default`` + 指定 worker profile。
-
-    配置来源：``core/default_config/worker.json``，用户可在
-    ``userspace/config/worker.json`` 用相同结构覆盖。
-    """
     block = _job_pipeline_block()
     default = _default_profile_block(block)
     wid = str(worker_id or WorkerProfiles.DEFAULT).strip() or WorkerProfiles.DEFAULT
@@ -87,6 +58,15 @@ def resolve_worker_profile(worker_id: str = WorkerProfiles.DEFAULT) -> Dict[str,
     if not isinstance(specific, dict):
         specific = {}
     return {**default, **specific}
+
+
+def profile_dispatch_config(worker_id: str) -> Dict[str, Any]:
+    defaults = dict(DISPATCH_DEFAULTS_BY_PROFILE.get(worker_id, {}))
+    prof = resolve_worker_profile(worker_id)
+    dispatch = prof.get("dispatch")
+    if isinstance(dispatch, dict):
+        return {**defaults, **dispatch}
+    return defaults
 
 
 def profile_reserve_cores(worker_id: str = WorkerProfiles.DEFAULT) -> int:
@@ -104,7 +84,6 @@ def resolve_pipeline_workers(
     worker_id: str = WorkerProfiles.DEFAULT,
     dispatch_jobs: Optional[int] = None,
 ) -> int:
-    """按 worker profile 解析 ProcessPool 并行 job 数（始终 auto）。"""
     workers = WorkerProbe.resolve(
         "auto",
         reserve_cores=profile_reserve_cores(worker_id),
@@ -116,7 +95,6 @@ def resolve_pipeline_workers(
 
 
 def job_pipeline_profile(worker_id: str = WorkerProfiles.DEFAULT) -> Dict[str, Any]:
-    """兼容旧名：返回合并后的 profile dict。"""
     return resolve_worker_profile(worker_id)
 
 
@@ -126,16 +104,3 @@ def pipeline_reserve_cores() -> int:
 
 def pipeline_max_parallel_jobs_cap() -> Optional[int]:
     return profile_max_parallel_jobs_cap(WorkerProfiles.DEFAULT)
-
-
-__all__ = [
-    "USER_PIPELINE_POOL_KEYS",
-    "WorkerProfiles",
-    "job_pipeline_profile",
-    "pipeline_max_parallel_jobs_cap",
-    "pipeline_reserve_cores",
-    "profile_max_parallel_jobs_cap",
-    "profile_reserve_cores",
-    "resolve_pipeline_workers",
-    "resolve_worker_profile",
-]

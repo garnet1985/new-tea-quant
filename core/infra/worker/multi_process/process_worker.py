@@ -106,7 +106,7 @@ class ProcessWorker:
     @staticmethod
     def resolve_max_workers(max_workers, module_name: str = "default") -> int:
         del module_name  # 已废弃；并行度由 WorkerProbe 解析
-        from core.infra.job_pipeline.probe import WorkerProbe
+        from core.infra.job_pipeline.profile.probe import WorkerProbe
 
         return WorkerProbe.resolve(max_workers)
 

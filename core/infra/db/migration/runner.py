@@ -56,10 +56,11 @@ def load_schemas_from_snapshot(path: Path) -> Dict[str, Dict[str, Any]]:
 
 
 def default_pre_mirror_snapshot_path(repo_root: Path) -> Path:
+    from core.infra.project_context.path_manager import PathManager
+
+    _ = repo_root  # 保留参数；实际路径以 PathManager.userspace() 为准
     return (
-        repo_root
-        / "userspace"
-        / ".ntq"
+        PathManager.userspace_ntq()
         / "update"
         / "cache"
         / DEFAULT_PRE_MIRROR_FILENAME

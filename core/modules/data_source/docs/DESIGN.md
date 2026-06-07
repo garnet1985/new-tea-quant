@@ -1,6 +1,6 @@
 # Data Source 设计说明
 
-**版本：** `0.2.0`
+**版本：** `0.3.6`
 
 本文档描述 **userspace 配置布局**、**schema 来源**与 **handler 发现规则**。实现以 `data_source_manager.py`、`service/manager_helper.py` 为准。
 

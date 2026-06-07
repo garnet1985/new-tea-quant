@@ -31,6 +31,8 @@
 | V2-07b | GET | `/v1/strategy/<strategy_name>/<step>/report_ref/<version_id>` | path `version_id` → `build_step_report_ref_message`（完整 ``stock_ref``；排序与分页由前端）→ `ok` / 404 |
 | V2-08 | GET | `/v1/strategy/<strategy_name>/version/<version_id>` | `fetch_workbench_by_version` → `workbench_snapshot_to_message` → `ok` |
 | V2-09 | POST | `/v1/strategy/<strategy_name>/apply-settings/<version_id>` | `json_payload`（可选 `pretty`）→ `apply_workbench_snapshot_settings_to_userspace` → `ok` |
+| V2-11 | DELETE | `/v1/strategy/workbench-snapshot-cache` | `clear_workbench_simulation_cache_all` → `ok`（`deleted_count`）/ 503 |
+| V2-12 | DELETE | `/v1/strategy/<strategy_name>/version/<version_id>/workbench-snapshot-cache` | `parse_version_id` → `clear_workbench_simulation_cache_by_version` → `ok` / 404 |
 
 **未注册**：**V2-10** `versions/range`（契约见 API.md；实现待定）。
 

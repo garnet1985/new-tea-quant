@@ -1,7 +1,19 @@
 name: ui
-version: 0.3.0
-compatible_core_versions: ">=0.3.0"
+version: 0.4.0
+compatible_core_versions: ">=0.4.0"
 description: "NTQ 前端UI基础设施：提供可视化的用户界面，通过浏览器展示。"
 dependencies:
   - modules.strategy
   - infra.project_context
+changelog:
+  - version: "0.4.0"
+    changes:
+      - Setup 向导与设置页支持 DuckDB（默认引擎）；修复 duckdb 被误显示为 postgresql 的问题
+      - 策略 Run 提交时剥离已废弃的 performance / dispatch settings 字段
+  - version: "0.3.0"
+    changes:
+      - 策略工作台、设置编辑与回测进度 UI
+      - Python 静态服务托管 FED 资产；header 版本号从 API 读取
+  - version: "0.2.0"
+    changes:
+      - 基础 Fed 构建链路与 launcher 集成

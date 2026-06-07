@@ -78,6 +78,18 @@ def install_sigint_checkpoint_handler_for_engine(
             return
 
         def _handler(signum, frame):
+            from core.infra.db.engines.duckdb.process_pool_scope import (
+                is_main_duckdb_worker_pool_active,
+            )
+
+            if is_main_duckdb_worker_pool_active():
+                logger.info(
+                    "收到 Ctrl+C（ProcessPool 阶段），跳过 SIGINT CHECKPOINT，"
+                    "由 worker finally 恢复主库后再合并 WAL"
+                )
+                signal.signal(signal.SIGINT, signal.SIG_DFL)
+                raise KeyboardInterrupt
+
             logger.info("收到 Ctrl+C，正在将 DuckDB WAL 合并进主库…")
             try:
                 if getattr(engine, "_initialized", False):

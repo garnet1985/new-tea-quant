@@ -106,6 +106,7 @@ class PriceFactorFlowImpl:
         dispatch_plan: Any,
         total_stocks: int,
         progress_callback: Optional[Callable[[float], None]] = None,
+        duckdb_data_mgr: Any = None,
     ) -> List[Dict[str, Any]]:
         from core.infra.worker.multi_process.process_worker import JobStatus
         from core.modules.strategy.services.execution.price_job_pipeline import (
@@ -121,16 +122,12 @@ class PriceFactorFlowImpl:
         if getattr(dispatch_plan, "run_in_main_process", False):
             results = run_price_factor_in_main_process(dispatch_jobs)
         else:
-            from core.modules.strategy.services.execution.price_dispatch import (
-                release_main_duckdb_handles,
-            )
-
-            release_main_duckdb_handles()
             job_results = run_price_factor_jobs_via_pipeline(
                 dispatch_jobs=dispatch_jobs,
                 max_workers=dispatch_plan.max_workers,
                 total_stocks=total_stocks,
                 on_workbench_progress=progress_callback,
+                duckdb_data_mgr=duckdb_data_mgr,
             )
             results = []
             for jr in job_results:

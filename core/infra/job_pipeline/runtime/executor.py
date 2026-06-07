@@ -1,21 +1,17 @@
-"""
-JobExecutor - Dispatcher 使用的并发执行后端协议。
-"""
+"""JobExecutor 协议与工厂。"""
 from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
-from core.infra.job_pipeline.executors.pool import ProcessJobExecutor, ThreadJobExecutor
-from core.infra.job_pipeline.hooks import ExecuteFn
-from core.infra.job_pipeline.settings import JobPipelineSettings
+from core.infra.job_pipeline.pipeline.hooks import ExecuteFn
+from core.infra.job_pipeline.pipeline.settings import JobPipelineSettings
+from core.infra.job_pipeline.profile.resolver import resolve_pipeline_workers
+from core.infra.job_pipeline.runtime.pool import ProcessJobExecutor, ThreadJobExecutor
 from core.infra.job_pipeline.types import ExecutionBackend, JobContext
-from core.infra.job_pipeline.worker_profile import resolve_pipeline_workers
 
 
 @runtime_checkable
 class JobExecutor(Protocol):
-    """流式 submit execute(JobContext) 的执行后端。"""
-
     @property
     def max_workers(self) -> int:
         ...
@@ -35,7 +31,6 @@ class JobExecutor(Protocol):
 
 
 def create_job_executor(settings: JobPipelineSettings, *, execute: ExecuteFn) -> JobExecutor:
-    """由 JobPipelineSettings 构造 Process / Thread JobExecutor。"""
     if settings.max_workers in (None, "", "auto"):
         resolved = resolve_pipeline_workers(worker_id=settings.worker_profile)
     else:

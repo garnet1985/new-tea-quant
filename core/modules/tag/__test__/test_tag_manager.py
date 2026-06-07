@@ -1,18 +1,6 @@
-"""
-TagManager 单元测试
-"""
-import sys
+"""TagManager 单元测试。"""
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-
-# 添加项目根目录到路径
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
-
-try:
-    import pytest
-    HAS_PYTEST = True
-except ImportError:
-    HAS_PYTEST = False
+from unittest.mock import MagicMock, patch
 
 
 class TestTagManager:
@@ -230,6 +218,10 @@ class TestTagManager:
             scenario_model.get_settings.return_value = {
                 "name": "macro_general",
                 "tag_target_type": "general",
+                "performance": {
+                    "entities_per_job": 100,
+                    "mb_per_entity_staged": 0.5,
+                },
                 "data": {
                     "required": [{"data_id": "macro.gdp", "params": {}}],
                     "tag_time_axis_based_on": "macro.gdp",

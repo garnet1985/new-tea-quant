@@ -74,9 +74,7 @@
 | **`max_workers`** | **剔除**（全模块忽略；由 `worker.json` → JobPipeline 决定） |
 | **`max_parallel_jobs_cap`** | **剔除**（同上，系统 profile） |
 | **`is_verbose`** | **剔除** |
-| **`memory_budget_mb`** | **剔除** |
-| **`warmup_batch_size` / `min_batch_size` / `max_batch_size`** | **剔除** |
-| **`monitor_interval`** | **剔除** |
+| **调度/性能字段**（`memory_budget_mb`、`entities_per_job`、`dispatch_probe` 等） | **剔除**（已迁至 `worker.json` → `job_pipeline.*.dispatch`；策略内若仍存在则校验告警） |
 
 与代码对应：`settings_resolver.py` 中的 **`_IGNORE_ENUMERATOR_KEYS`**（及同模块其它 `IGNORE_*` / **`DROP_ROOT_BLOCKS`**）。
 
@@ -90,9 +88,7 @@
 | **`fees`**（覆盖） | **参与**（若存在）。 |
 | **`max_workers`** | **剔除**（全模块忽略；由 `worker.json` → JobPipeline 决定） |
 | **`max_parallel_jobs_cap`** | **剔除** |
-| **`entities_per_job`** | **剔除** |
-| **`dispatch_probe`** | **剔除** |
-| **`sec_per_entity_staged` / `sec_per_job_overhead_staged`** | **剔除** |
+| **调度/性能字段**（`entities_per_job`、`dispatch_probe`、`sec_per_entity_staged` 等） | **剔除**（已迁至 `worker.json` → `job_pipeline.price_factor.dispatch`） |
 
 与代码对应：`settings_resolver.py` 中的 **`_IGNORE_PRICE_SIMULATOR_KEYS`**。
 

@@ -1,6 +1,6 @@
 # Data Contract 架构文档
 
-**版本：** `0.3.0`（PER_ENTITY plural / `load_batch`：**已实现**；Tag 旁路清理见 [`ROADMAP.md`](ROADMAP.md)）
+**版本：** `0.3.3`（PER_ENTITY plural / `load_batch`：**已实现**；Tag 旁路清理见 [`ROADMAP.md`](ROADMAP.md)）
 
 ---
 

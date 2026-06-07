@@ -1,11 +1,18 @@
 import pytest
+from unittest.mock import MagicMock
 
 from core.tables.stock.adj_factor_events.model import DataAdjFactorEventModel
 
 
+def _model_with_stubs():
+    db = MagicMock()
+    db.config = {"database_type": "duckdb"}
+    return DataAdjFactorEventModel(db=db)
+
+
 class TestAdjFactorEventModel:
     def test_load_effective_events_for_dates_strict(self):
-        model = DataAdjFactorEventModel(db=object())
+        model = _model_with_stubs()
         events = [
             {"id": "000001.SZ", "event_date": "20250105", "qfq_diff": 1.25},
         ]
@@ -25,7 +32,7 @@ class TestAdjFactorEventModel:
         assert out["20250110"]["qfq_diff"] == pytest.approx(1.25)
 
     def test_load_effective_events_for_dates_default_infers_earliest(self):
-        model = DataAdjFactorEventModel(db=object())
+        model = _model_with_stubs()
         model.load = lambda condition, params, order_by=None: []  # type: ignore[assignment]
         model.load_one = lambda condition, params, order_by=None: {  # type: ignore[assignment]
             "id": "000001.SZ",
@@ -46,7 +53,7 @@ class TestAdjFactorEventModel:
         assert out["20250110"]["is_inferred"] is True
 
     def test_load_effective_events_for_dates_no_events(self):
-        model = DataAdjFactorEventModel(db=object())
+        model = _model_with_stubs()
         model.load = lambda condition, params, order_by=None: []  # type: ignore[assignment]
         model.load_one = lambda condition, params, order_by=None: None  # type: ignore[assignment]
 
@@ -62,7 +69,7 @@ class TestAdjFactorEventModel:
         assert out["20250110"]["qfq_diff"] == 0.0
 
     def test_load_effective_events_from_join_rows_default(self):
-        model = DataAdjFactorEventModel(db=object())
+        model = _model_with_stubs()
         model.load = lambda condition, params, order_by=None: []  # type: ignore[assignment]
         model.load_one = lambda condition, params, order_by=None: None  # type: ignore[assignment]
         rows = [

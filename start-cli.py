@@ -825,6 +825,14 @@ def main():
         logger.info("=" * 60)
     except KeyboardInterrupt:
         logger.warning("\n⚠️  用户中断执行")
+        try:
+            from core.infra.db.engines.duckdb.process_pool_scope import (
+                recover_after_worker_pool_interrupt,
+            )
+
+            recover_after_worker_pool_interrupt()
+        except Exception as exc:
+            logger.warning("DuckDB / worker 中断收尾未完全成功: %s", exc)
         sys.exit(0)
     except Exception as e:
         logger.error(f"❌ 执行失败: {e}")

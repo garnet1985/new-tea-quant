@@ -8,14 +8,19 @@ from core.modules.strategy.services.progress import ProgressRecorder
 
 
 def _enum_summary_from_result_report(rr: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    from core.modules.strategy.services.cache.simulator_res_db_cache.report_slot_disk_hydrate import (
+        attach_enum_opportunities_field,
+        enum_opportunity_count_from_slot,
+    )
+
     raw = rr.get("enum")
     if not isinstance(raw, dict) or not raw:
         return None
-    merged = dict(raw)
-    try:
-        merged["opportunities"] = int(merged.get("opportunities", 0) or 0)
-    except (TypeError, ValueError):
-        merged["opportunities"] = 0
+    merged = attach_enum_opportunities_field(dict(raw))
+    count = enum_opportunity_count_from_slot(merged)
+    if count is None:
+        return None
+    merged["opportunities"] = count
     return merged
 
 
@@ -65,9 +70,13 @@ def _fed_result_report_slice(
     out: Dict[str, Any] = {}
 
     if normalized_step == "enum":
+        from core.modules.strategy.services.cache.simulator_res_db_cache.report_slot_disk_hydrate import (
+            attach_enum_opportunities_field,
+        )
+
         raw_enum = rr.get("enum")
         if isinstance(raw_enum, dict) and raw_enum:
-            out["enum"] = raw_enum
+            out["enum"] = attach_enum_opportunities_field(raw_enum)
         else:
             e = _enum_summary_from_result_report(rr)
             if e:
@@ -245,7 +254,7 @@ def disk_mark_running(strategy_name: str, job_id: str, normalized_step: str) -> 
             "run_id": jid,
             "step_name": step,
             "phase": "running",
-            "progress_pct": 5,
+            "progress_pct": 1,
         }
     )
     rec.record(base)

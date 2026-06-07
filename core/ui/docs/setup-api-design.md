@@ -26,8 +26,9 @@
       "label": "Database Type",
       "type": "select",
       "required": true,
-      "defaultValue": "postgresql",
+      "defaultValue": "duckdb",
       "options": [
+        { "label": "DuckDB", "value": "duckdb" },
         { "label": "postgresql", "value": "postgresql" },
         { "label": "mysql", "value": "mysql" }
       ]
@@ -72,12 +73,8 @@
       "userspaceTargetPath": ""
     },
     "db_connection": {
-      "dbType": "postgresql",
-      "host": "localhost",
-      "port": "5432",
-      "database": "new_tea_quant",
-      "user": "postgres",
-      "password": "",
+      "dbType": "duckdb"
+    },
       "defaultPgsqlSchema": "public"
     }
   }

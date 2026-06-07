@@ -6,11 +6,15 @@ Path Manager - 路径管理器
 userspace 顶层三分：
 - strategies/   策略（日常使用）
 - extensions/   框架扩展（tags、data_source、data_contract、tables、adapters）
-- system/       系统（config、db、backup、updater、.ntq）
+- system/       系统（config、db、backup、updater）
 """
 from pathlib import Path
 from typing import Optional
+import logging
 import os
+import shutil
+
+logger = logging.getLogger(__name__)
 
 
 # userspace/extensions 下 Python 包前缀（import 路径）
@@ -163,12 +167,40 @@ class PathManager:
 
     @staticmethod
     def userspace_ntq() -> Path:
-        """NTQ 内部目录：userspace/system/.ntq/"""
-        return PathManager.system_root() / ".ntq"
+        """
+        NTQ 内部目录（userspace 下唯一）：``userspace/.ntq/``。
+
+        旧路径 ``userspace/system/.ntq/`` 若仍存在，会在首次访问时合并迁入并删除。
+        """
+        canonical = PathManager.userspace() / ".ntq"
+        legacy = PathManager.system_root() / ".ntq"
+        if legacy.is_dir():
+            PathManager._migrate_legacy_userspace_ntq(legacy, canonical)
+        return canonical
+
+    @staticmethod
+    def _migrate_legacy_userspace_ntq(legacy: Path, canonical: Path) -> None:
+        """一次性：``system/.ntq`` → ``userspace/.ntq``。"""
+        try:
+            canonical.mkdir(parents=True, exist_ok=True)
+            for item in legacy.iterdir():
+                dest = canonical / item.name
+                if not dest.exists():
+                    shutil.move(str(item), str(dest))
+                    continue
+                if item.is_dir() and dest.is_dir():
+                    for sub in item.iterdir():
+                        sub_dest = dest / sub.name
+                        if not sub_dest.exists():
+                            shutil.move(str(sub), str(sub_dest))
+            shutil.rmtree(legacy)
+            logger.info("已合并旧路径 %s → %s", legacy, canonical)
+        except Exception as exc:
+            logger.warning("合并 legacy userspace .ntq 失败（可手动迁移）: %s", exc)
 
     @staticmethod
     def userspace_tmp() -> Path:
-        """临时目录：userspace/system/.ntq/tmp/"""
+        """临时目录：userspace/.ntq/tmp/"""
         return PathManager.userspace_ntq() / "tmp"
 
     @staticmethod

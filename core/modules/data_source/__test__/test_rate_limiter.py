@@ -1,9 +1,5 @@
 """collect_api_limits：限流仅从 Provider.api_limits 解析。"""
-import sys
-from pathlib import Path
 from unittest.mock import MagicMock
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
 
 from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.service.rate_limiter import collect_api_limits

@@ -3,3 +3,13 @@ version: 0.4.1
 compatible_core_versions: ">=0.4.1"
 description: "NTQ 更新基础设施：版本探测、升级编排、schema 快照、迁移执行。"
 dependencies: []
+changelog:
+  - version: "0.4.1"
+    changes:
+      - 升级编排与 schema 快照（面向 core 0.4.x 能力）
+  - version: "0.4.0"
+    changes:
+      - 版本探测与 managed_scope 更新计划基线
+  - version: "0.3.1"
+    changes:
+      - updater 基础能力（CLI / 后续 UI 一键升级预留）

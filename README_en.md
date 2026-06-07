@@ -24,7 +24,7 @@ Author: Garnet Xin & His AI dude
 
 ## Current release (v0.4.x)
 
-Since **v0.3.0**, NTQ has supported **embedded DuckDB** file storage. As of **v0.4.0**:
+Since **v0.4.0**, NTQ has supported **embedded DuckDB** file storage. As of **v0.4.0**:
 
 - **DuckDB is the default** — you only need **Python 3.9+** to run; **MySQL / PostgreSQL remain optional** in the setup wizard.
 - **Engine / pipeline updates** — full layered backtests are roughly **6× faster** than before. See [CHANGELOG.md](CHANGELOG.md).

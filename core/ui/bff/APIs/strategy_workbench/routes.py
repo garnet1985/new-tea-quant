@@ -296,3 +296,53 @@ def post_apply_settings(strategy_name, version_id):
             return error(err, 500)
         return error(err, 400)
     return ok(out)
+
+
+# --- V2-11：清空模拟结果 DbCache 全表 ---
+@strategy_workbench_api_bp.route(
+    "/v1/strategy/workbench-snapshot-cache",
+    methods=["DELETE"],
+)
+def delete_workbench_snapshot_cache_all():
+    """DELETE /strategy/workbench-snapshot-cache — 清空 ``sys_strategy_workbench_snapshot``。"""
+    s = get_strategy_workbench_stack()
+    out = s.clear_workbench_simulation_cache_all()
+    if not out.get("ok"):
+        err = str(out.get("error") or "清理失败")
+        if err == "存储不可用":
+            return error(err, 503)
+        return error(err, 400)
+    return ok(
+        {
+            "cleared": True,
+            "deleted_count": int(out.get("deleted_count") or 0),
+        }
+    )
+
+
+# --- V2-12：按 version 删除单条模拟结果缓存 ---
+@strategy_workbench_api_bp.route(
+    "/v1/strategy/<strategy_name>/version/<version_id>/workbench-snapshot-cache",
+    methods=["DELETE"],
+)
+def delete_workbench_snapshot_cache_by_version(strategy_name, version_id):
+    """DELETE …/version/{version_id}/workbench-snapshot-cache — 删指定快照行。"""
+    s = get_strategy_workbench_stack()
+    sid = s.parse_version_id(version_id)
+    if sid is None:
+        return error("version_id 无效", 400)
+    out = s.clear_workbench_simulation_cache_by_version(strategy_name, sid)
+    if not out.get("ok"):
+        err = str(out.get("error") or "删除失败")
+        if err == "存储不可用":
+            return error(err, 503)
+        if err == "快照不存在":
+            return error(err, 404)
+        return error(err, 400)
+    return ok(
+        {
+            "deleted": True,
+            "strategy_name": out.get("strategy_name"),
+            "version_id": out.get("version_id"),
+        }
+    )

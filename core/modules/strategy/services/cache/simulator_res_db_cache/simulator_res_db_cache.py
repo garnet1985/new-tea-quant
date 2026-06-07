@@ -127,5 +127,8 @@ class SimulatorResDbCacheWriteRequest:
     def delete_cache_by_version(self, strategy_name: str, version: int) -> bool:
         return self.service.delete_cache_by_version(strategy_name, version)
 
+    def delete_all_cache(self) -> int:
+        return self.service.delete_all_cache()
+
     def delete_cache_for_strategy(self, strategy_name: str) -> bool:
         return self.service.delete_cache_for_strategy(strategy_name)

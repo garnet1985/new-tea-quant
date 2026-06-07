@@ -486,3 +486,53 @@ def _enrich_stock_ref_with_list_names(stock_ref: Dict[str, Any]) -> Dict[str, An
             base["stock_name"] = names[code]
         out[str(sid)] = base
     return out
+
+
+def clear_workbench_simulation_cache_all() -> Dict[str, Any]:
+    """
+    清空 ``sys_strategy_workbench_snapshot`` 全表（模拟结果 DbCache）。
+
+    仅删 DB 行；磁盘 ``results/simulations/`` 目录不在此接口范围内。
+    """
+    from core.modules.strategy.services.cache.simulator_res_db_cache.cache_service import (
+        SimulatorResDbCacheService,
+    )
+
+    svc = SimulatorResDbCacheService()
+    if svc.table_operator is None:
+        return {"ok": False, "error": "存储不可用", "deleted_count": 0}
+    deleted = int(svc.delete_all_cache() or 0)
+    return {"ok": True, "deleted_count": deleted, "cleared": deleted >= 0}
+
+
+def clear_workbench_simulation_cache_by_version(
+    strategy_name: str, version: int
+) -> Dict[str, Any]:
+    """删除指定 ``strategy_name`` + 工作台 ``version`` 的一条快照行。"""
+    from core.modules.strategy.services.cache.simulator_res_db_cache.cache_service import (
+        SimulatorResDbCacheService,
+    )
+
+    name = str(strategy_name or "").strip()
+    sid = int(version)
+    if not name or sid <= 0:
+        return {"ok": False, "error": "参数无效", "deleted": False}
+    svc = SimulatorResDbCacheService()
+    if svc.table_operator is None:
+        return {"ok": False, "error": "存储不可用", "deleted": False}
+    deleted = bool(svc.delete_cache_by_version(name, sid))
+    if not deleted:
+        return {
+            "ok": False,
+            "error": "快照不存在",
+            "deleted": False,
+            "strategy_name": name,
+            "version": sid,
+        }
+    return {
+        "ok": True,
+        "deleted": True,
+        "strategy_name": name,
+        "version": sid,
+        "version_id": f"v{sid}",
+    }

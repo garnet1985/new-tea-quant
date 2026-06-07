@@ -27,6 +27,8 @@ def get_strategy_workbench_stack() -> SimpleNamespace:
             apply_workbench_snapshot_settings_to_userspace,
             build_step_report_message,
             build_step_report_ref_message,
+            clear_workbench_simulation_cache_all,
+            clear_workbench_simulation_cache_by_version,
             fetch_workbench_by_version,
             parse_version_id,
             workbench_latest_ui_flags,
@@ -50,6 +52,8 @@ def get_strategy_workbench_stack() -> SimpleNamespace:
         _stack = SimpleNamespace(
             fetch_latest_workbench_snapshot=fetch_latest_workbench_snapshot,
             apply_workbench_snapshot_settings_to_userspace=apply_workbench_snapshot_settings_to_userspace,
+            clear_workbench_simulation_cache_all=clear_workbench_simulation_cache_all,
+            clear_workbench_simulation_cache_by_version=clear_workbench_simulation_cache_by_version,
             build_step_report_message=build_step_report_message,
             build_step_report_ref_message=build_step_report_ref_message,
             fetch_workbench_by_version=fetch_workbench_by_version,

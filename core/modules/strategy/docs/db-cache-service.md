@@ -186,7 +186,28 @@
 
 ---
 
-## 8. 对外 API 形状（方向约定）
+## 8. HTTP 清理接口（V2-11 / V2-12）
+
+BFF 暴露两条 **DELETE** 路由（完整路径前缀 ``/api``），仅删 ``sys_strategy_workbench_snapshot`` **DB 行**，不删磁盘模拟产物：
+
+| 编号 | 方法 | 路径 | BED 入口 |
+|------|------|------|----------|
+| V2-11 | DELETE | `/v1/strategy/workbench-snapshot-cache` | `clear_workbench_simulation_cache_all` → `SimulatorResDbCacheService.delete_all_cache` |
+| V2-12 | DELETE | `/v1/strategy/<strategy_name>/version/<version_id>/workbench-snapshot-cache` | `clear_workbench_simulation_cache_by_version` → `delete_cache_by_version` |
+
+删行前对每行调用 ``log_workbench_version_deleted`` 记录 ``result_report`` 中的磁盘路径引用（便于排查 orphan 目录）。契约细则见 ``core/ui/fed/.../API.md``。
+
+开发与 CLI：
+
+| 命令 | 作用 |
+|------|------|
+| ``python dev-cli.py -csc`` | 物理 ``results/`` + DB 全清（``-cu`` 同义） |
+| ``python dev-cli.py -cdc`` | 仅 DB 工作台快照表 |
+| ``python dev-cli.py -cmc`` | 仅物理 ``results/`` |
+
+---
+
+## 9. 对外 API 形状（方向约定）
 
 - 上游 **仅通过 DbCache 暴露的少量公共方法** 访问缓存（名称以实现为准）。
 - **对外编排入口**：``facade.write_cache`` 暴露 ``simulator_name``、``strategy_name``、``raw_settings``、``partial_result_report``、``force_refresh`` 及与 env 相关的显式入参（股票列表、交易日等由 ``resolve_db_cache_fingerprints`` 消费）；内部调用 ``SimulatorResDbCacheService.generate_cache``。
@@ -197,7 +218,7 @@
 
 ---
 
-## 9. 实现注意（避免下一任重复踩坑）
+## 10. 实现注意（避免下一任重复踩坑）
 
 1. **单一契约**：DbCache 对「写入 dict / 表内槽位 JSON」**只实现一种形状**，不做多形态猜测或静默降级；旧形态需在迁移脚本或调用层显式处理，**不在**缓存内核分叉。  
 2. **命中查询**：必须 **`strategy_name + settings_fp + env_fp` 三条件 AND**，参见 §4。  
@@ -207,7 +228,7 @@
 
 ---
 
-## 10. 变更记录
+## 11. 变更记录
 
 | 日期 | 说明 |
 |------|------|
@@ -217,3 +238,4 @@
 | 2026-05 | ``persist_simulator_report_patch`` / ``strip_result_report_keys_by_fingerprints``；`generate_cache` 支持 **price_factor**、**capital_allocation**，``force_refresh`` 按模拟器分支剥离键。 |
 | 2026-05 | 对外编排骨架 ``simulator_res_db_cache.write_cache``：收窄入参；env 侧日期/版本/worker/data_contract/股票列表由内部解析（见 §8）。 |
 | 2026-06 | **三槽位契约（§6.1）**：移除写侧 enum/capital 路径 stub、读侧 price→enum / 兄弟行 enum / price→capital 自动修补；`version` 仅随指纹变化，**不再**因 `write_count` 超限删行建新 version；UI/报告 **有就是有、没有就是没有**。 |
+| 2026-06 | **V2-11 / V2-12**：HTTP DELETE 清空全表或按 `version` 删单行；`delete_all_cache` / `delete_cache_by_version`。 |

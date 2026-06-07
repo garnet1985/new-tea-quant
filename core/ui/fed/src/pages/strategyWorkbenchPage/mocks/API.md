@@ -103,6 +103,8 @@
 | V2-08 | GET | `/strategy/{strategy_name}/version/{version_id}` | 按 **`version_id`** 读完整快照；**路径** `strategy_name` **必填**；响应与 **V2-01** 同形（切换版本后用；内含汇总 summary，见「V2-07 与 V2-08」） |
 | V2-09 | POST | `/strategy/{strategy_name}/apply-settings/{version_id}` | 将某工作台版本的 **`settings` 快照** **永久化**到该策略目录的 **`settings.py`**（反向写磁盘）；**路径** `strategy_name` **必填** |
 | V2-10 | GET | `/strategy/{strategy_name}/versions/range` | 按**时间段**筛选版本列表，**必须分页**（浏览 / 检索历史版本） |
+| V2-11 | DELETE | `/strategy/workbench-snapshot-cache` | 清空模拟结果 DbCache 表（`sys_strategy_workbench_snapshot`）**全部行** |
+| V2-12 | DELETE | `/strategy/{strategy_name}/version/{version_id}/workbench-snapshot-cache` | 删除指定策略工作台 **version** 对应的一条快照行 |
 
 ### V2-04 说明（选项类家族）
 
@@ -204,6 +206,20 @@
 - **策略作用域**：路径参数 **`strategy_name`** 必填；表示「哪一个策略」的工作台快照版本。
 - **条数**：服务端**固定返回至多 10 条**，按版本从新到旧（或按 `updated_at` 降序，实现阶段择一并在 BED 固定）；**不支持**客户端改 `limit`（避免与「下拉专用」语义混淆）。
 - **用途**：恢复版本下拉、对比目标列表的快速数据源（与其他「全量浏览」接口区分）。
+
+### V2-11 `DELETE /strategy/workbench-snapshot-cache`
+
+- **语义**：删除 ``sys_strategy_workbench_snapshot`` 表内**全部**快照行（所有策略、所有 `version`）。
+- **范围**：**仅 DB**；**不**删除 ``userspace/strategies/.../results/simulations/`` 磁盘目录（与 ``dev-cli.py -cu`` 不同）。
+- **成功**：`{ "cleared": true, "deleted_count": <int> }`（`deleted_count` 可为 0，表示表本已空）。
+- **失败**：表未注册 / 存储不可用 → **503**。
+
+### V2-12 `DELETE /strategy/{strategy_name}/version/{version_id}/workbench-snapshot-cache`
+
+- **路径参数**：``strategy_name``、``version_id``（``v3`` / ``3``，与 V2-08 一致）。
+- **语义**：删除该策略下**指定工作台 version** 的一行快照；其它 version 保留。
+- **成功**：`{ "deleted": true, "strategy_name": "...", "version_id": "v3" }`。
+- **失败**：``version_id`` 无效 → **400**；行不存在 → **404**；存储不可用 → **503**。
 
 ### V2-10 `GET /strategy/{strategy_name}/versions/range`
 

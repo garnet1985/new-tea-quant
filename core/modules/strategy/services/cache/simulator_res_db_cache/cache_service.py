@@ -229,17 +229,49 @@ class SimulatorResDbCacheService:
         if model is None:
             return False
         model._ensure_table_ready()
-        sn = str(strategy_name)
+        sn = str(strategy_name).strip()
         sid = int(version)
+        if not sn or sid <= 0:
+            return False
         row = model.load_by_strategy_version(sn, sid)
-        if row:
-            from core.modules.strategy.services.data.output.workbench_snapshot_retention import (
-                log_workbench_version_deleted,
-            )
+        if not row:
+            return False
+        from core.modules.strategy.services.data.output.workbench_snapshot_retention import (
+            log_workbench_version_deleted,
+        )
 
-            log_workbench_version_deleted(sn, sid, row)
+        log_workbench_version_deleted(sn, sid, row)
         n = model.delete_version_row(sn, sid)
         return int(n or 0) > 0
+
+    def delete_all_cache(self) -> int:
+        """删除 ``sys_strategy_workbench_snapshot`` 表内全部快照行；**不**删除磁盘模拟产物。"""
+        model = self.table_operator
+        if model is None:
+            return 0
+        model._ensure_table_ready()
+        from core.modules.strategy.services.data.output.workbench_snapshot_retention import (
+            log_workbench_version_deleted,
+        )
+
+        rows = model.execute_raw_query(
+            f"SELECT strategy_name, version FROM {model.table_name} "
+            "ORDER BY strategy_name ASC, version ASC",
+            (),
+        )
+        total = 0
+        for row in rows or []:
+            if not isinstance(row, dict):
+                continue
+            sn = str(row.get("strategy_name") or "").strip()
+            sid = int(row.get("version") or 0)
+            if not sn or sid <= 0:
+                continue
+            full_row = model.load_by_strategy_version(sn, sid)
+            if full_row:
+                log_workbench_version_deleted(sn, sid, full_row)
+            total += int(model.delete_version_row(sn, sid) or 0)
+        return total
 
     def delete_cache_for_strategy(self, strategy_name: str) -> bool:
         """删除该策略下全部快照行。"""

@@ -6,7 +6,10 @@
   python dev-cli.py -kui    # 结束占用 8000 / 8888 的 NTQ UI 监听进程
   python dev-cli.py -ic     # UI 最小依赖 import 冒烟
   python dev-cli.py -cc     # 清空 userspace/.ntq（不动仓库根 .ntq / 安装状态）
-  python dev-cli.py -cu     # 清空 userspace：各策略 results/ + DB 工作台快照
+  python dev-cli.py -cu     # 同 -csc（兼容旧用法）
+  python dev-cli.py -csc    # 删除所有物理模拟 results/ + DB 工作台快照
+  python dev-cli.py -cdc    # 仅清空 DB 工作台快照表
+  python dev-cli.py -cmc    # 仅删除各策略 results/ 物理目录
   python dev-cli.py -p -v0.3.2   # 发布前：写版本/徽章 + module_info + py39 扫描 + -ic + pytest
   python dev-cli.py -p -v0.3.2 -userspace   # 发布通过后同步 init userspace 源树与 userspace.zip
   python dev-cli.py -userspace   # 仅打包 init userspace（不跑发布检查）
@@ -39,7 +42,10 @@ _SHORT_FLAGS: dict[str, tuple[str, dict]] = {
     "-kui": ("kill", {"ntq_only": False}),
     "-ic": ("import-check", {}),
     "-cc": ("clear-global", {}),
-    "-cu": ("clear-userspace", {}),
+    "-cu": ("clear-simulation-cache", {}),
+    "-csc": ("clear-simulation-cache", {}),
+    "-cdc": ("clear-db-cache", {}),
+    "-cmc": ("clear-disk-cache", {}),
     "-ex": ("export-init-data", {}),
     "-dbc": ("db-checkpoint", {}),
     "-userspace": ("package-userspace", {}),
@@ -158,11 +164,27 @@ def _cmd_clear_global(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_clear_userspace(args: argparse.Namespace) -> int:
-    from devtools.quick_tools.dev_cache import clear_userspace_simulation_cache
+def _cmd_clear_simulation_cache(args: argparse.Namespace) -> int:
+    from devtools.quick_tools.dev_cache import clear_simulation_cache_all
 
-    clear_userspace_simulation_cache()
-    print("userspace 模拟缓存已清理。", flush=True)
+    clear_simulation_cache_all()
+    print("物理模拟 results/ 与 DB 工作台快照已清理。", flush=True)
+    return 0
+
+
+def _cmd_clear_db_cache(args: argparse.Namespace) -> int:
+    from devtools.quick_tools.dev_cache import clear_workbench_db_cache
+
+    clear_workbench_db_cache()
+    print("DB 工作台快照已清理。", flush=True)
+    return 0
+
+
+def _cmd_clear_disk_cache(args: argparse.Namespace) -> int:
+    from devtools.quick_tools.dev_cache import clear_simulation_disk_cache
+
+    clear_simulation_disk_cache()
+    print("物理模拟 results/ 已清理。", flush=True)
     return 0
 
 
@@ -261,8 +283,12 @@ def _dispatch(handler: str, forward: list[str], extra: dict) -> int:
         return _cmd_export_init_data(ns)
     if handler == "clear-global":
         return _cmd_clear_global(ns)
-    if handler == "clear-userspace":
-        return _cmd_clear_userspace(ns)
+    if handler == "clear-simulation-cache":
+        return _cmd_clear_simulation_cache(ns)
+    if handler == "clear-db-cache":
+        return _cmd_clear_db_cache(ns)
+    if handler == "clear-disk-cache":
+        return _cmd_clear_disk_cache(ns)
     if handler == "db-checkpoint":
         return _cmd_db_checkpoint(ns)
     if handler == "package-userspace":
@@ -288,7 +314,10 @@ def _print_help() -> None:
   -kui     结束占用 8000、8888 的 NTQ UI 进程
   -ic      UI 最小依赖 import 检查
   -cc      删除 userspace/.ntq（不碰仓库根 .ntq / install-state）
-  -cu      删除各策略 results/ 与 DB 工作台快照表
+  -cu      同 -csc（兼容）
+  -csc     删除各策略 results/ 与 DB 工作台快照表（物理 + DB）
+  -cdc     仅清空 DB 工作台快照表（sys_strategy_workbench_snapshot）
+  -cmc     仅删除各策略 results/ 物理目录
   -p -vX.Y.Z   发布准备（写 system.json / 徽章、检查 module_info、FED build、-ic、pytest）
   -userspace   将根目录 userspace/ 打包为 setup/init_userspace（清理密钥/缓存后写 userspace.zip）
   -ex         打包演示数据 zip（见 devtools/demo_exporter/demo_data_exporter.py）
@@ -302,7 +331,9 @@ def _print_help() -> None:
            -userspace         发布检查通过后同步 init userspace 源树与 zip
 
 子命令（等价）:
-  ui [--kill-first]   kill [-ntq-only]   import-check   clear-cache   clear-userspace
+  ui [--kill-first]   kill [-ntq-only]   import-check   clear-cache
+  clear-simulation-cache | clear-db-cache | clear-disk-cache
+  clear-userspace（同 clear-simulation-cache）
   db-checkpoint       同 -dbc
   package-userspace   同 -userspace
   publish -v X.Y.Z    同 -p -vX.Y.Z
@@ -342,8 +373,26 @@ def _build_subcommand_parser() -> argparse.ArgumentParser:
     )
     p_cc.set_defaults(func=_cmd_clear_global, forward=[])
 
-    p_cu = sub.add_parser("clear-userspace", aliases=["cu", "clear-us"])
-    p_cu.set_defaults(func=_cmd_clear_userspace, forward=[])
+    p_csc = sub.add_parser(
+        "clear-simulation-cache",
+        aliases=["csc", "cu", "clear-us", "clear-userspace"],
+        help="删除各策略 results/ 与 DB 工作台快照",
+    )
+    p_csc.set_defaults(func=_cmd_clear_simulation_cache, forward=[])
+
+    p_cdc = sub.add_parser(
+        "clear-db-cache",
+        aliases=["cdc"],
+        help="仅清空 sys_strategy_workbench_snapshot 表",
+    )
+    p_cdc.set_defaults(func=_cmd_clear_db_cache, forward=[])
+
+    p_cmc = sub.add_parser(
+        "clear-disk-cache",
+        aliases=["cmc"],
+        help="仅删除各策略 results/ 物理目录",
+    )
+    p_cmc.set_defaults(func=_cmd_clear_disk_cache, forward=[])
 
     p_ex = sub.add_parser(
         "export-init-data",

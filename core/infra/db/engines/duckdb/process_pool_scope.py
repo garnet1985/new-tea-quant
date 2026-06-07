@@ -211,9 +211,12 @@ def release_all_main_db_handles(data_mgr: Any) -> None:
     """
     from core.infra.db import DatabaseManager
 
-    for db in _collect_db_managers_from_data_mgr(data_mgr):
+    found = _collect_db_managers_from_data_mgr(data_mgr)
+    closed_ids: set[int] = set()
+    for db in found:
         try:
             db.close()
+            closed_ids.add(id(db))
         except Exception as exc:
             logger.debug("release_all db.close: %s", exc)
     if data_mgr is not None:
@@ -226,10 +229,11 @@ def release_all_main_db_handles(data_mgr: Any) -> None:
 
     default_db = DatabaseManager._default_instance
     if default_db is not None:
-        try:
-            default_db.close()
-        except Exception as exc:
-            logger.debug("release_all default db.close: %s", exc)
+        if id(default_db) not in closed_ids:
+            try:
+                default_db.close()
+            except Exception as exc:
+                logger.debug("release_all default db.close: %s", exc)
         DatabaseManager.reset_default()
 
 

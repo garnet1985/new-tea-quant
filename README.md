@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.3.3-8A2BE2"></a>&nbsp;
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.4.0-8A2BE2"></a>&nbsp;
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
   <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
@@ -22,11 +22,15 @@
 <a href="https://gitee.com/garnet/new-tea-quant"><img alt="Gitee" src="https://img.shields.io/badge/Gitee-new--tea--quant-C71D23?logo=gitee&logoColor=white"></a>&nbsp;
 <a href="https://new-tea.cn"><img alt="Website" src="https://img.shields.io/badge/website-new--tea.cn-009688?logo=google-chrome&logoColor=white"></a>
 
-## 当前版本（v0.3.x）
+## 当前版本（v0.4.x）
 
-自 **v0.3.0** 起，NTQ 提供本机 **Web UI**（`launcher.py` 启动 BFF + 前端）：策略实验室（分层回测与报告）、策略扫描、图形化安装向导、应用设置等。日常**使用**无需自行安装 Node.js（前端以构建产物由 BFF 托管；仅 `-d` 开发模式或改前端源码时需要 Node）。
+自 **v0.3.0** 起，NTQ 引入python原生文件存储（duckdb），支持不再依赖第三方数据库，有python就可以直接运行。当然如果您想继续使用mysql或者是pgsql也还是支持的。
 
-**v0.3.3** 重制回测的数据注入，加入涨跌停的买入和卖出限制，避免了幸存者偏差 [CHANGELOG.md](CHANGELOG.md)。
+最近更新摘要：
+
+**v0.4.0** 
+- 引入 DuckDB 作为默认存储，**有 Python 即可运行**，不再强制依赖 MySQL / PostgreSQL（仍可选）。
+- 引擎优化：全流程回测速度提升约 6 倍，详见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## NTQ 是什么？
 
@@ -62,7 +66,7 @@ NTQ 本身免费开源，但部分能力依赖您自备资源：
 
 ### 另外
 
-需要**轻微的 Python/配置能力**（或使用 AI 辅助）。运行环境为 **Python 3.9+** 与 **PostgreSQL 或 MySQL**（均可免费安装）。更完整的教程与概念说明见官网 **[new-tea.cn](https://new-tea.cn)**（中文）。
+需要**轻微的 Python/配置能力**（或使用 AI 辅助）。运行环境为 **Python 3.9+**；默认使用内置 **DuckDB** 文件库，也可在向导中改用 **MySQL / PostgreSQL**。更完整的教程与概念说明见官网 **[new-tea.cn](https://new-tea.cn)**（中文）。
 
 本项目采用 **Apache 2.0** 许可，可自由学习、改造与扩展。
 
@@ -74,8 +78,6 @@ NTQ 本身免费开源，但部分能力依赖您自备资源：
 ### 前提条件
 
 - 本机需要有 **Python 3.9 或以上**版本。如果您不知道怎么安装，请参考这篇文档：[安装 Python](https://new-tea.cn/zh-hans/install-python)。
-- 本机需要有 **MySQL 或 PostgreSQL** 中的任意一种数据库。如果您不知道如何安装，请参考这篇文档：[安装数据库](https://new-tea.cn/zh-hans/install-database)。
-- **Node.js**（**仅**在 `python launcher.py -d` 开发模式，或需要修改 `core/ui/fed` 前端源码时安装）。纯使用 / 跑回测 / 命令行**不需要** Node。详见 [Node.js 官网](https://nodejs.org/)。
 
 ### 第 1 步：获取代码
 
@@ -129,12 +131,7 @@ python3 launcher.py
 
 ![Setup 向导示意 3](setup/images/step3.png)
 
-本步连接 **MySQL** 或 **PostgreSQL**。请事先安装并启动数据库服务，然后按页面填写：
-
-- **数据库类型**（mysql / postgresql）。
-- **主机、端口**（默认一般为本机；若使用云库或远程实例请按实际填写）。
-- **用户名、密码**（需具备连接及**建库**权限；库不存在时，向导会尝试自动创建目标库）。
-- **数据库名**：建议使用**新建或专用的空库**；若指向已有库，初始化会写入/变更表结构，**请勿使用存放重要业务数据的库名**。
+本步连接 **数据库** app默认使用python原生支持的duckdb，如果您需要使用其他db如mysql或pgsql，请先设置好数据库连接参数，然后按照提示填入连接信息。
 
 连接校验通过后点 **「下一步」** 继续。之后仍可在 **「设置」** 中调整数据库配置。
 
@@ -307,6 +304,27 @@ python start-cli.py -h
 **`--strategy`**：未指定时，若只有一个 `is_enabled=True` 的策略会自动选用；多个启用时默认取名称排序第一个并 **告警**，建议显式写 `--strategy`。
 
 **说明**：文档与站点中若仍出现旧命令 `start.py`，请以本仓库 **`start-cli.py`** 为准。
+
+---
+
+## 开发命令（`dev-cli.py`）
+
+面向本机开发与排障（仓库根目录）：
+
+```bash
+python dev-cli.py -h
+```
+
+| 用途 | 命令示例 |
+|------|----------|
+| 启动 UI（清端口后 `launcher.py -d`） | `python dev-cli.py -ui` |
+| 结束占用 8000 / 8888 的 UI 进程 | `python dev-cli.py -kui` |
+| 清空模拟 **磁盘 + DB** 工作台缓存 | `python dev-cli.py -csc`（同 `-cu`） |
+| 仅清空 DB 工作台快照表 | `python dev-cli.py -cdc` |
+| 仅删除各策略 `results/` 物理目录 | `python dev-cli.py -cmc` |
+| DuckDB WAL 合并进主文件 | `python dev-cli.py -dbc` |
+
+工作台快照 HTTP 清理接口见策略模块文档 [db-cache-service.md](core/modules/strategy/docs/db-cache-service.md) §8（V2-11 / V2-12）。
 
 ---
 

@@ -34,6 +34,8 @@ curl-cffi==0.13.0
     #   akshare
 decorator==5.2.1
     # via akshare
+duckdb==1.4.4
+    # via -r requirements.in
 et-xmlfile==2.0.0
     # via openpyxl
 exceptiongroup==1.3.1
@@ -158,6 +160,7 @@ tzdata==2026.1
     # via pandas
 urllib3==1.26.20
     # via
+    #   -r requirements.in
     #   akshare
     #   requests
 webencodings==0.5.1

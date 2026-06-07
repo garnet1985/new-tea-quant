@@ -42,6 +42,7 @@ class CalendarService(BaseDataService):
         "last_request_date": None,       # 上次请求日期（YYYYMMDD）
         "lock": threading.Lock()         # 线程锁
     }
+    _default_end_date_cap_logged = False
     
     def __init__(self, data_manager):
         """
@@ -165,15 +166,17 @@ class CalendarService(BaseDataService):
             return date
         if date <= cap:
             return date
-        logger.warning(
-            "⚠️  latest completed trading date 已被 default_end_date=%s 截断 "
-            "（推算=%s，来源=%s）。"
-            "如需追最新数据：调高或移除 userspace/config/data.json 的 default_end_date，"
-            "并 renew trade_calendar 与相关数据表。",
-            cap,
-            date,
-            source,
-        )
+        if not CalendarService._default_end_date_cap_logged:
+            CalendarService._default_end_date_cap_logged = True
+            logger.warning(
+                "⚠️  latest completed trading date 已被 default_end_date=%s 截断 "
+                "（推算=%s，来源=%s）。"
+                "如需追最新数据：调高或移除 userspace/config/data.json 的 default_end_date，"
+                "并 renew trade_calendar 与相关数据表。",
+                cap,
+                date,
+                source,
+            )
         return cap
 
     def get_db_latest_completed_trading_date(

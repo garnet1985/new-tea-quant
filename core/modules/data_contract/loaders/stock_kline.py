@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, List, Mapping, Optional
+from typing import Any, List, Mapping, Optional, Sequence
 
 from core.modules.data_contract.loaders.base import BaseLoader
 from core.modules.data_manager import DataManager
@@ -54,7 +54,9 @@ def _load_by_adjust(
     adjust: str,
 ) -> List[Mapping[str, Any]]:
     if adjust == "qfq":
-        return kline_service.load_qfq(stock_id=stock_id, term=term, start_date=start, end_date=end)
+        return kline_service.load_qfq_split(
+            stock_id=stock_id, term=term, start_date=start, end_date=end
+        )
     if adjust in ("nfq", "none"):
         return kline_service.load_raw(stock_id=stock_id, term=term, start_date=start, end_date=end)
     raise ValueError(f"加载 stock.kline.daily 失败：不支持 adjust={adjust!r}，仅支持 qfq/nfq/none")
@@ -140,3 +142,60 @@ class StockKlineLoader(BaseLoader):
         )
         rows = _drop_boundary_rows(rows, start=start, end=None, include_boundary=include_boundary)
         return rows[:normalized_amount]
+
+    def load_batch(
+        self,
+        entity_ids: Sequence[str],
+        params: Mapping[str, Any],
+        context: Optional[Mapping[str, Any]] = None,
+    ) -> Mapping[str, Any]:
+        del context  # 批量路径由 entity_ids 驱动，不依赖单股 context
+
+        ids = [str(x).strip() for x in entity_ids if str(x).strip()]
+        if not ids:
+            return {}
+
+        data_mgr = DataManager()
+        kline_service = data_mgr.stock.kline
+
+        term = str(params.get("term", "daily"))
+        adjust = str(params.get("adjust", "qfq")).lower()
+        start = DateUtils.normalize_str(params.get("start")) if params.get("start") is not None else None
+        end = DateUtils.normalize_str(params.get("end")) if params.get("end") is not None else None
+        include_boundary = bool(params.get("include_boundary", True))
+
+        if adjust not in ("qfq", "nfq", "none"):
+            raise ValueError(f"加载 stock.kline.daily 失败：不支持 adjust={adjust!r}，仅支持 qfq/nfq/none")
+
+        amount = params.get("amount")
+        if amount is not None or (start is not None and end is None) or (start is None and end is not None):
+            return super().load_batch(ids, params, context)
+
+        if start is not None and end is not None:
+            left, right = (start, end) if start <= end else (end, start)
+            raw_by_entity = kline_service.load_batch(
+                ids,
+                term=term,
+                start_date=left,
+                end_date=right,
+                adjust=adjust,
+            )
+            if include_boundary:
+                return raw_by_entity
+            return {
+                eid: _drop_boundary_rows(
+                    list(raw_by_entity.get(eid) or []),
+                    start=left,
+                    end=right,
+                    include_boundary=False,
+                )
+                for eid in ids
+            }
+
+        return kline_service.load_batch(
+            ids,
+            term=term,
+            start_date=None,
+            end_date=None,
+            adjust=adjust,
+        )

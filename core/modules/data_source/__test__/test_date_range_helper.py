@@ -6,20 +6,8 @@ date_range_helper 单元测试
 - compute_last_update_map（全局模式）
 - calc_last_update_based_on_renew_mode（refresh / incremental / rolling 的基本分支）
 """
-
-import sys
-from pathlib import Path
 from typing import Any, Dict
 from unittest.mock import Mock, patch
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
-
-try:
-    import pytest
-
-    HAS_PYTEST = True
-except ImportError:  # pragma: no cover
-    HAS_PYTEST = False
 
 
 class TestDateRangeHelper:
@@ -126,22 +114,4 @@ class TestDateRangeHelper:
             )
 
         assert start == "2024-01-02"
-
-
-if __name__ == "__main__":  # pragma: no cover
-    if HAS_PYTEST:
-        pytest.main([__file__])
-    else:
-        test = TestDateRangeHelper()
-        for name in [
-            "test_normalize_date_value_str_and_datetime",
-            "test_compute_last_update_map_global",
-            "test_calc_last_update_refresh_uses_default_start_date",
-            "test_calc_last_update_incremental_from_last_update_plus_one",
-        ]:
-            try:
-                getattr(test, name)()
-                print(f"✅ {name} 通过")
-            except Exception as e:
-                print(f"❌ {name} 失败: {e}")
 

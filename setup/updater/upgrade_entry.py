@@ -13,7 +13,7 @@ from pipeline import UpgradeContext, check_remote_has_newer_version, run_upgrade
 
 
 def resolve_updater_dir(start: Optional[Path] = None) -> Path:
-    """定位 ``userspace/updater`` 或开发时 ``setup/updater``。"""
+    """定位 ``userspace/system/updater`` 或开发时 ``setup/updater``。"""
     if start is not None:
         candidates = [start.resolve()]
     else:
@@ -22,21 +22,26 @@ def resolve_updater_dir(start: Optional[Path] = None) -> Path:
     if not candidates[0].joinpath("pipeline.py").is_file():
         repo = candidates[0]
         for _ in range(6):
-            for sub in (repo / "userspace" / "updater", repo / "setup" / "updater"):
+            for sub in (
+                repo / "userspace" / "system" / "updater",
+                repo / "setup" / "updater",
+            ):
                 if (sub / "pipeline.py").is_file():
                     return sub.resolve()
             if repo.parent == repo:
                 break
             repo = repo.parent
     if not candidates[0].joinpath("pipeline.py").is_file():
-        raise FileNotFoundError("未找到 updater（userspace/updater 或 setup/updater）")
+        raise FileNotFoundError(
+            "未找到 updater（userspace/system/updater 或 setup/updater）"
+        )
     return candidates[0]
 
 
 def repo_root_from_updater(updater_dir: Path) -> Path:
     u = updater_dir.resolve()
-    if u.name == "updater" and u.parent.name == "userspace":
-        return u.parent.parent.resolve()
+    if u.name == "updater" and u.parent.name == "system":
+        return u.parent.parent.parent.resolve()
     if u.name == "updater" and u.parent.name == "setup":
         return u.parent.parent.resolve()
     return u.parent.resolve()

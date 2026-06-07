@@ -7,7 +7,7 @@ import tempfile
 import os
 from pathlib import Path
 from unittest.mock import Mock, patch
-from core.infra.db.schema_management.schema_manager import SchemaManager
+from core.infra.db.schema_manager import SchemaManager
 
 
 class TestSchemaManager:
@@ -37,6 +37,7 @@ class TestSchemaManager:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             schema_data = {
                 'name': 'test_table',
+                'storage_domain': 'data',
                 'fields': [
                     {'name': 'id', 'type': 'VARCHAR', 'length': 50, 'primary_key': True},
                     {'name': 'name', 'type': 'VARCHAR', 'length': 100}
@@ -85,6 +86,58 @@ class TestSchemaManager:
         result = manager.get_table_schema('non_existent_table')
         assert result is None
     
+    def test_generate_create_table_sql_duckdb_auto_increment(self):
+        """DuckDB 自增列使用 SEQUENCE + nextval，不用 SERIAL/BIGSERIAL。"""
+        manager = SchemaManager(is_verbose=False, database_type="duckdb")
+        schema = {
+            "name": "sys_areas",
+            "primaryKey": "id",
+            "fields": [
+                {
+                    "name": "id",
+                    "type": "int",
+                    "autoIncrement": True,
+                    "nullable": False,
+                },
+                {"name": "value", "type": "varchar", "length": 64},
+            ],
+        }
+        sql = manager.generate_create_table_sql(schema)
+        assert "SERIAL" not in sql
+        assert "seq_sys_areas_id" in sql
+        assert "nextval('seq_sys_areas_id')" in sql
+
+        schema_big = {
+            "name": "sys_tag_definition",
+            "primaryKey": "id",
+            "fields": [
+                {
+                    "name": "id",
+                    "type": "bigint",
+                    "autoIncrement": True,
+                    "nullable": False,
+                },
+            ],
+        }
+        sql_big = manager.generate_create_table_sql(schema_big)
+        assert "BIGSERIAL" not in sql_big
+        assert "BIGINT" in sql_big
+
+    def test_generate_create_table_sql_duckdb_datetime_as_varchar(self):
+        """DuckDB 日期/时间列用 VARCHAR 存 YYYYMMDD 与常见时间串。"""
+        manager = SchemaManager(is_verbose=False, database_type="duckdb")
+        schema = {
+            "name": "sys_stock_list",
+            "primaryKey": "id",
+            "fields": [
+                {"name": "id", "type": "varchar", "length": 16, "nullable": False},
+                {"name": "last_update", "type": "datetime", "nullable": True},
+            ],
+        }
+        sql = manager.generate_create_table_sql(schema)
+        assert "TIMESTAMP" not in sql
+        assert "VARCHAR(19)" in sql
+
     def test_get_table_fields(self):
         """测试获取表字段"""
         manager = SchemaManager(is_verbose=False)

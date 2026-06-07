@@ -14,8 +14,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.infra.db.schema_management.field import Field
-from core.infra.db.schema_management.schema_manager import SchemaManager
+from core.infra.db.engines._shared.fields import Field
+from core.infra.db.schema_manager import SchemaManager
 from core.infra.db.migration.schema_diff import SchemaDiffResult, TableSchemaDiff
 
 

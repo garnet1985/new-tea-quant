@@ -13,6 +13,8 @@ from collections import deque
 from typing import Dict, Any, List, Optional
 import logging
 
+from core.modules.data_source.service.executor.bundle_progress import current as current_bundle_progress
+
 from core.modules.data_source.data_class.api_job import ApiJob
 
 
@@ -61,9 +63,17 @@ class RateLimiter:
                     if sleep_time > 0:
                         if now - self._block_logged_recently > 30:
                             self._block_logged_recently = now
+                            progress = current_bundle_progress()
+                            progress_hint = (
+                                f" | {progress.format_short()}" if progress else ""
+                            )
                             logger.info(
-                                f"⏸️  {self.api_name}: 滑动窗口内已达 {len(self._timestamps)}/{self.max_per_minute}，"
-                                f"等待 {sleep_time:.1f}s"
+                                "⏸️  %s: 滑动窗口内已达 %s/%s，等待 %.1fs%s",
+                                self.api_name,
+                                len(self._timestamps),
+                                self.max_per_minute,
+                                sleep_time,
+                                progress_hint,
                             )
                         self.condition.wait(timeout=min(sleep_time, 5.0))
                     continue

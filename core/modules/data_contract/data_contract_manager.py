@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, Sequence
 
 from core.modules.data_contract.cache import (
     ContractCacheManager,
@@ -12,6 +12,7 @@ from core.modules.data_contract.cache import (
 from core.modules.data_contract.contract_const import ContractScope, ContractType, DataKey
 from core.modules.data_contract.contract_issuer import ContractIssuer
 from core.modules.data_contract.contracts import DataContract
+from core.modules.data_contract.data_class.issue_result import IssueResult
 from core.modules.data_contract.discovery import discover_userspace_map
 from core.modules.data_contract.mapping import DataSpec, DataSpecMap, default_map
 
@@ -35,13 +36,14 @@ class DataContractManager:
         data_id: DataKey,
         *,
         entity_id: Optional[str] = None,
+        entity_ids: Optional[Sequence[str]] = None,
         start: Optional[str] = None,
         end: Optional[str] = None,
         **override_params: Any,
-    ) -> DataContract:
+    ) -> IssueResult:
         """
-        签发 ``DataContract``。可缓存的 GLOBAL 数据在命中策略下 **直接物化并写入 ``contract.data``**；
-        ``PER_ENTITY`` 等不缓存项仅装配句柄，``data`` 为空，需再 ``load``。
+        签发 ``IssueResult``。可缓存的 GLOBAL 在命中策略下 **直接物化并写入 ``contract.data``**；
+        ``PER_ENTITY`` 返回 ``by_entity``；在具备明确 load 窗口时会通过 loader 物化各 entity 的 ``data``。
 
         参数约定见 ``docs/DECISIONS.md``。
         """
@@ -49,16 +51,60 @@ class DataContractManager:
         if not spec:
             raise ValueError(f"未找到 data_id：{data_id.value}")
 
-        self._validate_issue_args(spec, entity_id, start, end)
+        normalized_entity_ids = self._normalize_entity_ids(entity_id, entity_ids)
+        self._validate_issue_args(spec, normalized_entity_ids, start, end)
         eff_start, eff_end = self._effective_load_window(spec, start, end)
+        scope = spec.get("scope")
+
+        if scope == ContractScope.GLOBAL:
+            contract = self._issue_global(
+                data_id,
+                spec,
+                eff_start,
+                eff_end,
+                entity_id=None,
+                override_params=override_params,
+            )
+            return IssueResult(
+                data_id=data_id,
+                scope=ContractScope.GLOBAL,
+                contract=contract,
+            )
+
+        assert normalized_entity_ids is not None
+        by_entity = self._issue_per_entity(
+            data_id,
+            spec,
+            normalized_entity_ids,
+            eff_start,
+            eff_end,
+            override_params=override_params,
+        )
+        return IssueResult(
+            data_id=data_id,
+            scope=ContractScope.PER_ENTITY,
+            by_entity=by_entity,
+        )
+
+    def _issue_global(
+        self,
+        data_id: DataKey,
+        spec: DataSpec,
+        eff_start: str,
+        eff_end: str,
+        *,
+        entity_id: Optional[str],
+        override_params: Mapping[str, Any],
+    ) -> DataContract:
         cache_scope = resolve_cache_scope(spec)
-        # GLOBAL 不应带实体维度；忽略误传，避免 cache key 与 issuer context 被污染
-        eff_entity_id = None if spec.get("scope") == ContractScope.GLOBAL else entity_id
+        eff_entity_id = None
 
         if cache_scope == ContractCacheScope.NONE:
             return self.issuer.issue(data_id, entity_id=eff_entity_id, **override_params)
 
-        key = self._materialize_cache_key(data_id, eff_start, eff_end, eff_entity_id, override_params)
+        key = self._materialize_cache_key(
+            data_id, eff_start, eff_end, eff_entity_id, override_params
+        )
         entry = self._contract_cache.get(cache_scope, key)
         if entry is not None and entry.data is not None:
             contract = self.issuer.issue(data_id, entity_id=eff_entity_id, **override_params)
@@ -72,16 +118,93 @@ class DataContractManager:
         contract.data = self._clone_cached_payload(to_store)
         return contract
 
+    def _issue_per_entity(
+        self,
+        data_id: DataKey,
+        spec: DataSpec,
+        entity_ids: Sequence[str],
+        eff_start: str,
+        eff_end: str,
+        *,
+        override_params: Mapping[str, Any],
+    ) -> dict[str, DataContract]:
+        contracts: dict[str, DataContract] = {}
+        for eid in entity_ids:
+            contracts[eid] = self.issuer.issue(data_id, entity_id=eid, **override_params)
+
+        if not self._should_materialize_per_entity(spec, eff_start, eff_end):
+            return contracts
+
+        sample = next(iter(contracts.values()))
+        loader = sample.loader
+        if loader is None:
+            return contracts
+
+        load_params = self._loader_params_for_window(
+            dict(sample.loader_params),
+            spec,
+            eff_start,
+            eff_end,
+        )
+        raw_by_entity = loader.load_batch(entity_ids, load_params, context=None)
+
+        for eid, contract in contracts.items():
+            payload = raw_by_entity.get(eid)
+            contract.data = self._clone_cached_payload(payload)
+
+        return contracts
+
+    @staticmethod
+    def _normalize_entity_ids(
+        entity_id: Optional[str],
+        entity_ids: Optional[Sequence[str]],
+    ) -> Optional[list[str]]:
+        if entity_id is not None and entity_ids is not None:
+            raise ValueError("entity_id 与 entity_ids 互斥，不可同时传入")
+        if entity_ids is not None:
+            ids = [str(x).strip() for x in entity_ids if str(x).strip()]
+            if not ids:
+                raise ValueError("PER_ENTITY 的 data_id 须提供非空 entity_ids")
+            return ids
+        if entity_id is not None and str(entity_id).strip():
+            return [str(entity_id).strip()]
+        return None
+
+    @staticmethod
+    def _should_materialize_per_entity(
+        spec: DataSpec,
+        eff_start: str,
+        eff_end: str,
+    ) -> bool:
+        if spec.get("type") == ContractType.NON_TIME_SERIES:
+            return True
+        return eff_start != _TS_FULL_RANGE_WINDOW and eff_end != _TS_FULL_RANGE_WINDOW
+
+    @staticmethod
+    def _loader_params_for_window(
+        loader_params: dict[str, Any],
+        spec: DataSpec,
+        eff_start: str,
+        eff_end: str,
+    ) -> dict[str, Any]:
+        if spec.get("type") == ContractType.NON_TIME_SERIES:
+            return loader_params
+        if eff_start == _TS_FULL_RANGE_WINDOW:
+            return loader_params
+        loader_params["start"] = eff_start
+        loader_params["end"] = eff_end
+        return loader_params
+
     def _validate_issue_args(
         self,
         spec: DataSpec,
-        entity_id: Optional[str],
+        entity_ids: Optional[Sequence[str]],
         start: Optional[str],
         end: Optional[str],
     ) -> None:
         if spec.get("scope") == ContractScope.PER_ENTITY:
-            if entity_id is None or not str(entity_id).strip():
-                raise ValueError("PER_ENTITY 的 data_id 须提供非空 entity_id")
+            if not entity_ids:
+                raise ValueError("PER_ENTITY 的 data_id 须提供非空 entity_id 或 entity_ids")
         if spec.get("type") == ContractType.TIME_SERIES:
             if (start is None) != (end is None):
                 raise ValueError("时序数据须同时提供 start 与 end，或同时省略（省略表示全量语义）")

@@ -5,13 +5,8 @@ from __future__ import annotations
 
 import sys
 import unittest
-from pathlib import Path
 
-_ROOT = Path(__file__).resolve().parents[4]
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
-
-# 与 smoke test 保持一致：无 pandas 时注入占位，已安装则用真实包。
+# 无 pandas 时注入占位，已安装则用真实包。
 try:
     import pandas as _pandas  # noqa: F401
 except ImportError:

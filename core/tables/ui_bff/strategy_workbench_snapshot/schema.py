@@ -5,6 +5,7 @@
 """
 
 schema = {
+    "storage_domain": "strategy",  # 策略运行时 DB 缓存（strategy 域）
     "update_key": "ui_bff_strategy_workbench_snapshot",
     "name": "sys_strategy_workbench_snapshot",
     "primaryKey": "id",

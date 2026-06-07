@@ -19,6 +19,9 @@ from ... import BaseDataService
 
 logger = logging.getLogger(__name__)
 
+_TAG_VALUE_TABLE = "sys_tag_value"
+_TAG_DEFINITION_TABLE = "sys_tag_definition"
+
 
 class TagDataService(BaseDataService):
     """Tag 数据服务"""
@@ -37,9 +40,13 @@ class TagDataService(BaseDataService):
         self._tag_definition_model = data_manager.get_table("sys_tag_definition")
         self._tag_value_model = data_manager.get_table("sys_tag_value")
         
-        # 获取 DatabaseManager 用于复杂 SQL 查询
         from core.infra.db import DatabaseManager
-        self.db = DatabaseManager.get_default(auto_init=True)
+
+        dm_db = getattr(data_manager, "db", None)
+        if dm_db is not None and getattr(dm_db, "_initialized", False):
+            self.db = dm_db
+        else:
+            self.db = DatabaseManager.get_default(auto_init=True)
     
     # ========================================================================
     # Scenario 相关 API
@@ -340,7 +347,7 @@ class TagDataService(BaseDataService):
         query = f"UPDATE tag_definition SET {', '.join(set_clauses)} WHERE {where_clause}"
         
         try:
-            with self.db.get_sync_cursor() as cursor:
+            with self.db.get_sync_cursor_for_table(_TAG_DEFINITION_TABLE) as cursor:
                 cursor.execute(query, params)
                 logger.info(f"批量更新 tag definitions: 更新了 {cursor.rowcount} 条记录")
         except Exception as e:
@@ -430,19 +437,30 @@ class TagDataService(BaseDataService):
         Returns:
             None
         """
-        # 使用 JOIN 一次删除，避免先查询 tag_definitions
-        # 注意：实际表名为 sys_tag_value / sys_tag_definition
+        # 子查询删除（MySQL / PostgreSQL / DuckDB 均支持；DuckDB 不支持 DELETE alias FROM ... JOIN）
         sql = """
-        DELETE tv FROM sys_tag_value tv
-        INNER JOIN sys_tag_definition td ON tv.tag_definition_id = td.id
-        WHERE td.scenario_id = %s
+        DELETE FROM sys_tag_value
+        WHERE tag_definition_id IN (
+            SELECT id FROM sys_tag_definition WHERE scenario_id = %s
+        )
         """
         
         try:
-            with self.db.get_sync_cursor() as cursor:
+            with self.db.get_sync_cursor_for_table(_TAG_VALUE_TABLE) as cursor:
                 cursor.execute(sql, (scenario_id,))
-                affected_rows = cursor.rowcount
-                logger.info(f"已删除 scenario {scenario_id} 下的 {affected_rows} 条 tag values")
+                affected_rows = int(cursor.rowcount)
+                if affected_rows < 0:
+                    # DuckDB 等对 DELETE 常返回 -1（未知行数），不代表删了 -1 行
+                    logger.info(
+                        "已清空 scenario %s 的 tag values（存储未返回删除行数，通常为 recompute 全量重算前清理）",
+                        scenario_id,
+                    )
+                else:
+                    logger.info(
+                        "已删除 scenario %s 下的 %s 条 tag values",
+                        scenario_id,
+                        affected_rows,
+                    )
         except Exception as e:
             logger.error(f"删除 tag values 失败: scenario_id={scenario_id}, error={e}")
             raise
@@ -469,7 +487,9 @@ class TagDataService(BaseDataService):
                 WHERE tag_definition_id IN ({placeholders})
             """
             
-            result = self.db.execute_sync_query(sql, tuple(tag_definition_ids))
+            result = self.db.execute_sync_query_for_table(
+                _TAG_VALUE_TABLE, sql, tuple(tag_definition_ids)
+            )
             if result and result[0].get('max_date'):
                 max_date = result[0]['max_date']
                 # 转换为 YYYYMMDD 格式
@@ -525,7 +545,9 @@ class TagDataService(BaseDataService):
         """
         
         try:
-            results = self.db.execute_sync_query(sql, tuple(tag_definition_ids))
+            results = self.db.execute_sync_query_for_table(
+                _TAG_VALUE_TABLE, sql, tuple(tag_definition_ids)
+            )
             result = {}
             for row in results:
                 entity_id = row.get('entity_id')
@@ -607,7 +629,7 @@ class TagDataService(BaseDataService):
                 end_date,
             )
 
-            results = self.db.execute_sync_query(sql, params)
+            results = self.db.execute_sync_query_for_table(_TAG_VALUE_TABLE, sql, params)
             return results or []
         except Exception as e:
             logger.error(

@@ -2,7 +2,7 @@
 """
 应用升级 CLI 入口。
 
-须从 ``userspace/updater/run_apply.py`` 启动（随 init userspace 解压得到），
+须从 ``userspace/system/updater/run_apply.py`` 启动（随 init userspace 解压得到），
 勿依赖 ``core/``、``setup/`` 内同名模块，以免升级时被覆盖。
 
 开发时可在仓库根执行::
@@ -11,7 +11,7 @@
 
 安装后::
 
-    python userspace/updater/run_apply.py
+    python userspace/system/updater/run_apply.py
 """
 from __future__ import annotations
 

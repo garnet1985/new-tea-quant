@@ -17,12 +17,33 @@ from core.modules.strategy.enums import Simulator
 from .audit.result_report_audit import (
     attach_initial_write_meta,
     bump_write_count,
-    exceeds_max_row_updates,
 )
 from core.modules.data_manager import DataManager
 from core.infra.project_context.path_manager import PathManager
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_cache_target_row(
+    model,
+    *,
+    strategy_name: str,
+    settings_fingerprint_id: str,
+    env_fingerprint_id: str,
+):
+    """双指纹 AND 命中唯一快照行。"""
+    sfp = str(settings_fingerprint_id or "").strip()
+    efp = str(env_fingerprint_id or "").strip()
+    sn = str(strategy_name).strip()
+    rows = model.list_by_strategy_fingerprints(
+        strategy_name=sn,
+        settings_finger_print_id=sfp,
+        env_fingerprint_id=efp,
+        limit=1,
+    )
+    if rows:
+        return rows[0] or {}
+    return None
 
 
 def _simulator_to_reports_slot_key(simulator: Simulator) -> str:
@@ -74,40 +95,19 @@ class SimulatorResDbCacheService:
         efp = str(env_fingerprint_id or "").strip()
         sn = str(strategy_name)
 
-        rows = model.list_by_strategy_fingerprints(
+        row = _resolve_cache_target_row(
+            model,
             strategy_name=sn,
-            settings_finger_print_id=sfp,
+            settings_fingerprint_id=sfp,
             env_fingerprint_id=efp,
-            limit=1,
         )
-        if rows:
-            row = rows[0] or {}
+        if row:
             sid = int(row.get("version") or 0)
             if sid <= 0:
                 return 0
             merged = dict(row.get("result_report") or {})
             merged[slot_key] = step
-            merged, write_count = bump_write_count(merged)
-            if exceeds_max_row_updates(write_count):
-                from core.modules.strategy.services.data.output.workbench_snapshot_retention import (
-                    log_workbench_version_deleted,
-                )
-
-                log_workbench_version_deleted(sn, sid, row)
-                model.delete_version_row(sn, sid)
-                merged = attach_initial_write_meta({slot_key: step})
-                created = model.create_snapshot(
-                    sn,
-                    dict(settings_snapshot or {}),
-                    merged,
-                    settings_finger_print_id=sfp,
-                    env_fingerprint_id=efp,
-                )
-                new_sid = int((created or {}).get("version") or 0)
-                if new_sid > 0:
-                    self._retention().prune_oldest_if_over_limit(sn)
-                return new_sid
-
+            merged, _ = bump_write_count(merged)
             model.update_result_report(
                 sn,
                 sid,
@@ -229,17 +229,49 @@ class SimulatorResDbCacheService:
         if model is None:
             return False
         model._ensure_table_ready()
-        sn = str(strategy_name)
+        sn = str(strategy_name).strip()
         sid = int(version)
+        if not sn or sid <= 0:
+            return False
         row = model.load_by_strategy_version(sn, sid)
-        if row:
-            from core.modules.strategy.services.data.output.workbench_snapshot_retention import (
-                log_workbench_version_deleted,
-            )
+        if not row:
+            return False
+        from core.modules.strategy.services.data.output.workbench_snapshot_retention import (
+            log_workbench_version_deleted,
+        )
 
-            log_workbench_version_deleted(sn, sid, row)
+        log_workbench_version_deleted(sn, sid, row)
         n = model.delete_version_row(sn, sid)
         return int(n or 0) > 0
+
+    def delete_all_cache(self) -> int:
+        """删除 ``sys_strategy_workbench_snapshot`` 表内全部快照行；**不**删除磁盘模拟产物。"""
+        model = self.table_operator
+        if model is None:
+            return 0
+        model._ensure_table_ready()
+        from core.modules.strategy.services.data.output.workbench_snapshot_retention import (
+            log_workbench_version_deleted,
+        )
+
+        rows = model.execute_raw_query(
+            f"SELECT strategy_name, version FROM {model.table_name} "
+            "ORDER BY strategy_name ASC, version ASC",
+            (),
+        )
+        total = 0
+        for row in rows or []:
+            if not isinstance(row, dict):
+                continue
+            sn = str(row.get("strategy_name") or "").strip()
+            sid = int(row.get("version") or 0)
+            if not sn or sid <= 0:
+                continue
+            full_row = model.load_by_strategy_version(sn, sid)
+            if full_row:
+                log_workbench_version_deleted(sn, sid, full_row)
+            total += int(model.delete_version_row(sn, sid) or 0)
+        return total
 
     def delete_cache_for_strategy(self, strategy_name: str) -> bool:
         """删除该策略下全部快照行。"""

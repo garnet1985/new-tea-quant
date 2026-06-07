@@ -39,7 +39,7 @@ class StrategyDiscoveryHelper:
     ) -> Dict[str, DiscoveredStrategy]:
         """发现所有用户策略（包含 enabled 与 disabled，但必须可加载且可校验）。"""
         if strategies_root is None:
-            strategies_root = PathManager.userspace() / "strategies"
+            strategies_root = PathManager.strategies_root()
 
         if not strategies_root.exists():
             logger.warning("策略目录不存在: %s", strategies_root)

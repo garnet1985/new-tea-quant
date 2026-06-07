@@ -5,3 +5,14 @@ description: "DataKey 白名单、DataSpec 路由、ContractIssuer 签发句柄�
 dependencies:
   - modules.data_manager
   - infra.project_context
+changelog:
+  - version: "0.3.3"
+    changes:
+      - Strategy 枚举/回测路径接入 issue + load_batch
+      - PER_ENTITY plural、IssueResult 信封；entity_ids 糖化
+  - version: "0.3.0"
+    changes:
+      - DataKey 白名单、ContractIssuer、GLOBAL/PER_ENTITY 路由与 Loader 注册
+  - version: "0.2.0"
+    changes:
+      - 模块初版：DataSpec 与 issue 基线

@@ -41,7 +41,7 @@ class AdapterDispatcher:
             BaseOpportunityAdapter.default_output(opportunities, context)
 
     def _load_adapter_class(self, adapter_name: str) -> Optional[type[BaseOpportunityAdapter]]:
-        module_path = f"userspace.adapters.{adapter_name}.adapter"
+        module_path = f"userspace.extensions.adapters.{adapter_name}.adapter"
         try:
             module = importlib.import_module(module_path)
         except Exception:

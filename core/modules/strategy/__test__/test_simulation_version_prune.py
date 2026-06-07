@@ -97,6 +97,40 @@ def test_prune_skips_protected_dir_names(tmp_path: Path):
     assert skipped == {"2"}
 
 
+def test_prune_disk_output_after_sim_run_protects_path_object(tmp_path: Path, monkeypatch):
+    _isolate_sim_paths(monkeypatch, tmp_path, "demo")
+    root = tmp_path / "demo" / "capital"
+    root.mkdir(parents=True)
+    for name in ("10", "11", "12"):
+        (root / name).mkdir()
+
+    prune_disk_output_after_sim_run(
+        "demo",
+        "capital",
+        {"simulation": {"retention": {"max_output_versions": 2}}},
+        protect_output_version_dir=root / "10",
+    )
+    remaining = sorted(p.name for p in root.iterdir() if p.is_dir())
+    assert remaining == ["10", "11", "12"]
+
+
+def test_prune_disk_output_after_sim_run_protects_current_version(tmp_path: Path, monkeypatch):
+    _isolate_sim_paths(monkeypatch, tmp_path, "demo")
+    root = tmp_path / "demo" / "enum"
+    root.mkdir(parents=True)
+    for name in ("1", "2", "3", "4"):
+        (root / name).mkdir()
+
+    prune_disk_output_after_sim_run(
+        "demo",
+        "enum",
+        {"simulation": {"retention": {"max_output_versions": 2}}},
+        protect_output_version_dir="1",
+    )
+    remaining = sorted(p.name for p in root.iterdir() if p.is_dir())
+    assert remaining == ["1", "3", "4"]
+
+
 def test_prune_disk_output_after_sim_run_uses_retention_setting(tmp_path: Path, monkeypatch):
     _isolate_sim_paths(monkeypatch, tmp_path, "demo")
     root = tmp_path / "demo" / "enum"

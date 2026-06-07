@@ -3,3 +3,14 @@ version: 0.3.0
 compatible_core_versions: ">=0.3.0"
 description: "NTQ 项目上下文基础设施：统一项目根路径、userspace 与配置目录、文件查找与默认/用户配置合并。"
 dependencies: []
+changelog:
+  - version: "0.3.0"
+    changes:
+      - userspace 目录重组与 PathManager 引用更新
+      - ConfigManager 统一 default_config / userspace/config 合并（含 worker.json）
+  - version: "0.2.1"
+    changes:
+      - 职责边界收紧：路径发现与配置加载与业务模块解耦
+  - version: "0.2.0"
+    changes:
+      - ProjectContextManager、userspace 根路径与配置发现基线

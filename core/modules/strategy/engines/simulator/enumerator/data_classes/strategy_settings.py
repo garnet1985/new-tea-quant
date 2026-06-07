@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import logging
-from typing import Any, Dict, Literal, Union
+from typing import Any, Dict
 from typing import TYPE_CHECKING
 
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.goal_settings import (
@@ -49,16 +49,13 @@ class StrategyEnumeratorSettings(SettingsBase):
         return cls.from_strategy_root(base_settings.raw_settings)
 
     def apply_defaults(self) -> None:
-        e = self.enumerator
-        e.setdefault("max_workers", "auto")
-        e.setdefault("is_verbose", False)
-        e.setdefault("memory_budget_mb", "auto")
-        e.setdefault("warmup_batch_size", "auto")
-        e.setdefault("min_batch_size", "auto")
-        e.setdefault("max_batch_size", "auto")
-        e.setdefault("monitor_interval", 5)
+        self.enumerator.setdefault("is_verbose", False)
 
     def validate(self) -> ValidationReport:
+        from core.infra.job_pipeline.profile.constants import (
+            ENUMERATOR_STRATEGY_DISPATCH_KEYS,
+        )
+
         result = SettingsBase.new_validation()
         self.apply_defaults()
 
@@ -73,30 +70,28 @@ class StrategyEnumeratorSettings(SettingsBase):
         if not goal_result.is_valid:
             result.is_valid = False
 
-        self._validate_numeric_fields(result)
+        SettingsBase.warn_ignored_pipeline_pool_keys(
+            result, self.enumerator, field_prefix="enumerator"
+        )
+        SettingsBase.warn_ignored_dispatch_keys(
+            result,
+            self.enumerator,
+            field_prefix="enumerator",
+            keys=ENUMERATOR_STRATEGY_DISPATCH_KEYS,
+        )
         SettingsBase.log_warnings(result, logger)
         self._enumerator_validated = True
         return result
 
-    def _validate_numeric_fields(self, result: ValidationReport) -> None:
-        e = self.enumerator
-        SettingsBase.validate_max_workers_field(
-            report=result,
-            container=e,
-            key="max_workers",
-            field_path="enumerator.max_workers",
-            invalid_message='enumerator.max_workers 须为 "auto" 或正整数',
+    def to_dict(self) -> Dict[str, Any]:
+        from core.infra.job_pipeline.profile.constants import (
+            ENUMERATOR_STRATEGY_DISPATCH_KEYS,
         )
 
-        mi = e.get("monitor_interval", 5)
-        try:
-            e["monitor_interval"] = max(int(mi), 1)
-        except (TypeError, ValueError):
-            SettingsBase.add_warning(result, "enumerator.monitor_interval", "monitor_interval 非法，已回退 5")
-            e["monitor_interval"] = 5
-
-    def to_dict(self) -> Dict[str, Any]:
-        return self.deep_copy_dict(dict(self.enumerator))
+        out = self.deep_copy_dict(dict(self.enumerator))
+        SettingsBase.strip_ignored_pipeline_pool_keys(out)
+        SettingsBase.strip_ignored_dispatch_keys(out, ENUMERATOR_STRATEGY_DISPATCH_KEYS)
+        return out
 
     @property
     def use_sampling(self) -> bool:
@@ -104,10 +99,6 @@ class StrategyEnumeratorSettings(SettingsBase):
         if isinstance(s, dict):
             return bool(s.get("use_sampling", False))
         return False
-
-    @property
-    def max_workers(self) -> Union[Literal["auto"], int]:
-        return SettingsBase.parse_max_workers(self.enumerator.get("max_workers", "auto"))
 
     @property
     def is_verbose(self) -> bool:

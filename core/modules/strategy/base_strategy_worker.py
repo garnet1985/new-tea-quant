@@ -87,6 +87,7 @@ class BaseStrategyWorker(ABC):
         self.on_init()
 
     def _load_stock_info(self) -> Dict[str, Any]:
+        # 编排层元数据；非 settings.data 声明项，直调 list（决策 11）。
         try:
             stock_info = DataManager().stock.list.load_single(self.stock_id)
             if isinstance(stock_info, dict):

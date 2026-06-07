@@ -52,9 +52,10 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+from contextlib import contextmanager
 from typing import Dict, List, Any, Optional, Literal
 
-from core.infra.db.helpers.db_helpers import DBHelper
+from core.infra.db.engines._shared import dialect as db_dialect, row_sql
 from core.infra.db.table_queriers.services.batch_operation import BatchOperation
 from core.utils.io import csv_io
 from core.utils.io import file_io
@@ -109,58 +110,135 @@ class DbBaseModel:
         self.verbose = False
         self.is_base_table = False
 
+    def _uses_engine_table_operator(self) -> bool:
+        return (
+            getattr(self.db, "uses_engine_path", False)
+            and self.db._initialized
+            and self.db.engine is not None
+        )
+
+    def _table_op(self):
+        """mysql/postgresql：Engine 表级 CRUD 句柄。"""
+        if not self._uses_engine_table_operator():
+            return None
+        return self.db.engine.table_operator(self.table_name)
+
+    @contextmanager
+    def _table_cursor(self):
+        """按表 storage_domain 路由游标。"""
+        if self._uses_engine_table_operator():
+            if self.db.is_duckdb:
+                with self.db.engine.get_sync_cursor_for_table(self.table_name) as cursor:
+                    yield cursor
+            else:
+                with self.db.engine.get_sync_cursor() as cursor:
+                    yield cursor
+        elif self.db.is_duckdb:
+            with self.db.get_sync_cursor_for_table(self.table_name) as cursor:
+                yield cursor
+        else:
+            with self.db.get_sync_cursor() as cursor:
+                yield cursor
+
+    def _table_query(self, query: str, params: Any = None) -> List[Dict[str, Any]]:
+        if self._uses_engine_table_operator():
+            if self.db.is_duckdb:
+                return self.db.engine.execute_sync_query_for_table(
+                    self.table_name, query, params
+                )
+            return self.db.engine.execute_sync_query(query, params)
+        if self.db.is_duckdb:
+            return self.db.execute_sync_query_for_table(self.table_name, query, params)
+        return self.db.execute_sync_query(query, params)
+
+    @contextmanager
+    def _table_transaction(self):
+        if self._uses_engine_table_operator():
+            if self.db.is_duckdb:
+                domain = self.db.get_table_domain(self.table_name)
+                with self.db.engine.connector.transaction(domain=domain) as cursor:
+                    yield cursor
+            else:
+                with self.db.engine.transaction() as cursor:
+                    yield cursor
+        elif self.db.is_duckdb:
+            with self.db.get_sync_cursor_for_table(self.table_name) as cursor:
+                yield cursor
+        else:
+            with self.db.transaction() as cursor:
+                yield cursor
+
     # ***********************************
     #        table operations
     # ***********************************
     
+    def _schema_manager(self):
+        """已 initialize 时用 mounted engine 的 SchemaManager，否则按 config 构造。"""
+        sm = getattr(self.db, "schema_manager", None)
+        if sm is not None:
+            return sm
+        from core.infra.db.schema_manager import SchemaManager
+
+        return SchemaManager(
+            database_type=self.db.config.get("database_type", "postgresql")
+        )
+
     def load_schema(self) -> dict:
         """
         加载表的 schema。由基类统一实现：通过 SchemaManager 按 self.table_name
         从 core/tables 下各表目录的 schema.py 加载（按 schema["name"] 索引）；
         子类无需覆盖，只需在 __init__ 中传入正确的 table_name 即可。
         """
-        from core.infra.db.schema_management.schema_manager import SchemaManager
-        
-        # 使用 SchemaManager 加载 schema
-        schema_manager = SchemaManager()
-        schema = schema_manager.get_table_schema(self.table_name)
-        
+        op = self._table_op()
+        if op is not None:
+            try:
+                return op.load_schema()
+            except ValueError:
+                pass
+
+        schema = self._schema_manager().get_table_schema(self.table_name)
         if schema:
             return schema
-        
-        # 如果不存在，可能是策略自定义表（暂不处理）
+
         logger.warning(f"Schema not found for table {self.table_name}")
         return None
 
     def create_table(self, custom_table_name: str = None) -> None:
         if not self.schema:
-            logger.error(f"Failed create table: {self.table_name}, because schema is not found")
+            logger.error(
+                f"Failed create table: {self.table_name}, because schema is not found"
+            )
             return
 
-        # 使用 SchemaManager 生成 SQL
-        from core.infra.db.schema_management.schema_manager import SchemaManager
-        schema_manager = SchemaManager(database_type=self.db.config.get('database_type', 'postgresql'))
-        
-        # 如果有自定义表名，修改 schema
         schema_to_use = self.schema.copy()
         if custom_table_name:
-            schema_to_use['name'] = custom_table_name
-        
-        sql = schema_manager.generate_create_table_sql(schema_to_use)
+            schema_to_use["name"] = custom_table_name
 
-        with self.db.get_sync_cursor() as cursor:
+        if self._uses_engine_table_operator():
+            self.db.engine.create_table(schema_to_use)
+            logger.debug(f"Table '{schema_to_use.get('name', self.table_name)}' is ready")
+            return
+
+        sql = self._schema_manager().generate_create_table_sql(schema_to_use)
+        with self._table_cursor() as cursor:
             cursor.execute(sql)
-            # 详细日志由 logging 配置控制
             logger.debug(f"Table '{self.table_name}' is ready")
 
     def drop_table(self) -> None:
-        with self.db.get_sync_cursor() as cursor:
+        if self._uses_engine_table_operator():
+            self.db.engine.drop_table(self.table_name)
+            logger.debug(f"Table '{self.table_name}' is dropped")
+            return
+        with self._table_cursor() as cursor:
             cursor.execute(f"DROP TABLE IF EXISTS {self.table_name}")
             logger.debug(f"Table '{self.table_name}' is dropped")
 
     def clear_table(self) -> int:
         """清空表数据"""
-        with self.db.get_sync_cursor() as cursor:
+        op = self._table_op()
+        if op is not None:
+            return op.clear_table()
+        with self._table_cursor() as cursor:
             cursor.execute(f"DELETE FROM {self.table_name}")
             return cursor.rowcount
 
@@ -191,7 +269,7 @@ class DbBaseModel:
         self._validate_column_name(column_name)
         self._validate_column_type(column_type)
         sql = f"ALTER TABLE {self.table_name} ADD COLUMN {column_name} {column_type.strip()}"
-        with self.db.get_sync_cursor() as cursor:
+        with self._table_cursor() as cursor:
             cursor.execute(sql)
         logger.debug(f"表 {self.table_name} 已添加列: {column_name}")
 
@@ -204,7 +282,7 @@ class DbBaseModel:
         """
         self._validate_column_name(column_name)
         sql = f"ALTER TABLE {self.table_name} DROP COLUMN {column_name}"
-        with self.db.get_sync_cursor() as cursor:
+        with self._table_cursor() as cursor:
             cursor.execute(sql)
         logger.debug(f"表 {self.table_name} 已删除列: {column_name}")
 
@@ -219,7 +297,7 @@ class DbBaseModel:
         self._validate_column_name(old_column_name)
         self._validate_column_name(new_column_name)
         sql = f"ALTER TABLE {self.table_name} RENAME COLUMN {old_column_name} TO {new_column_name}"
-        with self.db.get_sync_cursor() as cursor:
+        with self._table_cursor() as cursor:
             cursor.execute(sql)
         logger.debug(f"表 {self.table_name} 已将列 {old_column_name} 重命名为 {new_column_name}")
 
@@ -239,7 +317,7 @@ class DbBaseModel:
             sql = f"ALTER TABLE {self.table_name} ALTER COLUMN {column_name} TYPE {column_type.strip()}"
         else:
             sql = f"ALTER TABLE {self.table_name} MODIFY COLUMN `{column_name}` {column_type.strip()}"
-        with self.db.get_sync_cursor() as cursor:
+        with self._table_cursor() as cursor:
             cursor.execute(sql)
         logger.debug(f"表 {self.table_name} 已将列 {column_name} 类型修改为 {column_type}")
 
@@ -444,7 +522,7 @@ class DbBaseModel:
         """
         if source_sql == target_sql:
             return
-        db_type = DBHelper.normalize_database_type(self.db.config)
+        db_type = db_dialect.normalize_database_type(self.db.config)
         if db_type == "postgresql":
             cursor.execute(f"DROP TABLE IF EXISTS {target_sql}")
             cursor.execute(
@@ -551,7 +629,7 @@ class DbBaseModel:
         MySQL 另受 max_allowed_packet 约束，再限制每批最多 ``_MYSQL_INSERT_BATCH_ROW_CAP`` 行。
         """
         nc = max(num_columns, 1)
-        t = DBHelper.normalize_database_type(self.db.config)
+        t = db_dialect.normalize_database_type(self.db.config)
         _cap_pg = 10_000
         by_ph = max(1, 65535 // nc)
         if t == "postgresql":
@@ -604,7 +682,7 @@ class DbBaseModel:
         archive_name: str,
     ) -> int:
         """多行 VALUES 批量插入；返回插入行数。"""
-        col_list = DBHelper.quote_identifier_list(self.db.config, field_names)
+        col_list = db_dialect.quote_identifier_list(self.db.config, field_names)
         one_row = "(" + ", ".join(["%s"] * len(field_names)) + ")"
         n = len(rows)
         if n == 0:
@@ -656,7 +734,7 @@ class DbBaseModel:
         """PostgreSQL：psycopg2.extras.execute_values 批量展开 VALUES，减少客户端拼接与往返。"""
         from psycopg2.extras import execute_values
 
-        col_list = DBHelper.quote_identifier_list(self.db.config, field_names)
+        col_list = db_dialect.quote_identifier_list(self.db.config, field_names)
         sql = f"INSERT INTO {target_sql} ({col_list}) VALUES %s"
         n = len(rows)
         if n == 0:
@@ -769,9 +847,9 @@ class DbBaseModel:
         覆盖导入前清空目标表：MySQL/PostgreSQL 优先 TRUNCATE（大表远快于 DELETE），
         失败（如外键）时回退 DELETE。
         """
-        dialect = DBHelper.normalize_database_type(self.db.config)
+        db_type = db_dialect.normalize_database_type(self.db.config)
         t_clear = time.perf_counter()
-        if dialect not in ("mysql", "postgresql"):
+        if db_type not in ("mysql", "postgresql"):
             logger.info("覆盖导入：开始清空目标表 %s（DELETE FROM）", target_sql)
             cursor.execute(f"DELETE FROM {target_sql}")
             logger.info(
@@ -846,14 +924,13 @@ class DbBaseModel:
             logger.info("未提供任何文件，跳过导入表 %s", self.table_name)
             return
 
-        source_sql = DBHelper.sql_qualify_table_name(self.db.config, self.table_name)
+        source_sql = db_dialect.sql_qualify_table_name(self.db.config, self.table_name)
         target_logical = (target_table or self.table_name).strip()
-        target_sql = DBHelper.sql_qualify_table_name(self.db.config, target_logical)
+        target_sql = db_dialect.sql_qualify_table_name(self.db.config, target_logical)
 
-        db_type = DBHelper.normalize_database_type(self.db.config)
+        db_type = db_dialect.normalize_database_type(self.db.config)
         pg_ev = db_type == "postgresql"
-        ctx = self.db.connection_manager.transaction
-        with ctx() as cursor:
+        with self._table_transaction() as cursor:
             total_rows = self._import_data_overwrite_run(
                 cursor,
                 source_sql,
@@ -886,8 +963,11 @@ class DbBaseModel:
             model.count("term = %s", ("daily",))  # term=daily 的行数
         """
         try:
+            op = self._table_op()
+            if op is not None:
+                return op.count(condition, params)
             query = f"SELECT COUNT(*) AS cnt FROM {self.table_name} WHERE {condition}"
-            result = self.db.execute_sync_query(query, params)
+            result = self._table_query(query, params)
             if not result or len(result) == 0:
                 return 0
             row = result[0]
@@ -910,6 +990,13 @@ class DbBaseModel:
 
     def load(self, condition: str = "1=1", params: tuple = (), order_by: str = None, limit: int = None, offset: int = None) -> List[Dict[str, Any]]:
         """查找记录"""
+        op = self._table_op()
+        if op is not None:
+            try:
+                return op.load(condition, params, order_by=order_by, limit=limit, offset=offset)
+            except Exception as e:
+                logger.error(f"Failed to load records from {self.table_name}: {e}")
+                return []
         query = f"SELECT * FROM {self.table_name} WHERE {condition}"
         if order_by:
             query += f" ORDER BY {order_by}"
@@ -918,7 +1005,7 @@ class DbBaseModel:
         if offset:
             query += f" OFFSET {offset}"
         try:
-            return self.db.execute_sync_query(query, params)
+            return self._table_query(query, params)
         except Exception as e:
             logger.error(f"Failed to load records from {self.table_name}: {e}")
             return []
@@ -989,7 +1076,7 @@ class DbBaseModel:
             AND t1.{date_field} = t2.min_date
         """
         try:
-            return self.db.execute_sync_query(query)
+            return self._table_query(query)
         except Exception as e:
             logger.error(f"加载最早记录失败 [{self.table_name}]: {e}")
             return []
@@ -1027,7 +1114,7 @@ class DbBaseModel:
             AND t1.{date_field} = t2.max_date
         """
         try:
-            return self.db.execute_sync_query(query)
+            return self._table_query(query)
         except Exception as e:
             logger.error(f"加载最新记录失败 [{self.table_name}]: {e}")
             return []
@@ -1042,6 +1129,9 @@ class DbBaseModel:
     
     def delete(self, condition: str, params: tuple = (), limit: int = None) -> int:
         """删除数据（带重试机制）"""
+        op = self._table_op()
+        if op is not None:
+            return op.delete(condition, params, limit=limit)
         max_retries = 3
         retry_delay = 0.1
         
@@ -1051,7 +1141,7 @@ class DbBaseModel:
                 if limit:
                     query += f" LIMIT {limit}"
                 
-                with self.db.get_sync_cursor() as cursor:
+                with self._table_cursor() as cursor:
                     cursor.execute(query, params)
                     return cursor.rowcount
             except Exception as e:
@@ -1118,13 +1208,9 @@ class DbBaseModel:
             def write_callback(table_name, count):
                 logger.debug(f"Insert completed for {table_name}: {count} records")
 
-            if hasattr(self.db, "queue_write"):
-                keys = unique_keys if unique_keys else []
-                self.db.queue_write(self.table_name, data_list, keys, write_callback)
-                return len(data_list)
-
-            # 无队列时退化为同步批次插入
-            return self.batch_insert(data_list, unique_keys)
+            keys = unique_keys if unique_keys else []
+            self.db.queue_write(self.table_name, data_list, keys, write_callback)
+            return len(data_list)
         except Exception as e:
             logger.error(f"Failed to insert data into {self.table_name} (async): {e}")
             return 0
@@ -1146,13 +1232,17 @@ class DbBaseModel:
         """
         if not data_list:
             return 0
+
+        op = self._table_op()
+        if op is not None:
+            return op.insert(data_list, unique_keys)
         
         try:
             # 准备数据
             if unique_keys:
-                columns, values, update_clause = DBHelper.to_upsert_params(data_list, unique_keys)
+                columns, values, update_clause = row_sql.to_upsert_params(data_list, unique_keys)
             else:
-                columns, _ = DBHelper.to_columns_and_values(data_list)
+                columns, _ = row_sql.to_columns_and_values(data_list)
                 values = [tuple(data[col] for col in columns) for data in data_list]
                 update_clause = None
             
@@ -1162,8 +1252,8 @@ class DbBaseModel:
             # 获取批量大小配置
             batch_size = self._get_insert_batch_size()
             
-            dt = DBHelper.normalize_database_type(self.db.config)
-            with self.db.get_sync_cursor() as cursor:
+            dt = db_dialect.normalize_database_type(self.db.config)
+            with self._table_cursor() as cursor:
                 return BatchOperation.execute_batch_insert(
                     executor=cursor,
                     table_name=self.table_name,
@@ -1224,10 +1314,8 @@ class DbBaseModel:
         try:
             def write_callback(table_name, count):
                 logger.debug(f"Upsert completed for {table_name}: {count} records")
-            if hasattr(self.db, "queue_write"):
-                self.db.queue_write(self.table_name, rows, unique_keys, write_callback)
-                return len(rows)
-            return self._batch_upsert(rows, unique_keys)
+            self.db.queue_write(self.table_name, rows, unique_keys, write_callback)
+            return len(rows)
         except Exception as e:
             logger.error(f"Failed to upsert data in {self.table_name} (async): {e}")
             return 0
@@ -1239,13 +1327,16 @@ class DbBaseModel:
         """
         if not rows:
             return 0
+        op = self._table_op()
+        if op is not None:
+            return op.upsert(rows, unique_keys)
         try:
-            columns, values, update_clause = DBHelper.to_upsert_params(rows, unique_keys)
+            columns, values, update_clause = row_sql.to_upsert_params(rows, unique_keys)
             if not columns:
                 return 0
             batch_size = self._get_insert_batch_size()
-            dt = DBHelper.normalize_database_type(self.db.config)
-            with self.db.get_sync_cursor() as cursor:
+            dt = db_dialect.normalize_database_type(self.db.config)
+            with self._table_cursor() as cursor:
                 return BatchOperation.execute_batch_insert(
                     executor=cursor,
                     table_name=self.table_name,
@@ -1285,7 +1376,7 @@ class DbBaseModel:
     def execute_raw_query(self, query: str, params: tuple = ()) -> List[Dict[str, Any]]:
         """执行原始SQL查询"""
         try:
-            return self.db.execute_sync_query(query, params)
+            return self._table_query(query, params)
         except Exception as e:
             logger.error(f"Failed to execute raw query: {e}")
             return []
@@ -1293,10 +1384,13 @@ class DbBaseModel:
     def execute_raw_update(self, query: str, params: tuple = ()) -> int:
         """执行原始SQL更新语句"""
         try:
-            # 转换占位符 %s -> ?
-            query = query.replace("%s", "?")
+            op = self._table_op()
+            if op is not None:
+                return op.execute_write(query, params)
+            if self.db.is_duckdb:
+                query = query.replace("%s", "?")
             
-            with self.db.get_sync_cursor() as cursor:
+            with self._table_cursor() as cursor:
                 cursor.execute(query, params)
                 return cursor.rowcount
         except Exception as e:
@@ -1309,11 +1403,8 @@ class DbBaseModel:
     # ***********************************
     def wait_for_writes(self):
         """等待所有异步写入完成"""
-        if hasattr(self.db, 'wait_for_writes'):
-            self.db.wait_for_writes()
+        self.db.wait_for_writes()
     
     def get_stats(self) -> Dict[str, Any]:
         """获取数据库统计信息"""
-        if hasattr(self.db, 'get_stats'):
-            return self.db.get_stats()
-        return {}
+        return self.db.get_stats()

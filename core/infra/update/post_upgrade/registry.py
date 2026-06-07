@@ -2,7 +2,7 @@
 升级收尾「反向」动作注册表。
 
 在 ``managed_scope`` 镜像与 DB 迁移 **之后** 执行，用于 updater 无法在主流程中处理的写盘操作
-（例如同步 ``userspace/updater``）。实现脚本可放在本包 ``actions/`` 子模块并通过本注册表挂接。
+（例如同步 ``userspace/system/updater``）。实现脚本可放在本包 ``actions/`` 子模块并通过本注册表挂接。
 """
 from __future__ import annotations
 

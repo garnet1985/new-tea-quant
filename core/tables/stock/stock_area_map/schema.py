@@ -4,6 +4,7 @@
 主键 (stock_id, area_id)。
 """
 schema = {
+    "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "stock_stock_area_map",
     "name": "sys_stock_area_map",
     "primaryKey": ["stock_id", "area_id"],

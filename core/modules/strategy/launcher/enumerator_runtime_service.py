@@ -113,7 +113,7 @@ class EnumeratorRuntimeService:
             start_date=start_date,
             end_date=end_date,
             stock_list=stock_list,
-            max_workers=enum_settings.max_workers,
+            max_workers="auto",
             base_settings=settings_view,
             workbench_strategy_name=workbench_strategy_name,
             workbench_run_id=workbench_run_id,

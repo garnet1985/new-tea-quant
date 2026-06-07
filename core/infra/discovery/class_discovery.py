@@ -57,12 +57,12 @@ class ClassDiscovery:
         # 发现所有 Provider 类
         config = DiscoveryConfig(
             base_class=BaseProvider,
-            module_name_pattern="userspace.data_source.providers.{name}.provider",
+            module_name_pattern="userspace.extensions.data_source.providers.{name}.provider",
             key_extractor=lambda cls: getattr(cls, 'provider_name', None),
             class_filter=lambda cls: hasattr(cls, 'provider_name') and cls.provider_name
         )
         discovery = ClassDiscovery(config)
-        result = discovery.discover("userspace.data_source.providers")
+        result = discovery.discover("userspace.extensions.data_source.providers")
         # result.classes = {"tushare": TushareProvider, "akshare": AKShareProvider}
     """
     
@@ -85,7 +85,7 @@ class ClassDiscovery:
         发现指定包下的所有类
         
         Args:
-            base_module_path: 基础模块路径（如 "userspace.data_source.providers"）
+            base_module_path: 基础模块路径（如 "userspace.extensions.data_source.providers"）
             use_cache: 是否使用缓存
         
         Returns:
@@ -212,7 +212,7 @@ class ClassDiscovery:
         通过完整路径发现单个类
         
         Args:
-            class_path: 类的完整路径（如 "userspace.data_source.handlers.kline.KlineHandler"）
+            class_path: 类的完整路径（如 "userspace.extensions.data_source.handlers.kline.KlineHandler"）
             base_class: 可选的基类验证（如果提供，会验证类是否继承此基类）
         
         Returns:

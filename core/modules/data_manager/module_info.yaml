@@ -1,7 +1,18 @@
 name: modules.data_manager
-version: 0.3.3
+version: 0.3.4
 compatible_core_versions: ">=0.3.3"
 description: "统一数据访问门面：DatabaseManager、core/userspace 表发现、各领域 DataService（stock/macro/calendar/index/db_cache）。"
 dependencies:
   - infra.db
   - infra.project_context
+changelog:
+  - version: "0.3.4"
+    changes:
+      - K 线加载查询优化（回测路径显著提速）
+      - 配合 DuckDB 域路由与 data_contract 批量取数
+  - version: "0.3.3"
+    changes:
+      - 交易日历、风险时段表与服务；全量股票列表（含退市）
+  - version: "0.3.0"
+    changes:
+      - DataService 门面与 userspace 表发现基线

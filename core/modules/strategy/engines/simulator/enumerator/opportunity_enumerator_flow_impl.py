@@ -53,7 +53,7 @@ if TYPE_CHECKING:
 
 
 class WorkbenchEnumeratorProgressCallback:
-    """Pickle-safe ProcessWorker on_job_done hook (spawn multiprocessing cannot pickle nested functions)."""
+    """Workbench 进度：由 JobPipeline on_result 转成旧版 on_job_done payload。"""
 
     __slots__ = ("strategy_name", "run_id")
 
@@ -62,6 +62,9 @@ class WorkbenchEnumeratorProgressCallback:
         self.run_id = run_id
 
     def __call__(self, payload: Dict[str, Any]) -> None:
+        from core.modules.strategy.execution_manager.workbench_run_envelope import (
+            run_envelope_on_flow_progress,
+        )
         from core.modules.strategy.services.progress import ProgressRecorder
 
         recorder = ProgressRecorder.for_strategy_run_step(
@@ -76,6 +79,13 @@ class WorkbenchEnumeratorProgressCallback:
         progress_pct = int(payload.get("progress_pct") or 0)
         if total_jobs > 0:
             progress_pct = min(100, max(0, progress_pct))
+        prev = recorder.get_progress()
+        if isinstance(prev, dict):
+            try:
+                prev_pct = int(prev.get("progress_pct") or 0)
+            except (TypeError, ValueError):
+                prev_pct = 0
+            progress_pct = max(prev_pct, progress_pct)
         recorder.record(
             {
                 "strategy_name": self.strategy_name,
@@ -86,6 +96,9 @@ class WorkbenchEnumeratorProgressCallback:
                 "total_jobs": total_jobs,
                 "progress_pct": progress_pct,
             }
+        )
+        run_envelope_on_flow_progress(
+            self.strategy_name, self.run_id, "enum", float(progress_pct)
         )
 
 
@@ -141,11 +154,9 @@ class OpportunityEnumeratorFlowImpl:
         return payload
 
     def resolve_runtime_workers(self) -> int:
-        from core.infra.worker import ProcessWorker
+        from core.infra.job_pipeline.profile.probe import WorkerProbe
 
-        return ProcessWorker.resolve_max_workers(
-            max_workers=self.max_workers, module_name="OpportunityEnumerator"
-        )
+        return WorkerProbe.resolve(self.max_workers)
 
     def load_settings(
         self,
@@ -278,23 +289,23 @@ class OpportunityEnumeratorFlowImpl:
         output_dir: Path,
         worker_ref: Dict[str, str],
         stock_ids: Optional[List[str]] = None,
+        entities_per_job: int = 1,
     ) -> List[Dict[str, Any]]:
-        enum_start_date = self.start_date
+        from core.modules.strategy.engines.simulator.enumerator.dispatch_jobs import (
+            build_dispatch_jobs,
+        )
+
         target_stock_ids = stock_ids if stock_ids is not None else self.stock_list
-        jobs = [
-            {
-                "stock_id": stock_id,
-                "strategy_name": strategy_name,
-                "settings": settings_payload,
-                "start_date": enum_start_date,
-                "end_date": self.end_date,
-                "output_dir": str(output_dir),
-                "worker_module_path": worker_ref["worker_module_path"],
-                "worker_class_name": worker_ref["worker_class_name"],
-            }
-            for stock_id in target_stock_ids
-        ]
-        return jobs
+        return build_dispatch_jobs(
+            strategy_name=strategy_name,
+            settings_payload=settings_payload,
+            output_dir=str(output_dir),
+            worker_ref=worker_ref,
+            stock_ids=target_stock_ids,
+            start_date=self.start_date,
+            end_date=self.end_date,
+            entities_per_job=entities_per_job,
+        )
 
     def preload_global_cache(
         self, settings_payload: Dict[str, Any], jobs: List[Dict[str, Any]]
@@ -320,21 +331,42 @@ class OpportunityEnumeratorFlowImpl:
         global_extra_cache: Dict[str, List[Dict[str, Any]]],
         max_workers: int,
         enum_settings: OpportunityEnumeratorSettings,
+        duckdb_data_mgr: Any = None,
     ) -> List[Any]:
-        from core.infra.worker import (
-            MemoryAwareScheduler,
-            ProcessExecutionMode,
-            ProcessExecutor,
+        from core.infra.job_pipeline.profile import (
+            WorkerProfiles,
+            profile_dispatch_config,
         )
+        from core.infra.worker import MemoryAwareScheduler
+        from core.modules.strategy.engines.simulator.enumerator.dispatch_jobs import (
+            count_stocks_in_dispatch_jobs,
+        )
+        from core.modules.strategy.services.execution import run_enumeration_jobs_via_pipeline
         from core.modules.strategy.services.progress import ProgressRecorder
+
+        total_stocks = count_stocks_in_dispatch_jobs(jobs)
+        dispatch_cfg = profile_dispatch_config(WorkerProfiles.ENUMERATOR)
+        if jobs:
+            payload = jobs[0].get("payload", jobs[0])
+            stock_ids = payload.get("stock_ids") or []
+            entities_per_job = max(1, len(stock_ids)) if stock_ids else 1
+        else:
+            entities_per_job = 1
 
         on_job_done: Optional[Callable[[Dict[str, Any]], None]] = None
         if self.workbench_strategy_name and self.workbench_run_id:
             sn, rid = self.workbench_strategy_name, self.workbench_run_id
             recorder = ProgressRecorder.for_strategy_run_step(sn, rid, "enum")
             on_job_done = WorkbenchEnumeratorProgressCallback(sn, rid)
-            total_n = len(jobs)
+            total_n = total_stocks
             if total_n > 0:
+                prev = recorder.get_progress()
+                seed_pct = 1
+                if isinstance(prev, dict):
+                    try:
+                        seed_pct = max(1, int(prev.get("progress_pct") or 0))
+                    except (TypeError, ValueError):
+                        seed_pct = 1
                 recorder.record(
                     {
                         "strategy_name": sn,
@@ -343,36 +375,40 @@ class OpportunityEnumeratorFlowImpl:
                         "phase": "running",
                         "done_jobs": 0,
                         "total_jobs": total_n,
-                        "progress_pct": 0,
+                        "progress_pct": seed_pct,
                     }
                 )
+                from core.modules.strategy.execution_manager.workbench_run_envelope import (
+                    run_envelope_on_flow_progress,
+                )
 
-        # step1: create process executor and scheduler
-        executor = ProcessExecutor(
-            max_workers=max_workers,
-            execution_mode=ProcessExecutionMode.QUEUE,
-            job_executor=self._execute_single_job,
-            on_job_done=on_job_done,
-            is_verbose=False,
-        )
+                run_envelope_on_flow_progress(sn, rid, "enum", float(seed_pct))
+
         scheduler = MemoryAwareScheduler(
             jobs=jobs,
-            memory_budget_mb=enum_settings.memory_budget_mb,
-            warmup_batch_size=enum_settings.warmup_batch_size,
-            min_batch_size=enum_settings.min_batch_size,
-            max_batch_size=enum_settings.max_batch_size,
-            monitor_interval=enum_settings.monitor_interval,
+            memory_budget_mb=dispatch_cfg["memory_budget_mb"],
+            warmup_batch_size=dispatch_cfg["warmup_batch_size"],
+            min_batch_size=dispatch_cfg["min_batch_size"],
+            max_batch_size=dispatch_cfg["max_batch_size"],
+            monitor_interval=int(dispatch_cfg["monitor_interval"]),
+            units_per_job=entities_per_job,
             log=logger,
         )
-        # step2: run jobs batch-by-batch and collect raw job results
-        job_results = self._run_scheduled_batches(
+        run_name = "enum"
+        if self.workbench_strategy_name:
+            run_name = f"enum:{self.workbench_strategy_name}"
+
+        return self._run_scheduled_batches(
             jobs=jobs,
             global_extra_cache=global_extra_cache,
             scheduler=scheduler,
-            executor=executor,
+            max_workers=max_workers,
+            total_stocks=total_stocks,
+            run_name=run_name,
+            on_job_progress=on_job_done,
+            run_fn=run_enumeration_jobs_via_pipeline,
+            duckdb_data_mgr=duckdb_data_mgr,
         )
-        executor.shutdown()
-        return job_results
 
     def _run_scheduled_batches(
         self,
@@ -380,46 +416,48 @@ class OpportunityEnumeratorFlowImpl:
         jobs: List[Dict[str, Any]],
         global_extra_cache: Dict[str, List[Dict[str, Any]]],
         scheduler: Any,
-        executor: Any,
+        max_workers: int,
+        total_stocks: int,
+        run_name: str,
+        on_job_progress: Optional[Callable[[Dict[str, Any]], None]],
+        run_fn: Any,
+        duckdb_data_mgr: Any = None,
     ) -> List[Any]:
-        total_jobs = len(jobs)
-        job_results = []
-        finished_jobs = 0
+        from core.modules.strategy.services.execution.enum_job_pipeline import (
+            count_progress_units_from_job_result,
+        )
+
+        job_results: List[Any] = []
+        finished_stocks = 0
+        cumulative_ok = 0
+        cumulative_fail = 0
         for batch in scheduler.iter_batches():
-            process_jobs = self._build_process_jobs(batch, global_extra_cache)
-            batch_results = executor.run_jobs(process_jobs, total_jobs=total_jobs)
-            finished_jobs += len(batch)
+            batch_results = run_fn(
+                stock_jobs=batch,
+                global_extra_cache=global_extra_cache,
+                max_workers=max_workers,
+                total_jobs=total_stocks,
+                finished_offset=finished_stocks,
+                completed_offset=cumulative_ok,
+                failed_offset=cumulative_fail,
+                run_name=run_name,
+                on_job_progress=on_job_progress,
+                duckdb_data_mgr=duckdb_data_mgr,
+            )
+            batch_finished = 0
+            for jr in batch_results:
+                ok_n, fail_n = count_progress_units_from_job_result(jr)
+                cumulative_ok += ok_n
+                cumulative_fail += fail_n
+                batch_finished += ok_n + fail_n
+            finished_stocks += batch_finished
             scheduler.update_after_batch(
                 batch_size=len(batch),
                 batch_results=batch_results,
-                finished_jobs=finished_jobs,
+                finished_jobs=finished_stocks,
             )
             job_results.extend(batch_results)
         return job_results
-
-    @staticmethod
-    def _build_process_jobs(
-        batch: List[Dict[str, Any]],
-        global_extra_cache: Dict[str, List[Dict[str, Any]]],
-    ) -> List[Dict[str, Any]]:
-        return [
-            {
-                "id": job["stock_id"],
-                "data": {
-                    "stock_id": job["stock_id"],
-                    "strategy_name": job["strategy_name"],
-                    "settings": job["settings"],
-                    "start_date": job["start_date"],
-                    "end_date": job["end_date"],
-                    "output_dir": job["output_dir"],
-                    "global_extra_cache": global_extra_cache,
-                    "backtest_calendar": job.get("backtest_calendar"),
-                    "worker_module_path": job["worker_module_path"],
-                    "worker_class_name": job["worker_class_name"],
-                },
-            }
-            for job in batch
-        ]
 
     def aggregate_job_results(
         self,
@@ -438,7 +476,11 @@ class OpportunityEnumeratorFlowImpl:
         unfinished_count = 0
         stock_summary_by_id: Dict[str, Dict[str, Any]] = {}
         bundles_by_id: Dict[str, Dict[str, Any]] = {}
-        for job_result in job_results:
+        from core.modules.strategy.services.execution.enum_job_pipeline import (
+            expand_bulk_job_results,
+        )
+
+        for job_result in expand_bulk_job_results(job_results):
             row = self._aggregate_single_job_result(job_result, aggregate_profiler)
             total_opportunities += row["opportunity_count"]
             completed_count += row["completed_count"]
@@ -700,6 +742,8 @@ class OpportunityEnumeratorFlowImpl:
 
     @staticmethod
     def _execute_single_job(payload: Dict[str, Any]) -> Dict[str, Any]:
+        """单测 / 同步路径；并行枚举走 ``execute_enumeration_job``。"""
         return OpportunityEnumeratorWorker(payload).run()
+
 
 __all__ = ["OpportunityEnumeratorFlowImpl"]

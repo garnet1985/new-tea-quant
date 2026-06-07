@@ -44,6 +44,59 @@ const STEP_ENUM = 'enum';
 const STEP_PRICE = 'price';
 const STEP_CAPITAL = 'capital';
 
+const ACTIVE_RUN_STORAGE_PREFIX = 'ntq-workbench-active-run';
+
+function activeRunStorageKey(strategyName) {
+  return `${ACTIVE_RUN_STORAGE_PREFIX}:${String(strategyName || '').trim()}`;
+}
+
+function persistActiveRun(strategyName, { activeRunId, progressPollStep }) {
+  const sn = String(strategyName || '').trim();
+  const rid = String(activeRunId || '').trim();
+  if (!sn || !rid) return;
+  try {
+    sessionStorage.setItem(
+      activeRunStorageKey(sn),
+      JSON.stringify({
+        activeRunId: rid,
+        progressPollStep: String(progressPollStep || '').trim(),
+        savedAt: Date.now(),
+      }),
+    );
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
+
+function clearPersistedActiveRun(strategyName) {
+  const sn = String(strategyName || '').trim();
+  if (!sn) return;
+  try {
+    sessionStorage.removeItem(activeRunStorageKey(sn));
+  } catch {
+    /* ignore */
+  }
+}
+
+function loadPersistedActiveRun(strategyName) {
+  const sn = String(strategyName || '').trim();
+  if (!sn) return null;
+  try {
+    const raw = sessionStorage.getItem(activeRunStorageKey(sn));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const activeRunId = String(parsed.activeRunId || '').trim();
+    if (!activeRunId) return null;
+    return {
+      activeRunId,
+      progressPollStep: String(parsed.progressPollStep || '').trim(),
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** 下拉末项：打开完整历史版本选择；勿写入 ``compareVersion`` */
 const EXEC_COMPARE_MORE_MENU_VALUE = '__exec_compare_more_versions__';
 const VERSION_PICKER_PAGE_SIZE = 8;
@@ -278,6 +331,45 @@ function StrategyExecutionPanel({
     progressPctHighWaterRef.current = 0;
   }, [strategyName]);
 
+  /** 刷新页面后恢复仍在后端的 run 轮询，避免 UI 假空闲或重复触发 */
+  useEffect(() => {
+    if (!strategyName || activeRunId) return undefined;
+
+    const saved = loadPersistedActiveRun(strategyName);
+    if (!saved?.activeRunId) return undefined;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const status = await fetchStrategyRunStatus(strategyName, saved.activeRunId);
+        if (cancelled) return;
+        if (status?.state === 'running') {
+          const pollStep = saved.progressPollStep || status?.running_step || STEP_ENUM;
+          setActiveRunId(saved.activeRunId);
+          setLatestRunId(saved.activeRunId);
+          setProgressPollStep(pollStep);
+          setRunningStep(status?.running_step || pollStep);
+          if (status?.step_status_merge && typeof status.step_status_merge === 'object') {
+            setStepStatus((prev) => ({ ...prev, ...status.step_status_merge }));
+          }
+          const nextPct = Number(status?.progress_pct || 0);
+          if (Number.isFinite(nextPct) && nextPct > 0) {
+            setProgress(nextPct);
+            progressPctHighWaterRef.current = nextPct;
+          }
+          return;
+        }
+        clearPersistedActiveRun(strategyName);
+      } catch {
+        if (!cancelled) clearPersistedActiveRun(strategyName);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeRunId, strategyName]);
+
   useEffect(() => {
     if (!workbenchHydration || typeof workbenchHydration.key !== 'string') return;
     const { stepStatus: nextStatus, result: nextResult, lastCompletedWorkbenchVersionId: wbVid } = workbenchHydration;
@@ -320,6 +412,7 @@ function StrategyExecutionPanel({
       if (!runId) throw new Error('启动执行失败：缺少 run_id');
       setActiveRunId(runId);
       setLatestRunId(runId);
+      persistActiveRun(strategyName, { activeRunId: runId, progressPollStep: target });
       setRunningStep(started?.resolved_chain?.[0] || target);
       setProgress(0);
       const planSteps = Array.isArray(started?.steps) ? started.steps : [];
@@ -920,6 +1013,7 @@ function StrategyExecutionPanel({
         setLastCompletedWorkbenchVersionId(String(status.version_id));
       }
       if (status?.state === 'done' || status?.state === 'cancelled' || status?.state === 'failed') {
+        clearPersistedActiveRun(strategyName);
         setActiveRunId('');
         setProgressPollStep('');
         if (status?.state === 'failed') {

@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 def load_strategy_info(strategy_name: str) -> Optional["DiscoveredStrategy"]:
     from core.modules.strategy.services.discovery import StrategyDiscoveryHelper
 
-    folder = PathManager.userspace() / "strategies" / strategy_name
+    folder = PathManager.strategy(strategy_name)
     if not folder.is_dir():
         return None
     return StrategyDiscoveryHelper.load_strategy(folder)

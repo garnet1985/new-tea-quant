@@ -52,7 +52,7 @@ class StrategyManager:
         info = self.validated_strategies.get(strategy_name)
         if info is not None:
             return info
-        folder = PathManager.userspace() / "strategies" / strategy_name
+        folder = PathManager.strategy(strategy_name)
         if not folder.is_dir():
             return None
         return StrategyDiscoveryHelper.load_strategy(folder)
@@ -262,13 +262,23 @@ class StrategyManager:
                     )
                     continue
                 if anchor != kline_latest:
-                    logger.error(
-                        "❌ 数据未对齐最新交易日：strategy=%s anchor=%s kline=%s strict=%s",
-                        name,
-                        anchor,
-                        kline_latest,
-                        use_strict,
-                    )
+                    if anchor < kline_latest:
+                        logger.error(
+                            "❌ 数据未对齐：库内 K 线最新日晚于日历锚点，"
+                            "strategy=%s anchor=%s kline=%s strict=%s",
+                            name,
+                            anchor,
+                            kline_latest,
+                            use_strict,
+                        )
+                    else:
+                        logger.error(
+                            "❌ 数据未对齐最新交易日：strategy=%s anchor=%s kline=%s strict=%s",
+                            name,
+                            anchor,
+                            kline_latest,
+                            use_strict,
+                        )
                     continue
                 cal_latest = anchor
             else:

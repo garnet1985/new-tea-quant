@@ -88,11 +88,11 @@ def _write_schema_snapshot_if_missing() -> Path:
 
 
 def _run_migrate() -> None:
-    from core.infra.db.migrate import _cmd_apply
+    from core.infra.db.migrate_manager import cmd_apply
     from argparse import Namespace
 
     snap = _write_schema_snapshot_if_missing()
-    code = _cmd_apply(
+    code = cmd_apply(
         Namespace(
             pre_mirror_snapshot=str(snap),
             repo_root=str(REPO_ROOT),
@@ -169,7 +169,7 @@ def main() -> int:
 
     from core.infra.project_context.path_manager import PathManager
 
-    data_cfg = PathManager.userspace() / "config" / "data.json"
+    data_cfg = PathManager.user_config() / "data.json"
     if not data_cfg.is_file():
         logger.error("缺少 %s（需 default_start_date=%s）", data_cfg, DEFAULT_START)
         return 1

@@ -63,6 +63,7 @@ class MemoryAwareScheduler(Scheduler):
         smooth_factor: float = 0.3,
         summary_weight: float = 0.2,
         monitor_interval: int = 5,
+        units_per_job: int = 1,
         log: Optional[logging.Logger] = None,
     ):
         """
@@ -77,9 +78,11 @@ class MemoryAwareScheduler(Scheduler):
             smooth_factor: 指数平滑系数
             summary_weight: 汇总信息占比
             monitor_interval: 监控日志输出间隔
+            units_per_job: 每个 dispatch job 代表的实体数（如枚举多股/job）
             log: 可选 logger
         """
         self.jobs: List[Any] = list(jobs)
+        self.units_per_job = max(1, int(units_per_job))
         self.total_jobs: int = len(self.jobs)
         
         # 自动计算或使用提供的值
@@ -186,7 +189,7 @@ class MemoryAwareScheduler(Scheduler):
         
         # 更新监控器
         self.monitor.update(
-            batch_size=batch_size,
+            batch_size=batch_size * self.units_per_job,
             delta_batch_mb=delta_batch,
             finished_jobs=finished_jobs,
             smooth_factor=self.smooth_factor,

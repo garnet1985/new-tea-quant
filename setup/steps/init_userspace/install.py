@@ -59,7 +59,7 @@ def _write_userspace_state(userspace_path: Path) -> None:
 
 def _is_userspace_structure_ready(target: Path) -> bool:
     # 最小完整性检查：后续 db_connection 必须依赖该文件。
-    required = target / "config" / "database" / "common.json"
+    required = target / "system" / "config" / "database" / "common.json"
     return required.is_file()
 
 
@@ -104,7 +104,7 @@ def main() -> int:
         if conflict_policy == "skip":
             if not _is_userspace_structure_ready(target):
                 raise RuntimeError(
-                    "目标路径已存在，但不是可用的 userspace 结构（缺少 config/database/common.json）。"
+                    "目标路径已存在，但不是可用的 userspace 结构（缺少 system/config/database/common.json）。"
                     f"请改用“覆盖”或清理后重试: {target}"
                 )
             NewTeaQuantSetup.print_check_item("warn", f"目标路径已存在，按策略跳过解压: {target}")

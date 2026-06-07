@@ -2,6 +2,8 @@
 BFF API 主应用
 """
 
+import atexit
+
 from flask import Flask
 from flask_cors import CORS
 from .APIs.health import health_api_bp
@@ -60,7 +62,21 @@ def create_app():
     return app
 
 
+def _shutdown_worker_children() -> None:
+    try:
+        from core.ui.process_cleanup import terminate_multiprocessing_children
+
+        terminate_multiprocessing_children()
+    except Exception:
+        pass
+
+
+def _register_shutdown_hooks() -> None:
+    atexit.register(_shutdown_worker_children)
+
+
 if __name__ == "__main__":
+    _register_shutdown_hooks()
     app = create_app()
     app.run(
         host=str(conf["HOST"]),

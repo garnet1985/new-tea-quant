@@ -5,6 +5,7 @@
 主键 key nullable=false；其余 nullable=true。
 """
 schema = {
+    "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "system_system_cache",
     "name": "sys_cache",
     "primaryKey": "key",

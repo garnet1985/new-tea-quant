@@ -211,7 +211,7 @@ def _resolve_discovered_strategy(strategy_name: str):
     name = str(strategy_name or "").strip()
     if not name:
         return None, "strategy_name 无效"
-    folder = PathManager.userspace() / "strategies" / name
+    folder = PathManager.strategy(name)
     discovered = StrategyDiscoveryHelper.load_strategy(folder)
     if discovered is None:
         return None, "策略不存在或无法加载"

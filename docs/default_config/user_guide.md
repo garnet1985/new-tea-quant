@@ -17,7 +17,7 @@ userspace/config/                  # 用户配置（可选）
     ├── common.json                # 公共项（如 database_type）
     ├── postgresql.json            # PostgreSQL（通常只写 user/password）
     ├── mysql.json
-    └── sqlite.json
+    └── duckdb.json                # DuckDB（可选覆盖三域 db_path）
 ```
 
 **约定**：文件名与 `core/default_config/` 一一对应；缺文件则该项完全使用默认值。敏感信息可用环境变量，勿把含密码的 JSON 提交到版本库。

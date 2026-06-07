@@ -94,10 +94,10 @@ class BatchOperation:
             完整的 SQL 语句
         """
         # 引用列名（避免 key/text/json 等保留字在 MySQL 报错）
-        from core.infra.db.helpers.db_helpers import DBHelper
+        from core.infra.db.engines._shared import dialect
 
-        dt = DBHelper.normalize_database_type({"database_type": database_type})
-        qcols = [DBHelper.quote_identifier_for_dialect(dt, c) for c in columns]
+        dt = dialect.sql_dialect_for_upsert({"database_type": database_type})
+        qcols = [dialect.quote_identifier_for_dialect(dt, c) for c in columns]
         columns_sql = ", ".join(qcols)
         values_sql = ', '.join(values_list)
         
@@ -116,13 +116,13 @@ class BatchOperation:
 
                 if update_fields:
                     assigns = ", ".join(
-                        f"{DBHelper.quote_identifier_for_dialect(dt, f)} = VALUES({DBHelper.quote_identifier_for_dialect(dt, f)})"
+                        f"{dialect.quote_identifier_for_dialect(dt, f)} = VALUES({dialect.quote_identifier_for_dialect(dt, f)})"
                         for f in update_fields
                     )
                 else:
                     # 没有可更新列时，用“主键自赋值”模拟 DO NOTHING
                     uk = unique_keys[0]
-                    quk = DBHelper.quote_identifier_for_dialect(dt, uk)
+                    quk = dialect.quote_identifier_for_dialect(dt, uk)
                     assigns = f"{quk} = {quk}"
 
                 return (
@@ -131,9 +131,9 @@ class BatchOperation:
                 )
 
             # PostgreSQL：ON CONFLICT
-            conflict_cols = ", ".join(DBHelper.quote_identifier_for_dialect(dt, k) for k in unique_keys)
+            conflict_cols = ", ".join(dialect.quote_identifier_for_dialect(dt, k) for k in unique_keys)
             if update_clause:
-                # update_clause 由 DBHelper.to_upsert_params 生成，仍为未引用列名；这里补引用
+                # update_clause 由 row_sql.to_upsert_params 生成，仍为未引用列名；这里补引用
                 assigns: List[str] = []
                 for part in update_clause.split(","):
                     part = part.strip()
@@ -142,7 +142,7 @@ class BatchOperation:
                     left, right = part.split("=", 1)
                     col = left.strip()
                     assigns.append(
-                        f"{DBHelper.quote_identifier_for_dialect(dt, col)} = EXCLUDED.{DBHelper.quote_identifier_for_dialect(dt, col)}"
+                        f"{dialect.quote_identifier_for_dialect(dt, col)} = EXCLUDED.{dialect.quote_identifier_for_dialect(dt, col)}"
                     )
                 update_sql = ", ".join(assigns)
                 return (

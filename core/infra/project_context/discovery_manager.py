@@ -3,8 +3,8 @@
 配置发现：在约定路径下枚举、解析位置，并可委托 ConfigManager 做可覆盖加载。
 
 约定布局：
-- 根级 domain ``""``：``default_config/{id}.json`` + ``userspace/config/{id}.json``
-- 子域 domain ``"markets"``：``default_config/markets/{id}.json`` + ``userspace/config/markets/{id}.json``
+- 根级 domain ``""``：``default_config/{id}.json`` + ``userspace/system/config/{id}.json``
+- 子域 domain ``"markets"``：``default_config/markets/{id}.json`` + ``userspace/system/config/markets/{id}.json``
 """
 
 from __future__ import annotations

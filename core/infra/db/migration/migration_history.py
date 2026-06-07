@@ -9,7 +9,7 @@ import logging
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from core.infra.db.helpers.db_helpers import DBHelper
+from core.infra.db.engines._shared import dialect
 from core.infra.db.migration.execution_plan import MigrationStep
 
 if TYPE_CHECKING:
@@ -21,15 +21,15 @@ MIGRATION_LOG_TABLE = "sys_schema_migration_log"
 
 
 def qualified_log_table(config: dict) -> str:
-    return DBHelper.sql_qualify_table_name(config, MIGRATION_LOG_TABLE)
+    return dialect.sql_qualify_table_name(config, MIGRATION_LOG_TABLE)
 
 
 def create_history_table_sql(config: dict) -> str:
-    qt = DBHelper.quote_identifier(config, MIGRATION_LOG_TABLE)
-    t = DBHelper.normalize_database_type(config)
+    qt = dialect.quote_identifier(config, MIGRATION_LOG_TABLE)
+    t = dialect.normalize_database_type(config)
     if t == "postgresql":
         schema = (config.get("postgresql") or {}).get("pgsql_schema") or "public"
-        qschema = DBHelper.quote_identifier(config, schema)
+        qschema = dialect.quote_identifier(config, schema)
         full = f"{qschema}.{qt}"
         return (
             f"CREATE TABLE IF NOT EXISTS {full} ("

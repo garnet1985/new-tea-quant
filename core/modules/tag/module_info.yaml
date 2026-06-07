@@ -1,6 +1,6 @@
 name: modules.tag
-version: 0.2.0
-compatible_core_versions: ">=0.2.0"
+version: 0.2.1
+compatible_core_versions: ">=0.4.0"
 description: "标签资产层：按场景（Scenario）发现配置、多进程执行 TagWorker，基于 DataContract + DataCursor 按 as_of 切片计算并批量落库。"
 dependencies:
   - modules.data_manager
@@ -8,3 +8,12 @@ dependencies:
   - modules.data_cursor
   - infra.project_context
   - infra.worker
+  - infra.job_pipeline
+changelog:
+  - version: "0.2.1"
+    changes:
+      - Tag 调度并行度改读 job_pipeline profile（tag profile）
+      - dispatch 调优文档与 JobPipeline worker_profile 对齐
+  - version: "0.2.0"
+    changes:
+      - Scenario 发现、TagWorker 多进程、DataContract + DataCursor as_of 切片落库

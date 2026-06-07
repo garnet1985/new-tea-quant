@@ -9,7 +9,7 @@
 - 协调各个 DataService
 
 表名定义：
--   表名由 DataManager 配合 PathManager 发现（core/tables、userspace/tables），
+-   表名由 DataManager 配合 PathManager 发现（core/tables、userspace/extensions/tables），
   core 表须 sys_ 前缀，userspace 表无前缀限制；get_table(table_name) 使用实际表名字符串。
 
 架构：
@@ -72,7 +72,8 @@ class DataManager:
     
     # 单例实例（每个进程独立）
     _instance: Optional['DataManager'] = None
-    _lock = threading.Lock()  # 线程安全锁
+    _lock = threading.Lock()  # 单例 __new__ 锁
+    _initialize_lock = threading.Lock()  # 首次 initialize 锁（BFF 并发 API 防双开 DuckDB）
     
     @classmethod
     def reset_instance(cls):
@@ -167,52 +168,70 @@ class DataManager:
             - 此方法是幂等的，多次调用只会执行一次
             - 在 __init__ 中会自动调用，通常无需手动调用
         """
-        # 幂等检查：如果已经初始化，直接返回
         if self._initialized:
             return
-        
-        try:
-            
-            # 1. 初始化 DatabaseManager（只初始化连接池，不创建表）
-            if self.db is None:
+
+        with self._initialize_lock:
+            if self._initialized:
+                return
+
+            try:
+                from core.infra.project_context import ConfigManager
+
+                db_cfg = ConfigManager.load_database_config()
+                if str(db_cfg.get("database_type") or "").lower() == "duckdb":
+                    from core.infra.db.engines.duckdb.process_pool_scope import (
+                        wait_for_main_duckdb_worker_pool_end,
+                    )
+
+                    wait_for_main_duckdb_worker_pool_end()
+
+                # 1. 初始化 DatabaseManager（只初始化连接池，不创建表）
+                if self.db is None:
+                    if self.is_verbose:
+                        logger.info("🔧 初始化 DatabaseManager...")
+
+                    self.db = DatabaseManager(is_verbose=self.is_verbose)
+                    self.db.initialize()
+                    # 设置为默认实例，便于 DbBaseModel 等自动获取 db
+                    DatabaseManager.set_default(self.db)
+                else:
+                    if self.is_verbose:
+                        logger.info("🔧 使用已提供的 DatabaseManager 实例...")
+
+                # 2. 创建所有 Base Tables（业务逻辑）
+                if self.db:
+                    if self.is_verbose:
+                        logger.info("🔧 创建 Base Tables...")
+                    self.db.create_all_base_tables()
+                elif self.is_verbose:
+                    logger.info("ℹ️  只读模式，跳过 Base Tables 创建")
+
+                # 3. 自动发现并缓存表（core/tables -> sys_*，userspace/extensions/tables -> cust_*）
                 if self.is_verbose:
-                    logger.info("🔧 初始化 DatabaseManager...")
-                
-                self.db = DatabaseManager(is_verbose=self.is_verbose)
-                self.db.initialize()
-                # 设置为默认实例，便于 DbBaseModel 等自动获取 db
-                DatabaseManager.set_default(self.db)
-            else:
+                    logger.info("🔧 自动发现表（core/tables + userspace/extensions/tables）...")
+                self._discover_tables()
+
+                # 4. 初始化 DataService（跨service协调器）
                 if self.is_verbose:
-                    logger.info("🔧 使用已提供的 DatabaseManager 实例...")
+                    logger.info("🔧 初始化 DataService...")
+                from core.modules.data_manager.data_services import DataService
+                self._data_service = DataService(self)
+                try:
+                    self._data_service.index.sync_list_from_config()
+                except Exception as e:
+                    logger.warning(
+                        "sys_index_list 配置同步失败（可稍后由 renew 重试）: %s", e
+                    )
 
-            # 2. 创建所有 Base Tables（业务逻辑）
-            if self.db:
+                self._initialized = True
+
                 if self.is_verbose:
-                    logger.info("🔧 创建 Base Tables...")
-                self.db.schema_manager.create_all_tables(self.db.get_connection)
-            elif self.is_verbose:
-                logger.info("ℹ️  只读模式，跳过 Base Tables 创建")
+                    logger.info("✅ DataManager 初始化完成")
 
-            # 3. 自动发现并缓存表（core/tables -> sys_*，userspace/tables -> cust_*）
-            if self.is_verbose:
-                logger.info("🔧 自动发现表（core/tables + userspace/tables）...")
-            self._discover_tables()
-
-            # 4. 初始化 DataService（跨service协调器）
-            if self.is_verbose:
-                logger.info("🔧 初始化 DataService...")
-            from core.modules.data_manager.data_services import DataService
-            self._data_service = DataService(self)
-
-            self._initialized = True
-            
-            if self.is_verbose:
-                logger.info("✅ DataManager 初始化完成")
-                
-        except Exception as e:
-            logger.error(f"❌ DataManager 初始化失败: {e}")
-            raise
+            except Exception as e:
+                logger.error("❌ DataManager 初始化失败: %s", e)
+                raise
 
     # ------------------------------------------------------------------
     # Table 发现与注册
@@ -225,7 +244,7 @@ class DataManager:
         表文件夹结构：schema.py + model.py，表名取自 schema["name"]。
         
         Args:
-            table_folder_path: 表文件夹路径（core/tables/xxx 或 userspace/tables/xxx）
+            table_folder_path: 表文件夹路径（core/tables/xxx 或 userspace/extensions/tables/xxx）
             from_core: 若为 True 表示来自 core/tables，则 schema["name"] 须以 sys_ 开头，否则跳过
         
         Returns:
@@ -233,8 +252,8 @@ class DataManager:
         """
         from core.infra.db import DbBaseModel
         from core.infra.project_context import FileManager
-        from core.infra.db.schema_management.schema_manager import SchemaManager
-        
+        from core.infra.db.schema_manager import SchemaManager
+
         try:
             table_folder = Path(table_folder_path)
             if not table_folder.is_absolute():
@@ -249,11 +268,20 @@ class DataManager:
             if not schema_py.exists():
                 logger.error(f"❌ 表文件夹中未找到 schema.py: {table_folder_path}")
                 return None
-            schema_manager = SchemaManager()
-            schema = schema_manager.load_schema_from_python(str(schema_py))
+            if self.db is not None and getattr(self.db, "schema_manager", None) is not None:
+                schema = self.db.schema_manager.load_schema_from_python(str(schema_py))
+            else:
+                db_type = (
+                    self.db.config.get("database_type", "postgresql")
+                    if self.db is not None
+                    else "postgresql"
+                )
+                schema = SchemaManager(database_type=db_type).load_schema_from_python(
+                    str(schema_py)
+                )
             if not schema:
                 return None
-            
+
             table_name = schema.get("name")
             if not table_name:
                 logger.error(f"❌ schema 中未找到 name: {table_folder_path}")
@@ -262,6 +290,9 @@ class DataManager:
                 if self.is_verbose:
                     logger.debug(f"⏭️  跳过 core 表（非 sys_ 前缀）: {table_name} ({table_folder_path})")
                 return None
+
+            if self.db is not None:
+                self.db.register_table(table_name, schema)
             
             # 2. 查找并加载 model.py
             model_file_path = FileManager.find_file("model.py", table_folder, recursive=False)
@@ -304,10 +335,10 @@ class DataManager:
     
     def _discover_tables(self):
         """
-        配合 PathManager 递归发现 core/tables 与 userspace/tables 下的表并缓存。
+        配合 PathManager 递归发现 core/tables 与 userspace/extensions/tables 下的表并缓存。
         不依赖目录层级：递归查找所有 schema.py，以其所在目录为表目录并注册。
         - core/tables：仅注册 schema["name"] 以 sys_ 开头的表，否则跳过。
-        - userspace/tables：表名无前缀限制，全部注册。
+        - userspace/extensions/tables：表名无前缀限制，全部注册。
         仅在初始化时调用一次，结果缓存在 _table_cache 中。
         """
         from core.infra.project_context import PathManager
@@ -323,8 +354,8 @@ class DataManager:
                 for table_folder in sorted(_dirs_with_schema(core_tables_dir)):
                     self.register_table(str(table_folder), from_core=True)
 
-            # 2. userspace/tables（表名无限制）
-            userspace_tables_dir = PathManager.userspace() / "tables"
+            # 2. userspace/extensions/tables（表名无限制）
+            userspace_tables_dir = PathManager.extensions_tables()
             if userspace_tables_dir.exists():
                 for table_folder in sorted(_dirs_with_schema(userspace_tables_dir)):
                     self.register_table(str(table_folder), from_core=False)

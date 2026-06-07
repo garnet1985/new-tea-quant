@@ -254,11 +254,38 @@ class PriceFactorFlow(BaseSimulationFlow):
             cfg["backtest_calendar"] = calendar_dict
             cfg["goal"] = dict(preprocessed.base_settings.goal or {})
             job["config"] = cfg
-        results = self._impl.run_worker_jobs(
-            jobs=jobs,
-            max_workers=preprocessed.simulator_config.max_workers,
-            progress_callback=progress_callback,
+
+        from core.infra.db.engines.duckdb.process_pool_scope import (
+            duckdb_worker_pool_main_process,
         )
+        from core.modules.strategy.engines.simulator.price_factor.dispatch_jobs import (
+            build_price_dispatch_jobs,
+        )
+        from core.modules.strategy.services.execution.price_dispatch import (
+            maybe_run_price_dispatch_probe,
+            resolve_price_dispatch_plan,
+        )
+
+        with duckdb_worker_pool_main_process(data_mgr):
+            measured = maybe_run_price_dispatch_probe(
+                per_stock_jobs=jobs,
+                data_mgr=data_mgr,
+            )
+            dispatch_plan = resolve_price_dispatch_plan(
+                total_stocks=len(jobs),
+                measured_timing=measured,
+            )
+            dispatch_jobs = build_price_dispatch_jobs(
+                per_stock_jobs=jobs,
+                entities_per_job=dispatch_plan.entities_per_job,
+            )
+            results = self._impl.run_worker_jobs(
+                dispatch_jobs=dispatch_jobs,
+                dispatch_plan=dispatch_plan,
+                total_stocks=len(jobs),
+                progress_callback=progress_callback,
+                duckdb_data_mgr=data_mgr,
+            )
         collected = self._impl.collect_stock_summaries(results)
         return PriceFactorExecuteContext(
             stock_summaries=collected["stock_summaries"],
@@ -320,6 +347,7 @@ class PriceFactorFlow(BaseSimulationFlow):
             preprocessed.strategy_name,
             "price",
             preprocessed.base_settings.to_dict(),
+            protect_output_version_dir=preprocessed.output_version_dir.name,
         )
         return session_summary
 

@@ -1,7 +1,7 @@
 """
 Schema 迁移管线：期望 schema 之间的 diff、编译为 DDL 步骤、执行。
 
-编排（何时调用）在 ``userspace/updater``；本包负责 diff → plan → execute。
+编排（何时调用）在 ``userspace/system/updater``；本包负责 diff → plan → execute。
 """
 from core.infra.db.migration.schema_diff import (
     SchemaDiffResult,

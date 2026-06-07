@@ -1,6 +1,6 @@
 # Worker 详细设计
 
-**版本：** `0.2.0`
+**版本：** `0.3.0`
 
 实现向说明；总览见 [ARCHITECTURE.md](./ARCHITECTURE.md)。
 

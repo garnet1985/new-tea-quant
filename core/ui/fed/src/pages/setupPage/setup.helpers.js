@@ -16,10 +16,25 @@ export const EMPTY_IMPORT_PROGRESS = {
   percent: 0,
 };
 
+export const DB_SERVER_FIELD_KEYS = new Set(['host', 'port', 'database', 'user', 'password']);
+
+export function shouldShowDbConnectionField(fieldKey, dbType) {
+  if (fieldKey === 'defaultPgsqlSchema') return dbType === 'postgresql';
+  if (DB_SERVER_FIELD_KEYS.has(fieldKey)) return dbType !== 'duckdb';
+  return true;
+}
+
 export function applyDbTypeDefaults(formValues, key, value) {
   const next = { ...formValues, [key]: value };
   if (key === 'dbType') {
-    if (value === 'postgresql') {
+    if (value === 'duckdb') {
+      next.host = '';
+      next.port = '';
+      next.database = '';
+      next.user = '';
+      next.password = '';
+      next.defaultPgsqlSchema = '';
+    } else if (value === 'postgresql') {
       next.host = next.host || 'localhost';
       next.port = '5432';
       next.user = next.user || 'postgres';
@@ -48,10 +63,20 @@ export function getFieldInputId(pausedStep, field) {
 
 export function shouldShowUserspaceConflictPolicy(field, userspacePathEditable, userspacePathExists) {
   if (field.key !== 'userspaceConflictPolicy') return true;
-  // 默认路径场景：按后端返回的 showByDefault 控制；
-  // 自定义路径场景：只看 blur 预检查结果，避免默认路径状态“串”到自定义路径。
   if (userspacePathEditable) {
     return Boolean(userspacePathExists);
   }
   return Boolean(field.showByDefault);
+}
+
+export function validateDbConnectionSubmit(submitValues) {
+  const dbType = String(submitValues.dbType || 'duckdb').trim().toLowerCase();
+  if (dbType === 'duckdb') {
+    return '';
+  }
+  const missing = ['host', 'database', 'user'].filter((key) => !String(submitValues[key] || '').trim());
+  if (missing.length > 0) {
+    return `请填写 ${missing.join('、')} 后再继续。`;
+  }
+  return '';
 }

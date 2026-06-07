@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { stripLegacyStrategySettingsForRun } from '../../../../../utils/stripLegacyStrategySettings';
 import JSON5 from 'json5';
 
 function stripHashComments(text) {
@@ -349,10 +350,10 @@ function StrategySettingsContainer({ initialSettings, children }) {
       setCoreErrorColumn(0);
       setCoreErrorPosition(-1);
       setCoreParseMode(result.mode);
-      return {
+      return stripLegacyStrategySettingsForRun({
         ...draftSettings,
         core: result.parsed,
-      };
+      });
     } catch (err) {
       const msg = err?.message || '解析失败';
       let pos = extractErrorPosition(msg);

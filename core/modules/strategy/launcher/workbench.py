@@ -14,6 +14,10 @@ from core.infra.project_context.path_manager import PathManager
 from core.modules.data_manager import DataManager
 from core.modules.strategy.services.discovery import StrategyDiscoveryHelper
 from core.modules.strategy.services.cache.simulator_res_db_cache.report_slot_disk_hydrate import (
+    attach_enum_opportunities_field,
+    enum_opportunity_count_from_slot,
+    hydrate_capital_slot,
+    hydrate_enum_slot,
     hydrate_workbench_result_report,
 )
 
@@ -22,6 +26,29 @@ from .run_service import StrategySettingsService
 logger = logging.getLogger(__name__)
 
 _MAX_ROW_REPAIR_LOOPS = 5
+
+
+def _resolve_capital_report_slot(strategy_name: str, row: Dict[str, Any]) -> Dict[str, Any]:
+    """读取当前快照行 ``capital_allocation`` 槽；无槽则空。"""
+    rr = dict(row.get("result_report") or {})
+    raw = rr.get("capital_allocation")
+    if not isinstance(raw, dict) or not raw:
+        return {}
+    hydrated = hydrate_capital_slot(str(strategy_name).strip(), raw)
+    if isinstance(hydrated, dict) and hydrated.get("initial_capital") is not None:
+        return hydrated
+    return raw
+
+
+def _resolve_enum_report_slot(strategy_name: str, row: Dict[str, Any]) -> Dict[str, Any]:
+    """读取当前快照行 ``enum`` 槽；无槽则空。"""
+    sn = str(strategy_name).strip()
+    rr = dict(row.get("result_report") or {})
+    raw = rr.get("enum")
+    if not isinstance(raw, dict) or not raw:
+        return {}
+    hydrated = attach_enum_opportunities_field(hydrate_enum_slot(sn, raw))
+    return dict(hydrated) if isinstance(hydrated, dict) and hydrated else {}
 
 
 def _snapshot_model():
@@ -63,9 +90,15 @@ def fetch_workbench_by_version(
     if not row or not _row_usable(row):
         return None
     out = dict(row)
-    rr = out.get("result_report")
+    rr = row.get("result_report") or {}
     if isinstance(rr, dict):
-        out["result_report"] = hydrate_workbench_result_report(name, rr)
+        rr = hydrate_workbench_result_report(name, rr)
+        en_slot = rr.get("enum")
+        if isinstance(en_slot, dict) and en_slot:
+            if enum_opportunity_count_from_slot(en_slot) is not None:
+                rr = dict(rr)
+                rr["enum"] = attach_enum_opportunities_field(en_slot)
+        out["result_report"] = rr
     return out
 
 
@@ -136,7 +169,7 @@ def fetch_latest_workbench_snapshot(strategy_name: str) -> Optional[Dict[str, An
         log_workbench_version_deleted(name, sid, row)
         model.delete_version_row(name, sid)
 
-    folder = PathManager.userspace() / "strategies" / name
+    folder = PathManager.strategy(name)
     discovered = StrategyDiscoveryHelper.load_strategy(folder)
     if discovered is None:
         return None
@@ -288,8 +321,12 @@ def build_step_report_message(
 
     rr = row.get("result_report") or {}
     raw = rr.get(slot)
-    if raw is None:
-        report: Any = {}
+    if slot == "enum":
+        report = _resolve_enum_report_slot(name, row)
+    elif slot == "capital_allocation":
+        report = _resolve_capital_report_slot(name, row)
+    elif raw is None:
+        report = {}
     elif isinstance(raw, dict):
         report = raw
     else:
@@ -449,3 +486,53 @@ def _enrich_stock_ref_with_list_names(stock_ref: Dict[str, Any]) -> Dict[str, An
             base["stock_name"] = names[code]
         out[str(sid)] = base
     return out
+
+
+def clear_workbench_simulation_cache_all() -> Dict[str, Any]:
+    """
+    清空 ``sys_strategy_workbench_snapshot`` 全表（模拟结果 DbCache）。
+
+    仅删 DB 行；磁盘 ``results/simulations/`` 目录不在此接口范围内。
+    """
+    from core.modules.strategy.services.cache.simulator_res_db_cache.cache_service import (
+        SimulatorResDbCacheService,
+    )
+
+    svc = SimulatorResDbCacheService()
+    if svc.table_operator is None:
+        return {"ok": False, "error": "存储不可用", "deleted_count": 0}
+    deleted = int(svc.delete_all_cache() or 0)
+    return {"ok": True, "deleted_count": deleted, "cleared": deleted >= 0}
+
+
+def clear_workbench_simulation_cache_by_version(
+    strategy_name: str, version: int
+) -> Dict[str, Any]:
+    """删除指定 ``strategy_name`` + 工作台 ``version`` 的一条快照行。"""
+    from core.modules.strategy.services.cache.simulator_res_db_cache.cache_service import (
+        SimulatorResDbCacheService,
+    )
+
+    name = str(strategy_name or "").strip()
+    sid = int(version)
+    if not name or sid <= 0:
+        return {"ok": False, "error": "参数无效", "deleted": False}
+    svc = SimulatorResDbCacheService()
+    if svc.table_operator is None:
+        return {"ok": False, "error": "存储不可用", "deleted": False}
+    deleted = bool(svc.delete_cache_by_version(name, sid))
+    if not deleted:
+        return {
+            "ok": False,
+            "error": "快照不存在",
+            "deleted": False,
+            "strategy_name": name,
+            "version": sid,
+        }
+    return {
+        "ok": True,
+        "deleted": True,
+        "strategy_name": name,
+        "version": sid,
+        "version_id": f"v{sid}",
+    }

@@ -3,7 +3,7 @@ DataSourceConfig: 数据源配置。
 
 强类型，仅通过 from_dict 创建。构造时校验，错误第一时间抛出，不兼容不 fallback。
 """
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from core.global_enums.enums import UpdateMode
 
@@ -26,7 +26,7 @@ class DataSourceConfig:
         data_source_key: str,
         table: str,
         save_mode: str,
-        save_batch_size: int,
+        save_batch_size: Union[int, str],
         renew: RenewConfig,
         apis: Dict[str, ApiConfig],
         ignore_fields: List[str],
@@ -79,19 +79,27 @@ class DataSourceConfig:
                 f"{data_source_key}: save_mode 无效 '{save_mode}'，应为 unified | immediate | batch"
             )
 
-        save_batch_size = 50
         raw_batch = config_dict.get("save_batch_size")
-        if raw_batch is not None:
+        if raw_batch is None:
+            save_batch_size = "auto" if save_mode == "batch" else 50
+        elif isinstance(raw_batch, str) and raw_batch.strip().lower() == "auto":
+            save_batch_size = "auto"
+        else:
             try:
                 save_batch_size = int(raw_batch)
             except (TypeError, ValueError):
                 raise DataSourceConfigError(
-                    f"{data_source_key}: save_batch_size 必须是整数"
+                    f"{data_source_key}: save_batch_size 必须是正整数或 'auto'"
                 )
             if save_batch_size <= 0:
                 raise DataSourceConfigError(
                     f"{data_source_key}: save_batch_size 必须大于 0"
                 )
+
+        if save_batch_size == "auto" and save_mode != "batch":
+            raise DataSourceConfigError(
+                f"{data_source_key}: save_batch_size='auto' 仅适用于 save_mode='batch'"
+            )
 
         renew_raw = config_dict.get("renew")
         if not renew_raw or not isinstance(renew_raw, dict):
@@ -170,8 +178,15 @@ class DataSourceConfig:
     def get_save_mode(self) -> str:
         return self._save_mode
 
+    def is_save_batch_size_auto(self) -> bool:
+        return self._save_batch_size == "auto"
+
     def get_save_batch_size(self) -> int:
-        return self._save_batch_size
+        if self._save_batch_size == "auto":
+            raise DataSourceConfigError(
+                f"{self._data_source_key}: save_batch_size 为 auto，请使用 SaveBatchSizer"
+            )
+        return int(self._save_batch_size)
 
     def get_ignore_fields(self) -> List[str]:
         return self._ignore_fields

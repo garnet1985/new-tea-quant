@@ -190,6 +190,14 @@ class ResolveEnv:
         )
 
     @staticmethod
+    def resolve_storage_database_type() -> str:
+        """当前 ``userspace/config/database/common.json`` 的 ``database_type``（mysql / duckdb 等）。"""
+        from core.infra.project_context import ConfigManager
+
+        cfg = ConfigManager.load_database_config()
+        return str(cfg.get("database_type") or "").strip().lower()
+
+    @staticmethod
     def env_fingerprint_payload(
         *,
         strategy_name: str,
@@ -200,20 +208,27 @@ class ResolveEnv:
         worker_class_name: str = "",
         worker_code_hash: str = "",
         data_contract_mapping: str = "",
+        database_type: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        组装 env 指纹 **载荷 dict**（``v=5``），**不含** settings 语义核与日历窗。
+        组装 env 指纹 **载荷 dict**（``v=6``），**不含** settings 语义核与日历窗。
 
         回测 scope 以规范化后的 ``stock_ids`` 列表为准（与 ``compute_scope_fingerprint_id`` 同源列表）。
+        ``database_type`` 纳入 env，避免 MySQL ↔ DuckDB 切换后仍命中旧快照。
         """
         normalized_stock_ids = ResolveEnv._collect_stock_ids(list(stock_ids))
+        db_type = (
+            str(database_type or "").strip().lower()
+            or ResolveEnv.resolve_storage_database_type()
+        )
         return {
-            "v": 5,
+            "v": 6,
             "kind": "strategy_db_cache_env",
             "strategy_name": str(strategy_name),
             "stock_ids": normalized_stock_ids,
             "run_mode": str(run_mode),
             "engine_version": str(engine_version),
+            "database_type": db_type,
             "worker_module_path": str(worker_module_path),
             "worker_class_name": str(worker_class_name),
             "worker_code_hash": str(worker_code_hash),

@@ -6,6 +6,7 @@ import json
 import logging
 import re
 from pathlib import Path
+from typing import Any, Dict
 
 from flask import Blueprint, request
 
@@ -19,6 +20,12 @@ logger = logging.getLogger(__name__)
 settings_api_bp = Blueprint("settings_api", __name__)
 
 _DB_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_\-.]+$")
+_SUPPORTED_DB_TYPES = ("postgresql", "mysql", "duckdb")
+_DEFAULT_DUCKDB_DOMAINS = {
+    "data": {"db_path": "data.duckdb"},
+    "tag": {"db_path": "tag.duckdb"},
+    "strategy": {"db_path": "strategy.duckdb"},
+}
 
 
 def _database_config_dir() -> Path:
@@ -40,32 +47,46 @@ def _write_json(path: Path, data: dict) -> None:
     atomic_write_text(path, text, encoding="utf-8")
 
 
+def _duckdb_domains_payload(cfg: Dict[str, Any]) -> Dict[str, str]:
+    duck = cfg.get("duckdb") if isinstance(cfg.get("duckdb"), dict) else {}
+    domains = duck.get("domains") if isinstance(duck.get("domains"), dict) else {}
+    out: Dict[str, str] = {}
+    for name, block in domains.items():
+        if isinstance(block, dict) and block.get("db_path"):
+            out[str(name)] = str(block["db_path"])
+    return out
+
+
+def _database_settings_response(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    dt = str(cfg.get("database_type") or "duckdb").strip().lower()
+    if dt == "duckdb":
+        return {
+            "database_type": dt,
+            "database": "",
+            "duckdb_domains": _duckdb_domains_payload(cfg),
+        }
+    inner = cfg.get(dt) if isinstance(cfg.get(dt), dict) else {}
+    name = str(inner.get("database") or "").strip()
+    return {"database_type": dt, "database": name, "duckdb_domains": {}}
+
+
 @settings_api_bp.route("/v1/settings/database", methods=["GET"])
 def get_database_settings():
     """读取合并后的当前库类型与库名（与 ``ConfigManager.load_database_config`` 一致）。"""
     cfg = ConfigManager.load_database_config()
-    dt = str(cfg.get("database_type") or "postgresql").strip().lower()
-    inner = cfg.get(dt) if isinstance(cfg.get(dt), dict) else {}
-    name = str(inner.get("database") or "").strip()
-    return ok({"database_type": dt, "database": name})
+    return ok(_database_settings_response(cfg))
 
 
 @settings_api_bp.route("/v1/settings/database", methods=["POST"])
 def post_database_settings():
-    """写入 ``userspace/config/database/common.json`` 与 ``{type}.json`` 中的 ``database`` 字段。"""
+    """写入 ``userspace/config/database/common.json`` 与 ``{type}.json``。"""
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict):
         return error("请求体须为 JSON 对象", 400)
 
     dt = str(payload.get("database_type") or "").strip().lower()
-    if dt not in ("postgresql", "mysql"):
-        return error("database_type 须为 postgresql 或 mysql", 400)
-
-    db_name = str(payload.get("database") or "").strip()
-    if not db_name:
-        return error("database（库名）不能为空", 400)
-    if len(db_name) > 128 or not _DB_NAME_PATTERN.match(db_name):
-        return error("库名仅允许字母、数字、下划线、连字符与点号，且不超过 128 字符", 400)
+    if dt not in _SUPPORTED_DB_TYPES:
+        return error("database_type 须为 postgresql、mysql 或 duckdb", 400)
 
     base = _database_config_dir()
     base.mkdir(parents=True, exist_ok=True)
@@ -80,10 +101,24 @@ def post_database_settings():
     _write_json(common_path, common)
     logger.info("[bff.settings] wrote database_type=%s to %s", dt, common_path)
 
+    if dt == "duckdb":
+        type_path = base / "duckdb.json"
+        if not type_path.is_file():
+            _write_json(type_path, {"domains": dict(_DEFAULT_DUCKDB_DOMAINS)})
+            logger.info("[bff.settings] created default duckdb.json at %s", type_path)
+        cfg = ConfigManager.load_database_config(dt)
+        return ok(_database_settings_response(cfg))
+
+    db_name = str(payload.get("database") or "").strip()
+    if not db_name:
+        return error("database（库名）不能为空", 400)
+    if len(db_name) > 128 or not _DB_NAME_PATTERN.match(db_name):
+        return error("库名仅允许字母、数字、下划线、连字符与点号，且不超过 128 字符", 400)
+
     type_path = base / f"{dt}.json"
     inner = _read_flat_type_config(type_path, dt)
     inner["database"] = db_name
     _write_json(type_path, inner)
     logger.info("[bff.settings] wrote database=%r for type=%s to %s", db_name, dt, type_path)
 
-    return ok({"database_type": dt, "database": db_name})
+    return ok({"database_type": dt, "database": db_name, "duckdb_domains": {}})

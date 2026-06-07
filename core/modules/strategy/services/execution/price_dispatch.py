@@ -25,17 +25,18 @@ logger = logging.getLogger(__name__)
 
 def release_main_duckdb_handles(data_mgr: Any = None) -> None:
     """主进程释放 DuckDB 文件锁，便于子进程 probe / ProcessPool。"""
+    from core.infra.db import DatabaseManager
     from core.infra.db.engines.duckdb.process_pool_scope import (
         release_all_main_db_handles,
         wait_pool_children_done,
     )
     from core.modules.data_manager import DataManager
 
-    dm = data_mgr
-    if dm is None:
-        dm = DataManager.get_instance()
+    dm = data_mgr if data_mgr is not None else DataManager.get_instance()
     if dm is not None:
         release_all_main_db_handles(dm)
+    elif DatabaseManager._default_instance is not None:
+        DatabaseManager.reset_default()
     DataManager.reset_instance()
     wait_pool_children_done(timeout_sec=15.0)
 

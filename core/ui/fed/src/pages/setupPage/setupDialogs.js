@@ -17,6 +17,8 @@ function SetupDialogs({
   onConfirmOverwrite,
   onConfirmDbRisk,
 }) {
+  const isDuckdb = Boolean(dbRiskContext.isDuckdb) || dbRiskContext.dbType === 'duckdb';
+
   return (
     <>
       <Dialog
@@ -58,11 +60,25 @@ function SetupDialogs({
         <DialogTitle>确认数据库风险</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            系统检测到目标数据库
-            {dbRiskContext.dbType || dbRiskContext.database
-              ? `（${dbRiskContext.dbType || 'db'}:${dbRiskContext.database || '未命名'}）`
-              : ''}已存在。
-            继续执行后，初始化数据导入可能覆盖其中部分表数据。请确认你要继续覆盖初始化数据。
+            {isDuckdb ? (
+              <>
+                系统检测到
+                {' '}
+                <strong>userspace/system/db/</strong>
+                {' '}
+                下已有 DuckDB 数据文件（如 data.duckdb / tag.duckdb / strategy.duckdb）。
+                继续执行后，初始化数据导入可能覆盖其中部分表数据。请确认你要继续。
+              </>
+            ) : (
+              <>
+                系统检测到目标数据库
+                {dbRiskContext.dbType || dbRiskContext.database
+                  ? `（${dbRiskContext.dbType || 'db'}:${dbRiskContext.database || '未命名'}）`
+                  : ''}
+                已存在。
+                继续执行后，初始化数据导入可能覆盖其中部分表数据。请确认你要继续覆盖初始化数据。
+              </>
+            )}
           </DialogContentText>
         </DialogContent>
         <DialogActions>

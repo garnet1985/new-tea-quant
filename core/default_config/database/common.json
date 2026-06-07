@@ -1,5 +1,5 @@
 {
-  "database_type": "postgresql",
+  "database_type": "duckdb",
   "batch_write": {
     "enable": true,
     "batch_size": 1000,

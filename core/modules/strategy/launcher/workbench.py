@@ -14,6 +14,10 @@ from core.infra.project_context.path_manager import PathManager
 from core.modules.data_manager import DataManager
 from core.modules.strategy.services.discovery import StrategyDiscoveryHelper
 from core.modules.strategy.services.cache.simulator_res_db_cache.report_slot_disk_hydrate import (
+    attach_enum_opportunities_field,
+    enum_opportunity_count_from_slot,
+    hydrate_capital_slot,
+    hydrate_enum_slot,
     hydrate_workbench_result_report,
 )
 
@@ -22,6 +26,29 @@ from .run_service import StrategySettingsService
 logger = logging.getLogger(__name__)
 
 _MAX_ROW_REPAIR_LOOPS = 5
+
+
+def _resolve_capital_report_slot(strategy_name: str, row: Dict[str, Any]) -> Dict[str, Any]:
+    """读取当前快照行 ``capital_allocation`` 槽；无槽则空。"""
+    rr = dict(row.get("result_report") or {})
+    raw = rr.get("capital_allocation")
+    if not isinstance(raw, dict) or not raw:
+        return {}
+    hydrated = hydrate_capital_slot(str(strategy_name).strip(), raw)
+    if isinstance(hydrated, dict) and hydrated.get("initial_capital") is not None:
+        return hydrated
+    return raw
+
+
+def _resolve_enum_report_slot(strategy_name: str, row: Dict[str, Any]) -> Dict[str, Any]:
+    """读取当前快照行 ``enum`` 槽；无槽则空。"""
+    sn = str(strategy_name).strip()
+    rr = dict(row.get("result_report") or {})
+    raw = rr.get("enum")
+    if not isinstance(raw, dict) or not raw:
+        return {}
+    hydrated = attach_enum_opportunities_field(hydrate_enum_slot(sn, raw))
+    return dict(hydrated) if isinstance(hydrated, dict) and hydrated else {}
 
 
 def _snapshot_model():
@@ -63,9 +90,15 @@ def fetch_workbench_by_version(
     if not row or not _row_usable(row):
         return None
     out = dict(row)
-    rr = out.get("result_report")
+    rr = row.get("result_report") or {}
     if isinstance(rr, dict):
-        out["result_report"] = hydrate_workbench_result_report(name, rr)
+        rr = hydrate_workbench_result_report(name, rr)
+        en_slot = rr.get("enum")
+        if isinstance(en_slot, dict) and en_slot:
+            if enum_opportunity_count_from_slot(en_slot) is not None:
+                rr = dict(rr)
+                rr["enum"] = attach_enum_opportunities_field(en_slot)
+        out["result_report"] = rr
     return out
 
 
@@ -288,8 +321,12 @@ def build_step_report_message(
 
     rr = row.get("result_report") or {}
     raw = rr.get(slot)
-    if raw is None:
-        report: Any = {}
+    if slot == "enum":
+        report = _resolve_enum_report_slot(name, row)
+    elif slot == "capital_allocation":
+        report = _resolve_capital_report_slot(name, row)
+    elif raw is None:
+        report = {}
     elif isinstance(raw, dict):
         report = raw
     else:

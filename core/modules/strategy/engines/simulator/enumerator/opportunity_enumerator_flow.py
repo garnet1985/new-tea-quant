@@ -276,6 +276,11 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             backtest_calendar=calendar_dict,
             data_mgr=data_mgr,
         )
+        from core.infra.db.engines.duckdb.process_pool_scope import (
+            ensure_data_manager_restored,
+        )
+
+        ensure_data_manager_restored(data_mgr)
         dispatch_plan = resolve_enum_dispatch_plan(
             total_stocks=len(self.stock_list),
             measured_mb_per_entity=measured_mb,
@@ -316,6 +321,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             jobs=jobs,
             global_extra_cache=global_extra_cache,
             max_workers=resolved_workers,
+            data_mgr=data_mgr,
             start_time=runtime["start_time"],
             aggregate_profiler=runtime["aggregate_profiler"],
         )
@@ -335,6 +341,7 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             global_extra_cache=preprocessed.global_extra_cache or {},
             max_workers=preprocessed.max_workers or 1,
             enum_settings=preprocessed.enum_settings,
+            duckdb_data_mgr=preprocessed.data_mgr,
         )
         return EnumeratorExecuteContext(job_results=job_results)
 

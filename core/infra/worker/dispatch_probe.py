@@ -161,15 +161,32 @@ def run_dispatch_probe_in_subprocess(
     """在独立子进程跑 1 次探针（与生产相同的 execute 路径）。"""
     import multiprocessing as mp
 
-    from core.infra.db.engines.duckdb.process_pool_scope import wait_pool_children_done
+    from core.infra.db.engines.duckdb.process_pool_scope import (
+        is_duckdb_backend,
+        is_main_duckdb_worker_pool_active,
+        prepare_main_for_worker_pool,
+        restore_after_worker_pool,
+        wait_pool_children_done,
+    )
 
     performance = performance or {}
     start_method = str(performance.get("start_method", "spawn"))
     payload = dict(probe_payload)
     payload["_probe_executor"] = executor
 
-    ctx = mp.get_context(start_method)
-    with ctx.Pool(processes=1) as pool:
-        raw = pool.apply(dispatch_probe_subprocess_worker, (payload,))
-    wait_pool_children_done(timeout_sec=15.0)
-    return build_probe_result(raw, performance=performance, log_label=log_label)
+    prepared_here = False
+    if is_duckdb_backend():
+        wait_pool_children_done(timeout_sec=30.0)
+        if not is_main_duckdb_worker_pool_active():
+            prepare_main_for_worker_pool(None)
+            prepared_here = True
+
+    try:
+        ctx = mp.get_context(start_method)
+        with ctx.Pool(processes=1) as pool:
+            raw = pool.apply(dispatch_probe_subprocess_worker, (payload,))
+        wait_pool_children_done(timeout_sec=15.0)
+        return build_probe_result(raw, performance=performance, log_label=log_label)
+    finally:
+        if prepared_here:
+            restore_after_worker_pool()

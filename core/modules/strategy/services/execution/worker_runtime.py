@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import multiprocessing as mp
 import os
+import time
 from typing import Any, Dict, Optional, Tuple
 
 from core.infra.db.engines.duckdb.process_pool_scope import (
@@ -23,7 +24,20 @@ _PID_DATA_MANAGER: Dict[int, Any] = {}
 
 
 def _connect_duckdb_data_domain_readonly(db: Any) -> None:
-    connect_duckdb_domains(db, domains=("data",), read_only=True)
+    last_exc: Optional[BaseException] = None
+    for attempt in range(1, 9):
+        try:
+            connect_duckdb_domains(db, domains=("data",), read_only=True)
+            return
+        except Exception as exc:
+            last_exc = exc
+            msg = str(exc).lower()
+            if "lock" not in msg and "conflicting" not in msg:
+                raise
+            if attempt < 8:
+                time.sleep(0.25)
+    if last_exc is not None:
+        raise last_exc
 
 
 def create_strategy_worker_data_manager() -> Any:

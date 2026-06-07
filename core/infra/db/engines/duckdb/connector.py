@@ -108,9 +108,16 @@ class DuckdbDomainConnection:
                 self._short_exc(e),
             )
             Path(wal_path).unlink(missing_ok=True)
-            if read_only:
-                return duckdb.connect(db_path, read_only=True)
-            return duckdb.connect(db_path)
+            try:
+                if read_only:
+                    return duckdb.connect(db_path, read_only=True)
+                return duckdb.connect(db_path)
+            except Exception as retry_exc:
+                raise RuntimeError(
+                    f"无法打开 DuckDB（已删除损坏 WAL 仍失败）: {db_path}。"
+                    f" 请确认无 renew/写库进程占用，执行: python dev-cli.py -dbc"
+                    f" 原始错误: {self._short_exc(retry_exc)}"
+                ) from retry_exc
 
     @staticmethod
     def _short_exc(exc: BaseException) -> str:
@@ -120,7 +127,10 @@ class DuckdbDomainConnection:
     @staticmethod
     def _is_corrupt_wal_error(exc: BaseException) -> bool:
         msg = str(exc).lower()
-        return "replaying wal" in msg or "wal file" in msg
+        if "replaying wal" in msg or "wal file" in msg:
+            return True
+        # DuckDB INTERNAL：损坏/并发 WAL 回放时偶发
+        return "internal error" in msg and "getdefaultdatabase" in msg
 
     def close(self) -> None:
         if self._conn is not None:
@@ -178,10 +188,16 @@ class DuckdbDomainConnection:
 
     def execute_query(self, query: str, params: Any = None) -> List[Dict[str, Any]]:
         try:
-            rel = self._execute(query, params)
-            if rel is None:
-                return []
-            df = rel.fetchdf()
+            query = self.sql_adapter.normalize_query(query)
+            conn = self._ensure_conn()
+            with self._lock:
+                if params is None:
+                    rel = conn.execute(query)
+                else:
+                    rel = conn.execute(query, params)
+                if rel is None:
+                    return []
+                df = rel.fetchdf()
             if df is None or df.empty:
                 return []
             return df.to_dict(orient="records")
@@ -191,13 +207,19 @@ class DuckdbDomainConnection:
 
     def execute_write(self, query: str, params: Any = None) -> int:
         try:
-            rel = self._execute(query, params)
-            if rel is None:
-                return 0
-            try:
-                return int(rel.rowcount)
-            except Exception:
-                return 0
+            query = self.sql_adapter.normalize_query(query)
+            conn = self._ensure_conn()
+            with self._lock:
+                if params is None:
+                    rel = conn.execute(query)
+                else:
+                    rel = conn.execute(query, params)
+                if rel is None:
+                    return 0
+                try:
+                    return int(rel.rowcount)
+                except Exception:
+                    return 0
         except Exception as e:
             logger.error("DuckDB 写入失败 domain=%s: %s\nSQL: %s", self.domain, e, query)
             raise
@@ -220,18 +242,17 @@ class DuckdbDomainConnection:
     @contextmanager
     def transaction(self) -> Iterator[Any]:
         conn = self._ensure_conn()
-        try:
-            conn.execute("BEGIN TRANSACTION")
-            yield _DuckDBTransactionCursor(conn, self._lock)
-            with self._lock:
+        with self._lock:
+            try:
+                conn.execute("BEGIN TRANSACTION")
+                yield _DuckDBTransactionCursor(conn)
                 conn.execute("COMMIT")
-        except Exception:
-            with self._lock:
+            except Exception:
                 try:
                     conn.execute("ROLLBACK")
                 except Exception:
                     pass
-            raise
+                raise
 
     def get_connection(self) -> Any:
         return _DuckDBConnectionWrapper(self._ensure_conn(), self)
@@ -247,19 +268,20 @@ class DuckdbDomainConnection:
 
 
 class _DuckDBTransactionCursor:
-    def __init__(self, conn: Any, lock: threading.Lock) -> None:
+    def __init__(self, conn: Any) -> None:
         self._conn = conn
-        self._lock = lock
         self.rowcount = 0
 
     def execute(self, query: str, params: Any = None) -> None:
         q = query.replace("%s", "?") if "%s" in query else query
-        with self._lock:
-            rel = self._conn.execute(q, params) if params is not None else self._conn.execute(q)
-            try:
-                self.rowcount = int(rel.rowcount) if rel is not None else 0
-            except Exception:
-                self.rowcount = 0
+        if params is not None:
+            rel = self._conn.execute(q, params)
+        else:
+            rel = self._conn.execute(q)
+        try:
+            self.rowcount = int(rel.rowcount) if rel is not None else 0
+        except Exception:
+            self.rowcount = 0
 
 
 class _DuckDBConnectionWrapper:
@@ -304,12 +326,25 @@ class DuckdbConnector:
     def connect_all_domains(self) -> None:
         shared = self.settings.shared_connector_dict()
         self._domains = {}
-        for domain in sorted(STORAGE_DOMAINS):
-            dom = self.settings.domains[domain]
-            merged = dom.as_dict(shared)
-            conn = DuckdbDomainConnection(merged, is_verbose=self.is_verbose, domain=domain)
-            conn.connect()
-            self._domains[domain] = conn
+        opened: List[DuckdbDomainConnection] = []
+        try:
+            for domain in sorted(STORAGE_DOMAINS):
+                dom = self.settings.domains[domain]
+                merged = dom.as_dict(shared)
+                conn = DuckdbDomainConnection(
+                    merged, is_verbose=self.is_verbose, domain=domain
+                )
+                conn.connect()
+                opened.append(conn)
+                self._domains[domain] = conn
+        except Exception:
+            for conn in opened:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            self._domains.clear()
+            raise
 
         if PRIMARY_DUCKDB_DOMAIN not in self._domains:
             raise RuntimeError("DuckDB 主域 data 未创建")

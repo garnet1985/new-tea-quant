@@ -20,6 +20,7 @@ python dev-cli -p -vx.x.x
 [] 更新模块文档（模块 readme，API，module_info 含 changelog）
 [] 更新项目README文档
 
+
 ---
 
 ### v0.5.x (TBD)
@@ -33,8 +34,6 @@ python dev-cli -p -vx.x.x
 ---
 
 ### v0.4.x (TBD)
-
-目标，让整个项目的安装仅依赖python
 - 增加report里K线的点击界面
 - 为新版本的更新增加清除缓存的步骤
 - 给设置里增加清除缓存的功能
@@ -45,7 +44,7 @@ python dev-cli -p -vx.x.x
 
 ---
 
-### v0.4.0 (TBD)
+### v0.4.0 (2026-6-5)
 
 - 引入duckdb，在table schema引入domain的概念以区分duckdb的工作领域，从而避免多worker同时写入风险
 - 修复关键性bug - data source（数据源）系统不是批量写入的bug
@@ -58,7 +57,7 @@ python dev-cli -p -vx.x.x
 - 将回测引擎和标签引擎的数据加载收入数据契约中，删除硬编码。
 - 优化K线加载查询逻辑，让演示策略的回测速度提高7-10倍。（DuckDB全量3年数据回测现在需要跑约21秒，mysql约26秒，峰值内存约3GB内）
 - 清理所有模块的module info，并且加入每个模块的change log
-- 加入userspace打包命令
+- 加入init userspace的自动打包命令
 
 ---
 

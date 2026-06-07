@@ -62,6 +62,9 @@ class WorkbenchEnumeratorProgressCallback:
         self.run_id = run_id
 
     def __call__(self, payload: Dict[str, Any]) -> None:
+        from core.modules.strategy.execution_manager.workbench_run_envelope import (
+            run_envelope_on_flow_progress,
+        )
         from core.modules.strategy.services.progress import ProgressRecorder
 
         recorder = ProgressRecorder.for_strategy_run_step(
@@ -76,6 +79,13 @@ class WorkbenchEnumeratorProgressCallback:
         progress_pct = int(payload.get("progress_pct") or 0)
         if total_jobs > 0:
             progress_pct = min(100, max(0, progress_pct))
+        prev = recorder.get_progress()
+        if isinstance(prev, dict):
+            try:
+                prev_pct = int(prev.get("progress_pct") or 0)
+            except (TypeError, ValueError):
+                prev_pct = 0
+            progress_pct = max(prev_pct, progress_pct)
         recorder.record(
             {
                 "strategy_name": self.strategy_name,
@@ -86,6 +96,9 @@ class WorkbenchEnumeratorProgressCallback:
                 "total_jobs": total_jobs,
                 "progress_pct": progress_pct,
             }
+        )
+        run_envelope_on_flow_progress(
+            self.strategy_name, self.run_id, "enum", float(progress_pct)
         )
 
 
@@ -318,6 +331,7 @@ class OpportunityEnumeratorFlowImpl:
         global_extra_cache: Dict[str, List[Dict[str, Any]]],
         max_workers: int,
         enum_settings: OpportunityEnumeratorSettings,
+        duckdb_data_mgr: Any = None,
     ) -> List[Any]:
         from core.infra.job_pipeline.profile import (
             WorkerProfiles,
@@ -346,6 +360,13 @@ class OpportunityEnumeratorFlowImpl:
             on_job_done = WorkbenchEnumeratorProgressCallback(sn, rid)
             total_n = total_stocks
             if total_n > 0:
+                prev = recorder.get_progress()
+                seed_pct = 1
+                if isinstance(prev, dict):
+                    try:
+                        seed_pct = max(1, int(prev.get("progress_pct") or 0))
+                    except (TypeError, ValueError):
+                        seed_pct = 1
                 recorder.record(
                     {
                         "strategy_name": sn,
@@ -354,9 +375,14 @@ class OpportunityEnumeratorFlowImpl:
                         "phase": "running",
                         "done_jobs": 0,
                         "total_jobs": total_n,
-                        "progress_pct": 0,
+                        "progress_pct": seed_pct,
                     }
                 )
+                from core.modules.strategy.execution_manager.workbench_run_envelope import (
+                    run_envelope_on_flow_progress,
+                )
+
+                run_envelope_on_flow_progress(sn, rid, "enum", float(seed_pct))
 
         scheduler = MemoryAwareScheduler(
             jobs=jobs,
@@ -381,6 +407,7 @@ class OpportunityEnumeratorFlowImpl:
             run_name=run_name,
             on_job_progress=on_job_done,
             run_fn=run_enumeration_jobs_via_pipeline,
+            duckdb_data_mgr=duckdb_data_mgr,
         )
 
     def _run_scheduled_batches(
@@ -394,6 +421,7 @@ class OpportunityEnumeratorFlowImpl:
         run_name: str,
         on_job_progress: Optional[Callable[[Dict[str, Any]], None]],
         run_fn: Any,
+        duckdb_data_mgr: Any = None,
     ) -> List[Any]:
         from core.modules.strategy.services.execution.enum_job_pipeline import (
             count_progress_units_from_job_result,
@@ -414,6 +442,7 @@ class OpportunityEnumeratorFlowImpl:
                 failed_offset=cumulative_fail,
                 run_name=run_name,
                 on_job_progress=on_job_progress,
+                duckdb_data_mgr=duckdb_data_mgr,
             )
             batch_finished = 0
             for jr in batch_results:

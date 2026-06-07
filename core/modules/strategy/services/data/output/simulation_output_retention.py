@@ -47,6 +47,20 @@ def resolve_max_output_versions(settings: Dict[str, Any]) -> int:
     return 3
 
 
+def _normalize_protect_output_version_dir(value: Any) -> str:
+    """``protect_output_version_dir`` 接受目录名或 ``Path``（及绝对路径字符串）。"""
+    if value is None:
+        return ""
+    if isinstance(value, Path):
+        return str(value.name).strip()
+    s = str(value).strip()
+    if not s:
+        return ""
+    if "/" in s or "\\" in s:
+        return Path(s).name
+    return s
+
+
 def _norm_dir_name(value: Any) -> str:
     s = str(value or "").strip()
     if not s:
@@ -62,7 +76,9 @@ def _add_dir_name(target: Set[str], value: Any) -> None:
         target.add(name)
 
 
-def _protected_dirs_from_result_report(rr: Dict[str, Any]) -> Dict[_SimKind, Set[str]]:
+def _protected_dirs_from_result_report(
+    rr: Dict[str, Any], *, strategy_name: str = ""
+) -> Dict[_SimKind, Set[str]]:
     out: Dict[_SimKind, Set[str]] = {"enum": set(), "price": set(), "capital": set()}
     if not isinstance(rr, dict):
         return out
@@ -79,6 +95,17 @@ def _protected_dirs_from_result_report(rr: Dict[str, Any]) -> Dict[_SimKind, Set
         ov = pf.get("output_version")
         if isinstance(ov, dict):
             _add_dir_name(out["enum"], ov.get("enumerator_output_dir"))
+            sn = str(strategy_name or "").strip()
+            edir = str(ov.get("enumerator_output_dir") or "").strip()
+            if sn and edir:
+                from core.modules.strategy.services.cache.simulator_res_db_cache.report_slot_disk_hydrate import (
+                    resolve_capital_output_dir_for_enum_run,
+                )
+
+                _add_dir_name(
+                    out["capital"],
+                    resolve_capital_output_dir_for_enum_run(sn, edir),
+                )
 
     cap = rr.get("capital_allocation")
     if isinstance(cap, dict):
@@ -104,7 +131,10 @@ def collect_referenced_output_version_dirs(strategy_name: str) -> Dict[_SimKind,
         except Exception:
             rows = []
         for row in rows:
-            refs = _protected_dirs_from_result_report(dict((row or {}).get("result_report") or {}))
+            refs = _protected_dirs_from_result_report(
+                dict((row or {}).get("result_report") or {}),
+                strategy_name=sn,
+            )
             for kind in ("enum", "price", "capital"):
                 merged[kind].update(refs[kind])
 
@@ -175,7 +205,7 @@ def prune_disk_output_after_sim_run(
     if sim_kind == "enum":
         # enum 目录常被 price/capital 的 metadata / DB 槽位引用为上游 base_output_version
         protected = set(protected) | refs["price"] | refs["capital"]
-    extra = str(protect_output_version_dir or "").strip()
+    extra = _normalize_protect_output_version_dir(protect_output_version_dir)
     if extra:
         protected = set(protected) | {extra}
 

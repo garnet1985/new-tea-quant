@@ -2,8 +2,8 @@
 """
 开发常用命令（仓库根目录，短选项与 ``start-cli.py`` 风格一致）。
 
-  python dev-cli.py -ui     # 先清 8000/8888，再 launcher.py -d
-  python dev-cli.py -kui    # 结束占用 8000 / 8888 的监听进程
+  python dev-cli.py -ui     # 清 8000/8888 后 launcher.py -d（浏览器 :8000）
+  python dev-cli.py -kui    # 结束占用 8000 / 8888 的 NTQ UI 监听进程
   python dev-cli.py -ic     # UI 最小依赖 import 冒烟
   python dev-cli.py -cc     # 清空 userspace/.ntq（不动仓库根 .ntq / 安装状态）
   python dev-cli.py -cu     # 清空 userspace：各策略 results/ + DB 工作台快照
@@ -29,9 +29,9 @@ REPO_ROOT = Path(__file__).resolve().parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from core.ui.ports import BFF_DEFAULT_PORT, FED_DEV_PORT
+from core.ui.ports import ALL_UI_PORTS
 
-UI_PORTS = (FED_DEV_PORT, BFF_DEFAULT_PORT)
+UI_PORTS = ALL_UI_PORTS
 
 # 短选项 → (handler_key, extra_kwargs)
 _SHORT_FLAGS: dict[str, tuple[str, dict]] = {
@@ -78,12 +78,15 @@ def kill_listeners_on_ports(
     *,
     ntq_only: bool = False,
 ) -> int:
+    from core.ui.process_cleanup import kill_process_group
+
     fed_root = str((REPO_ROOT / "core" / "ui" / "fed").resolve())
     repo_s = str(REPO_ROOT)
     ntq_markers = (
         "core.ui.bff.app",
         "react-scripts",
         "webpack",
+        "webpack-dev-server",
         "launcher.py",
         "dev-cli.py",
         fed_root,
@@ -91,7 +94,7 @@ def kill_listeners_on_ports(
     )
     killed = 0
     for port in ports:
-        for sig in (signal.SIGTERM, signal.SIGKILL):
+        for attempt in range(2):
             pids = _pids_listening_on(port)
             if not pids:
                 break
@@ -102,14 +105,15 @@ def kill_listeners_on_ports(
                     continue
                 print(f"结束 pid={pid}（:{port}） {cmd[:100]}", flush=True)
                 try:
-                    os.kill(pid, sig)
+                    kill_process_group(pid, grace_sec=2.0 if attempt == 0 else 0.5)
                     killed += 1
                 except ProcessLookupError:
                     pass
+            deadline = time.time() + 8.0
+            while time.time() < deadline and _pids_listening_on(port):
+                time.sleep(0.25)
             if not _pids_listening_on(port):
                 break
-            if sig == signal.SIGTERM:
-                time.sleep(0.5)
     return killed
 
 
@@ -280,8 +284,8 @@ def _print_help() -> None:
         """用法: python dev-cli.py <命令> [参数…]
 
 短选项（推荐）:
-  -ui      先 kill :8000/:8888，再 python launcher.py -d
-  -kui     结束占用 8000、8888 的监听进程
+  -ui      清 8000/8888 后 python launcher.py -d
+  -kui     结束占用 8000、8888 的 NTQ UI 进程
   -ic      UI 最小依赖 import 检查
   -cc      删除 userspace/.ntq（不碰仓库根 .ntq / install-state）
   -cu      删除各策略 results/ 与 DB 工作台快照表

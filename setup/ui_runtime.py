@@ -2,18 +2,17 @@ from __future__ import annotations
 
 import os
 import shutil
-import signal
 import subprocess
 import sys
 import time
 import urllib.error
 import urllib.request
 import webbrowser
-from pathlib import Path
 from typing import Tuple
 
 from core.system import python_minimum
-from core.ui.ports import BFF_DEFAULT_PORT, FED_DEV_PORT
+from core.ui.process_cleanup import kill_process_group
+from core.ui.ports import ALL_UI_PORTS, UI_DEV_PORT, UI_PROD_PORT
 
 from setup.install_runtime import (
     REPO_ROOT,
@@ -170,98 +169,155 @@ def _process_cmdline(pid: int) -> str:
     return (out.stdout or "").strip()
 
 
+def _wait_port_free(port: int, *, timeout_sec: float = 15.0) -> bool:
+    deadline = time.time() + timeout_sec
+    while time.time() < deadline:
+        if not _pids_listening_on(port):
+            return True
+        time.sleep(0.25)
+    return not _pids_listening_on(port)
+
+
 def _release_stale_listen_port(port: int, *, match_substrings: tuple[str, ...]) -> None:
     fed_root = str(FED_ROOT.resolve())
 
     def _should_kill(cmd: str) -> bool:
         return bool(cmd) and (any(s in cmd for s in match_substrings) or fed_root in cmd)
 
-    for sig in (signal.SIGTERM, signal.SIGKILL):
+    for attempt in range(2):
         for pid in _pids_listening_on(port):
-            if _should_kill(_process_cmdline(pid)):
+            cmd = _process_cmdline(pid)
+            if _should_kill(cmd):
                 print(f"结束占用 {port} 的旧进程 pid={pid}", flush=True)
                 try:
-                    os.kill(pid, sig)
+                    kill_process_group(pid, grace_sec=2.0 if attempt == 0 else 0.5)
                 except ProcessLookupError:
                     pass
-        if not _pids_listening_on(port):
+        if _wait_port_free(port, timeout_sec=8.0):
             return
-        if sig == signal.SIGTERM:
-            time.sleep(1)
+
+
+def release_all_ui_listen_ports() -> None:
+    """启动前清掉 dev/prod 全部 UI 端口，避免双栈并存。"""
+    markers = (
+        "core.ui.bff.app",
+        "react-scripts",
+        "webpack",
+        "webpack-dev-server",
+        "launcher.py",
+        "dev-cli.py",
+        str(FED_ROOT.resolve()),
+        str(REPO_ROOT),
+    )
+    for port in ALL_UI_PORTS:
+        _release_stale_listen_port(port, match_substrings=markers)
+    blocked = [p for p in ALL_UI_PORTS if _pids_listening_on(p)]
+    if blocked:
+        print(f"⚠️ 端口仍被占用: {blocked}，后续启动可能失败", flush=True)
 
 
 def _wait_http_ok(url: str, timeout_sec: int = 30) -> bool:
     deadline = time.time() + timeout_sec
     while time.time() < deadline:
         try:
-            with urllib.request.urlopen(url, timeout=2) as resp:
+            with urllib.request.urlopen(url, timeout=5) as resp:
                 if 200 <= resp.status < 400:
                     return True
-        except (urllib.error.URLError, TimeoutError, ConnectionError):
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError):
             pass
-        time.sleep(1)
+        time.sleep(0.5)
     return False
 
 
-def _ui_url(*, dev: bool, bff_host: str, bff_port: int) -> str:
-    if dev:
-        return f"http://localhost:{FED_DEV_PORT}/strategy-workbench"
-    return f"http://{bff_host}:{bff_port}/strategy-workbench"
+def _warm_bff_api(host: str, port: int) -> None:
+    """预加载 strategy 栈，避免 CRA 首屏并发请求时 BFF 冷启动导致 proxy ECONNRESET。"""
+    url = f"http://{host}:{port}/api/v1/strategies/list?page=1&limit=1"
+    print("正在预加载 BFF API（首次较慢）…", flush=True)
+    try:
+        with urllib.request.urlopen(url, timeout=120) as resp:
+            resp.read()
+        print("BFF API 预加载完成", flush=True)
+    except Exception as exc:
+        print(f"⚠️ BFF API 预加载失败: {exc}", flush=True)
 
 
 def _fed_dev_env() -> dict[str, str]:
     env = os.environ.copy()
     env["BROWSER"] = "none"
-    env["PORT"] = str(FED_DEV_PORT)
+    env["PORT"] = str(UI_DEV_PORT)
     env["DANGEROUSLY_DISABLE_HOST_CHECK"] = "true"
     return env
 
 
-def launch_ui_stack() -> None:
-    bff_host = os.getenv("NTQ_BFF_HOST", "127.0.0.1")
-    bff_port = int(os.getenv("NTQ_BFF_PORT", str(BFF_DEFAULT_PORT)))
-    dev = ui_dev_mode()
-    ui_url = _ui_url(dev=dev, bff_host=bff_host, bff_port=bff_port)
+def _terminate_proc(proc: subprocess.Popen | None) -> None:
+    if proc is None or proc.poll() is not None:
+        return
+    kill_process_group(proc.pid, grace_sec=3.0)
+    try:
+        proc.wait(timeout=8)
+    except subprocess.TimeoutExpired:
+        kill_process_group(proc.pid, grace_sec=0.5)
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            pass
 
-    _release_stale_listen_port(bff_port, match_substrings=("core.ui.bff.app",))
+
+def launch_ui_stack() -> None:
+    host = os.getenv("NTQ_BFF_HOST", "127.0.0.1").strip() or "127.0.0.1"
+    dev = ui_dev_mode()
+
+    release_all_ui_listen_ports()
 
     bff_env = os.environ.copy()
-    bff_env["NTQ_BFF_HOST"] = bff_host
-    bff_env["NTQ_BFF_PORT"] = str(bff_port)
+    bff_env["NTQ_BFF_HOST"] = host
+    bff_env["NTQ_BFF_PORT"] = str(UI_PROD_PORT)
+    bff_env.pop("NTQ_UI_DEV_GATEWAY", None)
+    bff_env.pop("NTQ_WEBPACK_DEV_UPSTREAM", None)
+
     bff_proc = subprocess.Popen(
         [sys.executable, "-m", "core.ui.bff.app"],
         cwd=str(REPO_ROOT),
         env=bff_env,
+        start_new_session=True,
     )
 
-    if not _wait_http_ok(f"http://{bff_host}:{bff_port}/api/health"):
-        bff_proc.terminate()
-        raise RuntimeError("BFF 启动超时（/api/health）")
+    health_url = f"http://{host}:{UI_PROD_PORT}/api/health"
+    if not _wait_http_ok(health_url, timeout_sec=90):
+        _terminate_proc(bff_proc)
+        raise RuntimeError(f"BFF 启动超时（{health_url}）")
 
-    fed_proc = None
+    _warm_bff_api(host, UI_PROD_PORT)
+
+    fed_proc: subprocess.Popen | None = None
     if dev:
-        _release_stale_listen_port(
-            FED_DEV_PORT,
-            match_substrings=("react-scripts", "webpack"),
-        )
         fed_proc = subprocess.Popen(
             ["npm", "start"],
             cwd=str(FED_ROOT),
             env=_fed_dev_env(),
+            start_new_session=True,
         )
-        print(f"开发模式：BFF :{bff_port} + FED :{FED_DEV_PORT}", flush=True)
-        if not _wait_http_ok(ui_url, timeout_sec=180):
-            print(f"⚠️ FED 未就绪，请查看 npm 输出；目标地址: {ui_url}", flush=True)
+        ui_url = f"http://localhost:{UI_DEV_PORT}/strategy-workbench"
+        print(
+            f"开发模式：浏览器入口 http://localhost:{UI_DEV_PORT} "
+            f"（BFF API 内部 :{UI_PROD_PORT}，/api 由 CRA proxy 转发；勿混跑 prod 栈）",
+            flush=True,
+        )
+        if not _wait_http_ok(f"http://localhost:{UI_DEV_PORT}/", timeout_sec=180):
+            print(f"⚠️ CRA 未就绪，请查看 npm 输出；目标: {ui_url}", flush=True)
+        elif not _wait_http_ok(f"http://{host}:{UI_PROD_PORT}/api/health", timeout_sec=15):
+            print(f"⚠️ BFF 在 CRA 就绪后未响应，/api 代理可能失败", flush=True)
     else:
         if not fed_build_ready():
-            bff_proc.terminate()
-            raise RuntimeError("缺少 fed/build，请 npm run build")
-        print(f"生产模式：BFF :{bff_port} 托管静态资源", flush=True)
+            _terminate_proc(bff_proc)
+            raise RuntimeError("缺少 fed/build，请 npm run build 或使用 launcher.py -d")
+        ui_url = f"http://{host}:{UI_PROD_PORT}/strategy-workbench"
+        print(f"生产模式：入口 {ui_url}", flush=True)
         if not _wait_http_ok(ui_url, timeout_sec=30):
-            bff_proc.terminate()
+            _terminate_proc(bff_proc)
             raise RuntimeError(f"前端未就绪: {ui_url}")
 
-    if _wait_http_ok(ui_url, timeout_sec=3):
+    if _wait_http_ok(ui_url, timeout_sec=5):
         print(f"访问: {ui_url}", flush=True)
         try:
             webbrowser.open(ui_url)
@@ -275,13 +331,5 @@ def launch_ui_stack() -> None:
     except KeyboardInterrupt:
         print("\n正在关闭…", flush=True)
     finally:
-        for proc in (fed_proc, bff_proc):
-            if proc is not None and proc.poll() is None:
-                proc.terminate()
-        for proc in (fed_proc, bff_proc):
-            if proc is None:
-                continue
-            try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.kill()
+        _terminate_proc(fed_proc)
+        _terminate_proc(bff_proc)

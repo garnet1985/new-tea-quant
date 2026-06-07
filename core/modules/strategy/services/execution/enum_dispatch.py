@@ -1,6 +1,7 @@
 """策略机会枚举：调度规划（探针优先）。"""
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List, Optional
 
 from core.infra.job_pipeline.profile import (
@@ -15,6 +16,7 @@ from core.modules.strategy.services.execution.enum_dispatch_probe import (
 )
 
 LOG_LABEL = "策略枚举"
+logger = logging.getLogger(__name__)
 
 
 def enumerator_dispatch_dict() -> Dict[str, Any]:
@@ -113,10 +115,21 @@ def maybe_run_enum_dispatch_probe(
     payload["backtest_calendar"] = backtest_calendar
     payload["_run_name"] = f"enum:{strategy_name}:probe"
 
-    with duckdb_worker_pool_main_process(
-        data_mgr,
-        resume_main_after=False,
-        wait_children_timeout_sec=15.0,
-    ):
-        result = run_enum_dispatch_probe(payload, performance=perf)
-    return result.mb_per_entity
+    try:
+        with duckdb_worker_pool_main_process(
+            data_mgr,
+            resume_main_after=False,
+            wait_children_timeout_sec=15.0,
+        ):
+            result = run_enum_dispatch_probe(payload, performance=perf)
+        return result.mb_per_entity
+    except Exception as exc:
+        msg = str(exc).lower()
+        if "lock" in msg or "conflicting" in msg or "replaying wal" in msg:
+            logger.warning(
+                "%s 调度探针跳过（DuckDB 暂不可读，将使用默认 dispatch 规划）: %s",
+                LOG_LABEL,
+                exc,
+            )
+            return None
+        raise

@@ -49,7 +49,11 @@
   - **未命中缓存、产生新版本行**：新的 **`version_id`** 相对进页时的锚点通常是**更新的一个版本**（存储侧递增的一条快照）。
   - **命中缓存、复用已有快照行**：**不会**产生新的版本行，**`version_id` 可以与进页时相同**；不得以「必须比进页大一号」作为契约。
 
-- **`result_report` 体积（2026-05）**：`enum` / `capital_allocation` 等槽位在 DB 中**不内嵌**逐股大块数据；仅保留摘要字段与**相对产物路径**（如 ``enum_report_rel_path``、``capital_sim_version_dir`` + ``capital_full_summary_rel_path``）。完整 ``enumMetrics``、``stock_summary`` 等由服务端在读快照（V2-01 / V2-07、指纹 lookup）时从 ``userspace/strategies/.../results/simulations/...`` 下 JSON **按需合并**；物理文件缺失时与枚举 **report_ref** 一致，由前端提示重新 run。
+- **`result_report` 三槽位（2026-06，BED 权威说明见 `core/modules/strategy/docs/db-cache-service.md` §6.1）**：
+  - 每个快照行最多三个业务键：`enum`、`price_factor`、`capital_allocation`；**仅对应步骤 job 成功后**由 BED 写入，**禁止**其它步骤代写（例如价格步**不得**注入 `enum` 路径）。
+  - **读路径**：V2-01 / V2-07 / V2-08 只读**该 `version_id` 行**上对应槽位；**无槽即无数据**，服务端**不得**从 `price_factor.enumerator_output_dir`、兄弟 `version` 或磁盘猜测补全。仅有 `price_factor` 却无 `enum` → **视为 BED bug**，FED 显示空/异常并提示重跑枚举，**不**展示伪造的 opportunities。
+  - **体积**：槽位在 DB 中**不内嵌**逐股大块；保留摘要指标与可选相对路径。`enumMetrics`、`stock_summary` 等可在槽位内直接存摘要，或由服务端在槽位**已有路径引用**时从 ``userspace/strategies/.../results/simulations/...`` **hydrate** 补全；物理文件缺失时与 **V2-07b `report_ref`** 一致，由前端提示对该步 **重新 run**。
+  - **`price_factor.output_version.enumerator_output_dir`**：价格回测依赖的枚举磁盘目录（血缘元数据），**不能**代替 `enum` 槽用于 UI 指标或 V2-07 `step=enum` 报告。
 
 ### BFF 边界：不做缓存，只做转发与 HTTP 门面
 
@@ -171,7 +175,7 @@
 ### V2-07 `GET /strategy/{strategy_name}/{step}/report/{version_id}`
 
 - **路径参数 `version_id`**（`v3` 或 `3`）。典型来源：**V2-06b** / **V2-06** 在任务完成且已落库后给出的 **`version_id`**；或 **V2-03** / 进页锚点等「已知版本」场景。
-- **语义**：读取该快照 **`result_report`** 中与 **`step`** 对应的槽位（`enum` / `price_factor` / `capital_allocation`），作为 **`report`** 返回；**`strategy_name`** 须与快照一致，否则 **404**。
+- **语义**：读取该快照 **`result_report`** 中与 **`step`** 对应的槽位（`enum` / `price_factor` / `capital_allocation`），作为 **`report`** 返回；**`strategy_name`** 须与快照一致，否则 **404**。槽位缺失时 **`report` 为空对象或实现约定之 404**；**禁止** BFF/BED 用其它槽位或历史版本自动修补（见上文 **三槽位**）。
 - **调用时机**：须在已有可信 **`version_id`** 之后（通常 **progress** 已为 **completed** 且带回 **`version_id`**）。
 - 响应须**回显** **`version_id`**；**失败 / 无快照** → **404**。
 

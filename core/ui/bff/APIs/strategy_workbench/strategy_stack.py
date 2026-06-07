@@ -9,56 +9,62 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Optional
 
+import threading
+
 _stack: Optional[SimpleNamespace] = None
+_init_lock = threading.Lock()
 
 
 def get_strategy_workbench_stack() -> SimpleNamespace:
     global _stack
     if _stack is not None:
         return _stack
-    from core.modules.strategy.launcher import fetch_latest_workbench_snapshot
-    from core.modules.strategy.launcher.workbench import (
-        apply_workbench_snapshot_settings_to_userspace,
-        build_step_report_message,
-        build_step_report_ref_message,
-        fetch_workbench_by_version,
-        parse_version_id,
-        workbench_latest_ui_flags,
-    )
-    from core.modules.strategy.launcher.workbench_catalog import (
-        fetch_discovered_strategies_page,
-        fetch_strategy_versions_dropdown,
-        items_capital_allocation_strategies,
-        items_sampling_strategies,
-        items_simulation_templates,
-        items_skip_investment_when,
-        items_market_profiles,
-    )
-    from core.modules.strategy.execution_manager import (
-        get_run_progress,
-        get_step_progress,
-        normalize_step,
-        submit_workbench_step_via_bff_contract,
-    )
+    with _init_lock:
+        if _stack is not None:
+            return _stack
+        from core.modules.strategy.launcher import fetch_latest_workbench_snapshot
+        from core.modules.strategy.launcher.workbench import (
+            apply_workbench_snapshot_settings_to_userspace,
+            build_step_report_message,
+            build_step_report_ref_message,
+            fetch_workbench_by_version,
+            parse_version_id,
+            workbench_latest_ui_flags,
+        )
+        from core.modules.strategy.launcher.workbench_catalog import (
+            fetch_discovered_strategies_page,
+            fetch_strategy_versions_dropdown,
+            items_capital_allocation_strategies,
+            items_sampling_strategies,
+            items_simulation_templates,
+            items_skip_investment_when,
+            items_market_profiles,
+        )
+        from core.modules.strategy.execution_manager import (
+            get_run_progress,
+            get_step_progress,
+            normalize_step,
+            submit_workbench_step_via_bff_contract,
+        )
 
-    _stack = SimpleNamespace(
-        fetch_latest_workbench_snapshot=fetch_latest_workbench_snapshot,
-        apply_workbench_snapshot_settings_to_userspace=apply_workbench_snapshot_settings_to_userspace,
-        build_step_report_message=build_step_report_message,
-        build_step_report_ref_message=build_step_report_ref_message,
-        fetch_workbench_by_version=fetch_workbench_by_version,
-        parse_version_id=parse_version_id,
-        workbench_latest_ui_flags=workbench_latest_ui_flags,
-        fetch_discovered_strategies_page=fetch_discovered_strategies_page,
-        fetch_strategy_versions_dropdown=fetch_strategy_versions_dropdown,
-        items_capital_allocation_strategies=items_capital_allocation_strategies,
-        items_sampling_strategies=items_sampling_strategies,
-        items_simulation_templates=items_simulation_templates,
-        items_skip_investment_when=items_skip_investment_when,
-        items_market_profiles=items_market_profiles,
-        get_run_progress=get_run_progress,
-        get_step_progress=get_step_progress,
-        normalize_step=normalize_step,
-        submit_workbench_step_via_bff_contract=submit_workbench_step_via_bff_contract,
-    )
+        _stack = SimpleNamespace(
+            fetch_latest_workbench_snapshot=fetch_latest_workbench_snapshot,
+            apply_workbench_snapshot_settings_to_userspace=apply_workbench_snapshot_settings_to_userspace,
+            build_step_report_message=build_step_report_message,
+            build_step_report_ref_message=build_step_report_ref_message,
+            fetch_workbench_by_version=fetch_workbench_by_version,
+            parse_version_id=parse_version_id,
+            workbench_latest_ui_flags=workbench_latest_ui_flags,
+            fetch_discovered_strategies_page=fetch_discovered_strategies_page,
+            fetch_strategy_versions_dropdown=fetch_strategy_versions_dropdown,
+            items_capital_allocation_strategies=items_capital_allocation_strategies,
+            items_sampling_strategies=items_sampling_strategies,
+            items_simulation_templates=items_simulation_templates,
+            items_skip_investment_when=items_skip_investment_when,
+            items_market_profiles=items_market_profiles,
+            get_run_progress=get_run_progress,
+            get_step_progress=get_step_progress,
+            normalize_step=normalize_step,
+            submit_workbench_step_via_bff_contract=submit_workbench_step_via_bff_contract,
+        )
     return _stack

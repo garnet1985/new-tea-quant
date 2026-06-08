@@ -3,6 +3,11 @@ import { API_VERSION_PREFIX } from '../conf/apiConfig';
 
 /** 分页策略列表（V2-02）：`/api/v1/strategies/list` */
 const API_STRATEGIES_LIST_BASE = `${API_VERSION_PREFIX}/strategies/list`;
+/** 策略列表/扫描页展示名：优先 ``display_name``，否则回退路径 ID。 */
+export function getStrategyDisplayLabel(item) {
+  return String(item?.display_name || item?.name || '').trim();
+}
+
 /** 将策略路径 ID（可含 ``/``）编码为 URL 路径段。 */
 function encodeStrategyPathSegments(strategyName) {
   return String(strategyName || '')
@@ -40,7 +45,7 @@ export async function fetchStrategyList() {
     data: list.map((item) => ({
       id: item.name,
       name: item.name,
-      display_name: String(item.display_name || item.name || '').trim(),
+      display_name: getStrategyDisplayLabel(item),
       description: String(item.description || '').trim(),
       keywords: Array.isArray(item.keywords) ? item.keywords : [],
       details: item.details && typeof item.details === 'object' ? item.details : null,

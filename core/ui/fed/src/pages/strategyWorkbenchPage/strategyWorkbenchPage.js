@@ -39,8 +39,10 @@ import {
   fetchSkipInvestmentWhenOptions,
   fetchMarketProfileOptions,
   restoreStrategyVersion,
+  getStrategyDisplayLabel,
   getStrategyWorkbenchPath,
 } from '../../api/apis/strategyApi';
+import StrategyDescriptionText from '../../components/strategyDescriptionText/strategyDescriptionText';
 import StrategySettingsContainer from './panels/strategySettingsPanel/containers/strategySettingsContainer';
 import {
   extractStrategyDescription,
@@ -833,8 +835,17 @@ function StrategyWorkbenchPage() {
                       {visibleStrategies.map((row) => (
                         <ListItemButton key={row.id} onClick={() => requestSwitchStrategy(row.name)}>
                           <ListItemText
-                            primary={row.name}
-                            secondary={row.description || ''}
+                            primary={getStrategyDisplayLabel(row)}
+                            secondary={(
+                              <StrategyDescriptionText
+                                text={row.description}
+                                variant="caption"
+                                color="text.secondary"
+                                empty=""
+                                maxLines={2}
+                                component="span"
+                              />
+                            )}
                           />
                         </ListItemButton>
                       ))}

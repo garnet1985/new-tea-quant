@@ -165,7 +165,9 @@ function ScanPage() {
       flex: 0.6,
       renderCell: (params) => (
         <Stack spacing={0.5}>
-          <Typography variant="body2" fontWeight={700}>{params.row.name}</Typography>
+          <Typography variant="body2" fontWeight={700}>
+            {params.row.display_name || params.row.name}
+          </Typography>
           <Typography variant="caption" color="text.secondary">{params.row.description || '—'}</Typography>
         </Stack>
       ),

@@ -44,6 +44,7 @@ import {
 import StrategySettingsContainer from './panels/strategySettingsPanel/containers/strategySettingsContainer';
 import {
   extractStrategyDescription,
+  extractStrategyDisplayName,
   normalizeMeta,
 } from './panels/strategySettingsPanel/editorSchemas/strategyMeta';
 import StrategyExecutionPanel from './panels/strategyExecutionPanel/strategyExecutionPanel';
@@ -138,7 +139,8 @@ function workbenchPageStateFromVersionDetail(detail, strategyName, cachedVersion
 
 function StrategyWorkbenchPage() {
   const navigate = useNavigate();
-  const { strategyName } = useParams();
+  const params = useParams();
+  const strategyName = String(params['*'] || '').replace(/^\/+/, '');
   const [selectedConfigVersion, setSelectedConfigVersion] = useState('');
   const [configVersions, setConfigVersions] = useState([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -148,6 +150,7 @@ function StrategyWorkbenchPage() {
   const [versionPickerPage, setVersionPickerPage] = useState(1);
   const [strategyRows, setStrategyRows] = useState([]);
   const [strategyDescription, setStrategyDescription] = useState('');
+  const [strategyDisplayName, setStrategyDisplayName] = useState('');
   const [pendingStrategyName, setPendingStrategyName] = useState('');
   const [switchStrategyConfirmOpen, setSwitchStrategyConfirmOpen] = useState(false);
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
@@ -186,10 +189,12 @@ function StrategyWorkbenchPage() {
   const [workbenchExecutionHydration, setWorkbenchExecutionHydration] = useState(null);
   /** 与 ``mergeShapeOnly`` 合用的最小基底（仅 meta），不含任何示例策略字段 */
   const buildMergeBaseSettings = useCallback(() => ({
-    meta: normalizeMeta({ name: strategyName || '' }),
-  }), [strategyName]);
+    is_enabled: false,
+    meta: normalizeMeta({}),
+  }), []);
   const [initialSettings, setInitialSettings] = useState(() => ({
-    meta: normalizeMeta({ name: '' }),
+    is_enabled: false,
+    meta: normalizeMeta({}),
   }));
 
   const deepClone = (value) => JSON.parse(JSON.stringify(value));
@@ -362,7 +367,8 @@ function StrategyWorkbenchPage() {
       setHasPersistedSnapshot(false);
       setHasOtherVersions(false);
       syncedWorkbenchVerRef.current = '';
-      setInitialSettings({ meta: normalizeMeta({ name: '' }) });
+      setInitialSettings({ is_enabled: false, meta: normalizeMeta({}) });
+      setStrategyDisplayName('');
       setWorkbenchResultReport(null);
       setWorkbenchExecutionHydration(null);
       setExecutionState({
@@ -383,6 +389,7 @@ function StrategyWorkbenchPage() {
     }
 
     setStrategyDescription('');
+    setStrategyDisplayName('');
     setIsLoadingSettings(true);
     setSettingsError('');
     setWorkbenchExecutionHydration(null);
@@ -408,21 +415,17 @@ function StrategyWorkbenchPage() {
         const incomingMeta = (
           serverSettings?.meta && typeof serverSettings.meta === 'object'
             ? serverSettings.meta
-            : {
-              name: serverSettings?.name,
-              description: serverSettings?.description,
-              is_enabled: serverSettings?.is_enabled,
-            }
+            : {}
         );
         if (hasServerSettings) {
           const nextSettings = mergeShapeOnly(mergeBase, {
             ...serverSettings,
-            meta: normalizeMeta({
-              ...incomingMeta,
-              name: strategyName,
-            }),
+            meta: normalizeMeta(incomingMeta, serverSettings),
           });
           setInitialSettings(nextSettings);
+          setStrategyDisplayName(
+            extractStrategyDisplayName(nextSettings) || strategyName,
+          );
           setStrategyDescription(extractStrategyDescription(nextSettings));
           setSettingsError('');
         } else {
@@ -607,8 +610,16 @@ function StrategyWorkbenchPage() {
         { label: '策略实验室', to: '/strategy-workbench' },
         { label: '选择策略', to: '/strategy-workbench' },
       ]}
-      breadcrumbsCurrent={strategyName ? `调试：${strategyName}` : '策略调试'}
-      bannerTitle={strategyName ? `调试：${strategyName}` : '策略调试'}
+      breadcrumbsCurrent={
+        strategyDisplayName || strategyName
+          ? `调试：${strategyDisplayName || strategyName}`
+          : '策略调试'
+      }
+      bannerTitle={
+        strategyDisplayName || strategyName
+          ? `调试：${strategyDisplayName || strategyName}`
+          : '策略调试'
+      }
       bannerDescription={strategyDescription || ''}
       bannerRightSlot={
         strategyName ? (

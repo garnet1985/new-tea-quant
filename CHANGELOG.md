@@ -34,10 +34,8 @@ python dev-cli -p -vx.x.x
 ---
 
 ### v0.4.x (TBD)
-- 增加report里K线的点击界面
 - 为新版本的更新增加清除缓存的步骤
 - 给设置里增加清除缓存的功能
-- import和export策略的支持
 
 ---
 
@@ -45,6 +43,9 @@ python dev-cli -p -vx.x.x
 
 ### v0.4.1 (TBD)
 - 新增加命令行和UI的策略导入和导出功能
+- (破坏性改动)策略 settings 收拢为嵌套 ``meta``（``display_name`` / ``description`` / ``keywords`` / ``details.entry``）；系统路径型策略 ID 由发现自动生成；递归扫描 ``strategies/`` 并校验路径 machine-readable
+- 增加策略回测report里K线的点击界面，能够打开单个股票查询详细信息
+- 增加依赖自动运行监测，如果依赖还没有运行，会先运行依赖再进行回测
 
 ---
 

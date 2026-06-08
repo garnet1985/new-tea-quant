@@ -39,7 +39,12 @@ function StrategyListPage() {
   const displayRows = useMemo(() => {
     const q = nameQuery.trim().toLowerCase();
     if (!q) return rows;
-    return rows.filter((r) => String(r.name).toLowerCase().includes(q));
+    return rows.filter((r) => {
+      const id = String(r.name || '').toLowerCase();
+      const label = String(r.display_name || '').toLowerCase();
+      const desc = String(r.description || '').toLowerCase();
+      return id.includes(q) || label.includes(q) || desc.includes(q);
+    });
   }, [rows, nameQuery]);
 
   const load = useCallback(() => {
@@ -79,10 +84,11 @@ function StrategyListPage() {
 
   const columns = [
     {
-      field: 'name',
+      field: 'display_name',
       headerName: '策略名',
       minWidth: 160,
       flex: 0.5,
+      valueGetter: (_value, row) => row.display_name || row.name,
       renderCell: (params) => (
         <Link
           component={RouterLink}
@@ -93,6 +99,12 @@ function StrategyListPage() {
           {params.value}
         </Link>
       ),
+    },
+    {
+      field: 'name',
+      headerName: '路径 ID',
+      minWidth: 140,
+      flex: 0.35,
     },
     {
       field: 'is_enabled',

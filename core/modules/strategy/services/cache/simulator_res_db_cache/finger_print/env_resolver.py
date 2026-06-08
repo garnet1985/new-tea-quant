@@ -67,19 +67,17 @@ class ResolveEnv:
         返回键：``worker_module_path``、``worker_class_name``、``worker_code_hash``。
         """
         strategy_info = load_strategy_info(strategy_name)
-        worker_module_path, worker_class_name = resolve_worker_ref(
+        worker_module_path, worker_class_name, worker_file_path = resolve_worker_ref(
             strategy_name,
             strategy_info=strategy_info,
         )
         mod_path = str(worker_module_path or "").strip()
         cls_name = str(worker_class_name or "").strip()
         worker_code_hash = ""
-        if mod_path:
+        file_path = str(worker_file_path or "").strip()
+        if file_path:
             try:
-                module = importlib.import_module(mod_path)
-                source_file = inspect.getsourcefile(module)
-                if source_file:
-                    worker_code_hash = ResolveEnv._hash_file(Path(source_file))
+                worker_code_hash = ResolveEnv._hash_file(Path(file_path))
             except Exception:
                 worker_code_hash = ""
         return {

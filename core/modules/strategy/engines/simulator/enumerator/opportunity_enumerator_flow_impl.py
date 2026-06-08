@@ -174,12 +174,13 @@ class OpportunityEnumeratorFlowImpl:
         strategy_name: str,
         strategy_info: Optional["DiscoveredStrategy"],
     ) -> Dict[str, str]:
-        worker_module_path, worker_class_name = resolve_worker_ref(
+        worker_module_path, worker_class_name, worker_file_path = resolve_worker_ref(
             strategy_name, strategy_info=strategy_info
         )
         return {
             "worker_module_path": worker_module_path,
             "worker_class_name": worker_class_name,
+            "worker_file_path": worker_file_path,
         }
 
     def parse_enum_settings(
@@ -231,14 +232,11 @@ class OpportunityEnumeratorFlowImpl:
         )
 
     def _build_worker_anchor(self, worker_ref: Dict[str, str]) -> Dict[str, str]:
-        worker_module_path = str(worker_ref.get("worker_module_path", ""))
+        worker_file_path = str(worker_ref.get("worker_file_path") or "").strip()
         worker_code_hash = ""
-        if worker_module_path:
+        if worker_file_path:
             try:
-                module = importlib.import_module(worker_module_path)
-                source_file = inspect.getsourcefile(module)
-                if source_file:
-                    worker_code_hash = self._hash_file(Path(source_file))
+                worker_code_hash = self._hash_file(Path(worker_file_path))
             except Exception:
                 worker_code_hash = ""
         return {"worker_code_hash": worker_code_hash}

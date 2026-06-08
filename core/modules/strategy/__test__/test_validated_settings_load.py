@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Strategy settings 加载与 market_profile_id 解析。"""
 
+from core.modules.strategy.__test__.settings_fixtures import minimal_strategy_raw
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.strategy_settings import (
     StrategySettings,
 )
@@ -9,12 +10,9 @@ from core.modules.strategy.engines.shared.helpers.strategy_runtime import resolv
 
 def test_strategy_settings_validate_unknown_market_profile():
     settings = StrategySettings(
-        raw_settings={
-            "name": "t",
-            "market_profile": "not_a_real_profile_id_zzz",
-            "data": {"base_required_data": {"params": {"term": "daily"}}},
-            "simulation": {"template": "standard"},
-        }
+        raw_settings=minimal_strategy_raw(
+            market_profile="not_a_real_profile_id_zzz",
+        )
     )
     settings.apply_defaults()
     report = settings.validate()

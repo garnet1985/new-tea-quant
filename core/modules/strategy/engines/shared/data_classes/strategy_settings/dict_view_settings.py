@@ -17,8 +17,11 @@ from .simulation_settings import StrategySimulationSettings
 class StrategySettingsView:
     def __init__(self, settings_dict: Dict[str, Any]):
         self._settings = settings_dict
-        self.name = settings_dict.get("name", "unknown")
-        self.description = settings_dict.get("description", "")
+        meta = settings_dict.get("meta") if isinstance(settings_dict.get("meta"), dict) else {}
+        self.display_name = str(meta.get("display_name") or "").strip()
+        self.description = str(meta.get("description") or "").strip()
+        self.keywords = list(meta.get("keywords") or []) if isinstance(meta.get("keywords"), list) else []
+        self.name = self.display_name or "unknown"
         self.is_enabled = settings_dict.get("is_enabled", False)
         self.core = settings_dict.get("core", {})
         self.data = settings_dict.get("data", {})

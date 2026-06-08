@@ -3,9 +3,19 @@ import { API_VERSION_PREFIX } from '../conf/apiConfig';
 
 /** 分页策略列表（V2-02）：`/api/v1/strategies/list` */
 const API_STRATEGIES_LIST_BASE = `${API_VERSION_PREFIX}/strategies/list`;
+/** 将策略路径 ID（可含 ``/``）编码为 URL 路径段。 */
+function encodeStrategyPathSegments(strategyName) {
+  return String(strategyName || '')
+    .split('/')
+    .filter(Boolean)
+    .map((seg) => encodeURIComponent(seg))
+    .join('/');
+}
+
 /** 单策略工作台资源前缀（V2-01…09）：`/api/v1/strategy/{name}/…`（注意单数 `strategy`） */
 function apiStrategyPath(strategyName) {
-  return `${API_VERSION_PREFIX}/strategy/${encodeURIComponent(strategyName)}`;
+  const encoded = encodeStrategyPathSegments(strategyName);
+  return `${API_VERSION_PREFIX}/strategy/${encoded}`;
 }
 /** V2-04 全局选项（无 strategy_name 路径段） */
 const API_SETTINGS_CAPITAL = `${API_VERSION_PREFIX}/strategy/settings/capital-allocation-strategies`;
@@ -30,7 +40,10 @@ export async function fetchStrategyList() {
     data: list.map((item) => ({
       id: item.name,
       name: item.name,
+      display_name: String(item.display_name || item.name || '').trim(),
       description: String(item.description || '').trim(),
+      keywords: Array.isArray(item.keywords) ? item.keywords : [],
+      details: item.details && typeof item.details === 'object' ? item.details : null,
       is_enabled: Boolean(item.is_enabled),
     })),
   };
@@ -80,7 +93,8 @@ export async function fetchStrategyScanProgress(strategyName, jobId) {
 
 /** 构建单策略策略工作台（调试）页路径（与路由定义保持一致） */
 export function getStrategyWorkbenchPath(strategyName) {
-  return `/strategy-workbench/${encodeURIComponent(strategyName)}`;
+  const encoded = encodeStrategyPathSegments(strategyName);
+  return `/strategy-workbench/${encoded}`;
 }
 
 /**

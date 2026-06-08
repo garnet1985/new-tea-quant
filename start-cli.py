@@ -33,9 +33,12 @@
     python start-cli.py -sy                  # Strategy analysis
     python start-cli.py -u                   # 检查并应用 core 版本更新
     python start-cli.py -update              # 同上
-    python start-cli.py -e example           # 导出策略交流包（example.strategy.zip）
-    python start-cli.py -i ./demo.strategy.zip     # 导入策略包（重名拒绝）
-    python start-cli.py -i ./demo.strategy.zip -f  # 导入并覆盖已存在制品
+    python start-cli.py -e example           # 导出策略交流包（userspace/example-strategy.zip）
+    python start-cli.py -e tag:my_tag        # 仅导出单个 tag
+    python start-cli.py -i ./demo-strategy.zip     # 导入（重名拒绝）
+    python start-cli.py -i ./demo-strategy.zip --skip-existing  # 跳过已存在
+    python start-cli.py -i ./demo-strategy.zip -f  # 覆盖已存在
+    python start-cli.py -i ./demo-strategy.zip --dry-run  # 仅预览
     python start-cli.py -h                   # 查看帮助
 """
 import sys
@@ -373,7 +376,7 @@ def _add_shortcut_flags(parser):
         const='',
         default=None,
         metavar='STRATEGY',
-        help='导出策略交流包为 zip（例: -e example → example.strategy.zip）',
+        help='导出包：-e example（策略包）| -e tag:NAME | -e adapter:NAME | -e strategy:NAME（单实体）',
     )
     parser.add_argument(
         '-i',
@@ -382,7 +385,7 @@ def _add_shortcut_flags(parser):
         const='',
         default=None,
         metavar='PATH',
-        help='导入策略交流包；默认重名拒绝，与 -f 合用则覆盖',
+        help='导入包；默认重名拒绝；-f 覆盖；--skip-existing 跳过已有；--dry-run 仅预览',
     )
 
 
@@ -446,6 +449,27 @@ def _add_extra_arguments(parser):
                        help='基准日期（YYYYMMDD 或 YYYY-MM-DD，用于 export_adj_factor_csv）')
     parser.add_argument('-v', '--version', action='store_true',
                        help='显示当前 core 版本信息并退出')
+    parser.add_argument(
+        '-o',
+        '--output',
+        dest='export_output_arg',
+        type=str,
+        default=None,
+        metavar='PATH',
+        help='导出输出路径（仅与 -e 合用）',
+    )
+    parser.add_argument(
+        '--skip-existing',
+        dest='import_skip_existing_flag',
+        action='store_true',
+        help='导入时跳过 userspace 中已存在的 strategy/tag/adapter 目录（仅 -i）',
+    )
+    parser.add_argument(
+        '--dry-run',
+        dest='import_dry_run_flag',
+        action='store_true',
+        help='导入预览，不写入磁盘（仅 -i）',
+    )
     parser.add_argument('-V', '--verbose', action='store_true',
                        help='详细输出模式')
 
@@ -515,9 +539,12 @@ def _get_help_epilog() -> str:
     %(prog)s -sa                  Strategy capital allocation simulation
     %(prog)s -sy                  Strategy analysis
     %(prog)s -u                   检查并应用 core 版本更新
-    %(prog)s -e example           导出策略包 example.strategy.zip
-    %(prog)s -i ./pkg.strategy.zip        导入策略包
-    %(prog)s -i ./pkg.strategy.zip -f     导入并覆盖重名目录
+    %(prog)s -e example           导出策略包 userspace/example-strategy.zip
+    %(prog)s -e tag:my_tag        仅导出 tag 目录
+    %(prog)s -i ./pkg-strategy.zip        导入策略包
+    %(prog)s -i ./pkg-strategy.zip --skip-existing
+    %(prog)s -i ./pkg-strategy.zip -f     导入并覆盖重名目录
+    %(prog)s -i ./pkg-strategy.zip --dry-run
 
   额外参数:
     %(prog)s simulate --strategy example    只运行指定策略
@@ -677,25 +704,34 @@ def _resolve_package_cli(args, parser: argparse.ArgumentParser) -> Optional[int]
             parser.error("-e 需要策略名称（例: start-cli.py -e example）")
         if args.command or _package_cli_has_other_flags(args):
             parser.error("策略包导出 (-e) 不能与其它命令或模块快捷 flag 合用")
-        from core.modules.strategy.launcher.package_cli import run_strategy_bundle_export
+        from core.modules.strategy.launcher.package_cli import run_export
 
         LoggingManager.setup_logging()
         if args.verbose:
             logging.getLogger().setLevel(logging.DEBUG)
-        return run_strategy_bundle_export(name)
+        out = getattr(args, "export_output_arg", None)
+        output_path = str(out).strip() if out else None
+        return run_export(name, output_path=output_path or None)
 
     if import_arg is not None:
         path = str(import_arg).strip()
         if not path:
-            parser.error("-i 需要包路径（例: start-cli.py -i ./demo.ntq-bundle.zip）")
+            parser.error("-i 需要包路径（例: start-cli.py -i ./demo-strategy.zip）")
         if args.command or _package_cli_has_other_flags(args):
             parser.error("策略包导入 (-i) 不能与其它命令或模块快捷 flag 合用")
+        if getattr(args, "export_output_arg", None):
+            parser.error("-o/--output 仅能与 -e 合用")
         from core.modules.strategy.launcher.package_cli import run_strategy_bundle_import
 
         LoggingManager.setup_logging()
         if args.verbose:
             logging.getLogger().setLevel(logging.DEBUG)
-        return run_strategy_bundle_import(path, force=bool(getattr(args, "force_flag", False)))
+        return run_strategy_bundle_import(
+            path,
+            force=bool(getattr(args, "force_flag", False)),
+            skip_existing=bool(getattr(args, "import_skip_existing_flag", False)),
+            dry_run=bool(getattr(args, "import_dry_run_flag", False)),
+        )
 
     return None
 

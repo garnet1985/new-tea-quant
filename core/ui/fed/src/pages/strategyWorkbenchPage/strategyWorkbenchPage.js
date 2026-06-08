@@ -7,6 +7,7 @@ import React, {
 } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
+  Alert,
   Box,
   Button,
   Chip,
@@ -28,6 +29,7 @@ import {
 } from '@mui/material';
 import {
   applyStrategySettingsToUserspace,
+  downloadStrategyPackage,
   fetchCapitalAllocationModeConfig,
   fetchStrategyList,
   fetchStrategySettings,
@@ -56,6 +58,7 @@ import {
 } from './panels/strategySettingsPanel/strategySettingsPanel';
 import PageLayout from '../../components/pageLayout/pageLayout';
 import PageLoadingState from '../../components/pageLoadingState/pageLoadingState';
+import NtqIcon from '../../components/ntqIcon/ntqIcon';
 
 /** 左侧草稿 settings 变更后重置右侧执行/报告（加载完成后首次对齐基线，之后任意变更触发 ``onReset``）。core 由容器在 keyup/粘贴时解析写入 ``draftSettings``，签名仅需序列化草稿。 */
 function WorkbenchDraftChangeResetBridge({
@@ -234,6 +237,8 @@ function StrategyWorkbenchPage() {
   const suppressDraftDrivenPanelResetRef = useRef(false);
   /** 草稿变更时递增，强制执行/报告面板 remount 清空内部 compare / 轮询等状态 */
   const [panelsResetEpoch, setPanelsResetEpoch] = useState(0);
+  const [packageExporting, setPackageExporting] = useState(false);
+  const [packageExportError, setPackageExportError] = useState('');
 
   const resetPanelsAfterDraftChange = useCallback(() => {
     setPanelsResetEpoch((n) => n + 1);
@@ -266,6 +271,19 @@ function StrategyWorkbenchPage() {
   const forceRunHandlersRef = useRef({ forceEnum: null });
   /** 与左侧表单 ``draftSettings`` 同步，供跑完后对齐 ``appliedSettings`` */
   const draftSettingsRef = useRef(null);
+
+  const handleExportStrategyPackage = useCallback(async () => {
+    if (!strategyName) return;
+    setPackageExporting(true);
+    setPackageExportError('');
+    try {
+      await downloadStrategyPackage(strategyName, { scope: 'bundle' });
+    } catch (e) {
+      setPackageExportError(e?.message || '导出失败');
+    } finally {
+      setPackageExporting(false);
+    }
+  }, [strategyName]);
 
   const handleRunStepComplete = useCallback((step) => {
     if (step !== 'enum' && step !== 'price' && step !== 'capital') return;
@@ -592,7 +610,26 @@ function StrategyWorkbenchPage() {
       breadcrumbsCurrent={strategyName ? `调试：${strategyName}` : '策略调试'}
       bannerTitle={strategyName ? `调试：${strategyName}` : '策略调试'}
       bannerDescription={strategyDescription || ''}
+      bannerRightSlot={
+        strategyName ? (
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={handleExportStrategyPackage}
+            disabled={packageExporting}
+            className="ntq-glass-outline-btn"
+            startIcon={<NtqIcon name="download" size={22} tone="muted" />}
+          >
+            {packageExporting ? '导出中…' : '导出策略包'}
+          </Button>
+        ) : null
+      }
     >
+      {packageExportError ? (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setPackageExportError('')}>
+          {packageExportError}
+        </Alert>
+      ) : null}
       {isLoadingSettings && strategyName ? (
         <PageLoadingState message="正在加载策略配置…" minHeight="min(52vh, 520px)" />
       ) : null}

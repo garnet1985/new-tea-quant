@@ -89,6 +89,8 @@ def preview_strategy_bundle_import(
         "ok": plan.ok,
         "policy": policy.value,
         "bundle_type": manifest.metadata.get("bundle_type"),
+        "scope": manifest.metadata.get("scope"),
+        "entity_name": manifest.metadata.get("entity_name"),
         "strategy_name": manifest.metadata.get("strategy_name"),
         "core_version": manifest.metadata.get("core_version"),
         "items": items,

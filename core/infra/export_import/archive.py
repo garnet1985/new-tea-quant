@@ -121,7 +121,15 @@ def _create_zip_via_system_zip(staging: Path, output_path: Path) -> None:
     output_path = Path(output_path)
     if output_path.exists():
         output_path.unlink()
-    cmd = ["zip", "-r", "-X", str(output_path.resolve()), "."]
+
+    # macOS/BSD zip appends ``.zip`` when the target name lacks that suffix.
+    zip_target = output_path
+    if output_path.suffix.lower() != ".zip":
+        zip_target = output_path.with_name(f"{output_path.name}.zip")
+        if zip_target.exists():
+            zip_target.unlink()
+
+    cmd = ["zip", "-r", "-X", str(zip_target.resolve()), "."]
     proc = subprocess.run(
         cmd,
         cwd=str(staging),
@@ -131,6 +139,9 @@ def _create_zip_via_system_zip(staging: Path, output_path: Path) -> None:
     if proc.returncode != 0:
         err = (proc.stderr or proc.stdout or "").strip()
         raise RuntimeError(f"zip command failed: {err or proc.returncode}")
+
+    if zip_target != output_path:
+        zip_target.rename(output_path)
 
 
 def _collect_directory_arcnames(files: List[CollectedFile]) -> List[str]:

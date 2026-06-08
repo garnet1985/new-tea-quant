@@ -7,12 +7,16 @@
 工作台实现栈在 ``strategy_stack`` 中首次请求时再 import，避免 BFF 启动即拉 DataManager 等。
 """
 
-from flask import Blueprint, request
+from io import BytesIO
+
+from flask import Blueprint, jsonify, request, send_file
 
 from core.ui.bff.shared.response import error, ok
 
 from .formatting import workbench_snapshot_to_message
 from .helpers import json_payload, pagination_params
+from .package_helpers import parse_conflict_policy, read_uploaded_bytes
+from .package_stack import get_strategy_package_stack
 from .strategy_stack import get_strategy_workbench_stack
 
 strategy_workbench_api_bp = Blueprint("strategy_workbench_api", __name__)
@@ -344,5 +348,138 @@ def delete_workbench_snapshot_cache_by_version(strategy_name, version_id):
             "deleted": True,
             "strategy_name": out.get("strategy_name"),
             "version_id": out.get("version_id"),
+        }
+    )
+
+
+# --- V2-13：策略包导出（二进制 zip） ---
+@strategy_workbench_api_bp.route(
+    "/v1/strategy/<strategy_name>/package/export",
+    methods=["GET"],
+)
+def get_strategy_package_export(strategy_name):
+    """
+    GET /strategy/{strategy_name}/package/export
+
+    Query ``scope``:
+    - ``bundle`` (default): strategy + resolved tag/adapter dependencies
+    - ``strategy``: strategy directory only
+    """
+    p = get_strategy_package_stack()
+    scope = str(request.args.get("scope") or "bundle").strip().lower()
+    name = str(strategy_name or "").strip()
+    if not name:
+        return error("strategy_name 不能为空", 400)
+
+    try:
+        if scope == "bundle":
+            _manifest, payload = p.export_strategy_bundle(name)
+            filename = p.bundle_filename(name)
+        elif scope == "strategy":
+            _manifest, payload = p.export_single_entity("strategy", name)
+            filename = p.single_entity_filename("strategy", name)
+        else:
+            return error(f"无效 scope={scope!r}；可选 bundle | strategy", 400)
+    except FileNotFoundError as exc:
+        return error(str(exc), 404)
+    except ValueError as exc:
+        return error(str(exc), 400)
+    except Exception as exc:
+        return error(f"导出失败: {exc}", 500)
+
+    if isinstance(payload, (bytes, bytearray)):
+        data = bytes(payload)
+    else:
+        data = payload.read_bytes()
+
+    return send_file(
+        BytesIO(data),
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+# --- V2-14：策略包导入预览 ---
+@strategy_workbench_api_bp.route(
+    "/v1/strategy/package/import/preview",
+    methods=["POST"],
+)
+def post_strategy_package_import_preview():
+    """POST multipart ``file`` + ``policy`` (reject | skip_existing | overwrite)."""
+    blob, err = read_uploaded_bytes()
+    if err is not None:
+        return err
+
+    policy, err = parse_conflict_policy()
+    if err is not None:
+        return err
+
+    p = get_strategy_package_stack()
+    try:
+        preview = p.preview_strategy_bundle_import(blob, policy=policy)
+    except Exception as exc:
+        return error(f"无法解析策略包: {exc}", 400)
+
+    return ok(preview)
+
+
+# --- V2-15：策略包导入 ---
+@strategy_workbench_api_bp.route(
+    "/v1/strategy/package/import",
+    methods=["POST"],
+)
+def post_strategy_package_import():
+    """POST multipart ``file`` + ``policy``; 409 when reject policy hits conflicts."""
+    blob, err = read_uploaded_bytes()
+    if err is not None:
+        return err
+
+    policy, err = parse_conflict_policy()
+    if err is not None:
+        return err
+
+    p = get_strategy_package_stack()
+    try:
+        preview = p.preview_strategy_bundle_import(blob, policy=policy)
+    except Exception as exc:
+        return error(f"无法解析策略包: {exc}", 400)
+
+    if not preview.get("ok"):
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": {
+                        "detail": "导入冲突：目标路径已存在",
+                        "code": "package_conflict",
+                        "preview": preview,
+                    },
+                }
+            ),
+            409,
+        )
+
+    try:
+        result = p.import_strategy_bundle(blob, policy)
+    except Exception as exc:
+        return error(f"导入失败: {exc}", 500)
+
+    if not result.ok:
+        return error("; ".join(result.errors) or "导入失败", 500)
+
+    return ok(
+        {
+            "strategy_name": preview.get("strategy_name") or preview.get("entity_name"),
+            "bundle_type": preview.get("bundle_type"),
+            "policy": preview.get("policy"),
+            "installed": [
+                {"kind": e.kind, "name": e.name, "target_relative": e.target_relative}
+                for e in result.installed
+            ],
+            "skipped": [
+                {"kind": e.kind, "name": e.name, "target_relative": e.target_relative}
+                for e in result.skipped
+            ],
         }
     )

@@ -40,6 +40,11 @@ setup/init_data/*
 ########################
 
 # CLI 导出的策略交流包（本地产物）
+*-strategy.zip
+*-strategy-only.zip
+*-tag.zip
+*-adapter.zip
+*-strategy-zip
 *.strategy.zip
 *.ntq-bundle.zip
 

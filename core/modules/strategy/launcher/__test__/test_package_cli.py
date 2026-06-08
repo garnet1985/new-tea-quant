@@ -8,10 +8,17 @@ import pytest
 
 from core.infra.project_context import PathManager
 from core.modules.strategy.launcher.package_cli import (
+    bundle_filename,
+    default_export_dir,
     default_export_path,
+    parse_export_target,
+    resolve_import_policy,
+    run_export,
     run_strategy_bundle_export,
     run_strategy_bundle_import,
+    single_entity_filename,
 )
+from core.infra.export_import import ConflictPolicy
 
 
 @pytest.fixture
@@ -38,15 +45,45 @@ def userspace_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def test_export_cli_writes_zip(userspace_tree: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.chdir(tmp_path)
-    out = default_export_path("demo")
+    out = default_export_path("bundle", "demo")
+    assert out.parent == userspace_tree
+    assert out.name == bundle_filename("demo")
     code = run_strategy_bundle_export("demo", output_path=out)
     assert code == 0
     assert out.is_file()
-    assert out.suffix == ".zip"
+
+
+def test_default_export_path_falls_back_to_project_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    root = tmp_path / "project"
+    root.mkdir()
+    monkeypatch.setattr(PathManager, "get_root", staticmethod(lambda: root))
+    monkeypatch.setattr(PathManager, "userspace", staticmethod(lambda: root / "userspace"))
+    assert default_export_dir() == root
+    assert default_export_path("bundle", "demo") == root / "demo-strategy.zip"
+
+
+def test_parse_export_target_single_tag():
+    assert parse_export_target("tag:foo") == ("tag", "foo")
+    assert parse_export_target("example") == ("bundle", "example")
+
+
+def test_import_skip_existing_policy():
+    assert resolve_import_policy(force=False, skip_existing=True) == ConflictPolicy.SKIP_EXISTING
+
+
+def test_single_entity_export(userspace_tree: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    tag = userspace_tree / "extensions" / "tags" / "mytag"
+    tag.mkdir(parents=True)
+    (tag / "settings.py").write_text("Settings={}\n", encoding="utf-8")
+    (tag / "tag_worker.py").write_text("class W: pass\n", encoding="utf-8")
+
+    out = userspace_tree / single_entity_filename("tag", "mytag")
+    assert run_export("tag:mytag", output_path=out) == 0
+    assert out.is_file()
 
 
 def test_import_cli_rejects_duplicate(userspace_tree: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.chdir(tmp_path)
-    out = tmp_path / "demo.strategy.zip"
+    out = userspace_tree / bundle_filename("demo")
     assert run_strategy_bundle_export("demo", output_path=out) == 0
     assert run_strategy_bundle_import(out, force=False) == 1

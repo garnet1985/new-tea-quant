@@ -33,6 +33,12 @@
     python start-cli.py -sy                  # Strategy analysis
     python start-cli.py -u                   # 检查并应用 core 版本更新
     python start-cli.py -update              # 同上
+    python start-cli.py -e example           # 导出策略交流包（userspace/example-strategy.zip）
+    python start-cli.py -e tag:my_tag        # 仅导出单个 tag
+    python start-cli.py -i ./demo-strategy.zip     # 导入（重名拒绝）
+    python start-cli.py -i ./demo-strategy.zip --skip-existing  # 跳过已存在
+    python start-cli.py -i ./demo-strategy.zip -f  # 覆盖已存在
+    python start-cli.py -i ./demo-strategy.zip --dry-run  # 仅预览
     python start-cli.py -h                   # 查看帮助
 """
 import sys
@@ -89,6 +95,9 @@ def _skip_auto_install_from_argv() -> bool:
         "-u",
         "-update",
         "--update",
+        # 策略包 import/export 仅读写 userspace 文件，不依赖 DB / 完整 install 流水线
+        "-e",
+        "-i",
     }
     return any(token in skip_flags for token in argv)
 
@@ -360,6 +369,25 @@ def _add_shortcut_flags(parser):
     parser.add_argument('-u', '-update', dest='update_flag', action='store_true',
                        help='检查远端 core 版本并在确认后执行应用升级')
 
+    parser.add_argument(
+        '-e',
+        dest='export_strategy_arg',
+        nargs='?',
+        const='',
+        default=None,
+        metavar='STRATEGY',
+        help='导出包：-e example（策略包）| -e tag:NAME | -e adapter:NAME | -e strategy:NAME（单实体）',
+    )
+    parser.add_argument(
+        '-i',
+        dest='import_package_arg',
+        nargs='?',
+        const='',
+        default=None,
+        metavar='PATH',
+        help='导入包；默认重名拒绝；-f 覆盖；--skip-existing 跳过已有；--dry-run 仅预览',
+    )
+
 
 def _run_app_update() -> int:
     """``-u`` / ``-update``：探测版本并可选运行 userspace updater 流水线。"""
@@ -414,12 +442,34 @@ def _add_extra_arguments(parser):
         dest='force_flag',
         action='store_true',
         help='renew/-r/-d：强制 refresh（default_start_date 起全量重拉，跳过日缓存）；'
-             'scan：demo；enumerate(-se)：跳过 DbCache',
+             'scan：demo；enumerate(-se)：跳过 DbCache；'
+             'import(-i)：覆盖已存在的 strategy/tag/adapter 目录',
     )
     parser.add_argument('--base-date', type=str,
                        help='基准日期（YYYYMMDD 或 YYYY-MM-DD，用于 export_adj_factor_csv）')
     parser.add_argument('-v', '--version', action='store_true',
                        help='显示当前 core 版本信息并退出')
+    parser.add_argument(
+        '-o',
+        '--output',
+        dest='export_output_arg',
+        type=str,
+        default=None,
+        metavar='PATH',
+        help='导出输出路径（仅与 -e 合用）',
+    )
+    parser.add_argument(
+        '--skip-existing',
+        dest='import_skip_existing_flag',
+        action='store_true',
+        help='导入时跳过 userspace 中已存在的 strategy/tag/adapter 目录（仅 -i）',
+    )
+    parser.add_argument(
+        '--dry-run',
+        dest='import_dry_run_flag',
+        action='store_true',
+        help='导入预览，不写入磁盘（仅 -i）',
+    )
     parser.add_argument('-V', '--verbose', action='store_true',
                        help='详细输出模式')
 
@@ -457,6 +507,8 @@ def _get_help_epilog() -> str:
   -sa          Strategy capital allocation simulation
   -sy          Strategy analysis
   -u, -update  检查 core 远端版本并在确认后升级
+  -e STRATEGY  导出策略交流包（zip）
+  -i PATH      导入策略交流包（重名拒绝；-f 覆盖）
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 使用示例:
@@ -487,6 +539,12 @@ def _get_help_epilog() -> str:
     %(prog)s -sa                  Strategy capital allocation simulation
     %(prog)s -sy                  Strategy analysis
     %(prog)s -u                   检查并应用 core 版本更新
+    %(prog)s -e example           导出策略包 userspace/example-strategy.zip
+    %(prog)s -e tag:my_tag        仅导出 tag 目录
+    %(prog)s -i ./pkg-strategy.zip        导入策略包
+    %(prog)s -i ./pkg-strategy.zip --skip-existing
+    %(prog)s -i ./pkg-strategy.zip -f     导入并覆盖重名目录
+    %(prog)s -i ./pkg-strategy.zip --dry-run
 
   额外参数:
     %(prog)s simulate --strategy example    只运行指定策略
@@ -627,6 +685,79 @@ def attach_renew_cli_context(args, command: str) -> None:
         return
 
     args.renew_table_name = str(getattr(args, 'table_name', '') or '').strip()
+
+
+def _resolve_package_cli(args, parser: argparse.ArgumentParser) -> Optional[int]:
+    """
+    Handle ``-e`` / ``-i`` before normal command dispatch.
+
+    Returns exit code when handled, else ``None``.
+    """
+    export_arg = getattr(args, "export_strategy_arg", None)
+    import_arg = getattr(args, "import_package_arg", None)
+    if export_arg is not None and import_arg is not None:
+        parser.error("不能同时使用 -e 与 -i")
+
+    if export_arg is not None:
+        name = str(export_arg).strip()
+        if not name:
+            parser.error("-e 需要策略名称（例: start-cli.py -e example）")
+        if args.command or _package_cli_has_other_flags(args):
+            parser.error("策略包导出 (-e) 不能与其它命令或模块快捷 flag 合用")
+        from core.modules.strategy.launcher.package_cli import run_export
+
+        LoggingManager.setup_logging()
+        if args.verbose:
+            logging.getLogger().setLevel(logging.DEBUG)
+        out = getattr(args, "export_output_arg", None)
+        output_path = str(out).strip() if out else None
+        return run_export(name, output_path=output_path or None)
+
+    if import_arg is not None:
+        path = str(import_arg).strip()
+        if not path:
+            parser.error("-i 需要包路径（例: start-cli.py -i ./demo-strategy.zip）")
+        if args.command or _package_cli_has_other_flags(args):
+            parser.error("策略包导入 (-i) 不能与其它命令或模块快捷 flag 合用")
+        if getattr(args, "export_output_arg", None):
+            parser.error("-o/--output 仅能与 -e 合用")
+        from core.modules.strategy.launcher.package_cli import run_strategy_bundle_import
+
+        LoggingManager.setup_logging()
+        if args.verbose:
+            logging.getLogger().setLevel(logging.DEBUG)
+        return run_strategy_bundle_import(
+            path,
+            force=bool(getattr(args, "force_flag", False)),
+            skip_existing=bool(getattr(args, "import_skip_existing_flag", False)),
+            dry_run=bool(getattr(args, "import_dry_run_flag", False)),
+        )
+
+    return None
+
+
+def _package_cli_has_other_flags(args) -> bool:
+    """True when argv includes module shortcut flags besides optional -f/-V."""
+    flag_names = (
+        "data_flag",
+        "data_renew_flag",
+        "tag_flag",
+        "tag_generate_flag",
+        "strategy_flag",
+        "strategy_scan_flag",
+        "strategy_enum_flag",
+        "strategy_price_flag",
+        "strategy_capital_flag",
+        "strategy_analysis_flag",
+        "update_flag",
+    )
+    if any(getattr(args, name, False) for name in flag_names):
+        return True
+    if getattr(args, "renew_arg", None) is not None:
+        return True
+    if getattr(args, "renew_force_arg", None) is not None:
+        return True
+    return False
 
 
 def _cli_strategy_arg(raw: object) -> Optional[str]:
@@ -794,6 +925,10 @@ def main():
         print(f"NTQ Core Version: {system_meta.version}")
         print(f"Release Date: {system_meta.release_date}")
         return
+
+    package_exit = _resolve_package_cli(args, parser)
+    if package_exit is not None:
+        raise SystemExit(package_exit)
 
     # 初始化全局日志（基于 logging.json + userspace 覆盖）
     LoggingManager.setup_logging()

@@ -61,27 +61,6 @@
   }
 }
 
-.strategy-list-refresh-btn {
-  height: 40px; // align with TextField small
-  border-radius: 5px !important;
-  border: 1px solid var(--ntq-white-12) !important;
-  background: var(--ntq-white-03) !important;
-  color: var(--ntq-text) !important;
-  padding: 0 14px !important;
-  line-height: 1 !important;
-
-  &:hover {
-    background: var(--ntq-white-06) !important;
-    border-color: rgba(255, 255, 255, 0.18) !important;
-  }
-}
-
-.strategy-list-refresh-icon {
-  width: 22px;
-  height: 22px;
-  opacity: 0.9;
-}
-
 .strategy-list-grid-body {
   width: 100%;
   min-height: 400px;

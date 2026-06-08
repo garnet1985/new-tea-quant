@@ -1,0 +1,41 @@
+.strategy-package-import-dialog {
+  .strategy-package-import-dialog__actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 8px 20px 18px !important;
+    flex-wrap: nowrap;
+
+    > .MuiButton-root {
+      margin-left: 0 !important;
+    }
+  }
+
+  .strategy-package-import-dialog__btn {
+    height: 40px;
+    min-height: 40px;
+    min-width: 88px;
+    border-radius: 5px !important;
+    padding: 0 16px !important;
+    line-height: 1 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    flex-shrink: 0;
+  }
+
+  .strategy-package-import-dialog__btn--ghost {
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    color: var(--ntq-text-muted) !important;
+
+    &:hover {
+      background: var(--ntq-white-03) !important;
+      border-color: transparent !important;
+    }
+  }
+
+  .strategy-package-import-dialog__btn--primary {
+    min-width: 132px;
+  }
+}

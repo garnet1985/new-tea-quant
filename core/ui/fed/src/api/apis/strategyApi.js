@@ -551,3 +551,92 @@ export async function fetchMarketProfileOptions() {
   const items = json?.message?.items ?? [];
   return items.map((row) => ({ value: row.value, label: row.label }));
 }
+
+const API_STRATEGY_PACKAGE_IMPORT = `${API_VERSION_PREFIX}/strategy/package/import`;
+const API_STRATEGY_PACKAGE_IMPORT_PREVIEW = `${API_VERSION_PREFIX}/strategy/package/import/preview`;
+
+async function readFetchErrorDetail(response) {
+  try {
+    const json = await response.json();
+    return json?.message?.detail || `HTTP ${response.status}`;
+  } catch {
+    return `HTTP ${response.status}`;
+  }
+}
+
+/**
+ * 下载策略交流包（V2-13）：`GET /api/v1/strategy/{name}/package/export`
+ * @param {string} strategyName
+ * @param {{ scope?: 'bundle'|'strategy' }} [options]
+ */
+export async function downloadStrategyPackage(strategyName, { scope = 'bundle' } = {}) {
+  const params = new URLSearchParams({ scope });
+  const url = `${apiStrategyPath(strategyName)}/package/export?${params.toString()}`;
+  const response = await fetch(url, { method: 'GET' });
+  if (!response.ok) {
+    throw new Error(await readFetchErrorDetail(response));
+  }
+  const blob = await response.blob();
+  let filename = `${strategyName}-strategy.zip`;
+  const cd = response.headers.get('Content-Disposition') || '';
+  const match = /filename\*?=(?:UTF-8''|utf-8'')?["']?([^"';]+)/i.exec(cd);
+  if (match?.[1]) {
+    try {
+      filename = decodeURIComponent(match[1].trim());
+    } catch {
+      filename = match[1].trim();
+    }
+  }
+  const href = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = href;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(href);
+}
+
+/**
+ * 策略包导入预览（V2-14）
+ * @param {File} file
+ * @param {{ policy?: 'reject'|'skip_existing'|'overwrite' }} [options]
+ */
+export async function previewStrategyPackageImport(file, { policy = 'reject' } = {}) {
+  const fd = new FormData();
+  fd.append('file', file);
+  const params = new URLSearchParams({ policy });
+  const response = await fetch(`${API_STRATEGY_PACKAGE_IMPORT_PREVIEW}?${params.toString()}`, {
+    method: 'POST',
+    body: fd,
+  });
+  const json = await response.json();
+  if (!response.ok || json?.status !== 'ok') {
+    throw new Error(json?.message?.detail || `HTTP ${response.status}`);
+  }
+  return json.message;
+}
+
+/**
+ * 策略包导入（V2-15）
+ * @param {File} file
+ * @param {{ policy?: 'reject'|'skip_existing'|'overwrite' }} [options]
+ */
+export async function importStrategyPackage(file, { policy = 'reject' } = {}) {
+  const fd = new FormData();
+  fd.append('file', file);
+  const params = new URLSearchParams({ policy });
+  const response = await fetch(`${API_STRATEGY_PACKAGE_IMPORT}?${params.toString()}`, {
+    method: 'POST',
+    body: fd,
+  });
+  const json = await response.json();
+  if (response.status === 409) {
+    const err = new Error(json?.message?.detail || '导入冲突');
+    err.code = 'package_conflict';
+    err.preview = json?.message?.preview;
+    throw err;
+  }
+  if (!response.ok || json?.status !== 'ok') {
+    throw new Error(json?.message?.detail || `HTTP ${response.status}`);
+  }
+  return json.message;
+}

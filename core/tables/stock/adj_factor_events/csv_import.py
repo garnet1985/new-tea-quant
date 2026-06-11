@@ -3,8 +3,8 @@ adj_factor_events CSV 冷启动导入：按 dev 契约过滤与校验。
 
 规则（``data.json``）：
 - ``use_sample_stock_list``：仅保留池内股票；池内缺股允许，renew 补全
-- ``as_of_latest_completed_trading_date``：``event_date`` 截断；未 cover as_of 的股 ``last_update=NULL``
-- ``default_start_date`` + ``sys_stock_list.list_date``：池内已出现股票须 cover 起点，否则拒绝整批导入
+- ``as_of_latest_completed_trading_date``：``event_date`` 截断；已导入股戳 ``last_update`` 至 as_of（除权日稀疏，``max(event)<as_of`` 仍视为 L0 已覆盖）
+- ``default_start_date`` + ``sys_stock_list.list_date``：起点未覆盖的股跳过（renew 全量 refresh），其余照常导入
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ _REQUIRED_COLUMNS = frozenset({"id", "event_date", "factor", "qfq_diff"})
 
 
 class CsvImportRejected(Exception):
-    """整批 CSV 导入被拒绝（通常因起点未覆盖）。"""
+    """整批 CSV 导入被拒绝（表头/配置非法）。"""
 
     def __init__(self, message: str, *, offenders: Optional[List[str]] = None) -> None:
         super().__init__(message)
@@ -38,6 +38,7 @@ class CsvImportReport:
     pool_missing_stocks: List[str] = field(default_factory=list)
     stocks_partial_as_of: List[str] = field(default_factory=list)
     stocks_as_of_covered: List[str] = field(default_factory=list)
+    stocks_skipped_start_coverage: List[str] = field(default_factory=list)
     default_start_date: str = ""
     as_of_date: Optional[str] = None
     sample_pool_active: bool = False
@@ -60,14 +61,29 @@ def _normalize_stock_id(value: Any) -> str:
     return str(value or "").strip()
 
 
-def _effective_start(default_start: str, list_date: Optional[str]) -> str:
-    start = _normalize_ymd(default_start) or ""
-    listed = _normalize_ymd(list_date)
-    if not start:
-        return listed or ""
-    if not listed:
-        return start
-    return max(start, listed)
+def _covers_start_date(
+    min_event_date: str,
+    default_start: str,
+    list_date: Optional[str],
+) -> bool:
+    """
+    该股 CSV 是否覆盖回填起点。
+
+    - 老股：``min(event_date) <= default_start``（须有过往除权链）
+    - 新股（``list_date > default_start``）：首笔除权晚于上市日属正常，不判缺历史
+    - 上市不晚于 default_start 且首笔除权晚于 default_start：缺早期链 → 不通过
+    """
+    ds = _normalize_ymd(default_start) or ""
+    if not ds:
+        return True
+    if min_event_date <= ds:
+        return True
+    ld = _normalize_ymd(list_date)
+    if ld and ld > ds:
+        return True
+    if ld and min_event_date <= ld:
+        return True
+    return False
 
 
 def _parse_last_update(value: Any) -> Optional[datetime]:
@@ -109,9 +125,12 @@ def _cap_last_update_to_as_of(raw: Any, as_of: str) -> Optional[str]:
 
 
 def validate_csv_columns(fieldnames: Optional[Iterable[str]]) -> None:
-    if not fieldnames:
+    if fieldnames is None:
         raise CsvImportRejected("CSV 无表头")
-    missing = _REQUIRED_COLUMNS - {str(c).strip() for c in fieldnames}
+    cols = [str(c).strip() for c in fieldnames]
+    if not cols:
+        raise CsvImportRejected("CSV 无表头")
+    missing = _REQUIRED_COLUMNS - set(cols)
     if missing:
         raise CsvImportRejected(f"CSV 缺少必需列: {sorted(missing)}")
 
@@ -126,7 +145,7 @@ def prepare_adj_factor_csv_import(
     source_path: str = "",
 ) -> Tuple[List[Dict[str, Any]], CsvImportReport]:
     """
-    按契约过滤 CSV 行；不满足起点覆盖时抛 ``CsvImportRejected``。
+    按契约过滤 CSV 行；起点未覆盖的股跳过，其余导入。
     """
     report = CsvImportReport(
         source_path=source_path,
@@ -167,21 +186,15 @@ def prepare_adj_factor_csv_import(
     if not default_start:
         raise CsvImportRejected("default_start_date 未配置，拒绝 CSV 导入")
 
-    offenders: List[str] = []
-    for sid, rows in sorted(by_stock.items()):
+    skipped_start: List[str] = []
+    for sid in sorted(by_stock.keys()):
+        rows = by_stock[sid]
         min_ed = min(str(r["event_date"]) for r in rows)
-        eff_start = _effective_start(default_start, list_dates.get(sid))
-        if eff_start and min_ed > eff_start:
-            offenders.append(
-                f"{sid}(min_event={min_ed},need<={eff_start})"
-            )
-
-    if offenders:
-        raise CsvImportRejected(
-            f"CSV 未覆盖 default_start（{default_start}）起点，拒绝导入: "
-            f"{len(offenders)} 股",
-            offenders=offenders,
-        )
+        ld = list_dates.get(sid)
+        if not _covers_start_date(min_ed, default_start, ld):
+            skipped_start.append(sid)
+            del by_stock[sid]
+    report.stocks_skipped_start_coverage = skipped_start
 
     as_of = report.as_of_date
     if as_of:
@@ -192,21 +205,14 @@ def prepare_adj_factor_csv_import(
     for sid, rows in sorted(by_stock.items()):
         if not rows:
             continue
-        max_ed = max(str(r["event_date"]) for r in rows)
-        as_of_covered = as_of is not None and max_ed >= as_of
-        if as_of_covered:
-            report.stocks_as_of_covered.append(sid)
-            for row in rows:
-                row = dict(row)
+        report.stocks_as_of_covered.append(sid)
+        for row in rows:
+            row = dict(row)
+            if as_of:
                 row["last_update"] = _cap_last_update_to_as_of(row.get("last_update"), as_of)
-                out_rows.append(row)
-        else:
-            if as_of is not None:
-                report.stocks_partial_as_of.append(sid)
-            for row in rows:
-                row = dict(row)
+            else:
                 row["last_update"] = None
-                out_rows.append(row)
+            out_rows.append(row)
 
     report.rows_imported = len(out_rows)
     report.stocks_imported = len({str(r["id"]) for r in out_rows})
@@ -229,10 +235,22 @@ def log_csv_import_report(report: CsvImportReport) -> None:
         )
         if report.pool_missing_stocks and len(report.pool_missing_stocks) <= 10:
             logger.info("  池内缺失: %s", ", ".join(report.pool_missing_stocks))
+    if report.stocks_skipped_start_coverage:
+        logger.info(
+            "  起点未覆盖: 跳过 %d 股（renew 将全量 refresh）",
+            len(report.stocks_skipped_start_coverage),
+        )
+        if len(report.stocks_skipped_start_coverage) <= 10:
+            logger.info(
+                "  跳过: %s",
+                ", ".join(report.stocks_skipped_start_coverage),
+            )
     if report.as_of_date:
         logger.info(
-            "  as_of=%s: 已覆盖 %d 股，待续爬 %d 股（last_update=NULL）",
+            "  as_of=%s: 已戳 last_update %d 股（L0 跳过）；"
+            "renew 补: 池内缺失 %d + 起点跳过 %d",
             report.as_of_date,
             len(report.stocks_as_of_covered),
-            len(report.stocks_partial_as_of),
+            len(report.pool_missing_stocks),
+            len(report.stocks_skipped_start_coverage),
         )

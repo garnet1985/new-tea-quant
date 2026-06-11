@@ -1,0 +1,25 @@
+name: tables
+version: 0.4.0
+compatible_core_versions: ">=0.4.1"
+description: "数据表定义：统一 schema.py 发现与注册，按领域（stock/macro/calendar/index/db_cache）组织。"
+dependencies: []
+changelog:
+  - version: "0.4.0"
+    changes:
+      - "(破坏性) sys_stock_klines / sys_stock_index_klines：highest/lowest 重命名为 high/low"
+  - version: "0.3.0"
+    changes:
+      - "(破坏性) sys_adj_factor_events：新增 qfq_anchor、raw_anchor；factor/qfq_diff 改 DECIMAL(12,x)；last_update 改 renew 门控"
+      - sys_adj_factor_events 新增索引 idx_id_last_update
+  - version: "0.2.0"
+    changes:
+      - "(破坏性) sys_stock_list：去掉 is_active；新增 list_status、list_date、delist_date、last_update 及 PIT 索引（L/D/P 全量 + 时点回测）"
+      - 新增第四维分类地域：sys_areas（定义表）+ sys_stock_area_map
+      - sys_boards / sys_industries / sys_markets：is_alive 语义统一为「本批 stock_list 是否仍引用」
+      - 新增 sys_stock_st_periods（ST 风险时段 tier/period，配合回测 ST 规则）
+  - version: "0.1.0"
+    changes:
+      - "(破坏性) sys_stock_list 移除 industry_id、market_id、board_id"
+      - 新增维度定义表 sys_industries、sys_boards、sys_markets
+      - 新增映射表 sys_stock_industry_map、sys_stock_board_map、sys_stock_market_map
+      - 新增 sys_trade_calendar（交易日历）"

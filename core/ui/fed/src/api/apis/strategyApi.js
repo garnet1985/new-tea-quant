@@ -117,6 +117,7 @@ export async function fetchStrategySettings(strategyName) {
     workbench_version_id: typeof m.version_id === 'string' ? m.version_id : '',
     step_status: m.step_status,
     result_report: m.result_report,
+    execution_panel: m.execution_panel ?? null,
     has_persisted_snapshot: Boolean(m.has_persisted_snapshot),
     has_other_versions: Boolean(m.has_other_versions),
   };
@@ -186,6 +187,7 @@ export async function fetchStrategyVersionDetail(strategyName, versionId) {
     settings: m.settings || {},
     step_status: m.step_status,
     result_report: m.result_report,
+    execution_panel: m.execution_panel ?? null,
   };
 }
 
@@ -216,7 +218,7 @@ export async function createStrategyVersion(strategyName, settings, source = 'ma
 }
 
 /**
- * V2-05：启动单步 run（路径含 step）。
+ * V2-05：启动 run（路径上的 ``step`` 为用户点击步；实际子步骤链见响应 ``steps`` / ``resolved_chain``，由后端 ``plan_schema`` 规划）。
  * @param {string} strategyName
  * @param {'enum'|'price'|'capital'} targetStep
  * @param {object=} settings
@@ -372,15 +374,8 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
     progress_pct = 100;
   }
 
-  const result_report = {};
   let version_id = '';
   steps.forEach((row) => {
-    const pv = row?.result?.card || row?.result?.preview;
-    if (pv && typeof pv === 'object') {
-      if (pv.enum) result_report.enum = pv.enum;
-      if (pv.price) result_report.price = pv.price;
-      if (pv.capital) result_report.capital = pv.capital;
-    }
     const vid = row?.result?.version_id;
     if (typeof vid === 'string' && vid.trim()) version_id = vid.trim();
   });
@@ -399,7 +394,6 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
     progress_pct,
     state,
     version_id,
-    result_report,
     fail_reason,
   };
 }
@@ -421,7 +415,6 @@ export async function fetchStrategyRunStatus(strategyName, jobId, _step = 'enum'
       state: 'failed',
       running_step: '',
       step_status_merge: {},
-      result_report: {},
       fail_reason: '无编排进度数据',
     };
   }

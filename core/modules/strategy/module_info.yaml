@@ -12,6 +12,10 @@ dependencies:
   - infra.job_pipeline
   - infra.worker
 changelog:
+  - version: "0.4.1"
+    changes:
+      - 模拟产物 latest 按数字 id 解析（enum/price/capital），修复字典序导致引用旧枚举目录、env_fp 与 DbCache 错位
+      - price/capital 写 DbCache 时从磁盘补全缺失 enum 槽（与 CLI/UI 同一 execution_manager，无读侧兼容）
   - version: "0.4.0"
     changes:
       - 策略交流包 services/package：依赖解析、export/preview/import（基于 infra.export_import）

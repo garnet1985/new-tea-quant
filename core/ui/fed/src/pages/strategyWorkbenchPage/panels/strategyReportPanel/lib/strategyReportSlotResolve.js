@@ -1,46 +1,22 @@
 /**
- * 报告槽位：V2-07 ``stepReportSlots`` 优先，其次工作台 ``result_report`` 快照摘要。
+ * 报告槽位：从 V2-08 ``result_report`` 按 Tab 取槽位。
  */
 
-export function resolveStepReportSlot(step, stepReportSlots) {
-  if (!step || !stepReportSlots || typeof stepReportSlots !== 'object') return null;
-  const slot = stepReportSlots[step];
-  return slot && typeof slot === 'object' ? slot : null;
-}
+/** UI Tab key → ``result_report`` 槽位键 */
+export const TAB_TO_RESULT_REPORT_SLOT = {
+  enum: 'enum',
+  price: 'price_factor',
+  capital: 'capital_allocation',
+};
 
-export function resolveEnumReportSlot({ stepReportSlots, snapshotSlot }) {
-  return (
-    resolveStepReportSlot('enum', stepReportSlots)
-    || (snapshotSlot && typeof snapshotSlot === 'object' ? snapshotSlot : null)
-    || null
-  );
-}
-
-export function resolvePriceReportSlot({ stepReportSlots, snapshotSlot }) {
-  return (
-    resolveStepReportSlot('price', stepReportSlots)
-    || (snapshotSlot && typeof snapshotSlot === 'object' ? snapshotSlot : null)
-    || null
-  );
-}
-
-export function resolveCapitalReportSlot({ stepReportSlots, snapshotSlot }) {
-  return (
-    resolveStepReportSlot('capital', stepReportSlots)
-    || (snapshotSlot && typeof snapshotSlot === 'object' ? snapshotSlot : null)
-    || null
-  );
-}
-
-/** 对比侧：仅 V2-07 单步 report 槽位。 */
-export function resolveEnumReportSlotForCompare(slot) {
-  return slot && typeof slot === 'object' ? slot : null;
-}
-
-export function resolvePriceReportSlotForCompare(slot) {
-  return slot && typeof slot === 'object' ? slot : null;
-}
-
-export function resolveCapitalReportSlotForCompare(slot) {
+/**
+ * @param {object|null|undefined} resultReport V2-08 ``result_report``
+ * @param {'enum'|'price'|'capital'} tabKey
+ */
+export function slotFromResultReport(resultReport, tabKey) {
+  if (!resultReport || typeof resultReport !== 'object') return null;
+  const slotKey = TAB_TO_RESULT_REPORT_SLOT[tabKey];
+  if (!slotKey) return null;
+  const slot = resultReport[slotKey];
   return slot && typeof slot === 'object' ? slot : null;
 }

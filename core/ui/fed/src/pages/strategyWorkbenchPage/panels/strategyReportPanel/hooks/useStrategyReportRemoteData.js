@@ -1,8 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  fetchStrategyStepReport,
-  fetchStrategyStepReportRef,
-} from '../../../../../api/apis/strategyApi';
+import { fetchStrategyStepReportRef } from '../../../../../api/apis/strategyApi';
 import { STEP_TABS } from '../constants/strategyReportConstants';
 import {
   ENUM_REF_DEFAULT_SORT,
@@ -11,7 +8,8 @@ import {
 } from '../lib/strategyReportEnumRef';
 
 /**
- * V2-07 单步 report、枚举 report_ref；由 ``executionState.stepStatus`` 推导可用 Tab。
+ * 报告面板远程数据：枚举 ``report_ref``（V2-07b）与可用 Tab 推导。
+ * 主面板与对比弹窗读页面注入的 V2-08 ``workbenchSnapshot.result_report``；枚举明细仍用 V2-07b ``report_ref``。
  */
 export function useStrategyReportRemoteData({
   strategyName,
@@ -20,14 +18,8 @@ export function useStrategyReportRemoteData({
   executionState,
 }) {
   const versionIdForReport = String(reportVersionId || '').trim();
-  const [reportStocks] = useState({ enum: [], price: [], capital: [] });
   const [enumRefStatus, setEnumRefStatus] = useState('idle');
   const [enumRefRows, setEnumRefRows] = useState([]);
-  const [stepReportSlots, setStepReportSlots] = useState({
-    enum: null,
-    price: null,
-    capital: null,
-  });
 
   const availableTabs = useMemo(() => {
     const stepStatus = executionState?.stepStatus || {};
@@ -39,34 +31,6 @@ export function useStrategyReportRemoteData({
     if (availableTabs.some((tab) => tab.key === activeTab)) return activeTab;
     return availableTabs[availableTabs.length - 1].key;
   }, [activeTab, availableTabs]);
-
-  useEffect(() => {
-    if (!versionIdForReport) {
-      setStepReportSlots({ enum: null, price: null, capital: null });
-    }
-  }, [versionIdForReport]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!strategyName || !versionIdForReport || !resolvedActiveTab) {
-      return undefined;
-    }
-    const step = resolvedActiveTab;
-    fetchStrategyStepReport(strategyName, step, versionIdForReport)
-      .then((msg) => {
-        if (cancelled) return;
-        const rep = msg?.report;
-        const slot = rep && typeof rep === 'object' ? rep : null;
-        setStepReportSlots((prev) => ({ ...prev, [step]: slot }));
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setStepReportSlots((prev) => ({ ...prev, [step]: null }));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [strategyName, versionIdForReport, resolvedActiveTab]);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,11 +68,9 @@ export function useStrategyReportRemoteData({
   }, [resolvedActiveTab, strategyName, versionIdForReport]);
 
   return {
-    reportStocks,
     enumRefStatus,
     enumRefRows,
     availableTabs,
     resolvedActiveTab,
-    stepReportSlots,
   };
 }

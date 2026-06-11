@@ -37,6 +37,20 @@ def _write_meta_after_create(meta: Dict[str, Any], created_id: int, **extra: Any
     return out
 
 
+def _numeric_version_dir_key(path: Path) -> int:
+    """``latest`` 解析须按整型 id 比较，避免 ``\"9\" > \"20\"`` 的字典序陷阱。"""
+    try:
+        return int(path.name)
+    except ValueError:
+        return -1
+
+
+def _pick_latest_numeric_version_dir(candidates: list[Path]) -> Path:
+    if not candidates:
+        raise ValueError("no version directories")
+    return max(candidates, key=_numeric_version_dir_key)
+
+
 class StrategyOutputVersionService:
     @staticmethod
     def create_enumerator_version(strategy_name: str) -> Tuple[Path, int]:
@@ -79,7 +93,7 @@ class StrategyOutputVersionService:
                 raise FileNotFoundError(
                     f"[StrategyOutputVersionService] no versions under enum root: {root}"
                 )
-            return sorted(candidates, key=lambda p: p.name)[-1], root
+            return _pick_latest_numeric_version_dir(candidates), root
         version_dir = root / version_str
         if not version_dir.exists() or not version_dir.is_dir():
             raise FileNotFoundError(
@@ -130,7 +144,7 @@ class StrategyOutputVersionService:
                 raise FileNotFoundError(
                     f"[StrategyOutputVersionService] no price factor versions: {root_dir}"
                 )
-            version_dir = sorted(candidates, key=lambda p: p.name)[-1]
+            version_dir = _pick_latest_numeric_version_dir(candidates)
             return version_dir, int(version_dir.name)
         version_dir = root_dir / version_spec
         if not version_dir.exists() or not version_dir.is_dir():
@@ -186,8 +200,8 @@ class StrategyOutputVersionService:
                 raise FileNotFoundError(
                     f"[StrategyOutputVersionService] no capital allocation versions: {base_dir}"
                 )
-            version_dirs.sort(key=lambda d: d.name, reverse=True)
-            return version_dirs[0], int(version_dirs[0].name)
+            version_dir = _pick_latest_numeric_version_dir(version_dirs)
+            return version_dir, int(version_dir.name)
         version_dir = base_dir / version_spec
         if not version_dir.exists() or not version_dir.is_dir():
             raise FileNotFoundError(

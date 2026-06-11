@@ -53,6 +53,14 @@ python dev-cli -p -vx.x.x
 - sys_adj_factor_events 表：qfq_anchor/raw_anchor、DECIMAL 精度、last_update renew 门控、CSV 冷启动导入（见 core/tables v0.2.x）
 - 修复策略报告 K 线 tooltip 将 dataIndex 误显示为开盘价的问题
 - KlineService 前复权消费改为方案 B：`raw×F(段)/F(最新)+C`，C 由最新事件 anchor 折算；`qfq_diff` 仅 fallback
+- 修复模拟产物 `latest` 解析：`enum` / `price` / `capital` 目录 id 按**数字**取最大，不再字典序（如 `"9"` 误大于 `"20"`）；下游 price/capital 与最新枚举对齐，`env_fp` 可正确复用 DbCache（**无兼容**：旧快照行不对请重跑或删行）
+- 修复工作台 DbCache 写侧：price/capital 落库时若 `result_report` 缺 `enum` 槽，按本次运行引用的 `enumerator_output_dir` 从磁盘 `0_report_enum.json` 补写（**无读侧 fallback**；CLI 与 UI 共用同一后端 flow）
+- 修复工作台 UI：单步跑完后按 progress 的 `version_id` 拉 V2-08 快照，执行面板摘要与下方报告读同一份 `result_report`（不再把 progress `card` 切片 merge 进报告）
+- (破坏性改动)工作台 progress 仅编排状态（`step_status` / `progress_pct` / `version_id`），不再携带 `card` 或指标；执行面板三行摘要改由 V2-01/V2-08 的 `execution_panel` 字段提供（后端唯一计算源）
+- 工作台报告主面板改读 V2-08 `result_report` 单源，不再对 V2-07 做 per-tab 拉取与快照 fallback；`selectedConfigVersion` 为报告/对比锚点，草稿变更时一并清空
+- 工作台右侧状态收敛为单一 `workbenchSnapshot`（`versionId` / `step_status` / `result_report` / `execution_panel` / `settings`）；对比弹窗左右两侧均读 V2-08，不再使用 V2-07
+- 明确三步依赖：enum 为前置；price / capital 并列且互不依赖；enum 落库时剔除下游槽位，单跑 price 或 capital 不再误清另一路结果
+- 前端移除自维护的依赖链（计划推断 / 摘要清空 / 快照槽位剔除）；执行 UI 只消费 V2-05 ``steps`` 与 V2-06b progress，跑完后 V2-08 快照对齐
 
 ---
 

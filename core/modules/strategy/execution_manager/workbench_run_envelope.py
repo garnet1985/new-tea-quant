@@ -8,8 +8,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from core.modules.strategy.services.progress import ProgressRecorder
 
-from .workbench_disk_progress import _fed_execution_step_card_slice
-
 logger = logging.getLogger(__name__)
 
 RUN_ENVELOPE_SCHEMA = "workbench_run_v1"
@@ -177,13 +175,10 @@ def run_envelope_on_substep_finish(
     st["progress"] = 100.0
     msg = f"{str(substep).strip()} 已完成"
     if sid > 0:
-        # ``card``：仅执行面板三行所需标量，避免塞整份 ``result_report``；完整报告见 ``GET …/report``。
-        card = _fed_execution_step_card_slice(sn, str(substep).strip(), sid)
         st["result"] = {
             "message": msg,
             "version_id": f"v{sid}",
             "report_step": str(substep).strip(),
-            "card": card if card else None,
         }
     else:
         st["result"] = {"message": msg}

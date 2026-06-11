@@ -1,34 +1,104 @@
-"""stock_list 样本截取。"""
-import os
+"""stock_list 样本池（data.json use_sample_stock_list → dev/stock_pool）。"""
+from pathlib import Path
 
 from core.modules.data_source.service import sample_stock_list as mod
 from core.modules.data_source.service.sample_stock_list import (
+    filter_paired_stock_records,
+    is_sample_active,
+    pool_csv_path,
     slice_stock_list,
     slice_stock_list_in_dependencies,
 )
 
 
-def test_slice_stock_list_no_env():
-    mod._LOGGED = False
+def test_slice_stock_list_no_config(monkeypatch):
+    mod.invalidate_pool_cache()
+    monkeypatch.setattr(
+        "core.modules.data_source.service.sample_stock_list.sample_pool_count",
+        lambda: None,
+    )
     rows = [{"id": f"{i:06d}"} for i in range(10)]
     assert slice_stock_list(rows) == rows
 
 
-def test_slice_stock_list_with_limit_and_offset(monkeypatch):
-    mod._LOGGED = False
-    monkeypatch.setenv("NTQ_DS_SAMPLE_N", "3")
-    monkeypatch.setenv("NTQ_DS_SAMPLE_OFFSET", "2")
-    rows = [{"id": f"{i:06d}"} for i in range(10)]
+def test_slice_stock_list_by_dev_pool(monkeypatch, tmp_path: Path):
+    mod.invalidate_pool_cache()
+    pool = tmp_path / "stratified_500.csv"
+    pool.write_text("id,list_status\n000002.SZ,L\n000001.SZ,L\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "core.modules.data_source.service.sample_stock_list.sample_pool_count",
+        lambda: 500,
+    )
+    monkeypatch.setattr(
+        "core.modules.data_source.service.sample_stock_list.pool_csv_path",
+        lambda _count: pool,
+    )
+
+    rows = [{"id": "000001.SZ"}, {"id": "000002.SZ"}, {"id": "000003.SZ"}]
     out = slice_stock_list(rows)
-    assert len(out) == 3
-    assert out[0]["id"] == "000002"
+    assert [r["id"] for r in out] == ["000002.SZ", "000001.SZ"]
 
 
-def test_slice_in_dependencies(monkeypatch):
-    mod._LOGGED = False
-    monkeypatch.setenv("NTQ_DS_SAMPLE_SIZE", "2")
-    deps = {"stock_list": [{"id": "a"}, {"id": "b"}, {"id": "c"}], "other": 1}
+def test_pool_csv_path_rejects_invalid_count():
+    try:
+        pool_csv_path(0)
+        assert False, "expected ValueError"
+    except ValueError:
+        pass
+
+
+def test_slice_in_dependencies(monkeypatch, tmp_path: Path):
+    mod.invalidate_pool_cache()
+    pool = tmp_path / "stratified_500.csv"
+    pool.write_text("id\n000001.SZ\n000002.SZ\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "core.modules.data_source.service.sample_stock_list.sample_pool_count",
+        lambda: 500,
+    )
+    monkeypatch.setattr(
+        "core.modules.data_source.service.sample_stock_list.pool_csv_path",
+        lambda _count: pool,
+    )
+    deps = {
+        "stock_list": [{"id": "000001.SZ"}, {"id": "000002.SZ"}, {"id": "000003.SZ"}],
+        "other": 1,
+    }
     out = slice_stock_list_in_dependencies(deps)
     assert len(out["stock_list"]) == 2
     assert out["other"] == 1
-    assert deps["stock_list"]  # 原 dict 未改
+    assert deps["stock_list"]
+
+
+def test_filter_paired_stock_records(monkeypatch, tmp_path: Path):
+    mod.invalidate_pool_cache()
+    pool = tmp_path / "stratified_500.csv"
+    pool.write_text("id\n000001.SZ\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "core.modules.data_source.service.sample_stock_list.sample_pool_count",
+        lambda: 500,
+    )
+    monkeypatch.setattr(
+        "core.modules.data_source.service.sample_stock_list.pool_csv_path",
+        lambda _count: pool,
+    )
+    main = [{"id": "000001.SZ"}, {"id": "000002.SZ"}]
+    raw = [{"industry": "A"}, {"industry": "B"}]
+    m, r = filter_paired_stock_records(main, raw)
+    assert len(m) == 1
+    assert m[0]["id"] == "000001.SZ"
+    assert r[0]["industry"] == "A"
+
+
+def test_is_sample_active(monkeypatch, tmp_path: Path):
+    mod.invalidate_pool_cache()
+    pool = tmp_path / "stratified_500.csv"
+    pool.write_text("id\n000001.SZ\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "core.modules.data_source.service.sample_stock_list.sample_pool_count",
+        lambda: 500,
+    )
+    monkeypatch.setattr(
+        "core.modules.data_source.service.sample_stock_list.pool_csv_path",
+        lambda _count: pool,
+    )
+    assert is_sample_active() is True

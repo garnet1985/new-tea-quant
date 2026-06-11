@@ -14,6 +14,8 @@
   python dev-cli.py -p -v0.3.2 -userspace   # 发布通过后同步 init userspace 源树与 userspace.zip
   python dev-cli.py -userspace   # 仅打包 init userspace（不跑发布检查）
   python dev-cli.py -ex          # 打包演示数据（分层抽样 → setup/import_data 可导入 zip）
+  python dev-cli.py -sample_stock_list -500   # 分层抽样 500 只并激活（renew 仅池内）
+  python dev-cli.py -sample_stock_list -clear # 取消股票池，renew 恢复全量
 
 也支持子命令：``ui``、``kill``、``import-check``（见 ``-h``）。
 """
@@ -21,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -194,6 +197,36 @@ def _cmd_package_userspace(args: argparse.Namespace) -> int:
     return package_init_userspace(write_zip=not getattr(args, "no_zip", False))
 
 
+def _cmd_sample_stock_list_activate(count: int, *, verbose: bool = False) -> int:
+    from devtools.quick_tools.stock_pool_ops import activate_stratified_pool
+
+    return activate_stratified_pool(count, verbose=verbose)
+
+
+def _cmd_sample_stock_list_clear() -> int:
+    from devtools.quick_tools.stock_pool_ops import deactivate_stratified_pool
+
+    return deactivate_stratified_pool()
+
+
+def _parse_sample_stock_list_argv(rest: Sequence[str], *, verbose: bool = False) -> int | None:
+    """
+    解析 ``-sample_stock_list`` 后续参数：``-500`` / ``-clear``。
+    返回 exit code；无法解析时返回 None。
+    """
+    if not rest:
+        print("用法: python dev-cli.py -sample_stock_list -<N> | -clear", file=sys.stderr)
+        return 2
+    token = rest[0]
+    if token == "-clear":
+        return _cmd_sample_stock_list_clear()
+    m = re.fullmatch(r"-(\d+)", token)
+    if m:
+        return _cmd_sample_stock_list_activate(int(m.group(1)), verbose=verbose)
+    print(f"未知参数: {token!r}（需要 -<N> 或 -clear）", file=sys.stderr)
+    return 2
+
+
 def _cmd_db_checkpoint(args: argparse.Namespace) -> int:
     """将 DuckDB 各域 WAL 合并进 .duckdb 主文件（renew 中断后可手动执行）。"""
     from pathlib import Path
@@ -321,6 +354,8 @@ def _print_help() -> None:
   -p -vX.Y.Z   发布准备（写 system.json / 徽章、检查 module_info、FED build、-ic、pytest）
   -userspace   将根目录 userspace/ 打包为 setup/init_userspace（清理密钥/缓存后写 userspace.zip）
   -ex         打包演示数据 zip（见 devtools/demo_exporter/demo_data_exporter.py）
+  -sample_stock_list -N   分层抽样 N 只并写入 data.json use_sample_stock_list
+  -sample_stock_list -clear  清除 use_sample_stock_list，renew 恢复全量
   -dbc        DuckDB：将各域 .wal 合并进 .duckdb（renew/Ctrl+C 后可用）
 
   -p 附加: --check-only      只检查不写版本文件（仍会跑 FED build）
@@ -338,8 +373,11 @@ def _print_help() -> None:
   package-userspace   同 -userspace
   publish -v X.Y.Z    同 -p -vX.Y.Z
   export-init-data    同 -ex（参数用 -- 转发，如 -ex -- --to-init-data）
+  sample-stock-list -500 | sample-stock-list clear
 
 示例:
+  python dev-cli.py -sample_stock_list -500
+  python dev-cli.py -sample_stock_list -clear
   python dev-cli.py -p -v0.3.2
   python dev-cli.py -p -v0.3.2 -userspace
   python dev-cli.py -userspace
@@ -442,7 +480,30 @@ def _build_subcommand_parser() -> argparse.ArgumentParser:
     )
     p_pub.set_defaults(func=_cmd_publish, forward=[])
 
+    p_ssl = sub.add_parser(
+        "sample-stock-list",
+        aliases=["ssl", "sample-pool"],
+        help="分层抽样股票池：-N 激活 / clear 取消",
+    )
+    p_ssl.add_argument(
+        "action",
+        help="样本只数（正整数）或 clear",
+    )
+    p_ssl.add_argument("-v", "--verbose", action="store_true")
+    p_ssl.set_defaults(func=_cmd_sample_stock_list_subcommand, forward=[])
+
     return parser
+
+
+def _cmd_sample_stock_list_subcommand(args: argparse.Namespace) -> int:
+    action = str(getattr(args, "action", "") or "").strip()
+    verbose = bool(getattr(args, "verbose", False))
+    if action.lower() == "clear":
+        return _cmd_sample_stock_list_clear()
+    if action.isdigit() and int(action) > 0:
+        return _cmd_sample_stock_list_activate(int(action), verbose=verbose)
+    print(f"未知 action: {action!r}（需要正整数或 clear）", file=sys.stderr)
+    return 2
 
 
 def _cmd_publish(args: argparse.Namespace) -> int:
@@ -475,6 +536,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     token = raw[0]
     rest = _normalize_forward(raw[1:])
+
+    if token in ("-sample_stock_list", "-ssl"):
+        verbose = "-v" in rest or "--verbose" in rest
+        filtered = [x for x in rest if x not in ("-v", "--verbose")]
+        code = _parse_sample_stock_list_argv(filtered, verbose=verbose)
+        return code if code is not None else 2
 
     if token in _SHORT_FLAGS:
         handler, extra = _SHORT_FLAGS[token]

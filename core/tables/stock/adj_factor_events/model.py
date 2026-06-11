@@ -3,10 +3,13 @@ data_adj_factor_event 表 Model
 
 复权因子事件，只存储除权除息日的因子变化。
 """
-from typing import List, Dict, Any, Optional, Literal, Union
+from typing import Iterable, List, Dict, Any, Optional, Literal, Union, Set
 from datetime import datetime
 from pathlib import Path
+import logging
 import re
+
+logger = logging.getLogger(__name__)
 from core.infra.db import DbBaseModel
 from core.tables.stock.adj_factor_events.schema import schema as _schema
 from core.utils.io import csv_io, file_io
@@ -458,13 +461,83 @@ class DataAdjFactorEventModel(DbBaseModel):
         )
         return len(rows)
 
+    def _load_list_date_map(self, stock_ids: Iterable[str]) -> Dict[str, str]:
+        ids = [str(s).strip() for s in stock_ids if str(s).strip()]
+        if not ids or not self.db:
+            return {}
+        placeholders = ",".join(["%s"] * len(ids))
+        rows = self.db.execute_sync_query(
+            f"SELECT id, list_date FROM sys_stock_list WHERE id IN ({placeholders})",
+            tuple(ids),
+        )
+        out: Dict[str, str] = {}
+        for row in rows or []:
+            sid = str((row or {}).get("id") or "").strip()
+            ld = row.get("list_date") if row else None
+            ymd = self._normalize_ymd(ld)
+            if sid and ymd:
+                out[sid] = ymd
+        return out
+
     def import_from_csv(self, file_path: Optional[str] = None) -> int:
-        """从 CSV 导入（默认 ``get_latest_csv_file()``）。"""
+        """
+        从 CSV 冷启动导入（默认 ``get_latest_csv_file()``）。
+
+        按 ``data.json`` 契约过滤：样本池、as_of 截断、起点覆盖校验。
+        """
         import pandas as pd
+
+        from core.infra.project_context import ConfigManager
+        from core.modules.data_source.service.sample_stock_list import (
+            pool_stock_ids,
+            sample_pool_count,
+        )
+        from core.tables.stock.adj_factor_events.csv_import import (
+            CsvImportRejected,
+            log_csv_import_report,
+            prepare_adj_factor_csv_import,
+            validate_csv_columns,
+        )
 
         path = Path(file_path) if file_path else Path(self.get_latest_csv_file() or "")
         if not path.is_file():
             return 0
+
         df = pd.read_csv(path)
-        events = df.to_dict("records")
+        validate_csv_columns(df.columns)
+
+        default_start = ConfigManager.get_default_start_date() or ""
+        as_of = ConfigManager.get_as_of_latest_completed_trading_date()
+        pool_ids: Optional[Set[str]] = None
+        if sample_pool_count():
+            pool_ids = set(pool_stock_ids())
+
+        raw_rows = df.to_dict("records")
+        stock_ids = {
+            str(r.get("id") or "").strip()
+            for r in raw_rows
+            if str(r.get("id") or "").strip()
+        }
+        if pool_ids is not None:
+            stock_ids &= pool_ids
+
+        list_date_map = self._load_list_date_map(stock_ids)
+
+        try:
+            events, report = prepare_adj_factor_csv_import(
+                raw_rows,
+                default_start_date=default_start,
+                as_of_date=as_of,
+                pool_ids=pool_ids,
+                list_date_by_id=list_date_map,
+                source_path=str(path),
+            )
+        except CsvImportRejected as exc:
+            logger.error("adj_factor CSV 导入被拒绝: %s", exc)
+            if exc.offenders:
+                sample = exc.offenders[:5]
+                logger.error("  示例: %s%s", ", ".join(sample), " ..." if len(exc.offenders) > 5 else "")
+            return 0
+
+        log_csv_import_report(report)
         return self.save_events(events)

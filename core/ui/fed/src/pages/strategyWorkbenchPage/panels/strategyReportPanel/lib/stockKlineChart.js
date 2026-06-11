@@ -105,16 +105,38 @@ function normalizeCandleRow(item) {
   return [open, close, low, high];
 }
 
+/** 日期轴、K 线、指标必须同索引；不可单独 filter 蜡烛行否则 tooltip 会串日。 */
+function prepareAlignedChartRows(candles, indicatorSeries) {
+  const dates = [];
+  const candleData = [];
+  const validIndexes = [];
+  (candles || []).forEach((item, index) => {
+    const row = normalizeCandleRow(item);
+    if (!row) return;
+    validIndexes.push(index);
+    dates.push(item.date);
+    candleData.push(row);
+  });
+  const alignedIndicators = (indicatorSeries || []).map((row) => ({
+    ...row,
+    data: validIndexes.map((i) => {
+      const values = Array.isArray(row.data) ? row.data : [];
+      return i < values.length ? values[i] : null;
+    }),
+  }));
+  return { dates, candleData, indicatorSeries: alignedIndicators };
+}
+
 export function buildStockKlineChartOptionFromPayload(payload) {
   if (!payload || !Array.isArray(payload.candles) || payload.candles.length === 0) return {};
-  const dates = payload.candles.map((item) => item.date);
-  const candleData = payload.candles
-    .map((item) => normalizeCandleRow(item))
-    .filter(Boolean);
+  const {
+    dates,
+    candleData,
+    indicatorSeries,
+  } = prepareAlignedChartRows(payload.candles, payload.indicator_series);
   if (!candleData.length) return {};
 
   const markPointData = buildMarkPointData(payload.markers);
-  const indicatorSeries = Array.isArray(payload.indicator_series) ? payload.indicator_series : [];
   const oscillatorRows = indicatorSeries.filter((row) => row.panel === 'oscillator');
   const overlayRows = indicatorSeries.filter((row) => row.panel !== 'oscillator');
   const hasOscillator = oscillatorRows.length > 0;

@@ -16,12 +16,14 @@ import { zhCN } from '@mui/x-data-grid/locales';
 import {
   downloadStrategyPackage,
   fetchStrategyList,
+  getStrategyDisplayLabel,
   getStrategyWorkbenchPath,
 } from '../../api/apis/strategyApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
 import StrategyPackageImportDialog from '../../components/strategyPackageImportDialog/strategyPackageImportDialog';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
 import NtqIcon from '../../components/ntqIcon/ntqIcon';
+import StrategyDescriptionText from '../../components/strategyDescriptionText/strategyDescriptionText';
 import './strategyListPage.scss';
 
 function StrategyListPage() {
@@ -39,7 +41,12 @@ function StrategyListPage() {
   const displayRows = useMemo(() => {
     const q = nameQuery.trim().toLowerCase();
     if (!q) return rows;
-    return rows.filter((r) => String(r.name).toLowerCase().includes(q));
+    return rows.filter((r) => {
+      const id = String(r.name || '').toLowerCase();
+      const label = String(r.display_name || '').toLowerCase();
+      const desc = String(r.description || '').toLowerCase();
+      return id.includes(q) || label.includes(q) || desc.includes(q);
+    });
   }, [rows, nameQuery]);
 
   const load = useCallback(() => {
@@ -79,10 +86,11 @@ function StrategyListPage() {
 
   const columns = [
     {
-      field: 'name',
+      field: 'display_name',
       headerName: '策略名',
       minWidth: 160,
       flex: 0.5,
+      valueGetter: (params) => getStrategyDisplayLabel(params.row),
       renderCell: (params) => (
         <Link
           component={RouterLink}
@@ -90,7 +98,7 @@ function StrategyListPage() {
           underline="hover"
           onClick={(e) => e.stopPropagation()}
         >
-          {params.value}
+          {params.value || params.row.name}
         </Link>
       ),
     },
@@ -156,7 +164,15 @@ function StrategyListPage() {
       headerName: '描述',
       minWidth: 240,
       flex: 1.5,
-      valueFormatter: (params) => params.value || '—',
+      sortable: false,
+      renderCell: (params) => (
+        <StrategyDescriptionText
+          text={params.value}
+          variant="body2"
+          color="text.secondary"
+          empty="—"
+        />
+      ),
     },
   ];
 
@@ -239,9 +255,18 @@ function StrategyListPage() {
             rows={displayRows}
             columns={columns}
             loading={loading}
+            getRowHeight={() => 'auto'}
             slots={NTQ_DATA_GRID_LOADING_SLOTS}
             localeText={zhCN}
             disableRowSelectionOnClick
+            sx={{
+              '& .MuiDataGrid-cell': {
+                py: 1.25,
+                alignItems: 'flex-start',
+                whiteSpace: 'normal',
+                lineHeight: 1.5,
+              },
+            }}
             onRowDoubleClick={(params) => {
               navigate(getStrategyWorkbenchPath(params.row.name));
             }}

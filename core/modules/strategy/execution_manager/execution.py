@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple
 
 from .types import PlannedSubstep, ProgressSink, WorkbenchExecutionResult
+from .workbench_flow_progress import WorkbenchFlowProgress
 
 if TYPE_CHECKING:
     from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
@@ -25,6 +26,7 @@ def run_workbench_substep_for_snapshot(
     force_refresh: bool,
     job_id: str,
     on_step_progress: Optional[Callable[[float], None]] = None,
+    workbench_progress: Optional[WorkbenchFlowProgress] = None,
     stock_count: Optional[int] = None,
     is_verbose: bool = False,
 ) -> Tuple[int, Any, Optional[bool]]:
@@ -34,6 +36,7 @@ def run_workbench_substep_for_snapshot(
     返回 ``(version, last_payload, used_db_cache)``；``used_db_cache`` 仅对
     price/capital 有值，其余为 ``None``。
     """
+    wp = workbench_progress
     if step == "enum":
         from core.modules.strategy.launcher.enumerator_runtime_service import (
             EnumeratorRuntimeService,
@@ -48,7 +51,7 @@ def run_workbench_substep_for_snapshot(
             workbench_strategy_name=strategy_name,
             stock_count=stock_count,
         )
-        payload = EnumeratorRuntimeService.run_enum(ctx)
+        payload = EnumeratorRuntimeService.run_enum(ctx, workbench_progress=wp)
         return int(ctx.flow.last_version or 0), payload, None
 
     if step == "price":
@@ -58,7 +61,12 @@ def run_workbench_substep_for_snapshot(
 
         flow = PriceFactorFlow(is_verbose=is_verbose, force_refresh=force_refresh)
         cb = on_step_progress if callable(on_step_progress) else None
-        summary = flow.run(strategy_name, discovered, progress_callback=cb)
+        summary = flow.run(
+            strategy_name,
+            discovered,
+            progress_callback=cb,
+            workbench_progress=wp,
+        )
         return (
             int(flow.last_version or 0),
             summary,
@@ -72,7 +80,12 @@ def run_workbench_substep_for_snapshot(
 
         flow = CapitalAllocationFlow(is_verbose=is_verbose, force_refresh=force_refresh)
         cb = on_step_progress if callable(on_step_progress) else None
-        summary = flow.run(strategy_name, discovered, progress_callback=cb)
+        summary = flow.run(
+            strategy_name,
+            discovered,
+            progress_callback=cb,
+            workbench_progress=wp,
+        )
         return (
             int(flow.last_version or 0),
             summary,
@@ -106,29 +119,23 @@ def execute_workbench_plan_sync(
     last_payload: Any = None
     last_used: Optional[bool] = None
     for i, (sub, force_sub) in enumerate(plan):
-        span = 85.0 / n
-        base_pct = 5.0 + span * float(i)
         if progress is not None:
             progress.on_substep_start(sub, i, n)
 
-        if sub in ("price", "capital") and progress is not None:
+        wp: Optional[WorkbenchFlowProgress] = None
+        on_prog_cb: Optional[Callable[[float], None]] = None
+        if progress is not None:
 
-            def on_prog(
-                p_local: float,
-                *,
-                _sub: str = sub,
-                _i: int = i,
-                _n: int = n,
+            def _on_stage(
+                substep: str,
+                stage: str,
+                ratio: float,
+                counters: Optional[dict] = None,
             ) -> None:
-                sp = 85.0 / _n
-                b = 5.0 + sp * float(_i)
-                v = min(94.0, b + sp * (float(p_local) / 100.0))
-                progress.on_overall_pct(v)
-                progress.on_flow_progress(_sub, float(p_local))
+                progress.on_step_stage(substep, stage, ratio, counters)
 
-            on_prog_cb: Optional[Callable[[float], None]] = on_prog
-        else:
-            on_prog_cb = None
+            wp = WorkbenchFlowProgress(_on_stage, sub)
+            on_prog_cb = wp
 
         version_int, payload, used = run_workbench_substep_for_snapshot(
             sub,
@@ -137,6 +144,7 @@ def execute_workbench_plan_sync(
             force_refresh=bool(force_sub),
             job_id=jid,
             on_step_progress=on_prog_cb if sub in ("price", "capital") else None,
+            workbench_progress=wp,
             stock_count=enum_stock_count if sub == "enum" else None,
             is_verbose=is_verbose,
         )
@@ -145,8 +153,8 @@ def execute_workbench_plan_sync(
         if used is not None:
             last_used = used
 
-        if sub == "enum" and progress is not None:
-            progress.on_overall_pct(min(94.0, base_pct + span * 0.92))
+        if progress is not None and wp is not None:
+            wp.stage("report", 1.0)
 
         if progress is not None:
             fin = getattr(progress, "on_substep_finish", None)

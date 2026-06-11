@@ -31,7 +31,7 @@ def _parse_bool_query(v: str, default: bool = False) -> bool:
 
 
 @strategy_scan_api_bp.route(
-    "/v1/strategy/<strategy_name>/scan",
+    "/v1/strategy/<path:strategy_name>/scan",
     methods=["GET"],
 )
 def get_strategy_scan_readiness_route(strategy_name: str):
@@ -43,7 +43,7 @@ def get_strategy_scan_readiness_route(strategy_name: str):
 
 
 @strategy_scan_api_bp.route(
-    "/v1/strategy/<strategy_name>/scan",
+    "/v1/strategy/<path:strategy_name>/scan",
     methods=["POST"],
 )
 def post_strategy_scan(strategy_name: str):
@@ -88,7 +88,7 @@ def post_strategy_scan(strategy_name: str):
 
 
 @strategy_scan_api_bp.route(
-    "/v1/strategy/<strategy_name>/scan/progress",
+    "/v1/strategy/<path:strategy_name>/scan/progress",
     methods=["GET"],
 )
 def get_strategy_scan_progress(strategy_name: str):

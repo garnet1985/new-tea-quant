@@ -109,6 +109,7 @@ class Scanner:
                 "scan_date": scan_date,
                 "worker_module_path": info.worker_module_path,
                 "worker_class_name": info.worker_class_name,
+                "worker_file_path": str(info.worker_file_path),
             }
             for stock_id in stock_ids
         ]

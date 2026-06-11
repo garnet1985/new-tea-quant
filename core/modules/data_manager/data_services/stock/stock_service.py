@@ -118,7 +118,7 @@ class StockService(BaseDataService):
                 ...
             }
         """
-        # 使用 JOIN 一次查询出股票信息、行业（经映射表）、最新K线
+        # K 线 OHLCV 在 sys_stock_klines；市值/PE 等在 sys_stock_indicators（同日关联）
         sql = """
         SELECT
             s.id, s.name, s.list_status, s.list_date, s.delist_date, s.last_update,
@@ -126,8 +126,8 @@ class StockService(BaseDataService):
             ind.value AS industry,
             k.date AS kline_date,
             k.open, k.high, k.low, k.close, k.volume, k.amount,
-            k.total_market_value, k.pe, k.pb, k.total_share, k.float_share,
-            k.turnover_rate, k.highest, k.lowest
+            di.turnover_rate,
+            di.total_market_value, di.pe, di.pb, di.total_share, di.float_share
         FROM sys_stock_list s
         LEFT JOIN sys_stock_industry_map map ON s.id = map.stock_id
         LEFT JOIN sys_industries ind ON map.industry_id = ind.id
@@ -139,6 +139,9 @@ class StockService(BaseDataService):
                 FROM sys_stock_klines k2
                 WHERE k2.id = s.id AND k2.term = 'daily'
             )
+        )
+        LEFT JOIN sys_stock_indicators di ON (
+            di.id = s.id AND di.date = k.date
         )
         WHERE s.id = %s
         LIMIT 1
@@ -169,8 +172,8 @@ class StockService(BaseDataService):
                     'turnover_vol': row.get('volume'),
                     'turnover_value': row.get('amount'),
                     'turnover_rate': row.get('turnover_rate'),
-                    'high': row.get('highest'),
-                    'low': row.get('lowest'),
+                    'high': row.get('high'),
+                    'low': row.get('low'),
                     'open': row.get('open'),
                     'close': row.get('close'),
                 })
@@ -196,16 +199,10 @@ class StockService(BaseDataService):
                 result.update({
                     'current_price': latest_kline.get('close'),
                     'current_price_date': latest_kline.get('date'),
-                    'market_cap': latest_kline.get('total_market_value'),
-                    'pe': latest_kline.get('pe'),
-                    'pb': latest_kline.get('pb'),
-                    'total_share': latest_kline.get('total_share'),
-                    'float_share': latest_kline.get('float_share'),
                     'turnover_vol': latest_kline.get('volume'),
                     'turnover_value': latest_kline.get('amount'),
-                    'turnover_rate': latest_kline.get('turnover_rate'),
-                    'high': latest_kline.get('highest'),
-                    'low': latest_kline.get('lowest'),
+                    'high': latest_kline.get('high'),
+                    'low': latest_kline.get('low'),
                     'open': latest_kline.get('open'),
                     'close': latest_kline.get('close'),
                 })

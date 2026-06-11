@@ -24,7 +24,7 @@ strategy_workbench_api_bp = Blueprint("strategy_workbench_api", __name__)
 
 # --- V2-01 ---
 @strategy_workbench_api_bp.route(
-    "/v1/strategy/<strategy_name>/version/latest",
+    "/v1/strategy/<path:strategy_name>/version/latest",
     methods=["GET"],
 )
 def get_strategy_version_latest(strategy_name):
@@ -48,7 +48,7 @@ def get_strategies_list():
 
 # --- V2-03 ---
 @strategy_workbench_api_bp.route(
-    "/v1/strategy/<strategy_name>/versions",
+    "/v1/strategy/<path:strategy_name>/versions",
     methods=["GET"],
 )
 def get_strategy_versions(strategy_name):
@@ -111,7 +111,7 @@ def get_settings_market_profiles():
 
 # --- V2-05 ---
 @strategy_workbench_api_bp.route(
-    "/v1/strategy/<strategy_name>/<step>/run",
+    "/v1/strategy/<path:strategy_name>/<step>/run",
     methods=["POST"],
 )
 def post_strategy_step_run(strategy_name, step):
@@ -149,7 +149,7 @@ def post_strategy_step_run(strategy_name, step):
 
 # --- V2-06b：整次 run 编排进度（``steps[]``，不依赖路径 ``step``） ---
 @strategy_workbench_api_bp.route(
-    "/v1/strategy/<strategy_name>/run/progress",
+    "/v1/strategy/<path:strategy_name>/run/progress",
     methods=["GET"],
 )
 def get_strategy_run_progress(strategy_name):
@@ -168,7 +168,7 @@ def get_strategy_run_progress(strategy_name):
 
 # --- V2-06 ---
 @strategy_workbench_api_bp.route(
-    "/v1/strategy/<strategy_name>/<step>/progress",
+    "/v1/strategy/<path:strategy_name>/<step>/progress",
     methods=["GET"],
 )
 def get_strategy_step_progress(strategy_name, step):
@@ -192,7 +192,7 @@ def get_strategy_step_progress(strategy_name, step):
 
 # --- V2-07（report：路径 ``version_id``；典型来源为 V2-06 completed 响应） ---
 @strategy_workbench_api_bp.route(
-    "/v1/strategy/<strategy_name>/<step>/report/<version_id>",
+    "/v1/strategy/<path:strategy_name>/<step>/report/<version_id>",
     methods=["GET"],
 )
 def get_strategy_step_report(strategy_name, step, version_id):
@@ -226,7 +226,7 @@ def get_strategy_step_report(strategy_name, step, version_id):
 
 # --- V2-07b：枚举逐股 ref（``0_stock_ref.json``） ---
 @strategy_workbench_api_bp.route(
-    "/v1/strategy/<strategy_name>/<step>/report_ref/<version_id>",
+    "/v1/strategy/<path:strategy_name>/<step>/report_ref/<version_id>",
     methods=["GET"],
 )
 def get_strategy_step_report_ref(strategy_name, step, version_id):
@@ -253,9 +253,44 @@ def get_strategy_step_report_ref(strategy_name, step, version_id):
     return ok(msg)
 
 
+# --- V2-07c：单股 K 线 + 步骤 markers（enum MVP） ---
+@strategy_workbench_api_bp.route(
+    "/v1/strategy/<path:strategy_name>/<step>/stock/<path:stock_id>",
+    methods=["GET"],
+)
+def get_strategy_step_stock_detail(strategy_name, step, stock_id):
+    """GET …/stock/{stock_id}?version_id= — 单股 K 线与标注；query ``version_id`` 必填。"""
+    s = get_strategy_workbench_stack()
+    norm = s.normalize_step(step)
+    if norm is None:
+        return error("step 须为 enum / price / capital", 400)
+
+    path_vid = str(request.args.get("version_id") or "").strip()
+    if not path_vid:
+        return error("缺少 query 参数 version_id", 400)
+
+    sid = s.parse_version_id(path_vid)
+    if sid is None:
+        return error("version_id 无效", 400)
+
+    code = str(stock_id or "").strip()
+    if not code:
+        return error("stock_id 无效", 400)
+
+    msg = s.build_stock_detail_message(
+        strategy_name=strategy_name,
+        normalized_step=norm,
+        version=sid,
+        stock_id=code,
+    )
+    if msg is None:
+        return error("快照不存在", 404)
+    return ok(msg)
+
+
 # --- V2-08 ---
 @strategy_workbench_api_bp.route(
-    "/v1/strategy/<strategy_name>/version/<version_id>",
+    "/v1/strategy/<path:strategy_name>/version/<version_id>",
     methods=["GET"],
 )
 def get_strategy_version_snapshot(strategy_name, version_id):
@@ -272,7 +307,7 @@ def get_strategy_version_snapshot(strategy_name, version_id):
 
 # --- V2-09 ---
 @strategy_workbench_api_bp.route(
-    "/v1/strategy/<strategy_name>/apply-settings/<version_id>",
+    "/v1/strategy/<path:strategy_name>/apply-settings/<version_id>",
     methods=["POST"],
 )
 def post_apply_settings(strategy_name, version_id):
@@ -326,7 +361,7 @@ def delete_workbench_snapshot_cache_all():
 
 # --- V2-12：按 version 删除单条模拟结果缓存 ---
 @strategy_workbench_api_bp.route(
-    "/v1/strategy/<strategy_name>/version/<version_id>/workbench-snapshot-cache",
+    "/v1/strategy/<path:strategy_name>/version/<version_id>/workbench-snapshot-cache",
     methods=["DELETE"],
 )
 def delete_workbench_snapshot_cache_by_version(strategy_name, version_id):
@@ -354,7 +389,7 @@ def delete_workbench_snapshot_cache_by_version(strategy_name, version_id):
 
 # --- V2-13：策略包导出（二进制 zip） ---
 @strategy_workbench_api_bp.route(
-    "/v1/strategy/<strategy_name>/package/export",
+    "/v1/strategy/<path:strategy_name>/package/export",
     methods=["GET"],
 )
 def get_strategy_package_export(strategy_name):

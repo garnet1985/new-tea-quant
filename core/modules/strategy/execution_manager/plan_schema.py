@@ -1,6 +1,14 @@
 """
 工作台执行计划：显式「普通 / force_refresh」两套配置 + 解析。
 
+步骤依赖（DAG）::
+
+    enum ──┬──> price
+           └──> capital
+
+- **enum**：独立第一层；重新跑 enum 会 invalidate 下游 price / capital（DbCache 写 enum 时剔除对应槽位）。
+- **price / capital**：并列第二层，互不依赖，但都依赖 enum；跑其一若 enum 未对齐则先跑 enum，**不会**清除另一路结果。
+
 声明形态（与 JSON 心智一致）::
 
     {

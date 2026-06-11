@@ -154,6 +154,7 @@ class OpportunityEnumeratorWorker:
             self.strategy_name,
             worker_module_path=self.job_payload.get("worker_module_path"),
             worker_class_name=self.job_payload.get("worker_class_name"),
+            worker_file_path=str(self.job_payload.get("worker_file_path") or ""),
         )
         self.strategy_instance = strategy_class(
             {

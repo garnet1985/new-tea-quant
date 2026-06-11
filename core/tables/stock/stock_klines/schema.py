@@ -49,14 +49,14 @@ schema = {
             "description": "收盘价",
         },
         {
-            "name": "highest",
+            "name": "high",
             "type": "float",
             "isRequired": True,
             "nullable": True,
             "description": "最高价",
         },
         {
-            "name": "lowest",
+            "name": "low",
             "type": "float",
             "isRequired": True,
             "nullable": True,

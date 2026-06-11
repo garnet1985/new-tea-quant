@@ -150,7 +150,7 @@ function App() {
               </SetupGuard>
             )}
           >
-            <Route path="/strategy-workbench/:strategyName" element={<StrategyWorkbenchPage />} />
+            <Route path="/strategy-workbench/*" element={<StrategyWorkbenchPage />} />
             <Route path="/strategy-workbench" element={<StrategyListPage />} />
             <Route
               path="/scan"

@@ -307,22 +307,22 @@ python start-cli.py -h
 
 ---
 
-## 开发命令（`dev-cli.py`）
+## 开发命令（`devcli.py`）
 
 面向本机开发与排障（仓库根目录）：
 
 ```bash
-python dev-cli.py -h
+python devcli.py -h
 ```
 
 | 用途 | 命令示例 |
 |------|----------|
-| 启动 UI（清端口后 `launcher.py -d`） | `python dev-cli.py -ui` |
-| 结束占用 8000 / 8888 的 UI 进程 | `python dev-cli.py -kui` |
-| 清空模拟 **磁盘 + DB** 工作台缓存 | `python dev-cli.py -csc`（同 `-cu`） |
-| 仅清空 DB 工作台快照表 | `python dev-cli.py -cdc` |
-| 仅删除各策略 `results/` 物理目录 | `python dev-cli.py -cmc` |
-| DuckDB WAL 合并进主文件 | `python dev-cli.py -dbc` |
+| 启动 UI（清端口后 `launcher.py -d`） | `python devcli.py -ui` |
+| 结束占用 8000 / 8888 的 UI 进程 | `python devcli.py -kui` |
+| 清空模拟 **磁盘 + DB** 工作台缓存 | `python devcli.py -csc`（同 `-cu`） |
+| 仅清空 DB 工作台快照表 | `python devcli.py -cdc` |
+| 仅删除各策略 `results/` 物理目录 | `python devcli.py -cmc` |
+| DuckDB WAL 合并进主文件 | `python devcli.py -dbc` |
 
 工作台快照 HTTP 清理接口见策略模块文档 [db-cache-service.md](core/modules/strategy/docs/db-cache-service.md) §8（V2-11 / V2-12）。
 

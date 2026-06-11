@@ -105,7 +105,7 @@ def _finalize_export_output(out: Path, manifest, payload) -> None:
     logger.info("已导出: %s", out.resolve())
     logger.info("制品: %s | 条目数: %d", kinds, len(manifest.entries))
     logger.info(
-        "提示: 请用 ``start-cli.py -i <文件>`` 或 ``unzip -l <文件>`` 查看/导入；"
+        "提示: 请用 ``cli.py -i <文件>`` 或 ``unzip -l <文件>`` 查看/导入；"
         "勿在 Finder 里双击 zip（iCloud 桌面下 Archive Utility 易异常）。"
     )
 
@@ -117,7 +117,7 @@ def run_strategy_bundle_export(
     """Export strategy share bundle (strategy + resolved dependencies)."""
     name = str(strategy_name or "").strip()
     if not name:
-        logger.error("导出失败：请提供策略名称（例: start-cli.py -e example）")
+        logger.error("导出失败：请提供策略名称（例: cli.py -e example）")
         return 1
 
     out = Path(output_path) if output_path else default_export_path("bundle", name)

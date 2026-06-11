@@ -61,7 +61,10 @@ class TestBaseHandler:
             schema=schema,
             config=config,
             providers={},
-            depend_on_data_source_names=["stock_list", "latest_trading_date"],
+            depend_on_data_source_names=["stock_list", "latest_completed_trading_date"],
         )
-        assert handler.get_dependency_data_source_names() == ["stock_list", "latest_trading_date"]
+        assert handler.get_dependency_data_source_names() == [
+            "stock_list",
+            "latest_completed_trading_date",
+        ]
 

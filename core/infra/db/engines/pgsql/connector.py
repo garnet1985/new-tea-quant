@@ -13,6 +13,7 @@ import psycopg2
 from psycopg2 import pool
 from psycopg2.extras import RealDictCursor, execute_batch
 
+from core.infra.db.engines._shared.query_rows import normalize_query_rows
 from core.infra.db.engines.pgsql.settings import PgsqlSettings
 from core.infra.db.engines.pgsql.sql_adapter import PgsqlSqlAdapter
 
@@ -131,8 +132,8 @@ class PgsqlConnector:
             with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute(query, params)
                 results = cursor.fetchall()
-                # RealDictCursor 返回的是 RealDictRow，转换为普通字典
-                return [dict(row) for row in results]
+                # RealDictRow → dict；读出口统一 DECIMAL→float 等标量规范
+                return normalize_query_rows([dict(row) for row in results])
         except Exception as e:
             logger.error(f"执行查询失败: {e}\n查询: {query}\n参数: {params}")
             raise

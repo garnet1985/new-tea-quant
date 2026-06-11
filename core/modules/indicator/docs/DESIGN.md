@@ -8,9 +8,7 @@
 
 ## K 线字段
 
-**`calculate`** 使用的 **`_klines_to_dataframe`** 要求存在列：**`open`**、**`high`**、**`low`**、**`close`**。可选 **`volume`**。
-
-兼容：若仅有 **`highest` / `lowest`**（无 `high` / `low`），会映射为 **`high` / `low`** 再校验。
+**`calculate`** 使用的 **`_klines_to_dataframe`** 要求存在列：**`open`**、**`high`**、**`low`**、**`close`**。可选 **`volume`**。调用 **`load_qfq`** 时上述 OHLC 即为前复权价；**`load_raw`** 时为未复权原价。
 
 ---
 

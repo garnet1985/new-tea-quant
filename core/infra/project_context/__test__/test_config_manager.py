@@ -53,6 +53,38 @@ class TestConfigManager:
         
         assert isinstance(decimal_places, int)
         assert decimal_places >= 0
+
+    def test_get_adj_factor_event_decimal_places(self):
+        places = ConfigManager.get_adj_factor_event_decimal_places()
+        assert places["factor_places"] == 4
+        assert places["price_places"] == 3
+        assert places["diff_places"] == 4
+
+    def test_deep_merge_decimal_places_nested(self):
+        merged = ConfigManager._deep_merge_config(
+            {
+                "decimal_places": {
+                    "default": 2,
+                    "adj_factor_event": {
+                        "factor_places": 4,
+                        "price_places": 3,
+                        "diff_places": 4,
+                    },
+                }
+            },
+            {
+                "decimal_places": {
+                    "default": 3,
+                    "adj_factor_event": {"factor_places": 5},
+                }
+            },
+            deep_merge_fields={"decimal_places"},
+        )
+        dp = merged["decimal_places"]
+        assert dp["default"] == 3
+        assert dp["adj_factor_event"]["factor_places"] == 5
+        assert dp["adj_factor_event"]["price_places"] == 3
+        assert dp["adj_factor_event"]["diff_places"] == 4
     
     def test_get_database_config(self):
         """测试获取数据库配置"""

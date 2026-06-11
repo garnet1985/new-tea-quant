@@ -96,16 +96,33 @@ class ConfigManager:
         # 先进行浅层合并（custom 覆盖 defaults）
         merged = {**defaults, **custom}
 
-        # 对于需要深度合并的字段，进行深度合并
+        # 对于需要深度合并的字段，进行递归 dict 合并
         for field in deep_merge_fields:
             if field in defaults and field in custom:
                 if isinstance(defaults[field], dict) and isinstance(custom[field], dict):
-                    merged[field] = {**defaults[field], **custom[field]}
+                    merged[field] = ConfigManager._deep_merge_dict(
+                        defaults[field], custom[field]
+                    )
                 else:
                     merged[field] = custom[field]
 
         # override_fields 已在浅层合并中处理，这里不需要额外逻辑
         return merged
+
+    @staticmethod
+    def _deep_merge_dict(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+        """递归合并嵌套 dict（override 覆盖 base 同键叶子值）。"""
+        out = dict(base)
+        for key, value in override.items():
+            if (
+                key in out
+                and isinstance(out[key], dict)
+                and isinstance(value, dict)
+            ):
+                out[key] = ConfigManager._deep_merge_dict(out[key], value)
+            else:
+                out[key] = value
+        return out
     
     @staticmethod
     def load_json(path: Path) -> Dict[str, Any]:
@@ -481,7 +498,7 @@ class ConfigManager:
         """
         return ConfigManager.load_core_config(
             'data',
-            deep_merge_fields=set(),
+            deep_merge_fields={'decimal_places'},
             override_fields=set()
         )
     
@@ -542,30 +559,94 @@ class ConfigManager:
         return data_config.get('default_start_date')
 
     @staticmethod
-    def get_default_end_date() -> Optional[str]:
+    def get_as_of_latest_completed_trading_date() -> Optional[str]:
         """
-        获取数据拉取上界（可选）。
+        data.json ``as_of_latest_completed_trading_date``（全系统 as-of 权威）。
 
-        配置后，renew 的 end_date 取 min(真实世界最新已完成交易日, default_end_date)。
-        未配置或空字符串时返回 None，表示不截断。
+        配置后 ``CalendarService.get_latest_completed_trading_date`` 直接返回该值。
         """
         data_config = ConfigManager.load_data_config()
-        raw = data_config.get('default_end_date')
+        raw = data_config.get("as_of_latest_completed_trading_date")
         if raw is None:
             return None
-        s = str(raw).strip()
-        return s if s else None
+        s = str(raw).strip().replace("-", "")[:8]
+        if len(s) == 8 and s.isdigit():
+            return s
+        return None
+
+    @staticmethod
+    def get_use_sample_stock_list() -> Optional[int]:
+        """
+        开发样本股票池规模（``core/modules/data_source/dev/stock_pool/stratified_N.csv``）。
+
+        - 正整数 ``N`` → 使用 ``stratified_N.csv``
+        - 未配置 / 空 / 非正数 → 全市场
+        """
+        data_config = ConfigManager.load_data_config()
+        raw = data_config.get("use_sample_stock_list")
+        if raw is None:
+            return None
+        if isinstance(raw, bool):
+            return None
+        if isinstance(raw, int):
+            return raw if raw > 0 else None
+        if isinstance(raw, str):
+            s = raw.strip()
+            if s.isdigit():
+                n = int(s)
+                return n if n > 0 else None
+        return None
     
+    @staticmethod
+    def _decimal_places_block() -> Dict[str, Any]:
+        """``data.json`` → ``decimal_places`` 块（兼容历史顶层 int）。"""
+        data_config = ConfigManager.load_data_config()
+        raw = data_config.get("decimal_places", 2)
+        if isinstance(raw, int):
+            return {"default": raw}
+        if isinstance(raw, dict):
+            return raw
+        return {"default": 2}
+
     @staticmethod
     def get_decimal_places() -> int:
         """
-        获取默认小数位数
+        获取默认小数位数（``decimal_places.default``）。
         
         Returns:
             小数位数（默认 2）
         """
-        data_config = ConfigManager.load_data_config()
-        return data_config.get('decimal_places', 2)
+        block = ConfigManager._decimal_places_block()
+        try:
+            return max(0, int(block.get("default", 2)))
+        except (TypeError, ValueError):
+            return 2
+
+    @staticmethod
+    def get_adj_factor_event_decimal_places() -> Dict[str, int]:
+        """
+        adj_factor_event 爬取舍入精度（``decimal_places.adj_factor_event``）。
+
+        Returns:
+            ``factor_places`` / ``price_places`` / ``diff_places``
+        """
+        block = ConfigManager._decimal_places_block()
+        adj = block.get("adj_factor_event")
+        if isinstance(adj, dict) and adj:
+            try:
+                factor = max(0, int(adj.get("factor_places", 4)))
+                price = max(0, int(adj.get("price_places", 3)))
+                diff = max(0, int(adj.get("diff_places", 4)))
+            except (TypeError, ValueError):
+                factor, price, diff = 4, 3, 4
+        else:
+            dp = ConfigManager.get_decimal_places()
+            factor, price, diff = 4, max(2, dp), 4
+        return {
+            "factor_places": factor,
+            "price_places": price,
+            "diff_places": diff,
+        }
     
     @staticmethod
     def get_database_type() -> str:

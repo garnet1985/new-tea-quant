@@ -1,36 +1,25 @@
 import { useEffect, useState } from 'react';
-import {
-  fetchStrategyStepReport,
-  fetchStrategyVersionDetail,
-} from '../../../../../api/apis/strategyApi';
+import { fetchStrategyVersionDetail } from '../../../../../api/apis/strategyApi';
+import { buildWorkbenchSnapshotFromVersionDetail } from '../../../workbenchSnapshot';
 import { REPORT_COMPARE_MORE_MENU_VALUE } from '../constants/strategyReportConstants';
 
 /**
- * 「对比结果」弹窗：对比版本选择、V2-07 对比侧 report、settings 快照 diff。
+ * 「对比结果」弹窗：对比版本 V2-08 快照、settings diff。
  */
 export function useStrategyReportCompareDialog({
   strategyName,
-  reportVersionId,
+  workbenchSnapshot,
   resolvedActiveTab,
   showReportCompare,
 }) {
+  const baseVersionId = String(workbenchSnapshot?.versionId || '').trim();
   const [compareDialogOpen, setCompareDialogOpen] = useState(false);
   const [compareDialogSubTab, setCompareDialogSubTab] = useState('report');
   const [reportCompareMoreOpen, setReportCompareMoreOpen] = useState(false);
-  const [baseSettingsPayload, setBaseSettingsPayload] = useState({
-    loading: false,
-    error: '',
-    settings: null,
-  });
-  const [compareWorkbenchSnapshot, setCompareWorkbenchSnapshot] = useState({
-    loading: false,
-    error: '',
-    detail: null,
-  });
   const [compareVersion, setCompareVersion] = useState('');
   const [compareError, setCompareError] = useState('');
-  const [compareStepReport, setCompareStepReport] = useState(null);
-  const [compareStepReportLoading, setCompareStepReportLoading] = useState(false);
+  const [compareSnapshot, setCompareSnapshot] = useState(null);
+  const [compareSnapshotLoading, setCompareSnapshotLoading] = useState(false);
 
   useEffect(() => {
     if (!showReportCompare && compareDialogOpen) setCompareDialogOpen(false);
@@ -39,32 +28,31 @@ export function useStrategyReportCompareDialog({
   useEffect(() => {
     let cancelled = false;
     const cmpVid = String(compareVersion || '').trim();
-    if (!compareDialogOpen || !strategyName || !resolvedActiveTab || !cmpVid) {
-      setCompareStepReport(null);
-      setCompareStepReportLoading(false);
+    if (!compareDialogOpen || !strategyName || !cmpVid) {
+      setCompareSnapshot(null);
+      setCompareSnapshotLoading(false);
       setCompareError('');
       return undefined;
     }
-    setCompareStepReportLoading(true);
+    setCompareSnapshotLoading(true);
     setCompareError('');
-    fetchStrategyStepReport(strategyName, resolvedActiveTab, cmpVid)
-      .then((msg) => {
+    fetchStrategyVersionDetail(strategyName, cmpVid)
+      .then((detail) => {
         if (cancelled) return;
-        const rep = msg?.report;
-        setCompareStepReport(rep && typeof rep === 'object' ? rep : null);
+        setCompareSnapshot(buildWorkbenchSnapshotFromVersionDetail(detail));
       })
       .catch((err) => {
         if (cancelled) return;
-        setCompareStepReport(null);
-        setCompareError(err?.message || '读取对比报告失败');
+        setCompareSnapshot(null);
+        setCompareError(err?.message || '读取对比快照失败');
       })
       .finally(() => {
-        if (!cancelled) setCompareStepReportLoading(false);
+        if (!cancelled) setCompareSnapshotLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [compareDialogOpen, compareVersion, resolvedActiveTab, strategyName]);
+  }, [compareDialogOpen, compareVersion, strategyName]);
 
   useEffect(() => {
     if (!compareDialogOpen) {
@@ -72,73 +60,6 @@ export function useStrategyReportCompareDialog({
       setReportCompareMoreOpen(false);
     }
   }, [compareDialogOpen]);
-
-  useEffect(() => {
-    if (!compareDialogOpen || compareDialogSubTab !== 'settings' || !strategyName) {
-      setBaseSettingsPayload({ loading: false, error: '', settings: null });
-      return undefined;
-    }
-    let cancelled = false;
-    const curId = String(reportVersionId || '').trim();
-
-    if (!curId) {
-      setBaseSettingsPayload({ loading: false, error: '', settings: null });
-    } else {
-      setBaseSettingsPayload((prev) => ({ ...prev, loading: true, error: '' }));
-      fetchStrategyVersionDetail(strategyName, curId)
-        .then((res) => {
-          if (cancelled) return;
-          setBaseSettingsPayload({
-            loading: false,
-            error: '',
-            settings: res?.settings ?? null,
-          });
-        })
-        .catch((err) => {
-          if (cancelled) return;
-          setBaseSettingsPayload({
-            loading: false,
-            error: err?.message || '读取当前快照设置失败',
-            settings: null,
-          });
-        });
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [compareDialogOpen, compareDialogSubTab, strategyName, reportVersionId]);
-
-  useEffect(() => {
-    if (
-      !compareDialogOpen
-      || compareDialogSubTab !== 'settings'
-      || !strategyName
-      || !String(compareVersion || '').trim()
-    ) {
-      setCompareWorkbenchSnapshot({ loading: false, error: '', detail: null });
-      return undefined;
-    }
-    let cancelled = false;
-    const vid = String(compareVersion).trim();
-    setCompareWorkbenchSnapshot((prev) => ({ ...prev, loading: true, error: '' }));
-    fetchStrategyVersionDetail(strategyName, vid)
-      .then((detail) => {
-        if (cancelled) return;
-        setCompareWorkbenchSnapshot({ loading: false, error: '', detail });
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setCompareWorkbenchSnapshot({
-          loading: false,
-          error: err?.message || '读取对比快照失败',
-          detail: null,
-        });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [compareDialogOpen, compareDialogSubTab, compareVersion, strategyName]);
 
   const handleReportCompareSelectChange = (event) => {
     const value = event.target.value;
@@ -152,7 +73,10 @@ export function useStrategyReportCompareDialog({
     window.setTimeout(proceed, 0);
   };
 
-  const compareSideReportBusy = Boolean(compareVersion && compareStepReportLoading);
+  const compareSideReportBusy = Boolean(compareVersion && compareSnapshotLoading);
+
+  const baseSettings = workbenchSnapshot?.settings ?? null;
+  const compareSettings = compareSnapshot?.settings ?? null;
 
   return {
     compareDialogOpen,
@@ -161,13 +85,15 @@ export function useStrategyReportCompareDialog({
     setCompareDialogSubTab,
     reportCompareMoreOpen,
     setReportCompareMoreOpen,
-    baseSettingsPayload,
-    compareWorkbenchSnapshot,
+    baseVersionId,
     compareVersion,
     setCompareVersion,
     compareError,
     handleReportCompareSelectChange,
-    compareStepReport,
+    compareSnapshot,
     compareSideReportBusy,
+    baseSettings,
+    compareSettings,
+    compareSettingsLoading: compareSideReportBusy,
   };
 }

@@ -28,6 +28,9 @@ def test_concurrent_execute_query_on_one_connection(tmp_path):
                 (1 + (i % 2),),
             )
             assert rows
+            for row in rows:
+                assert isinstance(row["id"], int)
+                assert isinstance(row["name"], str)
         except BaseException as exc:
             errors.append(exc)
 

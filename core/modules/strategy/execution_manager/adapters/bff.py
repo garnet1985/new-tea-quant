@@ -22,11 +22,10 @@ from ..workbench_resolve import (
 )
 from ..workbench_run_envelope import (
     get_run_progress,
+    run_envelope_apply_step_stage,
     run_envelope_fail,
     run_envelope_mark_phase_completed,
     run_envelope_mark_started,
-    run_envelope_on_flow_progress,
-    run_envelope_on_overall_pct,
     run_envelope_on_substep_finish,
     run_envelope_on_substep_start,
     seed_workbench_run_envelope,
@@ -83,11 +82,26 @@ class _WorkbenchRunProgressSink:
         self._user_step = str(user_facing_step).strip()
         self._last_idx = 0
 
+    def _sync_legacy_disk_pct(self) -> None:
+        packed = get_run_progress(strategy_name=self._strategy_name, job_id=self._job_id)
+        if not packed:
+            return
+        rp = packed.get("run_progress")
+        if isinstance(rp, dict):
+            try:
+                pct = float(rp.get("pct") or 0)
+            except (TypeError, ValueError):
+                pct = 0.0
+            disk_workbench_step_progress(
+                self._strategy_name,
+                self._job_id,
+                self._user_step,
+                pct,
+            )
+
     def on_overall_pct(self, pct: float) -> None:
-        disk_workbench_step_progress(
-            self._strategy_name, self._job_id, self._user_step, pct
-        )
-        run_envelope_on_overall_pct(self._strategy_name, self._job_id, pct)
+        _ = pct
+        self._sync_legacy_disk_pct()
 
     def on_substep_start(self, substep: str, index: int, total: int) -> None:
         self._last_idx = int(index)
@@ -98,11 +112,31 @@ class _WorkbenchRunProgressSink:
             total,
             substep,
         )
+        self.on_step_stage(substep, "load", 0.0)
+
+    def on_step_stage(
+        self,
+        substep: str,
+        stage: str,
+        stage_ratio: float = 0.0,
+        counters: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        run_envelope_apply_step_stage(
+            self._strategy_name,
+            self._job_id,
+            substep,
+            stage,
+            stage_ratio,
+            counters=counters,
+        )
+        self._sync_legacy_disk_pct()
 
     def on_flow_progress(self, substep: str, flow_pct: float) -> None:
-        run_envelope_on_flow_progress(
-            self._strategy_name, self._job_id, substep, flow_pct
-        )
+        try:
+            fp = float(flow_pct)
+        except (TypeError, ValueError):
+            fp = 0.0
+        self.on_step_stage(substep, "execute", fp / 100.0)
 
     def on_substep_finish(
         self, substep: str, index: int, total: int, version: int
@@ -115,6 +149,7 @@ class _WorkbenchRunProgressSink:
             substep,
             int(version or 0),
         )
+        self._sync_legacy_disk_pct()
 
 
 def _run_workbench_job_in_thread(

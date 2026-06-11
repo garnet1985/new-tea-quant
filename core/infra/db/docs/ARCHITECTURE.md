@@ -74,6 +74,39 @@ DbBaseModel (table_queriers/)          ← 业务表模型；优先转发 engine
 
 ---
 
+## 数值类型契约（DECIMAL）
+
+**决策全文**：[DECISIONS.md §12](./DECISIONS.md#决策-12decimal-存储--infra-统一出入库标量契约)
+
+原则：**库内存定点数，框架内只算 float**；类型转换集中在 infra 两个关口，业务层保持窄接口。
+
+```text
+写入:
+  业务 float/int（data_source handler 边界舍入在 handler 内完成，非 infra）
+    → row_sql.normalize_write_rows / rows_to_value_tuples
+    → BatchOperation / connector
+    → DECIMAL(p,s) 列
+
+读出:
+  DECIMAL 列
+    → connector.execute_query
+    → query_rows.normalize_query_rows
+    → List[Dict]（数值字段为 float/int，无 Decimal/numpy）
+    → 业务直接运算
+```
+
+| 层级 | 职责 |
+|------|------|
+| `query_rows.py` | 读/写标量规范（`Decimal`→`float` 等） |
+| `connector.execute_query` | 读出口（MySQL/PG/DuckDB 统一） |
+| `row_sql` + `BatchOperation` | 写入口 |
+| 业务 / 回测 | 只用 `float`/`int`；收到 `Decimal` 即 infra 缺陷 |
+| 数据源 handler | 外部 API → `float`（非 DB 契约） |
+
+DuckDB 读路径使用 `fetchall` + 列元数据，**不**经 pandas。
+
+---
+
 ## 相关文档
 
 | 文档 | 内容 |

@@ -1,0 +1,561 @@
+#!/usr/bin/env python3
+"""
+开发常用命令（仓库根目录，短选项与 ``cli.py`` 风格一致）。
+
+  python devcli.py -ui     # 清 8000/8888 后 launcher.py -d（浏览器 :8000）
+  python devcli.py -kui    # 结束占用 8000 / 8888 的 NTQ UI 监听进程
+  python devcli.py -ic     # UI 最小依赖 import 冒烟
+  python devcli.py -cc     # 清空 userspace/.ntq（不动仓库根 .ntq / 安装状态）
+  python devcli.py -cu     # 同 -csc（兼容旧用法）
+  python devcli.py -csc    # 删除所有物理模拟 results/ + DB 工作台快照
+  python devcli.py -cdc    # 仅清空 DB 工作台快照表
+  python devcli.py -cmc    # 仅删除各策略 results/ 物理目录
+  python devcli.py -p -v0.3.2   # 发布前：写版本/徽章 + module_info + py39 扫描 + -ic + pytest
+  python devcli.py -p -v0.3.2 -userspace   # 发布通过后同步 init userspace 源树与 userspace.zip
+  python devcli.py -userspace   # 仅打包 init userspace（不跑发布检查）
+  python devcli.py -ex          # 打包演示数据（分层抽样 → setup/import_data 可导入 zip）
+  python devcli.py -sample_stock_list -500   # 分层抽样 500 只并激活（renew 仅池内）
+  python devcli.py -sample_stock_list -clear # 取消股票池，renew 恢复全量
+
+也支持子命令：``ui``、``kill``、``import-check``（见 ``-h``）。
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Iterable, Sequence
+
+REPO_ROOT = Path(__file__).resolve().parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from core.ui.ports import ALL_UI_PORTS
+
+UI_PORTS = ALL_UI_PORTS
+
+# 短选项 → (handler_key, extra_kwargs)
+_SHORT_FLAGS: dict[str, tuple[str, dict]] = {
+    "-ui": ("ui", {"kill_first": True}),
+    "-kui": ("kill", {"ntq_only": False}),
+    "-ic": ("import-check", {}),
+    "-cc": ("clear-global", {}),
+    "-cu": ("clear-simulation-cache", {}),
+    "-csc": ("clear-simulation-cache", {}),
+    "-cdc": ("clear-db-cache", {}),
+    "-cmc": ("clear-disk-cache", {}),
+    "-ex": ("export-init-data", {}),
+    "-dbc": ("db-checkpoint", {}),
+    "-userspace": ("package-userspace", {}),
+}
+
+
+def _pids_listening_on(port: int) -> list[int]:
+    try:
+        out = subprocess.run(
+            ["lsof", "-ti", f":{port}", "-sTCP:LISTEN"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        print("需要 lsof（macOS / Linux）", file=sys.stderr)
+        return []
+    return [int(line) for line in out.stdout.splitlines() if line.strip().isdigit()]
+
+
+def _process_cmdline(pid: int) -> str:
+    try:
+        out = subprocess.run(
+            ["ps", "-p", str(pid), "-o", "command="],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return ""
+    return (out.stdout or "").strip()
+
+
+def kill_listeners_on_ports(
+    ports: Iterable[int],
+    *,
+    ntq_only: bool = False,
+) -> int:
+    from core.ui.process_cleanup import kill_process_group
+
+    fed_root = str((REPO_ROOT / "core" / "ui" / "fed").resolve())
+    repo_s = str(REPO_ROOT)
+    ntq_markers = (
+        "core.ui.bff.app",
+        "react-scripts",
+        "webpack",
+        "webpack-dev-server",
+        "launcher.py",
+        "devcli.py",
+        fed_root,
+        repo_s,
+    )
+    killed = 0
+    for port in ports:
+        for attempt in range(2):
+            pids = _pids_listening_on(port)
+            if not pids:
+                break
+            for pid in pids:
+                cmd = _process_cmdline(pid)
+                if ntq_only and cmd and not any(m in cmd for m in ntq_markers):
+                    print(f"跳过 pid={pid}（非 NTQ UI）: {cmd[:120]}", flush=True)
+                    continue
+                print(f"结束 pid={pid}（:{port}） {cmd[:100]}", flush=True)
+                try:
+                    kill_process_group(pid, grace_sec=2.0 if attempt == 0 else 0.5)
+                    killed += 1
+                except ProcessLookupError:
+                    pass
+            deadline = time.time() + 8.0
+            while time.time() < deadline and _pids_listening_on(port):
+                time.sleep(0.25)
+            if not _pids_listening_on(port):
+                break
+    return killed
+
+
+def _cmd_kill(args: argparse.Namespace) -> int:
+    ports = tuple(args.port) if args.port else UI_PORTS
+    n = kill_listeners_on_ports(ports, ntq_only=args.ntq_only)
+    if n == 0:
+        print(f"端口 {list(ports)} 上无监听进程。", flush=True)
+    return 0
+
+
+def _cmd_export_init_data(args: argparse.Namespace) -> int:
+    cmd = [sys.executable, "-m", "devtools.demo_exporter.demo_data_exporter", *args.forward]
+    return subprocess.run(cmd, cwd=str(REPO_ROOT)).returncode
+
+
+def _cmd_import_check(args: argparse.Namespace) -> int:
+    cmd = [sys.executable, "-m", "devtools.quick_tools.minimal_import_check", *args.forward]
+    return subprocess.run(cmd, cwd=str(REPO_ROOT)).returncode
+
+
+def _cmd_ui(args: argparse.Namespace) -> int:
+    launcher = REPO_ROOT / "launcher.py"
+    if not launcher.is_file():
+        print(f"缺少 {launcher}", file=sys.stderr)
+        return 1
+    if args.kill_first:
+        kill_listeners_on_ports(UI_PORTS, ntq_only=False)
+    cmd = [sys.executable, str(launcher), "-d", *args.forward]
+    print("启动: " + " ".join(cmd), flush=True)
+    try:
+        return subprocess.run(cmd, cwd=str(REPO_ROOT)).returncode
+    except KeyboardInterrupt:
+        return 130
+
+
+def _cmd_clear_global(args: argparse.Namespace) -> int:
+    from devtools.quick_tools.dev_cache import clear_userspace_ntq_dir
+
+    clear_userspace_ntq_dir()
+    print("userspace/.ntq 已清理。", flush=True)
+    return 0
+
+
+def _cmd_clear_simulation_cache(args: argparse.Namespace) -> int:
+    from devtools.quick_tools.dev_cache import clear_simulation_cache_all
+
+    clear_simulation_cache_all()
+    print("物理模拟 results/ 与 DB 工作台快照已清理。", flush=True)
+    return 0
+
+
+def _cmd_clear_db_cache(args: argparse.Namespace) -> int:
+    from devtools.quick_tools.dev_cache import clear_workbench_db_cache
+
+    clear_workbench_db_cache()
+    print("DB 工作台快照已清理。", flush=True)
+    return 0
+
+
+def _cmd_clear_disk_cache(args: argparse.Namespace) -> int:
+    from devtools.quick_tools.dev_cache import clear_simulation_disk_cache
+
+    clear_simulation_disk_cache()
+    print("物理模拟 results/ 已清理。", flush=True)
+    return 0
+
+
+def _cmd_package_userspace(args: argparse.Namespace) -> int:
+    from devtools.quick_tools.package_init_userspace import package_init_userspace
+
+    return package_init_userspace(write_zip=not getattr(args, "no_zip", False))
+
+
+def _cmd_sample_stock_list_activate(count: int, *, verbose: bool = False) -> int:
+    from devtools.quick_tools.stock_pool_ops import activate_stratified_pool
+
+    return activate_stratified_pool(count, verbose=verbose)
+
+
+def _cmd_sample_stock_list_clear() -> int:
+    from devtools.quick_tools.stock_pool_ops import deactivate_stratified_pool
+
+    return deactivate_stratified_pool()
+
+
+def _parse_sample_stock_list_argv(rest: Sequence[str], *, verbose: bool = False) -> int | None:
+    """
+    解析 ``-sample_stock_list`` 后续参数：``-500`` / ``-clear``。
+    返回 exit code；无法解析时返回 None。
+    """
+    if not rest:
+        print("用法: python devcli.py -sample_stock_list -<N> | -clear", file=sys.stderr)
+        return 2
+    token = rest[0]
+    if token == "-clear":
+        return _cmd_sample_stock_list_clear()
+    m = re.fullmatch(r"-(\d+)", token)
+    if m:
+        return _cmd_sample_stock_list_activate(int(m.group(1)), verbose=verbose)
+    print(f"未知参数: {token!r}（需要 -<N> 或 -clear）", file=sys.stderr)
+    return 2
+
+
+def _cmd_db_checkpoint(args: argparse.Namespace) -> int:
+    """将 DuckDB 各域 WAL 合并进 .duckdb 主文件（renew 中断后可手动执行）。"""
+    from pathlib import Path
+
+    from core.infra.db import DatabaseManager
+    recover = bool(getattr(args, "recover_corrupt_wal", False))
+    config = None
+    if recover:
+        from core.infra.project_context import ConfigManager
+
+        config = dict(ConfigManager.load_database_config())
+        duck = dict(config.get("duckdb") or {})
+        duck["recover_wal_on_replay_failure"] = True
+        config["duckdb"] = duck
+        print(
+            "已启用 recover_wal_on_replay_failure：损坏的 .wal 将在打开失败时被删除后重试。",
+            flush=True,
+        )
+
+    db = DatabaseManager(config=config, is_verbose=True)
+    try:
+        db.initialize()
+    except RuntimeError as e:
+        print(f"无法打开数据库: {e}", flush=True)
+        print(
+            "若提示 WAL 回放失败，可确认无 renew 进程后执行:\n"
+            "  python devcli.py db-checkpoint --recover",
+            flush=True,
+        )
+        return 1
+
+    if recover:
+        print(
+            "数据库已打开。"
+            " 若上方出现「WAL 回放失败…将删除…后重试」，表示已自动丢弃损坏 .wal 并成功重连（非最终失败）。",
+            flush=True,
+        )
+
+    try:
+        if str(db.config.get("database_type", "")).lower() != "duckdb":
+            print("当前 database_type 不是 duckdb，跳过。", flush=True)
+            return 1
+        from core.infra.db.engines.duckdb.engine import DuckdbEngine
+
+        eng = db.engine
+        paths = {}
+        if isinstance(eng, DuckdbEngine):
+            paths = {d: cfg.db_path for d, cfg in eng._duckdb_settings.domains.items()}
+        results = db.checkpoint_duckdb()
+        print(f"CHECKPOINT 目标: {paths}", flush=True)
+        for domain, ok in sorted(results.items()):
+            print(f"  {domain}: {'ok' if ok else 'failed'}", flush=True)
+        from core.infra.db.engines.duckdb.paths import resolve_duckdb_db_path
+
+        db_dir = None
+        if isinstance(eng, DuckdbEngine):
+            for cfg in eng._duckdb_settings.domains.values():
+                if cfg.db_path:
+                    db_dir = Path(resolve_duckdb_db_path(cfg.db_path)).parent
+                    break
+        remaining = sorted(db_dir.glob("*.duckdb.wal")) if db_dir and db_dir.is_dir() else []
+        if remaining:
+            print("仍存在的 WAL 文件:", flush=True)
+            for p in remaining:
+                print(f"  {p}", flush=True)
+        else:
+            print("未发现残留 .wal 文件。", flush=True)
+        return 0 if results and all(results.values()) else (1 if results else 0)
+    finally:
+        db.close()
+
+
+def _dispatch(handler: str, forward: list[str], extra: dict) -> int:
+    ns = argparse.Namespace(
+        forward=forward,
+        port=None,
+        ntq_only=extra.get("ntq_only", False),
+        kill_first=extra.get("kill_first", False),
+    )
+    if handler == "ui":
+        return _cmd_ui(ns)
+    if handler == "kill":
+        return _cmd_kill(ns)
+    if handler == "import-check":
+        return _cmd_import_check(ns)
+    if handler == "export-init-data":
+        return _cmd_export_init_data(ns)
+    if handler == "clear-global":
+        return _cmd_clear_global(ns)
+    if handler == "clear-simulation-cache":
+        return _cmd_clear_simulation_cache(ns)
+    if handler == "clear-db-cache":
+        return _cmd_clear_db_cache(ns)
+    if handler == "clear-disk-cache":
+        return _cmd_clear_disk_cache(ns)
+    if handler == "db-checkpoint":
+        return _cmd_db_checkpoint(ns)
+    if handler == "package-userspace":
+        ns = argparse.Namespace(no_zip="--no-zip" in forward)
+        return _cmd_package_userspace(ns)
+    print(f"未知命令: {handler}", file=sys.stderr)
+    return 2
+
+
+def _normalize_forward(rest: Sequence[str]) -> list[str]:
+    rest = list(rest)
+    if rest[:1] == ["--"]:
+        return rest[1:]
+    return rest
+
+
+def _print_help() -> None:
+    print(
+        """用法: python devcli.py <命令> [参数…]
+
+短选项（推荐）:
+  -ui      清 8000/8888 后 python launcher.py -d
+  -kui     结束占用 8000、8888 的 NTQ UI 进程
+  -ic      UI 最小依赖 import 检查
+  -cc      删除 userspace/.ntq（不碰仓库根 .ntq / install-state）
+  -cu      同 -csc（兼容）
+  -csc     删除各策略 results/ 与 DB 工作台快照表（物理 + DB）
+  -cdc     仅清空 DB 工作台快照表（sys_strategy_workbench_snapshot）
+  -cmc     仅删除各策略 results/ 物理目录
+  -p -vX.Y.Z   发布准备（写 system.json / 徽章、检查 module_info、FED build、-ic、pytest）
+  -userspace   将根目录 userspace/ 打包为 setup/init_userspace（清理密钥/缓存后写 userspace.zip）
+  -ex         打包演示数据 zip（见 devtools/demo_exporter/demo_data_exporter.py）
+  -sample_stock_list -N   分层抽样 N 只并写入 data.json use_sample_stock_list
+  -sample_stock_list -clear  清除 use_sample_stock_list，renew 恢复全量
+  -dbc        DuckDB：将各域 .wal 合并进 .duckdb（renew/Ctrl+C 后可用）
+
+  -p 附加: --check-only      只检查不写版本文件（仍会跑 FED build）
+           --skip-tests       跳过 pytest
+           --skip-py39        跳过 Python 3.9 兼容性扫描
+           --skip-ic          跳过最小依赖 import 检查
+           --skip-fed-build   跳过 core/ui/fed 的 npm run build
+           -userspace         发布检查通过后同步 init userspace 源树与 zip
+
+子命令（等价）:
+  ui [--kill-first]   kill [-ntq-only]   import-check   clear-cache
+  clear-simulation-cache | clear-db-cache | clear-disk-cache
+  clear-userspace（同 clear-simulation-cache）
+  db-checkpoint       同 -dbc
+  package-userspace   同 -userspace
+  publish -v X.Y.Z    同 -p -vX.Y.Z
+  export-init-data    同 -ex（参数用 -- 转发，如 -ex -- --to-init-data）
+  sample-stock-list -500 | sample-stock-list clear
+
+示例:
+  python devcli.py -sample_stock_list -500
+  python devcli.py -sample_stock_list -clear
+  python devcli.py -p -v0.3.2
+  python devcli.py -p -v0.3.2 -userspace
+  python devcli.py -userspace
+  python devcli.py -ic -- --no-create-venv --python .ntq/ci-minimal-venv/bin/python
+"""
+    )
+
+
+def _build_subcommand_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="New Tea Quant 开发命令")
+    sub = parser.add_subparsers(dest="command")
+
+    p_kill = sub.add_parser("kill", aliases=["k", "kill-ports"])
+    p_kill.add_argument("--ntq-only", action="store_true")
+    p_kill.add_argument("--port", type=int, action="append")
+    p_kill.set_defaults(func=_cmd_kill, forward=[])
+
+    p_check = sub.add_parser("import-check", aliases=["check-imports", "imports", "ic"])
+    p_check.add_argument("forward", nargs=argparse.REMAINDER)
+    p_check.set_defaults(func=_cmd_import_check)
+
+    p_ui = sub.add_parser("ui", aliases=["dev", "launcher", "fed"])
+    p_ui.add_argument("--kill-first", action="store_true")
+    p_ui.add_argument("forward", nargs=argparse.REMAINDER)
+    p_ui.set_defaults(func=_cmd_ui)
+
+    p_cc = sub.add_parser(
+        "clear-cache",
+        aliases=["cc", "clear-global"],
+        help="删除 userspace/.ntq（不含仓库根 .ntq）",
+    )
+    p_cc.set_defaults(func=_cmd_clear_global, forward=[])
+
+    p_csc = sub.add_parser(
+        "clear-simulation-cache",
+        aliases=["csc", "cu", "clear-us", "clear-userspace"],
+        help="删除各策略 results/ 与 DB 工作台快照",
+    )
+    p_csc.set_defaults(func=_cmd_clear_simulation_cache, forward=[])
+
+    p_cdc = sub.add_parser(
+        "clear-db-cache",
+        aliases=["cdc"],
+        help="仅清空 sys_strategy_workbench_snapshot 表",
+    )
+    p_cdc.set_defaults(func=_cmd_clear_db_cache, forward=[])
+
+    p_cmc = sub.add_parser(
+        "clear-disk-cache",
+        aliases=["cmc"],
+        help="仅删除各策略 results/ 物理目录",
+    )
+    p_cmc.set_defaults(func=_cmd_clear_disk_cache, forward=[])
+
+    p_ex = sub.add_parser(
+        "export-init-data",
+        aliases=["ex", "export-data", "export-demo"],
+        help="打包演示数据为 setup/import_data 可导入 zip",
+    )
+    p_ex.add_argument("forward", nargs=argparse.REMAINDER)
+    p_ex.set_defaults(func=_cmd_export_init_data)
+
+    p_dbc = sub.add_parser(
+        "db-checkpoint",
+        aliases=["dbc", "checkpoint-duckdb"],
+        help="DuckDB：CHECKPOINT 合并 WAL（需无其它进程占用写库）",
+    )
+    p_dbc.add_argument(
+        "--recover",
+        dest="recover_corrupt_wal",
+        action="store_true",
+        help="打开时若 WAL 损坏则删除 .wal 后重试（可能丢失未合并写入）",
+    )
+    p_dbc.set_defaults(func=_cmd_db_checkpoint, forward=[])
+
+    p_pu = sub.add_parser(
+        "package-userspace",
+        aliases=["pu", "pack-userspace"],
+        help="同步根 userspace/ → setup/init_userspace 并写 userspace.zip",
+    )
+    p_pu.add_argument(
+        "--no-zip",
+        action="store_true",
+        help="只更新 setup/init_userspace/userspace 源树，不写 zip",
+    )
+    p_pu.set_defaults(func=_cmd_package_userspace, forward=[])
+
+    p_pub = sub.add_parser("publish", aliases=["p", "prep-release"])
+    p_pub.add_argument("-v", "--version", required=True, help="目标版本 X.Y.Z 或 vX.Y.Z")
+    p_pub.add_argument("--check-only", action="store_true")
+    p_pub.add_argument("--skip-tests", action="store_true")
+    p_pub.add_argument("--skip-ic", action="store_true")
+    p_pub.add_argument("--skip-fed-build", action="store_true")
+    p_pub.add_argument("--skip-py39", action="store_true")
+    p_pub.add_argument(
+        "-userspace",
+        "--package-userspace",
+        action="store_true",
+        help="检查通过后打包 init userspace",
+    )
+    p_pub.set_defaults(func=_cmd_publish, forward=[])
+
+    p_ssl = sub.add_parser(
+        "sample-stock-list",
+        aliases=["ssl", "sample-pool"],
+        help="分层抽样股票池：-N 激活 / clear 取消",
+    )
+    p_ssl.add_argument(
+        "action",
+        help="样本只数（正整数）或 clear",
+    )
+    p_ssl.add_argument("-v", "--verbose", action="store_true")
+    p_ssl.set_defaults(func=_cmd_sample_stock_list_subcommand, forward=[])
+
+    return parser
+
+
+def _cmd_sample_stock_list_subcommand(args: argparse.Namespace) -> int:
+    action = str(getattr(args, "action", "") or "").strip()
+    verbose = bool(getattr(args, "verbose", False))
+    if action.lower() == "clear":
+        return _cmd_sample_stock_list_clear()
+    if action.isdigit() and int(action) > 0:
+        return _cmd_sample_stock_list_activate(int(action), verbose=verbose)
+    print(f"未知 action: {action!r}（需要正整数或 clear）", file=sys.stderr)
+    return 2
+
+
+def _cmd_publish(args: argparse.Namespace) -> int:
+    from devtools.quick_tools.publish_prep import PublishPrepOptions, run_publish_prep
+
+    return run_publish_prep(
+        PublishPrepOptions(
+            version=args.version,
+            check_only=args.check_only,
+            skip_tests=args.skip_tests,
+            skip_ic=args.skip_ic,
+            skip_fed_build=args.skip_fed_build,
+            skip_py39=args.skip_py39,
+            package_userspace=getattr(args, "package_userspace", False),
+        )
+    )
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    raw = list(argv if argv is not None else sys.argv[1:])
+    if not raw or raw[0] in ("-h", "--help", "help"):
+        _print_help()
+        return 0
+
+    from devtools.quick_tools.publish_prep import parse_publish_argv, run_publish_prep
+
+    pub, raw = parse_publish_argv(raw)
+    if pub is not None:
+        return run_publish_prep(pub)
+
+    token = raw[0]
+    rest = _normalize_forward(raw[1:])
+
+    if token in ("-sample_stock_list", "-ssl"):
+        verbose = "-v" in rest or "--verbose" in rest
+        filtered = [x for x in rest if x not in ("-v", "--verbose")]
+        code = _parse_sample_stock_list_argv(filtered, verbose=verbose)
+        return code if code is not None else 2
+
+    if token in _SHORT_FLAGS:
+        handler, extra = _SHORT_FLAGS[token]
+        return _dispatch(handler, rest, extra)
+
+    parser = _build_subcommand_parser()
+    args = parser.parse_args(raw)
+    if not getattr(args, "command", None):
+        _print_help()
+        return 0
+    forward = getattr(args, "forward", None) or []
+    args.forward = _normalize_forward(forward)
+    return int(args.func(args))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

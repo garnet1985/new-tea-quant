@@ -18,4 +18,4 @@ RUN pip install --upgrade pip && \
 COPY . .
 
 # 默认仅展示 CLI；实际任务请用 docker compose run 覆盖 command
-CMD ["python", "start-cli.py", "--help"]
+CMD ["python", "cli.py", "--help"]

@@ -1,9 +1,13 @@
 name: infra.project_context
-version: 0.3.0
-compatible_core_versions: ">=0.3.0"
+version: 0.3.1
+compatible_core_versions: ">=0.4.1"
 description: "NTQ 项目上下文基础设施：统一项目根路径、userspace 与配置目录、文件查找与默认/用户配置合并。"
 dependencies: []
 changelog:
+  - version: "0.3.1"
+    changes:
+      - 新增 as_of_latest_completed_trading_date 和 use_sample_stock_list 配置
+      - 更改 decimal_places 配置结构
   - version: "0.3.0"
     changes:
       - userspace 目录重组与 PathManager 引用更新

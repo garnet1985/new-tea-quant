@@ -3,13 +3,27 @@ data_adj_factor_event 表 Model
 
 复权因子事件，只存储除权除息日的因子变化。
 """
-from typing import List, Dict, Any, Optional, Literal, Union
+from typing import Iterable, List, Dict, Any, Optional, Literal, Union, Set
 from datetime import datetime
 from pathlib import Path
+import logging
 import re
+
+logger = logging.getLogger(__name__)
 from core.infra.db import DbBaseModel
 from core.tables.stock.adj_factor_events.schema import schema as _schema
 from core.utils.io import csv_io, file_io
+
+
+CSV_PREFERRED_COLUMNS = [
+    "id",
+    "event_date",
+    "factor",
+    "qfq_anchor",
+    "raw_anchor",
+    "qfq_diff",
+    "last_update",
+]
 
 
 class DataAdjFactorEventModel(DbBaseModel):
@@ -106,11 +120,7 @@ class DataAdjFactorEventModel(DbBaseModel):
                     "is_inferred": False,
                 }
             else:
-                qfq_diff = selected.get("qfq_diff", 0.0)
-                try:
-                    qfq_diff = float(qfq_diff)
-                except (TypeError, ValueError):
-                    qfq_diff = 0.0
+                qfq_diff = selected.get("qfq_diff") or 0.0
                 out[d] = {
                     "event": selected,
                     "qfq_diff": qfq_diff,
@@ -159,17 +169,15 @@ class DataAdjFactorEventModel(DbBaseModel):
             if d is None:
                 continue
             adj_event_date = self._normalize_ymd(row.get("adj_event_date"))
-            qfq_diff = row.get("adj_qfq_diff")
-            try:
-                qfq_diff = float(qfq_diff) if qfq_diff is not None else 0.0
-            except (TypeError, ValueError):
-                qfq_diff = 0.0
+            qfq_diff = row.get("adj_qfq_diff") or 0.0
 
             if adj_event_date is not None:
                 event = {
                     "id": row.get("id", stock_id),
                     "event_date": adj_event_date,
                     "factor": row.get("adj_factor"),
+                    "qfq_anchor": row.get("adj_qfq_anchor"),
+                    "raw_anchor": row.get("adj_raw_anchor"),
                     "qfq_diff": qfq_diff,
                 }
                 by_date[d] = {
@@ -206,7 +214,7 @@ class DataAdjFactorEventModel(DbBaseModel):
             else:
                 out[d] = {
                     "event": first_join_event,
-                    "qfq_diff": float(first_join_event.get("qfq_diff", 0.0) or 0.0),
+                    "qfq_diff": first_join_event.get("qfq_diff") or 0.0,
                     "is_adjusted": True,
                     "is_inferred": True,
                 }
@@ -214,11 +222,14 @@ class DataAdjFactorEventModel(DbBaseModel):
 
     def save_events(self, events: List[Dict[str, Any]]) -> int:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        normalized: List[Dict[str, Any]] = []
         for e in events:
-            e.setdefault("last_update", now)
-            if "event_date" in e:
-                e["event_date"] = str(e["event_date"]).replace("-", "")[:8]
-        return self.upsert_many(events, unique_keys=["id", "event_date"])
+            row = dict(e)
+            row.setdefault("last_update", now)
+            if "event_date" in row:
+                row["event_date"] = str(row["event_date"]).replace("-", "")[:8]
+            normalized.append(row)
+        return self.upsert_many(normalized, unique_keys=["id", "event_date"])
 
     def _parse_event_date_window(self, condition: str, params: tuple) -> Optional[tuple[str, str]]:
         """
@@ -263,7 +274,7 @@ class DataAdjFactorEventModel(DbBaseModel):
             placeholders = ",".join(["%s"] * len(stock_ids))
             in_range_rows = db.execute_sync_query(
                 f"""
-                SELECT id, event_date, factor, qfq_diff, last_update
+                SELECT id, event_date, factor, qfq_anchor, raw_anchor, qfq_diff, last_update
                 FROM {self.table_name}
                 WHERE id IN ({placeholders})
                   AND event_date >= %s
@@ -282,7 +293,7 @@ class DataAdjFactorEventModel(DbBaseModel):
         for sid in stock_ids:
             prev = db.execute_sync_query(
                 f"""
-                SELECT id, event_date, factor, qfq_diff, last_update
+                SELECT id, event_date, factor, qfq_anchor, raw_anchor, qfq_diff, last_update
                 FROM {self.table_name}
                 WHERE id = %s AND event_date <= %s
                 ORDER BY event_date DESC
@@ -294,7 +305,7 @@ class DataAdjFactorEventModel(DbBaseModel):
             if not anchor:
                 nxt = db.execute_sync_query(
                     f"""
-                    SELECT id, event_date, factor, qfq_diff, last_update
+                    SELECT id, event_date, factor, qfq_anchor, raw_anchor, qfq_diff, last_update
                     FROM {self.table_name}
                     WHERE id = %s AND event_date > %s
                     ORDER BY event_date ASC
@@ -313,6 +324,8 @@ class DataAdjFactorEventModel(DbBaseModel):
                     "id": sid,
                     "event_date": start_date,
                     "factor": anchor.get("factor"),
+                    "qfq_anchor": anchor.get("qfq_anchor"),
+                    "raw_anchor": anchor.get("raw_anchor"),
                     "qfq_diff": anchor.get("qfq_diff"),
                     "last_update": anchor.get("last_update"),
                 }
@@ -372,6 +385,28 @@ class DataAdjFactorEventModel(DbBaseModel):
         d.mkdir(parents=True, exist_ok=True)
         return d
 
+    def load_stock_last_update_map(self) -> Dict[str, Any]:
+        """每股 ``MAX(last_update)``，用于交易日门控与断点补漏。"""
+        rows = self.db.execute_sync_query(
+            f"SELECT id, MAX(last_update) AS last_update "
+            f"FROM {self.table_name} GROUP BY id",
+            (),
+        )
+        out: Dict[str, Any] = {}
+        for row in rows or []:
+            sid = str((row or {}).get("id") or "").strip()
+            if sid:
+                out[sid] = row.get("last_update")
+        return out
+
+    def get_min_event_date(self) -> Optional[str]:
+        rows = self.db.execute_sync_query(
+            f"SELECT MIN(event_date) AS min_d FROM {self.table_name}", ()
+        )
+        if not rows or rows[0].get("min_d") is None:
+            return None
+        return str(rows[0]["min_d"])
+
     def get_max_event_date(self) -> Optional[str]:
         rows = self.db.execute_sync_query(
             f"SELECT MAX(event_date) AS max_d FROM {self.table_name}", ()
@@ -399,17 +434,22 @@ class DataAdjFactorEventModel(DbBaseModel):
         self,
         *,
         file_path: Union[str, Path],
-        start_date: str = "20200101",
+        start_date: Optional[str] = None,
         end_date: Optional[str] = None,
     ) -> int:
-        """导出事件到 CSV；默认从 ``start_date`` 到库内最新 ``event_date``。"""
+        """导出事件到 CSV；默认从库内最早 ``event_date`` 到最新。"""
+        start = (
+            str(start_date).replace("-", "")[:8]
+            if start_date
+            else self.get_min_event_date()
+        )
         end = end_date or self.get_max_event_date()
-        if not end:
-            csv_io.write_dicts_to_csv(file_path, [], preferred_order=["id", "event_date", "factor", "qfq_diff", "last_update"])
+        if not start or not end:
+            csv_io.write_dicts_to_csv(file_path, [], preferred_order=CSV_PREFERRED_COLUMNS)
             return 0
         rows = self.load(
             "event_date >= %s AND event_date <= %s",
-            (str(start_date).replace("-", "")[:8], str(end).replace("-", "")[:8]),
+            (start, str(end).replace("-", "")[:8]),
             order_by="id ASC, event_date ASC",
         )
         path = Path(file_path)
@@ -417,17 +457,87 @@ class DataAdjFactorEventModel(DbBaseModel):
         csv_io.write_dicts_to_csv(
             path,
             rows,
-            preferred_order=["id", "event_date", "factor", "qfq_diff", "last_update"],
+            preferred_order=CSV_PREFERRED_COLUMNS,
         )
         return len(rows)
 
+    def _load_list_date_map(self, stock_ids: Iterable[str]) -> Dict[str, str]:
+        ids = [str(s).strip() for s in stock_ids if str(s).strip()]
+        if not ids or not self.db:
+            return {}
+        placeholders = ",".join(["%s"] * len(ids))
+        rows = self.db.execute_sync_query(
+            f"SELECT id, list_date FROM sys_stock_list WHERE id IN ({placeholders})",
+            tuple(ids),
+        )
+        out: Dict[str, str] = {}
+        for row in rows or []:
+            sid = str((row or {}).get("id") or "").strip()
+            ld = row.get("list_date") if row else None
+            ymd = self._normalize_ymd(ld)
+            if sid and ymd:
+                out[sid] = ymd
+        return out
+
     def import_from_csv(self, file_path: Optional[str] = None) -> int:
-        """从 CSV 导入（默认 ``get_latest_csv_file()``）。"""
+        """
+        从 CSV 冷启动导入（默认 ``get_latest_csv_file()``）。
+
+        按 ``data.json`` 契约过滤：样本池、as_of 截断、起点覆盖校验。
+        """
         import pandas as pd
+
+        from core.infra.project_context import ConfigManager
+        from core.modules.data_source.service.sample_stock_list import (
+            pool_stock_ids,
+            sample_pool_count,
+        )
+        from core.tables.stock.adj_factor_events.csv_import import (
+            CsvImportRejected,
+            log_csv_import_report,
+            prepare_adj_factor_csv_import,
+            validate_csv_columns,
+        )
 
         path = Path(file_path) if file_path else Path(self.get_latest_csv_file() or "")
         if not path.is_file():
             return 0
+
         df = pd.read_csv(path)
-        events = df.to_dict("records")
+        validate_csv_columns(df.columns)
+
+        default_start = ConfigManager.get_default_start_date() or ""
+        as_of = ConfigManager.get_as_of_latest_completed_trading_date()
+        pool_ids: Optional[Set[str]] = None
+        if sample_pool_count():
+            pool_ids = set(pool_stock_ids())
+
+        raw_rows = df.to_dict("records")
+        stock_ids = {
+            str(r.get("id") or "").strip()
+            for r in raw_rows
+            if str(r.get("id") or "").strip()
+        }
+        if pool_ids is not None:
+            stock_ids &= pool_ids
+
+        list_date_map = self._load_list_date_map(stock_ids)
+
+        try:
+            events, report = prepare_adj_factor_csv_import(
+                raw_rows,
+                default_start_date=default_start,
+                as_of_date=as_of,
+                pool_ids=pool_ids,
+                list_date_by_id=list_date_map,
+                source_path=str(path),
+            )
+        except CsvImportRejected as exc:
+            logger.error("adj_factor CSV 导入被拒绝: %s", exc)
+            if exc.offenders:
+                sample = exc.offenders[:5]
+                logger.error("  示例: %s%s", ", ".join(sample), " ..." if len(exc.offenders) > 5 else "")
+            return 0
+
+        log_csv_import_report(report)
         return self.save_events(events)

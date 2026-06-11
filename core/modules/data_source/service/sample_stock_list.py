@@ -1,86 +1,157 @@
 """
-从 stock_list 截取样本，用于 JobPipeline / renew 试跑（非全量）。
+样本股票池：由 ``data.json`` 的 ``use_sample_stock_list`` 统一配置。
 
-环境变量（任一生效即可，未设置则不截取）：
-  NTQ_DS_SAMPLE_N 或 NTQ_DS_SAMPLE_SIZE — 最多保留几只（>0）
-  NTQ_DS_SAMPLE_OFFSET — 起始下标，默认 0（按 DB/依赖列表顺序截取一段）
-
-试跑默认只数见 ``DEFAULT_SAMPLE_N``（需覆盖 JobPipeline 并行 + Provider 限流，不宜过小）。
+池文件位于 ``core/modules/data_source/dev/stock_pool/``（进 Git 的 dev 名单）。
 """
 from __future__ import annotations
 
-# 样本 renew 推荐默认：≈ JobPipeline auto worker 数 × 10，够打满 in-flight 并触发限流
-DEFAULT_SAMPLE_N = 80
-
+import csv
 import logging
-import os
-from typing import Any, Dict, List, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+
+from core.infra.project_context import ConfigManager
+from core.modules.data_source.dev.stock_pool_paths import (
+    dev_stock_pool_dir,
+    resolve_dev_stock_pool_by_count,
+)
 
 logger = logging.getLogger(__name__)
 
 _LOGGED = False
+_POOL_IDS_CACHE: Optional[List[str]] = None
+
+# (table_name, id_column)
+_PER_STOCK_PRUNE_TABLES: Tuple[Tuple[str, str], ...] = (
+    ("sys_stock_klines", "id"),
+    ("sys_stock_indicators", "id"),
+    ("sys_adj_factor_events", "id"),
+    ("sys_corporate_finance", "id"),
+    ("sys_stock_st_periods", "stock_id"),
+    ("sys_stock_board_map", "stock_id"),
+    ("sys_stock_market_map", "stock_id"),
+    ("sys_stock_industry_map", "stock_id"),
+    ("sys_stock_area_map", "stock_id"),
+    ("sys_stock_list", "id"),
+)
 
 
-def sample_limit() -> Optional[int]:
-    """返回样本上限；None 表示不启用。"""
-    for key in ("NTQ_DS_SAMPLE_N", "NTQ_DS_SAMPLE_SIZE"):
-        raw = os.environ.get(key, "").strip()
-        if not raw:
-            continue
-        try:
-            n = int(raw)
-        except ValueError:
-            logger.warning("忽略无效的 %s=%r（需为正整数）", key, raw)
-            continue
-        if n > 0:
-            return n
-    return None
+def sample_pool_count() -> Optional[int]:
+    return ConfigManager.get_use_sample_stock_list()
 
 
-def sample_offset() -> int:
-    raw = os.environ.get("NTQ_DS_SAMPLE_OFFSET", "0").strip() or "0"
-    try:
-        return max(0, int(raw))
-    except ValueError:
-        logger.warning("忽略无效的 NTQ_DS_SAMPLE_OFFSET=%r，使用 0", raw)
-        return 0
+def pool_stock_ids() -> List[str]:
+    """当前配置的样本池股票 id 列表；未配置时为空。"""
+    return list(_load_pool_ids())
 
 
 def is_sample_active() -> bool:
-    return sample_limit() is not None
+    count = sample_pool_count()
+    if not count:
+        return False
+    return pool_csv_path(count).is_file()
+
+
+def pool_dir() -> Path:
+    return dev_stock_pool_dir()
+
+
+def pool_csv_path(count: int) -> Path:
+    return resolve_dev_stock_pool_by_count(count)
+
+
+def _load_pool_ids() -> List[str]:
+    global _POOL_IDS_CACHE
+    if _POOL_IDS_CACHE is not None:
+        return _POOL_IDS_CACHE
+
+    count = sample_pool_count()
+    if not count:
+        _POOL_IDS_CACHE = []
+        return _POOL_IDS_CACHE
+
+    p = pool_csv_path(count)
+    if not p.is_file():
+        logger.warning("use_sample_stock_list 文件不存在: %s", p)
+        _POOL_IDS_CACHE = []
+        return _POOL_IDS_CACHE
+
+    ids: List[str] = []
+    with p.open(newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh)
+        if not reader.fieldnames or "id" not in reader.fieldnames:
+            logger.warning("股票池 CSV 缺少 id 列: %s", p)
+            _POOL_IDS_CACHE = []
+            return _POOL_IDS_CACHE
+        for row in reader:
+            sid = str(row.get("id") or "").strip()
+            if sid:
+                ids.append(sid)
+
+    seen: Set[str] = set()
+    ordered: List[str] = []
+    for sid in ids:
+        if sid in seen:
+            continue
+        seen.add(sid)
+        ordered.append(sid)
+    _POOL_IDS_CACHE = ordered
+    return _POOL_IDS_CACHE
+
+
+def invalidate_pool_cache() -> None:
+    global _POOL_IDS_CACHE, _LOGGED
+    _POOL_IDS_CACHE = None
+    _LOGGED = False
+
+
+def _stock_id_from_row(row: Any) -> str:
+    if isinstance(row, dict):
+        return str(row.get("id") or row.get("stock_id") or "").strip()
+    return str(row).strip()
+
+
+def _filter_rows_by_pool(rows: Sequence[Any], pool_ids: Sequence[str]) -> List[Any]:
+    if not pool_ids:
+        return list(rows)
+
+    by_id: Dict[str, Any] = {}
+    for row in rows:
+        sid = _stock_id_from_row(row)
+        if sid and sid not in by_id:
+            by_id[sid] = row
+
+    out: List[Any] = []
+    for sid in pool_ids:
+        if sid in by_id:
+            out.append(by_id[sid])
+    return out
 
 
 def slice_stock_list(rows: List[Any]) -> List[Any]:
-    """按 offset + limit 截取 stock_list；未启用时原样返回。"""
+    """按 ``use_sample_stock_list`` 过滤 stock_list；未配置时原样返回。"""
     global _LOGGED
-    limit = sample_limit()
-    if limit is None or not rows:
+    if not rows:
         return rows
 
-    offset = sample_offset()
-    end = min(offset + limit, len(rows))
-    if offset >= len(rows):
-        sliced: List[Any] = []
-    else:
-        sliced = list(rows[offset:end])
+    pool_ids = _load_pool_ids()
+    if not pool_ids:
+        return rows
 
+    sliced = _filter_rows_by_pool(rows, pool_ids)
     if not _LOGGED:
         _LOGGED = True
         logger.info(
-            "📎 stock_list 样本模式: 全量 %s 只 → 截取 [%s:%s] 共 %s 只 "
-            "(NTQ_DS_SAMPLE_N=%s, OFFSET=%s)",
+            "📎 use_sample_stock_list=%s: 全量 %s 只 → 池内 %s 只 (file=%s)",
+            sample_pool_count(),
             len(rows),
-            offset,
-            end,
             len(sliced),
-            limit,
-            offset,
+            pool_csv_path(sample_pool_count() or 0),
         )
     return sliced
 
 
 def slice_stock_list_in_dependencies(deps: Dict[str, Any]) -> Dict[str, Any]:
-    """若 dependencies 含 stock_list，替换为截取后的列表（浅拷贝 dict）。"""
     if "stock_list" not in deps:
         return deps
     raw = deps.get("stock_list")
@@ -92,3 +163,70 @@ def slice_stock_list_in_dependencies(deps: Dict[str, Any]) -> Dict[str, Any]:
     out = dict(deps)
     out["stock_list"] = sliced
     return out
+
+
+def filter_paired_stock_records(
+    main_records: List[Dict[str, Any]],
+    raw_records: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """``stock_list`` handler：主表与 raw 维度行同步过滤。"""
+    pool_ids = _load_pool_ids()
+    if not pool_ids:
+        return main_records, raw_records
+
+    allowed = set(pool_ids)
+    main_out: List[Dict[str, Any]] = []
+    raw_out: List[Dict[str, Any]] = []
+    for i, row in enumerate(main_records):
+        sid = str(row.get("id") or "").strip()
+        if sid not in allowed:
+            continue
+        main_out.append(row)
+        raw_out.append(raw_records[i] if i < len(raw_records) else {})
+    return main_out, raw_out
+
+
+def prune_stock_universe_to_sample_pool(data_manager: Any) -> int:
+    """
+    删除池外 per-stock 数据，使 DB 与 ``use_sample_stock_list`` 一致。
+
+    Returns:
+        删除行数合计（近似）。
+    """
+    pool_ids = _load_pool_ids()
+    if not pool_ids or not data_manager or not getattr(data_manager, "db", None):
+        return 0
+
+    db = data_manager.db
+    placeholders = ",".join(["%s"] * len(pool_ids))
+    params = tuple(pool_ids)
+    deleted = 0
+
+    eng = getattr(db, "engine", None)
+    if eng is None or not hasattr(eng, "execute_write"):
+        logger.warning("DB engine 不支持 execute_write，跳过 prune")
+        return 0
+
+    for table, col in _PER_STOCK_PRUNE_TABLES:
+        try:
+            sql = f"DELETE FROM {table} WHERE {col} NOT IN ({placeholders})"
+            n = int(eng.execute_write(sql, params) or 0)
+            if n:
+                deleted += n
+                logger.info("prune %s: 删除 %s 行（保留池内 %s 只）", table, n, len(pool_ids))
+        except Exception:
+            logger.exception("prune %s 失败", table)
+
+    try:
+        sql = (
+            f"DELETE FROM sys_tag_value WHERE entity_type = 'stock' "
+            f"AND entity_id NOT IN ({placeholders})"
+        )
+        n = int(eng.execute_write(sql, params) or 0)
+        if n:
+            deleted += n
+            logger.info("prune sys_tag_value: 删除 %s 行", n)
+    except Exception:
+        logger.exception("prune sys_tag_value 失败")
+
+    return deleted

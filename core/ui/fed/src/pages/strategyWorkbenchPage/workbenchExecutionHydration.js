@@ -1,9 +1,41 @@
 /**
- * 将 V2-01 ``GET …/version/latest`` 的 ``step_status`` / ``result_report`` 转为执行面板用的卡片状态与摘要行。
+ * 将 V2-01 / V2-08 的 ``step_status`` / ``execution_panel`` 转为执行面板卡片状态与摘要行。
+ * 摘要数值由后端 ``execution_panel`` 提供，前端不做指标换算。
  */
-import { normalizePriceMetricsFromSummary } from './reportMetrics/strategyReportMetricsNormalize';
 
 const IDLE = { enum: 'idle', price: 'idle', capital: 'idle' };
+const RUN_STEP_NAMES = new Set(['enum', 'price', 'capital']);
+
+/**
+ * V2-05 POST ``steps[]`` → 执行面板 stepStatus。只更新计划内步骤，其余保留 ``prev``（依赖链由后端规划）。
+ * @param {object} prev
+ * @param {object[]} planSteps
+ */
+export function stepStatusFromRunPlanSteps(planSteps, prev = IDLE) {
+  const next = { ...prev };
+  if (!Array.isArray(planSteps) || planSteps.length === 0) return next;
+  planSteps.forEach((row, idx) => {
+    const nm = String(row?.step_name || '').trim();
+    if (!RUN_STEP_NAMES.has(nm)) return;
+    const backendSt = String(row?.status || '').toLowerCase();
+    if (backendSt === 'completed') next[nm] = 'done';
+    else if (backendSt === 'running') next[nm] = 'running';
+    else if (backendSt === 'failed') next[nm] = 'failed';
+    else if (backendSt === 'pending') next[nm] = 'pending';
+    else next[nm] = idx === 0 ? 'running' : 'pending';
+  });
+  return next;
+}
+
+/**
+ * V2-06b ``step_status_merge`` → 合并进当前 stepStatus（轮询唯一来源，不推断依赖）。
+ * @param {object} prev
+ * @param {object|null|undefined} progressMerge
+ */
+export function mergeStepStatusFromRunProgress(prev, progressMerge) {
+  if (!progressMerge || typeof progressMerge !== 'object') return prev;
+  return { ...prev, ...progressMerge };
+}
 
 function slotDone(entry) {
   if (!entry || typeof entry !== 'object') return false;
@@ -26,58 +58,34 @@ export function mapWorkbenchStepStatusToExecutionCards(apiStepStatus) {
 }
 
 /**
- * 从快照 ``result_report`` 提取执行面板一行摘要（与 progress 切片字段对齐）。
- * @param {object|null|undefined} resultReport
+ * 从 BFF ``execution_panel`` 读取执行面板三行摘要。
+ * @param {object|null|undefined} executionPanel
  * @returns {{ enum: object|null, price: object|null, capital: object|null }}
  */
-export function buildExecutionResultFromWorkbenchReport(resultReport) {
+export function buildExecutionResultFromExecutionPanel(executionPanel) {
   const empty = { enum: null, price: null, capital: null };
-  if (!resultReport || typeof resultReport !== 'object') {
+  if (!executionPanel || typeof executionPanel !== 'object') {
     return empty;
   }
-  const out = { ...empty };
+  return {
+    enum: executionPanel.enum ?? null,
+    price: executionPanel.price ?? null,
+    capital: executionPanel.capital ?? null,
+  };
+}
 
-  const enumSlot = resultReport.enum;
-  if (enumSlot && typeof enumSlot === 'object') {
-    const em = enumSlot.enumMetrics;
-    const opp = enumSlot.opportunities
-      ?? enumSlot.total_opportunities
-      ?? (em && typeof em === 'object' ? em.totalOpportunities : undefined);
-    if (opp !== undefined && opp !== null) {
-      const n = Number(opp);
-      if (Number.isFinite(n)) {
-        out.enum = { opportunities: n };
-      }
-    }
-  }
-
-  const pf = resultReport.price_factor;
-  if (pf && typeof pf === 'object') {
-    const pm = normalizePriceMetricsFromSummary(pf);
-    if (pm && Number.isFinite(pm.winRate) && Number.isFinite(pm.avgRoi)) {
-      out.price = {
-        winRate: pm.winRate,
-        roi: pm.avgRoi,
-      };
-    }
-  }
-
-  const cap = resultReport.capital_allocation;
-  if (cap && typeof cap === 'object') {
-    const profit = Number(cap.total_profit);
-    const ic = Number(cap.initial_capital);
-    const ec = Number(cap.final_total_equity);
-    const tr = Number(cap.total_return);
-    const retPct = Number.isFinite(tr) ? tr * 100 : NaN;
-    if ([profit, ic, ec, retPct].every((x) => Number.isFinite(x))) {
-      out.capital = {
-        profit,
-        retPct,
-        initialCapital: ic,
-        endCapital: ec,
-      };
-    }
-  }
-
-  return out;
+/**
+ * @param {string} strategyName
+ * @param {{ versionId?: string, step_status?: object|null, execution_panel?: object|null }} snapshot
+ */
+export function buildWorkbenchExecutionHydrationFromSnapshot(strategyName, snapshot) {
+  const wbVer = String(snapshot?.versionId || '').trim();
+  const stepCards = mapWorkbenchStepStatusToExecutionCards(snapshot?.step_status);
+  const execResult = buildExecutionResultFromExecutionPanel(snapshot?.execution_panel);
+  return {
+    key: `${strategyName}:${wbVer || 'none'}`,
+    stepStatus: stepCards,
+    result: execResult,
+    lastCompletedWorkbenchVersionId: wbVer,
+  };
 }

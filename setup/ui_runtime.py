@@ -205,7 +205,7 @@ def release_all_ui_listen_ports() -> None:
         "webpack",
         "webpack-dev-server",
         "launcher.py",
-        "dev-cli.py",
+        "devcli.py",
         str(FED_ROOT.resolve()),
         str(REPO_ROOT),
     )

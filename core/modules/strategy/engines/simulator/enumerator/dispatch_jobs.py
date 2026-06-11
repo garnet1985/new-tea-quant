@@ -62,6 +62,7 @@ def build_dispatch_jobs(
             "output_dir": output_dir,
             "worker_module_path": worker_ref["worker_module_path"],
             "worker_class_name": worker_ref["worker_class_name"],
+            "worker_file_path": str(worker_ref.get("worker_file_path") or ""),
         }
         if len(chunk) == 1:
             row["stock_id"] = chunk[0]

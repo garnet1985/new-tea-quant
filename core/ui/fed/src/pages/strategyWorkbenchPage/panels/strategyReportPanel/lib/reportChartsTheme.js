@@ -97,3 +97,39 @@ export function reportChartSignedBarData(values, radiusPos = BAR_RADIUS_POS, rad
     };
   });
 }
+
+/** 解析 ROI 区间标签（如 ``[-25%, 0%)``、``>100%``），判断该档是否为负收益区间 */
+export function roiBucketLabelIsNegative(label) {
+  const text = String(label || '').trim();
+  if (text.startsWith('>') || text.startsWith('≥')) return false;
+  if (text.startsWith('[') && text.includes('-')) return true;
+  const matches = text.match(/-?\d+(?:\.\d+)?/g);
+  if (!matches || matches.length < 2) return false;
+  const lo = Number(matches[0]);
+  const hi = Number(matches[1]);
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return false;
+  if (hi <= 0) return true;
+  if (lo >= 0) return false;
+  return (lo + hi) / 2 < 0;
+}
+
+/** ROI 分布柱：按区间正负着色（柱高为笔数，颜色看区间而非计数） */
+export function reportChartRoiBucketBarData(counts, labels, radiusPos = BAR_RADIUS_POS, radiusNeg = BAR_RADIUS_NEG) {
+  if (!Array.isArray(counts)) return [];
+  return counts.map((cell, i) => {
+    const raw = cell != null && typeof cell === 'object' && Object.prototype.hasOwnProperty.call(cell, 'value')
+      ? cell.value
+      : cell;
+    const n = Number(raw);
+    const value = Number.isFinite(n) ? n : 0;
+    const isNeg = roiBucketLabelIsNegative(labels?.[i]);
+    return {
+      value,
+      itemStyle: {
+        color: isNeg ? REPORT_CHART_BAR_COLOR_NEG : REPORT_CHART_BAR_COLOR_POS,
+        borderRadius: isNeg ? radiusNeg : radiusPos,
+        ...REPORT_CHART_BAR_SHADOW,
+      },
+    };
+  });
+}

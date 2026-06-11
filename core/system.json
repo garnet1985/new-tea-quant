@@ -49,7 +49,8 @@
       "requirements.txt",
       "ROADMAP.md",
       "SECURITY.md",
-      "start-cli.py",
+      "cli.py",
+      "devcli.py",
       "SUPPORT.md"
     ],
     "update_ignored_paths": [

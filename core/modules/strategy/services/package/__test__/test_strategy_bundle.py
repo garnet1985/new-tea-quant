@@ -8,6 +8,7 @@ import pytest
 
 from core.infra.export_import import ConflictPolicy
 from core.infra.project_context import PathManager
+from core.modules.strategy.__test__.settings_fixtures import minimal_strategy_raw
 from core.modules.strategy.services.package import (
     export_strategy_bundle,
     import_strategy_bundle,
@@ -46,21 +47,18 @@ def userspace_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def _write_demo_bundle_sources(us: Path) -> None:
     strategy = us / "strategies" / "demo"
     strategy.mkdir(parents=True)
+    demo_settings = minimal_strategy_raw(
+        scanner={"adapters": ["console", "my_webhook"]},
+        data={
+            "base_required_data": {"params": {"term": "daily", "adjust": "qfq"}},
+            "min_required_records": 30,
+            "extra_required_data_sources": [
+                {"data_id": "tag", "params": {"tag_scenario": "activity-ratio20"}},
+            ],
+        },
+    )
     (strategy / "settings.py").write_text(
-        "\n".join(
-            [
-                "settings = {",
-                '    "name": "demo",',
-                '    "scanner": {"adapters": ["console", "my_webhook"]},',
-                '    "data": {',
-                '        "extra_required_data_sources": [',
-                '            {"data_id": "tag", "params": {"tag_scenario": "activity-ratio20"}},',
-                "        ],",
-                "    },",
-                "}",
-            ]
-        )
-        + "\n",
+        f"settings = {demo_settings!r}\n",
         encoding="utf-8",
     )
     (strategy / "strategy_worker.py").write_text("class DemoWorker: pass\n", encoding="utf-8")

@@ -293,7 +293,7 @@ class StrategyDataInjectionService:
     def load_latest_data(self, lookback: int = None) -> None:
         if lookback is None:
             lookback = self.settings.min_required_records or 100
-        latest_date = self._get_latest_trading_date()
+        latest_date = self._get_latest_completed_trading_date()
         start_date = self._get_date_before(latest_date, lookback)
         self.hydrate_row_slots(start_date, latest_date)
         self.apply_indicators()
@@ -356,7 +356,7 @@ class StrategyDataInjectionService:
                 parts.append(f"{key}{value}")
         return "_".join(parts)
 
-    def _get_latest_trading_date(self) -> str:
+    def _get_latest_completed_trading_date(self) -> str:
         from core.modules.data_manager import DataManager
         from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
             resolve_latest_completed_trading_date,

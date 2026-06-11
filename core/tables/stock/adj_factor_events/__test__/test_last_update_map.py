@@ -14,10 +14,3 @@ def test_load_stock_last_update_map():
     m = model.load_stock_last_update_map()
     assert m["000001.SZ"] == "2025-06-09 10:00:00"
     assert m["000002.SZ"] == "2025-06-08 09:00:00"
-
-
-def test_load_min_last_update():
-    db = MagicMock()
-    db.execute_sync_query.return_value = [{"min_lu": "2025-06-08 09:00:00"}]
-    model = DataAdjFactorEventModel(db=db)
-    assert model.load_min_last_update() == "2025-06-08 09:00:00"

@@ -396,17 +396,6 @@ class DataAdjFactorEventModel(DbBaseModel):
                 out[sid] = row.get("last_update")
         return out
 
-    def load_min_last_update(self) -> Optional[Any]:
-        """全表最慢 ``last_update``（整 job 短路：最慢股也无新交易日则可跳过）。"""
-        rows = self.db.execute_sync_query(
-            f"SELECT MIN(last_update) AS min_lu FROM {self.table_name} "
-            f"WHERE last_update IS NOT NULL",
-            (),
-        )
-        if not rows:
-            return None
-        return rows[0].get("min_lu")
-
     def get_min_event_date(self) -> Optional[str]:
         rows = self.db.execute_sync_query(
             f"SELECT MIN(event_date) AS min_d FROM {self.table_name}", ()

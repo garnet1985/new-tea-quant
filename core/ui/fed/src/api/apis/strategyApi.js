@@ -340,8 +340,12 @@ export async function fetchStrategyRunProgress(strategyName, jobId) {
 export function mapWorkbenchRunProgressToPanel(envelope) {
   const steps = Array.isArray(envelope?.steps) ? envelope.steps : [];
   const phase = String(envelope?.phase || '').toLowerCase();
+  const runProgress = envelope?.run_progress && typeof envelope.run_progress === 'object'
+    ? envelope.run_progress
+    : null;
 
   const step_status_merge = {};
+  const step_progress = {};
   steps.forEach((row) => {
     const k = String(row.step_name || '').trim();
     if (k !== 'enum' && k !== 'price' && k !== 'capital') return;
@@ -351,6 +355,7 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
     else if (st === 'completed') step_status_merge[k] = 'done';
     else if (st === 'failed') step_status_merge[k] = 'failed';
     else step_status_merge[k] = 'idle';
+    step_progress[k] = Number(row.progress ?? 0);
   });
 
   const anyFailed = steps.some((r) => String(r.status || '').toLowerCase() === 'failed') || phase === 'failed';
@@ -365,14 +370,26 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
   ['enum', 'price', 'capital'].forEach((k) => {
     if (step_status_merge[k] === 'running') running_step = k;
   });
+  if (!running_step && runProgress?.substep) {
+    running_step = String(runProgress.substep).trim();
+  }
 
   let progress_pct = 0;
-  if (running_step) {
-    const hit = steps.find((r) => String(r.step_name || '').trim() === running_step);
-    progress_pct = Number(hit?.progress ?? 0);
+  if (runProgress && runProgress.pct != null) {
+    progress_pct = Number(runProgress.pct);
+  } else if (running_step) {
+    progress_pct = Number(step_progress[running_step] ?? 0);
   } else if (state === 'done') {
     progress_pct = 100;
   }
+
+  const progress_label = typeof runProgress?.label === 'string' ? runProgress.label.trim() : '';
+  const progress_stage_label = typeof runProgress?.substep_stage_label === 'string'
+    ? runProgress.substep_stage_label.trim()
+    : '';
+  const progress_counter_text = typeof runProgress?.counter_text === 'string'
+    ? runProgress.counter_text.trim()
+    : '';
 
   let version_id = '';
   steps.forEach((row) => {
@@ -390,8 +407,12 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
   return {
     run_id: envelope?.run_id || '',
     step_status_merge,
+    step_progress,
     running_step,
     progress_pct,
+    progress_label,
+    progress_stage_label,
+    progress_counter_text,
     state,
     version_id,
     fail_reason,

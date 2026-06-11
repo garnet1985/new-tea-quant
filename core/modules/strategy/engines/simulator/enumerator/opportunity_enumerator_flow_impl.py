@@ -63,7 +63,7 @@ class WorkbenchEnumeratorProgressCallback:
 
     def __call__(self, payload: Dict[str, Any]) -> None:
         from core.modules.strategy.execution_manager.workbench_run_envelope import (
-            run_envelope_on_flow_progress,
+            run_envelope_apply_step_stage,
         )
         from core.modules.strategy.services.progress import ProgressRecorder
 
@@ -97,8 +97,14 @@ class WorkbenchEnumeratorProgressCallback:
                 "progress_pct": progress_pct,
             }
         )
-        run_envelope_on_flow_progress(
-            self.strategy_name, self.run_id, "enum", float(progress_pct)
+        counters = {"done": done_jobs, "total": total_jobs} if total_jobs > 0 else None
+        run_envelope_apply_step_stage(
+            self.strategy_name,
+            self.run_id,
+            "enum",
+            "execute",
+            float(progress_pct) / 100.0,
+            counters=counters,
         )
 
 

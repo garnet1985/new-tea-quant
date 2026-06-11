@@ -6,6 +6,11 @@ import copy
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
+from core.modules.strategy.execution_manager.workbench_step_progress import (
+    compute_run_progress,
+    compute_step_progress_pct,
+    stage_label,
+)
 from core.modules.strategy.services.progress import ProgressRecorder
 
 logger = logging.getLogger(__name__)
@@ -43,6 +48,9 @@ def seed_workbench_run_envelope(
             "step_name": nm,
             "progress": 0.0,
             "status": "pending",
+            "stage": None,
+            "stage_label": None,
+            "counters": None,
             "result": None,
         }
         for nm in names
@@ -125,22 +133,60 @@ def run_envelope_on_flow_progress(
     substep: str,
     flow_pct: float,
 ) -> None:
+    """兼容旧 execute 回调：映射为 execute 阶段。"""
+    try:
+        fp = float(flow_pct)
+    except (TypeError, ValueError):
+        fp = 0.0
+    fp = max(0.0, min(100.0, fp))
+    run_envelope_apply_step_stage(
+        strategy_name,
+        run_id,
+        str(substep).strip(),
+        "execute",
+        fp / 100.0,
+        counters=None,
+    )
+
+
+def run_envelope_apply_step_stage(
+    strategy_name: str,
+    run_id: str,
+    substep: str,
+    stage: str,
+    stage_ratio: float = 0.0,
+    *,
+    counters: Optional[Dict[str, Any]] = None,
+) -> None:
+    """更新单步 stage / progress，并重算 ``run_progress``。"""
     sn = str(strategy_name).strip()
     jid = str(run_id).strip()
     env = _load_env(sn, jid)
     if not env:
         return
     steps = env.get("steps") or []
-    try:
-        fp = float(flow_pct)
-    except (TypeError, ValueError):
-        fp = 0.0
-    fp = max(0.0, min(100.0, fp))
     sub = str(substep).strip()
+    stg = str(stage).strip()
+    prog = compute_step_progress_pct(sub, stg, stage_ratio)
     for st in steps:
-        if st.get("step_name") == sub and st.get("status") == "running":
-            st["progress"] = round(fp, 2)
+        if st.get("step_name") != sub:
+            continue
+        if st.get("status") not in ("running", "pending"):
             break
+        if st.get("status") == "pending":
+            st["status"] = "running"
+        st["stage"] = stg
+        st["stage_label"] = stage_label(stg)
+        try:
+            cur = float(st.get("progress") or 0)
+        except (TypeError, ValueError):
+            cur = 0.0
+        st["progress"] = round(max(cur, prog), 2)
+        if counters is not None:
+            st["counters"] = dict(counters)
+        break
+    names = [str(s.get("step_name") or "").strip() for s in steps]
+    env["run_progress"] = compute_run_progress(names, steps)
     env["steps"] = steps
     _save_env(sn, jid, env)
 
@@ -173,6 +219,9 @@ def run_envelope_on_substep_finish(
     sid = int(version or 0)
     st["status"] = "completed"
     st["progress"] = 100.0
+    st["stage"] = "report"
+    st["stage_label"] = stage_label("report")
+    st.pop("counters", None)
     msg = f"{str(substep).strip()} 已完成"
     if sid > 0:
         st["result"] = {
@@ -182,6 +231,8 @@ def run_envelope_on_substep_finish(
         }
     else:
         st["result"] = {"message": msg}
+    names = [str(s.get("step_name") or "").strip() for s in steps]
+    env["run_progress"] = compute_run_progress(names, steps)
     env["steps"] = steps
     _save_env(sn, jid, env)
 
@@ -193,6 +244,11 @@ def run_envelope_mark_phase_completed(strategy_name: str, run_id: str) -> None:
     if not env:
         return
     env["phase"] = "completed"
+    steps = env.get("steps") or []
+    names = [str(s.get("step_name") or "").strip() for s in steps]
+    env["run_progress"] = compute_run_progress(names, steps)
+    if isinstance(env.get("run_progress"), dict):
+        env["run_progress"]["pct"] = 100.0
     _save_env(sn, jid, env)
 
 
@@ -234,24 +290,12 @@ def get_run_progress(
     if not env:
         return None
     steps = copy.deepcopy(env.get("steps") or [])
-    for st in steps:
-        if st.get("step_name") == "enum" and st.get("status") == "running":
-            side = ProgressRecorder.for_strategy_run_step(sn, jid, "enum").get_progress()
-            if isinstance(side, dict):
-                try:
-                    ep = float(side.get("progress_pct") or 0)
-                except (TypeError, ValueError):
-                    ep = 0.0
-                ep = max(0.0, min(100.0, ep))
-                try:
-                    cur = float(st.get("progress") or 0)
-                except (TypeError, ValueError):
-                    cur = 0.0
-                st["progress"] = round(max(cur, ep), 2)
-            break
+    names = [str(s.get("step_name") or "").strip() for s in steps]
+    run_progress = compute_run_progress(names, steps)
     return {
         "run_id": jid,
         "phase": str(env.get("phase") or "queued"),
+        "run_progress": run_progress,
         "steps": steps,
     }
 
@@ -262,6 +306,7 @@ __all__ = [
     "run_envelope_fail",
     "run_envelope_mark_phase_completed",
     "run_envelope_mark_started",
+    "run_envelope_apply_step_stage",
     "run_envelope_on_flow_progress",
     "run_envelope_on_overall_pct",
     "run_envelope_on_substep_finish",

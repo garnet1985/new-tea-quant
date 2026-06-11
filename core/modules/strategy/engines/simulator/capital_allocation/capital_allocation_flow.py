@@ -27,6 +27,9 @@ if TYPE_CHECKING:
     from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
         DiscoveredStrategy,
     )
+    from core.modules.strategy.execution_manager.workbench_flow_progress import (
+        WorkbenchFlowProgress,
+    )
 
 
 class CapitalAllocationFlow(BaseSimulationFlow):
@@ -44,6 +47,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
         strategy_info: Optional["DiscoveredStrategy"] = None,
         *,
         progress_callback: Optional[Callable[[float], None]] = None,
+        workbench_progress: Optional["WorkbenchFlowProgress"] = None,
     ) -> Any:
         """
         指纹探针 → DbCache 命中则直接返回 session summary → 否则 preprocess → execute →
@@ -73,6 +77,10 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             if progress_callback is not None:
                 progress_callback(float(pct))
 
+        wp = workbench_progress
+        if wp is not None:
+            wp.stage("load", 0.05)
+        tick(8.0)
         base_settings = self._impl.load_settings(strategy_name, strategy_info)
         config = self._impl.parse_config(base_settings)
         base_output_version_dir = self._impl.resolve_source_version(
@@ -98,6 +106,10 @@ class CapitalAllocationFlow(BaseSimulationFlow):
             stock_list=list(stock_list),
             latest_completed_trading_date=latest_completed_trading_date,
         )
+
+        if wp is not None:
+            wp.stage("load", 0.85)
+        tick(10.0)
 
         if resolved is not None and not self._force_refresh:
             hit = lookup_capital_allocation_cache(
@@ -134,16 +146,30 @@ class CapitalAllocationFlow(BaseSimulationFlow):
                     base_settings.to_dict(),
                     protect_output_version_dir=cdir or None,
                 )
+                if wp is not None:
+                    wp.stage("report", 1.0)
                 tick(92.0)
                 return summary
 
-
+        if wp is not None:
+            wp.stage("load", 1.0)
+            wp.stage("dispatch", 0.1)
+        tick(12.0)
         preprocessed = self.preprocess(
             strategy_name=strategy_name,
             strategy_info=strategy_info,
         )
+        if wp is not None:
+            wp.stage("dispatch", 1.0)
+        tick(14.0)
         executed = self.execute(preprocessed, progress_callback=tick)
+        if wp is not None:
+            wp.stage("execute", 1.0)
+        tick(90.0)
         summary = self.postprocess(preprocessed, executed, prune_disk=False)
+        if wp is not None:
+            wp.stage("report", 0.5)
+        tick(94.0)
 
         if summary and isinstance(summary, dict):
             raw_save = raw_settings_for_db_cache_fingerprint(base_settings, strategy_info)

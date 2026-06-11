@@ -242,6 +242,12 @@ function StrategyExecutionPanel({
   });
   const [runningStep, setRunningStep] = useState('');
   const [progress, setProgress] = useState(0);
+  const [stepProgress, setStepProgress] = useState({ enum: 0, price: 0, capital: 0 });
+  const [progressDetail, setProgressDetail] = useState({
+    label: '',
+    stageLabel: '',
+    counterText: '',
+  });
   const [result, setResult] = useState({
     enum: null,
     price: null,
@@ -340,6 +346,14 @@ function StrategyExecutionPanel({
           if (status?.step_status_merge && typeof status.step_status_merge === 'object') {
             setStepStatus((prev) => mergeStepStatusFromRunProgress(prev, status.step_status_merge));
           }
+          if (status?.step_progress && typeof status.step_progress === 'object') {
+            setStepProgress((prev) => ({ ...prev, ...status.step_progress }));
+          }
+          setProgressDetail({
+            label: String(status?.progress_label || '').trim(),
+            stageLabel: String(status?.progress_stage_label || '').trim(),
+            counterText: String(status?.progress_counter_text || '').trim(),
+          });
           const nextPct = Number(status?.progress_pct || 0);
           if (Number.isFinite(nextPct) && nextPct > 0) {
             setProgress(nextPct);
@@ -473,7 +487,8 @@ function StrategyExecutionPanel({
     const visuallyRunning = st === 'running';
     if (!visuallyRunning) return null;
     if (progress > 0) {
-      const pct = Math.min(100, Math.max(0, Number(progress)));
+      const raw = stepProgress[stepKey];
+      const pct = Math.min(100, Math.max(0, Number(raw != null ? raw : progress)));
       return (
         <Box
           key={`${stepKey}-run-pct-${activeRunId || 'local'}`}
@@ -928,6 +943,14 @@ function StrategyExecutionPanel({
       setStepStatus((prev) => mergeStepStatusFromRunProgress(prev, patch));
       const nextRunningStep = status?.running_step || '';
       setRunningStep(nextRunningStep);
+      if (status?.step_progress && typeof status.step_progress === 'object') {
+        setStepProgress((prev) => ({ ...prev, ...status.step_progress }));
+      }
+      setProgressDetail({
+        label: String(status?.progress_label || '').trim(),
+        stageLabel: String(status?.progress_stage_label || '').trim(),
+        counterText: String(status?.progress_counter_text || '').trim(),
+      });
 
       const runKey = `${status?.run_id || activeRunId}:${nextRunningStep}`;
       if (runKey !== progressRunKeyRef.current) {
@@ -1013,15 +1036,39 @@ function StrategyExecutionPanel({
     return startRun(target, { isForce });
   };
 
+  const progressDetailText = [
+    progressDetail.label,
+    progressDetail.stageLabel,
+    progressDetail.counterText,
+  ].filter(Boolean).join(' · ');
+
   return (
     <>
     <Accordion defaultExpanded disableGutters>
       <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
-        <SettingsAccordionTitle
-          title={EXECUTION_PANEL_TITLE}
-          tooltip={EXECUTION_PANEL_TOOLTIP}
-          context={{ defaultTooltipShine: true }}
-        />
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          spacing={1}
+          sx={{ width: '100%', minWidth: 0, pr: 0.5 }}
+        >
+          <SettingsAccordionTitle
+            title={EXECUTION_PANEL_TITLE}
+            tooltip={EXECUTION_PANEL_TOOLTIP}
+            context={{ defaultTooltipShine: true }}
+          />
+          {activeRunId && progressDetailText ? (
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              noWrap
+              sx={{ flexShrink: 0, maxWidth: '48%', textAlign: 'right' }}
+            >
+              {progressDetailText}
+            </Typography>
+          ) : null}
+        </Stack>
       </AccordionSummary>
       <AccordionDetails>
         <Stack spacing={1.25}>

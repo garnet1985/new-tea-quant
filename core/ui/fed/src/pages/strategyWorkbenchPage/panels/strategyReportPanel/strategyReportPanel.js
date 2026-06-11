@@ -55,6 +55,7 @@ import {
   REPORT_TAB_SECTION_TITLES,
 } from './reportSectionMeta';
 import BacktestPeriodBanner from './components/backtestPeriodBanner';
+import ReportStockDetailView from './components/reportStockDetailView';
 import './strategyReportPanel.scss';
 
 function StrategyReportPanel({
@@ -122,6 +123,8 @@ function StrategyReportPanel({
   }
 
   const [activeTab, setActiveTab] = useState('');
+  const [selectedStock, setSelectedStock] = useState(null);
+  const [reportStockView, setReportStockView] = useState('list');
 
   const {
     reportStocks,
@@ -217,6 +220,8 @@ function StrategyReportPanel({
 
   const handleTabChange = (_event, nextValue) => {
     setActiveTab(nextValue);
+    setReportStockView('list');
+    setSelectedStock(null);
   };
 
   /** 对比弹窗内报告区块副标题：仅报告类型，版本号在列头「当前版本（vx）」展示 */
@@ -253,6 +258,8 @@ function StrategyReportPanel({
           enumRefStockTotal={options.enumRefStockTotal}
           hideTitle={Boolean(options.hideTitle)}
           stockGridLoading={Boolean(options.stockGridLoading)}
+          onStockSelect={options.onStockSelect}
+          stockLinkEnabled={Boolean(options.stockLinkEnabled)}
         />
       );
     }
@@ -310,6 +317,22 @@ function StrategyReportPanel({
     }
 
     if (resolvedActiveTab === 'enum') {
+      if (reportStockView === 'detail' && selectedStock) {
+        return (
+          <ReportStockDetailView
+            strategyName={strategyName}
+            versionId={enumRefVersionId || resolvedReportVersionId}
+            stock={selectedStock}
+            initialStep="enum"
+            stepStatus={executionState?.stepStatus || {}}
+            onBack={() => {
+              setReportStockView('list');
+              setSelectedStock(null);
+            }}
+          />
+        );
+      }
+
       let stockGridOverlay = null;
       if (enumRefVersionId && enumRefStatus === 'missing' && typeof onForceEnumerate === 'function') {
         stockGridOverlay = (
@@ -346,6 +369,11 @@ function StrategyReportPanel({
           enumRefStockTotal: enumRefStatus === 'ok' ? enumRefRows.length : undefined,
           stockGridLoading: Boolean(enumRefVersionId) && enumRefStatus === 'loading',
           hideTitle: true,
+          stockLinkEnabled: executionState?.stepStatus?.enum === 'done' && enumRefStatus === 'ok',
+          onStockSelect: (row) => {
+            setSelectedStock(row);
+            setReportStockView('detail');
+          },
         },
       );
     }
@@ -396,7 +424,7 @@ function StrategyReportPanel({
               ))}
             </Tabs>
           ) : null}
-          {resolvedActiveTab && activeTabSectionTitle ? (
+          {resolvedActiveTab && activeTabSectionTitle && !(reportStockView === 'detail' && selectedStock) ? (
             <Stack
               direction="row"
               alignItems="center"
@@ -421,7 +449,7 @@ function StrategyReportPanel({
               ) : null}
             </Stack>
           ) : null}
-          {resolvedActiveTab ? (
+          {resolvedActiveTab && !(reportStockView === 'detail' && selectedStock) ? (
             <BacktestPeriodBanner slot={activeReportSlotForPeriod} />
           ) : null}
           {renderTabContent()}

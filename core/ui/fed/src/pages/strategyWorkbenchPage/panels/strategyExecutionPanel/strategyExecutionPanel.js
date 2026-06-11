@@ -39,6 +39,7 @@ import {
 } from '../../../../api/apis/strategyApi';
 import { buildExecutionResultFromWorkbenchReport } from '../../workbenchExecutionHydration';
 import { useWorkbenchCompareVersionMenu } from '../../workbenchCompareVersionMenu';
+import { clearStockKlineMemoryCache } from '../strategyReportPanel/lib/stockKlineMemoryCache';
 
 const STEP_ENUM = 'enum';
 const STEP_PRICE = 'price';
@@ -388,6 +389,7 @@ function StrategyExecutionPanel({
 
   const startRun = async (target, { isForce = false, _retryAfterBusy = false } = {}) => {
     if (!strategyName) return;
+    clearStockKlineMemoryCache();
     if (executionBusy) {
       // 与左侧草稿 reset 触发的 remount 同一瞬时使用：首帧可能仍认为 busy，下一微任务再试一次
       if (!_retryAfterBusy) {

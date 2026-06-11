@@ -12,6 +12,17 @@ from core.tables.stock.adj_factor_events.schema import schema as _schema
 from core.utils.io import csv_io, file_io
 
 
+CSV_PREFERRED_COLUMNS = [
+    "id",
+    "event_date",
+    "factor",
+    "qfq_anchor",
+    "raw_anchor",
+    "qfq_diff",
+    "last_update",
+]
+
+
 class DataAdjFactorEventModel(DbBaseModel):
     """复权因子事件表 Model（表名 data_adj_factor_event）"""
 
@@ -170,6 +181,8 @@ class DataAdjFactorEventModel(DbBaseModel):
                     "id": row.get("id", stock_id),
                     "event_date": adj_event_date,
                     "factor": row.get("adj_factor"),
+                    "qfq_anchor": row.get("adj_qfq_anchor"),
+                    "raw_anchor": row.get("adj_raw_anchor"),
                     "qfq_diff": qfq_diff,
                 }
                 by_date[d] = {
@@ -263,7 +276,7 @@ class DataAdjFactorEventModel(DbBaseModel):
             placeholders = ",".join(["%s"] * len(stock_ids))
             in_range_rows = db.execute_sync_query(
                 f"""
-                SELECT id, event_date, factor, qfq_diff, last_update
+                SELECT id, event_date, factor, qfq_anchor, raw_anchor, qfq_diff, last_update
                 FROM {self.table_name}
                 WHERE id IN ({placeholders})
                   AND event_date >= %s
@@ -282,7 +295,7 @@ class DataAdjFactorEventModel(DbBaseModel):
         for sid in stock_ids:
             prev = db.execute_sync_query(
                 f"""
-                SELECT id, event_date, factor, qfq_diff, last_update
+                SELECT id, event_date, factor, qfq_anchor, raw_anchor, qfq_diff, last_update
                 FROM {self.table_name}
                 WHERE id = %s AND event_date <= %s
                 ORDER BY event_date DESC
@@ -294,7 +307,7 @@ class DataAdjFactorEventModel(DbBaseModel):
             if not anchor:
                 nxt = db.execute_sync_query(
                     f"""
-                    SELECT id, event_date, factor, qfq_diff, last_update
+                    SELECT id, event_date, factor, qfq_anchor, raw_anchor, qfq_diff, last_update
                     FROM {self.table_name}
                     WHERE id = %s AND event_date > %s
                     ORDER BY event_date ASC
@@ -313,6 +326,8 @@ class DataAdjFactorEventModel(DbBaseModel):
                     "id": sid,
                     "event_date": start_date,
                     "factor": anchor.get("factor"),
+                    "qfq_anchor": anchor.get("qfq_anchor"),
+                    "raw_anchor": anchor.get("raw_anchor"),
                     "qfq_diff": anchor.get("qfq_diff"),
                     "last_update": anchor.get("last_update"),
                 }
@@ -405,7 +420,7 @@ class DataAdjFactorEventModel(DbBaseModel):
         """导出事件到 CSV；默认从 ``start_date`` 到库内最新 ``event_date``。"""
         end = end_date or self.get_max_event_date()
         if not end:
-            csv_io.write_dicts_to_csv(file_path, [], preferred_order=["id", "event_date", "factor", "qfq_diff", "last_update"])
+            csv_io.write_dicts_to_csv(file_path, [], preferred_order=CSV_PREFERRED_COLUMNS)
             return 0
         rows = self.load(
             "event_date >= %s AND event_date <= %s",
@@ -417,7 +432,7 @@ class DataAdjFactorEventModel(DbBaseModel):
         csv_io.write_dicts_to_csv(
             path,
             rows,
-            preferred_order=["id", "event_date", "factor", "qfq_diff", "last_update"],
+            preferred_order=CSV_PREFERRED_COLUMNS,
         )
         return len(rows)
 

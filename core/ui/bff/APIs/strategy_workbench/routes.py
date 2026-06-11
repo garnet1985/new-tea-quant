@@ -253,6 +253,41 @@ def get_strategy_step_report_ref(strategy_name, step, version_id):
     return ok(msg)
 
 
+# --- V2-07c：单股 K 线 + 步骤 markers（enum MVP） ---
+@strategy_workbench_api_bp.route(
+    "/v1/strategy/<path:strategy_name>/<step>/stock/<path:stock_id>",
+    methods=["GET"],
+)
+def get_strategy_step_stock_detail(strategy_name, step, stock_id):
+    """GET …/stock/{stock_id}?version_id= — 单股 K 线与标注；query ``version_id`` 必填。"""
+    s = get_strategy_workbench_stack()
+    norm = s.normalize_step(step)
+    if norm is None:
+        return error("step 须为 enum / price / capital", 400)
+
+    path_vid = str(request.args.get("version_id") or "").strip()
+    if not path_vid:
+        return error("缺少 query 参数 version_id", 400)
+
+    sid = s.parse_version_id(path_vid)
+    if sid is None:
+        return error("version_id 无效", 400)
+
+    code = str(stock_id or "").strip()
+    if not code:
+        return error("stock_id 无效", 400)
+
+    msg = s.build_stock_detail_message(
+        strategy_name=strategy_name,
+        normalized_step=norm,
+        version=sid,
+        stock_id=code,
+    )
+    if msg is None:
+        return error("快照不存在", 404)
+    return ok(msg)
+
+
 # --- V2-08 ---
 @strategy_workbench_api_bp.route(
     "/v1/strategy/<path:strategy_name>/version/<version_id>",

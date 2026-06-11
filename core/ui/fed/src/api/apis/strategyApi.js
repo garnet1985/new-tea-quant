@@ -281,6 +281,22 @@ export async function fetchStrategyStepReport(strategyName, step, versionId) {
  * @param {string} versionId
  * @returns {Promise<object|null>}
  */
+/**
+ * V2-07c：单股 K 线 + 步骤 markers。
+ * GET /api/v1/strategy/{name}/{step}/stock/{stock_id}?version_id=...
+ */
+export async function fetchStrategyStockDetail(strategyName, step, versionId, stockId) {
+  const vid = encodeURIComponent(String(versionId || '').trim());
+  const code = encodeURIComponent(String(stockId || '').trim());
+  if (!vid || !code) {
+    throw new Error('缺少 version_id 或 stock_id');
+  }
+  const params = new URLSearchParams({ version_id: String(versionId || '').trim() });
+  const url = `${apiStrategyPath(strategyName)}/${encodeURIComponent(step)}/stock/${code}?${params.toString()}`;
+  const json = await requestJson(url, { method: 'GET' });
+  return json?.message || {};
+}
+
 export async function fetchStrategyStepReportRef(strategyName, step, versionId) {
   const vid = encodeURIComponent(String(versionId || '').trim());
   if (!vid) {
@@ -441,6 +457,7 @@ export async function fetchStrategyVersionHistory(strategyName) {
  * @param {string} runId
  * @param {string} stockId
  */
+/** @deprecated 使用 ``fetchStrategyStockDetail`` */
 export async function fetchStrategyReportStockKline(strategyName, runId, stockId) {
   void strategyName;
   void runId;

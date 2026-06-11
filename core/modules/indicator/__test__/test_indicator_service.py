@@ -10,11 +10,10 @@ class TestIndicatorService(unittest.TestCase):
             {
                 "date": "20240101",
                 "open": 1.0,
-                "highest": 1.1,
-                "lowest": 0.9,
+                "high": 1.1,
+                "low": 0.9,
                 "close": 1.05,
                 "volume": 100,
-                "qfq_open": 9.0,
                 "extra": "drop-me",
             }
         ]
@@ -46,8 +45,8 @@ class TestIndicatorService(unittest.TestCase):
             {
                 "date": "20240101",
                 "open": 1.0,
-                "highest": 1.1,
-                "lowest": 0.9,
+                "high": 1.1,
+                "low": 0.9,
                 "close": 1.0,
                 "volume": 10,
                 "marker": "keep-me",
@@ -82,8 +81,8 @@ class TestIndicatorService(unittest.TestCase):
         klines = [
             {
                 "open": 10 + i * 0.1,
-                "highest": 10.5 + i * 0.1,
-                "lowest": 9.5 + i * 0.1,
+                "high": 10.5 + i * 0.1,
+                "low": 9.5 + i * 0.1,
                 "close": 10 + i * 0.1,
                 "volume": 1000 + i,
             }

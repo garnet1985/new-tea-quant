@@ -8,38 +8,83 @@ from core.tables.stock.adj_factor_events.model import DataAdjFactorEventModel
 
 
 class TestFloatConsumePath:
-    def test_segment_offset_with_float_anchors(self):
-        event = {
-            "factor": 181.704,
-            "qfq_anchor": 7.19,
-            "raw_anchor": 7.19,
-            "qfq_diff": 0.0,
-        }
-        off = KlineService._segment_offset_from_event(
-            event,
-            factor_eff=181.704,
-            factor_latest=181.704,
+    def test_global_offset_on_latest_event_day(self):
+        events = [
+            {
+                "id": "000001.SZ",
+                "event_date": "20250105",
+                "factor": 2.0,
+                "qfq_anchor": 5.0,
+                "raw_anchor": 10.0,
+            }
+        ]
+        ctx = KlineService._resolve_global_qfq_context(events, factor_latest=2.0)
+        qfq = KlineService._qfq_price_global_offset(
+            10.0,
+            factor_eff=2.0,
+            factor_latest=2.0,
+            global_offset=ctx["global_offset"],
         )
-        assert off == pytest.approx(0.0, abs=1e-6)
+        assert qfq == pytest.approx(5.0, abs=1e-6)
 
-    def test_qfq_price_latest_segment_matches_anchor(self):
-        event = {
-            "factor": 181.704,
-            "qfq_anchor": 7.19,
-            "raw_anchor": 7.19,
+    def test_global_offset_ignores_segment_qfq_diff(self):
+        kline = {
+            "id": "000001.SZ",
+            "open": 10.0,
+            "close": 10.0,
+            "high": 10.5,
+            "low": 9.5,
+            "pre_close": 9.8,
         }
-        off = KlineService._segment_offset_from_event(
-            event,
-            factor_eff=181.704,
-            factor_latest=181.704,
+        events = [
+            {
+                "id": "000001.SZ",
+                "event_date": "20250105",
+                "factor": 2.0,
+                "qfq_anchor": 5.0,
+                "raw_anchor": 10.0,
+                "qfq_diff": 99.0,
+            }
+        ]
+        ctx = KlineService._resolve_global_qfq_context(events, factor_latest=2.0)
+        info = {"event": events[0], "qfq_diff": 99.0}
+        KlineService._apply_qfq_from_event_info(
+            KlineService,
+            kline,
+            info,
+            factor_latest=2.0,
+            global_qfq_context=ctx,
         )
-        qfq = KlineService._qfq_price_from_raw(
-            7.19,
-            factor_eff=181.704,
-            factor_latest=181.704,
-            segment_offset=off,
+        assert kline["close"] == pytest.approx(5.0)
+
+    def test_apply_qfq_diff_fallback_only_without_anchors(self):
+        kline = {
+            "id": "000001.SZ",
+            "close": 10.0,
+            "open": 10.0,
+            "high": 10.0,
+            "low": 10.0,
+            "pre_close": 10.0,
+        }
+        info = {
+            "event": {
+                "id": "000001.SZ",
+                "event_date": "20250105",
+                "factor": 2.0,
+                "qfq_anchor": None,
+                "raw_anchor": None,
+                "qfq_diff": 1.5,
+            },
+            "qfq_diff": 1.5,
+        }
+        KlineService._apply_qfq_from_event_info(
+            KlineService,
+            kline,
+            info,
+            factor_latest=2.0,
+            global_qfq_context={"use_global_offset": False, "global_offset": 0.0},
         )
-        assert qfq == pytest.approx(7.19, abs=1e-3)
+        assert kline["close"] == pytest.approx(11.5)
 
     def test_join_rows_with_float_adj_columns(self):
         model = DataAdjFactorEventModel(db=None)

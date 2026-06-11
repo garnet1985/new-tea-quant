@@ -123,7 +123,7 @@ function ReportStockDetailView({
   }, [payload]);
 
   const priceAdjustLabel = useMemo(() => {
-    const adj = String(payload?.price_adjust || payload?.kline_params?.adjust || 'qfq').toLowerCase();
+    const adj = String(payload?.kline_params?.adjust || 'qfq').toLowerCase();
     if (adj === 'qfq') return '前复权 (qfq)';
     if (adj === 'hfq') return '后复权 (hfq)';
     if (adj === 'none' || adj === 'nfq') return '不复权';

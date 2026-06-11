@@ -16,6 +16,7 @@
 
 - **`TagDataManager`** 根据 settings 中的数据声明装载行槽、重建 **`DataCursor`**。
 - 每个交易日 **`as_of`**：**`get_data_until(as_of)`** 返回「截至该日（含）」的累计切片；键为 **`data_id`**（如 **`stock.kline`**），值为历史行列表。
+- K 线行使用标准 **`open` / `high` / `low` / `close`**；`adjust=qfq` 时即为前复权价（无 `qfq_*` 宽列）。
 - **`calculate_tag(as_of_date, historical_data, tag_definition)`** 只应基于该切片做决策，避免偷看未来。
 
 ---

@@ -49,6 +49,10 @@ python dev-cli -p -vx.x.x
 - 增加策略回测report里K线的点击界面，能够打开单个股票查询详细信息
 - (破坏性改动)改动了data.json, 重命名了数据截断日期为 as of latest completed date
 - 让复权因子可以根据data.json的配置先行导入可用的数据，大大降低了更新的时间
+- 所有k线的最高最低价从highest和lowest变成high和low
+- sys_adj_factor_events 表：qfq_anchor/raw_anchor、DECIMAL 精度、last_update renew 门控、CSV 冷启动导入（见 core/tables v0.2.x）
+- 修复策略报告 K 线 tooltip 将 dataIndex 误显示为开盘价的问题
+- KlineService 前复权消费改为方案 B：`raw×F(段)/F(最新)+C`，C 由最新事件 anchor 折算；`qfq_diff` 仅 fallback
 
 ---
 

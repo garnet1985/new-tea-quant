@@ -2,7 +2,8 @@
 data_adj_factor_event 表结构定义（Python，变量名 schema）
 
 复权因子事件表：每股按除权日存一条事件链。
-- factor + qfq_anchor/raw_anchor：append 模型（消费端动态 offset）
+- factor + qfq_anchor/raw_anchor：append 入库；消费端方案 B 仅用**最新** anchor 折算全局 C
+- qfq_diff：应急 fallback（最新事件缺 anchor 时）
 - last_update：renew 门控（非 last_event_date）
 """
 schema = {

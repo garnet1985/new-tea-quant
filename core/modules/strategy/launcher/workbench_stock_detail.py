@@ -31,8 +31,6 @@ from core.utils.io.csv_io import read_csv_to_dicts
 
 logger = logging.getLogger(__name__)
 
-_PRICE_FIELDS = ("open", "close", "highest", "lowest")
-
 _OSCILLATOR_INDICATORS = frozenset(
     {"rsi", "stoch", "stochrsi", "willr", "mfi", "cmo", "cci", "uo", "aroon"}
 )
@@ -128,15 +126,13 @@ def _backtest_period_for_row(
     )
 
 
-_OHLC_DB_KEYS = {
-    "open": "open",
-    "close": "close",
-    "high": "highest",
-    "low": "lowest",
-}
+def _round_price(value: Optional[float]) -> Optional[float]:
+    if value is None:
+        return None
+    return round(float(value), 2)
 
 
-def _load_kline_rows(
+def _load_stock_klines(
     kline_svc: Any,
     *,
     stock_id: str,
@@ -145,8 +141,8 @@ def _load_kline_rows(
     end: str,
     adjust: str,
 ) -> List[Dict[str, Any]]:
-    """与 ``StockKlineLoader`` 一致：qfq → ``load_qfq_split``，不复权 → ``load_raw``。"""
-    adj = str(adjust or "qfq").lower()
+    """按复权口径加载；``open/high/low/close`` 即为该口径下的价格。"""
+    adj = str(adjust or "qfq").strip().lower() or "qfq"
     if adj == "qfq":
         return list(
             kline_svc.load_qfq_split(
@@ -157,45 +153,41 @@ def _load_kline_rows(
             )
             or []
         )
-    if adj in ("none", "nfq"):
-        return list(
-            kline_svc.load_raw(
-                stock_id,
-                term=term,
-                start_date=start,
-                end_date=end,
-            )
-            or []
-        )
     return list(
-        kline_svc.load(
+        kline_svc.load_raw(
             stock_id,
             term=term,
             start_date=start,
             end_date=end,
-            adjust=adj,
         )
         or []
     )
 
 
-def _round_price(value: Optional[float]) -> Optional[float]:
-    if value is None:
+def _api_candle_row(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """BFF 对外 K 线：仅 ``date + OHLC``。"""
+    date_key = DateUtils.normalize_str(str(row.get("date") or ""))
+    if not date_key:
         return None
-    return round(float(value), 2)
-
-
-def _pick_price_fields(row: Dict[str, Any], adjust: str) -> Dict[str, Optional[float]]:
-    """
-    qfq 时**仅**取 ``qfq_open`` / ``qfq_close`` / ``qfq_highest`` / ``qfq_lowest``，
-    不再回退未复权原价（避免混用导致图形跳空失真）。
-    """
-    use_qfq = str(adjust or "qfq").lower() == "qfq"
-    out: Dict[str, Optional[float]] = {}
-    for out_key, raw_key in _OHLC_DB_KEYS.items():
-        key = f"qfq_{raw_key}" if use_qfq else raw_key
-        out[out_key] = _round_price(_float_or_none(row.get(key)))
-    return out
+    open_ = _round_price(_float_or_none(row.get("open")))
+    close = _round_price(_float_or_none(row.get("close")))
+    if open_ is None or close is None:
+        return None
+    high = _round_price(_float_or_none(row.get("high")))
+    low = _round_price(_float_or_none(row.get("low")))
+    if high is None:
+        high = close
+    if low is None:
+        low = close
+    if high is not None and low is not None and high < low:
+        high, low = low, high
+    return {
+        "date": date_key,
+        "open": open_,
+        "close": close,
+        "high": high,
+        "low": low,
+    }
 
 
 def _build_indicator_field_name(name: str, params: Dict[str, Any]) -> str:
@@ -314,7 +306,7 @@ def _load_candles_and_indicators(
         return [], []
 
     kline_svc = data_manager.service.stock.kline
-    raw_rows = _load_kline_rows(
+    rows = _load_stock_klines(
         kline_svc,
         stock_id=stock_id,
         term=term,
@@ -322,44 +314,10 @@ def _load_candles_and_indicators(
         end=end,
         adjust=adjust,
     )
-    candles: List[Dict[str, Any]] = []
-    calc_rows: List[Dict[str, Any]] = []
-    for row in raw_rows or []:
-        if not isinstance(row, dict):
-            continue
-        date_key = DateUtils.normalize_str(str(row.get("date") or ""))
-        if not date_key:
-            continue
-        prices = _pick_price_fields(row, adjust)
-        if prices.get("open") is None or prices.get("close") is None:
-            continue
-        high = prices.get("high") if prices.get("high") is not None else prices["close"]
-        low = prices.get("low") if prices.get("low") is not None else prices["close"]
-        if high is not None and low is not None and high < low:
-            high, low = low, high
-        candles.append(
-            {
-                "date": date_key,
-                "open": prices["open"],
-                "close": prices["close"],
-                "high": high,
-                "low": low,
-            }
-        )
-        calc_rows.append(
-            {
-                "date": date_key,
-                "open": prices["open"],
-                "close": prices["close"],
-                "high": high,
-                "low": low,
-                "highest": high,
-                "lowest": low,
-            }
-        )
+    candles = [c for row in rows if (c := _api_candle_row(row)) is not None]
 
     indicators_cfg = settings_view.indicators if settings_view is not None else {}
-    indicator_series = _compute_indicator_series(calc_rows, indicators_cfg)
+    indicator_series = _compute_indicator_series(rows, indicators_cfg)
     return candles, indicator_series
 
 
@@ -538,13 +496,12 @@ def build_stock_detail_message(
             }
         )
 
-    kline_params = {}
+    kline_params: Dict[str, str] = {}
     if settings_view is not None:
         p = settings_view.resolved_base_required_data.get("params") or {}
         kline_params = {
             "term": str(p.get("term") or "daily").strip(),
             "adjust": str(p.get("adjust") or "qfq").strip(),
-            "price_adjust": str(p.get("adjust") or "qfq").strip(),
         }
 
     return {
@@ -555,7 +512,6 @@ def build_stock_detail_message(
         "stock_name": stock_name,
         "backtest_period": backtest_period,
         "kline_params": kline_params,
-        "price_adjust": kline_params.get("price_adjust", "qfq"),
         "candles": candles,
         "markers": markers,
         "indicator_series": indicator_series,

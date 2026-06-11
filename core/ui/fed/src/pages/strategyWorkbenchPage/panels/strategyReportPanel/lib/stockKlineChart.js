@@ -80,12 +80,47 @@ function buildMarkPointData(markers) {
     }));
 }
 
-/** ECharts candlestick: [open, close, lowest, highest] */
-function readCandlestickOHLC(param) {
+function buildCandleLookup(candles) {
+  const byDate = new Map();
+  (candles || []).forEach((row) => {
+    const date = String(row?.date || '').trim();
+    if (date) byDate.set(date, row);
+  });
+  return byDate;
+}
+
+/** 优先用业务 candles（按日期），避免 ECharts 把 dataIndex 塞进 data 首项。 */
+function readCandlestickOHLC(param, candleByDate, candleData) {
   if (param?.seriesType !== 'candlestick') return null;
-  const raw = Array.isArray(param?.data) ? param.data : param?.value;
+
+  const dateKey = String(param.axisValue ?? param.name ?? '').trim();
+  if (dateKey && candleByDate?.has(dateKey)) {
+    const row = candleByDate.get(dateKey);
+    const open = Number(row.open);
+    const close = Number(row.close);
+    const low = Number(row.low);
+    const high = Number(row.high);
+    if ([open, close, low, high].every(Number.isFinite)) {
+      return { open, close, low, high };
+    }
+  }
+
+  const idx = Number(param.dataIndex);
+  if (Number.isInteger(idx) && idx >= 0 && Array.isArray(candleData?.[idx])) {
+    const [open, close, low, high] = candleData[idx].map((v) => Number(v));
+    if ([open, close, low, high].every(Number.isFinite)) {
+      return { open, close, low, high };
+    }
+  }
+
+  let raw = param.value;
+  if (!Array.isArray(raw)) raw = param.data;
   if (!Array.isArray(raw) || raw.length < 4) return null;
-  const nums = raw.slice(0, 4).map((v) => Number(v));
+  // 部分 ECharts 版本为 [dataIndex, open, close, low, high]
+  const nums = (raw.length >= 5 && Number.isInteger(raw[0]) && raw[0] < 100000
+    ? raw.slice(1, 5)
+    : raw.slice(0, 4)
+  ).map((v) => Number(v));
   if (nums.some((v) => !Number.isFinite(v))) return null;
   const [open, close, low, high] = nums;
   return { open, close, low, high };
@@ -136,6 +171,7 @@ export function buildStockKlineChartOptionFromPayload(payload) {
   } = prepareAlignedChartRows(payload.candles, payload.indicator_series);
   if (!candleData.length) return {};
 
+  const candleByDate = buildCandleLookup(payload.candles);
   const markPointData = buildMarkPointData(payload.markers);
   const oscillatorRows = indicatorSeries.filter((row) => row.panel === 'oscillator');
   const overlayRows = indicatorSeries.filter((row) => row.panel !== 'oscillator');
@@ -305,7 +341,7 @@ export function buildStockKlineChartOptionFromPayload(payload) {
         if (!arr.length) return '';
         const lines = [formatReportChartDateLabel(arr[0].axisValue)];
         arr.forEach((p) => {
-          const ohlc = readCandlestickOHLC(p);
+          const ohlc = readCandlestickOHLC(p, candleByDate, candleData);
           if (ohlc) {
             lines.push(
               `开盘 ${fmtPrice(ohlc.open)}　收盘 ${fmtPrice(ohlc.close)}　`

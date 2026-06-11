@@ -254,7 +254,7 @@ class App:
         self,
         base_date: str = None,
         *,
-        start_date: str = "20200101",
+        start_date: str = None,
         end_date: str = None,
         file_path: str = None,
     ):
@@ -263,23 +263,28 @@ class App:
 
         Args:
             base_date: 未指定 ``file_path`` 时用于季度文件名（``adj_factor_events_YYYYQn.csv``）。
-            start_date: 导出起始 ``event_date``（YYYYMMDD），默认 20200101。
+            start_date: 导出起始 ``event_date``（YYYYMMDD）；默认库内 MIN(event_date)。
             end_date: 导出结束日期；默认库内 MAX(event_date)。
             file_path: 输出路径；默认 ``csv_dir/adj_factor_events_{start}_{end}.csv``。
         """
         adj_model = self.data_manager.stock.kline._adj_factor_event
+        resolved_start = (
+            str(start_date).replace("-", "")[:8]
+            if start_date
+            else adj_model.get_min_event_date()
+        )
         end = end_date or adj_model.get_max_event_date()
         if file_path:
             out = file_path
-        elif base_date and not end_date and start_date == "20200101":
+        elif base_date and not end_date and start_date is None:
             file_name = adj_model.get_current_quarter_csv_name(base_date=base_date)
             out = os.path.join(adj_model.csv_dir, file_name)
         else:
             out = os.path.join(
                 adj_model.csv_dir,
-                f"adj_factor_events_{str(start_date).replace('-', '')[:8]}_{end or 'latest'}.csv",
+                f"adj_factor_events_{resolved_start or 'earliest'}_{end or 'latest'}.csv",
             )
-        logger.info("📤 导出复权因子事件 CSV: %s .. %s -> %s", start_date, end or "?", out)
+        logger.info("📤 导出复权因子事件 CSV: %s .. %s -> %s", resolved_start, end or "?", out)
         exported = adj_model.export_to_csv(
             file_path=out, start_date=start_date, end_date=end_date
         )

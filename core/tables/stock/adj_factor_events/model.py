@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 from core.infra.db import DbBaseModel
 from core.tables.stock.adj_factor_events.schema import schema as _schema
+from core.tables.stock.adj_factor_events.precision import normalize_event_row
 from core.utils.io import csv_io, file_io
 
 
@@ -117,11 +118,7 @@ class DataAdjFactorEventModel(DbBaseModel):
                     "is_inferred": False,
                 }
             else:
-                qfq_diff = selected.get("qfq_diff", 0.0)
-                try:
-                    qfq_diff = float(qfq_diff)
-                except (TypeError, ValueError):
-                    qfq_diff = 0.0
+                qfq_diff = selected.get("qfq_diff") or 0.0
                 out[d] = {
                     "event": selected,
                     "qfq_diff": qfq_diff,
@@ -170,11 +167,7 @@ class DataAdjFactorEventModel(DbBaseModel):
             if d is None:
                 continue
             adj_event_date = self._normalize_ymd(row.get("adj_event_date"))
-            qfq_diff = row.get("adj_qfq_diff")
-            try:
-                qfq_diff = float(qfq_diff) if qfq_diff is not None else 0.0
-            except (TypeError, ValueError):
-                qfq_diff = 0.0
+            qfq_diff = row.get("adj_qfq_diff") or 0.0
 
             if adj_event_date is not None:
                 event = {
@@ -219,7 +212,7 @@ class DataAdjFactorEventModel(DbBaseModel):
             else:
                 out[d] = {
                     "event": first_join_event,
-                    "qfq_diff": float(first_join_event.get("qfq_diff", 0.0) or 0.0),
+                    "qfq_diff": first_join_event.get("qfq_diff") or 0.0,
                     "is_adjusted": True,
                     "is_inferred": True,
                 }
@@ -227,11 +220,14 @@ class DataAdjFactorEventModel(DbBaseModel):
 
     def save_events(self, events: List[Dict[str, Any]]) -> int:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        normalized: List[Dict[str, Any]] = []
         for e in events:
-            e.setdefault("last_update", now)
-            if "event_date" in e:
-                e["event_date"] = str(e["event_date"]).replace("-", "")[:8]
-        return self.upsert_many(events, unique_keys=["id", "event_date"])
+            row = dict(e)
+            row.setdefault("last_update", now)
+            if "event_date" in row:
+                row["event_date"] = str(row["event_date"]).replace("-", "")[:8]
+            normalized.append(normalize_event_row(row))
+        return self.upsert_many(normalized, unique_keys=["id", "event_date"])
 
     def _parse_event_date_window(self, condition: str, params: tuple) -> Optional[tuple[str, str]]:
         """
@@ -387,6 +383,14 @@ class DataAdjFactorEventModel(DbBaseModel):
         d.mkdir(parents=True, exist_ok=True)
         return d
 
+    def get_min_event_date(self) -> Optional[str]:
+        rows = self.db.execute_sync_query(
+            f"SELECT MIN(event_date) AS min_d FROM {self.table_name}", ()
+        )
+        if not rows or rows[0].get("min_d") is None:
+            return None
+        return str(rows[0]["min_d"])
+
     def get_max_event_date(self) -> Optional[str]:
         rows = self.db.execute_sync_query(
             f"SELECT MAX(event_date) AS max_d FROM {self.table_name}", ()
@@ -414,17 +418,22 @@ class DataAdjFactorEventModel(DbBaseModel):
         self,
         *,
         file_path: Union[str, Path],
-        start_date: str = "20200101",
+        start_date: Optional[str] = None,
         end_date: Optional[str] = None,
     ) -> int:
-        """导出事件到 CSV；默认从 ``start_date`` 到库内最新 ``event_date``。"""
+        """导出事件到 CSV；默认从库内最早 ``event_date`` 到最新。"""
+        start = (
+            str(start_date).replace("-", "")[:8]
+            if start_date
+            else self.get_min_event_date()
+        )
         end = end_date or self.get_max_event_date()
-        if not end:
+        if not start or not end:
             csv_io.write_dicts_to_csv(file_path, [], preferred_order=CSV_PREFERRED_COLUMNS)
             return 0
         rows = self.load(
             "event_date >= %s AND event_date <= %s",
-            (str(start_date).replace("-", "")[:8], str(end).replace("-", "")[:8]),
+            (start, str(end).replace("-", "")[:8]),
             order_by="id ASC, event_date ASC",
         )
         path = Path(file_path)

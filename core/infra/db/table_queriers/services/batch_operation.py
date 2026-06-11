@@ -9,6 +9,8 @@ from typing import List, Any, Tuple, Optional
 from datetime import datetime, date
 import logging
 
+from core.infra.db.engines._shared.query_rows import normalize_cell_value
+
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +29,12 @@ class BatchOperation:
         Returns:
             格式化后的 SQL 字符串（不包含引号，除非是字符串类型）
         """
+        value = normalize_cell_value(value)
         if value is None:
             return 'NULL'
+        # bool 是 int 子类，须在 int/float 之前判断
+        elif isinstance(value, bool):
+            return 'TRUE' if value else 'FALSE'
         elif isinstance(value, str):
             escaped = value.replace("'", "''")
             return f"'{escaped}'"
@@ -37,8 +43,6 @@ class BatchOperation:
                 return 'NULL'
             else:
                 return str(value)
-        elif isinstance(value, bool):
-            return 'TRUE' if value else 'FALSE'
         elif isinstance(value, (datetime, date)):
             if isinstance(value, datetime):
                 return f"'{value.strftime('%Y-%m-%d %H:%M:%S')}'"

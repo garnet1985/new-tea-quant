@@ -1,8 +1,28 @@
-"""行数据 → SQL 片段、NaN 清洗（与具体 connector 无关）。"""
+"""行数据 → SQL 片段、NaN 清洗、写入口标量规范（与具体 connector 无关）。"""
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Sequence, Tuple
+
+from core.infra.db.engines._shared.query_rows import normalize_query_row, normalize_query_rows
+
+
+def normalize_write_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    """写入口：Decimal/numpy → 原生标量（与读出口同一契约）。"""
+    return normalize_query_row(row)
+
+
+def normalize_write_rows(data_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if not data_list:
+        return []
+    return normalize_query_rows(data_list)
+
+
+def rows_to_value_tuples(
+    data_list: List[Dict[str, Any]], columns: Sequence[str]
+) -> List[Tuple[Any, ...]]:
+    normalized = normalize_write_rows(data_list)
+    return [tuple(row[col] for col in columns) for row in normalized]
 
 
 def to_columns_and_values(data_list: List[Dict[str, Any]]) -> tuple:
@@ -28,7 +48,7 @@ def to_upsert_params(data_list: List[Dict[str, Any]], unique_keys: List[str]) ->
     update_clause = (
         ", ".join([f"{k} = EXCLUDED.{k}" for k in update_fields]) if update_fields else ""
     )
-    values = [tuple(data[col] for col in columns) for data in data_list]
+    values = rows_to_value_tuples(data_list, columns)
     return columns, values, update_clause
 
 

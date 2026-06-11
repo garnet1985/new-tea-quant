@@ -1,6 +1,6 @@
 # Database 模块决策文档
 
-**版本：** `0.3.0`（2026-06）
+**版本：** `0.3.1`（2026-06）
 
 本文档记录架构决策及**实现状态**。运行时结构以 [ARCHITECTURE.md](./ARCHITECTURE.md)、[API.md](./API.md) 为准。
 
@@ -21,6 +21,7 @@
 | 9 | DbBaseModel 委托 engine | 🔶 部分（`table_operator` 路径已落地） |
 | 10 | 跨域 JOIN / 写 | 🔶 部分（跨域写 v1 仍不支持；QueryPlanner 未实现） |
 | 11 | DuckDB WritePipeline + 多进程 | 🔶 部分（WritePipeline ✅；`worker_scope` / Collector 待做） |
+| 12 | DECIMAL 存储 + infra 统一出入库标量契约 | ✅ 已实现 |
 
 ---
 
@@ -132,6 +133,42 @@
   - `duckdb/worker_scope.py`：子进程不直连写库，主进程 Collector 按域入队（见 engines 架构 §8）。
   - Tag 多进程等场景与 Collector 的完整对接。
 - **详见**：[engines/ARCHITECTURE.md §8](../engines/ARCHITECTURE.md)、[storage-domains.md](./storage-domains.md)
+
+---
+
+## 决策 12：DECIMAL 存储 + infra 统一出入库标量契约
+
+- **背景**：
+  - MySQL / PostgreSQL 的 `DECIMAL` / `NUMERIC` 列经驱动读出为 Python `decimal.Decimal`，与回测路径中的 `float` 混算会产生比较、序列化、前链校验等隐蔽错误。
+  - DuckDB 读路径曾使用 `fetchdf()` → pandas，导致 `numpy` 标量类型与 MySQL/PG 不一致。
+  - 在业务层分散写 `float()` / `_to_float_or_none` 等「兼容」无法覆盖 raw SQL、JOIN、新 Model，且责任边界不清。
+- **决策**：
+  1. **存储**：schema 继续使用 `DecimalField` → `DECIMAL(p,s)`（库内定点语义清晰）；**不**因应用算 float 而改回 `DOUBLE`。
+  2. **读出口（唯一）**：所有 backend 的 `connector.execute_query` 返回前调用 `query_rows.normalize_query_rows`：
+     - `Decimal` → `float`
+     - `numpy` 标量 → 原生 `int` / `float` / `bool`
+     - `float` NaN → `None`
+  3. **写入口（统一）**：`row_sql.rows_to_value_tuples` / `to_upsert_params` / `BatchOperation.format_value_for_sql` 经同一套 `normalize_cell_value` 规范化后再落库。
+  4. **DuckDB 读路径**：禁止 pandas；`fetchall()` + `description` / `columns` → `List[Dict]`，再经读出口规范化。
+  5. **应用层契约**：`load` / `execute_sync_query` / `execute_raw_query` / JOIN 结果中的数值字段**已是 `float`/`int`**；业务代码**禁止**再写 Decimal/float 混用兼容层。
+  6. **责任归属**：若应用层在「经 infra 读出的行」上仍遇到 `Decimal` 与 `float` 混算错误，**视为 `infra/db` bug**，应在 connector / `row_sql` 修，而非业务打补丁。
+- **明确不在本决策范围**：
+  - 外部 API、pandas DataFrame、CSV 等**数据源边界**的 `float()` 转换（如 `data_source` handler）。
+  - 表级**业务舍入**（如 `adj_factor_events/precision.py`）：入库前按配置 quantize，且**只接受 `float`/`int`**，不接受 `Decimal`。
+- **禁止旁路**：
+  - 业务代码绕过 `DatabaseManager` / connector 直连 `pymysql` 读 `DECIMAL`。
+  - 在 `DbBaseModel`、Service、回测引擎中新增 `_to_float_or_none` 类补丁。
+- **实现**（2026-06）：
+  - `engines/_shared/query_rows.py` — 读/写标量规范
+  - `engines/_shared/row_sql.py` — 写入口 `normalize_write_rows` / `rows_to_value_tuples`
+  - `engines/{mysql,pgsql,duckdb}/connector.py` — 读出口
+  - `table_queriers/services/batch_operation.py` — SQL 字面量格式化
+  - `engines/_shared/schema_introspection.py` — DuckDB 去 pandas
+  - 测试：`__test__/test_query_rows.py`、`test_decimal_contract.py`、`test_row_sql_write.py`
+- **影响**：
+  - 新表 `decimal` 列无需在业务层处理 `Decimal`。
+  - 旧代码中的 `float(row["factor"])` 应逐步删除（非数据源边界）。
+  - 集成测试可用 DuckDB / MySQL 验证往返后类型为 `float`。
 
 ---
 

@@ -175,15 +175,6 @@ class KlineService(BaseDataService):
             is_strict=is_strict,
         )
 
-    @staticmethod
-    def _to_float_or_none(v: Any) -> Optional[float]:
-        if v is None:
-            return None
-        try:
-            return float(v)
-        except (ValueError, TypeError):
-            return None
-
     def _build_qfq_rows_strict(
         self,
         *,
@@ -839,9 +830,7 @@ class KlineService(BaseDataService):
                     "is_inferred": False,
                 }
             else:
-                qfq_diff = self._to_float_or_none(selected.get("qfq_diff"))
-                if qfq_diff is None:
-                    qfq_diff = 0.0
+                qfq_diff = selected.get("qfq_diff") or 0.0
                 out[d] = {
                     "event": selected,
                     "qfq_diff": qfq_diff,
@@ -974,12 +963,8 @@ class KlineService(BaseDataService):
             if d is None:
                 continue
             close = row.get("close")
-            if close is None:
-                continue
-            try:
-                out[d] = float(close)
-            except (TypeError, ValueError):
-                continue
+            if close is not None:
+                out[d] = close
         return out
 
     @staticmethod
@@ -990,22 +975,15 @@ class KlineService(BaseDataService):
             if d is None:
                 continue
             close = row.get("close")
-            if close is None:
-                continue
-            try:
-                out[d] = float(close)
-            except (TypeError, ValueError):
-                continue
+            if close is not None:
+                out[d] = close
         return out
 
     @staticmethod
     def _latest_factor_from_events(events: List[Dict[str, Any]]) -> float:
         if not events:
             return 1.0
-        try:
-            return float(events[-1].get("factor") or 1.0)
-        except (TypeError, ValueError):
-            return 1.0
+        return events[-1].get("factor") or 1.0
 
     @staticmethod
     def _segment_offset_from_event(
@@ -1016,23 +994,18 @@ class KlineService(BaseDataService):
     ) -> float:
         """
         段内 offset：优先 ``qfq_anchor/raw_anchor`` + 消费时 ``F(最新)`` 动态计算；
-        无 anchor 时回退 ``qfq_diff`` 缓存（旧库兼容）。
+        无 anchor 时回退 ``qfq_diff`` 缓存。
         """
         if not event or factor_latest <= 0:
             return 0.0
         qfq_anchor = event.get("qfq_anchor")
         raw_anchor = event.get("raw_anchor")
         if qfq_anchor is not None and raw_anchor is not None:
-            try:
-                return float(qfq_anchor) - float(raw_anchor) * float(factor_eff) / float(
-                    factor_latest
-                )
-            except (TypeError, ValueError):
-                pass
-        try:
-            return float(event.get("qfq_diff") or 0.0)
-        except (TypeError, ValueError):
-            return 0.0
+            return (
+                qfq_anchor
+                - raw_anchor * factor_eff / factor_latest
+            )
+        return event.get("qfq_diff") or 0.0
 
     @staticmethod
     def _qfq_price_from_raw(
@@ -1057,8 +1030,8 @@ class KlineService(BaseDataService):
         event = info.get("event")
         if not event:
             return 1.0, 0.0
-        factor_eff = self._to_float_or_none(event.get("factor"))
-        if factor_eff is None or factor_eff <= 0:
+        factor_eff = event.get("factor") or 1.0
+        if factor_eff <= 0:
             factor_eff = 1.0
         event_date = self._normalize_date(event.get("event_date"))
         if event_date is None:
@@ -1086,15 +1059,11 @@ class KlineService(BaseDataService):
             raw_value = kline.get(field)
 
             if raw_value is not None:
-                try:
-                    raw_price = float(raw_value)
-                    kline[f"qfq_{field}"] = KlineService._qfq_price_from_raw(
-                        raw_price,
-                        factor_eff=factor_eff,
-                        factor_latest=factor_latest,
-                        segment_offset=segment_offset,
-                    )
-                except (ValueError, TypeError):
-                    kline[f"qfq_{field}"] = None
+                kline[f"qfq_{field}"] = KlineService._qfq_price_from_raw(
+                    raw_value,
+                    factor_eff=factor_eff,
+                    factor_latest=factor_latest,
+                    segment_offset=segment_offset,
+                )
             else:
                 kline[f"qfq_{field}"] = None

@@ -14,6 +14,7 @@ from typing import Any, Dict, Iterator, List, Optional
 import pymysql
 from pymysql.cursors import DictCursor
 
+from core.infra.db.engines._shared.query_rows import normalize_query_rows
 from core.infra.db.engines.mysql.settings import MysqlSettings
 from core.infra.db.engines.mysql.sql_adapter import MysqlSqlAdapter
 
@@ -201,8 +202,8 @@ class MysqlConnector:
             with conn.cursor() as cursor:
                 cursor.execute(query, params)
                 results = cursor.fetchall()
-                # DictCursor 返回的是字典列表
-                return list(results) if results else []
+                # DictCursor 返回字典行；读出口统一 DECIMAL→float 等标量规范
+                return normalize_query_rows(list(results) if results else [])
         except Exception as e:
             logger.error(f"执行查询失败: {e}\n查询: {query}\n参数: {params}")
             raise

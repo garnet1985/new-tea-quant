@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 
+from core.infra.db.engines._shared.query_rows import fetch_result_to_normalized_rows
 from core.infra.db.engines.duckdb.wal_policy import apply_connect_settings
 from core.infra.db.engines.duckdb.settings import DuckdbSettings
 from core.infra.db.engines.duckdb.sql_adapter import DuckdbSqlAdapter
@@ -197,10 +198,7 @@ class DuckdbDomainConnection:
                     rel = conn.execute(query, params)
                 if rel is None:
                     return []
-                df = rel.fetchdf()
-            if df is None or df.empty:
-                return []
-            return df.to_dict(orient="records")
+                return fetch_result_to_normalized_rows(rel)
         except Exception as e:
             logger.error("DuckDB 查询失败 domain=%s: %s\nSQL: %s", self.domain, e, query)
             raise

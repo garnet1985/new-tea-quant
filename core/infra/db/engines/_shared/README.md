@@ -12,6 +12,7 @@
 - `schema_parser_base.py` / `ddl_executor.py` / `schema_introspection.py` — DDL 与列 introspection
 - `config_parse.py` — `database.json` 校验与默认值
 - `dialect.py` / `sql_identifiers.py` — 方言、标识符引用
-- `row_sql.py` — 行数据 → INSERT/UPSERT 片段、NaN 清洗
-- `cursor.py` / `query_executor.py` — 同步游标与 connector 协议
+- `query_rows.py` — **读/写标量契约**（`DECIMAL`→`float`、numpy→原生类型；见 `docs/DECISIONS.md` §12）
+- `row_sql.py` — 行数据 → INSERT/UPSERT 片段、写入口规范化、NaN 清洗
+- `cursor.py` / `query_executor.py` — 同步游标与 connector 协议（读结果须经 connector 出口规范）
 - `batch_write_settings.py` — mysql/pgsql 写队列配置

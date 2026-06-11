@@ -9,7 +9,6 @@ from pathlib import Path
 import re
 from core.infra.db import DbBaseModel
 from core.tables.stock.adj_factor_events.schema import schema as _schema
-from core.tables.stock.adj_factor_events.precision import normalize_event_row
 from core.utils.io import csv_io, file_io
 
 
@@ -226,7 +225,7 @@ class DataAdjFactorEventModel(DbBaseModel):
             row.setdefault("last_update", now)
             if "event_date" in row:
                 row["event_date"] = str(row["event_date"]).replace("-", "")[:8]
-            normalized.append(normalize_event_row(row))
+            normalized.append(row)
         return self.upsert_many(normalized, unique_keys=["id", "event_date"])
 
     def _parse_event_date_window(self, condition: str, params: tuple) -> Optional[tuple[str, str]]:
@@ -382,6 +381,31 @@ class DataAdjFactorEventModel(DbBaseModel):
         d = PathManager.data_source_handler("adj_factor_event")
         d.mkdir(parents=True, exist_ok=True)
         return d
+
+    def load_stock_last_update_map(self) -> Dict[str, Any]:
+        """每股 ``MAX(last_update)``，用于交易日门控与断点补漏。"""
+        rows = self.db.execute_sync_query(
+            f"SELECT id, MAX(last_update) AS last_update "
+            f"FROM {self.table_name} GROUP BY id",
+            (),
+        )
+        out: Dict[str, Any] = {}
+        for row in rows or []:
+            sid = str((row or {}).get("id") or "").strip()
+            if sid:
+                out[sid] = row.get("last_update")
+        return out
+
+    def load_min_last_update(self) -> Optional[Any]:
+        """全表最慢 ``last_update``（整 job 短路：最慢股也无新交易日则可跳过）。"""
+        rows = self.db.execute_sync_query(
+            f"SELECT MIN(last_update) AS min_lu FROM {self.table_name} "
+            f"WHERE last_update IS NOT NULL",
+            (),
+        )
+        if not rows:
+            return None
+        return rows[0].get("min_lu")
 
     def get_min_event_date(self) -> Optional[str]:
         rows = self.db.execute_sync_query(

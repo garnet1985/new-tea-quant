@@ -65,7 +65,8 @@ class TestFloatConsumePath:
         assert ev["factor"] == pytest.approx(109.1694)
         assert ev["qfq_anchor"] == pytest.approx(14.4)
 
-    def test_save_events_normalizes_before_upsert(self):
+    def test_save_events_passes_through_without_handler_precision(self):
+        """舍入在 adj_factor_event handler；Model 原样 upsert。"""
         captured = []
         model = DataAdjFactorEventModel(db=None)
 
@@ -88,6 +89,6 @@ class TestFloatConsumePath:
         )
         assert len(captured) == 1
         row = captured[0]
-        assert row["factor"] == pytest.approx(172.8236)
-        assert row["qfq_anchor"] == pytest.approx(17.568)
-        assert row["raw_anchor"] == pytest.approx(18.235)
+        assert row["factor"] == pytest.approx(172.823612)
+        assert row["qfq_anchor"] == pytest.approx(17.5678)
+        assert row["raw_anchor"] == pytest.approx(18.2345)

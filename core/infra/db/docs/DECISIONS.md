@@ -153,8 +153,7 @@
   5. **应用层契约**：`load` / `execute_sync_query` / `execute_raw_query` / JOIN 结果中的数值字段**已是 `float`/`int`**；业务代码**禁止**再写 Decimal/float 混用兼容层。
   6. **责任归属**：若应用层在「经 infra 读出的行」上仍遇到 `Decimal` 与 `float` 混算错误，**视为 `infra/db` bug**，应在 connector / `row_sql` 修，而非业务打补丁。
 - **明确不在本决策范围**：
-  - 外部 API、pandas DataFrame、CSV 等**数据源边界**的 `float()` 转换（如 `data_source` handler）。
-  - 表级**业务舍入**（如 `adj_factor_events/precision.py`）：入库前按配置 quantize，且**只接受 `float`/`int`**，不接受 `Decimal`。
+  - 外部 API、pandas DataFrame、CSV 等**数据源边界**的 `float()` 转换与业务舍入（如 `adj_factor_event` handler 的 `precision.py`：Tushare/AKShare 爬取专用，非 tables/infra 职责）。
 - **禁止旁路**：
   - 业务代码绕过 `DatabaseManager` / connector 直连 `pymysql` 读 `DECIMAL`。
   - 在 `DbBaseModel`、Service、回测引擎中新增 `_to_float_or_none` 类补丁。

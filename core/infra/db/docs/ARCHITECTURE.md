@@ -82,7 +82,7 @@ DbBaseModel (table_queriers/)          ← 业务表模型；优先转发 engine
 
 ```text
 写入:
-  业务 float/int（+ 表级 precision 舍入，如 adj_factor_events）
+  业务 float/int（data_source handler 边界舍入在 handler 内完成，非 infra）
     → row_sql.normalize_write_rows / rows_to_value_tuples
     → BatchOperation / connector
     → DECIMAL(p,s) 列

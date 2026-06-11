@@ -327,9 +327,9 @@ class BaseHandler:
             if isinstance(exec_meta, dict)
             else False
         )
-        # 从保留依赖 latest_trading_date 提取日期，供 context["latest_completed_trading_date"] 使用
-        if dependencies_data and "latest_trading_date" in dependencies_data:
-            val = dependencies_data["latest_trading_date"]
+        # 从保留依赖 latest_completed_trading_date 提取日期写入 context
+        if dependencies_data and "latest_completed_trading_date" in dependencies_data:
+            val = dependencies_data["latest_completed_trading_date"]
             if isinstance(val, list) and len(val) > 0 and isinstance(val[0], dict) and "date" in val[0]:
                 self.context["latest_completed_trading_date"] = val[0]["date"]
 

@@ -2,8 +2,7 @@
 
 与 FED ``normalizePriceMetricsFromSummary`` 对齐：
 - ``roi_percentile_values``：长度为 9，对应 10%～90% 分位，单位为 **百分比数值**（图表 ``{value}%``）。
-- ``roi_bucket_*``：在 **min(ROI)～max(ROI)** 上**等宽**分箱（默认 ``ROI_EQUAL_BIN_COUNT`` 份，可改为 5），
-  将每笔投资落入对应区间计数；无额外产品预设档位。
+- ``roi_bucket_*``：**固定档位**（0% 为界；负侧封顶 -100%；正侧含 >100% 尾档）。
 - ``roi_std_pct``：单笔 ROI（百分比）的**样本标准差**（n≥2 时写入）。
 """
 
@@ -15,8 +14,29 @@ from typing import Any, Dict, List, Optional, Tuple
 # 与前端默认 ``10%分位``…``90%分位`` 一致
 _PERCENT_POINTS = [10, 20, 30, 40, 50, 60, 70, 80, 90]
 
-# 收益分布柱图：在 [min,max] 上等分档数（可改为 5）
-ROI_EQUAL_BIN_COUNT = 7
+# 固定分档总数（负 6 + 正 7）
+ROI_BUCKET_COUNT = 13
+
+# 负侧 6 档：单笔最多亏 100%，深亏合并 [-100%, -50%)
+_ROI_NEG_BUCKET_LABELS = (
+    "[-100%, -50%)",
+    "[-50%, -30%)",
+    "[-30%, -20%)",
+    "[-20%, -10%)",
+    "[-10%, -5%)",
+    "[-5%, 0%)",
+)
+
+# 正侧：0–5、5–10、10–20、20–30、30–50、50–100、>100
+_ROI_POS_BUCKET_LABELS = (
+    "[0%, 5%)",
+    "[5%, 10%)",
+    "[10%, 20%)",
+    "[20%, 30%)",
+    "[30%, 50%)",
+    "[50%, 100%)",
+    ">100%",
+)
 
 
 def _investment_roi_as_percent(inv: Dict[str, Any]) -> Optional[float]:
@@ -76,40 +96,51 @@ def _roi_sample_std_pct(vals: List[float]) -> Optional[float]:
     return round(math.sqrt(var), 2)
 
 
-def _min_max_equal_bins(
-    rois_pct: List[float],
-    *,
-    n_bins: int = ROI_EQUAL_BIN_COUNT,
-) -> Tuple[List[str], List[int]]:
-    """[min, max] 闭区间等分为 n_bins 段，左闭右开除最后一段含右端点；标签为百分点。"""
-    mn = min(rois_pct)
-    mx = max(rois_pct)
-    n_bins = max(2, min(int(n_bins), 12))
-    if mx - mn < 1e-9:
-        # 全同值：拉成对称小窗再分箱，避免 0 宽度
-        v = float(mn)
-        half = max(abs(v) * 0.02, 2.0)
-        lo, hi = v - half, v + half
-    else:
-        lo, hi = float(mn), float(mx)
-    width = (hi - lo) / n_bins
-    counts = [0] * n_bins
-    for x in rois_pct:
-        if x >= hi:
-            idx = n_bins - 1
-        elif x <= lo:
-            idx = 0
+def _roi_neg_bucket_index(x: float) -> int:
+    """``x < 0``；更亏归入左端 ``[-100%, -50%)``。"""
+    if x < -100.0:
+        return 0
+    if x < -50.0:
+        return 0
+    if x < -30.0:
+        return 1
+    if x < -20.0:
+        return 2
+    if x < -10.0:
+        return 3
+    if x < -5.0:
+        return 4
+    return 5
+
+
+def _roi_pos_bucket_index(x: float) -> int:
+    """``x >= 0``。"""
+    if x >= 100.0:
+        return 6
+    if x >= 50.0:
+        return 5
+    if x >= 30.0:
+        return 4
+    if x >= 20.0:
+        return 3
+    if x >= 10.0:
+        return 2
+    if x >= 5.0:
+        return 1
+    return 0
+
+
+def _fixed_roi_bins(rois_pct: List[float]) -> Tuple[List[str], List[int]]:
+    """产品固定档位；始终返回全部标签（空档计数为 0）。"""
+    labels = list(_ROI_NEG_BUCKET_LABELS) + list(_ROI_POS_BUCKET_LABELS)
+    counts = [0] * len(labels)
+    neg_n = len(_ROI_NEG_BUCKET_LABELS)
+    for raw in rois_pct:
+        x = float(raw)
+        if x < 0:
+            counts[_roi_neg_bucket_index(x)] += 1
         else:
-            idx = min(n_bins - 1, int(math.floor((x - lo) / width + 1e-12)))
-        counts[idx] += 1
-    labels: List[str] = []
-    for i in range(n_bins):
-        a = lo + i * width
-        b = lo + (i + 1) * width
-        if i == n_bins - 1:
-            labels.append(f"[{a:.1f}%, {b:.1f}%]")
-        else:
-            labels.append(f"[{a:.1f}%, {b:.1f}%)")
+            counts[neg_n + _roi_pos_bucket_index(x)] += 1
     return labels, counts
 
 
@@ -123,14 +154,14 @@ def roi_distribution_session_fields(rois_pct: List[float]) -> Dict[str, Any]:
         return {}
 
     labels_zh = [f"{p}%分位" for p in _PERCENT_POINTS]
-    bucket_labels, counts = _min_max_equal_bins(rois_pct, n_bins=ROI_EQUAL_BIN_COUNT)
+    bucket_labels, counts = _fixed_roi_bins(rois_pct)
 
     out: Dict[str, Any] = {
         "roi_percentile_labels": labels_zh,
         "roi_percentile_values": pv,
         "roi_bucket_labels": bucket_labels,
         "roi_bucket_counts": counts,
-        "roi_bucket_bin_count": ROI_EQUAL_BIN_COUNT,
+        "roi_bucket_bin_count": len(bucket_labels),
     }
     std_pct = _roi_sample_std_pct(rois_pct)
     if std_pct is not None:
@@ -139,7 +170,13 @@ def roi_distribution_session_fields(rois_pct: List[float]) -> Dict[str, Any]:
 
 
 __all__ = [
+    "ROI_BUCKET_COUNT",
+    "ROI_MAX_BIN_COUNT",
     "ROI_EQUAL_BIN_COUNT",
     "collect_roi_percents_from_stock_summaries",
     "roi_distribution_session_fields",
+    "_fixed_roi_bins",
 ]
+
+ROI_MAX_BIN_COUNT = ROI_BUCKET_COUNT
+ROI_EQUAL_BIN_COUNT = ROI_BUCKET_COUNT

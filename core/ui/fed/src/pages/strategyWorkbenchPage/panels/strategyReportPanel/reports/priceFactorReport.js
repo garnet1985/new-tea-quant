@@ -22,6 +22,7 @@ import {
   REPORT_CHART_SPLIT_LINE,
   REPORT_CHART_TOOLTIP,
   reportChartSignedBarData,
+  reportChartRoiBucketBarData,
 } from '../lib/reportChartsTheme';
 
 function tooltipPrimaryValue(point) {
@@ -94,7 +95,7 @@ function buildRoiBucketOption(metrics) {
     series: [
       {
         type: 'bar',
-        data: reportChartSignedBarData(metrics.roiBucketCounts),
+        data: reportChartRoiBucketBarData(metrics.roiBucketCounts, metrics.roiBucketLabels),
         barMaxWidth: 24,
       },
     ],

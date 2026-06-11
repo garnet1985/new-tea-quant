@@ -3,43 +3,43 @@
 股票分析应用主入口
 
 使用示例：
-    python start-cli.py                      # 默认: scan
-    python start-cli.py scan                 # 扫描投资机会
-    python start-cli.py simulate             # 运行模拟链路（price_factor + capital_allocation）
-    python start-cli.py -d                   # 更新全部已启用数据源
-    python start-cli.py -d sys_stock_klines  # 仅 renew 单个 data source（表名或 key）
-    python start-cli.py -r stock_klines      # 同上（推荐写法）
-    python start-cli.py renew stock_klines   # 同上
-    python start-cli.py renew list           # 列出可 renew 的表名 / key
-    python start-cli.py -r stock_klines -f   # 强制 refresh（从 default_start_date 重拉）
-    python start-cli.py -rf gdp              # 等同 -r gdp -f
-    python start-cli.py analysis             # 分析结果
-    python start-cli.py tag                  # 执行所有标签场景
-    python start-cli.py tag --scenario xxx   # 执行指定标签场景
-    python start-cli.py enumerate            # 枚举投资机会（测试用）
-    python start-cli.py price_factor         # 价格因子回放模拟（基于枚举输出结果）
-    python start-cli.py capital_allocation   # 资金分配模拟（基于枚举输出结果，真实资金约束）
+    python cli.py                      # 默认: scan
+    python cli.py scan                 # 扫描投资机会
+    python cli.py simulate             # 运行模拟链路（price_factor + capital_allocation）
+    python cli.py -d                   # 更新全部已启用数据源
+    python cli.py -d sys_stock_klines  # 仅 renew 单个 data source（表名或 key）
+    python cli.py -r stock_klines      # 同上（推荐写法）
+    python cli.py renew stock_klines   # 同上
+    python cli.py renew list           # 列出可 renew 的表名 / key
+    python cli.py -r stock_klines -f   # 强制 refresh（从 default_start_date 重拉）
+    python cli.py -rf gdp              # 等同 -r gdp -f
+    python cli.py analysis             # 分析结果
+    python cli.py tag                  # 执行所有标签场景
+    python cli.py tag --scenario xxx   # 执行指定标签场景
+    python cli.py enumerate            # 枚举投资机会（测试用）
+    python cli.py price_factor         # 价格因子回放模拟（基于枚举输出结果）
+    python cli.py capital_allocation   # 资金分配模拟（基于枚举输出结果，真实资金约束）
     
     # 新快捷命令（模块首字母 + 行为命令）：
-    python start-cli.py -d                   # DataSource（默认 renew）
-    python start-cli.py -dr                  # DataSource renew（等同 -d）
-    python start-cli.py -t                   # Tag（默认 generating）
-    python start-cli.py -tg                  # Tag generating（等同 -t）
-    python start-cli.py -s                   # Strategy（默认 scan，等同 -sc）
-    python start-cli.py -sc                  # Strategy scan
-    python start-cli.py -se                  # Strategy enumerate
-    python start-cli.py -sp                  # Strategy price factor simulate
-    python start-cli.py -sa                  # Strategy capital allocation simulate
-    python start-cli.py -sy                  # Strategy analysis
-    python start-cli.py -u                   # 检查并应用 core 版本更新
-    python start-cli.py -update              # 同上
-    python start-cli.py -e example           # 导出策略交流包（userspace/example-strategy.zip）
-    python start-cli.py -e tag:my_tag        # 仅导出单个 tag
-    python start-cli.py -i ./demo-strategy.zip     # 导入（重名拒绝）
-    python start-cli.py -i ./demo-strategy.zip --skip-existing  # 跳过已存在
-    python start-cli.py -i ./demo-strategy.zip -f  # 覆盖已存在
-    python start-cli.py -i ./demo-strategy.zip --dry-run  # 仅预览
-    python start-cli.py -h                   # 查看帮助
+    python cli.py -d                   # DataSource（默认 renew）
+    python cli.py -dr                  # DataSource renew（等同 -d）
+    python cli.py -t                   # Tag（默认 generating）
+    python cli.py -tg                  # Tag generating（等同 -t）
+    python cli.py -s                   # Strategy（默认 scan，等同 -sc）
+    python cli.py -sc                  # Strategy scan
+    python cli.py -se                  # Strategy enumerate
+    python cli.py -sp                  # Strategy price factor simulate
+    python cli.py -sa                  # Strategy capital allocation simulate
+    python cli.py -sy                  # Strategy analysis
+    python cli.py -u                   # 检查并应用 core 版本更新
+    python cli.py -update              # 同上
+    python cli.py -e example           # 导出策略交流包（userspace/example-strategy.zip）
+    python cli.py -e tag:my_tag        # 仅导出单个 tag
+    python cli.py -i ./demo-strategy.zip     # 导入（重名拒绝）
+    python cli.py -i ./demo-strategy.zip --skip-existing  # 跳过已存在
+    python cli.py -i ./demo-strategy.zip -f  # 覆盖已存在
+    python cli.py -i ./demo-strategy.zip --dry-run  # 仅预览
+    python cli.py -h                   # 查看帮助
 """
 import sys
 import os
@@ -73,7 +73,7 @@ def ensure_venv_for_cli() -> None:
         vpy = os.path.join(repo_root, "venv", "bin", "python")
 
     if os.path.isfile(vpy):
-        os.execv(vpy, [vpy, os.path.join(repo_root, "start-cli.py"), *sys.argv[1:]])
+        os.execv(vpy, [vpy, os.path.abspath(__file__), *sys.argv[1:]])
 
 
 ensure_venv_for_cli()
@@ -163,7 +163,7 @@ except ModuleNotFoundError as e:
                 "",
                 "建议：在仓库根目录先执行一次安装（会创建 venv/ 并安装 requirements.txt）：",
                 "  python3 install.py",
-                "  或：python3 start-cli.py -sp  （将自动尝试 install.py）",
+                "  或：python3 cli.py -sp  （将自动尝试 install.py）",
                 "",
                 "如果你已手动管理虚拟环境，请激活对应 venv 后再运行：",
                 "  pip install -r requirements.txt",
@@ -649,7 +649,7 @@ def resolve_command(args) -> str:
     # 验证命令一致性
     if cmd_from_positional and flags and cmd_from_positional not in flags:
         logger.error("❌ 命令冲突：位置参数和快捷 flag 指定了不同的命令")
-        logger.info("请只使用一种方式指定命令，例如：`start-cli.py renew` 或 `start-cli.py -d`")
+        logger.info("请只使用一种方式指定命令，例如：`cli.py renew` 或 `cli.py -d`")
         sys.exit(1)
     
     if not cmd_from_positional and len(set(flags)) > 1:
@@ -706,7 +706,7 @@ def _resolve_package_cli(args, parser: argparse.ArgumentParser) -> Optional[int]
     if export_arg is not None:
         name = str(export_arg).strip()
         if not name:
-            parser.error("-e 需要策略名称（例: start-cli.py -e example）")
+            parser.error("-e 需要策略名称（例: cli.py -e example）")
         if args.command or _package_cli_has_other_flags(args):
             parser.error("策略包导出 (-e) 不能与其它命令或模块快捷 flag 合用")
         from core.modules.strategy.launcher.package_cli import run_export
@@ -721,7 +721,7 @@ def _resolve_package_cli(args, parser: argparse.ArgumentParser) -> Optional[int]
     if import_arg is not None:
         path = str(import_arg).strip()
         if not path:
-            parser.error("-i 需要包路径（例: start-cli.py -i ./demo-strategy.zip）")
+            parser.error("-i 需要包路径（例: cli.py -i ./demo-strategy.zip）")
         if args.command or _package_cli_has_other_flags(args):
             parser.error("策略包导入 (-i) 不能与其它命令或模块快捷 flag 合用")
         if getattr(args, "export_output_arg", None):

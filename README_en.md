@@ -128,44 +128,44 @@ Open Strategy Lab, select **`example`**, and run enum / price / capital steps.
 **CLI (price layer example):**
 
 ```bash
-python start-cli.py -sp --strategy example
+python cli.py -sp --strategy example
 ```
 
-Enumeration: `python start-cli.py -se --strategy example`  
-Capital simulation: `python start-cli.py -sa --strategy example`
+Enumeration: `python cli.py -se --strategy example`  
+Capital simulation: `python cli.py -sa --strategy example`
 
 > **Note:** Root **`python install.py`** is for **first-time CLI install**. For a **larger demo ZIP** from the site, place a single zip under `setup/init_data/` and run `python setup/steps/import_data/install.py` (add `--force` to re-import).
 
-### More common commands (`start-cli.py`)
+### More common commands (`cli.py`)
 
 ```bash
-python start-cli.py -h
-python start-cli.py -sc --strategy example   # scan (default entry)
-python start-cli.py -t                        # labels / features
+python cli.py -h
+python cli.py -sc --strategy example   # scan (default entry)
+python cli.py -t                        # labels / features
 ```
 
-Use **`--strategy`** when multiple strategies are enabled. Older docs mentioning `start.py` are obsolete — use **`start-cli.py`**.
+Use **`--strategy`** when multiple strategies are enabled. Older docs mentioning `start.py` are obsolete — use **`cli.py`**.
 
 Edit files under `userspace/strategies/` to customize settings and workers.
 
 ---
 
-## Developer commands (`dev-cli.py`)
+## Developer commands (`devcli.py`)
 
 From the repository root (local dev / troubleshooting):
 
 ```bash
-python dev-cli.py -h
+python devcli.py -h
 ```
 
 | Purpose | Example |
 |---------|---------|
-| Start UI (free ports, then `launcher.py -d`) | `python dev-cli.py -ui` |
-| Kill processes on ports 8000 / 8888 | `python dev-cli.py -kui` |
-| Clear simulation **disk + DB** workbench cache | `python dev-cli.py -csc` (same as `-cu`) |
-| Clear **DB** workbench snapshot table only | `python dev-cli.py -cdc` |
-| Delete strategy **`results/`** dirs only | `python dev-cli.py -cmc` |
-| DuckDB WAL checkpoint | `python dev-cli.py -dbc` |
+| Start UI (free ports, then `launcher.py -d`) | `python devcli.py -ui` |
+| Kill processes on ports 8000 / 8888 | `python devcli.py -kui` |
+| Clear simulation **disk + DB** workbench cache | `python devcli.py -csc` (same as `-cu`) |
+| Clear **DB** workbench snapshot table only | `python devcli.py -cdc` |
+| Delete strategy **`results/`** dirs only | `python devcli.py -cmc` |
+| DuckDB WAL checkpoint | `python devcli.py -dbc` |
 
 HTTP cache APIs: see [db-cache-service.md](core/modules/strategy/docs/db-cache-service.md) §8 (V2-11 / V2-12).
 

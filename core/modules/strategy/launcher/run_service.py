@@ -14,6 +14,10 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.strateg
     StrategySettings,
 )
 
+from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.settings_resolver import (
+    coerce_numeric_tree_for_fingerprint,
+)
+
 from .run_types import StrategyRunFingerprint
 
 
@@ -26,7 +30,7 @@ class StrategyFingerprintManager:
         report = validated.validate()
         if not report.is_usable():
             raise ValueError("settings validation failed")
-        return validated.to_dict()
+        return coerce_numeric_tree_for_fingerprint(validated.to_dict())
 
     @staticmethod
     def build_run_fingerprint(

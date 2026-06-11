@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 """
-开发常用命令（仓库根目录，短选项与 ``start-cli.py`` 风格一致）。
+开发常用命令（仓库根目录，短选项与 ``cli.py`` 风格一致）。
 
-  python dev-cli.py -ui     # 清 8000/8888 后 launcher.py -d（浏览器 :8000）
-  python dev-cli.py -kui    # 结束占用 8000 / 8888 的 NTQ UI 监听进程
-  python dev-cli.py -ic     # UI 最小依赖 import 冒烟
-  python dev-cli.py -cc     # 清空 userspace/.ntq（不动仓库根 .ntq / 安装状态）
-  python dev-cli.py -cu     # 同 -csc（兼容旧用法）
-  python dev-cli.py -csc    # 删除所有物理模拟 results/ + DB 工作台快照
-  python dev-cli.py -cdc    # 仅清空 DB 工作台快照表
-  python dev-cli.py -cmc    # 仅删除各策略 results/ 物理目录
-  python dev-cli.py -p -v0.3.2   # 发布前：写版本/徽章 + module_info + py39 扫描 + -ic + pytest
-  python dev-cli.py -p -v0.3.2 -userspace   # 发布通过后同步 init userspace 源树与 userspace.zip
-  python dev-cli.py -userspace   # 仅打包 init userspace（不跑发布检查）
-  python dev-cli.py -ex          # 打包演示数据（分层抽样 → setup/import_data 可导入 zip）
-  python dev-cli.py -sample_stock_list -500   # 分层抽样 500 只并激活（renew 仅池内）
-  python dev-cli.py -sample_stock_list -clear # 取消股票池，renew 恢复全量
+  python devcli.py -ui     # 清 8000/8888 后 launcher.py -d（浏览器 :8000）
+  python devcli.py -kui    # 结束占用 8000 / 8888 的 NTQ UI 监听进程
+  python devcli.py -ic     # UI 最小依赖 import 冒烟
+  python devcli.py -cc     # 清空 userspace/.ntq（不动仓库根 .ntq / 安装状态）
+  python devcli.py -cu     # 同 -csc（兼容旧用法）
+  python devcli.py -csc    # 删除所有物理模拟 results/ + DB 工作台快照
+  python devcli.py -cdc    # 仅清空 DB 工作台快照表
+  python devcli.py -cmc    # 仅删除各策略 results/ 物理目录
+  python devcli.py -p -v0.3.2   # 发布前：写版本/徽章 + module_info + py39 扫描 + -ic + pytest
+  python devcli.py -p -v0.3.2 -userspace   # 发布通过后同步 init userspace 源树与 userspace.zip
+  python devcli.py -userspace   # 仅打包 init userspace（不跑发布检查）
+  python devcli.py -ex          # 打包演示数据（分层抽样 → setup/import_data 可导入 zip）
+  python devcli.py -sample_stock_list -500   # 分层抽样 500 只并激活（renew 仅池内）
+  python devcli.py -sample_stock_list -clear # 取消股票池，renew 恢复全量
 
 也支持子命令：``ui``、``kill``、``import-check``（见 ``-h``）。
 """
@@ -97,7 +97,7 @@ def kill_listeners_on_ports(
         "webpack",
         "webpack-dev-server",
         "launcher.py",
-        "dev-cli.py",
+        "devcli.py",
         fed_root,
         repo_s,
     )
@@ -215,7 +215,7 @@ def _parse_sample_stock_list_argv(rest: Sequence[str], *, verbose: bool = False)
     返回 exit code；无法解析时返回 None。
     """
     if not rest:
-        print("用法: python dev-cli.py -sample_stock_list -<N> | -clear", file=sys.stderr)
+        print("用法: python devcli.py -sample_stock_list -<N> | -clear", file=sys.stderr)
         return 2
     token = rest[0]
     if token == "-clear":
@@ -253,7 +253,7 @@ def _cmd_db_checkpoint(args: argparse.Namespace) -> int:
         print(f"无法打开数据库: {e}", flush=True)
         print(
             "若提示 WAL 回放失败，可确认无 renew 进程后执行:\n"
-            "  python dev-cli.py db-checkpoint --recover",
+            "  python devcli.py db-checkpoint --recover",
             flush=True,
         )
         return 1
@@ -340,7 +340,7 @@ def _normalize_forward(rest: Sequence[str]) -> list[str]:
 
 def _print_help() -> None:
     print(
-        """用法: python dev-cli.py <命令> [参数…]
+        """用法: python devcli.py <命令> [参数…]
 
 短选项（推荐）:
   -ui      清 8000/8888 后 python launcher.py -d
@@ -376,12 +376,12 @@ def _print_help() -> None:
   sample-stock-list -500 | sample-stock-list clear
 
 示例:
-  python dev-cli.py -sample_stock_list -500
-  python dev-cli.py -sample_stock_list -clear
-  python dev-cli.py -p -v0.3.2
-  python dev-cli.py -p -v0.3.2 -userspace
-  python dev-cli.py -userspace
-  python dev-cli.py -ic -- --no-create-venv --python .ntq/ci-minimal-venv/bin/python
+  python devcli.py -sample_stock_list -500
+  python devcli.py -sample_stock_list -clear
+  python devcli.py -p -v0.3.2
+  python devcli.py -p -v0.3.2 -userspace
+  python devcli.py -userspace
+  python devcli.py -ic -- --no-create-venv --python .ntq/ci-minimal-venv/bin/python
 """
     )
 

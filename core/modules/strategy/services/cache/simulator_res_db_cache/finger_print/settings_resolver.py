@@ -130,6 +130,24 @@ def resolve_sampling_is_used(settings: Dict[str, Any]) -> bool:
     return isinstance(s, dict) and bool(s.get("use_sampling", False))
 
 
+def coerce_numeric_tree_for_fingerprint(value: Any) -> Any:
+    """
+    指纹 / 持久化快照用：``int`` 与 ``float`` 在数值相等时规范为 ``float``，
+    避免 UI JSON（整数）与 CLI ``settings.py``（浮点）产生不同 ``settings_fp``。
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return float(value)
+    if isinstance(value, float):
+        return float(value)
+    if isinstance(value, dict):
+        return {k: coerce_numeric_tree_for_fingerprint(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [coerce_numeric_tree_for_fingerprint(v) for v in value]
+    return value
+
+
 def _strip_to_semantic_core(canonical_settings: Dict[str, Any]) -> Dict[str, Any]:
     out = copy.deepcopy(canonical_settings)
 
@@ -180,7 +198,7 @@ def _strip_to_semantic_core(canonical_settings: Dict[str, Any]) -> Dict[str, Any
     else:
         out.pop("simulation", None)
 
-    return out
+    return coerce_numeric_tree_for_fingerprint(out)
 
 
 def strip_to_semantic_core(canonical_settings: Dict[str, Any]) -> Dict[str, Any]:
@@ -211,10 +229,11 @@ def validated_normalized_snapshot(
     normalized = validated.to_dict()
     if not isinstance(normalized, dict):
         return None
-    return validated, normalized
+    return validated, coerce_numeric_tree_for_fingerprint(normalized)
 
 
 __all__ = [
+    "coerce_numeric_tree_for_fingerprint",
     "resolve_sampling_is_used",
     "semantic_core",
     "semantic_core_from_strategy_settings",

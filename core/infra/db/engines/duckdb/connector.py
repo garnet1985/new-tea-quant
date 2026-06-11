@@ -116,7 +116,7 @@ class DuckdbDomainConnection:
             except Exception as retry_exc:
                 raise RuntimeError(
                     f"无法打开 DuckDB（已删除损坏 WAL 仍失败）: {db_path}。"
-                    f" 请确认无 renew/写库进程占用，执行: python dev-cli.py -dbc"
+                    f" 请确认无 renew/写库进程占用，执行: python devcli.py -dbc"
                     f" 原始错误: {self._short_exc(retry_exc)}"
                 ) from retry_exc
 

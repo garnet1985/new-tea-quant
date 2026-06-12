@@ -102,6 +102,17 @@ export function getStrategyWorkbenchPath(strategyName) {
   return `/strategy-workbench/${encoded}`;
 }
 
+/** 制定策略：单策略调试页路径（可选 step：enum | price | capital） */
+export function getStrategyDesignPath(strategyName, step = '') {
+  const encoded = encodeStrategyPathSegments(strategyName);
+  const base = `/strategy-design/${encoded}`;
+  const seg = String(step || '').trim();
+  if (seg === 'enum' || seg === 'price' || seg === 'capital') {
+    return `${base}/${seg}`;
+  }
+  return base;
+}
+
 /**
  * V2-01：读取 latest 工作台快照（settings + version_id + step_status + result_report）。
  * @param {string} strategyName

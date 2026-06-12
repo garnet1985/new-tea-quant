@@ -7,6 +7,7 @@ import './appNavigation.scss';
 
 const navItems = [
   { label: '策略实验室', path: '/strategy-workbench' },
+  { label: '制定策略', path: '/strategy-design' },
   { label: '策略选股', path: '/scan' },
   { label: '设置', path: '/settings' },
 ];

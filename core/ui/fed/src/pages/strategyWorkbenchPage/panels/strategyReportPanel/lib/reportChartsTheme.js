@@ -113,8 +113,8 @@ export function roiBucketLabelIsNegative(label) {
   return (lo + hi) / 2 < 0;
 }
 
-/** ROI 分布柱：按区间正负着色（柱高为笔数，颜色看区间而非计数） */
-export function reportChartRoiBucketBarData(counts, labels, radiusPos = BAR_RADIUS_POS, radiusNeg = BAR_RADIUS_NEG) {
+/** ROI 分布柱：按区间正负着色；柱高为笔数（恒 ≥0），圆角始终在柱顶 */
+export function reportChartRoiBucketBarData(counts, labels, radiusPos = BAR_RADIUS_POS) {
   if (!Array.isArray(counts)) return [];
   return counts.map((cell, i) => {
     const raw = cell != null && typeof cell === 'object' && Object.prototype.hasOwnProperty.call(cell, 'value')
@@ -127,7 +127,7 @@ export function reportChartRoiBucketBarData(counts, labels, radiusPos = BAR_RADI
       value,
       itemStyle: {
         color: isNeg ? REPORT_CHART_BAR_COLOR_NEG : REPORT_CHART_BAR_COLOR_POS,
-        borderRadius: isNeg ? radiusNeg : radiusPos,
+        borderRadius: radiusPos,
         ...REPORT_CHART_BAR_SHADOW,
       },
     };

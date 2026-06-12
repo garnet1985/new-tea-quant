@@ -9,12 +9,86 @@ import {
 const MARKER_COLORS = {
   buy: '#2E7D32',
   sell: '#C62828',
-  opportunity: '#FFB74D',
+  opportunity: '#00E8FF',
 };
 
+/** A 股习惯：阳线红、阴线绿（close vs open） */
+const CANDLE_UP_COLOR = '#FF4D67';
+const CANDLE_DOWN_COLOR = '#00D9A5';
+
+/** 自定义向上小箭头（内置 arrow 在 markPoint 上旋转不可靠） */
+const OPPORTUNITY_ARROW_SYMBOL = 'path://M0,10 L5,0 L10,10 Z';
+const OPPORTUNITY_ARROW_SIZE = 7;
+const OPPORTUNITY_ARROW_OFFSET_Y = 6;
+
+function buildOpportunityMarkStyle() {
+  return {
+    color: MARKER_COLORS.opportunity,
+    borderColor: 'rgba(255, 255, 255, 0.85)',
+    borderWidth: 1,
+    shadowBlur: 4,
+    shadowColor: 'rgba(0, 232, 255, 0.55)',
+  };
+}
+
+/** 机会点：箭头自下方向上指向触发 K 线的最低价（抄底语义） */
+function buildOpportunityMarkPoint(item, candleByDate) {
+  const date = String(item?.date || '').trim();
+  const bar = candleByDate?.get(date);
+  const low = Number(bar?.low);
+  if (!date || !Number.isFinite(low)) return null;
+
+  return {
+    name: item.label || item.type || '机会',
+    coord: [date, low],
+    symbol: OPPORTUNITY_ARROW_SYMBOL,
+    symbolSize: OPPORTUNITY_ARROW_SIZE,
+    symbolOffset: [0, OPPORTUNITY_ARROW_OFFSET_Y],
+    itemStyle: buildOpportunityMarkStyle(),
+    _markerMeta: item,
+  };
+}
+
 const DEFAULT_ZOOM_WINDOW = 35;
-const PRICE_GRID = { left: 44, right: 16, top: 32, height: '42%' };
-const OSC_GRID = { left: 44, right: 16, top: '52%', height: '36%' };
+/** 副图高度 ≈ 主图 K 线区域的 32%（落在 1/4–1/3 区间） */
+const PANEL_DIVIDER_COLOR = 'rgba(255, 255, 255, 0.52)';
+const DUAL_PANEL_LAYOUT = {
+  priceTop: 8,
+  priceHeight: 51,
+  gap: 3.5,
+  oscHeight: 17,
+};
+
+function buildDualPanelGrids() {
+  const { priceTop, priceHeight, gap, oscHeight } = DUAL_PANEL_LAYOUT;
+  const oscTop = priceTop + priceHeight + gap;
+  return [
+    { left: 44, right: 16, top: `${priceTop}%`, height: `${priceHeight}%` },
+    {
+      left: 44,
+      right: 16,
+      top: `${oscTop}%`,
+      height: `${oscHeight}%`,
+      borderWidth: 2,
+      borderColor: PANEL_DIVIDER_COLOR,
+      backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    },
+  ];
+}
+
+function buildPanelDividerGraphic() {
+  const { priceTop, priceHeight, gap } = DUAL_PANEL_LAYOUT;
+  const dividerTop = priceTop + priceHeight + (gap / 2);
+  return [{
+    type: 'rect',
+    left: 44,
+    right: 16,
+    top: `${dividerTop}%`,
+    z: 4,
+    shape: { x: 0, y: -1, width: 4000, height: 2 },
+    style: { fill: PANEL_DIVIDER_COLOR },
+  }];
+}
 
 function markerColor(type) {
   return MARKER_COLORS[type] || '#90CAF9';
@@ -64,20 +138,31 @@ function initialZoomRange(length) {
   return { start, end: 100 };
 }
 
-function buildMarkPointData(markers) {
+function buildMarkPointData(markers, candleByDate) {
   if (!Array.isArray(markers)) return [];
   return markers
-    .filter((item) => item?.date && item.price != null && Number.isFinite(Number(item.price)))
-    .map((item) => ({
-      name: item.label || item.type || '标记',
-      coord: [item.date, Number(item.price)],
-      symbol: 'triangle',
-      symbolRotate: 0,
-      symbolSize: 14,
-      symbolOffset: [0, -6],
-      itemStyle: { color: markerColor(item.type) },
-      _markerMeta: item,
-    }));
+    .map((item) => {
+      if (item?.type === 'opportunity') {
+        return buildOpportunityMarkPoint(item, candleByDate);
+      }
+      if (!item?.date || item.price == null || !Number.isFinite(Number(item.price))) {
+        return null;
+      }
+      return {
+        name: item.label || item.type || '标记',
+        coord: [item.date, Number(item.price)],
+        symbol: 'circle',
+        symbolSize: 9,
+        symbolOffset: [0, -5],
+        itemStyle: {
+          color: markerColor(item.type),
+          borderColor: 'rgba(255, 255, 255, 0.35)',
+          borderWidth: 1,
+        },
+        _markerMeta: item,
+      };
+    })
+    .filter(Boolean);
 }
 
 function buildCandleLookup(candles) {
@@ -172,7 +257,7 @@ export function buildStockKlineChartOptionFromPayload(payload) {
   if (!candleData.length) return {};
 
   const candleByDate = buildCandleLookup(payload.candles);
-  const markPointData = buildMarkPointData(payload.markers);
+  const markPointData = buildMarkPointData(payload.markers, candleByDate);
   const oscillatorRows = indicatorSeries.filter((row) => row.panel === 'oscillator');
   const overlayRows = indicatorSeries.filter((row) => row.panel !== 'oscillator');
   const hasOscillator = oscillatorRows.length > 0;
@@ -213,8 +298,8 @@ export function buildStockKlineChartOptionFromPayload(payload) {
   }));
 
   const grid = hasOscillator
-    ? [PRICE_GRID, OSC_GRID]
-    : [{ ...PRICE_GRID, height: '68%', top: 32 }];
+    ? buildDualPanelGrids()
+    : [{ left: 44, right: 16, top: 28, height: '68%' }];
 
   const xAxis = hasOscillator
     ? [
@@ -305,17 +390,8 @@ export function buildStockKlineChartOptionFromPayload(payload) {
       link: hasOscillator ? [{ xAxisIndex: [0, 1] }] : undefined,
     },
     grid,
+    graphic: hasOscillator ? buildPanelDividerGraphic() : undefined,
     dataZoom: [
-      {
-        type: 'inside',
-        xAxisIndex: xZoomIndexes,
-        filterMode: 'filter',
-        zoomOnMouseWheel: true,
-        moveOnMouseMove: true,
-        moveOnMouseWheel: true,
-        start: zoom.start,
-        end: zoom.end,
-      },
       {
         type: 'slider',
         xAxisIndex: xZoomIndexes,
@@ -364,14 +440,14 @@ export function buildStockKlineChartOptionFromPayload(payload) {
         yAxisIndex: 0,
         data: candleData,
         itemStyle: {
-          color: '#ef5350',
-          color0: '#26a69a',
-          borderColor: '#ef5350',
-          borderColor0: '#26a69a',
+          color: CANDLE_UP_COLOR,
+          color0: CANDLE_DOWN_COLOR,
+          borderColor: CANDLE_UP_COLOR,
+          borderColor0: CANDLE_DOWN_COLOR,
         },
         markPoint: markPointData.length
           ? {
-            symbol: 'triangle',
+            z: 6,
             data: markPointData,
             tooltip: {
               trigger: 'item',
@@ -393,7 +469,9 @@ export function buildStockKlineChartOptionFromPayload(payload) {
           xAxisIndex: 0,
           yAxisIndex: 0,
           data: [],
-          symbolSize: 0,
+          symbol: OPPORTUNITY_ARROW_SYMBOL,
+          symbolSize: OPPORTUNITY_ARROW_SIZE,
+          itemStyle: buildOpportunityMarkStyle(),
           tooltip: { show: false },
         }]
         : []),

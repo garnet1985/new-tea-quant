@@ -23,9 +23,11 @@ from core.modules.strategy.launcher.workbench import (
     _STOCK_REF_FILENAMES,
     fetch_workbench_by_version,
 )
+from core.modules.strategy.enums import OpportunityStatus
 from core.modules.strategy.services.data.output.enumerator_output_service import (
     STOCK_REF_FILENAME,
 )
+from core.modules.strategy.engines.shared.report_base import ReportBase
 from core.utils.date.date_utils import DateUtils
 from core.utils.io.csv_io import read_csv_to_dicts
 
@@ -330,6 +332,123 @@ def _candle_index_by_date(candles: List[Dict[str, Any]]) -> Dict[str, Dict[str, 
     return out
 
 
+def _collect_target_tradability_for_stock(output_dir: Path, stock_id: str) -> Dict[str, int]:
+    """仅统计该股 ``{stock_id}_targets.csv`` 的卖出可成交性（与全目录汇总区分）。"""
+    from core.modules.strategy.engines.shared.helpers.tradability import row_sell_at_limit_down
+
+    counts = {
+        "sell_tradability_sample_count": 0,
+        "sell_at_limit_down_count": 0,
+    }
+    path = output_dir / f"{stock_id}_targets.csv"
+    if not path.is_file():
+        return counts
+    try:
+        for row in read_csv_to_dicts(path):
+            if not isinstance(row, dict):
+                continue
+            flagged = row_sell_at_limit_down(row)
+            if flagged is None:
+                continue
+            counts["sell_tradability_sample_count"] += 1
+            if flagged:
+                counts["sell_at_limit_down_count"] += 1
+    except Exception:
+        logger.exception("读取单股 targets 可成交性失败: %s", path)
+    return counts
+
+
+def _is_enum_opportunity_goal_completed(row: Dict[str, Any]) -> bool:
+    """
+    「机会完成」：模拟期内按规则走完目标后结案。
+
+    与 ``EnumeratorReport`` / worker ``report_completed_count`` 一致：
+    ``enumeration_end`` / ``backtest_end`` 强制平仓算未完成；``open/active/testing`` 亦未完成。
+    """
+    sell_reason = str(row.get("sell_reason") or "").lower()
+    if sell_reason in {"enumeration_end", "backtest_end"}:
+        return False
+    status = str(row.get("status") or "").lower()
+    if status in {
+        OpportunityStatus.OPEN.value,
+        OpportunityStatus.ACTIVE.value,
+        OpportunityStatus.TESTING.value,
+    }:
+        return False
+    return True
+
+
+def _enum_opportunity_win_stats(opportunities: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    「机会胜率」：仅在「已完成」机会中，ROI 为正（win）与为负（loss）的占比。
+
+    未完成（回测结束强制平仓等）不参与胜率分母。
+    """
+    wins = 0
+    losses = 0
+    for row in opportunities:
+        if not isinstance(row, dict) or not _is_enum_opportunity_goal_completed(row):
+            continue
+        status = str(row.get("status") or "").lower()
+        if status == OpportunityStatus.WIN.value:
+            wins += 1
+        elif status == OpportunityStatus.LOSS.value:
+            losses += 1
+        else:
+            roi = _float_or_none(row.get("roi"))
+            if roi is None:
+                continue
+            if roi > 0:
+                wins += 1
+            elif roi < 0:
+                losses += 1
+    sample = wins + losses
+    win_rate = round(ReportBase.safe_div(wins, sample) * 100.0, 1) if sample else 0.0
+    return {
+        "winCount": wins,
+        "lossCount": losses,
+        "winRateSampleCount": sample,
+        "winRate": win_rate,
+    }
+
+
+def _build_stock_enum_report_metrics(
+    stock_id: str,
+    opportunities: List[Dict[str, Any]],
+    output_dir: Path,
+) -> Dict[str, Any]:
+    """单股枚举报告指标，与 ``EnumeratorReport.to_bff_payload`` 的 ``enumMetrics`` 同形。"""
+    from core.modules.strategy.engines.simulator.enumerator.data_classes.report import (
+        EnumeratorReport,
+    )
+
+    tagged: List[Dict[str, Any]] = []
+    for row in opportunities:
+        if not isinstance(row, dict):
+            continue
+        payload = dict(row)
+        payload["stock_id"] = stock_id
+        tagged.append(payload)
+
+    target_trad = _collect_target_tradability_for_stock(output_dir, stock_id)
+    extra = (
+        target_trad
+        if int(target_trad.get("sell_tradability_sample_count") or 0) > 0
+        else None
+    )
+    report = EnumeratorReport.from_opportunities_with_total_stocks(
+        opportunities=tagged,
+        total_stocks_hint=1,
+        target_tradability=extra,
+    )
+    bff = report.to_bff_payload(include_stock_rows=False)
+    metrics = bff.get("enumMetrics")
+    if not isinstance(metrics, dict):
+        return {}
+    metrics.update(_enum_opportunity_win_stats(tagged))
+    return metrics
+
+
 def _read_enum_opportunities(output_dir: Path, stock_id: str) -> List[Dict[str, Any]]:
     path = output_dir / f"{stock_id}_opportunities.csv"
     if not path.is_file():
@@ -431,7 +550,7 @@ def build_stock_detail_message(
             "candles": [],
             "markers": [],
             "indicator_series": [],
-            "report": {"placeholder": True, "message": "逐股明细列待定义"},
+            "report": {"available": False, "message": "枚举产物目录不可用"},
         }
 
     opportunities = _read_enum_opportunities(output_dir, sid)
@@ -446,8 +565,10 @@ def build_stock_detail_message(
             "candles": [],
             "markers": [],
             "indicator_series": [],
-            "report": {"placeholder": True, "message": "逐股明细列待定义"},
+            "report": {"available": False, "message": "未找到该股的枚举机会文件"},
         }
+
+    enum_metrics = _build_stock_enum_report_metrics(sid, opportunities, output_dir)
 
     settings_view = _settings_view_from_row(row)
     candles: List[Dict[str, Any]] = []
@@ -515,5 +636,8 @@ def build_stock_detail_message(
         "candles": candles,
         "markers": markers,
         "indicator_series": indicator_series,
-        "report": {"placeholder": True, "message": "逐股明细列待定义"},
+        "report": {
+            "available": bool(enum_metrics),
+            "enumMetrics": enum_metrics,
+        },
     }

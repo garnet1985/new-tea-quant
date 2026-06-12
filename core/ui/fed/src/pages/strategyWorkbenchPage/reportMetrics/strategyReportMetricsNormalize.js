@@ -60,6 +60,11 @@ export function normalizeEnumMetricsFromSummary(slot) {
   const percentileLabels = toStringList(m.percentileLabels);
   const percentileValues = toNumberList(m.percentileValues);
 
+  const winRate = numOrNaN(m.winRate);
+  const winCount = numOrNaN(m.winCount);
+  const lossCount = numOrNaN(m.lossCount);
+  const winRateSampleCount = numOrNaN(m.winRateSampleCount);
+
   const buyAtLimitUpCount = numOrNaN(m.buyAtLimitUpCount);
   const buyTradabilitySampleCount = numOrNaN(m.buyTradabilitySampleCount);
   const limitUpBuyRatio = numOrNaN(m.limitUpBuyRatio);
@@ -82,6 +87,10 @@ export function normalizeEnumMetricsFromSummary(slot) {
     && opportunityCountStockRatios.length === opportunityCountLabels.length;
 
   const timingOk = Number.isFinite(meanGap) && Number.isFinite(meanDuration);
+
+  const winRateOk = Number.isFinite(winRate)
+    && Number.isFinite(winRateSampleCount)
+    && winRateSampleCount > 0;
 
   const tradabilityOk = [
     buyAtLimitUpCount,
@@ -111,6 +120,10 @@ export function normalizeEnumMetricsFromSummary(slot) {
     opportunityCountLabels,
     opportunityCountStockCounts,
     opportunityCountStockRatios,
+    winRate,
+    winCount,
+    lossCount,
+    winRateSampleCount,
     meanGap,
     meanDuration,
     stdGap,
@@ -136,6 +149,7 @@ export function normalizeEnumMetricsFromSummary(slot) {
       distribution: distributionOk,
       timing: timingOk,
       tradability: tradabilityOk,
+      winRate: winRateOk,
     },
   };
 }

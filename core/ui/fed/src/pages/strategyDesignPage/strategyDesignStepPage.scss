@@ -52,31 +52,10 @@
     padding-bottom: 12px;
   }
 
-  /* 内层子 accordion 保持独立小卡片 */
-  .MuiAccordionDetails-root > .MuiStack-root > .MuiAccordion-root {
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 5px !important;
-    background: rgba(255, 255, 255, 0.04);
-
-    &::before {
-      display: none;
-    }
-
-    & + .MuiAccordion-root {
-      margin-top: 8px;
-    }
-  }
-
   .ntq-design-settings-core-wrap {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    margin-top: 8px;
-
-    > .MuiAccordion-root {
-      margin-top: 0 !important;
-      margin-bottom: 0 !important;
-    }
   }
 
   .ntq-design-settings-core-hint {

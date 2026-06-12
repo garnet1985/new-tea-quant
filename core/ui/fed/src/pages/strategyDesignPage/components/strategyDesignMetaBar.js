@@ -87,23 +87,22 @@ function StrategyDesignMetaBar() {
             className="ntq-design-meta__chip"
           />
           {wb.hasPersistedSnapshot ? (
-            <Chip
-              size="small"
-              variant="outlined"
-              label={`版本 ${wb.currentVersionDisplay}`}
-            />
-          ) : null}
-          {wb.hasPersistedSnapshot ? (
-            wb.isAppliedSettings ? (
-              <Chip size="small" color="success" label="无设置变化" />
-            ) : (
-              <Chip
-                size="small"
-                color="warning"
-                label="设置已变更"
-                className="ntq-design-meta__change-chip"
-              />
-            )
+            <Box
+              className={[
+                'ntq-design-meta__version-capsule',
+                wb.isAppliedSettings
+                  ? 'ntq-design-meta__version-capsule--clean'
+                  : 'ntq-design-meta__version-capsule--changed',
+              ].join(' ')}
+            >
+              <Box component="span" className="ntq-design-meta__version-capsule-part ntq-design-meta__version-capsule-part--version">
+                {wb.currentVersionDisplay}
+              </Box>
+              <Box component="span" className="ntq-design-meta__version-capsule-sep" aria-hidden />
+              <Box component="span" className="ntq-design-meta__version-capsule-part ntq-design-meta__version-capsule-part--status">
+                {wb.isAppliedSettings ? '无设置变化' : '设置已变更'}
+              </Box>
+            </Box>
           ) : null}
         </Stack>
 

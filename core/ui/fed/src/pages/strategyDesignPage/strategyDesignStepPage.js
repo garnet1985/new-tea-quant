@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
-import { Alert, Box, Grid, Stack, Typography } from '@mui/material';
+import { Alert, Box, Grid, Stack } from '@mui/material';
 import StrategyDesignExecutionPanel from './components/strategyDesignExecutionPanel';
+import StrategyDesignReportPanel from './components/strategyDesignReportPanel';
 import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
 import StrategySettingsContainer from '../strategyWorkbenchPage/panels/strategySettingsPanel/containers/strategySettingsContainer';
 import StrategyDesignDraftSync from './components/strategyDesignDraftSync';
@@ -8,19 +9,6 @@ import StrategyDesignSettingsPanel from './components/strategyDesignSettingsPane
 import { useStrategyDesignSettingsOptions } from './hooks/useStrategyDesignSettingsOptions';
 import { useStrategyDesignWorkbenchContext } from './strategyDesignWorkbenchContext';
 import './strategyDesignStepPage.scss';
-
-function StrategyDesignReportPlaceholder() {
-  return (
-    <Box className="ntq-design-step-report">
-      <Typography variant="subtitle2" fontWeight={600} className="ntq-design-step-report__title">
-        回测报告
-      </Typography>
-      <Typography variant="body2" color="text.secondary" className="ntq-design-step-report__empty">
-        在执行面板点击开始来产出报告
-      </Typography>
-    </Box>
-  );
-}
 
 function StrategyDesignStepPage() {
   const wb = useStrategyDesignWorkbenchContext();
@@ -89,7 +77,7 @@ function StrategyDesignStepPage() {
               <Grid item xs={12} md={9}>
                 <Stack spacing={1.5} className="ntq-design-step-page__right">
                   <StrategyDesignExecutionPanel />
-                  <StrategyDesignReportPlaceholder />
+                  <StrategyDesignReportPanel />
                 </Stack>
               </Grid>
             </Grid>

@@ -16,6 +16,8 @@ export function useStrategyReportRemoteData({
   reportVersionId,
   activeTab,
   executionState,
+  /** 制定策略等单步视图：固定当前 Tab，不随 availableTabs 回退 */
+  lockedTab = '',
 }) {
   const versionIdForReport = String(reportVersionId || '').trim();
   const [enumRefStatus, setEnumRefStatus] = useState('idle');
@@ -27,10 +29,12 @@ export function useStrategyReportRemoteData({
   }, [executionState]);
 
   const resolvedActiveTab = useMemo(() => {
+    const lt = String(lockedTab || '').trim();
+    if (lt && STEP_TABS.some((tab) => tab.key === lt)) return lt;
     if (availableTabs.length === 0) return '';
     if (availableTabs.some((tab) => tab.key === activeTab)) return activeTab;
     return availableTabs[availableTabs.length - 1].key;
-  }, [activeTab, availableTabs]);
+  }, [activeTab, availableTabs, lockedTab]);
 
   useEffect(() => {
     let cancelled = false;

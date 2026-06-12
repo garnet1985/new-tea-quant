@@ -75,14 +75,25 @@
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.06);
-}
 
-.ntq-design-step-report__title {
-  margin-bottom: 8px;
-}
+  .ntq-report-panel--embedded {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 100%;
+  }
 
-.ntq-design-step-report__empty {
-  padding-top: 8px;
+  .ntq-report-panel__embedded-head {
+    min-height: 28px;
+  }
+
+  .ntq-report-panel__embedded-compare {
+    flex-shrink: 0;
+  }
+
+  .ntq-report-panel__embedded-body {
+    width: 100%;
+  }
 }
 
 .ntq-design-step-page__right {

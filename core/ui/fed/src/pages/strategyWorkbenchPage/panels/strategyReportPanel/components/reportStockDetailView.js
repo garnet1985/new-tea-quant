@@ -206,8 +206,14 @@ function ReportStockDetailView({
             )}
           </Box>
           {Object.keys(chartOption).length > 0 ? (
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" color="text.secondary" component="div">
               使用底部滑块调整可见区间
+              {activeLayer === 'price' ? (
+                <>
+                  <br />
+                  标注：青色 Pin 为买入日，橙/紫 Pin 为目标胜/负。
+                </>
+              ) : null}
             </Typography>
           ) : null}
         </>

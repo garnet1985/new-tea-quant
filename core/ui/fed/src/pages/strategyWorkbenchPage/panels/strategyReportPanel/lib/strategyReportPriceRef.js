@@ -1,5 +1,5 @@
 /** 与 ``sortMappedPriceRows`` 字段一致；仅用于首屏默认顺序 */
-export const PRICE_REF_DEFAULT_SORT = { sortBy: 'winRate', order: 'desc' };
+export const PRICE_REF_DEFAULT_SORT = { sortBy: 'avg_roi', order: 'desc' };
 
 /** 价格回测 ``0_stock_ref.json`` 逐股条目（snake_case）。 */
 export function mapPriceStockRefToRows(stockRef) {

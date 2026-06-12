@@ -179,20 +179,26 @@ function PriceFactorReport({
     },
     { field: 'stockName', headerName: '名称', flex: 1, minWidth: 120 },
     {
+      field: 'avgRoi',
+      headerName: '平均收益（ROI）',
+      width: 140,
+      valueFormatter: (params) => {
+        const v = Number(params.value);
+        if (!Number.isFinite(v)) return '—';
+        return `${v > 0 ? '+' : ''}${v}%`;
+      },
+    },
+    {
       field: 'winRate',
       headerName: '胜率',
       width: 110,
       valueFormatter: (params) => `${params.value}%`,
     },
     {
-      field: 'avgRoi',
-      headerName: '平均 ROI',
-      width: 120,
-      valueFormatter: (params) => {
-        const v = Number(params.value);
-        if (!Number.isFinite(v)) return '—';
-        return `${v > 0 ? '+' : ''}${v}%`;
-      },
+      field: 'totalInvestments',
+      headerName: '机会总数',
+      width: 110,
+      valueFormatter: (params) => `${params.value} 个`,
     },
     {
       field: 'avgDurationDays',
@@ -257,7 +263,7 @@ function PriceFactorReport({
                   rows={filteredRows}
                   columns={stockColumns}
                   sortingMode="client"
-                  initialSortModel={[{ field: 'winRate', sort: 'desc' }]}
+                  initialSortModel={[{ field: 'avgRoi', sort: 'desc' }]}
                 />
               ) : <ReportUnavailableHint />}
             </>

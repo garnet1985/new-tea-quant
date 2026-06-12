@@ -57,6 +57,13 @@ class BaseStrategyWorker(ABC):
         self.strategy_name = job_payload["strategy_name"]
         self.settings = StrategySettingsView.from_dict(job_payload["settings"])
         self.simulation = self.settings.simulation_settings
+        from core.modules.market_profile import get_market_profile
+
+        profile_id = resolve_market_profile_id(
+            job_payload,
+            settings_market_profile=self.settings.market_profile,
+        )
+        self.market_profile = get_market_profile(profile_id)
 
         self.contract_cache = ContractCacheManager()
         self.stock_info = self._load_stock_info()
@@ -272,6 +279,7 @@ class BaseStrategyWorker(ABC):
                     current_kline=current_kline,
                     goal_config=self.settings.goal,
                     prev_bar=prev_kline,
+                    market_profile=self.market_profile,
                     stock_status_risk=self.stock_status_risk,
                 )
                 if is_completed:

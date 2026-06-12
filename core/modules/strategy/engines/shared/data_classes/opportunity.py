@@ -265,6 +265,13 @@ class Opportunity:
         if not self.buy_date:
             return False
 
+        if market_profile is not None and market_profile.sell_blocked_by_settlement(
+            buy_date=self.buy_date,
+            trade_date=current_date,
+            backtest_calendar=backtest_calendar,
+        ):
+            return False
+
         from core.modules.strategy.engines.shared.helpers.stock_status_exit import (
             apply_stock_status_risk_management,
             apply_stock_status_risk_management_from_settings,

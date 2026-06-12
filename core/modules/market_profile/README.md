@@ -133,6 +133,7 @@ get_market_profile(profile_id?)
 |------------|------|-----------------|
 | `amplitude_limit` | `rule_engines/amplitude_limit/` | `limit_ratio`；`compute_limit_prices(prev_close, status_tags?)`；可选 `default_risk` / `rules[].risk`（`st` / `star_st` 覆盖比例） |
 | `lot_size` | `rule_engines/lot_size/` | `min_lot`、`lot_step`；`floor_buy_quantity` |
+| `settlement` | `rule_engines/settlement/` | `t_plus`（T+N：买入后须经过 N 个交易日才可卖出；0 = T+0，1 = A 股 T+1） |
 
 新增 rule：新增子包 + 在 `rule_engines/__init__.py` 的 `REGISTRY` 注册；未知 key 不注册即忽略。
 
@@ -145,6 +146,7 @@ get_market_profile(profile_id?)
   - `compute_limit_prices(stock_id, prev_close, status_tags=None) -> (up, down)`
   - `resolve_lot_rules(stock_id)`
   - `floor_buy_quantity(shares, stock_id)`（可选）
+  - `sell_blocked_by_settlement(buy_date, trade_date, backtest_calendar?)`
 - 可选：`get_compiled(rule_key)` 用于调试。
 
 ### 5.5 `MarketProfileManager`

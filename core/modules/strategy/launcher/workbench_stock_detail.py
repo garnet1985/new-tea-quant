@@ -191,11 +191,13 @@ def _build_price_markers(
     investments: List[Dict[str, Any]],
     by_date: Dict[str, Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
+    """价格回测标记：买入锚在实际 buy_date，目标锚在完成日 sell_date。"""
     markers: List[Dict[str, Any]] = []
     for inv in investments:
         if not isinstance(inv, dict):
             continue
         buy_date = DateUtils.normalize_str(str(inv.get("buy_date") or ""))
+        trigger_date = DateUtils.normalize_str(str(inv.get("trigger_date") or ""))
         if buy_date and buy_date in by_date:
             bar = by_date[buy_date]
             markers.append(
@@ -206,7 +208,7 @@ def _build_price_markers(
                     "label": "买入",
                     "detail": {
                         "opportunity_id": str(inv.get("opportunity_id") or "").strip(),
-                        "trigger_date": DateUtils.normalize_str(str(inv.get("trigger_date") or "")),
+                        "trigger_date": trigger_date,
                         "buy_date": buy_date,
                         "buy_price": _round_price(_float_or_none(inv.get("buy_price"))),
                         "status": str(inv.get("status") or "").strip(),
@@ -222,22 +224,23 @@ def _build_price_markers(
                 continue
             bar = by_date[sell_date]
             is_win = _is_price_target_win(tgt)
+            target_detail: Dict[str, Any] = {
+                "target_name": str(tgt.get("name") or "").strip(),
+                "sell_date": sell_date,
+                "sell_price": _round_price(_float_or_none(tgt.get("sell_price"))),
+                "profit": _round_price(
+                    _float_or_none(tgt.get("weighted_profit") or tgt.get("profit"))
+                ),
+                "profit_ratio": _round_price(_float_or_none(tgt.get("profit_ratio"))),
+                "target_type": str(tgt.get("target_type") or "").strip(),
+            }
             markers.append(
                 {
                     "date": sell_date,
                     "price": _round_price(_float_or_none(bar.get("high"))),
                     "type": "target_win" if is_win else "target_loss",
                     "label": "目标胜" if is_win else "目标负",
-                    "detail": {
-                        "target_name": str(tgt.get("name") or "").strip(),
-                        "sell_date": sell_date,
-                        "sell_price": _round_price(_float_or_none(tgt.get("sell_price"))),
-                        "profit": _round_price(
-                            _float_or_none(tgt.get("weighted_profit") or tgt.get("profit"))
-                        ),
-                        "profit_ratio": _round_price(_float_or_none(tgt.get("profit_ratio"))),
-                        "target_type": str(tgt.get("target_type") or "").strip(),
-                    },
+                    "detail": target_detail,
                 }
             )
     return markers

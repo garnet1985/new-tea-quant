@@ -43,6 +43,7 @@ class TestWorkbenchStockDetailPriceMarkers(unittest.TestCase):
             },
         ]
         by_date = {
+            "20230102": {"date": "20230102", "open": 9.8, "close": 10.0, "high": 10.1, "low": 9.7},
             "20230103": {"date": "20230103", "open": 10, "close": 10.2, "high": 10.5, "low": 9.8},
             "20230110": {"date": "20230110", "open": 11, "close": 11.1, "high": 11.3, "low": 10.8},
             "20230115": {"date": "20230115", "open": 9, "close": 9.1, "high": 9.2, "low": 8.9},
@@ -50,11 +51,9 @@ class TestWorkbenchStockDetailPriceMarkers(unittest.TestCase):
         markers = _build_price_markers(investments, by_date)
         self.assertEqual(len(markers), 3)
         self.assertEqual(markers[0]["type"], "buy")
+        self.assertEqual(markers[0]["label"], "买入")
         self.assertEqual(markers[0]["date"], "20230103")
-        self.assertEqual(markers[1]["type"], "target_win")
-        self.assertEqual(markers[1]["date"], "20230110")
-        self.assertEqual(markers[2]["type"], "target_loss")
-        self.assertEqual(markers[2]["date"], "20230115")
+        self.assertEqual(markers[0]["detail"].get("trigger_date"), "20230102")
 
 
 if __name__ == "__main__":

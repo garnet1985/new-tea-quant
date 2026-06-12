@@ -5,6 +5,7 @@ import StrategyDesignReportPanel from './components/strategyDesignReportPanel';
 import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
 import StrategySettingsContainer from '../strategyWorkbenchPage/panels/strategySettingsPanel/containers/strategySettingsContainer';
 import StrategyDesignDraftSync from './components/strategyDesignDraftSync';
+import StrategyDesignDraftChangeBridge from './components/strategyDesignDraftChangeBridge';
 import StrategyDesignSettingsPanel from './components/strategyDesignSettingsPanel';
 import { useStrategyDesignSettingsOptions } from './hooks/useStrategyDesignSettingsOptions';
 import { useStrategyDesignWorkbenchContext } from './strategyDesignWorkbenchContext';
@@ -50,6 +51,13 @@ function StrategyDesignStepPage() {
             <StrategyDesignDraftSync
               draftSettings={draftSettings}
               onDraftSettingsChange={handleDraftSync}
+            />
+            <StrategyDesignDraftChangeBridge
+              draftSettings={draftSettings}
+              strategyName={wb.strategyName}
+              isLoadingSettings={wb.isLoadingSettings}
+              onReset={wb.handleDraftDrivenReset}
+              suppressDraftDrivenPanelResetRef={wb.suppressDraftDrivenPanelResetRef}
             />
             <Grid container spacing={2} className="ntq-design-step-page__grid">
               <Grid item xs={12} md={3}>

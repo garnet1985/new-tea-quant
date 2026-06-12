@@ -25,6 +25,7 @@ function StrategyDesignReportPanel() {
         showReportCompare={wb.hasOtherVersions}
         lockedTab={wb.activeStep}
         embedded
+        onForceEnumerate={wb.forceEnumerate}
       />
     </Box>
   );

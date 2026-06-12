@@ -66,6 +66,30 @@
       margin-top: 8px;
     }
   }
+
+  .ntq-design-settings-core-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+
+    > .MuiAccordion-root {
+      margin-top: 0 !important;
+      margin-bottom: 0 !important;
+    }
+  }
+
+  .ntq-design-settings-core-hint {
+    flex: 0 0 auto;
+    min-height: 20px;
+    margin: 0;
+    padding: 0 4px;
+    line-height: 1.45;
+
+    p {
+      margin: 0;
+    }
+  }
 }
 
 .ntq-design-step-report {

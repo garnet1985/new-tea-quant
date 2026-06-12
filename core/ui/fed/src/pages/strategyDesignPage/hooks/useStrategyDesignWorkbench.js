@@ -25,7 +25,9 @@ import {
   buildWorkbenchSnapshotFromVersionDetail,
   workbenchPageStateFromVersionDetail,
 } from '../lib/workbenchPageState';
+import { clearDesignActiveRun } from '../lib/strategyDesignActiveRunPersistence';
 import { useStrategyDesignSession } from '../strategyDesignContext';
+import { useStrategyDesignExecution } from './useStrategyDesignExecution';
 
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -75,7 +77,13 @@ function mapConfigVersionRows(verRes) {
  * 制定策略 Layout：工作台快照 / 版本 / settings 加载与 Meta 操作。
  */
 export function useStrategyDesignWorkbench() {
-  const { strategyName, session, patchSession, resetSessionForDraftChange } = useStrategyDesignSession();
+  const {
+    strategyName,
+    session,
+    patchSession,
+    resetSessionForDraftChange,
+    setSession,
+  } = useStrategyDesignSession();
 
   const [configVersions, setConfigVersions] = useState([]);
   const [hasPersistedSnapshot, setHasPersistedSnapshot] = useState(false);
@@ -106,6 +114,16 @@ export function useStrategyDesignWorkbench() {
 
   const lastRunSyncedVersionRef = useRef('');
   const snapshotSyncGenRef = useRef(0);
+  const suppressDraftDrivenPanelResetRef = useRef(false);
+  const executionStateRef = useRef(session.executionState);
+  executionStateRef.current = session.executionState;
+
+  const getExecutionState = useCallback(() => executionStateRef.current, []);
+
+  const onRunStarted = useCallback(() => {
+    lastRunSyncedVersionRef.current = '';
+    snapshotSyncGenRef.current += 1;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -325,12 +343,37 @@ export function useStrategyDesignWorkbench() {
     return row?.label || mp || '—';
   }, [draftSettings, initialSettings, marketProfileOptions]);
 
-  const disableMetaActions = isSavingSettings || isLoadingSettings || !strategyName;
-
   const getDraftSettingsForSubmit = useCallback(
     () => deepClone(draftSettings),
     [draftSettings],
   );
+
+  const {
+    runError,
+    progressDetail,
+    handleRunCurrentStep,
+    forceEnumerate,
+    executionBusy,
+  } = useStrategyDesignExecution({
+    strategyName,
+    activeStep: session.activeStep,
+    getDraftSettingsForSubmit,
+    setAppliedSettings,
+    isLoadingSettings,
+    onRunStarted,
+    setSession,
+    getExecutionState,
+  });
+
+  const disableMetaActions = isSavingSettings || isLoadingSettings || !strategyName || executionBusy;
+
+  const handleDraftDrivenReset = useCallback(() => {
+    if (strategyName) clearDesignActiveRun(strategyName);
+    setSelectedConfigVersion('');
+    setAppliedVersionId('userspace');
+    lastRunSyncedVersionRef.current = '';
+    resetSessionForDraftChange();
+  }, [resetSessionForDraftChange, strategyName]);
 
   const requestApplyVersion = useCallback((versionId) => {
     if (!versionId) return;
@@ -410,6 +453,7 @@ export function useStrategyDesignWorkbench() {
           meta: normalizeMeta({ ...incomingMeta, name: strategyName }),
         });
         const wb = wbVerRestore || restoreMeta?.version_id || '';
+        suppressDraftDrivenPanelResetRef.current = true;
         setInitialSettings(mergedSettings);
         setStrategyDescription(extractStrategyDescription(mergedSettings));
         setDraftSettings(deepClone(mergedSettings));
@@ -462,10 +506,6 @@ export function useStrategyDesignWorkbench() {
       });
   }, [getDraftSettingsForSubmit, strategyName]);
 
-  const handleRunCurrentStep = useCallback(() => {
-    /* 执行逻辑下一步接入 StrategyDesignExecution */
-  }, []);
-
   return {
     strategyName,
     activeStep: session.activeStep,
@@ -475,7 +515,12 @@ export function useStrategyDesignWorkbench() {
     stepStatus: session.executionState?.stepStatus || {},
     stepProgress: session.stepProgress || {},
     runningStep: session.executionState?.runningStep || '',
-    executionBusy: Boolean(session.executionState?.activeRunId || session.executionState?.runningStep),
+    executionBusy,
+    runError,
+    progressDetail,
+    forceEnumerate,
+    handleDraftDrivenReset,
+    suppressDraftDrivenPanelResetRef,
     strategyDisplayName,
     strategyDescription,
     marketProfileLabel,

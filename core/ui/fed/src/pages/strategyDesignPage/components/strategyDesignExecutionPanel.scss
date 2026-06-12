@@ -15,6 +15,11 @@
   color: rgba(255, 255, 255, 0.88);
 }
 
+.ntq-design-exec-panel__error {
+  display: block;
+  line-height: 1.45;
+}
+
 .ntq-design-exec-panel__body {
   display: flex;
   flex-direction: row;
@@ -40,6 +45,8 @@
   align-items: flex-end;
   gap: 4px;
   text-align: right;
+  min-height: 54px;
+  justify-content: center;
 }
 
 .ntq-design-exec-panel__status-primary {
@@ -51,16 +58,30 @@
   line-height: 1.45;
 }
 
-.ntq-design-exec-panel__progress {
+.ntq-design-exec-panel__progress-slot {
   width: min(240px, 100%);
-  height: 4px !important;
+  height: 4px;
+  flex: 0 0 4px;
   margin-top: 2px;
+}
+
+.ntq-design-exec-panel__progress {
+  width: 100%;
+  height: 4px !important;
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.08) !important;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease;
 
   .MuiLinearProgress-bar {
     border-radius: 2px;
     background: linear-gradient(90deg, var(--ntq-violet), var(--ntq-cyan));
+  }
+
+  &--visible {
+    opacity: 1;
+    visibility: visible;
   }
 }
 

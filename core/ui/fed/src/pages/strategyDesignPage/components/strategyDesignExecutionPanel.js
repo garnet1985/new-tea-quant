@@ -14,6 +14,7 @@ function resolveExecutionStatusCopy({
   executionBusy,
   runningStep,
   stepProgress,
+  progressDetail,
 }) {
   const step = STRATEGY_DESIGN_STEPS.find((item) => item.key === activeStep);
   const stepLabel = step?.label || activeStep;
@@ -23,9 +24,15 @@ function resolveExecutionStatusCopy({
     && (status === 'running' || runningStep === activeStep || Boolean(runningStep));
 
   if (isRunning) {
+    const detailText = [
+      progressDetail?.label,
+      progressDetail?.stageLabel,
+      progressDetail?.counterText,
+    ].filter(Boolean).join(' · ');
+    const secondary = detailText || (pct > 0 ? `进度 ${pct}%` : '准备中…');
     return {
       primary: `正在执行「${stepLabel}」`,
-      secondary: pct > 0 ? `进度 ${pct}%` : '准备中…',
+      secondary,
       showProgress: true,
       progress: pct,
     };
@@ -67,8 +74,16 @@ function StrategyDesignExecutionPanel() {
       executionBusy: wb.executionBusy,
       runningStep: wb.runningStep,
       stepProgress: wb.stepProgress,
+      progressDetail: wb.progressDetail,
     }),
-    [wb.activeStep, wb.executionBusy, wb.runningStep, wb.stepProgress, wb.stepStatus],
+    [
+      wb.activeStep,
+      wb.executionBusy,
+      wb.progressDetail,
+      wb.runningStep,
+      wb.stepProgress,
+      wb.stepStatus,
+    ],
   );
 
   const handleGoNextStep = useCallback(() => {
@@ -81,6 +96,12 @@ function StrategyDesignExecutionPanel() {
       <Typography variant="subtitle2" fontWeight={600} className="ntq-design-exec-panel__title">
         {EXECUTION_PANEL_TITLE}
       </Typography>
+
+      {wb.runError ? (
+        <Typography variant="caption" color="error" className="ntq-design-exec-panel__error">
+          {wb.runError}
+        </Typography>
+      ) : null}
 
       <Box className="ntq-design-exec-panel__body">
         <Box className="ntq-design-exec-panel__actions">
@@ -110,13 +131,16 @@ function StrategyDesignExecutionPanel() {
           <Typography variant="caption" color="text.secondary" className="ntq-design-exec-panel__status-secondary">
             {statusCopy.secondary}
           </Typography>
-          {statusCopy.showProgress ? (
+          <Box className="ntq-design-exec-panel__progress-slot" aria-hidden={!statusCopy.showProgress}>
             <LinearProgress
-              variant={statusCopy.progress > 0 ? 'determinate' : 'indeterminate'}
-              value={statusCopy.progress}
-              className="ntq-design-exec-panel__progress"
+              variant={statusCopy.showProgress && statusCopy.progress > 0 ? 'determinate' : 'indeterminate'}
+              value={statusCopy.showProgress ? statusCopy.progress : 0}
+              className={[
+                'ntq-design-exec-panel__progress',
+                statusCopy.showProgress ? 'ntq-design-exec-panel__progress--visible' : '',
+              ].filter(Boolean).join(' ')}
             />
-          ) : null}
+          </Box>
         </Box>
       </Box>
     </Box>

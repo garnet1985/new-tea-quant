@@ -4,6 +4,7 @@ import {
   Accordion,
   AccordionDetails,
   AccordionSummary,
+  Box,
   Stack,
   Typography,
 } from '@mui/material';
@@ -40,6 +41,26 @@ function buildMarketProfileOnlySchema(marketProfileOptions) {
       ? [{ ...marketProfileField, label: '' }]
       : [],
   };
+}
+
+function CoreSettingsBlock({ showHint, coreEditorContext, settings }) {
+  return (
+    <Box className="ntq-design-settings-core-wrap">
+      <Box className="ntq-design-settings-core-hint" aria-hidden={!showHint}>
+        {showHint ? (
+          <Typography variant="caption" color="text.secondary" component="p">
+            修改核心参数后请回到枚举步重新运行。
+          </Typography>
+        ) : null}
+      </Box>
+      <Editor
+        schema={strategyCoreSchema}
+        value={settings}
+        onChange={() => {}}
+        context={coreEditorContext}
+      />
+    </Box>
+  );
 }
 
 function SectionAccordion({
@@ -162,16 +183,10 @@ function StrategyDesignSettingsPanel({
               />
             </SectionAccordion>
           ) : null}
-          {showCoreHint ? (
-            <Typography variant="caption" color="text.secondary" sx={{ px: 0.5, lineHeight: 1.45 }}>
-              修改核心参数后请回到枚举步重新运行。
-            </Typography>
-          ) : null}
-          <Editor
-            schema={strategyCoreSchema}
-            value={settings}
-            onChange={() => {}}
-            context={coreEditorContext}
+          <CoreSettingsBlock
+            showHint={showCoreHint}
+            coreEditorContext={coreEditorContext}
+            settings={settings}
           />
         </>
       );
@@ -196,16 +211,10 @@ function StrategyDesignSettingsPanel({
               context={editorContext}
             />
           </SectionAccordion>
-          {showCoreHint ? (
-            <Typography variant="caption" color="text.secondary" sx={{ px: 0.5, lineHeight: 1.45 }}>
-              修改核心参数后请回到枚举步重新运行。
-            </Typography>
-          ) : null}
-          <Editor
-            schema={strategyCoreSchema}
-            value={settings}
-            onChange={() => {}}
-            context={coreEditorContext}
+          <CoreSettingsBlock
+            showHint={showCoreHint}
+            coreEditorContext={coreEditorContext}
+            settings={settings}
           />
         </>
       );

@@ -36,7 +36,7 @@ function StepperCircle({ step, visual, isLast, connectorDone = false }) {
               variant="determinate"
               value={Math.min(100, Math.max(0, ringPct))}
               size={STEPPER_RING_PX}
-              thickness={3.2}
+              thickness={2}
               className="ntq-design-stepper__ring"
             />
           ) : null}
@@ -44,7 +44,7 @@ function StepperCircle({ step, visual, isLast, connectorDone = false }) {
             <CircularProgress
               variant="indeterminate"
               size={STEPPER_RING_PX}
-              thickness={3.2}
+              thickness={2}
               className="ntq-design-stepper__ring ntq-design-stepper__ring--pending"
             />
           ) : null}

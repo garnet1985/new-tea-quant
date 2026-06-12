@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Box, Stack, Typography } from '@mui/material';
+import { Box, Link, Stack, Typography } from '@mui/material';
+import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
 import ReactECharts from 'echarts-for-react';
 import NtqHelpTooltip from 'components/ntqHelpTooltip/ntqHelpTooltip';
 import MetricCard from 'components/metricCard/metricCard';
@@ -117,7 +118,12 @@ function PriceFactorReport({
   stockRows,
   title = '价格回测报告',
   showStockGrid = true,
+  stockGridOverlay = null,
+  priceRefStockTotal,
+  stockGridLoading = false,
   hideTitle = false,
+  onStockSelect,
+  stockLinkEnabled = false,
 }) {
   const [stockSearch, setStockSearch] = useState('');
 
@@ -145,7 +151,32 @@ function PriceFactorReport({
   }, [derivedStockRows, stockSearch]);
 
   const stockColumns = useMemo(() => [
-    { field: 'stockCode', headerName: '代码', flex: 1, minWidth: 120 },
+    {
+      field: 'stockCode',
+      headerName: '代码',
+      flex: 1,
+      minWidth: 120,
+      renderCell: (params) => {
+        const code = params.value;
+        if (!stockLinkEnabled || typeof onStockSelect !== 'function') {
+          return code;
+        }
+        return (
+          <Link
+            component="button"
+            type="button"
+            underline="hover"
+            onClick={(e) => {
+              e.stopPropagation();
+              onStockSelect(params.row);
+            }}
+            sx={{ font: 'inherit', textAlign: 'left' }}
+          >
+            {code}
+          </Link>
+        );
+      },
+    },
     { field: 'stockName', headerName: '名称', flex: 1, minWidth: 120 },
     {
       field: 'winRate',
@@ -154,22 +185,41 @@ function PriceFactorReport({
       valueFormatter: (params) => `${params.value}%`,
     },
     {
-      field: 'roi',
-      headerName: '收益率（ROI）',
-      width: 110,
-      valueFormatter: (params) => `${params.value > 0 ? '+' : ''}${params.value}%`,
+      field: 'avgRoi',
+      headerName: '平均 ROI',
+      width: 120,
+      valueFormatter: (params) => {
+        const v = Number(params.value);
+        if (!Number.isFinite(v)) return '—';
+        return `${v > 0 ? '+' : ''}${v}%`;
+      },
     },
     {
-      field: 'holdDays',
-      headerName: '平均投资天数',
-      width: 110,
+      field: 'avgDurationDays',
+      headerName: '平均交易时长',
+      width: 130,
       valueFormatter: (params) => `${params.value} 天`,
     },
-  ], []);
+    {
+      field: 'expirationRatio',
+      headerName: '过期比例',
+      width: 110,
+      valueFormatter: (params) => `${params.value}%`,
+    },
+  ], [onStockSelect, stockLinkEnabled]);
+
+  const stockGridTip = [
+    REPORT_STOCK_GRID_TIPS.price,
+    typeof priceRefStockTotal === 'number' && priceRefStockTotal > 0
+      ? `当前共 ${priceRefStockTotal} 只股票。`
+      : '',
+  ].filter(Boolean).join(' ');
 
   if (!metrics || typeof metrics !== 'object') {
     return <ReportUnavailableHint />;
   }
+
+  const showStockGridTable = Boolean(stockGridOverlay || filteredRows.length > 0);
 
   const volCardHint = (() => {
     if (!avail.roiPercentileViz) return '';
@@ -191,15 +241,28 @@ function PriceFactorReport({
         <Typography variant="subtitle2" fontWeight={600}>{title}</Typography>
       ) : null}
 
-      {showStockGrid && derivedStockRows.length > 0 ? (
-        <ReportStockSampleGrid
-          title="逐股样本"
-          tip={REPORT_STOCK_GRID_TIPS.price}
-          searchValue={stockSearch}
-          onSearchChange={setStockSearch}
-          rows={filteredRows}
-          columns={stockColumns}
-        />
+      {showStockGrid ? (
+        <Box sx={{ position: 'relative' }}>
+          {stockGridLoading ? (
+            <InlineLoadingState block compact message="正在加载逐股数据…" />
+          ) : (
+            <>
+              {stockGridOverlay}
+              {showStockGridTable ? (
+                <ReportStockSampleGrid
+                  title="逐股样本"
+                  tip={stockGridTip}
+                  searchValue={stockSearch}
+                  onSearchChange={setStockSearch}
+                  rows={filteredRows}
+                  columns={stockColumns}
+                  sortingMode="client"
+                  initialSortModel={[{ field: 'winRate', sort: 'desc' }]}
+                />
+              ) : <ReportUnavailableHint />}
+            </>
+          )}
+        </Box>
       ) : null}
 
       <SectionBlock

@@ -7,9 +7,11 @@ import {
 } from './reportChartsTheme';
 
 const MARKER_COLORS = {
-  buy: '#2E7D32',
+  buy: '#00E8FF',
   sell: '#C62828',
   opportunity: '#00E8FF',
+  target_win: '#FF4D67',
+  target_loss: '#00D9A5',
 };
 
 /** A 股习惯：阳线红、阴线绿（close vs open） */
@@ -17,11 +19,14 @@ const CANDLE_UP_COLOR = '#FF4D67';
 const CANDLE_DOWN_COLOR = '#00D9A5';
 
 /** 自定义向上小箭头（内置 arrow 在 markPoint 上旋转不可靠） */
-const OPPORTUNITY_ARROW_SYMBOL = 'path://M0,10 L5,0 L10,10 Z';
-const OPPORTUNITY_ARROW_SIZE = 7;
-const OPPORTUNITY_ARROW_OFFSET_Y = 6;
+const UP_ARROW_SYMBOL = 'path://M0,10 L5,0 L10,10 Z';
+const DOWN_ARROW_SYMBOL = 'path://M0,0 L5,10 L10,0 Z';
+const UP_ARROW_SIZE = 7;
+const UP_ARROW_OFFSET_Y = 6;
+const DOWN_ARROW_SIZE = 7;
+const DOWN_ARROW_OFFSET_Y = -6;
 
-function buildOpportunityMarkStyle() {
+function buildCyanUpArrowStyle() {
   return {
     color: MARKER_COLORS.opportunity,
     borderColor: 'rgba(255, 255, 255, 0.85)',
@@ -31,22 +36,83 @@ function buildOpportunityMarkStyle() {
   };
 }
 
-/** 机会点：箭头自下方向上指向触发 K 线的最低价（抄底语义） */
-function buildOpportunityMarkPoint(item, candleByDate) {
+function buildTargetArrowStyle(type) {
+  const color = type === 'target_win' ? MARKER_COLORS.target_win : MARKER_COLORS.target_loss;
+  const shadow = type === 'target_win'
+    ? 'rgba(255, 77, 103, 0.55)'
+    : 'rgba(0, 217, 165, 0.55)';
+  return {
+    color,
+    borderColor: 'rgba(255, 255, 255, 0.85)',
+    borderWidth: 1,
+    shadowBlur: 4,
+    shadowColor: shadow,
+  };
+}
+
+/** 自下方向上指向 K 线最低价（机会 / 买入） */
+function buildUpwardArrowMarkPoint(item, candleByDate) {
   const date = String(item?.date || '').trim();
   const bar = candleByDate?.get(date);
   const low = Number(bar?.low);
   if (!date || !Number.isFinite(low)) return null;
 
   return {
-    name: item.label || item.type || '机会',
+    name: item.label || item.type || '标记',
     coord: [date, low],
-    symbol: OPPORTUNITY_ARROW_SYMBOL,
-    symbolSize: OPPORTUNITY_ARROW_SIZE,
-    symbolOffset: [0, OPPORTUNITY_ARROW_OFFSET_Y],
-    itemStyle: buildOpportunityMarkStyle(),
+    symbol: UP_ARROW_SYMBOL,
+    symbolSize: UP_ARROW_SIZE,
+    symbolOffset: [0, UP_ARROW_OFFSET_Y],
+    itemStyle: buildCyanUpArrowStyle(),
     _markerMeta: item,
   };
+}
+
+/** 自上方向下指向 K 线最高价（目标完成：红胜 / 绿负） */
+function buildTargetMarkPoint(item, candleByDate) {
+  const date = String(item?.date || '').trim();
+  const bar = candleByDate?.get(date);
+  const high = Number(bar?.high);
+  if (!date || !Number.isFinite(high)) return null;
+
+  return {
+    name: item.label || item.type || '目标',
+    coord: [date, high],
+    symbol: DOWN_ARROW_SYMBOL,
+    symbolSize: DOWN_ARROW_SIZE,
+    symbolOffset: [0, DOWN_ARROW_OFFSET_Y],
+    itemStyle: buildTargetArrowStyle(item.type),
+    _markerMeta: item,
+  };
+}
+
+const MARKER_LEGEND_DEFS = {
+  opportunity: { label: '机会', symbol: UP_ARROW_SYMBOL, style: buildCyanUpArrowStyle },
+  buy: { label: '买入', symbol: UP_ARROW_SYMBOL, style: buildCyanUpArrowStyle },
+  target_win: { label: '目标胜', symbol: DOWN_ARROW_SYMBOL, style: () => buildTargetArrowStyle('target_win') },
+  target_loss: { label: '目标负', symbol: DOWN_ARROW_SYMBOL, style: () => buildTargetArrowStyle('target_loss') },
+};
+
+function buildMarkerLegendSeries(markers) {
+  const types = new Set(
+    (markers || []).map((item) => String(item?.type || '').trim()).filter(Boolean),
+  );
+  return [...types]
+    .filter((type) => MARKER_LEGEND_DEFS[type])
+    .map((type) => {
+      const def = MARKER_LEGEND_DEFS[type];
+      return {
+        name: def.label,
+        type: 'scatter',
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        data: [],
+        symbol: def.symbol,
+        symbolSize: type === 'target_win' || type === 'target_loss' ? DOWN_ARROW_SIZE : UP_ARROW_SIZE,
+        itemStyle: def.style(),
+        tooltip: { show: false },
+      };
+    });
 }
 
 const DEFAULT_ZOOM_WINDOW = 35;
@@ -112,9 +178,15 @@ const MARKER_DETAIL_LABELS = {
   chart_close: '图上收盘价',
   engine_trigger_price: '引擎记录价',
   buy_date: '买入日',
+  buy_price: '买入价',
   sell_date: '卖出日',
+  sell_price: '卖出价',
   status: '状态',
   sell_reason: '卖出原因',
+  target_name: '目标',
+  profit: '盈亏',
+  profit_ratio: '收益率',
+  target_type: '目标类型',
 };
 
 function formatMarkerTooltip(marker) {
@@ -142,8 +214,12 @@ function buildMarkPointData(markers, candleByDate) {
   if (!Array.isArray(markers)) return [];
   return markers
     .map((item) => {
-      if (item?.type === 'opportunity') {
-        return buildOpportunityMarkPoint(item, candleByDate);
+      const type = String(item?.type || '').trim();
+      if (type === 'opportunity' || type === 'buy') {
+        return buildUpwardArrowMarkPoint(item, candleByDate);
+      }
+      if (type === 'target_win' || type === 'target_loss') {
+        return buildTargetMarkPoint(item, candleByDate);
       }
       if (!item?.date || item.price == null || !Number.isFinite(Number(item.price))) {
         return null;
@@ -264,11 +340,12 @@ export function buildStockKlineChartOptionFromPayload(payload) {
   const zoom = initialZoomRange(dates.length);
   const xZoomIndexes = hasOscillator ? [0, 1] : [0];
 
+  const markerLegendSeries = buildMarkerLegendSeries(payload.markers);
   const legendItems = [
     'K线',
     ...overlayRows.map((row) => row.label || row.key),
     ...oscillatorRows.map((row) => row.label || row.key),
-    ...(markPointData.length ? ['机会'] : []),
+    ...markerLegendSeries.map((row) => row.name),
   ];
 
   const overlayLineSeries = overlayRows.map((row) => ({
@@ -462,19 +539,7 @@ export function buildStockKlineChartOptionFromPayload(payload) {
       },
       ...overlayLineSeries,
       ...oscillatorLineSeries,
-      ...(markPointData.length
-        ? [{
-          name: '机会',
-          type: 'scatter',
-          xAxisIndex: 0,
-          yAxisIndex: 0,
-          data: [],
-          symbol: OPPORTUNITY_ARROW_SYMBOL,
-          symbolSize: OPPORTUNITY_ARROW_SIZE,
-          itemStyle: buildOpportunityMarkStyle(),
-          tooltip: { show: false },
-        }]
-        : []),
+      ...markerLegendSeries,
     ],
   };
 }

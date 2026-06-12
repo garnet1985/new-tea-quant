@@ -6,6 +6,11 @@ import {
   mapStockRefToRows,
   sortMappedEnumRows,
 } from '../lib/strategyReportEnumRef';
+import {
+  PRICE_REF_DEFAULT_SORT,
+  mapPriceStockRefToRows,
+  sortMappedPriceRows,
+} from '../lib/strategyReportPriceRef';
 
 /**
  * 报告面板远程数据：枚举 ``report_ref``（V2-07b）与可用 Tab 推导。
@@ -22,6 +27,8 @@ export function useStrategyReportRemoteData({
   const versionIdForReport = String(reportVersionId || '').trim();
   const [enumRefStatus, setEnumRefStatus] = useState('idle');
   const [enumRefRows, setEnumRefRows] = useState([]);
+  const [priceRefStatus, setPriceRefStatus] = useState('idle');
+  const [priceRefRows, setPriceRefRows] = useState([]);
 
   const availableTabs = useMemo(() => {
     const stepStatus = executionState?.stepStatus || {};
@@ -71,9 +78,46 @@ export function useStrategyReportRemoteData({
     };
   }, [resolvedActiveTab, strategyName, versionIdForReport]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!strategyName || !versionIdForReport || resolvedActiveTab !== 'price') {
+      setPriceRefStatus('idle');
+      setPriceRefRows([]);
+      return undefined;
+    }
+    setPriceRefStatus('loading');
+    fetchStrategyStepReportRef(strategyName, 'price', versionIdForReport).then((msg) => {
+      if (cancelled) return;
+      const raw = msg?.stock_ref;
+      const available = msg?.stock_ref_available !== false;
+      if (
+        available
+        && raw
+        && typeof raw === 'object'
+        && Object.keys(raw).length > 0
+      ) {
+        const mapped = sortMappedPriceRows(
+          mapPriceStockRefToRows(raw),
+          PRICE_REF_DEFAULT_SORT.sortBy,
+          PRICE_REF_DEFAULT_SORT.order,
+        );
+        setPriceRefRows(mapped);
+        setPriceRefStatus('ok');
+        return;
+      }
+      setPriceRefRows([]);
+      setPriceRefStatus('missing');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedActiveTab, strategyName, versionIdForReport]);
+
   return {
     enumRefStatus,
     enumRefRows,
+    priceRefStatus,
+    priceRefRows,
     availableTabs,
     resolvedActiveTab,
   };

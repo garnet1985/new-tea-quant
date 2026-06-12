@@ -349,6 +349,7 @@ class PriceFactorFlow(BaseSimulationFlow):
             simulation_effective=simulation_effective_snapshot(
                 preprocessed.simulation_settings
             ),
+            stock_summaries=executed.stock_summaries,
         )
         self._impl.save_performance_report(
             output_version_dir=preprocessed.output_version_dir,

@@ -102,6 +102,8 @@ function StrategyReportPanel({
   const {
     enumRefStatus,
     enumRefRows,
+    priceRefStatus,
+    priceRefRows,
     availableTabs,
     resolvedActiveTab,
   } = useStrategyReportRemoteData({
@@ -162,7 +164,7 @@ function StrategyReportPanel({
     }
     if (tabKey === 'price') {
       const slot = slotFromResultReport(reportSource, 'price');
-      return { priceMetrics: normalizePriceMetricsFromSummary(slot), stockRows: [] };
+      return { priceMetrics: normalizePriceMetricsFromSummary(slot), stockRows: priceStockRowsForGrid };
     }
     const slot = slotFromResultReport(reportSource, 'capital');
     return {
@@ -189,6 +191,13 @@ function StrategyReportPanel({
     }
     return [];
   }, [enumRefRows, enumRefStatus]);
+
+  const priceStockRowsForGrid = useMemo(() => {
+    if (priceRefStatus === 'ok' && Array.isArray(priceRefRows) && priceRefRows.length > 0) {
+      return priceRefRows;
+    }
+    return [];
+  }, [priceRefRows, priceRefStatus]);
 
   const renderReportByTab = (tabKey, reportData, title, options = {}) => {
     const unavailableZh = options.unavailableHintZh ?? REPORT_BLOCK_UNAVAILABLE_ZH;
@@ -228,7 +237,12 @@ function StrategyReportPanel({
           stockRows={reportData.stockRows}
           title={title}
           showStockGrid={options.showStockGrid !== false}
+          stockGridOverlay={options.stockGridOverlay}
+          priceRefStockTotal={options.priceRefStockTotal}
+          stockGridLoading={Boolean(options.stockGridLoading)}
           hideTitle={Boolean(options.hideTitle)}
+          onStockSelect={options.onStockSelect}
+          stockLinkEnabled={Boolean(options.stockLinkEnabled)}
         />
       );
     }
@@ -348,11 +362,36 @@ function StrategyReportPanel({
     }
 
     if (resolvedActiveTab === 'price') {
+      if (reportStockView === 'detail' && selectedStock) {
+        return (
+          <ReportStockDetailView
+            strategyName={strategyName}
+            versionId={activeWorkbenchVersionId}
+            stock={selectedStock}
+            initialStep="price"
+            stepStatus={executionState?.stepStatus || {}}
+            onBack={() => {
+              setReportStockView('list');
+              setSelectedStock(null);
+            }}
+          />
+        );
+      }
+
       return renderReportByTab(
         'price',
         buildMetricsPayloadForTab('price'),
         REPORT_TAB_SECTION_TITLES.price,
-        { hideTitle: true },
+        {
+          hideTitle: true,
+          priceRefStockTotal: priceRefStatus === 'ok' ? priceRefRows.length : undefined,
+          stockGridLoading: Boolean(activeWorkbenchVersionId) && priceRefStatus === 'loading',
+          stockLinkEnabled: executionState?.stepStatus?.price === 'done' && priceRefStatus === 'ok',
+          onStockSelect: (row) => {
+            setSelectedStock(row);
+            setReportStockView('detail');
+          },
+        },
       );
     }
 

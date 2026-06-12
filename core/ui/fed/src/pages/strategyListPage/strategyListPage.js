@@ -229,7 +229,7 @@ function StrategyListPage({
         </Alert>
       ) : null}
 
-      <Paper className="strategy-list-grid ntq-glass-blur">
+      <Paper className="strategy-list-grid">
         <Stack
           direction={{ xs: 'column', sm: 'row' }}
           alignItems={{ xs: 'stretch', sm: 'center' }}

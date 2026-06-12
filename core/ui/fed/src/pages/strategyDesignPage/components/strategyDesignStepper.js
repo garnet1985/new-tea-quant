@@ -9,13 +9,21 @@ import './strategyDesignStepper.scss';
 
 const STEPPER_RING_PX = 56;
 
-function StepperCircle({ step, visual, isLast }) {
+function StepperCircle({ step, visual, isLast, connectorDone = false }) {
   const ringPct = visual?.kind === 'running' ? visual.pct : 0;
   const stateClass = typeof visual === 'string' ? visual : visual?.kind || 'inactive-idle';
 
   return (
     <Box className={`ntq-design-stepper__item${isLast ? ' ntq-design-stepper__item--last' : ''}`}>
-      {!isLast ? <Box className="ntq-design-stepper__connector" aria-hidden /> : null}
+      {!isLast ? (
+        <Box
+          className={[
+            'ntq-design-stepper__connector',
+            connectorDone ? 'ntq-design-stepper__connector--done' : '',
+          ].filter(Boolean).join(' ')}
+          aria-hidden
+        />
+      ) : null}
       <Box
         className={[
           'ntq-design-stepper__step',
@@ -107,6 +115,10 @@ function StrategyDesignStepper() {
               step={step}
               visual={visual}
               isLast={idx === STRATEGY_DESIGN_STEPS.length - 1}
+              connectorDone={
+                idx < STRATEGY_DESIGN_STEPS.length - 1
+                && stepStatus[STRATEGY_DESIGN_STEPS[idx + 1].key] === 'done'
+              }
             />
           </Box>
         );

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   applyStrategySettingsToUserspace,
+  downloadStrategyPackage,
   fetchMarketProfileOptions,
   fetchStrategySettings,
   fetchStrategyVersionDetail,
@@ -100,6 +101,8 @@ export function useStrategyDesignWorkbench() {
   const [moreVersionsOpen, setMoreVersionsOpen] = useState(false);
   const [versionSearch, setVersionSearch] = useState('');
   const [versionPickerPage, setVersionPickerPage] = useState(1);
+  const [packageExporting, setPackageExporting] = useState(false);
+  const [packageExportError, setPackageExportError] = useState('');
 
   const lastRunSyncedVersionRef = useRef('');
   const snapshotSyncGenRef = useRef(0);
@@ -363,6 +366,19 @@ export function useStrategyDesignWorkbench() {
     }, 0);
   }, [openMoreVersionsDialog, requestApplyVersion]);
 
+  const handleExportStrategyPackage = useCallback(async () => {
+    if (!strategyName) return;
+    setPackageExporting(true);
+    setPackageExportError('');
+    try {
+      await downloadStrategyPackage(strategyName, { scope: 'bundle' });
+    } catch (e) {
+      setPackageExportError(e?.message || '导出失败');
+    } finally {
+      setPackageExporting(false);
+    }
+  }, [strategyName]);
+
   const confirmRestoreVersion = useCallback(() => {
     const target = versionMap[pendingVersionId];
     if (!target || !strategyName) {
@@ -453,7 +469,12 @@ export function useStrategyDesignWorkbench() {
   return {
     strategyName,
     activeStep: session.activeStep,
+    initialSettings,
+    draftSettings,
+    setDraftSettings,
     stepStatus: session.executionState?.stepStatus || {},
+    stepProgress: session.stepProgress || {},
+    runningStep: session.executionState?.runningStep || '',
     executionBusy: Boolean(session.executionState?.activeRunId || session.executionState?.runningStep),
     strategyDisplayName,
     strategyDescription,
@@ -465,6 +486,9 @@ export function useStrategyDesignWorkbench() {
     hasOtherVersions,
     restoreDropdownVersions,
     disableMetaActions,
+    packageExporting,
+    packageExportError,
+    setPackageExportError,
     isLoadingSettings,
     settingsError,
     saveError,
@@ -487,6 +511,7 @@ export function useStrategyDesignWorkbench() {
     configVersions,
     selectedConfigVersion,
     handleRestoreMenuChange,
+    handleExportStrategyPackage,
     closeVersionsDialog,
     requestApplyVersion,
     confirmRestoreVersion,

@@ -1,0 +1,103 @@
+import React, { useCallback } from 'react';
+import { Alert, Box, Grid, Stack, Typography } from '@mui/material';
+import StrategyDesignExecutionPanel from './components/strategyDesignExecutionPanel';
+import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
+import StrategySettingsContainer from '../strategyWorkbenchPage/panels/strategySettingsPanel/containers/strategySettingsContainer';
+import StrategyDesignDraftSync from './components/strategyDesignDraftSync';
+import StrategyDesignSettingsPanel from './components/strategyDesignSettingsPanel';
+import { useStrategyDesignSettingsOptions } from './hooks/useStrategyDesignSettingsOptions';
+import { useStrategyDesignWorkbenchContext } from './strategyDesignWorkbenchContext';
+import './strategyDesignStepPage.scss';
+
+function StrategyDesignReportPlaceholder() {
+  return (
+    <Box className="ntq-design-step-report">
+      <Typography variant="subtitle2" fontWeight={600} className="ntq-design-step-report__title">
+        回测报告
+      </Typography>
+      <Typography variant="body2" color="text.secondary" className="ntq-design-step-report__empty">
+        在执行面板点击开始来产出报告
+      </Typography>
+    </Box>
+  );
+}
+
+function StrategyDesignStepPage() {
+  const wb = useStrategyDesignWorkbenchContext();
+  const options = useStrategyDesignSettingsOptions();
+
+  const handleDraftSync = useCallback((nextDraft) => {
+    wb.setDraftSettings(nextDraft);
+  }, [wb]);
+
+  if (wb.isLoadingSettings) {
+    return (
+      <Box className="ntq-design-step-page">
+        <InlineLoadingState compact row message="正在加载策略设置…" />
+      </Box>
+    );
+  }
+
+  return (
+    <Box className="ntq-design-step-page">
+      {wb.settingsError ? (
+        <Alert severity="warning" sx={{ mb: 1.5 }}>{wb.settingsError}</Alert>
+      ) : null}
+      {options.optionsError ? (
+        <Alert severity="warning" sx={{ mb: 1.5 }}>{options.optionsError}</Alert>
+      ) : null}
+      <StrategySettingsContainer initialSettings={wb.initialSettings}>
+        {({
+          draftSettings,
+          setDraftSettings,
+          coreEditor,
+          onGoalChange,
+          onSamplingChange,
+          onFeesChange,
+          onSimulationChange,
+          onPriceSimulatorChange,
+          onCapitalSimulatorChange,
+        }) => (
+          <>
+            <StrategyDesignDraftSync
+              draftSettings={draftSettings}
+              onDraftSettingsChange={handleDraftSync}
+            />
+            <Grid container spacing={2} className="ntq-design-step-page__grid">
+              <Grid item xs={12} md={3}>
+                <Box className="ntq-design-step-page__settings">
+                  <StrategyDesignSettingsPanel
+                    activeStep={wb.activeStep}
+                    settings={draftSettings}
+                    onSettingsChange={setDraftSettings}
+                    coreEditor={coreEditor}
+                    onGoalChange={onGoalChange}
+                    onSamplingChange={onSamplingChange}
+                    onFeesChange={onFeesChange}
+                    onSimulationChange={onSimulationChange}
+                    onPriceSimulatorChange={onPriceSimulatorChange}
+                    onCapitalSimulatorChange={onCapitalSimulatorChange}
+                    allocationModeOptions={options.allocationModeOptions}
+                    samplingStrategyOptions={options.samplingStrategyOptions}
+                    simulationTemplateOptions={options.simulationTemplateOptions}
+                    simulationTemplateProfiles={options.simulationTemplateProfiles}
+                    skipInvestmentWhenOptions={options.skipInvestmentWhenOptions}
+                    marketProfileOptions={options.marketProfileOptions}
+                  />
+                </Box>
+              </Grid>
+              <Grid item xs={12} md={9}>
+                <Stack spacing={1.5} className="ntq-design-step-page__right">
+                  <StrategyDesignExecutionPanel />
+                  <StrategyDesignReportPlaceholder />
+                </Stack>
+              </Grid>
+            </Grid>
+          </>
+        )}
+      </StrategySettingsContainer>
+    </Box>
+  );
+}
+
+export default StrategyDesignStepPage;

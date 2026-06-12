@@ -43,12 +43,24 @@
 
 .ntq-design-stepper__connector {
   position: absolute;
-  top: calc(var(--ntq-stepper-ring) / 2 - 0.5px);
-  left: calc(var(--ntq-stepper-ring) + 6px);
-  width: calc(var(--ntq-stepper-gap) - 12px);
-  height: 1px;
-  background: rgba(255, 255, 255, 0.1);
+  z-index: 0;
+  top: calc(var(--ntq-stepper-ring) / 2 - 1px);
+  /* 从当前圆右缘接到下一圆左缘，中间不留空隙 */
+  left: calc(
+    (var(--ntq-stepper-ring) - var(--ntq-stepper-circle)) / 2 + var(--ntq-stepper-circle)
+  );
+  width: calc(
+    var(--ntq-stepper-gap)
+    + var(--ntq-stepper-ring)
+    - var(--ntq-stepper-circle)
+  );
+  height: 2px;
+  background: rgba(255, 255, 255, 0.12);
   pointer-events: none;
+}
+
+.ntq-design-stepper__connector--done {
+  background: rgba(76, 175, 80, 0.45);
 }
 
 .ntq-design-stepper__step {

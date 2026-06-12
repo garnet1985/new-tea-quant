@@ -6,6 +6,7 @@
 
 html {
   height: 100%;
+  background-color: var(--ntq-ink);
   // 与 body 同步：窄视口时允许横向滚动，避免内容被 hidden 裁切后压扁
   overflow-x: auto;
 }

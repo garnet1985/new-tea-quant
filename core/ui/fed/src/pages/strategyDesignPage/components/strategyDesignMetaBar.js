@@ -1,26 +1,23 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import {
   Box,
   Button,
-  Chip,
   ListSubheader,
   MenuItem,
   Select,
   Stack,
   Typography,
 } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
-import { getStrategyDesignPath } from '../../../api/apis/strategyApi';
 import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
+import NtqIcon from 'components/ntqIcon/ntqIcon';
 import StrategyDescriptionText from 'components/strategyDescriptionText/strategyDescriptionText';
-import StrategyDesignSimulateButton from './strategyDesignSimulateButton';
-import { STRATEGY_DESIGN_STEP_INTRO, STRATEGY_DESIGN_STEPS } from '../constants/strategyDesignSteps';
+import { STRATEGY_DESIGN_STEP_INTRO } from '../constants/strategyDesignSteps';
 import { DESIGN_RESTORE_MORE_MENU_VALUE } from '../constants/strategyDesignMetaConstants';
 import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchContext';
+import StrategyDesignStepper from './strategyDesignStepper';
 import './strategyDesignMetaBar.scss';
 
 function StrategyDesignMetaBar() {
-  const navigate = useNavigate();
   const wb = useStrategyDesignWorkbenchContext();
 
   const stepIntro = useMemo(() => {
@@ -28,19 +25,6 @@ function StrategyDesignMetaBar() {
     if (!intro) return { title: '制定策略', summary: '' };
     return intro;
   }, [wb.activeStep]);
-
-  const nextStep = useMemo(() => {
-    const idx = STRATEGY_DESIGN_STEPS.findIndex((step) => step.key === wb.activeStep);
-    if (idx < 0 || idx >= STRATEGY_DESIGN_STEPS.length - 1) return null;
-    return STRATEGY_DESIGN_STEPS[idx + 1];
-  }, [wb.activeStep]);
-
-  const currentStepDone = wb.stepStatus?.[wb.activeStep] === 'done';
-
-  const handleGoNextStep = useCallback(() => {
-    if (!nextStep || !wb.strategyName || !currentStepDone) return;
-    navigate(getStrategyDesignPath(wb.strategyName, nextStep.key));
-  }, [currentStepDone, navigate, nextStep, wb.strategyName]);
 
   if (wb.isLoadingSettings) {
     return (
@@ -66,123 +50,116 @@ function StrategyDesignMetaBar() {
             </>
           ) : null}
         </Typography>
+        <Box className="ntq-design-meta__page-title-stepper">
+          <StrategyDesignStepper />
+        </Box>
       </Box>
 
       <Box className="ntq-design-meta__body">
-        <Box className="ntq-design-meta__main">
-        <Typography variant="h6" fontWeight={700} className="ntq-design-meta__strategy-name">
-          {wb.strategyDisplayName || wb.strategyName}
-        </Typography>
-
-        <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" className="ntq-design-meta__tags">
-          <Chip
-            size="small"
-            color={wb.isEnabled ? 'success' : 'default'}
-            label={wb.isEnabled ? '已启用' : '已禁用'}
-          />
-          <Chip
-            size="small"
-            variant="outlined"
-            label={wb.marketProfileLabel}
-            className="ntq-design-meta__chip"
-          />
-          {wb.hasPersistedSnapshot ? (
-            <Box
-              className={[
-                'ntq-design-meta__version-capsule',
-                wb.isAppliedSettings
-                  ? 'ntq-design-meta__version-capsule--clean'
-                  : 'ntq-design-meta__version-capsule--changed',
-              ].join(' ')}
-            >
-              <Box component="span" className="ntq-design-meta__version-capsule-part ntq-design-meta__version-capsule-part--version">
-                {wb.currentVersionDisplay}
-              </Box>
-              <Box component="span" className="ntq-design-meta__version-capsule-sep" aria-hidden />
-              <Box component="span" className="ntq-design-meta__version-capsule-part ntq-design-meta__version-capsule-part--status">
-                {wb.isAppliedSettings ? '无设置变化' : '设置已变更'}
-              </Box>
-            </Box>
-          ) : null}
-        </Stack>
-
-        <StrategyDescriptionText
-          text={wb.strategyDescription}
-          variant="body2"
-          color="text.secondary"
-          empty="暂无策略描述"
-          maxLines={3}
-          className="ntq-design-meta__description"
-        />
-
-        <Stack direction="row" spacing={0} alignItems="center" flexWrap="wrap" className="ntq-design-meta__admin">
-          <Button
-            variant="outlined"
-            size="small"
-            disabled={wb.disableMetaActions}
-            onClick={() => {
-              wb.setSaveError('');
-              wb.setUserspaceApplyOk('');
-              wb.setDeployConfirmOpen(true);
-            }}
-            className="ntq-design-meta__publish-btn"
-          >
-            应用当前工作台版本到策略
-          </Button>
-          {wb.hasOtherVersions ? (
-            <>
-              <Typography component="span" className="ntq-design-meta__admin-sep" aria-hidden>
-                |
-              </Typography>
-              <Select
-                size="small"
-                displayEmpty
-                value=""
-                renderValue={() => '恢复到版本…'}
-                onChange={wb.handleRestoreMenuChange}
-                disabled={wb.disableMetaActions}
-                sx={{ minWidth: 148 }}
-                className="ntq-compact-dropdown ntq-design-meta__restore-select"
+        <Box className="ntq-design-meta__info">
+          <Box className="ntq-design-meta__title-row">
+            <Typography variant="h6" fontWeight={700} className="ntq-design-meta__strategy-name">
+              {wb.strategyDisplayName || wb.strategyName}
+            </Typography>
+            {wb.hasPersistedSnapshot ? (
+              <Box
+                className={[
+                  'ntq-design-meta__version-capsule',
+                  wb.isAppliedSettings
+                    ? 'ntq-design-meta__version-capsule--clean'
+                    : 'ntq-design-meta__version-capsule--changed',
+                ].join(' ')}
               >
-                <ListSubheader disableSticky>恢复到版本…</ListSubheader>
-                {wb.restoreDropdownVersions.map((version) => (
-                  <MenuItem key={version.id} value={version.id}>{version.id}</MenuItem>
-                ))}
-                <MenuItem value={DESIGN_RESTORE_MORE_MENU_VALUE}>更多版本…</MenuItem>
-              </Select>
-            </>
-          ) : null}
-        </Stack>
+                <Box component="span" className="ntq-design-meta__version-capsule-part ntq-design-meta__version-capsule-part--version">
+                  {wb.currentVersionDisplay}
+                </Box>
+                <Box component="span" className="ntq-design-meta__version-capsule-sep" aria-hidden />
+                <Box component="span" className="ntq-design-meta__version-capsule-part ntq-design-meta__version-capsule-part--status">
+                  {wb.isAppliedSettings ? '无设置变化' : '设置已变更'}
+                </Box>
+              </Box>
+            ) : null}
+          </Box>
 
-        {wb.settingsError ? (
-          <Typography variant="caption" color="error">{wb.settingsError}</Typography>
-        ) : null}
-        {wb.saveError ? (
-          <Typography variant="caption" color="error">{wb.saveError}</Typography>
-        ) : null}
-        {wb.userspaceApplyOk ? (
-          <Typography variant="caption" color="success.main">{wb.userspaceApplyOk}</Typography>
-        ) : null}
+          <Stack direction="row" spacing={0} alignItems="center" flexWrap="nowrap" className="ntq-design-meta__admin">
+            <Button
+              variant="outlined"
+              size="small"
+              disabled={wb.disableMetaActions}
+              onClick={() => {
+                wb.setSaveError('');
+                wb.setUserspaceApplyOk('');
+                wb.setDeployConfirmOpen(true);
+              }}
+              className="ntq-design-meta__admin-action ntq-design-meta__publish-btn"
+              title="将当前工作台版本发布到策略 settings.py"
+            >
+              发布策略
+            </Button>
+            {wb.hasPersistedSnapshot ? (
+              <>
+                <Typography component="span" className="ntq-design-meta__admin-sep" aria-hidden>
+                  |
+                </Typography>
+                <Select
+                  size="small"
+                  displayEmpty
+                  value=""
+                  renderValue={() => '恢复到历史版本'}
+                  onChange={wb.handleRestoreMenuChange}
+                  disabled={wb.disableMetaActions || !wb.hasOtherVersions}
+                  className="ntq-compact-dropdown ntq-design-meta__admin-action ntq-design-meta__version-select"
+                >
+                  <ListSubheader disableSticky>恢复到历史版本</ListSubheader>
+                  {wb.restoreDropdownVersions.map((version) => (
+                    <MenuItem key={version.id} value={version.id}>{version.id}</MenuItem>
+                  ))}
+                  <MenuItem value={DESIGN_RESTORE_MORE_MENU_VALUE}>更多版本…</MenuItem>
+                </Select>
+              </>
+            ) : null}
+            {wb.strategyName ? (
+              <>
+                <Typography component="span" className="ntq-design-meta__admin-sep" aria-hidden>
+                  |
+                </Typography>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  disabled={wb.packageExporting}
+                  onClick={wb.handleExportStrategyPackage}
+                  className="ntq-design-meta__admin-action ntq-design-meta__export-btn"
+                  startIcon={<NtqIcon name="download" size={16} tone="muted" />}
+                >
+                  {wb.packageExporting ? '导出中…' : '导出策略'}
+                </Button>
+              </>
+            ) : null}
+          </Stack>
+
+          {wb.settingsError ? (
+            <Typography variant="caption" color="error">{wb.settingsError}</Typography>
+          ) : null}
+          {wb.saveError ? (
+            <Typography variant="caption" color="error">{wb.saveError}</Typography>
+          ) : null}
+          {wb.userspaceApplyOk ? (
+            <Typography variant="caption" color="success.main">{wb.userspaceApplyOk}</Typography>
+          ) : null}
+          {wb.packageExportError ? (
+            <Typography variant="caption" color="error">{wb.packageExportError}</Typography>
+          ) : null}
         </Box>
 
-        <Box className="ntq-design-meta__run-wrap">
-          <StrategyDesignSimulateButton
-            done={currentStepDone}
-            disabled={wb.disableMetaActions || wb.executionBusy}
-            onClick={wb.handleRunCurrentStep}
+        <Box className="ntq-design-meta__description-col">
+          <StrategyDescriptionText
+            text={wb.strategyDescription}
+            variant="body2"
+            color="text.secondary"
+            empty="暂无策略描述"
+            maxLines={6}
+            className="ntq-design-meta__description"
           />
-          {nextStep ? (
-            <Button
-              type="button"
-              variant="outlined"
-              size="medium"
-              className="ntq-design-meta__next-btn"
-              disabled={!currentStepDone}
-              onClick={handleGoNextStep}
-            >
-              下一步
-            </Button>
-          ) : null}
         </Box>
       </Box>
     </Box>

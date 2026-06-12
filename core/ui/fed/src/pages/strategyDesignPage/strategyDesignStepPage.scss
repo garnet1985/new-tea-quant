@@ -1,0 +1,90 @@
+.ntq-design-step-page {
+  width: 100%;
+  min-height: 480px;
+}
+
+.ntq-design-step-page__settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ntq-design-step-page__grid {
+  align-items: flex-start;
+}
+
+.ntq-design-settings-panel {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 5px;
+
+  /* 两个顶层块拼成一个大圆角矩形：仅最上、最下圆角，中间边框重叠 */
+  > .MuiAccordion-root {
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0 !important;
+    background: rgba(255, 255, 255, 0.06);
+    margin: 0 !important;
+    box-shadow: none;
+
+    &::before {
+      display: none;
+    }
+
+    &:first-of-type {
+      z-index: 1;
+      border-radius: 5px 5px 0 0 !important;
+      border-bottom: none;
+      margin-bottom: -1px !important;
+    }
+
+    &:last-of-type {
+      border-radius: 0 0 5px 5px !important;
+    }
+  }
+
+  > .MuiAccordion-root .MuiAccordionSummary-root {
+    min-height: 44px;
+  }
+
+  > .MuiAccordion-root .MuiAccordionDetails-root {
+    padding-top: 4px;
+    padding-bottom: 12px;
+  }
+
+  /* 内层子 accordion 保持独立小卡片 */
+  .MuiAccordionDetails-root > .MuiStack-root > .MuiAccordion-root {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 5px !important;
+    background: rgba(255, 255, 255, 0.04);
+
+    &::before {
+      display: none;
+    }
+
+    & + .MuiAccordion-root {
+      margin-top: 8px;
+    }
+  }
+}
+
+.ntq-design-step-report {
+  box-sizing: border-box;
+  min-height: 480px;
+  padding: 16px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ntq-design-step-report__title {
+  margin-bottom: 8px;
+}
+
+.ntq-design-step-report__empty {
+  padding-top: 8px;
+}
+
+.ntq-design-step-page__right {
+  width: 100%;
+}

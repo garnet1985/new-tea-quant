@@ -1,19 +1,19 @@
 import React, { useMemo } from 'react';
 import { Box } from '@mui/material';
-import { Navigate, Outlet, useParams } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 import {
   getStrategyDesignPath,
   getStrategyDisplayLabel,
 } from '../../api/apis/strategyApi';
 import StrategyDesignMetaBar from './components/strategyDesignMetaBar';
 import StrategyDesignMetaDialogs from './components/strategyDesignMetaDialogs';
-import StrategyDesignStepper from './components/strategyDesignStepper';
 import { STRATEGY_DESIGN_DEFAULT_STEP } from './constants/strategyDesignSteps';
 import { parseStrategyDesignRoute } from './lib/parseStrategyDesignRoute';
 import { readCachedStrategyDesignStep } from './strategyDesignSessionState';
 import { StrategyDesignProvider } from './strategyDesignContext';
 import { StrategyDesignWorkbenchProvider } from './strategyDesignWorkbenchContext';
 import StrategyDesignShell from './strategyDesignShell';
+import StrategyDesignStepPage from './strategyDesignStepPage';
 
 /**
  * 制定策略顶层容器：面包屑 + Stepper + 步内 Outlet。
@@ -46,13 +46,10 @@ function StrategyDesignLayout() {
           ]}
           breadcrumbsCurrent={displayLabel || strategyName}
         >
-          <Box className="strategy-design-shell__stepper-wrap">
-            <StrategyDesignStepper />
-          </Box>
           <StrategyDesignMetaBar />
           <StrategyDesignMetaDialogs />
           <Box className="ntq-page__body strategy-design-shell__body">
-            <Outlet />
+            <StrategyDesignStepPage />
           </Box>
         </StrategyDesignShell>
       </StrategyDesignWorkbenchProvider>

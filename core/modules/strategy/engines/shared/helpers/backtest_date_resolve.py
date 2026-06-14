@@ -76,12 +76,7 @@ def _calendar_service(data_manager: Any) -> Any:
 
 
 def kline_term_from_settings_view(view: StrategySettingsView) -> str:
-    base = view.data.get("base_required_data")
-    if not isinstance(base, dict):
-        return "daily"
-    p = StrategySettingsView.normalize_base_required_data(base).get("params") or {}
-    term = str(p.get("term", "") or "").strip()
-    return term or "daily"
+    return view.base_kline_term
 
 
 def _load_earliest_kline_date(

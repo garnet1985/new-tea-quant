@@ -31,8 +31,8 @@ def test_load_scenario_settings_success():
             "data": {
                 "required": [
                     {
-                        "data_id": "stock.kline",
-                        "params": {"term": "daily", "adjust": "qfq"},
+                        "data_id": "stock.kline.daily",
+                        "params": {"adjust": "qfq"},
                     }
                 ]
             },

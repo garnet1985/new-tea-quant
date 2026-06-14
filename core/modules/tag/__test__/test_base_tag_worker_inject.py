@@ -13,8 +13,8 @@ class _DummyWorker(BaseTagWorker):
 def test_preprocess_uses_inline_inject_without_hydrate():
     inject = {
         "trading_dates": ["20250101"],
-        "time_field_overrides": {"stock.kline": "date"},
-        "slot_data": {"stock.kline": [{"date": "20250101"}]},
+        "time_field_overrides": {"stock.kline.daily": "date"},
+        "slot_data": {"stock.kline.daily": [{"date": "20250101"}]},
     }
     payload = {
         "entity_id": "000001",

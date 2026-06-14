@@ -28,7 +28,9 @@
 | `DataKey` | scope | type | 说明（loader） |
 | --- | --- | --- | --- |
 | `STOCK_LIST` | GLOBAL | 非时序 | 股票列表 |
-| `STOCK_KLINE` | PER_ENTITY | 时序 | 股票 K 线（`adjust`/`term` 等由 params） |
+| `STOCK_KLINE_DAILY` | PER_ENTITY | 时序 | 股票日 K（`adjust` 等由 params） |
+| `STOCK_KLINE_WEEKLY` | PER_ENTITY | 时序 | 股票周 K |
+| `STOCK_KLINE_MONTHLY` | PER_ENTITY | 时序 | 股票月 K |
 | `TAG` | PER_ENTITY | 时序 | 标签值（scenario 等由 params / loader） |
 | `STOCK_CORPORATE_FINANCE` | PER_ENTITY | 时序 | 财报季频 |
 | `STOCK_ADJ_FACTOR_EVENTS` | PER_ENTITY | 时序 | 复权事件 |
@@ -55,7 +57,7 @@
 ### 签发与返回
 
 ```text
-issue(STOCK_KLINE, entity_ids=[A, B, C], start=..., end=..., **params)
+issue(STOCK_KLINE_DAILY, entity_ids=[A, B, C], start=..., end=..., **params)
   → IssueResult(by_entity={
         A: DataContract(meta=..., data=rows_A),
         B: DataContract(...),

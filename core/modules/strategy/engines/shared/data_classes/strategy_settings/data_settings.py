@@ -93,7 +93,7 @@ class StrategyDataSettings(SettingsBase):
     def base_data_id(self) -> str:
         base = self.base_required_data
         if not base:
-            return DataKey.STOCK_KLINE.value
+            return DataKey.STOCK_KLINE_DAILY.value
         try:
             return StrategySettingsView.normalize_base_required_data(base)["data_id"]
         except ValueError:

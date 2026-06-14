@@ -87,8 +87,22 @@ class StrategyDataInjectionService:
         return self._dcf_mgr
 
     @staticmethod
-    def storage_key_for(data_id: DataKey) -> str:
-        return storage_key_for(data_id)
+    def storage_key_for(data_id: DataKey, *, is_base: bool = False) -> str:
+        return storage_key_for(data_id, is_base=is_base)
+
+    def _base_data_key(self, st: Optional[StrategySettingsView] = None) -> DataKey:
+        view = st if st is not None else self.settings
+        normalized = StrategySettingsView.normalize_base_required_data(view.base_required_data)
+        return DataKey(str(normalized["data_id"]))
+
+    def _slot_for_contract(
+        self,
+        dk: DataKey,
+        *,
+        st: Optional[StrategySettingsView] = None,
+    ) -> str:
+        is_base = dk == self._base_data_key(st)
+        return self.storage_key_for(dk, is_base=is_base)
 
     def issue_contracts(
         self,
@@ -185,13 +199,15 @@ class StrategyDataInjectionService:
         *,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
+        settings_view: Optional[StrategySettingsView] = None,
     ) -> None:
         dcm = self._contract_manager()
+        st = settings_view or self.settings
         self._slot_contracts = {}
         self._current_data = {}
         for dk, contract in contracts.items():
             spec = dcm.map.get(dk)
-            slot = self.storage_key_for(dk)
+            slot = self._slot_for_contract(dk, st=st)
             if (
                 spec
                 and spec.get("scope") == ContractScope.GLOBAL
@@ -271,7 +287,7 @@ class StrategyDataInjectionService:
                     end=end_date,
                     **params,
                 ).require_contract()
-            slot = self.storage_key_for(dk)
+            slot = self._slot_for_contract(dk)
             if (
                 spec
                 and spec.get("scope") == ContractScope.GLOBAL
@@ -397,7 +413,7 @@ class StrategyDataInjectionService:
 
             params = dict(item.get("params") or {})
             c = dcm.issue(dk, start=start_date, end=end_date, **params).require_contract()
-            out[storage_key_for(dk)] = list(c.data or [])
+            out[storage_key_for(dk, is_base=False)] = list(c.data or [])
         return out
 
 

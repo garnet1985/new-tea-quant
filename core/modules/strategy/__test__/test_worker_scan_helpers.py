@@ -65,7 +65,7 @@ class TestWorkerScanHelpers(unittest.TestCase):
                     "is_enabled": True,
                     "meta": {"display_name": "probe"},
                     "core": {},
-                    "data": {"base_required_data": {"params": {"term": "daily", "adjust": "qfq"}}},
+                    "data": {"base_required_data": {"data_id": "stock.kline.daily", "params": {"adjust": "qfq"}}},
                 },
                 "scan_date": "20240102",
             }

@@ -9,6 +9,10 @@ from typing import Any, Dict, List
 
 from core.modules.data_contract.contract_const import DataKey
 from core.modules.market_profile.constants import DEFAULT_PROFILE_ID
+from core.modules.data_contract.kline_keys import (
+    STOCK_KLINE_DATA_ID_VALUES,
+    kline_term_from_data_id_value,
+)
 
 from .goal_settings import StrategyGoalSettings
 from .simulation_settings import StrategySimulationSettings
@@ -67,20 +71,17 @@ class StrategySettingsView:
 
         raw_id = raw.get("data_id")
         if raw_id is None or (isinstance(raw_id, str) and not raw_id.strip()):
-            data_id = DataKey.STOCK_KLINE.value
+            data_id = DataKey.STOCK_KLINE_DAILY.value
         else:
             data_id = str(raw_id).strip()
-            if data_id != DataKey.STOCK_KLINE.value:
+            if data_id not in STOCK_KLINE_DATA_ID_VALUES:
                 raise ValueError(
-                    f"data.base_required_data.data_id 只能为 {DataKey.STOCK_KLINE.value!r} 或省略；"
-                    "周期与复权请用 params.term / params.adjust"
+                    "data.base_required_data.data_id 须为 "
+                    f"{DataKey.STOCK_KLINE_DAILY.value!r}、"
+                    f"{DataKey.STOCK_KLINE_WEEKLY.value!r} 或 "
+                    f"{DataKey.STOCK_KLINE_MONTHLY.value!r}；"
+                    f"收到 {data_id!r}"
                 )
-
-        term = params.get("term")
-        if term is None or (isinstance(term, str) and not term.strip()):
-            raise ValueError(
-                "data.base_required_data.params 必须提供非空的 term（如 daily / weekly / monthly）"
-            )
 
         merged = dict(params)
         if "adjust" not in merged or (
@@ -106,12 +107,7 @@ class StrategySettingsView:
         elif not isinstance(params, dict):
             raise ValueError("数据源 params 必须为 dict")
 
-        if data_id == DataKey.STOCK_KLINE.value:
-            term = params.get("term")
-            if term is None or (isinstance(term, str) and not term.strip()):
-                raise ValueError(
-                    f"data_id 为 {DataKey.STOCK_KLINE.value} 时 params 必须提供非空的 term"
-                )
+        if data_id in STOCK_KLINE_DATA_ID_VALUES:
             merged = dict(params)
             if "adjust" not in merged or (
                 isinstance(merged.get("adjust"), str)
@@ -186,7 +182,20 @@ class StrategySettingsView:
     @property
     def tag_storage_entity_type(self) -> str:
         p = self.resolved_base_required_data.get("params") or {}
-        return str(p.get("tag_storage_entity_type", "stock_kline_daily"))
+        explicit = str(p.get("tag_storage_entity_type") or "").strip()
+        if explicit:
+            return explicit
+        data_id = str(self.resolved_base_required_data.get("data_id") or "").strip()
+        if data_id in STOCK_KLINE_DATA_ID_VALUES:
+            return f"stock_kline_{kline_term_from_data_id_value(data_id)}"
+        return "stock_kline_daily"
+
+    @property
+    def base_kline_term(self) -> str:
+        data_id = str(self.resolved_base_required_data.get("data_id") or "").strip()
+        if data_id in STOCK_KLINE_DATA_ID_VALUES:
+            return kline_term_from_data_id_value(data_id)
+        return "daily"
 
     @property
     def start_date(self) -> str:

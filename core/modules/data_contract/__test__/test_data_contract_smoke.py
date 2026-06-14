@@ -46,15 +46,16 @@ def test_stock_list_issue_shape(mgr: DataContractManager):
 
 
 def test_kline_qfq_issue_shape(mgr: DataContractManager):
-    result = mgr.issue(DataKey.STOCK_KLINE, entity_id="600000.SH", adjust="qfq")
+    result = mgr.issue(DataKey.STOCK_KLINE_DAILY, entity_id="600000.SH", adjust="qfq")
     assert isinstance(result, IssueResult)
     assert result.entity_count == 1
     c = result.require_one()
-    assert c.meta.data_id == DataKey.STOCK_KLINE
+    assert c.meta.data_id == DataKey.STOCK_KLINE_DAILY
     assert c.meta.scope == ContractScope.PER_ENTITY
     assert isinstance(c, TimeSeriesContract)
     assert isinstance(c.loader, StockKlineLoader)
     assert c.loader_params.get("adjust") == "qfq"
+    assert c.loader_params.get("term") == "daily"
     assert c.data is None
 
 

@@ -3,22 +3,34 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.modules.data_contract.contract_const import DataKey
 from core.modules.data_manager import DataManager
 from core.modules.tag.components.job_staging.tag_prior_values import fetch_prior_tag_values_batch
+from core.modules.data_contract.kline_keys import (
+    is_stock_kline_data_id_value,
+    kline_term_from_data_id_value,
+)
 from core.utils.date.date_utils import DateUtils
 
 
-def kline_params_from_settings(settings: Dict[str, Any]) -> Tuple[str, str]:
-    """从 scenario settings 解析 stock.kline 的 term / adjust。"""
+def kline_declaration_from_settings(
+    settings: Dict[str, Any],
+) -> Tuple[str, str, str]:
+    """从 scenario settings 解析 K 线 data_id / term / adjust。"""
     for item in (settings.get("data") or {}).get("required") or []:
-        if str(item.get("data_id") or "").strip() != DataKey.STOCK_KLINE.value:
+        data_id = str(item.get("data_id") or "").strip()
+        if not is_stock_kline_data_id_value(data_id):
             continue
         params = dict(item.get("params") or {})
-        term = str(params.get("term") or "daily")
+        term = kline_term_from_data_id_value(data_id)
         adjust = str(params.get("adjust") or "qfq").lower()
-        return term, adjust
-    return "daily", "qfq"
+        return data_id, term, adjust
+    return "stock.kline.daily", "daily", "qfq"
+
+
+def kline_params_from_settings(settings: Dict[str, Any]) -> Tuple[str, str]:
+    """兼容旧调用：返回 (term, adjust)。"""
+    _, term, adjust = kline_declaration_from_settings(settings)
+    return term, adjust
 
 
 def trading_dates_from_rows(
@@ -65,7 +77,7 @@ def stage_entities_batch(
     batch_start = min(starts) if starts else ""
     batch_end = max(ends) if ends else ""
 
-    term, adjust = kline_params_from_settings(settings)
+    kline_slot, term, adjust = kline_declaration_from_settings(settings)
     kline_by_id = data_mgr.stock.kline.load_batch(
         entity_ids,
         term=term,
@@ -80,7 +92,6 @@ def stage_entities_batch(
         tag_definition_ids=tag_definition_ids,
     )
 
-    kline_slot = DataKey.STOCK_KLINE.value
     time_field = "date"
     out: Dict[str, Dict[str, Any]] = {}
     for ent in entities:

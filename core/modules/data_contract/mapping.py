@@ -35,6 +35,20 @@ class DataSpec(TypedDict, total=False):
 DataSpecMap = Dict[DataKey, DataSpec]
 
 
+def _stock_kline_spec(*, term: str, display_name: str) -> DataSpec:
+    return {
+        "scope": ContractScope.PER_ENTITY,
+        "type": ContractType.TIME_SERIES,
+        "unique_keys": ["date", "stock_id"],
+        "time_axis_field": "date",
+        "time_axis_format": "YYYYMMDD",
+        "loader": StockKlineLoader,
+        "entity_list_data_id": DataKey.STOCK_LIST,
+        "display_name": display_name,
+        "defaults": {"term": term},
+    }
+
+
 default_map: DataSpecMap = {
     DataKey.STOCK_LIST: {
         "scope": ContractScope.GLOBAL,
@@ -44,17 +58,9 @@ default_map: DataSpecMap = {
         "display_name": "Stock List",
         "defaults": {},
     },
-    DataKey.STOCK_KLINE: {
-        "scope": ContractScope.PER_ENTITY,
-        "type": ContractType.TIME_SERIES,
-        "unique_keys": ["date", "stock_id"],
-        "time_axis_field": "date",
-        "time_axis_format": "YYYYMMDD",
-        "loader": StockKlineLoader,
-        "entity_list_data_id": DataKey.STOCK_LIST,
-        "display_name": "Stock Kline（由 params 指定 adjust/term）",
-        "defaults": {},
-    },
+    DataKey.STOCK_KLINE_DAILY: _stock_kline_spec(term="daily", display_name="Stock Kline Daily"),
+    DataKey.STOCK_KLINE_WEEKLY: _stock_kline_spec(term="weekly", display_name="Stock Kline Weekly"),
+    DataKey.STOCK_KLINE_MONTHLY: _stock_kline_spec(term="monthly", display_name="Stock Kline Monthly"),
     # 统一 tag：存储含 as_of_date，故为时序；通过 tag_scenario / scenario_id 区分场景（见 TagLoader）
     DataKey.TAG: {
         "scope": ContractScope.PER_ENTITY,

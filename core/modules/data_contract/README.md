@@ -27,14 +27,13 @@ dcm = DataContractManager(contract_cache=cache)
 c = dcm.issue(DataKey.STOCK_LIST)
 rows = c.data if c.data is not None else c.load()
 
-# PER_ENTITY 时序
+# PER_ENTITY 时序（K 线周期见 data_id：stock.kline.daily / weekly / monthly）
 result = dcm.issue(
-    DataKey.STOCK_KLINE,
+    DataKey.STOCK_KLINE_DAILY,
     entity_ids=["000001.SZ", "000002.SZ"],
     start="20240101",
     end="20241231",
     adjust="qfq",
-    term="daily",
 )
 rows_a = result.by_entity["000001.SZ"].data
 cache.exit_strategy_run()

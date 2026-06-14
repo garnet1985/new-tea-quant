@@ -13,7 +13,7 @@ def test_stage_entities_batch_bulk_io():
     settings = {
         "data": {
             "required": [
-                {"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}},
+                {"data_id": "stock.kline.daily", "params": {"adjust": "qfq"}},
             ]
         }
     }
@@ -37,4 +37,4 @@ def test_stage_entities_batch_bulk_io():
     mock_dm.stock.kline.load_batch.assert_called_once()
     assert set(out.keys()) == {"000001", "000002"}
     assert out["000001"]["prior_tag_values"]["1"] == "true"
-    assert "stock.kline" in out["000001"]["slot_data"]
+    assert "stock.kline.daily" in out["000001"]["slot_data"]

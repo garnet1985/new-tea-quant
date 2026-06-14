@@ -15,7 +15,6 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_vi
 )
 from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
     _normalize_backtest_period_dict,
-    kline_term_from_settings_view,
     resolve_backtest_period_payload,
     resolve_latest_completed_trading_date,
 )
@@ -467,7 +466,11 @@ def _load_candles_and_indicators(
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     base = settings_view.resolved_base_required_data
     params = base.get("params") or {}
-    term = str(params.get("term") or kline_term_from_settings_view(settings_view) or "daily").strip()
+    term = (
+        settings_view.base_kline_term
+        if settings_view is not None
+        else "daily"
+    )
     adjust = str(params.get("adjust") or settings_view.adjust_type or "qfq").strip() or "qfq"
     start = str(backtest_period.get("start_date") or "").strip()
     end = str(backtest_period.get("end_date") or "").strip()
@@ -763,7 +766,8 @@ def build_stock_detail_message(
         if settings_view is not None:
             p = settings_view.resolved_base_required_data.get("params") or {}
             kline_params = {
-                "term": str(p.get("term") or "daily").strip(),
+                "data_id": str(settings_view.resolved_base_required_data.get("data_id") or ""),
+                "term": settings_view.base_kline_term,
                 "adjust": str(p.get("adjust") or "qfq").strip(),
             }
 

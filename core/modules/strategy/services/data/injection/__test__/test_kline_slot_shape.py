@@ -15,11 +15,10 @@ class TestKlineSlotShape(unittest.TestCase):
     def test_stock_kline_loader_returns_standard_ohlc(self):
         dcm = DataContractManager(contract_cache=ContractCacheManager())
         contract = dcm.issue(
-            DataKey.STOCK_KLINE,
+            DataKey.STOCK_KLINE_DAILY,
             entity_id="000019.SZ",
             start="20230601",
             end="20230610",
-            term="daily",
             adjust="qfq",
         ).require_contract()
         contract.load(start="20230601", end="20230610")
@@ -33,7 +32,10 @@ class TestKlineSlotShape(unittest.TestCase):
     def test_injection_service_klines_slot_matches_contract(self):
         view = StrategySettingsView.from_dict({
             "data": {
-                "base_required_data": {"params": {"term": "daily", "adjust": "qfq"}},
+                "base_required_data": {
+                    "data_id": "stock.kline.daily",
+                    "params": {"adjust": "qfq"},
+                },
                 "indicators": {},
             }
         })
@@ -51,6 +53,30 @@ class TestKlineSlotShape(unittest.TestCase):
         self.assertIn("high", row)
         self.assertIn("low", row)
         self.assertNotIn("qfq_close", row)
+
+    def test_daily_base_and_weekly_extra_use_distinct_slots(self):
+        view = StrategySettingsView.from_dict({
+            "data": {
+                "base_required_data": {
+                    "data_id": "stock.kline.daily",
+                    "params": {"adjust": "qfq"},
+                },
+                "extra_required_data_sources": [
+                    {"data_id": "stock.kline.weekly", "params": {"adjust": "qfq"}},
+                ],
+                "indicators": {},
+            }
+        })
+        svc = StrategyDataInjectionService(
+            "000019.SZ",
+            view,
+            contract_cache=ContractCacheManager(),
+        )
+        svc.hydrate_row_slots("20230601", "20230630", fresh_strategy_cache=True)
+        loaded = svc.get_loaded_data()
+        self.assertIn("klines", loaded)
+        self.assertIn("stock.kline.weekly", loaded)
+        self.assertIsNot(loaded["klines"], loaded["stock.kline.weekly"])
 
 
 if __name__ == "__main__":

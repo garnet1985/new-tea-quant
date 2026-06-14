@@ -25,7 +25,7 @@ IGNORE_DIR_NAMES: FrozenSet[str] = frozenset({
 def should_skip_dir(dir_path: Path, name: str) -> bool:
     if name in IGNORE_DIR_NAMES or name in RUNTIME_DIR_NAMES:
         return True
-    if name == "results" and dir_path.parent.name == "strategies":
+    if name == "results" and "strategies" in dir_path.parts:
         return True
     parts = dir_path.parts
     if "extensions" in parts and "tags" in parts and name in RUNTIME_DIR_NAMES - {".ntq"}:

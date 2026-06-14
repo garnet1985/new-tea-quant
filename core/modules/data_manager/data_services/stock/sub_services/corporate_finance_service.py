@@ -98,8 +98,24 @@ class CorporateFinanceService(BaseDataService):
             过滤后的数据列表
         """
         if not indicators:
-            return data_list
-        return [self._filter_fields(data, indicators) for data in data_list]
+            return self._prepare_time_series_rows(data_list)
+        return self._prepare_time_series_rows(
+            [self._filter_fields(data, indicators) for data in data_list]
+        )
+
+    @staticmethod
+    def _prepare_time_series_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """按 ``ann_date`` 升序排列，供 DataCursor PIT 前缀切片使用。"""
+        prepared: List[Dict[str, Any]] = []
+        for row in rows:
+            ann_date = DateUtils.normalize(row.get("ann_date"), fmt=DateUtils.FMT_YYYYMMDD)
+            if not ann_date:
+                continue
+            item = dict(row)
+            item["ann_date"] = ann_date
+            prepared.append(item)
+        prepared.sort(key=lambda item: str(item["ann_date"]))
+        return prepared
     
     def _validate_financial_data(self, data: Dict[str, Any]) -> bool:
         """
@@ -202,7 +218,7 @@ class CorporateFinanceService(BaseDataService):
         
         results = model.load(condition, params, order_by=order_by)
         return self._filter_fields_list(results, indicators)
-    
+
     def load_latest(
         self,
         ts_code: str,

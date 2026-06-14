@@ -6,8 +6,9 @@
 
 ```
 core/utils/
-├── __init__.py          # 统一导出所有工具
-├── util.py              # 配置合并工具
+├── __init__.py          # 统一导出
+├── utils.py             # Utils 类（类型判断、DataFrame）
+├── math/                # 数值 / 确定性随机
 ├── date/
 │   └── date_utils.py    # 日期工具类
 └── icon/
@@ -23,8 +24,17 @@ from core.utils import (
     DateUtils,           # 日期工具
     i,                  # 图标服务（简化 API）
     IconService,        # 图标服务（完整 API）
-    deep_merge_config,  # 配置合并
+    deterministic_unit_float,  # 确定性 [0,1) 伪随机
 )
+```
+
+配置 dict 合并请使用 `core.infra.project_context.ConfigManager`：
+
+```python
+from core.infra.project_context import ConfigManager
+
+ConfigManager.deep_merge_config(defaults, custom, deep_merge_fields={"params"})
+ConfigManager.merge_mapping_configs(defaults_mapping, custom_mapping, deep_merge_fields={"params"})
 ```
 
 ## 📚 各模块说明
@@ -79,32 +89,9 @@ icon = IconService.get("green_dot")  # 🟢
 - **点状图标**: `green_dot`, `red_dot`, `blue_dot`, `yellow_dot`, `orange_dot`, `purple_dot`, `white_dot`, `black_dot`, `brown_dot`
 - **功能图标**: `search`, `calendar`, `bar_chart`, `line_chart`, `money`, `rocket`, `gear`, `clock`, `target`, `ongoing`
 
-### 3. 配置合并工具 (util)
+### 3. 类型与 DataFrame 工具 (`Utils`)
 
-提供配置文件的深度合并功能。
-
-```python
-from core.utils import deep_merge_config, merge_mapping_configs
-
-# 深度合并配置
-defaults = {"params": {"a": 1, "b": 2}}
-custom = {"params": {"b": 3, "c": 4}}
-result = deep_merge_config(
-    defaults, 
-    custom, 
-    deep_merge_fields={"params"}
-)
-# result["params"] = {"a": 1, "b": 3, "c": 4}
-
-# 合并 mapping 配置
-defaults_mapping = {"kline": {"handler": "default.handler", "params": {"a": 1}}}
-custom_mapping = {"kline": {"params": {"b": 2}}}
-result = merge_mapping_configs(
-    defaults_mapping,
-    custom_mapping,
-    deep_merge_fields={"params"}
-)
-```
+`core.utils.utils.Utils` 提供类型判断与 pandas 薄封装；配置合并见 `ConfigManager`（见上文快速开始）。
 
 
 ## 📝 最佳实践
@@ -129,7 +116,7 @@ icon = IconService.get("green_dot")
 
 ```python
 # ✅ 推荐
-from core.utils import DateUtils, i, deep_merge_config
+from core.utils import DateUtils, i, deterministic_unit_float
 
 # ❌ 不推荐
 from core.utils.date.date_utils import DateUtils

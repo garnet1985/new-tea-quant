@@ -5,9 +5,9 @@
 ```
 core/utils/__test__/
 ├── __init__.py
-├── test_util.py              # 配置合并工具测试
-├── test_date_utils.py        # 日期工具类测试
-└── test_icon_service.py      # 图标服务测试
+├── test_deterministic_random.py  # math 确定性随机
+├── test_date_utils.py            # 日期工具类测试
+└── test_icon_service.py          # 图标服务测试
 ```
 
 ## 🚀 运行测试
@@ -32,14 +32,13 @@ pytest core/utils/__test__/test_date_utils.py::TestDateUtils::test_get_next_date
 
 ```bash
 # 运行单个测试文件
-python3 -m pytest core/utils/__test__/test_util.py -v
+python3 -m pytest core/utils/__test__/test_deterministic_random.py -v
 ```
 
 ## 📝 测试覆盖
 
-### test_util.py
-- ✅ `deep_merge_config` - 深度合并配置
-- ✅ `merge_mapping_configs` - 合并 mapping 配置
+### test_deterministic_random.py
+- ✅ `deterministic_unit_float` - 确定性 [0, 1) 伪随机
 
 ### test_date_utils.py
 - ✅ 日期格式转换
@@ -57,8 +56,7 @@ python3 -m pytest core/utils/__test__/test_util.py -v
 ## 📊 测试统计
 
 - **测试文件**: 3 个
-- **测试类**: 5 个
-- **测试方法**: 41 个
+- **测试类**: 见各文件
 
 ## 🔍 测试示例
 
@@ -88,11 +86,4 @@ assert i("green_dot") == "🟢"
 
 ### 配置合并测试
 
-```python
-from core.utils.util import deep_merge_config
-
-defaults = {"params": {"a": 1, "b": 2}}
-custom = {"params": {"b": 3, "c": 4}}
-result = deep_merge_config(defaults, custom, deep_merge_fields={"params"})
-assert result["params"] == {"a": 1, "b": 3, "c": 4}
-```
+见 `core/infra/project_context/__test__/test_config_manager.py`（`ConfigManager.deep_merge_config`）。

@@ -66,7 +66,7 @@ class ConfigManager:
             user_config = ConfigManager._load_file(user_path, file_type)
             if user_config:
                 # 3. 使用内部合并逻辑
-                return ConfigManager._deep_merge_config(
+                return ConfigManager.deep_merge_config(
                     defaults,
                     user_config,
                     deep_merge_fields=deep_merge_fields,
@@ -76,14 +76,14 @@ class ConfigManager:
         return defaults
 
     @staticmethod
-    def _deep_merge_config(
+    def deep_merge_config(
         defaults: Dict[str, Any],
         custom: Dict[str, Any],
         deep_merge_fields: Optional[Set[str]] = None,
         override_fields: Optional[Set[str]] = None,
     ) -> Dict[str, Any]:
         """
-        内部使用的配置合并函数（原 deep_merge_config 语义）。
+        合并默认配置与用户配置片段。
 
         合并规则：
         1. 对于 deep_merge_fields 中的字段，进行嵌套 dict 合并；
@@ -108,6 +108,34 @@ class ConfigManager:
 
         # override_fields 已在浅层合并中处理，这里不需要额外逻辑
         return merged
+
+    @staticmethod
+    def merge_mapping_configs(
+        defaults: Dict[str, Any],
+        custom: Dict[str, Any],
+        deep_merge_fields: Optional[Set[str]] = None,
+        override_fields: Optional[Set[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        合并「名称 -> 配置 dict」映射（如 data_sources 各 handler 配置）。
+
+        对每个键分别调用 ``deep_merge_config``；仅出现在一侧的键保留该侧配置。
+        """
+        all_keys = set(defaults.keys()) | set(custom.keys())
+        out: Dict[str, Any] = {}
+        for key in all_keys:
+            if key in defaults and key in custom:
+                out[key] = ConfigManager.deep_merge_config(
+                    defaults[key],
+                    custom[key],
+                    deep_merge_fields=deep_merge_fields,
+                    override_fields=override_fields,
+                )
+            elif key in custom:
+                out[key] = custom[key]
+            else:
+                out[key] = defaults[key]
+        return out
 
     @staticmethod
     def _deep_merge_dict(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
@@ -374,7 +402,7 @@ class ConfigManager:
         
         # 8. 深度合并（用户配置覆盖默认配置）
         if user_config:
-            merged_config = ConfigManager._deep_merge_config(
+            merged_config = ConfigManager.deep_merge_config(
                 default_config,
                 user_config,
                 deep_merge_fields={'batch_write', database_type},

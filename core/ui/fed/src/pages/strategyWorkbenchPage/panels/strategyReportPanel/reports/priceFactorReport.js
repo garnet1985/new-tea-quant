@@ -75,6 +75,9 @@ function buildRoiDistributionOption(metrics) {
 }
 
 function buildRoiBucketOption(metrics) {
+  const bucketCounts = metrics.roiBucketCounts ?? [];
+  const totalInvestments = bucketCounts.reduce((sum, count) => sum + (Number(count) || 0), 0);
+
   return {
     animation: false,
     grid: REPORT_CHART_GRID_ROI_BUCKET,
@@ -107,7 +110,11 @@ function buildRoiBucketOption(metrics) {
       formatter: (params) => {
         const point = params?.[0];
         if (!point) return '';
-        return `${point.axisValue}<br/>投资次数：${tooltipPrimaryValue(point)}`;
+        const count = Number(tooltipPrimaryValue(point)) || 0;
+        const pct = totalInvestments > 0
+          ? ((count / totalInvestments) * 100).toFixed(1)
+          : '0.0';
+        return `${point.axisValue}<br/>投资次数：${count} (${pct}%)`;
       },
     },
   };

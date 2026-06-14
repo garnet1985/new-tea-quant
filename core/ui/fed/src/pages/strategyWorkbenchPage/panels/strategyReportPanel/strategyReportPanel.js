@@ -111,6 +111,8 @@ function StrategyReportPanel({
     reportVersionId: activeWorkbenchVersionId,
     activeTab,
     executionState,
+    resultReport,
+    reportTabFocusRequest,
     lockedTab,
   });
 

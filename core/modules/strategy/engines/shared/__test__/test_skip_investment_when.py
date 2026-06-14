@@ -17,6 +17,12 @@ from core.modules.strategy.services.data.output.enumerator_output_service import
     EnumeratorOutputWriterService,
 )
 from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
+from core.modules.strategy.engines.shared.data_classes.strategy_settings.stock_status_risk_settings import (
+    StockStatusRiskManagementSettings,
+)
+from core.modules.strategy.engines.shared.helpers.stock_status_risk_context import (
+    StockStatusRiskRuntimeContext,
+)
 
 
 def test_parse_skip_investment_when():
@@ -73,6 +79,32 @@ def test_strict_preset_skip_from_template():
         {"simulation": {"template": "strict"}}
     )
     assert sim.skip_investment_when == ("st", "star_st")
+
+
+def test_tier_periods_loaded_without_goal_rules():
+    """未配置持仓平仓规则时，仍应加载 ST 时段供 skip_investment_when 打标。"""
+    settings = StockStatusRiskManagementSettings.from_goal_block(None)
+    ctx = StockStatusRiskRuntimeContext.build(
+        stock_meta={},
+        settings=settings,
+        raw_st_periods=[
+            {
+                "st_level": "STAR_ST",
+                "start_date": "20230505",
+                "end_date": None,
+            }
+        ],
+    )
+    assert ctx.tier_periods["star_st"]
+    assert ctx.active_status_tags_at("20240605") == ["star_st"]
+    opp = Opportunity(stock={"id": "600766.SH"}, record_of_today={})
+    stamp_stock_status_at_trigger(
+        opp,
+        trade_date="20240605",
+        tier_periods=ctx.tier_periods,
+    )
+    assert opp.metadata["stock_status_at_trigger"] == ["star_st"]
+    assert should_skip_investment(opp.to_dict(), ("star_st",)) == "stock_status:star_st"
 
 
 def test_stamp_at_trigger():

@@ -11,6 +11,7 @@ import {
 import {
   extractStrategyDescription,
   extractStrategyDisplayName,
+  extractStrategyEntryConditions,
   normalizeMeta,
 } from '../../strategyWorkbenchPage/panels/strategySettingsPanel/editorSchemas/strategyMeta';
 import {
@@ -95,6 +96,7 @@ export function useStrategyDesignWorkbench() {
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [strategyDisplayName, setStrategyDisplayName] = useState('');
   const [strategyDescription, setStrategyDescription] = useState('');
+  const [strategyEntryConditions, setStrategyEntryConditions] = useState([]);
   const [initialSettings, setInitialSettings] = useState(() => buildMergeBaseSettings());
   const [draftSettings, setDraftSettings] = useState(() => buildMergeBaseSettings());
   const [savedBaselineSettings, setSavedBaselineSettings] = useState(() => buildMergeBaseSettings());
@@ -155,6 +157,7 @@ export function useStrategyDesignWorkbench() {
     }
 
     setStrategyDescription('');
+    setStrategyEntryConditions([]);
     setStrategyDisplayName('');
     setIsLoadingSettings(true);
     setSettingsError('');
@@ -186,10 +189,12 @@ export function useStrategyDesignWorkbench() {
           setInitialSettings(nextSettings);
           setStrategyDisplayName(extractStrategyDisplayName(nextSettings) || strategyName);
           setStrategyDescription(extractStrategyDescription(nextSettings));
+          setStrategyEntryConditions(extractStrategyEntryConditions(nextSettings));
           setSettingsError('');
         } else {
           setInitialSettings(mergeBase);
           setStrategyDescription('');
+          setStrategyEntryConditions([]);
           setSettingsError('未返回有效策略配置（settings 为空）。');
         }
 
@@ -456,6 +461,7 @@ export function useStrategyDesignWorkbench() {
         suppressDraftDrivenPanelResetRef.current = true;
         setInitialSettings(mergedSettings);
         setStrategyDescription(extractStrategyDescription(mergedSettings));
+        setStrategyEntryConditions(extractStrategyEntryConditions(mergedSettings));
         setDraftSettings(deepClone(mergedSettings));
         setSelectedConfigVersion(wb);
         setSavedBaselineSettings(deepClone(mergedSettings));
@@ -523,6 +529,7 @@ export function useStrategyDesignWorkbench() {
     suppressDraftDrivenPanelResetRef,
     strategyDisplayName,
     strategyDescription,
+    strategyEntryConditions,
     marketProfileLabel,
     isEnabled: Boolean(draftSettings?.is_enabled ?? initialSettings?.is_enabled),
     currentVersionDisplay,

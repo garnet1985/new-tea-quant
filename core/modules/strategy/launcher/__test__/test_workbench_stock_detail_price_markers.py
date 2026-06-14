@@ -21,7 +21,8 @@ class TestWorkbenchStockDetailPriceMarkers(unittest.TestCase):
                 "trigger_date": "20230102",
                 "buy_date": "20230103",
                 "buy_price": 10.0,
-                "status": "win",
+                "lifecycle": "complete",
+                "outcome": "win",
                 "completed_targets": [
                     {
                         "name": "take_profit_1",

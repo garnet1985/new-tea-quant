@@ -30,10 +30,15 @@ class StrategyDataSettings(SettingsBase):
 
     def apply_defaults(self) -> None:
         d = self.data
-        if "min_required_records" not in d or not isinstance(
-            d.get("min_required_records"), int
-        ) or d.get("min_required_records", 0) <= 0:
+        mrr_raw = d.get("min_required_records")
+        try:
+            mrr_int = int(mrr_raw)
+        except (TypeError, ValueError):
+            mrr_int = 0
+        if mrr_int <= 0:
             d["min_required_records"] = 100
+        else:
+            d["min_required_records"] = mrr_int
         if "indicators" not in d:
             d["indicators"] = {}
         if "extra_required_data_sources" not in d or not isinstance(

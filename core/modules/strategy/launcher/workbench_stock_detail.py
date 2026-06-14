@@ -23,7 +23,11 @@ from core.modules.strategy.launcher.workbench import (
     _STOCK_REF_FILENAMES,
     fetch_workbench_by_version,
 )
-from core.modules.strategy.enums import OpportunityStatus
+from core.modules.strategy.engines.shared.data_classes.investment_state import (
+    InvestmentLifecycle,
+    InvestmentOutcome,
+    ScanSignalPhase,
+)
 from core.modules.strategy.services.data.output.enumerator_output_service import (
     STOCK_REF_FILENAME,
 )
@@ -211,7 +215,8 @@ def _build_price_markers(
                         "trigger_date": trigger_date,
                         "buy_date": buy_date,
                         "buy_price": _round_price(_float_or_none(inv.get("buy_price"))),
-                        "status": str(inv.get("status") or "").strip(),
+                        "lifecycle": str(inv.get("lifecycle") or "").strip(),
+                        "outcome": str(inv.get("outcome") or "").strip(),
                     },
                 }
             )
@@ -530,14 +535,14 @@ def _is_enum_opportunity_goal_completed(row: Dict[str, Any]) -> bool:
     sell_reason = str(row.get("sell_reason") or "").lower()
     if sell_reason in {"enumeration_end", "backtest_end"}:
         return False
-    status = str(row.get("status") or "").lower()
-    if status in {
-        OpportunityStatus.OPEN.value,
-        OpportunityStatus.ACTIVE.value,
-        OpportunityStatus.TESTING.value,
+    lifecycle = str(row.get("lifecycle") or "").lower()
+    phase = str(row.get("signal_phase") or "").lower()
+    if lifecycle == InvestmentLifecycle.OPEN.value or phase in {
+        ScanSignalPhase.ACTIVE.value,
+        ScanSignalPhase.TESTING.value,
     }:
         return False
-    return True
+    return lifecycle == InvestmentLifecycle.COMPLETE.value
 
 
 def _enum_opportunity_win_stats(opportunities: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -551,10 +556,10 @@ def _enum_opportunity_win_stats(opportunities: List[Dict[str, Any]]) -> Dict[str
     for row in opportunities:
         if not isinstance(row, dict) or not _is_enum_opportunity_goal_completed(row):
             continue
-        status = str(row.get("status") or "").lower()
-        if status == OpportunityStatus.WIN.value:
+        outcome = str(row.get("outcome") or "").lower()
+        if outcome == InvestmentOutcome.WIN.value:
             wins += 1
-        elif status == OpportunityStatus.LOSS.value:
+        elif outcome == InvestmentOutcome.LOSS.value:
             losses += 1
         else:
             roi = _float_or_none(row.get("roi"))
@@ -854,7 +859,8 @@ def build_stock_detail_message(
                     "engine_trigger_price": _round_price(_float_or_none(opp.get("trigger_price"))),
                     "buy_date": str(opp.get("buy_date") or "").strip(),
                     "sell_date": str(opp.get("sell_date") or "").strip(),
-                    "status": str(opp.get("status") or "").strip(),
+                    "lifecycle": str(opp.get("lifecycle") or "").strip(),
+                    "outcome": str(opp.get("outcome") or "").strip(),
                     "sell_reason": str(opp.get("sell_reason") or "").strip(),
                 },
             }

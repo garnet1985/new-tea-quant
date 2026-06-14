@@ -14,7 +14,8 @@ class TestWorkbenchStockDetailEnumReport(unittest.TestCase):
             {
                 "trigger_date": "20230103",
                 "sell_date": "20230110",
-                "status": "win",
+                "lifecycle": "complete",
+                "outcome": "win",
                 "buy_date": "20230104",
                 "buy_price": "10.0",
                 "buy_at_limit_up": "false",
@@ -22,7 +23,8 @@ class TestWorkbenchStockDetailEnumReport(unittest.TestCase):
             {
                 "trigger_date": "20230201",
                 "sell_date": "20230208",
-                "status": "loss",
+                "lifecycle": "complete",
+                "outcome": "loss",
                 "buy_date": "20230202",
                 "buy_price": "11.0",
                 "buy_at_limit_up": "true",
@@ -30,14 +32,15 @@ class TestWorkbenchStockDetailEnumReport(unittest.TestCase):
             {
                 "trigger_date": "20230301",
                 "sell_date": "20230308",
-                "status": "open",
+                "lifecycle": "open",
                 "buy_date": "20230302",
                 "buy_price": "12.0",
             },
             {
                 "trigger_date": "20230401",
                 "sell_date": "20230408",
-                "status": "win",
+                "lifecycle": "complete",
+                "outcome": "win",
                 "sell_reason": "enumeration_end",
                 "buy_date": "20230402",
                 "buy_price": "12.0",

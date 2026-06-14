@@ -50,9 +50,19 @@ def build_price_stock_ref_entry(stock_summary: Dict[str, Any]) -> Optional[Dict[
     if total <= 0:
         return None
 
-    total_win = int(summary.get("total_win") or 0)
+    total_win = int(summary.get("total_complete_win") or 0)
     if total_win <= 0 and investments:
-        total_win = sum(1 for x in investments if str(x.get("status") or "").lower() == "win")
+        from core.modules.strategy.engines.shared.data_classes.investment_state import (
+            InvestmentLifecycle,
+            InvestmentOutcome,
+        )
+
+        total_win = sum(
+            1
+            for x in investments
+            if str(x.get("lifecycle") or "").lower() == InvestmentLifecycle.COMPLETE.value
+            and str(x.get("outcome") or "").lower() == InvestmentOutcome.WIN.value
+        )
 
     avg_roi_raw = float(summary.get("avg_roi") or 0.0)
     if avg_roi_raw == 0.0 and investments:

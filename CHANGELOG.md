@@ -61,6 +61,8 @@ python dev-cli -p -vx.x.x
 - 工作台右侧状态收敛为单一 `workbenchSnapshot`（`versionId` / `step_status` / `result_report` / `execution_panel` / `settings`）；对比弹窗左右两侧均读 V2-08，不再使用 V2-07
 - 明确三步依赖：enum 为前置；price / capital 并列且互不依赖；enum 落库时剔除下游槽位，单跑 price 或 capital 不再误清另一路结果
 - 前端移除自维护的依赖链（计划推断 / 摘要清空 / 快照槽位剔除）；执行 UI 只消费 V2-05 ``steps`` 与 V2-06b progress，跑完后 V2-08 快照对齐
+- 关键修复：修复了market profile忘了加入T+1交易的逻辑
+- 关键修复：修复了价格回测在遇到跌停无法卖出导致交易最终无法平仓的bug
 
 ---
 

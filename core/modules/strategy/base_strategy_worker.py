@@ -9,7 +9,11 @@ import logging
 
 from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.data_manager import DataManager
-from core.modules.strategy.enums import ExecutionMode, OpportunityStatus
+from core.modules.strategy.enums import ExecutionMode
+from core.modules.strategy.engines.shared.data_classes.investment_state import (
+    InvestmentLifecycle,
+    ScanSignalPhase,
+)
 from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
 from core.modules.strategy.engines.shared.helpers.simulation_day_execution import (
     execute_pending_exits_on_active,
@@ -317,7 +321,8 @@ class BaseStrategyWorker(ABC):
                     return
                 opportunity.buy_price = apply_buy_slippage(buy_raw, self.simulation.slippage_buy_bps)
                 opportunity.buy_date = str(current_kline.get("date") or "")
-                opportunity.status = OpportunityStatus.ACTIVE.value
+                opportunity.signal_phase = ScanSignalPhase.ACTIVE.value
+                opportunity.lifecycle = InvestmentLifecycle.OPEN.value
                 tracker["investing"] = opportunity
                 logger.debug(
                     "发现机会: stock=%s, date=%s, price=%s",

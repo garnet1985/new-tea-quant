@@ -3,11 +3,21 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from core.modules.strategy.engines.shared.data_classes.investment_state import (
+    InvestmentLifecycle,
+    InvestmentOutcome,
+)
 from core.modules.strategy.engines.simulator.price_factor.stock_ref import (
     build_price_stock_ref_entry,
     build_price_stock_ref_map,
     load_price_stock_ref_from_dir,
     write_price_stock_ref,
+)
+
+
+from core.modules.strategy.engines.shared.data_classes.investment_state import (
+    InvestmentLifecycle,
+    InvestmentOutcome,
 )
 
 
@@ -18,7 +28,8 @@ class TestPriceStockRef(unittest.TestCase):
             "investments": [
                 {
                     "stock_name": "浦发银行",
-                    "status": "win",
+                    "lifecycle": InvestmentLifecycle.COMPLETE.value,
+                    "outcome": InvestmentOutcome.WIN.value,
                     "roi": 0.12,
                     "holding_days": 10,
                     "completed_targets": [
@@ -26,7 +37,8 @@ class TestPriceStockRef(unittest.TestCase):
                     ],
                 },
                 {
-                    "status": "loss",
+                    "lifecycle": InvestmentLifecycle.COMPLETE.value,
+                    "outcome": InvestmentOutcome.LOSS.value,
                     "roi": -0.05,
                     "holding_days": 8,
                     "completed_targets": [
@@ -36,8 +48,8 @@ class TestPriceStockRef(unittest.TestCase):
             ],
             "summary": {
                 "total_investments": 2,
-                "total_win": 1,
-                "total_loss": 1,
+                "total_complete_win": 1,
+                "total_complete_loss": 1,
                 "avg_roi": 0.035,
                 "avg_duration_in_days": 9.0,
             },
@@ -55,10 +67,15 @@ class TestPriceStockRef(unittest.TestCase):
         summaries = [
             {
                 "stock": {"id": "000001.SZ"},
-                "investments": [{"status": "win", "roi": 0.1, "holding_days": 5}],
+                "investments": [{
+                    "lifecycle": InvestmentLifecycle.COMPLETE.value,
+                    "outcome": InvestmentOutcome.WIN.value,
+                    "roi": 0.1,
+                    "holding_days": 5,
+                }],
                 "summary": {
                     "total_investments": 1,
-                    "total_win": 1,
+                    "total_complete_win": 1,
                     "avg_roi": 0.1,
                     "avg_duration_in_days": 5.0,
                 },

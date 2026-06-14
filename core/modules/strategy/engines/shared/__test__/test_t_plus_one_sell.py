@@ -1,10 +1,10 @@
 """T+1（market profile rules.settlement）：买入当日不触发止盈/止损等卖出判定。"""
 from core.modules.market_profile import get_market_profile
+from core.modules.strategy.engines.shared.data_classes.investment_state import ScanSignalPhase
 from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.simulation_settings import (
     StrategySimulationSettings,
 )
-from core.modules.strategy.enums import OpportunityStatus
 
 
 def _sim() -> StrategySimulationSettings:
@@ -35,7 +35,7 @@ def test_no_target_on_buy_day_t_plus_one():
         record_of_today={},
         buy_date="20240103",
         buy_price=10.0,
-        status=OpportunityStatus.ACTIVE.value,
+        signal_phase=ScanSignalPhase.ACTIVE.value,
     )
     bar = {"date": "20240103", "open": 10.0, "close": 12.0, "high": 12.0, "low": 10.0}
     opp.check_targets(
@@ -56,7 +56,7 @@ def test_target_on_day_after_buy():
         record_of_today={},
         buy_date="20240103",
         buy_price=10.0,
-        status=OpportunityStatus.ACTIVE.value,
+        signal_phase=ScanSignalPhase.ACTIVE.value,
     )
     bar = {"date": "20240104", "open": 11.0, "close": 12.0, "high": 12.0, "low": 11.0}
     opp.check_targets(

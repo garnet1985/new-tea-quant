@@ -432,7 +432,7 @@ function CapitalAllocationReport({
           <MetricCard
             title="前 5 股票收益贡献占比"
             titleTip={CAPITAL_METRIC_TIPS.top5ContributionRatio}
-            value={`${metrics.top5ContributionRatio}%`}
+            value={`${metrics.top5ContributionRatio}%（共 ${metrics.stockCount.toLocaleString()} 股）`}
           />
           <MetricCard
             title="股票收益离散系数（CV）"

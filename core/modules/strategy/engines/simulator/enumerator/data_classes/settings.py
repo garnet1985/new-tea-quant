@@ -49,13 +49,16 @@ class OpportunityEnumeratorSettings:
         if mrr_int <= 0:
             mrr_int = 100
         data["min_required_records"] = mrr_int
-        indicators = data.get("indicators")
-        if indicators is None:
-            indicators = {}
-        data["indicators"] = indicators
+        data.pop("indicators", None)
+        brd_ind = brd.get("indicators") if isinstance(brd, dict) else None
+        if isinstance(brd, dict) and brd_ind is None:
+            brd["indicators"] = {}
         extra_sources = data.get("extra_required_data_sources")
         if extra_sources is None:
             extra_sources = []
+        for item in extra_sources:
+            if isinstance(item, dict) and item.get("indicators") is None:
+                item["indicators"] = {}
         data["extra_required_data_sources"] = extra_sources
         self.data = data
         self.min_required_records = mrr_int

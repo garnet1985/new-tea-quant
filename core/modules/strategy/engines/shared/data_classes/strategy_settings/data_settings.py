@@ -39,8 +39,14 @@ class StrategyDataSettings(SettingsBase):
             d["min_required_records"] = 100
         else:
             d["min_required_records"] = mrr_int
-        if "indicators" not in d:
-            d["indicators"] = {}
+        if "indicators" in d:
+            d.pop("indicators", None)
+        base = d.get("base_required_data")
+        if isinstance(base, dict) and "indicators" not in base:
+            base["indicators"] = {}
+        for item in d.get("extra_required_data_sources") or []:
+            if isinstance(item, dict) and "indicators" not in item:
+                item["indicators"] = {}
         if "extra_required_data_sources" not in d or not isinstance(
             d.get("extra_required_data_sources"), list
         ):
@@ -87,7 +93,8 @@ class StrategyDataSettings(SettingsBase):
 
     @property
     def indicators_config(self) -> Dict[str, Any]:
-        return self.data.get("indicators", {}) or {}
+        base = self.base_required_data
+        return StrategySettingsView.normalize_indicators(base.get("indicators"))
 
     @property
     def base_data_id(self) -> str:

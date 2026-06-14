@@ -35,8 +35,8 @@ class TestKlineSlotShape(unittest.TestCase):
                 "base_required_data": {
                     "data_id": "stock.kline.daily",
                     "params": {"adjust": "qfq"},
+                    "indicators": {},
                 },
-                "indicators": {},
             }
         })
         svc = StrategyDataInjectionService(
@@ -62,7 +62,11 @@ class TestKlineSlotShape(unittest.TestCase):
                     "params": {"adjust": "qfq"},
                 },
                 "extra_required_data_sources": [
-                    {"data_id": "stock.kline.weekly", "params": {"adjust": "qfq"}},
+                    {
+                        "data_id": "stock.kline.weekly",
+                        "params": {"adjust": "qfq"},
+                        "indicators": {},
+                    },
                 ],
                 "indicators": {},
             }

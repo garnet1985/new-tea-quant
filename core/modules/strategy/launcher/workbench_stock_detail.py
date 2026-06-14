@@ -40,6 +40,9 @@ _OSCILLATOR_INDICATORS = frozenset(
     {"rsi", "stoch", "stochrsi", "willr", "mfi", "cmo", "cci", "uo", "aroon"}
 )
 
+# bbands 除上/中/下轨外，BBB（带宽）、BBP（%B）量纲与价格不同，应走副图
+_BBANDS_OVERLAY_PREFIXES = frozenset({"bbl", "bbm", "bbu"})
+
 _INDICATOR_LINE_COLORS = (
     "#64B5F6",
     "#BA68C8",
@@ -379,6 +382,15 @@ def _indicator_panel(name: str) -> str:
     return "oscillator" if base in _OSCILLATOR_INDICATORS else "overlay"
 
 
+def _indicator_panel_for_series(name: str, *, sub_key: str = "") -> str:
+    """多输出指标按子序列决定面板（如 bbands 仅 BBL/BBM/BBU 叠加 K 线）。"""
+    base = str(name or "").lower()
+    if base == "bbands" and sub_key:
+        prefix = str(sub_key).lower().split("_")[0]
+        return "overlay" if prefix in _BBANDS_OVERLAY_PREFIXES else "oscillator"
+    return _indicator_panel(name)
+
+
 def _indicator_label(name: str, params: Dict[str, Any], *, suffix: str = "") -> str:
     base = str(name or "").upper()
     length = params.get("length")
@@ -446,7 +458,7 @@ def _compute_indicator_series(
                     {
                         "key": _build_indicator_field_name(f"{name}_{sub_key}", cfg),
                         "label": _indicator_label(name, cfg, suffix=str(sub_key)),
-                        "panel": _indicator_panel(name),
+                        "panel": _indicator_panel_for_series(name, sub_key=str(sub_key)),
                         "color": _INDICATOR_LINE_COLORS[color_idx % len(_INDICATOR_LINE_COLORS)],
                         "data": _align_indicator_values(sub_values, len(klines)),
                     }

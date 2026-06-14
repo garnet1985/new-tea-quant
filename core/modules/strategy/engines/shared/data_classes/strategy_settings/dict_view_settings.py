@@ -60,6 +60,14 @@ class StrategySettingsView:
         return self.goal_settings.stock_status_risk
 
     @staticmethod
+    def normalize_indicators(raw: Any) -> Dict[str, Any]:
+        if raw is None:
+            return {}
+        if not isinstance(raw, dict):
+            raise ValueError("indicators 必须为 dict")
+        return dict(raw)
+
+    @staticmethod
     def normalize_base_required_data(raw: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(raw, dict):
             raise ValueError("data.base_required_data 必须为 dict")
@@ -90,7 +98,11 @@ class StrategySettingsView:
         ):
             merged["adjust"] = "qfq"
 
-        return {"data_id": data_id, "params": merged}
+        return {
+            "data_id": data_id,
+            "params": merged,
+            "indicators": StrategySettingsView.normalize_indicators(raw.get("indicators")),
+        }
 
     @staticmethod
     def normalize_extra_required_data_item(item: Dict[str, Any]) -> Dict[str, Any]:
@@ -114,12 +126,24 @@ class StrategySettingsView:
                 and not str(merged.get("adjust")).strip()
             ):
                 merged["adjust"] = "qfq"
-            return {"data_id": data_id, "params": merged}
+            return {
+                "data_id": data_id,
+                "params": merged,
+                "indicators": StrategySettingsView.normalize_indicators(item.get("indicators")),
+            }
 
-        return {"data_id": data_id, "params": dict(params)}
+        return {
+            "data_id": data_id,
+            "params": dict(params),
+            "indicators": StrategySettingsView.normalize_indicators(item.get("indicators")),
+        }
 
     @staticmethod
     def validate_data_config(data: Dict[str, Any]) -> None:
+        if "indicators" in data:
+            raise ValueError(
+                "data.indicators 已移除；请在 base_required_data 或 extra_required_data_sources 各项上声明 indicators"
+            )
         base = data.get("base_required_data")
         if not isinstance(base, dict):
             raise ValueError("data.base_required_data 必须为 dict")
@@ -177,7 +201,8 @@ class StrategySettingsView:
 
     @property
     def indicators(self) -> Dict[str, Any]:
-        return self.data.get("indicators", {}) or {}
+        """Base K 线 slot 上的 indicators（Workbench 图表等）。"""
+        return self.normalize_indicators(self.base_required_data.get("indicators"))
 
     @property
     def tag_storage_entity_type(self) -> str:

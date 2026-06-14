@@ -336,20 +336,35 @@ class StrategyDataInjectionService:
         return cursor.until(date_of_today)
 
     def apply_indicators(self) -> None:
-        indicators_cfg = getattr(self.settings, "indicators", None)
-        klines = self._current_data.get("klines") or []
-        if not indicators_cfg or not klines:
-            return
-        for name, cfg, result in IndicatorService.compute_batch(klines, indicators_cfg):
+        st = self.settings
+        base_dk = self._base_data_key(st)
+        for raw in st.required_data_sources:
+            item = self._normalize_declaration_item(st, raw)
+            indicators_cfg = StrategySettingsView.normalize_indicators(item.get("indicators"))
+            if not indicators_cfg:
+                continue
+            dk = DataKey(str(item["data_id"]))
+            slot = self.storage_key_for(dk, is_base=(dk == base_dk))
+            rows = self._current_data.get(slot) or []
+            if not rows:
+                continue
+            self._apply_indicators_to_rows(rows, indicators_cfg)
+
+    def _apply_indicators_to_rows(
+        self,
+        rows: List[Dict[str, Any]],
+        indicators_cfg: Dict[str, Any],
+    ) -> None:
+        for name, cfg, result in IndicatorService.compute_batch(rows, indicators_cfg):
             try:
                 if isinstance(result, list):
                     field = self._build_indicator_field_name(name, cfg)
-                    for rec, val in zip(klines, result):
+                    for rec, val in zip(rows, result):
                         rec[field] = val
                 elif isinstance(result, dict):
                     for key, series in result.items():
                         field = self._build_indicator_field_name(f"{name}_{key}", cfg)
-                        for rec, val in zip(klines, series):
+                        for rec, val in zip(rows, series):
                             rec[field] = val
             except Exception as exc:
                 logger.error(

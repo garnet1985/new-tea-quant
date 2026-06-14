@@ -4,9 +4,8 @@
   position: relative;
   z-index: 2;
   width: 100%;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  background-color: rgba(6, 6, 18, 0.6);
+  // Solid header: avoid backdrop-filter repaints ghosting content below (e.g. strategy list).
+  background-color: rgba(6, 6, 18, 0.88);
   border-bottom: 1px solid var(--ntq-white-12);
 }
 

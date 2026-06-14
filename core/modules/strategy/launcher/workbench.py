@@ -343,31 +343,9 @@ def build_step_report_message(
 _STOCK_REF_FILENAMES = ("0_stock_ref.json",)
 
 
-def build_step_report_ref_message(
-    *,
-    strategy_name: str,
-    normalized_step: str,
-    version: int,
-) -> Optional[Dict[str, Any]]:
-    """
-    读取枚举产物目录下的 ``0_stock_ref.json``。
-
-    仅当快照行不存在（或参数非法）时返回 ``None``，路由 404。磁盘已清理、文件不存在时为正常情况，
-    仍返回 dict：``stock_ref_available=False``、``stock_ref=null``。
-
-    查找路径仅使用快照 ``result_report.enum`` 内记录的 ``enumerator_output_dir`` 及工作台 ``version``；不做全盘扫描或猜测。
-    """
-    if normalized_step != "enum":
-        return None
-    name = str(strategy_name).strip()
-    if not name or version <= 0:
-        return None
-
-    row = fetch_workbench_by_version(name, int(version))
-    if not row:
-        return None
-
-    base = PathManager.strategy_simulation_enum(name)
+def _enum_output_dir_candidates_for_ref(strategy_name: str, row: Dict[str, Any]) -> List[str]:
+    version = int(row.get("version") or 0)
+    base = PathManager.strategy_simulation_enum(strategy_name)
     candidates_dirs: List[str] = []
 
     rr = row.get("result_report") or {}
@@ -385,34 +363,114 @@ def build_step_report_ref_message(
             except (TypeError, ValueError):
                 pass
 
-    sid_s = str(int(version))
-    if sid_s not in candidates_dirs:
-        candidates_dirs.append(sid_s)
+    if version > 0:
+        sid_s = str(int(version))
+        if sid_s not in candidates_dirs:
+            candidates_dirs.append(sid_s)
 
     seen: set[str] = set()
-    uniq_dirs: List[str] = []
+    uniq: List[str] = []
     for d in candidates_dirs:
         if d and d not in seen:
             seen.add(d)
-            uniq_dirs.append(d)
+            uniq.append(d)
+    return [str(base / d) for d in uniq]
+
+
+def _price_output_dir_candidates_for_ref(strategy_name: str, row: Dict[str, Any]) -> List[str]:
+    base = PathManager.strategy_simulation_price(strategy_name)
+    candidates_dirs: List[str] = []
+
+    rr = row.get("result_report") or {}
+    price_raw = rr.get("price_factor")
+    if isinstance(price_raw, dict):
+        run = price_raw.get("output_version_run")
+        if isinstance(run, dict):
+            out_d = str(run.get("output_version_dir") or "").strip()
+            if out_d:
+                candidates_dirs.append(out_d)
+            vid = run.get("output_version_id")
+            if vid is not None:
+                try:
+                    vs = str(int(vid))
+                    if vs not in candidates_dirs:
+                        candidates_dirs.append(vs)
+                except (TypeError, ValueError):
+                    pass
+        vid_top = price_raw.get("output_version_id")
+        if vid_top is not None:
+            try:
+                vs = str(int(vid_top))
+                if vs not in candidates_dirs:
+                    candidates_dirs.append(vs)
+            except (TypeError, ValueError):
+                pass
+
+    seen: set[str] = set()
+    uniq: List[str] = []
+    for d in candidates_dirs:
+        if d and d not in seen:
+            seen.add(d)
+            uniq.append(d)
+    return [str(base / d) for d in uniq]
+
+
+def build_step_report_ref_message(
+    *,
+    strategy_name: str,
+    normalized_step: str,
+    version: int,
+) -> Optional[Dict[str, Any]]:
+    """
+    读取步骤产物目录下的逐股 ref（枚举 ``0_stock_ref.json``；价格回测同文件名或扫描单股 JSON）。
+
+    仅当快照行不存在（或参数非法）时返回 ``None``，路由 404。磁盘已清理、文件不存在时为正常情况，
+    仍返回 dict：``stock_ref_available=False``、``stock_ref=null``。
+    """
+    if normalized_step not in ("enum", "price"):
+        return None
+    name = str(strategy_name).strip()
+    if not name or version <= 0:
+        return None
+
+    row = fetch_workbench_by_version(name, int(version))
+    if not row:
+        return None
 
     stock_ref: Optional[Dict[str, Any]] = None
     resolved_dir = ""
-    for d in uniq_dirs:
-        for fname in _STOCK_REF_FILENAMES:
-            p = base / d / fname
-            if not p.is_file():
-                continue
-            try:
-                raw = json.loads(p.read_text(encoding="utf-8"))
-            except Exception:
-                continue
-            if isinstance(raw, dict) and raw:
-                stock_ref = raw
-                resolved_dir = d
+
+    if normalized_step == "enum":
+        for dir_path in _enum_output_dir_candidates_for_ref(name, row):
+            p = Path(dir_path)
+            for fname in _STOCK_REF_FILENAMES:
+                ref_path = p / fname
+                if not ref_path.is_file():
+                    continue
+                try:
+                    raw = json.loads(ref_path.read_text(encoding="utf-8"))
+                except Exception:
+                    continue
+                if isinstance(raw, dict) and raw:
+                    stock_ref = raw
+                    resolved_dir = p.name
+                    break
+            if stock_ref is not None:
                 break
-        if stock_ref is not None:
-            break
+    else:
+        from core.modules.strategy.engines.simulator.price_factor.stock_ref import (
+            load_price_stock_ref_from_dir,
+        )
+
+        for dir_path in _price_output_dir_candidates_for_ref(name, row):
+            p = Path(dir_path)
+            if not p.is_dir():
+                continue
+            loaded = load_price_stock_ref_from_dir(p)
+            if loaded:
+                stock_ref = loaded
+                resolved_dir = p.name
+                break
 
     common = {
         "version_id": f"v{int(version)}",

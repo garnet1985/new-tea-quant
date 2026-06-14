@@ -9,7 +9,11 @@ import logging
 
 from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.data_manager import DataManager
-from core.modules.strategy.enums import ExecutionMode, OpportunityStatus
+from core.modules.strategy.enums import ExecutionMode
+from core.modules.strategy.engines.shared.data_classes.investment_state import (
+    InvestmentLifecycle,
+    ScanSignalPhase,
+)
 from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
 from core.modules.strategy.engines.shared.helpers.simulation_day_execution import (
     execute_pending_exits_on_active,
@@ -57,6 +61,13 @@ class BaseStrategyWorker(ABC):
         self.strategy_name = job_payload["strategy_name"]
         self.settings = StrategySettingsView.from_dict(job_payload["settings"])
         self.simulation = self.settings.simulation_settings
+        from core.modules.market_profile import get_market_profile
+
+        profile_id = resolve_market_profile_id(
+            job_payload,
+            settings_market_profile=self.settings.market_profile,
+        )
+        self.market_profile = get_market_profile(profile_id)
 
         self.contract_cache = ContractCacheManager()
         self.stock_info = self._load_stock_info()
@@ -272,6 +283,7 @@ class BaseStrategyWorker(ABC):
                     current_kline=current_kline,
                     goal_config=self.settings.goal,
                     prev_bar=prev_kline,
+                    market_profile=self.market_profile,
                     stock_status_risk=self.stock_status_risk,
                 )
                 if is_completed:
@@ -309,7 +321,8 @@ class BaseStrategyWorker(ABC):
                     return
                 opportunity.buy_price = apply_buy_slippage(buy_raw, self.simulation.slippage_buy_bps)
                 opportunity.buy_date = str(current_kline.get("date") or "")
-                opportunity.status = OpportunityStatus.ACTIVE.value
+                opportunity.signal_phase = ScanSignalPhase.ACTIVE.value
+                opportunity.lifecycle = InvestmentLifecycle.OPEN.value
                 tracker["investing"] = opportunity
                 logger.debug(
                     "发现机会: stock=%s, date=%s, price=%s",

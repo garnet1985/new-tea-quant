@@ -2,6 +2,9 @@
   "name": "china_a_stock_market",
   "description": "中国A股市场规则",
   "rules": {
+    "settlement": {
+      "t_plus": 1
+    },
     "amplitude_limit": {
       "default_ratio": 0.1,
       "default_risk": {

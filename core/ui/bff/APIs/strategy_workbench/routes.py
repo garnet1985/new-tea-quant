@@ -230,7 +230,7 @@ def get_strategy_step_report(strategy_name, step, version_id):
     methods=["GET"],
 )
 def get_strategy_step_report_ref(strategy_name, step, version_id):
-    """GET …/report_ref/<version_id> — 仅 ``enum`` 步；``stock_ref`` 可空（磁盘清理属正常；见 ``stock_ref_available``）。"""
+    """GET …/report_ref/<version_id> — ``enum`` / ``price`` 逐股 ref；``stock_ref`` 可空（见 ``stock_ref_available``）。"""
     s = get_strategy_workbench_stack()
     norm = s.normalize_step(step)
     if norm is None:

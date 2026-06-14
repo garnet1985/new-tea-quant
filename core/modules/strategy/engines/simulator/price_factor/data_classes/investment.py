@@ -5,7 +5,16 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from core.modules.strategy.engines.shared.data_classes import BaseInvestment
-from core.modules.strategy.enums import OpportunityStatus
+from core.modules.strategy.engines.shared.data_classes.investment_state import (
+    InvestmentLifecycle,
+    InvestmentState,
+    PendingExit,
+    resolve_outcome,
+)
+from core.modules.strategy.engines.simulator.price_factor.helpers.holding import (
+    latest_executed_exit_date,
+    position_fully_closed,
+)
 from core.modules.strategy.services.data.output.event import parse_opportunity_buy_fill
 
 
@@ -27,6 +36,8 @@ class PriceFactorInvestment(BaseInvestment):
         *,
         goal_config: Optional[Dict[str, Any]] = None,
         backtest_calendar: Optional[Any] = None,
+        backtest_end_date: str = "",
+        pending_exit: Optional[PendingExit] = None,
     ) -> "PriceFactorInvestment":
         opp_id = str(opportunity.get("opportunity_id", "")).strip()
         stock_id = opportunity.get("stock_id", "")
@@ -37,21 +48,17 @@ class PriceFactorInvestment(BaseInvestment):
                 f"机会缺少有效 buy_date/buy_price，无法构建 PriceFactorInvestment: {opp_id!r}"
             )
         buy_date, buy_price = buy_fill
-        exit_date = opportunity.get("exit_date", "") or opportunity.get("sell_date", "")
+        closed = position_fully_closed(targets)
+        exit_date = latest_executed_exit_date(targets) if closed else ""
+
         try:
             trigger_price = float(opportunity.get("trigger_price", 0.0) or 0.0)
         except (ValueError, TypeError):
             trigger_price = 0.0
-        try:
-            roi = float(opportunity.get("roi", 0.0) or 0.0)
-        except (ValueError, TypeError):
-            roi = 0.0
 
-        profit = (
-            sum(float(t.get("weighted_profit", 0.0) or 0.0) for t in targets)
-            if targets
-            else buy_price * roi
-        )
+        profit = sum(float(t.get("weighted_profit", 0.0) or 0.0) for t in targets)
+        roi = (profit / buy_price) if buy_price > 0 else 0.0
+
         from core.modules.strategy.engines.shared.helpers.backtest_calendar_context import (
             BacktestCalendarContext,
             resolve_holding_days,
@@ -66,10 +73,11 @@ class PriceFactorInvestment(BaseInvestment):
             else BacktestCalendarContext.from_dict(backtest_calendar)
         )
         holding_days = 1
-        if buy_date and exit_date:
+        holding_end = exit_date if closed else (str(backtest_end_date or "").strip() or buy_date)
+        if buy_date and holding_end:
             counted = resolve_holding_days(
                 buy_date,
-                exit_date,
+                holding_end,
                 expiration_config=exp_cfg if isinstance(exp_cfg, dict) else None,
                 backtest_calendar=cal_ctx,
             )
@@ -78,7 +86,7 @@ class PriceFactorInvestment(BaseInvestment):
         if isinstance(exp_cfg, dict) and "is_trading_days" in exp_cfg:
             use_trading_days = bool(exp_cfg.get("is_trading_days"))
         overall_annual_return = 0.0
-        if holding_days > 0:
+        if holding_days > 0 and closed:
             try:
                 from core.modules.strategy.engines.simulator.price_factor.helpers import get_annual_return
 
@@ -88,34 +96,32 @@ class PriceFactorInvestment(BaseInvestment):
             except Exception:
                 pass
 
-        tracking = cls._build_tracking(opportunity, buy_price, buy_date, exit_date)
+        tracking_exit = exit_date if closed else holding_end
+        tracking = cls._build_tracking(opportunity, buy_price, buy_date, tracking_exit)
         completed_targets = cls._build_completed_targets(targets, buy_price)
-        status_str = (opportunity.get("status") or "").lower()
-        if status_str in (
-            OpportunityStatus.WIN.value,
-            OpportunityStatus.LOSS.value,
-            OpportunityStatus.OPEN.value,
-        ):
-            status = status_str
+
+        if closed:
+            state = InvestmentState().complete_with_profit(profit)
         else:
-            status = (
-                OpportunityStatus.WIN.value
-                if profit > 0
-                else (OpportunityStatus.LOSS.value if profit < 0 else OpportunityStatus.OPEN.value)
-            )
-        return cls(
+            state = InvestmentState(lifecycle=InvestmentLifecycle.OPEN)
+            if pending_exit is not None:
+                state = state.mark_pending_exit(pending_exit)
+
+        inv = cls(
             investment_id=f"pf_{opp_id}",
             opportunity_id=opp_id,
             stock_id=stock_id,
             stock_name=stock_name,
             buy_date=buy_date,
-            sell_date=exit_date if exit_date else None,
+            sell_date=exit_date if closed and exit_date else None,
             buy_price=buy_price,
             sell_price=None,
-            profit=profit,
-            roi=roi,
+            profit=profit if closed else profit,
+            roi=roi if closed else (profit / buy_price if buy_price > 0 and profit else 0.0),
             holding_days=holding_days,
-            status=status,
+            lifecycle=state.lifecycle.value,
+            outcome=state.outcome.value if state.outcome else None,
+            pending_exit=state.pending_exit.to_dict() if state.pending_exit else None,
             tracking=tracking,
             completed_targets=completed_targets,
             overall_annual_return=overall_annual_return,
@@ -123,6 +129,7 @@ class PriceFactorInvestment(BaseInvestment):
             trigger_date=trigger_date,
             trigger_price=trigger_price,
         )
+        return inv
 
     @classmethod
     def from_source(cls, source: Any) -> "PriceFactorInvestment":

@@ -30,3 +30,13 @@ def test_settings_fp_matches_int_vs_float_fees_and_slippage():
     fp_cli = to_settings_hash(semantic_core(base))
     fp_ui = to_settings_hash(semantic_core(ui_like))
     assert fp_cli == fp_ui
+
+
+def test_min_required_records_accepts_ui_float():
+    """工作台 number 字段常为 JSON float，不得被 apply_defaults 重置为 100。"""
+    disc = StrategyDiscoveryHelper.load_strategy(PathManager.strategy("example"))
+    assert disc is not None
+    raw = copy.deepcopy(disc.settings.to_dict())
+    raw.setdefault("data", {})["min_required_records"] = 30.0
+    normalized = StrategyFingerprintManager.canonicalize_settings(raw)
+    assert normalized["data"]["min_required_records"] == 30.0

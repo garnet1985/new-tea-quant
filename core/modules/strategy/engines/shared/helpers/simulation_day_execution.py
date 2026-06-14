@@ -16,7 +16,12 @@ from core.modules.strategy.engines.shared.helpers.simulation_pricing import (
     trade_price_defers_to_next_session,
     trade_theoretical_price_on_bar,
 )
-from core.modules.strategy.enums import OpportunityStatus
+from core.modules.strategy.engines.shared.data_classes.investment_state import (
+    InvestmentLifecycle,
+    InvestmentOutcome,
+    ScanSignalPhase,
+    resolve_outcome,
+)
 
 if TYPE_CHECKING:
     from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
@@ -49,7 +54,8 @@ def fill_pending_buys(
             stock_status_risk=stock_status_risk,
         ):
             opportunity.buy_fill_pending = False
-            opportunity.status = OpportunityStatus.ACTIVE.value
+            opportunity.signal_phase = ScanSignalPhase.ACTIVE.value
+            opportunity.lifecycle = InvestmentLifecycle.OPEN.value
             active.append(opportunity)
         else:
             still_pending.append(opportunity)
@@ -107,7 +113,7 @@ def apply_no_next_bar_buy_fallback(
             exec_bar=signal_bar,
         )
     if policy == "unfinished":
-        opportunity.status = OpportunityStatus.TESTING.value
+        opportunity.signal_phase = ScanSignalPhase.TESTING.value
     return True
 
 
@@ -137,7 +143,8 @@ def resolve_pending_buys_at_end(
             continue
         opportunity.buy_fill_pending = False
         if opportunity.buy_price and opportunity.buy_price > 0:
-            opportunity.status = OpportunityStatus.ACTIVE.value
+            opportunity.signal_phase = ScanSignalPhase.ACTIVE.value
+            opportunity.lifecycle = InvestmentLifecycle.OPEN.value
             active.append(opportunity)
 
 
@@ -176,7 +183,7 @@ def queue_deferred_buy(opportunity: "Opportunity", *, signal_bar: Dict[str, Any]
     opportunity.buy_price = 0.0
     opportunity.buy_date = ""
     opportunity.record_of_today = signal_bar
-    opportunity.status = OpportunityStatus.TESTING.value
+    opportunity.signal_phase = ScanSignalPhase.TESTING.value
 
 
 def _fill_buy_on_bar(

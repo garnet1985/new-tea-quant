@@ -9,6 +9,7 @@ import SetupGuard from 'components/setupGuard';
 import MainLayout from './layouts/mainLayout';
 import StrategyListPage from './pages/strategyListPage';
 import StrategyWorkbenchPage from './pages/strategyWorkbenchPage';
+import { StrategyDesignLayout } from './pages/strategyDesignPage';
 import ScanPage from './pages/scanPage';
 import SettingsPage from './pages/settingsPage';
 
@@ -152,6 +153,10 @@ function App() {
           >
             <Route path="/strategy-workbench/*" element={<StrategyWorkbenchPage />} />
             <Route path="/strategy-workbench" element={<StrategyListPage />} />
+            <Route path="/strategy-design">
+              <Route index element={<StrategyListPage />} />
+              <Route path="*" element={<StrategyDesignLayout />} />
+            </Route>
             <Route
               path="/scan"
               element={<ScanPage />}

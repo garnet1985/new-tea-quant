@@ -3,7 +3,7 @@
 
 - 按 ``buy_date``、``opportunity_id`` 排序；须具备有效 ``buy_date`` / ``buy_price``（枚举器产出）。
 - 同股持仓未结束前（``buy_date <= holding_until``）跳过后续机会。
-- 平仓日：``sell_date`` → ``exit_date`` → ``buy_date``。
+- ``holding_until`` 仅在价格层实际成交平仓后推进；卖出因跌停等被跳过时仓位仍为 open，锁至回测结束日。
 """
 
 from __future__ import annotations
@@ -34,7 +34,23 @@ from core.modules.strategy.engines.shared.simulator_hooks_dispatcher import (
 from core.modules.strategy.engines.simulator.price_factor.data_classes.investment import (
     PriceFactorInvestment,
 )
-from core.modules.strategy.engines.simulator.price_factor.helpers import DateTimeEncoder
+from core.modules.strategy.engines.simulator.price_factor.helpers import (
+    DateTimeEncoder,
+    resolve_holding_until,
+)
+from core.modules.strategy.engines.simulator.price_factor.helpers.deferred_exit import (
+    retry_deferred_exits,
+)
+from core.modules.strategy.engines.simulator.price_factor.helpers.holding import (
+    position_fully_closed,
+)
+from core.modules.strategy.engines.simulator.price_factor.helpers.klines_loader import (
+    load_stock_klines,
+)
+from core.modules.strategy.engines.shared.data_classes.investment_state import (
+    InvestmentLifecycle,
+    InvestmentOutcome,
+)
 from core.modules.strategy.services.data import StrategyOutputReaderService
 from core.modules.strategy.services.data.output.event import parse_opportunity_buy_fill
 from core.modules.strategy.services.data.output import StrategyOutputPathService
@@ -86,8 +102,8 @@ class PriceFactorWorker:
         if not investments:
             return {
                 "total_investments": 0,
-                "total_win": 0,
-                "total_loss": 0,
+                "total_complete_win": 0,
+                "total_complete_loss": 0,
                 "total_open": 0,
                 "total_profit": 0.0,
                 "avg_roi": 0.0,
@@ -95,9 +111,19 @@ class PriceFactorWorker:
             }
         return {
             "total_investments": len(investments),
-            "total_win": len([x for x in investments if x.get("status") == "win"]),
-            "total_loss": len([x for x in investments if x.get("status") == "loss"]),
-            "total_open": len([x for x in investments if x.get("status") == "open"]),
+            "total_complete_win": len([
+                x for x in investments
+                if x.get("lifecycle") == InvestmentLifecycle.COMPLETE.value
+                and x.get("outcome") == InvestmentOutcome.WIN.value
+            ]),
+            "total_complete_loss": len([
+                x for x in investments
+                if x.get("lifecycle") == InvestmentLifecycle.COMPLETE.value
+                and x.get("outcome") == InvestmentOutcome.LOSS.value
+            ]),
+            "total_open": len([
+                x for x in investments if x.get("lifecycle") == InvestmentLifecycle.OPEN.value
+            ]),
             "total_profit": sum(float(x.get("profit", 0.0) or 0.0) for x in investments),
             "avg_roi": (
                 sum(float(x.get("roi", 0.0) or 0.0) for x in investments) / len(investments)
@@ -170,6 +196,7 @@ class PriceFactorWorker:
         skipped_buy_at_limit_up = 0
         skipped_sell_at_limit_down = 0
         skipped_stock_status = 0
+        backtest_end_date = str(self.config_dict.get("end_date") or "").strip()
 
         for idx in order:
             row = opportunities_rows[idx]
@@ -202,22 +229,16 @@ class PriceFactorWorker:
             ):
                 skipped_buy_at_limit_up += 1
                 continue
-            sell_date = str(modified_row.get("sell_date") or "").strip()
-            exit_from_row = str(modified_row.get("exit_date") or "").strip()
-            resolved_exit = sell_date or exit_from_row or buy_date
-
             # 持仓未结束时若新机会买入日仍早于等于持仓结束日则跳过（``YYYYMMDD`` 字符串序）
             if holding_until is not None and buy_date and holding_until:
                 if buy_date <= holding_until:
                     continue
 
-            holding_until = resolved_exit or buy_date
-
             opp_id = str(modified_row.get("opportunity_id") or "").strip()
             merged = dict(modified_row)
-            merged["exit_date"] = resolved_exit
 
             processed_targets: List[Dict[str, Any]] = []
+            skipped_targets: List[Dict[str, Any]] = []
             for t_idx in targets_index.get(opp_id) or []:
                 if t_idx < 0 or t_idx >= len(targets_rows):
                     continue
@@ -247,8 +268,34 @@ class PriceFactorWorker:
                     allow_at_limit=sim_settings.allow_sell_at_limit_down,
                 ):
                     skipped_sell_at_limit_down += 1
+                    skipped_targets.append(target_dict)
                     continue
                 processed_targets.append(target_dict)
+
+            pending_exit = None
+            if skipped_targets and not position_fully_closed(processed_targets):
+                klines = load_stock_klines(
+                    self.stock_id,
+                    start_date=buy_date,
+                    end_date=backtest_end_date or buy_date,
+                )
+                processed_targets, pending_exit, defer_skips = retry_deferred_exits(
+                    buy_price=buy_price,
+                    processed_targets=processed_targets,
+                    skipped_targets=skipped_targets,
+                    klines=klines,
+                    sim_settings=sim_settings,
+                    market_profile=market_profile,
+                    stock_id=self.stock_id,
+                    allow_sell_at_limit=sim_settings.allow_sell_at_limit_down,
+                )
+                skipped_sell_at_limit_down += defer_skips
+
+            holding_until = resolve_holding_until(
+                processed_targets=processed_targets,
+                buy_date=buy_date,
+                backtest_end_date=backtest_end_date,
+            )
 
             investment = PriceFactorInvestment.from_opportunity(
                 merged,
@@ -256,6 +303,8 @@ class PriceFactorWorker:
                 stock_name=str(modified_row.get("stock_name") or ""),
                 goal_config=self.config_dict.get("goal"),
                 backtest_calendar=self.config_dict.get("backtest_calendar"),
+                backtest_end_date=backtest_end_date,
+                pending_exit=pending_exit,
             ).to_dict()
             investments.append(investment)
 

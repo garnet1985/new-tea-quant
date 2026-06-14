@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -16,6 +16,7 @@ import { zhCN } from '@mui/x-data-grid/locales';
 import {
   downloadStrategyPackage,
   fetchStrategyList,
+  getStrategyDesignPath,
   getStrategyDisplayLabel,
   getStrategyWorkbenchPath,
 } from '../../api/apis/strategyApi';
@@ -26,8 +27,32 @@ import NtqIcon from '../../components/ntqIcon/ntqIcon';
 import StrategyDescriptionText from '../../components/strategyDescriptionText/strategyDescriptionText';
 import './strategyListPage.scss';
 
-function StrategyListPage() {
+/**
+ * @param {object} props
+ * @param {string} props.listBasePath 列表页路由（面包屑）
+ * @param {(name: string) => string} props.getEnterPath 进入单策略调试页
+ * @param {string} props.navLabel 主导航/面包屑标签
+ * @param {string} props.bannerTitle
+ * @param {string} props.bannerDescription
+ */
+const STRATEGY_LIST_BANNER_TITLE = '选择一个策略';
+const STRATEGY_LIST_BANNER_DESCRIPTION =
+  '请从表格中选择一个策略；支持按名称搜索。进入后可调参数、分步回测并对比版本。';
+
+function StrategyListPage({
+  listBasePath: listBasePathProp,
+  getEnterPath: getEnterPathProp,
+  navLabel: navLabelProp,
+  bannerTitle = STRATEGY_LIST_BANNER_TITLE,
+  bannerDescription = STRATEGY_LIST_BANNER_DESCRIPTION,
+}) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isDesignFlow = location.pathname.startsWith('/strategy-design');
+
+  const listBasePath = listBasePathProp ?? (isDesignFlow ? '/strategy-design' : '/strategy-workbench');
+  const getEnterPath = getEnterPathProp ?? (isDesignFlow ? getStrategyDesignPath : getStrategyWorkbenchPath);
+  const navLabel = navLabelProp ?? (isDesignFlow ? '制定策略' : '策略实验室');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -94,7 +119,7 @@ function StrategyListPage() {
       renderCell: (params) => (
         <Link
           component={RouterLink}
-          to={getStrategyWorkbenchPath(params.row.name)}
+          to={getEnterPath(params.row.name)}
           underline="hover"
           onClick={(e) => e.stopPropagation()}
         >
@@ -125,7 +150,7 @@ function StrategyListPage() {
           <Stack direction="row" spacing={1} alignItems="center">
             <Link
               component={RouterLink}
-              to={getStrategyWorkbenchPath(name)}
+              to={getEnterPath(name)}
               underline="hover"
               onClick={(e) => e.stopPropagation()}
             >
@@ -179,10 +204,10 @@ function StrategyListPage() {
   return (
     <PageLayout
       className="strategy-list-page"
-      breadcrumbsItems={[{ label: '策略实验室', to: '/strategy-workbench' }]}
+      breadcrumbsItems={[{ label: navLabel, to: listBasePath }]}
       breadcrumbsCurrent="选择一个策略"
-      bannerTitle="选择一个策略"
-      bannerDescription="请从表格中选择一个策略进入策略实验室；支持按名称搜索。进入后可调参数、分步回测并对比版本。"
+      bannerTitle={bannerTitle}
+      bannerDescription={bannerDescription}
     >
       {loadError ? <Alert severity="error" className="strategy-list-alert">{loadError}</Alert> : null}
       {importNotice ? (
@@ -204,7 +229,7 @@ function StrategyListPage() {
         </Alert>
       ) : null}
 
-      <Paper className="strategy-list-grid ntq-glass-blur">
+      <Paper className="strategy-list-grid">
         <Stack
           direction={{ xs: 'column', sm: 'row' }}
           alignItems={{ xs: 'stretch', sm: 'center' }}
@@ -268,7 +293,7 @@ function StrategyListPage() {
               },
             }}
             onRowDoubleClick={(params) => {
-              navigate(getStrategyWorkbenchPath(params.row.name));
+              navigate(getEnterPath(params.row.name));
             }}
             // 仅 [10]：MUI TablePagination 在仅一项时不渲染 “Rows per page” 与下拉（避免英文标签）
             pageSizeOptions={[10]}

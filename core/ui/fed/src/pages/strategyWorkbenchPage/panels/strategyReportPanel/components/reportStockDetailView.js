@@ -19,6 +19,8 @@ import {
   setStockKlineMemoryCache,
 } from '../lib/stockKlineMemoryCache';
 import { STEP_TABS } from '../constants/strategyReportConstants';
+import { normalizeEnumMetricsFromSummary } from '../../../reportMetrics/strategyReportMetricsNormalize';
+import StockEnumDetailReport from './stockEnumDetailReport';
 
 const DETAIL_LAYER_TABS = STEP_TABS.map((t) => ({ key: t.key, label: t.label }));
 
@@ -122,6 +124,13 @@ function ReportStockDetailView({
     return { backtest_period: payload.backtest_period };
   }, [payload]);
 
+  const enumMetrics = useMemo(() => {
+    if (activeLayer !== 'enum' || !payload?.report?.available) return null;
+    const raw = payload?.report?.enumMetrics;
+    if (!raw || typeof raw !== 'object') return null;
+    return normalizeEnumMetricsFromSummary({ enumMetrics: raw });
+  }, [activeLayer, payload]);
+
   const priceAdjustLabel = useMemo(() => {
     const adj = String(payload?.kline_params?.adjust || 'qfq').toLowerCase();
     if (adj === 'qfq') return '前复权 (qfq)';
@@ -197,21 +206,31 @@ function ReportStockDetailView({
             )}
           </Box>
           {Object.keys(chartOption).length > 0 ? (
-            <Typography variant="caption" color="text.secondary">
-              滚轮缩放 · 拖拽平移 · 底部滑块调整区间
+            <Typography variant="caption" color="text.secondary" component="div">
+              使用底部滑块调整可见区间
+              {activeLayer === 'price' ? (
+                <>
+                  <br />
+                  标注：青色 Pin 为买入日，橙/紫 Pin 为目标胜/负。
+                </>
+              ) : null}
             </Typography>
           ) : null}
         </>
       )}
 
-      <Box className="ntq-report-stock-detail__report-placeholder">
-        <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 0.5 }}>
-          单股报告
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {payload?.report?.message || '逐股明细列待定义'}
-        </Typography>
-      </Box>
+      {activeLayer === 'enum' ? (
+        <StockEnumDetailReport metrics={enumMetrics} />
+      ) : (
+        <Box className="ntq-report-stock-detail__report-placeholder">
+          <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 0.5 }}>
+            单股报告
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {payload?.report?.message || '该步骤单股报告尚未开放'}
+          </Typography>
+        </Box>
+      )}
     </Stack>
   );
 }

@@ -13,7 +13,6 @@ __all__ = [
     "BaseStrategyWorker",
     "Opportunity",
     "ExecutionMode",
-    "OpportunityStatus",
     "SellReason",
     "JobBuilderHelper",
     "ScannerStatisticsHelper",
@@ -37,7 +36,7 @@ def __getattr__(name: str) -> Any:
         return getattr(
             import_module(".engines.shared.data_classes.opportunity", __name__), name
         )
-    if name in {"ExecutionMode", "OpportunityStatus", "SellReason"}:
+    if name in {"ExecutionMode", "SellReason"}:
         return getattr(import_module(".enums", __name__), name)
     if name == "ScannerStatisticsHelper":
         return getattr(import_module(".engines.scanner.helpers", __name__), name)

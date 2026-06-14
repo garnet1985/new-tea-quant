@@ -67,6 +67,10 @@ function StrategyReportPanel({
   onForceEnumerate,
   /** 至少两条快照时可对比报告；仅一条时隐藏「对比结果」 */
   showReportCompare = true,
+  /** 制定策略：固定展示某一 Tab，隐藏 Tab 切换 */
+  lockedTab = '',
+  /** 制定策略：无 Accordion 外壳，嵌入右侧报告区 */
+  embedded = false,
 }) {
   const activeWorkbenchVersionId = useMemo(
     () => String(workbenchSnapshot?.versionId || '').trim(),
@@ -98,6 +102,8 @@ function StrategyReportPanel({
   const {
     enumRefStatus,
     enumRefRows,
+    priceRefStatus,
+    priceRefRows,
     availableTabs,
     resolvedActiveTab,
   } = useStrategyReportRemoteData({
@@ -105,6 +111,9 @@ function StrategyReportPanel({
     reportVersionId: activeWorkbenchVersionId,
     activeTab,
     executionState,
+    resultReport,
+    reportTabFocusRequest,
+    lockedTab,
   });
 
   const {
@@ -130,12 +139,16 @@ function StrategyReportPanel({
   });
 
   useEffect(() => {
+    if (lockedTab) {
+      setActiveTab(lockedTab);
+      return;
+    }
     if (availableTabs.length === 0) return;
     const keys = availableTabs.map((t) => t.key);
     if (!keys.includes(activeTab)) {
       setActiveTab(keys[0]);
     }
-  }, [availableTabs, activeTab]);
+  }, [availableTabs, activeTab, lockedTab]);
 
   useEffect(() => {
     if (!reportTabFocusRequest || typeof reportTabFocusRequest.step !== 'string') return;
@@ -153,7 +166,7 @@ function StrategyReportPanel({
     }
     if (tabKey === 'price') {
       const slot = slotFromResultReport(reportSource, 'price');
-      return { priceMetrics: normalizePriceMetricsFromSummary(slot), stockRows: [] };
+      return { priceMetrics: normalizePriceMetricsFromSummary(slot), stockRows: priceStockRowsForGrid };
     }
     const slot = slotFromResultReport(reportSource, 'capital');
     return {
@@ -180,6 +193,13 @@ function StrategyReportPanel({
     }
     return [];
   }, [enumRefRows, enumRefStatus]);
+
+  const priceStockRowsForGrid = useMemo(() => {
+    if (priceRefStatus === 'ok' && Array.isArray(priceRefRows) && priceRefRows.length > 0) {
+      return priceRefRows;
+    }
+    return [];
+  }, [priceRefRows, priceRefStatus]);
 
   const renderReportByTab = (tabKey, reportData, title, options = {}) => {
     const unavailableZh = options.unavailableHintZh ?? REPORT_BLOCK_UNAVAILABLE_ZH;
@@ -219,7 +239,12 @@ function StrategyReportPanel({
           stockRows={reportData.stockRows}
           title={title}
           showStockGrid={options.showStockGrid !== false}
+          stockGridOverlay={options.stockGridOverlay}
+          priceRefStockTotal={options.priceRefStockTotal}
+          stockGridLoading={Boolean(options.stockGridLoading)}
           hideTitle={Boolean(options.hideTitle)}
+          onStockSelect={options.onStockSelect}
+          stockLinkEnabled={Boolean(options.stockLinkEnabled)}
         />
       );
     }
@@ -244,12 +269,33 @@ function StrategyReportPanel({
 
   const activeTabSectionTitle = REPORT_TAB_SECTION_TITLES[resolvedActiveTab] ?? '';
 
+  const embeddedPanelTitle = useMemo(() => {
+    const lt = String(lockedTab || '').trim();
+    if (lt && REPORT_TAB_SECTION_TITLES[lt]) return REPORT_TAB_SECTION_TITLES[lt];
+    return REPORT_PANEL_TITLE;
+  }, [lockedTab]);
+
+  const showSectionHead = Boolean(
+    resolvedActiveTab
+    && activeTabSectionTitle
+    && !(reportStockView === 'detail' && selectedStock)
+    && !(embedded && lockedTab),
+  );
+
   const activeReportSlotForPeriod = useMemo(
     () => slotFromResultReport(resultReport, resolvedActiveTab),
     [resultReport, resolvedActiveTab],
   );
 
   const renderTabContent = () => {
+    if (lockedTab && executionState?.stepStatus?.[lockedTab] !== 'done') {
+      return (
+        <Typography variant="body2" color="text.secondary">
+          在执行面板点击开始来产出报告
+        </Typography>
+      );
+    }
+
     if (!resolvedActiveTab) {
       return (
         <Typography variant="body2" color="text.secondary">
@@ -318,11 +364,36 @@ function StrategyReportPanel({
     }
 
     if (resolvedActiveTab === 'price') {
+      if (reportStockView === 'detail' && selectedStock) {
+        return (
+          <ReportStockDetailView
+            strategyName={strategyName}
+            versionId={activeWorkbenchVersionId}
+            stock={selectedStock}
+            initialStep="price"
+            stepStatus={executionState?.stepStatus || {}}
+            onBack={() => {
+              setReportStockView('list');
+              setSelectedStock(null);
+            }}
+          />
+        );
+      }
+
       return renderReportByTab(
         'price',
         buildMetricsPayloadForTab('price'),
         REPORT_TAB_SECTION_TITLES.price,
-        { hideTitle: true },
+        {
+          hideTitle: true,
+          priceRefStockTotal: priceRefStatus === 'ok' ? priceRefRows.length : undefined,
+          stockGridLoading: Boolean(activeWorkbenchVersionId) && priceRefStatus === 'loading',
+          stockLinkEnabled: executionState?.stepStatus?.price === 'done' && priceRefStatus === 'ok',
+          onStockSelect: (row) => {
+            setSelectedStock(row);
+            setReportStockView('detail');
+          },
+        },
       );
     }
 
@@ -334,61 +405,54 @@ function StrategyReportPanel({
     );
   };
 
-  return (
-    <Accordion defaultExpanded disableGutters>
-      <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
-        <SettingsAccordionTitle
-          title={REPORT_PANEL_TITLE}
-          tooltip={REPORT_PANEL_TOOLTIP}
-          context={{ defaultTooltipShine: true }}
-        />
-      </AccordionSummary>
-      <AccordionDetails>
-        <Stack spacing={1.25}>
-          {availableTabs.length > 0 ? (
-            <Tabs
-              value={resolvedActiveTab}
-              onChange={handleTabChange}
-              variant="scrollable"
-              scrollButtons="auto"
+  const reportPanelBody = (
+    <Stack spacing={1.25} className={embedded ? 'ntq-report-panel__embedded-body' : undefined}>
+      {!lockedTab && availableTabs.length > 0 ? (
+        <Tabs
+          value={resolvedActiveTab}
+          onChange={handleTabChange}
+          variant="scrollable"
+          scrollButtons="auto"
+        >
+          {availableTabs.map((tab) => (
+            <Tab key={tab.key} value={tab.key} label={tab.label} />
+          ))}
+        </Tabs>
+      ) : null}
+      {showSectionHead ? (
+        <Stack
+          direction="row"
+          alignItems="center"
+          spacing={1.5}
+          className="ntq-report-section-head"
+        >
+          <Typography variant="subtitle2" fontWeight={600} className="ntq-report-section-head__title">
+            {activeTabSectionTitle}
+          </Typography>
+          {showReportCompare ? (
+            <Button
+              size="small"
+              variant="outlined"
+              className="ntq-attention-btn ntq-report-section-head__compare"
+              onClick={() => {
+                setCompareDialogSubTab('report');
+                setCompareDialogOpen(true);
+              }}
             >
-              {availableTabs.map((tab) => (
-                <Tab key={tab.key} value={tab.key} label={tab.label} />
-              ))}
-            </Tabs>
+              对比结果
+            </Button>
           ) : null}
-          {resolvedActiveTab && activeTabSectionTitle && !(reportStockView === 'detail' && selectedStock) ? (
-            <Stack
-              direction="row"
-              alignItems="center"
-              spacing={1.5}
-              className="ntq-report-section-head"
-            >
-              <Typography variant="subtitle2" fontWeight={600} className="ntq-report-section-head__title">
-                {activeTabSectionTitle}
-              </Typography>
-              {showReportCompare ? (
-                <Button
-                  size="small"
-                  variant="outlined"
-                  className="ntq-attention-btn ntq-report-section-head__compare"
-                  onClick={() => {
-                    setCompareDialogSubTab('report');
-                    setCompareDialogOpen(true);
-                  }}
-                >
-                  对比结果
-                </Button>
-              ) : null}
-            </Stack>
-          ) : null}
-          {resolvedActiveTab && !(reportStockView === 'detail' && selectedStock) ? (
-            <BacktestPeriodBanner slot={activeReportSlotForPeriod} />
-          ) : null}
-          {renderTabContent()}
         </Stack>
-      </AccordionDetails>
+      ) : null}
+      {resolvedActiveTab && !(reportStockView === 'detail' && selectedStock) ? (
+        <BacktestPeriodBanner slot={activeReportSlotForPeriod} />
+      ) : null}
+      {renderTabContent()}
+    </Stack>
+  );
 
+  const reportPanelDialogs = (
+    <>
       <Dialog open={compareDialogOpen} onClose={() => setCompareDialogOpen(false)} maxWidth="lg" fullWidth>
         <DialogTitle>报告对比</DialogTitle>
         <DialogContent dividers>
@@ -553,6 +617,57 @@ function StrategyReportPanel({
           <Button onClick={() => setReportCompareMoreOpen(false)}>关闭</Button>
         </DialogActions>
       </Dialog>
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <Box className="ntq-report-panel ntq-report-panel--embedded">
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          spacing={1.5}
+          className="ntq-report-panel__embedded-head"
+        >
+          <SettingsAccordionTitle
+            title={embeddedPanelTitle}
+            tooltip={REPORT_PANEL_TOOLTIP}
+            context={{ defaultTooltipShine: true }}
+          />
+          {showReportCompare && lockedTab ? (
+            <Button
+              size="small"
+              variant="outlined"
+              className="ntq-attention-btn ntq-report-panel__embedded-compare"
+              onClick={() => {
+                setCompareDialogSubTab('report');
+                setCompareDialogOpen(true);
+              }}
+            >
+              对比结果
+            </Button>
+          ) : null}
+        </Stack>
+        {reportPanelBody}
+        {reportPanelDialogs}
+      </Box>
+    );
+  }
+
+  return (
+    <Accordion defaultExpanded disableGutters>
+      <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
+        <SettingsAccordionTitle
+          title={REPORT_PANEL_TITLE}
+          tooltip={REPORT_PANEL_TOOLTIP}
+          context={{ defaultTooltipShine: true }}
+        />
+      </AccordionSummary>
+      <AccordionDetails>
+        {reportPanelBody}
+      </AccordionDetails>
+      {reportPanelDialogs}
     </Accordion>
   );
 }

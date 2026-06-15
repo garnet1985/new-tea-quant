@@ -10,6 +10,10 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_vi
 )
 from core.modules.data_manager.data_manager import DataManager
 
+_DEMO_STOCK = "000019.SZ"
+_DEMO_START = "20250102"
+_DEMO_END = "20250131"
+
 
 class TestWorkbenchStockDetailKline(unittest.TestCase):
     def test_api_candle_row_only_ohlc_keys(self):
@@ -41,9 +45,9 @@ class TestWorkbenchStockDetailKline(unittest.TestCase):
             }
         })
         candles, series = _load_candles_and_indicators(
-            stock_id="000019.SZ",
+            stock_id=_DEMO_STOCK,
             settings_view=view,
-            backtest_period={"start_date": "20230601", "end_date": "20230630"},
+            backtest_period={"start_date": _DEMO_START, "end_date": _DEMO_END},
             data_manager=dm,
         )
         self.assertTrue(candles)

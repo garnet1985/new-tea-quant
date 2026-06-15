@@ -6,6 +6,10 @@ from core.modules.data_manager.data_manager import DataManager
 from core.modules.data_contract.contract_const import DataKey
 from core.modules.tag.components.job_staging.tag_batch_stage import stage_entities_batch
 
+_DEMO_STOCK = "000019.SZ"
+_DEMO_START = "20250102"
+_DEMO_END = "20250110"
+
 
 class TestTagKlineIntegration(unittest.TestCase):
     def test_batch_stage_klines_use_standard_ohlc(self):
@@ -14,9 +18,9 @@ class TestTagKlineIntegration(unittest.TestCase):
             data_mgr=dm,
             entities=[
                 {
-                    "entity_id": "000019.SZ",
-                    "start_date": "20230601",
-                    "end_date": "20230610",
+                    "entity_id": _DEMO_STOCK,
+                    "start_date": _DEMO_START,
+                    "end_date": _DEMO_END,
                 }
             ],
             settings={
@@ -31,7 +35,7 @@ class TestTagKlineIntegration(unittest.TestCase):
             },
             tag_definition_ids=[1],
         )
-        rows = out["000019.SZ"]["slot_data"][DataKey.STOCK_KLINE_DAILY.value]
+        rows = out[_DEMO_STOCK]["slot_data"][DataKey.STOCK_KLINE_DAILY.value]
         self.assertTrue(rows)
         row = rows[0]
         self.assertIn("open", row)

@@ -6,15 +6,24 @@ from core.modules.data_manager.data_services.stock.sub_services.kline_service im
     KlineService,
 )
 
+# 与 setup/init_data/data_demo.zip 日期窗对齐（20250101–20260101）
+_DEMO_STOCK = "000019.SZ"
+_DEMO_START = "20250102"
+_DEMO_END = "20250110"
+_EX_STOCK = "001227.SZ"
+_EX_WINDOW_START = "20250120"
+_EX_WINDOW_END = "20250128"
+_EX_CHECK_DATE = "20250123"
+
 
 class TestKlineLoadOutput(unittest.TestCase):
     def test_load_qfq_uses_standard_ohlc_keys(self):
         dm = DataManager()
         rows = dm.service.stock.kline.load_qfq_split(
-            "000019.SZ",
+            _DEMO_STOCK,
             term="daily",
-            start_date="20230601",
-            end_date="20230605",
+            start_date=_DEMO_START,
+            end_date=_DEMO_END,
         )
         self.assertTrue(rows)
         row = rows[0]
@@ -28,8 +37,8 @@ class TestKlineLoadOutput(unittest.TestCase):
     def test_load_raw_matches_db_ohlc(self):
         dm = DataManager()
         svc = dm.service.stock.kline
-        raw = svc.load_raw("000019.SZ", "daily", "20230601", "20230601")
-        qfq = svc.load_qfq_split("000019.SZ", "daily", "20230601", "20230601")
+        raw = svc.load_raw(_DEMO_STOCK, "daily", _DEMO_START, _DEMO_START)
+        qfq = svc.load_qfq_split(_DEMO_STOCK, "daily", _DEMO_START, _DEMO_START)
         self.assertEqual(len(raw), 1)
         self.assertEqual(len(qfq), 1)
         self.assertNotEqual(raw[0]["close"], qfq[0]["close"])
@@ -59,11 +68,11 @@ class TestKlineLoadOutput(unittest.TestCase):
         rows = {
             r["date"]: r
             for r in dm.service.stock.kline.load_qfq_split(
-                "001227.SZ", "daily", "20230529", "20230605"
+                _EX_STOCK, "daily", _EX_WINDOW_START, _EX_WINDOW_END
             )
         }
-        self.assertLess(rows["20230531"]["close"], 2.6)
-        self.assertGreater(rows["20230531"]["close"], 2.4)
+        self.assertLess(rows[_EX_CHECK_DATE]["close"], 2.6)
+        self.assertGreater(rows[_EX_CHECK_DATE]["close"], 2.1)
 
 
 if __name__ == "__main__":

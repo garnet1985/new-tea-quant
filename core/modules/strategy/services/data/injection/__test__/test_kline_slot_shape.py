@@ -10,18 +10,22 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_vi
     StrategySettingsView,
 )
 
+_DEMO_STOCK = "000019.SZ"
+_DEMO_START = "20250102"
+_DEMO_END = "20250110"
+
 
 class TestKlineSlotShape(unittest.TestCase):
     def test_stock_kline_loader_returns_standard_ohlc(self):
         dcm = DataContractManager(contract_cache=ContractCacheManager())
         contract = dcm.issue(
             DataKey.STOCK_KLINE_DAILY,
-            entity_id="000019.SZ",
-            start="20230601",
-            end="20230610",
+            entity_id=_DEMO_STOCK,
+            start=_DEMO_START,
+            end=_DEMO_END,
             adjust="qfq",
         ).require_contract()
-        contract.load(start="20230601", end="20230610")
+        contract.load(start=_DEMO_START, end=_DEMO_END)
         self.assertTrue(contract.data)
         row = contract.data[0]
         self.assertIn("high", row)
@@ -40,11 +44,11 @@ class TestKlineSlotShape(unittest.TestCase):
             }
         })
         svc = StrategyDataInjectionService(
-            "000019.SZ",
+            _DEMO_STOCK,
             view,
             contract_cache=ContractCacheManager(),
         )
-        svc.hydrate_row_slots("20230601", "20230610", fresh_strategy_cache=True)
+        svc.hydrate_row_slots(_DEMO_START, _DEMO_END, fresh_strategy_cache=True)
         klines = svc.get_klines()
         self.assertTrue(klines)
         row = klines[0]
@@ -72,11 +76,11 @@ class TestKlineSlotShape(unittest.TestCase):
             }
         })
         svc = StrategyDataInjectionService(
-            "000019.SZ",
+            _DEMO_STOCK,
             view,
             contract_cache=ContractCacheManager(),
         )
-        svc.hydrate_row_slots("20230601", "20230630", fresh_strategy_cache=True)
+        svc.hydrate_row_slots(_DEMO_START, "20250130", fresh_strategy_cache=True)
         loaded = svc.get_loaded_data()
         self.assertIn("klines", loaded)
         self.assertIn("stock.kline.weekly", loaded)

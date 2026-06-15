@@ -42,7 +42,7 @@ def test_stage_entities_batch_bulk_io():
 
 def test_stage_entities_batch_moneyflow_only():
     entities = [
-        {"entity_id": "603716.SH", "start_date": "20250101", "end_date": "20250110"},
+        {"entity_id": "000019.SZ", "start_date": "20250101", "end_date": "20250110"},
     ]
     settings = {
         "data": {
@@ -60,7 +60,7 @@ def test_stage_entities_batch_moneyflow_only():
         settings=settings,
         tag_definition_ids=[8],
     )
-    eid = "603716.SH"
+    eid = "000019.SZ"
     assert eid in out
     assert "stock.moneyflow.daily" in out[eid]["slot_data"]
     assert len(out[eid]["slot_data"]["stock.moneyflow.daily"]) > 0

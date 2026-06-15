@@ -25,6 +25,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
+      - name: Bootstrap DuckDB demo data for integration tests
+        run: |
+          python setup/steps/init_userspace/install.py
+          mkdir -p userspace/system/config/database
+          printf '%s\n' '{"database_type": "duckdb"}' > userspace/system/config/database/common.json
+          python setup/steps/import_data/install.py --force
+
       - name: Smoke test - import core modules
         run: |
           python - << 'EOF'

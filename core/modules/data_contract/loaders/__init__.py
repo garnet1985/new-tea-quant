@@ -9,6 +9,7 @@ from core.modules.data_contract.loaders.macro_lpr import MacroLprLoader
 from core.modules.data_contract.loaders.macro_pmi import MacroPmiLoader
 from core.modules.data_contract.loaders.macro_ppi import MacroPpiLoader
 from core.modules.data_contract.loaders.stock_adj_factor_events import StockAdjFactorEventsLoader
+from core.modules.data_contract.loaders.stock_indicators_daily import StockIndicatorsDailyLoader
 from core.modules.data_contract.loaders.stock_kline import StockKlineLoader
 from core.modules.data_contract.loaders.stock_list import StockListLoader
 from core.modules.data_contract.loaders.tag import TagLoader
@@ -25,6 +26,7 @@ __all__ = [
     "MacroPmiLoader",
     "MacroPpiLoader",
     "StockAdjFactorEventsLoader",
+    "StockIndicatorsDailyLoader",
     "StockListLoader",
     "StockKlineLoader",
     "TagLoader",

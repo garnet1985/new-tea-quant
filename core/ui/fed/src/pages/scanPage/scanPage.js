@@ -349,7 +349,7 @@ function ScanPage() {
   return (
     <PageLayout
       className="scan-page"
-      breadcrumbsItems={[{ label: '策略实验室', to: '/strategy-workbench' }]}
+      breadcrumbsItems={[{ label: '制定策略', to: '/strategy-design' }]}
       breadcrumbsCurrent="策略选股"
       bannerTitle="策略选股"
       bannerDescription={(

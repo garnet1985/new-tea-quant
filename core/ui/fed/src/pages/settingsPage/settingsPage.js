@@ -70,7 +70,7 @@ function SettingsPage() {
   return (
     <PageLayout
       className="settings-page"
-      breadcrumbsItems={[{ label: '策略实验室', to: '/strategy-workbench' }]}
+      breadcrumbsItems={[{ label: '制定策略', to: '/strategy-design' }]}
       breadcrumbsCurrent="设置"
       bannerTitle="设置"
       bannerDescription="系统安装入口与 userspace 数据库连接的快速调整。"

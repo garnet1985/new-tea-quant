@@ -7,7 +7,7 @@
 新版本更新清单：
 python dev-cli -p -vx.x.x
 
-[] (已自动化)同步 ``core/system.json`` 中的版本
+[] (已自动化)同步 ``core/system.json`` / ``core/system.py`` 中的版本与 ``new_features``（自 CHANGELOG 对应版本段落读取）
 [] (已自动化)同步版本徽章
 [] (已自动化)确保所有test都能跑过
 [] (已自动化)检查安装依赖的数据是不是齐全，是不是足够新
@@ -42,31 +42,31 @@ python dev-cli -p -vx.x.x
 
 ---
 
-### v0.4.1 (TBD)
-- 新增加命令行和UI的策略导入和导出功能
+### v0.4.1 (2026-6-15)
+
+- 重大更新：新增加了3组共9个层层递进的演示策略来帮助理解框架和概念（注意：回测结果仅供参考，不是任何投资建议）
+- 重大更新：增加策略回测report里的单股K线的点击界面，能够打开单个股票查询详细机会和交易回测点位
+- 重大更新：重建回测的UI，将三层回测变成三个单独页面而不再集中在一页上，提升了用户体验并且减小了UI渲染压力
 - (破坏性改动)将策略 settings 的一些信息字段收入meta中, 顶层只留is enabled字段；
-- 策略 settings 加入display name作为展示名称
-- 增加策略回测report里K线的点击界面，能够打开单个股票查询详细信息
 - (破坏性改动)改动了data.json, 重命名了数据截断日期为 as of latest completed date
+- (破坏性改动)所有k线的最高最低价从highest和lowest变成high和low
+- (破坏性改动)对公司财务表加入了披露日期的列
+- (破坏性改动)将K线的数据契约从一个按照周期分成了3个，补上了STOCK_INDICATORS_DAILY的数据契约
+- (破坏性改动)策略设置里指标的声明归入了数据的私有属性，不再是 data 的根目录
+- 新增加了个股资金流向数据表
+- 新增加了策略导入和导出功能
 - 让复权因子可以根据data.json的配置先行导入可用的数据，大大降低了更新的时间
-- 所有k线的最高最低价从highest和lowest变成high和low
-- sys_adj_factor_events 表：qfq_anchor/raw_anchor、DECIMAL 精度、last_update renew 门控、CSV 冷启动导入（见 core/tables v0.2.x）
+- 重新定义了复权因子的存储结构和计算方式，使复权因子能够累加而不是刷新式更新。增加了复权因子链式检查以确保实效性。
+- 策略 settings 加入display name作为展示名称
+- 新增加命令行和UI的策略导入和导出功能
+- 修复了UI上的回测缓存有的时候会取错的bug
+- 修复了UI上有的时候回测报告会显示无效数据的bug
+- 修复了回测进度完成后会马上返回一份report然后又被另一个专门拿report的API覆盖的bug
+- 修复了回测进度只管回测股票进度的bug，现在整个回测进度由加载数据，分发任务，执行计算和总结结果4个部分构成
+- 修复了market profile忘了加入T+1交易的逻辑
+- 修复了价格回测在遇到跌停无法卖出导致交易最终无法平仓的bug
 - 修复策略报告 K 线 tooltip 将 dataIndex 误显示为开盘价的问题
-- KlineService 前复权消费改为方案 B：`raw×F(段)/F(最新)+C`，C 由最新事件 anchor 折算；`qfq_diff` 仅 fallback
-- 修复模拟产物 `latest` 解析：`enum` / `price` / `capital` 目录 id 按**数字**取最大，不再字典序（如 `"9"` 误大于 `"20"`）；下游 price/capital 与最新枚举对齐，`env_fp` 可正确复用 DbCache（**无兼容**：旧快照行不对请重跑或删行）
-- 修复工作台 DbCache 写侧：price/capital 落库时若 `result_report` 缺 `enum` 槽，按本次运行引用的 `enumerator_output_dir` 从磁盘 `0_report_enum.json` 补写（**无读侧 fallback**；CLI 与 UI 共用同一后端 flow）
-- 修复工作台 UI：单步跑完后按 progress 的 `version_id` 拉 V2-08 快照，执行面板摘要与下方报告读同一份 `result_report`（不再把 progress `card` 切片 merge 进报告）
-- (破坏性改动)工作台 progress 仅编排状态（`step_status` / `progress_pct` / `version_id`），不再携带 `card` 或指标；执行面板三行摘要改由 V2-01/V2-08 的 `execution_panel` 字段提供（后端唯一计算源）
-- 工作台报告主面板改读 V2-08 `result_report` 单源，不再对 V2-07 做 per-tab 拉取与快照 fallback；`selectedConfigVersion` 为报告/对比锚点，草稿变更时一并清空
-- 工作台右侧状态收敛为单一 `workbenchSnapshot`（`versionId` / `step_status` / `result_report` / `execution_panel` / `settings`）；对比弹窗左右两侧均读 V2-08，不再使用 V2-07
-- 明确三步依赖：enum 为前置；price / capital 并列且互不依赖；enum 落库时剔除下游槽位，单跑 price 或 capital 不再误清另一路结果
-- 前端移除自维护的依赖链（计划推断 / 摘要清空 / 快照槽位剔除）；执行 UI 只消费 V2-05 ``steps`` 与 V2-06b progress，跑完后 V2-08 快照对齐
-- 关键修复：修复了market profile忘了加入T+1交易的逻辑
-- 关键修复：修复了价格回测在遇到跌停无法卖出导致交易最终无法平仓的bug
-- 破坏性改动：在数据源增加了公司财务的公布日期列
-- 破坏性改动：将Kline的数据契约分成了按照周期的不同数据契约
-- 破坏性改动：策略设置里指标的声明归入了数据的私有属性，不再是data的根目录了
-- 简化命令行入口文件名，从start-cli.py改名成为cli.py, 从dev-cli.py改成devcli.py
+- 简化命令行入口文件名，从 start-cli.py 改名成为 cli.py，从 dev-cli.py 改成 devcli.py
 
 ---
 

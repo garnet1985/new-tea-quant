@@ -99,7 +99,6 @@ export function useStrategyDesignWorkbench() {
   const [strategyEntryConditions, setStrategyEntryConditions] = useState([]);
   const [initialSettings, setInitialSettings] = useState(() => buildMergeBaseSettings());
   const [draftSettings, setDraftSettings] = useState(() => buildMergeBaseSettings());
-  const [savedBaselineSettings, setSavedBaselineSettings] = useState(() => buildMergeBaseSettings());
   const [appliedSettings, setAppliedSettings] = useState(() => buildMergeBaseSettings());
   const [selectedConfigVersion, setSelectedConfigVersion] = useState('');
   const [appliedVersionId, setAppliedVersionId] = useState('userspace');
@@ -142,7 +141,6 @@ export function useStrategyDesignWorkbench() {
   }, []);
 
   useEffect(() => {
-    setSavedBaselineSettings(deepClone(initialSettings));
     setAppliedSettings(deepClone(initialSettings));
     setDraftSettings(deepClone(initialSettings));
   }, [initialSettings]);
@@ -464,7 +462,6 @@ export function useStrategyDesignWorkbench() {
         setStrategyEntryConditions(extractStrategyEntryConditions(mergedSettings));
         setDraftSettings(deepClone(mergedSettings));
         setSelectedConfigVersion(wb);
-        setSavedBaselineSettings(deepClone(mergedSettings));
         setAppliedSettings(deepClone(mergedSettings));
         setAppliedVersionId(typeof wb === 'string' && wb.trim() !== '' ? wb.trim() : 'userspace');
         patchSession({

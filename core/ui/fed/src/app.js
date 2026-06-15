@@ -175,7 +175,7 @@ function App() {
               element={<SettingsPage />}
             />
           </Route>
-          <Route path="*" element={<Navigate to="/strategy-workbench" replace />} />
+          <Route path="*" element={<Navigate to="/strategy-design" replace />} />
         </Routes>
       </Router>
     </ThemeProvider>

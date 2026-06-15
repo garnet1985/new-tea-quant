@@ -26,6 +26,7 @@ __all__ = [
     "MacroPmiLoader",
     "MacroPpiLoader",
     "StockAdjFactorEventsLoader",
+    "StockIndicatorsDailyLoader",
     "StockListLoader",
     "StockIndicatorsDailyLoader",
     "StockKlineLoader",

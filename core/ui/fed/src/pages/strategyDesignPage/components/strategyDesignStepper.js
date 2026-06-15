@@ -8,6 +8,7 @@ import { resolveStepperVisual } from '../lib/resolveStepperVisual';
 import './strategyDesignStepper.scss';
 
 const STEPPER_RING_PX = 56;
+const EMPTY_OBJECT = {};
 
 function StepperCircle({ step, visual, isLast, connectorDone = false }) {
   const ringPct = visual?.kind === 'running' ? visual.pct : 0;
@@ -63,8 +64,8 @@ function StrategyDesignStepper() {
   const navigate = useNavigate();
   const { strategyName, session } = useStrategyDesignSession();
   const activeStep = session.activeStep;
-  const stepStatus = session.executionState?.stepStatus || {};
-  const stepProgress = session.stepProgress || {};
+  const stepStatus = session.executionState?.stepStatus ?? EMPTY_OBJECT;
+  const stepProgress = session.stepProgress ?? EMPTY_OBJECT;
   const activeRunId = session.executionState?.activeRunId || '';
 
   const visuals = useMemo(() => (

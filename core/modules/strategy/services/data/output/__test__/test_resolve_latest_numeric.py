@@ -13,8 +13,8 @@ def test_pick_latest_numeric_version_dir():
     assert _pick_latest_numeric_version_dir(dirs).name == "20"
 
 
-def test_resolve_enumerator_latest_example_strategy():
+def test_resolve_enumerator_latest_uses_numeric_max(enum_simulation_root):
     version_dir, _ = StrategyOutputVersionService.resolve_enumerator_version(
-        "example", "latest"
+        "unit_test_strategy", "latest"
     )
     assert int(version_dir.name) >= 20

@@ -201,7 +201,7 @@ class DataSourceExecutionScheduler:
     def _get_dependencies_data(self, data_source_key: str) -> Dict[str, Any]:
         """
         收集依赖数据：分两层解析。
-        1. 保留依赖（如 latest_trading_date）：由 resolve_reserved_dependency 解析，不来自缓存。
+        1. 保留依赖（如 latest_completed_trading_date）：由 resolve_reserved_dependency 解析，不来自缓存。
         2. 其他 data source：从 _dependency_cache 取（须先执行过对应 handler）。
         
         Args:

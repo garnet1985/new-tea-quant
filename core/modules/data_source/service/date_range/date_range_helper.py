@@ -530,7 +530,7 @@ def compute_entity_date_ranges(
         # 这样可以处理新股票（不在 last_update_map 中）的情况
         # 例如：{"000001.SZ::daily": "20240101", "000001.SZ::weekly": "20240107"}
 
-        # 获取 terms：从 last_update_map 提取已有 term；不足时从 job_execution.terms 补充（不允许运行时推断）
+        # 获取 terms：DB 已有 term + job_execution.terms 取并集（新增 weekly 等周期时 DB 可能尚无记录）
         terms_set = set()
         for key in last_update_map.keys():
             if "::" in key:
@@ -539,8 +539,8 @@ def compute_entity_date_ranges(
                     terms_set.add(parts[1].lower())
 
         config_terms = config.get_group_by_terms() if config else None
-        if not terms_set and config_terms:
-            terms_set = {str(t).lower() for t in config_terms if t}
+        if config_terms:
+            terms_set.update(str(t).lower() for t in config_terms if t)
         if not terms_set:
             from core.modules.data_source.data_class.error import DataSourceConfigError
 

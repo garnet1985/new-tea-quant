@@ -87,8 +87,22 @@ class StrategyDataInjectionService:
         return self._dcf_mgr
 
     @staticmethod
-    def storage_key_for(data_id: DataKey) -> str:
-        return storage_key_for(data_id)
+    def storage_key_for(data_id: DataKey, *, is_base: bool = False) -> str:
+        return storage_key_for(data_id, is_base=is_base)
+
+    def _base_data_key(self, st: Optional[StrategySettingsView] = None) -> DataKey:
+        view = st if st is not None else self.settings
+        normalized = StrategySettingsView.normalize_base_required_data(view.base_required_data)
+        return DataKey(str(normalized["data_id"]))
+
+    def _slot_for_contract(
+        self,
+        dk: DataKey,
+        *,
+        st: Optional[StrategySettingsView] = None,
+    ) -> str:
+        is_base = dk == self._base_data_key(st)
+        return self.storage_key_for(dk, is_base=is_base)
 
     def issue_contracts(
         self,
@@ -185,13 +199,15 @@ class StrategyDataInjectionService:
         *,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
+        settings_view: Optional[StrategySettingsView] = None,
     ) -> None:
         dcm = self._contract_manager()
+        st = settings_view or self.settings
         self._slot_contracts = {}
         self._current_data = {}
         for dk, contract in contracts.items():
             spec = dcm.map.get(dk)
-            slot = self.storage_key_for(dk)
+            slot = self._slot_for_contract(dk, st=st)
             if (
                 spec
                 and spec.get("scope") == ContractScope.GLOBAL
@@ -271,7 +287,7 @@ class StrategyDataInjectionService:
                     end=end_date,
                     **params,
                 ).require_contract()
-            slot = self.storage_key_for(dk)
+            slot = self._slot_for_contract(dk)
             if (
                 spec
                 and spec.get("scope") == ContractScope.GLOBAL
@@ -293,7 +309,7 @@ class StrategyDataInjectionService:
     def load_latest_data(self, lookback: int = None) -> None:
         if lookback is None:
             lookback = self.settings.min_required_records or 100
-        latest_date = self._get_latest_trading_date()
+        latest_date = self._get_latest_completed_trading_date()
         start_date = self._get_date_before(latest_date, lookback)
         self.hydrate_row_slots(start_date, latest_date)
         self.apply_indicators()
@@ -320,20 +336,35 @@ class StrategyDataInjectionService:
         return cursor.until(date_of_today)
 
     def apply_indicators(self) -> None:
-        indicators_cfg = getattr(self.settings, "indicators", None)
-        klines = self._current_data.get("klines") or []
-        if not indicators_cfg or not klines:
-            return
-        for name, cfg, result in IndicatorService.compute_batch(klines, indicators_cfg):
+        st = self.settings
+        base_dk = self._base_data_key(st)
+        for raw in st.required_data_sources:
+            item = self._normalize_declaration_item(st, raw)
+            indicators_cfg = StrategySettingsView.normalize_indicators(item.get("indicators"))
+            if not indicators_cfg:
+                continue
+            dk = DataKey(str(item["data_id"]))
+            slot = self.storage_key_for(dk, is_base=(dk == base_dk))
+            rows = self._current_data.get(slot) or []
+            if not rows:
+                continue
+            self._apply_indicators_to_rows(rows, indicators_cfg)
+
+    def _apply_indicators_to_rows(
+        self,
+        rows: List[Dict[str, Any]],
+        indicators_cfg: Dict[str, Any],
+    ) -> None:
+        for name, cfg, result in IndicatorService.compute_batch(rows, indicators_cfg):
             try:
                 if isinstance(result, list):
                     field = self._build_indicator_field_name(name, cfg)
-                    for rec, val in zip(klines, result):
+                    for rec, val in zip(rows, result):
                         rec[field] = val
                 elif isinstance(result, dict):
                     for key, series in result.items():
                         field = self._build_indicator_field_name(f"{name}_{key}", cfg)
-                        for rec, val in zip(klines, series):
+                        for rec, val in zip(rows, series):
                             rec[field] = val
             except Exception as exc:
                 logger.error(
@@ -356,7 +387,7 @@ class StrategyDataInjectionService:
                 parts.append(f"{key}{value}")
         return "_".join(parts)
 
-    def _get_latest_trading_date(self) -> str:
+    def _get_latest_completed_trading_date(self) -> str:
         from core.modules.data_manager import DataManager
         from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
             resolve_latest_completed_trading_date,
@@ -397,7 +428,7 @@ class StrategyDataInjectionService:
 
             params = dict(item.get("params") or {})
             c = dcm.issue(dk, start=start_date, end=end_date, **params).require_contract()
-            out[storage_key_for(dk)] = list(c.data or [])
+            out[storage_key_for(dk, is_base=False)] = list(c.data or [])
         return out
 
 

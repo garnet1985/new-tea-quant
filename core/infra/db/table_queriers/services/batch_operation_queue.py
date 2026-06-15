@@ -261,7 +261,7 @@ class BatchWriteQueue:
             if not unique_keys:
                 # 纯 INSERT（不需要去重）
                 columns, _ = row_sql.to_columns_and_values(data_list)
-                values = [tuple(data[col] for col in columns) for data in data_list]
+                values = row_sql.rows_to_value_tuples(data_list, columns)
                 update_clause = None
             else:
                 # 使用 INSERT ... ON CONFLICT DO UPDATE（PostgreSQL Upsert）

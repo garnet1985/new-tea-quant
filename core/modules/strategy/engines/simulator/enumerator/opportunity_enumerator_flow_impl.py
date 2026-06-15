@@ -63,7 +63,7 @@ class WorkbenchEnumeratorProgressCallback:
 
     def __call__(self, payload: Dict[str, Any]) -> None:
         from core.modules.strategy.execution_manager.workbench_run_envelope import (
-            run_envelope_on_flow_progress,
+            run_envelope_apply_step_stage,
         )
         from core.modules.strategy.services.progress import ProgressRecorder
 
@@ -97,8 +97,14 @@ class WorkbenchEnumeratorProgressCallback:
                 "progress_pct": progress_pct,
             }
         )
-        run_envelope_on_flow_progress(
-            self.strategy_name, self.run_id, "enum", float(progress_pct)
+        counters = {"done": done_jobs, "total": total_jobs} if total_jobs > 0 else None
+        run_envelope_apply_step_stage(
+            self.strategy_name,
+            self.run_id,
+            "enum",
+            "execute",
+            float(progress_pct) / 100.0,
+            counters=counters,
         )
 
 
@@ -174,12 +180,13 @@ class OpportunityEnumeratorFlowImpl:
         strategy_name: str,
         strategy_info: Optional["DiscoveredStrategy"],
     ) -> Dict[str, str]:
-        worker_module_path, worker_class_name = resolve_worker_ref(
+        worker_module_path, worker_class_name, worker_file_path = resolve_worker_ref(
             strategy_name, strategy_info=strategy_info
         )
         return {
             "worker_module_path": worker_module_path,
             "worker_class_name": worker_class_name,
+            "worker_file_path": worker_file_path,
         }
 
     def parse_enum_settings(
@@ -231,14 +238,11 @@ class OpportunityEnumeratorFlowImpl:
         )
 
     def _build_worker_anchor(self, worker_ref: Dict[str, str]) -> Dict[str, str]:
-        worker_module_path = str(worker_ref.get("worker_module_path", ""))
+        worker_file_path = str(worker_ref.get("worker_file_path") or "").strip()
         worker_code_hash = ""
-        if worker_module_path:
+        if worker_file_path:
             try:
-                module = importlib.import_module(worker_module_path)
-                source_file = inspect.getsourcefile(module)
-                if source_file:
-                    worker_code_hash = self._hash_file(Path(source_file))
+                worker_code_hash = self._hash_file(Path(worker_file_path))
             except Exception:
                 worker_code_hash = ""
         return {"worker_code_hash": worker_code_hash}

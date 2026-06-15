@@ -14,17 +14,34 @@ from typing import Any, Dict, List, Tuple
 _DATA_PATH = Path(__file__).resolve().with_name("system.json")
 
 _FALLBACK: Dict[str, Any] = {
-    "version": "0.4.0",
-    "release_date": "2026-06-07",
+    "version": "0.4.1",
+    "release_date": "2026-06-15",
     "description": "版本发布",
     "python": {"minimum": [3, 9]},
-    "new_features": [
-        "重大更新：UI 系统发布（BFF + FED），引入 Node.js 依赖",
-        "加入 Launder.py：一键启动与安装引导",
-        "完成策略工作台与策略扫描的 UI 能力",
-        "对齐 UI 与命令行的 Report 输出与展示",
-        "回测加入缓存：重复回测将直接返回 Report",
-        "Strategy 模块重构：按 flow 组织，更直观可维护",
+            "new_features": [
+        "重大更新：新增加了3组共9个层层递进的演示策略来帮助理解框架和概念（注意：回测结果仅供参考，不是任何投资建议）",
+        "重大更新：增加策略回测report里的单股K线的点击界面，能够打开单个股票查询详细机会和交易回测点位",
+        "重大更新：重建回测的UI，将三层回测变成三个单独页面而不再集中在一页上，提升了用户体验并且减小了UI渲染压力",
+        "(破坏性改动)将策略 settings 的一些信息字段收入meta中, 顶层只留is enabled字段；",
+        "(破坏性改动)改动了data.json, 重命名了数据截断日期为 as of latest completed date",
+        "(破坏性改动)所有k线的最高最低价从highest和lowest变成high和low",
+        "(破坏性改动)对公司财务表加入了披露日期的列",
+        "(破坏性改动)将K线的数据契约从一个按照周期分成了3个，补上了STOCK_INDICATORS_DAILY的数据契约",
+        "(破坏性改动)策略设置里指标的声明归入了数据的私有属性，不再是 data 的根目录",
+        "新增加了个股资金流向数据表",
+        "新增加了策略导入和导出功能",
+        "让复权因子可以根据data.json的配置先行导入可用的数据，大大降低了更新的时间",
+        "重新定义了复权因子的存储结构和计算方式，使复权因子能够累加而不是刷新式更新。增加了复权因子链式检查以确保实效性。",
+        "策略 settings 加入display name作为展示名称",
+        "新增加命令行和UI的策略导入和导出功能",
+        "修复了UI上的回测缓存有的时候会取错的bug",
+        "修复了UI上有的时候回测报告会显示无效数据的bug",
+        "修复了回测进度完成后会马上返回一份report然后又被另一个专门拿report的API覆盖的bug",
+        "修复了回测进度只管回测股票进度的bug，现在整个回测进度由加载数据，分发任务，执行计算和总结结果4个部分构成",
+        "修复了market profile忘了加入T+1交易的逻辑",
+        "修复了价格回测在遇到跌停无法卖出导致交易最终无法平仓的bug",
+        "修复策略报告 K 线 tooltip 将 dataIndex 误显示为开盘价的问题",
+        "简化命令行入口文件名，从 start-cli.py 改名成为 cli.py，从 dev-cli.py 改成 devcli.py",
     ],
 }
 

@@ -1243,7 +1243,7 @@ class DbBaseModel:
                 columns, values, update_clause = row_sql.to_upsert_params(data_list, unique_keys)
             else:
                 columns, _ = row_sql.to_columns_and_values(data_list)
-                values = [tuple(data[col] for col in columns) for data in data_list]
+                values = row_sql.rows_to_value_tuples(data_list, columns)
                 update_clause = None
             
             if not columns:

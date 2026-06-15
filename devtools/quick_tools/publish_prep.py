@@ -17,6 +17,10 @@ from pathlib import Path
 from typing import List, Sequence, Tuple
 
 from core.utils import i as icon
+from devtools.quick_tools.changelog_sync import (
+    compare_system_new_features,
+    sync_version_metadata_from_changelog,
+)
 from devtools.quick_tools._paths import REPO_ROOT
 from setup.install_runtime import UI_FED_ROOT, fed_build_ready
 
@@ -116,47 +120,6 @@ def validate_module_info_changelog() -> List[str]:
     return issues
 
 
-def update_system_json(version: str, release_date: str) -> None:
-    data = json.loads(SYSTEM_JSON.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise RuntimeError(f"{SYSTEM_JSON} 不是 object")
-    data["version"] = version
-    data["release_date"] = release_date
-    SYSTEM_JSON.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    print(f"已写入 {SYSTEM_JSON.relative_to(REPO_ROOT)}: version={version}, release_date={release_date}", flush=True)
-
-
-def update_system_py_fallback(version: str, release_date: str) -> None:
-    text = SYSTEM_PY.read_text(encoding="utf-8")
-    block_start = text.find("_FALLBACK:")
-    if block_start < 0:
-        raise RuntimeError("core/system.py 中未找到 _FALLBACK")
-    block_end = text.find("\n\n\ndef _load_payload", block_start)
-    if block_end < 0:
-        block_end = text.find("\ndef _load_payload", block_start)
-    if block_end < 0:
-        raise RuntimeError("无法定位 _FALLBACK 块结束")
-    block = text[block_start:block_end]
-    block = re.sub(
-        r'("version":\s*")[^"]+(")',
-        rf"\g<1>{version}\2",
-        block,
-        count=1,
-    )
-    block = re.sub(
-        r'("release_date":\s*")[^"]+(")',
-        rf"\g<1>{release_date}\2",
-        block,
-        count=1,
-    )
-    new_text = text[:block_start] + block + text[block_end:]
-    SYSTEM_PY.write_text(new_text, encoding="utf-8")
-    print(f"已同步 {SYSTEM_PY.relative_to(REPO_ROOT)} 内 _FALLBACK 版本字段", flush=True)
-
-
 def sync_readme_version_badges(version: str) -> None:
     for readme in README_FILES:
         if not readme.is_file():
@@ -233,14 +196,34 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
     print(f"发布准备: v{version}  check_only={opts.check_only}", flush=True)
 
     if not opts.check_only:
-        update_system_json(version, release_date)
-        update_system_py_fallback(version, release_date)
+        try:
+            features = sync_version_metadata_from_changelog(version, release_date=release_date)
+            print(
+                f"已写入 {SYSTEM_JSON.relative_to(REPO_ROOT)} / {SYSTEM_PY.relative_to(REPO_ROOT)}: "
+                f"version={version}, new_features={len(features)} 条（release_date 优先取 CHANGELOG 标题日期）",
+                flush=True,
+            )
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"{icon('error')} CHANGELOG → system 同步失败: {exc}", flush=True)
+            return 1
         sync_readme_version_badges(version)
     else:
         cur = json.loads(SYSTEM_JSON.read_text(encoding="utf-8"))
         print(
             f"仅检查模式：当前 system.json version={cur.get('version')!r}，"
             f"目标 {version!r}",
+            flush=True,
+        )
+
+    print("\n[检查] CHANGELOG → system.json new_features …", flush=True)
+    meta_issues = compare_system_new_features(version)
+    if meta_issues:
+        failures.append("CHANGELOG/system new_features 未同步")
+        for line in meta_issues:
+            print(f"  {icon('error')} {line}", flush=True)
+    else:
+        print(
+            f"  {icon('success')} CHANGELOG v{version} 与 system.json new_features 一致",
             flush=True,
         )
 

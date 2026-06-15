@@ -572,23 +572,10 @@ class IndicatorService:
         """OHLC(V) 通道：仅保留算指标所需列，避免 storage 宽行拖慢 DataFrame 构造。"""
         trimmed: List[Dict[str, Any]] = []
         for row in klines:
-            open_ = row.get("open")
-            if open_ is None:
-                open_ = row.get("qfq_open")
-            high = row.get("high")
-            if high is None:
-                high = row.get("highest")
-            if high is None:
-                high = row.get("qfq_highest")
-            low = row.get("low")
-            if low is None:
-                low = row.get("lowest")
-            if low is None:
-                low = row.get("qfq_lowest")
             slim: Dict[str, Any] = {
-                "open": open_,
-                "high": high,
-                "low": low,
+                "open": row.get("open"),
+                "high": row.get("high"),
+                "low": row.get("low"),
                 "close": row.get("close"),
             }
             volume = row.get("volume")
@@ -668,13 +655,6 @@ class IndicatorService:
             
             df = pd.DataFrame(klines)
 
-            # 兼容 legacy 字段名：highest/lowest -> high/low
-            # schema 中字段为 highest/lowest，但技术指标和 pandas-ta 习惯使用 high/low
-            if 'high' not in df.columns and 'highest' in df.columns:
-                df['high'] = df['highest']
-            if 'low' not in df.columns and 'lowest' in df.columns:
-                df['low'] = df['lowest']
-            
             # 确保必要的列存在
             required_columns = ['open', 'high', 'low', 'close']
             for col in required_columns:

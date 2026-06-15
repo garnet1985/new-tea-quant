@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """simulation_day_execution 单元测试。"""
 
+from core.modules.strategy.engines.shared.data_classes.investment_state import ScanSignalPhase
 from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.simulation_settings import (
     StrategySimulationSettings,
@@ -10,7 +11,6 @@ from core.modules.strategy.engines.shared.helpers.simulation_day_execution impor
     queue_deferred_buy,
     resolve_pending_buys_at_end,
 )
-from core.modules.strategy.enums import OpportunityStatus
 
 
 def _sim(**edges) -> StrategySimulationSettings:
@@ -50,7 +50,7 @@ class TestSimulationDayExecution:
         assert len(active) == 1
         assert active[0].buy_date == "20240102"
         assert active[0].buy_price == 10.2
-        assert active[0].status == OpportunityStatus.ACTIVE.value
+        assert active[0].signal_phase == ScanSignalPhase.ACTIVE.value
 
     def test_resolve_pending_skip_trade_removes(self):
         sim = _sim(no_next_bar="skip_trade")

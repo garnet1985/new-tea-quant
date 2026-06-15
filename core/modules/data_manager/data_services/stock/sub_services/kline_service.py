@@ -3,7 +3,7 @@ K线数据服务（KlineService）
 
 职责：
 - 封装K线相关的查询和数据操作
-- 提供前复权计算功能
+- 提供前复权计算功能（方案 B：raw×F/F(最新)+C，见 adj_factor_event README）
 - 处理多周期K线加载
 
 涉及的表：
@@ -19,7 +19,7 @@ from core.utils.date.date_utils import DateUtils
 logger = logging.getLogger(__name__)
 
 # 价格字段配置（用于复权计算）
-_PRICE_FIELDS = ['open', 'close', 'highest', 'lowest', 'pre_close']
+_PRICE_FIELDS = ['open', 'close', 'high', 'low', 'pre_close']
 
 
 class KlineService(BaseDataService):
@@ -138,6 +138,8 @@ class KlineService(BaseDataService):
             k.*,
             e.event_date as adj_event_date,
             e.factor as adj_factor,
+            e.qfq_anchor as adj_qfq_anchor,
+            e.raw_anchor as adj_raw_anchor,
             e.qfq_diff as adj_qfq_diff
         FROM sys_stock_klines k
         LEFT JOIN sys_adj_factor_events e ON (
@@ -173,15 +175,6 @@ class KlineService(BaseDataService):
             is_strict=is_strict,
         )
 
-    @staticmethod
-    def _to_float_or_none(v: Any) -> Optional[float]:
-        if v is None:
-            return None
-        try:
-            return float(v)
-        except (ValueError, TypeError):
-            return None
-
     def _build_qfq_rows_strict(
         self,
         *,
@@ -189,32 +182,13 @@ class KlineService(BaseDataService):
         results: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         """
-        严格输出：仅使用命中的历史事件；未命中时按原价（qfq_diff=0）。
+        严格输出：仅使用命中的历史事件；未命中时按原价（不复权）。
         """
-        event_map = self._resolve_effective_event_map(
+        return self._build_qfq_rows_from_join_results(
             stock_id=stock_id,
             results=results,
             is_strict=True,
         )
-        qfq_klines: List[Dict[str, Any]] = []
-        for row in results:
-            qfq_kline = dict(row)
-            date_key = self._normalize_date(qfq_kline.get('date'))
-            info = event_map.get(date_key, {"qfq_diff": 0.0, "is_adjusted": False})
-            qfq_diff = self._to_float_or_none(info.get('qfq_diff'))
-            is_adjusted = bool(info.get("is_adjusted", False))
-            if qfq_diff is None:
-                qfq_diff = 0.0
-
-            qfq_kline.pop('adj_event_date', None)
-            qfq_kline.pop('adj_factor', None)
-            qfq_kline.pop('adj_qfq_diff', None)
-
-            self._apply_qfq_prices(qfq_kline, qfq_diff)
-            qfq_kline['qfq_is_adjusted'] = is_adjusted
-            qfq_kline['qfq_is_inferred'] = False
-            qfq_klines.append(qfq_kline)
-        return qfq_klines
 
     def _build_qfq_rows_default(
         self,
@@ -223,35 +197,53 @@ class KlineService(BaseDataService):
         results: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         """
-        默认连续输出：无历史事件时沿用最早可用事件的 qfq_diff。
+        默认连续输出：无历史事件时沿用最早可用事件的起始补偿。
         """
-        event_map = self._resolve_effective_event_map(
+        return self._build_qfq_rows_from_join_results(
             stock_id=stock_id,
             results=results,
             is_strict=False,
         )
 
+    def _build_qfq_rows_from_join_results(
+        self,
+        *,
+        stock_id: str,
+        results: List[Dict[str, Any]],
+        is_strict: bool,
+    ) -> List[Dict[str, Any]]:
+        event_map = self._resolve_effective_event_map(
+            stock_id=stock_id,
+            results=results,
+            is_strict=is_strict,
+        )
+        events = self._load_stock_adj_factor_events(stock_id)
+        factor_latest = self._latest_factor_from_events(events)
+        global_qfq_context = self._resolve_global_qfq_context(
+            events,
+            factor_latest=factor_latest,
+        )
         qfq_klines: List[Dict[str, Any]] = []
         for row in results:
             qfq_kline = dict(row)
-            date_key = self._normalize_date(qfq_kline.get('date'))
-            info = event_map.get(
-                date_key,
-                {"qfq_diff": 0.0, "is_adjusted": False, "is_inferred": False},
+            date_key = self._normalize_date(qfq_kline.get("date"))
+            default_info = (
+                {"qfq_diff": 0.0, "is_adjusted": False, "is_inferred": False}
+                if not is_strict
+                else {"qfq_diff": 0.0, "is_adjusted": False}
             )
-            qfq_diff = self._to_float_or_none(info.get("qfq_diff"))
-            if qfq_diff is None:
-                qfq_diff = 0.0
-            is_adjusted = bool(info.get("is_adjusted", False))
-            is_inferred = bool(info.get("is_inferred", False))
+            info = event_map.get(date_key, default_info)
 
-            qfq_kline.pop('adj_event_date', None)
-            qfq_kline.pop('adj_factor', None)
-            qfq_kline.pop('adj_qfq_diff', None)
+            qfq_kline.pop("adj_event_date", None)
+            qfq_kline.pop("adj_factor", None)
+            qfq_kline.pop("adj_qfq_diff", None)
 
-            self._apply_qfq_prices(qfq_kline, qfq_diff)
-            qfq_kline['qfq_is_adjusted'] = is_adjusted
-            qfq_kline['qfq_is_inferred'] = is_inferred
+            self._apply_qfq_from_event_info(
+                qfq_kline,
+                info,
+                factor_latest=factor_latest,
+                global_qfq_context=global_qfq_context,
+            )
             qfq_klines.append(qfq_kline)
         return qfq_klines
 
@@ -267,6 +259,7 @@ class KlineService(BaseDataService):
         """
         前复权：K 线与复权事件分两次简单查询，在内存合并（无大 JOIN）。
 
+        返回行的 ``open/close/high/low`` 即为前复权价（非 ``qfq_*`` 宽列）。
         与 ``load_qfq(..., use_join=False)`` 等价，单独暴露便于批量路径复用。
         """
         start_date = self._normalize_date(start_date)
@@ -276,19 +269,11 @@ class KlineService(BaseDataService):
         if not raw_klines:
             return []
 
-        events: List[Dict[str, Any]] = []
-        if self._adj_factor_event and end_date:
-            events = (
-                self._adj_factor_event.load(
-                    "id = %s AND event_date <= %s",
-                    (stock_id, end_date),
-                    order_by="event_date ASC",
-                )
-                or []
-            )
+        events = self._load_stock_adj_factor_events(stock_id)
 
         return self._merge_qfq_from_raw_and_events(
             stock_id=stock_id,
+            term=term,
             raw_rows=raw_klines,
             events=events,
             is_strict=is_strict,
@@ -306,11 +291,8 @@ class KlineService(BaseDataService):
         """
         严格模式前复权：
         - 仅使用 event_date <= k.date 的最近复权事件；
-        - 若找不到事件，不推断，直接按 qfq_diff=0 处理（等于原价）；
-        - 输出标记字段：
-            qfq_is_adjusted: 是否命中复权事件
-            qfq_is_inferred: 严格模式恒为 False
-        
+        - 若找不到事件，不推断，保持未复权原价。
+
         Args:
             stock_id: 股票代码
             term: 周期（daily/weekly/monthly，默认 daily）
@@ -342,12 +324,12 @@ class KlineService(BaseDataService):
         """
         前复权加载统一入口：
         - use_join=False（默认）：``load_qfq_split``，K 线 + 复权事件分查后在内存合并
-        - use_join=True：单条 SQL 大 JOIN（兼容旧路径）
-        - is_strict=False（默认连续）：缺历史事件时沿用最早可用事件的 qfq_diff 补齐
-        - is_strict=True（严格）：缺历史事件不推断，按原价（qfq_diff=0）
-        输出标记字段：
-            qfq_is_adjusted: 是否使用了复权差值
-            qfq_is_inferred: 是否属于默认连续模式下的推断补齐
+        - use_join=True：单条 SQL 大 JOIN
+        - is_strict=False（默认连续）：查询起点前无事件时，用该股最早事件的 anchor 向前补偿
+        - is_strict=True（严格）：缺历史事件不推断，保持未复权原价
+        - 复权计算：``raw×F(段)/F(最新) + C``，``C`` 由**最新事件** anchor 折算；``qfq_diff`` 仅 anchor 缺失时应急
+
+        返回 ``open/close/high/low`` 为前复权价（与 ``load_raw`` 列名一致，语义由本方法决定）。
         """
         if not use_join:
             return self.load_qfq_split(
@@ -478,18 +460,18 @@ class KlineService(BaseDataService):
             if stock_id in result:
                 result[stock_id].append(kline)
         
-        # 前复权：batch raw + batch adj(event_date<=end) + 内存 merge
+        # 前复权：batch raw + 全量 adj 事件 + 内存 merge（F(最新) 取该股最新除权）
         if adjust == 'qfq':
-            adj_by_stock = self._load_adj_events_for_qfq_batch(stock_ids, end_date)
+            adj_by_stock = self._load_adj_events_for_qfq_batch(stock_ids)
             for stock_id in stock_ids:
                 klines = result.get(stock_id) or []
                 if not klines:
                     continue
-                events = adj_by_stock.get(stock_id) or []
                 result[stock_id] = self._merge_qfq_from_raw_and_events(
                     stock_id=stock_id,
+                    term=term,
                     raw_rows=klines,
-                    events=events,
+                    events=adj_by_stock.get(stock_id) or [],
                 )
 
         return result
@@ -497,22 +479,14 @@ class KlineService(BaseDataService):
     def _load_adj_events_for_qfq_batch(
         self,
         stock_ids: List[str],
-        end_date: Optional[str],
     ) -> Dict[str, List[Dict[str, Any]]]:
-        """
-        QFQ 批量路径：``id IN (...)`` 且 ``event_date <= end``（不按 start 截断）。
-        """
+        """QFQ 批量路径：``id IN (...)`` 加载每只股票全部复权事件。"""
         if not stock_ids or not self._adj_factor_event:
             return {sid: [] for sid in stock_ids}
 
-        end_norm = self._normalize_date(end_date)
         placeholders = ','.join(['%s'] * len(stock_ids))
-        if end_norm:
-            where_clause = f"id IN ({placeholders}) AND event_date <= %s"
-            params: tuple = (*stock_ids, end_norm)
-        else:
-            where_clause = f"id IN ({placeholders})"
-            params = tuple(stock_ids)
+        where_clause = f"id IN ({placeholders})"
+        params: tuple = tuple(stock_ids)
 
         all_events = (
             self._adj_factor_event.load(
@@ -583,8 +557,12 @@ class KlineService(BaseDataService):
             dates=[self._normalize_date(k.get("date")) for k in klines if k.get("date")],
             is_strict=False,
         )
-        
-        # 对每条K线应用复权
+        events = self._load_stock_adj_factor_events(stock_id)
+        factor_latest = self._latest_factor_from_events(events)
+        global_qfq_context = self._resolve_global_qfq_context(
+            events,
+            factor_latest=factor_latest,
+        )
         result = []
         for kline in klines:
             kline_date = kline.get('date')
@@ -592,29 +570,14 @@ class KlineService(BaseDataService):
                 result.append(kline)
                 continue
             
-            # 复制K线数据
             qfq_kline = kline.copy()
             info = eff_map.get(self._normalize_date(kline_date), {})
-            latest_event = info.get("event")
-            qfq_diff = self._to_float_or_none(info.get("qfq_diff"))
-            if qfq_diff is None:
-                qfq_diff = 0.0
-            
-            # 如果有复权事件，应用复权
-            if latest_event:
-                # 应用前复权：价格 = 原始价格 - qfq_diff
-                for price_field in ['open', 'close', 'highest', 'lowest', 'pre_close']:
-                    if price_field in qfq_kline and qfq_kline[price_field] is not None:
-                        qfq_kline[f'qfq_{price_field}'] = qfq_kline[price_field] - qfq_diff
-                        # 同时保留原始字段
-                qfq_kline['adj_event_date'] = latest_event.get('event_date')
-                qfq_kline['adj_factor'] = latest_event.get('factor')
-            else:
-                # 没有复权事件，qfq价格等于原始价格
-                for price_field in ['open', 'close', 'highest', 'lowest', 'pre_close']:
-                    if price_field in qfq_kline:
-                        qfq_kline[f'qfq_{price_field}'] = qfq_kline[price_field]
-            
+            self._apply_qfq_from_event_info(
+                qfq_kline,
+                info,
+                factor_latest=factor_latest,
+                global_qfq_context=global_qfq_context,
+            )
             result.append(qfq_kline)
         
         return result
@@ -680,7 +643,8 @@ class KlineService(BaseDataService):
                 - id: 股票代码
                 - event_date: 除权日期（YYYYMMDD）
                 - factor: 复权因子
-                - qfq_diff: 价格差异（可选，默认0.0）
+                - qfq_anchor / raw_anchor: 事件日快照（主路径）
+                - qfq_diff: 可选应急缓存，仅消费端 anchor 缺失时回退
             
         Returns:
             影响的行数
@@ -746,7 +710,7 @@ class KlineService(BaseDataService):
         SELECT 
             s.*,
             k.date as kline_date,
-            k.open, k.highest, k.lowest, k.close, k.volume, k.amount
+            k.open, k.high, k.low, k.close, k.volume, k.amount
         FROM sys_stock_list s
         LEFT JOIN sys_stock_klines k ON s.id = k.id AND k.term = %s
         WHERE s.id = %s
@@ -769,7 +733,7 @@ class KlineService(BaseDataService):
         sql = """
         SELECT 
             s.*,
-            k.open, k.highest, k.lowest, k.close, k.volume, k.amount
+            k.open, k.high, k.low, k.close, k.volume, k.amount
         FROM sys_stock_list s
         INNER JOIN sys_stock_klines k ON s.id = k.id
         WHERE k.date = %s
@@ -830,15 +794,15 @@ class KlineService(BaseDataService):
 
             if selected is None:
                 out[d] = {
+                    "event": None,
                     "qfq_diff": 0.0,
                     "is_adjusted": False,
                     "is_inferred": False,
                 }
             else:
-                qfq_diff = self._to_float_or_none(selected.get("qfq_diff"))
-                if qfq_diff is None:
-                    qfq_diff = 0.0
+                qfq_diff = selected.get("qfq_diff") or 0.0
                 out[d] = {
+                    "event": selected,
                     "qfq_diff": qfq_diff,
                     "is_adjusted": True,
                     "is_inferred": inferred,
@@ -849,12 +813,12 @@ class KlineService(BaseDataService):
         self,
         *,
         stock_id: str,
+        term: str = "daily",
         raw_rows: List[Dict[str, Any]],
         events: List[Dict[str, Any]],
         is_strict: bool = False,
     ) -> List[Dict[str, Any]]:
         """将原始 K 线与已加载的复权事件在内存合并为前复权 K 线。"""
-        del stock_id  # 保留参数便于与 load_qfq_split 调用形态一致
         if not raw_rows:
             return []
 
@@ -863,24 +827,26 @@ class KlineService(BaseDataService):
             events=events,
             is_strict=is_strict,
         )
-
+        factor_latest = self._latest_factor_from_events(events)
+        global_qfq_context = self._resolve_global_qfq_context(
+            events,
+            factor_latest=factor_latest,
+        )
         qfq_klines: List[Dict[str, Any]] = []
         for row in raw_rows:
             qfq_kline = dict(row)
             date_key = self._normalize_date(qfq_kline.get("date"))
             info = event_map.get(
                 date_key,
-                {"qfq_diff": 0.0, "is_adjusted": False, "is_inferred": False},
+                {"event": None, "qfq_diff": 0.0, "is_adjusted": False, "is_inferred": False},
             )
-            qfq_diff = self._to_float_or_none(info.get("qfq_diff"))
-            if qfq_diff is None:
-                qfq_diff = 0.0
-            is_adjusted = bool(info.get("is_adjusted", False))
-            is_inferred = bool(info.get("is_inferred", False))
 
-            self._apply_qfq_prices(qfq_kline, qfq_diff)
-            qfq_kline["qfq_is_adjusted"] = is_adjusted
-            qfq_kline["qfq_is_inferred"] = is_inferred
+            self._apply_qfq_from_event_info(
+                qfq_kline,
+                info,
+                factor_latest=factor_latest,
+                global_qfq_context=global_qfq_context,
+            )
             qfq_klines.append(qfq_kline)
         return qfq_klines
 
@@ -917,24 +883,190 @@ class KlineService(BaseDataService):
         """
         return DateUtils.normalize_str(date_str)
     
+    def _load_stock_adj_factor_events(self, stock_id: str) -> List[Dict[str, Any]]:
+        """加载单只股票全部复权事件（F(最新) 与 anchor 均依赖完整序列）。"""
+        if not self._adj_factor_event:
+            return []
+        return (
+            self._adj_factor_event.load(
+                "id = %s",
+                (stock_id,),
+                order_by="event_date ASC",
+            )
+            or []
+        )
+
     @staticmethod
-    def _apply_qfq_prices(kline: Dict[str, Any], qfq_diff: float) -> None:
+    def _latest_factor_from_events(events: List[Dict[str, Any]]) -> float:
+        if not events:
+            return 1.0
+        return events[-1].get("factor") or 1.0
+
+    @staticmethod
+    def _resolve_global_qfq_context(
+        events: List[Dict[str, Any]],
+        *,
+        factor_latest: float,
+    ) -> Dict[str, Any]:
         """
-        对K线数据应用前复权价格计算
-        
-        Args:
-            kline: K线数据字典（会被修改）
-            qfq_diff: 前复权差异值
+        方案 B：全局 offset 由最新事件 anchor 折算::
+
+            C = qfq_anchor_最新 - raw_anchor_最新 × F_最新 / F(最新)
+            qfq(t) = raw(t) × F(段) / F(最新) + C
         """
+        if not events or factor_latest <= 0:
+            return {"use_global_offset": False, "global_offset": 0.0}
+
+        latest = events[-1]
+        qfq_anchor = latest.get("qfq_anchor")
+        raw_anchor = latest.get("raw_anchor")
+        if qfq_anchor is not None and raw_anchor is not None:
+            factor_n = latest.get("factor") or 1.0
+            if factor_n <= 0:
+                factor_n = 1.0
+            return {
+                "use_global_offset": True,
+                "global_offset": (
+                    float(qfq_anchor)
+                    - float(raw_anchor) * float(factor_n) / factor_latest
+                ),
+            }
+
+        logger.warning(
+            "最新复权事件缺少 anchor，无法折算全局 offset: stock=%s event_date=%s",
+            latest.get("id"),
+            latest.get("event_date"),
+        )
+        return {"use_global_offset": False, "global_offset": 0.0}
+
+    @staticmethod
+    def _qfq_price_global_offset(
+        raw_price: float,
+        *,
+        factor_eff: float,
+        factor_latest: float,
+        global_offset: float,
+    ) -> float:
+        """``raw × F(段)/F(最新) + C``（C 由最新 anchor 折算）。"""
+        if factor_latest <= 0:
+            return raw_price
+        return raw_price * factor_eff / factor_latest + global_offset
+
+    @staticmethod
+    def _qfq_price_from_anchor(
+        raw_price: float,
+        *,
+        qfq_anchor: float,
+        raw_anchor: float,
+        factor_eff: float,
+        factor_latest: float,
+    ) -> float:
+        """
+        前复权主路径（anchor）::
+
+            qfq(t) = qfq_anchor + (raw(t) - raw_anchor) × F(段) / F(最新)
+        """
+        if factor_latest <= 0:
+            return raw_price
+        scale = factor_eff / factor_latest
+        return qfq_anchor + (raw_price - raw_anchor) * scale
+
+    @staticmethod
+    def _qfq_price_from_diff_fallback(
+        raw_price: float,
+        *,
+        factor_eff: float,
+        factor_latest: float,
+        qfq_diff: float,
+    ) -> float:
+        """
+        应急回退（非主路径）::
+
+            qfq(t) = raw(t) × F(段) / F(最新) + qfq_diff
+
+        仅当事件行缺少 ``qfq_anchor`` 或 ``raw_anchor`` 时使用。
+        """
+        if factor_latest <= 0:
+            return raw_price
+        return raw_price * factor_eff / factor_latest + qfq_diff
+
+    def _apply_qfq_from_event_info(
+        self,
+        kline: Dict[str, Any],
+        info: Dict[str, Any],
+        *,
+        factor_latest: float,
+        global_qfq_context: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """
+        按生效事件对 OHLC 应用前复权，结果写回 ``open/close/high/low/pre_close``。
+
+        主路径：``raw×F(段)/F(最新) + C``（C 由最新事件 anchor 折算，段内 ``F(段)`` 仍按当日生效事件）。
+        最新事件缺 anchor 时，回退段内 ``qfq_diff`` 应急。
+        """
+        event = info.get("event")
+        if not event:
+            return
+
+        factor_eff = event.get("factor") or 1.0
+        if factor_eff <= 0:
+            factor_eff = 1.0
+
+        ctx = global_qfq_context or {"use_global_offset": False, "global_offset": 0.0}
+        if ctx.get("use_global_offset"):
+            global_offset = float(ctx.get("global_offset") or 0.0)
+            for field in _PRICE_FIELDS:
+                raw_value = kline.get(field)
+                if raw_value is None:
+                    kline[field] = None
+                    continue
+                kline[field] = self._qfq_price_global_offset(
+                    float(raw_value),
+                    factor_eff=factor_eff,
+                    factor_latest=factor_latest,
+                    global_offset=global_offset,
+                )
+            return
+
+        qfq_anchor = event.get("qfq_anchor")
+        raw_anchor = event.get("raw_anchor")
+        has_anchor = qfq_anchor is not None and raw_anchor is not None
+
+        if not has_anchor:
+            stock_id = event.get("id") or kline.get("id")
+            event_date = event.get("event_date")
+            logger.warning(
+                "复权事件缺少 anchor，应急回退 qfq_diff: stock=%s event_date=%s",
+                stock_id,
+                event_date,
+            )
+            qfq_diff = info.get("qfq_diff")
+            if qfq_diff is None:
+                qfq_diff = event.get("qfq_diff")
+            if qfq_diff is None:
+                qfq_diff = 0.0
+
+            for field in _PRICE_FIELDS:
+                raw_value = kline.get(field)
+                if raw_value is None:
+                    kline[field] = None
+                    continue
+                kline[field] = self._qfq_price_from_diff_fallback(
+                    float(raw_value),
+                    factor_eff=factor_eff,
+                    factor_latest=factor_latest,
+                    qfq_diff=float(qfq_diff),
+                )
+            return
+
         for field in _PRICE_FIELDS:
             raw_value = kline.get(field)
-            
-            if raw_value is not None:
-                try:
-                    raw_price = float(raw_value)
-                    qfq_price = raw_price - qfq_diff
-                    kline[f'qfq_{field}'] = qfq_price
-                except (ValueError, TypeError):
-                    kline[f'qfq_{field}'] = None
-            else:
-                kline[f'qfq_{field}'] = None
+            if raw_value is None:
+                kline[field] = None
+                continue
+            kline[field] = self._qfq_price_global_offset(
+                float(raw_value),
+                factor_eff=factor_eff,
+                factor_latest=factor_latest,
+                global_offset=0.0,
+            )

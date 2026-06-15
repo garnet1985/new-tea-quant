@@ -39,7 +39,11 @@ from core.modules.strategy.engines.shared.helpers.simulation_pricing import (
 from core.modules.strategy.engines.shared.helpers.strategy_runtime import resolve_worker_class
 from core.modules.indicator import IndicatorService
 from core.modules.strategy.engines.shared.performance_profiler import PerformanceProfiler
-from core.modules.strategy.enums import ExecutionMode, OpportunityStatus
+from core.modules.strategy.enums import ExecutionMode
+from core.modules.strategy.engines.shared.data_classes.investment_state import (
+    InvestmentLifecycle,
+    ScanSignalPhase,
+)
 from core.modules.strategy.services.data import StrategyDataInjectionService
 from core.modules.strategy.services.data.injection.job_contract_batch import (
     StrategyJobContractBatch,
@@ -154,6 +158,7 @@ class OpportunityEnumeratorWorker:
             self.strategy_name,
             worker_module_path=self.job_payload.get("worker_module_path"),
             worker_class_name=self.job_payload.get("worker_class_name"),
+            worker_file_path=str(self.job_payload.get("worker_file_path") or ""),
         )
         self.strategy_instance = strategy_class(
             {
@@ -316,8 +321,12 @@ class OpportunityEnumeratorWorker:
             if sell_reason in {"enumeration_end", "backtest_end"}:
                 unfinished_count += 1
             else:
-                status = str(opportunity.get("status", "") or "").lower()
-                if status in {"open", "active", "testing"}:
+                lifecycle = str(opportunity.get("lifecycle", "") or "").lower()
+                phase = str(opportunity.get("signal_phase", "") or "").lower()
+                if (
+                    lifecycle == InvestmentLifecycle.OPEN.value
+                    or phase in {ScanSignalPhase.ACTIVE.value, ScanSignalPhase.TESTING.value}
+                ):
                     unfinished_count += 1
                 else:
                     completed_count += 1
@@ -381,13 +390,19 @@ class OpportunityEnumeratorWorker:
             if sell_reason in {"enumeration_end", "backtest_end"}:
                 report_unfinished += 1
             else:
-                status = str(opportunity.get("status", "") or "").lower()
-                if status in {"open", "active", "testing"}:
+                lifecycle = str(opportunity.get("lifecycle", "") or "").lower()
+                phase = str(opportunity.get("signal_phase", "") or "").lower()
+                if (
+                    lifecycle == InvestmentLifecycle.OPEN.value
+                    or phase in {ScanSignalPhase.ACTIVE.value, ScanSignalPhase.TESTING.value}
+                ):
                     report_unfinished += 1
                 else:
                     report_completed += 1
         status_completed = sum(
-            1 for o in opportunities_dict if str((o or {}).get("status") or "").lower() == "completed"
+            1
+            for o in opportunities_dict
+            if str((o or {}).get("lifecycle") or "").lower() == InvestmentLifecycle.COMPLETE.value
         )
         sorted_rows = sorted(
             opportunities_dict,
@@ -541,7 +556,8 @@ class OpportunityEnumeratorWorker:
             trade_date=opportunity.buy_date,
             exec_bar=current_kline,
         )
-        opportunity.status = OpportunityStatus.ACTIVE.value
+        opportunity.signal_phase = ScanSignalPhase.ACTIVE.value
+        opportunity.lifecycle = InvestmentLifecycle.OPEN.value
         tracker["active_opportunities"].append(opportunity)
 
     def _scan_opportunity_with_data(self, data: Dict[str, Any]):

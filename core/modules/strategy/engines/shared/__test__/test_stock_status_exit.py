@@ -1,4 +1,9 @@
 """退市强平：stock_status:delisted + 最后可交易 bar 定价。"""
+from core.modules.strategy.engines.shared.data_classes.investment_state import (
+    InvestmentLifecycle,
+    InvestmentOutcome,
+    ScanSignalPhase,
+)
 from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.simulation_settings import (
     StrategySimulationSettings,
@@ -15,7 +20,6 @@ from core.modules.strategy.engines.shared.helpers.stock_status_exit import (
 from core.modules.strategy.engines.shared.helpers.stock_status_risk_context import (
     StockStatusRiskRuntimeContext,
 )
-from core.modules.strategy.enums import OpportunityStatus
 
 
 def _sim() -> StrategySimulationSettings:
@@ -61,7 +65,7 @@ def test_force_exit_uses_prev_bar_price_and_date():
         record_of_today={},
         buy_date="20240102",
         buy_price=10.0,
-        status=OpportunityStatus.ACTIVE.value,
+        signal_phase=ScanSignalPhase.ACTIVE.value,
     )
     current = {"date": "20240615", "open": 1.0, "close": 1.0}
     prev = {"date": "20240614", "open": 2.0, "close": 3.0, "high": 3.0, "low": 2.0}
@@ -70,7 +74,8 @@ def test_force_exit_uses_prev_bar_price_and_date():
     assert opp.sell_reason == STOCK_STATUS_REASON_DELISTED
     assert opp.sell_date == "20240614"
     assert opp.sell_price == 3.0
-    assert opp.status in (OpportunityStatus.WIN.value, OpportunityStatus.LOSS.value)
+    assert opp.lifecycle == InvestmentLifecycle.COMPLETE.value
+    assert opp.outcome in (InvestmentOutcome.WIN.value, InvestmentOutcome.LOSS.value)
     assert opp.completed_targets[0]["reason"] == STOCK_STATUS_REASON_DELISTED
 
 
@@ -108,7 +113,7 @@ def test_st_rule_fires_once_on_first_day_in_period():
         record_of_today={},
         buy_date="20240102",
         buy_price=10.0,
-        status=OpportunityStatus.ACTIVE.value,
+        signal_phase=ScanSignalPhase.ACTIVE.value,
     )
     ctx = _ctx(
         rules=[StockStatusRiskRule(name="st", close_invest=True)],

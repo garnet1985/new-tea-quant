@@ -148,17 +148,24 @@ def _settle_stock_status_exit(
     )
     opportunity.roi = total_weighted / basis if basis > 0 else 0.0
     total_ratio = sum(float(t.get("sell_ratio", 0) or 0) for t in opportunity.completed_targets)
-    from core.modules.strategy.enums import OpportunityStatus
+    from core.modules.strategy.engines.shared.data_classes.investment_state import (
+        InvestmentLifecycle,
+        resolve_outcome,
+    )
 
+    total_weighted = sum(
+        float(t.get("weighted_profit", 0) or 0) for t in opportunity.completed_targets
+    )
     if total_ratio >= 1.0:
-        opportunity.status = (
-            OpportunityStatus.WIN.value if (opportunity.roi or 0) > 0 else OpportunityStatus.LOSS.value
-        )
+        opportunity.lifecycle = InvestmentLifecycle.COMPLETE.value
+        opportunity.outcome = resolve_outcome(total_weighted).value
         opportunity.sell_date = current_date
         opportunity.sell_price = exit_px
         opportunity.sell_reason = reason
+        opportunity.pending_exit = None
     else:
-        opportunity.status = OpportunityStatus.OPEN.value
+        opportunity.lifecycle = InvestmentLifecycle.OPEN.value
+        opportunity.outcome = None
     if status_name:
         _mark_triggered(opportunity, status_name)
     return opportunity.pending_exit is None

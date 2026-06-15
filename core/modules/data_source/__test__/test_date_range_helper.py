@@ -115,3 +115,63 @@ class TestDateRangeHelper:
 
         assert start == "2024-01-02"
 
+    def test_validate_data_config_rejects_top_level_indicators(self):
+        from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
+            StrategySettingsView,
+        )
+
+        try:
+            StrategySettingsView.validate_data_config(
+                {
+                    "base_required_data": {
+                        "data_id": "stock.kline.daily",
+                        "params": {"adjust": "qfq"},
+                    },
+                    "indicators": {"rsi": [{"length": 14}]},
+                }
+            )
+        except ValueError:
+            return
+        raise AssertionError("expected ValueError for top-level data.indicators")
+
+    def test_compute_entity_date_ranges_merges_config_terms_when_db_has_subset(self):
+        """
+        多字段分组：DB 仅有 daily 记录时，仍应为 job_execution.terms 中的 weekly 等生成日期范围。
+        """
+        from core.modules.data_source.service.date_range import date_range_helper as drh
+        from core.global_enums.enums import UpdateMode
+
+        config = Mock()
+        config.get_renew_mode.return_value = UpdateMode.INCREMENTAL
+        config.get_date_format.return_value = "day"
+        config.get_renew_if_over_days.return_value = None
+        config.get_group_fields.return_value = ["id", "term"]
+        config.get_group_by_terms.return_value = ["daily", "weekly"]
+        config.get_group_by_entity_list_name.return_value = "stock_list"
+
+        ctx: Dict[str, Any] = {
+            "config": config,
+            "data_manager": Mock(),
+            "dependencies": {"stock_list": [{"id": "000001.SZ"}]},
+            "latest_completed_trading_date": "20260101",
+        }
+        last_update_map = {"000001.SZ::daily": "20251231"}
+
+        with patch(
+            "core.modules.data_source.service.date_range.date_range_helper.RenewCommonHelper.get_needs_stock_grouping",
+            return_value=True,
+        ), patch(
+            "core.modules.data_source.service.date_range.date_range_helper.RenewCommonHelper.get_end_date",
+            return_value="20260101",
+        ), patch(
+            "core.modules.data_source.service.date_range.date_range_helper.RenewCommonHelper.get_default_date_range",
+            return_value=("20230101", "20260101"),
+        ), patch(
+            "core.modules.data_source.service.date_range.date_range_helper.RenewCommonHelper.resolve_latest_completed_trading_date",
+            return_value="20260101",
+        ):
+            ranges = drh.compute_entity_date_ranges(ctx, last_update_map)
+
+        assert "000001.SZ::daily" in ranges
+        assert "000001.SZ::weekly" in ranges
+

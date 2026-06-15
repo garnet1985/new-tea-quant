@@ -80,8 +80,8 @@ class PriceReport(ReportBase):
             if investment_count <= 0:
                 continue
             total_investments += investment_count
-            total_win += int(summary.get("total_win", 0) or 0)
-            total_loss += int(summary.get("total_loss", 0) or 0)
+            total_win += int(summary.get("total_complete_win", 0) or 0)
+            total_loss += int(summary.get("total_complete_loss", 0) or 0)
             total_open += int(summary.get("total_open", 0) or 0)
             total_profit += float(summary.get("total_profit", 0.0) or 0.0)
             total_roi += float(summary.get("avg_roi", 0.0) or 0.0) * investment_count

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Protocol, Tuple
+from typing import Any, Callable, Dict, Optional, Protocol, Tuple
 
 # 与 ``execution_manager.workbench_resolve.normalize_step`` 合法集一致：enum / price / capital。
 WorkbenchSubstep = str
@@ -19,6 +19,15 @@ class ProgressSink(Protocol):
         pass
 
     def on_flow_progress(self, substep: str, flow_pct: float) -> None:
+        pass
+
+    def on_step_stage(
+        self,
+        substep: str,
+        stage: str,
+        stage_ratio: float = 0.0,
+        counters: Optional[Dict[str, Any]] = None,
+    ) -> None:
         pass
 
     def on_substep_finish(

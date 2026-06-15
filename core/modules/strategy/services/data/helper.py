@@ -6,17 +6,23 @@ from __future__ import annotations
 from typing import Any, Dict
 
 from core.modules.data_contract.contract_const import DataKey
+from core.modules.data_contract.kline_keys import (
+    PRIMARY_KLINE_SLOT,
+    is_stock_kline_data_key,
+)
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
 
 _STORAGE_KEY_ALIASES = {
-    DataKey.STOCK_KLINE: "klines",
     DataKey.TAG: "tags",
 }
 
 
-def storage_key_for(data_id: DataKey) -> str:
+def storage_key_for(data_id: DataKey, *, is_base: bool = False) -> str:
+    """base 的 K 线 → 主 slot ``klines``；其余数据源 slot 默认为 ``data_id``。"""
+    if is_base and is_stock_kline_data_key(data_id):
+        return PRIMARY_KLINE_SLOT
     return _STORAGE_KEY_ALIASES.get(data_id, data_id.value)
 
 
@@ -42,4 +48,8 @@ def coerce_float(value: Any) -> float:
         return 0.0
 
 
-__all__ = ["storage_key_for", "normalize_declaration_item", "coerce_float"]
+__all__ = [
+    "coerce_float",
+    "normalize_declaration_item",
+    "storage_key_for",
+]

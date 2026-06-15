@@ -6,6 +6,7 @@
 
 html {
   height: 100%;
+  background-color: var(--ntq-ink);
   // 与 body 同步：窄视口时允许横向滚动，避免内容被 hidden 裁切后压扁
   overflow-x: auto;
 }
@@ -120,6 +121,49 @@ body {
 
 .ntq-stock-grid-overlay:hover {
   background-color: rgba(255, 255, 255, 0.10);
+}
+
+// Glass-outline toolbar / secondary actions (strategy list, workbench header, etc.)
+.ntq-glass-outline-btn {
+  height: 40px;
+  border-radius: 5px !important;
+  border: 1px solid var(--ntq-white-12) !important;
+  background: var(--ntq-white-03) !important;
+  color: var(--ntq-text) !important;
+  padding: 0 14px !important;
+  line-height: 1 !important;
+  box-shadow: none !important;
+
+  &:hover {
+    background: var(--ntq-white-06) !important;
+    border-color: rgba(255, 255, 255, 0.18) !important;
+  }
+
+  &.Mui-disabled {
+    opacity: 0.45;
+  }
+}
+
+// Primary cyan toolbar action (e.g. import strategy package)
+.ntq-cyan-fill-btn {
+  height: 40px;
+  min-height: 40px;
+  border-radius: 5px !important;
+  padding: 0 14px !important;
+  line-height: 1 !important;
+  box-shadow: none !important;
+  background-color: var(--ntq-cyan) !important;
+  color: var(--ntq-ink, #060612) !important;
+
+  &:hover {
+    background-color: #3dddf3 !important;
+    box-shadow: none !important;
+  }
+
+  &.Mui-disabled {
+    opacity: 0.45;
+    color: var(--ntq-ink, #060612) !important;
+  }
 }
 
 // Call-to-action "attention" button (shine sweep)

@@ -67,7 +67,7 @@
    JSON 与 Python 配置、默认与用户合并逻辑曾分散实现。
 
 2. **决策（Decision）**  
-   支持 JSON 与 Python（`importlib` 加载）；`load_with_defaults` + 内部 `_deep_merge_config` 处理 `deep_merge_fields` / `override_fields`；`load_core_config` 约定 `default_config` + `user_config` 文件名。
+   支持 JSON 与 Python（`importlib` 加载）；`load_with_defaults` + `deep_merge_config` 处理 `deep_merge_fields` / `override_fields`；`load_core_config` 约定 `default_config` + `user_config` 文件名。
 
 3. **理由（Rationale）**  
    合并语义一处维护；业务按名选用加载器。

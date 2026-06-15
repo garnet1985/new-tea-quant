@@ -93,6 +93,21 @@ def _extract_zip(zip_path: Path, target: Path) -> None:
             shutil.move(str(child), str(target / child.name))
 
 
+def _ensure_default_database_config(target: Path) -> None:
+    """init zip 不含用户库配置；默认 DuckDB，与安装向导/文档一致。"""
+    common_json = target / "system" / "config" / "database" / "common.json"
+    if common_json.is_file():
+        return
+    common_json.parent.mkdir(parents=True, exist_ok=True)
+    common_json.write_text(
+        json.dumps({"database_type": "duckdb"}, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    NewTeaQuantSetup.print_check_info(
+        "未找到 database/common.json，已写入默认 DuckDB 配置（可在设置中改为 MySQL/PostgreSQL）"
+    )
+
+
 def main() -> int:
     target_path = os.getenv("NTQ_USERSPACE_TARGET_PATH", "")
     conflict_policy = os.getenv("NTQ_USERSPACE_CONFLICT_POLICY", "skip").strip().lower() or "skip"
@@ -117,6 +132,7 @@ def main() -> int:
             shutil.rmtree(target)
 
     _extract_zip(zip_path, target)
+    _ensure_default_database_config(target)
     _write_userspace_state(target)
     NewTeaQuantSetup.print_check_ok(f"userspace 初始化完成: {target}")
     NewTeaQuantSetup.print_check_info(f"userspace 路径状态已写入: {STATE_FILE}")

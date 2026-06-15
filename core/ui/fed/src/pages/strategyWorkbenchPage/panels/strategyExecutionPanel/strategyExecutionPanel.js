@@ -37,8 +37,13 @@ import {
   fetchStrategyVersionDetail,
   startStrategyRun,
 } from '../../../../api/apis/strategyApi';
-import { buildExecutionResultFromWorkbenchReport } from '../../workbenchExecutionHydration';
+import {
+  buildExecutionResultFromExecutionPanel,
+  mergeStepStatusFromRunProgress,
+  stepStatusFromRunPlanSteps,
+} from '../../workbenchExecutionHydration';
 import { useWorkbenchCompareVersionMenu } from '../../workbenchCompareVersionMenu';
+import { clearStockKlineMemoryCache } from '../strategyReportPanel/lib/stockKlineMemoryCache';
 
 const STEP_ENUM = 'enum';
 const STEP_PRICE = 'price';
@@ -222,8 +227,7 @@ function StrategyExecutionPanel({
   executionCompareRecentVersionIds = [],
   /** 完整工作台快照列表（与设置区「更多版本」同源） */
   configVersions = [],
-  onProgressResultReport,
-  /** 单步 run 成功结束（与 progress 的 ``result_report`` 合并后）；用于报告 Tab 切到对应回测器 */
+  /** 单步 run 成功结束；用于报告 Tab 切到对应回测器 */
   onRunStepComplete,
   onRegisterForceHandlers,
   /** V2-01 加载/恢复快照后注入；``key`` 变化时同步卡片状态与摘要行 */
@@ -238,6 +242,12 @@ function StrategyExecutionPanel({
   });
   const [runningStep, setRunningStep] = useState('');
   const [progress, setProgress] = useState(0);
+  const [stepProgress, setStepProgress] = useState({ enum: 0, price: 0, capital: 0 });
+  const [progressDetail, setProgressDetail] = useState({
+    label: '',
+    stageLabel: '',
+    counterText: '',
+  });
   const [result, setResult] = useState({
     enum: null,
     price: null,
@@ -253,7 +263,7 @@ function StrategyExecutionPanel({
   const [executionMoreVersionsStepKey, setExecutionMoreVersionsStepKey] = useState('');
   const [versionSearch, setVersionSearch] = useState('');
   const [versionPickerPage, setVersionPickerPage] = useState(1);
-  /** ``version_id`` → 该快照 ``result_report`` 解析后的执行摘要（与 ``buildExecutionResultFromWorkbenchReport`` 一致） */
+  /** ``version_id`` → 该快照 ``execution_panel`` 解析后的执行摘要 */
   const [compareLinesByVersionId, setCompareLinesByVersionId] = useState({});
   const [activeRunId, setActiveRunId] = useState('');
   /** 与 V2-06 ``GET …/{step}/progress`` 路径一致；锁定为本次点击的 step，避免 ``runningStep`` 被状态推导清空后误用 ``enum`` 轮询导致 404 */
@@ -264,22 +274,6 @@ function StrategyExecutionPanel({
   /** 同一 run + 同一 running 步内进度只增不减，避免轮询回退（如 5% → 2%） */
   const progressRunKeyRef = useRef('');
   const progressPctHighWaterRef = useRef(0);
-
-  const applyOptimisticRunStepStatus = (target) => {
-    const order = [STEP_ENUM, STEP_PRICE, STEP_CAPITAL];
-    const startIdx = order.indexOf(target);
-    setStepStatus((prev) => {
-      if (startIdx < 0) {
-        return { enum: 'running', price: 'idle', capital: 'idle' };
-      }
-      const next = { ...prev };
-      order.forEach((key, i) => {
-        if (i < startIdx) return;
-        next[key] = i === startIdx ? 'running' : 'idle';
-      });
-      return next;
-    });
-  };
 
   useEffect(() => {
     if (!onExecutionStateChange) return;
@@ -350,8 +344,16 @@ function StrategyExecutionPanel({
           setProgressPollStep(pollStep);
           setRunningStep(status?.running_step || pollStep);
           if (status?.step_status_merge && typeof status.step_status_merge === 'object') {
-            setStepStatus((prev) => ({ ...prev, ...status.step_status_merge }));
+            setStepStatus((prev) => mergeStepStatusFromRunProgress(prev, status.step_status_merge));
           }
+          if (status?.step_progress && typeof status.step_progress === 'object') {
+            setStepProgress((prev) => ({ ...prev, ...status.step_progress }));
+          }
+          setProgressDetail({
+            label: String(status?.progress_label || '').trim(),
+            stageLabel: String(status?.progress_stage_label || '').trim(),
+            counterText: String(status?.progress_counter_text || '').trim(),
+          });
           const nextPct = Number(status?.progress_pct || 0);
           if (Number.isFinite(nextPct) && nextPct > 0) {
             setProgress(nextPct);
@@ -388,6 +390,7 @@ function StrategyExecutionPanel({
 
   const startRun = async (target, { isForce = false, _retryAfterBusy = false } = {}) => {
     if (!strategyName) return;
+    clearStockKlineMemoryCache();
     if (executionBusy) {
       // 与左侧草稿 reset 触发的 remount 同一瞬时使用：首帧可能仍认为 busy，下一微任务再试一次
       if (!_retryAfterBusy) {
@@ -403,8 +406,6 @@ function StrategyExecutionPanel({
       progressRunKeyRef.current = '';
       progressPctHighWaterRef.current = 0;
       setLastCompletedWorkbenchVersionId('');
-      /* 立即标 running，避免上一步仍为 done 时先闪 100% 绿条再归零 */
-      applyOptimisticRunStepStatus(target);
       const resolvedSettings = getSettingsForRun ? getSettingsForRun() : settings;
       if (!resolvedSettings) throw new Error('当前参数不可用，无法执行');
       const started = await startStrategyRun(strategyName, target, resolvedSettings, { force_refresh: isForce });
@@ -416,35 +417,7 @@ function StrategyExecutionPanel({
       setRunningStep(started?.resolved_chain?.[0] || target);
       setProgress(0);
       const planSteps = Array.isArray(started?.steps) ? started.steps : [];
-      setStepStatus((prev) => {
-        if (!planSteps.length) {
-          return { enum: 'running', price: 'idle', capital: 'idle' };
-        }
-        const next = { ...prev };
-        planSteps.forEach((row, idx) => {
-          const nm = String(row.step_name || '').trim();
-          if (nm !== STEP_ENUM && nm !== STEP_PRICE && nm !== STEP_CAPITAL) return;
-          next[nm] = idx === 0 ? 'running' : 'pending';
-        });
-        return next;
-      });
-      /* 只清空「本次会重跑」的步骤及之后链上的结果；已完成的上一屏摘要保留 */
-      setResult((prev) => {
-        const order = [STEP_ENUM, STEP_PRICE, STEP_CAPITAL];
-        const startIdx = order.indexOf(target);
-        if (startIdx < 0) {
-          return { enum: null, price: null, capital: null };
-        }
-        const next = {
-          enum: prev.enum,
-          price: prev.price,
-          capital: prev.capital,
-        };
-        for (let i = startIdx; i < order.length; i += 1) {
-          next[order[i]] = null;
-        }
-        return next;
-      });
+      setStepStatus((prev) => stepStatusFromRunPlanSteps(planSteps, prev));
     } catch (err) {
       setRunError(err?.message || '启动执行失败');
       setProgressPollStep('');
@@ -514,7 +487,8 @@ function StrategyExecutionPanel({
     const visuallyRunning = st === 'running';
     if (!visuallyRunning) return null;
     if (progress > 0) {
-      const pct = Math.min(100, Math.max(0, Number(progress)));
+      const raw = stepProgress[stepKey];
+      const pct = Math.min(100, Math.max(0, Number(raw != null ? raw : progress)));
       return (
         <Box
           key={`${stepKey}-run-pct-${activeRunId || 'local'}`}
@@ -687,10 +661,7 @@ function StrategyExecutionPanel({
       fetchStrategyVersionDetail(strategyName, vid)
         .then((res) => {
           if (cancelled) return;
-          const rr = res?.result_report;
-          const execLine = buildExecutionResultFromWorkbenchReport(
-            rr && typeof rr === 'object' ? rr : {},
-          );
+          const execLine = buildExecutionResultFromExecutionPanel(res?.execution_panel);
           setCompareLinesByVersionId((prev) => ({
             ...prev,
             [vid]: { loading: false, execLine, error: null },
@@ -969,9 +940,17 @@ function StrategyExecutionPanel({
       const patch = status?.step_status_merge && typeof status.step_status_merge === 'object'
         ? status.step_status_merge
         : {};
-      setStepStatus((prev) => ({ ...prev, ...patch }));
+      setStepStatus((prev) => mergeStepStatusFromRunProgress(prev, patch));
       const nextRunningStep = status?.running_step || '';
       setRunningStep(nextRunningStep);
+      if (status?.step_progress && typeof status.step_progress === 'object') {
+        setStepProgress((prev) => ({ ...prev, ...status.step_progress }));
+      }
+      setProgressDetail({
+        label: String(status?.progress_label || '').trim(),
+        stageLabel: String(status?.progress_stage_label || '').trim(),
+        counterText: String(status?.progress_counter_text || '').trim(),
+      });
 
       const runKey = `${status?.run_id || activeRunId}:${nextRunningStep}`;
       if (runKey !== progressRunKeyRef.current) {
@@ -992,14 +971,7 @@ function StrategyExecutionPanel({
         progressPctHighWaterRef.current = 0;
       }
       setProgress(nextPct);
-      const report = status?.result_report || {};
-      setResult((prev) => ({
-        enum: Object.prototype.hasOwnProperty.call(report, 'enum') ? report.enum : prev.enum,
-        price: Object.prototype.hasOwnProperty.call(report, 'price') ? report.price : prev.price,
-        capital: Object.prototype.hasOwnProperty.call(report, 'capital') ? report.capital : prev.capital,
-      }));
-      if (status?.state === 'done' && report && Object.keys(report).length > 0) {
-        onProgressResultReport?.(report);
+      if (status?.state === 'done') {
         const finishedStep = (progressPollStep || '').trim();
         if (
           finishedStep === STEP_ENUM
@@ -1041,7 +1013,7 @@ function StrategyExecutionPanel({
       stopped = true;
       window.clearInterval(timer);
     };
-  }, [activeRunId, onProgressResultReport, onRunStepComplete, progressPollStep, strategyName]);
+  }, [activeRunId, onRunStepComplete, progressPollStep, strategyName]);
 
   const startRunRef = useRef(startRun);
   startRunRef.current = startRun;
@@ -1064,15 +1036,39 @@ function StrategyExecutionPanel({
     return startRun(target, { isForce });
   };
 
+  const progressDetailText = [
+    progressDetail.label,
+    progressDetail.stageLabel,
+    progressDetail.counterText,
+  ].filter(Boolean).join(' · ');
+
   return (
     <>
     <Accordion defaultExpanded disableGutters>
       <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
-        <SettingsAccordionTitle
-          title={EXECUTION_PANEL_TITLE}
-          tooltip={EXECUTION_PANEL_TOOLTIP}
-          context={{ defaultTooltipShine: true }}
-        />
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          spacing={1}
+          sx={{ width: '100%', minWidth: 0, pr: 0.5 }}
+        >
+          <SettingsAccordionTitle
+            title={EXECUTION_PANEL_TITLE}
+            tooltip={EXECUTION_PANEL_TOOLTIP}
+            context={{ defaultTooltipShine: true }}
+          />
+          {activeRunId && progressDetailText ? (
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              noWrap
+              sx={{ flexShrink: 0, maxWidth: '48%', textAlign: 'right' }}
+            >
+              {progressDetailText}
+            </Typography>
+          ) : null}
+        </Stack>
       </AccordionSummary>
       <AccordionDetails>
         <Stack spacing={1.25}>

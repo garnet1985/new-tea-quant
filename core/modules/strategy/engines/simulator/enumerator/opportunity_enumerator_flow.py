@@ -35,6 +35,9 @@ if TYPE_CHECKING:
     from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
         DiscoveredStrategy,
     )
+    from core.modules.strategy.execution_manager.workbench_flow_progress import (
+        WorkbenchFlowProgress,
+    )
 
 
 class OpportunityEnumeratorFlow(BaseSimulationFlow):
@@ -74,6 +77,8 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         self,
         strategy_name: str,
         strategy_info: Optional["DiscoveredStrategy"] = None,
+        *,
+        workbench_progress: Optional["WorkbenchFlowProgress"] = None,
     ) -> Any:
         """
         指纹探针 → **仅当 DbCache 指纹解析完全成功时** 尝试命中表缓存 → 否则完整
@@ -96,6 +101,9 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
 
         self.last_version = 0
         self.used_db_cache = False
+        wp = workbench_progress
+        if wp is not None:
+            wp.stage("load", 0.05)
         probe = self._preprocess_probe(strategy_name=strategy_name, strategy_info=strategy_info)
 
         data_mgr = DataManager(is_verbose=False)
@@ -110,6 +118,9 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             env_start_date=self.start_date,
             env_end_date=self.end_date,
         )
+
+        if wp is not None:
+            wp.stage("load", 0.85)
 
         # 指纹条件不足（settings / env / worker 等）时不走读缓存，直接跑完整 flow。
         if resolved_probe is not None and not self._impl.force_refresh:
@@ -165,10 +176,22 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
                             "version": sid,
                         }
                     )
+                if wp is not None:
+                    wp.stage("report", 1.0)
                 return summary_list
 
+        if wp is not None:
+            wp.stage("load", 1.0)
+            wp.stage("dispatch", 0.05)
         preprocessed = self._preprocess_finish(probe)
+        if wp is not None:
+            wp.stage("dispatch", 1.0)
+            wp.stage("execute", 0.0)
         executed = self.execute(preprocessed)
+        if wp is not None:
+            wp.stage("execute", 1.0)
+        if wp is not None:
+            wp.stage("report", 0.2)
         summary_list = self.postprocess(preprocessed, executed)
 
         # Flow 完成后用与 DbCache 一致的解析路径再算指纹并落库（run 内 settings 可能与 probe 略有差异）。

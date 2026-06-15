@@ -1,7 +1,6 @@
 """扫描器：JobPipeline（PROCESS）单股单 job。"""
 from __future__ import annotations
 
-import importlib
 import logging
 from typing import Any, Callable, Dict, List, Optional
 
@@ -21,10 +20,15 @@ def build_scanner_payload(job: Dict[str, Any]) -> Dict[str, Any]:
 
 def run_scanner_worker_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     """策略 Worker 扫描单股（主进程调试与子进程共用）。"""
+    from core.modules.strategy.services.discovery.worker_loader import import_worker_class
+
     stock_id = str(payload.get("stock_id") or "")
     try:
-        worker_module = importlib.import_module(str(payload["worker_module_path"]))
-        worker_class = getattr(worker_module, str(payload["worker_class_name"]))
+        worker_class = import_worker_class(
+            worker_module_path=str(payload["worker_module_path"]),
+            worker_class_name=str(payload["worker_class_name"]),
+            worker_file_path=str(payload.get("worker_file_path") or ""),
+        )
         return worker_class(payload).run()
     except Exception as exc:
         logger.error("[Scanner] stock scan failed: %s - %s", stock_id, exc, exc_info=True)

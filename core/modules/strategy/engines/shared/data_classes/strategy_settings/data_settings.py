@@ -30,12 +30,23 @@ class StrategyDataSettings(SettingsBase):
 
     def apply_defaults(self) -> None:
         d = self.data
-        if "min_required_records" not in d or not isinstance(
-            d.get("min_required_records"), int
-        ) or d.get("min_required_records", 0) <= 0:
+        mrr_raw = d.get("min_required_records")
+        try:
+            mrr_int = int(mrr_raw)
+        except (TypeError, ValueError):
+            mrr_int = 0
+        if mrr_int <= 0:
             d["min_required_records"] = 100
-        if "indicators" not in d:
-            d["indicators"] = {}
+        else:
+            d["min_required_records"] = mrr_int
+        if "indicators" in d:
+            d.pop("indicators", None)
+        base = d.get("base_required_data")
+        if isinstance(base, dict) and "indicators" not in base:
+            base["indicators"] = {}
+        for item in d.get("extra_required_data_sources") or []:
+            if isinstance(item, dict) and "indicators" not in item:
+                item["indicators"] = {}
         if "extra_required_data_sources" not in d or not isinstance(
             d.get("extra_required_data_sources"), list
         ):
@@ -82,13 +93,14 @@ class StrategyDataSettings(SettingsBase):
 
     @property
     def indicators_config(self) -> Dict[str, Any]:
-        return self.data.get("indicators", {}) or {}
+        base = self.base_required_data
+        return StrategySettingsView.normalize_indicators(base.get("indicators"))
 
     @property
     def base_data_id(self) -> str:
         base = self.base_required_data
         if not base:
-            return DataKey.STOCK_KLINE.value
+            return DataKey.STOCK_KLINE_DAILY.value
         try:
             return StrategySettingsView.normalize_base_required_data(base)["data_id"]
         except ValueError:

@@ -841,13 +841,27 @@
 `ConfigManager.get_decimal_places() -> int`
 
 - 状态：`stable`
-- 描述：默认 `2`。
+- 描述：`data.json` → `decimal_places.default`（默认 `2`）。
 - 诞生版本：`0.2.0`
 - params：
 
 无
 
 - 返回值：`int`
+
+---
+
+### 函数名
+`ConfigManager.get_adj_factor_event_decimal_places() -> Dict[str, int]`
+
+- 状态：`stable`
+- 描述：`decimal_places.adj_factor_event` 爬取舍入精度（`factor_places` / `price_places` / `diff_places`）。
+- 诞生版本：`0.2.0`
+- params：
+
+无
+
+- 返回值：`Dict[str, int]`
 
 ---
 

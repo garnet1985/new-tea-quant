@@ -14,6 +14,8 @@ from core.modules.data_contract.loaders.macro_lpr import MacroLprLoader
 from core.modules.data_contract.loaders.macro_pmi import MacroPmiLoader
 from core.modules.data_contract.loaders.macro_ppi import MacroPpiLoader
 from core.modules.data_contract.loaders.stock_adj_factor_events import StockAdjFactorEventsLoader
+from core.modules.data_contract.loaders.stock_indicators_daily import StockIndicatorsDailyLoader
+from core.modules.data_contract.loaders.stock_moneyflow_daily import StockMoneyflowDailyLoader
 from core.modules.data_contract.loaders.stock_kline import StockKlineLoader
 from core.modules.data_contract.loaders.stock_list import StockListLoader
 from core.modules.data_contract.loaders.tag import TagLoader
@@ -34,6 +36,20 @@ class DataSpec(TypedDict, total=False):
 DataSpecMap = Dict[DataKey, DataSpec]
 
 
+def _stock_kline_spec(*, term: str, display_name: str) -> DataSpec:
+    return {
+        "scope": ContractScope.PER_ENTITY,
+        "type": ContractType.TIME_SERIES,
+        "unique_keys": ["date", "stock_id"],
+        "time_axis_field": "date",
+        "time_axis_format": "YYYYMMDD",
+        "loader": StockKlineLoader,
+        "entity_list_data_id": DataKey.STOCK_LIST,
+        "display_name": display_name,
+        "defaults": {"term": term},
+    }
+
+
 default_map: DataSpecMap = {
     DataKey.STOCK_LIST: {
         "scope": ContractScope.GLOBAL,
@@ -43,17 +59,9 @@ default_map: DataSpecMap = {
         "display_name": "Stock List",
         "defaults": {},
     },
-    DataKey.STOCK_KLINE: {
-        "scope": ContractScope.PER_ENTITY,
-        "type": ContractType.TIME_SERIES,
-        "unique_keys": ["date", "stock_id"],
-        "time_axis_field": "date",
-        "time_axis_format": "YYYYMMDD",
-        "loader": StockKlineLoader,
-        "entity_list_data_id": DataKey.STOCK_LIST,
-        "display_name": "Stock Kline（由 params 指定 adjust/term）",
-        "defaults": {},
-    },
+    DataKey.STOCK_KLINE_DAILY: _stock_kline_spec(term="daily", display_name="Stock Kline Daily"),
+    DataKey.STOCK_KLINE_WEEKLY: _stock_kline_spec(term="weekly", display_name="Stock Kline Weekly"),
+    DataKey.STOCK_KLINE_MONTHLY: _stock_kline_spec(term="monthly", display_name="Stock Kline Monthly"),
     # 统一 tag：存储含 as_of_date，故为时序；通过 tag_scenario / scenario_id 区分场景（见 TagLoader）
     DataKey.TAG: {
         "scope": ContractScope.PER_ENTITY,
@@ -70,11 +78,33 @@ default_map: DataSpecMap = {
         "scope": ContractScope.PER_ENTITY,
         "type": ContractType.TIME_SERIES,
         "unique_keys": ["id", "quarter"],
-        "time_axis_field": "quarter",
-        "time_axis_format": "YYYYQ",
+        "time_axis_field": "ann_date",
+        "time_axis_format": "YYYYMMDD",
         "loader": CorporateFinanceLoader,
         "entity_list_data_id": DataKey.STOCK_LIST,
         "display_name": "Corporate Finance (quarterly)",
+        "defaults": {},
+    },
+    DataKey.STOCK_INDICATORS_DAILY: {
+        "scope": ContractScope.PER_ENTITY,
+        "type": ContractType.TIME_SERIES,
+        "unique_keys": ["id", "date"],
+        "time_axis_field": "date",
+        "time_axis_format": "YYYYMMDD",
+        "loader": StockIndicatorsDailyLoader,
+        "entity_list_data_id": DataKey.STOCK_LIST,
+        "display_name": "Stock Indicators Daily (PE/PB/市值)",
+        "defaults": {},
+    },
+    DataKey.STOCK_MONEYFLOW_DAILY: {
+        "scope": ContractScope.PER_ENTITY,
+        "type": ContractType.TIME_SERIES,
+        "unique_keys": ["id", "date"],
+        "time_axis_field": "date",
+        "time_axis_format": "YYYYMMDD",
+        "loader": StockMoneyflowDailyLoader,
+        "entity_list_data_id": DataKey.STOCK_LIST,
+        "display_name": "Stock Moneyflow Daily (个股资金流向)",
         "defaults": {},
     },
     DataKey.STOCK_ADJ_FACTOR_EVENTS: {

@@ -7,7 +7,7 @@
 
 对外读入口：
 - ``get_latest_completed_trading_date()``：全系统 latest completed 的唯一权威 API
-  （DB 日历推导 → real-world API → K 线 MAX → 猜测；最后可选 ``default_end_date`` 截断）
+  （优先 ``data.json`` 的 ``as_of_latest_completed_trading_date``；否则 DB 日历 → real-world → K 线 MAX → 猜测）
 
 网络侧（Scanner 严格模式 / unified API fallback）：
 - ``get_real_world_latest_completed_trading_date()``：新浪/东财 K 线，不读 ``sys_trade_calendar``
@@ -42,8 +42,8 @@ class CalendarService(BaseDataService):
         "last_request_date": None,       # 上次请求日期（YYYYMMDD）
         "lock": threading.Lock()         # 线程锁
     }
-    _default_end_date_cap_logged = False
-    
+    _configured_as_of_logged = False
+
     def __init__(self, data_manager):
         """
         初始化日历服务
@@ -58,35 +58,30 @@ class CalendarService(BaseDataService):
         self,
         *,
         as_of_date: Optional[str] = None,
-        apply_default_end_date_cap: bool = True,
     ) -> str:
         """
         最新已完成交易日（全系统统一读入口）。
 
-        Fallback 链（均由本方法内部决定，调用方勿再散落 fallback）：
-
-        1. ``sys_trade_calendar``：``MAX(cal_date)`` 且 ``is_open=1``、``cal_date <= as_of``；
-           若结果等于 ``as_of``（当天可能未收盘完成），保守回退至前一开市日。
-        2. real-world：新浪 / 东财 K 线（含 ``sys_cache`` 日缓存）→ 周末猜测。
-        3. 全市场日 K 线 ``MAX(date)``。
-        4. 周末猜测（最后兜底）。
-
-        ``apply_default_end_date_cap=True`` 时，对结果施加
-        ``min(computed, userspace/config/data.json default_end_date)``，并在被截断时打醒目日志。
+        1. ``data.json`` 配置 ``as_of_latest_completed_trading_date`` → 直接作为 as-of，不走 fallback。
+        2. 否则 fallback：``sys_trade_calendar`` → real-world → K 线 MAX → 猜测。
 
         Args:
-            as_of_date: 截止自然日（YYYYMMDD），默认今天。
-            apply_default_end_date_cap: 是否应用 ``default_end_date`` 上界。
+            as_of_date: 截止自然日（YYYYMMDD），默认今天；仅影响未配置 as-of 时的推导。
 
         Returns:
             最新已完成交易日（YYYYMMDD），无法解析时可能为空字符串。
         """
-        raw_date, source = self._resolve_raw_latest_completed(as_of_date=as_of_date)
-        if not raw_date:
-            return ""
-        if apply_default_end_date_cap:
-            return self._apply_default_end_date_cap(raw_date, source=source)
-        return raw_date
+        configured = ConfigManager.get_as_of_latest_completed_trading_date()
+        if configured:
+            if not CalendarService._configured_as_of_logged:
+                CalendarService._configured_as_of_logged = True
+                logger.info(
+                    "📌 latest completed trading date 使用 data.json 配置: %s",
+                    configured,
+                )
+            return configured
+        raw_date, _source = self._resolve_raw_latest_completed(as_of_date=as_of_date)
+        return raw_date or ""
 
     def _resolve_raw_latest_completed(
         self, *, as_of_date: Optional[str] = None
@@ -159,25 +154,6 @@ class CalendarService(BaseDataService):
         except Exception as exc:
             logger.debug("K 线 MAX 兜底失败: %s", exc)
             return ""
-
-    def _apply_default_end_date_cap(self, date: str, *, source: str) -> str:
-        cap = ConfigManager.get_default_end_date()
-        if not cap or not date:
-            return date
-        if date <= cap:
-            return date
-        if not CalendarService._default_end_date_cap_logged:
-            CalendarService._default_end_date_cap_logged = True
-            logger.warning(
-                "⚠️  latest completed trading date 已被 default_end_date=%s 截断 "
-                "（推算=%s，来源=%s）。"
-                "如需追最新数据：调高或移除 userspace/config/data.json 的 default_end_date，"
-                "并 renew trade_calendar 与相关数据表。",
-                cap,
-                date,
-                source,
-            )
-        return cap
 
     def get_db_latest_completed_trading_date(
         self, *, as_of_date: Optional[str] = None

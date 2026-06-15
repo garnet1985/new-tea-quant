@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Box, Stack, Typography } from '@mui/material';
+import { Box, Link, Stack, Typography } from '@mui/material';
 import ReactECharts from 'echarts-for-react';
 import NtqHelpTooltip from 'components/ntqHelpTooltip/ntqHelpTooltip';
 import MetricCard from 'components/metricCard/metricCard';
@@ -92,6 +92,8 @@ function OpportunityEnumrateReport({
   enumRefStockTotal,
   stockGridLoading = false,
   hideTitle = false,
+  onStockSelect,
+  stockLinkEnabled = false,
 }) {
   const [stockSearch, setStockSearch] = useState('');
 
@@ -118,7 +120,32 @@ function OpportunityEnumrateReport({
   }, [derivedStockRows, stockSearch]);
 
   const stockColumns = [
-    { field: 'stockCode', headerName: '代码', flex: 1, minWidth: 120 },
+    {
+      field: 'stockCode',
+      headerName: '代码',
+      flex: 1,
+      minWidth: 120,
+      renderCell: (params) => {
+        const code = params.value;
+        if (!stockLinkEnabled || typeof onStockSelect !== 'function') {
+          return code;
+        }
+        return (
+          <Link
+            component="button"
+            type="button"
+            underline="hover"
+            onClick={(e) => {
+              e.stopPropagation();
+              onStockSelect(params.row);
+            }}
+            sx={{ font: 'inherit', textAlign: 'left' }}
+          >
+            {code}
+          </Link>
+        );
+      },
+    },
     { field: 'stockName', headerName: '名称', flex: 1, minWidth: 120 },
     {
       field: 'opportunities',

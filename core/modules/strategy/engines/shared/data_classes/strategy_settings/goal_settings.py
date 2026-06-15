@@ -25,8 +25,9 @@ class StrategyGoalSettings(SettingsBase):
         if not isinstance(block, dict):
             block = {}
             root["goal"] = block
-        name = str(root.get("name", "unknown") or "unknown")
-        return cls(goal=block, strategy_name=name)
+        meta = root.get("meta") if isinstance(root.get("meta"), dict) else {}
+        label = str(meta.get("display_name") or "").strip() or "unknown"
+        return cls(goal=block, strategy_name=label)
 
     def apply_defaults(self) -> None:
         exp = self.goal.get("expiration")
@@ -213,7 +214,6 @@ class StrategyGoalSettings(SettingsBase):
         result = SettingsBase.new_validation()
         expiration = goal_config.get("expiration")
         if not expiration:
-            SettingsBase.add_warning(result, field_path, "goal 缺少 expiration")
             return result
         if "fixed_window_in_days" not in expiration:
             SettingsBase.add_warning(result, field_path, "expiration 缺少 fixed_window_in_days")

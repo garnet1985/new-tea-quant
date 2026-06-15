@@ -7,6 +7,7 @@ import React, {
 } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
+  Alert,
   Box,
   Button,
   Chip,
@@ -28,34 +29,46 @@ import {
 } from '@mui/material';
 import {
   applyStrategySettingsToUserspace,
+  downloadStrategyPackage,
   fetchCapitalAllocationModeConfig,
   fetchStrategyList,
   fetchStrategySettings,
+  fetchStrategyVersionDetail,
   fetchStrategyVersions,
   fetchSamplingStrategyConfig,
   fetchSimulationTemplateConfig,
   fetchSkipInvestmentWhenOptions,
   fetchMarketProfileOptions,
   restoreStrategyVersion,
+  getStrategyDisplayLabel,
   getStrategyWorkbenchPath,
 } from '../../api/apis/strategyApi';
+import StrategyDescriptionText from '../../components/strategyDescriptionText/strategyDescriptionText';
+import StrategyMetaDetailText from '../../components/strategyMetaDetailText/strategyMetaDetailText';
 import StrategySettingsContainer from './panels/strategySettingsPanel/containers/strategySettingsContainer';
 import {
   extractStrategyDescription,
+  extractStrategyDisplayName,
+  extractStrategyEntryConditions,
   normalizeMeta,
 } from './panels/strategySettingsPanel/editorSchemas/strategyMeta';
 import StrategyExecutionPanel from './panels/strategyExecutionPanel/strategyExecutionPanel';
 import StrategyReportPanel from './panels/strategyReportPanel/strategyReportPanel';
 import {
-  buildExecutionResultFromWorkbenchReport,
-  mapWorkbenchStepStatusToExecutionCards,
+  buildWorkbenchExecutionHydrationFromSnapshot,
 } from './workbenchExecutionHydration';
+import {
+  buildWorkbenchSnapshotFromSettingsResponse,
+  buildWorkbenchSnapshotFromVersionDetail,
+  emptyWorkbenchSnapshot,
+} from './workbenchSnapshot';
 import {
   PlaceholderSection,
   StrategySettingsPanel,
 } from './panels/strategySettingsPanel/strategySettingsPanel';
 import PageLayout from '../../components/pageLayout/pageLayout';
 import PageLoadingState from '../../components/pageLoadingState/pageLoadingState';
+import NtqIcon from '../../components/ntqIcon/ntqIcon';
 
 /** 左侧草稿 settings 变更后重置右侧执行/报告（加载完成后首次对齐基线，之后任意变更触发 ``onReset``）。core 由容器在 keyup/粘贴时解析写入 ``draftSettings``，签名仅需序列化草稿。 */
 function WorkbenchDraftChangeResetBridge({
@@ -128,6 +141,7 @@ function workbenchPageStateFromVersionDetail(detail, strategyName, cachedVersion
     workbench_version_id: wbVer,
     step_status: detail?.step_status,
     result_report: detail?.result_report ?? null,
+    execution_panel: detail?.execution_panel ?? null,
     has_persisted_snapshot: persisted,
     has_other_versions: hasOtherVersions,
   };
@@ -135,7 +149,8 @@ function workbenchPageStateFromVersionDetail(detail, strategyName, cachedVersion
 
 function StrategyWorkbenchPage() {
   const navigate = useNavigate();
-  const { strategyName } = useParams();
+  const params = useParams();
+  const strategyName = String(params['*'] || '').replace(/^\/+/, '');
   const [selectedConfigVersion, setSelectedConfigVersion] = useState('');
   const [configVersions, setConfigVersions] = useState([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -145,6 +160,8 @@ function StrategyWorkbenchPage() {
   const [versionPickerPage, setVersionPickerPage] = useState(1);
   const [strategyRows, setStrategyRows] = useState([]);
   const [strategyDescription, setStrategyDescription] = useState('');
+  const [strategyEntryConditions, setStrategyEntryConditions] = useState([]);
+  const [strategyDisplayName, setStrategyDisplayName] = useState('');
   const [pendingStrategyName, setPendingStrategyName] = useState('');
   const [switchStrategyConfirmOpen, setSwitchStrategyConfirmOpen] = useState(false);
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
@@ -179,14 +196,16 @@ function StrategyWorkbenchPage() {
     activeRunId: '',
     lastCompletedWorkbenchVersionId: '',
   });
-  /** 与 V2-01/恢复后执行面板子组件同步；``key`` 随策略+版本变 */
-  const [workbenchExecutionHydration, setWorkbenchExecutionHydration] = useState(null);
+  /** V2-01 / V2-08 工作台快照；执行/报告同源 */
+  const [workbenchSnapshot, setWorkbenchSnapshot] = useState(() => emptyWorkbenchSnapshot());
   /** 与 ``mergeShapeOnly`` 合用的最小基底（仅 meta），不含任何示例策略字段 */
   const buildMergeBaseSettings = useCallback(() => ({
-    meta: normalizeMeta({ name: strategyName || '' }),
-  }), [strategyName]);
+    is_enabled: false,
+    meta: normalizeMeta({}),
+  }), []);
   const [initialSettings, setInitialSettings] = useState(() => ({
-    meta: normalizeMeta({ name: '' }),
+    is_enabled: false,
+    meta: normalizeMeta({}),
   }));
 
   const deepClone = (value) => JSON.parse(JSON.stringify(value));
@@ -221,24 +240,32 @@ function StrategyWorkbenchPage() {
   const [appliedVersionId, setAppliedVersionId] = useState('userspace');
   const [deployConfirmOpen, setDeployConfirmOpen] = useState(false);
   const [userspaceApplyOk, setUserspaceApplyOk] = useState('');
-  /** V2-01 初次加载；单步跑完后由 V2-06 progress 的 ``result_report`` 切片合并写入，避免再打一枪 ``version/latest`` */
-  const [workbenchResultReport, setWorkbenchResultReport] = useState(null);
   /** 单步跑完后让「回测报告」 accordion 内 Tab 切到刚完成的回测步 */
   const reportTabFocusSeqRef = useRef(0);
   const [reportTabFocusRequest, setReportTabFocusRequest] = useState(null);
   /** V2-01 扩展：是否有 DB 快照、是否还有其它可对比版本（GET …/version/latest） */
   const [hasPersistedSnapshot, setHasPersistedSnapshot] = useState(false);
   const [hasOtherVersions, setHasOtherVersions] = useState(false);
-  const syncedWorkbenchVerRef = useRef('');
+  const lastRunSyncedVersionRef = useRef('');
+  const snapshotSyncGenRef = useRef(0);
   /** 恢复快照等场景：草稿由容器跟随 ``initialSettings`` 替换，跳过一轮「草稿变更→清空右侧」 */
   const suppressDraftDrivenPanelResetRef = useRef(false);
   /** 草稿变更时递增，强制执行/报告面板 remount 清空内部 compare / 轮询等状态 */
   const [panelsResetEpoch, setPanelsResetEpoch] = useState(0);
+  const [packageExporting, setPackageExporting] = useState(false);
+  const [packageExportError, setPackageExportError] = useState('');
+
+  const workbenchExecutionHydration = useMemo(() => {
+    if (!workbenchSnapshot?.versionId) return null;
+    return buildWorkbenchExecutionHydrationFromSnapshot(strategyName, workbenchSnapshot);
+  }, [strategyName, workbenchSnapshot]);
 
   const resetPanelsAfterDraftChange = useCallback(() => {
     setPanelsResetEpoch((n) => n + 1);
-    setWorkbenchResultReport(null);
-    setWorkbenchExecutionHydration(null);
+    setWorkbenchSnapshot(emptyWorkbenchSnapshot());
+    setSelectedConfigVersion('');
+    setAppliedVersionId('userspace');
+    lastRunSyncedVersionRef.current = '';
     setExecutionState({
       stepStatus: {
         enum: 'idle',
@@ -267,6 +294,19 @@ function StrategyWorkbenchPage() {
   /** 与左侧表单 ``draftSettings`` 同步，供跑完后对齐 ``appliedSettings`` */
   const draftSettingsRef = useRef(null);
 
+  const handleExportStrategyPackage = useCallback(async () => {
+    if (!strategyName) return;
+    setPackageExporting(true);
+    setPackageExportError('');
+    try {
+      await downloadStrategyPackage(strategyName, { scope: 'bundle' });
+    } catch (e) {
+      setPackageExportError(e?.message || '导出失败');
+    } finally {
+      setPackageExporting(false);
+    }
+  }, [strategyName]);
+
   const handleRunStepComplete = useCallback((step) => {
     if (step !== 'enum' && step !== 'price' && step !== 'capital') return;
     reportTabFocusSeqRef.current += 1;
@@ -277,13 +317,68 @@ function StrategyWorkbenchPage() {
     }
   }, []);
 
-  const mergeWorkbenchResultReportFromProgress = useCallback((slice) => {
-    if (!slice || typeof slice !== 'object' || Object.keys(slice).length === 0) return;
-    setWorkbenchResultReport((prev) => ({
-      ...(prev && typeof prev === 'object' ? prev : {}),
-      ...slice,
-    }));
+  const handleExecutionStateChange = useCallback((next) => {
+    setExecutionState((prev) => {
+      if (next.activeRunId && next.activeRunId !== prev.activeRunId) {
+        lastRunSyncedVersionRef.current = '';
+        snapshotSyncGenRef.current += 1;
+      }
+      return next;
+    });
   }, []);
+
+  /** 单步跑完：按 progress 的 ``version_id`` 拉 V2-08，顶栏摘要与报告读同一份快照 */
+  useEffect(() => {
+    if (!strategyName || isLoadingSettings) return undefined;
+    const runVer = (executionState.lastCompletedWorkbenchVersionId || '').trim();
+    if (!runVer) return undefined;
+    if (runVer === lastRunSyncedVersionRef.current) return undefined;
+
+    const syncGen = snapshotSyncGenRef.current;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [detail, verRes] = await Promise.all([
+          fetchStrategyVersionDetail(strategyName, runVer),
+          fetchStrategyVersions(strategyName),
+        ]);
+        if (cancelled || syncGen !== snapshotSyncGenRef.current) return;
+        const rows = (verRes?.versions || []).map((version) => ({
+          id: version.version_id || `v${version.version || ''}`,
+          createdAt: version.created_at || '',
+          updatedAt: version.updated_at || '',
+          version: Number(version.version || 0),
+        }));
+        const res = workbenchPageStateFromVersionDetail(detail, strategyName, rows);
+        const wbVer = res.workbench_version_id || runVer;
+        const snapshot = buildWorkbenchSnapshotFromVersionDetail(detail);
+        setWorkbenchSnapshot(snapshot);
+        const hydration = buildWorkbenchExecutionHydrationFromSnapshot(strategyName, snapshot);
+        setExecutionState((prev) => ({
+          ...prev,
+          stepStatus: hydration.stepStatus,
+          result: hydration.result,
+          lastCompletedWorkbenchVersionId: wbVer,
+        }));
+        setConfigVersions(rows);
+        setHasPersistedSnapshot(Boolean(res.has_persisted_snapshot));
+        setHasOtherVersions(Boolean(res.has_other_versions));
+        setSelectedConfigVersion(wbVer);
+        setAppliedVersionId(wbVer);
+        lastRunSyncedVersionRef.current = wbVer;
+      } catch {
+        /* 保留上一轮快照摘要；用户可切版本或刷新重试 */
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    executionState.lastCompletedWorkbenchVersionId,
+    isLoadingSettings,
+    strategyName,
+  ]);
 
   useEffect(() => {
     setSavedBaselineSettings(deepClone(initialSettings));
@@ -343,10 +438,10 @@ function StrategyWorkbenchPage() {
       setSelectedConfigVersion('');
       setHasPersistedSnapshot(false);
       setHasOtherVersions(false);
-      syncedWorkbenchVerRef.current = '';
-      setInitialSettings({ meta: normalizeMeta({ name: '' }) });
-      setWorkbenchResultReport(null);
-      setWorkbenchExecutionHydration(null);
+      lastRunSyncedVersionRef.current = '';
+      setInitialSettings({ is_enabled: false, meta: normalizeMeta({}) });
+      setStrategyDisplayName('');
+      setWorkbenchSnapshot(emptyWorkbenchSnapshot());
       setExecutionState({
         stepStatus: { enum: 'idle', price: 'idle', capital: 'idle' },
         result: { enum: null, price: null, capital: null },
@@ -357,6 +452,7 @@ function StrategyWorkbenchPage() {
         lastCompletedWorkbenchVersionId: '',
       });
       setStrategyDescription('');
+      setStrategyEntryConditions([]);
       setIsLoadingSettings(false);
       setSettingsError('');
       return () => {
@@ -365,10 +461,11 @@ function StrategyWorkbenchPage() {
     }
 
     setStrategyDescription('');
+    setStrategyEntryConditions([]);
+    setStrategyDisplayName('');
     setIsLoadingSettings(true);
     setSettingsError('');
-    setWorkbenchExecutionHydration(null);
-    syncedWorkbenchVerRef.current = '';
+    setWorkbenchSnapshot(emptyWorkbenchSnapshot());
     Promise.all([
       fetchStrategyVersions(strategyName),
       fetchStrategySettings(strategyName),
@@ -390,49 +487,40 @@ function StrategyWorkbenchPage() {
         const incomingMeta = (
           serverSettings?.meta && typeof serverSettings.meta === 'object'
             ? serverSettings.meta
-            : {
-              name: serverSettings?.name,
-              description: serverSettings?.description,
-              is_enabled: serverSettings?.is_enabled,
-            }
+            : {}
         );
         if (hasServerSettings) {
           const nextSettings = mergeShapeOnly(mergeBase, {
             ...serverSettings,
-            meta: normalizeMeta({
-              ...incomingMeta,
-              name: strategyName,
-            }),
+            meta: normalizeMeta(incomingMeta, serverSettings),
           });
           setInitialSettings(nextSettings);
+          setStrategyDisplayName(
+            extractStrategyDisplayName(nextSettings) || strategyName,
+          );
           setStrategyDescription(extractStrategyDescription(nextSettings));
+          setStrategyEntryConditions(extractStrategyEntryConditions(nextSettings));
           setSettingsError('');
         } else {
           setInitialSettings(mergeBase);
           setStrategyDescription('');
+          setStrategyEntryConditions([]);
           setSettingsError('未返回有效策略配置（settings 为空）。');
         }
-        setWorkbenchResultReport(res?.result_report ?? null);
-        const wbVerRaw = res?.workbench_version_id;
-        const wbVer = typeof wbVerRaw === 'string' ? wbVerRaw.trim() : '';
-        const stepCards = mapWorkbenchStepStatusToExecutionCards(res?.step_status);
-        const execResult = buildExecutionResultFromWorkbenchReport(res?.result_report);
-        setWorkbenchExecutionHydration({
-          key: `${strategyName}:${wbVer || 'none'}`,
-          stepStatus: stepCards,
-          result: execResult,
-          lastCompletedWorkbenchVersionId: wbVer,
-        });
+        const snapshot = buildWorkbenchSnapshotFromSettingsResponse(res);
+        setWorkbenchSnapshot(snapshot);
+        const hydration = buildWorkbenchExecutionHydrationFromSnapshot(strategyName, snapshot);
         setExecutionState({
-          stepStatus: stepCards,
-          result: execResult,
+          stepStatus: hydration.stepStatus,
+          result: hydration.result,
           compareVersion: { enum: '', price: '', capital: '' },
           runningStep: '',
           runId: '',
           activeRunId: '',
-          lastCompletedWorkbenchVersionId: wbVer,
+          lastCompletedWorkbenchVersionId: hydration.lastCompletedWorkbenchVersionId,
         });
-        syncedWorkbenchVerRef.current = wbVer;
+        lastRunSyncedVersionRef.current = hydration.lastCompletedWorkbenchVersionId;
+        const wbVer = snapshot.versionId;
         setAppliedVersionId(wbVer !== '' ? wbVer : 'userspace');
         setSelectedConfigVersion(wbVer);
       })
@@ -441,9 +529,8 @@ function StrategyWorkbenchPage() {
         setInitialSettings(mergeBase);
         setHasPersistedSnapshot(false);
         setHasOtherVersions(false);
-        syncedWorkbenchVerRef.current = '';
-        setWorkbenchResultReport(null);
-        setWorkbenchExecutionHydration(null);
+        lastRunSyncedVersionRef.current = '';
+        setWorkbenchSnapshot(emptyWorkbenchSnapshot());
         setExecutionState({
           stepStatus: { enum: 'idle', price: 'idle', capital: 'idle' },
           result: { enum: null, price: null, capital: null },
@@ -464,48 +551,6 @@ function StrategyWorkbenchPage() {
       isCancelled = true;
     };
   }, [buildMergeBaseSettings, mergeShapeOnly, strategyName]);
-
-  /** 单步跑完写入新快照后，刷新版本列表与 UI 标志（singleton→第二条快照等） */
-  useEffect(() => {
-    if (!strategyName || isLoadingSettings) return undefined;
-    const v = (executionState.lastCompletedWorkbenchVersionId || '').trim();
-    if (!v) return undefined;
-    if (v === syncedWorkbenchVerRef.current) return undefined;
-    let cancelled = false;
-    Promise.all([
-      fetchStrategySettings(strategyName),
-      fetchStrategyVersions(strategyName),
-    ])
-      .then(([res, verRes]) => {
-        if (cancelled) return;
-        const rows = (verRes?.versions || []).map((version) => ({
-          id: version.version_id || `v${version.version || ''}`,
-          createdAt: version.created_at || '',
-          updatedAt: version.updated_at || '',
-          version: Number(version.version || 0),
-        }));
-        setConfigVersions(rows);
-        setHasPersistedSnapshot(Boolean(res?.has_persisted_snapshot));
-        setHasOtherVersions(Boolean(res?.has_other_versions));
-        const wbVer = typeof res?.workbench_version_id === 'string'
-          ? res.workbench_version_id.trim()
-          : '';
-        syncedWorkbenchVerRef.current = wbVer;
-        setSelectedConfigVersion(wbVer);
-        if (wbVer !== '') {
-          setAppliedVersionId(wbVer);
-        }
-        // 不在此处用 GET latest 覆盖 workbenchResultReport / hydration：易与 V2-06 进度片竞态，导致刚跑完仍显示旧版汇总
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    strategyName,
-    isLoadingSettings,
-    executionState.lastCompletedWorkbenchVersionId,
-  ]);
 
   const versionMap = useMemo(
     () => Object.fromEntries(configVersions.map((version) => [version.id, version])),
@@ -582,6 +627,16 @@ function StrategyWorkbenchPage() {
     setVersionPickerPage(1);
   };
 
+  const bannerDescription = useMemo(() => (
+    <StrategyMetaDetailText
+      description={strategyDescription}
+      entryConditions={strategyEntryConditions}
+      variant="body2"
+      color="text.secondary"
+      empty=""
+    />
+  ), [strategyDescription, strategyEntryConditions]);
+
   return (
     <PageLayout
       className="strategy-workbench-page"
@@ -589,10 +644,37 @@ function StrategyWorkbenchPage() {
         { label: '策略实验室', to: '/strategy-workbench' },
         { label: '选择策略', to: '/strategy-workbench' },
       ]}
-      breadcrumbsCurrent={strategyName ? `调试：${strategyName}` : '策略调试'}
-      bannerTitle={strategyName ? `调试：${strategyName}` : '策略调试'}
-      bannerDescription={strategyDescription || ''}
+      breadcrumbsCurrent={
+        strategyDisplayName || strategyName
+          ? `调试：${strategyDisplayName || strategyName}`
+          : '策略调试'
+      }
+      bannerTitle={
+        strategyDisplayName || strategyName
+          ? `调试：${strategyDisplayName || strategyName}`
+          : '策略调试'
+      }
+      bannerDescription={bannerDescription}
+      bannerRightSlot={
+        strategyName ? (
+          <Button
+            variant="outlined"
+            size="small"
+            onClick={handleExportStrategyPackage}
+            disabled={packageExporting}
+            className="ntq-glass-outline-btn"
+            startIcon={<NtqIcon name="download" size={22} tone="muted" />}
+          >
+            {packageExporting ? '导出中…' : '导出策略包'}
+          </Button>
+        ) : null
+      }
     >
+      {packageExportError ? (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setPackageExportError('')}>
+          {packageExportError}
+        </Alert>
+      ) : null}
       {isLoadingSettings && strategyName ? (
         <PageLoadingState message="正在加载策略配置…" minHeight="min(52vh, 520px)" />
       ) : null}
@@ -785,8 +867,17 @@ function StrategyWorkbenchPage() {
                       {visibleStrategies.map((row) => (
                         <ListItemButton key={row.id} onClick={() => requestSwitchStrategy(row.name)}>
                           <ListItemText
-                            primary={row.name}
-                            secondary={row.description || ''}
+                            primary={getStrategyDisplayLabel(row)}
+                            secondary={(
+                              <StrategyDescriptionText
+                                text={row.description}
+                                variant="caption"
+                                color="text.secondary"
+                                empty=""
+                                maxLines={2}
+                                component="span"
+                              />
+                            )}
                           />
                         </ListItemButton>
                       ))}
@@ -806,9 +897,8 @@ function StrategyWorkbenchPage() {
                     strategyName={strategyName}
                     settings={draftSettings}
                     getSettingsForRun={getDraftSettingsForSubmit}
-                    onExecutionStateChange={setExecutionState}
+                    onExecutionStateChange={handleExecutionStateChange}
                     executionCompareRecentVersionIds={latestFiveVersions.map((v) => v.id)}
-                    onProgressResultReport={mergeWorkbenchResultReportFromProgress}
                     onRunStepComplete={handleRunStepComplete}
                     workbenchHydration={workbenchExecutionHydration}
                     onRegisterForceHandlers={(api) => {
@@ -823,12 +913,7 @@ function StrategyWorkbenchPage() {
                     executionState={executionState}
                     executionCompareRecentVersionIds={latestFiveVersions.map((v) => v.id)}
                     configVersions={configVersions}
-                    workbenchResultReport={workbenchResultReport}
-                    reportVersionId={(
-                      selectedConfigVersion
-                      || executionState.lastCompletedWorkbenchVersionId
-                      || ''
-                    ).trim()}
+                    workbenchSnapshot={workbenchSnapshot}
                     reportTabFocusRequest={reportTabFocusRequest}
                     onForceEnumerate={() => forceRunHandlersRef.current?.forceEnum?.()}
                     showReportCompare={hasOtherVersions}
@@ -911,22 +996,18 @@ function StrategyWorkbenchPage() {
                         );
                         setHasPersistedSnapshot(Boolean(res?.has_persisted_snapshot));
                         setHasOtherVersions(Boolean(res?.has_other_versions));
-                        setWorkbenchResultReport(res?.result_report ?? null);
-                        const wbVerRestore = typeof res?.workbench_version_id === 'string'
-                          ? res.workbench_version_id.trim()
-                          : '';
-                        syncedWorkbenchVerRef.current = wbVerRestore;
-                        const stepCardsRestore = mapWorkbenchStepStatusToExecutionCards(res?.step_status);
-                        const execResultRestore = buildExecutionResultFromWorkbenchReport(res?.result_report);
-                        setWorkbenchExecutionHydration({
-                          key: `${strategyName}:${wbVerRestore || String(restoreMeta?.version_id || 'restore')}`,
-                          stepStatus: stepCardsRestore,
-                          result: execResultRestore,
-                          lastCompletedWorkbenchVersionId: wbVerRestore,
-                        });
+                        const snapshot = buildWorkbenchSnapshotFromVersionDetail(detail);
+                        setWorkbenchSnapshot(snapshot);
+                        const wbVerRestore = snapshot.versionId;
+                        lastRunSyncedVersionRef.current = wbVerRestore;
+                        const hydrationRestore = buildWorkbenchExecutionHydrationFromSnapshot(
+                          strategyName,
+                          snapshot,
+                        );
+                        hydrationRestore.key = `${strategyName}:${wbVerRestore || String(restoreMeta?.version_id || 'restore')}`;
                         setExecutionState({
-                          stepStatus: stepCardsRestore,
-                          result: execResultRestore,
+                          stepStatus: hydrationRestore.stepStatus,
+                          result: hydrationRestore.result,
                           compareVersion: { enum: '', price: '', capital: '' },
                           runningStep: '',
                           runId: '',
@@ -953,6 +1034,7 @@ function StrategyWorkbenchPage() {
                         const wb = wbVerRestore || restoreMeta?.version_id || '';
                         setInitialSettings(mergedSettings);
                         setStrategyDescription(extractStrategyDescription(mergedSettings));
+                        setStrategyEntryConditions(extractStrategyEntryConditions(mergedSettings));
                         setDraftSettings(deepClone(mergedSettings));
                         setSelectedConfigVersion(wb);
                         setSavedBaselineSettings(deepClone(mergedSettings));

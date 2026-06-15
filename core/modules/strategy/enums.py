@@ -5,24 +5,14 @@ Strategy 枚举定义
 
 from enum import Enum
 
+# 投资生命周期见 ``engines.shared.data_classes.investment_state``。
+
 
 class ExecutionMode(Enum):
     """执行模式"""
 
     SCAN = "scan"
     SIMULATE = "simulate"
-
-
-class OpportunityStatus(Enum):
-    """机会状态"""
-
-    ACTIVE = "active"
-    TESTING = "testing"
-    CLOSED = "closed"
-    EXPIRED = "expired"
-    OPEN = "open"
-    WIN = "win"
-    LOSS = "loss"
 
 
 class SellReason(Enum):

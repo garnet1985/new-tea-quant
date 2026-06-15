@@ -6,10 +6,13 @@ import { useAppVersion } from '../hooks/useAppVersion';
 import './appNavigation.scss';
 
 const navItems = [
-  { label: '策略实验室', path: '/strategy-workbench' },
+  { label: '制定策略', path: '/strategy-design' },
   { label: '策略选股', path: '/scan' },
   { label: '设置', path: '/settings' },
 ];
+
+/** Logo 点击回到的主入口（与主导航第一项一致） */
+const HOME_PATH = '/strategy-design';
 
 function AppNavigation() {
   const location = useLocation();
@@ -32,7 +35,7 @@ function AppNavigation() {
             <Box
               className="ntq-brand"
               component={RouterLink}
-              to={navItems[0].path}
+              to={HOME_PATH}
               aria-label="返回 New Tea Quant 首页"
             >
             {logoFailed ? (

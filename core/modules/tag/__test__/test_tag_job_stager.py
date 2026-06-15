@@ -27,9 +27,9 @@ def test_tag_job_stager_builds_inline_inject_payload():
     mock_tdm = MagicMock()
     mock_tdm.get_trading_dates.return_value = ["20250101", "20250102"]
     mock_tdm.get_slot_data.return_value = {
-        "stock.kline": [{"date": "20250101", "close": 1.0}],
+        "stock.kline.daily": [{"date": "20250101", "close": 1.0}],
     }
-    mock_tdm.get_time_field_overrides.return_value = {"stock.kline": "date"}
+    mock_tdm.get_time_field_overrides.return_value = {"stock.kline.daily": "date"}
 
     with patch(
         "core.modules.tag.components.job_staging.tag_job_stager.TagDataManager",
@@ -44,5 +44,5 @@ def test_tag_job_stager_builds_inline_inject_payload():
     mock_tdm.hydrate_row_slots.assert_called_once_with("20250101", "20250102")
     inject = enriched.payload["_inject"]
     assert inject["trading_dates"] == ["20250101", "20250102"]
-    assert inject["slot_data"]["stock.kline"] == [{"date": "20250101", "close": 1.0}]
+    assert inject["slot_data"]["stock.kline.daily"] == [{"date": "20250101", "close": 1.0}]
     assert inject["prior_tag_values"] == {"1": '{"value": true}'}

@@ -8,7 +8,13 @@ from datetime import datetime
 import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from core.modules.strategy.enums import OpportunityStatus
+from core.modules.strategy.engines.shared.data_classes.investment_state import (
+    InvestmentLifecycle,
+    InvestmentOutcome,
+    PendingExit,
+    ScanSignalPhase,
+    resolve_outcome,
+)
 from core.modules.strategy.engines.shared.helpers.tradability import stamp_target_tradability
 from core.modules.strategy.engines.shared.helpers.simulation_pricing import (
     apply_sell_slippage,
@@ -71,7 +77,9 @@ class Opportunity:
     triggered_stock_status_names: Optional[List[str]] = None
     roi: Optional[float] = None
     completed_targets: Optional[list] = None
-    status: str = "active"
+    signal_phase: str = ""
+    lifecycle: str = InvestmentLifecycle.OPEN.value
+    outcome: Optional[str] = None
     expired_date: Optional[str] = None
     expired_reason: Optional[str] = None
     config_hash: str = ""
@@ -203,10 +211,13 @@ class Opportunity:
             self.updated_at = datetime.now().isoformat()
 
     def is_valid(self) -> bool:
-        return self.status == OpportunityStatus.ACTIVE.value
+        return (
+            str(self.signal_phase or "").strip().lower() == ScanSignalPhase.ACTIVE.value
+            and str(self.lifecycle or "").strip().lower() == InvestmentLifecycle.OPEN.value
+        )
 
-    def is_closed(self) -> bool:
-        return self.status == OpportunityStatus.CLOSED.value
+    def is_complete(self) -> bool:
+        return str(self.lifecycle or "").strip().lower() == InvestmentLifecycle.COMPLETE.value
 
     def calculate_annual_return(self) -> float:
         if not self.price_return or not self.holding_days:
@@ -263,6 +274,13 @@ class Opportunity:
 
         # expiration / 持仓天数：自真实买入日计；无 buy_date 时不应进入盯盘
         if not self.buy_date:
+            return False
+
+        if market_profile is not None and market_profile.sell_blocked_by_settlement(
+            buy_date=self.buy_date,
+            trade_date=current_date,
+            backtest_calendar=backtest_calendar,
+        ):
             return False
 
         from core.modules.strategy.engines.shared.helpers.stock_status_exit import (
@@ -574,13 +592,13 @@ class Opportunity:
         total_sell_ratio = sum(target.get("sell_ratio", 0) for target in self.completed_targets)
         is_fully_completed = total_sell_ratio >= 1.0
         if is_fully_completed:
-            self.status = (
-                OpportunityStatus.WIN.value
-                if self.roi > 0
-                else OpportunityStatus.LOSS.value
-            )
+            self.lifecycle = InvestmentLifecycle.COMPLETE.value
+            self.outcome = resolve_outcome(total_weighted_profit).value
+            self.signal_phase = ""
+            self.pending_exit = None
         else:
-            self.status = OpportunityStatus.OPEN.value
+            self.lifecycle = InvestmentLifecycle.OPEN.value
+            self.outcome = None
 
     def enrich_from_framework(
         self,

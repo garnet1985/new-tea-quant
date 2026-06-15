@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.4.0-8A2BE2"></a>&nbsp;
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.4.1-8A2BE2"></a>&nbsp;
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
   <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
@@ -28,9 +28,10 @@
 
 最近更新摘要：
 
-**v0.4.0** 
-- 引入 DuckDB 作为默认存储，**有 Python 即可运行**，不再强制依赖 MySQL / PostgreSQL（仍可选）。
-- 引擎优化：全流程回测速度提升约 6 倍，详见 [CHANGELOG.md](CHANGELOG.md)。
+**v0.4.1** 
+- 加入了3组共9个新的演示策略，引导用户更方便地理解和使用框架。**注意：策略只是用来演示，不构成任何投资建议** 
+- 在枚举和价格回测的结果里现在可以点击单股看他们的K线和买入卖出点了，可以让调试策略更加直观。 
+- 更多更新请参照[CHANGELOG.md](CHANGELOG.md)。
 
 ## NTQ 是什么？
 
@@ -56,6 +57,12 @@ NTQ 把研究拆成三步，每一步回答不同的问题：
 - **性能**：核心计算支持多进程/多线程，在普通台式机上也能承担较大样本的回测与扫描。
 
 研究跑通后，可用**策略扫描**对库内最新行情做全市场筛选；机会默认在终端或 Web 界面展示，后续通知或下单需您自行对接第三方。
+
+## 支持一下项目
+
+若 NTQ 对您有用、您愿意持续关注它的演进，欢迎在 [GitHub](https://github.com/garnet1985/new-tea-quant) 或 [Gitee](https://gitee.com/garnet/new-tea-quant) 上为仓库点亮一颗 **Star**——这对个人开源项目而言，是非常实在的支持。
+
+这是我第一次认真做开源，您的认可与反馈，是我继续打磨框架的最大动力。谢谢您！
 
 ### 请注意
 
@@ -212,14 +219,8 @@ Have fun `^_^`, 更多用法请参考这里 [更多用例](https://new-tea.cn/zh
 ### 数据说明（请先看）
 
 1. **仓库内置小数据**：只覆盖部分表，用于快速启动和演示。  
-2. **获取更多（约 3 年）演示数据包**：用于更完整的策略验证/回测，请在 **[new-tea.cn](https://new-tea.cn)** 注册后下载，**清空** `setup/init_data/` 后只放入 **1 个** zip，再执行 `python setup/steps/import_data/install.py`（必要时加 `--force`）。  
+2. **获取更多（约 3 年）演示数据包**：（注意，这一步暂时不可用，正在修正中）用于更完整的策略验证/回测，请在 **[new-tea.cn](https://new-tea.cn)** 注册后下载，**清空** `setup/init_data/` 后只放入 **1 个** zip，再执行 `python setup/steps/import_data/install.py`（必要时加 `--force`）。  
 3. **自有数据源**：也可自行接入（如 Tushare），详见 [userspace/extensions/data_source/README.md](userspace/extensions/data_source/README.md)。
-
-## 支持一下项目
-
-当您看到这里，说明您已经了解 NTQ 在做什么，也走过了安装与第一次跑策略的路径。若 NTQ 对您有用、您愿意持续关注它的演进，欢迎在 [GitHub](https://github.com/garnet1985/new-tea-quant) 或 [Gitee](https://gitee.com/garnet/new-tea-quant) 上为仓库点亮一颗 **Star**——这对个人开源项目而言，是非常实在的支持。
-
-这是我第一次认真做开源，您的认可与反馈，是我继续打磨框架的最大动力。谢谢您！
 
 ### 欢迎一起交流早期使用体验
 
@@ -307,22 +308,22 @@ python start-cli.py -h
 
 ---
 
-## 开发命令（`dev-cli.py`）
+## 开发命令（`devcli.py`）
 
 面向本机开发与排障（仓库根目录）：
 
 ```bash
-python dev-cli.py -h
+python devcli.py -h
 ```
 
 | 用途 | 命令示例 |
 |------|----------|
-| 启动 UI（清端口后 `launcher.py -d`） | `python dev-cli.py -ui` |
-| 结束占用 8000 / 8888 的 UI 进程 | `python dev-cli.py -kui` |
-| 清空模拟 **磁盘 + DB** 工作台缓存 | `python dev-cli.py -csc`（同 `-cu`） |
-| 仅清空 DB 工作台快照表 | `python dev-cli.py -cdc` |
-| 仅删除各策略 `results/` 物理目录 | `python dev-cli.py -cmc` |
-| DuckDB WAL 合并进主文件 | `python dev-cli.py -dbc` |
+| 启动 UI（清端口后 `launcher.py -d`） | `python devcli.py -ui` |
+| 结束占用 8000 / 8888 的 UI 进程 | `python devcli.py -kui` |
+| 清空模拟 **磁盘 + DB** 工作台缓存 | `python devcli.py -csc`（同 `-cu`） |
+| 仅清空 DB 工作台快照表 | `python devcli.py -cdc` |
+| 仅删除各策略 `results/` 物理目录 | `python devcli.py -cmc` |
+| DuckDB WAL 合并进主文件 | `python devcli.py -dbc` |
 
 工作台快照 HTTP 清理接口见策略模块文档 [db-cache-service.md](core/modules/strategy/docs/db-cache-service.md) §8（V2-11 / V2-12）。
 

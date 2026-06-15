@@ -1,22 +1,39 @@
-export function normalizeMeta(rawMeta) {
+import { coerceMetaDescription } from '../../../../../utils/formatStrategyDescription';
+
+export function normalizeMeta(rawMeta, rootSettings = {}) {
+  const meta = rawMeta && typeof rawMeta === 'object' ? rawMeta : {};
+  const root = rootSettings && typeof rootSettings === 'object' ? rootSettings : {};
   return {
-    name: rawMeta?.name || '',
-    description: rawMeta?.description || '',
-    is_enabled: Boolean(rawMeta?.is_enabled),
+    display_name: meta.display_name || '',
+    description: coerceMetaDescription(meta.description),
+    keywords: Array.isArray(meta.keywords) ? meta.keywords : [],
+    details: meta.details && typeof meta.details === 'object' ? meta.details : { entry: [] },
+    is_enabled: Boolean(root.is_enabled),
   };
 }
 
-/** 从 V2-01 settings / 列表项中取出策略说明（``meta.description`` 或根级 ``description``）。 */
+/** 从 V2-01 settings 中取出策略说明（``meta.description``）。 */
 export function extractStrategyDescription(settings) {
   if (!settings || typeof settings !== 'object') return '';
-  const meta = settings.meta && typeof settings.meta === 'object'
-    ? settings.meta
-    : {
-      name: settings.name,
-      description: settings.description,
-      is_enabled: settings.is_enabled,
-    };
-  return normalizeMeta(meta).description.trim();
+  const meta = settings.meta && typeof settings.meta === 'object' ? settings.meta : {};
+  return coerceMetaDescription(meta.description);
+}
+
+/** 从 settings 中取出 ``meta.details.entry``（入场条件文案列表）。 */
+export function extractStrategyEntryConditions(settings) {
+  if (!settings || typeof settings !== 'object') return [];
+  const meta = settings.meta && typeof settings.meta === 'object' ? settings.meta : {};
+  const details = meta.details && typeof meta.details === 'object' ? meta.details : {};
+  const entry = Array.isArray(details.entry) ? details.entry : [];
+  return entry
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
+}
+
+export function extractStrategyDisplayName(settings) {
+  if (!settings || typeof settings !== 'object') return '';
+  const meta = settings.meta && typeof settings.meta === 'object' ? settings.meta : {};
+  return String(meta.display_name || '').trim();
 }
 
 const DEFAULT_MARKET_PROFILE_OPTIONS = [
@@ -35,7 +52,7 @@ export function buildStrategyMetaSchema(marketProfileOptions = DEFAULT_MARKET_PR
     defaultExpanded: true,
     children: [
       {
-        name: 'meta.is_enabled',
+        name: 'is_enabled',
         label: '策略启用开关',
         tooltip: '是否启用该策略：启用的策略可以在扫描中使用',
         type: 'switch',

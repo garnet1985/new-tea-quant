@@ -132,10 +132,15 @@ class EnumeratorRuntimeService:
         )
 
     @staticmethod
-    def run_enum(context: EnumeratorRuntimeContext) -> List[Dict[str, Any]]:
+    def run_enum(
+        context: EnumeratorRuntimeContext,
+        *,
+        workbench_progress: Optional[Any] = None,
+    ) -> List[Dict[str, Any]]:
         return context.flow.run(
             strategy_name=context.strategy_name,
             strategy_info=context.strategy_info,
+            workbench_progress=workbench_progress,
         )
 
 

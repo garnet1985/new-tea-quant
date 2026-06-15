@@ -52,8 +52,8 @@ _SCAN_ROOTS: Tuple[Path, ...] = (
 
 _ROOT_PY_FILES: Tuple[Path, ...] = (
     REPO_ROOT / "launcher.py",
-    REPO_ROOT / "start-cli.py",
-    REPO_ROOT / "dev-cli.py",
+    REPO_ROOT / "cli.py",
+    REPO_ROOT / "devcli.py",
 )
 
 

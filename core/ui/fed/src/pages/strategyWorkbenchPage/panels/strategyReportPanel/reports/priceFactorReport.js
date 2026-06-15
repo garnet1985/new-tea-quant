@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Box, Stack, Typography } from '@mui/material';
+import { Box, Link, Stack, Typography } from '@mui/material';
+import InlineLoadingState from 'components/inlineLoadingState/inlineLoadingState';
 import ReactECharts from 'echarts-for-react';
 import NtqHelpTooltip from 'components/ntqHelpTooltip/ntqHelpTooltip';
 import MetricCard from 'components/metricCard/metricCard';
@@ -22,6 +23,7 @@ import {
   REPORT_CHART_SPLIT_LINE,
   REPORT_CHART_TOOLTIP,
   reportChartSignedBarData,
+  reportChartRoiBucketBarData,
 } from '../lib/reportChartsTheme';
 
 function tooltipPrimaryValue(point) {
@@ -32,7 +34,11 @@ function tooltipPrimaryValue(point) {
   return raw;
 }
 
+const ROI_DISTRIBUTION_SCOPE_NOTE = '仅含按 goal 规则退出的交易';
+
 function buildRoiDistributionOption(metrics) {
+  const scopeNote = `<br/><span style="font-size:11px;opacity:.85">${ROI_DISTRIBUTION_SCOPE_NOTE}</span>`;
+
   return {
     animation: false,
     grid: { ...REPORT_CHART_GRID_BASE, left: 30 },
@@ -66,13 +72,16 @@ function buildRoiDistributionOption(metrics) {
         const point = params?.[0];
         if (!point) return '';
         const val = tooltipPrimaryValue(point);
-        return `${point.axisValue}<br/>收益率（ROI）：${val}%`;
+        return `${point.axisValue}<br/>收益率（ROI）：${val}%${scopeNote}`;
       },
     },
   };
 }
 
 function buildRoiBucketOption(metrics) {
+  const sampleCount = metrics.roiDistributionSampleCount;
+  const scopeNote = `<br/><span style="font-size:11px;opacity:.85">${ROI_DISTRIBUTION_SCOPE_NOTE}</span>`;
+
   return {
     animation: false,
     grid: REPORT_CHART_GRID_ROI_BUCKET,
@@ -94,7 +103,7 @@ function buildRoiBucketOption(metrics) {
     series: [
       {
         type: 'bar',
-        data: reportChartSignedBarData(metrics.roiBucketCounts),
+        data: reportChartRoiBucketBarData(metrics.roiBucketCounts, metrics.roiBucketLabels),
         barMaxWidth: 24,
       },
     ],
@@ -105,7 +114,9 @@ function buildRoiBucketOption(metrics) {
       formatter: (params) => {
         const point = params?.[0];
         if (!point) return '';
-        return `${point.axisValue}<br/>投资次数：${tooltipPrimaryValue(point)}`;
+        const count = Number(tooltipPrimaryValue(point)) || 0;
+        const pct = ((count / sampleCount) * 100).toFixed(1);
+        return `${point.axisValue}<br/>投资次数：${count} (${pct}%)${scopeNote}`;
       },
     },
   };
@@ -116,7 +127,12 @@ function PriceFactorReport({
   stockRows,
   title = '价格回测报告',
   showStockGrid = true,
+  stockGridOverlay = null,
+  priceRefStockTotal,
+  stockGridLoading = false,
   hideTitle = false,
+  onStockSelect,
+  stockLinkEnabled = false,
 }) {
   const [stockSearch, setStockSearch] = useState('');
 
@@ -128,6 +144,10 @@ function PriceFactorReport({
     roiBucketViz: false,
     executionSkips: false,
   };
+
+  const roiTruncatedNote = metrics?.roiTruncatedExitCount > 0
+    ? PRICE_CHART_TIPS.roiBucketTruncatedNote(metrics.roiTruncatedExitCount)
+    : null;
 
   const derivedStockRows = useMemo(() => (
     Array.isArray(stockRows) && stockRows.length > 0 ? stockRows : []
@@ -144,8 +164,43 @@ function PriceFactorReport({
   }, [derivedStockRows, stockSearch]);
 
   const stockColumns = useMemo(() => [
-    { field: 'stockCode', headerName: '代码', flex: 1, minWidth: 120 },
+    {
+      field: 'stockCode',
+      headerName: '代码',
+      flex: 1,
+      minWidth: 120,
+      renderCell: (params) => {
+        const code = params.value;
+        if (!stockLinkEnabled || typeof onStockSelect !== 'function') {
+          return code;
+        }
+        return (
+          <Link
+            component="button"
+            type="button"
+            underline="hover"
+            onClick={(e) => {
+              e.stopPropagation();
+              onStockSelect(params.row);
+            }}
+            sx={{ font: 'inherit', textAlign: 'left' }}
+          >
+            {code}
+          </Link>
+        );
+      },
+    },
     { field: 'stockName', headerName: '名称', flex: 1, minWidth: 120 },
+    {
+      field: 'avgRoi',
+      headerName: '平均收益（ROI）',
+      width: 140,
+      valueFormatter: (params) => {
+        const v = Number(params.value);
+        if (!Number.isFinite(v)) return '—';
+        return `${v > 0 ? '+' : ''}${v}%`;
+      },
+    },
     {
       field: 'winRate',
       headerName: '胜率',
@@ -153,22 +208,37 @@ function PriceFactorReport({
       valueFormatter: (params) => `${params.value}%`,
     },
     {
-      field: 'roi',
-      headerName: '收益率（ROI）',
+      field: 'totalInvestments',
+      headerName: '机会总数',
       width: 110,
-      valueFormatter: (params) => `${params.value > 0 ? '+' : ''}${params.value}%`,
+      valueFormatter: (params) => `${params.value} 个`,
     },
     {
-      field: 'holdDays',
-      headerName: '平均投资天数',
-      width: 110,
+      field: 'avgDurationDays',
+      headerName: '平均交易时长',
+      width: 130,
       valueFormatter: (params) => `${params.value} 天`,
     },
-  ], []);
+    {
+      field: 'expirationRatio',
+      headerName: '过期比例',
+      width: 110,
+      valueFormatter: (params) => `${params.value}%`,
+    },
+  ], [onStockSelect, stockLinkEnabled]);
+
+  const stockGridTip = [
+    REPORT_STOCK_GRID_TIPS.price,
+    typeof priceRefStockTotal === 'number' && priceRefStockTotal > 0
+      ? `当前共 ${priceRefStockTotal} 只股票。`
+      : '',
+  ].filter(Boolean).join(' ');
 
   if (!metrics || typeof metrics !== 'object') {
     return <ReportUnavailableHint />;
   }
+
+  const showStockGridTable = Boolean(stockGridOverlay || filteredRows.length > 0);
 
   const volCardHint = (() => {
     if (!avail.roiPercentileViz) return '';
@@ -190,15 +260,28 @@ function PriceFactorReport({
         <Typography variant="subtitle2" fontWeight={600}>{title}</Typography>
       ) : null}
 
-      {showStockGrid && derivedStockRows.length > 0 ? (
-        <ReportStockSampleGrid
-          title="逐股样本"
-          tip={REPORT_STOCK_GRID_TIPS.price}
-          searchValue={stockSearch}
-          onSearchChange={setStockSearch}
-          rows={filteredRows}
-          columns={stockColumns}
-        />
+      {showStockGrid ? (
+        <Box sx={{ position: 'relative' }}>
+          {stockGridLoading ? (
+            <InlineLoadingState block compact message="正在加载逐股数据…" />
+          ) : (
+            <>
+              {stockGridOverlay}
+              {showStockGridTable ? (
+                <ReportStockSampleGrid
+                  title="逐股样本"
+                  tip={stockGridTip}
+                  searchValue={stockSearch}
+                  onSearchChange={setStockSearch}
+                  rows={filteredRows}
+                  columns={stockColumns}
+                  sortingMode="client"
+                  initialSortModel={[{ field: 'avgRoi', sort: 'desc' }]}
+                />
+              ) : <ReportUnavailableHint />}
+            </>
+          )}
+        </Box>
       ) : null}
 
       <SectionBlock
@@ -333,6 +416,11 @@ function PriceFactorReport({
               </Typography>
               <NtqHelpTooltip title={PRICE_CHART_TIPS.roiPercentileCaption} />
             </Stack>
+            {roiTruncatedNote ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                {roiTruncatedNote}
+              </Typography>
+            ) : null}
             <ReactECharts
               option={buildRoiDistributionOption(metrics)}
               style={{ height: 170, width: '100%' }}
@@ -356,6 +444,11 @@ function PriceFactorReport({
               </Typography>
               <NtqHelpTooltip title={PRICE_CHART_TIPS.roiBucketCaption} />
             </Stack>
+            {roiTruncatedNote ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                {roiTruncatedNote}
+              </Typography>
+            ) : null}
             <ReactECharts
               option={buildRoiBucketOption(metrics)}
               style={{ height: 190, width: '100%' }}

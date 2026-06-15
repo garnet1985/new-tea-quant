@@ -1,33 +1,60 @@
 import { useEffect, useMemo, useState } from 'react';
-import {
-  fetchStrategyStepReport,
-  fetchStrategyStepReportRef,
-} from '../../../../../api/apis/strategyApi';
+import { fetchStrategyStepReportRef } from '../../../../../api/apis/strategyApi';
 import { STEP_TABS } from '../constants/strategyReportConstants';
 import {
   ENUM_REF_DEFAULT_SORT,
   mapStockRefToRows,
   sortMappedEnumRows,
 } from '../lib/strategyReportEnumRef';
+import {
+  PRICE_REF_DEFAULT_SORT,
+  mapPriceStockRefToRows,
+  sortMappedPriceRows,
+} from '../lib/strategyReportPriceRef';
+import { slotFromResultReport } from '../lib/strategyReportSlotResolve';
+
+/** 槽位产物变更 / 单步跑完时触发 ``report_ref`` 重拉（避免同 version 下逐股表不刷新）。 */
+function stockRefRefreshToken(resultReport, tabKey) {
+  const slot = slotFromResultReport(resultReport, tabKey);
+  if (!slot || typeof slot !== 'object') return '';
+  if (tabKey === 'price') {
+    const run = slot.output_version_run;
+    if (run && typeof run === 'object') {
+      const dir = String(run.output_version_dir || '').trim();
+      const vid = run.output_version_id;
+      if (dir || vid != null) return `${dir}:${vid ?? ''}`;
+    }
+    if (slot.output_version_id != null) return String(slot.output_version_id);
+    return '';
+  }
+  if (tabKey === 'enum') {
+    const dir = String(slot.enumerator_output_dir || '').trim();
+    const vid = slot.output_version_id;
+    if (dir || vid != null) return `${dir}:${vid ?? ''}`;
+    return '';
+  }
+  return '';
+}
 
 /**
- * V2-07 单步 report、枚举 report_ref；由 ``executionState.stepStatus`` 推导可用 Tab。
+ * 报告面板远程数据：枚举 ``report_ref``（V2-07b）与可用 Tab 推导。
+ * 主面板与对比弹窗读页面注入的 V2-08 ``workbenchSnapshot.result_report``；枚举明细仍用 V2-07b ``report_ref``。
  */
 export function useStrategyReportRemoteData({
   strategyName,
   reportVersionId,
   activeTab,
   executionState,
+  resultReport = null,
+  reportTabFocusRequest = null,
+  /** 制定策略等单步视图：固定当前 Tab，不随 availableTabs 回退 */
+  lockedTab = '',
 }) {
   const versionIdForReport = String(reportVersionId || '').trim();
-  const [reportStocks] = useState({ enum: [], price: [], capital: [] });
   const [enumRefStatus, setEnumRefStatus] = useState('idle');
   const [enumRefRows, setEnumRefRows] = useState([]);
-  const [stepReportSlots, setStepReportSlots] = useState({
-    enum: null,
-    price: null,
-    capital: null,
-  });
+  const [priceRefStatus, setPriceRefStatus] = useState('idle');
+  const [priceRefRows, setPriceRefRows] = useState([]);
 
   const availableTabs = useMemo(() => {
     const stepStatus = executionState?.stepStatus || {};
@@ -35,38 +62,30 @@ export function useStrategyReportRemoteData({
   }, [executionState]);
 
   const resolvedActiveTab = useMemo(() => {
+    const lt = String(lockedTab || '').trim();
+    if (lt && STEP_TABS.some((tab) => tab.key === lt)) return lt;
     if (availableTabs.length === 0) return '';
     if (availableTabs.some((tab) => tab.key === activeTab)) return activeTab;
     return availableTabs[availableTabs.length - 1].key;
-  }, [activeTab, availableTabs]);
+  }, [activeTab, availableTabs, lockedTab]);
 
-  useEffect(() => {
-    if (!versionIdForReport) {
-      setStepReportSlots({ enum: null, price: null, capital: null });
-    }
-  }, [versionIdForReport]);
+  const enumRefRefreshKey = useMemo(() => {
+    const slotToken = stockRefRefreshToken(resultReport, 'enum');
+    const focusTick = reportTabFocusRequest?.step === 'enum'
+      ? Number(reportTabFocusRequest.tick) || 0
+      : 0;
+    const stepDone = executionState?.stepStatus?.enum === 'done' ? 1 : 0;
+    return `${slotToken}|f${focusTick}|d${stepDone}`;
+  }, [executionState?.stepStatus?.enum, reportTabFocusRequest, resultReport]);
 
-  useEffect(() => {
-    let cancelled = false;
-    if (!strategyName || !versionIdForReport || !resolvedActiveTab) {
-      return undefined;
-    }
-    const step = resolvedActiveTab;
-    fetchStrategyStepReport(strategyName, step, versionIdForReport)
-      .then((msg) => {
-        if (cancelled) return;
-        const rep = msg?.report;
-        const slot = rep && typeof rep === 'object' ? rep : null;
-        setStepReportSlots((prev) => ({ ...prev, [step]: slot }));
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setStepReportSlots((prev) => ({ ...prev, [step]: null }));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [strategyName, versionIdForReport, resolvedActiveTab]);
+  const priceRefRefreshKey = useMemo(() => {
+    const slotToken = stockRefRefreshToken(resultReport, 'price');
+    const focusTick = reportTabFocusRequest?.step === 'price'
+      ? Number(reportTabFocusRequest.tick) || 0
+      : 0;
+    const stepDone = executionState?.stepStatus?.price === 'done' ? 1 : 0;
+    return `${slotToken}|f${focusTick}|d${stepDone}`;
+  }, [executionState?.stepStatus?.price, reportTabFocusRequest, resultReport]);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,14 +120,49 @@ export function useStrategyReportRemoteData({
     return () => {
       cancelled = true;
     };
-  }, [resolvedActiveTab, strategyName, versionIdForReport]);
+  }, [enumRefRefreshKey, resolvedActiveTab, strategyName, versionIdForReport]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!strategyName || !versionIdForReport || resolvedActiveTab !== 'price') {
+      setPriceRefStatus('idle');
+      setPriceRefRows([]);
+      return undefined;
+    }
+    setPriceRefStatus('loading');
+    fetchStrategyStepReportRef(strategyName, 'price', versionIdForReport).then((msg) => {
+      if (cancelled) return;
+      const raw = msg?.stock_ref;
+      const available = msg?.stock_ref_available !== false;
+      if (
+        available
+        && raw
+        && typeof raw === 'object'
+        && Object.keys(raw).length > 0
+      ) {
+        const mapped = sortMappedPriceRows(
+          mapPriceStockRefToRows(raw),
+          PRICE_REF_DEFAULT_SORT.sortBy,
+          PRICE_REF_DEFAULT_SORT.order,
+        );
+        setPriceRefRows(mapped);
+        setPriceRefStatus('ok');
+        return;
+      }
+      setPriceRefRows([]);
+      setPriceRefStatus('missing');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [priceRefRefreshKey, resolvedActiveTab, strategyName, versionIdForReport]);
 
   return {
-    reportStocks,
     enumRefStatus,
     enumRefRows,
+    priceRefStatus,
+    priceRefRows,
     availableTabs,
     resolvedActiveTab,
-    stepReportSlots,
   };
 }

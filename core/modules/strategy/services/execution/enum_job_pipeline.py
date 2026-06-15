@@ -46,6 +46,7 @@ def build_enumeration_payload(
         "backtest_calendar": job.get("backtest_calendar"),
         "worker_module_path": job["worker_module_path"],
         "worker_class_name": job["worker_class_name"],
+        "worker_file_path": str(job.get("worker_file_path") or ""),
     }
     stock_ids = job.get("stock_ids")
     if isinstance(stock_ids, list) and stock_ids:

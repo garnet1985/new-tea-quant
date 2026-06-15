@@ -13,6 +13,12 @@ from .strategy_settings.simulation_settings import (
 
 __all__ = [
     "BaseInvestment",
+    "InvestmentLifecycle",
+    "InvestmentOutcome",
+    "InvestmentState",
+    "PendingExit",
+    "ScanSignalPhase",
+    "resolve_outcome",
     "ExtremeSameBarOrder",
     "MonitorPriceModel",
     "NoNextBarPolicy",

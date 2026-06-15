@@ -1,11 +1,27 @@
 import { requestJson } from '../global/httpClient';
+import { coerceMetaDescription } from '../../utils/formatStrategyDescription';
 import { API_VERSION_PREFIX } from '../conf/apiConfig';
 
 /** 分页策略列表（V2-02）：`/api/v1/strategies/list` */
 const API_STRATEGIES_LIST_BASE = `${API_VERSION_PREFIX}/strategies/list`;
+/** 策略列表/扫描页展示名：优先 ``display_name``，否则回退路径 ID。 */
+export function getStrategyDisplayLabel(item) {
+  return String(item?.display_name || item?.name || '').trim();
+}
+
+/** 将策略路径 ID（可含 ``/``）编码为 URL 路径段。 */
+function encodeStrategyPathSegments(strategyName) {
+  return String(strategyName || '')
+    .split('/')
+    .filter(Boolean)
+    .map((seg) => encodeURIComponent(seg))
+    .join('/');
+}
+
 /** 单策略工作台资源前缀（V2-01…09）：`/api/v1/strategy/{name}/…`（注意单数 `strategy`） */
 function apiStrategyPath(strategyName) {
-  return `${API_VERSION_PREFIX}/strategy/${encodeURIComponent(strategyName)}`;
+  const encoded = encodeStrategyPathSegments(strategyName);
+  return `${API_VERSION_PREFIX}/strategy/${encoded}`;
 }
 /** V2-04 全局选项（无 strategy_name 路径段） */
 const API_SETTINGS_CAPITAL = `${API_VERSION_PREFIX}/strategy/settings/capital-allocation-strategies`;
@@ -30,7 +46,10 @@ export async function fetchStrategyList() {
     data: list.map((item) => ({
       id: item.name,
       name: item.name,
-      description: String(item.description || '').trim(),
+      display_name: getStrategyDisplayLabel(item),
+      description: coerceMetaDescription(item.description),
+      keywords: Array.isArray(item.keywords) ? item.keywords : [],
+      details: item.details && typeof item.details === 'object' ? item.details : null,
       is_enabled: Boolean(item.is_enabled),
     })),
   };
@@ -80,7 +99,19 @@ export async function fetchStrategyScanProgress(strategyName, jobId) {
 
 /** 构建单策略策略工作台（调试）页路径（与路由定义保持一致） */
 export function getStrategyWorkbenchPath(strategyName) {
-  return `/strategy-workbench/${encodeURIComponent(strategyName)}`;
+  const encoded = encodeStrategyPathSegments(strategyName);
+  return `/strategy-workbench/${encoded}`;
+}
+
+/** 制定策略：单策略调试页路径（可选 step：enum | price | capital） */
+export function getStrategyDesignPath(strategyName, step = '') {
+  const encoded = encodeStrategyPathSegments(strategyName);
+  const base = `/strategy-design/${encoded}`;
+  const seg = String(step || '').trim();
+  if (seg === 'enum' || seg === 'price' || seg === 'capital') {
+    return `${base}/${seg}`;
+  }
+  return base;
 }
 
 /**
@@ -98,6 +129,7 @@ export async function fetchStrategySettings(strategyName) {
     workbench_version_id: typeof m.version_id === 'string' ? m.version_id : '',
     step_status: m.step_status,
     result_report: m.result_report,
+    execution_panel: m.execution_panel ?? null,
     has_persisted_snapshot: Boolean(m.has_persisted_snapshot),
     has_other_versions: Boolean(m.has_other_versions),
   };
@@ -167,6 +199,7 @@ export async function fetchStrategyVersionDetail(strategyName, versionId) {
     settings: m.settings || {},
     step_status: m.step_status,
     result_report: m.result_report,
+    execution_panel: m.execution_panel ?? null,
   };
 }
 
@@ -197,7 +230,7 @@ export async function createStrategyVersion(strategyName, settings, source = 'ma
 }
 
 /**
- * V2-05：启动单步 run（路径含 step）。
+ * V2-05：启动 run（路径上的 ``step`` 为用户点击步；实际子步骤链见响应 ``steps`` / ``resolved_chain``，由后端 ``plan_schema`` 规划）。
  * @param {string} strategyName
  * @param {'enum'|'price'|'capital'} targetStep
  * @param {object=} settings
@@ -262,6 +295,22 @@ export async function fetchStrategyStepReport(strategyName, step, versionId) {
  * @param {string} versionId
  * @returns {Promise<object|null>}
  */
+/**
+ * V2-07c：单股 K 线 + 步骤 markers。
+ * GET /api/v1/strategy/{name}/{step}/stock/{stock_id}?version_id=...
+ */
+export async function fetchStrategyStockDetail(strategyName, step, versionId, stockId) {
+  const vid = encodeURIComponent(String(versionId || '').trim());
+  const code = encodeURIComponent(String(stockId || '').trim());
+  if (!vid || !code) {
+    throw new Error('缺少 version_id 或 stock_id');
+  }
+  const params = new URLSearchParams({ version_id: String(versionId || '').trim() });
+  const url = `${apiStrategyPath(strategyName)}/${encodeURIComponent(step)}/stock/${code}?${params.toString()}`;
+  const json = await requestJson(url, { method: 'GET' });
+  return json?.message || {};
+}
+
 export async function fetchStrategyStepReportRef(strategyName, step, versionId) {
   const vid = encodeURIComponent(String(versionId || '').trim());
   if (!vid) {
@@ -303,8 +352,12 @@ export async function fetchStrategyRunProgress(strategyName, jobId) {
 export function mapWorkbenchRunProgressToPanel(envelope) {
   const steps = Array.isArray(envelope?.steps) ? envelope.steps : [];
   const phase = String(envelope?.phase || '').toLowerCase();
+  const runProgress = envelope?.run_progress && typeof envelope.run_progress === 'object'
+    ? envelope.run_progress
+    : null;
 
   const step_status_merge = {};
+  const step_progress = {};
   steps.forEach((row) => {
     const k = String(row.step_name || '').trim();
     if (k !== 'enum' && k !== 'price' && k !== 'capital') return;
@@ -314,6 +367,7 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
     else if (st === 'completed') step_status_merge[k] = 'done';
     else if (st === 'failed') step_status_merge[k] = 'failed';
     else step_status_merge[k] = 'idle';
+    step_progress[k] = Number(row.progress ?? 0);
   });
 
   const anyFailed = steps.some((r) => String(r.status || '').toLowerCase() === 'failed') || phase === 'failed';
@@ -328,24 +382,29 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
   ['enum', 'price', 'capital'].forEach((k) => {
     if (step_status_merge[k] === 'running') running_step = k;
   });
+  if (!running_step && runProgress?.substep) {
+    running_step = String(runProgress.substep).trim();
+  }
 
   let progress_pct = 0;
-  if (running_step) {
-    const hit = steps.find((r) => String(r.step_name || '').trim() === running_step);
-    progress_pct = Number(hit?.progress ?? 0);
+  if (runProgress && runProgress.pct != null) {
+    progress_pct = Number(runProgress.pct);
+  } else if (running_step) {
+    progress_pct = Number(step_progress[running_step] ?? 0);
   } else if (state === 'done') {
     progress_pct = 100;
   }
 
-  const result_report = {};
+  const progress_label = typeof runProgress?.label === 'string' ? runProgress.label.trim() : '';
+  const progress_stage_label = typeof runProgress?.substep_stage_label === 'string'
+    ? runProgress.substep_stage_label.trim()
+    : '';
+  const progress_counter_text = typeof runProgress?.counter_text === 'string'
+    ? runProgress.counter_text.trim()
+    : '';
+
   let version_id = '';
   steps.forEach((row) => {
-    const pv = row?.result?.card || row?.result?.preview;
-    if (pv && typeof pv === 'object') {
-      if (pv.enum) result_report.enum = pv.enum;
-      if (pv.price) result_report.price = pv.price;
-      if (pv.capital) result_report.capital = pv.capital;
-    }
     const vid = row?.result?.version_id;
     if (typeof vid === 'string' && vid.trim()) version_id = vid.trim();
   });
@@ -360,11 +419,14 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
   return {
     run_id: envelope?.run_id || '',
     step_status_merge,
+    step_progress,
     running_step,
     progress_pct,
+    progress_label,
+    progress_stage_label,
+    progress_counter_text,
     state,
     version_id,
-    result_report,
     fail_reason,
   };
 }
@@ -386,7 +448,6 @@ export async function fetchStrategyRunStatus(strategyName, jobId, _step = 'enum'
       state: 'failed',
       running_step: '',
       step_status_merge: {},
-      result_report: {},
       fail_reason: '无编排进度数据',
     };
   }
@@ -422,6 +483,7 @@ export async function fetchStrategyVersionHistory(strategyName) {
  * @param {string} runId
  * @param {string} stockId
  */
+/** @deprecated 使用 ``fetchStrategyStockDetail`` */
 export async function fetchStrategyReportStockKline(strategyName, runId, stockId) {
   void strategyName;
   void runId;
@@ -550,4 +612,93 @@ export async function fetchMarketProfileOptions() {
   const json = await requestJson(API_SETTINGS_MARKET_PROFILES, { method: 'GET' });
   const items = json?.message?.items ?? [];
   return items.map((row) => ({ value: row.value, label: row.label }));
+}
+
+const API_STRATEGY_PACKAGE_IMPORT = `${API_VERSION_PREFIX}/strategy/package/import`;
+const API_STRATEGY_PACKAGE_IMPORT_PREVIEW = `${API_VERSION_PREFIX}/strategy/package/import/preview`;
+
+async function readFetchErrorDetail(response) {
+  try {
+    const json = await response.json();
+    return json?.message?.detail || `HTTP ${response.status}`;
+  } catch {
+    return `HTTP ${response.status}`;
+  }
+}
+
+/**
+ * 下载策略交流包（V2-13）：`GET /api/v1/strategy/{name}/package/export`
+ * @param {string} strategyName
+ * @param {{ scope?: 'bundle'|'strategy' }} [options]
+ */
+export async function downloadStrategyPackage(strategyName, { scope = 'bundle' } = {}) {
+  const params = new URLSearchParams({ scope });
+  const url = `${apiStrategyPath(strategyName)}/package/export?${params.toString()}`;
+  const response = await fetch(url, { method: 'GET' });
+  if (!response.ok) {
+    throw new Error(await readFetchErrorDetail(response));
+  }
+  const blob = await response.blob();
+  let filename = `${strategyName}-strategy.zip`;
+  const cd = response.headers.get('Content-Disposition') || '';
+  const match = /filename\*?=(?:UTF-8''|utf-8'')?["']?([^"';]+)/i.exec(cd);
+  if (match?.[1]) {
+    try {
+      filename = decodeURIComponent(match[1].trim());
+    } catch {
+      filename = match[1].trim();
+    }
+  }
+  const href = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = href;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(href);
+}
+
+/**
+ * 策略包导入预览（V2-14）
+ * @param {File} file
+ * @param {{ policy?: 'reject'|'skip_existing'|'overwrite' }} [options]
+ */
+export async function previewStrategyPackageImport(file, { policy = 'reject' } = {}) {
+  const fd = new FormData();
+  fd.append('file', file);
+  const params = new URLSearchParams({ policy });
+  const response = await fetch(`${API_STRATEGY_PACKAGE_IMPORT_PREVIEW}?${params.toString()}`, {
+    method: 'POST',
+    body: fd,
+  });
+  const json = await response.json();
+  if (!response.ok || json?.status !== 'ok') {
+    throw new Error(json?.message?.detail || `HTTP ${response.status}`);
+  }
+  return json.message;
+}
+
+/**
+ * 策略包导入（V2-15）
+ * @param {File} file
+ * @param {{ policy?: 'reject'|'skip_existing'|'overwrite' }} [options]
+ */
+export async function importStrategyPackage(file, { policy = 'reject' } = {}) {
+  const fd = new FormData();
+  fd.append('file', file);
+  const params = new URLSearchParams({ policy });
+  const response = await fetch(`${API_STRATEGY_PACKAGE_IMPORT}?${params.toString()}`, {
+    method: 'POST',
+    body: fd,
+  });
+  const json = await response.json();
+  if (response.status === 409) {
+    const err = new Error(json?.message?.detail || '导入冲突');
+    err.code = 'package_conflict';
+    err.preview = json?.message?.preview;
+    throw err;
+  }
+  if (!response.ok || json?.status !== 'ok') {
+    throw new Error(json?.message?.detail || `HTTP ${response.status}`);
+  }
+  return json.message;
 }

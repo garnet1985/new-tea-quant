@@ -53,6 +53,38 @@ class TestConfigManager:
         
         assert isinstance(decimal_places, int)
         assert decimal_places >= 0
+
+    def test_get_adj_factor_event_decimal_places(self):
+        places = ConfigManager.get_adj_factor_event_decimal_places()
+        assert places["factor_places"] == 4
+        assert places["price_places"] == 3
+        assert places["diff_places"] == 4
+
+    def test_deep_merge_decimal_places_nested(self):
+        merged = ConfigManager.deep_merge_config(
+            {
+                "decimal_places": {
+                    "default": 2,
+                    "adj_factor_event": {
+                        "factor_places": 4,
+                        "price_places": 3,
+                        "diff_places": 4,
+                    },
+                }
+            },
+            {
+                "decimal_places": {
+                    "default": 3,
+                    "adj_factor_event": {"factor_places": 5},
+                }
+            },
+            deep_merge_fields={"decimal_places"},
+        )
+        dp = merged["decimal_places"]
+        assert dp["default"] == 3
+        assert dp["adj_factor_event"]["factor_places"] == 5
+        assert dp["adj_factor_event"]["price_places"] == 3
+        assert dp["adj_factor_event"]["diff_places"] == 4
     
     def test_get_database_config(self):
         """测试获取数据库配置"""
@@ -93,6 +125,44 @@ class TestConfigManager:
             
             assert merged["key1"] == "user"  # 用户配置覆盖
             assert merged["key2"] == "default"  # 默认配置保留
+
+
+class TestConfigMergeHelpers:
+    """ConfigManager.deep_merge_config / merge_mapping_configs"""
+
+    def test_deep_merge_simple_override(self):
+        defaults = {"a": 1, "b": 2}
+        custom = {"b": 3}
+        result = ConfigManager.deep_merge_config(defaults, custom)
+        assert result["a"] == 1
+        assert result["b"] == 3
+
+    def test_deep_merge_nested(self):
+        defaults = {"params": {"a": 1, "b": 2}}
+        custom = {"params": {"b": 3, "c": 4}}
+        result = ConfigManager.deep_merge_config(
+            defaults,
+            custom,
+            deep_merge_fields={"params"},
+        )
+        assert result["params"]["a"] == 1
+        assert result["params"]["b"] == 3
+        assert result["params"]["c"] == 4
+
+    def test_merge_mapping_configs(self):
+        defaults = {
+            "kline": {"handler": "default.handler", "params": {"a": 1}},
+        }
+        custom = {
+            "kline": {"params": {"b": 2}},
+        }
+        result = ConfigManager.merge_mapping_configs(
+            defaults,
+            custom,
+            deep_merge_fields={"params"},
+        )
+        assert result["kline"]["handler"] == "default.handler"
+        assert result["kline"]["params"] == {"a": 1, "b": 2}
 
 
 # 导入 PathManager 用于测试

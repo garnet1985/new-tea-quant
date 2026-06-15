@@ -32,6 +32,7 @@ function SectionAccordion({
   title,
   tooltip = '',
   defaultExpanded = false,
+  nested = true,
   children,
   context = {},
 }) {
@@ -45,6 +46,7 @@ function SectionAccordion({
 
   return (
     <Accordion
+      className={nested ? 'ntq-settings-sub-accordion' : undefined}
       defaultExpanded={defaultExpanded}
       disableGutters
       TransitionProps={{ timeout: 0, unmountOnExit: false }}
@@ -116,6 +118,7 @@ export function StrategySettingsPanel({
       tooltip={STRATEGY_SETTINGS_ROOT_TOOLTIP}
       context={workbenchEditorContext}
       defaultExpanded
+      nested={false}
     >
       <Stack spacing={1}>
         <SettingsSchemaEditor
@@ -203,7 +206,7 @@ export function PlaceholderSection({
   children,
 }) {
   return (
-    <SectionAccordion title={title} defaultExpanded={defaultExpanded}>
+    <SectionAccordion title={title} defaultExpanded={defaultExpanded} nested={false}>
       {children || (
         <Typography variant="body2" color="text.secondary">
           {text || '敬请期待…'}

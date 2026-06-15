@@ -42,7 +42,7 @@ CLI 或定时任务需要一次跑完全部启用数据源。
 部分 handler 依赖其它数据源产出（如列表、交易日）。
 
 **决策（Decision）**  
-**`DataSourceExecutionScheduler`** 对 handler **拓扑排序**，依赖先执行；预留 **reserved dependency**（如最新交易日）由 **`reserved_dependencies`** 解析。
+**`DataSourceExecutionScheduler`** 对 handler **拓扑排序**，依赖先执行；预留 **reserved dependency**（如 ``latest_completed_trading_date``）由 **`reserved_dependencies`** 解析。
 
 **理由（Rationale）**  
 确定性的上下文注入，避免竞态。

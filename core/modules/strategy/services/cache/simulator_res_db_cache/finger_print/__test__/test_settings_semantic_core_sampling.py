@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 from typing import Optional
 
+from core.modules.strategy.__test__.settings_fixtures import minimal_strategy_raw
 from core.modules.strategy.launcher.run_service import StrategyFingerprintManager
 from core.modules.strategy.services.cache.simulator_res_db_cache.config import derive_run_mode
 from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.finger_print import (
@@ -14,28 +15,13 @@ from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.se
     semantic_core,
 )
 
-# 最小可过 StrategySettings.validate 的示例配置（不依赖 gitignore 的 userspace/）。
-_EXAMPLE_RAW = {
-    "name": "example",
-    "market_profile": "china_a_stock",
-    "data": {
-        "base_required_data": {"params": {"term": "daily", "adjust": "qfq"}},
-        "min_required_records": 30,
-    },
-    "simulation": {"template": "standard"},
-    "goal": {
-        "expiration": {"fixed_window_in_days": 30, "is_trading_days": True},
-        "stop_loss": {"stages": [{"name": "loss10%", "ratio": -0.2, "close_invest": True}]},
-        "take_profit": {
-            "stages": [{"name": "win10%", "ratio": 0.2, "sell_ratio": 0.5}],
-        },
-    },
-    "sampling": {
+_EXAMPLE_RAW = minimal_strategy_raw(
+    sampling={
         "use_sampling": False,
         "strategy": "uniform",
         "sampling_amount": 1000,
     },
-}
+)
 
 
 def _example_canonical(*, use_sampling: bool, pool_file: Optional[str] = None) -> dict:

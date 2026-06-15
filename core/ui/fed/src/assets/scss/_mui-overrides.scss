@@ -166,6 +166,40 @@
   margin-top: -1px;
 }
 
+// Nested settings blocks (e.g. 策略核心设置 via Editor section, 数据设置, etc.)
+.ntq-settings-sub-accordion.MuiAccordion-root {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 5px !important;
+  background: rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+  box-shadow: none;
+  margin: 0 !important;
+
+  &::before {
+    display: none;
+  }
+
+  .MuiAccordionSummary-root {
+    min-height: 44px;
+  }
+
+  &:not(.Mui-expanded) .MuiAccordionSummary-root {
+    border-radius: 5px !important;
+  }
+
+  &.Mui-expanded .MuiAccordionSummary-root {
+    border-radius: 5px 5px 0 0 !important;
+  }
+
+  &.Mui-expanded .MuiAccordionDetails-root {
+    border-radius: 0 0 5px 5px !important;
+  }
+}
+
+.ntq-settings-sub-accordion.MuiAccordion-root + .ntq-settings-sub-accordion.MuiAccordion-root {
+  margin-top: 8px !important;
+}
+
 // Compact dropdown text (opt-in via className)
 .ntq-compact-dropdown {
   .MuiSelect-select {

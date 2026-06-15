@@ -5,8 +5,11 @@ from dataclasses import dataclass, field
 from typing import Any, List, Optional
 
 from core.modules.strategy.engines.shared.data_classes import BaseInvestment
+from core.modules.strategy.engines.shared.data_classes.investment_state import (
+    InvestmentLifecycle,
+    InvestmentState,
+)
 from core.modules.strategy.engines.simulator.capital_allocation.data_classes.trade import Trade
-from core.modules.strategy.enums import OpportunityStatus
 
 
 @dataclass
@@ -50,16 +53,12 @@ class CapitalAllocationInvestment(BaseInvestment):
             except Exception:
                 pass
 
-        if not sell_trades:
-            status = OpportunityStatus.OPEN.value
-        elif all(t.shares == 0 for t in sell_trades):
-            status = (
-                OpportunityStatus.WIN.value
-                if profit > 0
-                else (OpportunityStatus.LOSS.value if profit < 0 else OpportunityStatus.CLOSED.value)
-            )
-        else:
-            status = OpportunityStatus.OPEN.value
+        lifecycle = InvestmentLifecycle.OPEN.value
+        outcome = None
+        if sell_trades and all(t.shares == 0 for t in sell_trades):
+            state = InvestmentState().complete_with_profit(profit)
+            lifecycle = state.lifecycle.value
+            outcome = state.outcome.value if state.outcome else None
 
         sell_price = None
         sell_date = None
@@ -80,7 +79,8 @@ class CapitalAllocationInvestment(BaseInvestment):
             profit=profit,
             roi=roi,
             holding_days=holding_days,
-            status=status,
+            lifecycle=lifecycle,
+            outcome=outcome,
             shares=buy_trade.shares,
             avg_cost=avg_cost,
             commission=commission,

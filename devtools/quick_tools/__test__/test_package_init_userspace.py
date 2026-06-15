@@ -35,6 +35,10 @@ def test_sanitize_removes_secrets_and_cache(tmp_path: Path):
     _write(root / "extensions/data_source/providers/tushare/auth_token.txt.example", "template")
     _write(root / "extensions/data_source/config.py", "TOKEN='x'")
     _write(root / "strategies/demo/results/simulations/price/1/a.csv")
+    _write(
+        root
+        / "strategies/demo/regression/rsi/rsi_v1_without_value_anchor/results/simulations/price/1/a.csv"
+    )
     _write(root / "system/db/data.duckdb", "db")
     _write(root / "extensions/data_source/handlers/adj_factor_event/adj_factor_events_2025Q4.csv", "a,b")
     _write(root / "strategies/demo/strategy_worker.py", "pass")
@@ -51,6 +55,9 @@ def test_sanitize_removes_secrets_and_cache(tmp_path: Path):
     assert not (root / "extensions/data_source/config.py").exists()
     assert not (root / "strategies/demo/results").exists()
     assert not (
+        root / "strategies/demo/regression/rsi/rsi_v1_without_value_anchor/results"
+    ).exists()
+    assert not (
         root / "extensions/data_source/handlers/adj_factor_event/adj_factor_events_2025Q4.csv"
     ).exists()
     assert not (root / "system/db/data.duckdb").exists()
@@ -58,12 +65,24 @@ def test_sanitize_removes_secrets_and_cache(tmp_path: Path):
 
 
 def test_copy_ignore_skips_ntq_and_strategy_results(tmp_path: Path):
-    strategies = tmp_path / "userspace" / "strategies" / "demo"
-    strategies.mkdir(parents=True)
-    ignored = _copy_ignore(str(strategies), ["results", "settings.py", ".ntq"])
-    assert "results" in ignored
-    assert ".ntq" in ignored
-    assert "settings.py" not in ignored
+    flat = tmp_path / "userspace" / "strategies" / "demo"
+    flat.mkdir(parents=True)
+    ignored_flat = _copy_ignore(str(flat), ["results", "settings.py", ".ntq"])
+    assert "results" in ignored_flat
+
+    nested = (
+        tmp_path
+        / "userspace"
+        / "strategies"
+        / "demo"
+        / "regression"
+        / "rsi"
+        / "rsi_v1_without_value_anchor"
+    )
+    nested.mkdir(parents=True)
+    ignored_nested = _copy_ignore(str(nested), ["results", "settings.py"])
+    assert "results" in ignored_nested
+    assert "settings.py" not in ignored_nested
 
 
 def test_zip_filter_skips_handler_csv(tmp_path: Path):
@@ -86,16 +105,29 @@ def test_zip_filter_skips_runtime_paths(tmp_path: Path):
     tree = tmp_path / "userspace"
     ntq_file = tree / ".ntq" / "x.json"
     result_file = tree / "strategies" / "demo" / "results" / "a.csv"
+    nested_result_file = (
+        tree
+        / "strategies"
+        / "demo"
+        / "regression"
+        / "rsi"
+        / "rsi_v1_without_value_anchor"
+        / "results"
+        / "a.csv"
+    )
     ntq_file.parent.mkdir(parents=True)
     result_file.parent.mkdir(parents=True)
+    nested_result_file.parent.mkdir(parents=True)
     ntq_file.write_text("{}", encoding="utf-8")
     result_file.write_text("x", encoding="utf-8")
+    nested_result_file.write_text("x", encoding="utf-8")
     keeper = tree / "strategies" / "demo" / "settings.py"
     keeper.parent.mkdir(parents=True, exist_ok=True)
     keeper.write_text("x", encoding="utf-8")
 
     assert _is_runtime_path_in_tree(tree, ntq_file)
     assert _is_runtime_path_in_tree(tree, result_file)
+    assert _is_runtime_path_in_tree(tree, nested_result_file)
     assert not _is_runtime_path_in_tree(tree, keeper)
 
 

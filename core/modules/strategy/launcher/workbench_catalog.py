@@ -22,6 +22,9 @@ from core.modules.strategy.engines.shared.helpers.skip_investment_when import (
 from core.modules.strategy.engines.simulator.capital_allocation.data_classes.settings import (
     _VALID_MODES,
 )
+from core.modules.strategy.engines.shared.data_classes.strategy_settings.meta_settings import (
+    _coerce_meta_text,
+)
 from core.modules.strategy.services.discovery import StrategyDiscoveryHelper
 
 # 与 ``API.md`` V2-03：固定至多 10 条，不分页。
@@ -30,7 +33,7 @@ DROPDOWN_LIMIT = 10
 
 def _summary(ds: DiscoveredStrategy) -> Dict[str, Any]:
     meta = ds.settings.meta
-    desc = str(meta.description or "").strip()
+    desc = _coerce_meta_text(meta.description)
     keywords = list(meta.keywords or [])
     details = None
     if meta.details is not None and meta.details.entry:

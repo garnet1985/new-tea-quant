@@ -6,7 +6,7 @@ import pytest
 from core.modules.tag.enums import TagUpdateMode
 from core.modules.tag.models.scenario_model import ScenarioModel
 
-_STOCK_KLINE = {"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}}
+_STOCK_KLINE = {"data_id": "stock.kline.daily", "params": {"adjust": "qfq"}}
 
 
 def _stock_scenario(**overrides) -> dict:

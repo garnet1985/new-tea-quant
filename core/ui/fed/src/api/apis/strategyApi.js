@@ -1,4 +1,5 @@
 import { requestJson } from '../global/httpClient';
+import { coerceMetaDescription } from '../../utils/formatStrategyDescription';
 import { API_VERSION_PREFIX } from '../conf/apiConfig';
 
 /** 分页策略列表（V2-02）：`/api/v1/strategies/list` */
@@ -46,7 +47,7 @@ export async function fetchStrategyList() {
       id: item.name,
       name: item.name,
       display_name: getStrategyDisplayLabel(item),
-      description: String(item.description || '').trim(),
+      description: coerceMetaDescription(item.description),
       keywords: Array.isArray(item.keywords) ? item.keywords : [],
       details: item.details && typeof item.details === 'object' ? item.details : null,
       is_enabled: Boolean(item.is_enabled),

@@ -12,6 +12,22 @@ def test_meta_requires_display_name():
     assert not report.is_usable()
 
 
+def test_meta_description_tuple_coerced_to_string():
+    inst = StrategyMetaSettings.from_raw(
+        {
+            "meta": {
+                "display_name": "随机",
+                "description": (
+                    "第一句。"
+                    "第二句。",
+                    "第三句。",
+                ),
+            }
+        }
+    )
+    assert inst.description == "第一句。第二句。第三句。"
+
+
 def test_meta_optional_details_entry():
     inst = StrategyMetaSettings.from_raw(
         {

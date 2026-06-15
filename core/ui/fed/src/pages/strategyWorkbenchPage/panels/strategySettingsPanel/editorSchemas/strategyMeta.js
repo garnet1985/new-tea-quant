@@ -1,9 +1,11 @@
+import { coerceMetaDescription } from '../../../../../utils/formatStrategyDescription';
+
 export function normalizeMeta(rawMeta, rootSettings = {}) {
   const meta = rawMeta && typeof rawMeta === 'object' ? rawMeta : {};
   const root = rootSettings && typeof rootSettings === 'object' ? rootSettings : {};
   return {
     display_name: meta.display_name || '',
-    description: meta.description || '',
+    description: coerceMetaDescription(meta.description),
     keywords: Array.isArray(meta.keywords) ? meta.keywords : [],
     details: meta.details && typeof meta.details === 'object' ? meta.details : { entry: [] },
     is_enabled: Boolean(root.is_enabled),
@@ -14,7 +16,18 @@ export function normalizeMeta(rawMeta, rootSettings = {}) {
 export function extractStrategyDescription(settings) {
   if (!settings || typeof settings !== 'object') return '';
   const meta = settings.meta && typeof settings.meta === 'object' ? settings.meta : {};
-  return String(meta.description || '').trim();
+  return coerceMetaDescription(meta.description);
+}
+
+/** 从 settings 中取出 ``meta.details.entry``（入场条件文案列表）。 */
+export function extractStrategyEntryConditions(settings) {
+  if (!settings || typeof settings !== 'object') return [];
+  const meta = settings.meta && typeof settings.meta === 'object' ? settings.meta : {};
+  const details = meta.details && typeof meta.details === 'object' ? meta.details : {};
+  const entry = Array.isArray(details.entry) ? details.entry : [];
+  return entry
+    .map((item) => String(item || '').trim())
+    .filter(Boolean);
 }
 
 export function extractStrategyDisplayName(settings) {

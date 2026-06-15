@@ -28,6 +28,7 @@ __all__ = [
     "StockAdjFactorEventsLoader",
     "StockIndicatorsDailyLoader",
     "StockListLoader",
+    "StockIndicatorsDailyLoader",
     "StockKlineLoader",
     "TagLoader",
 ]

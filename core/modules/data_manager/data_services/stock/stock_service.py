@@ -15,6 +15,8 @@
 - kline: K线数据服务（data_mgr.stock.kline.load_qfq()）
 - tags: 标签数据服务（data_mgr.stock.tags.load_scenario()）
 - corporate_finance: 财务数据服务（data_mgr.stock.corporate_finance.load()）
+- indicators: 日频估值指标（data_mgr.stock.indicators.load_range()）
+- moneyflow: 日频个股资金流向（data_mgr.stock.moneyflow.load_range()）
 
 使用示例：
     # 单个股票信息
@@ -56,6 +58,8 @@ class StockService(BaseDataService):
             TagDataService,
             CorporateFinanceService,
             StPeriodService,
+            StockIndicatorsService,
+            StockMoneyflowService,
         )
         
         self.list = ListService(data_manager)
@@ -63,6 +67,8 @@ class StockService(BaseDataService):
         self.tags = TagDataService(data_manager)
         self.corporate_finance = CorporateFinanceService(data_manager)
         self.st = StPeriodService(data_manager)
+        self.indicators = StockIndicatorsService(data_manager)
+        self.moneyflow = StockMoneyflowService(data_manager)
         
         # 获取相关 Model（表名由 DataManager 发现并注册）
         self._stock_list = data_manager.get_table("sys_stock_list")

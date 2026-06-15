@@ -52,7 +52,9 @@ python dev-cli -p -vx.x.x
 - (破坏性改动)所有k线的最高最低价从highest和lowest变成high和low
 - (破坏性改动)对公司财务表加入了披露日期的列
 - (破坏性改动)将K线的数据契约从一个按照周期分成了3个，补上了STOCK_INDICATORS_DAILY的数据契约
+- (破坏性改动)策略设置里指标的声明归入了数据的私有属性，不再是 data 的根目录
 - 新增加了个股资金流向数据表
+- 新增加了策略导入和导出功能
 - 让复权因子可以根据data.json的配置先行导入可用的数据，大大降低了更新的时间
 - 重新定义了复权因子的存储结构和计算方式，使复权因子能够累加而不是刷新式更新。增加了复权因子链式检查以确保实效性。
 - 策略 settings 加入display name作为展示名称
@@ -64,6 +66,7 @@ python dev-cli -p -vx.x.x
 - 修复了market profile忘了加入T+1交易的逻辑
 - 修复了价格回测在遇到跌停无法卖出导致交易最终无法平仓的bug
 - 修复策略报告 K 线 tooltip 将 dataIndex 误显示为开盘价的问题
+- 简化命令行入口文件名，从 start-cli.py 改名成为 cli.py，从 dev-cli.py 改成 devcli.py
 
 ---
 

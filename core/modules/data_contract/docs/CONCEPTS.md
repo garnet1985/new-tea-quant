@@ -68,8 +68,8 @@ Contract 只覆盖 **用户声明的数据依赖**；回测编排不在默认范
 
 | 类别 | 走 contract？ | 示例 |
 | --- | --- | --- |
-| `data.base_required_data` | ✅ 必须 | example 默认 `stock.kline.daily` |
-| `data.extra_required_data_sources` | ✅ 必须 | 用户声明的 macro、tag、index 等 |
+| `data.base_required_data` | ✅ 必须 | 有且仅一条 `stock.kline.{daily\|weekly\|monthly}`，运行时主 slot 为 `klines` |
+| `data.extra_required_data_sources` | ✅ 必须 | 用户声明的 macro、tag、其他周期 K 线等；**同一 `data_id` 不可重复** |
 | 回测 **股票池 / universe** | ❌ 默认否 | `resolve_backtest_universe` → `stock.list.load` |
 | 单票 **元数据** | ❌ 默认否 | `load_meta` / `load_single` |
 | **交易日历**、最新交易日 | ❌ 否 | `CalendarService`、date resolve |

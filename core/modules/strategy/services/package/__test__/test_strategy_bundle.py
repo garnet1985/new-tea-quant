@@ -50,7 +50,7 @@ def _write_demo_bundle_sources(us: Path) -> None:
     demo_settings = minimal_strategy_raw(
         scanner={"adapters": ["console", "my_webhook"]},
         data={
-            "base_required_data": {"params": {"term": "daily", "adjust": "qfq"}},
+            "base_required_data": {"data_id": "stock.kline.daily", "params": {"adjust": "qfq"}},
             "min_required_records": 30,
             "extra_required_data_sources": [
                 {"data_id": "tag", "params": {"tag_scenario": "activity-ratio20"}},

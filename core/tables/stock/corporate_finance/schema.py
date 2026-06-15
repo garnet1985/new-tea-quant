@@ -11,6 +11,7 @@ schema = {
     "fields": [
         {"name": "id", "type": "varchar", "length": 16, "isRequired": True, "nullable": False, "description": "股票代码ts_code"},
         {"name": "quarter", "type": "varchar", "length": 16, "isRequired": True, "nullable": False, "description": "季度 YYYYQ[1-4]"},
+        {"name": "ann_date", "type": "varchar", "length": 8, "isRequired": False, "nullable": True, "description": "披露日期 YYYYMMDD"},
         {"name": "eps", "type": "float", "isRequired": True, "nullable": True, "description": "每股收益"},
         {"name": "dt_eps", "type": "float", "isRequired": True, "nullable": True, "description": "稀释每股收益"},
         {"name": "roe_dt", "type": "float", "isRequired": True, "nullable": True, "description": "扣非净资产收益率"},

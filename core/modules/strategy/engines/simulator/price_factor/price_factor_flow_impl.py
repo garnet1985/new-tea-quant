@@ -173,8 +173,10 @@ class PriceFactorFlowImpl:
 
         report = PriceReport.from_stock_summaries(stock_summaries)
         session_summary = report.to_dict()
-        roi_pcts = collect_roi_percents_from_stock_summaries(stock_summaries)
-        session_summary.update(roi_distribution_session_fields(roi_pcts))
+        roi_pcts, truncated, _total = collect_roi_percents_from_stock_summaries(stock_summaries)
+        session_summary.update(
+            roi_distribution_session_fields(roi_pcts, truncated_exit_count=truncated)
+        )
         session_summary["output_version"] = {
             "enumerator_output_dir": base_output_version_dir.name,
             "output_root": str(output_root.name),

@@ -4,7 +4,7 @@ Base Strategy Worker - 策略 Worker 基类
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import logging
 
 from core.modules.data_contract.cache import ContractCacheManager
@@ -365,6 +365,62 @@ class BaseStrategyWorker(ABC):
 
     def scan_opportunity_with_data(self, data: Dict[str, Any]) -> Optional["Opportunity"]:
         return self.scan_opportunity(data, self.settings.to_dict())
+
+    # ==================== scan 辅助（高频原语，无业务语义） ====================
+
+    @staticmethod
+    def get_record_of_today(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """已加载数据中的最新一根 K 线（``record_of_today``）；无数据时返回 None（scan 边界）。"""
+        klines = data.get("klines") or []
+        return klines[-1] if klines else None
+
+    @staticmethod
+    def signal_date(record_of_today: Dict[str, Any]) -> str:
+        """信号日（与 simulate 循环中 ``current_kline['date']`` 一致）。"""
+        return str(record_of_today["date"])
+
+    @staticmethod
+    def core_int(settings: Dict[str, Any], key: str) -> int:
+        """读取 ``settings['core'][key]`` 并转为 int。"""
+        return int(settings["core"][key])
+
+    @staticmethod
+    def core_float(
+        settings: Dict[str, Any],
+        key: str,
+        *,
+        clamp: Optional[Tuple[float, float]] = None,
+    ) -> float:
+        """读取 ``settings['core'][key]`` 并转为 float，可选裁剪到 ``clamp`` 区间。"""
+        value = float(settings["core"][key])
+        if clamp is None:
+            return value
+        low, high = clamp
+        return max(low, min(high, value))
+
+    def build_opportunity(
+        self,
+        record_of_today: Dict[str, Any],
+        *,
+        extra_fields: Optional[Dict[str, Any]] = None,
+    ) -> Opportunity:
+        """组装标准买入机会（``stock`` 取自 ``self.stock_info``）。"""
+        return Opportunity(
+            stock=self.stock_info,
+            record_of_today=record_of_today,
+            extra_fields=extra_fields,
+        )
+
+    @staticmethod
+    def deterministic_roll(*key_parts: Any) -> float:
+        """
+        确定性掷骰：``key_parts`` 相同则始终得到相同的 [0, 1) 值。
+
+        典型用法：``self.deterministic_roll(self.stock_id, self.signal_date(record_of_today), seed)``
+        """
+        from core.utils.math.deterministic_random import deterministic_unit_float
+
+        return deterministic_unit_float(*key_parts)
 
     @abstractmethod
     def scan_opportunity(

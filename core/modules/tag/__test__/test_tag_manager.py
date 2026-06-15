@@ -94,7 +94,7 @@ class TestTagManager:
             "name": "test_scenario",
             "target_entity": {"type": "stock_kline_daily"},
             "is_enabled": True,
-            "data": {"required": [{"data_id": "stock.kline", "params": {"term": "daily", "adjust": "qfq"}}]},
+            "data": {"required": [{"data_id": "stock.kline.daily", "params": {"adjust": "qfq"}}]},
             "tags": [{"name": "tag1"}],
             "incremental_required_records_before_as_of_date": 10
         }

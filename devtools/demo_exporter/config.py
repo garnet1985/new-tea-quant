@@ -72,6 +72,7 @@ EXPORT_TABLES: Dict[str, TableExportSpec] = {
     # --- 时序 / 事件（股票 + 日期）---
     "sys_stock_klines": TableExportSpec(("date", "yyyymmdd"), stock_column="id"),
     "sys_stock_indicators": TableExportSpec(("date", "yyyymmdd"), stock_column="id"),
+    "sys_stock_moneyflow": TableExportSpec(("date", "yyyymmdd"), stock_column="id"),
     "sys_adj_factor_events": TableExportSpec(("event_date", "yyyymmdd"), stock_column="id"),
     "sys_corporate_finance": TableExportSpec(("quarter", "quarter"), stock_column="id"),
     "sys_stock_st_periods": TableExportSpec(("start_date", "yyyymmdd"), stock_column="stock_id"),

@@ -1,9 +1,9 @@
 {
-  "fit_version": ">= 0.4.0",
-  "core_version": "v0.4.0",
+  "fit_version": ">= 0.4.1",
+  "core_version": "v0.4.1",
   "zip_file": "userspace.zip",
-  "built_at": "2026-06-15T10:10:20Z",
-  "git_rev": "ddd7a66a",
+  "built_at": "2026-06-15T12:03:28Z",
+  "git_rev": "90af6583",
   "source": "userspace/",
-  "zip_size_bytes": 210082
+  "zip_size_bytes": 208427
 }

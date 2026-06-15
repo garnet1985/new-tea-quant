@@ -179,7 +179,7 @@ class TagDataManager:
             return list(injected)
         axis_key = self._axis_data_id
         if axis_key is None:
-            axis_key = DataKey.STOCK_KLINE
+            axis_key = DataKey.STOCK_KLINE_DAILY
         axis_slot = axis_key.value
         rows = self._current_data.get(axis_slot) or []
         if not rows:

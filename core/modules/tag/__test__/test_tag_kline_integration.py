@@ -23,15 +23,15 @@ class TestTagKlineIntegration(unittest.TestCase):
                 "data": {
                     "required": [
                         {
-                            "data_id": DataKey.STOCK_KLINE.value,
-                            "params": {"term": "daily", "adjust": "qfq"},
+                            "data_id": DataKey.STOCK_KLINE_DAILY.value,
+                            "params": {"adjust": "qfq"},
                         }
                     ]
                 }
             },
             tag_definition_ids=[1],
         )
-        rows = out["000019.SZ"]["slot_data"][DataKey.STOCK_KLINE.value]
+        rows = out["000019.SZ"]["slot_data"][DataKey.STOCK_KLINE_DAILY.value]
         self.assertTrue(rows)
         row = rows[0]
         self.assertIn("open", row)

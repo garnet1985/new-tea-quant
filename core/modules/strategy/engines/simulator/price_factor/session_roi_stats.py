@@ -4,6 +4,7 @@
 - ``roi_percentile_values``：长度为 9，对应 10%～90% 分位，单位为 **百分比数值**（图表 ``{value}%``）。
 - ``roi_bucket_*``：**固定档位**（0% 为界；负侧封顶 -100%；正侧含 >100% 尾档）。
 - ``roi_std_pct``：单笔 ROI（百分比）的**样本标准差**（n≥2 时写入）。
+- 分位与分桶默认仅含 **按 goal 规则退出** 的样本；``enumeration_end`` / ``backtest_end`` 强平单独计数。
 """
 
 from __future__ import annotations
@@ -38,6 +39,24 @@ _ROI_POS_BUCKET_LABELS = (
     ">100%",
 )
 
+_FORCED_EXIT_NAMES = frozenset({"enumeration_end", "backtest_end"})
+
+
+def investment_final_exit_name(inv: Dict[str, Any]) -> str:
+    """最后一笔 ``completed_targets`` 的退出原因（小写）。"""
+    targets = inv.get("completed_targets") or []
+    if not targets:
+        return ""
+    last = targets[-1]
+    if not isinstance(last, dict):
+        return ""
+    return str(last.get("name") or "").lower()
+
+
+def is_forced_exit_investment(inv: Dict[str, Any]) -> bool:
+    """回测区间结束强制平仓，未按 goal 规则走完。"""
+    return investment_final_exit_name(inv) in _FORCED_EXIT_NAMES
+
 
 def _investment_roi_as_percent(inv: Dict[str, Any]) -> Optional[float]:
     """单笔 ROI 转为百分比刻度（与 FED ``toRatioAsPercent`` 约定一致：小数为比率）。"""
@@ -54,8 +73,18 @@ def _investment_roi_as_percent(inv: Dict[str, Any]) -> Optional[float]:
     return r
 
 
-def collect_roi_percents_from_stock_summaries(stock_summaries: List[Dict[str, Any]]) -> List[float]:
-    out: List[float] = []
+def collect_roi_percents_from_stock_summaries(
+    stock_summaries: List[Dict[str, Any]],
+) -> Tuple[List[float], int, int]:
+    """
+    收集计入 ROI 分布的样本。
+
+    返回 ``(roi_pcts, truncated_exit_count, total_investment_count)``。
+    排除 ``enumeration_end`` / ``backtest_end`` 与仍 ``open`` 的仓位。
+    """
+    rois: List[float] = []
+    truncated = 0
+    total = 0
     for row in stock_summaries:
         invs = row.get("investments")
         if not isinstance(invs, list):
@@ -63,10 +92,17 @@ def collect_roi_percents_from_stock_summaries(stock_summaries: List[Dict[str, An
         for inv in invs:
             if not isinstance(inv, dict):
                 continue
+            total += 1
+            lifecycle = str(inv.get("lifecycle") or "").lower()
+            if lifecycle == "open":
+                continue
+            if is_forced_exit_investment(inv):
+                truncated += 1
+                continue
             pct = _investment_roi_as_percent(inv)
             if pct is not None:
-                out.append(pct)
-    return out
+                rois.append(pct)
+    return rois, truncated, total
 
 
 def _percentile_linear(sorted_vals: List[float], p: float) -> float:
@@ -144,25 +180,36 @@ def _fixed_roi_bins(rois_pct: List[float]) -> Tuple[List[str], List[int]]:
     return labels, counts
 
 
-def roi_distribution_session_fields(rois_pct: List[float]) -> Dict[str, Any]:
+def roi_distribution_session_fields(
+    rois_pct: List[float],
+    *,
+    truncated_exit_count: int,
+) -> Dict[str, Any]:
     """生成写入 ``0_session_summary.json`` / ``result_report.price_factor`` 的分位与分桶字段。"""
+    out: Dict[str, Any] = {
+        "roi_distribution_sample_count": len(rois_pct),
+        "roi_truncated_exit_count": truncated_exit_count,
+    }
     if not rois_pct:
-        return {}
+        return out
+
     xs = sorted(rois_pct)
     pv = [round(_percentile_linear(xs, p), 2) for p in _PERCENT_POINTS]
     if len(pv) != 9 or any(not math.isfinite(x) for x in pv):
-        return {}
+        return out
 
     labels_zh = [f"{p}%分位" for p in _PERCENT_POINTS]
     bucket_labels, counts = _fixed_roi_bins(rois_pct)
 
-    out: Dict[str, Any] = {
-        "roi_percentile_labels": labels_zh,
-        "roi_percentile_values": pv,
-        "roi_bucket_labels": bucket_labels,
-        "roi_bucket_counts": counts,
-        "roi_bucket_bin_count": len(bucket_labels),
-    }
+    out.update(
+        {
+            "roi_percentile_labels": labels_zh,
+            "roi_percentile_values": pv,
+            "roi_bucket_labels": bucket_labels,
+            "roi_bucket_counts": counts,
+            "roi_bucket_bin_count": len(bucket_labels),
+        }
+    )
     std_pct = _roi_sample_std_pct(rois_pct)
     if std_pct is not None:
         out["roi_std_pct"] = std_pct
@@ -174,6 +221,8 @@ __all__ = [
     "ROI_MAX_BIN_COUNT",
     "ROI_EQUAL_BIN_COUNT",
     "collect_roi_percents_from_stock_summaries",
+    "investment_final_exit_name",
+    "is_forced_exit_investment",
     "roi_distribution_session_fields",
     "_fixed_roi_bins",
 ]

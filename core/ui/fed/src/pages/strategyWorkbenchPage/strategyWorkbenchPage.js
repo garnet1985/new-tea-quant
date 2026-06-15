@@ -44,10 +44,12 @@ import {
   getStrategyWorkbenchPath,
 } from '../../api/apis/strategyApi';
 import StrategyDescriptionText from '../../components/strategyDescriptionText/strategyDescriptionText';
+import StrategyMetaDetailText from '../../components/strategyMetaDetailText/strategyMetaDetailText';
 import StrategySettingsContainer from './panels/strategySettingsPanel/containers/strategySettingsContainer';
 import {
   extractStrategyDescription,
   extractStrategyDisplayName,
+  extractStrategyEntryConditions,
   normalizeMeta,
 } from './panels/strategySettingsPanel/editorSchemas/strategyMeta';
 import StrategyExecutionPanel from './panels/strategyExecutionPanel/strategyExecutionPanel';
@@ -158,6 +160,7 @@ function StrategyWorkbenchPage() {
   const [versionPickerPage, setVersionPickerPage] = useState(1);
   const [strategyRows, setStrategyRows] = useState([]);
   const [strategyDescription, setStrategyDescription] = useState('');
+  const [strategyEntryConditions, setStrategyEntryConditions] = useState([]);
   const [strategyDisplayName, setStrategyDisplayName] = useState('');
   const [pendingStrategyName, setPendingStrategyName] = useState('');
   const [switchStrategyConfirmOpen, setSwitchStrategyConfirmOpen] = useState(false);
@@ -449,6 +452,7 @@ function StrategyWorkbenchPage() {
         lastCompletedWorkbenchVersionId: '',
       });
       setStrategyDescription('');
+      setStrategyEntryConditions([]);
       setIsLoadingSettings(false);
       setSettingsError('');
       return () => {
@@ -457,6 +461,7 @@ function StrategyWorkbenchPage() {
     }
 
     setStrategyDescription('');
+    setStrategyEntryConditions([]);
     setStrategyDisplayName('');
     setIsLoadingSettings(true);
     setSettingsError('');
@@ -494,10 +499,12 @@ function StrategyWorkbenchPage() {
             extractStrategyDisplayName(nextSettings) || strategyName,
           );
           setStrategyDescription(extractStrategyDescription(nextSettings));
+          setStrategyEntryConditions(extractStrategyEntryConditions(nextSettings));
           setSettingsError('');
         } else {
           setInitialSettings(mergeBase);
           setStrategyDescription('');
+          setStrategyEntryConditions([]);
           setSettingsError('未返回有效策略配置（settings 为空）。');
         }
         const snapshot = buildWorkbenchSnapshotFromSettingsResponse(res);
@@ -620,6 +627,16 @@ function StrategyWorkbenchPage() {
     setVersionPickerPage(1);
   };
 
+  const bannerDescription = useMemo(() => (
+    <StrategyMetaDetailText
+      description={strategyDescription}
+      entryConditions={strategyEntryConditions}
+      variant="body2"
+      color="text.secondary"
+      empty=""
+    />
+  ), [strategyDescription, strategyEntryConditions]);
+
   return (
     <PageLayout
       className="strategy-workbench-page"
@@ -637,7 +654,7 @@ function StrategyWorkbenchPage() {
           ? `调试：${strategyDisplayName || strategyName}`
           : '策略调试'
       }
-      bannerDescription={strategyDescription || ''}
+      bannerDescription={bannerDescription}
       bannerRightSlot={
         strategyName ? (
           <Button
@@ -1017,6 +1034,7 @@ function StrategyWorkbenchPage() {
                         const wb = wbVerRestore || restoreMeta?.version_id || '';
                         setInitialSettings(mergedSettings);
                         setStrategyDescription(extractStrategyDescription(mergedSettings));
+                        setStrategyEntryConditions(extractStrategyEntryConditions(mergedSettings));
                         setDraftSettings(deepClone(mergedSettings));
                         setSelectedConfigVersion(wb);
                         setSavedBaselineSettings(deepClone(mergedSettings));

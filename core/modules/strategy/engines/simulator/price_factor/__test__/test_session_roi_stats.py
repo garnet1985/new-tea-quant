@@ -3,6 +3,7 @@
 from core.modules.strategy.engines.simulator.price_factor.session_roi_stats import (
     ROI_BUCKET_COUNT,
     _fixed_roi_bins,
+    collect_roi_percents_from_stock_summaries,
     roi_distribution_session_fields,
 )
 
@@ -35,8 +36,42 @@ def test_fixed_bucket_assignment():
 
 
 def test_distribution_fields_shape():
-    fields = roi_distribution_session_fields([10.0, -5.0, 0.0, 20.0])
+    fields = roi_distribution_session_fields([10.0, -5.0, 0.0, 20.0], truncated_exit_count=0)
     assert len(fields["roi_percentile_values"]) == 9
     assert len(fields["roi_bucket_labels"]) == ROI_BUCKET_COUNT
     assert len(fields["roi_bucket_labels"]) == len(fields["roi_bucket_counts"])
     assert fields["roi_bucket_bin_count"] == ROI_BUCKET_COUNT
+    assert fields["roi_distribution_sample_count"] == 4
+    assert fields["roi_truncated_exit_count"] == 0
+
+
+def test_excludes_forced_exit():
+    summaries = [
+        {
+            "investments": [
+                {
+                    "roi": 0.2,
+                    "lifecycle": "complete",
+                    "completed_targets": [{"name": "win20%"}],
+                },
+                {
+                    "roi": -0.03,
+                    "lifecycle": "complete",
+                    "completed_targets": [{"name": "enumeration_end"}],
+                },
+                {
+                    "roi": -0.2,
+                    "lifecycle": "complete",
+                    "completed_targets": [{"name": "loss20%"}],
+                },
+            ]
+        }
+    ]
+    rois, truncated, total = collect_roi_percents_from_stock_summaries(summaries)
+    assert total == 3
+    assert truncated == 1
+    assert rois == [20.0, -20.0]
+    fields = roi_distribution_session_fields(rois, truncated_exit_count=truncated)
+    assert fields["roi_truncated_exit_count"] == 1
+    assert fields["roi_distribution_sample_count"] == 2
+    assert sum(fields["roi_bucket_counts"]) == 2

@@ -34,7 +34,11 @@ function tooltipPrimaryValue(point) {
   return raw;
 }
 
+const ROI_DISTRIBUTION_SCOPE_NOTE = '仅含按 goal 规则退出的交易';
+
 function buildRoiDistributionOption(metrics) {
+  const scopeNote = `<br/><span style="font-size:11px;opacity:.85">${ROI_DISTRIBUTION_SCOPE_NOTE}</span>`;
+
   return {
     animation: false,
     grid: { ...REPORT_CHART_GRID_BASE, left: 30 },
@@ -68,15 +72,15 @@ function buildRoiDistributionOption(metrics) {
         const point = params?.[0];
         if (!point) return '';
         const val = tooltipPrimaryValue(point);
-        return `${point.axisValue}<br/>收益率（ROI）：${val}%`;
+        return `${point.axisValue}<br/>收益率（ROI）：${val}%${scopeNote}`;
       },
     },
   };
 }
 
 function buildRoiBucketOption(metrics) {
-  const bucketCounts = metrics.roiBucketCounts ?? [];
-  const totalInvestments = bucketCounts.reduce((sum, count) => sum + (Number(count) || 0), 0);
+  const sampleCount = metrics.roiDistributionSampleCount;
+  const scopeNote = `<br/><span style="font-size:11px;opacity:.85">${ROI_DISTRIBUTION_SCOPE_NOTE}</span>`;
 
   return {
     animation: false,
@@ -111,10 +115,8 @@ function buildRoiBucketOption(metrics) {
         const point = params?.[0];
         if (!point) return '';
         const count = Number(tooltipPrimaryValue(point)) || 0;
-        const pct = totalInvestments > 0
-          ? ((count / totalInvestments) * 100).toFixed(1)
-          : '0.0';
-        return `${point.axisValue}<br/>投资次数：${count} (${pct}%)`;
+        const pct = ((count / sampleCount) * 100).toFixed(1);
+        return `${point.axisValue}<br/>投资次数：${count} (${pct}%)${scopeNote}`;
       },
     },
   };
@@ -142,6 +144,10 @@ function PriceFactorReport({
     roiBucketViz: false,
     executionSkips: false,
   };
+
+  const roiTruncatedNote = metrics?.roiTruncatedExitCount > 0
+    ? PRICE_CHART_TIPS.roiBucketTruncatedNote(metrics.roiTruncatedExitCount)
+    : null;
 
   const derivedStockRows = useMemo(() => (
     Array.isArray(stockRows) && stockRows.length > 0 ? stockRows : []
@@ -410,6 +416,11 @@ function PriceFactorReport({
               </Typography>
               <NtqHelpTooltip title={PRICE_CHART_TIPS.roiPercentileCaption} />
             </Stack>
+            {roiTruncatedNote ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                {roiTruncatedNote}
+              </Typography>
+            ) : null}
             <ReactECharts
               option={buildRoiDistributionOption(metrics)}
               style={{ height: 170, width: '100%' }}
@@ -433,6 +444,11 @@ function PriceFactorReport({
               </Typography>
               <NtqHelpTooltip title={PRICE_CHART_TIPS.roiBucketCaption} />
             </Stack>
+            {roiTruncatedNote ? (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                {roiTruncatedNote}
+              </Typography>
+            ) : null}
             <ReactECharts
               option={buildRoiBucketOption(metrics)}
               style={{ height: 190, width: '100%' }}

@@ -334,7 +334,7 @@ class BaseTagWorker(ABC):
         Args:
             as_of_date: 当前业务日期（YYYYMMDD格式）
             historical_data: 历史数据字典，结构根据 settings 中的配置保持一致：
-                - key 统一使用 data_id（例如 "stock.kline" / "macro.gdp"）
+                - key 统一使用 data_id（例如 "stock.kline.daily" / "macro.gdp"）
                 - value 为对应 data_id 的历史记录列表
             tag_definition: Tag定义对象（TagModel），包含：
                 - id: Tag定义ID

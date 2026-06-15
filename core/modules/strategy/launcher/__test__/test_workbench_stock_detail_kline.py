@@ -33,8 +33,11 @@ class TestWorkbenchStockDetailKline(unittest.TestCase):
         dm = DataManager()
         view = StrategySettingsView.from_dict({
             "data": {
-                "base_required_data": {"params": {"term": "daily", "adjust": "qfq"}},
-                "indicators": {"rsi": [{"length": 14}]},
+                "base_required_data": {
+                    "data_id": "stock.kline.daily",
+                    "params": {"adjust": "qfq"},
+                    "indicators": {"rsi": [{"length": 14}]},
+                },
             }
         })
         candles, series = _load_candles_and_indicators(

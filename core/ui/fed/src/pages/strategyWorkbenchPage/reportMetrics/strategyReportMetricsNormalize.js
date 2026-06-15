@@ -199,6 +199,8 @@ export function normalizePriceMetricsFromSummary(slot) {
   const roiBucketLabels = toStringList(slot.roi_bucket_labels);
   const roiBucketCounts = toNumberList(slot.roi_bucket_counts);
   const roiBucketBinCount = num('roi_bucket_bin_count');
+  const roiTruncatedExitCount = num('roi_truncated_exit_count');
+  const roiDistributionSampleCount = num('roi_distribution_sample_count');
 
   const skippedBuyAtLimitUp = num('skipped_buy_at_limit_up');
   const skippedSellAtLimitDown = num('skipped_sell_at_limit_down');
@@ -255,6 +257,12 @@ export function normalizePriceMetricsFromSummary(slot) {
     roiBucketLabels,
     roiBucketCounts,
     roiBucketBinCount: Number.isFinite(roiBucketBinCount) ? Math.round(roiBucketBinCount) : 0,
+    roiTruncatedExitCount: Number.isFinite(roiTruncatedExitCount)
+      ? Math.round(roiTruncatedExitCount)
+      : 0,
+    roiDistributionSampleCount: Number.isFinite(roiDistributionSampleCount)
+      ? Math.round(roiDistributionSampleCount)
+      : 0,
     roiPercentileLabels: roiPctLabelsIn.length === 9 ? roiPctLabelsIn : [],
     roiPercentileValues: pv,
     skippedBuyAtLimitUp: Number.isFinite(skippedBuyAtLimitUp) ? Math.round(skippedBuyAtLimitUp) : 0,

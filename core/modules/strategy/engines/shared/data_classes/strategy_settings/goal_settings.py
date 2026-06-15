@@ -214,7 +214,6 @@ class StrategyGoalSettings(SettingsBase):
         result = SettingsBase.new_validation()
         expiration = goal_config.get("expiration")
         if not expiration:
-            SettingsBase.add_warning(result, field_path, "goal 缺少 expiration")
             return result
         if "fixed_window_in_days" not in expiration:
             SettingsBase.add_warning(result, field_path, "expiration 缺少 fixed_window_in_days")

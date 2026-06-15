@@ -4,11 +4,23 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from .settings_base import SettingsBase, ValidationReport
 
 _KEYWORD_MAX_LEN = 64
+
+
+def _coerce_meta_text(value: Any) -> str:
+    """将 ``description`` 等用户文案规范为单行字符串（支持括号换行写的 tuple/list）。"""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        parts = [str(item).strip() for item in value if item is not None and str(item).strip()]
+        return "".join(parts)
+    return str(value).strip()
 
 
 @dataclass
@@ -60,9 +72,7 @@ class StrategyMetaSettings(SettingsBase):
         display_name = block.get("display_name", "")
         if display_name is not None and not isinstance(display_name, str):
             display_name = str(display_name)
-        desc = block.get("description", "")
-        if desc is not None and not isinstance(desc, str):
-            desc = str(desc)
+        desc = _coerce_meta_text(block.get("description", ""))
         keywords_raw = block.get("keywords")
         keywords: List[str] = []
         if isinstance(keywords_raw, list):
@@ -84,7 +94,7 @@ class StrategyMetaSettings(SettingsBase):
 
     def apply_defaults(self) -> None:
         self.display_name = str(self.display_name) if self.display_name is not None else ""
-        self.description = str(self.description) if self.description is not None else ""
+        self.description = _coerce_meta_text(self.description)
         self.keywords = [str(x).strip() for x in (self.keywords or []) if str(x).strip()]
         if self.details is not None:
             self.details.apply_defaults()
@@ -133,4 +143,4 @@ class StrategyMetaSettings(SettingsBase):
         return out
 
 
-__all__ = ["StrategyDetailsSettings", "StrategyMetaSettings"]
+__all__ = ["StrategyDetailsSettings", "StrategyMetaSettings", "_coerce_meta_text"]

@@ -16,7 +16,7 @@ def minimal_strategy_raw(**overrides: Any) -> Dict[str, Any]:
         "core": {},
         "market_profile": "china_a_stock",
         "data": {
-            "base_required_data": {"params": {"term": "daily", "adjust": "qfq"}},
+            "base_required_data": {"data_id": "stock.kline.daily", "params": {"adjust": "qfq"}},
             "min_required_records": 30,
         },
         "simulation": {"template": "standard"},

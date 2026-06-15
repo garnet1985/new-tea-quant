@@ -52,7 +52,7 @@
 
 | 方法 | 说明 | 版本 |
 |------|------|------|
-| `execute_sync_query(query, params=None, domain=None)` | 同步查询，返回 `List[Dict]`；duckdb 可指定 `domain` | `0.3.0` |
+| `execute_sync_query(query, params=None, domain=None)` | 同步查询，返回 `List[Dict]`；duckdb 可指定 `domain`。数值字段经 connector 规范为 `float`/`int`（`DECIMAL` 不会以 `Decimal` 形式返回），见 [DECISIONS §12](./DECISIONS.md#决策-12decimal-存储--infra-统一出入库标量契约) | `0.3.1` |
 | `execute_sync_query_for_table(table_name, query, params=None)` | 按表路由域（duckdb） | `0.3.0` |
 | `get_connection()` | 连接上下文管理器 | `0.2.0` |
 | `transaction()` | 事务上下文 | `0.2.0` |

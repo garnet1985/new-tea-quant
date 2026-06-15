@@ -60,6 +60,11 @@ export function normalizeEnumMetricsFromSummary(slot) {
   const percentileLabels = toStringList(m.percentileLabels);
   const percentileValues = toNumberList(m.percentileValues);
 
+  const winRate = numOrNaN(m.winRate);
+  const winCount = numOrNaN(m.winCount);
+  const lossCount = numOrNaN(m.lossCount);
+  const winRateSampleCount = numOrNaN(m.winRateSampleCount);
+
   const buyAtLimitUpCount = numOrNaN(m.buyAtLimitUpCount);
   const buyTradabilitySampleCount = numOrNaN(m.buyTradabilitySampleCount);
   const limitUpBuyRatio = numOrNaN(m.limitUpBuyRatio);
@@ -82,6 +87,10 @@ export function normalizeEnumMetricsFromSummary(slot) {
     && opportunityCountStockRatios.length === opportunityCountLabels.length;
 
   const timingOk = Number.isFinite(meanGap) && Number.isFinite(meanDuration);
+
+  const winRateOk = Number.isFinite(winRate)
+    && Number.isFinite(winRateSampleCount)
+    && winRateSampleCount > 0;
 
   const tradabilityOk = [
     buyAtLimitUpCount,
@@ -111,6 +120,10 @@ export function normalizeEnumMetricsFromSummary(slot) {
     opportunityCountLabels,
     opportunityCountStockCounts,
     opportunityCountStockRatios,
+    winRate,
+    winCount,
+    lossCount,
+    winRateSampleCount,
     meanGap,
     meanDuration,
     stdGap,
@@ -136,6 +149,7 @@ export function normalizeEnumMetricsFromSummary(slot) {
       distribution: distributionOk,
       timing: timingOk,
       tradability: tradabilityOk,
+      winRate: winRateOk,
     },
   };
 }
@@ -185,6 +199,8 @@ export function normalizePriceMetricsFromSummary(slot) {
   const roiBucketLabels = toStringList(slot.roi_bucket_labels);
   const roiBucketCounts = toNumberList(slot.roi_bucket_counts);
   const roiBucketBinCount = num('roi_bucket_bin_count');
+  const roiTruncatedExitCount = num('roi_truncated_exit_count');
+  const roiDistributionSampleCount = num('roi_distribution_sample_count');
 
   const skippedBuyAtLimitUp = num('skipped_buy_at_limit_up');
   const skippedSellAtLimitDown = num('skipped_sell_at_limit_down');
@@ -241,6 +257,12 @@ export function normalizePriceMetricsFromSummary(slot) {
     roiBucketLabels,
     roiBucketCounts,
     roiBucketBinCount: Number.isFinite(roiBucketBinCount) ? Math.round(roiBucketBinCount) : 0,
+    roiTruncatedExitCount: Number.isFinite(roiTruncatedExitCount)
+      ? Math.round(roiTruncatedExitCount)
+      : 0,
+    roiDistributionSampleCount: Number.isFinite(roiDistributionSampleCount)
+      ? Math.round(roiDistributionSampleCount)
+      : 0,
     roiPercentileLabels: roiPctLabelsIn.length === 9 ? roiPctLabelsIn : [],
     roiPercentileValues: pv,
     skippedBuyAtLimitUp: Number.isFinite(skippedBuyAtLimitUp) ? Math.round(skippedBuyAtLimitUp) : 0,

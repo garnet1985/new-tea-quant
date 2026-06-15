@@ -15,6 +15,7 @@ function SectionField({ node, value, onChange, errors, emitChangeMeta, renderNod
   return (
     <Accordion
       key={node.name}
+      className="ntq-settings-sub-accordion"
       defaultExpanded={Boolean(node.defaultExpanded)}
       disableGutters
       TransitionProps={{ timeout: 0, unmountOnExit: false }}

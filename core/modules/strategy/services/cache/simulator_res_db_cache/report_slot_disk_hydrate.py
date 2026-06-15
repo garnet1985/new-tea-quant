@@ -65,6 +65,95 @@ def enum_opportunity_count_from_slot(slot: Optional[Dict[str, Any]]) -> Optional
     return None
 
 
+def _enum_slot_is_present(slot: Any) -> bool:
+    """有 ``enum`` 键且能解析出机会总数时视为已落库（仅路径 stub 不算）。"""
+    if not isinstance(slot, dict) or not slot:
+        return False
+    return enum_opportunity_count_from_slot(slot) is not None
+
+
+def resolve_enumerator_output_dir_from_downstream_report(
+    strategy_name: str,
+    downstream_report: Dict[str, Any],
+    *,
+    simulator_key: str = "",
+) -> str:
+    """从 price / capital 摘要或 capital 元数据解析本次运行所依赖的枚举产物目录名。"""
+    report = dict(downstream_report or {})
+    ov = report.get("output_version")
+    if isinstance(ov, dict):
+        ref = str(ov.get("enumerator_output_dir") or "").strip()
+        if ref:
+            return ref
+    if str(simulator_key or "").strip() == "capital_allocation":
+        sn = str(strategy_name or "").strip()
+        vd = str(report.get("capital_output_version_dir") or "").strip()
+        if sn and vd:
+            meta = _read_json(
+                PathManager.strategy_simulation_capital(sn) / vd / "0_metadata.json"
+            )
+            if meta:
+                ref = _metadata_refs_enum_output_dir(meta)
+                if ref:
+                    return ref
+    return ""
+
+
+def build_enum_slot_from_enumerator_dir(
+    strategy_name: str,
+    enumerator_dir: str,
+) -> Dict[str, Any]:
+    """由磁盘 ``0_report_enum.json`` 构造可落库的 ``enum`` 槽位（写侧补全，非读路径推断）。"""
+    sn = str(strategy_name or "").strip()
+    vdir = str(enumerator_dir or "").strip()
+    if not (sn and vdir):
+        return {}
+    disk = _read_json(
+        PathManager.strategy_simulation_enum(sn) / vdir / _ENUM_REPORT_FILE
+    )
+    if not disk:
+        return {}
+    out = dict(disk)
+    out["enumerator_output_dir"] = vdir
+    out.setdefault("strategy_name", sn)
+    try:
+        out["output_version_id"] = int(vdir)
+    except ValueError:
+        pass
+    out = attach_enum_opportunities_field(out)
+    return compact_enum_slot_for_cache(sn, out)
+
+
+def merge_enum_slot_if_missing_from_downstream(
+    strategy_name: str,
+    result_report: Dict[str, Any],
+    *,
+    downstream_report: Dict[str, Any],
+    simulator_key: str,
+) -> Dict[str, Any]:
+    """
+    价格 / 资金落库前：若聚合 JSON 尚无 ``enum``，则按下游摘要引用的枚举目录从磁盘补写。
+
+    典型场景：``resolve_or_build_enumerator_version`` 命中已有枚举目录但未走 ``persist_enum_snapshot``。
+    """
+    rr = dict(result_report or {})
+    if _enum_slot_is_present(rr.get("enum")):
+        return rr
+    ev_dir = resolve_enumerator_output_dir_from_downstream_report(
+        strategy_name,
+        downstream_report,
+        simulator_key=str(simulator_key or "").strip(),
+    )
+    if not ev_dir:
+        return rr
+    built = build_enum_slot_from_enumerator_dir(strategy_name, ev_dir)
+    if not built:
+        return rr
+    out = dict(rr)
+    out["enum"] = built
+    return out
+
+
 def attach_enum_opportunities_field(slot: Dict[str, Any]) -> Dict[str, Any]:
     """为执行面板 / progress 切片补齐顶层 ``opportunities``（与 ``enumMetrics`` 同源）。"""
     if not isinstance(slot, dict) or not slot:
@@ -253,12 +342,15 @@ def hydrate_workbench_result_report(strategy_name: str, result_report: Optional[
 
 __all__ = [
     "attach_enum_opportunities_field",
+    "build_enum_slot_from_enumerator_dir",
     "compact_capital_slot_for_cache",
     "compact_enum_slot_for_cache",
     "enum_opportunity_count_from_slot",
     "hydrate_capital_slot",
     "hydrate_enum_slot",
     "hydrate_workbench_result_report",
+    "merge_enum_slot_if_missing_from_downstream",
     "resolve_capital_output_dir_for_enum_run",
     "resolve_capital_output_dir_for_price_run",
+    "resolve_enumerator_output_dir_from_downstream_report",
 ]

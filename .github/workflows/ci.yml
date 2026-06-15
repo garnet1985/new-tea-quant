@@ -10,6 +10,9 @@ on:
 jobs:
   tests:
     runs-on: ubuntu-latest
+    env:
+      # CI 已在 setup-python 解释器安装 requirements-dev；勿再切到空 venv/
+      NTQ_SKIP_AUTO_VENV: "1"
 
     steps:
       - name: Checkout repository
@@ -24,6 +27,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
+
+      - name: Bootstrap DuckDB demo data for integration tests
+        run: |
+          python setup/steps/init_userspace/install.py
+          mkdir -p userspace/system/config/database
+          printf '%s\n' '{"database_type": "duckdb"}' > userspace/system/config/database/common.json
+          python setup/steps/import_data/install.py --force
 
       - name: Smoke test - import core modules
         run: |
@@ -72,4 +82,29 @@ jobs:
 
       - name: Build image
         run: docker build -t new-tea-quant:ci .
+
+  # 模拟用户下载分支 zip → Python 3.9 冷启动 → 安装 → 策略枚举
+  smoke-fresh-install:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Pack branch as zip and run fresh-install smoke
+        run: |
+          set -euo pipefail
+          git archive --format=zip -o /tmp/ntq-source.zip HEAD
+          rm -rf /tmp/ntq-smoke
+          mkdir -p /tmp/ntq-smoke
+          unzip -q /tmp/ntq-source.zip -d /tmp/ntq-smoke
+          cd /tmp/ntq-smoke
+          python devtools/quick_tools/smoke_fresh_install.py --repo-root .
 

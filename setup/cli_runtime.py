@@ -85,7 +85,7 @@ def install_cli_runtime(force: bool = False) -> None:
 
 
 def ensure_cli_install_via_install_py() -> int:
-    """通过根目录 ``install.py`` 执行 CLI 安装（``start-cli`` 自动触发时使用）。"""
+    """通过根目录 ``install.py`` 执行 CLI 安装（``cli.py`` 自动触发时使用）。"""
     script = REPO_ROOT / "install.py"
     if not script.is_file():
         print(f"❌ 未找到安装入口: {script}", flush=True)

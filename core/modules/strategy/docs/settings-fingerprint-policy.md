@@ -41,7 +41,7 @@
 
 | 字段 | 策略 |
 |------|------|
-| **`base_required_data`**（含 `params.term`、`adjust` 等） | **参与** |
+| **`base_required_data`**（含 `data_id`、`params.adjust` 等） | **参与** |
 | **`extra_required_data_sources`** | **参与** |
 | **`min_required_records`** | **参与** |
 | **`indicators`** | **参与** |

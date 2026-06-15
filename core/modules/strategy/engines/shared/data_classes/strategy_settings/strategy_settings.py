@@ -41,6 +41,8 @@ class StrategySettings(SettingsBase):
         )
 
         object.__setattr__(self, "meta", StrategyMetaSettings.from_raw(rs))
+        object.__setattr__(self, "_is_enabled", bool(rs.get("is_enabled", False)))
+        object.__setattr__(self, "core", self._read_core(rs))
         object.__setattr__(self, "market_profile", StrategyMarketProfileSettings.from_strategy_root(rs))
         object.__setattr__(self, "fees", StrategyFeesSettings.from_strategy_root(rs))
         object.__setattr__(self, "simulation", StrategySimulationSettings.from_strategy_root(rs))
@@ -52,23 +54,28 @@ class StrategySettings(SettingsBase):
         object.__setattr__(self, "capital_simulator", StrategyCapitalSimulatorSettings.from_strategy_root(rs))
         object.__setattr__(self, "scanner", StrategyScannerSettings.from_strategy_root(rs))
 
-    @property
-    def strategy_name(self) -> str:
-        return str(self.meta.name)
+    @staticmethod
+    def _read_core(rs: Dict[str, Any]) -> Dict[str, Any]:
+        core = rs.get("core")
+        if core is None or not isinstance(core, dict):
+            return {}
+        return dict(core)
 
     @property
     def is_enabled(self) -> bool:
-        return bool(self.meta.is_enabled)
+        return bool(getattr(self, "_is_enabled", False))
 
     def apply_defaults(self) -> None:
         rs = self.raw_settings
         self.meta.apply_defaults()
+        object.__setattr__(self, "_is_enabled", bool(rs.get("is_enabled", False)))
+        rs["is_enabled"] = self.is_enabled
+        core = self._read_core(rs)
+        object.__setattr__(self, "core", core)
+        rs["core"] = core
+        rs["meta"] = self.meta.to_dict()
         self.market_profile.apply_defaults()
         rs["market_profile"] = self.market_profile.profile_id
-        rs["name"] = self.meta.name
-        rs["description"] = self.meta.description
-        rs["core"] = self.meta.core
-        rs["is_enabled"] = self.meta.is_enabled
         self.fees.apply_defaults()
         self.simulation.apply_defaults()
         self.data.apply_defaults()
@@ -84,9 +91,18 @@ class StrategySettings(SettingsBase):
 
     def validate_base_settings(self) -> ValidationReport:
         self.apply_defaults()
+        core_report = SettingsBase.new_validation()
+        if not isinstance(self.core, dict):
+            SettingsBase.add_critical(
+                core_report,
+                "core",
+                "core 必须为对象（dict）",
+                suggested_fix='将 "core" 设为 {} 或包含策略参数的对象',
+            )
         merged = SettingsBase.merge_validation_results(
             self.market_profile.validate(),
             self.meta.validate(),
+            core_report,
             self.fees.validate(),
             self.simulation.validate(),
             self.data.validate(),
@@ -106,9 +122,11 @@ class StrategySettings(SettingsBase):
     def to_dict(self) -> Dict[str, Any]:
         self.apply_defaults()
         out = self.deep_copy_dict(self.raw_settings)
-        # API/BFF 有时会同时带根级 name/description 与嵌套 meta；引擎语义只用根级（见 meta.to_dict）。
-        out.pop("meta", None)
-        out.update(self.meta.to_dict())
+        out["is_enabled"] = self.is_enabled
+        out["core"] = dict(self.core) if isinstance(self.core, dict) else {}
+        out["meta"] = self.meta.to_dict()
+        out.pop("name", None)
+        out.pop("description", None)
         out.update(self.market_profile.to_dict())
         out["fees"] = self.fees.to_dict()
         out["simulation"] = self.simulation.to_dict()
@@ -124,7 +142,6 @@ class StrategySettings(SettingsBase):
     def to_enum_signature_dict(self) -> Dict[str, Any]:
         normalized = self.to_dict()
         return {
-            "name": normalized.get("name", ""),
             "market_profile": normalized.get("market_profile", ""),
             "core": normalized.get("core", {}) or {},
             "data": normalized.get("data", {}) or {},

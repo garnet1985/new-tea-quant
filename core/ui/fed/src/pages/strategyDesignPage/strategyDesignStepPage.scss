@@ -1,0 +1,104 @@
+.ntq-design-step-page {
+  width: 100%;
+  min-height: 480px;
+}
+
+.ntq-design-step-page__settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ntq-design-step-page__grid {
+  align-items: flex-start;
+}
+
+.ntq-design-settings-panel {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 5px;
+
+  /* 两个顶层块拼成一个大圆角矩形：仅最上、最下圆角，中间边框重叠 */
+  > .MuiAccordion-root {
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0 !important;
+    background: rgba(255, 255, 255, 0.06);
+    margin: 0 !important;
+    box-shadow: none;
+
+    &::before {
+      display: none;
+    }
+
+    &:first-of-type {
+      z-index: 1;
+      border-radius: 5px 5px 0 0 !important;
+      border-bottom: none;
+      margin-bottom: -1px !important;
+    }
+
+    &:last-of-type {
+      border-radius: 0 0 5px 5px !important;
+    }
+  }
+
+  > .MuiAccordion-root .MuiAccordionSummary-root {
+    min-height: 44px;
+  }
+
+  > .MuiAccordion-root .MuiAccordionDetails-root {
+    padding-top: 4px;
+    padding-bottom: 12px;
+  }
+
+  .ntq-design-settings-core-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .ntq-design-settings-core-hint {
+    flex: 0 0 auto;
+    min-height: 20px;
+    margin: 0;
+    padding: 0 4px;
+    line-height: 1.45;
+
+    p {
+      margin: 0;
+    }
+  }
+}
+
+.ntq-design-step-report {
+  box-sizing: border-box;
+  min-height: 480px;
+  padding: 16px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+
+  .ntq-report-panel--embedded {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 100%;
+  }
+
+  .ntq-report-panel__embedded-head {
+    min-height: 28px;
+  }
+
+  .ntq-report-panel__embedded-compare {
+    flex-shrink: 0;
+  }
+
+  .ntq-report-panel__embedded-body {
+    width: 100%;
+  }
+}
+
+.ntq-design-step-page__right {
+  width: 100%;
+}

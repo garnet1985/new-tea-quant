@@ -205,7 +205,7 @@ def release_all_ui_listen_ports() -> None:
         "webpack",
         "webpack-dev-server",
         "launcher.py",
-        "dev-cli.py",
+        "devcli.py",
         str(FED_ROOT.resolve()),
         str(REPO_ROOT),
     )
@@ -297,7 +297,7 @@ def launch_ui_stack() -> None:
             env=_fed_dev_env(),
             start_new_session=True,
         )
-        ui_url = f"http://localhost:{UI_DEV_PORT}/strategy-workbench"
+        ui_url = f"http://localhost:{UI_DEV_PORT}/strategy-design"
         print(
             f"开发模式：浏览器入口 http://localhost:{UI_DEV_PORT} "
             f"（BFF API 内部 :{UI_PROD_PORT}，/api 由 CRA proxy 转发；勿混跑 prod 栈）",
@@ -311,7 +311,7 @@ def launch_ui_stack() -> None:
         if not fed_build_ready():
             _terminate_proc(bff_proc)
             raise RuntimeError("缺少 fed/build，请 npm run build 或使用 launcher.py -d")
-        ui_url = f"http://{host}:{UI_PROD_PORT}/strategy-workbench"
+        ui_url = f"http://{host}:{UI_PROD_PORT}/strategy-design"
         print(f"生产模式：入口 {ui_url}", flush=True)
         if not _wait_http_ok(ui_url, timeout_sec=30):
             _terminate_proc(bff_proc)

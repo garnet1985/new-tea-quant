@@ -14,7 +14,7 @@ __all__ = [
 ]
 
 
-def _latest_trading_date_for_db_cache() -> str:
+def _latest_completed_trading_date_for_db_cache() -> str:
     from core.modules.data_manager import DataManager
     from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
         resolve_latest_completed_trading_date,
@@ -102,7 +102,7 @@ def _fingerprint_resolution_using_existing_enum_dir(
         strategy_name=name,
         raw_settings=raw_for_fp,
         stock_list=list(stock_list),
-        latest_completed_trading_date=_latest_trading_date_for_db_cache(),
+        latest_completed_trading_date=_latest_completed_trading_date_for_db_cache(),
     )
 
 

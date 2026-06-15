@@ -210,6 +210,14 @@ class DatabaseManager:
     def execute_sync_query(
         self, query: str, params: Any = None, domain: Optional[str] = None
     ) -> List[Dict[str, Any]]:
+        """
+        执行同步读查询。
+
+        返回契约（由 connector 出口保证，调用方勿再处理 Decimal/numpy）：
+        - DECIMAL/NUMERIC 列 → ``float``
+        - 整型列 → ``int``
+        - NULL → ``None``
+        """
         eng = self._require_engine()
         if self.is_duckdb and domain is not None:
             return eng.execute_sync_query(query, params, domain=domain)

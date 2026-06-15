@@ -19,6 +19,7 @@ class DiscoveredStrategy:
     worker_class: Type[Any]
     worker_module_path: str
     worker_class_name: str
+    worker_file_path: Path
     settings: StrategySettings
 
     def validate_required_fields(self) -> None:
@@ -28,6 +29,8 @@ class DiscoveredStrategy:
             raise ValueError("strategy folder must be a Path")
         if not self.worker_module_path or not self.worker_class_name:
             raise ValueError("worker module/class reference is required")
+        if not isinstance(self.worker_file_path, Path):
+            raise ValueError("worker_file_path must be a Path")
         if self.worker_class is None:
             raise ValueError("worker class is required")
         if self.settings is None:
@@ -41,11 +44,16 @@ class DiscoveredStrategy:
             "worker_class": self.worker_class,
             "worker_module_path": self.worker_module_path,
             "worker_class_name": self.worker_class_name,
+            "worker_file_path": self.worker_file_path,
         }
 
     @property
     def is_enabled(self) -> bool:
         return bool(self.settings.is_enabled)
+
+    @property
+    def display_name(self) -> str:
+        return str(self.settings.meta.display_name or "").strip()
 
     def get_settings(self) -> StrategySettings:
         return self.settings

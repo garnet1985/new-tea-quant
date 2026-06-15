@@ -1,0 +1,162 @@
+/* 圆角矩形彩虹描边：放大旋转色带 + overflow 裁切 + 内层实底（避免 mask 在非正方形上失效） */
+$ntq-design-sim-mask-play: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960'%3E%3Cpath fill='%23000' d='M340-236.16v-487.68L723.07-480 340-236.16Z'/%3E%3C/svg%3E");
+$ntq-design-sim-mask-refresh: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960'%3E%3Cpath fill='%23000' d='M483.08-200q-117.25 0-198.63-81.34-81.37-81.34-81.37-198.54 0-117.2 81.37-198.66Q365.83-760 483.08-760q71.3 0 133.54 33.88 62.23 33.89 100.3 94.58V-760h40v209.23H547.69v-40h148q-31.23-59.85-87.88-94.54Q551.15-720 483.08-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h42.46Q725.08-310.15 651-255.08 576.92-200 483.08-200Z'/%3E%3C/svg%3E");
+$ntq-design-sim-border: 1.5px;
+$ntq-design-sim-radius: 14px;
+$ntq-design-sim-min-width: 228px;
+$ntq-design-sim-min-height: 92px;
+$ntq-design-sim-aurora: conic-gradient(
+  from 0deg,
+  var(--ntq-violet) 0deg,
+  var(--ntq-cyan) 120deg,
+  var(--ntq-green) 240deg,
+  var(--ntq-violet) 360deg
+);
+
+@keyframes ntq-design-sim-aurora-spin {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@keyframes ntq-design-sim-glyph-aurora-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ntq-design-simulate-btn {
+  position: relative;
+  flex-shrink: 0;
+  width: 100%;
+  min-width: $ntq-design-sim-min-width;
+  min-height: $ntq-design-sim-min-height;
+  padding: $ntq-design-sim-border;
+  border: none;
+  border-radius: $ntq-design-sim-radius;
+  background: transparent;
+  cursor: pointer;
+  overflow: hidden;
+  isolation: isolate;
+
+  &:disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+
+    .ntq-design-simulate-btn__aurora,
+    .ntq-design-simulate-btn__glyph-aurora,
+    .ntq-design-simulate-btn__label-text {
+      animation: none;
+    }
+  }
+}
+
+.ntq-design-simulate-btn__aurora {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  /* 宽矩形旋转时需正方形色带，边长按按钮宽度放大，避免转角露底 */
+  width: 340%;
+  aspect-ratio: 1;
+  height: auto;
+  transform: translate(-50%, -50%);
+  background: $ntq-design-sim-aurora;
+  transform-origin: center center;
+  animation: ntq-design-sim-aurora-spin 3.6s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ntq-design-simulate-btn__inner {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: calc(#{$ntq-design-sim-min-height} - #{$ntq-design-sim-border} * 2);
+  padding: 0 28px;
+  border-radius: calc(#{$ntq-design-sim-radius} - #{$ntq-design-sim-border});
+  background: rgba(6, 6, 18, 0.92);
+}
+
+.ntq-design-simulate-btn__glyph {
+  position: relative;
+  display: block;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  overflow: hidden;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: 30px 30px;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: 30px 30px;
+}
+
+.ntq-design-simulate-btn__glyph--play {
+  -webkit-mask-image: $ntq-design-sim-mask-play;
+  mask-image: $ntq-design-sim-mask-play;
+}
+
+.ntq-design-simulate-btn__glyph--refresh {
+  -webkit-mask-image: $ntq-design-sim-mask-refresh;
+  mask-image: $ntq-design-sim-mask-refresh;
+}
+
+.ntq-design-simulate-btn__glyph-aurora {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 64px;
+  height: 64px;
+  margin-left: -32px;
+  margin-top: -32px;
+  background: $ntq-design-sim-aurora;
+  transform-origin: center center;
+  animation: ntq-design-sim-glyph-aurora-spin 3.6s linear infinite;
+}
+
+.ntq-design-simulate-btn__label-text {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  white-space: nowrap;
+  background: var(--ntq-brand-text-gradient, linear-gradient(
+    90deg,
+    var(--ntq-violet),
+    var(--ntq-cyan),
+    var(--ntq-green)
+  ));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: ntq-design-sim-label-shimmer 4.2s ease-in-out infinite;
+}
+
+@keyframes ntq-design-sim-label-shimmer {
+  0%,
+  100% {
+    background-position: 0% center;
+  }
+  50% {
+    background-position: 100% center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ntq-design-simulate-btn__aurora,
+  .ntq-design-simulate-btn__glyph-aurora,
+  .ntq-design-simulate-btn__label-text {
+    animation: none;
+  }
+
+}

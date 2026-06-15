@@ -1,0 +1,138 @@
+.ntq-design-exec-panel {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 16px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ntq-design-exec-panel__title {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.ntq-design-exec-panel__error {
+  display: block;
+  line-height: 1.45;
+}
+
+.ntq-design-exec-panel__body {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-width: 0;
+}
+
+.ntq-design-exec-panel__actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.ntq-design-exec-panel__status {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  text-align: right;
+  min-height: 54px;
+  justify-content: center;
+}
+
+.ntq-design-exec-panel__status-primary {
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.ntq-design-exec-panel__status-secondary {
+  line-height: 1.45;
+}
+
+.ntq-design-exec-panel__progress-slot {
+  width: min(240px, 100%);
+  height: 4px;
+  flex: 0 0 4px;
+  margin-top: 2px;
+}
+
+.ntq-design-exec-panel__progress {
+  width: 100%;
+  height: 4px !important;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08) !important;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease;
+
+  .MuiLinearProgress-bar {
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--ntq-violet), var(--ntq-cyan));
+  }
+
+  &--visible {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+.ntq-design-exec-panel {
+  .ntq-design-simulate-btn {
+    width: auto;
+    min-width: 148px;
+    min-height: 44px;
+  }
+
+  .ntq-design-simulate-btn__inner {
+    min-height: calc(44px - 3px);
+    gap: 8px;
+    padding: 0 16px;
+  }
+
+  .ntq-design-simulate-btn__glyph {
+    width: 20px;
+    height: 20px;
+    -webkit-mask-size: 20px 20px;
+    mask-size: 20px 20px;
+  }
+
+  .ntq-design-simulate-btn__label-text {
+    font-size: 14px;
+    font-weight: 600;
+  }
+}
+
+.ntq-design-exec-panel__next-btn {
+  flex: 0 0 auto;
+  height: 44px;
+  min-width: 88px;
+  padding: 0 16px !important;
+  border-radius: 14px !important;
+  text-transform: none;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1;
+  border: 2px solid rgba(255, 255, 255, 0.32) !important;
+  color: rgba(255, 255, 255, 0.88) !important;
+  box-shadow: none !important;
+
+  &:hover:not(:disabled) {
+    border-color: rgba(255, 255, 255, 0.38) !important;
+    background: rgba(12, 12, 28, 0.96) !important;
+  }
+
+  &.Mui-disabled {
+    color: rgba(255, 255, 255, 0.28) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    background: rgba(6, 6, 18, 0.72) !important;
+  }
+}

@@ -190,6 +190,16 @@ data_mgr = DataManager(is_verbose=True)  # 已触发 initialize
 | `save_adj_factor_events` | `(events: List[Dict]) -> int` | 保存复权因子事件。 |
 | `delete_adj_factor_events` | `(stock_id: str) -> int` | 删除指定股票复权因子事件。 |
 
+**前复权（`load_qfq` / `load_qfq_split`）消费公式（方案 B）**：
+
+```text
+qfq(t) = raw(t) × F(段) / F(最新) + C
+C = qfq_anchor_最新 - raw_anchor_最新 × F_最新事件 / F(最新)
+```
+
+- `open/close/high/low/pre_close` 同式；返回列名与 raw 一致，语义为前复权价。
+- 详见 `userspace/extensions/data_source/handlers/adj_factor_event/README.md`；对比基准见 `experiments/qfq_baseline/方案B_tencent_validation.json`。
+
 ### 2.4 CorporateFinanceService（企业财务）
 
 访问方式：`data_mgr.stock.corporate_finance`。

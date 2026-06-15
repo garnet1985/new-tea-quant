@@ -28,6 +28,9 @@ if TYPE_CHECKING:
     from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
         DiscoveredStrategy,
     )
+    from core.modules.strategy.execution_manager.workbench_flow_progress import (
+        WorkbenchFlowProgress,
+    )
     from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
         StrategySettingsView,
     )
@@ -102,6 +105,7 @@ class PriceFactorFlow(BaseSimulationFlow):
         strategy_info: Optional["DiscoveredStrategy"] = None,
         *,
         progress_callback: Optional[Callable[[float], None]] = None,
+        workbench_progress: Optional["WorkbenchFlowProgress"] = None,
     ) -> Any:
         """
         轻量 probe → 指纹解析成功则尝试 DbCache → 否则创建版本目录并
@@ -129,6 +133,9 @@ class PriceFactorFlow(BaseSimulationFlow):
             if progress_callback is not None:
                 progress_callback(float(pct))
 
+        wp = workbench_progress
+        if wp is not None:
+            wp.stage("load", 0.05)
         tick(8.0)
         probe = self._probe(strategy_name=strategy_name, strategy_info=strategy_info)
         stock_list = stock_ids_for_db_cache_fingerprint(
@@ -149,6 +156,8 @@ class PriceFactorFlow(BaseSimulationFlow):
             latest_completed_trading_date=latest_completed_trading_date,
         )
 
+        if wp is not None:
+            wp.stage("load", 0.85)
         tick(10.0)
         if resolved_probe is not None and not self._force_refresh:
             hit = lookup_price_factor_cache(
@@ -167,15 +176,26 @@ class PriceFactorFlow(BaseSimulationFlow):
                 prune_disk_outputs_for_strategy(
                     strategy_name, probe.base_settings.to_dict()
                 )
+                if wp is not None:
+                    wp.stage("report", 1.0)
                 tick(92.0)
                 return summary
 
+        if wp is not None:
+            wp.stage("load", 1.0)
+            wp.stage("dispatch", 0.1)
         tick(12.0)
         preprocessed = self._finish_probe(probe)
+        if wp is not None:
+            wp.stage("dispatch", 1.0)
         tick(14.0)
         executed = self.execute(preprocessed, progress_callback=tick)
+        if wp is not None:
+            wp.stage("execute", 1.0)
         tick(90.0)
         summary = self.postprocess(preprocessed, executed)
+        if wp is not None:
+            wp.stage("report", 0.5)
         tick(94.0)
 
         if summary and isinstance(summary, dict):
@@ -329,6 +349,7 @@ class PriceFactorFlow(BaseSimulationFlow):
             simulation_effective=simulation_effective_snapshot(
                 preprocessed.simulation_settings
             ),
+            stock_summaries=executed.stock_summaries,
         )
         self._impl.save_performance_report(
             output_version_dir=preprocessed.output_version_dir,

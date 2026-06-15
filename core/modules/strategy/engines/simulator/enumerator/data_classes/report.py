@@ -21,6 +21,10 @@ from core.modules.strategy.engines.shared.helpers.tradability_stats import (
     merge_tradability_counts,
     tradability_ratios,
 )
+from core.modules.strategy.engines.shared.data_classes.investment_state import (
+    InvestmentLifecycle,
+    ScanSignalPhase,
+)
 from core.modules.strategy.engines.shared.report_base import ReportBase
 from core.utils.date.date_utils import DateUtils
 
@@ -196,8 +200,12 @@ class EnumeratorReport(ReportBase):
             if sell_reason in {"enumeration_end", "backtest_end"}:
                 unfinished_count += 1
                 continue
-            status = str((row or {}).get("status") or "").lower()
-            if status in {"open", "active", "testing"}:
+            lifecycle = str((row or {}).get("lifecycle") or "").lower()
+            phase = str((row or {}).get("signal_phase") or "").lower()
+            if (
+                lifecycle == InvestmentLifecycle.OPEN.value
+                or phase in {ScanSignalPhase.ACTIVE.value, ScanSignalPhase.TESTING.value}
+            ):
                 unfinished_count += 1
             else:
                 completed_count += 1
@@ -260,7 +268,9 @@ class EnumeratorReport(ReportBase):
                 if d0 and d1:
                     durations.append(float(DateUtils.diff_days(d0, d1)))
             completed_i = sum(
-                1 for r in rows_sorted if str((r or {}).get("status") or "").lower() == "completed"
+                1
+                for r in rows_sorted
+                if str((r or {}).get("lifecycle") or "").lower() == InvestmentLifecycle.COMPLETE.value
             )
             count_i = len(rows_sorted)
             row_completion = round(ReportBase.safe_div(completed_i, count_i) * 100.0, 1)

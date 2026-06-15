@@ -68,9 +68,18 @@ def _is_data_source_handler_csv(tree: Path, path: Path) -> bool:
     )
 
 
+def _is_under_strategies(tree: Path, path: Path) -> bool:
+    """``path`` 位于 ``tree/strategies/**`` 下。"""
+    try:
+        path.relative_to(tree / "strategies")
+        return True
+    except ValueError:
+        return False
+
+
 def _is_strategy_results_dir(parent: Path, name: str) -> bool:
-    """``strategies/<strategy>/results``"""
-    return name == "results" and parent.parent.name == "strategies"
+    """``strategies/**/results``（任意嵌套深度）。"""
+    return name == "results" and "strategies" in parent.parts
 
 
 def _is_tag_runtime_dir(parent: Path, name: str) -> bool:
@@ -117,7 +126,7 @@ def _is_runtime_path_in_tree(tree: Path, path: Path) -> bool:
         return True
     if _is_data_source_handler_csv(tree, path):
         return True
-    if len(parts) >= 3 and parts[0] == "strategies" and parts[2] == "results":
+    if "strategies" in parts and "results" in parts[parts.index("strategies") :]:
         return True
     if "extensions" in parts and "tags" in parts and parts[-1] in _RUNTIME_DIR_NAMES:
         return True
@@ -206,12 +215,10 @@ def _sanitize_init_userspace(tree: Path) -> List[str]:
             notes.append(f"删除 {csv.relative_to(tree)}")
 
     for results in sorted(tree.rglob("results"), key=lambda p: len(p.parts), reverse=True):
-        if not results.is_dir():
+        if not results.is_dir() or not _is_under_strategies(tree, results):
             continue
-        parts = _relative_parts_under(tree, results)
-        if len(parts) >= 3 and parts[0] == "strategies" and parts[2] == "results":
-            _rm_tree(results)
-            notes.append(f"删除 {results.relative_to(tree)}")
+        _rm_tree(results)
+        notes.append(f"删除 {results.relative_to(tree)}")
 
     tags = tree / "extensions" / "tags"
     if tags.is_dir():

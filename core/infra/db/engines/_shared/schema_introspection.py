@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from typing import Any, Set, Tuple
 
+from core.infra.db.engines._shared.query_rows import fetch_result_to_rows
+
 
 def column_names_query(dialect: str, table_name: str) -> Tuple[str, tuple]:
     """返回 (sql, params)。"""
@@ -36,8 +38,7 @@ def fetch_column_names(dialect: str, table_name: str, conn: Any) -> Set[str]:
 
     if d == "duckdb":
         rel = conn.execute(sql, params)
-        df = rel.fetchdf()
-        rows = df.to_dict(orient="records") if df is not None and not df.empty else []
+        rows = fetch_result_to_rows(rel)
     elif hasattr(conn, "cursor"):
         with conn.cursor() as cursor:
             cursor.execute(sql, params)

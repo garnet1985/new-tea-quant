@@ -1,5 +1,5 @@
 name: modules.data_source
-version: 0.3.6
+version: 0.3.7
 compatible_core_versions: ">=0.3.3"
 description: "配置驱动的数据抓取：mapping + handler config、Provider 发现、BaseHandler 执行管线、调度器按依赖拓扑执行并写回绑定表。"
 dependencies:
@@ -8,6 +8,10 @@ dependencies:
   - infra.discovery
   - infra.job_pipeline
 changelog:
+  - version: "0.3.7"
+    changes:
+      - 修复复权因子事件表的精度问题
+      - 清理了不需要的代码
   - version: "0.3.6"
     changes:
       - 修复批量写入路径；SaveBatchAutoSizer 按内存动态调整抓取批次

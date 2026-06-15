@@ -27,7 +27,7 @@
 ## 3. `DiscoveryManager` 与 `ConfigManager`
 
 - **`DiscoveryManager.discover_configs` / `discover_config` / `load_overridable_config`**：约定路径下的枚举、路径解析、可覆盖加载；`domain=""` 为根级 `data.json` 等。
-- **`ConfigManager.load_with_defaults`**：已知 `default_path` + `user_path` 时读盘并 `_deep_merge_config`。
+- **`ConfigManager.load_with_defaults`**：已知 `default_path` + `user_path` 时读盘并 `deep_merge_config`。
 - **`ConfigManager.load_core_config`**：委托 `DiscoveryManager.load_overridable_config("", config_name)`。
 - **`load_database_config`**：合并 `database/common`、按类型加载 `database/{type}`、展开 `_advanced`、合并用户侧扁平或 wrapper 格式，最后 **`load_with_env_vars`**（`DB_{TYPE}_*`）。
 

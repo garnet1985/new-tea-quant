@@ -1,12 +1,13 @@
 @use '../../assets/scss/variables' as *;
 
-// Fixed decorative layer: starts below app header, does not cover navigation.
+// 装饰层随主内容滚动；宽度铺满视口（main 仅约束正文列宽，背景需 full-bleed）
 .ntq-page-background {
-  position: fixed;
-  top: $ntq-header-height;
-  left: 0;
-  right: 0;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 100vw;
   height: $ntq-page-bg-height;
+  transform: translateX(-50%);
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
@@ -42,9 +43,6 @@
 
 @media (max-width: $ntq-body-min-width) {
   .ntq-page-background {
-    width: $ntq-body-min-width;
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
+    width: max(100vw, #{$ntq-body-min-width});
   }
 }

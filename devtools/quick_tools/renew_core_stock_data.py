@@ -2,7 +2,7 @@
 """
 同步核心股票表结构并拉取数据。
 
-日期区间由 ``userspace/config/data.json`` 的 ``default_start_date`` / ``default_end_date`` 控制
+日期区间由 ``userspace/config/data.json`` 的 ``default_start_date`` / ``as_of_latest_completed_trading_date`` 控制
 （当前试跑建议 20240101～20240601）。
 
 顺序：schema 迁移（若有快照）→ stock_list → trade_calendar → stock_st_periods → stock_klines
@@ -198,7 +198,10 @@ def main() -> int:
 
     from core.infra.project_context import ConfigManager
 
-    end_hint = ConfigManager.get_default_end_date() or "（未配置，至真实世界最新交易日）"
+    end_hint = (
+        ConfigManager.get_as_of_latest_completed_trading_date()
+        or "（未配置，走日历/real-world fallback）"
+    )
     logger.info(
         "完成。K 线区间 %s ~ %s（userspace/config/data.json）；"
         "stock_st_periods 按股全量 namechange（约 5800 只 / 800 per min）",

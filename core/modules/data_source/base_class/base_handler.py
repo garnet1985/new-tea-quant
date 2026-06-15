@@ -6,7 +6,7 @@ BaseHandler - 数据源 Handler 基类。
 import os
 os.environ["TQDM_DISABLE"] = "1"  # 强制禁用，避免 akshare 等依赖的进度条混入日志
 
-from typing import Any, Dict, List, Tuple, Optional, Union
+from typing import Any, Dict, List, Tuple, Optional
 import logging
 
 from core.modules.data_source.base_class.base_provider import BaseProvider
@@ -327,9 +327,9 @@ class BaseHandler:
             if isinstance(exec_meta, dict)
             else False
         )
-        # 从保留依赖 latest_trading_date 提取日期，供 context["latest_completed_trading_date"] 使用
-        if dependencies_data and "latest_trading_date" in dependencies_data:
-            val = dependencies_data["latest_trading_date"]
+        # 从保留依赖 latest_completed_trading_date 提取日期写入 context
+        if dependencies_data and "latest_completed_trading_date" in dependencies_data:
+            val = dependencies_data["latest_completed_trading_date"]
             if isinstance(val, list) and len(val) > 0 and isinstance(val[0], dict) and "date" in val[0]:
                 self.context["latest_completed_trading_date"] = val[0]["date"]
 
@@ -569,33 +569,6 @@ class BaseHandler:
                     pass
 
         return context
-
-    def on_calculate_date_range(
-        self, 
-        context: Dict[str, Any], 
-        apis: List[ApiJob]
-    ) -> Optional[Union[Tuple[str, str], Dict[str, Tuple[str, str]]]]:
-        """
-        计算日期范围的钩子：允许子类实现自定义的日期范围计算逻辑。
-
-        如果返回 None，将使用默认的 RenewManager 逻辑（根据 renew_mode 自动计算）。
-        如果返回日期范围（单个或 per stock），将直接使用该结果，跳过默认逻辑。
-
-        适用场景：
-        - 需要复杂的日期范围计算逻辑（例如：基于多个表的联合查询）
-        - 需要特殊的 renew 策略（例如：基于业务规则的动态日期范围）
-        - 需要自定义的 per stock 日期范围计算
-
-        Args:
-            context: 执行上下文（包含 config, data_manager, stock_list 等）
-            apis: ApiJob 列表（尚未注入日期范围）
-
-        Returns:
-            - None: 使用默认的 RenewManager 逻辑
-            - Tuple[str, str]: 统一的日期范围 (start_date, end_date)
-            - Dict[str, Tuple[str, str]]: per stock 的日期范围 {stock_id: (start_date, end_date)}
-        """
-        return None
 
     def _extract_entity_id(
         self, 

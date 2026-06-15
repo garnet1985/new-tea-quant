@@ -4,7 +4,9 @@
 from datetime import datetime
 from typing import Any, Dict, List
 
-from core.modules.strategy.enums import OpportunityStatus
+from core.modules.strategy.engines.shared.data_classes.investment_state import (
+    InvestmentLifecycle,
+)
 
 
 class SimulatorStatisticsHelper:
@@ -31,7 +33,9 @@ class SimulatorStatisticsHelper:
             return {}
 
         closed_opps = [
-            o for o in opportunities if o.get("status") == OpportunityStatus.CLOSED.value
+            o
+            for o in opportunities
+            if str(o.get("lifecycle") or "").lower() == InvestmentLifecycle.COMPLETE.value
         ]
         summary = {
             "total_opportunities": len(opportunities),
@@ -54,7 +58,9 @@ class SimulatorStatisticsHelper:
         opportunities: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
         closed_opps = [
-            o for o in opportunities if o.get("status") == OpportunityStatus.CLOSED.value
+            o
+            for o in opportunities
+            if str(o.get("lifecycle") or "").lower() == InvestmentLifecycle.COMPLETE.value
         ]
         summary = {
             "session_id": session_id,

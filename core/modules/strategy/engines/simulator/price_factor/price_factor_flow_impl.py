@@ -173,8 +173,10 @@ class PriceFactorFlowImpl:
 
         report = PriceReport.from_stock_summaries(stock_summaries)
         session_summary = report.to_dict()
-        roi_pcts = collect_roi_percents_from_stock_summaries(stock_summaries)
-        session_summary.update(roi_distribution_session_fields(roi_pcts))
+        roi_pcts, truncated, _total = collect_roi_percents_from_stock_summaries(stock_summaries)
+        session_summary.update(
+            roi_distribution_session_fields(roi_pcts, truncated_exit_count=truncated)
+        )
         session_summary["output_version"] = {
             "enumerator_output_dir": base_output_version_dir.name,
             "output_root": str(output_root.name),
@@ -195,6 +197,7 @@ class PriceFactorFlowImpl:
         session_summary: Dict[str, Any],
         settings_snapshot: Dict[str, Any],
         simulation_effective: Optional[Dict[str, Any]] = None,
+        stock_summaries: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
         self._save_results(
             strategy_name=strategy_name,
@@ -204,6 +207,7 @@ class PriceFactorFlowImpl:
             session_summary=session_summary,
             settings_snapshot=settings_snapshot,
             simulation_effective=simulation_effective,
+            stock_summaries=stock_summaries,
         )
 
     def save_performance_report(
@@ -256,8 +260,15 @@ class PriceFactorFlowImpl:
         session_summary: Dict[str, Any],
         settings_snapshot: Dict[str, Any],
         simulation_effective: Optional[Dict[str, Any]] = None,
+        stock_summaries: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
         path_mgr = StrategyOutputPathService(output_version_dir=output_version_dir)
+        if stock_summaries:
+            from core.modules.strategy.engines.simulator.price_factor.stock_ref import (
+                write_price_stock_ref,
+            )
+
+            write_price_stock_ref(output_version_dir, stock_summaries)
         with path_mgr.session_summary_path().open("w", encoding="utf-8") as f:
             json.dump(
                 session_summary, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder

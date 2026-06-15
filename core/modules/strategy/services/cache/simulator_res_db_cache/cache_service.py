@@ -14,6 +14,7 @@ from typing import Any, Dict
 
 from core.modules.strategy.enums import Simulator
 
+from .report_slot_disk_hydrate import merge_enum_slot_if_missing_from_downstream
 from .audit.result_report_audit import (
     attach_initial_write_meta,
     bump_write_count,
@@ -107,6 +108,16 @@ class SimulatorResDbCacheService:
                 return 0
             merged = dict(row.get("result_report") or {})
             merged[slot_key] = step
+            if simulator == Simulator.ENUMERATOR:
+                merged.pop("price_factor", None)
+                merged.pop("capital_allocation", None)
+            elif simulator in (Simulator.PRICE_FACTOR, Simulator.CAPITAL_ALLOCATION):
+                merged = merge_enum_slot_if_missing_from_downstream(
+                    sn,
+                    merged,
+                    downstream_report=step,
+                    simulator_key=slot_key,
+                )
             merged, _ = bump_write_count(merged)
             model.update_result_report(
                 sn,
@@ -118,7 +129,15 @@ class SimulatorResDbCacheService:
             self._retention().prune_oldest_if_over_limit(sn)
             return sid
 
-        merged = attach_initial_write_meta({slot_key: step})
+        merged: Dict[str, Any] = {slot_key: step}
+        if simulator in (Simulator.PRICE_FACTOR, Simulator.CAPITAL_ALLOCATION):
+            merged = merge_enum_slot_if_missing_from_downstream(
+                sn,
+                merged,
+                downstream_report=step,
+                simulator_key=slot_key,
+            )
+        merged = attach_initial_write_meta(merged)
         created = model.create_snapshot(
             sn,
             dict(settings_snapshot or {}),

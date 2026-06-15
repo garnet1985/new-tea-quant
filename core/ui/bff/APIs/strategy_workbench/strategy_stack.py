@@ -33,6 +33,9 @@ def get_strategy_workbench_stack() -> SimpleNamespace:
             parse_version_id,
             workbench_latest_ui_flags,
         )
+        from core.modules.strategy.launcher.workbench_stock_detail import (
+            build_stock_detail_message,
+        )
         from core.modules.strategy.launcher.workbench_catalog import (
             fetch_discovered_strategies_page,
             fetch_strategy_versions_dropdown,
@@ -56,6 +59,7 @@ def get_strategy_workbench_stack() -> SimpleNamespace:
             clear_workbench_simulation_cache_by_version=clear_workbench_simulation_cache_by_version,
             build_step_report_message=build_step_report_message,
             build_step_report_ref_message=build_step_report_ref_message,
+            build_stock_detail_message=build_stock_detail_message,
             fetch_workbench_by_version=fetch_workbench_by_version,
             parse_version_id=parse_version_id,
             workbench_latest_ui_flags=workbench_latest_ui_flags,

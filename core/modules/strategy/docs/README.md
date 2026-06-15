@@ -5,6 +5,7 @@
 ## 决策记录
 
 - `decisions/001-enumerator-reuse-by-containment.md`：基于包含关系与差量股票的枚举复用策略。
+- `decisions/002-strategy-meta-and-discovery.md`：策略 `meta` 嵌套结构、系统路径型 `name`、递归发现与路径合法性校验（**不兼容旧平铺 settings**）。
 
 ## 专题说明
 

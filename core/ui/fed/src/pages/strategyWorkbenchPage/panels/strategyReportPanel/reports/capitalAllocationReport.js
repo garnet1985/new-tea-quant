@@ -22,6 +22,25 @@ import {
   REPORT_CHART_TOOLTIP,
 } from '../lib/reportChartsTheme';
 
+const EQUITY_LINE_POS = '#4CAF50';
+const EQUITY_LINE_NEG = '#EF5350';
+const EQUITY_AREA_POS = 'rgba(76, 175, 80, 0.16)';
+const EQUITY_AREA_NEG = 'rgba(239, 83, 80, 0.16)';
+
+/** 整条资产曲线按最终盈亏着色：赚绿、亏红（与中间过程无关） */
+function equityResultIsPositive(metrics) {
+  const initial = Number(metrics.initialCapital);
+  const final = Number(metrics.finalEquity);
+  if (Number.isFinite(initial) && Number.isFinite(final)) {
+    return final >= initial;
+  }
+  const ret = Number(metrics.totalReturnPct);
+  if (Number.isFinite(ret)) return ret >= 0;
+  const profit = Number(metrics.totalProfit);
+  if (Number.isFinite(profit)) return profit >= 0;
+  return true;
+}
+
 /** 资产曲线纵轴按数据区间缩放（不再默认贴 0），少量留白便于读出波动 */
 function equityAxisMinMax(equityCurveValues) {
   const nums = (equityCurveValues || [])
@@ -39,7 +58,12 @@ function equityAxisMinMax(equityCurveValues) {
 }
 
 function buildEquityCurveOption(metrics) {
-  const { min: yMin, max: yMax } = equityAxisMinMax(metrics.equityCurveValues);
+  const values = metrics.equityCurveValues || [];
+  const positive = equityResultIsPositive(metrics);
+  const lineColor = positive ? EQUITY_LINE_POS : EQUITY_LINE_NEG;
+  const areaColor = positive ? EQUITY_AREA_POS : EQUITY_AREA_NEG;
+  const { min: yMin, max: yMax } = equityAxisMinMax(values);
+
   return {
     animation: false,
     grid: REPORT_CHART_GRID_BASE,
@@ -68,11 +92,11 @@ function buildEquityCurveOption(metrics) {
     series: [
       {
         type: 'line',
-        data: metrics.equityCurveValues,
+        data: values,
         smooth: true,
         symbol: 'none',
-        lineStyle: { width: 2, color: '#4CAF50' },
-        areaStyle: { color: 'rgba(76, 175, 80, 0.16)' },
+        lineStyle: { width: 2, color: lineColor },
+        areaStyle: { color: areaColor },
       },
     ],
     tooltip: {
@@ -408,7 +432,7 @@ function CapitalAllocationReport({
           <MetricCard
             title="前 5 股票收益贡献占比"
             titleTip={CAPITAL_METRIC_TIPS.top5ContributionRatio}
-            value={`${metrics.top5ContributionRatio}%`}
+            value={`${metrics.top5ContributionRatio}%（共 ${metrics.stockCount.toLocaleString()} 股）`}
           />
           <MetricCard
             title="股票收益离散系数（CV）"

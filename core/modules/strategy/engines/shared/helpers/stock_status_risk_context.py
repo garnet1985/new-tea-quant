@@ -59,7 +59,9 @@ class StockStatusRiskRuntimeContext:
         period_end: str = "",
     ) -> "StockStatusRiskRuntimeContext":
         tiers: Dict[str, List[Dict[str, Any]]] = {TIER_ST: [], TIER_STAR_ST: []}
-        if settings.rules and raw_st_periods:
+        # 始终合并 ST 时段：simulation.skip_investment_when 与枚举打标依赖 tier_periods，
+        # 与 goal.stock_status_risk_management 是否配置持仓平仓规则无关。
+        if raw_st_periods:
             merged = merge_periods_to_tiers(list(raw_st_periods))
             start = str(period_start or "").strip()
             end = str(period_end or "").strip()

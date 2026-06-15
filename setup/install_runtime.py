@@ -2,7 +2,7 @@
 安装状态与 ``needs_install`` 共用层（UI / CLI 入口均通过本模块判断）。
 
 - ``launcher.py`` → ``needs_install("ui")`` + ``install_ui_runtime``
-- ``install.py`` / ``start-cli.py`` → ``needs_install("cli")`` + ``install_cli_runtime``
+- ``install.py`` / ``cli.py`` → ``needs_install("cli")`` + ``install_cli_runtime``
 
 状态文件：``.ntq/install-state.json``（结构见 ``launcher-and-setup-runtime-design.md``）。
 """

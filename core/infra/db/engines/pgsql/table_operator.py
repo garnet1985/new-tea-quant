@@ -86,7 +86,7 @@ class PgsqlTableOperator(DbTableAbc):
                 columns, values, update_clause = row_sql.to_upsert_params(rows, unique_keys)
             else:
                 columns, _ = row_sql.to_columns_and_values(rows)
-                values = [tuple(row[col] for col in columns) for row in rows]
+                values = row_sql.rows_to_value_tuples(rows, columns)
                 update_clause = None
             if not columns:
                 return 0

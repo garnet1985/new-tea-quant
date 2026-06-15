@@ -1,0 +1,173 @@
+.ntq-design-stepper {
+  --ntq-stepper-ring: 56px;
+  --ntq-stepper-circle: 46px;
+  --ntq-stepper-gap: 44px;
+
+  box-sizing: border-box;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  width: auto;
+  min-width: calc(
+    var(--ntq-stepper-count, 3) * var(--ntq-stepper-ring)
+    + (var(--ntq-stepper-count, 3) - 1) * var(--ntq-stepper-gap)
+  );
+  gap: 0;
+  padding: 12px 0 16px;
+  margin-bottom: 4px;
+}
+
+.ntq-design-stepper__click {
+  position: relative;
+  flex: 0 0 auto;
+  cursor: pointer;
+  outline: none;
+  border-radius: 8px;
+  padding-right: var(--ntq-stepper-gap);
+
+  &:last-child {
+    padding-right: 0;
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.45);
+  }
+}
+
+.ntq-design-stepper__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ntq-design-stepper__connector {
+  position: absolute;
+  z-index: 0;
+  top: calc(var(--ntq-stepper-ring) / 2 - 1px);
+  /* 从当前圆右缘接到下一圆左缘，中间不留空隙 */
+  left: calc(
+    (var(--ntq-stepper-ring) - var(--ntq-stepper-circle)) / 2 + var(--ntq-stepper-circle)
+  );
+  width: calc(
+    var(--ntq-stepper-gap)
+    + var(--ntq-stepper-ring)
+    - var(--ntq-stepper-circle)
+  );
+  height: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+.ntq-design-stepper__connector--done {
+  background: rgba(76, 175, 80, 0.45);
+}
+
+.ntq-design-stepper__step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.ntq-design-stepper__ring-wrap {
+  position: relative;
+  width: var(--ntq-stepper-ring);
+  height: var(--ntq-stepper-ring);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ntq-design-stepper__ring {
+  position: absolute;
+  inset: 0;
+  color: #22d3ee;
+
+  &.ntq-design-stepper__ring--pending {
+    color: rgba(34, 211, 238, 0.55);
+  }
+}
+
+.ntq-design-stepper__circle {
+  width: var(--ntq-stepper-circle);
+  height: var(--ntq-stepper-circle);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: transparent;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.ntq-design-stepper__num {
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* 未激活、未跑过 */
+.ntq-design-stepper__step--inactive-idle .ntq-design-stepper__circle {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* 当前步、未跑过 */
+.ntq-design-stepper__step--active-idle .ntq-design-stepper__circle {
+  background: rgba(34, 211, 238, 0.92);
+  border-color: transparent;
+}
+
+.ntq-design-stepper__step--active-idle .ntq-design-stepper__num {
+  color: #060612;
+}
+
+/* 已完成 */
+.ntq-design-stepper__step--done .ntq-design-stepper__circle,
+.ntq-design-stepper__step--done-active .ntq-design-stepper__circle {
+  background: rgba(76, 175, 80, 0.28);
+  border-color: rgba(76, 175, 80, 0.45);
+}
+
+.ntq-design-stepper__step--done-active .ntq-design-stepper__circle {
+  background: rgba(76, 175, 80, 0.92);
+  border-color: transparent;
+}
+
+.ntq-design-stepper__step--done .ntq-design-stepper__num,
+.ntq-design-stepper__step--done-active .ntq-design-stepper__num {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.ntq-design-stepper__step--done-active .ntq-design-stepper__num {
+  color: #060612;
+}
+
+/* 失败 */
+.ntq-design-stepper__step--failed .ntq-design-stepper__circle {
+  background: rgba(239, 83, 80, 0.18);
+  border-color: rgba(239, 83, 80, 0.42);
+}
+
+.ntq-design-stepper__step--failed .ntq-design-stepper__num {
+  color: #ef9a9a;
+}
+
+/* 运行中 */
+.ntq-design-stepper__step--running .ntq-design-stepper__circle {
+  background: rgba(34, 211, 238, 0.12);
+  border-color: rgba(34, 211, 238, 0.28);
+}
+
+.ntq-design-stepper__step--running .ntq-design-stepper__num {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.ntq-design-stepper__step--pending .ntq-design-stepper__circle {
+  background: transparent;
+  border-style: dashed;
+  border-color: rgba(34, 211, 238, 0.32);
+}

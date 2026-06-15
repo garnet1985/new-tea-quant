@@ -36,6 +36,7 @@ core/infra/db/
 - DuckDB：`db.checkpoint_duckdb()`、`db.duckdb_file_map_for_table(name)`。
 - 默认实例：`DatabaseManager.set_default` / `get_default`。
 - 架构说明：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)、[engines/ARCHITECTURE.md](engines/ARCHITECTURE.md)。
+- **DECIMAL 出入库契约**（库内定点、应用内 float）：[docs/DECISIONS.md §12](docs/DECISIONS.md#决策-12decimal-存储--infra-统一出入库标量契约)。
 
 ## Schema 与升级（约定 + 部分实现）
 

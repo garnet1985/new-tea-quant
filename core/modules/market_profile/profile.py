@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 from .rule_engines import REGISTRY
 from .rule_engines.amplitude_limit.models import AmplitudeLimitCompiled
 from .rule_engines.lot_size.models import LotSizeCompiled, LotSizeResolved
+from .rule_engines.settlement.models import SettlementCompiled
 from .rule_engines.shared.base import CompiledRuleBase, MarketRuleEngineBase
 
 logger = logging.getLogger(__name__)
@@ -75,6 +76,11 @@ class MarketProfile:
         obj = self._compiled.get("lot_size")
         return obj if isinstance(obj, LotSizeCompiled) else None
 
+    @property
+    def settlement(self) -> Optional[SettlementCompiled]:
+        obj = self._compiled.get("settlement")
+        return obj if isinstance(obj, SettlementCompiled) else None
+
     def resolve_limit_ratio(
         self,
         stock_id: str,
@@ -107,6 +113,23 @@ class MarketProfile:
         if lot is None:
             raise KeyError("当前 profile 未配置 rules.lot_size")
         return lot.floor_buy_quantity(shares, stock_id)
+
+    def sell_blocked_by_settlement(
+        self,
+        *,
+        buy_date: str,
+        trade_date: str,
+        backtest_calendar: Optional[Any] = None,
+    ) -> bool:
+        """按 ``rules.settlement.t_plus`` 判断 ``trade_date`` 是否仍不可卖出。"""
+        settlement = self.settlement
+        if settlement is None:
+            return False
+        return settlement.sell_blocked_on_date(
+            buy_date=buy_date,
+            trade_date=trade_date,
+            backtest_calendar=backtest_calendar,
+        )
 
 
 __all__ = ["MarketProfile"]

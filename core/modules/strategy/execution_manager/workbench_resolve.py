@@ -46,6 +46,7 @@ def resolve_discovered_strategy(
         worker_class=base.worker_class,
         worker_module_path=base.worker_module_path,
         worker_class_name=base.worker_class_name,
+        worker_file_path=base.worker_file_path,
         settings=st,
     )
     discovered.validate_required_fields()

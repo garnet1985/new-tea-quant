@@ -74,7 +74,7 @@
                 <tr data-source-row="stock_list">
                   <td>stock_list</td>
                   <td><span class="status ok" id="source-enabled-stock_list">true</span></td>
-                  <td>latest_trading_date</td>
+                  <td>latest_completed_trading_date</td>
                   <td>stock.stock_list</td>
                   <td><span class="status status-idle">idle</span></td>
                   <td class="data-acquire-row-actions">
@@ -87,7 +87,7 @@
                 <tr data-source-row="stock_klines">
                   <td>stock_klines</td>
                   <td><span class="status ok" id="source-enabled-stock_klines">true</span></td>
-                  <td>latest_trading_date, stock_list</td>
+                  <td>latest_completed_trading_date, stock_list</td>
                   <td>stock.stock_klines</td>
                   <td><span class="status status-idle">idle</span></td>
                   <td class="data-acquire-row-actions">
@@ -100,7 +100,7 @@
                 <tr data-source-row="macro_gdp">
                   <td>macro_gdp</td>
                   <td><span class="status warn" id="source-enabled-macro_gdp">false</span></td>
-                  <td>latest_trading_date</td>
+                  <td>latest_completed_trading_date</td>
                   <td>macro.gdp</td>
                   <td><span class="status status-idle">disabled</span></td>
                   <td class="data-acquire-row-actions">
@@ -398,7 +398,7 @@
           handler: "stock_list.TushareStockListHandler",
           enabled: "true",
           table: "stock.stock_list",
-          dependsOn: "latest_trading_date",
+          dependsOn: "latest_completed_trading_date",
           renewType: "incremental",
           renewIfOverDays: 1,
           apiProvider: "tushare / stock_basic"
@@ -407,7 +407,7 @@
           handler: "stock_klines.KlineHandler",
           enabled: "true",
           table: "stock.stock_klines",
-          dependsOn: "latest_trading_date, stock_list",
+          dependsOn: "latest_completed_trading_date, stock_list",
           renewType: "rolling",
           renewIfOverDays: 1,
           apiProvider: "tushare / pro_bar"
@@ -416,7 +416,7 @@
           handler: "gdp.GdpHandler",
           enabled: "false",
           table: "macro.gdp",
-          dependsOn: "latest_trading_date",
+          dependsOn: "latest_completed_trading_date",
           renewType: "refresh",
           renewIfOverDays: 30,
           apiProvider: "tushare / cn_gdp"

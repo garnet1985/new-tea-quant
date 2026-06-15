@@ -1,11 +1,11 @@
 """
 Utils Package - 通用工具模块
 
-提供各种通用工具类和服务：
-- util: 配置合并工具
-- date: 日期工具类
+提供各种与业务无关的辅助工具：
+- date: 日期工具
+- math: 数值 / 确定性随机
 - icon: 图标服务
-- progress: 进度条和跟踪器
+- utils: 类型判断与 DataFrame 薄封装（Utils 类）
 """
 from .icon.icon_service import IconService, i as icon_i
 try:
@@ -24,19 +24,15 @@ except ModuleNotFoundError as exc:
         raise
     DateUtils = None  # type: ignore[assignment]
 
-from .util import deep_merge_config, merge_mapping_configs
+from .math import deterministic_unit_float
 
 __all__ = [
-    # 配置工具
     'Utils',
-    'deep_merge_config',
-    'merge_mapping_configs',
-    # 日期工具
+    'deterministic_unit_float',
     'DateUtils',
-    # 图标服务
     'IconService',
-    'i',  # 简化的图标获取函数：i("green_dot")
+    'i',
 ]
 
 # 导出简化的图标函数（别名）
-i = icon_i 
+i = icon_i

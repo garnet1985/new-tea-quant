@@ -26,10 +26,12 @@ import {
   fetchStrategyList,
   fetchStrategyScanProgress,
   fetchStrategyScanReadiness,
+  getStrategyDisplayLabel,
   getStrategyWorkbenchPath,
   startStrategyScan,
 } from '../../api/apis/strategyApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
+import StrategyDescriptionText from '../../components/strategyDescriptionText/strategyDescriptionText';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
 import './scanPage.scss';
 
@@ -79,7 +81,8 @@ function ScanPage() {
   const detailPayload = useMemo(() => results?.[detailStrategyId] || null, [results, detailStrategyId]);
   const detailStrategyName = useMemo(() => {
     if (!detailStrategyId) return '';
-    return rows.find((r) => r.id === detailStrategyId)?.name || detailStrategyId;
+    const row = rows.find((r) => r.id === detailStrategyId);
+    return getStrategyDisplayLabel(row) || detailStrategyId;
   }, [detailStrategyId, rows]);
 
   const load = useCallback(() => {
@@ -159,14 +162,23 @@ function ScanPage() {
 
   const columns = useMemo(() => ([
     {
-      field: 'name',
+      field: 'display_name',
       headerName: '策略',
       minWidth: 200,
       flex: 0.6,
+      valueGetter: (params) => getStrategyDisplayLabel(params.row),
       renderCell: (params) => (
         <Stack spacing={0.5}>
-          <Typography variant="body2" fontWeight={700}>{params.row.name}</Typography>
-          <Typography variant="caption" color="text.secondary">{params.row.description || '—'}</Typography>
+          <Typography variant="body2" fontWeight={700}>
+            {params.value || params.row.name}
+          </Typography>
+          <StrategyDescriptionText
+            text={params.row.description}
+            variant="caption"
+            color="text.secondary"
+            empty="—"
+            maxLines={3}
+          />
         </Stack>
       ),
     },
@@ -275,7 +287,8 @@ function ScanPage() {
 
   useEffect(() => {
     if (!running) return undefined;
-    const strategyName = rows.find((r) => r.id === runningStrategyId)?.name || '';
+    const runningRow = rows.find((r) => r.id === runningStrategyId);
+    const strategyName = runningRow?.name || '';
     if (!strategyName) return undefined;
 
     let cancelled = false;
@@ -298,7 +311,7 @@ function ScanPage() {
             const report = p?.report && typeof p.report === 'object' ? p.report : {};
             setResults((prev) => ({ ...(prev || {}), [runningStrategyId]: report }));
             setReportStrategyId(runningStrategyId);
-            setReportStrategyName(strategyName);
+            setReportStrategyName(getStrategyDisplayLabel(runningRow) || strategyName);
             setReportGeneratedAt(new Date().toLocaleString('zh-CN', { hour12: false }));
             if (typeof p?.demo === 'boolean') setReportDemo(p.demo);
             setReportVisible(true);
@@ -336,7 +349,7 @@ function ScanPage() {
   return (
     <PageLayout
       className="scan-page"
-      breadcrumbsItems={[{ label: '策略实验室', to: '/strategy-workbench' }]}
+      breadcrumbsItems={[{ label: '制定策略', to: '/strategy-design' }]}
       breadcrumbsCurrent="策略选股"
       bannerTitle="策略选股"
       bannerDescription={(
@@ -455,9 +468,18 @@ function ScanPage() {
               rows={rows}
               columns={columns}
               loading={loading}
+              getRowHeight={() => 'auto'}
               slots={NTQ_DATA_GRID_LOADING_SLOTS}
               localeText={zhCN}
               disableRowSelectionOnClick
+              sx={{
+                '& .MuiDataGrid-cell': {
+                  py: 1.25,
+                  alignItems: 'flex-start',
+                  whiteSpace: 'normal',
+                  lineHeight: 1.5,
+                },
+              }}
               pageSizeOptions={[10]}
               initialState={{
                 pagination: { paginationModel: { page: 0, pageSize: 10 } },

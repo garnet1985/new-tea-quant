@@ -9,6 +9,10 @@ from typing import Any, Dict, List
 
 from core.modules.data_contract.contract_const import DataKey
 from core.modules.market_profile.constants import DEFAULT_PROFILE_ID
+from core.modules.data_contract.kline_keys import (
+    STOCK_KLINE_DATA_ID_VALUES,
+    kline_term_from_data_id_value,
+)
 
 from .goal_settings import StrategyGoalSettings
 from .simulation_settings import StrategySimulationSettings
@@ -17,8 +21,11 @@ from .simulation_settings import StrategySimulationSettings
 class StrategySettingsView:
     def __init__(self, settings_dict: Dict[str, Any]):
         self._settings = settings_dict
-        self.name = settings_dict.get("name", "unknown")
-        self.description = settings_dict.get("description", "")
+        meta = settings_dict.get("meta") if isinstance(settings_dict.get("meta"), dict) else {}
+        self.display_name = str(meta.get("display_name") or "").strip()
+        self.description = str(meta.get("description") or "").strip()
+        self.keywords = list(meta.get("keywords") or []) if isinstance(meta.get("keywords"), list) else []
+        self.name = self.display_name or "unknown"
         self.is_enabled = settings_dict.get("is_enabled", False)
         self.core = settings_dict.get("core", {})
         self.data = settings_dict.get("data", {})
@@ -53,6 +60,14 @@ class StrategySettingsView:
         return self.goal_settings.stock_status_risk
 
     @staticmethod
+    def normalize_indicators(raw: Any) -> Dict[str, Any]:
+        if raw is None:
+            return {}
+        if not isinstance(raw, dict):
+            raise ValueError("indicators 必须为 dict")
+        return dict(raw)
+
+    @staticmethod
     def normalize_base_required_data(raw: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(raw, dict):
             raise ValueError("data.base_required_data 必须为 dict")
@@ -64,20 +79,17 @@ class StrategySettingsView:
 
         raw_id = raw.get("data_id")
         if raw_id is None or (isinstance(raw_id, str) and not raw_id.strip()):
-            data_id = DataKey.STOCK_KLINE.value
+            data_id = DataKey.STOCK_KLINE_DAILY.value
         else:
             data_id = str(raw_id).strip()
-            if data_id != DataKey.STOCK_KLINE.value:
+            if data_id not in STOCK_KLINE_DATA_ID_VALUES:
                 raise ValueError(
-                    f"data.base_required_data.data_id 只能为 {DataKey.STOCK_KLINE.value!r} 或省略；"
-                    "周期与复权请用 params.term / params.adjust"
+                    "data.base_required_data.data_id 须为 "
+                    f"{DataKey.STOCK_KLINE_DAILY.value!r}、"
+                    f"{DataKey.STOCK_KLINE_WEEKLY.value!r} 或 "
+                    f"{DataKey.STOCK_KLINE_MONTHLY.value!r}；"
+                    f"收到 {data_id!r}"
                 )
-
-        term = params.get("term")
-        if term is None or (isinstance(term, str) and not term.strip()):
-            raise ValueError(
-                "data.base_required_data.params 必须提供非空的 term（如 daily / weekly / monthly）"
-            )
 
         merged = dict(params)
         if "adjust" not in merged or (
@@ -86,7 +98,11 @@ class StrategySettingsView:
         ):
             merged["adjust"] = "qfq"
 
-        return {"data_id": data_id, "params": merged}
+        return {
+            "data_id": data_id,
+            "params": merged,
+            "indicators": StrategySettingsView.normalize_indicators(raw.get("indicators")),
+        }
 
     @staticmethod
     def normalize_extra_required_data_item(item: Dict[str, Any]) -> Dict[str, Any]:
@@ -103,24 +119,31 @@ class StrategySettingsView:
         elif not isinstance(params, dict):
             raise ValueError("数据源 params 必须为 dict")
 
-        if data_id == DataKey.STOCK_KLINE.value:
-            term = params.get("term")
-            if term is None or (isinstance(term, str) and not term.strip()):
-                raise ValueError(
-                    f"data_id 为 {DataKey.STOCK_KLINE.value} 时 params 必须提供非空的 term"
-                )
+        if data_id in STOCK_KLINE_DATA_ID_VALUES:
             merged = dict(params)
             if "adjust" not in merged or (
                 isinstance(merged.get("adjust"), str)
                 and not str(merged.get("adjust")).strip()
             ):
                 merged["adjust"] = "qfq"
-            return {"data_id": data_id, "params": merged}
+            return {
+                "data_id": data_id,
+                "params": merged,
+                "indicators": StrategySettingsView.normalize_indicators(item.get("indicators")),
+            }
 
-        return {"data_id": data_id, "params": dict(params)}
+        return {
+            "data_id": data_id,
+            "params": dict(params),
+            "indicators": StrategySettingsView.normalize_indicators(item.get("indicators")),
+        }
 
     @staticmethod
     def validate_data_config(data: Dict[str, Any]) -> None:
+        if "indicators" in data:
+            raise ValueError(
+                "data.indicators 已移除；请在 base_required_data 或 extra_required_data_sources 各项上声明 indicators"
+            )
         base = data.get("base_required_data")
         if not isinstance(base, dict):
             raise ValueError("data.base_required_data 必须为 dict")
@@ -178,12 +201,26 @@ class StrategySettingsView:
 
     @property
     def indicators(self) -> Dict[str, Any]:
-        return self.data.get("indicators", {}) or {}
+        """Base K 线 slot 上的 indicators（Workbench 图表等）。"""
+        return self.normalize_indicators(self.base_required_data.get("indicators"))
 
     @property
     def tag_storage_entity_type(self) -> str:
         p = self.resolved_base_required_data.get("params") or {}
-        return str(p.get("tag_storage_entity_type", "stock_kline_daily"))
+        explicit = str(p.get("tag_storage_entity_type") or "").strip()
+        if explicit:
+            return explicit
+        data_id = str(self.resolved_base_required_data.get("data_id") or "").strip()
+        if data_id in STOCK_KLINE_DATA_ID_VALUES:
+            return f"stock_kline_{kline_term_from_data_id_value(data_id)}"
+        return "stock_kline_daily"
+
+    @property
+    def base_kline_term(self) -> str:
+        data_id = str(self.resolved_base_required_data.get("data_id") or "").strip()
+        if data_id in STOCK_KLINE_DATA_ID_VALUES:
+            return kline_term_from_data_id_value(data_id)
+        return "daily"
 
     @property
     def start_date(self) -> str:

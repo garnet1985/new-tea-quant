@@ -38,3 +38,30 @@ def test_stage_entities_batch_bulk_io():
     assert set(out.keys()) == {"000001", "000002"}
     assert out["000001"]["prior_tag_values"]["1"] == "true"
     assert "stock.kline.daily" in out["000001"]["slot_data"]
+
+
+def test_stage_entities_batch_moneyflow_only():
+    entities = [
+        {"entity_id": "603716.SH", "start_date": "20250101", "end_date": "20250110"},
+    ]
+    settings = {
+        "data": {
+            "required": [
+                {"data_id": "stock.moneyflow.daily", "params": {}},
+            ]
+        }
+    }
+    from core.modules.data_manager import DataManager
+
+    dm = DataManager(is_verbose=False)
+    out = stage_entities_batch(
+        data_mgr=dm,
+        entities=entities,
+        settings=settings,
+        tag_definition_ids=[8],
+    )
+    eid = "603716.SH"
+    assert eid in out
+    assert "stock.moneyflow.daily" in out[eid]["slot_data"]
+    assert len(out[eid]["slot_data"]["stock.moneyflow.daily"]) > 0
+    assert len(out[eid]["trading_dates"]) > 0

@@ -15,6 +15,7 @@ class DataKey(str, Enum):
     STOCK_ADJ_FACTOR_EVENTS = 'stock.adj_factor.eventlog'
     STOCK_CORPORATE_FINANCE = 'stock.finance.quarterly'
     STOCK_INDICATORS_DAILY = 'stock.indicators.daily'
+    STOCK_MONEYFLOW_DAILY = 'stock.moneyflow.daily'
     INDEX_LIST = 'index.list'
     INDEX_KLINE_DAILY = 'index.kline.daily'
     INDEX_WEIGHT_DAILY = 'index.weight.daily'

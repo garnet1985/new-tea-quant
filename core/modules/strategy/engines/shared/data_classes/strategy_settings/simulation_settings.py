@@ -48,6 +48,12 @@ class ExtremeSameBarOrder(str, Enum):
 
 
 NoNextBarPolicy = Literal["use_last_close", "skip_trade", "unfinished"]
+SimulationExecutionMode = Literal["entity_timeline", "calendar_slice"]
+
+DEFAULT_SIMULATION_EXECUTION_MODE: SimulationExecutionMode = "entity_timeline"
+DEFAULT_SLICE_OPEN_DAYS = 63
+MIN_SLICE_OPEN_DAYS = 5
+MAX_SLICE_OPEN_DAYS = 252
 
 PRESET_SIMULATION_TEMPLATE_NAMES = frozenset({"standard", "strict", "ideal", "extreme"})
 KNOWN_SIMULATION_TEMPLATES = PRESET_SIMULATION_TEMPLATE_NAMES | frozenset({"custom"})
@@ -476,6 +482,65 @@ class StrategySimulationSettings(SettingsBase):
     def participation_on_exceed(self) -> ParticipationOnExceed:
         return self._parsed.participation_on_exceed
 
+    @property
+    def execution_mode(self) -> SimulationExecutionMode:
+        raw = self.simulation.get("execution_mode")
+        if raw is None or str(raw).strip() == "":
+            return DEFAULT_SIMULATION_EXECUTION_MODE
+        mode = str(raw).strip().lower()
+        if mode in ("entity_timeline", "calendar_slice"):
+            return mode  # type: ignore[return-value]
+        raise ValueError(
+            f"simulation.execution_mode 非法: {raw!r}；允许 entity_timeline | calendar_slice"
+        )
+
+    @property
+    def slice_open_days(self) -> int:
+        raw = self.simulation.get("slice_open_days")
+        if raw is None or raw == "":
+            return DEFAULT_SLICE_OPEN_DAYS
+        try:
+            return int(raw)
+        except (TypeError, ValueError) as e:
+            raise ValueError("simulation.slice_open_days 须为整数") from e
+
+    def _validate_execution_mode(self, result: ValidationReport) -> None:
+        try:
+            _ = self.execution_mode
+        except ValueError as exc:
+            SettingsBase.add_critical(result, "simulation.execution_mode", str(exc))
+
+    def _validate_slice_open_days(self, result: ValidationReport) -> None:
+        try:
+            mode = self.execution_mode
+        except ValueError:
+            return
+        if mode != "calendar_slice":
+            if "slice_open_days" in self.simulation:
+                SettingsBase.add_warning(
+                    result,
+                    "simulation.slice_open_days",
+                    "仅 calendar_slice 模式使用 slice_open_days；当前 execution_mode 为 entity_timeline，该字段将被忽略",
+                )
+            return
+        try:
+            days = self.slice_open_days
+        except ValueError as exc:
+            SettingsBase.add_critical(result, "simulation.slice_open_days", str(exc))
+            return
+        if days < MIN_SLICE_OPEN_DAYS:
+            SettingsBase.add_critical(
+                result,
+                "simulation.slice_open_days",
+                f"slice_open_days 不能小于 {MIN_SLICE_OPEN_DAYS}（当前 {days}）",
+            )
+        if days > MAX_SLICE_OPEN_DAYS:
+            SettingsBase.add_critical(
+                result,
+                "simulation.slice_open_days",
+                f"slice_open_days 不能大于 {MAX_SLICE_OPEN_DAYS}（当前 {days}）",
+            )
+
     def _validate_liquidity(self, result: ValidationReport) -> None:
         try:
             tmpl = canonical_simulation_template_id(self.simulation.get("template", "standard"))
@@ -556,6 +621,8 @@ class StrategySimulationSettings(SettingsBase):
             self._validate_preset_template_no_detail_overrides(result)
         self.apply_defaults()
         self._validate_removed_edge_keys(result)
+        self._validate_execution_mode(result)
+        self._validate_slice_open_days(result)
         self._validate_liquidity(result)
         self._validate_skip_investment_when(result)
         try:
@@ -571,11 +638,16 @@ class StrategySimulationSettings(SettingsBase):
 
 
 __all__ = [
+    "DEFAULT_SIMULATION_EXECUTION_MODE",
+    "DEFAULT_SLICE_OPEN_DAYS",
     "ExtremeSameBarOrder",
     "KNOWN_SIMULATION_TEMPLATES",
+    "MAX_SLICE_OPEN_DAYS",
+    "MIN_SLICE_OPEN_DAYS",
     "MonitorPriceModel",
     "NoNextBarPolicy",
     "PRESET_SIMULATION_TEMPLATE_NAMES",
+    "SimulationExecutionMode",
     "StrategySimulationSettings",
     "TradePriceModel",
     "canonical_simulation_template_id",

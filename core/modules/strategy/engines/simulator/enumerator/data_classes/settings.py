@@ -70,6 +70,12 @@ class OpportunityEnumeratorSettings:
         max_workers = enumerator.get("max_workers", "auto")
         self.max_workers = max_workers
         self.is_verbose = bool(enumerator.get("is_verbose", False))
+        self.calendar_progress_mode = str(
+            enumerator.get("calendar_progress_mode") or "open_date"
+        ).strip().lower()
+        self.entity_progress_mode = str(
+            enumerator.get("entity_progress_mode") or "stock"
+        ).strip().lower()
 
         simulator = dict(settings.get("price_simulator") or {})
         raw_goal = settings.get("goal")
@@ -91,4 +97,8 @@ class OpportunityEnumeratorSettings:
         merged["enumerator"].pop("max_test_versions", None)
         merged["enumerator"]["max_workers"] = self.max_workers
         merged["enumerator"]["is_verbose"] = self.is_verbose
+        if self.calendar_progress_mode:
+            merged["enumerator"]["calendar_progress_mode"] = self.calendar_progress_mode
+        if self.entity_progress_mode:
+            merged["enumerator"]["entity_progress_mode"] = self.entity_progress_mode
         return merged

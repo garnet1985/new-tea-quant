@@ -1,5 +1,5 @@
 name: modules.strategy
-version: 0.4.1
+version: 0.5.0
 compatible_core_versions: ">=0.4.1"
 description: "策略执行主模块：StrategyManager 统一 orchestrate scan/simulate，engines 承载 scanner/enumerator/price_factor/capital_allocation/analyzer，services 提供 discovery/data/artifacts/validation 能力。"
 dependencies:
@@ -12,6 +12,9 @@ dependencies:
   - infra.job_pipeline
   - infra.worker
 changelog:
+  - version: "0.5.0"
+    changes:
+      - 支持多股并行的切片式回测
   - version: "0.4.1"
     changes:
       - 模拟产物 latest 按数字 id 解析（enum/price/capital），修复字典序导致引用旧枚举目录、env_fp 与 DbCache 错位

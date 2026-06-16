@@ -321,6 +321,16 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         for job in jobs:
             job["market_profile_id"] = mp_id
             job["backtest_calendar"] = calendar_dict
+        from core.modules.strategy.engines.simulator.enumerator.progress import (
+            enrich_entity_dispatch_jobs,
+        )
+
+        enrich_entity_dispatch_jobs(
+            jobs,
+            settings_payload=probe.settings_payload,
+            workbench_strategy_name=self._impl.workbench_strategy_name,
+            workbench_run_id=self._impl.workbench_run_id,
+        )
         result_fingerprint = self._impl.build_request_fingerprint(
             strategy_name=probe.strategy_name,
             settings_payload=probe.settings_for_fingerprint,

@@ -16,6 +16,10 @@ _LAZY_EXPORTS: dict[str, Tuple[str, str]] = {
         ".opportunity_enumerator_flow",
         "OpportunityEnumeratorFlow",
     ),
+    "CalendarSliceEnumeratorFlow": (
+        ".calendar_slice.flow",
+        "CalendarSliceEnumeratorFlow",
+    ),
     "OpportunityEnumeratorWorker": (".worker", "OpportunityEnumeratorWorker"),
     "OpportunityEnumeratorSettings": (
         ".data_classes",

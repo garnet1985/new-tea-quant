@@ -40,31 +40,30 @@ Pro版本：
 
 ---
 
-### upcoming releases (0.8.x)
+### upcoming releases (0.9.x)
 目标：加强adapter
 
 ---
 
 ---
 
-### upcoming releases (0.7.x)
+### upcoming releases (0.8.x)
 目标：加强分析系统
 - 集成基本数据分析
 - 增加常用统计/金融/分析工具箱
 
 ---
 
----
-
-### upcoming releases (0.6.x)
+### upcoming releases (0.7.x)
 目标：工程可持续性演进
 - UI一键升级
 
 ---
 
+
 ---
 
-### upcoming releases (0.5.x)
+### upcoming releases (0.6.x)
 
 目标：增加决策者模式
 - 新加决策者模式
@@ -76,8 +75,19 @@ Pro版本：
 
 ---
 
+### upcoming releases (0.5.x)
+
+目标：增加切片回测模式
+- 切片模式引入strategy和tag模块
+- 多进程优化切片回测模式的效率
+- 增加切片模式的demo策略
+
+---
+
+---
+
 目标：降低使用认知成本
-### upcoming releases (0.4.x)
+### upcoming releases (0.4.x) ✅ 已完成
 - 引入duckdb，消除数据库安装成本
 - 增加report里K线的点击界面
 - 为新版本的更新增加清除缓存的步骤

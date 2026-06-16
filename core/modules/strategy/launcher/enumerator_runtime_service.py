@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from core.modules.data_manager import DataManager
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
@@ -24,7 +24,12 @@ from core.modules.strategy.engines.simulator.enumerator import (
     OpportunityEnumeratorFlow,
     OpportunityEnumeratorSettings,
 )
+from core.modules.strategy.engines.simulator.enumerator.calendar_slice import (
+    CalendarSliceEnumeratorFlow,
+)
 from .run_service import StrategyFingerprintManager
+
+
 def _stock_ids_for_enumerator_view(
     *,
     strategy_name: str,
@@ -64,7 +69,7 @@ class EnumeratorRuntimeContext:
     stock_list: List[str]
     start_date: str
     end_date: str
-    flow: OpportunityEnumeratorFlow
+    flow: Union[OpportunityEnumeratorFlow, CalendarSliceEnumeratorFlow]
 
 
 class EnumeratorRuntimeService:
@@ -109,7 +114,8 @@ class EnumeratorRuntimeService:
         )
         start_date = period.start_date
         end_date = period.end_date
-        flow = OpportunityEnumeratorFlow(
+        execution_mode = settings_view.simulation_settings.execution_mode
+        flow_kwargs = dict(
             start_date=start_date,
             end_date=end_date,
             stock_list=stock_list,
@@ -120,6 +126,10 @@ class EnumeratorRuntimeService:
             force_refresh=force_refresh,
             backtest_period=backtest_period_to_dict(period),
         )
+        if execution_mode == "calendar_slice":
+            flow = CalendarSliceEnumeratorFlow(**flow_kwargs)
+        else:
+            flow = OpportunityEnumeratorFlow(**flow_kwargs)
         return EnumeratorRuntimeContext(
             strategy_name=strategy_name,
             strategy_info=strategy_info,

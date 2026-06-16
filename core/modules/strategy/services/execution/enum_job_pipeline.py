@@ -16,6 +16,7 @@ from .stock_job_pipeline import (
 
 __all__ = [
     "build_enumeration_payload",
+    "calendar_progress_units_from_execute_report",
     "count_progress_units_from_job_result",
     "execute_enumeration_job",
     "expand_bulk_job_results",
@@ -55,6 +56,22 @@ def build_enumeration_payload(
             payload["stock_id"] = stock_ids[0]
     else:
         payload["stock_id"] = job["stock_id"]
+    mode = job.get("enumeration_execution_mode")
+    if mode:
+        payload["enumeration_execution_mode"] = mode
+    if "slice_open_days" in job:
+        payload["slice_open_days"] = job["slice_open_days"]
+    for key in (
+        "calendar_progress_mode",
+        "calendar_progress_total",
+        "progress_axis",
+        "entity_progress_mode",
+        "entity_progress_total",
+        "workbench_strategy_name",
+        "workbench_run_id",
+    ):
+        if key in job and job.get(key) not in (None, ""):
+            payload[key] = job[key]
     return payload
 
 
@@ -113,9 +130,6 @@ def expand_bulk_job_results(job_results: List[Any]) -> List[Any]:
 
 def execute_enumeration_job(context: JobContext) -> Dict[str, Any]:
     """子进程执行入口（模块级，spawn 可 pickle）。"""
-    from core.modules.strategy.engines.simulator.enumerator.worker import (
-        run_enumeration_payload,
-    )
     from core.modules.strategy.services.execution.worker_runtime import (
         bootstrap_strategy_worker_data_manager,
         release_strategy_worker_runtime,
@@ -123,9 +137,33 @@ def execute_enumeration_job(context: JobContext) -> Dict[str, Any]:
 
     bootstrap_strategy_worker_data_manager()
     try:
-        return run_enumeration_payload(context.payload)
+        payload = context.payload
+        if payload.get("enumeration_execution_mode") == "calendar_slice":
+            from core.modules.strategy.engines.simulator.enumerator.calendar_slice.worker import (
+                run_calendar_slice_enumeration_payload,
+            )
+
+            return run_calendar_slice_enumeration_payload(payload)
+        from core.modules.strategy.engines.simulator.enumerator.worker import (
+            run_enumeration_payload,
+        )
+
+        return run_enumeration_payload(payload)
     finally:
         release_strategy_worker_runtime()
+
+
+def calendar_progress_units_from_execute_report(report: Any) -> Tuple[int, int, int]:
+    """calendar_slice 单 job 完成时按 slice/open_date 计进度单位。"""
+    data = getattr(report, "data", None) or {}
+    if isinstance(data, dict):
+        cal = data.get("calendar_progress") or {}
+        total = int(cal.get("total") or 0)
+        if total > 0:
+            ok = total if data.get("success") else 0
+            fail = 0 if data.get("success") else total
+            return ok + fail, ok, fail
+    return _progress_units_from_execute_report(report)
 
 
 def run_enumeration_jobs_via_pipeline(
@@ -141,6 +179,9 @@ def run_enumeration_jobs_via_pipeline(
     on_job_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
     log_progress: bool = True,
     duckdb_data_mgr: Any = None,
+    progress_units_from_report: Optional[
+        Callable[[Any], Tuple[int, int, int]]
+    ] = None,
 ) -> List[Any]:
     """
     对 dispatch jobs 跑 JobPipeline（QUEUE + PROCESS）。
@@ -161,7 +202,8 @@ def run_enumeration_jobs_via_pipeline(
         log_progress=log_progress,
         progress_log_label="enum",
         job_id_fn=_dispatch_job_id,
-        progress_units_from_report=_progress_units_from_execute_report,
+        progress_units_from_report=progress_units_from_report
+        or _progress_units_from_execute_report,
         worker_profile=WorkerProfiles.ENUMERATOR,
         duckdb_data_mgr=duckdb_data_mgr,
     )

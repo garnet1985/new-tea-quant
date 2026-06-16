@@ -785,6 +785,17 @@ class EnumeratorReport(ReportBase):
         print(f"📋 {label} 策略 · 机会枚举")
         print(sep)
         print(f"✅ 枚举完成 · 共 {total_opps} 条机会")
+        if summary_results:
+            try:
+                elapsed = float(summary_results[0].get("elapsed_seconds") or 0)
+            except (TypeError, ValueError):
+                elapsed = 0.0
+            if elapsed > 0:
+                from core.modules.strategy.engines.simulator.enumerator.live_progress import (
+                    format_elapsed_seconds,
+                )
+
+                print(f"⏱️ 总耗时: {format_elapsed_seconds(elapsed)}")
         if not summary_results:
             return
         print("")

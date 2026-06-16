@@ -8,6 +8,9 @@ from typing import Any, Dict, Optional
 
 from core.modules.strategy.base_strategy_worker import BaseStrategyWorker
 from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
+from core.modules.strategy.engines.simulator.enumerator.calendar_slice.types import (
+    CalendarAsOfContext,
+)
 
 
 class _HelperProbeWorker(BaseStrategyWorker):
@@ -75,6 +78,36 @@ class TestWorkerScanHelpers(unittest.TestCase):
         self.assertEqual(opp.record_of_today, record_of_today)
         self.assertEqual(opp.stock["id"], "000001.SZ")
         self.assertEqual(opp.extra_fields, {"tag": 1})
+
+    def test_on_calendar_asof_default_selects_all_stocks(self):
+        worker = _HelperProbeWorker(
+            {
+                "stock_id": "000001.SZ",
+                "execution_mode": "scan",
+                "strategy_name": "probe",
+                "settings": {
+                    "is_enabled": True,
+                    "meta": {"display_name": "probe"},
+                    "core": {},
+                    "data": {"base_required_data": {"data_id": "stock.kline.daily", "params": {"adjust": "qfq"}}},
+                },
+                "scan_date": "20240102",
+            }
+        )
+        ctx = CalendarAsOfContext(
+            as_of_date="20240102",
+            slice_id="slice_0",
+            slice_open_days=63,
+            window_start="20240102",
+            window_end="20240131",
+            stocks={"000001.SZ": {"klines": []}, "000002.SZ": {"klines": []}},
+            carry={},
+            open_date_index=0,
+            is_first_open_of_month=True,
+            is_last_open_of_month=False,
+        )
+        result = worker.on_calendar_asof(ctx, worker.settings.to_dict())
+        self.assertEqual(result.selected_stock_ids, ["000001.SZ", "000002.SZ"])
 
 
 if __name__ == "__main__":

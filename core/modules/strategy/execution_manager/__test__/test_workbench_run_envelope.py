@@ -68,3 +68,37 @@ def test_get_run_progress_merges_enum_sidecar_without_regressing_to_one(tmp_path
     assert enum_step["status"] == "running"
     assert float(enum_step["progress"]) >= 40.0
     assert packed["run_progress"]["pct"] >= 40.0
+
+
+def test_get_run_progress_merges_enum_sidecar_from_worker(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        ProgressRecorder,
+        "build_path",
+        staticmethod(lambda channel, file_key: tmp_path / channel / f"{file_key}.json"),
+    )
+    sn, jid = "demo_strategy", "job-sidecar"
+    seed_workbench_run_envelope(sn, jid, [("enum", False)])
+    run_envelope_mark_started(sn, jid)
+    run_envelope_apply_step_stage(sn, jid, "enum", "dispatch", 1.0)
+
+    ProgressRecorder.for_strategy_run_step(sn, jid, "enum").record(
+        {
+            "strategy_name": sn,
+            "run_id": jid,
+            "step_name": "enum",
+            "phase": "running",
+            "progress_pct": 60,
+            "done_jobs": 120,
+            "total_jobs": 200,
+            "calendar_progress_mode": "open_date",
+        }
+    )
+
+    packed = get_run_progress(strategy_name=sn, job_id=jid)
+    assert packed is not None
+    enum_step = next(r for r in packed["steps"] if r["step_name"] == "enum")
+    assert enum_step["status"] == "running"
+    assert enum_step["stage"] == "execute"
+    assert enum_step["counters"] == {"done": 120, "total": 200}
+    assert float(enum_step["progress"]) > 50.0
+    assert float(packed["run_progress"]["pct"]) > 50.0

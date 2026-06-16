@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from core.modules.strategy.engines.simulator.enumerator.dispatch_jobs import (
+from core.modules.strategy.engines.simulator.enumerator.stock_based.dispatch_jobs import (
     chunk_stock_ids,
     dispatch_job_id,
 )

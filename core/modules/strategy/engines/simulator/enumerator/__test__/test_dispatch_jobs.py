@@ -1,5 +1,5 @@
 """dispatch job 分组。"""
-from core.modules.strategy.engines.simulator.enumerator.dispatch_jobs import (
+from core.modules.strategy.engines.simulator.enumerator.stock_based.dispatch_jobs import (
     build_dispatch_jobs,
     chunk_stock_ids,
     count_stocks_in_dispatch_jobs,

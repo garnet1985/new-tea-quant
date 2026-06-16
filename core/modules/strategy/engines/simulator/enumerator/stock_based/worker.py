@@ -76,7 +76,7 @@ def enumeration_actual_start_date(start_date: str, min_required_records: int) ->
         return start_date
 
 
-class OpportunityEnumeratorWorker:
+class StockBasedEnumeratorWorker:
     def __init__(
         self,
         job_payload: Dict[str, Any],
@@ -89,7 +89,7 @@ class OpportunityEnumeratorWorker:
         self.job_payload = job_payload
         self.stock_id = str(stock_id or job_payload.get("stock_id") or "").strip()
         if not self.stock_id:
-            raise ValueError("OpportunityEnumeratorWorker 缺少 stock_id")
+            raise ValueError("StockBasedEnumeratorWorker 缺少 stock_id")
         self._fresh_strategy_cache = bool(fresh_strategy_cache)
         self._job_contract_batch = job_contract_batch
         self.strategy_name = job_payload["strategy_name"]
@@ -604,7 +604,7 @@ def run_enumeration_payload(job_payload: Dict[str, Any]) -> Dict[str, Any]:
         sid = str(job_payload.get("stock_id") or (stock_ids or [None])[0] or "").strip()
         single = dict(job_payload)
         single["stock_id"] = sid
-        return OpportunityEnumeratorWorker(single).run()
+        return StockBasedEnumeratorWorker(single).run()
 
     ids = [str(s).strip() for s in stock_ids if str(s).strip()]
     if not ids:
@@ -631,9 +631,9 @@ def run_enumeration_payload(job_payload: Dict[str, Any]) -> Dict[str, Any]:
     for sid in ids:
         sub_payload = dict(job_payload)
         sub_payload["stock_id"] = sid
-        worker: Optional[OpportunityEnumeratorWorker] = None
+        worker: Optional[StockBasedEnumeratorWorker] = None
         try:
-            worker = OpportunityEnumeratorWorker(
+            worker = StockBasedEnumeratorWorker(
                 sub_payload,
                 stock_id=sid,
                 contract_cache=shared_cache,
@@ -671,7 +671,7 @@ def run_enumeration_payload(job_payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 __all__ = [
-    "OpportunityEnumeratorWorker",
+    "StockBasedEnumeratorWorker",
     "enumeration_actual_start_date",
     "run_enumeration_payload",
 ]

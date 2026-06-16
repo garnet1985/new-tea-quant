@@ -12,7 +12,7 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_vi
 
 
 @dataclass
-class OpportunityEnumeratorSettings:
+class EnumeratorSettings:
     strategy_name: str
     raw: Dict[str, Any]
     data: Dict[str, Any] = field(init=False)
@@ -27,11 +27,11 @@ class OpportunityEnumeratorSettings:
         self._normalize_views()
 
     @classmethod
-    def from_raw(cls, strategy_name: str, settings_dict: Dict[str, Any]) -> "OpportunityEnumeratorSettings":
+    def from_raw(cls, strategy_name: str, settings_dict: Dict[str, Any]) -> "EnumeratorSettings":
         return cls(strategy_name=strategy_name, raw=settings_dict)
 
     @classmethod
-    def from_base(cls, base_settings: StrategySettingsView) -> "OpportunityEnumeratorSettings":
+    def from_base(cls, base_settings: StrategySettingsView) -> "EnumeratorSettings":
         return cls(strategy_name=base_settings.name, raw=base_settings.to_dict())
 
     def _normalize_views(self) -> None:
@@ -70,6 +70,12 @@ class OpportunityEnumeratorSettings:
         max_workers = enumerator.get("max_workers", "auto")
         self.max_workers = max_workers
         self.is_verbose = bool(enumerator.get("is_verbose", False))
+        self.calendar_progress_mode = str(
+            enumerator.get("calendar_progress_mode") or "open_date"
+        ).strip().lower()
+        self.entity_progress_mode = str(
+            enumerator.get("entity_progress_mode") or "stock"
+        ).strip().lower()
 
         simulator = dict(settings.get("price_simulator") or {})
         raw_goal = settings.get("goal")
@@ -89,6 +95,11 @@ class OpportunityEnumeratorSettings:
             merged["enumerator"] = {}
         merged["enumerator"].pop("use_sampling", None)
         merged["enumerator"].pop("max_test_versions", None)
+        merged["enumerator"].pop("calendar_slice", None)
         merged["enumerator"]["max_workers"] = self.max_workers
         merged["enumerator"]["is_verbose"] = self.is_verbose
+        if self.calendar_progress_mode:
+            merged["enumerator"]["calendar_progress_mode"] = self.calendar_progress_mode
+        if self.entity_progress_mode:
+            merged["enumerator"]["entity_progress_mode"] = self.entity_progress_mode
         return merged

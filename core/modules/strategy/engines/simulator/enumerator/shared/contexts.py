@@ -14,7 +14,7 @@ from core.modules.strategy.launcher.run_types import (
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.simulation_settings import (
     StrategySimulationSettings,
 )
-from .settings import OpportunityEnumeratorSettings
+from .settings import EnumeratorSettings
 
 
 @dataclass
@@ -24,7 +24,7 @@ class EnumeratorProbeContext:
     strategy_name: str
     market_profile: "MarketProfileContext"
     simulation_settings: StrategySimulationSettings
-    enum_settings: OpportunityEnumeratorSettings
+    enum_settings: EnumeratorSettings
     settings_payload: Dict[str, Any]
     settings_for_fingerprint: Dict[str, Any]
     full_settings_snapshot_api: Dict[str, Any]
@@ -37,7 +37,7 @@ class EnumeratorPreprocessContext:
     strategy_name: str
     market_profile: Optional["MarketProfileContext"] = None
     simulation_settings: Optional[StrategySimulationSettings] = None
-    enum_settings: Optional[OpportunityEnumeratorSettings] = None
+    enum_settings: Optional[EnumeratorSettings] = None
     # Full validated strategy settings (API shape) for DB snapshot rows.
     full_settings_snapshot_api: Optional[Dict[str, Any]] = None
     settings_payload: Optional[Dict[str, Any]] = None

@@ -600,7 +600,7 @@ def _build_stock_enum_report_metrics(
     output_dir: Path,
 ) -> Dict[str, Any]:
     """单股枚举报告指标，与 ``EnumeratorReport.to_bff_payload`` 的 ``enumMetrics`` 同形。"""
-    from core.modules.strategy.engines.simulator.enumerator.data_classes.report import (
+    from core.modules.strategy.engines.simulator.enumerator.shared.report import (
         EnumeratorReport,
     )
 

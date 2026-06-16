@@ -48,6 +48,12 @@ class ExtremeSameBarOrder(str, Enum):
 
 
 NoNextBarPolicy = Literal["use_last_close", "skip_trade", "unfinished"]
+SimulationExecutionMode = Literal["entity_timeline", "calendar_slice"]
+
+DEFAULT_SIMULATION_EXECUTION_MODE: SimulationExecutionMode = "entity_timeline"
+DEFAULT_SLICE_OPEN_DAYS = 63
+MIN_SLICE_OPEN_DAYS = 5
+MAX_SLICE_OPEN_DAYS = 252
 
 PRESET_SIMULATION_TEMPLATE_NAMES = frozenset({"standard", "strict", "ideal", "extreme"})
 KNOWN_SIMULATION_TEMPLATES = PRESET_SIMULATION_TEMPLATE_NAMES | frozenset({"custom"})
@@ -73,6 +79,14 @@ _SIMULATION_DETAIL_KEYS = frozenset(
         "participation_on_exceed",
     }
 )
+
+# calendar_slice 调度参数不属于 simulation；误写时报 critical
+_SIMULATION_FORBIDDEN_KEYS: Dict[str, str] = {
+    "slice_open_days": "calendar_slice 片宽由运行时 auto 决定，不可在 simulation 配置",
+    "slice_steps": "calendar_slice 片步数由运行时 auto 决定，不可在 simulation 配置",
+    "slice_length": "calendar_slice 片长度由运行时 auto 决定，不可在 simulation 配置",
+    "min_required_records": "应配置在 data.min_required_records",
+}
 
 
 @dataclass(frozen=True)
@@ -476,6 +490,36 @@ class StrategySimulationSettings(SettingsBase):
     def participation_on_exceed(self) -> ParticipationOnExceed:
         return self._parsed.participation_on_exceed
 
+    @property
+    def execution_mode(self) -> SimulationExecutionMode:
+        raw = self.simulation.get("execution_mode")
+        if raw is None or str(raw).strip() == "":
+            return DEFAULT_SIMULATION_EXECUTION_MODE
+        mode = str(raw).strip().lower()
+        if mode in ("entity_timeline", "calendar_slice"):
+            return mode  # type: ignore[return-value]
+        raise ValueError(
+            f"simulation.execution_mode 非法: {raw!r}；允许 entity_timeline | calendar_slice"
+        )
+
+    @property
+    def slice_open_days(self) -> int:
+        raise AttributeError(
+            "simulation.slice_open_days 不可配置；calendar_slice 片宽由运行时 planner 决定"
+        )
+
+    def _validate_execution_mode(self, result: ValidationReport) -> None:
+        try:
+            _ = self.execution_mode
+        except ValueError as exc:
+            SettingsBase.add_critical(result, "simulation.execution_mode", str(exc))
+
+    def _validate_forbidden_simulation_keys(self, result: ValidationReport) -> None:
+        for key, message in _SIMULATION_FORBIDDEN_KEYS.items():
+            if key not in self.simulation:
+                continue
+            SettingsBase.add_critical(result, f"simulation.{key}", message)
+
     def _validate_liquidity(self, result: ValidationReport) -> None:
         try:
             tmpl = canonical_simulation_template_id(self.simulation.get("template", "standard"))
@@ -554,8 +598,10 @@ class StrategySimulationSettings(SettingsBase):
             return result
         if isinstance(sim, dict):
             self._validate_preset_template_no_detail_overrides(result)
+            self._validate_forbidden_simulation_keys(result)
         self.apply_defaults()
         self._validate_removed_edge_keys(result)
+        self._validate_execution_mode(result)
         self._validate_liquidity(result)
         self._validate_skip_investment_when(result)
         try:
@@ -571,11 +617,16 @@ class StrategySimulationSettings(SettingsBase):
 
 
 __all__ = [
+    "DEFAULT_SIMULATION_EXECUTION_MODE",
+    "DEFAULT_SLICE_OPEN_DAYS",
     "ExtremeSameBarOrder",
     "KNOWN_SIMULATION_TEMPLATES",
+    "MAX_SLICE_OPEN_DAYS",
+    "MIN_SLICE_OPEN_DAYS",
     "MonitorPriceModel",
     "NoNextBarPolicy",
     "PRESET_SIMULATION_TEMPLATE_NAMES",
+    "SimulationExecutionMode",
     "StrategySimulationSettings",
     "TradePriceModel",
     "canonical_simulation_template_id",

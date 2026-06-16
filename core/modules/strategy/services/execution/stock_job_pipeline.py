@@ -113,7 +113,7 @@ def run_stock_jobs_via_pipeline(
     results: List[JobResult] = []
     reported_ids: set[str] = set()
     progress_meta = {"last_job_id": "", "last_job_status": ""}
-    log_state = {"last_pct": -1, "last_log_at": time.time(), "last_done": 0}
+    log_state = {"last_pct": -1, "last_log_at": time.time(), "last_done": 0, "started_at": time.time()}
 
     if on_job_progress is not None and total_jobs > 0:
         on_job_progress(
@@ -150,14 +150,16 @@ def run_stock_jobs_via_pipeline(
             or pct >= log_state["last_pct"] + 5
         )
         if should_log:
+            elapsed = max(0.0, now - float(log_state["started_at"]))
             logger.info(
-                "[%s] 进度: %s/%s (%s%%) 成功=%s 失败=%s",
+                "[%s] 进度: %s/%s (%s%%) 成功=%s 失败=%s 已用 %.1fs",
                 label,
                 finished,
                 total_jobs,
                 pct,
                 ok,
                 fail,
+                elapsed,
             )
             log_state["last_done"] = finished
             log_state["last_log_at"] = now

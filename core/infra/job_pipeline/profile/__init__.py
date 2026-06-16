@@ -1,8 +1,10 @@
 """worker.json profile：并行度探针、默认值、配置解析。"""
 from core.infra.job_pipeline.profile.constants import (
+    CALENDAR_SLICE_RUNTIME_DEFAULTS,
     DEFAULT_PRICE_ENTITIES_PER_JOB,
     DISPATCH_DEFAULTS_BY_PROFILE,
     ENUMERATOR_DISPATCH_DEFAULTS,
+    ENUMERATOR_STRATEGY_CALENDAR_SLICE_KEYS,
     ENUMERATOR_STRATEGY_DISPATCH_KEYS,
     JOB_PIPELINE_PROFILE_NAMES,
     PRICE_FACTOR_DISPATCH_DEFAULTS,
@@ -16,6 +18,7 @@ from core.infra.job_pipeline.profile.resolver import (
     pipeline_max_parallel_jobs_cap,
     pipeline_reserve_cores,
     profile_dispatch_config,
+    profile_calendar_slice_config,
     profile_max_parallel_jobs_cap,
     profile_reserve_cores,
     resolve_pipeline_workers,
@@ -23,9 +26,11 @@ from core.infra.job_pipeline.profile.resolver import (
 )
 
 __all__ = [
+    "CALENDAR_SLICE_RUNTIME_DEFAULTS",
     "DEFAULT_PRICE_ENTITIES_PER_JOB",
     "DISPATCH_DEFAULTS_BY_PROFILE",
     "ENUMERATOR_DISPATCH_DEFAULTS",
+    "ENUMERATOR_STRATEGY_CALENDAR_SLICE_KEYS",
     "ENUMERATOR_STRATEGY_DISPATCH_KEYS",
     "JOB_PIPELINE_PROFILE_NAMES",
     "PRICE_FACTOR_DISPATCH_DEFAULTS",
@@ -36,6 +41,7 @@ __all__ = [
     "job_pipeline_profile",
     "pipeline_max_parallel_jobs_cap",
     "pipeline_reserve_cores",
+    "profile_calendar_slice_config",
     "profile_dispatch_config",
     "profile_max_parallel_jobs_cap",
     "profile_reserve_cores",

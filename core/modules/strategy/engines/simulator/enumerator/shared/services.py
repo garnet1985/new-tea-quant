@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Opportunity enumerator implementation details."""
+"""枚举器 shared 服务：指纹、聚合、metadata、job 调度（两 flow 共用）。"""
 
 from __future__ import annotations
 
@@ -25,19 +25,19 @@ from core.modules.strategy.engines.shared.performance_profiler import (
     AggregateProfiler,
     PerformanceMetrics,
 )
-from core.modules.strategy.engines.simulator.enumerator.data_classes.settings import (
-    OpportunityEnumeratorSettings,
+from core.modules.strategy.engines.simulator.enumerator.shared.settings import (
+    EnumeratorSettings,
 )
-from core.modules.strategy.engines.simulator.enumerator.data_classes.report import (
+from core.modules.strategy.engines.simulator.enumerator.shared.report import (
     EnumeratorReport,
 )
-from core.modules.strategy.engines.simulator.enumerator.session_enum_stats import (
+from core.modules.strategy.engines.simulator.enumerator.shared.materialize import (
     materialize_enum_report,
 )
 from core.modules.strategy.launcher.run_types import (
     StrategyRunFingerprint,
 )
-from core.modules.strategy.engines.simulator.enumerator.worker import OpportunityEnumeratorWorker
+from core.modules.strategy.engines.simulator.enumerator.stock_based.worker import StockBasedEnumeratorWorker
 from core.modules.strategy.services.data import StrategyDataInjectionService
 from core.modules.strategy.services.data.output import (
     EnumeratorOutputWriterService,
@@ -65,11 +65,10 @@ class WorkbenchEnumeratorProgressCallback:
         from core.modules.strategy.execution_manager.workbench_run_envelope import (
             run_envelope_apply_step_stage,
         )
-        from core.modules.strategy.services.progress import ProgressRecorder
-
-        recorder = ProgressRecorder.for_strategy_run_step(
-            self.strategy_name, self.run_id, "enum"
+        from core.modules.strategy.engines.simulator.enumerator.shared.progress_cli import (
+            publish_enumeration_execute_progress,
         )
+
         total_jobs = int(payload.get("total_jobs") or 0)
         done_jobs = (
             int(payload.get("completed_jobs") or 0)
@@ -79,24 +78,41 @@ class WorkbenchEnumeratorProgressCallback:
         progress_pct = int(payload.get("progress_pct") or 0)
         if total_jobs > 0:
             progress_pct = min(100, max(0, progress_pct))
+
+        sidecar_extra = {
+            k: payload[k]
+            for k in (
+                "progress_axis",
+                "entity_progress_mode",
+                "calendar_progress_mode",
+                "elapsed_seconds",
+            )
+            if payload.get(k) not in (None, "")
+        }
+        published_pct = publish_enumeration_execute_progress(
+            strategy_name=self.strategy_name,
+            run_id=self.run_id,
+            done=done_jobs,
+            total=max(1, total_jobs),
+            sidecar_extra=sidecar_extra or None,
+            update_envelope=False,
+        )
+        progress_pct = max(progress_pct, published_pct)
+
+        prev_pct = progress_pct
+        from core.modules.strategy.services.progress import ProgressRecorder
+
+        recorder = ProgressRecorder.for_strategy_run_step(
+            self.strategy_name, self.run_id, "enum"
+        )
         prev = recorder.get_progress()
         if isinstance(prev, dict):
             try:
                 prev_pct = int(prev.get("progress_pct") or 0)
             except (TypeError, ValueError):
-                prev_pct = 0
+                prev_pct = progress_pct
             progress_pct = max(prev_pct, progress_pct)
-        recorder.record(
-            {
-                "strategy_name": self.strategy_name,
-                "run_id": self.run_id,
-                "step_name": "enum",
-                "phase": "running",
-                "done_jobs": done_jobs,
-                "total_jobs": total_jobs,
-                "progress_pct": progress_pct,
-            }
-        )
+
         counters = {"done": done_jobs, "total": total_jobs} if total_jobs > 0 else None
         run_envelope_apply_step_stage(
             self.strategy_name,
@@ -108,7 +124,7 @@ class WorkbenchEnumeratorProgressCallback:
         )
 
 
-class OpportunityEnumeratorFlowImpl:
+class EnumeratorSharedServices:
     def __init__(
         self,
         *,
@@ -191,11 +207,11 @@ class OpportunityEnumeratorFlowImpl:
 
     def parse_enum_settings(
         self, base_settings: StrategySettingsView
-    ) -> OpportunityEnumeratorSettings:
-        return OpportunityEnumeratorSettings.from_base(base_settings)
+    ) -> EnumeratorSettings:
+        return EnumeratorSettings.from_base(base_settings)
 
     def create_output_version(
-        self, *, strategy_name: str, enum_settings: OpportunityEnumeratorSettings
+        self, *, strategy_name: str, enum_settings: EnumeratorSettings
     ) -> Dict[str, Any]:
         output_dir, version_id = StrategyOutputVersionService.create_enumerator_version(
             strategy_name=strategy_name,
@@ -295,7 +311,7 @@ class OpportunityEnumeratorFlowImpl:
         stock_ids: Optional[List[str]] = None,
         entities_per_job: int = 1,
     ) -> List[Dict[str, Any]]:
-        from core.modules.strategy.engines.simulator.enumerator.dispatch_jobs import (
+        from core.modules.strategy.engines.simulator.enumerator.stock_based.dispatch_jobs import (
             build_dispatch_jobs,
         )
 
@@ -328,13 +344,41 @@ class OpportunityEnumeratorFlowImpl:
             "aggregate_profiler": AggregateProfiler(),
         }
 
+    def resolve_enum_progress_total(self, jobs: List[Dict[str, Any]]) -> int:
+        if jobs:
+            if jobs[0].get("enumeration_execution_mode") == "calendar_slice":
+                return int(jobs[0].get("calendar_progress_total") or 1)
+            entity_total = jobs[0].get("entity_progress_total")
+            if entity_total is not None:
+                return max(1, int(entity_total))
+        from core.modules.strategy.engines.simulator.enumerator.stock_based.dispatch_jobs import (
+            count_stocks_in_dispatch_jobs,
+        )
+
+        return count_stocks_in_dispatch_jobs(jobs)
+
+    def enumeration_progress_metadata(self, jobs: List[Dict[str, Any]]) -> Dict[str, Any]:
+        from core.modules.strategy.engines.simulator.enumerator.shared.progress_axis import (
+            enumeration_progress_metadata,
+        )
+
+        return enumeration_progress_metadata(jobs)
+
+    def progress_units_from_execute_report(self, report: Any) -> tuple[int, int, int]:
+        mode = getattr(self, "_entity_progress_mode", "stock")
+        from core.modules.strategy.engines.simulator.enumerator.shared.progress_axis import (
+            entity_progress_units_from_execute_report,
+        )
+
+        return entity_progress_units_from_execute_report(report, progress_mode=mode)
+
     def run_jobs(
         self,
         *,
         jobs: List[Dict[str, Any]],
         global_extra_cache: Dict[str, List[Dict[str, Any]]],
         max_workers: int,
-        enum_settings: OpportunityEnumeratorSettings,
+        enum_settings: EnumeratorSettings,
         duckdb_data_mgr: Any = None,
     ) -> List[Any]:
         from core.infra.job_pipeline.profile import (
@@ -342,13 +386,13 @@ class OpportunityEnumeratorFlowImpl:
             profile_dispatch_config,
         )
         from core.infra.worker import MemoryAwareScheduler
-        from core.modules.strategy.engines.simulator.enumerator.dispatch_jobs import (
-            count_stocks_in_dispatch_jobs,
-        )
         from core.modules.strategy.services.execution import run_enumeration_jobs_via_pipeline
         from core.modules.strategy.services.progress import ProgressRecorder
 
-        total_stocks = count_stocks_in_dispatch_jobs(jobs)
+        self._entity_progress_mode = str(
+            (jobs[0].get("entity_progress_mode") if jobs else None) or "stock"
+        )
+        total_stocks = self.resolve_enum_progress_total(jobs)
         dispatch_cfg = profile_dispatch_config(WorkerProfiles.ENUMERATOR)
         if jobs:
             payload = jobs[0].get("payload", jobs[0])
@@ -380,6 +424,7 @@ class OpportunityEnumeratorFlowImpl:
                         "done_jobs": 0,
                         "total_jobs": total_n,
                         "progress_pct": seed_pct,
+                        **self.enumeration_progress_metadata(jobs),
                     }
                 )
                 from core.modules.strategy.execution_manager.workbench_run_envelope import (
@@ -402,17 +447,123 @@ class OpportunityEnumeratorFlowImpl:
         if self.workbench_strategy_name:
             run_name = f"enum:{self.workbench_strategy_name}"
 
-        return self._run_scheduled_batches(
-            jobs=jobs,
-            global_extra_cache=global_extra_cache,
-            scheduler=scheduler,
-            max_workers=max_workers,
-            total_stocks=total_stocks,
-            run_name=run_name,
-            on_job_progress=on_job_done,
-            run_fn=run_enumeration_jobs_via_pipeline,
-            duckdb_data_mgr=duckdb_data_mgr,
+        poll_stop = None
+        poll_thread = None
+        if jobs and jobs[0].get("enumeration_execution_mode") == "calendar_slice":
+            import threading
+
+            poll_stop = threading.Event()
+            poll_thread = threading.Thread(
+                target=self._poll_calendar_enumeration_progress,
+                args=(jobs[0], poll_stop),
+                daemon=True,
+            )
+            poll_thread.start()
+
+        try:
+            return self._run_scheduled_batches(
+                jobs=jobs,
+                global_extra_cache=global_extra_cache,
+                scheduler=scheduler,
+                max_workers=max_workers,
+                total_stocks=total_stocks,
+                run_name=run_name,
+                on_job_progress=on_job_done,
+                run_fn=run_enumeration_jobs_via_pipeline,
+                duckdb_data_mgr=duckdb_data_mgr,
+            )
+        finally:
+            if poll_stop is not None:
+                poll_stop.set()
+            if poll_thread is not None:
+                poll_thread.join(timeout=2.0)
+
+    @staticmethod
+    def _poll_calendar_enumeration_progress(
+        job: Dict[str, Any],
+        stop_event: Any,
+    ) -> None:
+        """主进程轮询侧车：CLI 终端输出 + 信封同步（子进程写入侧车）。"""
+        import time
+
+        from core.modules.strategy.engines.simulator.enumerator.shared.progress_cli import (
+            print_enumeration_progress_line,
+            publish_enumeration_execute_progress,
         )
+        from core.modules.strategy.services.progress import ProgressRecorder
+
+        sn = str(job.get("workbench_strategy_name") or "").strip()
+        rid = str(job.get("workbench_run_id") or "").strip()
+        if not sn or not rid:
+            return
+
+        rec = ProgressRecorder.for_strategy_run_step(sn, rid, "enum")
+        last_print_pct = -1
+        last_plan_sig = ""
+        poll_started_at = time.time()
+
+        def _emit_from_sidecar() -> None:
+            nonlocal last_print_pct, last_plan_sig
+            sidecar = rec.get_progress()
+            if not isinstance(sidecar, dict):
+                return
+            plan = sidecar.get("calendar_slice_runtime_plan")
+            if isinstance(plan, dict):
+                import json
+
+                sig = json.dumps(plan, sort_keys=True, default=str)
+                if sig != last_plan_sig:
+                    from core.modules.strategy.engines.simulator.enumerator.shared.progress_cli import (
+                        print_calendar_slice_plan_line,
+                    )
+
+                    print_calendar_slice_plan_line(plan)
+                    last_plan_sig = sig
+            try:
+                done = int(sidecar.get("done_jobs") or 0)
+                total = int(sidecar.get("total_jobs") or 0)
+                pct = int(sidecar.get("progress_pct") or 0)
+                elapsed_raw = sidecar.get("elapsed_seconds")
+                elapsed = (
+                    float(elapsed_raw)
+                    if elapsed_raw is not None
+                    else max(0.0, time.time() - poll_started_at)
+                )
+            except (TypeError, ValueError):
+                return
+            if total <= 0:
+                return
+            publish_enumeration_execute_progress(
+                strategy_name=sn,
+                run_id=rid,
+                done=done,
+                total=total,
+                sidecar_extra={
+                    k: sidecar[k]
+                    for k in (
+                        "progress_axis",
+                        "calendar_progress_mode",
+                        "elapsed_seconds",
+                        "calendar_as_of_date",
+                        "calendar_slice_id",
+                        "calendar_slice_runtime_plan",
+                    )
+                    if sidecar.get(k) not in (None, "")
+                },
+            )
+            if pct - last_print_pct >= 5 or last_print_pct < 0 or (pct >= 100 and last_print_pct < 100):
+                last_print_pct = print_enumeration_progress_line(
+                    progress_pct=pct,
+                    done=done,
+                    total=total,
+                    last_printed_pct=last_print_pct,
+                    elapsed_seconds=elapsed,
+                )
+
+        while not stop_event.wait(1.5):
+            _emit_from_sidecar()
+        if last_print_pct < 100:
+            _emit_from_sidecar()
 
     def _run_scheduled_batches(
         self,
@@ -447,6 +598,7 @@ class OpportunityEnumeratorFlowImpl:
                 run_name=run_name,
                 on_job_progress=on_job_progress,
                 duckdb_data_mgr=duckdb_data_mgr,
+                progress_units_from_report=self.progress_units_from_execute_report,
             )
             batch_finished = 0
             for jr in batch_results:
@@ -513,6 +665,20 @@ class OpportunityEnumeratorFlowImpl:
 
         self._stock_summary_by_id = stock_summary_by_id
         self._enumeration_bundles_by_id = bundles_by_id
+        self._calendar_slice_runtime_plan = None
+        for jr in job_results:
+            raw = getattr(jr, "result", None)
+            if (
+                getattr(jr, "status", None)
+                and jr.status.value == "completed"
+                and isinstance(raw, dict)
+                and raw.get("bulk")
+            ):
+                perf = raw.get("performance_metrics") or {}
+                plan = perf.get("calendar_slice_runtime_plan")
+                if isinstance(plan, dict):
+                    self._calendar_slice_runtime_plan = plan
+                    break
 
         # step2: normalize and return aggregate summary
         return {
@@ -594,7 +760,7 @@ class OpportunityEnumeratorFlowImpl:
         version_id: int,
         version_dir_name: str,
         settings_snapshot: Dict[str, Any],
-        enum_settings: OpportunityEnumeratorSettings,
+        enum_settings: EnumeratorSettings,
         fingerprint: StrategyRunFingerprint,
         status: str = "completed",
         stock_summary_by_id: Optional[Dict[str, Dict[str, Any]]] = None,
@@ -629,6 +795,9 @@ class OpportunityEnumeratorFlowImpl:
             simulation_effective=sim_effective,
             backtest_period=backtest_period,
         )
+        runtime_plan = getattr(self, "_calendar_slice_runtime_plan", None)
+        if isinstance(runtime_plan, dict):
+            metadata["calendar_slice_runtime_plan"] = runtime_plan
         EnumeratorOutputWriterService.write_metadata(
             output_dir=output_dir, metadata=metadata
         )
@@ -643,6 +812,8 @@ class OpportunityEnumeratorFlowImpl:
             bff_out = report.to_bff_payload(include_stock_rows=False)
             if isinstance(bff_out, dict):
                 bff_out["backtest_period"] = backtest_period
+                if isinstance(runtime_plan, dict):
+                    bff_out["calendar_slice_runtime_plan"] = runtime_plan
                 with (output_dir / "0_report_enum.json").open("w", encoding="utf-8") as f:
                     json.dump(bff_out, f, indent=2, ensure_ascii=False)
         except Exception:
@@ -690,6 +861,9 @@ class OpportunityEnumeratorFlowImpl:
             bp = dict(self._backtest_period_cache)
         if isinstance(bp, dict) and bp.get("start_date") and bp.get("end_date"):
             summary["backtest_period"] = bp
+        plan = getattr(self, "_calendar_slice_runtime_plan", None)
+        if isinstance(plan, dict):
+            summary["calendar_slice_runtime_plan"] = plan
         # ``enumMetrics``：优先使用 ``save_metadata`` 里与落盘同源的内存 ``to_bff_payload``；
         # 再读 ``0_report_enum.json``，最后 ``EnumeratorReport.load`` 目录兜底。
         em: Optional[Dict[str, Any]] = None
@@ -747,7 +921,7 @@ class OpportunityEnumeratorFlowImpl:
     @staticmethod
     def _execute_single_job(payload: Dict[str, Any]) -> Dict[str, Any]:
         """单测 / 同步路径；并行枚举走 ``execute_enumeration_job``。"""
-        return OpportunityEnumeratorWorker(payload).run()
+        return StockBasedEnumeratorWorker(payload).run()
 
 
-__all__ = ["OpportunityEnumeratorFlowImpl"]
+__all__ = ["EnumeratorSharedServices"]

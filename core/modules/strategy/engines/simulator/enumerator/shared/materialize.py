@@ -1,7 +1,7 @@
 """枚举会话级 ``enumMetrics``（分位、区间桶、节奏指标）的来源说明与入口。
 
 - **主路径**：各 worker 在内存中带回 ``enumeration_report_bundle``，
-  ``OpportunityEnumeratorFlowImpl.aggregate_job_results`` 填入 ``_enumeration_bundles_by_id``；
+  ``EnumeratorSharedServices.aggregate_job_results`` 填入 ``_enumeration_bundles_by_id``；
   使用 ``EnumeratorReport.from_per_stock_bundles`` 与每股 CSV **无关**，不在此之后再扫磁盘汇总。
 - **指标计算**：落在 ``EnumeratorReport``（``data_classes/report.py``）：``percentileValues``、
   ``opportunityCountLabels`` / ``opportunityCountStockCounts`` 等均在该类内完成。
@@ -17,7 +17,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.modules.strategy.engines.simulator.enumerator.data_classes.report import EnumeratorReport
+from core.modules.strategy.engines.simulator.enumerator.shared.report import EnumeratorReport
 
 
 def materialize_enum_report(

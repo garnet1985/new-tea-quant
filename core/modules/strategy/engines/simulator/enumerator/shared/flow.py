@@ -1,36 +1,37 @@
 #!/usr/bin/env python3
-"""Opportunity enumerator flow."""
+"""枚举器 flow 基类：settings 收集 → 子类 build job → shared 产出。"""
 
 from __future__ import annotations
 
 import copy
 import logging
+from abc import abstractmethod
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
-logger = logging.getLogger(__name__)
-
 from core.modules.strategy.engines.simulator.base_flow import BaseSimulationFlow
-from core.modules.strategy.engines.simulator.enumerator.opportunity_enumerator_flow_impl import (
-    OpportunityEnumeratorFlowImpl,
-)
-from core.modules.strategy.engines.simulator.enumerator.data_classes import (
+from core.modules.strategy.engines.simulator.enumerator.shared import (
     EnumeratorExecuteContext,
     EnumeratorPreprocessContext,
     EnumeratorProbeContext,
 )
-from core.modules.strategy.engines.simulator.enumerator.data_classes.settings import (
-    OpportunityEnumeratorSettings,
+from core.modules.strategy.engines.simulator.enumerator.shared.settings import (
+    EnumeratorSettings,
 )
-from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
-    StrategySettingsView,
+from core.modules.strategy.engines.simulator.enumerator.shared.services import (
+    EnumeratorSharedServices,
 )
 from core.modules.strategy.engines.shared.data_classes.market_profile_context import (
     MarketProfileContext,
 )
+from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
+    StrategySettingsView,
+)
 from core.modules.strategy.engines.shared.helpers.simulation_flow import (
     prepare_simulation_settings,
-    simulation_effective_snapshot,
 )
+
+logger = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
     from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
         DiscoveredStrategy,
@@ -40,7 +41,11 @@ if TYPE_CHECKING:
     )
 
 
-class OpportunityEnumeratorFlow(BaseSimulationFlow):
+class BaseEnumeratorFlow(BaseSimulationFlow):
+    """Shared：probe / execute / postprocess；子类实现 ``_preprocess_finish``（build job）。"""
+
+    _impl: EnumeratorSharedServices
+
     def __init__(
         self,
         *,
@@ -61,17 +66,10 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         self.base_settings = base_settings
         self.last_version: int = 0
         self.used_db_cache: bool = False
-        self._impl = OpportunityEnumeratorFlowImpl(
-            start_date=start_date,
-            end_date=end_date,
-            stock_list=stock_list,
-            max_workers=max_workers,
-            base_settings=base_settings,
-            workbench_strategy_name=workbench_strategy_name,
-            workbench_run_id=workbench_run_id,
-            force_refresh=force_refresh,
-            backtest_period=backtest_period,
-        )
+        self.workbench_strategy_name = workbench_strategy_name
+        self.workbench_run_id = workbench_run_id
+        self.force_refresh = force_refresh
+        self._backtest_period = backtest_period
 
     def run(
         self,
@@ -80,23 +78,16 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         *,
         workbench_progress: Optional["WorkbenchFlowProgress"] = None,
     ) -> Any:
-        """
-        指纹探针 → **仅当 DbCache 指纹解析完全成功时** 尝试命中表缓存 → 否则完整
-        preprocess → execute → postprocess → **成功后再解析指纹并回写缓存**。
-
-        命中缓存时跳过输出目录、worker 池与任务构建；``force_refresh`` 时跳过读缓存但仍可写缓存。
-        """
-        # Deferred import: ``cache`` / ``simulator_res_db_cache`` / ``DataManager`` 避免与枚举器初始化循环依赖。
         from core.modules.data_manager import DataManager
         from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
             resolve_latest_completed_trading_date,
         )
+        from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.finger_print import (
+            resolve_db_cache_fingerprints,
+        )
         from core.modules.strategy.services.cache.simulator_res_db_cache.snapshot_slot_adapters import (
             lookup_enum_cache,
             persist_enum_snapshot,
-        )
-        from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.finger_print import (
-            resolve_db_cache_fingerprints,
         )
 
         self.last_version = 0
@@ -122,7 +113,6 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         if wp is not None:
             wp.stage("load", 0.85)
 
-        # 指纹条件不足（settings / env / worker 等）时不走读缓存，直接跑完整 flow。
         if resolved_probe is not None and not self._impl.force_refresh:
             hit = lookup_enum_cache(
                 strategy_name,
@@ -155,7 +145,6 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
                     strategy_name,
                     dict(probe.settings_for_fingerprint or {}),
                 )
-                # 缓存命中不跑 worker，原无中间进度落盘；工作台 GET progress 在内存丢失时会读此文件，故在此写入终态。
                 wn = self._impl.workbench_strategy_name
                 wr = self._impl.workbench_run_id
                 if wn and wr:
@@ -194,9 +183,10 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             wp.stage("report", 0.2)
         summary_list = self.postprocess(preprocessed, executed)
 
-        # Flow 完成后用与 DbCache 一致的解析路径再算指纹并落库（run 内 settings 可能与 probe 略有差异）。
         if summary_list and isinstance(summary_list, list):
-            raw_for_resolve = dict(preprocessed.full_settings_snapshot_api or probe.settings_for_fingerprint or {})
+            raw_for_resolve = dict(
+                preprocessed.full_settings_snapshot_api or probe.settings_for_fingerprint or {}
+            )
             resolved_save = resolve_db_cache_fingerprints(
                 strategy_name=str(strategy_name),
                 raw_settings=raw_for_resolve,
@@ -232,10 +222,9 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         worker_ref = self._impl.resolve_worker_blueprint(
             strategy_name=strategy_name, strategy_info=strategy_info
         )
-        enum_settings = OpportunityEnumeratorSettings.from_base(base_settings)
+        enum_settings = EnumeratorSettings.from_base(base_settings)
         settings_payload = enum_settings.to_dict()
         raw_full = copy.deepcopy(base_settings.to_dict())
-        # API 形态转换器未接入时使用 runtime 快照（与校验 / 指纹路径同源 dict）。
         full_settings_snapshot_api = raw_full
         settings_for_fingerprint = copy.deepcopy(base_settings.to_dict())
         request_fingerprint = self._impl.build_request_fingerprint(
@@ -256,98 +245,9 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
             worker_ref=worker_ref,
         )
 
+    @abstractmethod
     def _preprocess_finish(self, probe: EnumeratorProbeContext) -> EnumeratorPreprocessContext:
-        from core.modules.data_manager import DataManager
-        from core.modules.strategy.engines.shared.helpers.backtest_calendar_context import (
-            build_backtest_calendar_context,
-        )
-        from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
-            BacktestDateRange,
-        )
-        from core.modules.strategy.services.execution.enum_dispatch import (
-            maybe_run_enum_dispatch_probe,
-            resolve_enum_dispatch_plan,
-        )
-
-        version_info = self._impl.create_output_version(
-            strategy_name=probe.strategy_name, enum_settings=probe.enum_settings
-        )
-        mp_id = probe.market_profile.profile_id
-        data_mgr = DataManager(is_verbose=False)
-        calendar_ctx = build_backtest_calendar_context(
-            data_manager=data_mgr,
-            period=BacktestDateRange(
-                self._impl.start_date,
-                self._impl.end_date,
-                "",
-                "",
-            ),
-            market_profile_id=mp_id,
-        )
-        calendar_dict = calendar_ctx.to_dict()
-
-        measured_mb = maybe_run_enum_dispatch_probe(
-            strategy_name=probe.strategy_name,
-            stock_ids=list(self.stock_list),
-            settings_payload=probe.settings_payload,
-            output_dir=version_info["output_dir"],
-            worker_ref=probe.worker_ref,
-            start_date=self._impl.start_date,
-            end_date=self._impl.end_date,
-            global_extra_cache={},
-            market_profile_id=mp_id,
-            backtest_calendar=calendar_dict,
-            data_mgr=data_mgr,
-        )
-        from core.infra.db.engines.duckdb.process_pool_scope import (
-            ensure_data_manager_restored,
-        )
-
-        ensure_data_manager_restored(data_mgr)
-        dispatch_plan = resolve_enum_dispatch_plan(
-            total_stocks=len(self.stock_list),
-            measured_mb_per_entity=measured_mb,
-        )
-        resolved_workers = dispatch_plan.max_workers
-        entities_per_job = dispatch_plan.entities_per_job
-        jobs = self._impl.build_jobs(
-            strategy_name=probe.strategy_name,
-            settings_payload=probe.settings_payload,
-            output_dir=version_info["output_dir"],
-            worker_ref=probe.worker_ref,
-            stock_ids=self.stock_list,
-            entities_per_job=entities_per_job,
-        )
-        for job in jobs:
-            job["market_profile_id"] = mp_id
-            job["backtest_calendar"] = calendar_dict
-        result_fingerprint = self._impl.build_request_fingerprint(
-            strategy_name=probe.strategy_name,
-            settings_payload=probe.settings_for_fingerprint,
-            stock_ids=self.stock_list,
-            worker_ref=probe.worker_ref,
-        )
-        global_extra_cache = self._impl.preload_global_cache(probe.settings_payload, jobs)
-        runtime = self._impl.create_runtime_context()
-        return EnumeratorPreprocessContext(
-            strategy_name=probe.strategy_name,
-            market_profile=probe.market_profile,
-            simulation_settings=probe.simulation_settings,
-            enum_settings=probe.enum_settings,
-            full_settings_snapshot_api=probe.full_settings_snapshot_api,
-            settings_payload=probe.settings_payload,
-            request_fingerprint=probe.request_fingerprint,
-            result_fingerprint=result_fingerprint,
-            output_dir=version_info["output_dir"],
-            version_id=version_info["version_id"],
-            version_dir_name=version_info["version_dir_name"],
-            jobs=jobs,
-            global_extra_cache=global_extra_cache,
-            max_workers=resolved_workers,
-            data_mgr=data_mgr,
-            start_time=runtime["start_time"],
-            aggregate_profiler=runtime["aggregate_profiler"],
-        )
+        """Build jobs（stock / calendar 分支）。"""
 
     def preprocess(
         self,
@@ -419,4 +319,4 @@ class OpportunityEnumeratorFlow(BaseSimulationFlow):
         return summary_list
 
 
-__all__ = ["OpportunityEnumeratorFlow"]
+__all__ = ["BaseEnumeratorFlow"]

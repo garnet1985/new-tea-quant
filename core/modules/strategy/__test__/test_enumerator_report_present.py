@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """EnumeratorReport.present 使用 summary 内 enumMetrics，不依赖已 prune 的磁盘目录。"""
 
-from core.modules.strategy.engines.simulator.enumerator.data_classes.report import (
+from core.modules.strategy.engines.simulator.enumerator.shared.report import (
     EnumeratorReport,
 )
 

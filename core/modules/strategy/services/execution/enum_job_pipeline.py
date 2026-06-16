@@ -140,12 +140,12 @@ def execute_enumeration_job(context: JobContext) -> Dict[str, Any]:
     try:
         payload = context.payload
         if payload.get("enumeration_execution_mode") == "calendar_slice":
-            from core.modules.strategy.engines.simulator.enumerator.calendar_slice.worker import (
+            from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.worker import (
                 run_calendar_slice_enumeration_payload,
             )
 
             return run_calendar_slice_enumeration_payload(payload)
-        from core.modules.strategy.engines.simulator.enumerator.worker import (
+        from core.modules.strategy.engines.simulator.enumerator.stock_based.worker import (
             run_enumeration_payload,
         )
 

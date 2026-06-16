@@ -119,7 +119,7 @@ class StrategyManager:
 
     @staticmethod
     def _present_enumerate(strategy_name: str, summary_results: Any) -> None:
-        from core.modules.strategy.engines.simulator.enumerator.data_classes.report import (
+        from core.modules.strategy.engines.simulator.enumerator.shared.report import (
             EnumeratorReport,
         )
 

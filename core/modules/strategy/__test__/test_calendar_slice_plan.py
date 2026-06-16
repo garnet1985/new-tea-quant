@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Calendar slice planning unit tests."""
 
-from core.modules.strategy.engines.simulator.enumerator.calendar_slice.slice_plan import (
+from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.slice_plan import (
     clamp_slice_open_days,
     is_first_open_of_month,
     plan_calendar_slices,
@@ -30,7 +30,7 @@ class TestCalendarSlicePlan:
         assert is_first_open_of_month("20240201", dates) is True
 
     def test_is_last_open_of_month(self):
-        from core.modules.strategy.engines.simulator.enumerator.calendar_slice.slice_plan import (
+        from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.slice_plan import (
             is_last_open_of_month,
         )
 

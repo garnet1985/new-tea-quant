@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """Enumerator simulator engine.
 
-Package ``__init__`` 不做重依赖 eager import，避免
-``strategy_settings → enumerator.data_classes`` 时拉起 flow/worker 与 ``strategy_runtime`` 循环依赖
-（多进程 worker 子进程会重新 import，易触发）。
+Package ``__init__`` 不做重依赖 eager import，避免 settings 解析时拉起 worker 循环依赖。
 """
 
 from __future__ import annotations
@@ -12,33 +10,23 @@ import importlib
 from typing import Any, Tuple
 
 _LAZY_EXPORTS: dict[str, Tuple[str, str]] = {
-    "OpportunityEnumeratorFlow": (
-        ".opportunity_enumerator_flow",
-        "OpportunityEnumeratorFlow",
+    "BaseEnumeratorFlow": (".shared.flow", "BaseEnumeratorFlow"),
+    "StockBasedEnumeratorFlow": (".stock_based.flow", "StockBasedEnumeratorFlow"),
+    "CalendarSlicedEnumeratorFlow": (".calendar_sliced.flow", "CalendarSlicedEnumeratorFlow"),
+    "create_enumerator_flow": (".router", "create_enumerator_flow"),
+    "StockBasedEnumeratorWorker": (".stock_based.worker", "StockBasedEnumeratorWorker"),
+    "CalendarSlicedEnumeratorWorker": (
+        ".calendar_sliced.worker",
+        "CalendarSlicedEnumeratorWorker",
     ),
-    "CalendarSliceEnumeratorFlow": (
-        ".calendar_slice.flow",
-        "CalendarSliceEnumeratorFlow",
-    ),
-    "OpportunityEnumeratorWorker": (".worker", "OpportunityEnumeratorWorker"),
-    "OpportunityEnumeratorSettings": (
-        ".data_classes",
-        "OpportunityEnumeratorSettings",
-    ),
-    "StrategyEnumeratorSettings": (
-        ".data_classes",
-        "StrategyEnumeratorSettings",
-    ),
-    "EnumeratorReport": (".data_classes", "EnumeratorReport"),
-    "EnumeratorPreprocessContext": (
-        ".data_classes",
-        "EnumeratorPreprocessContext",
-    ),
-    "EnumeratorProbeContext": (".data_classes", "EnumeratorProbeContext"),
-    "EnumeratorExecuteContext": (
-        ".data_classes",
-        "EnumeratorExecuteContext",
-    ),
+    "EnumeratorSettings": (".shared.settings", "EnumeratorSettings"),
+    "StrategyEnumeratorSettings": (".shared.strategy_settings", "StrategyEnumeratorSettings"),
+    "EnumeratorReport": (".shared.report", "EnumeratorReport"),
+    "EnumeratorPreprocessContext": (".shared.contexts", "EnumeratorPreprocessContext"),
+    "EnumeratorProbeContext": (".shared.contexts", "EnumeratorProbeContext"),
+    "EnumeratorExecuteContext": (".shared.contexts", "EnumeratorExecuteContext"),
+    "CalendarAsOfContext": (".calendar_sliced.types", "CalendarAsOfContext"),
+    "CalendarAsOfResult": (".calendar_sliced.types", "CalendarAsOfResult"),
     "PerformanceMetrics": (".helpers", "PerformanceMetrics"),
     "PerformanceProfiler": (".helpers", "PerformanceProfiler"),
     "AggregateProfiler": (".helpers", "AggregateProfiler"),

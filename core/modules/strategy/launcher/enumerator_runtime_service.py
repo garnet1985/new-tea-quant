@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from core.modules.data_manager import DataManager
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
@@ -21,11 +21,9 @@ from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
 )
 from core.modules.strategy.engines.shared.helpers.stock_sampling import StockSamplingHelper
 from core.modules.strategy.engines.simulator.enumerator import (
-    OpportunityEnumeratorFlow,
-    OpportunityEnumeratorSettings,
-)
-from core.modules.strategy.engines.simulator.enumerator.calendar_slice import (
-    CalendarSliceEnumeratorFlow,
+    BaseEnumeratorFlow,
+    EnumeratorSettings,
+    create_enumerator_flow,
 )
 from .run_service import StrategyFingerprintManager
 
@@ -38,7 +36,7 @@ def _stock_ids_for_enumerator_view(
     stock_count: Optional[int] = None,
 ) -> List[str]:
     """与枚举 run 一致的 ``stock_ids``；``stock_count`` 非空时与 workbench 连续窗采样覆盖一致。"""
-    enum_settings = OpportunityEnumeratorSettings.from_base(settings_view)
+    enum_settings = EnumeratorSettings.from_base(settings_view)
     if not all_stocks:
         return []
 
@@ -65,11 +63,11 @@ class EnumeratorRuntimeContext:
     strategy_name: str
     strategy_info: Any
     settings_view: StrategySettingsView
-    enum_settings: OpportunityEnumeratorSettings
+    enum_settings: EnumeratorSettings
     stock_list: List[str]
     start_date: str
     end_date: str
-    flow: Union[OpportunityEnumeratorFlow, CalendarSliceEnumeratorFlow]
+    flow: BaseEnumeratorFlow
 
 
 class EnumeratorRuntimeService:
@@ -95,7 +93,7 @@ class EnumeratorRuntimeService:
     ) -> EnumeratorRuntimeContext:
         raw_settings = raw_settings_override if raw_settings_override is not None else strategy_info.settings.to_dict()
         settings_view = cls.build_canonical_settings(raw_settings)
-        enum_settings = OpportunityEnumeratorSettings.from_base(settings_view)
+        enum_settings = EnumeratorSettings.from_base(settings_view)
         data_manager = DataManager(is_verbose=False)
         list_svc = data_manager.service.stock.list
         period, universe = resolve_backtest_universe(
@@ -126,10 +124,10 @@ class EnumeratorRuntimeService:
             force_refresh=force_refresh,
             backtest_period=backtest_period_to_dict(period),
         )
-        if execution_mode == "calendar_slice":
-            flow = CalendarSliceEnumeratorFlow(**flow_kwargs)
-        else:
-            flow = OpportunityEnumeratorFlow(**flow_kwargs)
+        flow = create_enumerator_flow(
+            execution_mode=execution_mode,
+            **flow_kwargs,
+        )
         return EnumeratorRuntimeContext(
             strategy_name=strategy_name,
             strategy_info=strategy_info,

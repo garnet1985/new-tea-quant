@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 
 from core.modules.strategy.base_strategy_worker import BaseStrategyWorker
 from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
-from core.modules.strategy.engines.simulator.enumerator.calendar_slice.types import (
+from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.types import (
     CalendarAsOfContext,
 )
 

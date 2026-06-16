@@ -1,16 +1,16 @@
 """Enumerator progress plan: entity_timeline vs calendar_slice."""
-from core.modules.strategy.engines.simulator.enumerator.progress import (
+from core.modules.strategy.engines.simulator.enumerator.shared.progress_axis import (
+    enumeration_progress_metadata,
+)
+from core.modules.strategy.engines.simulator.enumerator.stock_based.progress import (
     ENTITY_PROGRESS_MODE_BUNDLE,
     ENTITY_PROGRESS_MODE_STOCK,
-    PROGRESS_AXIS_CALENDAR_OPEN_DATE,
-    PROGRESS_AXIS_CALENDAR_SLICE,
     PROGRESS_AXIS_ENTITY_BUNDLE,
     PROGRESS_AXIS_ENTITY_STOCK,
     entity_progress_units_from_execute_report,
-    enumeration_progress_metadata,
     resolve_entity_progress_plan,
 )
-from core.modules.strategy.engines.simulator.enumerator.calendar_slice.progress import (
+from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.progress import (
     resolve_calendar_progress_plan,
 )
 from core.infra.job_pipeline.types import JobReport
@@ -75,7 +75,7 @@ def test_enumeration_progress_metadata_calendar_open_date():
         }
     ]
     meta = enumeration_progress_metadata(jobs)
-    assert meta["progress_axis"] == PROGRESS_AXIS_CALENDAR_OPEN_DATE
+    assert meta["progress_axis"] == "calendar_open_date"
 
 
 def test_calendar_progress_slice_mode():

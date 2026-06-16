@@ -436,7 +436,7 @@ class BaseStrategyWorker(ABC):
         settings: Dict[str, Any],
     ) -> "CalendarAsOfResult":
         """calendar_slice 默认：对本 as_of 有数据的全部股票进入 scan_opportunity。"""
-        from core.modules.strategy.engines.simulator.enumerator.calendar_slice.types import (
+        from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.types import (
             CalendarAsOfResult,
         )
 

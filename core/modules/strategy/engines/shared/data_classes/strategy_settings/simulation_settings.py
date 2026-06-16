@@ -504,7 +504,7 @@ class StrategySimulationSettings(SettingsBase):
         if raw is None or raw == "":
             return DEFAULT_SLICE_OPEN_DAYS
         if str(raw).strip().lower() == "auto":
-            from core.modules.strategy.engines.simulator.enumerator.calendar_slice.slice_plan import (
+            from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.slice_plan import (
                 auto_slice_open_days_floor,
             )
 
@@ -541,7 +541,7 @@ class StrategySimulationSettings(SettingsBase):
         try:
             raw = self.slice_open_days_raw
             if str(raw or "").strip().lower() == "auto":
-                from core.modules.strategy.engines.simulator.enumerator.calendar_slice.slice_plan import (
+                from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.slice_plan import (
                     reject_if_min_records_exceeds_max_slice,
                 )
 

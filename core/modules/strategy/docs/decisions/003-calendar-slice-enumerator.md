@@ -180,6 +180,7 @@ calendar_window 粒度  ↔  Q 中 warm-up 片数  ↔  Reader 并行度（MySQL
 
 ## References
 
+- [ADR-004 Runtime Planner](./004-calendar-slice-runtime-planner.md)
 - 实验索引：[`experiments/README.md`](../../../../../experiments/README.md)
 - K 线切片 IO：[`experiments/kline_slice_io_profile/README.md`](../../../../../experiments/kline_slice_io_profile/README.md)
 - 横截面选股：[`experiments/cross_section_select/README.md`](../../../../../experiments/cross_section_select/README.md)
@@ -188,9 +189,8 @@ calendar_window 粒度  ↔  Q 中 warm-up 片数  ↔  Reader 并行度（MySQL
 
 ## Open Items（实现阶段再定）
 
-- `SlicePayload` / Q 消息 schema（含 slice_id、contracts、carry_blob、warmup 标记）。
-- `CalendarSliceEnumeratorFlow` 与 `JobPipeline` / `duckdb_process_pool_scope` 集成点。
-- 探针结果写入 `StrategyRunFingerprint` 或 settings 块的字段名。
+- ~~`SlicePayload` / Q 消息 schema~~ → v2 已落地；`SliceDone` 含 load/compute timing。
+- **Runtime Planner 动态细节**：v1 已落地 auto + 每片 preload 调节；见 [ADR-004](./004-calendar-slice-runtime-planner.md)。
 - warm-up 片释放老片的精确条件（交界 bar 索引与指标 window 长度）。
 
 ---

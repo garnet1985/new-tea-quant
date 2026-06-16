@@ -77,26 +77,34 @@ class OpportunityEnumeratorSettings:
             enumerator.get("entity_progress_mode") or "stock"
         ).strip().lower()
         cs_block = dict(enumerator.get("calendar_slice") or {})
-        try:
-            cs_depth = int(cs_block.get("queue_depth", 1))
-        except (TypeError, ValueError):
-            cs_depth = 1
-        try:
-            cs_reader_workers = int(cs_block.get("reader_workers", 1))
-        except (TypeError, ValueError):
-            cs_reader_workers = 1
-        cs_reader_workers = max(1, min(8, cs_reader_workers))
-        self.calendar_slice_queue_depth = max(1, min(8, cs_depth))
-        self.calendar_slice_prefetch_enabled = bool(cs_block.get("prefetch_enabled", True))
-        self.calendar_slice_reader_workers = cs_reader_workers
-        if not self.calendar_slice_prefetch_enabled:
+        cs_prefetch = bool(cs_block.get("prefetch_enabled", True))
+        self.calendar_slice_prefetch_enabled = cs_prefetch
+        raw_depth = cs_block.get("queue_depth", "auto")
+        raw_workers = cs_block.get("reader_workers", "auto")
+        self.calendar_slice_queue_depth_raw = raw_depth
+        self.calendar_slice_reader_workers_raw = raw_workers
+        if not cs_prefetch:
             self.calendar_slice_queue_depth = 1
             self.calendar_slice_reader_workers = 1
-        elif self.calendar_slice_reader_workers > 1:
-            self.calendar_slice_queue_depth = max(
-                self.calendar_slice_queue_depth,
-                min(self.calendar_slice_reader_workers, 8),
+        else:
+            from core.modules.strategy.engines.simulator.enumerator.calendar_slice.slice_plan import (
+                is_auto_setting,
             )
+
+            if is_auto_setting(raw_depth):
+                self.calendar_slice_queue_depth = 8
+            else:
+                try:
+                    self.calendar_slice_queue_depth = max(1, min(8, int(raw_depth)))
+                except (TypeError, ValueError):
+                    self.calendar_slice_queue_depth = 1
+            if is_auto_setting(raw_workers):
+                self.calendar_slice_reader_workers = 8
+            else:
+                try:
+                    self.calendar_slice_reader_workers = max(1, min(8, int(raw_workers)))
+                except (TypeError, ValueError):
+                    self.calendar_slice_reader_workers = 1
 
         simulator = dict(settings.get("price_simulator") or {})
         raw_goal = settings.get("goal")
@@ -123,8 +131,8 @@ class OpportunityEnumeratorSettings:
         if self.entity_progress_mode:
             merged["enumerator"]["entity_progress_mode"] = self.entity_progress_mode
         merged["enumerator"]["calendar_slice"] = {
-            "queue_depth": self.calendar_slice_queue_depth,
+            "queue_depth": self.calendar_slice_queue_depth_raw,
             "prefetch_enabled": self.calendar_slice_prefetch_enabled,
-            "reader_workers": self.calendar_slice_reader_workers,
+            "reader_workers": self.calendar_slice_reader_workers_raw,
         }
         return merged

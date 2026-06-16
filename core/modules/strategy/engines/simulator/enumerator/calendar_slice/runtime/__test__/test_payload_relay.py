@@ -50,6 +50,8 @@ def test_relay_payloads_reorders_by_slice_index():
 
 
 def test_drive_slices_multi_reader_shutdown_count():
+    from unittest.mock import MagicMock, patch
+
     from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.messages import (
         SHUTDOWN,
         FinalizeDone,
@@ -58,24 +60,29 @@ def test_drive_slices_multi_reader_shutdown_count():
     from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.orchestrator import (
         CalendarSliceProcessOrchestrator,
     )
+    from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.settings import (
+        CalendarSliceRuntimeSettings,
+    )
     from core.modules.strategy.engines.simulator.enumerator.calendar_slice.slice_plan import (
         CalendarSliceDescriptor,
     )
-
-    orch = CalendarSliceProcessOrchestrator(
-        {
-            "stock_ids": ["000001.SZ"],
-            "start_date": "20240101",
-            "end_date": "20240131",
-            "slice_open_days": 63,
-            "settings": {
-                "data": {"min_required_records": 100},
-                "enumerator": {"calendar_slice": {"reader_workers": 2}},
-            },
-        }
+    from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.__test__.test_orchestrator import (
+        _sample_plan,
     )
-    assert orch.runtime.reader_workers == 2
 
+    payload = {
+        "stock_ids": ["000001.SZ"],
+        "start_date": "20240101",
+        "end_date": "20240131",
+        "slice_open_days": 63,
+        "settings": {
+            "data": {"min_required_records": 100},
+            "enumerator": {"calendar_slice": {"reader_workers": 2}},
+        },
+    }
+    assert CalendarSliceRuntimeSettings.from_job_payload(payload).reader_workers == 2
+
+    orch = CalendarSliceProcessOrchestrator(payload)
     slices = [
         CalendarSliceDescriptor(
             slice_id="slice_0",
@@ -93,12 +100,19 @@ def test_drive_slices_multi_reader_shutdown_count():
         FinalizeDone(stock_results=[], calendar_progress={}, performance_metrics={}),
     ]
 
-    result = orch._drive_slices(
-        slices=slices,
-        reader_cmd_q=reader_cmd_q,
-        payload_q=payload_q,
-        done_q=done_q,
-    )
+    with patch(
+        "core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.orchestrator.job_tree_rss_mb",
+        return_value=500.0,
+    ):
+        result = orch._drive_slices(
+            slices=slices,
+            plan=_sample_plan(reader_workers=2),
+            reader_cmd_q=reader_cmd_q,
+            payload_q=payload_q,
+            done_q=done_q,
+            relay=None,
+            child_pids=(),
+        )
 
     assert result["success"] is True
     shutdown_calls = [c.args[0] for c in reader_cmd_q.put.call_args_list if c.args]

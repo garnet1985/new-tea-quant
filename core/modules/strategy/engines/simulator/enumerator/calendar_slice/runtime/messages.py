@@ -45,6 +45,8 @@ class SlicePayload:
 class SliceDone:
     slice_index: int
     slice_id: str
+    load_elapsed_ms: float = 0.0
+    compute_elapsed_ms: float = 0.0
 
 
 @dataclass

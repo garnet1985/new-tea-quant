@@ -495,14 +495,29 @@ class StrategySimulationSettings(SettingsBase):
         )
 
     @property
+    def slice_open_days_raw(self) -> Any:
+        return self.simulation.get("slice_open_days")
+
+    @property
     def slice_open_days(self) -> int:
-        raw = self.simulation.get("slice_open_days")
+        raw = self.slice_open_days_raw
         if raw is None or raw == "":
             return DEFAULT_SLICE_OPEN_DAYS
+        if str(raw).strip().lower() == "auto":
+            from core.modules.strategy.engines.simulator.enumerator.calendar_slice.slice_plan import (
+                auto_slice_open_days_floor,
+            )
+
+            try:
+                data_block = self.raw_settings.get("data") or {}
+                min_rec = int(data_block.get("min_required_records") or 0)
+            except (TypeError, ValueError):
+                min_rec = 0
+            return auto_slice_open_days_floor(min_rec)
         try:
             return int(raw)
         except (TypeError, ValueError) as e:
-            raise ValueError("simulation.slice_open_days 须为整数") from e
+            raise ValueError("simulation.slice_open_days 须为整数或 auto") from e
 
     def _validate_execution_mode(self, result: ValidationReport) -> None:
         try:
@@ -524,6 +539,22 @@ class StrategySimulationSettings(SettingsBase):
                 )
             return
         try:
+            raw = self.slice_open_days_raw
+            if str(raw or "").strip().lower() == "auto":
+                from core.modules.strategy.engines.simulator.enumerator.calendar_slice.slice_plan import (
+                    reject_if_min_records_exceeds_max_slice,
+                )
+
+                try:
+                    data_block = self.raw_settings.get("data") or {}
+                    min_rec = int(data_block.get("min_required_records") or 0)
+                except (TypeError, ValueError):
+                    min_rec = 0
+                try:
+                    reject_if_min_records_exceeds_max_slice(max(1, min_rec))
+                except ValueError as exc:
+                    SettingsBase.add_critical(result, "data.min_required_records", str(exc))
+                return
             days = self.slice_open_days
         except ValueError as exc:
             SettingsBase.add_critical(result, "simulation.slice_open_days", str(exc))

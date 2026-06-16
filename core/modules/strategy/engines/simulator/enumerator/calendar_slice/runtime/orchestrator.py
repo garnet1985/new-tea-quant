@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""calendar_slice v2 编排：Reader ∥ Compute + prefetch 队列。"""
+"""calendar_slice v2 编排：Reader ∥ Compute + Runtime Planner。"""
 
 from __future__ import annotations
 
@@ -12,6 +12,10 @@ from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.c
     compute_lane_main,
     resolve_open_dates_for_job,
 )
+from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.memory_monitor import (
+    collect_child_pids,
+    job_tree_rss_mb,
+)
 from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.messages import (
     SHUTDOWN,
     FinalizeDone,
@@ -22,13 +26,20 @@ from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.m
 from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.payload_relay import (
     PayloadRelayThread,
 )
+from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.planner import (
+    build_runtime_plan,
+)
 from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.reader_lane import (
     reader_lane_main,
+)
+from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.runtime_plan import (
+    CalendarSliceRuntimePlan,
 )
 from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.settings import (
     CalendarSliceRuntimeSettings,
 )
 from core.modules.strategy.engines.simulator.enumerator.calendar_slice.slice_plan import (
+    is_auto_setting,
     plan_calendar_slices,
 )
 from core.modules.strategy.engines.simulator.enumerator.worker import (
@@ -39,15 +50,15 @@ logger = logging.getLogger(__name__)
 
 
 class CalendarSliceProcessOrchestrator:
-    """JobPipeline 子进程内：spawn Reader + Compute，调度 prefetch。"""
+    """JobPipeline 子进程内：spawn Reader + Compute，Runtime Planner 调度 preload。"""
 
     def __init__(self, job_payload: Dict[str, Any]):
         self.job_payload = job_payload
         self.stock_ids = list(job_payload.get("stock_ids") or [])
         self.start_date = str(job_payload.get("start_date") or "")
         self.end_date = str(job_payload.get("end_date") or "")
-        self.slice_open_days = max(1, int(job_payload.get("slice_open_days") or 63))
-        self.runtime = CalendarSliceRuntimeSettings.from_job_payload(job_payload)
+        self._raw_slice_open_days = job_payload.get("slice_open_days")
+        self.runtime_settings = CalendarSliceRuntimeSettings.from_job_payload(job_payload)
         min_records = 100
         try:
             settings = job_payload.get("settings") or {}
@@ -55,31 +66,48 @@ class CalendarSliceProcessOrchestrator:
         except (TypeError, ValueError):
             pass
         self._min_required_records = max(1, min_records)
+        self._plan: Optional[CalendarSliceRuntimePlan] = None
 
     def run(self) -> Dict[str, Any]:
         run_started_at = time.time()
         open_dates = resolve_open_dates_for_job(self.job_payload)
-        slices = plan_calendar_slices(open_dates, self.slice_open_days)
+        if not open_dates:
+            return self._finish_bulk(success=True, stock_results=[])
+
+        plan = build_runtime_plan(
+            self.job_payload,
+            open_days_total=len(open_dates),
+            settings=self.runtime_settings,
+        )
+        self._plan = plan
+        # 子进程（compute/reader）需要已解析的整数片宽
+        self.job_payload["slice_open_days"] = plan.slice_open_days
+        slices = plan_calendar_slices(open_dates, plan.slice_open_days)
         if not slices:
             return self._finish_bulk(success=True, stock_results=[])
 
+        plan.baseline_rss_mb = job_tree_rss_mb(child_pids=())
+
         ctx = mp.get_context("spawn")
         reader_cmd_q = ctx.Queue()
-        payload_q = ctx.Queue(maxsize=self.runtime.queue_depth)
+        payload_q = ctx.Queue(maxsize=plan.queue_capacity)
         done_q = ctx.Queue()
-        reader_out_q = ctx.Queue() if self.runtime.reader_workers > 1 else None
+        reader_out_q = ctx.Queue() if plan.reader_workers > 1 else None
         reader_payload_q = reader_out_q if reader_out_q is not None else payload_q
 
-        if self.runtime.reader_workers > 1:
-            logger.info(
-                "[calendar_slice] reader_workers=%s queue_depth=%s (parallel load + ordered relay)",
-                self.runtime.reader_workers,
-                self.runtime.queue_depth,
-            )
+        logger.info(
+            "[calendar_slice] plan slice_open_days=%s readers=%s preload=%s/%s queue_cap=%s",
+            plan.slice_open_days,
+            plan.reader_workers,
+            plan.current_preload_depth,
+            plan.ideal_preload_ceiling,
+            plan.queue_capacity,
+        )
+        if plan.reader_workers > 1:
             self._warn_multi_reader_storage()
 
         reader_procs: List[Any] = []
-        for worker_idx in range(self.runtime.reader_workers):
+        for worker_idx in range(plan.reader_workers):
             proc = ctx.Process(
                 target=reader_lane_main,
                 args=(self.job_payload, reader_cmd_q, reader_payload_q),
@@ -90,11 +118,7 @@ class CalendarSliceProcessOrchestrator:
 
         compute_proc = ctx.Process(
             target=compute_lane_main,
-            args=(
-                self.job_payload,
-                payload_q,
-                done_q,
-            ),
+            args=(self.job_payload, payload_q, done_q),
             kwargs={
                 "run_started_at": run_started_at,
                 "open_dates": open_dates,
@@ -115,13 +139,16 @@ class CalendarSliceProcessOrchestrator:
         for proc in reader_procs:
             proc.start()
         compute_proc.start()
+        child_pids = collect_child_pids([*reader_procs, compute_proc])
         try:
             return self._drive_slices(
                 slices=slices,
+                plan=plan,
                 reader_cmd_q=reader_cmd_q,
                 payload_q=payload_q,
                 done_q=done_q,
                 relay=relay,
+                child_pids=child_pids,
             )
         except Exception as exc:
             logger.error("calendar_slice orchestrator failed: %s", exc, exc_info=True)
@@ -141,23 +168,22 @@ class CalendarSliceProcessOrchestrator:
                 payload_q,
                 reader_procs,
                 compute_proc,
-                reader_workers=self.runtime.reader_workers,
+                reader_workers=plan.reader_workers,
             )
 
     def _drive_slices(
         self,
         *,
         slices: List[Any],
+        plan: CalendarSliceRuntimePlan,
         reader_cmd_q: Any,
         payload_q: Any,
         done_q: Any,
-        relay: Optional[PayloadRelayThread] = None,
+        relay: Optional[PayloadRelayThread],
+        child_pids: Sequence[int],
     ) -> Dict[str, Any]:
         n = len(slices)
         loads_dispatched = 0
-        ahead_limit = (
-            self.runtime.reader_workers if self.runtime.prefetch_enabled else 1
-        )
 
         def _dispatch_load(index: int) -> None:
             slice_desc = slices[index]
@@ -169,15 +195,21 @@ class CalendarSliceProcessOrchestrator:
                 SliceLoadRequest.from_descriptor(slice_desc, load_start=load_start)
             )
 
+        def _in_flight_loads(consumed_count: int) -> int:
+            return max(0, loads_dispatched - consumed_count)
+
         def _seed_pipeline() -> None:
             nonlocal loads_dispatched
-            while loads_dispatched < n and loads_dispatched < ahead_limit:
+            while loads_dispatched < n and _in_flight_loads(0) < plan.ahead_limit:
                 _dispatch_load(loads_dispatched)
                 loads_dispatched += 1
 
         def _top_up_pipeline(consumed_count: int) -> None:
             nonlocal loads_dispatched
-            while loads_dispatched < n and loads_dispatched < consumed_count + ahead_limit:
+            while (
+                loads_dispatched < n
+                and _in_flight_loads(consumed_count) < plan.ahead_limit
+            ):
                 _dispatch_load(loads_dispatched)
                 loads_dispatched += 1
 
@@ -197,20 +229,32 @@ class CalendarSliceProcessOrchestrator:
                     f"slice order mismatch: expected {i}, got {done_msg.slice_index}"
                 )
 
+            rss = job_tree_rss_mb(child_pids=child_pids)
+            plan.record_slice(
+                slice_index=i,
+                load_sec=done_msg.load_elapsed_ms / 1000.0,
+                compute_sec=done_msg.compute_elapsed_ms / 1000.0,
+                rss_after_mb=rss,
+            )
+            if i < 2:
+                plan.refine_from_timings()
+            plan.adjust_preload_after_slice(job_rss_mb=rss)
+
             _top_up_pipeline(i + 1)
 
             logger.info(
-                "[calendar_slice] slice %s/%s done (%s)",
+                "[calendar_slice] slice %s/%s done (%s) preload=%s",
                 i + 1,
                 n,
                 done_msg.slice_id,
+                plan.current_preload_depth,
             )
 
         logger.info("[calendar_slice] all slices done, finalizing results…")
         self._signal_shutdown(
             reader_cmd_q,
             payload_q,
-            reader_workers=self.runtime.reader_workers,
+            reader_workers=plan.reader_workers,
         )
 
         finalize = done_q.get(timeout=3600)
@@ -219,11 +263,14 @@ class CalendarSliceProcessOrchestrator:
         if not isinstance(finalize, FinalizeDone):
             raise RuntimeError(f"expected FinalizeDone, got {type(finalize)!r}")
 
+        perf = dict(finalize.performance_metrics or {})
+        perf["calendar_slice_runtime_plan"] = plan.to_dict()
+
         return self._finish_bulk(
             success=True,
             stock_results=finalize.stock_results,
             calendar_progress=finalize.calendar_progress or None,
-            performance_metrics=finalize.performance_metrics or None,
+            performance_metrics=perf,
         )
 
     @staticmethod
@@ -240,14 +287,13 @@ class CalendarSliceProcessOrchestrator:
 
     def _warn_multi_reader_storage(self) -> None:
         try:
-            from core.modules.data_manager import DataManager
+            from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.planner import (
+                is_duckdb_backend,
+            )
 
-            backend = str(getattr(DataManager(is_verbose=False), "backend", "") or "").lower()
-            if "duck" in backend:
+            if is_duckdb_backend():
                 logger.warning(
-                    "[calendar_slice] reader_workers=%s on DuckDB may contend on single-file "
-                    "reads; prefer reader_workers=1 unless profiled",
-                    self.runtime.reader_workers,
+                    "[calendar_slice] DuckDB: reader 并行已限制为稳定模式"
                 )
         except Exception:
             pass

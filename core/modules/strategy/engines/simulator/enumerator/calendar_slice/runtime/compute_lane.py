@@ -53,11 +53,13 @@ def compute_lane_main(
             payload = msg
             engine.profiler.start_timer("compute_slice")
             carry = engine.run_slice(payload, carry, reporter=reporter)
-            engine.profiler.end_timer("compute_slice")
+            compute_sec = engine.profiler.end_timer("compute_slice")
             done_q.put(
                 SliceDone(
                     slice_index=payload.slice_index,
                     slice_id=payload.slice_id,
+                    load_elapsed_ms=float(payload.load_elapsed_ms),
+                    compute_elapsed_ms=float(compute_sec) * 1000.0,
                 )
             )
             logger.debug(

@@ -48,12 +48,11 @@ def test_calendar_slice_runtime_settings_defaults():
     )
 
     rt = CalendarSliceRuntimeSettings.from_job_payload({"settings": {"enumerator": {}}})
-    assert rt.queue_depth == 1
     assert rt.prefetch_enabled is True
-    assert rt.reader_workers == 1
+    assert rt.reader_workers == 8  # auto default upper bound placeholder
 
 
-def test_calendar_slice_runtime_settings_reader_workers():
+def test_calendar_slice_runtime_settings_explicit():
     from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.settings import (
         CalendarSliceRuntimeSettings,
     )
@@ -62,13 +61,13 @@ def test_calendar_slice_runtime_settings_reader_workers():
         {
             "settings": {
                 "enumerator": {
-                    "calendar_slice": {"reader_workers": 3, "queue_depth": 1},
+                    "calendar_slice": {"reader_workers": 2, "queue_depth": 2},
                 }
             }
         }
     )
-    assert rt.reader_workers == 3
-    assert rt.queue_depth == 3
+    assert rt.reader_workers == 2
+    assert rt.queue_depth == 2
 
 
 def test_calendar_slice_runtime_settings_prefetch_off_forces_single_reader():

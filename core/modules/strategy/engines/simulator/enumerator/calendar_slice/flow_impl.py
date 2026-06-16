@@ -22,6 +22,7 @@ from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.o
 from core.modules.strategy.engines.simulator.enumerator.calendar_slice.slice_plan import (
     build_calendar_slice_dispatch_job,
     clamp_slice_open_days,
+    is_auto_setting,
 )
 from core.modules.strategy.engines.simulator.enumerator.opportunity_enumerator_flow_impl import (
     OpportunityEnumeratorFlowImpl,
@@ -44,8 +45,9 @@ class CalendarSliceEnumeratorFlowImpl(OpportunityEnumeratorFlowImpl):
         settings_view = StrategySettingsView.from_dict(settings_payload)
         if settings_view.simulation_settings.execution_mode != "calendar_slice":
             raise ValueError("CalendarSliceEnumeratorFlowImpl 需要 simulation.execution_mode=calendar_slice")
-        slice_open_days = clamp_slice_open_days(
-            settings_view.simulation_settings.slice_open_days,
+        raw_slice = settings_view.simulation_settings.slice_open_days_raw
+        slice_for_job = raw_slice if is_auto_setting(raw_slice) else clamp_slice_open_days(
+            raw_slice,
             min_required_records=settings_view.min_required_records,
         )
         job = build_calendar_slice_dispatch_job(
@@ -56,7 +58,7 @@ class CalendarSliceEnumeratorFlowImpl(OpportunityEnumeratorFlowImpl):
             stock_ids=list(target_stock_ids),
             start_date=self.start_date,
             end_date=self.end_date,
-            slice_open_days=slice_open_days,
+            slice_open_days=slice_for_job,
         )
         return [job]
 
@@ -73,8 +75,9 @@ class CalendarSliceEnumeratorFlowImpl(OpportunityEnumeratorFlowImpl):
         if job.get("enumeration_execution_mode") != "calendar_slice":
             return
         settings_view = StrategySettingsView.from_dict(settings_payload)
+        raw_slice = settings_view.simulation_settings.slice_open_days_raw
         slice_open_days = clamp_slice_open_days(
-            settings_view.simulation_settings.slice_open_days,
+            raw_slice,
             min_required_records=settings_view.min_required_records,
         )
         raw_open = calendar_dict.get("open_dates") if isinstance(calendar_dict, dict) else []

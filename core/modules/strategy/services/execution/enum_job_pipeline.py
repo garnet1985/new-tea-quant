@@ -69,6 +69,7 @@ def build_enumeration_payload(
         "entity_progress_total",
         "workbench_strategy_name",
         "workbench_run_id",
+        "stock_infos",
     ):
         if key in job and job.get(key) not in (None, ""):
             payload[key] = job[key]

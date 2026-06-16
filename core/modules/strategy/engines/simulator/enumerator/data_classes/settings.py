@@ -76,6 +76,27 @@ class OpportunityEnumeratorSettings:
         self.entity_progress_mode = str(
             enumerator.get("entity_progress_mode") or "stock"
         ).strip().lower()
+        cs_block = dict(enumerator.get("calendar_slice") or {})
+        try:
+            cs_depth = int(cs_block.get("queue_depth", 1))
+        except (TypeError, ValueError):
+            cs_depth = 1
+        try:
+            cs_reader_workers = int(cs_block.get("reader_workers", 1))
+        except (TypeError, ValueError):
+            cs_reader_workers = 1
+        cs_reader_workers = max(1, min(8, cs_reader_workers))
+        self.calendar_slice_queue_depth = max(1, min(8, cs_depth))
+        self.calendar_slice_prefetch_enabled = bool(cs_block.get("prefetch_enabled", True))
+        self.calendar_slice_reader_workers = cs_reader_workers
+        if not self.calendar_slice_prefetch_enabled:
+            self.calendar_slice_queue_depth = 1
+            self.calendar_slice_reader_workers = 1
+        elif self.calendar_slice_reader_workers > 1:
+            self.calendar_slice_queue_depth = max(
+                self.calendar_slice_queue_depth,
+                min(self.calendar_slice_reader_workers, 8),
+            )
 
         simulator = dict(settings.get("price_simulator") or {})
         raw_goal = settings.get("goal")
@@ -101,4 +122,9 @@ class OpportunityEnumeratorSettings:
             merged["enumerator"]["calendar_progress_mode"] = self.calendar_progress_mode
         if self.entity_progress_mode:
             merged["enumerator"]["entity_progress_mode"] = self.entity_progress_mode
+        merged["enumerator"]["calendar_slice"] = {
+            "queue_depth": self.calendar_slice_queue_depth,
+            "prefetch_enabled": self.calendar_slice_prefetch_enabled,
+            "reader_workers": self.calendar_slice_reader_workers,
+        }
         return merged

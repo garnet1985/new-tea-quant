@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Calendar slice enumerator flow implementation (MVP)."""
+"""Calendar slice enumerator flow implementation (Reader / Compute v2)."""
 
 from __future__ import annotations
 
@@ -15,6 +15,9 @@ from core.modules.strategy.engines.simulator.enumerator.calendar_slice.progress 
 )
 from core.modules.strategy.engines.simulator.enumerator.progress import (
     progress_axis_for_calendar_mode,
+)
+from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.orchestrator import (
+    load_stock_infos_for_ids,
 )
 from core.modules.strategy.engines.simulator.enumerator.calendar_slice.slice_plan import (
     build_calendar_slice_dispatch_job,
@@ -89,8 +92,12 @@ class CalendarSliceEnumeratorFlowImpl(OpportunityEnumeratorFlowImpl):
             progress_mode=progress_mode,
         )
         plan["progress_axis"] = progress_axis_for_calendar_mode(plan["calendar_progress_mode"])
+        stock_ids = [str(s).strip() for s in (job.get("stock_ids") or []) if str(s).strip()]
+        stock_infos = load_stock_infos_for_ids(stock_ids)
         for row in jobs:
             row.update(plan)
+            if stock_infos:
+                row["stock_infos"] = stock_infos
             if self.workbench_strategy_name:
                 row["workbench_strategy_name"] = self.workbench_strategy_name
             if self.workbench_run_id:

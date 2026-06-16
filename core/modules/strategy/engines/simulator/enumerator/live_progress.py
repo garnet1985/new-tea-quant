@@ -86,6 +86,8 @@ def print_enumeration_progress_line(
 ) -> int:
     """终端一行进度（与 scan 风格一致）。返回更新后的 last_printed_pct。"""
     pct = int(progress_pct)
+    if pct >= 100 and last_printed_pct >= 100:
+        return last_printed_pct
     if pct < 100 and last_printed_pct >= 0 and pct - last_printed_pct < min_delta:
         return last_printed_pct
     elapsed_text = format_elapsed_seconds(elapsed_seconds)

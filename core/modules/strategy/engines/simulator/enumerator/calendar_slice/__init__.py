@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Calendar slice enumerator (MVP)."""
+"""Calendar slice enumerator (Reader / Compute v2)."""
 
 from .flow import CalendarSliceEnumeratorFlow
 from .slice_plan import (

@@ -501,7 +501,7 @@ class OpportunityEnumeratorFlowImpl:
         last_print_pct = -1
         poll_started_at = time.time()
 
-        def _emit_from_sidecar(*, force: bool = False) -> None:
+        def _emit_from_sidecar() -> None:
             nonlocal last_print_pct
             sidecar = rec.get_progress()
             if not isinstance(sidecar, dict):
@@ -537,18 +537,19 @@ class OpportunityEnumeratorFlowImpl:
                     if sidecar.get(k) not in (None, "")
                 },
             )
-            if force or pct >= 100 or pct - last_print_pct >= 5 or last_print_pct < 0:
+            if pct - last_print_pct >= 5 or last_print_pct < 0 or (pct >= 100 and last_print_pct < 100):
                 last_print_pct = print_enumeration_progress_line(
                     progress_pct=pct,
                     done=done,
                     total=total,
-                    last_printed_pct=-1 if force else last_print_pct,
+                    last_printed_pct=last_print_pct,
                     elapsed_seconds=elapsed,
                 )
 
         while not stop_event.wait(1.5):
             _emit_from_sidecar()
-        _emit_from_sidecar(force=True)
+        if last_print_pct < 100:
+            _emit_from_sidecar()
 
     def _run_scheduled_batches(
         self,

@@ -499,13 +499,26 @@ class OpportunityEnumeratorFlowImpl:
 
         rec = ProgressRecorder.for_strategy_run_step(sn, rid, "enum")
         last_print_pct = -1
+        last_plan_sig = ""
         poll_started_at = time.time()
 
         def _emit_from_sidecar() -> None:
-            nonlocal last_print_pct
+            nonlocal last_print_pct, last_plan_sig
             sidecar = rec.get_progress()
             if not isinstance(sidecar, dict):
                 return
+            plan = sidecar.get("calendar_slice_runtime_plan")
+            if isinstance(plan, dict):
+                import json
+
+                sig = json.dumps(plan, sort_keys=True, default=str)
+                if sig != last_plan_sig:
+                    from core.modules.strategy.engines.simulator.enumerator.live_progress import (
+                        print_calendar_slice_plan_line,
+                    )
+
+                    print_calendar_slice_plan_line(plan)
+                    last_plan_sig = sig
             try:
                 done = int(sidecar.get("done_jobs") or 0)
                 total = int(sidecar.get("total_jobs") or 0)
@@ -533,6 +546,7 @@ class OpportunityEnumeratorFlowImpl:
                         "elapsed_seconds",
                         "calendar_as_of_date",
                         "calendar_slice_id",
+                        "calendar_slice_runtime_plan",
                     )
                     if sidecar.get(k) not in (None, "")
                 },
@@ -651,6 +665,20 @@ class OpportunityEnumeratorFlowImpl:
 
         self._stock_summary_by_id = stock_summary_by_id
         self._enumeration_bundles_by_id = bundles_by_id
+        self._calendar_slice_runtime_plan = None
+        for jr in job_results:
+            raw = getattr(jr, "result", None)
+            if (
+                getattr(jr, "status", None)
+                and jr.status.value == "completed"
+                and isinstance(raw, dict)
+                and raw.get("bulk")
+            ):
+                perf = raw.get("performance_metrics") or {}
+                plan = perf.get("calendar_slice_runtime_plan")
+                if isinstance(plan, dict):
+                    self._calendar_slice_runtime_plan = plan
+                    break
 
         # step2: normalize and return aggregate summary
         return {
@@ -767,6 +795,9 @@ class OpportunityEnumeratorFlowImpl:
             simulation_effective=sim_effective,
             backtest_period=backtest_period,
         )
+        runtime_plan = getattr(self, "_calendar_slice_runtime_plan", None)
+        if isinstance(runtime_plan, dict):
+            metadata["calendar_slice_runtime_plan"] = runtime_plan
         EnumeratorOutputWriterService.write_metadata(
             output_dir=output_dir, metadata=metadata
         )
@@ -781,6 +812,8 @@ class OpportunityEnumeratorFlowImpl:
             bff_out = report.to_bff_payload(include_stock_rows=False)
             if isinstance(bff_out, dict):
                 bff_out["backtest_period"] = backtest_period
+                if isinstance(runtime_plan, dict):
+                    bff_out["calendar_slice_runtime_plan"] = runtime_plan
                 with (output_dir / "0_report_enum.json").open("w", encoding="utf-8") as f:
                     json.dump(bff_out, f, indent=2, ensure_ascii=False)
         except Exception:
@@ -828,6 +861,9 @@ class OpportunityEnumeratorFlowImpl:
             bp = dict(self._backtest_period_cache)
         if isinstance(bp, dict) and bp.get("start_date") and bp.get("end_date"):
             summary["backtest_period"] = bp
+        plan = getattr(self, "_calendar_slice_runtime_plan", None)
+        if isinstance(plan, dict):
+            summary["calendar_slice_runtime_plan"] = plan
         # ``enumMetrics``：优先使用 ``save_metadata`` 里与落盘同源的内存 ``to_bff_payload``；
         # 再读 ``0_report_enum.json``，最后 ``EnumeratorReport.load`` 目录兜底。
         em: Optional[Dict[str, Any]] = None

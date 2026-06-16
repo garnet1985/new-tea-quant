@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import pickle
 from typing import Any, Dict, List, Mapping
 
 from core.modules.data_contract.contract_const import ContractScope, DataKey
@@ -99,4 +100,12 @@ def transfer_to_batch(transfer: Dict[str, Any]) -> StrategyJobContractBatch:
     return batch
 
 
-__all__ = ["batch_to_transfer", "transfer_to_batch"]
+def estimate_transfer_payload_bytes(transfer: Dict[str, Any]) -> int:
+    """跨进程序列化体积粗估（pickle），用于 preload 内存预算而非 job-tree RSS。"""
+    try:
+        return max(0, len(pickle.dumps(transfer, protocol=pickle.HIGHEST_PROTOCOL)))
+    except Exception:
+        return 0
+
+
+__all__ = ["batch_to_transfer", "estimate_transfer_payload_bytes", "transfer_to_batch"]

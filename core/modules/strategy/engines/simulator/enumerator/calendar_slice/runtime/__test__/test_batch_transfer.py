@@ -5,6 +5,7 @@ from core.modules.data_contract.data_class.contract_meta import ContractMeta
 from core.modules.data_contract.data_class.issue_result import IssueResult
 from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.batch_transfer import (
     batch_to_transfer,
+    estimate_transfer_payload_bytes,
     transfer_to_batch,
 )
 from core.modules.strategy.services.data.injection.job_contract_batch import (
@@ -40,6 +41,12 @@ def test_batch_transfer_round_trip():
     c1 = restored.contracts_for_entity("000001.SZ")
     assert len(c1[DataKey.STOCK_KLINE_DAILY].data) == 1
     assert c1[DataKey.STOCK_KLINE_DAILY].data[0]["close"] == 10.0
+
+
+def test_estimate_transfer_payload_bytes():
+    transfer = batch_to_transfer(_sample_batch())
+    nbytes = estimate_transfer_payload_bytes(transfer)
+    assert nbytes > 0
 
 
 def test_calendar_slice_runtime_settings_defaults():

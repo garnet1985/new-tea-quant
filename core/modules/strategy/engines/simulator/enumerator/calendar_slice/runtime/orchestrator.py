@@ -35,6 +35,9 @@ from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.r
 from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.runtime_plan import (
     CalendarSliceRuntimePlan,
 )
+from core.modules.strategy.engines.simulator.enumerator.calendar_slice.progress import (
+    resolve_calendar_progress_plan,
+)
 from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.settings import (
     CalendarSliceRuntimeSettings,
 )
@@ -80,8 +83,25 @@ class CalendarSliceProcessOrchestrator:
             settings=self.runtime_settings,
         )
         self._plan = plan
-        # 子进程（compute/reader）需要已解析的整数片宽
+        # 子进程（compute/reader）需要已解析的整数片宽 + 与 runtime 片宽一致的进度 total
         self.job_payload["slice_open_days"] = plan.slice_open_days
+        progress_plan = resolve_calendar_progress_plan(
+            open_dates=open_dates,
+            slice_open_days=plan.slice_open_days,
+            progress_mode=str(self.job_payload.get("calendar_progress_mode") or "open_date"),
+        )
+        self.job_payload.update(progress_plan)
+        plan.calendar_progress_total = int(progress_plan["calendar_progress_total"])
+        plan.calendar_slice_count = int(progress_plan["calendar_slice_count"])
+        from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.plan_publish import (
+            publish_runtime_plan_from_job,
+        )
+
+        publish_runtime_plan_from_job(
+            self.job_payload,
+            plan,
+            total=plan.calendar_progress_total,
+        )
         slices = plan_calendar_slices(open_dates, plan.slice_open_days)
         if not slices:
             return self._finish_bulk(success=True, stock_results=[])
@@ -235,10 +255,21 @@ class CalendarSliceProcessOrchestrator:
                 load_sec=done_msg.load_elapsed_ms / 1000.0,
                 compute_sec=done_msg.compute_elapsed_ms / 1000.0,
                 rss_after_mb=rss,
+                payload_bytes=int(done_msg.payload_bytes or 0),
             )
             if i < 2:
                 plan.refine_from_timings()
             plan.adjust_preload_after_slice(job_rss_mb=rss)
+            from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.plan_publish import (
+                publish_runtime_plan_from_job,
+            )
+
+            publish_runtime_plan_from_job(
+                self.job_payload,
+                plan,
+                done=i + 1,
+                total=plan.calendar_progress_total or None,
+            )
 
             _top_up_pipeline(i + 1)
 

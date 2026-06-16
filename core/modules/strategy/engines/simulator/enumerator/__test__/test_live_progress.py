@@ -1,9 +1,19 @@
-from core.modules.strategy.engines.simulator.enumerator.live_progress import (
-    format_elapsed_seconds,
-)
 
+def test_format_calendar_slice_plan_line():
+    from core.modules.strategy.engines.simulator.enumerator.live_progress import (
+        format_calendar_slice_plan_line,
+    )
 
-def test_format_elapsed_seconds():
-    assert format_elapsed_seconds(12.3) == "12.3s"
-    assert format_elapsed_seconds(90) == "1m30s"
-    assert format_elapsed_seconds(120) == "2m"
+    line = format_calendar_slice_plan_line(
+        {
+            "slice_open_days": 63,
+            "reader_workers": 4,
+            "current_preload_depth": 3,
+            "ideal_preload_ceiling": 4,
+            "queue_capacity": 4,
+            "memory_budget_mb": 9023.6,
+            "mb_per_slice": 420.0,
+        }
+    )
+    assert "片宽=63" in line
+    assert "preload=3/4" in line

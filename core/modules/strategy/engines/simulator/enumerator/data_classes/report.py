@@ -793,9 +793,13 @@ class EnumeratorReport(ReportBase):
             if elapsed > 0:
                 from core.modules.strategy.engines.simulator.enumerator.live_progress import (
                     format_elapsed_seconds,
+                    print_calendar_slice_plan_line,
                 )
 
                 print(f"⏱️ 总耗时: {format_elapsed_seconds(elapsed)}")
+            plan = summary_results[0].get("calendar_slice_runtime_plan")
+            if isinstance(plan, dict):
+                print_calendar_slice_plan_line(plan)
         if not summary_results:
             return
         print("")

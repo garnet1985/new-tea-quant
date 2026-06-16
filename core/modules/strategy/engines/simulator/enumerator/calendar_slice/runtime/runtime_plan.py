@@ -22,6 +22,7 @@ class SliceTimingSample:
     load_sec: float = 0.0
     compute_sec: float = 0.0
     rss_after_mb: float = 0.0
+    payload_bytes: int = 0
 
 
 @dataclass
@@ -39,6 +40,8 @@ class CalendarSliceRuntimePlan:
     carry_reserve_mb: float = _DEFAULT_CARRY_RESERVE_MB
     compute_reserve_mb: float = _DEFAULT_COMPUTE_SLICE_RESERVE_MB
     baseline_rss_mb: float = 0.0
+    calendar_progress_total: int = 0
+    calendar_slice_count: int = 0
     _samples: list[SliceTimingSample] = field(default_factory=list, repr=False)
 
     @property
@@ -55,6 +58,7 @@ class CalendarSliceRuntimePlan:
         load_sec: float,
         compute_sec: float,
         rss_after_mb: float,
+        payload_bytes: int = 0,
     ) -> None:
         self._samples.append(
             SliceTimingSample(
@@ -62,10 +66,21 @@ class CalendarSliceRuntimePlan:
                 load_sec=max(0.0, load_sec),
                 compute_sec=max(0.0, compute_sec),
                 rss_after_mb=max(0.0, rss_after_mb),
+                payload_bytes=max(0, int(payload_bytes or 0)),
             )
         )
-        if load_sec > 0 and rss_after_mb > 0:
-            # 滚动更新 mb_per_slice（最近 3 片 median 的 rss 增量粗估）
+        if payload_bytes > 0:
+            recent = self._samples[-3:]
+            sizes_mb = [
+                s.payload_bytes / (1024.0 * 1024.0)
+                for s in recent
+                if s.payload_bytes > 0
+            ]
+            if sizes_mb:
+                sizes_mb.sort()
+                self.mb_per_slice = max(1.0, sizes_mb[len(sizes_mb) // 2])
+        elif load_sec > 0 and rss_after_mb > 0:
+            # fallback：无 payload 时用 RSS 增量粗估
             recent = self._samples[-3:]
             deltas = [
                 max(s.rss_after_mb - self.baseline_rss_mb, 1.0)
@@ -143,7 +158,7 @@ class CalendarSliceRuntimePlan:
                 )
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        out: Dict[str, Any] = {
             "slice_open_days": self.slice_open_days,
             "memory_budget_mb": round(self.memory_budget_mb, 1),
             "reader_workers": self.reader_workers,
@@ -153,6 +168,11 @@ class CalendarSliceRuntimePlan:
             "mb_per_slice": round(self.mb_per_slice, 1),
             "prefetch_enabled": self.prefetch_enabled,
         }
+        if self.calendar_progress_total > 0:
+            out["calendar_progress_total"] = self.calendar_progress_total
+        if self.calendar_slice_count > 0:
+            out["calendar_slice_count"] = self.calendar_slice_count
+        return out
 
 
 __all__ = ["CalendarSliceRuntimePlan", "SliceTimingSample"]

@@ -78,3 +78,24 @@ def test_runtime_plan_ahead_limit_binds_preload():
         mb_per_slice=200,
     )
     assert plan.ahead_limit == 3
+
+
+def test_runtime_plan_record_slice_uses_payload_bytes():
+    plan = CalendarSliceRuntimePlan(
+        slice_open_days=63,
+        memory_budget_mb=4096,
+        reader_workers=4,
+        ideal_preload_ceiling=3,
+        current_preload_depth=3,
+        queue_capacity=4,
+        mb_per_slice=400,
+    )
+    payload_bytes = 200 * 1024 * 1024
+    plan.record_slice(
+        slice_index=0,
+        load_sec=1.0,
+        compute_sec=0.5,
+        rss_after_mb=5000.0,
+        payload_bytes=payload_bytes,
+    )
+    assert 190 <= plan.mb_per_slice <= 210

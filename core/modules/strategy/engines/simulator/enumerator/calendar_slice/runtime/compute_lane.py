@@ -60,6 +60,7 @@ def compute_lane_main(
                     slice_id=payload.slice_id,
                     load_elapsed_ms=float(payload.load_elapsed_ms),
                     compute_elapsed_ms=float(compute_sec) * 1000.0,
+                    payload_bytes=int(payload.payload_bytes or 0),
                 )
             )
             logger.debug(

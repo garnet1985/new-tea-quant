@@ -39,6 +39,7 @@ class SlicePayload:
     open_dates: Tuple[str, ...]
     batch_transfer: Dict[str, Any]
     load_elapsed_ms: float = 0.0
+    payload_bytes: int = 0
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,7 @@ class SliceDone:
     slice_id: str
     load_elapsed_ms: float = 0.0
     compute_elapsed_ms: float = 0.0
+    payload_bytes: int = 0
 
 
 @dataclass

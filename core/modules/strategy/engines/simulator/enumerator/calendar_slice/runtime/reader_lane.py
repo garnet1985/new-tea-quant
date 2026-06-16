@@ -13,6 +13,7 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_vi
 )
 from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.batch_transfer import (
     batch_to_transfer,
+    estimate_transfer_payload_bytes,
 )
 from core.modules.strategy.engines.simulator.enumerator.calendar_slice.runtime.messages import (
     SHUTDOWN,
@@ -65,6 +66,7 @@ def reader_lane_main(
                     fresh_strategy_cache=False,
                 )
                 transfer = batch_to_transfer(job_batch)
+                payload_bytes = estimate_transfer_payload_bytes(transfer)
                 elapsed_ms = (time.perf_counter() - started) * 1000.0
                 payload_q.put(
                     SlicePayload(
@@ -75,6 +77,7 @@ def reader_lane_main(
                         open_dates=req.open_dates,
                         batch_transfer=transfer,
                         load_elapsed_ms=elapsed_ms,
+                        payload_bytes=payload_bytes,
                     )
                 )
                 logger.info(

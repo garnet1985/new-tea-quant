@@ -1,30 +1,24 @@
 """Runtime planner unit tests."""
+from unittest.mock import patch
+
+from core.infra.job_pipeline.profile import WorkerProfiles
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.planner import (
+    build_runtime_plan,
     ideal_preload_from_timings,
     preload_depth_from_memory,
-    resolve_slice_open_days_for_job,
 )
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.runtime_plan import (
     CalendarSliceRuntimePlan,
 )
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.slice_plan import (
     MIN_PLANNER_SLICE_OPEN_DAYS,
-    auto_slice_open_days_floor,
-    reject_if_min_records_exceeds_max_slice,
+    resolve_auto_slice_open_days,
+    resolve_slice_width_floor,
 )
 
 
 def test_auto_slice_floor():
-    assert auto_slice_open_days_floor(15) == MIN_PLANNER_SLICE_OPEN_DAYS
-    assert auto_slice_open_days_floor(80) == 80
-
-
-def test_reject_min_records_above_max():
-    try:
-        reject_if_min_records_exceeds_max_slice(300)
-        assert False, "expected ValueError"
-    except ValueError:
-        pass
+    assert resolve_slice_width_floor() == MIN_PLANNER_SLICE_OPEN_DAYS
 
 
 def test_ideal_preload_from_timings():
@@ -42,15 +36,24 @@ def test_preload_depth_from_memory():
     assert depth >= 4
 
 
-def test_resolve_slice_open_days_auto():
-    days = resolve_slice_open_days_for_job(
-        "auto",
-        min_required_records=15,
+def test_resolve_auto_slice_open_days():
+    days = resolve_auto_slice_open_days(
         mb_per_slice=400,
         memory_budget_mb=4096,
         open_days_total=500,
     )
     assert days >= MIN_PLANNER_SLICE_OPEN_DAYS
+
+
+def test_build_runtime_plan_requires_auto_slice_marker():
+    try:
+        build_runtime_plan({"slice_open_days": 63}, open_days_total=100)
+        assert False, "expected ValueError"
+    except ValueError:
+        pass
+
+    plan = build_runtime_plan({"slice_open_days": "auto"}, open_days_total=500)
+    assert plan.slice_open_days >= MIN_PLANNER_SLICE_OPEN_DAYS
 
 
 def test_runtime_plan_adjust_preload_tight():
@@ -99,3 +102,21 @@ def test_runtime_plan_record_slice_uses_payload_bytes():
         payload_bytes=payload_bytes,
     )
     assert 190 <= plan.mb_per_slice <= 210
+
+
+def test_profile_calendar_slice_config_merges_defaults():
+    from core.infra.job_pipeline.profile import profile_calendar_slice_config
+
+    block = {
+        "enumerator": {
+            "calendar_slice": {"reader_workers": 2},
+        }
+    }
+    with patch(
+        "core.infra.job_pipeline.profile.resolver._job_pipeline_block",
+        return_value=block,
+    ):
+        cfg = profile_calendar_slice_config(WorkerProfiles.ENUMERATOR)
+    assert cfg["reader_workers"] == 2
+    assert cfg["queue_depth"] == "auto"
+    assert cfg["prefetch_enabled"] is True

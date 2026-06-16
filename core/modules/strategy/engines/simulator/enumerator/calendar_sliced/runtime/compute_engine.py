@@ -112,7 +112,12 @@ class CalendarSliceComputeEngine:
         self.strategy_name = job_payload["strategy_name"]
         self.start_date = str(job_payload["start_date"])
         self.end_date = str(job_payload["end_date"])
-        self.slice_open_days = max(1, int(job_payload.get("slice_open_days") or 63))
+        raw_slice = job_payload.get("slice_open_days")
+        if not isinstance(raw_slice, int):
+            raise ValueError(
+                f"compute lane 需要 orchestrator 已 resolve 的 slice_open_days 整数，收到 {raw_slice!r}"
+            )
+        self.slice_open_days = raw_slice
         self.settings = StrategySettingsView.from_dict(job_payload["settings"])
         self.settings_dict = self.settings.to_dict()
         self.simulation = self.settings.simulation_settings

@@ -79,18 +79,28 @@ class StrategyEnumeratorSettings(SettingsBase):
             field_prefix="enumerator",
             keys=ENUMERATOR_STRATEGY_DISPATCH_KEYS,
         )
+        cs = self.enumerator.get("calendar_slice")
+        if isinstance(cs, dict) and cs:
+            SettingsBase.add_warning(
+                result,
+                "enumerator.calendar_slice",
+                "忽略 calendar_slice：Reader/preload 性能参数由 worker.json "
+                "job_pipeline.enumerator.calendar_slice 决定",
+            )
         SettingsBase.log_warnings(result, logger)
         self._enumerator_validated = True
         return result
 
     def to_dict(self) -> Dict[str, Any]:
         from core.infra.job_pipeline.profile.constants import (
+            ENUMERATOR_STRATEGY_CALENDAR_SLICE_KEYS,
             ENUMERATOR_STRATEGY_DISPATCH_KEYS,
         )
 
         out = self.deep_copy_dict(dict(self.enumerator))
         SettingsBase.strip_ignored_pipeline_pool_keys(out)
         SettingsBase.strip_ignored_dispatch_keys(out, ENUMERATOR_STRATEGY_DISPATCH_KEYS)
+        SettingsBase.strip_ignored_dispatch_keys(out, ENUMERATOR_STRATEGY_CALENDAR_SLICE_KEYS)
         return out
 
     @property

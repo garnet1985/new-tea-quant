@@ -60,6 +60,17 @@ def resolve_worker_profile(worker_id: str = WorkerProfiles.DEFAULT) -> Dict[str,
     return {**default, **specific}
 
 
+def profile_calendar_slice_config(worker_id: str = WorkerProfiles.ENUMERATOR) -> Dict[str, Any]:
+    from core.infra.job_pipeline.profile.constants import CALENDAR_SLICE_RUNTIME_DEFAULTS
+
+    defaults = dict(CALENDAR_SLICE_RUNTIME_DEFAULTS)
+    prof = resolve_worker_profile(worker_id)
+    block = prof.get("calendar_slice")
+    if isinstance(block, dict):
+        return {**defaults, **block}
+    return defaults
+
+
 def profile_dispatch_config(worker_id: str) -> Dict[str, Any]:
     defaults = dict(DISPATCH_DEFAULTS_BY_PROFILE.get(worker_id, {}))
     prof = resolve_worker_profile(worker_id)

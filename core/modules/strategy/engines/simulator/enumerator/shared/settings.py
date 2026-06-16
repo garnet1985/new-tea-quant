@@ -76,16 +76,6 @@ class EnumeratorSettings:
         self.entity_progress_mode = str(
             enumerator.get("entity_progress_mode") or "stock"
         ).strip().lower()
-        from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.settings import (
-            CalendarSliceRuntimeSettings,
-        )
-
-        cs_rt = CalendarSliceRuntimeSettings.from_job_payload({"settings": settings})
-        self.calendar_slice_prefetch_enabled = cs_rt.prefetch_enabled
-        self.calendar_slice_queue_depth_raw = cs_rt.queue_depth_raw
-        self.calendar_slice_reader_workers_raw = cs_rt.reader_workers_raw
-        self.calendar_slice_queue_depth = cs_rt.queue_depth
-        self.calendar_slice_reader_workers = cs_rt.reader_workers
 
         simulator = dict(settings.get("price_simulator") or {})
         raw_goal = settings.get("goal")
@@ -105,15 +95,11 @@ class EnumeratorSettings:
             merged["enumerator"] = {}
         merged["enumerator"].pop("use_sampling", None)
         merged["enumerator"].pop("max_test_versions", None)
+        merged["enumerator"].pop("calendar_slice", None)
         merged["enumerator"]["max_workers"] = self.max_workers
         merged["enumerator"]["is_verbose"] = self.is_verbose
         if self.calendar_progress_mode:
             merged["enumerator"]["calendar_progress_mode"] = self.calendar_progress_mode
         if self.entity_progress_mode:
             merged["enumerator"]["entity_progress_mode"] = self.entity_progress_mode
-        merged["enumerator"]["calendar_slice"] = {
-            "queue_depth": self.calendar_slice_queue_depth_raw,
-            "prefetch_enabled": self.calendar_slice_prefetch_enabled,
-            "reader_workers": self.calendar_slice_reader_workers_raw,
-        }
         return merged

@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
-"""calendar_slice 运行时调度参数（``enumerator.calendar_sliced``）。
-
-用户 settings 键名与含义：
+"""calendar_slice 运行时调度参数（``worker.json`` → ``job_pipeline.enumerator.calendar_slice``）。
 
 - ``reader_workers``：并行 Reader 进程数（``"auto"`` 或 1–8）
 - ``queue_depth``：payload 队列容量 / preload 上限参考（``"auto"`` 或 1–8）
 - ``prefetch_enabled``：关闭时强制单 reader、preload=1
 
-``simulation.slice_open_days`` 在 simulation 块，不在此块。
+片宽/步长由运行时 planner auto 决定，不在策略 settings 配置。
 """
 
 from __future__ import annotations
@@ -15,6 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Union
 
+from core.infra.job_pipeline.profile import WorkerProfiles, profile_calendar_slice_config
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.slice_plan import (
     is_auto_setting,
 )
@@ -32,12 +31,15 @@ class CalendarSliceRuntimeSettings:
     reader_workers_raw: Union[int, str] = 1
 
     @classmethod
-    def from_job_payload(cls, job_payload: Dict[str, Any]) -> "CalendarSliceRuntimeSettings":
-        settings = job_payload.get("settings") if isinstance(job_payload, dict) else {}
-        enumerator = (settings or {}).get("enumerator") if isinstance(settings, dict) else {}
-        block = (enumerator or {}).get("calendar_slice") if isinstance(enumerator, dict) else {}
-        if not isinstance(block, dict):
-            block = {}
+    def from_worker_profile(
+        cls,
+        worker_id: str = WorkerProfiles.ENUMERATOR,
+    ) -> "CalendarSliceRuntimeSettings":
+        block = profile_calendar_slice_config(worker_id)
+        return cls._from_block(block)
+
+    @classmethod
+    def _from_block(cls, block: Dict[str, Any]) -> "CalendarSliceRuntimeSettings":
         raw_depth = block.get("queue_depth", "auto")
         raw_workers = block.get("reader_workers", "auto")
         prefetch = bool(block.get("prefetch_enabled", True))

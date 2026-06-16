@@ -8,6 +8,11 @@
     "enumerator": {
       "reserve_cores": 2,
       "max_parallel_jobs_cap": null,
+      "calendar_slice": {
+        "reader_workers": "auto",
+        "queue_depth": "auto",
+        "prefetch_enabled": true
+      },
       "dispatch": {
         "memory_budget_mb": "auto",
         "memory_floor_mb": "auto",

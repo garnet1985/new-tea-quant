@@ -28,6 +28,7 @@ from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.
 )
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.planner import (
     build_runtime_plan,
+    _parse_min_required_records,
 )
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.reader_lane import (
     reader_lane_main,
@@ -60,15 +61,8 @@ class CalendarSliceProcessOrchestrator:
         self.stock_ids = list(job_payload.get("stock_ids") or [])
         self.start_date = str(job_payload.get("start_date") or "")
         self.end_date = str(job_payload.get("end_date") or "")
-        self._raw_slice_open_days = job_payload.get("slice_open_days")
-        self.runtime_settings = CalendarSliceRuntimeSettings.from_job_payload(job_payload)
-        min_records = 100
-        try:
-            settings = job_payload.get("settings") or {}
-            min_records = int((settings.get("data") or {}).get("min_required_records") or 100)
-        except (TypeError, ValueError):
-            pass
-        self._min_required_records = max(1, min_records)
+        self.runtime_settings = CalendarSliceRuntimeSettings.from_worker_profile()
+        self._min_required_records = _parse_min_required_records(job_payload)
         self._plan: Optional[CalendarSliceRuntimePlan] = None
 
     def run(self) -> Dict[str, Any]:

@@ -2,9 +2,12 @@
 """Calendar slice planning unit tests."""
 
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.slice_plan import (
-    clamp_slice_open_days,
+    MIN_PLANNER_SLICE_OPEN_DAYS,
+    clamp_resolved_slice_open_days,
     is_first_open_of_month,
     plan_calendar_slices,
+    resolve_auto_slice_open_days,
+    resolve_slice_width_floor,
 )
 
 
@@ -19,9 +22,20 @@ class TestCalendarSlicePlan:
         assert slices[0].window_end == open_dates[3]
         assert slices[2].open_dates == tuple(open_dates[8:])
 
-    def test_clamp_slice_open_days_respects_min_required_records(self):
-        assert clamp_slice_open_days(3, min_required_records=100) == 100
-        assert clamp_slice_open_days(500, min_required_records=20) == 252
+    def test_resolve_slice_width_floor_default(self):
+        assert resolve_slice_width_floor() == MIN_PLANNER_SLICE_OPEN_DAYS
+
+    def test_resolve_auto_slice_open_days(self):
+        days = resolve_auto_slice_open_days(
+            mb_per_slice=400,
+            memory_budget_mb=4096,
+            open_days_total=500,
+        )
+        assert days >= MIN_PLANNER_SLICE_OPEN_DAYS
+
+    def test_clamp_resolved_slice_open_days(self):
+        assert clamp_resolved_slice_open_days(500) == 252
+        assert clamp_resolved_slice_open_days(3) == MIN_PLANNER_SLICE_OPEN_DAYS
 
     def test_is_first_open_of_month(self):
         dates = ["20240129", "20240130", "20240131", "20240201", "20240202"]

@@ -20,9 +20,8 @@ from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.
     load_stock_infos_for_ids,
 )
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.slice_plan import (
+    SLICE_STEPS_AUTO_ESTIMATE,
     build_calendar_slice_dispatch_job,
-    clamp_slice_open_days,
-    is_auto_setting,
 )
 from core.modules.strategy.engines.simulator.enumerator.shared.services import (
     EnumeratorSharedServices,
@@ -45,11 +44,6 @@ class CalendarSlicedEnumeratorServices(EnumeratorSharedServices):
         settings_view = StrategySettingsView.from_dict(settings_payload)
         if settings_view.simulation_settings.execution_mode != "calendar_slice":
             raise ValueError("CalendarSlicedEnumeratorServices 需要 simulation.execution_mode=calendar_slice")
-        raw_slice = settings_view.simulation_settings.slice_open_days_raw
-        slice_for_job = raw_slice if is_auto_setting(raw_slice) else clamp_slice_open_days(
-            raw_slice,
-            min_required_records=settings_view.min_required_records,
-        )
         job = build_calendar_slice_dispatch_job(
             strategy_name=strategy_name,
             settings_payload=settings_payload,
@@ -58,7 +52,6 @@ class CalendarSlicedEnumeratorServices(EnumeratorSharedServices):
             stock_ids=list(target_stock_ids),
             start_date=self.start_date,
             end_date=self.end_date,
-            slice_open_days=slice_for_job,
         )
         return [job]
 
@@ -74,12 +67,6 @@ class CalendarSlicedEnumeratorServices(EnumeratorSharedServices):
         job = jobs[0]
         if job.get("enumeration_execution_mode") != "calendar_slice":
             return
-        settings_view = StrategySettingsView.from_dict(settings_payload)
-        raw_slice = settings_view.simulation_settings.slice_open_days_raw
-        slice_open_days = clamp_slice_open_days(
-            raw_slice,
-            min_required_records=settings_view.min_required_records,
-        )
         raw_open = calendar_dict.get("open_dates") if isinstance(calendar_dict, dict) else []
         open_dates = filter_open_dates_in_range(
             raw_open if isinstance(raw_open, list) else [],
@@ -91,7 +78,7 @@ class CalendarSlicedEnumeratorServices(EnumeratorSharedServices):
         )
         plan = resolve_calendar_progress_plan(
             open_dates=open_dates,
-            slice_open_days=slice_open_days,
+            slice_open_days=SLICE_STEPS_AUTO_ESTIMATE,
             progress_mode=progress_mode,
         )
         plan["progress_axis"] = progress_axis_for_calendar_mode(plan["calendar_progress_mode"])

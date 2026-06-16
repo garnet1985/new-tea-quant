@@ -35,7 +35,7 @@ def test_drive_slices_sends_shutdown_before_waiting_finalize():
             "stock_ids": ["000001.SZ"],
             "start_date": "20240101",
             "end_date": "20240131",
-            "slice_open_days": 63,
+            "slice_open_days": "auto",
             "settings": {"data": {"min_required_records": 100}, "enumerator": {}},
         }
     )

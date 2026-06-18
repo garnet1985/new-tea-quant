@@ -7,8 +7,8 @@
 用法（仓库根目录）::
 
     python devtools/quick_tools/generate_stratified_stock_pool.py
-    python dev-cli.py -sample_stock_list -500
-    python dev-cli.py -sample_stock_list -clear
+    python devcli.py ssp 500
+    python devcli.py pc
 """
 from __future__ import annotations
 

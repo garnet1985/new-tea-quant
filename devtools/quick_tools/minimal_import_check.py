@@ -6,7 +6,7 @@ UI 最小依赖 import 冒烟：仅在 ``core/ui/bff/requirements.txt`` 已安�
 用法::
 
     python -m devtools.quick_tools.minimal_import_check
-    python dev-cli.py -ic
+    python devcli.py ic
 
 CI 见 ``.github/workflows/ci.yml`` 任务 ``minimal-ui-imports``。
 """

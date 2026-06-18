@@ -5,7 +5,7 @@
 `v0.0.x` 段为对历史内部里程碑（原文档中的 v2/v3/v4）的回溯编号。
 
 新版本更新清单：
-python dev-cli -p -vx.x.x
+python devcli.py p -core_vx.x.x
 
 [] (已自动化)同步 ``core/system.json`` / ``core/system.py`` 中的版本与 ``new_features``（自 CHANGELOG 对应版本段落读取）
 [] (已自动化)同步版本徽章
@@ -50,7 +50,7 @@ python dev-cli -p -vx.x.x
 - 新增加低价策略来演示幸存者偏差
 - (破坏性改动)重构tag的设置格式，分组并移除了一些配置，让配置更简单和直观
 - 增加了新的空的策略和标签模版，可以直接拷贝和修改
-- 在cli里多了新建策略和标签的快捷指令
+- 重写了 cli 和 devcli
 
 ---
 

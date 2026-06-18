@@ -61,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
         launch_ui_stack()
     except Exception as e:
         print(f"❌ 启动失败: {e}", flush=True)
-        print("若页面仍能打开但 /api 报错，请执行: python devcli.py -kui", flush=True)
+        print("若页面仍能打开但 /api 报错，请执行: python devcli.py uk", flush=True)
         return 1
     return 0
 

@@ -163,10 +163,10 @@ Open Strategy Lab, pick **`example`**, run enum / price / capital steps and read
 **CLI (price layer example):**
 
 ```bash
-python start-cli.py -sp --strategy example
+python start-cli.py sp --strategy example
 ```
 
-A summary in the terminal means the CLI path works. Full pipeline: `-se` (enum), `-sa` (capital) — see the CLI table below.
+A summary in the terminal means the CLI path works. Full pipeline: `se` (enum), `so` (portfolio) — see the CLI table below.
 
 > **Note:** Root **`python install.py`** is for **first-time CLI install** (deps, userspace, schema, bundled small data). After the wizard you usually **don’t** need it again. For a **larger demo ZIP** from the site, put **one** zip under `setup/init_data/` and run:
 >
@@ -187,25 +187,33 @@ python start-cli.py -h
 Opportunity enumeration (step 1):
 
 ```bash
-python start-cli.py -se --strategy example
+python start-cli.py strategy_enumerate --strategy example
+# or short
+python start-cli.py se --strategy example
 ```
 
 Capital simulation:
 
 ```bash
-python start-cli.py -sa --strategy example
+python start-cli.py strategy_portfolio --strategy example
+# or short
+python start-cli.py so --strategy example
 ```
 
-Full-market scan (default when you run `start-cli.py` with no subcommand):
+Full-market scan:
 
 ```bash
-python start-cli.py -sc --strategy example
+python start-cli.py scan --strategy example
+# or short
+python start-cli.py c --strategy example
 ```
 
 Feature / label jobs:
 
 ```bash
-python start-cli.py -t
+python start-cli.py tag
+# or short
+python start-cli.py t
 ```
 
 Customize algorithms and goals under `userspace/strategies/` (settings + worker).
@@ -269,25 +277,24 @@ This is still a **pre-1.0 (v0.x)** release — **API stability is not guaranteed
 
 ## Command line (`start-cli.py`)
 
-Entry: **`start-cli.py`** — with no arguments, defaults to **scan** (`-sc`).
+Entry: **`start-cli.py`** — with no arguments, shows **`version`** (same as `-v`, `--version`, or `v`).
 
-```bash
-python start-cli.py -h
-```
+Pattern: `xx` = command, `-xx` = flag, `--xx` = target param.
 
 | Purpose | Example |
 |---------|---------|
 | Help | `python start-cli.py -h` |
-| Renew data | `python start-cli.py -r` |
-| Scan (default) | `python start-cli.py` or `python start-cli.py -sc --strategy example` |
-| Enumerate only | `python start-cli.py enumerate --strategy example` |
-| Enumerator sim | `python start-cli.py -se --strategy example` |
-| Price-factor sim | `python start-cli.py -sp --strategy example` |
-| Capital sim | `python start-cli.py -sa --strategy example` |
-| Price + capital chain | `python start-cli.py simulate --strategy example` |
-| Analyze summaries | `python start-cli.py -a` |
-| Tag / feature jobs | `python start-cli.py -t` |
-| Check core updates (WIP) | `python start-cli.py -u` |
+| Version (default) | `python start-cli.py` or `-v` / `--version` / `v` |
+| Renew data | `renew [SOURCE] [-f]` or `r` |
+| Scan | `scan` or `c [--strategy example]` |
+| Enumerate | `strategy_enumerate` or `se [-f] [--strategy example]` |
+| Price-factor sim | `strategy_price_factor` or `sp [-f] [--strategy example]` |
+| Portfolio sim | `strategy_portfolio` or `so` |
+| Capital allocate (use `so` instead) | `strategy_capital_allocate` or `sa` |
+| Full sim chain | `strategy_simulate` or `s` |
+| Analyze summaries | `strategy_analyse` or `sy` |
+| Tag / feature jobs | `tag` or `t` |
+| Check core updates | `update` or `u` |
 
 **`--strategy`**: if omitted and exactly one strategy has `is_enabled=True`, it is picked automatically; with several enabled, the first by name is used with a **warning** — prefer an explicit `--strategy`.
 

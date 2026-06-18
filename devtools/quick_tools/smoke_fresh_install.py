@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-模拟用户从源码 zip 冷启动：``install.py`` → ``cli.py -se``。
+模拟用户从源码 zip 冷启动：``install.py`` → ``cli.py se``。
 
 用法（在已解压的项目根目录）::
 

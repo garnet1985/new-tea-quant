@@ -167,10 +167,10 @@ python launcher.py
 **命令行（价格层示例）**：
 
 ```bash
-python start-cli.py -sp --strategy example
+python start-cli.py sp --strategy example
 ```
 
-终端出现回测摘要即表示 CLI 链路可用。完整分层流程还可使用 `-se`（枚举）、`-sa`（资金层）；见下文「命令行」表。
+终端出现回测摘要即表示 CLI 链路可用。完整分层流程还可使用 `se`（枚举）、`so`（组合层）；见下文「命令行」表。
 
 > **说明**：根目录 **`python install.py`** 用于 **CLI 应用首次安装**（依赖、userspace、库表、内置小数据等），安装向导完成后通常不必再跑。若从官网下载**更大的演示数据 ZIP**，请放入 `setup/init_data/`（该目录内**只能有 1 个 zip**），再执行：
 >
@@ -191,25 +191,33 @@ python start-cli.py -h
 机会枚举（分层回测第一步）：
 
 ```bash
-python start-cli.py -se --strategy example
+python start-cli.py strategy_enumerate --strategy example
+# 或短命令
+python start-cli.py se --strategy example
 ```
 
 带资金的策略模拟：
 
 ```bash
-python start-cli.py -sa --strategy example
+python start-cli.py strategy_portfolio --strategy example
+# 或短命令
+python start-cli.py so --strategy example
 ```
 
-全市场扫描（无参数时 `start-cli.py` 默认也是扫描）：
+全市场扫描：
 
 ```bash
-python start-cli.py -sc --strategy example
+python start-cli.py scan --strategy example
+# 或短命令
+python start-cli.py c --strategy example
 ```
 
 生成特征标签：
 
 ```bash
-python start-cli.py -t
+python start-cli.py tag --scenario xxx
+# 或短命令
+python start-cli.py t
 ```
 
 您也可以修改 `userspace/strategies/` 下的 settings 或 worker，自定义策略算法与目标。
@@ -282,7 +290,9 @@ NTQ 目前在 **v0.x** 阶段，安装向导、文档和 Web UI 都还在改。�
 
 ## 命令行（`start-cli.py`）
 
-入口脚本：**`start-cli.py`**（无参时默认执行 **策略扫描 `scan`**，等同 `-sc`）。
+入口脚本：**`start-cli.py`**（无参时默认显示 **`version`**，等同 `-v` / `--version` / `v`）。
+
+规则：`xx`=命令，`-xx`=开关，`--xx`=对象参数。
 
 ```bash
 python start-cli.py -h
@@ -291,16 +301,17 @@ python start-cli.py -h
 | 用途 | 命令示例 |
 |------|----------|
 | 查看帮助 | `python start-cli.py -h` |
-| 更新数据（renew） | `python start-cli.py -r` |
-| 扫描机会（默认） | `python start-cli.py` 或 `python start-cli.py -sc --strategy example` |
-| 仅枚举机会 | `python start-cli.py enumerate --strategy example` |
-| 枚举器模拟 | `python start-cli.py -se --strategy example` |
-| 价格因子模拟 | `python start-cli.py -sp --strategy example` |
-| 资金分配模拟 | `python start-cli.py -sa --strategy example` |
-| 价格+资金链路 | `python start-cli.py simulate --strategy example` |
-| 分析结果摘要 | `python start-cli.py -a` |
-| 标签计算 | `python start-cli.py -t` |
-| 检查 core 更新（实现中...） | `python start-cli.py -u` |
+| 查看版本（默认） | `python start-cli.py` 或 `-v` / `--version` / `v` |
+| 更新数据 | `renew [SOURCE] [-f]` 或 `r` |
+| 扫描机会 | `scan` 或 `c [--strategy example]` |
+| 枚举机会 | `strategy_enumerate` 或 `se [-f] [--strategy example]` |
+| 价格因子模拟 | `strategy_price_factor` 或 `sp [-f] [--strategy example]` |
+| 组合模拟 | `strategy_portfolio` 或 `so` |
+| 资金分配（将用 so 替代） | `strategy_capital_allocate` 或 `sa` |
+| 完整模拟链路 | `strategy_simulate` 或 `s` |
+| 分析结果摘要 | `strategy_analyse` 或 `sy` |
+| 标签计算 | `tag` 或 `t` |
+| 检查 core 更新 | `update` 或 `u` |
 
 **`--strategy`**：未指定时，若只有一个 `is_enabled=True` 的策略会自动选用；多个启用时默认取名称排序第一个并 **告警**，建议显式写 `--strategy`。
 

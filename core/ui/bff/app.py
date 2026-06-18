@@ -21,6 +21,7 @@ from .static_ui import (
     fed_build_static_dir,
     register_fed_static_routes,
     resolve_fed_build_dir,
+    should_mount_fed_build,
 )
 
 
@@ -28,7 +29,7 @@ def create_app():
     build_dir = resolve_fed_build_dir()
     static_folder = None
     static_url_path = None
-    if fed_build_ready(build_dir):
+    if should_mount_fed_build() and fed_build_ready(build_dir):
         static_root = fed_build_static_dir(build_dir).resolve()
         if static_root.is_dir():
             static_folder = str(static_root)

@@ -136,9 +136,11 @@ class StockBasedEnumeratorWorker:
             "exchange_center": "",
         }
         try:
-            from core.modules.data_manager import DataManager
+            from core.modules.strategy.services.execution.worker_runtime import (
+                resolve_strategy_worker_data_manager,
+            )
 
-            row = DataManager().stock.list.load_meta(self.stock_id)
+            row = resolve_strategy_worker_data_manager().stock.list.load_meta(self.stock_id)
             if isinstance(row, dict) and row.get("id"):
                 return {
                     **fallback,

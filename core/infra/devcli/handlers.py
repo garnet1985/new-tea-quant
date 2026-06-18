@@ -47,7 +47,6 @@ def kill_listeners_on_ports(
     ntq_only: bool = False,
 ) -> int:
     from core.ui.process_cleanup import kill_process_group
-    from core.ui.ports import ALL_UI_PORTS
 
     fed_root = str((REPO_ROOT / "core" / "ui" / "fed").resolve())
     repo_s = str(REPO_ROOT)

@@ -3,6 +3,7 @@ import { API_VERSION_PREFIX } from '../conf/apiConfig';
 
 const API_SETTINGS_DB = `${API_VERSION_PREFIX}/settings/database`;
 const API_SETTINGS_DATA = `${API_VERSION_PREFIX}/settings/data`;
+const API_SETTINGS_CACHE_CLEAR = `${API_VERSION_PREFIX}/settings/cache/clear`;
 
 const SUPPORTED_DB_TYPES = new Set(['postgresql', 'mysql', 'duckdb']);
 
@@ -95,5 +96,25 @@ export async function saveDataSettings(body) {
       : null,
     use_sample_stock_list: sample != null && sample !== '' ? Number(sample) : null,
     config_path: String(m.config_path || '').trim(),
+  };
+}
+
+/**
+ * 清理 userspace 缓存（Settings → 缓存管理）。
+ */
+export async function clearSettingsCache(body) {
+  const json = await requestJson(API_SETTINGS_CACHE_CLEAR, {
+    method: 'POST',
+    body: JSON.stringify({
+      clear_db_cache: Boolean(body?.clear_db_cache),
+      clear_backtest_results: Boolean(body?.clear_backtest_results),
+      clear_scan_results: Boolean(body?.clear_scan_results),
+      clear_userspace_ntq: Boolean(body?.clear_userspace_ntq),
+    }),
+  });
+  const m = json?.message || {};
+  return {
+    cleared: Boolean(m.cleared),
+    message: String(m.message || '缓存已经全部清理').trim() || '缓存已经全部清理',
   };
 }

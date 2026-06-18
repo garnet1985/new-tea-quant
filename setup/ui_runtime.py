@@ -12,7 +12,7 @@ from typing import Tuple
 
 from core.system import python_minimum
 from core.ui.process_cleanup import kill_process_group
-from core.ui.ports import ALL_UI_PORTS, UI_DEV_PORT, UI_PROD_PORT
+from core.ui.ports import ALL_UI_PORTS, UI_BFF_PORT, UI_DEV_PORT
 
 from setup.install_runtime import (
     REPO_ROOT,
@@ -197,8 +197,30 @@ def _release_stale_listen_port(port: int, *, match_substrings: tuple[str, ...]) 
             return
 
 
-def release_all_ui_listen_ports() -> None:
-    """启动前清掉 dev/prod 全部 UI 端口，避免双栈并存。"""
+def _force_shutdown_ui_ports() -> None:
+    """退出时强制释放 UI 端口（不依赖 cmdline，避免 CRA node 孤儿）。"""
+    for port in ALL_UI_PORTS:
+        for attempt in range(2):
+            pids = _pids_listening_on(port)
+            if not pids:
+                break
+            for pid in pids:
+                cmd = _process_cmdline(pid)
+                label = cmd[:80] if cmd else "(unknown)"
+                print(f"结束 UI 进程 pid={pid}（:{port}） {label}", flush=True)
+                try:
+                    kill_process_group(pid, grace_sec=2.0 if attempt == 0 else 0.5)
+                except ProcessLookupError:
+                    pass
+            if _wait_port_free(port, timeout_sec=8.0):
+                break
+    blocked = [p for p in ALL_UI_PORTS if _pids_listening_on(p)]
+    if blocked:
+        print(f"⚠️ 端口仍占用: {blocked}，请执行 python devcli.py uk", flush=True)
+
+
+def release_ui_listen_ports(ports: tuple[int, ...] = ALL_UI_PORTS) -> None:
+    """启动前清掉指定 UI 端口上的 NTQ 监听进程。"""
     markers = (
         "core.ui.bff.app",
         "react-scripts",
@@ -209,9 +231,9 @@ def release_all_ui_listen_ports() -> None:
         str(FED_ROOT.resolve()),
         str(REPO_ROOT),
     )
-    for port in ALL_UI_PORTS:
+    for port in ports:
         _release_stale_listen_port(port, match_substrings=markers)
-    blocked = [p for p in ALL_UI_PORTS if _pids_listening_on(p)]
+    blocked = [p for p in ports if _pids_listening_on(p)]
     if blocked:
         print(f"⚠️ 端口仍被占用: {blocked}，后续启动可能失败", flush=True)
 
@@ -250,7 +272,9 @@ def _fed_dev_env() -> dict[str, str]:
 
 
 def _terminate_proc(proc: subprocess.Popen | None) -> None:
-    if proc is None or proc.poll() is not None:
+    if proc is None:
+        return
+    if proc.poll() is not None:
         return
     kill_process_group(proc.pid, grace_sec=3.0)
     try:
@@ -258,78 +282,95 @@ def _terminate_proc(proc: subprocess.Popen | None) -> None:
     except subprocess.TimeoutExpired:
         kill_process_group(proc.pid, grace_sec=0.5)
         try:
+            proc.kill()
+        except ProcessLookupError:
+            pass
+        try:
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             pass
+
+
+def _shutdown_ui_stack_procs(
+    *,
+    bff_proc: subprocess.Popen | None,
+    fed_proc: subprocess.Popen | None,
+) -> None:
+    """结束 CRA/BFF 子进程；若进程组信号未生效，按端口兜底（避免 Ctrl+C 后孤儿 BFF）。"""
+    _terminate_proc(bff_proc)
+    _terminate_proc(fed_proc)
+    _force_shutdown_ui_ports()
 
 
 def launch_ui_stack() -> None:
     host = os.getenv("NTQ_BFF_HOST", "127.0.0.1").strip() or "127.0.0.1"
     dev = ui_dev_mode()
 
-    release_all_ui_listen_ports()
+    release_ui_listen_ports(ALL_UI_PORTS)
 
     bff_env = os.environ.copy()
     bff_env["NTQ_BFF_HOST"] = host
-    bff_env["NTQ_BFF_PORT"] = str(UI_PROD_PORT)
+    bff_env["NTQ_BFF_PORT"] = str(UI_BFF_PORT)
     bff_env.pop("NTQ_UI_DEV_GATEWAY", None)
     bff_env.pop("NTQ_WEBPACK_DEV_UPSTREAM", None)
-
-    bff_proc = subprocess.Popen(
-        [sys.executable, "-m", "core.ui.bff.app"],
-        cwd=str(REPO_ROOT),
-        env=bff_env,
-        start_new_session=True,
-    )
-
-    health_url = f"http://{host}:{UI_PROD_PORT}/api/health"
-    if not _wait_http_ok(health_url, timeout_sec=90):
-        _terminate_proc(bff_proc)
-        raise RuntimeError(f"BFF 启动超时（{health_url}）")
-
-    _warm_bff_api(host, UI_PROD_PORT)
-
-    fed_proc: subprocess.Popen | None = None
     if dev:
-        fed_proc = subprocess.Popen(
-            ["npm", "start"],
-            cwd=str(FED_ROOT),
-            env=_fed_dev_env(),
-            start_new_session=True,
-        )
-        ui_url = f"http://localhost:{UI_DEV_PORT}/strategy-design"
-        print(
-            f"开发模式：浏览器入口 http://localhost:{UI_DEV_PORT} "
-            f"（BFF API 内部 :{UI_PROD_PORT}，/api 由 CRA proxy 转发；勿混跑 prod 栈）",
-            flush=True,
-        )
-        if not _wait_http_ok(f"http://localhost:{UI_DEV_PORT}/", timeout_sec=180):
-            print(f"⚠️ CRA 未就绪，请查看 npm 输出；目标: {ui_url}", flush=True)
-        elif not _wait_http_ok(f"http://{host}:{UI_PROD_PORT}/api/health", timeout_sec=15):
-            print(f"⚠️ BFF 在 CRA 就绪后未响应，/api 代理可能失败", flush=True)
+        bff_env["NTQ_UI_DEV"] = "1"
     else:
-        if not fed_build_ready():
-            _terminate_proc(bff_proc)
-            raise RuntimeError("缺少 fed/build，请 npm run build 或使用 launcher.py -d")
-        ui_url = f"http://{host}:{UI_PROD_PORT}/strategy-design"
-        print(f"生产模式：入口 {ui_url}", flush=True)
-        if not _wait_http_ok(ui_url, timeout_sec=30):
-            _terminate_proc(bff_proc)
-            raise RuntimeError(f"前端未就绪: {ui_url}")
+        bff_env.pop("NTQ_UI_DEV", None)
 
-    if _wait_http_ok(ui_url, timeout_sec=5):
-        print(f"访问: {ui_url}", flush=True)
-        try:
-            webbrowser.open(ui_url)
-        except Exception:
-            pass
-    else:
-        print(f"请手动打开: {ui_url}", flush=True)
-
+    bff_proc: subprocess.Popen | None = None
+    fed_proc: subprocess.Popen | None = None
     try:
-        (fed_proc or bff_proc).wait()
+        bff_proc = subprocess.Popen(
+            [sys.executable, "-m", "core.ui.bff.app"],
+            cwd=str(REPO_ROOT),
+            env=bff_env,
+        )
+
+        health_url = f"http://{host}:{UI_BFF_PORT}/api/health"
+        if not _wait_http_ok(health_url, timeout_sec=90):
+            raise RuntimeError(f"BFF 启动超时（{health_url}）")
+
+        _warm_bff_api(host, UI_BFF_PORT)
+
+        if dev:
+            fed_proc = subprocess.Popen(
+                ["npm", "start"],
+                cwd=str(FED_ROOT),
+                env=_fed_dev_env(),
+            )
+            ui_url = f"http://localhost:{UI_DEV_PORT}/strategy-design"
+            print(
+                f"开发模式：浏览器 http://localhost:{UI_DEV_PORT} "
+                f"（共享 BFF :{UI_BFF_PORT} 仅 /api，不挂载 fed/build）",
+                flush=True,
+            )
+            if not _wait_http_ok(f"http://localhost:{UI_DEV_PORT}/", timeout_sec=180):
+                print(f"⚠️ CRA 未就绪，请查看 npm 输出；目标: {ui_url}", flush=True)
+            elif not _wait_http_ok(f"http://{host}:{UI_BFF_PORT}/api/health", timeout_sec=15):
+                print(f"⚠️ BFF 在 CRA 就绪后未响应，/api 代理可能失败", flush=True)
+        else:
+            if not fed_build_ready():
+                raise RuntimeError("缺少 fed/build，请 npm run build 或使用 launcher.py -d")
+            ui_url = f"http://{host}:{UI_BFF_PORT}/strategy-design"
+            print(f"生产模式：入口 {ui_url}", flush=True)
+            if not _wait_http_ok(ui_url, timeout_sec=30):
+                raise RuntimeError(f"前端未就绪: {ui_url}")
+
+        if _wait_http_ok(ui_url, timeout_sec=5):
+            print(f"访问: {ui_url}", flush=True)
+            try:
+                webbrowser.open(ui_url)
+            except Exception:
+                pass
+        else:
+            print(f"请手动打开: {ui_url}", flush=True)
+
+        try:
+            (fed_proc or bff_proc).wait()
+        except KeyboardInterrupt:
+            print("\n正在关闭…", flush=True)
     except KeyboardInterrupt:
         print("\n正在关闭…", flush=True)
     finally:
-        _terminate_proc(fed_proc)
-        _terminate_proc(bff_proc)
+        _shutdown_ui_stack_procs(bff_proc=bff_proc, fed_proc=fed_proc)

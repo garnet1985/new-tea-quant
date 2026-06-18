@@ -6,6 +6,15 @@ from pathlib import Path
 
 from flask import Flask, abort, send_from_directory
 
+
+def ui_dev_gateway_mode() -> bool:
+    """``launcher.py -d`` / ``devcli.py ui``：BFF 仅 API，前端由 CRA (:8000) 提供。"""
+    return os.environ.get("NTQ_UI_DEV", "").strip().lower() in ("1", "true", "yes")
+
+
+def should_mount_fed_build() -> bool:
+    return not ui_dev_gateway_mode()
+
 _FED_BUILD_DIR = Path(__file__).resolve().parent.parent / "fed" / "build"
 
 
@@ -26,6 +35,9 @@ def fed_build_ready(build_dir: Path | None = None) -> bool:
 
 
 def register_fed_static_routes(app: Flask, build_dir: Path | None = None) -> bool:
+    if not should_mount_fed_build():
+        return False
+
     root = (build_dir or resolve_fed_build_dir()).resolve()
     if not fed_build_ready(root):
         return False

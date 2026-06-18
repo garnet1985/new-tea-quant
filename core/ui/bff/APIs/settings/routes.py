@@ -6,7 +6,7 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from flask import Blueprint, request
 
@@ -213,3 +213,33 @@ def post_data_settings():
 
     cfg = ConfigManager.load_data_config()
     return ok(_data_settings_response(cfg))
+
+
+@settings_api_bp.route("/v1/settings/cache/clear", methods=["POST"])
+def post_cache_clear():
+    """按勾选项清理 userspace 缓存；全局 pipeline 忙时返回 409。"""
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return error("请求体须为 JSON 对象", 400)
+
+    def _flag(key: str) -> bool:
+        return bool(payload.get(key))
+
+    from core.infra.runtime.cache_cleanup import run_cache_cleanup
+
+    out = run_cache_cleanup(
+        clear_db_cache=_flag("clear_db_cache"),
+        clear_backtest_results=_flag("clear_backtest_results"),
+        clear_scan_results=_flag("clear_scan_results"),
+        clear_userspace_ntq=_flag("clear_userspace_ntq"),
+    )
+    if not out.get("ok"):
+        err = str(out.get("error") or "清理失败")
+        if err == "nothing_selected":
+            return error("请至少选择一项缓存", 400)
+        if err == "pipeline_busy":
+            label = str(out.get("label") or "").strip()
+            msg = f"当前有任务进行中，请稍后再试{('：' + label) if label else ''}"
+            return error(msg, 409)
+        return error(err, 400)
+    return ok({"cleared": True, "message": str(out.get("message") or "缓存已经全部清理")})

@@ -30,7 +30,7 @@ class ScanDateResolver:
         扫描截止日锚点。
 
         - 严格模式：real-world（新浪/东财 K 线，不读 ``sys_trade_calendar``）
-        - 非严格模式：``CalendarService.get_latest_completed_trading_date()``；
+        - 非严格模式：``freshness_probe._resolve_freshness_end_date()``（尊重 ``data.json`` 截至日）；
           若锚点晚于库内 K 线 ``MAX(date)``（常见于 ``default_end_date`` 截断后未 renew K 线），
           回退为 K 线最新日以便扫描仍可执行。
         """
@@ -42,7 +42,11 @@ class ScanDateResolver:
                 return str(
                     cal_svc.get_real_world_latest_completed_trading_date() or ""
                 ).strip()
-            anchor = str(cal_svc.get_latest_completed_trading_date() or "").strip()
+            from core.modules.data_source.catalog.freshness_probe import (
+                _resolve_freshness_end_date,
+            )
+
+            anchor = str(_resolve_freshness_end_date(data_manager) or "").strip()
         except Exception as exc:
             logger.debug("resolve_anchor_date failed use_strict=%s: %s", use_strict, exc)
             return ""

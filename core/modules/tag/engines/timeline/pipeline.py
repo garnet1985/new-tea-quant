@@ -145,4 +145,5 @@ def run_timeline_pipeline(
         performance=performance,
         profile_enabled=profile_enabled_for(mgr, performance),
         on_tag_data_service_refresh=lambda svc: setattr(mgr, "tag_data_service", svc),
+        on_pipeline_progress=getattr(mgr, "_pipeline_progress_callback", None),
     )

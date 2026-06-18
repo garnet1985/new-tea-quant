@@ -1,0 +1,116 @@
+/* 执行/运行钮：旋转色带仅出现在圆环描边 + 20px 图标（mask 裁剪），中心与其它区域不露色 */
+$ntq-rainbow-run-mask-play: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960'%3E%3Cpath fill='%23000' d='M340-236.16v-487.68L723.07-480 340-236.16Z'/%3E%3C/svg%3E");
+$ntq-rainbow-run-mask-refresh: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960'%3E%3Cpath fill='%23000' d='M483.08-200q-117.25 0-198.63-81.34-81.37-81.34-81.37-198.54 0-117.2 81.37-198.66Q365.83-760 483.08-760q71.3 0 133.54 33.88 62.23 33.89 100.3 94.58V-760h40v209.23H547.69v-40h148q-31.23-59.85-87.88-94.54Q551.15-720 483.08-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h42.46Q725.08-310.15 651-255.08 576.92-200 483.08-200Z'/%3E%3C/svg%3E");
+$ntq-rainbow-run-ring-width: 1px;
+$ntq-rainbow-run-aurora: conic-gradient(
+  from 0deg,
+  var(--ntq-violet) 0deg,
+  var(--ntq-cyan) 120deg,
+  var(--ntq-green) 240deg,
+  var(--ntq-violet) 360deg
+);
+
+@keyframes ntq-rainbow-run-aurora-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ntq-rainbow-run-btn {
+  position: relative;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0 !important;
+  border: none;
+  border-radius: 999px;
+  background: rgba(6, 6, 18, 0.55);
+  overflow: hidden;
+  transition:
+    background 140ms ease,
+    transform 140ms ease;
+
+  &:hover:not(.Mui-disabled) {
+    background: rgba(6, 6, 18, 0.65) !important;
+    transform: scale(1.04);
+  }
+
+  &.Mui-disabled {
+    opacity: 0.42;
+
+    .ntq-rainbow-run-btn__ring,
+    .ntq-rainbow-run-btn__glyph-aurora {
+      animation: none;
+    }
+  }
+}
+
+.ntq-rainbow-run-btn__ring {
+  position: absolute;
+  inset: 0;
+  box-sizing: border-box;
+  border-radius: 50%;
+  padding: $ntq-rainbow-run-ring-width;
+  background: $ntq-rainbow-run-aurora;
+  transform-origin: center center;
+  animation: ntq-rainbow-run-aurora-spin 3.6s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+
+.ntq-rainbow-run-btn__glyph {
+  position: relative;
+  z-index: 1;
+  display: block;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: 20px 20px;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: 20px 20px;
+}
+
+.ntq-rainbow-run-btn__glyph--play {
+  -webkit-mask-image: $ntq-rainbow-run-mask-play;
+  mask-image: $ntq-rainbow-run-mask-play;
+}
+
+.ntq-rainbow-run-btn__glyph--refresh {
+  -webkit-mask-image: $ntq-rainbow-run-mask-refresh;
+  mask-image: $ntq-rainbow-run-mask-refresh;
+}
+
+.ntq-rainbow-run-btn__glyph-aurora {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 48px;
+  height: 48px;
+  margin-left: -24px;
+  margin-top: -24px;
+  background: $ntq-rainbow-run-aurora;
+  transform-origin: center center;
+  animation: ntq-rainbow-run-aurora-spin 3.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ntq-rainbow-run-btn__ring,
+  .ntq-rainbow-run-btn__glyph-aurora {
+    animation: none;
+  }
+
+  .ntq-rainbow-run-btn:hover:not(.Mui-disabled) {
+    transform: none;
+  }
+}

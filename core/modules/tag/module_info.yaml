@@ -16,6 +16,7 @@ changelog:
       - engines 目录重组：shared / timeline / sliced + router
       - TagManager 精简为发现与调度入口
       - Tag calendar_slice 一等 API on_calendar_asof + carry + entity_tags fan-out
+      - Tag 控制台 launcher + BFF（T1-00…03）；全局 pipeline 租约
   - version: "0.2.1"
     changes:
       - Tag 调度并行度改读 job_pipeline profile（tag profile）

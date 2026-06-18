@@ -17,6 +17,14 @@ logger = logging.getLogger(__name__)
 strategy_scan_api_bp = Blueprint("strategy_scan_api", __name__)
 
 
+@strategy_scan_api_bp.route("/v1/strategy/scan/context", methods=["GET"])
+def get_strategy_scan_context_route():
+    """GET /v1/strategy/scan/context — data.json as-of + demo scan cutoff for scan page."""
+    s = get_strategy_scan_stack()
+    payload = s.get_scan_page_context()
+    return ok(payload)
+
+
 def _parse_bool_query(v: str, default: bool = False) -> bool:
     if v is None:
         return default

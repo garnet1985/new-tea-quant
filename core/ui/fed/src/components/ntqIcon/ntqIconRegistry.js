@@ -15,6 +15,7 @@ import { ReactComponent as SuccessIcon } from './icons/success.svg';
 import { ReactComponent as SyncAltIcon } from './icons/sync_alt.svg';
 import { ReactComponent as UploadFileIcon } from './icons/upload_file.svg';
 import { ReactComponent as WarningIcon } from './icons/warning.svg';
+import { ReactComponent as WebhookIcon } from './icons/webhook.svg';
 
 /** 与 ``icons/*.svg`` 及 ``NTQ_ICON_MAP`` 的 key 对应；``expandMore`` 复用 ``arrow_right`` + 旋转。 */
 export const NTQ_ICON_MAP = {
@@ -36,4 +37,5 @@ export const NTQ_ICON_MAP = {
   syncAlt: SyncAltIcon,
   uploadFile: UploadFileIcon,
   warning: WarningIcon,
+  webhook: WebhookIcon,
 };

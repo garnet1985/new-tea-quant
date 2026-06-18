@@ -1,0 +1,26 @@
+.data-source-list-page {
+  .data-source-list-alert {
+    margin-bottom: 16px;
+  }
+
+  .data-source-list-grid {
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .data-source-list-grid-toolbar {
+    margin-bottom: 12px;
+  }
+
+  .data-source-list-search {
+    flex: 1;
+    min-width: 200px;
+    max-width: 420px;
+  }
+
+  .data-source-list-update-btn-wrap {
+    display: inline-flex;
+    align-items: center;
+  }
+}

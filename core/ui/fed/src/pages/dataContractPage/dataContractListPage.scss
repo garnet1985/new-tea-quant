@@ -1,0 +1,27 @@
+.data-contract-list-page {
+  .data-contract-list-alert {
+    margin-bottom: 16px;
+  }
+
+  .data-contract-list-grid {
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .data-contract-list-grid-toolbar {
+    margin-bottom: 12px;
+  }
+
+  .data-contract-list-search {
+    flex: 1;
+    min-width: 200px;
+    max-width: 420px;
+  }
+
+  .data-contract-list-key {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.8125rem;
+    word-break: break-all;
+  }
+}

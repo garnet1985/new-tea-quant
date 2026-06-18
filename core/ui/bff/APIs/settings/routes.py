@@ -122,3 +122,94 @@ def post_database_settings():
     logger.info("[bff.settings] wrote database=%r for type=%s to %s", db_name, dt, type_path)
 
     return ok({"database_type": dt, "database": db_name, "duckdb_domains": {}})
+
+
+def _normalize_yyyymmdd(value: Any, field: str, *, required: bool = False) -> Optional[str]:
+    if value is None:
+        if required:
+            raise ValueError(f"{field} 不能为空")
+        return None
+    raw = str(value).strip().replace("-", "")
+    if not raw:
+        if required:
+            raise ValueError(f"{field} 不能为空")
+        return None
+    if len(raw) != 8 or not raw.isdigit():
+        raise ValueError(f"{field} 须为 YYYYMMDD 格式")
+    return raw
+
+
+def _normalize_sample_pool(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, str) and not value.strip():
+        return None
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        raise ValueError("use_sample_stock_list 须为正整数或留空")
+    if n <= 0:
+        raise ValueError("use_sample_stock_list 须大于 0")
+    return n
+
+
+def _data_settings_response(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    sample = cfg.get("use_sample_stock_list")
+    sample_out: Optional[int] = None
+    if isinstance(sample, int) and sample > 0:
+        sample_out = sample
+    return {
+        "default_start_date": str(cfg.get("default_start_date") or "").strip(),
+        "as_of_latest_completed_trading_date": ConfigManager.get_as_of_latest_completed_trading_date(),
+        "use_sample_stock_list": sample_out,
+        "config_path": str(PathManager.user_config() / "data.json"),
+    }
+
+
+@settings_api_bp.route("/v1/settings/data", methods=["GET"])
+def get_data_settings():
+    """读取合并后的 data.json 关键字段（default_start_date / as-of / 样本池）。"""
+    cfg = ConfigManager.load_data_config()
+    return ok(_data_settings_response(cfg))
+
+
+@settings_api_bp.route("/v1/settings/data", methods=["POST"])
+def post_data_settings():
+    """写入 ``userspace/config/data.json`` 中的数据范围字段。"""
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return error("请求体须为 JSON 对象", 400)
+
+    try:
+        default_start = _normalize_yyyymmdd(
+            payload.get("default_start_date"),
+            "default_start_date",
+            required=True,
+        )
+        as_of = _normalize_yyyymmdd(
+            payload.get("as_of_latest_completed_trading_date"),
+            "as_of_latest_completed_trading_date",
+        )
+        sample = _normalize_sample_pool(payload.get("use_sample_stock_list"))
+    except ValueError as exc:
+        return error(str(exc), 400)
+
+    path = PathManager.user_config() / "data.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    existing: dict = {}
+    if path.exists():
+        loaded = ConfigManager.load_json(path)
+        if isinstance(loaded, dict):
+            existing = dict(loaded)
+
+    existing["default_start_date"] = default_start
+    existing["as_of_latest_completed_trading_date"] = as_of
+    existing["use_sample_stock_list"] = sample
+    _write_json(path, existing)
+    logger.info("[bff.settings] wrote data settings to %s", path)
+
+    cfg = ConfigManager.load_data_config()
+    return ok(_data_settings_response(cfg))

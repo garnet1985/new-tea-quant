@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -25,6 +24,7 @@ import {
   getDataSourceUpdateStatusLabel,
 } from '../../api/apis/dataSourceApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
+import DataEndTruncationAlert from '../../components/dataEndTruncationAlert/dataEndTruncationAlert';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
 import NtqIcon from '../../components/ntqIcon/ntqIcon';
 import NtqRainbowRunButton from '../../components/ntqRainbowRunButton/ntqRainbowRunButton';
@@ -33,13 +33,23 @@ import './dataSourceListPage.scss';
 function UpdateStatusChip({ row }) {
   const label = getDataSourceUpdateStatusLabel(row);
   const status = String(row.update_status || '').trim();
+  const hint = String(row.update_status_hint || '').trim();
+  let chip;
   if (row.freshness_pending) {
-    return <Chip size="small" variant="outlined" label={label} />;
+    chip = <Chip size="small" variant="outlined" label={label} />;
+  } else if (status === 'up_to_date') {
+    chip = <Chip size="small" color="success" variant="outlined" label={label} />;
+  } else {
+    chip = <Chip size="small" color="warning" label={label} />;
   }
-  if (status === 'up_to_date') {
-    return <Chip size="small" color="success" variant="outlined" label={label} />;
+  if (!hint || status === 'up_to_date' || row.freshness_pending) {
+    return chip;
   }
-  return <Chip size="small" color="warning" label={label} />;
+  return (
+    <Tooltip title={hint}>
+      <span>{chip}</span>
+    </Tooltip>
+  );
 }
 
 function DataSourceListPage() {
@@ -262,25 +272,7 @@ function DataSourceListPage() {
       bannerDescription="查看已配置的数据源、Provider 认证与更新策略；Token 未配置时更新按钮不可用。"
     >
       {loadError ? <Alert severity="error" className="data-source-list-alert">{loadError}</Alert> : null}
-      {dataEnd.is_end_date_truncated && dataEnd.truncation_hint ? (
-        <Alert severity="warning" className="data-source-list-alert">
-          {dataEnd.truncation_hint}
-          {dataEnd.truncation_settings_path ? (
-            <>
-              {' '}
-              <Typography
-                component={RouterLink}
-                to={dataEnd.truncation_settings_path}
-                sx={{ color: 'inherit', fontWeight: 700, textDecoration: 'underline' }}
-              >
-                前往设置 → 数据范围
-              </Typography>
-              {' '}
-              修改。
-            </>
-          ) : null}
-        </Alert>
-      ) : null}
+      <DataEndTruncationAlert dataEnd={dataEnd} className="data-source-list-alert" />
       {updateNotice ? (
         <Alert
           severity="info"

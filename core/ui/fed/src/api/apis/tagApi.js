@@ -1,5 +1,6 @@
 import { requestJson } from '../global/httpClient';
 import { API_VERSION_PREFIX } from '../conf/apiConfig';
+import { mapDataEnd } from '../shared/dataEnd';
 
 const API_TAGS_LIST = `${API_VERSION_PREFIX}/tags/list`;
 const API_RUNTIME_PIPELINE = `${API_VERSION_PREFIX}/runtime/pipeline`;
@@ -52,6 +53,11 @@ export function formatTagAsOfDate(value) {
   return raw;
 }
 
+/** 计算状态展示文案。 */
+export function getTagComputeStatusLabel(item) {
+  return String(item?.compute_status_label || '—').trim() || '—';
+}
+
 /**
  * T1-00：全局 pipeline 状态
  * @returns {Promise<{ busy: boolean, kind?: string|null, label?: string|null, resource_key?: string|null }>}
@@ -71,7 +77,7 @@ export async function fetchPipelineStatus() {
 
 /**
  * T1-01：Tag scenario 列表
- * @returns {Promise<{ data: object[], total: number }>}
+ * @returns {Promise<{ data: object[], total: number, dataEnd: object }>}
  */
 export async function fetchTagList({ page = 1, limit = 100 } = {}) {
   const params = new URLSearchParams({
@@ -81,6 +87,7 @@ export async function fetchTagList({ page = 1, limit = 100 } = {}) {
   const json = await requestJson(`${API_TAGS_LIST}?${params.toString()}`, { method: 'GET' });
   const m = json?.message || {};
   const items = Array.isArray(m.items) ? m.items : [];
+  const dataEnd = m.data_end && typeof m.data_end === 'object' ? m.data_end : {};
   return {
     data: items.map((item) => ({
       id: item.name,
@@ -90,12 +97,16 @@ export async function fetchTagList({ page = 1, limit = 100 } = {}) {
       is_enabled: Boolean(item.is_enabled),
       tag_definitions: Array.isArray(item.tag_definitions) ? item.tag_definitions : [],
       last_computed_as_of: item.last_computed_as_of ?? null,
+      compute_status: String(item.compute_status || '').trim(),
+      compute_status_label: getTagComputeStatusLabel(item),
+      compute_status_hint: String(item.compute_status_hint || '').trim(),
       scenario_updated_at: item.scenario_updated_at ?? null,
       execution_mode: String(item.execution_mode || '').trim(),
       update_mode: String(item.update_mode || 'incremental').trim().toLowerCase(),
       recompute: Boolean(item.recompute),
     })),
     total: Number(m.total) || items.length,
+    dataEnd: mapDataEnd(dataEnd),
   };
 }
 

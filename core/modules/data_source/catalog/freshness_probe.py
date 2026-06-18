@@ -140,7 +140,13 @@ def evaluate_update_status(
             data_manager=data_manager,
         )
         if needs_renew_work(context, source_key=source_key):
-            return "needs_update", "需要更新", ""
+            hint = ""
+            if ConfigManager.get_as_of_latest_completed_trading_date():
+                _, truncation_hint, _ = _truncation_meta(
+                    ConfigManager.get_as_of_latest_completed_trading_date()
+                )
+                hint = truncation_hint
+            return "needs_update", "需要更新", hint
         return "up_to_date", "已经更新", ""
     except Exception:
         return "needs_update", "需要更新", ""

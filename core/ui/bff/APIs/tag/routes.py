@@ -15,8 +15,8 @@ def get_tags_list():
     """GET /v1/tags/list — paginated tag scenario catalog."""
     s = get_tag_stack()
     page, limit = pagination_params()
-    items, total = s.fetch_discovered_tags_page(page, limit)
-    return ok({"items": items, "total": total, "page": page, "limit": limit})
+    items, total, data_end = s.fetch_discovered_tags_page(page, limit)
+    return ok({"items": items, "total": total, "page": page, "limit": limit, "data_end": data_end})
 
 
 @tag_api_bp.route("/v1/tag/<path:tag_key>/run", methods=["POST"])

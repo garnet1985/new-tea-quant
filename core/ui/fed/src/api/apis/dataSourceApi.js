@@ -1,5 +1,6 @@
 import { requestJson } from '../global/httpClient';
 import { API_VERSION_PREFIX } from '../conf/apiConfig';
+import { mapDataEnd } from '../shared/dataEnd';
 
 const API_DATA_SOURCES_LIST = `${API_VERSION_PREFIX}/data-sources/list`;
 const API_DATA_SOURCES_FRESHNESS = `${API_VERSION_PREFIX}/data-sources/freshness`;
@@ -88,13 +89,7 @@ export async function fetchDataSourceList({ page = 1, limit = 200 } = {}) {
       };
     }),
     total: Number(m.total) || items.length,
-    dataEnd: {
-      configured_as_of: dataEnd.configured_as_of ?? null,
-      effective_end_date: dataEnd.effective_end_date ?? null,
-      is_end_date_truncated: Boolean(dataEnd.is_end_date_truncated),
-      truncation_hint: String(dataEnd.truncation_hint || '').trim(),
-      truncation_settings_path: String(dataEnd.truncation_settings_path || '').trim() || null,
-    },
+    dataEnd: mapDataEnd(dataEnd),
   };
 }
 
@@ -104,16 +99,6 @@ function mapFreshnessItem(name, item) {
     update_status_label: String(item?.update_status_label || '').trim(),
     update_status_hint: String(item?.update_status_hint || '').trim(),
     freshness_pending: false,
-  };
-}
-
-function mapDataEnd(dataEnd) {
-  return {
-    configured_as_of: dataEnd.configured_as_of ?? null,
-    effective_end_date: dataEnd.effective_end_date ?? null,
-    is_end_date_truncated: Boolean(dataEnd.is_end_date_truncated),
-    truncation_hint: String(dataEnd.truncation_hint || '').trim(),
-    truncation_settings_path: String(dataEnd.truncation_settings_path || '').trim() || null,
   };
 }
 

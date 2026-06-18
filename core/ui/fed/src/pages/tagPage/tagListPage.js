@@ -18,12 +18,14 @@ import {
   fetchTagList,
   fetchTagRunProgress,
   formatTagAsOfDate,
+  getTagComputeStatusLabel,
   getTagDisplayLabel,
   getTagUpdateModeIcon,
   getTagUpdateModeLabel,
   startTagRun,
 } from '../../api/apis/tagApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
+import DataEndTruncationAlert from '../../components/dataEndTruncationAlert/dataEndTruncationAlert';
 import NtqHelpTooltip from '../../components/ntqHelpTooltip/ntqHelpTooltip';
 import StrategyDescriptionText from '../../components/strategyDescriptionText/strategyDescriptionText';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
@@ -40,8 +42,31 @@ function clearRowProgress(rows) {
   });
 }
 
+function ComputeStatusChip({ row }) {
+  const label = getTagComputeStatusLabel(row);
+  const status = String(row.compute_status || '').trim();
+  const hint = String(row.compute_status_hint || '').trim();
+  let chip;
+  if (status === 'up_to_date') {
+    chip = <Chip size="small" color="success" variant="outlined" label={label} />;
+  } else if (status === 'needs_recompute') {
+    chip = <Chip size="small" color="warning" label={label} />;
+  } else {
+    chip = <Chip size="small" variant="outlined" label={label} />;
+  }
+  if (!hint || status === 'up_to_date') {
+    return chip;
+  }
+  return (
+    <Tooltip title={hint}>
+      <span>{chip}</span>
+    </Tooltip>
+  );
+}
+
 function TagListPage() {
   const [rows, setRows] = useState([]);
+  const [dataEnd, setDataEnd] = useState({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [nameQuery, setNameQuery] = useState('');
@@ -114,9 +139,11 @@ function TagListPage() {
     fetchTagList({ page: 1, limit: 200 })
       .then((res) => {
         setRows(clearRowProgress(Array.isArray(res?.data) ? res.data : []));
+        setDataEnd(res?.dataEnd && typeof res.dataEnd === 'object' ? res.dataEnd : {});
       })
       .catch((e) => {
         setRows([]);
+        setDataEnd({});
         setLoadError(e?.message || '加载 Tag 列表失败');
       })
       .finally(() => setLoading(false));
@@ -253,7 +280,7 @@ function TagListPage() {
             <NtqIcon
               name={iconName}
               size={18}
-              tone={mode === 'refresh' ? 'warning' : 'muted'}
+              tone="muted"
             />
             <Typography variant="body2">{label}</Typography>
           </Stack>
@@ -261,8 +288,15 @@ function TagListPage() {
       },
     },
     {
+      field: 'compute_status',
+      headerName: '计算状态',
+      width: 110,
+      valueGetter: (params) => getTagComputeStatusLabel(params.row),
+      renderCell: (params) => <ComputeStatusChip row={params.row} />,
+    },
+    {
       field: 'last_computed_as_of',
-      headerName: '最后更新时间',
+      headerName: '最后计算至',
       width: 130,
       valueGetter: (params) => formatTagAsOfDate(params.row.last_computed_as_of),
     },
@@ -376,6 +410,7 @@ function TagListPage() {
       )}
     >
       {loadError ? <Alert severity="error" className="tag-list-alert">{loadError}</Alert> : null}
+      <DataEndTruncationAlert dataEnd={dataEnd} className="tag-list-alert" />
       {runError ? (
         <Alert severity="error" className="tag-list-alert" onClose={() => setRunError('')}>
           {runError}

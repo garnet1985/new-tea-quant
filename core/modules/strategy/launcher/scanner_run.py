@@ -219,6 +219,28 @@ def _resolve_discovered_strategy(strategy_name: str):
     return discovered, None
 
 
+def get_scan_page_context() -> Dict[str, Any]:
+    """Scan UI: ``data.json`` as-of meta + demo-mode cutoff date (aligned with scan resolver)."""
+    from core.modules.data_source.catalog.freshness_probe import get_data_end_meta
+
+    data_end: Dict[str, Any] = {}
+    demo_scan_cutoff_date = ""
+    try:
+        data_mgr = DataManager(is_verbose=False)
+        data_mgr.initialize()
+        data_end = get_data_end_meta(data_mgr)
+        demo_scan_cutoff_date = ScanDateResolver.resolve_anchor_date(
+            data_mgr,
+            use_strict=False,
+        )
+    except Exception:
+        logger.debug("get_scan_page_context failed", exc_info=True)
+    return {
+        "data_end": data_end,
+        "demo_scan_cutoff_date": demo_scan_cutoff_date or None,
+    }
+
+
 def get_scan_readiness(*, strategy_name: str, demo: bool = False) -> Dict[str, Any]:
     """Opaque UI hint: ``primary_action`` is ``run`` or ``rerun`` (disk hit for current cutoff).
 

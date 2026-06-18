@@ -12,6 +12,7 @@ import { StrategyDesignLayout } from './pages/strategyDesignPage';
 import ScanPage from './pages/scanPage';
 import TagListPage from './pages/tagPage';
 import DataContractListPage from './pages/dataContractPage';
+import DataSourceListPage from './pages/dataSourcePage';
 import SettingsPage from './pages/settingsPage';
 
 /** iOS 风格 Switch：改总宽时只改 `SWITCH_ROOT_WIDTH_PX`，滑块行程 = 轨宽 − 球径 − 左右 padding */
@@ -163,6 +164,10 @@ function App() {
               element={<ScanPage />}
             />
             <Route
+              path="/advanced/data-sources"
+              element={<DataSourceListPage />}
+            />
+            <Route
               path="/advanced/data-contracts"
               element={<DataContractListPage />}
             />
@@ -178,10 +183,7 @@ function App() {
               path="/tags"
               element={<Navigate to="/advanced/tags" replace />}
             />
-            <Route
-              path="/settings"
-              element={<SettingsPage />}
-            />
+            <Route path="/settings/*" element={<SettingsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/strategy-design" replace />} />
         </Routes>

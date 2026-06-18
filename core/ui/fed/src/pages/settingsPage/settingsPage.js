@@ -1,35 +1,58 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo } from 'react';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Box, Paper, Tab, Tabs } from '@mui/material';
 import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Select,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material';
-import { fetchDatabaseSettings, saveDatabaseSettings } from '../../api/apis/settingsApi';
+  fetchDatabaseSettings,
+  fetchDataSettings,
+  saveDatabaseSettings,
+  saveDataSettings,
+} from '../../api/apis/settingsApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
-import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
+import {
+  SettingsDataPanel,
+  SettingsDatabasePanel,
+  SettingsSystemPanel,
+} from './settingsPanels';
+import './settingsPage.scss';
+
+const SETTINGS_TABS = [
+  { id: 'system', label: '安装与维护', path: 'system' },
+  { id: 'database', label: '数据库', path: 'database' },
+  { id: 'data', label: '数据范围', path: 'data' },
+];
+
+function useSettingsSection() {
+  const location = useLocation();
+  return useMemo(() => {
+    const tail = location.pathname.replace(/\/+$/, '').split('/').pop() || '';
+    const found = SETTINGS_TABS.find((tab) => tab.path === tail);
+    return found ? found.path : 'system';
+  }, [location.pathname]);
+}
 
 function SettingsPage() {
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
-  const [saveError, setSaveError] = useState('');
-  const [saveOk, setSaveOk] = useState('');
-  const [saving, setSaving] = useState(false);
+  const navigate = useNavigate();
+  const section = useSettingsSection();
 
-  const [databaseType, setDatabaseType] = useState('duckdb');
-  const [databaseName, setDatabaseName] = useState('');
-  const [duckdbDomains, setDuckdbDomains] = useState({});
+  const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState('');
+  const [saveError, setSaveError] = React.useState('');
+  const [saveOk, setSaveOk] = React.useState('');
+  const [saving, setSaving] = React.useState(false);
+  const [databaseType, setDatabaseType] = React.useState('duckdb');
+  const [databaseName, setDatabaseName] = React.useState('');
+  const [duckdbDomains, setDuckdbDomains] = React.useState({});
 
-  const load = useCallback(() => {
+  const [dataLoading, setDataLoading] = React.useState(true);
+  const [dataLoadError, setDataLoadError] = React.useState('');
+  const [dataSaveError, setDataSaveError] = React.useState('');
+  const [dataSaveOk, setDataSaveOk] = React.useState('');
+  const [dataSaving, setDataSaving] = React.useState(false);
+  const [defaultStartDate, setDefaultStartDate] = React.useState('');
+  const [asOfLatestCompletedDate, setAsOfLatestCompletedDate] = React.useState('');
+  const [useSampleStockList, setUseSampleStockList] = React.useState('');
+
+  const loadDatabase = useCallback(() => {
     setLoading(true);
     setLoadError('');
     fetchDatabaseSettings()
@@ -44,11 +67,29 @@ function SettingsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const loadDataSettings = useCallback(() => {
+    setDataLoading(true);
+    setDataLoadError('');
+    fetchDataSettings()
+      .then((r) => {
+        setDefaultStartDate(r.default_start_date || '');
+        setAsOfLatestCompletedDate(r.as_of_latest_completed_trading_date || '');
+        setUseSampleStockList(
+          r.use_sample_stock_list != null ? String(r.use_sample_stock_list) : '',
+        );
+      })
+      .catch((e) => {
+        setDataLoadError(e?.message || '读取数据配置失败');
+      })
+      .finally(() => setDataLoading(false));
+  }, []);
 
-  const handleSave = () => {
+  useEffect(() => {
+    loadDatabase();
+    loadDataSettings();
+  }, [loadDatabase, loadDataSettings]);
+
+  const handleSaveDatabase = () => {
     setSaveError('');
     setSaveOk('');
     setSaving(true);
@@ -65,7 +106,32 @@ function SettingsPage() {
       .finally(() => setSaving(false));
   };
 
-  const isDuckdb = databaseType === 'duckdb';
+  const handleSaveData = () => {
+    setDataSaveError('');
+    setDataSaveOk('');
+    setDataSaving(true);
+    saveDataSettings({
+      default_start_date: defaultStartDate.trim(),
+      as_of_latest_completed_trading_date: asOfLatestCompletedDate.trim(),
+      use_sample_stock_list: useSampleStockList.trim(),
+    })
+      .then((r) => {
+        setDefaultStartDate(r.default_start_date || '');
+        setAsOfLatestCompletedDate(r.as_of_latest_completed_trading_date || '');
+        setUseSampleStockList(
+          r.use_sample_stock_list != null ? String(r.use_sample_stock_list) : '',
+        );
+        setDataSaveOk('已保存到 userspace/config/data.json。数据源列表的截至日与更新状态将按新配置评估。');
+      })
+      .catch((e) => {
+        setDataSaveError(e?.message || '保存失败');
+      })
+      .finally(() => setDataSaving(false));
+  };
+
+  const handleTabChange = (_event, nextPath) => {
+    navigate(`/settings/${nextPath}`);
+  };
 
   return (
     <PageLayout
@@ -73,120 +139,69 @@ function SettingsPage() {
       breadcrumbsItems={[{ label: '制定策略', to: '/strategy-design' }]}
       breadcrumbsCurrent="设置"
       bannerTitle="设置"
-      bannerDescription="系统安装入口与 userspace 数据库连接的快速调整。"
+      bannerDescription="系统安装、数据库连接与 data.json 数据范围。"
     >
-      <Stack spacing={2.5} sx={{ maxWidth: 720 }}>
-        <Card variant="outlined">
-          <CardContent>
-            <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
-              安装与维护
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              需要重新执行引导安装（数据路径、数据库连接、导入等）时，请进入安装向导。
-            </Typography>
-            <Button component={RouterLink} to="/setup" variant="contained" color="secondary">
-              重新安装
-            </Button>
-          </CardContent>
-        </Card>
+      <Box className="settings-page-layout">
+        <Paper className="settings-page-nav" elevation={0}>
+          <Tabs
+            orientation="vertical"
+            value={section}
+            onChange={handleTabChange}
+            aria-label="设置分类"
+          >
+            {SETTINGS_TABS.map((tab) => (
+              <Tab key={tab.id} label={tab.label} value={tab.path} />
+            ))}
+          </Tabs>
+        </Paper>
 
-        <Card variant="outlined">
-          <CardContent>
-            <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
-              数据库
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              对应
-              {' '}
-              <Typography component="span" variant="body2" sx={{ fontFamily: 'ui-monospace, monospace' }}>
-                userspace/system/config/database/common.json
-              </Typography>
-              {' '}
-              中的
-              {' '}
-              <code>database_type</code>
-              。
-              DuckDB 使用
-              {' '}
-              <Typography component="span" variant="body2" sx={{ fontFamily: 'ui-monospace, monospace' }}>
-                duckdb.json
-              </Typography>
-              {' '}
-              中的三域文件路径（相对
-              {' '}
-              <Typography component="span" variant="body2" sx={{ fontFamily: 'ui-monospace, monospace' }}>
-                userspace/system/db/
-              </Typography>
-              ）。
-              PostgreSQL / MySQL 另需编辑对应 json 中的连接字段。
-            </Typography>
-
-            {loadError ? <Alert severity="error" sx={{ mb: 2 }}>{loadError}</Alert> : null}
-            {saveError ? <Alert severity="error" sx={{ mb: 2 }}>{saveError}</Alert> : null}
-            {saveOk ? <Alert severity="success" sx={{ mb: 2 }}>{saveOk}</Alert> : null}
-
-            {loading ? (
-              <InlineLoadingState block message="正在加载数据库配置…" />
-            ) : (
-            <Stack spacing={2} sx={{ maxWidth: 420 }}>
-              <FormControl fullWidth size="small" disabled={loading}>
-                <InputLabel id="settings-db-type-label">数据库类型</InputLabel>
-                <Select
-                  labelId="settings-db-type-label"
-                  label="数据库类型"
-                  value={databaseType}
-                  onChange={(e) => setDatabaseType(e.target.value)}
-                >
-                  <MenuItem value="duckdb">DuckDB（推荐，本地文件）</MenuItem>
-                  <MenuItem value="postgresql">PostgreSQL</MenuItem>
-                  <MenuItem value="mysql">MySQL</MenuItem>
-                </Select>
-              </FormControl>
-              {isDuckdb ? (
-                <Alert severity="info">
-                  当前使用 DuckDB。数据文件位于 userspace/system/db/，默认域：
-                  {Object.keys(duckdbDomains).length > 0 ? (
-                    <Box component="ul" sx={{ mt: 1, mb: 0, pl: 2 }}>
-                      {Object.entries(duckdbDomains).map(([domain, path]) => (
-                        <li key={domain}>
-                          <code>{domain}</code>
-                          :
-                          {' '}
-                          <code>{path}</code>
-                        </li>
-                      ))}
-                    </Box>
-                  ) : (
-                    <Typography variant="body2" sx={{ mt: 1 }}>
-                      data.duckdb / tag.duckdb / strategy.duckdb（使用 core 默认配置）
-                    </Typography>
-                  )}
-                  高级参数请直接编辑 duckdb.json。
-                </Alert>
-              ) : (
-                <TextField
-                  label="数据库名（库名）"
-                  size="small"
-                  fullWidth
-                  disabled={loading}
-                  value={databaseName}
-                  onChange={(e) => setDatabaseName(e.target.value)}
-                  helperText="仅允许字母、数字、下划线、连字符与点号。"
+        <Paper className="settings-page-panel" elevation={0}>
+          <Routes>
+            <Route index element={<Navigate to="system" replace />} />
+            <Route path="system" element={<SettingsSystemPanel />} />
+            <Route
+              path="database"
+              element={(
+                <SettingsDatabasePanel
+                  loading={loading}
+                  loadError={loadError}
+                  saveError={saveError}
+                  saveOk={saveOk}
+                  saving={saving}
+                  databaseType={databaseType}
+                  databaseName={databaseName}
+                  duckdbDomains={duckdbDomains}
+                  onDatabaseTypeChange={setDatabaseType}
+                  onDatabaseNameChange={setDatabaseName}
+                  onSave={handleSaveDatabase}
+                  onReload={loadDatabase}
                 />
               )}
-              <Box>
-                <Button variant="contained" onClick={handleSave} disabled={loading || saving}>
-                  {saving ? '保存中…' : '保存数据库设置'}
-                </Button>
-                <Button sx={{ ml: 1 }} variant="outlined" onClick={load} disabled={loading || saving}>
-                  重新读取
-                </Button>
-              </Box>
-            </Stack>
-            )}
-          </CardContent>
-        </Card>
-      </Stack>
+            />
+            <Route
+              path="data"
+              element={(
+                <SettingsDataPanel
+                  loading={dataLoading}
+                  loadError={dataLoadError}
+                  saveError={dataSaveError}
+                  saveOk={dataSaveOk}
+                  saving={dataSaving}
+                  defaultStartDate={defaultStartDate}
+                  asOfLatestCompletedDate={asOfLatestCompletedDate}
+                  useSampleStockList={useSampleStockList}
+                  onDefaultStartDateChange={setDefaultStartDate}
+                  onAsOfLatestCompletedDateChange={setAsOfLatestCompletedDate}
+                  onUseSampleStockListChange={setUseSampleStockList}
+                  onSave={handleSaveData}
+                  onReload={loadDataSettings}
+                />
+              )}
+            />
+            <Route path="*" element={<Navigate to="system" replace />} />
+          </Routes>
+        </Paper>
+      </Box>
     </PageLayout>
   );
 }

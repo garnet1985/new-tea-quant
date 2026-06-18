@@ -1,41 +1,63 @@
-# Data Source 控制台 API（T2 — 草案）
+# Data Source 列表 API（Phase A）
 
-**状态**：Phase 2，Tag MVP 完成后再实现。编号与 [`../tagPage/API.md`](../tagPage/API.md) 并列。
+只读目录 + 更新按钮占位（Token 未配置时禁用；更新执行下一版接入）。
 
 ## HTTP 前缀
 
 同 Tag：`/api/v1/...`。
 
-## API 清单（草案）
+## DS-01 `GET /api/v1/data-sources/list`
 
-| 编号 | 方法 | 路径 | 用途 |
-|------|------|------|------|
-| T2-01 | GET | `/data-sources/list` | 已配置 data source 列表（只读） |
-| T2-02 | POST | `/data-source/<source_key>/renew` | 触发单 source renew |
-| T2-03 | POST | `/data-sources/renew` | 触发全部 enabled renew（可选 query `force=0\|1`） |
-| T2-04 | GET | `/data-source/renew/progress` | 轮询 renew job（query `job_id`） |
+| Query | 说明 |
+|-------|------|
+| `page` | 1-based，默认 1 |
+| `limit` | 默认由 BFF pagination helper 决定 |
 
-## T2-01 列表项（草案字段）
+**Response `message`**
 
-| 字段 | 说明 |
-|------|------|
-| `name` | data source key（如 `stock_klines`） |
-| `is_enabled` | mapping 中 `is_enabled` |
-| `depends_on` | string[] |
-| `target_table` | handler config `table` |
-| `last_renewed_at` | 可选；自 DB / cache 推导，无则 `null` |
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `items[]` | array | 当前页 |
+| `total` | number | 全量条数 |
+| `page` / `limit` | number | 回显 |
+| `data_end` | object | 全系统数据截至日（见下） |
 
-## T2-02 / T2-03 运行
+**`data_end`**
 
-- 成功：`is_triggered`、`job_id`、`run_id`（与 T1-02 / scan 同形）。
-- 已有 renew 或 DuckDB 互斥：**409**。
-- `force=true`：对齐 CLI `renew --force`（实现阶段落实 query 或 body）。
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `configured_as_of` | string \| null | `data.json` 的 `as_of_latest_completed_trading_date` |
+| `effective_end_date` | string \| null | 实际用于评估的截至日（YYYYMMDD） |
+| `is_end_date_truncated` | boolean | 是否配置了 as-of 截断 |
+| `truncation_hint` | string | 截断时 UI 提示文案 |
+| `truncation_settings_path` | string \| null | 截断时跳转设置内页路径（如 `/settings/data`） |
 
-## T2-04 进度
+**`items[]` 元素**
 
-- 响应字段对齐 **T1-03** / scan progress：`progress`、`status`、`label`、`is_success`、`reason`。
-- 全局单 job：同一时刻仅一个 renew 编排（含「全部 renew」）。
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `name` | string | data source key |
+| `display_name` | string | 中文展示名 |
+| `target_table` | string | handler config `table` |
+| `providers` / `providers_label` | | Provider 列表 |
+| `renew_type` / `renew_type_label` | | 更新方式（增量/滚动/全量刷新） |
+| `renew_interval_days` | number \| null | 更新间隔天数 |
+| `rate_limit_per_minute` | number \| null | API 限速最小值 |
+| `requires_auth` / `auth_ready` / `auth_hint` | | Token 状态 |
+| `can_renew` | boolean | 是否可点击更新（Token 就绪） |
+| `update_status` | string | `needs_update` / `up_to_date` |
+| `update_status_label` | string | `需要更新` / `已经更新` |
+| `update_status_hint` | string | 可选补充说明 |
+| `origin` / `is_custom` | | 系统 / 自定义 |
+
+**实现**：`core/modules/data_source/launcher/source_catalog.py` + `catalog/freshness_probe.py`
 
 ---
 
-实现编排占位：`core/ui/bff/APIs/data_source/ROUTES_ORCHESTRATION.md`（待建）。
+## 后续（Phase B）
+
+| 编号 | 方法 | 路径 | 用途 |
+|------|------|------|------|
+| DS-02 | POST | `/data-source/<source_key>/renew` | 单行更新 + 进度 |
+| DS-03 | POST | `/data-sources/renew` | 全部更新 |
+| DS-04 | GET | `/data-source/renew/progress` | 轮询进度 |

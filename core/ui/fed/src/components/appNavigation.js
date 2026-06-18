@@ -24,6 +24,7 @@ const navItems = [
 /** 高级功能子菜单（Tag 等） */
 const advancedNavItems = [
   { label: '特征标签', path: '/advanced/tags' },
+  { label: '数据源', path: '/advanced/data-sources' },
   { label: '数据契约', path: '/advanced/data-contracts' },
 ];
 

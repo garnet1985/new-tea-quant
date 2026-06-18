@@ -1,6 +1,7 @@
 import { requestJson } from '../global/httpClient';
 import { API_VERSION_PREFIX } from '../conf/apiConfig';
 import { mapDataEnd } from '../shared/dataEnd';
+import { getUpdateModeIcon } from '../shared/updateModeIcon';
 
 const API_TAGS_LIST = `${API_VERSION_PREFIX}/tags/list`;
 const API_RUNTIME_PIPELINE = `${API_VERSION_PREFIX}/runtime/pipeline`;
@@ -38,10 +39,7 @@ export function getTagUpdateModeLabel(mode) {
 
 /** ``update_mode`` 对应 ``NtqIcon`` name。 */
 export function getTagUpdateModeIcon(mode) {
-  const key = String(mode || '').trim().toLowerCase();
-  if (key === 'refresh') return 'refresh';
-  if (key === 'incremental') return 'syncAlt';
-  return 'info';
+  return getUpdateModeIcon(mode);
 }
 
 /** 格式化 ``last_computed_as_of``（YYYYMMDD → YYYY-MM-DD）。 */

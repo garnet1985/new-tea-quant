@@ -28,27 +28,17 @@ import DataEndTruncationAlert from '../../components/dataEndTruncationAlert/data
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
 import NtqIcon from '../../components/ntqIcon/ntqIcon';
 import NtqRainbowRunButton from '../../components/ntqRainbowRunButton/ntqRainbowRunButton';
+import FreshnessStatusChip from '../../components/freshnessStatusChip/freshnessStatusChip';
 import './dataSourceListPage.scss';
 
 function UpdateStatusChip({ row }) {
-  const label = getDataSourceUpdateStatusLabel(row);
-  const status = String(row.update_status || '').trim();
-  const hint = String(row.update_status_hint || '').trim();
-  let chip;
-  if (row.freshness_pending) {
-    chip = <Chip size="small" variant="outlined" label={label} />;
-  } else if (status === 'up_to_date') {
-    chip = <Chip size="small" color="success" variant="outlined" label={label} />;
-  } else {
-    chip = <Chip size="small" color="warning" label={label} />;
-  }
-  if (!hint || status === 'up_to_date' || row.freshness_pending) {
-    return chip;
-  }
   return (
-    <Tooltip title={hint}>
-      <span>{chip}</span>
-    </Tooltip>
+    <FreshnessStatusChip
+      status={row.update_status}
+      label={getDataSourceUpdateStatusLabel(row)}
+      hint={row.update_status_hint}
+      pending={Boolean(row.freshness_pending)}
+    />
   );
 }
 

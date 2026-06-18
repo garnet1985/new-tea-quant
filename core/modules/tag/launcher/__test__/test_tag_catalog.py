@@ -11,7 +11,7 @@ def test_compute_status_needs_recompute_when_behind_effective_end():
     hint = "data.json 已截断"
     status, label, out_hint = _compute_status("20250601", "20251231", hint)
     assert status == "needs_recompute"
-    assert label == "需要计算"
+    assert label == "需要更新"
     assert out_hint == hint
 
 

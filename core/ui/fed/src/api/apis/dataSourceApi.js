@@ -1,6 +1,7 @@
 import { requestJson } from '../global/httpClient';
 import { API_VERSION_PREFIX } from '../conf/apiConfig';
 import { mapDataEnd } from '../shared/dataEnd';
+import { getUpdateModeIcon } from '../shared/updateModeIcon';
 
 const API_DATA_SOURCES_LIST = `${API_VERSION_PREFIX}/data-sources/list`;
 const API_DATA_SOURCES_FRESHNESS = `${API_VERSION_PREFIX}/data-sources/freshness`;
@@ -34,11 +35,7 @@ export function getDataSourceAuthLabel(item) {
 
 /** 更新方式对应 ``NtqIcon`` name。 */
 export function getDataSourceRenewTypeIcon(mode) {
-  const key = String(mode || '').trim().toLowerCase();
-  if (key === 'refresh') return 'refresh';
-  if (key === 'incremental') return 'add';
-  if (key === 'rolling') return 'webhook';
-  return 'info';
+  return getUpdateModeIcon(mode);
 }
 
 /**

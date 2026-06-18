@@ -31,6 +31,7 @@ import StrategyDescriptionText from '../../components/strategyDescriptionText/st
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
 import NtqIcon from '../../components/ntqIcon/ntqIcon';
 import NtqRainbowRunButton from '../../components/ntqRainbowRunButton/ntqRainbowRunButton';
+import FreshnessStatusChip from '../../components/freshnessStatusChip/freshnessStatusChip';
 import './tagListPage.scss';
 
 function clearRowProgress(rows) {
@@ -43,24 +44,12 @@ function clearRowProgress(rows) {
 }
 
 function ComputeStatusChip({ row }) {
-  const label = getTagComputeStatusLabel(row);
-  const status = String(row.compute_status || '').trim();
-  const hint = String(row.compute_status_hint || '').trim();
-  let chip;
-  if (status === 'up_to_date') {
-    chip = <Chip size="small" color="success" variant="outlined" label={label} />;
-  } else if (status === 'needs_recompute') {
-    chip = <Chip size="small" color="warning" label={label} />;
-  } else {
-    chip = <Chip size="small" variant="outlined" label={label} />;
-  }
-  if (!hint || status === 'up_to_date') {
-    return chip;
-  }
   return (
-    <Tooltip title={hint}>
-      <span>{chip}</span>
-    </Tooltip>
+    <FreshnessStatusChip
+      status={row.compute_status}
+      label={getTagComputeStatusLabel(row)}
+      hint={row.compute_status_hint}
+    />
   );
 }
 
@@ -289,7 +278,7 @@ function TagListPage() {
     },
     {
       field: 'compute_status',
-      headerName: '计算状态',
+      headerName: '数据状态',
       width: 110,
       valueGetter: (params) => getTagComputeStatusLabel(params.row),
       renderCell: (params) => <ComputeStatusChip row={params.row} />,

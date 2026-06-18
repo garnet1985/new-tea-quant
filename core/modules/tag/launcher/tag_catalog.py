@@ -97,9 +97,9 @@ def _compute_status(
     last = str(last_computed_as_of or "").strip()
     end = str(effective_end or "").strip()
     if not last:
-        return "needs_recompute", "需要计算", hint
+        return "needs_recompute", "需要更新", hint
     if end and last < end:
-        return "needs_recompute", "需要计算", hint
+        return "needs_recompute", "需要更新", hint
     return "up_to_date", "已经更新", ""
 
 

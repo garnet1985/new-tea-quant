@@ -14,7 +14,9 @@ from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.
 )
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.slice_plan import (
     is_first_open_of_month,
+    is_first_open_of_year,
     is_last_open_of_month,
+    is_last_open_of_year,
 )
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.types import (
     CalendarAsOfContext,
@@ -136,6 +138,8 @@ class TagSliceComputeEngine:
                 open_date_index=open_date_index,
                 is_first_open_of_month=is_first_open_of_month(as_of, self._open_dates_all),
                 is_last_open_of_month=is_last_open_of_month(as_of, self._open_dates_all),
+                is_first_open_of_year=is_first_open_of_year(as_of, self._open_dates_all),
+                is_last_open_of_year=is_last_open_of_year(as_of, self._open_dates_all),
             )
             try:
                 asof_result = self._call_on_calendar_asof(worker, ctx, settings)

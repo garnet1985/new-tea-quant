@@ -65,7 +65,9 @@ from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.slice_plan import (
     CalendarSliceDescriptor,
     is_first_open_of_month,
+    is_first_open_of_year,
     is_last_open_of_month,
+    is_last_open_of_year,
 )
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.types import (
     CalendarAsOfContext,
@@ -254,6 +256,8 @@ class CalendarSliceComputeEngine:
                 open_date_index=open_date_index,
                 is_first_open_of_month=is_first_open_of_month(as_of, all_open_dates),
                 is_last_open_of_month=is_last_open_of_month(as_of, all_open_dates),
+                is_first_open_of_year=is_first_open_of_year(as_of, all_open_dates),
+                is_last_open_of_year=is_last_open_of_year(as_of, all_open_dates),
             )
             asof_result = self._call_on_calendar_asof(ctx)
             carry = dict(asof_result.carry or {})

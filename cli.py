@@ -39,7 +39,8 @@
     python cli.py -i ./demo-strategy.zip --skip-existing  # 跳过已存在
     python cli.py -i ./demo-strategy.zip -f  # 覆盖已存在
     python cli.py -i ./demo-strategy.zip --dry-run  # 仅预览
-    python cli.py -h                   # 查看帮助
+    python cli.py -s -new my_strategy       # 从模板复制新建策略
+    python cli.py -t -new demo/my_tag       # 从模板复制新建 Tag 场景
 """
 import sys
 import os
@@ -99,7 +100,9 @@ def _skip_auto_install_from_argv() -> bool:
         "-e",
         "-i",
     }
-    return any(token in skip_flags for token in argv)
+    if any(token in skip_flags for token in argv):
+        return True
+    return "-new" in argv or "--new" in argv
 
 
 def ensure_app_installed_if_needed() -> None:
@@ -353,13 +356,13 @@ def _add_shortcut_flags(parser):
 
     # Tag
     parser.add_argument('-t', dest='tag_flag', action='store_true',
-                       help='Tag 模块（默认 generating）')
+                       help='Tag 模块（默认 generating）；与 -new 合用可从模板新建场景')
     parser.add_argument('-tg', dest='tag_generate_flag', action='store_true',
                        help='Tag generating（等同 -t）')
 
     # Strategy
     parser.add_argument('-s', dest='strategy_flag', action='store_true',
-                       help='Strategy 模块（默认 scan，等同 -sc）')
+                       help='Strategy 模块（默认 scan，等同 -sc）；与 -new 合用可从模板新建策略')
     parser.add_argument('-sc', dest='strategy_scan_flag', action='store_true',
                        help='Strategy scan')
     parser.add_argument('-se', dest='strategy_enum_flag', action='store_true',
@@ -430,6 +433,12 @@ def _run_app_update() -> int:
 
 def _add_extra_arguments(parser):
     """添加额外参数"""
+    parser.add_argument(
+        '-new',
+        dest='scaffold_new_arg',
+        metavar='PATH',
+        help='从模板复制新建：cli.py -s -new <路径> 建策略；cli.py -t -new <路径> 建 Tag',
+    )
     parser.add_argument('--strategy', type=str,
                        help='指定策略名称（用于 scan/simulate/enumerate/价格与资金模拟）；'
                             '省略时：enumerate/-se/-sp/-sa 默认使用「唯一」is_enabled 的策略，'
@@ -544,6 +553,8 @@ def _get_help_epilog() -> str:
     %(prog)s -sa                  Strategy capital allocation simulation
     %(prog)s -sy                  Strategy analysis
     %(prog)s -u                   检查并应用 core 版本更新
+    %(prog)s -s -new my_strategy    从模板复制新建策略
+    %(prog)s -t -new demo/my_tag    从模板复制新建 Tag 场景
     %(prog)s -e example           导出策略包 userspace/example-strategy.zip
     %(prog)s -e tag:my_tag        仅导出 tag 目录
     %(prog)s -i ./pkg-strategy.zip        导入策略包
@@ -741,6 +752,74 @@ def _resolve_package_cli(args, parser: argparse.ArgumentParser) -> Optional[int]
     return None
 
 
+def _resolve_scaffold_cli(args, parser: argparse.ArgumentParser) -> Optional[int]:
+    """
+    Handle ``-s -new PATH`` / ``-t -new PATH`` before normal command dispatch.
+
+    Returns exit code when handled, else ``None``.
+    """
+    raw = getattr(args, "scaffold_new_arg", None)
+    if raw is None:
+        return None
+
+    path = str(raw).strip()
+    if not path:
+        parser.error("-new 需要目标路径（例: cli.py -s -new my_strategy）")
+
+    tag_selected = bool(args.tag_flag or args.tag_generate_flag)
+    strategy_selected = bool(args.strategy_flag)
+    strategy_sub = bool(
+        args.strategy_scan_flag
+        or args.strategy_enum_flag
+        or args.strategy_price_flag
+        or args.strategy_capital_flag
+        or args.strategy_analysis_flag
+    )
+
+    if tag_selected and (strategy_selected or strategy_sub):
+        parser.error("-new 不能同时用于 -t 与 -s")
+    if strategy_sub:
+        parser.error("新建策略请使用 cli.py -s -new <路径>，勿与 -sc/-se/-sp/-sa/-sy 合用")
+    if not tag_selected and not strategy_selected:
+        parser.error("新建须指定 -s -new <路径> 或 -t -new <路径>")
+    if args.command:
+        parser.error("-new 不能与其它位置命令合用")
+    if getattr(args, "export_strategy_arg", None) is not None:
+        parser.error("-new 不能与 -e 合用")
+    if getattr(args, "import_package_arg", None) is not None:
+        parser.error("-new 不能与 -i 合用")
+    if getattr(args, "update_flag", False):
+        parser.error("-new 不能与 -u 合用")
+    if (
+        args.data_flag
+        or args.data_renew_flag
+        or getattr(args, "renew_arg", None) is not None
+        or getattr(args, "renew_force_arg", None) is not None
+    ):
+        parser.error("-new 不能与 -d/-r 等 data renew 命令合用")
+
+    from core.infra.userspace.scaffold import ScaffoldError, scaffold_strategy, scaffold_tag
+
+    LoggingManager.setup_logging()
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    try:
+        if tag_selected:
+            result = scaffold_tag(path)
+            kind_label = "Tag 场景"
+        else:
+            result = scaffold_strategy(path)
+            kind_label = "策略"
+        logger.info("✅ 已新建 %s: %s", kind_label, result.key)
+        logger.info("   目录: %s", result.dest)
+        logger.info("   请编辑 settings.py 与 worker，然后运行回测或打标。")
+        return 0
+    except ScaffoldError as exc:
+        logger.error("❌ %s", exc)
+        return 1
+
+
 def _package_cli_has_other_flags(args) -> bool:
     """True when argv includes module shortcut flags besides optional -f/-V."""
     flag_names = (
@@ -934,6 +1013,10 @@ def main():
     package_exit = _resolve_package_cli(args, parser)
     if package_exit is not None:
         raise SystemExit(package_exit)
+
+    scaffold_exit = _resolve_scaffold_cli(args, parser)
+    if scaffold_exit is not None:
+        raise SystemExit(scaffold_exit)
 
     # 初始化全局日志（基于 logging.json + userspace 覆盖）
     LoggingManager.setup_logging()

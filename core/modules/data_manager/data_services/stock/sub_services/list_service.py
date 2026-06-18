@@ -27,7 +27,10 @@ _PIT_DELIST_EMPTY_SQL = (
     "delist_date IS NULL OR delist_date = '' "
     "OR delist_date IN ('0', '0.0')"
 )
-_PIT_PERIOD_WHERE = f"list_date <= %s AND ({_PIT_DELIST_EMPTY_SQL} OR delist_date > %s)"
+_PERIOD_WHERE = f"list_date <= %s AND ({_PIT_DELIST_EMPTY_SQL} OR delist_date > %s)"
+
+SURVIVORSHIP_PIT = "pit"
+SURVIVORSHIP_SURVIVOR = "survivor"
 
 
 class ListService(BaseDataService):
@@ -120,6 +123,7 @@ class ListService(BaseDataService):
         *,
         period_start: Optional[str] = None,
         period_end: Optional[str] = None,
+        survivorship: Optional[str] = None,
         as_of_date: Optional[str] = None,
         list_status: Optional[Union[str, Sequence[str]]] = None,
         industry: Optional[Union[str, int]] = None,
@@ -132,9 +136,15 @@ class ListService(BaseDataService):
         加载股票集合。查询模式互斥，优先级：
         period_start+period_end > as_of_date > 维度 > list_status > load_all。
 
-        period（回测窗口参与者）::
-            list_date <= period_end
-            AND (无退市日 sentinel 或 delist_date > period_start)
+        period（回测窗口参与者，``survivorship`` 控制退市边界）::
+
+            pit（默认）::
+                list_date <= period_end
+                AND (无退市日 sentinel 或 delist_date > period_start)
+
+            survivor（幸存者偏差演示）::
+                list_date <= period_end
+                AND (无退市日 sentinel 或 delist_date > period_end)
 
         as_of_date（某日仍在市）::
             list_date <= as_of_date
@@ -146,15 +156,19 @@ class ListService(BaseDataService):
             if as_of_date:
                 raise ValueError("period_* 与 as_of_date 不能同时使用")
             rows = self._stock_list.load(
-                _PIT_PERIOD_WHERE,
-                (period_end, period_start),
+                _PERIOD_WHERE,
+                self._period_where_params(
+                    period_start=period_start,
+                    period_end=period_end,
+                    survivorship=survivorship,
+                ),
                 order_by=f"{order_by} ASC",
             )
             return self._sort_stocks(rows, order_by)
 
         if as_of_date:
             rows = self._stock_list.load(
-                _PIT_PERIOD_WHERE,
+                _PERIOD_WHERE,
                 (as_of_date, as_of_date),
                 order_by=f"{order_by} ASC",
             )
@@ -214,6 +228,26 @@ class ListService(BaseDataService):
         order_by: str = "id",
     ) -> List[Dict[str, Any]]:
         return self.load(area=area, order_by=order_by)
+
+    @staticmethod
+    def normalize_survivorship(raw: Any) -> str:
+        mode = str(raw or SURVIVORSHIP_PIT).strip().lower()
+        if mode in (SURVIVORSHIP_PIT, SURVIVORSHIP_SURVIVOR):
+            return mode
+        return SURVIVORSHIP_PIT
+
+    @classmethod
+    def _period_where_params(
+        cls,
+        *,
+        period_start: str,
+        period_end: str,
+        survivorship: Optional[str],
+    ) -> tuple[str, str]:
+        mode = cls.normalize_survivorship(survivorship)
+        if mode == SURVIVORSHIP_SURVIVOR:
+            return (period_end, period_end)
+        return (period_end, period_start)
 
     @staticmethod
     def _normalize_delist_date(raw: Any) -> Optional[str]:

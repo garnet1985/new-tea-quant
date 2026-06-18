@@ -5,9 +5,9 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from core.infra.job_pipeline.types import Job
 from core.modules.data_contract.cache import ContractCacheManager
-from core.modules.tag.components.data_management.tag_data_manager import TagDataManager
-from core.modules.tag.components.job_staging.tag_batch_stage import stage_entities_batch
-from core.modules.tag.components.job_staging.tag_prior_values import fetch_prior_tag_values
+from core.modules.tag.engines.shared.data.tag_data_manager import TagDataManager
+from core.modules.tag.engines.shared.staging.batch_stage import stage_entities_batch
+from core.modules.tag.engines.shared.staging.prior_values import fetch_prior_tag_values
 
 if TYPE_CHECKING:
     from core.modules.data_manager import DataManager
@@ -115,6 +115,7 @@ class TagJobStager:
             "settings",
             "worker_module_path",
             "worker_class_name",
+            "worker_file_path",
             "global_extra_cache",
         )
         return {key: payload[key] for key in keys if key in payload}
@@ -139,6 +140,7 @@ class TagJobStager:
             "settings",
             "worker_module_path",
             "worker_class_name",
+            "worker_file_path",
         )
         worker_payload = {key: source_payload[key] for key in keys if key in source_payload}
         worker_payload["global_extra_cache"] = source_payload.get("global_extra_cache") or {}

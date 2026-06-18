@@ -72,12 +72,12 @@ class TestTagManager:
         mock_data_manager.return_value = mock_data_mgr
         
         with patch.object(TagManager, '_discover_scenarios_from_folder'), \
-             patch.object(TagManager, '_execute_single') as mock_execute_single:
+             patch.object(TagManager, '_execute_named') as mock_execute_named:
             
             manager = TagManager(is_verbose=False)
             manager.execute(scenario_name="test_scenario")
             
-            mock_execute_single.assert_called_once_with("test_scenario")
+            mock_execute_named.assert_called_once_with("test_scenario")
     
     @patch('core.modules.tag.tag_manager.DataManager')
     @patch('core.modules.tag.tag_manager.get_scenarios_root')
@@ -91,21 +91,26 @@ class TestTagManager:
         mock_data_manager.return_value = mock_data_mgr
         
         settings = {
-            "name": "test_scenario",
-            "target_entity": {"type": "stock_kline_daily"},
             "is_enabled": True,
-            "data": {"required": [{"data_id": "stock.kline.daily", "params": {"adjust": "qfq"}}]},
+            "meta": {"display_name": "test"},
+            "calculation": {"update_mode": "incremental"},
+            "data": {
+                "base_required_data": {
+                    "data_id": "stock.kline.daily",
+                    "params": {"adjust": "qfq"},
+                },
+                "min_required_records": 10,
+            },
             "tags": [{"name": "tag1"}],
-            "incremental_required_records_before_as_of_date": 10
         }
         
         with patch.object(TagManager, '_discover_scenarios_from_folder'), \
-             patch.object(TagManager, '_execute_single_from_tmp_settings') as mock_execute_tmp:
+             patch.object(TagManager, '_run_scenario') as mock_run_scenario:
             
             manager = TagManager(is_verbose=False)
-            manager.execute(settings=settings)
+            manager.execute(scenario_name="test_scenario", settings=settings)
             
-            mock_execute_tmp.assert_called_once_with(settings)
+            mock_run_scenario.assert_called_once()
     
     @patch('core.modules.tag.tag_manager.DataManager')
     @patch('core.modules.tag.tag_manager.get_scenarios_root')
@@ -119,7 +124,7 @@ class TestTagManager:
         mock_data_manager.return_value = mock_data_mgr
         
         with patch.object(TagManager, '_discover_scenarios_from_folder'), \
-             patch.object(TagManager, '_execute_single') as mock_execute_single:
+             patch.object(TagManager, '_execute_named') as mock_execute_named:
             
             manager = TagManager(is_verbose=False)
             manager.scenario_cache = {
@@ -129,9 +134,9 @@ class TestTagManager:
             
             manager.execute()
             
-            assert mock_execute_single.call_count == 2
-            mock_execute_single.assert_any_call("scenario1")
-            mock_execute_single.assert_any_call("scenario2")
+            assert mock_execute_named.call_count == 2
+            mock_execute_named.assert_any_call("scenario1")
+            mock_execute_named.assert_any_call("scenario2")
     
     @patch('core.modules.tag.tag_manager.DataManager')
     @patch('core.modules.tag.tag_manager.get_scenarios_root')
@@ -153,8 +158,8 @@ class TestTagManager:
     
     @patch('core.modules.tag.tag_manager.DataManager')
     @patch('core.modules.tag.tag_manager.get_scenarios_root')
-    def test_load_scenario_from_cache_by_name_exists(self, mock_get_scenarios_root, mock_data_manager):
-        """测试 _load_scenario_from_cache_by_name（存在）"""
+    def test_scenario_cache_lookup(self, mock_get_scenarios_root, mock_data_manager):
+        """scenario_cache 按名称读取配置。"""
         from core.modules.tag.tag_manager import TagManager
         
         mock_get_scenarios_root.return_value = Path("/test/scenarios")
@@ -171,15 +176,14 @@ class TestTagManager:
                 }
             }
             
-            result = manager._load_scenario_from_cache_by_name("test_scenario")
+            result = manager.scenario_cache.get("test_scenario")
             
             assert result is not None
             assert result["settings"]["name"] == "test_scenario"
-    
+
     @patch('core.modules.tag.tag_manager.DataManager')
     @patch('core.modules.tag.tag_manager.get_scenarios_root')
-    def test_load_scenario_from_cache_by_name_not_exists(self, mock_get_scenarios_root, mock_data_manager):
-        """测试 _load_scenario_from_cache_by_name（不存在）"""
+    def test_scenario_cache_miss(self, mock_get_scenarios_root, mock_data_manager):
         from core.modules.tag.tag_manager import TagManager
         
         mock_get_scenarios_root.return_value = Path("/test/scenarios")
@@ -191,36 +195,34 @@ class TestTagManager:
             manager = TagManager(is_verbose=False)
             manager.scenario_cache = {}
             
-            result = manager._load_scenario_from_cache_by_name("test_scenario")
-            
-            assert result is None
+            assert manager.scenario_cache.get("test_scenario") is None
 
     @patch('core.modules.tag.tag_manager.DataManager')
     @patch('core.modules.tag.tag_manager.get_scenarios_root')
-    def test_run_execute_pipeline_general_uses_general_owner(self, mock_get_scenarios_root, mock_data_manager):
+    def test_run_scenario_general_uses_general_owner(self, mock_get_scenarios_root, mock_data_manager):
         """测试 general 模式固定使用 __general__ owner"""
+        from core.modules.tag.enums import TagExecutionMode
         from core.modules.tag.tag_manager import TagManager
 
         mock_get_scenarios_root.return_value = Path("/test/scenarios")
         mock_data_mgr = MagicMock()
-        mock_tag_service = MagicMock()
-        mock_tag_service.save_batch.side_effect = lambda rows: len(rows)
-        mock_data_mgr.stock.tags = mock_tag_service
+        mock_data_mgr.stock.tags = MagicMock()
         mock_data_manager.return_value = mock_data_mgr
 
-        with patch.object(TagManager, '_discover_scenarios_from_folder'), \
-             patch.object(TagManager, '_get_worker_class', return_value=MagicMock()), \
-             patch.object(TagManager, '_build_jobs', return_value=[] ) as mock_build_jobs:
+        with patch.object(TagManager, "_discover_scenarios_from_folder"), \
+             patch.object(TagManager, "_get_worker_class", return_value=MagicMock()), \
+             patch("core.modules.tag.tag_manager.run_timeline_pipeline") as mock_run:
             manager = TagManager(is_verbose=False)
             scenario_model = MagicMock()
             scenario_model.is_enabled.return_value = True
             scenario_model.get_name.return_value = "macro_general"
+            scenario_model.get_execution_mode.return_value = TagExecutionMode.ENTITY_TIMELINE
             scenario_model.get_settings.return_value = {
                 "name": "macro_general",
                 "tag_target_type": "general",
                 "performance": {
+                    "update_mode": "incremental",
                     "entities_per_job": 100,
-                    "mb_per_entity_staged": 0.5,
                 },
                 "data": {
                     "required": [{"data_id": "macro.gdp", "params": {}}],
@@ -228,15 +230,15 @@ class TestTagManager:
                 },
                 "tags": [{"name": "macro_tag"}],
             }
-            manager._run_execute_pipeline(scenario_model)
+            manager._run_scenario(scenario_model, tag_key="macro_general")
 
-            args, _ = mock_build_jobs.call_args
-            assert args[0] == ["__general__"]
+            _, kwargs = mock_run.call_args
+            assert kwargs["entity_list"] == ["__general__"]
 
-    @patch("core.modules.tag.tag_manager.JobPipeline")
+    @patch("core.modules.tag.engines.shared.runner.JobPipeline")
     @patch("core.modules.tag.tag_manager.DataManager")
     @patch("core.modules.tag.tag_manager.get_scenarios_root")
-    def test_execute_jobs_uses_dispatcher_and_saves_on_report(
+    def test_execute_tag_jobs_uses_dispatcher_and_saves_on_report(
         self,
         mock_get_scenarios_root,
         mock_data_manager,
@@ -244,7 +246,7 @@ class TestTagManager:
     ):
         """Worker 返回 tag_values，主进程 on_result 调用 save_batch。"""
         from core.infra.job_pipeline import DispatchResult, JobReport, RunProgress
-        from core.modules.tag.tag_manager import TagManager
+        from core.modules.tag.engines.shared.runner import execute_tag_jobs
 
         mock_get_scenarios_root.return_value = Path("/test/scenarios")
         mock_data_mgr = MagicMock()
@@ -281,15 +283,14 @@ class TestTagManager:
                 return DispatchResult(total=1, completed=1, failed=0)
 
         mock_dispatcher_cls.side_effect = _FakeDispatcher
-        with patch.object(TagManager, "_discover_scenarios_from_folder"):
-            manager = TagManager(is_verbose=False)
-            jobs = [{"id": "job1", "payload": {"entity_id": "000001"}}]
-            result = manager._execute_jobs(
-                jobs,
-                "test_scenario",
-                MagicMock(),
-                performance={"max_workers": 2},
-            )
+        jobs = [{"id": "job1", "payload": {"entity_id": "000001"}}]
+        result = execute_tag_jobs(
+            data_mgr=mock_data_mgr,
+            tag_data_service=mock_tag_service,
+            jobs=jobs,
+            scenario_name="test_scenario",
+            performance={"max_workers": 2},
+        )
 
         mock_tag_service.save_batch.assert_called_once_with(
             [{"entity_id": "000001", "json_value": "1"}]
@@ -298,10 +299,10 @@ class TestTagManager:
         assert result["saved_tag_values"] == 1
         assert captured["settings"].max_workers == 2
 
-    @patch("core.modules.tag.tag_manager.JobPipeline")
+    @patch("core.modules.tag.engines.shared.runner.JobPipeline")
     @patch("core.modules.tag.tag_manager.DataManager")
     @patch("core.modules.tag.tag_manager.get_scenarios_root")
-    def test_execute_jobs_batches_save_on_report(
+    def test_execute_tag_jobs_batches_save_on_report(
         self,
         mock_get_scenarios_root,
         mock_data_manager,
@@ -309,7 +310,7 @@ class TestTagManager:
     ):
         """多个 job 的 tag_values 按 save_batch_size 合并 upsert。"""
         from core.infra.job_pipeline import DispatchResult, JobReport, RunProgress
-        from core.modules.tag.tag_manager import TagManager
+        from core.modules.tag.engines.shared.runner import execute_tag_jobs
 
         mock_get_scenarios_root.return_value = Path("/test/scenarios")
         mock_data_mgr = MagicMock()
@@ -339,15 +340,14 @@ class TestTagManager:
                 return DispatchResult(total=3, completed=3, failed=0)
 
         mock_dispatcher_cls.side_effect = _FakeDispatcher
-        with patch.object(TagManager, "_discover_scenarios_from_folder"):
-            manager = TagManager(is_verbose=False)
-            jobs = [{"id": f"job{i}", "payload": {}} for i in range(3)]
-            result = manager._execute_jobs(
-                jobs,
-                "test_scenario",
-                MagicMock(),
-                performance={"max_workers": 2, "save_batch_size": 2},
-            )
+        jobs = [{"id": f"job{i}", "payload": {}} for i in range(3)]
+        result = execute_tag_jobs(
+            data_mgr=mock_data_mgr,
+            tag_data_service=mock_tag_service,
+            jobs=jobs,
+            scenario_name="test_scenario",
+            performance={"max_workers": 2, "save_batch_size": 2},
+        )
 
         assert mock_tag_service.save_batch.call_count == 2
         assert mock_tag_service.save_batch.call_args_list[0].args[0] == [

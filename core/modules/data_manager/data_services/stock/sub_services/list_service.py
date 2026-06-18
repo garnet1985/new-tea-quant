@@ -81,7 +81,11 @@ class ListService(BaseDataService):
     # ---------- 单股 ----------
 
     def load_single(self, stock_id: str) -> Optional[Dict[str, Any]]:
-        return self._stock_list.load_by_id(stock_id)
+        row = self._stock_list.load_by_id(stock_id)
+        if not row:
+            return None
+        filtered = self._apply_sample_pool([row])
+        return filtered[0] if filtered else None
 
     def load_meta(self, stock_id: str) -> Optional[Dict[str, Any]]:
         row = self.load_single(stock_id)
@@ -405,12 +409,17 @@ class ListService(BaseDataService):
                     r["is_alive"] = 0
                 model.upsert(rows_all, unique_keys)
 
+    @staticmethod
+    def _apply_sample_pool(stocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        from core.modules.data_source.service.sample_stock_list import slice_stock_list
+
+        return slice_stock_list(stocks)
+
     def _sort_stocks(self, stocks: List[Dict[str, Any]], order_by: str) -> List[Dict[str, Any]]:
-        if not order_by:
-            return stocks
-        try:
-            stocks.sort(key=lambda x: x.get(order_by, ""))
-        except Exception as e:
-            logger.warning("排序失败，使用默认排序: %s", e)
-            stocks.sort(key=lambda x: x.get("id", ""))
-        return stocks
+        if order_by:
+            try:
+                stocks.sort(key=lambda x: x.get(order_by, ""))
+            except Exception as e:
+                logger.warning("排序失败，使用默认排序: %s", e)
+                stocks.sort(key=lambda x: x.get("id", ""))
+        return self._apply_sample_pool(stocks)

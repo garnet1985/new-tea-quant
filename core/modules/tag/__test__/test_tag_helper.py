@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.modules.tag.base_tag_worker import BaseTagWorker
-from core.modules.tag.components.helper.tag_helper import TagHelper
+from core.modules.tag.engines.shared.base_worker import BaseTagWorker
+from core.modules.tag.engines.shared.helper.tag_helper import TagHelper
 
 
 class _TestWorker(BaseTagWorker):
@@ -19,9 +19,9 @@ class _TestWorker(BaseTagWorker):
 def test_load_scenario_settings_success():
     mock_settings_path = Path("/test/scenario/settings.py")
     with patch(
-        "core.modules.tag.components.helper.tag_helper.FileManager.find_file"
+        "core.modules.tag.engines.shared.helper.tag_helper.FileManager.find_file"
     ) as mock_find_file, patch(
-        "core.modules.tag.components.helper.tag_helper.ConfigManager.load_python"
+        "core.modules.tag.engines.shared.helper.tag_helper.ConfigManager.load_python"
     ) as mock_load_python:
         mock_find_file.return_value = mock_settings_path
         mock_load_python.return_value = {
@@ -59,9 +59,9 @@ def test_load_scenario_settings_success():
 )
 def test_load_scenario_settings_failure(find_return, load_return):
     with patch(
-        "core.modules.tag.components.helper.tag_helper.FileManager.find_file"
+        "core.modules.tag.engines.shared.helper.tag_helper.FileManager.find_file"
     ) as mock_find_file, patch(
-        "core.modules.tag.components.helper.tag_helper.ConfigManager.load_python"
+        "core.modules.tag.engines.shared.helper.tag_helper.ConfigManager.load_python"
     ) as mock_load_python:
         mock_find_file.return_value = find_return
         mock_load_python.return_value = load_return
@@ -77,7 +77,7 @@ def test_load_scenario_settings_failure(find_return, load_return):
 def test_load_worker_class_success():
     mock_worker_path = Path("/test/scenario/tag_worker.py")
     with patch(
-        "core.modules.tag.components.helper.tag_helper.FileManager.find_file"
+        "core.modules.tag.engines.shared.helper.tag_helper.FileManager.find_file"
     ) as mock_find_file, patch(
         "importlib.util.spec_from_file_location"
     ) as mock_spec_from_file, patch(
@@ -100,7 +100,7 @@ def test_load_worker_class_success():
 
 def test_load_worker_class_file_not_found():
     with patch(
-        "core.modules.tag.components.helper.tag_helper.FileManager.find_file",
+        "core.modules.tag.engines.shared.helper.tag_helper.FileManager.find_file",
         return_value=None,
     ):
         worker_path, worker_class = TagHelper.load_worker_class(Path("/test/scenario"))
@@ -112,7 +112,7 @@ def test_load_worker_class_file_not_found():
 def test_load_worker_class_no_worker_class():
     mock_worker_path = Path("/test/scenario/tag_worker.py")
     with patch(
-        "core.modules.tag.components.helper.tag_helper.FileManager.find_file",
+        "core.modules.tag.engines.shared.helper.tag_helper.FileManager.find_file",
         return_value=mock_worker_path,
     ), patch("importlib.util.spec_from_file_location") as mock_spec_from_file, patch(
         "importlib.util.module_from_spec"
@@ -138,7 +138,7 @@ def test_load_worker_class_no_worker_class():
 def test_load_worker_class_invalid_spec(spec):
     mock_worker_path = Path("/test/scenario/tag_worker.py")
     with patch(
-        "core.modules.tag.components.helper.tag_helper.FileManager.find_file",
+        "core.modules.tag.engines.shared.helper.tag_helper.FileManager.find_file",
         return_value=mock_worker_path,
     ), patch(
         "importlib.util.spec_from_file_location",

@@ -62,6 +62,12 @@ PRICE_FACTOR_DISPATCH_DEFAULTS: Dict[str, Any] = {
 
 DISPATCH_DEFAULTS_BY_PROFILE: Dict[str, Dict[str, Any]] = {
     WorkerProfiles.ENUMERATOR: ENUMERATOR_DISPATCH_DEFAULTS,
+    WorkerProfiles.TAG: {
+        "entities_per_job": "auto",
+        "dispatch_probe": True,
+        "entities_per_job_min": 1,
+        "entities_per_job_max": 500,
+    },
     WorkerProfiles.PRICE_FACTOR: PRICE_FACTOR_DISPATCH_DEFAULTS,
 }
 

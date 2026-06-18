@@ -28,7 +28,26 @@
     },
     "tag": {
       "reserve_cores": 1,
-      "max_parallel_jobs_cap": null
+      "max_parallel_jobs_cap": null,
+      "runtime": {
+        "update_mode": "incremental",
+        "stage_in_worker": true,
+        "data_chunk_size": 500,
+        "dispatch_probe": true,
+        "entities_per_job": "auto",
+        "memory_floor_mb": "auto"
+      },
+      "dispatch": {
+        "entities_per_job": "auto",
+        "dispatch_probe": true,
+        "entities_per_job_min": 1,
+        "entities_per_job_max": 500
+      },
+      "calendar_slice": {
+        "reader_workers": "auto",
+        "queue_depth": "auto",
+        "prefetch_enabled": true
+      }
     },
     "price_factor": {
       "reserve_cores": 1,

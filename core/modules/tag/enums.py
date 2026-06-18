@@ -26,6 +26,13 @@ class TagTargetType(Enum):
     GENERAL = "general"
 
 
+class TagExecutionMode(Enum):
+    """Tag 执行模式：按实体分批（默认）或按日历片全市场 bulk。"""
+
+    ENTITY_TIMELINE = "entity_timeline"
+    CALENDAR_SLICE = "calendar_slice"
+
+
 # 已废弃：版本管理相关枚举已移除
 # class VersionChangeAction(Enum):
 #     """版本变更时的行为枚举（Scenario 级别）"""

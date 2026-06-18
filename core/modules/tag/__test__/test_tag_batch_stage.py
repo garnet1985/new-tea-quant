@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from core.modules.tag.components.job_staging.tag_batch_stage import stage_entities_batch
+from core.modules.tag.engines.shared.staging.batch_stage import stage_entities_batch
 
 
 def test_stage_entities_batch_bulk_io():
@@ -24,7 +24,7 @@ def test_stage_entities_batch_bulk_io():
     }
 
     with patch(
-        "core.modules.tag.components.job_staging.tag_batch_stage.fetch_prior_tag_values_batch",
+        "core.modules.tag.engines.shared.staging.batch_stage.fetch_prior_tag_values_batch",
         return_value={"000001": {"1": "true"}, "000002": {"1": "false"}},
     ):
         out = stage_entities_batch(

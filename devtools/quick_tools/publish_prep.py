@@ -1,7 +1,7 @@
 """
 发布前自动化检查与版本元数据同步。
 
-由 ``dev-cli.py -p -vX.Y.Z`` 调用。
+由 ``devcli.py pack`` 调用。
 """
 from __future__ import annotations
 
@@ -297,73 +297,3 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
             flush=True,
         )
     return 0
-
-
-def parse_publish_argv(argv: Sequence[str]) -> Tuple[PublishPrepOptions | None, List[str]]:
-    """从 argv 解析 ``-p`` / ``-v0.3.2`` 等；返回 (options, 剩余 argv)。"""
-    raw = list(argv)
-    if "-p" not in raw:
-        return None, raw
-
-    i = raw.index("-p")
-    rest = raw[:i] + raw[i + 1 :]
-    version: str | None = None
-    check_only = False
-    skip_tests = False
-    skip_ic = False
-    skip_fed_build = False
-    skip_py39 = False
-    package_userspace = False
-    j = 0
-    while j < len(rest):
-        tok = rest[j]
-        if tok in ("-userspace", "--package-userspace"):
-            package_userspace = True
-            del rest[j]
-            continue
-        if tok == "--check-only":
-            check_only = True
-            del rest[j]
-            continue
-        if tok == "--skip-tests":
-            skip_tests = True
-            del rest[j]
-            continue
-        if tok == "--skip-ic":
-            skip_ic = True
-            del rest[j]
-            continue
-        if tok == "--skip-fed-build":
-            skip_fed_build = True
-            del rest[j]
-            continue
-        if tok == "--skip-py39":
-            skip_py39 = True
-            del rest[j]
-            continue
-        if tok.startswith("-v") and len(tok) > 2:
-            version = tok[2:]
-            del rest[j]
-            continue
-        if tok in ("-v", "--version") and j + 1 < len(rest):
-            version = rest[j + 1]
-            del rest[j : j + 2]
-            continue
-        j += 1
-
-    if not version:
-        print("发布准备需要版本号，例如: python dev-cli.py -p -v0.3.2", file=sys.stderr)
-        raise SystemExit(2)
-
-    return (
-        PublishPrepOptions(
-            version=version,
-            check_only=check_only,
-            skip_tests=skip_tests,
-            skip_ic=skip_ic,
-            skip_fed_build=skip_fed_build,
-            skip_py39=skip_py39,
-            package_userspace=package_userspace,
-        ),
-        rest,
-    )

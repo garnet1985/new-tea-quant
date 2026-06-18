@@ -47,7 +47,7 @@ def maybe_checkpoint_duckdb_after_tag_run(data_mgr: Any) -> None:
         if failed:
             logger.warning(
                 "DuckDB WAL 合并未完成: 失败 domain=%s；成功=%s。"
-                "（写队列忙时可重试 dev-cli.py -dbc --recover）",
+                "（写队列忙时可重试 devcli.py dbc --recover）",
                 failed,
                 ok_domains,
             )
@@ -55,7 +55,7 @@ def maybe_checkpoint_duckdb_after_tag_run(data_mgr: Any) -> None:
             logger.info("DuckDB WAL 已合并（domains=%s）", ok_domains)
     except Exception as exc:
         logger.warning(
-            "Tag 完成后 CHECKPOINT 异常（若下次启动报 WAL: python dev-cli.py -dbc --recover）: %s",
+            "Tag 完成后 CHECKPOINT 异常（若下次启动报 WAL: python devcli.py dbc --recover）: %s",
             exc,
         )
 

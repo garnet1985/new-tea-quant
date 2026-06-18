@@ -1,4 +1,4 @@
-"""开发用缓存清理（供 ``dev-cli.py`` 调用）。"""
+"""开发用缓存清理（供 ``devcli.py`` 调用）。"""
 from __future__ import annotations
 
 import shutil

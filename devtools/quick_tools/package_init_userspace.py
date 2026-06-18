@@ -1,7 +1,7 @@
 """
 将仓库根 ``userspace/`` 同步到 ``setup/init_userspace/userspace/`` 并生成 ``userspace.zip``。
 
-由 ``dev-cli.py -userspace`` 或 ``dev-cli.py -p -vX.Y.Z -userspace`` 调用。
+由 ``devcli.py pu`` 或 ``devcli.py p -core_vX.Y.Z --package-userspace`` 调用。
 """
 from __future__ import annotations
 

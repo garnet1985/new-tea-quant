@@ -304,20 +304,21 @@ Older docs mentioning `start.py` or root **`cli.py`** as the app entry are obsol
 
 ## Developer commands (`devcli.py`)
 
-Local dev / troubleshooting (repo root):
+Local dev / troubleshooting (repo root). Same rules as `cli.py`: `xx`=command, `-v`=version, `--xx`=target params.
 
 ```bash
 python devcli.py -h
+python devcli.py                 # show version (default)
+python devcli.py ui              # start UI
+python devcli.py uk              # kill UI on 8000/8888
+python devcli.py csc             # clear strategy simulation disk + DB cache
+python devcli.py cdc             # DB workbench snapshots only
+python devcli.py cmc             # strategy results/ dirs only
+python devcli.py dbc             # DuckDB WAL checkpoint
+python devcli.py p -core_v0.3.2  # release prep pipeline
+python devcli.py ssp 500         # stratified sample stock pool
+python devcli.py pc              # deactivate sample pool
 ```
-
-| Purpose | Example |
-|---------|---------|
-| Start UI (free ports, `launcher.py -d`) | `python devcli.py -ui` |
-| Kill listeners on 8000 / 8888 | `python devcli.py -kui` |
-| Clear simulation **disk + DB** cache | `python devcli.py -csc` (same as `-cu`) |
-| Clear **DB** workbench snapshots only | `python devcli.py -cdc` |
-| Delete strategy **`results/`** dirs only | `python devcli.py -cmc` |
-| DuckDB WAL checkpoint | `python devcli.py -dbc` |
 
 Workbench cache HTTP APIs: [db-cache-service.md](core/modules/strategy/docs/db-cache-service.md) §8 (V2-11 / V2-12).
 

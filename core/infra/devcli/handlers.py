@@ -96,7 +96,15 @@ def cmd_ui_kill(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_ui_run(args: argparse.Namespace) -> int:
+def cmd_version(_args: argparse.Namespace) -> int:
+    from core.system import system_meta
+
+    print(f"NTQ Core Version: {system_meta.version}")
+    print(f"Release Date: {system_meta.release_date}")
+    return 0
+
+
+def cmd_ui(args: argparse.Namespace) -> int:
     launcher = REPO_ROOT / "launcher.py"
     if not launcher.is_file():
         print(f"缺少 {launcher}", file=sys.stderr)
@@ -118,7 +126,7 @@ def cmd_check_import(args: argparse.Namespace) -> int:
     return subprocess.run(cmd, cwd=str(REPO_ROOT)).returncode
 
 
-def cmd_cache_clear_global(_args: argparse.Namespace) -> int:
+def cmd_clear_global_cache(_args: argparse.Namespace) -> int:
     from devtools.quick_tools.dev_cache import clear_userspace_ntq_dir
 
     clear_userspace_ntq_dir()
@@ -126,7 +134,7 @@ def cmd_cache_clear_global(_args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_cache_clear_simulation(_args: argparse.Namespace) -> int:
+def cmd_clear_strategy_cache(_args: argparse.Namespace) -> int:
     from devtools.quick_tools.dev_cache import clear_simulation_cache_all
 
     clear_simulation_cache_all()
@@ -185,7 +193,7 @@ def cmd_db_checkpoint(args: argparse.Namespace) -> int:
         print(f"无法打开数据库: {exc}", flush=True)
         print(
             "若提示 WAL 回放失败，可确认无 renew 进程后执行:\n"
-            "  python devcli.py db checkpoint --recover",
+            "  python devcli.py dbc --recover",
             flush=True,
         )
         return 1
@@ -230,10 +238,11 @@ def cmd_db_checkpoint(args: argparse.Namespace) -> int:
         db.close()
 
 
-def cmd_pool_sample(args: argparse.Namespace) -> int:
+def cmd_sample_stock_pool(args: argparse.Namespace) -> int:
     from devtools.quick_tools.stock_pool_ops import activate_stratified_pool
 
-    return activate_stratified_pool(int(args.count), verbose=bool(args.verbose))
+    verbose = bool(getattr(args, "verbose", False))
+    return activate_stratified_pool(int(args.count), verbose=verbose)
 
 
 def cmd_pool_clear(_args: argparse.Namespace) -> int:
@@ -242,7 +251,7 @@ def cmd_pool_clear(_args: argparse.Namespace) -> int:
     return deactivate_stratified_pool()
 
 
-def cmd_release_publish(args: argparse.Namespace) -> int:
+def cmd_pack(args: argparse.Namespace) -> int:
     from devtools.quick_tools.publish_prep import PublishPrepOptions, run_publish_prep
 
     return run_publish_prep(

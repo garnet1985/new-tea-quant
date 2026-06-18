@@ -321,20 +321,21 @@ python start-cli.py -h
 
 ## 开发命令（`devcli.py`）
 
-面向本机开发与排障（仓库根目录）：
+面向本机开发与排障（仓库根目录）。规则与 `cli.py` 相同：`xx`=命令、`-v`=版本、`--xx`=对象参数。
 
 ```bash
-python devcli.py -h
+python devcli.py -h          # 完整缩写表
+python devcli.py               # 显示版本（默认）
+python devcli.py ui              # 启动 UI
+python devcli.py uk              # 结束 8000/8888 UI 进程
+python devcli.py csc             # 清空策略模拟磁盘 + DB 工作台缓存
+python devcli.py cdc             # 仅清空 DB 工作台快照
+python devcli.py cmc             # 仅删除各策略 results/
+python devcli.py dbc             # DuckDB WAL 合并
+python devcli.py p -core_v0.3.2  # 发布前检查流水线
+python devcli.py ssp 500         # 分层样本股票池（dev 轻量 renew）
+python devcli.py pc              # 取消样本池
 ```
-
-| 用途 | 命令示例 |
-|------|----------|
-| 启动 UI（清端口后 `launcher.py -d`） | `python devcli.py -ui` |
-| 结束占用 8000 / 8888 的 UI 进程 | `python devcli.py -kui` |
-| 清空模拟 **磁盘 + DB** 工作台缓存 | `python devcli.py -csc`（同 `-cu`） |
-| 仅清空 DB 工作台快照表 | `python devcli.py -cdc` |
-| 仅删除各策略 `results/` 物理目录 | `python devcli.py -cmc` |
-| DuckDB WAL 合并进主文件 | `python devcli.py -dbc` |
 
 工作台快照 HTTP 清理接口见策略模块文档 [db-cache-service.md](core/modules/strategy/docs/db-cache-service.md) §8（V2-11 / V2-12）。
 

@@ -14,13 +14,7 @@ def main(argv: list[str] | None = None) -> int:
         build_parser().print_help()
         return 0
 
-    from devtools.quick_tools.publish_prep import parse_publish_argv, run_publish_prep
-
-    pub, rest = parse_publish_argv(raw)
-    if pub is not None:
-        return run_publish_prep(pub)
-
-    expanded = expand_argv(rest)
+    expanded = expand_argv(raw)
     try:
         args = parse_args(expanded)
     except SystemExit as exc:

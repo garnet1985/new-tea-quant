@@ -1,10 +1,12 @@
-"""Argparse for ``devcli.py``."""
+"""Argparse for flat ``devcli`` commands."""
 
 from __future__ import annotations
 
 import argparse
 
 from core.infra.devcli import handlers as h
+from core.infra.devcli.commands import DEFAULT_COMMAND, aliases_for
+from core.infra.devcli.help_text import DEVCLI_COMMAND_REFERENCE
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -14,37 +16,63 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=_epilog(),
     )
+    parser.add_argument("--verbose", action="store_true", help="详细日志（DEBUG）")
 
-    sub = parser.add_subparsers(dest="domain", required=True)
+    sub = parser.add_subparsers(dest="command", required=False)
 
-    ui = sub.add_parser("ui", help="本地 UI")
-    ui_sub = ui.add_subparsers(dest="action", required=True)
-    p_run = ui_sub.add_parser("run", help="启动 launcher（:8000）")
-    p_run.add_argument("--kill-first", action="store_true")
-    p_run.add_argument("forward", nargs=argparse.REMAINDER)
-    p_run.set_defaults(handler=h.cmd_ui_run)
+    sub.add_parser("version", help="显示 core 版本").set_defaults(handler=h.cmd_version)
 
-    p_kill = ui_sub.add_parser("kill", help="结束 UI 端口监听")
-    p_kill.add_argument("--ntq-only", action="store_true")
-    p_kill.add_argument("--port", type=int, action="append")
-    p_kill.set_defaults(handler=h.cmd_ui_kill)
+    p_ui = sub.add_parser("ui", help="启动本地 UI（launcher -d）")
+    p_ui.add_argument("--kill-first", action="store_true")
+    p_ui.add_argument("forward", nargs=argparse.REMAINDER)
+    p_ui.set_defaults(handler=h.cmd_ui)
 
-    check = sub.add_parser("check", help="检查")
-    check_sub = check.add_subparsers(dest="action", required=True)
-    p_ic = check_sub.add_parser("import", help="UI 最小依赖 import 冒烟")
+    p_uk = sub.add_parser(
+        "ui_kill",
+        aliases=aliases_for("ui_kill"),
+        help="结束 UI 端口监听",
+    )
+    p_uk.add_argument("--ntq-only", action="store_true")
+    p_uk.add_argument("--port", type=int, action="append")
+    p_uk.set_defaults(handler=h.cmd_ui_kill)
+
+    p_ic = sub.add_parser(
+        "check_import",
+        aliases=aliases_for("check_import"),
+        help="UI 最小依赖 import 冒烟",
+    )
     p_ic.add_argument("forward", nargs=argparse.REMAINDER)
     p_ic.set_defaults(handler=h.cmd_check_import)
 
-    cache = sub.add_parser("cache", help="缓存清理")
-    cache_sub = cache.add_subparsers(dest="action", required=True)
-    cache_sub.add_parser("clear-global").set_defaults(handler=h.cmd_cache_clear_global)
-    cache_sub.add_parser("clear-simulation").set_defaults(handler=h.cmd_cache_clear_simulation)
-    cache_sub.add_parser("clear-db").set_defaults(handler=h.cmd_cache_clear_db)
-    cache_sub.add_parser("clear-disk").set_defaults(handler=h.cmd_cache_clear_disk)
+    sub.add_parser(
+        "clear_global_cache",
+        aliases=aliases_for("clear_global_cache"),
+        help="清理 userspace/.ntq",
+    ).set_defaults(handler=h.cmd_clear_global_cache)
 
-    db = sub.add_parser("db", help="数据库")
-    db_sub = db.add_subparsers(dest="action", required=True)
-    p_dbc = db_sub.add_parser("checkpoint", help="DuckDB WAL 合并")
+    sub.add_parser(
+        "clear_strategy_cache",
+        aliases=aliases_for("clear_strategy_cache"),
+        help="清理策略模拟磁盘 + DB 工作台缓存",
+    ).set_defaults(handler=h.cmd_clear_strategy_cache)
+
+    sub.add_parser(
+        "cache_clear_db",
+        aliases=aliases_for("cache_clear_db"),
+        help="仅清理 DB 工作台快照",
+    ).set_defaults(handler=h.cmd_cache_clear_db)
+
+    sub.add_parser(
+        "cache_clear_disk",
+        aliases=aliases_for("cache_clear_disk"),
+        help="仅删除各策略 results/ 目录",
+    ).set_defaults(handler=h.cmd_cache_clear_disk)
+
+    p_dbc = sub.add_parser(
+        "db_checkpoint",
+        aliases=aliases_for("db_checkpoint"),
+        help="DuckDB WAL 合并",
+    )
     p_dbc.add_argument(
         "--recover",
         dest="recover_corrupt_wal",
@@ -53,68 +81,74 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_dbc.set_defaults(handler=h.cmd_db_checkpoint)
 
-    data = sub.add_parser("data", help="开发数据")
-    data_sub = data.add_subparsers(dest="action", required=True)
-    p_ex = data_sub.add_parser("export-init", help="打包演示数据 zip")
+    p_ex = sub.add_parser(
+        "data_export_init",
+        aliases=aliases_for("data_export_init"),
+        help="打包演示数据 zip",
+    )
     p_ex.add_argument("forward", nargs=argparse.REMAINDER)
     p_ex.set_defaults(handler=h.cmd_data_export_init)
 
-    userspace = sub.add_parser("userspace", help="userspace 打包")
-    us_sub = userspace.add_subparsers(dest="action", required=True)
-    p_pu = us_sub.add_parser("package", help="同步 init userspace + zip")
+    p_pu = sub.add_parser(
+        "userspace_package",
+        aliases=aliases_for("userspace_package"),
+        help="同步 init userspace + zip",
+    )
     p_pu.add_argument("--no-zip", action="store_true")
     p_pu.set_defaults(handler=h.cmd_userspace_package)
 
-    pool = sub.add_parser("pool", help="股票池抽样")
-    pool_sub = pool.add_subparsers(dest="action", required=True)
-    p_sample = pool_sub.add_parser("sample", help="分层抽样 N 只并激活")
-    p_sample.add_argument("count", type=int)
-    p_sample.add_argument("-v", "--verbose", action="store_true")
-    p_sample.set_defaults(handler=h.cmd_pool_sample)
-    pool_sub.add_parser("clear", help="取消股票池").set_defaults(handler=h.cmd_pool_clear)
-
-    release = sub.add_parser("release", help="发布准备")
-    rel_sub = release.add_subparsers(dest="action", required=True)
-    p_pub = rel_sub.add_parser("publish", help="版本发布检查流水线")
-    p_pub.add_argument("-v", "--version", required=True, help="目标版本 X.Y.Z 或 vX.Y.Z")
-    p_pub.add_argument("--check-only", action="store_true")
-    p_pub.add_argument("--skip-tests", action="store_true")
-    p_pub.add_argument("--skip-ic", action="store_true")
-    p_pub.add_argument("--skip-fed-build", action="store_true")
-    p_pub.add_argument("--skip-py39", action="store_true")
-    p_pub.add_argument(
+    p_pack = sub.add_parser(
+        "pack",
+        aliases=aliases_for("pack"),
+        help="版本发布检查流水线",
+    )
+    p_pack.add_argument("--version", required=True, help="目标版本 X.Y.Z 或 vX.Y.Z")
+    p_pack.add_argument("--check-only", action="store_true")
+    p_pack.add_argument("--skip-tests", action="store_true")
+    p_pack.add_argument("--skip-ic", action="store_true")
+    p_pack.add_argument("--skip-fed-build", action="store_true")
+    p_pack.add_argument("--skip-py39", action="store_true")
+    p_pack.add_argument(
         "--package-userspace",
         action="store_true",
         help="检查通过后打包 init userspace",
     )
-    p_pub.set_defaults(handler=h.cmd_release_publish)
+    p_pack.set_defaults(handler=h.cmd_pack)
+
+    p_ssp = sub.add_parser(
+        "sample_stock_pool",
+        aliases=aliases_for("sample_stock_pool"),
+        help="分层抽样 N 只股票并激活样本池",
+    )
+    p_ssp.add_argument("count", type=int)
+    p_ssp.set_defaults(handler=h.cmd_sample_stock_pool)
+
+    sub.add_parser(
+        "pool_clear",
+        aliases=aliases_for("pool_clear"),
+        help="取消样本股票池（恢复全量 renew）",
+    ).set_defaults(handler=h.cmd_pool_clear)
 
     return parser
 
 
 def _epilog() -> str:
-    return """
-语义命令:
-  devcli.py ui run [--kill-first]
-  devcli.py ui kill [--ntq-only]
-  devcli.py check import
-  devcli.py cache clear-global | clear-simulation | clear-db | clear-disk
-  devcli.py db checkpoint [--recover]
-  devcli.py data export-init
-  devcli.py userspace package [--no-zip]
-  devcli.py pool sample N | pool clear
-  devcli.py release publish -v X.Y.Z [options]
-
-等价缩写:
-  -ui -kui -ic -cc -csc -cdc -cmc -dbc -userspace -ex
-  -ssl -500 | -ssl -clear   （pool sample / clear）
-  -p -vX.Y.Z                （release publish，沿用 publish_prep 解析）
-"""
+    return "\n" + DEVCLI_COMMAND_REFERENCE + "\n"
 
 
-def parse_args(argv: list[str]) -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    from core.infra.devcli.abbrev import expand_argv
+
+    expanded = expand_argv(argv or [])
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(expanded)
+
+    if args.command is None:
+        args.command = DEFAULT_COMMAND
+
+    if getattr(args, "handler", None) is None and args.command == DEFAULT_COMMAND:
+        args.handler = h.cmd_version
+
     if hasattr(args, "forward"):
         args.forward = h.normalize_forward(args.forward or [])
     return args

@@ -9,6 +9,7 @@ import {
 } from '../../api/apis/settingsApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
 import {
+  SettingsCachePanel,
   SettingsDataPanel,
   SettingsDatabasePanel,
   SettingsSystemPanel,
@@ -19,6 +20,7 @@ const SETTINGS_TABS = [
   { id: 'system', label: '安装与维护', path: 'system' },
   { id: 'database', label: '数据库', path: 'database' },
   { id: 'data', label: '数据范围', path: 'data' },
+  { id: 'cache', label: '缓存管理', path: 'cache' },
 ];
 
 function useSettingsSection() {
@@ -139,7 +141,7 @@ function SettingsPage() {
       breadcrumbsItems={[{ label: '制定策略', to: '/strategy-design' }]}
       breadcrumbsCurrent="设置"
       bannerTitle="设置"
-      bannerDescription="系统安装、数据库连接与 data.json 数据范围。"
+      bannerDescription="系统安装、数据库连接、data.json 数据范围与缓存清理。"
     >
       <Box className="settings-page-layout">
         <Paper className="settings-page-nav" elevation={0}>
@@ -198,6 +200,7 @@ function SettingsPage() {
                 />
               )}
             />
+            <Route path="cache" element={<SettingsCachePanel />} />
             <Route path="*" element={<Navigate to="system" replace />} />
           </Routes>
         </Paper>

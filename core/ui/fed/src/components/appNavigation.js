@@ -24,6 +24,7 @@ const navItems = [
 /** 高级功能子菜单（Tag 等） */
 const advancedNavItems = [
   { label: '特征标签', path: '/advanced/tags' },
+  { label: '数据契约', path: '/advanced/data-contracts' },
 ];
 
 /** Logo 点击回到的主入口（与主导航第一项一致） */

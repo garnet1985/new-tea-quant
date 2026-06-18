@@ -24,11 +24,24 @@ from core.infra.worker.multi_process.process_worker import JobResult, JobStatus
 
 
 def job_report_to_job_result(report: JobReport) -> JobResult:
+    data = report.data
+    if (
+        isinstance(data, dict)
+        and data.get("bulk")
+        and isinstance(data.get("stock_results"), list)
+    ):
+        # bulk dispatch：允许部分个股失败，仍保留 stock_results 供 expand / aggregate
+        return JobResult(
+            job_id=report.job_id,
+            status=JobStatus.COMPLETED,
+            result=data,
+            error=report.error,
+        )
     status = JobStatus.COMPLETED if report.success else JobStatus.FAILED
     return JobResult(
         job_id=report.job_id,
         status=status,
-        result=report.data if report.success else None,
+        result=data if report.success else None,
         error=report.error,
     )
 

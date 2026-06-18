@@ -11,7 +11,7 @@ from core.modules.data_contract.kline_keys import (
     kline_term_from_data_id_value,
 )
 from core.modules.data_manager import DataManager
-from core.modules.tag.components.job_staging.tag_prior_values import fetch_prior_tag_values_batch
+from core.modules.tag.engines.shared.staging.prior_values import fetch_prior_tag_values_batch
 from core.utils.date.date_utils import DateUtils
 
 

@@ -105,6 +105,8 @@ class TestWorkerScanHelpers(unittest.TestCase):
             open_date_index=0,
             is_first_open_of_month=True,
             is_last_open_of_month=False,
+            is_first_open_of_year=False,
+            is_last_open_of_year=False,
         )
         result = worker.on_calendar_asof(ctx, worker.settings.to_dict())
         self.assertEqual(result.selected_stock_ids, ["000001.SZ", "000002.SZ"])

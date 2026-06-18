@@ -4,7 +4,7 @@ import unittest
 
 from core.modules.data_manager.data_manager import DataManager
 from core.modules.data_contract.contract_const import DataKey
-from core.modules.tag.components.job_staging.tag_batch_stage import stage_entities_batch
+from core.modules.tag.engines.shared.staging.batch_stage import stage_entities_batch
 
 _DEMO_STOCK = "000019.SZ"
 _DEMO_START = "20250102"

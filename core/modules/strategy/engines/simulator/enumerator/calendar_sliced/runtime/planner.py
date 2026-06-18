@@ -73,8 +73,8 @@ def resolve_reader_workers(
     return max(1, min(_MAX_READER_WORKERS, io_parallel_hint, reader_cap))
 
 
-def resolve_system_process_cap() -> int:
-    return max(1, resolve_pipeline_workers(worker_id=WorkerProfiles.ENUMERATOR))
+def resolve_system_process_cap(worker_id: str = WorkerProfiles.ENUMERATOR) -> int:
+    return max(1, resolve_pipeline_workers(worker_id=worker_id))
 
 
 def is_duckdb_backend() -> bool:
@@ -102,6 +102,7 @@ def build_runtime_plan(
     mb_per_slice: Optional[float] = None,
     t_io_sec: Optional[float] = None,
     t_compute_sec: Optional[float] = None,
+    worker_profile: str = WorkerProfiles.ENUMERATOR,
 ) -> CalendarSliceRuntimePlan:
     settings = settings or CalendarSliceRuntimeSettings.from_worker_profile()
     _ = _parse_min_required_records(job_payload)
@@ -133,7 +134,7 @@ def build_runtime_plan(
     ideal_preload = max(1, min(io_ideal, mem_ideal, _MAX_QUEUE_DEPTH))
 
     duckdb = is_duckdb_backend()
-    system_cap = resolve_system_process_cap()
+    system_cap = resolve_system_process_cap(worker_profile)
     reader_workers = resolve_reader_workers(
         raw=settings.reader_workers_raw,
         duckdb=duckdb,

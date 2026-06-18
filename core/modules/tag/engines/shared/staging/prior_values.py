@@ -122,6 +122,43 @@ def load_latest_tag_value_json(
     return rows[0].get("json_value")
 
 
+def encode_tag_json_value(tag_result: Any) -> str:
+    """将 worker 返回的 tag 结果编码为 sys_tag_value.json_value（合法 JSON 字符串）。"""
+    if isinstance(tag_result, dict):
+        payload = {k: v for k, v in tag_result.items() if k != "tag_name"}
+        if not payload:
+            payload = dict(tag_result)
+    else:
+        payload = {"value": tag_result}
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+
+
+def parse_tag_value_scalar(raw: Any, *, default: Optional[str] = None) -> Optional[str]:
+    """从 json_value 解析标量字符串（如市值档位 low/mid/high）。"""
+    if raw is None or raw == "":
+        return default
+    if isinstance(raw, str):
+        text = raw.strip()
+        if not text:
+            return default
+        if text.startswith("{"):
+            try:
+                payload = json.loads(text)
+            except Exception:
+                return text
+            if isinstance(payload, dict):
+                inner = payload.get("value")
+                if inner is not None:
+                    return str(inner).strip() or default
+            return default
+        return text
+    if isinstance(raw, dict):
+        inner = raw.get("value")
+        if inner is not None:
+            return str(inner).strip() or default
+    return default
+
+
 def parse_tag_value_bool(raw: Any, *, default: bool = False) -> bool:
     """从 json_value 字段解析布尔状态。"""
     if raw is None or raw == "":

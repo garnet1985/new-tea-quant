@@ -7,11 +7,17 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List, Tuple, Type
 import inspect
 import logging
-from core.modules.tag.enums import TagUpdateMode
+from core.modules.tag.engines.shared.staging.prior_values import encode_tag_json_value
 from core.modules.data_manager import DataManager
 from core.modules.tag.models.tag_model import TagModel
 
 logger = logging.getLogger(__name__)
+
+
+def worker_uses_calendar_asof(worker_class: Type["BaseTagWorker"]) -> bool:
+    """子类是否重写 ``on_calendar_asof``（calendar_slice 横截面路径）。"""
+    fn = getattr(worker_class, "on_calendar_asof", None)
+    return callable(fn) and fn is not BaseTagWorker.on_calendar_asof
 
 
 class BaseTagWorker(ABC):
@@ -49,7 +55,7 @@ class BaseTagWorker(ABC):
         self._extract_settings()
 
         from core.modules.data_contract.cache import ContractCacheManager
-        from core.modules.tag.components.data_management.tag_data_manager import TagDataManager
+        from core.modules.tag.engines.shared.data.tag_data_manager import TagDataManager
 
         if self._inject_mode:
             self.data_mgr = None
@@ -72,7 +78,7 @@ class BaseTagWorker(ABC):
 
     def load_latest_tag_value_json(self, tag_definition_id: int) -> Optional[Any]:
         """读取 entity 在某 tag_definition 下的最新 json_value（inject 优先）。"""
-        from core.modules.tag.components.job_staging.tag_prior_values import (
+        from core.modules.tag.engines.shared.staging.prior_values import (
             load_latest_tag_value_json,
         )
 
@@ -85,7 +91,7 @@ class BaseTagWorker(ABC):
 
     def load_latest_tag_bool(self, tag_definition_id: int, *, default: bool = False) -> bool:
         """解析最新 tag_value 的布尔 value 字段。"""
-        from core.modules.tag.components.job_staging.tag_prior_values import parse_tag_value_bool
+        from core.modules.tag.engines.shared.staging.prior_values import parse_tag_value_bool
 
         return parse_tag_value_bool(
             self.load_latest_tag_value_json(tag_definition_id),
@@ -201,7 +207,7 @@ class BaseTagWorker(ABC):
                                 "entity_type": self.entity['type'],
                                 "tag_definition_id": tag_definition.id,
                                 "as_of_date": as_of_date,
-                                "json_value": tag_result.get("value", ""),  # 使用 json_value 字段名
+                                "json_value": encode_tag_json_value(tag_result),
                                 "start_date": tag_result.get("start_date"),
                                 "end_date": tag_result.get("end_date"),
                             }
@@ -320,6 +326,24 @@ class BaseTagWorker(ABC):
         默认实现为空。
         """
         pass
+
+    def on_calendar_asof(
+        self,
+        ctx: "CalendarAsOfContext",
+        settings: Dict[str, Any],
+    ) -> "TagCalendarAsOfResult":
+        """
+        calendar_slice 横截面钩子（可选）。
+
+        在 slice 内按 open_date 调用；``ctx.stocks`` 为当日全市场 inject 视图，
+        ``ctx.carry`` 为编排层状态（跨日 / 跨 slice 传递）。
+
+        默认不写 tag，仅透传 carry。
+        """
+        from core.modules.tag.engines.sliced.types import TagCalendarAsOfResult
+
+        _ = settings
+        return TagCalendarAsOfResult(carry=dict(ctx.carry or {}))
     
     @abstractmethod
     def calculate_tag(

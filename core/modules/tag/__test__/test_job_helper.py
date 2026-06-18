@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from core.modules.tag.components.helper.job_helper import JobHelper
+from core.modules.tag.engines.shared.helper.job_helper import JobHelper
 from core.modules.tag.enums import TagUpdateMode
 
 
@@ -33,7 +33,7 @@ class TestJobHelper:
 
     def test_incremental_with_last_update_date(self):
         with patch(
-            "core.modules.tag.components.helper.job_helper.DateUtils.add_days",
+            "core.modules.tag.engines.shared.helper.job_helper.DateUtils.add_days",
             return_value="20200102",
         ), patch.object(
             JobHelper,

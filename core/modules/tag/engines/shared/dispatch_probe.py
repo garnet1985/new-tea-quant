@@ -27,8 +27,8 @@ TagDispatchProbeResult = DispatchProbeResult
 
 def execute_tag_probe_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     from core.infra.job_pipeline.types import JobContext
-    from core.modules.tag.components.job_staging.worker_runtime import release_worker_runtime
-    from core.modules.tag.tag_manager import TagManager
+    from core.modules.tag.engines.shared.staging.worker_runtime import release_worker_runtime
+    from core.modules.tag.engines.shared.worker_exec import execute_tag_job
 
     payload = dict(payload)
     payload["_stage_in_worker"] = True
@@ -39,7 +39,7 @@ def execute_tag_probe_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         run_name=str(payload.get("_run_name") or "tag:probe"),
     )
     try:
-        out = TagManager._execute_single_job(ctx)
+        out = execute_tag_job(ctx)
         if not isinstance(out, dict):
             return {"success": True, "data": out}
         return out

@@ -83,6 +83,30 @@ def is_last_open_of_month(as_of_date: str, open_dates: Sequence[str]) -> bool:
     return str(open_dates[idx + 1])[:6] != d[:6]
 
 
+def is_first_open_of_year(as_of_date: str, open_dates: Sequence[str]) -> bool:
+    d = str(as_of_date or "").strip()
+    if not d or not open_dates:
+        return False
+    idx = bisect_left(open_dates, d)
+    if idx >= len(open_dates) or open_dates[idx] != d:
+        return False
+    if idx == 0:
+        return True
+    return str(open_dates[idx - 1])[:4] != d[:4]
+
+
+def is_last_open_of_year(as_of_date: str, open_dates: Sequence[str]) -> bool:
+    d = str(as_of_date or "").strip()
+    if not d or not open_dates:
+        return False
+    idx = bisect_left(open_dates, d)
+    if idx >= len(open_dates) or open_dates[idx] != d:
+        return False
+    if idx + 1 >= len(open_dates):
+        return True
+    return str(open_dates[idx + 1])[:4] != d[:4]
+
+
 def plan_calendar_slices(
     open_dates: Sequence[str],
     slice_open_days: int,
@@ -146,6 +170,8 @@ __all__ = [
     "is_auto_setting",
     "is_first_open_of_month",
     "is_last_open_of_month",
+    "is_first_open_of_year",
+    "is_last_open_of_year",
     "plan_calendar_slices",
     "resolve_auto_slice_open_days",
     "resolve_slice_width_floor",

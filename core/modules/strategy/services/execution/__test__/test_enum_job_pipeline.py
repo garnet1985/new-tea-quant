@@ -27,6 +27,25 @@ def test_job_report_to_job_result_failed():
     assert jr.error == "boom"
 
 
+def test_job_report_to_job_result_bulk_partial_failure():
+    report = JobReport(
+        job_id="price_batch",
+        success=False,
+        data={
+            "success": False,
+            "bulk": True,
+            "stock_results": [
+                {"success": True, "stock_id": "000001.SZ"},
+                {"success": False, "stock_id": "000002.SZ", "error": "boom"},
+            ],
+        },
+        error="partial",
+    )
+    jr = job_report_to_job_result(report)
+    assert jr.status == JobStatus.COMPLETED
+    assert jr.result is report.data
+
+
 def test_job_progress_from_run():
     payload = job_progress_from_run(
         RunProgress(finished=10, total=100, ok=9, fail=1),

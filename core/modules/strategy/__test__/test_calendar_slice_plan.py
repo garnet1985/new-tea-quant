@@ -52,3 +52,15 @@ class TestCalendarSlicePlan:
         assert is_last_open_of_month("20240131", dates) is True
         assert is_last_open_of_month("20240130", dates) is False
         assert is_last_open_of_month("20240202", dates) is True
+
+    def test_is_first_open_of_year(self):
+        from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.slice_plan import (
+            is_first_open_of_year,
+            is_last_open_of_year,
+        )
+
+        dates = ["20231229", "20240102", "20240103", "20241230", "20241231", "20250102", "20250103"]
+        assert is_first_open_of_year("20240102", dates) is True
+        assert is_first_open_of_year("20240103", dates) is False
+        assert is_last_open_of_year("20241231", dates) is True
+        assert is_last_open_of_year("20250102", dates) is False

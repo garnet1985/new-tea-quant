@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from core.modules.tag.base_tag_worker import BaseTagWorker
+from core.modules.tag.engines.shared.base_worker import BaseTagWorker
 
 
 class _DummyWorker(BaseTagWorker):
@@ -30,7 +30,7 @@ def test_preprocess_uses_inline_inject_without_hydrate():
 
     mock_tdm = MagicMock()
     with patch(
-        "core.modules.tag.components.data_management.tag_data_manager.TagDataManager",
+        "core.modules.tag.engines.shared.data.tag_data_manager.TagDataManager",
         return_value=mock_tdm,
     ):
         worker = _DummyWorker(payload)

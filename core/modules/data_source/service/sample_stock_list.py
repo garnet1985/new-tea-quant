@@ -2,6 +2,10 @@
 样本股票池：由 ``data.json`` 的 ``use_sample_stock_list`` 统一配置。
 
 池文件位于 ``core/modules/data_source/dev/stock_pool/``（进 Git 的 dev 名单）。
+
+全局约束（下游无感）：
+- ``ListService`` 读路径经 ``slice_stock_list`` 过滤；
+- ``PersistenceService`` 写 per-stock 表前经 ``filter_records_by_sample_pool`` 过滤。
 """
 from __future__ import annotations
 
@@ -125,6 +129,65 @@ def _filter_rows_by_pool(rows: Sequence[Any], pool_ids: Sequence[str]) -> List[A
     for sid in pool_ids:
         if sid in by_id:
             out.append(by_id[sid])
+    return out
+
+
+_STOCK_ID_FIELDS: Tuple[str, ...] = ("id", "stock_id")
+
+
+def stock_id_field_for_schema(schema: Any) -> Optional[str]:
+    """从表 schema 推断 per-stock 主键字段；非 per-stock 表返回 None。"""
+    if not schema or not isinstance(schema, dict):
+        return None
+    pk = schema.get("primaryKey")
+    if isinstance(pk, str):
+        keys = [pk]
+    elif isinstance(pk, list):
+        keys = [str(k) for k in pk if k]
+    else:
+        return None
+    for field in keys:
+        if field in _STOCK_ID_FIELDS:
+            return field
+    return None
+
+
+def filter_records_by_sample_pool(
+    records: List[Dict[str, Any]],
+    schema: Any = None,
+    *,
+    id_field: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """
+    将 per-stock 写入行限制在样本池内；未配置样本池或非 per-stock 表时原样返回。
+    """
+    if not records:
+        return records
+
+    pool_ids = _load_pool_ids()
+    if not pool_ids:
+        return records
+
+    col = id_field or stock_id_field_for_schema(schema)
+    if not col:
+        return records
+
+    allowed = set(pool_ids)
+    out = [
+        row
+        for row in records
+        if str(row.get(col) or "").strip() in allowed
+    ]
+    dropped = len(records) - len(out)
+    if dropped:
+        logger.info(
+            "📎 use_sample_stock_list=%s: 写入过滤 %s → %s 行（丢弃池外 %s 行，field=%s）",
+            sample_pool_count(),
+            len(records),
+            len(out),
+            dropped,
+            col,
+        )
     return out
 
 

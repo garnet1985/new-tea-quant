@@ -17,7 +17,7 @@ from core.infra.db.engines.duckdb.process_pool_scope import (
 )
 from core.infra.job_pipeline.types import Job
 from core.modules.data_contract.cache import ContractCacheManager
-from core.modules.tag.components.job_staging.tag_job_stager import TagJobStager
+from core.modules.tag.engines.shared.staging.job_stager import TagJobStager
 
 logger = logging.getLogger(__name__)
 

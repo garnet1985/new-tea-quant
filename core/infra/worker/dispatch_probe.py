@@ -71,7 +71,7 @@ def _run_probe_executor(payload: Dict[str, Any]) -> Dict[str, Any]:
 
         return execute_price_probe_payload(payload)
     if key == PROBE_EXECUTOR_TAG:
-        from core.modules.tag.components.tag_dispatch_probe import (
+        from core.modules.tag.engines.shared.dispatch_probe import (
             execute_tag_probe_payload,
         )
 

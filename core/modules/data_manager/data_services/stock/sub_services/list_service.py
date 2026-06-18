@@ -27,7 +27,10 @@ _PIT_DELIST_EMPTY_SQL = (
     "delist_date IS NULL OR delist_date = '' "
     "OR delist_date IN ('0', '0.0')"
 )
-_PIT_PERIOD_WHERE = f"list_date <= %s AND ({_PIT_DELIST_EMPTY_SQL} OR delist_date > %s)"
+_PERIOD_WHERE = f"list_date <= %s AND ({_PIT_DELIST_EMPTY_SQL} OR delist_date > %s)"
+
+SURVIVORSHIP_PIT = "pit"
+SURVIVORSHIP_SURVIVOR = "survivor"
 
 
 class ListService(BaseDataService):
@@ -81,7 +84,11 @@ class ListService(BaseDataService):
     # ---------- 单股 ----------
 
     def load_single(self, stock_id: str) -> Optional[Dict[str, Any]]:
-        return self._stock_list.load_by_id(stock_id)
+        row = self._stock_list.load_by_id(stock_id)
+        if not row:
+            return None
+        filtered = self._apply_sample_pool([row])
+        return filtered[0] if filtered else None
 
     def load_meta(self, stock_id: str) -> Optional[Dict[str, Any]]:
         row = self.load_single(stock_id)
@@ -116,6 +123,7 @@ class ListService(BaseDataService):
         *,
         period_start: Optional[str] = None,
         period_end: Optional[str] = None,
+        survivorship: Optional[str] = None,
         as_of_date: Optional[str] = None,
         list_status: Optional[Union[str, Sequence[str]]] = None,
         industry: Optional[Union[str, int]] = None,
@@ -128,9 +136,15 @@ class ListService(BaseDataService):
         加载股票集合。查询模式互斥，优先级：
         period_start+period_end > as_of_date > 维度 > list_status > load_all。
 
-        period（回测窗口参与者）::
-            list_date <= period_end
-            AND (无退市日 sentinel 或 delist_date > period_start)
+        period（回测窗口参与者，``survivorship`` 控制退市边界）::
+
+            pit（默认）::
+                list_date <= period_end
+                AND (无退市日 sentinel 或 delist_date > period_start)
+
+            survivor（幸存者偏差演示）::
+                list_date <= period_end
+                AND (无退市日 sentinel 或 delist_date > period_end)
 
         as_of_date（某日仍在市）::
             list_date <= as_of_date
@@ -142,15 +156,19 @@ class ListService(BaseDataService):
             if as_of_date:
                 raise ValueError("period_* 与 as_of_date 不能同时使用")
             rows = self._stock_list.load(
-                _PIT_PERIOD_WHERE,
-                (period_end, period_start),
+                _PERIOD_WHERE,
+                self._period_where_params(
+                    period_start=period_start,
+                    period_end=period_end,
+                    survivorship=survivorship,
+                ),
                 order_by=f"{order_by} ASC",
             )
             return self._sort_stocks(rows, order_by)
 
         if as_of_date:
             rows = self._stock_list.load(
-                _PIT_PERIOD_WHERE,
+                _PERIOD_WHERE,
                 (as_of_date, as_of_date),
                 order_by=f"{order_by} ASC",
             )
@@ -210,6 +228,26 @@ class ListService(BaseDataService):
         order_by: str = "id",
     ) -> List[Dict[str, Any]]:
         return self.load(area=area, order_by=order_by)
+
+    @staticmethod
+    def normalize_survivorship(raw: Any) -> str:
+        mode = str(raw or SURVIVORSHIP_PIT).strip().lower()
+        if mode in (SURVIVORSHIP_PIT, SURVIVORSHIP_SURVIVOR):
+            return mode
+        return SURVIVORSHIP_PIT
+
+    @classmethod
+    def _period_where_params(
+        cls,
+        *,
+        period_start: str,
+        period_end: str,
+        survivorship: Optional[str],
+    ) -> tuple[str, str]:
+        mode = cls.normalize_survivorship(survivorship)
+        if mode == SURVIVORSHIP_SURVIVOR:
+            return (period_end, period_end)
+        return (period_end, period_start)
 
     @staticmethod
     def _normalize_delist_date(raw: Any) -> Optional[str]:
@@ -405,12 +443,17 @@ class ListService(BaseDataService):
                     r["is_alive"] = 0
                 model.upsert(rows_all, unique_keys)
 
+    @staticmethod
+    def _apply_sample_pool(stocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        from core.modules.data_source.service.sample_stock_list import slice_stock_list
+
+        return slice_stock_list(stocks)
+
     def _sort_stocks(self, stocks: List[Dict[str, Any]], order_by: str) -> List[Dict[str, Any]]:
-        if not order_by:
-            return stocks
-        try:
-            stocks.sort(key=lambda x: x.get(order_by, ""))
-        except Exception as e:
-            logger.warning("排序失败，使用默认排序: %s", e)
-            stocks.sort(key=lambda x: x.get("id", ""))
-        return stocks
+        if order_by:
+            try:
+                stocks.sort(key=lambda x: x.get(order_by, ""))
+            except Exception as e:
+                logger.warning("排序失败，使用默认排序: %s", e)
+                stocks.sort(key=lambda x: x.get("id", ""))
+        return self._apply_sample_pool(stocks)

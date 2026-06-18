@@ -19,6 +19,8 @@ class CalendarAsOfContext:
     open_date_index: int
     is_first_open_of_month: bool
     is_last_open_of_month: bool
+    is_first_open_of_year: bool
+    is_last_open_of_year: bool
 
 
 @dataclass

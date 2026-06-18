@@ -2,8 +2,9 @@ from typing import Any, Dict, Optional, Type
 from pathlib import Path
 import importlib.util
 import logging
+import sys
 
-from core.modules.tag.base_tag_worker import BaseTagWorker
+from core.modules.tag.engines.shared.base_worker import BaseTagWorker
 from core.modules.tag.enums import FileName
 from core.infra.project_context import FileManager, ConfigManager
 
@@ -75,11 +76,13 @@ class TagHelper:
         
         # 2. 加载模块并查找继承自 BaseTagWorker 的类
         try:
-            spec = importlib.util.spec_from_file_location("tag_worker", worker_file_path)
+            module_name = f"tag_worker_{scenario_folder.name}"
+            spec = importlib.util.spec_from_file_location(module_name, worker_file_path)
             if spec is None or spec.loader is None:
                 return None, None
-            
+
             module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
             spec.loader.exec_module(module)
             
             # 查找继承自 BaseTagWorker 的类（排除基类本身）

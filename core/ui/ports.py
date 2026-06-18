@@ -1,17 +1,18 @@
 """UI 栈端口约定。
 
-- 开发（``launcher.py -d`` / ``dev-cli -ui``）：浏览器入口 ``UI_DEV_PORT``（8000，CRA dev server）；
-  BFF API 在 ``UI_PROD_PORT``（8888），由 ``fed/package.json`` 的 ``proxy`` 转发，勿单独访问 8888。
-- 生产（``launcher.py``）：唯一入口 ``UI_PROD_PORT``（8888，BFF 托管 fed/build）。
+- **BFF**（API，开发/生产共用）：``UI_BFF_PORT``（8888）。开发模式下不挂载 ``fed/build``（见 ``NTQ_UI_DEV``）。
+- **开发前端**：``UI_DEV_PORT``（8000，CRA）；``/api`` 由 proxy 转发到 :8888。
+- **生产前端**：由 BFF :8888 托管 ``fed/build``。
 
-启动任一种模式前会清掉 8000/8888，避免 dev/prod 双栈并存。
+同一时刻只应跑一种 UI 栈（dev 或 prod）；``uk`` 会结束 8000 + 8888 上的 NTQ 进程。
 """
 
 UI_DEV_PORT = 8000
-UI_PROD_PORT = 8888
+UI_BFF_PORT = 8888
 
 # 兼容旧名
+UI_PROD_PORT = UI_BFF_PORT
 FED_DEV_PORT = UI_DEV_PORT
-BFF_DEFAULT_PORT = UI_PROD_PORT
+BFF_DEFAULT_PORT = UI_BFF_PORT
 
-ALL_UI_PORTS = (UI_DEV_PORT, UI_PROD_PORT)
+ALL_UI_PORTS = (UI_DEV_PORT, UI_BFF_PORT)

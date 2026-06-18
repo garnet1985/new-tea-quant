@@ -28,8 +28,18 @@ from core.modules.tag.engines.shared.backend import backend_is_duckdb, parse_exe
 from core.modules.tag.engines.shared.report_save_buffer import TagReportSaveBuffer
 from core.modules.tag.engines.shared.run_profile import TagRunProfile
 from core.modules.tag.engines.shared.worker_exec import execute_tag_job
+from core.infra.project_context.path_manager import PathManager
+from core.modules.tag.services.discovery.path_rules import filesystem_safe_tag_key
 
 logger = logging.getLogger(__name__)
+
+
+def _make_tag_spill_dir(scenario_name: str) -> Path:
+    """DuckDB stage spill 临时目录（``tag_key`` 含 ``/`` 时须 sanitize prefix）。"""
+    parent = PathManager.userspace_tmp() / "tag_spill"
+    parent.mkdir(parents=True, exist_ok=True)
+    prefix = f"ntq_tag_{filesystem_safe_tag_key(scenario_name)}_"
+    return Path(tempfile.mkdtemp(prefix=prefix, dir=str(parent)))
 
 
 def maybe_checkpoint_duckdb_after_tag_run(data_mgr: Any) -> None:
@@ -115,7 +125,7 @@ def execute_tag_jobs(
     spill_dir: Optional[Path] = None
     if duckdb_stage_spill:
         spill_rows = int(performance.get("stage_spill_rows") or 50_000)
-        spill_dir = Path(tempfile.mkdtemp(prefix=f"ntq_tag_{scenario_name}_"))
+        spill_dir = _make_tag_spill_dir(scenario_name)
         save_buffer = TagReportSaveBuffer(
             real_save_fn,
             batch_size=save_batch_size,

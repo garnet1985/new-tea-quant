@@ -27,12 +27,19 @@ def is_machine_readable_tag_path(relative_path: str) -> bool:
 
 
 def tag_module_id(tag_key: str, *, suffix: str) -> str:
-    safe = re.sub(r"[^a-zA-Z0-9_]", "_", str(tag_key or "unknown"))
+    safe = filesystem_safe_tag_key(tag_key)
     return f"_ntq_tag_{suffix}_{safe}"
+
+
+def filesystem_safe_tag_key(tag_key: str) -> str:
+    """将 ``tag_key`` 转为可安全用于文件名 / ``mkdtemp`` prefix 的 token。"""
+    safe = re.sub(r"[^a-zA-Z0-9_]", "_", str(tag_key or "unknown")).strip("_")
+    return safe or "unknown"
 
 
 __all__ = [
     "TAG_PATH_SEGMENT_RE",
+    "filesystem_safe_tag_key",
     "is_machine_readable_tag_path",
     "relative_tag_key",
     "tag_module_id",

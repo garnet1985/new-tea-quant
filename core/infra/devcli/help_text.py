@@ -7,7 +7,7 @@ DEVCLI_COMMAND_REFERENCE = """
 
   python devcli.py                         显示版本（默认）  同 -v / --version
   python devcli.py ui                      启动 UI（launcher -d）
-  python devcli.py uk                      结束 UI 端口      同 ui_kill [--ntq-only]
+  python devcli.py uk                      结束 UI 端口（8000 + 8888）  同 ui_kill [--ntq-only]
   python devcli.py ic                      import 冒烟       同 check_import
   python devcli.py cgc                     清 .ntq           同 clear_global_cache
   python devcli.py csc                     清策略模拟缓存    同 clear_strategy_cache

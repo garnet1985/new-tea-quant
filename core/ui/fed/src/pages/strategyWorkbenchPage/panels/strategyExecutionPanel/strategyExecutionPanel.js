@@ -10,7 +10,6 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  IconButton,
   List,
   ListItemButton,
   ListItemText,
@@ -23,6 +22,7 @@ import {
 } from '@mui/material';
 import LoadingBars from 'components/loadingBars/loadingBars';
 import NtqHelpTooltip from 'components/ntqHelpTooltip/ntqHelpTooltip';
+import NtqRainbowRunButton from 'components/ntqRainbowRunButton/ntqRainbowRunButton';
 import SettingsAccordionTitle from 'components/settingsAccordionTitle/settingsAccordionTitle';
 import './strategyExecutionPanel.scss';
 import {
@@ -120,22 +120,13 @@ function formatCapitalPct(value) {
 }
 
 function ExecStepRunButton({ done, disabled, onClick, ariaLabel }) {
-  const glyphClass = done
-    ? 'ntq-exec-step-run-btn__glyph--refresh'
-    : 'ntq-exec-step-run-btn__glyph--play';
   return (
-    <IconButton
-      className="ntq-exec-step-run-btn"
+    <NtqRainbowRunButton
+      done={done}
       disabled={disabled}
       onClick={onClick}
-      aria-label={ariaLabel}
-      disableRipple
-    >
-      <span className="ntq-exec-step-run-btn__ring" aria-hidden />
-      <span className={`ntq-exec-step-run-btn__glyph ${glyphClass}`} aria-hidden>
-        <span className="ntq-exec-step-run-btn__glyph-aurora" />
-      </span>
-    </IconButton>
+      ariaLabel={ariaLabel}
+    />
   );
 }
 

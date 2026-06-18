@@ -109,6 +109,7 @@ function StrategyDesignExecutionPanel() {
             done={currentStepDone}
             disabled={wb.disableMetaActions || wb.executionBusy}
             onClick={wb.handleRunCurrentStep}
+            compact
           />
           {nextStep ? (
             <Button

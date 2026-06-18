@@ -69,6 +69,7 @@ def execute_tag_jobs(
     performance: Optional[Dict[str, Any]] = None,
     profile_enabled: bool = False,
     on_tag_data_service_refresh: Optional[Callable[[Any], None]] = None,
+    on_pipeline_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> Dict[str, Any]:
     """运行 dispatch jobs 并攒批 save_batch。"""
     performance = performance or {}
@@ -159,7 +160,7 @@ def execute_tag_jobs(
         progress_state["finished"] = progress.finished
         finished = progress_state["finished"]
         pct = int(finished * 100 / total_jobs) if total_jobs else 100
-        if finished == total_jobs or pct >= progress_state["last_pct"] + 5:
+        if finished == total_jobs or pct >= progress_state["last_pct"] + 1:
             logger.info(
                 "[%s] Tag 进度: %s/%s (%s%%) 成功=%s 失败=%s",
                 run_name,
@@ -170,6 +171,19 @@ def execute_tag_jobs(
                 progress.fail,
             )
             progress_state["last_pct"] = pct
+            if on_pipeline_progress is not None:
+                try:
+                    on_pipeline_progress(
+                        {
+                            "finished": finished,
+                            "total_jobs": total_jobs,
+                            "progress_pct": float(pct),
+                            "ok": progress.ok,
+                            "fail": progress.fail,
+                        }
+                    )
+                except Exception as exc:
+                    logger.warning("on_pipeline_progress failed: %s", exc)
 
     dispatcher_jobs = [Job(job_id=job["id"], payload=job["payload"]) for job in jobs]
     resolved_workers = WorkerProbe.resolve(

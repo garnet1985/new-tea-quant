@@ -1,0 +1,10 @@
+name: infra.cli
+version: 0.2.0
+compatible_core_versions: ">=0.4.1"
+description: "NTQ 用户 CLI：策略/标签/数据扫描/更新/模拟/分析/管理。"
+dependencies:
+  - infra.project_context
+changelog:
+  - version: "0.2.0"
+    changes:
+      - 重写 CLI：策略/标签/数据扫描/更新/模拟/分析/管理

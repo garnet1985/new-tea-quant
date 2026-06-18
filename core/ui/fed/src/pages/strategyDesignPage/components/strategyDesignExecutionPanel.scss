@@ -85,32 +85,6 @@
   }
 }
 
-.ntq-design-exec-panel {
-  .ntq-design-simulate-btn {
-    width: auto;
-    min-width: 148px;
-    min-height: 44px;
-  }
-
-  .ntq-design-simulate-btn__inner {
-    min-height: calc(44px - 3px);
-    gap: 8px;
-    padding: 0 16px;
-  }
-
-  .ntq-design-simulate-btn__glyph {
-    width: 20px;
-    height: 20px;
-    -webkit-mask-size: 20px 20px;
-    mask-size: 20px 20px;
-  }
-
-  .ntq-design-simulate-btn__label-text {
-    font-size: 14px;
-    font-weight: 600;
-  }
-}
-
 .ntq-design-exec-panel__next-btn {
   flex: 0 0 auto;
   height: 44px;

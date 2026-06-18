@@ -60,6 +60,20 @@ class ProgressRecorder:
         return cls(cls.build_path(channel, key))
 
     @classmethod
+    def for_tag_run(
+        cls,
+        tag_key: str,
+        run_id: str,
+        *,
+        channel: str = "tag-run",
+    ) -> "ProgressRecorder":
+        """Tag UI 异步 run：``{tag_key}__{job_id}.json``（tag_key 可含 ``/``）。"""
+        tk = str(tag_key).strip()
+        jid = str(run_id).strip()
+        key = f"{tk}__{jid}"
+        return cls(cls.build_path(channel, key))
+
+    @classmethod
     def clear_workspace_runs_for_strategy_step(
         cls,
         strategy_name: str,

@@ -4,13 +4,13 @@ import { ThemeProvider, createTheme, alpha } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
 import { zhCN as muiZhCN } from '@mui/material/locale';
 import SetupPage from './pages/setupPage';
-import ComingSoonPage from './pages/comingSoonPage';
 import SetupGuard from 'components/setupGuard';
 import MainLayout from './layouts/mainLayout';
 import StrategyListPage from './pages/strategyListPage';
 import StrategyWorkbenchPage from './pages/strategyWorkbenchPage';
 import { StrategyDesignLayout } from './pages/strategyDesignPage';
 import ScanPage from './pages/scanPage';
+import TagListPage from './pages/tagPage';
 import SettingsPage from './pages/settingsPage';
 
 /** iOS 风格 Switch：改总宽时只改 `SWITCH_ROOT_WIDTH_PX`，滑块行程 = 轨宽 − 球径 − 左右 padding */
@@ -162,13 +162,16 @@ function App() {
               element={<ScanPage />}
             />
             <Route
+              path="/advanced/tags"
+              element={<TagListPage />}
+            />
+            <Route
               path="/advanced"
-              element={(
-                <ComingSoonPage
-                  title="高级功能"
-                  description="数据采集、标签控制台、备份与恢复等入口将集中于此。"
-                />
-              )}
+              element={<Navigate to="/advanced/tags" replace />}
+            />
+            <Route
+              path="/tags"
+              element={<Navigate to="/advanced/tags" replace />}
             />
             <Route
               path="/settings"

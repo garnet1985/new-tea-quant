@@ -6,7 +6,7 @@ Tag Manager - 统一管理所有业务场景（Scenario）
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Callable, Dict, List, Optional
 
 from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.data_contract.contract_const import ContractScope, DataKey
@@ -29,6 +29,7 @@ class TagManager:
     def __init__(self, is_verbose=False, dispatch_overrides: Optional[Dict[str, Any]] = None):
         self.is_verbose = is_verbose
         self._dispatch_overrides = dict(dispatch_overrides or {})
+        self._pipeline_progress_callback: Optional[Any] = None
         self.data_mgr = DataManager()
         self.tag_data_service = self.data_mgr.stock.tags
         self._contract_cache = ContractCacheManager()
@@ -47,20 +48,25 @@ class TagManager:
         settings: Dict[str, Any] | None = None,
         *,
         tag_key: str | None = None,
+        on_pipeline_progress: Optional[Any] = None,
     ) -> None:
-        if settings is not None:
-            key = str(tag_key or scenario_name or "inline").strip()
-            scenario_model = ScenarioModel.create_from_settings(settings, tag_key=key)
-            if not scenario_model:
-                logger.info("创建场景模型失败，跳过执行")
+        self._pipeline_progress_callback = on_pipeline_progress
+        try:
+            if settings is not None:
+                key = str(tag_key or scenario_name or "inline").strip()
+                scenario_model = ScenarioModel.create_from_settings(settings, tag_key=key)
+                if not scenario_model:
+                    logger.info("创建场景模型失败，跳过执行")
+                    return
+                self._run_scenario(scenario_model, tag_key=key)
                 return
-            self._run_scenario(scenario_model, tag_key=key)
-            return
-        if scenario_name:
-            self._execute_named(scenario_name)
-            return
-        for name in self.scenario_cache:
-            self._execute_named(name)
+            if scenario_name:
+                self._execute_named(scenario_name)
+                return
+            for name in self.scenario_cache:
+                self._execute_named(name)
+        finally:
+            self._pipeline_progress_callback = None
 
     def _execute_named(self, name_or_key: str) -> None:
         tag_key = self._resolve_tag_key(name_or_key)

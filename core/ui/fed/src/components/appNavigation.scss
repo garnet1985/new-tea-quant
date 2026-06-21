@@ -2,10 +2,11 @@
 
 .ntq-app-header {
   position: relative;
-  z-index: 2;
+  z-index: 1200;
   width: 100%;
-  // Solid header: avoid backdrop-filter repaints ghosting content below (e.g. strategy list).
-  background-color: rgba(6, 6, 18, 0.88);
+  overflow: visible;
+  // Fully opaque: hover / dropdown must not trigger page backdrop-filter repaints below.
+  background-color: var(--ntq-ink, #060612);
   border-bottom: 1px solid var(--ntq-white-12);
 }
 
@@ -13,6 +14,7 @@
   min-height: $ntq-header-height;
   display: block;
   width: 100%;
+  overflow: visible;
 }
 
 .ntq-app-header__inner {
@@ -23,6 +25,7 @@
   padding-left: 16px;
   padding-right: 16px;
   box-sizing: border-box;
+  overflow: visible;
 }
 
 .ntq-brand {
@@ -86,6 +89,7 @@
   align-items: stretch;
   flex-wrap: wrap;
   gap: 0;
+  overflow: visible;
 }
 
 .ntq-nav-btn {
@@ -115,6 +119,72 @@
 
   &:hover {
     background: rgba(255, 255, 255, 0.08);
+    color: var(--ntq-cyan);
+  }
+}
+
+.ntq-nav-btn__caret {
+  margin-left: 6px;
+  font-size: 0.65rem;
+  opacity: 0.75;
+}
+
+.ntq-nav-btn__caret-icon {
+  margin-left: 6px;
+  transition: transform 160ms ease;
+}
+
+.ntq-nav-btn--dropdown.is-open .ntq-nav-btn__caret-icon {
+  transform: rotate(90deg);
+}
+
+.ntq-nav-dropdown {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.ntq-nav-dropdown-popper {
+  z-index: 1300;
+}
+
+.ntq-nav-dropdown__panel {
+  min-width: 160px;
+  padding: 4px 0;
+  overflow: visible !important;
+  background-color: rgba(12, 12, 28, 0.98) !important;
+  border: 1px solid var(--ntq-white-12) !important;
+  border-radius: var(--ntq-radius, 5px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35) !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+
+  /* 按钮与面板之间的 hover 桥，避免鼠标移入菜单时误触发关闭 */
+  &::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: 0;
+    right: 0;
+    height: 8px;
+  }
+}
+
+.ntq-nav-dropdown__item {
+  display: block;
+  padding: 8px 14px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--ntq-text);
+  text-decoration: none;
+
+  &:hover {
+    background: var(--ntq-white-06);
+    text-decoration: none;
+  }
+
+  &.is-selected {
+    background: rgba(34, 211, 238, 0.12);
     color: var(--ntq-cyan);
   }
 }

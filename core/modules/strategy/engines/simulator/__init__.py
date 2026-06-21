@@ -5,14 +5,14 @@ from importlib import import_module
 from typing import Any
 
 __all__ = [
-    "OpportunityEnumeratorFlow",
+    "StockBasedEnumeratorFlow",
     "PriceFactorFlow",
     "CapitalAllocationFlow",
 ]
 
 
 def __getattr__(name: str) -> Any:
-    if name == "OpportunityEnumeratorFlow":
+    if name == "StockBasedEnumeratorFlow":
         return getattr(import_module(".enumerator", __name__), name)
     if name == "PriceFactorFlow":
         return getattr(import_module(".price_factor", __name__), name)

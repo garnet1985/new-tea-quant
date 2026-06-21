@@ -27,7 +27,7 @@ def test_resolve_backtest_universe_single_pass_when_start_configured():
     assert period.end_date == "20241231"
     assert len(universe) == 1
     list_svc.load.assert_called_once_with(
-        period_start="20240101", period_end="20241231"
+        period_start="20240101", period_end="20241231", survivorship=None
     )
 
 

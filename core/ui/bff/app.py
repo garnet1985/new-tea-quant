@@ -11,12 +11,17 @@ from .APIs.setup import setup_api_bp
 from .APIs.strategy_workbench import strategy_workbench_api_bp
 from .APIs.strategy_scan import strategy_scan_api_bp
 from .APIs.settings import settings_api_bp
+from .APIs.runtime import runtime_api_bp
+from .APIs.data_contract import data_contract_api_bp
+from .APIs.data_source import data_source_api_bp
+from .APIs.tag import tag_api_bp
 from .conf import conf
 from .static_ui import (
     fed_build_ready,
     fed_build_static_dir,
     register_fed_static_routes,
     resolve_fed_build_dir,
+    should_mount_fed_build,
 )
 
 
@@ -24,7 +29,7 @@ def create_app():
     build_dir = resolve_fed_build_dir()
     static_folder = None
     static_url_path = None
-    if fed_build_ready(build_dir):
+    if should_mount_fed_build() and fed_build_ready(build_dir):
         static_root = fed_build_static_dir(build_dir).resolve()
         if static_root.is_dir():
             static_folder = str(static_root)
@@ -46,6 +51,10 @@ def create_app():
     app.register_blueprint(strategy_workbench_api_bp, url_prefix="/api")
     app.register_blueprint(strategy_scan_api_bp, url_prefix="/api")
     app.register_blueprint(settings_api_bp, url_prefix="/api")
+    app.register_blueprint(runtime_api_bp, url_prefix="/api")
+    app.register_blueprint(data_contract_api_bp, url_prefix="/api")
+    app.register_blueprint(data_source_api_bp, url_prefix="/api")
+    app.register_blueprint(tag_api_bp, url_prefix="/api")
 
     if not register_fed_static_routes(app, build_dir=build_dir):
 

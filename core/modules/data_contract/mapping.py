@@ -56,12 +56,12 @@ default_map: DataSpecMap = {
         "type": ContractType.NON_TIME_SERIES,
         "unique_keys": ["id"],
         "loader": StockListLoader,
-        "display_name": "Stock List",
+        "display_name": "股票列表",
         "defaults": {},
     },
-    DataKey.STOCK_KLINE_DAILY: _stock_kline_spec(term="daily", display_name="Stock Kline Daily"),
-    DataKey.STOCK_KLINE_WEEKLY: _stock_kline_spec(term="weekly", display_name="Stock Kline Weekly"),
-    DataKey.STOCK_KLINE_MONTHLY: _stock_kline_spec(term="monthly", display_name="Stock Kline Monthly"),
+    DataKey.STOCK_KLINE_DAILY: _stock_kline_spec(term="daily", display_name="股票日 K 线"),
+    DataKey.STOCK_KLINE_WEEKLY: _stock_kline_spec(term="weekly", display_name="股票周 K 线"),
+    DataKey.STOCK_KLINE_MONTHLY: _stock_kline_spec(term="monthly", display_name="股票月 K 线"),
     # 统一 tag：存储含 as_of_date，故为时序；通过 tag_scenario / scenario_id 区分场景（见 TagLoader）
     DataKey.TAG: {
         "scope": ContractScope.PER_ENTITY,
@@ -71,7 +71,7 @@ default_map: DataSpecMap = {
         "time_axis_format": "YYYYMMDD",
         "loader": TagLoader,
         "entity_list_data_id": DataKey.STOCK_LIST,
-        "display_name": "Tag（按 scenario）",
+        "display_name": "特征标签（按场景）",
         "defaults": {},
     },
     DataKey.STOCK_CORPORATE_FINANCE: {
@@ -82,7 +82,7 @@ default_map: DataSpecMap = {
         "time_axis_format": "YYYYMMDD",
         "loader": CorporateFinanceLoader,
         "entity_list_data_id": DataKey.STOCK_LIST,
-        "display_name": "Corporate Finance (quarterly)",
+        "display_name": "公司财报（季频）",
         "defaults": {},
     },
     DataKey.STOCK_INDICATORS_DAILY: {
@@ -93,7 +93,7 @@ default_map: DataSpecMap = {
         "time_axis_format": "YYYYMMDD",
         "loader": StockIndicatorsDailyLoader,
         "entity_list_data_id": DataKey.STOCK_LIST,
-        "display_name": "Stock Indicators Daily (PE/PB/市值)",
+        "display_name": "股票日频指标（PE/PB/市值）",
         "defaults": {},
     },
     DataKey.STOCK_MONEYFLOW_DAILY: {
@@ -104,7 +104,7 @@ default_map: DataSpecMap = {
         "time_axis_format": "YYYYMMDD",
         "loader": StockMoneyflowDailyLoader,
         "entity_list_data_id": DataKey.STOCK_LIST,
-        "display_name": "Stock Moneyflow Daily (个股资金流向)",
+        "display_name": "个股日频资金流向",
         "defaults": {},
     },
     DataKey.STOCK_ADJ_FACTOR_EVENTS: {
@@ -115,7 +115,7 @@ default_map: DataSpecMap = {
         "time_axis_format": "YYYYMMDD",
         "loader": StockAdjFactorEventsLoader,
         "entity_list_data_id": DataKey.STOCK_LIST,
-        "display_name": "Stock Adj Factor Events",
+        "display_name": "股票复权因子事件",
         "defaults": {},
     },
     DataKey.INDEX_LIST: {
@@ -123,7 +123,7 @@ default_map: DataSpecMap = {
         "type": ContractType.NON_TIME_SERIES,
         "unique_keys": ["id"],
         "loader": IndexListLoader,
-        "display_name": "Index List",
+        "display_name": "指数列表",
         "defaults": {},
     },
     DataKey.INDEX_KLINE_DAILY: {
@@ -134,7 +134,7 @@ default_map: DataSpecMap = {
         "time_axis_format": "YYYYMMDD",
         "loader": IndexKlineDailyLoader,
         "entity_list_data_id": DataKey.INDEX_LIST,
-        "display_name": "Index Kline Daily",
+        "display_name": "指数日 K 线",
         "defaults": {},
     },
     DataKey.INDEX_WEIGHT_DAILY: {
@@ -145,7 +145,7 @@ default_map: DataSpecMap = {
         "time_axis_format": "YYYYMMDD",
         "loader": IndexWeightDailyLoader,
         "entity_list_data_id": DataKey.INDEX_LIST,
-        "display_name": "Index Weight Daily",
+        "display_name": "指数日频成分权重",
         "defaults": {},
     },
     DataKey.MACRO_GDP: {
@@ -155,7 +155,7 @@ default_map: DataSpecMap = {
         "time_axis_field": "quarter",
         "time_axis_format": "YYYYQ",
         "loader": MacroGdpLoader,
-        "display_name": "Macro GDP",
+        "display_name": "宏观 GDP",
         "defaults": {},
     },
     DataKey.MACRO_LPR: {
@@ -165,7 +165,7 @@ default_map: DataSpecMap = {
         "time_axis_field": "date",
         "time_axis_format": "YYYYMMDD",
         "loader": MacroLprLoader,
-        "display_name": "Macro LPR",
+        "display_name": "宏观 LPR",
         "defaults": {},
     },
     DataKey.MACRO_CPI: {
@@ -175,7 +175,7 @@ default_map: DataSpecMap = {
         "time_axis_field": "date",
         "time_axis_format": "YYYYMM",
         "loader": MacroCpiLoader,
-        "display_name": "Macro CPI",
+        "display_name": "宏观 CPI",
         "defaults": {},
     },
     DataKey.MACRO_PPI: {
@@ -185,7 +185,7 @@ default_map: DataSpecMap = {
         "time_axis_field": "date",
         "time_axis_format": "YYYYMM",
         "loader": MacroPpiLoader,
-        "display_name": "Macro PPI",
+        "display_name": "宏观 PPI",
         "defaults": {},
     },
     DataKey.MACRO_PMI: {
@@ -195,7 +195,7 @@ default_map: DataSpecMap = {
         "time_axis_field": "date",
         "time_axis_format": "YYYYMM",
         "loader": MacroPmiLoader,
-        "display_name": "Macro PMI",
+        "display_name": "宏观 PMI",
         "defaults": {},
     },
 }

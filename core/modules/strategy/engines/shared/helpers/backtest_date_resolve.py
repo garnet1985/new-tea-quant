@@ -155,7 +155,8 @@ def resolve_backtest_universe(
     kline_term: Optional[str] = None,
     ) -> Tuple[BacktestDateRange, List[Dict[str, Any]]]:
     """
-    解析回测日历窗，并 ``list_svc.load(period_start=..., period_end=...)`` 取 PIT 参与者。
+    解析回测日历窗，并 ``list_svc.load(period_start=..., period_end=..., survivorship=...)``
+    取参与者（PIT 或 survivor，由 ``settings.core.universe_mode`` 控制）。
 
     **编排层**：不在 strategy ``settings.data`` contract 注入范围内（决策 11）；除非用户
     将 ``stock.list`` 写入 ``extra_required_data_sources``。
@@ -181,9 +182,13 @@ def resolve_backtest_universe(
 
     configured_start = settings_view.start_date.strip()
     provisional_start = configured_start or DateUtils.DEFAULT_START_DATE
+    core = settings_view.core if isinstance(settings_view.core, dict) else {}
+    survivorship = core.get("universe_mode")
+
     universe = list_svc.load(
         period_start=provisional_start,
         period_end=end.date,
+        survivorship=survivorship,
     )
     bootstrap_ids = [str(r["id"]).strip() for r in universe if r.get("id")]
 
@@ -198,6 +203,7 @@ def resolve_backtest_universe(
         universe = list_svc.load(
             period_start=period.start_date,
             period_end=period.end_date,
+            survivorship=survivorship,
         )
     return period, universe
 

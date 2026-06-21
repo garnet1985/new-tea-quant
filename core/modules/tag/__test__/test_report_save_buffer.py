@@ -1,7 +1,7 @@
 """TagReportSaveBuffer 单元测试。"""
 from pathlib import Path
 
-from core.modules.tag.components.report_save_buffer import TagReportSaveBuffer
+from core.modules.tag.engines.shared.report_save_buffer import TagReportSaveBuffer
 
 
 def _row(n: int) -> dict:

@@ -5,9 +5,6 @@ Tag 系统枚举定义
 """
 from enum import Enum
 
-# 注意：K线周期枚举已迁移到 core.global_enums.enums.TermType
-# 如需使用周期类型，请从 core.global_enums.enums 导入 TermType
-
 class FileName(Enum):
     """文件名枚举"""
     SETTINGS = "settings.py"
@@ -24,6 +21,13 @@ class TagTargetType(Enum):
 
     ENTITY_BASED = "entity_based"
     GENERAL = "general"
+
+
+class TagExecutionMode(Enum):
+    """Tag 执行模式：按实体分批（默认）或按日历片全市场 bulk。"""
+
+    ENTITY_TIMELINE = "entity_timeline"
+    CALENDAR_SLICE = "calendar_slice"
 
 
 # 已废弃：版本管理相关枚举已移除

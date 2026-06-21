@@ -104,9 +104,12 @@ class StockStatusRiskRuntimeContext:
 
 
 def load_stock_st_periods_for_worker(stock_id: str) -> List[Dict[str, Any]]:
-    from core.modules.data_manager import DataManager
+    from core.modules.strategy.services.execution.worker_runtime import (
+        resolve_strategy_worker_data_manager,
+    )
 
-    return DataManager(is_verbose=False).stock.st.load_by_stock(str(stock_id).strip())
+    dm = resolve_strategy_worker_data_manager()
+    return dm.stock.st.load_by_stock(str(stock_id).strip())
 
 
 def build_stock_status_risk_runtime_context(

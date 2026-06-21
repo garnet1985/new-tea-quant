@@ -62,19 +62,30 @@ Benchmark 工具 `python -m core.modules.tag.tools.tag_read_benchmark`（100 股
 
 ---
 
-## 决策 2：横截面（cross-sectional）类能力暂不纳入框架核心
+## 决策 2：横截面（cross-sectional）与 calendar_slice 钩子
 
 **背景（Context）**  
-全市场同一日截面上的排名、分位等依赖「当日多实体联合」视图，与当前「单实体 + as_of 历史切片」模型不同。
+全市场同一日截面上的排名、分位等依赖「当日多实体联合」视图。Tag 已支持 `execution_mode: calendar_slice`，需与 Strategy 对齐横截面 API。
 
 **决策（Decision）**  
-不在本模块核心路径提供一等公民的 cross-sectional API；需要时由用户在 **`calculate_tag`** 内自行组合查询或缓存。
+在 Tag 模块提供一等公民 **`on_calendar_asof(ctx, settings) -> TagCalendarAsOfResult`**：
+
+- 复用 Strategy 的 **`CalendarAsOfContext`**（含 `stocks`、`carry`、月初/月末标记）
+- **`carry`** 为 slice 编排层状态机，跨 open_date / slice 传递
+- Compute Engine 将 `entity_tags` fan-out 为各 entity 的 tag_value 行
+- 单股时序类 tag（如市值档位）仍走 **`entity_timeline` + `calculate_tag`**
 
 **理由（Rationale）**  
-避免在 DataCursor 语义上叠加模糊的「全市场快照」契约，降低一致性与性能风险。
+横截面 tag 与 per-entity tag 分轨；calendar_slice inject 已 bulk stage 全市场数据，应用 hook 消费而非逐股重复 IO。
 
 **影响（Consequences）**  
-复杂横截面标签需更多自定义代码或预计算中间表；未来若引入需单独设计与 **`DECISIONS`** 增补。
+userspace worker 可实现 `on_calendar_asof`；互斥档位等 change-point tag 无需 `end_date`，以变更日 `as_of_date` 为准。
+
+---
+
+## 决策 2（已废止）：横截面暂不纳入框架核心
+
+**状态：** 已由上文「决策 2：横截面与 calendar_slice 钩子」取代（2026-06）。
 
 ---
 

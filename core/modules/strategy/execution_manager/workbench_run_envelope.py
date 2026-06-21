@@ -281,7 +281,7 @@ def get_run_progress(
     strategy_name: str,
     job_id: str,
 ) -> Optional[Dict[str, Any]]:
-    """供 BFF ``GET …/run/progress``：合并枚举细粒度进度侧车。"""
+    """供 BFF ``GET …/run/progress``：合并 enum 步骤侧车（长任务子进程写入）。"""
     sn = str(strategy_name).strip()
     jid = str(job_id).strip()
     if not jid:
@@ -290,6 +290,7 @@ def get_run_progress(
     if not env:
         return None
     steps = copy.deepcopy(env.get("steps") or [])
+    steps = _merge_enum_progress_sidecar(sn, jid, steps)
     names = [str(s.get("step_name") or "").strip() for s in steps]
     run_progress = compute_run_progress(names, steps)
     return {
@@ -298,6 +299,47 @@ def get_run_progress(
         "run_progress": run_progress,
         "steps": steps,
     }
+
+
+def _merge_enum_progress_sidecar(
+    strategy_name: str,
+    job_id: str,
+    steps: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    sidecar = ProgressRecorder.for_strategy_run_step(strategy_name, job_id, "enum").get_progress()
+    if not isinstance(sidecar, dict) or not sidecar:
+        return steps
+
+    try:
+        side_done = int(sidecar.get("done_jobs") or 0)
+        side_total = int(sidecar.get("total_jobs") or 0)
+        side_pct = float(sidecar.get("progress_pct") or 0)
+    except (TypeError, ValueError):
+        return steps
+
+    execute_ratio = max(0.0, min(1.0, side_pct / 100.0))
+    side_step_pct = compute_step_progress_pct("enum", "execute", execute_ratio)
+
+    for st in steps:
+        if st.get("step_name") != "enum":
+            continue
+        if st.get("status") not in ("running", "pending"):
+            break
+        try:
+            cur = float(st.get("progress") or 0)
+        except (TypeError, ValueError):
+            cur = 0.0
+        if side_step_pct <= cur and side_done <= 0:
+            break
+        if st.get("status") == "pending":
+            st["status"] = "running"
+        st["stage"] = "execute"
+        st["stage_label"] = stage_label("execute")
+        st["progress"] = round(max(cur, side_step_pct), 2)
+        if side_total > 0:
+            st["counters"] = {"done": side_done, "total": side_total}
+        break
+    return steps
 
 
 __all__ = [

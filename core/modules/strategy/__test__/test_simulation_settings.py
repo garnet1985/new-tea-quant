@@ -184,3 +184,43 @@ class TestStrategySimulationSettings:
         )
         report = sim.validate()
         assert report.has_critical_errors()
+
+    def test_default_execution_mode_entity_timeline(self):
+        sim = StrategySimulationSettings.from_strategy_root({"simulation": {"template": "standard"}})
+        sim.apply_defaults()
+        assert sim.execution_mode == "entity_timeline"
+
+    def test_calendar_slice_execution_mode(self):
+        sim = StrategySimulationSettings.from_strategy_root(
+            {
+                "simulation": {
+                    "template": "standard",
+                    "execution_mode": "calendar_slice",
+                }
+            }
+        )
+        sim.apply_defaults()
+        assert sim.execution_mode == "calendar_slice"
+        report = sim.validate()
+        assert not report.has_critical_errors()
+
+    def test_forbidden_simulation_slice_keys_fail(self):
+        sim = StrategySimulationSettings.from_strategy_root(
+            {
+                "simulation": {
+                    "template": "standard",
+                    "execution_mode": "calendar_slice",
+                    "slice_open_days": 63,
+                }
+            }
+        )
+        report = sim.validate()
+        assert report.has_critical_errors()
+        assert "slice_open_days" in report.errors[0]["field_path"]
+
+    def test_invalid_execution_mode_fails(self):
+        sim = StrategySimulationSettings.from_strategy_root(
+            {"simulation": {"template": "standard", "execution_mode": "legacy"}}
+        )
+        report = sim.validate()
+        assert report.has_critical_errors()

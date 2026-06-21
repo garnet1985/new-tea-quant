@@ -1,18 +1,25 @@
 """
 Tag 系统：场景化标签计算与落库。
 
-公开类型见包导出；架构与 API 见模块根目录 `README.md` 与 `docs/`。
+公开 API：
+- TagManager.execute — 唯一执行入口
+- BaseTagWorker — userspace tag_worker 基类
 """
 
-# 导出核心类和模块，方便用户导入
-from core.modules.tag.base_tag_worker import BaseTagWorker
+from core.modules.tag.engines.shared.base_worker import BaseTagWorker
 from core.modules.tag.tag_manager import TagManager
 from core.modules.tag.enums import TagUpdateMode
 from core.modules.tag.config import get_scenarios_root
+from core.modules.tag.engines.sliced.types import (
+    CalendarAsOfContext,
+    TagCalendarAsOfResult,
+)
 
 __all__ = [
-    'BaseTagWorker',
-    'TagManager',
-    'TagUpdateMode',
-    'get_scenarios_root',
+    "BaseTagWorker",
+    "TagManager",
+    "TagUpdateMode",
+    "get_scenarios_root",
+    "CalendarAsOfContext",
+    "TagCalendarAsOfResult",
 ]

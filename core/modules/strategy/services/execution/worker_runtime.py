@@ -111,6 +111,18 @@ def bootstrap_strategy_worker_data_manager() -> Any:
     return dm
 
 
+def resolve_strategy_worker_data_manager() -> Any:
+    """子进程只读 DataManager；主进程走常规 ``DataManager`` 单例。"""
+    if mp.current_process().name == "MainProcess":
+        from core.modules.data_manager import DataManager
+
+        inst = DataManager.get_instance()
+        if inst is not None and getattr(inst, "_initialized", False):
+            return inst
+        return DataManager(is_verbose=False)
+    return bootstrap_strategy_worker_data_manager()
+
+
 def release_strategy_worker_runtime() -> None:
     """子进程 job 结束时释放连接。"""
     if mp.current_process().name == "MainProcess":

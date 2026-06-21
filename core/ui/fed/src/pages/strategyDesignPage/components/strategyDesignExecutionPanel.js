@@ -59,6 +59,12 @@ function StrategyDesignExecutionPanel() {
   const navigate = useNavigate();
   const wb = useStrategyDesignWorkbenchContext();
 
+  const prevStep = useMemo(() => {
+    const idx = STRATEGY_DESIGN_STEPS.findIndex((step) => step.key === wb.activeStep);
+    if (idx <= 0) return null;
+    return STRATEGY_DESIGN_STEPS[idx - 1];
+  }, [wb.activeStep]);
+
   const nextStep = useMemo(() => {
     const idx = STRATEGY_DESIGN_STEPS.findIndex((step) => step.key === wb.activeStep);
     if (idx < 0 || idx >= STRATEGY_DESIGN_STEPS.length - 1) return null;
@@ -86,6 +92,11 @@ function StrategyDesignExecutionPanel() {
     ],
   );
 
+  const handleGoPrevStep = useCallback(() => {
+    if (!prevStep || !wb.strategyName || wb.executionBusy) return;
+    navigate(getStrategyDesignPath(wb.strategyName, prevStep.key));
+  }, [navigate, prevStep, wb.executionBusy, wb.strategyName]);
+
   const handleGoNextStep = useCallback(() => {
     if (!nextStep || !wb.strategyName || !currentStepDone) return;
     navigate(getStrategyDesignPath(wb.strategyName, nextStep.key));
@@ -109,13 +120,26 @@ function StrategyDesignExecutionPanel() {
             done={currentStepDone}
             disabled={wb.disableMetaActions || wb.executionBusy}
             onClick={wb.handleRunCurrentStep}
+            compact
           />
+          {prevStep ? (
+            <Button
+              type="button"
+              variant="outlined"
+              size="small"
+              className="ntq-design-exec-panel__step-nav-btn"
+              disabled={wb.disableMetaActions || wb.executionBusy}
+              onClick={handleGoPrevStep}
+            >
+              上一步
+            </Button>
+          ) : null}
           {nextStep ? (
             <Button
               type="button"
               variant="outlined"
               size="small"
-              className="ntq-design-exec-panel__next-btn"
+              className="ntq-design-exec-panel__step-nav-btn"
               disabled={!currentStepDone}
               onClick={handleGoNextStep}
             >

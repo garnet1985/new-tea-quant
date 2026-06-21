@@ -200,12 +200,9 @@ class DataSourceManager:
             for k in keys
         )
         if need_list and "stock_list" not in keys:
-            from core.modules.data_source.service.sample_stock_list import (
-                is_sample_active,
-                slice_stock_list,
-            )
+            from core.modules.data_source.service.sample_stock_list import is_sample_active
 
-            rows = slice_stock_list(dm.stock.list.load_all())
+            rows = dm.stock.list.load_all()
             scheduler._dependency_cache["stock_list"] = rows
             suffix = "（样本）" if is_sample_active() else ""
             logger.info("从 DB 注入 stock_list 依赖：%s 只%s", len(rows), suffix)

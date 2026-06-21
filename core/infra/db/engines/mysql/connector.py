@@ -20,6 +20,23 @@ from core.infra.db.engines.mysql.sql_adapter import MysqlSqlAdapter
 
 logger = logging.getLogger(__name__)
 
+_LOG_SQL_MAX_CHARS = 500
+_LOG_PARAMS_MAX_CHARS = 200
+
+
+def _format_sql_for_log(query: str, *, max_len: int = _LOG_SQL_MAX_CHARS) -> str:
+    text = str(query or "")
+    if len(text) <= max_len:
+        return text
+    return f"{text[:max_len]}... (truncated, total {len(text)} chars)"
+
+
+def _format_params_for_log(params: Any, *, max_len: int = _LOG_PARAMS_MAX_CHARS) -> str:
+    text = repr(params)
+    if len(text) <= max_len:
+        return text
+    return f"{text[:max_len]}... (truncated, total {len(text)} chars)"
+
 
 class MysqlConnector:
     """MySQL 连接与执行（engine 包内专用）。"""
@@ -205,7 +222,12 @@ class MysqlConnector:
                 # DictCursor 返回字典行；读出口统一 DECIMAL→float 等标量规范
                 return normalize_query_rows(list(results) if results else [])
         except Exception as e:
-            logger.error(f"执行查询失败: {e}\n查询: {query}\n参数: {params}")
+            logger.error(
+                "执行查询失败: %s\n查询: %s\n参数: %s",
+                e,
+                _format_sql_for_log(query),
+                _format_params_for_log(params),
+            )
             raise
         finally:
             if conn:
@@ -240,7 +262,12 @@ class MysqlConnector:
         except Exception as e:
             if conn:
                 conn.rollback()
-            logger.error(f"执行写入失败: {e}\n查询: {query}\n参数: {params}")
+            logger.error(
+                "执行写入失败: %s\n查询: %s\n参数: %s",
+                e,
+                _format_sql_for_log(query),
+                _format_params_for_log(params),
+            )
             raise
         finally:
             if conn:
@@ -275,7 +302,12 @@ class MysqlConnector:
         except Exception as e:
             if conn:
                 conn.rollback()
-            logger.error(f"批量写入失败: {e}\n查询: {query}\n记录数: {len(params_list)}")
+            logger.error(
+                "批量写入失败: %s\n查询: %s\n记录数: %s",
+                e,
+                _format_sql_for_log(query),
+                len(params_list),
+            )
             raise
         finally:
             if conn:

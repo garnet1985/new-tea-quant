@@ -72,7 +72,7 @@ class StrategyEnumeratorBootstrapService:
     ) -> Optional[Path]:
         from core.modules.data_manager import DataManager
         from core.modules.strategy.engines.simulator.enumerator import (
-            OpportunityEnumeratorFlow,
+            create_enumerator_flow,
         )
         data_mgr = DataManager(is_verbose=False)
         list_svc = data_mgr.service.stock.list
@@ -91,7 +91,8 @@ class StrategyEnumeratorBootstrapService:
             )
         else:
             stock_list = [stock["id"] for stock in universe if stock.get("id")]
-        flow = OpportunityEnumeratorFlow(
+        flow = create_enumerator_flow(
+            execution_mode=base_settings.simulation_settings.execution_mode,
             start_date=period.start_date,
             end_date=period.end_date,
             stock_list=stock_list,

@@ -6,7 +6,7 @@ RenewConfig 及相关 DataClass：renew 段配置。
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from core.global_enums.enums import TermType, UpdateMode
+from core.modules.data_source.enums import TermType, UpdateMode
 from core.modules.data_source.data_class.error import DataSourceConfigError
 from core.modules.data_source.data_class.job_execution_config import JobExecutionConfig
 

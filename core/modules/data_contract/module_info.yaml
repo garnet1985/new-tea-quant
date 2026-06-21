@@ -1,11 +1,14 @@
 name: modules.data_contract
-version: 0.3.4
+version: 0.3.5
 compatible_core_versions: ">=0.4.1"
 description: "DataKey 白名单、DataSpec 路由、ContractIssuer 签发句柄、DataContractManager.issue 与进程内缓存、各业务 Loader 取数；支持 userspace 合并映射。"
 dependencies:
   - modules.data_manager
   - infra.project_context
 changelog:
+  - version: "0.3.5"
+    changes:
+      - 增加对BFF的支持
   - version: "0.3.4"
     changes:
       - 将Klines按照term拆分成3个数据契约

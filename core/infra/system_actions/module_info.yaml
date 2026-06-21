@@ -1,0 +1,10 @@
+name: infra.system_actions
+version: 0.1.0
+compatible_core_versions: ">=0.4.2"
+description: "系统级别操作：从模板新建策略/Tag、清理缓存与模拟产物、全局 pipeline 租约。"
+dependencies:
+  - infra.project_context
+changelog:
+  - version: "0.1.0"
+    changes:
+      - 目录：cache_cleanup（清缓存、pipeline 租约）、shortcuts/create_new_strategy、shortcuts/create_new_tag

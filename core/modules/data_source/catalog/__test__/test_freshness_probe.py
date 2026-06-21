@@ -30,7 +30,7 @@ def test_needs_renew_work_refresh_stock_list_when_table_has_rows():
 
     config = MagicMock()
     config.get_renew_mode.return_value = __import__(
-        "core.global_enums.enums", fromlist=["UpdateMode"]
+        "core.modules.data_source.enums", fromlist=["UpdateMode"]
     ).UpdateMode.REFRESH
     config.get_table_name.return_value = "sys_stock_list"
     config.is_per_entity.return_value = False
@@ -56,7 +56,7 @@ def test_needs_renew_work_refresh_stock_list_when_table_has_rows():
 def test_needs_renew_work_rolling_cpi_caught_up_when_db_ahead_of_effective_end():
     config = MagicMock()
     config.get_renew_mode.return_value = __import__(
-        "core.global_enums.enums", fromlist=["UpdateMode"]
+        "core.modules.data_source.enums", fromlist=["UpdateMode"]
     ).UpdateMode.ROLLING
     config.get_date_format.return_value = "month"
     config.is_per_entity.return_value = False

@@ -1,7 +1,7 @@
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 import logging
 
-from core.global_enums.enums import UpdateMode
+from core.modules.data_source.enums import UpdateMode
 from core.infra.project_context import ConfigManager
 from core.modules.data_source.data_class.api_config import ApiConfig
 from core.modules.data_source.data_class.api_job import ApiJob

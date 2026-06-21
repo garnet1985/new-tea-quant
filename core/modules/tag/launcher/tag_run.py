@@ -7,7 +7,11 @@ import threading
 import uuid
 from typing import Any, Dict, Optional
 
-from core.infra.runtime.pipeline_lease import PipelineLease, PipelineLeaseBusyError, read_pipeline_status
+from core.infra.system_actions.cache_cleanup.pipeline_lease import (
+    PipelineLease,
+    PipelineLeaseBusyError,
+    read_pipeline_status,
+)
 from core.modules.strategy.services.progress import ProgressRecorder
 from core.modules.tag import TagManager
 from core.modules.tag.services.discovery import TagDiscoveryHelper

@@ -16,27 +16,31 @@ def test_resolve_anchor_date_strict_uses_real_world():
     cal.get_latest_completed_trading_date.assert_not_called()
 
 
-def test_resolve_anchor_date_non_strict_uses_calendar_service():
+def test_resolve_anchor_date_non_strict_uses_freshness_end_date():
     cal = MagicMock()
     cal.get_real_world_latest_completed_trading_date.return_value = "20250523"
-    cal.get_latest_completed_trading_date.return_value = "20250520"
     dm = MagicMock()
     dm.service.calendar = cal
     dm.stock.kline.load_latest_date.return_value = "20250520"
 
-    assert ScanDateResolver.resolve_anchor_date(dm, use_strict=False) == "20250520"
-    cal.get_latest_completed_trading_date.assert_called_once()
+    with patch(
+        "core.modules.data_source.catalog.freshness_probe._resolve_freshness_end_date",
+        return_value="20250520",
+    ) as resolve_end:
+        assert ScanDateResolver.resolve_anchor_date(dm, use_strict=False) == "20250520"
+        resolve_end.assert_called_once_with(dm)
     cal.get_real_world_latest_completed_trading_date.assert_not_called()
 
 
 def test_resolve_anchor_date_non_strict_clamps_when_calendar_ahead_of_kline():
-    cal = MagicMock()
-    cal.get_latest_completed_trading_date.return_value = "20260101"
     dm = MagicMock()
-    dm.service.calendar = cal
     dm.stock.kline.load_latest_date.return_value = "20251231"
 
-    assert ScanDateResolver.resolve_anchor_date(dm, use_strict=False) == "20251231"
+    with patch(
+        "core.modules.data_source.catalog.freshness_probe._resolve_freshness_end_date",
+        return_value="20260101",
+    ):
+        assert ScanDateResolver.resolve_anchor_date(dm, use_strict=False) == "20251231"
 
 
 def test_resolve_scan_date_routes_by_mode():

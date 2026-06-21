@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from core.infra.runtime.cache_cleanup import run_cache_cleanup
+from core.infra.system_actions.cache_cleanup.cache_cleanup import run_cache_cleanup
 
 
 @pytest.fixture
@@ -29,15 +29,15 @@ def userspace_layout(tmp_path, monkeypatch):
     )
 
     monkeypatch.setattr(
-        "core.infra.runtime.cache_cleanup.PathManager.strategies_root",
+        "core.infra.system_actions.cache_cleanup.cache_cleanup.PathManager.strategies_root",
         lambda: tmp_path / "strategies",
     )
     monkeypatch.setattr(
-        "core.infra.runtime.cache_cleanup.PathManager.userspace_ntq",
+        "core.infra.system_actions.cache_cleanup.cache_cleanup.PathManager.userspace_ntq",
         lambda: tmp_path / ".ntq",
     )
     monkeypatch.setattr(
-        "core.infra.runtime.cache_cleanup.PathManager.invalidate_userspace_cache",
+        "core.infra.system_actions.cache_cleanup.cache_cleanup.PathManager.invalidate_userspace_cache",
         lambda: None,
     )
     return tmp_path
@@ -45,7 +45,7 @@ def userspace_layout(tmp_path, monkeypatch):
 
 def test_run_cache_cleanup_rejects_when_pipeline_busy(userspace_layout):
     with patch(
-        "core.infra.runtime.cache_cleanup.read_pipeline_status",
+        "core.infra.system_actions.cache_cleanup.cache_cleanup.read_pipeline_status",
         return_value={"busy": True, "label": "Tag 计算中", "kind": "tag_run"},
     ):
         out = run_cache_cleanup(clear_userspace_ntq=True)
@@ -56,10 +56,10 @@ def test_run_cache_cleanup_rejects_when_pipeline_busy(userspace_layout):
 
 def test_run_cache_cleanup_selected_targets(userspace_layout):
     with patch(
-        "core.infra.runtime.cache_cleanup.read_pipeline_status",
+        "core.infra.system_actions.cache_cleanup.cache_cleanup.read_pipeline_status",
         return_value={"busy": False},
     ), patch(
-        "core.infra.runtime.cache_cleanup.clear_workbench_db_cache",
+        "core.infra.system_actions.cache_cleanup.cache_cleanup.clear_workbench_db_cache",
         return_value=2,
     ) as mock_db:
         out = run_cache_cleanup(

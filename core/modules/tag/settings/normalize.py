@@ -6,26 +6,12 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
-from core.global_enums.enums import EntityType
 from core.infra.job_pipeline.profile import WorkerProfiles, profile_dispatch_config
 from core.infra.job_pipeline.profile.resolver import resolve_worker_profile
 from core.modules.data_contract.contract_const import ContractScope, ContractType, DataKey
 from core.modules.data_contract.mapping import default_map
+from core.modules.data_contract.tag_entity_type import resolve_tag_entity_type
 from core.modules.tag.enums import TagTargetType
-
-_ENTITY_TYPE_BY_DATA_KEY: Dict[DataKey, str] = {
-    DataKey.STOCK_KLINE_DAILY: EntityType.STOCK_KLINE_DAILY.value,
-    DataKey.STOCK_KLINE_WEEKLY: EntityType.STOCK_KLINE_WEEKLY.value,
-    DataKey.STOCK_KLINE_MONTHLY: EntityType.STOCK_KLINE_MONTHLY.value,
-    DataKey.STOCK_CORPORATE_FINANCE: EntityType.CORPORATE_FINANCE.value,
-    DataKey.STOCK_INDICATORS_DAILY: EntityType.STOCK_KLINE_DAILY.value,
-    DataKey.STOCK_MONEYFLOW_DAILY: EntityType.STOCK_KLINE_DAILY.value,
-    DataKey.STOCK_ADJ_FACTOR_EVENTS: EntityType.STOCK_KLINE_DAILY.value,
-    DataKey.TAG: EntityType.TAG_SCENARIO.value,
-    DataKey.INDEX_KLINE_DAILY: "index_kline_daily",
-    DataKey.INDEX_WEIGHT_DAILY: "index_kline_daily",
-}
-
 
 def profile_tag_runtime_config() -> Dict[str, Any]:
     """``worker.json`` → ``job_pipeline.tag`` 下的调度默认值（不含业务 update_mode）。"""
@@ -63,17 +49,7 @@ def _source_entry(item: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _resolve_entity_type(data_id: str) -> str:
-    dk = DataKey(data_id)
-    mapped = _ENTITY_TYPE_BY_DATA_KEY.get(dk)
-    if mapped:
-        return mapped
-    spec = default_map.get(dk)
-    if spec and spec.get("scope") == ContractScope.PER_ENTITY:
-        return data_id.replace(".", "_")
-    raise ValueError(
-        f"data.base_required_data.data_id={data_id!r} 无法推导 target_entity；"
-        "请使用 PER_ENTITY + TIME_SERIES 的 DataKey 作为 base"
-    )
+    return resolve_tag_entity_type(data_id)
 
 
 def _expand_data_block(data_block: Dict[str, Any]) -> Dict[str, Any]:

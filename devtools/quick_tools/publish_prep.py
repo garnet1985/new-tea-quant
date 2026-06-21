@@ -21,7 +21,7 @@ from devtools.quick_tools.changelog_sync import (
     compare_system_new_features,
     sync_version_metadata_from_changelog,
 )
-from devtools.quick_tools._paths import REPO_ROOT
+from devtools.quick_tools._paths import REPO_ROOT, repo_python
 from setup.install_runtime import UI_FED_ROOT, fed_build_ready
 
 SYSTEM_JSON = REPO_ROOT / "core" / "system.json"
@@ -148,8 +148,24 @@ def run_minimal_import_check() -> int:
 
 def run_pytest() -> int:
     print("\n[检查] pytest…", flush=True)
+    py = repo_python()
+    try:
+        py_label = py.relative_to(REPO_ROOT).as_posix()
+    except ValueError:
+        py_label = str(py)
+    print(f"  解释器: {py_label}", flush=True)
+    if os.name == "nt":
+        venv_marker = REPO_ROOT / "venv" / "Scripts" / "python.exe"
+    else:
+        venv_marker = REPO_ROOT / "venv" / "bin" / "python"
+    if not venv_marker.is_file():
+        print(
+            f"  {icon('warning')} 未找到 venv/，当前 Python 可能缺少 Flask；"
+            "建议先运行 setup/install.py 或 pip install -r requirements-dev.txt",
+            flush=True,
+        )
     proc = subprocess.run(
-        [sys.executable, "-m", "pytest", "-q"],
+        [str(py), "-m", "pytest", "-q"],
         cwd=str(REPO_ROOT),
     )
     return int(proc.returncode or 0)

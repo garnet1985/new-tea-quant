@@ -24,7 +24,7 @@ core/ui/bff/APIs/tag/
 - **编排层（routes）**：解析路径/query、调用 catalog / runtime、返回 `ok` / `error`。
 - **实现层**：discovery 用 `TagDiscoveryHelper`；执行用 `TagManager.execute(scenario_name=…)`；`last_computed_as_of` 用 `tag_service.get_max_as_of_date`（scenario 下 definition ids）。
 - **第 1 层互斥（tag↔tag）**：进程内 tag run 锁 + `_ACTIVE_TAG_JOB_ID`（参考 `scanner_run.py`）。
-- **第 2 层互斥（全局 pipeline）**：`core/infra/runtime/pipeline_lease.py` 读写 `userspace/.ntq/runtime/pipeline_active.json`；T1-02 acquire、任务结束 release；T1-00 只读。
+- **第 2 层互斥（全局 pipeline）**：`core/infra/system_actions/cache_cleanup/pipeline_lease.py` 读写 `userspace/.ntq/runtime/pipeline_active.json`；T1-02 acquire、任务结束 release；T1-00 只读。
 - **Progress**：`ProgressRecorder` 风格，`userspace/.ntq/tmp/progress/tag-run/{tag_key}__{job_id}.json`；轮询 **只读**。
 
 ## T1 路由 × 编排步骤

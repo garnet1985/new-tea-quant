@@ -488,7 +488,7 @@ end_date = parser.quarter_to_date(current_quarter, is_start=False)  # "20240331"
 
 ## 🔗 相关文档
 
-- [TermType 枚举定义](../../global_enums/enums.py)
+- [TermType 枚举定义](../../modules/data_source/enums.py)
 - [DateUtils 单元测试](../../utils/__test__/test_date_utils.py)
 - [数据源 renew 机制](../../modules/data_source/README.md)
 

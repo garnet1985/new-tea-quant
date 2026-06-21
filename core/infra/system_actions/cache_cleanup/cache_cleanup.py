@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from core.infra.project_context.path_manager import PathManager
-from core.infra.runtime.pipeline_lease import read_pipeline_status
+from core.infra.system_actions.cache_cleanup.pipeline_lease import read_pipeline_status
 
 
 def _rm_tree(path: Path) -> None:

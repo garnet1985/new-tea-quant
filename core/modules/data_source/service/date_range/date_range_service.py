@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional, Set, Tuple
 
-from core.global_enums.enums import UpdateMode
+from core.modules.data_source.enums import UpdateMode
 from core.modules.data_source.data_class.config import DataSourceConfig
 from core.modules.data_source.service.date_range import date_range_helper as drh
 from core.utils.date.date_utils import DateUtils

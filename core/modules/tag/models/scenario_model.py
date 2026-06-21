@@ -6,7 +6,7 @@ from core.infra.project_context import ConfigManager
 from core.modules.data_contract.contract_const import ContractScope, ContractType, DataKey
 from core.modules.data_contract.mapping import default_map
 from core.utils.date.date_utils import DateUtils
-from core.modules.tag.enums import TagTargetType, TagUpdateMode
+from core.modules.tag.enums import TagTargetType, TagUpdateMode, TagExecutionMode
 from core.modules.tag.models.tag_model import TagModel
 
 
@@ -57,13 +57,32 @@ class ScenarioModel:
     # Public APIs
     # ================================================================
     @classmethod
-    def create_from_settings(cls, settings: Dict[str, Any]) -> 'ScenarioModel':
+    def create_from_settings(
+        cls,
+        settings: Dict[str, Any],
+        *,
+        tag_key: Optional[str] = None,
+    ) -> 'ScenarioModel':
         """
-        从 settings 字典配置当前实例
+        从 settings 字典配置当前实例。
+
+        ``tag_key``：discovery 传入的路径 ID（如 ``demo/market_cap_tier``），
+        用于注入 ``name``；userspace settings 无需手写 ``name``。
         """
-        if not cls.is_setting_valid(settings):
+        from core.modules.tag.settings.normalize import normalize_tag_settings
+
+        key = str(tag_key or "").strip()
+        if not key:
+            logger.error("create_from_settings 缺少 tag_key")
             return None
-        instance = cls(settings)
+        try:
+            normalized = normalize_tag_settings(settings or {}, tag_key=key)
+        except ValueError as exc:
+            logger.error("settings 规范化失败 (%s): %s", key, exc)
+            return None
+        if not cls.is_setting_valid(normalized):
+            return None
+        instance = cls(normalized)
         return instance
         
     def is_enabled(self) -> bool:
@@ -95,6 +114,9 @@ class ScenarioModel:
         """是否应该强制重新计算"""
         return self._recompute
 
+    def get_execution_mode(self) -> TagExecutionMode:
+        return TagExecutionMode(str(self._settings["execution_mode"]).strip().lower())
+
     def ensure_metadata(self, tag_data_mgr):
         """
         确保元信息存在
@@ -117,20 +139,7 @@ class ScenarioModel:
         """
         if self._recompute:
             return TagUpdateMode.REFRESH
-        
-        # 从 settings 中获取 update_mode（新结构：直接在顶层或 performance.update_mode）
-        # 优先从顶层获取，如果没有则从 performance 获取
-        update_mode_str = self._settings.get("update_mode")
-        if not update_mode_str:
-            performance = self._settings.get("performance", {})
-            update_mode_str = performance.get("update_mode", "incremental")
-        
-        # 转换为 TagUpdateMode 枚举
-        try:
-            return TagUpdateMode(update_mode_str)
-        except ValueError:
-            logger.warning(f"无效的 update_mode: {update_mode_str}，使用默认值 INCREMENTAL")
-            return TagUpdateMode.INCREMENTAL
+        return TagUpdateMode(self._settings["performance"]["update_mode"])
         
     @staticmethod
     def is_setting_valid(settings: Dict[str, Any] = None) -> bool:
@@ -148,8 +157,11 @@ class ScenarioModel:
             logger.warning(f"传入的settings 为空")
             return False
 
-        # name 已经在发现场景时验证过了
+        # name 由 discovery 注入 tag_key；校验前须已 normalize
         scenario_name = settings.get("name")
+        if not scenario_name:
+            logger.error("settings 缺少 name（discovery 应注入 tag_key）")
+            return False
         
         tag_target_type = str(
             settings.get("tag_target_type") or TagTargetType.ENTITY_BASED.value
@@ -170,6 +182,58 @@ class ScenarioModel:
             if not target_type:
                 logger.debug(f"当前传入的{scenario_name} settings缺少属性: target_entity")
                 return False
+
+        execution_mode = str(settings.get("execution_mode") or "").strip().lower()
+        if not execution_mode:
+            logger.error(
+                f"当前传入的{scenario_name} settings 缺少必须字段: execution_mode "
+                "(entity_timeline | calendar_slice)"
+            )
+            return False
+        if execution_mode not in {x.value for x in TagExecutionMode}:
+            logger.error(
+                f"当前传入的{scenario_name} settings 的 execution_mode 无效: {execution_mode!r}，"
+                "仅支持 entity_timeline / calendar_slice"
+            )
+            return False
+        if execution_mode == TagExecutionMode.CALENDAR_SLICE.value:
+            if tag_target_type != TagTargetType.ENTITY_BASED.value:
+                logger.error(
+                    f"当前传入的{scenario_name} settings: calendar_slice 仅支持 entity_based"
+                )
+                return False
+            recompute = bool(settings.get("recompute", False))
+            performance = settings.get("performance") or {}
+            update_mode_str = performance.get("update_mode")
+            if not update_mode_str:
+                logger.error(
+                    f"当前传入的{scenario_name} settings: calendar_slice 须在 "
+                    "performance.update_mode 中声明 refresh，或设置 recompute=true"
+                )
+                return False
+            if not recompute and str(update_mode_str).strip().lower() != TagUpdateMode.REFRESH.value:
+                logger.error(
+                    f"当前传入的{scenario_name} settings: calendar_slice 当前仅支持 "
+                    "recompute=true 或 update_mode=refresh"
+                )
+                return False
+            performance = settings.get("performance")
+            if isinstance(performance, dict):
+                forbidden = (
+                    "entities_per_job",
+                    "dispatch_probe",
+                    "slice_open_days",
+                    "slice_steps",
+                    "slice_length",
+                )
+                explicit = set(settings.get("_explicit_performance_keys") or [])
+                for key in forbidden:
+                    if key in explicit:
+                        logger.error(
+                            f"当前传入的{scenario_name} settings: calendar_slice 不允许在 "
+                            f"performance 中配置 {key!r}"
+                        )
+                        return False
 
         data_cfg = settings.get("data")
         if not isinstance(data_cfg, dict):
@@ -205,15 +269,23 @@ class ScenarioModel:
             logger.debug(f"当前传入的{scenario_name} settings内的tags字段必须至少包含一个 tag")
             return False
         
-        # 验证 incremental_required_records_before_as_of_date
-        # 如果 update_mode == INCREMENTAL，必须显式声明此配置
-        update_mode_str = settings.get("update_mode")
+        performance_cfg = settings.get("performance")
+        if not isinstance(performance_cfg, dict):
+            logger.error(
+                f"当前传入的{scenario_name} settings 缺少 performance（"
+                "应由 normalize_tag_settings 从 worker.json 合并）"
+            )
+            return False
+        update_mode_str = performance_cfg.get("update_mode")
         if not update_mode_str:
-            performance = settings.get("performance", {})
-            update_mode_str = performance.get("update_mode", "incremental")
-        
+            logger.error(
+                f"当前传入的{scenario_name} settings 缺少 performance.update_mode"
+            )
+            return False
+
+        # 验证 incremental_required_records_before_as_of_date
         try:
-            update_mode = TagUpdateMode(update_mode_str)
+            update_mode = TagUpdateMode(str(update_mode_str).strip().lower())
             if update_mode == TagUpdateMode.INCREMENTAL:
                 # INCREMENTAL 模式下，必须显式声明 incremental_required_records_before_as_of_date
                 if "incremental_required_records_before_as_of_date" not in settings:
@@ -243,8 +315,19 @@ class ScenarioModel:
         self._target_entity = target_entity_config.get("type")
         
         # 设置可选字段（有默认值）
-        self.display_name = scenario_setting.get("display_name") or self.name  # 如果没有则使用 name
-        self.description = scenario_setting.get("description") or ""  # 如果没有则为空字符串
+        meta = scenario_setting.get("meta") or {}
+        if not isinstance(meta, dict):
+            meta = {}
+        self.display_name = (
+            meta.get("display_name")
+            or scenario_setting.get("display_name")
+            or self.name
+        )
+        self.description = (
+            meta.get("description")
+            or scenario_setting.get("description")
+            or ""
+        )
         # id, created_at, updated_at 保持为 None
         
         # 标记已配置
@@ -261,7 +344,7 @@ class ScenarioModel:
         """
         填充默认值到settings字典中
         
-        根据 example_settings.py 的结构，填充所有可选字段的默认值。
+        根据 settings_example.py 的结构，填充所有可选字段的默认值。
         
         Args:
             settings: 原始 settings 字典（已通过验证）
@@ -295,9 +378,8 @@ class ScenarioModel:
             filled_settings["performance"] = {}
         
         performance = filled_settings["performance"]
-        # calculator.performance.update_mode: 默认 "incremental"
         if "update_mode" not in performance:
-            performance["update_mode"] = "incremental"
+            raise ValueError("performance.update_mode 须在 settings 验证前显式配置")
 
         if "entities_per_job" not in performance:
             performance["entities_per_job"] = "auto"

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from core.modules.tag.components.tag_dispatch_probe import should_run_dispatch_probe
+from core.modules.tag.engines.shared.dispatch_probe import should_run_dispatch_probe
 
 
 def test_should_run_probe_only_for_auto():

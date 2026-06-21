@@ -5,7 +5,7 @@ DataSourceConfig: 数据源配置。
 """
 from typing import Any, Dict, List, Optional, Union
 
-from core.global_enums.enums import UpdateMode
+from core.modules.data_source.enums import UpdateMode
 
 from core.modules.data_source.data_class.api_config import ApiConfig
 from core.modules.data_source.data_class.error import DataSourceConfigError

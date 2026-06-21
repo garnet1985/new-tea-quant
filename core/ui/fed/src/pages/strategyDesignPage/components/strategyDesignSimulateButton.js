@@ -9,16 +9,25 @@ function StrategyDesignSimulateButton({
   done = false,
   disabled = false,
   onClick,
+  runLabel = '开始模拟',
+  rerunLabel = '重新模拟',
+  compact = false,
+  className = '',
 }) {
-  const label = done ? '重新模拟' : '开始模拟';
+  const label = done ? rerunLabel : runLabel;
   const glyphClass = done
     ? 'ntq-design-simulate-btn__glyph--refresh'
     : 'ntq-design-simulate-btn__glyph--play';
+  const rootClass = [
+    'ntq-design-simulate-btn',
+    compact ? 'ntq-design-simulate-btn--compact' : '',
+    className,
+  ].filter(Boolean).join(' ');
 
   return (
     <button
       type="button"
-      className="ntq-design-simulate-btn"
+      className={rootClass}
       disabled={disabled}
       onClick={onClick}
       aria-label={label}
@@ -38,12 +47,20 @@ StrategyDesignSimulateButton.propTypes = {
   done: PropTypes.bool,
   disabled: PropTypes.bool,
   onClick: PropTypes.func,
+  runLabel: PropTypes.string,
+  rerunLabel: PropTypes.string,
+  compact: PropTypes.bool,
+  className: PropTypes.string,
 };
 
 StrategyDesignSimulateButton.defaultProps = {
   done: false,
   disabled: false,
   onClick: undefined,
+  runLabel: '开始模拟',
+  rerunLabel: '重新模拟',
+  compact: false,
+  className: '',
 };
 
 export default StrategyDesignSimulateButton;

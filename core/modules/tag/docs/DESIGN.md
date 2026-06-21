@@ -6,9 +6,10 @@
 
 ## Scenario 与目录约定
 
-- 根路径：**`get_scenarios_root()`** → **`PathManager.tags()`**（通常为 **`userspace/tags`**）。
-- 每个场景一个子目录；跳过以下划线 `_` 开头的目录名。
-- 目录内至少包含 **`settings.py`**（场景名、`tags` 定义、`core`/`performance` 等）与 **`tag_worker.py`**（导出继承 **`BaseTagWorker`** 的类）。
+- 根路径：**`get_scenarios_root()`** → **`PathManager.tags()`**（通常为 **`userspace/extensions/tags`**）。
+- **递归发现**（与 strategy 一致）：任意深度子目录，若同时含 **`settings.py`** + **`tag_worker.py`** 即为一个场景。
+- **tag_key** = 相对 tags 根的 POSIX 路径（如 `demo/market_cap_tier`）；CLI `--scenario` 可用 tag_key 或唯一的 `Settings.name`。
+- 跳过以下划线 `_` 开头的目录名；路径段须 machine-readable（字母开头，仅 ASCII 字母/数字/下划线）。
 
 ---
 

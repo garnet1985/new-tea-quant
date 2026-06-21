@@ -1,0 +1,68 @@
+.settings-page {
+  .settings-page-layout {
+    display: flex;
+    align-items: stretch;
+    gap: 16px;
+    min-height: 360px;
+  }
+
+  .settings-page-nav {
+    flex: 0 0 200px;
+    padding: 8px 0;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 5px;
+
+    .MuiTabs-indicator {
+      left: 0;
+      right: auto;
+      width: 3px;
+    }
+
+    .MuiTab-root {
+      align-items: flex-start;
+      text-align: left;
+      min-height: 44px;
+      padding: 10px 16px;
+      text-transform: none;
+      font-weight: 650;
+    }
+  }
+
+  .settings-page-panel {
+    flex: 1;
+    min-width: 0;
+    padding: 20px 24px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 5px;
+  }
+
+  @media (max-width: 768px) {
+    .settings-page-layout {
+      flex-direction: column;
+    }
+
+    .settings-page-nav {
+      flex: none;
+      width: 100%;
+
+      .MuiTabs-flexContainer {
+        flex-direction: row !important;
+        overflow-x: auto;
+      }
+
+      .MuiTabs-indicator {
+        top: auto;
+        bottom: 0;
+        width: auto;
+        height: 3px;
+      }
+
+      .MuiTab-root {
+        min-width: auto;
+        flex: 1 0 auto;
+      }
+    }
+  }
+}

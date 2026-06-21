@@ -48,6 +48,18 @@ class PersistenceService:
             logger.debug(f"系统写入 {table_name}: normalized_data 中没有数据或格式不正确，跳过写入")
             return
 
+        from core.modules.data_source.service.sample_stock_list import (
+            filter_records_by_sample_pool,
+        )
+
+        records = filter_records_by_sample_pool(records, schema)
+        if not records:
+            logger.debug(
+                "系统写入 %s: 样本池过滤后无数据，跳过写入",
+                table_name,
+            )
+            return
+
         original_count = len(records)
         pk = schema.get("primaryKey")
         if isinstance(pk, str):

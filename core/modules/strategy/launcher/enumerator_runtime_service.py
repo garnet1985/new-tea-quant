@@ -21,10 +21,13 @@ from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
 )
 from core.modules.strategy.engines.shared.helpers.stock_sampling import StockSamplingHelper
 from core.modules.strategy.engines.simulator.enumerator import (
-    OpportunityEnumeratorFlow,
-    OpportunityEnumeratorSettings,
+    BaseEnumeratorFlow,
+    EnumeratorSettings,
+    create_enumerator_flow,
 )
 from .run_service import StrategyFingerprintManager
+
+
 def _stock_ids_for_enumerator_view(
     *,
     strategy_name: str,
@@ -33,7 +36,7 @@ def _stock_ids_for_enumerator_view(
     stock_count: Optional[int] = None,
 ) -> List[str]:
     """与枚举 run 一致的 ``stock_ids``；``stock_count`` 非空时与 workbench 连续窗采样覆盖一致。"""
-    enum_settings = OpportunityEnumeratorSettings.from_base(settings_view)
+    enum_settings = EnumeratorSettings.from_base(settings_view)
     if not all_stocks:
         return []
 
@@ -60,11 +63,11 @@ class EnumeratorRuntimeContext:
     strategy_name: str
     strategy_info: Any
     settings_view: StrategySettingsView
-    enum_settings: OpportunityEnumeratorSettings
+    enum_settings: EnumeratorSettings
     stock_list: List[str]
     start_date: str
     end_date: str
-    flow: OpportunityEnumeratorFlow
+    flow: BaseEnumeratorFlow
 
 
 class EnumeratorRuntimeService:
@@ -90,7 +93,7 @@ class EnumeratorRuntimeService:
     ) -> EnumeratorRuntimeContext:
         raw_settings = raw_settings_override if raw_settings_override is not None else strategy_info.settings.to_dict()
         settings_view = cls.build_canonical_settings(raw_settings)
-        enum_settings = OpportunityEnumeratorSettings.from_base(settings_view)
+        enum_settings = EnumeratorSettings.from_base(settings_view)
         data_manager = DataManager(is_verbose=False)
         list_svc = data_manager.service.stock.list
         period, universe = resolve_backtest_universe(
@@ -109,7 +112,8 @@ class EnumeratorRuntimeService:
         )
         start_date = period.start_date
         end_date = period.end_date
-        flow = OpportunityEnumeratorFlow(
+        execution_mode = settings_view.simulation_settings.execution_mode
+        flow_kwargs = dict(
             start_date=start_date,
             end_date=end_date,
             stock_list=stock_list,
@@ -119,6 +123,10 @@ class EnumeratorRuntimeService:
             workbench_run_id=workbench_run_id,
             force_refresh=force_refresh,
             backtest_period=backtest_period_to_dict(period),
+        )
+        flow = create_enumerator_flow(
+            execution_mode=execution_mode,
+            **flow_kwargs,
         )
         return EnumeratorRuntimeContext(
             strategy_name=strategy_name,

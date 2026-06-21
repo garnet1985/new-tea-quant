@@ -33,7 +33,7 @@ class StrategySettings(SettingsBase):
         from core.modules.strategy.engines.simulator.capital_allocation.data_classes.settings import (
             StrategyCapitalSimulatorSettings,
         )
-        from core.modules.strategy.engines.simulator.enumerator.data_classes.strategy_settings import (
+        from core.modules.strategy.engines.simulator.enumerator.shared.strategy_settings import (
             StrategyEnumeratorSettings,
         )
         from core.modules.strategy.engines.simulator.price_factor.data_classes.settings import (
@@ -191,7 +191,7 @@ from core.modules.strategy.engines.simulator.capital_allocation.data_classes.set
     OutputConfig,
     StrategyCapitalSimulatorSettings,
 )
-from core.modules.strategy.engines.simulator.enumerator.data_classes.strategy_settings import (  # noqa: E402
+from core.modules.strategy.engines.simulator.enumerator.shared.strategy_settings import (  # noqa: E402
     StrategyEnumeratorSettings,
 )
 from core.modules.strategy.engines.simulator.price_factor.data_classes.settings import (  # noqa: E402

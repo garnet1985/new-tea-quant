@@ -201,9 +201,9 @@ BFF 暴露两条 **DELETE** 路由（完整路径前缀 ``/api``），仅删 ``s
 
 | 命令 | 作用 |
 |------|------|
-| ``python dev-cli.py -csc`` | 物理 ``results/`` + DB 全清（``-cu`` 同义） |
-| ``python dev-cli.py -cdc`` | 仅 DB 工作台快照表 |
-| ``python dev-cli.py -cmc`` | 仅物理 ``results/`` |
+| ``python devcli.py csc`` | 物理 ``results/`` + DB 全清 |
+| ``python devcli.py cdc`` | 仅 DB 工作台快照表 |
+| ``python devcli.py cmc`` | 仅物理 ``results/`` |
 
 ---
 

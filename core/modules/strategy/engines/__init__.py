@@ -6,7 +6,7 @@ from typing import Any
 
 __all__ = [
     "Scanner",
-    "OpportunityEnumeratorFlow",
+    "StockBasedEnumeratorFlow",
     "PriceFactorFlow",
     "CapitalAllocationFlow",
     "Analyzer",
@@ -20,7 +20,7 @@ __all__ = [
 def __getattr__(name: str) -> Any:
     if name == "Scanner":
         return getattr(import_module(".scanner", __name__), name)
-    if name in {"OpportunityEnumeratorFlow", "PriceFactorFlow", "CapitalAllocationFlow"}:
+    if name in {"StockBasedEnumeratorFlow", "PriceFactorFlow", "CapitalAllocationFlow"}:
         return getattr(import_module(".simulator", __name__), name)
     if name == "Analyzer":
         return getattr(import_module(".analyzer", __name__), name)

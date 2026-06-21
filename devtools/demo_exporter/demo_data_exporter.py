@@ -7,7 +7,7 @@
 
 用法（仓库根目录）::
 
-    python dev-cli.py -ex
+    python devcli.py ex
     python -m devtools.demo_exporter.demo_data_exporter --help
 """
 from __future__ import annotations

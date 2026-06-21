@@ -48,6 +48,12 @@ ENUMERATOR_DISPATCH_DEFAULTS: Dict[str, Any] = {
     "prefetch_ahead": 1,
 }
 
+CALENDAR_SLICE_RUNTIME_DEFAULTS: Dict[str, Any] = {
+    "reader_workers": "auto",
+    "queue_depth": "auto",
+    "prefetch_enabled": True,
+}
+
 PRICE_FACTOR_DISPATCH_DEFAULTS: Dict[str, Any] = {
     "entities_per_job": DEFAULT_PRICE_ENTITIES_PER_JOB,
     "dispatch_probe": False,
@@ -56,6 +62,12 @@ PRICE_FACTOR_DISPATCH_DEFAULTS: Dict[str, Any] = {
 
 DISPATCH_DEFAULTS_BY_PROFILE: Dict[str, Dict[str, Any]] = {
     WorkerProfiles.ENUMERATOR: ENUMERATOR_DISPATCH_DEFAULTS,
+    WorkerProfiles.TAG: {
+        "entities_per_job": "auto",
+        "dispatch_probe": True,
+        "entities_per_job_min": 1,
+        "entities_per_job_max": 500,
+    },
     WorkerProfiles.PRICE_FACTOR: PRICE_FACTOR_DISPATCH_DEFAULTS,
 }
 
@@ -78,6 +90,10 @@ ENUMERATOR_STRATEGY_DISPATCH_KEYS: FrozenSet[str] = frozenset(
         "worker_memory_fraction",
         "prefetch_ahead",
     }
+)
+
+ENUMERATOR_STRATEGY_CALENDAR_SLICE_KEYS: FrozenSet[str] = frozenset(
+    {"calendar_slice"}
 )
 
 PRICE_STRATEGY_DISPATCH_KEYS: FrozenSet[str] = frozenset(

@@ -239,7 +239,7 @@ class TagModel:
         """
         填充默认值到settings字典中
         
-        根据 example_settings.py 的结构，填充所有可选字段的默认值。
+        根据 settings_example.py 的结构，填充所有可选字段的默认值。
         
         Args:
             tag_setting: 原始 tag_setting 字典（已通过验证）

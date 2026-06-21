@@ -1,4 +1,4 @@
-"""分层股票池：生成 dev 名单、写入 data.json、清除（供 dev-cli 调用）。"""
+"""分层股票池：生成 dev 名单、写入 data.json、清除（供 devcli 调用）。"""
 from __future__ import annotations
 
 import json

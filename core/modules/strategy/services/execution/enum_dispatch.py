@@ -84,7 +84,7 @@ def maybe_run_enum_dispatch_probe(
     from core.infra.db.engines.duckdb.process_pool_scope import (
         duckdb_worker_pool_main_process,
     )
-    from core.modules.strategy.engines.simulator.enumerator.dispatch_jobs import (
+    from core.modules.strategy.engines.simulator.enumerator.stock_based.dispatch_jobs import (
         build_dispatch_jobs,
     )
 

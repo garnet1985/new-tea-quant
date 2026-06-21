@@ -24,6 +24,7 @@ import { DataGrid } from '@mui/x-data-grid';
 import { zhCN } from '@mui/x-data-grid/locales';
 import {
   fetchStrategyList,
+  fetchStrategyScanContext,
   fetchStrategyScanProgress,
   fetchStrategyScanReadiness,
   getStrategyDisplayLabel,
@@ -31,12 +32,11 @@ import {
   startStrategyScan,
 } from '../../api/apis/strategyApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
+import DataEndTruncationAlert from '../../components/dataEndTruncationAlert/dataEndTruncationAlert';
 import StrategyDescriptionText from '../../components/strategyDescriptionText/strategyDescriptionText';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
 import './scanPage.scss';
 
-const PROTOTYPE_DATA_ASOF_DATE = '2025-12-30';
-// 报告生成时间（可选显示）
 const SHOW_REPORT_GENERATED_AT = false;
 
 function formatScanDate(v) {
@@ -51,6 +51,8 @@ function formatScanDate(v) {
 
 function ScanPage() {
   const [mode, setMode] = useState('demo');
+  const [dataEnd, setDataEnd] = useState({});
+  const [demoScanCutoffDate, setDemoScanCutoffDate] = useState('');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -88,16 +90,31 @@ function ScanPage() {
   const load = useCallback(() => {
     setLoading(true);
     setLoadError('');
-    fetchStrategyList()
-      .then((res) => {
-        setRows(Array.isArray(res?.data) ? res.data : []);
+    Promise.all([
+      fetchStrategyList(),
+      fetchStrategyScanContext(),
+    ])
+      .then(([listRes, ctxRes]) => {
+        setRows(Array.isArray(listRes?.data) ? listRes.data : []);
+        setDataEnd(ctxRes?.dataEnd && typeof ctxRes.dataEnd === 'object' ? ctxRes.dataEnd : {});
+        setDemoScanCutoffDate(String(ctxRes?.demoScanCutoffDate || '').trim());
       })
       .catch((e) => {
         setRows([]);
+        setDataEnd({});
+        setDemoScanCutoffDate('');
         setLoadError(e?.message || '加载策略列表失败');
       })
       .finally(() => setLoading(false));
   }, []);
+
+  const demoCutoffLabel = useMemo(() => {
+    const formatted = formatScanDate(demoScanCutoffDate);
+    if (formatted) return formatted;
+    const effective = formatScanDate(dataEnd?.effective_end_date);
+    if (effective) return effective;
+    return '—';
+  }, [demoScanCutoffDate, dataEnd?.effective_end_date]);
 
   const refreshScanPrimaryActions = useCallback(() => {
     const demo = mode === 'demo';
@@ -404,9 +421,10 @@ function ScanPage() {
                   <Box className="scan-mode-option-body">
                     <Typography variant="body2" fontWeight={700}>扫描演示</Typography>
                     <Typography variant="body2" color="text.secondary">
-                      以数据集中<strong>已有最新日期</strong>作为扫描截止日（占位：
+                      以数据集中已有最新日期作为扫描截止日（当前：
                       {' '}
-                      <strong>{PROTOTYPE_DATA_ASOF_DATE}</strong>
+                      <strong>{demoCutoffLabel}</strong>
+                      {dataEnd.is_end_date_truncated ? '，受 data.json 截至日约束' : ''}
                       ），用于演示链路，不代表实时市场。
                     </Typography>
                   </Box>
@@ -447,6 +465,7 @@ function ScanPage() {
           </Stack>
 
           {loadError ? <Alert severity="error" sx={{ mb: 1.5 }}>{loadError}</Alert> : null}
+          <DataEndTruncationAlert dataEnd={dataEnd} className="scan-list-alert" />
           {runError ? <Alert severity="error" sx={{ mb: 1.5 }}>{runError}</Alert> : null}
 
           {running ? (

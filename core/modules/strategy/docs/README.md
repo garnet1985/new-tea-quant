@@ -6,6 +6,7 @@
 
 - `decisions/001-enumerator-reuse-by-containment.md`：基于包含关系与差量股票的枚举复用策略。
 - `decisions/002-strategy-meta-and-discovery.md`：策略 `meta` 嵌套结构、系统路径型 `name`、递归发现与路径合法性校验（**不兼容旧平铺 settings**）。
+- **`decisions/003-calendar-slice-enumerator.md`**：**分片枚举器**——`simulation.execution_mode` + `slice_open_days`（系统 clamp）、`on_calendar_asof` + `scan_opportunity`、Reader/Compute 与内存兑换率。
 
 ## 专题说明
 

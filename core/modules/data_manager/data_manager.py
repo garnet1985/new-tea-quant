@@ -20,7 +20,7 @@
   - CalendarService: 交易日历服务
   - CorporateFinanceService: 企业财务数据服务（StockService 的子服务）
 """
-from typing import Dict, List, Any, Optional, Union, TYPE_CHECKING, Type
+from typing import Dict, List, Any, Optional, Union, Type
 import logging
 import threading
 import importlib
@@ -31,8 +31,6 @@ from pathlib import Path
 
 from core.infra.db import DatabaseManager
 
-if TYPE_CHECKING:
-    from core.global_enums.enums import EntityType
 # Loaders 已废弃，不再导入
 # 所有功能已迁移到 data_services
 from core.infra.project_context import ConfigManager

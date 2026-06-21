@@ -12,7 +12,7 @@
 用法::
 
     python -m devtools.quick_tools.py39_compat_check
-    python dev-cli.py -p -v0.3.3   # 发布准备中间步骤
+    python devcli.py p -core_v0.3.3   # 发布准备中间步骤
 """
 from __future__ import annotations
 

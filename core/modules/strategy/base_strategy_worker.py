@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import logging
 
 from core.modules.data_contract.cache import ContractCacheManager
-from core.modules.data_manager import DataManager
 from core.modules.strategy.enums import ExecutionMode
 from core.modules.strategy.engines.shared.data_classes.investment_state import (
     InvestmentLifecycle,
@@ -99,8 +98,14 @@ class BaseStrategyWorker(ABC):
 
     def _load_stock_info(self) -> Dict[str, Any]:
         # 编排层元数据；非 settings.data 声明项，直调 list（决策 11）。
+        from core.modules.strategy.services.execution.worker_runtime import (
+            resolve_strategy_worker_data_manager,
+        )
+
         try:
-            stock_info = DataManager().stock.list.load_single(self.stock_id)
+            stock_info = resolve_strategy_worker_data_manager().stock.list.load_single(
+                self.stock_id,
+            )
             if isinstance(stock_info, dict):
                 return stock_info
             if str(self.stock_id).upper() != "DUMMY":
@@ -429,6 +434,19 @@ class BaseStrategyWorker(ABC):
         settings: Dict[str, Any],
     ) -> Optional["Opportunity"]:
         pass
+
+    def on_calendar_asof(
+        self,
+        ctx: "CalendarAsOfContext",
+        settings: Dict[str, Any],
+    ) -> "CalendarAsOfResult":
+        """calendar_slice 默认：对本 as_of 有数据的全部股票进入 scan_opportunity。"""
+        from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.types import (
+            CalendarAsOfResult,
+        )
+
+        _ = settings
+        return CalendarAsOfResult(selected_stock_ids=list(ctx.stocks.keys()))
 
     def on_init(self) -> None:
         pass

@@ -1,9 +1,11 @@
 import { requestJson } from '../global/httpClient';
 import { coerceMetaDescription } from '../../utils/formatStrategyDescription';
 import { API_VERSION_PREFIX } from '../conf/apiConfig';
+import { mapDataEnd } from '../shared/dataEnd';
 
 /** 分页策略列表（V2-02）：`/api/v1/strategies/list` */
 const API_STRATEGIES_LIST_BASE = `${API_VERSION_PREFIX}/strategies/list`;
+const API_STRATEGY_SCAN_CONTEXT = `${API_VERSION_PREFIX}/strategy/scan/context`;
 /** 策略列表/扫描页展示名：优先 ``display_name``，否则回退路径 ID。 */
 export function getStrategyDisplayLabel(item) {
   return String(item?.display_name || item?.name || '').trim();
@@ -52,6 +54,20 @@ export async function fetchStrategyList() {
       details: item.details && typeof item.details === 'object' ? item.details : null,
       is_enabled: Boolean(item.is_enabled),
     })),
+  };
+}
+
+/**
+ * 扫描页上下文：data.json 截至日 + 演示模式截止日（与后端 ScanDateResolver 一致）。
+ */
+export async function fetchStrategyScanContext() {
+  const json = await requestJson(API_STRATEGY_SCAN_CONTEXT, { method: 'GET' });
+  const m = json?.message || {};
+  const dataEnd = m.data_end && typeof m.data_end === 'object' ? m.data_end : {};
+  const cutoff = String(m.demo_scan_cutoff_date || '').trim();
+  return {
+    dataEnd: mapDataEnd(dataEnd),
+    demoScanCutoffDate: cutoff,
   };
 }
 

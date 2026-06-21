@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from core.infra.runtime.cache_cleanup import (
+from core.infra.system_actions.cache_cleanup.cache_cleanup import (
     clear_strategy_results_disk,
     clear_userspace_ntq_dir,
     clear_workbench_db_cache,

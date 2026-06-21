@@ -19,7 +19,7 @@ def test_ui_dev_gateway_skips_fed_mount(monkeypatch) -> None:
     monkeypatch.setenv("NTQ_UI_DEV", "1")
     app = create_app()
     client = app.test_client()
-    resp = client.get("/strategy-design")
+    resp = client.get("/")
     assert resp.status_code == 200
     data = resp.get_json()
     assert data is not None

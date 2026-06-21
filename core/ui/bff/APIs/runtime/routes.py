@@ -2,7 +2,7 @@
 
 from flask import Blueprint
 
-from core.infra.runtime.pipeline_lease import read_pipeline_status
+from core.infra.system_actions.cache_cleanup.pipeline_lease import read_pipeline_status
 from core.ui.bff.shared.response import ok
 
 runtime_api_bp = Blueprint("runtime_api", __name__)

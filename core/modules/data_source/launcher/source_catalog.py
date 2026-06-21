@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.global_enums.enums import UpdateMode
+from core.modules.data_source.enums import UpdateMode
 from core.modules.data_source.catalog.builtin_keys import BUILTIN_SOURCE_KEYS
 from core.modules.data_source.catalog.display_names import DEFAULT_DISPLAY_NAMES
 from core.modules.data_source.catalog.freshness_probe import (

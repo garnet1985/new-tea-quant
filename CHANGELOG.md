@@ -5,7 +5,7 @@
 `v0.0.x` 段为对历史内部里程碑（原文档中的 v2/v3/v4）的回溯编号。
 
 新版本更新清单：
-python devcli.py p -core_vx.x.x
+``python devcli.py p -core_vx.x.x``
 
 [] (已自动化)同步 ``core/system.json`` / ``core/system.py`` 中的版本与 ``new_features``（自 CHANGELOG 对应版本段落读取）
 [] (已自动化)同步版本徽章
@@ -13,11 +13,12 @@ python devcli.py p -core_vx.x.x
 [] (已自动化)检查安装依赖的数据是不是齐全，是不是足够新
 [] (已自动化)npm run build 产生UI资产
 [] (已自动化)检查是不是有py3.9不支持的格式
-[] 是否需要更新init data和init userspace，网站的数据和策略
-[] 有破坏性更改或者新的模块需要在module_info.yaml里更新core的依赖
-[] 检查是不是正确配置了gitignore
+[] (快捷命令)是否需要更新init data，``python devcli.py ex``
+[] (快捷命令)是否需要更新init userspace，``python devcli.py pu``
+[] 检查是不是正确配置了.gitignore
 [] Changelog 里注明改动和可能存在的破坏性改动
 [] 更新模块文档（模块 readme，API，module_info 含 changelog）
+[] 有破坏性更改或者新的模块需要在module_info.yaml里更新core的依赖
 [] 更新项目README文档
 
 
@@ -42,7 +43,7 @@ python devcli.py p -core_vx.x.x
 
 ---
 
-### v0.4.2 (2026-6-19)
+### v0.4.2 (2026-6-21)
 
 - 重大更新：回测器和标签计算器支持多股并行的切片式回测
 - 使用多进程分散计算和数据预读取的方式加快效率
@@ -55,6 +56,8 @@ python devcli.py p -core_vx.x.x
 - 在设置中增加了data.json全局数据管理的设置，并在一些页面显示被截断的警告，策略扫描演示模式的截止时间变成读取data.json
 - 给设置里增加清除缓存的功能
 - 在策略调试的界面加入“上一步”的按钮
+- 重新写了项目readme，更新用例
+- 清理了core/global_enums文件夹，将枚举分散到各自的主模块里
 
 ---
 

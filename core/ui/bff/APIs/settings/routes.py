@@ -225,7 +225,7 @@ def post_cache_clear():
     def _flag(key: str) -> bool:
         return bool(payload.get(key))
 
-    from core.infra.runtime.cache_cleanup import run_cache_cleanup
+    from core.infra.system_actions.cache_cleanup.cache_cleanup import run_cache_cleanup
 
     out = run_cache_cleanup(
         clear_db_cache=_flag("clear_db_cache"),

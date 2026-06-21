@@ -6,7 +6,7 @@ Renew Common Helper
 from typing import Dict, Any, Tuple, Optional
 import logging
 
-from core.global_enums.enums import TermType
+from core.modules.data_source.enums import TermType
 from core.utils.date.date_utils import DateUtils
 from core.infra.project_context import ConfigManager
 

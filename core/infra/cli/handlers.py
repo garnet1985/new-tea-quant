@@ -110,7 +110,11 @@ def _run_scaffold(kind: str, raw_path: object, args: argparse.Namespace) -> int:
     if not path:
         raise SystemExit(f"new_{kind} 需要目标路径")
 
-    from core.infra.userspace.scaffold import ScaffoldError, scaffold_strategy, scaffold_tag
+    from core.infra.system_actions.shortcuts import (
+        ScaffoldError,
+        scaffold_strategy,
+        scaffold_tag,
+    )
 
     LoggingManager.setup_logging()
     if args.verbose:

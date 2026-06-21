@@ -1,4 +1,4 @@
-# New Tea Quant (NTQ) — A-Share Quantitative Research Framework
+# New Tea Quant (NTQ) - Quantitative Trading Research Framework for A-Shares
 
 <br/>
 
@@ -7,368 +7,304 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.4.1-8A2BE2"></a>&nbsp;
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.4.2-8A2BE2"></a>&nbsp;
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
   <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-007EC6"></a>
 </p>
 
-> For the **canonical, fully maintained documentation** (Chinese), see **[README.md](README.md)**.
+> 对于中文介绍，请查看 **[这里](README.md)**.
 
-Author: Garnet Xin & his AI assistant
+Author: Garnet Xin & his AI companions
 
 <a href="https://github.com/garnet1985/new-tea-quant"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-new--tea--quant-181717?logo=github&logoColor=white"></a>&nbsp;
 <a href="https://gitee.com/garnet/new-tea-quant"><img alt="Gitee" src="https://img.shields.io/badge/Gitee-new--tea--quant-C71D23?logo=gitee&logoColor=white"></a>&nbsp;
 <a href="https://new-tea.cn"><img alt="Website" src="https://img.shields.io/badge/website-new--tea.cn-009688?logo=google-chrome&logoColor=white"></a>
 
-## Current release (v0.4.x)
+## Current Version (v0.4.x)
 
-Since **v0.4.0**, NTQ uses **embedded DuckDB** file storage. You no longer need a third-party database server to run — **Python alone is enough**. MySQL and PostgreSQL remain supported if you prefer them.
+Since **v0.4.0**, NTQ has introduced Python-native file storage (DuckDB), eliminating the strict dependency on third-party database services—you only need Python to run it. If you still prefer MySQL or PostgreSQL, they can be configured in the setup wizard and settings.
 
-Recent highlights:
+Recent Updates Summary:
 
-**v0.4.1**
+**v0.4.2**
 
-- Added **3 demo groups (9 strategies in total)** to help you learn the framework step by step. **Note: these demos are for illustration only — not investment advice.**
-- In enumeration and price-layer reports you can now **click a single stock** to view its K-line chart and buy/sell markers, making strategy debugging more intuitive.
-- See [CHANGELOG.md](CHANGELOG.md) for the full list.
+- The backtester and tag calculator now support **multi-stock parallel, calendar-sliced** computation.
+- Added **Advanced Features** entry in the UI: Feature Tags, Data Contracts, and Data Sources (updates are still in progress).
+- Added 2 more demo strategies - Low-price stock strategy (for demonstration purposes only).
+- For more updates, please refer to [CHANGELOG.md](CHANGELOG.md).
 
 ## What is NTQ?
 
-Do you have ideas about stock tactics you want to test — e.g. whether weekly RSI below 20 is worth buying, whether MACD golden crosses have an edge, or how “hot theme” chasing actually performs? **NTQ (New Tea Quant)** is a **local, end-to-end A-share research framework** that helps you turn “I have an idea” into “I have evidence,” not a one-off black-box backtest.
+New Tea Quant is a personal-developer-friendly, lightweight, and high-performance quantitative strategy backtesting and research framework.
+It not only helps you validate trading strategies but also acts as a market **signal scanner** after connecting to the latest data sources, capturing trading opportunities that match your strategies in real-time and sending notifications. (Note: NTQ focuses on research and signal generation, and does not directly connect to live trading).
 
-### Core value: layered backtesting
+**If you have encountered the following pain points in quantitative research, NTQ will be your perfect choice:**
 
-NTQ splits research into three steps, each answering a different question:
+**🚀 Low Efficiency on Personal PCs**
+- **Pain Point:** Backtesting massive amounts of data easily causes out-of-memory (OOM) errors or process freezes on personal computers, forcing you to pay for cloud services.
+- **NTQ Solution:** Deeply optimized specifically for personal PCs. It features a built-in dynamic resource scheduling engine that automatically allocates computing resources based on CPU cores and available memory, achieving a relative balance between running stability and high-speed backtesting.
 
-1. **Opportunity enumeration** — *when* and *on which stocks* does your logic trigger in the sample?
-2. **Price-layer validation** — after a trigger, how does a **single round-trip** behave under fees, slippage, and your execution assumptions?
-3. **Capital-layer simulation** — with **limited cash, position rules, and market constraints**, does the idea still hold at the portfolio level?
+**📦 Complex Deployment and Troublesome Installation**
+- **Pain Point:** Environment configuration is torturous, requiring the installation of databases, message queues, and a bunch of cumbersome third-party components.
+- **NTQ Solution:** Zero third-party external service dependencies. As long as your computer has Python (≥3.9), you can clone the code and run it with one click. Leave your time for strategies, not environment setup.
 
-Separating signal quality, trade-level P&amp;L, and capital constraints makes it easier to see whether the problem is the **signal**, the **rules**, or **position sizing**. Enumeration output is stored as structured artifacts you can reuse, compare, and analyze.
+**🧭 Research Conclusions Lack Cognitive Layering, Requiring Complex Analysis**
+- **Pain Point:** All-in-one backtesting only provides a single equity curve. You don't know if the problem lies in "too many false signals", "poor entry points", "heavy position sizing", or "fundamentally unexecutable". Changing one parameter requires re-running the entire process, making tuning increasingly confusing.
+- **NTQ Solution:** We break down the research into independently verifiable stages—Opportunity Discovery → Price Fluctuation Capture → Capital Allocation into High-Value Assets → Strategy Executor Adaptability (upcoming Decision-Maker mode) → Multi-strategy Portfolio Layer (planned). See clearly how each layer performs before deciding whether to proceed—avoiding the trap of a good-looking equity curve masking real problems in underlying signals or execution.
 
-### What else you get
+**🔍 Difficult to Trace Trading Trajectories**
+- **Pain Point:** The backtest runs successfully, but investigating the details of a specific trade stock-by-stock is impossible, like a black box.
+- **NTQ Solution:** Every step of the layered backtest is saved to disk (including version snapshots). Combined with the Web Strategy Lab, you can view buy/sell trajectories stock by stock. Structured outputs also facilitate subsequent analysis and machine learning feature engineering.
 
-- **All-in-one locally**: data ingest &amp; storage, indicators/tags, backtests, and full-market scanning in one repo; **`core`** vs **`userspace`** separation so your strategies and config survive framework upgrades.
-- **Config-driven workflow**: most experiments are configuration changes; reach for Python when logic gets complex. The **Strategy Lab Web UI** (backtests, reports, version compare) and the CLI run the **same** strategy definitions.
-- **Reproducibility**: version snapshots, fingerprints, and structured result directories so you can answer “what changed since last run?”
-- **Performance**: multi-process / multi-threaded core paths so a typical desktop can handle large samples.
+**📊 Cross-Sectional Backtesting is Complex and Clunky**
+- **Pain Point:** When trying to build cross-sectional strategies like "selecting Top N or low-price stock portfolios across the entire A-share market monthly/annually", local frameworks often require writing massive loops. Running the whole market fills up memory instantly, forcing you to shrink the sample size or move to the cloud.
+- **NTQ Solution:** Native support for cross-sectional research modes (e.g., synchronously comparing all market targets on rebalancing days). For large samples, the framework automatically shards and computes in parallel, allowing full-market enumeration even on a personal PC. The repository includes cross-sectional demo strategies like low-price stocks for direct reference.
 
-After research, use **strategy scan** to filter the latest universe; opportunities are shown in the terminal or Web UI by default — notifications and live trading are **your** integrations.
+**🛡️ Live Trading Returns Fall Far Short of Backtests**
+- **Pain Point:** Extremely high backtest returns but losses in live trading. This is often due to ignoring look-ahead bias, survivorship bias, price limit rules, or complex trading rules.
+- **NTQ Solution:** Built-in backtesting engine close to real market conditions. The framework handles several issues that easily distort backtests by default at the underlying level:
+  - **Survivorship Bias:** Uses a PIT (Point-in-Time) stock pool to prevent it.
+  - **Trading Rule Limits:** Automatically complies with round lot rules, inability to trade at limit up/down, trading halts, T+1, etc.
+  - **Look-Ahead Bias:** Strict data slicing by date to prevent "God-mode" backtesting.
+  
+Letting you focus solely on mining Alpha, leaving the rest to the framework.
 
-## Support the project
+**♻️ Repeated Factor Calculation for Every Strategy**
+- **Pain Point:** When multiple strategies reuse the same indicator (e.g., a complex momentum factor), repeated calculations cause low efficiency and are prone to errors.
+- **NTQ Solution:** Provides a powerful "Feature Tag" function. Supports feature preprocessing and global caching—calculate once, reuse across multiple strategies. This not only boosts backtesting speed but also ensures consistency and safety of factor logic.
 
-If NTQ helps you and you want to follow its evolution, a **Star** on [GitHub](https://github.com/garnet1985/new-tea-quant) or [Gitee](https://gitee.com/garnet/new-tea-quant) is meaningful support for a solo open-source effort.
+### You Also Get These "Engineering Details"
 
-This is my first serious open-source project — your feedback keeps me improving the framework. Thank you!
+- **Separation of Core and User Data**: The framework's core functions (`core`) are separated from user-generated data (`userspace`). Strategies and configurations are preserved when upgrading the framework.
+- **Highly Configuration-Driven**: Use settings configurations for common tasks; write Python only for complex logic.
+- **Convenient Interfaces**: Comes with a UI and CLI. Most operations can be done via UI or quick commands, adhering to the "same strategy, same artifact" principle.
+- **Reproducible Research Records**: Version snapshots and fingerprints, structured `results/` output, making it easy to compare "what changed since last time".
 
-### Please note
+## NTQ Sincerely Invites Early Experience Volunteers (v0.x)
 
-NTQ is free and open source, but some capabilities need **your own** resources:
+NTQ is still iterating rapidly: **The setup wizard, documentation, and Web UI will change.** It's hard for me alone to cover all OS, Python environments, and research habits—**I desperately need friends willing to try it locally to help polish the framework.**
 
-- **Data**: the framework provides connectors and storage — **not** paid data subscriptions or tokens. Register and configure third-party sources yourself.
-- **Notifications &amp; trading**: SMS, email, push, and order routing are **outside** the framework. Scan results can be forwarded via Adapter hooks to your own code.
+You **don't need to know how to code**. Just complete the installation as described above, run a demo, and telling me your real feelings is highly valuable.
 
-### Also
+### What We Especially Hope You Feedback
 
-You need **basic Python / configuration skills** (or AI assistance). Runtime: **Python 3.9+**. Default storage is embedded **DuckDB**; **MySQL / PostgreSQL** are optional in the wizard. Richer tutorials (Chinese) live on **[new-tea.cn](https://new-tea.cn)**.
+- **Installation & Onboarding**: Where did you get stuck? Which line in the README was confusing? What smoother process do you expect?
+- **Strategy Lab / Strategy Design**: Is the interface handy? Does the 3-step backtest fit your research habits?
+- **Backtest Results**: Are the reports understandable? Is single-stock tracing sufficient? Where does it deviate from expectations?
+- **Performance & Stability**: Did you experience OOM, lag, or abnormal errors on your PC? (Please attach OS and repro steps if possible).
+- **Docs & Examples**: Which type of demo strategy is missing? Which part of the website/repo needs more info?
 
-Licensed under **Apache 2.0** — free to learn, modify, and extend.
+### How to Participate (Choose One)
 
-## Quick start (~5 minutes)
+| Method | Suitable For |
+|------|------|
+| [GitHub Issues](https://github.com/garnet1985/new-tea-quant/issues) | Bug, feature suggestions (Recommended for tracking) |
+| [Gitee Issues](https://gitee.com/garnet/new-tea-quant/issues) | Domestic users are equally welcome |
+| [Website Contact Form](https://new-tea.cn/zh-hans/contact) | No registration required to fill out the form |
+| GitHub / Gitee Direct Message | Brief chats, private details |
 
-**Goal:** bring up the stack and run the built-in **`example`** strategy.
+When submitting an Issue, it would greatly speed up troubleshooting if you could include: **OS (Win/macOS/Linux), Python version, which step you reached, screenshots, or error summaries**.
+
+## Support the Project
+
+If NTQ is useful to you and you are willing to follow its evolution, please light up a **Star** on [GitHub](https://github.com/garnet1985/new-tea-quant) or [Gitee](https://gitee.com/garnet/new-tea-quant)—this is a very tangible support for a personal open-source project.
+
+This is my first time seriously doing open source. Your recognition and feedback are my greatest motivation to continue polishing the framework. Thank you!
+
+### Please Note
+
+NTQ itself is free and open-source, but some capabilities rely on resources you provide:
+
+- **Data**: The framework provides access and storage capabilities, but **does not include** paid accounts or tokens for data sources; you need to register/purchase from third-party platforms and configure them yourself.
+- **Notifications & External Automation**: SMS, email, push notifications, etc., are **not within the framework**; scan results can be handed over to your own programs via Adapters or other extension points.
+
+### Additionally
+
+Requires **slight Python/configuration skills** (or use AI assistance). The runtime environment is **Python 3.9+**; it uses the built-in **DuckDB** file database by default, but you can switch to **MySQL / PostgreSQL** in the setup wizard. For more complete tutorials and concept explanations, see the official website **[new-tea.cn](https://new-tea.cn)** (in Chinese).
+
+This project is licensed under **Apache 2.0**, and you are free to learn, modify, and extend it.
+
+## Quick Installation + Run a Strategy
+
+Goal: **Get the framework running + run a demo strategy within 5 minutes**.
 
 ### Prerequisites
 
-- **Python 3.9+**. Install guide: [install-python](https://new-tea.cn/zh-hans/install-python) (Chinese page).
+- Your machine needs **Python 3.9 or above**. If you don't know how to install it, please refer to this document: [Install Python](https://new-tea.cn/zh-hans/install-python).
+- **Note: If you are a developer**: You need to install Node.js (mainly for the UI); it is recommended to use MySQL or PostgreSQL for the database. (DuckDB's single-writer mode is troublesome for debugging).
 
-### Step 1: Get the code
+### Step 1: Get the Code
 
-Either:
+Choose one:
 
-- **Git clone** (recommended):
+- **Git clone** (Recommended):
 
 ```bash
 git clone https://github.com/garnet1985/new-tea-quant.git
 cd new-tea-quant
 ```
 
-- **Download ZIP**: on GitHub use **Code → Download ZIP**, extract, and `cd` into **`new-tea-quant`** (same folder as `launcher.py`).
+- **Download ZIP**: On the GitHub repository page, select **Code → Download ZIP**, unzip it, and enter the **`new-tea-quant`** root directory (at the same level as `launcher.py`).
 
-### Step 2: Start the setup wizard from the repo root
+### Step 2: Start the Setup Wizard in the Repository Root
 
-From the **repository root**, run:
+Open a terminal in the **project root directory** (where you can see `launcher.py`) and execute one of the following:
 
 ```bash
 python launcher.py
 ```
 
-If `python` is too old, try:
+If `python` on your system points to an older version, use:
 
 ```bash
 python3 launcher.py
 ```
 
-The script switches to the repo root, ensures the venv, starts **BFF + frontend**, and opens the browser to the **Setup** wizard (BFF setup API).
+The script will: switch to the repository root, ensure the virtual environment, then **start the BFF + frontend and open the browser**, entering the graphical **Setup Wizard** (driven by the BFF setup API).
 
-### Step 3: Finish initialization in the browser
+### Step 3: Complete Initialization via the Browser Wizard
 
-Follow the on-page steps (database, userspace path, data import — exact flow depends on your build). Reference screenshots (UI labels may be Chinese):
+Just follow the page prompts sequentially; basically, it's installed using the default methods.
 
-**Figure 1**
+The import of demo data will be completed automatically during installation (if you already have data, the data installation will be skipped automatically).
 
-![Setup wizard 1](setup/images/step1.png)
+After successful installation, click "Go to Strategy Design" to enter the strategy page.
 
-Dependencies install automatically — click **「开始安装」** and wait.
+At this point, you have completed the installation of NTQ.
 
-**Figure 2**
+**If you are a developer**, it is recommended to use MySQL or PostgreSQL. You don't need to create the database beforehand; the program will automatically create it for you (it will prompt if it shares a name with an existing database).
 
-![Setup wizard 2](setup/images/step2.png)
+### Step 4: Run a Demo
 
-Configure the **userspace** root:
+NTQ comes with the following assets for demonstration:
+- **Data:** Includes 1 year of data (2025-2026) for 500 stocks as demo data. Please do not use for commercial purposes.
+- **Strategies:** Includes default demo strategies. Please note that these strategies are for demonstration purposes only, do not use them for live trading.
 
-- Use the **default path** and click **Next**, or
-- Check **custom userspace path** and pick a directory with enough disk space (the wizard will warn if the target is non-empty).
+Click "Strategy Design" from the UI or change the URL path to `/strategy-design/` to enter the strategy directory. Select a strategy from the list, click the strategy name or "Enter Debug" to go to the detail page.
 
-**Figure 3**
+The strategy page consists of 4 main blocks:
+- **Strategy Info**: Occupies the top of the strategy page, recording current strategy information and cached versions.
+- **Strategy Config**: On the left half of the page. Each step has its own configuration. You can modify parameters here to see different backtest results. Every parameter change results in a new backtest version, allowing you to switch and trace back to previous configurations.
+- **Execution Panel**: Where the start and refresh buttons for the current backtest are located, along with shortcut buttons to other backtest steps. You can also click the steps in the top right corner to switch quickly.
+- **Strategy Report**: The backtest report under the current step. After your backtest completes, the report for this step will appear. You can compare it with previous versions. In some steps, you can click on a single stock in the table to trace its K-line.
 
-![Setup wizard 3](setup/images/step3.png)
+The first default page is the Enumeration page. You can click "Start Simulation" in the "Execution Panel" to enumerate opportunities and generate a report. Other step pages follow similar procedures. **Note:** Some steps depend on the enumeration step; running them independently will first trigger a re-run of the enumeration.
 
-**Database**: default is **DuckDB** (no extra server). For **MySQL / PostgreSQL**, prepare the server first, enter connection details, then continue. You can change this later under **Settings**.
+Next, have fun ^_^
 
-**Figure 4**
+### Data Notes
+ 
+1. **(Note: This step is temporarily unavailable and is being fixed)** If you want to **get more (about 3 years, full A-share market) demo data packages**: for more complete strategy validation/backtesting, please register at **[new-tea.cn](https://new-tea.cn)** to download. **Empty** `setup/init_data/` and put **only 1** zip file in it, then execute `python setup/steps/import_data/install.py` (If you are emptying and reinstalling, you need to add the `--force` parameter at the end of the command).  
+2. **Bring Your Own Data Source**: You can also connect your own (e.g., Tushare), see [userspace/extensions/data_source/README.md](userspace/extensions/data_source/README.md).
+3. Demo data and demo strategies are for learning and research only, do not use for live trading or commercial purposes.
 
-![Setup wizard 4](setup/images/steps.png)
+### Disclaimers
 
-After the DB is ready, **data import** and remaining steps run — this can take a while; keep the page open.
+The current version is still an unofficial **v0.x** release. The framework cannot guarantee the stability of any API at this stage. Once version 1.0 is reached, APIs will be generally stable. See [CHANGELOG.md](CHANGELOG.md).
 
-**Figure 5**
+## Common Commands (`cli.py`)
 
-![Setup wizard 5](setup/images/step4.png)
-
-When done, click **「前往策略实验室」** (Go to Strategy Lab).
-
-### Run your first strategy (Web or CLI)
-
-**Web (recommended):**
-
-```bash
-python launcher.py
-```
-
-Open Strategy Lab, pick **`example`**, run enum / price / capital steps and read the reports.
-
-**CLI (price layer example):**
+Layered backtesting and scanning (Full list: `python cli.py -h`):
 
 ```bash
-python start-cli.py sp --strategy example
+python cli.py se --strategy demo/regression/rsi/rsi_v1_without_value_anchor   # Opportunity Enumeration
+python cli.py sp --strategy demo/regression/rsi/rsi_v1_without_value_anchor   # Price Layer
+python cli.py so --strategy demo/regression/rsi/rsi_v1_without_value_anchor   # Capital Layer
+python cli.py c  --strategy demo/regression/rsi/rsi_v1_without_value_anchor   # Full Market Scan
+python cli.py t  --scenario demo/market_cap_tier                              # Feature Tags
 ```
 
-A summary in the terminal means the CLI path works. Full pipeline: `se` (enum), `so` (portfolio) — see the CLI table below.
-
-> **Note:** Root **`python install.py`** is for **first-time CLI install** (deps, userspace, schema, bundled small data). After the wizard you usually **don’t** need it again. For a **larger demo ZIP** from the site, put **one** zip under `setup/init_data/` and run:
->
-> ```bash
-> python setup/steps/import_data/install.py
-> ```
->
-> Add `--force` for a full re-import. The bundled small dataset from the wizard is enough for the quick start above.
-
-### More common commands
-
-Help:
-
-```bash
-python start-cli.py -h
-```
-
-Opportunity enumeration (step 1):
-
-```bash
-python start-cli.py strategy_enumerate --strategy example
-# or short
-python start-cli.py se --strategy example
-```
-
-Capital simulation:
-
-```bash
-python start-cli.py strategy_portfolio --strategy example
-# or short
-python start-cli.py so --strategy example
-```
-
-Full-market scan:
-
-```bash
-python start-cli.py scan --strategy example
-# or short
-python start-cli.py c --strategy example
-```
-
-Feature / label jobs:
-
-```bash
-python start-cli.py tag
-# or short
-python start-cli.py t
-```
-
-Customize algorithms and goals under `userspace/strategies/` (settings + worker).
-
-Have fun `^_^` — more examples: [more-examples](https://new-tea.cn/zh-hans/more-examples) (Chinese site).
-
-### Data (read this)
-
-1. **Bundled small dataset** — partial tables for a fast demo only.
-2. **Larger (~3-year) demo pack** — **(temporarily unavailable; being fixed)** for fuller backtests: register on **[new-tea.cn](https://new-tea.cn)**, download, **clear** `setup/init_data/`, place **one** zip, then `python setup/steps/import_data/install.py` (`--force` if needed).
-3. **Your own source** (e.g. Tushare): [userspace/extensions/data_source/README.md](userspace/extensions/data_source/README.md).
-
-### Early feedback welcome
-
-NTQ is in **v0.x** — setup, docs, and the Web UI are still moving. I can’t cover every OS, DB, and workflow alone. If you try the steps above, I’d love to hear **what felt rough, what was unclear, or what could be simpler**.
-
-**How to reach me:** DM on GitHub/Gitee, or the site **[contact form](https://new-tea.cn/zh-hans/contact)** (no registration required).
-
-## Please note
-
-This is still a **pre-1.0 (v0.x)** release — **API stability is not guaranteed** until **v1.0**. See [CHANGELOG.md](CHANGELOG.md).
-
-## Documentation conventions
-
-- Root **`README.md`** (Chinese) is the **canonical** user-facing entry.
-- **CLI entry is `start-cli.py`**; if older docs say `start.py`, trust this README and `python start-cli.py -h`.
-- **`docs/development/`** is internal — not part of public doc cleanup for now.
-- Each release should update at least **`README.md`** and **`CHANGELOG.md`**.
-
-## What’s in the repo?
-
-| Item | Description |
-|------|-------------|
-| **Framework code** | `core/`, CLI (`start-cli.py`), UI launcher (`launcher.py`) |
-| **Web UI** | `core/ui/bff` + `core/ui/fed` (production build committed — no Node for normal use) |
-| **Example strategy** | Built-in **`example`** only — reference for config &amp; APIs |
-| **Demo market data** | Small bundled set; larger packs from the website |
-| **Tooling** | `devtools/` — Docker notes, release scripts, etc. ([docs/README.md](docs/README.md)) |
-
-## Contact
-
-- **Message**: [new-tea.cn/zh-hans/contact](https://new-tea.cn/zh-hans/contact)
-- **Issues**: [GitHub Issues](https://github.com/garnet1985/new-tea-quant/issues) · [Gitee Issues](https://gitee.com/garnet/new-tea-quant/issues)
-- Expectations: [SUPPORT.md](SUPPORT.md)
-
-## Branch policy
-
-- **master** — latest release; no direct commits/PRs
-- **dev** — integration branch; RC branches cut from master for releases, then merged back to dev
-- **bugfix/***, **feature/***, **hotfix/*** — required naming; hotfix branches from RC only
-
-**Docker**: see [devtools/docker/README.md](devtools/docker/README.md) (`Dockerfile`, `docker-compose.yml`, optional PostgreSQL).
-
-## Upgrading
-
-1. Pull or download latest **master**; **keep** your local `userspace/` (strategies, backups, config); overwrite the rest from the release.
-2. Run `python install.py` (or let `python start-cli.py` trigger install) to refresh deps; re-import data if the release notes say so (`setup/steps/import_data/install.py`).
-3. Web UI: `python launcher.py` — usually no local `npm run build` unless you hack the frontend.
+It is recommended to explicitly specify `--strategy`; add `-f` when a forced recalculation is needed.
 
 ---
 
-## Command line (`start-cli.py`)
+## Fun time: How does AI evaluate NTQ?
 
-Entry: **`start-cli.py`** — with no arguments, shows **`version`** (same as `-v`, `--version`, or `v`).
-
-Pattern: `xx` = command, `-xx` = flag, `--xx` = target param.
-
-| Purpose | Example |
-|---------|---------|
-| Help | `python start-cli.py -h` |
-| Version (default) | `python start-cli.py` or `-v` / `--version` / `v` |
-| Renew data | `renew [SOURCE] [-f]` or `r` |
-| Scan | `scan` or `c [--strategy example]` |
-| Enumerate | `strategy_enumerate` or `se [-f] [--strategy example]` |
-| Price-factor sim | `strategy_price_factor` or `sp [-f] [--strategy example]` |
-| Portfolio sim | `strategy_portfolio` or `so` |
-| Capital allocate (use `so` instead) | `strategy_capital_allocate` or `sa` |
-| Full sim chain | `strategy_simulate` or `s` |
-| Analyze summaries | `strategy_analyse` or `sy` |
-| Tag / feature jobs | `tag` or `t` |
-| Check core updates | `update` or `u` |
-
-**`--strategy`**: if omitted and exactly one strategy has `is_enabled=True`, it is picked automatically; with several enabled, the first by name is used with a **warning** — prefer an explicit `--strategy`.
-
-Older docs mentioning `start.py` or root **`cli.py`** as the app entry are obsolete — use **`start-cli.py`**.
-
----
-
-## Developer commands (`devcli.py`)
-
-Local dev / troubleshooting (repo root). Same rules as `cli.py`: `xx`=command, `-v`=version, `--xx`=target params.
-
-```bash
-python devcli.py -h
-python devcli.py                 # show version (default)
-python devcli.py ui              # start UI
-python devcli.py uk              # kill UI on 8000/8888
-python devcli.py csc             # clear strategy simulation disk + DB cache
-python devcli.py cdc             # DB workbench snapshots only
-python devcli.py cmc             # strategy results/ dirs only
-python devcli.py dbc             # DuckDB WAL checkpoint
-python devcli.py p -core_v0.3.2  # release prep pipeline
-python devcli.py ssp 500         # stratified sample stock pool
-python devcli.py pc              # deactivate sample pool
-```
-
-Workbench cache HTTP APIs: [db-cache-service.md](core/modules/strategy/docs/db-cache-service.md) §8 (V2-11 / V2-12).
-
----
-
-## Running tests
-
-```bash
-python -m pytest
-```
-
-Please ensure tests pass before opening a PR.
-
-## Python dependencies
-
-Lockfiles are managed with **pip-tools**:
-
-- Inputs: `requirements.in`, `requirements-dev.in`
-- Locks: `requirements.txt`, `requirements-dev.txt`
-
-Recompile (repo root):
-
-```bash
-python3 -m piptools compile --output-file requirements.txt requirements.in
-python3 -m piptools compile --output-file requirements-dev.txt requirements-dev.in
-```
-
-## Support, feedback &amp; sponsorship
-
-- **Site (demo data, extras)**: [new-tea.cn](https://new-tea.cn)
-- **Issues / PR expectations**: [SUPPORT.md](SUPPORT.md)
-- **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
-- **Security**: [SECURITY.md](SECURITY.md)
-
-For **donations or commercial inquiries**, use the contacts published on the official site.
-
----
-
-## License &amp; disclaimer
-
-**Apache License 2.0** — see [LICENSE](LICENSE).
-
-**Disclaimer**: for learning and research only, not investment advice; backtest results do not guarantee future performance.
-
----
+> Below are evaluations from third-party AIs after reading some core files and documents of NTQ, for entertainment purposes only. **Full reply screenshots**. **Not commercial ads**, and do not represent any official AI stance; AIs might be overly optimistic, please judge for yourself based on this repository.  
+> You are also welcome to use your own AI to evaluate this project. Please make sure to let the AI read the core code files before evaluating, otherwise the AI might hallucinate severely detached from reality.
 
 <details>
-<summary>In-repo docs &amp; archives</summary>
+<summary><strong>Gemini 3.1 Pro</strong> (Expand full image)</summary>
 
-- Offline index: [docs/README.md](docs/README.md)
-- **`devtools/`**: [doc index](docs/README.md) · [Docker](devtools/docker/README.md)
+![Gemini 3.1 Pro Review of NTQ](docs/images/ai-assessments/gemini-3.1-pro.jpg)
+
+</details>
+
+<details>
+<summary><strong>GPT-5.5</strong> (Expand full image)</summary>
+
+![GPT-5.5 Review of NTQ](docs/images/ai-assessments/gpt-5.5.jpg)
+
+</details>
+
+<details>
+<summary><strong>Claude Sonnet 4.6</strong> (Expand full image)</summary>
+
+![Claude Sonnet 4.6 Review of NTQ](docs/images/ai-assessments/claude-sonnet-4.6.jpg)
+
+</details>
+
+<details>
+<summary><strong>DeepSeek</strong> (Expand full image, 6 screens stitched)</summary>
+
+![DeepSeek Review of NTQ](docs/images/ai-assessments/deepseek.jpg)
+
+</details>
+
+<details>
+<summary><strong>Gitee Assistant</strong> (Expand full image)</summary>
+
+![Gitee Assistant Review of NTQ](docs/images/ai-assessments/gitee-assistant.jpg)
+
+</details>
+
+---
+
+## Typical Use Cases (Examples)
+
+| What you want to do | Suggested Path |
+|------------|----------|
+| **Validate "Does this signal exist?"** | Web Strategy Design → Select demo → **Enumerate Opportunities** → Check trigger count and distribution |
+| **Validate "Can a single trade make money after triggering?"** | After enumeration → **Price Backtest** → Click single stock in report to view buy/sell points |
+| **Validate "Can it survive with limited capital?"** | After Price Layer is OK → **Capital Simulation** → View portfolio curve and positions |
+| **Select low-price / Top N across full A-shares monthly** | Refer to `demo/cross_sectional/low_price/`, use **calendar_slice** cross-sectional mode |
+| **Multiple strategies sharing the same factor** | Run **Tag** first (`cli.py t`), reference Tag data in strategy settings |
+| **Screen opportunities with latest market data** | After data update, **`cli.py c`** or Web Scan (Notifications require custom Adapter) |
+
+---
+
+## Upgrade
+
+1. Pull the latest **master**, **keep** `userspace/`, and overwrite the rest.  
+2. Execute `python install.py` in the root directory to refresh dependencies; if release notes require re-importing data, see "Data Notes" above.  
+3. Daily startup: `python launcher.py`.
+
+---
+
+## License & Support
+
+- **License**: [Apache 2.0](LICENSE) · **Changelog**: [CHANGELOG.md](CHANGELOG.md)
+- **Feedback / Contribute**: [SUPPORT.md](SUPPORT.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md)
+- **Official Website**: [new-tea.cn](https://new-tea.cn)
+
+**Disclaimer**: For learning and research purposes only. Does not constitute investment advice; backtest results do not represent future performance.
+
+<details>
+<summary>Developer Appendix (Branches, devcli, Tests, Doc Index)</summary>
+
+**Repository Highlights:** `core/` framework · `userspace/` strategies & configs (kept on upgrade) · `userspace/strategies/demo/` demo strategies · [docs/README.md](docs/README.md)
+
+**Branches:** `master` for releases; pull `feature/*` / `bugfix/*` from `dev`; `hotfix/*` only from `rc`. Do not submit PRs directly to `master`.
+
+**Development:** `python devcli.py -h` (`ui` for UI dev · `uk` to release ports · `csc` to clear cache) · Docker: [devtools/docker/README.md](devtools/docker/README.md)
+
+**Testing / Dependencies:**
+
+```bash
+./venv/bin/python -m pytest   # Requires pip install -r requirements-dev.txt first (includes Flask, etc.)
+python3 -m piptools compile --output-file requirements.txt requirements.in
+```
 
 </details>

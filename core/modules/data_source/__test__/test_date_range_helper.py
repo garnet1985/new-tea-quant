@@ -34,7 +34,7 @@ class TestDateRangeHelper:
         - 结果写入 {'_global': normalized_date}
         """
         from core.modules.data_source.service.date_range import date_range_helper as drh
-        from core.global_enums.enums import UpdateMode
+        from core.modules.data_source.enums import UpdateMode
 
         # mock config
         config = Mock()
@@ -65,7 +65,7 @@ class TestDateRangeHelper:
     def test_calc_last_update_refresh_uses_default_start_date(self):
         """refresh 模式应直接使用 RenewCommonHelper.get_default_date_range 返回的起点。"""
         from core.modules.data_source.service.date_range import date_range_helper as drh
-        from core.global_enums.enums import UpdateMode
+        from core.modules.data_source.enums import UpdateMode
 
         config = Mock()
         config.get_renew_mode.return_value = UpdateMode.REFRESH
@@ -88,7 +88,7 @@ class TestDateRangeHelper:
         这里通过 patch DateUtils 保证行为可预测。
         """
         from core.modules.data_source.service.date_range import date_range_helper as drh
-        from core.global_enums.enums import UpdateMode
+        from core.modules.data_source.enums import UpdateMode
 
         config = Mock()
         config.get_renew_mode.return_value = UpdateMode.INCREMENTAL
@@ -139,7 +139,7 @@ class TestDateRangeHelper:
         多字段分组：DB 仅有 daily 记录时，仍应为 job_execution.terms 中的 weekly 等生成日期范围。
         """
         from core.modules.data_source.service.date_range import date_range_helper as drh
-        from core.global_enums.enums import UpdateMode
+        from core.modules.data_source.enums import UpdateMode
 
         config = Mock()
         config.get_renew_mode.return_value = UpdateMode.INCREMENTAL

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from core.infra.runtime.pipeline_lease import (
+from core.infra.system_actions.cache_cleanup.pipeline_lease import (
     PipelineLease,
     PipelineLeaseBusyError,
     read_pipeline_status,
@@ -19,7 +19,7 @@ from core.infra.runtime.pipeline_lease import (
 def isolated_lease(tmp_path, monkeypatch):
     lease_file = tmp_path / "pipeline_active.json"
     monkeypatch.setattr(
-        "core.infra.runtime.pipeline_lease._lease_path",
+        "core.infra.system_actions.cache_cleanup.pipeline_lease._lease_path",
         lambda: lease_file,
     )
     return lease_file

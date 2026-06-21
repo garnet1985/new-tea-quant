@@ -102,7 +102,7 @@ NTQ 仍在快速迭代：**安装向导、文档和 Web UI 都会变**。我一�
 | 方式 | 适合 |
 |------|------|
 | [GitHub Issues](https://github.com/garnet1985/new-tea-quant/issues) | Bug、功能建议（推荐，便于跟踪） |
-| [Gitee Issues](https://gitee.com/garnet/new-tea-quant/issues) | 国内用户同样欢迎 |
+| [Gitee Issues](https://gitee.com/garnet/new-tea-quant/issues) | Bug、功能建议（推荐，便于跟踪） |
 | [官网留言](https://new-tea.cn/zh-hans/contact) | 无需注册也可填表单 |
 | GitHub / Gitee 私信 | 简短交流、不方便公开的细节 |
 

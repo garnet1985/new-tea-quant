@@ -60,7 +60,7 @@ def smoke_fresh_install(
     vpy = _venv_python(root)
     cli_py = vpy if vpy.is_file() else Path(py)
     code = _run(
-        [str(cli_py), "cli.py", "-se", "--strategy", strategy],
+        [str(cli_py), "cli.py", "se", "--strategy", strategy],
         cwd=root,
         label=f"策略枚举 ({strategy})",
     )

@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.4.1-8A2BE2"></a>&nbsp;
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.4.2-8A2BE2"></a>&nbsp;
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
   <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
@@ -24,39 +24,64 @@
 
 ## 当前版本（v0.4.x）
 
-自 **v0.4.0** 起，NTQ 引入python原生文件存储（duckdb），支持不再依赖第三方数据库，有python就可以直接运行。当然如果您想继续使用mysql或者是pgsql也还是支持的。
+自 **v0.4.0** 起，NTQ 引入 Python 原生文件存储（DuckDB），不再强制依赖第三方数据库服务——有 Python 即可运行。若您仍想使用 MySQL 或 PostgreSQL，向导与设置中均可配置。
 
 最近更新摘要：
 
-**v0.4.1** 
-- 加入了3组共9个新的演示策略，引导用户更方便地理解和使用框架。**注意：策略只是用来演示，不构成任何投资建议** 
-- 在枚举和价格回测的结果里现在可以点击单股看他们的K线和买入卖出点了，可以让调试策略更加直观。 
-- 更多更新请参照[CHANGELOG.md](CHANGELOG.md)。
+**v0.4.2**
+
+- 回测器与标签计算器支持**多股并行、日历切片**式计算。
+- UI 新增**高级功能**入口：特征标签、数据契约和数据源（更新尚未完成）。
+- 再增加2个演示策略 - 低价股策略（仅演示目的）
+- 更多更新请参照 [CHANGELOG.md](CHANGELOG.md)。
 
 ## NTQ 是什么？
 
-您是不是心里有一些对股票操作策略的想法需要验证？比如周线 RSI 低于 20 是否值得买、MACD 金叉有没有统计优势、追热点到底胜率如何——想把它整理成**自己的策略**，用历史数据看证据，再拿去扫描最新行情找机会？
+New Tea Quant是一款对个人开发者友好、轻量级、高性能量化策略回测与研究框架。
+它不仅能帮你验证交易策略，还能在接入最新数据源后，作为市场**信号扫描器**，实时捕捉符合策略的交易机会并发出通知。（注：NTQ 专注投研与信号生成，不直接接入实盘交易）。
 
-**NTQ**（New Tea Quant）就是为这类**个人量化研究**准备的：一套可在本机完整跑通的 A 股研究框架，帮您把「有个想法」推进到「有依据的结论」，而不是只做一次性黑盒回测。
+**如果您在量化研究中遇到过以下痛点，NTQ 将是您的绝佳选择：**
 
-### 核心价值：分层回测，把问题拆开看清
+**🚀 个人PC运行效率低下**
+- **痛点：**海量数据回测容易导致个人电脑内存溢出或进程卡死，被迫花钱上云。
+- **NTQ 方案：**专门对个人 PC 深度优化过。内置动态资源调度引擎，自动根据 CPU 核心数与内存余量分配计算资源，实现运行稳定性与高速回测的相对平衡。
 
-NTQ 把研究拆成三步，每一步回答不同的问题：
+**📦 部署复杂，安装麻烦**
+- **痛点：**配置环境折磨人，需要安装数据库、消息队列等一堆繁琐的第三方组件。
+- **NTQ 方案：**零第三方外部服务依赖。只要你的电脑装有 Python（≥3.9），克隆代码即可一键运行，把时间留给策略，而不是配环境。
 
-1. **机会枚举** — 您的逻辑在样本里**何时、在哪些股票上**会触发？
-2. **价格层验证** — 触发之后，**单笔买卖**在手续费、滑点等设定下表现如何？
-3. **资金层回测** — 在**有限资金、仓位与交易规则**下，组合层面还成不成？
+**🧭 研究结论不是按照认知分层，需要复杂的分析**
+- **痛点：**一体式回测只给一个净值曲线，不知道问题出在「信号太滥」「买点太差」「仓位太重」还是「根本执行不了」；改一个参数就要整段重跑，越调越懵。
+- **NTQ 方案：**把研究拆成可独立验证的阶段——寻找机会的能力 → 捕获价格波动的能力 → 有没有把资金正确投入高价值资产的能力 → 策略执行者能不能适应策略交易方式的能力（即将推出的决策者模式）→ 以及多策略组合层（已规划）。先看清每一层好不好，再决定要不要往下走——避免被一条好看的净值曲线掩盖了底层信号或执行环节的真实问题。
 
-逻辑、单笔表现和资金约束分开检验，更容易定位「信号不行」还是「仓位/规则把收益吃掉了」。枚举结果会沉淀为标准产物，可复用、可对比，也便于后续分析。
+**🔍 交易轨迹难以回溯**
+- **痛点：**回测跑通了，但想逐股排查某笔交易的细节却无从下手，宛如黑盒。
+- **NTQ 方案：**分层回测的每一步均落盘保留（含版本快照）；配合 Web 策略实验室，可逐股查看买卖轨迹。结构化产物也便于后续分析与机器学习特征工程。
 
-### 您还能得到什么
+**📊 横截面回测复杂且笨重**
+- **痛点：**想做「每月/每年在全 A 里选 Top N、低价股组合」这类横截面策略，本地框架往往要手写大量循环，全市场一跑就占满内存，只能缩小样本或上云。
+- **NTQ 方案：**原生支持横截面研究模式（如换仓日同步比较全市场标的）。大样本下框架自动分片加载与并行计算，在个人 PC 上也能完成全市场枚举；仓库内附低价股等横截面演示策略，可直接对照学习。
 
-- **本地一体化**：数据接入与存储、指标/标签计算、回测、全市场扫描在同一套工程里完成；`core` 与 `userspace` 分离，升级框架时您的策略与配置可保留。
-- **配置驱动**：多数实验通过改配置完成，复杂逻辑再写 Python；配合**策略实验室 Web UI**（回测、报告、版本对比）和命令行，同一策略可反复对照。
-- **可复现**：版本快照、指纹与结构化产物目录，中间结果可追溯，便于回答「这次和上次差在哪」。
-- **性能**：核心计算支持多进程/多线程，在普通台式机上也能承担较大样本的回测与扫描。
+**🛡️ 实盘收益远低于回测**
+- **痛点：**回测收益率极高，实盘却亏损。往往是因为忽略了未来函数、幸存者偏差、涨跌停限制或复杂的交易规则。
+- **NTQ 方案：**内置贴近真实市场的回测引擎。框架在底层默认处理了几类最容易让回测失真的问题：
+  - **幸存者偏差：**使用了PIT（point-in-time）股票池来防止
+  - **交易规则限制：**自动遵守买入手数规则、涨跌停无法成交、停牌、T+1 等等
+  - **未来函数：**数据严格按照日期切割，防止"上帝视角"式的回测
+  
+让您只需专注挖掘 Alpha，剩下的交给框架。
 
-研究跑通后，可用**策略扫描**对库内最新行情做全市场筛选；机会默认在终端或 Web 界面展示，后续通知或下单需您自行对接第三方。
+**♻️ 每个策略需要重复计算因子**
+- **痛点：**多个策略复用同一个指标（如复杂动量因子）时，重复计算导致效率低下，且容易写错。
+- **NTQ 方案：**提供强大的“特征标签”功能。支持特征预处理与全局缓存，一次计算，多策略复用。不仅提升了回测速度，更保证了因子逻辑的一致性与安全性。
+
+
+### 您还能得到这些“工程化的小心思”
+
+- **核心与用户数据的分离**：框架的核心功能`core` 与用户产生的数据 `userspace` 分离，升级框架时策略与配置可保留。
+- **大量的配置驱动**：使用settings配置方式完成常做的事情；复杂逻辑再写 Python。
+- **方便的使用接口**：自带UI和命令行cli，可以通过UI或者快捷命令完成大部分操作，且遵从「同一策略同一产物」。
+- **可复现的研究记录**：版本快照与指纹、`results/` 结构化输出，便于对比「这次和上次差在哪」。
 
 ## 支持一下项目
 
@@ -69,7 +94,7 @@ NTQ 把研究拆成三步，每一步回答不同的问题：
 NTQ 本身免费开源，但部分能力依赖您自备资源：
 
 - **数据**：框架提供接入与存储能力，**不含**数据源的付费账号或 token；需在第三方平台注册/购买后自行配置。
-- **通知与交易**：短信、邮件、推送、下单等**不在框架内**；扫描结果可通过 Adapter 等扩展点交给您自己的程序处理。
+- **通知与外部自动化**：短信、邮件、推送等**不在框架内**；扫描结果可通过 Adapter 等扩展点交给您自己的程序处理。
 
 ### 另外
 
@@ -80,7 +105,7 @@ NTQ 本身免费开源，但部分能力依赖您自备资源：
 
 ## 快速安装（5分钟跑起来）
 
-目标：**5 分钟内跑起框架 + 跑通 `example` 策略**。
+目标：**5 分钟内跑起框架 + 跑通一个演示策略**。
 
 ### 前提条件
 
@@ -114,6 +139,8 @@ python3 launcher.py
 ```
 
 脚本会：切到仓库根目录、确保虚拟环境、然后**启动 BFF + 前端并打开浏览器**，进入图形化 **Setup 安装向导**（由 BFF setup API 驱动步骤）。
+
+日常开发 UI 可用 **`python devcli.py ui`**（浏览器 `:8000`，共享 BFF `:8888`）；上式 `launcher.py` 为**生产入口**（`:8888` 托管 `fed/build`）。结束 UI 进程：`python devcli.py uk`。
 
 ### 第 3 步：在浏览器中按向导完成初始化
 
@@ -156,18 +183,20 @@ python3 launcher.py
 
 ### 跑通第一个策略（Web 或命令行）
 
-**推荐（Web）**：在项目根目录启动 UI（若安装向导已拉起过，也可直接复用该终端）：
+**推荐（Web）**：在项目根目录启动 UI：
 
 ```bash
-python launcher.py
+python launcher.py          # 生产：:8888
+# 或开发：
+python devcli.py ui         # 开发：:8000（CRA），BFF API 共用 :8888
 ```
 
-浏览器打开策略实验室，选择 **`example`** 策略，按界面执行枚举 / 价格层 / 资金层回测并查看报告。
+浏览器打开**策略实验室**，选择 **`userspace/strategies/demo/`** 下任一演示策略（或向导完成后自带的示例策略），按界面执行枚举 / 价格层 / 资金层回测并查看报告。
 
 **命令行（价格层示例）**：
 
 ```bash
-python start-cli.py sp --strategy example
+python cli.py sp --strategy demo/regression/rsi/rsi_v1_without_value_anchor
 ```
 
 终端出现回测摘要即表示 CLI 链路可用。完整分层流程还可使用 `se`（枚举）、`so`（组合层）；见下文「命令行」表。
@@ -185,39 +214,39 @@ python start-cli.py sp --strategy example
 查看帮助：
 
 ```bash
-python start-cli.py -h
+python cli.py -h
 ```
 
 机会枚举（分层回测第一步）：
 
 ```bash
-python start-cli.py strategy_enumerate --strategy example
+python cli.py strategy_enumerate --strategy demo/regression/rsi/rsi_v1_without_value_anchor
 # 或短命令
-python start-cli.py se --strategy example
+python cli.py se --strategy demo/regression/rsi/rsi_v1_without_value_anchor
 ```
 
 带资金的策略模拟：
 
 ```bash
-python start-cli.py strategy_portfolio --strategy example
+python cli.py strategy_portfolio --strategy demo/regression/rsi/rsi_v1_without_value_anchor
 # 或短命令
-python start-cli.py so --strategy example
+python cli.py so --strategy demo/regression/rsi/rsi_v1_without_value_anchor
 ```
 
 全市场扫描：
 
 ```bash
-python start-cli.py scan --strategy example
+python cli.py scan --strategy demo/regression/rsi/rsi_v1_without_value_anchor
 # 或短命令
-python start-cli.py c --strategy example
+python cli.py c --strategy demo/regression/rsi/rsi_v1_without_value_anchor
 ```
 
 生成特征标签：
 
 ```bash
-python start-cli.py tag --scenario xxx
+python cli.py tag --scenario your_scenario
 # 或短命令
-python start-cli.py t
+python cli.py t
 ```
 
 您也可以修改 `userspace/strategies/` 下的 settings 或 worker，自定义策略算法与目标。
@@ -244,7 +273,7 @@ NTQ 目前在 **v0.x** 阶段，安装向导、文档和 Web UI 都还在改。�
 ## 文档维护约定
 
 - **根目录 `README.md` 是仓库文档主入口**，用于对外说明项目用法与当前推荐流程。
-- **命令入口统一为 `start-cli.py`**；如其他文档出现 `start.py`，以本页与 `python start-cli.py -h` 为准。
+- **命令入口统一为 `cli.py`**；如其他文档出现 `start-cli.py` 或 `start.py`，以本页与 `python cli.py -h` 为准。
 - **`docs/development/` 为内部工作区文档**，当前阶段不纳入对外文档整理范围。
 - 每次版本发布至少同步更新：
   - `README.md`
@@ -254,9 +283,9 @@ NTQ 目前在 **v0.x** 阶段，安装向导、文档和 Web UI 都还在改。�
 
 | 内容 | 说明 |
 |------|------|
-| **框架代码** | `core/`、命令行（`start-cli.py`）与 UI 启动（`launcher.py`） |
+| **框架代码** | `core/`、用户命令行（`cli.py`）与 UI 启动（`launcher.py` / `devcli.py ui`） |
 | **Web UI** | `core/ui/bff` + `core/ui/fed`（发布构建产物已纳入仓库，日常无需 Node） |
-| **示例策略** | 仅内置 **`example`** 策略，用于对照配置与接口 |
+| **演示策略** | `userspace/strategies/demo/` 下多组演示策略；另有 `_template/` 空模版可复制 |
 | **演示行情等数据** | 包含一份可快速启动的小数据；更完整数据可从官网下载 |
 | **辅助工具** | `devtools/`：Docker 说明、维护用自动化脚本等（非业务核心，索引见 [docs/README.md](docs/README.md) 中「仓库辅助工具」一节） |
 
@@ -283,39 +312,45 @@ NTQ 目前在 **v0.x** 阶段，安装向导、文档和 Web UI 都还在改。�
 ## 有了新版本如何升级？
 
 1. 拉取或下载最新 **master**，**保留**本机 `userspace/`（及其中策略、备份与配置），其余按新版本覆盖。
-2. 在项目根目录执行 `python install.py`（或 `python start-cli.py` 触发自动安装），以刷新依赖与安装状态；若发布说明要求重导数据，再按「数据说明」运行 `setup/steps/import_data/install.py`。
-3. 使用 Web UI 时，用 `python launcher.py` 启动即可（一般无需本地 `npm run build`，除非您自行改前端或文档另有说明）。
+2. 在项目根目录执行 `python install.py`（或 `python cli.py` 触发自动安装），以刷新依赖与安装状态；若发布说明要求重导数据，再按「数据说明」运行 `setup/steps/import_data/install.py`。
+3. 使用 Web UI 时，用 `python launcher.py` 启动即可（一般无需本地 `npm run build`，除非您自行改前端或文档另有说明）。开发前端改动时用 `python devcli.py ui`。
 
 ---
 
-## 命令行（`start-cli.py`）
+## 命令行（`cli.py`）
 
-入口脚本：**`start-cli.py`**（无参时默认显示 **`version`**，等同 `-v` / `--version` / `v`）。
+入口脚本：**`cli.py`**（无参时默认显示 **`version`**，等同 `-v` / `--version` / `v`）。
 
-规则：`xx`=命令，`-xx`=开关，`--xx`=对象参数。
+规则：`xx`=命令，`-f` / `-n`=全局开关，`--xx`=对象参数。
 
 ```bash
-python start-cli.py -h
+python cli.py -h
 ```
 
 | 用途 | 命令示例 |
 |------|----------|
-| 查看帮助 | `python start-cli.py -h` |
-| 查看版本（默认） | `python start-cli.py` 或 `-v` / `--version` / `v` |
-| 更新数据 | `renew [SOURCE] [-f]` 或 `r` |
-| 扫描机会 | `scan` 或 `c [--strategy example]` |
-| 枚举机会 | `strategy_enumerate` 或 `se [-f] [--strategy example]` |
-| 价格因子模拟 | `strategy_price_factor` 或 `sp [-f] [--strategy example]` |
+| 查看帮助 | `python cli.py -h` |
+| 查看版本（默认） | `python cli.py` 或 `-v` / `--version` / `v` |
+| 更新数据 | `renew [SOURCE]` 或 `r [SOURCE]` |
+| 扫描机会 | `scan` 或 `c [--strategy NAME] [--demo]` |
+| 枚举机会 | `strategy_enumerate` 或 `se [--strategy NAME]` |
+| 价格因子模拟 | `strategy_price_factor` 或 `sp [--strategy NAME]` |
 | 组合模拟 | `strategy_portfolio` 或 `so` |
-| 资金分配（将用 so 替代） | `strategy_capital_allocate` 或 `sa` |
+| 资金分配（将用 `so` 替代） | `strategy_capital_allocate` 或 `sa` |
 | 完整模拟链路 | `strategy_simulate` 或 `s` |
-| 分析结果摘要 | `strategy_analyse` 或 `sy` |
-| 标签计算 | `tag` 或 `t` |
+| 分析结果摘要 | `strategy_analyse` 或 `sy [--session ID]` |
+| 标签计算 | `tag` 或 `t [--scenario NAME]` |
+| 导出策略包 | `export_strategy` 或 `ex [NAME] [-o PATH]` |
+| 导入策略包 | `import_strategy` 或 `im [PATH]` |
+| 从模版新建策略 | `python cli.py -n userspace/strategies/my_strategy` |
+| 从模版新建 Tag | `python cli.py t -n userspace/extensions/tags/my_scenario` |
 | 检查 core 更新 | `update` 或 `u` |
 
 **`--strategy`**：未指定时，若只有一个 `is_enabled=True` 的策略会自动选用；多个启用时默认取名称排序第一个并 **告警**，建议显式写 `--strategy`。
 
-**说明**：文档与站点中若仍出现旧命令 `start.py`，请以本仓库 **`start-cli.py`** 为准。
+**`-f`**：强制刷新 / 重算 / 覆盖（适用于 `se`、`sp` 等支持刷新的命令）。
+
+**说明**：文档与站点中若仍出现 `start-cli.py` 或 `start.py`，请以本仓库 **`cli.py`** 为准。
 
 ---
 
@@ -326,16 +361,19 @@ python start-cli.py -h
 ```bash
 python devcli.py -h          # 完整缩写表
 python devcli.py               # 显示版本（默认）
-python devcli.py ui              # 启动 UI
-python devcli.py uk              # 结束 8000/8888 UI 进程
+python devcli.py ui              # 启动开发 UI（launcher -d，:8000 + BFF :8888）
+python devcli.py uk              # 结束 UI 端口（8000 + 8888）
 python devcli.py csc             # 清空策略模拟磁盘 + DB 工作台缓存
 python devcli.py cdc             # 仅清空 DB 工作台快照
 python devcli.py cmc             # 仅删除各策略 results/
-python devcli.py dbc             # DuckDB WAL 合并
-python devcli.py p -core_v0.3.2  # 发布前检查流水线
+python devcli.py cgc             # 清空 userspace/.ntq（全局缓存）
+python devcli.py dbc             # DuckDB WAL 合并（`--recover` 修复损坏 WAL）
+python devcli.py p -core_v0.4.2  # 发布前检查流水线
 python devcli.py ssp 500         # 分层样本股票池（dev 轻量 renew）
 python devcli.py pc              # 取消样本池
 ```
+
+Web **设置 → 缓存管理** 也可清理 DB 快照、`results/`、`userspace/.ntq` 等（与部分 `devcli` 清理命令等价）。
 
 工作台快照 HTTP 清理接口见策略模块文档 [db-cache-service.md](core/modules/strategy/docs/db-cache-service.md) §8（V2-11 / V2-12）。
 

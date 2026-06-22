@@ -1,11 +1,14 @@
 name: modules.data_manager
-version: 0.3.5
+version: 0.3.6
 compatible_core_versions: ">=0.4.1"
 description: "统一数据访问门面：DatabaseManager、core/userspace 表发现、各领域 DataService（stock/macro/calendar/index/db_cache）。"
 dependencies:
   - infra.db
   - infra.project_context
 changelog:
+  - version: "0.3.6"
+    changes:
+      - 优化 dispatch_planner 中的 entities_per_job 约束问题，效率最高提升约15%
   - version: "0.3.5"
     changes:
       - 修改K线qfq的模拟算法，是误差更小，更贴近外部认可的数据来源

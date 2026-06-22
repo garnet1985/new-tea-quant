@@ -638,6 +638,89 @@ class TagDataService(BaseDataService):
                 f"date_range={start_date}-{end_date}, error={e}"
             )
             return []
+
+    def load_values_for_entities_batch(
+        self,
+        entity_ids: List[str],
+        scenario_name: str,
+        start_date: str,
+        end_date: str,
+        entity_type: str = "stock",
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        批量加载多个实体在指定 scenario 下、指定时间区间内的所有 tag values（优化：一次查询所有实体）。
+
+        Args:
+            entity_ids: 实体 ID 列表（如股票代码）
+            scenario_name: Scenario 名称（例如 'momentum_mid_term'）
+            start_date: 开始日期（YYYYMMDD）
+            end_date: 结束日期（YYYYMMDD）
+            entity_type: 实体类型，默认 'stock'
+
+        Returns:
+            Dict[entity_id, List[Dict]]: 每个实体的标签值列表，按 as_of_date 升序、tag_name 升序排列
+        """
+        if not entity_ids:
+            return {}
+
+        scenario = self.load_scenario(scenario_name)
+        if not scenario:
+            logger.warning(f"load_values_for_entities_batch: scenario 不存在: {scenario_name}")
+            return {eid: [] for eid in entity_ids}
+
+        scenario_id = scenario.get("id")
+        if not scenario_id:
+            logger.warning(f"load_values_for_entities_batch: scenario 缺少 id 字段: {scenario}")
+            return {eid: [] for eid in entity_ids}
+
+        try:
+            # 使用 IN 子句批量查询（一次查询所有实体）
+            placeholders = ','.join(['%s'] * len(entity_ids))
+            sql = f"""
+                SELECT
+                    tv.entity_id,
+                    tv.tag_definition_id,
+                    tv.as_of_date,
+                    tv.start_date,
+                    tv.end_date,
+                    tv.json_value,
+                    td.name AS tag_name,
+                    td.display_name AS tag_display_name,
+                    td.scenario_id
+                FROM sys_tag_value tv
+                INNER JOIN sys_tag_definition td
+                    ON tv.tag_definition_id = td.id
+                WHERE
+                    tv.entity_type = %s
+                    AND tv.entity_id IN ({placeholders})
+                    AND td.scenario_id = %s
+                    AND tv.as_of_date >= %s
+                    AND tv.as_of_date <= %s
+                ORDER BY tv.entity_id ASC, tv.as_of_date ASC, td.name ASC
+            """
+
+            params = [entity_type] + list(entity_ids) + [scenario_id, start_date, end_date]
+
+            all_results = self.db.execute_sync_query_for_table(_TAG_VALUE_TABLE, sql, tuple(params))
+
+            # 按 entity_id 分组
+            result: Dict[str, List[Dict[str, Any]]] = {eid: [] for eid in entity_ids}
+            if all_results:
+                for row in all_results:
+                    eid = row.get("entity_id", "")
+                    if eid in result:
+                        result[eid].append(row)
+
+            return result
+
+        except Exception as e:
+            logger.error(
+                f"批量加载实体 Tag 数据失败: entity_count={len(entity_ids)}, "
+                f"scenario_name={scenario_name}, "
+                f"date_range={start_date}-{end_date}, error={e}"
+            )
+            # 降级：返回空列表而非崩溃
+            return {eid: [] for eid in entity_ids}
     
     def get_next_trading_date(self, date: str) -> str:
         """

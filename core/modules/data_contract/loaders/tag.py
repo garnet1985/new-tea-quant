@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from core.modules.data_contract.loaders.base import BaseLoader
 from core.modules.data_manager import DataManager
@@ -181,3 +181,30 @@ class TagLoader(BaseLoader):
             rows, start=start, end=None, include_boundary=include_boundary, time_field=time_field
         )
         return rows[:normalized_amount]
+
+    def load_batch(
+        self,
+        entity_ids: Sequence[str],
+        params: Mapping[str, Any],
+        context: Optional[Mapping[str, Any]] = None,
+    ) -> Mapping[str, Any]:
+        """
+        批量加载多个实体的 tag 数据（逐实体查询 - tag 数据通常按场景隔离）。
+
+        注意：tag 数据涉及复杂的场景逻辑，暂时采用逐实体查询方式。
+        后续可根据需要优化为批量查询。
+        """
+        result: Dict[str, Any] = {}
+        for eid in entity_ids:
+            eid_str = str(eid).strip()
+            if not eid_str:
+                continue
+            ctx = dict(context or {})
+            ctx["entity_id"] = eid_str
+            ctx["stock_id"] = eid_str
+            ctx["id"] = eid_str
+            try:
+                result[eid_str] = self.load(params, ctx)
+            except Exception:
+                result[eid_str] = []
+        return result

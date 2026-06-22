@@ -1,11 +1,14 @@
 name: modules.data_contract
-version: 0.3.5
+version: 0.3.6
 compatible_core_versions: ">=0.4.1"
 description: "DataKey 白名单、DataSpec 路由、ContractIssuer 签发句柄、DataContractManager.issue 与进程内缓存、各业务 Loader 取数；支持 userspace 合并映射。"
 dependencies:
   - modules.data_manager
   - infra.project_context
 changelog:
+  - version: "0.3.6"
+    changes:
+      - 给 base loader 加入 load_batch 方法，支持批量加载
   - version: "0.3.5"
     changes:
       - 增加对BFF的支持

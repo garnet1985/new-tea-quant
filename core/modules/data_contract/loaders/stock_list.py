@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, List, Mapping, Optional
+from typing import Any, List, Mapping, Optional, Sequence
 
 from core.modules.data_contract.loaders.base import BaseLoader
 from core.modules.data_manager import DataManager
@@ -29,3 +29,19 @@ class StockListLoader(BaseLoader):
             area=params.get("area"),
             order_by=order_by,
         )
+
+    def load_batch(
+        self,
+        entity_ids: Sequence[str],
+        params: Mapping[str, Any],
+        context: Optional[Mapping[str, Any]] = None,
+    ) -> Mapping[str, Any]:
+        """
+        批量加载股票列表数据。
+
+        注意：stock.list 是 GLOBAL scope 数据，
+        所有 entity 共享同一份数据，因此直接调用 load() 并返回。
+        """
+        # GLOBAL scope：所有 entity 返回相同的数据
+        data = self.load(params, context)
+        return {str(eid).strip(): data for eid in entity_ids if str(eid).strip()}

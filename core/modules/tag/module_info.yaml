@@ -1,5 +1,5 @@
 name: modules.tag
-version: 0.3.0
+version: 0.3.1
 compatible_core_versions: ">=0.4.0"
 description: "标签资产层：按场景（Scenario）发现配置、多进程执行 TagWorker，基于 DataContract + DataCursor 按 as_of 切片计算并批量落库。"
 dependencies:
@@ -10,6 +10,10 @@ dependencies:
   - infra.worker
   - infra.job_pipeline
 changelog:
+  - version: "0.3.1"
+    changes:
+      - 增强tag的profiler，帮助性能测试收集必要的数据
+      - 新增 dry-run 模式：运行计算但不写入数据库
   - version: "0.3.0"
     changes:
       - 支持sliced块状切片

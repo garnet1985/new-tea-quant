@@ -692,6 +692,8 @@ class EnumeratorSharedServices:
                 plan = perf.get("calendar_slice_runtime_plan")
                 if isinstance(plan, dict):
                     self._calendar_slice_runtime_plan = plan
+                    # 注入到 AggregateProfiler，使其出现在最终 report 中
+                    aggregate_profiler.set_extra_data(calendar_slice_runtime_plan=plan)
                     break
 
         # step2: normalize and return aggregate summary

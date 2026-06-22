@@ -5,7 +5,11 @@ Tag Manager - 统一管理所有业务场景（Scenario）
 """
 from __future__ import annotations
 
+import json
 import logging
+import time
+from datetime import datetime
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from core.modules.data_contract.cache import ContractCacheManager
@@ -49,8 +53,10 @@ class TagManager:
         *,
         tag_key: str | None = None,
         on_pipeline_progress: Optional[Any] = None,
+        dry_run: bool = False,
     ) -> None:
         self._pipeline_progress_callback = on_pipeline_progress
+        self._dry_run = dry_run
         try:
             if settings is not None:
                 key = str(tag_key or scenario_name or "inline").strip()
@@ -116,17 +122,23 @@ class TagManager:
             logger.error("无法获取 worker_class，跳过执行: tag_key=%s", tag_key)
             return
 
+        # 将 dry_run 传递给 runner
+        if getattr(self, '_dry_run', False):
+            self._dispatch_overrides["dry_run"] = True
+            logger.info("[DRY RUN] 模式已启用，计算结果不会写入数据库")
+
         if scenario_model.get_execution_mode() == TagExecutionMode.CALENDAR_SLICE:
-            run_sliced_pipeline(
+            result = run_sliced_pipeline(
                 self,
                 scenario_model=scenario_model,
                 entity_list=entity_list,
                 settings=settings,
                 tag_key=tag_key,
             )
+            self._save_performance_report(result, scenario_model, tag_key, "calendar_sliced")
             return
 
-        run_timeline_pipeline(
+        result = run_timeline_pipeline(
             self,
             scenario_model=scenario_model,
             entity_list=entity_list,
@@ -134,6 +146,89 @@ class TagManager:
             worker_class=worker_class,
             tag_key=tag_key,
         )
+        self._save_performance_report(result, scenario_model, tag_key, "entity_timeline")
+
+    def _save_performance_report(
+        self,
+        result: Optional[Dict[str, Any]],
+        scenario_model: ScenarioModel,
+        tag_key: str,
+        execution_mode: str,
+    ) -> None:
+        """保存性能报告到 JSON 文件"""
+        if not result:
+            return
+
+        try:
+            # 构建报告数据
+            import os
+            import resource  # Linux/macOS 内存使用
+
+            report = {
+                "schema_version": 1,
+                "report_kind": "tag_performance",
+                "timestamp": datetime.now().isoformat(),
+                "scenario_name": result.get("scenario_name", tag_key),
+                "tag_key": tag_key,
+                "execution_mode": execution_mode,
+                "summary": {
+                    "wall_clock_seconds": round(result.get("elapsed_time", 0), 3),
+                    "wall_clock_minutes": round(result.get("elapsed_time", 0) / 60, 3),
+                    "total_entities": result.get("entity_count", 0),
+                    "total_jobs": result.get("total_jobs", 0),
+                    "completed_jobs": result.get("completed_jobs", 0),
+                    "failed_jobs": result.get("failed_jobs", 0),
+                    "saved_tag_values": result.get("saved_tag_values", 0),
+                },
+                "profile": result.get("profile"),
+                "configuration": {
+                    "execute_mode": execution_mode,
+                    "db_engine": getattr(getattr(self.data_mgr, 'db', None), 'config', {}).get('database_type', 'unknown') if hasattr(self.data_mgr, 'db') else 'unknown',
+                },
+            }
+
+            # 计算并行度
+            total_jobs = result.get("total_jobs", 0)
+            wall_time = result.get("elapsed_time", 0)
+            profile_data = result.get("profile")
+            if profile_data and wall_time > 0:
+                worker_time = (
+                    profile_data.get("stage_sec", 0) +
+                    profile_data.get("execute_sec", 0) +
+                    profile_data.get("report_sec", 0)
+                )
+                if worker_time > 0:
+                    report["summary"]["parallelism_factor"] = round(worker_time / wall_time, 2)
+
+            # 确定输出目录
+            # tag_manager.py 路径: core/modules/tag/tag_manager.py
+            # parents[0]=tag/, [1]=modules/, [2]=core/, [3]=project_root
+            scenario_path = Path(__file__).resolve().parents[3] / "userspace" / "extensions" / "tags" / tag_key
+            results_dir = scenario_path / "results" / "performance"
+            results_dir.mkdir(parents=True, exist_ok=True)
+
+            # 生成版本号（递增）
+            version = 1
+            while (results_dir / str(version)).exists():
+                version += 1
+
+            version_dir = results_dir / str(version)
+            version_dir.mkdir(parents=True, exist_ok=True)
+
+            # 保存报告
+            report_path = version_dir / "0_performance_report.json"
+            with open(report_path, "w", encoding="utf-8") as f:
+                json.dump(report, f, indent=2, ensure_ascii=False)
+
+            logger.info(
+                "[%s] 性能报告已保存: %s (version=%d)",
+                tag_key,
+                report_path,
+                version,
+            )
+
+        except Exception as exc:
+            logger.warning("[%s] 保存性能报告失败: %s", tag_key, exc)
 
     def _resolve_entity_list(
         self, scenario_model: ScenarioModel, settings: Dict[str, Any]

@@ -1,11 +1,14 @@
 name: infra.cli
-version: 0.2.0
+version: 0.2.1
 compatible_core_versions: ">=0.4.1"
 description: "NTQ 用户 CLI：策略/标签/数据扫描/更新/模拟/分析/管理。"
 dependencies:
   - infra.project_context
   - infra.system_actions
 changelog:
+  - version: "0.2.1"
+    changes:
+      - 新增 tag 的 dry-run 模式：运行计算但不写入数据库
   - version: "0.2.0"
     changes:
       - 重写 CLI：策略/标签/数据扫描/更新/模拟/分析/管理

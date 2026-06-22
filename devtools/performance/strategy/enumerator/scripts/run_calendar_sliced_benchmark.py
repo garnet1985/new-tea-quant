@@ -33,17 +33,23 @@ import shutil
 import subprocess
 import sys
 import time
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 # ── 项目路径 ──────────────────────────────────────────────
-# 本脚本在 enumerator/ 层，向上 5 个 parent 到项目根
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
-BENCHMARK_STRATEGIES_DIR = PROJECT_ROOT / "devtools" / "benchmarks" / "performance" / "benchmark_strategies"
+# 通过查找 cli.py 定位项目根目录（更可靠）
+_SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = _SCRIPT_DIR
+for _ in range(10):  # 最多向上找10层
+    if (PROJECT_ROOT / "cli.py").exists():
+        break
+    PROJECT_ROOT = PROJECT_ROOT.parent
+
+BENCHMARK_STRATEGIES_DIR = PROJECT_ROOT / "devtools" / "performance" / " strategy" / "test_base_strategies"
 USERSPACE_STRATEGIES_DIR = PROJECT_ROOT / "userspace" / "strategies"
-RESULTS_BASE = Path(__file__).resolve().parent / "results"
+RESULTS_BASE = _SCRIPT_DIR / "results"
 
 # ── 测试配置 ──────────────────────────────────────────────
 TEMP_STRATEGY_NAME = "bench_cs_baseline"
@@ -55,45 +61,63 @@ class BenchmarkResult:
     """单次基准测试结果"""
     test_id: str
     timestamp: str
-    
+
     # 配置
     sample_size: int
     execution_mode: str
     max_workers: int
-    
+
     # 性能指标
     wall_clock_seconds: float = 0.0
     wall_clock_minutes: float = 0.0
     parallelism_factor: float = 0.0
     sum_worker_total_seconds: float = 0.0
     avg_wall_clock_per_stock_ms: float = 0.0
-    
+
     # 数据量
     total_stocks: int = 0
     total_klines: int = 0
     total_opportunities: int = 0
     stocks_skipped: int = 0
-    
+
     # 内存
     parent_start_mb: float = 0.0
     parent_end_mb: float = 0.0
     parent_delta_mb: float = 0.0
     avg_peak_per_stock_mb: float = 0.0
-    
+
     # IO
     storage_load_calls: int = 0
     storage_load_time_seconds: float = 0.0
     file_writes: int = 0
-    
+
     # Runtime 元数据
     db_engine: str = ""
     cache_hit: bool = False
     execution_mode_reported: str = ""
-    
-    # 切片模式特有指标
+
+    # 切片模式特有指标 - 架构配置
     total_slices: int = 0
-    avg_stocks_per_slice: float = 0.0
-    
+    reader_workers: int = 1
+    compute_workers: int = 1  # 固定1个compute进程
+    queue_depth: int = 1
+    prefetch_enabled: bool = True
+    slice_open_days: int = 0
+    memory_budget_mb: float = 0.0
+    ideal_preload_ceiling: int = 1
+    current_preload_depth: int = 1
+    mb_per_slice: float = 0.0
+
+    # 切片模式特有指标 - Per-Slice 细分数据
+    slice_samples: List[Dict[str, Any]] = field(default_factory=list)
+    total_io_sec: float = 0.0
+    total_compute_sec: float = 0.0
+    avg_io_per_slice_sec: float = 0.0
+    avg_compute_per_slice_sec: float = 0.0
+    io_compute_ratio: float = 0.0
+    peak_rss_mb: float = 0.0
+    total_payload_mb: float = 0.0
+
     # 状态
     success: bool = False
     error_message: str = ""
@@ -215,13 +239,19 @@ def _extract_metrics(report_path: Path) -> Dict[str, Any]:
     memory = report.get("memory", {})
     file_io = report.get("file_io", {})
     
-    return {
+    # 基础指标
+    # 切片模式特殊处理：summary.total_stocks 是 job 数，实际股票数在 runtime.stock_count
+    runtime_stock_count = runtime.get("stock_count", 0) or 0
+    summary_stock_count = summary.get("total_stocks", 0) or 0
+    actual_stock_count = max(runtime_stock_count, summary_stock_count)
+
+    metrics = {
         "wall_clock_seconds": summary.get("wall_clock_seconds", 0) or 0,
         "wall_clock_minutes": summary.get("wall_clock_minutes", 0) or 0,
         "parallelism_factor": summary.get("parallelism_factor", 0) or 0,
         "sum_worker_total_seconds": summary.get("sum_worker_total_seconds", 0) or 0,
         "avg_wall_clock_per_stock_ms": summary.get("avg_wall_clock_per_stock_seconds", 0) or 0,
-        "total_stocks": summary.get("total_stocks", 0) or 0,
+        "total_stocks": actual_stock_count,
         "total_klines": data.get("total_kline_count", 0) or 0,
         "total_opportunities": data.get("total_opportunity_count", 0) or 0,
         "stocks_skipped": summary.get("stocks_skipped_short_data", 0) or 0,
@@ -237,13 +267,76 @@ def _extract_metrics(report_path: Path) -> Dict[str, Any]:
         "execution_mode_reported": runtime.get("execution_mode", ""),
     }
 
+    # 提取切片模式特有指标 (calendar_slice_runtime_plan)
+    # 显式检查，避免 or 短路导致空字典被当作有效值
+    plan = report.get("calendar_slice_runtime_plan")
+    if not plan:
+        metadata = report.get("metadata") or {}
+        plan = metadata.get("calendar_slice_runtime_plan")
+    if not plan:
+        summary = report.get("summary") or {}
+        plan = summary.get("calendar_slice_runtime_plan")
+    if not plan:
+        plan = {}
+
+    # DEBUG: 保存原始报告副本用于调试
+    if report_path and report_path.exists():
+        import shutil as _shutil
+        debug_dir = Path(__file__).resolve().parent / "results" / "calendar_sliced"
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        debug_path = debug_dir / "raw_performance_report.json"
+        _shutil.copy2(report_path, debug_path)
+        print(f"[DEBUG] 原始报告已保存到: {debug_path}")
+
+        # 打印顶层 key 用于调试
+        print(f"[DEBUG] 报告顶层 keys: {list(report.keys())}")
+        if "calendar_slice_runtime_plan" in report:
+            print(f"[DEBUG] ✅ 找到 calendar_slice_runtime_plan (顶层)")
+        elif "metadata" in report and isinstance(report["metadata"], dict):
+            print(f"[DEBUG] metadata keys: {list(report['metadata'].keys())}")
+        elif "summary" in report and isinstance(report["summary"], dict):
+            print(f"[DEBUG] summary keys: {list(report['summary'].keys())}")
+
+    if plan:
+        metrics.update({
+            "reader_workers": plan.get("reader_workers", 1),
+            "queue_depth": plan.get("queue_capacity", 1),
+            "prefetch_enabled": plan.get("prefetch_enabled", True),
+            "slice_open_days": plan.get("slice_open_days", 0),
+            "memory_budget_mb": plan.get("memory_budget_mb", 0),
+            "ideal_preload_ceiling": plan.get("ideal_preload_ceiling", 1),
+            "current_preload_depth": plan.get("current_preload_depth", 1),
+            "mb_per_slice": plan.get("mb_per_slice", 0),
+            "total_slices": plan.get("calendar_slice_count", 0),
+        })
+
+        # 提取 per-slice 细分数据
+        samples = plan.get("slice_samples") or []
+        if samples:
+            metrics["slice_samples"] = samples
+
+        # 提取汇总统计
+        plan_summary = plan.get("summary") or {}
+        if plan_summary:
+            metrics.update({
+                "total_io_sec": plan_summary.get("total_io_sec", 0),
+                "total_compute_sec": plan_summary.get("total_compute_sec", 0),
+                "avg_io_per_slice_sec": plan_summary.get("avg_io_per_slice_sec", 0),
+                "avg_compute_per_slice_sec": plan_summary.get("avg_compute_per_slice_sec", 0),
+                "io_compute_ratio": plan_summary.get("io_compute_ratio", 0),
+                "peak_rss_mb": plan_summary.get("peak_rss_mb", 0),
+                "total_payload_mb": plan_summary.get("total_payload_mb", 0),
+            })
+
+    return metrics
+
 
 def run_benchmark(
     test_id: str,
     sample_size: int = DEFAULT_SAMPLE_SIZE,
 ) -> BenchmarkResult:
     """运行单次基准测试"""
-    
+
     result = BenchmarkResult(
         test_id=test_id,
         timestamp=datetime.now().isoformat(),
@@ -251,7 +344,7 @@ def run_benchmark(
         execution_mode="calendar_slice",
         max_workers=1,  # 切片模式通常单进程
     )
-    
+
     try:
         # 1. 准备策略
         strategy_dir = _prepare_strategy(sample_size=sample_size)
@@ -276,18 +369,27 @@ def run_benchmark(
                 setattr(result, key, value)
         
         result.success = True
-        
+
         # 5. 计算衍生指标
         if result.total_stocks > 0 and result.wall_clock_seconds > 0:
             result.avg_wall_clock_per_stock_ms = (
                 result.wall_clock_seconds * 1000 / result.total_stocks
             )
-        
-        # 切片模式特有：估算切片数
-        # 假设每年 rebalance_period="year"，3年约3次主要切片
-        result.total_slices = 3  # 年度换仓 × 3年
-        if result.total_stocks > 0:
-            result.avg_stocks_per_slice = result.total_stocks / max(result.total_slices, 1)
+
+        # 切片模式特有：使用实际数据（不再硬编码）
+        # avg_stocks_per_slice 已从 report 提取或可计算
+        if result.total_slices > 0 and result.total_stocks > 0:
+            # 如果还没有 avg_stocks_per_slice，计算一下
+            if not hasattr(result, 'avg_stocks_per_slice') or result.avg_stocks_per_slice == 0:
+                pass  # 可选：result.avg_stocks_per_slice = result.total_stocks / result.total_slices
+
+        # 6. 在清理前保存原始报告副本
+        if report_path and report_path.exists():
+            debug_dir = RESULTS_BASE / "calendar_sliced"
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            import shutil as _shutil
+            _shutil.copy2(report_path, debug_dir / "raw_performance_report.json")
+            print(f"[DEBUG] 原始报告已保存到: {debug_dir / 'raw_performance_report.json'}")
         
     except Exception as e:
         result.success = False
@@ -300,6 +402,55 @@ def run_benchmark(
         _cleanup_strategy()
     
     return result
+
+
+def _build_slice_table(result: BenchmarkResult) -> str:
+    """构建 Per-Slice 时序细分表格"""
+    header = (
+        "| Slice Index | IO Time (s) | Compute Time (s) | RSS (MB) | Payload (MB) |\n"
+        "|:-----------:|:-----------:|:----------------:|:--------:|:------------:|"
+    )
+    rows = [
+        f'| {s["slice_index"]} | {s["load_sec"]:.3f} | {s["compute_sec"]:.3f} | {s["rss_after_mb"]:.1f} | {s["payload_mb"]:.1f} |'
+        for s in result.slice_samples
+    ]
+    return header + "\n" + "\n".join(rows)
+
+
+def _build_io_compute_table(result: BenchmarkResult) -> str:
+    """构建 IO/Compute 比例分析表格"""
+    lines = [
+        "| 指标 | 数值 | 单位 |",
+        "|------|:----:|:----:|",
+        f"| **总 IO 时间** | {result.total_io_sec:.2f} | 秒 (所有 Reader 进程累计) |",
+        f"| **总 Compute 时间** | {result.total_compute_sec:.2f} | 秒 (Compute 进程累计) |",
+        f"| **平均 IO/Slice** | {result.avg_io_per_slice_sec:.3f} | 秒 |",
+        f"| **平均 Compute/Slice** | {result.avg_compute_per_slice_sec:.3f} | 秒 |",
+        f"| **IO : Compute 比例** | {result.io_compute_ratio:.2f}:1 | IO 密集度指标 |",
+        f"| **峰值 RSS** | {result.peak_rss_mb:.1f} | MB |",
+        f"| **总 Payload 大小** | {result.total_payload_mb:.1f} | MB |",
+        "",
+        "**瓶颈判断**:",
+    ]
+    # 瓶颈判断
+    if result.io_compute_ratio > 2:
+        lines.append("- IO 密集型 (IO > 2× Compute)")
+    elif result.io_compute_ratio > 0.5:
+        lines.append("- 平衡型 (0.5 < IO ≤ 2× Compute)")
+    elif result.io_compute_ratio > 0:
+        lines.append("- 计算密集型 (Compute > 2× IO)")
+    else:
+        lines.append("- *无数据*")
+
+    # Prefetch 策略
+    if result.io_compute_ratio > 1.5 and result.prefetch_enabled:
+        lines.append("- Prefetch 策略: 有效 (IO > Compute, 可重叠)")
+    elif result.io_compute_ratio <= 1.5:
+        lines.append("- Prefetch 策略: 待优化")
+    else:
+        lines.append("- Prefetch 策略: *无数据*")
+
+    return "\n".join(lines)
 
 
 def generate_analysis_md(result: BenchmarkResult, output_path: Path) -> None:
@@ -366,22 +517,48 @@ def generate_analysis_md(result: BenchmarkResult, output_path: Path) -> None:
 
 ---
 
-## 📈 切片模式特性分析
+## 📈 切片模式架构与性能分析
 
-### 切片效率
+### 架构配置
 
-| 指标 | 数值 |
-|------|------|
-| **估算总切片数** | {result.total_slices} |
-| **平均每切片股票数** | {result.avg_stocks_per_slice:.0f} |
-| **跳过股票数** | {result.stocks_skipped:,} |
+| 参数 | 值 | 说明 |
+|------|-----|:-----|
+| **Reader Workers** | {result.reader_workers} | 读数据进程数 |
+| **Compute Workers** | {result.compute_workers} | 算策略进程数 (固定) |
+| **Queue Depth** | {result.queue_depth} | 队列容量 |
+| **Prefetch** | {'开启' if result.prefetch_enabled else '关闭'} | 预取开关 |
+| **Slice Open Days** | {result.slice_open_days} | 每片交易日数 |
+| **Memory Budget** | {result.memory_budget_mb:.0f} MB | 内存预算 |
+| **Preload Ceiling** | {result.ideal_preload_ceiling} | 理想预取深度 |
+| **Current Preload** | {result.current_preload_depth} | 实际预取深度 |
+| **MB/Slice** | {result.mb_per_slice:.1f} MB | 单片预估大小 |
 
-### 横截面处理能力
+### Per-Slice 时序细分
 
-切片模式的核心优势在于：
-- ✅ **按时间切片并行**: 可以同时处理多个时间点
-- ✅ **减少数据冗载**: 只加载当前切片需要的数据
-- ✅ **内存友好**: 不需要一次性加载所有股票的全部 K线
+{'#### ✅ 有完整的 Per-Slice 数据' if result.slice_samples else '#### ⚠️ 无 Per-Slice 数据 (需要增强 profiler)'}
+
+{_build_slice_table(result) if result.slice_samples else '*需要重新运行测试以获取此数据*'}
+
+### IO / Compute 比例分析
+
+{'#### ✅ 有 IO/Compute 统计' if result.total_io_sec > 0 or result.total_compute_sec > 0 else '#### ⚠️ 无 IO/Compute 统计'}
+
+{_build_io_compute_table(result) if (result.total_io_sec > 0 or result.total_compute_sec > 0) else '*需要重新运行测试以获取此数据*'}
+
+### 切片效率汇总
+
+| 指标 | 数值 | 说明 |
+|------|:----:|:-----|
+| **总切片数** | {result.total_slices} | 实际执行的切片数量 |
+| **跳过股票数** | {result.stocks_skipped:,} | 数据不足被跳过 |
+
+### 架构优势
+
+切片模式的 Reader ∥ Compute 双进程架构：
+- ✅ **IO 与计算分离**: Reader 专注读 DB，Compute 专注算策略
+- ✅ **Pipeline 重叠**: 可预取下一片，隐藏 IO 延迟
+- ✅ **内存可控**: 按 slice 分批，不一次性加载全量数据
+- ✅ **天然并行**: 不同时间切片相互独立
 
 ---
 

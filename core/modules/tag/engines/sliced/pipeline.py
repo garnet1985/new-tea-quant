@@ -72,7 +72,7 @@ def run_sliced_pipeline(
         scenario_name,
         len(entity_list),
     )
-    execute_tag_jobs(
+    return execute_tag_jobs(
         data_mgr=mgr.data_mgr,
         tag_data_service=mgr.tag_data_service,
         jobs=jobs,

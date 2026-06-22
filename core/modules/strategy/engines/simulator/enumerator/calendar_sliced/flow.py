@@ -22,6 +22,8 @@ if TYPE_CHECKING:
 class CalendarSlicedEnumeratorFlow(BaseEnumeratorFlow):
     """单 job、Reader ∥ Compute；跳过分 dispatch 探针。"""
 
+    _execution_mode_label = "calendar_sliced"
+
     def __init__(
         self,
         *,

@@ -242,6 +242,12 @@ class AggregateProfiler:
         self.start_time = time.perf_counter()
         self.process = psutil.Process(os.getpid())
         self.start_memory = self._get_memory_mb()
+        # 运行时元数据（由 flow 层注入）
+        self._runtime_context: Dict[str, Any] = {}
+
+    def set_runtime_context(self, **kwargs: Any) -> None:
+        """注入运行时元数据（execution_mode, max_workers, db_engine 等）。"""
+        self._runtime_context.update(kwargs)
 
     def _get_memory_mb(self) -> float:
         try:
@@ -344,6 +350,7 @@ class AggregateProfiler:
                 "dominant_phase": dominant,
             },
             "worker_phase_sums_seconds": worker_phase_sums,
+            "runtime": dict(self._runtime_context),
         }
 
     def print_report(self) -> None:

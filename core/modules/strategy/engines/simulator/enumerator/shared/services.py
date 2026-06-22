@@ -636,6 +636,20 @@ class EnumeratorSharedServices:
             expand_bulk_job_results,
         )
 
+        # 预处理：提取 bulk job 的 performance_metrics（calendar_sliced 等模式）
+        for jr in job_results:
+            raw_result = getattr(jr, "result", None) or {}
+            if isinstance(raw_result, dict) and raw_result.get("bulk"):
+                perf_data = raw_result.get("performance_metrics")
+                if perf_data and isinstance(perf_data, dict):
+                    # calendar_sliced 模式：整个 job 的 performance_metrics
+                    # 使用一个虚拟 stock_id 存储整体指标
+                    try:
+                        metrics = PerformanceMetrics.from_dict(perf_data)
+                        aggregate_profiler.add_stock_metrics("__bulk__", metrics)
+                    except Exception:
+                        pass
+
         for job_result in expand_bulk_job_results(job_results):
             row = self._aggregate_single_job_result(job_result, aggregate_profiler)
             total_opportunities += row["opportunity_count"]

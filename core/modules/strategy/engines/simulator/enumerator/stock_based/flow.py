@@ -26,6 +26,8 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_vi
 class StockBasedEnumeratorFlow(BaseEnumeratorFlow):
     """每股独立时间线：dispatch probe → 多 job → StockBasedEnumeratorWorker。"""
 
+    _execution_mode_label = "stock_based"
+
     def __init__(
         self,
         *,

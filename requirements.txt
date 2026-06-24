@@ -61,7 +61,7 @@ markupsafe==3.0.3
     #   werkzeug
 mini-racer==0.12.4
     # via akshare
-numpy==2.0.2
+numpy>=2.0
     # via
     #   -r requirements.in
     #   pandas

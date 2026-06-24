@@ -1458,7 +1458,7 @@ def reinstall_runtime_dependencies_cli(repo_root: Path, *, force: bool = True) -
     skip_root = os.environ.get("NTQ_UPDATE_SKIP_ROOT_REQUIREMENTS", "").strip().lower() in ("1", "true", "yes")
     req = repo_root / "requirements.txt"
     if req.is_file() and not skip_root:
-        cmd: List[str] = [str(py), "-m", "pip", "install", "--no-compile", "--only-binary", ":all:", "-r", str(req)]
+        cmd: List[str] = [str(py), "-m", "pip", "install", "--no-compile", "--prefer-binary", "-r", str(req)]
         if os.environ.get("NTQ_PIP_NO_CACHE", "").strip().lower() in ("1", "true", "yes"):
             cmd.insert(-2, "--no-cache-dir")
         r = subprocess.run(cmd, cwd=str(repo_root), env=env)

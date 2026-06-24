@@ -18,8 +18,9 @@ pandas-ta-classic
 
 # HTTP / data source
 requests
-urllib3<2
-curl_cffi
+# 注意: curl_cffi 已移除（代码中未使用，且在 Windows 上需要 C 编译器）
+# 注意: urllib3 已移除（代码中未直接使用，requests 会自动管理其内部依赖）
+# 如果将来需要高性能 HTTP 客户端，可考虑 httpx (纯 Python + 可选编译加速)
 tushare
 akshare
 
@@ -31,4 +32,5 @@ psutil
 # ========================
 flask
 flask-cors
-loguru
+# 注意: loguru 已移除（项目统一使用标准 logging 模块）
+# 如果将来需要更强大的日志库，可重新添加

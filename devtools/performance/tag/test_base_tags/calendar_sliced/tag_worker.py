@@ -40,66 +40,51 @@ class BenchmarkSlicedTagWorker(BaseTagWorker):
 
     def on_calendar_asof(
         self,
-        as_of_date: str,
-        entity_id: str,
-        slot_data: Dict[str, List[Dict[str, Any]]],
-        tag_definitions: List[Any],
-    ) -> Optional[List[Dict[str, Any]]]:
+        ctx,
+        settings: Dict[str, Any],
+    ):
         """
-        Calendar Sliced 模式入口。
+        Calendar Sliced 模式入口（新接口）。
 
         Args:
-            as_of_date: 当前切片日期
-            entity_id: 当前实体 ID
-            slot_data: 该实体的数据（keyed by data_id）
-            tag_definitions: 该场景的所有 tag 定义
+            ctx: CalendarAsOfContext，包含 as_of_date、stocks（全市场数据）、carry 等
+            settings: 场景配置
 
         Returns:
-            List of tag values to write (可能为空列表表示不写入)
+            TagCalendarAsOfResult 或 dict(entity_tags=..., carry=...)
         """
-        if not tag_definitions:
-            return None
+        from core.modules.tag.engines.sliced.types import TagCalendarAsOfResult
 
-        # 提取当前实体的市值
-        indicators_list = slot_data.get(INDICATORS) or []
-        cap_wan = self._extract_cap(indicators_list, as_of_date)
+        as_of_date = str(ctx.as_of_date or "")
+        if not as_of_date or not ctx.stocks:
+            return TagCalendarAsOfResult(entity_tags={}, carry=self._carry_or_default())
 
-        if cap_wan is None:
-            return []  # 无数据，不写入
+        entity_tags = {}
+        for entity_id, stock_data in ctx.stocks.items():
+            # 提取当前实体的市值
+            indicators_list = stock_data.get(INDICATORS) or []
+            cap_wan = self._extract_cap(indicators_list, as_of_date)
 
-        # 注意：真正的横截面排序需要在 orchestrator 层完成，
-        # 这里简化为单实体处理。
-        # 实际生产中，sliced 模式会一次性传入所有实体的 slot_data。
-        #
-        # 对于基准测试目的，我们模拟一个基于历史数据的近似百分位：
-        # 使用简单的阈值分档来代替真实横截面排序。
-
-        # 简化的百分位估算（基于绝对阈值）
-        # 这不是真实的横截面排名，但足以用于性能测试
-        percentile = self._estimate_percentile(cap_wan)
-
-        results = []
-        for td in tag_definitions:
-            if td.get_name() != TAG_NAME and getattr(td, 'tag_name', None) != TAG_NAME:
+            if cap_wan is None:
                 continue
 
-            # 变化检测（可选）
-            write_on_change = (
-                self.settings.get("core") or {}
-            ).get("write_on_change_only", False)
+            percentile = self._estimate_percentile(cap_wan)
 
-            if write_on_change:
-                last_val = self._load_last_percentile(td)
-                if last_val is not None and abs(last_val - percentile) < 1.0:
-                    continue  # 变化小于1个百分点，跳过
+            if self._tag_def is not None:
+                entity_tags[entity_id] = [{
+                    "tag_name": TAG_NAME,
+                    "value": round(percentile, 2),
+                    "as_of_date": as_of_date,
+                }]
 
-            results.append({
-                "tag_definition_id": td.id if hasattr(td, 'id') else None,
-                "value": round(percentile, 2),
-                "as_of_date": as_of_date,
-            })
+        return TagCalendarAsOfResult(
+            entity_tags=entity_tags,
+            carry=self._carry_or_default(),
+        )
 
-        return results if results else None
+    def _carry_or_default(self) -> Dict[str, Any]:
+        """返回 carry 状态（用于跨日传递）。"""
+        return getattr(self, '_carry', {}) or {}
 
     def _extract_cap(
         self,

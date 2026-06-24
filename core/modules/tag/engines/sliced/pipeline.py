@@ -64,8 +64,16 @@ def run_sliced_pipeline(
 
     performance = dict(settings.get("performance") or {})
     performance.update(mgr._dispatch_overrides)
+
+    # Sliced 模式专用配置（清理 timeline 遗留配置）
     performance["max_workers"] = 1
     performance["stage_in_worker"] = False
+
+    # 移除 timeline 模式专用的无用配置（避免干扰 sliced 执行逻辑)
+    timeline_only_keys = {"data_chunk_size", "dispatch_probe", "entities_per_job",
+                          "entities_per_job_min", "entities_per_job_max"}
+    for key in timeline_only_keys:
+        performance.pop(key, None)
 
     logger.info(
         "[%s] Tag calendar_slice: entities=%d, job=1",

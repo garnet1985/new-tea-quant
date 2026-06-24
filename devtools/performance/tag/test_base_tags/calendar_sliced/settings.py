@@ -19,13 +19,15 @@ Settings = {
     },
 
     "calculation": {
-        # Sliced 模式通常使用 refresh 或 incremental + recompute
         "update_mode": "refresh",
         "recompute": True,
         "execution_mode": "calendar_slice",
         "start_date": "",
         "end_date": "",
     },
+
+    # 注意：performance 配置由 worker.json 统一管理，对用户隐身
+    # 用户无法通过 settings.py 覆盖性能参数
 
     "data": {
         "base_required_data": {

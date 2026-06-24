@@ -373,29 +373,28 @@ class ScenarioModel:
                 logger.warning(f"获取最新交易日失败，使用空字符串: {e}")
                 filled_settings["end_date"] = ""
         
-        # calculator.performance: 确保存在
+        # calculator.performance: 完全使用 worker.json 默认值（对用户隐身）
+        # 用户无法通过 settings.py 覆盖 performance 参数
         if "performance" not in filled_settings:
             filled_settings["performance"] = {}
-        
+
         performance = filled_settings["performance"]
         if "update_mode" not in performance:
             raise ValueError("performance.update_mode 须在 settings 验证前显式配置")
 
-        if "entities_per_job" not in performance:
-            performance["entities_per_job"] = "auto"
+        # 根据 execution_mode 选择对应的默认配置（避免 timeline/sliced 配置混用）
+        execution_mode = str(filled_settings.get("calculation", {}).get("execution_mode") or "").lower()
+        if execution_mode == "calendar_slice":
+            from core.modules.tag.settings.normalize import profile_tag_calendar_slice_config
+            mode_defaults = profile_tag_calendar_slice_config()
+        else:
+            # 默认使用 entity_timeline 配置（兼容旧配置和 entity_timeline 模式）
+            from core.modules.tag.settings.normalize import profile_tag_entity_timeline_config
+            mode_defaults = profile_tag_entity_timeline_config()
 
-        if "dispatch_probe" not in performance:
-            performance["dispatch_probe"] = True
-
-        if "memory_floor_mb" not in performance:
-            performance["memory_floor_mb"] = "auto"
-
-        if "stage_in_worker" not in performance:
-            performance["stage_in_worker"] = True
-        
-        # calculator.performance.data_chunk_size: 默认 500
-        if "data_chunk_size" not in performance:
-            performance["data_chunk_size"] = 500
+        # 强制使用 worker.json 默认值（忽略 settings.py 中的 performance 配置）
+        for key, value in mode_defaults.items():
+            performance[key] = value
         
         # tags: 必须字段，不需要默认值（已在验证中检查）
         # 但需要为每个 tag 填充默认值（在 TagModel 中处理）

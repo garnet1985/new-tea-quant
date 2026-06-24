@@ -186,8 +186,8 @@ def _run_tag_scenario(
     if stock_limit is not None:
         cmd.extend(["--stock-limit", str(stock_limit)])
 
-    if entities_per_job != DEFAULT_EPJ:
-        cmd.extend(["--entities-per-job", str(entities_per_job)])
+    # 始终显式指定 entities_per_job（避免 "auto" 需要探针的问题）
+    cmd.extend(["--entities-per-job", str(entities_per_job)])
 
     if execute_mode != "batch":
         cmd.extend(["--execute-mode", execute_mode])

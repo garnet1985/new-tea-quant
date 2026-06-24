@@ -24,7 +24,6 @@ from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.types im
 from core.modules.tag.engines.shared.base_worker import BaseTagWorker, worker_uses_calendar_asof
 from core.modules.tag.engines.sliced.stocks_context import (
     axis_data_id_from_settings,
-    build_stocks_context,
 )
 from core.modules.tag.engines.shared.staging.prior_values import encode_tag_json_value
 from core.modules.tag.engines.sliced.types import TagCalendarAsOfResult
@@ -120,13 +119,22 @@ class TagSliceComputeEngine:
         )
         worker = self._create_bulk_worker()
 
+        # 使用 DataCursor 预构建实体上下文（只做一次，O(N) 初始化）
+        from core.modules.tag.engines.sliced.entity_context import (
+            build_entity_contexts,
+            build_entity_stocks_context,
+        )
+        entity_contexts = build_entity_contexts(by_entity)
+
         for open_date_index, as_of in enumerate(payload.open_dates):
-            stocks = build_stocks_context(
-                by_entity,
-                as_of,
+            # O(K) 查询（K=新增行数），替代原来的 O(N×M×L) 线性扫描
+            stocks = build_entity_stocks_context(
+                as_of=as_of,
                 axis_data_id=axis_id,
                 min_records=min_records,
+                entity_contexts=entity_contexts,
             )
+
             ctx = CalendarAsOfContext(
                 as_of_date=as_of,
                 slice_id=payload.slice_id,

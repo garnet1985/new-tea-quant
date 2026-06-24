@@ -196,15 +196,32 @@ def resolve_dispatch_plan(
     - 大规模 (>1000 股): epj=5, workers=min(4, cpu-1) (最优平衡)
     """
     total_entities = max(0, int(total_entities))
+
     ep_override = debug_entities_per_job
     if ep_override is None:
         ep_override = _parse_entities_per_job_override(performance)
 
-    mb_per_entity, mb_source = _resolve_mb_per_entity(
-        performance,
-        measured_mb_per_entity=measured_mb_per_entity,
-        log_label=log_label,
-    )
+    # 如果 entities_per_job 已显式设置，mb_per_entity 不是必需的（用于内存预算估算）
+    if ep_override is not None:
+        # 使用默认值或配置值，不强制要求探针
+        mb_staged = performance.get("mb_per_entity_staged")
+        if mb_staged not in (None, ""):
+            mb_per_entity = max(0.01, float(mb_staged))
+            mb_source = "settings"
+        elif measured_mb_per_entity is not None and measured_mb_per_entity > 0:
+            mb_per_entity = max(0.01, float(measured_mb_per_entity))
+            mb_source = "probe"
+        else:
+            # entities_per_job 显式设置时，使用合理的默认值
+            mb_per_entity = 1.0  # 默认 1MB/entity（仅用于内存预算）
+            mb_source = "default"
+    else:
+        # auto 模式下需要精确的 mb_per_entity
+        mb_per_entity, mb_source = _resolve_mb_per_entity(
+            performance,
+            measured_mb_per_entity=measured_mb_per_entity,
+            log_label=log_label,
+        )
     memory_budget_mb, memory_floor_mb = resolve_memory_budget_mb(performance)
 
     cpu_workers = resolve_pipeline_workers(worker_id=worker_profile)

@@ -36,7 +36,7 @@ def main() -> int:
         "pip",
         "install",
         "--no-compile",
-        "--prefer-binary",
+        "--only-binary", ":all:",
         "-r",
         str(req),
     ]

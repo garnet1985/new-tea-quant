@@ -262,8 +262,17 @@ def cmd_pack(args: argparse.Namespace) -> int:
             skip_fed_build=args.skip_fed_build,
             skip_py39=args.skip_py39,
             package_userspace=getattr(args, "package_userspace", False),
+            skip_dep_check=getattr(args, "skip_dep_check", False),
         )
     )
+
+
+def cmd_check_deps(args: argparse.Namespace) -> int:
+    """依赖风险检测命令（可独立运行）"""
+    from devtools.quick_tools.dependency_risk import run_dependency_check
+
+    verbose = getattr(args, 'verbose', False)
+    return run_dependency_check(verbose=verbose)
 
 
 def normalize_forward(rest: Sequence[str]) -> list[str]:

@@ -1,0 +1,100 @@
+name: Dependency Risk Check
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'requirements.in'
+      - 'requirements.txt'
+  push:
+    branches: [main, develop]
+  workflow_dispatch:  # 手动触发
+
+jobs:
+  check-dependency-risk:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # 先尝试安装，看看是否会失败
+        pip install -r requirements.txt || echo "INSTALL_FAILED=true" >> $GITHUB_ENV
+
+    - name: Run dependency risk detector
+      run: |
+        python devtools/scripts/check_dependency_risk.py --ci-mode --verbose
+      continue-on-error: true
+
+    - name: Test Windows installation (Windows only)
+      if: matrix.os == 'windows-latest' && env.INSTALL_FAILED != 'true'
+      shell: pwsh
+      run: |
+        Write-Host "Testing Windows installation..."
+        python -m venv test-venv
+        .\test-venv\Scripts\Activate.ps1
+        pip install --upgrade pip
+        pip install -r requirements.txt --only-binary=:all:
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "::error::Windows installation failed with --only-binary mode"
+          exit 1
+        }
+        Write-Host "✅ Windows installation successful"
+
+    - name: Generate risk report
+      if: always()
+      run: |
+        python devtools/scripts/check_dependency_risk.py --fix > dependency-risk-report.txt 2>&1 || true
+        echo "## 📊 Dependency Risk Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        cat dependency-risk-report.txt >> $GITHUB_STEP_SUMMARY
+
+    - name: Upload risk report artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: dependency-risk-report-${{ matrix.os }}
+        path: dependency-risk-report.txt
+        retention-days: 30
+
+  # 单独的严格检查 job（只在 main 分支合并前运行）
+  strict-check:
+    needs: check-dependency-risk
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check for critical issues
+      run: |
+        echo "🔍 Checking for critical dependency issues..."
+        
+        # 检查 requirements.in 是否有变化
+        git diff origin/main...HEAD -- requirements.in > /tmp/req_changes.txt || true
+        
+        if [ -s /tmp/req_changes.txt ]; then
+          echo "⚠️  requirements.in has changed"
+          cat /tmp/req_changes.txt
+          
+          # 运行风险检测器
+          python devtools/scripts/check_dependency_risk.py --ci-mode
+          
+          if [ $? -ne 0 ]; then
+            echo "::error::Critical or high-risk dependencies detected! Please review and fix."
+            exit 1
+          fi
+        else
+          echo "✅ No changes to requirements.in"
+        fi

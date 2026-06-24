@@ -15,6 +15,7 @@ SHORT_TO_LONG: dict[str, str] = {
     "p": "pack",
     "ssp": "sample_stock_pool",
     "pc": "pool_clear",
+    "cd": "check_deps",  # 新增：依赖风险检测
 }
 
 LONG_COMMANDS: frozenset[str] = frozenset(
@@ -33,6 +34,7 @@ LONG_COMMANDS: frozenset[str] = frozenset(
         "pack",
         "sample_stock_pool",
         "pool_clear",
+        "check_deps",  # 新增：依赖风险检测
     }
 )
 

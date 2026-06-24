@@ -84,7 +84,7 @@ def check_runtime_prerequisites() -> Tuple[bool, str]:
 
 
 def _pip_install_bff() -> None:
-    pip_cmd = [sys.executable, "-m", "pip", "install", "--no-compile", "--prefer-binary"]
+    pip_cmd = [sys.executable, "-m", "pip", "install", "--no-compile", "--only-binary", ":all:"]
     if _env_truthy("NTQ_PIP_NO_CACHE"):
         pip_cmd.append("--no-cache-dir")
     pip_cmd.extend(["-r", str(BFF_REQUIREMENTS)])

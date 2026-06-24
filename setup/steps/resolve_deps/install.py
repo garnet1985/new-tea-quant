@@ -25,6 +25,16 @@ def _use_china_mirror() -> bool:
 
 def main() -> int:
     print(f"当前依赖安装解释器: {sys.executable}", file=sys.stderr)
+
+    # 先升级 pip（确保支持 --only-binary :all:）
+    print("升级 pip …", file=sys.stderr)
+    upgrade_cmd = [sys.executable, "-m", "pip", "install", "--upgrade", "pip"]
+    subprocess.run(upgrade_cmd, check=False)
+
+    # 清除 pip cache（避免使用旧的源码包 metadata）
+    print("清除 pip cache …", file=sys.stderr)
+    subprocess.run([sys.executable, "-m", "pip", "cache", "purge"], check=False)
+
     req = _REPO_ROOT / "requirements.txt"
     if not req.is_file():
         print(f"错误: 未找到 requirements.txt: {req}", file=sys.stderr)

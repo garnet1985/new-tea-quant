@@ -83,21 +83,8 @@ class _WorkbenchRunProgressSink:
         self._last_idx = 0
 
     def _sync_legacy_disk_pct(self) -> None:
-        packed = get_run_progress(strategy_name=self._strategy_name, job_id=self._job_id)
-        if not packed:
-            return
-        rp = packed.get("run_progress")
-        if isinstance(rp, dict):
-            try:
-                pct = float(rp.get("pct") or 0)
-            except (TypeError, ValueError):
-                pct = 0.0
-            disk_workbench_step_progress(
-                self._strategy_name,
-                self._job_id,
-                self._user_step,
-                pct,
-            )
+        """不再写入 disk file；execute 阶段由 WorkbenchEnumeratorProgressCallback 直接写入。"""
+        return
 
     def on_overall_pct(self, pct: float) -> None:
         _ = pct

@@ -122,6 +122,37 @@ class WorkbenchEnumeratorProgressCallback:
             float(progress_pct) / 100.0,
             counters=counters,
         )
+        # 同步更新 ProgressRecorder（_merge_enum_progress_sidecar 的数据源）
+        # 写入原始 job 完成百分比，由 _merge_enum_progress_sidecar 统一做加权
+        from core.modules.strategy.services.progress import ProgressRecorder
+
+        recorder = ProgressRecorder.for_strategy_run_step(
+            self.strategy_name, self.run_id, "enum"
+        )
+        prev = recorder.get_progress()
+        base = dict(prev) if isinstance(prev, dict) else {}
+        base["phase"] = "running"
+        base["progress_pct"] = int(progress_pct)
+        if total_jobs > 0:
+            base["done_jobs"] = done_jobs
+            base["total_jobs"] = total_jobs
+        recorder.record(base)
+        # 同步写入 step 级别进度文件（GET /{step}/progress 直接读取的数据源，需要预加权）
+        from core.modules.strategy.execution_manager.workbench_disk_progress import (
+            disk_workbench_step_progress,
+        )
+        from core.modules.strategy.execution_manager.workbench_step_progress import (
+            compute_step_progress_pct,
+        )
+
+        weighted_pct = compute_step_progress_pct("enum", "execute", float(progress_pct) / 100.0)
+        disk_workbench_step_progress(
+            self.strategy_name,
+            self.run_id,
+            "enum",
+            weighted_pct,
+            phase="running",
+        )
 
 
 class EnumeratorSharedServices:
@@ -366,7 +397,7 @@ class EnumeratorSharedServices:
 
     def progress_units_from_execute_report(self, report: Any) -> tuple[int, int, int]:
         mode = getattr(self, "_entity_progress_mode", "stock")
-        from core.modules.strategy.engines.simulator.enumerator.shared.progress_axis import (
+        from core.modules.strategy.engines.simulator.enumerator.stock_based.progress import (
             entity_progress_units_from_execute_report,
         )
 

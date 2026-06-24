@@ -122,6 +122,37 @@ class WorkbenchEnumeratorProgressCallback:
             float(progress_pct) / 100.0,
             counters=counters,
         )
+        # 同步更新 ProgressRecorder（_merge_enum_progress_sidecar 的数据源）
+        # 写入原始 job 完成百分比，由 _merge_enum_progress_sidecar 统一做加权
+        from core.modules.strategy.services.progress import ProgressRecorder
+
+        recorder = ProgressRecorder.for_strategy_run_step(
+            self.strategy_name, self.run_id, "enum"
+        )
+        prev = recorder.get_progress()
+        base = dict(prev) if isinstance(prev, dict) else {}
+        base["phase"] = "running"
+        base["progress_pct"] = int(progress_pct)
+        if total_jobs > 0:
+            base["done_jobs"] = done_jobs
+            base["total_jobs"] = total_jobs
+        recorder.record(base)
+        # 同步写入 step 级别进度文件（GET /{step}/progress 直接读取的数据源，需要预加权）
+        from core.modules.strategy.execution_manager.workbench_disk_progress import (
+            disk_workbench_step_progress,
+        )
+        from core.modules.strategy.execution_manager.workbench_step_progress import (
+            compute_step_progress_pct,
+        )
+
+        weighted_pct = compute_step_progress_pct("enum", "execute", float(progress_pct) / 100.0)
+        disk_workbench_step_progress(
+            self.strategy_name,
+            self.run_id,
+            "enum",
+            weighted_pct,
+            phase="running",
+        )
 
 
 class EnumeratorSharedServices:
@@ -366,7 +397,7 @@ class EnumeratorSharedServices:
 
     def progress_units_from_execute_report(self, report: Any) -> tuple[int, int, int]:
         mode = getattr(self, "_entity_progress_mode", "stock")
-        from core.modules.strategy.engines.simulator.enumerator.shared.progress_axis import (
+        from core.modules.strategy.engines.simulator.enumerator.stock_based.progress import (
             entity_progress_units_from_execute_report,
         )
 
@@ -636,6 +667,20 @@ class EnumeratorSharedServices:
             expand_bulk_job_results,
         )
 
+        # 预处理：提取 bulk job 的 performance_metrics（calendar_sliced 等模式）
+        for jr in job_results:
+            raw_result = getattr(jr, "result", None) or {}
+            if isinstance(raw_result, dict) and raw_result.get("bulk"):
+                perf_data = raw_result.get("performance_metrics")
+                if perf_data and isinstance(perf_data, dict):
+                    # calendar_sliced 模式：整个 job 的 performance_metrics
+                    # 使用一个虚拟 stock_id 存储整体指标
+                    try:
+                        metrics = PerformanceMetrics.from_dict(perf_data)
+                        aggregate_profiler.add_stock_metrics("__bulk__", metrics)
+                    except Exception:
+                        pass
+
         for job_result in expand_bulk_job_results(job_results):
             row = self._aggregate_single_job_result(job_result, aggregate_profiler)
             total_opportunities += row["opportunity_count"]
@@ -678,6 +723,8 @@ class EnumeratorSharedServices:
                 plan = perf.get("calendar_slice_runtime_plan")
                 if isinstance(plan, dict):
                     self._calendar_slice_runtime_plan = plan
+                    # 注入到 AggregateProfiler，使其出现在最终 report 中
+                    aggregate_profiler.set_extra_data(calendar_slice_runtime_plan=plan)
                     break
 
         # step2: normalize and return aggregate summary

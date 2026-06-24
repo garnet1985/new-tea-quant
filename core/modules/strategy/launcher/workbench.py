@@ -452,7 +452,20 @@ def build_step_report_ref_message(
                 except Exception:
                     continue
                 if isinstance(raw, dict) and raw:
-                    stock_ref = raw
+                    # 过滤掉没有对应机会数据文件的股票
+                    valid_stocks: Dict[str, Any] = {}
+                    for sid in raw:
+                        opportunity_file = p / f"{sid}_opportunities.csv"
+                        if opportunity_file.is_file():
+                            # 检查文件内容是否非空（至少有表头和一行数据）
+                            try:
+                                content = opportunity_file.read_text(encoding="utf-8")
+                                lines = [line.strip() for line in content.split("\n") if line.strip()]
+                                if len(lines) >= 2:
+                                    valid_stocks[sid] = raw[sid]
+                            except Exception:
+                                continue
+                    stock_ref = valid_stocks
                     resolved_dir = p.name
                     break
             if stock_ref is not None:

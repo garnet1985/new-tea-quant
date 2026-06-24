@@ -128,14 +128,35 @@ class EnumeratorOutputWriterService:
         output_dir: Path,
         by_stock_id: Dict[str, Dict[str, Any]],
     ) -> None:
-        """单文件、以股票代码为键；数据在 job 完成时已在内存中汇总，此处仅一次顺序写盘。"""
+        """单文件、以股票代码为键；数据在 job 完成时已在内存中汇总，此处仅一次顺序写盘。
+        
+        仅写入存在对应机会数据文件且内容非空的股票，避免 UI 显示无法查看详情的股票。
+        """
         if not by_stock_id:
             return
         output_dir.mkdir(parents=True, exist_ok=True)
-        ordered = {sid: by_stock_id[sid] for sid in sorted(by_stock_id.keys())}
+        
+        # 过滤：只保留存在机会数据文件且内容非空的股票
+        valid_stocks: Dict[str, Dict[str, Any]] = {}
+        for sid in sorted(by_stock_id.keys()):
+            opportunity_file = output_dir / f"{sid}_opportunities.csv"
+            if opportunity_file.is_file():
+                # 检查文件内容是否非空（至少有表头和一行数据）
+                try:
+                    content = opportunity_file.read_text(encoding="utf-8")
+                    lines = [line.strip() for line in content.split("\n") if line.strip()]
+                    # 至少需要表头 + 一行数据
+                    if len(lines) >= 2:
+                        valid_stocks[sid] = by_stock_id[sid]
+                except Exception:
+                    continue
+        
+        if not valid_stocks:
+            return
+            
         path = output_dir / STOCK_REF_FILENAME
         path.write_text(
-            json.dumps(ordered, ensure_ascii=False, indent=2) + "\n",
+            json.dumps(valid_stocks, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
 

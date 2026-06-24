@@ -39,10 +39,29 @@ class CliApp:
             self.strategy_manager = StrategyManager(is_verbose=self.is_verbose)
         return self.strategy_manager
 
-    def tag(self, scenario_name: str | None = None) -> None:
+    def tag(
+        self,
+        scenario_name: str | None = None,
+        *,
+        dry_run: bool = False,
+        stock_limit: int | None = None,
+        profile: bool = False,
+        entities_per_job: int | None = None,
+    ) -> None:
         if self.tag_manager is None:
             self.tag_manager = TagManager(is_verbose=self.is_verbose)
-        self.tag_manager.execute(scenario_name=scenario_name)
+
+        # 传递额外的参数到 tag manager
+        if stock_limit is not None:
+            self.tag_manager._dispatch_overrides["stock_limit"] = stock_limit
+        if profile:
+            # 同时设置两个 key 以确保兼容性
+            self.tag_manager._dispatch_overrides["profile"] = True
+            self.tag_manager._dispatch_overrides["profile_enabled"] = True
+        if entities_per_job is not None:
+            self.tag_manager._dispatch_overrides["entities_per_job"] = entities_per_job
+
+        self.tag_manager.execute(scenario_name=scenario_name, dry_run=dry_run)
 
     def export_adj_factor_csv(
         self,

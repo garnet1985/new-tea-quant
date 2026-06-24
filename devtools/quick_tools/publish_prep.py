@@ -49,6 +49,7 @@ class PublishPrepOptions:
     skip_fed_build: bool = False
     skip_py39: bool = False
     package_userspace: bool = False
+    skip_dep_check: bool = False  # 新增：跳过依赖风险检测
 
 
 def normalize_version(raw: str) -> str:
@@ -288,6 +289,20 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
             failures.append("pytest 失败")
     else:
         print("\n[跳过] pytest", flush=True)
+
+    # 新增：依赖安装风险检测
+    if not opts.skip_dep_check:
+        print("\n[检查] 依赖安装风险（Windows 兼容性、未使用依赖等）…", flush=True)
+        from devtools.quick_tools.dependency_risk import run_dependency_check
+
+        dep_check_result = run_dependency_check(verbose=True)
+        if dep_check_result == 1:
+            failures.append("依赖风险检测发现关键问题")
+        elif dep_check_result == 2:
+            print(f"  {icon('warning')} 发现高危依赖项，建议修复但允许继续", flush=True)
+            # 高危不阻止打包，只警告
+    else:
+        print("\n[跳过] 依赖安装风险检测", flush=True)
 
     print("\n---", flush=True)
     if failures:

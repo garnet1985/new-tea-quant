@@ -1,0 +1,335 @@
+{
+  "experiment_id": "sliced_slice_matrix_20260624_112327",
+  "timestamp": "2026-06-24T11:23:27.112596",
+  "design": {
+    "description": "二维矩阵实验：Entity数量 × Slice Open Days",
+    "entity_limits": [
+      50,
+      100,
+      300
+    ],
+    "slice_days_list": [
+      30,
+      50,
+      100
+    ],
+    "dry_run": true
+  },
+  "results": [
+    {
+      "scenario_name": "bench_slice_exp_30d",
+      "config": {
+        "slice_open_days": 30,
+        "stock_limit": 50,
+        "dry_run": true
+      },
+      "result": {
+        "success": true,
+        "wall_seconds": 8.26,
+        "return_code": 0
+      },
+      "report": {
+        "wall_clock_seconds": 7.553,
+        "wall_clock_minutes": 0.126,
+        "total_entities": 50,
+        "total_jobs": 1,
+        "completed_jobs": 1,
+        "failed_jobs": 0,
+        "saved_tag_values": 29050,
+        "parallelism_factor": 0.97
+      },
+      "profile": {
+        "stage_sec": 0.0,
+        "execute_sec": 7.303,
+        "report_sec": 0.0,
+        "save_batch_sec": 0.0,
+        "stage_jobs": 0,
+        "execute_jobs": 1,
+        "report_jobs": 1,
+        "pickle_bytes": 0,
+        "payload_rows": 0,
+        "wall_sec": 7.553
+      }
+    },
+    {
+      "scenario_name": "bench_slice_exp_50d",
+      "config": {
+        "slice_open_days": 50,
+        "stock_limit": 50,
+        "dry_run": true
+      },
+      "result": {
+        "success": true,
+        "wall_seconds": 8.05,
+        "return_code": 0
+      },
+      "report": {
+        "wall_clock_seconds": 7.496,
+        "wall_clock_minutes": 0.125,
+        "total_entities": 50,
+        "total_jobs": 1,
+        "completed_jobs": 1,
+        "failed_jobs": 0,
+        "saved_tag_values": 29050,
+        "parallelism_factor": 0.97
+      },
+      "profile": {
+        "stage_sec": 0.0,
+        "execute_sec": 7.29,
+        "report_sec": 0.0,
+        "save_batch_sec": 0.0,
+        "stage_jobs": 0,
+        "execute_jobs": 1,
+        "report_jobs": 1,
+        "pickle_bytes": 0,
+        "payload_rows": 0,
+        "wall_sec": 7.496
+      }
+    },
+    {
+      "scenario_name": "bench_slice_exp_100d",
+      "config": {
+        "slice_open_days": 100,
+        "stock_limit": 50,
+        "dry_run": true
+      },
+      "result": {
+        "success": true,
+        "wall_seconds": 8.01,
+        "return_code": 0
+      },
+      "report": {
+        "wall_clock_seconds": 7.493,
+        "wall_clock_minutes": 0.125,
+        "total_entities": 50,
+        "total_jobs": 1,
+        "completed_jobs": 1,
+        "failed_jobs": 0,
+        "saved_tag_values": 29050,
+        "parallelism_factor": 0.97
+      },
+      "profile": {
+        "stage_sec": 0.0,
+        "execute_sec": 7.289,
+        "report_sec": 0.0,
+        "save_batch_sec": 0.0,
+        "stage_jobs": 0,
+        "execute_jobs": 1,
+        "report_jobs": 1,
+        "pickle_bytes": 0,
+        "payload_rows": 0,
+        "wall_sec": 7.493
+      }
+    },
+    {
+      "scenario_name": "bench_slice_exp_30d",
+      "config": {
+        "slice_open_days": 30,
+        "stock_limit": 100,
+        "dry_run": true
+      },
+      "result": {
+        "success": true,
+        "wall_seconds": 16.7,
+        "return_code": 0
+      },
+      "report": {
+        "wall_clock_seconds": 15.279,
+        "wall_clock_minutes": 0.255,
+        "total_entities": 100,
+        "total_jobs": 1,
+        "completed_jobs": 1,
+        "failed_jobs": 0,
+        "saved_tag_values": 61000,
+        "parallelism_factor": 0.99
+      },
+      "profile": {
+        "stage_sec": 0.0,
+        "execute_sec": 15.056,
+        "report_sec": 0.001,
+        "save_batch_sec": 0.0,
+        "stage_jobs": 0,
+        "execute_jobs": 1,
+        "report_jobs": 1,
+        "pickle_bytes": 0,
+        "payload_rows": 0,
+        "wall_sec": 15.28
+      }
+    },
+    {
+      "scenario_name": "bench_slice_exp_50d",
+      "config": {
+        "slice_open_days": 50,
+        "stock_limit": 100,
+        "dry_run": true
+      },
+      "result": {
+        "success": true,
+        "wall_seconds": 16.72,
+        "return_code": 0
+      },
+      "report": {
+        "wall_clock_seconds": 15.296,
+        "wall_clock_minutes": 0.255,
+        "total_entities": 100,
+        "total_jobs": 1,
+        "completed_jobs": 1,
+        "failed_jobs": 0,
+        "saved_tag_values": 61000,
+        "parallelism_factor": 0.99
+      },
+      "profile": {
+        "stage_sec": 0.0,
+        "execute_sec": 15.067,
+        "report_sec": 0.001,
+        "save_batch_sec": 0.0,
+        "stage_jobs": 0,
+        "execute_jobs": 1,
+        "report_jobs": 1,
+        "pickle_bytes": 0,
+        "payload_rows": 0,
+        "wall_sec": 15.296
+      }
+    },
+    {
+      "scenario_name": "bench_slice_exp_100d",
+      "config": {
+        "slice_open_days": 100,
+        "stock_limit": 100,
+        "dry_run": true
+      },
+      "result": {
+        "success": true,
+        "wall_seconds": 16.57,
+        "return_code": 0
+      },
+      "report": {
+        "wall_clock_seconds": 15.171,
+        "wall_clock_minutes": 0.253,
+        "total_entities": 100,
+        "total_jobs": 1,
+        "completed_jobs": 1,
+        "failed_jobs": 0,
+        "saved_tag_values": 61000,
+        "parallelism_factor": 0.99
+      },
+      "profile": {
+        "stage_sec": 0.0,
+        "execute_sec": 14.949,
+        "report_sec": 0.001,
+        "save_batch_sec": 0.0,
+        "stage_jobs": 0,
+        "execute_jobs": 1,
+        "report_jobs": 1,
+        "pickle_bytes": 0,
+        "payload_rows": 0,
+        "wall_sec": 15.172
+      }
+    },
+    {
+      "scenario_name": "bench_slice_exp_30d",
+      "config": {
+        "slice_open_days": 30,
+        "stock_limit": 300,
+        "dry_run": true
+      },
+      "result": {
+        "success": true,
+        "wall_seconds": 44.67,
+        "return_code": 0
+      },
+      "report": {
+        "wall_clock_seconds": 43.241,
+        "wall_clock_minutes": 0.721,
+        "total_entities": 300,
+        "total_jobs": 1,
+        "completed_jobs": 1,
+        "failed_jobs": 0,
+        "saved_tag_values": 178032,
+        "parallelism_factor": 0.99
+      },
+      "profile": {
+        "stage_sec": 0.0,
+        "execute_sec": 42.91,
+        "report_sec": 0.002,
+        "save_batch_sec": 0.0,
+        "stage_jobs": 0,
+        "execute_jobs": 1,
+        "report_jobs": 1,
+        "pickle_bytes": 0,
+        "payload_rows": 0,
+        "wall_sec": 43.241
+      }
+    },
+    {
+      "scenario_name": "bench_slice_exp_50d",
+      "config": {
+        "slice_open_days": 50,
+        "stock_limit": 300,
+        "dry_run": true
+      },
+      "result": {
+        "success": true,
+        "wall_seconds": 45.08,
+        "return_code": 0
+      },
+      "report": {
+        "wall_clock_seconds": 43.559,
+        "wall_clock_minutes": 0.726,
+        "total_entities": 300,
+        "total_jobs": 1,
+        "completed_jobs": 1,
+        "failed_jobs": 0,
+        "saved_tag_values": 178032,
+        "parallelism_factor": 0.99
+      },
+      "profile": {
+        "stage_sec": 0.0,
+        "execute_sec": 43.215,
+        "report_sec": 0.002,
+        "save_batch_sec": 0.0,
+        "stage_jobs": 0,
+        "execute_jobs": 1,
+        "report_jobs": 1,
+        "pickle_bytes": 0,
+        "payload_rows": 0,
+        "wall_sec": 43.559
+      }
+    },
+    {
+      "scenario_name": "bench_slice_exp_100d",
+      "config": {
+        "slice_open_days": 100,
+        "stock_limit": 300,
+        "dry_run": true
+      },
+      "result": {
+        "success": true,
+        "wall_seconds": 45.35,
+        "return_code": 0
+      },
+      "report": {
+        "wall_clock_seconds": 43.892,
+        "wall_clock_minutes": 0.732,
+        "total_entities": 300,
+        "total_jobs": 1,
+        "completed_jobs": 1,
+        "failed_jobs": 0,
+        "saved_tag_values": 178032,
+        "parallelism_factor": 0.99
+      },
+      "profile": {
+        "stage_sec": 0.0,
+        "execute_sec": 43.561,
+        "report_sec": 0.002,
+        "save_batch_sec": 0.0,
+        "stage_jobs": 0,
+        "execute_jobs": 1,
+        "report_jobs": 1,
+        "pickle_bytes": 0,
+        "payload_rows": 0,
+        "wall_sec": 43.892
+      }
+    }
+  ]
+}

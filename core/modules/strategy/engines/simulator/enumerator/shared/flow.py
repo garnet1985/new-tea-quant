@@ -268,6 +268,29 @@ class BaseEnumeratorFlow(BaseSimulationFlow):
         )
         return EnumeratorExecuteContext(job_results=job_results)
 
+    def _inject_runtime_metadata(self, preprocessed: "EnumeratorPreprocessContext") -> None:
+        """向 AggregateProfiler 注入运行时元数据（由子类可覆写补充）。"""
+        from core.modules.data_manager import DataManager
+
+        profiler = preprocessed.aggregate_profiler
+        # DB 引擎检测
+        db_engine = "unknown"
+        try:
+            data_mgr = DataManager(is_verbose=False)
+            if data_mgr.db is not None:
+                db_engine = data_mgr.db.config.get("database_type", "unknown")
+        except Exception:
+            pass
+        profiler.set_runtime_context(
+            execution_mode=getattr(self, "_execution_mode_label", "unknown"),
+            max_workers=int(preprocessed.max_workers) if preprocessed.max_workers else 0,
+            stock_count=len(self.stock_list),
+            start_date=self.start_date,
+            end_date=self.end_date,
+            db_engine=db_engine,
+            cache_hit=self.used_db_cache,
+        )
+
     def postprocess(
         self, preprocessed: EnumeratorPreprocessContext, executed: EnumeratorExecuteContext
     ) -> List[Dict[str, Any]]:
@@ -275,6 +298,8 @@ class BaseEnumeratorFlow(BaseSimulationFlow):
             job_results=executed.job_results or [],
             aggregate_profiler=preprocessed.aggregate_profiler,
         )
+        # 注入运行时元数据到 profiler
+        self._inject_runtime_metadata(preprocessed)
         result_fingerprint = preprocessed.result_fingerprint
         self._impl.save_performance_report(
             output_dir=preprocessed.output_dir,

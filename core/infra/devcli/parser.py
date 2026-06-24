@@ -113,7 +113,20 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="检查通过后打包 init userspace",
     )
+    p_pack.add_argument(
+        "--skip-dep-check",
+        action="store_true",
+        help="跳过依赖安装风险检测（Windows 兼容性、未使用依赖等）",
+    )
     p_pack.set_defaults(handler=h.cmd_pack)
+
+    p_cd = sub.add_parser(
+        "check_deps",
+        aliases=aliases_for("check_deps"),
+        help="依赖安装风险检测（Windows 兼容性、未使用依赖等）",
+    )
+    p_cd.add_argument("--verbose", "-v", action="store_true", help="显示详细信息")
+    p_cd.set_defaults(handler=h.cmd_check_deps)
 
     p_ssp = sub.add_parser(
         "sample_stock_pool",

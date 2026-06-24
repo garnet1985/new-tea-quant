@@ -24,7 +24,7 @@
   - [scenario_model.py](file:///Users/garnet/Desktop/new-tea-quant/core/modules/tag/models/scenario_model.py) - 智能填充模式专用配置
 
 #### Phase 2: DataCursor 性能优化 ⭐⭐⭐
-- **问题**: Sliced 模式中 `build_stocks_context()` 使用线性扫描 O(N×M×L)，导致 93.5% 时间消耗在数据准备阶段
+- **问题**: Sliced 模式中旧的上下文构建使用线性扫描 O(N×M×L)，导致 93.5% 时间消耗在数据准备阶段
 - **根因**: Tag 未复用 Strategy 已有的 DataCursor 基础设施（O(K) 游标推进）
 - **修复**:
   - 新增 [entity_context.py](file:///Users/garnet/Desktop/new-tea-quant/core/modules/tag/engines/sliced/entity_context.py) - 基于 DataCursor 的实体上下文
@@ -146,7 +146,7 @@
 
 **优化前**（线性扫描 O(N×M×L)）:
 ```python
-# build_stocks_context() - 每次 O(N × M × L)
+# 旧的上下文构建 - 每次 O(N × M × L)
 for eid, inject in by_entity.items():           # N = 50 entities
     for slot, rows in slot_data.items():         # M = ~3 slots
         historical[slot] = _rows_until(rows, as_of)  # L = ~2000 records

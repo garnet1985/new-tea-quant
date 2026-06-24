@@ -22,7 +22,7 @@ from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.types im
     CalendarAsOfContext,
 )
 from core.modules.tag.engines.shared.base_worker import BaseTagWorker, worker_uses_calendar_asof
-from core.modules.tag.engines.sliced.stocks_context import (
+from core.modules.tag.engines.sliced.entity_context import (
     axis_data_id_from_settings,
 )
 from core.modules.tag.engines.shared.staging.prior_values import encode_tag_json_value
@@ -122,13 +122,13 @@ class TagSliceComputeEngine:
         # 使用 DataCursor 预构建实体上下文（只做一次，O(N) 初始化）
         from core.modules.tag.engines.sliced.entity_context import (
             build_entity_contexts,
-            build_entity_stocks_context,
+            build_entity_historical_context,
         )
         entity_contexts = build_entity_contexts(by_entity)
 
         for open_date_index, as_of in enumerate(payload.open_dates):
             # O(K) 查询（K=新增行数），替代原来的 O(N×M×L) 线性扫描
-            stocks = build_entity_stocks_context(
+            entities = build_entity_historical_context(
                 as_of=as_of,
                 axis_data_id=axis_id,
                 min_records=min_records,
@@ -141,7 +141,7 @@ class TagSliceComputeEngine:
                 slice_open_days=self._slice_open_days,
                 window_start=payload.window_start,
                 window_end=payload.window_end,
-                stocks=stocks,
+                stocks=entities,  # 兼容旧接口名（CalendarAsOfContext 使用 stocks 字段）
                 carry=dict(self._carry),
                 open_date_index=open_date_index,
                 is_first_open_of_month=is_first_open_of_month(as_of, self._open_dates_all),

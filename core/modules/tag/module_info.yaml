@@ -14,6 +14,7 @@ changelog:
     changes:
       - 增强tag的profiler，帮助性能测试收集必要的数据
       - 新增 dry-run 模式：运行计算但不写入数据库
+      - 加入data cursor计算到calendar_slice模式中，让回测速度提高6-9倍
   - version: "0.3.0"
     changes:
       - 支持sliced块状切片

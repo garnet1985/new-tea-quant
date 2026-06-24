@@ -1,11 +1,11 @@
-"""Tag calendar_asof 与 stocks_context 单元测试。"""
+"""Tag calendar_asof 与 entity_context 单元测试。"""
 from __future__ import annotations
 
 from unittest.mock import patch
 
 from core.modules.tag.engines.shared.base_worker import BaseTagWorker
 from core.modules.tag.engines.sliced.runtime.compute_engine import TagSliceComputeEngine
-from core.modules.tag.engines.sliced.stocks_context import build_stocks_context
+from core.modules.tag.engines.sliced.entity_context import build_entity_historical_context, build_entity_contexts, EntityDataContext
 from core.modules.tag.engines.sliced.types import TagCalendarAsOfResult
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.messages import (
     SlicePayload,
@@ -26,7 +26,7 @@ class _CalendarTagWorker(BaseTagWorker):
         return TagCalendarAsOfResult(entity_tags=entity_tags, carry=carry)
 
 
-def test_build_stocks_context_filters_by_as_of():
+def test_build_entity_historical_context_filters_by_as_of():
     by_entity = {
         "A": {
             "slot_data": {
@@ -44,15 +44,19 @@ def test_build_stocks_context_filters_by_as_of():
             "time_field_overrides": {"stock.kline.daily": "date"},
         },
     }
-    stocks = build_stocks_context(
-        by_entity,
-        "20240102",
+    
+    # 使用新的 DataCursor 实现
+    entity_contexts = build_entity_contexts(by_entity)
+    entities = build_entity_historical_context(
+        as_of="20240102",
         axis_data_id="stock.kline.daily",
         min_records=1,
+        entity_contexts=entity_contexts,
     )
-    assert "A" in stocks
-    assert "B" not in stocks
-    assert stocks["A"]["stock.kline.daily"][-1]["date"] == "20240102"
+    
+    assert "A" in entities
+    assert "B" not in entities
+    assert entities["A"]["stock.kline.daily"][-1]["date"] == "20240102"
 
 
 def test_calendar_asof_fan_out_and_carry():

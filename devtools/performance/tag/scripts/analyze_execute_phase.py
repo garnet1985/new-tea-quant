@@ -3,7 +3,7 @@
 Execute 阶段内部剖析
 
 在 compute_engine 的关键位置添加计时器，精确测量：
-1. build_stocks_context() 数据构建
+1. build_entity_historical_context() 数据构建
 2. CalendarAsOfContext 上下文创建
 3. on_calendar_asof() 用户计算
 4. _append_entity_tags() 结果序列化
@@ -13,7 +13,15 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, "/Users/garnet/Desktop/new-tea-quant")
+# 动态解析项目根目录
+_SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = _SCRIPT_DIR
+for _ in range(5):  # scripts/ → tag/ → performance/ → devtools/ → 项目根目录
+    if (PROJECT_ROOT / "cli.py").exists():
+        break
+    PROJECT_ROOT = PROJECT_ROOT.parent
+
+sys.path.insert(0, str(PROJECT_ROOT))
 
 # 临时 monkey-patch compute_engine 添加计时器
 import core.modules.tag.engines.sliced.runtime.compute_engine as compute_module
@@ -113,7 +121,6 @@ def run_profiled_test():
     import shutil
     from datetime import datetime
 
-    PROJECT_ROOT = Path("/Users/garnet/Desktop/new-tea-quant")
     BASE_TAG_DIR = PROJECT_ROOT / "devtools" / "performance" / "tag" / "test_base_tags" / "calendar_sliced"
     USERSPACE_TAGS = PROJECT_ROOT / "userspace" / "extensions" / "tags"
 

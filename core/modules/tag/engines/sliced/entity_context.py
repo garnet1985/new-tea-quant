@@ -56,14 +56,14 @@ def build_entity_contexts(
     return contexts
 
 
-def build_entity_stocks_context(
+def build_entity_historical_context(
     as_of: str,
     *,
     axis_data_id: str,
     min_records: int = 1,
     entity_contexts: Dict[str, EntityDataContext],
 ) -> Dict[str, Dict[str, Any]]:
-    """使用 DataCursor 构建 on_calendar_asof 用的实体字典。
+    """使用 DataCursor 构建 on_calendar_asof 用的实体历史数据字典。
 
     Args:
         as_of: 截至日期
@@ -79,7 +79,7 @@ def build_entity_stocks_context(
         return {}
 
     min_n = max(1, int(min_records or 1))
-    stocks: Dict[str, Dict[str, Any]] = {}
+    entities: Dict[str, Dict[str, Any]] = {}
 
     for eid, ctx in entity_contexts.items():
         try:
@@ -97,15 +97,29 @@ def build_entity_stocks_context(
             if len(axis_rows) < min_n:
                 continue
 
-            stocks[eid] = historical
+            entities[eid] = historical
         except Exception:
             continue
 
-    return stocks
+    return entities
+
+
+def axis_data_id_from_settings(settings: Dict[str, Any]) -> str:
+    """从 settings 中提取时间轴数据源 ID。"""
+    data = settings.get("data") or {}
+    configured = str(data.get("tag_time_axis_based_on") or "").strip()
+    if configured:
+        return configured
+    for item in data.get("required") or []:
+        raw = str(item.get("data_id") or "").strip()
+        if raw:
+            return raw
+    return "stock.kline.daily"
 
 
 __all__ = [
     "EntityDataContext",
     "build_entity_contexts",
-    "build_entity_stocks_context",
+    "build_entity_historical_context",
+    "axis_data_id_from_settings",
 ]

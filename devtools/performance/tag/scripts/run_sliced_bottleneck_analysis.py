@@ -22,13 +22,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-# 项目根目录
-PROJECT_ROOT = Path("/Users/garnet/Desktop/new-tea-quant")
+# 动态解析项目根目录
+_SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = _SCRIPT_DIR
+for _ in range(5):  # scripts/ → tag/ → performance/ → devtools/ → 项目根目录
+    if (PROJECT_ROOT / "cli.py").exists():
+        break
+    PROJECT_ROOT = PROJECT_ROOT.parent
+
 sys.path.insert(0, str(PROJECT_ROOT))
 
 BASE_TAG_DIR = PROJECT_ROOT / "devtools" / "performance" / "tag" / "test_base_tags" / "calendar_sliced"
 USERSPACE_TAGS = PROJECT_ROOT / "userspace" / "extensions" / "tags"
-RESULTS_DIR = PROJECT_ROOT / "devtools" / "performance" / "tag" / "scripts" / "results" / "bottleneck_analysis"
+RESULTS_DIR = _SCRIPT_DIR / "results" / "bottleneck_analysis"
 
 
 def run_bottleneck_analysis(

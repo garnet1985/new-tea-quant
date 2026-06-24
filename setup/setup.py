@@ -14,6 +14,8 @@ import sys
 from pathlib import Path
 from typing import ClassVar, Sequence
 
+from core.utils.icon.icon_service import IconService
+
 
 class NewTeaQuantSetup:
     """安装共用：路径、venv、打印、环境约定；不定义「要跑哪些步骤」。"""
@@ -114,10 +116,10 @@ class NewTeaQuantSetup:
     @classmethod
     def print_info(cls, title: str, msg: str, icon: str = None) -> None:
         icon_map = {
-            "success": "✅",
-            "green_dot": "🟢",
-            "failed": "❌",
-            "ongoing": "⏳",
+            "success": IconService.get("success"),
+            "green_dot": IconService.get("green_dot"),
+            "failed": IconService.get("error"),
+            "ongoing": IconService.get("ongoing"),
         }
         icon_text = icon_map.get(icon, "")
         if icon:
@@ -136,22 +138,22 @@ class NewTeaQuantSetup:
     @staticmethod
     def print_check_item(status: str, msg: str) -> None:
         marks = {
-            "running": "⏳",
-            "done": "✅",
-            "warn": "⚠️",
-            "skip": "⏭️",
-            "fail": "❌",
+            "running": IconService.get("ongoing"),
+            "done": IconService.get("success"),
+            "warn": IconService.get("warning"),
+            "skip": "[SKIP]",
+            "fail": IconService.get("error"),
         }
-        mark = marks.get(status, "ℹ️")
+        mark = marks.get(status, IconService.get("info"))
         print(f"{mark} {msg}", flush=True)
 
     @staticmethod
     def print_check_ok(msg: str) -> None:
-        print(f"✅ {msg}", flush=True)
+        print(f"{IconService.get('success')} {msg}", flush=True)
 
     @staticmethod
     def print_check_fail(msg: str) -> None:
-        print(f"❌ {msg}", flush=True)
+        print(f"{IconService.get('error')} {msg}", flush=True)
 
     @staticmethod
     def print_check_info(msg: str) -> None:

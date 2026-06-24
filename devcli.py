@@ -11,6 +11,12 @@
 from __future__ import annotations
 
 import sys
+
+# Windows GBK 编码兼容：强制 UTF-8 输出，保留 emoji 符号
+if sys.platform == "win32" and sys.stdout.encoding != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
+
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent

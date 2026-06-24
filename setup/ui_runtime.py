@@ -13,6 +13,7 @@ from typing import Tuple
 from core.system import python_minimum
 from core.ui.process_cleanup import kill_process_group
 from core.ui.ports import ALL_UI_PORTS, UI_BFF_PORT, UI_DEV_PORT
+from core.utils.icon.icon_service import IconService
 
 from setup.install_runtime import (
     REPO_ROOT,
@@ -47,7 +48,7 @@ def _bootstrap_pip() -> None:
     print("正在升级 pip / setuptools / wheel…", flush=True)
     ret = subprocess.run(cmd, cwd=str(REPO_ROOT))
     if ret.returncode != 0:
-        print("⚠️ pip 自升级失败，将继续尝试安装 BFF 依赖", flush=True)
+        print(f"{IconService.get('warning')} pip 自升级失败，将继续尝试安装 BFF 依赖", flush=True)
 
 
 def _node_toolchain_available() -> bool:
@@ -216,7 +217,7 @@ def _force_shutdown_ui_ports() -> None:
                 break
     blocked = [p for p in ALL_UI_PORTS if _pids_listening_on(p)]
     if blocked:
-        print(f"⚠️ 端口仍占用: {blocked}，请执行 python devcli.py uk", flush=True)
+        print(f"{IconService.get('warning')} 端口仍占用: {blocked}，请执行 python devcli.py uk", flush=True)
 
 
 def release_ui_listen_ports(ports: tuple[int, ...] = ALL_UI_PORTS) -> None:
@@ -235,7 +236,7 @@ def release_ui_listen_ports(ports: tuple[int, ...] = ALL_UI_PORTS) -> None:
         _release_stale_listen_port(port, match_substrings=markers)
     blocked = [p for p in ports if _pids_listening_on(p)]
     if blocked:
-        print(f"⚠️ 端口仍被占用: {blocked}，后续启动可能失败", flush=True)
+        print(f"{IconService.get('warning')} 端口仍被占用: {blocked}，后续启动可能失败", flush=True)
 
 
 def _wait_http_ok(url: str, timeout_sec: int = 30) -> bool:
@@ -260,7 +261,7 @@ def _warm_bff_api(host: str, port: int) -> None:
             resp.read()
         print("BFF API 预加载完成", flush=True)
     except Exception as exc:
-        print(f"⚠️ BFF API 预加载失败: {exc}", flush=True)
+        print(f"{IconService.get('warning')} BFF API 预加载失败: {exc}", flush=True)
 
 
 def _fed_dev_env() -> dict[str, str]:
@@ -346,9 +347,9 @@ def launch_ui_stack() -> None:
                 flush=True,
             )
             if not _wait_http_ok(f"http://localhost:{UI_DEV_PORT}/", timeout_sec=180):
-                print(f"⚠️ CRA 未就绪，请查看 npm 输出；目标: {ui_url}", flush=True)
+                print(f"{IconService.get('warning')} CRA 未就绪，请查看 npm 输出；目标: {ui_url}", flush=True)
             elif not _wait_http_ok(f"http://{host}:{UI_BFF_PORT}/api/health", timeout_sec=15):
-                print(f"⚠️ BFF 在 CRA 就绪后未响应，/api 代理可能失败", flush=True)
+                print(f"{IconService.get('warning')} BFF 在 CRA 就绪后未响应，/api 代理可能失败", flush=True)
         else:
             if not fed_build_ready():
                 raise RuntimeError("缺少 fed/build，请 npm run build 或使用 launcher.py -d")

@@ -82,13 +82,8 @@ class _WorkbenchRunProgressSink:
         self._user_step = str(user_facing_step).strip()
         self._last_idx = 0
 
-    def _sync_legacy_disk_pct(self) -> None:
-        """不再写入 disk file；execute 阶段由 WorkbenchEnumeratorProgressCallback 直接写入。"""
-        return
-
     def on_overall_pct(self, pct: float) -> None:
-        _ = pct
-        self._sync_legacy_disk_pct()
+        pass
 
     def on_substep_start(self, substep: str, index: int, total: int) -> None:
         self._last_idx = int(index)

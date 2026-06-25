@@ -7,9 +7,9 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 STAGES: Tuple[str, ...] = ("load", "dispatch", "execute", "report")
 
 STEP_STAGE_WEIGHTS: Dict[str, Dict[str, float]] = {
-    "enum": {"load": 0.12, "dispatch": 0.13, "execute": 0.70, "report": 0.05},
-    "price": {"load": 0.10, "dispatch": 0.10, "execute": 0.75, "report": 0.05},
-    "capital": {"load": 0.10, "dispatch": 0.10, "execute": 0.75, "report": 0.05},
+    "enum": {"load": 0.05, "dispatch": 0.03, "execute": 0.9, "report": 0.02},
+    "price": {"load": 0.1, "dispatch": 0.03, "execute": 0.85, "report": 0.02},
+    "capital": {"load": 0.2, "dispatch": 0.1, "execute": 0.6, "report": 0.1},
 }
 
 STEP_LABELS: Dict[str, str] = {

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from core.modules.data_contract.loaders.base import BaseLoader
 from core.modules.data_manager import DataManager
@@ -26,4 +26,38 @@ class StockAdjFactorEventsLoader(BaseLoader):
             stock_id=sid,
             start_date=str(start) if start else None,
             end_date=str(end) if end else None,
+        )
+
+    def load_batch(
+        self,
+        entity_ids: Sequence[str],
+        params: Mapping[str, Any],
+        context: Optional[Mapping[str, Any]] = None,
+    ) -> Mapping[str, Any]:
+        """
+        批量加载多个股票的复权因子事件序列（使用 SQL WHERE IN 优化）。
+
+        Args:
+            entity_ids: 股票代码列表
+            params: 加载参数（包含 start/end）
+            context: 未使用（批量路径由 entity_ids 驱动）
+
+        Returns:
+            Dict[stock_id, List[Dict]]: 每只股票的复权因子事件数据
+        """
+        del context  # 批量路径由 entity_ids 驱动，不依赖单股 context
+
+        ids = [str(x).strip() for x in entity_ids if str(x).strip()]
+        if not ids:
+            return {}
+
+        dm = DataManager()
+        start = str(params.get("start")) if params.get("start") is not None else None
+        end = str(params.get("end")) if params.get("end") is not None else None
+
+        # 调用 service 层的批量 API
+        return dm.stock.kline.load_adj_factor_events_batch(
+            ids,
+            start_date=start,
+            end_date=end,
         )

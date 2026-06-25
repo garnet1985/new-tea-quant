@@ -673,6 +673,50 @@ class KlineService(BaseDataService):
             params.append(end_date)
         where_clause = " AND ".join(conditions)
         return self._adj_factor_event.load(where_clause, tuple(params), order_by="event_date ASC")
+
+    def load_adj_factor_events_batch(
+        self,
+        stock_ids: List[str],
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        批量加载多个股票的复权因子事件序列（优化：一次查询所有股票）。
+
+        Args:
+            stock_ids: 股票代码列表
+            start_date: 开始日期（YYYYMMDD）
+            end_date: 结束日期（YYYYMMDD）
+
+        Returns:
+            Dict[stock_id, List[Dict]]: 每只股票的复权因子事件字典
+        """
+        if not self._adj_factor_event or not stock_ids:
+            return {}
+
+        # 使用 IN 子句批量查询
+        placeholders = ','.join(['%s'] * len(stock_ids))
+        conditions = [f"id IN ({placeholders})"]
+        params: List[Any] = list(stock_ids)
+
+        if start_date:
+            conditions.append("event_date >= %s")
+            params.append(start_date)
+        if end_date:
+            conditions.append("event_date <= %s")
+            params.append(end_date)
+
+        where_clause = " AND ".join(conditions)
+        all_rows = self._adj_factor_event.load(where_clause, tuple(params), order_by="id ASC, event_date ASC")
+
+        # 按 stock_id 分组
+        result: Dict[str, List[Dict[str, Any]]] = {sid: [] for sid in stock_ids}
+        for row in all_rows:
+            sid = row.get("id", "")
+            if sid in result:
+                result[sid].append(row)
+
+        return result
     
     def delete_adj_factor_events(self, stock_id: str) -> int:
         """

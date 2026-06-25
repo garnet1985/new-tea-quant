@@ -172,6 +172,34 @@ class CalendarSliceRuntimePlan:
             out["calendar_progress_total"] = self.calendar_progress_total
         if self.calendar_slice_count > 0:
             out["calendar_slice_count"] = self.calendar_slice_count
+
+        # 导出 per-slice 时序样本（用于性能分析和报告）
+        if self._samples:
+            out["slice_samples"] = [
+                {
+                    "slice_index": s.slice_index,
+                    "load_sec": round(s.load_sec, 3),
+                    "compute_sec": round(s.compute_sec, 3),
+                    "rss_after_mb": round(s.rss_after_mb, 1),
+                    "payload_bytes": s.payload_bytes,
+                    "payload_mb": round(s.payload_bytes / (1024 * 1024), 1) if s.payload_bytes > 0 else 0,
+                }
+                for s in self._samples
+            ]
+            # 汇总统计
+            loads = [s.load_sec for s in self._samples if s.load_sec > 0]
+            computes = [s.compute_sec for s in self._samples if s.compute_sec > 0]
+            out["summary"] = {
+                "total_slices": len(self._samples),
+                "total_io_sec": round(sum(loads), 3) if loads else 0,
+                "total_compute_sec": round(sum(computes), 3) if computes else 0,
+                "avg_io_per_slice_sec": round(sum(loads) / len(loads), 3) if loads else 0,
+                "avg_compute_per_slice_sec": round(sum(computes) / len(computes), 3) if computes else 0,
+                "io_compute_ratio": round(sum(loads) / max(sum(computes), 0.001), 2) if (loads and computes) else 0,
+                "peak_rss_mb": round(max((s.rss_after_mb for s in self._samples if s.rss_after_mb > 0), default=0), 1),
+                "total_payload_mb": round(sum((s.payload_bytes for s in self._samples if s.payload_bytes > 0), 0) / (1024 * 1024), 1),
+            }
+
         return out
 
 

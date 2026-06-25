@@ -1,10 +1,13 @@
 name: infra.worker
-version: 0.3.0
+version: 0.3.1
 compatible_core_versions: ">=0.4.0"
 description: "NTQ 通用任务并发基础设施：多进程/多线程 Worker、TaskType 与可插拔的 Orchestrator 组件链。"
 dependencies:
   - infra.project_context
 changelog:
+  - version: "0.3.1"
+    changes:
+      - 优化 dispatch_planner 中的 entities_per_job 约束问题，效率最高提升约15%
   - version: "0.3.0"
     changes:
       - dispatch_planner / dispatch_time_planner：内存与时间探针驱动 entities_per_job

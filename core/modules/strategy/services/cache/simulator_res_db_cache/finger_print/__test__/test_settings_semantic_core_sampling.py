@@ -47,7 +47,8 @@ def test_semantic_core_and_run_mode_follow_sampling_toggle():
     assert to_settings_hash(core_off) != to_settings_hash(semantic_core(on))
 
 
-def test_settings_hash_differs_on_pool_when_sampling_off():
+def test_settings_hash_same_on_pool_when_sampling_off():
+    """非采样模式下，pool.file 变化不影响指纹（采样配置不纳入指纹）。"""
     h_a = to_settings_hash(
         semantic_core(
             _example_canonical(use_sampling=False, pool_file="stock_lists/a.txt")
@@ -58,4 +59,21 @@ def test_settings_hash_differs_on_pool_when_sampling_off():
             _example_canonical(use_sampling=False, pool_file="stock_lists/b.txt")
         )
     )
+    # 非采样模式下，pool.file 不影响指纹
+    assert h_a == h_b
+
+
+def test_settings_hash_differs_on_pool_when_sampling_on():
+    """采样模式下，pool.file 变化影响指纹（采样配置纳入指纹）。"""
+    h_a = to_settings_hash(
+        semantic_core(
+            _example_canonical(use_sampling=True, pool_file="stock_lists/a.txt")
+        )
+    )
+    h_b = to_settings_hash(
+        semantic_core(
+            _example_canonical(use_sampling=True, pool_file="stock_lists/b.txt")
+        )
+    )
+    # 采样模式下，pool.file 影响指纹
     assert h_a != h_b

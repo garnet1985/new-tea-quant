@@ -28,18 +28,27 @@
 
 目标，决策者模式
 - 全线重命名capital allocation simulator成portfolio simulator
-- 加入portfolio在选股时的决策函数
+- 加入on select investment回调函数（capital allocation超出最大持股的回调函数）
+- 加入多策略并行 on portfolio 选股时的决策函数
+
 
 ---
 
 ---
 
-### v0.4.x (TBD)
-- 增加依赖自动运行监测，如果依赖还没有运行，会先运行依赖再进行回测
-- 数据源的更新还没有接入
-- 策略页面load的时候meta信息应该不使用缓存中的
+### v0.4.3 (2026-6-25)
+- 修复了windows找不到文件的问题，现在windows能够正常运行了
+- 修复了python3.13的依赖问题
+- 修复了枚举UI上会显示没有机会的单个股票的bug
+- 增强了tag和strategy的profiler，帮助性能测试收集必要的数据
+- 推出了一套NTQ的基线性能指标
+- 对tag模块的切片模式增加了数据游标，性能测试6-9倍提升，且数据量越大提升越明显
+- 修复了UI进度显示不准确的问题
+- 重新定义了回测的缓存指纹，提高了效率和可靠性，让tag和strategy使用同一套指纹逻辑
+- 修复了UI上修改参数后会产生2个缓存版本的bug
 
 ---
+
 
 ---
 

@@ -122,6 +122,37 @@ class WorkbenchEnumeratorProgressCallback:
             float(progress_pct) / 100.0,
             counters=counters,
         )
+        # 同步更新 ProgressRecorder（_merge_enum_progress_sidecar 的数据源）
+        # 写入原始 job 完成百分比，由 _merge_enum_progress_sidecar 统一做加权
+        from core.modules.strategy.services.progress import ProgressRecorder
+
+        recorder = ProgressRecorder.for_strategy_run_step(
+            self.strategy_name, self.run_id, "enum"
+        )
+        prev = recorder.get_progress()
+        base = dict(prev) if isinstance(prev, dict) else {}
+        base["phase"] = "running"
+        base["progress_pct"] = int(progress_pct)
+        if total_jobs > 0:
+            base["done_jobs"] = done_jobs
+            base["total_jobs"] = total_jobs
+        recorder.record(base)
+        # 同步写入 step 级别进度文件（GET /{step}/progress 直接读取的数据源，需要预加权）
+        from core.modules.strategy.execution_manager.workbench_disk_progress import (
+            disk_workbench_step_progress,
+        )
+        from core.modules.strategy.execution_manager.workbench_step_progress import (
+            compute_step_progress_pct,
+        )
+
+        weighted_pct = compute_step_progress_pct("enum", "execute", float(progress_pct) / 100.0)
+        disk_workbench_step_progress(
+            self.strategy_name,
+            self.run_id,
+            "enum",
+            weighted_pct,
+            phase="running",
+        )
 
 
 class EnumeratorSharedServices:
@@ -211,8 +242,52 @@ class EnumeratorSharedServices:
         return EnumeratorSettings.from_base(base_settings)
 
     def create_output_version(
-        self, *, strategy_name: str, enum_settings: EnumeratorSettings
+        self,
+        *,
+        strategy_name: str,
+        enum_settings: EnumeratorSettings,
+        fingerprint: StrategyRunFingerprint,
     ) -> Dict[str, Any]:
+        """创建或复用磁盘版本，避免指纹匹配时版本跳变。
+
+        Args:
+            strategy_name: 策略名称
+            enum_settings: 枚举器设置
+            fingerprint: 请求指纹（用于查询数据库中是否已有相同指纹的版本）
+
+        Returns:
+            版本信息字典，包含 output_dir, version_id, version_dir_name
+        """
+        from core.modules.strategy.services.cache.simulator_res_db_cache.snapshot_slot_adapters import (
+            lookup_enum_cache,
+        )
+        from core.modules.strategy.services.data.output.version_manager import (
+            StrategyOutputVersionService,
+        )
+
+        # 查询数据库中是否已有相同指纹的版本
+        cached = lookup_enum_cache(
+            strategy_name=strategy_name,
+            settings_finger_print_id=fingerprint.settings_fingerprint_id,
+            env_fingerprint_id=fingerprint.env_fingerprint_id,
+        )
+
+        if cached:
+            # 找到缓存，检查磁盘目录是否存在
+            _, cached_version_id = cached
+            cached_version_dir, _ = StrategyOutputVersionService.resolve_enumerator_version(
+                strategy_name=strategy_name,
+                version_spec=str(cached_version_id),
+            )
+            if cached_version_dir.exists() and cached_version_dir.is_dir():
+                # 磁盘目录存在，复用该版本
+                return {
+                    "output_dir": cached_version_dir,
+                    "version_id": cached_version_id,
+                    "version_dir_name": cached_version_dir.name,
+                }
+
+        # 缓存不存在或磁盘目录不存在，创建新版本
         output_dir, version_id = StrategyOutputVersionService.create_enumerator_version(
             strategy_name=strategy_name,
         )
@@ -235,18 +310,37 @@ class EnumeratorSharedServices:
         self,
         *,
         strategy_name: str,
-        settings_payload: Dict[str, Any],
+        disk_settings: Dict[str, Any],
+        user_modified_settings: Dict[str, Any],
         stock_ids: List[str],
         worker_ref: Dict[str, str],
     ) -> StrategyRunFingerprint:
+        """构建请求指纹（基于差异字段）。"""
+        from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.settings_diff import (
+            diff_and_filter,
+        )
+        from core.modules.strategy.services.cache.simulator_res_db_cache.config import (
+            derive_run_mode,
+        )
+        from core.system import get_version
+
+        # 计算差异字段
+        settings_diff = diff_and_filter(disk_settings, user_modified_settings)
+
+        # 获取 run_mode 和 engine_version
+        run_mode = derive_run_mode(user_modified_settings)
+        engine_version = get_version()
+
         worker_anchor = self._build_worker_anchor(worker_ref)
-        data_contract_mapping = self._build_data_contract_mapping(settings_payload)
+        data_contract_mapping = self._build_data_contract_mapping(user_modified_settings)
         return StrategyRunFingerprint.from_request(
             strategy_name=strategy_name,
             start_date=self.start_date,
             end_date=self.end_date,
             stock_ids=stock_ids,
-            raw_settings=settings_payload,
+            settings_diff=settings_diff,  # 差异字段
+            run_mode=run_mode,
+            engine_version=engine_version,
             worker_module_path=worker_ref.get("worker_module_path", ""),
             worker_class_name=worker_ref.get("worker_class_name", ""),
             worker_code_hash=worker_anchor["worker_code_hash"],
@@ -366,7 +460,7 @@ class EnumeratorSharedServices:
 
     def progress_units_from_execute_report(self, report: Any) -> tuple[int, int, int]:
         mode = getattr(self, "_entity_progress_mode", "stock")
-        from core.modules.strategy.engines.simulator.enumerator.shared.progress_axis import (
+        from core.modules.strategy.engines.simulator.enumerator.stock_based.progress import (
             entity_progress_units_from_execute_report,
         )
 
@@ -636,6 +730,20 @@ class EnumeratorSharedServices:
             expand_bulk_job_results,
         )
 
+        # 预处理：提取 bulk job 的 performance_metrics（calendar_sliced 等模式）
+        for jr in job_results:
+            raw_result = getattr(jr, "result", None) or {}
+            if isinstance(raw_result, dict) and raw_result.get("bulk"):
+                perf_data = raw_result.get("performance_metrics")
+                if perf_data and isinstance(perf_data, dict):
+                    # calendar_sliced 模式：整个 job 的 performance_metrics
+                    # 使用一个虚拟 stock_id 存储整体指标
+                    try:
+                        metrics = PerformanceMetrics.from_dict(perf_data)
+                        aggregate_profiler.add_stock_metrics("__bulk__", metrics)
+                    except Exception:
+                        pass
+
         for job_result in expand_bulk_job_results(job_results):
             row = self._aggregate_single_job_result(job_result, aggregate_profiler)
             total_opportunities += row["opportunity_count"]
@@ -678,6 +786,8 @@ class EnumeratorSharedServices:
                 plan = perf.get("calendar_slice_runtime_plan")
                 if isinstance(plan, dict):
                     self._calendar_slice_runtime_plan = plan
+                    # 注入到 AggregateProfiler，使其出现在最终 report 中
+                    aggregate_profiler.set_extra_data(calendar_slice_runtime_plan=plan)
                     break
 
         # step2: normalize and return aggregate summary

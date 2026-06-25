@@ -102,7 +102,6 @@ _IGNORE_PRICE_SIMULATOR_KEYS: FrozenSet[str] = frozenset(
         "force_main_process",
         "start_date",
         "end_date",
-        "fees",
     }
 )
 
@@ -112,7 +111,6 @@ _IGNORE_CAPITAL_SIMULATOR_KEYS: FrozenSet[str] = frozenset(
         "max_parallel_jobs_cap",
         "start_date",
         "end_date",
-        "fees",
     }
 )
 
@@ -182,8 +180,43 @@ def _strip_to_semantic_core(canonical_settings: Dict[str, Any]) -> Dict[str, Any
             cs_block.pop("output", None)
     out["capital_simulator"] = cs_block
 
-    # ``sampling`` 整块参与 settings 指纹（含 ``use_sampling`` / pool / amount），与
-    # ``settings-fingerprint-policy.md`` 一致；run_mode 另由 env 指纹 ``derive_run_mode`` 跟踪。
+    # ``sampling`` 块：根据 ``use_sampling`` 决定是否剔除采样配置
+    # - use_sampling=False：只保留 use_sampling，剔除其他采样配置（pool.file 等）
+    # - use_sampling=True：保留整个 sampling 块（pool.file 等参与指纹）
+    sampling_block = dict(out.get("sampling") or {})
+    use_sampling = bool(sampling_block.get("use_sampling", False))
+    if not use_sampling:
+        # 非采样模式：只保留 use_sampling 字段
+        sampling_block = {"use_sampling": False}
+    out["sampling"] = sampling_block
+
+    # goal 块：剔除展示字段 name（不影响回测结果）
+    goal_block = dict(out.get("goal") or {})
+    # 剔除 stop_loss.stages[].name
+    stop_loss = goal_block.get("stop_loss")
+    if isinstance(stop_loss, dict):
+        stages = stop_loss.get("stages")
+        if isinstance(stages, list):
+            for stage in stages:
+                if isinstance(stage, dict):
+                    stage.pop("name", None)
+    # 剔除 take_profit.stages[].name
+    take_profit = goal_block.get("take_profit")
+    if isinstance(take_profit, dict):
+        stages = take_profit.get("stages")
+        if isinstance(stages, list):
+            for stage in stages:
+                if isinstance(stage, dict):
+                    stage.pop("name", None)
+    # 剔除 stock_status_risk_management.rules[].name
+    risk_mgmt = goal_block.get("stock_status_risk_management")
+    if isinstance(risk_mgmt, dict):
+        rules = risk_mgmt.get("rules")
+        if isinstance(rules, list):
+            for rule in rules:
+                if isinstance(rule, dict):
+                    rule.pop("name", None)
+    out["goal"] = goal_block
 
     sim_block = dict(out.get("simulation") or {})
     ret_block = dict(sim_block.get("retention") or {})

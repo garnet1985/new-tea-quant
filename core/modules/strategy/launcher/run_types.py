@@ -16,12 +16,16 @@ class StrategyRunFingerprint:
     start_date: str
     end_date: str
     stock_ids: List[str]
-    settings_core: Dict[str, Any]
+    settings_diff: Dict[str, Any]  # 差异字段（只包含影响回测结果的字段）
+    run_mode: str
+    engine_version: str
     worker_module_path: str
     worker_class_name: str
     worker_code_hash: str
     data_contract_mapping: str
     fingerprint_id: str
+    settings_fingerprint_id: str  # settings 的指纹 ID
+    env_fingerprint_id: str  # env 的指纹 ID
 
     @classmethod
     def from_request(
@@ -31,24 +35,41 @@ class StrategyRunFingerprint:
         start_date: str,
         end_date: str,
         stock_ids: List[str],
-        raw_settings: Dict[str, Any],
+        settings_diff: Dict[str, Any],  # 差异字段
+        run_mode: str = "",
+        engine_version: str = "",
         worker_module_path: str = "",
         worker_class_name: str = "",
         worker_code_hash: str = "",
         data_contract_mapping: str = "",
     ) -> "StrategyRunFingerprint":
-        from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.settings_resolver import (
-            semantic_core,
+        from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.finger_print import (
+            to_settings_hash,
+            to_env_hash,
+        )
+        from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.env_resolver import (
+            ResolveEnv,
         )
 
-        settings_core = semantic_core(raw_settings)
         normalized_stocks = sorted({str(stock_id) for stock_id in stock_ids if stock_id})
+        settings_fp = to_settings_hash(settings_diff)
+        env_fp = to_env_hash(
+            strategy_name=strategy_name,
+            stock_ids=normalized_stocks,
+            run_mode=run_mode,
+            engine_version=engine_version,
+            worker_module_path=worker_module_path,
+            worker_class_name=worker_class_name,
+            worker_code_hash=worker_code_hash,
+            data_contract_mapping=data_contract_mapping,
+            database_type=ResolveEnv.resolve_storage_database_type(),
+        )
         fingerprint_id = cls.compute_fingerprint_id(
             strategy_name=strategy_name,
             start_date=start_date,
             end_date=end_date,
             stock_ids=normalized_stocks,
-            settings_core=settings_core,
+            settings_diff=settings_diff,
             worker_module_path=worker_module_path,
             worker_class_name=worker_class_name,
             worker_code_hash=worker_code_hash,
@@ -60,12 +81,16 @@ class StrategyRunFingerprint:
             start_date=str(start_date),
             end_date=str(end_date),
             stock_ids=normalized_stocks,
-            settings_core=settings_core,
+            settings_diff=settings_diff,
+            run_mode=run_mode,
+            engine_version=engine_version,
             worker_module_path=str(worker_module_path),
             worker_class_name=str(worker_class_name),
             worker_code_hash=str(worker_code_hash),
             data_contract_mapping=data_contract_mapping,
             fingerprint_id=fingerprint_id,
+            settings_fingerprint_id=settings_fp,
+            env_fingerprint_id=env_fp,
         )
 
     @classmethod
@@ -73,18 +98,26 @@ class StrategyRunFingerprint:
         dcm = payload.get("data_contract_mapping")
         if dcm is None or dcm == "":
             dcm = payload.get("data_contract_signature", "")
+        # 兼容旧字段名 settings_core
+        settings_diff = payload.get("settings_diff")
+        if settings_diff is None:
+            settings_diff = payload.get("settings_core", {})
         return cls(
             schema_version=int(payload.get("schema_version", 1)),
             strategy_name=str(payload.get("strategy_name", "")),
             start_date=str(payload.get("start_date", "")),
             end_date=str(payload.get("end_date", "")),
             stock_ids=sorted({str(s) for s in (payload.get("stock_ids") or [])}),
-            settings_core=dict(payload.get("settings_core") or {}),
+            settings_diff=dict(settings_diff or {}),
+            run_mode=str(payload.get("run_mode", "")),
+            engine_version=str(payload.get("engine_version", "")),
             worker_module_path=str(payload.get("worker_module_path", "")),
             worker_class_name=str(payload.get("worker_class_name", "")),
             worker_code_hash=str(payload.get("worker_code_hash", "")),
             data_contract_mapping=str(dcm or ""),
             fingerprint_id=str(payload.get("fingerprint_id", "")),
+            settings_fingerprint_id=str(payload.get("settings_fingerprint_id", "")),
+            env_fingerprint_id=str(payload.get("env_fingerprint_id", "")),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -94,12 +127,16 @@ class StrategyRunFingerprint:
             "start_date": self.start_date,
             "end_date": self.end_date,
             "stock_ids": self.stock_ids,
-            "settings_core": self.settings_core,
+            "settings_diff": self.settings_diff,
+            "run_mode": self.run_mode,
+            "engine_version": self.engine_version,
             "worker_module_path": self.worker_module_path,
             "worker_class_name": self.worker_class_name,
             "worker_code_hash": self.worker_code_hash,
             "data_contract_mapping": self.data_contract_mapping,
             "fingerprint_id": self.fingerprint_id,
+            "settings_fingerprint_id": self.settings_fingerprint_id,
+            "env_fingerprint_id": self.env_fingerprint_id,
         }
 
     @staticmethod
@@ -109,7 +146,7 @@ class StrategyRunFingerprint:
         start_date: str,
         end_date: str,
         stock_ids: List[str],
-        settings_core: Dict[str, Any],
+        settings_diff: Dict[str, Any],  # 差异字段
         worker_module_path: str,
         worker_class_name: str,
         worker_code_hash: str,
@@ -120,7 +157,7 @@ class StrategyRunFingerprint:
             "start_date": str(start_date),
             "end_date": str(end_date),
             "stock_ids": stock_ids,
-            "settings_core": settings_core,
+            "settings_diff": settings_diff,
             "worker_module_path": str(worker_module_path),
             "worker_class_name": str(worker_class_name),
             "worker_code_hash": str(worker_code_hash),
@@ -137,7 +174,9 @@ class StrategyRunFingerprint:
             "kind": "strategy_run_scope",
             "strategy_name": fp.strategy_name,
             "stock_ids": list(fp.stock_ids),
-            "settings_core": fp.settings_core,
+            "settings_diff": fp.settings_diff,
+            "run_mode": fp.run_mode,
+            "engine_version": fp.engine_version,
             "worker_module_path": fp.worker_module_path,
             "worker_class_name": fp.worker_class_name,
             "worker_code_hash": fp.worker_code_hash,

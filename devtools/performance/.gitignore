@@ -1,0 +1,29 @@
+# Performance Testing - Git Ignore Rules
+# =====================================
+# Keep repo small by excluding intermediate artifacts
+
+## Intermediate Experiment Data (regenerable from scripts)
+raw_data/
+*.csv
+
+## Intermediate Analysis Files (superseded by summary)
+analysis.md
+
+## Raw Profiler Output (large, regenerable)
+raw_P*.json
+
+## Temporary/Cache Files
+*.tmp
+*.cache
+__pycache__/
+*.pyc
+
+## OS Files
+.DS_Store
+Thumbs.db
+
+## Notes
+# - Final reports (*.json, *_v*_zh.md, *_v*_en.md, summary_v*.md) are kept
+# - Scripts are kept (needed to regenerate data)
+# - Templates are kept (needed for future reports)
+# - Test base strategies are kept (fixed baselines)

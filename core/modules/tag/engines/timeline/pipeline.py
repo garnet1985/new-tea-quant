@@ -135,9 +135,9 @@ def run_timeline_pipeline(
     )
     if not jobs:
         logger.warning("没有新的计算任务，跳过执行: scenario=%s", scenario_name)
-        return
+        return None
 
-    execute_tag_jobs(
+    return execute_tag_jobs(
         data_mgr=mgr.data_mgr,
         tag_data_service=mgr.tag_data_service,
         jobs=jobs,

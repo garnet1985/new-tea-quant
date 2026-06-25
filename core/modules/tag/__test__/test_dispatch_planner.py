@@ -17,7 +17,7 @@ def test_explicit_entities_per_job():
     assert plan.entities_per_job == 50
     assert plan.dispatch_jobs == 10
     assert plan.max_workers >= 1
-    assert plan.source_max_workers.startswith("profile")
+    assert plan.source_max_workers == "smart_auto"
     assert plan.source_entities_per_job == "settings"
 
 
@@ -36,7 +36,7 @@ def test_auto_entities_with_probe_mb(mock_vm):
         log_label="Tag",
         measured_mb_per_entity=0.42,
     )
-    assert plan.source_entities_per_job == "auto"
+    assert plan.source_entities_per_job == "smart_auto"
     assert plan.source_mb_per_entity == "probe"
     assert plan.memory_floor_mb == 1024.0
     assert 1 <= plan.entities_per_job <= 500

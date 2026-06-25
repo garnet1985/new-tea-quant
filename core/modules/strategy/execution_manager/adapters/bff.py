@@ -111,7 +111,6 @@ class _WorkbenchRunProgressSink:
             stage_ratio,
             counters=counters,
         )
-        self._sync_legacy_disk_pct()
 
     def on_flow_progress(self, substep: str, flow_pct: float) -> None:
         try:
@@ -131,7 +130,6 @@ class _WorkbenchRunProgressSink:
             substep,
             int(version or 0),
         )
-        self._sync_legacy_disk_pct()
 
 
 def _run_workbench_job_in_thread(

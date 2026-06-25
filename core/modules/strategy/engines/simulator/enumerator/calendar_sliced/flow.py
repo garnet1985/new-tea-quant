@@ -76,7 +76,9 @@ class CalendarSlicedEnumeratorFlow(BaseEnumeratorFlow):
         )
 
         version_info = self._impl.create_output_version(
-            strategy_name=probe.strategy_name, enum_settings=probe.enum_settings
+            strategy_name=probe.strategy_name,
+            enum_settings=probe.enum_settings,
+            fingerprint=probe.request_fingerprint,
         )
         mp_id = probe.market_profile.profile_id
         data_mgr = DataManager(is_verbose=False)

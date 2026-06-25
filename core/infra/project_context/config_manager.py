@@ -19,6 +19,8 @@ import sys
 import logging
 import os
 
+from core.utils.utils import Utils
+
 logger = logging.getLogger(__name__)
 
 
@@ -140,17 +142,7 @@ class ConfigManager:
     @staticmethod
     def _deep_merge_dict(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
         """递归合并嵌套 dict（override 覆盖 base 同键叶子值）。"""
-        out = dict(base)
-        for key, value in override.items():
-            if (
-                key in out
-                and isinstance(out[key], dict)
-                and isinstance(value, dict)
-            ):
-                out[key] = ConfigManager._deep_merge_dict(out[key], value)
-            else:
-                out[key] = value
-        return out
+        return Utils.deep_merge(base, override)
     
     @staticmethod
     def load_json(path: Path) -> Dict[str, Any]:

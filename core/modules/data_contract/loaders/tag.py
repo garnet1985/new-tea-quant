@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from core.modules.data_contract.loaders.base import BaseLoader
 from core.modules.data_manager import DataManager
@@ -181,3 +181,55 @@ class TagLoader(BaseLoader):
             rows, start=start, end=None, include_boundary=include_boundary, time_field=time_field
         )
         return rows[:normalized_amount]
+
+    def load_batch(
+        self,
+        entity_ids: Sequence[str],
+        params: Mapping[str, Any],
+        context: Optional[Mapping[str, Any]] = None,
+    ) -> Mapping[str, Any]:
+        """
+        批量加载多个实体的 tag 数据（使用 SQL WHERE IN 优化）。
+
+        Args:
+            entity_ids: 实体 ID 列表（如股票代码）
+            params: 加载参数（包含 scenario_name/scenario_id, start/end 等）
+            context: 未使用（批量路径由 entity_ids 驱动）
+
+        Returns:
+            Dict[entity_id, List[Dict]]: 每个实体的标签值数据
+        """
+        del context  # 批量路径由 entity_ids 驱动，不依赖单股 context
+
+        ids = [str(x).strip() for x in entity_ids if str(x).strip()]
+        if not ids:
+            return {}
+
+        # 验证必须的 scenario 参数
+        if not _has_scenario_input(params, None):
+            raise ValueError(
+                "批量加载 tag 失败：缺少 scenario 标识（请在 params 中提供 "
+                "tag_scenario / scenario_name，或提供 scenario_id）"
+            )
+
+        data_mgr = DataManager()
+        tag_service = data_mgr.stock.tags
+
+        entity_type = str(params.get("entity_type") or "stock")
+        scenario_name = _resolve_scenario_name(params, None, tag_service=tag_service)
+
+        start = DateUtils.normalize_str(params.get("start")) if params.get("start") is not None else None
+        end = DateUtils.normalize_str(params.get("end")) if params.get("end") is not None else None
+
+        # 统一日期格式
+        q_start = start or DateUtils.get_query_date_range_min()
+        q_end = end or DateUtils.QUERY_DATE_RANGE_MAX
+
+        # 调用 service 层的批量 API
+        return tag_service.load_values_for_entities_batch(
+            entity_ids=ids,
+            scenario_name=scenario_name,
+            start_date=q_start,
+            end_date=q_end,
+            entity_type=entity_type,
+        )

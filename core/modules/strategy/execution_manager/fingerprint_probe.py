@@ -97,10 +97,18 @@ def _fingerprint_resolution_using_existing_enum_dir(
         ev_dir,
         fallback_ids=sorted(scan.keys()),
     )
-    raw_for_fp = raw_settings_for_db_cache_fingerprint(base_settings, discovered)
+    # 磁盘上的 settings（从磁盘上重新读取，而不是从 strategy_info 中读取）
+    from core.modules.strategy.engines.shared.helpers.strategy_runtime import (
+        load_strategy_info,
+    )
+    disk_strategy_info = load_strategy_info(name)
+    disk_settings = dict(disk_strategy_info.settings.to_dict()) if disk_strategy_info else {}
+    # 用户修改过的 settings（从 base_settings.to_dict() 读取）
+    user_modified_settings = dict(base_settings.to_dict())
     return resolve_db_cache_fingerprints(
         strategy_name=name,
-        raw_settings=raw_for_fp,
+        disk_settings=disk_settings,  # 磁盘上的 settings
+        user_modified_settings=user_modified_settings,  # 用户修改过的 settings
         stock_list=list(stock_list),
         latest_completed_trading_date=_latest_completed_trading_date_for_db_cache(),
     )
@@ -123,5 +131,11 @@ def enum_db_cache_aligned_with_downstream_probe(
     if resolved is None:
         return False
     return (
-        lookup_enum_cache(name, resolved.settings_fp, resolved.env_fp) is not None
+        lookup_enum_cache(
+            name,
+            resolved.settings_fp,
+            resolved.env_fp,
+            disk_settings_hash=resolved.disk_settings_hash,
+        )
+        is not None
     )

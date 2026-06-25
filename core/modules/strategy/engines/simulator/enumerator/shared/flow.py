@@ -102,7 +102,8 @@ class BaseEnumeratorFlow(BaseSimulationFlow):
 
         resolved_probe = resolve_db_cache_fingerprints(
             strategy_name=str(strategy_name),
-            raw_settings=dict(probe.settings_for_fingerprint or {}),
+            disk_settings=probe.disk_settings,  # 磁盘上的 settings
+            user_modified_settings=probe.settings_for_fingerprint,  # 用户修改过的 settings
             stock_list=list(self.stock_list or []),
             latest_completed_trading_date=latest_completed_trading_date,
             data_manager=data_mgr,
@@ -118,6 +119,7 @@ class BaseEnumeratorFlow(BaseSimulationFlow):
                 strategy_name,
                 resolved_probe.settings_fp,
                 resolved_probe.env_fp,
+                disk_settings_hash=resolved_probe.disk_settings_hash,
             )
             if hit:
                 summary_list, wb_version = hit
@@ -189,7 +191,8 @@ class BaseEnumeratorFlow(BaseSimulationFlow):
             )
             resolved_save = resolve_db_cache_fingerprints(
                 strategy_name=str(strategy_name),
-                raw_settings=raw_for_resolve,
+                disk_settings=probe.disk_settings,  # 磁盘上的 settings
+                user_modified_settings=raw_for_resolve,  # 用户修改过的 settings
                 stock_list=list(self.stock_list or []),
                 latest_completed_trading_date=latest_completed_trading_date,
                 data_manager=data_mgr,
@@ -200,10 +203,11 @@ class BaseEnumeratorFlow(BaseSimulationFlow):
                 first = summary_list[0] if summary_list else {}
                 persisted_sid = persist_enum_snapshot(
                     strategy_name,
-                    settings_snapshot_api=dict(resolved_save.normalized_settings_dict or {}),
+                    settings_snapshot_api=dict(resolved_save.settings_diff or {}),  # 差异字段
                     report_enum=first if isinstance(first, dict) else {},
                     settings_fingerprint_id=resolved_save.settings_fp,
                     env_fingerprint_id=resolved_save.env_fp,
+                    disk_settings_hash=resolved_save.disk_settings_hash,
                 )
                 self.last_version = int(persisted_sid or 0)
         return summary_list
@@ -214,22 +218,31 @@ class BaseEnumeratorFlow(BaseSimulationFlow):
         strategy_name: str,
         strategy_info: Optional["DiscoveredStrategy"],
     ) -> EnumeratorProbeContext:
-        base_settings = self._impl.load_settings(
+        # 用户修改过的 settings（从 UI/BFF 传入）
+        user_modified_settings = self._impl.load_settings(
             strategy_name=strategy_name, strategy_info=strategy_info
         )
-        simulation_settings = prepare_simulation_settings(base_settings)
-        market_profile = MarketProfileContext.from_settings_view(base_settings)
+        # 磁盘上的 settings（从磁盘上重新读取，而不是从 strategy_info 中读取）
+        from core.modules.strategy.engines.shared.helpers.strategy_runtime import (
+            load_strategy_info,
+        )
+        disk_strategy_info = load_strategy_info(strategy_name)
+        disk_settings_dict = dict(disk_strategy_info.settings.to_dict()) if disk_strategy_info else {}
+
+        simulation_settings = prepare_simulation_settings(user_modified_settings)
+        market_profile = MarketProfileContext.from_settings_view(user_modified_settings)
         worker_ref = self._impl.resolve_worker_blueprint(
             strategy_name=strategy_name, strategy_info=strategy_info
         )
-        enum_settings = EnumeratorSettings.from_base(base_settings)
+        enum_settings = EnumeratorSettings.from_base(user_modified_settings)
         settings_payload = enum_settings.to_dict()
-        raw_full = copy.deepcopy(base_settings.to_dict())
+        raw_full = copy.deepcopy(user_modified_settings.to_dict())
         full_settings_snapshot_api = raw_full
-        settings_for_fingerprint = copy.deepcopy(base_settings.to_dict())
+        settings_for_fingerprint = copy.deepcopy(user_modified_settings.to_dict())
         request_fingerprint = self._impl.build_request_fingerprint(
             strategy_name=strategy_name,
-            settings_payload=settings_for_fingerprint,
+            disk_settings=disk_settings_dict,  # 磁盘上的 settings
+            user_modified_settings=settings_for_fingerprint,  # 用户修改过的 settings
             stock_ids=self.stock_list,
             worker_ref=worker_ref,
         )
@@ -243,6 +256,7 @@ class BaseEnumeratorFlow(BaseSimulationFlow):
             full_settings_snapshot_api=full_settings_snapshot_api,
             request_fingerprint=request_fingerprint,
             worker_ref=worker_ref,
+            disk_settings=disk_settings_dict,  # 磁盘上的 settings
         )
 
     @abstractmethod
@@ -268,6 +282,29 @@ class BaseEnumeratorFlow(BaseSimulationFlow):
         )
         return EnumeratorExecuteContext(job_results=job_results)
 
+    def _inject_runtime_metadata(self, preprocessed: "EnumeratorPreprocessContext") -> None:
+        """向 AggregateProfiler 注入运行时元数据（由子类可覆写补充）。"""
+        from core.modules.data_manager import DataManager
+
+        profiler = preprocessed.aggregate_profiler
+        # DB 引擎检测
+        db_engine = "unknown"
+        try:
+            data_mgr = DataManager(is_verbose=False)
+            if data_mgr.db is not None:
+                db_engine = data_mgr.db.config.get("database_type", "unknown")
+        except Exception:
+            pass
+        profiler.set_runtime_context(
+            execution_mode=getattr(self, "_execution_mode_label", "unknown"),
+            max_workers=int(preprocessed.max_workers) if preprocessed.max_workers else 0,
+            stock_count=len(self.stock_list),
+            start_date=self.start_date,
+            end_date=self.end_date,
+            db_engine=db_engine,
+            cache_hit=self.used_db_cache,
+        )
+
     def postprocess(
         self, preprocessed: EnumeratorPreprocessContext, executed: EnumeratorExecuteContext
     ) -> List[Dict[str, Any]]:
@@ -275,6 +312,8 @@ class BaseEnumeratorFlow(BaseSimulationFlow):
             job_results=executed.job_results or [],
             aggregate_profiler=preprocessed.aggregate_profiler,
         )
+        # 注入运行时元数据到 profiler
+        self._inject_runtime_metadata(preprocessed)
         result_fingerprint = preprocessed.result_fingerprint
         self._impl.save_performance_report(
             output_dir=preprocessed.output_dir,

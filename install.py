@@ -9,6 +9,12 @@ CLI 应用安装入口（与 ``launcher.py`` 对称）：
 """
 from __future__ import annotations
 
+import sys
+
+# Windows GBK 编码兼容：强制 UTF-8 输出，保留 emoji 符号
+if sys.platform == "win32" and sys.stdout.encoding != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
+
 from setup.cli_runtime import install_cli_runtime
 from setup.install_runtime import needs_install
 from setup.setup import NewTeaQuantSetup

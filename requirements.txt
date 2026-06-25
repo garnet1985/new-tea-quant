@@ -25,9 +25,7 @@ charset-normalizer==3.4.7
 click==8.1.8
     # via flask
 curl-cffi==0.13.0
-    # via
-    #   -r requirements.in
-    #   akshare
+    # via akshare
 decorator==5.2.1
     # via akshare
 duckdb==1.4.4
@@ -52,8 +50,6 @@ jinja2==3.1.6
     # via flask
 jsonpath==0.82.2
     # via akshare
-loguru==0.7.3
-    # via -r requirements.in
 lxml==6.1.0
     # via
     #   akshare
@@ -65,7 +61,7 @@ markupsafe==3.0.3
     #   werkzeug
 mini-racer==0.12.4
     # via akshare
-numpy==2.0.2
+numpy>=2.0
     # via
     #   -r requirements.in
     #   pandas
@@ -78,7 +74,7 @@ pandas==2.3.3
     #   akshare
     #   pandas-ta-classic
     #   tushare
-pandas-ta-classic==0.4.47
+pandas-ta-classic>=0.4.47
     # via -r requirements.in
 psutil==7.2.2
     # via -r requirements.in
@@ -119,7 +115,6 @@ tzdata==2026.1
     # via pandas
 urllib3==1.26.20
     # via
-    #   -r requirements.in
     #   akshare
     #   requests
 webencodings==0.5.1

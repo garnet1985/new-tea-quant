@@ -1,5 +1,5 @@
 name: modules.strategy
-version: 0.5.0
+version: 0.5.1
 compatible_core_versions: ">=0.4.1"
 description: "策略执行主模块：StrategyManager 统一 orchestrate scan/simulate，engines 承载 scanner/enumerator/price_factor/capital_allocation/analyzer，services 提供 discovery/data/artifacts/validation 能力。"
 dependencies:
@@ -12,6 +12,10 @@ dependencies:
   - infra.job_pipeline
   - infra.worker
 changelog:
+  - version: "0.5.1"
+    changes:
+      - 对 AggregateProfiler 运行时注入元数据
+      - 重新定义了策略的指纹缓存系统，现在db里的指纹是由diff生成而不是snapshot，同时bff给UI的设置变成了物理硬盘的设置+缓存diff的方式
   - version: "0.5.0"
     changes:
       - 支持多股并行的切片式回测

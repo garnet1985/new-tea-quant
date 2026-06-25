@@ -19,7 +19,6 @@ class EnumeratorSettings:
     price_simulator: Dict[str, Any] = field(init=False)
     goal: Dict[str, Any] = field(init=False)
     use_sampling: bool = field(init=False)
-    max_workers: "str | int" = field(init=False)
     min_required_records: int = field(init=False)
     is_verbose: bool = field(init=False)
 
@@ -67,15 +66,7 @@ class EnumeratorSettings:
         self.use_sampling = bool(sampling_block.get("use_sampling", False))
 
         enumerator = dict(settings.get("enumerator") or {})
-        max_workers = enumerator.get("max_workers", "auto")
-        self.max_workers = max_workers
         self.is_verbose = bool(enumerator.get("is_verbose", False))
-        self.calendar_progress_mode = str(
-            enumerator.get("calendar_progress_mode") or "open_date"
-        ).strip().lower()
-        self.entity_progress_mode = str(
-            enumerator.get("entity_progress_mode") or "stock"
-        ).strip().lower()
 
         simulator = dict(settings.get("price_simulator") or {})
         raw_goal = settings.get("goal")
@@ -96,10 +87,4 @@ class EnumeratorSettings:
         merged["enumerator"].pop("use_sampling", None)
         merged["enumerator"].pop("max_test_versions", None)
         merged["enumerator"].pop("calendar_slice", None)
-        merged["enumerator"]["max_workers"] = self.max_workers
-        merged["enumerator"]["is_verbose"] = self.is_verbose
-        if self.calendar_progress_mode:
-            merged["enumerator"]["calendar_progress_mode"] = self.calendar_progress_mode
-        if self.entity_progress_mode:
-            merged["enumerator"]["entity_progress_mode"] = self.entity_progress_mode
         return merged

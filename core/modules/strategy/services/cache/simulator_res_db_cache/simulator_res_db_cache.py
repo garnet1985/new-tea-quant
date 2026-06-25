@@ -31,13 +31,15 @@ class SimulatorResDbCacheWriteRequest:
         self,
         *,
         strategy_name: str,
-        raw_settings: Dict[str, Any],
+        disk_settings: Dict[str, Any],
+        user_modified_settings: Dict[str, Any],
         stock_ids: List[str],
         latest_completed_trading_date: str,
     ) -> Dict[str, Any]:
         resolved = resolve_db_cache_fingerprints(
             strategy_name=str(strategy_name),
-            raw_settings=dict(raw_settings or {}),
+            disk_settings=dict(disk_settings or {}),
+            user_modified_settings=dict(user_modified_settings or {}),
             stock_list=list(stock_ids or []),
             latest_completed_trading_date=str(latest_completed_trading_date or "").strip(),
         )
@@ -65,7 +67,8 @@ class SimulatorResDbCacheWriteRequest:
         self,
         *,
         strategy_name: str,
-        raw_settings: Dict[str, Any],
+        disk_settings: Dict[str, Any],
+        user_modified_settings: Dict[str, Any],
         simulator: Simulator,
         simulator_report: Dict[str, Any],
         stock_list: List[str],
@@ -78,7 +81,8 @@ class SimulatorResDbCacheWriteRequest:
         # Step 1 — settings_fp + env_fp（表列 ``settings_finger_print_id`` / ``env_fingerprint_id``）。
         resolved = resolve_db_cache_fingerprints(
             strategy_name=str(strategy_name),
-            raw_settings=dict(raw_settings or {}),
+            disk_settings=dict(disk_settings or {}),
+            user_modified_settings=dict(user_modified_settings or {}),
             stock_list=stock_list,
             latest_completed_trading_date=str(latest_completed_trading_date or "").strip(),
         )
@@ -88,7 +92,7 @@ class SimulatorResDbCacheWriteRequest:
         try:
             return self.service.set_cache(
                 strategy_name=strategy_name,
-                settings_snapshot=resolved.normalized_settings_dict or {},
+                settings_diff=resolved.settings_diff or {},  # 差异字段
                 simulator=simulator,
                 simulator_report=simulator_report or {},
                 settings_fingerprint_id=resolved.settings_fp,
@@ -103,20 +107,34 @@ class SimulatorResDbCacheWriteRequest:
         strategy_name: str,
         version: int,
     ) -> bool:
+        from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.settings_diff import (
+            merge_settings,
+        )
+        from core.modules.strategy.execution_manager.strategy_discovery import (
+            load_strategy_info,
+        )
+
         row = self.service.load_cache_by_version(
             strategy_name=strategy_name,
             version=version,
         )
         if not row:
             return False
-        settings_snapshot = row.get("settings_snapshot")
-        if not isinstance(settings_snapshot, dict) or not settings_snapshot:
+        settings_diff = row.get("settings_snapshot")  # 数据库中存储的是差异字段
+        if not isinstance(settings_diff, dict) or not settings_diff:
             return False
+
+        # 读取磁盘上的 settings
+        strategy_info = load_strategy_info(strategy_name)
+        disk_settings = dict(strategy_info.settings.to_dict()) if strategy_info else {}
+
+        # 合并差异字段和磁盘上的 settings
+        merged_settings = merge_settings(disk_settings, settings_diff)
 
         self.service.backup_settings_file_for_strategy(strategy_name)
         self.service.write_settings_file_for_strategy(
             strategy_name,
-            settings_snapshot,
+            merged_settings,  # 合并后的完整 settings
             pretty=True,
         )
         return True

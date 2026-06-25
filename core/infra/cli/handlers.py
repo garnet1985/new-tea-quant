@@ -152,7 +152,16 @@ def execute(args: argparse.Namespace, app: CliApp) -> None:
         if getattr(args, "new_path", None):
             raise SystemExit("新建 Tag 请使用: cli.py t -n PATH")
         logger.info("🏷️  执行标签计算...")
-        app.tag(scenario_name=getattr(args, "scenario", None))
+        dry_run = getattr(args, "dry_run", False)
+        if dry_run:
+            logger.info("⚠️  DRY RUN 模式：计算结果不会写入数据库")
+        app.tag(
+            scenario_name=getattr(args, "scenario", None),
+            dry_run=dry_run,
+            stock_limit=getattr(args, "stock_limit", None),
+            profile=getattr(args, "profile", False),
+            entities_per_job=getattr(args, "entities_per_job", None),
+        )
         return
 
     if cmd in (

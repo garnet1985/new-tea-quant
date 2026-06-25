@@ -82,26 +82,8 @@ class _WorkbenchRunProgressSink:
         self._user_step = str(user_facing_step).strip()
         self._last_idx = 0
 
-    def _sync_legacy_disk_pct(self) -> None:
-        packed = get_run_progress(strategy_name=self._strategy_name, job_id=self._job_id)
-        if not packed:
-            return
-        rp = packed.get("run_progress")
-        if isinstance(rp, dict):
-            try:
-                pct = float(rp.get("pct") or 0)
-            except (TypeError, ValueError):
-                pct = 0.0
-            disk_workbench_step_progress(
-                self._strategy_name,
-                self._job_id,
-                self._user_step,
-                pct,
-            )
-
     def on_overall_pct(self, pct: float) -> None:
-        _ = pct
-        self._sync_legacy_disk_pct()
+        pass
 
     def on_substep_start(self, substep: str, index: int, total: int) -> None:
         self._last_idx = int(index)
@@ -129,7 +111,6 @@ class _WorkbenchRunProgressSink:
             stage_ratio,
             counters=counters,
         )
-        self._sync_legacy_disk_pct()
 
     def on_flow_progress(self, substep: str, flow_pct: float) -> None:
         try:
@@ -149,7 +130,6 @@ class _WorkbenchRunProgressSink:
             substep,
             int(version or 0),
         )
-        self._sync_legacy_disk_pct()
 
 
 def _run_workbench_job_in_thread(

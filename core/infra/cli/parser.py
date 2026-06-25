@@ -159,6 +159,14 @@ def _p_tag(sub: argparse._SubParsersAction) -> None:
         help="执行标签计算（``t -n PATH`` 为从模版新建 Tag 到 PATH）",
     )
     p.add_argument("--scenario", type=str, default=None)
+    p.add_argument("--dry-run", action="store_true",
+                   help="Dry run 模式：运行计算但不写入数据库")
+    p.add_argument("--stock-limit", type=int, default=None,
+                   help="实体数量限制")
+    p.add_argument("--profile", action="store_true",
+                   help="启用性能 profiling")
+    p.add_argument("--entities-per-job", type=int, default=None,
+                   help="每个 job 的实体数")
 
 
 def _p_export_strategy(sub: argparse._SubParsersAction) -> None:

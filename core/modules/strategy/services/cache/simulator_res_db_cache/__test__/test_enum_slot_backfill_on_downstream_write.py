@@ -53,10 +53,10 @@ def test_set_cache_backfills_enum_when_creating_price_row(enum_simulation_root):
         "output_version": {"enumerator_output_dir": "9", "output_root": "enum"},
     }
     sid = svc.set_cache(
-        _STRATEGY,
-        {"goal": {}},
-        Simulator.PRICE_FACTOR,
-        price_report,
+        strategy_name=_STRATEGY,
+        settings_diff={"goal": {}},  # 差异字段
+        simulator=Simulator.PRICE_FACTOR,
+        simulator_report=price_report,
         settings_fingerprint_id="sfp_test",
         env_fingerprint_id="efp_test",
     )

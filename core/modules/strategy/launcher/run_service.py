@@ -38,7 +38,8 @@ class StrategyFingerprintManager:
         flow_impl: Any,
         strategy_name: str,
         strategy_info: Any,
-        settings_payload: Dict[str, Any],
+        disk_settings: Dict[str, Any],
+        user_modified_settings: Dict[str, Any],
         stock_ids: List[str],
     ) -> StrategyRunFingerprint:
         worker_ref = flow_impl.resolve_worker_blueprint(
@@ -47,7 +48,8 @@ class StrategyFingerprintManager:
         )
         return flow_impl.build_request_fingerprint(
             strategy_name=strategy_name,
-            settings_payload=copy.deepcopy(settings_payload),
+            disk_settings=copy.deepcopy(disk_settings),
+            user_modified_settings=copy.deepcopy(user_modified_settings),
             stock_ids=stock_ids,
             worker_ref=worker_ref,
         )
@@ -62,11 +64,20 @@ class StrategyFingerprintRuntimeService:
 
     @staticmethod
     def build_ids_for_runtime_context(context: Any) -> Tuple[str, str]:
+        # 磁盘上的 settings（从磁盘上重新读取，而不是从 context.strategy_info 中读取）
+        from core.modules.strategy.engines.shared.helpers.strategy_runtime import (
+            load_strategy_info,
+        )
+        disk_strategy_info = load_strategy_info(context.strategy_name)
+        disk_settings = dict(disk_strategy_info.settings.to_dict()) if disk_strategy_info else {}
+        # 用户修改过的 settings（从 settings_view.to_dict() 读取）
+        user_modified_settings = dict(context.settings_view.to_dict())
         fp = StrategyFingerprintManager.build_run_fingerprint(
             flow_impl=context.flow._impl,
             strategy_name=context.strategy_name,
             strategy_info=context.strategy_info,
-            settings_payload=context.settings_view.to_dict(),
+            disk_settings=disk_settings,  # 磁盘上的 settings
+            user_modified_settings=user_modified_settings,  # 用户修改过的 settings
             stock_ids=context.stock_list,
         )
         return str(fp.fingerprint_id or ""), StrategyFingerprintManager.build_scope_fingerprint_id(

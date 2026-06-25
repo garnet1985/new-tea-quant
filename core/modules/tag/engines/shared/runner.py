@@ -122,6 +122,17 @@ def execute_tag_jobs(
             job["payload"]["_stage_in_worker"] = True
 
     real_save_fn = tag_data_service.save_batch
+
+    # Dry run 模式：使用 mock 函数跳过数据库写入
+    dry_run = performance.get("dry_run", False)
+    if dry_run:
+        def _dry_save_fn(rows: List[Any]) -> int:
+            """Dry run: 记录但不实际写入"""
+            logger.debug("[DRY RUN] 跳过写入 %d 行 tag 数据", len(rows))
+            return len(rows)
+        real_save_fn = _dry_save_fn
+        logger.info("[DRY RUN] 已启用 dry run 模式，所有 save_batch 操作将被跳过")
+
     spill_dir: Optional[Path] = None
     if duckdb_stage_spill:
         spill_rows = int(performance.get("stage_spill_rows") or 50_000)
@@ -321,6 +332,23 @@ def execute_tag_jobs(
     ):
         logger.info(line)
 
+    # 构建性能报告数据
+    wall_time = time.time() - start_time
+    profile_data = None
+    if profile.enabled:
+        profile_data = {
+            "stage_sec": round(profile.stage_sec, 3),
+            "execute_sec": round(profile.execute_sec, 3),
+            "report_sec": round(profile.report_sec, 3),
+            "save_batch_sec": round(profile.save_batch_sec, 3),
+            "stage_jobs": profile.stage_jobs,
+            "execute_jobs": profile.execute_jobs,
+            "report_jobs": profile.report_jobs,
+            "pickle_bytes": profile.pickle_bytes,
+            "payload_rows": profile.payload_rows,
+            "wall_sec": round(wall_time, 3),
+        }
+
     return {
         "scenario_name": scenario_name,
         "total_jobs": total_jobs,
@@ -329,4 +357,6 @@ def execute_tag_jobs(
         "saved_tag_values": saved_tag_count,
         "elapsed_time": elapsed_time,
         "dispatch_result": dispatch_result,
+        "profile": profile_data,
+        "entity_count": entity_count,
     }

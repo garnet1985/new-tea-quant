@@ -128,14 +128,35 @@ class EnumeratorOutputWriterService:
         output_dir: Path,
         by_stock_id: Dict[str, Dict[str, Any]],
     ) -> None:
-        """单文件、以股票代码为键；数据在 job 完成时已在内存中汇总，此处仅一次顺序写盘。"""
+        """单文件、以股票代码为键；数据在 job 完成时已在内存中汇总，此处仅一次顺序写盘。
+        
+        仅写入存在对应机会数据文件且内容非空的股票，避免 UI 显示无法查看详情的股票。
+        """
         if not by_stock_id:
             return
         output_dir.mkdir(parents=True, exist_ok=True)
-        ordered = {sid: by_stock_id[sid] for sid in sorted(by_stock_id.keys())}
+        
+        # 过滤：只保留存在机会数据文件且内容非空的股票
+        valid_stocks: Dict[str, Dict[str, Any]] = {}
+        for sid in sorted(by_stock_id.keys()):
+            opportunity_file = output_dir / f"{sid}_opportunities.csv"
+            if opportunity_file.is_file():
+                # 检查文件内容是否非空（至少有表头和一行数据）
+                try:
+                    content = opportunity_file.read_text(encoding="utf-8")
+                    lines = [line.strip() for line in content.split("\n") if line.strip()]
+                    # 至少需要表头 + 一行数据
+                    if len(lines) >= 2:
+                        valid_stocks[sid] = by_stock_id[sid]
+                except Exception:
+                    continue
+        
+        if not valid_stocks:
+            return
+            
         path = output_dir / STOCK_REF_FILENAME
         path.write_text(
-            json.dumps(ordered, ensure_ascii=False, indent=2) + "\n",
+            json.dumps(valid_stocks, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
 
@@ -143,12 +164,11 @@ class EnumeratorOutputWriterService:
     def fingerprint_dict_for_metadata(
         fingerprint: StrategyRunFingerprint,
     ) -> Tuple[Dict[str, Any], List[str]]:
-        """嵌入 ``0_metadata.json`` 的 fingerprint 去掉 ``stock_ids``；指向 ``0_stock_ref.json``（与逐股 ref 合一）。"""
+        """嵌入 ``0_metadata.json`` 的 fingerprint 保留 ``stock_ids``（用于价格回测 env 指纹）。"""
         d = fingerprint.to_dict()
-        raw_ids = d.pop("stock_ids", None) or []
+        raw_ids = d.get("stock_ids", None) or []
         scope_ids = sorted({str(x).strip() for x in raw_ids if str(x).strip()})
-        if scope_ids:
-            d["stock_ids_ref"] = STOCK_REF_FILENAME
+        # 保留 stock_ids，不再移除并指向 0_stock_ref.json
         return d, scope_ids
 
     @staticmethod
@@ -164,9 +184,33 @@ class EnumeratorOutputWriterService:
     @staticmethod
     def read_scope_stock_ids(output_dir: Path) -> List[str]:
         """
-        解析枚举目录的股票 universe：``0_stock_ref.json``、侧载 ``0_scope_stock_ids.txt``、
-        或 ``0_metadata.json`` 内嵌 ``stock_ids``。
+        解析枚举目录的股票 universe：优先读取 ``0_metadata.json`` 内嵌 ``stock_ids``（所有股票），
+        再尝试侧载 ``0_scope_stock_ids.txt``，最后回退 ``0_stock_ref.json``（有 opportunities 的股票）。
         """
+        # 优先读取 0_metadata.json 中的所有股票列表（用于 env fingerprint）
+        meta_path = output_dir / "0_metadata.json"
+        if meta_path.is_file():
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                fp = meta.get("fingerprint") if isinstance(meta, dict) else None
+                raw = fp.get("stock_ids") if isinstance(fp, dict) else None
+                if isinstance(raw, list) and raw:
+                    ids = sorted({str(s).strip() for s in raw if str(s).strip()})
+                    if ids:
+                        return list(ids)
+            except Exception:
+                pass
+        # 尝试读取侧载文件
+        sidecar = output_dir / SCOPE_STOCK_IDS_FILENAME
+        if sidecar.is_file():
+            try:
+                lines = sidecar.read_text(encoding="utf-8").splitlines()
+                ids = sorted({ln.strip() for ln in lines if ln.strip()})
+                if ids:
+                    return list(ids)
+            except Exception:
+                pass
+        # 最后回退 0_stock_ref.json（只包含有 opportunities 的股票）
         ref_path = output_dir / STOCK_REF_FILENAME
         if ref_path.is_file():
             try:
@@ -177,26 +221,6 @@ class EnumeratorOutputWriterService:
                         return list(ids)
             except Exception:
                 pass
-        sidecar = output_dir / SCOPE_STOCK_IDS_FILENAME
-        if sidecar.is_file():
-            try:
-                lines = sidecar.read_text(encoding="utf-8").splitlines()
-                ids = sorted({ln.strip() for ln in lines if ln.strip()})
-                if ids:
-                    return list(ids)
-            except Exception:
-                pass
-        meta_path = output_dir / "0_metadata.json"
-        if not meta_path.is_file():
-            return []
-        try:
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
-            fp = meta.get("fingerprint") if isinstance(meta, dict) else None
-            raw = fp.get("stock_ids") if isinstance(fp, dict) else None
-            if isinstance(raw, list) and raw:
-                return sorted({str(s).strip() for s in raw if str(s).strip()})
-        except Exception:
-            pass
         return []
 
     @staticmethod

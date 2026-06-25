@@ -79,6 +79,7 @@ class DbCacheFingerprintResolution(NamedTuple):
 
     validated_settings: Any
     settings_diff: Dict[str, Any]  # 差异字段（只包含影响回测结果的字段）
+    disk_settings_hash: str  # disk settings（物理文件）的 hash，用于检测物理文件是否被修改
     stock_ids: List[str]
     env_start_date: str
     env_end_date: str
@@ -128,10 +129,14 @@ def resolve_db_cache_fingerprints(
     """
     from .env_resolver import resolve_env_inputs
     from .settings_resolver import validated_normalized_snapshot
-    from .settings_diff import diff_and_filter
+    from .settings_diff import diff_and_filter, filter_fingerprint_fields_from_settings
 
     # 计算差异字段
     diff_fields = diff_and_filter(disk_settings, user_modified_settings)
+
+    # 计算 disk_settings_hash（基于影响回测结果的字段）
+    disk_settings_filtered = filter_fingerprint_fields_from_settings(disk_settings)
+    disk_settings_hash = to_settings_hash(disk_settings_filtered)
 
     # 验证用户修改过的settings（完整的settings）
     prepared = validated_normalized_snapshot(user_modified_settings)
@@ -168,6 +173,7 @@ def resolve_db_cache_fingerprints(
     return DbCacheFingerprintResolution(
         validated_settings=validated_settings,
         settings_diff=diff_fields,  # 差异字段
+        disk_settings_hash=disk_settings_hash,  # disk settings（物理文件）的 hash
         stock_ids=env.stock_ids,
         env_start_date=env.env_start_date,
         env_end_date=env.env_end_date,

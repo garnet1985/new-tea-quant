@@ -92,7 +92,7 @@ def fetch_workbench_by_version(
     out = dict(row)
     # 合并差异字段和磁盘上的 settings
     settings_diff = out.get("settings_snapshot")  # 数据库中存储的是差异字段
-    if isinstance(settings_diff, dict) and settings_diff:
+    if isinstance(settings_diff, dict):  # 即使是空字典也需要合并
         from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.settings_diff import (
             merge_settings,
         )
@@ -167,7 +167,7 @@ def fetch_latest_workbench_snapshot(strategy_name: str) -> Optional[Dict[str, An
             out = dict(row)
             # 合并差异字段和磁盘上的 settings
             settings_diff = out.get("settings_snapshot")  # 数据库中存储的是差异字段
-            if isinstance(settings_diff, dict) and settings_diff:
+            if isinstance(settings_diff, dict):  # 即使是空字典也需要合并
                 from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.settings_diff import (
                     merge_settings,
                 )

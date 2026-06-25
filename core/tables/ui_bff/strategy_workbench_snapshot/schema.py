@@ -64,6 +64,14 @@ schema = {
             "description": "环境指纹",
         },
         {
+            "name": "disk_settings_hash",
+            "type": "varchar",
+            "length": 128,
+            "isRequired": False,
+            "nullable": True,
+            "description": "disk settings（物理文件）的 hash，用于检测物理文件是否被修改",
+        },
+        {
             "name": "created_at",
             "type": "datetime",
             "isRequired": True,

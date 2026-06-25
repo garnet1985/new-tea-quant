@@ -6,6 +6,7 @@ pandas 仅在操作 DataFrame/Series 的方法内按需 import，避免轻量路
 """
 from __future__ import annotations
 
+import copy
 import datetime
 from typing import Any, Dict, List, Set, Tuple
 
@@ -60,23 +61,62 @@ class Utils:
         return isinstance(obj, pd.Series)
 
     @staticmethod
-    def deep_merge(defaults: Dict[str, Any], custom: Dict[str, Any]) -> Dict[str, Any]:
-        """深度合并两个字典
+    def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+        """深度合并两个字典（override 覆盖 base 同键叶子值）。
 
         Args:
-            defaults: 默认字典
-            custom: 自定义字典
+            base: 基准字典
+            override: 覆盖字典
         Returns:
-            合并后的字典
+            合并后的字典（新字典，不修改原始字典）
         """
-        merged = {**defaults, **custom}
-        for key, value in custom.items():
-            if key in defaults:
-                if Utils.is_dict(defaults[key]) and Utils.is_dict(value):
-                    merged[key] = Utils.deep_merge(defaults[key], value)
+        merged = copy.deepcopy(base)
+
+        for key, value in override.items():
+            if key in merged:
+                if Utils.is_dict(merged[key]) and Utils.is_dict(value):
+                    merged[key] = Utils.deep_merge(merged[key], value)
                 else:
-                    merged[key] = value
+                    merged[key] = copy.deepcopy(value)
+            else:
+                # 新增字段
+                merged[key] = copy.deepcopy(value)
+
         return merged
+
+    @staticmethod
+    def deep_diff(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+        """深度对比两个字典的差异（返回 override 相对于 base 的差异）。
+
+        Args:
+            base: 基准字典
+            override: 对比字典
+
+        Returns:
+            差异字典（只包含 override 相对于 base 的差异）
+        """
+        diff: Dict[str, Any] = {}
+
+        for key in override:
+            value_base = base.get(key)
+            value_override = override[key]
+
+            # override 有但 base 没有的（新增）
+            if key not in base:
+                diff[key] = copy.deepcopy(value_override)
+                continue
+
+            # 值不同
+            if isinstance(value_base, dict) and isinstance(value_override, dict):
+                # 递归对比嵌套字典
+                nested_diff = Utils.deep_diff(value_base, value_override)
+                if nested_diff:
+                    diff[key] = nested_diff
+            elif value_base != value_override:
+                # 值不同（非嵌套）
+                diff[key] = copy.deepcopy(value_override)
+
+        return diff
 
     @staticmethod
     def df_to_dict(df: Any) -> Dict[str, Any]:

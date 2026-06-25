@@ -127,7 +127,7 @@ def resolve_backtest_start_date(
         if earliest:
             return ResolvedBacktestDate(earliest, SOURCE_SAMPLE_EARLIEST_KLINE)
 
-    return ResolvedBacktestDate(DateUtils.DEFAULT_START_DATE, SOURCE_DEFAULT)
+    return ResolvedBacktestDate(DateUtils.get_default_start_date(), SOURCE_DEFAULT)
 
 
 def resolve_backtest_end_date(
@@ -181,7 +181,7 @@ def resolve_backtest_universe(
         raise ValueError("无法解析回测结束日（请配置 sampling.end_date 或确保交易日历可用）")
 
     configured_start = settings_view.start_date.strip()
-    provisional_start = configured_start or DateUtils.DEFAULT_START_DATE
+    provisional_start = configured_start or DateUtils.get_default_start_date()
     core = settings_view.core if isinstance(settings_view.core, dict) else {}
     survivorship = core.get("universe_mode")
 

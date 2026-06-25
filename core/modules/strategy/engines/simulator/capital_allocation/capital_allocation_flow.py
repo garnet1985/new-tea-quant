@@ -124,6 +124,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
                 strategy_name,
                 resolved.settings_fp,
                 resolved.env_fp,
+                disk_settings_hash=resolved.disk_settings_hash,
             )
             if hit:
                 summary, wb_version = hit
@@ -140,6 +141,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
                         settings_fingerprint_id=resolved.settings_fp,
                         env_fingerprint_id=resolved.env_fp,
                         capital_output_version_dir=cdir or None,
+                        disk_settings_hash=resolved.disk_settings_hash,
                     )
                     self.last_version = int(sid or wb_version or 0)
                 else:
@@ -203,6 +205,7 @@ class CapitalAllocationFlow(BaseSimulationFlow):
                     settings_fingerprint_id=resolved_save.settings_fp,
                     env_fingerprint_id=resolved_save.env_fp,
                     capital_output_version_dir=preprocessed.output_version_dir.name,
+                    disk_settings_hash=resolved_save.disk_settings_hash,
                 )
                 self.last_version = int(sid or 0)
 

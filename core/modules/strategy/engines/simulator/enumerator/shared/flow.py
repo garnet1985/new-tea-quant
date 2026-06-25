@@ -119,6 +119,7 @@ class BaseEnumeratorFlow(BaseSimulationFlow):
                 strategy_name,
                 resolved_probe.settings_fp,
                 resolved_probe.env_fp,
+                disk_settings_hash=resolved_probe.disk_settings_hash,
             )
             if hit:
                 summary_list, wb_version = hit
@@ -206,6 +207,7 @@ class BaseEnumeratorFlow(BaseSimulationFlow):
                     report_enum=first if isinstance(first, dict) else {},
                     settings_fingerprint_id=resolved_save.settings_fp,
                     env_fingerprint_id=resolved_save.env_fp,
+                    disk_settings_hash=resolved_save.disk_settings_hash,
                 )
                 self.last_version = int(persisted_sid or 0)
         return summary_list

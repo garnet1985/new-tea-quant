@@ -131,5 +131,11 @@ def enum_db_cache_aligned_with_downstream_probe(
     if resolved is None:
         return False
     return (
-        lookup_enum_cache(name, resolved.settings_fp, resolved.env_fp) is not None
+        lookup_enum_cache(
+            name,
+            resolved.settings_fp,
+            resolved.env_fp,
+            disk_settings_hash=resolved.disk_settings_hash,
+        )
+        is not None
     )

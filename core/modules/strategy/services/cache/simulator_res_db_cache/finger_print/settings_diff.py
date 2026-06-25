@@ -14,7 +14,9 @@
 from __future__ import annotations
 
 import copy
-from typing import Any, Dict, FrozenSet, List, Optional, Set, Tuple
+from typing import Any, Dict, FrozenSet
+
+from core.utils.utils import Utils
 
 
 # 影响回测结果的字段（指纹字段）
@@ -59,46 +61,6 @@ def _is_fingerprint_field(field_path: str) -> bool:
     return root_field in FINGERPRINT_FIELDS
 
 
-def _deep_diff(
-    dict_a: Dict[str, Any],
-    dict_b: Dict[str, Any],
-    path: str = "",
-) -> Dict[str, Any]:
-    """深度对比两个字典的差异。
-
-    Args:
-        dict_a: 字典A（基准）
-        dict_b: 字典B（对比）
-        path: 当前路径（用于递归）
-
-    Returns:
-        差异字典（只包含dict_b相对于dict_a的差异）
-    """
-    diff: Dict[str, Any] = {}
-
-    for key in dict_b:
-        current_path = f"{path}.{key}" if path else key
-        value_a = dict_a.get(key)
-        value_b = dict_b[key]
-
-        # dict_b有但dict_a没有的（新增）
-        if key not in dict_a:
-            diff[key] = copy.deepcopy(value_b)
-            continue
-
-        # 值不同
-        if isinstance(value_a, dict) and isinstance(value_b, dict):
-            # 递归对比嵌套字典
-            nested_diff = _deep_diff(value_a, value_b, current_path)
-            if nested_diff:
-                diff[key] = nested_diff
-        elif value_a != value_b:
-            # 值不同（非嵌套）
-            diff[key] = copy.deepcopy(value_b)
-
-    return diff
-
-
 def diff_settings(
     disk_settings: Dict[str, Any],
     user_modified_settings: Dict[str, Any],
@@ -112,7 +74,7 @@ def diff_settings(
     Returns:
         差异字典（只包含用户修改过的 settings 相对于磁盘上的 settings 的差异）
     """
-    return _deep_diff(disk_settings, user_modified_settings)
+    return Utils.deep_diff(disk_settings, user_modified_settings)
 
 
 def filter_fingerprint_fields(
@@ -124,13 +86,33 @@ def filter_fingerprint_fields(
         diff: 差异字典
 
     Returns:
-        筛选后的差异字典（只包含影响回测结果的字段）
+        篮选后的差异字典（只包含影响回测结果的字段）
     """
     filtered: Dict[str, Any] = {}
 
     for key in diff:
         if _is_fingerprint_field(key):
             filtered[key] = copy.deepcopy(diff[key])
+
+    return filtered
+
+
+def filter_fingerprint_fields_from_settings(
+    settings: Dict[str, Any],
+) -> Dict[str, Any]:
+    """从完整的 settings 中筛选影响回测结果的字段。
+
+    Args:
+        settings: 完整的 settings 字典
+
+    Returns:
+        篮选后的 settings 字典（只包含影响回测结果的字段）
+    """
+    filtered: Dict[str, Any] = {}
+
+    for key in settings:
+        if _is_fingerprint_field(key):
+            filtered[key] = copy.deepcopy(settings[key])
 
     return filtered
 
@@ -153,35 +135,6 @@ def diff_and_filter(
     return filtered
 
 
-def _deep_merge(
-    base: Dict[str, Any],
-    diff: Dict[str, Any],
-) -> Dict[str, Any]:
-    """深度合并基准字典和差异字典。
-
-    Args:
-        base: 基准字典（磁盘上的 settings）
-        diff: 差异字典（缓存）
-
-    Returns:
-        合并后的字典（用户修改过的 settings）
-    """
-    merged = copy.deepcopy(base)
-
-    for key in diff:
-        value_diff = diff[key]
-        value_base = merged.get(key)
-
-        if isinstance(value_base, dict) and isinstance(value_diff, dict):
-            # 递归合并嵌套字典
-            merged[key] = _deep_merge(value_base, value_diff)
-        else:
-            # 直接覆盖（新增或修改）
-            merged[key] = copy.deepcopy(value_diff)
-
-    return merged
-
-
 def merge_settings(
     disk_settings: Dict[str, Any],
     cached_diff: Dict[str, Any],
@@ -199,7 +152,7 @@ def merge_settings(
         # 没有差异，返回磁盘上的 settings
         return copy.deepcopy(disk_settings)
 
-    return _deep_merge(disk_settings, cached_diff)
+    return Utils.deep_merge(disk_settings, cached_diff)
 
 
 __all__ = [
@@ -207,6 +160,7 @@ __all__ = [
     "NON_FINGERPRINT_FIELDS",
     "diff_settings",
     "filter_fingerprint_fields",
+    "filter_fingerprint_fields_from_settings",
     "diff_and_filter",
     "merge_settings",
 ]

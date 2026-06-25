@@ -114,6 +114,7 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
         result_report: Optional[Dict[str, Any]] = None,
         settings_finger_print_id: str = "",
         env_fingerprint_id: str = "",
+        disk_settings_hash: str = "",
     ) -> Dict[str, Any]:
         self._ensure_table_ready()
         version = self.get_next_version(strategy_name)
@@ -125,6 +126,7 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
             COL_REPORTS: result_report or {},
             COL_SETTINGS_FP: str(settings_finger_print_id or ""),
             COL_ENV_FP: str(env_fingerprint_id or ""),
+            "disk_settings_hash": str(disk_settings_hash or ""),
             "created_at": now,
             "updated_at": now,
         }
@@ -138,6 +140,7 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
         result_report: Dict[str, Any],
         settings_finger_print_id: str = "",
         env_fingerprint_id: str = "",
+        disk_settings_hash: str = "",
     ) -> int:
         """更新聚合 JSON（物理列 ``reports``）。"""
         self._ensure_table_ready()
@@ -154,16 +157,23 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
             if env_fingerprint_id is not None and str(env_fingerprint_id) != ""
             else str(current.get(COL_ENV_FP) or "")
         )
+        target_disk_hash = (
+            str(disk_settings_hash)
+            if disk_settings_hash is not None and str(disk_settings_hash) != ""
+            else str(current.get("disk_settings_hash") or "")
+        )
         return self.execute_raw_update(
             (
                 f"UPDATE sys_strategy_workbench_snapshot "
-                f"SET {COL_REPORTS} = %s, {COL_SETTINGS_FP} = %s, {COL_ENV_FP} = %s, updated_at = %s "
+                f"SET {COL_REPORTS} = %s, {COL_SETTINGS_FP} = %s, {COL_ENV_FP} = %s, "
+                f"disk_settings_hash = %s, updated_at = %s "
                 "WHERE strategy_name = %s AND version = %s"
             ),
             (
                 json.dumps(result_report or {}, ensure_ascii=False),
                 target_settings_fp,
                 target_env_fp,
+                target_disk_hash,
                 datetime.now(),
                 strategy_name,
                 int(version),
@@ -176,6 +186,7 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
         *,
         settings_finger_print_id: str = "",
         env_fingerprint_id: str = "",
+        disk_settings_hash: str = "",
         limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """
@@ -183,11 +194,13 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
 
         - 若 **同时** 传入 settings_fp 与 env_fp：**两条必须同时相等（AND）**，才是 DbCache 语义下的命中。
         - 若仅传其一：按单列相等筛选（调试或迁移脚本用途）。
+        - 若传入 disk_settings_hash：**必须相等**，否则不返回缓存记录（用于检测物理文件是否被修改）。
         """
         self._ensure_table_ready()
         safe_limit = max(1, min(int(limit or 100), 500))
         settings_fp = str(settings_finger_print_id or "").strip()
         env_fp = str(env_fingerprint_id or "").strip()
+        disk_hash = str(disk_settings_hash or "").strip()
         if settings_fp and env_fp:
             where = (
                 f"strategy_name = %s AND {COL_SETTINGS_FP} = %s AND {COL_ENV_FP} = %s"
@@ -201,6 +214,10 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
             params = (strategy_name, env_fp)
         else:
             return []
+        # 如果 disk_settings_hash 不为空，添加 disk_settings_hash 的条件
+        if disk_hash:
+            where += f" AND disk_settings_hash = %s"
+            params = tuple(list(params) + [disk_hash])
         rows = self.load(where, params, order_by="version DESC", limit=safe_limit)
         return [self._normalize_row(row) for row in rows]
 

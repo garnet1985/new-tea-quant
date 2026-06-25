@@ -63,7 +63,7 @@ def persist_enum_snapshot(
     slim = compact_enum_slot_for_cache(str(strategy_name).strip(), dict(report_enum or {}))
     return SimulatorResDbCacheService().set_cache(
         strategy_name=str(strategy_name),
-        settings_snapshot=dict(settings_snapshot_api or {}),
+        settings_diff=dict(settings_snapshot_api or {}),  # 差异字段
         simulator=Simulator.ENUMERATOR,
         simulator_report=slim,
         settings_fingerprint_id=str(settings_fingerprint_id or "").strip(),
@@ -104,7 +104,7 @@ def persist_price_factor_snapshot(
     """写入或合并 ``price_factor`` 槽位。"""
     return SimulatorResDbCacheService().set_cache(
         strategy_name=str(strategy_name),
-        settings_snapshot=dict(settings_snapshot_api or {}),
+        settings_diff=dict(settings_snapshot_api or {}),  # 差异字段
         simulator=Simulator.PRICE_FACTOR,
         simulator_report=dict(report_price_factor or {}),
         settings_fingerprint_id=str(settings_fingerprint_id or "").strip(),
@@ -153,7 +153,7 @@ def persist_capital_allocation_snapshot(
         to_save = compact_capital_slot_for_cache(sn, raw, capital_output_version_dir=vd)
     return SimulatorResDbCacheService().set_cache(
         strategy_name=str(strategy_name),
-        settings_snapshot=dict(settings_snapshot_api or {}),
+        settings_diff=dict(settings_snapshot_api or {}),  # 差异字段
         simulator=Simulator.CAPITAL_ALLOCATION,
         simulator_report=to_save,
         settings_fingerprint_id=str(settings_fingerprint_id or "").strip(),

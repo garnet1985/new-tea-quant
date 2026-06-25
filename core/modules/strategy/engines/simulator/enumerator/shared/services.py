@@ -261,6 +261,9 @@ class EnumeratorSharedServices:
         from core.modules.strategy.services.cache.simulator_res_db_cache.snapshot_slot_adapters import (
             lookup_enum_cache,
         )
+        from core.modules.strategy.services.data.output.version_manager import (
+            StrategyOutputVersionService,
+        )
 
         # 查询数据库中是否已有相同指纹的版本
         cached = lookup_enum_cache(
@@ -272,9 +275,6 @@ class EnumeratorSharedServices:
         if cached:
             # 找到缓存，检查磁盘目录是否存在
             _, cached_version_id = cached
-            from core.modules.strategy.services.data.output.version_manager import (
-                StrategyOutputVersionService,
-            )
             cached_version_dir, _ = StrategyOutputVersionService.resolve_enumerator_version(
                 strategy_name=strategy_name,
                 version_spec=str(cached_version_id),
@@ -310,18 +310,37 @@ class EnumeratorSharedServices:
         self,
         *,
         strategy_name: str,
-        settings_payload: Dict[str, Any],
+        disk_settings: Dict[str, Any],
+        user_modified_settings: Dict[str, Any],
         stock_ids: List[str],
         worker_ref: Dict[str, str],
     ) -> StrategyRunFingerprint:
+        """构建请求指纹（基于差异字段）。"""
+        from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.settings_diff import (
+            diff_and_filter,
+        )
+        from core.modules.strategy.services.cache.simulator_res_db_cache.config import (
+            derive_run_mode,
+        )
+        from core.system import get_version
+
+        # 计算差异字段
+        settings_diff = diff_and_filter(disk_settings, user_modified_settings)
+
+        # 获取 run_mode 和 engine_version
+        run_mode = derive_run_mode(user_modified_settings)
+        engine_version = get_version()
+
         worker_anchor = self._build_worker_anchor(worker_ref)
-        data_contract_mapping = self._build_data_contract_mapping(settings_payload)
+        data_contract_mapping = self._build_data_contract_mapping(user_modified_settings)
         return StrategyRunFingerprint.from_request(
             strategy_name=strategy_name,
             start_date=self.start_date,
             end_date=self.end_date,
             stock_ids=stock_ids,
-            raw_settings=settings_payload,
+            settings_diff=settings_diff,  # 差异字段
+            run_mode=run_mode,
+            engine_version=engine_version,
             worker_module_path=worker_ref.get("worker_module_path", ""),
             worker_class_name=worker_ref.get("worker_class_name", ""),
             worker_code_hash=worker_anchor["worker_code_hash"],

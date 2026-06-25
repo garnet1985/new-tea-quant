@@ -139,7 +139,8 @@ class StockBasedEnumeratorFlow(BaseEnumeratorFlow):
         )
         result_fingerprint = self._impl.build_request_fingerprint(
             strategy_name=probe.strategy_name,
-            settings_payload=probe.settings_for_fingerprint,
+            disk_settings=probe.disk_settings,  # 磁盘上的 settings
+            user_modified_settings=probe.settings_for_fingerprint,  # 用户修改过的 settings
             stock_ids=self.stock_list,
             worker_ref=probe.worker_ref,
         )

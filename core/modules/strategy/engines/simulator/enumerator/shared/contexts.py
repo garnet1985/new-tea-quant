@@ -30,6 +30,7 @@ class EnumeratorProbeContext:
     full_settings_snapshot_api: Dict[str, Any]
     request_fingerprint: StrategyRunFingerprint
     worker_ref: Any
+    disk_settings: Dict[str, Any]  # 磁盘上的 settings（基准）
 
 
 @dataclass

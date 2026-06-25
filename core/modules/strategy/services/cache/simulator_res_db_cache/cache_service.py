@@ -75,7 +75,7 @@ class SimulatorResDbCacheService:
     def set_cache(
         self,
         strategy_name: str,
-        settings_snapshot: Dict[str, Any],
+        settings_diff: Dict[str, Any],  # 差异字段
         simulator: Simulator,
         simulator_report: Dict[str, Any],
         settings_fingerprint_id: str,
@@ -140,7 +140,7 @@ class SimulatorResDbCacheService:
         merged = attach_initial_write_meta(merged)
         created = model.create_snapshot(
             sn,
-            dict(settings_snapshot or {}),
+            dict(settings_diff or {}),  # 差异字段
             merged,
             settings_finger_print_id=sfp,
             env_fingerprint_id=efp,

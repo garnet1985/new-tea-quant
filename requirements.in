@@ -11,7 +11,7 @@ duckdb
 
 # Data
 pandas
-numpy
+numpy>=2.0
 
 # Indicators
 pandas-ta-classic

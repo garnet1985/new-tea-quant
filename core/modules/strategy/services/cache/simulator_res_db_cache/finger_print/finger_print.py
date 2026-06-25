@@ -20,13 +20,13 @@ def _stable_sha256(payload: Dict[str, Any]) -> str:
     return sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def to_settings_hash(semantic_core_payload: Dict[str, Any]) -> str:
-    """语义核 dict → **settings 列**稳定哈希（SHA256 hex）。"""
+def to_settings_hash(semantic_core_payload: Optional[Dict[str, Any]] = None) -> str:
+    """语义核 dict → **settings 列**稳定哈希（内部 SHA256）。"""
     return _stable_sha256(
         {
             "v": 1,
-            "kind": "strategy_workbench_settings_core",
-            "settings_core": dict(semantic_core_payload or {}),
+            "kind": "strategy_workbench_settings_diff",
+            "settings_diff": dict(semantic_core_payload or {}),
         }
     )
 
@@ -75,10 +75,11 @@ def settings_fingerprint_id(settings: Any) -> str:
 
 
 class DbCacheFingerprintResolution(NamedTuple):
-    """一次解析结果：语义 settings、规范化快照、env 切片与 ``(settings_fp, env_fp)``。"""
+    """一次解析结果：差异字段、env 切片与 ``(settings_fp, env_fp)``。"""
 
     validated_settings: Any
-    normalized_settings_dict: Dict[str, Any]
+    settings_diff: Dict[str, Any]  # 差异字段（只包含影响回测结果的字段）
+    disk_settings_hash: str  # disk settings（物理文件）的 hash，用于检测物理文件是否被修改
     stock_ids: List[str]
     env_start_date: str
     env_end_date: str
@@ -95,7 +96,8 @@ class DbCacheFingerprintResolution(NamedTuple):
 def resolve_db_cache_fingerprints(
     *,
     strategy_name: str,
-    raw_settings: Dict[str, Any],
+    disk_settings: Dict[str, Any],
+    user_modified_settings: Dict[str, Any],
     stock_list: List[str],
     latest_completed_trading_date: str,
     data_manager: Optional[Any] = None,
@@ -103,21 +105,46 @@ def resolve_db_cache_fingerprints(
     env_end_date: str = "",
 ) -> Optional[DbCacheFingerprintResolution]:
     """
-    ``raw_settings`` → 规范化快照 → env 因子 → ``settings_fp`` + ``env_fp``。
+    计算差异字段并生成指纹。
 
-    ``stock_ids`` 须由调用方传入，与回测 flow build jobs 所用列表一致（不从 settings 推导）。
-    ``latest_completed_trading_date`` 与 flow 一致，用于 env 日期窗（避免在此查日历 IO）。
+    Args:
+        strategy_name: 策略名称
+        disk_settings: 磁盘上的 settings（基准，从 userspace/strategies/{strategy_name}/settings.py 读取）
+        user_modified_settings: 用户修改过的 settings（UI 上用户改动过后的 settings）
+        stock_list: 股票列表
+        latest_completed_trading_date: 最新完成的交易日
+        data_manager: 数据管理器
+        env_start_date: 环境开始日期
+        env_end_date: 环境结束日期
 
-    settings 不可用或 env/worker 解析失败时 ``None``。
+    Returns:
+        DbCacheFingerprintResolution 或 None
+
+    流程：
+    1. 计算 diff_and_filter(disk_settings, user_modified_settings) → 差异字段
+    2. 差异字段 → 指纹
+    3. 用户修改过的 settings → validated_normalized_snapshot → 验证后的 settings
+    4. 验证后的 settings → resolve_env_inputs → env
+    5. 返回 DbCacheFingerprintResolution
     """
     from .env_resolver import resolve_env_inputs
     from .settings_resolver import validated_normalized_snapshot
+    from .settings_diff import diff_and_filter, filter_fingerprint_fields_from_settings
 
-    prepared = validated_normalized_snapshot(raw_settings)
+    # 计算差异字段
+    diff_fields = diff_and_filter(disk_settings, user_modified_settings)
+
+    # 计算 disk_settings_hash（基于影响回测结果的字段）
+    disk_settings_filtered = filter_fingerprint_fields_from_settings(disk_settings)
+    disk_settings_hash = to_settings_hash(disk_settings_filtered)
+
+    # 验证用户修改过的settings（完整的settings）
+    prepared = validated_normalized_snapshot(user_modified_settings)
     if prepared is None:
         return None
     validated_settings, normalized_settings_dict = prepared
 
+    # 解析 env
     env = resolve_env_inputs(
         strategy_name=strategy_name,
         normalized_settings_dict=normalized_settings_dict,
@@ -130,15 +157,23 @@ def resolve_db_cache_fingerprints(
     if env is None:
         return None
 
-    settings_fp, env_fp = _fingerprint_pair_from_env(
-        validated_settings=validated_settings,
+    # 指纹基于差异字段
+    settings_fp = to_settings_hash(diff_fields)
+    env_fp = to_env_hash(
         strategy_name=strategy_name,
-        env=env,
+        stock_ids=env.stock_ids,
+        run_mode=env.run_mode,
+        engine_version=env.engine_version,
+        worker_module_path=env.worker_module_path,
+        worker_class_name=env.worker_class_name,
+        worker_code_hash=env.worker_code_hash,
+        data_contract_mapping=env.data_contract_mapping,
     )
 
     return DbCacheFingerprintResolution(
         validated_settings=validated_settings,
-        normalized_settings_dict=normalized_settings_dict,
+        settings_diff=diff_fields,  # 差异字段
+        disk_settings_hash=disk_settings_hash,  # disk settings（物理文件）的 hash
         stock_ids=env.stock_ids,
         env_start_date=env.env_start_date,
         env_end_date=env.env_end_date,

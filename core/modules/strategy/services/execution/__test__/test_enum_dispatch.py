@@ -31,7 +31,7 @@ def test_auto_with_measured_mb(_mock_perf, mock_vm):
         total_stocks=1000,
         measured_mb_per_entity=1.2,
     )
-    assert plan.source_entities_per_job == "auto"
+    assert plan.source_entities_per_job == "smart_auto"
     assert plan.source_mb_per_entity == "probe"
     assert plan.max_workers >= 1
 

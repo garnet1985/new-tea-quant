@@ -90,6 +90,18 @@ def fetch_workbench_by_version(
     if not row or not _row_usable(row):
         return None
     out = dict(row)
+    # 合并差异字段和磁盘上的 settings
+    settings_diff = out.get("settings_snapshot")  # 数据库中存储的是差异字段
+    if isinstance(settings_diff, dict):  # 即使是空字典也需要合并
+        from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.settings_diff import (
+            merge_settings,
+        )
+        folder = PathManager.strategy(name)
+        discovered = StrategyDiscoveryHelper.load_strategy(folder)
+        if discovered is not None:
+            disk_settings = dict(discovered.settings.to_dict())
+            merged_settings = merge_settings(disk_settings, settings_diff)
+            out["settings_snapshot"] = merged_settings  # 替换为合并后的完整 settings
     rr = row.get("result_report") or {}
     if isinstance(rr, dict):
         rr = hydrate_workbench_result_report(name, rr)
@@ -153,6 +165,18 @@ def fetch_latest_workbench_snapshot(strategy_name: str) -> Optional[Dict[str, An
             break
         if _row_usable(row):
             out = dict(row)
+            # 合并差异字段和磁盘上的 settings
+            settings_diff = out.get("settings_snapshot")  # 数据库中存储的是差异字段
+            if isinstance(settings_diff, dict):  # 即使是空字典也需要合并
+                from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.settings_diff import (
+                    merge_settings,
+                )
+                folder = PathManager.strategy(name)
+                discovered = StrategyDiscoveryHelper.load_strategy(folder)
+                if discovered is not None:
+                    disk_settings = dict(discovered.settings.to_dict())
+                    merged_settings = merge_settings(disk_settings, settings_diff)
+                    out["settings_snapshot"] = merged_settings  # 替换为合并后的完整 settings
             rr = out.get("result_report")
             if isinstance(rr, dict):
                 out["result_report"] = hydrate_workbench_result_report(name, rr)

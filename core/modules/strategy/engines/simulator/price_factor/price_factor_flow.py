@@ -142,16 +142,22 @@ class PriceFactorFlow(BaseSimulationFlow):
             probe.base_output_version_dir,
             fallback_ids=sorted(probe.stock_files.keys()),
         )
-        raw_for_fp = raw_settings_for_db_cache_fingerprint(
-            probe.base_settings, strategy_info
+        # 磁盘上的 settings（从磁盘上重新读取，而不是从 strategy_info 中读取）
+        from core.modules.strategy.engines.shared.helpers.strategy_runtime import (
+            load_strategy_info,
         )
+        disk_strategy_info = load_strategy_info(strategy_name)
+        disk_settings = dict(disk_strategy_info.settings.to_dict()) if disk_strategy_info else {}
+        # 用户修改过的 settings（从 probe.base_settings.to_dict() 读取）
+        user_modified_settings = dict(probe.base_settings.to_dict())
 
         data_mgr = DataManager(is_verbose=False)
         latest_completed_trading_date = resolve_latest_completed_trading_date(data_mgr)
 
         resolved_probe = resolve_db_cache_fingerprints(
             strategy_name=str(strategy_name),
-            raw_settings=raw_for_fp,
+            disk_settings=disk_settings,  # 磁盘上的 settings
+            user_modified_settings=user_modified_settings,  # 用户修改过的 settings
             stock_list=list(stock_list),
             latest_completed_trading_date=latest_completed_trading_date,
         )
@@ -164,6 +170,7 @@ class PriceFactorFlow(BaseSimulationFlow):
                 strategy_name,
                 resolved_probe.settings_fp,
                 resolved_probe.env_fp,
+                disk_settings_hash=resolved_probe.disk_settings_hash,
             )
             if hit:
                 summary, wb_version = hit
@@ -199,22 +206,30 @@ class PriceFactorFlow(BaseSimulationFlow):
         tick(94.0)
 
         if summary and isinstance(summary, dict):
-            raw_save = raw_settings_for_db_cache_fingerprint(
-                preprocessed.base_settings, strategy_info
+            # 磁盘上的 settings（从磁盘上重新读取，而不是从 strategy_info 中读取）
+            from core.modules.strategy.engines.shared.helpers.strategy_runtime import (
+                load_strategy_info,
             )
+            disk_strategy_info_save = load_strategy_info(strategy_name)
+            disk_settings_save = dict(disk_strategy_info_save.settings.to_dict()) if disk_strategy_info_save else {}
+            # 用户修改过的 settings（从 preprocessed.base_settings.to_dict() 读取）
+            user_modified_settings_save = dict(preprocessed.base_settings.to_dict())
+
             resolved_save = resolve_db_cache_fingerprints(
                 strategy_name=str(strategy_name),
-                raw_settings=raw_save,
+                disk_settings=disk_settings_save,  # 磁盘上的 settings
+                user_modified_settings=user_modified_settings_save,  # 用户修改过的 settings
                 stock_list=list(stock_list),
                 latest_completed_trading_date=latest_completed_trading_date,
             )
             if resolved_save is not None:
                 sid = persist_price_factor_snapshot(
                     strategy_name,
-                    settings_snapshot_api=dict(resolved_save.normalized_settings_dict or {}),
+                    settings_snapshot_api=dict(resolved_save.settings_diff or {}),  # 差异字段
                     report_price_factor=summary,
                     settings_fingerprint_id=resolved_save.settings_fp,
                     env_fingerprint_id=resolved_save.env_fp,
+                    disk_settings_hash=resolved_save.disk_settings_hash,
                 )
                 self.last_version = int(sid or 0)
         return summary

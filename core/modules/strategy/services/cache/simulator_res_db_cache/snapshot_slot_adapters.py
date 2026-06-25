@@ -31,13 +31,15 @@ def lookup_enum_cache(
     strategy_name: str,
     settings_finger_print_id: str,
     env_fingerprint_id: str,
+    disk_settings_hash: str = "",
 ) -> Optional[Tuple[List[Dict[str, Any]], int]]:
     """双指纹命中且 ``result_report.enum`` 为非空 dict 时返回 ``([payload], workbench_version)``。"""
     sn = str(strategy_name).strip()
     sfp = str(settings_finger_print_id or "").strip()
     efp = str(env_fingerprint_id or "").strip()
+    dsh = str(disk_settings_hash or "").strip()
     svc = SimulatorResDbCacheService()
-    row = svc.load_cache_by_fingerprints(sn, sfp, efp)
+    row = svc.load_cache_by_fingerprints(sn, sfp, efp, disk_settings_hash=dsh)
     if not row:
         return None
     wb_version = int((row or {}).get("version") or 0)
@@ -58,16 +60,18 @@ def persist_enum_snapshot(
     report_enum: Dict[str, Any],
     settings_fingerprint_id: str,
     env_fingerprint_id: str,
+    disk_settings_hash: str = "",
 ) -> int:
     """写入或合并 ``enum`` 槽位。"""
     slim = compact_enum_slot_for_cache(str(strategy_name).strip(), dict(report_enum or {}))
     return SimulatorResDbCacheService().set_cache(
         strategy_name=str(strategy_name),
-        settings_snapshot=dict(settings_snapshot_api or {}),
+        settings_diff=dict(settings_snapshot_api or {}),  # 差异字段
         simulator=Simulator.ENUMERATOR,
         simulator_report=slim,
         settings_fingerprint_id=str(settings_fingerprint_id or "").strip(),
         env_fingerprint_id=str(env_fingerprint_id or "").strip(),
+        disk_settings_hash=str(disk_settings_hash or "").strip(),
     )
 
 
@@ -75,6 +79,7 @@ def lookup_price_factor_cache(
     strategy_name: str,
     settings_finger_print_id: str,
     env_fingerprint_id: str,
+    disk_settings_hash: str = "",
 ) -> Optional[Tuple[Dict[str, Any], int]]:
     """双指纹命中且 ``result_report.price_factor`` 为非空 dict 时返回 ``(payload, workbench_version)``。"""
     svc = SimulatorResDbCacheService()
@@ -82,6 +87,7 @@ def lookup_price_factor_cache(
         str(strategy_name),
         str(settings_finger_print_id or "").strip(),
         str(env_fingerprint_id or "").strip(),
+        disk_settings_hash=str(disk_settings_hash or "").strip(),
     )
     if not row:
         return None
@@ -100,15 +106,17 @@ def persist_price_factor_snapshot(
     report_price_factor: Dict[str, Any],
     settings_fingerprint_id: str,
     env_fingerprint_id: str,
+    disk_settings_hash: str = "",
 ) -> int:
     """写入或合并 ``price_factor`` 槽位。"""
     return SimulatorResDbCacheService().set_cache(
         strategy_name=str(strategy_name),
-        settings_snapshot=dict(settings_snapshot_api or {}),
+        settings_diff=dict(settings_snapshot_api or {}),  # 差异字段
         simulator=Simulator.PRICE_FACTOR,
         simulator_report=dict(report_price_factor or {}),
         settings_fingerprint_id=str(settings_fingerprint_id or "").strip(),
         env_fingerprint_id=str(env_fingerprint_id or "").strip(),
+        disk_settings_hash=str(disk_settings_hash or "").strip(),
     )
 
 
@@ -116,6 +124,7 @@ def lookup_capital_allocation_cache(
     strategy_name: str,
     settings_finger_print_id: str,
     env_fingerprint_id: str,
+    disk_settings_hash: str = "",
 ) -> Optional[Tuple[Dict[str, Any], int]]:
     """双指纹命中且 ``result_report.capital_allocation`` 为非空 dict 时返回 ``(payload, workbench_version)``。"""
     svc = SimulatorResDbCacheService()
@@ -123,6 +132,7 @@ def lookup_capital_allocation_cache(
         str(strategy_name),
         str(settings_finger_print_id or "").strip(),
         str(env_fingerprint_id or "").strip(),
+        disk_settings_hash=str(disk_settings_hash or "").strip(),
     )
     if not row:
         return None
@@ -143,6 +153,7 @@ def persist_capital_allocation_snapshot(
     settings_fingerprint_id: str,
     env_fingerprint_id: str,
     capital_output_version_dir: Optional[str] = None,
+    disk_settings_hash: str = "",
 ) -> int:
     """写入或合并 ``capital_allocation`` 槽位。"""
     sn = str(strategy_name).strip()
@@ -153,11 +164,12 @@ def persist_capital_allocation_snapshot(
         to_save = compact_capital_slot_for_cache(sn, raw, capital_output_version_dir=vd)
     return SimulatorResDbCacheService().set_cache(
         strategy_name=str(strategy_name),
-        settings_snapshot=dict(settings_snapshot_api or {}),
+        settings_diff=dict(settings_snapshot_api or {}),  # 差异字段
         simulator=Simulator.CAPITAL_ALLOCATION,
         simulator_report=to_save,
         settings_fingerprint_id=str(settings_fingerprint_id or "").strip(),
         env_fingerprint_id=str(env_fingerprint_id or "").strip(),
+        disk_settings_hash=str(disk_settings_hash or "").strip(),
     )
 
 

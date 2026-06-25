@@ -25,7 +25,7 @@ def test_set_cache_enum_write_clears_downstream_slots():
 
     sid = svc.set_cache(
         strategy_name="demo",
-        settings_snapshot={"meta": {}},
+        settings_diff={"meta": {}},  # 差异字段
         simulator=Simulator.ENUMERATOR,
         simulator_report={"opportunities": 99},
         settings_fingerprint_id="sfp",
@@ -55,7 +55,7 @@ def test_set_cache_price_write_keeps_capital_slot():
 
     sid = svc.set_cache(
         strategy_name="demo",
-        settings_snapshot={"meta": {}},
+        settings_diff={"meta": {}},  # 差异字段
         simulator=Simulator.PRICE_FACTOR,
         simulator_report={"win_rate": 60.0},
         settings_fingerprint_id="sfp",

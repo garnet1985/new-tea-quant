@@ -84,7 +84,9 @@ class StockBasedEnumeratorFlow(BaseEnumeratorFlow):
         )
 
         version_info = self._impl.create_output_version(
-            strategy_name=probe.strategy_name, enum_settings=probe.enum_settings
+            strategy_name=probe.strategy_name,
+            enum_settings=probe.enum_settings,
+            fingerprint=probe.request_fingerprint,
         )
         mp_id = probe.market_profile.profile_id
         data_mgr = DataManager(is_verbose=False)
@@ -137,7 +139,8 @@ class StockBasedEnumeratorFlow(BaseEnumeratorFlow):
         )
         result_fingerprint = self._impl.build_request_fingerprint(
             strategy_name=probe.strategy_name,
-            settings_payload=probe.settings_for_fingerprint,
+            disk_settings=probe.disk_settings,  # 磁盘上的 settings
+            user_modified_settings=probe.settings_for_fingerprint,  # 用户修改过的 settings
             stock_ids=self.stock_list,
             worker_ref=probe.worker_ref,
         )

@@ -31,15 +31,18 @@ def _resolve_cache_target_row(
     strategy_name: str,
     settings_fingerprint_id: str,
     env_fingerprint_id: str,
+    disk_settings_hash: str = "",
 ):
-    """双指纹 AND 命中唯一快照行。"""
+    """双指纹 AND 命中唯一快照行（若 disk_settings_hash 不为空，必须相等）。"""
     sfp = str(settings_fingerprint_id or "").strip()
     efp = str(env_fingerprint_id or "").strip()
+    dsh = str(disk_settings_hash or "").strip()
     sn = str(strategy_name).strip()
     rows = model.list_by_strategy_fingerprints(
         strategy_name=sn,
         settings_finger_print_id=sfp,
         env_fingerprint_id=efp,
+        disk_settings_hash=dsh,
         limit=1,
     )
     if rows:
@@ -75,11 +78,12 @@ class SimulatorResDbCacheService:
     def set_cache(
         self,
         strategy_name: str,
-        settings_snapshot: Dict[str, Any],
+        settings_diff: Dict[str, Any],  # 差异字段
         simulator: Simulator,
         simulator_report: Dict[str, Any],
         settings_fingerprint_id: str,
         env_fingerprint_id: str,
+        disk_settings_hash: str = "",
     ) -> int:
         """
         双指纹命中则合并更新 ``reports`` / ``result_report`` 聚合 JSON 中对应槽位；否则新建一行。
@@ -94,6 +98,7 @@ class SimulatorResDbCacheService:
         slot_key = _simulator_to_reports_slot_key(simulator)
         sfp = str(settings_fingerprint_id or "").strip()
         efp = str(env_fingerprint_id or "").strip()
+        dsh = str(disk_settings_hash or "").strip()
         sn = str(strategy_name)
 
         row = _resolve_cache_target_row(
@@ -101,6 +106,7 @@ class SimulatorResDbCacheService:
             strategy_name=sn,
             settings_fingerprint_id=sfp,
             env_fingerprint_id=efp,
+            disk_settings_hash=dsh,
         )
         if row:
             sid = int(row.get("version") or 0)
@@ -125,6 +131,7 @@ class SimulatorResDbCacheService:
                 merged,
                 settings_finger_print_id=sfp,
                 env_fingerprint_id=efp,
+                disk_settings_hash=dsh,
             )
             self._retention().prune_oldest_if_over_limit(sn)
             return sid
@@ -140,10 +147,11 @@ class SimulatorResDbCacheService:
         merged = attach_initial_write_meta(merged)
         created = model.create_snapshot(
             sn,
-            dict(settings_snapshot or {}),
+            dict(settings_diff or {}),  # 差异字段
             merged,
             settings_finger_print_id=sfp,
             env_fingerprint_id=efp,
+            disk_settings_hash=dsh,
         )
         sid = int((created or {}).get("version") or 0)
         if sid > 0:
@@ -155,6 +163,7 @@ class SimulatorResDbCacheService:
         strategy_name: str,
         settings_fingerprint_id: str,
         env_fingerprint_id: str,
+        disk_settings_hash: str = "",
     ) -> Dict[str, Any]:
         """双指纹 AND 命中最新一行；未命中或表未注册则 ``{}``。"""
         model = self.table_operator
@@ -164,6 +173,7 @@ class SimulatorResDbCacheService:
             strategy_name=str(strategy_name),
             settings_finger_print_id=str(settings_fingerprint_id or "").strip(),
             env_fingerprint_id=str(env_fingerprint_id or "").strip(),
+            disk_settings_hash=str(disk_settings_hash or "").strip(),
             limit=1,
         )
         if not rows:

@@ -8,8 +8,6 @@
 from datetime import datetime, date
 from typing import Any, Optional, List
 
-from core.infra.project_context import ConfigManager
-
 # 导入内部模块（私有）
 from core.utils.date import _constants
 from core.utils.date import _parser
@@ -42,10 +40,21 @@ class DateUtils:
     
     # 默认值
     DEFAULT_FORMAT = _constants.DEFAULT_FORMAT
-    DEFAULT_START_DATE = ConfigManager.get_default_start_date()
 
     # 无界查询上界（YYYYMMDD）
     QUERY_DATE_RANGE_MAX = _constants.QUERY_DATE_RANGE_MAX
+
+    @staticmethod
+    def _get_config_manager():
+        """延迟导入 ConfigManager 以避免循环导入"""
+        from core.infra.project_context import ConfigManager
+        return ConfigManager
+
+    @staticmethod
+    def get_default_start_date() -> str:
+        """获取默认开始日期"""
+        ConfigManager = DateUtils._get_config_manager()
+        return ConfigManager.get_default_start_date()
 
     @staticmethod
     def get_query_date_range_min() -> str:
@@ -53,6 +62,7 @@ class DateUtils:
         无界查询下界（YYYYMMDD）：与 `core/default_config/data.json` 中 `default_start_date` 一致；
         配置缺失或无法标准化时回退到内部兜底常量。
         """
+        ConfigManager = DateUtils._get_config_manager()
         raw = ConfigManager.get_default_start_date()
         if raw:
             n = DateUtils.normalize_str(str(raw))

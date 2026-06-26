@@ -70,32 +70,69 @@ class ProjectContextManager(ProjectContextAPI):
         return self._path_manager.get_tag_scenario_directory(tag_name)
     
     # ========== 配置核心 API 实现（3个）==========
-    
+
     def load_core_config(self, config_name: str) -> Dict[str, Any]:
         """加载 core 配置"""
-        return self._config_manager.load_core_config(config_name)
-    
+        try:
+            return self._config_manager.load_core_config(config_name)
+        except Exception:
+            # 如果配置不存在或加载失败，返回空字典
+            return {}
+
     def load_database_config(self, database_type: Optional[str] = None) -> Dict[str, Any]:
         """加载数据库配置"""
         return self._config_manager.load_database_config(database_type)
-    
+
     def load_data_config(self) -> Dict[str, Any]:
         """加载 data.json 配置"""
         return self._config_manager.load_data_config()
-    
+
     # ========== 发现核心 API 实现（3个）==========
-    
+
     def discover_strategies(self) -> List[str]:
         """发现所有策略"""
-        return self._discovery_manager.discover_strategies()
-    
+        strategies_root = self._path_manager.get_strategies_root()
+        if not strategies_root.is_dir():
+            return []
+
+        strategies = []
+        for path in strategies_root.iterdir():
+            if path.is_dir() and not path.name.startswith('.'):
+                strategies.append(path.name)
+
+        return sorted(strategies)
+
     def discover_tags(self) -> List[str]:
         """发现所有 Tag scenario"""
-        return self._discovery_manager.discover_tags()
-    
+        tags_root = self._path_manager.get_tags_root()
+        if not tags_root.is_dir():
+            return []
+
+        tags = []
+        for path in tags_root.iterdir():
+            if path.is_dir() and not path.name.startswith('.'):
+                tags.append(path.name)
+
+        return sorted(tags)
+
     def discover_configs(self) -> Dict[str, Dict[str, Any]]:
         """发现所有 core 配置"""
-        return self._discovery_manager.discover_core_configs()
+        try:
+            config_names = self._discovery_manager.discover_configs(domain="")
+            configs = {}
+            for config_name in config_names:
+                try:
+                    config = self._discovery_manager.load_overridable_config(
+                        domain="", config_id=config_name
+                    )
+                    configs[config_name] = config
+                except Exception:
+                    # 如果加载失败，跳过该配置
+                    continue
+            return configs
+        except Exception:
+            # 如果发现失败，返回空字典
+            return {}
     
     # ========== 文件核心 API 实现（2个）==========
     

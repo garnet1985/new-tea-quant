@@ -1,12 +1,19 @@
 name: infra.project_context
 version: 0.4.0
-compatible_core_versions: ">=0.4.1"
-description: "NTQ 项目上下文基础设施：统一项目根路径、userspace 与配置目录、文件查找与默认/用户配置合并。"
+compatible_core_versions: ">=0.4.4"
+description: "NTQ 项目上下文基础设施：Facade模式，单一入口点，统一项目根路径、userspace 与配置目录、文件查找与默认/用户配置合并。"
 dependencies: []
 changelog:
   - version: "0.4.0"
     changes:
-      - 定义标准API，提供api.yaml文档并增加测试覆盖
+      - 重构为Facade + Abstract Interface架构，单一入口点
+      - 创建ProjectContextAPI抽象类，定义所有对外API（16个核心API）
+      - ProjectContextManager实现接口，对外唯一入口
+      - PathManager、ConfigManager、FileManager、DiscoveryManager变为内部实现（不对外暴露）
+      - 统一命名规范（get_xxx_root、get_xxx_directory、get_xxx_path）
+      - 更新45个调用方文件使用新架构
+      - 创建api.yaml、api.py、test_api.py确保三者一致
+      - 删除docs/API.md，更新所有文档
   - version: "0.3.1"
     changes:
       - 新增 as_of_latest_completed_trading_date 和 use_sample_stock_list 配置

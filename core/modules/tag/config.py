@@ -5,7 +5,9 @@ Tag 系统全局配置
 """
 
 from pathlib import Path
-from core.infra.project_context import PathManager
+
+from core.infra.project_context import ProjectContext
+
 
 # ========================================================================
 # Scenarios 根目录配置
@@ -13,4 +15,4 @@ from core.infra.project_context import PathManager
 
 def get_scenarios_root() -> Path:
     """获取标签场景根目录"""
-    return PathManager.tags()
+    return ProjectContext.get_tags_root()

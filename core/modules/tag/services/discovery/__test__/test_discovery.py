@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from core.infra.project_context import PathManager
+
 from core.modules.tag.services.discovery import TagDiscoveryHelper
 
 

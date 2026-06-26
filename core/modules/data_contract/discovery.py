@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib
 from typing import Any, Mapping, cast
 
-from core.infra.project_context import ProjectContextManager
+from core.infra.project_context import ProjectContext
 from core.modules.data_contract.contract_const import DataKey
 from core.modules.data_contract.mapping import DataSpec, DataSpecMap
 
@@ -12,18 +12,17 @@ def discover_userspace_map() -> DataSpecMap:
     """
     Discover userspace map from `userspace.extensions.data_contract.mapping`.
 
-    Uses `PathManager.data_contract()` to decide whether userspace package should exist.
+    Uses `ProjectContext.get_data_contract_root()` to decide whether userspace package should exist.
     Supported variable names in userspace mapping module:
     - `custom_map` (preferred)
     - `default_map`
     - `DATA_CONTRACT_MAP`
     """
-    ctx = ProjectContextManager()
-    userspace_dc_dir = ctx.path.data_contract()
+    userspace_dc_dir = ProjectContext.get_data_contract_root()
     if not userspace_dc_dir.exists():
         return {}
 
-    mapping_file = ctx.path.data_contract_mapping()
+    mapping_file = ProjectContext.get_data_contract_mapping_path()
     if not mapping_file.exists():
         return {}
 

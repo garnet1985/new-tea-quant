@@ -38,7 +38,7 @@ def update_file(file_path: Path) -> bool:
             'PathManager.data_contract()': 'PathManager.get_data_contract_root()',
             'PathManager.extensions_tables()': 'PathManager.get_extensions_tables_directory()',
             'PathManager.adapters()': 'PathManager.get_adapters_directory()',
-            'ctx.path.get_root()': 'ctx.get_project_root()',
+            'ctx.path.get_root()': 'ProjectContextManager.get_project_root()',
         }
 
         for old_name, new_name in method_mapping.items():

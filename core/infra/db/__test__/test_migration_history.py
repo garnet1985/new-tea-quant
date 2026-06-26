@@ -108,5 +108,5 @@ def test_execute_plan_runs_data_script():
     ) as mock_record:
         execute_plan(db, plan, script_context=ctx)
 
-    assert ctx.get("ran") is True
+    assert ProjectContext.get("ran") is True
     mock_record.assert_called_once()

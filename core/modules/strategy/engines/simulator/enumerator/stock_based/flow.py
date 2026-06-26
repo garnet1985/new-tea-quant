@@ -100,7 +100,7 @@ class StockBasedEnumeratorFlow(BaseEnumeratorFlow):
             ),
             market_profile_id=mp_id,
         )
-        calendar_dict = calendar_ctx.to_dict()
+        calendar_dict = calendar_ProjectContext.to_dict()
 
         measured_mb = maybe_run_enum_dispatch_probe(
             strategy_name=probe.strategy_name,

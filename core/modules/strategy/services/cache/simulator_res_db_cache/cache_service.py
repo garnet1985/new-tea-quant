@@ -12,6 +12,7 @@ import logging
 import pprint
 from typing import Any, Dict
 
+from core.infra.project_context import ProjectContext
 from core.modules.strategy.enums import Simulator
 
 from .report_slot_disk_hydrate import merge_enum_slot_if_missing_from_downstream
@@ -20,8 +21,6 @@ from .audit.result_report_audit import (
     bump_write_count,
 )
 from core.modules.data_manager import DataManager
-from core.infra.project_context.path_manager import PathManager
-
 logger = logging.getLogger(__name__)
 
 
@@ -211,7 +210,7 @@ class SimulatorResDbCacheService:
         """若存在 ``userspace/strategies/{name}/settings.py``，则备份为 ``settings.py.bak``。"""
         from core.ui.bff.shared.file_ops import backup_file
 
-        settings_file = PathManager.get_strategy_directory_settings(str(strategy_name))
+        settings_file = ProjectContext.get_strategy_directory_settings(str(strategy_name))
         if settings_file.is_file():
             backup_file(settings_file)
 
@@ -224,7 +223,7 @@ class SimulatorResDbCacheService:
         """将 API 形态的 ``settings`` dict 写入 ``settings.py``（与 Workbench 写入风格一致）。"""
         from core.ui.bff.shared.file_ops import atomic_write_text
 
-        settings_file = PathManager.get_strategy_directory_settings(str(strategy_name))
+        settings_file = ProjectContext.get_strategy_directory_settings(str(strategy_name))
         if pretty:
             literal = pprint.pformat(dict(settings or {}), width=100, sort_dicts=True)
         else:

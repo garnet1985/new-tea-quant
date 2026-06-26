@@ -45,7 +45,7 @@ class SettlementCompiled(CompiledRuleBase):
             else BacktestCalendarContext.from_dict(backtest_calendar)
         )
         if ctx is not None:
-            held_open_days = ctx.count_open_days_between(buy, trade)
+            held_open_days = ProjectContext.count_open_days_between(buy, trade)
             return held_open_days <= self.t_plus
 
         # 无交易日历时退化为自然日间隔（同日 = 0 天）

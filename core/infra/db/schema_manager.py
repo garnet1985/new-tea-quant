@@ -13,9 +13,7 @@ import logging
 from typing import Any, Dict, List, Optional, Callable, Set
 from pathlib import Path
 
-from core.infra.project_context import ProjectContextManager, FileManager
-
-ctx = ProjectContextManager()  # module-level instance
+from core.infra.project_context import ProjectContext
 
 from core.infra.db.engines._shared.dialect import sql_dialect_for_schema
 from core.infra.db.engines._shared.fields import Field
@@ -53,7 +51,7 @@ class SchemaManager:
             self.tables_dir = tables_dir
         else:
             # 默认指向 core/tables（sys_ 前缀表定义在此）
-            self.tables_dir = str(ctx.get_core_root() / 'tables')
+            self.tables_dir = str(ProjectContext.get_core_root() / 'tables')
         self.is_verbose = is_verbose
         self.database_type = database_type or 'postgresql'  # 默认 PostgreSQL
         
@@ -148,7 +146,7 @@ class SchemaManager:
         """
         # 使用 FileManager 读取文件
         schema_path = Path(schema_file)
-        content = ctx.read_file(schema_path, encoding='utf-8')
+        content = ProjectContext.read_file(schema_path, encoding='utf-8')
         
         if content is None:
             raise FileNotFoundError(f"Schema 文件不存在: {schema_file}")
@@ -164,7 +162,7 @@ class SchemaManager:
         """仅 ``core/tables`` 下的 Python schema 必须带 ``update_key``（迁移/脚本稳定锚点）。"""
         if schema_file_path is None:
             return False
-        core_tables = (ctx.get_core_root() / "tables").resolve()
+        core_tables = (ProjectContext.get_core_root() / "tables").resolve()
         try:
             schema_file_path.resolve().relative_to(core_tables)
             return True

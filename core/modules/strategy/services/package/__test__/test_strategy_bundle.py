@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from core.infra.export_import import ConflictPolicy
-from core.infra.project_context import ProjectContextManager
+from core.infra.project_context import ProjectContext
 from core.modules.strategy.__test__.settings_fixtures import minimal_strategy_raw
 from core.modules.strategy.services.package import (
     export_strategy_bundle,

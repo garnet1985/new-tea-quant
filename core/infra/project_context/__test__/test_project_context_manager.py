@@ -1,33 +1,21 @@
 """
-ProjectContextManager 单元测试
+ProjectContext 单元测试
 
 测试对外唯一入口的API
 """
 import pytest
 from pathlib import Path
-from core.infra.project_context import ProjectContextManager, ProjectContextAPI
+from core.infra.project_context import ProjectContext, ProjectContextAPI
 
 
-class TestProjectContextManager:
-    """ProjectContextManager 测试类"""
-    
-    def test_is_api_implementation(self):
-        """测试是否实现了 ProjectContextAPI"""
-        ctx = ProjectContextManager()
-        assert isinstance(ctx, ProjectContextAPI)
-    
-    def test_init(self):
-        """测试初始化"""
-        ctx = ProjectContextManager()
-        # 验证实例创建成功
-        assert ctx is not None
+class TestProjectContext:
+    """ProjectContext 测试类"""
     
     # ========== 路径核心 API 测试（5个）==========
     
     def test_get_project_root(self):
         """测试获取项目根目录"""
-        ctx = ProjectContextManager()
-        root = ctx.get_project_root()
+        root = ProjectContext.get_project_root()
         assert root is not None
         assert isinstance(root, Path)
         # 应该包含 .git 或其他根目录标记
@@ -35,8 +23,7 @@ class TestProjectContextManager:
     
     def test_get_core_root(self):
         """测试获取 core 目录"""
-        ctx = ProjectContextManager()
-        core_dir = ctx.get_core_root()
+        core_dir = ProjectContext.get_core_root()
         assert core_dir is not None
         assert isinstance(core_dir, Path)
         # 应该是 project_root/core
@@ -44,8 +31,7 @@ class TestProjectContextManager:
     
     def test_get_userspace_root(self):
         """测试获取 userspace 目录"""
-        ctx = ProjectContextManager()
-        userspace_dir = ctx.get_userspace_root()
+        userspace_dir = ProjectContext.get_userspace_root()
         assert userspace_dir is not None
         assert isinstance(userspace_dir, Path)
         # 应该是 userspace 目录
@@ -53,17 +39,15 @@ class TestProjectContextManager:
     
     def test_get_strategy_directory(self):
         """测试获取策略目录"""
-        ctx = ProjectContextManager()
-        # 假设有一个策略（如果不存在，测试会失败）
-        strategy_dir = ctx.get_strategy_directory("example")
+                # 假设有一个策略（如果不存在，测试会失败）
+        strategy_dir = ProjectContext.get_strategy_directory("example")
         assert strategy_dir is not None
         assert isinstance(strategy_dir, Path)
         assert strategy_dir.name == "example"
     
     def test_get_tag_directory(self):
         """测试获取 Tag 目录"""
-        ctx = ProjectContextManager()
-        tag_dir = ctx.get_tag_directory("example")
+        tag_dir = ProjectContext.get_tag_directory("example")
         assert tag_dir is not None
         assert isinstance(tag_dir, Path)
         assert tag_dir.name == "example"
@@ -72,8 +56,7 @@ class TestProjectContextManager:
     
     def test_core_version(self):
         """测试获取 core 版本号"""
-        ctx = ProjectContextManager()
-        version = ctx.core_version()
+        version = ProjectContext.core_version()
         
         # 如果 core_meta.json 存在，应该返回版本号字符串
         if version is not None:
@@ -83,8 +66,7 @@ class TestProjectContextManager:
     
     def test_core_info(self):
         """测试获取 core meta 信息"""
-        ctx = ProjectContextManager()
-        core_info = ctx.core_info()
+        core_info = ProjectContext.core_info()
         
         # 如果 core_meta.json 存在，应该返回字典
         if core_info is not None:
@@ -95,12 +77,11 @@ class TestProjectContextManager:
     
     def test_clear_userspace_cache(self):
         """测试清理 userspace 路径缓存"""
-        ctx = ProjectContextManager()
-        # 先获取 userspace（会缓存）
-        userspace1 = ctx.get_userspace_root()
+                # 先获取 userspace（会缓存）
+        userspace1 = ProjectContext.get_userspace_root()
         # 清理缓存
-        ctx.clear_userspace_cache()
+        ProjectContext.clear_userspace_cache()
         # 再次获取（会重新计算）
-        userspace2 = ctx.get_userspace_root()
+        userspace2 = ProjectContext.get_userspace_root()
         # 应该返回相同的路径
         assert userspace1 == userspace2

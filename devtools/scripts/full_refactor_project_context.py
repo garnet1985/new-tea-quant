@@ -3,8 +3,7 @@
 
 策略：
 - 将所有内部Manager的导入改为 ProjectContextManager
-- 添加模块级别实例：ctx = ProjectContextManager()
-- 替换所有方法调用为 ctx 实例方法
+- 添加模块级别实例：- 替换所有方法调用为 ctx 实例方法
 - 处理特殊导入（merge_market_profile_dicts 等辅助函数）
 """
 import re
@@ -28,42 +27,42 @@ def full_refactor_file(file_path: Path) -> bool:
         # 2. 处理复合导入语句
         import_replacements = [
             # DiscoveryManager
-            ('from core.infra.project_context import DiscoveryManager',
-             'from core.infra.project_context import ProjectContextManager'),
-            ('from core.infra.project_context import DiscoveryManager, PathManager',
-             'from core.infra.project_context import ProjectContextManager'),
-            ('from core.infra.project_context import PathManager, DiscoveryManager',
-             'from core.infra.project_context import ProjectContextManager'),
+            ('from core.infra.project_context import DiscoveryManager', 
+             'from core.infra.project_context import ProjectContextManager'), 
+            ('from core.infra.project_context import PathManager', 
+             'from core.infra.project_context import ProjectContextManager'), 
+            ('from core.infra.project_context import DiscoveryManager', 
+             'from core.infra.project_context import ProjectContextManager'), 
 
             # ConfigManager
-            ('from core.infra.project_context import ConfigManager',
-             'from core.infra.project_context import ProjectContextManager'),
-            ('from core.infra.project_context import ConfigManager, PathManager',
-             'from core.infra.project_context import ProjectContextManager'),
-            ('from core.infra.project_context import PathManager, ConfigManager',
-             'from core.infra.project_context import ProjectContextManager'),
-            ('from core.infra.project_context import DiscoveryManager, ConfigManager',
-             'from core.infra.project_context import ProjectContextManager'),
+            ('from core.infra.project_context import ConfigManager', 
+             'from core.infra.project_context import ProjectContextManager'), 
+            ('from core.infra.project_context import PathManager', 
+             'from core.infra.project_context import ProjectContextManager'), 
+            ('from core.infra.project_context import ConfigManager', 
+             'from core.infra.project_context import ProjectContextManager'), 
+            ('from core.infra.project_context import ConfigManager', 
+             'from core.infra.project_context import ProjectContextManager'), 
 
             # FileManager
-            ('from core.infra.project_context import FileManager',
-             'from core.infra.project_context import ProjectContextManager'),
-            ('from core.infra.project_context import FileManager, PathManager',
-             'from core.infra.project_context import ProjectContextManager'),
-            ('from core.infra.project_context import PathManager, FileManager',
-             'from core.infra.project_context import ProjectContextManager'),
+            ('from core.infra.project_context import FileManager', 
+             'from core.infra.project_context import ProjectContextManager'), 
+            ('from core.infra.project_context import PathManager', 
+             'from core.infra.project_context import ProjectContextManager'), 
+            ('from core.infra.project_context import FileManager', 
+             'from core.infra.project_context import ProjectContextManager'), 
 
             # 三个Manager
-            ('from core.infra.project_context import DiscoveryManager, ConfigManager, PathManager',
-             'from core.infra.project_context import ProjectContextManager'),
-            ('from core.infra.project_context import PathManager, ConfigManager, FileManager',
-             'from core.infra.project_context import ProjectContextManager'),
+            ('from core.infra.project_context import PathManager', 
+             'from core.infra.project_context import ProjectContextManager'), 
+            ('from core.infra.project_context import FileManager', 
+             'from core.infra.project_context import ProjectContextManager'), 
 
             # 特殊情况：同时导入辅助函数
-            ('from core.infra.project_context import DiscoveryManager, merge_market_profile_dicts',
-             'from core.infra.project_context import ProjectContextManager\nfrom core.infra.project_context.config_merge_policies import merge_market_profile_dicts'),
-            ('from core.infra.project_context import merge_market_profile_dicts, DiscoveryManager',
-             'from core.infra.project_context import ProjectContextManager\nfrom core.infra.project_context.config_merge_policies import merge_market_profile_dicts'),
+            ('from core.infra.project_context import merge_market_profile_dicts', 
+             'from core.infra.project_context import ProjectContextManager\nfrom core.infra.project_context.config_merge_policies import merge_market_profile_dicts'), 
+            ('from core.infra.project_context import merge_market_profile_dicts, DiscoveryManager', 
+             'from core.infra.project_context import ProjectContextManager\nfrom core.infra.project_context.config_merge_policies import merge_market_profile_dicts'), 
         ]
 
         for old_import, new_import in import_replacements:

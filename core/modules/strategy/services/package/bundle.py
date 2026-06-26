@@ -15,10 +15,7 @@ from core.infra.export_import import (
     install_bundle_archive,
     preflight_install,
 )
-from core.infra.project_context import ProjectContextManager
-
-ctx = ProjectContextManager()  # module-level instance
-
+from core.infra.project_context import ProjectContext
 
 from .resolver import resolve_strategy_bundle_specs
 
@@ -26,7 +23,7 @@ BytesOrPath = Union[bytes, Path]
 
 
 def _read_core_version() -> str:
-    system_json = ctx.get_project_root() / "core" / "system.json"
+    system_json = ProjectContext.get_project_root() / "core" / "system.json"
     if not system_json.is_file():
         return ""
     try:
@@ -59,7 +56,7 @@ def preview_strategy_bundle_import(
     policy: ConflictPolicy = ConflictPolicy.SKIP_EXISTING,
 ) -> Dict[str, Any]:
     """Preview install outcome: per-entry status and conflicts."""
-    us = Path(userspace_root) if userspace_root is not None else ctx.get_userspace_root()
+    us = Path(userspace_root) if userspace_root is not None else ProjectContext.get_userspace_root()
     _, manifest = extract_bundle_archive(archive)
     plan = preflight_install(manifest, us, policy)
 
@@ -116,5 +113,5 @@ def import_strategy_bundle(
     userspace_root: Path | None = None,
 ) -> InstallResult:
     """Install a strategy share bundle into userspace."""
-    us = Path(userspace_root) if userspace_root is not None else ctx.get_userspace_root()
+    us = Path(userspace_root) if userspace_root is not None else ProjectContext.get_userspace_root()
     return install_bundle_archive(archive, us, policy)

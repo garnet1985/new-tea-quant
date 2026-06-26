@@ -15,9 +15,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.infra.project_context import ProjectContextManager
-
-ctx = ProjectContextManager()  # module-level instance
+from core.infra.project_context import ProjectContext
 
 from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
     DiscoveredStrategy,
@@ -44,7 +42,7 @@ class StrategyDiscoveryHelper:
     ) -> Dict[str, DiscoveredStrategy]:
         """发现所有可加载且校验通过的策略（enabled / disabled 均包含）。"""
         if strategies_root is None:
-            strategies_root = ctx.get_strategies_root()
+            strategies_root = ProjectContext.get_strategies_root()
 
         if not strategies_root.exists():
             logger.warning("策略目录不存在: %s", strategies_root)
@@ -82,7 +80,7 @@ class StrategyDiscoveryHelper:
         """加载单个策略目录。"""
         folder = Path(strategy_folder)
         if strategies_root is None:
-            strategies_root = ctx.get_strategies_root()
+            strategies_root = ProjectContext.get_strategies_root()
         root = Path(strategies_root)
 
         try:
@@ -104,7 +102,7 @@ class StrategyDiscoveryHelper:
             return None
 
         try:
-            settings_dict = ctx.load_python(settings_file, var_name="settings")
+            settings_dict = ProjectContext.load_python(settings_file, var_name="settings")
         except Exception as exc:
             logger.error("加载 settings 失败: %s, error=%s", strategy_key, exc)
             return None

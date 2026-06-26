@@ -1,6 +1,6 @@
 """ModuleDiscovery 单元测试。"""
 from core.infra.discovery import ModuleDiscovery
-from core.infra.project_context import PathManager
+
 
 
 def test_discover_objects():

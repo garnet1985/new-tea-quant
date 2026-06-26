@@ -76,7 +76,7 @@ class JobHelper:
         Returns:
             Tuple[str, str]: (start_date, end_date)
         """
-        from core.infra.project_context import ProjectContextManager
+        from core.infra.project_context import ProjectContext
 
         latest_completed = (
             str(latest_completed_trading_date or "").strip()
@@ -93,7 +93,7 @@ class JobHelper:
             if default_start_date:
                 start_date = default_start_date
             else:
-                start_date = ctx.get_default_start_date()
+                start_date = ProjectContext.get_default_start_date()
         else:
             # INCREMENTAL 模式：从 entity 的最后更新日期继续
             if entity_last_update_date:
@@ -104,7 +104,7 @@ class JobHelper:
                 if default_start_date:
                     start_date = default_start_date
                 else:
-                    start_date = ctx.get_default_start_date()
+                    start_date = ProjectContext.get_default_start_date()
         
         return start_date, end_date
     

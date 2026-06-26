@@ -234,7 +234,7 @@ def _should_apply_rule(
     name = str(rule.name or "").strip().lower()
     if name in _triggered_names(opportunity):
         return False
-    return ctx.is_rule_active(name, trade_date)
+    return ProjectContext.is_rule_active(name, trade_date)
 
 
 def apply_stock_status_risk_management_from_settings(

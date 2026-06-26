@@ -30,10 +30,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 from core.infra.project_context import ProjectContextManager
 
-ctx = ProjectContextManager()  # module-level instance
-
-
-OUT_DIR = ctx.get_backup_data_directory()
+OUT_DIR = ProjectContextManager.get_backup_data_directory()
 
 DATE_FMT = "%Y%m%d"
 # 默认窗口：固定 2025 全年（Demo 对外数据窗口）

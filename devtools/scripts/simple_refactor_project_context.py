@@ -2,8 +2,7 @@
 简单批量重构 - 将 PathManager 调用改为 ProjectContextManager
 
 策略：
-- 添加模块级别实例：ctx = ProjectContextManager()
-- 替换所有 PathManager.xxx 调用为 ctx.xxx
+- 添加模块级别实例：- 替换所有 PathManager.xxx 调用为 ctx.xxx
 """
 import re
 from pathlib import Path
@@ -17,16 +16,16 @@ def simple_refactor_file(file_path: Path) -> bool:
 
         # 1. 替换导入语句
         import_replacements = [
-            ('from core.infra.project_context import PathManager',
-             'from core.infra.project_context import ProjectContextManager'),
-            ('from core.infra.project_context import ConfigManager, PathManager',
-             'from core.infra.project_context import ProjectContextManager'),
-            ('from core.infra.project_context import PathManager, ConfigManager',
-             'from core.infra.project_context import ProjectContextManager'),
-            ('from core.infra.project_context import PathManager, FileManager',
-             'from core.infra.project_context import ProjectContextManager'),
-            ('from core.infra.project_context import PathManager, ConfigManager, FileManager',
-             'from core.infra.project_context import ProjectContextManager'),
+            ('from core.infra.project_context import PathManager', 
+             'from core.infra.project_context import ProjectContextManager'), 
+            ('from core.infra.project_context import PathManager', 
+             'from core.infra.project_context import ProjectContextManager'), 
+            ('from core.infra.project_context import ConfigManager', 
+             'from core.infra.project_context import ProjectContextManager'), 
+            ('from core.infra.project_context import FileManager', 
+             'from core.infra.project_context import ProjectContextManager'), 
+            ('from core.infra.project_context import FileManager', 
+             'from core.infra.project_context import ProjectContextManager'), 
         ]
 
         for old_import, new_import in import_replacements:

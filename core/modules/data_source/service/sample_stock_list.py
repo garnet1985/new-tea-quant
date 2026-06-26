@@ -14,9 +14,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
-from core.infra.project_context import ProjectContextManager
-
-ctx = ProjectContextManager()  # module-level instance
+from core.infra.project_context import ProjectContext
 
 from core.modules.data_source.dev.stock_pool_paths import (
     dev_stock_pool_dir,
@@ -44,7 +42,7 @@ _PER_STOCK_PRUNE_TABLES: Tuple[Tuple[str, str], ...] = (
 
 
 def sample_pool_count() -> Optional[int]:
-    return ctx.get_use_sample_stock_list()
+    return ProjectContext.get_use_sample_stock_list()
 
 
 def pool_stock_ids() -> List[str]:

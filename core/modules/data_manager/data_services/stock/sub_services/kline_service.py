@@ -1057,8 +1057,8 @@ class KlineService(BaseDataService):
             factor_eff = 1.0
 
         ctx = global_qfq_context or {"use_global_offset": False, "global_offset": 0.0}
-        if ctx.get("use_global_offset"):
-            global_offset = float(ctx.get("global_offset") or 0.0)
+        if ProjectContext.get("use_global_offset"):
+            global_offset = float(ProjectContext.get("global_offset") or 0.0)
             for field in _PRICE_FIELDS:
                 raw_value = kline.get(field)
                 if raw_value is None:

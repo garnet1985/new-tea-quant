@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 import pytest
 
-from core.infra.project_context import ProjectContextManager, merge_market_profile_dicts
-
-ctx = ProjectContextManager()  # module-level instance
+from core.infra.project_context import ProjectContext
+from core.infra.project_context.config_merge_policies import merge_market_profile_dicts
 
 from core.modules.market_profile import (
     MARKETS_CONFIG_DIR,
@@ -21,7 +20,7 @@ def _clear_cache():
 
 class TestMarketProfile:
     def test_china_a_stock_from_merged_raw(self):
-        raw = ctx.load_overridable_config(
+        raw = ProjectContext.load_overridable_config(
             MARKETS_CONFIG_DIR,
             "china_a_stock",
             merge_fn=merge_market_profile_dicts,

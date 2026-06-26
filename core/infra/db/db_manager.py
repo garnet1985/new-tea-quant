@@ -10,9 +10,7 @@ from contextlib import contextmanager
 from pathlib import Path
 import logging
 
-from core.infra.project_context import ProjectContextManager
-
-ctx = ProjectContextManager()  # module-level instance
+from core.infra.project_context import ProjectContext
 
 from core.infra.db.schema_manager import SchemaManager
 from core.infra.db.engines._shared.config_parse import parse_database_config
@@ -33,7 +31,7 @@ class DatabaseManager:
 
     def __init__(self, config: Dict = None, is_verbose: bool = False):
         if config is None:
-            config = ctx.load_database_config()
+            config = ProjectContext.load_database_config()
 
         self.config = parse_database_config(config)
         self.is_verbose = is_verbose

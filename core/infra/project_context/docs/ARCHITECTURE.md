@@ -76,7 +76,7 @@
 | 文件核心 | 2个 | `find_file`, `load_file_content` |
 | 元数据核心 | 2个 | `core_version`, `core_info` |
 | 缓存管理 | 1个 | `clear_userspace_cache` |
-| **总计** | **16个** | 所有API都是实例方法 |
+| **总计** | **16个** | 所有API都是类方法（v0.4.0改动） |
 
 ---
 

@@ -75,6 +75,8 @@
 ### v0.4.4 (TBD)
 - 代码清理：删除logging infra模块
 - 代码清理：定义代码规范，并产出code style文档在根目录
+- 代码清理：按照标准清理project context模块
+- 代码清理：按照标准清理discovery模块
 
 - 在策略UI上增加策略文件快捷链接
 - 在策略UI上增加第一次运行帮助

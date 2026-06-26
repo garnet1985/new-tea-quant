@@ -6,10 +6,7 @@ import csv
 import logging
 
 from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
-from core.infra.project_context import ProjectContextManager
-
-ctx = ProjectContextManager()  # module-level instance
-
+from core.infra.project_context import ProjectContext
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +17,7 @@ class ScanCacheManager:
     max_cache_days: int = 10
 
     def __post_init__(self):
-        self.cache_base_dir = ctx.get_strategy_directory_scan_results(self.strategy_name)
+        self.cache_base_dir = ProjectContext.get_strategy_directory_scan_results(self.strategy_name)
         self.cache_base_dir.mkdir(parents=True, exist_ok=True)
 
     def save_opportunities(self, date: str, opportunities: List[Opportunity]) -> None:

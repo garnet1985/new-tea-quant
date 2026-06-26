@@ -31,30 +31,32 @@
 
 ---
 
-## 决策 2：对外统一使用实例方法
+## 决策 2：对外统一使用类方法
 
 1. **背景（Context）**
-   Python 的 `abc.ABC` 和 `@abstractmethod` 不支持静态方法，需要选择实例方法或类方法。
+   Python 的 `abc.ABC` 支持 `@classmethod` + `@abstractmethod` 组合，可以使用类方法。
 
 2. **决策（Decision）**
-   所有对外API都使用实例方法：
-   - `ProjectContextAPI` 定义实例方法（使用 `@abstractmethod`）。
-   - `ProjectContextManager` 实现实例方法。
-   - 用户需要先创建实例：`ctx = ProjectContextManager()`，然后调用：`ctx.get_project_root()`。
+   所有对外API都使用类方法：
+   - `ProjectContextAPI` 定义类方法（使用 `@classmethod` + `@abstractmethod`）。
+   - `ProjectContextManager` 实现类方法。
+   - 用户直接调用类方法：`ProjectContextManager.get_project_root()`。
 
 3. **理由（Rationale）**
-   - 符合Python惯例（ABC 抽象类通常用实例方法）。
-   - 简单清晰，只有一种调用方式，不会混淆。
-   - 内部实现不受影响（内部Manager仍然用静态方法）。
-   - 易于测试（针对实例写API测试）。
+   - 调用更简洁，不需要先创建实例。
+   - 符合用户期望（静态函数更好）。
+   - 不需要实例状态（所有内部Manager都是静态方法）。
+   - 性能更好（不需要创建实例）。
+   - Python支持类方法抽象（`@classmethod` + `@abstractmethod`）。
 
 4. **影响（Consequences）**
-   - 用户需要先创建实例，不能静态调用。
-   - 调用方式变为 `ctx.get_project_root()` 而非 `ProjectContextManager.get_project_root()`。
+   - 用户不需要先创建实例，直接调用类方法。
+   - 调用方式变为 `ProjectContextManager.get_project_root()`。
+   - 批量更新79个调用方文件（自动化脚本完成）。
 
 5. **备选方案（Alternatives）**
+   - 使用实例方法（v0.4.0版本，调用不够简洁）。
    - 使用 `typing.Protocol`（仅类型提示，不是运行时强制）。
-   - 混合方案（既支持实例方法，也支持类静态方法）。
 
 ---
 

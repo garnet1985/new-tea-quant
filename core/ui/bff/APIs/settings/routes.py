@@ -10,8 +10,7 @@ from typing import Any, Dict, Optional
 
 from flask import Blueprint, request
 
-from core.infra.project_context.config_manager import ConfigManager
-from core.infra.project_context.path_manager import PathManager
+from core.infra.project_context import ProjectContext
 from core.ui.bff.shared.file_ops import atomic_write_text
 from core.ui.bff.shared.response import error, ok
 
@@ -29,11 +28,11 @@ _DEFAULT_DUCKDB_DOMAINS = {
 
 
 def _database_config_dir() -> Path:
-    return PathManager.get_user_config_root() / "database"
+    return ProjectContext.get_user_config_root() / "database"
 
 
 def _read_flat_type_config(type_path: Path, database_type: str) -> dict:
-    raw = ConfigManager.load_json(type_path) if type_path.exists() else {}
+    raw = ProjectContext.load_file_content(type_path) if type_path.exists() else {}
     if not isinstance(raw, dict):
         return {}
     inner = raw.get(database_type)
@@ -73,7 +72,7 @@ def _database_settings_response(cfg: Dict[str, Any]) -> Dict[str, Any]:
 @settings_api_bp.route("/v1/settings/database", methods=["GET"])
 def get_database_settings():
     """读取合并后的当前库类型与库名（与 ``ConfigManager.load_database_config`` 一致）。"""
-    cfg = ConfigManager.load_database_config()
+    cfg = ProjectContext.load_database_config()
     return ok(_database_settings_response(cfg))
 
 
@@ -94,7 +93,7 @@ def post_database_settings():
     common_path = base / "common.json"
     common: dict = {}
     if common_path.exists():
-        loaded = ConfigManager.load_json(common_path)
+        loaded = ProjectContext.load_file_content(common_path)
         if isinstance(loaded, dict):
             common = dict(loaded)
     common["database_type"] = dt
@@ -106,7 +105,7 @@ def post_database_settings():
         if not type_path.is_file():
             _write_json(type_path, {"domains": dict(_DEFAULT_DUCKDB_DOMAINS)})
             logger.info("[bff.settings] created default duckdb.json at %s", type_path)
-        cfg = ConfigManager.load_database_config(dt)
+        cfg = ProjectContext.load_database_config(dt)
         return ok(_database_settings_response(cfg))
 
     db_name = str(payload.get("database") or "").strip()
@@ -162,16 +161,16 @@ def _data_settings_response(cfg: Dict[str, Any]) -> Dict[str, Any]:
         sample_out = sample
     return {
         "default_start_date": str(cfg.get("default_start_date") or "").strip(),
-        "as_of_latest_completed_trading_date": ConfigManager.get_as_of_latest_completed_trading_date(),
+        "as_of_latest_completed_trading_date": ProjectContext.get_as_of_latest_completed_trading_date(),
         "use_sample_stock_list": sample_out,
-        "config_path": str(PathManager.get_user_config_root() / "data.json"),
+        "config_path": str(ProjectContext.get_user_config_root() / "data.json"),
     }
 
 
 @settings_api_bp.route("/v1/settings/data", methods=["GET"])
 def get_data_settings():
     """读取合并后的 data.json 关键字段（default_start_date / as-of / 样本池）。"""
-    cfg = ConfigManager.load_data_config()
+    cfg = ProjectContext.load_data_config()
     return ok(_data_settings_response(cfg))
 
 
@@ -196,12 +195,12 @@ def post_data_settings():
     except ValueError as exc:
         return error(str(exc), 400)
 
-    path = PathManager.get_user_config_root() / "data.json"
+    path = ProjectContext.get_user_config_root() / "data.json"
     path.parent.mkdir(parents=True, exist_ok=True)
 
     existing: dict = {}
     if path.exists():
-        loaded = ConfigManager.load_json(path)
+        loaded = ProjectContext.load_file_content(path)
         if isinstance(loaded, dict):
             existing = dict(loaded)
 
@@ -211,7 +210,7 @@ def post_data_settings():
     _write_json(path, existing)
     logger.info("[bff.settings] wrote data settings to %s", path)
 
-    cfg = ConfigManager.load_data_config()
+    cfg = ProjectContext.load_data_config()
     return ok(_data_settings_response(cfg))
 
 

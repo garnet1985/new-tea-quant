@@ -18,13 +18,13 @@ def refactor_file(file_path: Path) -> bool:
         # 将 PathManager 导入改为 ProjectContextManager
         import_patterns = [
             (r'from core\.infra\.project_context import PathManager',
-             'from core.infra.project_context import ProjectContextManager'),
+             'from core.infra.project_context import ProjectContextManager'), 
             (r'from core\.infra\.project_context import ConfigManager, PathManager',
-             'from core.infra.project_context import ProjectContextManager'),
+             'from core.infra.project_context import ProjectContextManager'), 
             (r'from core\.infra\.project_context import PathManager, FileManager',
-             'from core.infra.project_context import ProjectContextManager'),
+             'from core.infra.project_context import ProjectContextManager'), 
             (r'from core\.infra\.project_context import PathManager, ConfigManager, FileManager',
-             'from core.infra.project_context import ProjectContextManager'),
+             'from core.infra.project_context import ProjectContextManager'), 
         ]
 
         for pattern, replacement in import_patterns:
@@ -58,24 +58,24 @@ def refactor_file(file_path: Path) -> bool:
 
             # 3. 替换方法调用
             method_mapping = {
-                'PathManager.get_project_root()': '_ctx.get_project_root()',
-                'PathManager.get_core_root()': '_ctx.get_core_root()',
-                'PathManager.get_userspace_root()': '_ctx.get_userspace_root()',
-                'PathManager.clear_userspace_cache()': '_ctx.clear_userspace_cache()',
-                'PathManager.get_strategies_root()': '_ctx.get_userspace_root() / "strategies"',
-                'PathManager.get_extensions_root()': '_ctx.get_userspace_root() / "extensions"',
-                'PathManager.get_system_root()': '_ctx.get_userspace_root() / "system"',
-                'PathManager.get_default_config_root()': '_ctx.get_core_root() / "default_config"',
-                'PathManager.get_user_config_root()': '_ctx.get_userspace_root() / "system" / "config"',
-                'PathManager.get_system_db_directory()': '_ctx.get_userspace_root() / "system" / "db"',
-                'PathManager.get_backup_directory()': '_ctx.get_userspace_root() / "system" / "backup"',
+                'PathManager.get_project_root()': '_ProjectContextManager.get_project_root()',
+                'PathManager.get_core_root()': '_ProjectContextManager.get_core_root()',
+                'PathManager.get_userspace_root()': '_ProjectContextManager.get_userspace_root()',
+                'PathManager.clear_userspace_cache()': '_ProjectContextManager.clear_userspace_cache()',
+                'PathManager.get_strategies_root()': '_ProjectContextManager.get_userspace_root() / "strategies"',
+                'PathManager.get_extensions_root()': '_ProjectContextManager.get_userspace_root() / "extensions"',
+                'PathManager.get_system_root()': '_ProjectContextManager.get_userspace_root() / "system"',
+                'PathManager.get_default_config_root()': '_ProjectContextManager.get_core_root() / "default_config"',
+                'PathManager.get_user_config_root()': '_ProjectContextManager.get_userspace_root() / "system" / "config"',
+                'PathManager.get_system_db_directory()': '_ProjectContextManager.get_userspace_root() / "system" / "db"',
+                'PathManager.get_backup_directory()': '_ProjectContextManager.get_userspace_root() / "system" / "backup"',
                 'PathManager.get_strategy_directory': '_ctx.get_strategy_directory',
                 'PathManager.get_strategy_settings_path': '_ctx.get_strategy_directory',
                 'PathManager.get_strategy_results_directory': '_ctx.get_strategy_directory',
-                'PathManager.get_tags_root()': '_ctx.get_userspace_root() / "extensions" / "tags"',
+                'PathManager.get_tags_root()': '_ProjectContextManager.get_userspace_root() / "extensions" / "tags"',
                 'PathManager.get_tag_scenario_directory': '_ctx.get_tag_directory',
-                'PathManager.get_data_source_root()': '_ctx.get_userspace_root() / "extensions" / "data_source"',
-                'PathManager.get_data_contract_root()': '_ctx.get_userspace_root() / "extensions" / "data_contract"',
+                'PathManager.get_data_source_root()': '_ProjectContextManager.get_userspace_root() / "extensions" / "data_source"',
+                'PathManager.get_data_contract_root()': '_ProjectContextManager.get_userspace_root() / "extensions" / "data_contract"',
             }
 
             for old_call, new_call in method_mapping.items():

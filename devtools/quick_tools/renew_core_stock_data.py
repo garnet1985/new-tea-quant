@@ -48,7 +48,7 @@ TABLES_RECREATE_ORDER = (
 def _ensure_tushare_token() -> None:
     from core.infra.project_context.path_manager import PathManager
 
-    us = ctx.get_userspace_root()
+    us = ProjectContextManager.get_userspace_root()
     dst = us / "data_source" / "providers" / "tushare" / "auth_token.txt"
     if dst.is_file():
         return
@@ -169,7 +169,7 @@ def main() -> int:
 
     from core.infra.project_context.path_manager import PathManager
 
-    data_cfg = ctx.get_user_config_root() / "data.json"
+    data_cfg = ProjectContextManager.get_user_config_root() / "data.json"
     if not data_cfg.is_file():
         logger.error("缺少 %s（需 default_start_date=%s）", data_cfg, DEFAULT_START)
         return 1
@@ -199,13 +199,13 @@ def main() -> int:
     from core.infra.project_context import ProjectContextManager
 
     end_hint = (
-        ctx.get_as_of_latest_completed_trading_date()
+        ProjectContextManager.get_as_of_latest_completed_trading_date()
         or "（未配置，走日历/real-world fallback）"
     )
     logger.info(
         "完成。K 线区间 %s ~ %s（userspace/config/data.json）；"
         "stock_st_periods 按股全量 namechange（约 5800 只 / 800 per min）",
-        ctx.get_default_start_date(),
+        ProjectContextManager.get_default_start_date(),
         end_hint,
     )
     return 0

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from core.infra.project_context import PathManager
+
 from core.modules.strategy.launcher.package_cli import (
     bundle_filename,
     default_export_dir,

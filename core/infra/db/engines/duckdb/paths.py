@@ -19,7 +19,7 @@ def resolve_duckdb_db_path(db_path: str) -> str:
     if raw.is_absolute():
         resolved = raw
     else:
-        resolved = PathManager.system_db() / raw
+        resolved = PathManager.get_system_db_directory() / raw
 
     resolved.parent.mkdir(parents=True, exist_ok=True)
     return str(resolved.resolve())

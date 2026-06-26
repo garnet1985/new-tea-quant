@@ -347,13 +347,13 @@ class DataManager:
 
         try:
             # 1. core/tables（仅接受 sys_ 前缀）
-            core_tables_dir = PathManager.core() / "tables"
+            core_tables_dir = PathManager.get_core_root() / "tables"
             if core_tables_dir.exists():
                 for table_folder in sorted(_dirs_with_schema(core_tables_dir)):
                     self.register_table(str(table_folder), from_core=True)
 
             # 2. userspace/extensions/tables（表名无限制）
-            userspace_tables_dir = PathManager.extensions_tables()
+            userspace_tables_dir = PathManager.get_extensions_tables_directory()
             if userspace_tables_dir.exists():
                 for table_folder in sorted(_dirs_with_schema(userspace_tables_dir)):
                     self.register_table(str(table_folder), from_core=False)

@@ -23,7 +23,7 @@ BytesOrPath = Union[bytes, Path]
 
 
 def _read_core_version() -> str:
-    system_json = PathManager.get_root() / "core" / "system.json"
+    system_json = PathManager.get_project_root() / "core" / "system.json"
     if not system_json.is_file():
         return ""
     try:
@@ -56,7 +56,7 @@ def preview_strategy_bundle_import(
     policy: ConflictPolicy = ConflictPolicy.SKIP_EXISTING,
 ) -> Dict[str, Any]:
     """Preview install outcome: per-entry status and conflicts."""
-    us = Path(userspace_root) if userspace_root is not None else PathManager.userspace()
+    us = Path(userspace_root) if userspace_root is not None else PathManager.get_userspace_root()
     _, manifest = extract_bundle_archive(archive)
     plan = preflight_install(manifest, us, policy)
 
@@ -113,5 +113,5 @@ def import_strategy_bundle(
     userspace_root: Path | None = None,
 ) -> InstallResult:
     """Install a strategy share bundle into userspace."""
-    us = Path(userspace_root) if userspace_root is not None else PathManager.userspace()
+    us = Path(userspace_root) if userspace_root is not None else PathManager.get_userspace_root()
     return install_bundle_archive(archive, us, policy)

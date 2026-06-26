@@ -27,7 +27,7 @@ from devtools.demo_exporter.stock_pool import (
 
 logger = logging.getLogger(__name__)
 
-_DATA_JSON = PathManager.config() / "data.json"
+_DATA_JSON = PathManager.get_user_config_root() / "data.json"
 _POOL_KEY = "use_sample_stock_list"
 
 

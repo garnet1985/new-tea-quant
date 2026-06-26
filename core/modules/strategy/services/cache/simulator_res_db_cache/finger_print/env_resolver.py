@@ -117,7 +117,7 @@ class ResolveEnv:
             core_mapping_hash = ""
 
         userspace_mapping_hash = ""
-        userspace_mapping_file = PathManager.data_contract_mapping()
+        userspace_mapping_file = PathManager.get_data_contract_mapping_path()
         if userspace_mapping_file.exists():
             userspace_mapping_hash = ResolveEnv._hash_file(Path(userspace_mapping_file))
 

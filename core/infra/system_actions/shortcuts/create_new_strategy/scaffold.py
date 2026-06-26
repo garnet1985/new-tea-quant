@@ -19,7 +19,7 @@ STRATEGY_TEMPLATE_REL = Path("_template") / "empty_strategy"
 
 def scaffold_strategy(raw_path: str) -> ScaffoldResult:
     """复制 ``strategies/_template/empty_strategy/`` 到 ``strategies/<raw_path>/``。"""
-    root = PathManager.strategies_root()
+    root = PathManager.get_strategies_root()
     dest, key = resolve_dest(
         root=root,
         raw_path=raw_path,

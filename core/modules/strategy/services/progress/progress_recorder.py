@@ -17,7 +17,7 @@ class ProgressRecorder:
     @staticmethod
     def build_path(channel: str, file_key: str) -> Path:
         filename = f"{file_key}.json"
-        return PathManager.userspace_tmp() / "progress" / channel / filename
+        return PathManager.get_userspace_tmp_directory() / "progress" / channel / filename
 
     @classmethod
     def for_strategy_run_step(
@@ -93,7 +93,7 @@ class ProgressRecorder:
         if not sn or not step:
             return
         keep = preserve_run_ids or set()
-        d = PathManager.userspace_tmp() / "progress" / channel
+        d = PathManager.get_userspace_tmp_directory() / "progress" / channel
         if not d.is_dir():
             return
         prefix = f"{sn}__"

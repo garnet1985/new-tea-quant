@@ -23,7 +23,7 @@ def normalize_step(step: str) -> Optional[str]:
 def resolve_discovered_strategy(
     strategy_name: str, api_settings: Dict[str, Any]
 ) -> Tuple[Optional[DiscoveredStrategy], Optional[str]]:
-    folder = PathManager.strategy(strategy_name)
+    folder = PathManager.get_strategy_directory(strategy_name)
     base = StrategyDiscoveryHelper.load_strategy(folder)
     if base is None:
         return None, "策略不存在或无法加载"

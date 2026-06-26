@@ -26,10 +26,10 @@ _SimKind = Literal["enum", "price", "capital"]
 def _simulation_root(sim_kind: _SimKind):
     """运行时解析路径（避免模块 import 时绑定 PathManager，便于测试 monkeypatch）。"""
     if sim_kind == "enum":
-        return PathManager.strategy_simulation_enum
+        return PathManager.get_strategy_directory_simulation_enum
     if sim_kind == "price":
-        return PathManager.strategy_simulation_price
-    return PathManager.strategy_simulation_capital
+        return PathManager.get_strategy_directory_simulation_price
+    return PathManager.get_strategy_directory_simulation_capital
 
 
 def resolve_max_output_versions(settings: Dict[str, Any]) -> int:

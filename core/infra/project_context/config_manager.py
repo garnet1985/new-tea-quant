@@ -19,35 +19,58 @@ import sys
 import logging
 import os
 
-from core.utils.utils import Utils
-
 logger = logging.getLogger(__name__)
 
 
 class ConfigManager:
-    """配置管理器 - 处理默认配置和用户配置的合并"""
+    """
+    配置管理器 - 处理默认配置和用户配置的加载与合并
+
+    职责：
+        - 加载JSON和Python配置文件
+        - 合并默认配置与用户配置
+        - 提供深度合并和覆盖合并策略
+        - 支持环境变量覆盖
+
+    使用方式：
+        >>> settings = ConfigManager.load_with_defaults(
+        >>>     default_path=Path("core/default_config/data.json"),
+        >>>     user_path=Path("userspace/system/config/data.json")
+        >>> )
+
+    对外 API：
+        - load_with_defaults(): 加载配置（用户配置覆盖默认配置）
+        - load_json_file(): 加载JSON配置文件
+        - parse_python_config(): 解析Python配置文件
+        - deep_merge_config(): 合并默认配置与用户配置片段
+
+    注意：
+        - 所有方法都是静态方法（无状态）
+        - 配置合并逻辑在本模块内部实现（不依赖通用 utils）
+    """
     
     @staticmethod
     def load_with_defaults(
         default_path: Path,
         user_path: Path,
-        deep_merge_fields: Set[str] = None,
-        override_fields: Set[str] = None,
+        *,
+        deep_merge_fields: Optional[Set[str]] = None,
+        override_fields: Optional[Set[str]] = None,
         file_type: str = "json"
     ) -> Dict[str, Any]:
         """
         加载配置（用户配置覆盖默认配置）
-        
+
         Args:
             default_path: 默认配置文件路径
             user_path: 用户配置文件路径（可选，如果不存在则只返回默认配置）
             deep_merge_fields: 需要深度合并的字段名集合
             override_fields: 需要完全覆盖的字段名集合
             file_type: 文件类型（"json" 或 "py"）
-        
+
         Returns:
             合并后的配置字典
-        
+
         Example:
             default_settings = Path("core/modules/strategy/default_settings.json")
             user_settings = Path("userspace/strategies/example/settings.py")
@@ -141,45 +164,95 @@ class ConfigManager:
 
     @staticmethod
     def _deep_merge_dict(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
-        """递归合并嵌套 dict（override 覆盖 base 同键叶子值）。"""
-        return Utils.deep_merge(base, override)
+        """
+        递归合并嵌套 dict（override 覆盖 base 同键叶子值）
+
+        Args:
+            base: 基础字典
+            override: 覆盖字典
+
+        Returns:
+            合并后的字典
+        """
+        result = base.copy()
+        for key, value in override.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                result[key] = ConfigManager._deep_merge_dict(result[key], value)
+            else:
+                result[key] = value
+        return result
     
     @staticmethod
-    def load_json(path: Path) -> Dict[str, Any]:
+    def load_json_file(path: Path) -> Dict[str, Any]:
         """
         加载 JSON 配置文件
-        
+
         Args:
             path: JSON 文件路径
-        
+
         Returns:
             配置字典，如果文件不存在或加载失败返回空字典
         """
         return ConfigManager._load_file(path, "json") or {}
+
+    # 保持向后兼容的别名（deprecated）
+    @staticmethod
+    def load_json(path: Path) -> Dict[str, Any]:
+        """
+        加载 JSON 配置文件（已废弃，请使用 load_json_file）
+
+        Args:
+            path: JSON 文件路径
+
+        Returns:
+            配置字典
+
+        Deprecated:
+            使用 load_json_file() 替代
+        """
+        return ConfigManager.load_json_file(path)
     
     @staticmethod
-    def load_python(path: Path, var_name: str = "settings") -> Dict[str, Any]:
+    def parse_python_config(path: Path, var_name: str = "settings") -> Dict[str, Any]:
         """
-        加载 Python 配置文件（如 settings.py）
-        
+        解析 Python 配置文件（涉及动态导入，是复杂解析）
+
         Args:
             path: Python 文件路径
             var_name: 配置变量名（默认为 "settings"）
-        
+
         Returns:
             配置字典，如果文件不存在或加载失败返回空字典
-        
+
         Example:
             # settings.py 中定义：
             # settings = {"name": "example", "params": {...}}
-            
-            config = ConfigManager.load_python(
+
+            config = ConfigManager.parse_python_config(
                 Path("userspace/strategies/example/settings.py"),
                 var_name="settings"
             )
         """
         result = ConfigManager._load_file(path, "py", var_name=var_name)
         return result if isinstance(result, dict) else {}
+
+    # 保持向后兼容的别名（deprecated）
+    @staticmethod
+    def load_python(path: Path, var_name: str = "settings") -> Dict[str, Any]:
+        """
+        解析 Python 配置文件（已废弃，请使用 parse_python_config）
+
+        Args:
+            path: Python 文件路径
+            var_name: 配置变量名
+
+        Returns:
+            配置字典
+
+        Deprecated:
+            使用 parse_python_config() 替代
+        """
+        return ConfigManager.parse_python_config(path, var_name)
     
     @staticmethod
     def _load_file(
@@ -330,14 +403,14 @@ class ConfigManager:
         from .path_manager import PathManager
         
         # 1. 加载公用配置（默认）- 包含 database_type
-        common_default_path = PathManager.default_config() / "database" / "common.json"
-        common_default = ConfigManager.load_json(common_default_path) or {}
+        common_default_path = PathManager.get_default_config_root() / "database" / "common.json"
+        common_default = ConfigManager.load_json_file(common_default_path) or {}
         
         # 2. 确定数据库类型（优先级：参数 > 用户 common > 默认 common > 默认值）
         if database_type is None:
             # 先检查用户配置
-            common_user_path = PathManager.user_config() / "database" / "common.json"
-            common_user = ConfigManager.load_json(common_user_path) or {}
+            common_user_path = PathManager.get_user_config_root() / "database" / "common.json"
+            common_user = ConfigManager.load_json_file(common_user_path) or {}
             database_type = (
                 common_user.get('database_type') or 
                 common_default.get('database_type') or 
@@ -345,8 +418,8 @@ class ConfigManager:
             ).lower()
         
         # 3. 加载数据库专用配置（默认）
-        db_default_path = PathManager.default_config() / "database" / f"{database_type}.json"
-        db_default = ConfigManager.load_json(db_default_path) or {}
+        db_default_path = PathManager.get_default_config_root() / "database" / f"{database_type}.json"
+        db_default = ConfigManager.load_json_file(db_default_path) or {}
         
         # 4. 合并默认配置
         # 将 _advanced 字段展开到顶层
@@ -359,12 +432,12 @@ class ConfigManager:
         }
         
         # 5. 加载用户公用配置（如果存在）
-        common_user_path = PathManager.user_config() / "database" / "common.json"
-        common_user = ConfigManager.load_json(common_user_path) or {}
+        common_user_path = PathManager.get_user_config_root() / "database" / "common.json"
+        common_user = ConfigManager.load_json_file(common_user_path) or {}
         
         # 6. 加载用户数据库专用配置（如果存在）
-        db_user_path = PathManager.user_config() / "database" / f"{database_type}.json"
-        db_user_raw = ConfigManager.load_json(db_user_path) or {}
+        db_user_path = PathManager.get_user_config_root() / "database" / f"{database_type}.json"
+        db_user_raw = ConfigManager.load_json_file(db_user_path) or {}
         # 支持两种格式：
         #  - 扁平：{ "user": "...", "password": "..." }
         #  - wrapper：{ "postgresql": { "user": "...", "password": "..." } }

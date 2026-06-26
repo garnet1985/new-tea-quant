@@ -41,7 +41,7 @@ class StrategyDiscoveryHelper:
     ) -> Dict[str, DiscoveredStrategy]:
         """发现所有可加载且校验通过的策略（enabled / disabled 均包含）。"""
         if strategies_root is None:
-            strategies_root = PathManager.strategies_root()
+            strategies_root = PathManager.get_strategies_root()
 
         if not strategies_root.exists():
             logger.warning("策略目录不存在: %s", strategies_root)
@@ -79,7 +79,7 @@ class StrategyDiscoveryHelper:
         """加载单个策略目录。"""
         folder = Path(strategy_folder)
         if strategies_root is None:
-            strategies_root = PathManager.strategies_root()
+            strategies_root = PathManager.get_strategies_root()
         root = Path(strategies_root)
 
         try:

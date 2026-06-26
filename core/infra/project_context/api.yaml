@@ -1,0 +1,833 @@
+# API Contract - infra.project_context
+# Version: 0.4.0
+# Last Updated: 2026-06-26
+#
+# 目的：
+#   - 为所有API建立快捷目录
+#   - 让开发者和自动测试一目了然
+#   - 用户知道有哪些API和怎么用
+#   - 测试知道有哪些对外接口和用法，快速覆盖
+
+---
+
+PathManager:
+  layer: implementation
+  description: "路径管理器 - 提供项目常用路径的快捷访问"
+
+  apis:
+    # Extensions module helper
+    get_extensions_module():
+      description: "拼接 extensions 包下模块路径"
+      stability: stable
+      is_static: true
+      parameters:
+        - *parts: str  # 路径片段（如 'data_source', 'handlers'）
+      returns: str  # 模块路径（如 'userspace.extensions.data_source.handlers')
+      throws: []
+      example: |
+        module_path = PathManager.get_extensions_module("data_source", "handlers")
+        # "userspace.extensions.data_source.handlers"
+
+    # 核心路径 API
+    get_project_root():
+      description: "获取项目根目录的绝对路径（通过.git、pyproject.toml等标记定位）"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # 项目根目录路径（绝对路径）
+      throws: []
+      example: |
+        root = PathManager.get_project_root()
+        # /path/to/new-tea-quant
+
+    get_core_root():
+      description: "获取core目录的绝对路径"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # core目录路径（绝对路径）
+      throws: []
+      example: |
+        core_dir = PathManager.get_core_root()
+        # /path/to/new-tea-quant/core
+
+    get_userspace_root():
+      description: "获取userspace目录的绝对路径（支持环境变量覆盖）"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # userspace目录路径（绝对路径）
+      throws: []
+      environment_dependencies:
+        - NEW_TEA_QUANT_USERSPACE_ROOT  # 最高优先级
+        - NTQ_USERSPACE_ROOT  # 次优先级
+      example: |
+        userspace = PathManager.get_userspace_root()
+        # /path/to/userspace
+
+    clear_userspace_cache():
+      description: "清理userspace路径缓存（当路径变化后强制重新计算）"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: None
+      throws: []
+      example: |
+        # 当修改了环境变量或配置文件后，清理缓存
+        PathManager.clear_userspace_cache()
+
+    get_strategies_root():
+      description: "获取策略根目录的绝对路径"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # strategies根目录路径：userspace/strategies/
+      throws: []
+      example: |
+        strategies = PathManager.get_strategies_root()
+        # /path/to/userspace/strategies
+
+    get_extensions_root():
+      description: "获取扩展根目录的绝对路径"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # extensions根目录路径：userspace/extensions/
+      throws: []
+      example: |
+        extensions = PathManager.get_extensions_root()
+        # /path/to/userspace/extensions
+
+    get_system_root():
+      description: "获取系统根目录的绝对路径"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # system根目录路径：userspace/system/
+      throws: []
+      example: |
+        system = PathManager.get_system_root()
+        # /path/to/userspace/system
+
+    get_default_config_root():
+      description: "获取默认配置目录的绝对路径"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # default_config目录路径：core/default_config/
+      throws: []
+      example: |
+        config_dir = PathManager.get_default_config_root()
+        # /path/to/new-tea-quant/core/default_config
+
+    get_user_config_root():
+      description: "获取用户配置目录的绝对路径"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # user_config目录路径：userspace/system/config/
+      throws: []
+      example: |
+        config_dir = PathManager.get_user_config_root()
+        # /path/to/userspace/system/config
+
+    # 系统目录 API
+    get_system_db_directory():
+      description: "获取系统数据库目录的绝对路径"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # system_db目录路径：userspace/system/db/
+      throws: []
+      example: |
+        db_dir = PathManager.get_system_db_directory()
+        # /path/to/userspace/system/db
+
+    get_backup_directory():
+      description: "获取备份目录的绝对路径"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # backup目录路径：userspace/system/backup/
+      throws: []
+      example: |
+        backup_dir = PathManager.get_backup_directory()
+        # /path/to/userspace/system/backup
+
+    get_backup_data_directory():
+      description: "获取备份数据目录的绝对路径"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # backup_data目录路径：userspace/system/backup/data/
+      throws: []
+      example: |
+        backup_data_dir = PathManager.get_backup_data_directory()
+        # /path/to/userspace/system/backup/data
+
+    get_updater_directory():
+      description: "获取应用升级器目录的绝对路径"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # updater目录路径：userspace/system/updater/
+      throws: []
+      example: |
+        updater_dir = PathManager.get_updater_directory()
+        # /path/to/userspace/system/updater
+
+    get_userspace_ntq_directory():
+      description: "获取NTQ内部目录的绝对路径（userspace/.ntq/）"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # ntq目录路径：userspace/.ntq/
+      throws: []
+      example: |
+        ntq_dir = PathManager.get_userspace_ntq_directory()
+        # /path/to/userspace/.ntq
+
+    get_userspace_tmp_directory():
+      description: "获取临时目录的绝对路径"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # tmp目录路径：userspace/.ntq/tmp/
+      throws: []
+      example: |
+        tmp_dir = PathManager.get_userspace_tmp_directory()
+        # /path/to/userspace/.ntq/tmp
+
+    # 策略相关 API
+    get_strategy_directory():
+      description: "获取指定策略的目录路径"
+      stability: stable
+      is_static: true
+      parameters:
+        - strategy_name: str  # 策略名称
+      returns: Path  # 策略目录路径：userspace/strategies/{strategy_name}/
+      throws: []
+      example: |
+        strategy_dir = PathManager.get_strategy_directory("example")
+        # /path/to/userspace/strategies/example
+
+    get_strategy_settings_path():
+      description: "获取指定策略的配置文件路径"
+      stability: stable
+      is_static: true
+      parameters:
+        - strategy_name: str  # 策略名称
+      returns: Path  # 策略配置文件路径：userspace/strategies/{strategy_name}/settings.py
+      throws: []
+      example: |
+        settings_path = PathManager.get_strategy_settings_path("example")
+        # /path/to/userspace/strategies/example/settings.py
+
+    get_strategy_results_directory():
+      description: "获取指定策略的结果目录路径"
+      stability: stable
+      is_static: true
+      parameters:
+        - strategy_name: str  # 策略名称
+      returns: Path  # 策略结果目录路径：userspace/strategies/{strategy_name}/results/
+      throws: []
+      example: |
+        results_dir = PathManager.get_strategy_results_directory("example")
+        # /path/to/userspace/strategies/example/results
+
+    get_strategy_simulation_enum_directory():
+      description: "获取指定策略的枚举模拟结果目录路径"
+      stability: stable
+      is_static: true
+      parameters:
+        - strategy_name: str  # 策略名称
+      returns: Path  # 枚举模拟结果目录路径：.../results/simulations/enum/
+      throws: []
+      example: |
+        enum_dir = PathManager.get_strategy_simulation_enum_directory("example")
+        # /path/to/userspace/strategies/example/results/simulations/enum
+
+    get_strategy_simulation_price_directory():
+      description: "获取指定策略的价格模拟结果目录路径"
+      stability: stable
+      is_static: true
+      parameters:
+        - strategy_name: str  # 策略名称
+      returns: Path  # 价格模拟结果目录路径：.../results/simulations/price/
+      throws: []
+      example: |
+        price_dir = PathManager.get_strategy_simulation_price_directory("example")
+        # /path/to/userspace/strategies/example/results/simulations/price
+
+    get_strategy_simulation_capital_directory():
+      description: "获取指定策略的资金模拟结果目录路径"
+      stability: stable
+      is_static: true
+      parameters:
+        - strategy_name: str  # 策略名称
+      returns: Path  # 资金模拟结果目录路径：.../results/simulations/capital/
+      throws: []
+      example: |
+        capital_dir = PathManager.get_strategy_simulation_capital_directory("example")
+        # /path/to/userspace/strategies/example/results/simulations/capital
+
+    get_strategy_scan_results_directory():
+      description: "获取指定策略的扫描结果目录路径"
+      stability: stable
+      is_static: true
+      parameters:
+        - strategy_name: str  # 策略名称
+      returns: Path  # 扫描结果目录路径：.../results/scan/
+      throws: []
+      example: |
+        scan_dir = PathManager.get_strategy_scan_results_directory("example")
+        # /path/to/userspace/strategies/example/results/scan
+
+    # Tag 相关 API
+    get_tags_root():
+      description: "获取Tag根目录的绝对路径"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # tags根目录路径：userspace/extensions/tags/
+      throws: []
+      example: |
+        tags_dir = PathManager.get_tags_root()
+        # /path/to/userspace/extensions/tags
+
+    get_tag_scenario_directory():
+      description: "获取指定Tag scenario的目录路径"
+      stability: stable
+      is_static: true
+      parameters:
+        - scenario_name: str  # scenario名称
+      returns: Path  # scenario目录路径：userspace/extensions/tags/{scenario_name}/
+      throws: []
+      example: |
+        scenario_dir = PathManager.get_tag_scenario_directory("example")
+        # /path/to/userspace/extensions/tags/example
+
+    get_tag_scenario_settings_path():
+      description: "获取指定Tag scenario的配置文件路径"
+      stability: stable
+      is_static: true
+      parameters:
+        - scenario_name: str  # scenario名称
+      returns: Path  # scenario配置文件路径：.../tags/{scenario_name}/settings.py
+      throws: []
+      example: |
+        settings_path = PathManager.get_tag_scenario_settings_path("example")
+        # /path/to/userspace/extensions/tags/example/settings.py
+
+    get_tag_scenario_worker_path():
+      description: "获取指定Tag scenario的worker文件路径"
+      stability: stable
+      is_static: true
+      parameters:
+        - scenario_name: str  # scenario名称
+      returns: Path  # scenario worker文件路径：.../tags/{scenario_name}/tag_worker.py
+      throws: []
+      example: |
+        worker_path = PathManager.get_tag_scenario_worker_path("example")
+        # /path/to/userspace/extensions/tags/example/tag_worker.py
+
+    # Data Source 相关 API
+    get_data_source_root():
+      description: "获取Data Source根目录的绝对路径"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # data_source根目录路径：userspace/extensions/data_source/
+      throws: []
+      example: |
+        data_source_dir = PathManager.get_data_source_root()
+        # /path/to/userspace/extensions/data_source
+
+    get_data_source_mapping_path():
+      description: "获取Data Source mapping文件路径"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # mapping文件路径：.../data_source/mapping.py
+      throws: []
+      example: |
+        mapping_path = PathManager.get_data_source_mapping_path()
+        # /path/to/userspace/extensions/data_source/mapping.py
+
+    get_data_source_handlers_directory():
+      description: "获取Data Source handlers目录路径"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # handlers目录路径：.../data_source/handlers/
+      throws: []
+      example: |
+        handlers_dir = PathManager.get_data_source_handlers_directory()
+        # /path/to/userspace/extensions/data_source/handlers
+
+    get_data_source_handler_directory():
+      description: "获取指定Data Source handler的目录路径"
+      stability: stable
+      is_static: true
+      parameters:
+        - handler_name: str  # handler名称
+      returns: Path  # handler目录路径：.../data_source/handlers/{handler_name}/
+      throws: []
+      example: |
+        handler_dir = PathManager.get_data_source_handler_directory("example")
+        # /path/to/userspace/extensions/data_source/handlers/example
+
+    get_data_source_providers_directory():
+      description: "获取Data Source providers目录路径"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # providers目录路径：.../data_source/providers/
+      throws: []
+      example: |
+        providers_dir = PathManager.get_data_source_providers_directory()
+        # /path/to/userspace/extensions/data_source/providers
+
+    get_data_source_provider_directory():
+      description: "获取指定Data Source provider的目录路径"
+      stability: stable
+      is_static: true
+      parameters:
+        - provider_name: str  # provider名称
+      returns: Path  # provider目录路径：.../data_source/providers/{provider_name}/
+      throws: []
+      example: |
+        provider_dir = PathManager.get_data_source_provider_directory("example")
+        # /path/to/userspace/extensions/data_source/providers/example
+
+    # Data Contract 相关 API
+    get_data_contract_root():
+      description: "获取Data Contract根目录的绝对路径"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # data_contract根目录路径：userspace/extensions/data_contract/
+      throws: []
+      example: |
+        data_contract_dir = PathManager.get_data_contract_root()
+        # /path/to/userspace/extensions/data_contract
+
+    get_data_contract_mapping_path():
+      description: "获取Data Contract mapping文件路径"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # mapping文件路径：.../data_contract/mapping.py
+      throws: []
+      example: |
+        mapping_path = PathManager.get_data_contract_mapping_path()
+        # /path/to/userspace/extensions/data_contract/mapping.py
+
+    get_data_contract_loaders_directory():
+      description: "获取Data Contract loaders目录路径"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # loaders目录路径：.../data_contract/loaders/
+      throws: []
+      example: |
+        loaders_dir = PathManager.get_data_contract_loaders_directory()
+        # /path/to/userspace/extensions/data_contract/loaders
+
+    # Tables / Adapters 相关 API
+    get_extensions_tables_directory():
+      description: "获取用户自定义表目录的绝对路径"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # tables目录路径：userspace/extensions/tables/
+      throws: []
+      example: |
+        tables_dir = PathManager.get_extensions_tables_directory()
+        # /path/to/userspace/extensions/tables
+
+    get_adapters_directory():
+      description: "获取扫描适配器目录的绝对路径"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Path  # adapters目录路径：userspace/extensions/adapters/
+      throws: []
+      example: |
+        adapters_dir = PathManager.get_adapters_directory()
+        # /path/to/userspace/extensions/adapters
+
+---
+
+ConfigManager:
+  layer: implementation
+  description: "配置管理器 - 处理默认配置和用户配置的加载与合并"
+
+  apis:
+    load_with_defaults():
+      description: "加载配置（用户配置覆盖默认配置）"
+      stability: stable
+      is_static: true
+      parameters:
+        - default_path: Path  # 默认配置文件路径
+        - user_path: Path  # 用户配置文件路径（可选，如果不存在则只返回默认配置）
+        - deep_merge_fields: Optional[Set[str]] = None  # 深度合并字段
+        - override_fields: Optional[Set[str]] = None  # 覆盖合并字段
+        - file_type: str = "json"  # 文件类型（json/py）
+      returns: Dict[str, Any]  # 合并后的配置字典
+      throws: []
+      example: |
+        settings = ConfigManager.load_with_defaults(
+            default_path=Path("core/default_config/data.json"),
+            user_path=Path("userspace/system/config/data.json")
+        )
+
+    load_json_file():
+      description: "加载JSON配置文件"
+      stability: stable
+      is_static: true
+      parameters:
+        - path: Path  # JSON文件路径
+      returns: Dict[str, Any]  # 文件不存在或加载失败返回空字典
+      throws: []
+      example: |
+        config = ConfigManager.load_json_file(Path("data.json"))
+
+    parse_python_config():
+      description: "解析Python配置文件（涉及动态导入，是复杂解析）"
+      stability: stable
+      is_static: true
+      parameters:
+        - path: Path  # Python文件路径
+        - var_name: str = "settings"  # 配置变量名
+      returns: Dict[str, Any]  # 文件不存在或加载失败返回空字典
+      throws: []
+      example: |
+        settings = ConfigManager.parse_python_config(
+            Path("settings.py"),
+            var_name="settings"
+        )
+
+    deep_merge_config():
+      description: "合并默认配置与用户配置片段"
+      stability: stable
+      is_static: true
+      parameters:
+        - defaults: Dict[str, Any]  # 默认配置
+        - custom: Dict[str, Any]  # 用户配置
+        - deep_merge_fields: Optional[Set[str]] = None  # 深度合并字段
+        - override_fields: Optional[Set[str]] = None  # 覆盖合并字段
+      returns: Dict[str, Any]  # 合并后的配置字典
+      throws: []
+      example: |
+        merged = ConfigManager.deep_merge_config(
+            defaults={"level": "INFO"},
+            custom={"level": "DEBUG"}
+        )
+
+    merge_mapping_configs():
+      description: "合并名称到配置dict的映射"
+      stability: stable
+      is_static: true
+      parameters:
+        - defaults: Dict[str, Any]  # 默认配置映射
+        - custom: Dict[str, Any]  # 用户配置映射
+        - deep_merge_fields: Optional[Set[str]] = None
+        - override_fields: Optional[Set[str]] = None
+      returns: Dict[str, Any]  # 合并后的配置映射
+      throws: []
+      example: |
+        merged = ConfigManager.merge_mapping_configs(
+            defaults={"source1": {"enabled": true}},
+            custom={"source1": {"refresh_days": 7}}
+        )
+
+    load_core_config():
+      description: "加载core配置（合并default_config和userspace/config）"
+      stability: stable
+      is_static: true
+      parameters:
+        - config_name: str  # 配置名称（如logging、worker）
+        - deep_merge_fields: Optional[Set[str]] = None
+        - override_fields: Optional[Set[str]] = None
+      returns: Dict[str, Any]  # 合并后的配置字典
+      throws: []
+      example: |
+        config = ConfigManager.load_core_config("logging")
+
+    load_database_config():
+      description: "加载数据库配置（支持环境变量覆盖）"
+      stability: stable
+      is_static: true
+      parameters:
+        - database_type: str = None  # 数据库类型（postgresql/mysql）
+      returns: Dict[str, Any]  # 数据库配置字典
+      throws: []
+      environment_dependencies:
+        - DB_HOST
+        - DB_PORT
+        - DB_USER
+        - DB_PASSWORD
+      example: |
+        db_config = ConfigManager.load_database_config()
+
+    load_data_config():
+      description: "加载data.json配置"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Dict[str, Any]  # data配置字典
+      throws: []
+      example: |
+        data_config = ConfigManager.load_data_config()
+
+---
+
+FileManager:
+  layer: implementation
+  description: "文件管理器 - 文件查找、读取、存在性检查等操作"
+
+  apis:
+    find_file():
+      description: "查找单个文件（在指定目录下递归查找）"
+      stability: stable
+      is_static: true
+      parameters:
+        - filename: str  # 文件名（如 settings.py）
+        - search_dir: Path  # 搜索起始目录
+      returns: Optional[Path]  # 文件路径，如果找不到返回 None
+      throws: []
+      example: |
+        path = FileManager.find_file("settings.py", Path("userspace/strategies"))
+
+    find_files():
+      description: "查找所有匹配的文件（在指定目录下递归查找）"
+      stability: stable
+      is_static: true
+      parameters:
+        - filename: str  # 文件名（如 settings.py）
+        - search_dir: Path  # 搜索起始目录
+      returns: List[Path]  # 文件路径列表，如果找不到返回空列表
+      throws: []
+      example: |
+        paths = FileManager.find_files("settings.py", Path("userspace/strategies"))
+
+    load_file_content():
+      description: "加载文件内容"
+      stability: stable
+      is_static: true
+      parameters:
+        - path: Path  # 文件路径
+        - encoding: str = "utf-8"  # 文件编码
+      returns: Optional[str]  # 文件内容，如果文件不存在或读取失败返回 None
+      throws: []
+      example: |
+        content = FileManager.load_file_content(Path("settings.py"))
+
+    file_exists():
+      description: "检查文件是否存在"
+      stability: stable
+      is_static: true
+      parameters:
+        - path: Path  # 文件路径
+      returns: bool  # 文件存在返回 True，否则返回 False
+      throws: []
+      example: |
+        exists = FileManager.file_exists(Path("settings.py"))
+
+    dir_exists():
+      description: "检查目录是否存在"
+      stability: stable
+      is_static: true
+      parameters:
+        - path: Path  # 目录路径
+      returns: bool  # 目录存在返回 True，否则返回 False
+      throws: []
+      example: |
+        exists = FileManager.dir_exists(Path("userspace/strategies"))
+
+    ensure_dir():
+      description: "确保目录存在（如果不存在则创建）"
+      stability: stable
+      is_static: true
+      parameters:
+        - path: Path  # 目录路径
+      returns: Path  # 目录路径（确保存在）
+      throws: []
+      example: |
+        dir_path = FileManager.ensure_dir(Path("userspace/strategies/new"))
+
+---
+
+DiscoveryManager:
+  layer: implementation
+  description: "发现管理器 - 配置发现与加载"
+
+  apis:
+    discover_core_configs():
+      description: "发现所有core配置（default_config + userspace/config）"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: Dict[str, Dict[str, Any]]  # 配置名称到配置字典的映射
+      throws: []
+      example: |
+        configs = DiscoveryManager.discover_core_configs()
+        # {"logging": {...}, "worker": {...}}
+
+    discover_strategies():
+      description: "发现所有策略（扫描strategies目录）"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: List[str]  # 策略名称列表
+      throws: []
+      example: |
+        strategies = DiscoveryManager.discover_strategies()
+        # ["strategy1", "strategy2"]
+
+    discover_tags():
+      description: "发现所有Tag scenario（扫描tags目录）"
+      stability: stable
+      is_static: true
+      parameters: []
+      returns: List[str]  # Tag scenario名称列表
+      throws: []
+      example: |
+        tags = DiscoveryManager.discover_tags()
+        # ["tag1", "tag2"]
+
+---
+
+ProjectContextManager:
+  layer: orchestration
+  description: "项目上下文管理器 - 统一入口，组合各Manager"
+
+  apis:
+    # 路径相关（委托PathManager）
+    get_project_root():
+      description: "获取项目根目录"
+      stability: stable
+      parameters: []
+      returns: Path
+      throws: []
+      example: |
+        root = ctx.get_project_root()
+
+    get_core_root():
+      description: "获取core目录"
+      stability: stable
+      parameters: []
+      returns: Path
+      throws: []
+      example: |
+        core_dir = ctx.get_core_root()
+
+    get_userspace_root():
+      description: "获取userspace目录"
+      stability: stable
+      parameters: []
+      returns: Path
+      throws: []
+      example: |
+        userspace = ctx.get_userspace_root()
+
+    clear_userspace_cache():
+      description: "清理userspace路径缓存"
+      stability: stable
+      parameters: []
+      returns: None
+      throws: []
+      example: |
+        ctx.clear_userspace_cache()
+
+    # 配置相关（委托ConfigManager）
+    load_core_config():
+      description: "加载core配置"
+      stability: stable
+      parameters:
+        - config_name: str
+      returns: Dict[str, Any]
+      throws: []
+      example: |
+        config = ctx.load_core_config("logging")
+
+    load_database_config():
+      description: "加载数据库配置"
+      stability: stable
+      parameters:
+        - database_type: str = None
+      returns: Dict[str, Any]
+      throws: []
+      example: |
+        db_config = ctx.load_database_config()
+
+    # 发现相关（委托DiscoveryManager）
+    discover_core_configs():
+      description: "发现所有core配置"
+      stability: stable
+      parameters: []
+      returns: Dict[str, Dict[str, Any]]
+      throws: []
+      example: |
+        configs = ctx.discover_core_configs()
+
+    discover_strategies():
+      description: "发现所有策略"
+      stability: stable
+      parameters: []
+      returns: List[str]
+      throws: []
+      example: |
+        strategies = ctx.discover_strategies()
+
+    discover_tags():
+      description: "发现所有Tag scenario"
+      stability: stable
+      parameters: []
+      returns: List[str]
+      throws: []
+      example: |
+        tags = ctx.discover_tags()
+
+    # 文件相关（委托FileManager）
+    find_file():
+      description: "查找单个文件"
+      stability: stable
+      parameters:
+        - filename: str
+        - search_dir: Path
+      returns: Optional[Path]
+      throws: []
+      example: |
+        path = ctx.find_file("settings.py", Path("userspace/strategies"))
+
+    load_file_content():
+      description: "加载文件内容"
+      stability: stable
+      parameters:
+        - path: Path
+      returns: Optional[str]
+      throws: []
+      example: |
+        content = ctx.load_file_content(Path("settings.py"))
+
+    # 其他工具方法
+    core_version():
+      description: "获取core版本号"
+      stability: stable
+      parameters: []
+      returns: str  # 版本号（如 "0.3.1"）
+      throws: []
+      example: |
+        version = ctx.core_version()  # "0.3.1"
+
+    get_extensions_module():
+      description: "拼接 extensions 包下模块路径"
+      stability: stable
+      parameters:
+        - *parts: str
+      returns: str
+      throws: []
+      example: |
+        module_path = ctx.get_extensions_module("data_source", "handlers")

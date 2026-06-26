@@ -71,10 +71,10 @@ def parse_export_target(raw: str) -> Tuple[str, str]:
 
 def default_export_dir() -> Path:
     """Prefer userspace/; fall back to project root when userspace is absent."""
-    us = PathManager.userspace()
+    us = PathManager.get_userspace_root()
     if us.is_dir():
         return us
-    return PathManager.get_root()
+    return PathManager.get_project_root()
 
 
 def default_export_path(mode: str, name: str) -> Path:
@@ -246,7 +246,7 @@ def run_strategy_bundle_import(
         return 1
 
     name = preview.get("strategy_name") or preview.get("entity_name") or "?"
-    logger.info("导入完成: %s → %s", name, PathManager.userspace().resolve())
+    logger.info("导入完成: %s → %s", name, PathManager.get_userspace_root().resolve())
     if result.skipped:
         skipped = ", ".join(f"{e.kind}:{e.name}" for e in result.skipped)
         logger.info("已跳过（本机已存在）: %s", skipped)

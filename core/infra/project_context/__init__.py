@@ -12,7 +12,7 @@ Project Management Module - 项目管理模块
 """
 
 from .project_context_manager import ProjectContextManager
-from .path_manager import EXTENSIONS_MODULE_PREFIX, PathManager, extensions_module
+from .path_manager import PathManager
 from .file_manager import FileManager
 from .config_manager import ConfigManager
 from .discovery_manager import (
@@ -25,8 +25,6 @@ from .config_merge_policies import merge_market_profile_dicts
 __all__ = [
     "ProjectContextManager",
     "PathManager",
-    "EXTENSIONS_MODULE_PREFIX",
-    "extensions_module",
     "DiscoveryManager",
     "DiscoveredConfig",
     "OverridableConfigNotFoundError",

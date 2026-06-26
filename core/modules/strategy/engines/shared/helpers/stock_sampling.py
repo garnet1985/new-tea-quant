@@ -162,9 +162,9 @@ class StockSamplingHelper:
             return []
 
         normalized = relative_file_path.strip()
-        file_path = (PathManager.strategy(strategy_name) / normalized).resolve()
+        file_path = (PathManager.get_strategy_directory(strategy_name) / normalized).resolve()
         try:
-            file_path.relative_to(PathManager.strategy(strategy_name).resolve())
+            file_path.relative_to(PathManager.get_strategy_directory(strategy_name).resolve())
         except ValueError:
             logger.warning("[%s] 路径越界，已拒绝: %s", field_name, normalized)
             return []

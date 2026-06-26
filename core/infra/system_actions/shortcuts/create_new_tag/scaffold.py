@@ -19,7 +19,7 @@ TAG_TEMPLATE_REL = Path("_template") / "empty_scenario"
 
 def scaffold_tag(raw_path: str) -> ScaffoldResult:
     """复制 ``extensions/tags/_template/empty_scenario/`` 到 ``tags/<raw_path>/``。"""
-    root = PathManager.tags()
+    root = PathManager.get_tags_root()
     dest, key = resolve_dest(
         root=root,
         raw_path=raw_path,

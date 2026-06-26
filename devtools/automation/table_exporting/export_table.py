@@ -30,7 +30,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 from core.infra.project_context import PathManager
 
-OUT_DIR = PathManager.backup_data()
+OUT_DIR = PathManager.get_backup_data_directory()
 
 DATE_FMT = "%Y%m%d"
 # 默认窗口：固定 2025 全年（Demo 对外数据窗口）

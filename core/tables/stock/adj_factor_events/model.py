@@ -381,7 +381,7 @@ class DataAdjFactorEventModel(DbBaseModel):
         """季度/全量 CSV 默认目录（userspace handler）。"""
         from core.infra.project_context import PathManager
 
-        d = PathManager.data_source_handler("adj_factor_event")
+        d = PathManager.get_data_source_handler_directory("adj_factor_event")
         d.mkdir(parents=True, exist_ok=True)
         return d
 

@@ -27,18 +27,18 @@ def resolve_single_entity_spec(kind: str, name: str) -> ArtifactSpec:
         raise ValueError("entity name is required for single export")
 
     if k == "strategy":
-        source = PathManager.strategy(n)
+        source = PathManager.get_strategy_directory(n)
         if not source.is_dir():
             raise FileNotFoundError(f"strategy not found: {source}")
         return strategy_artifact_spec(n, source)
 
     if k == "tag":
-        source = PathManager.tag_scenario(n)
+        source = PathManager.get_tag_scenario_directory(n)
         if not source.is_dir():
             raise FileNotFoundError(f"tag scenario not found: {source}")
         return tag_artifact_spec(n, source)
 
-    source = PathManager.adapters() / n
+    source = PathManager.get_adapters_directory() / n
     if not source.is_dir():
         raise FileNotFoundError(f"adapter not found: {source}")
     return adapter_artifact_spec(n, source)

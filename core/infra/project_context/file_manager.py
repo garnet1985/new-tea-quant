@@ -15,7 +15,32 @@ import os
 
 
 class FileManager:
-    """文件管理器 - 文件查找、读取等操作"""
+    """
+    文件管理器 - 文件查找、读取、存在性检查等操作
+
+    职责：
+        - 查找文件（单文件或多文件）
+        - 加载文件内容
+        - 检查文件/目录存在性
+        - 确保目录存在
+
+    使用方式：
+        >>> path = FileManager.find_file("settings.py", Path("userspace/strategies"))
+        >>> content = FileManager.load_file_content(path)
+
+    对外 API：
+        - find_file(): 查找单个文件
+        - find_files(): 查找所有匹配的文件
+        - load_file_content(): 加载文件内容
+        - file_exists(): 检查文件是否存在
+        - dir_exists(): 检查目录是否存在
+        - ensure_dir(): 确保目录存在
+
+    注意：
+        - 所有方法都是静态方法（无状态）
+        - 文件不存在时返回 None 或空列表
+        - 使用 pathlib.Path 而不是字符串路径
+    """
     
     @staticmethod
     def find_file(
@@ -98,14 +123,14 @@ class FileManager:
         return found_files
     
     @staticmethod
-    def read_file(path: Path, encoding: str = "utf-8") -> Optional[str]:
+    def load_file_content(path: Path, *, encoding: str = "utf-8") -> Optional[str]:
         """
-        读取文件内容
-        
+        加载文件内容
+
         Args:
             path: 文件路径
             encoding: 文件编码
-        
+
         Returns:
             文件内容，如果文件不存在或读取失败返回 None
         """
@@ -113,14 +138,32 @@ class FileManager:
             # 转换为绝对路径
             if not path.is_absolute():
                 path = path.resolve()
-            
+
             if not path.exists() or not path.is_file():
                 return None
-            
+
             with open(path, "r", encoding=encoding) as f:
                 return f.read()
         except Exception:
             return None
+
+    # 保持向后兼容的别名（deprecated）
+    @staticmethod
+    def read_file(path: Path, encoding: str = "utf-8") -> Optional[str]:
+        """
+        加载文件内容（已废弃，请使用 load_file_content）
+
+        Args:
+            path: 文件路径
+            encoding: 文件编码
+
+        Returns:
+            文件内容
+
+        Deprecated:
+            使用 load_file_content() 替代
+        """
+        return FileManager.load_file_content(path, encoding=encoding)
     
     @staticmethod
     def file_exists(path: Path) -> bool:

@@ -23,7 +23,7 @@ from core.infra.project_context.path_manager import PathManager
 # 允许用户直接运行该步骤，也默认使用项目 venv
 NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
 
-USER_DB_CONFIG_DIR = PathManager.user_config() / "database"
+USER_DB_CONFIG_DIR = PathManager.get_user_config_root() / "database"
 
 
 def _mask_password(cfg: Dict[str, Any]) -> Dict[str, Any]:

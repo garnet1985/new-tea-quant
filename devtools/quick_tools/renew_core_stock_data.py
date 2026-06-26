@@ -48,7 +48,7 @@ TABLES_RECREATE_ORDER = (
 def _ensure_tushare_token() -> None:
     from core.infra.project_context.path_manager import PathManager
 
-    us = PathManager.userspace()
+    us = PathManager.get_userspace_root()
     dst = us / "data_source" / "providers" / "tushare" / "auth_token.txt"
     if dst.is_file():
         return
@@ -169,7 +169,7 @@ def main() -> int:
 
     from core.infra.project_context.path_manager import PathManager
 
-    data_cfg = PathManager.user_config() / "data.json"
+    data_cfg = PathManager.get_user_config_root() / "data.json"
     if not data_cfg.is_file():
         logger.error("缺少 %s（需 default_start_date=%s）", data_cfg, DEFAULT_START)
         return 1

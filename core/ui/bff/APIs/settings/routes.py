@@ -29,7 +29,7 @@ _DEFAULT_DUCKDB_DOMAINS = {
 
 
 def _database_config_dir() -> Path:
-    return PathManager.user_config() / "database"
+    return PathManager.get_user_config_root() / "database"
 
 
 def _read_flat_type_config(type_path: Path, database_type: str) -> dict:
@@ -164,7 +164,7 @@ def _data_settings_response(cfg: Dict[str, Any]) -> Dict[str, Any]:
         "default_start_date": str(cfg.get("default_start_date") or "").strip(),
         "as_of_latest_completed_trading_date": ConfigManager.get_as_of_latest_completed_trading_date(),
         "use_sample_stock_list": sample_out,
-        "config_path": str(PathManager.user_config() / "data.json"),
+        "config_path": str(PathManager.get_user_config_root() / "data.json"),
     }
 
 
@@ -196,7 +196,7 @@ def post_data_settings():
     except ValueError as exc:
         return error(str(exc), 400)
 
-    path = PathManager.user_config() / "data.json"
+    path = PathManager.get_user_config_root() / "data.json"
     path.parent.mkdir(parents=True, exist_ok=True)
 
     existing: dict = {}

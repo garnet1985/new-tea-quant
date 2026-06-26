@@ -14,7 +14,7 @@ class TestConfigManager:
     def test_load_json_existing(self):
         """测试加载存在的 JSON 文件"""
         # 使用项目中的实际配置文件
-        root = PathManager.get_root()
+        root = PathManager.get_project_root()
         core_config = root / "core" / "config" / "data.json"
         
         if core_config.exists():

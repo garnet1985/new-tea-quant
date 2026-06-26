@@ -29,7 +29,7 @@ class PipelineLeaseBusyError(Exception):
 
 
 def _lease_path() -> Path:
-    return PathManager.userspace_ntq() / "runtime" / "pipeline_active.json"
+    return PathManager.get_userspace_ntq_directory() / "runtime" / "pipeline_active.json"
 
 
 def _iso_now() -> str:

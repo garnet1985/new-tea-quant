@@ -29,7 +29,7 @@ def _write_enum_report(enum_root: Path, version_dir: str, *, opportunities: int)
 @pytest.fixture
 def enum_simulation_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """
-    临时 ``.../simulations/enum`` 目录树，供 PathManager.strategy_simulation_enum 使用。
+    临时 ``.../simulations/enum`` 目录树，供 PathManager.get_strategy_directory_simulation_enum 使用。
 
     默认写入版本 ``9``（140 条机会）与 ``20``（23206 条，供 latest 解析测试）。
     """

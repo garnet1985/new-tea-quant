@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 def load_strategy_info(strategy_name: str) -> Optional["DiscoveredStrategy"]:
     from core.modules.strategy.services.discovery import StrategyDiscoveryHelper
 
-    folder = PathManager.strategy(strategy_name)
+    folder = PathManager.get_strategy_directory(strategy_name)
     if not folder.is_dir():
         return None
     return StrategyDiscoveryHelper.load_strategy(folder)
@@ -46,7 +46,7 @@ def load_strategy_settings_view(
     if strategy_info is not None:
         raw = strategy_info.settings.to_dict()
     else:
-        folder = PathManager.strategy(strategy_name)
+        folder = PathManager.get_strategy_directory(strategy_name)
         raw = load_settings_dict_from_folder(folder, strategy_key=strategy_name)
     validated = StrategySettings(raw_settings=dict(raw))
     validated.apply_defaults()
@@ -73,7 +73,7 @@ def resolve_worker_class(
     if worker_module_path and worker_class_name:
         file_path = worker_file_path
         if not file_path:
-            file_path = str(PathManager.strategy(strategy_name) / "strategy_worker.py")
+            file_path = str(PathManager.get_strategy_directory(strategy_name) / "strategy_worker.py")
         return import_worker_class(
             worker_module_path=worker_module_path,
             worker_class_name=worker_class_name,

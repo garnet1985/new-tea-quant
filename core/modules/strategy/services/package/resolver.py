@@ -29,7 +29,7 @@ def resolve_strategy_bundle_specs(strategy_name: str) -> List[ArtifactSpec]:
     if not name:
         raise ValueError("strategy_name is required")
 
-    strategy_dir = PathManager.strategy(name)
+    strategy_dir = PathManager.get_strategy_directory(name)
     if not strategy_dir.is_dir():
         raise FileNotFoundError(f"strategy not found: {strategy_dir}")
 
@@ -39,7 +39,7 @@ def resolve_strategy_bundle_specs(strategy_name: str) -> List[ArtifactSpec]:
     seen: Set[str] = {specs[0].normalized_archive_prefix()}
 
     for scenario in _tag_dependencies(settings):
-        tag_dir = PathManager.tag_scenario(scenario)
+        tag_dir = PathManager.get_tag_scenario_directory(scenario)
         if not tag_dir.is_dir():
             continue
         spec = tag_artifact_spec(scenario, tag_dir)
@@ -49,7 +49,7 @@ def resolve_strategy_bundle_specs(strategy_name: str) -> List[ArtifactSpec]:
             seen.add(key)
 
     for adapter_name in _adapter_dependencies(settings):
-        adapter_dir = PathManager.adapters() / adapter_name
+        adapter_dir = PathManager.get_adapters_directory() / adapter_name
         if not adapter_dir.is_dir():
             continue
         spec = adapter_artifact_spec(adapter_name, adapter_dir)

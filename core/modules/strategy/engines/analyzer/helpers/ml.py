@@ -63,7 +63,7 @@ class MLAnalyzer(BaseAnalyzer):
             if not output_root.is_absolute():
                 from core.infra.project_context import PathManager
 
-                output_root = PathManager.strategy_simulation_enum(
+                output_root = PathManager.get_strategy_directory_simulation_enum(
                     self.context.strategy_name
                 )
             output_version_dir = output_root / enum_dir

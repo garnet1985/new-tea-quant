@@ -763,7 +763,7 @@ class EnumeratorReport(ReportBase):
             return cls.from_bff_payload(payload), None
 
         candidates = [
-            PathManager.strategy_simulation_enum(sn or label) / version_name,
+            PathManager.get_strategy_directory_simulation_enum(sn or label) / version_name,
         ]
         for output_dir in candidates:
             if output_dir.exists():

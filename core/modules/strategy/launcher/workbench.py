@@ -96,7 +96,7 @@ def fetch_workbench_by_version(
         from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.settings_diff import (
             merge_settings,
         )
-        folder = PathManager.strategy(name)
+        folder = PathManager.get_strategy_directory(name)
         discovered = StrategyDiscoveryHelper.load_strategy(folder)
         if discovered is not None:
             disk_settings = dict(discovered.settings.to_dict())
@@ -171,7 +171,7 @@ def fetch_latest_workbench_snapshot(strategy_name: str) -> Optional[Dict[str, An
                 from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.settings_diff import (
                     merge_settings,
                 )
-                folder = PathManager.strategy(name)
+                folder = PathManager.get_strategy_directory(name)
                 discovered = StrategyDiscoveryHelper.load_strategy(folder)
                 if discovered is not None:
                     disk_settings = dict(discovered.settings.to_dict())
@@ -193,7 +193,7 @@ def fetch_latest_workbench_snapshot(strategy_name: str) -> Optional[Dict[str, An
         log_workbench_version_deleted(name, sid, row)
         model.delete_version_row(name, sid)
 
-    folder = PathManager.strategy(name)
+    folder = PathManager.get_strategy_directory(name)
     discovered = StrategyDiscoveryHelper.load_strategy(folder)
     if discovered is None:
         return None
@@ -222,14 +222,14 @@ def _atomic_write_text(target_path: Path, content: str, encoding: str = "utf-8")
 
 
 def _backup_settings_file(strategy_name: str) -> None:
-    settings_file = PathManager.strategy_settings(strategy_name)
+    settings_file = PathManager.get_strategy_directory_settings(strategy_name)
     if settings_file.is_file():
         backup_path = settings_file.with_suffix(settings_file.suffix + ".bak")
         backup_path.write_text(settings_file.read_text(encoding="utf-8"), encoding="utf-8")
 
 
 def _write_settings_py(strategy_name: str, settings: Dict[str, Any], pretty: bool) -> None:
-    settings_file = PathManager.strategy_settings(strategy_name)
+    settings_file = PathManager.get_strategy_directory_settings(strategy_name)
     if pretty:
         literal = pprint.pformat(dict(settings or {}), width=100, sort_dicts=True)
     else:
@@ -369,7 +369,7 @@ _STOCK_REF_FILENAMES = ("0_stock_ref.json",)
 
 def _enum_output_dir_candidates_for_ref(strategy_name: str, row: Dict[str, Any]) -> List[str]:
     version = int(row.get("version") or 0)
-    base = PathManager.strategy_simulation_enum(strategy_name)
+    base = PathManager.get_strategy_directory_simulation_enum(strategy_name)
     candidates_dirs: List[str] = []
 
     rr = row.get("result_report") or {}
@@ -402,7 +402,7 @@ def _enum_output_dir_candidates_for_ref(strategy_name: str, row: Dict[str, Any])
 
 
 def _price_output_dir_candidates_for_ref(strategy_name: str, row: Dict[str, Any]) -> List[str]:
-    base = PathManager.strategy_simulation_price(strategy_name)
+    base = PathManager.get_strategy_directory_simulation_price(strategy_name)
     candidates_dirs: List[str] = []
 
     rr = row.get("result_report") or {}

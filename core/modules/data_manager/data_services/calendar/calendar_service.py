@@ -18,7 +18,10 @@ import logging
 import threading
 import json
 
-from core.infra.project_context import ConfigManager
+from core.infra.project_context import ProjectContextManager
+
+ctx = ProjectContextManager()  # module-level instance
+
 from core.utils.date.date_utils import DateUtils
 from core.modules.data_source.service.provider_helper import DataSourceProviderHelper
 from .. import BaseDataService
@@ -71,7 +74,7 @@ class CalendarService(BaseDataService):
         Returns:
             最新已完成交易日（YYYYMMDD），无法解析时可能为空字符串。
         """
-        configured = ConfigManager.get_as_of_latest_completed_trading_date()
+        configured = ctx.get_as_of_latest_completed_trading_date()
         if configured:
             if not CalendarService._configured_as_of_logged:
                 CalendarService._configured_as_of_logged = True

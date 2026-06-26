@@ -7,7 +7,10 @@ from typing import List, Tuple, Union
 
 from core.infra.export_import import ArtifactSpec, create_bundle_archive
 from core.infra.export_import.types import BundleManifest
-from core.infra.project_context import PathManager
+from core.infra.project_context import ProjectContextManager
+
+ctx = ProjectContextManager()  # module-level instance
+
 
 from .bundle import _read_core_version
 from .paths import adapter_artifact_spec, strategy_artifact_spec, tag_artifact_spec
@@ -27,18 +30,18 @@ def resolve_single_entity_spec(kind: str, name: str) -> ArtifactSpec:
         raise ValueError("entity name is required for single export")
 
     if k == "strategy":
-        source = PathManager.get_strategy_directory(n)
+        source = ctx.get_strategy_directory(n)
         if not source.is_dir():
             raise FileNotFoundError(f"strategy not found: {source}")
         return strategy_artifact_spec(n, source)
 
     if k == "tag":
-        source = PathManager.get_tag_scenario_directory(n)
+        source = ctx.get_tag_scenario_directory(n)
         if not source.is_dir():
             raise FileNotFoundError(f"tag scenario not found: {source}")
         return tag_artifact_spec(n, source)
 
-    source = PathManager.get_adapters_directory() / n
+    source = ctx.get_adapters_directory() / n
     if not source.is_dir():
         raise FileNotFoundError(f"adapter not found: {source}")
     return adapter_artifact_spec(n, source)

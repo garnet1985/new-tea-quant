@@ -13,7 +13,10 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Literal, Optional, Set
 
-from core.infra.project_context import PathManager
+from core.infra.project_context import ProjectContextManager
+
+ctx = ProjectContextManager()  # module-level instance
+
 from core.modules.data_manager import DataManager
 
 from .version_manager import StrategyOutputVersionService

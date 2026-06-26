@@ -5,7 +5,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from core.infra.project_context import PathManager
+from core.infra.project_context import ProjectContextManager
+
+ctx = ProjectContextManager()  # module-level instance
+
 from core.infra.system_actions.shortcuts._shared import (
     ScaffoldResult,
     copy_template,
@@ -19,7 +22,7 @@ STRATEGY_TEMPLATE_REL = Path("_template") / "empty_strategy"
 
 def scaffold_strategy(raw_path: str) -> ScaffoldResult:
     """复制 ``strategies/_template/empty_strategy/`` 到 ``strategies/<raw_path>/``。"""
-    root = PathManager.get_strategies_root()
+    root = ctx.get_strategies_root()
     dest, key = resolve_dest(
         root=root,
         raw_path=raw_path,

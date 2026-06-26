@@ -20,11 +20,11 @@ def discovery_dirs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     rel.mkdir(parents=True)
     urel.mkdir(parents=True)
     monkeypatch.setattr(
-        "core.infra.project_context.discovery_manager.PathManager.default_config",
+        "core.infra.project_context.discovery_manager.PathManager.get_default_config_root",
         lambda: core_root,
     )
     monkeypatch.setattr(
-        "core.infra.project_context.discovery_manager.PathManager.user_config",
+        "core.infra.project_context.discovery_manager.PathManager.get_user_config_root",
         lambda: user_root,
     )
     return rel, urel

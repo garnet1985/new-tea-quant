@@ -7,7 +7,10 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from core.infra.project_context import PathManager
+from core.infra.project_context import ProjectContextManager
+
+ctx = ProjectContextManager()  # module-level instance
+
 from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.data_contract.data_contract_manager import DataContractManager
 from core.modules.data_manager import DataManager
@@ -52,7 +55,7 @@ class StrategyManager:
         info = self.validated_strategies.get(strategy_name)
         if info is not None:
             return info
-        folder = PathManager.get_strategy_directory(strategy_name)
+        folder = ctx.get_strategy_directory(strategy_name)
         if not folder.is_dir():
             return None
         return StrategyDiscoveryHelper.load_strategy(folder)
@@ -457,8 +460,8 @@ class StrategyManager:
 
         found = False
         for sn in strategy_names:
-            pf_root = PathManager.get_strategy_directory_simulation_price(sn)
-            ca_root = PathManager.get_strategy_directory_simulation_capital(sn)
+            pf_root = ctx.get_strategy_directory_simulation_price(sn)
+            ca_root = ctx.get_strategy_directory_simulation_capital(sn)
 
             pf_latest = _read_latest_version(pf_root) if (pf_root / "meta.json").is_file() else None
             ca_latest = _read_latest_version(ca_root) if (ca_root / "meta.json").is_file() else None

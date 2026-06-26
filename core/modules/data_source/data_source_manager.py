@@ -3,6 +3,9 @@ from pathlib import Path
 import logging
 
 from core.infra.project_context import PathManager
+
+ctx = ProjectContextManager()  # module-level instance
+
 from core.modules.data_manager.data_manager import DataManager
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.data_class.handler_mapping import HandlerMapping
@@ -151,7 +154,7 @@ class DataSourceManager:
     @staticmethod
     def list_enabled_source_keys() -> List[str]:
         """返回 mapping 中已启用的 data source key 列表。"""
-        mapping_path = PathManager.get_data_source_mapping_path()
+        mapping_path = ctx.get_data_source_mapping_path()
         mapping = DataSourceManagerHelper.discover_mappings(mapping_path)
         return sorted(HandlerMapping(data_sources=mapping).get_enabled().keys())
 
@@ -258,7 +261,7 @@ class DataSourceManager:
         - 使用 userspace/extensions/data_source/mapping.py（DATA_SOURCES）作为入口。
         - 返回 HandlerMapping(data_sources=...)
         """
-        mapping_path = PathManager.get_data_source_mapping_path()
+        mapping_path = ctx.get_data_source_mapping_path()
         mapping = DataSourceManagerHelper.discover_mappings(mapping_path)
         return HandlerMapping(data_sources=mapping)
 
@@ -328,7 +331,7 @@ class DataSourceManager:
             return self._all_valid_configs_cache[data_source_key]
 
         # 首先尝试直接路径
-        handler_dir = PathManager.get_data_source_handler_directory(data_source_key)
+        handler_dir = ctx.get_data_source_handler_directory(data_source_key)
         config_path = handler_dir / "config.py"
         
         config_dict = DataSourceManagerHelper.load_config_from_py(config_path)
@@ -358,10 +361,10 @@ class DataSourceManager:
         
         使用 DiscoveryManager.find_in_tree 进行查找。
         """
-        from core.infra.project_context import DiscoveryManager
+        from core.infra.project_context import ProjectContextManager
 
-        handlers_dir = PathManager.get_data_source_handlers_directory()
-        return DiscoveryManager.find_in_tree(handlers_dir, data_source_key, "config.py")
+        handlers_dir = ctx.get_data_source_handlers_directory()
+        return ctx.find_in_tree(handlers_dir, data_source_key, "config.py")
 
 
     def _discover_handler(

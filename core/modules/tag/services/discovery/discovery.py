@@ -14,7 +14,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 
-from core.infra.project_context import ConfigManager, PathManager
+from core.infra.project_context import ProjectContextManager, PathManager
+
+ctx = ProjectContextManager()  # module-level instance
+
 from core.modules.tag.config import get_scenarios_root
 from core.modules.tag.engines.shared.base_worker import BaseTagWorker
 from core.modules.tag.models.scenario_model import ScenarioModel
@@ -95,7 +98,7 @@ class TagDiscoveryHelper:
 
         settings_file = folder / "settings.py"
         try:
-            settings_dict = ConfigManager.load_python(settings_file, var_name="Settings")
+            settings_dict = ctx.load_python(settings_file, var_name="Settings")
         except Exception as exc:
             logger.error("加载 Tag settings 失败: %s, error=%s", tag_key, exc)
             return None

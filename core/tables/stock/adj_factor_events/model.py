@@ -381,7 +381,7 @@ class DataAdjFactorEventModel(DbBaseModel):
         """季度/全量 CSV 默认目录（userspace handler）。"""
         from core.infra.project_context import PathManager
 
-        d = PathManager.get_data_source_handler_directory("adj_factor_event")
+        d = ctx.get_data_source_handler_directory("adj_factor_event")
         d.mkdir(parents=True, exist_ok=True)
         return d
 
@@ -487,7 +487,7 @@ class DataAdjFactorEventModel(DbBaseModel):
         """
         import pandas as pd
 
-        from core.infra.project_context import ConfigManager
+        from core.infra.project_context import ProjectContextManager
         from core.modules.data_source.service.sample_stock_list import (
             pool_stock_ids,
             sample_pool_count,
@@ -506,8 +506,8 @@ class DataAdjFactorEventModel(DbBaseModel):
         df = pd.read_csv(path)
         validate_csv_columns(df.columns)
 
-        default_start = ConfigManager.get_default_start_date() or ""
-        as_of = ConfigManager.get_as_of_latest_completed_trading_date()
+        default_start = ctx.get_default_start_date() or ""
+        as_of = ctx.get_as_of_latest_completed_trading_date()
         pool_ids: Optional[Set[str]] = None
         if sample_pool_count():
             pool_ids = set(pool_stock_ids())

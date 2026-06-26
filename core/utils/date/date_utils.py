@@ -47,14 +47,14 @@ class DateUtils:
     @staticmethod
     def _get_config_manager():
         """延迟导入 ConfigManager 以避免循环导入"""
-        from core.infra.project_context import ConfigManager
+        from core.infra.project_context import ProjectContextManager
         return ConfigManager
 
     @staticmethod
     def get_default_start_date() -> str:
         """获取默认开始日期"""
         ConfigManager = DateUtils._get_config_manager()
-        return ConfigManager.get_default_start_date()
+        return ctx.get_default_start_date()
 
     @staticmethod
     def get_query_date_range_min() -> str:
@@ -63,7 +63,7 @@ class DateUtils:
         配置缺失或无法标准化时回退到内部兜底常量。
         """
         ConfigManager = DateUtils._get_config_manager()
-        raw = ConfigManager.get_default_start_date()
+        raw = ctx.get_default_start_date()
         if raw:
             n = DateUtils.normalize_str(str(raw))
             if n:

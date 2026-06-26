@@ -33,7 +33,10 @@ from core.infra.db import DatabaseManager
 
 # Loaders 已废弃，不再导入
 # 所有功能已迁移到 data_services
-from core.infra.project_context import ConfigManager
+from core.infra.project_context import ProjectContextManager
+
+ctx = ProjectContextManager()  # module-level instance
+
 from core.utils.date.date_utils import DateUtils
 
 
@@ -174,9 +177,9 @@ class DataManager:
                 return
 
             try:
-                from core.infra.project_context import ConfigManager
+                from core.infra.project_context import ProjectContextManager
 
-                db_cfg = ConfigManager.load_database_config()
+                db_cfg = ctx.load_database_config()
                 if str(db_cfg.get("database_type") or "").lower() == "duckdb":
                     from core.infra.db.engines.duckdb.process_pool_scope import (
                         wait_for_main_duckdb_worker_pool_end,
@@ -249,7 +252,7 @@ class DataManager:
             Model 类（继承自 DbBaseModel），若校验不通过或加载失败返回 None
         """
         from core.infra.db import DbBaseModel
-        from core.infra.project_context import FileManager
+        from core.infra.project_context import ProjectContextManager
         from core.infra.db.schema_manager import SchemaManager
 
         try:
@@ -293,7 +296,7 @@ class DataManager:
                 self.db.register_table(table_name, schema)
             
             # 2. 查找并加载 model.py
-            model_file_path = FileManager.find_file("model.py", table_folder, recursive=False)
+            model_file_path = ctx.find_file("model.py", table_folder, recursive=False)
             if not model_file_path:
                 logger.error(f"❌ 表文件夹中未找到 model.py: {table_folder_path}")
                 return None
@@ -347,13 +350,13 @@ class DataManager:
 
         try:
             # 1. core/tables（仅接受 sys_ 前缀）
-            core_tables_dir = PathManager.get_core_root() / "tables"
+            core_tables_dir = ctx.get_core_root() / "tables"
             if core_tables_dir.exists():
                 for table_folder in sorted(_dirs_with_schema(core_tables_dir)):
                     self.register_table(str(table_folder), from_core=True)
 
             # 2. userspace/extensions/tables（表名无限制）
-            userspace_tables_dir = PathManager.get_extensions_tables_directory()
+            userspace_tables_dir = ctx.get_extensions_tables_directory()
             if userspace_tables_dir.exists():
                 for table_folder in sorted(_dirs_with_schema(userspace_tables_dir)):
                     self.register_table(str(table_folder), from_core=False)

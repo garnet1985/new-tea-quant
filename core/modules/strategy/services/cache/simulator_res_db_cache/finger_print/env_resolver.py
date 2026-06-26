@@ -15,7 +15,10 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
-from core.infra.project_context import PathManager
+from core.infra.project_context import ProjectContextManager
+
+ctx = ProjectContextManager()  # module-level instance
+
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
@@ -117,7 +120,7 @@ class ResolveEnv:
             core_mapping_hash = ""
 
         userspace_mapping_hash = ""
-        userspace_mapping_file = PathManager.get_data_contract_mapping_path()
+        userspace_mapping_file = ctx.get_data_contract_mapping_path()
         if userspace_mapping_file.exists():
             userspace_mapping_hash = ResolveEnv._hash_file(Path(userspace_mapping_file))
 
@@ -192,7 +195,7 @@ class ResolveEnv:
         """当前 ``userspace/config/database/common.json`` 的 ``database_type``（mysql / duckdb 等）。"""
         from core.infra.project_context import ConfigManager
 
-        cfg = ConfigManager.load_database_config()
+        cfg = ctx.load_database_config()
         return str(cfg.get("database_type") or "").strip().lower()
 
     @staticmethod

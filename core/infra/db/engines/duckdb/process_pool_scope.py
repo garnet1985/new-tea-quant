@@ -55,9 +55,9 @@ def is_duckdb_backend(data_mgr: Any = None) -> bool:
         db = getattr(data_mgr, "db", None)
         if db is not None:
             return str(db.config.get("database_type") or "").lower() == "duckdb"
-    from core.infra.project_context import ConfigManager
+    from core.infra.project_context import ProjectContextManager
 
-    cfg = ConfigManager.load_database_config()
+    cfg = ctx.load_database_config()
     return str(cfg.get("database_type") or "").lower() == "duckdb"
 
 
@@ -92,9 +92,9 @@ def should_apply_process_pool_scope(
 
 
 def database_config_read_only() -> dict[str, Any]:
-    from core.infra.project_context import ConfigManager
+    from core.infra.project_context import ProjectContextManager
 
-    cfg = deepcopy(ConfigManager.load_database_config())
+    cfg = deepcopy(ctx.load_database_config())
     if str(cfg.get("database_type") or "").lower() != "duckdb":
         return cfg
     duck = cfg.setdefault("duckdb", {})
@@ -116,9 +116,9 @@ def connect_duckdb_domains(
     from core.infra.db.engines._shared.config_parse import parse_database_config
     from core.infra.db.engines.duckdb.connector import DuckdbDomainConnection
     from core.infra.db.engines.duckdb.settings import DuckdbSettings
-    from core.infra.project_context import ConfigManager
+    from core.infra.project_context import ProjectContextManager
 
-    raw = ConfigManager.load_database_config()
+    raw = ctx.load_database_config()
     if read_only:
         raw = database_config_read_only()
     parsed = parse_database_config(raw)

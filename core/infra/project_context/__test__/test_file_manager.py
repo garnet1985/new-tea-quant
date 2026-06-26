@@ -13,7 +13,7 @@ class TestFileManager:
     def test_find_file_existing(self):
         """测试查找存在的文件"""
         # 使用项目根目录的 README.md 作为测试文件
-        root = PathManager.get_root()
+        root = PathManager.get_project_root()
         readme = root / "README.md"
         
         if readme.exists():
@@ -23,14 +23,14 @@ class TestFileManager:
     
     def test_find_file_nonexistent(self):
         """测试查找不存在的文件"""
-        root = PathManager.get_root()
+        root = PathManager.get_project_root()
         found = FileManager.find_file("nonexistent_file_12345.py", root)
         
         assert found is None
     
     def test_find_file_recursive(self):
         """测试递归查找文件"""
-        root = PathManager.get_root()
+        root = PathManager.get_project_root()
         # 查找 __init__.py（应该能找到多个）
         found = FileManager.find_file("__init__.py", root, recursive=True)
         
@@ -39,7 +39,7 @@ class TestFileManager:
     
     def test_read_file_existing(self):
         """测试读取存在的文件"""
-        root = PathManager.get_root()
+        root = PathManager.get_project_root()
         readme = root / "README.md"
         
         if readme.exists():
@@ -50,7 +50,7 @@ class TestFileManager:
     
     def test_read_file_nonexistent(self):
         """测试读取不存在的文件"""
-        root = PathManager.get_root()
+        root = PathManager.get_project_root()
         nonexistent = root / "nonexistent_file_12345.txt"
         
         content = FileManager.read_file(nonexistent)
@@ -58,7 +58,7 @@ class TestFileManager:
     
     def test_file_exists(self):
         """测试检查文件是否存在"""
-        root = PathManager.get_root()
+        root = PathManager.get_project_root()
         readme = root / "README.md"
         
         if readme.exists():
@@ -69,7 +69,7 @@ class TestFileManager:
     
     def test_find_files(self):
         """测试查找所有匹配的文件"""
-        root = PathManager.get_root()
+        root = PathManager.get_project_root()
         # 查找所有 __init__.py 文件
         init_files = FileManager.find_files("__init__.py", root, recursive=True)
         

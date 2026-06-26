@@ -175,8 +175,8 @@ class DiscoveryManager:
     def _domain_dirs(domain: str) -> tuple[Path, Path]:
         rel = DiscoveryManager._normalize_domain(domain)
         if not rel:
-            return PathManager.default_config(), PathManager.user_config()
-        return PathManager.default_config() / rel, PathManager.user_config() / rel
+            return PathManager.get_default_config_root(), PathManager.get_user_config_root()
+        return PathManager.get_default_config_root() / rel, PathManager.get_user_config_root() / rel
 
     @staticmethod
     def _config_path(directory: Path, config_id: str) -> Path:

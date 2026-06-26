@@ -1,34 +1,28 @@
 """
-Project Management Module - 项目管理模块
+Project Context Module - 项目上下文模块
 
-提供项目路径、配置发现、配置合并的统一接口。
+对外唯一入口：ProjectContextManager
 
-架构：
-- PathManager: 路径管理（提供常用路径的快捷访问）
-- DiscoveryManager: 约定目录下的配置发现与可覆盖加载
-- ConfigManager: 配置读取与合并（已知路径或专项加载器）
-- FileManager: 文件 I/O 原语（查找、读取、目录）
-- ProjectContextManager: Facade，组合上述 Manager
+设计原则：
+- 单一入口点：用户只通过 ProjectContextManager 访问功能
+- API契约明确：ProjectContextAPI 定义所有对外API
+- 防止误用：内部Manager不对外暴露
+
+使用示例：
+    # 用户代码（唯一入口）
+    from core.infra.project_context import ProjectContextManager
+    
+    ctx = ProjectContextManager()
+    root = ctx.get_project_root()
+    core_dir = ctx.get_core_root()
+    settings = ctx.load_core_config("logging")
+    strategies = ctx.discover_strategies()
 """
 
+from .api import ProjectContextAPI
 from .project_context_manager import ProjectContextManager
-from .path_manager import PathManager
-from .file_manager import FileManager
-from .config_manager import ConfigManager
-from .discovery_manager import (
-    DiscoveredConfig,
-    DiscoveryManager,
-    OverridableConfigNotFoundError,
-)
-from .config_merge_policies import merge_market_profile_dicts
 
 __all__ = [
+    "ProjectContextAPI",
     "ProjectContextManager",
-    "PathManager",
-    "DiscoveryManager",
-    "DiscoveredConfig",
-    "OverridableConfigNotFoundError",
-    "ConfigManager",
-    "FileManager",
-    "merge_market_profile_dicts",
 ]

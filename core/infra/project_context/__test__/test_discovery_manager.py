@@ -69,11 +69,11 @@ class TestDiscoveryManager:
         core_root.mkdir(parents=True, exist_ok=True)
         user_root.mkdir(parents=True, exist_ok=True)
         monkeypatch.setattr(
-            "core.infra.project_context.discovery_manager.PathManager.default_config",
+            "core.infra.project_context.discovery_manager.PathManager.get_default_config_root",
             lambda: core_root,
         )
         monkeypatch.setattr(
-            "core.infra.project_context.discovery_manager.PathManager.user_config",
+            "core.infra.project_context.discovery_manager.PathManager.get_user_config_root",
             lambda: user_root,
         )
         (core_root / "data.json").write_text('{"a": 1}', encoding="utf-8")

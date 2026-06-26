@@ -1,56 +1,128 @@
 """
 Project Context Manager - 项目上下文管理器
 
-职责：Facade 模式，组合 PathManager、DiscoveryManager、ConfigManager、FileManager 提供统一入口。
+职责：Facade 模式，组合 PathManager、DiscoveryManager、ConfigManager、FileManager 提供统一入口
 
 设计原则：
-- 组合 PathManager、DiscoveryManager、ConfigManager、FileManager
-- 提供便捷的统一 API
-- 可以独立使用各个 Manager，也可以使用 Facade
+- 对外唯一入口：用户只通过 ProjectContextManager 访问功能
+- 实现抽象接口：实现 ProjectContextAPI 定义的所有API
+- 内部实现私有：PathManager等不对外暴露
 """
-
 import json
-from typing import Optional, Dict, Any
+from pathlib import Path
+from typing import Optional, Dict, Any, List
+
+from .api import ProjectContextAPI
 from .path_manager import PathManager
 from .file_manager import FileManager
 from .config_manager import ConfigManager
 from .discovery_manager import DiscoveryManager
 
 
-class ProjectContextManager:
+class ProjectContextManager(ProjectContextAPI):
     """
-    项目上下文管理器 - Facade，组合各 Manager
+    Project Context Manager - 对外唯一入口
+    
+    实现ProjectContextAPI，组合内部Manager提供功能
     
     使用示例：
-        # 方式 1：使用 Facade（推荐）
+        # 用户代码（唯一入口）
         ctx = ProjectContextManager()
-        core_dir = ctx.path.core()
-        raw = ctx.discovery.load_overridable_config("markets", "china_a_stock")
-        settings = ctx.config.load_with_defaults(default_path, user_path)
-        meta = ctx.core_info()
-        
-        # 方式 2：独立使用（灵活）
-        from core.infra.project_context import PathManager, DiscoveryManager, ConfigManager
-        core_dir = PathManager.core()
+        root = ctx.get_project_root()
+        core_dir = ctx.get_core_root()
+        settings = ctx.load_core_config("logging")
+        strategies = ctx.discover_strategies()
+    
+    注意：
+        - 所有方法都是实例方法
+        - 内部Manager（PathManager等）不对外暴露
+        - API契约由 ProjectContextAPI 定义
     """
     
     def __init__(self):
         """初始化项目上下文管理器"""
-        self.path = PathManager
-        self.discovery = DiscoveryManager
-        self.config = ConfigManager
-        self.file = FileManager
+        # 内部Manager（私有实现，不对外暴露）
+        self._path_manager = PathManager
+        self._file_manager = FileManager
+        self._config_manager = ConfigManager
+        self._discovery_manager = DiscoveryManager
+    
+    # ========== 路径核心 API 实现（5个）==========
+    
+    def get_project_root(self) -> Path:
+        """获取项目根目录"""
+        return self._path_manager.get_project_root()
+    
+    def get_core_root(self) -> Path:
+        """获取 core 目录"""
+        return self._path_manager.get_core_root()
+    
+    def get_userspace_root(self) -> Path:
+        """获取 userspace 目录"""
+        return self._path_manager.get_userspace_root()
+    
+    def get_strategy_directory(self, strategy_name: str) -> Path:
+        """获取指定策略的目录"""
+        return self._path_manager.get_strategy_directory(strategy_name)
+    
+    def get_tag_directory(self, tag_name: str) -> Path:
+        """获取指定 Tag scenario 的目录"""
+        return self._path_manager.get_tag_scenario_directory(tag_name)
+    
+    # ========== 配置核心 API 实现（3个）==========
+    
+    def load_core_config(self, config_name: str) -> Dict[str, Any]:
+        """加载 core 配置"""
+        return self._config_manager.load_core_config(config_name)
+    
+    def load_database_config(self, database_type: Optional[str] = None) -> Dict[str, Any]:
+        """加载数据库配置"""
+        return self._config_manager.load_database_config(database_type)
+    
+    def load_data_config(self) -> Dict[str, Any]:
+        """加载 data.json 配置"""
+        return self._config_manager.load_data_config()
+    
+    # ========== 发现核心 API 实现（3个）==========
+    
+    def discover_strategies(self) -> List[str]:
+        """发现所有策略"""
+        return self._discovery_manager.discover_strategies()
+    
+    def discover_tags(self) -> List[str]:
+        """发现所有 Tag scenario"""
+        return self._discovery_manager.discover_tags()
+    
+    def discover_configs(self) -> Dict[str, Dict[str, Any]]:
+        """发现所有 core 配置"""
+        return self._discovery_manager.discover_core_configs()
+    
+    # ========== 文件核心 API 实现（2个）==========
+    
+    def find_file(self, filename: str, search_dir: Path, recursive: bool = True) -> Optional[Path]:
+        """查找单个文件"""
+        return self._file_manager.find_file(filename, search_dir, recursive=recursive)
+    
+    def load_file_content(self, path: Path, encoding: str = "utf-8") -> Optional[str]:
+        """加载文件内容"""
+        return self._file_manager.load_file_content(path, encoding=encoding)
+    
+    # ========== 元数据核心 API 实现（2个）==========
+    
+    def core_version(self) -> Optional[str]:
+        """获取 core 版本号"""
+        core_info = self.core_info()
+        if core_info is None:
+            return None
+        v = core_info.get("version")
+        return str(v) if v is not None else None
     
     def core_info(self) -> Optional[Dict[str, Any]]:
-        """
-        获取 core meta 信息
-
-        优先读取 core/core_meta.json（若存在）；否则使用 core.system.SystemMeta。
-        """
-        core_dir = PathManager.core()
+        """获取 core meta 信息"""
+        core_dir = self._path_manager.get_core_root()
         meta_file = core_dir / "core_meta.json"
 
-        content = FileManager.read_file(meta_file)
+        content = self._file_manager.load_file_content(meta_file)
         if content is not None:
             try:
                 return json.loads(content)
@@ -59,17 +131,12 @@ class ProjectContextManager:
 
         try:
             from core.system import system_meta
-
             return system_meta.to_dict()
         except Exception:
             return None
-
-    def core_version(self) -> Optional[str]:
-        """
-        获取 core 版本号（与 core_info 同源）。
-        """
-        core_info = self.core_info()
-        if core_info is None:
-            return None
-        v = core_info.get("version")
-        return str(v) if v is not None else None
+    
+    # ========== 缓存管理 API 实现（1个）==========
+    
+    def clear_userspace_cache(self) -> None:
+        """清理 userspace 路径缓存"""
+        self._path_manager.clear_userspace_cache()

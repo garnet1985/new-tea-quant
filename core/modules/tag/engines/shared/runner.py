@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 def _make_tag_spill_dir(scenario_name: str) -> Path:
     """DuckDB stage spill 临时目录（``tag_key`` 含 ``/`` 时须 sanitize prefix）。"""
-    parent = ProjectContext.get_userspace_tmp_directory() / "tag_spill"
+    parent = ProjectContext.path.get_userspace_tmp_directory() / "tag_spill"
     parent.mkdir(parents=True, exist_ok=True)
     prefix = f"ntq_tag_{filesystem_safe_tag_key(scenario_name)}_"
     return Path(tempfile.mkdtemp(prefix=prefix, dir=str(parent)))

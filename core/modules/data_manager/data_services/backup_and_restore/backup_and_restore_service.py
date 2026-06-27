@@ -1,5 +1,4 @@
 """
-from core.infra.project_context import ProjectContext
 跨表备份与恢复服务（BackupAndRestoreService）。
 
 定位：
@@ -13,6 +12,8 @@ from dataclasses import dataclass
 from datetime import date
 import logging
 import re
+
+from core.infra.project_context import ProjectContext
 import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
@@ -39,7 +40,7 @@ class BackupAndRestoreService(BaseDataService):
         super().__init__(data_manager)
 
     def _default_backup_root(self) -> Path:
-        return ProjectContext.get_backup_data_directory()
+        return ProjectContext.path.get_backup_data_directory()
 
     def _resolve_backup_dir(self, root_dir: Optional[str | Path], backup_date: Optional[str]) -> Path:
         base = Path(root_dir) if root_dir else self._default_backup_root()

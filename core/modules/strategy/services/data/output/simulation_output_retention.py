@@ -26,10 +26,10 @@ _SimKind = Literal["enum", "price", "capital"]
 def _simulation_root(sim_kind: _SimKind):
     """运行时解析路径函数"""
     if sim_kind == "enum":
-        return ProjectContext.get_strategy_directory_simulation_enum
+        return ProjectContext.path.get_strategy_directory_simulation_enum
     if sim_kind == "price":
-        return ProjectContext.get_strategy_directory_simulation_price
-    return ProjectContext.get_strategy_directory_simulation_capital
+        return ProjectContext.path.get_strategy_directory_simulation_price
+    return ProjectContext.path.get_strategy_directory_simulation_capital
 
 
 def resolve_max_output_versions(settings: Dict[str, Any]) -> int:

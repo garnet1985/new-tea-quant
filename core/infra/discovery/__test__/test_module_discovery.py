@@ -1,5 +1,5 @@
 """ModuleDiscovery 单元测试。"""
-from core.infra.discovery import ModuleDiscovery
+from core.infra.discovery.core.module_discovery import ModuleDiscovery
 
 
 

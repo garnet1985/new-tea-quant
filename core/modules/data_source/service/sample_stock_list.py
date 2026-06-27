@@ -42,7 +42,7 @@ _PER_STOCK_PRUNE_TABLES: Tuple[Tuple[str, str], ...] = (
 
 
 def sample_pool_count() -> Optional[int]:
-    return ProjectContext.get_use_sample_stock_list()
+    return ProjectContext.path.get_use_sample_stock_list()
 
 
 def pool_stock_ids() -> List[str]:

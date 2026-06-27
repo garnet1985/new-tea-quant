@@ -1,6 +1,7 @@
 # API Contract - infra.project_context
 # Version: 0.4.0
 # Last Updated: 2026-06-26
+# Requires: core>=0.4.0
 #
 # 目的：
 #   - 为所有API建立快捷目录

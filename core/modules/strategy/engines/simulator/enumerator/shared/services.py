@@ -371,7 +371,7 @@ class EnumeratorSharedServices:
         except Exception:
             core_mapping_hash = ""
 
-        userspace_mapping_file = ProjectContext.get_data_contract_mapping_path()
+        userspace_mapping_file = ProjectContext.path.get_data_contract_mapping_path()
         if userspace_mapping_file.exists():
             userspace_mapping_hash = self._hash_file(userspace_mapping_file)
 

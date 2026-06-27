@@ -19,7 +19,7 @@ def probe_provider_auth_configured(provider_class: Type[Any]) -> bool:
 
     if auth_type == "token":
         if provider_name == "tushare":
-            auth_token_path = ProjectContext.get_data_source_provider_directory("tushare") / "auth_token.txt"
+            auth_token_path = ProjectContext.path.get_data_source_provider_directory("tushare") / "auth_token.txt"
             if auth_token_path.exists():
                 try:
                     token = auth_token_path.read_text(encoding="utf-8").strip()

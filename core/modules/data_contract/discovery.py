@@ -18,11 +18,11 @@ def discover_userspace_map() -> DataSpecMap:
     - `default_map`
     - `DATA_CONTRACT_MAP`
     """
-    userspace_dc_dir = ProjectContext.get_data_contract_root()
+    userspace_dc_dir = ProjectContext.path.get_data_contract_root()
     if not userspace_dc_dir.exists():
         return {}
 
-    mapping_file = ProjectContext.get_data_contract_mapping_path()
+    mapping_file = ProjectContext.path.get_data_contract_mapping_path()
     if not mapping_file.exists():
         return {}
 

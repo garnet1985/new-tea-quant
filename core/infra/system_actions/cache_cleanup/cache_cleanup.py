@@ -27,7 +27,7 @@ def _discovered_strategy_keys(*, strategy_names: Optional[Iterable[str]] = None)
     from core.modules.strategy.services.discovery import StrategyDiscoveryHelper
     from core.modules.strategy.services.discovery.path_rules import relative_strategy_key
 
-    root = ProjectContext.get_strategies_root()
+    root = ProjectContext.path.get_strategies_root()
     if not root.is_dir():
         return []
     keys: List[str] = []
@@ -53,7 +53,7 @@ def clear_backtest_results_disk(*, strategy_names: Optional[Iterable[str]] = Non
     """删除各策略 ``results/simulations/``。返回删除的目录数。"""
     removed = 0
     for name in _discovered_strategy_keys(strategy_names=strategy_names):
-        sim_root = ProjectContext.get_strategy_directory_results(name) / "simulations"
+        sim_root = ProjectContext.path.get_strategy_directory_results(name) / "simulations"
         if sim_root.exists():
             _rm_tree(sim_root)
             removed += 1
@@ -64,7 +64,7 @@ def clear_scan_results_disk(*, strategy_names: Optional[Iterable[str]] = None) -
     """删除各策略 ``results/scan/``。返回删除的目录数。"""
     removed = 0
     for name in _discovered_strategy_keys(strategy_names=strategy_names):
-        scan_root = ProjectContext.get_strategy_directory_scan_results(name)
+        scan_root = ProjectContext.path.get_strategy_directory_scan_results(name)
         if scan_root.exists():
             _rm_tree(scan_root)
             removed += 1
@@ -75,7 +75,7 @@ def clear_strategy_results_disk(*, strategy_names: Optional[Iterable[str]] = Non
     """删除各策略整个 ``results/``（devcli 用，含 simulations 与 scan）。"""
     removed = 0
     for name in _discovered_strategy_keys(strategy_names=strategy_names):
-        results = ProjectContext.get_strategy_directory_results(name)
+        results = ProjectContext.path.get_strategy_directory_results(name)
         if results.exists():
             _rm_tree(results)
             removed += 1
@@ -88,8 +88,8 @@ def clear_userspace_ntq_dir() -> None:
 
     不触碰仓库根 ``.ntq/``（含 install-state 等开发缓存）。
     """
-    ProjectContext.clear_userspace_cache()
-    us_ntq = ProjectContext.get_userspace_ntq_directory()
+    ProjectContext.cache.clear_userspace_cache()
+    us_ntq = ProjectContext.path.get_userspace_ntq_directory()
     if us_ntq.is_dir():
         _rm_tree(us_ntq)
 

@@ -1,12 +1,13 @@
 """工作台 ``result_report`` 槽位：DB 存轻量摘要 + 磁盘路径，读取时以产物 JSON 为正文。"""
 
-from core.infra.project_context import ProjectContext
 from __future__ import annotations
 
 import json
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+from core.infra.project_context import ProjectContext
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ def compact_enum_slot_for_cache(strategy_name: str, slot: Dict[str, Any]) -> Dic
     vdir = str(base.get("enumerator_output_dir") or "").strip()
     if not vdir:
         return base
-    report_path = ProjectContext.get_strategy_directory_simulation_enum(str(strategy_name).strip()) / vdir / _ENUM_REPORT_FILE
+    report_path = ProjectContext.path.get_strategy_directory_simulation_enum(str(strategy_name).strip()) / vdir / _ENUM_REPORT_FILE
     if not report_path.is_file():
         return base
     out = dict(base)
@@ -89,7 +90,7 @@ def resolve_enumerator_output_dir_from_downstream_report(
         vd = str(report.get("capital_output_version_dir") or "").strip()
         if sn and vd:
             meta = _read_json(
-                ProjectContext.get_strategy_directory_simulation_capital(sn) / vd / "0_metadata.json"
+                ProjectContext.path.get_strategy_directory_simulation_capital(sn) / vd / "0_metadata.json"
             )
             if meta:
                 ref = _metadata_refs_enum_output_dir(meta)
@@ -108,7 +109,7 @@ def build_enum_slot_from_enumerator_dir(
     if not (sn and vdir):
         return {}
     disk = _read_json(
-        ProjectContext.get_strategy_directory_simulation_enum(sn) / vdir / _ENUM_REPORT_FILE
+        ProjectContext.path.get_strategy_directory_simulation_enum(sn) / vdir / _ENUM_REPORT_FILE
     )
     if not disk:
         return {}
@@ -173,7 +174,7 @@ def hydrate_enum_slot(strategy_name: str, slot: Dict[str, Any]) -> Dict[str, Any
     if not (vdir and sn):
         return slot
     rel = str(slot.get("enum_report_rel_path") or _ENUM_REPORT_FILE).strip() or _ENUM_REPORT_FILE
-    path = ProjectContext.get_strategy_directory_simulation_enum(sn) / vdir / rel
+    path = ProjectContext.path.get_strategy_directory_simulation_enum(sn) / vdir / rel
     disk = _read_json(path)
     if not disk:
         return slot
@@ -182,7 +183,7 @@ def hydrate_enum_slot(strategy_name: str, slot: Dict[str, Any]) -> Dict[str, Any
         if key != "enumMetrics":
             out[key] = value
     if not isinstance(out.get("backtest_period"), dict):
-        meta = _read_json(ProjectContext.get_strategy_directory_simulation_enum(sn) / vdir / "0_metadata.json")
+        meta = _read_json(ProjectContext.path.get_strategy_directory_simulation_enum(sn) / vdir / "0_metadata.json")
         if isinstance(meta, dict):
             bp = meta.get("backtest_period")
             if isinstance(bp, dict) and bp.get("start_date") and bp.get("end_date"):
@@ -237,7 +238,7 @@ def _resolve_capital_output_dir(
     needle = str(match or "").strip()
     if not (sn and needle):
         return None
-    root = ProjectContext.get_strategy_directory_simulation_capital(sn)
+    root = ProjectContext.path.get_strategy_directory_simulation_capital(sn)
     if not root.is_dir():
         return None
     best_name = ""
@@ -294,7 +295,7 @@ def compact_capital_slot_for_cache(
     if not vd:
         return out
     summary_path = (
-        ProjectContext.get_strategy_directory_simulation_capital(str(strategy_name).strip()) / vd / _CAPITAL_SUMMARY_FILE
+        ProjectContext.path.get_strategy_directory_simulation_capital(str(strategy_name).strip()) / vd / _CAPITAL_SUMMARY_FILE
     )
     if not summary_path.is_file():
         return out
@@ -313,7 +314,7 @@ def hydrate_capital_slot(strategy_name: str, slot: Dict[str, Any]) -> Dict[str, 
     if not (vd and sn):
         return slot
     rel = str(slot.get("capital_full_summary_rel_path") or _CAPITAL_SUMMARY_FILE).strip() or _CAPITAL_SUMMARY_FILE
-    path = ProjectContext.get_strategy_directory_simulation_capital(sn) / vd / rel
+    path = ProjectContext.path.get_strategy_directory_simulation_capital(sn) / vd / rel
     disk = _read_json(path)
     if not disk:
         return slot

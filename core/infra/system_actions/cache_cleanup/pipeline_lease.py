@@ -1,6 +1,5 @@
 """Global DuckDB pipeline lease (single active long-running job)."""
 
-from core.infra.project_context import ProjectContext
 from __future__ import annotations
 
 import json
@@ -10,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, Dict, List, Optional
+
+from core.infra.project_context import ProjectContext
 
 _LOCK = threading.Lock()
 
@@ -28,7 +29,7 @@ class PipelineLeaseBusyError(Exception):
 
 
 def _lease_path() -> Path:
-    return ProjectContext.get_userspace_ntq_directory() / "runtime" / "pipeline_active.json"
+    return ProjectContext.path.get_userspace_ntq_directory() / "runtime" / "pipeline_active.json"
 
 
 def _iso_now() -> str:

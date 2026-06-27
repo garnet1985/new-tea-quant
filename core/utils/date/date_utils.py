@@ -54,7 +54,7 @@ class DateUtils:
     def get_default_start_date() -> str:
         """获取默认开始日期"""
         ProjectContext = DateUtils._get_config_manager()
-        return ProjectContext.get_default_start_date()
+        return ProjectContext.path.get_default_start_date()
 
     @staticmethod
     def get_query_date_range_min() -> str:
@@ -63,7 +63,7 @@ class DateUtils:
         配置缺失或无法标准化时回退到内部兜底常量。
         """
         ProjectContext = DateUtils._get_config_manager()
-        raw = ProjectContext.get_default_start_date()
+        raw = ProjectContext.path.get_default_start_date()
         if raw:
             n = DateUtils.normalize_str(str(raw))
             if n:

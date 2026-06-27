@@ -7,19 +7,26 @@ ProjectContext API Test - 对外API契约测试
 - 保证API稳定性
 
 测试分组：
-- 路径核心 API（5个）
-- 配置核心 API（3个）
-- 发现核心 API（3个）
-- 文件核心 API（2个）
-- 元数据核心 API（2个）
-- 缓存管理 API（1个）
+- 路径核心 API
+- 特殊配置 API
+- 元数据核心 API
+- 缓存管理 API
 
-总计：16个核心API
+已移除的API（不再测试）：
+- load_core_config（配置加载API）
+- load_database_config（配置加载API）
+- load_data_config（配置加载API）
+- discover_strategies（发现API）
+- discover_tags（发现API）
+- discover_configs（发现API）
+- find_file（文件查找API）
+- load_file_content（文件加载API）
 """
 import pytest
 from pathlib import Path
 from typing import Optional, Dict, Any, List
-from core.infra.project_context import ProjectContext, ProjectContextAPI
+from core.infra.project_context.core.project_context_manager import ProjectContext
+from core.infra.project_context.base import ProjectContextAPI
 
 
 class TestProjectContextAPIContract:
@@ -32,7 +39,7 @@ class TestProjectContextAPIContract:
         # 类方法不需要实例，直接检查类是否继承自ProjectContextAPI
         assert issubclass(ProjectContext, ProjectContextAPI)
 
-    # ========== 路径核心 API测试（5个）==========
+    # ========== 路径核心 API测试（13个）==========
 
     def test_get_project_root_returns_path(self):
         """测试get_project_root返回Path对象"""
@@ -48,6 +55,75 @@ class TestProjectContextAPIContract:
 
     def test_get_core_root_returns_path(self):
         """测试get_core_root返回Path对象"""
+        core_root = ProjectContext.get_core_root()
+        assert isinstance(core_root, Path)
+        assert core_root.is_absolute()
+
+    def test_get_userspace_root_returns_path(self):
+        """测试get_userspace_root返回Path对象"""
+        userspace_root = ProjectContext.get_userspace_root()
+        assert isinstance(userspace_root, Path)
+        assert userspace_root.is_absolute()
+
+    def test_get_extensions_root_returns_path(self):
+        """测试get_extensions_root返回Path对象"""
+        extensions_root = ProjectContext.get_extensions_root()
+        assert isinstance(extensions_root, Path)
+        assert extensions_root.is_absolute()
+
+    def test_get_system_root_returns_path(self):
+        """测试get_system_root返回Path对象"""
+        system_root = ProjectContext.get_system_root()
+        assert isinstance(system_root, Path)
+        assert system_root.is_absolute()
+
+    def test_get_default_config_root_returns_path(self):
+        """测试get_default_config_root返回Path对象"""
+        default_config_root = ProjectContext.get_default_config_root()
+        assert isinstance(default_config_root, Path)
+        assert default_config_root.is_absolute()
+
+    def test_get_user_config_root_returns_path(self):
+        """测试get_user_config_root返回Path对象"""
+        user_config_root = ProjectContext.get_user_config_root()
+        assert isinstance(user_config_root, Path)
+        assert user_config_root.is_absolute()
+
+    def test_get_system_db_directory_returns_path(self):
+        """测试get_system_db_directory返回Path对象"""
+        system_db_directory = ProjectContext.get_system_db_directory()
+        assert isinstance(system_db_directory, Path)
+        assert system_db_directory.is_absolute()
+
+    def test_get_backup_directory_returns_path(self):
+        """测试get_backup_directory返回Path对象"""
+        backup_directory = ProjectContext.get_backup_directory()
+        assert isinstance(backup_directory, Path)
+        assert backup_directory.is_absolute()
+
+    def test_get_updater_directory_returns_path(self):
+        """测试get_updater_directory返回Path对象"""
+        updater_directory = ProjectContext.get_updater_directory()
+        assert isinstance(updater_directory, Path)
+        assert updater_directory.is_absolute()
+
+    def test_get_userspace_tmp_directory_returns_path(self):
+        """测试get_userspace_tmp_directory返回Path对象"""
+        userspace_tmp_directory = ProjectContext.get_userspace_tmp_directory()
+        assert isinstance(userspace_tmp_directory, Path)
+        assert userspace_tmp_directory.is_absolute()
+
+    def test_get_strategies_root_returns_path(self):
+        """测试get_strategies_root返回Path对象"""
+        strategies_root = ProjectContext.get_strategies_root()
+        assert isinstance(strategies_root, Path)
+        assert strategies_root.is_absolute()
+
+    def test_get_tags_root_returns_path(self):
+        """测试get_tags_root返回Path对象"""
+        tags_root = ProjectContext.get_tags_root()
+        assert isinstance(tags_root, Path)
+        assert tags_root.is_absolute()
         core_dir = ProjectContext.get_core_root()
         assert isinstance(core_dir, Path)
         assert core_dir.is_absolute()
@@ -191,46 +267,6 @@ class TestProjectContextAPIContract:
         assert isinstance(ntq_dir, Path)
         assert ntq_dir.is_absolute()
 
-    # ========== 配置核心 API测试（3个）==========
-
-    def test_load_core_config_returns_dict(self):
-        """测试load_core_config返回字典"""
-        config = ProjectContext.load_core_config("logging")
-        assert isinstance(config, dict)
-
-    def test_load_core_config_with_valid_name(self):
-        """测试load_core_config接受有效的配置名称"""
-        # 尝试加载存在的配置（如果不存在，返回空字典）
-        config = ProjectContext.load_core_config("logging")
-        assert isinstance(config, dict)
-
-    def test_load_core_config_with_invalid_name(self):
-        """测试load_core_config接受无效的配置名称（返回空字典）"""
-        config = ProjectContext.load_core_config("nonexistent_config")
-        assert isinstance(config, dict)
-        # 文件不存在时应该返回空字典（而不是抛出异常）
-        assert config == {} or len(config) >= 0
-
-    def test_load_database_config_returns_dict(self):
-        """测试load_database_config返回字典"""
-        config = ProjectContext.load_database_config()
-        assert isinstance(config, dict)
-
-    def test_load_database_config_with_database_type(self):
-        """测试load_database_config接受database_type参数"""
-        config = ProjectContext.load_database_config("duckdb")
-        assert isinstance(config, dict)
-
-    def test_load_database_config_with_none_type(self):
-        """测试load_database_config接受None参数"""
-        config = ProjectContext.load_database_config(None)
-        assert isinstance(config, dict)
-
-    def test_load_data_config_returns_dict(self):
-        """测试load_data_config返回字典"""
-        config = ProjectContext.load_data_config()
-        assert isinstance(config, dict)
-
     # ========== 特殊配置 API测试（3个）==========
 
     def test_get_default_start_date_returns_string(self):
@@ -247,105 +283,6 @@ class TestProjectContextAPIContract:
         """测试get_use_sample_stock_list返回整数或None"""
         sample_size = ProjectContext.get_use_sample_stock_list()
         assert sample_size is None or isinstance(sample_size, int)
-
-    # ========== 发现核心 API测试（3个）==========
-
-    def test_discover_strategies_returns_list(self):
-        """测试discover_strategies返回列表"""
-        strategies = ProjectContext.discover_strategies()
-        assert isinstance(strategies, list)
-
-    def test_discover_strategies_contains_strings(self):
-        """测试discover_strategies返回字符串列表"""
-        strategies = ProjectContext.discover_strategies()
-        for strategy in strategies:
-            assert isinstance(strategy, str)
-
-    def test_discover_tags_returns_list(self):
-        """测试discover_tags返回列表"""
-        tags = ProjectContext.discover_tags()
-        assert isinstance(tags, list)
-
-    def test_discover_tags_contains_strings(self):
-        """测试discover_tags返回字符串列表"""
-        tags = ProjectContext.discover_tags()
-        for tag in tags:
-            assert isinstance(tag, str)
-
-    def test_discover_configs_returns_dict(self):
-        """测试discover_configs返回字典"""
-        configs = ProjectContext.discover_configs()
-        assert isinstance(configs, dict)
-
-    def test_discover_configs_contains_dicts(self):
-        """测试discover_configs返回字典到字典的映射"""
-        configs = ProjectContext.discover_configs()
-        for config_name, config_dict in configs.items():
-            assert isinstance(config_name, str)
-            assert isinstance(config_dict, dict)
-
-    def test_discover_configs_with_domain_returns_dict(self):
-        """测试discover_configs(domain)返回字典"""
-        configs = ProjectContext.discover_configs("markets")
-        assert isinstance(configs, dict)
-
-    def test_discover_configs_with_domain_contains_dicts(self):
-        """测试discover_configs(domain)返回字典到字典的映射"""
-        configs = ProjectContext.discover_configs("markets")
-        for config_name, config_dict in configs.items():
-            assert isinstance(config_name, str)
-            assert isinstance(config_dict, dict)
-
-    # ========== 文件核心 API测试（2个）==========
-
-    def test_find_file_returns_path_or_none(self):
-        """测试find_file返回Path对象或None"""
-        # 搜索存在的文件
-        result = ProjectContext.find_file("pyproject.toml", ProjectContext.get_project_root(), recursive=False)
-        assert result is None or isinstance(result, Path)
-
-    def test_find_file_with_recursive_true(self):
-        """测试find_file接受recursive=True参数"""
-        result = ProjectContext.find_file("settings.py", ProjectContext.get_userspace_root(), recursive=True)
-        assert result is None or isinstance(result, Path)
-
-    def test_find_file_with_recursive_false(self):
-        """测试find_file接受recursive=False参数"""
-        result = ProjectContext.find_file("pyproject.toml", ProjectContext.get_project_root(), recursive=False)
-        assert result is None or isinstance(result, Path)
-
-    def test_find_file_with_nonexistent_file(self):
-        """测试find_file搜索不存在的文件（返回None）"""
-        result = ProjectContext.find_file("nonexistent_file.txt", ProjectContext.get_project_root(), recursive=True)
-        assert result is None
-
-    def test_load_file_content_returns_string_or_none(self):
-        """测试load_file_content返回字符串或None"""
-        # 尝试加载存在的文件
-        core_dir = ProjectContext.get_core_root()
-        result = ProjectContext.load_file_content(core_dir / "core_meta.json")
-        assert result is None or isinstance(result, str)
-
-    def test_load_file_content_with_valid_file(self, tmp_path):
-        """测试load_file_content加载存在的文件"""
-        test_file = tmp_path / "test.txt"
-        test_file.write_text("test content", encoding="utf-8")
-
-        content = ProjectContext.load_file_content(test_file, encoding="utf-8")
-        assert content == "test content"
-
-    def test_load_file_content_with_nonexistent_file(self):
-        """测试load_file_content加载不存在的文件（返回None）"""
-        content = ProjectContext.load_file_content(Path("/nonexistent/file.txt"))
-        assert content is None
-
-    def test_load_file_content_with_encoding_parameter(self, tmp_path):
-        """测试load_file_content接受encoding参数"""
-        test_file = tmp_path / "test_utf8.txt"
-        test_file.write_text("UTF-8 content", encoding="utf-8")
-
-        content = ProjectContext.load_file_content(test_file, encoding="utf-8")
-        assert content == "UTF-8 content"
 
     # ========== 元数据核心 API测试（2个）==========
 
@@ -397,7 +334,7 @@ class TestProjectContextAPIContract:
     # ========== API契约完整性验证 ==========
 
     def test_api_count_matches_definition(self):
-        """验证API数量与定义一致（16个核心API）"""
+        """验证API数量与定义一致（保留的核心API）"""
         # 检查所有API是否都存在
         api_methods = [
             'get_project_root',
@@ -405,14 +342,6 @@ class TestProjectContextAPIContract:
             'get_userspace_root',
             'get_strategy_directory',
             'get_tag_directory',
-            'load_core_config',
-            'load_database_config',
-            'load_data_config',
-            'discover_strategies',
-            'discover_tags',
-            'discover_configs',
-            'find_file',
-            'load_file_content',
             'core_version',
             'core_info',
             'clear_userspace_cache',
@@ -432,14 +361,6 @@ class TestProjectContextAPIContract:
             'get_userspace_root',
             'get_strategy_directory',
             'get_tag_directory',
-            'load_core_config',
-            'load_database_config',
-            'load_data_config',
-            'discover_strategies',
-            'discover_tags',
-            'discover_configs',
-            'find_file',
-            'load_file_content',
             'core_version',
             'core_info',
             'clear_userspace_cache',
@@ -457,7 +378,7 @@ class TestProjectContextAPIContract:
 class TestProjectContextAPIEdgeCases:
     """ProjectContext边缘case测试"""
 
-        # ========== 路径API边缘case ==========
+    # ========== 路径API边缘case ==========
 
     def test_get_strategy_directory_with_empty_name(self):
         """测试get_strategy_directory接受空字符串"""
@@ -468,34 +389,6 @@ class TestProjectContextAPIEdgeCases:
         """测试get_tag_directory接受空字符串"""
         tag_dir = ProjectContext.get_tag_directory("")
         assert isinstance(tag_dir, Path)
-
-    # ========== 配置API边缘case ==========
-
-    def test_load_database_config_with_empty_string_type(self):
-        """测试load_database_config接受空字符串"""
-        config = ProjectContext.load_database_config("")
-        assert isinstance(config, dict)
-
-    # ========== 文件API边缘case ==========
-
-    def test_find_file_with_empty_filename(self):
-        """测试find_file接受空文件名"""
-        result = ProjectContext.find_file("", ProjectContext.get_project_root())
-        assert result is None
-
-    def test_load_file_content_with_invalid_encoding(self, tmp_path):
-        """测试load_file_content接受无效编码（可能抛出异常或返回None）"""
-        test_file = tmp_path / "test.txt"
-        test_file.write_text("test content", encoding="utf-8")
-
-        # 使用无效编码（可能抛出异常）
-        try:
-            content = ProjectContext.load_file_content(test_file, encoding="invalid_encoding")
-            # 如果不抛出异常，可能返回None或错误的字符串
-            assert content is None or isinstance(content, str)
-        except Exception:
-            # 如果抛出异常，也是合理的
-            pass
 
     # ========== 缓存API边缘case ==========
 

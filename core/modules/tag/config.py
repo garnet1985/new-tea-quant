@@ -15,4 +15,4 @@ from core.infra.project_context import ProjectContext
 
 def get_scenarios_root() -> Path:
     """获取标签场景根目录"""
-    return ProjectContext.get_tags_root()
+    return ProjectContext.path.get_tags_root()

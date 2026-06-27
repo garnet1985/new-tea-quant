@@ -51,7 +51,7 @@ class SchemaManager:
             self.tables_dir = tables_dir
         else:
             # 默认指向 core/tables（sys_ 前缀表定义在此）
-            self.tables_dir = str(ProjectContext.get_core_root() / 'tables')
+            self.tables_dir = str(ProjectContext.path.get_core_root() / 'tables')
         self.is_verbose = is_verbose
         self.database_type = database_type or 'postgresql'  # 默认 PostgreSQL
         
@@ -162,7 +162,7 @@ class SchemaManager:
         """仅 ``core/tables`` 下的 Python schema 必须带 ``update_key``（迁移/脚本稳定锚点）。"""
         if schema_file_path is None:
             return False
-        core_tables = (ProjectContext.get_core_root() / "tables").resolve()
+        core_tables = (ProjectContext.path.get_core_root() / "tables").resolve()
         try:
             schema_file_path.resolve().relative_to(core_tables)
             return True

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from core.infra.project_context import ProjectContext
+from core.infra.project_context.discovery_manager import DiscoveryManager
 
 from core.modules.market_profile.constants import DEFAULT_PROFILE_ID, MARKETS_CONFIG_DIR
 
@@ -32,7 +32,7 @@ class StrategyMarketProfileSettings(SettingsBase):
     def validate(self) -> ValidationReport:
         self.apply_defaults()
         result = SettingsBase.new_validation()
-        known = ProjectContext.discover_configs(MARKETS_CONFIG_DIR)
+        known = DiscoveryManager.discover_configs(MARKETS_CONFIG_DIR)
         if known and self.profile_id not in known:
             SettingsBase.add_critical(
                 result,

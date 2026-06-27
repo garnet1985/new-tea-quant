@@ -79,9 +79,9 @@ def resolve_system_process_cap(worker_id: str = WorkerProfiles.ENUMERATOR) -> in
 
 def is_duckdb_backend() -> bool:
     try:
-        from core.infra.project_context import ProjectContext
+        from core.infra.project_context.config_manager import ConfigManager
 
-        bt = str(ProjectContext.load_database_config().get("database_type") or "").lower()
+        bt = str(ConfigManager.load_database_config().get("database_type") or "").lower()
         return "duck" in bt
     except Exception:
         return False

@@ -53,7 +53,7 @@ class StrategyManager:
         info = self.validated_strategies.get(strategy_name)
         if info is not None:
             return info
-        folder = ProjectContext.get_strategy_directory(strategy_name)
+        folder = ProjectContext.path.get_strategy_directory(strategy_name)
         if not folder.is_dir():
             return None
         return StrategyDiscoveryHelper.load_strategy(folder)
@@ -458,8 +458,8 @@ class StrategyManager:
 
         found = False
         for sn in strategy_names:
-            pf_root = ProjectContext.get_strategy_directory_simulation_price(sn)
-            ca_root = ProjectContext.get_strategy_directory_simulation_capital(sn)
+            pf_root = ProjectContext.path.get_strategy_directory_simulation_price(sn)
+            ca_root = ProjectContext.path.get_strategy_directory_simulation_capital(sn)
 
             pf_latest = _read_latest_version(pf_root) if (pf_root / "meta.json").is_file() else None
             ca_latest = _read_latest_version(ca_root) if (ca_root / "meta.json").is_file() else None

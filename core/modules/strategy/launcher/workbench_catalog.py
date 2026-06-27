@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.infra.project_context import ProjectContext
+from core.infra.project_context.discovery_manager import DiscoveryManager
 
 from core.modules.data_manager import DataManager
 from core.modules.market_profile.constants import MARKETS_CONFIG_DIR
@@ -240,12 +241,12 @@ def items_simulation_templates() -> List[Dict[str, Any]]:
 
 def items_market_profiles() -> List[Dict[str, Any]]:
     """根级 ``market_profile`` 可选值（扫描 markets 配置目录）。"""
-    known = ProjectContext.discover_configs(MARKETS_CONFIG_DIR)
+    known = DiscoveryManager.discover_configs(MARKETS_CONFIG_DIR)
     out: List[Dict[str, Any]] = []
     for pid in known:
         label = pid
         try:
-            raw = ProjectContext.load_overridable_config(MARKETS_CONFIG_DIR, pid)
+            raw = DiscoveryManager.load_overridable_config(MARKETS_CONFIG_DIR, pid)
             if isinstance(raw, dict):
                 desc = str(raw.get("description") or "").strip()
                 if desc:

@@ -211,7 +211,7 @@ def _resolve_discovered_strategy(strategy_name: str):
     name = str(strategy_name or "").strip()
     if not name:
         return None, "strategy_name 无效"
-    folder = ProjectContext.get_strategy_directory(name)
+    folder = ProjectContext.path.get_strategy_directory(name)
     discovered = StrategyDiscoveryHelper.load_strategy(folder)
     if discovered is None:
         return None, "策略不存在或无法加载"
@@ -273,7 +273,7 @@ def get_scan_readiness(*, strategy_name: str, demo: bool = False) -> Dict[str, A
 
         resolver = ScanDateResolver(data_mgr)
         scan_date, stock_ids = resolver.resolve_scan_date(use_strict=use_strict)
-        csv_path = ProjectContext.get_strategy_directory_scan_results(name) / scan_date / "opportunities.csv"
+        csv_path = ProjectContext.path.get_strategy_directory_scan_results(name) / scan_date / "opportunities.csv"
         if not csv_path.is_file():
             return {"primary_action": "run"}
 

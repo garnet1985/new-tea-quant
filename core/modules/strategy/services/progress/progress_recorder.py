@@ -1,4 +1,3 @@
-from core.infra.project_context import ProjectContext
 from __future__ import annotations
 
 import json
@@ -8,6 +7,8 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import AbstractSet, Any, Dict, Optional
 
+from core.infra.project_context import ProjectContext
+
 class ProgressRecorder:
     def __init__(self, recorder_path: str | Path):
         self.recorder_path = Path(recorder_path)
@@ -15,7 +16,7 @@ class ProgressRecorder:
     @staticmethod
     def build_path(channel: str, file_key: str) -> Path:
         filename = f"{file_key}.json"
-        return ProjectContext.get_userspace_tmp_directory() / "progress" / channel / filename
+        return ProjectContext.path.get_userspace_tmp_directory() / "progress" / channel / filename
 
     @classmethod
     def for_strategy_run_step(
@@ -91,7 +92,7 @@ class ProgressRecorder:
         if not sn or not step:
             return
         keep = preserve_run_ids or set()
-        d = ProjectContext.get_userspace_tmp_directory() / "progress" / channel
+        d = ProjectContext.path.get_userspace_tmp_directory() / "progress" / channel
         if not d.is_dir():
             return
         prefix = f"{sn}__"

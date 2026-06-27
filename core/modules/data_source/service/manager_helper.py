@@ -145,7 +145,7 @@ class DataSourceManagerHelper:
         Returns:
             找到的 handler.py 文件路径，如果未找到则返回 None
         """
-        handlers_dir = ProjectContext.get_data_source_handlers_directory()
+        handlers_dir = ProjectContext.path.get_data_source_handlers_directory()
         if not handlers_dir.exists():
             return None
         

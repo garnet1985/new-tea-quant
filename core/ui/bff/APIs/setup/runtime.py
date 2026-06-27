@@ -1,4 +1,3 @@
-from core.infra.project_context import ProjectContext
 from __future__ import annotations
 
 import json
@@ -10,6 +9,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from core.infra.project_context import ProjectContext
 from setup.meta_loader import load_setup_step_meta
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
@@ -94,7 +94,7 @@ class SetupRuntimeManager:
         if raw_target:
             target = Path(raw_target).expanduser()
         else:
-            target = ProjectContext.get_userspace_root()
+            target = ProjectContext.path.get_userspace_root()
 
         exists = target.exists()
         return {
@@ -270,7 +270,7 @@ class SetupRuntimeManager:
 
             self._set_step_state(state, step_id, self.STATUS_SUCCESS, "")
             if step_id == "init_userspace":
-                ProjectContext.clear_userspace_cache()
+                ProjectContext.cache.clear_userspace_cache()
             return True, ""
         except Exception as e:  # pragma: no cover
             msg = str(e)
@@ -282,7 +282,7 @@ class SetupRuntimeManager:
         init_target = str(init_inputs.get("userspaceTargetPath", "")).strip()
         if init_target:
             return Path(init_target).expanduser().resolve()
-        return ProjectContext.get_userspace_root()
+        return ProjectContext.path.get_userspace_root()
 
     def _prepare_inputs_for_step(self, state: Dict[str, Any], step_id: str, inputs: Dict[str, Any]) -> None:
         if step_id != "db_connection":
@@ -374,7 +374,7 @@ class SetupRuntimeManager:
         state["version"] = int(state.get("version", 1)) + 1
 
     def _duckdb_files_exist(self, state: Optional[Dict[str, Any]] = None) -> bool:
-        userspace_root = self._resolve_userspace_root(state) if state else ProjectContext.get_userspace_root()
+        userspace_root = self._resolve_userspace_root(state) if state else ProjectContext.path.get_userspace_root()
         db_dir = userspace_root / "system" / "db"
         for name in _DUCKDB_DOMAIN_FILES:
             path = db_dir / name

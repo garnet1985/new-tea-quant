@@ -60,7 +60,7 @@ def default_pre_mirror_snapshot_path(repo_root: Path) -> Path:
 
     _ = repo_root  # 保留参数；实际路径以 ProjectContext.get_userspace_root() 为准
     return (
-        ProjectContext.get_userspace_ntq_directory()
+        ProjectContext.path.get_userspace_ntq_directory()
         / "update"
         / "cache"
         / DEFAULT_PRE_MIRROR_FILENAME
@@ -80,7 +80,7 @@ def load_current_table_schemas(
     else:
         from core.infra.project_context import ProjectContext
 
-        td = str(ProjectContext.get_core_root() / "tables")
+        td = str(ProjectContext.path.get_core_root() / "tables")
     sm = SchemaManager(tables_dir=td)
     return sm.load_all_schemas()
 

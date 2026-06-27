@@ -1,9 +1,15 @@
 name: infra.discovery
-version: 0.2.0
-compatible_core_versions: ">=0.2.0"
-description: "NTQ 的扩展发现基础设施：按包路径与命名约定扫描并加载子类、模块级对象及类属性。"
+version: 0.3.0
+compatible_core_versions: ">=0.3.0"
+description: "NTQ 的扩展发现基础设施：提供文件、类、模块的批量发现功能。支持单个文件操作和批量发现。"
 dependencies: []
 changelog:
+  - version: "0.3.0"
+    changes:
+      - 新增 FileUtils（单个文件操作）
+      - 新增 FileDiscovery（批量文件发现）
+      - 完善架构设计：Utils（原子）→ Discovery（批量）
+      - 新增 api.yaml 定义API契约
   - version: "0.2.0"
     changes:
       - ClassDiscovery 包扫描；data_source Provider / handler 发现基线

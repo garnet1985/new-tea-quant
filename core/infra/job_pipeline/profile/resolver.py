@@ -5,6 +5,7 @@ from functools import lru_cache
 from typing import Any, Dict, Optional
 
 from core.infra.project_context import ProjectContext
+from core.infra.project_context.config_manager import ConfigManager
 from core.infra.job_pipeline.profile.constants import (
     DISPATCH_DEFAULTS_BY_PROFILE,
     WorkerProfiles,
@@ -30,9 +31,7 @@ def _parse_max_parallel_jobs_cap(raw: Any) -> Optional[int]:
 
 @lru_cache(maxsize=1)
 def _job_pipeline_block() -> Dict[str, Any]:
-    from core.infra.project_context.config_manager import ConfigManager
-
-    cfg = ProjectContext.load_core_config("worker", )
+    cfg = ConfigManager.load_core_config("worker", )
     block = cfg.get("job_pipeline") or {}
     return block if isinstance(block, dict) else {}
 

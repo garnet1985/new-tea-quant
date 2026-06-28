@@ -1,0 +1,171 @@
+# Glossary - infra.worker
+# Version: 0.3.2
+# Last Updated: 2026-06-28
+#
+# 目的：
+#   - 统一术语，避免混淆
+#   - 减少沟通成本
+#   - 确保命名一致性
+
+module: infra.worker
+version: 0.3.2
+
+---
+
+# 核心概念术语
+
+Worker:
+  description: "任务执行器"
+  aliases:
+    - Executor
+    - Runner
+  examples:
+    - ProcessWorker
+    - MultiThreadWorker
+
+Executor:
+  description: "执行器组件"
+  usage: "用于执行batch任务的组件"
+  examples:
+    - ProcessExecutor
+    - MultiThreadExecutor
+
+Job:
+  description: "任务"
+  aliases:
+    - Task
+    - Work
+  examples:
+    - JobResult
+    - JobStatus
+    - JobSource
+
+Source:
+  description: "任务源"
+  aliases:
+    - Queue
+    - Provider
+  examples:
+    - JobSource
+    - ListJobSource
+
+Monitor:
+  description: "监控器"
+  usage: "用于监控任务执行状态的组件"
+  examples:
+    - MemoryMonitor
+
+Scheduler:
+  description: "调度器"
+  usage: "用于控制batch大小和调度策略的组件"
+  examples:
+    - MemoryAwareScheduler
+
+Aggregator:
+  description: "聚合器"
+  usage: "用于聚合任务结果的组件"
+  examples:
+    - SimpleAggregator
+
+ErrorHandler:
+  description: "错误处理器"
+  usage: "用于处理任务错误的组件"
+  examples:
+    - SimpleErrorHandler
+
+Orchestrator:
+  description: "编排器"
+  usage: "组合所有组件的高级封装"
+
+---
+
+# 方法命名规范
+
+MethodNaming:
+  resolve_xxx:
+    description: "解析并返回xxx"
+    examples:
+      - resolve_dispatch_plan
+      - resolve_max_workers
+
+  should_xxx:
+    description: "判断是否应该xxx"
+    examples:
+      - should_run_dispatch_probe
+
+  get_xxx:
+    description: "获取xxx"
+    examples:
+      - get_next_batch_size
+      - get_batch
+
+  run:
+    description: "执行任务"
+    examples:
+      - ProcessWorker.run()
+      - Orchestrator.run()
+
+---
+
+# 类型命名规范
+
+TypeNaming:
+  XxxWorker:
+    description: "Worker类命名"
+    examples:
+      - ProcessWorker
+      - MultiThreadWorker
+
+  XxxExecutor:
+    description: "Executor类命名"
+    examples:
+      - ProcessExecutor
+      - MultiThreadExecutor
+
+  XxxMonitor:
+    description: "Monitor类命名"
+    examples:
+      - MemoryMonitor
+
+  XxxScheduler:
+    description: "Scheduler类命名"
+    examples:
+      - MemoryAwareScheduler
+
+  XxxAggregator:
+    description: "Aggregator类命名"
+    examples:
+      - SimpleAggregator
+
+  XxxErrorHandler:
+    description: "ErrorHandler类命名"
+    examples:
+      - SimpleErrorHandler
+
+---
+
+# 文件命名规范
+
+FileNaming:
+  xxx_worker.py:
+    description: "Worker实现文件"
+    examples:
+      - process_worker.py
+      - futures_worker.py
+
+  xxx_executor.py:
+    description: "Executor实现文件"
+    examples:
+      - process_executor.py
+      - futures_executor.py
+
+  xxx_planner.py:
+    description: "Plan解析文件"
+    examples:
+      - dispatch_planner.py
+      - dispatch_time_planner.py
+
+  xxx_probe.py:
+    description: "Probe文件"
+    examples:
+      - dispatch_probe.py

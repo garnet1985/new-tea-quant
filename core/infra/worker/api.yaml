@@ -1,0 +1,141 @@
+# API Contract - infra.worker
+# Version: 0.3.3
+# Last Updated: 2026-06-28
+#
+# 目的：
+#   - 为所有API建立快捷目录
+#   - 让开发者和自动测试一目了然
+#   - 用户知道有哪些API和怎么用
+
+module: infra.worker
+version: 0.3.3
+requires: core>=0.4.0
+
+---
+
+Worker:
+  layer: facade
+  description: "Worker模块Facade类 - 提供Dispatch规划和任务类型定义"
+
+  apis:
+    resolve_dispatch_plan:
+      description: "解析dispatch规划（基于内存约束）"
+      stability: stable
+      type: static_method
+      parameters:
+        - total_entities: int
+        - measured_mb_per_entity: Optional[float]
+      returns: DispatchPlan
+      usage: |
+        from core.infra.worker import Worker
+        plan = Worker.resolve_dispatch_plan(
+            total_entities=100,
+            measured_mb_per_entity=2.5
+        )
+
+    resolve_time_dispatch_plan:
+      description: "解析time dispatch规划（基于时间约束）"
+      stability: stable
+      type: static_method
+      parameters:
+        - total_entities: int
+        - performance: Dict[str, Any]
+        - sec_per_entity: float
+        - sec_per_job_overhead: float
+        - log_label: str (optional)
+        - worker_profile: str (optional)
+      returns: TimeDispatchPlan
+      usage: |
+        from core.infra.worker import Worker
+        plan = Worker.resolve_time_dispatch_plan(
+            total_entities=100,
+            performance={'force_main_process': False},
+            sec_per_entity=0.5,
+            sec_per_job_overhead=1.0
+        )
+
+    resolve_memory_budget_mb:
+      description: "解析内存预算"
+      stability: stable
+      type: static_method
+      parameters:
+        - performance: Dict[str, Any]
+      returns: Tuple[float, float]
+      usage: |
+        from core.infra.worker import Worker
+        budget_mb, floor_mb = Worker.resolve_memory_budget_mb(
+            performance={'memory_floor_mb': 2048}
+        )
+
+    should_run_dispatch_probe:
+      description: "判断是否应该运行dispatch probe"
+      stability: stable
+      type: static_method
+      parameters:
+        - payload: Dict[str, Any]
+        - performance: Dict[str, Any]
+      returns: bool
+      usage: |
+        from core.infra.worker import Worker
+        should_probe = Worker.should_run_dispatch_probe(
+            payload=payload,
+            performance=performance
+        )
+
+---
+
+# 类型定义（作为静态属性暴露，不作为API契约）
+types:
+  DispatchPlan:
+    description: "Dispatch规划结果类型"
+    fields:
+      - entities_per_job: int
+      - max_workers: int
+      - prefetch_ahead: int
+      - dispatch_jobs: int
+      - memory_budget_mb: float
+
+  TimeDispatchPlan:
+    description: "Time Dispatch规划结果类型"
+    fields:
+      - entities_per_job: int
+      - max_workers: int
+      - dispatch_jobs: int
+      - run_in_main_process: bool
+      - sec_per_entity: float
+
+  JobResult:
+    description: "任务执行结果"
+    fields:
+      - job_id: str
+      - status: JobStatus
+      - result: Optional[Any]
+      - error: Optional[Exception]
+
+  JobStatus:
+    description: "任务状态枚举"
+    values:
+      - PENDING
+      - RUNNING
+      - COMPLETED
+      - FAILED
+      - CANCELLED
+
+---
+
+# API稳定性分级定义
+api_stability_levels:
+  stable:
+    description: "API稳定，不会轻易修改"
+    breaking_change_risk: low
+
+  beta:
+    description: "API可能调整，但会提前通知"
+    breaking_change_risk: medium
+
+  experimental:
+    description: "API可能随时修改，仅供实验"
+    breaking_change_risk: high
+
+  deprecated:
+    description: "API已废弃，将在未来版本删除"

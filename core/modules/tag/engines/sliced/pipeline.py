@@ -56,7 +56,7 @@ def run_sliced_pipeline(
         period=BacktestDateRange(start_date, end_date, "", ""),
         market_profile_id=DEFAULT_PROFILE_ID,
     )
-    payload["backtest_calendar"] = calendar_ProjectContext.to_dict()
+    payload["backtest_calendar"] = calendar_ctx.to_dict()
 
     scenario_id = scenario_model.get_identifier()
     job_id = f"{scenario_id}_calendar_slice"

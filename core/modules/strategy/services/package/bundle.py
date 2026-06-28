@@ -6,15 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union
 
-from core.infra.export_import import (
-    BundleManifest,
-    ConflictPolicy,
-    InstallResult,
-    create_bundle_archive,
-    extract_bundle_archive,
-    install_bundle_archive,
-    preflight_install,
-)
+from core.infra.export_import import ExportImport
 from core.infra.project_context import ProjectContext
 
 from .resolver import resolve_strategy_bundle_specs
@@ -38,7 +30,7 @@ def export_strategy_bundle(
     strategy_name: str,
     *,
     output_path: Path | None = None,
-) -> Tuple[BundleManifest, BytesOrPath]:
+) -> Tuple[ExportImport.types.BundleManifest, BytesOrPath]:
     """Export a strategy share bundle (strategy + resolved on-disk dependencies)."""
     specs = resolve_strategy_bundle_specs(strategy_name)
     metadata = {
@@ -46,19 +38,19 @@ def export_strategy_bundle(
         "strategy_name": str(strategy_name).strip(),
         "core_version": _read_core_version(),
     }
-    return create_bundle_archive(specs, metadata=metadata, output_path=output_path)
+    return ExportImport.archive.create(specs, metadata=metadata, output_path=output_path)
 
 
 def preview_strategy_bundle_import(
     archive: Union[Path, bytes],
     *,
     userspace_root: Path | None = None,
-    policy: ConflictPolicy = ConflictPolicy.SKIP_EXISTING,
+    policy: ExportImport.types.ConflictPolicy = ExportImport.types.ConflictPolicy.SKIP_EXISTING,
 ) -> Dict[str, Any]:
     """Preview install outcome: per-entry status and conflicts."""
     us = Path(userspace_root) if userspace_root is not None else ProjectContext.path.get_userspace_root()
-    _, manifest = extract_bundle_archive(archive)
-    plan = preflight_install(manifest, us, policy)
+    _, manifest = ExportImport.archive.extract(archive)
+    plan = ExportImport.install.preflight(manifest, us, policy)
 
     skipped_keys = {e.target_relative for e in plan.skipped}
     install_keys = {e.target_relative for e in plan.to_install}
@@ -108,10 +100,10 @@ def preview_strategy_bundle_import(
 
 def import_strategy_bundle(
     archive: Union[Path, bytes],
-    policy: ConflictPolicy,
+    policy: ExportImport.types.ConflictPolicy,
     *,
     userspace_root: Path | None = None,
-) -> InstallResult:
+) -> ExportImport.types.InstallResult:
     """Install a strategy share bundle into userspace."""
     us = Path(userspace_root) if userspace_root is not None else ProjectContext.path.get_userspace_root()
-    return install_bundle_archive(archive, us, policy)
+    return ExportImport.install.install(archive, us, policy)

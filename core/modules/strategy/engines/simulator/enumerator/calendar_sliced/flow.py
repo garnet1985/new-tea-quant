@@ -92,7 +92,7 @@ class CalendarSlicedEnumeratorFlow(BaseEnumeratorFlow):
             ),
             market_profile_id=mp_id,
         )
-        calendar_dict = calendar_ProjectContext.to_dict()
+        calendar_dict = calendar_ctx.to_dict()
         ensure_data_manager_restored(data_mgr)
 
         resolved_workers = self._impl.resolve_runtime_workers()

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import FrozenSet, Iterable, Set
+from typing import FrozenSet
 
 # Align with devtools/quick_tools/package_init_userspace.py (rules only, no devtools import).
 RUNTIME_DIR_NAMES: FrozenSet[str] = frozenset({".ntq", "results", "cache", "output", ".cache"})

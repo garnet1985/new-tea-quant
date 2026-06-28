@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from .types import ArtifactSpec, BundleManifest, ManifestEntry
+from ..types import ArtifactSpec, BundleManifest, ManifestEntry
 
 MANIFEST_FILENAME = "manifest.json"
 SUPPORTED_FORMAT_VERSION = 1

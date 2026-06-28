@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Set
 
-from core.infra.export_import import ArtifactSpec
+from core.infra.export_import import ExportImport
 from core.infra.project_context import ProjectContext
 
 from core.modules.data_contract.contract_const import DataKey
@@ -19,7 +19,7 @@ from .paths import (
 from .settings_loader import load_settings_dict_from_folder
 
 
-def resolve_strategy_bundle_specs(strategy_name: str) -> List[ArtifactSpec]:
+def resolve_strategy_bundle_specs(strategy_name: str) -> List[ExportImport.types.ArtifactSpec]:
     """
     Collect exportable artifacts for a strategy share bundle.
 
@@ -35,7 +35,7 @@ def resolve_strategy_bundle_specs(strategy_name: str) -> List[ArtifactSpec]:
         raise FileNotFoundError(f"strategy not found: {strategy_dir}")
 
     settings = load_settings_dict_from_folder(strategy_dir)
-    specs: List[ArtifactSpec] = [strategy_artifact_spec(name, strategy_dir)]
+    specs: List[ExportImport.types.ArtifactSpec] = [strategy_artifact_spec(name, strategy_dir)]
 
     seen: Set[str] = {specs[0].normalized_archive_prefix()}
 

@@ -6,7 +6,7 @@ from typing import Optional, Tuple
 
 from flask import request
 
-from core.infra.export_import import ConflictPolicy
+from core.infra.export_import import ExportImport
 from core.ui.bff.shared.response import error
 
 
@@ -21,14 +21,14 @@ def read_uploaded_bytes(field: str = "file") -> Tuple[Optional[bytes], Optional[
     return data, None
 
 
-def parse_conflict_policy(raw: Optional[str] = None) -> Tuple[Optional[ConflictPolicy], Optional[object]]:
+def parse_conflict_policy(raw: Optional[str] = None) -> Tuple[Optional[ExportImport.types.ConflictPolicy], Optional[object]]:
     text = str(raw if raw is not None else "").strip().lower()
     if not text:
         text = str(request.args.get("policy") or request.form.get("policy") or "reject").strip().lower()
     mapping = {
-        "reject": ConflictPolicy.REJECT,
-        "skip_existing": ConflictPolicy.SKIP_EXISTING,
-        "overwrite": ConflictPolicy.OVERWRITE,
+        "reject": ExportImport.types.ConflictPolicy.REJECT,
+        "skip_existing": ExportImport.types.ConflictPolicy.SKIP_EXISTING,
+        "overwrite": ExportImport.types.ConflictPolicy.OVERWRITE,
     }
     policy = mapping.get(text)
     if policy is None:

@@ -9,7 +9,7 @@ from typing import List, Optional, Union
 
 from .conflict import preflight_install
 from .manifest import read_manifest
-from .types import (
+from ..types import (
     BundleManifest,
     ConflictPolicy,
     InstallResult,

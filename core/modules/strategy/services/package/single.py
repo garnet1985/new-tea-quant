@@ -5,8 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Tuple, Union
 
-from core.infra.export_import import ArtifactSpec, create_bundle_archive
-from core.infra.export_import.types import BundleManifest
+from core.infra.export_import import ExportImport
 from core.infra.project_context import ProjectContext
 
 from .bundle import _read_core_version
@@ -17,7 +16,7 @@ BytesOrPath = Union[bytes, Path]
 _SINGLE_KINDS = frozenset({"strategy", "tag", "adapter"})
 
 
-def resolve_single_entity_spec(kind: str, name: str) -> ArtifactSpec:
+def resolve_single_entity_spec(kind: str, name: str) -> ExportImport.types.ArtifactSpec:
     """Resolve one on-disk artifact for single-entity export."""
     k = str(kind or "").strip().lower()
     n = str(name or "").strip()
@@ -49,7 +48,7 @@ def export_single_entity(
     name: str,
     *,
     output_path: Path | None = None,
-) -> Tuple[BundleManifest, BytesOrPath]:
+) -> Tuple[ExportImport.types.BundleManifest, BytesOrPath]:
     """Export one strategy, tag scenario, or adapter directory."""
     spec = resolve_single_entity_spec(kind, name)
     metadata = {
@@ -58,4 +57,4 @@ def export_single_entity(
         "scope": "single",
         "core_version": _read_core_version(),
     }
-    return create_bundle_archive([spec], metadata=metadata, output_path=output_path)
+    return ExportImport.archive.create([spec], metadata=metadata, output_path=output_path)

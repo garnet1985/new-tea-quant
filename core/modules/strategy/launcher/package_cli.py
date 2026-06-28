@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional, Tuple, Union
 
 from core.infra.project_context import ProjectContext
-from core.infra.export_import import ConflictPolicy
+from core.infra.export_import import ExportImport
 
 from core.modules.strategy.services.package import (
     export_single_entity,
@@ -86,14 +86,14 @@ def default_export_path(mode: str, name: str) -> Path:
     return default_export_dir() / filename
 
 
-def resolve_import_policy(*, force: bool, skip_existing: bool) -> ConflictPolicy:
+def resolve_import_policy(*, force: bool, skip_existing: bool) -> ExportImport.types.ConflictPolicy:
     if force and skip_existing:
         raise ValueError("cannot combine -f with --skip-existing")
     if force:
-        return ConflictPolicy.OVERWRITE
+        return ExportImport.types.ConflictPolicy.OVERWRITE
     if skip_existing:
-        return ConflictPolicy.SKIP_EXISTING
-    return ConflictPolicy.REJECT
+        return ExportImport.types.ConflictPolicy.SKIP_EXISTING
+    return ExportImport.types.ConflictPolicy.REJECT
 
 
 def _finalize_export_output(out: Path, manifest, payload) -> None:

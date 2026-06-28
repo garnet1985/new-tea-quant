@@ -15,7 +15,7 @@ from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.data_class.config import DataSourceConfig
 from core.modules.data_source.data_class.error import DataSourceConfigError
 from core.infra.project_context import ProjectContext
-from core.infra.discovery import FileUtils
+from core.infra.discovery import Discovery
 
 
 logger = logging.getLogger(__name__)
@@ -359,10 +359,10 @@ class DataSourceManager:
         """
         递归查找 config.py 文件
 
-        使用 FileUtils.find_file 在 handlers/{data_source_key} 目录中查找。
+        使用 Discovery.file.find_file 在 handlers/{data_source_key} 目录中查找。
         """
         handlers_dir = ProjectContext.path.get_data_source_handlers_directory()
-        return FileUtils.find_file(handlers_dir / data_source_key, "config.py")
+        return Discovery.file.find_file(handlers_dir / data_source_key, "config.py")
 
 
     def _discover_handler(

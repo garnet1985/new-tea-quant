@@ -14,7 +14,6 @@ from typing import Any, Dict, List, Optional, Callable, Set
 from pathlib import Path
 
 from core.infra.project_context import ProjectContext
-
 from core.infra.db.engines._shared.dialect import sql_dialect_for_schema
 from core.infra.db.engines._shared.fields import Field
 from core.infra.db.storage_registry import normalize_storage_domain
@@ -144,12 +143,12 @@ class SchemaManager:
         Returns:
             schema 字典
         """
-        # 使用 FileManager 读取文件
+        # 使用标准 Python 文件读取方式
         schema_path = Path(schema_file)
-        content = ProjectContext.read_file(schema_path, encoding='utf-8')
-        
-        if content is None:
+        if not schema_path.exists() or not schema_path.is_file():
             raise FileNotFoundError(f"Schema 文件不存在: {schema_file}")
+
+        content = schema_path.read_text(encoding='utf-8')
         
         schema = json.loads(content)
         

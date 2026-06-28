@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.infra.project_context import ProjectContext
-from core.infra.discovery import FileUtils
+from core.infra.discovery import Discovery
 
 from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
     DiscoveredStrategy,
@@ -103,8 +103,8 @@ class StrategyDiscoveryHelper:
             return None
 
         try:
-            # 迁移：使用 FileUtils.load_python_config 代替 ProjectContext.load_python
-            settings_dict = FileUtils.load_python_config(settings_file, var_name="settings")
+            # 迁移：使用 Discovery.file.load_python_config 代替 ProjectContext.load_python
+            settings_dict = Discovery.file.load_python_config(settings_file, var_name="settings")
             if settings_dict is None:
                 logger.error("加载 settings 失败: %s", strategy_key)
                 return None

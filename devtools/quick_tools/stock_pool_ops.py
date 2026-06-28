@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Tuple
 
-from core.infra.project_context.path_manager import PathManager
+from core.infra.project_context import ProjectContext
 from core.modules.data_manager.data_manager import DataManager
 from core.modules.data_source.service.sample_stock_list import (
     invalidate_pool_cache,
@@ -27,7 +27,7 @@ from devtools.demo_exporter.stock_pool import (
 
 logger = logging.getLogger(__name__)
 
-_DATA_JSON = PathManager.get_user_config_root() / "data.json"
+_DATA_JSON = ProjectContext.path.get_user_config_root() / "data.json"
 _POOL_KEY = "use_sample_stock_list"
 
 

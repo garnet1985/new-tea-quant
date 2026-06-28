@@ -46,9 +46,9 @@ class IndexService(BaseDataService):
 
         配置为权威来源；表供 DataManager / DataContract 查询。
         """
-        from core.infra.project_context.config_manager import ConfigManager
+        from core.infra.project_context import ProjectContext
 
-        raw = ConfigManager.load_benchmark_stock_index_list()
+        raw = ProjectContext.config.load_benchmark_stock_index_list()
         records: List[Dict[str, Any]] = []
         for item in raw:
             if not isinstance(item, dict):

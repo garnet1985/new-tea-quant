@@ -17,6 +17,8 @@
 - [8. 测试规范](#8-测试规范)
 - [9. 文档规范](#9-文档规范)
 - [10. 导入规范](#10-导入规范)
+- [11. 版本管理规范](#11-版本管理规范)
+- [12. 注释规范](#12-注释规范)
 
 ---
 
@@ -38,6 +40,66 @@
 | 模块/包名 | snake_case | `data_manager`, `calendar_service` | 小写+下划线 |
 | 私有属性/方法 | _snake_case | `_internal_cache`, `_validate_input()` | 单下划线前缀 |
 | 保护属性/方法 | __snake_case | `__secret_key` | 双下划线前缀（避免使用，Python名称修饰会导致问题） |
+
+### 1.3 模块命名和暴露规范
+
+**模块命名规范：**
+
+| 文件类型 | 命名规范 | 示例 | 说明 |
+|---------|---------|------|------|
+| 模块主文件 | 模块名.py | `discovery.py`, `project_context.py` | 对外暴露API |
+| 内部实现文件夹 | `core/` | `core/file_manager.py`, `core/config_manager.py` | 不要使用 `_impl/`, `modules/` |
+| 根目录文件 | 只保留必需文件 | `discovery.py`, `api.yaml`, `module_info.yaml`, `glossary.yaml`, `__init__.py` | 不保留冗余文件 |
+
+**API命名规范：**
+
+| 命名方式 | 规范 | 示例 | 说明 |
+|---------|------|------|------|
+| namespace API | 使用嵌套结构 | `Discovery.file.xxx`, `ProjectContext.path.xxx` | 提供namespace分组 |
+| Facade类命名 | 简洁直观 | `Discovery`, `ProjectContext` | 单一对外入口 |
+| 不暴露内部class | 不导出实现类 | 不暴露 `FileUtils`, `ConfigManager` | 保持内部私有 |
+| 不暴露便捷函数 | 不导出便捷方法 | 不暴露 `find_file`, `load_json` | 使用namespace API代替 |
+
+**示例：**
+```python
+# ✅ 推荐：模块命名和暴露方式
+discovery/
+├── discovery.py          # 模块主文件（对外API）
+├── core/                 # 内部实现目录（不要用_impl/）
+│   ├── file_manager.py
+│   └── config_manager.py
+├── api.yaml
+├── module_info.yaml
+├── glossary.yaml
+└── __init__.py          # 只导出 Discovery
+
+# __init__.py
+from .discovery import Discovery
+
+__all__ = ['Discovery']  # 只导出Facade类
+
+# 使用示例
+from discovery import Discovery
+
+file_path = Discovery.file.find_file("config.yaml")  # namespace API
+project_root = Discovery.path.get_root()
+
+# ❌ 禁止：错误的命名和暴露
+discovery/
+├── _impl/               # ❌ 不要用 _impl/
+├── modules/             # ❌ 不要用 modules/
+├── file_utils.py        # ❌ 不要暴露内部实现
+└── __init__.py
+    # ❌ 导出内部类
+    from .file_utils import FileUtils
+    from .config_manager import ConfigManager
+
+    # ❌ 导出便捷函数
+    def find_file(filename):
+        return FileUtils.find_file(filename)
+
+    __all__ = ['Discovery', 'FileUtils', 'ConfigManager', 'find_file']
+```
 
 ### 1.3 函数命名规范
 
@@ -527,7 +589,144 @@ class DatabaseManager:
 
 ## 5. API 设计规范
 
-### 5.1 函数签名规范
+### 5.1 Facade模式要求
+
+**核心原则：**
+- **只暴露一个Facade类**：模块对外只提供一个主要类作为入口
+- **不暴露内部实现**：内部Manager、Utils、Helper类不对外导出
+- **不暴露便捷函数**：不提供平铺的便捷方法，使用namespace API代替
+
+**示例：**
+```python
+# ✅ 推荐：Facade模式
+class Discovery:
+    """
+    项目发现服务 - Facade类
+
+    对外唯一入口，提供namespace API
+    """
+
+    def __init__(self):
+        self._file_manager = FileManager()      # 内部实现，不对外暴露
+        self._config_manager = ConfigManager()  # 内部实现，不对外暴露
+
+    @property
+    def file(self) -> FileNamespace:
+        """文件相关API namespace"""
+        return FileNamespace(self._file_manager)
+
+    @property
+    def path(self) -> PathNamespace:
+        """路径相关API namespace"""
+        return PathNamespace(self._file_manager)
+
+# __init__.py
+from .discovery import Discovery
+
+__all__ = ['Discovery']  # 只导出Facade类
+
+# ❌ 禁止：暴露多个类和便捷函数
+class FileUtils:  # ❌ 不应该对外暴露
+    """内部实现类"""
+    pass
+
+class ConfigManager:  # ❌ 不应该对外暴露
+    """内部实现类"""
+    pass
+
+def find_file(filename):  # ❌ 不应该暴露便捷函数
+    """便捷函数"""
+    return FileUtils.find_file(filename)
+
+__all__ = ['Discovery', 'FileUtils', 'ConfigManager', 'find_file']
+```
+
+### 5.2 Namespace API设计
+
+**namespace分组原则：**
+- **功能分组**：按功能域分组（如 file, path, config）
+- **嵌套结构**：使用property提供namespace入口
+- **命名清晰**：namespace名称直观表达功能域
+
+**示例：**
+```python
+# ✅ 推荐：namespace API设计
+class Discovery:
+    """Facade类"""
+
+    @property
+    def file(self) -> FileNamespace:
+        """文件相关操作"""
+        return FileNamespace(self._file_manager)
+
+    @property
+    def path(self) -> PathNamespace:
+        """路径相关操作"""
+        return PathNamespace(self._file_manager)
+
+class FileNamespace:
+    """文件namespace"""
+
+    def find_file(self, filename: str) -> Path:
+        """查找文件"""
+        return self._manager.find_file(filename)
+
+    def load_json(self, path: Path) -> dict:
+        """加载JSON文件"""
+        return self._manager.load_json(path)
+
+# 使用示例
+from discovery import Discovery
+
+# 使用namespace API
+file_path = Discovery.file.find_file("config.yaml")  # 清晰的namespace结构
+config = Discovery.file.load_json(file_path)
+project_root = Discovery.path.get_root()
+
+# ❌ 禁止：平铺API
+class Discovery:
+    def find_file(self, filename):  # ❌ 不使用平铺API
+        pass
+
+    def load_json(self, path):      # ❌ 不使用平铺API
+        pass
+
+# 使用平铺API（混乱）
+file_path = Discovery().find_file("config.yaml")  # ❌ 不直观
+config = Discovery().load_json(file_path)
+```
+
+### 5.3 不保留向后兼容proxy
+
+**原则：**
+- **0.x版本直接改动**：开发阶段允许颠覆性改动
+- **不保留旧API proxy**：不提供向后兼容的代理函数
+- **不保留类名alias**：不使用alias保留旧类名
+
+**示例：**
+```python
+# ✅ 推荐：0.x版本直接改动
+# 旧版本 0.3.0
+# find_file("config.yaml")  # 平铺API
+
+# 新版本 0.4.0
+# Discovery.file.find_file("config.yaml")  # namespace API
+
+# 直接删除旧API，不保留proxy
+__all__ = ['Discovery']  # 只导出新API
+
+# ❌ 禁止：保留向后兼容proxy
+def find_file(*args, **kwargs):
+    """已废弃，请使用 Discovery.file.find_file"""
+    warnings.warn("find_file is deprecated, use Discovery.file.find_file")
+    return Discovery.file.find_file(*args, **kwargs)
+
+# ❌ 禁止：保留旧类名alias
+FileUtils = Discovery  # 不允许alias
+ConfigFinder = Discovery  # 不允许alias
+```
+
+### 5.4 函数签名规范
 
 ```python
 def fetch_stock_data(
@@ -1196,3 +1395,154 @@ logger = logging.getLogger(__name__)
 | 版本 | 日期 | 修改内容 |
 |------|------|----------|
 | 1.0 | 2026-06-26 | 初始版本 |
+
+---
+
+## 11. 版本管理规范
+
+### 11.1 版本号更新规则
+
+**版本号格式：**
+- 遵循语义化版本规范：`MAJOR.MINOR.PATCH`
+- 格式示例：`0.4.1`, `1.0.0`, `2.3.5`
+
+**更新规则：**
+
+| 变更类型 | 是否更新版本号 | 示例 | 说明 |
+|---------|---------------|------|------|
+| 小改动（修复bug、优化代码） | ❌ 不更新 | 修复文档错误、优化性能 | 不影响API |
+| 分支没变（同一开发分支） | ❌ 不更新 | 同一分支上的多次提交 | 未发布新版本 |
+| 中版本变化（新增功能、重构API） | ✅ 更新 | 0.3.0 → 0.4.0 | MINOR版本增加 |
+| 大版本变化（架构变更） | ✅ 更新 | 0.4.0 → 1.0.0 | MAJOR版本增加 |
+| 补丁版本（修复bug） | ✅ 更新 | 0.4.0 → 0.4.1 | PATCH版本增加（已发布版本） |
+
+### 11.2 版本号更新时机
+
+**何时更新版本号：**
+- ✅ 新功能发布时
+- ✅ API重构时
+- ✅ 架构变更时
+- ✅ 已发布版本修复bug时
+
+**何时不更新版本号：**
+- ❌ 开发过程中的小改动
+- ❌ 同一分支的多次提交
+- ❌ 文档更新
+- ❌ 代码优化（不影响功能）
+
+### 11.3 0.x版本兼容性规则
+
+**开发阶段规则：**
+- 0.x版本表示开发阶段
+- ✅ 可以颠覆性改动
+- ✅ 直接删除旧API
+- ✅ 不保留向后兼容
+- ⚠️ 1.x版本开始需要向后兼容
+
+**示例：**
+```python
+# ✅ 推荐：0.x版本直接改动
+# 旧版本 0.3.0
+# find_file("config.yaml")  # 平铺API
+
+# 新版本 0.4.0
+# Discovery.file.find_file("config.yaml")  # namespace API
+
+# 直接删除旧API，不保留proxy
+
+# ⚠️ 1.x版本需要向后兼容
+# 旧版本 1.0.0
+# find_file("config.yaml")
+
+# 新版本 1.1.0
+# Discovery.file.find_file("config.yaml")
+
+# 保留旧API，添加废弃警告
+def find_file(*args, **kwargs):
+    """已废弃，请使用 Discovery.file.find_file"""
+    warnings.warn("find_file is deprecated, use Discovery.file.find_file", DeprecationWarning)
+    return Discovery.file.find_file(*args, **kwargs)
+```
+
+---
+
+## 12. 注释规范
+
+### 12.1 注释原则
+
+**核心原则：**
+- **简洁必要**：只保留必要的注释
+- **避免冗余**：不重复已在文档中说明的内容
+- **解释复杂逻辑**：注释复杂算法和特殊处理
+
+### 12.2 注释分类规则
+
+| 注释类型 | 是否保留 | 说明 | 示例 |
+|---------|---------|------|------|
+| 复杂逻辑注释 | ✅ 保留 | 解释复杂算法、特殊处理逻辑 | 解释为什么使用对数加权 |
+| 模块文档 | ✅ 保留 | 模块级别的说明 | 模块功能、依赖关系 |
+| 类文档 | ✅ 保留 | 类职责、使用方式 | 类的主要功能 |
+| 函数文档 | ✅ 保留 | 简短功能说明 | 函数的主要目的 |
+| 冗余参数注释（Args） | ❌ 删除 | 参数已在api.yaml中说明 | 参数类型和说明 |
+| 冗余返回值注释（Returns） | ❌ 删除 | 返回值已在api.yaml中说明 | 返回值类型和说明 |
+| 冗余示例注释（Examples） | ❌ 删除 | 示例已在api.yaml中提供 | 使用示例 |
+| 冗余注意事项（Note） | ❌ 删除 | 注意事项应在文档中说明 | 使用注意 |
+| 行内注释 | ⚠️ 谨慎使用 | 仅解释复杂逻辑 | 解释特殊处理 |
+
+### 12.3 注释示例
+
+**✅ 推荐：简洁必要的注释**
+```python
+def calculate_weighted_average(prices: List[float], weights: List[float]) -> float:
+    """
+    计算加权平均值
+    """
+    # 使用对数加权避免数值溢出（复杂逻辑需要注释）
+    log_weights = np.log(weights + 1e-10)
+    return np.sum(prices * np.exp(log_weights)) / np.sum(np.exp(log_weights))
+
+def find_file(filename: str) -> Path:
+    """
+    查找文件
+    """
+    return self._file_manager.find_file(filename)
+```
+
+**❌ 禁止：冗余注释**
+```python
+def find_file(filename: str) -> Path:
+    """
+    查找文件
+
+    Args:
+        filename: 文件名  # ❌ 冗余，已在 api.yaml 中说明
+
+    Returns:
+        文件路径  # ❌ 冗余，已在 api.yaml 中说明
+
+    Examples:  # ❌ 冗余，已在 api.yaml 中提供
+        >>> find_file("config.yaml")
+        /path/to/config.yaml
+
+    Note:  # ❌ 冗余，应在文档中说明
+        该函数会递归搜索
+    """
+    return self._file_manager.find_file(filename)
+```
+
+### 12.4 文档位置规则
+
+**文档职责分离：**
+
+| 文档位置 | 内容 | 示例 |
+|---------|------|------|
+| `api.yaml` | API签名、参数、返回值、异常、示例 | 完整的API契约 |
+| `docs/API.md` | 使用说明、最佳实践 | 详细使用文档 |
+| `代码注释` | 复杂逻辑、模块/类/函数简短说明 | 必要的补充说明 |
+
+**避免重复：**
+- ❌ 不要在代码注释中重复 api.yaml 内容
+- ❌ 不要在代码注释中重复文档内容
+- ✅ 代码注释只补充复杂逻辑和简短说明
+
+---

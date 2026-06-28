@@ -18,15 +18,13 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from setup.setup import NewTeaQuantSetup
-from core.infra.project_context.path_manager import PathManager
-
-ctx = ProjectContextManager()  # module-level instance
+from core.infra.project_context import ProjectContext
 
 
 # 允许用户直接运行该步骤，也默认使用项目 venv
 NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
 
-USER_DB_CONFIG_DIR = ctx.get_user_config_root() / "database"
+USER_DB_CONFIG_DIR = ProjectContext.path.get_user_config_root() / "database"
 
 
 def _mask_password(cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -158,7 +156,7 @@ def _mysql_create_database(db_cfg: Dict[str, Any]) -> None:
 
 def main() -> int:
     from setup.setup import NewTeaQuantSetup
-    from core.infra.project_context import ProjectContextManager
+    # ProjectContext and ConfigManager already imported at module level
 
     common_json = USER_DB_CONFIG_DIR / "common.json"
     if not NewTeaQuantSetup.check_file_exists(
@@ -187,7 +185,7 @@ def main() -> int:
             NewTeaQuantSetup.print_check_info(
                 "未找到 duckdb.json，将使用 core/default_config/database/duckdb.json 默认配置"
             )
-        config = ctx.load_database_config(db_type)
+        config = ProjectContext.config.load_database_config(db_type)
         duck_cfg = config.get("duckdb") or {}
         domains = duck_cfg.get("domains") if isinstance(duck_cfg, dict) else {}
         if isinstance(domains, dict):

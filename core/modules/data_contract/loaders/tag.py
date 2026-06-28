@@ -11,10 +11,10 @@ def _has_scenario_input(params: Mapping[str, Any], context: Optional[Mapping[str
     """是否提供了任一 scenario 相关入参（不含 DB 解析）。"""
     ctx = context or {}
     for key in ("tag_scenario", "scenario_name"):
-        v = params.get(key) or ProjectContext.get(key)
+        v = params.get(key) or ctx.get(key)
         if v is not None and str(v).strip() != "":
             return True
-    if params.get("scenario_id") is not None or ProjectContext.get("scenario_id") is not None:
+    if params.get("scenario_id") is not None or ctx.get("scenario_id") is not None:
         return True
     return False
 
@@ -49,10 +49,10 @@ def _resolve_scenario_name(
     raw = (
         params.get("tag_scenario")
         or params.get("scenario_name")
-        or ProjectContext.get("tag_scenario")
-        or ProjectContext.get("scenario_name")
+        or ctx.get("tag_scenario")
+        or ctx.get("scenario_name")
     )
-    scenario_id = params.get("scenario_id") or ProjectContext.get("scenario_id")
+    scenario_id = params.get("scenario_id") or ctx.get("scenario_id")
 
     if raw is not None and str(raw).strip() != "":
         raw_s = str(raw).strip()

@@ -11,7 +11,6 @@ from pathlib import Path
 import logging
 
 from core.infra.project_context import ProjectContext
-from core.infra.project_context.config_manager import ConfigManager  # 内部调用
 
 from core.infra.db.schema_manager import SchemaManager
 from core.infra.db.engines._shared.config_parse import parse_database_config
@@ -32,8 +31,8 @@ class DatabaseManager:
 
     def __init__(self, config: Dict = None, is_verbose: bool = False):
         if config is None:
-            # 迁移：直接调用 ConfigManager（内部实现），不通过 ProjectContext
-            config = ConfigManager.load_database_config()
+            # 迁移：通过 ProjectContext.config 调用
+            config = ProjectContext.config.load_database_config()
 
         self.config = parse_database_config(config)
         self.is_verbose = is_verbose

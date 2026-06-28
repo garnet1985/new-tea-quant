@@ -165,7 +165,7 @@ def calc_last_update_based_on_renew_mode(
         )
     except Exception:  # pragma: no cover - 防御性兜底
         # 极端情况下回退到全局配置
-        default_start_date = ProjectContext.path.get_default_start_date()
+        default_start_date = ProjectContext.config.get_default_start_date()
 
     # REFRESH：全量刷新，直接从默认起点开始
     if renew_mode == UpdateMode.REFRESH:

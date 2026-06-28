@@ -73,7 +73,7 @@ def resolve_worker_class(
     if worker_module_path and worker_class_name:
         file_path = worker_file_path
         if not file_path:
-            file_path = str(PathManager.get_strategy_directory(strategy_name) / "strategy_worker.py")
+            file_path = str(ProjectContext.path.get_strategy_directory(strategy_name) / "strategy_worker.py")
         return import_worker_class(
             worker_module_path=worker_module_path,
             worker_class_name=worker_class_name,

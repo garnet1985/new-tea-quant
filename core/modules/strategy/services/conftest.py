@@ -8,7 +8,7 @@ from typing import Iterable, Tuple
 
 import pytest
 
-from core.infra.project_context.path_manager import PathManager
+from core.infra.project_context import ProjectContext
 
 _ENUM_REPORT_FILE = "0_report_enum.json"
 
@@ -38,9 +38,9 @@ def enum_simulation_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pat
         _write_enum_report(enum_root, version_dir, opportunities=count)
 
     monkeypatch.setattr(
-        PathManager,
+        ProjectContext.path,
         "strategy_simulation_enum",
-        staticmethod(lambda _strategy_name: enum_root),
+        lambda _strategy_name: enum_root,
     )
     return enum_root
 

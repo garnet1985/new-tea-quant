@@ -75,7 +75,7 @@ def default_export_dir() -> Path:
     us = ProjectContext.path.get_userspace_root()
     if us.is_dir():
         return us
-    return PathManager.get_project_root()
+    return ProjectContext.path.get_project_root()
 
 
 def default_export_path(mode: str, name: str) -> Path:

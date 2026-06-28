@@ -185,21 +185,31 @@
 |--------|------|------|---------|
 | `Version` | string | 版本号 | 属性存在，格式正确 |
 | `apis` | dict | API列表 | 属性存在，有至少一个API |
-| `每个API的example字段` | string | 使用示例 | 属性存在 |
+| `Requires` | string | 最小兼容版本 | 属性存在，如 `core>=0.3.0` |
+
+**禁止项：**
+- ❌ 删除冗余Examples字段（示例已在API定义中提供）
+- ❌ 不要重复描述参数和返回值（已在API定义中说明）
 
 ---
 
 ### **指标6：api.py内容要求**
 
-> api.py必须定义抽象接口
+> api.py必须定义Facade类和namespace API
 
 **必需内容：**
 
 | 内容 | 类型 | 说明 | 检查方式 |
 |------|------|------|---------|
-| `ABC类` | class | 抽象接口类 | 文件包含ABC类 |
-| `@classmethod + @abstractmethod` | decorator | 类方法抽象 | 方法使用正确的decorator |
-| `所有对外API` | method | 所有核心API | api.py和api.yaml的API数量一致 |
+| `模块名.py` | file | 模块主文件 | 文件名与模块名一致（如 discovery.py） |
+| `Facade类` | class | 对外唯一入口 | 类名简洁（如 Discovery, ProjectContext） |
+| `namespace API` | method | 嵌套结构API | API使用命名空间（如 Discovery.file.xxx） |
+
+**禁止项：**
+- ❌ 不使用 api.py 命名（使用模块名.py）
+- ❌ 不定义ABC类（使用Facade类）
+- ❌ 不使用抽象方法（使用具体实现）
+- ❌ 不暴露class和便捷函数
 
 ---
 
@@ -212,8 +222,13 @@
 | 导出项 | 类型 | 说明 | 检查方式 |
 |--------|------|------|---------|
 | `Facade类` | class | 对外唯一入口 | __init__.py导出Facade类 |
-| `ABC类` | class | 抽象接口 | __init__.py导出ABC类 |
-| `__all__` | list | 导出列表 | __all__包含Facade类和ABC类 |
+| `__all__` | list | 导出列表 | __all__只包含Facade类 |
+
+**禁止项：**
+- ❌ 不导出ABC类
+- ❌ 不导出内部实现类（如 FileUtils, ConfigManager）
+- ❌ 不导出便捷函数（如 find_file, load_json）
+- ❌ __all__不包含ABC类和内部实现类
 
 ---
 
@@ -228,6 +243,167 @@
 | `docs/ARCHITECTURE.md` | 版本号、架构设计、API分组 | 文件包含必需内容 |
 | `docs/DESIGN.md` | 版本号、详细设计、设计原则 | 文件包含必需内容 |
 | `docs/DECISIONS.md` | 版本号、设计决策、决策列表 | 文件包含必需内容 |
+
+---
+
+### **指标9：文件命名规范**
+
+> 核心模块文件命名必须遵循统一规范
+
+**命名规则：**
+
+| 文件类型 | 命名规范 | 示例 | 检查方式 |
+|---------|---------|------|---------|
+| 模块名.py | 对外暴露API | `discovery.py`, `project_context.py` | 文件存在，文件名与模块名一致 |
+| 内部实现文件夹 | 使用 `core/` | `core/` 子目录存在 | 不使用 `_impl/`, `modules/` 等命名 |
+| 根目录文件 | 只保留必需文件 | 模块名.py、api.yaml、module_info.yaml、glossary.yaml、__init__.py | 根目录文件数量符合要求 |
+
+**禁止项：**
+- ❌ 不使用 `_impl/` 命名内部实现目录
+- ❌ 不使用 `modules/` 命名内部实现目录
+- ❌ 根目录不保留冗余文件
+
+---
+
+### **指标10：API暴露方式**
+
+> 核心模块API暴露必须遵循Facade模式
+
+**暴露规则：**
+
+| 要求 | 规范 | 检查方式 |
+|------|------|---------|
+| 只暴露一个Facade类 | 如 `Discovery`, `ProjectContext` | __init__.py 只导出一个主要类 |
+| 使用namespace API | 如 `Discovery.file.xxx`, `ProjectContext.path.xxx` | API 使用嵌套结构 |
+| 不暴露内部class | 如 `FileUtils`, `ConfigManager` | __init__.py 不导出内部实现类 |
+| 不暴露便捷函数 | 如 `find_file`, `load_json` | __init__.py 不导出便捷函数 |
+| 不保留向后兼容proxy | 不提供旧API的代理函数 | 代码中无兼容性proxy |
+
+**示例：**
+```python
+# ✅ 推荐：只暴露Facade类，使用namespace API
+from discovery import Discovery
+
+# 使用namespace API
+file_path = Discovery.file.find_file("config.yaml")
+project_root = Discovery.path.get_root()
+
+# ❌ 禁止：暴露内部实现类
+from discovery import FileUtils  # 不允许
+
+# ❌ 禁止：暴露便捷函数
+from discovery import find_file  # 不允许
+
+# ❌ 禁止：保留向后兼容proxy
+def find_file(*args, **kwargs):  # 不允许
+    """向后兼容，请使用 Discovery.file.find_file"""
+    return Discovery.file.find_file(*args, **kwargs)
+```
+
+---
+
+### **指标11：版本管理规范**
+
+> 核心模块版本号更新必须遵循规范
+
+**版本更新规则：**
+
+| 变更类型 | 是否更新版本号 | 示例 |
+|---------|---------------|------|
+| 小改动（修复bug、优化代码） | ❌ 不更新 | 修复文档错误、优化性能 |
+| 分支没变（同一开发分支） | ❌ 不更新 | 同一分支上的多次提交 |
+| 中版本变化（新增功能、重构API） | ✅ 更新 | 0.3.0 → 0.4.0 |
+| 大版本变化（架构变更） | ✅ 更新 | 0.4.0 → 1.0.0 |
+
+**版本号格式：**
+- 遵循语义化版本规范：`MAJOR.MINOR.PATCH`
+- 0.x 版本表示开发阶段，可以颠覆性改动
+
+---
+
+### **指标12：代码注释规范**
+
+> 核心模块代码注释必须简洁必要
+
+**注释规则：**
+
+| 注释类型 | 是否保留 | 说明 |
+|---------|---------|------|
+| 复杂逻辑注释 | ✅ 保留 | 解释复杂算法、特殊处理逻辑 |
+| 冗余注释（Examples） | ❌ 删除 | 示例已在 api.yaml 中提供 |
+| 冗余注释（Args） | ❌ 删除 | 参数说明已在 api.yaml 中提供 |
+| 冗余注释（Returns） | ❌ 删除 | 返回值说明已在 api.yaml 中提供 |
+| 冗余注释（Note） | ❌ 删除 | 注意事项已在文档中说明 |
+
+**示例：**
+```python
+# ✅ 推荐：只保留必要注释
+def calculate_weighted_average(prices: List[float], weights: List[float]) -> float:
+    """
+    计算加权平均值
+    """
+    # 使用对数加权避免数值溢出（复杂逻辑需要注释）
+    log_weights = np.log(weights + 1e-10)
+    return np.sum(prices * np.exp(log_weights)) / np.sum(np.exp(log_weights))
+
+# ❌ 禁止：冗余注释
+def find_file(filename: str) -> Path:
+    """
+    查找文件
+
+    Args:
+        filename: 文件名  # ❌ 冗余，已在 api.yaml 中说明
+
+    Returns:
+        文件路径  # ❌ 冗余，已在 api.yaml 中说明
+
+    Examples:  # ❌ 冗余，已在 api.yaml 中提供
+        >>> find_file("config.yaml")
+        /path/to/config.yaml
+
+    Note:  # ❌ 冗余，应在文档中说明
+        该函数会递归搜索
+    """
+    pass
+```
+
+---
+
+### **指标13：不保留兼容性**
+
+> 核心模块在0.x版本可以颠覆性改动
+
+**兼容性规则：**
+
+| 版本范围 | 允许的改动 | 要求 |
+|---------|-----------|------|
+| 0.x 版本 | ✅ 颠覆性改动 | 直接改动，不保留旧API |
+| 1.x 版本 | ⚠️ 向后兼容 | 保留旧API，添加废弃警告 |
+| 2.x+ 版本 | ⚠️ 向后兼容 | 遵循语义化版本规范 |
+
+**实践：**
+- ✅ 直接改动，不保留旧API
+- ❌ 不保留平铺API作为proxy
+- ❌ 不保留旧类名作为alias
+
+**示例：**
+```python
+# ✅ 推荐：0.x版本直接改动
+# 旧版本 0.3.0
+# find_file("config.yaml")
+
+# 新版本 0.4.0
+# Discovery.file.find_file("config.yaml")
+
+# ❌ 禁止：保留向后兼容proxy
+def find_file(*args, **kwargs):
+    """已废弃，请使用 Discovery.file.find_file"""
+    warnings.warn("find_file is deprecated, use Discovery.file.find_file")
+    return Discovery.file.find_file(*args, **kwargs)
+
+# ❌ 禁止：保留旧类名
+FileUtils = Discovery  # 不允许alias
+```
 
 ---
 

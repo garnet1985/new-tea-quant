@@ -4,7 +4,7 @@
 import logging
 from typing import Any, Dict, List, Optional
 
-from core.infra.project_context.path_manager import PathManager
+from core.infra.project_context import ProjectContext
 
 logger = logging.getLogger(__name__)
 
@@ -162,9 +162,9 @@ class StockSamplingHelper:
             return []
 
         normalized = relative_file_path.strip()
-        file_path = (PathManager.get_strategy_directory(strategy_name) / normalized).resolve()
+        file_path = (ProjectContext.path.get_strategy_directory(strategy_name) / normalized).resolve()
         try:
-            file_path.relative_to(PathManager.get_strategy_directory(strategy_name).resolve())
+            file_path.relative_to(ProjectContext.path.get_strategy_directory(strategy_name).resolve())
         except ValueError:
             logger.warning("[%s] 路径越界，已拒绝: %s", field_name, normalized)
             return []

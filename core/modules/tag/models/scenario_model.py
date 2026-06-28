@@ -364,7 +364,7 @@ class ScenarioModel:
         # description: 默认空字符串（在 _set_values_from_setting 中处理，这里不需要）
         # start_date: 默认使用系统默认开始日期
         if "start_date" not in filled_settings or filled_settings.get("start_date") == "":
-            filled_settings["start_date"] = ProjectContext.path.get_default_start_date()
+            filled_settings["start_date"] = ProjectContext.config.get_default_start_date()
         
         # end_date: 默认使用最新已完成交易日
         if "end_date" not in filled_settings or filled_settings.get("end_date") == "":

@@ -33,23 +33,20 @@ class DataSourceProviderHelper:
         - 扫描路径: userspace.extensions.data_source.providers
         - Provider 必须继承 BaseProvider，并声明 provider_name
         """
-        from core.infra.discovery import ClassDiscovery, DiscoveryConfig
+        from core.infra.discovery import Discovery
 
-        config = DiscoveryConfig(
+        result = Discovery.discover.subclasses(
             base_class=BaseProvider,
+            base_module_path="userspace.extensions.data_source.providers",
             module_name_pattern="userspace.extensions.data_source.providers.{name}.provider",
             key_extractor=lambda cls: getattr(cls, "provider_name", None),
             class_filter=lambda cls: (
                 hasattr(cls, "provider_name")
                 and getattr(cls, "provider_name") is not None
-            ),
-            skip_modules={"__pycache__", "__init__"},
+            )
         )
 
-        discovery = ClassDiscovery(config)
-        result = discovery.discover("userspace.extensions.data_source.providers")
-
-        return result.classes
+        return result
 
     @staticmethod
     def create_provider_instance(provider_name: str, provider_class: Type[Any]) -> Any:

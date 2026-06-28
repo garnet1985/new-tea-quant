@@ -36,7 +36,7 @@ def _truncation_meta(configured_as_of: str) -> Tuple[bool, str, str]:
 
 def get_data_end_meta_light() -> Dict[str, Any]:
     """``data.json`` truncation only — no DB / calendar lookup (fast list)."""
-    configured_as_of = ProjectContext.path.get_as_of_latest_completed_trading_date()
+    configured_as_of = ProjectContext.config.get_as_of_latest_completed_trading_date()
     is_truncated, hint, settings_path = _truncation_meta(configured_as_of)
     return {
         "configured_as_of": configured_as_of,
@@ -56,7 +56,7 @@ def _resolve_freshness_end_date(data_manager) -> str:
     fall on a non-trading day (e.g. 20260101), which would otherwise mark caught-up DB
     rows as stale.
     """
-    configured_as_of = ProjectContext.path.get_as_of_latest_completed_trading_date()
+    configured_as_of = ProjectContext.config.get_as_of_latest_completed_trading_date()
     if configured_as_of:
         if data_manager and getattr(data_manager, "service", None):
             try:
@@ -73,7 +73,7 @@ def _resolve_freshness_end_date(data_manager) -> str:
 
 def get_data_end_meta(data_manager) -> Dict[str, Any]:
     """Summarize effective data end date and ``data.json`` truncation."""
-    configured_as_of = ProjectContext.path.get_as_of_latest_completed_trading_date()
+    configured_as_of = ProjectContext.config.get_as_of_latest_completed_trading_date()
     effective_end = _resolve_freshness_end_date(data_manager)
     is_truncated, hint, settings_path = _truncation_meta(configured_as_of)
 
@@ -142,9 +142,9 @@ def evaluate_update_status(
         )
         if needs_renew_work(context, source_key=source_key):
             hint = ""
-            if ProjectContext.path.get_as_of_latest_completed_trading_date():
+            if ProjectContext.config.get_as_of_latest_completed_trading_date():
                 _, truncation_hint, _ = _truncation_meta(
-                    ProjectContext.path.get_as_of_latest_completed_trading_date()
+                    ProjectContext.config.get_as_of_latest_completed_trading_date()
                 )
                 hint = truncation_hint
             return "needs_update", "需要更新", hint

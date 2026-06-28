@@ -476,7 +476,7 @@ class Opportunity:
         ctx = backtest_calendar
         if ctx is not None and hasattr(ctx, "count_open_days_between"):
             self._exp_hold_trading_count = int(
-                ProjectContext.count_open_days_between(buy, buy)
+                ctx.count_open_days_between(buy, buy)
             )
         else:
             self._exp_hold_trading_count = 0
@@ -531,7 +531,7 @@ class Opportunity:
 
         last = str(getattr(self, "_exp_hold_last_date", buy) or buy)
         if cur > last:
-            if ProjectContext.is_open_date(cur):
+            if ctx.is_open_date(cur):
                 self._exp_hold_trading_count = int(
                     getattr(self, "_exp_hold_trading_count", 0)
                 ) + 1
@@ -539,7 +539,7 @@ class Opportunity:
             return int(getattr(self, "_exp_hold_trading_count", 0))
 
         if cur < last:
-            return int(ProjectContext.count_open_days_between(buy, cur))
+            return int(ctx.count_open_days_between(buy, cur))
 
         return int(getattr(self, "_exp_hold_trading_count", 0))
 

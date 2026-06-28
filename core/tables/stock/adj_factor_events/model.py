@@ -506,8 +506,8 @@ class DataAdjFactorEventModel(DbBaseModel):
         df = pd.read_csv(path)
         validate_csv_columns(df.columns)
 
-        default_start = ProjectContext.path.get_default_start_date() or ""
-        as_of = ProjectContext.path.get_as_of_latest_completed_trading_date()
+        default_start = ProjectContext.config.get_default_start_date() or ""
+        as_of = ProjectContext.config.get_as_of_latest_completed_trading_date()
         pool_ids: Optional[Set[str]] = None
         if sample_pool_count():
             pool_ids = set(pool_stock_ids())

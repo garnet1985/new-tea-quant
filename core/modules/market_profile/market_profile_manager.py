@@ -6,7 +6,6 @@ from __future__ import annotations
 from typing import Dict, Optional, Sequence, Tuple
 
 from core.infra.project_context import ProjectContext
-from core.infra.project_context.discovery_manager import DiscoveryManager
 from core.infra.project_context.config_merge_policies import merge_market_profile_dicts
 
 from .constants import DEFAULT_PROFILE_ID, MARKETS_CONFIG_DIR
@@ -20,13 +19,13 @@ class MarketProfileManager:
 
     def get_profile(self, profile_id: Optional[str] = None) -> MarketProfile:
         pid = str(profile_id or DEFAULT_PROFILE_ID).strip() or DEFAULT_PROFILE_ID
-        known = DiscoveryManager.discover_configs(MARKETS_CONFIG_DIR)
+        known = ProjectContext.discovery.discover_configs(MARKETS_CONFIG_DIR)
         if known and pid not in known:
             raise ValueError(
                 f"未知 market_profile {pid!r}；可用: {', '.join(known)}"
             )
         if pid not in self._cache:
-            raw = DiscoveryManager.load_overridable_config(
+            raw = ProjectContext.discovery.load_overridable_config(
                 MARKETS_CONFIG_DIR,
                 pid,
                 merge_fn=merge_market_profile_dicts,

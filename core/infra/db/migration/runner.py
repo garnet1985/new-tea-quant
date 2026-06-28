@@ -56,7 +56,7 @@ def load_schemas_from_snapshot(path: Path) -> Dict[str, Dict[str, Any]]:
 
 
 def default_pre_mirror_snapshot_path(repo_root: Path) -> Path:
-    from core.infra.project_context.path_manager import PathManager
+    from core.infra.project_context import ProjectContext
 
     _ = repo_root  # 保留参数；实际路径以 ProjectContext.get_userspace_root() 为准
     return (

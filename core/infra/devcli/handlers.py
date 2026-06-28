@@ -170,13 +170,12 @@ def cmd_userspace_package(args: argparse.Namespace) -> int:
 
 def cmd_db_checkpoint(args: argparse.Namespace) -> int:
     from core.infra.db import DatabaseManager
+    from core.infra.project_context import ProjectContext
 
     recover = bool(getattr(args, "recover_corrupt_wal", False))
     config = None
     if recover:
-        from core.infra.project_context.config_manager import ConfigManager
-
-        config = dict(ConfigManager.load_database_config())
+        config = dict(ProjectContext.config.load_database_config())
         duck = dict(config.get("duckdb") or {})
         duck["recover_wal_on_replay_failure"] = True
         config["duckdb"] = duck

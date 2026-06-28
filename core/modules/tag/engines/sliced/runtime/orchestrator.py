@@ -76,10 +76,10 @@ class TagCalendarSliceOrchestrator:
         plan.baseline_rss_mb = job_tree_rss_mb(child_pids=())
 
         ctx = mp.get_context("spawn")
-        reader_cmd_q = ProjectContext.Queue()
-        payload_q = ProjectContext.Queue(maxsize=plan.queue_capacity)
-        done_q = ProjectContext.Queue()
-        reader_out_q = ProjectContext.Queue() if plan.reader_workers > 1 else None
+        reader_cmd_q = mp.Queue()
+        payload_q = mp.Queue(maxsize=plan.queue_capacity)
+        done_q = mp.Queue()
+        reader_out_q = mp.Queue() if plan.reader_workers > 1 else None
         reader_payload_q = reader_out_q if reader_out_q is not None else payload_q
 
         logger.info(
@@ -93,7 +93,7 @@ class TagCalendarSliceOrchestrator:
 
         reader_procs: List[Any] = []
         for worker_idx in range(plan.reader_workers):
-            proc = ProjectContext.Process(
+            proc = mp.Process(
                 target=reader_lane_main,
                 args=(self.job_payload, reader_cmd_q, reader_payload_q),
                 name=f"tag_calendar_slice_reader_{worker_idx}",
@@ -101,7 +101,7 @@ class TagCalendarSliceOrchestrator:
             )
             reader_procs.append(proc)
 
-        compute_proc = ProjectContext.Process(
+        compute_proc = mp.Process(
             target=compute_lane_main,
             args=(self.job_payload, payload_q, done_q),
             name="tag_calendar_slice_compute",

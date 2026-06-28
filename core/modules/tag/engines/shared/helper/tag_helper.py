@@ -6,7 +6,7 @@ import sys
 
 from core.modules.tag.engines.shared.base_worker import BaseTagWorker
 from core.modules.tag.enums import FileName
-from core.infra.discovery import FileUtils
+from core.infra.discovery import Discovery
 
 logger = logging.getLogger(__name__)
 
@@ -34,16 +34,16 @@ class TagHelper:
             - (None, None) 如果失败（找不到文件或没有 Settings 变量）
         """
         # 1. 查找 settings.py 文件
-        settings_path = FileUtils.find_file(
+        settings_path = Discovery.file.find_file(
             scenario_dir if isinstance(scenario_dir, Path) else Path(scenario_dir),
             FileName.SETTINGS.value
         )
-        
+
         if not settings_path:
             return None, None
 
-        # 2. 使用 FileUtils 加载 settings 变量
-        settings_dict = FileUtils.load_python_config(settings_path, var_name="Settings")
+        # 2. 使用 Discovery.file 加载 settings 变量
+        settings_dict = Discovery.file.load_python_config(settings_path, var_name="Settings")
         
         if not settings_dict or not isinstance(settings_dict, dict):
             return None, None
@@ -64,7 +64,7 @@ class TagHelper:
             - (None, None) 如果失败（找不到文件或没有继承 BaseTagWorker 的类）
         """
         # 1. 查找 tag_worker.py 文件
-        worker_file_path = FileUtils.find_file(
+        worker_file_path = Discovery.file.find_file(
             scenario_folder if isinstance(scenario_folder, Path) else Path(scenario_folder),
             FileName.TAG_WORKER.value
         )

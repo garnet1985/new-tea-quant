@@ -30,7 +30,7 @@ import inspect
 from pathlib import Path
 
 from core.infra.db import DatabaseManager
-from core.infra.discovery import FileUtils
+from core.infra.discovery import Discovery
 
 # Loaders 已废弃，不再导入
 # 所有功能已迁移到 data_services
@@ -177,10 +177,9 @@ class DataManager:
 
             try:
                 from core.infra.project_context import ProjectContext
-                from core.infra.project_context.config_manager import ConfigManager  # 内部调用
 
-                # 迁移：直接调用 ConfigManager（内部实现），不通过 ProjectContext
-                db_cfg = ConfigManager.load_database_config()
+                # 迁移：通过 ProjectContext.config 调用
+                db_cfg = ProjectContext.config.load_database_config()
                 if str(db_cfg.get("database_type") or "").lower() == "duckdb":
                     from core.infra.db.engines.duckdb.process_pool_scope import (
                         wait_for_main_duckdb_worker_pool_end,
@@ -295,9 +294,9 @@ class DataManager:
 
             if self.db is not None:
                 self.db.register_table(table_name, schema)
-            
+
             # 2. 查找并加载 model.py
-            model_file_path = FileUtils.find_file(table_folder, "model.py")
+            model_file_path = Discovery.file.find_file(table_folder, "model.py")
             if not model_file_path:
                 logger.error(f"❌ 表文件夹中未找到 model.py: {table_folder_path}")
                 return None

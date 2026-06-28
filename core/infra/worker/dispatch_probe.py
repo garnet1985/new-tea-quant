@@ -183,7 +183,7 @@ def run_dispatch_probe_in_subprocess(
 
     try:
         ctx = mp.get_context(start_method)
-        with ProjectContext.Pool(processes=1) as pool:
+        with ctx.Pool(processes=1) as pool:
             raw = pool.apply(dispatch_probe_subprocess_worker, (payload,))
         wait_pool_children_done(timeout_sec=15.0)
         return build_probe_result(raw, performance=performance, log_label=log_label)

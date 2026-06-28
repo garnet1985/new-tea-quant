@@ -72,7 +72,7 @@ class CalendarService(BaseDataService):
         Returns:
             最新已完成交易日（YYYYMMDD），无法解析时可能为空字符串。
         """
-        configured = ProjectContext.path.get_as_of_latest_completed_trading_date()
+        configured = ProjectContext.config.get_as_of_latest_completed_trading_date()
         if configured:
             if not CalendarService._configured_as_of_logged:
                 CalendarService._configured_as_of_logged = True

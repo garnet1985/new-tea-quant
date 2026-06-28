@@ -1,5 +1,5 @@
 """命名空间 API - 提供清晰的命名空间访问方式"""
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Set, List, Callable
 from pathlib import Path
 import json
 
@@ -301,3 +301,179 @@ class CacheNamespace:
         """清理 userspace 路径缓存"""
         from .path_manager import PathManager
         PathManager.clear_userspace_cache()
+
+
+class ConfigNamespace:
+    """配置管理命名空间"""
+
+    @staticmethod
+    def get_as_of_latest_completed_trading_date() -> Optional[str]:
+        """
+        data.json ``as_of_latest_completed_trading_date``（全系统 as-of 权威）。
+
+        配置后 ``CalendarService.get_latest_completed_trading_date`` 直接返回该值。
+        """
+        from .config_manager import ConfigManager
+        return ConfigManager.get_as_of_latest_completed_trading_date()
+
+    @staticmethod
+    def get_default_start_date() -> str:
+        """
+        获取默认开始日期
+
+        Returns:
+            默认开始日期字符串（格式：YYYYMMDD）
+        """
+        from .config_manager import ConfigManager
+        return ConfigManager.get_default_start_date()
+
+    @staticmethod
+    def get_use_sample_stock_list() -> Optional[int]:
+        """
+        开发样本股票池规模（``core/modules/data_source/dev/stock_pool/stratified_N.csv``）。
+
+        - 正整数 ``N`` → 使用 ``stratified_N.csv``
+        - 未配置 / 空 / 非正数 → 全市场
+        """
+        from .config_manager import ConfigManager
+        return ConfigManager.get_use_sample_stock_list()
+
+    @staticmethod
+    def load_database_config(database_type: str = None) -> Dict[str, Any]:
+        """
+        加载数据库配置（自动合并 userspace 配置）
+
+        加载流程：
+        1. 加载 core/default_config/database/common.json（公用配置，包含 database_type）
+        2. 加载 core/default_config/database/{database_type}.json（数据库专用配置）
+        3. 合并：database_type 配置覆盖 common 配置
+        4. 加载 userspace/config/database/common.json（用户公用配置，如果存在）
+        5. 加载 userspace/config/database/{database_type}.json（用户数据库配置，如果存在）
+        6. 深度合并：用户配置覆盖默认配置
+        7. 环境变量覆盖（最高优先级）
+
+        Args:
+            database_type: 数据库类型（'postgresql', 'mysql'）
+                          如果为 None，从配置文件中获取
+
+        Returns:
+            合并后的数据库配置字典，格式：
+            {
+                'database_type': 'postgresql',
+                'postgresql': {...},  # 或 'mysql': {...}
+                'batch_write': {...}
+            }
+        """
+        from .config_manager import ConfigManager
+        return ConfigManager.load_database_config(database_type)
+
+    @staticmethod
+    def load_core_config(
+        config_name: str,
+        deep_merge_fields: Set[str] = None,
+        override_fields: Set[str] = None
+    ) -> Dict[str, Any]:
+        """
+        加载核心配置（自动合并 userspace 配置）
+
+        加载流程：
+        1. 加载 core/default_config/{config_name}.json（默认配置）
+        2. 加载 userspace/config/{config_name}.json（用户配置，如果存在）
+        3. 深度合并：用户配置覆盖默认配置
+
+        Args:
+            config_name: 配置文件名（不含 .json 后缀）
+            deep_merge_fields: 需要深度合并的字段名集合
+            override_fields: 需要完全覆盖的字段名集合
+
+        Returns:
+            合并后的配置字典
+        """
+        from .config_manager import ConfigManager
+        return ConfigManager.load_core_config(
+            config_name,
+            deep_merge_fields=deep_merge_fields,
+            override_fields=override_fields
+        )
+
+    @staticmethod
+    def load_data_config() -> Dict[str, Any]:
+        """
+        加载数据配置（合并后的完整配置）
+
+        Returns:
+            数据配置字典，包含 default_start_date, decimal_places 等
+        """
+        from .config_manager import ConfigManager
+        return ConfigManager.load_data_config()
+
+    @staticmethod
+    def load_benchmark_stock_index_list() -> List[Dict[str, Any]]:
+        """
+        获取全局基准股票指数列表（benchmark_stock_index_list）。
+
+        - 默认值来自 core/default_config/data.json；
+        - 用户可以在 userspace/config/data.json 中覆盖或扩展该列表，
+          合并逻辑由 ConfigManager.load_core_config 负责。
+
+        Returns:
+            基准股票指数列表，包含 id, name, description, type 等字段
+        """
+        from .config_manager import ConfigManager
+        return ConfigManager.load_benchmark_stock_index_list()
+
+
+class DiscoveryNamespace:
+    """配置发现命名空间"""
+
+    @staticmethod
+    def discover_configs(domain: str = "", *, pattern: str = "*.json") -> List[str]:
+        """
+        扫描 core / userspace 下指定 domain 的 JSON 配置 id（无后缀），并集排序。
+
+        Args:
+            domain: 配置域（如 "markets", "data_source" 等）
+            pattern: 文件匹配模式（默认 "*.json"）
+
+        Returns:
+            配置 ID 列表（排序后）
+        """
+        from .discovery_manager import DiscoveryManager
+        return DiscoveryManager.discover_configs(domain, pattern=pattern)
+
+    @staticmethod
+    def load_overridable_config(
+        domain: str,
+        config_id: str,
+        *,
+        merge_fn: Optional[Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, Any]]] = None,
+        deep_merge_fields: Optional[Set[str]] = None,
+        override_fields: Optional[Set[str]] = None,
+        file_type: str = "json",
+    ) -> Dict[str, Any]:
+        """
+        加载可覆盖配置。
+
+        Args:
+            domain: 配置域（如 "markets", "data_source" 等）
+            config_id: 配置 ID（如 "china_a_stock"）
+            merge_fn: 自定义合并函数（可选）
+            deep_merge_fields: 需要深度合并的字段名集合（可选）
+            override_fields: 需要完全覆盖的字段名集合（可选）
+            file_type: 文件类型（默认 "json"）
+
+        Returns:
+            合并后的配置字典
+
+        Raises:
+            OverridableConfigNotFoundError: 当 core 和 userspace 均未找到有效配置时
+        """
+        from .discovery_manager import DiscoveryManager
+        return DiscoveryManager.load_overridable_config(
+            domain,
+            config_id,
+            merge_fn=merge_fn,
+            deep_merge_fields=deep_merge_fields,
+            override_fields=override_fields,
+            file_type=file_type,
+        )

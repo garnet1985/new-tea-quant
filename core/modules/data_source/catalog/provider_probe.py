@@ -82,7 +82,7 @@ def summarize_provider_auth(
     hint = ""
     if missing:
         if "tushare" in missing:
-            provider_path = PathManager.get_data_source_provider_directory("tushare")
+            provider_path = ProjectContext.path.get_data_source_provider_directory("tushare")
             hint = (
                 f"请配置 Tushare Token：{provider_path}/auth_token.txt "
                 "或环境变量 TUSHARE_TOKEN"

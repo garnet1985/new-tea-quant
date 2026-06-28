@@ -128,7 +128,7 @@ ProjectContext:
         enum_dir = ProjectContext.get_strategy_directory_simulation_enum("example")
         # /path/to/userspace/strategies/example/results/simulations/enum
 
-    get_strategy_directory_scan_results(strategy_name):
+    get_strategy_scan_results_directory(strategy_name):
       description: "获取策略扫描结果目录路径"
       stability: stable
       parameters:
@@ -136,7 +136,7 @@ ProjectContext:
       returns: Path  # 策略扫描结果目录路径：.../strategies/{strategy_name}/results/scan/
       throws: []
       example: |
-        scan_dir = ProjectContext.get_strategy_directory_scan_results("example")
+        scan_dir = ProjectContext.get_strategy_scan_results_directory("example")
         # /path/to/userspace/strategies/example/results/scan
 
     get_tag_scenario_directory(scenario_name):

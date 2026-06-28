@@ -273,7 +273,7 @@ def get_scan_readiness(*, strategy_name: str, demo: bool = False) -> Dict[str, A
 
         resolver = ScanDateResolver(data_mgr)
         scan_date, stock_ids = resolver.resolve_scan_date(use_strict=use_strict)
-        csv_path = ProjectContext.path.get_strategy_directory_scan_results(name) / scan_date / "opportunities.csv"
+        csv_path = ProjectContext.path.get_strategy_scan_results_directory(name) / scan_date / "opportunities.csv"
         if not csv_path.is_file():
             return {"primary_action": "run"}
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Tuple, Union
 
-from ..types import ArtifactSpec, BundleManifest, ConflictPolicy, InstallResult
+from ..types import ArtifactSpec, BundleManifest, ConflictPolicy, InstallResult, PreflightResult
 from .archive import create_bundle_archive, extract_bundle_archive
 from .install import install_bundle, install_bundle_archive
 
@@ -47,14 +47,17 @@ class InstallNamespace:
 
     @staticmethod
     def preflight(
-        extracted_root: Path,
+        extracted_root: Union[Path, BundleManifest],
         userspace_root: Path,
         policy: ConflictPolicy,
-    ) -> Tuple[Path, BundleManifest]:
+    ) -> PreflightResult:
         """Preflight installation to detect conflicts."""
         from .conflict import preflight_install
         from .manifest import read_manifest
 
-        manifest = read_manifest(extracted_root / "manifest.json")
-        preflight_install(manifest, userspace_root, policy)
-        return userspace_root, manifest
+        if isinstance(extracted_root, BundleManifest):
+            manifest = extracted_root
+        else:
+            manifest = read_manifest(extracted_root / "manifest.json")
+
+        return preflight_install(manifest, userspace_root, policy)

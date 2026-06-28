@@ -31,7 +31,7 @@ class TestDatabaseManager:
     
     def test_init_without_config(self):
         """测试使用默认配置初始化"""
-        with patch('core.infra.db.db_manager.ConfigManager.load_database_config') as mock_config:
+        with patch('core.infra.project_context.core.config_manager.ConfigManager.load_database_config') as mock_config:
             mock_config.return_value = _minimal_mysql_config()
             db = DatabaseManager(is_verbose=False)
             assert db.config['database_type'] == 'mysql'
@@ -48,7 +48,7 @@ class TestDatabaseManager:
         """测试自动初始化默认实例"""
         DatabaseManager.reset_default()
         with patch(
-            "core.infra.db.db_manager.ConfigManager.load_database_config",
+            "core.infra.project_context.core.config_manager.ConfigManager.load_database_config",
             return_value=_minimal_mysql_config(),
         ), patch(
             "core.infra.db.engines.mysql.connector.MysqlConnector.connect"

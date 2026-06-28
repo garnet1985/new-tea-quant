@@ -10,5 +10,6 @@ Project Context Module - 项目上下文管理
 """
 
 from .project_context import ProjectContext
+from .core.discovery_manager import OverridableConfigNotFoundError
 
-__all__ = ['ProjectContext']
+__all__ = ['ProjectContext', 'OverridableConfigNotFoundError']

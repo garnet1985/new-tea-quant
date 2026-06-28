@@ -6,8 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from core.infra.export_import import ConflictPolicy
+from core.infra.export_import import ExportImport
 from core.infra.project_context import ProjectContext
+from core.infra.project_context.core.path_manager import PathManager
 from core.modules.strategy.services.package import import_strategy_bundle, preview_strategy_bundle_import
 from core.modules.strategy.services.package.single import export_single_entity
 
@@ -16,11 +17,11 @@ from core.modules.strategy.services.package.single import export_single_entity
 def userspace_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     us = tmp_path / "userspace"
     us.mkdir()
-    monkeypatch.setattr(PathManager, "userspace", staticmethod(lambda: us))
-    monkeypatch.setattr(PathManager, "strategies_root", staticmethod(lambda: us / "strategies"))
-    monkeypatch.setattr(PathManager, "strategy", staticmethod(lambda name: us / "strategies" / name))
-    monkeypatch.setattr(PathManager, "tag_scenario", staticmethod(lambda name: us / "extensions" / "tags" / name))
-    monkeypatch.setattr(PathManager, "adapters", staticmethod(lambda: us / "extensions" / "adapters"))
+    monkeypatch.setattr(PathManager, "get_userspace_root", staticmethod(lambda: us))
+    monkeypatch.setattr(PathManager, "get_strategies_root", staticmethod(lambda: us / "strategies"))
+    monkeypatch.setattr(PathManager, "get_strategy_directory", staticmethod(lambda name: us / "strategies" / name))
+    monkeypatch.setattr(PathManager, "get_tag_scenario_directory", staticmethod(lambda name: us / "extensions" / "tags" / name))
+    monkeypatch.setattr(PathManager, "get_adapters_directory", staticmethod(lambda: us / "extensions" / "adapters"))
     return us
 
 
@@ -47,7 +48,7 @@ def test_single_tag_import_rejects_duplicate(userspace_tree: Path, tmp_path: Pat
     dst = tmp_path / "dst"
     _write_tag(dst)
 
-    preview = preview_strategy_bundle_import(blob, userspace_root=dst, policy=ConflictPolicy.REJECT)
+    preview = preview_strategy_bundle_import(blob, userspace_root=dst, policy=ExportImport.types.ConflictPolicy.REJECT)
     assert preview["ok"] is False
-    result = import_strategy_bundle(blob, ConflictPolicy.REJECT, userspace_root=dst)
+    result = import_strategy_bundle(blob, ExportImport.types.ConflictPolicy.REJECT, userspace_root=dst)
     assert not result.ok

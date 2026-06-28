@@ -29,15 +29,15 @@ def userspace_layout(tmp_path, monkeypatch):
     )
 
     monkeypatch.setattr(
-        "core.infra.system_actions.cache_cleanup.cache_cleanup.PathManager.strategies_root",
+        "core.infra.project_context.core.path_manager.PathManager.get_strategies_root",
         lambda: tmp_path / "strategies",
     )
     monkeypatch.setattr(
-        "core.infra.system_actions.cache_cleanup.cache_cleanup.PathManager.userspace_ntq",
+        "core.infra.project_context.core.path_manager.PathManager.get_userspace_ntq_directory",
         lambda: tmp_path / ".ntq",
     )
     monkeypatch.setattr(
-        "core.infra.system_actions.cache_cleanup.cache_cleanup.PathManager.invalidate_userspace_cache",
+        "core.infra.project_context.core.path_manager.PathManager.clear_userspace_cache",
         lambda: None,
     )
     return tmp_path

@@ -53,7 +53,7 @@ def clear_backtest_results_disk(*, strategy_names: Optional[Iterable[str]] = Non
     """删除各策略 ``results/simulations/``。返回删除的目录数。"""
     removed = 0
     for name in _discovered_strategy_keys(strategy_names=strategy_names):
-        sim_root = ProjectContext.path.get_strategy_directory_results(name) / "simulations"
+        sim_root = ProjectContext.path.get_strategy_results_directory(name) / "simulations"
         if sim_root.exists():
             _rm_tree(sim_root)
             removed += 1
@@ -64,7 +64,7 @@ def clear_scan_results_disk(*, strategy_names: Optional[Iterable[str]] = None) -
     """删除各策略 ``results/scan/``。返回删除的目录数。"""
     removed = 0
     for name in _discovered_strategy_keys(strategy_names=strategy_names):
-        scan_root = ProjectContext.path.get_strategy_directory_scan_results(name)
+        scan_root = ProjectContext.path.get_strategy_scan_results_directory(name)
         if scan_root.exists():
             _rm_tree(scan_root)
             removed += 1
@@ -75,7 +75,7 @@ def clear_strategy_results_disk(*, strategy_names: Optional[Iterable[str]] = Non
     """删除各策略整个 ``results/``（devcli 用，含 simulations 与 scan）。"""
     removed = 0
     for name in _discovered_strategy_keys(strategy_names=strategy_names):
-        results = ProjectContext.path.get_strategy_directory_results(name)
+        results = ProjectContext.path.get_strategy_results_directory(name)
         if results.exists():
             _rm_tree(results)
             removed += 1

@@ -126,7 +126,7 @@ class PathNamespace:
         return PathManager.get_strategy_simulation_enum_directory(strategy_name)
 
     @staticmethod
-    def get_strategy_directory_scan_results(strategy_name: str) -> Path:
+    def get_strategy_scan_results_directory(strategy_name: str) -> Path:
         """获取策略扫描结果目录"""
         from .path_manager import PathManager
         return PathManager.get_strategy_scan_results_directory(strategy_name)

@@ -130,7 +130,7 @@ class ProjectContextAPI(ABC):
 
     @classmethod
     @abstractmethod
-    def get_strategy_directory_scan_results(cls, strategy_name: str) -> Path:
+    def get_strategy_scan_results_directory(cls, strategy_name: str) -> Path:
         """获取策略扫描结果目录"""
         pass
 

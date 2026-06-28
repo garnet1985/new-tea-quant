@@ -119,9 +119,9 @@ class ProjectContext(ProjectContextAPI):
         return cls.path.get_strategy_directory_simulation_enum(strategy_name)
 
     @classmethod
-    def get_strategy_directory_scan_results(cls, strategy_name: str) -> Path:
+    def get_strategy_scan_results_directory(cls, strategy_name: str) -> Path:
         """获取策略扫描结果目录"""
-        return cls.path.get_strategy_directory_scan_results(strategy_name)
+        return cls.path.get_strategy_scan_results_directory(strategy_name)
 
     @classmethod
     def get_tag_scenario_directory(cls, scenario_name: str) -> Path:

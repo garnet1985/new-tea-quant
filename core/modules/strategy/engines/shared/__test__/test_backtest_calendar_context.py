@@ -15,8 +15,8 @@ def test_count_open_days_between_inclusive():
         period_end="20240131",
         open_dates=("20240102", "20240103", "20240104", "20240108"),
     )
-    assert ctx.count_open_days_between("20240102", "20240104") == 3
-    assert ctx.count_open_days_between("20240105", "20240110") == 1
+    assert ProjectContext.count_open_days_between("20240102", "20240104") == 3
+    assert ProjectContext.count_open_days_between("20240105", "20240110") == 1
 
 
 def test_resolve_holding_days_trading_vs_calendar():

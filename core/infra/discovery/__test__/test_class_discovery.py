@@ -1,5 +1,5 @@
 """ClassDiscovery 单元测试。"""
-from core.infra.discovery import ClassDiscovery, DiscoveryConfig
+from core.infra.discovery.core.class_discovery import ClassDiscovery, DiscoveryConfig
 from core.modules.data_source.base_class.base_provider import BaseProvider
 
 

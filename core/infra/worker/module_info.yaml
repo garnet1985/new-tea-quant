@@ -1,10 +1,23 @@
 name: infra.worker
-version: 0.3.1
+version: 0.3.3
 compatible_core_versions: ">=0.4.0"
-description: "NTQ 通用任务并发基础设施：多进程/多线程 Worker、TaskType 与可插拔的 Orchestrator 组件链。"
+description: "NTQ Dispatch规划基础设施：基于内存/时间约束优化并发执行，提供任务类型定义。"
 dependencies:
   - infra.project_context
 changelog:
+  - version: "0.3.3"
+    changes:
+      - 重构Facade为纯粹的高层API（只暴露resolve方法）
+      - 删除内部类暴露（ProcessWorker、Orchestrator等）
+      - 添加resolve_memory_budget_mb API
+      - 明确模块定位：Dispatch规划而非任务执行
+      - 符合核心模块标准（Facade模式 + 高层API）
+  - version: "0.3.2"
+    changes:
+      - 创建Worker Facade类，提供统一入口
+      - 删除向后兼容的旧API（ProcessExecutionMode等）
+      - 补充api.yaml和glossary.yaml文档
+      - 符合核心模块标准（Facade模式）
   - version: "0.3.1"
     changes:
       - 优化 dispatch_planner 中的 entities_per_job 约束问题，效率最高提升约15%

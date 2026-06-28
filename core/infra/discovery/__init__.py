@@ -1,28 +1,17 @@
 """
-Discovery Module - 自动发现工具
+Discovery Module - 文件和类发现工具
 
-提供通用的类、模块、配置自动发现功能。
-
-使用场景：
-- 自动发现 Provider 类
-- 自动发现 Handler 类及其 Config
-- 自动发现 Strategy Worker 类
-- 自动发现 Adapter 类
-- 自动发现 Schema 定义
+使用方式：
+    from core.infra.discovery import Discovery
+    
+    # 文件操作
+    path = Discovery.file.find_file(directory, filename)
+    data = Discovery.file.load_json(path)
+    
+    # 批量发现
+    files = Discovery.discover.files(directory, pattern)
 """
 
-from .class_discovery import (
-    ClassDiscovery,
-    DiscoveryConfig,
-    DiscoveryResult,
-    discover_subclasses
-)
-from .module_discovery import ModuleDiscovery
+from .discovery import Discovery
 
-__all__ = [
-    'ClassDiscovery',
-    'DiscoveryConfig',
-    'DiscoveryResult',
-    'ModuleDiscovery',
-    'discover_subclasses',
-]
+__all__ = ['Discovery']

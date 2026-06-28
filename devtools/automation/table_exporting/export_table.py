@@ -28,9 +28,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from core.infra.project_context import PathManager
+from core.infra.project_context import ProjectContextManager
 
-OUT_DIR = PathManager.backup_data()
+OUT_DIR = ProjectContextManager.get_backup_data_directory()
 
 DATE_FMT = "%Y%m%d"
 # 默认窗口：固定 2025 全年（Demo 对外数据窗口）

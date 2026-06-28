@@ -9,7 +9,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.infra.project_context import PathManager
+from core.infra.project_context import ProjectContext
+
 from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
     _normalize_backtest_period_dict,
     backtest_period_console_lines,
@@ -763,7 +764,7 @@ class EnumeratorReport(ReportBase):
             return cls.from_bff_payload(payload), None
 
         candidates = [
-            PathManager.strategy_simulation_enum(sn or label) / version_name,
+            ProjectContext.path.get_strategy_directory_simulation_enum(sn or label) / version_name,
         ]
         for output_dir in candidates:
             if output_dir.exists():

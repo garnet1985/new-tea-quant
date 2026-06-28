@@ -12,12 +12,14 @@ from dataclasses import dataclass
 from datetime import date
 import logging
 import re
+
+from core.infra.project_context import ProjectContext
 import shutil
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
 from .. import BaseDataService
-from core.infra.project_context import PathManager
+
 
 
 logger = logging.getLogger(__name__)
@@ -38,7 +40,7 @@ class BackupAndRestoreService(BaseDataService):
         super().__init__(data_manager)
 
     def _default_backup_root(self) -> Path:
-        return PathManager.backup_data()
+        return ProjectContext.path.get_backup_data_directory()
 
     def _resolve_backup_dir(self, root_dir: Optional[str | Path], backup_date: Optional[str]) -> Path:
         base = Path(root_dir) if root_dir else self._default_backup_root()

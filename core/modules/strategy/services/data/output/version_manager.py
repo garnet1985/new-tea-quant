@@ -13,7 +13,7 @@ import shutil
 from pathlib import Path
 from typing import Any, Dict, FrozenSet, Literal, Optional, Set, Tuple
 
-from core.infra.project_context import PathManager
+from core.infra.project_context import ProjectContext
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ def _pick_latest_numeric_version_dir(candidates: list[Path]) -> Path:
 class StrategyOutputVersionService:
     @staticmethod
     def create_enumerator_version(strategy_name: str) -> Tuple[Path, int]:
-        root = PathManager.strategy_simulation_enum(strategy_name)
+        root = ProjectContext.path.get_strategy_directory_simulation_enum(strategy_name)
         root.mkdir(parents=True, exist_ok=True)
         meta_path = root / "meta.json"
         if meta_path.exists():
@@ -79,7 +79,7 @@ class StrategyOutputVersionService:
         strategy_name: str,
         version_spec: str,
     ) -> Tuple[Path, Path]:
-        root = PathManager.strategy_simulation_enum(strategy_name)
+        root = ProjectContext.path.get_strategy_directory_simulation_enum(strategy_name)
         version_str = (version_spec or "latest").strip()
         if "/" in version_str:
             version_str = version_str.rsplit("/", 1)[-1].strip() or "latest"
@@ -103,7 +103,7 @@ class StrategyOutputVersionService:
 
     @staticmethod
     def create_price_factor_version(strategy_name: str) -> Tuple[Path, int]:
-        root_dir = PathManager.strategy_simulation_price(strategy_name)
+        root_dir = ProjectContext.path.get_strategy_directory_simulation_price(strategy_name)
         root_dir.mkdir(parents=True, exist_ok=True)
         meta_path = root_dir / "meta.json"
         if meta_path.exists():
@@ -131,7 +131,7 @@ class StrategyOutputVersionService:
         strategy_name: str,
         version_spec: str,
     ) -> Tuple[Path, int]:
-        root_dir = PathManager.strategy_simulation_price(strategy_name)
+        root_dir = ProjectContext.path.get_strategy_directory_simulation_price(strategy_name)
         if not root_dir.exists():
             raise FileNotFoundError(
                 f"[StrategyOutputVersionService] price factor simulator dir missing: {root_dir}"
@@ -155,7 +155,7 @@ class StrategyOutputVersionService:
 
     @staticmethod
     def create_capital_allocation_version(strategy_name: str) -> Tuple[Path, int]:
-        base_dir = PathManager.strategy_simulation_capital(strategy_name)
+        base_dir = ProjectContext.path.get_strategy_directory_simulation_capital(strategy_name)
         base_dir.mkdir(parents=True, exist_ok=True)
         meta_file = base_dir / "meta.json"
         meta: Dict[str, Any] = {}
@@ -187,7 +187,7 @@ class StrategyOutputVersionService:
         strategy_name: str,
         version_spec: str,
     ) -> Tuple[Path, int]:
-        base_dir = PathManager.strategy_simulation_capital(strategy_name)
+        base_dir = ProjectContext.path.get_strategy_directory_simulation_capital(strategy_name)
         if not base_dir.exists():
             raise FileNotFoundError(
                 f"[StrategyOutputVersionService] capital allocation simulator dir missing: {base_dir}"

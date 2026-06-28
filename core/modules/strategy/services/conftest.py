@@ -8,7 +8,7 @@ from typing import Iterable, Tuple
 
 import pytest
 
-from core.infra.project_context.path_manager import PathManager
+from core.infra.project_context import ProjectContext
 
 _ENUM_REPORT_FILE = "0_report_enum.json"
 
@@ -29,7 +29,7 @@ def _write_enum_report(enum_root: Path, version_dir: str, *, opportunities: int)
 @pytest.fixture
 def enum_simulation_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """
-    临时 ``.../simulations/enum`` 目录树，供 PathManager.strategy_simulation_enum 使用。
+    临时 ``.../simulations/enum`` 目录树，供 PathManager.get_strategy_directory_simulation_enum 使用。
 
     默认写入版本 ``9``（140 条机会）与 ``20``（23206 条，供 latest 解析测试）。
     """
@@ -38,9 +38,9 @@ def enum_simulation_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pat
         _write_enum_report(enum_root, version_dir, opportunities=count)
 
     monkeypatch.setattr(
-        PathManager,
+        ProjectContext.path,
         "strategy_simulation_enum",
-        staticmethod(lambda _strategy_name: enum_root),
+        lambda _strategy_name: enum_root,
     )
     return enum_root
 

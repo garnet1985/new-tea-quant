@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from core.infra.project_context import ProjectContext
 from core.infra.db.engines.duckdb.wal_policy import should_checkpoint_after_tag_run
 from core.infra.job_pipeline import (
     DispatchResult,
@@ -28,7 +29,6 @@ from core.modules.tag.engines.shared.backend import backend_is_duckdb, parse_exe
 from core.modules.tag.engines.shared.report_save_buffer import TagReportSaveBuffer
 from core.modules.tag.engines.shared.run_profile import TagRunProfile
 from core.modules.tag.engines.shared.worker_exec import execute_tag_job
-from core.infra.project_context.path_manager import PathManager
 from core.modules.tag.services.discovery.path_rules import filesystem_safe_tag_key
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 def _make_tag_spill_dir(scenario_name: str) -> Path:
     """DuckDB stage spill 临时目录（``tag_key`` 含 ``/`` 时须 sanitize prefix）。"""
-    parent = PathManager.userspace_tmp() / "tag_spill"
+    parent = ProjectContext.path.get_userspace_tmp_directory() / "tag_spill"
     parent.mkdir(parents=True, exist_ok=True)
     prefix = f"ntq_tag_{filesystem_safe_tag_key(scenario_name)}_"
     return Path(tempfile.mkdtemp(prefix=prefix, dir=str(parent)))

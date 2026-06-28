@@ -3,7 +3,8 @@ import importlib
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import logging
-from core.infra.project_context import PathManager
+
+from core.infra.project_context import ProjectContext
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.data_class.config import DataSourceConfig
@@ -144,7 +145,7 @@ class DataSourceManagerHelper:
         Returns:
             找到的 handler.py 文件路径，如果未找到则返回 None
         """
-        handlers_dir = PathManager.data_source_handlers()
+        handlers_dir = ProjectContext.path.get_data_source_handlers_directory()
         if not handlers_dir.exists():
             return None
         

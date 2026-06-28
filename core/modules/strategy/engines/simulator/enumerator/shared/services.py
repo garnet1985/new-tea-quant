@@ -13,7 +13,8 @@ import json
 import logging
 import time
 
-from core.infra.project_context import PathManager
+from core.infra.project_context import ProjectContext
+
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
@@ -370,7 +371,7 @@ class EnumeratorSharedServices:
         except Exception:
             core_mapping_hash = ""
 
-        userspace_mapping_file = PathManager.data_contract_mapping()
+        userspace_mapping_file = ProjectContext.path.get_data_contract_mapping_path()
         if userspace_mapping_file.exists():
             userspace_mapping_hash = self._hash_file(userspace_mapping_file)
 

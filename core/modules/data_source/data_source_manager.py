@@ -2,7 +2,8 @@ from typing import Dict, Any, List, Tuple, Optional, Sequence
 from pathlib import Path
 import logging
 
-from core.infra.project_context import PathManager
+
+
 from core.modules.data_manager.data_manager import DataManager
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.data_class.handler_mapping import HandlerMapping
@@ -13,6 +14,8 @@ from core.modules.data_source.service.provider_helper import DataSourceProviderH
 from core.modules.data_source.base_class.base_handler import BaseHandler
 from core.modules.data_source.data_class.config import DataSourceConfig
 from core.modules.data_source.data_class.error import DataSourceConfigError
+from core.infra.project_context import ProjectContext
+from core.infra.discovery import Discovery
 
 
 logger = logging.getLogger(__name__)
@@ -151,7 +154,7 @@ class DataSourceManager:
     @staticmethod
     def list_enabled_source_keys() -> List[str]:
         """返回 mapping 中已启用的 data source key 列表。"""
-        mapping_path = PathManager.data_source_mapping()
+        mapping_path = ProjectContext.path.get_data_source_mapping_path()
         mapping = DataSourceManagerHelper.discover_mappings(mapping_path)
         return sorted(HandlerMapping(data_sources=mapping).get_enabled().keys())
 
@@ -258,7 +261,7 @@ class DataSourceManager:
         - 使用 userspace/extensions/data_source/mapping.py（DATA_SOURCES）作为入口。
         - 返回 HandlerMapping(data_sources=...)
         """
-        mapping_path = PathManager.data_source_mapping()
+        mapping_path = ProjectContext.path.get_data_source_mapping_path()
         mapping = DataSourceManagerHelper.discover_mappings(mapping_path)
         return HandlerMapping(data_sources=mapping)
 
@@ -328,7 +331,7 @@ class DataSourceManager:
             return self._all_valid_configs_cache[data_source_key]
 
         # 首先尝试直接路径
-        handler_dir = PathManager.data_source_handler(data_source_key)
+        handler_dir = ProjectContext.path.get_data_source_handler_directory(data_source_key)
         config_path = handler_dir / "config.py"
         
         config_dict = DataSourceManagerHelper.load_config_from_py(config_path)
@@ -355,13 +358,11 @@ class DataSourceManager:
     def _find_config_recursively(self, data_source_key: str) -> Optional[Path]:
         """
         递归查找 config.py 文件
-        
-        使用 DiscoveryManager.find_in_tree 进行查找。
-        """
-        from core.infra.project_context import DiscoveryManager
 
-        handlers_dir = PathManager.data_source_handlers()
-        return DiscoveryManager.find_in_tree(handlers_dir, data_source_key, "config.py")
+        使用 Discovery.file.find_file 在 handlers/{data_source_key} 目录中查找。
+        """
+        handlers_dir = ProjectContext.path.get_data_source_handlers_directory()
+        return Discovery.file.find_file(handlers_dir / data_source_key, "config.py")
 
 
     def _discover_handler(

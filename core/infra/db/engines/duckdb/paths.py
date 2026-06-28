@@ -1,9 +1,12 @@
 """DuckDB 文件路径解析（落在 userspace/system/db/）。"""
+
 from __future__ import annotations
 
 from pathlib import Path
 
-from core.infra.project_context import PathManager
+from core.infra.project_context import ProjectContext
+
+
 
 
 def resolve_duckdb_db_path(db_path: str) -> str:
@@ -19,7 +22,7 @@ def resolve_duckdb_db_path(db_path: str) -> str:
     if raw.is_absolute():
         resolved = raw
     else:
-        resolved = PathManager.system_db() / raw
+        resolved = ProjectContext.path.get_system_db_directory() / raw
 
     resolved.parent.mkdir(parents=True, exist_ok=True)
     return str(resolved.resolve())

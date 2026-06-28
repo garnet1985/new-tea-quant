@@ -5,7 +5,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from core.infra.project_context import PathManager
+from core.infra.project_context import ProjectContext
+
 from core.infra.system_actions.shortcuts._shared import (
     ScaffoldResult,
     copy_template,
@@ -19,7 +20,7 @@ TAG_TEMPLATE_REL = Path("_template") / "empty_scenario"
 
 def scaffold_tag(raw_path: str) -> ScaffoldResult:
     """复制 ``extensions/tags/_template/empty_scenario/`` 到 ``tags/<raw_path>/``。"""
-    root = PathManager.tags()
+    root = ProjectContext.path.get_tags_root()
     dest, key = resolve_dest(
         root=root,
         raw_path=raw_path,

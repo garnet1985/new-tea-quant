@@ -4,7 +4,8 @@ FileManager 单元测试
 import pytest
 import tempfile
 from pathlib import Path
-from core.infra.project_context.file_manager import FileManager
+from core.infra.project_context import ProjectContext
+from core.infra.discovery import Discovery
 
 
 class TestFileManager:
@@ -13,66 +14,66 @@ class TestFileManager:
     def test_find_file_existing(self):
         """测试查找存在的文件"""
         # 使用项目根目录的 README.md 作为测试文件
-        root = PathManager.get_root()
+        root = ProjectContext.path.get_project_root()
         readme = root / "README.md"
-        
+
         if readme.exists():
-            found = FileManager.find_file("README.md", root, recursive=False)
+            found = Discovery.file.find_file(root, "README.md")
             assert found is not None
             assert found.name == "README.md"
-    
+
     def test_find_file_nonexistent(self):
         """测试查找不存在的文件"""
-        root = PathManager.get_root()
-        found = FileManager.find_file("nonexistent_file_12345.py", root)
-        
+        root = ProjectContext.path.get_project_root()
+        found = Discovery.file.find_file(root, "nonexistent_file_12345.py")
+
         assert found is None
-    
+
     def test_find_file_recursive(self):
         """测试递归查找文件"""
-        root = PathManager.get_root()
+        root = ProjectContext.path.get_project_root()
         # 查找 __init__.py（应该能找到多个）
-        found = FileManager.find_file("__init__.py", root, recursive=True)
-        
+        found_files = Discovery.discover.files(root, "**/__init__.py")
+
         # 至少应该找到一个
-        assert found is not None
-    
+        assert len(found_files) > 0
+
     def test_read_file_existing(self):
         """测试读取存在的文件"""
-        root = PathManager.get_root()
+        root = ProjectContext.path.get_project_root()
         readme = root / "README.md"
-        
+
         if readme.exists():
-            content = FileManager.read_file(readme)
+            content = Discovery.file.load_text(readme)
             assert content is not None
             assert isinstance(content, str)
             assert len(content) > 0
-    
+
     def test_read_file_nonexistent(self):
         """测试读取不存在的文件"""
-        root = PathManager.get_root()
+        root = ProjectContext.path.get_project_root()
         nonexistent = root / "nonexistent_file_12345.txt"
-        
-        content = FileManager.read_file(nonexistent)
+
+        content = Discovery.file.load_text(nonexistent)
         assert content is None
-    
+
     def test_file_exists(self):
         """测试检查文件是否存在"""
-        root = PathManager.get_root()
+        root = ProjectContext.path.get_project_root()
         readme = root / "README.md"
-        
+
         if readme.exists():
-            assert FileManager.file_exists(readme) is True
-        
+            assert readme.exists() and readme.is_file() is True
+
         nonexistent = root / "nonexistent_file_12345.txt"
-        assert FileManager.file_exists(nonexistent) is False
-    
+        assert nonexistent.exists() is False
+
     def test_find_files(self):
         """测试查找所有匹配的文件"""
-        root = PathManager.get_root()
+        root = ProjectContext.path.get_project_root()
         # 查找所有 __init__.py 文件
-        init_files = FileManager.find_files("__init__.py", root, recursive=True)
-        
+        init_files = Discovery.discover.files(root, "**/__init__.py")
+
         assert isinstance(init_files, list)
         # 应该找到一些 __init__.py 文件
         assert len(init_files) > 0
@@ -81,5 +82,3 @@ class TestFileManager:
             assert file_path.name == "__init__.py"
 
 
-# 导入 PathManager 用于测试
-from core.infra.project_context.path_manager import PathManager

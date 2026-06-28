@@ -1,0 +1,389 @@
+# API Contract - infra.project_context
+# Version: 0.4.0
+# Last Updated: 2026-06-26
+# Requires: core>=0.4.0
+#
+# 目的：
+#   - 为所有API建立快捷目录
+#   - 让开发者和自动测试一目了然
+#   - 用户知道有哪些API和怎么用
+#   - 测试知道有哪些对外接口和用法，快速覆盖
+
+---
+
+ProjectContext:
+  layer: facade
+  description: "项目上下文管理器 - Facade，对外唯一入口（v0.4.0改为类方法，调用更简洁）"
+
+  apis:
+    # ========== 路径核心 API（7个）==========
+
+    get_project_root():
+      description: "获取项目根目录的绝对路径"
+      stability: stable
+      parameters: []
+      returns: Path  # 项目根目录路径（绝对路径）
+      throws: []
+      example: |
+        root = ProjectContext.get_project_root()
+        # /path/to/new-tea-quant
+
+    get_core_root():
+      description: "获取 core 目录的绝对路径"
+      stability: stable
+      parameters: []
+      returns: Path  # core目录路径（绝对路径）
+      throws: []
+      example: |
+        core_dir = ProjectContext.get_core_root()
+        # /path/to/new-tea-quant/core
+
+    get_userspace_root():
+      description: "获取 userspace 目录的绝对路径"
+      stability: stable
+      parameters: []
+      returns: Path  # userspace目录路径（绝对路径）
+      throws: []
+      environment_dependencies:
+        - NEW_TEA_QUANT_USERSPACE_ROOT  # 最高优先级
+        - NTQ_USERSPACE_ROOT  # 次优先级
+      example: |
+        userspace = ProjectContext.get_userspace_root()
+        # /path/to/userspace
+
+    get_strategies_root():
+      description: "获取策略根目录的绝对路径"
+      stability: stable
+      parameters: []
+      returns: Path  # 策略根目录路径：userspace/strategies/
+      throws: []
+      example: |
+        strategies_root = ProjectContext.get_strategies_root()
+        # /path/to/userspace/strategies
+
+    get_tags_root():
+      description: "获取 Tag 根目录的绝对路径"
+      stability: stable
+      parameters: []
+      returns: Path  # Tag根目录路径：userspace/extensions/tags/
+      throws: []
+      example: |
+        tags_root = ProjectContext.get_tags_root()
+        # /path/to/userspace/extensions/tags
+
+    get_strategy_directory(strategy_name):
+      description: "获取指定策略的目录路径"
+      stability: stable
+      parameters:
+        - strategy_name: str  # 策略名称
+      returns: Path  # 策略目录路径：userspace/strategies/{strategy_name}/
+      throws: []
+      example: |
+        strategy_dir = ProjectContext.get_strategy_directory("example")
+        # /path/to/userspace/strategies/example
+
+    get_tag_directory(tag_name):
+      description: "获取指定 Tag scenario 的目录路径"
+      stability: stable
+      parameters:
+        - tag_name: str  # Tag scenario名称
+      returns: Path  # Tag目录路径：userspace/extensions/tags/{tag_name}/
+      throws: []
+      example: |
+        tag_dir = ProjectContext.get_tag_directory("example")
+        # /path/to/userspace/extensions/tags/example
+
+    # ========== 策略路径 API（5个）==========
+
+    get_strategy_directory_simulation_price(strategy_name):
+      description: "获取策略模拟价格目录路径"
+      stability: stable
+      parameters:
+        - strategy_name: str  # 策略名称
+      returns: Path  # 策略模拟价格目录路径：.../strategies/{strategy_name}/results/simulations/price/
+      throws: []
+      example: |
+        price_dir = ProjectContext.get_strategy_directory_simulation_price("example")
+        # /path/to/userspace/strategies/example/results/simulations/price
+
+    get_strategy_directory_simulation_capital(strategy_name):
+      description: "获取策略模拟资金目录路径"
+      stability: stable
+      parameters:
+        - strategy_name: str  # 策略名称
+      returns: Path  # 策略模拟资金目录路径：.../strategies/{strategy_name}/results/simulations/capital/
+      throws: []
+      example: |
+        capital_dir = ProjectContext.get_strategy_directory_simulation_capital("example")
+        # /path/to/userspace/strategies/example/results/simulations/capital
+
+    get_strategy_directory_simulation_enum(strategy_name):
+      description: "获取策略模拟枚举目录路径"
+      stability: stable
+      parameters:
+        - strategy_name: str  # 策略名称
+      returns: Path  # 策略模拟枚举目录路径：.../strategies/{strategy_name}/results/simulations/enum/
+      throws: []
+      example: |
+        enum_dir = ProjectContext.get_strategy_directory_simulation_enum("example")
+        # /path/to/userspace/strategies/example/results/simulations/enum
+
+    get_strategy_scan_results_directory(strategy_name):
+      description: "获取策略扫描结果目录路径"
+      stability: stable
+      parameters:
+        - strategy_name: str  # 策略名称
+      returns: Path  # 策略扫描结果目录路径：.../strategies/{strategy_name}/results/scan/
+      throws: []
+      example: |
+        scan_dir = ProjectContext.get_strategy_scan_results_directory("example")
+        # /path/to/userspace/strategies/example/results/scan
+
+    get_tag_scenario_directory(scenario_name):
+      description: "获取 Tag scenario 目录路径"
+      stability: stable
+      parameters:
+        - scenario_name: str  # scenario名称
+      returns: Path  # Tag scenario目录路径：userspace/extensions/tags/{scenario_name}/
+      throws: []
+      example: |
+        scenario_dir = ProjectContext.get_tag_scenario_directory("example")
+        # /path/to/userspace/extensions/tags/example
+
+    # ========== 扩展路径 API（7个）==========
+
+    get_extensions_tables_directory():
+      description: "获取扩展表目录路径"
+      stability: stable
+      parameters: []
+      returns: Path  # 扩展表目录路径：userspace/extensions/tables/
+      throws: []
+      example: |
+        tables_dir = ProjectContext.get_extensions_tables_directory()
+        # /path/to/userspace/extensions/tables
+
+    get_adapters_directory():
+      description: "获取 adapters 目录路径"
+      stability: stable
+      parameters: []
+      returns: Path  # adapters目录路径：userspace/extensions/adapters/
+      throws: []
+      example: |
+        adapters_dir = ProjectContext.get_adapters_directory()
+        # /path/to/userspace/extensions/adapters
+
+    get_data_source_handler_directory(handler_name):
+      description: "获取数据源处理器目录路径"
+      stability: stable
+      parameters:
+        - handler_name: str  # 处理器名称
+      returns: Path  # 数据源处理器目录路径：userspace/extensions/data_source/handlers/{handler_name}/
+      throws: []
+      example: |
+        handler_dir = ProjectContext.get_data_source_handler_directory("example_handler")
+        # /path/to/userspace/extensions/data_source/handlers/example_handler
+
+    get_data_source_handlers_directory():
+      description: "获取数据源处理器根目录路径"
+      stability: stable
+      parameters: []
+      returns: Path  # 数据源处理器根目录路径：userspace/extensions/data_source/handlers/
+      throws: []
+      example: |
+        handlers_dir = ProjectContext.get_data_source_handlers_directory()
+        # /path/to/userspace/extensions/data_source/handlers
+
+    get_data_source_mapping_path():
+      description: "获取数据源映射文件路径"
+      stability: stable
+      parameters: []
+      returns: Path  # 数据源映射文件路径：userspace/extensions/data_source/mapping.py
+      throws: []
+      example: |
+        mapping_path = ProjectContext.get_data_source_mapping_path()
+        # /path/to/userspace/extensions/data_source/mapping.py
+
+    get_data_contract_mapping_path():
+      description: "获取数据契约映射文件路径"
+      stability: stable
+      parameters: []
+      returns: Path  # 数据契约映射文件路径：userspace/extensions/data_contract/mapping.py
+      throws: []
+      example: |
+        mapping_path = ProjectContext.get_data_contract_mapping_path()
+        # /path/to/userspace/extensions/data_contract/mapping.py
+
+    get_userspace_ntq_directory():
+      description: "获取 userspace NTQ 目录路径"
+      stability: stable
+      parameters: []
+      returns: Path  # userspace NTQ目录路径：userspace/ntq/
+      throws: []
+      example: |
+        ntq_dir = ProjectContext.get_userspace_ntq_directory()
+        # /path/to/userspace/ntq
+
+    # ========== 配置核心 API（3个）==========
+
+    load_core_config(config_name):
+      description: "加载 core 配置"
+      stability: stable
+      parameters:
+        - config_name: str  # 配置名称（如 'logging', 'database'）
+      returns: Dict[str, Any]  # 配置字典
+      throws: []
+      example: |
+        settings = ProjectContext.load_core_config("logging")
+        # {"level": "INFO", "format": "..."}
+
+    load_database_config(database_type):
+      description: "加载数据库配置"
+      stability: stable
+      parameters:
+        - database_type: Optional[str] = None  # 数据库类型（如 'duckdb', 'postgres'）
+      returns: Dict[str, Any]  # 数据库配置字典
+      throws: []
+      example: |
+        db_config = ProjectContext.load_database_config("duckdb")
+        # {"type": "duckdb", "path": "..."}
+
+    load_data_config():
+      description: "加载 data.json 配置"
+      stability: stable
+      parameters: []
+      returns: Dict[str, Any]  # data配置字典
+      throws: []
+      example: |
+        data_config = ProjectContext.load_data_config()
+        # {"data_sources": {...}}
+
+    # ========== 特殊配置 API（3个）==========
+
+    get_default_start_date():
+      description: "获取 data.json 的 default_start_date 配置（默认开始日期）"
+      stability: stable
+      parameters: []
+      returns: str  # YYYYMMDD格式日期字符串
+      throws: []
+      example: |
+        start_date = ProjectContext.get_default_start_date()
+        # "20100104"
+
+    get_as_of_latest_completed_trading_date():
+      description: "获取 data.json 的 as_of_latest_completed_trading_date 配置（全系统 as-of 权威）"
+      stability: stable
+      parameters: []
+      returns: Optional[str]  # YYYYMMDD格式日期，或None
+      throws: []
+      example: |
+        as_of = ProjectContext.get_as_of_latest_completed_trading_date()
+        # "20260625" 或 None
+
+    get_use_sample_stock_list():
+      description: "获取 data.json 的 use_sample_stock_list 配置（开发样本股票池规模）"
+      stability: stable
+      parameters: []
+      returns: Optional[int]  # 正整数（如100），或None（全市场）
+      throws: []
+      example: |
+        sample_size = ProjectContext.get_use_sample_stock_list()
+        # 100 或 None
+
+    # ========== 发现核心 API（3个）==========
+
+    discover_strategies():
+      description: "发现所有策略"
+      stability: stable
+      parameters: []
+      returns: List[str]  # 策略名称列表
+      throws: []
+      example: |
+        strategies = ProjectContext.discover_strategies()
+        # ["example", "test_strategy"]
+
+    discover_tags():
+      description: "发现所有 Tag scenario"
+      stability: stable
+      parameters: []
+      returns: List[str]  # Tag scenario名称列表
+      throws: []
+      example: |
+        tags = ProjectContext.discover_tags()
+        # ["example", "test_tag"]
+
+    discover_configs(domain):
+      description: "发现指定 domain 的所有配置（默认为根级配置）"
+      stability: stable
+      parameters:
+        - domain: str  # 配置域（可选，默认为根级配置）
+      returns: Dict[str, Dict[str, Any]]  # 配置名称到配置字典的映射
+      throws: []
+      example: |
+        # 发现根级配置
+        configs = ProjectContext.discover_configs()
+        # {"logging": {...}, "database": {...}}
+
+        # 发现特定域配置
+        market_configs = ProjectContext.discover_configs("markets")
+        # {"cn_market": {...}, "us_market": {...}}
+
+    # ========== 文件核心 API（2个）==========
+
+    find_file(filename, search_dir, recursive):
+      description: "查找单个文件"
+      stability: stable
+      parameters:
+        - filename: str  # 文件名
+        - search_dir: Path  # 搜索目录
+        - recursive: bool = True  # 是否递归搜索
+      returns: Optional[Path]  # 文件路径，未找到返回 None
+      throws: []
+      example: |
+        file_path = ProjectContext.find_file("settings.py", Path("userspace/strategies"))
+        # /path/to/userspace/strategies/example/settings.py
+
+    load_file_content(path, encoding):
+      description: "加载文件内容"
+      stability: stable
+      parameters:
+        - path: Path  # 文件路径
+        - encoding: str = "utf-8"  # 文件编码
+      returns: Optional[str]  # 文件内容，文件不存在返回 None
+      throws: []
+      example: |
+        content = ProjectContext.load_file_content(Path("settings.py"))
+        # "content of settings.py"
+
+    # ========== 元数据核心 API（2个）==========
+
+    core_version():
+      description: "获取 core 版本号"
+      stability: stable
+      parameters: []
+      returns: Optional[str]  # 版本号字符串，未找到返回 None
+      throws: []
+      example: |
+        version = ProjectContext.core_version()
+        # "0.2.0"
+
+    core_info():
+      description: "获取 core meta 信息"
+      stability: stable
+      parameters: []
+      returns: Optional[Dict[str, Any]]  # meta信息字典，未找到返回 None
+      throws: []
+      example: |
+        meta = ProjectContext.core_info()
+        # {"version": "0.2.0", "name": "new-tea-quant"}
+
+    # ========== 缓存管理 API（1个）==========
+
+    clear_userspace_cache():
+      description: "清理 userspace 路径缓存"
+      stability: stable
+      parameters: []
+      returns: None
+      throws: []
+      example: |
+        ProjectContext.clear_userspace_cache()
+        # 清理缓存后，下次调用 get_userspace_root 会重新计算

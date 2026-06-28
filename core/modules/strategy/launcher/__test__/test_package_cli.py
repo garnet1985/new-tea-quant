@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from core.infra.project_context import PathManager
+
 from core.modules.strategy.launcher.package_cli import (
     bundle_filename,
     default_export_dir,
@@ -18,7 +18,8 @@ from core.modules.strategy.launcher.package_cli import (
     run_strategy_bundle_import,
     single_entity_filename,
 )
-from core.infra.export_import import ConflictPolicy
+from core.infra.export_import import ExportImport
+from core.infra.project_context.core.path_manager import PathManager
 
 
 @pytest.fixture
@@ -29,17 +30,17 @@ def userspace_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     (strategy / "settings.py").write_text('settings = {"name": "demo"}\n', encoding="utf-8")
     (strategy / "strategy_worker.py").write_text("class W: pass\n", encoding="utf-8")
 
-    monkeypatch.setattr(PathManager, "userspace", staticmethod(lambda: us))
-    monkeypatch.setattr(PathManager, "strategies_root", staticmethod(lambda: us / "strategies"))
-    monkeypatch.setattr(PathManager, "strategy", staticmethod(lambda name: us / "strategies" / name))
-    monkeypatch.setattr(PathManager, "extensions_root", staticmethod(lambda: us / "extensions"))
-    monkeypatch.setattr(PathManager, "tags", staticmethod(lambda: us / "extensions" / "tags"))
+    monkeypatch.setattr(PathManager, "get_userspace_root", staticmethod(lambda: us))
+    monkeypatch.setattr(PathManager, "get_strategies_root", staticmethod(lambda: us / "strategies"))
+    monkeypatch.setattr(PathManager, "get_strategy_directory", staticmethod(lambda name: us / "strategies" / name))
+    monkeypatch.setattr(PathManager, "get_extensions_root", staticmethod(lambda: us / "extensions"))
+    monkeypatch.setattr(PathManager, "get_tags_root", staticmethod(lambda: us / "extensions" / "tags"))
     monkeypatch.setattr(
         PathManager,
-        "tag_scenario",
+        "get_tag_scenario_directory",
         staticmethod(lambda name: us / "extensions" / "tags" / name),
     )
-    monkeypatch.setattr(PathManager, "adapters", staticmethod(lambda: us / "extensions" / "adapters"))
+    monkeypatch.setattr(PathManager, "get_adapters_directory", staticmethod(lambda: us / "extensions" / "adapters"))
     return us
 
 
@@ -56,8 +57,8 @@ def test_export_cli_writes_zip(userspace_tree: Path, tmp_path: Path, monkeypatch
 def test_default_export_path_falls_back_to_project_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     root = tmp_path / "project"
     root.mkdir()
-    monkeypatch.setattr(PathManager, "get_root", staticmethod(lambda: root))
-    monkeypatch.setattr(PathManager, "userspace", staticmethod(lambda: root / "userspace"))
+    monkeypatch.setattr(PathManager, "get_project_root", staticmethod(lambda: root))
+    monkeypatch.setattr(PathManager, "get_userspace_root", staticmethod(lambda: root / "userspace"))
     assert default_export_dir() == root
     assert default_export_path("bundle", "demo") == root / "demo-strategy.zip"
 
@@ -68,7 +69,7 @@ def test_parse_export_target_single_tag():
 
 
 def test_import_skip_existing_policy():
-    assert resolve_import_policy(force=False, skip_existing=True) == ConflictPolicy.SKIP_EXISTING
+    assert resolve_import_policy(force=False, skip_existing=True) == ExportImport.types.ConflictPolicy.SKIP_EXISTING
 
 
 def test_single_entity_export(userspace_tree: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

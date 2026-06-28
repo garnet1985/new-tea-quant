@@ -3,7 +3,7 @@ from typing import Dict, Optional, Any
 import os
 import logging
 
-from core.infra.project_context import PathManager
+from core.infra.project_context import ProjectContext
 from core.modules.data_source.data_class.error import ProviderError
 
 logger = logging.getLogger(__name__)
@@ -93,7 +93,7 @@ class BaseProvider(ABC):
 
             # 特殊处理 tushare：保持与之前 config.py 相同的行为
             if provider == "tushare":
-                auth_token_path = PathManager.data_source_provider("tushare") / "auth_token.txt"
+                auth_token_path = ProjectContext.path.get_data_source_provider_directory("tushare") / "auth_token.txt"
                 if auth_token_path.exists():
                     try:
                         token = auth_token_path.read_text(encoding="utf-8").strip()
@@ -110,7 +110,7 @@ class BaseProvider(ABC):
                         config["token"] = token
 
                 if "token" not in config:
-                    provider_path = PathManager.data_source_provider("tushare")
+                    provider_path = ProjectContext.path.get_data_source_provider_directory("tushare")
                     raise ValueError(
                         "Tushare token not found. Please:\n"
                         f"  1. Create {provider_path}/auth_token.txt with your token (one line)\n"

@@ -96,7 +96,7 @@ def test_tier_periods_loaded_without_goal_rules():
         ],
     )
     assert ctx.tier_periods["star_st"]
-    assert ctx.active_status_tags_at("20240605") == ["star_st"]
+    assert ProjectContext.active_status_tags_at("20240605") == ["star_st"]
     opp = Opportunity(stock={"id": "600766.SH"}, record_of_today={})
     stamp_stock_status_at_trigger(
         opp,

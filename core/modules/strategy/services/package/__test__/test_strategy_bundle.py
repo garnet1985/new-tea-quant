@@ -6,8 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from core.infra.export_import import ConflictPolicy
-from core.infra.project_context import PathManager
+from core.infra.export_import import ExportImport
+from core.infra.project_context import ProjectContext
+from core.infra.project_context.core.path_manager import PathManager
 from core.modules.strategy.__test__.settings_fixtures import minimal_strategy_raw
 from core.modules.strategy.services.package import (
     export_strategy_bundle,
@@ -22,23 +23,23 @@ def userspace_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     us = tmp_path / "userspace"
     us.mkdir()
 
-    monkeypatch.setattr(PathManager, "userspace", staticmethod(lambda: us))
-    monkeypatch.setattr(PathManager, "strategies_root", staticmethod(lambda: us / "strategies"))
-    monkeypatch.setattr(PathManager, "extensions_root", staticmethod(lambda: us / "extensions"))
-    monkeypatch.setattr(PathManager, "tags", staticmethod(lambda: us / "extensions" / "tags"))
+    monkeypatch.setattr(PathManager, "get_userspace_root", staticmethod(lambda: us))
+    monkeypatch.setattr(PathManager, "get_strategies_root", staticmethod(lambda: us / "strategies"))
+    monkeypatch.setattr(PathManager, "get_extensions_root", staticmethod(lambda: us / "extensions"))
+    monkeypatch.setattr(PathManager, "get_tags_root", staticmethod(lambda: us / "extensions" / "tags"))
     monkeypatch.setattr(
         PathManager,
-        "tag_scenario",
+        "get_tag_scenario_directory",
         staticmethod(lambda name: us / "extensions" / "tags" / name),
     )
     monkeypatch.setattr(
         PathManager,
-        "adapters",
+        "get_adapters_directory",
         staticmethod(lambda: us / "extensions" / "adapters"),
     )
     monkeypatch.setattr(
         PathManager,
-        "strategy",
+        "get_strategy_directory",
         staticmethod(lambda name: us / "strategies" / name),
     )
     return us
@@ -92,7 +93,7 @@ def test_export_import_round_trip(userspace_tree: Path, tmp_path: Path):
     assert manifest.metadata.get("strategy_name") == "demo"
     assert isinstance(blob, (bytes, bytearray))
 
-    result = import_strategy_bundle(blob, ConflictPolicy.REJECT, userspace_root=dst)
+    result = import_strategy_bundle(blob, ExportImport.types.ConflictPolicy.REJECT, userspace_root=dst)
     assert result.ok
     assert (dst / "strategies" / "demo" / "settings.py").is_file()
     assert (dst / "extensions" / "tags" / "activity-ratio20" / "settings.py").is_file()
@@ -109,7 +110,7 @@ def test_preview_reports_skip_for_existing_tag(userspace_tree: Path, tmp_path: P
     preview = preview_strategy_bundle_import(
         blob,
         userspace_root=dst,
-        policy=ConflictPolicy.SKIP_EXISTING,
+        policy=ExportImport.types.ConflictPolicy.SKIP_EXISTING,
     )
     assert preview["ok"] is True
     statuses = {item["kind"]: item["status"] for item in preview["items"]}

@@ -10,9 +10,18 @@ from core.infra.cli.abbrev import expand_argv, is_help_argv
 from core.infra.cli.app import CliApp
 from core.infra.cli.handlers import execute, run_early_command
 from core.infra.cli.parser import build_parser, parse_args
-from core.infra.logging.logging_manager import LoggingManager
 
 logger = logging.getLogger(__name__)
+
+
+def _setup_logging(verbose: bool = False) -> None:
+    """Initialize simple logging configuration."""
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
 
 
 def _setup_warnings() -> None:
@@ -48,9 +57,7 @@ def main(argv: list[str] | None = None) -> int:
     if early is not None:
         return early
 
-    LoggingManager.setup_logging()
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
+    _setup_logging(verbose=args.verbose)
 
     label = args.command
     app = CliApp(is_verbose=args.verbose)

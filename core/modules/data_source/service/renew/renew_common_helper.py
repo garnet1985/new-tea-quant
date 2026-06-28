@@ -8,8 +8,7 @@ import logging
 
 from core.modules.data_source.enums import TermType
 from core.utils.date.date_utils import DateUtils
-from core.infra.project_context import ConfigManager
-
+from core.infra.project_context import ProjectContext
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +50,7 @@ class RenewCommonHelper:
         context = context or {}
         
         # 获取系统默认开始日期
-        default_start_date = ConfigManager.get_default_start_date()
+        default_start_date = ProjectContext.config.get_default_start_date()
         
         # 获取最近完成的交易日（优先从 context 读取）
         latest_completed_trading_date = context.get("latest_completed_trading_date")

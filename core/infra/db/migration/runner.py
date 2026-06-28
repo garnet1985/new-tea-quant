@@ -56,11 +56,11 @@ def load_schemas_from_snapshot(path: Path) -> Dict[str, Dict[str, Any]]:
 
 
 def default_pre_mirror_snapshot_path(repo_root: Path) -> Path:
-    from core.infra.project_context.path_manager import PathManager
+    from core.infra.project_context import ProjectContext
 
-    _ = repo_root  # 保留参数；实际路径以 PathManager.userspace() 为准
+    _ = repo_root  # 保留参数；实际路径以 ProjectContext.get_userspace_root() 为准
     return (
-        PathManager.userspace_ntq()
+        ProjectContext.path.get_userspace_ntq_directory()
         / "update"
         / "cache"
         / DEFAULT_PRE_MIRROR_FILENAME
@@ -78,9 +78,9 @@ def load_current_table_schemas(
     elif repo_root is not None:
         td = str((repo_root / "core" / "tables").resolve())
     else:
-        from core.infra.project_context import PathManager
+        from core.infra.project_context import ProjectContext
 
-        td = str(PathManager.core() / "tables")
+        td = str(ProjectContext.path.get_core_root() / "tables")
     sm = SchemaManager(tables_dir=td)
     return sm.load_all_schemas()
 

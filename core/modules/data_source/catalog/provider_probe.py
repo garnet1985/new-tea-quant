@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any, Dict, List, Optional, Type
 
-from core.infra.project_context import PathManager
+from core.infra.project_context import ProjectContext
 from core.modules.data_source.base_class.base_provider import BaseProvider
 
 
@@ -19,7 +19,7 @@ def probe_provider_auth_configured(provider_class: Type[Any]) -> bool:
 
     if auth_type == "token":
         if provider_name == "tushare":
-            auth_token_path = PathManager.data_source_provider("tushare") / "auth_token.txt"
+            auth_token_path = ProjectContext.path.get_data_source_provider_directory("tushare") / "auth_token.txt"
             if auth_token_path.exists():
                 try:
                     token = auth_token_path.read_text(encoding="utf-8").strip()
@@ -82,7 +82,7 @@ def summarize_provider_auth(
     hint = ""
     if missing:
         if "tushare" in missing:
-            provider_path = PathManager.data_source_provider("tushare")
+            provider_path = ProjectContext.path.get_data_source_provider_directory("tushare")
             hint = (
                 f"请配置 Tushare Token：{provider_path}/auth_token.txt "
                 "或环境变量 TUSHARE_TOKEN"

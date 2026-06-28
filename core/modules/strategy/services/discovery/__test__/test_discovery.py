@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from core.infra.project_context import PathManager
+from core.infra.project_context import ProjectContext
 from core.modules.strategy.__test__.settings_fixtures import minimal_strategy_raw
 from core.modules.strategy.base_strategy_worker import BaseStrategyWorker
 from core.modules.strategy.services.discovery import StrategyDiscoveryHelper

@@ -2,7 +2,8 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import logging
 
 from core.modules.data_source.enums import UpdateMode
-from core.infra.project_context import ConfigManager
+from core.infra.project_context import ProjectContext
+
 from core.modules.data_source.data_class.api_config import ApiConfig
 from core.modules.data_source.data_class.api_job import ApiJob
 from core.utils.utils import Utils
@@ -294,7 +295,7 @@ class DataSourceHandlerHelper:
         if renew_mode == UpdateMode.REFRESH:
             if not entity_list:
                 return {}
-            default_start = ConfigManager.get_default_start_date()
+            default_start = ProjectContext.config.get_default_start_date()
             return {str(entity_id): default_start for entity_id in entity_list}
 
         # 非 refresh：统一查一次 DB，拿到原始 last_update，再按模式转换为“起点”
@@ -331,7 +332,7 @@ class DataSourceHandlerHelper:
         - 其他模式:  从 DB 查询当前数据源的最新日期，再根据 renew_mode 计算本次起点。
         """
         if renew_mode == UpdateMode.REFRESH:
-            return ConfigManager.get_default_start_date()
+            return ProjectContext.config.get_default_start_date()
 
         # 使用 compute_last_update_map 的全局分支（"_global"）获取原始 last_update
         raw_map = drh.compute_last_update_map(context)

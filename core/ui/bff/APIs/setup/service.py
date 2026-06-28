@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from core.infra.project_context.path_manager import PathManager
+from core.infra.project_context import ProjectContext
 from core.ui.bff.shared.response import ok, passthrough
 from setup.meta_loader import load_setup_step_meta
 
@@ -16,7 +16,7 @@ class SetupService:
     def get_setup_definition(self):
         """获取 setup 步骤定义（来自 setup/*/meta.json）。"""
         steps = load_setup_step_meta(ui_only=True)
-        userspace_abs_path = str(PathManager.userspace().resolve())
+        userspace_abs_path = str(ProjectContext.path.get_userspace_root().resolve())
         userspace_exists = Path(userspace_abs_path).exists()
         for step in steps:
             if step.get("id") == "init_userspace":

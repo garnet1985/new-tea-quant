@@ -1,12 +1,17 @@
 name: infra.export_import
-version: 0.1.0
+version: 0.2.0
 compatible_core_versions: ">=0.4.0"
 description: "Userspace 制品打包与安装基础设施：目录收集、zip 归档、manifest、冲突预检与按策略落盘（与具体业务包编排解耦）。"
-dependencies:
-  - infra.project_context
 changelog:
+  - version: "0.2.0"
+    changes:
+      - "重构为Facade模式，只暴露ExportImport类"
+      - "使用namespace API（ExportImport.archive.xxx）"
+      - "核心实现移到core/文件夹"
+      - "创建api.yaml和glossary.yaml"
+      - "收紧API暴露，只保留高频API"
   - version: "0.1.0"
     changes:
-      - ArtifactSpec / BundleManifest 与 ConflictPolicy
-      - 目录收集（运行时目录排除）、zip 打包与解压
-      - 安装前冲突预检与 reject / skip_existing / overwrite 落盘
+      - "ArtifactSpec / BundleManifest 与 ConflictPolicy"
+      - "目录收集（运行时目录排除）、zip 打包与解压"
+      - "安装前冲突预检与 reject / skip_existing / overwrite 落盘"

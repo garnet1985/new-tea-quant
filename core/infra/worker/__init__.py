@@ -1,131 +1,45 @@
 """
-通用任务执行器模块
+Worker模块 - 提供Dispatch规划和任务类型定义
 
-本模块提供了两种任务执行器：
-- ProcessWorker: 基于多进程的CPU密集型任务执行器
-- MultiThreadWorker: 基于多线程的IO密集型任务执行器（原 FuturesWorker）
+核心功能：
+- Dispatch规划：基于内存/时间约束优化并发执行
+- 类型定义：JobResult、JobStatus、DispatchPlan等
 
-新的模块化架构（推荐使用）：
-- executors: 执行器（MultiThreadExecutor, ProcessExecutor）
-- queues: 任务源（ListJobSource）
-- monitors: 监控器（MemoryMonitor）
-- schedulers: 调度器（MemoryAwareScheduler）
-- aggregators: 聚合器（SimpleAggregator）
-- error_handlers: 错误处理器（SimpleErrorHandler）
-- orchestrator: 编排器（Orchestrator）
+已废弃功能：
+- ProcessWorker：已迁移到job_pipeline模块
+- MultiThreadWorker：不推荐使用
 """
 
 # ============================================================================
-# 向后兼容：保留旧的导入
+# Facade入口（推荐使用）
 # ============================================================================
 
-# 导入多进程执行器
-from .multi_process.process_worker import (
-    ProcessWorker,
-    ExecutionMode as ProcessExecutionMode,
-    JobStatus as ProcessJobStatus,
-    JobResult as ProcessJobResult,
-    ProgressReportMode,
-    ProgressReportConfig,
-)
-
-# 导入多线程执行器
-from .multi_thread.futures_worker import (
-    MultiThreadWorker,
-    ExecutionMode as ThreadExecutionMode,
-    JobStatus as ThreadJobStatus,
-    JobResult as ThreadJobResult,
-)
-
-# Memory-aware 批量调度器（旧版本，保留向后兼容）
-from .memory_aware_scheduler import MemoryAwareBatchScheduler
+from .worker import Worker
 
 # ============================================================================
-# 新的模块化架构（推荐使用）
+# 向后兼容导出（不推荐直接使用）
 # ============================================================================
 
-# Executors
-from .executors import (
-    Executor,
-    JobResult,
-    JobStatus,
-    MultiThreadExecutor,
-    ProcessExecutor,
-)
-
-# Queues
-from .queues import (
-    JobSource,
-    ListJobSource,
-)
-
-# Monitors
-from .monitors import (
-    Monitor,
-    MemoryMonitor,
-)
-
-# Schedulers
-from .schedulers import (
-    Scheduler,
-    MemoryAwareScheduler,
-)
-
-# Aggregators
-from .aggregators import (
-    Aggregator,
-    SimpleAggregator,
-)
-
-# Error Handlers
-from .error_handlers import (
-    ErrorHandler,
-    ErrorAction,
-    SimpleErrorHandler,
-)
-
-# Orchestrator
-from .orchestrator import Orchestrator
+# 类型定义
+from .multi_process.process_worker import JobResult, JobStatus
+from .dispatch_planner import DispatchPlan, resolve_dispatch_plan
+from .dispatch_time_planner import TimeDispatchPlan, resolve_time_dispatch_plan
+from .dispatch_probe import should_run_dispatch_probe
 
 __all__ = [
-    # 向后兼容的导入
-    'ProcessWorker',
-    'ProcessExecutionMode',
-    'ProcessJobStatus',
-    'ProcessJobResult',
-    'ProgressReportMode',
-    'ProgressReportConfig',
-    'MultiThreadWorker',
-    'ThreadExecutionMode',
-    'ThreadJobStatus',
-    'ThreadJobResult',
-    'MemoryAwareBatchScheduler',  # 旧版本
-    
-    # 新的模块化架构
-    # Executors
-    'Executor',
+    # Facade入口（推荐使用）
+    'Worker',
+
+    # 类型定义（向后兼容）
+    'DispatchPlan',
+    'TimeDispatchPlan',
     'JobResult',
     'JobStatus',
-    'MultiThreadExecutor',
-    'ProcessExecutor',
-    # Queues
-    'JobSource',
-    'ListJobSource',
-    # Monitors
-    'Monitor',
-    'MemoryMonitor',
-    # Schedulers
-    'Scheduler',
-    'MemoryAwareScheduler',
-    # Aggregators
-    'Aggregator',
-    'SimpleAggregator',
-    # Error Handlers
-    'ErrorHandler',
-    'ErrorAction',
-    'SimpleErrorHandler',
-    # Orchestrator
-    'Orchestrator',
+
+    # API方法（向后兼容）
+    'resolve_dispatch_plan',
+    'resolve_time_dispatch_plan',
+    'should_run_dispatch_probe',
 ]
 
 # 版本信息（与 core.system 保持一致）
@@ -133,4 +47,4 @@ from core.system import get_version
 
 __version__ = get_version()
 __author__ = "New Tea Quant Team"
-__description__ = "通用任务执行器模块 - 支持多进程和多线程执行，模块化架构"
+__description__ = "Worker模块 - 提供Dispatch规划和任务类型定义"

@@ -1,0 +1,126 @@
+# API Contract - infra.export_import
+# Version: 0.2.0
+# Last Updated: 2026-06-28
+# Requires: core>=0.4.0
+#
+# 目的：
+#   - 为所有API建立快捷目录
+#   - 让开发者和自动测试一目了然
+#   - 用户知道有哪些API和怎么用
+#   - 测试知道有哪些对外接口和用法，快速覆盖
+
+module: infra.export_import
+version: 0.2.0
+requires: core>=0.4.0
+
+---
+
+ExportImport:
+  layer: facade
+  description: "Facade类 - 对外唯一入口，提供namespace API"
+
+  apis:
+    # ========== Archive namespace API ==========
+
+    archive.create:
+      description: "创建归档包"
+      stability: stable
+      is_static: true
+      parameters:
+        - specs: List[ArtifactSpec]  # 制品规格列表
+        - metadata: dict | None = None  # 可选元数据
+        - output_path: Path | None = None  # 可选输出路径（返回bytes if None）
+      returns: Tuple[BundleManifest, Union[bytes, Path]]  # (manifest, archive_bytes_or_path)
+      throws: []
+      example: |
+        from core.infra.export_import import ExportImport
+        manifest, archive = ExportImport.archive.create(
+            specs=[ArtifactSpec(...)],
+            metadata={"version": "1.0"}
+        )
+
+    archive.extract:
+      description: "解压归档包"
+      stability: stable
+      is_static: true
+      parameters:
+        - source: Union[Path, bytes]  # 归档路径或bytes
+        - dest_dir: Path | None = None  # 可选目标目录（使用临时目录 if None）
+      returns: Tuple[Path, BundleManifest]  # (extracted_root, manifest)
+      throws: []
+      example: |
+        from core.infra.export_import import ExportImport
+        root, manifest = ExportImport.archive.extract(Path("bundle.zip"))
+
+    # ========== Install namespace API ==========
+
+    install.install:
+      description: "安装归档包到userspace"
+      stability: stable
+      is_static: true
+      parameters:
+        - archive: Union[Path, bytes]  # 归档路径或bytes
+        - userspace_root: Path  # 目标userspace根目录
+        - policy: ConflictPolicy  # 冲突解决策略
+      returns: InstallResult  # 安装结果（包含成功/失败详情）
+      throws: []
+      example: |
+        from core.infra.export_import import ExportImport
+        result = ExportImport.install.install(
+            archive=Path("bundle.zip"),
+            userspace_root=Path("/userspace"),
+            policy=ConflictPolicy.SKIP_EXISTING
+        )
+
+    install.preflight:
+      description: "安装前预检（检测冲突）"
+      stability: stable
+      is_static: true
+      parameters:
+        - extracted_root: Path  # 解压后的归档根目录
+        - userspace_root: Path  # 目标userspace根目录
+        - policy: ConflictPolicy  # 冲突解决策略
+      returns: Tuple[Path, BundleManifest]  # (userspace_root, manifest)
+      throws: []
+      example: |
+        from core.infra.export_import import ExportImport
+        root, manifest = ExportImport.install.preflight(
+            extracted_root=Path("/tmp/bundle"),
+            userspace_root=Path("/userspace"),
+            policy=ConflictPolicy.REJECT
+        )
+
+    # ========== Types namespace ==========
+
+    types:
+      description: "类型定义namespace（包含所有类型定义）"
+      stability: stable
+      classes:
+        - ArtifactSpec
+        - BundleManifest
+        - CollectedFile
+        - ConflictItem
+        - ConflictPolicy
+        - InstallResult
+        - ManifestEntry
+        - PreflightResult
+
+---
+
+# API稳定性分级定义
+api_stability_levels:
+  stable:
+    description: "API稳定，不会轻易修改"
+    breaking_change_risk: low
+
+  beta:
+    description: "API可能调整，但会提前通知"
+    breaking_change_risk: medium
+
+  experimental:
+    description: "API可能随时修改，仅供实验"
+    breaking_change_risk: high
+
+  deprecated:
+    description: "API已废弃，将在未来版本删除"
+    breaking_change_risk: high

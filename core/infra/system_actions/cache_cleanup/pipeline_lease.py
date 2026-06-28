@@ -10,7 +10,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, Dict, List, Optional
 
-from core.infra.project_context.path_manager import PathManager
+from core.infra.project_context import ProjectContext
 
 _LOCK = threading.Lock()
 
@@ -29,7 +29,7 @@ class PipelineLeaseBusyError(Exception):
 
 
 def _lease_path() -> Path:
-    return PathManager.userspace_ntq() / "runtime" / "pipeline_active.json"
+    return ProjectContext.path.get_userspace_ntq_directory() / "runtime" / "pipeline_active.json"
 
 
 def _iso_now() -> str:

@@ -14,7 +14,7 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional
 
-from core.infra.project_context.path_manager import PathManager
+from core.infra.project_context import ProjectContext
 from core.modules.data_manager import DataManager
 from core.modules.strategy.engines.scanner.data_classes.settings import StrategyScannerSettings
 from core.modules.strategy.engines.scanner.helpers.date_resolver import ScanDateResolver
@@ -211,7 +211,7 @@ def _resolve_discovered_strategy(strategy_name: str):
     name = str(strategy_name or "").strip()
     if not name:
         return None, "strategy_name 无效"
-    folder = PathManager.strategy(name)
+    folder = ProjectContext.path.get_strategy_directory(name)
     discovered = StrategyDiscoveryHelper.load_strategy(folder)
     if discovered is None:
         return None, "策略不存在或无法加载"
@@ -273,7 +273,7 @@ def get_scan_readiness(*, strategy_name: str, demo: bool = False) -> Dict[str, A
 
         resolver = ScanDateResolver(data_mgr)
         scan_date, stock_ids = resolver.resolve_scan_date(use_strict=use_strict)
-        csv_path = PathManager.strategy_scan_results(name) / scan_date / "opportunities.csv"
+        csv_path = ProjectContext.path.get_strategy_scan_results_directory(name) / scan_date / "opportunities.csv"
         if not csv_path.is_file():
             return {"primary_action": "run"}
 

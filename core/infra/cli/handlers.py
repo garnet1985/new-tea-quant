@@ -11,10 +11,19 @@ from pathlib import Path
 from typing import Optional
 
 from core.infra.cli.app import CliApp
-from core.infra.logging.logging_manager import LoggingManager
 from core.system import system_meta
 
 logger = logging.getLogger(__name__)
+
+
+def _setup_logging(verbose: bool = False) -> None:
+    """Initialize simple logging configuration."""
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
 
 
 def _strategy_name(raw: object) -> Optional[str]:
@@ -79,9 +88,7 @@ def run_early_command(args: argparse.Namespace) -> int | None:
             raise SystemExit("export_strategy 需要名称（例: cli.py ex example）")
         from core.modules.strategy.launcher.package_cli import run_export
 
-        LoggingManager.setup_logging()
-        if args.verbose:
-            logging.getLogger().setLevel(logging.DEBUG)
+        _setup_logging(verbose=args.verbose)
         out = getattr(args, "output", None)
         output_path = str(out).strip() if out else None
         return run_export(name, output_path=output_path or None)
@@ -92,9 +99,7 @@ def run_early_command(args: argparse.Namespace) -> int | None:
             raise SystemExit("import_strategy 需要包路径（例: cli.py im ./pkg.zip）")
         from core.modules.strategy.launcher.package_cli import run_strategy_bundle_import
 
-        LoggingManager.setup_logging()
-        if args.verbose:
-            logging.getLogger().setLevel(logging.DEBUG)
+        _setup_logging(verbose=args.verbose)
         return run_strategy_bundle_import(
             path,
             force=bool(getattr(args, "force", False)),
@@ -116,9 +121,7 @@ def _run_scaffold(kind: str, raw_path: object, args: argparse.Namespace) -> int:
         scaffold_tag,
     )
 
-    LoggingManager.setup_logging()
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
+    _setup_logging(verbose=args.verbose)
 
     try:
         if kind == "tag":

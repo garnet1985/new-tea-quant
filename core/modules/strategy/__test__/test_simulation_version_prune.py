@@ -41,7 +41,7 @@ def test_prune_ignores_non_numeric_dirs(tmp_path: Path):
 
 
 def _isolate_sim_paths(monkeypatch, tmp_path: Path, strategy_name: str) -> None:
-    from core.infra.project_context import PathManager
+    
 
     base = tmp_path / strategy_name
 

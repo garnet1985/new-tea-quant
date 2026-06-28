@@ -13,7 +13,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Literal, Optional, Set
 
-from core.infra.project_context import PathManager
+from core.infra.project_context import ProjectContext
 from core.modules.data_manager import DataManager
 
 from .version_manager import StrategyOutputVersionService
@@ -24,12 +24,12 @@ _SimKind = Literal["enum", "price", "capital"]
 
 
 def _simulation_root(sim_kind: _SimKind):
-    """运行时解析路径（避免模块 import 时绑定 PathManager，便于测试 monkeypatch）。"""
+    """运行时解析路径函数"""
     if sim_kind == "enum":
-        return PathManager.strategy_simulation_enum
+        return ProjectContext.path.get_strategy_directory_simulation_enum
     if sim_kind == "price":
-        return PathManager.strategy_simulation_price
-    return PathManager.strategy_simulation_capital
+        return ProjectContext.path.get_strategy_directory_simulation_price
+    return ProjectContext.path.get_strategy_directory_simulation_capital
 
 
 def resolve_max_output_versions(settings: Dict[str, Any]) -> int:

@@ -7,6 +7,7 @@ import math
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from core.infra.project_context import ProjectContext
 from core.modules.indicator.indicator_service import IndicatorService
 
 from core.modules.data_manager import DataManager
@@ -55,10 +56,8 @@ _INDICATOR_LINE_COLORS = (
 
 def _enum_output_dir_candidates(strategy_name: str, row: Dict[str, Any]) -> List[str]:
     """与 ``build_step_report_ref_message`` 一致的枚举产物目录候选列表。"""
-    from core.infra.project_context.path_manager import PathManager
-
     version = int(row.get("version") or 0)
-    base = PathManager.strategy_simulation_enum(strategy_name)
+    base = ProjectContext.path.get_strategy_directory_simulation_enum(strategy_name)
     candidates_dirs: List[str] = []
 
     rr = row.get("result_report") or {}
@@ -101,9 +100,7 @@ def _resolve_enum_output_dir(strategy_name: str, row: Dict[str, Any]) -> Tuple[O
 
 def _price_output_dir_candidates(strategy_name: str, row: Dict[str, Any]) -> List[str]:
     """与 ``result_report.price_factor.output_version_run`` 一致的价格产物目录候选列表。"""
-    from core.infra.project_context.path_manager import PathManager
-
-    base = PathManager.strategy_simulation_price(strategy_name)
+    base = ProjectContext.path.get_strategy_directory_simulation_price(strategy_name)
     candidates_dirs: List[str] = []
 
     rr = row.get("result_report") or {}

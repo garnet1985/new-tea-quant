@@ -13,7 +13,7 @@ def get_strategy_package_stack() -> SimpleNamespace:
     if _stack is not None:
         return _stack
 
-    from core.infra.export_import import ConflictPolicy
+    from core.infra.export_import import ExportImport
     from core.modules.strategy.launcher.package_cli import (
         bundle_filename,
         parse_export_target,
@@ -27,7 +27,7 @@ def get_strategy_package_stack() -> SimpleNamespace:
     )
 
     _stack = SimpleNamespace(
-        ConflictPolicy=ConflictPolicy,
+        ConflictPolicy=ExportImport.types.ConflictPolicy,
         bundle_filename=bundle_filename,
         single_entity_filename=single_entity_filename,
         parse_export_target=parse_export_target,

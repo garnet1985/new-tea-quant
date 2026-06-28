@@ -7,8 +7,9 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Tuple, Union
 
-from core.infra.export_import import ConflictPolicy
-from core.infra.project_context import PathManager
+from core.infra.project_context import ProjectContext
+from core.infra.export_import import ExportImport
+
 from core.modules.strategy.services.package import (
     export_single_entity,
     export_strategy_bundle,
@@ -71,10 +72,10 @@ def parse_export_target(raw: str) -> Tuple[str, str]:
 
 def default_export_dir() -> Path:
     """Prefer userspace/; fall back to project root when userspace is absent."""
-    us = PathManager.userspace()
+    us = ProjectContext.path.get_userspace_root()
     if us.is_dir():
         return us
-    return PathManager.get_root()
+    return ProjectContext.path.get_project_root()
 
 
 def default_export_path(mode: str, name: str) -> Path:
@@ -85,14 +86,14 @@ def default_export_path(mode: str, name: str) -> Path:
     return default_export_dir() / filename
 
 
-def resolve_import_policy(*, force: bool, skip_existing: bool) -> ConflictPolicy:
+def resolve_import_policy(*, force: bool, skip_existing: bool) -> ExportImport.types.ConflictPolicy:
     if force and skip_existing:
         raise ValueError("cannot combine -f with --skip-existing")
     if force:
-        return ConflictPolicy.OVERWRITE
+        return ExportImport.types.ConflictPolicy.OVERWRITE
     if skip_existing:
-        return ConflictPolicy.SKIP_EXISTING
-    return ConflictPolicy.REJECT
+        return ExportImport.types.ConflictPolicy.SKIP_EXISTING
+    return ExportImport.types.ConflictPolicy.REJECT
 
 
 def _finalize_export_output(out: Path, manifest, payload) -> None:
@@ -246,7 +247,7 @@ def run_strategy_bundle_import(
         return 1
 
     name = preview.get("strategy_name") or preview.get("entity_name") or "?"
-    logger.info("导入完成: %s → %s", name, PathManager.userspace().resolve())
+    logger.info("导入完成: %s → %s", name, ProjectContext.path.get_userspace_root().resolve())
     if result.skipped:
         skipped = ", ".join(f"{e.kind}:{e.name}" for e in result.skipped)
         logger.info("已跳过（本机已存在）: %s", skipped)

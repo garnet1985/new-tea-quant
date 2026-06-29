@@ -137,6 +137,46 @@ def test_dispatch_uses_subprocess_and_builds_result() -> None:
     assert result.mb_per_slice_payload > 0
 
 
+def test_slice_executor_runs_orchestrator_in_process() -> None:
+    from unittest.mock import MagicMock, patch
+
+    from core.modules.backtest_engine.core.shared.context import ExecutionContext
+    from core.modules.backtest_engine.core.slice_based.executor import SliceExecutor
+    from core.modules.backtest_engine.core.slice_based.planner import (
+        SliceDispatchPlan,
+        SliceJobBatch,
+    )
+
+    plan = SliceDispatchPlan(
+        reader_workers=1,
+        reader_memory_budget_mb=10.0,
+        compute_processes=1,
+        compute_memory_budget_mb=10.0,
+        queue_capacity=2,
+        preload_depth=1,
+        slice_open_days=5,
+        dispatch_jobs=1,
+        memory_budget_mb=4096.0,
+        oom_adjusted=False,
+    )
+    batches = [
+        SliceJobBatch(
+            batch_id="batch_0",
+            slice_ids=["slice_0"],
+            slices_count=1,
+            payload={"stock_ids": ["000001.SZ"]},
+        )
+    ]
+    context = ExecutionContext.create(run_name="test", total_jobs=1)
+    execute_fn = MagicMock(return_value={"success": True})
+
+    with patch("concurrent.futures.ProcessPoolExecutor") as pool_cls:
+        SliceExecutor.execute(plan, batches, context, execute_fn, log_label="test")
+        pool_cls.assert_not_called()
+
+    execute_fn.assert_called_once()
+
+
 def test_extract_metrics_requires_samples() -> None:
     with pytest.raises(RuntimeError, match="no slice_samples"):
         SliceProbe._extract_metrics_from_plan(

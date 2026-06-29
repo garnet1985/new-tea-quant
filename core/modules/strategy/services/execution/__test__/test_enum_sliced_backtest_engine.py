@@ -10,7 +10,7 @@ from core.modules.strategy.services.execution.enum_job_pipeline import (
 )
 
 
-def test_execute_enumeration_sliced_job_injects_slice_open_days(monkeypatch) -> None:
+def test_execute_enumeration_sliced_job_preserves_auto_slice_open_days(monkeypatch) -> None:
     captured: dict = {}
 
     def fake_execute(context: JobContext) -> dict:
@@ -36,6 +36,7 @@ def test_execute_enumeration_sliced_job_injects_slice_open_days(monkeypatch) -> 
             payload={
                 "job_id": "calendar_slice",
                 "enumeration_execution_mode": "calendar_slice",
+                "slice_open_days": "auto",
                 "strategy_name": "demo",
                 "settings": {},
                 "start_date": "20240101",
@@ -50,7 +51,7 @@ def test_execute_enumeration_sliced_job_injects_slice_open_days(monkeypatch) -> 
             run_name="enum:sliced",
         )
     )
-    assert captured["payload"]["slice_open_days"] == 20
+    assert captured["payload"]["slice_open_days"] == "auto"
     assert captured["payload"]["enumeration_execution_mode"] == "calendar_slice"
 
 

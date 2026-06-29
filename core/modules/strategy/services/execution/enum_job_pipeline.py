@@ -349,7 +349,6 @@ def execute_enumeration_sliced_job(context: JobContext) -> Dict[str, Any]:
     bootstrap_strategy_worker_data_manager()
     try:
         payload = dict(context.payload)
-        slice_plan = payload.get("_slice_plan") or {}
         dispatch_job = {
             key: value
             for key, value in payload.items()
@@ -360,12 +359,8 @@ def execute_enumeration_sliced_job(context: JobContext) -> Dict[str, Any]:
             or payload.get("_global_extra_cache")
             or {}
         )
-        if isinstance(slice_plan, dict) and slice_plan.get("slice_open_days") not in (
-            None,
-            "",
-            "auto",
-        ):
-            dispatch_job["slice_open_days"] = int(slice_plan["slice_open_days"])
+        # slice_open_days 由 CalendarSliceProcessOrchestrator 内 runtime planner 解析；
+        # BacktestEngine _slice_plan 中的值仅用于引擎侧切片数/探针估算，勿覆盖 job。
         enum_payload = build_enumeration_payload(dispatch_job, global_extra_cache)
         return execute_enumeration_job(
             JobContext(

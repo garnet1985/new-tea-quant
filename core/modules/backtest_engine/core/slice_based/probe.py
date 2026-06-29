@@ -1,13 +1,12 @@
 """
 Backtest Engine - Slice-based Probe
 
-Calendar-slice dispatch probe: subprocess sample + runtime plan metrics.
+Calendar-slice dispatch probe: in-process orchestrator sample + runtime plan metrics.
 """
 from __future__ import annotations
 
 import copy
 import logging
-import multiprocessing as mp
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
@@ -187,7 +186,6 @@ class SliceProbe:
             wait_pool_children_done,
         )
 
-        start_method = str(performance.get("start_method", "spawn"))
         prepared_here = False
         if is_duckdb_backend():
             wait_pool_children_done(timeout_sec=30.0)
@@ -196,9 +194,7 @@ class SliceProbe:
                 prepared_here = True
 
         try:
-            ctx = mp.get_context(start_method)
-            with ctx.Pool(processes=1) as pool:
-                raw = pool.apply(_slice_probe_worker, (probe_payload,))
+            raw = _slice_probe_worker(probe_payload)
             wait_pool_children_done(timeout_sec=15.0)
             return raw
         finally:

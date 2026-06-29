@@ -1,14 +1,17 @@
 """
 Backtest Engine - Slice-based Executor
 
-Calendar-slice execution: plan embedded in payload, single orchestrator subprocess.
+Calendar-slice execution: plan embedded in payload, orchestrator runs in-process.
+
+The orchestrator spawns Reader/Compute child processes itself; wrapping it in
+ProcessPoolExecutor would run inside a daemon worker, which cannot fork again
+("daemonic processes are not allowed to have children").
 """
 from __future__ import annotations
 
 import logging
 import multiprocessing as mp
 import time
-from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
@@ -62,7 +65,7 @@ class SliceExecutor:
         on_result: Optional[SliceExecutor.OnResultHook] = None,
         log_label: str = "切片执行",
     ) -> SliceExecutor.ExecutionResult:
-        """Run calendar-slice orchestrator in a single worker subprocess."""
+        """Run calendar-slice orchestrator in the current (non-daemon) process."""
         if not batches:
             logger.info("%s无jobs需要执行", log_label)
             return SliceExecutor.ExecutionResult(
@@ -95,64 +98,58 @@ class SliceExecutor:
         failed_jobs = 0
 
         try:
-            with ProcessPoolExecutor(max_workers=1) as pool:
-                for job in jobs:
-                    job_context = SliceExecutor._build_job_context(job, context, plan)
-                    future = pool.submit(
-                        SliceExecutor._invoke_worker,
-                        execute_fn,
-                        job_context,
-                    )
-                    try:
-                        raw_result = future.result()
-                        report = SliceExecutor._normalize_report(job.job_id, raw_result)
-                        if not report.success:
-                            failures.append(
-                                JobFailure(
-                                    job_id=job.job_id,
-                                    phase=JobFailurePhase.EXECUTE,
-                                    error=report.error or "execute returned success=False",
-                                )
-                            )
-                            failed_jobs += 1
-                        else:
-                            completed_jobs += 1
-                        job_results.append(report)
-                        context.update_progress(report.success)
-                        if on_result:
-                            on_result(
-                                report,
-                                RunProgress(
-                                    finished=context.finished_jobs,
-                                    total=context.total_jobs,
-                                    ok=context.success_count,
-                                    fail=context.fail_count,
-                                ),
-                            )
-                    except Exception as exc:
+            for job in jobs:
+                job_context = SliceExecutor._build_job_context(job, context, plan)
+                try:
+                    raw_result = SliceExecutor._invoke_worker(execute_fn, job_context)
+                    report = SliceExecutor._normalize_report(job.job_id, raw_result)
+                    if not report.success:
                         failures.append(
                             JobFailure(
                                 job_id=job.job_id,
                                 phase=JobFailurePhase.EXECUTE,
-                                error=str(exc),
+                                error=report.error or "execute returned success=False",
                             )
                         )
                         failed_jobs += 1
-                        context.update_progress(success=False)
-                        if on_result:
-                            on_result(
-                                JobReport(
-                                    job_id=job.job_id,
-                                    success=False,
-                                    error=str(exc),
-                                ),
-                                RunProgress(
-                                    finished=context.finished_jobs,
-                                    total=context.total_jobs,
-                                    ok=context.success_count,
-                                    fail=context.fail_count,
-                                ),
-                            )
+                    else:
+                        completed_jobs += 1
+                    job_results.append(report)
+                    context.update_progress(report.success)
+                    if on_result:
+                        on_result(
+                            report,
+                            RunProgress(
+                                finished=context.finished_jobs,
+                                total=context.total_jobs,
+                                ok=context.success_count,
+                                fail=context.fail_count,
+                            ),
+                        )
+                except Exception as exc:
+                    failures.append(
+                        JobFailure(
+                            job_id=job.job_id,
+                            phase=JobFailurePhase.EXECUTE,
+                            error=str(exc),
+                        )
+                    )
+                    failed_jobs += 1
+                    context.update_progress(success=False)
+                    if on_result:
+                        on_result(
+                            JobReport(
+                                job_id=job.job_id,
+                                success=False,
+                                error=str(exc),
+                            ),
+                            RunProgress(
+                                finished=context.finished_jobs,
+                                total=context.total_jobs,
+                                ok=context.success_count,
+                                fail=context.fail_count,
+                            ),
+                        )
         except KeyboardInterrupt:
             logger.warning("%s收到Ctrl+C，停止执行", log_label)
             return SliceExecutor.ExecutionResult(

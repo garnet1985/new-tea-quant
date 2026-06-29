@@ -1,155 +1,142 @@
-"""
-Backtest Engine - Slice-based Config
-
-切片模式的配置解析。
-
-职责：
-- 解析slice配置（reader_workers、queue_capacity、slice_open_days等）
-- 严格验证必需字段（缺少字段报错）
-- 面向对象设计（SliceConfig类 + 静态方法）
-
-特点：
-- 读算分离配置（reader_workers + compute_processes）
-- 管道队列控制配置（queue_capacity + preload_depth）
-- 更严格的验证（slice更容易OOM）
-"""
+"""Slice mode config: load calendar_slice dispatch from worker.json."""
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
+
+from core.infra.project_context import ProjectContext
+from core.modules.backtest_engine.core.shared.machine_info import (
+    MachineCapacity,
+    MachineInfo,
+)
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_SLICE_OPEN_DAYS: int = 20
+DEFAULT_PRELOAD_DEPTH: int = 2
+
+# executor_key → (job_pipeline profile, calendar_slice section)
+_EXECUTOR_DISPATCH_PROFILES: Dict[str, Tuple[str, str]] = {
+    "tag": ("tag", "calendar_slice"),
+    "strategy.enum": ("enumerator", "calendar_slice"),
+}
+
 
 class SliceConfig:
-    """切片模式配置解析（面向对象方式）。
-    
-    职责：
-    - 解析slice配置
-    - 严格验证必需字段
-    - 提供默认值（合理范围）
-    """
-    
+    """Slice mode config (reader + compute dispatch from worker.json)."""
+
     @staticmethod
-    def resolve_settings(
-        *,
-        module_name: str,
-        performance_override: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        """解析slice配置。
-        
+    def resolve_dispatch_performance(executor_key: str) -> Dict[str, Any]:
+        """
+        Load calendar_slice dispatch config from worker.json.
+
         Args:
-            module_name: 模块名称（用于读取worker.json）
-            performance_override: 配置覆盖（可选）
-            
+            executor_key: Probe / worker id (``tag``, ``strategy.enum``, ...).
+
         Returns:
-            Dict[str, Any]: 配置字典
-            
-        Raises:
-            ValueError: 缺少必需字段或字段值无效
+            Dispatch performance dict for planner / executor.
         """
-        # 读取模块配置（从worker.json）
-        from core.infra.project_context import ProjectContext
-        
-        module_config = ProjectContext.config.get_module_config(module_name)
-        if module_config is None:
+        key = str(executor_key or "").strip()
+        mapping = _EXECUTOR_DISPATCH_PROFILES.get(key)
+        if mapping is None:
             raise ValueError(
-                f"模块配置未找到: {module_name}，请在worker.json中配置"
+                f"unknown executor_key for dispatch config: {key!r}; "
+                f"supported: {sorted(_EXECUTOR_DISPATCH_PROFILES)}"
             )
-        
-        # 合并配置（模块配置 + 性能覆盖）
-        settings = dict(module_config)
-        if performance_override:
-            settings.update(performance_override)
-        
-        # 严格验证必需字段
-        SliceConfig._validate_required_fields(settings)
-        
-        # 解析slice配置
-        SliceConfig._resolve_slice_settings(settings)
-        
-        logger.info(
-            "Slice配置解析: reader_workers=%s, queue=%s, preload=%s, slice_days=%s",
-            settings.get("reader_workers"),
-            settings.get("queue_capacity"),
-            settings.get("preload_depth"),
-            settings.get("slice_open_days"),
+
+        profile_name, section_name = mapping
+        cfg = ProjectContext.config.load_core_config("worker")
+        job_pipeline = cfg.get("job_pipeline") or {}
+        if not isinstance(job_pipeline, dict):
+            job_pipeline = {}
+
+        performance: Dict[str, Any] = {}
+        for block_name in ("default", profile_name):
+            block = job_pipeline.get(block_name)
+            if not isinstance(block, dict):
+                continue
+            for field in ("reserve_cores", "max_parallel_jobs_cap"):
+                if field in block:
+                    performance[field] = block[field]
+
+        profile_block = job_pipeline.get(profile_name)
+        if isinstance(profile_block, dict):
+            section = profile_block.get(section_name)
+            if isinstance(section, dict):
+                performance.update(section)
+
+        SliceConfig._normalize_worker_fields(performance)
+        performance.setdefault("slice_open_days", "auto")
+        performance.setdefault("reader_workers", "auto")
+        performance.setdefault("queue_capacity", "auto")
+        performance.setdefault("preload_depth", "auto")
+        performance.setdefault("compute_processes", 1)
+
+        logger.debug(
+            "slice dispatch config loaded: executor=%s profile=%s section=%s keys=%s",
+            key,
+            profile_name,
+            section_name,
+            sorted(performance),
         )
-        
-        return settings
-    
+        return performance
+
     @staticmethod
-    def _validate_required_fields(settings: Dict[str, Any]) -> None:
-        """严格验证必需字段。
-        
-        Args:
-            settings: 配置字典
-            
-        Raises:
-            ValueError: 缺少必需字段或字段值无效
-        """
-        # 必需字段（slice特有）
-        required_fields = [
-            "slice_open_days",  # 切片天数
-        ]
-        
-        missing_fields = [
-            field for field in required_fields
-            if field not in settings or settings[field] in (None, "")
-        ]
-        
-        if missing_fields:
-            raise ValueError(
-                f"Slice配置缺少必需字段: {missing_fields}，"
-                f"请在worker.json中配置"
-            )
-        
-        # 验证字段值范围
-        slice_open_days = int(settings.get("slice_open_days", 0))
-        if slice_open_days <= 0:
-            raise ValueError(
-                f"slice_open_days必须大于0: {slice_open_days}"
-            )
-    
-    @staticmethod
-    def _resolve_slice_settings(settings: Dict[str, Any]) -> None:
-        """解析slice特有配置。
-        
-        Args:
-            settings: 配置字典（会被修改）
-        """
-        # Reader workers（默认2）
+    def normalize_for_planning(
+        performance: Dict[str, Any],
+        capacity: MachineCapacity,
+        *,
+        dispatch_slices: int,
+    ) -> Dict[str, Any]:
+        """Resolve ``auto`` fields before planner / OOM logic."""
+        settings = dict(performance)
+        SliceConfig._normalize_worker_fields(settings)
+
+        if settings.get("slice_open_days") in (None, "", "auto"):
+            settings["slice_open_days"] = DEFAULT_SLICE_OPEN_DAYS
+
+        available_workers = MachineInfo.get_available_workers(capacity)
         if settings.get("reader_workers") in (None, "", "auto"):
-            settings["reader_workers"] = 2
-        
-        # Compute processes（默认1，单进程）
+            # Reserve one core for compute lane in the orchestrator subprocess.
+            settings["reader_workers"] = max(1, available_workers - 1)
+
+        if settings.get("preload_depth") in (None, "", "auto"):
+            prefetch_enabled = settings.get("prefetch_enabled", True)
+            settings["preload_depth"] = (
+                DEFAULT_PRELOAD_DEPTH if prefetch_enabled else 1
+            )
+
+        preload_depth = int(settings["preload_depth"])
+        if settings.get("queue_capacity") in (None, "", "auto"):
+            reader_workers = int(settings["reader_workers"])
+            settings["queue_capacity"] = max(preload_depth * 2, reader_workers)
+
         if settings.get("compute_processes") in (None, "", "auto"):
             settings["compute_processes"] = 1
-        
-        # Queue capacity（默认10）
-        if settings.get("queue_capacity") in (None, "", "auto"):
-            settings["queue_capacity"] = 10
-        
-        # Preload depth（默认2）
-        if settings.get("preload_depth") in (None, "", "auto"):
-            settings["preload_depth"] = 2
-        
-        # 验证字段值范围
-        reader_workers = int(settings["reader_workers"])
-        if reader_workers <= 0:
-            raise ValueError(f"reader_workers必须大于0: {reader_workers}")
-        
-        compute_processes = int(settings["compute_processes"])
-        if compute_processes <= 0:
-            raise ValueError(f"compute_processes必须大于0: {compute_processes}")
-        
-        queue_capacity = int(settings["queue_capacity"])
-        if queue_capacity <= 0:
-            raise ValueError(f"queue_capacity必须大于0: {queue_capacity}")
-        
-        preload_depth = int(settings["preload_depth"])
-        if preload_depth <= 0:
-            raise ValueError(f"preload_depth必须大于0: {preload_depth}")
+
+        SliceConfig._validate_resolved(settings)
+        return settings
+
+    @staticmethod
+    def _normalize_worker_fields(settings: Dict[str, Any]) -> None:
+        """Map worker.json calendar_slice keys to planner field names."""
+        if "queue_depth" in settings and "queue_capacity" not in settings:
+            settings["queue_capacity"] = settings["queue_depth"]
+        if "prefetch_enabled" in settings and "preload_depth" not in settings:
+            settings["preload_depth"] = (
+                DEFAULT_PRELOAD_DEPTH if settings["prefetch_enabled"] else 1
+            )
+
+    @staticmethod
+    def _validate_resolved(settings: Dict[str, Any]) -> None:
+        slice_open_days = int(settings.get("slice_open_days", 0))
+        if slice_open_days <= 0:
+            raise ValueError(f"slice_open_days must be > 0: {slice_open_days}")
+
+        for field in ("reader_workers", "compute_processes", "queue_capacity", "preload_depth"):
+            value = int(settings[field])
+            if value <= 0:
+                raise ValueError(f"{field} must be > 0: {value}")
 
 
 __all__ = ["SliceConfig"]

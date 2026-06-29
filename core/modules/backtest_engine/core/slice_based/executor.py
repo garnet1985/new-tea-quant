@@ -1,29 +1,24 @@
 """
 Backtest Engine - Slice-based Executor
 
-切片模式的执行器：读算分离（Reader多进程 + Compute单进程）。
-
-职责：
-- SliceExecutor.execute()：接受plan并执行slice jobs
-- Reader多进程读取数据
-- Compute单进程计算结果
-- 管道队列控制（queue_capacity）
-- 进程间通信（Queue传递payload）
-
-特点：
-- 读算分离（Reader多进程 + Compute单进程）
-- 管道队列控制（防止OOM）
-- 更严格的内存管控
+Calendar-slice execution: plan embedded in payload, single orchestrator subprocess.
 """
 from __future__ import annotations
 
 import logging
-import time
 import multiprocessing as mp
+import time
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
+from core.modules.backtest_engine.core.shared.context import ExecutionContext
 from core.modules.backtest_engine.core.shared.types import (
+    ExecuteFn,
+    Job,
+    JobContext,
+    JobFailure,
+    JobFailurePhase,
     JobReport,
     RunProgress,
 )
@@ -31,541 +26,315 @@ from core.modules.backtest_engine.core.slice_based.planner import (
     SliceDispatchPlan,
     SliceJobBatch,
 )
-from core.modules.backtest_engine.core.shared.context import ExecutionContext
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class SliceExecutionResult:
-    """切片执行结果。"""
-    
-    success: bool
-    total_slices: int
-    completed_slices: int
-    failed_slices: int
-    elapsed_seconds: float
-    slice_results: List[Dict[str, Any]]
-
-
 class SliceExecutor:
-    """切片模式执行器（读算分离）。
-    
-    核心特点：
-    - Reader多进程读取数据
-    - Compute单进程计算结果
-    - 管道队列控制（防止OOM）
-    """
-    
+    """Calendar-slice executor (bulk job + injected orchestrator execute_fn)."""
+
+    ExecuteFn = ExecuteFn
+
+    class OnResultHook(Callable):
+        """Result callback: receives JobReport and RunProgress."""
+
+        def __call__(self, report: JobReport, progress: RunProgress) -> None:
+            ...
+
+    @dataclass
+    class ExecutionResult:
+        """Slice execution summary (aligned with timeline job counters)."""
+
+        success: bool
+        total_jobs: int
+        completed_jobs: int
+        failed_jobs: int
+        failures: List[JobFailure]
+        elapsed_seconds: float
+        job_results: List[JobReport]
+
     @staticmethod
     def execute(
         plan: SliceDispatchPlan,
         batches: List[SliceJobBatch],
         context: ExecutionContext,
+        execute_fn: ExecuteFn,
+        on_result: Optional[SliceExecutor.OnResultHook] = None,
         log_label: str = "切片执行",
-    ) -> SliceExecutionResult:
-        """接受plan并执行slice jobs（读算分离）。
-        
-        Args:
-            plan: 切片调度规划
-            batches: 切割后的切片批次
-            context: 执行上下文
-            log_label: 日志标签
-            
-        Returns:
-            SliceExecutionResult: 执行结果
-        """
+    ) -> SliceExecutor.ExecutionResult:
+        """Run calendar-slice orchestrator in a single worker subprocess."""
         if not batches:
-            logger.info("%s无slices需要执行", log_label)
-            return SliceExecutionResult(
+            logger.info("%s无jobs需要执行", log_label)
+            return SliceExecutor.ExecutionResult(
                 success=True,
-                total_slices=0,
-                completed_slices=0,
-                failed_slices=0,
+                total_jobs=0,
+                completed_jobs=0,
+                failed_jobs=0,
+                failures=[],
                 elapsed_seconds=0.0,
-                slice_results=[],
+                job_results=[],
             )
-        
-        total_slices = sum(batch.slices_count for batch in batches)
-        completed_slices = 0
-        failed_slices = 0
-        slice_results: List[Dict[str, Any]] = []
-        
+
+        jobs = SliceExecutor._build_jobs_from_batches(batches)
+        failures: List[JobFailure] = []
+        job_results: List[JobReport] = []
+
         logger.info(
-            "%s启动: run=%s, slices=%s, reader=%s, compute=%s, queue=%s",
+            "%s启动: run=%s, jobs=%s, reader=%s, queue=%s, slice_days=%s, slices=%s",
             log_label,
             context.run_name,
-            total_slices,
+            len(jobs),
             plan.reader_workers,
-            plan.compute_processes,
             plan.queue_capacity,
+            plan.slice_open_days,
+            plan.dispatch_jobs,
         )
-        
+
         start_time = time.monotonic()
-        interrupted = False
-        
+        completed_jobs = 0
+        failed_jobs = 0
+
         try:
-            # 读算分离执行逻辑（核心特点）
-            result = SliceExecutor._execute_read_compute_separation(
-                plan=plan,
-                batches=batches,
-                context=context,
-                log_label=log_label,
-            )
-            
-            completed_slices = result.completed_slices
-            failed_slices = result.failed_slices
-            slice_results = result.slice_results
-        
+            with ProcessPoolExecutor(max_workers=1) as pool:
+                for job in jobs:
+                    job_context = SliceExecutor._build_job_context(job, context, plan)
+                    future = pool.submit(
+                        SliceExecutor._invoke_worker,
+                        execute_fn,
+                        job_context,
+                    )
+                    try:
+                        raw_result = future.result()
+                        report = SliceExecutor._normalize_report(job.job_id, raw_result)
+                        if not report.success:
+                            failures.append(
+                                JobFailure(
+                                    job_id=job.job_id,
+                                    phase=JobFailurePhase.EXECUTE,
+                                    error=report.error or "execute returned success=False",
+                                )
+                            )
+                            failed_jobs += 1
+                        else:
+                            completed_jobs += 1
+                        job_results.append(report)
+                        context.update_progress(report.success)
+                        if on_result:
+                            on_result(
+                                report,
+                                RunProgress(
+                                    finished=context.finished_jobs,
+                                    total=context.total_jobs,
+                                    ok=context.success_count,
+                                    fail=context.fail_count,
+                                ),
+                            )
+                    except Exception as exc:
+                        failures.append(
+                            JobFailure(
+                                job_id=job.job_id,
+                                phase=JobFailurePhase.EXECUTE,
+                                error=str(exc),
+                            )
+                        )
+                        failed_jobs += 1
+                        context.update_progress(success=False)
+                        if on_result:
+                            on_result(
+                                JobReport(
+                                    job_id=job.job_id,
+                                    success=False,
+                                    error=str(exc),
+                                ),
+                                RunProgress(
+                                    finished=context.finished_jobs,
+                                    total=context.total_jobs,
+                                    ok=context.success_count,
+                                    fail=context.fail_count,
+                                ),
+                            )
         except KeyboardInterrupt:
-            logger.warning("%s收到Ctrl+C，停止执行并清理资源", log_label)
-            interrupted = True
-            # 进程清理会在finally块中执行
-        
+            logger.warning("%s收到Ctrl+C，停止执行", log_label)
+            return SliceExecutor.ExecutionResult(
+                success=False,
+                total_jobs=len(jobs),
+                completed_jobs=completed_jobs,
+                failed_jobs=failed_jobs,
+                failures=failures,
+                elapsed_seconds=time.monotonic() - start_time,
+                job_results=job_results,
+            )
+
         elapsed_seconds = time.monotonic() - start_time
-        
-        # 构建执行结果
-        success = not interrupted and failed_slices == 0
-        result = SliceExecutionResult(
-            success=success,
-            total_slices=total_slices,
-            completed_slices=completed_slices,
-            failed_slices=failed_slices if not interrupted else 0,
-            elapsed_seconds=elapsed_seconds,
-            slice_results=slice_results,
-        )
-        
-        if interrupted:
-            logger.warning(
-                "%s中断: run=%s, slices=%s, completed=%s, elapsed=%.2fs",
-                log_label,
-                context.run_name,
-                total_slices,
-                completed_slices,
-                elapsed_seconds,
-            )
-        else:
-            logger.info(
-                "%s完成: run=%s, slices=%s, ok=%s, fail=%s, elapsed=%.2fs",
-                log_label,
-                context.run_name,
-                total_slices,
-                completed_slices,
-                failed_slices,
-                elapsed_seconds,
-            )
-        
-        return result
-    
-    @staticmethod
-    def _execute_read_compute_separation(
-        plan: SliceDispatchPlan,
-        batches: List[SliceJobBatch],
-        context: ExecutionContext,
-        log_label: str = "切片执行",
-    ) -> SliceExecutionResult:
-        """读算分离执行逻辑（核心特点）。
-        
-        流程：
-        1. 启动Reader多进程读取数据
-        2. 启动Compute单进程计算结果
-        3. 管道队列控制（queue_capacity）
-        4. 进程生命周期管理
-        
-        Args:
-            plan: 切片调度规划
-            batches: 切割后的切片批次
-            context: 执行上下文
-            log_label: 日志标签
-            
-        Returns:
-            SliceExecutionResult: 执行结果
-        """
-        # 构建所有slice任务
-        all_slice_ids: List[str] = []
-        for batch in batches:
-            all_slice_ids.extend(batch.slice_ids)
-        
-        if not all_slice_ids:
-            return SliceExecutionResult(
-                success=True,
-                total_slices=0,
-                completed_slices=0,
-                failed_slices=0,
-                elapsed_seconds=0.0,
-                slice_results=[],
-            )
-        
-        total_slices = len(all_slice_ids)
-        completed_slices = 0
-        failed_slices = 0
-        slice_results: List[Dict[str, Any]] = []
-        
-        # 创建管道队列（Reader → Compute）
-        ctx = mp.get_context("spawn")
-        reader_cmd_q = ctx.Queue()  # Reader命令队列
-        payload_q = ctx.Queue(maxsize=plan.queue_capacity)  # Payload队列（控制容量）
-        done_q = ctx.Queue()  # 完成队列
-        
+        success = failed_jobs == 0
         logger.info(
-            "%s读算分离启动: reader=%s, compute=%s, queue=%s, preload=%s",
+            "%s完成: run=%s, jobs=%s, ok=%s, fail=%s, elapsed=%.2fs",
             log_label,
-            plan.reader_workers,
-            plan.compute_processes,
-            plan.queue_capacity,
-            plan.preload_depth,
+            context.run_name,
+            len(jobs),
+            completed_jobs,
+            failed_jobs,
+            elapsed_seconds,
         )
-        
-        # 启动Reader进程（多进程）
-        reader_procs: List[mp.Process] = []
-        for worker_idx in range(plan.reader_workers):
-            proc = ctx.Process(
-                target=SliceExecutor._reader_worker,
-                args=(reader_cmd_q, payload_q, context),
-                name=f"slice_reader_{worker_idx}",
-                daemon=True,
-            )
-            reader_procs.append(proc)
-            proc.start()
-        
-        # 启动Compute进程（单进程）
-        compute_proc = ctx.Process(
-            target=SliceExecutor._compute_worker,
-            args=(payload_q, done_q, context),
-            name="slice_compute",
-            daemon=True,
-        )
-        compute_proc.start()
-        
-        try:
-            # 驱动slice执行
-            loads_dispatched = 0
-            
-            def _dispatch_slice_load(slice_index: int) -> None:
-                """发送slice加载命令到Reader。"""
-                slice_id = all_slice_ids[slice_index]
-                reader_cmd_q.put({
-                    "type": "load",
-                    "slice_index": slice_index,
-                    "slice_id": slice_id,
-                })
-            
-            def _in_flight_loads(consumed_count: int) -> int:
-                """计算当前in-flight的loads数量。"""
-                return max(0, loads_dispatched - consumed_count)
-            
-            def _seed_pipeline() -> None:
-                """初始化管道（preload depth）。"""
-                nonlocal loads_dispatched
-                while loads_dispatched < total_slices and _in_flight_loads(0) < plan.preload_depth:
-                    _dispatch_slice_load(loads_dispatched)
-                    loads_dispatched += 1
-            
-            def _top_up_pipeline(consumed_count: int) -> None:
-                """补充管道（保持preload depth）。"""
-                nonlocal loads_dispatched
-                while loads_dispatched < total_slices and _in_flight_loads(consumed_count) < plan.preload_depth:
-                    _dispatch_slice_load(loads_dispatched)
-                    loads_dispatched += 1
-            
-            # 初始化管道
-            _seed_pipeline()
-            
-            # 驱动slice执行
-            for i in range(total_slices):
-                # 等待Compute完成slice
-                done_msg = done_q.get()
-                
-                if not isinstance(done_msg, dict):
-                    logger.error("%s收到未知消息类型: %s", log_label, type(done_msg))
-                    failed_slices += 1
-                    context.update_progress(success=False)
-                    continue
-                
-                if not done_msg.get("success", True):
-                    logger.error(
-                        "%sslice失败: slice_id=%s, error=%s",
-                        log_label,
-                        done_msg.get("slice_id"),
-                        done_msg.get("error"),
-                    )
-                    failed_slices += 1
-                    slice_results.append(done_msg)
-                    context.update_progress(success=False)
-                    continue
-                
-                # 检查slice顺序
-                slice_index = int(done_msg.get("slice_index", 0))
-                if slice_index != i:
-                    logger.warning(
-                        "%sslice顺序不匹配: expected=%s, got=%s",
-                        log_label,
-                        i,
-                        slice_index,
-                    )
-                
-                # 记录成功slice
-                completed_slices += 1
-                slice_results.append(done_msg)
-                context.update_progress(success=True)
-                
-                # 补充管道
-                _top_up_pipeline(i + 1)
-                
-                logger.info(
-                    "%sslice %s/%s done (%s)",
-                    log_label,
-                    i + 1,
-                    total_slices,
-                    done_msg.get("slice_id"),
-                )
-            
-            # 发送SHUTDOWN命令
-            for _ in range(plan.reader_workers):
-                reader_cmd_q.put({"type": "shutdown"})
-            payload_q.put({"type": "shutdown"})
-            
-            logger.info("%s所有slices完成，等待进程结束...", log_label)
-        
-        finally:
-            # 清理进程
-            for proc in reader_procs:
-                proc.join(timeout=30.0)
-                if proc.is_alive():
-                    logger.warning("%sReader进程未正常退出，强制终止", log_label)
-                    proc.terminate()
-                    proc.join(timeout=5.0)
-            
-            compute_proc.join(timeout=30.0)
-            if compute_proc.is_alive():
-                logger.warning("%sCompute进程未正常退出，强制终止", log_label)
-                compute_proc.terminate()
-                compute_proc.join(timeout=5.0)
-        
-        success = failed_slices == 0
-        elapsed_seconds = time.monotonic() - context.start_time
-        
-        return SliceExecutionResult(
+        return SliceExecutor.ExecutionResult(
             success=success,
-            total_slices=total_slices,
-            completed_slices=completed_slices,
-            failed_slices=failed_slices,
+            total_jobs=len(jobs),
+            completed_jobs=completed_jobs,
+            failed_jobs=failed_jobs,
+            failures=failures,
             elapsed_seconds=elapsed_seconds,
-            slice_results=slice_results,
+            job_results=job_results,
         )
-    
+
     @staticmethod
-    def _reader_worker(
-        reader_cmd_q: mp.Queue,
-        payload_q: mp.Queue,
-        context: ExecutionContext,
-    ) -> None:
-        """Reader worker：读取slice数据并传递到payload队列。
-        
-        Args:
-            reader_cmd_q: Reader命令队列
-            payload_q: Payload队列（传递到Compute）
-            context: 执行上下文
-        """
-        logger.info("Reader worker启动: run=%s", context.run_name)
-        
+    def _invoke_worker(
+        execute_fn: ExecuteFn,
+        job_context: JobContext,
+    ) -> Dict[str, Any]:
+        """Process-pool entry: run caller execute_fn and attach metrics."""
+        if mp.current_process().name != "MainProcess":
+            try:
+                from core.infra.db import DatabaseManager
+
+                DatabaseManager.reset_default()
+            except Exception:
+                pass
+
+        rss_before_mb = SliceExecutor._process_rss_mb()
+        t0 = time.perf_counter()
         try:
-            while True:
-                # 等待命令
-                cmd = reader_cmd_q.get()
-                
-                if cmd.get("type") == "shutdown":
-                    logger.info("Reader worker收到SHUTDOWN命令，退出")
-                    break
-                
-                if cmd.get("type") != "load":
-                    logger.warning("Reader worker收到未知命令: %s", cmd.get("type"))
-                    continue
-                
-                slice_index = int(cmd.get("slice_index", 0))
-                slice_id = str(cmd.get("slice_id", ""))
-                
-                try:
-                    # TODO: 实现实际的slice数据读取逻辑
-                    # 简化版：模拟读取
-                    
-                    # 构建payload（模拟slice数据）
-                    payload = {
-                        "slice_index": slice_index,
-                        "slice_id": slice_id,
-                        "data": {"模拟数据": slice_id},  # 简化版
-                        "load_elapsed_sec": 0.1,  # 简化版
-                    }
-                    
-                    # 发送到payload队列（可能阻塞，等待Compute消费）
-                    payload_q.put(payload)
-                    
-                    logger.info(
-                        "Reader worker: slice %s loaded (%s)",
-                        slice_index,
-                        slice_id,
-                    )
-                
-                except Exception as exc:
-                    logger.error(
-                        "Reader worker失败: slice_id=%s, error=%s",
-                        slice_id,
-                        exc,
-                    )
-                    # 发送错误消息到payload队列
-                    payload_q.put({
-                        "slice_index": slice_index,
-                        "slice_id": slice_id,
-                        "success": False,
-                        "error": str(exc),
-                    })
-        
+            raw = execute_fn(job_context)
         except Exception as exc:
-            logger.error("Reader worker异常退出: %s", exc, exc_info=True)
-        
-        logger.info("Reader worker退出")
-    
+            wall_sec = time.perf_counter() - t0
+            rss_after_mb = SliceExecutor._process_rss_mb()
+            return {
+                "success": False,
+                "job_id": job_context.job_id,
+                "error": str(exc),
+                "slices_count": SliceExecutor._slices_count_from_payload(
+                    job_context.payload
+                ),
+                "wall_sec": wall_sec,
+                "peak_rss_mb": max(rss_before_mb, rss_after_mb),
+            }
+
+        wall_sec = time.perf_counter() - t0
+        rss_after_mb = SliceExecutor._process_rss_mb()
+        return SliceExecutor._normalize_worker_result(
+            job_context,
+            raw,
+            wall_sec=wall_sec,
+            peak_rss_mb=max(rss_before_mb, rss_after_mb),
+        )
+
     @staticmethod
-    def _compute_worker(
-        payload_q: mp.Queue,
-        done_q: mp.Queue,
+    def _build_jobs_from_batches(batches: List[SliceJobBatch]) -> List[Job]:
+        jobs: List[Job] = []
+        for batch in batches:
+            jobs.append(Job(job_id=batch.batch_id, payload=batch.payload))
+        return jobs
+
+    @staticmethod
+    def _build_job_context(
+        job: Job,
         context: ExecutionContext,
-    ) -> None:
-        """Compute worker：计算slice结果并发送到完成队列。
-        
-        Args:
-            payload_q: Payload队列（从Reader接收）
-            done_q: 完成队列（发送到主进程）
-            context: 执行上下文
-        """
-        logger.info("Compute worker启动: run=%s", context.run_name)
-        
+        plan: SliceDispatchPlan,
+    ) -> JobContext:
+        payload = dict(job.payload)
+        payload["_executor"] = context.executor
+        payload["_job_id"] = job.job_id
+        payload["_run_name"] = context.run_name
+        payload["_slice_plan"] = SliceExecutor._plan_to_dict(plan)
+        if context.business_data:
+            payload["_business_data"] = context.business_data
+        return JobContext(
+            job_id=job.job_id,
+            payload=payload,
+            run_name=context.run_name,
+        )
+
+    @staticmethod
+    def _plan_to_dict(plan: SliceDispatchPlan) -> Dict[str, Any]:
+        return {
+            "reader_workers": plan.reader_workers,
+            "reader_memory_budget_mb": plan.reader_memory_budget_mb,
+            "compute_processes": plan.compute_processes,
+            "compute_memory_budget_mb": plan.compute_memory_budget_mb,
+            "queue_capacity": plan.queue_capacity,
+            "preload_depth": plan.preload_depth,
+            "slice_open_days": plan.slice_open_days,
+            "dispatch_jobs": plan.dispatch_jobs,
+            "memory_budget_mb": plan.memory_budget_mb,
+            "oom_adjusted": plan.oom_adjusted,
+        }
+
+    @staticmethod
+    def _normalize_report(job_id: str, raw_result: object) -> JobReport:
+        if isinstance(raw_result, JobReport):
+            return raw_result
+        if isinstance(raw_result, dict):
+            success = bool(raw_result.get("success", True))
+            return JobReport(
+                job_id=job_id,
+                success=success,
+                data=raw_result,
+                error=raw_result.get("error") if not success else None,
+            )
+        return JobReport(job_id=job_id, success=True, data=raw_result)
+
+    @staticmethod
+    def _normalize_worker_result(
+        job_context: JobContext,
+        raw: Any,
+        *,
+        wall_sec: float,
+        peak_rss_mb: float,
+    ) -> Dict[str, Any]:
+        if isinstance(raw, JobReport):
+            data = raw.data if isinstance(raw.data, dict) else {"data": raw.data}
+            out = dict(data)
+            out.setdefault("success", raw.success)
+            out.setdefault("job_id", raw.job_id)
+            if raw.error:
+                out.setdefault("error", raw.error)
+        elif isinstance(raw, dict):
+            out = dict(raw)
+            out.setdefault("success", True)
+            out.setdefault("job_id", job_context.job_id)
+        else:
+            out = {
+                "success": True,
+                "job_id": job_context.job_id,
+                "data": raw,
+            }
+
+        out.setdefault("wall_sec", wall_sec)
+        out.setdefault("peak_rss_mb", peak_rss_mb)
+        if "slices_count" not in out:
+            out["slices_count"] = SliceExecutor._slices_count_from_payload(
+                job_context.payload
+            )
+        return out
+
+    @staticmethod
+    def _slices_count_from_payload(payload: Dict[str, Any]) -> int:
+        plan = payload.get("_slice_plan")
+        if isinstance(plan, dict) and plan.get("dispatch_jobs") is not None:
+            return int(plan["dispatch_jobs"])
+        return int(payload.get("slices_count") or 1)
+
+    @staticmethod
+    def _process_rss_mb() -> float:
         try:
-            while True:
-                # 等待payload
-                payload = payload_q.get()
-                
-                if payload.get("type") == "shutdown":
-                    logger.info("Compute worker收到SHUTDOWN命令，退出")
-                    break
-                
-                slice_index = int(payload.get("slice_index", 0))
-                slice_id = str(payload.get("slice_id", ""))
-                
-                # 检查是否为错误消息（Reader失败）
-                if not payload.get("success", True):
-                    # 直接转发错误消息
-                    done_q.put(payload)
-                    continue
-                
-                try:
-                    # TODO: 实现实际的slice计算逻辑
-                    # 简化版：模拟计算
-                    
-                    # 计算结果（模拟）
-                    result = {
-                        "slice_index": slice_index,
-                        "slice_id": slice_id,
-                        "success": True,
-                        "data": {"模拟结果": slice_id},  # 简化版
-                        "compute_elapsed_sec": 0.2,  # 简化版
-                    }
-                    
-                    # 发送到完成队列
-                    done_q.put(result)
-                    
-                    logger.info(
-                        "Compute worker: slice %s done (%s)",
-                        slice_index,
-                        slice_id,
-                    )
-                
-                except Exception as exc:
-                    logger.error(
-                        "Compute worker失败: slice_id=%s, error=%s",
-                        slice_id,
-                        exc,
-                    )
-                    # 发送错误消息到完成队列
-                    done_q.put({
-                        "slice_index": slice_index,
-                        "slice_id": slice_id,
-                        "success": False,
-                        "error": str(exc),
-                    })
-        
-        except Exception as exc:
-            logger.error("Compute worker异常退出: %s", exc, exc_info=True)
-        
-        logger.info("Compute worker退出")
+            import os
+
+            import psutil
+
+            return float(psutil.Process(os.getpid()).memory_info().rss) / (
+                1024.0 * 1024.0
+            )
+        except Exception:
+            return 0.0
 
 
-# ===== Reader进程 =====
-
-def _reader_worker(
-    slice_ids: List[str],
-    payload_queue: mp.Queue,
-    done_queue: mp.Queue,
-    log_label: str = "Reader",
-) -> None:
-    """Reader进程：读取数据并放入队列。
-    
-    Args:
-        slice_ids: 切片ID列表
-        payload_queue: Payload队列（传递给Compute）
-        done_queue: 完成队列（通知Compute）
-        log_label: 日志标签
-    """
-    # TODO: 实现Reader逻辑
-    for slice_id in slice_ids:
-        try:
-            # TODO: 读取slice数据
-            payload = {"slice_id": slice_id, "data": None}
-            
-            # 放入队列（控制容量）
-            payload_queue.put(payload, timeout=10.0)
-            
-        except Exception as exc:
-            logger.error("%s读取失败: slice_id=%s, error=%s", log_label, slice_id, exc)
-            payload_queue.put({"slice_id": slice_id, "error": str(exc)})
-
-
-# ===== Compute进程 =====
-
-def _compute_worker(
-    payload_queue: mp.Queue,
-    done_queue: mp.Queue,
-    log_label: str = "Compute",
-) -> None:
-    """Compute进程：从队列接收payload并计算。
-    
-    Args:
-        payload_queue: Payload队列（接收Reader数据）
-        done_queue: 完成队列（通知主进程）
-        log_label: 日志标签
-    """
-    # TODO: 实现Compute逻辑
-    while True:
-        try:
-            # 从队列接收payload
-            payload = payload_queue.get(timeout=10.0)
-            
-            if payload is None:  # 结束信号
-                break
-            
-            # TODO: 计算slice
-            slice_id = payload.get("slice_id")
-            result = {"slice_id": slice_id, "success": True}
-            
-            # 放入done队列
-            done_queue.put(result)
-            
-        except Exception as exc:
-            logger.error("%s计算失败: error=%s", log_label, exc)
-            done_queue.put({"success": False, "error": str(exc)})
-
-
-__all__ = [
-    "SliceExecutionResult",
-    "SliceExecutor",
-]
+__all__ = ["SliceExecutor"]

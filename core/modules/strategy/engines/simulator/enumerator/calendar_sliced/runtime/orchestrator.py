@@ -97,6 +97,10 @@ class CalendarSliceProcessOrchestrator:
             total=plan.calendar_progress_total,
         )
         slices = plan_calendar_slices(open_dates, plan.slice_open_days)
+        if self.job_payload.get("_slice_probe"):
+            max_slices = self.job_payload.get("_probe_max_slices")
+            if max_slices is not None:
+                slices = slices[: max(1, int(max_slices))]
         if not slices:
             return self._finish_bulk(success=True, stock_results=[])
 

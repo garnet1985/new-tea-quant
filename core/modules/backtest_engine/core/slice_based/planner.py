@@ -22,11 +22,13 @@ import math
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.modules.backtest_engine.core.shared.machine_info import (
-    MachineInfo,
-    MachineCapacity,
-)
+from core.modules.backtest_engine.core.shared.machine_info import MachineCapacity
 from core.modules.backtest_engine.core.shared.base_planner import BasePlanner
+from core.modules.backtest_engine.core.slice_based.config import SliceConfig
+from core.modules.backtest_engine.core.slice_based.monitor import (
+    SliceMonitorConfig,
+    SliceMonitorPlanSnapshot,
+)
 from core.modules.backtest_engine.core.slice_based.probe import (
     SliceProbe,
     SliceProbeResult,
@@ -84,9 +86,9 @@ class SlicePlanner(BasePlanner):
         cls,
         jobs: List[Dict[str, Any]],
         performance: Dict[str, Any],
-        executor: Optional[Any] = None,
+        executor: Optional[str] = None,
         log_label: str = "切片调度",
-    ) -> Tuple[SliceDispatchPlan, List[SliceJobBatch]]:
+    ) -> Tuple[SliceDispatchPlan, List[SliceJobBatch], SliceMonitorConfig]:
         """Planner的编排层（对外API）。
         
         Args:
@@ -100,28 +102,42 @@ class SlicePlanner(BasePlanner):
         """
         # 1. 获取机器容量（共享）
         capacity = cls._get_machine_capacity(performance)
-        
+
+        provisional_days = performance.get("slice_open_days")
+        if provisional_days in (None, "", "auto"):
+            provisional_days = 20
+        else:
+            provisional_days = int(provisional_days)
+
+        resolved_performance = SliceConfig.normalize_for_planning(
+            performance,
+            capacity,
+            dispatch_slices=cls._count_calendar_slices(jobs, provisional_days),
+        )
+        dispatch_slices = cls._count_calendar_slices(
+            jobs,
+            int(resolved_performance["slice_open_days"]),
+        )
+        if dispatch_slices > 0:
+            resolved_performance = dict(resolved_performance)
+            resolved_performance["_dispatch_slices"] = dispatch_slices
+
         # 2. slice探针测量（读算分离内存）
         probe_result = cls._measure_slice_probe(
-            jobs, capacity, performance, executor, log_label
+            jobs, capacity, resolved_performance, executor, log_label
         )
-        
+
         # 3. 制定读算分离规划（reader_workers、queue_capacity等）
         plan = cls._resolve_slice_plan(
-            jobs, capacity, probe_result, performance, log_label
+            jobs, capacity, probe_result, resolved_performance, log_label
         )
         
         # 4. 切割slice jobs
         batches = cls._split_slice_batches(jobs, plan)
-        
-        # 5. TODO: 动态planner（定期重新规划）
-        # 当前暂时不实现，保持静态规划
-        # 动态planner需要：
-        # - 在执行过程中定期检查进度
-        # - 根据实际执行情况重新规划
-        # - 动态调整reader_workers、queue_capacity等参数
-        
-        return plan, batches
+
+        monitor_config = cls._build_monitor(plan, resolved_performance)
+
+        return plan, batches, monitor_config
     
     @classmethod
     def _measure_slice_probe(
@@ -129,7 +145,7 @@ class SlicePlanner(BasePlanner):
         jobs: List[Dict[str, Any]],
         capacity: MachineCapacity,
         performance: Dict[str, Any],
-        executor: Optional[Any],
+        executor: Optional[str],
         log_label: str,
     ) -> Optional[SliceProbeResult]:
         """slice探针测量（读算分离内存）。
@@ -153,7 +169,12 @@ class SlicePlanner(BasePlanner):
         probe_jobs = SliceProbe.build_probe_jobs(jobs, capacity, performance)
         
         # 执行探针
-        return SliceProbe.dispatch(probe_jobs, executor, performance, log_label)
+        return SliceProbe.dispatch(
+            probe_jobs,
+            executor=str(executor or ""),
+            performance=performance,
+            log_label=log_label,
+        )
     
     @classmethod
     def _resolve_slice_plan(
@@ -216,11 +237,9 @@ class SlicePlanner(BasePlanner):
         Returns:
             SliceDispatchPlan: 基础规划
         """
-        # 解析slice配置
         slice_open_days = int(performance.get("slice_open_days", 20))
-        total_slices = len(jobs)  # TODO: 根据实际日期切片计算
-        
-        # Reader workers（多进程）
+        total_slices = cls._count_calendar_slices(jobs, slice_open_days)
+
         reader_workers_base = int(performance.get("reader_workers", 2))
         
         # Compute processes（单进程）
@@ -232,8 +251,7 @@ class SlicePlanner(BasePlanner):
         # Preload depth（预加载深度）
         preload_depth_base = int(performance.get("preload_depth", 2))
         
-        # Dispatch jobs
-        dispatch_jobs = max(1, math.ceil(total_slices / slice_open_days))
+        dispatch_jobs = max(1, total_slices)
         
         return SliceDispatchPlan(
             reader_workers=reader_workers_base,
@@ -393,43 +411,120 @@ class SlicePlanner(BasePlanner):
         Returns:
             List[SliceJobBatch]: 切割后的切片批次
         """
-        # TODO: 根据slice_open_days切割日期切片
-        # 简化版：每个job就是一个slice
-        
-        batches = []
-        slice_ids_per_batch = plan.slice_open_days
-        
-        # 按slice_open_days切割jobs
-        for i in range(0, len(jobs), slice_ids_per_batch):
-            batch_jobs = jobs[i:i + slice_ids_per_batch]
-            
-            # 构建slice_ids（日期切片列表）
-            slice_ids = []
-            for j, job in enumerate(batch_jobs):
-                slice_id = job.get("slice_id", f"slice_{i + j}")
-                slice_ids.append(slice_id)
-            
-            # 构建batch
-            batch_id = f"batch_{i // slice_ids_per_batch}"
+        if not jobs:
+            return []
+
+        if cls._is_bulk_calendar_job(jobs):
+            job_id, payload = cls._normalize_job(jobs[0])
+            slice_ids = [
+                f"slice_{index}"
+                for index in range(plan.dispatch_jobs)
+            ]
             batch = SliceJobBatch(
-                batch_id=batch_id,
+                batch_id=job_id,
                 slice_ids=slice_ids,
-                slices_count=len(slice_ids),
-                payload={
-                    "batch_index": i // slice_ids_per_batch,
-                    "slice_ids": slice_ids,
-                },
+                slices_count=plan.dispatch_jobs,
+                payload=dict(payload),
             )
-            batches.append(batch)
-        
+            logger.info(
+                "切割完成: bulk job=%s, expected_slices=%s, batches=1",
+                job_id,
+                plan.dispatch_jobs,
+            )
+            return [batch]
+
+        batches: List[SliceJobBatch] = []
+        for index, job in enumerate(jobs):
+            job_id, payload = cls._normalize_job(job)
+            slice_id = str(payload.get("slice_id") or job_id)
+            batches.append(
+                SliceJobBatch(
+                    batch_id=job_id,
+                    slice_ids=[slice_id],
+                    slices_count=1,
+                    payload=dict(payload),
+                )
+            )
+
         logger.info(
-            "切割完成: slices=%s, batches=%s, slice_per_batch=%s",
+            "切割完成: slices=%s, batches=%s",
             len(jobs),
             len(batches),
-            slice_ids_per_batch,
         )
-        
         return batches
+
+    @staticmethod
+    def _normalize_job(job: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+        job_id = str(job.get("id") or job.get("job_id") or "calendar_slice")
+        payload = job.get("payload")
+        if isinstance(payload, dict):
+            return job_id, payload
+        return job_id, dict(job)
+
+    @classmethod
+    def _is_bulk_calendar_job(cls, jobs: List[Dict[str, Any]]) -> bool:
+        if len(jobs) != 1:
+            return False
+        _, payload = cls._normalize_job(jobs[0])
+        mode = str(payload.get("tag_execution_mode") or "").strip().lower()
+        if mode == "calendar_slice":
+            return True
+        if payload.get("entity_ids") or payload.get("entities"):
+            return True
+        return False
+
+    @classmethod
+    def _count_calendar_slices(cls, jobs: List[Dict[str, Any]], slice_open_days: int) -> int:
+        if not jobs:
+            return 0
+
+        days = max(1, int(slice_open_days))
+        open_dates = cls._resolve_open_dates(jobs)
+        if open_dates:
+            return max(1, math.ceil(len(open_dates) / days))
+
+        if len(jobs) > 1:
+            return len(jobs)
+        return 1
+
+    @classmethod
+    def _resolve_open_dates(cls, jobs: List[Dict[str, Any]]) -> List[str]:
+        _, payload = cls._normalize_job(jobs[0])
+        open_dates = payload.get("open_dates")
+        if isinstance(open_dates, list) and open_dates:
+            return [str(d) for d in open_dates if str(d).strip()]
+
+        calendar = payload.get("backtest_calendar")
+        if isinstance(calendar, dict):
+            calendar_dates = calendar.get("open_dates")
+            if isinstance(calendar_dates, list) and calendar_dates:
+                return [str(d) for d in calendar_dates if str(d).strip()]
+        return []
+
+
+    @staticmethod
+    def _build_monitor(
+        plan: SliceDispatchPlan,
+        performance: Dict[str, Any],
+    ) -> SliceMonitorConfig:
+        payload_memory_budget_mb = max(
+            1.0,
+            plan.memory_budget_mb
+            - plan.reader_memory_budget_mb
+            - plan.compute_memory_budget_mb,
+        )
+        snapshot = SliceMonitorPlanSnapshot(
+            reader_workers=plan.reader_workers,
+            queue_capacity=plan.queue_capacity,
+            preload_depth=plan.preload_depth,
+            slice_open_days=plan.slice_open_days,
+            dispatch_slices=plan.dispatch_jobs,
+            reader_memory_budget_mb=plan.reader_memory_budget_mb,
+            compute_memory_budget_mb=plan.compute_memory_budget_mb,
+            payload_memory_budget_mb=payload_memory_budget_mb,
+            memory_budget_mb=plan.memory_budget_mb,
+        )
+        return SliceMonitorConfig.from_dispatch_plan(snapshot, performance)
 
 
 __all__ = [

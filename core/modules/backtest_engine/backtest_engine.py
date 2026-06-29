@@ -6,6 +6,11 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from core.modules.backtest_engine.core.shared.types import ExecuteFn, JobReport
+from core.modules.backtest_engine.core.slice_based.config import SliceConfig
+from core.modules.backtest_engine.core.slice_based.execute_pipeline import (
+    SliceExecutePipeline,
+)
+from core.modules.backtest_engine.core.slice_based.executor import SliceExecutor
 from core.modules.backtest_engine.core.timeline_based.config import TimelineConfig
 from core.modules.backtest_engine.core.timeline_based.execute_pipeline import (
     TimelineExecutePipeline,
@@ -26,6 +31,7 @@ class BacktestEngine:
     ExecuteFn = ExecuteFn
     OnResultHook = TimelineExecutor.OnResultHook
     OnReleaseHook = TimelineExecutor.OnReleaseHook
+    SlicedOnResultHook = SliceExecutor.OnResultHook
 
     @dataclass(frozen=True)
     class RunResult:
@@ -40,6 +46,24 @@ class BacktestEngine:
         job_results: List[JobReport]
         plan: Any = None
         monitor_stats: Any = None
+
+        @classmethod
+        def from_sliced(
+            cls,
+            result: SliceExecutePipeline.Result,
+        ) -> BacktestEngine.RunResult:
+            execution = result.execution
+            return cls(
+                mode="sliced",
+                success=execution.success,
+                total_jobs=execution.total_jobs,
+                completed_jobs=execution.completed_jobs,
+                failed_jobs=execution.failed_jobs,
+                elapsed_seconds=execution.elapsed_seconds,
+                job_results=list(execution.job_results),
+                plan=result.plan,
+                monitor_stats=result.monitor_stats,
+            )
 
         @classmethod
         def from_timeline(
@@ -89,7 +113,7 @@ class BacktestEngine:
             return BacktestEngine.RunResult.from_timeline(pipeline_result)
 
     class Sliced:
-        """Sliced backtest API (calendar slice, reader + compute)."""
+        """Sliced backtest API (calendar slice, bulk job + orchestrator)."""
 
         @staticmethod
         def run(
@@ -97,11 +121,23 @@ class BacktestEngine:
             execute_fn: ExecuteFn,
             *,
             executor_key: str,
-            **kwargs: Any,
+            run_name: str = "",
+            on_result: Optional[BacktestEngine.SlicedOnResultHook] = None,
+            data_mgr: Optional[Any] = None,
+            log_label: str = "backtest",
         ) -> BacktestEngine.RunResult:
-            raise NotImplementedError(
-                "sliced mode is not wired to BacktestEngine yet; use timeline mode"
+            performance = SliceConfig.resolve_dispatch_performance(executor_key)
+            pipeline = SliceExecutePipeline(log_label=log_label)
+            pipeline_result = pipeline.run(
+                jobs,
+                performance,
+                execute_fn=execute_fn,
+                executor_key=executor_key,
+                run_name=run_name or log_label,
+                on_result=on_result,
+                data_mgr=data_mgr,
             )
+            return BacktestEngine.RunResult.from_sliced(pipeline_result)
 
     timeline = Timeline
     sliced = Sliced

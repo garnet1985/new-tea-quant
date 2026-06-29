@@ -107,13 +107,20 @@ def build_runtime_plan(
     settings = settings or CalendarSliceRuntimeSettings.from_worker_profile()
     _ = _parse_min_required_records(job_payload)
 
+    budget_mb = resolve_calendar_slice_memory_budget_mb()
+    if job_payload.get("_slice_probe"):
+        return _build_probe_runtime_plan(
+            job_payload,
+            open_days_total=open_days_total,
+            budget_mb=budget_mb,
+        )
+
     raw_slice = job_payload.get("slice_open_days")
     if not slice_is_auto(raw_slice):
         raise ValueError(
             f"calendar_slice job 启动时 slice_open_days 须为 'auto'，收到 {raw_slice!r}"
         )
 
-    budget_mb = resolve_calendar_slice_memory_budget_mb()
     mb = float(mb_per_slice if mb_per_slice is not None else _DEFAULT_MB_PER_SLICE)
     t_io = float(t_io_sec if t_io_sec is not None else _DEFAULT_T_IO_SEC)
     t_compute = float(t_compute_sec if t_compute_sec is not None else _DEFAULT_T_COMPUTE_SEC)
@@ -170,8 +177,31 @@ def build_runtime_plan(
     return plan
 
 
+def _build_probe_runtime_plan(
+    job_payload: Dict[str, Any],
+    *,
+    open_days_total: int,
+    budget_mb: float,
+) -> CalendarSliceRuntimePlan:
+    """Small fixed plan for dispatch probe (1 reader, minimal preload)."""
+    _ = open_days_total
+    probe_slice_days = max(1, int(job_payload.get("_probe_slice_open_days") or 5))
+    queue_capacity = max(2, int(job_payload.get("_probe_queue_capacity") or 2))
+    return CalendarSliceRuntimePlan(
+        slice_open_days=probe_slice_days,
+        memory_budget_mb=budget_mb,
+        reader_workers=1,
+        ideal_preload_ceiling=1,
+        current_preload_depth=1,
+        queue_capacity=queue_capacity,
+        mb_per_slice=float(job_payload.get("_probe_mb_per_slice") or 100.0),
+        prefetch_enabled=True,
+    )
+
+
 __all__ = [
     "_parse_min_required_records",
+    "_build_probe_runtime_plan",
     "build_runtime_plan",
     "ideal_preload_from_timings",
     "is_duckdb_backend",

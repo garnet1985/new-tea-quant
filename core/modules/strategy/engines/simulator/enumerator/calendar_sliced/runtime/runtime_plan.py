@@ -167,6 +167,7 @@ class CalendarSliceRuntimePlan:
             "queue_capacity": self.queue_capacity,
             "mb_per_slice": round(self.mb_per_slice, 1),
             "prefetch_enabled": self.prefetch_enabled,
+            "baseline_rss_mb": round(self.baseline_rss_mb, 1),
         }
         if self.calendar_progress_total > 0:
             out["calendar_progress_total"] = self.calendar_progress_total

@@ -1,0 +1,349 @@
+# API Definition - modules.backtest_engine
+
+BacktestEngine:
+  layer: modules
+  description: "回测引擎 - 统一处理timeline和sliced两种回测机制"
+
+  apis:
+    submit:
+      description: "提交回测任务（异步）"
+      stability: stable
+      type: method
+      parameters:
+        mode:
+          type: str
+          description: "执行模式"
+          required: true
+          enum: ["timeline", "sliced"]
+          example: "timeline"
+        
+        jobs:
+          type: List[Dict[str, Any]]
+          description: "待执行的job列表"
+          required: true
+          example:
+            - id: "job_1"
+              entity_id: "stock_001"
+              payload: {}
+        
+        executor:
+          type: Type[Any]
+          description: "执行器类（可以是Tag或Strategy的Worker类）"
+          required: true
+          example: "MyTagWorker or MyStrategyWorker"
+          note: |
+            Executor类必须有execute()方法作为Engine统一调用入口。
+            Base基类提供execute()作为wrapper，内部调用用户可读性函数：
+            - Strategy: execute() → find_opportunity()
+            - Tag: execute() → calculate_tag()
+            用户只需实现可读性函数（find_opportunity/calculate_tag），不需要实现execute()。
+        
+        settings:
+          type: Dict[str, Any]
+          description: "配置（包含调度配置和业务配置）"
+          required: true
+          example:
+            core: {}
+            performance:
+              max_workers: 4
+              entities_per_job: 5
+              dispatch_probe: true
+        
+        callbacks:
+          type: Optional[Dict[str, Callable]]
+          description: "Engine回调函数（可选）"
+          required: false
+          example:
+            on_process_start: "lambda ctx: init_process(ctx)"
+            on_process_end: "lambda ctx: cleanup_process(ctx)"
+            on_slice_end: "lambda slice_id, ctx: log_slice(slice_id)"
+        
+        callback:
+          type: Optional[Callable]
+          description: "完成回调（可选，所有jobs完成后）"
+          required: false
+          example: "lambda context: process_results(context)"
+      
+      returns:
+        type: str
+        description: "Job ID（异步任务标识）"
+        example: "backtest_job_20260101_001"
+      
+      usage: |
+        from core.modules.backtest_engine import BacktestEngine
+        
+        engine = BacktestEngine()
+        
+        # 提交任务（异步）
+        job_id = engine.submit(
+            mode="timeline",
+            jobs=jobs,
+            execute=MyTagWorker,
+            settings=settings,
+            callback=lambda context: print("完成"),
+        )
+        
+        # 获取结果
+        context = engine.get(job_id)
+    
+    get:
+      description: "获取回测结果（同步等待）"
+      stability: stable
+      type: method
+      parameters:
+        job_id:
+          type: str
+          description: "Job ID"
+          required: true
+          example: "backtest_job_20260101_001"
+        
+        timeout:
+          type: Optional[float]
+          description: "超时时间（秒，可选）"
+          required: false
+          example: 120.0
+      
+      returns:
+        type: Dict[str, Any]
+        description: "执行上下文（包含结果和统计）"
+        example:
+          job_id: "backtest_job_20260101_001"
+          results:
+            - job_id: "job_1"
+              entity_id: "stock_001"
+              success: true
+              data: {}
+          stats:
+            total_jobs: 100
+            success_count: 95
+            total_time: 120.5
+      
+      usage: |
+        from core.modules.backtest_engine import BacktestEngine
+        
+        engine = BacktestEngine()
+        
+        # 提交任务
+        job_id = engine.submit(...)
+        
+        # 获取结果（同步等待）
+        context = engine.get(job_id, timeout=120.0)
+        results = context["results"]
+
+  types:
+    Job:
+      description: "Job定义"
+      fields:
+        id:
+          type: str
+          description: "Job唯一标识"
+        entity_id:
+          type: str
+          description: "Entity ID（股票ID等）"
+        payload:
+          type: Dict[str, Any]
+          description: "Worker需要的业务数据"
+    
+    Context:
+      description: "执行上下文"
+      fields:
+        job_id:
+          type: str
+          description: "Backtest Job ID"
+        results:
+          type: List[Dict[str, Any]]
+          description: "所有job的执行结果"
+        stats:
+          type: Dict[str, Any]
+          description: "执行统计信息"
+        errors:
+          type: List[str]
+          description: "错误列表"
+
+  callbacks:
+    description: "Engine回调函数（引擎事件）"
+    note: "用户可选注册，用于监听引擎内部事件"
+    
+    on_process_start:
+      description: "进程启动事件"
+      parameters:
+        context: Dict[str, Any]
+      timing: "每个worker进程启动时"
+      usage: |
+        engine.submit(
+            ...,
+            callbacks={
+                "on_process_start": lambda ctx: init_process(ctx),
+            }
+        )
+    
+    on_process_end:
+      description: "进程结束事件"
+      parameters:
+        context: Dict[str, Any]
+      timing: "每个worker进程结束时"
+      usage: |
+        engine.submit(
+            ...,
+            callbacks={
+                "on_process_end": lambda ctx: cleanup_process(ctx),
+            }
+        )
+    
+    on_slice_start:
+      description: "Slice启动事件（sliced模式）"
+      parameters:
+        slice_id: str
+        context: Dict[str, Any]
+      timing: "每个slice开始计算时"
+      usage: |
+        engine.submit(
+            mode="sliced",
+            ...,
+            callbacks={
+                "on_slice_start": lambda slice_id, ctx: log_slice_start(slice_id),
+            }
+        )
+    
+    on_slice_end:
+      description: "Slice结束事件（sliced模式）"
+      parameters:
+        slice_id: str
+        context: Dict[str, Any]
+      timing: "每个slice计算完成时"
+      usage: |
+        engine.submit(
+            mode="sliced",
+            ...,
+            callbacks={
+                "on_slice_end": lambda slice_id, ctx: log_slice_end(slice_id),
+            }
+        )
+    
+    on_error:
+      description: "错误事件"
+      parameters:
+        error: Exception
+        context: Dict[str, Any]
+      timing: "发生错误时"
+      usage: |
+        engine.submit(
+            ...,
+            callbacks={
+                "on_error": lambda error, ctx: handle_error(error),
+            }
+        )
+
+  executor_interface:
+    description: "Executor统一接口设计"
+    
+    standard_entry:
+      function: "execute()"
+      description: "Engine统一调用入口（所有Executor必须有execute()方法）"
+      caller: "Engine调用executor.execute()"
+      
+    readable_functions:
+      description: "用户可读性函数（业务语义清晰）"
+      Strategy:
+        primary: "find_opportunity()"  # 用户必须实现
+        wrapper: "execute() → find_opportunity()"  # Base基类提供
+      Tag:
+        primary: "calculate_tag()"  # 用户必须实现
+        wrapper: "execute() → calculate_tag()"  # Base基类提供
+      
+    user_experience:
+      description: "用户只需实现可读性函数，不需要实现execute()"
+      example_strategy: |
+        class MyStrategyWorker(BaseStrategyWorker):
+            def find_opportunity(self):  # ✅ 用户实现可读性函数
+                return self.compute_strategy()
+            
+            # execute()自动调用find_opportunity（BaseStrategyWorker已定义）
+      
+      example_tag: |
+        class MyTagWorker(BaseTagWorker):
+            def calculate_tag(self):  # ✅ 用户实现可读性函数
+                return self.compute_tag()
+            
+            # execute()自动调用calculate_tag（BaseTagWorker已定义)
+    
+  executor_hooks:
+    description: "Executor钩子函数（由Tag/Strategy的Worker基类定义）"
+    note: "Executor.execute()内部自动调用钩子，用户不需要关心"
+    
+    hooks_defined_in:
+      - "Tag: core/modules/tag/engines/shared/base_worker.py"
+      - "Strategy: core/modules/strategy/base_strategy_worker.py"
+    
+    hook_names_may_differ:
+      description: "Tag和Strategy的钩子名字可能不同（业务语义不同）"
+      examples:
+        Tag:
+          - "on_before_tag_jobs()"
+          - "on_tag_job_complete()"
+        Strategy:
+          - "on_before_strategy_jobs()"
+          - "on_strategy_job_complete()"
+    
+    automatic_call:
+      description: "Executor.execute()内部自动调用钩子"
+      implementation:
+        - "execute()前置：调用on_before_xxx_jobs()"
+        - "execute()中：调用find_opportunity/calculate_tag()"
+        - "execute()后置：调用on_xxx_job_complete()"
+
+  modes:
+    timeline:
+      description: "时间线模式 - 每个entity独立时间线"
+      features:
+        - 多entity并行执行
+        - 每个entity独立时间线
+        - 使用Dispatch Planner计算entities_per_job和max_workers
+        - 多进程在job层面（每个进程处理多个entity）
+      
+      implementation:
+        - 使用探针决定bundle大小和进程数
+        - 切割jobs成bundle（每个bundle包含多个entity）
+        - 分配jobs到进程（ProcessPoolExecutor）
+        - 每个进程结束call一次on_result汇报结果
+    
+    sliced:
+      description: "切片模式 - 所有entity按同一时间轴切片"
+      features:
+        - 所有entity按同一时间轴走（切片）
+        - 分层架构：Reader（多进程） + Compute（单进程）
+        - Reader ∥ Compute编排
+        - 累计至少2个slice后开始计算
+      
+      implementation:
+        - 使用探针决定reader数量和queue大小
+        - 分层调度：Reader（多进程读数据） + Compute（单进程计算）
+        - 累计至少2个slice，然后开始计算和预读取数据填充queue
+        - 全程有一个结果对象收集结果
+        - slice完成后汇报结果
+
+  migration:
+    from_job_pipeline:
+      description: "从infra.job_pipeline迁移"
+      steps:
+        - TagManager调用BacktestEngine.submit()
+        - StrategyManager调用BacktestEngine.submit()
+        - 删除infra.job_pipeline
+        - 删除infra.worker（保留辅助功能到shared）
+      
+      compatibility:
+        - Worker基类不变
+        - 钩子函数改名（on_before_jobs → on_before_submit）
+        - 用户代码不变
+    
+    to_mq:
+      description: "迁移到MQ（未来）"
+      steps:
+        - submit()改成MQClient.publish()
+        - get()改成MQClient.consume()
+        - callback改成MQ回调机制
+        - API完全不变
+      
+      cost:
+        - Engine内部实现：1个文件修改
+        - 其他完全不变

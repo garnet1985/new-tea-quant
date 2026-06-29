@@ -3,7 +3,7 @@
 基于日期切片调度回测的模式。
 
 特点：
-- 按日期切片批量执行
-- Reader ∥ Compute架构
-- Strategy默认模式
+- 读算分离（Reader多进程 + Compute单进程）
+- 逐日期切片推进
+- Strategy calendar_sliced默认模式
 """

@@ -1,16 +1,15 @@
 """
-Backtest Scheduler - Shared基础组件
+Backtest Engine - Shared基础组件
 
 提供真正共用的基础组件：
-- job_pipeline.py：General JobPipeline框架（ProcessPoolExecutor/ThreadPoolExecutor）
 - types.py：基础类型定义（Job、JobContext、JobReport等）
-- executor.py：执行器实现
-- utils.py：基础工具函数（resolve_memory_budget_mb等）
+- context.py：执行上下文（ExecutionContext）
+- machine_info.py：机器信息（MachineInfo）
+- base_planner.py：规划器基类（BasePlanner）
 
 设计原则：
 - shared只包含真正共用的基础组件
 - timeline_based和slice_based各自有自己的调度逻辑
-- 不混合两种不同的调度方式
 """
 
 __version__ = "0.1.0"
@@ -28,21 +27,11 @@ from .types import (
     DispatchResult,
 )
 
-from .job_pipeline import (
-    JobPipeline,
-    JobPipelineSettings,
-    JobExecutor,
-    create_job_executor,
-    OnResultHook,
-    OnReleaseHook,
-    ExecuteFn,
-)
+from .context import ExecutionContext
 
-# 共用的基础工具函数（不包含完整的调度逻辑）
-from .utils import (
-    resolve_memory_budget_mb,
-    resolve_memory_floor_mb,
-)
+from .machine_info import MachineInfo, MachineCapacity
+
+from .base_planner import BasePlanner
 
 
 __all__ = [
@@ -56,15 +45,11 @@ __all__ = [
     "RunProgress",
     "JobFailure",
     "DispatchResult",
-    # JobPipeline
-    "JobPipeline",
-    "JobPipelineSettings",
-    "JobExecutor",
-    "create_job_executor",
-    "OnResultHook",
-    "OnReleaseHook",
-    "ExecuteFn",
-    # Utils
-    "resolve_memory_budget_mb",
-    "resolve_memory_floor_mb",
+    # Context
+    "ExecutionContext",
+    # MachineInfo
+    "MachineInfo",
+    "MachineCapacity",
+    # BasePlanner
+    "BasePlanner",
 ]

@@ -11,6 +11,7 @@ from core.modules.backtest_engine.core.timeline_based.config import TimelineConf
 from core.modules.backtest_engine.core.timeline_based.probe import Probe
 from core.modules.backtest_engine.core.timeline_based.planner import TimelinePlanner, DispatchPlan, JobBatch
 from core.modules.backtest_engine.core.timeline_based.executor import TimelineExecutor, ExecutionResult
+from core.modules.backtest_engine.core.timeline_based.executor_duckdb import TimelineExecutorDuckDB
 
 __all__ = [
     "TimelineConfig",
@@ -20,4 +21,5 @@ __all__ = [
     "JobBatch",
     "TimelineExecutor",
     "ExecutionResult",
+    "TimelineExecutorDuckDB",
 ]

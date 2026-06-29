@@ -7,7 +7,8 @@ import logging
 import math
 from typing import Any, Dict, Optional
 
-from core.infra.job_pipeline.profile import WorkerProfiles, resolve_pipeline_workers
+from core.modules.backtest_engine.core.shared.machine_info import MachineInfo
+from core.modules.strategy.engines.shared.worker_settings_keys import STRATEGY_ENUM_EXECUTOR_KEY
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.memory_budget import (
     resolve_calendar_slice_memory_budget_mb,
 )
@@ -73,8 +74,12 @@ def resolve_reader_workers(
     return max(1, min(_MAX_READER_WORKERS, io_parallel_hint, reader_cap))
 
 
-def resolve_system_process_cap(worker_id: str = WorkerProfiles.ENUMERATOR) -> int:
-    return max(1, resolve_pipeline_workers(worker_id=worker_id))
+def resolve_system_process_cap(executor_key: str = STRATEGY_ENUM_EXECUTOR_KEY) -> int:
+    from core.modules.backtest_engine.core.timeline_based.config import TimelineConfig
+
+    perf = TimelineConfig.resolve_dispatch_performance(executor_key)
+    capacity = MachineInfo.get_capacity(perf)
+    return max(1, MachineInfo.get_available_workers(capacity))
 
 
 def is_duckdb_backend() -> bool:
@@ -102,9 +107,11 @@ def build_runtime_plan(
     mb_per_slice: Optional[float] = None,
     t_io_sec: Optional[float] = None,
     t_compute_sec: Optional[float] = None,
-    worker_profile: str = WorkerProfiles.ENUMERATOR,
+    worker_profile: str = STRATEGY_ENUM_EXECUTOR_KEY,
 ) -> CalendarSliceRuntimePlan:
-    settings = settings or CalendarSliceRuntimeSettings.from_worker_profile()
+    settings = settings or CalendarSliceRuntimeSettings.from_worker_config(
+        executor_key=worker_profile
+    )
     _ = _parse_min_required_records(job_payload)
 
     budget_mb = resolve_calendar_slice_memory_budget_mb()

@@ -52,7 +52,7 @@ def test_relay_payloads_reorders_by_slice_index():
 def test_drive_slices_multi_reader_shutdown_count():
     from unittest.mock import MagicMock, patch
 
-    from core.infra.job_pipeline.profile import WorkerProfiles
+    from core.modules.backtest_engine.core.slice_based.config import SliceConfig
     from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.messages import (
         SHUTDOWN,
         FinalizeDone,
@@ -71,16 +71,12 @@ def test_drive_slices_multi_reader_shutdown_count():
         _sample_plan,
     )
 
-    worker_block = {
-        "enumerator": {
-            "calendar_slice": {"reader_workers": 2, "queue_depth": "auto"},
-        }
-    }
-    with patch(
-        "core.infra.job_pipeline.profile.resolver._job_pipeline_block",
-        return_value=worker_block,
+    with patch.object(
+        SliceConfig,
+        "resolve_dispatch_performance",
+        return_value={"reader_workers": 2, "queue_depth": "auto", "prefetch_enabled": True},
     ):
-        assert CalendarSliceRuntimeSettings.from_worker_profile(WorkerProfiles.ENUMERATOR).reader_workers == 2
+        assert CalendarSliceRuntimeSettings.from_worker_config().reader_workers == 2
 
     payload = {
         "stock_ids": ["000001.SZ"],

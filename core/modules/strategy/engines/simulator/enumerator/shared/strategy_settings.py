@@ -52,7 +52,7 @@ class StrategyEnumeratorSettings(SettingsBase):
         self.enumerator.setdefault("is_verbose", False)
 
     def validate(self) -> ValidationReport:
-        from core.infra.job_pipeline.profile.constants import (
+        from core.modules.strategy.engines.shared.worker_settings_keys import (
             ENUMERATOR_STRATEGY_DISPATCH_KEYS,
         )
 
@@ -92,7 +92,7 @@ class StrategyEnumeratorSettings(SettingsBase):
         return result
 
     def to_dict(self) -> Dict[str, Any]:
-        from core.infra.job_pipeline.profile.constants import (
+        from core.modules.strategy.engines.shared.worker_settings_keys import (
             ENUMERATOR_STRATEGY_CALENDAR_SLICE_KEYS,
             ENUMERATOR_STRATEGY_DISPATCH_KEYS,
         )

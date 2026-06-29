@@ -1,7 +1,7 @@
 """Runtime planner unit tests."""
 from unittest.mock import patch
 
-from core.infra.job_pipeline.profile import WorkerProfiles
+from core.modules.backtest_engine.core.slice_based.config import SliceConfig
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.planner import (
     build_runtime_plan,
     ideal_preload_from_timings,
@@ -104,19 +104,20 @@ def test_runtime_plan_record_slice_uses_payload_bytes():
     assert 190 <= plan.mb_per_slice <= 210
 
 
-def test_profile_calendar_slice_config_merges_defaults():
-    from core.infra.job_pipeline.profile import profile_calendar_slice_config
+def test_slice_config_calendar_slice_block():
+    from unittest.mock import patch
 
-    block = {
-        "enumerator": {
-            "calendar_slice": {"reader_workers": 2},
-        }
-    }
-    with patch(
-        "core.infra.job_pipeline.profile.resolver._job_pipeline_block",
-        return_value=block,
+    from core.modules.backtest_engine.core.slice_based.config import SliceConfig
+    from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.settings import (
+        CalendarSliceRuntimeSettings,
+    )
+
+    with patch.object(
+        SliceConfig,
+        "resolve_dispatch_performance",
+        return_value={"reader_workers": 2, "prefetch_enabled": True, "queue_depth": "auto"},
     ):
-        cfg = profile_calendar_slice_config(WorkerProfiles.ENUMERATOR)
-    assert cfg["reader_workers"] == 2
-    assert cfg["queue_depth"] == "auto"
-    assert cfg["prefetch_enabled"] is True
+        cfg = CalendarSliceRuntimeSettings.from_worker_config()
+    assert cfg.reader_workers == 2
+    assert cfg.queue_depth_raw == "auto"
+    assert cfg.prefetch_enabled is True

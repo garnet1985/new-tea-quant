@@ -193,7 +193,9 @@ class SettingsBase(ABC):
         *,
         field_prefix: str,
     ) -> None:
-        from core.infra.job_pipeline.profile.constants import USER_PIPELINE_POOL_KEYS
+        from core.modules.strategy.engines.shared.worker_settings_keys import (
+            USER_PIPELINE_POOL_KEYS,
+        )
 
         ignored = [
             key
@@ -210,7 +212,9 @@ class SettingsBase(ABC):
 
     @staticmethod
     def strip_ignored_pipeline_pool_keys(container: Dict[str, Any]) -> None:
-        from core.infra.job_pipeline.profile.constants import USER_PIPELINE_POOL_KEYS
+        from core.modules.strategy.engines.shared.worker_settings_keys import (
+            USER_PIPELINE_POOL_KEYS,
+        )
 
         for key in USER_PIPELINE_POOL_KEYS:
             container.pop(key, None)

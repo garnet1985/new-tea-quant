@@ -13,7 +13,7 @@ from core.modules.strategy.engines.simulator.enumerator.stock_based.progress imp
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.progress import (
     resolve_calendar_progress_plan,
 )
-from core.infra.job_pipeline.types import JobReport
+from core.modules.backtest_engine.core.shared.types import JobReport
 
 
 def _sample_jobs(n_stocks: int, n_jobs: int):

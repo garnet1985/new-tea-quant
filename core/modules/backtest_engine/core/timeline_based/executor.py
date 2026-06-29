@@ -317,11 +317,11 @@ class TimelineExecutor:
     @staticmethod
     def _entities_count_from_payload(payload: Dict[str, Any]) -> int:
         jobs = payload.get("jobs")
-        if isinstance(jobs, list):
-            return len(jobs)
-        if payload.get("entity_id") is not None:
-            return 1
-        return int(payload.get("entities_count") or payload.get("entity_count") or 0)
+        if not isinstance(jobs, list):
+            raise ValueError(
+                "timeline worker payload must include jobs list from BacktestEngine batch"
+            )
+        return len(jobs)
 
     @staticmethod
     def _normalize_worker_result(

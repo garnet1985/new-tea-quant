@@ -18,6 +18,7 @@ from core.modules.backtest_engine.core.timeline_based.monitor import (
     TimelineMonitorConfig,
     TimelineRunMonitor,
 )
+from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.modules.backtest_engine.core.timeline_based.planner import (
     DispatchPlan,
     JobBatch,
@@ -57,6 +58,8 @@ class TimelineExecutePipeline:
         on_release: Optional[TimelineExecutor.OnReleaseHook] = None,
         data_mgr: Optional[Any] = None,
     ) -> TimelineExecutePipeline.Result:
+        if jobs:
+            BacktestJob.validate_many(jobs)
         plan, batches, monitor_config = self._plan(jobs, performance, executor_key)
         capacity = MachineInfo.get_capacity(performance)
         available_memory_mb = MachineInfo.worker_pool_budget_mb(capacity)

@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.modules.backtest_engine.core.shared.machine_info import MachineCapacity, MachineInfo
+from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.modules.backtest_engine.core.shared.base_planner import BasePlanner
 from core.modules.backtest_engine.core.slice_based.config import SliceConfig
 from core.modules.backtest_engine.core.slice_based.monitor import (
@@ -415,7 +416,8 @@ class SlicePlanner(BasePlanner):
             return []
 
         if cls._is_bulk_calendar_job(jobs):
-            job_id, payload = cls._normalize_job(jobs[0])
+            parsed = BacktestJob.from_wire(jobs[0])
+            job_id, payload = parsed.id, parsed.payload
             slice_ids = [
                 f"slice_{index}"
                 for index in range(plan.dispatch_jobs)
@@ -435,7 +437,8 @@ class SlicePlanner(BasePlanner):
 
         batches: List[SliceJobBatch] = []
         for index, job in enumerate(jobs):
-            job_id, payload = cls._normalize_job(job)
+            parsed = BacktestJob.from_wire(job)
+            job_id, payload = parsed.id, parsed.payload
             slice_id = str(payload.get("slice_id") or job_id)
             batches.append(
                 SliceJobBatch(
@@ -453,19 +456,11 @@ class SlicePlanner(BasePlanner):
         )
         return batches
 
-    @staticmethod
-    def _normalize_job(job: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
-        job_id = str(job.get("id") or job.get("job_id") or "calendar_slice")
-        payload = job.get("payload")
-        if isinstance(payload, dict):
-            return job_id, payload
-        return job_id, dict(job)
-
     @classmethod
     def _is_bulk_calendar_job(cls, jobs: List[Dict[str, Any]]) -> bool:
         if len(jobs) != 1:
             return False
-        _, payload = cls._normalize_job(jobs[0])
+        payload = BacktestJob.from_wire(jobs[0]).payload
         mode = str(payload.get("tag_execution_mode") or "").strip().lower()
         if mode == "calendar_slice":
             return True
@@ -489,7 +484,7 @@ class SlicePlanner(BasePlanner):
 
     @classmethod
     def _resolve_open_dates(cls, jobs: List[Dict[str, Any]]) -> List[str]:
-        _, payload = cls._normalize_job(jobs[0])
+        payload = BacktestJob.from_wire(jobs[0]).payload
         open_dates = payload.get("open_dates")
         if isinstance(open_dates, list) and open_dates:
             return [str(d) for d in open_dates if str(d).strip()]

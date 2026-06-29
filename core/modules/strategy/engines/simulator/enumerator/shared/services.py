@@ -208,9 +208,24 @@ class EnumeratorSharedServices:
         return payload
 
     def resolve_runtime_workers(self) -> int:
-        from core.infra.job_pipeline.profile.probe import WorkerProbe
+        from core.modules.backtest_engine.core.timeline_based.config import TimelineConfig
+        from core.modules.backtest_engine.core.timeline_based.probe import WorkerProbe
+        from core.modules.strategy.engines.shared.worker_settings_keys import (
+            STRATEGY_ENUM_EXECUTOR_KEY,
+        )
 
-        return WorkerProbe.resolve(self.max_workers)
+        if isinstance(self.max_workers, int):
+            return max(1, int(self.max_workers))
+
+        perf = TimelineConfig.resolve_dispatch_performance(STRATEGY_ENUM_EXECUTOR_KEY)
+        cap = perf.get("max_parallel_jobs_cap")
+        reserve = int(perf.get("reserve_cores", 2))
+        resolved_cap = int(cap) if cap not in (None, "") else None
+        return WorkerProbe.resolve(
+            self.max_workers,
+            reserve_cores=reserve,
+            cap=resolved_cap,
+        )
 
     def load_settings(
         self,
@@ -653,56 +668,6 @@ class EnumeratorSharedServices:
             _emit_from_sidecar()
         if last_print_pct < 100:
             _emit_from_sidecar()
-
-    def _run_scheduled_batches(
-        self,
-        *,
-        jobs: List[Dict[str, Any]],
-        global_extra_cache: Dict[str, List[Dict[str, Any]]],
-        scheduler: Any,
-        max_workers: int,
-        total_stocks: int,
-        run_name: str,
-        on_job_progress: Optional[Callable[[Dict[str, Any]], None]],
-        run_fn: Any,
-        duckdb_data_mgr: Any = None,
-    ) -> List[Any]:
-        from core.modules.strategy.services.execution.enum_job_pipeline import (
-            count_progress_units_from_job_result,
-        )
-
-        job_results: List[Any] = []
-        finished_stocks = 0
-        cumulative_ok = 0
-        cumulative_fail = 0
-        for batch in scheduler.iter_batches():
-            batch_results = run_fn(
-                stock_jobs=batch,
-                global_extra_cache=global_extra_cache,
-                max_workers=max_workers,
-                total_jobs=total_stocks,
-                finished_offset=finished_stocks,
-                completed_offset=cumulative_ok,
-                failed_offset=cumulative_fail,
-                run_name=run_name,
-                on_job_progress=on_job_progress,
-                duckdb_data_mgr=duckdb_data_mgr,
-                progress_units_from_report=self.progress_units_from_execute_report,
-            )
-            batch_finished = 0
-            for jr in batch_results:
-                ok_n, fail_n = count_progress_units_from_job_result(jr)
-                cumulative_ok += ok_n
-                cumulative_fail += fail_n
-                batch_finished += ok_n + fail_n
-            finished_stocks += batch_finished
-            scheduler.update_after_batch(
-                batch_size=len(batch),
-                batch_results=batch_results,
-                finished_jobs=finished_stocks,
-            )
-            job_results.extend(batch_results)
-        return job_results
 
     def aggregate_job_results(
         self,

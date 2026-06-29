@@ -30,6 +30,7 @@ from core.modules.backtest_engine.core.timeline_based.probe import (
     ProbeResult,
     DEFAULT_PROBE_ENTITIES,
 )
+from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.modules.backtest_engine.core.timeline_based.monitor import (
     MonitorPlanSnapshot,
     TimelineMonitorConfig,
@@ -328,8 +329,7 @@ class TimelinePlanner:
         _ = total_entities
         epj_override = performance.get("entities_per_job")
         if epj_override not in (None, "", "auto"):
-            epj = TimelinePlanner._clamp_entities(max(1, int(epj_override)), performance)
-            return epj, "settings"
+            return max(1, int(epj_override)), "settings"
 
         epj = TimelinePlanner._clamp_entities(DEFAULT_OPTIMAL_ENTITIES_PER_JOB, performance)
         single_job_mb = epj * mb_per_entity
@@ -392,7 +392,7 @@ class TimelinePlanner:
     def _clamp_entities(n: int, performance: Dict[str, Any]) -> int:
         """约束entities_per_job到合理范围。"""
         lo = max(5, int(performance.get("entities_per_job_min", 5)))
-        hi = max(lo, min(50, int(performance.get("entities_per_job_max", 50))))
+        hi = max(lo, int(performance.get("entities_per_job_max", 50)))
         return max(lo, min(hi, n))
     
     # ===== Step 4: split_job_batches =====
@@ -426,7 +426,7 @@ class TimelinePlanner:
             
             batch = JobBatch(
                 batch_id=f"batch_{i}",
-                entity_ids=[job.get("entity_id", "") for job in batch_entities],
+                entity_ids=[BacktestJob.from_wire(job).id for job in batch_entities],
                 entities_count=len(batch_entities),
                 payload={"jobs": batch_entities},
             )

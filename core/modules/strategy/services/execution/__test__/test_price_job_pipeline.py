@@ -36,29 +36,35 @@ def test_build_price_factor_payload_batch():
 
 
 def test_merge_price_factor_batch_unwraps_backtest_engine_jobs():
-    stock_job = {
-        "stock_id": "000001.SZ",
-        "strategy_name": "demo",
-        "opportunities_path": "/tmp/o1.csv",
-        "targets_path": "/tmp/t1.csv",
-        "output_version_dir": "/tmp/out",
-        "config": {"k": 1},
-    }
     merged = _merge_price_factor_batch(
         [
             {
-                "id": "price_0",
+                "id": "000001.SZ",
                 "payload": {
-                    "job_id": "price_0",
-                    "stock_ids": ["000001.SZ"],
-                    "stock_jobs": [stock_job],
+                    "stock_id": "000001.SZ",
+                    "strategy_name": "demo",
+                    "opportunities_path": "/tmp/o1.csv",
+                    "targets_path": "/tmp/t1.csv",
+                    "output_version_dir": "/tmp/out",
+                    "config": {"k": 1},
                 },
-            }
+            },
+            {
+                "id": "000002.SZ",
+                "payload": {
+                    "stock_id": "000002.SZ",
+                    "strategy_name": "demo",
+                    "opportunities_path": "/tmp/o2.csv",
+                    "targets_path": "/tmp/t2.csv",
+                    "output_version_dir": "/tmp/out",
+                    "config": {"k": 1},
+                },
+            },
         ],
         "batch_0",
     )
-    assert len(merged["stock_jobs"]) == 1
-    assert merged["stock_jobs"][0]["stock_id"] == "000001.SZ"
+    assert len(merged["stock_jobs"]) == 2
+    assert merged["stock_ids"] == ["000001.SZ", "000002.SZ"]
 
 
 def test_workbench_disk_progress_mapping():

@@ -40,6 +40,16 @@ class ExecuteMode(str, Enum):
     ELASTIC = "elastic"
 
 
+class JobStatus(str, Enum):
+    """任务执行结果状态（strategy 层 aggregate / progress 使用）。"""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
 @dataclass(frozen=True)
 class Job:
     """任务单元：job_id + payload（业务自定 shape）。"""
@@ -64,6 +74,16 @@ class JobReport:
     job_id: str
     success: bool
     data: Any = None
+    error: Optional[str] = None
+
+
+@dataclass
+class JobResult:
+    """BacktestEngine run 汇总后的单 job 结果（供 strategy aggregate 使用）。"""
+
+    job_id: str
+    status: JobStatus
+    result: Any = None
     error: Optional[str] = None
 
 
@@ -103,9 +123,11 @@ __all__ = [
     "JobFailurePhase",
     "ExecutionBackend",
     "ExecuteMode",
+    "JobStatus",
     "Job",
     "JobContext",
     "JobReport",
+    "JobResult",
     "RunProgress",
     "JobFailure",
     "DispatchResult",

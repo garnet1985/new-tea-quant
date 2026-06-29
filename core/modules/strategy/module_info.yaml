@@ -7,10 +7,9 @@ dependencies:
   - modules.data_contract
   - modules.data_cursor
   - modules.indicator
+  - modules.backtest_engine
   - infra.project_context
   - infra.export_import
-  - infra.job_pipeline
-  - infra.worker
 changelog:
   - version: "0.5.1"
     changes:

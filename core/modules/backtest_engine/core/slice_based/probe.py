@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from core.modules.backtest_engine.core.shared.machine_info import MachineCapacity
+from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,7 @@ class SliceProbe:
             return False
         if not jobs:
             return False
-        _, payload = SliceProbe._normalize_job(jobs[0])
+        payload = BacktestJob.from_wire(jobs[0]).payload
         if not SliceProbe._resolve_open_dates(payload):
             return False
         if not (payload.get("entity_ids") or payload.get("stock_ids")):
@@ -90,7 +91,8 @@ class SliceProbe:
         performance: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Build a truncated bulk calendar_slice payload for probe."""
-        job_id, payload = SliceProbe._normalize_job(jobs[0])
+        parsed = BacktestJob.from_wire(jobs[0])
+        job_id, payload = parsed.id, parsed.payload
         probe = copy.deepcopy(payload)
 
         probe_slice_count = max(1, int(performance.get("probe_slice_count", DEFAULT_PROBE_SLICE_COUNT)))
@@ -158,7 +160,7 @@ class SliceProbe:
         if not probe_jobs:
             return SliceProbe._default_result(performance)
 
-        _, payload = SliceProbe._normalize_job(probe_jobs[0])
+        payload = BacktestJob.from_wire(probe_jobs[0]).payload
         probe_payload = dict(payload)
         probe_payload["_probe_executor"] = executor
 
@@ -350,14 +352,6 @@ class SliceProbe:
             peak_rss_mb_reader=10.0,
             peak_rss_mb_compute=15.0,
         )
-
-    @staticmethod
-    def _normalize_job(job: Dict[str, Any]) -> tuple[str, Dict[str, Any]]:
-        job_id = str(job.get("id") or job.get("job_id") or "calendar_slice")
-        payload = job.get("payload")
-        if isinstance(payload, dict):
-            return job_id, payload
-        return job_id, dict(job)
 
     @staticmethod
     def _resolve_open_dates(payload: Dict[str, Any]) -> List[str]:

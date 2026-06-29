@@ -1,6 +1,5 @@
 """多股 dispatch job 进度与展开。"""
-from core.infra.job_pipeline.types import JobReport
-from core.infra.worker.multi_process.process_worker import JobResult, JobStatus
+from core.modules.backtest_engine.core.shared.types import JobReport, JobResult, JobStatus
 from core.modules.strategy.services.execution.enum_job_pipeline import (
     count_progress_units_from_job_result,
     expand_bulk_job_results,

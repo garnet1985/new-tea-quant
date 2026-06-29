@@ -17,6 +17,7 @@ from core.modules.backtest_engine.core.slice_based.monitor import (
     SliceMonitorPlanSnapshot,
     SliceRunMonitor,
 )
+from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.modules.backtest_engine.core.slice_based.planner import (
     SliceDispatchPlan,
     SliceJobBatch,
@@ -54,6 +55,8 @@ class SliceExecutePipeline:
         on_result: Optional[SliceExecutor.OnResultHook] = None,
         data_mgr: Optional[Any] = None,
     ) -> SliceExecutePipeline.Result:
+        if jobs:
+            BacktestJob.validate_many(jobs)
         plan, batches, monitor_config = SlicePlanner.plan_jobs(
             jobs,
             performance,

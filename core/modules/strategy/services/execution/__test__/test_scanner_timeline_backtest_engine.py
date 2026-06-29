@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from core.infra.job_pipeline import JobContext
+from core.modules.backtest_engine.core.shared.types import JobContext
 from core.modules.strategy.services.execution.scanner_job_pipeline import (
     execute_scanner_timeline_job,
     run_scanner_timeline_via_backtest_engine,
@@ -32,14 +32,17 @@ def test_execute_scanner_timeline_job_single_entity(monkeypatch) -> None:
 
     out = execute_scanner_timeline_job(
         JobContext(
-            job_id="000001.SZ",
+            job_id="batch_0",
             payload={
                 "jobs": [
                     {
-                        "stock_id": "000001.SZ",
-                        "strategy_name": "demo",
-                        "execution_mode": "scan",
-                        "settings": {},
+                        "id": "000001.SZ",
+                        "payload": {
+                            "stock_id": "000001.SZ",
+                            "strategy_name": "demo",
+                            "execution_mode": "scan",
+                            "settings": {},
+                        },
                     }
                 ]
             },
@@ -79,3 +82,4 @@ def test_run_scanner_timeline_via_backtest_engine_calls_facade() -> None:
         run_mock.assert_called_once()
         kwargs = run_mock.call_args.kwargs
         assert kwargs["executor_key"] == "strategy.scanner"
+        assert run_mock.call_args.args[0][0]["id"] == "000001.SZ"

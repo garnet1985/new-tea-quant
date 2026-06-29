@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from core.infra.job_pipeline import JobContext
+import pytest
+
+from core.modules.backtest_engine.core.shared.types import JobContext
 from core.modules.strategy.services.execution.enum_job_pipeline import (
     _merge_enumeration_batch,
     execute_enumeration_timeline_job,
@@ -11,27 +13,13 @@ from core.modules.strategy.services.execution.enum_job_pipeline import (
 )
 
 
-def test_merge_enumeration_batch_combines_entities() -> None:
-    merged = _merge_enumeration_batch(
-        [
-            {"stock_id": "000001.SZ", "strategy_name": "demo", "settings": {}},
-            {"stock_id": "000002.SZ", "strategy_name": "demo", "settings": {}},
-        ],
-        "batch_job",
-    )
-    assert merged["stock_ids"] == ["000001.SZ", "000002.SZ"]
-    assert merged["strategy_name"] == "demo"
-    assert "000001.SZ" in merged["job_id"]
-
-
-def test_merge_enumeration_batch_unwraps_backtest_engine_jobs() -> None:
+def test_merge_enumeration_batch_combines_engine_jobs() -> None:
     merged = _merge_enumeration_batch(
         [
             {
                 "id": "000001.SZ",
                 "payload": {
                     "stock_id": "000001.SZ",
-                    "entity_id": "000001.SZ",
                     "strategy_name": "demo",
                     "settings": {},
                 },
@@ -40,7 +28,6 @@ def test_merge_enumeration_batch_unwraps_backtest_engine_jobs() -> None:
                 "id": "000002.SZ",
                 "payload": {
                     "stock_id": "000002.SZ",
-                    "entity_id": "000002.SZ",
                     "strategy_name": "demo",
                     "settings": {},
                 },
@@ -50,6 +37,15 @@ def test_merge_enumeration_batch_unwraps_backtest_engine_jobs() -> None:
     )
     assert merged["stock_ids"] == ["000001.SZ", "000002.SZ"]
     assert merged["strategy_name"] == "demo"
+    assert "000001.SZ" in merged["job_id"]
+
+
+def test_merge_enumeration_batch_rejects_flat_rows() -> None:
+    with pytest.raises(ValueError, match="BacktestEngine job"):
+        _merge_enumeration_batch(
+            [{"stock_id": "000001.SZ", "strategy_name": "demo", "settings": {}}],
+            "batch_job",
+        )
 
 
 def test_execute_enumeration_timeline_job_delegates_to_worker(monkeypatch) -> None:
@@ -70,14 +66,17 @@ def test_execute_enumeration_timeline_job_delegates_to_worker(monkeypatch) -> No
             payload={
                 "jobs": [
                     {
-                        "stock_id": "000001.SZ",
-                        "strategy_name": "demo",
-                        "settings": {"a": 1},
-                        "start_date": "20240101",
-                        "end_date": "20240131",
-                        "output_dir": "/tmp",
-                        "worker_module_path": "m",
-                        "worker_class_name": "C",
+                        "id": "000001.SZ",
+                        "payload": {
+                            "stock_id": "000001.SZ",
+                            "strategy_name": "demo",
+                            "settings": {"a": 1},
+                            "start_date": "20240101",
+                            "end_date": "20240131",
+                            "output_dir": "/tmp",
+                            "worker_module_path": "m",
+                            "worker_class_name": "C",
+                        },
                     }
                 ],
                 "_global_extra_cache": {"k": []},
@@ -92,9 +91,7 @@ def test_execute_enumeration_timeline_job_delegates_to_worker(monkeypatch) -> No
 def test_run_enumeration_timeline_via_backtest_engine_calls_facade() -> None:
     entity_jobs = [
         {
-            "job_id": "000001.SZ",
             "stock_id": "000001.SZ",
-            "entity_id": "000001.SZ",
             "strategy_name": "demo",
             "settings": {},
             "start_date": "20240101",
@@ -129,3 +126,10 @@ def test_run_enumeration_timeline_via_backtest_engine_calls_facade() -> None:
         args, kwargs = run_mock.call_args
         assert kwargs["executor_key"] == "strategy.enum"
         assert args[1].__name__ == "execute_enumeration_timeline_job"
+        assert args[0][0] == {
+            "id": "000001.SZ",
+            "payload": {
+                **entity_jobs[0],
+                "_global_extra_cache": {},
+            },
+        }

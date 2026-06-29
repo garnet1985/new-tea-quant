@@ -4,9 +4,10 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable, Dict, List, Optional
 
-from core.infra.job_pipeline import JobContext
-from core.infra.worker.multi_process.process_worker import JobResult
+from core.modules.backtest_engine.core.shared.types import JobContext, JobResult
+from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 
+from .engine_jobs import wrap_timeline_stock_job
 from .runners.scanner_runner import run_scanner_payload
 from .stock_job_pipeline import job_progress_payload, job_report_to_job_result
 
@@ -55,26 +56,22 @@ def execute_scanner_timeline_job(context: JobContext) -> Dict[str, Any]:
     bootstrap_strategy_worker_data_manager()
     try:
         payload = dict(context.payload)
-        entities = payload.get("jobs")
-        if isinstance(entities, list) and entities:
-            stock_results: List[Dict[str, Any]] = []
-            for entity in entities:
-                row = run_scanner_worker_payload(dict(entity))
-                stock_results.append(row)
-            if len(stock_results) == 1:
-                return stock_results[0]
-            ok = all(bool(row.get("success")) for row in stock_results)
-            return {
-                "success": ok,
-                "bulk": True,
-                "stock_results": stock_results,
-            }
-        clean = {
-            key: value
-            for key, value in payload.items()
-            if not str(key).startswith("_")
+        batch_entities = payload.get("jobs")
+        if not isinstance(batch_entities, list) or not batch_entities:
+            raise ValueError(
+                "scanner timeline worker payload must include non-empty jobs list"
+            )
+        stock_results: List[Dict[str, Any]] = []
+        for row in BacktestJob.batch_payloads(batch_entities):
+            stock_results.append(run_scanner_worker_payload(row))
+        if len(stock_results) == 1:
+            return stock_results[0]
+        ok = all(bool(row.get("success")) for row in stock_results)
+        return {
+            "success": ok,
+            "bulk": True,
+            "stock_results": stock_results,
         }
-        return run_scanner_worker_payload(clean)
     finally:
         release_strategy_worker_runtime()
 
@@ -99,8 +96,7 @@ def run_scanner_timeline_via_backtest_engine(
     n = total_jobs if total_jobs is not None else len(stock_jobs)
     engine_jobs: List[Dict[str, Any]] = []
     for job in stock_jobs:
-        job_id = str(job.get("stock_id") or job.get("job_id") or "")
-        engine_jobs.append({"id": job_id, "payload": dict(job)})
+        engine_jobs.append(wrap_timeline_stock_job(job))
 
     finished = 0
     ok_count = 0

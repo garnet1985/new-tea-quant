@@ -1,18 +1,14 @@
-"""机会枚举：JobPipeline（PROCESS）单股或多股 dispatch job。"""
+"""机会枚举：BacktestEngine timeline / sliced 执行入口。"""
 from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from core.infra.job_pipeline import JobContext
-from core.infra.job_pipeline.profile import WorkerProfiles
-from core.infra.worker.multi_process.process_worker import JobResult, JobStatus
+from core.modules.backtest_engine.core.shared.types import JobContext, JobResult, JobStatus
 
-from .stock_job_pipeline import (
-    job_report_to_job_result,
-    job_progress_from_run,
-    job_progress_payload,
-    run_stock_jobs_via_pipeline,
-)
+from core.modules.backtest_engine.core.shared.jobs import BacktestJob
+
+from .engine_jobs import require_stock_id, wrap_slice_dispatch_job, wrap_timeline_stock_job
+from .stock_job_pipeline import job_progress_payload, job_report_to_job_result
 
 ENUM_TIMELINE_EXECUTOR_KEY = "strategy.enum"
 ENUM_SLICED_EXECUTOR_KEY = "strategy.enum"
@@ -28,8 +24,6 @@ __all__ = [
     "expand_bulk_job_results",
     "job_report_to_job_result",
     "job_progress_payload",
-    "job_progress_from_run",
-    "run_enumeration_jobs_via_pipeline",
     "run_enumeration_sliced_via_backtest_engine",
     "run_enumeration_timeline_via_backtest_engine",
 ]
@@ -166,14 +160,11 @@ def execute_enumeration_timeline_job(context: JobContext) -> Dict[str, Any]:
     """BacktestEngine timeline 子进程入口：batch payload → 枚举 worker。"""
     payload = dict(context.payload)
     batch_entities = payload.get("jobs")
-    if isinstance(batch_entities, list) and batch_entities:
-        dispatch_job = _merge_enumeration_batch(batch_entities, context.job_id)
-    else:
-        dispatch_job = {
-            key: value
-            for key, value in payload.items()
-            if not str(key).startswith("_")
-        }
+    if not isinstance(batch_entities, list) or not batch_entities:
+        raise ValueError(
+            "enumeration timeline worker payload must include non-empty jobs list"
+        )
+    dispatch_job = _merge_enumeration_batch(batch_entities, context.job_id)
     global_extra_cache = (
         dispatch_job.get("_global_extra_cache")
         or payload.get("_global_extra_cache")
@@ -189,20 +180,6 @@ def execute_enumeration_timeline_job(context: JobContext) -> Dict[str, Any]:
     )
 
 
-def _normalize_enumeration_entity(entity: Dict[str, Any]) -> Dict[str, Any]:
-    """BacktestEngine timeline jobs 可能是 ``{id, payload}`` 包装或 flat dispatch row。"""
-    nested = entity.get("payload")
-    if isinstance(nested, dict):
-        row = dict(nested)
-        wrapper_id = str(entity.get("id") or entity.get("job_id") or "").strip()
-        if wrapper_id:
-            row.setdefault("entity_id", wrapper_id)
-            if not row.get("stock_ids"):
-                row.setdefault("stock_id", wrapper_id)
-        return row
-    return dict(entity)
-
-
 def _merge_enumeration_batch(
     entities: List[Dict[str, Any]],
     batch_job_id: str,
@@ -211,28 +188,14 @@ def _merge_enumeration_batch(
         dispatch_job_id,
     )
 
-    if not entities:
-        raise ValueError("enumeration timeline batch is empty")
-
-    normalized = [_normalize_enumeration_entity(entity) for entity in entities]
-    base = dict(normalized[0])
-    stock_ids: List[str] = []
-    for entity in normalized:
-        ids = entity.get("stock_ids")
-        if isinstance(ids, list) and ids:
-            stock_ids.extend(str(s).strip() for s in ids if str(s).strip())
-            continue
-        sid = str(entity.get("stock_id") or entity.get("entity_id") or "").strip()
-        if sid:
-            stock_ids.append(sid)
-
-    if not stock_ids:
-        raise ValueError("enumeration timeline batch has no stock ids")
+    rows = BacktestJob.batch_payloads(entities)
+    base = dict(rows[0])
+    stock_ids = [require_stock_id(row, label="enumeration entity payload") for row in rows]
 
     merged = {
         key: value
         for key, value in base.items()
-        if key not in {"entity_id", "job_id", "stock_id", "stock_ids", "id", "payload"}
+        if key not in {"job_id", "stock_id", "stock_ids", "id", "payload"}
     }
     merged["job_id"] = (
         dispatch_job_id(0, stock_ids)
@@ -271,10 +234,9 @@ def run_enumeration_timeline_via_backtest_engine(
 
     engine_jobs: List[Dict[str, Any]] = []
     for job in entity_jobs:
-        job_id = str(job.get("job_id") or job.get("stock_id") or job.get("entity_id"))
-        payload = dict(job)
-        payload["_global_extra_cache"] = global_extra_cache
-        engine_jobs.append({"id": job_id, "payload": payload})
+        engine_jobs.append(
+            wrap_timeline_stock_job(job, _global_extra_cache=global_extra_cache)
+        )
 
     units_fn = progress_units_from_report or _progress_units_from_execute_report
     stock_finished = finished_offset
@@ -394,10 +356,9 @@ def run_enumeration_sliced_via_backtest_engine(
 
     engine_jobs: List[Dict[str, Any]] = []
     for job in dispatch_jobs:
-        job_id = str(job.get("job_id") or "calendar_slice")
-        payload = dict(job)
-        payload["_global_extra_cache"] = global_extra_cache
-        engine_jobs.append({"id": job_id, "payload": payload})
+        engine_jobs.append(
+            wrap_slice_dispatch_job(job, _global_extra_cache=global_extra_cache)
+        )
 
     units_fn = progress_units_from_report or calendar_progress_units_from_execute_report
     stock_finished = finished_offset
@@ -466,49 +427,6 @@ def calendar_progress_units_from_execute_report(report: Any) -> Tuple[int, int, 
             fail = 0 if data.get("success") else total
             return ok + fail, ok, fail
     return _progress_units_from_execute_report(report)
-
-
-def run_enumeration_jobs_via_pipeline(
-    *,
-    stock_jobs: List[Dict[str, Any]],
-    global_extra_cache: Dict[str, List[Dict[str, Any]]],
-    max_workers: int,
-    total_jobs: int,
-    run_name: str = "enum",
-    finished_offset: int = 0,
-    completed_offset: int = 0,
-    failed_offset: int = 0,
-    on_job_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
-    log_progress: bool = True,
-    duckdb_data_mgr: Any = None,
-    progress_units_from_report: Optional[
-        Callable[[Any], Tuple[int, int, int]]
-    ] = None,
-) -> List[Any]:
-    """
-    对 dispatch jobs 跑 JobPipeline（QUEUE + PROCESS）。
-
-    ``total_jobs`` 为股票总数（非 dispatch job 数）。
-    """
-    return run_stock_jobs_via_pipeline(
-        stock_jobs=stock_jobs,
-        build_payload=lambda job: build_enumeration_payload(job, global_extra_cache),
-        execute=execute_enumeration_job,
-        max_workers=max_workers,
-        total_jobs=total_jobs,
-        run_name=run_name,
-        finished_offset=finished_offset,
-        completed_offset=completed_offset,
-        failed_offset=failed_offset,
-        on_job_progress=on_job_progress,
-        log_progress=log_progress,
-        progress_log_label="enum",
-        job_id_fn=_dispatch_job_id,
-        progress_units_from_report=progress_units_from_report
-        or _progress_units_from_execute_report,
-        worker_profile=WorkerProfiles.ENUMERATOR,
-        duckdb_data_mgr=duckdb_data_mgr,
-    )
 
 
 def _progress_units_from_execute_report(report: Any) -> Tuple[int, int, int]:

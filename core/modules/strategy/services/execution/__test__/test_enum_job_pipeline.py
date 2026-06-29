@@ -1,10 +1,8 @@
-"""枚举 JobPipeline 辅助函数。"""
-from core.infra.job_pipeline.types import JobReport, RunProgress
-from core.infra.worker.multi_process.process_worker import JobStatus
-from core.modules.strategy.services.execution.enum_job_pipeline import (
-    job_report_to_job_result,
-    job_progress_from_run,
+"""BacktestEngine 执行辅助函数。"""
+from core.modules.backtest_engine.core.shared.types import JobReport, JobStatus
+from core.modules.strategy.services.execution.stock_job_pipeline import (
     job_progress_payload,
+    job_report_to_job_result,
 )
 
 
@@ -44,17 +42,6 @@ def test_job_report_to_job_result_bulk_partial_failure():
     jr = job_report_to_job_result(report)
     assert jr.status == JobStatus.COMPLETED
     assert jr.result is report.data
-
-
-def test_job_progress_from_run():
-    payload = job_progress_from_run(
-        RunProgress(finished=10, total=100, ok=9, fail=1),
-        total_jobs=100,
-        finished_offset=40,
-        last_job_id="000001.SZ",
-        last_job_status="completed",
-    )
-    assert payload["progress_pct"] == 50
 
 
 def test_job_progress_payload():

@@ -1,9 +1,8 @@
-"""Strategy 并行执行（JobPipeline）。"""
+"""Strategy 并行执行（BacktestEngine）。"""
 
 from .enum_job_pipeline import (
     build_enumeration_payload,
     execute_enumeration_job,
-    run_enumeration_jobs_via_pipeline,
     run_enumeration_sliced_via_backtest_engine,
     run_enumeration_timeline_via_backtest_engine,
 )
@@ -20,12 +19,7 @@ from .scanner_job_pipeline import (
     run_scanner_timeline_via_backtest_engine,
     run_scanner_worker_payload,
 )
-from .stock_job_pipeline import (
-    job_report_to_job_result,
-    job_progress_from_run,
-    job_progress_payload,
-    run_stock_jobs_via_pipeline,
-)
+from .stock_job_pipeline import job_report_to_job_result, job_progress_payload
 from .worker_runtime import (
     bootstrap_strategy_worker_data_manager,
     create_strategy_worker_data_manager,
@@ -41,9 +35,7 @@ __all__ = [
     "execute_price_factor_job",
     "job_report_to_job_result",
     "job_progress_payload",
-    "job_progress_from_run",
     "release_strategy_worker_runtime",
-    "run_enumeration_jobs_via_pipeline",
     "run_enumeration_sliced_via_backtest_engine",
     "run_enumeration_timeline_via_backtest_engine",
     "run_price_factor_jobs_via_pipeline",
@@ -53,5 +45,4 @@ __all__ = [
     "run_scanner_worker_payload",
     "build_scanner_payload",
     "execute_scanner_job",
-    "run_stock_jobs_via_pipeline",
 ]

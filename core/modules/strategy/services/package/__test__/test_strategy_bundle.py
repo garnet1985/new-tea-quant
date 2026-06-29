@@ -62,7 +62,18 @@ def _write_demo_bundle_sources(us: Path) -> None:
         f"settings = {demo_settings!r}\n",
         encoding="utf-8",
     )
-    (strategy / "strategy_worker.py").write_text("class DemoWorker: pass\n", encoding="utf-8")
+    (strategy / "strategy.py").write_text(
+        "\n".join(
+            [
+                "from core.modules.strategy.hooks import StrategyHooks",
+                "class DemoStrategy(StrategyHooks):",
+                "    def scan_opportunity(self, ctx):",
+                "        return None",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
 
     tag = us / "extensions" / "tags" / "activity-ratio20"
     tag.mkdir(parents=True)

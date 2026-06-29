@@ -7,10 +7,9 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.modules.strategy.base_strategy_worker import BaseStrategyWorker
+from core.modules.strategy.hooks import StrategyHooks, StrategyHookContext
 from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.types import (
-    CalendarAsOfContext,
     CalendarAsOfResult,
 )
 
@@ -32,37 +31,33 @@ from selection import (  # noqa: E402
     passes_price_range,
 )
 
-__all__ = ["LowPricePitRebalanceWorker"]
+__all__ = ["LowPricePitRebalanceHooks"]
 
 
-class LowPricePitRebalanceWorker(BaseStrategyWorker):
+class LowPricePitRebalanceHooks(StrategyHooks):
     """PIT 全市场：周期首个交易日横截面选股，末个交易日清仓。"""
 
-    def on_calendar_asof(
-        self,
-        ctx: CalendarAsOfContext,
-        settings: Dict[str, Any],
-    ) -> CalendarAsOfResult:
-        carry = dict(ctx.carry or {})
+    def on_calendar_asof(self, ctx: StrategyHookContext) -> CalendarAsOfResult:
+        calendar = ctx.calendar
+        if calendar is None:
+            return CalendarAsOfResult(selected_stock_ids=[])
+        settings = ctx.settings_dict()
+        carry = dict(calendar.carry or {})
         period = require_rebalance_period(settings)
 
-        # 1. 周期末：标记强制平仓，本日不进入 scan
-        if is_rebalance_period_end(ctx, period):
-            carry["force_exit_open_date"] = ctx.as_of_date
+        if is_rebalance_period_end(calendar, period):
+            carry["force_exit_open_date"] = calendar.as_of_date
             carry.pop("period_selected", None)
             return CalendarAsOfResult(selected_stock_ids=[], carry=carry)
 
-        # 2. 非周期首：本日不扫描
-        if not is_rebalance_period_start(ctx, period):
+        if not is_rebalance_period_start(calendar, period):
             return CalendarAsOfResult(selected_stock_ids=[], carry=carry)
 
-        # 3. 从 settings 解析横截面筛选条件（缺字段即报错）
         filters = RebalanceFilters.from_settings(settings)
-        as_of_date = ctx.as_of_date
+        as_of_date = calendar.as_of_date
 
-        # 4. 逐股过滤：as_of 日 K 线 → 价格带 → 市值 / Tag
         candidates: List[Tuple[str, float]] = []
-        for sid, stock_data in ctx.stocks.items():
+        for sid, stock_data in calendar.stocks.items():
             if not isinstance(stock_data, dict):
                 continue
             sid_s = str(sid).strip()
@@ -92,7 +87,6 @@ class LowPricePitRebalanceWorker(BaseStrategyWorker):
 
             candidates.append((sid_s, close))
 
-        # 5. 按收盘价从低到高排序，取 top_n
         candidates.sort(key=lambda item: (item[1], item[0]))
         selected = [sid for sid, _ in candidates[: filters.top_n]]
 
@@ -100,22 +94,18 @@ class LowPricePitRebalanceWorker(BaseStrategyWorker):
         carry.pop("force_exit_open_date", None)
         return CalendarAsOfResult(selected_stock_ids=selected, carry=carry)
 
-    def scan_opportunity(
-        self,
-        data: Dict[str, Any],
-        settings: Dict[str, Any],
-    ) -> Optional[Opportunity]:
-        # 1. 取 as_of 日 K 线
+    def scan_opportunity(self, ctx: StrategyHookContext) -> Optional[Opportunity]:
+        data = ctx.scan.data if ctx.scan else {}
+        settings = ctx.settings_dict()
         record_of_today = self.get_record_of_today(data)
         if record_of_today is None:
             return None
 
-        # 2. 读取收盘价（缺字段即报错）
         close = float(record_of_today["close"])
         period = require_rebalance_period(settings)
 
-        # 3. 组装买入机会
         return self.build_opportunity(
+            ctx,
             record_of_today,
             extra_fields={
                 "close": close,

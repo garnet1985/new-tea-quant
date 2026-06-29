@@ -30,6 +30,18 @@ def test_facade_export() -> None:
     assert BacktestEngine is not None
     assert hasattr(BacktestEngine, "timeline")
     assert hasattr(BacktestEngine, "sliced")
+    assert BacktestEngine.Mode.TIMELINE.value == "timeline"
+    assert BacktestEngine.Mode.SLICED.value == "sliced"
+
+
+def test_run_accepts_mode_enum() -> None:
+    result = BacktestEngine.run(
+        mode=BacktestEngine.Mode.TIMELINE,
+        jobs=[],
+        execute_fn=_noop_execute,
+        executor_key="tag",
+    )
+    assert result.mode == "timeline"
 
 
 def test_run_unknown_mode_raises() -> None:

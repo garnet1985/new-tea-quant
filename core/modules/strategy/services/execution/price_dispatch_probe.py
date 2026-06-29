@@ -56,10 +56,10 @@ def _run_inprocess_batch(stock_jobs: List[Dict[str, Any]]) -> List[Dict[str, Any
 
 
 def execute_price_probe_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """子进程探针：与 ``execute_price_factor_job`` 相同 batch 路径。"""
+    """子进程探针：与 timeline batch job 相同路径。"""
     from core.infra.job_pipeline.types import JobContext
     from core.modules.strategy.services.execution.price_job_pipeline import (
-        execute_price_factor_job,
+        execute_price_factor_timeline_job,
     )
 
     ctx = JobContext(
@@ -67,7 +67,7 @@ def execute_price_probe_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         payload=dict(payload),
         run_name=str(payload.get("_run_name") or "price:probe"),
     )
-    return execute_price_factor_job(ctx)
+    return execute_price_factor_timeline_job(ctx)
 
 
 def run_price_dispatch_timing_probe(

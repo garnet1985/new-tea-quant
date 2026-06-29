@@ -14,14 +14,14 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_vi
 from core.modules.strategy.engines.shared.helpers.market_profile_id import (
     resolve_market_profile_id,
 )
-from core.modules.strategy.services.discovery.worker_loader import import_worker_class
+from core.modules.strategy.services.discovery.worker_loader import import_hooks_class
 from core.modules.strategy.services.package.settings_loader import load_settings_dict_from_folder
 
 if TYPE_CHECKING:
-    from core.modules.strategy.base_strategy_worker import BaseStrategyWorker
     from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
         DiscoveredStrategy,
     )
+    from core.modules.strategy.hooks import StrategyHooks
 
 
 def load_strategy_info(strategy_name: str) -> Optional["DiscoveredStrategy"]:
@@ -55,16 +55,16 @@ def load_strategy_settings_view(
     return StrategySettingsView.from_dict(validated.to_dict())
 
 
-def resolve_worker_class(
+def resolve_hooks_class(
     strategy_name: str,
     *,
     worker_module_path: Optional[str] = None,
     worker_class_name: Optional[str] = None,
     worker_file_path: Optional[str] = None,
     strategy_info: Optional["DiscoveredStrategy"] = None,
-) -> Type[BaseStrategyWorker]:
+) -> Type["StrategyHooks"]:
     if strategy_info is not None:
-        return import_worker_class(
+        return import_hooks_class(
             worker_module_path=strategy_info.worker_module_path,
             worker_class_name=strategy_info.worker_class_name,
             worker_file_path=str(strategy_info.worker_file_path),
@@ -73,8 +73,8 @@ def resolve_worker_class(
     if worker_module_path and worker_class_name:
         file_path = worker_file_path
         if not file_path:
-            file_path = str(ProjectContext.path.get_strategy_directory(strategy_name) / "strategy_worker.py")
-        return import_worker_class(
+            file_path = str(ProjectContext.path.get_strategy_directory(strategy_name) / "strategy.py")
+        return import_hooks_class(
             worker_module_path=worker_module_path,
             worker_class_name=worker_class_name,
             worker_file_path=str(file_path or ""),
@@ -83,7 +83,7 @@ def resolve_worker_class(
     info = load_strategy_info(strategy_name)
     if info is None:
         raise ValueError(f"strategy not found: {strategy_name}")
-    return import_worker_class(
+    return import_hooks_class(
         worker_module_path=info.worker_module_path,
         worker_class_name=info.worker_class_name,
         worker_file_path=str(info.worker_file_path),
@@ -103,9 +103,9 @@ def resolve_worker_ref(
         )
     info = load_strategy_info(strategy_name)
     if info is None:
-        worker_class = resolve_worker_class(strategy_name)
-        source = inspect.getsourcefile(worker_class) or ""
-        return worker_class.__module__, worker_class.__name__, source
+        hooks_class = resolve_hooks_class(strategy_name)
+        source = inspect.getsourcefile(hooks_class) or ""
+        return hooks_class.__module__, hooks_class.__name__, source
     return (
         info.worker_module_path,
         info.worker_class_name,
@@ -116,7 +116,7 @@ def resolve_worker_ref(
 __all__ = [
     "load_strategy_info",
     "load_strategy_settings_view",
+    "resolve_hooks_class",
     "resolve_market_profile_id",
-    "resolve_worker_class",
     "resolve_worker_ref",
 ]

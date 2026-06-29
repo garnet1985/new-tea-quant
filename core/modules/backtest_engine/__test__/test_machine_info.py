@@ -22,6 +22,18 @@ def test_resolve_memory_budget_auto() -> None:
     assert budget <= 16384.0
 
 
+def test_worker_pool_budget_does_not_subtract_floor_twice() -> None:
+    from core.modules.backtest_engine.core.shared.machine_info import MachineCapacity
+
+    capacity = MachineCapacity(
+        cpu_count=10,
+        memory_budget_mb=3500.0,
+        memory_floor_mb=3600.0,
+        reserve_cores=2,
+    )
+    assert MachineInfo.worker_pool_budget_mb(capacity) == 3500.0
+
+
 def test_resolve_max_workers_auto() -> None:
     workers = MachineInfo.resolve_max_workers(
         {"max_workers": "auto", "reserve_cores": 1},

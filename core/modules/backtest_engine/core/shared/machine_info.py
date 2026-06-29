@@ -148,6 +148,16 @@ class MachineInfo:
         return max(1, capacity.cpu_count - capacity.reserve_cores)
 
     @staticmethod
+    def worker_pool_budget_mb(capacity: MachineCapacity) -> float:
+        """
+        进程池并发可用的内存预算（MB）。
+
+        ``memory_budget_mb`` 已在 ``resolve_memory_budget`` 中扣除了 ``memory_floor_mb``，
+        规划 workers 时勿再次减去 floor。
+        """
+        return max(1.0, float(capacity.memory_budget_mb))
+
+    @staticmethod
     def _virtual_memory_mb() -> Tuple[Optional[float], Optional[float]]:
         try:
             import psutil

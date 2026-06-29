@@ -57,7 +57,11 @@
     },
     "scanner": {
       "reserve_cores": 1,
-      "max_parallel_jobs_cap": null
+      "max_parallel_jobs_cap": null,
+      "dispatch": {
+        "entities_per_job": 1,
+        "dispatch_probe": false
+      }
     }
   },
   "module_task_config": {

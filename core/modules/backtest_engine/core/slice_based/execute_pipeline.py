@@ -61,10 +61,7 @@ class SliceExecutePipeline:
             log_label=self._log_label,
         )
         capacity = MachineInfo.get_capacity(performance)
-        available_memory_mb = max(
-            1.0,
-            capacity.memory_budget_mb - capacity.memory_floor_mb,
-        )
+        available_memory_mb = MachineInfo.worker_pool_budget_mb(capacity)
         monitor = SliceRunMonitor(
             SliceMonitorPlanSnapshot(
                 reader_workers=plan.reader_workers,

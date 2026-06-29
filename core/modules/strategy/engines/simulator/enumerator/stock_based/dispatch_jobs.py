@@ -68,3 +68,38 @@ def build_dispatch_jobs(
             row["stock_id"] = chunk[0]
         jobs.append(row)
     return jobs
+
+
+def build_entity_timeline_jobs(
+    *,
+    strategy_name: str,
+    settings_payload: Dict[str, Any],
+    output_dir: str,
+    worker_ref: Dict[str, str],
+    stock_ids: List[str],
+    start_date: str,
+    end_date: str,
+) -> List[Dict[str, Any]]:
+    """每股一条 job（供 timeline 调度输入；切批由调度层负责）。"""
+    jobs: List[Dict[str, Any]] = []
+    for sid in stock_ids:
+        stock_id = str(sid).strip()
+        if not stock_id:
+            continue
+        jobs.append(
+            {
+                "entity_id": stock_id,
+                "stock_id": stock_id,
+                "job_id": stock_id,
+                "strategy_name": strategy_name,
+                "settings": settings_payload,
+                "start_date": start_date,
+                "end_date": end_date,
+                "output_dir": output_dir,
+                "worker_module_path": worker_ref["worker_module_path"],
+                "worker_class_name": worker_ref["worker_class_name"],
+                "worker_file_path": str(worker_ref.get("worker_file_path") or ""),
+                "enumeration_execution_mode": "entity_timeline",
+            }
+        )
+    return jobs

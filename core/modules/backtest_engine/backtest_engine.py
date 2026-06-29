@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from core.modules.backtest_engine.core.shared.types import ExecuteFn, JobReport
@@ -27,6 +28,12 @@ class BacktestEngine:
     Public surface: ``BacktestEngine`` and nested ``Timeline`` / ``RunResult``.
     Internal modules export one class each (e.g. ``TimelineExecutor``).
     """
+
+    class Mode(str, Enum):
+        """Backtest execution mode."""
+
+        TIMELINE = "timeline"
+        SLICED = "sliced"
 
     ExecuteFn = ExecuteFn
     OnResultHook = TimelineExecutor.OnResultHook
@@ -146,21 +153,24 @@ class BacktestEngine:
     def run(
         cls,
         *,
-        mode: str,
+        mode: str | BacktestEngine.Mode,
         jobs: List[Dict[str, Any]],
         execute_fn: ExecuteFn,
         executor_key: str,
         **kwargs: Any,
     ) -> BacktestEngine.RunResult:
-        normalized = str(mode or "").strip().lower()
-        if normalized == "timeline":
+        if isinstance(mode, cls.Mode):
+            normalized = mode.value
+        else:
+            normalized = str(mode or "").strip().lower()
+        if normalized == cls.Mode.TIMELINE.value:
             return cls.timeline.run(
                 jobs,
                 execute_fn,
                 executor_key=executor_key,
                 **kwargs,
             )
-        if normalized == "sliced":
+        if normalized == cls.Mode.SLICED.value:
             return cls.sliced.run(
                 jobs,
                 execute_fn,

@@ -7,12 +7,8 @@ import logging
 from typing import Any, Dict, Optional
 
 from core.modules.data_contract.contract_const import DataKey
-from core.modules.strategy.base_strategy_worker import BaseStrategyWorker
+from core.modules.strategy.hooks import StrategyHooks, StrategyHookContext
 from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.types import (
-    CalendarAsOfContext,
-    CalendarAsOfResult,
-)
 from core.modules.strategy.services.data.helper import storage_key_for
 
 logger = logging.getLogger(__name__)
@@ -20,7 +16,7 @@ logger = logging.getLogger(__name__)
 _FINANCE_SLOT = storage_key_for(DataKey.STOCK_CORPORATE_FINANCE)
 
 
-class RsiFundamentalGateWorker(BaseStrategyWorker):
+class RsiFundamentalGateHooks(StrategyHooks):
     """
     RSI(14) 超卖触发；最新已披露季度 ``netprofit_yoy`` 不低于阈值才入场。
 
@@ -28,16 +24,9 @@ class RsiFundamentalGateWorker(BaseStrategyWorker):
     ``DataCursor.until(signal_date)`` 保证，策略只消费 cursor 前缀的最后一行。
     """
 
-    def on_calendar_asof(
-        self,
-        ctx: CalendarAsOfContext,
-        settings: Dict[str, Any],
-    ) -> CalendarAsOfResult:
-        return super().on_calendar_asof(ctx, settings)
-
-    def scan_opportunity(
-        self, data: Dict[str, Any], settings: Dict[str, Any]
-    ) -> Optional[Opportunity]:
+    def scan_opportunity(self, ctx: StrategyHookContext) -> Optional[Opportunity]:
+        data = ctx.scan.data if ctx.scan else {}
+        settings = ctx.settings_dict()
         record_of_today = self.get_record_of_today(data)
         if record_of_today is None or not self._has_rsi_warmup(data, settings):
             return None
@@ -62,6 +51,7 @@ class RsiFundamentalGateWorker(BaseStrategyWorker):
             return None
 
         return self.build_opportunity(
+            ctx,
             record_of_today,
             extra_fields={
                 "rsi_value": rsi_value,

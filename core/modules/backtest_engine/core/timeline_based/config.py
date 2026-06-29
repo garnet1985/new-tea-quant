@@ -13,6 +13,7 @@ _EXECUTOR_DISPATCH_PROFILES: Dict[str, Tuple[str, str]] = {
     "tag": ("tag", "entity_timeline"),
     "strategy.enum": ("enumerator", "dispatch"),
     "strategy.price": ("price_factor", "dispatch"),
+    "strategy.scanner": ("scanner", "dispatch"),
 }
 
 

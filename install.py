@@ -16,7 +16,7 @@ if sys.platform == "win32" and sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8")
 
 from setup.cli_runtime import install_cli_runtime
-from setup.install_runtime import needs_install
+from setup.install_runtime import cli_install_scope, needs_install
 from setup.setup import NewTeaQuantSetup
 
 
@@ -25,9 +25,13 @@ def main() -> int:
     NewTeaQuantSetup.ensure_venv(entry_script=NewTeaQuantSetup.repo_root / "install.py")
 
     if needs_install("cli"):
-        print("检测到需要初始化安装，开始 CLI 安装...", flush=True)
+        scope = cli_install_scope()
+        if scope == "deps_only":
+            print("检测到 requirements.txt 变更，正在更新 Python 依赖…", flush=True)
+        else:
+            print("检测到需要初始化安装，开始 CLI 安装...", flush=True)
         try:
-            install_cli_runtime(force=True)
+            install_cli_runtime()
         except Exception as e:
             print(f"❌ CLI 安装失败: {e}", flush=True)
             return 1

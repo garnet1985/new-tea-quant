@@ -59,10 +59,7 @@ class TimelineExecutePipeline:
     ) -> TimelineExecutePipeline.Result:
         plan, batches, monitor_config = self._plan(jobs, performance, executor_key)
         capacity = MachineInfo.get_capacity(performance)
-        available_memory_mb = max(
-            1.0,
-            capacity.memory_budget_mb - capacity.memory_floor_mb,
-        )
+        available_memory_mb = MachineInfo.worker_pool_budget_mb(capacity)
         monitor = TimelineRunMonitor(
             MonitorPlanSnapshot(
                 entities_per_job=plan.entities_per_job,

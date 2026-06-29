@@ -28,6 +28,7 @@ from core.modules.backtest_engine.core.shared.machine_info import (
 from core.modules.backtest_engine.core.timeline_based.probe import (
     Probe,
     ProbeResult,
+    DEFAULT_PROBE_ENTITIES,
 )
 from core.modules.backtest_engine.core.timeline_based.monitor import (
     MonitorPlanSnapshot,
@@ -205,21 +206,18 @@ class TimelinePlanner:
     
     @staticmethod
     def _get_probe_entities_count(total_entities: int, capacity: MachineCapacity) -> int:
-        """确定探针entity数量。"""
-        # 默认探针数量：20个entity
-        default_probe_count = 20
-        
-        # 约束：不超过总entity数，不超过内存预算
-        max_by_memory = int(capacity.memory_budget_mb / 10.0)  # 假设每entity 10MB
-        
-        return min(
-            default_probe_count,
-            total_entities,
-            max_by_memory,
-        )
+        _ = capacity
+        return min(DEFAULT_PROBE_ENTITIES, total_entities)
     
     # ===== Step 3: settle_plan =====
-    
+
+    @staticmethod
+    def _prefetch_ahead(performance: Dict[str, Any]) -> int:
+        raw = performance.get("prefetch_ahead")
+        if raw is None:
+            return DEFAULT_PREFETCH_AHEAD
+        return max(0, int(raw))
+
     @staticmethod
     def _settle_plan(
         jobs: List[Dict[str, Any]],
@@ -228,7 +226,7 @@ class TimelinePlanner:
         performance: Dict[str, Any],
         log_label: str,
     ) -> DispatchPlan:
-        """Step 3: optimal epj/workers first, then cap by memory budget."""
+        """Step 3: epj from settings or v1 default; workers from CPU with memory safety cap."""
         total_entities = len(jobs)
 
         if total_entities <= 0:
@@ -248,10 +246,7 @@ class TimelinePlanner:
             performance,
             log_label,
         )
-        available_memory_mb = max(
-            1.0,
-            capacity.memory_budget_mb - capacity.memory_floor_mb,
-        )
+        available_memory_mb = MachineInfo.worker_pool_budget_mb(capacity)
 
         entities_per_job, epj_source = TimelinePlanner._resolve_entities_per_job(
             total_entities=total_entities,
@@ -267,18 +262,12 @@ class TimelinePlanner:
             entities_per_job=entities_per_job,
             worker_job_budget_mb=worker_job_budget_mb,
             available_memory_mb=available_memory_mb,
-            capacity=capacity,
             performance=performance,
             log_label=log_label,
         )
 
         dispatch_jobs = max(1, math.ceil(total_entities / entities_per_job))
-        prefetch_raw = performance.get("prefetch_ahead")
-        prefetch_ahead = (
-            DEFAULT_PREFETCH_AHEAD
-            if prefetch_raw is None
-            else max(0, int(prefetch_raw))
-        )
+        prefetch_ahead = TimelinePlanner._prefetch_ahead(performance)
 
         logger.info(
             "%s规划: entities=%s → jobs≈%s (epj=%s, %s, job≈%.1fMB), "
@@ -328,33 +317,6 @@ class TimelinePlanner:
         )
 
     @staticmethod
-    def _recommended_entities_per_job(
-        total_entities: int,
-        performance: Dict[str, Any],
-    ) -> int:
-        """Experiment-backed optimal epj (stock_based v1, 2026-06-22)."""
-        if total_entities < 200:
-            recommended = DEFAULT_OPTIMAL_ENTITIES_PER_JOB
-        elif total_entities < 1000:
-            recommended = 10
-        else:
-            recommended = DEFAULT_OPTIMAL_ENTITIES_PER_JOB
-        return TimelinePlanner._clamp_entities(recommended, performance)
-
-    @staticmethod
-    def _recommended_max_workers(
-        total_entities: int,
-        capacity: MachineCapacity,
-    ) -> int:
-        """Experiment-backed optimal worker count by scale."""
-        cpu_cap = MachineInfo.get_available_workers(capacity)
-        if total_entities < 200:
-            return 1
-        if total_entities < 1000:
-            return min(2, cpu_cap)
-        return min(4, cpu_cap)
-
-    @staticmethod
     def _resolve_entities_per_job(
         *,
         total_entities: int,
@@ -363,28 +325,27 @@ class TimelinePlanner:
         performance: Dict[str, Any],
         log_label: str,
     ) -> Tuple[int, str]:
+        _ = total_entities
         epj_override = performance.get("entities_per_job")
         if epj_override not in (None, "", "auto"):
             epj = TimelinePlanner._clamp_entities(max(1, int(epj_override)), performance)
             return epj, "settings"
 
-        optimal_epj = TimelinePlanner._recommended_entities_per_job(
-            total_entities, performance
-        )
-        single_job_mb = optimal_epj * mb_per_entity
+        epj = TimelinePlanner._clamp_entities(DEFAULT_OPTIMAL_ENTITIES_PER_JOB, performance)
+        single_job_mb = epj * mb_per_entity
         if single_job_mb <= memory_budget_mb:
-            return optimal_epj, "optimal"
+            return epj, "default"
 
-        max_epj = max(1, int(memory_budget_mb / mb_per_entity))
-        epj_min = max(1, int(performance.get("entities_per_job_min", 1)))
-        fitted = max(epj_min, min(optimal_epj, max_epj))
-        fitted = TimelinePlanner._clamp_entities(fitted, performance)
+        fitted = TimelinePlanner._clamp_entities(
+            max(1, int(memory_budget_mb / mb_per_entity)),
+            performance,
+        )
         logger.info(
             "%s单 job 内存 %.1fMB 超过 budget %.0fMB，epj %s → %s",
             log_label,
             single_job_mb,
             memory_budget_mb,
-            optimal_epj,
+            epj,
             fitted,
         )
         return fitted, "memory_capped"
@@ -396,7 +357,6 @@ class TimelinePlanner:
         entities_per_job: int,
         worker_job_budget_mb: float,
         available_memory_mb: float,
-        capacity: MachineCapacity,
         performance: Dict[str, Any],
         log_label: str,
     ) -> Tuple[int, str]:
@@ -404,36 +364,29 @@ class TimelinePlanner:
         if mw_override not in (None, "", "auto"):
             return max(1, int(mw_override)), "settings"
 
-        dispatch_jobs = (
-            max(1, math.ceil(total_entities / entities_per_job))
-            if total_entities > 0
-            else None
-        )
+        dispatch_jobs = max(1, math.ceil(total_entities / entities_per_job))
         cpu_workers = MachineInfo.resolve_max_workers(
             performance,
             dispatch_jobs=dispatch_jobs,
         )
-        optimal_workers = TimelinePlanner._recommended_max_workers(
-            total_entities, capacity
+        prefetch_ahead = TimelinePlanner._prefetch_ahead(performance)
+        max_by_memory = max(
+            1,
+            int(available_memory_mb / worker_job_budget_mb) - prefetch_ahead,
         )
-        max_workers = max(1, min(optimal_workers, cpu_workers))
-        source = "optimal+auto_cpu"
-
-        total_in_flight_mb = worker_job_budget_mb * max_workers
-        if total_in_flight_mb <= available_memory_mb:
-            return max_workers, source
-
-        capped = max(1, int(available_memory_mb / worker_job_budget_mb))
-        capped = min(max_workers, capped)
-        logger.info(
-            "%s并发内存 %.1fMB 超过可用 %.0fMB，workers %s → %s",
-            log_label,
-            total_in_flight_mb,
-            available_memory_mb,
-            max_workers,
-            capped,
-        )
-        return capped, "memory_capped"
+        workers = max(1, min(cpu_workers, max_by_memory))
+        if workers < cpu_workers:
+            logger.info(
+                "%s内存收紧 workers: %s → %s (job≈%.1fMB, prefetch=%s, budget≈%.0fMB)",
+                log_label,
+                cpu_workers,
+                workers,
+                worker_job_budget_mb,
+                prefetch_ahead,
+                available_memory_mb,
+            )
+            return workers, "memory_capped"
+        return workers, "auto"
     
     @staticmethod
     def _clamp_entities(n: int, performance: Dict[str, Any]) -> int:

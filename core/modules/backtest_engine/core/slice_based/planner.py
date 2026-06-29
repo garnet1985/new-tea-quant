@@ -22,7 +22,7 @@ import math
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.modules.backtest_engine.core.shared.machine_info import MachineCapacity
+from core.modules.backtest_engine.core.shared.machine_info import MachineCapacity, MachineInfo
 from core.modules.backtest_engine.core.shared.base_planner import BasePlanner
 from core.modules.backtest_engine.core.slice_based.config import SliceConfig
 from core.modules.backtest_engine.core.slice_based.monitor import (
@@ -288,7 +288,7 @@ class SlicePlanner(BasePlanner):
         Returns:
             SliceDispatchPlan: 最终规划（OOM保护后）
         """
-        available_memory_mb = capacity.memory_budget_mb - capacity.memory_floor_mb
+        available_memory_mb = MachineInfo.worker_pool_budget_mb(capacity)
         
         # 根据探针结果计算内存消耗（如果没有探针，使用默认值）
         mb_per_slice_reader = probe_result.mb_per_slice_reader if probe_result else 10.0

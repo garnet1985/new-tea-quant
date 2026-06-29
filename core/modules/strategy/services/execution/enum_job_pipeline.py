@@ -14,16 +14,24 @@ from .stock_job_pipeline import (
     run_stock_jobs_via_pipeline,
 )
 
+ENUM_TIMELINE_EXECUTOR_KEY = "strategy.enum"
+ENUM_SLICED_EXECUTOR_KEY = "strategy.enum"
+
 __all__ = [
+    "ENUM_SLICED_EXECUTOR_KEY",
+    "ENUM_TIMELINE_EXECUTOR_KEY",
     "build_enumeration_payload",
     "calendar_progress_units_from_execute_report",
     "count_progress_units_from_job_result",
     "execute_enumeration_job",
+    "execute_enumeration_timeline_job",
     "expand_bulk_job_results",
     "job_report_to_job_result",
     "job_progress_payload",
     "job_progress_from_run",
     "run_enumeration_jobs_via_pipeline",
+    "run_enumeration_sliced_via_backtest_engine",
+    "run_enumeration_timeline_via_backtest_engine",
 ]
 
 
@@ -152,6 +160,304 @@ def execute_enumeration_job(context: JobContext) -> Dict[str, Any]:
         return run_enumeration_payload(payload)
     finally:
         release_strategy_worker_runtime()
+
+
+def execute_enumeration_timeline_job(context: JobContext) -> Dict[str, Any]:
+    """BacktestEngine timeline 子进程入口：batch payload → 枚举 worker。"""
+    payload = dict(context.payload)
+    batch_entities = payload.get("jobs")
+    if isinstance(batch_entities, list) and batch_entities:
+        dispatch_job = _merge_enumeration_batch(batch_entities, context.job_id)
+    else:
+        dispatch_job = {
+            key: value
+            for key, value in payload.items()
+            if not str(key).startswith("_")
+        }
+    global_extra_cache = (
+        dispatch_job.get("_global_extra_cache")
+        or payload.get("_global_extra_cache")
+        or {}
+    )
+    enum_payload = build_enumeration_payload(dispatch_job, global_extra_cache)
+    return execute_enumeration_job(
+        JobContext(
+            job_id=context.job_id,
+            payload=enum_payload,
+            run_name=context.run_name,
+        )
+    )
+
+
+def _normalize_enumeration_entity(entity: Dict[str, Any]) -> Dict[str, Any]:
+    """BacktestEngine timeline jobs 可能是 ``{id, payload}`` 包装或 flat dispatch row。"""
+    nested = entity.get("payload")
+    if isinstance(nested, dict):
+        row = dict(nested)
+        wrapper_id = str(entity.get("id") or entity.get("job_id") or "").strip()
+        if wrapper_id:
+            row.setdefault("entity_id", wrapper_id)
+            if not row.get("stock_ids"):
+                row.setdefault("stock_id", wrapper_id)
+        return row
+    return dict(entity)
+
+
+def _merge_enumeration_batch(
+    entities: List[Dict[str, Any]],
+    batch_job_id: str,
+) -> Dict[str, Any]:
+    from core.modules.strategy.engines.simulator.enumerator.stock_based.dispatch_jobs import (
+        dispatch_job_id,
+    )
+
+    if not entities:
+        raise ValueError("enumeration timeline batch is empty")
+
+    normalized = [_normalize_enumeration_entity(entity) for entity in entities]
+    base = dict(normalized[0])
+    stock_ids: List[str] = []
+    for entity in normalized:
+        ids = entity.get("stock_ids")
+        if isinstance(ids, list) and ids:
+            stock_ids.extend(str(s).strip() for s in ids if str(s).strip())
+            continue
+        sid = str(entity.get("stock_id") or entity.get("entity_id") or "").strip()
+        if sid:
+            stock_ids.append(sid)
+
+    if not stock_ids:
+        raise ValueError("enumeration timeline batch has no stock ids")
+
+    merged = {
+        key: value
+        for key, value in base.items()
+        if key not in {"entity_id", "job_id", "stock_id", "stock_ids", "id", "payload"}
+    }
+    merged["job_id"] = (
+        dispatch_job_id(0, stock_ids)
+        if len(stock_ids) > 1
+        else stock_ids[0]
+    )
+    merged["stock_ids"] = stock_ids
+    if len(stock_ids) == 1:
+        merged["stock_id"] = stock_ids[0]
+    merged["_global_extra_cache"] = base.get("_global_extra_cache")
+    return merged
+
+
+def run_enumeration_timeline_via_backtest_engine(
+    *,
+    entity_jobs: List[Dict[str, Any]],
+    global_extra_cache: Dict[str, List[Dict[str, Any]]],
+    total_jobs: int,
+    run_name: str = "enum",
+    finished_offset: int = 0,
+    completed_offset: int = 0,
+    failed_offset: int = 0,
+    on_job_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
+    duckdb_data_mgr: Any = None,
+    progress_units_from_report: Optional[
+        Callable[[Any], Tuple[int, int, int]]
+    ] = None,
+) -> List[Any]:
+    """Strategy 侧：组装 jobs + execute_fn，交给 BacktestEngine timeline.run。"""
+    from pathlib import Path
+
+    from core.modules.backtest_engine import BacktestEngine
+    from core.modules.backtest_engine.core.shared.types import JobReport, RunProgress
+
+    from .run_hooks import StrategyRunHooksCoordinator
+
+    engine_jobs: List[Dict[str, Any]] = []
+    for job in entity_jobs:
+        job_id = str(job.get("job_id") or job.get("stock_id") or job.get("entity_id"))
+        payload = dict(job)
+        payload["_global_extra_cache"] = global_extra_cache
+        engine_jobs.append({"id": job_id, "payload": payload})
+
+    units_fn = progress_units_from_report or _progress_units_from_execute_report
+    stock_finished = finished_offset
+    stock_ok = completed_offset
+    stock_fail = failed_offset
+    progress_meta = {"last_job_id": "", "last_job_status": ""}
+
+    run_hooks: Optional[StrategyRunHooksCoordinator] = None
+    if entity_jobs:
+        try:
+            sample = entity_jobs[0]
+            output_dir = sample.get("output_dir")
+            run_hooks = StrategyRunHooksCoordinator.from_job(
+                sample,
+                run_name=run_name,
+                output_dir=Path(output_dir) if output_dir else None,
+                total_entities=total_jobs,
+                execution_mode="entity_timeline",
+            )
+            run_hooks.on_run_start()
+        except Exception:
+            run_hooks = None
+
+    def on_engine_result(report: JobReport, progress: RunProgress) -> None:
+        nonlocal stock_finished, stock_ok, stock_fail
+        progress_meta["last_job_id"] = report.job_id
+        progress_meta["last_job_status"] = "completed" if report.success else "failed"
+        if run_hooks is not None:
+            run_hooks.on_batch_finish(
+                str(report.job_id),
+                _stock_ids_from_job_report(report),
+                report=report,
+                progress=progress,
+            )
+        units, ok_u, fail_u = units_fn(report)
+        stock_finished += units
+        stock_ok += ok_u
+        stock_fail += fail_u
+        if on_job_progress is not None:
+            on_job_progress(
+                job_progress_payload(
+                    total_jobs=total_jobs,
+                    finished=stock_finished,
+                    completed_jobs=stock_ok,
+                    failed_jobs=stock_fail,
+                    last_job_id=progress_meta["last_job_id"],
+                    last_job_status=progress_meta["last_job_status"],
+                )
+            )
+
+    result = BacktestEngine.timeline.run(
+        engine_jobs,
+        execute_enumeration_timeline_job,
+        executor_key=ENUM_TIMELINE_EXECUTOR_KEY,
+        run_name=run_name,
+        on_result=on_engine_result,
+        data_mgr=duckdb_data_mgr,
+        log_label="enum",
+    )
+    if run_hooks is not None:
+        run_hooks.on_run_finish()
+    return [job_report_to_job_result(report) for report in result.job_results]
+
+
+def execute_enumeration_sliced_job(context: JobContext) -> Dict[str, Any]:
+    """BacktestEngine sliced 子进程入口：注入 slice plan → calendar_slice orchestrator。"""
+    from core.modules.strategy.services.execution.worker_runtime import (
+        bootstrap_strategy_worker_data_manager,
+        release_strategy_worker_runtime,
+    )
+
+    bootstrap_strategy_worker_data_manager()
+    try:
+        payload = dict(context.payload)
+        slice_plan = payload.get("_slice_plan") or {}
+        dispatch_job = {
+            key: value
+            for key, value in payload.items()
+            if not str(key).startswith("_")
+        }
+        global_extra_cache = (
+            dispatch_job.pop("_global_extra_cache", None)
+            or payload.get("_global_extra_cache")
+            or {}
+        )
+        if isinstance(slice_plan, dict) and slice_plan.get("slice_open_days") not in (
+            None,
+            "",
+            "auto",
+        ):
+            dispatch_job["slice_open_days"] = int(slice_plan["slice_open_days"])
+        enum_payload = build_enumeration_payload(dispatch_job, global_extra_cache)
+        return execute_enumeration_job(
+            JobContext(
+                job_id=context.job_id,
+                payload=enum_payload,
+                run_name=context.run_name,
+            )
+        )
+    finally:
+        release_strategy_worker_runtime()
+
+
+def run_enumeration_sliced_via_backtest_engine(
+    *,
+    dispatch_jobs: List[Dict[str, Any]],
+    global_extra_cache: Dict[str, List[Dict[str, Any]]],
+    total_jobs: int,
+    run_name: str = "enum",
+    finished_offset: int = 0,
+    completed_offset: int = 0,
+    failed_offset: int = 0,
+    on_job_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
+    duckdb_data_mgr: Any = None,
+    progress_units_from_report: Optional[
+        Callable[[Any], Tuple[int, int, int]]
+    ] = None,
+) -> List[Any]:
+    """Strategy calendar_slice：单 bulk job → BacktestEngine.sliced.run。"""
+    from core.modules.backtest_engine import BacktestEngine
+    from core.modules.backtest_engine.core.shared.types import JobReport, RunProgress
+
+    engine_jobs: List[Dict[str, Any]] = []
+    for job in dispatch_jobs:
+        job_id = str(job.get("job_id") or "calendar_slice")
+        payload = dict(job)
+        payload["_global_extra_cache"] = global_extra_cache
+        engine_jobs.append({"id": job_id, "payload": payload})
+
+    units_fn = progress_units_from_report or calendar_progress_units_from_execute_report
+    stock_finished = finished_offset
+    stock_ok = completed_offset
+    stock_fail = failed_offset
+    progress_meta = {"last_job_id": "", "last_job_status": ""}
+
+    def on_engine_result(report: JobReport, progress: RunProgress) -> None:
+        nonlocal stock_finished, stock_ok, stock_fail
+        progress_meta["last_job_id"] = report.job_id
+        progress_meta["last_job_status"] = "completed" if report.success else "failed"
+        units, ok_u, fail_u = units_fn(report)
+        stock_finished += units
+        stock_ok += ok_u
+        stock_fail += fail_u
+        if on_job_progress is not None:
+            on_job_progress(
+                job_progress_payload(
+                    total_jobs=total_jobs,
+                    finished=stock_finished,
+                    completed_jobs=stock_ok,
+                    failed_jobs=stock_fail,
+                    last_job_id=progress_meta["last_job_id"],
+                    last_job_status=progress_meta["last_job_status"],
+                )
+            )
+
+    result = BacktestEngine.sliced.run(
+        engine_jobs,
+        execute_enumeration_sliced_job,
+        executor_key=ENUM_SLICED_EXECUTOR_KEY,
+        run_name=run_name,
+        on_result=on_engine_result,
+        data_mgr=duckdb_data_mgr,
+        log_label="enum-sliced",
+    )
+    return [job_report_to_job_result(report) for report in result.job_results]
+
+
+def _stock_ids_from_job_report(report: Any) -> List[str]:
+    data = getattr(report, "data", None) or {}
+    if isinstance(data, dict):
+        if data.get("bulk") and isinstance(data.get("stock_results"), list):
+            ids = [
+                str(row.get("stock_id") or "").strip()
+                for row in data["stock_results"]
+                if isinstance(row, dict) and str(row.get("stock_id") or "").strip()
+            ]
+            if ids:
+                return ids
+        sid = str(data.get("stock_id") or "").strip()
+        if sid:
+            return [sid]
+    job_id = str(getattr(report, "job_id", "") or "").strip()
+    return [job_id] if job_id else []
 
 
 def calendar_progress_units_from_execute_report(report: Any) -> Tuple[int, int, int]:

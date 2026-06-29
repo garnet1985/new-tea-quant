@@ -10,7 +10,11 @@ import logging
 from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.indicator import IndicatorService
 from core.modules.market_profile import get_market_profile
-from core.modules.strategy.base_strategy_worker import BaseStrategyWorker
+from core.modules.strategy.hooks import (
+    StrategyHookRuntime,
+    calendar_asof_context,
+    scan_context,
+)
 from core.modules.strategy.engines.shared.data_classes.investment_state import (
     InvestmentLifecycle,
     ScanSignalPhase,
@@ -43,7 +47,6 @@ from core.modules.strategy.engines.shared.helpers.stock_status_risk_context impo
     StockStatusRiskRuntimeContext,
     build_stock_status_risk_runtime_context,
 )
-from core.modules.strategy.engines.shared.helpers.strategy_runtime import resolve_worker_class
 from core.modules.strategy.engines.shared.helpers.tradability import stamp_buy_tradability
 from core.modules.strategy.engines.shared.helpers.tradability_stats import (
     tradability_bundle_from_opportunities,
@@ -73,7 +76,6 @@ from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.types im
     CalendarAsOfContext,
     CalendarAsOfResult,
 )
-from core.modules.strategy.enums import ExecutionMode
 from core.modules.strategy.services.data import StrategyDataInjectionService
 from core.modules.strategy.services.data.output import EnumeratorOutputWriterService
 from core.utils.date.date_utils import DateUtils
@@ -152,23 +154,10 @@ class CalendarSliceComputeEngine:
         return {sid: {"id": sid, "name": sid} for sid in self.stock_ids}
 
     def _load_user_strategy(self) -> None:
-        strategy_class = resolve_worker_class(
-            self.strategy_name,
-            worker_module_path=self.job_payload.get("worker_module_path"),
-            worker_class_name=self.job_payload.get("worker_class_name"),
-            worker_file_path=str(self.job_payload.get("worker_file_path") or ""),
+        self.hook_runtime = StrategyHookRuntime.from_job_payload(
+            self.job_payload,
+            settings=self.settings,
         )
-        anchor_id = self.stock_ids[0]
-        self.strategy_instance = strategy_class(
-            {
-                "stock_id": anchor_id,
-                "execution_mode": ExecutionMode.SCAN.value,
-                "strategy_name": self.strategy_name,
-                "settings": self.settings_dict,
-            }
-        )
-        if hasattr(self.strategy_instance, "stock_info"):
-            self.strategy_instance.stock_info = self._stock_infos[anchor_id]
 
     def create_progress_reporter(
         self,
@@ -312,25 +301,13 @@ class CalendarSliceComputeEngine:
         return out
 
     def _call_on_calendar_asof(self, ctx: CalendarAsOfContext) -> CalendarAsOfResult:
-        hook = getattr(self.strategy_instance, "on_calendar_asof", None)
-        if callable(hook):
-            raw = hook(ctx, self.settings_dict)
-            if isinstance(raw, CalendarAsOfResult):
-                return raw
-            if isinstance(raw, dict):
-                return CalendarAsOfResult(
-                    selected_stock_ids=list(raw.get("selected_stock_ids") or []),
-                    stock_overrides=dict(raw.get("stock_overrides") or {}),
-                    carry=dict(raw.get("carry") or {}),
-                )
-            if isinstance(raw, (list, tuple)):
-                return CalendarAsOfResult(selected_stock_ids=[str(x) for x in raw])
-            raise TypeError("on_calendar_asof 须返回 CalendarAsOfResult、dict 或 stock_id 列表")
-        return BaseStrategyWorker.on_calendar_asof(
-            self.strategy_instance,
-            ctx,
-            self.settings_dict,
+        hook_ctx = calendar_asof_context(
+            strategy_name=self.strategy_name,
+            settings=self.settings,
+            calendar=ctx,
+            job_payload=self.job_payload,
         )
+        return self.hook_runtime.call("on_calendar_asof", hook_ctx)
 
     @staticmethod
     def _has_bar_on(state: StockEnumState, as_of: str) -> bool:
@@ -402,7 +379,6 @@ class CalendarSliceComputeEngine:
             tracker["passed_dates"].append(as_of)
         if len(tracker["passed_dates"]) < self.settings.min_required_records:
             return
-        self._bind_strategy_stock(state)
         self._try_scan_opportunity(
             state,
             tracker,
@@ -410,11 +386,6 @@ class CalendarSliceComputeEngine:
             data,
             prev_kline=prev_kline,
         )
-
-    def _bind_strategy_stock(self, state: StockEnumState) -> None:
-        self.strategy_instance.stock_id = state.stock_id
-        if hasattr(self.strategy_instance, "stock_info"):
-            self.strategy_instance.stock_info = state.stock_info
 
     def _process_bar_without_scan(
         self,
@@ -468,7 +439,30 @@ class CalendarSliceComputeEngine:
         *,
         prev_kline: Optional[Dict[str, Any]] = None,
     ) -> None:
-        opportunity = self.strategy_instance.scan_opportunity(data_of_today, self.settings_dict)
+        ctx = scan_context(
+            strategy_name=self.strategy_name,
+            settings=self.settings,
+            stock_id=state.stock_id,
+            job_payload=self.job_payload,
+            stock_info=state.stock_info,
+            data=data_of_today,
+            data_manager=state.data_manager,
+        )
+        self.hook_runtime.call("on_before_scan", ctx)
+        opportunity = self.hook_runtime.call("scan_opportunity", ctx)
+        self.hook_runtime.call(
+            "on_after_scan",
+            scan_context(
+                strategy_name=self.strategy_name,
+                settings=self.settings,
+                stock_id=state.stock_id,
+                job_payload=self.job_payload,
+                stock_info=state.stock_info,
+                data=data_of_today,
+                data_manager=state.data_manager,
+                opportunity=opportunity,
+            ),
+        )
         if not opportunity:
             return
         if opportunity.stock:

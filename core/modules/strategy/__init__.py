@@ -10,7 +10,8 @@ from typing import Any
 
 __all__ = [
     "StrategyManager",
-    "BaseStrategyWorker",
+    "StrategyHooks",
+    "StrategyHookContext",
     "Opportunity",
     "ExecutionMode",
     "SellReason",
@@ -30,8 +31,10 @@ __all__ = [
 def __getattr__(name: str) -> Any:
     if name == "StrategyManager":
         return getattr(import_module(".strategy_manager", __name__), name)
-    if name == "BaseStrategyWorker":
-        return getattr(import_module(".base_strategy_worker", __name__), name)
+    if name == "StrategyHooks":
+        return getattr(import_module(".hooks", __name__), name)
+    if name == "StrategyHookContext":
+        return getattr(import_module(".hooks", __name__), name)
     if name == "Opportunity":
         return getattr(
             import_module(".engines.shared.data_classes.opportunity", __name__), name
@@ -54,4 +57,3 @@ def __getattr__(name: str) -> Any:
     }:
         return getattr(import_module(".services", __name__), name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-

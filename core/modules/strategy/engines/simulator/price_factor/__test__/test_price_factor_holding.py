@@ -125,10 +125,17 @@ class TestPriceFactorWorkerHoldingMutex(unittest.TestCase):
             "_bench_skip_save": True,
         }
         worker = PriceFactorWorker(payload)
-        def _hook_side_effect(name, *args, **_kwargs):
+        def _hook_side_effect(name, ctx, **_kwargs):
             if name == "on_price_factor_after_process_stock":
                 return None
-            return args[0] if args else None
+            pf = getattr(ctx, "price_factor", None)
+            if pf is None:
+                return None
+            if name == "on_price_factor_opportunity_trigger":
+                return pf.opportunity_row
+            if name == "on_price_factor_target_hit":
+                return pf.target_row
+            return None
 
         with patch.object(worker.hooks_dispatcher, "call_hook", side_effect=_hook_side_effect):
             with patch(

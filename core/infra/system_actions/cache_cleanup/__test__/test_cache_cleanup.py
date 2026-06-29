@@ -23,8 +23,16 @@ def userspace_layout(tmp_path, monkeypatch):
     (scan / "opportunities.csv").write_text("x", encoding="utf-8")
     (ntq / "pipeline_active.json").write_text("{}", encoding="utf-8")
     (strategies / "settings.py").write_text("settings = {}\n", encoding="utf-8")
-    (strategies / "strategy_worker.py").write_text(
-        "class StrategyWorker:\n    pass\n",
+    (strategies / "strategy.py").write_text(
+        "\n".join(
+            [
+                "from core.modules.strategy.hooks import StrategyHooks",
+                "class StrategyHooksImpl(StrategyHooks):",
+                "    def scan_opportunity(self, ctx):",
+                "        return None",
+                "",
+            ]
+        ),
         encoding="utf-8",
     )
 

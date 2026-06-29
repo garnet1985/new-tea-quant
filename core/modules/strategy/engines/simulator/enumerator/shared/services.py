@@ -476,25 +476,15 @@ class EnumeratorSharedServices:
         enum_settings: EnumeratorSettings,
         duckdb_data_mgr: Any = None,
     ) -> List[Any]:
-        from core.infra.job_pipeline.profile import (
-            WorkerProfiles,
-            profile_dispatch_config,
+        from core.modules.strategy.services.execution import (
+            run_enumeration_timeline_via_backtest_engine,
         )
-        from core.infra.worker import MemoryAwareScheduler
-        from core.modules.strategy.services.execution import run_enumeration_jobs_via_pipeline
         from core.modules.strategy.services.progress import ProgressRecorder
 
         self._entity_progress_mode = str(
             (jobs[0].get("entity_progress_mode") if jobs else None) or "stock"
         )
         total_stocks = self.resolve_enum_progress_total(jobs)
-        dispatch_cfg = profile_dispatch_config(WorkerProfiles.ENUMERATOR)
-        if jobs:
-            payload = jobs[0].get("payload", jobs[0])
-            stock_ids = payload.get("stock_ids") or []
-            entities_per_job = max(1, len(stock_ids)) if stock_ids else 1
-        else:
-            entities_per_job = 1
 
         on_job_done: Optional[Callable[[Dict[str, Any]], None]] = None
         if self.workbench_strategy_name and self.workbench_run_id:
@@ -528,23 +518,29 @@ class EnumeratorSharedServices:
 
                 run_envelope_on_flow_progress(sn, rid, "enum", float(seed_pct))
 
-        scheduler = MemoryAwareScheduler(
-            jobs=jobs,
-            memory_budget_mb=dispatch_cfg["memory_budget_mb"],
-            warmup_batch_size=dispatch_cfg["warmup_batch_size"],
-            min_batch_size=dispatch_cfg["min_batch_size"],
-            max_batch_size=dispatch_cfg["max_batch_size"],
-            monitor_interval=int(dispatch_cfg["monitor_interval"]),
-            units_per_job=entities_per_job,
-            log=logger,
-        )
         run_name = "enum"
         if self.workbench_strategy_name:
             run_name = f"enum:{self.workbench_strategy_name}"
 
+        if jobs and jobs[0].get("enumeration_execution_mode") != "calendar_slice":
+            return run_enumeration_timeline_via_backtest_engine(
+                entity_jobs=jobs,
+                global_extra_cache=global_extra_cache,
+                total_jobs=total_stocks,
+                run_name=run_name,
+                on_job_progress=on_job_done,
+                duckdb_data_mgr=duckdb_data_mgr,
+                progress_units_from_report=self.progress_units_from_execute_report,
+            )
+
+        from core.modules.strategy.services.execution.enum_job_pipeline import (
+            calendar_progress_units_from_execute_report,
+            run_enumeration_sliced_via_backtest_engine,
+        )
+
         poll_stop = None
         poll_thread = None
-        if jobs and jobs[0].get("enumeration_execution_mode") == "calendar_slice":
+        if jobs:
             import threading
 
             poll_stop = threading.Event()
@@ -556,16 +552,14 @@ class EnumeratorSharedServices:
             poll_thread.start()
 
         try:
-            return self._run_scheduled_batches(
-                jobs=jobs,
+            return run_enumeration_sliced_via_backtest_engine(
+                dispatch_jobs=jobs,
                 global_extra_cache=global_extra_cache,
-                scheduler=scheduler,
-                max_workers=max_workers,
-                total_stocks=total_stocks,
+                total_jobs=total_stocks,
                 run_name=run_name,
                 on_job_progress=on_job_done,
-                run_fn=run_enumeration_jobs_via_pipeline,
                 duckdb_data_mgr=duckdb_data_mgr,
+                progress_units_from_report=calendar_progress_units_from_execute_report,
             )
         finally:
             if poll_stop is not None:

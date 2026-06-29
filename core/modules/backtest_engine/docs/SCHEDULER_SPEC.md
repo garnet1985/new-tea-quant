@@ -32,10 +32,12 @@
 **具体职责**：
 
 **Timeline模式调度**：
-- 使用探针决定bundle大小（entities_per_job）和进程数（max_workers）
-- 切割jobs成bundle（每个bundle包含多个entity）
-- 分配jobs到进程（ProcessPoolExecutor）
-- 每个进程结束call一次on_result汇报结果
+- Probe 粗估 + Plan 定 `entities_per_job`（全 run 固定）与 `max_workers` 上限
+- Monitor 每 N job 汇总采样，**仅动态调整 in-flight workers**
+- 切割 jobs 成 batch，经 `TimelineExecutePipeline` 进程池执行
+- 每个 batch 结束 `on_result` 汇报
+
+详见 [TIMELINE_EXECUTION.md](./TIMELINE_EXECUTION.md)。
 
 **Sliced模式调度**：
 - 使用探针决定读取queue大小和reader数量

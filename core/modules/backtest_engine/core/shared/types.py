@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 
 class JobFailurePhase(str, Enum):
@@ -96,6 +96,9 @@ class DispatchResult:
     run_name: str = ""
 
 
+ExecuteFn = Callable[[JobContext], Any]
+
+
 __all__ = [
     "JobFailurePhase",
     "ExecutionBackend",
@@ -106,4 +109,5 @@ __all__ = [
     "RunProgress",
     "JobFailure",
     "DispatchResult",
+    "ExecuteFn",
 ]

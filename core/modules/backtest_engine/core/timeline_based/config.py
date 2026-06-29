@@ -2,11 +2,18 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from core.infra.project_context import ProjectContext
 
 logger = logging.getLogger(__name__)
+
+# executor_key → (job_pipeline profile, dispatch section name)
+_EXECUTOR_DISPATCH_PROFILES: Dict[str, Tuple[str, str]] = {
+    "tag": ("tag", "entity_timeline"),
+    "strategy.enum": ("enumerator", "dispatch"),
+    "strategy.price": ("price_factor", "dispatch"),
+}
 
 
 class TimelineConfig:
@@ -99,3 +106,55 @@ class TimelineConfig:
         parsed["mb_per_entity_staged"] = performance.get("mb_per_entity_staged", None)
 
         return parsed
+
+    @staticmethod
+    def resolve_dispatch_performance(executor_key: str) -> Dict[str, Any]:
+        """
+        Load engine dispatch config from worker.json (not from tag/strategy settings).
+
+        Args:
+            executor_key: Probe / worker id (``tag``, ``strategy.enum``, ...).
+
+        Returns:
+            Dispatch performance dict for planner / executor.
+        """
+        key = str(executor_key or "").strip()
+        mapping = _EXECUTOR_DISPATCH_PROFILES.get(key)
+        if mapping is None:
+            raise ValueError(
+                f"unknown executor_key for dispatch config: {key!r}; "
+                f"supported: {sorted(_EXECUTOR_DISPATCH_PROFILES)}"
+            )
+
+        profile_name, section_name = mapping
+        cfg = ProjectContext.config.load_core_config("worker")
+        job_pipeline = cfg.get("job_pipeline") or {}
+        if not isinstance(job_pipeline, dict):
+            job_pipeline = {}
+
+        performance: Dict[str, Any] = {}
+        for block_name in ("default", profile_name):
+            block = job_pipeline.get(block_name)
+            if not isinstance(block, dict):
+                continue
+            for field in ("reserve_cores", "max_parallel_jobs_cap"):
+                if field in block:
+                    performance[field] = block[field]
+
+        profile_block = job_pipeline.get(profile_name)
+        if isinstance(profile_block, dict):
+            section = profile_block.get(section_name)
+            if isinstance(section, dict):
+                performance.update(section)
+
+        performance.setdefault("max_workers", "auto")
+        performance.setdefault("prefetch_ahead", 1)
+
+        logger.debug(
+            "dispatch config loaded: executor=%s profile=%s section=%s keys=%s",
+            key,
+            profile_name,
+            section_name,
+            sorted(performance),
+        )
+        return performance

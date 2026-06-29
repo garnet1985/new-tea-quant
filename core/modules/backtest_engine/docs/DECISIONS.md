@@ -270,16 +270,40 @@ backtest_scheduler
 
 ## 未来决策（待定）
 
-### 冈策10: ELASTIC模式
+### 决策10: Timeline Probe + Monitor 分工
 
-**状态**：草案，未实现
+**状态**：已采纳（见 [TIMELINE_EXECUTION.md](./TIMELINE_EXECUTION.md)）
 
-**描述**：动态探针调节in-flight窗口
+**描述**：
+
+- Probe：简单可靠的初值 plan（实验 epj + 内存可行 + workers 上限）
+- Monitor：每 N job / M entity 汇总采样，**仅调整 in-flight workers**
+- **entities_per_job 全 run 固定**，Monitor 不得修改
+- 可选 F（sunk）+ m（margin）在 Monitor 窗口内估算，v1 以内存为主调参
+
+---
+
+### 决策11: Timeline 执行管道
+
+**状态**：已采纳
+
+**描述**：
+
+- 新增 `timeline_based/pipeline/execute_pipeline.py`（`TimelineExecutePipeline`）
+- 编排 Planner → Monitor → Executor（进程池 QUEUE 逐步迁入）
+- Tag/Strategy 只提交 jobs，不在业务层做 dispatch/plan
+
+---
+
+### 决策12: ELASTIC 模式（原草案）
+
+**状态**：暂缓；由 Monitor 动态 in-flight 覆盖部分目标
 
 ---
 
 ## 相关文档
 
+- [Timeline 执行规范](./TIMELINE_EXECUTION.md)
 - [架构说明](./ARCHITECTURE.md)
 - [设计细节](./DESIGN.md)
 - [API文档](./API.md)

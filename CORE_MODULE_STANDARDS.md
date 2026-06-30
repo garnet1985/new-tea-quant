@@ -1,7 +1,7 @@
 # NTQ Core Module Standards - 核心模块创建与维护准则
 
-**版本：** 1.0.0
-**最后更新：** 2026-06-26
+**版本：** 1.1.0
+**最后更新：** 2026-06-30
 **适用范围：** 所有 core 目录下的模块
 
 ---
@@ -106,8 +106,37 @@
 
 **实践：**
 - 避免过度抽象（不要为了"灵活性"过度设计）
-- 合理使用缓存（如PathManager的userspace缓存）
-- 性能测试（关键API应该有性能测试）
+- 合理使用缓存（如 PathManager 的 userspace 缓存）
+- 调度参数用 dataclass 在入口一次 `validate()` / `resolve()`，避免 dict 在内部重复校验
+
+---
+
+### **理念7：配置边界清晰**
+
+> 核心模块只定义 base defaults + validate/resolve；业务调优配置归属应用层，用户 settings 不可覆盖运行参数
+
+**原因：**
+- 避免 global worker.json 与模块 settings 多层 merge 导致行为不可预期
+- 性能调优由基准测试得出，不应暴露给用户随意改动
+- engine 入口一次 validate，内部不再散落 `"auto"` 判断
+
+**实践（以 backtest_engine 为参考）：**
+- engine：`EntityBasedPerformance.base()` + 应用方 override → `validate()` → `resolve_for_planning()`
+- 应用层：模块内 `settings/dispatch.yaml`（或等价常量），run 前 load 并传入 `BacktestEngine.run(performance=...)`
+- 用户 settings：只含业务字段（如 `update_mode`、`run_options.dry_run`），**禁止** `settings["performance"]`
+- engine **不**读取 `core/default_config/worker.json` 的 dispatch 段
+- infra 能力（如 `MachineInfo`）直接从 `core.infra.*` 导入，**禁止**在模块内建 re-export 空壳文件
+
+---
+
+### **理念8：进度与可观测性内聚**
+
+> 调度类核心模块在 engine 层统一计算进度；显示开关与计算逻辑分离
+
+**实践：**
+- 进度始终计算（分阶段权重 + execute 单元计数）
+- API 参数如 `enable_progress_display` 仅控制 CMD/日志输出，不影响内部计数
+- slice 等细粒度进度通过 engine 注入的 hook（如 `_engine_on_execute_unit_done`）由 orchestrator 回调，不重复在业务层拼 percent
 
 ---
 
@@ -140,7 +169,8 @@
 | 文件路径 | 文件类型 | 说明 | 检查方式 |
 |---------|---------|------|---------|
 | `__test__/test_api.py` | Python文件 | API契约测试 | 文件存在，包含API测试 |
-| `__test__/test_*.py` | Python文件 | 单元测试 | 文件存在 |
+| `__test__/test_cases.yaml` | YAML文件 | 测试用例注册表（推荐） | case id + scenarios + 对应 test 文件 |
+| `__test__/test_*.py` | Python文件 | 单元测试 | 文件存在，与 test_cases.yaml 对齐 |
 
 ---
 
@@ -228,15 +258,14 @@
 | 文件 | 导出项 | 说明 |
 |------|--------|------|
 | `contracts.py` | dataclass / enum | 如 `JobContext`、`JobReport`、`RunProgress` |
-| `jobs.py` | helper class | 如 `BacktestJob.from_wire` |
-| `probe_registry.py` | registry | 如 `ProbeRegistry` |
-| `config.py` | config reader | 如 `TimelineConfig`、`SliceConfig` |
+| `jobs.py` | helper class | 如 `BacktestJob.from_dict` |
 
 **禁止项：**
 - ❌ 不在 __init__.py 堆叠契约 re-export（难以发现、IDE 跳转差）
 - ❌ 不导出内部实现类（如 `TimelineExecutor`、`SlicePlanner`）
 - ❌ 不导出便捷函数（除非文档明确列为 public API）
 - ❌ 不保留向后兼容 proxy 函数
+- ❌ 不为 infra 类型建 re-export 空壳（如 `machine_info.py` 仅 `from core.infra import X`）— 调用方直接 import infra
 
 ---
 
@@ -291,18 +320,56 @@
 ```python
 # ✅ 推荐：Facade + 根目录契约模块
 from core.modules.backtest_engine import BacktestEngine
-from core.modules.backtest_engine.contracts import JobContext
-from core.modules.backtest_engine.jobs import BacktestJob
+from core.modules.backtest_engine.contracts import JobContext, RunCallbacks
+from core.modules.tag.settings.worker_profile import profile_tag_entity_timeline_config
+from core.modules.backtest_engine.core.shared.performance import resolve_entity_based_performance
 
-result = BacktestEngine.timeline.run(jobs, execute_fn, executor_key="tag")
+result = BacktestEngine.entity_based.run(
+    jobs,
+    execute_fn,
+    performance=resolve_entity_based_performance(profile_tag_entity_timeline_config()),
+    task_name="tag:demo",
+    callbacks=RunCallbacks(on_result=handle_result),
+    enable_progress_display=True,
+)
 
 # ❌ 禁止：跨模块 import 内部路径
 from core.modules.backtest_engine.core.timeline_based.planner import TimelinePlanner
+
+# ❌ 禁止：用户 settings 传入 performance
+settings["performance"] = {"max_workers": 8}
 ```
 
 ---
 
-### **指标11：版本管理规范**
+### **指标14：test_cases.yaml 测试注册表（推荐）**
+
+> 核心模块在 `__test__/test_cases.yaml` 维护测试索引；测试脚本与 case 对齐
+
+**结构：**
+
+```yaml
+cases:
+  - id: 1
+    case: api                    # 大类名
+    description: "公开 API 与 Mode 枚举"
+    file: test_api.py            # 一个 case 对应一个 test 文件（无 file 则仅文档/手工）
+    scenarios:
+      - id: 1
+        name: test_facade_export # 与 pytest 函数名一致
+        description: "..."
+```
+
+**规则：**
+- `id` 为整数，case 内 scenario `id` 从 1 递增
+- 每个 `file` 只出现一次；scenario 在文件内用函数名区分
+- 不测试 infra 职责的模块应删除对应 case（如 MachineInfo 测在 `core/infra`）
+- 集成测试留在业务模块 `__test__`，engine 层保持纯单元测试
+
+**参考：** `core/modules/backtest_engine/__test__/test_cases.yaml`
+
+---
+
 
 > 核心模块版本号更新必须遵循规范
 
@@ -323,17 +390,16 @@ from core.modules.backtest_engine.core.timeline_based.planner import TimelinePla
 
 ### **指标12：代码注释规范**
 
-> 核心模块代码注释必须简洁必要
+> docstring 一句话说明「做什么」；签名/类型已表达的信息不重复；对外契约在 `api.yaml` / `OVERVIEW.md`
 
 **注释规则：**
 
 | 注释类型 | 是否保留 | 说明 |
 |---------|---------|------|
-| 复杂逻辑注释 | ✅ 保留 | 解释复杂算法、特殊处理逻辑 |
-| 冗余注释（Examples） | ❌ 删除 | 示例已在 api.yaml 中提供 |
-| 冗余注释（Args） | ❌ 删除 | 参数说明已在 api.yaml 中提供 |
-| 冗余注释（Returns） | ❌ 删除 | 返回值说明已在 api.yaml 中提供 |
-| 冗余注释（Note） | ❌ 删除 | 注意事项已在文档中说明 |
+| 一行 docstring（做什么） | ✅ 保留 | 公开/内部函数均可 |
+| 复杂逻辑行内注释 | ✅ 保留 | 解释非显而易见的算法或分支 |
+| 冗余 docstring（Args/Returns/Examples） | ❌ 不写 | 类型注解 + `api.yaml` 已覆盖 |
+| 冗余 docstring（Note/使用方式） | ❌ 不写 | 见 `OVERVIEW.md` / 架构文档 |
 
 **示例：**
 ```python
@@ -517,10 +583,9 @@ else:
 | 检查项 | 类型 | 说明 |
 |--------|------|------|
 | ✅ 删除冗余API | 理念 | 不要多个文件提供相同功能的API |
-| ✅ 删除冗余代码 | 理念 | 删除不再使用的代码 |
-| ✅ 收紧核心模块 | 理念 | Facade模式，单一入口点 |
-| ✅ 文件结构完整 | 硬性指标 | 所有必需文件存在 |
-| ✅ 文档更新 | 硬性指标 | 文档反映最新状态 |
+| ✅ test_cases.yaml 对齐（推荐） | 硬性指标 | case/scenario 与 test 函数一致 |
+| ✅ 删除冗余代码 | 理念 | 无 re-export 空壳、无未使用 default/merge 层 |
+| ✅ 文档与代码一致 | 硬性指标 | 不用 backtest_scheduler 等旧模块名 |
 
 ---
 
@@ -535,6 +600,8 @@ else:
    - 版本管理
    - 依赖管理
    - 性能考虑
+   - 配置边界清晰
+   - 进度与可观测性内聚
 
 2. **硬性指标（可自动化检查）**：具体要求，可以自动化检查
    - 文件结构要求
@@ -554,5 +621,7 @@ else:
 
 ---
 
-**最后更新：** 2026-06-26
+**最后更新：** 2026-06-30
 **维护者：** NTQ Team
+
+**模块参考实现：** `core/modules/backtest_engine`（`OVERVIEW.md` + Facade + contracts + `docs/ARCHITECTURE.md` / `docs/DECISIONS.md`）

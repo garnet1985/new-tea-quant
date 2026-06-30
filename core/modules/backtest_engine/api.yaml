@@ -74,8 +74,10 @@ BacktestEngine:
         - ValueError: unknown mode
         - ValueError: job dict 校验失败
       notes: |
-        - 调用方解析 worker.json dispatch 段，经 performance 传入；engine 内置 default 可被覆盖。
+        - 应用方在模块内维护 dispatch 配置（如 dispatch.yaml），run 前 merge engine base defaults 后传入 performance。
+        - engine 不读取 global worker.json；用户 settings 不可传入调度参数。
         - 回调一律经 callbacks=RunCallbacks(...)，不单独暴露 on_* 参数。
+        - enable_progress_display 仅控制 CMD 进度输出；进度始终计算。
         - plan / monitor_stats 经 RunResult 返回。
       example: |
         from core.modules.backtest_engine import BacktestEngine

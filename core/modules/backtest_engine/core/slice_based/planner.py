@@ -26,7 +26,7 @@ from core.infra.machine_capacity import MachineCapacity, MachineInfo
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.modules.backtest_engine.core.shared.types import JobContext
 from core.modules.backtest_engine.core.shared.base_planner import BasePlanner
-from core.modules.backtest_engine.core.slice_based.config import SliceBasedPerformance
+from core.modules.backtest_engine.core.shared.performance import SliceBasedPerformance
 from core.modules.backtest_engine.core.slice_based.monitor import (
     SliceMonitorConfig,
     SliceMonitorPlanSnapshot,

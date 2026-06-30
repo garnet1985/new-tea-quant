@@ -1,6 +1,6 @@
 # New Tea Quant 代码风格规范
 
-> 最后更新：2026-06-26
+> 最后更新：2026-06-30
 > 适用范围：core/infra, core/modules, core/utils
 
 ---
@@ -15,6 +15,7 @@
 - [6. API 契约规范](#6-api-契约规范)
 - [7. 错误处理](#7-错误处理)
 - [8. 测试规范](#8-测试规范)
+  - [8.4 test_cases.yaml 测试注册表](#84-test_casesyaml-测试注册表)
 - [9. 文档规范](#9-文档规范)
 - [10. 导入规范](#10-导入规范)
 - [11. 版本管理规范](#11-版本管理规范)
@@ -508,48 +509,22 @@ from .types import BacktestResult
 
 ### 4.2 类的文档模板
 
+类 docstring 一句话说明职责；只有非显而易见的约束才补充一句。
+
 ```python
 class CalendarService:
-    """
-    日历服务 - 封装交易日相关的查询和缓存
-
-    职责：
-        - 提供交易日查询接口
-        - 缓存交易日历数据
-        - 计算交易日期区间
-
-    使用方式：
-        >>> calendar = CalendarService(data_manager)
-        >>> latest_date = calendar.get_latest_completed_trading_date()
-        >>> is_trading = calendar.is_trading_day("20240101")
-
-    对外 API：
-        - get_latest_completed_trading_date(): 获取最新已完成交易日
-        - is_trading_day(date): 判断是否为交易日
-    """
+    """交易日历查询与缓存。"""
 
     def __init__(self, data_manager: DataManager):
-        """
-        初始化日历服务
-
-        Args:
-            data_manager: 数据管理器实例
-        """
         super().__init__(data_manager)
         self._trade_calendar = data_manager.get_table("sys_trade_calendar")
 
     def get_latest_completed_trading_date(self) -> str:
-        """
-        获取最新已完成交易日
-
-        Returns:
-            交易日期字符串（YYYYMMDD格式）
-
-        Raises:
-            ValueError: 无法获取交易日历时抛出
-        """
+        """返回最新已完成交易日（YYYYMMDD）。"""
         pass
 ```
+
+**不写：** 使用示例、`Args`/`Returns` 复述签名、方法列表（对外 API 见 `api.yaml` / `OVERVIEW.md`）。
 
 ### 4.3 类的构造方式
 
@@ -737,23 +712,7 @@ def fetch_stock_data(
     include_adjusted: bool = True,
     cache_enabled: bool = False,
 ) -> pd.DataFrame:
-    """
-    获取股票数据
-
-    Args:
-        stock_id: 股票代码（如 '000001.SZ'）
-        start_date: 开始日期（YYYYMMDD）
-        end_date: 结束日期（YYYYMMDD）
-        include_adjusted: 是否包含复权数据
-        cache_enabled: 是否启用缓存
-
-    Returns:
-        股票数据 DataFrame，包含 open, high, low, close, volume 列
-
-    Raises:
-        ValueError: 日期格式错误或股票代码无效
-        DataNotFoundError: 数据不存在
-    """
+    """按日期区间拉取股票 K 线（含可选复权）。"""
     pass
 ```
 
@@ -761,7 +720,7 @@ def fetch_stock_data(
 - 必选参数在前，可选参数在后
 - 必选参数后加 `*,` 强制使用关键字参数
 - 类型注解必须完整
-- 文档字符串包含 Args, Returns, Raises
+- docstring 说明「做什么」；签名和类型已表达的信息不必重复
 
 ### 5.2 返回值规范
 
@@ -1181,119 +1140,98 @@ class TestCalendarService:
 - **单元测试**：覆盖所有公开方法
 - **边界测试**：测试边界条件（空值、极值、非法值）
 - **异常测试**：测试所有异常分支
-- **集成测试**：测试模块间交互
+- **集成测试**：测试模块间交互（业务模块 `__test__`；核心模块保持纯单元测试）
+
+### 8.4 test_cases.yaml 测试注册表
+
+核心模块推荐在 `__test__/test_cases.yaml` 维护测试索引，作为 UT 的单一事实来源：
+
+```yaml
+cases:
+  - id: 1
+    case: api
+    description: "公开 API 与 Mode 枚举"
+    file: test_api.py
+    scenarios:
+      - id: 1
+        name: test_facade_export
+        description: "..."
+```
+
+**规则：**
+- 一个 `case` 对应一个大类，通常映射一个 `test_*.py` 文件
+- `scenarios[].name` 与 pytest 函数名一致
+- 无对应 test 文件的 case 可不写 `file`（仅文档/手工 case）
+- 不要测其他层职责（如 `MachineInfo` 属于 `core/infra`，不应出现在 engine 的 case 里）
+
+**参考：** `core/modules/backtest_engine/__test__/test_cases.yaml`
 
 ---
 
-## 9. 文档规范
+## 8A. 调度模块：performance 与 dispatch 配置
 
-### 9.1 文档字符串格式
+适用于 `backtest_engine` 及类似调度 Facade。
 
-使用 Google 风格的文档字符串：
+| 层级 | 职责 | 示例 |
+|------|------|------|
+| Engine | base defaults + dataclass validate/resolve | `EntityBasedPerformance.base().merge(...).validate()` |
+| 应用模块 | 性能基准调优配置（用户不可改） | `tag/settings/dispatch.yaml` |
+| 用户 settings | 业务字段 only | `update_mode`、`run_options.dry_run` |
+
+**禁止：**
+- `settings["performance"]` 传入 engine
+- engine 读取 global `worker.json` dispatch 段
+- 模块内 re-export infra 空壳（`from core.infra.x import Y` 单独成文件）
+
+**进度：**
+- engine 内统一计算；`enable_progress_display` 只控制 CMD 输出
+- slice 细粒度 unit 通过 payload hook 回调 engine reporter
+
+---
+
+
+### 9.1 文档字符串
+
+**原则：** 说清楚「做什么」即可。函数名、参数名、类型注解、返回值类型已经表达的信息，不要在 docstring 里再写一遍。
+
+| 写 | 不写 |
+|----|------|
+| 一句话职责 / 行为 | `Args` / `Returns` 复述签名 |
+| 非显而易见的约束、算法要点 | `Examples` / 用法示例 |
+| 仅在异常含义不直观时写 `Raises` | 对外 API 的完整契约（见 `api.yaml`） |
 
 ```python
-def calculate_return(
-    prices: pd.Series,
-    method: str = "simple"
-) -> pd.Series:
-    """
-    计算收益率
+def calculate_return(prices: pd.Series, method: str = "simple") -> pd.Series:
+    """计算收益率序列（支持 simple / log）。"""
+    pass
 
-    支持简单收益率和对数收益率两种计算方法。
 
-    Args:
-        prices: 价格序列（必须为正数）
-        method: 计算方法，可选 'simple' 或 'log'
-            - 'simple': 简单收益率 = (P_t - P_{t-1}) / P_{t-1}
-            - 'log': 对数收益率 = ln(P_t / P_{t-1})
-
-    Returns:
-        收益率序列，第一个值为 NaN
-
-    Raises:
-        ValueError: prices 包含非正数或 method 参数无效
-
-    Examples:
-        >>> prices = pd.Series([100, 105, 103])
-        >>> returns = calculate_return(prices)
-        >>> returns[1]
-        0.05
-
-        >>> returns = calculate_return(prices, method='log')
-        >>> round(returns[1], 4)
-        0.0488
-    """
+def resolve_for_planning(performance: dict, capacity: MachineCapacity) -> dict:
+    """将 performance 中的 auto 字段解析为具体数值，供 planner 使用。"""
     pass
 ```
 
-### 9.2 类文档模板
+内部实现函数：同上，保持简短。**不要**在代码里写 usage example。
+
+### 9.2 类文档
+
+与函数相同：类 docstring 一句话说明职责；公开 Facade 的用法与参数见 `api.yaml`、模块 `OVERVIEW.md`。
 
 ```python
 class BacktestEngine:
-    """
-    回测引擎 - 执行策略回测的核心组件
+    """回测调度 Facade：entity_based / slice_based 两种执行模式。"""
 
-    职责：
-        - 加载历史数据
-        - 执行交易策略
-        - 计算绩效指标
-        - 生成回测报告
-
-    使用方式：
-        >>> config = BacktestConfig(...)
-        >>> engine = BacktestEngine(config)
-        >>> result = engine.run(strategy)
-        >>> report = engine.generate_report()
-
-    对外 API：
-        - run(strategy): 执行回测
-        - generate_report(): 生成报告
-        - get_performance(): 获取绩效指标
-
-    注意：
-        - 单线程执行，不支持并发
-        - 需要先调用 initialize() 方法
-    """
-
-    def __init__(self, config: BacktestConfig):
-        """
-        初始化回测引擎
-
-        Args:
-            config: 回测配置对象
-
-        Raises:
-            ConfigurationError: 配置参数无效
-        """
-        pass
+    @staticmethod
+    def run(mode: str, jobs: list, execute_fn: ExecuteFn, **kwargs) -> RunResult:
+        """按 mode 分发到 entity_based 或 slice_based pipeline。"""
+        ...
 ```
 
 ### 9.3 模块文档
 
-每个模块根目录应包含 `README.md`：
+**核心模块（`core/modules/*`）：** 根目录 `OVERVIEW.md`（使用者入门）+ `docs/ARCHITECTURE.md` / `docs/DECISIONS.md` + `api.yaml`。不强制 `README.md`。
 
-```markdown
-# Calendar Service
-
-## 概述
-日历服务提供交易日历相关功能。
-
-## 主要功能
-- 获取最新交易日
-- 判断交易日
-- 计算交易日区间
-
-## 使用示例
-```python
-from core.modules.data_manager.data_services.calendar import CalendarService
-
-calendar = CalendarService(data_manager)
-latest_date = calendar.get_latest_completed_trading_date()
-```
-
-## API 文档
-详见 [API.md](./docs/API.md)
-```
+**其他模块：** 可按需保留简短 `README.md` 或 `OVERVIEW.md`，指向 `api.yaml`。
 
 ---
 
@@ -1324,6 +1262,16 @@ latest_date = calendar.get_latest_completed_trading_date()
 
    # ❌ 避免：顶层导入不常用的库
    import pandas as pd  # 如果模块大部分函数不需要
+   ```
+
+4. **禁止 re-export 空壳**
+   ```python
+   # ✅ 直接使用 infra
+   from core.infra.machine_capacity import MachineInfo
+
+   # ❌ 模块内仅做转发的空壳文件
+   # core/modules/foo/core/shared/machine_info.py
+   from core.infra.machine_capacity import MachineInfo  # 仅此一行 — 应删除，调用方直引 infra
    ```
 
 ### 10.2 导入顺序示例
@@ -1379,9 +1327,9 @@ logger = logging.getLogger(__name__)
 - [ ] 函数长度不超过 50 行（复杂逻辑除外）
 
 ### 文档
-- [ ] 类和公开方法有文档字符串
-- [ ] 文档字符串包含 Args, Returns, Raises
-- [ ] 复杂逻辑有注释说明
+- [ ] 公开类/方法有一句 docstring（说明做什么，不重复签名）
+- [ ] 不在代码里写 Examples；对外契约在 `api.yaml`
+- [ ] 复杂逻辑有行内/块注释说明
 
 ### 测试
 - [ ] 单元测试覆盖公开方法
@@ -1546,13 +1494,14 @@ def find_file(filename: str) -> Path:
 
 | 文档位置 | 内容 | 示例 |
 |---------|------|------|
-| `api.yaml` | API签名、参数、返回值、异常、示例 | 完整的API契约 |
-| `docs/API.md` | 使用说明、最佳实践 | 详细使用文档 |
-| `代码注释` | 复杂逻辑、模块/类/函数简短说明 | 必要的补充说明 |
+| `api.yaml` | 对外 API：签名、参数、返回值、异常、示例 | Facade 契约 |
+| `OVERVIEW.md` | 使用者快速入门 | 集成示例、边界说明 |
+| `docs/ARCHITECTURE.md` | 架构与目录 | 维护者 |
+| 代码 docstring | 一句话说明做什么；非显而易见的行为 | 内部 helper |
 
 **避免重复：**
-- ❌ 不要在代码注释中重复 api.yaml 内容
-- ❌ 不要在代码注释中重复文档内容
-- ✅ 代码注释只补充复杂逻辑和简短说明
+- ❌ docstring 里写 `Args`/`Returns`/`Examples` 复述签名或 `api.yaml`
+- ✅ 类型注解 + 命名自解释时，docstring 可仅一行
+- ✅ 行内注释只解释复杂逻辑
 
 ---

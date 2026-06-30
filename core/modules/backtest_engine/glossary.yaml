@@ -38,9 +38,9 @@ terms:
     avoid: ["wire"]
 
   performance:
-    definition: "调度配置 dict；调用方传入，覆盖 engine default"
+    definition: "调度配置 dict；应用方 dispatch 配置 merge engine base 后传入；用户 settings 不可覆盖"
     aliases: ["dispatch performance"]
-    avoid: ["executor_key", "tag settings 全量"]
+    avoid: ["settings.performance", "global worker.json", "executor_key"]
 
   task_name:
     definition: "单次 run 展示/追踪名 → JobContext"

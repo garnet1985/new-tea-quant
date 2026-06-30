@@ -1,309 +1,144 @@
-# Backtest Scheduler 设计决策
+# Backtest Engine — 设计决策
 
-**版本：** `0.1.0`
+**模块：** `modules.backtest_engine` · **版本：** 0.3.0
 
----
-
-## 决策1: 模块定位
-
-### 问题
-
-调度器应该放在infra层还是modules层？
-
-### 决策
-
-放在modules层（业务调度层）
-
-### 理由
-
-1. **理解业务语义**
-   - 理解回测语义（时间线/切片）
-   - 不理解通用执行语义
-   - 属于业务层，不是基础设施层
-
-2. **职责归属**
-   - infra应该提供纯执行能力（ProcessPoolExecutor）
-   - modules应该提供业务调度能力
-   - 职责清晰，不混淆
-
-3. **Python标准库足够**
-   - ProcessPoolExecutor足够好
-   - 不需要自定义包装
-   - 降低复杂度
+本文档记录**当前有效**的设计决策。API 与行为以 `api.yaml` 为准。
 
 ---
 
-## 冈策2: 废弃worker模块
+## 1. 模块定位：业务调度 Facade
 
-### 问题
+**决策：** 放在 `modules` 层，作为 tag/strategy 共用的回测调度 Facade，不是 infra 通用执行器。
 
-worker模块是否还需要保留？
-
-### 决策
-
-废弃worker模块（多进程部分）
-
-### 理由
-
-1. **ProcessWorker.run_jobs已废弃**
-   - 功能迁移到JobPipeline
-   - 不需要自定义包装
-   - Python标准库足够
-
-2. **Dispatch规划迁移**
-   - resolve_dispatch_plan理解回测语义
-   - 应该在backtest_scheduler（modules层）
-   - 不属于infra层
-
-3. **类型定义迁移**
-   - JobResult/JobStatus是回测结果类型
-   - 应该在backtest_scheduler
-   - 不属于infra层
+**理由：**
+- 理解回测 job 形状、probe/plan、entity vs slice 编排差异
+- infra 提供机器容量、DuckDB scope 等基础能力；engine 组合它们为回测专用流水线
 
 ---
 
-## 冈策3: 调度逻辑分离
+## 2. 两种执行模式
 
-### 问题
+**决策：** 公开 API 仅 `entity_based` 与 `slice_based`。
 
-backtest_scheduler和data_source scheduler是否应该合并？
+| 模式 | 并行模型 | 何时选用 |
+|------|----------|----------|
+| entity_based | 外层 `ProcessPoolExecutor`，每 batch 调 `execute_fn` | entity 间无 slice 内 cross-entity 编排 |
+| slice_based | 主进程 `execute_fn` + 内部 reader/compute orchestrator | slice 内多 entity 管道交互 |
 
-### 冈策
+**理由：** 模式差异本质是「是否在 slice 边界内做编排」；slice 模式不能包一层 daemon ProcessPool（子进程无法再 fork orchestrator）。
 
-不合并，各自独立
-
-### 理由
-
-1. **调度逻辑完全不同**
-
-| 特性 | backtest_scheduler | data_source scheduler |
-|------|-------------------|----------------------|
-| 执行顺序 | 时间线/切片 | 依赖拓扑排序 |
-| 并行策略 | Queue/Batch | bundle并行 |
-| 执行池 | ProcessPoolExecutor | ThreadPoolExecutor |
-| 特殊逻辑 | Dispatch规划 | retry、依赖注入 |
-
-2. **强行合并导致耦合**
-   - scheduler既理解回测语义，又理解数据源语义
-   - 职责不清，维护困难
-
-3. **各自优化**
-   - backtest：时间线/切片优化
-   - data_source：依赖拓扑优化
-   - 不互相干扰
+内部包 `timeline_based` 对应 `entity_based`，命名保留仅为目录稳定，对外只用新术语。
 
 ---
 
-## 冈策4: Python标准库优先
+## 3. Facade + contracts 边界
 
-### 问题
+**决策：**
+- 根目录 `BacktestEngine` 为唯一调度入口
+- 跨模块类型从 `contracts.py` 导入
+- 不 export planner/executor；业务不 import `core/` 内部路径
 
-是否需要自定义ProcessExecutor包装？
-
-### 冈策
-
-不需要，直接用ProcessPoolExecutor
-
-### 理由
-
-1. **ProcessPoolExecutor足够好**
-   - Python 3.2+标准库
-   - 提供submit、shutdown、Future等
-   - 不需要重复造轮子
-
-2. **降低复杂度**
-   - 不维护自定义包装
-   - 减少bug风险
-   - 易于理解
-
-3. **调度逻辑在上层**
-   - BacktestScheduler负责调度策略
-   - ProcessPoolExecutor负责执行
-   - 职责清晰
+**理由：** 收紧 API，避免多入口与实现细节泄漏。
 
 ---
 
-## 冈策5: Dispatch规划位置
+## 4. 业务提供 execute_fn，engine 提供 probe
 
-### 问题
+**决策：** 同一 `execute_fn` 用于 probe 试跑与正式执行；无独立 ProbeRegistry。
 
-resolve_dispatch_plan应该在哪里？
-
-### 冈策
-
-放在modules.backtest_scheduler
-
-### 理由
-
-1. **理解回测语义**
-   - entities_per_job：回测entity数量
-   - dispatch_jobs：回测job数量
-   - 理解回测业务逻辑
-
-2. **不属于infra**
-   - infra应该提供通用基础设施
-   - Dispatch规划是业务优化逻辑
-   - 应该在modules层
-
-3. **使用模块一致**
-   - strategy使用resolve_dispatch_plan
-   - tag使用resolve_dispatch_plan
-   - 都是回测模块，应该在backtest_scheduler
+**理由：** 探针测的是真实 worker 路径；调用方最清楚如何执行 job。
 
 ---
 
-## 冈策6: MQ迁移路径
+## 5. Job 契约：id + payload
 
-### 问题
+**决策：** 所有 job 为 `{"id": str, "payload": dict}`；`BacktestJob.validate_many(..., mode=...)` 在 run 前 fail-fast。
 
-如何设计MQ迁移路径？
-
-### 冈策
-
-不需要抽象接口层，直接替换实现
-
-### 理由
-
-1. **MQ本身有调度能力**
-   - RabbitMQ/Kafka提供队列、回调
-   - 不需要中间抽象层
-   - 减少复杂度
-
-2. **迁移成本低**
-   - 业务代码改2行即可
-   - 不重构架构
-   - 易于实施
-
-3. **符合实际需求**
-   - 当前用户：轻量级（ProcessPoolExecutor）
-   - 未来用户：MQ分布式
-   - 不需要兼容层
+**理由：**  envelope 统一，payload 按 mode 区分最小字段集（entity 键 vs open_dates + bulk entities）。
 
 ---
 
-## 冈策7: QUEUE vs BATCH
+## 6. performance 配置边界
 
-### 问题
+**决策：**
+- engine 提供 `EntityBasedPerformance.base()` / `SliceBasedPerformance.base()`，入口 `validate` + `resolve`
+- 应用模块维护 `settings/dispatch.yaml`（性能基准，用户不可改）
+- engine **不读** global `worker.json` dispatch 段
+- 用户 settings **禁止** `performance` 字段；业务项用 `update_mode`、`run_options` 等
 
-默认调度策略是什么？
-
-### 冈策
-
-QUEUE是默认，BATCH可选
-
-### 理由
-
-1. **QUEUE优势**
-   - 低延迟（完成即补）
-   - 高吞吐（持续填池）
-   - 适合大多数场景
-
-2. **BATCH适用场景**
-   - 内存敏感（峰值控制）
-   - checkpoint需求（批间持久化）
-   - 特殊优化场景
-
-3. **可配置**
-   - worker.json可配置execute_mode
-   - 用户可选择
-   - 不硬编码
+**理由：** 消除多层 merge 与用户误配；调优权在模块维护者，不由 end user 覆盖。
 
 ---
 
-## 冈策8: Dispatch规划算法
+## 7. RunCallbacks 聚合钩子
 
-### 问题
+**决策：** `run(..., callbacks=RunCallbacks(on_result=..., on_release=...))`；不在 `run` 签名上平铺 `on_*`。
 
-entities_per_job如何计算？
-
-### 冈策
-
-实验优化 + 动态规划
-
-### 理由
-
-1. **实验数据驱动**
-   - entities_per_job ∈ [5, 50]
-   - 基于真实回测实验（5596股票）
-   - 提升20%效率
-
-2. **动态规划**
-   - 有measured_mb_per_entity：budget / mb_per_entity
-   - 无：启发式规则（5）
-   - 自动适应
-
-3. **约束控制**
-   - memory_floor_mb保底（1GB）
-   - worker_memory_fraction占比（0.85）
-   - 内存安全
+**理由：** 扩展回调不破坏 Facade 签名；`on_release` 仅 entity_based batch 释放时使用。
 
 ---
 
-## 冈策9: 模块命名
+## 8. entity_based：QUEUE 填池 + ProcessPool
 
-### 问题
+**决策：** 默认 QUEUE（完成 1 补 1）；`max_workers` / `entities_per_job` 由 plan 决定，Monitor 可调 in-flight 上限。
 
-模块叫backtest还是backtest_scheduler？
-
-### 冈策
-
-backtest_scheduler
-
-### 理由
-
-1. **职责明确**
-   - scheduler表达调度职责
-   - 不是pipeline（更底层）
-   - 不是engine（执行）
-   - 不是worker（执行者）
-
-2. **不止回测用**
-   - 未来可能有其他调度模块
-   - scheduler是通用概念
-   - backtest_scheduler是特化
-
-3. **命名清晰**
-   - 一看就知道是调度器
-   - 不混淆
+**理由：** 吞吐与内存平衡；BATCH/ELASTIC 未作为当前公开路径。
 
 ---
 
-## 未来决策（待定）
+## 9. Probe 与 Monitor 分工（entity_based）
 
-### 决策10: Timeline Probe + Monitor 分工
+**决策：**
+- **Probe**：小样本试跑，得到 epj / 内存相关初值
+- **Monitor**：运行期采样，主要调整 admission / in-flight；**entities_per_job 全 run 固定**
 
-**状态**：已采纳（见 [TIMELINE_EXECUTION.md](./TIMELINE_EXECUTION.md)）
-
-**描述**：
-
-- Probe：简单可靠的初值 plan（实验 epj + 内存可行 + workers 上限）
-- Monitor：每 N job / M entity 汇总采样，**仅调整 in-flight workers**
-- **entities_per_job 全 run 固定**，Monitor 不得修改
-- 可选 F（sunk）+ m（margin）在 Monitor 窗口内估算，v1 以内存为主调参
+**理由：** 规划与运行时反馈分离，避免 run 中频繁改 batch 形状。
 
 ---
 
-### 决策11: Timeline 执行管道
+## 10. slice 进度 hook
 
-**状态**：已采纳
+**决策：** slice 细粒度进度由 engine 注入 `_engine_on_execute_unit_done`；tag/strategy orchestrator 每 slice 回调，engine 统一算 percent 与 CMD 输出。
 
-**描述**：
-
-- 新增 `timeline_based/pipeline/execute_pipeline.py`（`TimelineExecutePipeline`）
-- 编排 Planner → Monitor → Executor（进程池 QUEUE 逐步迁入）
-- Tag/Strategy 只提交 jobs，不在业务层做 dispatch/plan
+**理由：** slice 循环在 `execute_fn` 内部，engine 外层只有 bulk job 粒度；hook 保持 engine 拥有进度算法。
 
 ---
 
-### 决策12: ELASTIC 模式（原草案）
+## 11. 进度：始终计算，display 可关
 
-**状态**：暂缓；由 Monitor 动态 in-flight 覆盖部分目标
+**决策：** `enable_progress_display` 只控制 CMD 日志；四阶段权重 5/10/80/5 始终生效。
+
+**理由：** 后续可接 UI/回调 sink，不与「是否打印」绑定。
+
+---
+
+## 12. MachineInfo 归属 infra
+
+**决策：** 内存/CPU 解析使用 `core.infra.machine_capacity`；engine 内不保留 re-export 空壳。
+
+**理由：** 机器容量是 infra 能力；engine 只消费 `get_capacity` / `worker_pool_budget_mb`。
+
+---
+
+## 13. 与 data_source 调度分离
+
+**决策：** 不合并 data_source 的依赖拓扑调度与 backtest engine。
+
+**理由：** 执行顺序、并行策略、资源模型均不同；各自独立模块更清晰。
+
+---
+
+## 14. 测试：test_cases.yaml
+
+**决策：** `__test__/test_cases.yaml` 为 UT 索引；一个 case 大类对应一个 test 文件，scenario 对齐 pytest 函数名。
+
+**理由：** 用例可追溯；engine 层不测 infra 职责（如 MachineInfo 单测在 infra）。
 
 ---
 
 ## 相关文档
 
-- [Timeline 执行规范](./TIMELINE_EXECUTION.md)
-- [架构说明](./ARCHITECTURE.md)
-- [设计细节](./DESIGN.md)
-- [API文档](./API.md)
+- [OVERVIEW.md](../OVERVIEW.md)
+- [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [api.yaml](../api.yaml)
+- [glossary.yaml](../glossary.yaml)

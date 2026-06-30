@@ -1,7 +1,7 @@
 name: modules.backtest_engine
 version: 0.3.0
 compatible_core_versions: ">=0.4.0"
-description: "回测引擎：统一处理timeline和sliced两种回测机制，管理Worker生命周期钩子。"
+description: "回测引擎：entity_based / slice_based 两种调度模式（probe → plan → execute → monitor）"
 dependencies:
   - infra.project_context
 changelog:
@@ -9,7 +9,8 @@ changelog:
     changes:
       - 模式更名：entity_based / slice_based（timeline/sliced 为迁移别名）
       - RunCallbacks 聚合 on_*；parameters 区分 positional / keyword_only
-      - 实现迁移分步进行（0.2.x facade 仍可用至迁移完成）
+      - performance dataclass、dispatch.yaml 应用层配置、RunProgressReporter
+      - 文档：OVERVIEW.md + docs/ARCHITECTURE.md / docs/DECISIONS.md（现状）
   - version: "0.2.0"
     changes:
       - 模块标准化：glossary.yaml、api.yaml 对齐实际 Facade API

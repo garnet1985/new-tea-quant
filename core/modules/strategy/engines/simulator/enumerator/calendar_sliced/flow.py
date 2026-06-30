@@ -95,7 +95,7 @@ class CalendarSlicedEnumeratorFlow(BaseEnumeratorFlow):
         calendar_dict = calendar_ctx.to_dict()
         ensure_data_manager_restored(data_mgr)
 
-        resolved_workers = self._impl.resolve_runtime_workers()
+        resolved_workers = int(self.max_workers) if isinstance(self.max_workers, int) else 0
         jobs = self._impl.build_jobs(
             strategy_name=probe.strategy_name,
             settings_payload=probe.settings_payload,

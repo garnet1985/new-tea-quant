@@ -41,7 +41,7 @@ def test_sanitize_removes_secrets_and_cache(tmp_path: Path):
     )
     _write(root / "system/db/data.duckdb", "db")
     _write(root / "extensions/data_source/handlers/adj_factor_event/adj_factor_events_2025Q4.csv", "a,b")
-    _write(root / "strategies/demo/strategy_worker.py", "pass")
+    _write(root / "strategies/demo/strategy.py", "pass")
 
     notes = _sanitize_init_userspace(root)
 

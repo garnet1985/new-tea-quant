@@ -1,5 +1,6 @@
 """价格 JobPipeline 辅助函数。"""
 from core.modules.strategy.services.execution.price_job_pipeline import (
+    _merge_price_factor_batch,
     build_price_factor_payload,
     workbench_disk_progress,
 )
@@ -32,6 +33,38 @@ def test_build_price_factor_payload_batch():
     assert payload["job_id"] == "price_0"
     assert len(payload["stock_jobs"]) == 2
     assert payload["stock_ids"] == ["000001.SZ", "000002.SZ"]
+
+
+def test_merge_price_factor_batch_unwraps_backtest_engine_jobs():
+    merged = _merge_price_factor_batch(
+        [
+            {
+                "id": "000001.SZ",
+                "payload": {
+                    "stock_id": "000001.SZ",
+                    "strategy_name": "demo",
+                    "opportunities_path": "/tmp/o1.csv",
+                    "targets_path": "/tmp/t1.csv",
+                    "output_version_dir": "/tmp/out",
+                    "config": {"k": 1},
+                },
+            },
+            {
+                "id": "000002.SZ",
+                "payload": {
+                    "stock_id": "000002.SZ",
+                    "strategy_name": "demo",
+                    "opportunities_path": "/tmp/o2.csv",
+                    "targets_path": "/tmp/t2.csv",
+                    "output_version_dir": "/tmp/out",
+                    "config": {"k": 1},
+                },
+            },
+        ],
+        "batch_0",
+    )
+    assert len(merged["stock_jobs"]) == 2
+    assert merged["stock_ids"] == ["000001.SZ", "000002.SZ"]
 
 
 def test_workbench_disk_progress_mapping():

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-运行 Tag 场景（TagManager + JobPipeline）。
+运行 Tag 场景（TagManager + BacktestEngine）。
 
 用法（仓库根目录）::
 
@@ -53,7 +53,7 @@ def main(argv: list[str] | None = None) -> int:
         "-v",
         "--verbose",
         action="store_true",
-        help="输出 INFO 日志（含 JobPipeline 进度）",
+        help="输出 INFO 日志（含 BacktestEngine 进度）",
     )
     parser.add_argument(
         "--execute-mode",
@@ -75,7 +75,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--profile",
         action="store_true",
-        help="启用 TagRunProfile（等同 performance.profile / NTQ_TAG_PROFILE）",
+        help="启用性能 profile（BacktestEngine monitor / performance.profile / NTQ_TAG_PROFILE）",
     )
     parser.add_argument(
         "--entities-per-job",

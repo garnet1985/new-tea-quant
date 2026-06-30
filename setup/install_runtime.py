@@ -144,6 +144,25 @@ _PROFILES: Dict[InstallProfileName, _ProfileSpec] = {
 }
 
 
+def cli_install_scope() -> Literal["full", "deps_only", "none"]:
+    """
+    CLI 安装范围：已就绪环境仅 requirements.txt 变更时，只刷新依赖，不重跑 init/import。
+    """
+    if not needs_install("cli"):
+        return "none"
+
+    state = load_state()
+    if (
+        state
+        and state.get("coreVersion") == system_meta.version
+        and userspace_ready()
+        and _runtime_status(state, "cli") == "success"
+        and _cli_extra_needs(state)
+    ):
+        return "deps_only"
+    return "full"
+
+
 def needs_install(profile: InstallProfileName) -> bool:
     """
     UI / CLI 共用判断顺序（完全一致）：

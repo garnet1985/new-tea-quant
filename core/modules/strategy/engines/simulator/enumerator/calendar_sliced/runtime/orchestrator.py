@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
 
 
 class CalendarSliceProcessOrchestrator:
-    """JobPipeline 子进程内：spawn Reader + Compute，Runtime Planner 调度 preload。"""
+    """BacktestEngine sliced execute_fn 内：spawn Reader + Compute，Runtime Planner 调度 preload。"""
 
     def __init__(self, job_payload: Dict[str, Any]):
         self.job_payload = job_payload
@@ -97,6 +97,10 @@ class CalendarSliceProcessOrchestrator:
             total=plan.calendar_progress_total,
         )
         slices = plan_calendar_slices(open_dates, plan.slice_open_days)
+        if self.job_payload.get("_slice_probe"):
+            max_slices = self.job_payload.get("_probe_max_slices")
+            if max_slices is not None:
+                slices = slices[: max(1, int(max_slices))]
         if not slices:
             return self._finish_bulk(success=True, stock_results=[])
 
@@ -274,6 +278,11 @@ class CalendarSliceProcessOrchestrator:
                 done_msg.slice_id,
                 plan.current_preload_depth,
             )
+            from core.modules.backtest_engine.core.shared.progress import (
+                report_execute_unit_from_context,
+            )
+
+            report_execute_unit_from_context(self.job_payload, i + 1)
 
         logger.info("[calendar_slice] all slices done, finalizing results…")
         self._signal_shutdown(

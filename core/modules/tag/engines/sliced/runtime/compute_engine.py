@@ -59,25 +59,35 @@ class TagSliceComputeEngine:
         self._worker_class = self._resolve_worker_class(job_payload)
         self._uses_calendar_asof = worker_uses_calendar_asof(self._worker_class)
         self._carry: Dict[str, Any] = {}
-        self._all_tag_values: List[Dict[str, Any]] = []
+        self._slice_tag_values: List[Dict[str, Any]] = []
+        self._total_tag_count = 0
         self._errors: List[str] = []
         self._open_dates_all: Tuple[str, ...] = self._resolve_all_open_dates()
 
-    def run_slice(self, payload: SlicePayload) -> None:
+    def run_slice(self, payload: SlicePayload) -> List[Dict[str, Any]]:
+        """计算单个 calendar slice，返回本 slice 产出的 tag_values（不保留在引擎内）。"""
+        self._slice_tag_values.clear()
         if self._uses_calendar_asof:
             self._run_slice_calendar_asof(payload)
-            return
-        self._run_slice_per_entity(payload)
+        else:
+            self._run_slice_per_entity(payload)
+        return self._drain_slice_tag_values()
 
     def finalize_all(self) -> Dict[str, Any]:
         return {
             "success": not self._errors,
-            "tag_values": list(self._all_tag_values),
-            "total_tags": len(self._all_tag_values),
+            "tag_values": [],
+            "total_tags": self._total_tag_count,
             "errors": list(self._errors),
             "entity_count": len(self.entity_ids),
             "carry": dict(self._carry),
         }
+
+    def _drain_slice_tag_values(self) -> List[Dict[str, Any]]:
+        drained = list(self._slice_tag_values)
+        self._slice_tag_values.clear()
+        self._total_tag_count += len(drained)
+        return drained
 
     def _run_slice_per_entity(self, payload: SlicePayload) -> None:
         by_entity = (payload.batch_transfer or {}).get("by_entity") or {}
@@ -103,7 +113,7 @@ class TagSliceComputeEngine:
                     self._errors.append(
                         f"entity_id={eid} slice={payload.slice_id}: compute failed"
                     )
-                self._all_tag_values.extend(result.get("tag_values") or [])
+                self._slice_tag_values.extend(result.get("tag_values") or [])
                 self._errors.extend(result.get("errors") or [])
             except Exception as exc:
                 msg = f"entity_id={eid} slice={payload.slice_id}: {exc}"
@@ -177,7 +187,7 @@ class TagSliceComputeEngine:
                     continue
                 if "value" not in item:
                     continue
-                self._all_tag_values.append(
+                self._slice_tag_values.append(
                     {
                         "entity_id": eid_s,
                         "entity_type": self._entity_type,

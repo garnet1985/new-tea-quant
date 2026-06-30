@@ -28,7 +28,18 @@ def userspace_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     strategy = us / "strategies" / "demo"
     strategy.mkdir(parents=True)
     (strategy / "settings.py").write_text('settings = {"name": "demo"}\n', encoding="utf-8")
-    (strategy / "strategy_worker.py").write_text("class W: pass\n", encoding="utf-8")
+    (strategy / "strategy.py").write_text(
+        "\n".join(
+            [
+                "from core.modules.strategy.hooks import StrategyHooks",
+                "class W(StrategyHooks):",
+                "    def scan_opportunity(self, ctx):",
+                "        return None",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
 
     monkeypatch.setattr(PathManager, "get_userspace_root", staticmethod(lambda: us))
     monkeypatch.setattr(PathManager, "get_strategies_root", staticmethod(lambda: us / "strategies"))

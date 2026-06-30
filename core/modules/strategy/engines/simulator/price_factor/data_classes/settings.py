@@ -8,7 +8,9 @@ import logging
 from typing import Any, Dict
 from typing import TYPE_CHECKING
 
-from core.infra.job_pipeline.profile.constants import DEFAULT_PRICE_ENTITIES_PER_JOB
+from core.modules.strategy.engines.shared.worker_settings_keys import (
+    DEFAULT_PRICE_ENTITIES_PER_JOB,
+)
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.settings_base import (
     SettingsBase,
     ValidationReport,
@@ -46,7 +48,7 @@ class StrategyPriceSimulatorSettings(SettingsBase):
         self.price_simulator.setdefault("base_version", "latest")
 
     def validate(self) -> ValidationReport:
-        from core.infra.job_pipeline.profile.constants import (
+        from core.modules.strategy.engines.shared.worker_settings_keys import (
             PRICE_STRATEGY_DISPATCH_KEYS,
         )
 
@@ -70,7 +72,7 @@ class StrategyPriceSimulatorSettings(SettingsBase):
         return result
 
     def to_dict(self) -> Dict[str, Any]:
-        from core.infra.job_pipeline.profile.constants import (
+        from core.modules.strategy.engines.shared.worker_settings_keys import (
             PRICE_STRATEGY_DISPATCH_KEYS,
         )
 

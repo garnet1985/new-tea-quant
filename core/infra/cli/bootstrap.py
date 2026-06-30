@@ -54,14 +54,18 @@ def ensure_app_installed_if_needed() -> None:
         return
 
     try:
-        from setup.install_runtime import needs_install
+        from setup.install_runtime import cli_install_scope, needs_install
     except ModuleNotFoundError:
         return
 
     if not needs_install("cli"):
         return
 
-    print("检测到应用尚未完成安装，正在运行 install.py …", flush=True)
+    scope = cli_install_scope()
+    if scope == "deps_only":
+        print("检测到 requirements.txt 变更，正在更新依赖 …", flush=True)
+    else:
+        print("检测到应用尚未完成安装，正在运行 install.py …", flush=True)
     from setup.cli_runtime import ensure_cli_install_via_install_py
 
     code = ensure_cli_install_via_install_py()

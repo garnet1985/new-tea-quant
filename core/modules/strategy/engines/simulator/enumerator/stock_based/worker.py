@@ -36,10 +36,9 @@ from core.modules.strategy.engines.shared.helpers.simulation_pricing import (
     trade_price_defers_to_next_session,
     trade_theoretical_price_same_day,
 )
-from core.modules.strategy.engines.shared.helpers.strategy_runtime import resolve_worker_class
+from core.modules.strategy.hooks import StrategyHookRuntime, entity_context, scan_context
 from core.modules.indicator import IndicatorService
 from core.modules.strategy.engines.shared.performance_profiler import PerformanceProfiler
-from core.modules.strategy.enums import ExecutionMode
 from core.modules.strategy.engines.shared.data_classes.investment_state import (
     InvestmentLifecycle,
     ScanSignalPhase,
@@ -155,27 +154,27 @@ class StockBasedEnumeratorWorker:
                 )
         return fallback
 
-    def _load_user_strategy(self):
-        strategy_class = resolve_worker_class(
-            self.strategy_name,
-            worker_module_path=self.job_payload.get("worker_module_path"),
-            worker_class_name=self.job_payload.get("worker_class_name"),
-            worker_file_path=str(self.job_payload.get("worker_file_path") or ""),
+    def _load_user_strategy(self) -> None:
+        self.hook_runtime = StrategyHookRuntime.from_job_payload(
+            self.job_payload,
+            settings=self.settings,
         )
-        self.strategy_instance = strategy_class(
-            {
-                "stock_id": self.stock_id,
-                "execution_mode": ExecutionMode.SCAN.value,
-                "strategy_name": self.strategy_name,
-                "settings": self.settings_dict,
-            }
+
+    def _invoke_entity_init(self) -> None:
+        ctx = entity_context(
+            strategy_name=self.strategy_name,
+            settings=self.settings,
+            stock_id=self.stock_id,
+            job_payload=self.job_payload,
+            stock_info=self.stock_info,
+            data_manager=self.data_manager,
         )
-        if hasattr(self.strategy_instance, "stock_info"):
-            self.strategy_instance.stock_info = self.stock_info
+        self.hook_runtime.call("on_entity_init", ctx)
 
     def run(self) -> Dict[str, Any]:
         _warmup_indicator_runtime_once()
         self.profiler.start_timer("total")
+        self._invoke_entity_init()
         try:
             # step1: prepare query time range
             actual_start_date = self._prepare_actual_start_date()
@@ -563,7 +562,31 @@ class StockBasedEnumeratorWorker:
         tracker["active_opportunities"].append(opportunity)
 
     def _scan_opportunity_with_data(self, data: Dict[str, Any]):
-        return self.strategy_instance.scan_opportunity(data, self.settings_dict)
+        ctx = scan_context(
+            strategy_name=self.strategy_name,
+            settings=self.settings,
+            stock_id=self.stock_id,
+            job_payload=self.job_payload,
+            stock_info=self.stock_info,
+            data=data,
+            data_manager=self.data_manager,
+        )
+        self.hook_runtime.call("on_before_scan", ctx)
+        opportunity = self.hook_runtime.call("scan_opportunity", ctx)
+        self.hook_runtime.call(
+            "on_after_scan",
+            scan_context(
+                strategy_name=self.strategy_name,
+                settings=self.settings,
+                stock_id=self.stock_id,
+                job_payload=self.job_payload,
+                stock_info=self.stock_info,
+                data=data,
+                data_manager=self.data_manager,
+                opportunity=opportunity,
+            ),
+        )
+        return opportunity
 
     def _close_all_open_opportunities(
         self,

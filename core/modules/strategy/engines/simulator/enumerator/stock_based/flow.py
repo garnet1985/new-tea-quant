@@ -66,9 +66,6 @@ class StockBasedEnumeratorFlow(BaseEnumeratorFlow):
 
     def _preprocess_finish(self, probe: EnumeratorProbeContext) -> EnumeratorPreprocessContext:
         from core.modules.data_manager import DataManager
-        from core.infra.db.engines.duckdb.process_pool_scope import (
-            ensure_data_manager_restored,
-        )
         from core.modules.strategy.engines.shared.helpers.backtest_calendar_context import (
             build_backtest_calendar_context,
         )
@@ -77,10 +74,6 @@ class StockBasedEnumeratorFlow(BaseEnumeratorFlow):
         )
         from core.modules.strategy.engines.simulator.enumerator.shared import (
             EnumeratorPreprocessContext,
-        )
-        from core.modules.strategy.services.execution.enum_dispatch import (
-            maybe_run_enum_dispatch_probe,
-            resolve_enum_dispatch_plan,
         )
 
         version_info = self._impl.create_output_version(
@@ -102,31 +95,18 @@ class StockBasedEnumeratorFlow(BaseEnumeratorFlow):
         )
         calendar_dict = calendar_ctx.to_dict()
 
-        measured_mb = maybe_run_enum_dispatch_probe(
+        from core.modules.strategy.engines.simulator.enumerator.stock_based.dispatch_jobs import (
+            build_entity_timeline_jobs,
+        )
+
+        jobs = build_entity_timeline_jobs(
             strategy_name=probe.strategy_name,
-            stock_ids=list(self.stock_list),
             settings_payload=probe.settings_payload,
             output_dir=version_info["output_dir"],
             worker_ref=probe.worker_ref,
+            stock_ids=list(self.stock_list),
             start_date=self._impl.start_date,
             end_date=self._impl.end_date,
-            global_extra_cache={},
-            market_profile_id=mp_id,
-            backtest_calendar=calendar_dict,
-            data_mgr=data_mgr,
-        )
-        ensure_data_manager_restored(data_mgr)
-        dispatch_plan = resolve_enum_dispatch_plan(
-            total_stocks=len(self.stock_list),
-            measured_mb_per_entity=measured_mb,
-        )
-        jobs = self._impl.build_jobs(
-            strategy_name=probe.strategy_name,
-            settings_payload=probe.settings_payload,
-            output_dir=version_info["output_dir"],
-            worker_ref=probe.worker_ref,
-            stock_ids=self.stock_list,
-            entities_per_job=dispatch_plan.entities_per_job,
         )
         for job in jobs:
             job["market_profile_id"] = mp_id
@@ -160,7 +140,7 @@ class StockBasedEnumeratorFlow(BaseEnumeratorFlow):
             version_dir_name=version_info["version_dir_name"],
             jobs=jobs,
             global_extra_cache=global_extra_cache,
-            max_workers=dispatch_plan.max_workers,
+            max_workers=1,
             data_mgr=data_mgr,
             start_time=runtime["start_time"],
             aggregate_profiler=runtime["aggregate_profiler"],

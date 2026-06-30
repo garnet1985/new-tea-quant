@@ -6,34 +6,10 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
-from core.infra.job_pipeline.profile import WorkerProfiles, profile_dispatch_config
-from core.infra.job_pipeline.profile.resolver import resolve_worker_profile
 from core.modules.data_contract.contract_const import ContractScope, ContractType, DataKey
 from core.modules.data_contract.mapping import default_map
 from core.modules.data_contract.tag_entity_type import resolve_tag_entity_type
 from core.modules.tag.enums import TagTargetType
-
-def profile_tag_entity_timeline_config() -> Dict[str, Any]:
-    """``worker.json`` → ``job_pipeline.tag.entity_timeline`` 下的 Entity Timeline 模式默认值。"""
-    defaults: Dict[str, Any] = {
-        "entities_per_job": "auto",
-        "dispatch_probe": True,
-        "stage_in_worker": True,
-        "memory_floor_mb": "auto",
-    }
-    prof = resolve_worker_profile(WorkerProfiles.TAG)
-    timeline_cfg = prof.get("entity_timeline")
-    if isinstance(timeline_cfg, dict):
-        for key, value in timeline_cfg.items():
-            defaults[key] = value
-    return defaults
-
-
-def profile_tag_calendar_slice_config() -> Dict[str, Any]:
-    """``worker.json`` → ``job_pipeline.tag.calendar_slice`` 下的 Calendar Sliced 模式默认值。"""
-    from core.infra.job_pipeline.profile.resolver import profile_calendar_slice_config
-
-    return profile_calendar_slice_config(WorkerProfiles.TAG)
 
 
 def _source_entry(item: Dict[str, Any]) -> Dict[str, Any]:
@@ -152,6 +128,7 @@ def normalize_tag_settings(
     settings["recompute"] = calc["recompute"]
     settings["start_date"] = calc["start_date"]
     settings["end_date"] = calc["end_date"]
+    settings["update_mode"] = calc["update_mode"]
 
     data_block = settings.get("data")
     if not isinstance(data_block, dict):
@@ -162,31 +139,12 @@ def normalize_tag_settings(
     settings["tag_target_type"] = TagTargetType.ENTITY_BASED.value
     settings["target_entity"] = {"type": entity_type}
 
-    performance = settings.get("performance")
-    explicit_performance_keys: list[str] = []
-    if isinstance(performance, dict):
-        explicit_performance_keys = list(performance.keys())
-
-    # 根据 execution_mode 选择对应的默认配置（避免 timeline/sliced 配置混用）
-    execution_mode = str(calc.get("execution_mode") or "").lower()
-    if execution_mode == "calendar_slice":
-        global_perf = profile_tag_calendar_slice_config()
-    else:
-        global_perf = profile_tag_entity_timeline_config()
-
-    # 强制使用 worker.json 默认值（忽略用户 settings.py 中的 performance 配置）
-    settings["performance"] = {
-        **global_perf,
-        "update_mode": calc["update_mode"],
-    }
-    if explicit_performance_keys:
-        settings["_explicit_performance_keys"] = explicit_performance_keys
+    settings.pop("performance", None)
+    settings.setdefault("run_options", {})
 
     return settings
 
 
 __all__ = [
     "normalize_tag_settings",
-    "profile_tag_entity_timeline_config",
-    "profile_tag_calendar_slice_config",
 ]

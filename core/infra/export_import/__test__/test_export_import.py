@@ -11,7 +11,18 @@ def _write_strategy_tree(base: Path) -> Path:
     strategy_dir = base / "strategies" / "demo"
     strategy_dir.mkdir(parents=True)
     (strategy_dir / "settings.py").write_text('settings = {"name": "demo"}\n', encoding="utf-8")
-    (strategy_dir / "strategy_worker.py").write_text("class W: pass\n", encoding="utf-8")
+    (strategy_dir / "strategy.py").write_text(
+        "\n".join(
+            [
+                "from core.modules.strategy.hooks import StrategyHooks",
+                "class W(StrategyHooks):",
+                "    def scan_opportunity(self, ctx):",
+                "        return None",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
     results = strategy_dir / "results" / "simulations"
     results.mkdir(parents=True)
     (results / "should_skip.txt").write_text("skip me\n", encoding="utf-8")

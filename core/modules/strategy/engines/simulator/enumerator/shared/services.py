@@ -207,11 +207,6 @@ class EnumeratorSharedServices:
         self._backtest_period_cache = dict(payload)
         return payload
 
-    def resolve_runtime_workers(self) -> int:
-        from core.infra.job_pipeline.profile.probe import WorkerProbe
-
-        return WorkerProbe.resolve(self.max_workers)
-
     def load_settings(
         self,
         *,
@@ -407,11 +402,12 @@ class EnumeratorSharedServices:
         entities_per_job: int = 1,
     ) -> List[Dict[str, Any]]:
         from core.modules.strategy.engines.simulator.enumerator.stock_based.dispatch_jobs import (
-            build_dispatch_jobs,
+            build_entity_timeline_jobs,
         )
 
+        _ = entities_per_job
         target_stock_ids = stock_ids if stock_ids is not None else self.stock_list
-        return build_dispatch_jobs(
+        return build_entity_timeline_jobs(
             strategy_name=strategy_name,
             settings_payload=settings_payload,
             output_dir=str(output_dir),
@@ -419,7 +415,6 @@ class EnumeratorSharedServices:
             stock_ids=target_stock_ids,
             start_date=self.start_date,
             end_date=self.end_date,
-            entities_per_job=entities_per_job,
         )
 
     def preload_global_cache(
@@ -476,25 +471,16 @@ class EnumeratorSharedServices:
         enum_settings: EnumeratorSettings,
         duckdb_data_mgr: Any = None,
     ) -> List[Any]:
-        from core.infra.job_pipeline.profile import (
-            WorkerProfiles,
-            profile_dispatch_config,
+        _ = max_workers
+        from core.modules.strategy.services.execution import (
+            run_enumeration_timeline_via_backtest_engine,
         )
-        from core.infra.worker import MemoryAwareScheduler
-        from core.modules.strategy.services.execution import run_enumeration_jobs_via_pipeline
         from core.modules.strategy.services.progress import ProgressRecorder
 
         self._entity_progress_mode = str(
             (jobs[0].get("entity_progress_mode") if jobs else None) or "stock"
         )
         total_stocks = self.resolve_enum_progress_total(jobs)
-        dispatch_cfg = profile_dispatch_config(WorkerProfiles.ENUMERATOR)
-        if jobs:
-            payload = jobs[0].get("payload", jobs[0])
-            stock_ids = payload.get("stock_ids") or []
-            entities_per_job = max(1, len(stock_ids)) if stock_ids else 1
-        else:
-            entities_per_job = 1
 
         on_job_done: Optional[Callable[[Dict[str, Any]], None]] = None
         if self.workbench_strategy_name and self.workbench_run_id:
@@ -528,23 +514,29 @@ class EnumeratorSharedServices:
 
                 run_envelope_on_flow_progress(sn, rid, "enum", float(seed_pct))
 
-        scheduler = MemoryAwareScheduler(
-            jobs=jobs,
-            memory_budget_mb=dispatch_cfg["memory_budget_mb"],
-            warmup_batch_size=dispatch_cfg["warmup_batch_size"],
-            min_batch_size=dispatch_cfg["min_batch_size"],
-            max_batch_size=dispatch_cfg["max_batch_size"],
-            monitor_interval=int(dispatch_cfg["monitor_interval"]),
-            units_per_job=entities_per_job,
-            log=logger,
-        )
         run_name = "enum"
         if self.workbench_strategy_name:
             run_name = f"enum:{self.workbench_strategy_name}"
 
+        if jobs and jobs[0].get("enumeration_execution_mode") != "calendar_slice":
+            return run_enumeration_timeline_via_backtest_engine(
+                entity_jobs=jobs,
+                global_extra_cache=global_extra_cache,
+                total_jobs=total_stocks,
+                run_name=run_name,
+                on_job_progress=on_job_done,
+                duckdb_data_mgr=duckdb_data_mgr,
+                progress_units_from_report=self.progress_units_from_execute_report,
+            )
+
+        from core.modules.strategy.services.execution.enum_job_pipeline import (
+            calendar_progress_units_from_execute_report,
+            run_enumeration_sliced_via_backtest_engine,
+        )
+
         poll_stop = None
         poll_thread = None
-        if jobs and jobs[0].get("enumeration_execution_mode") == "calendar_slice":
+        if jobs:
             import threading
 
             poll_stop = threading.Event()
@@ -556,16 +548,14 @@ class EnumeratorSharedServices:
             poll_thread.start()
 
         try:
-            return self._run_scheduled_batches(
-                jobs=jobs,
+            return run_enumeration_sliced_via_backtest_engine(
+                dispatch_jobs=jobs,
                 global_extra_cache=global_extra_cache,
-                scheduler=scheduler,
-                max_workers=max_workers,
-                total_stocks=total_stocks,
+                total_jobs=total_stocks,
                 run_name=run_name,
                 on_job_progress=on_job_done,
-                run_fn=run_enumeration_jobs_via_pipeline,
                 duckdb_data_mgr=duckdb_data_mgr,
+                progress_units_from_report=calendar_progress_units_from_execute_report,
             )
         finally:
             if poll_stop is not None:
@@ -659,56 +649,6 @@ class EnumeratorSharedServices:
             _emit_from_sidecar()
         if last_print_pct < 100:
             _emit_from_sidecar()
-
-    def _run_scheduled_batches(
-        self,
-        *,
-        jobs: List[Dict[str, Any]],
-        global_extra_cache: Dict[str, List[Dict[str, Any]]],
-        scheduler: Any,
-        max_workers: int,
-        total_stocks: int,
-        run_name: str,
-        on_job_progress: Optional[Callable[[Dict[str, Any]], None]],
-        run_fn: Any,
-        duckdb_data_mgr: Any = None,
-    ) -> List[Any]:
-        from core.modules.strategy.services.execution.enum_job_pipeline import (
-            count_progress_units_from_job_result,
-        )
-
-        job_results: List[Any] = []
-        finished_stocks = 0
-        cumulative_ok = 0
-        cumulative_fail = 0
-        for batch in scheduler.iter_batches():
-            batch_results = run_fn(
-                stock_jobs=batch,
-                global_extra_cache=global_extra_cache,
-                max_workers=max_workers,
-                total_jobs=total_stocks,
-                finished_offset=finished_stocks,
-                completed_offset=cumulative_ok,
-                failed_offset=cumulative_fail,
-                run_name=run_name,
-                on_job_progress=on_job_progress,
-                duckdb_data_mgr=duckdb_data_mgr,
-                progress_units_from_report=self.progress_units_from_execute_report,
-            )
-            batch_finished = 0
-            for jr in batch_results:
-                ok_n, fail_n = count_progress_units_from_job_result(jr)
-                cumulative_ok += ok_n
-                cumulative_fail += fail_n
-                batch_finished += ok_n + fail_n
-            finished_stocks += batch_finished
-            scheduler.update_after_batch(
-                batch_size=len(batch),
-                batch_results=batch_results,
-                finished_jobs=finished_stocks,
-            )
-            job_results.extend(batch_results)
-        return job_results
 
     def aggregate_job_results(
         self,

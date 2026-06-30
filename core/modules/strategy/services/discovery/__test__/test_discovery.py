@@ -7,9 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from core.infra.project_context import ProjectContext
+from core.infra.project_context.core.path_manager import PathManager
 from core.modules.strategy.__test__.settings_fixtures import minimal_strategy_raw
-from core.modules.strategy.base_strategy_worker import BaseStrategyWorker
 from core.modules.strategy.services.discovery import StrategyDiscoveryHelper
 
 
@@ -18,9 +17,10 @@ def strategies_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     us = tmp_path / "userspace"
     root = us / "strategies"
     root.mkdir(parents=True)
-    monkeypatch.setattr(PathManager, "userspace", staticmethod(lambda: us))
-    monkeypatch.setattr(PathManager, "strategies_root", staticmethod(lambda: root))
-    monkeypatch.setattr(PathManager, "strategy", staticmethod(lambda name: root / name))
+    path_mgr = PathManager
+    monkeypatch.setattr(path_mgr, "get_userspace_root", staticmethod(lambda: us))
+    monkeypatch.setattr(path_mgr, "get_strategies_root", staticmethod(lambda: root))
+    monkeypatch.setattr(path_mgr, "get_strategy_directory", staticmethod(lambda name: root / name))
     return root
 
 
@@ -33,12 +33,13 @@ def _write_strategy(folder: Path, *, key_suffix: str = "demo") -> None:
         f"settings = {settings!r}\n",
         encoding="utf-8",
     )
-    folder.joinpath("strategy_worker.py").write_text(
+    folder.joinpath("strategy.py").write_text(
         "\n".join(
             [
-                "from core.modules.strategy.base_strategy_worker import BaseStrategyWorker",
-                f"class Worker{key_suffix}(BaseStrategyWorker):",
-                "    pass",
+                "from core.modules.strategy.hooks import StrategyHooks",
+                f"class Worker{key_suffix}(StrategyHooks):",
+                "    def scan_opportunity(self, ctx):",
+                "        return None",
                 "",
             ]
         ),

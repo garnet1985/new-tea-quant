@@ -17,12 +17,18 @@ from typing import List, Tuple
 from setup.install_runtime import (
     REPO_ROOT,
     REQUIREMENTS,
+    cli_install_scope,
     mark_runtime,
     needs_install,
     sha256_file,
 )
 from setup.meta_loader import load_setup_step_meta
 from setup.setup import NewTeaQuantSetup
+
+CLI_DEPS_ONLY_STEPS: Tuple[str, ...] = (
+    "sys_req_check",
+    "resolve_deps",
+)
 
 CLI_INSTALL_STEPS: Tuple[str, ...] = (
     "sys_req_check",
@@ -62,8 +68,20 @@ def install_cli_runtime(force: bool = False) -> None:
         return
 
     NewTeaQuantSetup.to_root_dir()
-    steps = _ordered_cli_steps()
-    print(f"开始 CLI 应用安装（共 {len(steps)} 步）…", flush=True)
+    scope = "full" if force else cli_install_scope()
+    if scope == "none":
+        print("CLI 安装检查通过，跳过安装步骤。", flush=True)
+        return
+
+    if scope == "deps_only":
+        steps = list(CLI_DEPS_ONLY_STEPS)
+        print(
+            f"检测到 requirements.txt 变更，仅更新 Python 依赖（{len(steps)} 步，跳过 init/import）…",
+            flush=True,
+        )
+    else:
+        steps = _ordered_cli_steps()
+        print(f"开始 CLI 应用安装（共 {len(steps)} 步）…", flush=True)
 
     for i, step_id in enumerate(steps, start=1):
         NewTeaQuantSetup.print_check_item("running", f"[{i}/{len(steps)}] {step_id}")

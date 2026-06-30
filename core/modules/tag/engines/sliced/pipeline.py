@@ -12,10 +12,11 @@ from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
     BacktestDateRange,
 )
 from core.modules.tag.engines.shared.global_cache import build_global_extra_cache
-from core.modules.tag.engines.shared.runner import execute_tag_jobs
+from core.modules.tag.services.execution.tag_job_pipeline import (
+    run_tag_sliced_via_backtest_engine,
+)
 from core.modules.tag.engines.sliced.slice_job import build_tag_calendar_slice_job
 from core.modules.tag.engines.timeline.job_builder import resolve_worker_ref
-from core.modules.tag.engines.timeline.pipeline import profile_enabled_for
 from core.modules.tag.models.scenario_model import ScenarioModel
 
 logger = logging.getLogger(__name__)
@@ -60,33 +61,21 @@ def run_sliced_pipeline(
 
     scenario_id = scenario_model.get_identifier()
     job_id = f"{scenario_id}_calendar_slice"
-    jobs = [{"id": job_id, "payload": {**payload, "_job_id": job_id}}]
+    dispatch_job = {**payload, "job_id": job_id}
 
-    performance = dict(settings.get("performance") or {})
-    performance.update(mgr._dispatch_overrides)
-
-    # Sliced 模式专用配置（清理 timeline 遗留配置）
-    performance["max_workers"] = 1
-    performance["stage_in_worker"] = False
-
-    # 移除 timeline 模式专用的无用配置（避免干扰 sliced 执行逻辑)
-    timeline_only_keys = {"data_chunk_size", "dispatch_probe", "entities_per_job",
-                          "entities_per_job_min", "entities_per_job_max"}
-    for key in timeline_only_keys:
-        performance.pop(key, None)
+    run_options = dict(settings.get("run_options") or {})
+    run_options.update(getattr(mgr, "_dispatch_overrides", {}) or {})
 
     logger.info(
         "[%s] Tag calendar_slice: entities=%d, job=1",
         scenario_name,
         len(entity_list),
     )
-    return execute_tag_jobs(
-        data_mgr=mgr.data_mgr,
-        tag_data_service=mgr.tag_data_service,
-        jobs=jobs,
-        scenario_name=scenario_name,
-        performance=performance,
-        profile_enabled=profile_enabled_for(mgr, performance),
-        on_tag_data_service_refresh=lambda svc: setattr(mgr, "tag_data_service", svc),
+    return run_tag_sliced_via_backtest_engine(
+        dispatch_jobs=[dispatch_job],
+        settings={**settings, "scenario_name": scenario_name, "run_options": run_options},
+        run_name=f"tag:{scenario_name}",
         on_pipeline_progress=getattr(mgr, "_pipeline_progress_callback", None),
+        duckdb_data_mgr=mgr.data_mgr,
+        on_tag_data_service_refresh=lambda svc: setattr(mgr, "tag_data_service", svc),
     )

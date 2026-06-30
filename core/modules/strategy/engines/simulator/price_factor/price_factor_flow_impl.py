@@ -102,37 +102,31 @@ class PriceFactorFlowImpl:
     def run_worker_jobs(
         self,
         *,
-        dispatch_jobs: List[Dict[str, Any]],
-        dispatch_plan: Any,
+        stock_jobs: List[Dict[str, Any]],
         total_stocks: int,
         progress_callback: Optional[Callable[[float], None]] = None,
         duckdb_data_mgr: Any = None,
     ) -> List[Dict[str, Any]]:
-        from core.infra.worker.multi_process.process_worker import JobStatus
+        from core.modules.backtest_engine.contracts import JobStatus
         from core.modules.strategy.services.execution.price_job_pipeline import (
-            run_price_factor_in_main_process,
-            run_price_factor_jobs_via_pipeline,
+            run_price_factor_timeline_via_backtest_engine,
         )
 
-        if not dispatch_jobs:
+        if not stock_jobs:
             if progress_callback is not None:
                 progress_callback(88.0)
             return []
 
-        if getattr(dispatch_plan, "run_in_main_process", False):
-            results = run_price_factor_in_main_process(dispatch_jobs)
-        else:
-            job_results = run_price_factor_jobs_via_pipeline(
-                dispatch_jobs=dispatch_jobs,
-                max_workers=dispatch_plan.max_workers,
-                total_stocks=total_stocks,
-                on_workbench_progress=progress_callback,
-                duckdb_data_mgr=duckdb_data_mgr,
-            )
-            results = []
-            for jr in job_results:
-                if jr.status == JobStatus.COMPLETED and jr.result:
-                    results.append(jr.result)
+        job_results = run_price_factor_timeline_via_backtest_engine(
+            stock_jobs=stock_jobs,
+            total_stocks=total_stocks,
+            on_workbench_progress=progress_callback,
+            duckdb_data_mgr=duckdb_data_mgr,
+        )
+        results = []
+        for jr in job_results:
+            if jr.status == JobStatus.COMPLETED and jr.result:
+                results.append(jr.result)
         if progress_callback is not None:
             progress_callback(88.0)
         return results

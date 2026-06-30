@@ -29,7 +29,7 @@ from core.modules.strategy.engines.shared.data_classes.strategy_settings.strateg
 )
 
 from .path_rules import is_machine_readable_strategy_path, relative_strategy_key
-from .worker_loader import load_strategy_worker_class
+from .worker_loader import load_strategy_hooks_class
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ class StrategyDiscoveryHelper:
         for dirpath, dirnames, _filenames in os.walk(root):
             dirnames[:] = [d for d in dirnames if not str(d).startswith("_")]
             folder = Path(dirpath)
-            if (folder / "settings.py").is_file() and (folder / "strategy_worker.py").is_file():
+            if (folder / "settings.py").is_file() and (folder / "strategy.py").is_file():
                 candidates.append(folder)
         candidates.sort(key=lambda p: relative_strategy_key(p, root))
         return candidates
@@ -116,9 +116,9 @@ class StrategyDiscoveryHelper:
             logger.error("策略 %s 的 settings 不是 dict", strategy_key)
             return None
 
-        worker_loaded = load_strategy_worker_class(folder, strategy_key)
+        worker_loaded = load_strategy_hooks_class(folder, strategy_key)
         if not worker_loaded:
-            logger.warning("策略 %s 无法加载 strategy_worker.py", strategy_key)
+            logger.warning("策略 %s 无法加载 strategy.py", strategy_key)
             return None
         worker_module_path, worker_class_name, worker_file_path, worker_class = worker_loaded
 

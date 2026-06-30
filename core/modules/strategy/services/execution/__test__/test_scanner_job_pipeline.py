@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""扫描 JobPipeline 辅助函数。"""
+"""扫描 BacktestEngine timeline 辅助函数。"""
 
 from core.modules.strategy.services.execution.scanner_job_pipeline import (
     build_scanner_payload,
-    resolve_scanner_max_workers,
 )
+
 
 def test_build_scanner_payload_passthrough():
     job = {
@@ -17,7 +17,3 @@ def test_build_scanner_payload_passthrough():
         "worker_class_name": "StrategyWorker",
     }
     assert build_scanner_payload(job) == job
-
-
-def test_resolve_scanner_max_workers_auto():
-    assert resolve_scanner_max_workers("auto") >= 1

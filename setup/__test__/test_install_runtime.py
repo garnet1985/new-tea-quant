@@ -49,6 +49,61 @@ def test_needs_install_cli_false_when_ready(
     assert ir.needs_install("cli") is False
 
 
+def test_cli_install_scope_deps_only_when_requirements_changed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    req = repo / "requirements.txt"
+    req.write_text("pandas\n", encoding="utf-8")
+    state_dir = repo / ".ntq"
+    state_dir.mkdir()
+    state_file = state_dir / "install-state.json"
+    state_file.write_text(
+        json.dumps(
+            {
+                "coreVersion": ir.system_meta.version,
+                "cli": {"requirementsHash": "stale-hash"},
+                "cliRuntime": {"lastStatus": "success", "lastFailedStepId": ""},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(ir, "STATE_FILE", state_file)
+    monkeypatch.setattr(ir, "REQUIREMENTS", req)
+    monkeypatch.setattr(ir, "userspace_ready", lambda: True)
+
+    assert ir.needs_install("cli") is True
+    assert ir.cli_install_scope() == "deps_only"
+
+
+def test_cli_install_scope_full_when_userspace_not_ready(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    req = repo / "requirements.txt"
+    req.write_text("pandas\n", encoding="utf-8")
+    state_dir = repo / ".ntq"
+    state_dir.mkdir()
+    state_file = state_dir / "install-state.json"
+    state_file.write_text(
+        json.dumps(
+            {
+                "coreVersion": ir.system_meta.version,
+                "cli": {"requirementsHash": "stale-hash"},
+                "cliRuntime": {"lastStatus": "success", "lastFailedStepId": ""},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(ir, "STATE_FILE", state_file)
+    monkeypatch.setattr(ir, "REQUIREMENTS", req)
+    monkeypatch.setattr(ir, "userspace_ready", lambda: False)
+
+    assert ir.cli_install_scope() == "full"
+
+
 def test_needs_install_ui_false_when_ready_production_build(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

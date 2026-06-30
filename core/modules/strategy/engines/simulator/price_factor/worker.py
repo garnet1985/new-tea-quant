@@ -51,6 +51,11 @@ from core.modules.strategy.engines.shared.data_classes.investment_state import (
     InvestmentLifecycle,
     InvestmentOutcome,
 )
+from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
+    StrategySettingsView,
+)
+from core.modules.strategy.engines.shared.helpers.strategy_runtime import load_strategy_settings_view
+from core.modules.strategy.hooks import price_factor_context
 from core.modules.strategy.services.data import StrategyOutputReaderService
 from core.modules.strategy.services.data.output.event import parse_opportunity_buy_fill
 from core.modules.strategy.services.data.output import StrategyOutputPathService
@@ -66,6 +71,7 @@ class PriceFactorWorker:
         self.output_version_dir = Path(job_payload["output_version_dir"])
         self.config_dict: Dict[str, Any] = job_payload.get("config", {})
         self.hooks_dispatcher = SimulatorHooksDispatcher(self.strategy_name)
+        self._settings_view: Optional[StrategySettingsView] = None
         self.profiler = PerformanceProfiler(self.stock_id)
         self._apply_skip_save(bool(job_payload.get("_bench_skip_save")))
 
@@ -138,6 +144,24 @@ class PriceFactorWorker:
             ),
         }
 
+    def _settings_view_for_hooks(self) -> StrategySettingsView:
+        if self._settings_view is not None:
+            return self._settings_view
+        try:
+            self._settings_view = load_strategy_settings_view(self.strategy_name)
+        except Exception:
+            self._settings_view = StrategySettingsView.from_dict(self.config_dict or {})
+        return self._settings_view
+
+    def _pf_hook_ctx(self, **kwargs):
+        return price_factor_context(
+            strategy_name=self.strategy_name,
+            settings=self._settings_view_for_hooks(),
+            stock_id=self.stock_id,
+            config=self.config_dict or {},
+            **kwargs,
+        )
+
     def _simulate(self) -> Dict[str, Any]:
         cfg = self.config_dict or {}
         sim_settings = StrategySimulationSettings.from_strategy_root(cfg)
@@ -169,17 +193,13 @@ class PriceFactorWorker:
             }
             modified = self.hooks_dispatcher.call_hook(
                 "on_price_factor_after_process_stock",
-                self.stock_id,
-                stock_summary,
-                cfg,
+                self._pf_hook_ctx(stock_summary=stock_summary),
             )
             return modified or stock_summary
 
         self.hooks_dispatcher.call_hook(
             "on_price_factor_before_process_stock",
-            self.stock_id,
-            opportunities_rows,
-            cfg,
+            self._pf_hook_ctx(opportunities=opportunities_rows),
         )
 
         self.profiler.start_timer("enumerate")
@@ -202,8 +222,7 @@ class PriceFactorWorker:
             row = opportunities_rows[idx]
             hooked = self.hooks_dispatcher.call_hook(
                 "on_price_factor_opportunity_trigger",
-                dict(row),
-                cfg,
+                self._pf_hook_ctx(opportunity_row=dict(row)),
             )
             modified_row = dict(hooked) if isinstance(hooked, dict) else dict(row)
 
@@ -245,9 +264,10 @@ class PriceFactorWorker:
                 t_row = targets_rows[t_idx]
                 modified_t = self.hooks_dispatcher.call_hook(
                     "on_price_factor_target_hit",
-                    t_row,
-                    merged,
-                    cfg,
+                    self._pf_hook_ctx(
+                        target_row=t_row,
+                        opportunity_row=merged,
+                    ),
                 )
                 target_dict = dict(modified_t if isinstance(modified_t, dict) else t_row)
                 raw_sell = (
@@ -320,9 +340,7 @@ class PriceFactorWorker:
         }
         modified_summary = self.hooks_dispatcher.call_hook(
             "on_price_factor_after_process_stock",
-            self.stock_id,
-            stock_summary,
-            cfg,
+            self._pf_hook_ctx(stock_summary=stock_summary),
         )
         return modified_summary or stock_summary
 

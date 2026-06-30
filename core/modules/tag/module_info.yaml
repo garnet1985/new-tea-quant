@@ -1,15 +1,19 @@
 name: modules.tag
-version: 0.3.1
+version: 0.3.2
 compatible_core_versions: ">=0.4.0"
 description: "标签资产层：按场景（Scenario）发现配置、多进程执行 TagWorker，基于 DataContract + DataCursor 按 as_of 切片计算并批量落库。"
 dependencies:
   - modules.data_manager
   - modules.data_contract
   - modules.data_cursor
+  - modules.backtest_engine
   - infra.project_context
-  - infra.worker
-  - infra.job_pipeline
 changelog:
+  - version: "0.3.2"
+    changes:
+      - Tag timeline / calendar_slice 执行迁移至 BacktestEngine
+      - calendar_slice 主进程按 slice 阶段性 save_batch 落库
+      - 移除 JobPipeline 执行路径；调度配置改读 BacktestEngine TimelineConfig / SliceConfig
   - version: "0.3.1"
     changes:
       - 增强tag的profiler，帮助性能测试收集必要的数据

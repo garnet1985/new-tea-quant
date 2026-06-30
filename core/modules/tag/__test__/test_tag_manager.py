@@ -235,18 +235,20 @@ class TestTagManager:
             _, kwargs = mock_run.call_args
             assert kwargs["entity_list"] == ["__general__"]
 
-    @patch("core.modules.tag.engines.shared.runner.JobPipeline")
+    @patch("core.modules.backtest_engine.BacktestEngine.entity_based.run")
     @patch("core.modules.tag.tag_manager.DataManager")
     @patch("core.modules.tag.tag_manager.get_scenarios_root")
-    def test_execute_tag_jobs_uses_dispatcher_and_saves_on_report(
+    def test_run_tag_timeline_saves_on_engine_result(
         self,
         mock_get_scenarios_root,
         mock_data_manager,
-        mock_dispatcher_cls,
+        mock_timeline_run,
     ):
         """Worker 返回 tag_values，主进程 on_result 调用 save_batch。"""
-        from core.infra.job_pipeline import DispatchResult, JobReport, RunProgress
-        from core.modules.tag.engines.shared.runner import execute_tag_jobs
+        from core.modules.backtest_engine.contracts import JobReport, RunProgress
+        from core.modules.tag.services.execution.tag_job_pipeline import (
+            run_tag_timeline_via_backtest_engine,
+        )
 
         mock_get_scenarios_root.return_value = Path("/test/scenarios")
         mock_data_mgr = MagicMock()
@@ -256,61 +258,68 @@ class TestTagManager:
         mock_data_mgr.db = MagicMock()
         mock_data_manager.return_value = mock_data_mgr
 
-        captured = {}
+        def fake_timeline_run(jobs, execute_fn, **kwargs):
+            callbacks = kwargs["callbacks"]
+            assert callbacks is not None
+            callbacks.on_result(
+                JobReport(
+                    job_id="job1",
+                    success=True,
+                    data={"tag_values": [{"entity_id": "000001", "json_value": "1"}]},
+                ),
+                RunProgress(finished=1, total=1, ok=1, fail=0),
+            )
+            return type(
+                "RunResult",
+                (),
+                {
+                    "job_results": [],
+                    "success": True,
+                    "total_jobs": 1,
+                    "completed_jobs": 1,
+                    "failed_jobs": 0,
+                    "elapsed_seconds": 0.0,
+                    "mode": "entity_based",
+                    "plan": None,
+                    "monitor_stats": None,
+                },
+            )()
 
-        class _FakeDispatcher:
-            def __init__(
-                self,
-                *,
-                settings,
-                execute,
-                on_result,
-                **kwargs,
-            ):
-                captured["on_result"] = on_result
-                captured["settings"] = settings
-                self.executor = type("E", (), {"max_workers": settings.max_workers})()
+        mock_timeline_run.side_effect = fake_timeline_run
 
-            def run(self, jobs, run_name=""):
-                captured["on_result"](
-                    JobReport(
-                        job_id="job1",
-                        success=True,
-                        data={"tag_values": [{"entity_id": "000001", "json_value": "1"}]},
-                    ),
-                    RunProgress(finished=1, total=1, ok=1, fail=0),
-                )
-                return DispatchResult(total=1, completed=1, failed=0)
-
-        mock_dispatcher_cls.side_effect = _FakeDispatcher
-        jobs = [{"id": "job1", "payload": {"entity_id": "000001"}}]
-        result = execute_tag_jobs(
-            data_mgr=mock_data_mgr,
-            tag_data_service=mock_tag_service,
-            jobs=jobs,
-            scenario_name="test_scenario",
-            performance={"max_workers": 2},
-        )
+        with patch(
+            "core.modules.tag.services.execution.tag_job_pipeline._make_tag_save_fn",
+            lambda _name: mock_tag_service.save_batch,
+        ):
+            result = run_tag_timeline_via_backtest_engine(
+                timeline_jobs=[{"job_id": "job1", "entity_id": "000001"}],
+                settings={
+                    "scenario_name": "test_scenario",
+                    "run_options": {"save_batch_size": 500},
+                },
+                duckdb_data_mgr=mock_data_mgr,
+            )
 
         mock_tag_service.save_batch.assert_called_once_with(
             [{"entity_id": "000001", "json_value": "1"}]
         )
         assert result["completed_jobs"] == 1
         assert result["saved_tag_values"] == 1
-        assert captured["settings"].max_workers == 2
 
-    @patch("core.modules.tag.engines.shared.runner.JobPipeline")
+    @patch("core.modules.backtest_engine.BacktestEngine.entity_based.run")
     @patch("core.modules.tag.tag_manager.DataManager")
     @patch("core.modules.tag.tag_manager.get_scenarios_root")
-    def test_execute_tag_jobs_batches_save_on_report(
+    def test_run_tag_timeline_batches_save_on_engine_result(
         self,
         mock_get_scenarios_root,
         mock_data_manager,
-        mock_dispatcher_cls,
+        mock_timeline_run,
     ):
         """多个 job 的 tag_values 按 save_batch_size 合并 upsert。"""
-        from core.infra.job_pipeline import DispatchResult, JobReport, RunProgress
-        from core.modules.tag.engines.shared.runner import execute_tag_jobs
+        from core.modules.backtest_engine.contracts import JobReport, RunProgress
+        from core.modules.tag.services.execution.tag_job_pipeline import (
+            run_tag_timeline_via_backtest_engine,
+        )
 
         mock_get_scenarios_root.return_value = Path("/test/scenarios")
         mock_data_mgr = MagicMock()
@@ -320,34 +329,49 @@ class TestTagManager:
         mock_data_mgr.db = MagicMock()
         mock_data_manager.return_value = mock_data_mgr
 
-        captured = {}
+        def fake_timeline_run(jobs, execute_fn, **kwargs):
+            on_result = kwargs["callbacks"].on_result
+            for i in range(3):
+                on_result(
+                    JobReport(
+                        job_id=f"job{i}",
+                        success=True,
+                        data={"tag_values": [{"entity_id": f"00000{i}", "json_value": "1"}]},
+                    ),
+                    RunProgress(finished=i + 1, total=3, ok=i + 1, fail=0),
+                )
+            return type(
+                "RunResult",
+                (),
+                {
+                    "job_results": [],
+                    "success": True,
+                    "total_jobs": 3,
+                    "completed_jobs": 3,
+                    "failed_jobs": 0,
+                    "elapsed_seconds": 0.0,
+                    "mode": "entity_based",
+                    "plan": None,
+                    "monitor_stats": None,
+                },
+            )()
 
-        class _FakeDispatcher:
-            def __init__(self, *, settings, execute, on_result, **kwargs):
-                captured["on_result"] = on_result
-                self.executor = type("E", (), {"max_workers": settings.max_workers})()
+        mock_timeline_run.side_effect = fake_timeline_run
 
-            def run(self, jobs, run_name=""):
-                for i in range(3):
-                    captured["on_result"](
-                        JobReport(
-                            job_id=f"job{i}",
-                            success=True,
-                            data={"tag_values": [{"entity_id": f"00000{i}", "json_value": "1"}]},
-                        ),
-                        RunProgress(finished=i + 1, total=3, ok=i + 1, fail=0),
-                    )
-                return DispatchResult(total=3, completed=3, failed=0)
-
-        mock_dispatcher_cls.side_effect = _FakeDispatcher
-        jobs = [{"id": f"job{i}", "payload": {}} for i in range(3)]
-        result = execute_tag_jobs(
-            data_mgr=mock_data_mgr,
-            tag_data_service=mock_tag_service,
-            jobs=jobs,
-            scenario_name="test_scenario",
-            performance={"max_workers": 2, "save_batch_size": 2},
-        )
+        with patch(
+            "core.modules.tag.services.execution.tag_job_pipeline._make_tag_save_fn",
+            lambda _name: mock_tag_service.save_batch,
+        ):
+            result = run_tag_timeline_via_backtest_engine(
+                timeline_jobs=[{"job_id": f"job{i}"} for i in range(3)],
+                settings={
+                    "scenario_name": "test_scenario",
+                    "run_options": {
+                        "save_batch_size": 2,
+                    },
+                },
+                duckdb_data_mgr=mock_data_mgr,
+            )
 
         assert mock_tag_service.save_batch.call_count == 2
         assert mock_tag_service.save_batch.call_args_list[0].args[0] == [

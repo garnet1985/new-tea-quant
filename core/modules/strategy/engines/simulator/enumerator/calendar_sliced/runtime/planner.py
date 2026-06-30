@@ -7,7 +7,11 @@ import logging
 import math
 from typing import Any, Dict, Optional
 
-from core.infra.job_pipeline.profile import WorkerProfiles, resolve_pipeline_workers
+from core.infra.machine_capacity import MachineInfo
+from core.modules.strategy.engines.shared.worker_settings_keys import STRATEGY_ENUM_EXECUTOR_KEY
+from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.worker_profile import (
+    profile_enumerator_dispatch_config,
+)
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.memory_budget import (
     resolve_calendar_slice_memory_budget_mb,
 )
@@ -73,8 +77,10 @@ def resolve_reader_workers(
     return max(1, min(_MAX_READER_WORKERS, io_parallel_hint, reader_cap))
 
 
-def resolve_system_process_cap(worker_id: str = WorkerProfiles.ENUMERATOR) -> int:
-    return max(1, resolve_pipeline_workers(worker_id=worker_id))
+def resolve_system_process_cap(executor_key: str = STRATEGY_ENUM_EXECUTOR_KEY) -> int:
+    perf = profile_enumerator_dispatch_config()
+    capacity = MachineInfo.get_capacity(perf)
+    return max(1, MachineInfo.get_available_workers(capacity))
 
 
 def is_duckdb_backend() -> bool:
@@ -94,6 +100,41 @@ def _parse_min_required_records(job_payload: Dict[str, Any]) -> int:
     return max(1, int(block["min_required_records"]))
 
 
+def _runtime_plan_from_dispatch_slice_plan(
+    dispatch_plan: Dict[str, Any],
+    *,
+    settings: CalendarSliceRuntimeSettings,
+    job_payload: Dict[str, Any],
+) -> CalendarSliceRuntimePlan:
+    """BacktestEngine SlicePlanner 已规划时，作为 orchestrator 初始 plan。"""
+    preload = max(1, int(dispatch_plan.get("preload_depth") or 1))
+    queue_capacity = max(1, int(dispatch_plan.get("queue_capacity") or preload))
+    reader_workers = max(1, int(dispatch_plan.get("reader_workers") or 1))
+    slice_days = max(1, int(dispatch_plan.get("slice_open_days") or 20))
+    budget_mb = float(
+        dispatch_plan.get("memory_budget_mb") or resolve_calendar_slice_memory_budget_mb()
+    )
+    mb_per_slice = float(job_payload.get("_probe_mb_per_slice") or _DEFAULT_MB_PER_SLICE)
+
+    if not settings.prefetch_enabled:
+        preload = 1
+        queue_capacity = 1
+        reader_workers = 1
+
+    plan = CalendarSliceRuntimePlan(
+        slice_open_days=slice_days,
+        memory_budget_mb=budget_mb,
+        reader_workers=reader_workers,
+        ideal_preload_ceiling=preload,
+        current_preload_depth=preload,
+        queue_capacity=queue_capacity,
+        mb_per_slice=mb_per_slice,
+        prefetch_enabled=settings.prefetch_enabled,
+    )
+    logger.info("[calendar_slice:plan] initial from BacktestEngine %s", plan.to_dict())
+    return plan
+
+
 def build_runtime_plan(
     job_payload: Dict[str, Any],
     *,
@@ -102,10 +143,28 @@ def build_runtime_plan(
     mb_per_slice: Optional[float] = None,
     t_io_sec: Optional[float] = None,
     t_compute_sec: Optional[float] = None,
-    worker_profile: str = WorkerProfiles.ENUMERATOR,
+    worker_profile: str = STRATEGY_ENUM_EXECUTOR_KEY,
 ) -> CalendarSliceRuntimePlan:
-    settings = settings or CalendarSliceRuntimeSettings.from_worker_profile()
+    settings = settings or CalendarSliceRuntimeSettings.from_worker_config(
+        executor_key=worker_profile
+    )
     _ = _parse_min_required_records(job_payload)
+
+    dispatch_plan = job_payload.get("_slice_plan")
+    if isinstance(dispatch_plan, dict) and dispatch_plan and not job_payload.get("_slice_probe"):
+        return _runtime_plan_from_dispatch_slice_plan(
+            dispatch_plan,
+            settings=settings,
+            job_payload=job_payload,
+        )
+
+    budget_mb = resolve_calendar_slice_memory_budget_mb()
+    if job_payload.get("_slice_probe"):
+        return _build_probe_runtime_plan(
+            job_payload,
+            open_days_total=open_days_total,
+            budget_mb=budget_mb,
+        )
 
     raw_slice = job_payload.get("slice_open_days")
     if not slice_is_auto(raw_slice):
@@ -113,7 +172,6 @@ def build_runtime_plan(
             f"calendar_slice job 启动时 slice_open_days 须为 'auto'，收到 {raw_slice!r}"
         )
 
-    budget_mb = resolve_calendar_slice_memory_budget_mb()
     mb = float(mb_per_slice if mb_per_slice is not None else _DEFAULT_MB_PER_SLICE)
     t_io = float(t_io_sec if t_io_sec is not None else _DEFAULT_T_IO_SEC)
     t_compute = float(t_compute_sec if t_compute_sec is not None else _DEFAULT_T_COMPUTE_SEC)
@@ -170,8 +228,32 @@ def build_runtime_plan(
     return plan
 
 
+def _build_probe_runtime_plan(
+    job_payload: Dict[str, Any],
+    *,
+    open_days_total: int,
+    budget_mb: float,
+) -> CalendarSliceRuntimePlan:
+    """Small fixed plan for dispatch probe (1 reader, minimal preload)."""
+    _ = open_days_total
+    probe_slice_days = max(1, int(job_payload.get("_probe_slice_open_days") or 5))
+    queue_capacity = max(2, int(job_payload.get("_probe_queue_capacity") or 2))
+    return CalendarSliceRuntimePlan(
+        slice_open_days=probe_slice_days,
+        memory_budget_mb=budget_mb,
+        reader_workers=1,
+        ideal_preload_ceiling=1,
+        current_preload_depth=1,
+        queue_capacity=queue_capacity,
+        mb_per_slice=float(job_payload.get("_probe_mb_per_slice") or 100.0),
+        prefetch_enabled=True,
+    )
+
+
 __all__ = [
     "_parse_min_required_records",
+    "_build_probe_runtime_plan",
+    "_runtime_plan_from_dispatch_slice_plan",
     "build_runtime_plan",
     "ideal_preload_from_timings",
     "is_duckdb_backend",

@@ -1,0 +1,180 @@
+# Backtest Engine unit test case registry.
+# Each case maps to one test file; scenarios align with test function names.
+
+cases:
+  - id: 1
+    case: api
+    description: BacktestEngine 公开 API、Mode 枚举与 RunCallbacks
+    file: test_api.py
+    scenarios:
+      - id: 1
+        name: test_facade_export
+        description: facade 导出 entity_based / slice_based 与 Mode 枚举
+      - id: 2
+        name: test_mode_normalize
+        description: mode 字符串与枚举 normalize
+      - id: 3
+        name: test_mode_normalize_rejects_legacy_alias
+        description: 拒绝 timeline / sliced 等 legacy 别名
+      - id: 4
+        name: test_run_accepts_mode_enum
+        description: run() 接受 Mode 枚举
+      - id: 5
+        name: test_run_unknown_mode_raises
+        description: 未知 mode 抛出 ValueError
+      - id: 6
+        name: test_entity_based_empty_jobs_returns_success
+        description: entity_based 空 jobs 返回成功
+      - id: 7
+        name: test_slice_based_bulk_job_embeds_slice_plan
+        description: slice_based bulk job 注入 _slice_plan
+      - id: 8
+        name: test_slice_based_empty_jobs_returns_success
+        description: slice_based 空 jobs 返回成功
+      - id: 9
+        name: test_run_callbacks_forward_on_result
+        description: RunCallbacks.on_result 透传
+
+  - id: 2
+    case: shared_jobs
+    description: BacktestJob 契约校验与序列化
+    file: test_shared_jobs.py
+    scenarios:
+      - id: 1
+        name: test_from_dict_accepts_contract
+        description: from_dict 接受 id + payload
+      - id: 2
+        name: test_validate_many_accepts_contract
+        description: validate_many 接受合法 job
+      - id: 3
+        name: test_validate_many_entity_based_requires_entity_key
+        description: entity_based 要求 entity 键
+      - id: 4
+        name: test_validate_many_entity_based_accepts_batch_jobs
+        description: entity_based 接受 batch jobs 路径
+      - id: 5
+        name: test_validate_many_slice_based_requires_open_dates
+        description: slice_based 要求 open_dates
+      - id: 6
+        name: test_validate_many_slice_based_accepts_bulk_job
+        description: slice_based 接受 bulk job
+      - id: 7
+        name: test_from_dict_rejects_flat_row
+        description: 拒绝 flat row（无 payload）
+      - id: 8
+        name: test_batch_payloads_unwraps_payloads
+        description: batch_payloads 解包 payload
+      - id: 9
+        name: test_to_dict_round_trip
+        description: to_dict / from_dict 往返
+      - id: 10
+        name: test_normalize_mode_rejects_unknown
+        description: 拒绝 unknown mode
+
+  - id: 3
+    case: entity_planner
+    description: entity_based EntityPlanner 并发与 epj 规划
+    file: test_entity_planner_workers.py
+    scenarios:
+      - id: 1
+        name: test_resolve_max_workers_auto_uses_cpu_cap
+        description: auto max_workers 使用 CPU cap
+      - id: 2
+        name: test_resolve_max_workers_respects_max_parallel_jobs_cap
+        description: 尊重 max_parallel_jobs_cap
+      - id: 3
+        name: test_resolve_max_workers_capped_by_dispatch_jobs
+        description: max_workers 受 dispatch_jobs 上限
+      - id: 4
+        name: test_resolve_max_workers_memory_capped_on_tiny_budget
+        description: 内存不足时 memory_capped
+      - id: 5
+        name: test_resolve_entities_per_job_auto_defaults_to_five
+        description: entities_per_job auto 默认 5
+
+  - id: 4
+    case: entity_planner_dispatch
+    description: entity_based 应用方 dispatch 配置与 batch 切分
+    file: test_entity_planner_price.py
+    scenarios:
+      - id: 1
+        name: test_price_explicit_entities_per_job_from_dispatch
+        description: price_factor dispatch entities_per_job=1000
+      - id: 2
+        name: test_price_resolve_entities_per_job_respects_explicit_override
+        description: 显式 entities_per_job 覆盖
+      - id: 3
+        name: test_validate_many_rejects_flat_stock_rows
+        description: validate_many 拒绝 flat stock row
+
+  - id: 5
+    case: slice_probe
+    description: slice_based 探针与 executor 进程模型
+    file: test_slice_probe.py
+    scenarios:
+      - id: 1
+        name: test_should_run_requires_worker_for_tag
+        description: 探针需要 worker_module_path
+      - id: 2
+        name: test_should_run_respects_slice_probe_flag
+        description: slice_probe=False 跳过探针
+      - id: 3
+        name: test_build_probe_payload_truncates_open_dates_and_entities
+        description: 探针 payload 截断 open_dates / entities
+      - id: 4
+        name: test_extract_slice_probe_metrics_from_runtime_plan
+        description: 从 runtime plan 提取探针指标
+      - id: 5
+        name: test_dispatch_uses_subprocess_and_builds_result
+        description: dispatch 构建探针结果
+      - id: 6
+        name: test_slice_executor_runs_orchestrator_in_process
+        description: SliceExecutor 不启动外层 ProcessPool
+      - id: 7
+        name: test_extract_metrics_requires_samples
+        description: 无 slice_samples 时抛出 RuntimeError
+
+  - id: 6
+    case: slice_monitor
+    description: slice_based 运行时 monitor 与内存压力策略
+    file: test_slice_monitor.py
+    scenarios:
+      - id: 1
+        name: test_record_from_job_report_aggregates_slices
+        description: job report 聚合 slice 样本
+      - id: 2
+        name: test_memory_pressure_recommends_lower_preload
+        description: 内存压力降低 preload
+      - id: 3
+        name: test_warmup_skips_memory_policy
+        description: warmup 期间跳过内存策略
+
+  - id: 7
+    case: slice_executor_duckdb
+    description: SliceExecutorDuckDB DuckDB process pool 包装
+    file: test_slice_executor_duckdb.py
+    scenarios:
+      - id: 1
+        name: test_duckdb_executor_wraps_scope_and_delegates
+        description: DuckDB scope 包装并委托 SliceExecutor
+
+  - id: 8
+    case: progress
+    description: RunProgressReporter 分阶段进度与 display 开关
+    file: test_progress.py
+    scenarios:
+      - id: 1
+        name: test_phase_weights_sum_to_one
+        description: 四阶段权重之和为 1
+      - id: 2
+        name: test_mark_phase_advances_percent_floor
+        description: mark_phase / mark_execute_unit 推进百分比
+      - id: 3
+        name: test_enable_progress_display_false_skips_logging
+        description: enable_progress_display=False 不写 CMD 日志
+      - id: 4
+        name: test_report_execute_unit_from_context_invokes_hook
+        description: slice orchestrator hook 回调
+      - id: 5
+        name: test_report_execute_unit_from_context_ignores_missing_hook
+        description: 无 hook 时静默跳过

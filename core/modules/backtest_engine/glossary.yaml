@@ -1,0 +1,78 @@
+# BacktestEngine 术语表
+# Version: 0.3.0
+
+terms:
+  BacktestEngine:
+    definition: "回测调度 Facade：probe → plan → split → execute → monitor"
+    aliases: ["backtest_engine", "回测引擎"]
+    avoid: ["BacktestScheduler", "JobPipeline"]
+
+  entity_based:
+    definition: "执行模式：每 entity（或 entity batch）独立并行；slice 边界内无 cross-entity 编排交互"
+    aliases: ["entity parallel", "embarrassingly parallel jobs"]
+    avoid: ["timeline", "stock_based only"]
+
+  slice_based:
+    definition: "执行模式：按日历 open_dates 切片；slice 内多 entity 经 reader/compute 管道交互"
+    aliases: ["calendar slice", "time-slice bulk"]
+    avoid: ["sliced", "chunk mode"]
+
+  timeline:
+    definition: "已废弃别名 → entity_based（迁移期代码/文档）"
+    aliases: []
+    avoid: ["作为新模式名使用"]
+
+  sliced:
+    definition: "已废弃别名 → slice_based（迁移期代码/文档）"
+    aliases: []
+    avoid: ["作为新模式名使用"]
+
+  BacktestJob:
+    definition: "调度 job 契约 dataclass：id + payload"
+    aliases: ["engine job"]
+    avoid: ["wire", "wire format"]
+
+  job_dict:
+    definition: "可序列化的 job 表示 {'id': str, 'payload': dict}"
+    aliases: ["job record"]
+    avoid: ["wire"]
+
+  performance:
+    definition: "调度配置 dict；应用方 dispatch 配置 merge engine base 后传入；用户 settings 不可覆盖"
+    aliases: ["dispatch performance"]
+    avoid: ["settings.performance", "global worker.json", "executor_key"]
+
+  task_name:
+    definition: "单次 run 展示/追踪名 → JobContext"
+    aliases: []
+    avoid: ["run_name", "log_label"]
+
+  RunCallbacks:
+    definition: "单次 run 的可选回调集合（on_result、on_release 等）"
+    aliases: ["hooks", "callbacks"]
+    avoid: ["run 上平铺多个 on_* 参数"]
+
+  execute_fn:
+    definition: "子进程 job 执行函数：(JobContext) -> dict"
+    aliases: ["worker entry"]
+    avoid: ["Executor class"]
+
+  probe:
+    definition: "engine 内部：plan 前用 execute_fn 试跑小样本（调用方不可见）"
+    aliases: []
+    avoid: ["ProbeRegistry"]
+
+  RunResult:
+    definition: "run 返回汇总：plan、monitor_stats、job_results 等"
+    aliases: []
+    avoid: ["DispatchResult"]
+
+  JobContext:
+    definition: "execute_fn 收到的作用域：job_id + payload + task_name"
+    aliases: []
+    avoid: ["WorkerContext"]
+
+  JobReport:
+    definition: "单 job execute 返回：success + data + error"
+    aliases: []
+    avoid: ["JobResult"]

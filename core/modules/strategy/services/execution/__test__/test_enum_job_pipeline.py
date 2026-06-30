@@ -1,5 +1,5 @@
 """BacktestEngine 执行辅助函数。"""
-from core.modules.backtest_engine.core.shared.types import JobReport, JobStatus
+from core.modules.backtest_engine.contracts import JobReport, JobStatus
 from core.modules.strategy.services.execution.stock_job_pipeline import (
     job_progress_payload,
     job_report_to_job_result,

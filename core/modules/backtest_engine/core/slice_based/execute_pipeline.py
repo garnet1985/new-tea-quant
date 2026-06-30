@@ -60,6 +60,7 @@ class SliceExecutePipeline:
         plan, batches, monitor_config = SlicePlanner.plan_jobs(
             jobs,
             performance,
+            execute_fn=execute_fn,
             executor=executor_key,
             log_label=self._log_label,
         )

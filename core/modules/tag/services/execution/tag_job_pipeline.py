@@ -16,8 +16,7 @@ import logging
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from core.modules.backtest_engine.core.shared.types import JobContext, JobReport, RunProgress
-from core.modules.backtest_engine.core.shared.jobs import BacktestJob
+from core.modules.backtest_engine.contracts import BacktestJob, JobContext, JobReport, RunProgress
 
 logger = logging.getLogger(__name__)
 

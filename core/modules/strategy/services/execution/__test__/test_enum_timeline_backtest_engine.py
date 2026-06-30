@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from core.modules.backtest_engine.core.shared.types import JobContext
+from core.modules.backtest_engine.contracts import JobContext
 from core.modules.strategy.services.execution.enum_job_pipeline import (
     _merge_enumeration_batch,
     execute_enumeration_timeline_job,

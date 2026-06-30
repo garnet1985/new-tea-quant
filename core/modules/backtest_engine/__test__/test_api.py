@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 from core.modules.backtest_engine import BacktestEngine
-from core.modules.backtest_engine.core.shared.types import JobContext
+from core.modules.backtest_engine.contracts import JobContext
 
 
 def _noop_execute(context: JobContext) -> dict:

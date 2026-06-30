@@ -35,8 +35,7 @@ def test_worker_pool_budget_does_not_subtract_floor_twice() -> None:
 
 
 def test_resolve_max_workers_auto() -> None:
-    workers = MachineInfo.resolve_max_workers(
-        {"max_workers": "auto", "reserve_cores": 1},
-        dispatch_jobs=100,
-    )
+    from core.modules.backtest_engine.core.timeline_based.probe import WorkerProbe
+
+    workers = WorkerProbe.resolve("auto", reserve_cores=1, cap=None)
     assert workers >= 1

@@ -1,7 +1,6 @@
 """Runtime planner unit tests."""
 from unittest.mock import patch
 
-from core.modules.backtest_engine.core.slice_based.config import SliceConfig
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.planner import (
     build_runtime_plan,
     ideal_preload_from_timings,
@@ -107,14 +106,15 @@ def test_runtime_plan_record_slice_uses_payload_bytes():
 def test_slice_config_calendar_slice_block():
     from unittest.mock import patch
 
-    from core.modules.backtest_engine.core.slice_based.config import SliceConfig
+    from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.worker_profile import (
+        profile_enumerator_calendar_slice_config,
+    )
     from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.settings import (
         CalendarSliceRuntimeSettings,
     )
 
-    with patch.object(
-        SliceConfig,
-        "resolve_dispatch_performance",
+    with patch(
+        "core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.settings.profile_enumerator_calendar_slice_config",
         return_value={"reader_workers": 2, "prefetch_enabled": True, "queue_depth": "auto"},
     ):
         cfg = CalendarSliceRuntimeSettings.from_worker_config()

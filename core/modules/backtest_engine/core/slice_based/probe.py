@@ -9,10 +9,11 @@ import copy
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
-from core.modules.backtest_engine.core.shared.machine_info import MachineCapacity
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
+from core.modules.backtest_engine.core.shared.machine_info import MachineCapacity
+from core.modules.backtest_engine.core.shared.types import JobContext
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ DEFAULT_PROBE_SAFETY_FACTOR: float = 1.25
 
 PROBE_EXECUTOR_TAG = "tag"
 PROBE_EXECUTOR_STRATEGY_ENUM = "strategy.enum"
+
 
 
 @dataclass(frozen=True)
@@ -153,30 +155,41 @@ class SliceProbe:
     def dispatch(
         probe_jobs: List[Dict[str, Any]],
         *,
-        executor: str,
+        execute_fn: Optional[Callable[[JobContext], Dict[str, Any]]],
         performance: Dict[str, Any],
         log_label: str = "Slice探针",
+        run_name: str = "",
     ) -> SliceProbeResult:
         if not probe_jobs:
             return SliceProbe._default_result(performance)
 
+        if execute_fn is None:
+            logger.warning("%s探针跳过：未提供 execute_fn", log_label)
+            return SliceProbe._default_result(performance)
+
         payload = BacktestJob.from_wire(probe_jobs[0]).payload
         probe_payload = dict(payload)
-        probe_payload["_probe_executor"] = executor
 
         logger.info(
-            "%s启动: executor=%s, open_days=%s",
+            "%s启动: open_days=%s",
             log_label,
-            executor,
             len(probe_payload.get("open_dates") or []),
         )
 
-        raw = SliceProbe._run_probe_in_subprocess(probe_payload, performance, log_label)
+        raw = SliceProbe._run_probe_in_subprocess(
+            execute_fn,
+            probe_payload,
+            run_name or f"{log_label}:probe",
+            performance,
+            log_label,
+        )
         return SliceProbe._build_probe_result(raw, performance, log_label)
 
     @staticmethod
     def _run_probe_in_subprocess(
+        execute_fn: Callable[[JobContext], Dict[str, Any]],
         probe_payload: Dict[str, Any],
+        run_name: str,
         performance: Dict[str, Any],
         log_label: str,
     ) -> Dict[str, Any]:
@@ -196,7 +209,7 @@ class SliceProbe:
                 prepared_here = True
 
         try:
-            raw = _slice_probe_worker(probe_payload)
+            raw = _slice_probe_worker((execute_fn, probe_payload, run_name))
             wait_pool_children_done(timeout_sec=15.0)
             return raw
         finally:
@@ -367,10 +380,16 @@ class SliceProbe:
         return []
 
 
-def _slice_probe_worker(payload: Dict[str, Any]) -> Dict[str, Any]:
+def _slice_probe_worker(args: tuple) -> Dict[str, Any]:
+    execute_fn, probe_payload, run_name = args
     rss_before_mb = _process_rss_mb()
     t0 = time.perf_counter()
-    orchestrator_result = _run_slice_probe_executor(dict(payload))
+    ctx = JobContext(
+        job_id=str(probe_payload.get("_job_id") or probe_payload.get("job_id") or "slice_probe"),
+        payload=dict(probe_payload),
+        run_name=run_name,
+    )
+    orchestrator_result = execute_fn(ctx)
     if not isinstance(orchestrator_result, dict):
         orchestrator_result = {"success": True, "data": orchestrator_result}
     rss_after_mb = _process_rss_mb()
@@ -382,21 +401,6 @@ def _slice_probe_worker(payload: Dict[str, Any]) -> Dict[str, Any]:
         "rss_before_mb": rss_before_mb,
         "wall_sec": wall_sec,
     }
-
-
-def _run_slice_probe_executor(payload: Dict[str, Any]) -> Dict[str, Any]:
-    key = str(payload.get("_probe_executor") or "").strip()
-    if key == PROBE_EXECUTOR_STRATEGY_ENUM:
-        from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.slice_dispatch_probe import (
-            execute_enum_slice_probe_payload,
-        )
-        return execute_enum_slice_probe_payload(payload)
-    if key == PROBE_EXECUTOR_TAG:
-        from core.modules.tag.engines.sliced.slice_dispatch_probe import (
-            execute_tag_slice_probe_payload,
-        )
-        return execute_tag_slice_probe_payload(payload)
-    raise ValueError(f"未知 slice 探针执行器: {key!r}")
 
 
 def _process_rss_mb() -> float:
@@ -415,8 +419,6 @@ def _process_rss_mb() -> float:
 __all__ = [
     "DEFAULT_PROBE_SLICE_COUNT",
     "DEFAULT_PROBE_SAFETY_FACTOR",
-    "PROBE_EXECUTOR_STRATEGY_ENUM",
-    "PROBE_EXECUTOR_TAG",
     "SliceProbeResult",
     "SliceProbe",
 ]

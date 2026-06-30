@@ -3,9 +3,9 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from core.modules.backtest_engine.core.shared.types import JobContext, JobResult, JobStatus
+from core.modules.backtest_engine.contracts import JobContext, JobResult, JobStatus
 
-from core.modules.backtest_engine.core.shared.jobs import BacktestJob
+from core.modules.backtest_engine.contracts import BacktestJob
 
 from .engine_jobs import require_stock_id, wrap_slice_dispatch_job, wrap_timeline_stock_job
 from .stock_job_pipeline import job_progress_payload, job_report_to_job_result
@@ -229,7 +229,7 @@ def run_enumeration_timeline_via_backtest_engine(
     from pathlib import Path
 
     from core.modules.backtest_engine import BacktestEngine
-    from core.modules.backtest_engine.core.shared.types import JobReport, RunProgress
+    from core.modules.backtest_engine.contracts import JobReport, RunProgress
 
     from .run_hooks import StrategyRunHooksCoordinator
 
@@ -352,7 +352,7 @@ def run_enumeration_sliced_via_backtest_engine(
 ) -> List[Any]:
     """Strategy calendar_slice：单 bulk job → BacktestEngine.sliced.run。"""
     from core.modules.backtest_engine import BacktestEngine
-    from core.modules.backtest_engine.core.shared.types import JobReport, RunProgress
+    from core.modules.backtest_engine.contracts import JobReport, RunProgress
 
     engine_jobs: List[Dict[str, Any]] = []
     for job in dispatch_jobs:

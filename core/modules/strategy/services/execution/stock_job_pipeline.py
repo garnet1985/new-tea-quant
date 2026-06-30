@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from core.modules.backtest_engine.core.shared.types import (
+from core.modules.backtest_engine.contracts import (
     JobContext,
     JobReport,
     JobResult,

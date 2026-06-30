@@ -245,7 +245,7 @@ class TestTagManager:
         mock_timeline_run,
     ):
         """Worker 返回 tag_values，主进程 on_result 调用 save_batch。"""
-        from core.modules.backtest_engine.core.shared.types import JobReport, RunProgress
+        from core.modules.backtest_engine.contracts import JobReport, RunProgress
         from core.modules.tag.services.execution.tag_job_pipeline import (
             run_tag_timeline_via_backtest_engine,
         )
@@ -314,7 +314,7 @@ class TestTagManager:
         mock_timeline_run,
     ):
         """多个 job 的 tag_values 按 save_batch_size 合并 upsert。"""
-        from core.modules.backtest_engine.core.shared.types import JobReport, RunProgress
+        from core.modules.backtest_engine.contracts import JobReport, RunProgress
         from core.modules.tag.services.execution.tag_job_pipeline import (
             run_tag_timeline_via_backtest_engine,
         )

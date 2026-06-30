@@ -4,8 +4,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable, Dict, List, Optional
 
-from core.modules.backtest_engine.core.shared.types import JobContext, JobResult
-from core.modules.backtest_engine.core.shared.jobs import BacktestJob
+from core.modules.backtest_engine.contracts import BacktestJob, JobContext, JobResult
 
 from .engine_jobs import wrap_timeline_stock_job
 from .runners.scanner_runner import run_scanner_payload
@@ -90,7 +89,7 @@ def run_scanner_timeline_via_backtest_engine(
 ) -> List[JobResult]:
     """Strategy 侧：扫描 jobs + execute_fn → BacktestEngine timeline.run。"""
     from core.modules.backtest_engine import BacktestEngine
-    from core.modules.backtest_engine.core.shared.types import JobReport, RunProgress
+    from core.modules.backtest_engine.contracts import JobReport, RunProgress
 
     n = total_jobs if total_jobs is not None else len(stock_jobs)
     engine_jobs: List[Dict[str, Any]] = []

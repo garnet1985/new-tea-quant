@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from core.modules.backtest_engine.core.shared.types import JobContext
+from core.modules.backtest_engine.contracts import JobContext
 from core.modules.tag.services.execution.tag_job_pipeline import (
     TAG_SLICED_EXECUTOR_KEY,
     execute_tag_sliced_job,

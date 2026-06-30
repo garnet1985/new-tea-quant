@@ -872,7 +872,7 @@ ProjectContextManager:
     core_info():
       description: "获取 core meta 信息"
       stability: stable
-      is_static: false
+      binding: instance
       parameters:
         - "无参数"
       returns: Optional[Dict[str, Any]]
@@ -885,7 +885,7 @@ ProjectContextManager:
     core_version():
       description: "获取 core 版本号"
       stability: stable
-      is_static: false
+      binding: instance
       parameters:
         - "无参数"
       returns: Optional[str]
@@ -904,7 +904,7 @@ PathManager:
     get_root():
       description: "获取项目根目录的绝对路径"
       stability: stable
-      is_static: true
+      binding: static
       parameters:
         - "无参数"
       returns: Path
@@ -941,11 +941,21 @@ api_stability_levels:
 |------|------|------|---------|
 | `description` | string | API功能描述 | ✅ 必需 |
 | `stability` | enum | API稳定性级别（stable/beta/experimental/deprecated） | ✅ 必需 |
-| `is_static` | bool | 是否静态方法 | ✅ 必需 |
+| `binding` | enum | 方法绑定方式：`static` / `class` / `instance` | ✅ 必需 |
 | `parameters` | list | 参数列表（带注释） | ✅ 必需 |
 | `returns` | type | 返回值类型（带注释） | ✅ 必需 |
 | `throws` | list | 异常列表 | ✅ 必需 |
 | `example` | string | 使用示例 | ✅ 必需 |
+
+**binding 取值说明：**
+
+| 值 | 含义 | 典型用法 |
+|----|------|---------|
+| `static` | 静态方法或类命名空间函数 | `@staticmethod`、`Class.method()` |
+| `class` | 类方法 | `@classmethod` |
+| `instance` | 实例方法 | `self.method()` |
+
+> 历史字段 `is_static` 已废弃，请改用 `binding`。迁移：`is_static: true` → `binding: static`；`is_static: false` → `binding: instance`（若为 `@classmethod` 则用 `class`）。
 
 **可选字段（根据需要添加）：**
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from core.modules.backtest_engine.core.shared.types import JobContext
+from core.modules.backtest_engine.contracts import JobContext
 from core.modules.strategy.services.execution.scanner_job_pipeline import (
     execute_scanner_timeline_job,
     run_scanner_timeline_via_backtest_engine,

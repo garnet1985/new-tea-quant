@@ -1,10 +1,17 @@
 name: modules.backtest_engine
-version: 0.1.0
+version: 0.2.0
 compatible_core_versions: ">=0.4.0"
 description: "回测引擎：统一处理timeline和sliced两种回测机制，管理Worker生命周期钩子。"
 dependencies:
   - infra.project_context
 changelog:
+  - version: "0.2.0"
+    changes:
+      - 模块标准化：glossary.yaml、api.yaml 对齐实际 Facade API
+      - 探针内收：plan 阶段复用调用方 execute_fn，无 ProbeRegistry
+      - 根目录对外仅 BacktestEngine + contracts.py
+      - MachineInfo 迁至 core.infra.machine_capacity
+      - sliced bulk job 判定改为通用 open_dates + bulk entity 启发式
   - version: "0.1.0"
     changes:
       - 创建回测引擎模块架构

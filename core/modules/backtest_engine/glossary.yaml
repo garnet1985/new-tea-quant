@@ -1,0 +1,53 @@
+# BacktestEngine 术语表
+# Version: 0.2.0
+
+terms:
+  BacktestEngine:
+    definition: "回测调度 Facade：probe → plan → split → execute → monitor"
+    aliases: ["backtest_engine", "回测引擎"]
+    avoid: ["BacktestScheduler", "JobPipeline"]
+
+  executor_key:
+    definition: "worker.json 调度 profile 键，如 tag、strategy.enum"
+    aliases: ["probe executor", "worker profile key"]
+    avoid: ["module_name"]
+
+  execute_fn:
+    definition: "子进程 job 执行函数，签名 (JobContext) -> dict"
+    aliases: ["worker entry", "timeline execute_fn"]
+    avoid: ["Executor class"]
+
+  timeline:
+    definition: "按 entity 独立时间线的并行模式（BacktestEngine.Timeline.run）"
+    aliases: ["entity_timeline"]
+    avoid: ["stock_based only"]
+
+  sliced:
+    definition: "按日历 open_dates 切片的 bulk job 模式（BacktestEngine.Sliced.run）"
+    aliases: ["calendar_slice"]
+    avoid: ["chunk mode"]
+
+  probe:
+    definition: "子进程试跑小样本以估算内存/耗时，用于 auto 规划"
+    aliases: ["dispatch probe", "slice probe"]
+    avoid: ["profile run"]
+
+  RunResult:
+    definition: "BacktestEngine.run 返回的稳定汇总（含 plan / monitor_stats）"
+    aliases: []
+    avoid: ["Context", "DispatchResult"]
+
+  BacktestJob:
+    definition: "Wire 契约 {'id': str, 'payload': dict}"
+    aliases: ["engine job"]
+    avoid: ["dispatch job dict"]
+
+  JobContext:
+    definition: "子进程 execute_fn 收到的 job 作用域（job_id + payload + run_name）"
+    aliases: []
+    avoid: ["WorkerContext"]
+
+  JobReport:
+    definition: "单 job execute 返回报告（success + data + error）"
+    aliases: []
+    avoid: ["JobResult"]

@@ -6,27 +6,14 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
-from core.modules.backtest_engine.core.slice_based.config import SliceConfig
-from core.modules.backtest_engine.core.timeline_based.config import TimelineConfig
-from core.modules.tag.engines.shared.worker_settings_keys import TAG_EXECUTOR_KEY
+from core.modules.tag.settings.worker_profile import (
+    profile_tag_calendar_slice_config,
+    profile_tag_entity_timeline_config,
+)
 from core.modules.data_contract.contract_const import ContractScope, ContractType, DataKey
 from core.modules.data_contract.mapping import default_map
 from core.modules.data_contract.tag_entity_type import resolve_tag_entity_type
 from core.modules.tag.enums import TagTargetType
-
-def profile_tag_entity_timeline_config() -> Dict[str, Any]:
-    """``worker.json`` → ``job_pipeline.tag.entity_timeline`` 下的 Entity Timeline 模式默认值。"""
-    cfg = dict(TimelineConfig.resolve_dispatch_performance(TAG_EXECUTOR_KEY))
-    cfg.setdefault("entities_per_job", "auto")
-    cfg.setdefault("dispatch_probe", True)
-    cfg.setdefault("stage_in_worker", True)
-    cfg.setdefault("memory_floor_mb", "auto")
-    return cfg
-
-
-def profile_tag_calendar_slice_config() -> Dict[str, Any]:
-    """``worker.json`` → ``job_pipeline.tag.calendar_slice`` 下的 Calendar Sliced 模式默认值。"""
-    return dict(SliceConfig.resolve_dispatch_performance(TAG_EXECUTOR_KEY))
 
 
 def _source_entry(item: Dict[str, Any]) -> Dict[str, Any]:

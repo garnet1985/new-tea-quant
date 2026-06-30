@@ -11,14 +11,15 @@ def test_calendar_slice_runtime_settings_defaults():
 def test_calendar_slice_runtime_settings_explicit():
     from unittest.mock import patch
 
-    from core.modules.backtest_engine.core.slice_based.config import SliceConfig
+    from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.worker_profile import (
+        profile_enumerator_calendar_slice_config,
+    )
     from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.settings import (
         CalendarSliceRuntimeSettings,
     )
 
-    with patch.object(
-        SliceConfig,
-        "resolve_dispatch_performance",
+    with patch(
+        "core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.settings.profile_enumerator_calendar_slice_config",
         return_value={"reader_workers": 2, "queue_depth": 2, "prefetch_enabled": True},
     ):
         rt = CalendarSliceRuntimeSettings.from_worker_config()
@@ -29,14 +30,15 @@ def test_calendar_slice_runtime_settings_explicit():
 def test_calendar_slice_runtime_settings_prefetch_off_forces_single_reader():
     from unittest.mock import patch
 
-    from core.modules.backtest_engine.core.slice_based.config import SliceConfig
+    from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.worker_profile import (
+        profile_enumerator_calendar_slice_config,
+    )
     from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.settings import (
         CalendarSliceRuntimeSettings,
     )
 
-    with patch.object(
-        SliceConfig,
-        "resolve_dispatch_performance",
+    with patch(
+        "core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.settings.profile_enumerator_calendar_slice_config",
         return_value={
             "queue_depth": 2,
             "prefetch_enabled": False,

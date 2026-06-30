@@ -5,8 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Union
 
-from core.modules.backtest_engine.core.slice_based.config import SliceConfig
 from core.modules.strategy.engines.shared.worker_settings_keys import STRATEGY_ENUM_EXECUTOR_KEY
+from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.worker_profile import (
+    profile_enumerator_calendar_slice_config,
+)
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.slice_plan import (
     is_auto_setting,
 )
@@ -28,7 +30,7 @@ class CalendarSliceRuntimeSettings:
         cls,
         executor_key: str = STRATEGY_ENUM_EXECUTOR_KEY,
     ) -> "CalendarSliceRuntimeSettings":
-        block = SliceConfig.resolve_dispatch_performance(executor_key)
+        block = profile_enumerator_calendar_slice_config()
         return cls._from_block(block)
 
     @classmethod

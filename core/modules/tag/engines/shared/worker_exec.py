@@ -5,7 +5,7 @@ import logging
 import time
 from typing import Any, Dict, List, Tuple
 
-from core.modules.backtest_engine.core.shared.types import JobContext
+from core.modules.backtest_engine.contracts import JobContext
 
 logger = logging.getLogger(__name__)
 

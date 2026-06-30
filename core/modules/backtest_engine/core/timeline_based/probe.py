@@ -23,7 +23,9 @@ import multiprocessing as mp
 import pickle
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
+
+from core.modules.backtest_engine.core.shared.types import JobContext
 
 logger = logging.getLogger(__name__)
 
@@ -155,60 +157,46 @@ class Probe:
     @staticmethod
     def dispatch(
         probe_jobs: List[Dict[str, Any]],
-        executor: str,
         performance: Dict[str, Any],
+        execute_fn: Optional[Callable[[JobContext], Dict[str, Any]]],
         log_label: str = "调度",
+        run_name: str = "",
     ) -> ProbeResult:
-        """执行探针（子进程测量内存和时间）。
-        
-        Args:
-            probe_jobs: 探针jobs
-            executor: 执行器标识字符串（"tag", "strategy.enum", "strategy.price"）
-            performance: 配置字典
-            log_label: 日志标签
-            
-        Returns:
-            ProbeResult: 探针测量结果
-        """
+        """执行探针（子进程测量内存和时间）。"""
         if not probe_jobs:
             return Probe._get_default_result(performance)
-        
-        # 构建探针payload
+
+        if execute_fn is None:
+            logger.warning("%s探针跳过：未提供 execute_fn", log_label)
+            return Probe._get_default_result(performance)
+
         entities_sampled = len(probe_jobs)
         probe_payload = {
             "jobs": probe_jobs,
-            "_probe_executor": executor,
             "_probe_entity_count": entities_sampled,
         }
-        
-        # 在子进程中运行探针
+
         raw_result = Probe._run_probe_in_subprocess(
-            probe_payload, executor, performance, log_label
+            execute_fn,
+            probe_payload,
+            run_name or f"{log_label}:probe",
+            performance,
+            log_label,
         )
-        
-        # 构建探针结果
+
         return Probe._build_probe_result(
             raw_result, entities_sampled, performance, log_label
         )
-    
+
     @staticmethod
     def _run_probe_in_subprocess(
+        execute_fn: Callable[[JobContext], Dict[str, Any]],
         probe_payload: Dict[str, Any],
-        executor: str,
+        run_name: str,
         performance: Dict[str, Any],
         log_label: str,
     ) -> Dict[str, Any]:
-        """在独立子进程运行探针。
-        
-        Args:
-            probe_payload: 探针payload
-            executor: 执行器标识字符串
-            performance: 配置字典
-            log_label: 日志标签
-            
-        Returns:
-            Dict[str, Any]: 子进程返回的原始结果
-        """
+        """在独立子进程运行探针。"""
         from core.infra.db.engines.duckdb.process_pool_scope import (
             is_duckdb_backend,
             is_main_duckdb_worker_pool_active,
@@ -229,7 +217,10 @@ class Probe:
         try:
             ctx = mp.get_context(start_method)
             with ctx.Pool(processes=1) as pool:
-                raw = pool.apply(_probe_worker, (probe_payload,))
+                raw = pool.apply(
+                    _probe_worker,
+                    ((execute_fn, probe_payload, run_name),),
+                )
             wait_pool_children_done(timeout_sec=15.0)
             return raw
         finally:
@@ -320,34 +311,31 @@ class Probe:
         return 1.0  # 默认值
 
 
-def _probe_worker(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """子进程探针worker（测量执行前后RSS和时间）。
-    
-    Args:
-        payload: 探针payload
-        
-    Returns:
-        Dict[str, Any]: 测量结果
-    """
+def _probe_worker(args: tuple) -> Dict[str, Any]:
+    """子进程探针 worker：调用与正式执行相同的 execute_fn。"""
+    execute_fn, payload, run_name = args
     rss_before_mb = _process_rss_mb()
     t0 = time.perf_counter()
-    
-    # 执行探针payload
-    out = _run_probe_executor(dict(payload))
+
+    ctx = JobContext(
+        job_id=str(payload.get("_job_id") or "probe"),
+        payload=dict(payload),
+        run_name=run_name,
+    )
+    out = execute_fn(ctx)
     if not isinstance(out, dict):
         out = {"success": True, "data": out}
-    
+
     rss_after_mb = _process_rss_mb()
     wall_sec = time.perf_counter() - t0
     entities = max(1, int(payload.get("_probe_entity_count") or 1))
-    
-    # 测量pickle大小
+
     pickle_bytes = 0
     try:
         pickle_bytes = len(pickle.dumps(out, protocol=pickle.HIGHEST_PROTOCOL))
     except Exception:
         pass
-    
+
     return {
         "success": bool(out.get("success", True)),
         "peak_rss_mb": max(rss_before_mb, rss_after_mb),
@@ -369,45 +357,10 @@ def _process_rss_mb() -> float:
         return 0.0
 
 
-def _run_probe_executor(payload: Dict[str, Any]) -> Dict[str, Any]:
-    """执行探针payload（根据executor标识选择执行器）。
-    
-    Args:
-        payload: 探针payload
-        
-    Returns:
-        Dict[str, Any]: 执行结果
-    """
-    key = str(payload.get("_probe_executor") or "").strip()
-    
-    if key == PROBE_EXECUTOR_STRATEGY_ENUM:
-        from core.modules.strategy.services.execution.enum_dispatch_probe import (
-            execute_enum_probe_payload,
-        )
-        return execute_enum_probe_payload(payload)
-    
-    if key == PROBE_EXECUTOR_STRATEGY_PRICE:
-        from core.modules.strategy.services.execution.price_dispatch_probe import (
-            execute_price_probe_payload,
-        )
-        return execute_price_probe_payload(payload)
-    
-    if key == PROBE_EXECUTOR_TAG:
-        from core.modules.tag.engines.shared.dispatch_probe import (
-            execute_tag_probe_payload,
-        )
-        return execute_tag_probe_payload(payload)
-    
-    raise ValueError(f"未知探针执行器: {key!r}")
-
-
 __all__ = [
     "ProbeResult",
     "WorkerProbe",
     "Probe",
     "DEFAULT_PROBE_ENTITIES",
     "DEFAULT_PROBE_SAFETY_FACTOR",
-    "PROBE_EXECUTOR_TAG",
-    "PROBE_EXECUTOR_STRATEGY_ENUM",
-    "PROBE_EXECUTOR_STRATEGY_PRICE",
 ]

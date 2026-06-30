@@ -5,10 +5,8 @@ from unittest.mock import patch
 
 import pytest
 
-from core.modules.backtest_engine.core.slice_based.probe import (
-    PROBE_EXECUTOR_TAG,
-    SliceProbe,
-)
+from core.modules.backtest_engine.core.slice_based.probe import SliceProbe
+from core.modules.backtest_engine.contracts import JobContext
 
 
 def _sample_orchestrator_result() -> dict:
@@ -126,10 +124,13 @@ def test_dispatch_uses_subprocess_and_builds_result() -> None:
         "wall_sec": 1.5,
         "orchestrator_result": _sample_orchestrator_result(),
     }
+    def _fake_execute(ctx: JobContext) -> dict:
+        return _sample_orchestrator_result()
+
     with patch.object(SliceProbe, "_run_probe_in_subprocess", return_value=raw):
         result = SliceProbe.dispatch(
             probe_jobs,
-            executor=PROBE_EXECUTOR_TAG,
+            execute_fn=_fake_execute,
             performance={},
             log_label="test",
         )

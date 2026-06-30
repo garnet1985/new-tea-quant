@@ -60,7 +60,9 @@ class TimelineExecutePipeline:
     ) -> TimelineExecutePipeline.Result:
         if jobs:
             BacktestJob.validate_many(jobs)
-        plan, batches, monitor_config = self._plan(jobs, performance, executor_key)
+        plan, batches, monitor_config = self._plan(
+            jobs, performance, executor_key, execute_fn
+        )
         capacity = MachineInfo.get_capacity(performance)
         available_memory_mb = MachineInfo.worker_pool_budget_mb(capacity)
         monitor = TimelineRunMonitor(
@@ -122,10 +124,12 @@ class TimelineExecutePipeline:
         jobs: List[Dict[str, Any]],
         performance: Dict[str, Any],
         executor_key: Optional[str],
+        execute_fn: TimelineExecutor.ExecuteFn,
     ) -> tuple[DispatchPlan, List[JobBatch], TimelineMonitorConfig]:
         return TimelinePlanner.plan_jobs(
             jobs,
             performance,
+            execute_fn=execute_fn,
             executor=executor_key,
             log_label=self._log_label,
         )

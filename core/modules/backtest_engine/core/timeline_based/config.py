@@ -5,15 +5,42 @@ import logging
 from typing import Any, Dict, Optional, Tuple
 
 from core.infra.project_context import ProjectContext
+from core.modules.backtest_engine.core.shared.worker_json import (
+    resolve_executor_section,
+)
 
 logger = logging.getLogger(__name__)
 
-# executor_key → (job_pipeline profile, dispatch section name)
+# executor_key → (job_pipeline profile, section name)
 _EXECUTOR_DISPATCH_PROFILES: Dict[str, Tuple[str, str]] = {
     "tag": ("tag", "entity_timeline"),
     "strategy.enum": ("enumerator", "dispatch"),
     "strategy.price": ("price_factor", "dispatch"),
     "strategy.scanner": ("scanner", "dispatch"),
+}
+
+_TIMELINE_SECTION_DEFAULTS: Dict[str, Dict[str, Any]] = {
+    "tag": {
+        "entities_per_job": "auto",
+        "dispatch_probe": True,
+        "entities_per_job_min": 1,
+        "entities_per_job_max": 500,
+    },
+    "enumerator": {
+        "memory_budget_mb": "auto",
+        "memory_floor_mb": "auto",
+        "entities_per_job": "auto",
+        "dispatch_probe": True,
+        "entities_per_job_min": 1,
+        "entities_per_job_max": 500,
+        "worker_memory_fraction": 0.85,
+        "prefetch_ahead": 1,
+    },
+    "price_factor": {
+        "entities_per_job": 1000,
+        "dispatch_probe": False,
+        "force_main_process": False,
+    },
 }
 
 
@@ -126,36 +153,18 @@ class TimelineConfig:
                 f"unknown executor_key for dispatch config: {key!r}; "
                 f"supported: {sorted(_EXECUTOR_DISPATCH_PROFILES)}"
             )
-
-        profile_name, section_name = mapping
-        cfg = ProjectContext.config.load_core_config("worker")
-        job_pipeline = cfg.get("job_pipeline") or {}
-        if not isinstance(job_pipeline, dict):
-            job_pipeline = {}
-
-        performance: Dict[str, Any] = {}
-        for block_name in ("default", profile_name):
-            block = job_pipeline.get(block_name)
-            if not isinstance(block, dict):
-                continue
-            for field in ("reserve_cores", "max_parallel_jobs_cap"):
-                if field in block:
-                    performance[field] = block[field]
-
-        profile_block = job_pipeline.get(profile_name)
-        if isinstance(profile_block, dict):
-            section = profile_block.get(section_name)
-            if isinstance(section, dict):
-                performance.update(section)
-
-        performance.setdefault("max_workers", "auto")
-        performance.setdefault("prefetch_ahead", 1)
-
+        profile_name, _section = mapping
+        defaults = dict(_TIMELINE_SECTION_DEFAULTS.get(profile_name, {}))
+        performance = resolve_executor_section(
+            executor_key,
+            _EXECUTOR_DISPATCH_PROFILES,
+            defaults=defaults,
+            setdefaults={"max_workers": "auto", "prefetch_ahead": 1},
+        )
         logger.debug(
-            "dispatch config loaded: executor=%s profile=%s section=%s keys=%s",
+            "dispatch config loaded: executor=%s profile=%s keys=%s",
             key,
             profile_name,
-            section_name,
             sorted(performance),
         )
         return performance

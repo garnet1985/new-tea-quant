@@ -107,7 +107,7 @@ class PriceFactorFlowImpl:
         progress_callback: Optional[Callable[[float], None]] = None,
         duckdb_data_mgr: Any = None,
     ) -> List[Dict[str, Any]]:
-        from core.modules.backtest_engine.core.shared.types import JobStatus
+        from core.modules.backtest_engine.contracts import JobStatus
         from core.modules.strategy.services.execution.price_job_pipeline import (
             run_price_factor_timeline_via_backtest_engine,
         )

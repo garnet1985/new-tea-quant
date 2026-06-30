@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from core.modules.backtest_engine.core.shared.jobs import BacktestJob
+from core.modules.backtest_engine.contracts import BacktestJob
 
 
 def require_stock_id(job: Dict[str, Any], *, label: str = "stock job") -> str:

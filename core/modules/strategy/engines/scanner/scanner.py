@@ -92,7 +92,7 @@ class Scanner:
         *,
         on_job_done: Optional[Callable[[Dict[str, Any]], None]] = None,
     ) -> List[Opportunity]:
-        from core.modules.backtest_engine.core.shared.types import JobStatus
+        from core.modules.backtest_engine.contracts import JobStatus
         from core.modules.strategy.services.execution.scanner_job_pipeline import (
             run_scanner_timeline_via_backtest_engine,
         )

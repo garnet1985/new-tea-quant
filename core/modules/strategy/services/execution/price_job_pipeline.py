@@ -3,8 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from core.modules.backtest_engine.core.shared.types import JobContext, JobResult, JobStatus
-from core.modules.backtest_engine.core.shared.jobs import BacktestJob
+from core.modules.backtest_engine.contracts import BacktestJob, JobContext, JobResult, JobStatus
 
 from .engine_jobs import require_stock_id, wrap_timeline_stock_job
 from .stock_job_pipeline import job_progress_payload, job_report_to_job_result
@@ -141,7 +140,7 @@ def run_price_factor_timeline_via_backtest_engine(
 ) -> List[JobResult]:
     """Strategy 侧：逐股 jobs → BacktestEngine timeline.run（内部 probe + plan + split）。"""
     from core.modules.backtest_engine import BacktestEngine
-    from core.modules.backtest_engine.core.shared.types import JobReport, RunProgress
+    from core.modules.backtest_engine.contracts import JobReport, RunProgress
 
     n = total_stocks if total_stocks is not None else len(stock_jobs)
     engine_jobs: List[Dict[str, Any]] = []

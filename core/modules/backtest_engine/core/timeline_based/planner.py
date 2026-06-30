@@ -19,15 +19,17 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Callable
 
 from core.modules.backtest_engine.core.shared.machine_info import (
     MachineInfo,
     MachineCapacity,
 )
+from core.modules.backtest_engine.core.shared.types import JobContext
 from core.modules.backtest_engine.core.timeline_based.probe import (
     Probe,
     ProbeResult,
+    WorkerProbe,
     DEFAULT_PROBE_ENTITIES,
 )
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
@@ -83,6 +85,8 @@ class TimelinePlanner:
     def plan_jobs(
         jobs: List[Dict[str, Any]],
         performance: Dict[str, Any],
+        *,
+        execute_fn: Optional[Callable[[JobContext], Dict[str, Any]]] = None,
         executor: Optional[str] = None,
         log_label: str = "调度",
     ) -> Tuple[DispatchPlan, List[JobBatch], TimelineMonitorConfig]:
@@ -110,7 +114,7 @@ class TimelinePlanner:
         
         # Step 2: dispatch_probe
         probe_result = TimelinePlanner._dispatch_probe(
-            jobs, capacity, performance, executor, log_label
+            jobs, capacity, performance, execute_fn, log_label
         )
         
         # Step 3: settle_plan
@@ -161,7 +165,7 @@ class TimelinePlanner:
         jobs: List[Dict[str, Any]],
         capacity: MachineCapacity,
         performance: Dict[str, Any],
-        executor: Optional[str],
+        execute_fn: Optional[Callable[[JobContext], Dict[str, Any]]],
         log_label: str,
     ) -> ProbeResult:
         """
@@ -196,14 +200,18 @@ class TimelinePlanner:
         
         # 执行探针
         logger.info(
-            "%s探针启动: entities=%s, probe_entities=%s, executor=%s",
+            "%s探针启动: entities=%s, probe_entities=%s",
             log_label,
             total_entities,
             probe_entities_count,
-            executor or "default",
         )
-        
-        return Probe.dispatch(probe_jobs, executor or "default", performance, log_label)
+
+        return Probe.dispatch(
+            probe_jobs,
+            performance,
+            execute_fn,
+            log_label,
+        )
     
     @staticmethod
     def _get_probe_entities_count(total_entities: int, capacity: MachineCapacity) -> int:
@@ -365,10 +373,16 @@ class TimelinePlanner:
             return max(1, int(mw_override)), "settings"
 
         dispatch_jobs = max(1, math.ceil(total_entities / entities_per_job))
-        cpu_workers = MachineInfo.resolve_max_workers(
-            performance,
-            dispatch_jobs=dispatch_jobs,
+        cpu_workers = WorkerProbe.resolve(
+            "auto",
+            reserve_cores=MachineInfo.get_reserve_cores(performance),
+            cap=MachineInfo.parse_max_parallel_jobs_cap(
+                performance.get("max_parallel_jobs_cap")
+            ),
         )
+        if dispatch_jobs > 0:
+            cpu_workers = min(cpu_workers, dispatch_jobs)
+        cpu_workers = max(1, cpu_workers)
         prefetch_ahead = TimelinePlanner._prefetch_ahead(performance)
         max_by_memory = max(
             1,

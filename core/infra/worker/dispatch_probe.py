@@ -57,26 +57,10 @@ def process_rss_mb() -> float:
 
 
 def _run_probe_executor(payload: Dict[str, Any]) -> Dict[str, Any]:
-    key = str(payload.get("_probe_executor") or "").strip()
-    if key == PROBE_EXECUTOR_STRATEGY_ENUM:
-        from core.modules.strategy.services.execution.enum_dispatch_probe import (
-            execute_enum_probe_payload,
-        )
-
-        return execute_enum_probe_payload(payload)
-    if key == PROBE_EXECUTOR_STRATEGY_PRICE:
-        from core.modules.strategy.services.execution.price_dispatch_probe import (
-            execute_price_probe_payload,
-        )
-
-        return execute_price_probe_payload(payload)
-    if key == PROBE_EXECUTOR_TAG:
-        from core.modules.tag.engines.shared.dispatch_probe import (
-            execute_tag_probe_payload,
-        )
-
-        return execute_tag_probe_payload(payload)
-    raise ValueError(f"未知调度探针执行器: {key!r}")
+    raise RuntimeError(
+        "legacy infra.worker dispatch_probe executor routing was removed; "
+        "use BacktestEngine.timeline.run with execute_fn"
+    )
 
 
 def dispatch_probe_subprocess_worker(payload: Dict[str, Any]) -> Dict[str, Any]:

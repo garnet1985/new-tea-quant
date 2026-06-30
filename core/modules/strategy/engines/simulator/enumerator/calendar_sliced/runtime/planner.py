@@ -7,8 +7,11 @@ import logging
 import math
 from typing import Any, Dict, Optional
 
-from core.modules.backtest_engine.core.shared.machine_info import MachineInfo
+from core.infra.machine_capacity import MachineInfo
 from core.modules.strategy.engines.shared.worker_settings_keys import STRATEGY_ENUM_EXECUTOR_KEY
+from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.worker_profile import (
+    profile_enumerator_dispatch_config,
+)
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.memory_budget import (
     resolve_calendar_slice_memory_budget_mb,
 )
@@ -75,9 +78,7 @@ def resolve_reader_workers(
 
 
 def resolve_system_process_cap(executor_key: str = STRATEGY_ENUM_EXECUTOR_KEY) -> int:
-    from core.modules.backtest_engine.core.timeline_based.config import TimelineConfig
-
-    perf = TimelineConfig.resolve_dispatch_performance(executor_key)
+    perf = profile_enumerator_dispatch_config()
     capacity = MachineInfo.get_capacity(perf)
     return max(1, MachineInfo.get_available_workers(capacity))
 

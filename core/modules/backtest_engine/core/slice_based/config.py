@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional, Tuple
-
-from core.infra.project_context import ProjectContext
+from typing import Any, Dict, Tuple
 from core.modules.backtest_engine.core.shared.machine_info import (
     MachineCapacity,
     MachineInfo,
+)
+from core.modules.backtest_engine.core.shared.worker_json import (
+    resolve_executor_section,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,47 +37,26 @@ class SliceConfig:
         Returns:
             Dispatch performance dict for planner / executor.
         """
-        key = str(executor_key or "").strip()
-        mapping = _EXECUTOR_DISPATCH_PROFILES.get(key)
-        if mapping is None:
-            raise ValueError(
-                f"unknown executor_key for dispatch config: {key!r}; "
-                f"supported: {sorted(_EXECUTOR_DISPATCH_PROFILES)}"
-            )
-
-        profile_name, section_name = mapping
-        cfg = ProjectContext.config.load_core_config("worker")
-        job_pipeline = cfg.get("job_pipeline") or {}
-        if not isinstance(job_pipeline, dict):
-            job_pipeline = {}
-
-        performance: Dict[str, Any] = {}
-        for block_name in ("default", profile_name):
-            block = job_pipeline.get(block_name)
-            if not isinstance(block, dict):
-                continue
-            for field in ("reserve_cores", "max_parallel_jobs_cap"):
-                if field in block:
-                    performance[field] = block[field]
-
-        profile_block = job_pipeline.get(profile_name)
-        if isinstance(profile_block, dict):
-            section = profile_block.get(section_name)
-            if isinstance(section, dict):
-                performance.update(section)
-
+        performance = resolve_executor_section(
+            executor_key,
+            _EXECUTOR_DISPATCH_PROFILES,
+            defaults={
+                "reader_workers": "auto",
+                "queue_depth": "auto",
+                "prefetch_enabled": True,
+            },
+            setdefaults={
+                "slice_open_days": "auto",
+                "reader_workers": "auto",
+                "queue_capacity": "auto",
+                "preload_depth": "auto",
+                "compute_processes": 1,
+            },
+        )
         SliceConfig._normalize_worker_fields(performance)
-        performance.setdefault("slice_open_days", "auto")
-        performance.setdefault("reader_workers", "auto")
-        performance.setdefault("queue_capacity", "auto")
-        performance.setdefault("preload_depth", "auto")
-        performance.setdefault("compute_processes", 1)
-
         logger.debug(
-            "slice dispatch config loaded: executor=%s profile=%s section=%s keys=%s",
-            key,
-            profile_name,
-            section_name,
+            "slice dispatch config loaded: executor=%s keys=%s",
+            executor_key,
             sorted(performance),
         )
         return performance

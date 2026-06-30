@@ -215,20 +215,28 @@
 
 ### **指标7：__init__.py导出要求**
 
-> __init__.py必须正确导出Facade类
+> __init__.py 仅导出 Facade；对外契约放在根目录独立模块（如 `contracts.py`）
 
 **必需导出：**
 
 | 导出项 | 类型 | 说明 | 检查方式 |
 |--------|------|------|---------|
-| `Facade类` | class | 对外唯一入口 | __init__.py导出Facade类 |
-| `__all__` | list | 导出列表 | __all__只包含Facade类 |
+| `Facade类` | class | 对外主入口 | __init__.py 导出 Facade 类 |
+
+**契约模块（根目录，跨模块 import 入口）：**
+
+| 文件 | 导出项 | 说明 |
+|------|--------|------|
+| `contracts.py` | dataclass / enum | 如 `JobContext`、`JobReport`、`RunProgress` |
+| `jobs.py` | helper class | 如 `BacktestJob.from_wire` |
+| `probe_registry.py` | registry | 如 `ProbeRegistry` |
+| `config.py` | config reader | 如 `TimelineConfig`、`SliceConfig` |
 
 **禁止项：**
-- ❌ 不导出ABC类
-- ❌ 不导出内部实现类（如 FileUtils, ConfigManager）
-- ❌ 不导出便捷函数（如 find_file, load_json）
-- ❌ __all__不包含ABC类和内部实现类
+- ❌ 不在 __init__.py 堆叠契约 re-export（难以发现、IDE 跳转差）
+- ❌ 不导出内部实现类（如 `TimelineExecutor`、`SlicePlanner`）
+- ❌ 不导出便捷函数（除非文档明确列为 public API）
+- ❌ 不保留向后兼容 proxy 函数
 
 ---
 
@@ -256,7 +264,7 @@
 |---------|---------|------|---------|
 | 模块名.py | 对外暴露API | `discovery.py`, `project_context.py` | 文件存在，文件名与模块名一致 |
 | 内部实现文件夹 | 使用 `core/` | `core/` 子目录存在 | 不使用 `_impl/`, `modules/` 等命名 |
-| 根目录文件 | 只保留必需文件 | 模块名.py、api.yaml、module_info.yaml、glossary.yaml、__init__.py | 根目录文件数量符合要求 |
+| 根目录文件 | 只保留必需文件 | 模块名.py、api.yaml、module_info.yaml、glossary.yaml、__init__.py、contracts.py 等契约入口 | 根目录文件数量符合要求 |
 
 **禁止项：**
 - ❌ 不使用 `_impl/` 命名内部实现目录
@@ -267,37 +275,29 @@
 
 ### **指标10：API暴露方式**
 
-> 核心模块API暴露必须遵循Facade模式
+> 核心模块 API 暴露遵循 Facade 模式；契约类型从根目录独立模块导入
 
 **暴露规则：**
 
 | 要求 | 规范 | 检查方式 |
 |------|------|---------|
-| 只暴露一个Facade类 | 如 `Discovery`, `ProjectContext` | __init__.py 只导出一个主要类 |
-| 使用namespace API | 如 `Discovery.file.xxx`, `ProjectContext.path.xxx` | API 使用嵌套结构 |
-| 不暴露内部class | 如 `FileUtils`, `ConfigManager` | __init__.py 不导出内部实现类 |
-| 不暴露便捷函数 | 如 `find_file`, `load_json` | __init__.py 不导出便捷函数 |
-| 不保留向后兼容proxy | 不提供旧API的代理函数 | 代码中无兼容性proxy |
+| 主入口为 Facade 类 | 如 `Discovery`, `BacktestEngine` | __init__.py 导出 Facade |
+| 契约 types 独立模块 | dataclass / enum / wire helper | 根目录 `contracts.py` 等 |
+| 使用 namespace API（可选） | 如 `Discovery.file.xxx` | 嵌套结构 |
+| 不暴露内部 executor/planner | 实现细节留在 `core/` | 跨模块不 import `core/` |
+| 不保留向后兼容 proxy | 不提供旧 API 代理函数 | 代码中无兼容 proxy |
 
 **示例：**
 ```python
-# ✅ 推荐：只暴露Facade类，使用namespace API
-from discovery import Discovery
+# ✅ 推荐：Facade + 根目录契约模块
+from core.modules.backtest_engine import BacktestEngine
+from core.modules.backtest_engine.contracts import JobContext
+from core.modules.backtest_engine.jobs import BacktestJob
 
-# 使用namespace API
-file_path = Discovery.file.find_file("config.yaml")
-project_root = Discovery.path.get_root()
+result = BacktestEngine.timeline.run(jobs, execute_fn, executor_key="tag")
 
-# ❌ 禁止：暴露内部实现类
-from discovery import FileUtils  # 不允许
-
-# ❌ 禁止：暴露便捷函数
-from discovery import find_file  # 不允许
-
-# ❌ 禁止：保留向后兼容proxy
-def find_file(*args, **kwargs):  # 不允许
-    """向后兼容，请使用 Discovery.file.find_file"""
-    return Discovery.file.find_file(*args, **kwargs)
+# ❌ 禁止：跨模块 import 内部路径
+from core.modules.backtest_engine.core.timeline_based.planner import TimelinePlanner
 ```
 
 ---

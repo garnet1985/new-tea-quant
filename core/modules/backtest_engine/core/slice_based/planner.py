@@ -20,10 +20,11 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from core.modules.backtest_engine.core.shared.machine_info import MachineCapacity, MachineInfo
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
+from core.modules.backtest_engine.core.shared.types import JobContext
 from core.modules.backtest_engine.core.shared.base_planner import BasePlanner
 from core.modules.backtest_engine.core.slice_based.config import SliceConfig
 from core.modules.backtest_engine.core.slice_based.monitor import (
@@ -87,6 +88,8 @@ class SlicePlanner(BasePlanner):
         cls,
         jobs: List[Dict[str, Any]],
         performance: Dict[str, Any],
+        *,
+        execute_fn: Optional[Callable[[JobContext], Dict[str, Any]]] = None,
         executor: Optional[str] = None,
         log_label: str = "切片调度",
     ) -> Tuple[SliceDispatchPlan, List[SliceJobBatch], SliceMonitorConfig]:
@@ -125,7 +128,7 @@ class SlicePlanner(BasePlanner):
 
         # 2. slice探针测量（读算分离内存）
         probe_result = cls._measure_slice_probe(
-            jobs, capacity, resolved_performance, executor, log_label
+            jobs, capacity, resolved_performance, execute_fn, log_label
         )
 
         # 3. 制定读算分离规划（reader_workers、queue_capacity等）
@@ -146,7 +149,7 @@ class SlicePlanner(BasePlanner):
         jobs: List[Dict[str, Any]],
         capacity: MachineCapacity,
         performance: Dict[str, Any],
-        executor: Optional[str],
+        execute_fn: Optional[Callable[[JobContext], Dict[str, Any]]],
         log_label: str,
     ) -> Optional[SliceProbeResult]:
         """slice探针测量（读算分离内存）。
@@ -172,7 +175,7 @@ class SlicePlanner(BasePlanner):
         # 执行探针
         return SliceProbe.dispatch(
             probe_jobs,
-            executor=str(executor or ""),
+            execute_fn=execute_fn,
             performance=performance,
             log_label=log_label,
         )
@@ -458,15 +461,14 @@ class SlicePlanner(BasePlanner):
 
     @classmethod
     def _is_bulk_calendar_job(cls, jobs: List[Dict[str, Any]]) -> bool:
+        """单 bulk job + 日历 open_dates：calendar_slice 形态（与具体业务模块无关）。"""
         if len(jobs) != 1:
             return False
         payload = BacktestJob.from_wire(jobs[0]).payload
-        mode = str(payload.get("tag_execution_mode") or "").strip().lower()
-        if mode == "calendar_slice":
-            return True
-        if payload.get("entity_ids") or payload.get("entities"):
-            return True
-        return False
+        if not cls._resolve_open_dates(jobs):
+            return False
+        bulk_keys = ("entity_ids", "entities", "stock_ids", "entity_id", "stock_id")
+        return any(payload.get(key) for key in bulk_keys)
 
     @classmethod
     def _count_calendar_slices(cls, jobs: List[Dict[str, Any]], slice_open_days: int) -> int:

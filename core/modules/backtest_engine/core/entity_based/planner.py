@@ -1,18 +1,7 @@
 """
-Backtest Engine - Timeline-based Planner
+Backtest Engine - entity_based Planner
 
-时间线模式的调度规划器：5步骤显式流程。
-
-职责（执行前的规划动作）：
-- Step 1: get_machine_capacity    # 得到CPU和内存预算
-- Step 2: dispatch_probe          # 小批次探针测量
-- Step 3: settle_plan             # 根据探针结果制定规划
-- Step 4: split_job_batches       # 切割jobs
-- Step 5: build_monitor           # 动态planner（TODO）
-
-特点：
-- 显式5步骤流程（清晰易维护）
-- timeline和slice共享流程框架（内部实现不同）
+entity_based 调度规划器：5 步骤显式流程。
 """
 from __future__ import annotations
 
@@ -22,17 +11,18 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Callable
 
 from core.infra.machine_capacity import MachineCapacity, MachineInfo
+from core.modules.backtest_engine.core.shared.base_planner import BasePlanner
 from core.modules.backtest_engine.core.shared.types import JobContext
-from core.modules.backtest_engine.core.timeline_based.probe import (
+from core.modules.backtest_engine.core.entity_based.probe import (
     Probe,
     ProbeResult,
     WorkerProbe,
     DEFAULT_PROBE_ENTITIES,
 )
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
-from core.modules.backtest_engine.core.timeline_based.monitor import (
+from core.modules.backtest_engine.core.entity_based.monitor import (
     MonitorPlanSnapshot,
-    TimelineMonitorConfig,
+    EntityMonitorConfig,
 )
 
 logger = logging.getLogger(__name__)
@@ -66,27 +56,19 @@ class JobBatch:
     payload: Dict[str, Any]
 
 
-class TimelinePlanner:
-    """
-    Timeline模式调度规划器（面向对象方式）。
-    
-    5步骤显式流程：
-    - Step 1: get_machine_capacity    # 得到CPU和内存预算
-    - Step 2: dispatch_probe          # 小批次探针测量
-    - Step 3: settle_plan             # 根据探针结果制定规划
-    - Step 4: split_job_batches       # 切割jobs
-    - Step 5: build_monitor           # 动态planner（TODO）
-    """
-    
-    @staticmethod
+class EntityPlanner(BasePlanner):
+    """entity_based 调度规划器（5 步显式流程）。"""
+
+    @classmethod
     def plan_jobs(
+        cls,
         jobs: List[Dict[str, Any]],
         performance: Dict[str, Any],
         *,
         execute_fn: Optional[Callable[[JobContext], Dict[str, Any]]] = None,
         executor: Optional[str] = None,
         log_label: str = "调度",
-    ) -> Tuple[DispatchPlan, List[JobBatch], TimelineMonitorConfig]:
+    ) -> Tuple[DispatchPlan, List[JobBatch], EntityMonitorConfig]:
         """
         Planner的编排层（对外API）。
         
@@ -106,24 +88,15 @@ class TimelinePlanner:
         Returns:
             (DispatchPlan, List[JobBatch]): 规划结果和切割后的job批次
         """
-        # Step 1: get_machine_capacity
-        capacity = TimelinePlanner._get_machine_capacity(performance)
-        
-        # Step 2: dispatch_probe
-        probe_result = TimelinePlanner._dispatch_probe(
+        capacity = cls._get_machine_capacity(performance)
+        probe_result = cls._dispatch_probe(
             jobs, capacity, performance, execute_fn, log_label
         )
-        
-        # Step 3: settle_plan
-        plan = TimelinePlanner._settle_plan(
+        plan = cls._settle_plan(
             jobs, capacity, probe_result, performance, log_label
         )
-        
-        # Step 4: split_job_batches
-        batches = TimelinePlanner._split_job_batches(jobs, plan)
-        
-        # Step 5: build_monitor
-        monitor_config = TimelinePlanner._build_monitor(plan, performance)
+        batches = cls._split_job_batches(jobs, plan)
+        monitor_config = cls._build_monitor(plan, performance)
         
         logger.info(
             "%s规划完成: capacity(cpu=%s, mem=%.1fMB), "
@@ -139,21 +112,6 @@ class TimelinePlanner:
         )
         
         return plan, batches, monitor_config
-    
-    # ===== Step 1: get_machine_capacity =====
-    
-    @staticmethod
-    def _get_machine_capacity(performance: Dict[str, Any]) -> MachineCapacity:
-        """
-        Step 1: 得到当前电脑配置，CPU和内存预算。
-        
-        Args:
-            performance: 配置字典
-            
-        Returns:
-            MachineCapacity: 机器容量结果
-        """
-        return MachineInfo.get_capacity(performance)
     
     # ===== Step 2: dispatch_probe =====
     
@@ -188,7 +146,7 @@ class TimelinePlanner:
             return Probe._get_default_result(performance)
         
         # 确定探针entity数量
-        probe_entities_count = TimelinePlanner._get_probe_entities_count(
+        probe_entities_count = EntityPlanner._get_probe_entities_count(
             total_entities, capacity
         )
         
@@ -247,14 +205,14 @@ class TimelinePlanner:
                 source_max_workers="empty",
             )
 
-        mb_per_entity = TimelinePlanner._resolve_mb_per_entity(
+        mb_per_entity = EntityPlanner._resolve_mb_per_entity(
             probe_result,
             performance,
             log_label,
         )
         available_memory_mb = MachineInfo.worker_pool_budget_mb(capacity)
 
-        entities_per_job, epj_source = TimelinePlanner._resolve_entities_per_job(
+        entities_per_job, epj_source = EntityPlanner._resolve_entities_per_job(
             total_entities=total_entities,
             mb_per_entity=mb_per_entity,
             memory_budget_mb=capacity.memory_budget_mb,
@@ -263,7 +221,7 @@ class TimelinePlanner:
         )
         worker_job_budget_mb = max(1.0, entities_per_job * mb_per_entity)
 
-        max_workers, mw_source = TimelinePlanner._resolve_max_workers(
+        max_workers, mw_source = EntityPlanner._resolve_max_workers(
             total_entities=total_entities,
             entities_per_job=entities_per_job,
             worker_job_budget_mb=worker_job_budget_mb,
@@ -273,7 +231,7 @@ class TimelinePlanner:
         )
 
         dispatch_jobs = max(1, math.ceil(total_entities / entities_per_job))
-        prefetch_ahead = TimelinePlanner._prefetch_ahead(performance)
+        prefetch_ahead = EntityPlanner._prefetch_ahead(performance)
 
         logger.info(
             "%s规划: entities=%s → jobs≈%s (epj=%s, %s, job≈%.1fMB), "
@@ -336,12 +294,12 @@ class TimelinePlanner:
         if epj_override not in (None, "", "auto"):
             return max(1, int(epj_override)), "settings"
 
-        epj = TimelinePlanner._clamp_entities(DEFAULT_OPTIMAL_ENTITIES_PER_JOB, performance)
+        epj = EntityPlanner._clamp_entities(DEFAULT_OPTIMAL_ENTITIES_PER_JOB, performance)
         single_job_mb = epj * mb_per_entity
         if single_job_mb <= memory_budget_mb:
             return epj, "default"
 
-        fitted = TimelinePlanner._clamp_entities(
+        fitted = EntityPlanner._clamp_entities(
             max(1, int(memory_budget_mb / mb_per_entity)),
             performance,
         )
@@ -380,7 +338,7 @@ class TimelinePlanner:
         if dispatch_jobs > 0:
             cpu_workers = min(cpu_workers, dispatch_jobs)
         cpu_workers = max(1, cpu_workers)
-        prefetch_ahead = TimelinePlanner._prefetch_ahead(performance)
+        prefetch_ahead = EntityPlanner._prefetch_ahead(performance)
         max_by_memory = max(
             1,
             int(available_memory_mb / worker_job_budget_mb) - prefetch_ahead,
@@ -446,13 +404,13 @@ class TimelinePlanner:
         
         return batches
     
-    # ===== Step 5: build_monitor (TODO) =====
+    # ===== Step 5: build_monitor =====
     
     @staticmethod
     def _build_monitor(
         plan: DispatchPlan,
         performance: Dict[str, Any],
-    ) -> TimelineMonitorConfig:
+    ) -> EntityMonitorConfig:
         """Step 5: monitor evaluation window config (runtime adjust in-flight only)."""
         snapshot = MonitorPlanSnapshot(
             entities_per_job=plan.entities_per_job,
@@ -460,11 +418,11 @@ class TimelinePlanner:
             prefetch_ahead=plan.prefetch_ahead,
             worker_job_budget_mb=plan.worker_job_budget_mb,
         )
-        return TimelineMonitorConfig.from_dispatch_plan(snapshot, performance)
+        return EntityMonitorConfig.from_dispatch_plan(snapshot, performance)
 
 
 __all__ = [
     "DispatchPlan",
     "JobBatch",
-    "TimelinePlanner",
+    "EntityPlanner",
 ]

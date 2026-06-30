@@ -1,8 +1,8 @@
-"""Timeline planner worker concurrency (memory budget must not double-subtract floor)."""
+"""entity_based planner worker concurrency (memory budget must not double-subtract floor)."""
 from __future__ import annotations
 
 from core.infra.machine_capacity import MachineCapacity
-from core.modules.backtest_engine.core.timeline_based.planner import TimelinePlanner
+from core.modules.backtest_engine.core.entity_based.planner import EntityPlanner
 
 
 def test_resolve_max_workers_auto_uses_cpu_cap() -> None:
@@ -12,7 +12,7 @@ def test_resolve_max_workers_auto_uses_cpu_cap() -> None:
         "reserve_cores": 2,
     }
 
-    workers, source = TimelinePlanner._resolve_max_workers(
+    workers, source = EntityPlanner._resolve_max_workers(
         total_entities=473,
         entities_per_job=5,
         worker_job_budget_mb=19.0,
@@ -33,7 +33,7 @@ def test_resolve_max_workers_respects_max_parallel_jobs_cap() -> None:
         "max_parallel_jobs_cap": 5,
     }
 
-    workers, source = TimelinePlanner._resolve_max_workers(
+    workers, source = EntityPlanner._resolve_max_workers(
         total_entities=473,
         entities_per_job=5,
         worker_job_budget_mb=19.0,
@@ -53,7 +53,7 @@ def test_resolve_max_workers_capped_by_dispatch_jobs() -> None:
         "reserve_cores": 2,
     }
 
-    workers, source = TimelinePlanner._resolve_max_workers(
+    workers, source = EntityPlanner._resolve_max_workers(
         total_entities=8,
         entities_per_job=5,
         worker_job_budget_mb=19.0,
@@ -69,7 +69,7 @@ def test_resolve_max_workers_capped_by_dispatch_jobs() -> None:
 def test_resolve_max_workers_memory_capped_on_tiny_budget() -> None:
     performance = {"max_workers": "auto", "prefetch_ahead": 1, "reserve_cores": 1}
 
-    workers, source = TimelinePlanner._resolve_max_workers(
+    workers, source = EntityPlanner._resolve_max_workers(
         total_entities=473,
         entities_per_job=5,
         worker_job_budget_mb=100.0,
@@ -85,7 +85,7 @@ def test_resolve_max_workers_memory_capped_on_tiny_budget() -> None:
 def test_resolve_entities_per_job_auto_defaults_to_five() -> None:
     performance = {"entities_per_job_min": 1, "entities_per_job_max": 50}
 
-    epj, source = TimelinePlanner._resolve_entities_per_job(
+    epj, source = EntityPlanner._resolve_entities_per_job(
         total_entities=473,
         mb_per_entity=3.9,
         memory_budget_mb=3500.0,

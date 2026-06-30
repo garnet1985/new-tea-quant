@@ -1,18 +1,7 @@
 """
 Backtest Engine - Execution Context
 
-timeline执行上下文（pickle传递到子进程）。
-
-职责：
-- 保持运行时信息（task_name、total_jobs、start_time）
-- 进度信息（finished_jobs、success_count、fail_count）
-- 配置信息（executor、performance）
-- 业务数据（business_data，可选）
-
-特点：
-- pickle友好（子进程可接收）
-- 简单数据结构（避免复杂逻辑）
-- 业务层可扩展（business_data字段）
+entity_based / slice_based 共享执行上下文（pickle 传递到子进程）。
 """
 from __future__ import annotations
 
@@ -23,19 +12,7 @@ from typing import Any, Dict, Optional
 
 @dataclass
 class ExecutionContext:
-    """timeline执行上下文（pickle传递到子进程）。
-    
-    Args:
-        task_name: 运行名称（用于日志和追踪）
-        total_jobs: 总job数量
-        start_time: 开始时间（monotonic时间戳）
-        finished_jobs: 已完成job数量（子进程更新）
-        success_count: 成功job数量
-        fail_count: 失败job数量
-        executor: 执行器标识（"tag", "strategy.enum", "strategy.price"）
-        performance: 配置字典
-        business_data: 业务层自定义数据（可选）
-    """
+    """Backtest 执行上下文（pickle 传递到子进程）。"""
     
     # 运行时信息（主进程初始化）
     task_name: str

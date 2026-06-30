@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
+from core.modules.backtest_engine.core.shared.modes import BacktestMode
+
 _ENTITY_ID_KEYS = frozenset({"entity_id", "stock_id", "symbol", "ticker"})
 _BULK_ENTITY_KEYS = frozenset({"entity_ids", "entities", "stock_ids"})
 _ENTITY_BATCH_KEY = "jobs"
@@ -47,18 +49,15 @@ class BacktestJob:
                 raise ValueError(f"BacktestEngine job[{index}] invalid: {exc}") from exc
 
     @classmethod
-    def _normalize_mode(cls, mode: Union[str, Any]) -> str:
-        raw = str(getattr(mode, "value", mode)).strip().lower()
-        if raw not in ("entity_based", "slice_based"):
-            raise ValueError(f"unknown backtest mode: {mode!r}")
-        return raw
+    def _normalize_mode(cls, mode: Union[str, BacktestMode]) -> str:
+        return BacktestMode.normalize(mode)
 
     @classmethod
     def _validate_payload_for_mode(cls, payload: Dict[str, Any], mode: str) -> None:
-        if mode == "entity_based":
+        if mode == BacktestMode.ENTITY_BASED.value:
             cls._validate_entity_based_payload(payload)
             return
-        if mode == "slice_based":
+        if mode == BacktestMode.SLICE_BASED.value:
             cls._validate_slice_based_payload(payload)
             return
         raise ValueError(f"unknown backtest mode: {mode!r}")

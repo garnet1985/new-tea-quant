@@ -7,10 +7,10 @@ import pytest
 
 from core.modules.backtest_engine import BacktestEngine
 from core.modules.backtest_engine.contracts import JobContext, JobReport, RunCallbacks, RunProgress
-from core.modules.backtest_engine.core.timeline_based.execute_pipeline import (
-    TimelineExecutePipeline,
+from core.modules.backtest_engine.core.entity_based.execute_pipeline import (
+    EntityExecutePipeline,
 )
-from core.modules.backtest_engine.core.timeline_based.executor import TimelineExecutor
+from core.modules.backtest_engine.core.entity_based.executor import EntityExecutor
 
 
 def _noop_execute(context: JobContext) -> dict:
@@ -111,7 +111,7 @@ def test_run_callbacks_forward_on_result() -> None:
     def on_result(report, progress) -> None:
         seen.append(report.job_id)
 
-    mock_execution = TimelineExecutor.ExecutionResult(
+    mock_execution = EntityExecutor.ExecutionResult(
         success=True,
         total_jobs=1,
         completed_jobs=1,
@@ -120,7 +120,7 @@ def test_run_callbacks_forward_on_result() -> None:
         elapsed_seconds=0.0,
         job_results=[],
     )
-    mock_result = TimelineExecutePipeline.Result(
+    mock_result = EntityExecutePipeline.Result(
         plan=MagicMock(),
         batches=[],
         monitor_config=MagicMock(),
@@ -143,7 +143,7 @@ def test_run_callbacks_forward_on_result() -> None:
             )
         return mock_result
 
-    with patch.object(TimelineExecutePipeline, "run", fake_run):
+    with patch.object(EntityExecutePipeline, "run", fake_run):
         BacktestEngine.entity_based.run(
             jobs,
             _noop_execute,

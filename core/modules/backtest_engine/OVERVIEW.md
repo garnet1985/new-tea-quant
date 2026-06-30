@@ -47,7 +47,7 @@ print(result.success, result.completed_jobs, result.elapsed_seconds)
 
 选用依据：**entity 是否在 slice 边界内发生编排交互**（见 `glossary.yaml`）。
 
-内部实现包名：`entity_based` → `core/timeline_based/`，`slice_based` → `core/slice_based/`。
+内部实现包：`core/entity_based/`、`core/slice_based/`（与公开模式名一致）。
 
 ---
 
@@ -146,7 +146,7 @@ from core.modules.backtest_engine.contracts import (
 )
 ```
 
-不要跨模块 import `core/timeline_based/*`、`core/slice_based/*` 等内部路径。
+不要跨模块 import `core/entity_based/*`、`core/slice_based/*` 等内部路径。
 
 ---
 

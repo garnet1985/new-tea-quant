@@ -1,4 +1,4 @@
-"""Timeline planner — price_factor dispatch from strategy dispatch.yaml."""
+"""entity_based planner — price_factor dispatch from strategy dispatch.yaml."""
 from __future__ import annotations
 
 import math
@@ -7,7 +7,7 @@ import pytest
 
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.modules.backtest_engine.core.shared.performance import resolve_entity_based_performance
-from core.modules.backtest_engine.core.timeline_based.planner import TimelinePlanner
+from core.modules.backtest_engine.core.entity_based.planner import EntityPlanner
 from core.modules.strategy.services.execution.worker_profile import (
     profile_price_factor_dispatch_config,
 )
@@ -22,7 +22,7 @@ def test_price_explicit_entities_per_job_from_dispatch() -> None:
     assert performance["entities_per_job"] == 1000
     assert performance.get("dispatch_probe") is False
 
-    plan, batches, _monitor = TimelinePlanner.plan_jobs(
+    plan, batches, _monitor = EntityPlanner.plan_jobs(
         _engine_jobs(4109),
         performance,
         executor="strategy.price",
@@ -36,7 +36,7 @@ def test_price_explicit_entities_per_job_from_dispatch() -> None:
 
 
 def test_price_resolve_entities_per_job_respects_explicit_override() -> None:
-    epj, source = TimelinePlanner._resolve_entities_per_job(
+    epj, source = EntityPlanner._resolve_entities_per_job(
         total_entities=200,
         mb_per_entity=1.0,
         memory_budget_mb=3500.0,

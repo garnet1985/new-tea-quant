@@ -5,17 +5,17 @@ DuckDB ProcessPool scope wrapper; execution delegates to ``SliceExecutor``.
 """
 from __future__ import annotations
 
-import logging
 from typing import Any, List, Optional
 
 from core.modules.backtest_engine.core.shared.context import ExecutionContext
+from core.modules.backtest_engine.core.shared.duckdb_executor_scope import (
+    execute_with_duckdb_process_pool_scope,
+)
 from core.modules.backtest_engine.core.slice_based.executor import SliceExecutor
 from core.modules.backtest_engine.core.slice_based.planner import (
     SliceDispatchPlan,
     SliceJobBatch,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class SliceExecutorDuckDB(SliceExecutor):
@@ -35,43 +35,19 @@ class SliceExecutorDuckDB(SliceExecutor):
         duckdb_process_pool_scope: str = "auto",
         duckdb_resume_main_after_pool: bool = True,
     ) -> SliceExecutor.ExecutionResult:
-        from core.infra.db.engines.duckdb.process_pool_scope import (
-            maybe_duckdb_worker_pool_scope,
-            should_apply_process_pool_scope,
-        )
-
-        use_scope = should_apply_process_pool_scope(
-            mode=duckdb_process_pool_scope,  # type: ignore[arg-type]
-            use_process_pool=True,
+        return execute_with_duckdb_process_pool_scope(
+            SliceExecutor.execute,
             data_mgr=data_mgr,
+            duckdb_process_pool_scope=duckdb_process_pool_scope,
+            duckdb_resume_main_after_pool=duckdb_resume_main_after_pool,
+            plan=plan,
+            batches=batches,
+            context=context,
+            execute_fn=execute_fn,
+            on_result=on_result,
+            log_label=log_label,
+            progress_reporter=progress_reporter,
         )
-        if use_scope:
-            logger.info(
-                "%s DuckDB ProcessPool scope enabled (mode=%s)",
-                log_label,
-                duckdb_process_pool_scope,
-            )
-        else:
-            logger.debug(
-                "%s DuckDB ProcessPool scope skipped (mode=%s)",
-                log_label,
-                duckdb_process_pool_scope,
-            )
-
-        execute_kwargs = {
-            "execute_fn": execute_fn,
-            "on_result": on_result,
-            "log_label": log_label,
-            "progress_reporter": progress_reporter,
-        }
-
-        with maybe_duckdb_worker_pool_scope(
-            mode=duckdb_process_pool_scope,  # type: ignore[arg-type]
-            use_process_pool=True,
-            data_mgr=data_mgr,
-            resume_main_after=duckdb_resume_main_after_pool,
-        ):
-            return SliceExecutor.execute(plan, batches, context, **execute_kwargs)
 
 
 __all__ = ["SliceExecutorDuckDB"]

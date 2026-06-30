@@ -73,8 +73,8 @@ cases:
 
   - id: 3
     case: entity_planner
-    description: entity_based TimelinePlanner 并发与 epj 规划
-    file: test_timeline_planner_workers.py
+    description: entity_based EntityPlanner 并发与 epj 规划
+    file: test_entity_planner_workers.py
     scenarios:
       - id: 1
         name: test_resolve_max_workers_auto_uses_cpu_cap
@@ -95,7 +95,7 @@ cases:
   - id: 4
     case: entity_planner_dispatch
     description: entity_based 应用方 dispatch 配置与 batch 切分
-    file: test_timeline_planner_price.py
+    file: test_entity_planner_price.py
     scenarios:
       - id: 1
         name: test_price_explicit_entities_per_job_from_dispatch
@@ -157,3 +157,24 @@ cases:
       - id: 1
         name: test_duckdb_executor_wraps_scope_and_delegates
         description: DuckDB scope 包装并委托 SliceExecutor
+
+  - id: 8
+    case: progress
+    description: RunProgressReporter 分阶段进度与 display 开关
+    file: test_progress.py
+    scenarios:
+      - id: 1
+        name: test_phase_weights_sum_to_one
+        description: 四阶段权重之和为 1
+      - id: 2
+        name: test_mark_phase_advances_percent_floor
+        description: mark_phase / mark_execute_unit 推进百分比
+      - id: 3
+        name: test_enable_progress_display_false_skips_logging
+        description: enable_progress_display=False 不写 CMD 日志
+      - id: 4
+        name: test_report_execute_unit_from_context_invokes_hook
+        description: slice orchestrator hook 回调
+      - id: 5
+        name: test_report_execute_unit_from_context_ignores_missing_hook
+        description: 无 hook 时静默跳过

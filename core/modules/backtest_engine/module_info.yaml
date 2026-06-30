@@ -7,7 +7,7 @@ dependencies:
 changelog:
   - version: "0.3.0"
     changes:
-      - 模式更名：entity_based / slice_based（timeline/sliced 为迁移别名）
+      - 内部包 entity_based / slice_based 与公开模式名一致
       - RunCallbacks 聚合 on_*；parameters 区分 positional / keyword_only
       - performance dataclass、dispatch.yaml 应用层配置、RunProgressReporter
       - 文档：OVERVIEW.md + docs/ARCHITECTURE.md / docs/DECISIONS.md（现状）

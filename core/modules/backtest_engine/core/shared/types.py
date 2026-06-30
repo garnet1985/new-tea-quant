@@ -1,9 +1,7 @@
 """
-Backtest Scheduler - 基础类型定义
+Backtest Engine - 基础类型定义
 
-任务执行管道类型定义（general，不包含任何DB特殊逻辑）。
-
-jobs[] → executor(JobContext) → on_result
+回测执行管道类型（JobContext、JobReport、RunProgress 等）。
 """
 from __future__ import annotations
 

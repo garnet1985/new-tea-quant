@@ -37,12 +37,11 @@
          ┌─────────────────┴─────────────────┐
          ▼                                   ▼
 ┌─────────────────────┐           ┌─────────────────────┐
-│ timeline_based      │           │ slice_based         │
-│ (= entity_based)    │           │                     │
+│ entity_based        │           │ slice_based         │
 │ ExecutePipeline     │           │ ExecutePipeline     │
 │ Planner / Probe     │           │ Planner / Probe     │
-│ TimelineExecutor    │           │ SliceExecutor       │
-│ TimelineRunMonitor  │           │ SliceRunMonitor     │
+│ EntityExecutor      │           │ SliceExecutor       │
+│ EntityRunMonitor    │           │ SliceRunMonitor     │
 └──────────┬──────────┘           └──────────┬──────────┘
            │                                  │
            └──────────────┬───────────────────┘
@@ -79,8 +78,10 @@ backtest_engine/
 │   │   ├── context.py       # ExecutionContext（run 级）
 │   │   ├── performance.py   # Entity/Slice BasedPerformance
 │   │   ├── progress.py      # RunProgressReporter
+│   │   ├── modes.py         # BacktestMode 枚举
+│   │   ├── duckdb_executor_scope.py
 │   │   └── base_planner.py
-│   ├── timeline_based/      # entity_based 实现
+│   ├── entity_based/        # entity_based 实现
 │   │   ├── execute_pipeline.py
 │   │   ├── planner.py
 │   │   ├── probe.py
@@ -108,7 +109,7 @@ backtest_engine/
 
 两种模式共用：**validate → plan → monitor setup → execute → RunResult**。
 
-### entity_based（`timeline_based`）
+### entity_based
 
 1. **Plan**：`MachineInfo` 取容量 → 可选 dispatch probe → `DispatchPlan`（`max_workers`, `entities_per_job`, batches）
 2. **Execute**：`ProcessPoolExecutor` + QUEUE 填池（完成 1 补 1）；子进程调用 `execute_fn(JobContext)`
@@ -156,8 +157,8 @@ SliceBasedPerformance.base()
 
 | 公开 | 内部（勿跨模块 import） |
 |------|-------------------------|
-| `BacktestEngine` | `TimelinePlanner`, `SliceExecutor`, … |
-| `contracts.*` | `core/timeline_based/*`, `core/slice_based/*` |
+| `BacktestEngine` | `EntityPlanner`, `SliceExecutor`, … |
+| `contracts.*` | `core/entity_based/*`, `core/slice_based/*` |
 | `BacktestJob`（`core/shared/jobs.py`） | `ExecutionContext` |
 
 契约细节见根目录 `api.yaml` 与 `glossary.yaml`。

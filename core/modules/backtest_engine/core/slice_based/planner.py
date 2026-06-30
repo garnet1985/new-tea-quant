@@ -259,9 +259,9 @@ class SlicePlanner(BasePlanner):
         
         return SliceDispatchPlan(
             reader_workers=reader_workers_base,
-            reader_memory_budget_mb=0.0,  # TODO: 根据探针计算
+            reader_memory_budget_mb=0.0,  # filled by _apply_oom_protection when probe runs
             compute_processes=compute_processes,
-            compute_memory_budget_mb=0.0,  # TODO: 根据探针计算
+            compute_memory_budget_mb=0.0,  # filled by _apply_oom_protection when probe runs
             queue_capacity=queue_capacity_base,
             preload_depth=preload_depth_base,
             slice_open_days=slice_open_days,

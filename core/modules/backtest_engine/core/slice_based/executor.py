@@ -47,7 +47,7 @@ class SliceExecutor:
 
     @dataclass
     class ExecutionResult:
-        """Slice execution summary (aligned with timeline job counters)."""
+        """Slice execution summary (aligned with entity_based job counters)."""
 
         success: bool
         total_jobs: int

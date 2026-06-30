@@ -8,7 +8,7 @@ Backtest Engine - Shared基础组件
 
 设计原则：
 - shared只包含真正共用的基础组件
-- timeline_based和slice_based各自有自己的调度逻辑
+- entity_based和slice_based各自有自己的调度逻辑
 - MachineInfo 见 core.infra.machine_capacity
 """
 

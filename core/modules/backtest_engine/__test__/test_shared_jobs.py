@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import pytest
 
+from core.modules.backtest_engine.core.shared.modes import BacktestMode
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 
 
@@ -20,14 +21,14 @@ def test_validate_many_entity_based_requires_entity_key() -> None:
     with pytest.raises(ValueError, match="entity_based payload"):
         BacktestJob.validate_many(
             [{"id": "000001.SZ", "payload": {"foo": "bar"}}],
-            mode="entity_based",
+            mode=BacktestMode.ENTITY_BASED,
         )
 
 
 def test_validate_many_entity_based_accepts_batch_jobs() -> None:
     BacktestJob.validate_many(
         [{"id": "batch_0", "payload": {"jobs": [{"id": "000001.SZ", "payload": {}}]}}],
-        mode="entity_based",
+        mode=BacktestMode.ENTITY_BASED,
     )
 
 
@@ -35,7 +36,7 @@ def test_validate_many_slice_based_requires_open_dates() -> None:
     with pytest.raises(ValueError, match="open_dates"):
         BacktestJob.validate_many(
             [{"id": "bulk", "payload": {"entity_ids": ["000001.SZ"]}}],
-            mode="slice_based",
+            mode=BacktestMode.SLICE_BASED,
         )
 
 
@@ -50,7 +51,7 @@ def test_validate_many_slice_based_accepts_bulk_job() -> None:
                 },
             }
         ],
-        mode="slice_based",
+        mode=BacktestMode.SLICE_BASED,
     )
 
 
@@ -76,4 +77,4 @@ def test_to_dict_round_trip() -> None:
 
 def test_normalize_mode_rejects_unknown() -> None:
     with pytest.raises(ValueError, match="unknown backtest mode"):
-        BacktestJob._normalize_mode("timeline")
+        BacktestMode.normalize("timeline")

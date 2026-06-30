@@ -1,4 +1,4 @@
-"""Timeline run monitor: aggregate sampling and in-flight worker control."""
+"""entity_based run monitor: aggregate sampling and in-flight worker control."""
 from __future__ import annotations
 
 import logging
@@ -25,7 +25,7 @@ class MonitorPlanSnapshot:
 
 
 @dataclass(frozen=True)
-class TimelineMonitorConfig:
+class EntityMonitorConfig:
     """Step 5 output: how often to evaluate and adjust in-flight workers."""
 
     evaluation_job_interval: int = DEFAULT_EVALUATION_JOB_INTERVAL
@@ -41,7 +41,7 @@ class TimelineMonitorConfig:
         cls,
         plan: MonitorPlanSnapshot,
         performance: dict,
-    ) -> TimelineMonitorConfig:
+    ) -> EntityMonitorConfig:
         return cls(
             evaluation_job_interval=max(
                 1,
@@ -87,7 +87,7 @@ class TimelineMonitorConfig:
 
 
 @dataclass
-class TimelineJobSample:
+class EntityJobSample:
     job_id: str
     entities_count: int
     wall_sec: float
@@ -96,7 +96,7 @@ class TimelineJobSample:
 
 
 @dataclass
-class TimelineMonitorStats:
+class EntityMonitorStats:
     completed_jobs: int = 0
     completed_entities: int = 0
     evaluation_count: int = 0
@@ -107,9 +107,9 @@ class TimelineMonitorStats:
     margin_cost_sec_per_entity_hat: float = 0.0
 
 
-class TimelineRunMonitor:
+class EntityRunMonitor:
     """
-    Runtime monitor for a single timeline run.
+    Runtime monitor for a single entity_based run.
 
     Records per-job samples; evaluates every N jobs / M entities (aggregated).
     Only adjusts current_in_flight; entities_per_job stays fixed for the run.
@@ -118,7 +118,7 @@ class TimelineRunMonitor:
     def __init__(
         self,
         plan: MonitorPlanSnapshot,
-        config: TimelineMonitorConfig,
+        config: EntityMonitorConfig,
         *,
         available_memory_mb: float,
         cpu_workers_cap: int,
@@ -131,8 +131,8 @@ class TimelineRunMonitor:
             min(plan.max_workers, max(1, cpu_workers_cap)),
         )
         self._current_in_flight = self._max_in_flight_hard_cap
-        self._window_samples: List[TimelineJobSample] = []
-        self._stats = TimelineMonitorStats(
+        self._window_samples: List[EntityJobSample] = []
+        self._stats = EntityMonitorStats(
             current_in_flight=self._current_in_flight,
         )
         self._low_memory_windows = 0
@@ -146,10 +146,10 @@ class TimelineRunMonitor:
         return self._current_in_flight + max(0, self._plan.prefetch_ahead)
 
     @property
-    def stats(self) -> TimelineMonitorStats:
+    def stats(self) -> EntityMonitorStats:
         return self._stats
 
-    def record(self, sample: TimelineJobSample) -> None:
+    def record(self, sample: EntityJobSample) -> None:
         self._window_samples.append(sample)
         self._stats.completed_jobs += 1
         self._stats.completed_entities += max(0, sample.entities_count)

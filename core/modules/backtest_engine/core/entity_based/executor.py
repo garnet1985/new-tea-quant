@@ -1,8 +1,8 @@
 """
-Backtest Engine - Timeline-based Executor
+Backtest Engine - entity_based Executor
 
 时间线模式执行器：QUEUE 填池 + ProcessPoolExecutor。
-模块级只导出 ``TimelineExecutor``；结果、Hook、子进程入口均为类成员。
+模块级只导出 ``EntityExecutor``；结果、Hook、子进程入口均为类成员。
 """
 from __future__ import annotations
 
@@ -23,12 +23,12 @@ from core.modules.backtest_engine.core.shared.types import (
     JobReport,
     RunProgress,
 )
-from core.modules.backtest_engine.core.timeline_based.planner import DispatchPlan, JobBatch
+from core.modules.backtest_engine.core.entity_based.planner import DispatchPlan, JobBatch
 
 logger = logging.getLogger(__name__)
 
 
-class TimelineExecutor:
+class EntityExecutor:
     """时间线模式执行器（QUEUE 填池 + ProcessPoolExecutor）。"""
 
     ExecuteFn = ExecuteFn
@@ -47,7 +47,7 @@ class TimelineExecutor:
 
     @dataclass
     class ExecutionResult:
-        """Timeline 执行结果。"""
+        """entity_based 执行结果。"""
 
         success: bool
         total_jobs: int
@@ -63,16 +63,16 @@ class TimelineExecutor:
         batches: List[JobBatch],
         context: ExecutionContext,
         execute_fn: ExecuteFn,
-        on_result: Optional[TimelineExecutor.OnResultHook] = None,
-        on_release: Optional[TimelineExecutor.OnReleaseHook] = None,
+        on_result: Optional[EntityExecutor.OnResultHook] = None,
+        on_release: Optional[EntityExecutor.OnReleaseHook] = None,
         log_label: str = "执行",
         admission_limit: Optional[int] = None,
         get_admission_limit: Optional[Callable[[], int]] = None,
-    ) -> TimelineExecutor.ExecutionResult:
+    ) -> EntityExecutor.ExecutionResult:
         """Run batch jobs with QUEUE fill-pool (complete-one submit-one)."""
         if not batches:
             logger.info("%s无jobs需要执行", log_label)
-            return TimelineExecutor.ExecutionResult(
+            return EntityExecutor.ExecutionResult(
                 success=True,
                 total_jobs=0,
                 completed_jobs=0,
@@ -82,7 +82,7 @@ class TimelineExecutor:
                 job_results=[],
             )
 
-        jobs = TimelineExecutor._build_jobs_from_batches(batches)
+        jobs = EntityExecutor._build_jobs_from_batches(batches)
         pool_workers = max(1, plan.max_workers)
         prefetch = max(0, plan.prefetch_ahead)
         default_submit_cap = admission_limit if admission_limit is not None else (
@@ -121,9 +121,9 @@ class TimelineExecutor:
                     while pending_index < len(jobs) and len(futures) < submit_cap:
                         job = jobs[pending_index]
                         pending_index += 1
-                        job_context = TimelineExecutor._build_job_context(job, context)
+                        job_context = EntityExecutor._build_job_context(job, context)
                         future = pool.submit(
-                            TimelineExecutor._invoke_worker,
+                            EntityExecutor._invoke_worker,
                             execute_fn,
                             job_context,
                         )
@@ -135,7 +135,7 @@ class TimelineExecutor:
                     done, _ = wait(futures.keys(), return_when=FIRST_COMPLETED)
                     for future in done:
                         job = futures.pop(future)
-                        TimelineExecutor._finish_future(
+                        EntityExecutor._finish_future(
                             future,
                             job,
                             context,
@@ -151,7 +151,7 @@ class TimelineExecutor:
             raise
 
         elapsed_seconds = time.monotonic() - start_time
-        result = TimelineExecutor.ExecutionResult(
+        result = EntityExecutor.ExecutionResult(
             success=context.fail_count == 0,
             total_jobs=context.total_jobs,
             completed_jobs=context.success_count,
@@ -186,18 +186,18 @@ class TimelineExecutor:
             except Exception:
                 pass
 
-        rss_before_mb = TimelineExecutor._process_rss_mb()
+        rss_before_mb = EntityExecutor._process_rss_mb()
         t0 = time.perf_counter()
         try:
             raw = execute_fn(job_context)
         except Exception as exc:
             wall_sec = time.perf_counter() - t0
-            rss_after_mb = TimelineExecutor._process_rss_mb()
+            rss_after_mb = EntityExecutor._process_rss_mb()
             return {
                 "success": False,
                 "job_id": job_context.job_id,
                 "error": str(exc),
-                "entities_count": TimelineExecutor._entities_count_from_payload(
+                "entities_count": EntityExecutor._entities_count_from_payload(
                     job_context.payload
                 ),
                 "wall_sec": wall_sec,
@@ -205,8 +205,8 @@ class TimelineExecutor:
             }
 
         wall_sec = time.perf_counter() - t0
-        rss_after_mb = TimelineExecutor._process_rss_mb()
-        return TimelineExecutor._normalize_worker_result(
+        rss_after_mb = EntityExecutor._process_rss_mb()
+        return EntityExecutor._normalize_worker_result(
             job_context,
             raw,
             wall_sec=wall_sec,
@@ -220,14 +220,14 @@ class TimelineExecutor:
         context: ExecutionContext,
         failures: List[JobFailure],
         job_results: List[JobReport],
-        on_result: Optional[TimelineExecutor.OnResultHook],
-        on_release: Optional[TimelineExecutor.OnReleaseHook],
+        on_result: Optional[EntityExecutor.OnResultHook],
+        on_release: Optional[EntityExecutor.OnReleaseHook],
         log_label: str,
     ) -> None:
-        job_context = TimelineExecutor._build_job_context(job, context)
+        job_context = EntityExecutor._build_job_context(job, context)
         try:
             raw_result = future.result()
-            report = TimelineExecutor._normalize_report(job.job_id, raw_result)
+            report = EntityExecutor._normalize_report(job.job_id, raw_result)
             if not report.success:
                 failures.append(
                     JobFailure(
@@ -319,7 +319,7 @@ class TimelineExecutor:
         jobs = payload.get("jobs")
         if not isinstance(jobs, list):
             raise ValueError(
-                "timeline worker payload must include jobs list from BacktestEngine batch"
+                "entity_based worker payload must include jobs list from BacktestEngine batch"
             )
         return len(jobs)
 
@@ -352,7 +352,7 @@ class TimelineExecutor:
         out.setdefault("wall_sec", wall_sec)
         out.setdefault("peak_rss_mb", peak_rss_mb)
         if "entities_count" not in out:
-            out["entities_count"] = TimelineExecutor._entities_count_from_payload(
+            out["entities_count"] = EntityExecutor._entities_count_from_payload(
                 job_context.payload
             )
         return out
@@ -371,4 +371,4 @@ class TimelineExecutor:
             return 0.0
 
 
-__all__ = ["TimelineExecutor"]
+__all__ = ["EntityExecutor"]

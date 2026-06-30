@@ -1,5 +1,5 @@
 """
-Backtest Engine - Timeline-based Probe
+Backtest Engine - entity_based Probe
 
 时间线模式的探针逻辑：构建探针jobs + 执行探针测量。
 

@@ -27,7 +27,7 @@
 
 **理由：** 模式差异本质是「是否在 slice 边界内做编排」；slice 模式不能包一层 daemon ProcessPool（子进程无法再 fork orchestrator）。
 
-内部包 `timeline_based` 对应 `entity_based`，命名保留仅为目录稳定，对外只用新术语。
+内部包 `entity_based` / `slice_based` 与公开模式名一致；`BacktestMode` 枚举定义于 `core/shared/modes.py`。
 
 ---
 

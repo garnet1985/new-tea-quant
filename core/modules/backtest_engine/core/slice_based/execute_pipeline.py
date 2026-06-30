@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from core.modules.backtest_engine.core.shared.context import ExecutionContext
 from core.infra.machine_capacity import MachineInfo
+from core.modules.backtest_engine.core.shared.modes import BacktestMode
 from core.modules.backtest_engine.core.shared.progress import RunPhase, RunProgressReporter
 from core.modules.backtest_engine.core.shared.types import JobReport, RunProgress
 from core.modules.backtest_engine.core.slice_based.executor import SliceExecutor
@@ -42,7 +43,7 @@ class SliceExecutePipeline:
         execution: SliceExecutor.ExecutionResult
         monitor_stats: Any = None
 
-    def __init__(self, *, log_label: str = "sliced") -> None:
+    def __init__(self, *, log_label: str = "slice_based") -> None:
         self._log_label = log_label
 
     def run(
@@ -58,13 +59,13 @@ class SliceExecutePipeline:
         label = task_name or self._log_label
         progress = RunProgressReporter(
             task_name=label,
-            run_mode="slice_based",
+            run_mode=BacktestMode.SLICE_BASED.value,
             enable_progress_display=enable_progress_display,
         )
         progress.mark_phase(RunPhase.PREP)
 
         if jobs:
-            BacktestJob.validate_many(jobs)
+            BacktestJob.validate_many(jobs, mode=BacktestMode.SLICE_BASED)
 
         progress.mark_phase(RunPhase.PLAN)
         plan, batches, monitor_config = SlicePlanner.plan_jobs(

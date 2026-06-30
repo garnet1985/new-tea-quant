@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from enum import Enum
 from typing import Any, Dict, List, Optional
 
+from core.modules.backtest_engine.core.shared.modes import BacktestMode
 from core.modules.backtest_engine.core.shared.performance import (
     resolve_entity_based_performance,
     resolve_slice_based_performance,
@@ -15,8 +15,8 @@ from core.modules.backtest_engine.core.shared.types import ExecuteFn, JobReport,
 from core.modules.backtest_engine.core.slice_based.execute_pipeline import (
     SliceExecutePipeline,
 )
-from core.modules.backtest_engine.core.timeline_based.execute_pipeline import (
-    TimelineExecutePipeline,
+from core.modules.backtest_engine.core.entity_based.execute_pipeline import (
+    EntityExecutePipeline,
 )
 
 logger = logging.getLogger(__name__)
@@ -25,22 +25,7 @@ logger = logging.getLogger(__name__)
 class BacktestEngine:
     """Backtest engine facade."""
 
-    class Mode(str, Enum):
-        """Backtest execution mode."""
-
-        ENTITY_BASED = "entity_based"
-        SLICE_BASED = "slice_based"
-
-        @classmethod
-        def normalize(cls, mode: str | BacktestEngine.Mode) -> str:
-            if isinstance(mode, cls):
-                return mode.value
-            raw = str(mode or "").strip().lower()
-            if raw == cls.ENTITY_BASED.value:
-                return raw
-            if raw == cls.SLICE_BASED.value:
-                return raw
-            raise ValueError(f"unknown backtest mode: {mode!r}")
+    Mode = BacktestMode
 
     ExecuteFn = ExecuteFn
     RunCallbacks = RunCallbacks
@@ -66,7 +51,7 @@ class BacktestEngine:
         ) -> BacktestEngine.RunResult:
             execution = result.execution
             return cls(
-                mode="slice_based",
+                mode=BacktestMode.SLICE_BASED.value,
                 success=execution.success,
                 total_jobs=execution.total_jobs,
                 completed_jobs=execution.completed_jobs,
@@ -80,11 +65,11 @@ class BacktestEngine:
         @classmethod
         def from_entity_based(
             cls,
-            result: TimelineExecutePipeline.Result,
+            result: EntityExecutePipeline.Result,
         ) -> BacktestEngine.RunResult:
             execution = result.execution
             return cls(
-                mode="entity_based",
+                mode=BacktestMode.ENTITY_BASED.value,
                 success=execution.success,
                 total_jobs=execution.total_jobs,
                 completed_jobs=execution.completed_jobs,
@@ -153,11 +138,11 @@ class BacktestEngine:
         enable_progress_display: bool = True,
     ) -> BacktestEngine.RunResult:
         if jobs:
-            BacktestJob.validate_many(jobs, mode=BacktestEngine.Mode.ENTITY_BASED)
+            BacktestJob.validate_many(jobs, mode=BacktestMode.ENTITY_BASED)
         resolved_performance = resolve_entity_based_performance(performance)
         resolved_callbacks = callbacks or RunCallbacks()
         label = task_name or "backtest"
-        pipeline = TimelineExecutePipeline(log_label=label)
+        pipeline = EntityExecutePipeline(log_label=label)
         pipeline_result = pipeline.run(
             jobs,
             resolved_performance,
@@ -180,7 +165,7 @@ class BacktestEngine:
         enable_progress_display: bool = True,
     ) -> BacktestEngine.RunResult:
         if jobs:
-            BacktestJob.validate_many(jobs, mode=BacktestEngine.Mode.SLICE_BASED)
+            BacktestJob.validate_many(jobs, mode=BacktestMode.SLICE_BASED)
         resolved_performance = resolve_slice_based_performance(performance)
         resolved_callbacks = callbacks or RunCallbacks()
         label = task_name or "backtest"
@@ -198,7 +183,7 @@ class BacktestEngine:
     @classmethod
     def run(
         cls,
-        mode: str | BacktestEngine.Mode,
+        mode: str | BacktestMode,
         jobs: List[Dict[str, Any]],
         execute_fn: ExecuteFn,
         *,
@@ -207,8 +192,8 @@ class BacktestEngine:
         callbacks: Optional[RunCallbacks] = None,
         enable_progress_display: bool = True,
     ) -> BacktestEngine.RunResult:
-        normalized = cls.Mode.normalize(mode)
-        if normalized == cls.Mode.ENTITY_BASED.value:
+        normalized = BacktestMode.normalize(mode)
+        if normalized == BacktestMode.ENTITY_BASED.value:
             return cls._run_entity_based(
                 jobs,
                 execute_fn,
@@ -217,7 +202,7 @@ class BacktestEngine:
                 callbacks=callbacks,
                 enable_progress_display=enable_progress_display,
             )
-        if normalized == cls.Mode.SLICE_BASED.value:
+        if normalized == BacktestMode.SLICE_BASED.value:
             return cls._run_slice_based(
                 jobs,
                 execute_fn,

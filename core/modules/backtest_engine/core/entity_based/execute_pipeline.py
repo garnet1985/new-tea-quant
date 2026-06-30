@@ -1,4 +1,4 @@
-"""Timeline execute pipeline: plan → monitor → process-pool execution."""
+"""entity_based execute pipeline: plan → monitor → process-pool execution."""
 from __future__ import annotations
 
 import logging
@@ -7,44 +7,45 @@ from typing import Any, Dict, List, Optional
 
 from core.modules.backtest_engine.core.shared.context import ExecutionContext
 from core.infra.machine_capacity import MachineInfo
+from core.modules.backtest_engine.core.shared.modes import BacktestMode
 from core.modules.backtest_engine.core.shared.progress import RunPhase, RunProgressReporter
 from core.modules.backtest_engine.core.shared.types import JobReport, RunProgress
-from core.modules.backtest_engine.core.timeline_based.executor import TimelineExecutor
-from core.modules.backtest_engine.core.timeline_based.executor_duckdb import (
-    TimelineExecutorDuckDB,
+from core.modules.backtest_engine.core.entity_based.executor import EntityExecutor
+from core.modules.backtest_engine.core.entity_based.executor_duckdb import (
+    EntityExecutorDuckDB,
 )
-from core.modules.backtest_engine.core.timeline_based.monitor import (
+from core.modules.backtest_engine.core.entity_based.monitor import (
     MonitorPlanSnapshot,
-    TimelineJobSample,
-    TimelineMonitorConfig,
-    TimelineRunMonitor,
+    EntityJobSample,
+    EntityMonitorConfig,
+    EntityRunMonitor,
 )
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
-from core.modules.backtest_engine.core.timeline_based.planner import (
+from core.modules.backtest_engine.core.entity_based.planner import (
     DispatchPlan,
     JobBatch,
-    TimelinePlanner,
+    EntityPlanner,
 )
 
 logger = logging.getLogger(__name__)
 
 
-class TimelineExecutePipeline:
-    """End-to-end timeline backtest: plan → monitor → execute."""
+class EntityExecutePipeline:
+    """End-to-end entity_based backtest: plan → monitor → execute."""
 
-    ExecuteFn = TimelineExecutor.ExecuteFn
-    OnResultHook = TimelineExecutor.OnResultHook
-    OnReleaseHook = TimelineExecutor.OnReleaseHook
+    ExecuteFn = EntityExecutor.ExecuteFn
+    OnResultHook = EntityExecutor.OnResultHook
+    OnReleaseHook = EntityExecutor.OnReleaseHook
 
     @dataclass(frozen=True)
     class Result:
         plan: DispatchPlan
         batches: List[JobBatch]
-        monitor_config: TimelineMonitorConfig
-        execution: TimelineExecutor.ExecutionResult
+        monitor_config: EntityMonitorConfig
+        execution: EntityExecutor.ExecutionResult
         monitor_stats: Any = None
 
-    def __init__(self, *, log_label: str = "timeline") -> None:
+    def __init__(self, *, log_label: str = "entity_based") -> None:
         self._log_label = log_label
 
     def run(
@@ -52,22 +53,22 @@ class TimelineExecutePipeline:
         jobs: List[Dict[str, Any]],
         performance: Dict[str, Any],
         *,
-        execute_fn: TimelineExecutor.ExecuteFn,
+        execute_fn: EntityExecutor.ExecuteFn,
         task_name: str = "",
-        on_result: Optional[TimelineExecutor.OnResultHook] = None,
-        on_release: Optional[TimelineExecutor.OnReleaseHook] = None,
+        on_result: Optional[EntityExecutor.OnResultHook] = None,
+        on_release: Optional[EntityExecutor.OnReleaseHook] = None,
         enable_progress_display: bool = True,
-    ) -> TimelineExecutePipeline.Result:
+    ) -> EntityExecutePipeline.Result:
         label = task_name or self._log_label
         progress = RunProgressReporter(
             task_name=label,
-            run_mode="entity_based",
+            run_mode=BacktestMode.ENTITY_BASED.value,
             enable_progress_display=enable_progress_display,
         )
         progress.mark_phase(RunPhase.PREP)
 
         if jobs:
-            BacktestJob.validate_many(jobs)
+            BacktestJob.validate_many(jobs, mode=BacktestMode.ENTITY_BASED)
 
         progress.mark_phase(RunPhase.PLAN)
         plan, batches, monitor_config = self._plan(jobs, performance, execute_fn)
@@ -75,7 +76,7 @@ class TimelineExecutePipeline:
 
         capacity = MachineInfo.get_capacity(performance)
         available_memory_mb = MachineInfo.worker_pool_budget_mb(capacity)
-        monitor = TimelineRunMonitor(
+        monitor = EntityRunMonitor(
             MonitorPlanSnapshot(
                 entities_per_job=plan.entities_per_job,
                 max_workers=plan.max_workers,
@@ -104,7 +105,7 @@ class TimelineExecutePipeline:
                 on_result(report, run_progress)
 
         progress.mark_phase(RunPhase.EXECUTE)
-        execution = TimelineExecutorDuckDB.execute(
+        execution = EntityExecutorDuckDB.execute(
             plan,
             batches,
             context,
@@ -123,7 +124,7 @@ class TimelineExecutePipeline:
         monitor.flush()
         progress.mark_phase(RunPhase.FINISH)
 
-        return TimelineExecutePipeline.Result(
+        return EntityExecutePipeline.Result(
             plan=plan,
             batches=batches,
             monitor_config=monitor_config,
@@ -135,9 +136,9 @@ class TimelineExecutePipeline:
         self,
         jobs: List[Dict[str, Any]],
         performance: Dict[str, Any],
-        execute_fn: TimelineExecutor.ExecuteFn,
-    ) -> tuple[DispatchPlan, List[JobBatch], TimelineMonitorConfig]:
-        return TimelinePlanner.plan_jobs(
+        execute_fn: EntityExecutor.ExecuteFn,
+    ) -> tuple[DispatchPlan, List[JobBatch], EntityMonitorConfig]:
+        return EntityPlanner.plan_jobs(
             jobs,
             performance,
             execute_fn=execute_fn,
@@ -148,13 +149,13 @@ class TimelineExecutePipeline:
 def _job_sample_from_report(
     report: JobReport,
     batch_entities: Dict[str, int],
-) -> TimelineJobSample:
+) -> EntityJobSample:
     data = report.data if isinstance(report.data, dict) else {}
     entities_count = int(
         data.get("entities_count") or batch_entities.get(report.job_id, 0)
     )
     peak_rss = data.get("peak_rss_mb")
-    return TimelineJobSample(
+    return EntityJobSample(
         job_id=report.job_id,
         entities_count=entities_count,
         wall_sec=float(data.get("wall_sec") or 0.0),
@@ -163,4 +164,4 @@ def _job_sample_from_report(
     )
 
 
-__all__ = ["TimelineExecutePipeline"]
+__all__ = ["EntityExecutePipeline"]

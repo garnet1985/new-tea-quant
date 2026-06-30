@@ -320,7 +320,7 @@ def _probe_worker(args: tuple) -> Dict[str, Any]:
     ctx = JobContext(
         job_id=str(payload.get("_job_id") or "probe"),
         payload=dict(payload),
-        run_name=run_name,
+        task_name=run_name,
     )
     out = execute_fn(ctx)
     if not isinstance(out, dict):

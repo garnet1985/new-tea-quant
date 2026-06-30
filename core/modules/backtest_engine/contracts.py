@@ -15,6 +15,7 @@ from core.modules.backtest_engine.core.shared.types import (
     JobReport,
     JobResult,
     JobStatus,
+    RunCallbacks,
     RunProgress,
 )
 
@@ -31,5 +32,6 @@ __all__ = [
     "JobReport",
     "JobResult",
     "JobStatus",
+    "RunCallbacks",
     "RunProgress",
 ]

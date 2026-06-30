@@ -1,5 +1,5 @@
 # BacktestEngine 术语表
-# Version: 0.2.0
+# Version: 0.3.0
 
 terms:
   BacktestEngine:
@@ -7,47 +7,72 @@ terms:
     aliases: ["backtest_engine", "回测引擎"]
     avoid: ["BacktestScheduler", "JobPipeline"]
 
-  executor_key:
-    definition: "worker.json 调度 profile 键，如 tag、strategy.enum"
-    aliases: ["probe executor", "worker profile key"]
-    avoid: ["module_name"]
+  entity_based:
+    definition: "执行模式：每 entity（或 entity batch）独立并行；slice 边界内无 cross-entity 编排交互"
+    aliases: ["entity parallel", "embarrassingly parallel jobs"]
+    avoid: ["timeline", "stock_based only"]
 
-  execute_fn:
-    definition: "子进程 job 执行函数，签名 (JobContext) -> dict"
-    aliases: ["worker entry", "timeline execute_fn"]
-    avoid: ["Executor class"]
+  slice_based:
+    definition: "执行模式：按日历 open_dates 切片；slice 内多 entity 经 reader/compute 管道交互"
+    aliases: ["calendar slice", "time-slice bulk"]
+    avoid: ["sliced", "chunk mode"]
 
   timeline:
-    definition: "按 entity 独立时间线的并行模式（BacktestEngine.Timeline.run）"
-    aliases: ["entity_timeline"]
-    avoid: ["stock_based only"]
+    definition: "已废弃别名 → entity_based（迁移期代码/文档）"
+    aliases: []
+    avoid: ["作为新模式名使用"]
 
   sliced:
-    definition: "按日历 open_dates 切片的 bulk job 模式（BacktestEngine.Sliced.run）"
-    aliases: ["calendar_slice"]
-    avoid: ["chunk mode"]
-
-  probe:
-    definition: "子进程试跑小样本以估算内存/耗时，用于 auto 规划"
-    aliases: ["dispatch probe", "slice probe"]
-    avoid: ["profile run"]
-
-  RunResult:
-    definition: "BacktestEngine.run 返回的稳定汇总（含 plan / monitor_stats）"
+    definition: "已废弃别名 → slice_based（迁移期代码/文档）"
     aliases: []
-    avoid: ["Context", "DispatchResult"]
+    avoid: ["作为新模式名使用"]
 
   BacktestJob:
-    definition: "Wire 契约 {'id': str, 'payload': dict}"
+    definition: "调度 job 契约 dataclass：id + payload"
     aliases: ["engine job"]
-    avoid: ["dispatch job dict"]
+    avoid: ["wire", "wire format"]
+
+  job_dict:
+    definition: "可序列化的 job 表示 {'id': str, 'payload': dict}"
+    aliases: ["job record"]
+    avoid: ["wire"]
+
+  performance:
+    definition: "调度配置 dict；调用方传入，覆盖 engine default"
+    aliases: ["dispatch performance"]
+    avoid: ["executor_key", "tag settings 全量"]
+
+  task_name:
+    definition: "单次 run 展示/追踪名 → JobContext"
+    aliases: []
+    avoid: ["run_name", "log_label"]
+
+  RunCallbacks:
+    definition: "单次 run 的可选回调集合（on_result、on_release 等）"
+    aliases: ["hooks", "callbacks"]
+    avoid: ["run 上平铺多个 on_* 参数"]
+
+  execute_fn:
+    definition: "子进程 job 执行函数：(JobContext) -> dict"
+    aliases: ["worker entry"]
+    avoid: ["Executor class"]
+
+  probe:
+    definition: "engine 内部：plan 前用 execute_fn 试跑小样本（调用方不可见）"
+    aliases: []
+    avoid: ["ProbeRegistry"]
+
+  RunResult:
+    definition: "run 返回汇总：plan、monitor_stats、job_results 等"
+    aliases: []
+    avoid: ["DispatchResult"]
 
   JobContext:
-    definition: "子进程 execute_fn 收到的 job 作用域（job_id + payload + run_name）"
+    definition: "execute_fn 收到的作用域：job_id + payload + task_name"
     aliases: []
     avoid: ["WorkerContext"]
 
   JobReport:
-    definition: "单 job execute 返回报告（success + data + error）"
+    definition: "单 job execute 返回：success + data + error"
     aliases: []
     avoid: ["JobResult"]

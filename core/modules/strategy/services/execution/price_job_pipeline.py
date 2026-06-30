@@ -75,7 +75,7 @@ def execute_price_factor_timeline_job(context: JobContext) -> Dict[str, Any]:
         JobContext(
             job_id=context.job_id,
             payload=build_price_factor_payload(dispatch_job),
-            run_name=context.run_name,
+            task_name=context.task_name,
         )
     )
 
@@ -140,7 +140,9 @@ def run_price_factor_timeline_via_backtest_engine(
 ) -> List[JobResult]:
     """Strategy 侧：逐股 jobs → BacktestEngine timeline.run（内部 probe + plan + split）。"""
     from core.modules.backtest_engine import BacktestEngine
-    from core.modules.backtest_engine.contracts import JobReport, RunProgress
+    from core.modules.backtest_engine.contracts import JobReport, RunCallbacks, RunProgress
+
+    from .worker_profile import profile_price_factor_dispatch_config
 
     n = total_stocks if total_stocks is not None else len(stock_jobs)
     engine_jobs: List[Dict[str, Any]] = []
@@ -175,14 +177,12 @@ def run_price_factor_timeline_via_backtest_engine(
                 on_workbench_progress,
             )
 
-    result = BacktestEngine.timeline.run(
+    result = BacktestEngine.entity_based.run(
         engine_jobs,
         execute_price_factor_timeline_job,
-        executor_key=PRICE_TIMELINE_EXECUTOR_KEY,
-        run_name=run_name,
-        on_result=on_engine_result,
-        data_mgr=duckdb_data_mgr,
-        log_label="price",
+        performance=profile_price_factor_dispatch_config(),
+        task_name=run_name,
+        callbacks=RunCallbacks(on_result=on_engine_result),
     )
     job_results = [job_report_to_job_result(report) for report in result.job_results]
     return expand_bulk_price_job_results(job_results)

@@ -50,10 +50,8 @@ class SliceExecutePipeline:
         performance: Dict[str, Any],
         *,
         execute_fn: SliceExecutor.ExecuteFn,
-        executor_key: Optional[str] = None,
-        run_name: str = "",
+        task_name: str = "",
         on_result: Optional[SliceExecutor.OnResultHook] = None,
-        data_mgr: Optional[Any] = None,
     ) -> SliceExecutePipeline.Result:
         if jobs:
             BacktestJob.validate_many(jobs)
@@ -61,7 +59,6 @@ class SliceExecutePipeline:
             jobs,
             performance,
             execute_fn=execute_fn,
-            executor=executor_key,
             log_label=self._log_label,
         )
         capacity = MachineInfo.get_capacity(performance)
@@ -87,9 +84,9 @@ class SliceExecutePipeline:
             available_memory_mb=available_memory_mb,
         )
         context = ExecutionContext.create(
-            run_name=run_name or self._log_label,
+            run_name=task_name or self._log_label,
             total_jobs=len(batches),
-            executor=executor_key or "",
+            executor="",
             performance=performance,
         )
 
@@ -105,7 +102,6 @@ class SliceExecutePipeline:
             execute_fn,
             on_result=monitored_on_result,
             log_label=self._log_label,
-            data_mgr=data_mgr,
             duckdb_process_pool_scope=str(
                 performance.get("duckdb_process_pool_scope", "auto")
             ),

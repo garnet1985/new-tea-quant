@@ -64,7 +64,7 @@ class SliceProbe:
             return False
         if not jobs:
             return False
-        payload = BacktestJob.from_wire(jobs[0]).payload
+        payload = BacktestJob.from_dict(jobs[0]).payload
         if not SliceProbe._resolve_open_dates(payload):
             return False
         if not (payload.get("entity_ids") or payload.get("stock_ids")):
@@ -93,7 +93,7 @@ class SliceProbe:
         performance: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Build a truncated bulk calendar_slice payload for probe."""
-        parsed = BacktestJob.from_wire(jobs[0])
+        parsed = BacktestJob.from_dict(jobs[0])
         job_id, payload = parsed.id, parsed.payload
         probe = copy.deepcopy(payload)
 
@@ -167,7 +167,7 @@ class SliceProbe:
             logger.warning("%s探针跳过：未提供 execute_fn", log_label)
             return SliceProbe._default_result(performance)
 
-        payload = BacktestJob.from_wire(probe_jobs[0]).payload
+        payload = BacktestJob.from_dict(probe_jobs[0]).payload
         probe_payload = dict(payload)
 
         logger.info(
@@ -387,7 +387,7 @@ def _slice_probe_worker(args: tuple) -> Dict[str, Any]:
     ctx = JobContext(
         job_id=str(probe_payload.get("_job_id") or probe_payload.get("job_id") or "slice_probe"),
         payload=dict(probe_payload),
-        run_name=run_name,
+        task_name=run_name,
     )
     orchestrator_result = execute_fn(ctx)
     if not isinstance(orchestrator_result, dict):

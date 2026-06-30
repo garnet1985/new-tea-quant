@@ -1,4 +1,4 @@
-"""BacktestEngine facade — public entry for timeline / sliced backtest runs."""
+"""BacktestEngine facade — public entry for entity_based / slice_based backtest runs."""
 from __future__ import annotations
 
 import logging
@@ -6,39 +6,45 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from core.modules.backtest_engine.core.shared.types import ExecuteFn, JobReport
-from core.modules.backtest_engine.core.slice_based.config import SliceConfig
+from core.modules.backtest_engine.core.shared.default_performance import (
+    ENTITY_BASED_DEFAULT_PERFORMANCE,
+    SLICE_BASED_DEFAULT_PERFORMANCE,
+    merge_performance,
+)
+from core.modules.backtest_engine.core.shared.jobs import BacktestJob
+from core.modules.backtest_engine.core.shared.types import ExecuteFn, JobReport, RunCallbacks
 from core.modules.backtest_engine.core.slice_based.execute_pipeline import (
     SliceExecutePipeline,
 )
-from core.modules.backtest_engine.core.slice_based.executor import SliceExecutor
-from core.modules.backtest_engine.core.timeline_based.config import TimelineConfig
 from core.modules.backtest_engine.core.timeline_based.execute_pipeline import (
     TimelineExecutePipeline,
 )
-from core.modules.backtest_engine.core.timeline_based.executor import TimelineExecutor
 
 logger = logging.getLogger(__name__)
 
 
 class BacktestEngine:
-    """
-    Backtest engine facade.
-
-    Public surface: ``BacktestEngine`` and nested ``Timeline`` / ``RunResult``.
-    Internal modules export one class each (e.g. ``TimelineExecutor``).
-    """
+    """Backtest engine facade."""
 
     class Mode(str, Enum):
         """Backtest execution mode."""
 
-        TIMELINE = "timeline"
-        SLICED = "sliced"
+        ENTITY_BASED = "entity_based"
+        SLICE_BASED = "slice_based"
+
+        @classmethod
+        def normalize(cls, mode: str | BacktestEngine.Mode) -> str:
+            if isinstance(mode, cls):
+                return mode.value
+            raw = str(mode or "").strip().lower()
+            if raw == cls.ENTITY_BASED.value:
+                return raw
+            if raw == cls.SLICE_BASED.value:
+                return raw
+            raise ValueError(f"unknown backtest mode: {mode!r}")
 
     ExecuteFn = ExecuteFn
-    OnResultHook = TimelineExecutor.OnResultHook
-    OnReleaseHook = TimelineExecutor.OnReleaseHook
-    SlicedOnResultHook = SliceExecutor.OnResultHook
+    RunCallbacks = RunCallbacks
 
     @dataclass(frozen=True)
     class RunResult:
@@ -55,13 +61,13 @@ class BacktestEngine:
         monitor_stats: Any = None
 
         @classmethod
-        def from_sliced(
+        def from_slice_based(
             cls,
             result: SliceExecutePipeline.Result,
         ) -> BacktestEngine.RunResult:
             execution = result.execution
             return cls(
-                mode="sliced",
+                mode="slice_based",
                 success=execution.success,
                 total_jobs=execution.total_jobs,
                 completed_jobs=execution.completed_jobs,
@@ -73,13 +79,13 @@ class BacktestEngine:
             )
 
         @classmethod
-        def from_timeline(
+        def from_entity_based(
             cls,
             result: TimelineExecutePipeline.Result,
         ) -> BacktestEngine.RunResult:
             execution = result.execution
             return cls(
-                mode="timeline",
+                mode="entity_based",
                 success=execution.success,
                 total_jobs=execution.total_jobs,
                 completed_jobs=execution.completed_jobs,
@@ -90,92 +96,131 @@ class BacktestEngine:
                 monitor_stats=result.monitor_stats,
             )
 
-    class Timeline:
-        """Timeline backtest API (entity-level jobs, process-pool QUEUE)."""
+    class EntityBased:
+        """entity_based API (entity-level jobs, process-pool QUEUE)."""
 
         @staticmethod
         def run(
             jobs: List[Dict[str, Any]],
             execute_fn: ExecuteFn,
             *,
-            executor_key: str,
-            run_name: str = "",
-            on_result: Optional[BacktestEngine.OnResultHook] = None,
-            on_release: Optional[BacktestEngine.OnReleaseHook] = None,
-            data_mgr: Optional[Any] = None,
-            log_label: str = "backtest",
+            performance: Optional[Dict[str, Any]] = None,
+            task_name: str = "",
+            callbacks: Optional[RunCallbacks] = None,
         ) -> BacktestEngine.RunResult:
-            performance = TimelineConfig.resolve_dispatch_performance(executor_key)
-            pipeline = TimelineExecutePipeline(log_label=log_label)
-            pipeline_result = pipeline.run(
+            return BacktestEngine._run_entity_based(
                 jobs,
-                performance,
-                execute_fn=execute_fn,
-                executor_key=executor_key,
-                run_name=run_name or log_label,
-                on_result=on_result,
-                on_release=on_release,
-                data_mgr=data_mgr,
+                execute_fn,
+                performance=performance,
+                task_name=task_name,
+                callbacks=callbacks,
             )
-            return BacktestEngine.RunResult.from_timeline(pipeline_result)
 
-    class Sliced:
-        """Sliced backtest API (calendar slice, bulk job + orchestrator)."""
+    class SliceBased:
+        """slice_based API (calendar slice, bulk job + orchestrator)."""
 
         @staticmethod
         def run(
             jobs: List[Dict[str, Any]],
             execute_fn: ExecuteFn,
             *,
-            executor_key: str,
-            run_name: str = "",
-            on_result: Optional[BacktestEngine.SlicedOnResultHook] = None,
-            data_mgr: Optional[Any] = None,
-            log_label: str = "backtest",
+            performance: Optional[Dict[str, Any]] = None,
+            task_name: str = "",
+            callbacks: Optional[RunCallbacks] = None,
         ) -> BacktestEngine.RunResult:
-            performance = SliceConfig.resolve_dispatch_performance(executor_key)
-            pipeline = SliceExecutePipeline(log_label=log_label)
-            pipeline_result = pipeline.run(
+            return BacktestEngine._run_slice_based(
                 jobs,
-                performance,
-                execute_fn=execute_fn,
-                executor_key=executor_key,
-                run_name=run_name or log_label,
-                on_result=on_result,
-                data_mgr=data_mgr,
+                execute_fn,
+                performance=performance,
+                task_name=task_name,
+                callbacks=callbacks,
             )
-            return BacktestEngine.RunResult.from_sliced(pipeline_result)
 
-    timeline = Timeline
-    sliced = Sliced
+    entity_based = EntityBased
+    slice_based = SliceBased
+
+    @staticmethod
+    def _run_entity_based(
+        jobs: List[Dict[str, Any]],
+        execute_fn: ExecuteFn,
+        *,
+        performance: Optional[Dict[str, Any]] = None,
+        task_name: str = "",
+        callbacks: Optional[RunCallbacks] = None,
+    ) -> BacktestEngine.RunResult:
+        if jobs:
+            BacktestJob.validate_many(jobs, mode=BacktestEngine.Mode.ENTITY_BASED)
+        resolved_performance = merge_performance(
+            ENTITY_BASED_DEFAULT_PERFORMANCE,
+            performance,
+        )
+        resolved_callbacks = callbacks or RunCallbacks()
+        label = task_name or "backtest"
+        pipeline = TimelineExecutePipeline(log_label=label)
+        pipeline_result = pipeline.run(
+            jobs,
+            resolved_performance,
+            execute_fn=execute_fn,
+            task_name=label,
+            on_result=resolved_callbacks.on_result,
+            on_release=resolved_callbacks.on_release,
+        )
+        return BacktestEngine.RunResult.from_entity_based(pipeline_result)
+
+    @staticmethod
+    def _run_slice_based(
+        jobs: List[Dict[str, Any]],
+        execute_fn: ExecuteFn,
+        *,
+        performance: Optional[Dict[str, Any]] = None,
+        task_name: str = "",
+        callbacks: Optional[RunCallbacks] = None,
+    ) -> BacktestEngine.RunResult:
+        if jobs:
+            BacktestJob.validate_many(jobs, mode=BacktestEngine.Mode.SLICE_BASED)
+        resolved_performance = merge_performance(
+            SLICE_BASED_DEFAULT_PERFORMANCE,
+            performance,
+        )
+        resolved_callbacks = callbacks or RunCallbacks()
+        label = task_name or "backtest"
+        pipeline = SliceExecutePipeline(log_label=label)
+        pipeline_result = pipeline.run(
+            jobs,
+            resolved_performance,
+            execute_fn=execute_fn,
+            task_name=label,
+            on_result=resolved_callbacks.on_result,
+        )
+        return BacktestEngine.RunResult.from_slice_based(pipeline_result)
 
     @classmethod
     def run(
         cls,
-        *,
         mode: str | BacktestEngine.Mode,
         jobs: List[Dict[str, Any]],
         execute_fn: ExecuteFn,
-        executor_key: str,
-        **kwargs: Any,
+        *,
+        performance: Optional[Dict[str, Any]] = None,
+        task_name: str = "",
+        callbacks: Optional[RunCallbacks] = None,
     ) -> BacktestEngine.RunResult:
-        if isinstance(mode, cls.Mode):
-            normalized = mode.value
-        else:
-            normalized = str(mode or "").strip().lower()
-        if normalized == cls.Mode.TIMELINE.value:
-            return cls.timeline.run(
+        normalized = cls.Mode.normalize(mode)
+        if normalized == cls.Mode.ENTITY_BASED.value:
+            return cls._run_entity_based(
                 jobs,
                 execute_fn,
-                executor_key=executor_key,
-                **kwargs,
+                performance=performance,
+                task_name=task_name,
+                callbacks=callbacks,
             )
-        if normalized == cls.Mode.SLICED.value:
-            return cls.sliced.run(
+        if normalized == cls.Mode.SLICE_BASED.value:
+            return cls._run_slice_based(
                 jobs,
                 execute_fn,
-                executor_key=executor_key,
-                **kwargs,
+                performance=performance,
+                task_name=task_name,
+                callbacks=callbacks,
             )
         raise ValueError(f"unknown backtest mode: {mode!r}")
 

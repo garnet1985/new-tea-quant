@@ -1,11 +1,10 @@
-"""Tag calendar_slice integration with BacktestEngine.sliced + staged save."""
+"""Tag calendar_slice integration with BacktestEngine.slice_based + staged save."""
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
 from core.modules.backtest_engine.contracts import JobContext
 from core.modules.tag.services.execution.tag_job_pipeline import (
-    TAG_SLICED_EXECUTOR_KEY,
     execute_tag_sliced_job,
     run_tag_sliced_via_backtest_engine,
     _slice_save_hook,
@@ -50,7 +49,7 @@ def test_execute_tag_sliced_job_wires_slice_save_hook(monkeypatch) -> None:
                     "_executor": "tag",
                     "_slice_plan": {"slice_open_days": 20},
                 },
-                run_name="tag:demo",
+                task_name="tag:demo",
             )
         )
     finally:
@@ -96,7 +95,7 @@ def test_run_tag_sliced_via_backtest_engine_staged_save(monkeypatch) -> None:
             JobContext(
                 job_id=jobs[0]["id"],
                 payload=jobs[0]["payload"],
-                run_name=kwargs["run_name"],
+                task_name=kwargs["task_name"],
             )
         )
         return type(
@@ -109,14 +108,14 @@ def test_run_tag_sliced_via_backtest_engine_staged_save(monkeypatch) -> None:
                 "completed_jobs": 1,
                 "failed_jobs": 0,
                 "elapsed_seconds": 0.0,
-                "mode": "sliced",
+                "mode": "slice_based",
                 "plan": None,
                 "monitor_stats": None,
             },
         )()
 
     with patch(
-        "core.modules.backtest_engine.BacktestEngine.sliced.run",
+        "core.modules.backtest_engine.BacktestEngine.slice_based.run",
         side_effect=fake_be_run,
     ) as run_mock:
         result = run_tag_sliced_via_backtest_engine(
@@ -136,7 +135,8 @@ def test_run_tag_sliced_via_backtest_engine_staged_save(monkeypatch) -> None:
         )
 
     run_mock.assert_called_once()
-    assert run_mock.call_args.kwargs["executor_key"] == TAG_SLICED_EXECUTOR_KEY
+    assert run_mock.call_args.kwargs["task_name"] == "tag:demo"
+    assert run_mock.call_args.kwargs["performance"] is not None
     assert result["saved_tag_values"] == 2
     assert len(save_batches) == 2
     assert save_batches[0][0]["as_of_date"] == "20240102"
@@ -144,7 +144,7 @@ def test_run_tag_sliced_via_backtest_engine_staged_save(monkeypatch) -> None:
 
 
 def test_run_tag_sliced_via_backtest_engine_calls_facade() -> None:
-    with patch("core.modules.backtest_engine.BacktestEngine.sliced.run") as run_mock:
+    with patch("core.modules.backtest_engine.BacktestEngine.slice_based.run") as run_mock:
         run_mock.return_value = type(
             "RunResult",
             (),
@@ -155,7 +155,7 @@ def test_run_tag_sliced_via_backtest_engine_calls_facade() -> None:
                 "completed_jobs": 0,
                 "failed_jobs": 0,
                 "elapsed_seconds": 0.0,
-                "mode": "sliced",
+                "mode": "slice_based",
                 "plan": None,
                 "monitor_stats": None,
             },

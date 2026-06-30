@@ -46,7 +46,7 @@ def test_execute_scanner_timeline_job_single_entity(monkeypatch) -> None:
                     }
                 ]
             },
-            run_name="scanner:test",
+            task_name="scanner:test",
         )
     )
     assert out["success"] is True
@@ -62,7 +62,7 @@ def test_run_scanner_timeline_via_backtest_engine_calls_facade() -> None:
             "settings": {},
         }
     ]
-    with patch("core.modules.backtest_engine.BacktestEngine.timeline.run") as run_mock:
+    with patch("core.modules.backtest_engine.BacktestEngine.entity_based.run") as run_mock:
         run_mock.return_value = type(
             "RunResult",
             (),
@@ -81,5 +81,5 @@ def test_run_scanner_timeline_via_backtest_engine_calls_facade() -> None:
         run_scanner_timeline_via_backtest_engine(stock_jobs=stock_jobs, total_jobs=1)
         run_mock.assert_called_once()
         kwargs = run_mock.call_args.kwargs
-        assert kwargs["executor_key"] == "strategy.scanner"
+        assert kwargs["performance"] is not None
         assert run_mock.call_args.args[0][0]["id"] == "000001.SZ"

@@ -59,12 +59,20 @@ class Job:
 
 
 @dataclass
+class RunCallbacks:
+    """Optional hooks for a single BacktestEngine run (see api.yaml)."""
+
+    on_result: Optional[Callable[["JobReport", RunProgress], None]] = None
+    on_release: Optional[Callable[["JobReport"], None]] = None
+
+
+@dataclass
 class JobContext:
-    """子进程 execute 收到的当前 job 作用域（由 Dispatcher 注入 job_id / run_name）。"""
+    """子进程 execute 收到的当前 job 作用域（由 Dispatcher 注入 job_id / task_name）。"""
 
     job_id: str
     payload: Dict[str, Any]
-    run_name: str = ""
+    task_name: str = ""
 
 
 @dataclass
@@ -125,6 +133,7 @@ __all__ = [
     "ExecuteMode",
     "JobStatus",
     "Job",
+    "RunCallbacks",
     "JobContext",
     "JobReport",
     "JobResult",

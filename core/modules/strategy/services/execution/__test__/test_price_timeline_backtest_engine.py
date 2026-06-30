@@ -17,7 +17,7 @@ def test_run_price_factor_timeline_via_backtest_engine_calls_facade() -> None:
             "config": {"k": 1},
         }
     ]
-    with patch("core.modules.backtest_engine.BacktestEngine.timeline.run") as run_mock:
+    with patch("core.modules.backtest_engine.BacktestEngine.entity_based.run") as run_mock:
         run_mock.return_value = type(
             "RunResult",
             (),
@@ -28,7 +28,7 @@ def test_run_price_factor_timeline_via_backtest_engine_calls_facade() -> None:
                 "completed_jobs": 0,
                 "failed_jobs": 0,
                 "elapsed_seconds": 0.0,
-                "mode": "timeline",
+                "mode": "entity_based",
                 "plan": None,
                 "monitor_stats": None,
             },
@@ -39,6 +39,6 @@ def test_run_price_factor_timeline_via_backtest_engine_calls_facade() -> None:
         )
         run_mock.assert_called_once()
         args, kwargs = run_mock.call_args
-        assert kwargs["executor_key"] == "strategy.price"
+        assert kwargs["performance"] is not None
         assert args[1].__name__ == "execute_price_factor_timeline_job"
         assert args[0][0]["id"] == "000001.SZ"

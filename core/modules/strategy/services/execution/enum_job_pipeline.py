@@ -3,9 +3,11 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from core.modules.backtest_engine.contracts import JobContext, JobResult, JobStatus
-
-from core.modules.backtest_engine.contracts import BacktestJob
+from core.modules.backtest_engine.contracts import BacktestJob, JobContext, JobResult, JobStatus, RunCallbacks
+from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.worker_profile import (
+    profile_enumerator_calendar_slice_config,
+    profile_enumerator_dispatch_config,
+)
 
 from .engine_jobs import require_stock_id, wrap_slice_dispatch_job, wrap_timeline_stock_job
 from .stock_job_pipeline import job_progress_payload, job_report_to_job_result
@@ -176,7 +178,7 @@ def execute_enumeration_timeline_job(context: JobContext) -> Dict[str, Any]:
         JobContext(
             job_id=context.job_id,
             payload=enum_payload,
-            run_name=context.run_name,
+            task_name=context.task_name,
         )
     )
 
@@ -288,14 +290,12 @@ def run_enumeration_timeline_via_backtest_engine(
                 )
             )
 
-    result = BacktestEngine.timeline.run(
+    result = BacktestEngine.entity_based.run(
         engine_jobs,
         execute_enumeration_timeline_job,
-        executor_key=ENUM_TIMELINE_EXECUTOR_KEY,
-        run_name=run_name,
-        on_result=on_engine_result,
-        data_mgr=duckdb_data_mgr,
-        log_label="enum",
+        performance=profile_enumerator_dispatch_config(),
+        task_name=run_name,
+        callbacks=RunCallbacks(on_result=on_engine_result),
     )
     if run_hooks is not None:
         run_hooks.on_run_finish()
@@ -328,7 +328,7 @@ def execute_enumeration_sliced_job(context: JobContext) -> Dict[str, Any]:
             JobContext(
                 job_id=context.job_id,
                 payload=enum_payload,
-                run_name=context.run_name,
+                task_name=context.task_name,
             )
         )
     finally:
@@ -386,14 +386,12 @@ def run_enumeration_sliced_via_backtest_engine(
                 )
             )
 
-    result = BacktestEngine.sliced.run(
+    result = BacktestEngine.slice_based.run(
         engine_jobs,
         execute_enumeration_sliced_job,
-        executor_key=ENUM_SLICED_EXECUTOR_KEY,
-        run_name=run_name,
-        on_result=on_engine_result,
-        data_mgr=duckdb_data_mgr,
-        log_label="enum-sliced",
+        performance=profile_enumerator_calendar_slice_config(),
+        task_name=run_name,
+        callbacks=RunCallbacks(on_result=on_engine_result),
     )
     return [job_report_to_job_result(report) for report in result.job_results]
 

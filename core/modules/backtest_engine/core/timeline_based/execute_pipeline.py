@@ -52,17 +52,13 @@ class TimelineExecutePipeline:
         performance: Dict[str, Any],
         *,
         execute_fn: TimelineExecutor.ExecuteFn,
-        executor_key: Optional[str] = None,
-        run_name: str = "",
+        task_name: str = "",
         on_result: Optional[TimelineExecutor.OnResultHook] = None,
         on_release: Optional[TimelineExecutor.OnReleaseHook] = None,
-        data_mgr: Optional[Any] = None,
     ) -> TimelineExecutePipeline.Result:
         if jobs:
             BacktestJob.validate_many(jobs)
-        plan, batches, monitor_config = self._plan(
-            jobs, performance, executor_key, execute_fn
-        )
+        plan, batches, monitor_config = self._plan(jobs, performance, execute_fn)
         capacity = MachineInfo.get_capacity(performance)
         available_memory_mb = MachineInfo.worker_pool_budget_mb(capacity)
         monitor = TimelineRunMonitor(
@@ -77,9 +73,9 @@ class TimelineExecutePipeline:
             cpu_workers_cap=MachineInfo.get_available_workers(capacity),
         )
         context = ExecutionContext.create(
-            run_name=run_name or self._log_label,
+            run_name=task_name or self._log_label,
             total_jobs=len(batches),
-            executor=executor_key or "",
+            executor="",
             performance=performance,
         )
 
@@ -101,7 +97,6 @@ class TimelineExecutePipeline:
             on_release=on_release,
             log_label=self._log_label,
             get_admission_limit=lambda: monitor.admission_limit,
-            data_mgr=data_mgr,
             duckdb_process_pool_scope=str(
                 performance.get("duckdb_process_pool_scope", "auto")
             ),
@@ -123,14 +118,12 @@ class TimelineExecutePipeline:
         self,
         jobs: List[Dict[str, Any]],
         performance: Dict[str, Any],
-        executor_key: Optional[str],
         execute_fn: TimelineExecutor.ExecuteFn,
     ) -> tuple[DispatchPlan, List[JobBatch], TimelineMonitorConfig]:
         return TimelinePlanner.plan_jobs(
             jobs,
             performance,
             execute_fn=execute_fn,
-            executor=executor_key,
             log_label=self._log_label,
         )
 

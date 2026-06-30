@@ -247,7 +247,7 @@ class SliceExecutor:
         return JobContext(
             job_id=job.job_id,
             payload=payload,
-            run_name=context.run_name,
+            task_name=context.run_name,
         )
 
     @staticmethod

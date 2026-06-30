@@ -81,7 +81,7 @@ def test_execute_enumeration_timeline_job_delegates_to_worker(monkeypatch) -> No
                 ],
                 "_global_extra_cache": {"k": []},
             },
-            run_name="enum:test",
+            task_name="enum:test",
         )
     )
     assert captured["payload"]["stock_ids"] == ["000001.SZ"]
@@ -101,7 +101,7 @@ def test_run_enumeration_timeline_via_backtest_engine_calls_facade() -> None:
             "worker_class_name": "C",
         }
     ]
-    with patch("core.modules.backtest_engine.BacktestEngine.timeline.run") as run_mock:
+    with patch("core.modules.backtest_engine.BacktestEngine.entity_based.run") as run_mock:
         run_mock.return_value = type(
             "RunResult",
             (),
@@ -112,7 +112,7 @@ def test_run_enumeration_timeline_via_backtest_engine_calls_facade() -> None:
                 "completed_jobs": 0,
                 "failed_jobs": 0,
                 "elapsed_seconds": 0.0,
-                "mode": "timeline",
+                "mode": "entity_based",
                 "plan": None,
                 "monitor_stats": None,
             },
@@ -124,7 +124,8 @@ def test_run_enumeration_timeline_via_backtest_engine_calls_facade() -> None:
         )
         run_mock.assert_called_once()
         args, kwargs = run_mock.call_args
-        assert kwargs["executor_key"] == "strategy.enum"
+        assert kwargs["performance"] is not None
+        assert kwargs["task_name"] == "enum"
         assert args[1].__name__ == "execute_enumeration_timeline_job"
         assert args[0][0] == {
             "id": "000001.SZ",

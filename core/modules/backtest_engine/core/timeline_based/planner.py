@@ -440,7 +440,7 @@ class TimelinePlanner:
             
             batch = JobBatch(
                 batch_id=f"batch_{i}",
-                entity_ids=[BacktestJob.from_wire(job).id for job in batch_entities],
+                entity_ids=[BacktestJob.from_dict(job).id for job in batch_entities],
                 entities_count=len(batch_entities),
                 payload={"jobs": batch_entities},
             )

@@ -59,7 +59,7 @@ def process_rss_mb() -> float:
 def _run_probe_executor(payload: Dict[str, Any]) -> Dict[str, Any]:
     raise RuntimeError(
         "legacy infra.worker dispatch_probe executor routing was removed; "
-        "use BacktestEngine.timeline.run with execute_fn"
+        "use BacktestEngine.entity_based.run with execute_fn"
     )
 
 

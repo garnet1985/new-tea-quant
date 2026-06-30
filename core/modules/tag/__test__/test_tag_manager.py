@@ -235,7 +235,7 @@ class TestTagManager:
             _, kwargs = mock_run.call_args
             assert kwargs["entity_list"] == ["__general__"]
 
-    @patch("core.modules.backtest_engine.BacktestEngine.timeline.run")
+    @patch("core.modules.backtest_engine.BacktestEngine.entity_based.run")
     @patch("core.modules.tag.tag_manager.DataManager")
     @patch("core.modules.tag.tag_manager.get_scenarios_root")
     def test_run_tag_timeline_saves_on_engine_result(
@@ -259,7 +259,9 @@ class TestTagManager:
         mock_data_manager.return_value = mock_data_mgr
 
         def fake_timeline_run(jobs, execute_fn, **kwargs):
-            kwargs["on_result"](
+            callbacks = kwargs["callbacks"]
+            assert callbacks is not None
+            callbacks.on_result(
                 JobReport(
                     job_id="job1",
                     success=True,
@@ -277,7 +279,7 @@ class TestTagManager:
                     "completed_jobs": 1,
                     "failed_jobs": 0,
                     "elapsed_seconds": 0.0,
-                    "mode": "timeline",
+                    "mode": "entity_based",
                     "plan": None,
                     "monitor_stats": None,
                 },
@@ -304,7 +306,7 @@ class TestTagManager:
         assert result["completed_jobs"] == 1
         assert result["saved_tag_values"] == 1
 
-    @patch("core.modules.backtest_engine.BacktestEngine.timeline.run")
+    @patch("core.modules.backtest_engine.BacktestEngine.entity_based.run")
     @patch("core.modules.tag.tag_manager.DataManager")
     @patch("core.modules.tag.tag_manager.get_scenarios_root")
     def test_run_tag_timeline_batches_save_on_engine_result(
@@ -328,7 +330,7 @@ class TestTagManager:
         mock_data_manager.return_value = mock_data_mgr
 
         def fake_timeline_run(jobs, execute_fn, **kwargs):
-            on_result = kwargs["on_result"]
+            on_result = kwargs["callbacks"].on_result
             for i in range(3):
                 on_result(
                     JobReport(
@@ -348,7 +350,7 @@ class TestTagManager:
                     "completed_jobs": 3,
                     "failed_jobs": 0,
                     "elapsed_seconds": 0.0,
-                    "mode": "timeline",
+                    "mode": "entity_based",
                     "plan": None,
                     "monitor_stats": None,
                 },

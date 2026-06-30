@@ -16,7 +16,12 @@ import logging
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from core.modules.backtest_engine.contracts import BacktestJob, JobContext, JobReport, RunProgress
+from core.modules.backtest_engine.contracts import BacktestJob, JobContext, JobReport, RunCallbacks, RunProgress
+from core.modules.backtest_engine.core.shared.default_performance import merge_performance
+from core.modules.tag.settings.worker_profile import (
+    profile_tag_calendar_slice_config,
+    profile_tag_entity_timeline_config,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -153,13 +158,13 @@ def _wrap_tag_timeline_job(
         Dict: BacktestJob wire format ``{'id': str, 'payload': dict}``
     """
     if isinstance(job_dict.get("payload"), dict):
-        job = BacktestJob.from_wire(job_dict)
+        job = BacktestJob.from_dict(job_dict)
         payload = dict(job.payload)
         payload.setdefault("_job_id", job.id)
         payload["_executor"] = TAG_TIMELINE_EXECUTOR_KEY
         if stage_in_worker:
             payload["_stage_in_worker"] = True
-        return BacktestJob(id=job.id, payload=payload).to_wire()
+        return BacktestJob(id=job.id, payload=payload).to_dict()
 
     job_id = str(job_dict.get("job_id") or job_dict.get("id") or f"tag_timeline_{index}")
     payload = dict(job_dict)
@@ -169,7 +174,7 @@ def _wrap_tag_timeline_job(
     payload["_executor"] = TAG_TIMELINE_EXECUTOR_KEY
     if stage_in_worker:
         payload["_stage_in_worker"] = True
-    return BacktestJob(id=job_id, payload=payload).to_wire()
+    return BacktestJob(id=job_id, payload=payload).to_dict()
 
 
 # ============================================================
@@ -303,15 +308,17 @@ def run_tag_timeline_via_backtest_engine(
                 "progress_pct": progress_pct,
             })
 
-    # ---- 4. 调用 BacktestEngine.timeline.run() ----
-    result = BacktestEngine.timeline.run(
+    # ---- 4. 调用 BacktestEngine.entity_based.run() ----
+    dispatch_performance = merge_performance(
+        profile_tag_entity_timeline_config(),
+        performance,
+    )
+    result = BacktestEngine.entity_based.run(
         engine_jobs,
         execute_tag_timeline_job,
-        executor_key=TAG_TIMELINE_EXECUTOR_KEY,
-        run_name=run_name,
-        on_result=on_engine_result,
-        data_mgr=duckdb_data_mgr,
-        log_label="tag",
+        performance=dispatch_performance,
+        task_name=run_name,
+        callbacks=RunCallbacks(on_result=on_engine_result),
     )
 
     # ---- 5. flush save_buffer（批量入库）----
@@ -416,7 +423,7 @@ def _wrap_tag_sliced_dispatch_job(job: Dict[str, Any]) -> Dict[str, Any]:
     }
     payload.setdefault("_job_id", job_id)
     payload["_executor"] = TAG_SLICED_EXECUTOR_KEY
-    return BacktestJob(id=job_id, payload=payload).to_wire()
+    return BacktestJob(id=job_id, payload=payload).to_dict()
 
 
 def run_tag_sliced_via_backtest_engine(
@@ -482,14 +489,15 @@ def run_tag_sliced_via_backtest_engine(
 
     hook_token = _slice_save_hook.set(on_slice_tag_values)
     try:
-        result = BacktestEngine.sliced.run(
+        result = BacktestEngine.slice_based.run(
             engine_jobs,
             execute_tag_sliced_job,
-            executor_key=TAG_SLICED_EXECUTOR_KEY,
-            run_name=run_name,
-            on_result=on_engine_result,
-            data_mgr=duckdb_data_mgr,
-            log_label="tag-sliced",
+            performance=merge_performance(
+                profile_tag_calendar_slice_config(),
+                performance,
+            ),
+            task_name=run_name,
+            callbacks=RunCallbacks(on_result=on_engine_result),
         )
     finally:
         _slice_save_hook.reset(hook_token)

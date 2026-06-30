@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable, Dict, List, Optional
 
-from core.modules.backtest_engine.contracts import BacktestJob, JobContext, JobResult
+from core.modules.backtest_engine.contracts import BacktestJob, JobContext, JobResult, RunCallbacks
 
 from .engine_jobs import wrap_timeline_stock_job
 from .runners.scanner_runner import run_scanner_payload
@@ -91,6 +91,8 @@ def run_scanner_timeline_via_backtest_engine(
     from core.modules.backtest_engine import BacktestEngine
     from core.modules.backtest_engine.contracts import JobReport, RunProgress
 
+    from .worker_profile import profile_scanner_dispatch_config
+
     n = total_jobs if total_jobs is not None else len(stock_jobs)
     engine_jobs: List[Dict[str, Any]] = []
     for job in stock_jobs:
@@ -131,13 +133,11 @@ def run_scanner_timeline_via_backtest_engine(
                 )
             )
 
-    result = BacktestEngine.timeline.run(
+    result = BacktestEngine.entity_based.run(
         engine_jobs,
         execute_scanner_timeline_job,
-        executor_key=SCANNER_TIMELINE_EXECUTOR_KEY,
-        run_name=run_name,
-        on_result=on_engine_result,
-        data_mgr=duckdb_data_mgr,
-        log_label="scanner",
+        performance=profile_scanner_dispatch_config(),
+        task_name=run_name,
+        callbacks=RunCallbacks(on_result=on_engine_result),
     )
     return [job_report_to_job_result(report) for report in result.job_results]

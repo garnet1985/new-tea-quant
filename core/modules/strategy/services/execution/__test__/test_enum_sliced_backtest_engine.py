@@ -48,7 +48,7 @@ def test_execute_enumeration_sliced_job_preserves_auto_slice_open_days(monkeypat
                 "_slice_plan": {"slice_open_days": 20},
                 "_global_extra_cache": {},
             },
-            run_name="enum:sliced",
+            task_name="enum:sliced",
         )
     )
     assert captured["payload"]["slice_open_days"] == "auto"
@@ -71,7 +71,7 @@ def test_run_enumeration_sliced_via_backtest_engine_calls_facade() -> None:
             },
         }
     ]
-    with patch("core.modules.backtest_engine.BacktestEngine.sliced.run") as run_mock:
+    with patch("core.modules.backtest_engine.BacktestEngine.slice_based.run") as run_mock:
         run_mock.return_value = type(
             "RunResult",
             (),
@@ -82,7 +82,7 @@ def test_run_enumeration_sliced_via_backtest_engine_calls_facade() -> None:
                 "completed_jobs": 0,
                 "failed_jobs": 0,
                 "elapsed_seconds": 0.0,
-                "mode": "sliced",
+                "mode": "slice_based",
                 "plan": None,
                 "monitor_stats": None,
             },
@@ -94,4 +94,4 @@ def test_run_enumeration_sliced_via_backtest_engine_calls_facade() -> None:
         )
         run_mock.assert_called_once()
         kwargs = run_mock.call_args.kwargs
-        assert kwargs["executor_key"] == "strategy.enum"
+        assert kwargs["performance"] is not None

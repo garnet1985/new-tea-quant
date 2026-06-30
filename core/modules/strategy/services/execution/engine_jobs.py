@@ -17,7 +17,7 @@ def wrap_timeline_stock_job(job: Dict[str, Any], **payload_extra: Any) -> Dict[s
     stock_id = require_stock_id(job, label="timeline stock job")
     payload = dict(job)
     payload.update(payload_extra)
-    return BacktestJob(id=stock_id, payload=payload).to_wire()
+    return BacktestJob(id=stock_id, payload=payload).to_dict()
 
 
 def require_dispatch_job_id(job: Dict[str, Any], *, label: str = "dispatch job") -> str:
@@ -31,7 +31,7 @@ def wrap_slice_dispatch_job(job: Dict[str, Any], **payload_extra: Any) -> Dict[s
     job_id = require_dispatch_job_id(job, label="calendar_slice dispatch job")
     payload = dict(job)
     payload.update(payload_extra)
-    return BacktestJob(id=job_id, payload=payload).to_wire()
+    return BacktestJob(id=job_id, payload=payload).to_dict()
 
 
 __all__ = [

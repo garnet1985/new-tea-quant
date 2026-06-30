@@ -419,7 +419,7 @@ class SlicePlanner(BasePlanner):
             return []
 
         if cls._is_bulk_calendar_job(jobs):
-            parsed = BacktestJob.from_wire(jobs[0])
+            parsed = BacktestJob.from_dict(jobs[0])
             job_id, payload = parsed.id, parsed.payload
             slice_ids = [
                 f"slice_{index}"
@@ -440,7 +440,7 @@ class SlicePlanner(BasePlanner):
 
         batches: List[SliceJobBatch] = []
         for index, job in enumerate(jobs):
-            parsed = BacktestJob.from_wire(job)
+            parsed = BacktestJob.from_dict(job)
             job_id, payload = parsed.id, parsed.payload
             slice_id = str(payload.get("slice_id") or job_id)
             batches.append(
@@ -464,7 +464,7 @@ class SlicePlanner(BasePlanner):
         """单 bulk job + 日历 open_dates：calendar_slice 形态（与具体业务模块无关）。"""
         if len(jobs) != 1:
             return False
-        payload = BacktestJob.from_wire(jobs[0]).payload
+        payload = BacktestJob.from_dict(jobs[0]).payload
         if not cls._resolve_open_dates(jobs):
             return False
         bulk_keys = ("entity_ids", "entities", "stock_ids", "entity_id", "stock_id")
@@ -486,7 +486,7 @@ class SlicePlanner(BasePlanner):
 
     @classmethod
     def _resolve_open_dates(cls, jobs: List[Dict[str, Any]]) -> List[str]:
-        payload = BacktestJob.from_wire(jobs[0]).payload
+        payload = BacktestJob.from_dict(jobs[0]).payload
         open_dates = payload.get("open_dates")
         if isinstance(open_dates, list) and open_dates:
             return [str(d) for d in open_dates if str(d).strip()]

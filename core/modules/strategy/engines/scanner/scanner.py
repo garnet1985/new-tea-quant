@@ -94,7 +94,7 @@ class Scanner:
     ) -> List[Opportunity]:
         from core.modules.backtest_engine.core.shared.types import JobStatus
         from core.modules.strategy.services.execution.scanner_job_pipeline import (
-            run_scanner_jobs_via_pipeline,
+            run_scanner_timeline_via_backtest_engine,
         )
 
         info = self._strategy_info
@@ -116,7 +116,7 @@ class Scanner:
         if not jobs:
             return []
 
-        job_results = run_scanner_jobs_via_pipeline(
+        job_results = run_scanner_timeline_via_backtest_engine(
             stock_jobs=jobs,
             max_workers="auto",
             total_jobs=len(jobs),
@@ -134,7 +134,7 @@ class Scanner:
 
     @staticmethod
     def _execute_single_job(payload: Dict[str, Any]) -> Dict[str, Any]:
-        """扫描并行请走 ``run_scanner_jobs_via_pipeline``。"""
+        """扫描并行请走 ``run_scanner_timeline_via_backtest_engine``。"""
         from core.modules.strategy.services.execution.scanner_job_pipeline import (
             run_scanner_worker_payload,
         )

@@ -5,7 +5,6 @@ from unittest.mock import patch
 
 import pytest
 
-from core.infra.job_pipeline.profile import WorkerProfiles
 from core.modules.tag.engines.shared.base_worker import BaseTagWorker
 from core.modules.tag.engines.sliced.runtime.compute_engine import TagSliceComputeEngine
 from core.modules.tag.engines.sliced.load_range import tag_slice_load_start
@@ -182,15 +181,78 @@ def test_tag_compute_engine_accumulates_tag_values():
             "_run_worker_for_payload",
             return_value=fake_result,
         ):
-            engine.run_slice(payload)
+            slice_rows = engine.run_slice(payload)
         summary = engine.finalize_all()
+    assert slice_rows == fake_result["tag_values"]
     assert summary["total_tags"] == 1
-    assert summary["tag_values"][0]["as_of_date"] == "20240102"
+    assert summary["tag_values"] == []
+
+
+def test_tag_compute_engine_drains_slice_tag_values_between_slices():
+    job_payload = {
+        "entity_ids": ["000001"],
+        "slice_open_days": 50,
+        "entity_type": "stock_kline_daily",
+        "scenario_name": "s",
+        "update_mode": TagUpdateMode.REFRESH,
+        "tag_definitions": [],
+        "settings": {},
+        "worker_module_path": "mod",
+        "worker_class_name": "W",
+        "global_extra_cache": {},
+        "start_date": "20240101",
+        "end_date": "20240131",
+    }
+
+    class _PerEntityWorker(BaseTagWorker):
+        def calculate_tag(self, as_of_date, historical_data, tag_definition):
+            return None
+
+    def _payload(as_of: str) -> SlicePayload:
+        return SlicePayload(
+            slice_id=f"slice_{as_of}",
+            slice_index=0,
+            window_start=as_of,
+            window_end=as_of,
+            open_dates=(as_of,),
+            batch_transfer={
+                "by_entity": {
+                    "000001": {
+                        "slot_data": {},
+                        "trading_dates": [as_of],
+                        "prior_tag_values": {},
+                    }
+                }
+            },
+        )
+
+    with patch.object(
+        TagSliceComputeEngine,
+        "_resolve_worker_class",
+        return_value=_PerEntityWorker,
+    ):
+        engine = TagSliceComputeEngine(job_payload)
+        with patch.object(
+            TagSliceComputeEngine,
+            "_run_worker_for_payload",
+            side_effect=[
+                {"success": True, "tag_values": [{"entity_id": "000001", "as_of_date": "20240102"}], "errors": []},
+                {"success": True, "tag_values": [{"entity_id": "000001", "as_of_date": "20240103"}], "errors": []},
+            ],
+        ):
+            first = engine.run_slice(_payload("20240102"))
+            second = engine.run_slice(_payload("20240103"))
+        summary = engine.finalize_all()
+
+    assert first[0]["as_of_date"] == "20240102"
+    assert second[0]["as_of_date"] == "20240103"
+    assert summary["total_tags"] == 2
+    assert summary["tag_values"] == []
 
 
 def test_profile_calendar_slice_config_for_tag():
-    from core.infra.job_pipeline.profile import profile_calendar_slice_config
+    from core.modules.tag.settings.normalize import profile_tag_calendar_slice_config
 
-    cfg = profile_calendar_slice_config(WorkerProfiles.TAG)
+    cfg = profile_tag_calendar_slice_config()
     assert cfg.get("reader_workers") == "auto"
     assert cfg.get("prefetch_enabled") is True

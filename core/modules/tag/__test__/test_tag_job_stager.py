@@ -2,12 +2,11 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from core.infra.job_pipeline.types import Job
-from core.modules.tag.engines.shared.staging.job_stager import TagJobStager
+from core.modules.tag.engines.shared.staging.job_stager import TagJobStager, TagStageJob
 
 
 def test_tag_job_stager_builds_inline_inject_payload():
-    job = Job(
+    job = TagStageJob(
         job_id="scenario_000001",
         payload={
             "entity_id": "000001",
@@ -49,7 +48,7 @@ def test_tag_job_stager_builds_inline_inject_payload():
 
 
 def test_tag_job_stager_batch_preserves_worker_file_path():
-    job = Job(
+    job = TagStageJob(
         job_id="scenario_batch",
         payload={
             "entity_type": "stock_kline_daily",

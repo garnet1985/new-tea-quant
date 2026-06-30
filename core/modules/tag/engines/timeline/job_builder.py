@@ -34,7 +34,6 @@ def build_timeline_jobs(
     scenario_cache: Dict[str, Any],
     tag_data_service: Any,
     dcm: Any,
-    entities_per_job: int = 1,
     log_job_grouping: bool = True,
 ) -> List[Dict[str, Any]]:
     update_mode = scenario_model.calculate_update_mode()
@@ -102,40 +101,21 @@ def build_timeline_jobs(
         "worker_file_path": worker_file_path,
         "global_extra_cache": global_extra_cache,
     }
-    batch_size = max(1, int(entities_per_job))
     scenario_id = scenario_model.get_identifier()
     jobs: List[Dict[str, Any]] = []
-    for batch_idx in range(0, len(entity_specs), batch_size):
-        batch = entity_specs[batch_idx : batch_idx + batch_size]
-        if batch_size == 1:
-            ent = batch[0]
-            job_id = f"{scenario_id}_{ent['entity_id']}"
-            jobs.append(
-                {
-                    "id": job_id,
-                    "payload": {**shared_payload, **ent, "_job_id": job_id},
-                }
-            )
-        else:
-            job_id = f"{scenario_id}_batch{batch_idx // batch_size}"
-            jobs.append(
-                {
-                    "id": job_id,
-                    "payload": {**shared_payload, "entities": batch, "_job_id": job_id},
-                }
-            )
+    for ent in entity_specs:
+        job_id = f"{scenario_id}_{ent['entity_id']}"
+        jobs.append(
+            {
+                "id": job_id,
+                "payload": {**shared_payload, **ent, "_job_id": job_id},
+            }
+        )
 
     if log_job_grouping:
         logger.info(
-            "Tag jobs 分组: entities=%d, entities_per_job=%d, dispatch_jobs=%d",
+            "Tag jobs 分组: entities=%d, dispatch_jobs=%d（batch 由 BacktestEngine 规划）",
             len(entity_specs),
-            batch_size,
-            len(jobs),
-        )
-    if log_job_grouping and batch_size == 1 and len(entity_specs) > 100:
-        logger.warning(
-            "entities_per_job=1：约 %d 次 dispatch，wall 通常 ~60s；"
-            "建议 performance.entities_per_job=100（子进程 bulk stage 才有效）",
             len(jobs),
         )
     return jobs

@@ -83,7 +83,7 @@ def build_entity_historical_context(
 
     for eid, ctx in entity_contexts.items():
         try:
-            historical = ProjectContext.path.get_data_until(as_of)
+            historical = ctx.get_data_until(as_of)
             axis_rows = historical.get(axis) or []
             if not axis_rows:
                 continue

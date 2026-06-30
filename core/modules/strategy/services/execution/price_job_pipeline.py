@@ -17,7 +17,6 @@ __all__ = [
     "execute_price_factor_job",
     "execute_price_factor_timeline_job",
     "expand_bulk_price_job_results",
-    "run_price_factor_jobs_via_pipeline",
     "run_price_factor_timeline_via_backtest_engine",
     "workbench_disk_progress",
 ]
@@ -188,23 +187,3 @@ def run_price_factor_timeline_via_backtest_engine(
     )
     job_results = [job_report_to_job_result(report) for report in result.job_results]
     return expand_bulk_price_job_results(job_results)
-
-
-def run_price_factor_jobs_via_pipeline(
-    *,
-    stock_jobs: List[Dict[str, Any]],
-    max_workers: Any,
-    total_stocks: Optional[int] = None,
-    run_name: str = "price",
-    on_workbench_progress: Optional[Callable[[float], None]] = None,
-    duckdb_data_mgr: Any = None,
-) -> List[JobResult]:
-    """逐股 jobs 跑 BacktestEngine timeline；``total_stocks`` 为股票总数。"""
-    _ = max_workers
-    return run_price_factor_timeline_via_backtest_engine(
-        stock_jobs=stock_jobs,
-        total_stocks=total_stocks,
-        run_name=run_name,
-        on_workbench_progress=on_workbench_progress,
-        duckdb_data_mgr=duckdb_data_mgr,
-    )

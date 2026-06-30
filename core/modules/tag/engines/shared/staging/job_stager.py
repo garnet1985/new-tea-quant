@@ -1,9 +1,9 @@
 """Tag job stage：在 worker 内装填 kline/prior 等，写入 payload _inject。"""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from core.infra.job_pipeline.types import Job
 from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.tag.engines.shared.data.tag_data_manager import TagDataManager
 from core.modules.tag.engines.shared.staging.batch_stage import stage_entities_batch
@@ -11,6 +11,12 @@ from core.modules.tag.engines.shared.staging.prior_values import fetch_prior_tag
 
 if TYPE_CHECKING:
     from core.modules.data_manager import DataManager
+
+
+@dataclass(frozen=True)
+class TagStageJob:
+    job_id: str
+    payload: Dict[str, Any]
 
 
 class TagJobStager:
@@ -25,7 +31,7 @@ class TagJobStager:
         self._data_mgr = data_mgr
         self._contract_cache = contract_cache or ContractCacheManager()
 
-    def stage_job(self, job: Job) -> Job:
+    def stage_job(self, job: TagStageJob) -> TagStageJob:
         payload = dict(job.payload)
         entities = payload.get("entities")
         if isinstance(entities, list) and len(entities) > 1:
@@ -36,10 +42,10 @@ class TagJobStager:
 
     def _to_executable_batch(
         self,
-        job: Job,
+        job: TagStageJob,
         payload: Dict[str, Any],
         entities: List[Dict[str, Any]],
-    ) -> Job:
+    ) -> TagStageJob:
         settings = dict(payload.get("settings") or {})
         tag_def_ids = [
             int(item["id"])
@@ -55,9 +61,9 @@ class TagJobStager:
         worker_payload = self._build_shared_worker_payload(payload)
         worker_payload["entities"] = list(entities)
         worker_payload["_inject"] = {"batch": True, "by_entity": by_entity}
-        return Job(job_id=job.job_id, payload=worker_payload)
+        return TagStageJob(job_id=job.job_id, payload=worker_payload)
 
-    def _to_executable_single(self, job: Job, payload: Dict[str, Any]) -> Job:
+    def _to_executable_single(self, job: TagStageJob, payload: Dict[str, Any]) -> TagStageJob:
         entity_id = str(payload.get("entity_id") or "")
         entity_type = str(payload.get("entity_type") or "stock")
         scenario_name = str(payload.get("scenario_name") or "")
@@ -96,7 +102,7 @@ class TagJobStager:
             time_field_overrides=time_field_overrides,
             prior_tag_values=prior_tag_values,
         )
-        return Job(job_id=job.job_id, payload=worker_payload)
+        return TagStageJob(job_id=job.job_id, payload=worker_payload)
 
     @staticmethod
     def _single_payload_from_batch(payload: Dict[str, Any], entity: Dict[str, Any]) -> Dict[str, Any]:

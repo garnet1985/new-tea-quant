@@ -109,12 +109,14 @@ def test_calendar_asof_fan_out_and_carry():
         return_value=_CalendarTagWorker,
     ):
         engine = TagSliceComputeEngine(job_payload)
-        engine.run_slice(payload)
+        slice_rows = engine.run_slice(payload)
         summary = engine.finalize_all()
 
     assert summary["carry"]["seen"] == 2
     assert summary["total_tags"] == 1
-    row = summary["tag_values"][0]
+    assert summary["tag_values"] == []
+    assert len(slice_rows) == 1
+    row = slice_rows[0]
     assert row["entity_id"] == "000001"
     assert row["as_of_date"] == "20240201"
     assert row["json_value"] == '{"value":"picked"}'

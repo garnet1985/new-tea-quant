@@ -49,6 +49,8 @@ class SliceDone:
     load_elapsed_ms: float = 0.0
     compute_elapsed_ms: float = 0.0
     payload_bytes: int = 0
+    # Tag calendar_slice：compute lane 按 slice 回传待落库 rows（strategy enum 留空）
+    tag_values: Tuple[Any, ...] = ()
 
 
 @dataclass

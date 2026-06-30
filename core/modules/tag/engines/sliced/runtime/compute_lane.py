@@ -40,7 +40,7 @@ def compute_lane_main(
                 continue
             payload = msg
             started = __import__("time").perf_counter()
-            engine.run_slice(payload)
+            slice_tag_values = engine.run_slice(payload)
             compute_ms = (__import__("time").perf_counter() - started) * 1000.0
             done_q.put(
                 SliceDone(
@@ -49,6 +49,7 @@ def compute_lane_main(
                     load_elapsed_ms=float(payload.load_elapsed_ms),
                     compute_elapsed_ms=float(compute_ms),
                     payload_bytes=int(payload.payload_bytes or 0),
+                    tag_values=tuple(slice_tag_values),
                 )
             )
             logger.debug(

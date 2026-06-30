@@ -207,26 +207,6 @@ class EnumeratorSharedServices:
         self._backtest_period_cache = dict(payload)
         return payload
 
-    def resolve_runtime_workers(self) -> int:
-        from core.modules.backtest_engine.core.timeline_based.config import TimelineConfig
-        from core.modules.backtest_engine.core.timeline_based.probe import WorkerProbe
-        from core.modules.strategy.engines.shared.worker_settings_keys import (
-            STRATEGY_ENUM_EXECUTOR_KEY,
-        )
-
-        if isinstance(self.max_workers, int):
-            return max(1, int(self.max_workers))
-
-        perf = TimelineConfig.resolve_dispatch_performance(STRATEGY_ENUM_EXECUTOR_KEY)
-        cap = perf.get("max_parallel_jobs_cap")
-        reserve = int(perf.get("reserve_cores", 2))
-        resolved_cap = int(cap) if cap not in (None, "") else None
-        return WorkerProbe.resolve(
-            self.max_workers,
-            reserve_cores=reserve,
-            cap=resolved_cap,
-        )
-
     def load_settings(
         self,
         *,
@@ -422,11 +402,12 @@ class EnumeratorSharedServices:
         entities_per_job: int = 1,
     ) -> List[Dict[str, Any]]:
         from core.modules.strategy.engines.simulator.enumerator.stock_based.dispatch_jobs import (
-            build_dispatch_jobs,
+            build_entity_timeline_jobs,
         )
 
+        _ = entities_per_job
         target_stock_ids = stock_ids if stock_ids is not None else self.stock_list
-        return build_dispatch_jobs(
+        return build_entity_timeline_jobs(
             strategy_name=strategy_name,
             settings_payload=settings_payload,
             output_dir=str(output_dir),
@@ -434,7 +415,6 @@ class EnumeratorSharedServices:
             stock_ids=target_stock_ids,
             start_date=self.start_date,
             end_date=self.end_date,
-            entities_per_job=entities_per_job,
         )
 
     def preload_global_cache(
@@ -491,6 +471,7 @@ class EnumeratorSharedServices:
         enum_settings: EnumeratorSettings,
         duckdb_data_mgr: Any = None,
     ) -> List[Any]:
+        _ = max_workers
         from core.modules.strategy.services.execution import (
             run_enumeration_timeline_via_backtest_engine,
         )

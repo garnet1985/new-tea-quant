@@ -6,9 +6,9 @@ from __future__ import annotations
 import logging
 import multiprocessing as mp
 import time
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
-from core.infra.job_pipeline.profile import WorkerProfiles
+from core.modules.tag.engines.shared.worker_settings_keys import TAG_EXECUTOR_KEY
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.memory_monitor import (
     collect_child_pids,
     job_tree_rss_mb,
@@ -46,13 +46,23 @@ logger = logging.getLogger(__name__)
 
 
 class TagCalendarSliceOrchestrator:
-    """JobPipeline 子进程内：spawn Reader + Compute，Runtime Planner 调度 preload。"""
+    """BacktestEngine sliced 主进程内：spawn Reader + Compute，Runtime Planner 调度 preload。"""
 
-    def __init__(self, job_payload: Dict[str, Any]):
+    def __init__(
+        self,
+        job_payload: Dict[str, Any],
+        *,
+        on_slice_tag_values: Optional[Callable[[List[Dict[str, Any]]], None]] = None,
+    ):
         self.job_payload = job_payload
         self.entity_ids = list(job_payload.get("entity_ids") or [])
-        self.runtime_settings = CalendarSliceRuntimeSettings.from_worker_profile(
-            WorkerProfiles.TAG
+        self._on_slice_tag_values = on_slice_tag_values
+        self._streamed_tag_count = 0
+        self._legacy_bulk_tag_values: Optional[List[Dict[str, Any]]] = (
+            [] if on_slice_tag_values is None else None
+        )
+        self.runtime_settings = CalendarSliceRuntimeSettings.from_worker_config(
+            executor_key=TAG_EXECUTOR_KEY,
         )
         self._plan: Optional[CalendarSliceRuntimePlan] = None
 
@@ -65,7 +75,7 @@ class TagCalendarSliceOrchestrator:
             self.job_payload,
             open_days_total=len(open_dates),
             settings=self.runtime_settings,
-            worker_profile=WorkerProfiles.TAG,
+            worker_profile=TAG_EXECUTOR_KEY,
         )
         self._plan = plan
         self.job_payload["slice_open_days"] = plan.slice_open_days
@@ -211,6 +221,10 @@ class TagCalendarSliceOrchestrator:
                     f"slice order mismatch: expected {i}, got {done_msg.slice_index}"
                 )
 
+            slice_tag_values = list(done_msg.tag_values or ())
+            if slice_tag_values:
+                self._emit_slice_tag_values(slice_tag_values)
+
             rss = job_tree_rss_mb(child_pids=child_pids)
             plan.record_slice(
                 slice_index=i,
@@ -248,16 +262,23 @@ class TagCalendarSliceOrchestrator:
         summary = {}
         if finalize.stock_results:
             summary = dict(finalize.stock_results[0] or {})
-        tag_values = list(summary.get("tag_values") or [])
         perf = dict(finalize.performance_metrics or {})
         perf["calendar_slice_runtime_plan"] = plan.to_dict()
 
         return self._finish_bulk(
             success=bool(summary.get("success", True)),
-            tag_values=tag_values,
+            tag_values=list(self._legacy_bulk_tag_values or []),
+            total_tags=self._streamed_tag_count,
             errors=list(summary.get("errors") or []),
             performance_metrics=perf,
         )
+
+    def _emit_slice_tag_values(self, tag_values: List[Dict[str, Any]]) -> None:
+        self._streamed_tag_count += len(tag_values)
+        if self._on_slice_tag_values is not None:
+            self._on_slice_tag_values(tag_values)
+        elif self._legacy_bulk_tag_values is not None:
+            self._legacy_bulk_tag_values.extend(tag_values)
 
     @staticmethod
     def _signal_shutdown(reader_cmd_q: Any, payload_q: Any, *, reader_workers: int = 1) -> None:
@@ -305,14 +326,16 @@ class TagCalendarSliceOrchestrator:
         *,
         success: bool,
         tag_values: List[Dict[str, Any]],
+        total_tags: Optional[int] = None,
         errors: Optional[List[str]] = None,
         performance_metrics: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        tag_total = total_tags if total_tags is not None else len(tag_values)
         return {
             "success": success and not errors,
             "bulk": True,
             "tag_values": tag_values,
-            "total_tags": len(tag_values),
+            "total_tags": tag_total,
             "entity_count": len(self.entity_ids),
             "errors": errors or [],
             "performance_metrics": performance_metrics or {},

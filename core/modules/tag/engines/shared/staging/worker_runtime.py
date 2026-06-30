@@ -1,4 +1,4 @@
-"""子进程内 Tag stage（JobPipeline execute 内调用）。"""
+"""子进程内 Tag stage（BacktestEngine execute_fn 内调用）。"""
 from __future__ import annotations
 
 import logging
@@ -15,9 +15,8 @@ from core.infra.db.engines.duckdb.process_pool_scope import (
     suspend_main_database,
     wait_pool_children_done,
 )
-from core.infra.job_pipeline.types import Job
 from core.modules.data_contract.cache import ContractCacheManager
-from core.modules.tag.engines.shared.staging.job_stager import TagJobStager
+from core.modules.tag.engines.shared.staging.job_stager import TagJobStager, TagStageJob
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +95,7 @@ def get_worker_stager() -> TagJobStager:
 
 def stage_payload_in_worker(payload: Dict[str, Any]) -> Dict[str, Any]:
     """在子进程执行 bulk/single stage，返回带 _inject 的 worker payload。"""
-    job = Job(job_id=str(payload.get("_job_id") or "tag_worker"), payload=dict(payload))
+    job = TagStageJob(job_id=str(payload.get("_job_id") or "tag_worker"), payload=dict(payload))
     enriched = get_worker_stager().stage_job(job)
     return dict(enriched.payload)
 

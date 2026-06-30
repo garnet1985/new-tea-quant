@@ -1,12 +1,11 @@
-"""JobPipeline 子进程 execute：timeline batch / calendar_slice。"""
+"""Tag timeline execute：stage + calculate（BacktestEngine 子进程）。"""
 from __future__ import annotations
 
 import logging
 import time
 from typing import Any, Dict, List, Tuple
 
-from core.infra.job_pipeline import JobContext
-from core.modules.tag.enums import TagExecutionMode
+from core.modules.backtest_engine.core.shared.types import JobContext
 
 logger = logging.getLogger(__name__)
 
@@ -108,26 +107,8 @@ def execute_batch_entities(
 
 
 def execute_tag_job(context: JobContext) -> Dict[str, Any]:
-    """JobPipeline execute 回调（timeline + sliced）。"""
+    """Timeline probe execute：单 entity 或 batch。"""
     payload = context.payload
-    if payload.get("tag_execution_mode") == TagExecutionMode.CALENDAR_SLICE.value:
-        from core.modules.tag.engines.sliced.worker import run_tag_calendar_slice_payload
-
-        exec_t0 = time.perf_counter()
-        try:
-            out = run_tag_calendar_slice_payload(payload)
-            out["_profile_execute_sec"] = time.perf_counter() - exec_t0
-            return out
-        except Exception as exc:
-            logger.exception("Tag calendar_slice job failed: %s", exc)
-            return {
-                "success": False,
-                "bulk": True,
-                "tag_values": [],
-                "error": str(exc),
-                "_profile_execute_sec": time.perf_counter() - exec_t0,
-            }
-
     stage_in_worker = bool(payload.get("_stage_in_worker"))
     try:
         payload, stage_sec = maybe_stage_in_worker(payload)

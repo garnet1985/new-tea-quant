@@ -20,7 +20,6 @@ __all__ = [
     "build_scanner_payload",
     "execute_scanner_job",
     "execute_scanner_timeline_job",
-    "run_scanner_jobs_via_pipeline",
     "run_scanner_timeline_via_backtest_engine",
     "run_scanner_worker_payload",
 ]
@@ -143,23 +142,3 @@ def run_scanner_timeline_via_backtest_engine(
         log_label="scanner",
     )
     return [job_report_to_job_result(report) for report in result.job_results]
-
-
-def run_scanner_jobs_via_pipeline(
-    *,
-    stock_jobs: List[Dict[str, Any]],
-    max_workers: Any,
-    total_jobs: Optional[int] = None,
-    run_name: str = "scanner",
-    on_job_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
-    duckdb_data_mgr: Any = None,
-) -> List[JobResult]:
-    """对单股扫描任务跑 BacktestEngine timeline，返回 JobResult 列表。"""
-    _ = max_workers
-    return run_scanner_timeline_via_backtest_engine(
-        stock_jobs=stock_jobs,
-        total_jobs=total_jobs,
-        run_name=run_name,
-        on_job_progress=on_job_progress,
-        duckdb_data_mgr=duckdb_data_mgr,
-    )

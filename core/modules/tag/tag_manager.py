@@ -160,9 +160,8 @@ class TagManager:
             return
 
         try:
-            # 构建报告数据
             import os
-            import resource  # Linux/macOS 内存使用
+            from dataclasses import asdict, is_dataclass
 
             report = {
                 "schema_version": 1,
@@ -191,14 +190,37 @@ class TagManager:
             total_jobs = result.get("total_jobs", 0)
             wall_time = result.get("elapsed_time", 0)
             profile_data = result.get("profile")
-            if profile_data and wall_time > 0:
-                worker_time = (
-                    profile_data.get("stage_sec", 0) +
-                    profile_data.get("execute_sec", 0) +
-                    profile_data.get("report_sec", 0)
+            if isinstance(profile_data, list) and profile_data and wall_time > 0:
+                worker_time = sum(
+                    float(entry.get("stage_sec") or 0)
+                    + float(entry.get("execute_sec") or 0)
+                    for entry in profile_data
+                    if isinstance(entry, dict)
                 )
                 if worker_time > 0:
                     report["summary"]["parallelism_factor"] = round(worker_time / wall_time, 2)
+            elif isinstance(profile_data, dict) and wall_time > 0:
+                worker_time = (
+                    profile_data.get("stage_sec", 0)
+                    + profile_data.get("execute_sec", 0)
+                    + profile_data.get("report_sec", 0)
+                )
+                if worker_time > 0:
+                    report["summary"]["parallelism_factor"] = round(worker_time / wall_time, 2)
+
+            dispatch_result = result.get("dispatch_result")
+            if dispatch_result is not None:
+                engine_report: Dict[str, Any] = {}
+                plan = getattr(dispatch_result, "plan", None)
+                monitor_stats = getattr(dispatch_result, "monitor_stats", None)
+                if plan is not None:
+                    engine_report["plan"] = asdict(plan) if is_dataclass(plan) else plan
+                if monitor_stats is not None:
+                    engine_report["monitor_stats"] = (
+                        asdict(monitor_stats) if is_dataclass(monitor_stats) else monitor_stats
+                    )
+                if engine_report:
+                    report["backtest_engine"] = engine_report
 
             # 确定输出目录
             # tag_manager.py 路径: core/modules/tag/tag_manager.py

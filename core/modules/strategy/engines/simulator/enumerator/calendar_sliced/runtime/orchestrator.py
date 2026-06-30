@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
 
 
 class CalendarSliceProcessOrchestrator:
-    """JobPipeline 子进程内：spawn Reader + Compute，Runtime Planner 调度 preload。"""
+    """BacktestEngine sliced execute_fn 内：spawn Reader + Compute，Runtime Planner 调度 preload。"""
 
     def __init__(self, job_payload: Dict[str, Any]):
         self.job_payload = job_payload

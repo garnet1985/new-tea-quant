@@ -15,7 +15,6 @@ requires: core>=0.4.0
 #   entity_based  — 每 entity（或 entity batch）独立并行，slice 内无 cross-entity 编排
 #   slice_based   — 按日历切片，slice 内多 entity 经 reader/compute 管道交互
 #
-# 历史别名（timeline / sliced / from_wire 等）已移除，仅保留 entity_based / slice_based。
 # ---------------------------------------------------------------------------
 
 # parameters 写法约定（全文件统一）

@@ -168,7 +168,7 @@ def test_slice_executor_runs_orchestrator_in_process() -> None:
             payload={"stock_ids": ["000001.SZ"]},
         )
     ]
-    context = ExecutionContext.create(run_name="test", total_jobs=1)
+    context = ExecutionContext.create(task_name="test", total_jobs=1)
     execute_fn = MagicMock(return_value={"success": True})
 
     with patch("concurrent.futures.ProcessPoolExecutor") as pool_cls:

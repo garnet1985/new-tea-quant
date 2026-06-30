@@ -160,7 +160,7 @@ class Probe:
         performance: Dict[str, Any],
         execute_fn: Optional[Callable[[JobContext], Dict[str, Any]]],
         log_label: str = "调度",
-        run_name: str = "",
+        task_name: str = "",
     ) -> ProbeResult:
         """执行探针（子进程测量内存和时间）。"""
         if not probe_jobs:
@@ -179,7 +179,7 @@ class Probe:
         raw_result = Probe._run_probe_in_subprocess(
             execute_fn,
             probe_payload,
-            run_name or f"{log_label}:probe",
+            task_name or f"{log_label}:probe",
             performance,
             log_label,
         )
@@ -192,7 +192,7 @@ class Probe:
     def _run_probe_in_subprocess(
         execute_fn: Callable[[JobContext], Dict[str, Any]],
         probe_payload: Dict[str, Any],
-        run_name: str,
+        task_name: str,
         performance: Dict[str, Any],
         log_label: str,
     ) -> Dict[str, Any]:
@@ -219,7 +219,7 @@ class Probe:
             with ctx.Pool(processes=1) as pool:
                 raw = pool.apply(
                     _probe_worker,
-                    ((execute_fn, probe_payload, run_name),),
+                    ((execute_fn, probe_payload, task_name),),
                 )
             wait_pool_children_done(timeout_sec=15.0)
             return raw
@@ -313,14 +313,14 @@ class Probe:
 
 def _probe_worker(args: tuple) -> Dict[str, Any]:
     """子进程探针 worker：调用与正式执行相同的 execute_fn。"""
-    execute_fn, payload, run_name = args
+    execute_fn, payload, task_name = args
     rss_before_mb = _process_rss_mb()
     t0 = time.perf_counter()
 
     ctx = JobContext(
         job_id=str(payload.get("_job_id") or "probe"),
         payload=dict(payload),
-        task_name=run_name,
+        task_name=task_name,
     )
     out = execute_fn(ctx)
     if not isinstance(out, dict):

@@ -85,7 +85,7 @@ class SliceExecutor:
         logger.info(
             "%s启动: run=%s, jobs=%s, reader=%s, queue=%s, slice_days=%s, slices=%s",
             log_label,
-            context.run_name,
+            context.task_name,
             len(jobs),
             plan.reader_workers,
             plan.queue_capacity,
@@ -167,7 +167,7 @@ class SliceExecutor:
         logger.info(
             "%s完成: run=%s, jobs=%s, ok=%s, fail=%s, elapsed=%.2fs",
             log_label,
-            context.run_name,
+            context.task_name,
             len(jobs),
             completed_jobs,
             failed_jobs,
@@ -240,14 +240,14 @@ class SliceExecutor:
         payload = dict(job.payload)
         payload["_executor"] = context.executor
         payload["_job_id"] = job.job_id
-        payload["_run_name"] = context.run_name
+        payload["_task_name"] = context.task_name
         payload["_slice_plan"] = SliceExecutor._plan_to_dict(plan)
         if context.business_data:
             payload["_business_data"] = context.business_data
         return JobContext(
             job_id=job.job_id,
             payload=payload,
-            task_name=context.run_name,
+            task_name=context.task_name,
         )
 
     @staticmethod

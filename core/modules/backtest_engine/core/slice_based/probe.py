@@ -158,7 +158,7 @@ class SliceProbe:
         execute_fn: Optional[Callable[[JobContext], Dict[str, Any]]],
         performance: Dict[str, Any],
         log_label: str = "Slice探针",
-        run_name: str = "",
+        task_name: str = "",
     ) -> SliceProbeResult:
         if not probe_jobs:
             return SliceProbe._default_result(performance)
@@ -179,7 +179,7 @@ class SliceProbe:
         raw = SliceProbe._run_probe_in_subprocess(
             execute_fn,
             probe_payload,
-            run_name or f"{log_label}:probe",
+            task_name or f"{log_label}:probe",
             performance,
             log_label,
         )
@@ -189,7 +189,7 @@ class SliceProbe:
     def _run_probe_in_subprocess(
         execute_fn: Callable[[JobContext], Dict[str, Any]],
         probe_payload: Dict[str, Any],
-        run_name: str,
+        task_name: str,
         performance: Dict[str, Any],
         log_label: str,
     ) -> Dict[str, Any]:
@@ -209,7 +209,7 @@ class SliceProbe:
                 prepared_here = True
 
         try:
-            raw = _slice_probe_worker((execute_fn, probe_payload, run_name))
+            raw = _slice_probe_worker((execute_fn, probe_payload, task_name))
             wait_pool_children_done(timeout_sec=15.0)
             return raw
         finally:
@@ -381,13 +381,13 @@ class SliceProbe:
 
 
 def _slice_probe_worker(args: tuple) -> Dict[str, Any]:
-    execute_fn, probe_payload, run_name = args
+    execute_fn, probe_payload, task_name = args
     rss_before_mb = _process_rss_mb()
     t0 = time.perf_counter()
     ctx = JobContext(
         job_id=str(probe_payload.get("_job_id") or probe_payload.get("job_id") or "slice_probe"),
         payload=dict(probe_payload),
-        task_name=run_name,
+        task_name=task_name,
     )
     orchestrator_result = execute_fn(ctx)
     if not isinstance(orchestrator_result, dict):

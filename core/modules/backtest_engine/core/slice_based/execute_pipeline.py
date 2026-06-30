@@ -84,7 +84,7 @@ class SliceExecutePipeline:
             available_memory_mb=available_memory_mb,
         )
         context = ExecutionContext.create(
-            run_name=task_name or self._log_label,
+            task_name=task_name or self._log_label,
             total_jobs=len(batches),
             executor="",
             performance=performance,

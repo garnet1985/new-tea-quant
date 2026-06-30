@@ -101,7 +101,7 @@ class TimelineExecutor:
         logger.info(
             "%s启动: run=%s, jobs=%s, pool_workers=%s, admission=%s, entity_per_job=%s, prefetch=%s",
             log_label,
-            context.run_name,
+            context.task_name,
             len(jobs),
             pool_workers,
             resolve_submit_cap(),
@@ -164,7 +164,7 @@ class TimelineExecutor:
         logger.info(
             "%s完成: run=%s, jobs=%s, ok=%s, fail=%s, elapsed=%.2fs",
             log_label,
-            context.run_name,
+            context.task_name,
             context.total_jobs,
             context.success_count,
             context.fail_count,
@@ -291,13 +291,13 @@ class TimelineExecutor:
         payload = dict(job.payload)
         payload["_executor"] = context.executor
         payload["_job_id"] = job.job_id
-        payload["_run_name"] = context.run_name
+        payload["_task_name"] = context.task_name
         if context.business_data:
             payload["_business_data"] = context.business_data
         return JobContext(
             job_id=job.job_id,
             payload=payload,
-            task_name=context.run_name,
+            task_name=context.task_name,
         )
 
     @staticmethod

@@ -312,7 +312,7 @@ def execute_enumeration_sliced_job(context: JobContext) -> Dict[str, Any]:
     bootstrap_strategy_worker_data_manager()
     try:
         payload = dict(context.payload)
-        engine_keys = frozenset({"_slice_plan", "_job_id", "_run_name", "_executor"})
+        engine_keys = frozenset({"_slice_plan", "_job_id", "_task_name", "_executor"})
         dispatch_job = {
             key: value
             for key, value in payload.items()

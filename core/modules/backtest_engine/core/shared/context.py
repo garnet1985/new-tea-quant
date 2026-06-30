@@ -4,7 +4,7 @@ Backtest Engine - Execution Context
 timeline执行上下文（pickle传递到子进程）。
 
 职责：
-- 保持运行时信息（run_name、total_jobs、start_time）
+- 保持运行时信息（task_name、total_jobs、start_time）
 - 进度信息（finished_jobs、success_count、fail_count）
 - 配置信息（executor、performance）
 - 业务数据（business_data，可选）
@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 
 @dataclass
@@ -26,7 +26,7 @@ class ExecutionContext:
     """timeline执行上下文（pickle传递到子进程）。
     
     Args:
-        run_name: 运行名称（用于日志和追踪）
+        task_name: 运行名称（用于日志和追踪）
         total_jobs: 总job数量
         start_time: 开始时间（monotonic时间戳）
         finished_jobs: 已完成job数量（子进程更新）
@@ -38,7 +38,7 @@ class ExecutionContext:
     """
     
     # 运行时信息（主进程初始化）
-    run_name: str
+    task_name: str
     total_jobs: int
     start_time: float
     
@@ -57,7 +57,7 @@ class ExecutionContext:
     @classmethod
     def create(
         cls,
-        run_name: str,
+        task_name: str,
         total_jobs: int,
         executor: str = "",
         performance: Optional[Dict[str, Any]] = None,
@@ -66,7 +66,7 @@ class ExecutionContext:
         """创建ExecutionContext（工厂方法）。
         
         Args:
-            run_name: 运行名称
+            task_name: 运行名称
             total_jobs: 总job数量
             executor: 执行器标识
             performance: 配置字典
@@ -76,7 +76,7 @@ class ExecutionContext:
             ExecutionContext: 执行上下文
         """
         return cls(
-            run_name=run_name,
+            task_name=task_name,
             total_jobs=total_jobs,
             start_time=time.monotonic(),
             finished_jobs=0,
@@ -114,7 +114,7 @@ class ExecutionContext:
             Dict[str, Any]: 字典表示
         """
         return {
-            "run_name": self.run_name,
+            "task_name": self.task_name,
             "total_jobs": self.total_jobs,
             "finished_jobs": self.finished_jobs,
             "success_count": self.success_count,

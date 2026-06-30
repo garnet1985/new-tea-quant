@@ -73,7 +73,7 @@ class TimelineExecutePipeline:
             cpu_workers_cap=MachineInfo.get_available_workers(capacity),
         )
         context = ExecutionContext.create(
-            run_name=task_name or self._log_label,
+            task_name=task_name or self._log_label,
             total_jobs=len(batches),
             executor="",
             performance=performance,

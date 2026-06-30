@@ -121,7 +121,7 @@ class DispatchResult:
     failed: int = 0
     failures: List[JobFailure] = field(default_factory=list)
     elapsed_seconds: float = 0.0
-    run_name: str = ""
+    task_name: str = ""
 
 
 ExecuteFn = Callable[[JobContext], Any]

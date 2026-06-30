@@ -32,7 +32,7 @@ def _plan() -> SliceDispatchPlan:
 
 def test_duckdb_executor_wraps_scope_and_delegates() -> None:
     plan = _plan()
-    context = ExecutionContext.create(run_name="test", total_jobs=0)
+    context = ExecutionContext.create(task_name="test", total_jobs=0)
     expected = SliceExecutor.ExecutionResult(
         success=True,
         total_jobs=0,

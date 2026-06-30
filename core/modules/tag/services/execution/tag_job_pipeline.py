@@ -378,7 +378,7 @@ SLICED_ENGINE_METADATA_KEYS = frozenset(
         "_probe_max_slices",
         "_probe_slice_open_days",
         "_probe_job_id",
-        "_run_name",
+        "_task_name",
         "_executor",
     }
 )

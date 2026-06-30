@@ -1,0 +1,105 @@
+# Discovery unit test case registry.
+# Each case maps to one test file; scenarios align with test function names.
+
+cases:
+  - id: 1
+    case: api
+    description: Discovery 公开 API 与 namespace 导出
+    file: test_api.py
+    scenarios:
+      - id: 1
+        name: test_facade_export
+        description: facade 导出 file / discover / class_discovery namespace
+      - id: 2
+        name: test_file_namespace_methods
+        description: file namespace 包含所有文件操作 API
+      - id: 3
+        name: test_discover_namespace_methods
+        description: discover namespace 包含批量发现 API
+      - id: 4
+        name: test_class_discovery_namespace_methods
+        description: class_discovery namespace 包含类发现 API
+      - id: 5
+        name: test_file_find_file_success
+        description: find_file 成功查找文件
+      - id: 6
+        name: test_file_find_file_not_found
+        description: find_file 未找到返回 None
+      - id: 7
+        name: test_file_find_file_search_parents
+        description: find_file 向上搜索父目录
+      - id: 8
+        name: test_file_load_json_success
+        description: load_json 成功加载 JSON
+      - id: 9
+        name: test_file_load_json_invalid
+        description: load_json 无效 JSON 返回 None
+      - id: 10
+        name: test_file_load_yaml_success
+        description: load_yaml 成功加载 YAML
+      - id: 11
+        name: test_file_load_file_content_json
+        description: load_file_content 自动识别 JSON
+      - id: 12
+        name: test_file_load_file_content_yaml
+        description: load_file_content 自动识别 YAML
+      - id: 13
+        name: test_file_load_file_content_text
+        description: load_file_content 加载文本文件
+      - id: 14
+        name: test_file_load_python_config_success
+        description: load_python_config 成功加载 Python 配置
+      - id: 15
+        name: test_file_save_file_content_json
+        description: save_file_content 保存 JSON
+      - id: 16
+        name: test_file_save_file_content_yaml
+        description: save_file_content 保存 YAML
+      - id: 17
+        name: test_discover_files
+        description: discover.files 批量发现文件
+      - id: 18
+        name: test_discover_directories
+        description: discover.directories 批量发现目录
+      - id: 19
+        name: test_discover_files_by_suffix
+        description: discover.files_by_suffix 根据扩展名发现文件
+      - id: 20
+        name: test_discover_subclasses
+        description: discover.subclasses 发现子类
+      - id: 21
+        name: test_discover_objects
+        description: discover.objects 发现模块对象
+      - id: 22
+        name: test_class_discovery_create_config
+        description: class_discovery.create_config 创建配置
+      - id: 23
+        name: test_class_discovery_discover_class_by_path
+        description: class_discovery.discover_class_by_path 发现类
+
+  - id: 2
+    case: class_discovery
+    description: ClassDiscovery 内部实现与类发现逻辑
+    file: test_class_discovery.py
+    scenarios:
+      - id: 1
+        name: test_discover_classes
+        description: 发现指定包下的类
+      - id: 2
+        name: test_discover_class_by_path
+        description: 通过完整路径发现类
+      - id: 3
+        name: test_discover_with_filter
+        description: 使用过滤器发现类
+
+  - id: 3
+    case: module_discovery
+    description: ModuleDiscovery 内部实现与模块发现逻辑
+    file: test_module_discovery.py
+    scenarios:
+      - id: 1
+        name: test_discover_objects
+        description: 发现模块中的特定对象
+      - id: 2
+        name: test_discover_with_skip_modules
+        description: 跳过指定模块

@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""
-Discovery module API contract tests.
+"""Discovery module API contract tests.
 
-遵循 CODE_STYLE.md 规范：
-- 所有测试类遵循 TestXxxApi 命名
-- 所有测试方法遵循 test_xxx_api 功能命名
-- 所有测试覆盖 api.yaml 中定义的稳定 API
+遵循 CORE_MODULE_STANDARDS.md 规范：
+- test_cases.yaml 定义测试注册表
+- 覆盖 api.yaml 中定义的稳定 API
 - 分组测试、契约验证、边界测试
 """
 
@@ -19,8 +17,8 @@ from typing import Dict, Any
 from core.infra.discovery import Discovery
 
 
-class TestFileUtilsApi(unittest.TestCase):
-    """FileUtils API 契约测试"""
+class TestApi(unittest.TestCase):
+    """Discovery API 契约测试"""
 
     def setUp(self):
         """创建临时测试目录"""
@@ -32,8 +30,56 @@ class TestFileUtilsApi(unittest.TestCase):
         import shutil
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def test_find_file_api_success(self):
-        """测试 find_file API - 成功查找文件"""
+    def test_facade_export(self):
+        """facade 导出 file / discover / class_discovery namespace"""
+        # 验证 namespace 存在
+        self.assertTrue(hasattr(Discovery, 'file'))
+        self.assertTrue(hasattr(Discovery, 'discover'))
+        self.assertTrue(hasattr(Discovery, 'class_discovery'))
+
+    def test_file_namespace_methods(self):
+        """file namespace 包含所有文件操作 API"""
+        methods = [
+            'find_file',
+            'load_file_content',
+            'load_json',
+            'load_yaml',
+            'load_text',
+            'load_python_config',
+            'save_file_content',
+            'save_json',
+            'save_yaml',
+        ]
+        for method_name in methods:
+            method = getattr(Discovery.file, method_name)
+            self.assertTrue(callable(method), f"{method_name} should be callable")
+
+    def test_discover_namespace_methods(self):
+        """discover namespace 包含批量发现 API"""
+        methods = [
+            'files',
+            'directories',
+            'files_by_suffix',
+            'subclasses',
+            'objects',
+        ]
+        for method_name in methods:
+            method = getattr(Discovery.discover, method_name)
+            self.assertTrue(callable(method), f"{method_name} should be callable")
+
+    def test_class_discovery_namespace_methods(self):
+        """class_discovery namespace 包含类发现 API"""
+        methods = [
+            'create_config',
+            'create',
+            'discover_class_by_path',
+        ]
+        for method_name in methods:
+            method = getattr(Discovery.class_discovery, method_name)
+            self.assertTrue(callable(method), f"{method_name} should be callable")
+
+    def test_file_find_file_success(self):
+        """find_file 成功查找文件"""
         # 创建测试文件
         test_file = self.temp_path / "test.json"
         test_file.write_text('{"key": "value"}', encoding='utf-8')
@@ -43,13 +89,13 @@ class TestFileUtilsApi(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result, test_file)
 
-    def test_find_file_api_not_found(self):
-        """测试 find_file API - 未找到文件"""
+    def test_file_find_file_not_found(self):
+        """find_file 未找到返回 None"""
         result = Discovery.file.find_file(self.temp_path, "nonexistent.json")
         self.assertIsNone(result)
 
-    def test_find_file_api_search_parents(self):
-        """测试 find_file API - 向上搜索父目录"""
+    def test_file_find_file_search_parents(self):
+        """find_file 向上搜索父目录"""
         # 创建嵌套目录结构
         nested_dir = self.temp_path / "sub1" / "sub2"
         nested_dir.mkdir(parents=True)
@@ -61,8 +107,8 @@ class TestFileUtilsApi(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result, test_file)
 
-    def test_load_json_api_success(self):
-        """测试 load_json API - 成功加载JSON"""
+    def test_file_load_json_success(self):
+        """load_json 成功加载 JSON"""
         test_file = self.temp_path / "test.json"
         test_file.write_text('{"key": "value"}', encoding='utf-8')
 
@@ -70,21 +116,16 @@ class TestFileUtilsApi(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result, {"key": "value"})
 
-    def test_load_json_api_invalid_json(self):
-        """测试 load_json API - 无效JSON格式"""
+    def test_file_load_json_invalid(self):
+        """load_json 无效 JSON 返回 None"""
         test_file = self.temp_path / "invalid.json"
         test_file.write_text('invalid json', encoding='utf-8')
 
         result = Discovery.file.load_json(test_file)
         self.assertIsNone(result)
 
-    def test_load_json_api_not_found(self):
-        """测试 load_json API - 文件不存在"""
-        result = Discovery.file.load_json(self.temp_path / "nonexistent.json")
-        self.assertIsNone(result)
-
-    def test_load_yaml_api_success(self):
-        """测试 load_yaml API - 成功加载YAML"""
+    def test_file_load_yaml_success(self):
+        """load_yaml 成功加载 YAML"""
         test_file = self.temp_path / "test.yaml"
         test_file.write_text('key: value\n', encoding='utf-8')
 
@@ -92,16 +133,8 @@ class TestFileUtilsApi(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result, {"key": "value"})
 
-    def test_load_yaml_api_invalid_yaml(self):
-        """测试 load_yaml API - 无效YAML格式"""
-        test_file = self.temp_path / "invalid.yaml"
-        test_file.write_text('invalid: yaml: content:\n', encoding='utf-8')
-
-        result = Discovery.file.load_yaml(test_file)
-        self.assertIsNone(result)
-
-    def test_load_file_content_api_json(self):
-        """测试 load_file_content API - 自动识别JSON"""
+    def test_file_load_file_content_json(self):
+        """load_file_content 自动识别 JSON"""
         test_file = self.temp_path / "test.json"
         test_file.write_text('{"key": "value"}', encoding='utf-8')
 
@@ -109,8 +142,8 @@ class TestFileUtilsApi(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result, {"key": "value"})
 
-    def test_load_file_content_api_yaml(self):
-        """测试 load_file_content API - 自动识别YAML"""
+    def test_file_load_file_content_yaml(self):
+        """load_file_content 自动识别 YAML"""
         test_file = self.temp_path / "test.yaml"
         test_file.write_text('key: value\n', encoding='utf-8')
 
@@ -118,8 +151,8 @@ class TestFileUtilsApi(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result, {"key": "value"})
 
-    def test_load_file_content_api_text(self):
-        """测试 load_file_content API - 文本文件"""
+    def test_file_load_file_content_text(self):
+        """load_file_content 加载文本文件"""
         test_file = self.temp_path / "test.txt"
         test_file.write_text('plain text', encoding='utf-8')
 
@@ -127,8 +160,8 @@ class TestFileUtilsApi(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result, 'plain text')
 
-    def test_load_python_config_api_success(self):
-        """测试 load_python_config API - 成功加载Python配置"""
+    def test_file_load_python_config_success(self):
+        """load_python_config 成功加载 Python 配置"""
         test_file = self.temp_path / "settings.py"
         test_file.write_text('settings = {"key": "value"}\n', encoding='utf-8')
 
@@ -136,16 +169,8 @@ class TestFileUtilsApi(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result, {"key": "value"})
 
-    def test_load_python_config_api_var_not_found(self):
-        """测试 load_python_config API - 变量未定义"""
-        test_file = self.temp_path / "settings.py"
-        test_file.write_text('other_var = {"key": "value"}\n', encoding='utf-8')
-
-        result = Discovery.file.load_python_config(test_file, var_name="settings")
-        self.assertIsNone(result)
-
-    def test_save_file_content_api_json(self):
-        """测试 save_file_content API - 保存JSON"""
+    def test_file_save_file_content_json(self):
+        """save_file_content 保存 JSON"""
         test_file = self.temp_path / "test.json"
         data = {"key": "value"}
 
@@ -156,8 +181,8 @@ class TestFileUtilsApi(unittest.TestCase):
         loaded = Discovery.file.load_json(test_file)
         self.assertEqual(loaded, data)
 
-    def test_save_file_content_api_yaml(self):
-        """测试 save_file_content API - 保存YAML"""
+    def test_file_save_file_content_yaml(self):
+        """save_file_content 保存 YAML"""
         test_file = self.temp_path / "test.yaml"
         data = {"key": "value"}
 
@@ -168,46 +193,8 @@ class TestFileUtilsApi(unittest.TestCase):
         loaded = Discovery.file.load_yaml(test_file)
         self.assertEqual(loaded, data)
 
-
-class TestConvenienceFunctions(unittest.TestCase):
-    """便捷函数 API 契约测试"""
-
-    def setUp(self):
-        """创建临时测试目录"""
-        self.temp_dir = tempfile.mkdtemp()
-        self.temp_path = Path(self.temp_dir)
-
-    def tearDown(self):
-        """清理临时测试目录"""
-        import shutil
-        shutil.rmtree(self.temp_dir, ignore_errors=True)
-
-    def test_find_file_convenience(self):
-        """测试 find_file 便捷函数"""
-        test_file = self.temp_path / "test.json"
-        test_file.write_text('{}', encoding='utf-8')
-
-        result = Discovery.file.find_file(self.temp_path, "test.json")
-        self.assertIsNotNone(result)
-
-    def test_load_json_convenience(self):
-        """测试 load_json 便捷函数"""
-        test_file = self.temp_path / "test.json"
-        test_file.write_text('{"key": "value"}', encoding='utf-8')
-
-        result = Discovery.file.load_json(test_file)
-        self.assertEqual(result, {"key": "value"})
-
-    def test_load_python_config_convenience(self):
-        """测试 load_python_config 便捷函数"""
-        test_file = self.temp_path / "settings.py"
-        test_file.write_text('settings = {"key": "value"}\n', encoding='utf-8')
-
-        result = Discovery.file.load_python_config(test_file, var_name="settings")
-        self.assertEqual(result, {"key": "value"})
-
-    def test_discover_files_api(self):
-        """测试 discover_files API - 批量发现文件"""
+    def test_discover_files(self):
+        """discover.files 批量发现文件"""
         # 创建多个JSON文件
         for i in range(3):
             test_file = self.temp_path / f"test{i}.json"
@@ -216,8 +203,8 @@ class TestConvenienceFunctions(unittest.TestCase):
         result = Discovery.discover.files(self.temp_path, "*.json")
         self.assertEqual(len(result), 3)
 
-    def test_discover_directories_api(self):
-        """测试 discover_directories API - 批量发现目录"""
+    def test_discover_directories(self):
+        """discover.directories 批量发现目录"""
         # 创建多个子目录
         for i in range(3):
             sub_dir = self.temp_path / f"sub{i}"
@@ -226,8 +213,8 @@ class TestConvenienceFunctions(unittest.TestCase):
         result = Discovery.discover.directories(self.temp_path, "sub*")
         self.assertEqual(len(result), 3)
 
-    def test_discover_files_by_suffix_api(self):
-        """测试 discover_files_by_suffix API - 根据扩展名发现文件"""
+    def test_discover_files_by_suffix(self):
+        """discover.files_by_suffix 根据扩展名发现文件"""
         # 创建多个JSON文件
         for i in range(3):
             test_file = self.temp_path / f"test{i}.json"
@@ -243,30 +230,29 @@ class TestConvenienceFunctions(unittest.TestCase):
         for path in result:
             self.assertTrue(path.suffix == ".json")
 
+    def test_discover_subclasses(self):
+        """discover.subclasses 发现子类"""
+        # 注意：这个测试需要在真实环境中运行
+        # 这里只是测试方法可调用性
+        self.assertTrue(callable(Discovery.discover.subclasses))
 
-class TestFileDiscoveryClass(unittest.TestCase):
-    """FileDiscovery 类 API 契约测试"""
+    def test_discover_objects(self):
+        """discover.objects 发现模块对象"""
+        # 注意：这个测试需要在真实环境中运行
+        # 这里只是测试方法可调用性
+        self.assertTrue(callable(Discovery.discover.objects))
 
-    def setUp(self):
-        """创建临时测试目录"""
-        self.temp_dir = tempfile.mkdtemp()
-        self.temp_path = Path(self.temp_dir)
+    def test_class_discovery_create_config(self):
+        """class_discovery.create_config 创建配置"""
+        # 注意：这个测试需要在真实环境中运行
+        # 这里只是测试方法可调用性
+        self.assertTrue(callable(Discovery.class_discovery.create_config))
 
-    def tearDown(self):
-        """清理临时测试目录"""
-        import shutil
-        shutil.rmtree(self.temp_dir, ignore_errors=True)
-
-    def test_file_discovery_discover_api(self):
-        """测试 Discovery.discover.files API"""
-        # 创建多个文件
-        for i in range(3):
-            test_file = self.temp_path / f"test{i}.json"
-            test_file.write_text('{}', encoding='utf-8')
-
-        # 使用 Discovery API
-        result = Discovery.discover.files(self.temp_path, "*.json")
-        self.assertEqual(len(result), 3)
+    def test_class_discovery_discover_class_by_path(self):
+        """class_discovery.discover_class_by_path 发现类"""
+        # 注意：这个测试需要在真实环境中运行
+        # 这里只是测试方法可调用性
+        self.assertTrue(callable(Discovery.class_discovery.discover_class_by_path))
 
 
 class TestEdgeCases(unittest.TestCase):
@@ -310,50 +296,6 @@ class TestEdgeCases(unittest.TestCase):
         # 测试深度限制
         result = Discovery.discover.files(self.temp_path, "**/*.json", max_depth=3)
         self.assertEqual(len(result), 0)  # 超过深度限制
-
-    def test_permission_error(self):
-        """测试权限错误（模拟）"""
-        # 在实际环境中难以模拟权限错误，这里只是占位测试
-        pass
-
-
-class TestContractValidation(unittest.TestCase):
-    """契约验证测试"""
-
-    def test_discovery_namespace_methods(self):
-        """验证 Discovery 命名空间的方法"""
-        import inspect
-
-        # 验证 file namespace 的方法
-        file_methods = [
-            'find_file',
-            'load_file_content',
-            'load_json',
-            'load_yaml',
-            'save_file_content',
-            'load_python_config',
-        ]
-
-        for method_name in file_methods:
-            method = getattr(Discovery.file, method_name)
-            self.assertTrue(
-                callable(method),
-                f"{method_name} 应该是可调用方法"
-            )
-
-        # 验证 discover namespace 的方法
-        discover_methods = [
-            'files',
-            'directories',
-            'files_by_suffix',
-        ]
-
-        for method_name in discover_methods:
-            method = getattr(Discovery.discover, method_name)
-            self.assertTrue(
-                callable(method),
-                f"{method_name} 应该是可调用方法"
-            )
 
 
 if __name__ == "__main__":

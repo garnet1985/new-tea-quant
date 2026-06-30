@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ class BasePlanner(ABC):
         Returns:
             MachineCapacity: 机器容量
         """
-        from core.modules.backtest_engine.core.shared.machine_info import MachineInfo
+        from core.infra.machine_capacity import MachineInfo
         return MachineInfo.get_capacity(performance)
 
 

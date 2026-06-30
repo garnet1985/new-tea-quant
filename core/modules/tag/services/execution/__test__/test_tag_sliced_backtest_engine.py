@@ -129,7 +129,7 @@ def test_run_tag_sliced_via_backtest_engine_staged_save(monkeypatch) -> None:
             ],
             settings={
                 "scenario_name": "demo",
-                "performance": {"save_batch_size": 1, "dry_run": False},
+                "run_options": {"save_batch_size": 1, "dry_run": False},
             },
             run_name="tag:demo",
         )
@@ -162,6 +162,6 @@ def test_run_tag_sliced_via_backtest_engine_calls_facade() -> None:
         )()
         run_tag_sliced_via_backtest_engine(
             dispatch_jobs=[{"job_id": "x", "entity_ids": ["000001"]}],
-            settings={"scenario_name": "demo", "performance": {}},
+            settings={"scenario_name": "demo", "run_options": {}},
         )
         run_mock.assert_called_once()

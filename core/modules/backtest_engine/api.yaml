@@ -55,6 +55,7 @@ BacktestEngine:
             type: Optional[Dict[str, Any]]
             required: false
             default: null
+            notes: "应用方 dispatch 配置；覆盖 engine base defaults，用户 settings 不可传入"
           - name: task_name
             type: str
             required: false
@@ -63,6 +64,11 @@ BacktestEngine:
             type: Optional[RunCallbacks]
             required: false
             default: null
+          - name: enable_progress_display
+            type: bool
+            required: false
+            default: true
+            notes: "是否在 CMD 输出 engine 进度；进度始终计算"
       returns: BacktestEngine.RunResult
       throws:
         - ValueError: unknown mode
@@ -108,6 +114,7 @@ BacktestEngine:
             type: Optional[Dict[str, Any]]
             required: false
             default: null
+            notes: "应用方 dispatch 配置；覆盖 engine base defaults，用户 settings 不可传入"
           - name: task_name
             type: str
             required: false
@@ -116,6 +123,11 @@ BacktestEngine:
             type: Optional[RunCallbacks]
             required: false
             default: null
+          - name: enable_progress_display
+            type: bool
+            required: false
+            default: true
+            notes: "是否在 CMD 输出 engine 进度；进度始终计算"
       returns: BacktestEngine.RunResult
       throws:
         - ValueError: job 校验失败
@@ -147,6 +159,7 @@ BacktestEngine:
             type: Optional[Dict[str, Any]]
             required: false
             default: null
+            notes: "应用方 dispatch 配置；覆盖 engine base defaults，用户 settings 不可传入"
           - name: task_name
             type: str
             required: false
@@ -155,6 +168,11 @@ BacktestEngine:
             type: Optional[RunCallbacks]
             required: false
             default: null
+          - name: enable_progress_display
+            type: bool
+            required: false
+            default: true
+            notes: "是否在 CMD 输出 engine 进度；进度始终计算"
       returns: BacktestEngine.RunResult
       throws:
         - ValueError: job 校验失败

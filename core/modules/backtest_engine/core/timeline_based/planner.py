@@ -21,10 +21,7 @@ import math
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Callable
 
-from core.modules.backtest_engine.core.shared.machine_info import (
-    MachineInfo,
-    MachineCapacity,
-)
+from core.infra.machine_capacity import MachineCapacity, MachineInfo
 from core.modules.backtest_engine.core.shared.types import JobContext
 from core.modules.backtest_engine.core.timeline_based.probe import (
     Probe,

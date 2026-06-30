@@ -48,7 +48,7 @@ class TestNormalizeTagSettings:
         assert norm["name"] == "demo/market_cap_tier"
         assert norm["execution_mode"] == "entity_timeline"
         assert norm["recompute"] is True
-        assert norm["performance"]["update_mode"] == "refresh"
+        assert norm["update_mode"] == "refresh"
         assert norm["incremental_required_records_before_as_of_date"] == 5
         assert norm["target_entity"] == {"type": "stock_kline_daily"}
         assert norm["tag_target_type"] == "entity_based"
@@ -63,7 +63,7 @@ class TestNormalizeTagSettings:
         from userspace.extensions.tags.demo.market_cap_tier.settings import Settings
 
         norm = normalize_tag_settings(Settings, tag_key="demo/market_cap_tier")
-        assert norm["performance"]["update_mode"] == "incremental"
+        assert norm["update_mode"] == "incremental"
         assert norm["incremental_required_records_before_as_of_date"] == 1
         scenario = ScenarioModel.create_from_settings(Settings, tag_key="demo/market_cap_tier")
         assert scenario is not None

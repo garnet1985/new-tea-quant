@@ -245,6 +245,11 @@ class TagCalendarSliceOrchestrator:
                 done_msg.slice_id,
                 plan.current_preload_depth,
             )
+            from core.modules.backtest_engine.core.shared.progress import (
+                report_execute_unit_from_context,
+            )
+
+            report_execute_unit_from_context(self.job_payload, i + 1)
 
         logger.info("[tag:calendar_slice] all slices done, finalizing results…")
         self._signal_shutdown(

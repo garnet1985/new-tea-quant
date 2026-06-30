@@ -49,12 +49,7 @@ def _update_mode(settings: Dict[str, Any]) -> str:
         mode = str(calc.get("update_mode") or "").strip().lower()
         if mode:
             return mode
-    perf = settings.get("performance") or {}
-    if isinstance(perf, dict):
-        mode = str(perf.get("update_mode") or "").strip().lower()
-        if mode:
-            return mode
-    return "incremental"
+    return str(settings.get("update_mode") or "incremental").strip().lower() or "incremental"
 
 
 def _recompute(settings: Dict[str, Any]) -> bool:

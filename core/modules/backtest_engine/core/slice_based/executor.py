@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 from core.modules.backtest_engine.core.shared.context import ExecutionContext
+from core.modules.backtest_engine.core.shared.progress import RunProgressReporter
 from core.modules.backtest_engine.core.shared.types import (
     ExecuteFn,
     Job,
@@ -64,6 +65,7 @@ class SliceExecutor:
         execute_fn: ExecuteFn,
         on_result: Optional[SliceExecutor.OnResultHook] = None,
         log_label: str = "切片执行",
+        progress_reporter: Optional[RunProgressReporter] = None,
     ) -> SliceExecutor.ExecutionResult:
         """Run calendar-slice orchestrator in the current (non-daemon) process."""
         if not batches:
@@ -99,7 +101,12 @@ class SliceExecutor:
 
         try:
             for job in jobs:
-                job_context = SliceExecutor._build_job_context(job, context, plan)
+                job_context = SliceExecutor._build_job_context(
+                    job,
+                    context,
+                    plan,
+                    progress_reporter=progress_reporter,
+                )
                 try:
                     raw_result = SliceExecutor._invoke_worker(execute_fn, job_context)
                     report = SliceExecutor._normalize_report(job.job_id, raw_result)
@@ -236,12 +243,16 @@ class SliceExecutor:
         job: Job,
         context: ExecutionContext,
         plan: SliceDispatchPlan,
+        *,
+        progress_reporter: Optional[RunProgressReporter] = None,
     ) -> JobContext:
         payload = dict(job.payload)
         payload["_executor"] = context.executor
         payload["_job_id"] = job.job_id
         payload["_task_name"] = context.task_name
         payload["_slice_plan"] = SliceExecutor._plan_to_dict(plan)
+        if progress_reporter is not None:
+            payload["_engine_on_execute_unit_done"] = progress_reporter.make_execute_unit_hook()
         if context.business_data:
             payload["_business_data"] = context.business_data
         return JobContext(

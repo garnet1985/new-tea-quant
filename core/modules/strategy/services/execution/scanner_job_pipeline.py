@@ -91,6 +91,9 @@ def run_scanner_timeline_via_backtest_engine(
     from core.modules.backtest_engine import BacktestEngine
     from core.modules.backtest_engine.contracts import JobReport, RunProgress
 
+    from core.modules.backtest_engine.core.shared.performance import (
+        resolve_entity_based_performance,
+    )
     from .worker_profile import profile_scanner_dispatch_config
 
     n = total_jobs if total_jobs is not None else len(stock_jobs)
@@ -136,7 +139,7 @@ def run_scanner_timeline_via_backtest_engine(
     result = BacktestEngine.entity_based.run(
         engine_jobs,
         execute_scanner_timeline_job,
-        performance=profile_scanner_dispatch_config(),
+        performance=resolve_entity_based_performance(profile_scanner_dispatch_config()),
         task_name=run_name,
         callbacks=RunCallbacks(on_result=on_engine_result),
     )

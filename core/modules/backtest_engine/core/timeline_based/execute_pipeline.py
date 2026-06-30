@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from core.modules.backtest_engine.core.shared.context import ExecutionContext
-from core.modules.backtest_engine.core.shared.machine_info import MachineInfo
+from core.infra.machine_capacity import MachineInfo
+from core.modules.backtest_engine.core.shared.progress import RunPhase, RunProgressReporter
 from core.modules.backtest_engine.core.shared.types import JobReport, RunProgress
 from core.modules.backtest_engine.core.timeline_based.executor import TimelineExecutor
 from core.modules.backtest_engine.core.timeline_based.executor_duckdb import (
@@ -55,10 +56,23 @@ class TimelineExecutePipeline:
         task_name: str = "",
         on_result: Optional[TimelineExecutor.OnResultHook] = None,
         on_release: Optional[TimelineExecutor.OnReleaseHook] = None,
+        enable_progress_display: bool = True,
     ) -> TimelineExecutePipeline.Result:
+        label = task_name or self._log_label
+        progress = RunProgressReporter(
+            task_name=label,
+            run_mode="entity_based",
+            enable_progress_display=enable_progress_display,
+        )
+        progress.mark_phase(RunPhase.PREP)
+
         if jobs:
             BacktestJob.validate_many(jobs)
+
+        progress.mark_phase(RunPhase.PLAN)
         plan, batches, monitor_config = self._plan(jobs, performance, execute_fn)
+        progress.set_execute_total(len(batches))
+
         capacity = MachineInfo.get_capacity(performance)
         available_memory_mb = MachineInfo.worker_pool_budget_mb(capacity)
         monitor = TimelineRunMonitor(
@@ -73,7 +87,7 @@ class TimelineExecutePipeline:
             cpu_workers_cap=MachineInfo.get_available_workers(capacity),
         )
         context = ExecutionContext.create(
-            task_name=task_name or self._log_label,
+            task_name=label,
             total_jobs=len(batches),
             executor="",
             performance=performance,
@@ -81,13 +95,15 @@ class TimelineExecutePipeline:
 
         batch_entities = {batch.batch_id: batch.entities_count for batch in batches}
 
-        def monitored_on_result(report: JobReport, progress: RunProgress) -> None:
+        def monitored_on_result(report: JobReport, run_progress: RunProgress) -> None:
             monitor.record(
                 _job_sample_from_report(report, batch_entities),
             )
+            progress.mark_execute_unit(run_progress.finished)
             if on_result is not None:
-                on_result(report, progress)
+                on_result(report, run_progress)
 
+        progress.mark_phase(RunPhase.EXECUTE)
         execution = TimelineExecutorDuckDB.execute(
             plan,
             batches,
@@ -105,6 +121,7 @@ class TimelineExecutePipeline:
             ),
         )
         monitor.flush()
+        progress.mark_phase(RunPhase.FINISH)
 
         return TimelineExecutePipeline.Result(
             plan=plan,

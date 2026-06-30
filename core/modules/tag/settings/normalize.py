@@ -6,10 +6,6 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
-from core.modules.tag.settings.worker_profile import (
-    profile_tag_calendar_slice_config,
-    profile_tag_entity_timeline_config,
-)
 from core.modules.data_contract.contract_const import ContractScope, ContractType, DataKey
 from core.modules.data_contract.mapping import default_map
 from core.modules.data_contract.tag_entity_type import resolve_tag_entity_type
@@ -132,6 +128,7 @@ def normalize_tag_settings(
     settings["recompute"] = calc["recompute"]
     settings["start_date"] = calc["start_date"]
     settings["end_date"] = calc["end_date"]
+    settings["update_mode"] = calc["update_mode"]
 
     data_block = settings.get("data")
     if not isinstance(data_block, dict):
@@ -142,31 +139,12 @@ def normalize_tag_settings(
     settings["tag_target_type"] = TagTargetType.ENTITY_BASED.value
     settings["target_entity"] = {"type": entity_type}
 
-    performance = settings.get("performance")
-    explicit_performance_keys: list[str] = []
-    if isinstance(performance, dict):
-        explicit_performance_keys = list(performance.keys())
-
-    # 根据 execution_mode 选择对应的默认配置（避免 timeline/sliced 配置混用）
-    execution_mode = str(calc.get("execution_mode") or "").lower()
-    if execution_mode == "calendar_slice":
-        global_perf = profile_tag_calendar_slice_config()
-    else:
-        global_perf = profile_tag_entity_timeline_config()
-
-    # 强制使用 worker.json 默认值（忽略用户 settings.py 中的 performance 配置）
-    settings["performance"] = {
-        **global_perf,
-        "update_mode": calc["update_mode"],
-    }
-    if explicit_performance_keys:
-        settings["_explicit_performance_keys"] = explicit_performance_keys
+    settings.pop("performance", None)
+    settings.setdefault("run_options", {})
 
     return settings
 
 
 __all__ = [
     "normalize_tag_settings",
-    "profile_tag_entity_timeline_config",
-    "profile_tag_calendar_slice_config",
 ]

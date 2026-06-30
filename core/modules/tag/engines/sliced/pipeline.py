@@ -63,17 +63,8 @@ def run_sliced_pipeline(
     job_id = f"{scenario_id}_calendar_slice"
     dispatch_job = {**payload, "job_id": job_id}
 
-    performance = dict(settings.get("performance") or {})
-    performance.update(mgr._dispatch_overrides)
-
-    # Sliced 模式：主进程阶段性 save，不走 stage_in_worker / timeline dispatch 键
-    performance["stage_in_worker"] = False
-
-    # 移除 timeline 模式专用的无用配置（避免干扰 sliced 执行逻辑)
-    timeline_only_keys = {"data_chunk_size", "dispatch_probe", "entities_per_job",
-                          "entities_per_job_min", "entities_per_job_max", "max_workers"}
-    for key in timeline_only_keys:
-        performance.pop(key, None)
+    run_options = dict(settings.get("run_options") or {})
+    run_options.update(getattr(mgr, "_dispatch_overrides", {}) or {})
 
     logger.info(
         "[%s] Tag calendar_slice: entities=%d, job=1",
@@ -82,7 +73,7 @@ def run_sliced_pipeline(
     )
     return run_tag_sliced_via_backtest_engine(
         dispatch_jobs=[dispatch_job],
-        settings={**settings, "scenario_name": scenario_name, "performance": performance},
+        settings={**settings, "scenario_name": scenario_name, "run_options": run_options},
         run_name=f"tag:{scenario_name}",
         on_pipeline_progress=getattr(mgr, "_pipeline_progress_callback", None),
         duckdb_data_mgr=mgr.data_mgr,

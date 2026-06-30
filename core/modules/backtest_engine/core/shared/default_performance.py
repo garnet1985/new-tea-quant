@@ -3,22 +3,13 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-ENTITY_BASED_DEFAULT_PERFORMANCE: Dict[str, Any] = {
-    "max_workers": "auto",
-    "entities_per_job": "auto",
-    "dispatch_probe": True,
-    "prefetch_ahead": 1,
-}
+from core.modules.backtest_engine.core.shared.performance import (
+    resolve_entity_based_performance,
+    resolve_slice_based_performance,
+)
 
-SLICE_BASED_DEFAULT_PERFORMANCE: Dict[str, Any] = {
-    "reader_workers": "auto",
-    "queue_depth": "auto",
-    "prefetch_enabled": True,
-    "slice_open_days": "auto",
-    "queue_capacity": "auto",
-    "preload_depth": "auto",
-    "compute_processes": 1,
-}
+ENTITY_BASED_DEFAULT_PERFORMANCE: Dict[str, Any] = resolve_entity_based_performance()
+SLICE_BASED_DEFAULT_PERFORMANCE: Dict[str, Any] = resolve_slice_based_performance()
 
 
 def merge_performance(

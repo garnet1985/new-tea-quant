@@ -295,7 +295,7 @@ class TestTagManager:
                 timeline_jobs=[{"job_id": "job1", "entity_id": "000001"}],
                 settings={
                     "scenario_name": "test_scenario",
-                    "performance": {"stage_in_worker": False, "save_batch_size": 500},
+                    "run_options": {"save_batch_size": 500},
                 },
                 duckdb_data_mgr=mock_data_mgr,
             )
@@ -366,8 +366,7 @@ class TestTagManager:
                 timeline_jobs=[{"job_id": f"job{i}"} for i in range(3)],
                 settings={
                     "scenario_name": "test_scenario",
-                    "performance": {
-                        "stage_in_worker": False,
+                    "run_options": {
                         "save_batch_size": 2,
                     },
                 },

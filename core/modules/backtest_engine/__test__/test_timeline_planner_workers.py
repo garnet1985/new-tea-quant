@@ -1,7 +1,7 @@
 """Timeline planner worker concurrency (memory budget must not double-subtract floor)."""
 from __future__ import annotations
 
-from core.modules.backtest_engine.core.shared.machine_info import MachineCapacity
+from core.infra.machine_capacity import MachineCapacity
 from core.modules.backtest_engine.core.timeline_based.planner import TimelinePlanner
 
 

@@ -22,11 +22,11 @@ import math
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from core.modules.backtest_engine.core.shared.machine_info import MachineCapacity, MachineInfo
+from core.infra.machine_capacity import MachineCapacity, MachineInfo
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.modules.backtest_engine.core.shared.types import JobContext
 from core.modules.backtest_engine.core.shared.base_planner import BasePlanner
-from core.modules.backtest_engine.core.slice_based.config import SliceConfig
+from core.modules.backtest_engine.core.slice_based.config import SliceBasedPerformance
 from core.modules.backtest_engine.core.slice_based.monitor import (
     SliceMonitorConfig,
     SliceMonitorPlanSnapshot,
@@ -113,7 +113,7 @@ class SlicePlanner(BasePlanner):
         else:
             provisional_days = int(provisional_days)
 
-        resolved_performance = SliceConfig.normalize_for_planning(
+        resolved_performance = SliceBasedPerformance.resolve_for_planning(
             performance,
             capacity,
             dispatch_slices=cls._count_calendar_slices(jobs, provisional_days),

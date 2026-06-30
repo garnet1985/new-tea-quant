@@ -17,7 +17,10 @@ import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from core.modules.backtest_engine.contracts import BacktestJob, JobContext, JobReport, RunCallbacks, RunProgress
-from core.modules.backtest_engine.core.shared.default_performance import merge_performance
+from core.modules.backtest_engine.core.shared.performance import (
+    resolve_entity_based_performance,
+    resolve_slice_based_performance,
+)
 from core.modules.tag.settings.worker_profile import (
     profile_tag_calendar_slice_config,
     profile_tag_entity_timeline_config,
@@ -225,11 +228,13 @@ def run_tag_timeline_via_backtest_engine(
         resume_main_database_with_retry,
     )
 
-    performance = settings.get("performance") or {}
-    stage_in_worker = _resolve_stage_in_worker(performance)
+    performance = resolve_entity_based_performance(profile_tag_entity_timeline_config())
+    run_options = dict(settings.get("run_options") or {})
+    stage_in_worker = bool(performance.get("stage_in_worker", False))
     scenario_name = settings.get("scenario_name", "")
-    dry_run = bool(performance.get("dry_run", False))
-    save_batch_size = int(performance.get("save_batch_size", 500))
+    dry_run = bool(run_options.get("dry_run", False))
+    save_batch_size = int(run_options.get("save_batch_size", 500))
+    spill_row_threshold = int(run_options.get("spill_row_threshold", 5000))
 
     # ---- 1. 包装 timeline_jobs 为 BacktestJob 格式 ----
     engine_jobs = [
@@ -249,7 +254,7 @@ def run_tag_timeline_via_backtest_engine(
             save_fn=_dry_run_save_fn if dry_run else _make_tag_save_fn(scenario_name),
             batch_size=save_batch_size,
             accumulate_only=True,
-            spill_row_threshold=int(performance.get("spill_row_threshold", 5000)),
+            spill_row_threshold=spill_row_threshold,
             spill_dir=spill_dir,
         )
     else:
@@ -309,14 +314,10 @@ def run_tag_timeline_via_backtest_engine(
             })
 
     # ---- 4. 调用 BacktestEngine.entity_based.run() ----
-    dispatch_performance = merge_performance(
-        profile_tag_entity_timeline_config(),
-        performance,
-    )
     result = BacktestEngine.entity_based.run(
         engine_jobs,
         execute_tag_timeline_job,
-        performance=dispatch_performance,
+        performance=performance,
         task_name=run_name,
         callbacks=RunCallbacks(on_result=on_engine_result),
     )
@@ -380,6 +381,7 @@ SLICED_ENGINE_METADATA_KEYS = frozenset(
         "_probe_job_id",
         "_task_name",
         "_executor",
+        "_engine_on_execute_unit_done",
     }
 )
 
@@ -441,10 +443,11 @@ def run_tag_sliced_via_backtest_engine(
     from core.modules.tag.engines.shared.runner import maybe_checkpoint_duckdb_after_tag_run
     from core.modules.tag.engines.shared.backend import backend_is_duckdb
 
-    performance = settings.get("performance") or {}
+    performance = resolve_slice_based_performance(profile_tag_calendar_slice_config())
+    run_options = dict(settings.get("run_options") or {})
     scenario_name = settings.get("scenario_name", "")
-    dry_run = bool(performance.get("dry_run", False))
-    save_batch_size = int(performance.get("save_batch_size", 5000))
+    dry_run = bool(run_options.get("dry_run", False))
+    save_batch_size = int(run_options.get("save_batch_size", 5000))
 
     engine_jobs = [_wrap_tag_sliced_dispatch_job(job) for job in dispatch_jobs]
     save_buffer = TagReportSaveBuffer(
@@ -492,10 +495,7 @@ def run_tag_sliced_via_backtest_engine(
         result = BacktestEngine.slice_based.run(
             engine_jobs,
             execute_tag_sliced_job,
-            performance=merge_performance(
-                profile_tag_calendar_slice_config(),
-                performance,
-            ),
+            performance=performance,
             task_name=run_name,
             callbacks=RunCallbacks(on_result=on_engine_result),
         )
@@ -541,16 +541,6 @@ def run_tag_sliced_via_backtest_engine(
 # ============================================================
 # 辅助函数
 # ============================================================
-
-def _resolve_stage_in_worker(performance: Dict[str, Any]) -> bool:
-    """解析 stage_in_worker 配置。"""
-    import os
-
-    if os.environ.get("NTQ_TAG_STAGE_IN_WORKER") is not None:
-        return os.environ.get("NTQ_TAG_STAGE_IN_WORKER", "").lower() in ("1", "true", "yes")
-
-    return bool(performance.get("stage_in_worker", False))
-
 
 def _dry_run_save_fn(rows: List[Any]) -> int:
     """Dry run 模式：跳过数据库写入。"""

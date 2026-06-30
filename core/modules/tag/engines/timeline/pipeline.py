@@ -34,8 +34,8 @@ def run_timeline_pipeline(
     )
 
     scenario_name = scenario_model.get_name()
-    performance = dict(settings.get("performance") or {})
-    performance.update(mgr._dispatch_overrides)
+    run_options = dict(settings.get("run_options") or {})
+    run_options.update(getattr(mgr, "_dispatch_overrides", {}) or {})
     scenario_cache = mgr.scenario_cache.get(tag_key) or {}
 
     # DuckDB 主进程数据库恢复（在 engine.run 之前）
@@ -63,7 +63,7 @@ def run_timeline_pipeline(
     # 交给 BacktestEngine 执行
     return run_tag_timeline_via_backtest_engine(
         timeline_jobs=jobs,
-        settings={**settings, "scenario_name": scenario_name, "performance": performance},
+        settings={**settings, "scenario_name": scenario_name, "run_options": run_options},
         run_name=f"tag:{scenario_name}",
         total_entities=len(entity_list),
         on_pipeline_progress=getattr(mgr, "_pipeline_progress_callback", None),

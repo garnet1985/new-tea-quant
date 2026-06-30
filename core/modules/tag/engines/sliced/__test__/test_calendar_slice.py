@@ -69,13 +69,13 @@ class TestTagExecutionModeSettings:
         with pytest.raises(ValueError):
             normalize_tag_settings(settings, tag_key="slice_scenario")
 
-    def test_calendar_slice_rejects_forbidden_performance_keys(self):
+    def test_calendar_slice_strips_user_performance_block(self):
         settings = _refresh_calendar_settings(
             performance={"entities_per_job": 100},
         )
-        assert ScenarioModel.is_setting_valid(
-            normalize_tag_settings(settings, tag_key="slice_scenario")
-        ) is False
+        norm = normalize_tag_settings(settings, tag_key="slice_scenario")
+        assert "performance" not in norm
+        assert ScenarioModel.is_setting_valid(norm) is True
 
 
 class TestTagSliceJob:
@@ -251,7 +251,7 @@ def test_tag_compute_engine_drains_slice_tag_values_between_slices():
 
 
 def test_profile_calendar_slice_config_for_tag():
-    from core.modules.tag.settings.normalize import profile_tag_calendar_slice_config
+    from core.modules.tag.settings.worker_profile import profile_tag_calendar_slice_config
 
     cfg = profile_tag_calendar_slice_config()
     assert cfg.get("reader_workers") == "auto"

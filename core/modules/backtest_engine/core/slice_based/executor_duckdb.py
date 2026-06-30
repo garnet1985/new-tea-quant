@@ -31,6 +31,7 @@ class SliceExecutorDuckDB(SliceExecutor):
         log_label: str = "切片执行",
         *,
         data_mgr: Optional[Any] = None,
+        progress_reporter: Optional[Any] = None,
         duckdb_process_pool_scope: str = "auto",
         duckdb_resume_main_after_pool: bool = True,
     ) -> SliceExecutor.ExecutionResult:
@@ -61,6 +62,7 @@ class SliceExecutorDuckDB(SliceExecutor):
             "execute_fn": execute_fn,
             "on_result": on_result,
             "log_label": log_label,
+            "progress_reporter": progress_reporter,
         }
 
         with maybe_duckdb_worker_pool_scope(

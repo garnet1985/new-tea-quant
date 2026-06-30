@@ -142,6 +142,9 @@ def run_price_factor_timeline_via_backtest_engine(
     from core.modules.backtest_engine import BacktestEngine
     from core.modules.backtest_engine.contracts import JobReport, RunCallbacks, RunProgress
 
+    from core.modules.backtest_engine.core.shared.performance import (
+        resolve_entity_based_performance,
+    )
     from .worker_profile import profile_price_factor_dispatch_config
 
     n = total_stocks if total_stocks is not None else len(stock_jobs)
@@ -180,7 +183,7 @@ def run_price_factor_timeline_via_backtest_engine(
     result = BacktestEngine.entity_based.run(
         engine_jobs,
         execute_price_factor_timeline_job,
-        performance=profile_price_factor_dispatch_config(),
+        performance=resolve_entity_based_performance(profile_price_factor_dispatch_config()),
         task_name=run_name,
         callbacks=RunCallbacks(on_result=on_engine_result),
     )

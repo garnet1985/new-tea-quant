@@ -140,7 +140,7 @@ class ScenarioModel:
         """
         if self._recompute:
             return TagUpdateMode.REFRESH
-        return TagUpdateMode(self._settings["performance"]["update_mode"])
+        return TagUpdateMode(self._settings["update_mode"])
         
     @staticmethod
     def is_setting_valid(settings: Dict[str, Any] = None) -> bool:
@@ -204,12 +204,11 @@ class ScenarioModel:
                 )
                 return False
             recompute = bool(settings.get("recompute", False))
-            performance = settings.get("performance") or {}
-            update_mode_str = performance.get("update_mode")
+            update_mode_str = settings.get("update_mode")
             if not update_mode_str:
                 logger.error(
                     f"当前传入的{scenario_name} settings: calendar_slice 须在 "
-                    "performance.update_mode 中声明 refresh，或设置 recompute=true"
+                    "calculation.update_mode 中声明 refresh，或设置 recompute=true"
                 )
                 return False
             if not recompute and str(update_mode_str).strip().lower() != TagUpdateMode.REFRESH.value:
@@ -218,23 +217,6 @@ class ScenarioModel:
                     "recompute=true 或 update_mode=refresh"
                 )
                 return False
-            performance = settings.get("performance")
-            if isinstance(performance, dict):
-                forbidden = (
-                    "entities_per_job",
-                    "dispatch_probe",
-                    "slice_open_days",
-                    "slice_steps",
-                    "slice_length",
-                )
-                explicit = set(settings.get("_explicit_performance_keys") or [])
-                for key in forbidden:
-                    if key in explicit:
-                        logger.error(
-                            f"当前传入的{scenario_name} settings: calendar_slice 不允许在 "
-                            f"performance 中配置 {key!r}"
-                        )
-                        return False
 
         data_cfg = settings.get("data")
         if not isinstance(data_cfg, dict):
@@ -270,17 +252,10 @@ class ScenarioModel:
             logger.debug(f"当前传入的{scenario_name} settings内的tags字段必须至少包含一个 tag")
             return False
         
-        performance_cfg = settings.get("performance")
-        if not isinstance(performance_cfg, dict):
-            logger.error(
-                f"当前传入的{scenario_name} settings 缺少 performance（"
-                "应由 normalize_tag_settings 从 worker.json 合并）"
-            )
-            return False
-        update_mode_str = performance_cfg.get("update_mode")
+        update_mode_str = settings.get("update_mode")
         if not update_mode_str:
             logger.error(
-                f"当前传入的{scenario_name} settings 缺少 performance.update_mode"
+                f"当前传入的{scenario_name} settings 缺少 update_mode"
             )
             return False
 
@@ -374,28 +349,15 @@ class ScenarioModel:
                 logger.warning(f"获取最新交易日失败，使用空字符串: {e}")
                 filled_settings["end_date"] = ""
         
-        # calculator.performance: 完全使用 worker.json 默认值（对用户隐身）
-        # 用户无法通过 settings.py 覆盖 performance 参数
-        if "performance" not in filled_settings:
-            filled_settings["performance"] = {}
+        if "update_mode" not in filled_settings:
+            calc = filled_settings.get("calculation") or {}
+            if isinstance(calc, dict) and calc.get("update_mode"):
+                filled_settings["update_mode"] = calc["update_mode"]
+            else:
+                raise ValueError("update_mode 须在 settings.calculation 中显式配置")
 
-        performance = filled_settings["performance"]
-        if "update_mode" not in performance:
-            raise ValueError("performance.update_mode 须在 settings 验证前显式配置")
-
-        # 根据 execution_mode 选择对应的默认配置（避免 timeline/sliced 配置混用）
-        execution_mode = str(filled_settings.get("calculation", {}).get("execution_mode") or "").lower()
-        if execution_mode == "calendar_slice":
-            from core.modules.tag.settings.normalize import profile_tag_calendar_slice_config
-            mode_defaults = profile_tag_calendar_slice_config()
-        else:
-            # 默认使用 entity_timeline 配置（兼容旧配置和 entity_timeline 模式）
-            from core.modules.tag.settings.normalize import profile_tag_entity_timeline_config
-            mode_defaults = profile_tag_entity_timeline_config()
-
-        # 强制使用 worker.json 默认值（忽略 settings.py 中的 performance 配置）
-        for key, value in mode_defaults.items():
-            performance[key] = value
+        filled_settings.setdefault("run_options", {})
+        filled_settings.pop("performance", None)
         
         # tags: 必须字段，不需要默认值（已在验证中检查）
         # 但需要为每个 tag 填充默认值（在 TagModel 中处理）

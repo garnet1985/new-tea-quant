@@ -1,0 +1,18 @@
+# Tag 模块 dispatch 配置（性能基准调优，用户不可覆盖）
+default:
+  reserve_cores: 1
+  max_parallel_jobs_cap: null
+
+entity_timeline:
+  stage_in_worker: true
+  dispatch_probe: true
+  entities_per_job: auto
+  entities_per_job_min: 1
+  entities_per_job_max: 500
+  memory_floor_mb: auto
+
+calendar_slice:
+  reader_workers: auto
+  queue_depth: auto
+  prefetch_enabled: true
+  slice_open_days: auto

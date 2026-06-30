@@ -6,10 +6,9 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from core.modules.backtest_engine.core.shared.default_performance import (
-    ENTITY_BASED_DEFAULT_PERFORMANCE,
-    SLICE_BASED_DEFAULT_PERFORMANCE,
-    merge_performance,
+from core.modules.backtest_engine.core.shared.performance import (
+    resolve_entity_based_performance,
+    resolve_slice_based_performance,
 )
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.modules.backtest_engine.core.shared.types import ExecuteFn, JobReport, RunCallbacks
@@ -107,6 +106,7 @@ class BacktestEngine:
             performance: Optional[Dict[str, Any]] = None,
             task_name: str = "",
             callbacks: Optional[RunCallbacks] = None,
+            enable_progress_display: bool = True,
         ) -> BacktestEngine.RunResult:
             return BacktestEngine._run_entity_based(
                 jobs,
@@ -114,6 +114,7 @@ class BacktestEngine:
                 performance=performance,
                 task_name=task_name,
                 callbacks=callbacks,
+                enable_progress_display=enable_progress_display,
             )
 
     class SliceBased:
@@ -127,6 +128,7 @@ class BacktestEngine:
             performance: Optional[Dict[str, Any]] = None,
             task_name: str = "",
             callbacks: Optional[RunCallbacks] = None,
+            enable_progress_display: bool = True,
         ) -> BacktestEngine.RunResult:
             return BacktestEngine._run_slice_based(
                 jobs,
@@ -134,6 +136,7 @@ class BacktestEngine:
                 performance=performance,
                 task_name=task_name,
                 callbacks=callbacks,
+                enable_progress_display=enable_progress_display,
             )
 
     entity_based = EntityBased
@@ -147,13 +150,11 @@ class BacktestEngine:
         performance: Optional[Dict[str, Any]] = None,
         task_name: str = "",
         callbacks: Optional[RunCallbacks] = None,
+        enable_progress_display: bool = True,
     ) -> BacktestEngine.RunResult:
         if jobs:
             BacktestJob.validate_many(jobs, mode=BacktestEngine.Mode.ENTITY_BASED)
-        resolved_performance = merge_performance(
-            ENTITY_BASED_DEFAULT_PERFORMANCE,
-            performance,
-        )
+        resolved_performance = resolve_entity_based_performance(performance)
         resolved_callbacks = callbacks or RunCallbacks()
         label = task_name or "backtest"
         pipeline = TimelineExecutePipeline(log_label=label)
@@ -164,6 +165,7 @@ class BacktestEngine:
             task_name=label,
             on_result=resolved_callbacks.on_result,
             on_release=resolved_callbacks.on_release,
+            enable_progress_display=enable_progress_display,
         )
         return BacktestEngine.RunResult.from_entity_based(pipeline_result)
 
@@ -175,13 +177,11 @@ class BacktestEngine:
         performance: Optional[Dict[str, Any]] = None,
         task_name: str = "",
         callbacks: Optional[RunCallbacks] = None,
+        enable_progress_display: bool = True,
     ) -> BacktestEngine.RunResult:
         if jobs:
             BacktestJob.validate_many(jobs, mode=BacktestEngine.Mode.SLICE_BASED)
-        resolved_performance = merge_performance(
-            SLICE_BASED_DEFAULT_PERFORMANCE,
-            performance,
-        )
+        resolved_performance = resolve_slice_based_performance(performance)
         resolved_callbacks = callbacks or RunCallbacks()
         label = task_name or "backtest"
         pipeline = SliceExecutePipeline(log_label=label)
@@ -191,6 +191,7 @@ class BacktestEngine:
             execute_fn=execute_fn,
             task_name=label,
             on_result=resolved_callbacks.on_result,
+            enable_progress_display=enable_progress_display,
         )
         return BacktestEngine.RunResult.from_slice_based(pipeline_result)
 
@@ -204,6 +205,7 @@ class BacktestEngine:
         performance: Optional[Dict[str, Any]] = None,
         task_name: str = "",
         callbacks: Optional[RunCallbacks] = None,
+        enable_progress_display: bool = True,
     ) -> BacktestEngine.RunResult:
         normalized = cls.Mode.normalize(mode)
         if normalized == cls.Mode.ENTITY_BASED.value:
@@ -213,6 +215,7 @@ class BacktestEngine:
                 performance=performance,
                 task_name=task_name,
                 callbacks=callbacks,
+                enable_progress_display=enable_progress_display,
             )
         if normalized == cls.Mode.SLICE_BASED.value:
             return cls._run_slice_based(
@@ -221,6 +224,7 @@ class BacktestEngine:
                 performance=performance,
                 task_name=task_name,
                 callbacks=callbacks,
+                enable_progress_display=enable_progress_display,
             )
         raise ValueError(f"unknown backtest mode: {mode!r}")
 

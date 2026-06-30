@@ -8,6 +8,10 @@ from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.
     profile_enumerator_calendar_slice_config,
     profile_enumerator_dispatch_config,
 )
+from core.modules.backtest_engine.core.shared.performance import (
+    resolve_entity_based_performance,
+    resolve_slice_based_performance,
+)
 
 from .engine_jobs import require_stock_id, wrap_slice_dispatch_job, wrap_timeline_stock_job
 from .stock_job_pipeline import job_progress_payload, job_report_to_job_result
@@ -293,7 +297,7 @@ def run_enumeration_timeline_via_backtest_engine(
     result = BacktestEngine.entity_based.run(
         engine_jobs,
         execute_enumeration_timeline_job,
-        performance=profile_enumerator_dispatch_config(),
+        performance=resolve_entity_based_performance(profile_enumerator_dispatch_config()),
         task_name=run_name,
         callbacks=RunCallbacks(on_result=on_engine_result),
     )
@@ -389,7 +393,7 @@ def run_enumeration_sliced_via_backtest_engine(
     result = BacktestEngine.slice_based.run(
         engine_jobs,
         execute_enumeration_sliced_job,
-        performance=profile_enumerator_calendar_slice_config(),
+        performance=resolve_slice_based_performance(profile_enumerator_calendar_slice_config()),
         task_name=run_name,
         callbacks=RunCallbacks(on_result=on_engine_result),
     )

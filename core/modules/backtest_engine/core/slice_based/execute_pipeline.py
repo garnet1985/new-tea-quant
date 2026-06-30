@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from core.modules.backtest_engine.core.shared.context import ExecutionContext
-from core.modules.backtest_engine.core.shared.machine_info import MachineInfo
+from core.infra.machine_capacity import MachineInfo
+from core.modules.backtest_engine.core.shared.progress import RunPhase, RunProgressReporter
 from core.modules.backtest_engine.core.shared.types import JobReport, RunProgress
 from core.modules.backtest_engine.core.slice_based.executor import SliceExecutor
 from core.modules.backtest_engine.core.slice_based.executor_duckdb import (
@@ -52,15 +53,29 @@ class SliceExecutePipeline:
         execute_fn: SliceExecutor.ExecuteFn,
         task_name: str = "",
         on_result: Optional[SliceExecutor.OnResultHook] = None,
+        enable_progress_display: bool = True,
     ) -> SliceExecutePipeline.Result:
+        label = task_name or self._log_label
+        progress = RunProgressReporter(
+            task_name=label,
+            run_mode="slice_based",
+            enable_progress_display=enable_progress_display,
+        )
+        progress.mark_phase(RunPhase.PREP)
+
         if jobs:
             BacktestJob.validate_many(jobs)
+
+        progress.mark_phase(RunPhase.PLAN)
         plan, batches, monitor_config = SlicePlanner.plan_jobs(
             jobs,
             performance,
             execute_fn=execute_fn,
             log_label=self._log_label,
         )
+        execute_units = plan.dispatch_jobs if plan.dispatch_jobs > 0 else len(batches)
+        progress.set_execute_total(execute_units)
+
         capacity = MachineInfo.get_capacity(performance)
         available_memory_mb = MachineInfo.worker_pool_budget_mb(capacity)
         monitor = SliceRunMonitor(
@@ -84,17 +99,18 @@ class SliceExecutePipeline:
             available_memory_mb=available_memory_mb,
         )
         context = ExecutionContext.create(
-            task_name=task_name or self._log_label,
+            task_name=label,
             total_jobs=len(batches),
             executor="",
             performance=performance,
         )
 
-        def monitored_on_result(report: JobReport, progress: RunProgress) -> None:
+        def monitored_on_result(report: JobReport, run_progress: RunProgress) -> None:
             monitor.record_from_job_report(report)
             if on_result is not None:
-                on_result(report, progress)
+                on_result(report, run_progress)
 
+        progress.mark_phase(RunPhase.EXECUTE)
         execution = SliceExecutorDuckDB.execute(
             plan,
             batches,
@@ -102,6 +118,7 @@ class SliceExecutePipeline:
             execute_fn,
             on_result=monitored_on_result,
             log_label=self._log_label,
+            progress_reporter=progress,
             duckdb_process_pool_scope=str(
                 performance.get("duckdb_process_pool_scope", "auto")
             ),
@@ -110,6 +127,7 @@ class SliceExecutePipeline:
             ),
         )
         monitor.flush()
+        progress.mark_phase(RunPhase.FINISH)
 
         return SliceExecutePipeline.Result(
             plan=plan,

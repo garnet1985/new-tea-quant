@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
-from core.modules.backtest_engine.core.shared.machine_info import MachineCapacity
+from core.infra.machine_capacity import MachineCapacity
 from core.modules.backtest_engine.core.shared.types import JobContext
 
 logger = logging.getLogger(__name__)

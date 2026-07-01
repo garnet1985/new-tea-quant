@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping
 
 from core.modules.backtest_engine.contracts import JobContext
-from core.modules.data_contract.cache import ContractCacheManager
+from core.modules.data_contract.contracts import ContractCacheManager
 from core.modules.strategy.core.engines.enumerator.entity_based.execute_payload import (
     EntityBasedExecutePayload,
 )

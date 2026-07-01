@@ -8,7 +8,7 @@ from typing import Dict, List, Set
 from core.infra.export_import import ExportImport
 from core.infra.project_context import ProjectContext
 
-from core.modules.data_contract.contract_const import DataKey
+from core.modules.data_contract.contracts import DataKey
 
 from .paths import (
     BUILTIN_ADAPTERS_SKIP_EXPORT,

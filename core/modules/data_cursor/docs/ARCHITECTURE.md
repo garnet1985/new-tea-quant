@@ -13,8 +13,8 @@
 ## 模块目标
 
 - 与 **`DataContract`** 管线衔接：**`contract.data` 必须先非空**。
-- 支持 **显式时间字段覆盖**（`time_field_overrides`），以应对同构键不同列名。
-- **不**重新拉数、**不**修改 `contract` 本体，仅维护视图状态。
+- 单 contract 可直接调用 **`DataContract.until(as_of)`**（内部委托本模块 `DataCursor`）。
+- 多源编排使用 **`DataCursor`** / **`DataCursorManager`**。
 
 ---
 

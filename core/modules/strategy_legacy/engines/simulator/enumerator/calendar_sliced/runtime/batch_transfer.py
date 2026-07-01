@@ -6,10 +6,10 @@ from __future__ import annotations
 import pickle
 from typing import Any, Dict, List, Mapping
 
-from core.modules.data_contract.contract_const import ContractScope, DataKey
+from core.modules.data_contract.contracts import ContractScope, DataKey
 from core.modules.data_contract.contracts import DataContract
-from core.modules.data_contract.data_class.contract_meta import ContractMeta
-from core.modules.data_contract.data_class.issue_result import IssueResult
+from core.modules.data_contract.contracts import ContractMeta
+from core.modules.data_contract.contracts import IssueResult
 from core.modules.strategy.services.data.injection.job_contract_batch import (
     StrategyJobContractBatch,
 )

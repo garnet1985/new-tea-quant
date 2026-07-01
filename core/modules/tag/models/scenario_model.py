@@ -4,8 +4,8 @@ import logging
 
 from core.infra.project_context import ProjectContext
 
-from core.modules.data_contract.contract_const import ContractScope, ContractType, DataKey
-from core.modules.data_contract.mapping import default_map
+from core.modules.data_contract.contracts import ContractScope, ContractType, DataKey
+from core.modules.data_contract.core.registry.mapping import default_map
 from core.utils.date.date_utils import DateUtils
 from core.modules.tag.enums import TagTargetType, TagUpdateMode, TagExecutionMode
 from core.modules.tag.models.tag_model import TagModel

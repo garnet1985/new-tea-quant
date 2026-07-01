@@ -16,11 +16,12 @@ except ImportError:
     _pd.DataFrame = object  # type: ignore[attr-defined]
     sys.modules["pandas"] = _pd
 
-from core.modules.data_contract import DataContractManager, DataKey, IssueResult
-from core.modules.data_contract.cache import ContractCacheManager
-from core.modules.data_contract.contract_const import ContractScope
+from core.modules.data_contract.contracts import ContractCacheManager
+from core.modules.data_contract.contracts import ContractScope
+from core.modules.data_contract.contracts import DataKey, IssueResult
 from core.modules.data_contract.contracts import NonTimeSeriesContract, TimeSeriesContract
-from core.modules.data_contract.loaders import StockKlineLoader, StockListLoader, TagLoader
+from core.modules.data_contract.core.issue.manager import DataContractManager
+from core.modules.data_contract.core.load.loaders import StockKlineLoader, StockListLoader, TagLoader
 
 
 @pytest.fixture
@@ -74,3 +75,24 @@ def test_tag_load_requires_scenario(mgr: DataContractManager):
         mgr.issue(DataKey.TAG, entity_id="000001.SZ").require_one().load(
             start="20200101", end="20201231"
         )
+
+
+def test_contract_until_prefix(mgr: DataContractManager):
+    result = mgr.issue(DataKey.STOCK_KLINE_DAILY, entity_id="600000.SH", adjust="qfq")
+    contract = result.require_one()
+    contract.data = [
+        {"date": "20240101", "close": 1.0},
+        {"date": "20240105", "close": 2.0},
+        {"date": "20240110", "close": 3.0},
+    ]
+    assert contract.until("20240104") == [{"date": "20240101", "close": 1.0}]
+    assert contract.until("20240110") == [
+        {"date": "20240101", "close": 1.0},
+        {"date": "20240105", "close": 2.0},
+        {"date": "20240110", "close": 3.0},
+    ]
+    contract.reset_view()
+    assert contract.until("20240105") == [
+        {"date": "20240101", "close": 1.0},
+        {"date": "20240105", "close": 2.0},
+    ]

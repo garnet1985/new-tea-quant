@@ -15,11 +15,11 @@ except ImportError:
     _pd.DataFrame = object  # type: ignore[attr-defined]
     sys.modules["pandas"] = _pd
 
-from core.modules.data_contract.cache import ContractCacheManager
-from core.modules.data_contract.contract_const import ContractScope, DataKey
+from core.modules.data_contract.contracts import ContractCacheManager
+from core.modules.data_contract.contracts import ContractScope, DataKey
 from core.modules.data_contract.contracts import DataContract
-from core.modules.data_contract.data_class.contract_meta import ContractMeta
-from core.modules.data_contract.data_class.issue_result import IssueResult
+from core.modules.data_contract.contracts import ContractMeta
+from core.modules.data_contract.contracts import IssueResult
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
@@ -59,7 +59,7 @@ class TestStrategyJobContractBatch(unittest.TestCase):
         self.assertIs(merged[DataKey.STOCK_KLINE_DAILY], kline_a)
         self.assertEqual(merged[DataKey.STOCK_KLINE_DAILY].data[0]["date"], "20200101")
 
-    @patch("core.modules.strategy.services.data.injection.job_contract_batch.DataContractManager")
+    @patch("core.modules.strategy.services.data.injection.job_contract_batch.DataContracts")
     def test_hydrate_issues_batch_for_per_entity(self, mock_dcm_cls: MagicMock) -> None:
         mock_dcm = MagicMock()
         mock_dcm_cls.return_value = mock_dcm

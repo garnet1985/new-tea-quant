@@ -1,0 +1,351 @@
+module: modules.data_contract
+version: 0.5.0
+requires: core>=0.4.1
+
+# ---------------------------------------------------------------------------
+# 用语
+#
+#   DataContracts    — Facade（data_contract.py）；对外唯一编排入口
+#   DataKey          — 声明式 data_key 枚举（contracts.py）
+#   DataContract     — issue 签发的单句柄（GLOBAL 或 PER_ENTITY 中一股）
+#   IssueResult      — issue 返回信封：GLOBAL contract / PER_ENTITY by_entity
+#   ContractInfo     — mapping 静态信息（info）
+#   TimeRange        — { start, end }；格式见 time_axis_format
+#
+# 时间语义（两套，勿混）：
+#   data window      — 用户在 issue 时传入的 start / end（请求窗）
+#   data window edge — 已加载 rows 上实际最早 / 最晚时间点
+#
+# 时间格式（重要）：
+#   各 data_key 的时间格式由 mapping 的 time_axis_field / time_axis_format 定义，
+#   **不一定是 YYYYMMDD**。例如日 K 为 YYYYMMDD；宏观月频可为 YYYYMM；
+#   财报季频以 ann_date 等为轴，issue/until 的 as_of 须与该 data_key 语义一致。
+#   info(data_key) 返回 time_axis_format；各 get_* / until 按该格式读写。
+#   内部比较（until 排序）经 DateUtils 规范化，对外仍按 mapping 约定格式返回。
+#
+# 流水线：
+#   info → issue(should_load_initially?) → load(issued) → until(contract, as_of)
+#
+# 缓存原则（黑盒；用户不可配置 PER_ENTITY 是否 cache）：
+#   - PER_ENTITY → 内部 **不 cache**（静默，每次 loader IO）
+#   - 其余（GLOBAL）→ 内部 **cache**（默认开启）
+#   对外 **不暴露** use_cache / 注入 ContractCacheManager 等；issue/load 按 scope 自动分支。
+#   若某 API 路径上用户 **显式** 要求 PER_ENTITY 走 cache（如 override_params 含 cache 相关键）→ ValueError。
+#   无此类暴露时 **不报错**，info.has_cache 供查询（PER_ENTITY 恒 false）。
+#   __init__(cache_enabled) 仅单测/框架关闭 GLOBAL cache 用；业务代码用默认即可。
+#
+# ---------------------------------------------------------------------------
+
+# parameters 写法约定（全文件统一）
+#
+#   positional:     必须按顺序传递
+#   keyword_only:   签名 * 之后，仅关键字
+#
+# 句柄约定：PER_ENTITY 多股时，until / get_* 等均针对 **单个 DataContract**
+# （从 IssueResult.entity(entity_id) 或 require_one() 取得）。
+
+---
+
+DataContracts:
+  layer: facade
+  description: "数据契约 Facade — info / issue / load / until；cache 默认黑盒"
+
+  apis:
+    __init__:
+      description: "构造 Facade；GLOBAL cache 黑盒内置，用户不可注入 manager"
+      stability: stable
+      binding: instance
+      parameters:
+        keyword_only:
+          - name: cache_enabled
+            type: bool
+            required: false
+            default: true
+            notes: "仅单测/框架：false 关闭 GLOBAL cache；不影响 PER_ENTITY（本来就不 cache）"
+      returns: DataContracts
+
+    info:
+      description: "读取 data_key 在合并 mapping 中的完整静态信息；不签发、不 IO"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: data_key
+            type: DataKey
+            required: true
+      returns: ContractInfo
+      throws:
+        - ValueError: data_key 不在合并 map
+      notes: |
+        ContractInfo 字段：
+          data_key, scope, contract_type, display_name,
+          loader_name, defaults, unique_keys,
+          has_cache（**仅 GLOBAL scope 为 true**；PER_ENTITY 恒 false）,
+          时序附加：time_axis_field, time_axis_format, supports_start_end（是否支持 start/end 窗）
+
+    issue:
+      description: "签发 IssueResult；默认 should_load_initially=true 时内部调用 load"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: data_key
+            type: DataKey
+            required: true
+        keyword_only:
+          - name: entity_id
+            type: Optional[str]
+            required: false
+            default: null
+            notes: "PER_ENTITY 糖；等价 entity_ids=[entity_id]；与 entity_ids 互斥"
+          - name: entity_ids
+            type: Optional[Sequence[str]]
+            required: false
+            default: null
+            notes: "PER_ENTITY canonical；非空"
+          - name: start
+            type: Optional[str]
+            required: false
+            default: null
+            notes: "时序：与 end 同传或同省略；格式须符合该 data_key 的 time_axis_format（见 info）"
+          - name: end
+            type: Optional[str]
+            required: false
+            default: null
+            notes: "时序：与 start 同传或同省略；格式须符合 time_axis_format"
+          - name: should_load_initially
+            type: bool
+            required: false
+            default: true
+            notes: "true → 签发后立即 load；false → 仅句柄，稍后 load(issued)"
+          - name: "**override_params"
+            type: Any
+            required: false
+            notes: "mapping loader 白名单参数；不得含 cache 相关键"
+      returns: IssueResult
+      throws:
+        - ValueError: 未知 data_key / entity 校验失败 / start-end 不成对 / entity_id 与 entity_ids 互斥
+        - ValueError: PER_ENTITY 且 override_params 含 cache 相关键（API 暴露的显式请求 → 抛错）
+      notes: |
+        GLOBAL → IssueResult.contract
+        PER_ENTITY → IssueResult.by_entity
+        should_load_initially=false 时各句柄 data 均为 None（未加载）。
+
+    load:
+      description: "手动加载 data（should_load_initially=false 时使用）；cache 由内部按 scope 判定"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: issued
+            type: IssueResult
+            required: true
+            notes: "issue() 的返回值；仅此一个参数"
+      returns: IssueResult
+      throws:
+        - ValueError: issued 为空
+        - RuntimeError: 未绑定 loader
+      notes: |
+        无 keyword 参数。按 issue 已绑定参数调用 loader。
+        内部：PER_ENTITY → load_batch，不 cache；GLOBAL → loader + cache（cache_enabled 时）。
+        用户无需、无法指定 PER_ENTITY 是否 cache。
+
+    until:
+      description: "传入 as_of，返回该句柄截至 as_of（含）的累计前缀 rows；无 IO；底层 data_cursor"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: contract
+            type: DataContract
+            required: true
+            notes: "issue 签发的单句柄（PER_ENTITY 时先 entity(id) 再 until）"
+          - name: as_of
+            type: str
+            required: true
+            notes: "格式须与该 contract 的 time_axis_format 一致（或 DateUtils 可解析的等价写法，如 YYYYQ1）；含 as_of 时点"
+        keyword_only:
+          - name: reset
+            type: bool
+            required: false
+            default: false
+            notes: "true → 重置游标后从首行重新累计"
+      returns: UntilResult
+      throws:
+        - ValueError: contract.data 未加载 / as_of 非法或与 time_axis_format 不兼容
+      notes: |
+        时序：单调递增 as_of，PIT 累计前缀（非一次性区间切片）。
+        非时序：每次返回全量 rows。
+        比较轴为 contract.meta 中的 time_axis_field；UntilResult.as_of 为规范化后的比较值。
+
+    get_data_window:
+      description: "用户请求窗：issue 时传入的 start 与 end"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: contract
+            type: DataContract
+            required: true
+      returns: Optional[TimeRange]
+      throws:
+        - ValueError: 非时序 data_key
+      notes: |
+        读 contract.loader_params / issue 绑定值，不扫描 rows。
+        未传 start/end（全量语义）→ null。
+        start / end 格式与 issue 传入一致（time_axis_format）。
+
+    get_data_window_edge:
+      description: "数据实际边界：已加载 rows 的最早与最晚时间点"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: contract
+            type: DataContract
+            required: true
+      returns: Optional[TimeRange]
+      throws:
+        - ValueError: contract.data 未加载 / 非时序
+      notes: |
+        扫描 rows 的 time_axis_field；取值格式与行内存储一致（见 time_axis_format）。
+        无行 → null。
+
+    get_start_time:
+      description: "用户请求的 start（issue 传入，非 rows 扫描）"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: contract
+            type: DataContract
+            required: true
+      returns: Optional[str]
+      throws:
+        - ValueError: 非时序
+      notes: "未绑定 start → null；格式与 issue 传入 / time_axis_format 一致"
+
+    get_end_time:
+      description: "用户请求的 end（issue 传入，非 rows 扫描）"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: contract
+            type: DataContract
+            required: true
+      returns: Optional[str]
+      throws:
+        - ValueError: 非时序
+      notes: "未绑定 end → null；格式与 issue 传入 / time_axis_format 一致"
+
+    get_data_edge_start:
+      description: "数据实际最早时间点（rows 扫描 min）"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: contract
+            type: DataContract
+            required: true
+      returns: Optional[str]
+      throws:
+        - ValueError: contract.data 未加载 / 非时序
+      notes: "无合法时间值 → null；返回行内原始时间轴取值"
+
+    get_data_edge_end:
+      description: "数据实际最晚时间点（rows 扫描 max）"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: contract
+            type: DataContract
+            required: true
+      returns: Optional[str]
+      throws:
+        - ValueError: contract.data 未加载 / 非时序
+      notes: "无合法时间值 → null；返回行内原始时间轴取值"
+
+    is_loaded:
+      description: "contract 是否已加载 data"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: contract
+            type: DataContract
+            required: true
+      returns: bool
+
+    row_count:
+      description: "已加载 rows 数量"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: contract
+            type: DataContract
+            required: true
+      returns: int
+      throws:
+        - ValueError: contract.data 未加载
+
+---
+
+contracts.py:
+  layer: contract
+  description: "跨模块 import 契约 types（dataclass / enum）"
+
+  types:
+    ContractInfo:
+      fields:
+        - name: data_key
+          type: DataKey
+        - name: scope
+          type: ContractScope
+        - name: contract_type
+          type: ContractType
+        - name: display_name
+          type: str
+        - name: loader_name
+          type: str
+        - name: defaults
+          type: dict[str, Any]
+        - name: unique_keys
+          type: list[str]
+        - name: has_cache
+          type: bool
+          notes: "true 仅当 scope=GLOBAL 且 policy 非 NONE；PER_ENTITY 恒 false"
+        - name: time_axis_field
+          type: Optional[str]
+          notes: "时序时间列名（如 date、ann_date、as_of_date）；非时序为 null"
+        - name: time_axis_format
+          type: Optional[str]
+          notes: "时序时间格式约定（如 YYYYMMDD、YYYYMM）；非时序为 null；见 mapping"
+        - name: supports_start_end
+          type: bool
+          notes: "时序且支持 issue/load 传入 start/end 窗"
+
+    TimeRange:
+      fields:
+        - name: start
+          type: str
+          notes: "与 contract time_axis_format 一致，非固定 YYYYMMDD"
+        - name: end
+          type: str
+          notes: "与 contract time_axis_format 一致，非固定 YYYYMMDD"
+
+    IssueResult:
+      notes: "见 0.3.0；entity() / require_one() / require_contract()"
+
+    UntilResult:
+      fields:
+        - name: rows
+          type: list[dict[str, Any]]
+        - name: as_of
+          type: str
+          notes: "规范化后的比较时点（until 内部排序用）"
+
+    DataContract:
+      notes: "句柄：meta, loader, loader_params, data；Facade 操作，句柄不对外暴露 load/until"

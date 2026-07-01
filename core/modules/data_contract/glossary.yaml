@@ -1,0 +1,93 @@
+# Data Contract 术语表
+# Version: 0.5.0
+
+terms:
+  DataContracts:
+    definition: "数据契约 Facade：info / issue / load / until 及时间快捷 API；cache 默认黑盒"
+    aliases: ["DCM facade"]
+    avoid: ["DataContractManager 作为对外名", "注入 ContractCacheManager"]
+
+  DataContract:
+    definition: "issue 签发的单句柄；承载 meta、loader_params、data；Facade 操作，句柄不对外暴露 load/until"
+    aliases: ["contract handle", "句柄"]
+    avoid: ["与 Facade DataContracts 混淆"]
+
+  IssueResult:
+    definition: "issue 返回信封：GLOBAL 用 contract，PER_ENTITY 用 by_entity map"
+    aliases: ["issue envelope"]
+    avoid: ["直接当 rows 使用"]
+
+  ContractInfo:
+    definition: "info(data_key) 返回的 mapping 静态信息；含 has_cache、time_axis_field/format"
+    aliases: ["mapping info"]
+    avoid: ["含已加载 rows"]
+
+  issue:
+    definition: "签发句柄；should_load_initially=true（默认）时内部接着 load"
+    aliases: ["签发"]
+    avoid: ["hydrate", "preload 作为同义词"]
+
+  load:
+    definition: "按 issue 已绑定参数加载 data；PER_ENTITY 走 load_batch；cache 黑盒"
+    aliases: ["加载"]
+    avoid: ["物化", "hydrate"]
+
+  until:
+    definition: "Facade.until(contract, as_of)：已加载 data 的 PIT 累计前缀；无 IO；底层 data_cursor"
+    aliases: ["PIT 前缀", "as-of view"]
+    avoid: ["再次 load", "区间一次性切片（非 until 语义）"]
+
+  DataCursor:
+    definition: "独立模块 modules.data_cursor：多 contract 的 until 编排"
+    aliases: ["multi-source cursor"]
+    avoid: ["并入 data_contract"]
+
+  time_axis_field:
+    definition: "mapping 声明的行内时间列名（如 date、ann_date、as_of_date）"
+    aliases: ["时间轴字段"]
+    avoid: ["固定为 date"]
+
+  time_axis_format:
+    definition: "mapping 声明的时间格式约定（如 YYYYMMDD、YYYYMM）；各 data_key 可不同"
+    aliases: ["时间格式"]
+    avoid: ["假定全是 YYYYMMDD"]
+
+  data_window:
+    definition: "用户在 issue 时传入的 start/end 请求窗；get_data_window / get_start_time / get_end_time"
+    aliases: ["用户请求窗", "load window"]
+    avoid: ["与 data window edge 混用"]
+
+  data_window_edge:
+    definition: "已加载 rows 上实际最早/最晚时间点；get_data_window_edge / get_data_edge_start / get_data_edge_end"
+    aliases: ["数据边界", "实际时间跨度"]
+    avoid: ["issue 传入的 start/end"]
+
+  is_loaded:
+    definition: "contract.data 是否已加载（非 None）"
+    aliases: ["已加载"]
+    avoid: ["needs_load（反向命名，已废弃对外）"]
+
+  cache:
+    definition: "黑盒原则：PER_ENTITY 不 cache，GLOBAL cache；用户不可配 PER_ENTITY cache；无暴露则不报错"
+    aliases: []
+    avoid: ["use_cache", "PER_ENTITY 进 cache", "ContractCacheManager 注入"]
+
+  PER_ENTITY:
+    definition: "按 entity 分片；内部 load_batch，不 cache（自动，与用户 cache_enabled 无关）"
+    aliases: ["per entity"]
+    avoid: ["用户开启 cache", "假定 cache 命中"]
+
+  load_batch:
+    definition: "PER_ENTITY loader 批量 IO；由 Facade.load 内部调用，非独立对外 API"
+    aliases: ["批量加载"]
+    avoid: ["对外第二个 load 入口"]
+
+  has_cache:
+    definition: "info 字段：该 data_key 是否支持 cache；仅 GLOBAL 为 true，PER_ENTITY 恒 false"
+    aliases: ["可缓存"]
+    avoid: ["表示当前是否已命中 cache", "cache_enabled 对 PER_ENTITY 生效"]
+
+  should_load_initially:
+    definition: "issue 是否在签发后立即 load；false 时仅句柄，稍后 load(issued)"
+    aliases: ["issue 时是否加载"]
+    avoid: ["lazy_issue"]

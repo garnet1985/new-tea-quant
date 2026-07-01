@@ -6,9 +6,9 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
-from core.modules.data_contract.contract_const import ContractScope, ContractType, DataKey
-from core.modules.data_contract.mapping import default_map
-from core.modules.data_contract.tag_entity_type import resolve_tag_entity_type
+from core.modules.data_contract.contracts import ContractScope, ContractType, DataKey
+from core.modules.data_contract.core.registry.mapping import default_map
+from core.modules.data_contract.core.registry.tag_entity_type import resolve_tag_entity_type
 from core.modules.tag.enums import TagTargetType
 
 

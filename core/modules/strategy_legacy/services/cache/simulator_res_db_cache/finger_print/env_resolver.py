@@ -110,7 +110,7 @@ class ResolveEnv:
         """
         core_mapping_hash = ""
         try:
-            dc_mapping_module = importlib.import_module("core.modules.data_contract.mapping")
+            dc_mapping_module = importlib.import_module("core.modules.data_contract.core.registry.mapping")
             dc_mapping_file = inspect.getsourcefile(dc_mapping_module)
             if dc_mapping_file:
                 core_mapping_hash = ResolveEnv._hash_file(Path(dc_mapping_file))

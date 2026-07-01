@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from core.modules.data_contract.contract_const import DataKey
-from core.modules.data_contract.tag_entity_type import resolve_tag_entity_type
+from core.modules.data_contract.contracts import DataKey
+from core.modules.data_contract.core.registry.tag_entity_type import resolve_tag_entity_type
 
 
 @pytest.mark.parametrize(

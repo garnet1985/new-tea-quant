@@ -7,30 +7,18 @@
 
 ### 设计意图（[`docs/DECISIONS.md`](docs/DECISIONS.md) 决策 1 / 4）
 
-- 对外主入口仅为 **`DataContractManager.issue(...)`**。
-- **GLOBAL 可缓存数据**：`issue` 后 **`data` 应已物化**；是否命中缓存 **由 DCM 内部决定**，调用方 **不区分** 缓存分支。
-- 缓存对业务层应是 **黑盒**：默认 **开启**；仅在 init 时通过 **开关** 关闭（测试、强制冷 load 等）。
-
-### 当前实现（漂移）
-
-- `DataContractManager.__init__` **强制**注入 `ContractCacheManager`，模块内 **无** 进程默认 store。
-- Strategy / Tag 等调用方普遍 **`ContractCacheManager()` 临时 new**，导致：
-  - 同进程串行多次 run **无法**自动复用 GLOBAL cache（与决策 1 文案不符）；
-  - 调用方误以为要「分开管理 cache」，与 `issue` 黑盒语义冲突。
-- [`docs/DECISIONS.md`](docs/DECISIONS.md) 决策 5 要求 **`enter_strategy_run` / `clear_global` 由应用编排** —— 这是 **生命周期清理**，不应等同于 **每次 new 一个空 store**。
+- 对外主入口 **`DataContracts.issue` / `load`**；cache 对调用方 **黑盒**。
+- **GLOBAL**：默认 **cache**；**PER_ENTITY**：默认 **不 cache**（用户不可配）。
+- **GLOBAL 可缓存数据**：`issue(load=true)` / `load` 后 `data` 已加载；是否命中 cache 内部决定。
 
 ### 目标形态（修正方向）
 
-1. **`DataContractManager` 默认自带 cache**（进程级 lazy 单例或等价机制）：
-   - `DataContractManager()` → GLOBAL `issue` **默认读写 cache**；
-   - `cache_enabled=False`（或 `NullContractCache`）→ 关闭缓存，便于单测。
-2. **可选注入** `contract_cache`：Workbench / simulate **Session**、集成测试需要共享或隔离 store 时使用（高级用法，非默认路径）。
-3. **文档与实现对齐**：README / API 示例不再把「每次 new `ContractCacheManager`」当作常规用法；决策 1 与决策 5 分工写清：
-   - **黑盒 cache** = DCM 内部 + 默认 store；
-   - **应用职责** = run 边界 `enter_strategy_run` / `exit_strategy_run` / `clear_global`，而非每次新建 manager。
-4. **下游调用方跟进**（修正 DCM 后）：
-   - Strategy `GlobalDataPreloader` / `EntityDataLoader`：停止默认 per-call `ContractCacheManager()`；Session 级注入或依赖 DCM 默认 store。
-   - Tag `TagManager`：可简化为复用 DCM 默认 store + 显式 session 清理，或继续注入同一实例（二选一，文档统一）。
+1. **`DataContracts()` 默认自带 cache**（进程级 lazy store）：
+   - **PER_ENTITY** → 内部不 cache（静默）
+   - **GLOBAL** → cache（`cache_enabled=False` 仅单测关闭 GLOBAL cache）
+2. **用户不可控制 PER_ENTITY cache**；API 若暴露显式请求（如 override 含 cache 键 + PER_ENTITY）→ `ValueError`；无暴露则不报错。
+3. **不可注入** `ContractCacheManager`。
+4. **下游**：Strategy / Tag 停止 per-call `ContractCacheManager()`，改用 `DataContracts()` + run 边界清理。
 
 ### 不在此项范围内
 

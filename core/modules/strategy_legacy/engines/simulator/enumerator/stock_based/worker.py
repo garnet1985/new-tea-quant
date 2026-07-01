@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional
 import logging
 import time
 
-from core.modules.data_contract.cache import ContractCacheManager
+from core.modules.data_contract.contracts import ContractCacheManager
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )

@@ -5,7 +5,7 @@
 **范围（决策 11）** — 仅处理用户在 ``settings.data`` 中声明的数据：
 
 - ``base_required_data`` + ``extra_required_data_sources`` → ``required_data_sources``
-- 经 ``DataContractManager.issue`` / ``StrategyJobContractBatch`` 物化后装入 slot 与 ``DataCursor``
+- 经 ``DataContracts.issue`` / ``StrategyJobContractBatch`` 物化后装入 slot 与 ``DataCursor``
 
 **不在此服务内、由回测编排直调 DataManager 的示例：**
 
@@ -26,10 +26,10 @@ from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
 if TYPE_CHECKING:
     from core.modules.strategy.engines.shared.performance_profiler import PerformanceProfiler
 
-from core.modules.data_contract.cache import ContractCacheManager
-from core.modules.data_contract.contract_const import ContractScope, DataKey
+from core.modules.data_contract.contracts import ContractCacheManager
+from core.modules.data_contract.contracts import ContractScope, DataKey
 from core.modules.data_contract.contracts import DataContract
-from core.modules.data_contract.data_contract_manager import DataContractManager
+from core.modules.data_contract import DataContracts
 from core.modules.data_cursor import DataCursorManager
 from core.modules.indicator import IndicatorService
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
@@ -61,7 +61,7 @@ class StrategyDataInjectionService:
         self.settings = settings
         self._global_extra_cache = global_extra_cache
         self._contract_cache = contract_cache
-        self._dcf_mgr: Optional[DataContractManager] = None
+        self._dcf_mgr: Optional[DataContracts] = None
 
         self._current_data: Dict[str, List[Dict[str, Any]]] = {}
         self._slot_contracts: Dict[str, DataContract] = {}
@@ -81,9 +81,9 @@ class StrategyDataInjectionService:
         load_fn()
         self._load_profiler.record_storage_load(slot, time.perf_counter() - t0)
 
-    def _contract_manager(self) -> DataContractManager:
+    def _contract_manager(self) -> DataContracts:
         if self._dcf_mgr is None:
-            self._dcf_mgr = DataContractManager(contract_cache=self._contract_cache)
+            self._dcf_mgr = DataContracts(contract_cache=self._contract_cache)
         return self._dcf_mgr
 
     @staticmethod
@@ -416,7 +416,7 @@ class StrategyDataInjectionService:
         if not extras:
             return {}
 
-        dcm = DataContractManager(contract_cache=ContractCacheManager())
+        dcm = DataContracts(contract_cache=ContractCacheManager())
         out: Dict[str, List[Dict[str, Any]]] = {}
 
         for raw in extras:

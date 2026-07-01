@@ -3,8 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, Hashable, List, Mapping, MutableMapping, Optional
 
-from core.modules.data_contract.contract_const import ContractType
-from core.modules.data_contract.contracts import DataContract
+from core.modules.data_contract.contracts import ContractType, DataContract
 from core.utils.date.date_utils import DateUtils
 
 

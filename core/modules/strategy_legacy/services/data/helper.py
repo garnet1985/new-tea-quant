@@ -5,8 +5,8 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from core.modules.data_contract.contract_const import DataKey
-from core.modules.data_contract.kline_keys import (
+from core.modules.data_contract.contracts import DataKey
+from core.modules.data_contract.contracts import (
     PRIMARY_KLINE_SLOT,
     is_stock_kline_data_key,
 )

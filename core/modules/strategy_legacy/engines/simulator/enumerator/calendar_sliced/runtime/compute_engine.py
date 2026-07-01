@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 import logging
 
-from core.modules.data_contract.cache import ContractCacheManager
+from core.modules.data_contract.contracts import ContractCacheManager
 from core.modules.indicator import IndicatorService
 from core.modules.market_profile import get_market_profile
 from core.modules.strategy.hooks import (

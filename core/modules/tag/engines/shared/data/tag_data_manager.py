@@ -3,10 +3,10 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from core.modules.data_contract.cache import ContractCacheManager
-from core.modules.data_contract.contract_const import ContractScope, DataKey
+from core.modules.data_contract.contracts import ContractCacheManager
+from core.modules.data_contract.contracts import ContractScope, DataKey
 from core.modules.data_contract.contracts import DataContract
-from core.modules.data_contract.data_contract_manager import DataContractManager
+from core.modules.data_contract import DataContracts
 from core.modules.data_cursor import DataCursorManager
 from core.utils.date.date_utils import DateUtils
 
@@ -37,16 +37,16 @@ class TagDataManager:
         self._contract_cache = contract_cache
         self._global_extra_cache = global_extra_cache or {}
 
-        self._dcf_mgr: Optional[DataContractManager] = None
+        self._dcf_mgr: Optional[DataContracts] = None
         self._current_data: Dict[str, List[Dict[str, Any]]] = {}
         self._slot_contracts: Dict[str, DataContract] = {}
         self._cursor_mgr = DataCursorManager()
         self._cursor_name = f"tag:{self.scenario_name}:{self.entity_id}"
         self._axis_data_id: Optional[DataKey] = None
 
-    def _contract_manager(self) -> DataContractManager:
+    def _contract_manager(self) -> DataContracts:
         if self._dcf_mgr is None:
-            self._dcf_mgr = DataContractManager(contract_cache=self._contract_cache)
+            self._dcf_mgr = DataContracts(contract_cache=self._contract_cache)
         return self._dcf_mgr
 
     def issue_contracts(

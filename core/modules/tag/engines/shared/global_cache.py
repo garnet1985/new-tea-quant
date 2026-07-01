@@ -3,14 +3,14 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from core.modules.data_contract.contract_const import ContractScope, DataKey
-from core.modules.data_contract.data_contract_manager import DataContractManager
+from core.modules.data_contract.contracts import ContractScope, DataKey
+from core.modules.data_contract import DataContracts
 
 
 def build_global_extra_cache(
     settings: Dict[str, Any],
     *,
-    dcm: DataContractManager,
+    dcm: DataContracts,
     start: Optional[str],
     end: Optional[str],
 ) -> Dict[str, List[Dict[str, Any]]]:

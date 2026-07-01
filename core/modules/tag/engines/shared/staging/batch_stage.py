@@ -3,10 +3,10 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
-from core.modules.data_contract.cache import ContractCacheManager
-from core.modules.data_contract.contract_const import ContractScope, DataKey
-from core.modules.data_contract.data_contract_manager import DataContractManager
-from core.modules.data_contract.kline_keys import (
+from core.modules.data_contract.contracts import ContractCacheManager
+from core.modules.data_contract.contracts import ContractScope, DataKey
+from core.modules.data_contract import DataContracts
+from core.modules.data_contract.contracts import (
     is_stock_kline_data_id_value,
     kline_term_from_data_id_value,
 )
@@ -39,7 +39,7 @@ def kline_params_from_settings(settings: Dict[str, Any]) -> Tuple[str, str]:
 def per_entity_declarations(
     settings: Dict[str, Any],
     *,
-    dcm: DataContractManager,
+    dcm: DataContracts,
 ) -> List[Dict[str, Any]]:
     """``data.required`` 中 scope=PER_ENTITY 的声明列表。"""
     out: List[Dict[str, Any]] = []
@@ -113,7 +113,7 @@ def stage_entities_batch(
 
     contract_cache = ContractCacheManager()
     contract_cache.enter_strategy_run()
-    dcm = DataContractManager(contract_cache=contract_cache)
+    dcm = DataContracts(contract_cache=contract_cache)
     declarations = per_entity_declarations(settings, dcm=dcm)
     if not declarations:
         kline_slot, term, adjust = kline_declaration_from_settings(settings)

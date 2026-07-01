@@ -6,7 +6,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional
 
-from core.modules.data_contract.contract_const import DataKey
+from core.modules.data_contract.contracts import DataKey
 from core.modules.strategy.contracts import DataContext, Opportunity, StrategyHooks
 from core.modules.strategy.core.services.data.strategy_data_config import StrategyDataConfig
 

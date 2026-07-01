@@ -54,7 +54,7 @@ class BaseTagWorker(ABC):
         self.tracker = {}
         self._extract_settings()
 
-        from core.modules.data_contract.cache import ContractCacheManager
+        from core.modules.data_contract.contracts import ContractCacheManager
         from core.modules.tag.engines.shared.data.tag_data_manager import TagDataManager
 
         if self._inject_mode:

@@ -6,7 +6,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
-from core.modules.data_contract.cache import ContractCacheManager
+from core.modules.data_contract.contracts import ContractCacheManager
 from core.modules.market_profile import get_market_profile
 from core.modules.strategy.enums import ExecutionMode
 from core.modules.strategy.engines.shared.data_classes.investment_state import (

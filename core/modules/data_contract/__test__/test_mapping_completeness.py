@@ -16,8 +16,8 @@ except ImportError:
     _pd.DataFrame = object  # type: ignore[attr-defined]
     sys.modules["pandas"] = _pd
 
-from core.modules.data_contract.contract_const import DataKey
-from core.modules.data_contract.mapping import default_map
+from core.modules.data_contract.contracts import DataKey
+from core.modules.data_contract.core.registry.mapping import default_map
 
 
 class TestMappingCompleteness(unittest.TestCase):

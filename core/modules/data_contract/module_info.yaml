@@ -1,11 +1,16 @@
 name: modules.data_contract
-version: 0.3.6
+version: 0.4.0
 compatible_core_versions: ">=0.4.1"
-description: "DataKey 白名单、DataSpec 路由、ContractIssuer 签发句柄、DataContractManager.issue 与进程内缓存、各业务 Loader 取数；支持 userspace 合并映射。"
+description: "DataKey 白名单、分层 core/ 实现、DataContracts Facade issue、进程内缓存、Loader 取数、DataCursor as-of 视图；支持 userspace 合并映射。"
 dependencies:
   - modules.data_manager
   - infra.project_context
 changelog:
+  - version: "0.4.0"
+    changes:
+      - 按 CORE_MODULE_STANDARDS 建立 core/ 五层结构（registry/issue/contract/load/cache）
+      - 新增 DataContracts Facade、contracts.py、api.yaml、glossary.yaml
+      - DataContract 新增 until/reset_view（委托 modules.data_cursor，不合并该模块）
   - version: "0.3.6"
     changes:
       - 给 base loader 加入 load_batch 方法，支持批量加载

@@ -5,10 +5,10 @@ from __future__ import annotations
 
 import unittest
 
-from core.modules.data_contract.contract_const import ContractScope, ContractType, DataKey
-from core.modules.data_contract.contracts.base import DataContract
-from core.modules.data_contract.data_class.contract_meta import ContractMeta
-from core.modules.data_cursor.data_cursor import DataCursor
+from core.modules.data_contract.contracts import ContractScope, ContractType, DataKey
+from core.modules.data_contract.contracts import DataContract
+from core.modules.data_contract.contracts import ContractMeta
+from core.modules.data_cursor import DataCursor
 from core.modules.data_manager.data_services.stock.sub_services.corporate_finance_service import (
     CorporateFinanceService,
 )

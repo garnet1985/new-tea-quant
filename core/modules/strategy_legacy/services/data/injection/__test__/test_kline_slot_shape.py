@@ -2,9 +2,9 @@
 """策略 contract 注入路径的 K 线 slot 形状（klines → 标准 OHLC）。"""
 import unittest
 
-from core.modules.data_contract.contract_const import DataKey
-from core.modules.data_contract.data_contract_manager import DataContractManager
-from core.modules.data_contract.cache import ContractCacheManager
+from core.modules.data_contract.contracts import DataKey
+from core.modules.data_contract import DataContracts
+from core.modules.data_contract.contracts import ContractCacheManager
 from core.modules.strategy.services.data.injection.service import StrategyDataInjectionService
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
@@ -17,7 +17,7 @@ _DEMO_END = "20250110"
 
 class TestKlineSlotShape(unittest.TestCase):
     def test_stock_kline_loader_returns_standard_ohlc(self):
-        dcm = DataContractManager(contract_cache=ContractCacheManager())
+        dcm = DataContracts(contract_cache=ContractCacheManager())
         contract = dcm.issue(
             DataKey.STOCK_KLINE_DAILY,
             entity_id=_DEMO_STOCK,

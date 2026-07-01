@@ -5,12 +5,12 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from core.modules.data_contract.cache import ContractCacheManager
-from core.modules.data_contract.contract_const import ContractScope, DataKey
+from core.modules.data_contract.contracts import ContractCacheManager
+from core.modules.data_contract.contracts import ContractScope, DataKey
 from core.modules.data_contract.contracts import DataContract
-from core.modules.data_contract.data_class.issue_result import IssueResult
-from core.modules.data_contract.data_contract_manager import DataContractManager
-from core.modules.data_contract.kline_keys import PRIMARY_KLINE_SLOT
+from core.modules.data_contract.contracts import IssueResult
+from core.modules.data_contract import DataContracts
+from core.modules.data_contract.contracts import PRIMARY_KLINE_SLOT
 from core.modules.data_cursor import DataCursorManager
 from core.modules.indicator import IndicatorService
 from core.utils.date.date_utils import DateUtils
@@ -72,7 +72,7 @@ class EntityContractBatch:
             contract_cache.enter_strategy_run()
 
         data_config = StrategyDataConfig(settings)
-        dcm = DataContractManager(contract_cache=contract_cache)
+        dcm = DataContracts(contract_cache=contract_cache)
         batch = cls()
         base_key = DataKey(str(data_config.normalize_base(data_config.base)["data_key"]))
 
@@ -136,7 +136,7 @@ class EntityDataLoader:
         self.global_data = dict(global_data or {})
         self._data_config = StrategyDataConfig(self.settings)
         self._contract_cache = contract_cache or ContractCacheManager()
-        self._contract_manager = DataContractManager(contract_cache=self._contract_cache)
+        self._contract_manager = DataContracts(contract_cache=self._contract_cache)
         self._rows_by_slot: Dict[str, List[Dict[str, Any]]] = {}
         self._slot_contracts: Dict[str, DataContract] = {}
         self._cursor_mgr = DataCursorManager()
@@ -345,7 +345,7 @@ class GlobalDataPreloader:
             return global_data, cls._meta(loaded_slots, skipped=[])
 
         cache = contract_cache or ContractCacheManager()
-        dcm = DataContractManager(contract_cache=cache)
+        dcm = DataContracts(contract_cache=cache)
         skipped: List[str] = []
 
         for index, raw in enumerate(required):

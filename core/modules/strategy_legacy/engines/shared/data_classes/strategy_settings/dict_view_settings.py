@@ -7,9 +7,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from core.modules.data_contract.contract_const import DataKey
+from core.modules.data_contract.contracts import DataKey
 from core.modules.market_profile.constants import DEFAULT_PROFILE_ID
-from core.modules.data_contract.kline_keys import (
+from core.modules.data_contract.contracts import (
     STOCK_KLINE_DATA_ID_VALUES,
     kline_term_from_data_id_value,
 )

@@ -1,8 +1,8 @@
 """batch_transfer round-trip."""
-from core.modules.data_contract.contract_const import ContractScope, DataKey
+from core.modules.data_contract.contracts import ContractScope, DataKey
 from core.modules.data_contract.contracts import DataContract
-from core.modules.data_contract.data_class.contract_meta import ContractMeta
-from core.modules.data_contract.data_class.issue_result import IssueResult
+from core.modules.data_contract.contracts import ContractMeta
+from core.modules.data_contract.contracts import IssueResult
 from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.batch_transfer import (
     batch_to_transfer,
     estimate_transfer_payload_bytes,

@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from core.modules.data_contract.cache import ContractCacheManager
+from core.modules.data_contract.contracts import ContractCacheManager
 from core.modules.tag.engines.shared.data.tag_data_manager import TagDataManager
 from core.modules.tag.engines.shared.staging.batch_stage import stage_entities_batch
 from core.modules.tag.engines.shared.staging.prior_values import fetch_prior_tag_values

@@ -15,7 +15,6 @@ except ImportError:
     _pd.DataFrame = object  # type: ignore[attr-defined]
     sys.modules["pandas"] = _pd
 
-from core.modules.data_contract.contracts import ContractCacheManager
 from core.modules.data_contract.contracts import ContractScope, DataKey
 from core.modules.data_contract.contracts import DataContract
 from core.modules.data_contract.contracts import ContractMeta
@@ -99,7 +98,6 @@ class TestStrategyJobContractBatch(unittest.TestCase):
             settings=settings,
             start="20200101",
             end="20201231",
-            contract_cache=ContractCacheManager(),
         )
 
         self.assertIn(DataKey.STOCK_KLINE_DAILY, batch.per_entity_results)

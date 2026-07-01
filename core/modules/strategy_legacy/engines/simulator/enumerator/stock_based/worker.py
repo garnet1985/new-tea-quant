@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional
 import logging
 import time
 
-from core.modules.data_contract.contracts import ContractCacheManager
+from core.modules.data_contract import DataContracts
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
@@ -81,7 +81,6 @@ class StockBasedEnumeratorWorker:
         job_payload: Dict[str, Any],
         *,
         stock_id: Optional[str] = None,
-        contract_cache: Optional[ContractCacheManager] = None,
         fresh_strategy_cache: bool = True,
         job_contract_batch: Optional[StrategyJobContractBatch] = None,
     ):
@@ -98,11 +97,9 @@ class StockBasedEnumeratorWorker:
         self.settings = StrategySettingsView.from_dict(job_payload["settings"])
         self.settings_dict = self.settings.to_dict()
         self.stock_info = self._load_stock_info()
-        self.contract_cache = contract_cache or ContractCacheManager()
         self.data_manager = StrategyDataInjectionService(
             stock_id=self.stock_id,
             settings=self.settings,
-            contract_cache=self.contract_cache,
             global_extra_cache=self.job_payload.get("global_extra_cache"),
         )
         self.data_manager.attach_load_profiler(self.profiler)
@@ -641,13 +638,11 @@ def run_enumeration_payload(job_payload: Dict[str, Any]) -> Dict[str, Any]:
         settings.min_required_records,
     )
 
-    shared_cache = ContractCacheManager()
     job_batch = StrategyJobContractBatch.hydrate(
         entity_ids=ids,
         settings=settings,
         start=actual_start_date,
         end=str(job_payload["end_date"]),
-        contract_cache=shared_cache,
         global_extra_cache=job_payload.get("global_extra_cache"),
         fresh_strategy_cache=True,
     )
@@ -661,7 +656,6 @@ def run_enumeration_payload(job_payload: Dict[str, Any]) -> Dict[str, Any]:
             worker = StockBasedEnumeratorWorker(
                 sub_payload,
                 stock_id=sid,
-                contract_cache=shared_cache,
                 fresh_strategy_cache=False,
                 job_contract_batch=job_batch,
             )

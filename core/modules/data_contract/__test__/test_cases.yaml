@@ -1,0 +1,96 @@
+# Data Contract unit test case registry (0.5.0).
+# Each case maps to one test file; scenarios align with test function names.
+
+cases:
+  - id: 1
+    case: facade_api
+    description: DataContracts Facade 公开 API（对齐 api.yaml 0.5.0）
+    file: test_api.py
+    scenarios:
+      - id: 1
+        name: test_init_default_cache_enabled
+        description: 默认构造 cache_enabled=True
+      - id: 2
+        name: test_info_stock_list
+        description: info(GLOBAL 非时序) scope / has_cache / supports_start_end
+      - id: 3
+        name: test_info_kline_per_entity_no_cache
+        description: info(PER_ENTITY) has_cache 恒 false；time_axis_field
+      - id: 4
+        name: test_issue_should_load_initially_false
+        description: should_load_initially=False 时 PER_ENTITY data 为空
+      - id: 5
+        name: test_issue_per_entity_cache_override_raises
+        description: PER_ENTITY 显式 use_cache → ValueError
+      - id: 6
+        name: test_load_after_issue
+        description: issue 后 Facade load(issued) 经 load_batch 填充 data
+      - id: 7
+        name: test_until_prefix
+        description: until(as_of) PIT 前缀行数
+      - id: 8
+        name: test_time_window_helpers
+        description: get_start_time / get_end_time / get_data_window
+      - id: 9
+        name: test_is_loaded_and_row_count
+        description: is_loaded 与 row_count
+
+  - id: 2
+    case: smoke
+    description: issue 句柄形态、loader 绑定与 until（不连 DB）
+    file: test_data_contract_smoke.py
+    scenarios:
+      - id: 1
+        name: test_stock_list_issue_shape
+        description: GLOBAL STOCK_LIST → NonTimeSeriesContract + StockListLoader
+      - id: 2
+        name: test_kline_qfq_issue_shape
+        description: PER_ENTITY K 线 → TimeSeriesContract + adjust/term params
+      - id: 3
+        name: test_tag_issue_shape
+        description: TAG 时序轴 as_of_date + TagLoader
+      - id: 4
+        name: test_tag_load_requires_scenario
+        description: TAG load 缺 scenario 参数 → ValueError
+      - id: 5
+        name: test_until_prefix
+        description: until 前缀与 reset=True 游标重置
+
+  - id: 3
+    case: mapping
+    description: DataKey 与 default_map 注册完整性
+    file: test_mapping_completeness.py
+    scenarios:
+      - id: 1
+        name: test_default_map_covers_all_data_keys
+        description: 每个 DataKey 枚举成员须在 default_map 有 DataSpec
+
+  - id: 4
+    case: tag_entity_type
+    description: Tag BFF entity_type 与 DataKey 映射（内部 registry）
+    file: test_tag_entity_type.py
+    scenarios:
+      - id: 1
+        name: test_resolve_tag_entity_type
+        description: 已知 DataKey → entity_type 字符串（parametrize）
+      - id: 2
+        name: test_resolve_tag_entity_type_rejects_unknown
+        description: 未映射 DataKey（如 MACRO_GDP）→ ValueError
+
+  - id: 5
+    case: contract_catalog
+    description: BFF contract catalog 分页与 summary 字段
+    file: ../core/launcher/__test__/test_contract_catalog.py
+    scenarios:
+      - id: 1
+        name: test_fetch_page_includes_core_keys
+        description: 分页列表含 STOCK_LIST 等 core keys
+      - id: 2
+        name: test_summary_fields
+        description: is_time_series / is_per_entity / origin 标签
+      - id: 3
+        name: test_summary_origin_labels
+        description: system vs userspace origin / is_custom
+      - id: 4
+        name: test_pagination
+        description: page/limit 分页不重复首条

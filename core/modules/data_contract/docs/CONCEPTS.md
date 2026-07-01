@@ -1,6 +1,6 @@
 # Data Contract 术语与概念
 
-**版本：** `0.3.3`（`IssueResult` / `load_batch`：**已实现**）
+**版本：** `0.5.0`（`IssueResult` / `load_batch` / Facade cache：**已实现**）
 
 本文档固定 **名词含义**，避免与历史草稿或外部文章混读。实现位置以仓库内代码为准。
 
@@ -16,8 +16,8 @@
 | **DataSpec / DataSpecMap** | 单个 key 的路由说明 / 全表映射（`mapping.py`）。 |
 | **DataContract** | 句柄：`meta`、`loader`、`loader_params`、`context`、可选 **`data`**（`contracts/base.py`）。**每个句柄对应一个 entity 的 payload**（PER_ENTITY）或全局 payload（GLOBAL）。 |
 | **IssueResult** | **`issue`** 的返回信封（0.3.0）：GLOBAL → **`contract`**；PER_ENTITY → **`by_entity: Mapping[str, DataContract]`**。 |
-| **issue** | **`DataContractManager.issue`**：解析映射、校验参数、经 loader 物化数据；PER_ENTITY 走 **`load_batch` 优先** 路径。 |
-| **load** | **`DataContract.load`** 或 loader **`load`**：单 entity 取数。 |
+| **issue** | **`DataContracts.issue`**（内部 `DataContractManager`）：解析映射、校验参数、可选立即 **`load`**；PER_ENTITY 走 **`load_batch` 优先** 路径。 |
+| **load** | Facade **`DataContracts.load(issued)`** 或句柄 **`DataContract.load`**：物化数据。 |
 | **load_batch** | **`BaseLoader.load_batch`**（0.3.0）：多 entity 取数，返回 **`Mapping[entity_id, raw]`**；默认实现为循环 **`load`**。 |
 | **validate_raw** | **`DataContract` / 子类**：对已取得的 **raw** 做轻量字段校验（`TimeSeriesContract` / `NonTimeSeriesContract`）；主线可在取数后显式调用，不阻塞 issue/load 默认路径。 |
 

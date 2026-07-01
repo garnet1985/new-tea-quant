@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from core.modules.data_contract.contracts import ContractCacheManager
 from core.modules.data_contract.contracts import ContractScope, DataKey
 from core.modules.data_contract.contracts import DataContract
 from core.modules.data_contract import DataContracts
@@ -26,7 +25,6 @@ class TagDataManager:
         scenario_name: str,
         settings: Dict[str, Any],
         data_mgr: "DataManager",
-        contract_cache: ContractCacheManager,
         global_extra_cache: Optional[Dict[str, List[Dict[str, Any]]]] = None,
     ) -> None:
         self.entity_id = entity_id
@@ -34,7 +32,6 @@ class TagDataManager:
         self.scenario_name = scenario_name
         self.settings = settings
         self.data_mgr = data_mgr
-        self._contract_cache = contract_cache
         self._global_extra_cache = global_extra_cache or {}
 
         self._dcf_mgr: Optional[DataContracts] = None
@@ -46,7 +43,7 @@ class TagDataManager:
 
     def _contract_manager(self) -> DataContracts:
         if self._dcf_mgr is None:
-            self._dcf_mgr = DataContracts(contract_cache=self._contract_cache)
+            self._dcf_mgr = DataContracts()
         return self._dcf_mgr
 
     def issue_contracts(
@@ -134,7 +131,7 @@ class TagDataManager:
         )
 
     def hydrate_row_slots(self, start_date: str, end_date: str) -> None:
-        self._contract_cache.enter_strategy_run()
+        DataContracts.shared_cache().enter_strategy_run()
         self._slot_contracts = {}
         self._current_data = {}
         contracts = self.issue_contracts(

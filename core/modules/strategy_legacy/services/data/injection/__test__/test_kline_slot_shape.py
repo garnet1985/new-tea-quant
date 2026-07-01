@@ -4,7 +4,6 @@ import unittest
 
 from core.modules.data_contract.contracts import DataKey
 from core.modules.data_contract import DataContracts
-from core.modules.data_contract.contracts import ContractCacheManager
 from core.modules.strategy.services.data.injection.service import StrategyDataInjectionService
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
@@ -17,7 +16,7 @@ _DEMO_END = "20250110"
 
 class TestKlineSlotShape(unittest.TestCase):
     def test_stock_kline_loader_returns_standard_ohlc(self):
-        dcm = DataContracts(contract_cache=ContractCacheManager())
+        dcm = DataContracts()
         contract = dcm.issue(
             DataKey.STOCK_KLINE_DAILY,
             entity_id=_DEMO_STOCK,
@@ -46,7 +45,6 @@ class TestKlineSlotShape(unittest.TestCase):
         svc = StrategyDataInjectionService(
             _DEMO_STOCK,
             view,
-            contract_cache=ContractCacheManager(),
         )
         svc.hydrate_row_slots(_DEMO_START, _DEMO_END, fresh_strategy_cache=True)
         klines = svc.get_klines()
@@ -78,7 +76,6 @@ class TestKlineSlotShape(unittest.TestCase):
         svc = StrategyDataInjectionService(
             _DEMO_STOCK,
             view,
-            contract_cache=ContractCacheManager(),
         )
         svc.hydrate_row_slots(_DEMO_START, "20250130", fresh_strategy_cache=True)
         loaded = svc.get_loaded_data()

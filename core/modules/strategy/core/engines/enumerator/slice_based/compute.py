@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
-from core.modules.data_contract.contracts import ContractCacheManager
 from core.modules.strategy.core.data.settings.strategy_settings import StrategySettings
 from core.modules.strategy.core.engines.enumerator.slice_based.context.data import SliceBasedDataContext
 from core.modules.strategy.core.engines.enumerator.slice_based.resolver.calendar import BacktestCalendarResolver
@@ -142,13 +141,11 @@ class SliceBasedCompute:
 
         self._ensure_universe()
 
-        shared_cache = ContractCacheManager()
         job_batch = EntityContractBatch.hydrate(
             entity_ids=self.stock_ids,
             settings=settings_dict,
             start=actual_start,
             end=self.end_date,
-            contract_cache=shared_cache,
             global_data=global_data,
             fresh_strategy_cache=True,
         )
@@ -158,7 +155,6 @@ class SliceBasedCompute:
                 stock_id=stock_id,
                 settings=settings_dict,
                 global_data=global_data,
-                contract_cache=shared_cache,
             )
             loader.load(
                 actual_start,

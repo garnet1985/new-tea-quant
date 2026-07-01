@@ -9,27 +9,67 @@ from core.modules.data_contract.core.cache import (
     ContractCacheScope,
     resolve_cache_scope,
 )
-from core.modules.data_contract.core.registry.contract_const import ContractScope, ContractType, DataKey
-from core.modules.data_contract.core.issue.issuer import ContractIssuer
-from core.modules.data_contract.core.contract.contracts import DataContract
+from core.modules.data_contract.core.contract.data_class.contract_info import ContractInfo
 from core.modules.data_contract.core.contract.data_class.issue_result import IssueResult
+from core.modules.data_contract.core.contract.contracts import DataContract
+from core.modules.data_contract.core.issue.cache_guard import reject_per_entity_cache_overrides
+from core.modules.data_contract.core.issue.issuer import ContractIssuer
+from core.modules.data_contract.core.registry.contract_const import ContractScope, ContractType, DataKey
 from core.modules.data_contract.core.registry.discovery import discover_userspace_map
 from core.modules.data_contract.core.registry.mapping import DataSpec, DataSpecMap, default_map
 
-# 非时序：无日期窗，用于 cache key 与 load 透传
 _NON_TS_LOAD_WINDOW = "__static__"
-# 时序：未传 start/end 时表示全量物化语义，用于 cache key
 _TS_FULL_RANGE_WINDOW = "__full__"
 
 
 class DataContractManager:
-    """Manager: discover/merge map；对外以 ``issue`` 为统一入口（含可缓存 GLOBAL 的物化）。详见 ``docs/DECISIONS.md``。"""
+    """内部：mapping 合并、签发、加载、GLOBAL cache。"""
 
-    def __init__(self, *, contract_cache: ContractCacheManager) -> None:
+    def __init__(
+        self,
+        *,
+        contract_cache: ContractCacheManager,
+        cache_enabled: bool = True,
+    ) -> None:
         custom_map = self._discover_custom_map()
         self.map: DataSpecMap = self._merge_map(default_map, custom_map)
         self.issuer = ContractIssuer(self.map)
         self._contract_cache = contract_cache
+        self._cache_enabled = cache_enabled
+
+    def info(self, data_key: DataKey) -> ContractInfo:
+        spec = self.map.get(data_key)
+        if not spec:
+            raise ValueError(f"未找到 data_id：{data_key.value}")
+        scope = spec.get("scope")
+        ctype = spec.get("type")
+        if scope is None or ctype is None:
+            raise ValueError(f"data_id={data_key.value} mapping 不完整")
+        cache_scope = resolve_cache_scope(spec)
+        has_cache = (
+            self._cache_enabled
+            and scope == ContractScope.GLOBAL
+            and cache_scope != ContractCacheScope.NONE
+        )
+        loader_cls = spec.get("loader")
+        loader_name = loader_cls.__name__ if isinstance(loader_cls, type) else str(loader_cls)
+        time_axis_field = spec.get("time_axis_field")
+        time_axis_format = spec.get("time_axis_format")
+        supports_start_end = ctype == ContractType.TIME_SERIES
+        return ContractInfo(
+            data_key=data_key,
+            scope=scope,
+            contract_type=ctype,
+            display_name=str(spec.get("display_name", data_key.value)),
+            loader_name=loader_name,
+            defaults=dict(spec.get("defaults", {})),
+            unique_keys=list(spec.get("unique_keys", [])),
+            has_cache=has_cache,
+            time_axis_field=time_axis_field,
+            time_axis_format=time_axis_format,
+            supports_start_end=supports_start_end,
+            cache_scope=cache_scope,
+        )
 
     def issue(
         self,
@@ -39,106 +79,117 @@ class DataContractManager:
         entity_ids: Optional[Sequence[str]] = None,
         start: Optional[str] = None,
         end: Optional[str] = None,
+        should_load_initially: bool = True,
         **override_params: Any,
     ) -> IssueResult:
-        """
-        签发 ``IssueResult``。可缓存的 GLOBAL 在命中策略下 **直接物化并写入 ``contract.data``**；
-        ``PER_ENTITY`` 返回 ``by_entity``；在具备明确 load 窗口时会通过 loader 物化各 entity 的 ``data``。
-
-        参数约定见 ``docs/DECISIONS.md``。
-        """
         spec = self.map.get(data_id)
         if not spec:
             raise ValueError(f"未找到 data_id：{data_id.value}")
+
+        reject_per_entity_cache_overrides(data_id, spec.get("scope"), override_params)
 
         normalized_entity_ids = self._normalize_entity_ids(entity_id, entity_ids)
         self._validate_issue_args(spec, normalized_entity_ids, start, end)
         eff_start, eff_end = self._effective_load_window(spec, start, end)
         scope = spec.get("scope")
 
+        issue_params = dict(override_params)
+        if start is not None and end is not None:
+            issue_params["start"] = start
+            issue_params["end"] = end
+
         if scope == ContractScope.GLOBAL:
-            contract = self._issue_global(
-                data_id,
-                spec,
-                eff_start,
-                eff_end,
-                entity_id=None,
-                override_params=override_params,
-            )
-            return IssueResult(
+            contract = self.issuer.issue(data_id, entity_id=None, **issue_params)
+            result = IssueResult(
                 data_id=data_id,
                 scope=ContractScope.GLOBAL,
                 contract=contract,
+                request_start=start,
+                request_end=end,
+                load_window_start=eff_start,
+                load_window_end=eff_end,
+            )
+        else:
+            assert normalized_entity_ids is not None
+            by_entity = {
+                eid: self.issuer.issue(data_id, entity_id=eid, **issue_params)
+                for eid in normalized_entity_ids
+            }
+            result = IssueResult(
+                data_id=data_id,
+                scope=ContractScope.PER_ENTITY,
+                by_entity=by_entity,
+                request_start=start,
+                request_end=end,
+                load_window_start=eff_start,
+                load_window_end=eff_end,
+                entity_ids=tuple(normalized_entity_ids),
             )
 
-        assert normalized_entity_ids is not None
-        by_entity = self._issue_per_entity(
-            data_id,
-            spec,
-            normalized_entity_ids,
-            eff_start,
-            eff_end,
-            override_params=override_params,
-        )
-        return IssueResult(
-            data_id=data_id,
-            scope=ContractScope.PER_ENTITY,
-            by_entity=by_entity,
-        )
+        if should_load_initially:
+            self.load(result)
+        return result
 
-    def _issue_global(
+    def load(self, issued: IssueResult) -> IssueResult:
+        spec = self.map.get(issued.data_id)
+        if spec is None:
+            raise ValueError(f"未找到 data_id：{issued.data_id.value}")
+
+        eff_start = issued.load_window_start or _NON_TS_LOAD_WINDOW
+        eff_end = issued.load_window_end or _NON_TS_LOAD_WINDOW
+
+        if issued.contract is not None:
+            self._load_global_contract(issued.contract, spec, eff_start, eff_end)
+        elif issued.by_entity is not None:
+            entity_ids = list(issued.entity_ids or tuple(issued.by_entity.keys()))
+            self._load_per_entity(dict(issued.by_entity), spec, entity_ids, eff_start, eff_end)
+        else:
+            raise ValueError(f"空的 IssueResult：data_id={issued.data_id.value}")
+
+        return issued
+
+    def _load_global_contract(
         self,
-        data_id: DataKey,
+        contract: DataContract,
         spec: DataSpec,
         eff_start: str,
         eff_end: str,
-        *,
-        entity_id: Optional[str],
-        override_params: Mapping[str, Any],
-    ) -> DataContract:
+    ) -> None:
         cache_scope = resolve_cache_scope(spec)
-        eff_entity_id = None
+        if not self._cache_enabled or cache_scope == ContractCacheScope.NONE:
+            contract.load(start=eff_start, end=eff_end)
+            return
 
-        if cache_scope == ContractCacheScope.NONE:
-            return self.issuer.issue(data_id, entity_id=eff_entity_id, **override_params)
-
+        data_id = contract.meta.data_id
         key = self._materialize_cache_key(
-            data_id, eff_start, eff_end, eff_entity_id, override_params
+            data_id,
+            eff_start,
+            eff_end,
+            None,
+            contract.loader_params,
         )
         entry = self._contract_cache.get(cache_scope, key)
         if entry is not None and entry.data is not None:
-            contract = self.issuer.issue(data_id, entity_id=eff_entity_id, **override_params)
             contract.data = self._clone_cached_payload(entry.data)
-            return contract
+            return
 
-        contract = self.issuer.issue(data_id, entity_id=eff_entity_id, **override_params)
-        data = contract.load(start=eff_start, end=eff_end)
-        to_store = self._clone_cached_payload(data)
+        contract.load(start=eff_start, end=eff_end)
+        to_store = self._clone_cached_payload(contract.data)
         self._contract_cache.put_for_scope(cache_scope, key, meta={}, data=to_store)
         contract.data = self._clone_cached_payload(to_store)
-        return contract
 
-    def _issue_per_entity(
+    def _load_per_entity(
         self,
-        data_id: DataKey,
+        by_entity: dict[str, DataContract],
         spec: DataSpec,
         entity_ids: Sequence[str],
         eff_start: str,
         eff_end: str,
-        *,
-        override_params: Mapping[str, Any],
-    ) -> dict[str, DataContract]:
-        contracts: dict[str, DataContract] = {}
-        for eid in entity_ids:
-            contracts[eid] = self.issuer.issue(data_id, entity_id=eid, **override_params)
-
-        if not self._should_materialize_per_entity(spec, eff_start, eff_end):
-            return contracts
-
-        sample = next(iter(contracts.values()))
+    ) -> None:
+        sample = next(iter(by_entity.values()))
         loader = sample.loader
         if loader is None:
-            return contracts
+            raise RuntimeError(f"data_id={sample.meta.data_id.value} 未绑定 loader，无法 load")
 
         load_params = self._loader_params_for_window(
             dict(sample.loader_params),
@@ -147,12 +198,8 @@ class DataContractManager:
             eff_end,
         )
         raw_by_entity = loader.load_batch(entity_ids, load_params, context=None)
-
-        for eid, contract in contracts.items():
-            payload = raw_by_entity.get(eid)
-            contract.data = self._clone_cached_payload(payload)
-
-        return contracts
+        for eid, contract in by_entity.items():
+            contract.data = self._clone_cached_payload(raw_by_entity.get(eid))
 
     @staticmethod
     def _normalize_entity_ids(
@@ -171,29 +218,20 @@ class DataContractManager:
         return None
 
     @staticmethod
-    def _should_materialize_per_entity(
-        spec: DataSpec,
-        eff_start: str,
-        eff_end: str,
-    ) -> bool:
-        if spec.get("type") == ContractType.NON_TIME_SERIES:
-            return True
-        return eff_start != _TS_FULL_RANGE_WINDOW and eff_end != _TS_FULL_RANGE_WINDOW
-
-    @staticmethod
     def _loader_params_for_window(
         loader_params: dict[str, Any],
         spec: DataSpec,
         eff_start: str,
         eff_end: str,
     ) -> dict[str, Any]:
+        params = dict(loader_params)
         if spec.get("type") == ContractType.NON_TIME_SERIES:
-            return loader_params
+            return params
         if eff_start == _TS_FULL_RANGE_WINDOW:
-            return loader_params
-        loader_params["start"] = eff_start
-        loader_params["end"] = eff_end
-        return loader_params
+            return params
+        params["start"] = eff_start
+        params["end"] = eff_end
+        return params
 
     def _validate_issue_args(
         self,

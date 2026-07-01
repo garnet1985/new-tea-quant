@@ -1,8 +1,8 @@
 # Data Contract：设计决策（issue / 缓存 / 参数）
 
-**版本：** `0.3.3`（决策 1–7、8–10：**已实现**；决策 11：**Strategy 枚举已实现**，Tag 旁路清理待做）
+**版本：** `0.5.0`（决策 1–7、8–10、12–13：**已实现**；决策 11 Strategy/Tag **已实现**；决策 14：**未来**）
 
-本文档记录 **对外 API 与缓存语义** 的已定决议，实现以 `DataContractManager` 与 `ContractIssuer` 为准；与泛化概念叙述冲突时，**以本文与代码为准**。
+本文档记录 **对外 API 与缓存语义** 的已定决议，实现以 **`DataContracts`** Facade 与 `DataContractManager` 为准；与泛化概念叙述冲突时，**以本文、[`api.yaml`](../api.yaml) 与代码为准**。
 
 > **0.3.0 说明：** 决策 8–11 扩展 **PER_ENTITY plural issue / load_batch**，不改变 GLOBAL singleton 语义。落地顺序见 [`ROADMAP.md`](ROADMAP.md)。
 
@@ -14,7 +14,7 @@
 Strategy、Tag 等需要统一方式获取「数据句柄」并可选命中缓存。
 
 **决策（Decision）**  
-应用层以 **`DataContractManager.issue(...)`** 为主入口，得到 **`DataContract`**。是否命中进程内缓存由 DCM 内部决定，调用方不区分缓存分支。
+应用层以 **`DataContracts.issue(...)`** 为主入口（内部 `DataContractManager`），得到 **`IssueResult`** / **`DataContract`**。是否命中进程内 **GLOBAL** 缓存由 Facade **黑盒**决定，调用方不注入 `ContractCacheManager`、不区分缓存分支。
 
 **理由（Rationale）**  
 避免重复暴露 `load_contract_data` 等多入口；缓存细节集中在 DCM。
@@ -78,10 +78,12 @@ GLOBAL 可共享数据适合预物化；按实体的大表不适合在 `issue` �
 
 **决策（Decision）**  
 
-| 典型 mapping | `issue` 返回 |
+| 典型 mapping | `issue(should_load_initially=True)` 返回 |
 | --- | --- |
-| 可缓存的 GLOBAL（非时序在 GLOBAL 层；GLOBAL 时序在 PER_STRATEGY 层） | 命中缓存或本次 loader 后 **`data` 已填充** |
-| `PER_ENTITY` 及 policy 为 `NONE` 的项 | **未物化**，`data` 为空，需 **`load(...)`** |
+| 可缓存的 **GLOBAL** | 命中 cache 或本次 loader 后 **`data` 已填充** |
+| **PER_ENTITY** | 默认 **已 load**（经 `load_batch`）；`should_load_initially=False` 时 **`data` 为空**，须 **`DataContracts.load(issued)`** |
+
+**PER_ENTITY 不参与进程内 cache**（见决策 12）。
 
 **理由（Rationale）**  
 内存与语义：只有「全局可共享」类数据在 `issue` 时即物化。
@@ -97,13 +99,13 @@ GLOBAL 可共享数据适合预物化；按实体的大表不适合在 `issue` �
 多进程与多策略 run 需要可预测的缓存边界。
 
 **决策（Decision）**  
-`ContractCacheManager` 持有 **global** / **per-strategy** 分桶；**何时** `enter_strategy_run` / `exit_strategy_run` / `clear_global` / `clear_all` 由 **应用编排**（Strategy、Tag 等）决定，**contract 包不绑定具体业务词**。
+进程内 store 由 **`DataContracts.shared_cache()`**（lazy 单例 `ContractCacheManager`）持有 **global** / **per-strategy** 分桶。**何时** `enter_strategy_run` / `exit_strategy_run` / `clear_all` 由 **应用编排**（Strategy、Tag 等）在 run 边界调用；**不可**在构造 Facade 时注入 manager。
 
 **理由（Rationale）**  
-Tag 与 Strategy 使用同一套 API，差异仅在调用时机。
+统一 API：`DataContracts()` 即可；Tag 与 Strategy 差异仅在 run 边界清理时机。
 
 **影响（Consequences）**  
-遗漏清理可能导致 per-strategy 层陈旧数据残留。
+遗漏 `exit_strategy_run` 可能导致 per-strategy 层陈旧数据；spawn 子进程 **不继承** store（跨进程仍靠 `global_data` preload）。
 
 ---
 
@@ -200,7 +202,7 @@ load 逻辑仍只写在一处（loader）；有无 batch IO 优化对 DCM 透明
 
 ## 决策 11：应用层不得绕过 contract 加载**已声明**数据
 
-**状态：** Strategy 枚举路径 **已实现**（0.3.0）；Tag `tag_batch_stage` 等待对称改造
+**状态：** Strategy / Tag **已实现**（0.5.0）
 
 **背景（Context）**  
 Tag `tag_batch_stage`、Strategy 历史 `_preloaded_klines` 等路径直调 `DataManager`，削弱「声明 → loader 自动注入」模型。同时，回测编排（股票池、日历、元数据）若强行全部 contract 化，会混淆「用户声明的数据依赖」与「引擎基础设施」。
@@ -243,5 +245,64 @@ Contract 回答的是：「策略逻辑需要哪些数据、如何自动注入 C
 
 **影响（Consequences）**  
 - Strategy：`StrategyDataInjectionService` / `StrategyJobContractBatch` 仅消费 `required_data_sources`；`_load_stock_info`、`resolve_backtest_universe` 等保持直调。  
-- Tag：见 [`ROADMAP.md`](ROADMAP.md) 步骤 4 剩余项。  
+- Tag：`tag_batch_stage` / `TagDataManager` 与 Strategy 对称。  
 - 文档与代码审查：新增 `DataKey` 时先问「是否 settings 声明项」再决定走 inject 还是 orchestrator。
+
+---
+
+## 决策 12：GLOBAL 黑盒 cache，PER_ENTITY 永不 cache
+
+**状态：** 已实现（0.5.0）
+
+**决策（Decision）**  
+
+- **`DataContracts(cache_enabled=True)`**（默认）：**GLOBAL** 按 mapping policy 使用进程内 cache；**PER_ENTITY** 内部 **不 cache**（静默，每次 loader IO）。
+- **不可注入** `ContractCacheManager`；高级场景仅通过 **`DataContracts.shared_cache()`** 做 run 边界清理。
+- 用户在 `override_params` 中显式传 `cache` / `use_cache` 等且 data_key 为 **PER_ENTITY** → **`ValueError`**。
+- **`info(data_key).has_cache`**：仅 GLOBAL 且 `cache_enabled=True` 时为 true。
+
+**理由（Rationale）**  
+PER_ENTITY 大表不适合默认进程内共享；GLOBAL 列表/宏观适合复用。调用方不应管理两套 cache API。
+
+**影响（Consequences）**  
+Strategy / Tag 删除 per-call `ContractCacheManager()`；测试可用 `cache_enabled=False` 关闭 GLOBAL cache。
+
+---
+
+## 决策 13：`issue` / `load` 拆分与 Facade `until`
+
+**状态：** 已实现（0.5.0）
+
+**决策（Decision）**  
+
+- **`issue(..., should_load_initially=True)`**（默认）：签发后立即 **`load`**。
+- **`should_load_initially=False`**：仅签发句柄；调用方 **`DataContracts.load(issued)`** 再物化。
+- PIT 前缀裁剪：**`DataContracts.until(contract, as_of)`**（委托 `modules.data_cursor`）；句柄上 **不** 暴露公开 `until()`。
+- 时间语义 helper（`get_start_time`、`get_data_window`、`row_count` 等）均在 Facade。
+
+**理由（Rationale）**  
+batch job 可先批量 `issue` 再一次 `load`；裁剪与多源 cursor 职责分离。
+
+**影响（Consequences）**  
+详见 [`api.yaml`](../api.yaml) 0.5.0。
+
+---
+
+## 决策 14：PER_ENTITY DataFrame + Parquet 缓存（未来）
+
+**状态：** 未做
+
+**背景（Context）**  
+大规模 PER_ENTITY 时序以 `List[Dict]` 持有内存压力大；同机多 run 重复 IO 仍常见。决策 12 明确 **当前** PER_ENTITY 不进进程内 cache。
+
+**决策（Decision）**  
+
+- **将来** loader / 句柄可承载 **`pandas.DataFrame`** 作为时序 payload（与 list 语义对齐）。
+- **将来** 模块内部按 **`(data_key, entity_id, load_window, params)`** 将 PER_ENTITY 片段 **Parquet 化**，供 job / run 内复用；**用户不可配置**是否启用（黑盒策略，与 GLOBAL memory cache 正交）。
+- Facade **`load` / `until` / `row_count`** 须对 DataFrame 与 list **等价**。
+
+**理由（Rationale）**  
+Parquet 适合列式时序 bulk 与调试复放；不与 GLOBAL 小对象 memory cache 混用。
+
+**影响（Consequences）**  
+落地顺序见 [`ROADMAP.md`](ROADMAP.md) 阶段 6、[`TODO.md`](../TODO.md)。

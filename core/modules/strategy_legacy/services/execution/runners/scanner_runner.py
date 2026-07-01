@@ -6,7 +6,6 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
-from core.modules.data_contract.contracts import ContractCacheManager
 from core.modules.market_profile import get_market_profile
 from core.modules.strategy.enums import ExecutionMode
 from core.modules.strategy.engines.shared.data_classes.investment_state import (
@@ -71,7 +70,6 @@ class StrategyScannerRunner:
             settings_market_profile=self.settings.market_profile,
         )
         self.market_profile = get_market_profile(profile_id)
-        self.contract_cache = ContractCacheManager()
         self.stock_info = self._load_stock_info()
         period_start = str(job_payload.get("start_date") or self.settings.start_date or "")
         period_end = str(job_payload.get("end_date") or self.settings.end_date or "")
@@ -85,7 +83,6 @@ class StrategyScannerRunner:
         self.data_manager = StrategyDataInjectionService(
             stock_id=self.stock_id,
             settings=self.settings,
-            contract_cache=self.contract_cache,
         )
         self.hook_runtime = StrategyHookRuntime.from_job_payload(
             job_payload,

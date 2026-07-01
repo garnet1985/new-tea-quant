@@ -3,10 +3,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
-from core.modules.data_contract.contracts import ContractCacheManager
-from core.modules.data_contract.contracts import ContractScope, DataKey
 from core.modules.data_contract import DataContracts
-from core.modules.data_contract.contracts import (
+from core.modules.data_contract.contracts import ContractScope, DataKey
+from core.modules.data_contract.core.registry.kline_keys import (
     is_stock_kline_data_id_value,
     kline_term_from_data_id_value,
 )
@@ -111,9 +110,8 @@ def stage_entities_batch(
     batch_start = min(starts) if starts else ""
     batch_end = max(ends) if ends else ""
 
-    contract_cache = ContractCacheManager()
-    contract_cache.enter_strategy_run()
-    dcm = DataContracts(contract_cache=contract_cache)
+    DataContracts.shared_cache().enter_strategy_run()
+    dcm = DataContracts()
     declarations = per_entity_declarations(settings, dcm=dcm)
     if not declarations:
         kline_slot, term, adjust = kline_declaration_from_settings(settings)

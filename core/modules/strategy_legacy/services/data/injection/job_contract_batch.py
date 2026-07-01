@@ -11,11 +11,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Mapping, Optional, Sequence
 
-from core.modules.data_contract.contracts import ContractCacheManager
+from core.modules.data_contract import DataContracts
 from core.modules.data_contract.contracts import ContractScope, DataKey
 from core.modules.data_contract.contracts import DataContract
 from core.modules.data_contract.contracts import IssueResult
-from core.modules.data_contract import DataContracts
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
@@ -41,7 +40,6 @@ class StrategyJobContractBatch:
         settings: StrategySettingsView,
         start: str,
         end: str,
-        contract_cache: ContractCacheManager,
         global_extra_cache: Optional[Mapping[str, Sequence[Mapping[str, object]]]] = None,
         fresh_strategy_cache: bool = False,
     ) -> StrategyJobContractBatch:
@@ -50,9 +48,9 @@ class StrategyJobContractBatch:
             raise ValueError("StrategyJobContractBatch.hydrate 需要非空 entity_ids")
 
         if fresh_strategy_cache:
-            contract_cache.enter_strategy_run()
+            DataContracts.shared_cache().enter_strategy_run()
 
-        dcm = DataContracts(contract_cache=contract_cache)
+        dcm = DataContracts()
         batch = cls()
         st = StrategySettingsView({"data": settings.data})
 

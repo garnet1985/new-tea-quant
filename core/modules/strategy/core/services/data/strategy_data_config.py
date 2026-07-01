@@ -4,7 +4,12 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 from core.modules.data_contract.contracts import DataKey
-from core.modules.data_contract.contracts import STOCK_KLINE_DATA_ID_VALUES, kline_term_from_data_id_value
+from core.modules.data_contract.core.registry.kline_keys import (
+    PRIMARY_KLINE_SLOT,
+    STOCK_KLINE_DATA_ID_VALUES,
+    is_stock_kline_data_key,
+    kline_term_from_data_id_value,
+)
 
 
 class StrategyDataConfig:
@@ -164,8 +169,6 @@ class StrategyDataConfig:
     @staticmethod
     def storage_key_for(data_key: DataKey, *, is_base: bool = False) -> str:
         """base K 线 → ``klines``；其余默认为 data_key 字符串。"""
-        from core.modules.data_contract.contracts import PRIMARY_KLINE_SLOT, is_stock_kline_data_key
-
         if is_base and is_stock_kline_data_key(data_key):
             return PRIMARY_KLINE_SLOT
         return StrategyDataConfig._STORAGE_KEY_ALIASES.get(data_key, data_key.value)

@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 import logging
 
-from core.modules.data_contract.contracts import ContractCacheManager
 from core.modules.indicator import IndicatorService
 from core.modules.market_profile import get_market_profile
 from core.modules.strategy.hooks import (
@@ -133,7 +132,6 @@ class CalendarSliceComputeEngine:
         self.backtest_calendar = BacktestCalendarContext.from_dict(
             job_payload.get("backtest_calendar")
         )
-        self.contract_cache = ContractCacheManager()
         self.profiler = PerformanceProfiler("calendar_slice")
         self._stock_infos = self._resolve_stock_infos()
         self._load_user_strategy()
@@ -205,7 +203,6 @@ class CalendarSliceComputeEngine:
                 dm = StrategyDataInjectionService(
                     stock_id=sid,
                     settings=self.settings,
-                    contract_cache=self.contract_cache,
                     global_extra_cache=self.job_payload.get("global_extra_cache"),
                 )
                 state = StockEnumState(

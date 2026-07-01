@@ -1,12 +1,12 @@
 # Data Contract 架构文档
 
-**版本：** `0.4.0`（分层 `core/` + Facade **`DataContracts`**；句柄 **`DataContract.until`** 委托 **`modules.data_cursor`**）
+**版本：** `0.5.0`（Facade **`DataContracts`**；GLOBAL 黑盒 cache；公开契约 **`api.yaml`**）
 
 ---
 
 ## 模块介绍
 
-`modules.data_contract` 将「策略/标签声明的数据依赖」收敛为 **`DataKey` → `DataSpec`** 路由，经 **注册 → 签发 → 句柄 → 装载 → 缓存** 流水线交付。**`DataContract`** 句柄在数据物化后可通过 **`until(as_of)`** 做 PIT 前缀裁剪（实现委托独立模块 **`modules.data_cursor`**，本模块不内嵌 cursor 包）。
+`modules.data_contract` 将「策略/标签声明的数据依赖」收敛为 **`DataKey` → `DataSpec`** 路由，经 **注册 → 签发 → 句柄 → 加载 → 缓存** 流水线交付。PIT 前缀裁剪由 Facade **`DataContracts.until`** 委托独立模块 **`modules.data_cursor`**。
 
 ---
 
@@ -15,14 +15,14 @@
 ```text
 modules.data_contract/
 ├── data_contract.py      # Facade: DataContracts
-├── contracts.py          # 跨模块契约 types（DataKey, DataContract, IssueResult, …）
+├── contracts.py          # 跨模块公开类型（仅类/枚举）
 ├── api.yaml / glossary.yaml / OVERVIEW.md
 ├── core/
-│   ├── registry/         # L1 路由注册
-│   ├── issue/            # L2 签发
-│   ├── contract/         # L3 句柄与信封（DataContract.until → data_cursor）
+│   ├── registry/         # L1 路由注册（含 kline_keys 等内部 helper）
+│   ├── issue/            # L2 签发与 load
+│   ├── contract/         # L3 句柄与信封
 │   ├── load/             # L4 Loader
-│   ├── cache/            # L5 进程内缓存
+│   ├── cache/            # L5 进程内 GLOBAL / per-strategy store
 │   └── launcher/         # BFF catalog
 ├── docs/
 └── __test__/
@@ -30,13 +30,14 @@ modules.data_contract/
 
 | 层 | 包 | 核心类型 | 职责 |
 | --- | --- | --- | --- |
+| **Facade** | `data_contract.py` | `DataContracts` | `info` / `issue` / `load` / `until` / 时间 helper |
 | **L1 registry** | `core/registry/` | `DataKey`, `DataSpecMap` | core + userspace 映射合并 |
-| **L2 issue** | `core/issue/` | `ContractIssuer`, `DataContractManager` | 参数校验、cache、loader 物化 |
-| **L3 contract** | `core/contract/` | `DataContract`, `IssueResult` | 句柄；**`until` / `reset_view`** 委托 data_cursor |
+| **L2 issue** | `core/issue/` | `DataContractManager`, `ContractIssuer` | 参数校验、load、GLOBAL cache |
+| **L3 contract** | `core/contract/` | `DataContract`, `IssueResult` | 句柄与返回信封 |
 | **L4 load** | `core/load/` | `BaseLoader`, … | 取数 IO；`load_batch` |
-| **L5 cache** | `core/cache/` | `ContractCacheManager` | GLOBAL / per-strategy store |
+| **L5 cache** | `core/cache/` | `ContractCacheManager` | 进程内 store（Facade 黑盒持有） |
 
-**与 data_cursor 的关系：** `modules.data_cursor` 仍为独立模块；`DataContract.until` 与多源 `DataCursor` 共用同一套前缀推进逻辑。跨模块 import cursor 类型用 **`core.modules.data_cursor`**，句柄类型用 **`contracts.py`**。
+**与 data_cursor 的关系：** `modules.data_cursor` 仍为独立模块。跨模块 import：句柄类型用 **`contracts.py`**；cursor 用 **`core.modules.data_cursor`**。
 
 ---
 
@@ -48,8 +49,8 @@ flowchart TB
     M[default_map]
     U[userspace mapping]
   end
-  subgraph L2 [L2 issue]
-    F[DataContracts.issue]
+  subgraph Facade [DataContracts]
+    F[issue / load / until]
   end
   subgraph L3 [L3 contract]
     DC[DataContract]
@@ -57,12 +58,16 @@ flowchart TB
   subgraph L4 [L4 load]
     L[BaseLoader]
   end
+  subgraph L5 [L5 cache GLOBAL only]
+    C[shared_contract_cache]
+  end
   subgraph DCUR [modules.data_cursor]
     CUR[DataCursor.until]
   end
   M --> F
   U --> F
   F --> L
+  F --> C
   F --> DC
   DC -->|until as_of| CUR
 ```
@@ -73,19 +78,22 @@ flowchart TB
 
 **职责（In scope）**
 
-- 维护映射、签发句柄、协调 cache 与 load。
-- 句柄暴露 **`until(as_of)`** 裁剪 API（委托 data_cursor）。
+- 维护映射、签发句柄、协调 **GLOBAL** cache 与 load。
+- Facade 暴露 **`until(as_of)`** 与时间窗 helper。
 
 **边界（Out of scope）**
 
-- cursor 状态机实现细节（在 **`modules.data_cursor`**）。
-- DB schema / SQL（data_manager）。
+- cursor 状态机（**`modules.data_cursor`**）。
+- DB schema / SQL（**`modules.data_manager`**）。
+- PER_ENTITY Parquet 磁盘缓存（**未来**，见 [`ROADMAP.md`](ROADMAP.md) 阶段 6）。
 
 ---
 
 ## 相关文档
 
 - [OVERVIEW.md](../OVERVIEW.md)
+- [api.yaml](../api.yaml)
 - [modules.data_cursor](../../data_cursor/README.md)
 - [DESIGN.md](DESIGN.md)
 - [DECISIONS.md](DECISIONS.md)
+- [ROADMAP.md](ROADMAP.md)

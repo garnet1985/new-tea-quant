@@ -5,12 +5,11 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from core.modules.data_contract.contracts import ContractCacheManager
+from core.modules.data_contract import DataContracts
 from core.modules.data_contract.contracts import ContractScope, DataKey
 from core.modules.data_contract.contracts import DataContract
 from core.modules.data_contract.contracts import IssueResult
-from core.modules.data_contract import DataContracts
-from core.modules.data_contract.contracts import PRIMARY_KLINE_SLOT
+from core.modules.data_contract.core.registry.kline_keys import PRIMARY_KLINE_SLOT
 from core.modules.data_cursor import DataCursorManager
 from core.modules.indicator import IndicatorService
 from core.utils.date.date_utils import DateUtils
@@ -37,7 +36,6 @@ class EntityContractBatch:
         settings: Dict[str, Any],
         start: str,
         end: str,
-        contract_cache: ContractCacheManager,
         global_data: Optional[Mapping[str, Any]] = None,
         fresh_strategy_cache: bool = False,
     ) -> EntityContractBatch:
@@ -46,7 +44,6 @@ class EntityContractBatch:
             settings=settings,
             start=start,
             end=end,
-            contract_cache=contract_cache,
             global_data=global_data,
             fresh_strategy_cache=fresh_strategy_cache,
         )
@@ -59,7 +56,6 @@ class EntityContractBatch:
         settings: Dict[str, Any],
         start: str,
         end: str,
-        contract_cache: ContractCacheManager,
         global_data: Optional[Mapping[str, Any]] = None,
         fresh_strategy_cache: bool = False,
     ) -> EntityContractBatch:
@@ -69,10 +65,10 @@ class EntityContractBatch:
             raise ValueError("EntityContractBatch.batch_load 需要非空 entity_ids")
 
         if fresh_strategy_cache:
-            contract_cache.enter_strategy_run()
+            DataContracts.shared_cache().enter_strategy_run()
 
         data_config = StrategyDataConfig(settings)
-        dcm = DataContracts(contract_cache=contract_cache)
+        dcm = DataContracts()
         batch = cls()
         base_key = DataKey(str(data_config.normalize_base(data_config.base)["data_key"]))
 
@@ -127,7 +123,6 @@ class EntityDataLoader:
         stock_id: str,
         settings: Dict[str, Any],
         global_data: Optional[Dict[str, Any]] = None,
-        contract_cache: Optional[ContractCacheManager] = None,
     ) -> None:
         self.stock_id = str(stock_id).strip()
         if not self.stock_id:
@@ -135,8 +130,7 @@ class EntityDataLoader:
         self.settings = dict(settings or {})
         self.global_data = dict(global_data or {})
         self._data_config = StrategyDataConfig(self.settings)
-        self._contract_cache = contract_cache or ContractCacheManager()
-        self._contract_manager = DataContracts(contract_cache=self._contract_cache)
+        self._contract_manager = DataContracts()
         self._rows_by_slot: Dict[str, List[Dict[str, Any]]] = {}
         self._slot_contracts: Dict[str, DataContract] = {}
         self._cursor_mgr = DataCursorManager()
@@ -167,7 +161,7 @@ class EntityDataLoader:
             self.attach_from_batch(job_batch, start_date=start_date, end_date=end_date)
             return
         if fresh_strategy_cache:
-            self._contract_cache.enter_strategy_run()
+            DataContracts.shared_cache().enter_strategy_run()
         contracts = self._issue_single_entity_contracts(start_date, end_date)
         self._apply_contracts_to_slots(contracts, start_date=start_date, end_date=end_date)
         self._apply_indicators()
@@ -333,7 +327,7 @@ class GlobalDataPreloader:
         start_date: str,
         end_date: str,
         entity_ids: List[str],
-        contract_cache: Optional[ContractCacheManager] = None,
+        fresh_strategy_cache: bool = False,
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         stock_list = [str(x).strip() for x in entity_ids if str(x).strip()]
         global_data: Dict[str, Any] = {"stock_list": stock_list}
@@ -344,8 +338,10 @@ class GlobalDataPreloader:
         if not required:
             return global_data, cls._meta(loaded_slots, skipped=[])
 
-        cache = contract_cache or ContractCacheManager()
-        dcm = DataContracts(contract_cache=cache)
+        if fresh_strategy_cache:
+            DataContracts.shared_cache().enter_strategy_run()
+
+        dcm = DataContracts()
         skipped: List[str] = []
 
         for index, raw in enumerate(required):

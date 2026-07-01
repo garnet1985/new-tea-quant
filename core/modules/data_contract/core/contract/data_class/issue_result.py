@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Mapping, Optional
+from typing import TYPE_CHECKING, Dict, Mapping, Optional
 
 from core.modules.data_contract.core.registry.contract_const import ContractScope, DataKey
-from core.modules.data_contract.core.contract.contracts import DataContract
+
+if TYPE_CHECKING:
+    from core.modules.data_contract.core.contract.contracts.base import DataContract
 
 
 @dataclass(frozen=True)
@@ -15,6 +17,11 @@ class IssueResult:
     scope: ContractScope
     contract: Optional[DataContract] = None
     by_entity: Optional[Mapping[str, DataContract]] = None
+    request_start: Optional[str] = None
+    request_end: Optional[str] = None
+    load_window_start: Optional[str] = None
+    load_window_end: Optional[str] = None
+    entity_ids: Optional[tuple[str, ...]] = None
 
     @property
     def entity_count(self) -> int:

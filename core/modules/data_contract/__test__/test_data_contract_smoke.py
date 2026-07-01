@@ -6,7 +6,6 @@ from unittest.mock import patch
 
 import pytest
 
-# 无 pandas 时注入占位模块；已安装则使用真实 pandas。
 try:
     import pandas as _pandas  # noqa: F401
 except ImportError:
@@ -16,26 +15,34 @@ except ImportError:
     _pd.DataFrame = object  # type: ignore[attr-defined]
     sys.modules["pandas"] = _pd
 
-from core.modules.data_contract.contracts import ContractCacheManager
+from core.modules.data_contract import DataContracts
 from core.modules.data_contract.contracts import ContractScope
 from core.modules.data_contract.contracts import DataKey, IssueResult
 from core.modules.data_contract.contracts import NonTimeSeriesContract, TimeSeriesContract
-from core.modules.data_contract.core.issue.manager import DataContractManager
+from core.modules.data_contract.core.cache.default_store import reset_shared_contract_cache
 from core.modules.data_contract.core.load.loaders import StockKlineLoader, StockListLoader, TagLoader
 
 
+@pytest.fixture(autouse=True)
+def _reset_cache():
+    reset_shared_contract_cache()
+    yield
+    reset_shared_contract_cache()
+
+
 @pytest.fixture
-def mgr() -> DataContractManager:
-    return DataContractManager(contract_cache=ContractCacheManager())
+def dcm() -> DataContracts:
+    return DataContracts(cache_enabled=False)
 
 
-def test_stock_list_issue_shape(mgr: DataContractManager):
-    with patch.object(mgr, "_issue_global") as issue_global:
-        fake_contract = mgr.issuer.issue(DataKey.STOCK_LIST)
-        fake_contract.data = [{"id": "600000.SH"}]
-        issue_global.return_value = fake_contract
+def test_stock_list_issue_shape(dcm: DataContracts):
+    mgr = dcm._manager
 
-        result = mgr.issue(DataKey.STOCK_LIST)
+    def _fake_load(contract, spec, eff_start, eff_end):
+        contract.data = [{"id": "600000.SH"}]
+
+    with patch.object(mgr, "_load_global_contract", side_effect=_fake_load):
+        result = dcm.issue(DataKey.STOCK_LIST)
 
     assert isinstance(result, IssueResult)
     c = result.require_contract()
@@ -46,8 +53,13 @@ def test_stock_list_issue_shape(mgr: DataContractManager):
     assert c.data == [{"id": "600000.SH"}]
 
 
-def test_kline_qfq_issue_shape(mgr: DataContractManager):
-    result = mgr.issue(DataKey.STOCK_KLINE_DAILY, entity_id="600000.SH", adjust="qfq")
+def test_kline_qfq_issue_shape(dcm: DataContracts):
+    result = dcm.issue(
+        DataKey.STOCK_KLINE_DAILY,
+        entity_id="600000.SH",
+        adjust="qfq",
+        should_load_initially=False,
+    )
     assert isinstance(result, IssueResult)
     assert result.entity_count == 1
     c = result.require_one()
@@ -60,8 +72,12 @@ def test_kline_qfq_issue_shape(mgr: DataContractManager):
     assert c.data is None
 
 
-def test_tag_issue_shape(mgr: DataContractManager):
-    result = mgr.issue(DataKey.TAG, entity_id="000001.SZ")
+def test_tag_issue_shape(dcm: DataContracts):
+    result = dcm.issue(
+        DataKey.TAG,
+        entity_id="000001.SZ",
+        should_load_initially=False,
+    )
     c = result.require_one()
     assert c.meta.data_id == DataKey.TAG
     assert isinstance(c, TimeSeriesContract)
@@ -70,29 +86,29 @@ def test_tag_issue_shape(mgr: DataContractManager):
     assert c.data is None
 
 
-def test_tag_load_requires_scenario(mgr: DataContractManager):
+def test_tag_load_requires_scenario(dcm: DataContracts):
     with pytest.raises(ValueError, match="scenario"):
-        mgr.issue(DataKey.TAG, entity_id="000001.SZ").require_one().load(
-            start="20200101", end="20201231"
-        )
+        dcm.issue(
+            DataKey.TAG,
+            entity_id="000001.SZ",
+            should_load_initially=False,
+        ).require_one().load(start="20200101", end="20201231")
 
 
-def test_contract_until_prefix(mgr: DataContractManager):
-    result = mgr.issue(DataKey.STOCK_KLINE_DAILY, entity_id="600000.SH", adjust="qfq")
+def test_until_prefix(dcm: DataContracts):
+    result = dcm.issue(
+        DataKey.STOCK_KLINE_DAILY,
+        entity_id="600000.SH",
+        adjust="qfq",
+        should_load_initially=False,
+    )
     contract = result.require_one()
     contract.data = [
         {"date": "20240101", "close": 1.0},
         {"date": "20240105", "close": 2.0},
         {"date": "20240110", "close": 3.0},
     ]
-    assert contract.until("20240104") == [{"date": "20240101", "close": 1.0}]
-    assert contract.until("20240110") == [
-        {"date": "20240101", "close": 1.0},
-        {"date": "20240105", "close": 2.0},
-        {"date": "20240110", "close": 3.0},
-    ]
-    contract.reset_view()
-    assert contract.until("20240105") == [
-        {"date": "20240101", "close": 1.0},
-        {"date": "20240105", "close": 2.0},
-    ]
+    assert len(dcm.until(contract, "20240104").rows) == 1
+    assert len(dcm.until(contract, "20240110").rows) == 3
+    dcm.until(contract, "20240105", reset=True)
+    assert len(dcm.until(contract, "20240105").rows) == 2

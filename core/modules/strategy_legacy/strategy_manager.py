@@ -9,8 +9,8 @@ from typing import Any, Dict, List, Optional
 
 from core.infra.project_context import ProjectContext
 
-from core.modules.data_contract.contracts import ContractCacheManager
 from core.modules.data_contract import DataContracts
+from core.modules.data_contract.contracts import ContractCacheManager
 from core.modules.data_manager import DataManager
 from core.modules.strategy.engines.shared.data_classes.discovered_strategy import (
     DiscoveredStrategy,
@@ -40,10 +40,7 @@ class StrategyManager:
 
     def __init__(self, is_verbose: bool = False):
         self.is_verbose = is_verbose
-        self._contract_cache = ContractCacheManager()
-        self._data_contract_manager = DataContracts(
-            contract_cache=self._contract_cache
-        )
+        self._data_contract_manager = DataContracts()
         self.data_mgr = DataManager(is_verbose=False)
         self.validated_strategies = StrategyDiscoveryHelper.discover_strategies()
 
@@ -498,7 +495,7 @@ class StrategyManager:
 
     @property
     def contract_cache(self) -> ContractCacheManager:
-        return self._contract_cache
+        return DataContracts.shared_cache()
 
     def clear_contract_cache(self) -> None:
-        self._contract_cache.clear_all()
+        DataContracts.shared_cache().clear_all()

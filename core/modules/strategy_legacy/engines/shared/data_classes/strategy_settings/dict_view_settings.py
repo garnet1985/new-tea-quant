@@ -9,7 +9,7 @@ from typing import Any, Dict, List
 
 from core.modules.data_contract.contracts import DataKey
 from core.modules.market_profile.constants import DEFAULT_PROFILE_ID
-from core.modules.data_contract.contracts import (
+from core.modules.data_contract.core.registry.kline_keys import (
     STOCK_KLINE_DATA_ID_VALUES,
     kline_term_from_data_id_value,
 )

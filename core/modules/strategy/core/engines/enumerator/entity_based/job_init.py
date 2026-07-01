@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping
 
 from core.modules.backtest_engine.contracts import JobContext
-from core.modules.data_contract.contracts import ContractCacheManager
 from core.modules.strategy.core.engines.enumerator.entity_based.execute_payload import (
     EntityBasedExecutePayload,
 )
@@ -25,7 +24,6 @@ class EntityBasedJobSession:
     global_data: Dict[str, Any]
     actual_start: str
     end_date: str
-    contract_cache: ContractCacheManager
     contract_batch: EntityContractBatch
     _loaders: Dict[str, EntityDataLoader] = field(default_factory=dict)
 
@@ -62,13 +60,11 @@ class EntityBasedJobInit:
             min_required,
         )
 
-        contract_cache = ContractCacheManager()
         contract_batch = EntityContractBatch.batch_load(
             entity_ids=entity_ids,
             settings=settings,
             start=actual_start,
             end=payload.end_date,
-            contract_cache=contract_cache,
             global_data=payload.global_data,
             fresh_strategy_cache=True,
         )
@@ -79,7 +75,6 @@ class EntityBasedJobInit:
                 stock_id=entity_id,
                 settings=settings,
                 global_data=payload.global_data,
-                contract_cache=contract_cache,
             )
             loader.attach_from_batch(
                 contract_batch,
@@ -94,7 +89,6 @@ class EntityBasedJobInit:
             global_data=dict(payload.global_data),
             actual_start=actual_start,
             end_date=payload.end_date,
-            contract_cache=contract_cache,
             contract_batch=contract_batch,
             _loaders=loaders,
         )

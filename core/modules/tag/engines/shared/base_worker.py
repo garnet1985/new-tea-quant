@@ -54,7 +54,6 @@ class BaseTagWorker(ABC):
         self.tracker = {}
         self._extract_settings()
 
-        from core.modules.data_contract.contracts import ContractCacheManager
         from core.modules.tag.engines.shared.data.tag_data_manager import TagDataManager
 
         if self._inject_mode:
@@ -70,7 +69,6 @@ class BaseTagWorker(ABC):
             scenario_name=self.scenario['name'],
             settings=self.settings,
             data_mgr=self.data_mgr,
-            contract_cache=ContractCacheManager(),
             global_extra_cache=job_payload.get("global_extra_cache") or {},
         )
         

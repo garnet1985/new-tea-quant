@@ -7,7 +7,7 @@ import logging
 import time
 from typing import Any, Dict
 
-from core.modules.data_contract.contracts import ContractCacheManager
+from core.modules.data_contract import DataContracts
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
     StrategySettingsView,
 )
@@ -41,7 +41,6 @@ def reader_lane_main(
     )
 
     bootstrap_strategy_worker_data_manager()
-    contract_cache = ContractCacheManager()
     settings = StrategySettingsView.from_dict(job_payload["settings"])
     stock_ids = [
         str(s).strip() for s in (job_payload.get("stock_ids") or []) if str(s).strip()
@@ -61,7 +60,6 @@ def reader_lane_main(
                     settings=settings,
                     start=req.load_start,
                     end=req.window_end,
-                    contract_cache=contract_cache,
                     global_extra_cache=job_payload.get("global_extra_cache"),
                     fresh_strategy_cache=False,
                 )

@@ -26,10 +26,8 @@ from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
 if TYPE_CHECKING:
     from core.modules.strategy.engines.shared.performance_profiler import PerformanceProfiler
 
-from core.modules.data_contract.contracts import ContractCacheManager
-from core.modules.data_contract.contracts import ContractScope, DataKey
-from core.modules.data_contract.contracts import DataContract
 from core.modules.data_contract import DataContracts
+from core.modules.data_contract.contracts import ContractScope, DataKey, DataContract
 from core.modules.data_cursor import DataCursorManager
 from core.modules.indicator import IndicatorService
 from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
@@ -54,13 +52,11 @@ class StrategyDataInjectionService:
         stock_id: str,
         settings: StrategySettingsView,
         *,
-        contract_cache: ContractCacheManager,
         global_extra_cache: Optional[Dict[str, List[Dict[str, Any]]]] = None,
     ) -> None:
         self.stock_id = stock_id
         self.settings = settings
         self._global_extra_cache = global_extra_cache
-        self._contract_cache = contract_cache
         self._dcf_mgr: Optional[DataContracts] = None
 
         self._current_data: Dict[str, List[Dict[str, Any]]] = {}
@@ -83,7 +79,7 @@ class StrategyDataInjectionService:
 
     def _contract_manager(self) -> DataContracts:
         if self._dcf_mgr is None:
-            self._dcf_mgr = DataContracts(contract_cache=self._contract_cache)
+            self._dcf_mgr = DataContracts()
         return self._dcf_mgr
 
     @staticmethod
@@ -129,7 +125,6 @@ class StrategyDataInjectionService:
                 settings=st,
                 start=start,
                 end=end,
-                contract_cache=self._contract_cache,
                 global_extra_cache=self._global_extra_cache,
             )
             if len(ids) == 1:
@@ -243,7 +238,7 @@ class StrategyDataInjectionService:
         fresh_strategy_cache: bool = True,
     ) -> None:
         if fresh_strategy_cache:
-            self._contract_cache.enter_strategy_run()
+            DataContracts.shared_cache().enter_strategy_run()
         contracts = self.issue_contracts(
             start=start_date,
             end=end_date,
@@ -416,7 +411,7 @@ class StrategyDataInjectionService:
         if not extras:
             return {}
 
-        dcm = DataContracts(contract_cache=ContractCacheManager())
+        dcm = DataContracts()
         out: Dict[str, List[Dict[str, Any]]] = {}
 
         for raw in extras:

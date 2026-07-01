@@ -38,13 +38,15 @@ OUTPUT_BASE = Path(__file__).resolve().parent
 # 模式 → benchmark 策略目录名
 MODE_STRATEGY_MAP = {
     "stock_based": "stock_based",
-    "calendar_sliced": "cross_sectional",
+    "slice_based": "slice_based",
+    # 旧 CLI 名；breaking 前保留一条 release
+    "calendar_sliced": "slice_based",
 }
 
-# 模式 → userspace 中的临时策略名
 MODE_TEMP_NAME = {
     "stock_based": "benchmark_stock_based",
-    "calendar_sliced": "benchmark_calendar_sliced",
+    "slice_based": "benchmark_slice_based",
+    "calendar_sliced": "benchmark_slice_based",
 }
 
 

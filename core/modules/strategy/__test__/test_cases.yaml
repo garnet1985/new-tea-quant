@@ -1,0 +1,86 @@
+# Strategy unit test case registry.
+# Each case maps to one test file; scenarios align with test function names.
+
+cases:
+  - id: 1
+    case: api
+    description: Strategy 公开 API 与 Facade 导出
+    file: test_api.py
+    scenarios:
+      - id: 1
+        name: test_facade_export
+        description: facade 导出 Strategy 类
+      - id: 2
+        name: test_scan_api
+        description: scan API 可调用且参数正确
+      - id: 3
+        name: test_enumerate_api
+        description: enumerate API 可调用且参数正确
+      - id: 4
+        name: test_analyze_api
+        description: analyze API 可调用且参数正确
+      - id: 5
+        name: test_list_strategies_api
+        description: list_strategies API 可调用
+      - id: 6
+        name: test_get_strategy_info_api
+        description: get_strategy_info API 可调用且参数正确
+
+  - id: 2
+    case: contracts
+    description: Strategy contracts 类型与枚举
+    file: test_api.py
+    scenarios:
+      - id: 1
+        name: test_execution_mode_enum
+        description: ExecutionMode 枚举定义正确
+      - id: 2
+        name: test_sell_reason_enum
+        description: SellReason 枚举定义正确
+      - id: 3
+        name: test_simulate_kind_enum
+        description: SimulateKind 枚举定义正确
+
+  - id: 4
+    case: enumeration_smoke
+    description: 阶段 A data 声明 + discover + enumerate smoke
+    file: test_enumeration_smoke.py
+    scenarios:
+      - id: 1
+        name: test_issue_declarations_base_plus_required
+        description: issue_declarations 返回 base + required
+      - id: 2
+        name: test_rejects_missing_base_when_only_legacy_key
+        description: 旧 base_required_data 不被识别
+      - id: 3
+        name: test_preload_stock_list_only_when_required_empty
+        description: required 为空时只预热 stock_list
+      - id: 4
+        name: test_discover_stock_based
+        description: devtools stock_based 可 discover 且 hooks 可加载
+      - id: 5
+        name: test_discover_slice_based
+        description: devtools slice_based 可 discover 且 execution_mode 正确
+      - id: 6
+        name: test_build_includes_open_dates
+        description: SliceBasedJobs.build 写入 open_dates
+      - id: 7
+        name: test_enumerate_devtools_stock_based_if_discovered
+        description: 可选端到端 entity_based enumerate（环境不足则 skip）
+      - id: 8
+        name: test_enumerate_slice_based_if_environment_ready
+        description: 可选端到端 slice_based enumerate（compute 骨架，环境不足则 skip）
+
+  - id: 5
+    case: slice_compute_skeleton
+    description: slice_based ComputeEngine 骨架
+    file: test_slice_compute_skeleton.py
+    scenarios:
+      - id: 1
+        name: test_open_date_year_boundaries
+        description: 开市日年度边界辅助
+      - id: 2
+        name: test_normalize_asof_result
+        description: asof 结果归一化
+
+---

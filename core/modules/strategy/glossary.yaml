@@ -1,0 +1,30 @@
+# Strategy 术语表 — 命名一致性
+
+terms:
+  Strategy: "Facade 类，对外唯一入口"
+  strategy_name: "策略名称（strategies 根目录下的相对路径）"
+  entity_based: "BacktestEngine 模式：每个 entity（或 batch）独立并行"
+  slice_based: "BacktestEngine 模式：按日历 open_dates 切片横截面枚举"
+  calendar_slice: "已废弃别名，settings 请写 slice_based"
+  namespace: "scan / enumerate / analyze / discovery API"
+  SimulateKind: "预留 simulate 类型（price_factor / capital_allocation / full）"
+  ExecutionMode: "执行模式枚举（SCAN / SIMULATE）"
+  SellReason: "卖出原因枚举"
+
+naming:
+  facade: "Strategy"
+  namespace_api: "Strategy.scan() / Strategy.enumerate() / Strategy.analyze() / Strategy.list_strategies()"
+  contracts: "ExecutionMode / SellReason / SimulateKind"
+  worker_context: "EntityBasedWorkerContext — 枚举器 entity_based 性能基线（类常量，非 yaml）"
+  data_context: "DataContext — 用户 hooks 业务数据；统一经 data.get(key) / ctx.get(key) 访问"
+  runtime_context: "RuntimeContext — 机器侧调度配置（jobs、settings_diff、performance 等）"
+  runtime_status: "RuntimeStatus — 机器侧运行状态（stage、progress、monitor 等）"
+
+scope:
+  public:
+    - Strategy facade
+    - ExecutionMode / SellReason / SimulateKind contracts
+    - api.yaml 公开 API
+  private:
+    - core/ 内部实现（正从 strategy_legacy 迁移）
+    - services/engines 内部组件

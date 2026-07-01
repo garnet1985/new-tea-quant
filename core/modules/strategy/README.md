@@ -1,22 +1,62 @@
-# 策略模块（Strategy Module）
+# Strategy Module (v0.6.0)
 
-`core/modules/strategy` 为策略运行时实现的主入口目录。
+策略执行模块。枚举入口：`Strategy.enumerate()` → `EnumeratorEngine`（薄路由）→ `entity_based` / `slice_based`。
 
-当前结构（Flow 形式组织）：
+## 三层结构
 
-- `strategy_manager.py`：顶层入口，对外提供 scan / simulate / analyze 等主流程编排
-- `engines/`：按引擎域拆分实现，核心以 **Flow** 为中心组织（而非散落的函数式入口）
-  - `scanner/`：实时扫描 Flow（针对最新一日/窗口，产出 active opportunities）
-  - `enumerator/`：机会枚举 Flow（产出 opportunities + targets，作为底层事实表/缓存层）
-  - `simulator/price_factor/`：价格因子回测 Flow（快速验证价格层 alpha）
-  - `simulator/capital_allocation/`：带资金约束回测 Flow（更接近真实交易过程）
-  - `analyzer/`：结果分析与摘要 Flow（结构化汇总与指标）
-  - `shared/`：多引擎共用的数据结构与辅助函数
-- `services/`：跨 Flow 的共享能力（发现/配置、数据读写、缓存、产物落地、校验、launcher 编排等）
+```
+core/
+├── helpers/                 # 纯工具（无业务编排、无 mode 分支）
+│   ├── statistics.py
+│   ├── calendar.py
+│   ├── opportunity_csv.py
+│   └── stock_meta.py
+│
+├── services/                # 业务服务
+│   ├── discovery/           # DiscoveryService（facade 唯一 export）
+│   ├── settings/
+│   └── data/                # 数据加载、参数/路径解析、输出持久化
+│       ├── strategy_data_config.py
+│       ├── entity_data.py
+│       ├── params_resolver.py
+│       ├── output_paths.py
+│       └── output_recorder.py
+│
+├── hooks/                   # 用户策略契约
+│   └── context/data_context.py   # DataContext（hook 数据视图）
+│
+└── engines/enumerator/      # 主逻辑（编排 + 计算）
+    ├── engine.py            # 薄路由：preprocess → mode pipeline → postprocess
+    ├── shared/              # 跨模式共享
+    │   ├── runtime.py       # RuntimeContext / RuntimeStatus / EnumeratorRuntime
+    │   ├── fingerprint.py
+    │   └── report/statistics.py
+    ├── entity_based/        # 逐股 timeline（见 entity_based/README.md）
+    └── slice_based/         # 日历切片（见 slice_based/README.md）
+```
 
-迁移说明：
+## 流程
 
-- 旧版 `strategy1` 已移除。
-- 运行时流程统一围绕已发现的 `DiscoveredStrategy`，并在各引擎域内以 Flow 组织实现。
+```
+Strategy.enumerate()
+  → services: discovery / settings / params_resolver / output_paths
+  → enumerator/engine.py
+       → shared: fingerprint + GlobalDataPreloader
+       → entity_based/pipeline  |  slice_based/pipeline
+       → shared/report + services/data/output_recorder
+```
 
-详细设计与契约见 **`docs/`** 目录。
+## Context（三种）
+
+| Context | 用户 hook | 机器 runtime | 运行状态 |
+|---------|-----------|--------------|----------|
+| 位置 | `hooks/data_context.py` | `enumerator/shared/runtime.py` + 各模式 `context/runtime.py` | 各模式 `context/status.py` |
+| 组装 | 各模式 `context/data.py` | engine 构建 RuntimeContext | pipeline 更新 RuntimeStatus |
+
+## settings.data 声明
+
+见各模式 README；字段 **`data_key`** + **`base` / `required`**（breaking，无旧字段）。
+
+---
+
+**Requires**: core>=0.5.0

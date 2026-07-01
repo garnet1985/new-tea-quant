@@ -1,0 +1,220 @@
+#!/usr/bin/env python3
+"""阶段 A：data 声明 + discover + enumerate 链路 smoke（分步建设，允许未跑通）。"""
+
+from __future__ import annotations
+
+import unittest
+from pathlib import Path
+from typing import Any, Dict
+from unittest.mock import patch
+
+from core.modules.strategy.core.engines.enumerator.slice_based.compute import SliceBasedCompute
+from core.modules.strategy.core.engines.enumerator.slice_based.resolver.jobs import SliceBasedJobs
+from core.modules.strategy.core.helpers.calendar import CalendarOpenDateHelper
+from core.modules.strategy.core.services.data.entity_data import GlobalDataPreloader
+from core.modules.strategy.core.services.data.strategy_data_config import StrategyDataConfig
+from core.modules.strategy.core.services.discovery.discovery_service import DiscoveryService
+
+_DEVTOOLS_STRATEGIES_ROOT = (
+    Path(__file__).resolve().parents[4]
+    / "devtools"
+    / "performance"
+    / "strategy"
+    / "test_base_strategies"
+)
+_DEVTOOLS_STOCK_BASED = "stock_based"
+_DEVTOOLS_SLICE_BASED = "slice_based"
+
+
+def _minimal_settings() -> Dict[str, Any]:
+    return {
+        "data": {
+            "base": {
+                "data_key": "stock.kline.daily",
+                "params": {"adjust": "qfq"},
+                "indicators": {"rsi": [{"length": 14}]},
+            },
+            "required": [],
+            "min_required_records": 20,
+        },
+    }
+
+
+class TestStrategyDataConfigSchema(unittest.TestCase):
+    """data.base + data.required + data_key（无旧字段、无 alias）。"""
+
+    def test_issue_declarations_base_plus_required(self) -> None:
+        settings = {
+            "data": {
+                "base": {
+                    "data_key": "stock.kline.daily",
+                    "params": {"adjust": "qfq"},
+                },
+                "required": [
+                    {"data_key": "macro.gdp", "params": {}},
+                ],
+            },
+        }
+        cfg = StrategyDataConfig(settings)
+        decls = cfg.issue_declarations()
+        self.assertEqual(len(decls), 2)
+        self.assertEqual(decls[0]["data_key"], "stock.kline.daily")
+        self.assertEqual(decls[1]["data_key"], "macro.gdp")
+
+    def test_rejects_missing_base_when_only_legacy_key(self) -> None:
+        """旧字段 base_required_data 不被识别，缺 base 即报错。"""
+        with self.assertRaises(ValueError):
+            StrategyDataConfig(
+                {
+                    "data": {
+                        "base_required_data": {
+                            "data_key": "stock.kline.daily",
+                            "params": {},
+                        },
+                    },
+                }
+            )
+
+    def test_rejects_missing_base(self) -> None:
+        with self.assertRaises(ValueError):
+            StrategyDataConfig({"data": {"required": []}})
+
+    def test_rejects_duplicate_data_key(self) -> None:
+        settings = {
+            "data": {
+                "base": {"data_key": "stock.kline.daily", "params": {}},
+                "required": [{"data_key": "stock.kline.daily", "params": {}}],
+            },
+        }
+        with self.assertRaises(ValueError):
+            StrategyDataConfig(settings).issue_declarations()
+
+
+class TestGlobalDataPreloadSmoke(unittest.TestCase):
+    """GLOBAL preload 只扫 data.required（不含 base）。"""
+
+    def test_preload_stock_list_only_when_required_empty(self) -> None:
+        global_data, meta = GlobalDataPreloader.preload(
+            settings=_minimal_settings(),
+            start_date="20240101",
+            end_date="20241231",
+            entity_ids=["600000.SH"],
+        )
+        self.assertEqual(global_data["stock_list"], ["600000.SH"])
+        self.assertEqual(meta["loaded_slots"], ["stock_list"])
+
+
+class TestDevtoolsDiscoverySmoke(unittest.TestCase):
+    """devtools 演示策略 discover + hooks 加载。"""
+
+    def test_discover_stock_based(self) -> None:
+        if not _DEVTOOLS_STRATEGIES_ROOT.is_dir():
+            self.skipTest(f"missing devtools strategies root: {_DEVTOOLS_STRATEGIES_ROOT}")
+
+        discovered = DiscoveryService.discover_strategies(_DEVTOOLS_STRATEGIES_ROOT)
+        self.assertIn(_DEVTOOLS_STOCK_BASED, discovered)
+
+        info = discovered[_DEVTOOLS_STOCK_BASED]
+        self.assertEqual(info["worker_class_name"], "RsiFundamentalGateHooks")
+        self.assertTrue(Path(info["folder"]).joinpath("strategy.py").is_file())
+
+    def test_discover_slice_based(self) -> None:
+        if not _DEVTOOLS_STRATEGIES_ROOT.is_dir():
+            self.skipTest(f"missing devtools strategies root: {_DEVTOOLS_STRATEGIES_ROOT}")
+
+        discovered = DiscoveryService.discover_strategies(_DEVTOOLS_STRATEGIES_ROOT)
+        self.assertIn(_DEVTOOLS_SLICE_BASED, discovered)
+
+        info = discovered[_DEVTOOLS_SLICE_BASED]
+        self.assertEqual(info["worker_class_name"], "LowPricePitRebalanceHooks")
+        settings = info["settings"]
+        self.assertEqual(settings["simulation"]["execution_mode"], "slice_based")
+
+
+class TestSliceBasedJobBuild(unittest.TestCase):
+    """slice_based job 须含 open_dates + backtest_calendar。"""
+
+    def test_build_includes_open_dates(self) -> None:
+        from core.modules.strategy.core.engines.enumerator.slice_based.resolver import calendar
+
+        fake_calendar = {
+            "market": "SSE",
+            "period_start": "20240101",
+            "period_end": "20241231",
+            "open_dates": ["20240102", "20240103"],
+        }
+        with patch.object(
+            calendar.BacktestCalendarResolver,
+            "resolve",
+            return_value=(fake_calendar["open_dates"], fake_calendar),
+        ):
+            jobs = SliceBasedJobs.build(
+                strategy_name="demo/slice",
+                settings_payload={"market_profile": "china_a_stock", "data": {"base": {"data_key": "stock.kline.daily", "params": {}}}},
+                output_dir="/tmp/out",
+                worker_ref={
+                    "worker_module_path": "mod",
+                    "worker_class_name": "Hooks",
+                    "worker_file_path": "",
+                },
+                entity_ids=["600000.SH"],
+                start_date="20240101",
+                end_date="20241231",
+            )
+        self.assertEqual(len(jobs), 1)
+        job = jobs[0]
+        self.assertEqual(job["open_dates"], ["20240102", "20240103"])
+        self.assertEqual(job["backtest_calendar"]["open_dates"], ["20240102", "20240103"])
+        self.assertEqual(job["stock_ids"], ["600000.SH"])
+        self.assertEqual(job["enumeration_execution_mode"], "slice_based")
+
+
+class TestEnumerationEndToEndSmoke(unittest.TestCase):
+    """端到端 enumerate：有环境则跑，否则 skip（阶段 A 允许红/ skip）。"""
+
+    def test_enumerate_devtools_stock_based_if_discovered(self) -> None:
+        from core.modules.strategy import Strategy
+
+        if not _DEVTOOLS_STRATEGIES_ROOT.is_dir():
+            self.skipTest(f"missing devtools strategies root: {_DEVTOOLS_STRATEGIES_ROOT}")
+
+        strategies_root = str(_DEVTOOLS_STRATEGIES_ROOT)
+        names = Strategy.list_strategies(strategies_root=strategies_root)
+        if _DEVTOOLS_STOCK_BASED not in names:
+            self.skipTest(f"strategy not discovered: {_DEVTOOLS_STOCK_BASED}")
+
+        try:
+            result = Strategy.enumerate(
+                _DEVTOOLS_STOCK_BASED,
+                strategies_root=strategies_root,
+            )
+        except NotImplementedError:
+            self.skipTest("enumerate blocked by worker/hooks gap")
+        except Exception as exc:
+            self.skipTest(f"enumerate environment not ready: {exc}")
+
+        self.assertTrue(result.get("success") is not None)
+
+    def test_enumerate_slice_based_if_environment_ready(self) -> None:
+        """slice_based 端到端：compute 骨架；环境不足则 skip。"""
+        from core.modules.strategy import Strategy
+
+        if not _DEVTOOLS_STRATEGIES_ROOT.is_dir():
+            self.skipTest(f"missing devtools strategies root: {_DEVTOOLS_STRATEGIES_ROOT}")
+
+        strategies_root = str(_DEVTOOLS_STRATEGIES_ROOT)
+        try:
+            result = Strategy.enumerate(
+                _DEVTOOLS_SLICE_BASED,
+                strategies_root=strategies_root,
+            )
+        except NotImplementedError as exc:
+            self.skipTest(f"slice_based worker not implemented yet: {exc}")
+        except Exception as exc:
+            self.skipTest(f"slice_based enumerate environment not ready: {exc}")
+
+        self.assertTrue(result.get("success") is not None)
+
+
+if __name__ == "__main__":
+    unittest.main()

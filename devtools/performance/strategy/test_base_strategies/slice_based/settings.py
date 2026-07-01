@@ -6,7 +6,7 @@ settings = {
             "与 v1 逻辑相同，但股票池为 PIT：含回测期内中途退市股票。"
             "用于对比幸存者偏差（v1）与真实可参与集合（v2）。"
         ),
-        "keywords": ["演示", "低价股", "PIT", "calendar_slice"],
+        "keywords": ["演示", "低价股", "PIT", "slice_based"],
         "details": {
             "entry": [
                 "股票池真正的所有股票（包含模拟过程中可能退市的股票）",
@@ -23,19 +23,21 @@ settings = {
         "max_close": 5.0,
         "top_n": 20,
         "cap_filter": "none",
+        "start_date": "20240101",
+        "end_date": "20241231",
     },
     "data": {
-        "base_required_data": {
-            "data_id": "stock.kline.daily",
+        "base": {
+            "data_key": "stock.kline.daily",
             "params": {"adjust": "qfq"},
             "indicators": {},
         },
-        "extra_required_data_sources": [],
+        "required": [],
         "min_required_records": 1,
     },
     "simulation": {
         "template": "custom",
-        "execution_mode": "calendar_slice",
+        "execution_mode": "slice_based",
         "monitor_price_model": "close",
         "buy_price_model": "close",
         "sell_price_model": "close",
@@ -52,6 +54,7 @@ settings = {
         "use_sampling": True,
         "strategy": "uniform",
         "sampling_amount": 500,
+        "stock_pool": ["600000.SH", "600036.SH"],
     },
     "enumerator": {"is_verbose": False},
     "fees": {

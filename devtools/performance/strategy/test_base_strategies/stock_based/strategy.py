@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RSI 超卖 + 财报基本面准入演示策略 v2。"""
+"""RSI 超卖 + 财报基本面准入演示策略（entity_based enumerate smoke）。"""
 
 from __future__ import annotations
 
@@ -7,13 +7,14 @@ import logging
 from typing import Any, Dict, Optional
 
 from core.modules.data_contract.contract_const import DataKey
-from core.modules.strategy.hooks import StrategyHooks, StrategyHookContext
-from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
-from core.modules.strategy.services.data.helper import storage_key_for
+from core.modules.strategy.core.engines.shared.data_classes import Opportunity
+from core.modules.strategy.core.hooks.base import StrategyHooks
+from core.modules.strategy.core.hooks.context import DataContext
+from core.modules.strategy.core.services.data.strategy_data_config import StrategyDataConfig
 
 logger = logging.getLogger(__name__)
 
-_FINANCE_SLOT = storage_key_for(DataKey.STOCK_CORPORATE_FINANCE)
+_FINANCE_SLOT = StrategyDataConfig.storage_key_for(DataKey.STOCK_CORPORATE_FINANCE)
 
 
 class RsiFundamentalGateHooks(StrategyHooks):
@@ -24,9 +25,9 @@ class RsiFundamentalGateHooks(StrategyHooks):
     ``DataCursor.until(signal_date)`` 保证，策略只消费 cursor 前缀的最后一行。
     """
 
-    def scan_opportunity(self, ctx: StrategyHookContext) -> Optional[Opportunity]:
-        data = ctx.scan.data if ctx.scan else {}
-        settings = ctx.settings_dict()
+    def scan_opportunity(self, ctx: DataContext) -> Optional[Opportunity]:
+        data = ctx.data.to_dict()
+        settings = ctx.effective_settings_dict()
         record_of_today = self.get_record_of_today(data)
         if record_of_today is None or not self._has_rsi_warmup(data, settings):
             return None
@@ -62,14 +63,14 @@ class RsiFundamentalGateHooks(StrategyHooks):
         )
 
     def _has_rsi_warmup(self, data: Dict[str, Any], settings: Dict[str, Any]) -> bool:
-        rsi_length = int(settings["data"]["base_required_data"]["indicators"]["rsi"][0]["length"])
+        rsi_length = int(settings["data"]["base"]["indicators"]["rsi"][0]["length"])
         klines = data.get("klines") or []
         return len(klines) >= rsi_length
 
     def _rsi_value(
         self, record_of_today: Dict[str, Any], settings: Dict[str, Any]
     ) -> Optional[float]:
-        rsi_length = int(settings["data"]["base_required_data"]["indicators"]["rsi"][0]["length"])
+        rsi_length = int(settings["data"]["base"]["indicators"]["rsi"][0]["length"])
         raw = record_of_today.get(f"rsi{rsi_length}")
         if raw is None:
             return None

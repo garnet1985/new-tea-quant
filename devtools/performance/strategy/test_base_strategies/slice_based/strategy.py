@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""v2：PIT 全市场 + 年度换仓横截面 demo。"""
+"""PIT 全市场 + 年度换仓 slice_based 演示策略。"""
 
 from __future__ import annotations
 
@@ -7,11 +7,9 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.modules.strategy.hooks import StrategyHooks, StrategyHookContext
-from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.types import (
-    CalendarAsOfResult,
-)
+from core.modules.strategy.core.engines.shared.data_classes import CalendarAsOfResult, Opportunity
+from core.modules.strategy.core.hooks.base import StrategyHooks
+from core.modules.strategy.core.hooks.context import DataContext
 
 _SHARED = Path(__file__).resolve().parents[1] / "shared"
 if str(_SHARED) not in sys.path:
@@ -23,8 +21,6 @@ from calendar_period import (  # noqa: E402
     require_rebalance_period,
 )
 from selection import (  # noqa: E402
-    INDICATORS,
-    TAGS_SLOT,
     RebalanceFilters,
     find_bar_on_date,
     passes_cap_filter,
@@ -35,29 +31,42 @@ __all__ = ["LowPricePitRebalanceHooks"]
 
 
 class LowPricePitRebalanceHooks(StrategyHooks):
-    """PIT 全市场：周期首个交易日横截面选股，末个交易日清仓。"""
+    """PIT 全市场：周期首个交易日 slice 选股，末个交易日清仓。"""
 
-    def on_calendar_asof(self, ctx: StrategyHookContext) -> CalendarAsOfResult:
+    def on_calendar_asof(self, ctx: DataContext) -> CalendarAsOfResult:
         calendar = ctx.calendar
-        if calendar is None:
-            return CalendarAsOfResult(selected_stock_ids=[])
-        settings = ctx.settings_dict()
-        carry = dict(calendar.carry or {})
+        if not calendar:
+            return CalendarAsOfResult(as_of_date=str(ctx.get("now") or ""), stocks=[])
+
+        settings = ctx.effective_settings_dict()
+        # session_state：一次 enumerate run 内跨开市日持久化的策略状态
+        session_state = dict(calendar.get("session_state") or {})
         period = require_rebalance_period(settings)
+        as_of_date = str(calendar.get("as_of_date") or ctx.get("now") or "")
 
         if is_rebalance_period_end(calendar, period):
-            carry["force_exit_open_date"] = calendar.as_of_date
-            carry.pop("period_selected", None)
-            return CalendarAsOfResult(selected_stock_ids=[], carry=carry)
+            session_state["force_exit_open_date"] = as_of_date
+            session_state.pop("period_selected", None)
+            return CalendarAsOfResult(
+                as_of_date=as_of_date,
+                stocks=[],
+                session_state=session_state,
+            )
 
         if not is_rebalance_period_start(calendar, period):
-            return CalendarAsOfResult(selected_stock_ids=[], carry=carry)
+            return CalendarAsOfResult(
+                as_of_date=as_of_date,
+                stocks=[],
+                session_state=session_state,
+            )
 
         filters = RebalanceFilters.from_settings(settings)
-        as_of_date = calendar.as_of_date
+        stocks_map = calendar.get("stocks") or {}
+        if not isinstance(stocks_map, dict):
+            stocks_map = {}
 
         candidates: List[Tuple[str, float]] = []
-        for sid, stock_data in calendar.stocks.items():
+        for sid, stock_data in stocks_map.items():
             if not isinstance(stock_data, dict):
                 continue
             sid_s = str(sid).strip()
@@ -75,8 +84,8 @@ class LowPricePitRebalanceHooks(StrategyHooks):
             if not passes_price_range(close, filters.min_close, filters.max_close):
                 continue
 
-            indicators = stock_data.get(INDICATORS) or []
-            tag_rows = stock_data.get(TAGS_SLOT) or []
+            indicators = stock_data.get("indicators") or []
+            tag_rows = stock_data.get("tags") or []
             if not passes_cap_filter(
                 filters=filters,
                 as_of_date=as_of_date,
@@ -90,13 +99,17 @@ class LowPricePitRebalanceHooks(StrategyHooks):
         candidates.sort(key=lambda item: (item[1], item[0]))
         selected = [sid for sid, _ in candidates[: filters.top_n]]
 
-        carry["period_selected"] = list(selected)
-        carry.pop("force_exit_open_date", None)
-        return CalendarAsOfResult(selected_stock_ids=selected, carry=carry)
+        session_state["period_selected"] = list(selected)
+        session_state.pop("force_exit_open_date", None)
+        return CalendarAsOfResult(
+            as_of_date=as_of_date,
+            stocks=selected,
+            session_state=session_state,
+        )
 
-    def scan_opportunity(self, ctx: StrategyHookContext) -> Optional[Opportunity]:
-        data = ctx.scan.data if ctx.scan else {}
-        settings = ctx.settings_dict()
+    def scan_opportunity(self, ctx: DataContext) -> Optional[Opportunity]:
+        data = ctx.data.to_dict()
+        settings = ctx.effective_settings_dict()
         record_of_today = self.get_record_of_today(data)
         if record_of_today is None:
             return None

@@ -26,21 +26,23 @@ settings = {
     "core": {
         "rsi_oversold_threshold": 20,
         "min_netprofit_yoy": 0.0,
+        "start_date": "20240101",
+        "end_date": "20241231",
     },
 
     # ========================================
     # 数据配置
     # ========================================
     "data": {
-        "base_required_data": {
-            "data_id": "stock.kline.daily",
+        "base": {
+            "data_key": "stock.kline.daily",
             "params": {"adjust": "qfq"},
             "indicators": {
                 "rsi": [{"length": 14}],
             },
         },
-        "extra_required_data_sources": [
-            {"data_id": "stock.finance.quarterly", "params": {}},
+        "required": [
+            {"data_key": "stock.finance.quarterly", "params": {}},
         ],
         "min_required_records": 30,
     },
@@ -79,6 +81,7 @@ settings = {
         "use_sampling": True,
         "strategy": "uniform",
         "sampling_amount": 500,
+        "stock_pool": ["600000.SH"],
     },
 
     "enumerator": {

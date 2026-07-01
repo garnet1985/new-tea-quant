@@ -7,9 +7,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from core.modules.data_contract.contract_const import DataKey
-from core.modules.strategy.core.engines.shared.data_classes import Opportunity
-from core.modules.strategy.core.hooks.base import StrategyHooks
-from core.modules.strategy.core.hooks.context import DataContext
+from core.modules.strategy.contracts import DataContext, Opportunity, StrategyHooks
 from core.modules.strategy.core.services.data.strategy_data_config import StrategyDataConfig
 
 logger = logging.getLogger(__name__)

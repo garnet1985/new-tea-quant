@@ -13,6 +13,7 @@ from core.modules.backtest_engine.core.shared.duckdb_executor_scope import (
 )
 from core.modules.backtest_engine.core.entity_based.executor import EntityExecutor
 from core.modules.backtest_engine.core.entity_based.planner import DispatchPlan, JobBatch
+from core.modules.backtest_engine.core.shared.types import JobInitFn, JobReleaseFn
 
 
 class EntityExecutorDuckDB(EntityExecutor):
@@ -26,6 +27,8 @@ class EntityExecutorDuckDB(EntityExecutor):
         execute_fn: EntityExecutor.ExecuteFn,
         on_result: Optional[EntityExecutor.OnResultHook] = None,
         on_release: Optional[EntityExecutor.OnReleaseHook] = None,
+        on_job_init: Optional[JobInitFn] = None,
+        on_job_release: Optional[JobReleaseFn] = None,
         log_label: str = "执行",
         *,
         data_mgr: Optional[Any] = None,
@@ -45,6 +48,8 @@ class EntityExecutorDuckDB(EntityExecutor):
             execute_fn=execute_fn,
             on_result=on_result,
             on_release=on_release,
+            on_job_init=on_job_init,
+            on_job_release=on_job_release,
             log_label=log_label,
             admission_limit=admission_limit,
             get_admission_limit=get_admission_limit,

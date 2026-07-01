@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple, Callable
 
 from core.infra.machine_capacity import MachineCapacity, MachineInfo
 from core.modules.backtest_engine.core.shared.base_planner import BasePlanner
-from core.modules.backtest_engine.core.shared.types import JobContext
+from core.modules.backtest_engine.core.shared.types import JobContext, JobInitFn, JobReleaseFn
 from core.modules.backtest_engine.core.entity_based.probe import (
     Probe,
     ProbeResult,
@@ -66,6 +66,8 @@ class EntityPlanner(BasePlanner):
         performance: Dict[str, Any],
         *,
         execute_fn: Optional[Callable[[JobContext], Dict[str, Any]]] = None,
+        on_job_init: Optional[JobInitFn] = None,
+        on_job_release: Optional[JobReleaseFn] = None,
         executor: Optional[str] = None,
         log_label: str = "调度",
     ) -> Tuple[DispatchPlan, List[JobBatch], EntityMonitorConfig]:
@@ -90,7 +92,13 @@ class EntityPlanner(BasePlanner):
         """
         capacity = cls._get_machine_capacity(performance)
         probe_result = cls._dispatch_probe(
-            jobs, capacity, performance, execute_fn, log_label
+            jobs,
+            capacity,
+            performance,
+            execute_fn,
+            on_job_init,
+            on_job_release,
+            log_label,
         )
         plan = cls._settle_plan(
             jobs, capacity, probe_result, performance, log_label
@@ -121,6 +129,8 @@ class EntityPlanner(BasePlanner):
         capacity: MachineCapacity,
         performance: Dict[str, Any],
         execute_fn: Optional[Callable[[JobContext], Dict[str, Any]]],
+        on_job_init: Optional[JobInitFn],
+        on_job_release: Optional[JobReleaseFn],
         log_label: str,
     ) -> ProbeResult:
         """
@@ -165,7 +175,9 @@ class EntityPlanner(BasePlanner):
             probe_jobs,
             performance,
             execute_fn,
-            log_label,
+            on_job_init=on_job_init,
+            on_job_release=on_job_release,
+            log_label=log_label,
         )
     
     @staticmethod

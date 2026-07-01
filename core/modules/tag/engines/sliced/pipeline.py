@@ -5,10 +5,10 @@ import logging
 from typing import Any, Dict, List
 
 from core.modules.market_profile.constants import DEFAULT_PROFILE_ID
-from core.modules.strategy.engines.shared.helpers.backtest_calendar_context import (
+from core.modules.strategy_legacy.engines.shared.helpers.backtest_calendar_context import (
     build_backtest_calendar_context,
 )
-from core.modules.strategy.engines.shared.helpers.backtest_date_resolve import (
+from core.modules.strategy_legacy.engines.shared.helpers.backtest_date_resolve import (
     BacktestDateRange,
 )
 from core.modules.tag.engines.shared.global_cache import build_global_extra_cache

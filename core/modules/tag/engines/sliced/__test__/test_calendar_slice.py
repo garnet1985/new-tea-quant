@@ -12,7 +12,7 @@ from core.modules.tag.engines.sliced.slice_job import build_tag_calendar_slice_j
 from core.modules.tag.enums import TagExecutionMode, TagUpdateMode
 from core.modules.tag.models.scenario_model import ScenarioModel
 from core.modules.tag.settings.normalize import normalize_tag_settings
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.messages import (
+from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.runtime.messages import (
     SlicePayload,
 )
 

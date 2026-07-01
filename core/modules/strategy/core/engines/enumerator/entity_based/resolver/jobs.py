@@ -4,10 +4,13 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 
+from core.modules.backtest_engine.core.shared.modes import BacktestMode
+
+
 class EntityBasedJobs:
     """为 BacktestEngine entity_based 模式组装 strategy 侧 jobs。"""
 
-    EXECUTION_MODE = "entity_based"
+    EXECUTION_MODE = BacktestMode.ENTITY_BASED.value
 
     @classmethod
     def build(

@@ -3,10 +3,12 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, TypeVar
 
 from core.modules.strategy.core.data.settings.strategy_settings import StrategySettings
 from core.modules.strategy.core.engines.shared.data_classes.opportunity import Opportunity
+
+_ContextT = TypeVar("_ContextT", bound="DataContext")
 
 
 class _HookDataStore:
@@ -40,6 +42,10 @@ class _HookDataStore:
 class DataContext:
     """用户 hooks 唯一需要的 context。
 
+    生命周期：
+    - ``assemble``：0→1，建立结构（我是谁、配置、跨日 extra），不含当日 now/data。
+    - ``fill``：1→1，在已有结构上填入当日 now/data 等，生成 hook 快照。
+
     数据访问：``ctx.data.get("stock_list")``、``ctx.get("now")`` 等。
     不含 job_payload、data_manager、进度、profiler 等运行时内部对象。
     """
@@ -70,29 +76,56 @@ class DataContext:
         stock_list: List[str],
         entity_id: Optional[str] = None,
         entity_info: Optional[Dict[str, Any]] = None,
-        now: Optional[str] = None,
-        data: Optional[Dict[str, Any]] = None,
         extra: Optional[Dict[str, Any]] = None,
-        opportunity: Optional[Opportunity] = None,
-        calendar: Optional[Dict[str, Any]] = None,
-    ) -> DataContext:
-        """worker / engine 组装 hook context（原 factory 职责）。"""
+    ) -> _ContextT:
+        """0→1：建立 hook context 结构，不含当日 now/data。"""
         store: Dict[str, Any] = {"stock_list": list(stock_list)}
-        if now is not None:
-            store["now"] = now
-        if data:
-            store.update(data)
-
-        hook_data = _HookDataStore(store)
         return cls(
             strategy_name=strategy_name,
             settings=settings,
-            data=hook_data,
+            data=_HookDataStore(store),
             entity_id=entity_id,
             entity_info=dict(entity_info or {}),
             extra=dict(extra) if extra is not None else {},
+        )
+
+    @classmethod
+    def fill(
+        cls,
+        base: DataContext,
+        *,
+        now: str,
+        data: Optional[Dict[str, Any]] = None,
+        calendar: Optional[Dict[str, Any]] = None,
+        opportunity: Optional[Opportunity] = None,
+        entity_id: Optional[str] = None,
+        entity_info: Optional[Dict[str, Any]] = None,
+    ) -> _ContextT:
+        """1→1：在已 assemble 的 base 上填入当日视图，生成 hook 快照。"""
+        if base is None:
+            raise ValueError("DataContext.fill 要求非空 base（须先 assemble）")
+        if not isinstance(base, cls):
+            raise ValueError(
+                f"DataContext.fill 要求 base 与 {cls.__name__} 同类，"
+                f"实际 {type(base).__name__}"
+            )
+        stock_list = base.get("stock_list")
+        if not isinstance(stock_list, list):
+            raise ValueError("DataContext.fill 要求 base 已通过 assemble 建立（含 stock_list）")
+
+        store: Dict[str, Any] = {"stock_list": list(stock_list), "now": now}
+        if data:
+            store.update(data)
+
+        return cls(
+            strategy_name=base.strategy_name,
+            settings=base.settings,
+            data=_HookDataStore(store),
+            entity_id=entity_id if entity_id is not None else base.entity_id,
+            entity_info=dict(entity_info) if entity_info is not None else base.entity_info,
+            extra=base.extra,
             opportunity=opportunity,
-            calendar=dict(calendar or {}),
+            calendar=dict(calendar) if calendar is not None else {},
         )
 
 

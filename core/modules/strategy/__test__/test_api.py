@@ -59,10 +59,25 @@ class TestContracts(unittest.TestCase):
         # TODO: 实现测试逻辑
         pass
 
-    def test_simulate_kind_enum(self):
+    def test_simulate_kind_enum(self) -> None:
         """SimulateKind 枚举定义正确"""
-        # TODO: 实现测试逻辑
-        pass
+        from core.modules.strategy.contracts import SimulateKind
+
+        self.assertEqual(SimulateKind.ENUMERATE.value, "enumerate")
+
+    def test_hook_types_exported_from_contracts(self) -> None:
+        """hooks 契约与数据类型均从 contracts 公开"""
+        from core.modules.strategy import DataContext, StrategyHooks
+        from core.modules.strategy.contracts import CalendarAsOfContext, CalendarAsOfResult, Opportunity
+
+        self.assertTrue(issubclass(StrategyHooks, object))
+        self.assertEqual(DataContext.__name__, "DataContext")
+        opp = Opportunity(stock={}, record_of_today={"close": 1.0})
+        self.assertEqual(opp.trigger_price, 0.0)
+        result = CalendarAsOfResult(as_of_date="20240102", stocks=[])
+        self.assertEqual(result.session_state, {})
+        ctx = CalendarAsOfContext(as_of_date="20240102")
+        self.assertEqual(ctx.as_of_date, "20240102")
 
 
 class TestIntegration(unittest.TestCase):

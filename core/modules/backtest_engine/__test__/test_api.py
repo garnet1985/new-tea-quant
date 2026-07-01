@@ -105,6 +105,34 @@ def test_slice_based_empty_jobs_returns_success() -> None:
     assert result.total_jobs == 0
 
 
+def test_run_callbacks_forward_on_job_init_and_release() -> None:
+    phases: list[str] = []
+
+    def on_job_init(context: JobContext) -> str:
+        phases.append("init")
+        return "session"
+
+    def on_job_release(context: JobContext) -> None:
+        phases.append("release")
+        assert context.init == "session"
+
+    def execute(context: JobContext) -> dict:
+        phases.append("execute")
+        assert context.init == "session"
+        return {"success": True}
+
+    from core.modules.backtest_engine.core.shared.job_lifecycle import run_job_lifecycle
+
+    ctx = JobContext(job_id="j1", payload={"entity_id": "000001.SZ"})
+    run_job_lifecycle(
+        execute,
+        ctx,
+        on_job_init=on_job_init,
+        on_job_release=on_job_release,
+    )
+    assert phases == ["init", "execute", "release"]
+
+
 def test_run_callbacks_forward_on_result() -> None:
     seen: list[str] = []
 

@@ -41,9 +41,32 @@ class EntityContractBatch:
         global_data: Optional[Mapping[str, Any]] = None,
         fresh_strategy_cache: bool = False,
     ) -> EntityContractBatch:
+        return cls.batch_load(
+            entity_ids=entity_ids,
+            settings=settings,
+            start=start,
+            end=end,
+            contract_cache=contract_cache,
+            global_data=global_data,
+            fresh_strategy_cache=fresh_strategy_cache,
+        )
+
+    @classmethod
+    def batch_load(
+        cls,
+        *,
+        entity_ids: Sequence[str],
+        settings: Dict[str, Any],
+        start: str,
+        end: str,
+        contract_cache: ContractCacheManager,
+        global_data: Optional[Mapping[str, Any]] = None,
+        fresh_strategy_cache: bool = False,
+    ) -> EntityContractBatch:
+        """批量装载：一次 IO 读本 job 内全部 entity 的 contract 数据。"""
         ids = [str(x).strip() for x in entity_ids if str(x).strip()]
         if not ids:
-            raise ValueError("EntityContractBatch.hydrate 需要非空 entity_ids")
+            raise ValueError("EntityContractBatch.batch_load 需要非空 entity_ids")
 
         if fresh_strategy_cache:
             contract_cache.enter_strategy_run()
@@ -141,12 +164,24 @@ class EntityDataLoader:
         fresh_strategy_cache: bool = True,
     ) -> None:
         if job_batch is not None:
-            contracts = job_batch.contracts_for_entity(self.stock_id)
-        else:
-            if fresh_strategy_cache:
-                self._contract_cache.enter_strategy_run()
-            contracts = self._issue_single_entity_contracts(start_date, end_date)
+            self.attach_from_batch(job_batch, start_date=start_date, end_date=end_date)
+            return
+        if fresh_strategy_cache:
+            self._contract_cache.enter_strategy_run()
+        contracts = self._issue_single_entity_contracts(start_date, end_date)
+        self._apply_contracts_to_slots(contracts, start_date=start_date, end_date=end_date)
+        self._apply_indicators()
+        self._rebuild_cursor()
 
+    def attach_from_batch(
+        self,
+        job_batch: EntityContractBatch,
+        *,
+        start_date: str,
+        end_date: str,
+    ) -> None:
+        """从 job init 批量装载结果挂接数据并建 cursor（不再单独打 DB）。"""
+        contracts = job_batch.contracts_for_entity(self.stock_id)
         self._apply_contracts_to_slots(contracts, start_date=start_date, end_date=end_date)
         self._apply_indicators()
         self._rebuild_cursor()

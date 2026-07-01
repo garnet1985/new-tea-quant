@@ -14,12 +14,15 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 from core.modules.backtest_engine.core.shared.context import ExecutionContext
+from core.modules.backtest_engine.core.shared.job_lifecycle import run_job_lifecycle
 from core.modules.backtest_engine.core.shared.types import (
     ExecuteFn,
     Job,
     JobContext,
     JobFailure,
     JobFailurePhase,
+    JobInitFn,
+    JobReleaseFn,
     JobReport,
     RunProgress,
 )
@@ -65,6 +68,8 @@ class EntityExecutor:
         execute_fn: ExecuteFn,
         on_result: Optional[EntityExecutor.OnResultHook] = None,
         on_release: Optional[EntityExecutor.OnReleaseHook] = None,
+        on_job_init: Optional[JobInitFn] = None,
+        on_job_release: Optional[JobReleaseFn] = None,
         log_label: str = "执行",
         admission_limit: Optional[int] = None,
         get_admission_limit: Optional[Callable[[], int]] = None,
@@ -126,6 +131,8 @@ class EntityExecutor:
                             EntityExecutor._invoke_worker,
                             execute_fn,
                             job_context,
+                            on_job_init,
+                            on_job_release,
                         )
                         futures[future] = job
 
@@ -176,8 +183,10 @@ class EntityExecutor:
     def _invoke_worker(
         execute_fn: ExecuteFn,
         job_context: JobContext,
+        on_job_init: Optional[JobInitFn] = None,
+        on_job_release: Optional[JobReleaseFn] = None,
     ) -> Dict[str, Any]:
-        """Process-pool entry: run caller execute_fn and attach metrics."""
+        """Process-pool entry: init → execute_fn → release。"""
         if mp.current_process().name != "MainProcess":
             try:
                 from core.infra.db import DatabaseManager
@@ -189,7 +198,12 @@ class EntityExecutor:
         rss_before_mb = EntityExecutor._process_rss_mb()
         t0 = time.perf_counter()
         try:
-            raw = execute_fn(job_context)
+            raw = run_job_lifecycle(
+                execute_fn,
+                job_context,
+                on_job_init=on_job_init,
+                on_job_release=on_job_release,
+            )
         except Exception as exc:
             wall_sec = time.perf_counter() - t0
             rss_after_mb = EntityExecutor._process_rss_mb()

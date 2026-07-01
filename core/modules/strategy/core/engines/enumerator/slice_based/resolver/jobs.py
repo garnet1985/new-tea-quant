@@ -3,13 +3,15 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
+from core.modules.backtest_engine.core.shared.modes import BacktestMode
+
 from .calendar import BacktestCalendarResolver
 
 
 class SliceBasedJobs:
     """slice_based 调度输入（单 bulk job）。"""
 
-    EXECUTION_MODE = "slice_based"
+    EXECUTION_MODE = BacktestMode.SLICE_BASED.value
 
     @classmethod
     def build(

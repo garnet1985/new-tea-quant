@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from core.modules.strategy.engines.simulator.enumerator.stock_based.worker import (
+from core.modules.strategy_legacy.engines.simulator.enumerator.stock_based.worker import (
     enumeration_actual_start_date,
 )
 

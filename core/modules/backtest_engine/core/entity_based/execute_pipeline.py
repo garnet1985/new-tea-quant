@@ -9,7 +9,12 @@ from core.modules.backtest_engine.core.shared.context import ExecutionContext
 from core.infra.machine_capacity import MachineInfo
 from core.modules.backtest_engine.core.shared.modes import BacktestMode
 from core.modules.backtest_engine.core.shared.progress import RunPhase, RunProgressReporter
-from core.modules.backtest_engine.core.shared.types import JobReport, RunProgress
+from core.modules.backtest_engine.core.shared.types import (
+    JobInitFn,
+    JobReleaseFn,
+    JobReport,
+    RunProgress,
+)
 from core.modules.backtest_engine.core.entity_based.executor import EntityExecutor
 from core.modules.backtest_engine.core.entity_based.executor_duckdb import (
     EntityExecutorDuckDB,
@@ -57,6 +62,8 @@ class EntityExecutePipeline:
         task_name: str = "",
         on_result: Optional[EntityExecutor.OnResultHook] = None,
         on_release: Optional[EntityExecutor.OnReleaseHook] = None,
+        on_job_init: Optional[JobInitFn] = None,
+        on_job_release: Optional[JobReleaseFn] = None,
         enable_progress_display: bool = True,
     ) -> EntityExecutePipeline.Result:
         label = task_name or self._log_label
@@ -71,7 +78,13 @@ class EntityExecutePipeline:
             BacktestJob.validate_many(jobs, mode=BacktestMode.ENTITY_BASED)
 
         progress.mark_phase(RunPhase.PLAN)
-        plan, batches, monitor_config = self._plan(jobs, performance, execute_fn)
+        plan, batches, monitor_config = self._plan(
+            jobs,
+            performance,
+            execute_fn,
+            on_job_init=on_job_init,
+            on_job_release=on_job_release,
+        )
         progress.set_execute_total(len(batches))
 
         capacity = MachineInfo.get_capacity(performance)
@@ -112,6 +125,8 @@ class EntityExecutePipeline:
             execute_fn,
             on_result=monitored_on_result,
             on_release=on_release,
+            on_job_init=on_job_init,
+            on_job_release=on_job_release,
             log_label=self._log_label,
             get_admission_limit=lambda: monitor.admission_limit,
             duckdb_process_pool_scope=str(
@@ -137,11 +152,16 @@ class EntityExecutePipeline:
         jobs: List[Dict[str, Any]],
         performance: Dict[str, Any],
         execute_fn: EntityExecutor.ExecuteFn,
+        *,
+        on_job_init: Optional[JobInitFn] = None,
+        on_job_release: Optional[JobReleaseFn] = None,
     ) -> tuple[DispatchPlan, List[JobBatch], EntityMonitorConfig]:
         return EntityPlanner.plan_jobs(
             jobs,
             performance,
             execute_fn=execute_fn,
+            on_job_init=on_job_init,
+            on_job_release=on_job_release,
             log_label=self._log_label,
         )
 

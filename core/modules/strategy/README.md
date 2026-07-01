@@ -53,6 +53,27 @@ Strategy.enumerate()
 | 位置 | `hooks/data_context.py` | `enumerator/shared/runtime.py` + 各模式 `context/runtime.py` | 各模式 `context/status.py` |
 | 组装 | 各模式 `context/data.py` | engine 构建 RuntimeContext | pipeline 更新 RuntimeStatus |
 
+## 用户策略 import（公开面）
+
+策略作者与 extensions **只**从以下路径 import，勿使用 `core.engines.*` 内部路径：
+
+```python
+from core.modules.strategy.contracts import (
+    CalendarAsOfResult,
+    DataContext,
+    Opportunity,
+    StrategyHooks,
+)
+```
+
+`CalendarAsOfContext` 等同理；`Strategy` facade 亦可在包根 import：
+
+```python
+from core.modules.strategy import DataContext, Opportunity, Strategy, StrategyHooks
+```
+
+`core.hooks.*` 为模块内部路径，用户策略勿直接 import。
+
 ## settings.data 声明
 
 见各模式 README；字段 **`data_key`** + **`base` / `required`**（breaking，无旧字段）。

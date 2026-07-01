@@ -1,4 +1,4 @@
-"""slice_based 枚举 worker（子进程 / orchestrator 执行体）。"""
+"""slice_based 枚举 worker：BacktestEngine execute_fn 入口。"""
 from __future__ import annotations
 
 import logging
@@ -12,15 +12,11 @@ logger = logging.getLogger(__name__)
 
 
 class SliceBasedWorker:
-    """slice_based 模式执行体。"""
+    """BacktestEngine 调用的 execute_fn：只做 payload 解析 + 策略计算。"""
 
     @classmethod
     def run(cls, context: JobContext) -> Dict[str, Any]:
         payload = cls.build_payload(dict(context.payload or {}))
-
-        if payload.get("_slice_probe"):
-            return cls._slice_probe_stub(payload)
-
         try:
             return SliceBasedCompute(payload).run()
         except Exception as exc:
@@ -34,28 +30,6 @@ class SliceBasedWorker:
             }
 
     @classmethod
-    def _slice_probe_stub(cls, payload: Dict[str, Any]) -> Dict[str, Any]:
-        _ = payload
-        return {
-            "success": True,
-            "bulk": True,
-            "stock_results": [],
-            "performance_metrics": {
-                "calendar_slice_runtime_plan": {
-                    "baseline_rss_mb": 128.0,
-                    "slice_samples": [
-                        {
-                            "payload_mb": 8.0,
-                            "load_sec": 0.15,
-                            "compute_sec": 0.25,
-                            "rss_after_mb": 160.0,
-                        },
-                    ],
-                },
-            },
-        }
-
-    @classmethod
     def build_payload(
         cls,
         job: Dict[str, Any],
@@ -65,6 +39,7 @@ class SliceBasedWorker:
             job = {**job, "global_data": global_data}
 
         required = (
+            "job_id",
             "strategy_name",
             "settings",
             "start_date",
@@ -72,12 +47,18 @@ class SliceBasedWorker:
             "output_dir",
             "stock_ids",
             "backtest_calendar",
+            "global_data",
             "worker_module_path",
             "worker_class_name",
+            "enumeration_execution_mode",
         )
         for key in required:
             if key not in job:
                 raise ValueError(f"slice_based job 缺少字段: {key}")
+
+        global_data = job["global_data"]
+        if not isinstance(global_data, dict):
+            raise ValueError("slice_based job.global_data 须为 dict")
 
         stock_ids = job["stock_ids"]
         if not isinstance(stock_ids, list) or not stock_ids:
@@ -94,7 +75,7 @@ class SliceBasedWorker:
             "start_date": job["start_date"],
             "end_date": job["end_date"],
             "output_dir": job["output_dir"],
-            "global_data": job["global_data"],
+            "global_data": global_data,
             "stock_ids": list(stock_ids),
             "backtest_calendar": dict(calendar),
             "worker_module_path": job["worker_module_path"],

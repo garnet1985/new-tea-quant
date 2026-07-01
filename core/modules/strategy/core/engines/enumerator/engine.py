@@ -10,11 +10,15 @@ from core.modules.strategy.core.services.data.entity_data import GlobalDataPrelo
 from core.modules.strategy.core.services.data.output_recorder import EnumeratorOutputRecorder
 from core.modules.strategy.core.services.settings.settings_merge import StrategySettingsMerge
 
+from .entity_based.context.runtime import EntityBasedRuntimeContext
+from .entity_based.context.status import EntityBasedRuntimeStatus
 from .entity_based.pipeline import EntityBasedJobPipeline, EntityBasedWorkerContext
 from .entity_based.resolver.jobs import EntityBasedJobs
 from .shared.fingerprint import EnumeratorExecutionMode, EnumeratorFingerprint
 from .shared.report.statistics import EnumeratorReportStatistics
-from .shared.runtime import EnumeratorRuntime, RuntimeContext, RuntimeStatus
+from .shared.runtime import EnumeratorRuntime
+from .slice_based.context.runtime import SliceBasedRuntimeContext
+from .slice_based.context.status import SliceBasedRuntimeStatus
 from .slice_based.pipeline import SliceBasedJobPipeline, SliceBasedWorkerContext
 from .slice_based.resolver.jobs import SliceBasedJobs
 
@@ -145,7 +149,14 @@ class EnumeratorEngine:
             worker_ref=worker_ref,
         )
 
-        context = RuntimeContext(
+        if execution_mode == EnumeratorExecutionMode.SLICE_BASED:
+            context_cls = SliceBasedRuntimeContext
+            status_cls = SliceBasedRuntimeStatus
+        else:
+            context_cls = EntityBasedRuntimeContext
+            status_cls = EntityBasedRuntimeStatus
+
+        context = context_cls(
             strategy_name=self.strategy_name,
             execution_mode=execution_mode,
             start_date=self.start_date,
@@ -163,7 +174,7 @@ class EnumeratorEngine:
             run_name=f"enum_{self.strategy_name}",
             performance=self._performance_for_mode(execution_mode),
         )
-        return EnumeratorRuntime(context=context, status=RuntimeStatus(stage="preprocess"))
+        return EnumeratorRuntime(context=context, status=status_cls(stage="preprocess"))
 
     def _build_jobs(
         self,
@@ -252,15 +263,21 @@ class EnumeratorEngine:
                 if not isinstance(row, dict):
                     continue
                 stock_id = str(row.get("stock_id") or "").strip()
-                opportunities = row.get("opportunities") or []
-                if stock_id:
-                    yield stock_id, opportunities
+                if not stock_id:
+                    continue
+                opportunities = row.get("opportunities")
+                if not isinstance(opportunities, list):
+                    raise ValueError(f"job_result.stock_results[{stock_id!r}] 缺少 opportunities list")
+                yield stock_id, opportunities
             return
 
-        stock_id = str(result_payload.get("stock_id") or job_result.job_id or "").strip()
-        opportunities = result_payload.get("opportunities") or []
-        if stock_id:
-            yield stock_id, opportunities
+        stock_id = str(result_payload.get("stock_id") or "").strip()
+        if not stock_id:
+            raise ValueError("entity_based job_result 缺少 stock_id")
+        opportunities = result_payload.get("opportunities")
+        if not isinstance(opportunities, list):
+            raise ValueError(f"job_result[{stock_id}] 缺少 opportunities list")
+        yield stock_id, opportunities
 
 
 __all__ = ["EnumeratorEngine"]

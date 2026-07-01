@@ -14,8 +14,8 @@ class TestOpportunityEnricher(unittest.TestCase):
         opp = Opportunity(stock={}, record_of_today={"close": 10.0})
         settings = {
             "goal": {
-                "stop_loss": {"stages": [{"ratio": -0.2}]},
-                "take_profit": {"stages": [{"ratio": 0.2}]},
+                "stop_loss": {"stages": [{"ratio": -0.2, "close_invest": True}]},
+                "take_profit": {"stages": [{"ratio": 0.2, "close_invest": True}]},
             },
         }
         OpportunityEnricher.apply_trigger_fields(
@@ -30,6 +30,7 @@ class TestOpportunityEnricher(unittest.TestCase):
         )
         self.assertEqual(opp.stop_loss_price, 8.0)
         self.assertEqual(opp.target_sell_price, 12.0)
+        self.assertEqual(opp.buy_price, 10.0)
         self.assertEqual(opp.stock_id, "600000.SH")
 
 

@@ -25,7 +25,8 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Union
 
-from core.modules.backtest_engine.core.shared.types import JobContext
+from core.modules.backtest_engine.core.shared.job_lifecycle import run_job_lifecycle
+from core.modules.backtest_engine.core.shared.types import JobContext, JobInitFn, JobReleaseFn
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +162,9 @@ class Probe:
         execute_fn: Optional[Callable[[JobContext], Dict[str, Any]]],
         log_label: str = "调度",
         task_name: str = "",
+        *,
+        on_job_init: Optional[JobInitFn] = None,
+        on_job_release: Optional[JobReleaseFn] = None,
     ) -> ProbeResult:
         """执行探针（子进程测量内存和时间）。"""
         if not probe_jobs:
@@ -182,6 +186,8 @@ class Probe:
             task_name or f"{log_label}:probe",
             performance,
             log_label,
+            on_job_init=on_job_init,
+            on_job_release=on_job_release,
         )
 
         return Probe._build_probe_result(
@@ -195,6 +201,9 @@ class Probe:
         task_name: str,
         performance: Dict[str, Any],
         log_label: str,
+        *,
+        on_job_init: Optional[JobInitFn] = None,
+        on_job_release: Optional[JobReleaseFn] = None,
     ) -> Dict[str, Any]:
         """在独立子进程运行探针。"""
         from core.infra.db.engines.duckdb.process_pool_scope import (
@@ -219,7 +228,15 @@ class Probe:
             with ctx.Pool(processes=1) as pool:
                 raw = pool.apply(
                     _probe_worker,
-                    ((execute_fn, probe_payload, task_name),),
+                    (
+                        (
+                            execute_fn,
+                            probe_payload,
+                            task_name,
+                            on_job_init,
+                            on_job_release,
+                        ),
+                    ),
                 )
             wait_pool_children_done(timeout_sec=15.0)
             return raw
@@ -312,8 +329,8 @@ class Probe:
 
 
 def _probe_worker(args: tuple) -> Dict[str, Any]:
-    """子进程探针 worker：调用与正式执行相同的 execute_fn。"""
-    execute_fn, payload, task_name = args
+    """子进程探针 worker：init → execute_fn → release。"""
+    execute_fn, payload, task_name, on_job_init, on_job_release = args
     rss_before_mb = _process_rss_mb()
     t0 = time.perf_counter()
 
@@ -322,7 +339,12 @@ def _probe_worker(args: tuple) -> Dict[str, Any]:
         payload=dict(payload),
         task_name=task_name,
     )
-    out = execute_fn(ctx)
+    out = run_job_lifecycle(
+        execute_fn,
+        ctx,
+        on_job_init=on_job_init,
+        on_job_release=on_job_release,
+    )
     if not isinstance(out, dict):
         out = {"success": True, "data": out}
 

@@ -50,6 +50,7 @@ settings = {
     # 与 random_v1 对齐：收盘出信号 → 次日开盘成交；对称 ±20% goal
     "simulation": {
         "template": "custom",
+        "execution_mode": "entity_based",
         "monitor_price_model": "close",
         "buy_price_model": "next_open",
         "sell_price_model": "close",

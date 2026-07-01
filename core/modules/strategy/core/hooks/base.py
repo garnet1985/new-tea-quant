@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
-from core.modules.strategy.core.engines.shared.data_classes import CalendarAsOfResult, Opportunity
+from core.modules.strategy.contracts import CalendarAsOfResult, Opportunity
 from core.modules.strategy.core.hooks.context import DataContext
 
 
@@ -38,6 +38,41 @@ class StrategyHooks(ABC):
     def get_record_of_today(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         klines = data.get("klines") or []
         return klines[-1] if klines else None
+
+    @staticmethod
+    def signal_date(record_of_today: Dict[str, Any]) -> str:
+        if "date" not in record_of_today:
+            raise ValueError("record_of_today 缺少 date")
+        return str(record_of_today["date"])
+
+    @staticmethod
+    def core_int(settings: Dict[str, Any], key: str) -> int:
+        core = settings.get("core")
+        if not isinstance(core, dict) or key not in core:
+            raise ValueError(f"settings.core 缺少 {key!r}")
+        return int(core[key])
+
+    @staticmethod
+    def core_float(
+        settings: Dict[str, Any],
+        key: str,
+        *,
+        clamp: Optional[Tuple[float, float]] = None,
+    ) -> float:
+        core = settings.get("core")
+        if not isinstance(core, dict) or key not in core:
+            raise ValueError(f"settings.core 缺少 {key!r}")
+        value = float(core[key])
+        if clamp is None:
+            return value
+        low, high = clamp
+        return max(low, min(high, value))
+
+    @staticmethod
+    def deterministic_roll(*key_parts: Any) -> float:
+        from core.utils.math.deterministic_random import deterministic_unit_float
+
+        return deterministic_unit_float(*key_parts)
 
     def build_opportunity(
         self,

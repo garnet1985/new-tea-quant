@@ -14,7 +14,7 @@ terms:
 naming:
   facade: "Strategy"
   namespace_api: "Strategy.scan() / Strategy.enumerate() / Strategy.analyze() / Strategy.list_strategies()"
-  contracts: "ExecutionMode / SellReason / SimulateKind"
+  contracts: "公开契约：StrategyHooks / DataContext / Opportunity / CalendarAsOfResult / 枚举"
   worker_context: "EntityBasedWorkerContext — 枚举器 entity_based 性能基线（类常量，非 yaml）"
   data_context: "DataContext — 用户 hooks 业务数据；统一经 data.get(key) / ctx.get(key) 访问"
   runtime_context: "RuntimeContext — 机器侧调度配置（jobs、settings_diff、performance 等）"
@@ -23,7 +23,7 @@ naming:
 scope:
   public:
     - Strategy facade
-    - ExecutionMode / SellReason / SimulateKind contracts
+    - contracts（StrategyHooks、DataContext、Opportunity、CalendarAsOfResult、枚举）
     - api.yaml 公开 API
   private:
     - core/ 内部实现（正从 strategy_legacy 迁移）

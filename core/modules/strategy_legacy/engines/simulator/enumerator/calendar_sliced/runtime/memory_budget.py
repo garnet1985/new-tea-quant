@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from core.infra.machine_capacity import MachineInfo
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.worker_profile import (
+from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.runtime.worker_profile import (
     profile_enumerator_dispatch_config,
 )
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from bisect import bisect_left
 from dataclasses import dataclass, field
-from typing import List, Sequence
+from typing import Any, Dict, List, Sequence
 
 from core.modules.strategy.core.engines.shared.data_classes import Opportunity
 
@@ -16,6 +16,8 @@ class EntityHoldings:
     recorded: List[Opportunity] = field(default_factory=list)
 
     def register_entry(self, opportunity: Opportunity) -> None:
+        if self.active:
+            raise ValueError("已有未平仓持仓，拒绝重复开仓")
         self.active.append(opportunity)
         self.recorded.append(opportunity)
 
@@ -27,6 +29,27 @@ class EntityHoldings:
             opportunity.outcome = "completed"
             opportunity.sell_reason = reason
         self.active.clear()
+
+    def close_goal_targets(self, bar: Dict[str, Any]) -> None:
+        """按 K 线 high/low 触发 stop_loss / take_profit（须已由 OpportunityEnricher 写入价位）。"""
+        low = float(bar["low"])
+        high = float(bar["high"])
+        remaining: List[Opportunity] = []
+        for opportunity in self.active:
+            stop = opportunity.stop_loss_price
+            target = opportunity.target_sell_price
+            if stop > 0 and low <= stop:
+                opportunity.sell_price = float(stop)
+                opportunity.outcome = "completed"
+                opportunity.sell_reason = "stop_loss"
+                continue
+            if target > 0 and high >= target:
+                opportunity.sell_price = float(target)
+                opportunity.outcome = "completed"
+                opportunity.sell_reason = "take_profit"
+                continue
+            remaining.append(opportunity)
+        self.active = remaining
 
     def close_expired(
         self,
@@ -41,9 +64,7 @@ class EntityHoldings:
             return
         remaining: List[Opportunity] = []
         for opportunity in self.active:
-            trigger = str(opportunity.trigger_date or "").strip()
-            if not trigger:
-                raise ValueError("active opportunity 缺少 trigger_date")
+            trigger = str(opportunity.trigger_date).strip()
             held_days = _open_dates_between(trigger, as_of, open_dates)
             if held_days >= max_holding_days:
                 opportunity.sell_price = float(close_price)
@@ -55,7 +76,6 @@ class EntityHoldings:
 
 
 def _open_dates_between(start_date: str, end_date: str, open_dates: Sequence[str]) -> int:
-    """含端点的开市日计数。"""
     start = str(start_date).strip()
     end = str(end_date).strip()
     if not start or not end:

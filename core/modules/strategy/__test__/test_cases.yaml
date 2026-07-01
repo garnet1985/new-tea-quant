@@ -38,8 +38,8 @@ cases:
         name: test_sell_reason_enum
         description: SellReason 枚举定义正确
       - id: 3
-        name: test_simulate_kind_enum
-        description: SimulateKind 枚举定义正确
+        name: test_hook_types_exported_from_contracts
+        description: Opportunity / CalendarAsOfResult 从 contracts 导出
 
   - id: 4
     case: enumeration_smoke
@@ -79,8 +79,29 @@ cases:
       - id: 1
         name: test_open_date_year_boundaries
         description: 开市日年度边界辅助
+
+  - id: 6
+    case: slice_integration
+    description: slice_based period_end 集成（合成 K 线 + 可选 E2E）
+    file: test_slice_integration.py
+    scenarios:
+      - id: 1
+        name: test_period_end_force_exit_via_compute
+        description: 周期初 scan → 年末 force_exit period_end
       - id: 2
-        name: test_normalize_asof_result
-        description: asof 结果归一化
+        name: test_enumerate_slice_period_end_when_data_available
+        description: 端到端 enumerate（有行情则断言 period_end）
+
+  - id: 7
+    case: execution_mode
+    description: EnumeratorExecutionMode 严格解析
+    file: test_execution_mode.py
+    scenarios:
+      - id: 1
+        name: test_resolve_entity_based
+        description: 接受 entity_based
+      - id: 2
+        name: test_rejects_legacy_alias
+        description: 拒绝 calendar_slice 等别名
 
 ---

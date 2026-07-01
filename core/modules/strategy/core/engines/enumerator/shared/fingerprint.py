@@ -5,31 +5,28 @@ import hashlib
 import json
 from typing import Any, Dict, List
 
+from core.modules.backtest_engine.core.shared.modes import BacktestMode
 from core.modules.strategy.core.services.settings.settings_merge import StrategySettingsMerge
 
 
 class EnumeratorExecutionMode:
-    """settings → BacktestEngine 模式名。"""
+    """settings → BacktestEngine 模式名（与 BacktestMode 对齐）。"""
 
-    ENTITY_BASED = "entity_based"
-    SLICE_BASED = "slice_based"
-
-    _LEGACY_ALIASES = {
-        "entity_timeline": ENTITY_BASED,
-        "calendar_slice": SLICE_BASED,
-    }
+    ENTITY_BASED = BacktestMode.ENTITY_BASED.value
+    SLICE_BASED = BacktestMode.SLICE_BASED.value
 
     @classmethod
     def resolve(cls, settings: Dict[str, Any]) -> str:
         simulation = settings.get("simulation")
         if not isinstance(simulation, dict):
-            return cls.ENTITY_BASED
-        raw = str(simulation.get("execution_mode") or "").strip()
-        if not raw:
-            return cls.ENTITY_BASED
-        if raw in (cls.ENTITY_BASED, cls.SLICE_BASED):
-            return raw
-        return cls._LEGACY_ALIASES.get(raw, cls.ENTITY_BASED)
+            raise ValueError("settings.simulation 须为 dict")
+        raw = simulation.get("execution_mode")
+        if raw is None or str(raw).strip() == "":
+            raise ValueError(
+                f"settings.simulation.execution_mode 必填"
+                f"（{BacktestMode.ENTITY_BASED.value} | {BacktestMode.SLICE_BASED.value}）"
+            )
+        return BacktestMode.normalize(raw)
 
 
 class EnumeratorFingerprint:

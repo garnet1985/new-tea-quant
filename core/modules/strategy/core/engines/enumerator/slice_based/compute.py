@@ -4,11 +4,11 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.strategy.core.data.settings.strategy_settings import StrategySettings
-from core.modules.strategy.core.engines.enumerator.slice_based.context.data import SliceDataContext
+from core.modules.strategy.core.engines.enumerator.slice_based.context.data import SliceBasedDataContext
 from core.modules.strategy.core.engines.enumerator.slice_based.resolver.calendar import BacktestCalendarResolver
 from core.modules.strategy.core.engines.enumerator.slice_based.state.holdings import EntityHoldings
 from core.modules.strategy.core.engines.shared.data_classes import Opportunity
@@ -58,6 +58,7 @@ class SliceBasedCompute:
         self._data_config = StrategyDataConfig(settings_raw)
         self._min_required = self._data_config.min_required_records
         self._max_holding_days = self._resolve_max_holding_days(settings_raw)
+        self._assert_entry_price_model(settings_raw)
 
         self._open_dates = self._resolve_open_dates()
         self._hook_runtime = StrategyHookRuntime.from_job_payload(
@@ -67,10 +68,16 @@ class SliceBasedCompute:
         self._session_state: Dict[str, Any] = {}
         self._states: Dict[str, _EntitySliceState] = {}
         self._stock_list: List[str] = []
+        self._ctx_base: Optional[SliceBasedDataContext] = None
 
     def run(self) -> Dict[str, Any]:
         try:
             self._hydrate_entity_data()
+            self._ctx_base = SliceBasedDataContext.assemble(
+                strategy_name=self.strategy_name,
+                settings=self.settings,
+                stock_list=list(self._stock_list),
+            )
             for index, as_of in enumerate(self._open_dates):
                 self._run_open_date(as_of, open_date_index=index)
 
@@ -88,10 +95,20 @@ class SliceBasedCompute:
         finally:
             self._clear_loaders()
 
+    def _assert_entry_price_model(self, settings: Dict[str, Any]) -> None:
+        simulation = settings.get("simulation")
+        if not isinstance(simulation, dict):
+            raise ValueError("SliceBasedCompute 缺少 settings.simulation")
+        model = simulation.get("buy_price_model")
+        if model != "close":
+            raise ValueError(
+                f"slice_based 当前仅支持 simulation.buy_price_model='close'，实际: {model!r}"
+            )
+
     def _resolve_max_holding_days(self, settings: Dict[str, Any]) -> int:
         simulation = settings.get("simulation")
         if not isinstance(simulation, dict):
-            return 0
+            raise ValueError("SliceBasedCompute 缺少 settings.simulation")
         max_days = simulation.get("max_holding_days")
         if max_days is None:
             return 0
@@ -123,6 +140,8 @@ class SliceBasedCompute:
         if not isinstance(global_data, dict):
             raise ValueError("SliceBasedCompute 缺少 global_data")
 
+        self._ensure_universe()
+
         shared_cache = ContractCacheManager()
         job_batch = EntityContractBatch.hydrate(
             entity_ids=self.stock_ids,
@@ -133,12 +152,6 @@ class SliceBasedCompute:
             global_data=global_data,
             fresh_strategy_cache=True,
         )
-
-        stock_list = global_data.get("stock_list")
-        if isinstance(stock_list, list) and stock_list:
-            universe = [str(x).strip() for x in stock_list if str(x).strip()]
-        else:
-            universe = list(self.stock_ids)
 
         for stock_id in self.stock_ids:
             loader = EntityDataLoader(
@@ -159,6 +172,24 @@ class SliceBasedCompute:
                 data_loader=loader,
                 holdings=EntityHoldings(),
             )
+        self._stock_list = list(self._stock_list)
+
+    def _ensure_universe(self) -> None:
+        if self._stock_list:
+            return
+        global_data = self.job_payload.get("global_data")
+        if not isinstance(global_data, dict):
+            raise ValueError("SliceBasedCompute 缺少 global_data")
+
+        stock_list = global_data.get("stock_list")
+        if not isinstance(stock_list, list) or not stock_list:
+            raise ValueError("SliceBasedCompute global_data.stock_list 须为非空 list")
+        universe = [str(x).strip() for x in stock_list if str(x).strip()]
+        if not universe:
+            raise ValueError("SliceBasedCompute global_data.stock_list 无有效条目")
+        missing = [sid for sid in self.stock_ids if sid not in universe]
+        if missing:
+            raise ValueError(f"stock_ids 不在 global_data.stock_list 中: {missing}")
         self._stock_list = universe
 
     def _run_open_date(self, as_of: str, *, open_date_index: int) -> None:
@@ -166,6 +197,7 @@ class SliceBasedCompute:
             bar = self._bar_on(state, as_of)
             if bar is None:
                 continue
+            state.holdings.close_goal_targets(bar)
             close_price = float(bar["close"])
             if self._max_holding_days > 0:
                 state.holdings.close_expired(
@@ -182,11 +214,9 @@ class SliceBasedCompute:
             open_date_index=open_date_index,
         )
 
-        asof_ctx = SliceDataContext.assemble_asof(
-            strategy_name=self.strategy_name,
-            settings=self.settings,
-            stock_list=list(self._stock_list),
-            as_of=as_of,
+        asof_ctx = SliceBasedDataContext.fill(
+            self._ctx_base,
+            now=as_of,
             calendar=calendar,
         )
         asof_result = self._hook_runtime.call("on_calendar_asof", asof_ctx)
@@ -222,6 +252,9 @@ class SliceBasedCompute:
             return None
         if len(klines) < self._min_required:
             return None
+        for key in ("open", "high", "low", "close"):
+            if key not in last:
+                raise ValueError(f"K 线缺少字段 {key!r}: stock_id={state.stock_id} date={as_of}")
         return last
 
     def _build_stocks_context(self, as_of: str) -> Dict[str, Dict[str, Any]]:
@@ -271,29 +304,25 @@ class SliceBasedCompute:
             return
         data = state.data_loader.data_until(as_of)
 
-        ctx = SliceDataContext.assemble_scan(
-            strategy_name=self.strategy_name,
-            settings=self.settings,
-            stock_list=list(self._stock_list),
-            entity_id=state.stock_id,
-            entity_info=state.stock_info,
-            as_of=as_of,
+        ctx = SliceBasedDataContext.fill(
+            self._ctx_base,
+            now=as_of,
             data=data,
             calendar=calendar,
+            entity_id=state.stock_id,
+            entity_info=state.stock_info,
         )
         self._hook_runtime.call("on_before_scan", ctx)
         opportunity = self._hook_runtime.call("scan_opportunity", ctx)
         self._hook_runtime.call(
             "on_after_scan",
-            SliceDataContext.assemble_scan(
-                strategy_name=self.strategy_name,
-                settings=self.settings,
-                stock_list=list(self._stock_list),
-                entity_id=state.stock_id,
-                entity_info=state.stock_info,
-                as_of=as_of,
+            SliceBasedDataContext.fill(
+                self._ctx_base,
+                now=as_of,
                 data=data,
                 calendar=calendar,
+                entity_id=state.stock_id,
+                entity_info=state.stock_info,
                 opportunity=opportunity if isinstance(opportunity, Opportunity) else None,
             ),
         )

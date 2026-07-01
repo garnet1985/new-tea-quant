@@ -1,40 +1,42 @@
-"""slice_based 运行配置 context。"""
+"""slice_based 模式 runtime context。"""
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from dataclasses import dataclass
+from typing import Any, ClassVar, Dict, List
 
+from core.modules.backtest_engine.core.shared.modes import BacktestMode
 from core.modules.strategy.core.engines.enumerator.shared.runtime import RuntimeContext
 
 
-class SliceRuntimeContext:
-    """slice_based 模式 runtime 视图。"""
+@dataclass
+class SliceBasedRuntimeContext(RuntimeContext):
+    """slice_based 模式专用 RuntimeContext。"""
 
-    EXECUTION_MODE = "slice_based"
+    EXECUTION_MODE: ClassVar[BacktestMode] = BacktestMode.SLICE_BASED
 
     @staticmethod
     def calendar_from_job(job: Dict[str, Any]) -> Dict[str, Any]:
         calendar = job.get("backtest_calendar")
-        if isinstance(calendar, dict):
-            return dict(calendar)
-        open_dates = list(job.get("open_dates") or [])
-        return {
-            "open_dates": open_dates,
-            "period_start": job.get("start_date"),
-            "period_end": job.get("end_date"),
-        }
+        if not isinstance(calendar, dict):
+            raise ValueError("slice_based job 缺少 backtest_calendar")
+        return dict(calendar)
 
-    @staticmethod
-    def open_dates_from_job(job: Dict[str, Any]) -> List[str]:
-        calendar = SliceRuntimeContext.calendar_from_job(job)
-        return list(calendar.get("open_dates") or job.get("open_dates") or [])
+    @classmethod
+    def open_dates_from_job(cls, job: Dict[str, Any]) -> List[str]:
+        calendar = cls.calendar_from_job(job)
+        open_dates = calendar.get("open_dates")
+        if not isinstance(open_dates, list) or not open_dates:
+            raise ValueError("backtest_calendar.open_dates 须为非空 list")
+        return list(open_dates)
 
-    @staticmethod
-    def assert_mode(context: RuntimeContext) -> None:
-        if context.execution_mode != SliceRuntimeContext.EXECUTION_MODE:
+    @classmethod
+    def assert_mode(cls, context: RuntimeContext) -> None:
+        mode = BacktestMode.normalize(context.execution_mode)
+        if mode != cls.EXECUTION_MODE.value:
             raise ValueError(
-                f"期望 execution_mode={SliceRuntimeContext.EXECUTION_MODE!r}, "
-                f"实际 {context.execution_mode!r}"
+                f"期望 execution_mode={cls.EXECUTION_MODE.value!r}, "
+                f"实际 {mode!r}"
             )
 
 
-__all__ = ["SliceRuntimeContext"]
+__all__ = ["SliceBasedRuntimeContext"]

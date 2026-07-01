@@ -28,6 +28,8 @@ class SliceBasedWorkerContext:
             "queue_depth": cls.QUEUE_DEPTH,
             "prefetch_enabled": cls.PREFETCH_ENABLED,
             "slice_open_days": cls.SLICE_OPEN_DAYS,
+            # 探针 / 分片 / reader 调度由 BacktestEngine 负责；Strategy 只跑 compute
+            "slice_probe": False,
         }
 
     @classmethod
@@ -100,7 +102,6 @@ class SliceBasedJobPipeline:
             task_name=ctx.task_name,
             callbacks=RunCallbacks(on_result=on_engine_result),
         )
-        runtime.status.stage = "execute"
         runtime.status.job_results = list(result.job_results)
         return [
             JobResultHelper.to_job_result(report)

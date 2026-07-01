@@ -11,6 +11,7 @@ from core.modules.backtest_engine.core.shared.performance import (
 )
 
 from ..shared.runtime import EnumeratorRuntime, JobResultHelper
+from .job_init import EntityBasedJobInit
 from .worker import EntityBasedWorker
 
 
@@ -67,25 +68,21 @@ class EntityBasedJobPipeline:
     @staticmethod
     def execute_entity_based_job(context: JobContext) -> Dict[str, Any]:
         payload = dict(context.payload)
+        global_data = payload.pop("_global_data", None)
+        if not isinstance(global_data, dict):
+            raise ValueError("entity_based job 缺少 _global_data")
+
         batch_entities = payload.get("jobs")
         if isinstance(batch_entities, list) and batch_entities:
             dispatch_job = EntityBasedJobPipeline._merge_batch(batch_entities, context.job_id)
-            global_data = (
-                dispatch_job.get("_global_data")
-                or payload.get("_global_data")
-                or {}
+            worker_payload = EntityBasedWorker.build_payload(
+                {**dispatch_job, "global_data": global_data},
             )
-            worker_payload = EntityBasedWorker.build_payload(dispatch_job, global_data)
-            return EntityBasedWorker.run(
-                JobContext(
-                    job_id=context.job_id,
-                    payload=worker_payload,
-                    task_name=context.task_name,
-                )
+        else:
+            worker_payload = EntityBasedWorker.build_payload(
+                {**payload, "global_data": global_data},
             )
 
-        global_data = payload.get("_global_data") or {}
-        worker_payload = EntityBasedWorker.build_payload(payload, global_data)
         return EntityBasedWorker.run(
             JobContext(
                 job_id=context.job_id,
@@ -139,7 +136,11 @@ class EntityBasedJobPipeline:
             cls.execute_entity_based_job,
             performance=ctx.performance or EntityBasedWorkerContext.performance(),
             task_name=ctx.task_name,
-            callbacks=RunCallbacks(on_result=on_engine_result),
+            callbacks=RunCallbacks(
+                on_job_init=EntityBasedJobInit.on_job_context,
+                on_job_release=EntityBasedJobInit.release_job_context,
+                on_result=on_engine_result,
+            ),
         )
         runtime.status.job_results = list(result.job_results)
         return [
@@ -149,34 +150,34 @@ class EntityBasedJobPipeline:
 
     @staticmethod
     def _wrap_backtest_job(job: Dict[str, Any], **payload_extra: Any) -> Dict[str, Any]:
-        stock_id = str(job.get("stock_id") or "").strip()
-        if not stock_id:
-            raise ValueError("entity_based job requires stock_id")
+        entity_id = str(job.get("entity_id") or "").strip()
+        if not entity_id:
+            raise ValueError("entity_based job 缺少 entity_id")
         payload = dict(job)
         payload.update(payload_extra)
-        return BacktestJob(id=stock_id, payload=payload).to_dict()
+        return BacktestJob(id=entity_id, payload=payload).to_dict()
 
     @staticmethod
     def _merge_batch(entities: List[Dict[str, Any]], batch_job_id: str) -> Dict[str, Any]:
         rows = BacktestJob.batch_payloads(entities)
         base = dict(rows[0])
-        stock_ids = [
-            str(row.get("stock_id") or "").strip()
+        entity_ids = [
+            str(row.get("entity_id") or "").strip()
             for row in rows
-            if str(row.get("stock_id") or "").strip()
+            if str(row.get("entity_id") or "").strip()
         ]
-        if not stock_ids:
-            raise ValueError("entity_based batch payload must include stock_id")
+        if not entity_ids:
+            raise ValueError("entity_based batch payload 缺少 entity_id")
 
         merged = {
             key: value
             for key, value in base.items()
-            if key not in {"job_id", "stock_id", "stock_ids", "id", "payload"}
+            if key not in {"job_id", "entity_id", "entity_ids", "id", "payload"}
         }
-        merged["job_id"] = stock_ids[0] if len(stock_ids) == 1 else batch_job_id
-        merged["stock_ids"] = stock_ids
-        if len(stock_ids) == 1:
-            merged["stock_id"] = stock_ids[0]
+        merged["job_id"] = entity_ids[0] if len(entity_ids) == 1 else batch_job_id
+        merged["entity_ids"] = entity_ids
+        if len(entity_ids) == 1:
+            merged["entity_id"] = entity_ids[0]
         merged["_global_data"] = base.get("_global_data")
         return merged
 

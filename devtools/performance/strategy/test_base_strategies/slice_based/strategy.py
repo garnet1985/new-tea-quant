@@ -7,9 +7,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.modules.strategy.core.engines.shared.data_classes import CalendarAsOfResult, Opportunity
-from core.modules.strategy.core.hooks.base import StrategyHooks
-from core.modules.strategy.core.hooks.context import DataContext
+from core.modules.strategy.contracts import CalendarAsOfResult, DataContext, Opportunity, StrategyHooks
 
 _SHARED = Path(__file__).resolve().parents[1] / "shared"
 if str(_SHARED) not in sys.path:

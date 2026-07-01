@@ -62,6 +62,8 @@ class RunCallbacks:
 
     on_result: Optional[Callable[["JobReport", RunProgress], None]] = None
     on_release: Optional[Callable[["JobReport"], None]] = None
+    on_job_init: Optional[JobInitFn] = None
+    on_job_release: Optional[JobReleaseFn] = None
 
 
 @dataclass
@@ -71,6 +73,7 @@ class JobContext:
     job_id: str
     payload: Dict[str, Any]
     task_name: str = ""
+    init: Any = None
 
 
 @dataclass
@@ -123,6 +126,8 @@ class DispatchResult:
 
 
 ExecuteFn = Callable[[JobContext], Any]
+JobInitFn = Callable[[JobContext], Any]
+JobReleaseFn = Callable[[JobContext], None]
 
 
 __all__ = [
@@ -139,4 +144,6 @@ __all__ = [
     "JobFailure",
     "DispatchResult",
     "ExecuteFn",
+    "JobInitFn",
+    "JobReleaseFn",
 ]

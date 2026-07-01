@@ -6,7 +6,7 @@ from .data_classes.report_templates import (
     PriceFactorReportTemplate,
     PortfolioReportTemplate,
 )
-from .helpers import StatisticsHelper
+from core.modules.strategy.core.helpers.statistics import StatisticsHelper
 
 __all__ = [
     'Opportunity',

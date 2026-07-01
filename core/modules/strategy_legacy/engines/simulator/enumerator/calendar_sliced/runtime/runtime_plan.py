@@ -101,7 +101,7 @@ class CalendarSliceRuntimePlan:
             return
         t_io = sum(loads) / len(loads)
         t_compute = (sum(computes) / len(computes)) if computes else 0.05
-        from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.planner import (
+        from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.runtime.planner import (
             ideal_preload_from_timings,
             preload_depth_from_memory,
         )

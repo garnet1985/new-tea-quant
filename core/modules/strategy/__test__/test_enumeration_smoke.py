@@ -25,6 +25,13 @@ _DEVTOOLS_STRATEGIES_ROOT = (
 _DEVTOOLS_STOCK_BASED = "stock_based"
 _DEVTOOLS_SLICE_BASED = "slice_based"
 
+_USERSPACE_STRATEGIES_ROOT = (
+    Path(__file__).resolve().parents[4] / "userspace" / "strategies"
+)
+_USERSPACE_RANDOM_V1 = "demo/random/random_v1_null_baseline"
+_USERSPACE_RSI_V1 = "demo/regression/rsi/rsi_v1_without_value_anchor"
+_USERSPACE_LOW_PRICE_V2 = "demo/cross_sectional/low_price/low_price_v2_monthly_rebalance"
+
 
 def _minimal_settings() -> Dict[str, Any]:
     return {
@@ -129,6 +136,51 @@ class TestDevtoolsDiscoverySmoke(unittest.TestCase):
         self.assertEqual(info["worker_class_name"], "LowPricePitRebalanceHooks")
         settings = info["settings"]
         self.assertEqual(settings["simulation"]["execution_mode"], "slice_based")
+
+    def test_discover_userspace_random_v1_contracts_hooks(self) -> None:
+        """userspace 参考 demo：contracts + DataContext。"""
+        root = _USERSPACE_STRATEGIES_ROOT
+        if not root.is_dir():
+            self.skipTest(f"missing userspace strategies root: {root}")
+
+        discovered = DiscoveryService.discover_strategies(root)
+        self.assertIn(_USERSPACE_RANDOM_V1, discovered)
+
+        info = discovered[_USERSPACE_RANDOM_V1]
+        self.assertEqual(info["worker_class_name"], "RandomNullBaselineStrategy")
+        settings = info["settings"]
+        self.assertEqual(settings["simulation"]["execution_mode"], "entity_based")
+        self.assertEqual(settings["data"]["base"]["data_key"], "stock.kline.daily")
+
+    def test_discover_userspace_rsi_v1_contracts_hooks(self) -> None:
+        """userspace RSI demo：contracts + entity_based。"""
+        root = _USERSPACE_STRATEGIES_ROOT
+        if not root.is_dir():
+            self.skipTest(f"missing userspace strategies root: {root}")
+
+        discovered = DiscoveryService.discover_strategies(root)
+        self.assertIn(_USERSPACE_RSI_V1, discovered)
+
+        info = discovered[_USERSPACE_RSI_V1]
+        self.assertEqual(info["worker_class_name"], "ExampleStrategy")
+        settings = info["settings"]
+        self.assertEqual(settings["simulation"]["execution_mode"], "entity_based")
+        self.assertIn("rsi", settings["data"]["base"]["indicators"])
+
+    def test_discover_userspace_low_price_v2_slice_based(self) -> None:
+        """userspace 横截面 demo：contracts + slice_based。"""
+        root = _USERSPACE_STRATEGIES_ROOT
+        if not root.is_dir():
+            self.skipTest(f"missing userspace strategies root: {root}")
+
+        discovered = DiscoveryService.discover_strategies(root)
+        self.assertIn(_USERSPACE_LOW_PRICE_V2, discovered)
+
+        info = discovered[_USERSPACE_LOW_PRICE_V2]
+        self.assertEqual(info["worker_class_name"], "LowPricePitRebalanceStrategy")
+        settings = info["settings"]
+        self.assertEqual(settings["simulation"]["execution_mode"], "slice_based")
+        self.assertEqual(settings["data"]["base"]["data_key"], "stock.kline.daily")
 
 
 class TestSliceBasedJobBuild(unittest.TestCase):

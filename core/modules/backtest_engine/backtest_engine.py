@@ -150,6 +150,8 @@ class BacktestEngine:
             task_name=label,
             on_result=resolved_callbacks.on_result,
             on_release=resolved_callbacks.on_release,
+            on_job_init=resolved_callbacks.on_job_init,
+            on_job_release=resolved_callbacks.on_job_release,
             enable_progress_display=enable_progress_display,
         )
         return BacktestEngine.RunResult.from_entity_based(pipeline_result)

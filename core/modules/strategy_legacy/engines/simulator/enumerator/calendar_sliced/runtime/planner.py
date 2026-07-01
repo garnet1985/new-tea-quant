@@ -8,21 +8,21 @@ import math
 from typing import Any, Dict, Optional
 
 from core.infra.machine_capacity import MachineInfo
-from core.modules.strategy.engines.shared.worker_settings_keys import STRATEGY_ENUM_EXECUTOR_KEY
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.worker_profile import (
+from core.modules.strategy_legacy.engines.shared.worker_settings_keys import STRATEGY_ENUM_EXECUTOR_KEY
+from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.runtime.worker_profile import (
     profile_enumerator_dispatch_config,
 )
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.memory_budget import (
+from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.runtime.memory_budget import (
     resolve_calendar_slice_memory_budget_mb,
 )
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.runtime_plan import (
+from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.runtime.runtime_plan import (
     CalendarSliceRuntimePlan,
 )
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.slice_plan import (
+from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.slice_plan import (
     is_auto_setting as slice_is_auto,
     resolve_auto_slice_open_days,
 )
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.settings import (
+from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.runtime.settings import (
     CalendarSliceRuntimeSettings,
     is_auto_setting,
 )

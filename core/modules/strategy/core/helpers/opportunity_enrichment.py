@@ -1,9 +1,10 @@
 """Opportunity 触发字段补全（从 settings 推导 goal 价位等）。"""
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from core.modules.strategy.core.engines.shared.data_classes import Opportunity
+from core.modules.strategy.core.helpers.goal_config import GoalConfig
 
 
 class OpportunityEnricher:
@@ -21,12 +22,16 @@ class OpportunityEnricher:
         trigger_price: float,
         opportunity_index: int,
     ) -> Opportunity:
+        if trigger_price <= 0:
+            raise ValueError("trigger_price 须 > 0")
+
         opportunity.opportunity_id = str(opportunity_index)
         opportunity.stock_id = stock_id
         opportunity.strategy_name = strategy_name
         opportunity.trigger_date = trigger_date
         opportunity.scan_date = trigger_date
         opportunity.trigger_price = float(trigger_price)
+        opportunity.buy_price = float(trigger_price)
 
         if opportunity.stock:
             opportunity.stock = {**stock_info, **opportunity.stock}
@@ -34,36 +39,24 @@ class OpportunityEnricher:
             opportunity.stock = dict(stock_info)
         opportunity.stock_name = str(stock_info.get("name") or stock_id)
 
-        goal = settings.get("goal") if isinstance(settings.get("goal"), dict) else {}
-        stop_ratio = OpportunityEnricher._first_stage_ratio(goal.get("stop_loss"))
-        if stop_ratio is not None and trigger_price > 0:
-            opportunity.stop_loss_price = round(trigger_price * (1.0 + stop_ratio), 6)
+        goal = GoalConfig.from_settings(settings)
+        if goal.stop_loss is not None:
+            opportunity.stop_loss_price = goal.exit_price(goal.stop_loss, trigger_price)
+        if goal.take_profit is not None:
+            opportunity.target_sell_price = goal.exit_price(goal.take_profit, trigger_price)
 
-        profit_ratio = OpportunityEnricher._first_stage_ratio(goal.get("take_profit"))
-        if profit_ratio is not None and trigger_price > 0:
-            opportunity.target_sell_price = round(trigger_price * (1.0 + profit_ratio), 6)
-
-        simulation = settings.get("simulation") if isinstance(settings.get("simulation"), dict) else {}
-        max_days = simulation.get("max_holding_days")
-        if isinstance(max_days, int) and max_days > 0:
-            opportunity.max_holding_days = max_days
+        simulation = settings.get("simulation")
+        if simulation is not None:
+            if not isinstance(simulation, dict):
+                raise ValueError("settings.simulation 须为 dict")
+            if "max_holding_days" in simulation:
+                max_days = simulation["max_holding_days"]
+                if not isinstance(max_days, int) or max_days < 0:
+                    raise ValueError("settings.simulation.max_holding_days 须为非负整数")
+                if max_days > 0:
+                    opportunity.max_holding_days = max_days
 
         return opportunity
-
-    @staticmethod
-    def _first_stage_ratio(block: Any) -> Optional[float]:
-        if not isinstance(block, dict):
-            return None
-        stages = block.get("stages")
-        if not isinstance(stages, list) or not stages:
-            return None
-        first = stages[0]
-        if not isinstance(first, dict) or "ratio" not in first:
-            return None
-        try:
-            return float(first["ratio"])
-        except (TypeError, ValueError):
-            return None
 
 
 __all__ = ["OpportunityEnricher"]

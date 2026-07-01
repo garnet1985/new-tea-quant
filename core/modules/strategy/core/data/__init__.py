@@ -1,6 +1,5 @@
 """Strategy data classes."""
 
-from .settings import SettingsBase, ValidationReport, StrategySettings
-from .entities import DiscoveredStrategy
+from core.modules.strategy.core.context.discovered_strategy import DiscoveredStrategy
 
 __all__ = ['SettingsBase', 'ValidationReport', 'StrategySettings', 'DiscoveredStrategy']

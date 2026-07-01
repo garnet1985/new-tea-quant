@@ -1,9 +1,9 @@
 settings = {
-    # ========================================
-    # 策略基本信息（系统 name = 路径 demo/regression/rsi/rsi_v2_fundamental_gate）
+    # 系统 discovery 暂用路径 key；CLI 未来将使用 meta.key
     # ========================================
     "is_enabled": True,
     "meta": {
+        "key": "stock_based_rsi",
         "display_name": "RSI超跌反弹 + 财报正常",
         "description": (
             "演示策略：RSI(14) 超卖触发买入，并要求最新已披露季度净利润同比不低于阈值。"

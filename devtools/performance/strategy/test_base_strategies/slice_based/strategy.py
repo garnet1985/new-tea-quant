@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from core.modules.data_contract.contracts import DataKey
 from core.modules.strategy.contracts import CalendarAsOfResult, DataContext, Opportunity, StrategyHooks
 
 _SHARED = Path(__file__).resolve().parents[1] / "shared"
@@ -71,10 +72,10 @@ class LowPricePitRebalanceHooks(StrategyHooks):
             if not sid_s:
                 continue
 
-            klines = stock_data.get("klines")
-            if not klines:
+            base_rows = stock_data.get(ctx.base_data_key)
+            if not base_rows:
                 continue
-            bar = find_bar_on_date(klines, as_of_date)
+            bar = find_bar_on_date(base_rows, as_of_date)
             if bar is None:
                 continue
 
@@ -83,7 +84,7 @@ class LowPricePitRebalanceHooks(StrategyHooks):
                 continue
 
             indicators = stock_data.get("indicators") or []
-            tag_rows = stock_data.get("tags") or []
+            tag_rows = stock_data.get(DataKey.TAG.value) or []
             if not passes_cap_filter(
                 filters=filters,
                 as_of_date=as_of_date,
@@ -108,7 +109,7 @@ class LowPricePitRebalanceHooks(StrategyHooks):
     def scan_opportunity(self, ctx: DataContext) -> Optional[Opportunity]:
         data = ctx.data.to_dict()
         settings = ctx.effective_settings_dict()
-        record_of_today = self.get_record_of_today(data)
+        record_of_today = self.get_record_of_today(data, base_data_key=ctx.base_data_key)
         if record_of_today is None:
             return None
 

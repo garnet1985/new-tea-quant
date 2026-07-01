@@ -15,7 +15,7 @@ naming:
   facade: "Strategy"
   namespace_api: "Strategy.scan() / Strategy.enumerate() / Strategy.analyze() / Strategy.list_strategies()"
   contracts: "公开契约：StrategyHooks / DataContext / Opportunity / CalendarAsOfResult / 枚举"
-  worker_context: "EntityBasedWorkerContext — 枚举器 entity_based 性能基线（类常量，非 yaml）"
+  performance_baseline: "EntityBasedRuntimeContext.default_performance() — BacktestEngine 调度基线，写入 RuntimeContext.performance"
   data_context: "DataContext — 用户 hooks 业务数据；统一经 data.get(key) / ctx.get(key) 访问"
   runtime_context: "RuntimeContext — 机器侧调度配置（jobs、settings_diff、performance 等）"
   runtime_status: "RuntimeStatus — 机器侧运行状态（stage、progress、monitor 等）"

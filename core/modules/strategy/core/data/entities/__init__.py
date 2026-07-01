@@ -1,5 +1,5 @@
-"""Strategy data entities."""
+"""Strategy data entities — re-export from ``core.context``."""
 
-from .discovered_strategy import DiscoveredStrategy
+from core.modules.strategy.core.context.discovered_strategy import DiscoveredStrategy
 
-__all__ = ['DiscoveredStrategy']
+__all__ = ["DiscoveredStrategy"]

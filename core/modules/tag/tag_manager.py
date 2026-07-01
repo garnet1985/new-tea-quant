@@ -264,6 +264,7 @@ class TagManager:
         for tag_key, item in discovered.items():
             scenario_cache[tag_key] = {
                 "tag_key": tag_key,
+                "key": item.module_key,
                 "name": item.settings_name,
                 "scenario_folder_path": tag_key,
                 "settings": item.settings,

@@ -3,8 +3,10 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-
 from core.modules.backtest_engine.core.shared.modes import BacktestMode
+from core.modules.strategy.core.engines.enumerator.slice_based.resolver.calendar import (
+    BacktestCalendarResolver,
+)
 
 
 class EntityBasedJobs:
@@ -24,6 +26,12 @@ class EntityBasedJobs:
         start_date: str,
         end_date: str,
     ) -> List[Dict[str, Any]]:
+        open_dates, calendar_dict = BacktestCalendarResolver.resolve(
+            settings=settings_payload,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
         jobs: List[Dict[str, Any]] = []
         for raw_id in stock_ids:
             stock_id = str(raw_id).strip()
@@ -39,6 +47,8 @@ class EntityBasedJobs:
                     "start_date": start_date,
                     "end_date": end_date,
                     "output_dir": output_dir,
+                    "open_dates": list(open_dates),
+                    "backtest_calendar": calendar_dict,
                     "worker_module_path": worker_ref["worker_module_path"],
                     "worker_class_name": worker_ref["worker_class_name"],
                     "worker_file_path": str(worker_ref.get("worker_file_path") or ""),

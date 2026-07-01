@@ -1,7 +1,6 @@
-"""Backward-compat re-exports — 实现已迁至 ``core.context``。"""
-from __future__ import annotations
+"""Strategy module contexts — 三层递进（见 README.md）。"""
 
-from core.modules.strategy.core.context.backtest_runtime import (
+from .backtest_runtime import (
     BacktestRuntime,
     BacktestRuntimeContext,
     EnumeratorRuntime,
@@ -9,12 +8,16 @@ from core.modules.strategy.core.context.backtest_runtime import (
     RuntimeContext,
     RuntimeStatus,
 )
+from .discovered_strategy import DiscoveredStrategy
+from .strategy_context import StrategyContext
 
 __all__ = [
     "BacktestRuntime",
     "BacktestRuntimeContext",
+    "DiscoveredStrategy",
     "EnumeratorRuntime",
     "JobResultHelper",
     "RuntimeContext",
     "RuntimeStatus",
+    "StrategyContext",
 ]

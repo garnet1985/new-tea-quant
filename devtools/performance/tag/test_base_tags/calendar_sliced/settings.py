@@ -8,6 +8,7 @@ Settings = {
     "is_enabled": True,
 
     "meta": {
+        "key": "bench_sliced",
         "display_name": "Benchmark Sliced Percentile",
         "description": "性能测试基准：Calendar Sliced 模式的横截面市值百分位",
         "keywords": ["benchmark", "performance", "sliced", "percentile"],

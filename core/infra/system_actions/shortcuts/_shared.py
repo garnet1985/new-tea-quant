@@ -71,3 +71,27 @@ def enable_in_settings(settings_file: Path) -> None:
     if count != 1:
         raise ScaffoldError(f"无法在 {settings_file} 中将 is_enabled 设为 True")
     settings_file.write_text(new_text, encoding="utf-8")
+
+
+def inject_meta_key_in_settings_file(settings_file: Path, key: str) -> None:
+    """在 scaffold 复制的 settings.py 中写入 ``meta.key``（若尚未存在）。"""
+    if not settings_file.is_file():
+        raise ScaffoldError(f"缺少 settings.py: {settings_file}")
+    text = settings_file.read_text(encoding="utf-8")
+    if re.search(r'["\']key["\']\s*:', text):
+        return
+
+    escaped = str(key or "").strip().replace("\\", "\\\\").replace('"', '\\"')
+    if not escaped:
+        raise ScaffoldError("meta.key 不能为空")
+
+    patterns = (
+        (r'("meta"\s*:\s*\{)(\s*\n)', rf'\1\n        "key": "{escaped}",\2'),
+        (r'("meta"\s*:\s*\{)(\s*\})', rf'\1\n        "key": "{escaped}",\n    \2'),
+    )
+    for pattern, repl in patterns:
+        new_text, count = re.subn(pattern, repl, text, count=1)
+        if count == 1:
+            settings_file.write_text(new_text, encoding="utf-8")
+            return
+    raise ScaffoldError(f"无法在 {settings_file} 中注入 meta.key")

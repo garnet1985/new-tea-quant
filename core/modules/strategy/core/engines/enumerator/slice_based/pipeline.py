@@ -1,54 +1,143 @@
-"""slice_based 枚举：job 构建 + BacktestEngine 调度管道。"""
+"""slice_based 主执行流程 — preprocess → BacktestEngine → postprocess。"""
 from __future__ import annotations
 
-from typing import Any, Callable, ClassVar, Dict, List, Optional
+import logging
+from typing import Any, Callable, Dict, List, Optional
 
 from core.modules.backtest_engine import BacktestEngine
 from core.modules.backtest_engine.contracts import BacktestJob, JobContext, JobReport, RunCallbacks, RunProgress
-from core.modules.backtest_engine.core.shared.performance import resolve_slice_based_performance
+from core.modules.strategy.core.context.strategy_context import StrategyContext
+from core.modules.strategy.core.services.data.entity_data import GlobalDataPreloader
+from core.modules.strategy.core.services.data.output_recorder import EnumeratorOutputRecorder
 
+from ..shared.opportunities import iter_opportunities_from_job_result
+from ..shared.report.statistics import EnumeratorReportStatistics
 from ..shared.runtime import EnumeratorRuntime, JobResultHelper
+from .context.runtime import SliceBasedRuntimeContext
+from .context.status import SliceBasedRuntimeStatus
+from .resolver.jobs import SliceBasedJobs
 from .worker import SliceBasedWorker
 
-
-class SliceBasedWorkerContext:
-    """slice_based 性能基线。"""
-
-    READER_WORKERS: ClassVar[str] = "auto"
-    QUEUE_DEPTH: ClassVar[str] = "auto"
-    PREFETCH_ENABLED: ClassVar[bool] = True
-    SLICE_OPEN_DAYS: ClassVar[str] = "auto"
-
-    _runtime_tune: ClassVar[Dict[str, Any]] = {}
-
-    @classmethod
-    def baseline(cls) -> Dict[str, Any]:
-        return {
-            "reader_workers": cls.READER_WORKERS,
-            "queue_depth": cls.QUEUE_DEPTH,
-            "prefetch_enabled": cls.PREFETCH_ENABLED,
-            "slice_open_days": cls.SLICE_OPEN_DAYS,
-            # 探针 / 分片 / reader 调度由 BacktestEngine 负责；Strategy 只跑 compute
-            "slice_probe": False,
-        }
-
-    @classmethod
-    def apply_runtime_tune(cls, **kwargs: Any) -> None:
-        cls._runtime_tune.update(kwargs)
-
-    @classmethod
-    def clear_runtime_tune(cls) -> None:
-        cls._runtime_tune.clear()
-
-    @classmethod
-    def performance(cls) -> Dict[str, Any]:
-        merged = dict(cls.baseline())
-        merged.update(cls._runtime_tune)
-        return resolve_slice_based_performance(merged)
+logger = logging.getLogger(__name__)
 
 
 class SliceBasedJobPipeline:
-    """组装 bulk job + execute_fn，交给 BacktestEngine.slice_based。"""
+    """slice_based 枚举完整流程。"""
+
+    @classmethod
+    def run(cls, strategy: StrategyContext) -> Dict[str, Any]:
+        logger.info(
+            "Starting enumeration: strategy=%s, entities=%d, dates=%s~%s",
+            strategy.strategy_name,
+            len(strategy.entity_ids),
+            strategy.start_date,
+            strategy.end_date,
+        )
+
+        runtime = cls.build_runtime(strategy)
+        ctx = runtime.context
+
+        recorder = EnumeratorOutputRecorder(
+            output_dir=strategy.output_dir,
+            strategy_name=strategy.strategy_name,
+            version_id=strategy.version_id,
+            version_dir_name=strategy.version_dir_name,
+        )
+        recorder.save_preprocess_intermediate(
+            fingerprint={"hash": ctx.fingerprint_hash},
+            jobs=ctx.jobs,
+            settings_diff=ctx.settings_diff,
+        )
+
+        global_data, global_meta = GlobalDataPreloader.preload(
+            settings=strategy.effective_settings.raw_settings,
+            start_date=strategy.start_date,
+            end_date=strategy.end_date,
+            entity_ids=strategy.entity_ids,
+        )
+        ctx.global_data_meta.update(global_meta)
+
+        runtime.status.stage = "execute"
+        job_results = cls.execute_backtest(runtime, global_data=global_data)
+
+        for job_result in job_results:
+            for stock_id, opportunities in iter_opportunities_from_job_result(job_result):
+                if stock_id and opportunities:
+                    recorder.save_stock_opportunities(stock_id, opportunities)
+
+        report_template = EnumeratorReportStatistics.compute_from_dir(
+            strategy.output_dir,
+            total_stocks_hint=len(strategy.entity_ids),
+        )
+
+        runtime.status.stage = "postprocess"
+        metadata = {
+            "strategy_name": strategy.strategy_name,
+            "version_id": strategy.version_id,
+            "version_dir_name": strategy.version_dir_name,
+            "fingerprint_hash": ctx.fingerprint_hash,
+            "start_date": strategy.start_date,
+            "end_date": strategy.end_date,
+            "total_stocks": len(strategy.entity_ids),
+            "execution_mode": ctx.execution_mode,
+            "status": "completed",
+        }
+        recorder.save_postprocess_intermediate(
+            metadata=metadata,
+            report=EnumeratorReportStatistics.to_bff_payload(
+                report_template,
+                include_stock_rows=False,
+            ),
+        )
+
+        logger.info(
+            "Enumeration completed: opportunities=%d, trigger_stocks=%d",
+            report_template.total_opportunities,
+            report_template.trigger_stocks,
+        )
+
+        return {
+            "success": True,
+            "total_opportunities": report_template.total_opportunities,
+            "trigger_stocks": report_template.trigger_stocks,
+            "fingerprint_hash": ctx.fingerprint_hash,
+            "execution_mode": ctx.execution_mode,
+        }
+
+    @classmethod
+    def build_runtime(
+        cls,
+        strategy: StrategyContext,
+        *,
+        global_data_meta: Optional[Dict[str, Any]] = None,
+    ) -> EnumeratorRuntime:
+        settings = strategy.effective_settings
+
+        if not settings.is_slice_based:
+            raise ValueError(
+                f"SliceBasedJobPipeline 期望 slice_based，实际 {settings.execution_mode!r}"
+            )
+
+        jobs = SliceBasedJobs.build(
+            strategy_name=strategy.strategy_name,
+            settings_payload=settings.raw_settings,
+            output_dir=str(strategy.output_dir),
+            worker_ref=strategy.worker_ref,
+            entity_ids=strategy.entity_ids,
+            start_date=strategy.start_date,
+            end_date=strategy.end_date,
+        )
+
+        context = SliceBasedRuntimeContext.from_strategy_context(
+            strategy,
+            execution_mode=settings.execution_mode,
+            jobs=jobs,
+            task_name=f"enum_{strategy.strategy_name}",
+            run_name=f"enum_{strategy.strategy_name}",
+            performance=SliceBasedRuntimeContext.default_performance(),
+            global_data_meta=global_data_meta,
+        )
+        return EnumeratorRuntime(context=context, status=SliceBasedRuntimeStatus(stage="preprocess"))
 
     @staticmethod
     def execute_slice_job(context: JobContext) -> Dict[str, Any]:
@@ -66,7 +155,7 @@ class SliceBasedJobPipeline:
         )
 
     @classmethod
-    def run(
+    def execute_backtest(
         cls,
         runtime: EnumeratorRuntime,
         *,
@@ -98,7 +187,7 @@ class SliceBasedJobPipeline:
         result = BacktestEngine.slice_based.run(
             engine_jobs,
             cls.execute_slice_job,
-            performance=ctx.performance or SliceBasedWorkerContext.performance(),
+            performance=ctx.performance,
             task_name=ctx.task_name,
             callbacks=RunCallbacks(on_result=on_engine_result),
         )
@@ -118,7 +207,4 @@ class SliceBasedJobPipeline:
         return BacktestJob(id=job_id, payload=payload).to_dict()
 
 
-__all__ = [
-    "SliceBasedJobPipeline",
-    "SliceBasedWorkerContext",
-]
+__all__ = ["SliceBasedJobPipeline"]

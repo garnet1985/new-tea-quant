@@ -1,46 +1,24 @@
-"""枚举指纹与 execution_mode 解析。"""
+"""Backward-compat shims — 逻辑已迁至 ``StrategySettings``。"""
 from __future__ import annotations
 
-import hashlib
-import json
 from typing import Any, Dict, List
 
-from core.modules.backtest_engine.core.shared.modes import BacktestMode
-from core.modules.strategy.core.services.settings.settings_merge import StrategySettingsMerge
+from core.modules.strategy.core.data.settings.strategy_settings import StrategySettings
 
 
 class EnumeratorExecutionMode:
-    """settings → BacktestEngine 模式名（与 BacktestMode 对齐）。"""
+    """Deprecated: use ``StrategySettings.execution_mode``."""
 
-    ENTITY_BASED = BacktestMode.ENTITY_BASED.value
-    SLICE_BASED = BacktestMode.SLICE_BASED.value
+    ENTITY_BASED = "entity_based"
+    SLICE_BASED = "slice_based"
 
     @classmethod
     def resolve(cls, settings: Dict[str, Any]) -> str:
-        simulation = settings.get("simulation")
-        if not isinstance(simulation, dict):
-            raise ValueError("settings.simulation 须为 dict")
-        raw = simulation.get("execution_mode")
-        if raw is None or str(raw).strip() == "":
-            raise ValueError(
-                f"settings.simulation.execution_mode 必填"
-                f"（{BacktestMode.ENTITY_BASED.value} | {BacktestMode.SLICE_BASED.value}）"
-            )
-        return BacktestMode.normalize(raw)
+        return StrategySettings(raw_settings=settings).execution_mode
 
 
 class EnumeratorFingerprint:
-    """枚举指纹（基于 settings_diff）。"""
-
-    @staticmethod
-    def _stable_hash(payload: Dict[str, Any]) -> str:
-        canonical = json.dumps(
-            payload,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    """Deprecated: use ``StrategySettings.fingerprint_hash``."""
 
     @classmethod
     def calculate_fingerprint_hash(
@@ -50,13 +28,12 @@ class EnumeratorFingerprint:
         start_date: str,
         end_date: str,
     ) -> str:
-        signature = {
-            "settings": StrategySettingsMerge.fingerprint_payload(settings_diff),
-            "entity_ids": sorted(entity_ids),
-            "start_date": start_date,
-            "end_date": end_date,
-        }
-        return cls._stable_hash(signature)
+        return StrategySettings(raw_settings={}).fingerprint_hash(
+            settings_diff=settings_diff,
+            entity_ids=entity_ids,
+            start_date=start_date,
+            end_date=end_date,
+        )
 
 
 __all__ = ["EnumeratorExecutionMode", "EnumeratorFingerprint"]

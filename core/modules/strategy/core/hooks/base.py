@@ -35,9 +35,13 @@ class StrategyHooks(ABC):
     # ── scan 辅助原语 ──
 
     @staticmethod
-    def get_record_of_today(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        klines = data.get("klines") or []
-        return klines[-1] if klines else None
+    def get_record_of_today(
+        data: Dict[str, Any],
+        *,
+        base_data_key: str,
+    ) -> Optional[Dict[str, Any]]:
+        rows = data.get(base_data_key) or []
+        return rows[-1] if rows else None
 
     @staticmethod
     def signal_date(record_of_today: Dict[str, Any]) -> str:

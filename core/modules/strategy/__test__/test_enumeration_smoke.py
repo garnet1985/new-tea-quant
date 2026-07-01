@@ -9,6 +9,7 @@ from typing import Any, Dict
 from unittest.mock import patch
 
 from core.modules.strategy.core.engines.enumerator.slice_based.compute import SliceBasedCompute
+from core.modules.strategy.core.engines.enumerator.entity_based.resolver.jobs import EntityBasedJobs
 from core.modules.strategy.core.engines.enumerator.slice_based.resolver.jobs import SliceBasedJobs
 from core.modules.strategy.core.helpers.calendar import CalendarOpenDateHelper
 from core.modules.strategy.core.services.data.entity_data import GlobalDataPreloader
@@ -122,6 +123,7 @@ class TestDevtoolsDiscoverySmoke(unittest.TestCase):
         self.assertIn(_DEVTOOLS_STOCK_BASED, discovered)
 
         info = discovered[_DEVTOOLS_STOCK_BASED]
+        self.assertEqual(info["key"], "stock_based_rsi")
         self.assertEqual(info["worker_class_name"], "RsiFundamentalGateHooks")
         self.assertTrue(Path(info["folder"]).joinpath("strategy.py").is_file())
 
@@ -181,6 +183,47 @@ class TestDevtoolsDiscoverySmoke(unittest.TestCase):
         settings = info["settings"]
         self.assertEqual(settings["simulation"]["execution_mode"], "slice_based")
         self.assertEqual(settings["data"]["base"]["data_key"], "stock.kline.daily")
+
+
+class TestEntityBasedJobBuild(unittest.TestCase):
+    """entity_based job 须含 open_dates + backtest_calendar。"""
+
+    def test_build_includes_open_dates(self) -> None:
+        from core.modules.strategy.core.engines.enumerator.slice_based.resolver import calendar
+
+        fake_calendar = {
+            "market": "SSE",
+            "period_start": "20240101",
+            "period_end": "20241231",
+            "open_dates": ["20240102", "20240103"],
+        }
+        with patch.object(
+            calendar.BacktestCalendarResolver,
+            "resolve",
+            return_value=(fake_calendar["open_dates"], fake_calendar),
+        ):
+            jobs = EntityBasedJobs.build(
+                strategy_name="demo/entity",
+                settings_payload={
+                    "market_profile": "china_a_stock",
+                    "data": {"base": {"data_key": "stock.kline.daily", "params": {}}},
+                },
+                output_dir="/tmp/out",
+                worker_ref={
+                    "worker_module_path": "mod",
+                    "worker_class_name": "Hooks",
+                    "worker_file_path": "",
+                },
+                stock_ids=["600000.SH", "600036.SH"],
+                start_date="20240101",
+                end_date="20241231",
+            )
+
+        self.assertEqual(len(jobs), 2)
+        for job in jobs:
+            self.assertEqual(job["open_dates"], ["20240102", "20240103"])
+            self.assertEqual(job["backtest_calendar"]["open_dates"], ["20240102", "20240103"])
+            self.assertEqual(job["enumeration_execution_mode"], "entity_based")
 
 
 class TestSliceBasedJobBuild(unittest.TestCase):

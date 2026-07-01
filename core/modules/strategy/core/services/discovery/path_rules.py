@@ -12,7 +12,7 @@ class StrategyPathRules:
     PATH_SEGMENT_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9_]*$")
 
     @classmethod
-    def relative_strategy_key(cls, strategy_folder: Path, strategies_root: Path) -> str:
+    def relative_strategy_path(cls, strategy_folder: Path, strategies_root: Path) -> str:
         """strategies_root 到策略目录的相对 POSIX 路径。"""
         folder = Path(strategy_folder).resolve()
         root = Path(strategies_root).resolve()

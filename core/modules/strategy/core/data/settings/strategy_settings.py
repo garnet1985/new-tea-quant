@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 from dataclasses import dataclass, field
-from typing import Any, Dict
+from typing import Any, ClassVar, Dict, FrozenSet, List, Tuple
+
+from core.modules.backtest_engine.core.shared.modes import BacktestMode
+from core.utils.utils import Utils
 
 from .general_settings import GeneralSettings
 from .enumerator_settings import EnumeratorSettings
@@ -19,9 +24,32 @@ class StrategySettings:
     - 外层：StrategySettings（proxy/壳子）
     - 内层：GeneralSettings、EnumeratorSettings等子配置类
 
-    简化版本：只包含GeneralSettings和EnumeratorSettings。
-    TODO: 后续添加完整的子配置类（MarketProfileSettings、FeesSettings、SimulationSettings等）。
+    磁盘 settings 与用户覆盖的 diff / merge 也在此类上完成。
     """
+
+    FINGERPRINT_FIELDS: ClassVar[FrozenSet[str]] = frozenset(
+        {
+            "core",
+            "data",
+            "goal",
+            "sampling",
+            "price_simulator",
+            "capital_simulator",
+            "fees",
+            "simulation",
+            "market_profile",
+        }
+    )
+
+    NON_FINGERPRINT_FIELDS: ClassVar[FrozenSet[str]] = frozenset(
+        {
+            "meta",
+            "is_enabled",
+            "scanner",
+            "enumerator",
+        }
+    )
+
     raw_settings: Dict[str, Any]
     _validated: bool = field(default=False, repr=False)
 
@@ -31,10 +59,114 @@ class StrategySettings:
         object.__setattr__(self, 'general', GeneralSettings(raw_settings=self.raw_settings))
         object.__setattr__(self, 'enumerator', EnumeratorSettings(raw_settings=self.raw_settings))
 
+    @classmethod
+    def diff(cls, disk_settings: Dict[str, Any], user_settings: Dict[str, Any]) -> Dict[str, Any]:
+        """磁盘 vs 用户的完整 diff。"""
+        return Utils.deep_diff(disk_settings, user_settings)
+
+    @classmethod
+    def _filter_fingerprint_fields(cls, diff: Dict[str, Any]) -> Dict[str, Any]:
+        """只保留影响回测结果的 diff 字段。"""
+        return {
+            key: copy.deepcopy(value)
+            for key, value in diff.items()
+            if key.split(".")[0] in cls.FINGERPRINT_FIELDS
+        }
+
+    @classmethod
+    def fingerprint_diff(
+        cls,
+        disk_settings: Dict[str, Any],
+        user_settings: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """disk vs user 的 diff，仅保留影响回测/指纹的字段。"""
+        return cls._filter_fingerprint_fields(cls.diff(disk_settings, user_settings))
+
+    @classmethod
+    def merge_disk_with_diff(
+        cls,
+        disk_settings: Dict[str, Any],
+        settings_diff: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """磁盘基准 + diff → 有效 settings dict。"""
+        if not settings_diff:
+            return copy.deepcopy(disk_settings)
+        return Utils.deep_merge(copy.deepcopy(disk_settings), settings_diff)
+
+    @classmethod
+    def resolve(
+        cls,
+        disk_settings: Dict[str, Any],
+        user_settings: Dict[str, Any],
+    ) -> Tuple["StrategySettings", Dict[str, Any]]:
+        """disk + user 覆盖 → (有效 StrategySettings, fingerprint_diff)。"""
+        settings_diff = cls.fingerprint_diff(disk_settings, user_settings)
+        effective = cls.merge_disk_with_diff(disk_settings, settings_diff)
+        return cls(raw_settings=effective), settings_diff
+
+    @classmethod
+    def fingerprint_payload(cls, settings_diff: Dict[str, Any]) -> Dict[str, Any]:
+        """用于指纹计算的 settings 片段。"""
+        return copy.deepcopy(settings_diff)
+
+    @property
+    def execution_mode(self) -> str:
+        """BacktestEngine 模式名（``simulation.execution_mode``）。"""
+        simulation = self.raw_settings.get("simulation")
+        if not isinstance(simulation, dict):
+            raise ValueError("settings.simulation 须为 dict")
+        raw = simulation.get("execution_mode")
+        if raw is None or str(raw).strip() == "":
+            raise ValueError(
+                f"settings.simulation.execution_mode 必填"
+                f"（{BacktestMode.ENTITY_BASED.value} | {BacktestMode.SLICE_BASED.value}）"
+            )
+        return BacktestMode.normalize(raw)
+
+    @property
+    def is_entity_based(self) -> bool:
+        return self.execution_mode == BacktestMode.ENTITY_BASED.value
+
+    @property
+    def is_slice_based(self) -> bool:
+        return self.execution_mode == BacktestMode.SLICE_BASED.value
+
+    def fingerprint_hash(
+        self,
+        *,
+        settings_diff: Dict[str, Any],
+        entity_ids: List[str],
+        start_date: str,
+        end_date: str,
+    ) -> str:
+        """枚举指纹（settings_diff + entity_ids + 日期区间）。"""
+        signature = {
+            "settings": self.fingerprint_payload(settings_diff),
+            "entity_ids": sorted(entity_ids),
+            "start_date": start_date,
+            "end_date": end_date,
+        }
+        return self._stable_hash(signature)
+
+    @staticmethod
+    def _stable_hash(payload: Dict[str, Any]) -> str:
+        canonical = json.dumps(
+            payload,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
     @property
     def is_enabled(self) -> bool:
         """Get is_enabled flag."""
         return self.general.is_enabled
+
+    @property
+    def key(self) -> str:
+        """Get module key from meta."""
+        return self.general.key
 
     @property
     def display_name(self) -> str:

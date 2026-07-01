@@ -44,6 +44,10 @@ class DiscoveredTag:
     def settings_name(self) -> str:
         return str(self.settings.get("name") or self.tag_key)
 
+    @property
+    def module_key(self) -> str:
+        return TagDiscoveryHelper._read_meta_key(self.settings, fallback=self.tag_key)
+
 
 class TagDiscoveryHelper:
     @staticmethod
@@ -110,6 +114,8 @@ class TagDiscoveryHelper:
             logger.error("Tag %s 的 Settings 不是 dict", tag_key)
             return None
 
+        TagDiscoveryHelper._ensure_meta_key(settings_dict, default_key=tag_key)
+
         try:
             normalized = normalize_tag_settings(settings_dict, tag_key=tag_key)
         except ValueError as exc:
@@ -156,6 +162,28 @@ class TagDiscoveryHelper:
                 ", ".join(matches),
             )
         return None
+
+    @staticmethod
+    def _read_meta_key(settings: Dict[str, Any], *, fallback: str = "") -> str:
+        meta = settings.get("meta")
+        if not isinstance(meta, dict):
+            return str(fallback or "").strip()
+        return str(meta.get("key") or fallback or "").strip()
+
+    @staticmethod
+    def _ensure_meta_key(settings: Dict[str, Any], *, default_key: str) -> str:
+        meta = settings.get("meta")
+        if not isinstance(meta, dict):
+            meta = {}
+            settings["meta"] = meta
+        key = str(meta.get("key") or "").strip()
+        if key:
+            return key
+        key = str(default_key or "").strip()
+        if not key:
+            raise ValueError("meta.key 不能为空")
+        meta["key"] = key
+        return key
 
 
 __all__ = ["DiscoveredTag", "TagDiscoveryHelper"]

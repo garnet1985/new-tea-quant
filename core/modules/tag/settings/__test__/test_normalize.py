@@ -59,6 +59,11 @@ class TestNormalizeTagSettings:
         ]
         assert ScenarioModel.is_setting_valid(norm) is True
 
+    def test_meta_key_preserved(self):
+        raw = _userspace_settings(meta={"key": "cap_tier", "display_name": "test"})
+        norm = normalize_tag_settings(raw, tag_key="demo/market_cap_tier")
+        assert norm["meta"]["key"] == "cap_tier"
+
     def test_market_cap_tier_settings(self):
         from userspace.extensions.tags.demo.market_cap_tier.settings import Settings
 

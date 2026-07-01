@@ -1,6 +1,8 @@
 settings = {
     "is_enabled": True,
+    # 系统 discovery 暂用路径；CLI 未来将使用 meta.key
     "meta": {
+        "key": "slice_low_price_v2",
         "display_name": "低价股 · v2 年度换仓（PIT · 仅价格）",
         "description": (
             "与 v1 逻辑相同，但股票池为 PIT：含回测期内中途退市股票。"

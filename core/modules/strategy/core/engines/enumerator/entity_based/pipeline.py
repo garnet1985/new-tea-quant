@@ -1,106 +1,157 @@
-"""entity_based 枚举：job 构建 + BacktestEngine 调度管道。"""
+"""entity_based 主执行流程 — preprocess → BacktestEngine → postprocess。
+
+子进程逻辑见 ``worker.py``（``EntityBasedWorker``）。
+"""
 from __future__ import annotations
 
-from typing import Any, Callable, ClassVar, Dict, List, Optional, Tuple
+import logging
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from core.modules.backtest_engine import BacktestEngine
-from core.modules.backtest_engine.contracts import BacktestJob, JobContext, JobReport, RunCallbacks, RunProgress
-from core.modules.backtest_engine.core.shared.performance import (
-    EntityBasedPerformance,
-    resolve_entity_based_performance,
-)
+from core.modules.backtest_engine.contracts import BacktestJob, JobReport, RunCallbacks, RunProgress
+from core.modules.strategy.core.context.strategy_context import StrategyContext
+from core.modules.strategy.core.services.data.entity_data import GlobalDataPreloader
+from core.modules.strategy.core.services.data.output_recorder import EnumeratorOutputRecorder
 
+from ..shared.opportunities import iter_opportunities_from_job_result
+from ..shared.report.statistics import EnumeratorReportStatistics
 from ..shared.runtime import EnumeratorRuntime, JobResultHelper
-from .job_init import EntityBasedJobInit
+from .context.runtime import EntityBasedRuntimeContext
+from .context.status import EntityBasedRuntimeStatus
+from .resolver.jobs import EntityBasedJobs
 from .worker import EntityBasedWorker
 
-
-class EntityBasedWorkerContext:
-    """entity_based worker 性能基线（非用户 settings）。"""
-
-    RESERVE_CORES: ClassVar[int] = 2
-    MAX_PARALLEL_JOBS_CAP: ClassVar[Optional[int]] = None
-    MEMORY_BUDGET_MB: ClassVar[str] = "auto"
-    MEMORY_FLOOR_MB: ClassVar[str] = "auto"
-    ENTITIES_PER_JOB: ClassVar[str] = "auto"
-    DISPATCH_PROBE: ClassVar[bool] = True
-    ENTITIES_PER_JOB_MIN: ClassVar[int] = 1
-    ENTITIES_PER_JOB_MAX: ClassVar[int] = 500
-    WORKER_MEMORY_FRACTION: ClassVar[float] = 0.85
-    PREFETCH_AHEAD: ClassVar[int] = 1
-
-    _runtime_tune: ClassVar[Dict[str, Any]] = {}
-
-    @classmethod
-    def baseline(cls) -> Dict[str, Any]:
-        return {
-            "reserve_cores": cls.RESERVE_CORES,
-            "max_parallel_jobs_cap": cls.MAX_PARALLEL_JOBS_CAP,
-            "memory_budget_mb": cls.MEMORY_BUDGET_MB,
-            "memory_floor_mb": cls.MEMORY_FLOOR_MB,
-            "entities_per_job": cls.ENTITIES_PER_JOB,
-            "dispatch_probe": cls.DISPATCH_PROBE,
-            "entities_per_job_min": cls.ENTITIES_PER_JOB_MIN,
-            "entities_per_job_max": cls.ENTITIES_PER_JOB_MAX,
-            "worker_memory_fraction": cls.WORKER_MEMORY_FRACTION,
-            "prefetch_ahead": cls.PREFETCH_AHEAD,
-        }
-
-    @classmethod
-    def apply_runtime_tune(cls, **kwargs: Any) -> None:
-        cls._runtime_tune.update(kwargs)
-
-    @classmethod
-    def clear_runtime_tune(cls) -> None:
-        cls._runtime_tune.clear()
-
-    @classmethod
-    def performance(cls) -> Dict[str, Any]:
-        merged = cls.baseline()
-        if cls._runtime_tune:
-            merged = EntityBasedPerformance.from_dict(merged).merge(cls._runtime_tune).to_dict()
-        return resolve_entity_based_performance(merged)
+logger = logging.getLogger(__name__)
 
 
 class EntityBasedJobPipeline:
-    """组装 jobs + execute_fn，交给 BacktestEngine.entity_based。"""
-
-    @staticmethod
-    def execute_entity_based_job(context: JobContext) -> Dict[str, Any]:
-        payload = dict(context.payload)
-        global_data = payload.pop("_global_data", None)
-        if not isinstance(global_data, dict):
-            raise ValueError("entity_based job 缺少 _global_data")
-
-        batch_entities = payload.get("jobs")
-        if isinstance(batch_entities, list) and batch_entities:
-            dispatch_job = EntityBasedJobPipeline._merge_batch(batch_entities, context.job_id)
-            worker_payload = EntityBasedWorker.build_payload(
-                {**dispatch_job, "global_data": global_data},
-            )
-        else:
-            worker_payload = EntityBasedWorker.build_payload(
-                {**payload, "global_data": global_data},
-            )
-
-        return EntityBasedWorker.run(
-            JobContext(
-                job_id=context.job_id,
-                payload=worker_payload,
-                task_name=context.task_name,
-            )
-        )
+    """entity_based 枚举完整流程。"""
 
     @classmethod
-    def run(
+    def run(cls, strategy: StrategyContext) -> Dict[str, Any]:
+        logger.info(
+            "Starting enumeration: strategy=%s, entities=%d, dates=%s~%s",
+            strategy.strategy_name,
+            len(strategy.entity_ids),
+            strategy.start_date,
+            strategy.end_date,
+        )
+
+        runtime = cls.build_runtime(strategy)
+        ctx = runtime.context
+
+        recorder = EnumeratorOutputRecorder(
+            output_dir=strategy.output_dir,
+            strategy_name=strategy.strategy_name,
+            version_id=strategy.version_id,
+            version_dir_name=strategy.version_dir_name,
+        )
+        recorder.save_preprocess_intermediate(
+            fingerprint={"hash": ctx.fingerprint_hash},
+            jobs=ctx.jobs,
+            settings_diff=ctx.settings_diff,
+        )
+
+        global_data, global_meta = GlobalDataPreloader.preload(
+            settings=strategy.effective_settings.raw_settings,
+            start_date=strategy.start_date,
+            end_date=strategy.end_date,
+            entity_ids=strategy.entity_ids,
+        )
+        ctx.global_data_meta.update(global_meta)
+
+        runtime.status.stage = "execute"
+        job_results = cls.execute_backtest(runtime, global_data=global_data)
+
+        for job_result in job_results:
+            for stock_id, opportunities in iter_opportunities_from_job_result(job_result):
+                if stock_id and opportunities:
+                    recorder.save_stock_opportunities(stock_id, opportunities)
+
+        report_template = EnumeratorReportStatistics.compute_from_dir(
+            strategy.output_dir,
+            total_stocks_hint=len(strategy.entity_ids),
+        )
+
+        runtime.status.stage = "postprocess"
+        metadata = {
+            "strategy_name": strategy.strategy_name,
+            "version_id": strategy.version_id,
+            "version_dir_name": strategy.version_dir_name,
+            "fingerprint_hash": ctx.fingerprint_hash,
+            "start_date": strategy.start_date,
+            "end_date": strategy.end_date,
+            "total_stocks": len(strategy.entity_ids),
+            "execution_mode": ctx.execution_mode,
+            "status": "completed",
+        }
+        recorder.save_postprocess_intermediate(
+            metadata=metadata,
+            report=EnumeratorReportStatistics.to_bff_payload(
+                report_template,
+                include_stock_rows=False,
+            ),
+        )
+
+        logger.info(
+            "Enumeration completed: opportunities=%d, trigger_stocks=%d",
+            report_template.total_opportunities,
+            report_template.trigger_stocks,
+        )
+
+        return {
+            "success": True,
+            "total_opportunities": report_template.total_opportunities,
+            "trigger_stocks": report_template.trigger_stocks,
+            "fingerprint_hash": ctx.fingerprint_hash,
+            "execution_mode": ctx.execution_mode,
+        }
+
+    @classmethod
+    def build_runtime(
+        cls,
+        strategy: StrategyContext,
+        *,
+        global_data_meta: Optional[Dict[str, Any]] = None,
+    ) -> EnumeratorRuntime:
+        settings = strategy.effective_settings
+
+        if not settings.is_entity_based:
+            raise ValueError(
+                f"EntityBasedJobPipeline 期望 entity_based，实际 {settings.execution_mode!r}"
+            )
+
+        jobs = EntityBasedJobs.build(
+            strategy_name=strategy.strategy_name,
+            settings_payload=settings.raw_settings,
+            output_dir=str(strategy.output_dir),
+            worker_ref=strategy.worker_ref,
+            stock_ids=strategy.entity_ids,
+            start_date=strategy.start_date,
+            end_date=strategy.end_date,
+        )
+
+        context = EntityBasedRuntimeContext.from_strategy_context(
+            strategy,
+            execution_mode=settings.execution_mode,
+            jobs=jobs,
+            task_name=f"enum_{strategy.strategy_name}",
+            run_name=f"enum_{strategy.strategy_name}",
+            performance=EntityBasedRuntimeContext.default_performance(),
+            global_data_meta=global_data_meta,
+        )
+        return EnumeratorRuntime(context=context, status=EntityBasedRuntimeStatus(stage="preprocess"))
+
+    @classmethod
+    def execute_backtest(
         cls,
         runtime: EnumeratorRuntime,
         *,
         global_data: Dict[str, List[Dict[str, Any]]],
-        total_jobs: int,
         on_job_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
     ) -> List[Any]:
         ctx = runtime.context
+        total_jobs = cls._entity_count_from_jobs(ctx.jobs)
         engine_jobs = [
             cls._wrap_backtest_job(job, _global_data=global_data)
             for job in ctx.jobs
@@ -133,12 +184,12 @@ class EntityBasedJobPipeline:
 
         result = BacktestEngine.entity_based.run(
             engine_jobs,
-            cls.execute_entity_based_job,
-            performance=ctx.performance or EntityBasedWorkerContext.performance(),
+            EntityBasedWorker.execute,
+            performance=ctx.performance,
             task_name=ctx.task_name,
             callbacks=RunCallbacks(
-                on_job_init=EntityBasedJobInit.on_job_context,
-                on_job_release=EntityBasedJobInit.release_job_context,
+                on_job_init=EntityBasedWorker.on_init,
+                on_job_release=EntityBasedWorker.on_release,
                 on_result=on_engine_result,
             ),
         )
@@ -149,6 +200,17 @@ class EntityBasedJobPipeline:
         ]
 
     @staticmethod
+    def _entity_count_from_jobs(jobs: List[Dict[str, Any]]) -> int:
+        total = 0
+        for job in jobs:
+            stock_ids = job.get("stock_ids")
+            if isinstance(stock_ids, list) and stock_ids:
+                total += len(stock_ids)
+            elif job.get("stock_id"):
+                total += 1
+        return max(total, len(jobs))
+
+    @staticmethod
     def _wrap_backtest_job(job: Dict[str, Any], **payload_extra: Any) -> Dict[str, Any]:
         entity_id = str(job.get("entity_id") or "").strip()
         if not entity_id:
@@ -156,30 +218,6 @@ class EntityBasedJobPipeline:
         payload = dict(job)
         payload.update(payload_extra)
         return BacktestJob(id=entity_id, payload=payload).to_dict()
-
-    @staticmethod
-    def _merge_batch(entities: List[Dict[str, Any]], batch_job_id: str) -> Dict[str, Any]:
-        rows = BacktestJob.batch_payloads(entities)
-        base = dict(rows[0])
-        entity_ids = [
-            str(row.get("entity_id") or "").strip()
-            for row in rows
-            if str(row.get("entity_id") or "").strip()
-        ]
-        if not entity_ids:
-            raise ValueError("entity_based batch payload 缺少 entity_id")
-
-        merged = {
-            key: value
-            for key, value in base.items()
-            if key not in {"job_id", "entity_id", "entity_ids", "id", "payload"}
-        }
-        merged["job_id"] = entity_ids[0] if len(entity_ids) == 1 else batch_job_id
-        merged["entity_ids"] = entity_ids
-        if len(entity_ids) == 1:
-            merged["entity_id"] = entity_ids[0]
-        merged["_global_data"] = base.get("_global_data")
-        return merged
 
     @staticmethod
     def _progress_units_from_report(report: JobReport) -> Tuple[int, int, int]:
@@ -200,7 +238,4 @@ class EntityBasedJobPipeline:
         return ok + fail, ok, fail
 
 
-__all__ = [
-    "EntityBasedJobPipeline",
-    "EntityBasedWorkerContext",
-]
+__all__ = ["EntityBasedJobPipeline"]

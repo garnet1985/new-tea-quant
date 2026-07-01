@@ -1,31 +1,31 @@
-# entity_based 流程
+# entity_based
 
-## 职责边界（Strategy vs BacktestEngine）
+## 目录职责
 
-| 层 | 负责 |
-|----|------|
-| **BacktestEngine.entity_based** | 多 job 并行、dispatch probe、worker 进程池 |
-| **Strategy（本目录）** | 单股 timeline：hooks、scan、opportunity CSV |
+| 文件 | 进程 | 职责 |
+|------|------|------|
+| **`pipeline.py`** | 主进程 | 完整流程：preprocess → BacktestEngine → postprocess |
+| **`worker.py`** | 子进程 | init / execute / release |
+| `executor.py` | 子进程 | 单股 open_dates scan（待 review） |
+| `resolver/jobs.py` | 主进程 | 构建每股 job（待 review） |
+| `context/runtime.py` | 主进程 | RuntimeContext + 性能基线 |
+| `context/data.py` | hook | DataContext |
+| `context/status.py` | 主进程 | RuntimeStatus |
 
-```
-resolver/jobs.py      → 每股一 job
-pipeline.py           → BacktestEngine.entity_based.run + execute_fn
-                        RunCallbacks.on_job_init / on_job_release
-worker.py             → execute_fn 入口（消费 context.init）
-job_init.py           → on_job_init：批量装载 + 建 cursor
-executor.py           → execute：逐 bar 跑 hook（不再读 DB）
-execute_payload.py    → 入参 dataclass
-execute_result.py     → 返回值 dataclass
-context/data.py       → EntityBasedDataContext
-```
-
-## 子进程数据流
+## 入口
 
 ```
-BacktestEngine 子进程
-  1. RunCallbacks.on_job_init   ← 批量装载 + DataCursor
-  2. execute_fn (worker.run)    ← 只截取 + hook
-  3. RunCallbacks.on_job_release
+EnumeratorEngine.run
+  └─ entity_based/pipeline.py :: EntityBasedJobPipeline.run
+       ├─ build_runtime
+       ├─ execute_backtest → BacktestEngine.entity_based.run(EntityBasedWorker)
+       └─ postprocess（opportunities / report）
 ```
 
-settings 须显式声明 `simulation.execution_mode: entity_based`。
+## 子进程
+
+```
+EntityBasedWorker.on_init      batch load + cursor
+EntityBasedWorker.execute      → EntityBasedExecutor
+EntityBasedWorker.on_release   释放 session
+```

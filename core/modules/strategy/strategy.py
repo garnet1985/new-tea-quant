@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List, Optional
 
-from .core.services import DiscoveryService
+from .core.services.discovery import DiscoveryService
 
 
 class Strategy:
@@ -27,57 +27,37 @@ class Strategy:
         raise NotImplementedError("Strategy.analyze() implementation pending")
 
     @staticmethod
-    def enumerate(
-        strategy_name: str,
-        *,
-        userspace_root: Optional[str] = None,
-        strategies_root: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """对单个策略运行 entity_based 枚举器。"""
-        from pathlib import Path
+    def enumerate(key_or_id: str, ignore_cache: bool = False) -> Dict[str, Any]:
+        """对单个策略运行枚举器。"""
+        # from pathlib import Path
 
         from .core.engines.enumerator import EnumeratorEngine
-        from .core.services.data.output_paths import OutputPathManager
-        from .core.services.data.params_resolver import BacktestParamsResolver
-        from .core.services.settings.settings_loader import SettingsLoader
 
-        strategies_path = Path(strategies_root) if strategies_root else None
-        discovered = DiscoveryService.discover_strategies(strategies_path)
-        strategy_info = discovered.get(strategy_name)
-        if not strategy_info:
-            raise ValueError(f"Strategy not found: {strategy_name}")
+        strategy = DiscoveryService.find_strategy(key_or_id)
 
-        strategy_folder = Path(strategy_info["folder"])
-        settings_dict = SettingsLoader.load_settings_dict_from_folder(strategy_folder)
-        params = BacktestParamsResolver.resolve_all_params(strategy_folder, settings_dict)
+        if strategy is None:
+            raise ValueError(f"当前策略不存在或未启用: {key_or_id}")
 
-        userspace_path = Path(userspace_root) if userspace_root else Path("userspace")
-        paths = OutputPathManager.resolve_all_paths(
-            strategy_name,
-            userspace_root=userspace_path,
-        )
-
-        engine = EnumeratorEngine(
-            strategy_name=strategy_name,
-            output_dir=paths["output_dir"],
-            version_id=paths["version_id"],
-            version_dir_name=paths["version_dir_name"],
-            start_date=params["start_date"],
-            end_date=params["end_date"],
-            entity_ids=params["stock_list"],
-            disk_settings=settings_dict,
-            user_settings=settings_dict,
-        )
-        return engine.run(strategy_info)
+        enumerator = EnumeratorEngine(strategy)
+        return enumerator.run(ignore_cache=ignore_cache)
 
     @staticmethod
     def list_strategies(*, strategies_root: Optional[str] = None) -> List[str]:
-        """返回已发现策略名称列表。"""
+        """返回已发现策略relative_path列表。"""
         from pathlib import Path
 
         strategies_path = Path(strategies_root) if strategies_root else None
-        discovered = DiscoveryService.discover_strategies(strategies_path)
-        return sorted(discovered.keys())
+        strategies = DiscoveryService.discover_strategies(strategies_path)
+        return [info.relative_path for info in strategies]
+
+    @staticmethod
+    def list_enabled_strategies(*, strategies_root: Optional[str] = None) -> List[str]:
+        """返回启用策略relative_path列表。"""
+        from pathlib import Path
+
+        strategies_path = Path(strategies_root) if strategies_root else None
+        strategies = DiscoveryService.discover_enabled_strategies(strategies_path)
+        return [info.relative_path for info in strategies]
 
     @staticmethod
     def get_strategy_info(
@@ -89,17 +69,18 @@ class Strategy:
         from pathlib import Path
 
         strategies_path = Path(strategies_root) if strategies_root else None
-        discovered = DiscoveryService.discover_strategies(strategies_path)
-        strategy_info = discovered.get(strategy_name)
-        if strategy_info is None:
-            return None
-        return {
-            "name": strategy_info["name"],
-            "is_enabled": strategy_info["is_enabled"],
-            "display_name": strategy_info["display_name"],
-            "folder": strategy_info["folder"],
-            "settings": strategy_info["settings"],
-        }
+        strategies = DiscoveryService.discover_strategies(strategies_path)
+        for info in strategies:
+            if info.relative_path == strategy_name:
+                return {
+                    "relative_path": info.relative_path,
+                    "key": info.key,
+                    "is_enabled": info.is_enabled,
+                    "display_name": info.display_name,
+                    "folder": str(info.folder),
+                    "settings": info.settings,
+                }
+        return None
 
 
 __all__ = ["Strategy"]

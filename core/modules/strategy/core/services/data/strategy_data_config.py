@@ -5,7 +5,6 @@ from typing import Any, Dict, List
 
 from core.modules.data_contract.contracts import DataKey
 from core.modules.data_contract.core.registry.kline_keys import (
-    PRIMARY_KLINE_SLOT,
     STOCK_KLINE_DATA_ID_VALUES,
     is_stock_kline_data_key,
     kline_term_from_data_id_value,
@@ -14,10 +13,6 @@ from core.modules.data_contract.core.registry.kline_keys import (
 
 class StrategyDataConfig:
     """从 settings.data 解析 base（时间轴）+ required（附加依赖）。"""
-
-    _STORAGE_KEY_ALIASES = {
-        DataKey.TAG: "tags",
-    }
 
     def __init__(self, settings: Dict[str, Any]) -> None:
         self._settings = dict(settings or {})
@@ -168,10 +163,9 @@ class StrategyDataConfig:
 
     @staticmethod
     def storage_key_for(data_key: DataKey, *, is_base: bool = False) -> str:
-        """base K 线 → ``klines``；其余默认为 data_key 字符串。"""
-        if is_base and is_stock_kline_data_key(data_key):
-            return PRIMARY_KLINE_SLOT
-        return StrategyDataConfig._STORAGE_KEY_ALIASES.get(data_key, data_key.value)
+        """Hook / loader 数据槽位名：与 ``DataKey`` 字符串一致（无别名）。"""
+        _ = is_base
+        return data_key.value
 
 
 __all__ = ["StrategyDataConfig"]

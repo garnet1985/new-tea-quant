@@ -3,26 +3,27 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from core.modules.strategy.core.data.settings.strategy_settings import StrategySettings
 from core.modules.strategy.core.engines.enumerator.entity_based.context.data import EntityBasedDataContext
 from core.modules.strategy.core.engines.enumerator.entity_based.execute_payload import EntityBasedExecutePayload
 from core.modules.strategy.core.engines.enumerator.entity_based.execute_result import EntityBasedExecuteResult
-from core.modules.strategy.core.engines.enumerator.entity_based.job_init import EntityBasedJobSession
+from core.modules.strategy.core.engines.enumerator.entity_based.job_session import (
+    EntityBasedJobSession,
+)
 from core.modules.strategy.core.engines.shared.data_classes import Opportunity
 from core.modules.strategy.core.helpers.opportunity_csv import OpportunityCsvHelper
 from core.modules.strategy.core.helpers.opportunity_enrichment import OpportunityEnricher
 from core.modules.strategy.core.helpers.stock_meta import StockMetaHelper
 from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
-from core.modules.strategy.core.services.data.entity_data import EntityDataLoader
 from core.modules.strategy.core.services.data.strategy_data_config import StrategyDataConfig
 
 logger = logging.getLogger(__name__)
 
 
 class EntityBasedExecutor:
-    """单股执行体：在 job init 已批量装载的数据上，逐 bar 跑 hook。"""
+    """单股执行体：按开市日历推进，仅在新 base bar 日跑 hook。"""
 
     def __init__(
         self,
@@ -50,6 +51,11 @@ class EntityBasedExecutor:
         settings = StrategySettings(raw_settings=settings_dict)
         settings.apply_defaults()
 
+        data_config = StrategyDataConfig(settings_dict)
+        base_data_key = str(data_config.normalize_base(data_config.base)["data_key"])
+        min_required = data_config.min_required_records
+        open_dates = list(self.payload.open_dates)
+
         hook_runtime = StrategyHookRuntime.from_job_payload(
             self.payload.to_mapping(),
             settings=settings,
@@ -58,7 +64,6 @@ class EntityBasedExecutor:
         stock_list = [
             str(x).strip() for x in self.payload.global_data["stock_list"]
         ]
-        min_required = StrategyDataConfig(settings_dict).min_required_records
 
         entity_ctx = EntityBasedDataContext.assemble(
             strategy_name=self.payload.strategy_name,
@@ -69,8 +74,7 @@ class EntityBasedExecutor:
         )
         hook_runtime.call_if_overridden("on_entity_init", entity_ctx)
 
-        bars = self._data_loader.get_klines()
-        if not bars or len(bars) < min_required:
+        if not open_dates:
             return EntityBasedExecuteResult.completed(
                 entity_id=entity_id,
                 entity_name=str(entity_info.get("name") or entity_id),
@@ -80,13 +84,22 @@ class EntityBasedExecutor:
 
         opportunities: List[Opportunity] = []
         opp_counter = 0
+        last_base_date: Optional[str] = None
 
-        for bar_index, current_bar in enumerate(bars):
-            as_of = str(current_bar.get("date") or "")
-            if bar_index + 1 < min_required:
+        for as_of in open_dates:
+            bar, data_as_of = self._base_bar_view(as_of, base_data_key=base_data_key)
+            if bar is None or data_as_of is None:
+                continue
+            if len(data_as_of.get(base_data_key) or []) < min_required:
                 continue
 
-            data_as_of = self._data_loader.data_until(as_of)
+            base_date = str(bar.get("date") or "")
+            if not base_date:
+                continue
+            if last_base_date is not None and base_date == last_base_date:
+                continue
+            last_base_date = base_date
+
             opportunity = self._invoke_scan_hooks(
                 hook_runtime=hook_runtime,
                 base_ctx=entity_ctx,
@@ -97,14 +110,14 @@ class EntityBasedExecutor:
                 continue
 
             opp_counter += 1
-            close = float(current_bar["close"])
+            close = float(bar["close"])
             OpportunityEnricher.apply_trigger_fields(
                 opportunity,
                 settings=settings_dict,
                 strategy_name=self.payload.strategy_name,
                 stock_id=entity_id,
                 stock_info=entity_info,
-                trigger_date=as_of,
+                trigger_date=base_date,
                 trigger_price=close,
                 opportunity_index=opp_counter,
             )
@@ -123,6 +136,27 @@ class EntityBasedExecutor:
             entity_name=str(entity_info.get("name") or entity_id),
             opportunities=opportunities_dict,
         ).to_dict()
+
+    def _base_bar_view(
+        self,
+        as_of: str,
+        *,
+        base_data_key: str,
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        """Calendar as_of 的 PIT 视图；返回 (末根 base bar, hook data)。"""
+        data = self._data_loader.data_until(as_of)
+        base_rows = data.get(base_data_key)
+        if not isinstance(base_rows, list) or not base_rows:
+            return None, None
+        last = base_rows[-1]
+        if not isinstance(last, dict):
+            return None, None
+        for key in ("open", "high", "low", "close", "date"):
+            if key not in last:
+                raise ValueError(
+                    f"K 线缺少字段 {key!r}: stock_id={self.payload.entity_id} as_of={as_of}"
+                )
+        return last, data
 
     def _invoke_scan_hooks(
         self,

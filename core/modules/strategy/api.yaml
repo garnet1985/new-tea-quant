@@ -74,7 +74,7 @@ Strategy:
             notes: "策略扫描根目录，默认 userspace/strategies；devtools 测试可指向 test_base_strategies"
       returns: Dict[str, Any]
       notes: |
-        - 使用 EntityBasedWorkerContext 内置性能基线，用户不可覆盖
+        - 使用 EntityBasedRuntimeContext.default_performance() 内置性能基线，用户不可覆盖
         - simulate(kind=...) 尚未实现；枚举请直接调用本 API
       example: |
         result = Strategy.enumerate("demo/random/random_v1_null_baseline")

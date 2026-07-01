@@ -7,6 +7,7 @@ from typing import Any, Dict, Iterator, List, Optional, TypeVar
 
 from core.modules.strategy.core.data.settings.strategy_settings import StrategySettings
 from core.modules.strategy.core.engines.shared.data_classes.opportunity import Opportunity
+from core.modules.strategy.core.services.data.strategy_data_config import StrategyDataConfig
 
 _ContextT = TypeVar("_ContextT", bound="DataContext")
 
@@ -46,12 +47,13 @@ class DataContext:
     - ``assemble``：0→1，建立结构（我是谁、配置、跨日 extra），不含当日 now/data。
     - ``fill``：1→1，在已有结构上填入当日 now/data 等，生成 hook 快照。
 
-    数据访问：``ctx.data.get("stock_list")``、``ctx.get("now")`` 等。
+    数据访问：``ctx.data.get("stock.kline.daily")``、``ctx.get("now")`` 等；键与 ``DataKey.value`` 一致。
     不含 job_payload、data_manager、进度、profiler 等运行时内部对象。
     """
 
     strategy_name: str
     settings: StrategySettings
+    base_data_key: str = ""
 
     data: _HookDataStore = field(default_factory=_HookDataStore)
 
@@ -79,10 +81,14 @@ class DataContext:
         extra: Optional[Dict[str, Any]] = None,
     ) -> _ContextT:
         """0→1：建立 hook context 结构，不含当日 now/data。"""
+        settings_dict = settings.to_dict()
+        data_cfg = StrategyDataConfig(settings_dict)
+        base_data_key = str(data_cfg.normalize_base(data_cfg.base)["data_key"])
         store: Dict[str, Any] = {"stock_list": list(stock_list)}
         return cls(
             strategy_name=strategy_name,
             settings=settings,
+            base_data_key=base_data_key,
             data=_HookDataStore(store),
             entity_id=entity_id,
             entity_info=dict(entity_info or {}),
@@ -120,6 +126,7 @@ class DataContext:
         return cls(
             strategy_name=base.strategy_name,
             settings=base.settings,
+            base_data_key=base.base_data_key,
             data=_HookDataStore(store),
             entity_id=entity_id if entity_id is not None else base.entity_id,
             entity_info=dict(entity_info) if entity_info is not None else base.entity_info,

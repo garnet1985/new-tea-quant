@@ -10,6 +10,7 @@ Settings = {
     "is_enabled": True,
 
     "meta": {
+        "key": "bench_timeline",
         "display_name": "Benchmark Timeline",
         "description": "性能测试基准：Entity Timeline 模式的轻量级市值分档（周频）",
         "keywords": ["benchmark", "performance", "timeline", "weekly"],

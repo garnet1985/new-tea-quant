@@ -55,6 +55,9 @@ class SliceBasedCompute:
         self.settings = StrategySettings(raw_settings=settings_raw)
         self.settings.apply_defaults()
         self._data_config = StrategyDataConfig(settings_raw)
+        self._base_data_key = str(
+            self._data_config.normalize_base(self._data_config.base)["data_key"],
+        )
         self._min_required = self._data_config.min_required_records
         self._max_holding_days = self._resolve_max_holding_days(settings_raw)
         self._assert_entry_price_model(settings_raw)
@@ -240,13 +243,13 @@ class SliceBasedCompute:
 
     def _bar_on(self, state: _EntitySliceState, as_of: str) -> Optional[Dict[str, Any]]:
         data = state.data_loader.data_until(as_of)
-        klines = data.get("klines")
-        if not isinstance(klines, list) or not klines:
+        base_rows = data.get(self._base_data_key)
+        if not isinstance(base_rows, list) or not base_rows:
             return None
-        last = klines[-1]
+        last = base_rows[-1]
         if str(last.get("date") or "") != as_of:
             return None
-        if len(klines) < self._min_required:
+        if len(base_rows) < self._min_required:
             return None
         for key in ("open", "high", "low", "close"):
             if key not in last:
@@ -257,12 +260,12 @@ class SliceBasedCompute:
         out: Dict[str, Dict[str, Any]] = {}
         for sid, state in self._states.items():
             data = state.data_loader.data_until(as_of)
-            klines = data.get("klines")
-            if not isinstance(klines, list) or not klines:
+            base_rows = data.get(self._base_data_key)
+            if not isinstance(base_rows, list) or not base_rows:
                 continue
-            if str(klines[-1].get("date") or "") != as_of:
+            if str(base_rows[-1].get("date") or "") != as_of:
                 continue
-            if len(klines) < self._min_required:
+            if len(base_rows) < self._min_required:
                 continue
             out[sid] = data
         return out

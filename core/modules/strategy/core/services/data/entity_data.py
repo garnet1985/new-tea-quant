@@ -3,13 +3,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, Hashable, List, Mapping, Optional, Sequence, Tuple
 
 from core.modules.data_contract import DataContracts
 from core.modules.data_contract.contracts import ContractScope, DataKey
 from core.modules.data_contract.contracts import DataContract
 from core.modules.data_contract.contracts import IssueResult
-from core.modules.data_contract.core.registry.kline_keys import PRIMARY_KLINE_SLOT
 from core.modules.indicator import IndicatorService
 from core.utils.date.date_utils import DateUtils
 
@@ -141,7 +140,7 @@ class EntityDataLoader:
         self._data_config = StrategyDataConfig(self.settings)
         self._contract_manager = DataContracts()
         self._rows_by_slot: Dict[str, List[Dict[str, Any]]] = {}
-        self._slot_contracts: Dict[str, DataContract] = {}
+        self._cursor_contracts: Dict[DataKey, DataContract] = {}
         self._cursor_name = f"entity:{self.stock_id}"
         self._base_key = DataKey(str(self._data_config.normalize_base(self._data_config.base)["data_key"]))
 
@@ -188,15 +187,36 @@ class EntityDataLoader:
         self._apply_indicators()
         self._rebuild_cursor()
 
-    def get_klines(self) -> List[Dict[str, Any]]:
-        return list(self._rows_by_slot.get(PRIMARY_KLINE_SLOT) or [])
+    def get_base_series(self) -> List[Dict[str, Any]]:
+        """Base 时序（``data.base.data_key``）全量 rows。"""
+        return list(self._rows_by_slot.get(self._base_key.value) or [])
 
     def data_until(self, date_of_today: str) -> Dict[str, Any]:
-        return dict(self._contract_manager.until_cursor(self._cursor_name, date_of_today))
+        raw = self._contract_manager.until_cursor(self._cursor_name, date_of_today)
+        return self._hook_data_from_until_view(raw)
+
+    def _hook_data_from_until_view(
+        self,
+        raw: Mapping[Hashable, Any],
+    ) -> Dict[str, Any]:
+        """Map until_cursor sources (DataKey) → hook keys (data_key.value)."""
+        out: Dict[str, Any] = {}
+        for source, rows in raw.items():
+            slot = self._hook_slot_for_source(source)
+            if isinstance(rows, list):
+                out[slot] = rows
+            else:
+                out[slot] = list(rows) if rows is not None else []
+        return out
+
+    def _hook_slot_for_source(self, source: Hashable) -> str:
+        if isinstance(source, DataKey):
+            return source.value
+        return str(source)
 
     def clear_working_state(self) -> None:
         self._rows_by_slot = {}
-        self._slot_contracts = {}
+        self._cursor_contracts = {}
         try:
             self._contract_manager.close_until_cursor(self._cursor_name)
         except Exception:
@@ -244,7 +264,7 @@ class EntityDataLoader:
     ) -> None:
         dcm = self._contract_manager
         self._rows_by_slot = {}
-        self._slot_contracts = {}
+        self._cursor_contracts = {}
 
         for dk, contract in contracts.items():
             spec = dcm.map.get(dk)
@@ -265,7 +285,7 @@ class EntityDataLoader:
                 rows = list(contract.data or [])
 
             self._rows_by_slot[slot] = rows
-            self._slot_contracts[slot] = contract
+            self._cursor_contracts[dk] = contract
 
     def _apply_indicators(self) -> None:
         for raw in self._data_config.issue_declarations():
@@ -315,11 +335,11 @@ class EntityDataLoader:
         return "_".join(str(p) for p in parts)
 
     def _rebuild_cursor(self) -> None:
-        if not self._slot_contracts:
+        if not self._cursor_contracts:
             raise ValueError("当前无可用 contract，无法构建 DataCursor")
         self._contract_manager.open_until_cursor(
             self._cursor_name,
-            contracts=self._slot_contracts,
+            contracts=self._cursor_contracts,
         )
 
 

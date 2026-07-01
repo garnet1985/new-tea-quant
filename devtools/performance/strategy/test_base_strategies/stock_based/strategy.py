@@ -26,7 +26,7 @@ class RsiFundamentalGateHooks(StrategyHooks):
     def scan_opportunity(self, ctx: DataContext) -> Optional[Opportunity]:
         data = ctx.data.to_dict()
         settings = ctx.effective_settings_dict()
-        record_of_today = self.get_record_of_today(data)
+        record_of_today = self.get_record_of_today(data, base_data_key=ctx.base_data_key)
         if record_of_today is None or not self._has_rsi_warmup(data, settings):
             return None
 
@@ -62,8 +62,9 @@ class RsiFundamentalGateHooks(StrategyHooks):
 
     def _has_rsi_warmup(self, data: Dict[str, Any], settings: Dict[str, Any]) -> bool:
         rsi_length = int(settings["data"]["base"]["indicators"]["rsi"][0]["length"])
-        klines = data.get("klines") or []
-        return len(klines) >= rsi_length
+        base_key = str(settings["data"]["base"]["data_key"])
+        rows = data.get(base_key) or []
+        return len(rows) >= rsi_length
 
     def _rsi_value(
         self, record_of_today: Dict[str, Any], settings: Dict[str, Any]

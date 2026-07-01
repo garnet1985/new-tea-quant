@@ -34,6 +34,11 @@ class GeneralSettings(SettingsBase):
         return SettingsBase.ensure_dict_block(self.raw_settings, 'core')
 
     @property
+    def key(self) -> str:
+        """Get module key from meta (future CLI / discovery id)."""
+        return str(self.meta.get('key', '')).strip()
+
+    @property
     def display_name(self) -> str:
         """Get display name from meta."""
         return str(self.meta.get('display_name', '')).strip()
@@ -97,6 +102,7 @@ class GeneralSettings(SettingsBase):
         return {
             'is_enabled': self.is_enabled,
             'meta': {
+                'key': self.key,
                 'display_name': self.display_name,
                 'description': self.description,
             },

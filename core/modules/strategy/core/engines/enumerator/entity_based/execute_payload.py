@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, List, Mapping
 
 _REQUIRED_FIELDS = (
     "entity_id",
@@ -12,6 +12,8 @@ _REQUIRED_FIELDS = (
     "end_date",
     "output_dir",
     "global_data",
+    "open_dates",
+    "backtest_calendar",
     "worker_module_path",
     "worker_class_name",
 )
@@ -28,6 +30,8 @@ class EntityBasedExecutePayload:
     end_date: str
     output_dir: str
     global_data: Dict[str, Any]
+    open_dates: List[str]
+    backtest_calendar: Dict[str, Any]
     worker_module_path: str
     worker_class_name: str
     job_id: str = ""
@@ -67,6 +71,20 @@ class EntityBasedExecutePayload:
                 f"entity_id {entity_id!r} 不在 global_data.stock_list 中"
             )
 
+        open_dates_raw = raw.get("open_dates")
+        if not isinstance(open_dates_raw, list) or not open_dates_raw:
+            raise ValueError("entity_based execute payload.open_dates 须为非空 list")
+        open_dates = [str(d).strip() for d in open_dates_raw if str(d).strip()]
+        if not open_dates:
+            raise ValueError("entity_based execute payload.open_dates 无有效条目")
+
+        calendar = raw.get("backtest_calendar")
+        if not isinstance(calendar, dict):
+            raise ValueError("entity_based execute payload.backtest_calendar 须为 dict")
+        cal_open = calendar.get("open_dates")
+        if not isinstance(cal_open, list) or not cal_open:
+            raise ValueError("backtest_calendar.open_dates 须为非空 list")
+
         extras = {
             key: value
             for key, value in raw.items()
@@ -81,6 +99,8 @@ class EntityBasedExecutePayload:
             end_date=str(raw["end_date"]),
             output_dir=str(raw["output_dir"]),
             global_data=dict(global_data),
+            open_dates=open_dates,
+            backtest_calendar=dict(calendar),
             worker_module_path=str(raw["worker_module_path"]),
             worker_class_name=str(raw["worker_class_name"]),
             job_id=str(raw.get("job_id") or entity_id),
@@ -101,6 +121,8 @@ class EntityBasedExecutePayload:
             "end_date": self.end_date,
             "output_dir": self.output_dir,
             "global_data": self.global_data,
+            "open_dates": list(self.open_dates),
+            "backtest_calendar": dict(self.backtest_calendar),
             "worker_module_path": self.worker_module_path,
             "worker_class_name": self.worker_class_name,
             "worker_file_path": self.worker_file_path,

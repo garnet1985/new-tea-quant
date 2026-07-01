@@ -1,39 +1,43 @@
 #!/usr/bin/env python3
-"""EnumeratorExecutionMode 严格解析。"""
+"""StrategySettings.execution_mode 严格解析。"""
 
 from __future__ import annotations
 
 import unittest
 
-from core.modules.strategy.core.engines.enumerator.shared.fingerprint import EnumeratorExecutionMode
+from core.modules.strategy.core.data.settings.strategy_settings import StrategySettings
 
 
-class TestEnumeratorExecutionMode(unittest.TestCase):
-    def test_resolve_entity_based(self) -> None:
-        mode = EnumeratorExecutionMode.resolve(
-            {"simulation": {"execution_mode": "entity_based"}}
+class TestStrategySettingsExecutionMode(unittest.TestCase):
+    def test_entity_based(self) -> None:
+        settings = StrategySettings(
+            raw_settings={"simulation": {"execution_mode": "entity_based"}}
         )
-        self.assertEqual(mode, "entity_based")
+        self.assertEqual(settings.execution_mode, "entity_based")
+        self.assertTrue(settings.is_entity_based)
+        self.assertFalse(settings.is_slice_based)
 
-    def test_resolve_slice_based(self) -> None:
-        mode = EnumeratorExecutionMode.resolve(
-            {"simulation": {"execution_mode": "slice_based"}}
+    def test_slice_based(self) -> None:
+        settings = StrategySettings(
+            raw_settings={"simulation": {"execution_mode": "slice_based"}}
         )
-        self.assertEqual(mode, "slice_based")
+        self.assertEqual(settings.execution_mode, "slice_based")
+        self.assertTrue(settings.is_slice_based)
+        self.assertFalse(settings.is_entity_based)
 
     def test_rejects_missing_simulation(self) -> None:
         with self.assertRaises(ValueError):
-            EnumeratorExecutionMode.resolve({})
+            StrategySettings(raw_settings={}).execution_mode
 
     def test_rejects_missing_execution_mode(self) -> None:
         with self.assertRaises(ValueError):
-            EnumeratorExecutionMode.resolve({"simulation": {}})
+            StrategySettings(raw_settings={"simulation": {}}).execution_mode
 
     def test_rejects_legacy_alias(self) -> None:
         with self.assertRaises(ValueError):
-            EnumeratorExecutionMode.resolve(
-                {"simulation": {"execution_mode": "calendar_slice"}}
-            )
+            StrategySettings(
+                raw_settings={"simulation": {"execution_mode": "calendar_slice"}}
+            ).execution_mode
 
 
 if __name__ == "__main__":

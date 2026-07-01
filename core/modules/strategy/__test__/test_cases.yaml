@@ -1,5 +1,9 @@
 # Strategy unit test case registry.
 # Each case maps to one test file; scenarios align with test function names.
+#
+# STATUS: execution disabled during refactor (root conftest.py).
+#         Re-run: NTQ_TESTS_ENABLED=1 pytest core/modules/strategy/__test__/
+# Pending architecture cases: see /TESTING.md
 
 cases:
   - id: 1
@@ -94,14 +98,29 @@ cases:
 
   - id: 7
     case: execution_mode
-    description: EnumeratorExecutionMode 严格解析
+    description: StrategySettings.execution_mode 严格解析
     file: test_execution_mode.py
     scenarios:
       - id: 1
-        name: test_resolve_entity_based
+        name: test_entity_based
         description: 接受 entity_based
       - id: 2
         name: test_rejects_legacy_alias
         description: 拒绝 calendar_slice 等别名
+
+  - id: 8
+    case: strategy_context
+    description: StrategyContext 发现后上下文（待实现 UT）
+    file: null
+    scenarios:
+      - id: 1
+        name: test_validate_hooks_inheritance
+        description: worker 须继承 StrategyHooks
+      - id: 2
+        name: test_with_userspace_resolves_params
+        description: with_userspace 解析 dates / entity_ids / output_dir
+      - id: 3
+        name: test_enumerate_facade_load_and_route
+        description: Strategy.enumerate → load_strategy → EnumeratorEngine
 
 ---

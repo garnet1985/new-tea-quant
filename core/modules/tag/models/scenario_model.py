@@ -32,6 +32,7 @@ class ScenarioModel:
         """初始化 ScenarioModel（所有字段为 None/False）"""
         self.id = None
         self.name = None
+        self.key = None
         self.display_name = None
         self.description = None
         self.created_at = None
@@ -299,6 +300,7 @@ class ScenarioModel:
             or scenario_setting.get("display_name")
             or self.name
         )
+        self.key = str(meta.get("key") or self.name or "").strip() or self.name
         self.description = (
             meta.get("description")
             or scenario_setting.get("description")

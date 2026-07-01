@@ -62,7 +62,7 @@ class _FakeEntityDataLoader:
 
     def data_until(self, as_of: str) -> Dict[str, Any]:
         rows = [row for row in self._klines if str(row["date"]) <= str(as_of)]
-        return {"klines": rows}
+        return {"stock.kline.daily": rows}
 
     def clear_working_state(self) -> None:
         return None

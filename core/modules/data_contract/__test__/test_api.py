@@ -133,3 +133,97 @@ def test_is_loaded_and_row_count(dcm: DataContracts):
     contract.data = [{"date": "20240101"}, {"date": "20240102"}]
     assert dcm.is_loaded(contract) is True
     assert dcm.row_count(contract) == 2
+
+
+def test_until_cursor_multi_source(dcm: DataContracts):
+    gdp = dcm.issue(DataKey.MACRO_LPR, should_load_initially=False).require_contract()
+    gdp.data = [{"date": "20200101", "value": 1.0}, {"date": "20200105", "value": 2.0}]
+    kline = dcm.issue(
+        DataKey.STOCK_KLINE_DAILY,
+        entity_id="600000.SH",
+        should_load_initially=False,
+    ).require_one()
+    kline.data = [
+        {"date": "20200101", "close": 1.0},
+        {"date": "20200110", "close": 2.0},
+    ]
+    dcm.open_until_cursor("worker", contracts={DataKey.MACRO_LPR: gdp, DataKey.STOCK_KLINE_DAILY: kline})
+    view = dcm.until_cursor("worker", "20200110")
+    assert len(view[DataKey.MACRO_LPR]) == 2
+    assert len(view[DataKey.STOCK_KLINE_DAILY]) == 2
+    dcm.close_until_cursor("worker")
+
+
+def test_issue_with_preloaded_data_zero_io(dcm: DataContracts):
+    rows = [{"date": "20240101", "close": 1.0}, {"date": "20240102", "close": 2.0}]
+    contract = dcm.issue(
+        DataKey.STOCK_KLINE_DAILY,
+        entity_id="600000.SH",
+        adjust="qfq",
+        data=rows,
+    ).require_one()
+    assert contract.data == rows
+    assert contract.loader is not None
+
+
+def test_issue_global_with_preloaded_data(dcm: DataContracts):
+    rows = [{"symbol": "600000.SH", "name": "浦发银行"}]
+    contract = dcm.issue(DataKey.STOCK_LIST, data=rows).require_contract()
+    assert contract.data == rows
+
+
+def test_merge_append_tail(dcm: DataContracts):
+    issued = dcm.issue(
+        DataKey.STOCK_KLINE_DAILY,
+        entity_id="600000.SH",
+        should_load_initially=False,
+    )
+    contract = issued.require_one()
+    contract.data = [
+        {"date": "20240101", "close": 1.0},
+        {"date": "20240105", "close": 2.0},
+    ]
+    result = contract.merge([
+        {"date": "20240103", "close": 9.0},  # overlap — discarded
+        {"date": "20240110", "close": 3.0},
+    ])
+    assert result.added_rows == 1
+    assert result.total_rows == 3
+    assert [r["date"] for r in contract.data] == ["20240101", "20240105", "20240110"]
+
+
+def test_drop_and_reset_until_cursor(dcm: DataContracts):
+    issued = dcm.issue(
+        DataKey.STOCK_KLINE_DAILY,
+        entity_id="600000.SH",
+        should_load_initially=False,
+    )
+    contract = issued.require_one()
+    contract.data = [
+        {"date": "20240101", "close": 1.0},
+        {"date": "20240105", "close": 2.0},
+        {"date": "20240110", "close": 3.0},
+    ]
+    dcm.until(contract, "20240110")
+    drop = contract.drop("20240105")
+    assert drop.dropped_rows == 1
+    assert drop.total_rows == 2
+
+    dcm.reset_until_cursor(contract)
+    r = dcm.until(contract, "20240110")
+    assert len(r.rows) == 2
+    assert r.rows[0]["date"] == "20240105"
+
+
+def test_merge_visible_to_live_cursor(dcm: DataContracts):
+    issued = dcm.issue(
+        DataKey.STOCK_KLINE_DAILY,
+        entity_id="600000.SH",
+        should_load_initially=False,
+    )
+    contract = issued.require_one()
+    contract.data = [{"date": "20240101", "close": 1.0}]
+    dcm.until(contract, "20240101")
+    contract.merge([{"date": "20240105", "close": 2.0}])
+    r = dcm.until(contract, "20240105")
+    assert len(r.rows) == 2

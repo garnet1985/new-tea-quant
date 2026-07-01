@@ -16,6 +16,8 @@ from core.modules.data_contract.core.contract.data_class.contract_info import (
     TimeRange,
     UntilResult,
 )
+from core.modules.data_contract.core.contract.data_class.drop_result import DropResult
+from core.modules.data_contract.core.contract.data_class.merge_result import MergeResult
 from core.modules.data_contract.core.contract.data_class.contract_meta import ContractMeta
 from core.modules.data_contract.core.contract.data_class.issue_result import IssueResult
 from core.modules.data_contract.core.registry.contract_const import (
@@ -36,6 +38,8 @@ __all__ = [
     "DataKey",
     "GlobalContractCacheStore",
     "IssueResult",
+    "MergeResult",
+    "DropResult",
     "NonTimeSeriesContract",
     "PerStrategyContractCacheStore",
     "TimeRange",

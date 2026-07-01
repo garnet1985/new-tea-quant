@@ -80,8 +80,17 @@ class DataContractManager:
         start: Optional[str] = None,
         end: Optional[str] = None,
         should_load_initially: bool = True,
+        data: Any = None,
+        data_by_entity: Optional[Mapping[str, Sequence[Mapping[str, Any]]]] = None,
         **override_params: Any,
     ) -> IssueResult:
+        if data is not None and data_by_entity is not None:
+            raise ValueError("data 与 data_by_entity 互斥，不可同时传入")
+
+        preloaded = data is not None or data_by_entity is not None
+        if preloaded:
+            should_load_initially = False
+
         spec = self.map.get(data_id)
         if not spec:
             raise ValueError(f"未找到 data_id：{data_id.value}")
@@ -128,7 +137,42 @@ class DataContractManager:
 
         if should_load_initially:
             self.load(result)
+        elif preloaded:
+            self._bind_preloaded_data(result, data=data, data_by_entity=data_by_entity)
         return result
+
+    def _bind_preloaded_data(
+        self,
+        result: IssueResult,
+        *,
+        data: Any,
+        data_by_entity: Optional[Mapping[str, Sequence[Mapping[str, Any]]]],
+    ) -> None:
+        if result.contract is not None:
+            if data is None:
+                raise ValueError("GLOBAL issue 绑定预加载 data 时须传 data")
+            result.contract.data = list(data)
+            return
+
+        if result.by_entity is None:
+            raise ValueError(f"空的 IssueResult：data_id={result.data_id.value}")
+
+        if data_by_entity is not None:
+            for eid, contract in result.by_entity.items():
+                rows = data_by_entity.get(eid)
+                if rows is None:
+                    raise ValueError(f"data_by_entity 缺少 entity_id={eid!r}")
+                contract.data = list(rows)
+            return
+
+        if data is not None:
+            if len(result.by_entity) != 1:
+                raise ValueError("PER_ENTITY 多 entity issue 须传 data_by_entity，不可仅传 data")
+            eid = next(iter(result.by_entity))
+            result.by_entity[eid].data = list(data)
+            return
+
+        raise ValueError("预加载 issue 须传 data（GLOBAL/单 entity）或 data_by_entity（PER_ENTITY）")
 
     def load(self, issued: IssueResult) -> IssueResult:
         spec = self.map.get(issued.data_id)

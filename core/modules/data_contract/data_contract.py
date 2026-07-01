@@ -1,7 +1,7 @@
 """DataContracts facade — public entry for issue / load pipeline."""
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence
+from typing import Any, Hashable, Mapping, Optional, Sequence
 
 from core.modules.data_contract.core.cache.default_store import shared_contract_cache
 from core.modules.data_contract.core.cache.contract_cache_manager import ContractCacheManager
@@ -12,10 +12,10 @@ from core.modules.data_contract.core.contract.data_class.contract_info import (
     UntilResult,
 )
 from core.modules.data_contract.core.contract.data_class.issue_result import IssueResult
-from core.modules.data_contract.core.facade import time_helpers
+from core.modules.data_contract.core.facade.time_helpers import ContractTimeHelper
 from core.modules.data_contract.core.issue.manager import DataContractManager
 from core.modules.data_contract.core.registry.contract_const import DataKey
-from core.utils.date.date_utils import DateUtils
+from core.modules.data_cursor import DataCursorManager
 
 
 class DataContracts:
@@ -29,6 +29,7 @@ class DataContracts:
             cache_enabled=cache_enabled,
         )
         self._until_cursors: dict[int, Any] = {}
+        self._cursor_mgr = DataCursorManager()
 
     @property
     def map(self):
@@ -46,6 +47,8 @@ class DataContracts:
         start: Optional[str] = None,
         end: Optional[str] = None,
         should_load_initially: bool = True,
+        data: Any = None,
+        data_by_entity: Optional[Mapping[str, Sequence[Mapping[str, Any]]]] = None,
         **override_params: Any,
     ) -> IssueResult:
         return self._manager.issue(
@@ -55,11 +58,35 @@ class DataContracts:
             start=start,
             end=end,
             should_load_initially=should_load_initially,
+            data=data,
+            data_by_entity=data_by_entity,
             **override_params,
         )
 
     def load(self, issued: IssueResult) -> IssueResult:
         return self._manager.load(issued)
+
+    def open_until_cursor(
+        self,
+        name: str,
+        contracts: Mapping[Hashable, DataContract],
+    ) -> None:
+        """Bind a multi-source until session (hot path — delegates to DataCursor)."""
+        for contract in contracts.values():
+            ContractTimeHelper.require_loaded(contract)
+        self._cursor_mgr.create_cursor(name, contracts=contracts)
+
+    def until_cursor(self, name: str, as_of: str) -> dict[Hashable, list[dict[str, Any]]]:
+        """Advance named until session to as_of; returns cumulative prefix view per source."""
+        return self._cursor_mgr.get_cursor(name).until(as_of)
+
+    def reset_until_cursor_session(self, name: str) -> None:
+        """Reset scan state for a named multi-source until session."""
+        self._cursor_mgr.reset_cursor(name)
+
+    def close_until_cursor(self, name: str) -> None:
+        """Drop a named multi-source until session."""
+        self._cursor_mgr.drop_cursor(name)
 
     def until(
         self,
@@ -68,9 +95,10 @@ class DataContracts:
         *,
         reset: bool = False,
     ) -> UntilResult:
-        time_helpers.require_loaded(contract)
+        """Single-contract until sugar; execute loops prefer open_until_cursor + until_cursor."""
+        ContractTimeHelper.require_loaded(contract)
         if reset:
-            self._until_cursors.pop(id(contract), None)
+            self.reset_until_cursor(contract)
 
         from core.modules.data_cursor import DataCursor
 
@@ -80,39 +108,37 @@ class DataContracts:
             cursor = DataCursor(contracts={key: contract})
             self._until_cursors[id(contract)] = cursor
 
-        as_of_norm = DateUtils.normalize(as_of, fmt=DateUtils.FMT_YYYYMMDD)
-        if as_of_norm is None:
-            fmt = time_helpers.time_axis_format(contract)
-            as_of_norm = DateUtils.normalize(as_of, fmt=fmt) if fmt else None
-        if as_of_norm is None:
-            raise ValueError(f"as_of 格式非法：{as_of!r}")
-
-        rows = list(cursor.until(as_of)[contract.meta.data_id])
+        as_of_norm = ContractTimeHelper.normalize_as_of(contract, as_of)
+        rows = cursor.until(as_of)[contract.meta.data_id]
         return UntilResult(rows=rows, as_of=as_of_norm)
 
+    def reset_until_cursor(self, contract: DataContract) -> None:
+        """Drop cached until-cursor state for this contract handle."""
+        self._until_cursors.pop(id(contract), None)
+
     def get_data_window(self, contract: DataContract) -> Optional[TimeRange]:
-        return time_helpers.user_data_window(contract)
+        return ContractTimeHelper.user_data_window(contract)
 
     def get_data_window_edge(self, contract: DataContract) -> Optional[TimeRange]:
-        return time_helpers.data_window_edge(contract)
+        return ContractTimeHelper.data_window_edge(contract)
 
     def get_start_time(self, contract: DataContract) -> Optional[str]:
-        return time_helpers.user_start(contract)
+        return ContractTimeHelper.user_start(contract)
 
     def get_end_time(self, contract: DataContract) -> Optional[str]:
-        return time_helpers.user_end(contract)
+        return ContractTimeHelper.user_end(contract)
 
     def get_data_edge_start(self, contract: DataContract) -> Optional[str]:
-        return time_helpers.data_edge_start(contract)
+        return ContractTimeHelper.data_edge_start(contract)
 
     def get_data_edge_end(self, contract: DataContract) -> Optional[str]:
-        return time_helpers.data_edge_end(contract)
+        return ContractTimeHelper.data_edge_end(contract)
 
     def is_loaded(self, contract: DataContract) -> bool:
         return contract.data is not None
 
     def row_count(self, contract: DataContract) -> int:
-        time_helpers.require_loaded(contract)
+        ContractTimeHelper.require_loaded(contract)
         if isinstance(contract.data, list):
             return len(contract.data)
         raise ValueError(f"contract={contract.meta.data_id.value} 的 data 不是 list")

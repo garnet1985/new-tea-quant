@@ -10,7 +10,6 @@ from core.modules.data_contract.contracts import ContractScope, DataKey
 from core.modules.data_contract.contracts import DataContract
 from core.modules.data_contract.contracts import IssueResult
 from core.modules.data_contract.core.registry.kline_keys import PRIMARY_KLINE_SLOT
-from core.modules.data_cursor import DataCursorManager
 from core.modules.indicator import IndicatorService
 from core.utils.date.date_utils import DateUtils
 
@@ -82,12 +81,22 @@ class EntityContractBatch:
 
             scope = spec.get("scope")
             if scope == ContractScope.GLOBAL:
-                contract = dcm.issue(dk, start=start, end=end, **params).require_contract()
                 slot = StrategyDataConfig.storage_key_for(dk, is_base=(dk == base_key))
-                if global_data is not None and slot in global_data:
-                    cached = global_data[slot]
-                    if isinstance(cached, list):
-                        contract.data = list(cached)
+                preloaded = (
+                    global_data is not None
+                    and slot in global_data
+                    and isinstance(global_data[slot], list)
+                )
+                if preloaded:
+                    contract = dcm.issue(
+                        dk,
+                        start=start,
+                        end=end,
+                        data=list(global_data[slot]),
+                        **params,
+                    ).require_contract()
+                else:
+                    contract = dcm.issue(dk, start=start, end=end, **params).require_contract()
                 batch.global_contracts[dk] = contract
                 continue
 
@@ -133,7 +142,6 @@ class EntityDataLoader:
         self._contract_manager = DataContracts()
         self._rows_by_slot: Dict[str, List[Dict[str, Any]]] = {}
         self._slot_contracts: Dict[str, DataContract] = {}
-        self._cursor_mgr = DataCursorManager()
         self._cursor_name = f"entity:{self.stock_id}"
         self._base_key = DataKey(str(self._data_config.normalize_base(self._data_config.base)["data_key"]))
 
@@ -184,14 +192,13 @@ class EntityDataLoader:
         return list(self._rows_by_slot.get(PRIMARY_KLINE_SLOT) or [])
 
     def data_until(self, date_of_today: str) -> Dict[str, Any]:
-        cursor = self._cursor_mgr.get_cursor(self._cursor_name)
-        return dict(cursor.until(date_of_today))
+        return dict(self._contract_manager.until_cursor(self._cursor_name, date_of_today))
 
     def clear_working_state(self) -> None:
         self._rows_by_slot = {}
         self._slot_contracts = {}
         try:
-            self._cursor_mgr.drop_cursor(self._cursor_name)
+            self._contract_manager.close_until_cursor(self._cursor_name)
         except Exception:
             pass
 
@@ -310,7 +317,7 @@ class EntityDataLoader:
     def _rebuild_cursor(self) -> None:
         if not self._slot_contracts:
             raise ValueError("当前无可用 contract，无法构建 DataCursor")
-        self._cursor_mgr.create_cursor(
+        self._contract_manager.open_until_cursor(
             self._cursor_name,
             contracts=self._slot_contracts,
         )

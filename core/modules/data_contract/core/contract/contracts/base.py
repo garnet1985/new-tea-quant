@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Mapping, MutableMapping, Optional
+from typing import Any, Mapping, MutableMapping, Optional, Sequence
+
+from core.modules.data_contract.core.contract.data_class.drop_result import DropResult
+from core.modules.data_contract.core.contract.data_class.merge_result import MergeResult
 
 from core.modules.data_contract.core.contract.data_class.contract_meta import ContractMeta
 from core.modules.data_contract.core.load.loaders.base import BaseLoader
@@ -37,3 +40,23 @@ class DataContract:
 
     def clear(self) -> None:
         self.data = None
+
+    def merge(self, data: Sequence[Mapping[str, Any]]) -> MergeResult:
+        """Append-tail merge: only rows strictly after current data edge."""
+        from core.modules.data_contract.core.contract.data_class.merge_result import MergeResult
+        from core.modules.data_contract.core.contract.lifecycle import merge_append_tail
+
+        return merge_append_tail(self, data)
+
+    def drop(self, before_time: str) -> DropResult:
+        """Release prefix rows strictly before before_time."""
+        from core.modules.data_contract.core.contract.data_class.drop_result import DropResult
+        from core.modules.data_contract.core.contract.lifecycle import drop_before
+
+        return drop_before(self, before_time)
+
+    def extend(self, new_end_time: str) -> MergeResult:
+        """Load from current edge through new_end_time (inclusive), then merge."""
+        raise NotImplementedError(
+            f"contract.extend 尚未实现：data_key={self.meta.data_id.value} new_end_time={new_end_time!r}"
+        )

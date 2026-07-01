@@ -74,7 +74,7 @@ class DataCursor:
     ) -> None:
         if rows is None:
             raise ValueError(f"source={source!r} 的 rows 为空；请先完成数据加载")
-        rows_list = list(rows)
+        rows_list = rows if isinstance(rows, list) else list(rows)
         self._states[source] = _CursorState(rows=rows_list, time_field=time_field)
 
     def reset(self) -> None:

@@ -9,7 +9,7 @@ from core.modules.strategy.core.services.discovery.data.discovered_strategy impo
 
 from .data import EntityBasedDataContext
 from .info import EntityBasedGeneralInfo
-from .performance import EntityBasedPerformance
+from .performance_config import PerformanceConfig
 from .status import EntityBasedRuntimeStatus
 
 
@@ -21,7 +21,7 @@ class EntityBasedRuntimeContext:
     strategy_info: EnabledStrategyInfo
 
     # 子context
-    performance: EntityBasedPerformance     # 配置 + 监控
+    performance: PerformanceConfig      # 性能配置（传递给BacktestEngine）
     settings: StrategySettings
     data: EntityBasedDataContext
     status: EntityBasedRuntimeStatus
@@ -35,7 +35,7 @@ class EntityBasedRuntimeContext:
         settings_obj = StrategySettings.from_dict(strategy_info.settings)
 
         # 2. 调用子context.init（传递settings_obj）
-        performance = EntityBasedPerformance.init()
+        performance = PerformanceConfig.init()
         info = EntityBasedGeneralInfo.init(strategy_info, settings_obj)
         data = EntityBasedDataContext.init(strategy_info, settings_obj, global_data_cache)
         status = EntityBasedRuntimeStatus.init()

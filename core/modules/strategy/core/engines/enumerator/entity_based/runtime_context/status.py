@@ -31,5 +31,26 @@ class EntityBasedRuntimeStatus(RuntimeStatus):
         """初始化status（preprocess阶段）。"""
         return cls(stage="preprocess")
 
+    def update_progress(
+        self,
+        total_jobs: int,
+        finished: int,
+        completed_jobs: int,
+        failed_jobs: int,
+        last_job_id: str,
+        last_job_status: str,
+    ) -> None:
+        """更新进度信息（封装方法）。"""
+        self.progress = {
+            "total_jobs": total_jobs,
+            "finished": finished,
+            "completed_jobs": completed_jobs,
+            "failed_jobs": failed_jobs,
+            "last_job_id": last_job_id,
+            "last_job_status": last_job_status,
+        }
+        self.entities_completed = completed_jobs
+        self.entities_failed = failed_jobs
+
 
 __all__ = ["EntityBasedRuntimeStatus"]

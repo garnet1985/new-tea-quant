@@ -13,28 +13,30 @@ class JobBuilder:
     @staticmethod
     def build_jobs(context: EntityBasedRuntimeContext) -> List[BacktestJob]:
         """构建jobs（传入context，无memory）。"""
-        
+
         jobs: List[BacktestJob] = []
-        
+
         for entity_id in context.info.entity_ids:
             job = BacktestJob(
                 id=entity_id,
                 payload={
+                    # ── 子进程需要的字段（Payload传递）──
                     "entity_id": entity_id,
                     "strategy_id": context.info.strategy_id,
                     "key": context.info.key,
-                    "settings": context.settings.to_dict(),
                     "start_date": context.info.start_date,
                     "end_date": context.info.end_date,
-                    "output_dir": str(context.info.output_dir),
-                    "version_id": context.info.version_id,
-                    # TODO: 添加其他必要参数
-                    # - hooks_class_ref
-                    # - global_data_ref（共享内存）
+                    "hooks_module_path": context.strategy_info.hooks_module_path,
+                    "hooks_class_name": context.strategy_info.hooks_class.__name__,
+                    "settings_dict": context.settings.to_dict(),  # 传递settings dict
+
+                    # ── 共享内存字段（TODO）──
+                    # "shm_name": shm_name,
+                    # "shm_size": shm_size,
                 }
             )
             jobs.append(job)
-        
+
         return jobs
 
 

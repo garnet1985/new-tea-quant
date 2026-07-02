@@ -94,12 +94,22 @@ class StrategySettings:
         return Utils.deep_merge(copy.deepcopy(disk_settings), settings_diff)
 
     @classmethod
-    def resolve(
+    def calculate_effective_settings(
         cls,
         disk_settings: Dict[str, Any],
         user_settings: Dict[str, Any],
     ) -> Tuple["StrategySettings", Dict[str, Any]]:
-        """disk + user 覆盖 → (有效 StrategySettings, fingerprint_diff)。"""
+        """disk + user 覆盖 → (有效 StrategySettings, fingerprint_diff)。
+
+        Args:
+            disk_settings: 磁盘上的settings（基准）
+            user_settings: 用户修改的settings（覆盖）
+
+        Returns:
+            (merged_settings, settings_diff)元组
+            - merged_settings: 合并后的有效settings（StrategySettings对象）
+            - settings_diff: 影响回测结果的差异字段（只包含FINGERPRINT_FIELDS）
+        """
         settings_diff = cls.fingerprint_diff(disk_settings, user_settings)
         effective = cls.merge_disk_with_diff(disk_settings, settings_diff)
         return cls(raw_settings=effective), settings_diff

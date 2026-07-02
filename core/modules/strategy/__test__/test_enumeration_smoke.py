@@ -9,7 +9,7 @@ from typing import Any, Dict
 from unittest.mock import patch
 
 from core.modules.strategy.core.engines.enumerator.slice_based.compute import SliceBasedCompute
-from core.modules.strategy.core.engines.enumerator.entity_based.resolver.jobs import EntityBasedJobs
+from core.modules.strategy.core.engines.enumerator.entity_based.services.job_builder import EntityBasedJobs
 from core.modules.strategy.core.engines.enumerator.slice_based.resolver.jobs import SliceBasedJobs
 from core.modules.strategy.core.helpers.calendar import CalendarOpenDateHelper
 from core.modules.strategy.core.services.data.entity_data import GlobalDataPreloader

@@ -58,12 +58,15 @@ class Job:
 
 @dataclass
 class RunCallbacks:
-    """Optional hooks for a single BacktestEngine run (see api.yaml)."""
+    """BacktestEngine run的生命周期钩子（清晰的4个阶段）。"""
 
-    on_result: Optional[Callable[["JobReport", RunProgress], None]] = None
-    on_release: Optional[Callable[["JobReport"], None]] = None
-    on_job_init: Optional[JobInitFn] = None
-    on_job_release: Optional[JobReleaseFn] = None
+    # ── 全局钩子 ──
+    on_all_jobs_start: Optional[Callable[[], None]] = None      # 所有jobs开始前（全局初始化）
+    on_all_jobs_complete: Optional[Callable[[List["JobReport"]], None]] = None  # 所有jobs完成后（全局清理）
+
+    # ── 单job钩子 ──
+    on_single_job_start: Optional[JobInitFn] = None             # 单job开始前（子进程初始化）
+    on_single_job_complete: Optional[JobReleaseFn] = None       # 单job完成后（结果收集+清理）
 
 
 @dataclass

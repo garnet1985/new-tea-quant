@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from core.modules.strategy.core.data.settings.strategy_settings import StrategySettings
-from core.modules.strategy.core.engines.enumerator.entity_based.context.data import EntityBasedDataContext
+from core.modules.strategy.core.engines.enumerator.entity_based.runtime_context.data import EntityBasedDataContext
 from core.modules.strategy.core.engines.enumerator.entity_based.execute_payload import EntityBasedExecutePayload
 from core.modules.strategy.core.engines.enumerator.entity_based.execute_result import EntityBasedExecuteResult
 from core.modules.strategy.core.engines.enumerator.entity_based.job_session import (

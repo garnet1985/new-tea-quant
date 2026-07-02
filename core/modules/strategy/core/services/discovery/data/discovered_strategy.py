@@ -63,6 +63,11 @@ class StrategyDraft:
             if "is_enabled" not in settings_dict:
                 self._validation_errors.append("settings.py缺少is_enabled字段")
 
+            # 验证execution_mode
+            execution_mode = settings_dict.get("simulation", {}).get("execution_mode", None)
+            if execution_mode not in ["entity_based", "slice_based"]:
+                self._validation_errors.append("settings.py中simulation.execution_mode必须是entity_based或slice_based")
+
         except Exception as exc:
             self._validation_errors.append(f"无法加载settings.py: {exc}")
 
@@ -95,6 +100,9 @@ class StrategyInfo(StrategyDraft):
     hooks_class: Optional[Type[StrategyHooks]] = None
     hooks_module_path: str = ""
 
+    # 添加folder字段（从draft继承时会自动填充）
+    folder: Path = field(default_factory=lambda: Path("."))
+
     @classmethod
     def from_draft(cls, draft: StrategyDraft) -> Optional[StrategyInfo]:
         """从draft构建StrategyInfo（如果验证通过）。"""
@@ -125,6 +133,7 @@ class StrategyInfo(StrategyDraft):
             unique_relative_path=draft.unique_relative_path,
             strategy_file=draft.strategy_file,
             settings_file=draft.settings_file,
+            folder=draft.strategy_file.parent,  # 添加folder字段
             key=str(settings_dict.get("meta", {}).get("key", "")).strip(),
             display_name=str(
                 settings_dict.get("meta", {}).get("display_name", "")
@@ -135,17 +144,15 @@ class StrategyInfo(StrategyDraft):
             hooks_module_path=hooks_module_path,
         )
 
-
-
 @dataclass
 class EnabledStrategyInfo(StrategyInfo):
     """启用的策略信息（回测/扫描）。
-
     is_enabled=True约束。
     """
 
-    # TODO：后边加字段，先pass
-    pass
+    def get_execution_mode(self) -> str:
+        """execution_mode 是已经验证过的，所以这里直接返回。"""
+        return self.settings["simulation"]["execution_mode"]
 
 
 __all__ = ["StrategyDraft", "StrategyInfo", "EnabledStrategyInfo"]

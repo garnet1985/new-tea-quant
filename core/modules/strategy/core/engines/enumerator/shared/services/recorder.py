@@ -1,4 +1,4 @@
-"""枚举中间结果持久化（preprocess / execute / postprocess）。"""
+"""枚举输出记录器（有状态，主进程管理，不序列化到子进程）。"""
 from __future__ import annotations
 
 import json
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class EnumeratorOutputRecorder:
     """枚举输出记录器（有状态，主进程管理，不序列化到子进程）。
-    
+
     生命周期：
     - Preprocess：创建recorder，保存执行元数据
     - Execute：通过callback记录opportunity
@@ -25,7 +25,7 @@ class EnumeratorOutputRecorder:
 
     # Context信息（初始化时保存）
     output_dir: Path
-    strategy_name: str
+    strategy_id: str                # 策略ID（relative_path）
     version_id: int
     version_dir_name: str
     fingerprint_hash: str
@@ -44,7 +44,7 @@ class EnumeratorOutputRecorder:
         """从context初始化recorder。"""
         return cls(
             output_dir=context.info.output_dir,
-            strategy_name=context.info.strategy_name,
+            strategy_id=context.info.strategy_id,
             version_id=context.info.version_id,
             version_dir_name=context.info.version_dir_name,
             fingerprint_hash=context.info.fingerprint_hash,
@@ -53,12 +53,12 @@ class EnumeratorOutputRecorder:
     def save_execution_metadata(
         self,
         fingerprint: Dict[str, Any],
-        jobs: List[Dict[str, Any]],
+        total_jobs: int,
+        jobs_sample: List[Dict[str, Any]],
         settings_diff: Dict[str, Any],
     ) -> None:
-        """保存执行元数据（preprocess阶段）。"""
+        """保存执行元数据（preprocess阶段，只保存元信息）。"""
         self.fingerprint = dict(fingerprint)
-        self.jobs = list(jobs)
         self.settings_diff = dict(settings_diff)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -68,23 +68,24 @@ class EnumeratorOutputRecorder:
                 json.dump(
                     {
                         "fingerprint_hash": self.fingerprint_hash,
-                        "total_jobs": len(jobs),
-                        "jobs_sample": jobs[:3] if len(jobs) > 3 else jobs,
+                        "total_jobs": total_jobs,
+                        "jobs_sample": jobs_sample,
                         "settings_diff": settings_diff,
                     },
                     handle,
                     indent=2,
                     ensure_ascii=False,
                 )
-            logger.info("Saved execution metadata: %s", jobs_file)
+            logger.info("Saved execution metadata: total_jobs=%d", total_jobs)
         except Exception as exc:
             logger.warning("Failed to save execution metadata: %s", exc)
 
-    def save_stock_opportunities(
+    def record_opportunity(
         self,
         stock_id: str,
         opportunities: List[Dict[str, Any]],
     ) -> None:
+        """记录opportunity（execute阶段，通过callback）。"""
         self.stock_opportunities[stock_id] = list(opportunities)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         try:
@@ -93,43 +94,35 @@ class EnumeratorOutputRecorder:
         except Exception as exc:
             logger.error("Failed to save opportunities CSV for %s: %s", stock_id, exc)
 
-    def save_postprocess_intermediate(
+    def save_final_results(
         self,
         metadata: Dict[str, Any],
         report: Dict[str, Any],
         stock_summary: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> None:
+        """保存最终结果（postprocess阶段）。"""
         self.metadata = dict(metadata)
         self.report = dict(report)
         if stock_summary:
             self.stock_summary = dict(stock_summary)
 
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-
-        metadata_file = self.output_dir / "0_metadata.json"
+        # 保存metadata.json
+        metadata_file = self.output_dir / "_metadata.json"
         try:
             with metadata_file.open("w", encoding="utf-8") as handle:
                 json.dump(metadata, handle, indent=2, ensure_ascii=False)
             logger.info("Saved metadata: %s", metadata_file)
         except Exception as exc:
-            logger.error("Failed to save metadata: %s", exc)
+            logger.warning("Failed to save metadata: %s", exc)
 
-        report_file = self.output_dir / "0_report_enum.json"
+        # 保存report.json
+        report_file = self.output_dir / "_report.json"
         try:
             with report_file.open("w", encoding="utf-8") as handle:
                 json.dump(report, handle, indent=2, ensure_ascii=False)
             logger.info("Saved report: %s", report_file)
         except Exception as exc:
-            logger.error("Failed to save report: %s", exc)
-
-        if stock_summary:
-            summary_file = self.output_dir / "0_stock_summary.json"
-            try:
-                with summary_file.open("w", encoding="utf-8") as handle:
-                    json.dump(stock_summary, handle, indent=2, ensure_ascii=False)
-                logger.info("Saved stock_summary: %s", summary_file)
-            except Exception as exc:
-                logger.warning("Failed to save stock_summary: %s", exc)
+            logger.warning("Failed to save report: %s", exc)
 
 
 __all__ = ["EnumeratorOutputRecorder"]

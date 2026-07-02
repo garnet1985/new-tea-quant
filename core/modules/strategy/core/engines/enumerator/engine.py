@@ -15,20 +15,18 @@ from .slice_based.pipeline import SliceBasedJobPipeline
 class EnumeratorEngine:
     """枚举编排入口（薄路由）。"""
 
-    strategy: EnabledStrategyInfo
-    userspace_root: Path = field(default_factory=lambda: Path("userspace"))
-    user_settings: Optional[Dict[str, Any]] = None
+    strategy_info: EnabledStrategyInfo
 
     def run(self) -> Dict[str, Any]:
-        # TODO: 构建运行时上下文（计算version/fingerprint/output等）
         # 暂时使用strategy.settings判断execution_mode
-        execution_mode = self.strategy.settings.get("core", {}).get("execution_mode", "entity_based")
+        execution_mode = self.strategy_info.get_execution_mode()
 
         if execution_mode == "slice_based":
-            # TODO: 传递运行时上下文给SliceBasedJobPipeline
-            return SliceBasedJobPipeline.run(self.strategy, self.userspace_root)
+            return SliceBasedJobPipeline.run(self.strategy_info)
 
-        return EntityBasedJobPipeline.run(self.strategy, self.userspace_root)
+        if execution_mode == "entity_based":
+            return EntityBasedJobPipeline.run(self.strategy_info)
 
+        raise ValueError(f"不支持的execution_mode: {execution_mode}")
 
 __all__ = ["EnumeratorEngine"]

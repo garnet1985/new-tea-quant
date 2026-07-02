@@ -10,7 +10,7 @@ class Strategy:
 
     @staticmethod
     def scan(
-        strategy_name: Optional[str] = None,
+        key_or_id: Optional[str] = None,
         *,
         demo: bool = False,
     ) -> Dict[str, Any]:
@@ -29,8 +29,6 @@ class Strategy:
     @staticmethod
     def enumerate(key_or_id: str, ignore_cache: bool = False) -> Dict[str, Any]:
         """对单个策略运行枚举器。"""
-        # from pathlib import Path
-
         from .core.engines.enumerator import EnumeratorEngine
 
         strategy = DiscoveryService.find_strategy(key_or_id)
@@ -48,7 +46,7 @@ class Strategy:
 
         strategies_path = Path(strategies_root) if strategies_root else None
         strategies = DiscoveryService.discover_strategies(strategies_path)
-        return [info.relative_path for info in strategies]
+        return [info.id() for info in strategies]
 
     @staticmethod
     def list_enabled_strategies(*, strategies_root: Optional[str] = None) -> List[str]:

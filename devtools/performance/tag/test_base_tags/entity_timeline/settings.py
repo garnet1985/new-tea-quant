@@ -5,6 +5,10 @@ Entity Timeline 基准 Tag 场景（settings.py）
 仅在档位变化日写入 tag，代表典型的轻量级时间序列打标场景。
 
 频率：每周计算一次（周五），降低写入频率以减少 IO 开销。
+
+关键设计：
+- entity_type 和 base_data_key 自动从 data.base_required_data 推断（单点声明）
+- 不需要在 meta 里重复声明，避免配置不一致
 """
 Settings = {
     "is_enabled": True,
@@ -14,6 +18,7 @@ Settings = {
         "display_name": "Benchmark Timeline",
         "description": "性能测试基准：Entity Timeline 模式的轻量级市值分档（周频）",
         "keywords": ["benchmark", "performance", "timeline", "weekly"],
+        # entity_type 和 base_data_key 不需要显式声明，系统自动从 data.base_required_data 推断
     },
 
     "core": {
@@ -37,7 +42,7 @@ Settings = {
 
     "data": {
         "base_required_data": {
-            "data_id": "stock.kline.daily",
+            "data_id": "stock.kline.daily",  # Attach Target（系统自动推断 entity_type = stock_kline_daily）
             "params": {"adjust": "qfq"},
         },
         "extra_required_data_sources": [

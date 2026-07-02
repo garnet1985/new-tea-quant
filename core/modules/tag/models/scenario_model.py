@@ -35,6 +35,8 @@ class ScenarioModel:
         self.key = None
         self.display_name = None
         self.description = None
+        self.entity_type = None  # 新增：target entity type
+        self.base_data_key = None  # 新增：base data_key
         self.created_at = None
         self.updated_at = None
         
@@ -306,6 +308,12 @@ class ScenarioModel:
             or scenario_setting.get("description")
             or ""
         )
+        
+        # 设置 attach_to_data_key（从 settings.data.base_required_data.data_id 获取）
+        data_config = scenario_setting.get("data", {}) or {}
+        base_required_data = data_config.get("base_required_data", {}) or {}
+        self.attach_to_data_key = base_required_data.get("data_id")  # 直接存储 DataKey（例如 "stock.kline.daily"）
+        
         # id, created_at, updated_at 保持为 None
         
         # 标记已配置

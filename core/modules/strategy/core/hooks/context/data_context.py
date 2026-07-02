@@ -5,7 +5,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterator, List, Optional, TypeVar
 
-from core.modules.strategy.core.data.settings.strategy_settings import StrategySettings
+from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import StrategySettings
 from core.modules.strategy.core.engines.shared.data_classes.opportunity import Opportunity
 from core.modules.strategy.core.services.data.strategy_data_config import StrategyDataConfig
 

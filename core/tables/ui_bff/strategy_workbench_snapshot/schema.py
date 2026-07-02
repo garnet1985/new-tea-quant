@@ -34,11 +34,11 @@ schema = {
             "description": "策略内自增版本号（UI 显示 v{version}）",
         },
         {
-            "name": "settings_snapshot",
+            "name": "settings_diff",
             "type": "json",
             "isRequired": True,
             "nullable": False,
-            "description": "该版本对应的完整 settings 快照",
+            "description": "该版本对应物理文件的 settings 变化差异",
         },
         {
             "name": "reports",

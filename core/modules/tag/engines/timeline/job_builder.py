@@ -44,11 +44,7 @@ def build_timeline_jobs(
     tag_target_type = str(
         settings.get("tag_target_type") or TagTargetType.ENTITY_BASED.value
     ).strip().lower()
-    entity_type = (
-        "general"
-        if tag_target_type == TagTargetType.GENERAL.value
-        else scenario_model.get_target_entity()
-    )
+    attach_to_data_key = scenario_model.attach_to_data_key  # 直接从 ScenarioModel 获取（DataKey）
 
     tag_models = scenario_model.get_tag_models()
     tag_definitions = [tag_model.to_dict() for tag_model in tag_models]
@@ -91,7 +87,7 @@ def build_timeline_jobs(
         )
 
     shared_payload = {
-        "entity_type": entity_type,
+        "attach_to_data_key": attach_to_data_key,  # DataKey（例如 "stock.kline.daily"）
         "scenario_name": scenario_name,
         "update_mode": update_mode,
         "tag_definitions": tag_definitions,

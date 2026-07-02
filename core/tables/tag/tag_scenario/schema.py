@@ -2,6 +2,11 @@
 sys_tag_scenario 表结构定义（Python，变量名 schema）
 
 业务场景。主键 id nullable=false；其余 nullable=true。
+
+字段说明：
+- key: 简洁唯一标识（类似 strategy.key），用于精确定位 scenario
+- name: 路径名称（相对 tags 根的 POSIX 路径）
+- attach_to_data_key: Tag attach 的数据源（DataKey，例如 stock.kline.daily）
 """
 schema = {
     "storage_domain": "tag",  # 标签定义与取值（tag 域）
@@ -18,12 +23,20 @@ schema = {
             "description": "自增主键",
         },
         {
-            "name": "name",
+            "name": "key",
             "type": "varchar",
             "length": 64,
             "isRequired": True,
+            "nullable": False,
+            "description": "简洁唯一标识（类似 strategy.key）",
+        },
+        {
+            "name": "name",
+            "type": "varchar",
+            "length": 128,
+            "isRequired": True,
             "nullable": True,
-            "description": "业务场景唯一代码",
+            "description": "路径名称（相对 tags 根的 POSIX 路径）",
         },
         {
             "name": "display_name",
@@ -39,6 +52,14 @@ schema = {
             "isRequired": False,
             "nullable": True,
             "description": "业务场景描述",
+        },
+        {
+            "name": "attach_to_data_key",
+            "type": "varchar",
+            "length": 64,
+            "isRequired": True,
+            "nullable": False,
+            "description": "Tag attach 的数据源（DataKey，例如 stock.kline.daily）",
         },
         {
             "name": "created_at",
@@ -58,6 +79,7 @@ schema = {
         },
     ],
     "indexes": [
+        {"name": "uk_key", "fields": ["key"], "unique": True},
         {"name": "uk_name", "fields": ["name"], "unique": True},
     ],
 }

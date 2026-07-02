@@ -29,7 +29,7 @@ class BaseTagWorker(ABC):
         
         self.entity = {
             'id': job_payload.get('entity_id'),
-            'type': job_payload.get('entity_type', 'stock')
+            'attach_to_data_key': job_payload.get('attach_to_data_key', 'stock.kline.daily')
         }
         
         scenario_name = job_payload.get('scenario_name', '')
@@ -65,7 +65,7 @@ class BaseTagWorker(ABC):
 
         self.tag_data_manager = TagDataManager(
             entity_id=self.entity['id'],
-            entity_type=self.entity['type'],
+            attach_to_data_key=self.entity['attach_to_data_key'],
             scenario_name=self.scenario['name'],
             settings=self.settings,
             data_mgr=self.data_mgr,
@@ -128,7 +128,7 @@ class BaseTagWorker(ABC):
             )
             return {
                 "entity_id": self.entity['id'],
-                "entity_type": self.entity['type'],
+                "attach_to_data_key": self.entity['attach_to_data_key'],
                 "scenario_name": self.scenario['name'],
                 "total_dates": 0,
                 "processed_dates": 0,

@@ -28,7 +28,7 @@ class TagDataManager:
         global_extra_cache: Optional[Dict[str, List[Dict[str, Any]]]] = None,
     ) -> None:
         self.entity_id = entity_id
-        self.entity_type = entity_type
+        self.attach_to_data_key = attach_to_data_key
         self.scenario_name = scenario_name
         self.settings = settings
         self.data_mgr = data_mgr

@@ -62,7 +62,6 @@ default_map: DataSpecMap = {
     DataKey.STOCK_KLINE_DAILY: _stock_kline_spec(term="daily", display_name="股票日 K 线"),
     DataKey.STOCK_KLINE_WEEKLY: _stock_kline_spec(term="weekly", display_name="股票周 K 线"),
     DataKey.STOCK_KLINE_MONTHLY: _stock_kline_spec(term="monthly", display_name="股票月 K 线"),
-    # 统一 tag：存储含 as_of_date，故为时序；通过 tag_scenario / scenario_id 区分场景（见 TagLoader）
     DataKey.TAG: {
         "scope": ContractScope.PER_ENTITY,
         "type": ContractType.TIME_SERIES,

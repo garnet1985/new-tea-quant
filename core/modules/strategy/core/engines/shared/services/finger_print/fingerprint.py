@@ -20,20 +20,28 @@ class Fingerprint:
     """指纹生成服务（统一管理 settings 和 env 指纹）。"""
 
     @staticmethod
-    def to_settings_diff_fingerprint(settings_diff: Dict[str, Any]) -> str:
-        """生成 settings 指纹（基于 settings_diff）。
-        
+    def to_settings_diff_fingerprint(
+        settings_diff: Dict[str, Any],
+        entity_ids: List[str],
+    ) -> str:
+        """生成 settings 指纹（基于 settings_diff + entity_ids）。
+
         Args:
             settings_diff: Settings 差异字段（用户修改的 settings）
-        
+            entity_ids: Entity ID 列表（采样配置的解析结果）
+
         Returns:
             SHA256 指签（32 字符）
-        
+
         设计：
-        - 只包含 settings_diff（用户修改的部分）
-        - 不包含环境信息（entity_ids、start_date 等）
+        - 包含 settings_diff（用户修改的部分）
+        - 包含 entity_ids（采样配置的解析结果）
+        - 不包含系统环境信息（hooks、engine_version 等）
         """
-        signature = {"settings_diff": settings_diff}
+        signature = {
+            "settings_diff": settings_diff,
+            "entity_ids": sorted(entity_ids),  # 确保顺序稳定
+        }
         return Fingerprint._to_fingerprint_hash(signature)
 
     @staticmethod
@@ -41,6 +49,7 @@ class Fingerprint:
         strategy_info: Any,  # EnabledStrategyInfo
         effective_settings: Union[StrategySettings, Dict[str, Any]],
         hooks_file_path: str = "",
+        entity_ids: Optional[List[str]] = None,
     ) -> str:
         """生成 env 指纹（基于环境信息）。
         
@@ -75,16 +84,13 @@ class Fingerprint:
         start_date = simulation.get("start_date", "")
         end_date = simulation.get("end_date", "")
 
-        # 2. 从 settings 获取 entity_ids（区分采样开启/关闭）
-        sampling = raw_settings.get("sampling", {})
-        use_sampling = sampling.get("use_sampling", False)
-
-        if use_sampling:
-            # 采样开启：需要解析 sampling 配置（TODO: 实现完整逻辑）
-            entity_ids = Fingerprint._resolve_entity_ids_with_sampling(sampling, strategy_info)
-        else:
-            # 采样关闭：从 metadata 获取全量 entity_ids
-            entity_ids = Fingerprint._resolve_full_entity_ids(strategy_info)
+        # 2. 从 settings 获取 entity_ids（统一使用 GlobalEntityCache）
+        # 如果传入了 entity_ids，直接使用；否则调用 GlobalEntityCache.resolve_entity_ids()
+        from core.modules.strategy.core.engines.shared.services.entity_loader.gloabal_entity_loader import (
+            GlobalEntityCache,
+        )
+        if entity_ids is None:
+            entity_ids = GlobalEntityCache.resolve_entity_ids(strategy_info, effective_settings)
 
         # 3. 从 strategy_info 获取 hooks 信息
         strategy_id = strategy_info.unique_relative_path
@@ -140,44 +146,7 @@ class Fingerprint:
         )
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
-    @staticmethod
-    def _resolve_entity_ids_with_sampling(sampling: Dict[str, Any], strategy_info: Any) -> List[str]:
-        """解析采样开启时的 entity_ids（TODO: 实现完整逻辑）。
-        
-        Args:
-            sampling: Sampling 配置字典
-            strategy_info: EnabledStrategyInfo 对象
-        
-        Returns:
-            entity_ids 列表
-        
-        设计：
-        - 根据 sampling.strategy 解析 entity_ids
-        - 可能从文件读取（sampling.pool.file）
-        - 可能从配置获取（sampling.pool.stock_ids）
-        """
-        # TODO: 实现完整的采样逻辑
-        # 暂时返回空列表（需要从 sampling 配置解析）
-        return []
-
-    @staticmethod
-    def _resolve_full_entity_ids(strategy_info: Any) -> List[str]:
-        """解析采样关闭时的全量 entity_ids。
-        
-        Args:
-            strategy_info: EnabledStrategyInfo 对象
-        
-        Returns:
-            entity_ids 列表
-        
-        设计：
-        - 从 0_metadata.json 获取（优先）
-        - 从 0_scope_stock_ids.txt 获取（次选）
-        - 从 0_stock_ref.json 获取（兜底）
-        """
-        # TODO: 实现完整的全量 entity_ids 解析逻辑
-        # 暂时返回空列表（需要从 metadata 文件读取）
-        return []
+    # 移除冗余的 entity_ids 解析方法（统一使用 GlobalEntityCache.resolve_entity_ids()）
 
     @staticmethod
     def _hash_file(path: Path) -> str:

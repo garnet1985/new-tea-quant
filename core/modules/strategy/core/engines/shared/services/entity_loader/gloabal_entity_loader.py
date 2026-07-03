@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""全局数据管理中心（集中管理全局数据和缓存）。"""
+"""全局数据管理中心（集中管理全局数据和缓存）。
+
+职责：
+1. 加载全局数据（global contracts）
+2. 管理共享内存（避免重复传输）
+3. 不负责 entity_ids 解析（由 StockSampler 处理）
+4. 不负责数据声明解析（由 StrategyDataResolver 处理）
+"""
 
 from __future__ import annotations
 
@@ -10,9 +17,6 @@ from typing import Any, Dict, List, Optional, TypedDict
 from core.infra.project_context import ProjectContext
 from core.modules.data_contract import DataContracts
 from core.modules.data_contract.contracts import DataKey
-from core.modules.strategy.core.engines.shared.services.entity_loader.stock_sampling import StockSampler
-from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import StrategySettings
-from core.modules.strategy.core.services.discovery.discovered_strategy import EnabledStrategyInfo
 
 logger = logging.getLogger(__name__)
 
@@ -51,155 +55,33 @@ class GlobalEntityCache:
     - per_entity contracts（由 job builder 在 build job 时 issue）
     """
 
-    def __init__(self, settings: Dict[str, Any]) -> None:
-        self.settings = settings
+    def __init__(
+        self,
+        settings: StrategySettings,
+        # global_declarations: List[DataDeclaration],
+        # per_entity_declarations: List[DataDeclaration],
+    ) -> None:
+        """初始化 GlobalEntityCache。
+
+        Args:
+            global_declarations: 全局数据声明列表
+            per_entity_declarations: Per_entity 数据声明列表
+
+        职责：
+        - 只负责全局数据的管理和缓存
+        - 不负责 entity_ids 解析（由 StockSampler 处理）
+        - 不负责数据声明解析（由 StrategyDataResolver 处理）
+        """
+        self._global_declarations = list(global_declarations)
+        self._per_entity_declarations = list(per_entity_declarations)
         self._global_data: Dict[str, Any] = {}
         self._global_meta: Dict[str, Any] = {}
         self._shm_name: Optional[str] = None
         self._shm_size: int = 0
-        self._data_declarations = self.parse_settings(settings)
-        self._global_declarations = self._data_declarations["global_declarations"]
-        self._per_entity_declarations = self._data_declarations["per_entity_declarations"]
 
-    @staticmethod
-    def parse_settings(settings: Dict[str, Any]) -> DeclarationGroups:
-        """解析 settings，找到所有数据声明，并根据 scope 分组。
+    # 移除 parse_settings() 方法（职责应该在 StrategyDataResolver）
 
-        Args:
-            settings: Settings dict
-
-        Returns:
-            DeclarationGroups：包含 global_declarations 和 per_entity_declarations
-
-        流程：
-        1. 解析 settings.data（使用 StrategyDataConfig）
-        2. 从 issue_declarations() 获取所有声明（base + required）
-        3. 使用 DataContracts().map.get() 获取每个声明的 spec
-        4. 根据 spec["scope"] 分组为 global 和 per_entity
-        """
-        # 使用 StrategyDataConfig 解析 settings.data
-        from core.modules.strategy.core.engines.shared.services.entity_loader.strategy_data_resolver import StrategyDataResolver
-        
-        data_config = StrategyDataResolver(settings)
-        declarations = data_config.issue_declarations()  # 返回 base + required 的声明列表
-        
-        dcm = DataContracts()
-        global_declarations: List[DataDeclaration] = []
-        per_entity_declarations: List[DataDeclaration] = []
-        
-        for raw_item in declarations:
-            data_key = str(raw_item.get("data_key") or "").strip()
-            if not data_key:
-                logger.warning("数据声明缺少 data_key，跳过")
-                continue
-            
-            params = dict(raw_item.get("params") or {})
-            indicators = dict(raw_item.get("indicators") or {})
-            
-            # 从 DataContracts 获取 spec（使用静态方法）
-            dk = DataKey(data_key)
-            spec = DataContracts.get_spec(dk)
-            
-            if spec is None:
-                logger.warning(f"未注册的 data_key：{data_key}，跳过")
-                continue
-            
-            # 使用静态方法获取 scope
-            scope = DataContracts.get_scope(dk)
-            
-            if scope is None:
-                logger.warning(f"data_key={data_key} 无法获取 scope，跳过")
-                continue
-            
-            declaration: DataDeclaration = {
-                "data_key": data_key,
-                "params": params,
-                "indicators": indicators,
-                "scope": scope,
-            }
-            
-            if scope == "global":
-                global_declarations.append(declaration)
-            elif scope == "per_entity":
-                per_entity_declarations.append(declaration)
-            else:
-                logger.warning(f"data_key={data_key} 的 scope={scope} 未知，跳过")
-        
-        logger.info(
-            f"parse_settings() 完成：global={len(global_declarations)}，"
-            f"per_entity={len(per_entity_declarations)}"
-        )
-        
-        return {
-            "global_declarations": global_declarations,
-            "per_entity_declarations": per_entity_declarations,
-        }
-
-    @staticmethod
-    def resolve_entity_ids(
-        strategy_info: EnabledStrategyInfo,
-        effective_settings: Union[StrategySettings, Dict[str, Any]],
-    ) -> List[str]:
-        """解析 entity_ids（从 all_stocks + sampling 配置）。
-
-        Args:
-            strategy_info: EnabledStrategyInfo 对象（包含 strategy key）
-            effective_settings: StrategySettings 对象或 dict（包含 sampling 配置）
-
-        Returns:
-            entity_ids 列表
-
-        流程（参考 legacy strategy）：
-        1. 从 DataContract 加载全量股票列表（all_stocks）
-        2. 判断是否开启采样（use_sampling）
-        3. 采样开启：调用 StockSamplingHelper.get_stock_list()
-        4. 采样关闭：直接返回全量股票ID
-
-        设计：
-        - entity_ids 是全局配置的一部分（影响所有 jobs）
-        - 用于 fingerprint 生成和 job builder 构建 jobs
-        """
-        # 1. 从 DataContract 加载全量股票列表（contract 形式）
-        stock_list = GlobalEntityCache._load_stock_list()
-        if not stock_list:
-            logger.warning("stock_list 为空，返回空 entity_ids")
-            return []
-
-        # 2. 获取 sampling 配置
-        if isinstance(effective_settings, StrategySettings):
-            raw_settings = effective_settings.raw_settings
-        else:
-            raw_settings = dict(effective_settings or {})
-        
-        sampling = raw_settings.get("sampling", {})
-        use_sampling = sampling.get("use_sampling", False)
-
-        # 3. 采样开启：调用 StockSampler
-        if use_sampling:
-            sampling_amount = sampling.get("sampling_amount", 10)
-            sampling_strategy = sampling.get("strategy", "continuous")
-            
-            logger.info(
-                f"采样开启：sampling_amount={sampling_amount}, "
-                f"sampling_strategy={sampling_strategy}"
-            )
-            
-            # 构造完整的 sampling_config
-            full_sampling_config = {
-                "strategy": sampling_strategy,
-                "sampling_amount": sampling_amount,
-                **sampling,  # 包含所有子配置（pool、blacklist等）
-            }
-            
-            return StockSampler.sample(
-                stock_list=[s["id"] for s in all_stocks],
-                sampling_config=full_sampling_config,
-                strategy_name=strategy_info.key,
-            )
-
-        # 4. 采样关闭：返回全量股票ID
-        logger.info(f"采样关闭：返回全量股票ID，数量={len(all_stocks)}")
-        return [s["id"] for s in all_stocks if s.get("id")]
+    # 移除 resolve_entity_ids() 方法（职责应该在 StockSampler）
 
     @staticmethod
     def _load_stock_list() -> List[Dict[str, Any]]:

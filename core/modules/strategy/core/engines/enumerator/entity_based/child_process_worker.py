@@ -17,19 +17,36 @@ class ChildProcessWorker:
     """
 
     @staticmethod
-    def on_init(job_id: str, payload: Dict[str, Any]) -> None:
-        """子进程开始前钩子：数据加载。
+    def on_init(job_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """子进程开始前钩子：批量数据加载。
 
         Args:
-            job_id: entity_id
-            payload: job payload（包含settings、global_data等）
-        """
-        logger.info("Child process init: entity_id=%s", job_id)
+            job_id: bundle job id（如 "strategy_run"）
+            payload: bundle job payload（包含 entity_specified, entity_shared, global, shm_info）
 
-        # TODO: 实现数据加载逻辑
-        # - 从payload提取global_data
-        # - 加载entity contracts（stock kline、index kline等）
-        # - 初始化hooks context
+        Returns:
+            Dict[str, Any]: 包含 entity_data 和 global_data 的结构
+
+        流程：
+        1. 使用 BatchDataLoader 批量加载所有 entity_ids 的数据
+        2. 返回结构化数据（供 execute 使用）
+        """
+        logger.info("Child process init: job_id=%s", job_id)
+
+        from core.modules.strategy.core.engines.enumerator.entity_based.services.batch_data_loader import (
+            BatchDataLoader,
+        )
+
+        # 批量加载 bundle 数据
+        loaded_data = BatchDataLoader.load_bundle_data(payload)
+
+        logger.info(
+            "Child process init 完成：entity_count=%d, global_keys=%d",
+            len(loaded_data.get("entity_data", {})),
+            len(loaded_data.get("global_data", {})),
+        )
+
+        return loaded_data
 
     @staticmethod
     def execute(payload: Dict[str, Any]) -> Dict[str, Any]:

@@ -24,6 +24,7 @@ class DataKey(str, Enum):
     MACRO_CPI = 'macro.cpi'
     MACRO_PPI = 'macro.ppi'
     MACRO_PMI = 'macro.pmi'
+    TRADE_CALENDAR = 'trade.calendar'
 
 
 class ContractScope(str, Enum):

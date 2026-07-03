@@ -64,7 +64,7 @@ class EnumeratorPipeline:
 
         # Step 4: 准备执行
         global_data = cls._load_global_data(effective_settings)
-        jobs = cls._build_backtest_engine_jobs(strategy_info, effective_settings, global_data)
+        jobs = JobBuilder.build_child_process_jobs(strategy_info, effective_settings, global_data)
 
         # Step 5: 执行回测
         results = cls._execute_backtest(jobs, strategy_info, effective_settings)
@@ -155,28 +155,6 @@ class EnumeratorPipeline:
         """
         # TODO: 实现全局数据加载逻辑
         return {}
-
-    @classmethod
-    def _build_backtest_engine_jobs(
-        cls,
-        strategy_info: EnabledStrategyInfo,
-        effective_settings: StrategySettings,
-        global_data: Dict[str, Any],
-    ) -> List[Dict[str, Any]]:
-        """构建 backtest engine jobs。
-
-        Args:
-            strategy_info: EnabledStrategyInfo 对象
-            effective_settings: 有效策略配置
-            global_data: 全局数据
-
-        Returns:
-            Job 列表
-
-        TODO: 实现完整的 job 构建逻辑
-        """
-        # TODO: 实现 job 构建逻辑
-        return []
 
     @classmethod
     def _execute_backtest(

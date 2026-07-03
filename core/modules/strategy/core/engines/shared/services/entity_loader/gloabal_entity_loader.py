@@ -4,19 +4,24 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, TypedDict, Union
+import pickle
+from typing import Any, Dict, List, Optional, TypedDict
 
 from core.infra.project_context import ProjectContext
 from core.modules.data_contract import DataContracts
 from core.modules.data_contract.contracts import DataKey
-from core.modules.strategy.core.engines.shared.services.date_resolver.backtest_date_resolver import (
-    resolve_latest_completed_trading_date,
-)
 from core.modules.strategy.core.engines.shared.services.entity_loader.stock_sampling import StockSampler
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import StrategySettings
 from core.modules.strategy.core.services.discovery.discovered_strategy import EnabledStrategyInfo
 
 logger = logging.getLogger(__name__)
+
+try:
+    from multiprocessing.shared_memory import SharedMemory
+    SHARED_MEMORY_AVAILABLE = True
+except ImportError:
+    logger.warning("multiprocessing.shared_memory 不可用，将使用普通 dict 存储")
+    SHARED_MEMORY_AVAILABLE = False
 
 
 class DataDeclaration(TypedDict):
@@ -91,17 +96,19 @@ class GlobalEntityCache:
             params = dict(raw_item.get("params") or {})
             indicators = dict(raw_item.get("indicators") or {})
             
-            # 从 DataContracts 获取 spec
+            # 从 DataContracts 获取 spec（使用静态方法）
             dk = DataKey(data_key)
-            spec = dcm.map.get(dk)
+            spec = DataContracts.get_spec(dk)
             
             if spec is None:
                 logger.warning(f"未注册的 data_key：{data_key}，跳过")
                 continue
             
-            scope = spec.get("scope")
-            if scope not in ("global", "per_entity"):
-                logger.warning(f"data_key={data_key} 的 scope={scope} 未知，跳过")
+            # 使用静态方法获取 scope
+            scope = DataContracts.get_scope(dk)
+            
+            if scope is None:
+                logger.warning(f"data_key={data_key} 无法获取 scope，跳过")
                 continue
             
             declaration: DataDeclaration = {
@@ -113,8 +120,10 @@ class GlobalEntityCache:
             
             if scope == "global":
                 global_declarations.append(declaration)
-            else:
+            elif scope == "per_entity":
                 per_entity_declarations.append(declaration)
+            else:
+                logger.warning(f"data_key={data_key} 的 scope={scope} 未知，跳过")
         
         logger.info(
             f"parse_settings() 完成：global={len(global_declarations)}，"
@@ -223,21 +232,21 @@ class GlobalEntityCache:
 
     @staticmethod
     def load_latest_completed_trading_date() -> str:
-        """加载最新已完成交易日（API 形式，非 contract）。
+        """加载最新已完成交易日（直接使用 DataManager API）。
 
         Returns:
             latest_completed_trading_date（日期字符串，例如 "20240101")
 
         设计：
-        - 使用 DataManager API 直接获取（非 contract 形式）
-        - latest_completed_trading_date 是简单的日期字符串，不适合作为 contract
+        - 直接调用 DataManager.service.calendar.get_latest_completed_trading_date()
+        - 简单日期字符串，不适合作为 contract
         - API 形式更简单高效
         """
         try:
             from core.modules.data_manager import DataManager
             
             data_mgr = DataManager(is_verbose=False)
-            latest_date = resolve_latest_completed_trading_date(data_mgr)
+            latest_date = data_mgr.service.calendar.get_latest_completed_trading_date()
             
             logger.info(f"加载最新已完成交易日成功：{latest_date}")
             return latest_date
@@ -318,6 +327,127 @@ class GlobalEntityCache:
         })
         
         logger.info(f"preload_global_data() 完成：已加载 {len(self._global_data)} 个全局数据")
+        
+        # 将全局数据序列化到共享内存
+        self._create_shared_memory()
+
+    def _create_shared_memory(self) -> None:
+        """将全局数据序列化到共享内存（用于子进程访问）。"""
+        if not SHARED_MEMORY_AVAILABLE:
+            logger.warning("共享内存不可用，使用普通 dict 存储")
+            return
+        
+        if not self._global_data:
+            logger.warning("没有全局数据，跳过共享内存创建")
+            return
+        
+        try:
+            # 序列化全局数据
+            serialized_data = pickle.dumps(self._global_data)
+            data_size = len(serialized_data)
+            
+            # 创建共享内存
+            shm = SharedMemory(create=True, size=data_size)
+            
+            # 写入数据
+            shm.buf[:data_size] = serialized_data
+            
+            # 记录共享内存信息（用于传递给子进程）
+            self._shm_name = shm.name
+            self._shm_size = data_size
+            
+            logger.info(
+                f"共享内存创建成功：name={shm.name}, size={data_size} bytes, "
+                f"包含 {len(self._global_data)} 个全局数据"
+            )
+            
+            # 关闭共享内存（但不释放，子进程需要访问）
+            shm.close()
+            
+        except Exception as e:
+            logger.error(f"共享内存创建失败：{e}", exc_info=True)
+            self._shm_name = None
+            self._shm_size = 0
+
+    @staticmethod
+    def access_shared_memory(shm_name: str, shm_size: int) -> Dict[str, Any]:
+        """从共享内存读取全局数据（子进程调用）。
+
+        Args:
+            shm_name: 共享内存名称
+            shm_size: 共享内存大小（bytes）
+
+        Returns:
+            全局数据字典
+
+        使用场景：
+        - 子进程通过 shm_name 和 shm_size 访问主进程创建的共享内存
+        - 避免 pickle 重复传输全局数据
+        """
+        if not SHARED_MEMORY_AVAILABLE:
+            logger.warning("共享内存不可用，无法读取")
+            return {}
+        
+        if not shm_name or shm_size <= 0:
+            logger.warning("共享内存信息无效，无法读取")
+            return {}
+        
+        try:
+            # 访问共享内存
+            shm = SharedMemory(name=shm_name)
+            
+            # 读取数据
+            serialized_data = bytes(shm.buf[:shm_size])
+            
+            # 反序列化
+            global_data = pickle.loads(serialized_data)
+            
+            logger.info(
+                f"共享内存读取成功：name={shm_name}, size={shm_size} bytes, "
+                f"包含 {len(global_data)} 个全局数据"
+            )
+            
+            # 关闭共享内存（但不释放）
+            shm.close()
+            
+            return global_data
+            
+        except Exception as e:
+            logger.error(f"共享内存读取失败：{e}", exc_info=True)
+            return {}
+
+    def cleanup(self) -> None:
+        """释放共享内存（主进程调用）。"""
+        if not SHARED_MEMORY_AVAILABLE:
+            return
+        
+        if not self._shm_name:
+            logger.warning("没有共享内存，跳过释放")
+            return
+        
+        try:
+            # 释放共享内存
+            shm = SharedMemory(name=self._shm_name)
+            shm.close()
+            shm.unlink()  # 释放共享内存
+            
+            logger.info(f"共享内存释放成功：name={self._shm_name}")
+            
+            self._shm_name = None
+            self._shm_size = 0
+            
+        except Exception as e:
+            logger.error(f"共享内存释放失败：{e}", exc_info=True)
+
+    def get_shm_info(self) -> Optional[Dict[str, Any]]:
+        """获取共享内存信息（用于传递给子进程）。"""
+        if not self._shm_name or self._shm_size <= 0:
+            return None
+        
+        return {
+            "shm_name": self._shm_name,
+            "shm_size": self._shm_size,
+        }
 
     def get_global_declarations(self) -> List[DataDeclaration]:
         """获取全局数据声明列表。"""
@@ -334,6 +464,24 @@ class GlobalEntityCache:
     def get_global_meta(self) -> Dict[str, Any]:
         """获取全局数据 metadata。"""
         return dict(self._global_meta)
+
+
+    def get_entity_ids(self) -> List[str]:
+        """获取entity_ids（从resolve_entity_ids结果）。
+        
+        注意：需要在load_base_data_for_entity_ids()后调用。
+        """
+        # TODO: 需要在resolve_entity_ids()后存储entity_ids
+        # 当前简化实现：重新调用resolve_entity_ids()
+        logger.warning("get_entity_ids() 未实现完整逻辑，需要先调用 load_base_data_for_entity_ids()")
+        return []
+
+    def get_shm_info(self) -> Dict[str, Any]:
+        """获取共享内存信息（用于传递给子进程）。"""
+        return {
+            "shm_name": self._shm_name or "",
+            "shm_size": self._shm_size or 0,
+        }
 
 
 __all__ = ["GlobalEntityCache", "DataDeclaration", "DeclarationGroups"]

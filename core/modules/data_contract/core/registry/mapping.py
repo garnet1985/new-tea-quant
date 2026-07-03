@@ -19,6 +19,7 @@ from core.modules.data_contract.core.load.loaders.stock_moneyflow_daily import S
 from core.modules.data_contract.core.load.loaders.stock_kline import StockKlineLoader
 from core.modules.data_contract.core.load.loaders.stock_list import StockListLoader
 from core.modules.data_contract.core.load.loaders.tag import TagLoader
+from core.modules.data_contract.core.load.loaders.trade_calendar import TradeCalendarLoader
 
 
 class DataSpec(TypedDict, total=False):
@@ -192,9 +193,19 @@ default_map: DataSpecMap = {
         "type": ContractType.TIME_SERIES,
         "unique_keys": ["date"],
         "time_axis_field": "date",
-        "time_axis_format": "YYYYMM",
+        "time_axis_format": "YYYYMMDD",
         "loader": MacroPmiLoader,
-        "display_name": "宏观 PMI",
+        "display_name": "PMI（采购经理指数）",
+        "defaults": {},
+    },
+    DataKey.TRADE_CALENDAR: {
+        "scope": ContractScope.GLOBAL,
+        "type": ContractType.TIME_SERIES,
+        "unique_keys": ["date"],
+        "time_axis_field": "date",
+        "time_axis_format": "YYYYMMDD",
+        "loader": TradeCalendarLoader,
+        "display_name": "交易日历",
         "defaults": {},
     },
 }

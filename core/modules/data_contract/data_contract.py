@@ -147,3 +147,151 @@ class DataContracts:
     def shared_cache() -> ContractCacheManager:
         """run 边界 enter/exit_strategy_run；高级场景访问同一 store。"""
         return shared_contract_cache()
+
+    @staticmethod
+    def get_spec(data_key: DataKey) -> Optional[Mapping[str, Any]]:
+        """通过 DataKey 获取 spec（静态方法）。
+
+        Args:
+            data_key: DataKey 实例或字符串
+
+        Returns:
+            spec 字典（包含 scope、type、loader、storage 等），如果不存在返回 None
+
+        示例：
+            spec = DataContracts.get_spec(DataKey.STOCK_KLINE_DAILY)
+            if spec:
+                scope = spec.get("scope")  # ContractScope.PER_ENTITY
+                type = spec.get("type")    # ContractType.TIME_SERIES
+        """
+        from core.modules.data_contract.core.registry.mapping import default_map
+        
+        dk = data_key if isinstance(data_key, DataKey) else DataKey(str(data_key).strip())
+        return default_map.get(dk)
+
+    @staticmethod
+    def get_scope(data_key: DataKey) -> Optional[str]:
+        """通过 DataKey 获取 scope（静态方法）。
+
+        Args:
+            data_key: DataKey 实例或字符串
+
+        Returns:
+            scope 字符串（"global" 或 "per_entity"），如果不存在返回 None
+
+        示例：
+            scope = DataContracts.get_scope(DataKey.STOCK_KLINE_DAILY)
+            # 返回 "per_entity"
+        """
+        spec = DataContracts.get_spec(data_key)
+        if spec is None:
+            return None
+        
+        from core.modules.data_contract.core.registry.contract_const import ContractScope
+        
+        scope = spec.get("scope")
+        if scope == ContractScope.GLOBAL:
+            return "global"
+        elif scope == ContractScope.PER_ENTITY:
+            return "per_entity"
+        else:
+            return str(scope) if scope else None
+
+    @staticmethod
+    def get_type(data_key: DataKey) -> Optional[str]:
+        """通过 DataKey 获取 type（静态方法）。
+
+        Args:
+            data_key: DataKey 实例或字符串
+
+        Returns:
+            type 字符串（"time_series" 或 "non_time_series"），如果不存在返回 None
+
+        示例：
+            type = DataContracts.get_type(DataKey.STOCK_KLINE_DAILY)
+            # 返回 "time_series"
+        """
+        spec = DataContracts.get_spec(data_key)
+        if spec is None:
+            return None
+        
+        from core.modules.data_contract.core.registry.contract_const import ContractType
+        
+        type = spec.get("type")
+        if type == ContractType.TIME_SERIES:
+            return "time_series"
+        elif type == ContractType.NON_TIME_SERIES:
+            return "non_time_series"
+        else:
+            return str(type) if type else None
+
+    @staticmethod
+    def is_global(data_key: DataKey) -> bool:
+        """判断 DataKey 是否为 GLOBAL scope（静态方法）。
+
+        Args:
+            data_key: DataKey 实例或字符串
+
+        Returns:
+            True 如果 scope 为 GLOBAL，否则 False
+
+        示例：
+            if DataContracts.is_global(DataKey.MACRO_GDP):
+                # 处理全局数据
+        """
+        scope = DataContracts.get_scope(data_key)
+        return scope == "global"
+
+    @staticmethod
+    def is_per_entity(data_key: DataKey) -> bool:
+        """判断 DataKey 是否为 PER_ENTITY scope（静态方法）。
+
+        Args:
+            data_key: DataKey 实例或字符串
+
+        Returns:
+            True 如果 scope 为 PER_ENTITY，否则 False
+
+        示例：
+            if DataContracts.is_per_entity(DataKey.STOCK_KLINE_DAILY):
+                # 处理 per_entity 数据
+        """
+        scope = DataContracts.get_scope(data_key)
+        return scope == "per_entity"
+
+    @staticmethod
+    def is_time_series(data_key: DataKey) -> bool:
+        """判断 DataKey 是否为 TIME_SERIES type（静态方法）。
+
+        Args:
+            data_key: DataKey 实例或字符串
+
+        Returns:
+            True 如果 type 为 TIME_SERIES，否则 False
+
+        示例：
+            if DataContracts.is_time_series(DataKey.STOCK_KLINE_DAILY):
+                # 处理时序数据
+        """
+        type = DataContracts.get_type(data_key)
+        return type == "time_series"
+
+    @staticmethod
+    def is_non_time_series(data_key: DataKey) -> bool:
+        """判断 DataKey 是否为 NON_TIME_SERIES type（静态方法）。
+
+        Args:
+            data_key: DataKey 实例或字符串
+
+        Returns:
+            True 如果 type 为 NON_TIME_SERIES，否则 False
+
+        示例：
+            if DataContracts.is_non_time_series(DataKey.STOCK_LIST):
+                # 处理非时序数据
+        """
+        type = DataContracts.get_type(data_key)
+        return type == "non_time_series"
+
+
+__all__ = ["DataContracts"]

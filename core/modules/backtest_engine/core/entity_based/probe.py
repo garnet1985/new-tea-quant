@@ -132,27 +132,46 @@ class Probe:
         jobs: List[Dict[str, Any]],
         probe_entities_count: int,
     ) -> List[Dict[str, Any]]:
-        """构建探针jobs（小批次）。
-        
+        """构建探针jobs（Bundle模式）。
+
         Args:
-            jobs: 待执行的job列表
+            jobs: bundle job列表（单个bundle job）
             probe_entities_count: 探针entity数量
-            
+
         Returns:
-            List[Dict[str, Any]]: 探针jobs（小批次）
+            List[Dict[str, Any]]: 探针bundle job（切割entity_specified）
         """
         if probe_entities_count <= 0:
             return []
-        
-        # 从jobs中取前N个entity作为探针样本
-        probe_jobs = jobs[:probe_entities_count]
-        
+
+        # Bundle模式：切割entity_specified，构建新的bundle job
+        bundle_job = jobs[0]
+        payload = bundle_job["payload"]
+
+        entity_specified = payload.get("entity_specified", [])
+        probe_entity_specified = entity_specified[:probe_entities_count]
+
+        # 构建探针bundle job（保留完整的entity_shared和global）
+        probe_bundle_payload = {
+            "entity_specified": probe_entity_specified,
+            "entity_shared": payload.get("entity_shared", {}),
+            "global": payload.get("global", {}),
+            "shm_info": payload.get("shm_info", {}),
+            "strategy_info": payload.get("strategy_info", {}),
+            "settings": payload.get("settings", {}),
+        }
+
+        probe_jobs = [{
+            "id": bundle_job["id"],
+            "payload": probe_bundle_payload,
+        }]
+
         logger.info(
             "构建探针jobs: entities=%s/%s",
-            len(probe_jobs),
-            len(jobs),
+            len(probe_entity_specified),
+            len(entity_specified),
         )
-        
+
         return probe_jobs
     
     @staticmethod

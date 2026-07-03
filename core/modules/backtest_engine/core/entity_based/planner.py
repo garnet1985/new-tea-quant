@@ -135,34 +135,36 @@ class EntityPlanner(BasePlanner):
     ) -> ProbeResult:
         """
         Step 2: 对jobs进行小切割，变成一个小批次放入探针，得到结果。
-        
+
         Args:
-            jobs: 待执行的job列表
+            jobs: 待执行的job列表（支持Bundle模式和传统模式）
             capacity: 机器容量
             performance: 配置字典
-            executor: 执行器标识字符串（用于probe执行）
+            execute_fn: 执行函数
+            on_job_init: job初始化回调
+            on_job_release: job释放回调
             log_label: 日志标签
-            
+
         Returns:
             ProbeResult: 探针结果
         """
-        total_entities = len(jobs)
-        
+        total_entities = EntityPlanner._get_total_entities(jobs)
+
         # 判断是否需要运行探针
         should_probe = Probe.should_run(performance, total_entities)
-        
+
         if not should_probe:
             # 不运行探针，使用默认值
             return Probe._get_default_result(performance)
-        
+
         # 确定探针entity数量
         probe_entities_count = EntityPlanner._get_probe_entities_count(
             total_entities, capacity
         )
-        
-        # 构建探针jobs
+
+        # 构建探针jobs（Probe内部会处理Bundle模式）
         probe_jobs = Probe.build_probe_jobs(jobs, probe_entities_count)
-        
+
         # 执行探针
         logger.info(
             "%s探针启动: entities=%s, probe_entities=%s",
@@ -195,6 +197,23 @@ class EntityPlanner(BasePlanner):
         return max(0, int(raw))
 
     @staticmethod
+    def _get_total_entities(jobs: List[Dict[str, Any]]) -> int:
+        """计算真实的entity数量（Bundle模式）。
+
+        Args:
+            jobs: bundle job列表（单个bundle job）
+
+        Returns:
+            int: entity总数（len(entity_specified))
+        """
+        if not jobs:
+            return 0
+
+        bundle_job = jobs[0]
+        entity_specified = bundle_job["payload"].get("entity_specified", [])
+        return len(entity_specified)
+
+    @staticmethod
     def _settle_plan(
         jobs: List[Dict[str, Any]],
         capacity: MachineCapacity,
@@ -203,7 +222,7 @@ class EntityPlanner(BasePlanner):
         log_label: str,
     ) -> DispatchPlan:
         """Step 3: epj from settings or v1 default; workers from CPU with memory safety cap."""
-        total_entities = len(jobs)
+        total_entities = EntityPlanner._get_total_entities(jobs)
 
         if total_entities <= 0:
             return DispatchPlan(
@@ -384,36 +403,65 @@ class EntityPlanner(BasePlanner):
         plan: DispatchPlan,
     ) -> List[JobBatch]:
         """
-        Step 4: 根据plan切割jobs。
-        
+        Step 4: 根据plan切割bundle job。
+
         Args:
-            jobs: 待执行的job列表
+            jobs: bundle job列表（单个bundle job）
             plan: 调度规划
-            
+
         Returns:
             List[JobBatch]: 切割后的job批次列表
+
+        Bundle结构：
+        {
+            entity_specified: [{"id": "600000.SH"}, ...],
+            entity_shared: {data_key: {params, start, end, indicators}},
+            global: {data_key: {}},
+            shm_info: {...},
+            strategy_info: {...},
+            settings: {...}
+        }
         """
         if plan.dispatch_jobs <= 0:
             return []
-        
+
+        # Bundle模式：切割entity_specified，传递完整的entity_shared和global
+        bundle_job = jobs[0]
+        payload = bundle_job["payload"]
+
+        entity_specified = payload.get("entity_specified", [])
+        if not entity_specified:
+            return []
+
         batches = []
         entities_per_job = plan.entities_per_job
-        
+
         for i in range(plan.dispatch_jobs):
             start_idx = i * entities_per_job
-            end_idx = min(start_idx + entities_per_job, len(jobs))
-            
-            batch_entities = jobs[start_idx:end_idx]
-            
+            end_idx = min(start_idx + entities_per_job, len(entity_specified))
+
+            batch_entities = entity_specified[start_idx:end_idx]
+            batch_entity_ids = [item.get("id") for item in batch_entities if item.get("id")]
+
+            # 构建batch payload：切割的entity_specified + 完整的entity_shared + global
+            batch_payload = {
+                "entity_specified": batch_entities,
+                "entity_shared": payload.get("entity_shared", {}),
+                "global": payload.get("global", {}),
+                "shm_info": payload.get("shm_info", {}),
+                "strategy_info": payload.get("strategy_info", {}),
+                "settings": payload.get("settings", {}),
+            }
+
             batch = JobBatch(
                 batch_id=f"batch_{i}",
-                entity_ids=[BacktestJob.from_dict(job).id for job in batch_entities],
+                entity_ids=batch_entity_ids,
                 entities_count=len(batch_entities),
-                payload={"jobs": batch_entities},
+                payload=batch_payload,
             )
-            
+
             batches.append(batch)
-        
+
         return batches
     
     # ===== Step 5: build_monitor =====

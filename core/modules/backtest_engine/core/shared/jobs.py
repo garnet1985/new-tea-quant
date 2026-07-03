@@ -8,7 +8,7 @@ from core.modules.backtest_engine.core.shared.modes import BacktestMode
 
 _ENTITY_ID_KEYS = frozenset({"entity_id", "stock_id", "symbol", "ticker"})
 _BULK_ENTITY_KEYS = frozenset({"entity_ids", "entities", "stock_ids"})
-_ENTITY_BATCH_KEY = "jobs"
+_BUNDLE_ENTITY_KEY = "entity_specified"
 
 
 @dataclass(frozen=True)
@@ -64,14 +64,19 @@ class BacktestJob:
 
     @classmethod
     def _validate_entity_based_payload(cls, payload: Dict[str, Any]) -> None:
-        batch = payload.get(_ENTITY_BATCH_KEY)
-        if isinstance(batch, list):
-            return
-        if any(key in payload for key in _ENTITY_ID_KEYS):
-            return
-        raise ValueError(
-            "entity_based payload requires entity_id/stock_id or jobs: List[job dict]"
-        )
+        # Bundle模式：检查entity_specified字段
+        entity_specified = payload.get(_BUNDLE_ENTITY_KEY)
+        if not isinstance(entity_specified, list):
+            raise ValueError(
+                "entity_based payload requires entity_specified (bundle mode)"
+            )
+
+        # 验证entity_specified结构：每个item必须包含id字段
+        for idx, item in enumerate(entity_specified):
+            if not isinstance(item, dict) or "id" not in item:
+                raise ValueError(
+                    f"entity_specified[{idx}] 必须是 dict 且包含 'id' 字段"
+                )
 
     @classmethod
     def _validate_slice_based_payload(cls, payload: Dict[str, Any]) -> None:

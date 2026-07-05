@@ -18,18 +18,8 @@ from core.modules.data_contract.core.registry.contract_const import DataKey
 from core.modules.data_cursor import DataCursorManager
 
 
-class DataContracts:
+class DataContract:
     """Data contract facade: info, issue, load, until; cache black-box for GLOBAL only."""
-
-    def __init__(self, *, cache_enabled: bool = True) -> None:
-        cache = shared_contract_cache()
-        self._cache_enabled = cache_enabled
-        self._manager = DataContractManager(
-            contract_cache=cache,
-            cache_enabled=cache_enabled,
-        )
-        self._until_cursors: dict[int, Any] = {}
-        self._cursor_mgr = DataCursorManager()
 
     @property
     def map(self):
@@ -294,4 +284,4 @@ class DataContracts:
         return type == "non_time_series"
 
 
-__all__ = ["DataContracts"]
+__all__ = ["DataContract"]

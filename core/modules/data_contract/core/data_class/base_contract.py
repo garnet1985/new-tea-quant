@@ -3,24 +3,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, Any, Type, Optional, List, Sequence, Mapping
+from typing import Dict, Any, Type, Optional, List, Mapping
 
-from core.modules.data_contract.core.data_class.base_loader import BaseDataKeyLoader
-from core.modules.data_contract.core.cache.contract_cache_manager import ContractCacheManager
+from .base_loader import BaseDataKeyLoader
 
 logger = logging.getLogger(__name__)
-
-
-# 全局缓存管理器（单例）
-_global_cache_manager: ContractCacheManager = None
-
-
-def get_cache_manager() -> ContractCacheManager:
-    """获取全局缓存管理器（单例）。"""
-    global _global_cache_manager
-    if _global_cache_manager is None:
-        _global_cache_manager = ContractCacheManager()
-    return _global_cache_manager
 
 
 class ContractType:
@@ -43,9 +30,8 @@ class ContractMeta:
     scope: str  # 'global' or 'per_entity'
     display_name: str = ""  # 显示名称
     description: str = ""  # 描述
-    unique_keys: List[str] = field(default_factory=list)  # 唯一键字段列表（如 ['date', 'stock_id'])
-    loader: Optional[Type[BaseDataKeyLoader]] = None  # Loader 类（通过发现机制加载）
-    is_customized: bool = False  # 是否为用户自定义（系统=False，用户=True）
+    unique_keys: List[str] = field(default_factory=list)  # 唯一键字段列表
+    loader: Optional[Type[BaseDataKeyLoader]] = None  # Loader 类
 
     @classmethod
     def from_dict(cls, meta: Dict[str, Any]) -> ContractMeta:
@@ -58,7 +44,6 @@ class ContractMeta:
             description=meta.get("description", ""),
             unique_keys=meta.get("unique_keys", []),
             loader=meta.get("loader"),
-            is_customized=meta.get("is_customized", False),
         )
 
 
@@ -73,7 +58,6 @@ class ContractRuntime:
     # 可选字段（根据 type/scope 不同）
     base_time_field: Optional[str] = None  # 数据中时间字段名（如 "date"）
     time_format: Optional[str] = None  # 时间格式（如 "YYYYMMDD")
-    is_cached: bool = False  # 是否缓存（仅 global scope）
 
     # 季度数据特有字段
     start_quarter: Optional[str] = None  # 起始季度（如 "2020Q1")
@@ -93,7 +77,6 @@ class ContractRuntime:
             "entity_ids": runtime.get("entity_ids"),
             "base_time_field": runtime.get("base_time_field"),
             "time_format": runtime.get("time_format"),
-            "is_cached": runtime.get("is_cached", False),
             "start_quarter": runtime.get("start_quarter"),
             "end_quarter": runtime.get("end_quarter"),
         }
@@ -161,9 +144,10 @@ class BaseDataKey:
 
     # status
     data: Optional[Any] = None  # 数据缓存
-    fingerprint: Optional[str] = None  # 缓存 fingerprint（由 runtime 决定）
+    runtime_fingerprint: Optional[str] = None  # Runtime fingerprint（由 runtime 决定）
     is_loaded: bool = False  # 是否加载（data 是否有值）
     is_runtime_updated: bool = False  # runtime 是否更新（用于 fingerprint 验证）
+    is_customized: bool = False  # 是否为用户自定义（系统=False，用户=True）
 
     def __init__(self, declaration: dict):
         """初始化 DataKey 实例。
@@ -230,6 +214,30 @@ class BaseDataKey:
     def is_time_series(self) -> bool:
         """检查 DataKey 是否为 TIME_SERIES 类型。"""
         return self.meta.type == ContractType.TIME_SERIES
+
+    def _calculate_runtime_fingerprint(self) -> str:
+        """计算 runtime fingerprint（由整个 runtime 决定）。
+
+        Returns:
+            str: SHA256 fingerprint
+
+        设计理念：
+        - Fingerprint 由 runtime 决定（包含所有 runtime 字段）
+        - 不包含 specific（specific 是静态声明，不影响缓存）
+        """
+        import hashlib
+        import json
+
+        # 提取 runtime 的所有字段
+        runtime_data = {}
+        for key, value in vars(self.runtime).items():
+            # 过滤掉内部字段（如 __dict__, __weakref__ 等）
+            if not key.startswith('_'):
+                runtime_data[key] = value
+
+        # 序列化并计算 SHA256
+        fingerprint_str = json.dumps(runtime_data, sort_keys=True)
+        return hashlib.sha256(fingerprint_str.encode()).hexdigest()
 
     def _is_global_from_dict(self, meta: dict) -> bool:
         """从 meta dict 判断是否为 GLOBAL scope。"""
@@ -307,7 +315,7 @@ class BaseDataKey:
         return None
 
     def fill_in_data(self, runtime: Optional[dict] = None, force_reload: bool = False) -> None:
-        """自动填充数据（根据 entity 数量选择加载方式，管理 fingerprint）。
+        """自动填充数据（根据 entity 数量选择加载方式，管理 runtime_fingerprint）。
 
         Args:
             runtime: 运行时信息（可选，如果提供则自动注入）
@@ -325,7 +333,7 @@ class BaseDataKey:
           - Per entity scope：
             - 单个 entity：调用 loader.load()
             - 多个 entity：调用 loader.load_batch()
-        - 将数据存入 self.data，更新 fingerprint
+        - 将数据存入 self.data，更新 runtime_fingerprint
 
         示例：
             # 方式1：链式调用
@@ -334,6 +342,9 @@ class BaseDataKey:
             # 方式2：直接传参数
             contract.fill_in_data(runtime={...})
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
         # 如果提供了 runtime 参数，先注入并标记 runtime 已更新
         if runtime is not None:
             self.add_runtime(runtime)
@@ -349,8 +360,6 @@ class BaseDataKey:
                 raise ValueError(f"Per entity contract {self.meta.data_key} 需要 runtime.entity_ids（请调用 add_runtime 或提供 runtime 参数）")
 
         # Fingerprint 验证逻辑：只在已加载 + runtime 更新时才验证
-        cache_mgr = get_cache_manager()
-        
         if not force_reload:
             # 如果未加载，直接加载（不验证 fingerprint）
             if not self.is_loaded:
@@ -363,14 +372,14 @@ class BaseDataKey:
             # 如果已加载 + runtime 更新，验证 fingerprint
             else:
                 # 计算 fingerprint 并验证
-                current_fingerprint = cache_mgr.calculate_fingerprint(self)
-                
+                current_fingerprint = self._calculate_runtime_fingerprint()
+
                 # 如果 fingerprint 未变，直接返回（使用 cache）
-                if self.fingerprint == current_fingerprint:
+                if self.runtime_fingerprint == current_fingerprint:
                     logger.debug(f"使用缓存数据: {self.meta.data_key}（fingerprint 未变）")
                     self.is_runtime_updated = False  # 标记 runtime 已验证
                     return
-                
+
                 # 如果 fingerprint 已变，需要刷新
                 logger.debug(f"刷新数据: {self.meta.data_key}（fingerprint 已变）")
 
@@ -393,10 +402,10 @@ class BaseDataKey:
                 # 多个 entity：调用 loader.load_batch()
                 self.data = self.meta.loader().load_batch(entity_ids, params)
 
-        # 标记已加载，更新 fingerprint
+        # 标记已加载，更新 runtime_fingerprint
         self.is_loaded = True
         self.is_runtime_updated = False  # 标记 runtime 已验证
-        cache_mgr.mark_cached(self)
+        self.runtime_fingerprint = self._calculate_runtime_fingerprint()
 
     def _build_params(self) -> Dict[str, Any]:
         """构建 Loader params（从 specific + runtime）。
@@ -425,7 +434,7 @@ class BaseDataKey:
         # 获取所有 runtime 字段，排除基础字段
         base_runtime_fields = {
             "start_time", "end_time", "entity_ids",
-            "base_time_field", "time_format", "is_cached",
+            "base_time_field", "time_format",
             "start_quarter", "end_quarter"
         }
         for key, value in self.runtime.__dict__.items():

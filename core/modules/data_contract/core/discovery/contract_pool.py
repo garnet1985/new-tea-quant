@@ -225,8 +225,8 @@ class ContractPool:
                 logger.error(f"{data_key_name}.{attr_name}: {error_msg}")
                 continue
 
-            # 添加 is_customized 字段到 meta
-            declaration_dict["meta"]["is_customized"] = is_customized
+            # 记录 is_customized（不在 meta 里，而是 declaration 顶层）
+            declaration_dict["_is_customized"] = is_customized
 
             # 添加到 pool
             self._declarations[data_key] = declaration_dict
@@ -304,7 +304,13 @@ class ContractPool:
         meta = declaration.get("meta", {})
         contract_class = meta.get("contract_class", BaseDataKey)
         
-        return contract_class(declaration)
+        # 创建 Contract
+        contract = contract_class(declaration)
+        
+        # 设置 is_customized（从 declaration 顶层读取）
+        contract.is_customized = declaration.get("_is_customized", False)
+        
+        return contract
 
     def get_declaration(self, data_key: str) -> Dict[str, Any]:
         """根据 data_key 获取 declaration 字典。
@@ -338,8 +344,9 @@ class ContractPool:
             List[str]: 系统 data_key 列表
         """
         return [
-            key for key, decl in self._declarations.items()
-            if not decl.get("meta", {}).get("is_customized", False)
+            data_key
+            for data_key, decl in self._declarations.items()
+            if not decl.get("_is_customized", False)
         ]
 
     def list_user_data_keys(self) -> List[str]:
@@ -349,8 +356,9 @@ class ContractPool:
             List[str]: 用户 data_key 列表
         """
         return [
-            key for key, decl in self._declarations.items()
-            if decl.get("meta", {}).get("is_customized", False)
+            data_key
+            for data_key, decl in self._declarations.items()
+            if decl.get("_is_customized", False)
         ]
 
     def is_customized(self, data_key: str) -> bool:
@@ -368,7 +376,7 @@ class ContractPool:
         if data_key not in self._declarations:
             raise KeyError(f"DataKey {data_key} 不存在")
 
-        return self._declarations[data_key].get("meta", {}).get("is_customized", False)
+        return self._declarations[data_key].get("_is_customized", False)
 
     def get_validation_errors(self) -> Dict[str, List[str]]:
         """获取验证错误列表。
@@ -401,11 +409,11 @@ class ContractPool:
         if data_key in self._declarations:
             raise ValueError(f"data_key '{data_key}' 已存在，不能重复声明，请使用不同的 data_key 名称")
 
-        # 添加 is_customized 字段
-        declaration["meta"]["is_customized"] = True
+        # 记录 is_customized
+        declaration["_is_customized"] = True
 
         self._declarations[data_key] = declaration
-        logger.info(f"注册用户自定义 Declaration: {data_key}")
+        logger.info(f"注册自定义 Declaration: {data_key}")
 
     def is_available(self, data_key: str) -> bool:
         """检查 data_key 是否可用。

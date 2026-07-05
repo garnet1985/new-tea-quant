@@ -1,10 +1,26 @@
 """DataKey 基类定义（meta/runtime/specific 三层结构）。"""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Dict, Any, Type, Optional, List, Sequence, Mapping
 
-from core.modules.data_contract.core.data_keys.base_loader import BaseDataKeyLoader
+from core.modules.data_contract.core.data_class.base_loader import BaseDataKeyLoader
+from core.modules.data_contract.core.cache.contract_cache_manager import ContractCacheManager
+
+logger = logging.getLogger(__name__)
+
+
+# 全局缓存管理器（单例）
+_global_cache_manager: ContractCacheManager = None
+
+
+def get_cache_manager() -> ContractCacheManager:
+    """获取全局缓存管理器（单例）。"""
+    global _global_cache_manager
+    if _global_cache_manager is None:
+        _global_cache_manager = ContractCacheManager()
+    return _global_cache_manager
 
 
 class ContractType:
@@ -29,6 +45,7 @@ class ContractMeta:
     description: str = ""  # 描述
     unique_keys: List[str] = field(default_factory=list)  # 唯一键字段列表（如 ['date', 'stock_id'])
     loader: Optional[Type[BaseDataKeyLoader]] = None  # Loader 类（通过发现机制加载）
+    is_customized: bool = False  # 是否为用户自定义（系统=False，用户=True）
 
     @classmethod
     def from_dict(cls, meta: Dict[str, Any]) -> ContractMeta:
@@ -41,6 +58,7 @@ class ContractMeta:
             description=meta.get("description", ""),
             unique_keys=meta.get("unique_keys", []),
             loader=meta.get("loader"),
+            is_customized=meta.get("is_customized", False),
         )
 
 
@@ -57,6 +75,10 @@ class ContractRuntime:
     time_format: Optional[str] = None  # 时间格式（如 "YYYYMMDD")
     is_cached: bool = False  # 是否缓存（仅 global scope）
 
+    # 季度数据特有字段
+    start_quarter: Optional[str] = None  # 起始季度（如 "2020Q1")
+    end_quarter: Optional[str] = None  # 结束季度（如 "2020Q4")
+
     @classmethod
     def from_dict(cls, runtime: Dict[str, Any]) -> ContractRuntime:
         """从字典创建 ContractRuntime 实例（支持动态字段）。"""
@@ -72,6 +94,8 @@ class ContractRuntime:
             "base_time_field": runtime.get("base_time_field"),
             "time_format": runtime.get("time_format"),
             "is_cached": runtime.get("is_cached", False),
+            "start_quarter": runtime.get("start_quarter"),
+            "end_quarter": runtime.get("end_quarter"),
         }
 
         # 额外字段（如 adjust, amount, direction 等）
@@ -82,23 +106,29 @@ class ContractRuntime:
                 extra_fields[key] = value
 
         if extra_fields:
-            # 动态创建包含额外字段的 dataclass
+            # 动态创建包含额外字段的 dataclass（使用 Any 类型注解）
+            # 使用 __annotations__ 方式（Python 3.9兼容）
+            annotations = {key: Any for key in extra_fields}
+            extra_attrs = {
+                "__annotations__": annotations,
+                **{key: field(default=value) for key, value in extra_fields.items()}
+            }
             runtime_cls = dataclass(type(
                 "DynamicContractRuntime",
                 (cls,),
-                {key: field(default=value) for key, value in extra_fields.items()}
+                extra_attrs
             ))
-            return runtime_cls(**base_fields, **extra_fields)
+            return runtime_cls(**base_fields)
 
         return cls(**base_fields)
 
 
 @dataclass
 class ContractSpecific:
-    """Contract-specific metadata（特有字段）。"""
+    """Contract-specific metadata（特有字段，可选）。"""
     # 子类定义特有字段
-    # 示例（stock.kline）：
-    # term: str = "daily"
+    # 如果没有特有字段，使用默认空实例
+    pass
     # adjust: str = "qfq"
 
     @classmethod
@@ -126,10 +156,14 @@ class BaseDataKey:
     runtime: ContractRuntime  # 动态信息
     specific: ContractSpecific  # 特有字段
 
+    # identity
+    contract_id: Optional[str] = None  # Contract ID（唯一标识符）
+
     # status
-    data: Optional[Any] = None  # 数据缓存（可以是 list 或 dict）
-    is_loaded: bool = False  # 是否加载
-    is_cached: bool = False  # 是否缓存（仅 global scope）
+    data: Optional[Any] = None  # 数据缓存
+    fingerprint: Optional[str] = None  # 缓存 fingerprint（由 runtime 决定）
+    is_loaded: bool = False  # 是否加载（data 是否有值）
+    is_runtime_updated: bool = False  # runtime 是否更新（用于 fingerprint 验证）
 
     def __init__(self, declaration: dict):
         """初始化 DataKey 实例。
@@ -141,7 +175,12 @@ class BaseDataKey:
         self.meta = ContractMeta.from_dict(declaration.get("meta", {}))
         # runtime 可选（运行时注入）
         self.runtime = ContractRuntime.from_dict(declaration.get("runtime", {})) if "runtime" in declaration else ContractRuntime()
-        self.specific = ContractSpecific.from_dict(declaration.get("specific", {}))
+        # specific 可选（默认空实例）
+        self.specific = ContractSpecific.from_dict(declaration.get("specific", {})) if declaration.get("specific") else ContractSpecific()
+        
+        # 生成 contract_id（基于 data_key + 时间戳，可选）
+        import uuid
+        self.contract_id = f"{self.meta.data_key}_{uuid.uuid4().hex[:8]}"
 
     def validate_declaration(self, declaration: dict) -> bool:
         """检查 DataKey 完整性（是否包含所有必填字段）。
@@ -165,7 +204,7 @@ class BaseDataKey:
         return True
 
     def add_runtime(self, runtime: dict) -> 'BaseDataKey':
-        """添加运行时信息（支持链式调用）。
+        """添加运行时信息（支持链式调用，标记 runtime 已更新）。
 
         Args:
             runtime: 运行时信息字典
@@ -178,6 +217,10 @@ class BaseDataKey:
         """
         self.runtime = ContractRuntime.from_dict(runtime)
         self._validate_runtime(runtime)
+        
+        # 标记 runtime 已更新（用于 fingerprint 验证）
+        self.is_runtime_updated = True
+        
         return self
 
     def is_global(self) -> bool:
@@ -264,21 +307,25 @@ class BaseDataKey:
         return None
 
     def fill_in_data(self, runtime: Optional[dict] = None, force_reload: bool = False) -> None:
-        """自动填充数据（根据 entity 数量选择加载方式）。
+        """自动填充数据（根据 entity 数量选择加载方式，管理 fingerprint）。
 
         Args:
             runtime: 运行时信息（可选，如果提供则自动注入）
-            force_reload: 是否强制重新加载
+            force_reload: 是否强制重新加载（忽略 fingerprint）
 
         前提：
         - 必须有 runtime 信息（通过 add_runtime、declaration 或 runtime 参数提供）
 
         逻辑：
-        - Global scope：调用 loader.load()
-        - Per entity scope：
-          - 单个 entity：调用 loader.load()
-          - 多个 entity：调用 loader.load_batch()
-        - 将数据存入 self.data，设置 is_loaded = True
+        - 如果提供了 runtime，标记 runtime 已更新
+        - 只在 runtime 更新时才验证 fingerprint（已加载 + runtime 更新）
+        - 如果 fingerprint 未变，直接返回（使用 cache）
+        - 否则重新加载：
+          - Global scope：调用 loader.load()
+          - Per entity scope：
+            - 单个 entity：调用 loader.load()
+            - 多个 entity：调用 loader.load_batch()
+        - 将数据存入 self.data，更新 fingerprint
 
         示例：
             # 方式1：链式调用
@@ -287,13 +334,9 @@ class BaseDataKey:
             # 方式2：直接传参数
             contract.fill_in_data(runtime={...})
         """
-        # 如果提供了 runtime 参数，先注入
+        # 如果提供了 runtime 参数，先注入并标记 runtime 已更新
         if runtime is not None:
             self.add_runtime(runtime)
-
-        if self.is_loaded and not force_reload:
-            # 已加载，跳过
-            return
 
         # 检查 runtime 信息
         if self.meta.loader is None:
@@ -304,6 +347,32 @@ class BaseDataKey:
             entity_ids = self.get_entity_ids()
             if not entity_ids:
                 raise ValueError(f"Per entity contract {self.meta.data_key} 需要 runtime.entity_ids（请调用 add_runtime 或提供 runtime 参数）")
+
+        # Fingerprint 验证逻辑：只在已加载 + runtime 更新时才验证
+        cache_mgr = get_cache_manager()
+        
+        if not force_reload:
+            # 如果未加载，直接加载（不验证 fingerprint）
+            if not self.is_loaded:
+                # 加载逻辑（下面）
+                pass
+            # 如果已加载但 runtime 未更新，直接返回（使用 cache）
+            elif not self.is_runtime_updated:
+                logger.debug(f"使用缓存数据: {self.meta.data_key}（runtime 未更新）")
+                return
+            # 如果已加载 + runtime 更新，验证 fingerprint
+            else:
+                # 计算 fingerprint 并验证
+                current_fingerprint = cache_mgr.calculate_fingerprint(self)
+                
+                # 如果 fingerprint 未变，直接返回（使用 cache）
+                if self.fingerprint == current_fingerprint:
+                    logger.debug(f"使用缓存数据: {self.meta.data_key}（fingerprint 未变）")
+                    self.is_runtime_updated = False  # 标记 runtime 已验证
+                    return
+                
+                # 如果 fingerprint 已变，需要刷新
+                logger.debug(f"刷新数据: {self.meta.data_key}（fingerprint 已变）")
 
         # 构建 params（从 specific + runtime）
         params = self._build_params()
@@ -324,8 +393,10 @@ class BaseDataKey:
                 # 多个 entity：调用 loader.load_batch()
                 self.data = self.meta.loader().load_batch(entity_ids, params)
 
-        # 标记已加载
+        # 标记已加载，更新 fingerprint
         self.is_loaded = True
+        self.is_runtime_updated = False  # 标记 runtime 已验证
+        cache_mgr.mark_cached(self)
 
     def _build_params(self) -> Dict[str, Any]:
         """构建 Loader params（从 specific + runtime）。
@@ -345,12 +416,17 @@ class BaseDataKey:
             params["start"] = self.runtime.start_time
         if self.runtime.end_time is not None:
             params["end"] = self.runtime.end_time
+        if self.runtime.start_quarter is not None:
+            params["start_quarter"] = self.runtime.start_quarter
+        if self.runtime.end_quarter is not None:
+            params["end_quarter"] = self.runtime.end_quarter
 
         # Runtime 动态字段（如 adjust, amount, direction 等）
         # 获取所有 runtime 字段，排除基础字段
         base_runtime_fields = {
             "start_time", "end_time", "entity_ids",
-            "base_time_field", "time_format", "is_cached"
+            "base_time_field", "time_format", "is_cached",
+            "start_quarter", "end_quarter"
         }
         for key, value in self.runtime.__dict__.items():
             if not key.startswith("_") and key not in base_runtime_fields:
@@ -358,77 +434,5 @@ class BaseDataKey:
                 params[key] = value
 
         return params
-
-
-    # def load(self) -> Any:
-    #     """加载单个数据（不需要 params）。
-
-    #     Returns:
-    #         加载的数据
-    #     """
-    #     if self.meta.loader is None:
-    #         raise ValueError(f"Contract {self.meta.data_key} 没有定义 loader")
-
-    #     # 构建 params（从 specific + runtime）
-    #     params = self._build_params()
-
-    #     # 根据 scope 调用不同的 loader 方法
-    #     if self.is_global():
-    #         # Global scope：不需要 entity_id
-    #         return self.meta.loader().load(params)
-    #     else:
-    #         # Per entity scope：需要 entity_id
-    #         entity_ids = self.get_entity_ids()
-    #         if not entity_ids or len(entity_ids) != 1:
-    #             raise ValueError(f"Per entity contract {self.meta.data_key} 需要 entity_ids 且长度为 1")
-    #         params["entity_id"] = entity_ids[0]
-    #         return self.meta.loader().load(params)
-
-    # def load_batch(self) -> Mapping[str, Any]:
-    #     """批量加载多个 entity 数据（不需要 params）。
-
-    #     Returns:
-    #         Dict[entity_id, data]: 每个 entity 对应的数据
-    #     """
-    #     if self.meta.loader is None:
-    #         raise ValueError(f"Contract {self.meta.data_key} 没有定义 loader")
-
-    #     entity_ids = self.get_entity_ids()
-    #     if not entity_ids:
-    #         raise ValueError(f"Contract {self.meta.data_key} 需要 entity_ids")
-
-    #     # 构建 params（从 specific + runtime）
-    #     params = self._build_params()
-
-    #     # 根据 scope 调用不同的 loader 方法
-    #     if self.is_global():
-    #         # Global scope：返回相同数据
-    #         data = self.meta.loader().load(params)
-    #         return {entity_id: data for entity_id in entity_ids}
-    #     else:
-    #         # Per entity scope：批量加载
-    #         return self.meta.loader().load_batch(entity_ids, params)
-
-    # def _build_params(self) -> Dict[str, Any]:
-    #     """构建 Loader params（从 specific + runtime）。
-
-    #     Returns:
-    #         Params 字典
-    #     """
-    #     params = {}
-
-    #     # Specific 字段（动态获取）
-    #     for key, value in self.specific.__dict__.items():
-    #         if not key.startswith("_"):
-    #             params[key] = value
-
-    #     # Runtime 字段（映射 loader 参数）
-    #     if self.runtime.start_time is not None:
-    #         params["start"] = self.runtime.start_time
-    #     if self.runtime.end_time is not None:
-    #         params["end"] = self.runtime.end_time
-
-    #     return params
-
 
 __all__ = ['BaseDataKey', 'ContractType', 'ContractScope', 'ContractMeta', 'ContractRuntime', 'ContractSpecific']

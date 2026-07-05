@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Optional, Sequence
 
-from core.modules.data_contract.core.data_keys.base_loader import BaseDataKeyLoader
+from core.modules.data_contract.core.data_class.base_loader import BaseDataKeyLoader
 from core.modules.data_manager import DataManager
 
 

@@ -1,4 +1,4 @@
-"""StockCorporateFinance DataKey 模块。"""
-from .key import STOCK_CORPORATE_FINANCE_DATA_KEY
+"""StockCorporateFinance Declaration 模块。"""
+from .declaration import STOCK_CORPORATE_FINANCE_DECLARATION
 
-__all__ = ['STOCK_CORPORATE_FINANCE_DATA_KEY']
+__all__ = ['STOCK_CORPORATE_FINANCE_DECLARATION']

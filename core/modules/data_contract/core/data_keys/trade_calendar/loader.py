@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
-from core.modules.data_contract.core.data_keys.base_loader import BaseDataKeyLoader
+from core.modules.data_contract.core.data_class.base_loader import BaseDataKeyLoader
 
 logger = logging.getLogger(__name__)
 

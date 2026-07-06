@@ -86,7 +86,7 @@ class Fingerprint:
 
         # 2. 从 settings 获取 entity_ids（统一使用 GlobalEntityCache）
         # 如果传入了 entity_ids，直接使用；否则调用 GlobalEntityCache.resolve_entity_ids()
-        from core.modules.strategy.core.engines.shared.services.entity_loader.gloabal_entity_loader import (
+        from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import (
             GlobalEntityCache,
         )
         if entity_ids is None:

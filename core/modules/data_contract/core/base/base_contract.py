@@ -516,6 +516,29 @@ class BaseDataContract:
         self.is_runtime_updated = False  # 标记 runtime 已验证
         self.runtime_fingerprint = self._calculate_runtime_fingerprint()
 
+    def get_data(self) -> Any:
+        """获取数据（统一API）。
+
+        Returns:
+            Contract 数据（格式根据 scope 不同）：
+            - Global scope: 原始数据（如 List[Dict])
+            - Per entity scope: Dict[entity_id: data]
+
+        Raises:
+            ValueError: 如果数据未加载
+
+        使用示例：
+            contract = ContractIssuer.issue("stock.list", fill_in_data=True)
+            stock_list = contract.get_data()  # List[Dict]
+            
+            contract = ContractIssuer.issue("stock.kline.daily", runtime={...}, fill_in_data=True)
+            kline_data = contract.get_data()  # Dict[entity_id: kline_data]
+        """
+        if not self.is_loaded or self.data is None:
+            raise ValueError(f"Contract {self.meta.key} 数据未加载，请先调用 fill_in_data()")
+        
+        return self.data
+
     def _build_params(self) -> Dict[str, Any]:
         """构建 Loader params（从 specific + runtime）。
 

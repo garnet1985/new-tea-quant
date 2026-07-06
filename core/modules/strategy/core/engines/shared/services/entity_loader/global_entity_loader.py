@@ -15,8 +15,7 @@ import pickle
 from typing import Any, Dict, List, Optional, TypedDict
 
 from core.infra.project_context import ProjectContext
-from core.modules.data_contract import DataContracts
-from core.modules.data_contract.contracts import DataKey
+from core.modules.data_contract import ContractIssuer, DATA_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -55,11 +54,11 @@ class GlobalEntityCache:
     - per_entity contracts（由 job builder 在 build job 时 issue）
     """
 
+    is_initialized: bool = False
+
     def __init__(
         self,
         settings: StrategySettings,
-        # global_declarations: List[DataDeclaration],
-        # per_entity_declarations: List[DataDeclaration],
     ) -> None:
         """初始化 GlobalEntityCache。
 
@@ -79,37 +78,32 @@ class GlobalEntityCache:
         self._shm_name: Optional[str] = None
         self._shm_size: int = 0
 
-    # 移除 parse_settings() 方法（职责应该在 StrategyDataResolver）
 
-    # 移除 resolve_entity_ids() 方法（职责应该在 StockSampler）
 
     @staticmethod
-    def _load_stock_list() -> List[Dict[str, Any]]:
-        """从 DataContract 加载全量股票列表（contract 形式）。
+    def init_stock_list() -> List[Dict[str, Any]]:
+        """初始化stock_list contract并缓存数据（使用ContractIssuer.issue()）。
 
         Returns:
-            all_stocks 列表（List[Dict[str, Any]]，包含 id、name 等字段）
+            stock_list数据（包含id、name、industry等信息）
 
         设计：
-        - 使用 DataContracts.issue(DataKey.STOCK_LIST)
-        - 返回全量股票信息（不仅仅是 ID，还包含 name、industry 等）
-        - contract 形式（统一数据接口）
+        - 使用ContractIssuer.issue(DATA_KEY.STOCK_LIST)简化API
+        - stock_list是系统内置contract，强制加载
+        - fill_in_data=True显式加载
+        - 使用get_data()获取数据
         """
         try:
-            dcm = DataContracts()
-            contract = dcm.issue(DataKey.STOCK_LIST)
+            # 使用新的issue API（自动discovery + 加载）
+            contract = ContractIssuer.issue(DATA_KEY.STOCK_LIST, fill_in_data=True)
+            stock_list = list(contract.get_data() or [])
             
-            if contract.needs_load:
-                # 如果 contract 需要加载，执行加载
-                contract.load()
+            logger.info(f"加载stock_list成功：数量={len(stock_list)}")
             
-            all_stocks = list(contract.data or [])
-            
-            logger.info(f"加载全量股票列表成功：数量={len(all_stocks)}")
-            return all_stocks
+            return stock_list
             
         except Exception as e:
-            logger.error(f"加载全量股票列表失败：{e}", exc_info=True)
+            logger.error(f"加载stock_list失败：{e}", exc_info=True)
             return []
 
     @staticmethod
@@ -347,23 +341,16 @@ class GlobalEntityCache:
         """获取全局数据 metadata。"""
         return dict(self._global_meta)
 
-
-    def get_entity_ids(self) -> List[str]:
-        """获取entity_ids（从resolve_entity_ids结果）。
-        
-        注意：需要在load_base_data_for_entity_ids()后调用。
-        """
-        # TODO: 需要在resolve_entity_ids()后存储entity_ids
-        # 当前简化实现：重新调用resolve_entity_ids()
-        logger.warning("get_entity_ids() 未实现完整逻辑，需要先调用 load_base_data_for_entity_ids()")
-        return []
-
     def get_shm_info(self) -> Dict[str, Any]:
         """获取共享内存信息（用于传递给子进程）。"""
         return {
             "shm_name": self._shm_name or "",
             "shm_size": self._shm_size or 0,
         }
+
+    def get(self, key: str) -> Optional[Dict[str, Any]]:
+        """根据 key 获取全局数据。"""
+        return self._global_data.get(key)
 
 
 __all__ = ["GlobalEntityCache", "DataDeclaration", "DeclarationGroups"]

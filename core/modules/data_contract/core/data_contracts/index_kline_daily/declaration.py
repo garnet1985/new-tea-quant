@@ -5,10 +5,13 @@ from typing import Dict, Any
 
 from .loader import IndexKlineDailyLoader
 
+from .data_keys import SystemDataKeys
+
+
 
 INDEX_KLINE_DAILY_DECLARATION: Dict[str, Any] = {
     "meta": {
-        "key": "index.kline.daily",
+        "key": SystemDataKeys.INDEX_KLINE_DAILY,
         "type": "time_series",
         "scope": "per_entity",
         "display_name": "指数日 K 线",

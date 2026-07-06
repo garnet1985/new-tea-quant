@@ -8,10 +8,13 @@ from typing import Any, Dict, List, Optional
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import StrategySettings
 from core.modules.strategy.core.engines.shared.services.finger_print.fingerprint import Fingerprint
 from core.modules.strategy.core.services.discovery.discovered_strategy import EnabledStrategyInfo
+from core.modules.data_contract import DataKey
+
 
 
 class EnumeratorPipeline:
     """Entity-based enumerator pipeline（简化版，一个 run 方法一步带过）。"""
+    global_entity_cache: GlobalEntityCache = None
 
     @classmethod
     def run(
@@ -53,24 +56,23 @@ class EnumeratorPipeline:
         settings_fp = Fingerprint.to_settings_diff_fingerprint(settings_diff)
 
         # Step 2: 获取 entity_ids 和必要参数（用于 env 指纹）
-        from core.modules.strategy.core.engines.shared.services.entity_loader.gloabal_entity_loader import GlobalEntityCache
+        from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import GlobalEntityCache
         # 初始化 GlobalEntityCache（解析 settings，获取数据声明分组）
 
-        global_entity_cache = GlobalEntityCache(effective_settings_obj)
+        cls.global_entity_cache = GlobalEntityCache(effective_settings_obj)
 
-        # filter by sample if needed
-        stock_ids = global_entity_cache.resolve_stock_ids()
+        stock_ids = cls._resolve_stock_ids(global_entity_cache.get(DataKey.STOCK_LIST))
 
         env_fp = Fingerprint.to_env_fingerprint(
             strategy_info=strategy_info,
-            effective_settings=effective_settings,
+            effective_settings=effective_settings_obj,
             entity_ids=stock_ids,  # 传递已获取的 entity_ids，避免重复计算
         )
 
         results = None
 
-        if ignore_cache:
-            global_entity_cache.warmup()
+        if ignore_cache or fingerprint_is_not_matching(settings_fp, env_fp):
+            global_entity_cache.load_required_data()
             # Step 5: 准备执行（加载全局数据、构建 bundle job）
             # cls._warmup_global_data(
             #     effective_settings=effective_settings,
@@ -82,7 +84,7 @@ class EnumeratorPipeline:
             jobs = cls._build_backtest_engine_jobs(
                 strategy_info=strategy_info,
                 effective_settings_obj=effective_settings_obj,
-                global_entity_cache=global_entity_cache,
+                global_data=global_entity_cache.get_data(),
             )
 
             # Step 8: 执行回测

@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 
 from core.modules.data_contract import DataContracts
 from core.modules.data_contract.contracts import DataKey
-from core.modules.strategy.core.engines.shared.services.entity_loader.gloabal_entity_loader import (
+from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
 )
 

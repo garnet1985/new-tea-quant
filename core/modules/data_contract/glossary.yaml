@@ -10,12 +10,12 @@ terms:
   DataKey:
     definition: "数据契约的唯一标识字符串，在外部模块使用的时候需要声明的唯一标识。注意，相同的数据契约，无论什么情况下data key都是一样的，但是issue过后的契约contract id会不同。"
     aliases: ["data key", "contract key", "key"]
-    avoid: ["data contract id", "contract id"]
+    avoid: ["data contract id", "contract id", "数据契约id"]
 
   ContractId:
     definition: "数据契约发行以后的唯一标识字符串。一个相同的数据契约发行多次以后会产生不同的 contract id，但contract里的 data key 是不变的。"
-    aliases: ["contract id"]
-    avoid: ["data contract id", "contract id"]
+    aliases: ["contract id", "数据契约id"]
+    avoid: ["contract key", "data key", "数据契约key"]
 
   DataContractMeta:
     definition: "数据契约的基本信息存放的数据集"
@@ -25,7 +25,7 @@ terms:
   DataContractScope:
     definition: "数据契约的范围，分为全局(Global)和局部(PER_ENTITY)。具体见GLOBAL和PER_ENTITY定义。"
     aliases: ["签发"]
-    avoid: ["hydrate", "preload 作为同义词"]
+    avoid: []
 
   GLOBAL:
     definition: "全局数据契约，所有实体都共享。比如GDP数据。"
@@ -89,7 +89,16 @@ terms:
 
   DataCursor:
     definition: "时间游标，是个记录当前数据契约流逝到时间窗口的什么位置的一个指针。模块中就是记录AsOfDate的时间点。"
-    aliases: ["multi-source cursor"]
-    avoid: ["并入 data_contract"]
+    aliases: []
+    avoid: []
 
-  
+  Fill_in_Data:
+    definition: "对数据契约填充数据。"
+    aliases: []
+    avoid: []
+
+  Until:
+    definition: "让累积的数据推进到xx时间点的。"
+    aliases: []
+    avoid: []
+

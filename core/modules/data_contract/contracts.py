@@ -6,6 +6,7 @@
 - BaseTimeSeriesContract：时序基类（扩展时间辅助工具）
 - BaseNonTimeSeriesContract：非时序基类
 - BaseDataContractLoader：loader 基类
+- CursorState：cursor 状态（用于 PIT 数据）
 
 使用方式：
     from core.modules.data_contract.contracts import (
@@ -15,7 +16,7 @@
         ContractMeta,
         ContractRuntime,
     )
-    
+
     issuer = ContractIssuer()
     issuer.discover()
     contract = issuer.get_contract("stock.kline.daily")
@@ -34,6 +35,7 @@ from core.modules.data_contract.core.base.base_contract import (
 from core.modules.data_contract.core.base.base_time_series_contract import (
     BaseTimeSeriesContract,
     TimeRange,
+    CursorState,
 )
 from core.modules.data_contract.core.base.base_non_time_series_contract import (
     BaseNonTimeSeriesContract,
@@ -45,7 +47,7 @@ from core.modules.data_contract.core.base.base_loader import (
 __all__ = [
     # Discovery
     "ContractIssuer",
-    
+
     # Base classes
     "BaseDataContract",
     "ContractType",
@@ -53,14 +55,15 @@ __all__ = [
     "ContractMeta",
     "ContractRuntime",
     "ContractSpecific",
-    
+
     # Time series contract
     "BaseTimeSeriesContract",
     "TimeRange",
-    
+    "CursorState",
+
     # Non time series contract
     "BaseNonTimeSeriesContract",
-    
+
     # Loader
     "BaseDataContractLoader",
 ]

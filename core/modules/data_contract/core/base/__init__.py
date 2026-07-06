@@ -7,7 +7,7 @@ from .base_contract import (
     ContractRuntime,
     ContractSpecific,
 )
-from .base_time_series_contract import BaseTimeSeriesContract, TimeRange
+from .base_time_series_contract import BaseTimeSeriesContract, TimeRange, CursorState
 from .base_non_time_series_contract import BaseNonTimeSeriesContract
 from .base_loader import BaseDataContractLoader
 
@@ -20,14 +20,15 @@ __all__ = [
     'ContractMeta',
     'ContractRuntime',
     'ContractSpecific',
-    
+
     # Time Series Contract
     'BaseTimeSeriesContract',
     'TimeRange',
-    
+    'CursorState',
+
     # Non Time Series Contract
     'BaseNonTimeSeriesContract',
-    
+
     # Loader
     'BaseDataContractLoader',
 ]

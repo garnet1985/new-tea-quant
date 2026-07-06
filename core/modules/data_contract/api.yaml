@@ -383,6 +383,88 @@ BaseTimeSeriesContract:
         使用 DateUtils.normalize_time() 统一为 YYYYMMDD。
         支持多种输入格式：YYYYMMDD、YYYY-MM-DD、YYYY/MM/DD 等。
 
+    until:
+      description: "获取 PIT 累计数据（推进 cursor）"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: as_of
+            type: str
+            required: true
+            notes: "时间点（如 '20200101', '2020-01-01', '2020Q1'）"
+      returns: dict[str, list[dict[str, Any]]]
+      throws:
+        - ValueError: Contract 未加载
+      notes: |
+        返回 Dict[entity_id, PIT 数据]：
+        - Global scope: {"_global": [累计数据]}
+        - Per entity scope: {entity_id: [累计数据]}
+
+        设计要点：
+        - 时间转换只一次（as_of → YYYYMMDD）
+        - 累进扫描（从 cursor+1 开始，不重复扫描）
+        - 每个 entity 独立 cursor（状态独立）
+        - 返回 acc 的引用（不复制数据，内存高效）
+
+        示例：
+          contract = issuer.get_contract("stock.kline.daily")
+          contract.fill_in_data(runtime={
+              "entity_ids": ["600000.SH"],
+              "start_time": "20200101",
+              "end_time": "20201231",
+          })
+
+          # 推进到 2020-03-01
+          pit_data = contract.until(as_of="20200301")
+          # pit_data["600000.SH"] = [截至2020-03-01的累计数据]
+
+          # 继续推进到 2020-06-01
+          pit_data = contract.until(as_of="20200601")
+          # pit_data["600000.SH"] = [截至2020-06-01的累计数据]
+
+    reset_cursor:
+      description: "重置 cursor 状态"
+      stability: stable
+      binding: instance
+      parameters: []
+      returns: None
+      notes: |
+        清空所有 entity 的 cursor 状态（cursor=-1, acc=[]）。
+
+        示例：
+          contract.until(as_of="20200301")  # cursor 推进到3月
+          contract.reset_cursor()  # 重置
+          contract.until(as_of="20200101")  # 从头开始扫描
+
+    fill_in_data:
+      description: "填充数据（扩展父类方法，添加 cursor 初始化）"
+      stability: stable
+      binding: instance
+      parameters:
+        keyword_only:
+          - name: runtime
+            type: Optional[dict[str, Any]]
+            required: false
+            default: null
+            notes: "运行时配置"
+          - name: force_reload
+            type: bool
+            required: false
+            default: false
+            notes: "是否强制重新加载"
+      returns: BaseTimeSeriesContract
+      throws:
+        - ValueError: 缺少必要参数
+        - RuntimeError: loader 加载失败
+      notes: |
+        扩展父类 fill_in_data，添加 cursor 初始化：
+        - 调用父类的 fill_in_data（加载数据）
+        - 初始化 cursor 状态（准备 until 调用）
+
+        支持链式调用：
+          contract.fill_in_data(runtime={...}).until(as_of="...")
+
 ---
 
 BaseNonTimeSeriesContract:

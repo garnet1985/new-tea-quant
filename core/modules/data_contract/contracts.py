@@ -1,48 +1,66 @@
-"""Data contract public types — classes only (cross-module import entry)."""
-from core.modules.data_contract.core.cache.cache_entry import ContractCacheEntry
-from core.modules.data_contract.core.cache.contract_cache_manager import ContractCacheManager
-from core.modules.data_contract.core.cache.contract_cache_scope import ContractCacheScope
-from core.modules.data_contract.core.cache.stores import (
-    GlobalContractCacheStore,
-    PerStrategyContractCacheStore,
-)
-from core.modules.data_contract.core.contract.contracts import (
-    DataContract,
-    NonTimeSeriesContract,
-    TimeSeriesContract,
-)
-from core.modules.data_contract.core.contract.data_class.contract_info import (
-    ContractInfo,
-    TimeRange,
-    UntilResult,
-)
-from core.modules.data_contract.core.contract.data_class.drop_result import DropResult
-from core.modules.data_contract.core.contract.data_class.merge_result import MergeResult
-from core.modules.data_contract.core.contract.data_class.contract_meta import ContractMeta
-from core.modules.data_contract.core.contract.data_class.issue_result import IssueResult
-from core.modules.data_contract.core.registry.contract_const import (
-    ContractScope,
+"""Data contract public types — classes only (cross-module import entry).
+
+新实现导出（meta/runtime/specific 三层结构）：
+- ContractIssuer：发现和管理 contract
+- BaseDataContract：基类（meta/runtime/specific）
+- BaseTimeSeriesContract：时序基类（扩展时间辅助工具）
+- BaseNonTimeSeriesContract：非时序基类
+- BaseDataContractLoader：loader 基类
+
+使用方式：
+    from core.modules.data_contract.contracts import (
+        ContractIssuer,
+        BaseDataContract,
+        BaseTimeSeriesContract,
+        ContractMeta,
+        ContractRuntime,
+    )
+    
+    issuer = ContractIssuer()
+    issuer.discover()
+    contract = issuer.get_contract("stock.kline.daily")
+"""
+
+from core.modules.data_contract.core.discovery.contract_issuer import ContractIssuer
+
+from core.modules.data_contract.core.base.base_contract import (
+    BaseDataContract,
     ContractType,
-    DataKey,
+    ContractScope,
+    ContractMeta,
+    ContractRuntime,
+    ContractSpecific,
+)
+from core.modules.data_contract.core.base.base_time_series_contract import (
+    BaseTimeSeriesContract,
+    TimeRange,
+)
+from core.modules.data_contract.core.base.base_non_time_series_contract import (
+    BaseNonTimeSeriesContract,
+)
+from core.modules.data_contract.core.base.base_loader import (
+    BaseDataContractLoader,
 )
 
 __all__ = [
-    "ContractCacheEntry",
-    "ContractCacheManager",
-    "ContractCacheScope",
-    "ContractInfo",
-    "ContractMeta",
-    "ContractScope",
+    # Discovery
+    "ContractIssuer",
+    
+    # Base classes
+    "BaseDataContract",
     "ContractType",
-    "DataContract",
-    "DataKey",
-    "GlobalContractCacheStore",
-    "IssueResult",
-    "MergeResult",
-    "DropResult",
-    "NonTimeSeriesContract",
-    "PerStrategyContractCacheStore",
+    "ContractScope",
+    "ContractMeta",
+    "ContractRuntime",
+    "ContractSpecific",
+    
+    # Time series contract
+    "BaseTimeSeriesContract",
     "TimeRange",
-    "TimeSeriesContract",
-    "UntilResult",
+    
+    # Non time series contract
+    "BaseNonTimeSeriesContract",
+    
+    # Loader
+    "BaseDataContractLoader",
 ]

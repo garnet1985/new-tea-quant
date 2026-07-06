@@ -386,7 +386,7 @@ class ContractIssuer:
         if key not in self._declarations:
             raise KeyError(f"Contract {key} 不存在")
 
-        return self._declarations[data_key].get("_is_customized", False)
+        return self._declarations[key].get("_is_customized", False)
 
     def get_validation_errors(self) -> Dict[str, List[str]]:
         """获取验证错误列表。

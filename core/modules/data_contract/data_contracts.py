@@ -94,12 +94,12 @@ class DataContract:
 
         cursor = self._until_cursors.get(id(contract))
         if cursor is None:
-            key = contract.meta.data_id
+            key = contract.meta.key
             cursor = DataCursor(contracts={key: contract})
             self._until_cursors[id(contract)] = cursor
 
         as_of_norm = ContractTimeHelper.normalize_as_of(contract, as_of)
-        rows = cursor.until(as_of)[contract.meta.data_id]
+        rows = cursor.until(as_of)[contract.meta.key]
         return UntilResult(rows=rows, as_of=as_of_norm)
 
     def reset_until_cursor(self, contract: DataContract) -> None:

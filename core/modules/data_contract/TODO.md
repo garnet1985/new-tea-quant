@@ -79,18 +79,52 @@
   - [x] BaseNonTimeSeriesContract（非时序基类，无时间辅助工具）
   - [x] ContractPool 根据 contract_type 选择基类
 
-### 5. 数据生命周期管理（Lifecycle）- 低优先级
-- [ ] merge（合并数据）
-  - [ ] append-tail merge
-  - [ ] 时间序列合并
-- [ ] drop（删除数据）
-  - [ ] drop_before（释放内存）
-- [ ] extend（扩展数据）
-  - [ ] 动态加载新数据
+### 5. 数据生命周期管理（Lifecycle）- 低优先级 ⏸️ 暂缓
+- ⏸️ merge（合并数据）
+  - ⏸️ append-tail merge
+  - ⏸️ 时间序列合并
+- ⏸️ drop（删除数据）
+  - ⏸️ drop_before（释放内存）
+- ⏸️ extend（扩展数据）
+  - ⏸️ 动态加载新数据
+**注**：暂时不做，因为没有实际 case，等有需求时再实现。
 
-### 6. 数据验证（Validation）- 低优先级
-- [ ] validate_raw（原始数据验证）
-- [ ] validate_declaration（声明完整性检查）
+### 6. 数据验证（Validation）- 低优先级 ✅ 已完成
+- ✅ validate_declaration（声明完整性检查）
+  - ✅ ContractIssuer._validate_declaration_meta()（检查 meta 必要字段：key, type, scope）
+  - ✅ BaseDataContract.validate_declaration()（检查 meta 字段）
+  - ✅ 入口把关（在发现时自动验证）
+- ✅ validate_runtime（运行时参数检查）
+  - ✅ BaseDataContract._validate_runtime()（检查 entity_ids, start_time, end_time）
+  - ✅ TagContract.validate_runtime()（检查 scenario）
+- ❌ validate_raw（原始数据验证）**不实现**
+  - 数据正确性由 loader 保证，contract 不验证数据格式
+  - 避免过度复杂，用户通过测试确保 loader 返回正确数据
+
+### 7. until 功能（基于 DataCursor）- 低优先级 ✅ 已实现
+- ✅ until（单 contract until）
+  - ✅ DataContracts.until(contract, as_of) → UntilResult
+  - ✅ 基于 DataCursor 实现
+  - ✅ 支持 per_entity
+- ✅ until_cursor（多源 until）
+  - ✅ open_until_cursor(name, contracts) → 绑定会话
+  - ✅ until_cursor(name, as_of) → 推进时间点
+  - ✅ reset_until_cursor_session(name) → 重置扫描状态
+  - ✅ close_until_cursor(name) → 关闭会话
+- ✅ 底层实现
+  - ✅ DataCursor.until(as_of) → 返回累计前缀视图
+  - ✅ 支持 per_entity（按 entity 分组）
+  - ✅ ContractTimeHelper.normalize_as_of() → 时间标准化
+
+### 8. 时间辅助工具（Time Helpers）- 低优先级 ✅ 已完成
+- ✅ ContractTimeHelper（集成到 BaseTimeSeriesContract）
+  - ✅ time_axis_field/format获取（get_base_time_field, get_time_format）
+  - ✅ 时间格式转换（YYYYMMDD/YYYY-MM-DD/YYYYQ）（normalize_as_of）
+  - ✅ normalize_as_of（时间标准化）
+- ✅ 两个基类设计（方案1）
+  - ✅ BaseTimeSeriesContract（时序基类，扩展时间辅助工具）
+  - ✅ BaseNonTimeSeriesContract（非时序基类，无时间辅助工具）
+  - ✅ ContractIssuer 根据 contract_type 选择基类
 
 ### 7. 其他优化
 - [ ] ContractMeta添加更多字段（attrs等）
@@ -111,6 +145,28 @@
 - [x] 验证新的发现机制和缓存逻辑
 
 ## 下一步
+
+**已完成功能**（优先级高→低）：
+1. ✅ Contract 基类设计（meta/runtime/specific 三层结构）
+2. ✅ 发现机制（ContractIssuer）
+3. ✅ 数据注入管理（简化设计，不需要 DataContractManager）
+4. ✅ 时间辅助工具（BaseTimeSeriesContract）
+5. ✅ 缓存管理（内部缓存，runtime_fingerprint）
+6. ✅ until 功能（基于 DataCursor）
+7. ✅ 数据验证（入口把关 + runtime验证）
+8. ✅ 命名修正（DataKey → DataContract, data_key → key）
+
+**暂缓功能**（等实际 case）：
+- ⏸️ 数据生命周期管理（merge/drop/extend）
+
+**不实现功能**：
+- ❌ validate_raw（数据正确性由 loader 保证）
+
+**可选优化**（根据实际需求）：
+- Facade API 完善（如果发现 legacy 有更多高价值 API）
+- 性能优化（批量加载、缓存策略等）
+
+**当前状态**：data_contract 核心功能已基本完成，可以开始集成到回测器和其他模块。
 **可选：数据注入管理或其他功能**
 - 实现时间辅助工具
 - 实现数据生命周期管理

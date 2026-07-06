@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Dict, Any
 
-from .loader import TradeCalendarDataContractLoader
+from .loader import TradeCalendarLoader
 
 
 TRADE_CALENDAR_DECLARATION: Dict[str, Any] = {
@@ -13,7 +13,7 @@ TRADE_CALENDAR_DECLARATION: Dict[str, Any] = {
         "scope": "global",
         "display_name": "交易日历",
         "unique_keys": ["date"],
-        "loader": TradeCalendarDataContractLoader,
+        "loader": TradeCalendarLoader,
     },
     # runtime 在声明里不需要，运行时注入
     "specific": {},

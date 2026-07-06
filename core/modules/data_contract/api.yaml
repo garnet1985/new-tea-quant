@@ -538,3 +538,486 @@ DataContract:
         调用后 **必须** DataContracts.reset_until_cursor(contract)（until 前缀索引失效）。
         slice 每片 open_dates 跑完后按 watermark drop；GLOBAL 句柄多 entity 共享时慎用。
         指标 lookback / min_required_records 须在 watermark 计算中保留。
+
+---
+
+ContractIssuer:
+  layer: manager
+  description: "契约发现和管理 — 负责发现、管理和创建数据契约实例"
+
+  apis:
+    __init__:
+      description: "初始化 ContractIssuer，扫描系统 mapping 和用户 mapping"
+      stability: stable
+      binding: instance
+      parameters:
+        keyword_only:
+          - name: user_space_path
+            type: Optional[str]
+            required: false
+            default: null
+            notes: "用户空间路径；null 时使用默认路径"
+      returns: ContractIssuer
+
+    discover:
+      description: "发现并加载所有可用的数据契约声明；合并系统和用户定义"
+      stability: stable
+      binding: instance
+      parameters:
+        keyword_only:
+          - name: user_space_path
+            type: Optional[str]
+            required: false
+            default: null
+            notes: "用户空间路径；null 时使用初始化时配置的路径"
+      returns: None
+      throws:
+        - ValueError: 用户空间路径无效
+      notes: |
+        扫描系统 mapping 和用户 mapping，合并成统一的声明字典。
+        系统声明优先级低于用户声明（用户可覆盖系统定义）。
+        调用后更新内部 _declarations 和 _validation_errors。
+
+    get_contract:
+      description: "根据 key 获取契约实例"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: key
+            type: str
+            required: true
+            notes: "契约 key（如 'stock_daily_k'）"
+      returns: BaseDataContract
+      throws:
+        - KeyError: key 不存在于可用声明中
+      notes: "返回契约实例；未加载时 data 为 None"
+
+    get_declaration:
+      description: "根据 key 获取原始声明字典"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: key
+            type: str
+            required: true
+            notes: "契约 key"
+      returns: dict[str, Any]
+      throws:
+        - KeyError: key 不存在
+
+    list_available_keys:
+      description: "列出所有可用的契约 key（系统 + 用户）"
+      stability: stable
+      binding: instance
+      parameters: []
+      returns: list[str]
+      notes: "返回合并后的所有可用 key 列表"
+
+    list_system_keys:
+      description: "列出系统预定义的契约 key"
+      stability: stable
+      binding: instance
+      parameters: []
+      returns: list[str]
+      notes: "仅返回系统 mapping 中定义的 key"
+
+    list_user_keys:
+      description: "列出用户自定义的契约 key"
+      stability: stable
+      binding: instance
+      parameters: []
+      returns: list[str]
+      notes: "仅返回用户 mapping 中定义的 key"
+
+    is_customized:
+      description: "判断 key 是否为用户自定义契约"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: key
+            type: str
+            required: true
+      returns: bool
+      notes: "true 表示用户自定义；false 表示系统预定义"
+
+    is_available:
+      description: "判断 key 是否可用（已发现且通过验证）"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: key
+            type: str
+            required: true
+      returns: bool
+      notes: "true 表示可用；false 表示不存在或有验证错误"
+
+    register_custom_declaration:
+      description: "运行时注册用户自定义契约声明"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: declaration
+            type: dict[str, Any]
+            required: true
+            notes: "契约声明字典，须包含 'key' 字段"
+      returns: None
+      throws:
+        - ValueError: 声明缺少必要字段 / 验证失败
+      notes: |
+        注册后会更新内部声明字典和验证错误。
+        允许覆盖已有的声明（包括系统声明）。
+
+    get_validation_errors:
+      description: "获取所有验证错误"
+      stability: stable
+      binding: instance
+      parameters: []
+      returns: dict[str, list[str]]
+      notes: "返回 key → 错误消息列表的映射"
+
+---
+
+BaseDataContract:
+  layer: base_class
+  description: "数据契约基类 — 所有契约的抽象基类，定义核心属性和方法"
+
+  properties:
+    meta:
+      type: ContractMeta
+      description: "契约元信息（不可变）"
+      notes: "包含 key、scope、display_name 等静态信息"
+
+    runtime:
+      type: ContractRuntime
+      description: "契约运行时配置（可变）"
+      notes: "包含 entity_ids、start、end、loader_params 等"
+
+    specific:
+      type: ContractSpecific
+      description: "契约特定配置（可变）"
+      notes: "包含 time_axis_field、time_axis_format 等时序特有属性"
+
+    data:
+      type: Any
+      description: "缓存的数据（可变）"
+      notes: "未加载时为 None；加载后为具体数据结构（通常是 DataFrame 或 list[dict]）"
+
+    is_loaded:
+      type: bool
+      description: "数据是否已加载"
+
+    is_runtime_updated:
+      type: bool
+      description: "运行时配置是否已更新"
+
+    is_customized:
+      type: bool
+      description: "是否为用户自定义契约"
+
+    contract_id:
+      type: str
+      description: "契约唯一标识符"
+
+    runtime_fingerprint:
+      type: str
+      description: "运行时配置指纹（用于缓存键）"
+
+  apis:
+    __init__:
+      description: "初始化数据契约"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: meta
+            type: ContractMeta
+            required: true
+            notes: "契约元信息"
+          - name: runtime
+            type: ContractRuntime
+            required: true
+            notes: "运行时配置"
+          - name: specific
+            type: ContractSpecific
+            required: true
+            notes: "特定配置"
+        keyword_only:
+          - name: data
+            type: Any
+            required: false
+            default: null
+            notes: "预加载数据"
+          - name: is_customized
+            type: bool
+            required: false
+            default: false
+            notes: "是否为用户自定义"
+      returns: BaseDataContract
+
+    fill_in_data:
+      description: "加载数据到契约"
+      stability: stable
+      binding: instance
+      parameters:
+        keyword_only:
+          - name: runtime
+            type: Optional[ContractRuntime]
+            required: false
+            default: null
+            notes: "可选的运行时配置；null 时使用当前 runtime"
+          - name: force_reload
+            type: bool
+            required: false
+            default: false
+            notes: "是否强制重新加载（即使已加载）"
+      returns: None
+      throws:
+        - ValueError: 缺少必要参数
+        - RuntimeError: loader 加载失败
+      notes: |
+        根据 runtime 配置调用 loader 加载数据。
+        若 is_loaded=true 且 force_reload=false，则不执行加载。
+        加载成功后设置 is_loaded=true。
+
+    add_runtime:
+      description: "添加运行时配置（链式调用）"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: runtime
+            type: ContractRuntime
+            required: true
+            notes: "运行时配置"
+      returns: BaseDataContract
+      notes: "返回 self，支持链式调用"
+
+    is_global:
+      description: "判断是否为全局契约"
+      stability: stable
+      binding: instance
+      parameters: []
+      returns: bool
+      notes: "scope == GLOBAL 时返回 true"
+
+    is_per_entity:
+      description: "判断是否为实体级契约"
+      stability: stable
+      binding: instance
+      parameters: []
+      returns: bool
+      notes: "scope == PER_ENTITY 时返回 true"
+
+    is_time_series:
+      description: "判断是否为时序契约"
+      stability: stable
+      binding: instance
+      parameters: []
+      returns: bool
+      notes: "contract_type == TIME_SERIES 时返回 true"
+
+---
+
+BaseTimeSeriesContract:
+  layer: base_class
+  description: "时序数据契约基类 — 扩展 BaseDataContract，提供时序特有功能"
+  inherits: BaseDataContract
+
+  apis:
+    get_time_window:
+      description: "获取时间窗口"
+      stability: stable
+      binding: instance
+      parameters: []
+      returns: TimeRange
+      throws:
+        - ValueError: 未设置 start/end
+      notes: "返回 {start, end} 字典"
+
+    get_base_time_field:
+      description: "获取基准时间字段名"
+      stability: stable
+      binding: instance
+      parameters: []
+      returns: str
+      notes: "如 'date'、'ann_date' 等"
+
+    get_time_format:
+      description: "获取时间格式"
+      stability: stable
+      binding: instance
+      parameters: []
+      returns: str
+      notes: "如 'YYYYMMDD'、'YYYYMM' 等"
+
+    normalize_as_of:
+      description: "规范化 as_of 时间值"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: as_of
+            type: str
+            required: true
+            notes: "待规范化的时间值"
+      returns: str
+      throws:
+        - ValueError: as_of 格式非法
+      notes: "返回符合 time_format 的规范化字符串"
+
+    extend_data:
+      description: "扩展数据至新结束时间（TODO）"
+      stability: todo
+      binding: instance
+      parameters:
+        positional:
+          - name: new_end_time
+            type: str
+            required: true
+            notes: "新的结束时间"
+      returns: None
+      throws:
+        - NotImplementedError: 功能未实现
+      notes: "**TODO** — 功能规划中，待实现"
+
+    shrink_data:
+      description: "收缩数据至新结束时间（TODO）"
+      stability: todo
+      binding: instance
+      parameters:
+        positional:
+          - name: new_end_time
+            type: str
+            required: true
+            notes: "新的结束时间"
+      returns: None
+      throws:
+        - NotImplementedError: 功能未实现
+      notes: "**TODO** — 功能规划中，待实现"
+
+---
+
+BaseDataContractLoader:
+  layer: base_class
+  description: "数据契约加载器基类 — 所有 loader 的抽象基类"
+
+  apis:
+    load:
+      description: "加载单个契约的数据"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: params
+            type: dict[str, Any]
+            required: true
+            notes: "加载参数（如 entity_ids、start、end 等）"
+      returns: Any
+      throws:
+        - ValueError: 参数验证失败
+        - RuntimeError: 数据加载失败
+      notes: |
+        子类必须实现此方法。
+        返回加载的数据（通常为 DataFrame 或 list[dict]）。
+
+    load_batch:
+      description: "批量加载多个实体的数据"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: entity_ids
+            type: Sequence[str]
+            required: true
+            notes: "实体 ID 列表"
+          - name: params
+            type: dict[str, Any]
+            required: true
+            notes: "加载参数"
+      returns: Mapping[str, Any]
+      throws:
+        - ValueError: 参数验证失败
+        - RuntimeError: 数据加载失败
+      notes: |
+        返回 entity_id → data 的映射。
+        默认实现遍历调用 load()；子类可覆盖以优化批量加载。
+
+    build_batch_load_params:
+      description: "构建批量加载参数"
+      stability: stable
+      binding: instance
+      parameters:
+        positional:
+          - name: entity_id
+            type: str
+            required: true
+            notes: "单个实体 ID"
+          - name: params
+            type: dict[str, Any]
+            required: true
+            notes: "基础参数"
+      returns: dict[str, Any]
+      notes: "返回该实体特定的加载参数；用于 load_batch 内部调用"
+
+---
+
+# 类型定义补充
+types:
+  ContractMeta:
+    description: "契约元信息（不可变）"
+    fields:
+      - name: key
+        type: str
+        notes: "契约唯一标识"
+      - name: scope
+        type: ContractScope
+        notes: "契约作用域（GLOBAL / PER_ENTITY）"
+      - name: contract_type
+        type: ContractType
+        notes: "契约类型（TIME_SERIES / SNAPSHOT / REFERENCE）"
+      - name: display_name
+        type: str
+        notes: "显示名称"
+      - name: loader_name
+        type: str
+        notes: "加载器名称"
+      - name: defaults
+        type: dict[str, Any]
+        notes: "默认参数"
+      - name: unique_keys
+        type: list[str]
+        notes: "唯一键字段列表"
+
+  ContractRuntime:
+    description: "契约运行时配置（可变）"
+    fields:
+      - name: entity_ids
+        type: Optional[Sequence[str]]
+        notes: "实体 ID 列表（PER_ENTITY 时必需）"
+      - name: start
+        type: Optional[str]
+        notes: "时间窗口起始"
+      - name: end
+        type: Optional[str]
+        notes: "时间窗口结束"
+      - name: loader_params
+        type: dict[str, Any]
+        notes: "加载器额外参数"
+
+  ContractSpecific:
+    description: "契约特定配置（可变）"
+    fields:
+      - name: time_axis_field
+        type: Optional[str]
+        notes: "时序时间轴字段名"
+      - name: time_axis_format
+        type: Optional[str]
+        notes: "时序时间格式"
+      - name: supports_start_end
+        type: bool
+        notes: "是否支持 start/end 窗口"

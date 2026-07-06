@@ -1,96 +1,436 @@
-# Data Contract unit test case registry (0.5.0).
-# Each case maps to one test file; scenarios align with test function names.
+# Data Contract 测试用例文档
 
-cases:
-  - id: 1
-    case: facade_api
-    description: DataContracts Facade 公开 API（对齐 api.yaml 0.5.0）
-    file: test_api.py
-    scenarios:
-      - id: 1
-        name: test_init_default_cache_enabled
-        description: 默认构造 cache_enabled=True
-      - id: 2
-        name: test_info_stock_list
-        description: info(GLOBAL 非时序) scope / has_cache / supports_start_end
-      - id: 3
-        name: test_info_kline_per_entity_no_cache
-        description: info(PER_ENTITY) has_cache 恒 false；time_axis_field
-      - id: 4
-        name: test_issue_should_load_initially_false
-        description: should_load_initially=False 时 PER_ENTITY data 为空
-      - id: 5
-        name: test_issue_per_entity_cache_override_raises
-        description: PER_ENTITY 显式 use_cache → ValueError
-      - id: 6
-        name: test_load_after_issue
-        description: issue 后 Facade load(issued) 经 load_batch 填充 data
-      - id: 7
-        name: test_until_prefix
-        description: until(as_of) PIT 前缀行数
-      - id: 8
-        name: test_time_window_helpers
-        description: get_start_time / get_end_time / get_data_window
-      - id: 9
-        name: test_is_loaded_and_row_count
-        description: is_loaded 与 row_count
+## 测试分层
 
-  - id: 2
-    case: smoke
-    description: issue 句柄形态、loader 绑定与 until（不连 DB）
-    file: test_data_contract_smoke.py
-    scenarios:
-      - id: 1
-        name: test_stock_list_issue_shape
-        description: GLOBAL STOCK_LIST → NonTimeSeriesContract + StockListLoader
-      - id: 2
-        name: test_kline_qfq_issue_shape
-        description: PER_ENTITY K 线 → TimeSeriesContract + adjust/term params
-      - id: 3
-        name: test_tag_issue_shape
-        description: TAG 时序轴 as_of_date + TagLoader
-      - id: 4
-        name: test_tag_load_requires_scenario
-        description: TAG load 缺 scenario 参数 → ValueError
-      - id: 5
-        name: test_until_prefix
-        description: until 前缀与 reset=True 游标重置
+### Layer 1: API 契约测试（test_api.py）
+- 目标：覆盖 api.yaml 定义的所有公开 API
+- 目的：及时发现 API 变动，防止破坏性变更
+- 覆盖率：100% API 定义
 
-  - id: 3
-    case: mapping
-    description: DataKey 与 default_map 注册完整性
-    file: test_mapping_completeness.py
-    scenarios:
-      - id: 1
-        name: test_default_map_covers_all_data_keys
-        description: 每个 DataKey 枚举成员须在 default_map 有 DataSpec
+### Layer 2: 功能测试（test_functional.py）
+- 目标：验证核心功能逻辑正确性
+- 场景：初始化、until 推进、内存释放、错误处理
+- 数据：使用 mock 数据（不依赖真实数据库）
 
-  - id: 4
-    case: tag_entity_type
-    description: Tag BFF entity_type 与 DataKey 映射（内部 registry）
-    file: test_tag_entity_type.py
-    scenarios:
-      - id: 1
-        name: test_resolve_tag_entity_type
-        description: 已知 DataKey → entity_type 字符串（parametrize）
-      - id: 2
-        name: test_resolve_tag_entity_type_rejects_unknown
-        description: 未映射 DataKey（如 MACRO_GDP）→ ValueError
+---
 
-  - id: 5
-    case: contract_catalog
-    description: BFF contract catalog 分页与 summary 字段
-    file: ../core/launcher/__test__/test_contract_catalog.py
-    scenarios:
-      - id: 1
-        name: test_fetch_page_includes_core_keys
-        description: 分页列表含 STOCK_LIST 等 core keys
-      - id: 2
-        name: test_summary_fields
-        description: is_time_series / is_per_entity / origin 标签
-      - id: 3
-        name: test_summary_origin_labels
-        description: system vs userspace origin / is_custom
-      - id: 4
-        name: test_pagination
-        description: page/limit 分页不重复首条
+## Layer 1: API 契约测试用例
+
+### ContractIssuer API
+
+#### 1.1 ContractIssuer.__init__
+- 描述：初始化 ContractIssuer
+- 输入：无
+- 输出：ContractIssuer 实例
+- 验证：实例创建成功，内部状态为空
+
+#### 1.2 ContractIssuer.discover
+- 描述：发现系统 contract
+- 输入：无（或 user_space_path）
+- 输出：None
+- 验证：发现 contract 数量 > 0，包含已知 key
+
+#### 1.3 ContractIssuer.get_contract
+- 描述：根据 key 获取 contract 实例
+- 输入：key="stock.kline.daily"
+- 输出：BaseTimeSeriesContract 实例
+- 验证：类型正确，meta.key 匹配
+
+#### 1.4 ContractIssuer.get_declaration
+- 描述：获取原始 declaration
+- 输入：key="stock.kline.daily"
+- 输出：dict
+- 验证：包含 meta/specific 字段
+
+#### 1.5 ContractIssuer.list_available_keys
+- 描述：列出所有可用 key
+- 输入：无
+- 输出：list[str]
+- 验证：返回类型正确，包含已知 key
+
+#### 1.6 ContractIssuer.list_system_keys
+- 描述：列出系统 key
+- 输入：无
+- 输出：list[str]
+- 验证：只包含系统 contract
+
+#### 1.7 ContractIssuer.list_user_keys
+- 描述：列出用户 key
+- 输入：无
+- 输出：list[str]
+- 验证：只包含用户 contract（默认为空）
+
+#### 1.8 ContractIssuer.is_customized
+- 描述：检查 key 是否为用户自定义
+- 输入：key="stock.kline.daily"
+- 输出：bool
+- 验证：系统 key 返回 False
+
+#### 1.9 ContractIssuer.is_available
+- 描述：检查 key 是否可用
+- 输入：key="stock.kline.daily" 和 "nonexistent.key"
+- 输出：bool
+- 验证：存在返回 True，不存在返回 False
+
+#### 1.10 ContractIssuer.register_custom_declaration
+- 描述：注册自定义 declaration
+- 输入：declaration dict
+- 输出：None
+- 验证：注册后 is_available=true，is_customized=true
+
+#### 1.11 ContractIssuer.get_validation_errors
+- 描述：获取验证错误
+- 输入：无
+- 输出：dict[str, list[str]]
+- 验证：返回错误映射
+
+---
+
+### BaseDataContract API
+
+#### 2.1 BaseDataContract.__init__
+- 描述：初始化 contract
+- 输入：declaration dict
+- 输出：BaseDataContract 实例
+- 验证：meta/runtime/specific 正确初始化
+
+#### 2.2 BaseDataContract.fill_in_data
+- 描述：填充数据
+- 输入：runtime dict
+- 输出：self（链式调用）
+- 验证：is_loaded=true，data 有值
+
+#### 2.3 BaseDataContract.add_runtime
+- 描述：添加 runtime（链式）
+- 输入：runtime dict
+- 输出：self
+- 验证：runtime 字段正确设置
+
+#### 2.4 BaseDataContract.is_global
+- 描述：检查 scope
+- 输入：无
+- 输出：bool
+- 验证：global scope 返回 True
+
+#### 2.5 BaseDataContract.is_per_entity
+- 描述：检查 scope
+- 输入：无
+- 输出：bool
+- 验证：per_entity scope 返回 True
+
+#### 2.6 BaseDataContract.is_time_series
+- 描述：检查 type
+- 输入：无
+- 输出：bool
+- 验证：time_series type 返回 True
+
+#### 2.7 BaseDataContract.get_entity_ids
+- 描述：获取 entity IDs
+- 输入：无
+- 输出：list[str]
+- 验证：返回 runtime.entity_ids
+
+#### 2.8 BaseDataContract.get_entity_data
+- 描述：获取单个 entity 数据
+- 输入：entity_id
+- 输出：data
+- 验证：per_entity scope 返回对应 entity 数据
+
+#### 2.9 BaseDataContract.get_entities_data
+- 描述：获取所有 entity 数据
+- 输入：无
+- 输出：dict[entity_id, data]
+- 验证：per_entity scope 返回 dict
+
+---
+
+### BaseTimeSeriesContract API
+
+#### 3.1 BaseTimeSeriesContract.get_time_window
+- 描述：获取时间窗口
+- 输入：无
+- 输出：TimeRange 或 None
+- 验证：返回 start/end
+
+#### 3.2 BaseTimeSeriesContract.get_base_time_field
+- 描述：获取时间字段名
+- 输入：无
+- 输出：str
+- 验证：返回 "date" 或 specific.time_axis_field
+
+#### 3.3 BaseTimeSeriesContract.get_time_format
+- 描述：获取时间格式
+- 输入：无
+- 输出：str
+- 验证：返回 "YYYYMMDD" 或 specific.time_axis_format
+
+#### 3.4 BaseTimeSeriesContract.normalize_as_of
+- 描述：规范化时间
+- 输入：各种格式（"20200101", "2020-01-01", "2020Q1"）
+- 输出：YYYYMMDD
+- 验证：统一转换为 YYYYMMDD
+
+#### 3.5 BaseTimeSeriesContract.until
+- 描述：获取 PIT 累计数据（推进 cursor）
+- 输入：as_of
+- 输出：dict[entity_id, PIT data]
+- 验证：返回累计数据，cursor 推进
+
+#### 3.6 BaseTimeSeriesContract.reset_cursor
+- 描述：重置 cursor 状态
+- 输入：无
+- 输出：None
+- 验证：cursor=-1, acc=[]
+
+#### 3.7 BaseTimeSeriesContract.fill_in_data（扩展）
+- 描述：填充数据并初始化 cursor
+- 输入：runtime dict
+- 输出：self
+- 验证：is_loaded=true, _cursor_states 初始化
+
+---
+
+### BaseDataContractLoader API
+
+#### 4.1 BaseDataContractLoader.load
+- 描述：加载单个 entity 数据（子类实现）
+- 输入：params dict
+- 输出：data
+- 验证：返回数据结构正确
+
+#### 4.2 BaseDataContractLoader.load_batch
+- 描述：批量加载多个 entity
+- 输入：entity_ids list, params dict
+- 输出：dict[entity_id, data]
+- 验证：每个 entity 返回对应数据
+
+#### 4.3 BaseDataContractLoader.build_batch_load_params
+- 描述：构建批量加载参数
+- 输入：entity_id, params
+- 输出：dict
+- 验证：返回该 entity 的特定参数
+
+---
+
+## Layer 2: 功能测试用例
+
+### 场景 1: 初始化错误检查
+
+#### 1.1 declaration 缺少必要字段
+- 输入：declaration 缺少 meta.key
+- 预期：抛出 ValueError（"meta.key 不能为空"）
+- 验证点：入口把关验证
+
+#### 1.2 declaration loader 未继承基类
+- 输入：loader 不是 BaseDataContractLoader 子类
+- 预期：抛出 ValueError
+- 验证点：继承关系检查
+
+#### 1.3 runtime 参数缺失（per_entity）
+- 输入：per_entity contract 未提供 entity_ids
+- 预期：抛出 ValueError（"必须包含 entity_ids"）
+- 验证点：runtime 验证
+
+#### 1.4 contract_type 无效
+- 输入：meta.type = "invalid_type"
+- 预期：抛出 ValueError
+- 验证点：type 验证
+
+#### 1.5 contract_scope 无效
+- 输入：meta.scope = "invalid_scope"
+- 预期：抛出 ValueError
+- 验证点：scope 验证
+
+---
+
+### 场景 2: until 推进正确性
+
+#### 2.1 单 entity 累进扫描
+- 数据：entity_1 = [{"date": "20200101"}, {"date": "20200201"}, {"date": "20200301"}]
+- 操作：
+  - until("20200101") → 1 条数据，cursor=0
+  - until("20200201") → 2 条数据，cursor=1
+  - until("20200301") → 3 条数据，cursor=2
+- 验证：累进扫描，不重复扫描
+
+#### 2.2 多 entity 独立 cursor
+- 数据：
+  - entity_1 = [{"date": "20200101"}, {"date": "20200201"}]
+  - entity_2 = [{"date": "20200115"}, {"date": "20200215"}]
+- 操作：
+  - until("20200101") → entity_1: 1 条, entity_2: 1 条
+  - until("20200201") → entity_1: 2 条, entity_2: 1 条（因为 entity_2 的第二条是 20200215）
+- 验证：每个 entity 独立 cursor
+
+#### 2.3 reset_cursor 后重新扫描
+- 数据：entity_1 = [{"date": "20200101"}, {"date": "20200201"}]
+- 操作：
+  - until("20200201") → 2 条，cursor=1
+  - reset_cursor() → cursor=-1, acc=[]
+  - until("20200101") → 1 条，cursor=0（从头扫描）
+- 验证：重置后从头开始
+
+#### 2.4 时间格式转换
+- 输入：
+  - "20200101" → "20200101"
+  - "2020-01-01" → "20200101"
+  - "2020Q1" → "20200101"（季度首日）
+- 验证：统一转换为 YYYYMMDD
+
+#### 2.5 global scope PIT 数据
+- 数据：global = [{"date": "20200101"}, {"date": "20200201"}]
+- 操作：until("20200101") → {"_global": [1 条]}
+- 验证：global scope 使用 "_global" key
+
+---
+
+### 场景 3: 内存释放验证
+
+#### 3.1 contract 销毁后内存释放
+- 操作：
+  - contract = issuer.get_contract(...)
+  - contract.fill_in_data(...)
+  - pit_data = contract.until(...)
+  - del contract
+- 验证：内存占用减少（cursor 状态释放）
+
+#### 3.2 reset_cursor 释放 acc
+- 操作：
+  - until(...) → acc 有数据
+  - reset_cursor() → acc=[]
+- 验证：acc 列表清空（内存释放）
+
+#### 3.3 acc 是引用（不复制数据）
+- 操作：
+  - until("20200101")
+  - 修改 contract.data[0]["price"] = 100
+  - acc[0]["price"] 也变为 100
+- 验证：acc 是引用，共享数据
+
+---
+
+### 场景 4: fill_in_data 加载逻辑
+
+#### 4.1 单 entity 加载（load）
+- 输入：entity_ids=["600000.SH"]
+- 验证：调用 loader.load()，返回 dict[entity_id: data]
+
+#### 4.2 多 entity 加载（load_batch）
+- 输入：entity_ids=["600000.SH", "600001.SH"]
+- 验证：调用 loader.load_batch()，返回 dict
+
+#### 4.3 fingerprint 缓存验证
+- 操作：
+  - fill_in_data(runtime={...})
+  - 再次 fill_in_data(runtime={...})（相同 runtime）
+- 验证：第二次不触发 loader IO（使用 cache）
+
+#### 4.4 fingerprint 变化触发重新加载
+- 操作：
+  - fill_in_data(runtime={...})
+  - 修改 runtime.entity_ids
+  - fill_in_data()
+- 验证：触发重新加载（fingerprint 变化）
+
+---
+
+### 场景 5: 错误处理
+
+#### 5.1 未加载时调用 until
+- 操作：contract.until(...)（未 fill_in_data）
+- 预期：抛出 ValueError（"Contract 未加载"）
+
+#### 5.2 不存在的 key
+- 操作：issuer.get_contract("nonexistent.key")
+- 预期：抛出 KeyError
+
+#### 5.3 loader 加载失败
+- 操作：loader.load() 返回错误
+- 预期：抛出 RuntimeError
+
+---
+
+### 场景 6: 数据结构验证
+
+#### 6.1 global scope 数据结构
+- 输入：global scope contract
+- 验证：contract.data 是单一数据结构（list 或 DataFrame）
+
+#### 6.2 per_entity scope 数据结构
+- 输入：per_entity contract
+- 验证：contract.data 是 dict[entity_id: data]
+
+#### 6.3 cursor 状态结构
+- 验证：
+  - global: {"_global": CursorState}
+  - per_entity: {entity_id: CursorState}
+
+---
+
+### 场景 7: 重复 declaration 检测
+
+#### 7.1 系统 declaration 重复
+- 操作：两个系统 contract 使用相同 key
+- 预期：抛出 ValueError（"key 已存在，不能重复声明"）
+
+#### 7.2 用户 declaration 覆盖系统
+- 操作：用户 declaration 使用系统 key
+- 预期：抛出 ValueError（不允许覆盖）
+
+---
+
+## 测试数据准备
+
+### Mock 数据结构
+
+```python
+# Global scope mock data
+MOCK_GLOBAL_DATA = [
+    {"date": "20200101", "value": 100},
+    {"date": "20200201", "value": 110},
+    {"date": "20200301", "value": 120},
+]
+
+# Per entity mock data
+MOCK_ENTITY_DATA = {
+    "600000.SH": [
+        {"date": "20200101", "close": 10.0},
+        {"date": "20200201", "close": 11.0},
+        {"date": "20200301", "close": 12.0},
+    ],
+    "600001.SH": [
+        {"date": "20200115", "close": 20.0},
+        {"date": "20200215", "close": 21.0},
+        {"date": "20200315", "close": 22.0},
+    ],
+}
+```
+
+### Mock Loader
+
+```python
+class MockLoader(BaseDataContractLoader):
+    def load(self, params):
+        entity_id = params["entity_id"]
+        return MOCK_ENTITY_DATA.get(entity_id, [])
+
+    def load_batch(self, entity_ids, params):
+        return {eid: MOCK_ENTITY_DATA.get(eid, []) for eid in entity_ids}
+```
+
+---
+
+## 测试覆盖率目标
+
+- API 契约测试：100% api.yaml 定义的 API
+- 功能测试：覆盖所有核心场景
+- 错误处理：覆盖所有异常路径
+
+---
+
+## 测试执行策略
+
+1. Layer 1 测试：每次提交必跑（快速反馈）
+2. Layer 2 测试：CI/CD pipeline 必跑（完整验证）
+3. Mock 数据：不依赖真实数据库（可独立运行）
+4. 环境变量：NTQ_TESTS_ENABLED=1 启用完整测试

@@ -317,7 +317,111 @@ class BaseDataContract:
         
         return None
 
-    def fill_in_data(self, runtime: Optional[dict] = None, force_reload: bool = False) -> None:
+    def to_df(self) -> Optional[Any]:
+        """将 per_entity 数据转换为 DataFrame（如果可用）。
+
+        Returns:
+            DataFrame（per_entity scope 时，将所有 entity 数据合并）
+            None（如果 global scope 或数据未加载）
+
+        Raises:
+            ImportError: 如果 pandas 未安装
+
+        注意：
+            - 只对 per_entity scope 有效
+            - 需要安装 pandas
+            - 将所有 entity 的数据合并成一个 DataFrame
+            - 会添加 entity_id 列用于区分不同 entity
+
+        示例：
+            contract = issuer.get_contract("stock.kline.daily")
+            contract.fill_in_data(runtime={"entity_ids": ["600000.SH", "600001.SH"]})
+
+            # 转换为 DataFrame
+            df = contract.to_df()
+            # df 包含所有 entity 的数据，带有 entity_id 列
+        """
+        # 检查是否为 per_entity scope
+        if self.is_global():
+            raise ValueError(f"to_df() 只对 per_entity scope 有效，当前 contract {self.meta.key} 是 global scope")
+
+        # 检查数据是否已加载
+        if not self.is_loaded or self.data is None:
+            raise ValueError(f"Contract {self.meta.key} 未加载，请先调用 fill_in_data()")
+
+        # 检查 pandas 是否可用
+        try:
+            import pandas as pd
+        except ImportError:
+            raise ImportError("pandas 未安装，无法使用 to_df()。请安装 pandas：pip install pandas")
+
+        # 检查 data 是否为 dict（per_entity scope 的标准格式）
+        if not isinstance(self.data, dict):
+            raise ValueError(f"per_entity contract 的 data 应为 dict，当前类型：{type(self.data)}")
+
+        # 合并所有 entity 的数据
+        all_rows = []
+        for entity_id, entity_data in self.data.items():
+            if entity_data is None:
+                continue
+
+            # 检查 entity_data 是否为列表
+            if isinstance(entity_data, list):
+                # 为每行数据添加 entity_id
+                for row in entity_data:
+                    if isinstance(row, dict):
+                        row_copy = row.copy()
+                        row_copy['entity_id'] = entity_id
+                        all_rows.append(row_copy)
+            else:
+                # 如果是 DataFrame，直接添加 entity_id 列
+                if isinstance(entity_data, pd.DataFrame):
+                    df_copy = entity_data.copy()
+                    df_copy['entity_id'] = entity_id
+                    all_rows.append(df_copy)
+
+        # 合并成 DataFrame
+        if not all_rows:
+            return pd.DataFrame()
+
+        # 如果所有元素都是 DataFrame，使用 pd.concat
+        if all(isinstance(item, pd.DataFrame) for item in all_rows):
+            return pd.concat(all_rows, ignore_index=True)
+
+        # 否则从列表创建 DataFrame
+        return pd.DataFrame(all_rows)
+
+    def clear(self) -> None:
+        """清理数据释放内存。
+
+        清空：
+        - self.data（数据缓存）
+        - self.is_loaded（加载状态）
+        - self.runtime_fingerprint（缓存标识）
+        - _cursor_states（cursor 状态，如果是时序 contract）
+
+        示例：
+            contract = issuer.get_contract("stock.kline.daily")
+            contract.fill_in_data(runtime={...})
+
+            # 清理数据释放内存
+            contract.clear()
+
+            # contract.data = None
+            # contract.is_loaded = False
+            # cursor 状态已清空
+        """
+        # 清理数据
+        self.data = None
+        self.is_loaded = False
+        self.runtime_fingerprint = None
+        self.is_runtime_updated = False
+
+        # 清理 cursor 状态（如果是时序 contract）
+        if hasattr(self, '_cursor_states'):
+            self._cursor_states.clear()
+
+    def fill_in_data(self, runtime: Optional[dict] = None, force_reload: bool = False) -> 'BaseDataContract':
         """自动填充数据（根据 entity 数量选择加载方式，管理 runtime_fingerprint）。
 
         Args:
@@ -398,9 +502,11 @@ class BaseDataContract:
             entity_ids = self.get_entity_ids()
 
             if len(entity_ids) == 1:
-                # 单个 entity：调用 loader.load()
+                # 单个 entity：调用 loader.load()，然后包装为 dict
                 params["entity_id"] = entity_ids[0]
-                self.data = self.meta.loader().load(params)
+                single_entity_data = self.meta.loader().load(params)
+                # 包装为 dict[entity_id: data]（统一格式）
+                self.data = {entity_ids[0]: single_entity_data}
             else:
                 # 多个 entity：调用 loader.load_batch()
                 self.data = self.meta.loader().load_batch(entity_ids, params)

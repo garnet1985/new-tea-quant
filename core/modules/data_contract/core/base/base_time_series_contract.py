@@ -26,8 +26,13 @@ class CursorState:
 class BaseTimeSeriesContract(BaseDataContract):
     """时间序列合约基类（扩展时间辅助工具）。"""
 
-    # Cursor 状态（每个 entity 独立）
-    _cursor_states: Dict[str, CursorState] = field(init=False, default_factory=dict)
+    def __init__(self, declaration: dict):
+        """初始化时序合约（扩展父类 __init__）。"""
+        # 调用父类 __init__
+        super().__init__(declaration)
+
+        # 初始化 cursor 状态
+        self._cursor_states: Dict[str, CursorState] = {}
 
     def _initialize_cursors(self) -> None:
         """初始化 cursor 状态（在 fill_in_data 后调用）。"""

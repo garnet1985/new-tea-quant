@@ -101,7 +101,7 @@ ContractIssuer:
 
     get_declaration:
       description: "根据 key 获取原始声明字典（仅读，不创建实例）"
-      stability: stable
+      stability: beta
       binding: instance
       parameters:
         positional:
@@ -114,28 +114,28 @@ ContractIssuer:
 
     list_available_keys:
       description: "列出所有可用的契约 key（系统 + 用户）"
-      stability: stable
+      stability: beta
       binding: instance
       parameters: []
       returns: list[str]
 
     list_system_keys:
       description: "列出系统预定义的契约 key（is_customized=False）"
-      stability: stable
+      stability: beta
       binding: instance
       parameters: []
       returns: list[str]
 
     list_user_keys:
       description: "列出用户自定义的契约 key（is_customized=True）"
-      stability: stable
+      stability: beta
       binding: instance
       parameters: []
       returns: list[str]
 
     is_customized:
       description: "判断 key 是否为用户自定义契约"
-      stability: stable
+      stability: beta
       binding: instance
       parameters:
         positional:
@@ -149,7 +149,7 @@ ContractIssuer:
 
     is_available:
       description: "判断 key 是否可用（已发现且通过验证）"
-      stability: stable
+      stability: beta
       binding: instance
       parameters:
         positional:
@@ -160,7 +160,7 @@ ContractIssuer:
 
     register_custom_declaration:
       description: "运行时注册用户自定义契约声明（覆盖已有）"
-      stability: stable
+      stability: beta
       binding: instance
       parameters:
         positional:
@@ -177,7 +177,7 @@ ContractIssuer:
 
     get_validation_errors:
       description: "获取所有验证错误（扫描失败的契约）"
-      stability: stable
+      stability: beta
       binding: instance
       parameters: []
       returns: dict[str, list[str]]
@@ -233,7 +233,7 @@ BaseDataContract:
   apis:
     __init__:
       description: "初始化数据契约（通过 ContractIssuer 创建）"
-      stability: stable
+      stability: beta
       binding: instance
       parameters:
         positional:
@@ -248,7 +248,7 @@ BaseDataContract:
 
     fill_in_data:
       description: "加载数据到契约（核心方法）"
-      stability: stable
+      stability: beta
       binding: instance
       parameters:
         keyword_only:
@@ -293,7 +293,7 @@ BaseDataContract:
 
     add_runtime:
       description: "添加运行时配置（链式调用）"
-      stability: stable
+      stability: beta
       binding: instance
       parameters:
         positional:
@@ -325,12 +325,37 @@ BaseDataContract:
       notes: "scope == PER_ENTITY 时返回 true"
 
     is_time_series:
-      description: "判断是否为时序契约"
+      description: "判断是否为时序数据"
       stability: stable
       binding: instance
       parameters: []
       returns: bool
       notes: "contract_type == TIME_SERIES 时返回 true"
+
+    to_df:
+      description: "将 per_entity 数据转换为 DataFrame"
+      stability: beta
+      binding: instance
+      parameters: []
+      returns: DataFrame
+      throws:
+        - ValueError: global scope 或数据未加载
+        - ImportError: pandas 未安装
+      notes: |
+        只对 per_entity scope 有效。
+        需要安装 pandas。
+        将所有 entity 的数据合并成一个 DataFrame，会添加 entity_id 列用于区分不同 entity。
+        支持 list[dict] 和 DataFrame两种数据格式。
+
+    clear:
+      description: "清理数据释放内存"
+      stability: stable
+      binding: instance
+      parameters: []
+      returns: None
+      notes: |
+        清空 self.data、is_loaded、runtime_fingerprint、cursor 状态（如果是时序 contract）。
+        用于释放内存，避免数据占用过多资源。
 
 ---
 
@@ -368,7 +393,7 @@ BaseTimeSeriesContract:
 
     normalize_as_of:
       description: "规范化 as_of 时间值（统一为 YYYYMMDD）"
-      stability: stable
+      stability: beta
       binding: instance
       parameters:
         positional:
@@ -385,7 +410,7 @@ BaseTimeSeriesContract:
 
     until:
       description: "获取 PIT 累计数据（推进 cursor）"
-      stability: stable
+      stability: beta
       binding: instance
       parameters:
         positional:
@@ -439,7 +464,7 @@ BaseTimeSeriesContract:
 
     fill_in_data:
       description: "填充数据（扩展父类方法，添加 cursor 初始化）"
-      stability: stable
+      stability: beta
       binding: instance
       parameters:
         keyword_only:
@@ -522,7 +547,7 @@ BaseDataContractLoader:
 
     build_batch_load_params:
       description: "构建批量加载参数（辅助方法）"
-      stability: stable
+      stability: beta
       binding: instance
       parameters:
         positional:

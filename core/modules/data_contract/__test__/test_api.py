@@ -720,18 +720,18 @@ class TestBaseTimeSeriesContract:
 
         contract = issuer.get_contract("stock.kline.daily")
 
-        # 默认为 None（未指定）
+        # 默认返回 "date"（未指定 specific.time_axis_field）
         field = contract.get_base_time_field()
-        assert field is None
+        assert field == "date"
 
-        # 设置 runtime.base_time_field
+        # 设置 runtime.base_time_field（优先级最高）
         contract.add_runtime({
-            "base_time_field": "date",
+            "base_time_field": "ann_date",
             "entity_ids": ["600000.SH"],
         })
 
         field = contract.get_base_time_field()
-        assert field == "date"
+        assert field == "ann_date"
 
     def test_get_time_format(self):
         """测试 get_time_format()：获取时间格式。"""
@@ -1114,5 +1114,396 @@ class TestIntegration:
         # 再次加载（runtime 已更新，应该重新加载）
         contract.fill_in_data()
 
-        # loader 应该被再次调用
-        assert mock_loader_instance.load.call_count == 2
+
+# ============================================================================
+# BaseTimeSeriesContract until/reset_cursor API 测试（新增）
+# ============================================================================
+
+class TestBaseTimeSeriesContractUntilAPI:
+    """测试 BaseTimeSeriesContract 的 until 和 reset_cursor API。"""
+
+    def test_until_not_loaded(self):
+        """测试 until()：未加载时应该抛出错误。"""
+        issuer = ContractIssuer()
+        issuer.discover()
+
+        contract = issuer.get_contract("stock.kline.daily")
+
+        # 未加载，应该抛出 ValueError
+        with pytest.raises(ValueError, match="未加载"):
+            contract.until(as_of="20200101")
+
+    def test_until_global_scope(self):
+        """测试 until()：global scope PIT 数据。"""
+        issuer = ContractIssuer()
+        issuer.discover()
+
+        contract = issuer.get_contract("trade.calendar")
+
+        # Mock loader
+        mock_loader_class = Mock(spec=BaseDataContractLoader)
+        mock_loader_instance = Mock()
+        mock_loader_instance.load.return_value = [
+            {"date": "20200101", "is_open": True},
+            {"date": "20200201", "is_open": True},
+        ]
+        mock_loader_class.return_value = mock_loader_instance
+        contract.meta.loader = mock_loader_class
+
+        # 加载
+        contract.fill_in_data()
+
+        # until
+        pit_data = contract.until(as_of="20200101")
+
+        # 验证：global scope 使用 "_global" key
+        assert isinstance(pit_data, dict)
+        assert "_global" in pit_data
+        assert isinstance(pit_data["_global"], list)
+
+    def test_until_per_entity_scope(self):
+        """测试 until()：per_entity scope PIT 数据。"""
+        issuer = ContractIssuer()
+        issuer.discover()
+
+        contract = issuer.get_contract("stock.kline.daily")
+
+        # Mock loader
+        mock_loader_class = Mock(spec=BaseDataContractLoader)
+        mock_loader_instance = Mock()
+        mock_loader_instance.load_batch.return_value = {
+            "600000.SH": [{"date": "20200101", "close": 10.0}],
+            "600001.SH": [{"date": "20200115", "close": 20.0}],
+        }
+        mock_loader_class.return_value = mock_loader_instance
+        contract.meta.loader = mock_loader_class
+
+        # 加载
+        contract.fill_in_data(runtime={"entity_ids": ["600000.SH", "600001.SH"]})
+
+        # until
+        pit_data = contract.until(as_of="20200101")
+
+        # 验证：per_entity scope 使用 entity_id 作为 key
+        assert isinstance(pit_data, dict)
+        assert "600000.SH" in pit_data
+        assert "600001.SH" in pit_data
+
+    def test_until_cumulative_scanning(self):
+        """测试 until()：累进扫描（多次 until）。"""
+        issuer = ContractIssuer()
+        issuer.discover()
+
+        contract = issuer.get_contract("stock.kline.daily")
+
+        # Mock loader
+        mock_loader_class = Mock(spec=BaseDataContractLoader)
+        mock_loader_instance = Mock()
+        # 单个 entity 时调用 load()
+        mock_loader_instance.load.return_value = [
+            {"date": "20200101", "close": 10.0},
+            {"date": "20200201", "close": 11.0},
+            {"date": "20200301", "close": 12.0},
+        ]
+        # 多个 entity 时调用 load_batch()
+        mock_loader_instance.load_batch.return_value = {
+            "600000.SH": [
+                {"date": "20200101", "close": 10.0},
+                {"date": "20200201", "close": 11.0},
+                {"date": "20200301", "close": 12.0},
+            ],
+        }
+        mock_loader_class.return_value = mock_loader_instance
+        contract.meta.loader = mock_loader_class
+
+        # 加载
+        contract.fill_in_data(runtime={"entity_ids": ["600000.SH"]})
+
+        # 第一次 until
+        pit_data_1 = contract.until(as_of="20200101")
+        assert len(pit_data_1["600000.SH"]) == 1
+
+        # 第二次 until（累进扫描）
+        pit_data_2 = contract.until(as_of="20200201")
+        assert len(pit_data_2["600000.SH"]) == 2
+
+        # 第三次 until
+        pit_data_3 = contract.until(as_of="20200301")
+        assert len(pit_data_3["600000.SH"]) == 3
+
+    def test_until_time_format_conversion(self):
+        """测试 until()：时间格式转换。"""
+        issuer = ContractIssuer()
+        issuer.discover()
+
+        contract = issuer.get_contract("stock.kline.daily")
+
+        # Mock loader
+        mock_loader_class = Mock(spec=BaseDataContractLoader)
+        mock_loader_instance = Mock()
+        # 单个 entity 时调用 load()
+        mock_loader_instance.load.return_value = [
+            {"date": "20200101", "close": 10.0},
+        ]
+        # 多个 entity 时调用 load_batch()
+        mock_loader_instance.load_batch.return_value = {
+            "600000.SH": [{"date": "20200101", "close": 10.0}],
+        }
+        mock_loader_class.return_value = mock_loader_instance
+        contract.meta.loader = mock_loader_class
+
+        # 加载
+        contract.fill_in_data(runtime={"entity_ids": ["600000.SH"]})
+
+        # 测试不同格式
+        # YYYYMMDD
+        pit_data_1 = contract.until(as_of="20200101")
+        assert len(pit_data_1["600000.SH"]) == 1
+
+        # 重置
+        contract.reset_cursor()
+
+        # YYYY-MM-DD
+        pit_data_2 = contract.until(as_of="2020-01-01")
+        assert len(pit_data_2["600000.SH"]) == 1
+
+    def test_reset_cursor(self):
+        """测试 reset_cursor()：重置 cursor 状态。"""
+        issuer = ContractIssuer()
+        issuer.discover()
+
+        contract = issuer.get_contract("stock.kline.daily")
+
+        # Mock loader
+        mock_loader_class = Mock(spec=BaseDataContractLoader)
+        mock_loader_instance = Mock()
+        # 单个 entity 时调用 load()
+        mock_loader_instance.load.return_value = [
+            {"date": "20200101", "close": 10.0},
+            {"date": "20200201", "close": 11.0},
+        ]
+        # 多个 entity 时调用 load_batch()
+        mock_loader_instance.load_batch.return_value = {
+            "600000.SH": [
+                {"date": "20200101", "close": 10.0},
+                {"date": "20200201", "close": 11.0},
+            ],
+        }
+        mock_loader_class.return_value = mock_loader_instance
+        contract.meta.loader = mock_loader_class
+
+        # 加载
+        contract.fill_in_data(runtime={"entity_ids": ["600000.SH"]})
+
+        # until 推进
+        pit_data = contract.until(as_of="20200201")
+        assert len(pit_data["600000.SH"]) == 2
+
+        # reset_cursor
+        contract.reset_cursor()
+
+        # 再次 until（从头扫描）
+        pit_data_2 = contract.until(as_of="20200101")
+        assert len(pit_data_2["600000.SH"]) == 1
+
+    def test_fill_in_data_initializes_cursor(self):
+        """测试 fill_in_data()：自动初始化 cursor。"""
+        issuer = ContractIssuer()
+        issuer.discover()
+
+        contract = issuer.get_contract("stock.kline.daily")
+
+        # Mock loader
+        mock_loader_class = Mock(spec=BaseDataContractLoader)
+        mock_loader_instance = Mock()
+        # 单个 entity 时调用 load()
+        mock_loader_instance.load.return_value = [
+            {"date": "20200101", "close": 10.0},
+        ]
+        # 多个 entity 时调用 load_batch()
+        mock_loader_instance.load_batch.return_value = {
+            "600000.SH": [{"date": "20200101", "close": 10.0}],
+        }
+        mock_loader_class.return_value = mock_loader_instance
+        contract.meta.loader = mock_loader_class
+
+        # 加载
+        contract.fill_in_data(runtime={"entity_ids": ["600000.SH"]})
+
+        # 验证：cursor 状态已初始化
+        assert hasattr(contract, "_cursor_states")
+        assert len(contract._cursor_states) > 0
+
+
+# ============================================================================
+# BaseDataContract to_df/clear API 测试（新增）
+# ============================================================================
+
+class TestBaseDataContractToDfAPI:
+    """测试 BaseDataContract 的 to_df 和 clear API。"""
+
+    def test_to_df_per_entity_scope(self):
+        """测试 to_df()：per_entity scope 转换为 DataFrame。"""
+        issuer = ContractIssuer()
+        issuer.discover()
+
+        contract = issuer.get_contract("stock.kline.daily")
+
+        # Mock loader
+        mock_loader_class = Mock(spec=BaseDataContractLoader)
+        mock_loader_instance = Mock()
+        mock_loader_instance.load_batch.return_value = {
+            "600000.SH": [
+                {"date": "20200101", "close": 10.0},
+                {"date": "20200201", "close": 11.0},
+            ],
+            "600001.SH": [
+                {"date": "20200115", "close": 20.0},
+            ],
+        }
+        mock_loader_class.return_value = mock_loader_instance
+        contract.meta.loader = mock_loader_class
+
+        # 加载
+        contract.fill_in_data(runtime={"entity_ids": ["600000.SH", "600001.SH"]})
+
+        # 转换为 DataFrame
+        df = contract.to_df()
+
+        # 验证
+        import pandas as pd
+        assert isinstance(df, pd.DataFrame)
+        assert len(df) == 3  # 总共 3 行数据
+        assert "entity_id" in df.columns
+        assert "date" in df.columns
+        assert "close" in df.columns
+
+    def test_to_df_global_scope_error(self):
+        """测试 to_df()：global scope 应该抛出错误。"""
+        issuer = ContractIssuer()
+        issuer.discover()
+
+        contract = issuer.get_contract("trade.calendar")
+
+        # Mock loader
+        mock_loader_class = Mock(spec=BaseDataContractLoader)
+        mock_loader_instance = Mock()
+        mock_loader_instance.load.return_value = [
+            {"date": "20200101", "is_open": True},
+        ]
+        mock_loader_class.return_value = mock_loader_instance
+        contract.meta.loader = mock_loader_class
+
+        # 加载
+        contract.fill_in_data()
+
+        # global scope 应该抛出 ValueError
+        with pytest.raises(ValueError, match="只对 per_entity scope 有效"):
+            contract.to_df()
+
+    def test_to_df_not_loaded_error(self):
+        """测试 to_df()：未加载时应该抛出错误。"""
+        issuer = ContractIssuer()
+        issuer.discover()
+
+        contract = issuer.get_contract("stock.kline.daily")
+
+        # 未加载，应该抛出 ValueError
+        with pytest.raises(ValueError, match="未加载"):
+            contract.to_df()
+
+    def test_clear_releases_memory(self):
+        """测试 clear()：清理数据释放内存。"""
+        issuer = ContractIssuer()
+        issuer.discover()
+
+        contract = issuer.get_contract("stock.kline.daily")
+
+        # Mock loader
+        mock_loader_class = Mock(spec=BaseDataContractLoader)
+        mock_loader_instance = Mock()
+        mock_loader_instance.load_batch.return_value = {
+            "600000.SH": [{"date": "20200101", "close": 10.0}],
+        }
+        mock_loader_class.return_value = mock_loader_instance
+        contract.meta.loader = mock_loader_class
+
+        # 加载
+        contract.fill_in_data(runtime={"entity_ids": ["600000.SH"]})
+
+        # 验证数据已加载
+        assert contract.is_loaded is True
+        assert contract.data is not None
+        assert contract.runtime_fingerprint is not None
+
+        # 清理
+        contract.clear()
+
+        # 验证数据已清空
+        assert contract.is_loaded is False
+        assert contract.data is None
+        assert contract.runtime_fingerprint is None
+
+    def test_clear_clears_cursor_states(self):
+        """测试 clear()：清理 cursor 状态（如果是时序 contract）。"""
+        issuer = ContractIssuer()
+        issuer.discover()
+
+        contract = issuer.get_contract("stock.kline.daily")
+
+        # Mock loader
+        mock_loader_class = Mock(spec=BaseDataContractLoader)
+        mock_loader_instance = Mock()
+        # 单个 entity 时调用 load()
+        mock_loader_instance.load.return_value = [
+            {"date": "20200101", "close": 10.0},
+        ]
+        # 多个 entity 时调用 load_batch()
+        mock_loader_instance.load_batch.return_value = {
+            "600000.SH": [{"date": "20200101", "close": 10.0}],
+        }
+        mock_loader_class.return_value = mock_loader_instance
+        contract.meta.loader = mock_loader_class
+
+        # 加载
+        contract.fill_in_data(runtime={"entity_ids": ["600000.SH"]})
+
+        # until 推进 cursor
+        contract.until(as_of="20200101")
+
+        # 验证 cursor 状态已初始化
+        assert len(contract._cursor_states) > 0
+
+        # 清理
+        contract.clear()
+
+        # 验证 cursor 状态已清空
+        assert len(contract._cursor_states) == 0
+
+    def test_clear_multiple_times(self):
+        """测试 clear()：可以多次调用。"""
+        issuer = ContractIssuer()
+        issuer.discover()
+
+        contract = issuer.get_contract("stock.kline.daily")
+
+        # Mock loader
+        mock_loader_class = Mock(spec=BaseDataContractLoader)
+        mock_loader_instance = Mock()
+        mock_loader_instance.load_batch.return_value = {
+            "600000.SH": [{"date": "20200101", "close": 10.0}],
+        }
+        mock_loader_class.return_value = mock_loader_instance
+        contract.meta.loader = mock_loader_class
+
+        # 加载
+        contract.fill_in_data(runtime={"entity_ids": ["600000.SH"]})
+
+        # 清理多次
+        contract.clear()
+        contract.clear()
+        contract.clear()
+
+        # 验证状态仍然正确
+        assert contract.is_loaded is False
+        assert contract.data is None

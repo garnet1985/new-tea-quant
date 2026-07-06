@@ -59,21 +59,25 @@
   - [x] 移除不靠谱的检查
   - [x] 只保留必要方法
 
-### 3. 数据注入管理（Issue Manager）- 中优先级
-- [ ] DataContractManager
-  - [ ] mapping合并（system + user）
-  - [ ] issue/load API
-  - [ ] 批量contract管理
-- [ ] Facade API（contracts.py）
-  - [ ] issue(data_key, runtime) → Contract
-  - [ ] load(contract) → 数据
-  - [ ] batch_load(contracts) → 批量加载
+### 3. 数据注入管理（Issue Manager）- 中优先级 ✅ 不需要（已简化）
+- [x] ~~DataContractManager~~（ContractPool 已替代）
+  - [x] ~~mapping合并（system + user）~~（不需要 mapping 概念）
+  - [x] ~~issue/load API~~（fill_in_data 内部消化）
+  - [x] ~~批量contract管理~~（ContractPool 已提供）
+- [x] ~~Facade API（contracts.py）~~（ContractPool 已提供统一入口）
+  - [x] ~~issue(data_key, runtime) → Contract~~（pool.get_contract + fill_in_data）
+  - [x] ~~load(contract) → 数据~~（contract.fill_in_data）
+  - [x] ~~batch_load(contracts) → 批量加载~~（用户自行循环）
 
-### 4. 时间辅助工具（Time Helpers）- 低优先级
-- [ ] ContractTimeHelper
-  - [ ] time_axis_field/format获取
-  - [ ] 时间格式转换（YYYYMMDD/YYYY-MM-DD/YYYYQ）
-  - [ ] normalize_as_of（时间标准化）
+### 4. 时间辅助工具（Time Helpers）- 低优先级 ✅ 已完成
+- [x] ContractTimeHelper（集成到 BaseTimeSeriesContract）
+  - [x] time_axis_field/format获取（get_base_time_field, get_time_format）
+  - [x] 时间格式转换（YYYYMMDD/YYYY-MM-DD/YYYYQ）（normalize_as_of）
+  - [x] normalize_as_of（时间标准化）
+- [x] 两个基类设计（方案1）
+  - [x] BaseTimeSeriesContract（时序基类，扩展时间辅助工具）
+  - [x] BaseNonTimeSeriesContract（非时序基类，无时间辅助工具）
+  - [x] ContractPool 根据 contract_type 选择基类
 
 ### 5. 数据生命周期管理（Lifecycle）- 低优先级
 - [ ] merge（合并数据）

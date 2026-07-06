@@ -10,6 +10,6 @@ Data contract module — 新的实现（meta/runtime/specific 三层结构）。
     contract.fill_in_data(runtime={...})
 """
 
-from core.modules.data_contract.core.discovery.contract_pool import ContractPool
+from core.modules.data_contract.core.discovery.contract_issuer import ContractIssuer
 
-__all__ = ["ContractPool"]
+__all__ = ["ContractIssuer"]

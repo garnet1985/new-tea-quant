@@ -60,6 +60,15 @@ class JobExecutor:
         return loaded_data
 
     @staticmethod
+    def on_child_process_task_complete(job_context: Any) -> None:
+        """子进程钩子：将缓冲的 opportunities 写入 CSV 后清空 buffer。"""
+        from core.modules.strategy.core.engines.enumerator.entity_based.services.recorder import (
+            EntityBasedEnumeratorRecorder,
+        )
+
+        EntityBasedEnumeratorRecorder.resolve(job_context.payload).flush_job_opportunities()
+
+    @staticmethod
     def execute(job_context: Any) -> Dict[str, Any]:
         """执行函数：按calendar时间轴推进，调用hooks.scan_opportunity。
 
@@ -97,7 +106,7 @@ class JobExecutor:
 
         if not hooks_module_path or not hooks_class_name:
             logger.error("缺少hooks信息：hooks_module_path或hooks_class_name")
-            return {"success": False, "opportunities": [], "error": "缺少hooks信息"}
+            return {"success": False, "opportunities_count": 0, "error": "缺少hooks信息"}
 
         try:
             import importlib
@@ -106,7 +115,7 @@ class JobExecutor:
             hooks_instance = hooks_class()
         except Exception as e:
             logger.error(f"加载hooks类失败：{e}", exc_info=True)
-            return {"success": False, "opportunities": [], "error": str(e)}
+            return {"success": False, "opportunities_count": 0, "error": str(e)}
 
         # Step 3: 准备StrategySettings对象
         from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import StrategySettings
@@ -114,7 +123,7 @@ class JobExecutor:
             settings_obj = StrategySettings.from_dict(settings_dict)
         except Exception as e:
             logger.error(f"构建StrategySettings失败：{e}", exc_info=True)
-            return {"success": False, "opportunities": [], "error": str(e)}
+            return {"success": False, "opportunities_count": 0, "error": str(e)}
 
         # Step 4: 构建calendar并获取open_dates
         from core.modules.data_contract import DATA_KEY
@@ -123,7 +132,7 @@ class JobExecutor:
 
         if not open_dates:
             logger.warning("calendar数据为空，无法遍历日期")
-            return {"success": True, "opportunities": [], "warning": "calendar数据为空"}
+            return {"success": True, "opportunities_count": 0, "warning": "calendar数据为空"}
 
         # 从entity_shared提取start_date和end_date
         entity_shared = payload.get("entity_shared", {})
@@ -210,9 +219,21 @@ class JobExecutor:
 
         logger.info(f"子进程执行完成：opportunities_count={len(opportunities)}")
 
+        # 缓冲到 recorder，由 on_child_process_task_complete 写 CSV（避免 pickle 大列表）
+        from core.modules.strategy.core.engines.enumerator.entity_based.services.recorder import (
+            EntityBasedEnumeratorRecorder,
+        )
+
+        recorder = EntityBasedEnumeratorRecorder.resolve(payload)
+        recorder.buffer_opportunities(opportunities)
+
+        entities_with_opportunities = len(
+            {str(item.get("entity_id") or "").strip() for item in opportunities if item.get("entity_id")}
+        )
         return {
             "success": True,
-            "opportunities": opportunities,
+            "opportunities_count": len(opportunities),
+            "entities_with_opportunities": entities_with_opportunities,
         }
 
     # ─────────────────────────────────────────────────────────────
@@ -243,10 +264,10 @@ class JobExecutor:
         # 打印单个task的信息
         logger.info(f"Task报告：job_id={report.job_id}, success={report.success}")
 
-        # 累积数据
+        # 轻量 summary（完整 opportunities 已落盘）
         if report.success and report.data:
-            opportunities = report.data.get("opportunities", [])
-            logger.info(f"累积opportunities：count={len(opportunities)}")
+            count = int(report.data.get("opportunities_count") or 0)
+            logger.info("Task opportunities_count=%d", count)
 
         # Catch错误的entity
         if not report.success:

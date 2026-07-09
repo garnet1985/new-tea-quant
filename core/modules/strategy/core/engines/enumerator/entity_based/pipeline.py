@@ -17,6 +17,9 @@ from core.modules.strategy.core.engines.shared.services.finger_print.fingerprint
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
+from core.modules.strategy.core.engines.enumerator.entity_based.services.recorder import (
+    EntityBasedEnumeratorRecorder,
+)
 from core.modules.strategy.core.services.discovery.data.discovered_strategy import EnabledStrategyInfo
 
 
@@ -98,6 +101,14 @@ class EnumeratorPipeline:
             per_entity_declarations = declaration_groups["per_entity_declarations"]
             shm_info = cls.global_entity_cache.get_shm_info()
 
+            recorder = EntityBasedEnumeratorRecorder.init(
+                strategy_info.key,
+                stock_ids=stock_ids,
+                settings_fp=settings_fp,
+                env_fp=env_fp,
+                settings_diff=settings_diff,
+            )
+
             jobs = JobBuilder.build_backtest_engine_jobs(
                 strategy_info=strategy_info,
                 effective_settings=effective_settings_obj,
@@ -105,9 +116,15 @@ class EnumeratorPipeline:
                 global_declarations=global_declarations,
                 per_entity_declarations=per_entity_declarations,
                 shm_info=shm_info,
+                output_recorder_snapshot=recorder.to_snapshot(),
             )
 
-            results = cls._execute_backtest(jobs, strategy_info, effective_settings_obj)
+            results = cls._execute_backtest(
+                jobs,
+                strategy_info,
+                effective_settings_obj,
+                recorder,
+            )
 
             # TODO: cls._save_results_and_metadata(...)
 
@@ -138,10 +155,12 @@ class EnumeratorPipeline:
     def _to_report(cls, results: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """将执行结果包装为对外 report。"""
         if not results:
-            return {"success": False, "opportunities": [], "failed_entities": []}
+            return {"success": False, "failed_entities": []}
         return {
             "success": bool(results.get("success", True)),
-            "opportunities": list(results.get("opportunities") or []),
+            "output_dir": results.get("output_dir"),
+            "version_id": results.get("version_id"),
+            "opportunities_count": results.get("opportunities_count", 0),
             "failed_entities": list(results.get("failed_entities") or []),
             "total_jobs": results.get("total_jobs", 0),
             "completed_jobs": results.get("completed_jobs", 0),
@@ -157,6 +176,7 @@ class EnumeratorPipeline:
         jobs: List[Dict[str, Any]],
         strategy_info: EnabledStrategyInfo,
         effective_settings_obj: StrategySettings,
+        recorder: EntityBasedEnumeratorRecorder,
     ) -> Dict[str, Any]:
         """执行回测（调用 BacktestEngine）。
 
@@ -176,7 +196,7 @@ class EnumeratorPipeline:
         钩子映射（统一命名）：
         - 子进程钩子：
           - on_child_process_task_start → JobExecutor.on_child_process_task_start（数据加载）
-          - on_child_process_task_complete → None（strategy不使用子进程清理）
+          - on_child_process_task_complete → JobExecutor.on_child_process_task_complete（写 CSV）
           - execute_fn → JobExecutor.execute（执行逻辑）
         - 主进程钩子：
           - on_after_all_tasks_complete → JobExecutor.on_after_all_tasks_complete（全局清理）
@@ -184,57 +204,48 @@ class EnumeratorPipeline:
         from core.modules.backtest_engine import BacktestEngine
         from core.modules.backtest_engine.contracts import RunCallbacks
 
-        # 准备累积数据的存储（主进程维护）
-        all_opportunities = []
-        failed_entities = []
-
-        # 创建闭包，访问JobExecutor的静态方法，并累积数据
-        def on_single_task_result_closure(report: Any, progress: Any) -> None:
-            """主进程钩子：调用JobExecutor.on_single_task_result，并累积数据。"""
-            JobExecutor.on_single_task_result(report, progress)
-
-            # 累积数据（pipeline维护）
-            if report.success and report.data:
-                opportunities = report.data.get("opportunities", [])
-                all_opportunities.extend(opportunities)
-
-            # Catch错误的entity（pipeline维护）
-            if not report.success:
-                error_msg = report.error or "Unknown error"
-                failed_entities.append({
-                    "job_id": report.job_id,
-                    "error": error_msg,
-                })
+        failed_entities: List[Dict[str, Any]] = []
 
         def on_after_all_tasks_complete_closure(job_reports: List) -> None:
-            """主进程钩子：调用JobExecutor.on_after_all_tasks_complete，并传递global_entity_cache。"""
+            """主进程钩子：全局清理。"""
             JobExecutor.on_after_all_tasks_complete(job_reports, cls.global_entity_cache)
 
-        # 准备 callbacks（钩子函数，统一命名）
         callbacks = RunCallbacks(
-            on_child_process_task_start=JobExecutor.on_child_process_task_start,  # 子进程钩子：数据加载
-            on_child_process_task_complete=None,  # 子进程钩子：清理（strategy不使用）
-            on_after_all_tasks_complete=on_after_all_tasks_complete_closure,  # 主进程钩子：全局清理
+            on_child_process_task_start=JobExecutor.on_child_process_task_start,
+            on_child_process_task_complete=JobExecutor.on_child_process_task_complete,
+            on_after_all_tasks_complete=on_after_all_tasks_complete_closure,
         )
 
-        # 调用 BacktestEngine.entity_based.run()
         run_result = BacktestEngine.entity_based.run(
             jobs=jobs,
-            execute_fn=JobExecutor.execute,  # 子进程钩子：执行逻辑
+            execute_fn=JobExecutor.execute,
             callbacks=callbacks,
             task_name=f"strategy_{strategy_info.key}",
         )
 
-        # 返回执行结果（包含累积的数据）
+        opportunities_count = 0
+        for job_report in run_result.job_results:
+            if not job_report.success:
+                failed_entities.append(
+                    {
+                        "job_id": job_report.job_id,
+                        "error": job_report.error or "Unknown error",
+                    }
+                )
+            elif isinstance(job_report.data, dict):
+                opportunities_count += int(job_report.data.get("opportunities_count") or 0)
+
         return {
             "success": run_result.success,
+            "output_dir": str(recorder.output_dir),
+            "version_id": recorder.version_id,
             "total_jobs": run_result.total_jobs,
             "completed_jobs": run_result.completed_jobs,
             "failed_jobs": run_result.failed_jobs,
             "elapsed_seconds": run_result.elapsed_seconds,
             "job_results": run_result.job_results,
-            "opportunities": all_opportunities,  # 累积的opportunities
-            "failed_entities": failed_entities,  # 失败的entity列表
+            "opportunities_count": opportunities_count,
+            "failed_entities": failed_entities,
         }
 
     @classmethod

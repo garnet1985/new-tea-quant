@@ -123,15 +123,6 @@ class EntityExecutePipeline:
                 _job_sample_from_report(report, batch_entities),
             )
             progress.mark_execute_unit(run_progress.finished)
-            if on_result is not None:
-                on_result(report, run_progress)
-
-                # 全局初始化钩子
-        if on_all_jobs_start is not None:
-            try:
-                on_all_jobs_start()
-            except Exception as e:
-                logger.warning(f"on_all_jobs_start failed: {e}")
 
         progress.mark_phase(RunPhase.EXECUTE)
         execution = EntityExecutorDuckDB.execute(

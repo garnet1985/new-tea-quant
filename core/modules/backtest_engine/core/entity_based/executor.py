@@ -68,6 +68,8 @@ class EntityExecutor:
         execute_fn: ExecuteFn,
         on_child_process_task_start: Optional[ChildProcessTaskStartFn] = None,
         on_child_process_task_complete: Optional[ChildProcessTaskCompleteFn] = None,
+        on_single_task_result: Optional[EntityExecutor.OnSingleTaskResultHook] = None,
+        on_after_all_tasks_complete: Optional[EntityExecutor.OnAfterAllTasksCompleteHook] = None,
         log_label: str = "执行",
         admission_limit: Optional[int] = None,
         get_admission_limit: Optional[Callable[[], int]] = None,

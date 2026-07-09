@@ -37,8 +37,11 @@ class StrategyContext(DiscoveredStrategy):
         userspace_root: Path,
         user_settings: Optional[Dict[str, Any]] = None,
     ) -> StrategyContext:
-        from core.modules.strategy.core.services.data.output_paths import OutputPathManager
+        from core.infra.project_context import ProjectContext
         from core.modules.strategy.core.services.data.params_resolver import BacktestParamsResolver
+        from core.modules.strategy.core.services.data.simulation_output_recorder import (
+            SimulationOutputRecorder,
+        )
 
         effective_user = user_settings if user_settings is not None else discovered.disk_settings
         effective, settings_diff = StrategySettings.resolve(
@@ -49,9 +52,10 @@ class StrategyContext(DiscoveredStrategy):
             discovered.folder,
             effective.raw_settings,
         )
-        paths = OutputPathManager.resolve_all_paths(
+        enum_root = ProjectContext.path.get_strategy_directory_simulation_enum(discovered.id)
+        output_dir, version_id = SimulationOutputRecorder.allocate_version_dir(
             discovered.id,
-            userspace_root=userspace_root,
+            enum_root,
         )
         entity_ids = list(params["stock_list"])
         start_date = params["start_date"]
@@ -82,9 +86,9 @@ class StrategyContext(DiscoveredStrategy):
             end_date=end_date,
             entity_ids=entity_ids,
             fingerprint_hash=fingerprint_hash,
-            output_dir=paths["output_dir"],
-            version_id=paths["version_id"],
-            version_dir_name=paths["version_dir_name"],
+            output_dir=output_dir,
+            version_id=version_id,
+            version_dir_name=str(version_id),
         )
 
     @property

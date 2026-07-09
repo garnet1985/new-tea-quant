@@ -8,9 +8,7 @@ from core.modules.backtest_engine import BacktestEngine
 from core.modules.backtest_engine.contracts import BacktestJob, JobContext, JobReport, RunCallbacks, RunProgress
 from core.modules.strategy.core.context.strategy_context import StrategyContext
 from core.modules.strategy.core.services.data.entity_data import GlobalDataPreloader
-from core.modules.strategy.core.services.data.output_recorder import EnumeratorOutputRecorder
 
-from ..shared.opportunities import iter_opportunities_from_job_result
 from ..shared.report.statistics import EnumeratorReportStatistics
 from ..shared.runtime import EnumeratorRuntime, JobResultHelper
 from .context.runtime import SliceBasedRuntimeContext
@@ -37,17 +35,7 @@ class SliceBasedJobPipeline:
         runtime = cls.build_runtime(strategy)
         ctx = runtime.context
 
-        recorder = EnumeratorOutputRecorder(
-            output_dir=strategy.output_dir,
-            strategy_name=strategy.strategy_name,
-            version_id=strategy.version_id,
-            version_dir_name=strategy.version_dir_name,
-        )
-        recorder.save_preprocess_intermediate(
-            fingerprint={"hash": ctx.fingerprint_hash},
-            jobs=ctx.jobs,
-            settings_diff=ctx.settings_diff,
-        )
+        # TODO: SliceBasedEnumeratorRecorder — preprocess / 逐股 CSV / postprocess
 
         global_data, global_meta = GlobalDataPreloader.preload(
             settings=strategy.effective_settings.raw_settings,
@@ -58,12 +46,7 @@ class SliceBasedJobPipeline:
         ctx.global_data_meta.update(global_meta)
 
         runtime.status.stage = "execute"
-        job_results = cls.execute_backtest(runtime, global_data=global_data)
-
-        for job_result in job_results:
-            for stock_id, opportunities in iter_opportunities_from_job_result(job_result):
-                if stock_id and opportunities:
-                    recorder.save_stock_opportunities(stock_id, opportunities)
+        cls.execute_backtest(runtime, global_data=global_data)
 
         report_template = EnumeratorReportStatistics.compute_from_dir(
             strategy.output_dir,
@@ -71,24 +54,7 @@ class SliceBasedJobPipeline:
         )
 
         runtime.status.stage = "postprocess"
-        metadata = {
-            "strategy_name": strategy.strategy_name,
-            "version_id": strategy.version_id,
-            "version_dir_name": strategy.version_dir_name,
-            "fingerprint_hash": ctx.fingerprint_hash,
-            "start_date": strategy.start_date,
-            "end_date": strategy.end_date,
-            "total_stocks": len(strategy.entity_ids),
-            "execution_mode": ctx.execution_mode,
-            "status": "completed",
-        }
-        recorder.save_postprocess_intermediate(
-            metadata=metadata,
-            report=EnumeratorReportStatistics.to_bff_payload(
-                report_template,
-                include_stock_rows=False,
-            ),
-        )
+        # TODO: SliceBasedEnumeratorRecorder.save_postprocess(...)
 
         logger.info(
             "Enumeration completed: opportunities=%d, trigger_stocks=%d",

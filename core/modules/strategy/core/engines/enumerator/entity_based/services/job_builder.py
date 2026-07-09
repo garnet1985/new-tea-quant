@@ -28,6 +28,7 @@ class JobBuilder:
         global_declarations: List[Dict[str, Any]],
         per_entity_declarations: List[Dict[str, Any]],
         shm_info: Dict[str, Any],
+        output_recorder_snapshot: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         """准备执行：构建 BacktestEngine jobs（bundle job）。
         
@@ -79,6 +80,7 @@ class JobBuilder:
             shm_info=shm_info,
             start_date=start_date,
             end_date=end_date,
+            output_recorder_snapshot=output_recorder_snapshot,
         )
         
         # Step 3: 直接返回dict列表（BacktestEngine会验证）
@@ -94,6 +96,7 @@ class JobBuilder:
         shm_info: Dict[str, Any],
         start_date: str,
         end_date: str,
+        output_recorder_snapshot: Dict[str, Any],
     ) -> Dict[str, Any]:
         """构建bundle payload（内部方法）。
         
@@ -174,6 +177,7 @@ class JobBuilder:
                 "hooks_class_name": strategy_info.hooks_class.__name__,
             },
             "settings": effective_settings.to_dict(),
+            "output_recorder": output_recorder_snapshot,
         }
 
         logger.info(

@@ -212,12 +212,9 @@ class TestSliceEnumerateIntegration(unittest.TestCase):
         if int(result.get("total_opportunities") or 0) == 0:
             self.skipTest("no opportunities produced (market data unavailable for stock_pool)")
 
-        from core.modules.strategy.core.services.data.output_paths import OutputPathManager
+        from core.infra.project_context import ProjectContext
 
-        output_dir = OutputPathManager.resolve_output_dir(
-            _SLICE_STRATEGY,
-            version_id=1,
-        )
+        output_dir = ProjectContext.path.get_strategy_directory_simulation_enum(_SLICE_STRATEGY) / "1"
         rows = OpportunityCsvHelper.collect_from_dir(output_dir)
         completed = [row for row in rows if row.get("outcome") == "completed"]
         self.assertGreater(len(completed), 0)

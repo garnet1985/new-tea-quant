@@ -685,6 +685,37 @@ class ContractIssuer:
         return contract
 
     @classmethod
+    def is_global(cls, key: str) -> bool:
+        """判断contract是否为global scope。
+        
+        Args:
+            key: Contract key
+            
+        Returns:
+            True if global scope, False otherwise
+            
+        使用：
+        - 不需要创建contract instance
+        - 自动discovery（首次调用时）
+        - 从declaration cache中判断scope
+        """
+        # 自动discovery（只执行一次）
+        if not cls._discovered:
+            cls._auto_discover()
+        
+        # 检查key是否存在
+        if key not in cls._declarations_cache:
+            logger.warning(f"未发现的 contract: {key}")
+            return False
+        
+        # 获取declaration
+        declaration = cls._declarations_cache[key]
+        meta = declaration.get("meta", {})
+        
+        # 判断scope
+        return meta.get("scope") == "global"
+
+    @classmethod
     def _auto_discover(cls) -> None:
         """自动 discovery（只执行一次）。
 

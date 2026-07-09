@@ -8,13 +8,12 @@ from typing import Any, Dict, List, Optional
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import StrategySettings
 from core.modules.strategy.core.engines.shared.services.finger_print.fingerprint import Fingerprint
 from core.modules.strategy.core.services.discovery.discovered_strategy import EnabledStrategyInfo
-from core.modules.data_contract import DataKey
-
 
 
 class EnumeratorPipeline:
     """Entity-based enumerator pipeline（简化版，一个 run 方法一步带过）。"""
     global_entity_cache: GlobalEntityCache = None
+
 
     @classmethod
     def run(
@@ -61,7 +60,7 @@ class EnumeratorPipeline:
 
         cls.global_entity_cache = GlobalEntityCache(effective_settings_obj)
 
-        stock_ids = cls._resolve_stock_ids(global_entity_cache.get(DataKey.STOCK_LIST))
+        stock_ids = cls.global_entity_cache.init_stock_list().get_stock_ids()
 
         env_fp = Fingerprint.to_env_fingerprint(
             strategy_info=strategy_info,
@@ -70,21 +69,25 @@ class EnumeratorPipeline:
         )
 
         results = None
-
+        
         if ignore_cache or fingerprint_is_not_matching(settings_fp, env_fp):
-            global_entity_cache.load_required_data()
-            # Step 5: 准备执行（加载全局数据、构建 bundle job）
-            # cls._warmup_global_data(
-            #     effective_settings=effective_settings,
-            #     global_entity_cache=global_entity_cache,
-            #     entity_ids=entity_ids,
-            # )
-
-            # Step 6: 构建 bundle job
-            jobs = cls._build_backtest_engine_jobs(
+            # Step 5: 准备执行（加载全局数据）
+            cls.global_entity_cache.load_required_data()
+            
+            # 提取GlobalEntityCache的数据（raw data）
+            stock_ids = cls.global_entity_cache.get_stock_ids()
+            global_declarations = cls.global_entity_cache.get_global_declarations()
+            per_entity_declarations = cls.global_entity_cache.get_per_entity_declarations()
+            shm_info = cls.global_entity_cache.get_shm_info()
+ 
+            # Step 6: 构建 bundle job（传递raw data，不传递GlobalEntityCache）
+            jobs = JobBuilder.build_backtest_engine_jobs(
                 strategy_info=strategy_info,
-                effective_settings_obj=effective_settings_obj,
-                global_data=global_entity_cache.get_data(),
+                effective_settings=effective_settings_obj,
+                entity_ids=stock_ids,  # 使用get_stock_ids()
+                global_declarations=global_declarations,
+                per_entity_declarations=per_entity_declarations,
+                shm_info=shm_info,
             )
 
             # Step 8: 执行回测
@@ -108,64 +111,6 @@ class EnumeratorPipeline:
         report = self._to_report(results)
 
         return report
-
-    @classmethod
-    def _warmup_global_data(cls,
-        effective_settings: StrategySettings,
-        global_entity_cache: Any, 
-        entity_ids: List[str]):
-        """预热全局数据（preload_global_data）。
-
-        Args:
-            global_entity_cache: GlobalEntityCache 实例
-            entity_ids: Entity ID 列表
-        """
-        # 从 effective_settings_obj 获取 simulation 配置
-        simulation_settings = effective_settings_obj.raw_settings.get("simulation", {})
-        global_entity_cache.preload_global_data(
-            start_date=simulation_settings["start_date"],
-            end_date=simulation_settings["end_date"],
-            entity_ids=entity_ids,
-        )
-
-    @classmethod
-    def _build_backtest_engine_jobs(
-        cls,
-        strategy_info: EnabledStrategyInfo,
-        effective_settings: StrategySettings,
-        global_entity_cache: Any,
-    ) -> List[Dict[str, Any]]:
-        """准备执行：加载全局数据、构建 bundle job。
-
-        Args:
-            strategy_info: EnabledStrategyInfo 对象
-            effective_settings: 有效策略配置
-            global_entity_cache: GlobalEntityCache 实例
-            entity_ids: Entity ID 列表
-            start_date: 回测开始日期
-            end_date: 回测结束日期
-
-        Returns:
-            Bundle job 列表（包含所有 entity 信息）
-
-        流程：
-        1. 加载全局数据（preload_global_data）
-        2. 构建 bundle job（JobBuilder）
-        """
-        from core.modules.strategy.core.engines.enumerator.entity_based.services.job_builder import JobBuilder
-
-        simulation_settings = effective_settings.raw_settings.get("simulation", {})
-
-        bundle_job = JobBuilder.build_bundle_job(
-            strategy_info=strategy_info,
-            effective_settings=effective_settings,
-            global_entity_cache=global_entity_cache,
-            start_date=simulation_settings["start_date"],
-            end_date=simulation_settings["end_date"],
-        )
-
-        # 将 bundle job 转换为 jobs 列表（BacktestEngine 要求）
-        return [bundle_job.to_dict()]
 
     @classmethod
     def _find_cache_by_fingerprints(cls, settings_fp: str, env_fp: str) -> Optional[Dict[str, Any]]:

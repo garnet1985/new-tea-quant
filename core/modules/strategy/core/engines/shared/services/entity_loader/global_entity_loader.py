@@ -58,30 +58,27 @@ class GlobalEntityCache:
 
     def __init__(
         self,
-        settings: StrategySettings,
+        settings: StrategySettings,  # StrategySettings
     ) -> None:
         """初始化 GlobalEntityCache。
 
         Args:
-            global_declarations: 全局数据声明列表
-            per_entity_declarations: Per_entity 数据声明列表
+            settings: 策略设置对象
 
         职责：
         - 只负责全局数据的管理和缓存
         - 不负责 entity_ids 解析（由 StockSampler 处理）
         - 不负责数据声明解析（由 StrategyDataResolver 处理）
         """
-        self._global_declarations = list(global_declarations)
-        self._per_entity_declarations = list(per_entity_declarations)
+        self._settings = settings
         self._global_data: Dict[str, Any] = {}
         self._global_meta: Dict[str, Any] = {}
+        self._global_declarations: List[DataDeclaration] = []
+        self._per_entity_declarations: List[DataDeclaration] = []
         self._shm_name: Optional[str] = None
         self._shm_size: int = 0
-
-
-
-    @staticmethod
-    def init_stock_list() -> List[Dict[str, Any]]:
+        
+    def init_stock_list(self) -> "GlobalEntityCache":
         """初始化stock_list contract并缓存数据（使用ContractIssuer.issue()）。
 
         Returns:
@@ -92,19 +89,169 @@ class GlobalEntityCache:
         - stock_list是系统内置contract，强制加载
         - fill_in_data=True显式加载
         - 使用get_data()获取数据
+        - 缓存到self._global_data中
         """
         try:
             # 使用新的issue API（自动discovery + 加载）
             contract = ContractIssuer.issue(DATA_KEY.STOCK_LIST, fill_in_data=True)
             stock_list = list(contract.get_data() or [])
             
-            logger.info(f"加载stock_list成功：数量={len(stock_list)}")
+            # 缓存数据
+            self._global_data[DATA_KEY.STOCK_LIST] = stock_list
             
-            return stock_list
+            logger.info(f"加载stock_list成功：数量={len(stock_list)}")
+
+            return self
             
         except Exception as e:
             logger.error(f"加载stock_list失败：{e}", exc_info=True)
-            return []
+            self._global_data[DATA_KEY.STOCK_LIST] = []
+
+            return self
+
+    def get_stock_ids(self) -> List[str]:
+        """获取缓存中的stock_ids。
+        
+        Returns:
+            stock_ids列表（如["600000.SH", "600001.SH"]）
+        """
+        stock_list = self._global_data.get(DATA_KEY.STOCK_LIST)
+        if not stock_list:
+            self.init_stock_list()
+        stock_ids = [stock.get("id") for stock in stock_list if stock.get("id")]
+        return stock_ids
+
+    def load_required_data(self) -> None:
+        """加载settings中需要的全局数据。
+        
+        流程：
+        1. 从settings.raw_settings中获取data字段
+        2. 解析data字段中的数据声明（base、required等）
+        3. 使用ContractIssuer获取contract meta，判断是否为global
+        4. 加载global数据并缓存到self._global_data
+        """
+        # Step 1: 获取data字段（已validate，直接获取）
+        data_section = self._settings.raw_settings.get("data", {})
+        
+        if not data_section:
+            logger.info("settings中没有data字段，无需加载全局数据")
+            return
+        
+        # Step 2: 解析数据声明
+        declarations = self._get_data_declarations(data_section)
+        
+        if not declarations:
+            logger.info("没有数据声明，无需加载")
+            return
+        
+        # Step 3: 筛选global和per_entity声明
+        global_declarations = []
+        per_entity_declarations = []
+        
+        for decl in declarations:
+            data_key = decl.get("data_key")
+            if not data_key:
+                logger.warning(f"数据声明缺少data_key: {decl}")
+                continue
+            
+            # 使用ContractIssuer.is_global()判断（不创建instance）
+            try:
+                if ContractIssuer.is_global(data_key):
+                    global_declarations.append(decl)
+                    logger.debug(f"发现global数据: {data_key}")
+                else:
+                    per_entity_declarations.append(decl)
+                    logger.debug(f"发现per_entity数据: {data_key}")
+            except Exception as e:
+                logger.warning(f"判断contract scope失败: {data_key}, 错误: {e}")
+        
+        # 保存声明分组（供后续使用）
+        self._global_declarations = global_declarations
+        self._per_entity_declarations = per_entity_declarations
+        
+        if not global_declarations:
+            logger.info("没有需要加载的global数据")
+            return
+        
+        # Step 4: 加载global数据
+        logger.info(f"开始加载{len(global_declarations)}个global数据")
+        self._load_global_data(global_declarations)
+    
+    def _get_data_declarations(self, data_section: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """从data字段解析数据声明。
+        
+        Args:
+            data_section: settings中的data字段
+            
+        Returns:
+            数据声明列表（包含data_key、params、indicators）
+        
+        结构：
+        - base: 基础数据声明
+        - required: 额外必需的数据声明列表
+        
+        字段名：
+        - data_key（实际策略使用）
+        - params: 数据加载参数
+        - indicators: 数据后处理指标
+        """
+        declarations = []
+        
+        # 解析base声明
+        base_decl = data_section.get("base")
+        if base_decl:
+            declarations.append(base_decl)
+        
+        # 解析required声明列表
+        required_decls = data_section.get("required", [])
+        if required_decls:
+            declarations.extend(required_decls)
+        
+        return declarations
+    
+    def _load_global_data(self, declarations: List[Dict[str, Any]]) -> None:
+        """批量加载global数据。
+        
+        Args:
+            declarations: global数据声明列表
+        
+        流程：
+        1. 遍历每个declaration
+        2. 使用ContractIssuer.issue()加载数据
+        3. 缓存到self._global_data
+        
+        字段：
+        - data_key: contract key（如"stock.kline.daily"）
+        - params: 数据加载参数（如{"adjust": "qfq"}）
+        - indicators: 数据后处理指标（暂不处理）
+        """
+        for decl in declarations:
+            data_key = decl.get("data_key")
+            if not data_key:
+                logger.warning(f"数据声明缺少data_key: {decl}")
+                continue
+            
+            params = decl.get("params", {})
+            
+            try:
+                # 加载数据（使用params）
+                contract = ContractIssuer.issue(data_key, runtime=params, fill_in_data=True)
+                data = contract.get_data()
+                
+                # 缓存数据
+                self._global_data[data_key] = data
+                
+                # 记录meta信息
+                self._global_meta[data_key] = {
+                    "params": params,
+                    "contract_type": contract.meta.type,
+                    "contract_scope": contract.meta.scope,
+                }
+                
+                logger.info(f"加载global数据成功: {data_key}, 数据量={len(data) if isinstance(data, (list, dict)) else 'N/A'}")
+                
+            except Exception as e:
+                logger.error(f"加载global数据失败: {data_key}, 错误: {e}", exc_info=True)
 
     @staticmethod
     def load_latest_completed_trading_date() -> str:

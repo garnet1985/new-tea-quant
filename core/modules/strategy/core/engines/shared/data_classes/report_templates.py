@@ -90,7 +90,7 @@ class PriceFactorReportTemplate:
         }
 
     @classmethod
-    def from_dict(cls, payload: Dict[str, Any]) -> "PriceBacktestReportTemplate":
+    def from_dict(cls, payload: Dict[str, Any]) -> "PriceFactorReportTemplate":
         """Create from dict."""
         return cls(
             total_simulations=payload.get('total_simulations', 0),

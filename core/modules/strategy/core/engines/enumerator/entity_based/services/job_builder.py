@@ -10,7 +10,7 @@ from core.modules.backtest_engine.contracts import BacktestJob  # 保留用于�
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
-from core.modules.strategy.core.services.discovery.discovered_strategy import (
+from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
     EnabledStrategyInfo,
 )
 
@@ -70,7 +70,7 @@ class JobBuilder:
             logger.info(f"sampling未配置start_date，使用默认值: {start_date}")
         
         # Step 2: 构建 payload
-        payload = self._build_payload(
+        payload = JobBuilder._build_payload(
             strategy_info=strategy_info,
             effective_settings=effective_settings,
             entity_ids=entity_ids,
@@ -84,8 +84,8 @@ class JobBuilder:
         # Step 3: 直接返回dict列表（BacktestEngine会验证）
         return [{"id": "strategy_run", "payload": payload}]
 
+    @staticmethod
     def _build_payload(
-        self,
         strategy_info: EnabledStrategyInfo,
         effective_settings: StrategySettings,
         entity_ids: List[str],

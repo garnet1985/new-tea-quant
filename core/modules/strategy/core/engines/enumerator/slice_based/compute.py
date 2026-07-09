@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
-from core.modules.strategy.core.data.settings.strategy_settings import StrategySettings
+from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import StrategySettings
 from core.modules.strategy.core.engines.enumerator.slice_based.context.data import SliceBasedDataContext
 from core.modules.strategy.core.engines.enumerator.slice_based.resolver.calendar import BacktestCalendarResolver
 from core.modules.strategy.core.engines.enumerator.slice_based.state.holdings import EntityHoldings

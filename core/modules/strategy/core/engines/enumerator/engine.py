@@ -5,7 +5,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from core.modules.strategy.core.services.discovered_strategy import EnabledStrategyInfo
+from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
+    EnabledStrategyInfo,
+)
 
 from .entity_based.pipeline import EntityBasedJobPipeline
 from .slice_based.pipeline import SliceBasedJobPipeline
@@ -17,15 +19,17 @@ class EnumeratorEngine:
 
     strategy_info: EnabledStrategyInfo
 
-    def run(self) -> Dict[str, Any]:
-        # 暂时使用strategy.settings判断execution_mode
+    def run(self, ignore_cache: bool = False) -> Dict[str, Any]:
         execution_mode = self.strategy_info.get_execution_mode()
 
         if execution_mode == "slice_based":
             return SliceBasedJobPipeline.run(self.strategy_info)
 
         if execution_mode == "entity_based":
-            return EntityBasedJobPipeline.run(self.strategy_info)
+            return EntityBasedJobPipeline.run(
+                self.strategy_info,
+                ignore_cache=ignore_cache,
+            )
 
         raise ValueError(f"不支持的execution_mode: {execution_mode}")
 

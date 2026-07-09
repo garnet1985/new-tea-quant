@@ -3,16 +3,27 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, ClassVar, Dict, List, Optional
 
-from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import StrategySettings
+from core.modules.strategy.core.engines.enumerator.entity_based.executor import JobExecutor
+from core.modules.strategy.core.engines.enumerator.entity_based.services.job_builder import JobBuilder
+from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import (
+    GlobalEntityCache,
+)
+from core.modules.strategy.core.engines.shared.services.entity_loader.strategy_data_resolver import (
+    StrategyDataResolver,
+)
 from core.modules.strategy.core.engines.shared.services.finger_print.fingerprint import Fingerprint
-from core.modules.strategy.core.services.discovery.discovered_strategy import EnabledStrategyInfo
+from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
+    StrategySettings,
+)
+from core.modules.strategy.core.services.discovery.data.discovered_strategy import EnabledStrategyInfo
 
 
 class EnumeratorPipeline:
     """Entity-based enumerator pipeline（简化版，一个 run 方法一步带过）。"""
-    global_entity_cache: GlobalEntityCache = None
+
+    global_entity_cache: ClassVar[Optional[GlobalEntityCache]] = None
 
 
     @classmethod
@@ -48,70 +59,59 @@ class EnumeratorPipeline:
 
         # Step 1: Settings 处理
         effective_settings_obj, settings_diff = StrategySettings.calculate_effective_settings(
-            strategy_info=strategy_info,
-            runtime_settings=runtime_settings or {},
+            disk_settings=strategy_info.settings,
+            user_settings=runtime_settings or {},
         )
 
-        settings_fp = Fingerprint.to_settings_diff_fingerprint(settings_diff)
-
-        # Step 2: 获取 entity_ids 和必要参数（用于 env 指纹）
-        from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import GlobalEntityCache
-        # 初始化 GlobalEntityCache（解析 settings，获取数据声明分组）
-
+        # Step 2: 初始化 GlobalEntityCache（系统 global 数据）
         cls.global_entity_cache = GlobalEntityCache(effective_settings_obj)
 
-        # 强制加载stock_list和trade_calendar（系统必需数据）
-        stock_ids = cls.global_entity_cache.init_stock_list().init_trade_calendar().get_stock_ids()
+        # 强制加载系统 global 数据（stock_list、trade_calendar、latest completed trading date）
+        stock_ids = cls.global_entity_cache.init_system_globals().get_stock_ids()
 
+        # 声明分组 → StrategyDataResolver；global 加载 → GlobalEntityCache
+        declaration_groups = StrategyDataResolver.group_from_settings(
+            effective_settings_obj.raw_settings
+        )
+
+        settings_fp = Fingerprint.to_settings_diff_fingerprint(settings_diff, stock_ids)
         env_fp = Fingerprint.to_env_fingerprint(
             strategy_info=strategy_info,
             effective_settings=effective_settings_obj,
-            entity_ids=stock_ids,  # 传递已获取的 entity_ids，避免重复计算
+            entity_ids=stock_ids,
         )
 
-        results = None
-        
-        if ignore_cache or fingerprint_is_not_matching(settings_fp, env_fp):
-            # Step 5: 准备执行（加载全局数据）
-            cls.global_entity_cache.load_required_data()
-            
-            # 提取GlobalEntityCache的数据（raw data）
+        results: Optional[Dict[str, Any]] = None
+
+        if not ignore_cache:
+            cache = cls._find_cache_by_fingerprints(settings_fp, env_fp)
+            if cache:
+                results = cls._cache_to_results(cache)
+
+        if results is None:
+            cls.global_entity_cache.load_global_declarations(
+                declaration_groups["global_declarations"]
+            )
+
             stock_ids = cls.global_entity_cache.get_stock_ids()
-            global_declarations = cls.global_entity_cache.get_global_declarations()
-            per_entity_declarations = cls.global_entity_cache.get_per_entity_declarations()
+            global_declarations = declaration_groups["global_declarations"]
+            per_entity_declarations = declaration_groups["per_entity_declarations"]
             shm_info = cls.global_entity_cache.get_shm_info()
- 
-            # Step 6: 构建 bundle job（传递raw data，不传递GlobalEntityCache）
+
             jobs = JobBuilder.build_backtest_engine_jobs(
                 strategy_info=strategy_info,
                 effective_settings=effective_settings_obj,
-                entity_ids=stock_ids,  # 使用get_stock_ids()
+                entity_ids=stock_ids,
                 global_declarations=global_declarations,
                 per_entity_declarations=per_entity_declarations,
                 shm_info=shm_info,
             )
 
-            # Step 8: 执行回测
             results = cls._execute_backtest(jobs, strategy_info, effective_settings_obj)
 
-            # Step 9: Report 生成
-            # version_info = cls._save_results_and_metadata(
-            #     results=results,
-            #     strategy_info=strategy_info,
-            #     effective_settings_obj=effective_settings_obj,
-            #     settings_fp=settings_fp,
-            #     env_fp=env_fp,
-            # )
+            # TODO: cls._save_results_and_metadata(...)
 
-
-        else:
-            cache = cls._find_cache_by_fingerprints(settings_fp, env_fp)
-            if cache:
-                results = cls._cache_to_results(cache)
-
-        report = self._to_report(results)
-
-        return report
+        return cls._to_report(results)
 
     @classmethod
     def _find_cache_by_fingerprints(cls, settings_fp: str, env_fp: str) -> Optional[Dict[str, Any]]:
@@ -130,19 +130,24 @@ class EnumeratorPipeline:
         return None
 
     @classmethod
-    def _load_result_from_cache(cls, cache: Dict[str, Any]) -> Dict[str, Any]:
-        """从缓存加载结果。
+    def _cache_to_results(cls, cache: Dict[str, Any]) -> Dict[str, Any]:
+        """从缓存记录转换为 pipeline 结果。"""
+        return dict(cache.get("results") or cache)
 
-        Args:
-            cache: 缓存信息
-
-        Returns:
-            回测结果
-
-        TODO: 实现完整的缓存加载逻辑
-        """
-        # TODO: 实现缓存加载逻辑
-        return {}
+    @classmethod
+    def _to_report(cls, results: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """将执行结果包装为对外 report。"""
+        if not results:
+            return {"success": False, "opportunities": [], "failed_entities": []}
+        return {
+            "success": bool(results.get("success", True)),
+            "opportunities": list(results.get("opportunities") or []),
+            "failed_entities": list(results.get("failed_entities") or []),
+            "total_jobs": results.get("total_jobs", 0),
+            "completed_jobs": results.get("completed_jobs", 0),
+            "failed_jobs": results.get("failed_jobs", 0),
+            "elapsed_seconds": results.get("elapsed_seconds", 0.0),
+        }
 
     # 移除冗余的 _load_global_data() 方法（已在 Step 4 中集成）
 
@@ -168,28 +173,25 @@ class EnumeratorPipeline:
         2. 调用 BacktestEngine.entity_based.run()
         3. 返回执行结果
 
-        钩子映射：
+        钩子映射（统一命名）：
         - 子进程钩子：
-          - on_single_job_start → JobExecutor.on_init（数据加载、batch load降低IO）
-          - on_single_job_complete → None（strategy不使用子进程清理）
+          - on_child_process_task_start → JobExecutor.on_child_process_task_start（数据加载）
+          - on_child_process_task_complete → None（strategy不使用子进程清理）
           - execute_fn → JobExecutor.execute（执行逻辑）
         - 主进程钩子：
-          - on_all_jobs_complete → JobExecutor.on_release（全局清理、生成report）
+          - on_after_all_tasks_complete → JobExecutor.on_after_all_tasks_complete（全局清理）
         """
         from core.modules.backtest_engine import BacktestEngine
         from core.modules.backtest_engine.contracts import RunCallbacks
-        from core.modules.strategy.core.engines.enumerator.entity_based.job_executor import (
-            JobExecutor,
-        )
 
         # 准备累积数据的存储（主进程维护）
         all_opportunities = []
         failed_entities = []
 
         # 创建闭包，访问JobExecutor的静态方法，并累积数据
-        def on_single_job_complete_closure(report: Any, progress: Any) -> None:
-            """主进程钩子：调用JobExecutor.on_result，并累积数据。"""
-            JobExecutor.on_result(report, progress)
+        def on_single_task_result_closure(report: Any, progress: Any) -> None:
+            """主进程钩子：调用JobExecutor.on_single_task_result，并累积数据。"""
+            JobExecutor.on_single_task_result(report, progress)
 
             # 累积数据（pipeline维护）
             if report.success and report.data:
@@ -204,15 +206,15 @@ class EnumeratorPipeline:
                     "error": error_msg,
                 })
 
-        def on_all_jobs_complete_closure(job_reports: List) -> None:
-            """主进程钩子：调用JobExecutor.on_release，并传递global_entity_cache。"""
-            JobExecutor.on_release(job_reports, cls.global_entity_cache)
+        def on_after_all_tasks_complete_closure(job_reports: List) -> None:
+            """主进程钩子：调用JobExecutor.on_after_all_tasks_complete，并传递global_entity_cache。"""
+            JobExecutor.on_after_all_tasks_complete(job_reports, cls.global_entity_cache)
 
-        # 准备 callbacks（钩子函数）
+        # 准备 callbacks（钩子函数，统一命名）
         callbacks = RunCallbacks(
-            on_single_job_start=JobExecutor.on_init,  # 子进程钩子：数据加载
-            on_single_job_complete=None,  # 子进程钩子：清理（strategy不使用）
-            on_all_jobs_complete=on_all_jobs_complete_closure,  # 主进程钩子：全局清理
+            on_child_process_task_start=JobExecutor.on_child_process_task_start,  # 子进程钩子：数据加载
+            on_child_process_task_complete=None,  # 子进程钩子：清理（strategy不使用）
+            on_after_all_tasks_complete=on_after_all_tasks_complete_closure,  # 主进程钩子：全局清理
         )
 
         # 调用 BacktestEngine.entity_based.run()
@@ -262,4 +264,7 @@ class EnumeratorPipeline:
         return {}
 
 
-__all__ = ["EnumeratorPipeline"]
+# 兼容 engine.py 中的旧名称
+EntityBasedJobPipeline = EnumeratorPipeline
+
+__all__ = ["EnumeratorPipeline", "EntityBasedJobPipeline"]

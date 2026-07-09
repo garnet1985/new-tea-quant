@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from core.modules.strategy.core.data.settings.strategy_settings import StrategySettings
+from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import StrategySettings
 
 
 class EnumeratorExecutionMode:

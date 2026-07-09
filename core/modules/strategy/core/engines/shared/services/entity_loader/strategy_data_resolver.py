@@ -1,13 +1,18 @@
-"""settings.data 声明解析（contract 注入边界）。"""
+"""settings.data 声明解析与 scope 分组（contract 注入边界）。"""
 from __future__ import annotations
 
 import logging
 from typing import Any, Dict, List, TypedDict
 
-from core.modules.data_contract import DataContracts
-from core.modules.data_contract.contracts import DataKey, ContractScope
+from core.modules.data_contract import DATA_KEY, ContractIssuer
 
 logger = logging.getLogger(__name__)
+
+# 系统级 global 数据：由 GlobalEntityCache 固定加载，不参与 settings.data 分组
+SYSTEM_GLOBAL_DATA_KEYS = frozenset({
+    DATA_KEY.STOCK_LIST,
+    DATA_KEY.TRADE_CALENDAR,
+})
 
 
 class DataDeclaration(TypedDict):
@@ -25,12 +30,17 @@ class DeclarationGroups(TypedDict):
 
 
 class StrategyDataResolver:
-    """从 settings.data 解析 base（时间轴）+ required（附加依赖）。
+    """从 settings.data 解析声明并按 scope 分组。
 
     职责：
-    1. 解析 settings.data，获取所有数据声明（base + required）
-    2. 根据 scope 分组（global 和 per_entity）
-    3. 不负责验证 base 类型或推断 entity_type（由 data_contract 处理）
+    1. 解析 base + required 数据声明
+    2. 用 ContractIssuer.is_global() 分组为 global / per_entity
+    3. 供 GlobalEntityCache（加载 global）与 JobBuilder（构建 per_entity job）消费
+
+    不负责：
+    - 系统级 global（stock.list、trade.calendar、latest completed trading date）
+      → GlobalEntityCache.init_system_globals()
+    - 实际加载 contract 数据 → GlobalEntityCache / BatchDataLoader
     """
 
     def __init__(self, settings: Dict[str, Any]) -> None:
@@ -78,7 +88,7 @@ class StrategyDataResolver:
         return 20
 
     def issue_declarations(self) -> List[Dict[str, Any]]:
-        """base + required，供 DCM issue 迭代（不写入 settings）。"""
+        """base + required，供 issue 迭代（不写入 settings）。"""
         items = [self._normalize_declaration(self.base)]
         seen = {str(items[0]["data_key"])}
         for index, raw in enumerate(self.required):
@@ -106,7 +116,6 @@ class StrategyDataResolver:
         *,
         label: str = "data declaration",
     ) -> Dict[str, Any]:
-        """规范化数据声明（不强制验证 base 类型）。"""
         raw_key = raw.get("data_key")
         if not raw_key or not str(raw_key).strip():
             raise ValueError(f"{label}.data_key 必填")
@@ -125,75 +134,61 @@ class StrategyDataResolver:
         }
 
     @staticmethod
-    def storage_key_for(data_key: DataKey, *, is_base: bool = False) -> str:
-        """Hook / loader 数据槽位名：与 ``DataKey`` 字符串一致（无别名）。"""
+    def storage_key_for(data_key: str, *, is_base: bool = False) -> str:
+        """Hook / loader 数据槽位名（与 data_key 字符串一致）。"""
         _ = is_base
-        return data_key.value
+        return data_key
+
+    @classmethod
+    def group_from_settings(cls, settings: Dict[str, Any]) -> DeclarationGroups:
+        """从 settings 分组声明；无 data 或解析失败时返回空分组。"""
+        data = settings.get("data")
+        if not isinstance(data, dict):
+            return {"global_declarations": [], "per_entity_declarations": []}
+        try:
+            return cls(settings).group_declarations()
+        except ValueError as exc:
+            logger.warning("声明分组失败：%s", exc)
+            return {"global_declarations": [], "per_entity_declarations": []}
 
     def group_declarations(self) -> DeclarationGroups:
-        """解析 settings.data，将声明按 scope 分组。
-
-        Returns:
-            分组的数据声明（global_declarations 和 per_entity_declarations）
-
-        流程：
-        1. 使用 issue_declarations() 获取所有声明（base + required）
-        2. 使用 DataContracts().map.get() 获取每个声明的 spec
-        3. 根据 spec["scope"] 分组为 global 和 per_entity
-        """
+        """将 settings.data 声明按 ContractIssuer.is_global() 分组。"""
         global_declarations: List[DataDeclaration] = []
         per_entity_declarations: List[DataDeclaration] = []
 
-        try:
-            # 获取所有声明
-            declarations = self.issue_declarations()
+        issuer = ContractIssuer()
+        issuer.discover()
+        available_keys = set(issuer.list_available_keys())
 
-            # 创建 DataContracts 实例用于查询 spec
-            dcm = DataContracts()
+        for declaration in self.issue_declarations():
+            data_key_str = declaration["data_key"]
 
-            for declaration in declarations:
-                data_key_str = declaration["data_key"]
-                data_key = DataKey(data_key_str)
+            if data_key_str in SYSTEM_GLOBAL_DATA_KEYS:
+                logger.debug("跳过系统 global 数据声明: %s", data_key_str)
+                continue
 
-                # 查询 spec
-                spec = dcm.map.get(data_key)
-                if spec is None:
-                    logger.warning(f"未注册的 data_key: {data_key_str}，跳过")
-                    continue
+            if data_key_str not in available_keys:
+                logger.warning("未注册的 data_key: %s，跳过分组", data_key_str)
+                continue
 
-                # 获取 scope
-                scope_str = spec.get("scope", "")
-                if scope_str == ContractScope.GLOBAL:
-                    scope = "global"
-                elif scope_str == ContractScope.PER_ENTITY:
-                    scope = "per_entity"
-                else:
-                    logger.warning(f"未知的 scope: {scope_str} for {data_key_str}，跳过")
-                    continue
+            scope = "global" if ContractIssuer.is_global(data_key_str) else "per_entity"
+            full_declaration: DataDeclaration = {
+                "data_key": data_key_str,
+                "params": declaration["params"],
+                "indicators": declaration["indicators"],
+                "scope": scope,
+            }
 
-                # 构造完整的数据声明（包含 scope）
-                full_declaration: DataDeclaration = {
-                    "data_key": data_key_str,
-                    "params": declaration["params"],
-                    "indicators": declaration["indicators"],
-                    "scope": scope,
-                }
+            if scope == "global":
+                global_declarations.append(full_declaration)
+            else:
+                per_entity_declarations.append(full_declaration)
 
-                # 根据 scope 分组
-                if scope == "global":
-                    global_declarations.append(full_declaration)
-                else:
-                    per_entity_declarations.append(full_declaration)
-
-            logger.debug(
-                f"group_declarations() 完成：{len(global_declarations)} global，"
-                f"{len(per_entity_declarations)} per_entity"
-            )
-
-        except Exception as e:
-            logger.error(f"group_declarations() 失败：{e}，返回空列表")
-            global_declarations = []
-            per_entity_declarations = []
+        logger.debug(
+            "group_declarations() 完成：%d global，%d per_entity",
+            len(global_declarations),
+            len(per_entity_declarations),
+        )
 
         return {
             "global_declarations": global_declarations,
@@ -201,4 +196,9 @@ class StrategyDataResolver:
         }
 
 
-__all__ = ["StrategyDataResolver", "DataDeclaration", "DeclarationGroups"]
+__all__ = [
+    "StrategyDataResolver",
+    "DataDeclaration",
+    "DeclarationGroups",
+    "SYSTEM_GLOBAL_DATA_KEYS",
+]

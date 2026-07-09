@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""批量数据加载服务（用于子进程 on_single_job_start 钩子）。"""
+"""批量数据加载服务（用于子进程 on_child_process_task_start 钩子）。"""
 
 from __future__ import annotations
 
@@ -178,22 +178,8 @@ class BatchDataLoader:
         shm_info: Dict[str, Any],
         global_keys: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """从共享内存读取 global 数据。
-
-        Args:
-            shm_info: 共享内存信息（shm_name, shm_size）
-            global_keys: Global 数据声明（data_key -> {}）
-
-        Returns:
-            Dict[data_key, data]: Global 数据字典
-
-        流程：
-        1. 使用 GlobalEntityCache.access_shared_memory() 读取共享内存
-        2. 返回 global 数据
-        """
-        if not global_keys:
-            logger.info("global_keys 为空，无需读取共享内存")
-            return {}
+        """从共享内存读取 global 数据（含系统 global：stock.list、trade.calendar）。"""
+        _ = global_keys  # 策略声明 keys；系统 global 已在 shm 中，一并返回
 
         shm_name = shm_info.get("shm_name", "")
         shm_size = shm_info.get("shm_size", 0)
@@ -203,21 +189,18 @@ class BatchDataLoader:
             return {}
 
         try:
-            # 从共享内存读取 global 数据
-            global_data = GlobalEntityCache.access_shared_memory(
-                shm_name, shm_size
-            )
-
+            global_data = GlobalEntityCache.access_shared_memory(shm_name, shm_size)
             logger.info(
-                f"global 数据读取成功：shm_name={shm_name}, "
-                f"data_keys={list(global_data.keys())}"
+                "global 数据读取成功：shm_name=%s, data_keys=%s",
+                shm_name,
+                list(global_data.keys()),
             )
-
             return global_data
-
-        except Exception as e:
+        except Exception as exc:
             logger.error(
-                f"global 数据读取失败：shm_name={shm_name}, error={e}",
+                "global 数据读取失败：shm_name=%s, error=%s",
+                shm_name,
+                exc,
                 exc_info=True,
             )
             return {}

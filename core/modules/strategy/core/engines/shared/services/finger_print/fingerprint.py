@@ -8,7 +8,7 @@ import inspect
 import importlib
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 from core.infra.project_context import ProjectContext
 from core.system import get_version
@@ -31,7 +31,7 @@ class Fingerprint:
             entity_ids: Entity ID 列表（采样配置的解析结果）
 
         Returns:
-            SHA256 指签（32 字符）
+            SHA256 指纹（32 字符）
 
         设计：
         - 包含 settings_diff（用户修改的部分）
@@ -59,7 +59,7 @@ class Fingerprint:
             hooks_file_path: Hooks 文件路径（可选，默认从 strategy_info 获取）
         
         Returns:
-            SHA256 指签（32 字符）
+            SHA256 指纹（32 字符）
         
         设计：
         - 内聚所有参数获取逻辑（不再分散在 pipeline）
@@ -84,13 +84,17 @@ class Fingerprint:
         start_date = simulation.get("start_date", "")
         end_date = simulation.get("end_date", "")
 
-        # 2. 从 settings 获取 entity_ids（统一使用 GlobalEntityCache）
-        # 如果传入了 entity_ids，直接使用；否则调用 GlobalEntityCache.resolve_entity_ids()
+        # 2. 获取 stock_ids（优先使用调用方传入；否则从 GlobalEntityCache 读取）
         from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import (
             GlobalEntityCache,
         )
         if entity_ids is None:
-            entity_ids = GlobalEntityCache.resolve_entity_ids(strategy_info, effective_settings)
+            settings = (
+                effective_settings
+                if isinstance(effective_settings, StrategySettings)
+                else StrategySettings.from_dict(dict(effective_settings or {}))
+            )
+            entity_ids = GlobalEntityCache(settings).init_stock_list().get_stock_ids()
 
         # 3. 从 strategy_info 获取 hooks 信息
         strategy_id = strategy_info.unique_relative_path
@@ -132,7 +136,7 @@ class Fingerprint:
             signature: 签名字典（包含所有需要哈希的字段）
         
         Returns:
-            SHA256 指签（32 字符）
+            SHA256 指纹（32 字符）
         
         设计：
         - 统一的哈希计算逻辑（避免重复代码）
@@ -145,8 +149,6 @@ class Fingerprint:
             separators=(",", ":"),
         )
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
-    # 移除冗余的 entity_ids 解析方法（统一使用 GlobalEntityCache.resolve_entity_ids()）
 
     @staticmethod
     def _hash_file(path: Path) -> str:

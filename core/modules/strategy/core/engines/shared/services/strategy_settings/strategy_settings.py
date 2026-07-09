@@ -60,6 +60,11 @@ class StrategySettings:
         object.__setattr__(self, 'enumerator', EnumeratorSettings(raw_settings=self.raw_settings))
 
     @classmethod
+    def from_dict(cls, settings: Dict[str, Any]) -> "StrategySettings":
+        """从 settings dict 构建 StrategySettings。"""
+        return cls(raw_settings=copy.deepcopy(settings))
+
+    @classmethod
     def diff(cls, disk_settings: Dict[str, Any], user_settings: Dict[str, Any]) -> Dict[str, Any]:
         """磁盘 vs 用户的完整 diff。"""
         return Utils.deep_diff(disk_settings, user_settings)

@@ -4,7 +4,9 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
-from core.modules.strategy.core.data.settings.strategy_settings import StrategySettings
+from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
+    StrategySettings,
+)
 from core.modules.strategy.core.engines.shared.data_classes import CalendarAsOfResult
 from core.modules.strategy.core.hooks.context import DataContext
 from core.modules.strategy.core.services.discovery.worker_loader import StrategyWorkerLoader

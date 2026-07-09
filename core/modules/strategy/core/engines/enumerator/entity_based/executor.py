@@ -13,12 +13,12 @@ class JobExecutor:
     包含4个回调函数，标注清楚进程归属和对应关系：
 
     ── 子进程钩子（在子进程内执行）──
-    - on_init: 子进程初始化（数据加载、batch load降低IO）→ on_single_job_start
-    - execute: 子进程执行（调用hooks.scan_opportunity）→ execute_fn
+    - on_child_process_task_start: 子进程task开始（数据加载、batch load降低IO）
+    - execute: 执行函数（调用hooks.scan_opportunity）
 
     ── 主进程钩子（在主进程内执行）──
-    - on_result: 主进程进度调度、累积数据（每个job完成时）→ on_single_job_complete
-    - on_release: 主进程全局清理、生成report（所有jobs完成后）→ on_all_jobs_complete
+    - on_single_task_result: 单task结果回调（进度调度、累积数据）
+    - on_after_all_tasks_complete: 全局清理（生成report）
     """
 
     # ─────────────────────────────────────────────────────────────
@@ -26,10 +26,10 @@ class JobExecutor:
     # ─────────────────────────────────────────────────────────────
 
     @staticmethod
-    def on_init(job_context: Any) -> Dict[str, Any]:
+    def on_child_process_task_start(job_context: Any) -> Dict[str, Any]:
         """子进程钩子：初始化per entity的contracts，batch load降低IO。
 
-        对应关系：on_single_job_start → on_job_init
+        对应关系：on_child_process_task_start
         执行位置：子进程内（通过run_job_lifecycle调用）
 
         Args:
@@ -42,7 +42,7 @@ class JobExecutor:
         1. 使用 BatchDataLoader 批量加载所有 entity_ids 的数据（降低IO）
         2. 返回结构化数据（供 execute 使用）
         """
-        logger.info("子进程初始化：job_id=%s", job_context.job_id)
+        logger.info("子进程task开始：job_id=%s", job_context.job_id)
 
         from core.modules.strategy.core.engines.enumerator.entity_based.services.batch_data_loader import (
             BatchDataLoader,
@@ -52,7 +52,7 @@ class JobExecutor:
         loaded_data = BatchDataLoader.load_bundle_data(job_context.payload)
 
         logger.info(
-            "子进程初始化完成：entity_contracts_count=%d, global_keys=%d",
+            "子进程task开始完成：entity_contracts_count=%d, global_keys=%d",
             len(loaded_data.get("entity_contracts", {})),
             len(loaded_data.get("global_data", {})),
         )
@@ -61,7 +61,7 @@ class JobExecutor:
 
     @staticmethod
     def execute(job_context: Any) -> Dict[str, Any]:
-        """子进程钩子：按calendar时间轴推进，调用hooks.scan_opportunity。
+        """执行函数：按calendar时间轴推进，调用hooks.scan_opportunity。
 
         对应关系：execute_fn
         执行位置：子进程内（通过run_job_lifecycle调用）
@@ -84,7 +84,7 @@ class JobExecutor:
 
         # Step 1: 从job_context提取必要数据
         payload = job_context.payload
-        loaded_data = job_context.init  # on_init返回的数据
+        loaded_data = job_context.init  # on_child_process_task_start返回的数据
         entity_contracts = loaded_data.get("entity_contracts", {})  # Contract实例
         global_data = loaded_data.get("global_data", {})
         strategy_info = payload.get("strategy_info", {})
@@ -220,14 +220,14 @@ class JobExecutor:
     # ─────────────────────────────────────────────────────────────
 
     @staticmethod
-    def on_result(report: Any, progress: Any) -> None:
-        """主进程钩子：进度调度、累积数据（每个job完成时）。
+    def on_single_task_result(report: Any, progress: Any) -> None:
+        """主进程钩子：单task结果回调（进度调度、累积数据）。
 
-        对应关系：on_single_job_complete → EntityExecutor.on_result
+        对应关系：on_single_task_result（EntityExecutor内部钩子）
         执行位置：主进程内（通过EntityExecutor._finish_future调用）
 
         Args:
-            report: 单个job的执行报告（JobReport）
+            report: 单个task的执行报告（JobReport）
             progress: 运行进度（RunProgress）
 
         功能：
@@ -236,12 +236,12 @@ class JobExecutor:
         3. Catch错误的entity
         """
         logger.info(
-            f"Job完成进度：{progress.finished}/{progress.total} "
+            f"Task完成进度：{progress.finished}/{progress.total} "
             f"(成功={progress.ok}, 失败={progress.fail})"
         )
 
-        # 打印单个job的信息
-        logger.info(f"Job报告：job_id={report.job_id}, success={report.success}")
+        # 打印单个task的信息
+        logger.info(f"Task报告：job_id={report.job_id}, success={report.success}")
 
         # 累积数据
         if report.success and report.data:
@@ -251,17 +251,17 @@ class JobExecutor:
         # Catch错误的entity
         if not report.success:
             error_msg = report.error or "Unknown error"
-            logger.error(f"Job失败：job_id={report.job_id}, error={error_msg}")
+            logger.error(f"Task失败：job_id={report.job_id}, error={error_msg}")
 
     @staticmethod
-    def on_release(job_reports: List[Any], global_entity_cache: Any = None) -> None:
-        """主进程钩子：全局清理、生成report（所有jobs完成后）。
+    def on_after_all_tasks_complete(job_reports: List[Any], global_entity_cache: Any = None) -> None:
+        """主进程钩子：全局清理（所有tasks完成后）。
 
-        对应关系：on_all_jobs_complete → EntityExecutor.on_release
-        执行位置：主进程内（通过EntityExecutePipeline.run调用）
+        对应关系：on_after_all_tasks_complete
+        执行位置：主进程内（通过BacktestEngine调用）
 
         Args:
-            job_reports: 所有job的执行报告列表
+            job_reports: 所有task的执行报告列表
             global_entity_cache: 全局entity缓存（可选）
 
         功能：
@@ -269,12 +269,12 @@ class JobExecutor:
         2. 打印完整统计信息
         3. 生成最终report（有完整的执行context和结果）
         """
-        logger.info(f"所有jobs完成：total={len(job_reports)}")
+        logger.info(f"所有tasks完成：total={len(job_reports)}")
 
         # 清理全局缓存（如共享内存）
         if global_entity_cache:
             try:
-                global_entity_cache.release_shared_memory()
+                global_entity_cache.cleanup()
                 logger.info("全局缓存清理完成")
             except Exception as e:
                 logger.warning(f"清理全局缓存失败：{e}")

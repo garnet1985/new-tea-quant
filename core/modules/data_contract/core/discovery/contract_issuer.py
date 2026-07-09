@@ -4,7 +4,7 @@ from __future__ import annotations
 import importlib
 import logging
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 from core.infra.project_context import ProjectContext
 from core.modules.data_contract.core.base.base_contract import BaseDataContract

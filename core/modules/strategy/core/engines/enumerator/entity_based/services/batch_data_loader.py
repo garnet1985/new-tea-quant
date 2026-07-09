@@ -6,8 +6,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List
 
-from core.modules.data_contract import DataContracts
-from core.modules.data_contract.contracts import DataKey
+from core.modules.data_contract import ContractIssuer
 from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
 )
@@ -26,31 +25,30 @@ class BatchDataLoader:
 
     @staticmethod
     def load_bundle_data(payload: Dict[str, Any]) -> Dict[str, Any]:
-        """批量加载 bundle job 的所有数据。
+        """批量加载 bundle job 的所有数据（返回Contract实例）。
 
         Args:
             payload: bundle job payload（包含 entity_specified, entity_shared, global, shm_info）
 
         Returns:
-            Dict[str, Any]: 包含 entity_data 和 global_data 的结构
+            Dict[str, Any]: 包含 entity_contracts（Contract实例）和 global_data 的结构
 
         结构：
         {
-            "entity_data": {
-                "600000.SH": {
-                    "stockline.daily": [...],
-                    "corporate_finance": [...]
-                },
-                "600001.SH": {
-                    "stockline.daily": [...],
-                    "corporate_finance": [...]
-                }
+            "entity_contracts": {
+                "stock.kline.daily": Contract实例（包含所有entity_ids的数据）,
+                "stock.finance.quarterly": Contract实例,
             },
             "global_data": {
                 "gdp": [...],
                 "trade_calendar": [...]
             }
         }
+
+        设计：
+        - 返回Contract实例，支持until(as_of)方法（PIT推进）
+        - Contract内部维护每个entity的独立cursor状态
+        - 避免重复创建Contract实例（一个data_key一个Contract，包含所有entity_ids）
         """
         # 1. 解析 payload
         entity_specified = payload.get("entity_specified", [])
@@ -63,7 +61,7 @@ class BatchDataLoader:
 
         if not entity_ids:
             logger.warning("entity_ids 为空，无法加载数据")
-            return {"entity_data": {}, "global_data": {}}
+            return {"entity_contracts": {}, "global_data": {}}
 
         logger.info(
             f"BatchDataLoader.load_bundle_data() 开始："
@@ -72,8 +70,8 @@ class BatchDataLoader:
             f"global_keys={len(global_keys)}"
         )
 
-        # 3. 批量加载 per_entity 数据
-        entity_data = BatchDataLoader._load_per_entity_data(
+        # 3. 批量加载 per_entity 数据（返回Contract实例）
+        entity_contracts = BatchDataLoader._load_per_entity_contracts(
             entity_ids, entity_shared
         )
 
@@ -84,41 +82,45 @@ class BatchDataLoader:
 
         logger.info(
             f"BatchDataLoader.load_bundle_data() 完成："
-            f"entity_data_count={len(entity_data)}, "
+            f"entity_contracts_count={len(entity_contracts)}, "
             f"global_data_count={len(global_data)}"
         )
 
         return {
-            "entity_data": entity_data,
+            "entity_contracts": entity_contracts,
             "global_data": global_data,
         }
 
     @staticmethod
-    def _load_per_entity_data(
+    def _load_per_entity_contracts(
         entity_ids: List[str],
         entity_shared: Dict[str, Dict[str, Any]],
-    ) -> Dict[str, Dict[str, Any]]:
-        """批量加载所有 entity_ids 的 per_entity 数据。
+    ) -> Dict[str, Any]:
+        """批量加载所有 entity_ids 的 per_entity Contract实例。
 
         Args:
             entity_ids: Entity ID 列表
             entity_shared: Per_entity 数据声明（data_key -> params）
 
         Returns:
-            Dict[entity_id, Dict[data_key, data]]: 每个 entity 的完整数据
+            Dict[data_key, Contract实例]: 每个data_key的Contract实例（包含所有entity_ids的数据）
 
         流程：
         对每个 data_key：
-        1. 使用 DataContracts.issue(entity_ids=...) 批量加载
-        2. 从 IssueResult.by_entity 获取每个 entity 的数据
-        3. 按 entity_id 组织数据
-        """
-        entity_data: Dict[str, Dict[str, Any]] = {}
+        1. 使用 ContractIssuer.issue() 批量加载
+        2. 返回Contract实例（支持until方法）
+        3. Contract内部维护每个entity的独立cursor状态
 
-        dcm = DataContracts()
+        设计：
+        - 一个data_key一个Contract实例（包含所有entity_ids的数据）
+        - Contract.data格式：{entity_id: data_rows}
+        - Contract内部有cursor_states：{entity_id: CursorState}
+        - 避免为每个entity创建Contract实例（节省内存）
+        """
+        entity_contracts: Dict[str, Any] = {}
 
         for data_key_str, params_dict in entity_shared.items():
-            logger.info(f"批量加载 per_entity 数据：data_key={data_key_str}")
+            logger.info(f"批量加载 per_entity Contract：data_key={data_key_str}")
 
             try:
                 # 提取参数
@@ -126,52 +128,50 @@ class BatchDataLoader:
                 end = params_dict.get("end")
                 params = params_dict.get("params", {})
 
-                # 批量 issue（所有 entity_ids）
-                result = dcm.issue(
-                    DataKey(data_key_str),
-                    entity_ids=entity_ids,
-                    start=start,
-                    end=end,
+                # 构建runtime参数（包含entity_ids和params）
+                runtime = {
+                    "entity_ids": entity_ids,
                     **params,
+                }
+
+                # 如果有start/end，添加到runtime
+                if start:
+                    runtime["start"] = start
+                if end:
+                    runtime["end"] = end
+
+                # 使用 ContractIssuer.issue() 批量加载（返回Contract实例）
+                contract = ContractIssuer.issue(
+                    data_key_str,
+                    entity_ids=entity_ids,  # 批量传递所有entity_ids
+                    runtime=runtime,
+                    fill_in_data=True,  # 自动加载数据
                 )
 
-                # 从 by_entity 获取每个 entity 的数据
-                if result.by_entity:
-                    for entity_id in entity_ids:
-                        if entity_id in result.by_entity:
-                            contract = result.by_entity[entity_id]
-
-                            # 初始化 entity_data[entity_id]
-                            if entity_id not in entity_data:
-                                entity_data[entity_id] = {}
-
-                            # 存储数据
-                            entity_data[entity_id][data_key_str] = list(
-                                contract.data or []
-                            )
+                # 检查Contract是否加载成功
+                if contract.is_loaded and contract.data:
+                    # 存储Contract实例
+                    entity_contracts[data_key_str] = contract
 
                     logger.info(
-                        f"per_entity 数据加载成功：data_key={data_key_str}, "
-                        f"entity_count={len(result.by_entity)}"
+                        f"per_entity Contract加载成功：data_key={data_key_str}, "
+                        f"entity_count={len(contract.data) if isinstance(contract.data, dict) else 'N/A'}"
                     )
                 else:
                     logger.warning(
-                        f"per_entity 数据加载失败：data_key={data_key_str}, "
-                        f"by_entity 为空"
+                        f"per_entity Contract加载失败：data_key={data_key_str}, "
+                        f"Contract未加载或data为空"
                     )
 
             except Exception as e:
                 logger.error(
-                    f"per_entity 数据加载异常：data_key={data_key_str}, error={e}",
+                    f"per_entity Contract加载异常：data_key={data_key_str}, error={e}",
                     exc_info=True,
                 )
-                # 失败时填充空数据
-                for entity_id in entity_ids:
-                    if entity_id not in entity_data:
-                        entity_data[entity_id] = {}
-                    entity_data[entity_id][data_key_str] = []
+                # 失败时跳过该data_key
+                continue
 
-        return entity_data
+        return entity_contracts
 
     @staticmethod
     def _load_global_data_from_shm(

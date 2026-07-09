@@ -58,15 +58,15 @@ class Job:
 
 @dataclass
 class RunCallbacks:
-    """BacktestEngine run的生命周期钩子（清晰的4个阶段）。"""
+    """BacktestEngine run的生命周期钩子（统一命名，清晰明确）。"""
 
-    # ── 全局钩子 ──
-    on_all_jobs_start: Optional[Callable[[], None]] = None      # 所有jobs开始前（全局初始化）
-    on_all_jobs_complete: Optional[Callable[[List["JobReport"]], None]] = None  # 所有jobs完成后（全局清理）
+    # ── 主进程钩子 ──
+    on_before_all_tasks_start: Optional[Callable[[Any, List[Any]], None]] = None  # 全局初始化（参数plan和batches）
+    on_after_all_tasks_complete: Optional[Callable[[List["JobReport"]], None]] = None  # 全局清理（参数JobReport列表）
 
-    # ── 单job钩子 ──
-    on_single_job_start: Optional[JobInitFn] = None             # 单job开始前（子进程初始化）
-    on_single_job_complete: Optional[JobReleaseFn] = None       # 单job完成后（结果收集+清理）
+    # ── 子进程钩子 ──
+    on_child_process_task_start: Optional[ChildProcessTaskStartFn] = None      # 子进程task开始（初始化）
+    on_child_process_task_complete: Optional[ChildProcessTaskCompleteFn] = None # 子进程task完成（清理）
 
 
 @dataclass
@@ -129,8 +129,8 @@ class DispatchResult:
 
 
 ExecuteFn = Callable[[JobContext], Any]
-JobInitFn = Callable[[JobContext], Any]
-JobReleaseFn = Callable[[JobContext], None]
+ChildProcessTaskStartFn = Callable[[JobContext], Any]
+ChildProcessTaskCompleteFn = Callable[[JobContext], None]
 
 
 __all__ = [
@@ -147,6 +147,6 @@ __all__ = [
     "JobFailure",
     "DispatchResult",
     "ExecuteFn",
-    "JobInitFn",
-    "JobReleaseFn",
+    "ChildProcessTaskStartFn",
+    "ChildProcessTaskCompleteFn",
 ]

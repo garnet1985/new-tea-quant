@@ -105,14 +105,14 @@ def test_slice_based_empty_jobs_returns_success() -> None:
     assert result.total_jobs == 0
 
 
-def test_run_callbacks_forward_on_job_init_and_release() -> None:
+def test_run_callbacks_forward_on_child_process_task_start_and_complete() -> None:
     phases: list[str] = []
 
-    def on_job_init(context: JobContext) -> str:
+    def on_child_process_task_start(context: JobContext) -> str:
         phases.append("init")
         return "session"
 
-    def on_job_release(context: JobContext) -> None:
+    def on_child_process_task_complete(context: JobContext) -> None:
         phases.append("release")
         assert context.init == "session"
 
@@ -127,8 +127,8 @@ def test_run_callbacks_forward_on_job_init_and_release() -> None:
     run_job_lifecycle(
         execute,
         ctx,
-        on_job_init=on_job_init,
-        on_job_release=on_job_release,
+        on_child_process_task_start=on_child_process_task_start,
+        on_child_process_task_complete=on_child_process_task_complete,
     )
     assert phases == ["init", "execute", "release"]
 

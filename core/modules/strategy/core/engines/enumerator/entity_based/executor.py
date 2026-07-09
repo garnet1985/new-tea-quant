@@ -1,188 +1,294 @@
-# """entity_based execute_fn 实现：单股 timeline 枚举（只消费 job init 已装载的数据）。"""
-# from __future__ import annotations
+"""entity_based job executor（enumerator的回调函数集合）。"""
+from __future__ import annotations
 
-# import logging
-# from pathlib import Path
-# from typing import Any, Dict, List, Mapping, Optional, Tuple
+import logging
+from typing import Any, Dict, List
 
-# from core.modules.strategy.core.data.settings.strategy_settings import StrategySettings
-# from core.modules.strategy.core.engines.enumerator.entity_based.runtime_context.data import EntityBasedDataContext
-# from core.modules.strategy.core.engines.enumerator.entity_based.execute_payload import EntityBasedExecutePayload
-# from core.modules.strategy.core.engines.enumerator.entity_based.execute_result import EntityBasedExecuteResult
-# from core.modules.strategy.core.engines.enumerator.entity_based.job_session import (
-#     EntityBasedJobSession,
-# )
-# from core.modules.strategy.core.engines.shared.data_classes import Opportunity
-# from core.modules.strategy.core.helpers.opportunity_csv import OpportunityCsvHelper
-# from core.modules.strategy.core.helpers.opportunity_enrichment import OpportunityEnricher
-# from core.modules.strategy.core.helpers.stock_meta import StockMetaHelper
-# from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
-# from core.modules.strategy.core.services.data.strategy_data_config import StrategyDataConfig
-
-# logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
-# class EntityBasedExecutor:
-#     """单股执行体：按开市日历推进，仅在新 base bar 日跑 hook。"""
+class JobExecutor:
+    """entity_based job executor（enumerator的回调函数集合）。
 
-#     def __init__(
-#         self,
-#         payload: EntityBasedExecutePayload,
-#         *,
-#         session: EntityBasedJobSession,
-#     ) -> None:
-#         self.payload = payload
-#         self._session = session
-#         self._data_loader = session.loader_for(payload.entity_id)
+    包含4个回调函数，标注清楚进程归属和对应关系：
 
-#     @classmethod
-#     def from_mapping(
-#         cls,
-#         raw: Mapping[str, Any],
-#         *,
-#         session: EntityBasedJobSession,
-#     ) -> EntityBasedExecutor:
-#         return cls(EntityBasedExecutePayload.from_mapping(raw), session=session)
+    ── 子进程钩子（在子进程内执行）──
+    - on_init: 子进程初始化（数据加载、batch load降低IO）→ on_single_job_start
+    - execute: 子进程执行（调用hooks.scan_opportunity）→ execute_fn
 
-#     def execute(self) -> Dict[str, Any]:
-#         """运行单股枚举逻辑（不含数据 IO，数据由 job init 提供）。"""
-#         entity_id = self.payload.entity_id
-#         settings_dict = dict(self.payload.settings)
-#         settings = StrategySettings(raw_settings=settings_dict)
-#         settings.apply_defaults()
+    ── 主进程钩子（在主进程内执行）──
+    - on_result: 主进程进度调度、累积数据（每个job完成时）→ on_single_job_complete
+    - on_release: 主进程全局清理、生成report（所有jobs完成后）→ on_all_jobs_complete
+    """
 
-#         data_config = StrategyDataConfig(settings_dict)
-#         base_data_key = str(data_config.normalize_base(data_config.base)["data_key"])
-#         min_required = data_config.min_required_records
-#         open_dates = list(self.payload.open_dates)
+    # ─────────────────────────────────────────────────────────────
+    # 子进程钩子（在子进程内执行）
+    # ─────────────────────────────────────────────────────────────
 
-#         hook_runtime = StrategyHookRuntime.from_job_payload(
-#             self.payload.to_mapping(),
-#             settings=settings,
-#         )
-#         entity_info = StockMetaHelper.load(entity_id)
-#         stock_list = [
-#             str(x).strip() for x in self.payload.global_data["stock_list"]
-#         ]
+    @staticmethod
+    def on_init(job_context: Any) -> Dict[str, Any]:
+        """子进程钩子：初始化per entity的contracts，batch load降低IO。
 
-#         entity_ctx = EntityBasedDataContext.assemble(
-#             strategy_name=self.payload.strategy_name,
-#             settings=settings,
-#             stock_list=stock_list,
-#             entity_id=entity_id,
-#             entity_info=entity_info,
-#         )
-#         hook_runtime.call_if_overridden("on_entity_init", entity_ctx)
+        对应关系：on_single_job_start → on_job_init
+        执行位置：子进程内（通过run_job_lifecycle调用）
 
-#         if not open_dates:
-#             return EntityBasedExecuteResult.completed(
-#                 entity_id=entity_id,
-#                 entity_name=str(entity_info.get("name") or entity_id),
-#                 opportunities=[],
-#                 skipped_short_data=True,
-#             ).to_dict()
+        Args:
+            job_context: JobContext对象（包含job_id、payload等）
 
-#         opportunities: List[Opportunity] = []
-#         opp_counter = 0
-#         last_base_date: Optional[str] = None
+        Returns:
+            Dict[str, Any]: 包含 entity_contracts 和 global_data 的结构
 
-#         for as_of in open_dates:
-#             bar, data_as_of = self._base_bar_view(as_of, base_data_key=base_data_key)
-#             if bar is None or data_as_of is None:
-#                 continue
-#             if len(data_as_of.get(base_data_key) or []) < min_required:
-#                 continue
+        功能：
+        1. 使用 BatchDataLoader 批量加载所有 entity_ids 的数据（降低IO）
+        2. 返回结构化数据（供 execute 使用）
+        """
+        logger.info("子进程初始化：job_id=%s", job_context.job_id)
 
-#             base_date = str(bar.get("date") or "")
-#             if not base_date:
-#                 continue
-#             if last_base_date is not None and base_date == last_base_date:
-#                 continue
-#             last_base_date = base_date
+        from core.modules.strategy.core.engines.enumerator.entity_based.services.batch_data_loader import (
+            BatchDataLoader,
+        )
 
-#             opportunity = self._invoke_scan_hooks(
-#                 hook_runtime=hook_runtime,
-#                 base_ctx=entity_ctx,
-#                 as_of=as_of,
-#                 data_as_of=data_as_of,
-#             )
-#             if opportunity is None:
-#                 continue
+        # 批量加载 bundle 数据（返回Contract实例）
+        loaded_data = BatchDataLoader.load_bundle_data(job_context.payload)
 
-#             opp_counter += 1
-#             close = float(bar["close"])
-#             OpportunityEnricher.apply_trigger_fields(
-#                 opportunity,
-#                 settings=settings_dict,
-#                 strategy_name=self.payload.strategy_name,
-#                 stock_id=entity_id,
-#                 stock_info=entity_info,
-#                 trigger_date=base_date,
-#                 trigger_price=close,
-#                 opportunity_index=opp_counter,
-#             )
-#             opportunities.append(opportunity)
+        logger.info(
+            "子进程初始化完成：entity_contracts_count=%d, global_keys=%d",
+            len(loaded_data.get("entity_contracts", {})),
+            len(loaded_data.get("global_data", {})),
+        )
 
-#         opportunities_dict = [row.to_dict() for row in opportunities]
-#         if opportunities_dict and not self.payload.extras.get("_dispatch_probe"):
-#             OpportunityCsvHelper.write(
-#                 Path(self.payload.output_dir),
-#                 entity_id,
-#                 opportunities_dict,
-#             )
+        return loaded_data
 
-#         return EntityBasedExecuteResult.completed(
-#             entity_id=entity_id,
-#             entity_name=str(entity_info.get("name") or entity_id),
-#             opportunities=opportunities_dict,
-#         ).to_dict()
+    @staticmethod
+    def execute(job_context: Any) -> Dict[str, Any]:
+        """子进程钩子：按calendar时间轴推进，调用hooks.scan_opportunity。
 
-#     def _base_bar_view(
-#         self,
-#         as_of: str,
-#         *,
-#         base_data_key: str,
-#     ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
-#         """Calendar as_of 的 PIT 视图；返回 (末根 base bar, hook data)。"""
-#         data = self._data_loader.data_until(as_of)
-#         base_rows = data.get(base_data_key)
-#         if not isinstance(base_rows, list) or not base_rows:
-#             return None, None
-#         last = base_rows[-1]
-#         if not isinstance(last, dict):
-#             return None, None
-#         for key in ("open", "high", "low", "close", "date"):
-#             if key not in last:
-#                 raise ValueError(
-#                     f"K 线缺少字段 {key!r}: stock_id={self.payload.entity_id} as_of={as_of}"
-#                 )
-#         return last, data
+        对应关系：execute_fn
+        执行位置：子进程内（通过run_job_lifecycle调用）
 
-#     def _invoke_scan_hooks(
-#         self,
-#         *,
-#         hook_runtime: StrategyHookRuntime,
-#         base_ctx: EntityBasedDataContext,
-#         as_of: str,
-#         data_as_of: Dict[str, Any],
-#     ) -> Optional[Opportunity]:
-#         ctx = EntityBasedDataContext.fill(
-#             base_ctx,
-#             now=as_of,
-#             data=data_as_of,
-#         )
-#         hook_runtime.call("on_before_scan", ctx)
-#         opportunity = hook_runtime.call("scan_opportunity", ctx)
-#         hook_runtime.call(
-#             "on_after_scan",
-#             EntityBasedDataContext.fill(
-#                 base_ctx,
-#                 now=as_of,
-#                 data=data_as_of,
-#                 opportunity=opportunity if isinstance(opportunity, Opportunity) else None,
-#             ),
-#         )
-#         return opportunity if isinstance(opportunity, Opportunity) else None
+        Args:
+            job_context: JobContext对象（包含job_id、payload、init等）
+
+        Returns:
+            执行结果（包含opportunities列表）
+
+        流程（entity_based核心）：
+        1. Calendar是全局共享的时间轴（从start到end）
+        2. 遍历calendar（时间轴推进）
+        3. 对每个日期调用Contract.until(as_of)获取所有entity的PIT数据
+        4. 遍历entity，提取各自的PIT数据
+        5. 构建DataContext调用scan_opportunity
+        6. Contract内部维护每个entity的独立cursor（累进扫描）
+        """
+        logger.info("子进程执行开始（entity_based模式）")
+
+        # Step 1: 从job_context提取必要数据
+        payload = job_context.payload
+        loaded_data = job_context.init  # on_init返回的数据
+        entity_contracts = loaded_data.get("entity_contracts", {})  # Contract实例
+        global_data = loaded_data.get("global_data", {})
+        strategy_info = payload.get("strategy_info", {})
+        settings_dict = payload.get("settings", {})
+        entity_specified = payload.get("entity_specified", [])
+
+        # Step 2: 动态加载hooks类
+        hooks_module_path = strategy_info.get("hooks_module_path")
+        hooks_class_name = strategy_info.get("hooks_class_name")
+
+        if not hooks_module_path or not hooks_class_name:
+            logger.error("缺少hooks信息：hooks_module_path或hooks_class_name")
+            return {"success": False, "opportunities": [], "error": "缺少hooks信息"}
+
+        try:
+            import importlib
+            hooks_module = importlib.import_module(hooks_module_path)
+            hooks_class = getattr(hooks_module, hooks_class_name)
+            hooks_instance = hooks_class()
+        except Exception as e:
+            logger.error(f"加载hooks类失败：{e}", exc_info=True)
+            return {"success": False, "opportunities": [], "error": str(e)}
+
+        # Step 3: 准备StrategySettings对象
+        from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import StrategySettings
+        try:
+            settings_obj = StrategySettings.from_dict(settings_dict)
+        except Exception as e:
+            logger.error(f"构建StrategySettings失败：{e}", exc_info=True)
+            return {"success": False, "opportunities": [], "error": str(e)}
+
+        # Step 4: 构建calendar并获取open_dates
+        from core.modules.data_contract import DATA_KEY
+        calendar_data = global_data.get(DATA_KEY.TRADE_CALENDAR, [])
+        open_dates = [str(item.get("date") or "").strip() for item in calendar_data if item.get("is_open")]
+
+        if not open_dates:
+            logger.warning("calendar数据为空，无法遍历日期")
+            return {"success": True, "opportunities": [], "warning": "calendar数据为空"}
+
+        # 从entity_shared提取start_date和end_date
+        entity_shared = payload.get("entity_shared", {})
+        first_data_key_params = list(entity_shared.values())[0] if entity_shared else {}
+        start_date = first_data_key_params.get("start", open_dates[0] if open_dates else "")
+        end_date = first_data_key_params.get("end", open_dates[-1] if open_dates else "")
+
+        # 构建calendar_dict（供DataContext使用）
+        calendar_dict = {
+            "period_start": start_date,
+            "period_end": end_date,
+            "open_dates": open_dates,
+        }
+
+        # Step 5: 遍历calendar（时间轴推进）
+        from core.modules.strategy.core.hooks.context.data_context import DataContext
+        opportunities = []
+
+        for now in open_dates:
+            logger.debug(f"处理日期：{now}")
+
+            # Step 6: 对每个日期，调用Contract.until(as_of)获取所有entity的PIT数据
+            pit_data_by_entity = {}
+            for data_key, contract in entity_contracts.items():
+                try:
+                    # Contract.until(as_of)返回Dict[entity_id, PIT数据]
+                    pit_data_dict = contract.until(as_of=now)
+
+                    # 合并到pit_data_by_entity（按entity组织）
+                    for entity_id, pit_rows in pit_data_dict.items():
+                        if entity_id not in pit_data_by_entity:
+                            pit_data_by_entity[entity_id] = {}
+                        pit_data_by_entity[entity_id][data_key] = pit_rows
+
+                except Exception as e:
+                    logger.error(f"Contract.until失败：data_key={data_key}, now={now}, error={e}", exc_info=True)
+                    continue
+
+            # Step 7: 遍历entity，提取各自的PIT数据
+            for entity_item in entity_specified:
+                entity_id = entity_item.get("id")
+                if not entity_id:
+                    continue
+
+                # 获取该entity的PIT数据（截至now的累计数据）
+                per_entity_pit_data = pit_data_by_entity.get(entity_id, {})
+
+                # 合并数据：per_entity PIT数据 + global数据
+                complete_data = {**per_entity_pit_data, **global_data}
+
+                # 构建assemble context（entity级别，不含当日数据）
+                try:
+                    ctx_base = DataContext.assemble(
+                        strategy_name=strategy_info.get("key", ""),
+                        settings=settings_obj,
+                        stock_list=[entity_id],  # 单个entity
+                        entity_id=entity_id,
+                        entity_info={"id": entity_id},
+                    )
+
+                    # 构建fill context（填入当日PIT数据）
+                    ctx = DataContext.fill(
+                        ctx_base,
+                        now=now,
+                        data=complete_data,
+                        calendar=calendar_dict,
+                    )
+                except Exception as e:
+                    logger.error(f"构建DataContext失败：entity_id={entity_id}, now={now}, error={e}", exc_info=True)
+                    continue
+
+                # Step 8: 调用hooks.scan_opportunity()
+                try:
+                    opportunity = hooks_instance.scan_opportunity(ctx)
+                    if opportunity:
+                        opportunities.append({
+                            "entity_id": entity_id,
+                            "date": now,
+                            "opportunity": opportunity.to_dict() if hasattr(opportunity, 'to_dict') else opportunity,
+                        })
+                except Exception as e:
+                    logger.error(f"scan_opportunity失败：entity_id={entity_id}, now={now}, error={e}", exc_info=True)
+                    continue
+
+        logger.info(f"子进程执行完成：opportunities_count={len(opportunities)}")
+
+        return {
+            "success": True,
+            "opportunities": opportunities,
+        }
+
+    # ─────────────────────────────────────────────────────────────
+    # 主进程钩子（在主进程内执行）
+    # ─────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def on_result(report: Any, progress: Any) -> None:
+        """主进程钩子：进度调度、累积数据（每个job完成时）。
+
+        对应关系：on_single_job_complete → EntityExecutor.on_result
+        执行位置：主进程内（通过EntityExecutor._finish_future调用）
+
+        Args:
+            report: 单个job的执行报告（JobReport）
+            progress: 运行进度（RunProgress）
+
+        功能：
+        1. 打印进度信息
+        2. 累积数据的批量写操作（枚举器的结果）
+        3. Catch错误的entity
+        """
+        logger.info(
+            f"Job完成进度：{progress.finished}/{progress.total} "
+            f"(成功={progress.ok}, 失败={progress.fail})"
+        )
+
+        # 打印单个job的信息
+        logger.info(f"Job报告：job_id={report.job_id}, success={report.success}")
+
+        # 累积数据
+        if report.success and report.data:
+            opportunities = report.data.get("opportunities", [])
+            logger.info(f"累积opportunities：count={len(opportunities)}")
+
+        # Catch错误的entity
+        if not report.success:
+            error_msg = report.error or "Unknown error"
+            logger.error(f"Job失败：job_id={report.job_id}, error={error_msg}")
+
+    @staticmethod
+    def on_release(job_reports: List[Any], global_entity_cache: Any = None) -> None:
+        """主进程钩子：全局清理、生成report（所有jobs完成后）。
+
+        对应关系：on_all_jobs_complete → EntityExecutor.on_release
+        执行位置：主进程内（通过EntityExecutePipeline.run调用）
+
+        Args:
+            job_reports: 所有job的执行报告列表
+            global_entity_cache: 全局entity缓存（可选）
+
+        功能：
+        1. 清理缓存、释放全局资源（共享内存）
+        2. 打印完整统计信息
+        3. 生成最终report（有完整的执行context和结果）
+        """
+        logger.info(f"所有jobs完成：total={len(job_reports)}")
+
+        # 清理全局缓存（如共享内存）
+        if global_entity_cache:
+            try:
+                global_entity_cache.release_shared_memory()
+                logger.info("全局缓存清理完成")
+            except Exception as e:
+                logger.warning(f"清理全局缓存失败：{e}")
+
+        # 打印完整统计信息
+        success_count = sum(1 for report in job_reports if report.success)
+        fail_count = len(job_reports) - success_count
+
+        logger.info(
+            f"最终统计："
+            f"total={len(job_reports)}, "
+            f"success={success_count}, "
+            f"fail={fail_count}"
+        )
 
 
-# __all__ = ["EntityBasedExecutor"]
+__all__ = ["JobExecutor"]

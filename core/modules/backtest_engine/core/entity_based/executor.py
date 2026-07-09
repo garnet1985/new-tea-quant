@@ -21,8 +21,8 @@ from core.modules.backtest_engine.core.shared.types import (
     JobContext,
     JobFailure,
     JobFailurePhase,
-    JobInitFn,
-    JobReleaseFn,
+    ChildProcessTaskStartFn,
+    ChildProcessTaskCompleteFn,
     JobReport,
     RunProgress,
 )
@@ -36,16 +36,16 @@ class EntityExecutor:
 
     ExecuteFn = ExecuteFn
 
-    class OnResultHook(Callable):
-        """结果回调：接收 JobReport 和 RunProgress。"""
+    class OnAfterAllTasksCompleteHook(Callable):
+        """全局清理回调：接收 JobReport列表（主进程）。"""
 
-        def __call__(self, report: JobReport, progress: RunProgress) -> None:
+        def __call__(self, reports: List[JobReport]) -> None:
             ...
 
-    class OnReleaseHook(Callable):
-        """释放回调：接收 JobContext。"""
+    class OnSingleTaskResultHook(Callable):
+        """单task结果回调：接收 JobReport 和 RunProgress（主进程，用于进度更新）。"""
 
-        def __call__(self, context: JobContext) -> None:
+        def __call__(self, report: JobReport, progress: RunProgress) -> None:
             ...
 
     @dataclass
@@ -66,10 +66,8 @@ class EntityExecutor:
         batches: List[JobBatch],
         context: ExecutionContext,
         execute_fn: ExecuteFn,
-        on_result: Optional[EntityExecutor.OnResultHook] = None,
-        on_release: Optional[EntityExecutor.OnReleaseHook] = None,
-        on_job_init: Optional[JobInitFn] = None,
-        on_job_release: Optional[JobReleaseFn] = None,
+        on_child_process_task_start: Optional[ChildProcessTaskStartFn] = None,
+        on_child_process_task_complete: Optional[ChildProcessTaskCompleteFn] = None,
         log_label: str = "执行",
         admission_limit: Optional[int] = None,
         get_admission_limit: Optional[Callable[[], int]] = None,
@@ -131,8 +129,8 @@ class EntityExecutor:
                             EntityExecutor._invoke_worker,
                             execute_fn,
                             job_context,
-                            on_job_init,
-                            on_job_release,
+                            on_child_process_task_start,
+                            on_child_process_task_complete,
                         )
                         futures[future] = job
 
@@ -148,8 +146,8 @@ class EntityExecutor:
                             context,
                             failures,
                             job_results,
-                            on_result,
-                            on_release,
+                            on_single_task_result,
+                            on_after_all_tasks_complete,
                             log_label,
                         )
 
@@ -183,8 +181,8 @@ class EntityExecutor:
     def _invoke_worker(
         execute_fn: ExecuteFn,
         job_context: JobContext,
-        on_job_init: Optional[JobInitFn] = None,
-        on_job_release: Optional[JobReleaseFn] = None,
+        on_child_process_task_start: Optional[ChildProcessTaskStartFn] = None,
+        on_child_process_task_complete: Optional[ChildProcessTaskCompleteFn] = None,
     ) -> Dict[str, Any]:
         """Process-pool entry: init → execute_fn → release。"""
         if mp.current_process().name != "MainProcess":
@@ -201,8 +199,8 @@ class EntityExecutor:
             raw = run_job_lifecycle(
                 execute_fn,
                 job_context,
-                on_job_init=on_job_init,
-                on_job_release=on_job_release,
+                on_child_process_task_start=on_child_process_task_start,
+                on_child_process_task_complete=on_child_process_task_complete,
             )
         except Exception as exc:
             wall_sec = time.perf_counter() - t0
@@ -234,8 +232,8 @@ class EntityExecutor:
         context: ExecutionContext,
         failures: List[JobFailure],
         job_results: List[JobReport],
-        on_result: Optional[EntityExecutor.OnResultHook],
-        on_release: Optional[EntityExecutor.OnReleaseHook],
+        on_single_task_result: Optional[EntityExecutor.OnSingleTaskResultHook],
+        on_after_all_tasks_complete: Optional[EntityExecutor.OnAfterAllTasksCompleteHook],
         log_label: str,
     ) -> None:
         job_context = EntityExecutor._build_job_context(job, context)
@@ -252,8 +250,8 @@ class EntityExecutor:
                 )
             job_results.append(report)
             context.update_progress(report.success)
-            if on_result:
-                on_result(
+            if on_single_task_result:
+                on_single_task_result(
                     report,
                     RunProgress(
                         finished=context.finished_jobs,
@@ -271,8 +269,8 @@ class EntityExecutor:
                 )
             )
             context.update_progress(success=False)
-            if on_result:
-                on_result(
+            if on_single_task_result:
+                on_single_task_result(
                     JobReport(job_id=job.job_id, success=False, error=str(exc)),
                     RunProgress(
                         finished=context.finished_jobs,
@@ -282,12 +280,12 @@ class EntityExecutor:
                     ),
                 )
         finally:
-            if on_release:
+            if on_after_all_tasks_complete:
                 try:
-                    on_release(job_context)
+                    on_after_all_tasks_complete(job_context)
                 except Exception as exc:
                     logger.warning(
-                        "%s on_release failed: job_id=%s error=%s",
+                        "%s on_after_all_tasks_complete failed: job_id=%s error=%s",
                         log_label,
                         job.job_id,
                         exc,

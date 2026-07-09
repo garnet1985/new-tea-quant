@@ -60,7 +60,8 @@ class EnumeratorPipeline:
 
         cls.global_entity_cache = GlobalEntityCache(effective_settings_obj)
 
-        stock_ids = cls.global_entity_cache.init_stock_list().get_stock_ids()
+        # 强制加载stock_list和trade_calendar（系统必需数据）
+        stock_ids = cls.global_entity_cache.init_stock_list().init_trade_calendar().get_stock_ids()
 
         env_fp = Fingerprint.to_env_fingerprint(
             strategy_info=strategy_info,
@@ -166,93 +167,63 @@ class EnumeratorPipeline:
         1. 准备 BacktestEngine 参数（execute_fn、callbacks）
         2. 调用 BacktestEngine.entity_based.run()
         3. 返回执行结果
+
+        钩子映射：
+        - 子进程钩子：
+          - on_single_job_start → JobExecutor.on_init（数据加载、batch load降低IO）
+          - on_single_job_complete → None（strategy不使用子进程清理）
+          - execute_fn → JobExecutor.execute（执行逻辑）
+        - 主进程钩子：
+          - on_all_jobs_complete → JobExecutor.on_release（全局清理、生成report）
         """
         from core.modules.backtest_engine import BacktestEngine
         from core.modules.backtest_engine.contracts import RunCallbacks
-        from core.modules.strategy.core.engines.enumerator.entity_based.child_process_worker import (
-            ChildProcessWorker,
+        from core.modules.strategy.core.engines.enumerator.entity_based.job_executor import (
+            JobExecutor,
         )
 
-        # 1. 准备 execute_fn（业务逻辑）
-        def execute_fn(job_context):
-            """Execute 函数：遍历 entity，调用 hooks.find_opportunity()。"""
-            # 从 job_context.init 获取加载的数据
-            loaded_data = job_context.init or {}
-            entity_data = loaded_data.get("entity_data", {})
-            global_data = loaded_data.get("global_data", {})
+        # 准备累积数据的存储（主进程维护）
+        all_opportunities = []
+        failed_entities = []
 
-            # 从 payload 获取 strategy_info 和 settings
-            payload = job_context.payload
-            strategy_info_dict = payload.get("strategy_info", {})
-            settings_dict = payload.get("settings", {})
+        # 创建闭包，访问JobExecutor的静态方法，并累积数据
+        def on_single_job_complete_closure(report: Any, progress: Any) -> None:
+            """主进程钩子：调用JobExecutor.on_result，并累积数据。"""
+            JobExecutor.on_result(report, progress)
 
-            # 动态加载 hooks 类
-            hooks_module_path = strategy_info_dict.get("hooks_module_path")
-            hooks_class_name = strategy_info_dict.get("hooks_class_name")
+            # 累积数据（pipeline维护）
+            if report.success and report.data:
+                opportunities = report.data.get("opportunities", [])
+                all_opportunities.extend(opportunities)
 
-            if not hooks_module_path or not hooks_class_name:
-                raise ValueError("缺少 hooks 信息")
+            # Catch错误的entity（pipeline维护）
+            if not report.success:
+                error_msg = report.error or "Unknown error"
+                failed_entities.append({
+                    "job_id": report.job_id,
+                    "error": error_msg,
+                })
 
-            import importlib
-            hooks_module = importlib.import_module(hooks_module_path)
-            hooks_class = getattr(hooks_module, hooks_class_name)
-            hooks_instance = hooks_class()
+        def on_all_jobs_complete_closure(job_reports: List) -> None:
+            """主进程钩子：调用JobExecutor.on_release，并传递global_entity_cache。"""
+            JobExecutor.on_release(job_reports, cls.global_entity_cache)
 
-            # 遍历每个 entity，调用 find_opportunity()
-            results = []
-            entity_specified = payload.get("entity_specified", [])
-
-            for entity_item in entity_specified:
-                entity_id = entity_item.get("id")
-                if not entity_id:
-                    continue
-
-                # 获取该 entity 的数据
-                per_entity_data = entity_data.get(entity_id, {})
-
-                # 合并数据：per_entity_data + global_data
-                complete_data = {
-                    "entity_id": entity_id,
-                    "per_entity": per_entity_data,
-                    "global": global_data,
-                    "settings": settings_dict,
-                }
-
-                # 调用 hooks.find_opportunity()
-                try:
-                    opportunity = hooks_instance.find_opportunity(complete_data)
-                    results.append({
-                        "entity_id": entity_id,
-                        "success": True,
-                        "opportunity": opportunity,
-                    })
-                except Exception as e:
-                    results.append({
-                        "entity_id": entity_id,
-                        "success": False,
-                        "error": str(e),
-                    })
-
-            return {
-                "success": True,
-                "results": results,
-                "entities_count": len(entity_specified),
-            }
-
-        # 2. 准备 callbacks（钩子函数）
+        # 准备 callbacks（钩子函数）
         callbacks = RunCallbacks(
-            on_single_job_start=ChildProcessWorker.on_init,
+            on_single_job_start=JobExecutor.on_init,  # 子进程钩子：数据加载
+            on_single_job_complete=None,  # 子进程钩子：清理（strategy不使用）
+            on_all_jobs_complete=on_all_jobs_complete_closure,  # 主进程钩子：全局清理
         )
 
-        # 3. 调用 BacktestEngine.entity_based.run()
+        # 调用 BacktestEngine.entity_based.run()
         run_result = BacktestEngine.entity_based.run(
             jobs=jobs,
-            execute_fn=execute_fn,
+            execute_fn=JobExecutor.execute,  # 子进程钩子：执行逻辑
             callbacks=callbacks,
             task_name=f"strategy_{strategy_info.key}",
         )
 
-        # 4. 返回执行结果
+        # 返回执行结果（包含累积的数据）
         return {
             "success": run_result.success,
             "total_jobs": run_result.total_jobs,
@@ -260,6 +231,8 @@ class EnumeratorPipeline:
             "failed_jobs": run_result.failed_jobs,
             "elapsed_seconds": run_result.elapsed_seconds,
             "job_results": run_result.job_results,
+            "opportunities": all_opportunities,  # 累积的opportunities
+            "failed_entities": failed_entities,  # 失败的entity列表
         }
 
     @classmethod

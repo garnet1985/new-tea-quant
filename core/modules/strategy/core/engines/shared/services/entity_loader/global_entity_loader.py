@@ -95,23 +95,79 @@ class GlobalEntityCache:
             # 使用新的issue API（自动discovery + 加载）
             contract = ContractIssuer.issue(DATA_KEY.STOCK_LIST, fill_in_data=True)
             stock_list = list(contract.get_data() or [])
-            
+
             # 缓存数据
             self._global_data[DATA_KEY.STOCK_LIST] = stock_list
-            
+
             logger.info(f"加载stock_list成功：数量={len(stock_list)}")
 
             return self
-            
+
         except Exception as e:
             logger.error(f"加载stock_list失败：{e}", exc_info=True)
             self._global_data[DATA_KEY.STOCK_LIST] = []
 
             return self
 
+    def init_trade_calendar(self) -> "GlobalEntityCache":
+        """初始化trade_calendar contract并缓存数据。
+
+        Returns:
+            self（支持方法链）
+
+        设计：
+        - 从settings.sampling获取start_date和end_date
+        - trade_calendar是回测必需的系统数据，强制加载
+        - 使用ContractIssuer.issue()加载
+        - 缓存到self._global_data中
+        """
+        try:
+            # 从sampling字段获取日期范围
+            sampling = self._settings.raw_settings.get("sampling", {})
+            start_date = sampling.get("start_date")
+            end_date = sampling.get("end_date")
+
+            # 如果没有end_date，使用latest completed trading date
+            if not end_date:
+                end_date = self.load_latest_completed_trading_date()
+                logger.info(f"sampling未配置end_date，使用latest completed trading date: {end_date}")
+
+            # 如果没有start_date，使用默认值
+            if not start_date:
+                start_date = "20200101"
+                logger.info(f"sampling未配置start_date，使用默认值: {start_date}")
+
+            # 使用ContractIssuer.issue()加载trade_calendar
+            contract = ContractIssuer.issue(
+                DATA_KEY.TRADE_CALENDAR,
+                runtime={
+                    "start": start_date,
+                    "end": end_date,
+                },
+                fill_in_data=True,
+            )
+
+            trade_calendar = list(contract.get_data() or [])
+
+            # 缓存数据
+            self._global_data[DATA_KEY.TRADE_CALENDAR] = trade_calendar
+
+            logger.info(
+                f"加载trade_calendar成功：start={start_date}, end={end_date}, "
+                f"数量={len(trade_calendar)}"
+            )
+
+            return self
+
+        except Exception as e:
+            logger.error(f"加载trade_calendar失败：{e}", exc_info=True)
+            self._global_data[DATA_KEY.TRADE_CALENDAR] = []
+
+            return self
+
     def get_stock_ids(self) -> List[str]:
         """获取缓存中的stock_ids。
-        
+
         Returns:
             stock_ids列表（如["600000.SH", "600001.SH"]）
         """
@@ -168,14 +224,19 @@ class GlobalEntityCache:
         # 保存声明分组（供后续使用）
         self._global_declarations = global_declarations
         self._per_entity_declarations = per_entity_declarations
-        
+
         if not global_declarations:
             logger.info("没有需要加载的global数据")
+            # 即使没有global_declarations，也需要写入共享内存（包含stock_list和trade_calendar）
+            self._create_shared_memory()
             return
-        
+
         # Step 4: 加载global数据
         logger.info(f"开始加载{len(global_declarations)}个global数据")
         self._load_global_data(global_declarations)
+
+        # Step 5: 将所有global数据写入共享内存（包括stock_list和trade_calendar）
+        self._create_shared_memory()
     
     def _get_data_declarations(self, data_section: Dict[str, Any]) -> List[Dict[str, Any]]:
         """从data字段解析数据声明。

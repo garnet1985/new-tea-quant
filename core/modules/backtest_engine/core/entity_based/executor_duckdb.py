@@ -13,7 +13,7 @@ from core.modules.backtest_engine.core.shared.duckdb_executor_scope import (
 )
 from core.modules.backtest_engine.core.entity_based.executor import EntityExecutor
 from core.modules.backtest_engine.core.entity_based.planner import DispatchPlan, JobBatch
-from core.modules.backtest_engine.core.shared.types import JobInitFn, JobReleaseFn
+from core.modules.backtest_engine.core.shared.types import ExecuteFn, ChildProcessTaskStartFn, ChildProcessTaskCompleteFn
 
 
 class EntityExecutorDuckDB(EntityExecutor):
@@ -25,10 +25,10 @@ class EntityExecutorDuckDB(EntityExecutor):
         batches: List[JobBatch],
         context: ExecutionContext,
         execute_fn: EntityExecutor.ExecuteFn,
-        on_result: Optional[EntityExecutor.OnResultHook] = None,
-        on_release: Optional[EntityExecutor.OnReleaseHook] = None,
-        on_job_init: Optional[JobInitFn] = None,
-        on_job_release: Optional[JobReleaseFn] = None,
+        on_single_task_result: Optional[EntityExecutor.OnSingleTaskResultHook] = None,
+        on_after_all_tasks_complete: Optional[EntityExecutor.OnAfterAllTasksCompleteHook] = None,
+        on_child_process_task_start: Optional[ChildProcessTaskStartFn] = None,
+        on_child_process_task_complete: Optional[ChildProcessTaskCompleteFn] = None,
         log_label: str = "执行",
         *,
         data_mgr: Optional[Any] = None,
@@ -46,10 +46,10 @@ class EntityExecutorDuckDB(EntityExecutor):
             batches=batches,
             context=context,
             execute_fn=execute_fn,
-            on_result=on_result,
-            on_release=on_release,
-            on_job_init=on_job_init,
-            on_job_release=on_job_release,
+            on_single_task_result=on_single_task_result,
+            on_after_all_tasks_complete=on_after_all_tasks_complete,
+            on_child_process_task_start=on_child_process_task_start,
+            on_child_process_task_complete=on_child_process_task_complete,
             log_label=log_label,
             admission_limit=admission_limit,
             get_admission_limit=get_admission_limit,

@@ -148,10 +148,10 @@ class BacktestEngine:
             resolved_performance,
             execute_fn=execute_fn,
             task_name=label,
-            on_result=resolved_callbacks.on_result,
-            on_release=resolved_callbacks.on_release,
-            on_job_init=resolved_callbacks.on_job_init,
-            on_job_release=resolved_callbacks.on_job_release,
+            on_before_all_tasks_start=resolved_callbacks.on_before_all_tasks_start,
+            on_child_process_task_start=resolved_callbacks.on_child_process_task_start,
+            on_child_process_task_complete=resolved_callbacks.on_child_process_task_complete,
+            on_after_all_tasks_complete=resolved_callbacks.on_after_all_tasks_complete,
             enable_progress_display=enable_progress_display,
         )
         return BacktestEngine.RunResult.from_entity_based(pipeline_result)
@@ -177,7 +177,10 @@ class BacktestEngine:
             resolved_performance,
             execute_fn=execute_fn,
             task_name=label,
-            on_result=resolved_callbacks.on_result,
+            on_before_all_tasks_start=resolved_callbacks.on_before_all_tasks_start,
+            on_child_process_task_start=resolved_callbacks.on_child_process_task_start,
+            on_child_process_task_complete=resolved_callbacks.on_child_process_task_complete,
+            on_after_all_tasks_complete=resolved_callbacks.on_after_all_tasks_complete,
             enable_progress_display=enable_progress_display,
         )
         return BacktestEngine.RunResult.from_slice_based(pipeline_result)

@@ -63,9 +63,19 @@ settings = {
         "retention": {
             "max_output_versions": 5,
         },
+        "execute_steps": [
+            "check_settlement",
+            "check_stop_loss",
+            "check_take_profit",
+            "check_expiration",
+        ],
     },
 
     "goal": {
+        "expiration": {
+            "fixed_window_in_days": 30,
+            "mode": "open_day",
+        },
         "stop_loss": {
             "stages": [
                 {"name": "loss20%", "ratio": -0.2, "close_invest": True},

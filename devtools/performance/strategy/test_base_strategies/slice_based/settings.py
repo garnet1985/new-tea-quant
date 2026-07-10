@@ -50,6 +50,12 @@ settings = {
             "allow_sell_at_limit_down": False,
         },
         "retention": {"max_output_versions": 5},
+        "execute_steps": [
+            "check_settlement",
+            "check_stop_loss",
+            "check_take_profit",
+            "check_expiration",
+        ],
     },
     "goal": {"is_customized": True},
     "sampling": {

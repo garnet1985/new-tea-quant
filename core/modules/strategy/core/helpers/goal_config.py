@@ -1,4 +1,4 @@
-"""settings.goal 严格解析（枚举持仓退出用）。"""
+"""settings.goal 解析（枚举持仓退出用；settings 已在 StrategySettings 校验）。"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -30,7 +30,14 @@ class GoalConfig:
         )
 
     @staticmethod
-    def _parse_block(block: Any, *, label: str) -> Optional[GoalStage]:
+    def _infer_stage_name(*, label: str, ratio: float) -> str:
+        pct = abs(ratio) * 100
+        if ratio < 0:
+            return f"loss{pct:g}%"
+        return f"win{pct:g}%"
+
+    @classmethod
+    def _parse_block(cls, block: Any, *, label: str) -> Optional[GoalStage]:
         if block is None:
             return None
         if not isinstance(block, dict):
@@ -44,7 +51,8 @@ class GoalConfig:
         if "ratio" not in first:
             raise ValueError(f"{label}.stages[0] 缺少 ratio")
         ratio = float(first["ratio"])
-        name = str(first.get("name") or label.split(".")[-1])
+        raw_name = str(first.get("name") or "").strip()
+        name = raw_name or cls._infer_stage_name(label=label, ratio=ratio)
         close_invest = first.get("close_invest")
         if close_invest is not True:
             raise ValueError(f"{label}.stages[0].close_invest 须为 true")

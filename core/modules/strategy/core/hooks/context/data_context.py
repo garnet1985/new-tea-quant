@@ -6,8 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Iterator, List, Optional, TypeVar
 
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import StrategySettings
-from core.modules.strategy.core.engines.shared.data_classes.opportunity import Opportunity
-from core.modules.strategy.core.services.data.strategy_data_config import StrategyDataConfig
+from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
 
 _ContextT = TypeVar("_ContextT", bound="DataContext")
 
@@ -81,9 +80,7 @@ class DataContext:
         extra: Optional[Dict[str, Any]] = None,
     ) -> _ContextT:
         """0→1：建立 hook context 结构，不含当日 now/data。"""
-        settings_dict = settings.to_dict()
-        data_cfg = StrategyDataConfig(settings_dict)
-        base_data_key = str(data_cfg.normalize_base(data_cfg.base)["data_key"])
+        base_data_key = settings.data.base_data_key
         store: Dict[str, Any] = {"stock_list": list(stock_list)}
         return cls(
             strategy_name=strategy_name,

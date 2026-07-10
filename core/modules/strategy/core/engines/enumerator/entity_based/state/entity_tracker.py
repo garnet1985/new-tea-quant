@@ -5,7 +5,7 @@ from bisect import bisect_left
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
-from core.modules.strategy.core.engines.shared.data_classes import Opportunity
+from core.modules.strategy.core.engines.shared.data_class import Opportunity
 from core.modules.strategy.core.helpers.opportunity_enrichment import OpportunityEnricher
 
 

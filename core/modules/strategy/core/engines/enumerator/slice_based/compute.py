@@ -10,15 +10,14 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.strate
 from core.modules.strategy.core.engines.enumerator.slice_based.context.data import SliceBasedDataContext
 from core.modules.strategy.core.engines.enumerator.slice_based.resolver.calendar import BacktestCalendarResolver
 from core.modules.strategy.core.engines.enumerator.slice_based.state.holdings import EntityHoldings
-from core.modules.strategy.core.engines.shared.data_classes import Opportunity
-from core.modules.strategy.core.engines.shared.data_classes.calendar_as_of import CalendarAsOfResult
+from core.modules.strategy.core.engines.shared.data_class import Opportunity
+from core.modules.strategy.core.engines.enumerator.slice_based.types import CalendarAsOfResult
 from core.modules.strategy.core.helpers.calendar import CalendarOpenDateHelper
 from core.modules.strategy.core.helpers.opportunity_csv import OpportunityCsvHelper
 from core.modules.strategy.core.helpers.opportunity_enrichment import OpportunityEnricher
 from core.modules.strategy.core.helpers.stock_meta import StockMetaHelper
 from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
 from core.modules.strategy.core.services.data.entity_data import EntityContractBatch, EntityDataLoader
-from core.modules.strategy.core.services.data.strategy_data_config import StrategyDataConfig
 
 logger = logging.getLogger(__name__)
 
@@ -53,12 +52,8 @@ class SliceBasedCompute:
         if not isinstance(settings_raw, dict):
             raise ValueError("SliceBasedCompute 缺少 settings")
         self.settings = StrategySettings(raw_settings=settings_raw)
-        self.settings.apply_defaults()
-        self._data_config = StrategyDataConfig(settings_raw)
-        self._base_data_key = str(
-            self._data_config.normalize_base(self._data_config.base)["data_key"],
-        )
-        self._min_required = self._data_config.min_required_records
+        self._base_data_key = self.settings.data.base_data_key
+        self._min_required = self.settings.data.min_required_records
         self._max_holding_days = self._resolve_max_holding_days(settings_raw)
         self._assert_entry_price_model(settings_raw)
 

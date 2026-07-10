@@ -20,6 +20,8 @@ class TestGoalConfig(unittest.TestCase):
         )
         self.assertIsNotNone(cfg.stop_loss)
         self.assertIsNotNone(cfg.take_profit)
+        self.assertEqual(cfg.stop_loss.name, "loss20%")
+        self.assertEqual(cfg.take_profit.name, "win20%")
         self.assertEqual(cfg.exit_price(cfg.stop_loss, 10.0), 8.0)
 
     def test_rejects_missing_close_invest(self) -> None:

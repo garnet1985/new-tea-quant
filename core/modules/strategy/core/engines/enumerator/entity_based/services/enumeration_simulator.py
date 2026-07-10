@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 from core.modules.strategy.core.engines.enumerator.entity_based.state.entity_tracker import (
     EntityTracker,
 )
-from core.modules.strategy.core.engines.shared.data_classes import Opportunity
+from core.modules.strategy.core.engines.shared.data_class import Opportunity
 from core.modules.strategy.core.engines.shared.services.entity_loader.strategy_data_resolver import (
     StrategyDataResolver,
 )

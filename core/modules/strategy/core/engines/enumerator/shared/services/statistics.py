@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.modules.strategy.core.engines.shared.data_classes.report_templates import EnumeratorReportTemplate
+from core.modules.strategy.core.engines.enumerator.entity_based.report import EnumeratorReportTemplate
 from core.modules.strategy.core.helpers.opportunity_csv import OpportunityCsvHelper
 from core.modules.strategy.core.helpers.statistics import StatisticsHelper
 

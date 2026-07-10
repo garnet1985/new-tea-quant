@@ -6,7 +6,7 @@ from __future__ import annotations
 import unittest
 
 from core.modules.strategy.core.engines.enumerator.slice_based.state.holdings import EntityHoldings
-from core.modules.strategy.core.engines.shared.data_classes import Opportunity
+from core.modules.strategy.core.engines.shared.data_class import Opportunity
 
 
 class TestEntityHoldings(unittest.TestCase):

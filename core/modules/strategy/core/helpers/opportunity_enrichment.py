@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from core.modules.strategy.core.engines.shared.data_classes import Opportunity
+from core.modules.strategy.core.engines.shared.data_class import Opportunity
 from core.modules.strategy.core.helpers.goal_config import GoalConfig
 
 

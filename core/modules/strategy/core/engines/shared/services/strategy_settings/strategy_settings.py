@@ -13,6 +13,7 @@ from core.utils.utils import Utils
 
 from .general_settings import GeneralSettings
 from .enumerator_settings import EnumeratorSettings
+from .data_settings import DataSettings
 from .simulation_settings import SimulationSettings
 from .validation_report import ValidationReport
 
@@ -59,6 +60,7 @@ class StrategySettings:
         object.__setattr__(self, 'raw_settings', copy.deepcopy(self.raw_settings))
         object.__setattr__(self, 'general', GeneralSettings(raw_settings=self.raw_settings))
         object.__setattr__(self, 'enumerator', EnumeratorSettings(raw_settings=self.raw_settings))
+        object.__setattr__(self, 'data', DataSettings(raw_settings=self.raw_settings))
         object.__setattr__(self, 'simulation', SimulationSettings(raw_settings=self.raw_settings))
 
     @classmethod
@@ -194,6 +196,7 @@ class StrategySettings:
         """Apply defaults to all sub-settings."""
         self.general.apply_defaults()
         self.enumerator.apply_defaults()
+        self.data.apply_defaults()
         self.simulation.apply_defaults()
 
     def validate(self) -> ValidationReport:
@@ -212,6 +215,12 @@ class StrategySettings:
         report.errors.extend(enum_report.errors)
         report.warnings.extend(enum_report.warnings)
         if not enum_report.is_valid:
+            report.is_valid = False
+
+        data_report = self.data.validate()
+        report.errors.extend(data_report.errors)
+        report.warnings.extend(data_report.warnings)
+        if not data_report.is_valid:
             report.is_valid = False
 
         simulation_report = self.simulation.validate()
@@ -234,7 +243,9 @@ class StrategySettings:
         out['is_enabled'] = self.is_enabled
         out['meta'] = self.general.meta
         out['core'] = self.general.core
+        out['data'] = self.data.to_dict()
         out['enumerator'] = self.enumerator.to_dict()
+        out['simulation'] = {**self.raw_settings.get('simulation', {}), **self.simulation.to_dict()}
         return out
 
 

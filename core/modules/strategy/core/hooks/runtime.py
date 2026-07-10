@@ -7,7 +7,7 @@ from typing import Any, Optional
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
-from core.modules.strategy.core.engines.shared.data_classes import CalendarAsOfResult
+from core.modules.strategy.core.engines.enumerator.slice_based.types import CalendarAsOfResult
 from core.modules.strategy.core.hooks.context import DataContext
 from core.modules.strategy.core.services.discovery.worker_loader import StrategyWorkerLoader
 
@@ -55,7 +55,6 @@ class StrategyHookRuntime:
         settings: Optional[StrategySettings] = None,
     ) -> StrategyHookRuntime:
         resolved_settings = settings or StrategySettings(raw_settings=dict(job_payload["settings"]))
-        resolved_settings.apply_defaults()
         return cls.from_worker_ref(
             strategy_name=str(job_payload["strategy_name"]),
             settings=resolved_settings,

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from enum import Enum
 
-from core.modules.strategy.core.engines.shared.data_classes.calendar_as_of import (
+from core.modules.strategy.core.engines.enumerator.slice_based.types import (
     CalendarAsOfContext,
     CalendarAsOfResult,
 )
-from core.modules.strategy.core.engines.shared.data_classes.opportunity import Opportunity
+from core.modules.strategy.core.engines.shared.data_class import Investment, Opportunity
 from core.modules.strategy.core.hooks.base import StrategyHooks
 from core.modules.strategy.core.hooks.context import DataContext
 
@@ -44,6 +44,7 @@ __all__ = [
     "DataContext",
     "ExecutionMode",
     "Opportunity",
+    "Investment",
     "SellReason",
     "SimulateKind",
     "StrategyHooks",

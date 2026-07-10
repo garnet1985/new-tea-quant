@@ -4,11 +4,13 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 
 from core.infra.discovery import Discovery
-from core.modules.strategy.core.hooks.base import StrategyHooks
 from core.modules.strategy.core.services.discovery.worker_loader import StrategyWorkerLoader
+
+if TYPE_CHECKING:
+    from core.modules.strategy.core.hooks.base import StrategyHooks
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +99,7 @@ class StrategyInfo(StrategyDraft):
     display_name: str = ""
     is_enabled: bool = False
     settings: Dict[str, Any] = field(default_factory=dict)
-    hooks_class: Optional[Type[StrategyHooks]] = None
+    hooks_class: Optional[Type["StrategyHooks"]] = None
     hooks_module_path: str = ""
 
     # 添加folder字段（从draft继承时会自动填充）

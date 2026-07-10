@@ -8,11 +8,11 @@ from typing import Any, Dict, Optional
 
 from core.modules.data_contract.contracts import DataKey
 from core.modules.strategy.contracts import DataContext, Opportunity, StrategyHooks
-from core.modules.strategy.core.services.data.strategy_data_config import StrategyDataConfig
+from core.modules.strategy.core.engines.shared.services.strategy_settings.data_settings import DataSettings
 
 logger = logging.getLogger(__name__)
 
-_FINANCE_SLOT = StrategyDataConfig.storage_key_for(DataKey.STOCK_CORPORATE_FINANCE)
+_FINANCE_SLOT = DataSettings.storage_key_for(DataKey.STOCK_CORPORATE_FINANCE, is_base=False)
 
 
 class RsiFundamentalGateHooks(StrategyHooks):

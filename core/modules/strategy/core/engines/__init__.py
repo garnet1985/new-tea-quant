@@ -1,5 +1,3 @@
-"""Engines exports (minimal version)."""
+"""Engines exports (minimal — avoid eager imports that cycle through hooks)."""
 
-from .shared import Opportunity
-
-__all__ = ['Opportunity']
+__all__: list[str] = []

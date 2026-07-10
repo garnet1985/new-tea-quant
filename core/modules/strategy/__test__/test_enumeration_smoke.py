@@ -13,7 +13,8 @@ from core.modules.strategy.core.engines.enumerator.entity_based.services.job_bui
 from core.modules.strategy.core.engines.enumerator.slice_based.resolver.jobs import SliceBasedJobs
 from core.modules.strategy.core.helpers.calendar import CalendarOpenDateHelper
 from core.modules.strategy.core.services.data.entity_data import GlobalDataPreloader
-from core.modules.strategy.core.services.data.strategy_data_config import StrategyDataConfig
+from core.modules.strategy.core.engines.shared.services.strategy_settings.data_settings import DataSettings
+from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import StrategySettings
 from core.modules.strategy.core.services.discovery.discovery_service import DiscoveryService
 
 _DEVTOOLS_STRATEGIES_ROOT = (
@@ -48,54 +49,47 @@ def _minimal_settings() -> Dict[str, Any]:
     }
 
 
-class TestStrategyDataConfigSchema(unittest.TestCase):
-    """data.base + data.required + data_key（无旧字段、无 alias）。"""
+class TestDataSettingsSchema(unittest.TestCase):
+    """data.base + data.required + data_key。"""
 
     def test_issue_declarations_base_plus_required(self) -> None:
-        settings = {
-            "data": {
-                "base": {
-                    "data_key": "stock.kline.daily",
-                    "params": {"adjust": "qfq"},
+        settings = StrategySettings(
+            raw_settings={
+                "data": {
+                    "base": {
+                        "data_key": "stock.kline.daily",
+                        "params": {"adjust": "qfq"},
+                    },
+                    "required": [
+                        {"data_key": "macro.gdp", "params": {}},
+                    ],
                 },
-                "required": [
-                    {"data_key": "macro.gdp", "params": {}},
-                ],
-            },
-        }
-        cfg = StrategyDataConfig(settings)
-        decls = cfg.issue_declarations()
+            }
+        )
+        settings.apply_defaults()
+        decls = settings.data.issue_declarations()
         self.assertEqual(len(decls), 2)
         self.assertEqual(decls[0]["data_key"], "stock.kline.daily")
         self.assertEqual(decls[1]["data_key"], "macro.gdp")
 
-    def test_rejects_missing_base_when_only_legacy_key(self) -> None:
-        """旧字段 base_required_data 不被识别，缺 base 即报错。"""
-        with self.assertRaises(ValueError):
-            StrategyDataConfig(
-                {
-                    "data": {
-                        "base_required_data": {
-                            "data_key": "stock.kline.daily",
-                            "params": {},
-                        },
-                    },
-                }
-            )
-
     def test_rejects_missing_base(self) -> None:
+        settings = StrategySettings(raw_settings={"data": {"required": []}})
+        settings.apply_defaults()
         with self.assertRaises(ValueError):
-            StrategyDataConfig({"data": {"required": []}})
+            settings.data.issue_declarations()
 
     def test_rejects_duplicate_data_key(self) -> None:
-        settings = {
-            "data": {
-                "base": {"data_key": "stock.kline.daily", "params": {}},
-                "required": [{"data_key": "stock.kline.daily", "params": {}}],
-            },
-        }
+        settings = StrategySettings(
+            raw_settings={
+                "data": {
+                    "base": {"data_key": "stock.kline.daily", "params": {}},
+                    "required": [{"data_key": "stock.kline.daily", "params": {}}],
+                },
+            }
+        )
+        settings.apply_defaults()
         with self.assertRaises(ValueError):
-            StrategyDataConfig(settings).issue_declarations()
+            settings.data.issue_declarations()
 
 
 class TestGlobalDataPreloadSmoke(unittest.TestCase):

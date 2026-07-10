@@ -10,7 +10,7 @@ from core.modules.strategy.core.engines.enumerator.entity_based.execute_payload 
     EntityBasedExecutePayload,
 )
 from core.modules.strategy.core.engines.enumerator.entity_based.executor import EntityBasedExecutor
-from core.modules.strategy.core.engines.shared.data_classes import Opportunity
+from core.modules.strategy.core.engines.shared.data_class import Opportunity
 
 _BASE = "stock.kline.daily"
 _OPEN_DATES = ["20240102", "20240103", "20240104", "20240105"]

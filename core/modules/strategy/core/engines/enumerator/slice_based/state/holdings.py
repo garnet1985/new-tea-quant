@@ -31,7 +31,7 @@ class EntityHoldings:
         self.active.clear()
 
     def close_goal_targets(self, bar: Dict[str, Any]) -> None:
-        """按 K 线 high/low 触发 stop_loss / take_profit（须已由 OpportunityEnricher 写入价位）。"""
+        """按 K 线 high/low 触发 stop_loss / take_profit（legacy；待接 Investment pipeline）。"""
         low = float(bar["low"])
         high = float(bar["high"])
         remaining: List[Opportunity] = []

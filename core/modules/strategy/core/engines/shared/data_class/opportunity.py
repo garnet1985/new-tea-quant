@@ -1,9 +1,12 @@
-"""Opportunity — scan signal record (shared across scan / enumerate / simulate).
+"""Opportunity — scan signal record (shared across scan / enumerate / adapter).
 
-Terminology (with ``Investment``):
-- ``trigger_date`` / ``trigger_price``: signal bar on the scan record.
-- ``entry_*`` / ``exit_info.*`` / ``direction``: filled trade state on ``Investment``.
-- ``completed_goals``: each partial or full exit leg produced by goal checks.
+Downstream paths
+----------------
+1. **Investment** — enumerator simulates trading this signal (full lifecycle).
+2. **Scanner adapter** — live / external pipeline consumes the signal as-is.
+
+Opportunity holds identity + entry-condition snapshot only (``trigger_*``,
+``record_of_today``, ``market_profile``). It has no exit, lifecycle, or goal completion fields.
 """
 
 from __future__ import annotations
@@ -62,6 +65,7 @@ class Opportunity:
     record_of_today: Dict[str, Any]
     trigger_date: str = ""
     trigger_price: float = 0.0
+    market_profile: str = ""
     meta: OpportunityMeta = field(default_factory=OpportunityMeta)
     contributor: OpportunityContributor = field(default_factory=OpportunityContributor)
     extra_fields: Dict[str, Any] = field(default_factory=dict)
@@ -96,6 +100,38 @@ class Opportunity:
             self.trigger_price = float(self.record_of_today.get("close") or 0.0)
         self.meta.updated_at = datetime.now().isoformat()
 
+    def bind_scan_context(
+        self,
+        *,
+        strategy_name: str,
+        stock_id: str,
+        stock_info: Optional[Dict[str, Any]] = None,
+        trigger_date: Optional[str] = None,
+        trigger_price: Optional[float] = None,
+        opportunity_index: Optional[int] = None,
+        market_profile: Optional[str] = None,
+    ) -> "Opportunity":
+        """补全枚举/scan 运行时上下文（策略 hook 只产出信号，引擎填入 meta/stock/trigger）。"""
+        if trigger_price is not None:
+            if float(trigger_price) <= 0:
+                raise ValueError("trigger_price 须 > 0")
+            self.trigger_price = float(trigger_price)
+        if trigger_date is not None:
+            self.trigger_date = str(trigger_date)
+            self.meta.scan_date = str(trigger_date)
+        if opportunity_index is not None:
+            self.meta.opportunity_id = str(opportunity_index)
+        if market_profile is not None:
+            self.market_profile = str(market_profile).strip()
+        self.contributor.strategy_name = strategy_name
+
+        merged = dict(stock_info or {})
+        merged = {**self.stock.to_dict(), **merged}
+        merged.setdefault("id", stock_id)
+        self.stock = StockInfo.from_dict(merged)
+        self.meta.updated_at = datetime.now().isoformat()
+        return self
+
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
@@ -115,6 +151,7 @@ class Opportunity:
             record_of_today=dict(raw.get("record_of_today") or {}),
             trigger_date=str(raw.get("trigger_date") or ""),
             trigger_price=trigger_price,
+            market_profile=str(raw.get("market_profile") or ""),
             meta=meta,
             contributor=contributor,
             extra_fields=dict(raw.get("extra_fields") or {}),

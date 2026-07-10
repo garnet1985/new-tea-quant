@@ -3,7 +3,7 @@
 
 from typing import Any, Dict
 
-from ..base.market_base_rules import MarketBaseRules
+from ...base.market_base_rules import MarketBaseRules
 
 
 class ForexRules(MarketBaseRules):

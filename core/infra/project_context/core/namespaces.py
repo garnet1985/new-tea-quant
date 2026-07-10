@@ -328,6 +328,14 @@ class ConfigNamespace:
         return ConfigManager.get_default_start_date()
 
     @staticmethod
+    def get_default_market_profile_key() -> str:
+        """
+        ``data.json`` → ``default_market_profile_key``（全系统默认市场 profile id）。
+        """
+        from .config_manager import ConfigManager
+        return ConfigManager.get_default_market_profile_key()
+
+    @staticmethod
     def get_use_sample_stock_list() -> Optional[int]:
         """
         开发样本股票池规模（``core/modules/data_source/dev/stock_pool/stratified_N.csv``）。

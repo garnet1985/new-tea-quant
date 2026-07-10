@@ -126,7 +126,7 @@ class JobExecutor:
         return {
             "success": True,
             "opportunities_count": opportunities_count,
-            "entities_with_opportunities": simulator.entities_with_opportunities(),
+            "entities_with_opportunities": simulator.entities_with_investments(),
         }
 
     @staticmethod

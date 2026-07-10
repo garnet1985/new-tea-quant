@@ -18,9 +18,10 @@ logger = logging.getLogger(__name__)
 SCOPE_STOCK_IDS_FILENAME = "0_scope_stock_ids.txt"
 RUN_PRECONDITION_FILENAME = "0_run_precondition.json"
 
-# opportunities CSV 不写 nested / 内部字段；targets 从 completed_targets 拆行
+# opportunities CSV 不写 nested / 内部字段；targets 从 completed_goals 拆行
 _OPPORTUNITY_CSV_EXCLUDED: Set[str] = {
     "completed_targets",
+    "completed_goals",
     "config_hash",
     "created_at",
     "updated_at",
@@ -37,7 +38,15 @@ _OPPORTUNITY_CSV_EXCLUDED: Set[str] = {
     "stock_name",
     "strategy_name",
     "strategy_version",
-    "holding_days",
+    "entry",
+    "exit_info",
+    "holding",
+    "extreme",
+    "risk",
+    "outcome",
+    "pending_exit",
+    "execute_steps",
+    "lifecycle",
     "max_drawdown",
     "metadata",
     "price_return",
@@ -229,15 +238,21 @@ class EntityBasedEnumeratorRecorder(SimulationOutputRecorder):
         """内存 opportunity → 两张 CSV 的行数据。
 
         - opportunities 行：每笔机会一行（去掉 completed_targets 等内部字段）
-        - targets 行：每笔机会的每次平仓/止盈一条（来自 completed_targets）
+        - targets 行：每笔 investment 的每次 goal 平仓一条（来自 completed_goals）
         """
         opportunity_rows: List[Dict[str, Any]] = []
         target_rows: List[Dict[str, Any]] = []
 
         for opportunity in opportunities:
-            for target in opportunity.get("completed_targets") or []:
+            goal_legs = opportunity.get("completed_goals") or opportunity.get("completed_targets") or []
+            for target in goal_legs:
                 if isinstance(target, dict):
-                    target_rows.append(EntityBasedEnumeratorRecorder._csv_row(dict(target)))
+                    row = dict(target)
+                    if "sell_price" not in row and "price" in row:
+                        row["sell_price"] = row["price"]
+                    if "sell_ratio" not in row and "exit_ratio" in row:
+                        row["sell_ratio"] = row["exit_ratio"]
+                    target_rows.append(EntityBasedEnumeratorRecorder._csv_row(row))
 
             row = {
                 k: v

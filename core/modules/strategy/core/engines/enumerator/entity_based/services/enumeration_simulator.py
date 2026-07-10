@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 from core.modules.strategy.core.engines.enumerator.entity_based.state.entity_tracker import (
     EntityTracker,
 )
-from core.modules.strategy.core.engines.shared.data_class import Opportunity
+from core.modules.strategy.core.engines.shared.data_class import InvestmentTickInput, Opportunity
 from core.modules.strategy.core.engines.shared.services.entity_loader.strategy_data_resolver import (
     StrategyDataResolver,
 )
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class EntityEnumerationSimulator:
     """在子进程内驱动「全局 calendar × 多 entity」枚举。
 
-    每个 entity 独立 ``EntityTracker``；本类负责日循环与 hooks 调度。
+    每个 entity 独立 ``EntityTracker``；本类负责 calendar 循环、scan → Investment、tick 调度。
     """
 
     entity_ids: List[str]
@@ -64,18 +64,19 @@ class EntityEnumerationSimulator:
             raise ValueError("settings.data.base.data_key 不能为空")
 
         min_required = resolver.min_required_records
-        max_holding_days = self._resolve_max_holding_days(settings_dict)
-        calendar_dict = {
-            "period_start": start_date,
-            "period_end": end_date,
-            "open_dates": open_dates,
-        }
         filtered_dates = [
             day for day in open_dates if str(start_date) <= str(day) <= str(end_date)
         ]
         if not filtered_dates:
             logger.warning("无有效 open_dates：%s ~ %s", start_date, end_date)
             return self.trackers
+
+        open_dates_tuple = tuple(filtered_dates)
+        calendar_dict = {
+            "period_start": start_date,
+            "period_end": end_date,
+            "open_dates": open_dates,
+        }
 
         for now in filtered_dates:
             pit_data_by_entity = self._load_pit_by_entity(entity_contracts, now)
@@ -95,12 +96,8 @@ class EntityEnumerationSimulator:
                 )
                 if bar is not None:
                     self._last_bar_by_entity[entity_id] = bar
-                    tracker.process_as_of_date(
-                        now,
-                        bar,
-                        open_dates=filtered_dates,
-                        max_holding_days=max_holding_days,
-                    )
+                    tick = InvestmentTickInput(as_of_date=now, bar=bar, data_as_of=now)
+                    tracker.process_tick(tick)
 
                 if bar is None:
                     continue
@@ -145,9 +142,10 @@ class EntityEnumerationSimulator:
                 if not isinstance(scanned, Opportunity):
                     continue
 
-                tracker.track_opportunity(
+                tracker.register_from_opportunity(
                     scanned,
-                    settings=settings_dict,
+                    settings=settings,
+                    open_dates=open_dates_tuple,
                     strategy_name=strategy_name,
                     stock_info=self._stock_info.get(entity_id, {"id": entity_id}),
                     trigger_date=now,
@@ -161,26 +159,28 @@ class EntityEnumerationSimulator:
             last_bar = self._last_bar_by_entity.get(entity_id)
             if last_bar is None:
                 continue
-            tracker.settle_incomplete(last_day, last_bar)
+            tracker.settle_incomplete(
+                InvestmentTickInput(as_of_date=last_day, bar=last_bar, data_as_of=last_day)
+            )
 
         return self.trackers
 
     def total_recorded_count(self) -> int:
         return sum(len(tracker.recorded) for tracker in self.trackers.values())
 
-    def entities_with_opportunities(self) -> int:
+    def entities_with_investments(self) -> int:
         return sum(1 for tracker in self.trackers.values() if tracker.recorded)
 
     def buffer_for_recorder(self) -> List[Dict[str, Any]]:
-        """展平为 recorder buffer 条目。"""
+        """展平为 recorder buffer 条目（每笔 investment 一行）。"""
         rows: List[Dict[str, Any]] = []
         for entity_id, tracker in self.trackers.items():
-            for opp_dict in tracker.recorded_as_dicts():
+            for inv_dict in tracker.recorded_as_dicts():
                 rows.append(
                     {
                         "entity_id": entity_id,
-                        "date": opp_dict.get("trigger_date") or opp_dict.get("scan_date") or "",
-                        "opportunity": opp_dict,
+                        "date": inv_dict.get("trigger_date") or "",
+                        "opportunity": inv_dict,
                     }
                 )
         return rows
@@ -227,18 +227,5 @@ class EntityEnumerationSimulator:
             if key not in last:
                 raise ValueError(f"K 线缺少字段 {key!r}: date={as_of}")
         return last
-
-    @staticmethod
-    def _resolve_max_holding_days(settings: Dict[str, Any]) -> int:
-        simulation = settings.get("simulation")
-        if not isinstance(simulation, dict):
-            return 0
-        max_days = simulation.get("max_holding_days")
-        if max_days is None:
-            return 0
-        if not isinstance(max_days, int) or max_days < 0:
-            raise ValueError("settings.simulation.max_holding_days 须为非负整数")
-        return max_days
-
 
 __all__ = ["EntityEnumerationSimulator"]

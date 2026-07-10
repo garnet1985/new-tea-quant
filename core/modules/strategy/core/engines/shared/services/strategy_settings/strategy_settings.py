@@ -14,6 +14,7 @@ from core.utils.utils import Utils
 from .general_settings import GeneralSettings
 from .enumerator_settings import EnumeratorSettings
 from .data_settings import DataSettings
+from .goal_settings import GoalSettings
 from .simulation_settings import SimulationSettings
 from .validation_report import ValidationReport
 
@@ -61,6 +62,7 @@ class StrategySettings:
         object.__setattr__(self, 'general', GeneralSettings(raw_settings=self.raw_settings))
         object.__setattr__(self, 'enumerator', EnumeratorSettings(raw_settings=self.raw_settings))
         object.__setattr__(self, 'data', DataSettings(raw_settings=self.raw_settings))
+        object.__setattr__(self, 'goal', GoalSettings(raw_settings=self.raw_settings))
         object.__setattr__(self, 'simulation', SimulationSettings(raw_settings=self.raw_settings))
 
     @classmethod
@@ -197,6 +199,7 @@ class StrategySettings:
         self.general.apply_defaults()
         self.enumerator.apply_defaults()
         self.data.apply_defaults()
+        self.goal.apply_defaults()
         self.simulation.apply_defaults()
 
     def validate(self) -> ValidationReport:
@@ -223,6 +226,12 @@ class StrategySettings:
         if not data_report.is_valid:
             report.is_valid = False
 
+        goal_report = self.goal.validate()
+        report.errors.extend(goal_report.errors)
+        report.warnings.extend(goal_report.warnings)
+        if not goal_report.is_valid:
+            report.is_valid = False
+
         simulation_report = self.simulation.validate()
         report.errors.extend(simulation_report.errors)
         report.warnings.extend(simulation_report.warnings)
@@ -244,6 +253,7 @@ class StrategySettings:
         out['meta'] = self.general.meta
         out['core'] = self.general.core
         out['data'] = self.data.to_dict()
+        out['goal'] = self.goal.to_dict()
         out['enumerator'] = self.enumerator.to_dict()
         out['simulation'] = {**self.raw_settings.get('simulation', {}), **self.simulation.to_dict()}
         return out

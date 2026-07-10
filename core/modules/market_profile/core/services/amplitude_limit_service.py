@@ -53,7 +53,7 @@ class AmplitudeLimitService:
                     entry_key=str(item.get("key") or "").strip(),
                     matching=matching,
                     ratio=ratio,
-                    risk_ratios=AmplitudeLimitService._parse_risk_ratios(item.get("risk")),
+                    risk_ratios=AmplitudeLimitService.parse_risk_ratios(item.get("risk")),
                 )
             )
 

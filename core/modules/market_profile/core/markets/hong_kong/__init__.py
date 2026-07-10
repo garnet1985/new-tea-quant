@@ -2,6 +2,5 @@
 """港股市场模块。"""
 
 from .rules import HongKongRules
-from .settings import HongKongSettings
 
-__all__ = ["HongKongRules", "HongKongSettings"]
+__all__ = ["HongKongRules"]

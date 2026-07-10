@@ -14,7 +14,6 @@ from core.modules.strategy.core.engines.shared.data_class import Opportunity
 from core.modules.strategy.core.engines.enumerator.slice_based.types import CalendarAsOfResult
 from core.modules.strategy.core.helpers.calendar import CalendarOpenDateHelper
 from core.modules.strategy.core.helpers.opportunity_csv import OpportunityCsvHelper
-from core.modules.strategy.core.helpers.opportunity_enrichment import OpportunityEnricher
 from core.modules.strategy.core.helpers.stock_meta import StockMetaHelper
 from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
 from core.modules.strategy.core.services.data.entity_data import EntityContractBatch, EntityDataLoader
@@ -324,9 +323,7 @@ class SliceBasedCompute:
             return
 
         state.opp_counter += 1
-        OpportunityEnricher.apply_trigger_fields(
-            opportunity,
-            settings=self.settings.to_dict(),
+        opportunity.bind_scan_context(
             strategy_name=self.strategy_name,
             stock_id=state.stock_id,
             stock_info=state.stock_info,

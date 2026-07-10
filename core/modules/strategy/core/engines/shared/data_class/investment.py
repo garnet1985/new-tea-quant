@@ -1,22 +1,57 @@
-"""Investment — trading state and exit logic built on top of ``Opportunity``.
+"""Investment — simulated lifecycle for an ``Opportunity`` signal.
 
-Naming:
-- ``settings.goal`` / ``check_goals``: exit rules from strategy config.
-- ``simulation.execute_steps``: ordered goal-check pipeline (see ``ExecuteStep``).
-- ``completed_goals``: one row per partial or full exit leg.
-- ``entry_*`` / ``exit_info.*`` / ``direction``: direction-neutral trade fields.
-- ``outcome``: aggregated investment output; ``outcome.result`` is win/loss.
+Three kinds of runtime data
+---------------------------
+1. **Run deps** (``InvestmentRunDeps``, set at ``create_from_opportunity``): ``market_rules``,
+   ``open_dates``, ``goal``, price models — global for the enumerate run.
+2. **Accumulators** (fields on ``Investment``): ``entry``, ``holding``, ``extreme``,
+   ``risk``, ``completed_goals``, … — updated each ``tick``.
+3. **Tick input** (``InvestmentTickInput``, passed per step, not stored): ``as_of_date``,
+   ``data_as_of``, ``bar`` — supplied by the backtester / enumerator loop.
+
+``tick`` orchestrates entry → accumulator updates → goal evaluation → exit.
+Returns ``True`` while the tracker should keep this investment in the active bucket;
+``False`` when it is ``COMPLETE`` (ready to leave the active bucket).
+
+Lifecycle (MVP — see TODOs on ``Investment``)
+----------------------------------------------
+- ``PENDING_TO_ENTER``: default; waiting for ``buy_price_model`` fill (e.g. next open).
+- ``OPEN``: entered; normal tracking.
+- ``PENDING_TO_EXIT``: ``pending_exit`` armed; fill deferred (next_open) or retry (future).
+- ``COMPLETE``: done (including ``settle`` force-close).
+
+TODO(investment lifecycle — not yet implemented)
+------------------------------------------------
+- Tradability via ``market_profile`` (limit up/down, suspended) → block fill, stay pending.
+- ``exit_ratio < 1`` partial exit → ``OPEN`` not ``COMPLETE``.
+- Full ``buy_price_model`` / ``sell_price_model`` matrix beyond next_open | open | close.
+- Distinguish scheduled ``next_open`` defer vs failed-fill retry in ``PENDING_TO_EXIT``.
+- Non-trading / missing bar days (simulator currently skips).
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from bisect import bisect_left
+from dataclasses import asdict, dataclass, field, fields
+from datetime import datetime
 from enum import Enum
-from typing import Any, ClassVar, Dict, List, Optional, Tuple
+from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING
 
 from core.modules.strategy.core.engines.shared.data_class.opportunity import (
     Opportunity,
+    OpportunityContributor,
+    OpportunityMeta,
+    StockInfo,
 )
+
+if TYPE_CHECKING:
+    from core.modules.market_profile.core.base.market_base_rules import MarketBaseRules
+    from core.modules.strategy.core.engines.shared.services.strategy_settings.goal_settings import (
+        GoalSettings,
+    )
+    from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
+        StrategySettings,
+    )
 
 
 class TradeSide(str, Enum):
@@ -25,10 +60,12 @@ class TradeSide(str, Enum):
 
 
 class Lifecycle(str, Enum):
+    """Investment state machine."""
+
     OPEN = "open"
-    PENDING_TO_BUY = "pending_to_buy"
-    PENDING_TO_SELL = "pending_to_sell"
-    COMPLETE = "complete"
+    PENDING_TO_ENTER = "pending_to_enter"  # default; awaiting entry fill
+    PENDING_TO_EXIT = "pending_to_exit"  # exit armed; awaiting fill / retry
+    COMPLETE = "complete"  # archived; includes simulate-end force close
 
 
 class ExitReason(str, Enum):
@@ -89,6 +126,60 @@ class ExpirationRule:
     mode: ExpirationMode
 
 
+@dataclass(frozen=True)
+class InvestmentTickInput:
+    """Per-tick external input from the enumerator / backtester (not stored on ``Investment``).
+
+    Only ``as_of_date`` + ``bar`` are required. ``next_open`` fills happen on a *later*
+    tick's ``bar`` (``PENDING_TO_EXIT``), never by peeking at a future bar in the same call.
+    """
+
+    as_of_date: str
+    bar: Dict[str, Any]
+    data_as_of: str = ""
+
+    @property
+    def pit_as_of(self) -> str:
+        return str(self.data_as_of or self.as_of_date or "").strip()
+
+
+@dataclass(frozen=True)
+class InvestmentRunDeps:
+    """Run-scoped trading deps — injected once at ``create_from_opportunity``, not serialized."""
+
+    market_rules: Any
+    open_dates: Tuple[str, ...]
+    goal: "GoalSettings"
+    execute_steps: Tuple[ExecuteStep, ...]
+    buy_price_model: str = "next_open"
+    sell_price_model: str = "close"
+    monitor_price_model: str = "close"
+
+    @classmethod
+    def from_settings(
+        cls,
+        *,
+        settings: "StrategySettings",
+        market_rules: Any,
+        open_dates: Sequence[str],
+    ) -> "InvestmentRunDeps":
+        from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings import (
+            resolve_execute_steps,
+        )
+
+        raw = settings.raw_settings
+        simulation = raw.get("simulation") if isinstance(raw.get("simulation"), dict) else {}
+        return cls(
+            market_rules=market_rules,
+            open_dates=tuple(open_dates),
+            goal=settings.goal,
+            execute_steps=tuple(resolve_execute_steps(raw)),
+            buy_price_model=str(simulation.get("buy_price_model") or "next_open"),
+            sell_price_model=str(simulation.get("sell_price_model") or "close"),
+            monitor_price_model=str(simulation.get("monitor_price_model") or "close"),
+        )
+
+
 @dataclass
 class EntryInfo:
     entry_price: float = 0.0
@@ -108,6 +199,7 @@ class ExitInfo:
 class PendingExit:
     reason: str = ""
     exit_ratio: float = 1.0
+    goal_name: str = ""
 
 
 @dataclass
@@ -151,7 +243,7 @@ class OutcomePerformance:
 class Investment(Opportunity):
     """Extends ``Opportunity`` with grouped, direction-neutral trading state."""
 
-    lifecycle: Lifecycle = Lifecycle.PENDING_TO_BUY
+    lifecycle: Lifecycle = Lifecycle.PENDING_TO_ENTER
     entry: EntryInfo = field(default_factory=EntryInfo)
     exit_info: ExitInfo = field(default_factory=ExitInfo)
     pending_exit: Optional[PendingExit] = None
@@ -169,57 +261,445 @@ class Investment(Opportunity):
         ExecuteStep.CHECK_EXPIRATION: "_check_expiration",
     }
 
-    def resolve_execute_steps(self, settings: Optional[Dict[str, Any]] = None) -> List[ExecuteStep]:
+    @classmethod
+    def create_from_opportunity(
+        cls,
+        opportunity: Opportunity,
+        *,
+        settings: "StrategySettings",
+        open_dates: Sequence[str],
+    ) -> "Investment":
+        from core.infra.project_context import ProjectContext
+        from core.modules.market_profile.core.markets import create_market_rules
+
+        profile = str(
+            opportunity.market_profile or ProjectContext.config.get_default_market_profile_key()
+        ).strip()
+        market_rules = create_market_rules(profile)
+        run_deps = InvestmentRunDeps.from_settings(
+            settings=settings,
+            market_rules=market_rules,
+            open_dates=open_dates,
+        )
+        expiration = _expiration_rule_from_goal(run_deps.goal.expiration)
+        inv = cls(
+            stock=opportunity.stock,
+            record_of_today=dict(opportunity.record_of_today),
+            trigger_date=str(opportunity.trigger_date or ""),
+            trigger_price=float(opportunity.trigger_price or 0.0),
+            market_profile=profile,
+            meta=_copy_dataclass(opportunity.meta, OpportunityMeta),
+            contributor=_copy_dataclass(opportunity.contributor, OpportunityContributor),
+            extra_fields=dict(opportunity.extra_fields),
+            metadata=dict(opportunity.metadata),
+            lifecycle=Lifecycle.PENDING_TO_ENTER,
+            holding=_holding_from_expiration(expiration),
+            execute_steps=list(run_deps.execute_steps),
+        )
+        object.__setattr__(inv, "_run_deps", run_deps)
+        return inv
+
+    @property
+    def run_deps(self) -> InvestmentRunDeps:
+        binding = getattr(self, "_run_deps", None)
+        if binding is None:
+            raise RuntimeError("Investment 未绑定 run_deps（须通过 create_from_opportunity 创建）")
+        return binding
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+    def _resolve_execute_steps(self) -> List[ExecuteStep]:
         if self.execute_steps:
             return list(self.execute_steps)
-        if settings is not None:
-            from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings import (
-                resolve_execute_steps,
-            )
+        return list(self.run_deps.execute_steps)
 
-            return resolve_execute_steps(settings)
-        return list(DEFAULT_EXECUTE_STEPS)
+    def tick(self, tick_input: InvestmentTickInput) -> bool:
+        """Review and update this investment for one calendar step.
 
-    def check_goals(self, *, settings: Optional[Dict[str, Any]] = None) -> bool:
+        Returns ``True`` if the tracker should keep ticking this investment;
+        ``False`` when ``lifecycle`` is ``COMPLETE`` (ready to leave the active bucket).
+        """
+        as_of = str(tick_input.as_of_date or "").strip()
+        bar = tick_input.bar
+
+        if self.lifecycle == Lifecycle.COMPLETE:
+            return False
+
+        if self.lifecycle == Lifecycle.PENDING_TO_ENTER:
+            if self._is_able_to_enter(as_of, bar):
+                self._apply_enter(as_of, bar)
+                self.lifecycle = Lifecycle.OPEN
+                self._update_extremes(as_of, bar)
+            return True
+
+        if self.lifecycle == Lifecycle.PENDING_TO_EXIT:
+            if self._is_able_to_exit(as_of, bar):
+                self._apply_exit(as_of, bar)
+                # TODO: partial exit (exit_ratio < 1) → Lifecycle.OPEN
+                self.lifecycle = Lifecycle.COMPLETE
+                return False
+            return True
+
+        if self.lifecycle == Lifecycle.OPEN:
+            self._update_extremes(as_of, bar)
+            self._update_holding(as_of)
+            if self._evaluate_goals(as_of, bar):
+                if self._should_defer_exit(as_of, bar):
+                    self.lifecycle = Lifecycle.PENDING_TO_EXIT
+                    return True
+                if self._is_able_to_exit(as_of, bar):
+                    self._apply_exit(as_of, bar)
+                    # TODO: partial exit (exit_ratio < 1) → Lifecycle.OPEN
+                    self.lifecycle = Lifecycle.COMPLETE
+                    return False
+                # TODO: tradability blocked fill — retry on later ticks
+                self.lifecycle = Lifecycle.PENDING_TO_EXIT
+            return True
+
+        return True
+
+    def _evaluate_goals(self, as_of: str, bar: Dict[str, Any]) -> bool:
         """Run ``simulation.execute_steps`` in order; True if an exit trigger fired."""
-        for step in self.resolve_execute_steps(settings):
+        for step in self._resolve_execute_steps():
             if step == ExecuteStep.CHECK_SETTLEMENT:
-                if not self._check_settlement():
+                if not self._check_settlement(as_of):
                     return False
                 continue
             handler_name = self._EXECUTE_STEP_HANDLERS[step]
-            if getattr(self, handler_name)():
+            if getattr(self, handler_name)(as_of, bar):
                 return True
         return False
 
-    def _check_settlement(self) -> bool:
+    def _check_settlement(self, as_of: str) -> bool:
         """Gate: False blocks remaining steps for this bar."""
-        # TODO: market profile settlement + calendar
+        if self.lifecycle != Lifecycle.OPEN:
+            return True
+        entry_date = str(self.entry.entry_date or "").strip()
+        if not entry_date:
+            return True
+        held = _settlement_days_held(entry_date, as_of, self.run_deps.open_dates)
+        return self.run_deps.market_rules.is_allowed_to_sell(held)
+
+    def _check_stop_loss(self, as_of: str, bar: Dict[str, Any]) -> bool:
+        stage = self.run_deps.goal.stop_loss
+        if self.lifecycle != Lifecycle.OPEN or stage is None:
+            return False
+        basis = float(self.entry.entry_price or self.trigger_price or 0.0)
+        if basis <= 0:
+            return False
+        stop_price = self.run_deps.goal.exit_price(stage, basis)
+        if float(bar["low"]) <= stop_price:
+            self.pending_exit = PendingExit(
+                reason=ExitReason.STOP_LOSS.value,
+                exit_ratio=stage.exit_ratio,
+                goal_name=stage.name,
+            )
+            return True
+        return False
+
+    def _check_take_profit(self, as_of: str, bar: Dict[str, Any]) -> bool:
+        stage = self.run_deps.goal.take_profit
+        if self.lifecycle != Lifecycle.OPEN or stage is None:
+            return False
+        basis = float(self.entry.entry_price or self.trigger_price or 0.0)
+        if basis <= 0:
+            return False
+        target_price = self.run_deps.goal.exit_price(stage, basis)
+        if float(bar["high"]) >= target_price:
+            self.pending_exit = PendingExit(
+                reason=ExitReason.TAKE_PROFIT.value,
+                exit_ratio=stage.exit_ratio,
+                goal_name=stage.name,
+            )
+            return True
+        return False
+
+    def _check_expiration(self, as_of: str, bar: Dict[str, Any]) -> bool:
+        _ = bar
+        if self.lifecycle != Lifecycle.OPEN:
+            return False
+        if self.holding.window_days <= 0 or self.holding.mode is None:
+            return False
+        entry_date = str(self.entry.entry_date or "").strip()
+        if not entry_date:
+            return False
+        held = _holding_days(entry_date, as_of, self.holding.mode, self.run_deps.open_dates)
+        self.holding.days = held
+        if held >= self.holding.window_days:
+            self.pending_exit = PendingExit(
+                reason=ExitReason.EXPIRED.value,
+                exit_ratio=1.0,
+                goal_name="expiration",
+            )
+            return True
+        return False
+
+    def _should_defer_exit(self, as_of: str, bar: Dict[str, Any]) -> bool:
+        """True when ``sell_price_model`` requires a later tick to fill (MVP: ``next_open`` only).
+
+        TODO: extend for other models / tradability-driven deferrals.
+        """
+        _ = (as_of, bar)
+        model = str(self.run_deps.sell_price_model or "close").strip().lower()
+        return model == "next_open"
+
+    def _is_able_to_enter(self, as_of: str, bar: Dict[str, Any]) -> bool:
+        """Whether this tick can fill entry per ``buy_price_model`` (no mutation)."""
+        return self._resolve_entry_price(as_of, bar) is not None
+
+    def _apply_enter(self, as_of: str, bar: Dict[str, Any]) -> None:
+        price = self._resolve_entry_price(as_of, bar)
+        if price is None:
+            return
+        self.entry = EntryInfo(
+            entry_price=price,
+            entry_date=str(as_of or "").strip(),
+            direction=TradeSide.BUY,
+        )
+
+    def _resolve_entry_price(self, as_of: str, bar: Dict[str, Any]) -> Optional[float]:
+        """Entry fill price for this tick, or ``None`` if not ready.
+
+        Controlled by ``run_deps.buy_price_model`` (``next_open`` | ``open`` | ``close``).
+        TODO: tradability gate before returning a price.
+        """
+        if self.lifecycle != Lifecycle.PENDING_TO_ENTER:
+            return None
+
+        trigger = str(self.trigger_date or "").strip()
+        as_of = str(as_of or "").strip()
+        if not trigger or not as_of:
+            return None
+
+        model = str(self.run_deps.buy_price_model or "next_open").strip().lower()
+        open_dates = self.run_deps.open_dates
+        if model == "next_open":
+            if as_of <= trigger or not _is_first_open_after(trigger, as_of, open_dates):
+                return None
+            price = float(bar["open"])
+        elif model == "close":
+            if as_of != trigger:
+                return None
+            price = float(bar["close"])
+        elif model == "open":
+            if as_of != trigger:
+                return None
+            price = float(bar["open"])
+        else:
+            raise ValueError(f"unsupported buy_price_model: {model!r}")
+
+        if price <= 0:
+            return None
+        return price
+
+    def _is_able_to_exit(
+        self,
+        as_of: str,
+        bar: Dict[str, Any],
+        *,
+        price_model: Optional[str] = None,
+    ) -> bool:
+        """Whether this tick can fill exit per ``sell_price_model`` (no mutation).
+
+        TODO: ``market_profile`` tradability (limit up/down, suspended, T+N already in goals).
+        """
+        return self._resolve_exit_price(as_of, bar, price_model=price_model) is not None
+
+    def _apply_exit(
+        self,
+        as_of: str,
+        bar: Dict[str, Any],
+        *,
+        price_model: Optional[str] = None,
+    ) -> bool:
+        """Record exit leg from ``pending_exit``. Returns ``True`` if fill applied."""
+        exit_price = self._resolve_exit_price(as_of, bar, price_model=price_model)
+        if exit_price is None or self.pending_exit is None:
+            return False
+
+        ratio = float(self.pending_exit.exit_ratio or 1.0)
+        basis = float(self.entry.entry_price or self.trigger_price or 0.0)
+        profit = exit_price - basis
+        roi = (profit / basis) if basis > 0 else 0.0
+
+        self.completed_goals.append(
+            {
+                "name": self.pending_exit.goal_name or self.pending_exit.reason,
+                "date": as_of,
+                "price": exit_price,
+                "exit_ratio": ratio,
+                "profit": profit,
+                "weighted_profit": profit * ratio,
+                "reason": self.pending_exit.reason,
+                "roi": roi,
+            }
+        )
+
+        self.exit_info = ExitInfo(
+            exit_price=exit_price,
+            exit_date=as_of,
+            exit_reason=self.pending_exit.reason,
+            exit_ratio=ratio,
+        )
+        self.outcome.price_return = roi
+        self.outcome.weighted_roi = roi * ratio
+        self.outcome.result = InvestmentResult.WIN if roi >= 0 else InvestmentResult.LOSS
+        self.pending_exit = None
         return True
 
-    def _check_stop_loss(self) -> bool:
-        # TODO: stop loss, protect loss, dynamic loss
+    def _resolve_exit_price(
+        self,
+        as_of: str,
+        bar: Dict[str, Any],
+        *,
+        price_model: Optional[str] = None,
+    ) -> Optional[float]:
+        """Exit fill price for this tick, or ``None`` if not ready / not allowed."""
+        _ = as_of
+        if self.pending_exit is None:
+            return None
+        if self.lifecycle not in (Lifecycle.OPEN, Lifecycle.PENDING_TO_EXIT):
+            return None
+
+        model = str(price_model or self.run_deps.sell_price_model or "close").strip().lower()
+        exit_price = _resolve_price(bar, model)
+        if exit_price <= 0:
+            return None
+        # TODO: tradability — return None when limit up/down blocks sell at exit_price
+        return exit_price
+
+    def settle(self, tick_input: InvestmentTickInput) -> bool:
+        """Force-close at simulate end. Returns ``False`` (stop tracking)."""
+        if self.lifecycle == Lifecycle.COMPLETE:
+            return False
+        if self.lifecycle == Lifecycle.PENDING_TO_ENTER:
+            self.lifecycle = Lifecycle.COMPLETE
+            return False
+        self.pending_exit = PendingExit(
+            reason=ExitReason.SIMULATE_END.value,
+            exit_ratio=1.0,
+            goal_name="simulate_end",
+        )
+        as_of = str(tick_input.as_of_date or "").strip()
+        if self.lifecycle in (Lifecycle.OPEN, Lifecycle.PENDING_TO_EXIT):
+            self._apply_exit(as_of, tick_input.bar, price_model="close")
+        self.lifecycle = Lifecycle.COMPLETE
         return False
 
-    def _check_take_profit(self) -> bool:
-        # TODO: take profit stages
-        return False
+    def _update_extremes(self, as_of: str, bar: Dict[str, Any]) -> None:
+        if self.lifecycle != Lifecycle.OPEN:
+            return
+        basis = float(self.entry.entry_price or 0.0)
+        if basis <= 0:
+            return
+        high = float(bar.get("high") or bar.get("close") or 0.0)
+        low = float(bar.get("low") or bar.get("close") or 0.0)
+        if high <= 0 or low <= 0:
+            return
+        if self.extreme.highest is None or high > self.extreme.highest:
+            self.extreme.highest = high
+            self.extreme.highest_date = as_of
+            self.extreme.highest_return = (high - basis) / basis
+        if self.extreme.lowest is None or low < self.extreme.lowest:
+            self.extreme.lowest = low
+            self.extreme.lowest_date = as_of
+            self.extreme.lowest_return = (low - basis) / basis
 
-    def _check_expiration(self) -> bool:
-        # TODO: goal.expiration (natural / trading / open day)
-        return False
+    def _update_holding(self, as_of: str) -> None:
+        if self.lifecycle != Lifecycle.OPEN or self.holding.mode is None:
+            return
+        entry_date = str(self.entry.entry_date or "").strip()
+        if not entry_date:
+            return
+        self.holding.days = _holding_days(
+            entry_date, as_of, self.holding.mode, self.run_deps.open_dates
+        )
+        self.holding.last_bar_date = as_of
+        self.holding.counter_initialized = True
 
-    def enter(self) -> bool:
-        # TODO: entry fill + limit annotations
-        return False
 
-    def exit(self) -> bool:
-        # TODO: execute exit leg
-        return False
+def _copy_dataclass(value: Any, cls: type) -> Any:
+    if isinstance(value, cls):
+        return cls(**{f.name: getattr(value, f.name) for f in fields(cls)})
+    if isinstance(value, dict):
+        return cls(**{f.name: value.get(f.name, "") for f in fields(cls)})
+    return cls()
 
-    def settle(self) -> bool:
-        # TODO: force settle at simulate end
-        return False
+
+def _expiration_rule_from_goal(expiration: Optional[Any]) -> Optional[ExpirationRule]:
+    if expiration is None:
+        return None
+    return ExpirationRule(
+        window_days=expiration.window_days,
+        mode=ExpirationMode(expiration.mode),
+    )
+
+
+def _holding_from_expiration(expiration: Optional[ExpirationRule]) -> HoldingState:
+    if expiration is None:
+        return HoldingState()
+    return HoldingState(mode=expiration.mode, window_days=expiration.window_days)
+
+
+def _open_days_inclusive(start_date: str, end_date: str, open_dates: Sequence[str]) -> int:
+    start = str(start_date).strip()
+    end = str(end_date).strip()
+    if not start or not end or not open_dates:
+        return 0
+    if start > end:
+        return 0
+    start_idx = bisect_left(open_dates, start)
+    end_idx = bisect_left(open_dates, end)
+    if start_idx >= len(open_dates) or open_dates[start_idx] != start:
+        return 0
+    if end_idx >= len(open_dates) or open_dates[end_idx] != end:
+        return 0
+    return end_idx - start_idx + 1
+
+
+def _settlement_days_held(entry_date: str, as_of: str, open_dates: Sequence[str]) -> int:
+    """Trading days held for settlement (entry day does not count toward T+N)."""
+    inclusive = _open_days_inclusive(entry_date, as_of, open_dates)
+    return max(inclusive - 1, 0)
+
+
+def _holding_days(
+    entry_date: str,
+    as_of: str,
+    mode: ExpirationMode,
+    open_dates: Sequence[str],
+) -> int:
+    if mode in (ExpirationMode.OPEN_DAY, ExpirationMode.TRADING_DAY):
+        return _open_days_inclusive(entry_date, as_of, open_dates)
+    try:
+        start_dt = datetime.strptime(str(entry_date).strip(), "%Y%m%d")
+        end_dt = datetime.strptime(str(as_of).strip(), "%Y%m%d")
+        return max((end_dt - start_dt).days, 0)
+    except ValueError:
+        return 0
+
+
+def _is_first_open_after(trigger: str, as_of: str, open_dates: Sequence[str]) -> bool:
+    idx = bisect_left(open_dates, trigger)
+    if idx < len(open_dates) and open_dates[idx] == trigger:
+        next_idx = idx + 1
+    else:
+        next_idx = idx
+    return next_idx < len(open_dates) and open_dates[next_idx] == as_of
+
+
+def _resolve_price(bar: Dict[str, Any], model: str) -> float:
+    """Map ``simulation.*_price_model`` to a price on the **current** bar only."""
+    key = str(model or "close").strip().lower()
+    if key == "next_open":
+        # Filled on a later tick; that tick's ``bar.open`` is the fill price.
+        return float(bar.get("open") or 0.0)
+    if key in bar:
+        return float(bar[key])
+    if key == "close":
+        return float(bar.get("close") or 0.0)
+    raise ValueError(f"unsupported price model: {model!r}")
 
 
 __all__ = [
@@ -234,6 +714,8 @@ __all__ = [
     "ExtremePriceEdge",
     "HoldingState",
     "Investment",
+    "InvestmentRunDeps",
+    "InvestmentTickInput",
     "InvestmentResult",
     "Lifecycle",
     "OutcomePerformance",

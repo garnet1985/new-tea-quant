@@ -2,7 +2,7 @@
 
 Terminology (with ``Investment``):
 - ``trigger_date`` / ``trigger_price``: signal bar on the scan record.
-- ``entry_*`` / ``exit_*`` / ``direction``: filled trade state on ``Investment``.
+- ``entry_*`` / ``exit_info.*`` / ``direction``: filled trade state on ``Investment``.
 - ``completed_goals``: each partial or full exit leg produced by goal checks.
 """
 
@@ -55,7 +55,7 @@ class OpportunityContributor:
 class Opportunity:
     """Records a strategy scan signal; trading state lives on ``Investment``.
 
-    Signal fields use ``trigger_*``; post-fill trade fields use ``entry_*`` / ``exit_*``.
+    Signal fields use ``trigger_*``; post-fill trade fields use ``entry_*`` / ``exit_info.*``.
     """
 
     stock: StockInfo

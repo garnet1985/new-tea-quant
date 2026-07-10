@@ -13,6 +13,7 @@ from core.utils.utils import Utils
 
 from .general_settings import GeneralSettings
 from .enumerator_settings import EnumeratorSettings
+from .simulation_settings import SimulationSettings
 from .validation_report import ValidationReport
 
 
@@ -58,6 +59,7 @@ class StrategySettings:
         object.__setattr__(self, 'raw_settings', copy.deepcopy(self.raw_settings))
         object.__setattr__(self, 'general', GeneralSettings(raw_settings=self.raw_settings))
         object.__setattr__(self, 'enumerator', EnumeratorSettings(raw_settings=self.raw_settings))
+        object.__setattr__(self, 'simulation', SimulationSettings(raw_settings=self.raw_settings))
 
     @classmethod
     def from_dict(cls, settings: Dict[str, Any]) -> "StrategySettings":
@@ -192,6 +194,7 @@ class StrategySettings:
         """Apply defaults to all sub-settings."""
         self.general.apply_defaults()
         self.enumerator.apply_defaults()
+        self.simulation.apply_defaults()
 
     def validate(self) -> ValidationReport:
         """Validate all sub-settings."""
@@ -209,6 +212,12 @@ class StrategySettings:
         report.errors.extend(enum_report.errors)
         report.warnings.extend(enum_report.warnings)
         if not enum_report.is_valid:
+            report.is_valid = False
+
+        simulation_report = self.simulation.validate()
+        report.errors.extend(simulation_report.errors)
+        report.warnings.extend(simulation_report.warnings)
+        if not simulation_report.is_valid:
             report.is_valid = False
 
         self._validated = report.is_usable()

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -30,6 +30,7 @@ class Opportunity:
     max_holding_days: int = 0
     sell_reason: str = ""
     outcome: str = ""
+    completed_targets: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dict."""
@@ -52,6 +53,7 @@ class Opportunity:
             'max_holding_days': self.max_holding_days,
             'sell_reason': self.sell_reason,
             'outcome': self.outcome,
+            'completed_targets': list(self.completed_targets),
         }
 
 

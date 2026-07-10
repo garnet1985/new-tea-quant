@@ -5,7 +5,7 @@ import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from core.infra.project_context import ProjectContext
 from core.modules.strategy.core.helpers.opportunity_csv import OpportunityCsvHelper
@@ -17,6 +17,47 @@ logger = logging.getLogger(__name__)
 
 SCOPE_STOCK_IDS_FILENAME = "0_scope_stock_ids.txt"
 RUN_PRECONDITION_FILENAME = "0_run_precondition.json"
+
+# opportunities CSV 不写 nested / 内部字段；targets 从 completed_targets 拆行
+_OPPORTUNITY_CSV_EXCLUDED: Set[str] = {
+    "completed_targets",
+    "config_hash",
+    "created_at",
+    "updated_at",
+    "record_of_today",
+    "dynamic_loss_active",
+    "dynamic_loss_highest",
+    "expired_reason",
+    "expired_date",
+    "exit_reason",
+    "protect_loss_active",
+    "scan_date",
+    "stock",
+    "stock_id",
+    "stock_name",
+    "strategy_name",
+    "strategy_version",
+    "holding_days",
+    "max_drawdown",
+    "metadata",
+    "price_return",
+    "tracking",
+    "triggered_stop_loss_idx",
+    "extra_fields",
+}
+_TARGET_CSV_COLUMNS = (
+    "opportunity_id",
+    "date",
+    "sell_price",
+    "sell_ratio",
+    "profit",
+    "weighted_profit",
+    "reason",
+    "roi",
+    "sell_prev_close",
+    "sell_at_limit_down",
+    "sell_bar_volume",
+)
 
 
 @dataclass
@@ -116,25 +157,37 @@ class EntityBasedEnumeratorRecorder(SimulationOutputRecorder):
     def flush_job_opportunities(self) -> Dict[str, int]:
         """将本 job 缓冲的 opportunities 按 entity 写入 CSV 并清空 buffer。"""
         if not self._job_buffer:
-            return {"written_files": 0, "opportunities_count": 0}
+            return {"written_files": 0, "opportunities_count": 0, "target_files": 0}
 
-        grouped = self._group_by_entity(self._job_buffer)
-        written_files = 0
-        for entity_id, rows in grouped.items():
-            if not rows:
-                continue
-            OpportunityCsvHelper.write(self.output_dir, entity_id, rows)
-            written_files += 1
+        grouped = self._group_opportunities_by_entity(self._job_buffer)
+        opportunity_files = 0
+        target_files = 0
+        opportunity_rows_count = 0
 
-        count = len(self._job_buffer)
+        for entity_id, opportunities in grouped.items():
+            opp_rows, target_rows = self._build_csv_rows(opportunities)
+            if opp_rows:
+                OpportunityCsvHelper.write(self.output_dir, entity_id, opp_rows)
+                opportunity_files += 1
+                opportunity_rows_count += len(opp_rows)
+            if target_rows:
+                self._write_targets_csv(entity_id, target_rows)
+                target_files += 1
+
+        buffer_count = len(self._job_buffer)
         self._job_buffer.clear()
         logger.info(
-            "Wrote job opportunities CSV: dir=%s, files=%d, rows=%d",
+            "Wrote job CSV: dir=%s, opp_files=%d, target_files=%d, opp_rows=%d",
             self.output_dir,
-            written_files,
-            count,
+            opportunity_files,
+            target_files,
+            opportunity_rows_count,
         )
-        return {"written_files": written_files, "opportunities_count": count}
+        return {
+            "written_files": opportunity_files,
+            "opportunities_count": opportunity_rows_count,
+            "target_files": target_files,
+        }
 
     # ── helpers ──
 
@@ -145,35 +198,65 @@ class EntityBasedEnumeratorRecorder(SimulationOutputRecorder):
         logger.info("Saved scope stock ids: %s (%d)", path, len(normalized))
 
     @staticmethod
-    def _group_by_entity(
-        opportunities: List[Dict[str, Any]],
+    def _group_opportunities_by_entity(
+        buffer: List[Dict[str, Any]],
     ) -> Dict[str, List[Dict[str, Any]]]:
         grouped: Dict[str, List[Dict[str, Any]]] = {}
-        for entry in opportunities:
+        for entry in buffer:
             entity_id = str(entry.get("entity_id") or "").strip()
             if not entity_id:
                 continue
-            grouped.setdefault(entity_id, []).append(
-                EntityBasedEnumeratorRecorder._flatten_entry(entry)
-            )
+            opportunity = entry.get("opportunity")
+            if not isinstance(opportunity, dict):
+                continue
+            grouped.setdefault(entity_id, []).append(dict(opportunity))
         return grouped
 
-    @staticmethod
-    def _flatten_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
-        entity_id = str(entry.get("entity_id") or "").strip()
-        date = str(entry.get("date") or "").strip()
-        opportunity = entry.get("opportunity")
-        if isinstance(opportunity, dict):
-            row: Dict[str, Any] = {"entity_id": entity_id, "date": date, **opportunity}
-        else:
-            row = {"entity_id": entity_id, "date": date, "opportunity": opportunity}
+    def _write_targets_csv(self, entity_id: str, target_rows: List[Dict[str, Any]]) -> None:
+        from core.utils.io.csv_io import write_dicts_to_csv
 
-        for key, value in row.items():
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        write_dicts_to_csv(
+            self.output_dir / f"{entity_id}_targets.csv",
+            target_rows,
+            preferred_order=list(_TARGET_CSV_COLUMNS),
+        )
+
+    @staticmethod
+    def _build_csv_rows(
+        opportunities: List[Dict[str, Any]],
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """内存 opportunity → 两张 CSV 的行数据。
+
+        - opportunities 行：每笔机会一行（去掉 completed_targets 等内部字段）
+        - targets 行：每笔机会的每次平仓/止盈一条（来自 completed_targets）
+        """
+        opportunity_rows: List[Dict[str, Any]] = []
+        target_rows: List[Dict[str, Any]] = []
+
+        for opportunity in opportunities:
+            for target in opportunity.get("completed_targets") or []:
+                if isinstance(target, dict):
+                    target_rows.append(EntityBasedEnumeratorRecorder._csv_row(dict(target)))
+
+            row = {
+                k: v
+                for k, v in opportunity.items()
+                if k not in _OPPORTUNITY_CSV_EXCLUDED
+            }
+            opportunity_rows.append(EntityBasedEnumeratorRecorder._csv_row(row))
+
+        return opportunity_rows, target_rows
+
+    @staticmethod
+    def _csv_row(row: Dict[str, Any]) -> Dict[str, Any]:
+        out = dict(row)
+        for key, value in out.items():
             if isinstance(value, (dict, list)):
-                row[key] = json.dumps(value, ensure_ascii=False)
+                out[key] = json.dumps(value, ensure_ascii=False)
             elif value is None:
-                row[key] = ""
-        return row
+                out[key] = ""
+        return out
 
 
 __all__ = [

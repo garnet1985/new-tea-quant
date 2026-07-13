@@ -279,6 +279,18 @@ def _run_strategy_enumerate(args: argparse.Namespace) -> None:
     print(f"  总耗时: {wall_sec:.2f}s", flush=True)
     if result.get("output_dir"):
         print(f"  output_dir: {result['output_dir']}", flush=True)
+        try:
+            from pathlib import Path
+
+            from core.modules.strategy.core.engines.enumerator.shared.report_manager import (
+                ReportManager,
+            )
+
+            ReportManager.from_output_dir(Path(result["output_dir"])).present()
+        except FileNotFoundError:
+            pass
+        except Exception as exc:
+            logger.warning("展示枚举汇总失败: %s", exc)
     if not result.get("success"):
         failed = result.get("failed_entities") or []
         if failed:

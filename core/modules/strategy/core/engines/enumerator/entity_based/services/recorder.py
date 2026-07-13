@@ -1,146 +1,122 @@
-"""entity_based 枚举产物 Recorder（暂为 entity_based 私有实现）。"""
+"""entity_based 枚举产物：version 目录 + job 级 CSV 写入。"""
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List
 
-from core.infra.project_context import ProjectContext
-from core.modules.strategy.core.helpers.opportunity_csv import OpportunityCsvHelper
+from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_manager import (
+    ReportManager,
+)
+from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_investments import (
+    GoalAchievements,
+    StockInvestments,
+)
+from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
+    StrategySettings,
+)
 from core.modules.strategy.core.services.data.simulation_output_recorder import (
     SimulationOutputRecorder,
 )
 
 logger = logging.getLogger(__name__)
 
-SCOPE_STOCK_IDS_FILENAME = "0_scope_stock_ids.txt"
-RUN_PRECONDITION_FILENAME = "0_run_precondition.json"
-
-# opportunities CSV 不写 nested / 内部字段；targets 从 completed_goals 拆行
-_OPPORTUNITY_CSV_EXCLUDED: Set[str] = {
-    "completed_targets",
-    "completed_goals",
-    "config_hash",
-    "created_at",
-    "updated_at",
-    "record_of_today",
-    "dynamic_loss_active",
-    "dynamic_loss_highest",
-    "expired_reason",
-    "expired_date",
-    "exit_reason",
-    "protect_loss_active",
-    "scan_date",
-    "stock",
-    "stock_id",
-    "stock_name",
-    "strategy_name",
-    "strategy_version",
-    "entry",
-    "exit_info",
-    "holding",
-    "extreme",
-    "risk",
-    "outcome",
-    "pending_exit",
-    "execute_steps",
-    "lifecycle",
-    "deps",
-    "runtime_state",
-    "max_drawdown",
-    "metadata",
-    "price_return",
-    "tracking",
-    "triggered_stop_loss_idx",
-    "extra_fields",
-}
-_TARGET_CSV_COLUMNS = (
-    "opportunity_id",
-    "date",
-    "sell_price",
-    "sell_ratio",
-    "profit",
-    "weighted_profit",
-    "reason",
-    "roi",
-    "sell_prev_close",
-    "sell_at_limit_down",
-    "sell_bar_volume",
-)
+LEGACY_SCOPE_STOCK_IDS_FILENAME = "0_scope_stock_ids.txt"
+LEGACY_RUN_PRECONDITION_FILENAME = "0_run_precondition.json"
 
 
 @dataclass
 class EntityBasedEnumeratorRecorder(SimulationOutputRecorder):
-    """entity_based 枚举输出：preprocess / 子进程 CSV / 后续 postprocess。"""
+    """entity_based 枚举输出：run 产物 + 子进程 CSV。"""
 
     settings_fp: str = ""
     env_fp: str = ""
     _job_buffer: List[Dict[str, Any]] = field(default_factory=list, repr=False)
-
-    # ── 主进程：run 初始化 ──
 
     @classmethod
     def init(
         cls,
         strategy_id: str,
         *,
-        stock_ids: List[str],
+        entity_ids: List[str],
         settings_fp: str,
         env_fp: str,
+        effective_settings: StrategySettings,
         settings_diff: Dict[str, Any],
-        extra: Optional[Dict[str, Any]] = None,
+        execution_mode: str,
+        market_profile: str,
     ) -> EntityBasedEnumeratorRecorder:
-        """回测前准备：分配 version 目录、写入 preprocess，返回 full context recorder。"""
-        output_dir, version_id = cls._allocate_enum_version_dir(strategy_id)
-        recorder = cls(
-            output_dir=output_dir,
+        root = ProjectContext.path.get_strategy_directory_simulation_enum(strategy_id)
+        manager = ReportManager.begin(
+            strategy_id,
+            entity_ids=entity_ids,
+            settings_fp=settings_fp,
+            env_fp=env_fp,
+            effective_settings=effective_settings,
+            settings_diff=settings_diff,
+            execution_mode=execution_mode,
+            market_profile=market_profile,
+        )
+        return cls(
+            output_dir=manager.output_dir,
             strategy_id=strategy_id,
-            version_id=version_id,
-            version_dir_name=str(version_id),
+            version_id=manager.version_id,
+            version_dir_name=str(manager.version_id),
             settings_fp=settings_fp,
             env_fp=env_fp,
         )
-        recorder.save_preprocess(
-            stock_ids=stock_ids,
-            settings_diff=settings_diff,
-            extra=extra,
+
+    def buffer_opportunities(self, opportunities: List[Dict[str, Any]]) -> None:
+        self._job_buffer.extend(list(opportunities or []))
+
+    def flush_job_opportunities(self) -> Dict[str, int]:
+        """将本 job 缓冲的 investments 按 entity 写入 CSV 并清空 buffer。"""
+        if not self._job_buffer:
+            return {
+                "written_files": 0,
+                "opportunities_count": 0,
+                "target_files": 0,
+                "investment_files": 0,
+                "goal_files": 0,
+            }
+
+        grouped = self._group_investments_by_entity(self._job_buffer)
+        investment_files = 0
+        goal_files = 0
+        investment_rows_count = 0
+        goal_rows_count = 0
+
+        for entity_id, investments in grouped.items():
+            stock_investments = StockInvestments.build(entity_id, investments)
+            goal_achievements = GoalAchievements.build(entity_id, investments)
+            if stock_investments.rows:
+                stock_investments.save(self.output_dir, append=True)
+                investment_files += 1
+                investment_rows_count += len(stock_investments.rows)
+            if goal_achievements.rows:
+                goal_achievements.save(self.output_dir, append=True)
+                goal_files += 1
+                goal_rows_count += len(goal_achievements.rows)
+
+        self._job_buffer.clear()
+        logger.info(
+            "Wrote job CSV: dir=%s, investment_files=%d, goal_files=%d, "
+            "investment_rows=%d, goal_rows=%d",
+            self.output_dir,
+            investment_files,
+            goal_files,
+            investment_rows_count,
+            goal_rows_count,
         )
-        return recorder
-
-    @classmethod
-    def _allocate_enum_version_dir(cls, strategy_id: str) -> Tuple[Path, int]:
-        root = ProjectContext.path.get_strategy_directory_simulation_enum(strategy_id)
-        return cls.allocate_version_dir(strategy_id, root)
-
-    def save_preprocess(
-        self,
-        *,
-        stock_ids: List[str],
-        settings_diff: Dict[str, Any],
-        extra: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """回测开始前：in-scope universe + 运行前置信息（单次写入）。"""
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        self._write_scope_stock_ids(stock_ids)
-        payload: Dict[str, Any] = {
-            "status": "running",
-            "strategy_id": self.strategy_id,
-            "version_id": self.version_id,
-            "version_dir_name": self.version_dir_name,
-            "settings_fingerprint": self.settings_fp,
-            "env_fingerprint": self.env_fp,
-            "entity_count": len(stock_ids),
-            "settings_diff": dict(settings_diff or {}),
+        return {
+            "written_files": investment_files,
+            "opportunities_count": investment_rows_count,
+            "target_files": goal_files,
+            "investment_files": investment_files,
+            "goal_files": goal_files,
+            "goal_rows_count": goal_rows_count,
         }
-        if extra:
-            payload.update(extra)
-        path = self.output_dir / RUN_PRECONDITION_FILENAME
-        path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-        logger.info("Saved run precondition: %s", path)
-
-    # ── 跨进程：扩展 snapshot ──
 
     def to_snapshot(self) -> Dict[str, Any]:
         snapshot = super().to_snapshot()
@@ -160,56 +136,8 @@ class EntityBasedEnumeratorRecorder(SimulationOutputRecorder):
             env_fp=str(snapshot.get("env_fp") or ""),
         )
 
-    # ── 子进程：job 级 opportunities 写入 ──
-
-    def buffer_opportunities(self, opportunities: List[Dict[str, Any]]) -> None:
-        self._job_buffer.extend(list(opportunities or []))
-
-    def flush_job_opportunities(self) -> Dict[str, int]:
-        """将本 job 缓冲的 opportunities 按 entity 写入 CSV 并清空 buffer。"""
-        if not self._job_buffer:
-            return {"written_files": 0, "opportunities_count": 0, "target_files": 0}
-
-        grouped = self._group_opportunities_by_entity(self._job_buffer)
-        opportunity_files = 0
-        target_files = 0
-        opportunity_rows_count = 0
-
-        for entity_id, opportunities in grouped.items():
-            opp_rows, target_rows = self._build_csv_rows(opportunities)
-            if opp_rows:
-                OpportunityCsvHelper.write(self.output_dir, entity_id, opp_rows)
-                opportunity_files += 1
-                opportunity_rows_count += len(opp_rows)
-            if target_rows:
-                self._write_targets_csv(entity_id, target_rows)
-                target_files += 1
-
-        buffer_count = len(self._job_buffer)
-        self._job_buffer.clear()
-        logger.info(
-            "Wrote job CSV: dir=%s, opp_files=%d, target_files=%d, opp_rows=%d",
-            self.output_dir,
-            opportunity_files,
-            target_files,
-            opportunity_rows_count,
-        )
-        return {
-            "written_files": opportunity_files,
-            "opportunities_count": opportunity_rows_count,
-            "target_files": target_files,
-        }
-
-    # ── helpers ──
-
-    def _write_scope_stock_ids(self, stock_ids: List[str]) -> None:
-        normalized = sorted({str(item).strip() for item in stock_ids if str(item).strip()})
-        path = self.output_dir / SCOPE_STOCK_IDS_FILENAME
-        path.write_text("\n".join(normalized) + ("\n" if normalized else ""), encoding="utf-8")
-        logger.info("Saved scope stock ids: %s (%d)", path, len(normalized))
-
     @staticmethod
-    def _group_opportunities_by_entity(
+    def _group_investments_by_entity(
         buffer: List[Dict[str, Any]],
     ) -> Dict[str, List[Dict[str, Any]]]:
         grouped: Dict[str, List[Dict[str, Any]]] = {}
@@ -217,67 +145,15 @@ class EntityBasedEnumeratorRecorder(SimulationOutputRecorder):
             entity_id = str(entry.get("entity_id") or "").strip()
             if not entity_id:
                 continue
-            opportunity = entry.get("opportunity")
-            if not isinstance(opportunity, dict):
+            investment = entry.get("opportunity")
+            if not isinstance(investment, dict):
                 continue
-            grouped.setdefault(entity_id, []).append(dict(opportunity))
+            grouped.setdefault(entity_id, []).append(dict(investment))
         return grouped
-
-    def _write_targets_csv(self, entity_id: str, target_rows: List[Dict[str, Any]]) -> None:
-        from core.utils.io.csv_io import write_dicts_to_csv
-
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        write_dicts_to_csv(
-            self.output_dir / f"{entity_id}_targets.csv",
-            target_rows,
-            preferred_order=list(_TARGET_CSV_COLUMNS),
-        )
-
-    @staticmethod
-    def _build_csv_rows(
-        opportunities: List[Dict[str, Any]],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
-        """内存 opportunity → 两张 CSV 的行数据。
-
-        - opportunities 行：每笔机会一行（去掉 completed_targets 等内部字段）
-        - targets 行：每笔 investment 的每次 goal 平仓一条（来自 completed_goals）
-        """
-        opportunity_rows: List[Dict[str, Any]] = []
-        target_rows: List[Dict[str, Any]] = []
-
-        for opportunity in opportunities:
-            goal_legs = opportunity.get("completed_goals") or opportunity.get("completed_targets") or []
-            for target in goal_legs:
-                if isinstance(target, dict):
-                    row = dict(target)
-                    if "sell_price" not in row and "price" in row:
-                        row["sell_price"] = row["price"]
-                    if "sell_ratio" not in row and "exit_ratio" in row:
-                        row["sell_ratio"] = row["exit_ratio"]
-                    target_rows.append(EntityBasedEnumeratorRecorder._csv_row(row))
-
-            row = {
-                k: v
-                for k, v in opportunity.items()
-                if k not in _OPPORTUNITY_CSV_EXCLUDED
-            }
-            opportunity_rows.append(EntityBasedEnumeratorRecorder._csv_row(row))
-
-        return opportunity_rows, target_rows
-
-    @staticmethod
-    def _csv_row(row: Dict[str, Any]) -> Dict[str, Any]:
-        out = dict(row)
-        for key, value in out.items():
-            if isinstance(value, (dict, list)):
-                out[key] = json.dumps(value, ensure_ascii=False)
-            elif value is None:
-                out[key] = ""
-        return out
 
 
 __all__ = [
     "EntityBasedEnumeratorRecorder",
-    "SCOPE_STOCK_IDS_FILENAME",
-    "RUN_PRECONDITION_FILENAME",
+    "LEGACY_RUN_PRECONDITION_FILENAME",
+    "LEGACY_SCOPE_STOCK_IDS_FILENAME",
 ]

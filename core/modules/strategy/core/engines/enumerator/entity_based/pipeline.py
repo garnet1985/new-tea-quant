@@ -25,6 +25,8 @@ from core.modules.strategy.core.engines.enumerator.entity_based.services.recorde
 )
 from core.modules.strategy.core.services.discovery.data.discovered_strategy import EnabledStrategyInfo
 
+from core.infra.project_context import ProjectContext
+
 
 class EnumeratorPipeline:
     """Entity-based enumerator pipeline（简化版，一个 run 方法一步带过）。"""
@@ -111,10 +113,16 @@ class EnumeratorPipeline:
 
             recorder = EntityBasedEnumeratorRecorder.init(
                 strategy_info.key,
-                stock_ids=stock_ids,
+                entity_ids=stock_ids,
                 settings_fp=settings_fp,
                 env_fp=env_fp,
+                effective_settings=effective_settings_obj,
                 settings_diff=settings_diff,
+                execution_mode=strategy_info.get_execution_mode(),
+                market_profile=str(
+                    effective_settings_obj.raw_settings.get("market_profile")
+                    or ProjectContext.config.get_default_market_profile_key()
+                ),
             )
 
             jobs = JobBuilder.build_backtest_engine_jobs(
@@ -133,6 +141,23 @@ class EnumeratorPipeline:
                 effective_settings_obj,
                 recorder,
             )
+
+            from core.modules.strategy.core.engines.enumerator.shared.report_manager import (
+                ReportManager,
+            )
+
+            run_result = results.pop("_run_result", None)
+            if run_result is not None:
+                manager = ReportManager.open(
+                    recorder.output_dir,
+                    strategy_key=strategy_info.key,
+                    version_id=recorder.version_id,
+                )
+                manager.finalize_from_run_result(
+                    run_result,
+                    entity_count=len(stock_ids),
+                    opportunities_count=int(results.get("opportunities_count") or 0),
+                )
 
             # TODO: cls._save_results_and_metadata(...)
 
@@ -189,6 +214,7 @@ class EnumeratorPipeline:
             "success": bool(results.get("success", True)),
             "output_dir": results.get("output_dir"),
             "version_id": results.get("version_id"),
+            "strategy_key": results.get("strategy_key"),
             "opportunities_count": results.get("opportunities_count", 0),
             "failed_entities": list(results.get("failed_entities") or []),
             "total_jobs": results.get("total_jobs", 0),
@@ -277,6 +303,7 @@ class EnumeratorPipeline:
             "success": run_result.success,
             "output_dir": str(recorder.output_dir),
             "version_id": recorder.version_id,
+            "strategy_key": strategy_info.key,
             "total_jobs": run_result.total_jobs,
             "completed_jobs": run_result.completed_jobs,
             "failed_jobs": run_result.failed_jobs,
@@ -284,6 +311,7 @@ class EnumeratorPipeline:
             "job_results": run_result.job_results,
             "opportunities_count": opportunities_count,
             "failed_entities": failed_entities,
+            "_run_result": run_result,
         }
 
     @classmethod

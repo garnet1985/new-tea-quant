@@ -52,27 +52,14 @@ class JobBuilder:
         - 保持大类之间通信都是raw data
         - JobBuilder无状态，可复用
         """
-        # Step 1: 从settings获取sampling配置
-        sampling_settings = effective_settings.raw_settings.get("sampling", {})
-        start_date = sampling_settings.get("start_date")
-        end_date = sampling_settings.get("end_date")
-        
-        # 如果没有配置end_date，使用latest completed trading date
-        if not end_date:
-            from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import GlobalEntityCache
-            end_date = GlobalEntityCache.load_latest_completed_trading_date()
-            logger.info(f"sampling未配置end_date，使用latest completed trading date: {end_date}")
-        
-        # 如果没有配置start_date，使用 data.json → default_start_date（与 legacy 一致）
-        if not start_date:
-            from core.infra.project_context import ProjectContext
+        # Step 1: 从 settings 解析 sampling 区间
+        from core.modules.strategy.core.engines.enumerator.shared.report_manager.runtime_snapshot import (
+            RuntimeSnapshot,
+        )
 
-            start_date = ProjectContext.config.get_default_start_date()
-            logger.info(
-                "sampling未配置start_date，使用系统默认: %s (data.json)",
-                start_date,
-            )
-        
+        period = RuntimeSnapshot.resolve_period(effective_settings)
+        start_date = period.start_date
+        end_date = period.end_date
         # Step 2: 构建 payload
         payload = JobBuilder._build_payload(
             strategy_info=strategy_info,

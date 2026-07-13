@@ -261,7 +261,7 @@ class TestTagManager:
         def fake_timeline_run(jobs, execute_fn, **kwargs):
             callbacks = kwargs["callbacks"]
             assert callbacks is not None
-            callbacks.on_result(
+            callbacks.on_single_task_result(
                 JobReport(
                     job_id="job1",
                     success=True,
@@ -330,9 +330,9 @@ class TestTagManager:
         mock_data_manager.return_value = mock_data_mgr
 
         def fake_timeline_run(jobs, execute_fn, **kwargs):
-            on_result = kwargs["callbacks"].on_result
+            on_single_task_result = kwargs["callbacks"].on_single_task_result
             for i in range(3):
-                on_result(
+                on_single_task_result(
                     JobReport(
                         job_id=f"job{i}",
                         success=True,

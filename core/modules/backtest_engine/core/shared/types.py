@@ -61,8 +61,9 @@ class RunCallbacks:
     """BacktestEngine run的生命周期钩子（统一命名，清晰明确）。"""
 
     # ── 主进程钩子 ──
-    on_before_all_tasks_start: Optional[Callable[[Any, List[Any]], None]] = None  # 全局初始化（参数plan和batches）
-    on_after_all_tasks_complete: Optional[Callable[[List["JobReport"]], None]] = None  # 全局清理（参数JobReport列表）
+    on_before_all_tasks_start: Optional[Callable[[Any, List[Any]], None]] = None
+    on_after_all_tasks_complete: Optional[Callable[[List["JobReport"]], None]] = None
+    on_single_task_result: Optional[Callable[["JobReport", "RunProgress"], None]] = None
 
     # ── 子进程钩子 ──
     on_child_process_task_start: Optional[ChildProcessTaskStartFn] = None      # 子进程task开始（初始化）
@@ -101,7 +102,7 @@ class JobResult:
 
 @dataclass
 class RunProgress:
-    """单次 run 的进度快照，传给 on_result。"""
+    """单次 run 的进度快照，传给 on_single_task_result。"""
 
     finished: int
     total: int

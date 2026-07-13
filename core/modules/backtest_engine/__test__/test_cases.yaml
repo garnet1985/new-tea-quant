@@ -32,8 +32,8 @@ cases:
         name: test_slice_based_empty_jobs_returns_success
         description: slice_based 空 jobs 返回成功
       - id: 9
-        name: test_run_callbacks_forward_on_result
-        description: RunCallbacks.on_result 透传
+        name: test_run_callbacks_forward_on_single_task_result
+        description: RunCallbacks.on_single_task_result 透传
 
   - id: 2
     case: shared_jobs

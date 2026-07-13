@@ -155,7 +155,7 @@ class SliceBasedJobPipeline:
             cls.execute_slice_job,
             performance=ctx.performance,
             task_name=ctx.task_name,
-            callbacks=RunCallbacks(on_result=on_engine_result),
+            callbacks=RunCallbacks(on_single_task_result=on_engine_result),
         )
         runtime.status.job_results = list(result.job_results)
         return [

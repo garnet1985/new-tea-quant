@@ -6,8 +6,11 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Optional, TextIO
+from typing import Any, ClassVar, Dict, List, Optional, TextIO, TYPE_CHECKING
 
+from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_consts import (
+    OVERALL_REPORT_FILE,
+)
 from core.modules.strategy.core.engines.enumerator.shared.report_manager.runtime_snapshot import (
     RuntimeSnapshot,
 )
@@ -121,7 +124,7 @@ class OverallSummary:
 class OverallReport:
     """跨 entity 业务汇总（从每股 CSV 聚合）。"""
 
-    OVERALL_REPORT_FILE: ClassVar[str] = "overall_report.json"
+    OVERALL_REPORT_FILE = OVERALL_REPORT_FILE
 
     strategy_key: str
     version_id: int
@@ -178,7 +181,12 @@ class OverallReport:
 
     @classmethod
     def load(cls, output_dir: Path) -> "OverallReport":
-        return cls.from_dict(cls._read_json(output_dir / cls.OVERALL_REPORT_FILE))
+        path = output_dir / cls.OVERALL_REPORT_FILE
+        if not path.is_file():
+            legacy = output_dir / "overall_report.json"
+            if legacy.is_file():
+                path = legacy
+        return cls.from_dict(cls._read_json(path))
 
     # ── 落盘 ──
 
@@ -347,8 +355,41 @@ class OverallReport:
         return json.loads(path.read_text(encoding="utf-8"))
 
 
+class OverallReportHandle:
+    """ReportManager.overall 门面：跨 entity 汇总读写与展示。"""
+
+    def __init__(self, manager: "ReportManager") -> None:
+        self._manager = manager
+        self._report: Optional[OverallReport] = None
+
+    def build(self, *, total_entities: Optional[int] = None) -> "OverallReportHandle":
+        self._report = OverallReport.build(
+            self._manager.output_dir,
+            strategy_key=self._manager.strategy_key,
+            version_id=self._manager.version_id,
+            total_entities=total_entities,
+        )
+        return self
+
+    def save(self) -> Path:
+        if self._report is None:
+            self.build()
+        assert self._report is not None
+        return self._report.save(self._manager.output_dir)
+
+    def load(self) -> Dict[str, Any]:
+        return OverallReport.load(self._manager.output_dir).to_dict()
+
+    def present(self, stream: Optional[TextIO] = None) -> None:
+        OverallReport.load(self._manager.output_dir).present(stream=stream)
+
+
+if TYPE_CHECKING:
+    from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_manager import (
+        ReportManager,
+    )
+
+
 __all__ = [
-    "EntitySummaryRow",
-    "OverallReport",
-    "OverallSummary",
+    "OverallReportHandle",
 ]

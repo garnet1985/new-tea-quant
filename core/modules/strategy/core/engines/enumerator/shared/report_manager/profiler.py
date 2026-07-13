@@ -5,9 +5,24 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_manager import (
+        ReportManager,
+    )
 
 from core.modules.backtest_engine.core.entity_based.monitor import EntityMonitorStats
+from core.modules.backtest_engine.core.shared.profiler import (
+    ENGINE_PERF_KEY,
+    ENUM_PERF_KEY,
+    WorkerTaskPerf,
+)
+from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_consts import (
+    PERFORMANCE_DETAIL_FULL,
+    PERFORMANCE_FILE,
+    resolve_performance_detail,
+)
 
 
 @dataclass
@@ -122,6 +137,8 @@ class JobPerformance:
     wall_sec: float = 0.0
     peak_rss_mb: float = 0.0
     error: str = ""
+    engine_perf: WorkerTaskPerf = field(default_factory=WorkerTaskPerf)
+    enum_perf: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -133,11 +150,15 @@ class JobPerformance:
             "wall_sec": self.wall_sec,
             "peak_rss_mb": self.peak_rss_mb,
             "error": self.error,
+            ENGINE_PERF_KEY: self.engine_perf.to_dict(),
+            ENUM_PERF_KEY: dict(self.enum_perf or {}),
         }
 
     @classmethod
     def from_dict(cls, raw: Dict[str, Any]) -> "JobPerformance":
         data = raw or {}
+        engine_raw = data.get(ENGINE_PERF_KEY) or {}
+        enum_raw = data.get(ENUM_PERF_KEY) or {}
         return cls(
             job_id=str(data.get("job_id") or ""),
             success=bool(data.get("success", False)),
@@ -147,21 +168,30 @@ class JobPerformance:
             wall_sec=float(data.get("wall_sec") or 0.0),
             peak_rss_mb=float(data.get("peak_rss_mb") or 0.0),
             error=str(data.get("error") or ""),
+            engine_perf=WorkerTaskPerf.from_dict(engine_raw),
+            enum_perf=dict(enum_raw) if isinstance(enum_raw, dict) else {},
         )
 
     @classmethod
     def from_job_report(cls, report: Any) -> "JobPerformance":
         data = report.data if isinstance(getattr(report, "data", None), dict) else {}
         peak_rss = data.get("peak_rss_mb")
+        engine_raw = data.get(ENGINE_PERF_KEY) or {}
+        enum_raw = data.get(ENUM_PERF_KEY) or {}
+        wall_sec = float(data.get("wall_sec") or engine_raw.get("wall_sec") or 0.0)
         return cls(
             job_id=str(getattr(report, "job_id", "") or ""),
             success=bool(getattr(report, "success", False)),
             entities_count=int(data.get("entities_count") or 0),
             opportunities_count=int(data.get("opportunities_count") or 0),
             entities_with_opportunities=int(data.get("entities_with_opportunities") or 0),
-            wall_sec=float(data.get("wall_sec") or 0.0),
-            peak_rss_mb=float(peak_rss) if peak_rss is not None else 0.0,
-            error=str(getattr(report, "error", "") or ""),
+            wall_sec=wall_sec,
+            peak_rss_mb=float(peak_rss) if peak_rss is not None else float(
+                engine_raw.get("peak_rss_mb") or 0.0
+            ),
+            error=str(getattr(report, "error", "") or data.get("error") or ""),
+            engine_perf=WorkerTaskPerf.from_dict(engine_raw),
+            enum_perf=dict(enum_raw) if isinstance(enum_raw, dict) else {},
         )
 
 
@@ -174,7 +204,7 @@ class SavedPerformanceArtifact:
 class ProfilerPerformance:
     """一次枚举 run 的性能汇总（调度 + job 墙钟 / 内存）。"""
 
-    PERFORMANCE_FILE = "performance.json"
+    PERFORMANCE_FILE = PERFORMANCE_FILE
 
     strategy_key: str
     version_id: int
@@ -209,7 +239,7 @@ class ProfilerPerformance:
         monitor_stats: Any = None,
         performance_config: Optional[Dict[str, Any]] = None,
     ) -> "ProfilerPerformance":
-        jobs = [JobPerformance.from_job_report(report) for report in (job_results or [])]
+        jobs = [_coerce_job_performance(item) for item in (job_results or [])]
         return cls(
             strategy_key=str(strategy_key or ""),
             version_id=int(version_id or 0),
@@ -254,7 +284,12 @@ class ProfilerPerformance:
 
     @classmethod
     def load(cls, output_dir: Path) -> "ProfilerPerformance":
-        return cls.from_dict(cls._read_json(output_dir / cls.PERFORMANCE_FILE))
+        path = output_dir / cls.PERFORMANCE_FILE
+        if not path.is_file():
+            legacy = output_dir / "performance.json"
+            if legacy.is_file():
+                path = legacy
+        return cls.from_dict(cls._read_json(path))
 
     # ── 落盘 ──
 
@@ -270,7 +305,8 @@ class ProfilerPerformance:
         entities_with_opportunities = sum(
             job.entities_with_opportunities for job in self.jobs
         )
-        return {
+        phase_totals = _aggregate_phase_totals(self.jobs)
+        payload: Dict[str, Any] = {
             "strategy_key": self.strategy_key,
             "version_id": self.version_id,
             "created_at": self.created_at,
@@ -290,12 +326,15 @@ class ProfilerPerformance:
                 ),
                 "sum_job_wall_seconds": job_wall_sum,
                 "parallelism_factor": self._parallelism_factor(job_wall_sum),
+                "phase_totals_sec": phase_totals,
             },
             "dispatch": self.dispatch.to_dict(),
             "monitor": self.monitor.to_dict(),
             "performance_config": dict(self.performance_config or {}),
-            "jobs": [job.to_dict() for job in self.jobs],
         }
+        if resolve_performance_detail(self.performance_config) == PERFORMANCE_DETAIL_FULL:
+            payload["jobs"] = [job.to_dict() for job in self.jobs]
+        return payload
 
     @classmethod
     def from_dict(cls, raw: Dict[str, Any]) -> "ProfilerPerformance":
@@ -345,10 +384,133 @@ class ProfilerPerformance:
         return json.loads(path.read_text(encoding="utf-8"))
 
 
+class _ProfilerCollectSession:
+    """主进程侧：通过 BacktestEngine on_single_task_result 收集 job 性能。"""
+
+    def __init__(self, *, strategy_key: str, version_id: int, entity_count: int) -> None:
+        self.strategy_key = str(strategy_key or "")
+        self.version_id = int(version_id or 0)
+        self.entity_count = max(0, int(entity_count))
+        self._jobs: List[JobPerformance] = []
+
+    def collect(self, report: Any) -> None:
+        self._jobs.append(JobPerformance.from_job_report(report))
+
+    def build(
+        self,
+        run_result: Any,
+        *,
+        opportunities_count: int,
+        performance_config: Optional[Dict[str, Any]] = None,
+    ) -> ProfilerPerformance:
+        return ProfilerPerformance.build(
+            strategy_key=self.strategy_key,
+            version_id=self.version_id,
+            elapsed_seconds=float(getattr(run_result, "elapsed_seconds", 0.0) or 0.0),
+            total_jobs=int(getattr(run_result, "total_jobs", 0) or 0),
+            completed_jobs=int(getattr(run_result, "completed_jobs", 0) or 0),
+            failed_jobs=int(getattr(run_result, "failed_jobs", 0) or 0),
+            entity_count=self.entity_count,
+            opportunities_count=max(0, int(opportunities_count)),
+            job_results=self._jobs or list(getattr(run_result, "job_results", []) or []),
+            plan=getattr(run_result, "plan", None),
+            monitor_stats=getattr(run_result, "monitor_stats", None),
+            performance_config=performance_config,
+        )
+
+
+class ProfilerReport:
+    """ReportManager.profiler 门面：采集 / 构建 / 落盘 performance.json。"""
+
+    def __init__(self, manager: "ReportManager") -> None:
+        self._manager = manager
+        self._session: Optional[_ProfilerCollectSession] = None
+        self._snapshot: Optional[ProfilerPerformance] = None
+
+    def begin_collect(self, *, entity_count: int) -> None:
+        self._session = _ProfilerCollectSession(
+            strategy_key=self._manager.strategy_key,
+            version_id=self._manager.version_id,
+            entity_count=entity_count,
+        )
+
+    def collect(self, report: Any) -> None:
+        if self._session is None:
+            self.begin_collect(entity_count=0)
+        assert self._session is not None
+        self._session.collect(report)
+
+    def build_from_run(
+        self,
+        run_result: Any,
+        *,
+        entity_count: int,
+        opportunities_count: int,
+        performance_config: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        if self._session is not None:
+            self._snapshot = self._session.build(
+                run_result,
+                opportunities_count=opportunities_count,
+                performance_config=performance_config,
+            )
+            return
+        self._snapshot = ProfilerPerformance.build_from_run(
+            strategy_key=self._manager.strategy_key,
+            version_id=self._manager.version_id,
+            entity_count=entity_count,
+            opportunities_count=opportunities_count,
+            run_result=run_result,
+            performance_config=performance_config,
+        )
+
+    def save(self) -> Path:
+        if self._snapshot is None:
+            raise RuntimeError("profiler.build_from_run() must be called before save()")
+        artifact = self._snapshot.save(self._manager.output_dir)
+        return artifact.performance_path
+
+    def load(self) -> Dict[str, Any]:
+        path = self._manager.output_dir / ProfilerPerformance.PERFORMANCE_FILE
+        if not path.is_file():
+            legacy = self._manager.output_dir / "performance.json"
+            if legacy.is_file():
+                path = legacy
+        return ProfilerPerformance._read_json(path)
+
+    def summary(self) -> Dict[str, Any]:
+        return dict(self.load().get("summary") or {})
+
+
+def _coerce_job_performance(item: Any) -> JobPerformance:
+    if isinstance(item, JobPerformance):
+        return item
+    if isinstance(item, dict):
+        return JobPerformance.from_dict(item)
+    return JobPerformance.from_job_report(item)
+
+
+def _aggregate_phase_totals(jobs: List[JobPerformance]) -> Dict[str, float]:
+    totals: Dict[str, float] = {
+        "engine_init": 0.0,
+        "engine_execute": 0.0,
+        "engine_complete": 0.0,
+        "load_data": 0.0,
+        "enumerate": 0.0,
+        "flush_csv": 0.0,
+    }
+    for job in jobs:
+        totals["engine_init"] += job.engine_perf.init_sec
+        totals["engine_execute"] += job.engine_perf.execute_sec
+        totals["engine_complete"] += job.engine_perf.complete_sec
+        phases = (job.enum_perf or {}).get("phases") or {}
+        if isinstance(phases, dict):
+            totals["load_data"] += float(phases.get("load_data") or 0.0)
+            totals["enumerate"] += float(phases.get("enumerate") or 0.0)
+            totals["flush_csv"] += float(phases.get("flush_csv") or 0.0)
+    return {key: round(value, 4) for key, value in totals.items()}
+
+
 __all__ = [
-    "DispatchPlanSnapshot",
-    "JobPerformance",
-    "MonitorStatsSnapshot",
-    "ProfilerPerformance",
-    "SavedPerformanceArtifact",
+    "ProfilerReport",
 ]

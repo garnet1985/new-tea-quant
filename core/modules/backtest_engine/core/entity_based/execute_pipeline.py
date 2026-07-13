@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from core.modules.backtest_engine.core.shared.context import ExecutionContext
 from core.infra.machine_capacity import MachineInfo
@@ -64,6 +64,7 @@ class EntityExecutePipeline:
         on_child_process_task_start: Optional[ChildProcessTaskStartFn] = None,
         on_child_process_task_complete: Optional[ChildProcessTaskCompleteFn] = None,
         on_after_all_tasks_complete: Optional[Callable[[List[JobReport]], None]] = None,
+        on_single_task_result: Optional[Callable[[JobReport, RunProgress], None]] = None,
         enable_progress_display: bool = True,
     ) -> EntityExecutePipeline.Result:
         label = task_name or self._log_label
@@ -123,6 +124,8 @@ class EntityExecutePipeline:
                 _job_sample_from_report(report, batch_entities),
             )
             progress.mark_execute_unit(run_progress.finished)
+            if on_single_task_result is not None:
+                on_single_task_result(report, run_progress)
 
         progress.mark_phase(RunPhase.EXECUTE)
         execution = EntityExecutorDuckDB.execute(

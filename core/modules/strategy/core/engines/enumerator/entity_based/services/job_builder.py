@@ -54,10 +54,10 @@ class JobBuilder:
         """
         # Step 1: 从 settings 解析 sampling 区间
         from core.modules.strategy.core.engines.enumerator.shared.report_manager.runtime_snapshot import (
-            RuntimeSnapshot,
+            RuntimeReport,
         )
 
-        period = RuntimeSnapshot.resolve_period(effective_settings)
+        period = RuntimeReport.resolve_period(effective_settings)
         start_date = period.start_date
         end_date = period.end_date
         # Step 2: 构建 payload

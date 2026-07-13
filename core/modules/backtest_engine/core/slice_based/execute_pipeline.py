@@ -53,7 +53,7 @@ class SliceExecutePipeline:
         *,
         execute_fn: SliceExecutor.ExecuteFn,
         task_name: str = "",
-        on_result: Optional[SliceExecutor.OnResultHook] = None,
+        on_single_task_result: Optional[SliceExecutor.OnResultHook] = None,
         enable_progress_display: bool = True,
     ) -> SliceExecutePipeline.Result:
         label = task_name or self._log_label
@@ -106,10 +106,10 @@ class SliceExecutePipeline:
             performance=performance,
         )
 
-        def monitored_on_result(report: JobReport, run_progress: RunProgress) -> None:
+        def monitored_on_single_task_result(report: JobReport, run_progress: RunProgress) -> None:
             monitor.record_from_job_report(report)
-            if on_result is not None:
-                on_result(report, run_progress)
+            if on_single_task_result is not None:
+                on_single_task_result(report, run_progress)
 
         progress.mark_phase(RunPhase.EXECUTE)
         execution = SliceExecutorDuckDB.execute(
@@ -117,7 +117,7 @@ class SliceExecutePipeline:
             batches,
             context,
             execute_fn,
-            on_result=monitored_on_result,
+            on_result=monitored_on_single_task_result,
             log_label=self._log_label,
             progress_reporter=progress,
             duckdb_process_pool_scope=str(

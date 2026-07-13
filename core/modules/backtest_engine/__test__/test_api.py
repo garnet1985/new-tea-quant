@@ -133,10 +133,10 @@ def test_run_callbacks_forward_on_child_process_task_start_and_complete() -> Non
     assert phases == ["init", "execute", "release"]
 
 
-def test_run_callbacks_forward_on_result() -> None:
+def test_run_callbacks_forward_on_single_task_result() -> None:
     seen: list[str] = []
 
-    def on_result(report, progress) -> None:
+    def on_single_task_result(report, progress) -> None:
         seen.append(report.job_id)
 
     mock_execution = EntityExecutor.ExecutionResult(
@@ -157,16 +157,18 @@ def test_run_callbacks_forward_on_result() -> None:
 
     jobs = [
         {
-            "id": "000001.SZ",
-            "payload": {"stock_id": "000001.SZ"},
+            "id": "job-1",
+            "payload": {
+                "entity_specified": [{"id": "000001.SZ"}],
+            },
         }
     ]
 
     def fake_run(_self, _jobs, _performance, **kwargs):
-        hook = kwargs.get("on_result")
+        hook = kwargs.get("on_single_task_result")
         if hook is not None:
             hook(
-                JobReport(job_id="000001.SZ", success=True),
+                JobReport(job_id="job-1", success=True),
                 RunProgress(finished=1, total=1, ok=1, fail=0),
             )
         return mock_result
@@ -176,7 +178,7 @@ def test_run_callbacks_forward_on_result() -> None:
             jobs,
             _noop_execute,
             task_name="demo",
-            callbacks=RunCallbacks(on_result=on_result),
+            callbacks=RunCallbacks(on_single_task_result=on_single_task_result),
         )
 
-    assert seen == ["000001.SZ"]
+    assert seen == ["job-1"]

@@ -14,7 +14,6 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 from core.modules.backtest_engine.core.shared.context import ExecutionContext
-from core.modules.backtest_engine.core.shared.job_lifecycle import run_job_lifecycle
 from core.modules.backtest_engine.core.shared.types import (
     ExecuteFn,
     Job,
@@ -197,41 +196,40 @@ class EntityExecutor:
         on_child_process_task_complete: Optional[ChildProcessTaskCompleteFn] = None,
     ) -> Dict[str, Any]:
         """Process-pool entry: init → execute_fn → release。"""
+        from core.modules.backtest_engine.core.shared.profiler import WorkerTaskProfiler
         from core.modules.backtest_engine.core.shared.worker_data_runtime import (
             bootstrap_worker_data_manager,
         )
 
         bootstrap_worker_data_manager()
-        rss_before_mb = EntityExecutor._process_rss_mb()
-        t0 = time.perf_counter()
-        try:
-            raw = run_job_lifecycle(
-                execute_fn,
-                job_context,
-                on_child_process_task_start=on_child_process_task_start,
-                on_child_process_task_complete=on_child_process_task_complete,
-            )
-        except Exception as exc:
-            wall_sec = time.perf_counter() - t0
-            rss_after_mb = EntityExecutor._process_rss_mb()
-            return {
-                "success": False,
-                "job_id": job_context.job_id,
-                "error": str(exc),
-                "entities_count": EntityExecutor._entities_count_from_payload(
-                    job_context.payload
-                ),
-                "wall_sec": wall_sec,
-                "peak_rss_mb": max(rss_before_mb, rss_after_mb),
-            }
+        profiler = WorkerTaskProfiler()
+        profiler.run_init(on_child_process_task_start, job_context)
 
-        wall_sec = time.perf_counter() - t0
-        rss_after_mb = EntityExecutor._process_rss_mb()
-        return EntityExecutor._normalize_worker_result(
+        raw, exc = profiler.run_execute(execute_fn, job_context)
+        if exc is not None:
+            profiler.run_complete(on_child_process_task_complete, job_context)
+            return profiler.attach(
+                {
+                    "success": False,
+                    "job_id": job_context.job_id,
+                    "error": str(exc),
+                    "entities_count": EntityExecutor._entities_count_from_payload(
+                        job_context.payload
+                    ),
+                },
+                enum_perf=job_context.payload.get("_enum_perf"),
+            )
+
+        profiler.run_complete(on_child_process_task_complete, job_context)
+        normalized = EntityExecutor._normalize_worker_result(
             job_context,
             raw,
-            wall_sec=wall_sec,
-            peak_rss_mb=max(rss_before_mb, rss_after_mb),
+            wall_sec=0.0,
+            peak_rss_mb=0.0,
+        )
+        return profiler.attach(
+            normalized,
+            enum_perf=job_context.payload.get("_enum_perf"),
         )
 
     @staticmethod

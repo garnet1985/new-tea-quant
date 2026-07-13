@@ -75,6 +75,12 @@ class BatchDataLoader:
             entity_ids, entity_shared
         )
 
+        from core.modules.strategy.core.engines.enumerator.entity_based.services.contract_indicators import (
+            apply_indicators_to_contracts,
+        )
+
+        apply_indicators_to_contracts(entity_contracts, entity_shared)
+
         # 4. 从共享内存读取 global 数据
         global_data = BatchDataLoader._load_global_data_from_shm(
             shm_info, global_keys

@@ -3,13 +3,14 @@ from __future__ import annotations
 
 from typing import Dict, Any
 
+from ..data_keys import SYS_DATA_KEY
 from .loader import StockCorporateFinanceLoader
 
 
 # Stock Corporate Finance Declaration
 STOCK_CORPORATE_FINANCE_DECLARATION: Dict[str, Any] = {
     "meta": {
-        "key": "stock.finance.quarterly",
+        "key": SYS_DATA_KEY.STOCK_FINANCE_QUARTERLY,
         "type": "time_series",
         "scope": "per_entity",
         "display_name": "公司财报（季频）",

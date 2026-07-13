@@ -63,12 +63,15 @@ class JobBuilder:
             end_date = GlobalEntityCache.load_latest_completed_trading_date()
             logger.info(f"sampling未配置end_date，使用latest completed trading date: {end_date}")
         
-        # 如果没有配置start_date，使用默认值（或根据策略需求计算）
+        # 如果没有配置start_date，使用 data.json → default_start_date（与 legacy 一致）
         if not start_date:
-            # TODO: 可以根据策略的时间周期计算合理的start_date
-            # 例如：如果策略需要100个交易日的数据，end_date往前推100个交易日
-            start_date = "20200101"
-            logger.info(f"sampling未配置start_date，使用默认值: {start_date}")
+            from core.infra.project_context import ProjectContext
+
+            start_date = ProjectContext.config.get_default_start_date()
+            logger.info(
+                "sampling未配置start_date，使用系统默认: %s (data.json)",
+                start_date,
+            )
         
         # Step 2: 构建 payload
         payload = JobBuilder._build_payload(
@@ -170,11 +173,13 @@ class JobBuilder:
             "entity_shared": entity_shared,
             "global": global_data_keys,
             "shm_info": shm_info,  # 直接使用传入的shm_info
+            "entities_count": len(entity_ids),
             "strategy_info": {
                 "key": strategy_info.key,
                 "unique_relative_path": strategy_info.unique_relative_path,
                 "hooks_module_path": strategy_info.hooks_module_path,
                 "hooks_class_name": strategy_info.hooks_class.__name__,
+                "hooks_file_path": str(strategy_info.strategy_file.resolve()),
             },
             "settings": effective_settings.to_dict(),
             "output_recorder": output_recorder_snapshot,

@@ -168,6 +168,16 @@ class EntityExecutor:
             job_results=job_results,
         )
 
+        if on_after_all_tasks_complete:
+            try:
+                on_after_all_tasks_complete(job_results)
+            except Exception as exc:
+                logger.warning(
+                    "%s on_after_all_tasks_complete failed: error=%s",
+                    log_label,
+                    exc,
+                )
+
         logger.info(
             "%s完成: run=%s, jobs=%s, ok=%s, fail=%s, elapsed=%.2fs",
             log_label,
@@ -187,14 +197,11 @@ class EntityExecutor:
         on_child_process_task_complete: Optional[ChildProcessTaskCompleteFn] = None,
     ) -> Dict[str, Any]:
         """Process-pool entry: init → execute_fn → release。"""
-        if mp.current_process().name != "MainProcess":
-            try:
-                from core.infra.db import DatabaseManager
+        from core.modules.backtest_engine.core.shared.worker_data_runtime import (
+            bootstrap_worker_data_manager,
+        )
 
-                DatabaseManager.reset_default()
-            except Exception:
-                pass
-
+        bootstrap_worker_data_manager()
         rss_before_mb = EntityExecutor._process_rss_mb()
         t0 = time.perf_counter()
         try:
@@ -281,17 +288,6 @@ class EntityExecutor:
                         fail=context.fail_count,
                     ),
                 )
-        finally:
-            if on_after_all_tasks_complete:
-                try:
-                    on_after_all_tasks_complete(job_context)
-                except Exception as exc:
-                    logger.warning(
-                        "%s on_after_all_tasks_complete failed: job_id=%s error=%s",
-                        log_label,
-                        job.job_id,
-                        exc,
-                    )
 
     @staticmethod
     def _build_jobs_from_batches(batches: List[JobBatch]) -> List[Job]:
@@ -330,12 +326,10 @@ class EntityExecutor:
 
     @staticmethod
     def _entities_count_from_payload(payload: Dict[str, Any]) -> int:
-        jobs = payload.get("jobs")
-        if not isinstance(jobs, list):
-            raise ValueError(
-                "entity_based worker payload must include jobs list from BacktestEngine batch"
-            )
-        return len(jobs)
+        raw = payload.get("entities_count")
+        if raw is None:
+            raise ValueError("worker payload 须含 entities_count")
+        return max(1, int(raw))
 
     @staticmethod
     def _normalize_worker_result(

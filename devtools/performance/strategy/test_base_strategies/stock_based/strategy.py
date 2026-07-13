@@ -6,13 +6,13 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional
 
-from core.modules.data_contract.contracts import DataKey
+from core.modules.data_contract import DATA_KEY
 from core.modules.strategy.contracts import DataContext, Opportunity, StrategyHooks
 from core.modules.strategy.core.engines.shared.services.strategy_settings.data_settings import DataSettings
 
 logger = logging.getLogger(__name__)
 
-_FINANCE_SLOT = DataSettings.storage_key_for(DataKey.STOCK_CORPORATE_FINANCE, is_base=False)
+_FINANCE_SLOT = DataSettings.storage_key_for(DATA_KEY.STOCK_FINANCE_QUARTERLY, is_base=False)
 
 
 class RsiFundamentalGateHooks(StrategyHooks):

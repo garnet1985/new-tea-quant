@@ -3,15 +3,13 @@ from __future__ import annotations
 
 from typing import Dict, Any
 
+from ..data_keys import SYS_DATA_KEY
 from .loader import IndexKlineDailyLoader
-
-from .data_keys import SystemDataKeys
-
 
 
 INDEX_KLINE_DAILY_DECLARATION: Dict[str, Any] = {
     "meta": {
-        "key": SystemDataKeys.INDEX_KLINE_DAILY,
+        "key": SYS_DATA_KEY.INDEX_KLINE_DAILY,
         "type": "time_series",
         "scope": "per_entity",
         "display_name": "指数日 K 线",

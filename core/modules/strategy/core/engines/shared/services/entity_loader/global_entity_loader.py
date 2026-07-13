@@ -121,8 +121,13 @@ class GlobalEntityCache:
                 end_date,
             )
         if not start_date:
-            start_date = "20200101"
-            logger.info("sampling 未配置 start_date，使用默认值: %s", start_date)
+            from core.infra.project_context import ProjectContext
+
+            start_date = ProjectContext.config.get_default_start_date()
+            logger.info(
+                "sampling 未配置 start_date，使用系统默认: %s (data.json)",
+                start_date,
+            )
         return str(start_date), str(end_date)
 
     def _load_global_data(self, declarations: List[DataDeclaration]) -> None:

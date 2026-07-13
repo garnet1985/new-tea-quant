@@ -451,7 +451,10 @@ class EntityPlanner(BasePlanner):
                 "shm_info": payload.get("shm_info", {}),
                 "strategy_info": payload.get("strategy_info", {}),
                 "settings": payload.get("settings", {}),
+                "entities_count": len(batch_entities),
             }
+            if payload.get("output_recorder"):
+                batch_payload["output_recorder"] = payload["output_recorder"]
 
             batch = JobBatch(
                 batch_id=f"batch_{i}",

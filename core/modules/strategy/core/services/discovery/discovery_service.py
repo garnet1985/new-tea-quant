@@ -1,6 +1,7 @@
 """Strategy discovery 服务（扫描 + 验证）。"""
 from __future__ import annotations
 
+from dataclasses import fields
 import logging
 import os
 from pathlib import Path
@@ -52,12 +53,12 @@ class DiscoveryService:
             keys_seen[info.key] = info.id()
 
             strategies.append(info)
-            logger.info(
-                "Discovered strategy: %s (key=%s, enabled=%s)",
-                info.id(),
-                info.key,
-                info.is_enabled,
-            )
+            # logger.info(
+            #     "Discovered strategy: %s (key=%s, enabled=%s)",
+            #     info.id(),
+            #     info.key,
+            #     info.is_enabled,
+            # )
 
         return strategies
 
@@ -70,10 +71,12 @@ class DiscoveryService:
             strategies = DiscoveryService.discover_strategies()
 
         enabled: List[EnabledStrategyInfo] = []
+        field_names = {f.name for f in fields(EnabledStrategyInfo) if f.init}
         for info in strategies:
             if info.is_enabled:
                 try:
-                    enabled_info = EnabledStrategyInfo(**info.__dict__)
+                    kwargs = {k: v for k, v in info.__dict__.items() if k in field_names}
+                    enabled_info = EnabledStrategyInfo(**kwargs)
                     enabled.append(enabled_info)
                 except ValueError as exc:
                     logger.warning(
@@ -85,13 +88,20 @@ class DiscoveryService:
 
     @staticmethod
     def find_strategy(key_or_id: str) -> Optional[EnabledStrategyInfo]:
-        """按key或id查找单个启用的策略。"""
+        """按 ``meta.key``（CLI alias）或目录相对路径查找单个启用的策略。"""
+        needle = str(key_or_id or "").strip()
+        if not needle:
+            return None
         enabled_strategies = DiscoveryService.get_enabled_strategies()
         for strategy in enabled_strategies:
-            # 可以按key或id查找
-            if strategy.key == key_or_id or strategy.id() == key_or_id:
+            if strategy.key == needle or strategy.id() == needle:
                 return strategy
         return None
+
+    @staticmethod
+    def list_enabled_keys() -> List[str]:
+        """已启用策略的 ``meta.key`` 列表（供 CLI 提示）。"""
+        return [s.key for s in DiscoveryService.get_enabled_strategies() if s.key]
 
     @staticmethod
     def _scan_folders(strategies_root: Path) -> List[StrategyDraft]:
@@ -108,8 +118,7 @@ class DiscoveryService:
                 )
                 drafts.append(
                     StrategyDraft(
-                        folder=folder,
-                        relative_path=relative_path,
+                        unique_relative_path=relative_path,
                         strategy_file=strategy_file,
                         settings_file=settings_file,
                     )

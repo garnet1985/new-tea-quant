@@ -196,14 +196,11 @@ class SliceExecutor:
         job_context: JobContext,
     ) -> Dict[str, Any]:
         """Process-pool entry: run caller execute_fn and attach metrics."""
-        if mp.current_process().name != "MainProcess":
-            try:
-                from core.infra.db import DatabaseManager
+        from core.modules.backtest_engine.core.shared.worker_data_runtime import (
+            bootstrap_worker_data_manager,
+        )
 
-                DatabaseManager.reset_default()
-            except Exception:
-                pass
-
+        bootstrap_worker_data_manager()
         rss_before_mb = SliceExecutor._process_rss_mb()
         t0 = time.perf_counter()
         try:

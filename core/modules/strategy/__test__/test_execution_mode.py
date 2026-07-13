@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import unittest
 
-from core.modules.strategy.core.data.settings.strategy_settings import StrategySettings
+from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import StrategySettings
 
 
 class TestStrategySettingsExecutionMode(unittest.TestCase):

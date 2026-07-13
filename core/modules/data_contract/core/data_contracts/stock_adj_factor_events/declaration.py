@@ -3,12 +3,13 @@ from __future__ import annotations
 
 from typing import Dict, Any
 
+from ..data_keys import SYS_DATA_KEY
 from .loader import StockAdjFactorEventsLoader
 
 
 STOCK_ADJ_FACTOR_EVENTS_DECLARATION: Dict[str, Any] = {
     "meta": {
-        "key": "stock.adj_factor.eventlog",
+        "key": SYS_DATA_KEY.STOCK_ADJ_FACTOR_EVENTLOG,
         "type": "time_series",
         "scope": "per_entity",
         "display_name": "股票复权因子事件",

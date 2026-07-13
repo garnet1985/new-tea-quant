@@ -27,7 +27,11 @@ class Strategy:
         raise NotImplementedError("Strategy.analyze() implementation pending")
 
     @staticmethod
-    def enumerate(key_or_id: str, ignore_cache: bool = False) -> Dict[str, Any]:
+    def enumerate(
+        key_or_id: str,
+        ignore_cache: bool = False,
+        runtime_settings: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """对单个策略运行枚举器。"""
         from .core.engines.enumerator import EnumeratorEngine
 
@@ -37,7 +41,10 @@ class Strategy:
             raise ValueError(f"当前策略不存在或未启用: {key_or_id}")
 
         enumerator = EnumeratorEngine(strategy)
-        return enumerator.run(ignore_cache=ignore_cache)
+        return enumerator.run(
+            ignore_cache=ignore_cache,
+            runtime_settings=runtime_settings,
+        )
 
     @staticmethod
     def list_strategies(*, strategies_root: Optional[str] = None) -> List[str]:

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.modules.strategy.core.data.settings.strategy_settings import StrategySettings
+from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import StrategySettings
 
 from .discovered_strategy import DiscoveredStrategy
 
@@ -44,7 +44,7 @@ class StrategyContext(DiscoveredStrategy):
         )
 
         effective_user = user_settings if user_settings is not None else discovered.disk_settings
-        effective, settings_diff = StrategySettings.resolve(
+        effective, settings_diff = StrategySettings.calculate_effective_settings(
             discovered.disk_settings,
             effective_user,
         )

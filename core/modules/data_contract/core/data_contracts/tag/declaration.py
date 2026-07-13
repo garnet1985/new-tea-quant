@@ -3,12 +3,13 @@ from __future__ import annotations
 
 from typing import Dict, Any
 
+from ..data_keys import SYS_DATA_KEY
 from .contract import TagContract
 
 
 TAG_DECLARATION: Dict[str, Any] = {
     "meta": {
-        "key": "tag",
+        "key": SYS_DATA_KEY.TAG,
         "type": "time_series",  # 默认值（实际由 scenario 决定）
         "scope": "per_entity",  # 默认值（实际由 scenario 决定）
         "display_name": "特征标签（按场景）",

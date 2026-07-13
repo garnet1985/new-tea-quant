@@ -47,6 +47,8 @@ _OPPORTUNITY_CSV_EXCLUDED: Set[str] = {
     "pending_exit",
     "execute_steps",
     "lifecycle",
+    "deps",
+    "runtime_state",
     "max_drawdown",
     "metadata",
     "price_return",

@@ -3,12 +3,13 @@ from __future__ import annotations
 
 from typing import Dict, Any
 
+from ..data_keys import SYS_DATA_KEY
 from .loader import StockMoneyflowDailyLoader
 
 
 STOCK_MONEYFLOW_DAILY_DECLARATION: Dict[str, Any] = {
     "meta": {
-        "key": "stock.moneyflow.daily",
+        "key": SYS_DATA_KEY.STOCK_MONEYFLOW_DAILY,
         "type": "time_series",
         "scope": "per_entity",
         "display_name": "个股日频资金流向",

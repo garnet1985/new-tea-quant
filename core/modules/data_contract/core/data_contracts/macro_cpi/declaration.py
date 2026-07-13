@@ -3,12 +3,13 @@ from __future__ import annotations
 
 from typing import Dict, Any
 
+from ..data_keys import SYS_DATA_KEY
 from .loader import MacroCpiLoader
 
 
 MACRO_CPI_DECLARATION: Dict[str, Any] = {
     "meta": {
-        "key": "macro.cpi",
+        "key": SYS_DATA_KEY.MACRO_CPI,
         "type": "time_series",
         "scope": "global",
         "display_name": "宏观 CPI",

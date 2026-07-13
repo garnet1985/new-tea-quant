@@ -32,6 +32,8 @@ class JobExecutor:
     @staticmethod
     def on_child_process_task_complete(job_context: Any) -> None:
         """子进程钩子：将缓冲的 opportunities 写入 CSV 后清空 buffer。"""
+        if job_context.payload.get("_dispatch_probe"):
+            return
         from core.modules.strategy.core.engines.enumerator.entity_based.services.recorder import (
             EntityBasedEnumeratorRecorder,
         )
@@ -53,15 +55,21 @@ class JobExecutor:
 
         hooks_module_path = strategy_info.get("hooks_module_path")
         hooks_class_name = strategy_info.get("hooks_class_name")
+        hooks_file_path = strategy_info.get("hooks_file_path", "")
         if not hooks_module_path or not hooks_class_name:
             logger.error("缺少hooks信息：hooks_module_path或hooks_class_name")
             return {"success": False, "opportunities_count": 0, "error": "缺少hooks信息"}
 
         try:
-            import importlib
+            from core.modules.strategy.core.services.discovery.worker_loader import (
+                StrategyWorkerLoader,
+            )
 
-            hooks_module = importlib.import_module(hooks_module_path)
-            hooks_class = getattr(hooks_module, hooks_class_name)
+            hooks_class = StrategyWorkerLoader.import_hooks_class(
+                worker_module_path=hooks_module_path,
+                worker_class_name=hooks_class_name,
+                worker_file_path=str(hooks_file_path or ""),
+            )
             hooks_instance = hooks_class()
         except Exception as exc:
             logger.error("加载hooks类失败：%s", exc, exc_info=True)
@@ -117,8 +125,9 @@ class JobExecutor:
             entity_specified=entity_specified,
         )
 
-        recorder = EntityBasedEnumeratorRecorder.resolve(payload)
-        recorder.buffer_opportunities(simulator.buffer_for_recorder())
+        if not payload.get("_dispatch_probe"):
+            recorder = EntityBasedEnumeratorRecorder.resolve(payload)
+            recorder.buffer_opportunities(simulator.buffer_for_recorder())
 
         opportunities_count = simulator.total_recorded_count()
         logger.info("子进程执行完成：opportunities_count=%d", opportunities_count)
@@ -127,6 +136,7 @@ class JobExecutor:
             "success": True,
             "opportunities_count": opportunities_count,
             "entities_with_opportunities": simulator.entities_with_investments(),
+            "entities_count": len(entity_specified),
         }
 
     @staticmethod

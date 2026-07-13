@@ -3,12 +3,13 @@ from __future__ import annotations
 
 from typing import Dict, Any
 
+from ..data_keys import SYS_DATA_KEY
 from .loader import MacroLprLoader
 
 
 MACRO_LPR_DECLARATION: Dict[str, Any] = {
     "meta": {
-        "key": "macro.lpr",
+        "key": SYS_DATA_KEY.MACRO_LPR,
         "type": "time_series",
         "scope": "global",
         "display_name": "宏观 LPR",

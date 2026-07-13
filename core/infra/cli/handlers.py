@@ -204,7 +204,93 @@ def _handle_renew(app: CliApp, args: argparse.Namespace) -> None:
         raise SystemExit(1) from exc
 
 
+def _resolve_enumerate_strategy(name: Optional[str]) -> str:
+    from core.modules.strategy.core.services.discovery.discovery_service import DiscoveryService
+
+    explicit = _strategy_name(name)
+    if explicit:
+        if DiscoveryService.find_strategy(explicit) is None:
+            keys = DiscoveryService.list_enabled_keys()
+            logger.error("策略不存在或未启用: %s", explicit)
+            if keys:
+                logger.error("可用 meta.key: %s", ", ".join(sorted(keys)))
+            raise SystemExit(1)
+        return explicit
+
+    enabled = DiscoveryService.get_enabled_strategies()
+    if not enabled:
+        logger.error(
+            "未指定 --strategy，且 userspace/strategies 下没有 is_enabled=True 的合法策略。"
+            "请检查 settings.py 含 meta.key 与 is_enabled=True。"
+        )
+        raise SystemExit(1)
+    if len(enabled) > 1:
+        logger.warning(
+            "多个启用策略，默认使用 key=%s（%s）；可用 --strategy <meta.key> 指定",
+            enabled[0].key,
+            enabled[0].unique_relative_path,
+        )
+    return enabled[0].key
+
+
+def _run_strategy_enumerate(args: argparse.Namespace) -> None:
+    import time
+
+    from core.modules.strategy import Strategy
+
+    strategy_key = _resolve_enumerate_strategy(getattr(args, "strategy", None))
+    force = bool(getattr(args, "force", False))
+    stock_count = getattr(args, "stocks", None)
+
+    runtime_settings: dict = {}
+    if stock_count is not None:
+        runtime_settings["sampling"] = {
+            "use_sampling": True,
+            "sampling_amount": int(stock_count),
+        }
+
+    print("🔢 枚举投资机会…", flush=True)
+    print(f"  策略: {strategy_key}", flush=True)
+    if stock_count is not None:
+        print(f"  采样: {stock_count} 只股票", flush=True)
+    else:
+        print(
+            "  提示: 未传 --stocks 时将按 settings.sampling 抽样（可能数百只，耗时较长）",
+            flush=True,
+        )
+    print("  进度: 5%→15% 为调度探针，之后按 batch 推进；完成后输出结果摘要", flush=True)
+
+    t0 = time.perf_counter()
+    result = Strategy.enumerate(
+        strategy_key,
+        ignore_cache=force,
+        runtime_settings=runtime_settings or None,
+    )
+    wall_sec = time.perf_counter() - t0
+    execute_sec = float(result.get("elapsed_seconds") or 0.0)
+
+    print(f"  success: {result.get('success')}", flush=True)
+    print(f"  opportunities: {result.get('opportunities_count', 0)}", flush=True)
+    total_jobs = result.get("total_jobs")
+    completed_jobs = result.get("completed_jobs")
+    if total_jobs is not None:
+        print(f"  jobs: {completed_jobs}/{total_jobs}", flush=True)
+    print(f"  回测执行: {execute_sec:.2f}s", flush=True)
+    print(f"  总耗时: {wall_sec:.2f}s", flush=True)
+    if result.get("output_dir"):
+        print(f"  output_dir: {result['output_dir']}", flush=True)
+    if not result.get("success"):
+        failed = result.get("failed_entities") or []
+        if failed:
+            print(f"  failed: {failed[0].get('error')}")
+        raise SystemExit(1)
+
+
 def _handle_strategy(cmd: str, app: CliApp, args: argparse.Namespace) -> None:
+    if cmd == "strategy_enumerate":
+        _run_strategy_enumerate(args)
+        return
+
     mgr = app._ensure_strategy_manager()
     name = _strategy_name(getattr(args, "strategy", None))
     force = bool(getattr(args, "force", False))
@@ -212,16 +298,6 @@ def _handle_strategy(cmd: str, app: CliApp, args: argparse.Namespace) -> None:
     if cmd == "scan":
         logger.info("🔍 扫描投资机会...")
         mgr.scan(strategy_name=name, demo=bool(getattr(args, "demo", False)))
-        return
-
-    if cmd == "strategy_enumerate":
-        print("🔢 枚举投资机会…")
-        mgr.simulate(
-            "enumerate",
-            strategy_name=name,
-            force_refresh=force,
-            stock_count=getattr(args, "stocks", None),
-        )
         return
 
     if cmd == "strategy_price_factor":

@@ -2,10 +2,10 @@
 
 Three kinds of runtime data
 ---------------------------
-1. **Run deps** (``InvestmentRunDeps``, set at ``create_from_opportunity``): ``market_rules``,
-   ``open_dates``, ``goal``, price models — global for the enumerate run.
-2. **Accumulators** (fields on ``Investment``): ``entry``, ``holding``, ``extreme``,
-   ``risk``, ``completed_goals``, … — updated each ``tick``.
+1. **Run deps** (``Investment.deps``, set at ``create_from_opportunity``): ``market_rules``,
+   ``open_dates``, ``goal``, price models — fixed for the investment run.
+2. **Accumulators** (``InvestmentTickState`` on ``Investment``): ``entry``, ``holding``,
+   ``extreme``, ``completed_goals``, … — updated each ``tick``.
 3. **Tick input** (``InvestmentTickInput``, passed per step, not stored): ``as_of_date``,
    ``data_as_of``, ``bar`` — supplied by the backtester / enumerator loop.
 
@@ -143,9 +143,10 @@ class InvestmentTickInput:
         return str(self.data_as_of or self.as_of_date or "").strip()
 
 
+
 @dataclass(frozen=True)
 class InvestmentRunDeps:
-    """Run-scoped trading deps — injected once at ``create_from_opportunity``, not serialized."""
+    """Run-scoped deps — injected once at ``create_from_opportunity`` (``Investment.deps``)."""
 
     market_rules: Any
     open_dates: Tuple[str, ...]
@@ -222,17 +223,16 @@ class ExtremePriceEdge:
     lowest_return: Optional[float] = None
 
 
-@dataclass
-class RiskState:
-    protect_loss_active: bool = False
-    dynamic_loss_active: bool = False
-    dynamic_loss_peak: Optional[float] = None
-    triggered_stop_loss_idx: int = -1
-    triggered_take_profit_idx: int = -1
+# TODO: below goals are dynamically injected when simulating, is triggered by goal extra actions
+# @dataclass
+# class DynamicGoalState:
+#     protect_loss_is_on: bool = False
+#     dynamic_loss_is_on: bool = False
+#     dynamic_loss_peak: Optional[float] = None
 
 
 @dataclass
-class OutcomePerformance:
+class GoalOutcome:
     result: Optional[InvestmentResult] = None
     weighted_roi: float = 0.0
     price_return: Optional[float] = None
@@ -240,19 +240,30 @@ class OutcomePerformance:
 
 
 @dataclass
-class Investment(Opportunity):
-    """Extends ``Opportunity`` with grouped, direction-neutral trading state."""
+class InvestmentTickState:
+    """Per-investment accumulators updated across ``tick`` calls."""
 
-    lifecycle: Lifecycle = Lifecycle.PENDING_TO_ENTER
+    state: Lifecycle = Lifecycle.PENDING_TO_ENTER
     entry: EntryInfo = field(default_factory=EntryInfo)
     exit_info: ExitInfo = field(default_factory=ExitInfo)
     pending_exit: Optional[PendingExit] = None
     holding: HoldingState = field(default_factory=HoldingState)
     extreme: ExtremePriceEdge = field(default_factory=ExtremePriceEdge)
-    risk: RiskState = field(default_factory=RiskState)
-    outcome: OutcomePerformance = field(default_factory=OutcomePerformance)
+    outcome: GoalOutcome = field(default_factory=GoalOutcome)
     completed_goals: List[Dict[str, Any]] = field(default_factory=list)
+    customized_state: Dict[str, Any] = field(default_factory=dict)
+    # TODO: active_goals — typed ``Goal`` list when goal pipeline is refactored
+    # TODO: dynamic goal flags (protect_loss, dynamic_loss) from goal extra actions
+
+
+@dataclass
+class Investment(Opportunity):
+    """Extends ``Opportunity`` with simulation state (signal + runtime + deps)."""
+
+    runtime_state: InvestmentTickState = field(default_factory=InvestmentTickState)
+    deps: Optional[InvestmentRunDeps] = None
     execute_steps: List[ExecuteStep] = field(default_factory=list)
+    # TODO: ``init_state`` snapshot (frozen entry context) separate from ``deps``
 
     _EXECUTE_STEP_HANDLERS: ClassVar[Dict[ExecuteStep, str]] = {
         ExecuteStep.CHECK_SETTLEMENT: "_check_settlement",
@@ -260,6 +271,72 @@ class Investment(Opportunity):
         ExecuteStep.CHECK_TAKE_PROFIT: "_check_take_profit",
         ExecuteStep.CHECK_EXPIRATION: "_check_expiration",
     }
+
+    @property
+    def lifecycle(self) -> Lifecycle:
+        return self.runtime_state.state
+
+    @lifecycle.setter
+    def lifecycle(self, value: Lifecycle) -> None:
+        self.runtime_state.state = value
+
+    @property
+    def entry(self) -> EntryInfo:
+        return self.runtime_state.entry
+
+    @entry.setter
+    def entry(self, value: EntryInfo) -> None:
+        self.runtime_state.entry = value
+
+    @property
+    def exit_info(self) -> ExitInfo:
+        return self.runtime_state.exit_info
+
+    @exit_info.setter
+    def exit_info(self, value: ExitInfo) -> None:
+        self.runtime_state.exit_info = value
+
+    @property
+    def pending_exit(self) -> Optional[PendingExit]:
+        return self.runtime_state.pending_exit
+
+    @pending_exit.setter
+    def pending_exit(self, value: Optional[PendingExit]) -> None:
+        self.runtime_state.pending_exit = value
+
+    @property
+    def holding(self) -> HoldingState:
+        return self.runtime_state.holding
+
+    @holding.setter
+    def holding(self, value: HoldingState) -> None:
+        self.runtime_state.holding = value
+
+    @property
+    def extreme(self) -> ExtremePriceEdge:
+        return self.runtime_state.extreme
+
+    @extreme.setter
+    def extreme(self, value: ExtremePriceEdge) -> None:
+        self.runtime_state.extreme = value
+
+    @property
+    def outcome(self) -> GoalOutcome:
+        return self.runtime_state.outcome
+
+    @outcome.setter
+    def outcome(self, value: GoalOutcome) -> None:
+        self.runtime_state.outcome = value
+
+    @property
+    def completed_goals(self) -> List[Dict[str, Any]]:
+        return self.runtime_state.completed_goals
+
+    @property
+    def run_deps(self) -> InvestmentRunDeps:
+        if self.deps is None:
+            raise RuntimeError("Investment 未绑定 deps（须通过 create_from_opportunity 创建）")
+        return self.deps
 
     @classmethod
     def create_from_opportunity(
@@ -275,14 +352,13 @@ class Investment(Opportunity):
         profile = str(
             opportunity.market_profile or ProjectContext.config.get_default_market_profile_key()
         ).strip()
-        market_rules = create_market_rules(profile)
         run_deps = InvestmentRunDeps.from_settings(
             settings=settings,
-            market_rules=market_rules,
+            market_rules=create_market_rules(profile),
             open_dates=open_dates,
         )
         expiration = _expiration_rule_from_goal(run_deps.goal.expiration)
-        inv = cls(
+        return cls(
             stock=opportunity.stock,
             record_of_today=dict(opportunity.record_of_today),
             trigger_date=str(opportunity.trigger_date or ""),
@@ -292,22 +368,35 @@ class Investment(Opportunity):
             contributor=_copy_dataclass(opportunity.contributor, OpportunityContributor),
             extra_fields=dict(opportunity.extra_fields),
             metadata=dict(opportunity.metadata),
-            lifecycle=Lifecycle.PENDING_TO_ENTER,
-            holding=_holding_from_expiration(expiration),
+            deps=run_deps,
+            runtime_state=InvestmentTickState(
+                state=Lifecycle.PENDING_TO_ENTER,
+                holding=_holding_from_expiration(expiration),
+            ),
             execute_steps=list(run_deps.execute_steps),
         )
-        object.__setattr__(inv, "_run_deps", run_deps)
-        return inv
-
-    @property
-    def run_deps(self) -> InvestmentRunDeps:
-        binding = getattr(self, "_run_deps", None)
-        if binding is None:
-            raise RuntimeError("Investment 未绑定 run_deps（须通过 create_from_opportunity 创建）")
-        return binding
 
     def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+        """JSON/CSV-safe export (omits non-serializable run deps such as market_rules)."""
+        payload = Opportunity.to_dict(self)
+        state = asdict(self.runtime_state)
+        state["state"] = self.lifecycle.value
+        payload.update(
+            {
+                "lifecycle": self.lifecycle.value,
+                "runtime_state": state,
+                "entry": asdict(self.entry),
+                "exit_info": asdict(self.exit_info),
+                "holding": asdict(self.holding),
+                "extreme": asdict(self.extreme),
+                "outcome": asdict(self.outcome),
+                "completed_goals": list(self.completed_goals),
+                "execute_steps": [step.value for step in self._resolve_execute_steps()],
+            }
+        )
+        if self.pending_exit is not None:
+            payload["pending_exit"] = asdict(self.pending_exit)
+        return payload
 
     def _resolve_execute_steps(self) -> List[ExecuteStep]:
         if self.execute_steps:
@@ -716,10 +805,10 @@ __all__ = [
     "Investment",
     "InvestmentRunDeps",
     "InvestmentTickInput",
+    "InvestmentTickState",
     "InvestmentResult",
+    "GoalOutcome",
     "Lifecycle",
-    "OutcomePerformance",
     "PendingExit",
-    "RiskState",
     "TradeSide",
 ]

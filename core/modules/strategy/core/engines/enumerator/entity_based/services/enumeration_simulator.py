@@ -78,13 +78,30 @@ class EntityEnumerationSimulator:
             "open_dates": open_dates,
         }
 
+        ctx_bases: Dict[str, DataContext] = {}
+        for entity_item in entity_specified:
+            entity_id = str(entity_item.get("id") or "").strip()
+            if not entity_id or entity_id not in self.trackers:
+                continue
+            ctx_bases[entity_id] = DataContext.assemble(
+                strategy_name=strategy_name,
+                settings=settings,
+                stock_list=[entity_id],
+                entity_id=entity_id,
+                entity_info={
+                    "id": entity_id,
+                    **self._stock_info.get(entity_id, {}),
+                },
+            )
+
         for now in filtered_dates:
             pit_data_by_entity = self._load_pit_by_entity(entity_contracts, now)
 
             for entity_item in entity_specified:
                 entity_id = str(entity_item.get("id") or "").strip()
                 tracker = self.trackers.get(entity_id)
-                if tracker is None:
+                ctx_base = ctx_bases.get(entity_id)
+                if tracker is None or ctx_base is None:
                     continue
 
                 per_entity_pit = pit_data_by_entity.get(entity_id, {})
@@ -104,13 +121,6 @@ class EntityEnumerationSimulator:
 
                 complete_data = {**per_entity_pit, **global_data}
                 try:
-                    ctx_base = DataContext.assemble(
-                        strategy_name=strategy_name,
-                        settings=settings,
-                        stock_list=[entity_id],
-                        entity_id=entity_id,
-                        entity_info={"id": entity_id, **self._stock_info.get(entity_id, {})},
-                    )
                     ctx = DataContext.fill(
                         ctx_base,
                         now=now,

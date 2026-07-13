@@ -3,12 +3,13 @@ from __future__ import annotations
 
 from typing import Dict, Any
 
+from ..data_keys import SYS_DATA_KEY
 from .loader import MacroGdpLoader
 
 
 MACRO_GDP_DECLARATION: Dict[str, Any] = {
     "meta": {
-        "key": "macro.gdp",
+        "key": SYS_DATA_KEY.MACRO_GDP,
         "type": "time_series",
         "scope": "global",
         "display_name": "宏观 GDP",

@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Type
 
-from core.modules.strategy.core.data.settings.strategy_settings import StrategySettings
-from core.modules.strategy.core.data.settings.validation_report import ValidationReport
+from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import StrategySettings
+from core.modules.strategy.core.engines.shared.services.strategy_settings.validation_report import ValidationReport
 
 
 @dataclass

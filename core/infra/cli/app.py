@@ -8,7 +8,6 @@ from typing import Optional
 
 from core.modules.data_manager import DataManager
 from core.modules.data_source.data_source_manager import DataSourceManager
-from core.modules.tag import TagManager
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +20,7 @@ class CliApp:
         self.data_manager = DataManager(is_verbose=is_verbose)
         self.db = self.data_manager.db
         self.data_source = DataSourceManager(is_verbose=is_verbose)
-        self.tag_manager: TagManager | None = None
+        self.tag_manager = None
         self.strategy_manager = None
 
     async def renew_data(
@@ -34,7 +33,7 @@ class CliApp:
 
     def _ensure_strategy_manager(self):
         if self.strategy_manager is None:
-            from core.modules.strategy import StrategyManager
+            from core.modules.strategy_legacy import StrategyManager
 
             self.strategy_manager = StrategyManager(is_verbose=self.is_verbose)
         return self.strategy_manager
@@ -48,6 +47,8 @@ class CliApp:
         profile: bool = False,
         entities_per_job: int | None = None,
     ) -> None:
+        from core.modules.tag import TagManager
+
         if self.tag_manager is None:
             self.tag_manager = TagManager(is_verbose=self.is_verbose)
 

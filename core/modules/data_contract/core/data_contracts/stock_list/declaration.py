@@ -3,12 +3,13 @@ from __future__ import annotations
 
 from typing import Dict, Any
 
+from ..data_keys import SYS_DATA_KEY
 from .loader import StockListLoader
 
 
 STOCK_LIST_DECLARATION: Dict[str, Any] = {
     "meta": {
-        "key": "stock.list",
+        "key": SYS_DATA_KEY.STOCK_LIST,
         "type": "non_time_series",
         "scope": "global",
         "display_name": "股票列表",

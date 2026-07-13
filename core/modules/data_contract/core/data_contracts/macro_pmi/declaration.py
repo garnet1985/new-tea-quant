@@ -3,12 +3,13 @@ from __future__ import annotations
 
 from typing import Dict, Any
 
+from ..data_keys import SYS_DATA_KEY
 from .loader import MacroPmiLoader
 
 
 MACRO_PMI_DECLARATION: Dict[str, Any] = {
     "meta": {
-        "key": "macro.pmi",
+        "key": SYS_DATA_KEY.MACRO_PMI,
         "type": "time_series",
         "scope": "global",
         "display_name": "PMI（采购经理指数）",

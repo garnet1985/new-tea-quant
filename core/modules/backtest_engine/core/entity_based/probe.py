@@ -22,7 +22,9 @@ import logging
 import multiprocessing as mp
 import pickle
 import time
+from copy import deepcopy
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from core.modules.backtest_engine.core.shared.job_lifecycle import run_job_lifecycle
@@ -32,6 +34,8 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_PROBE_ENTITIES: int = 20
 DEFAULT_PROBE_SAFETY_FACTOR: float = 1.25
+# 探针只测内存/耗时，不跑全量回测区间（calendar 日数过大会极慢）
+PROBE_LOOKBACK_CALENDAR_DAYS: int = 60
 
 # spawn 下须用模块级 worker + 字符串选择执行器（不可 pickle 闭包）
 PROBE_EXECUTOR_TAG = "tag"
@@ -151,14 +155,20 @@ class Probe:
         entity_specified = payload.get("entity_specified", [])
         probe_entity_specified = entity_specified[:probe_entities_count]
 
-        # 构建探针bundle job（保留完整的entity_shared和global）
+        entity_shared = Probe._shorten_entity_shared_for_probe(
+            payload.get("entity_shared", {})
+        )
+
+        # 构建探针 bundle job（缩短日期窗口；不写 CSV）
         probe_bundle_payload = {
             "entity_specified": probe_entity_specified,
-            "entity_shared": payload.get("entity_shared", {}),
+            "entity_shared": entity_shared,
             "global": payload.get("global", {}),
             "shm_info": payload.get("shm_info", {}),
             "strategy_info": payload.get("strategy_info", {}),
             "settings": payload.get("settings", {}),
+            "entities_count": len(probe_entity_specified),
+            "_dispatch_probe": True,
         }
 
         probe_jobs = [{
@@ -173,6 +183,30 @@ class Probe:
         )
 
         return probe_jobs
+
+    @staticmethod
+    def _shorten_entity_shared_for_probe(entity_shared: Dict[str, Any]) -> Dict[str, Any]:
+        """探针用短窗口加载 K 线（仅估 mb/entity，不跑全区间）。"""
+        shortened = deepcopy(entity_shared or {})
+        for data_key, decl in shortened.items():
+            if not isinstance(decl, dict):
+                continue
+            end = str(decl.get("end") or "").strip()
+            if len(end) != 8 or not end.isdigit():
+                continue
+            try:
+                end_dt = datetime.strptime(end, "%Y%m%d")
+            except ValueError:
+                continue
+            start_dt = end_dt - timedelta(days=PROBE_LOOKBACK_CALENDAR_DAYS)
+            decl["start"] = start_dt.strftime("%Y%m%d")
+            logger.info(
+                "探针缩短数据窗口：%s %s → %s",
+                data_key,
+                decl["start"],
+                end,
+            )
+        return shortened
     
     @staticmethod
     def dispatch(
@@ -193,11 +227,17 @@ class Probe:
             logger.warning("%s探针跳过：未提供 execute_fn", log_label)
             return Probe._get_default_result(performance)
 
-        entities_sampled = len(probe_jobs)
-        probe_payload = {
-            "jobs": probe_jobs,
-            "_probe_entity_count": entities_sampled,
-        }
+        entities_sampled = len(
+            probe_jobs[0].get("payload", {}).get("entity_specified") or []
+        )
+        print(
+            f"  探针测量中 ({entities_sampled} entities，用于调度 batch，请稍候)…",
+            flush=True,
+        )
+        probe_job = probe_jobs[0]
+        probe_payload = dict(probe_job.get("payload") or {})
+        probe_payload["_probe_entity_count"] = entities_sampled
+        probe_payload["_job_id"] = str(probe_job.get("id") or "probe")
 
         raw_result = Probe._run_probe_in_subprocess(
             execute_fn,
@@ -224,7 +264,19 @@ class Probe:
         on_child_process_task_start: Optional[ChildProcessTaskStartFn] = None,
         on_child_process_task_complete: Optional[ChildProcessTaskCompleteFn] = None,
     ) -> Dict[str, Any]:
-        """在独立子进程运行探针。"""
+        """在独立子进程运行探针（默认主进程内试跑，避免嵌套进程池 + DuckDB 锁）。"""
+        worker_args = (
+            execute_fn,
+            probe_payload,
+            task_name,
+            on_child_process_task_start,
+            on_child_process_task_complete,
+        )
+        if not bool(performance.get("probe_in_subprocess", False)):
+            logger.info("%s探针：主进程内试跑（缩短窗口）", log_label)
+            print("  探针：主进程内试跑…", flush=True)
+            return _probe_worker(worker_args)
+
         from core.infra.db.engines.duckdb.process_pool_scope import (
             is_duckdb_backend,
             is_main_duckdb_worker_pool_active,
@@ -245,18 +297,7 @@ class Probe:
         try:
             ctx = mp.get_context(start_method)
             with ctx.Pool(processes=1) as pool:
-                raw = pool.apply(
-                    _probe_worker,
-                    (
-                        (
-                            execute_fn,
-                            probe_payload,
-                            task_name,
-                            on_child_process_task_start,
-                            on_child_process_task_complete,
-                        ),
-                    ),
-                )
+                raw = pool.apply(_probe_worker, (worker_args,))
             wait_pool_children_done(timeout_sec=15.0)
             return raw
         finally:
@@ -348,8 +389,10 @@ class Probe:
 
 
 def _probe_worker(args: tuple) -> Dict[str, Any]:
-    """子进程探针 worker：init → execute_fn → release。"""
+    """探针 worker：init → execute_fn → release。"""
     execute_fn, payload, task_name, on_child_process_task_start, on_child_process_task_complete = args
+    entities = int(payload.get("_probe_entity_count") or payload.get("entities_count") or 1)
+    logger.info("探针 worker 开始：entities=%d dispatch_probe=%s", entities, payload.get("_dispatch_probe"))
     rss_before_mb = _process_rss_mb()
     t0 = time.perf_counter()
 
@@ -369,7 +412,7 @@ def _probe_worker(args: tuple) -> Dict[str, Any]:
 
     rss_after_mb = _process_rss_mb()
     wall_sec = time.perf_counter() - t0
-    entities = max(1, int(payload.get("_probe_entity_count") or 1))
+    entities = max(1, int(payload.get("_probe_entity_count") or payload.get("entities_count") or 1))
 
     pickle_bytes = 0
     try:

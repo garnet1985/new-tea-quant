@@ -10,6 +10,9 @@ from core.modules.strategy.core.engines.enumerator.entity_based.services.job_bui
 from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
 )
+from core.modules.strategy.core.engines.shared.services.entity_loader.stock_sampling import (
+    StockSampler,
+)
 from core.modules.strategy.core.engines.shared.services.entity_loader.strategy_data_resolver import (
     StrategyDataResolver,
 )
@@ -97,6 +100,11 @@ class EnumeratorPipeline:
             )
 
             stock_ids = cls.global_entity_cache.get_stock_ids()
+            stock_ids = cls._resolve_entity_ids(
+                stock_ids,
+                effective_settings_obj,
+                strategy_info.key,
+            )
             global_declarations = declaration_groups["global_declarations"]
             per_entity_declarations = declaration_groups["per_entity_declarations"]
             shm_info = cls.global_entity_cache.get_shm_info()
@@ -129,6 +137,27 @@ class EnumeratorPipeline:
             # TODO: cls._save_results_and_metadata(...)
 
         return cls._to_report(results)
+
+    @classmethod
+    def _resolve_entity_ids(
+        cls,
+        stock_ids: List[str],
+        effective_settings: StrategySettings,
+        strategy_key: str,
+    ) -> List[str]:
+        """按 sampling 配置缩小 entity 范围（smoke / 抽样）。"""
+        sampling = effective_settings.raw_settings.get("sampling") or {}
+        stock_pool = sampling.get("stock_pool")
+        if stock_pool:
+            pool = [str(item).strip() for item in stock_pool if str(item).strip()]
+            known = set(stock_ids)
+            filtered = [entity_id for entity_id in pool if entity_id in known]
+            return filtered or pool
+
+        if sampling.get("use_sampling"):
+            return StockSampler.sample(stock_ids, sampling, strategy_key)
+
+        return stock_ids
 
     @classmethod
     def _find_cache_by_fingerprints(cls, settings_fp: str, env_fp: str) -> Optional[Dict[str, Any]]:
@@ -206,11 +235,20 @@ class EnumeratorPipeline:
 
         failed_entities: List[Dict[str, Any]] = []
 
+        def on_before_all_tasks_start(plan: Any, batches: List[Any]) -> None:
+            print(
+                f"  调度: {len(batches)} batches, "
+                f"~{getattr(plan, 'entities_per_job', '?')} entities/job, "
+                f"workers={getattr(plan, 'max_workers', '?')}",
+                flush=True,
+            )
+
         def on_after_all_tasks_complete_closure(job_reports: List) -> None:
             """主进程钩子：全局清理。"""
             JobExecutor.on_after_all_tasks_complete(job_reports, cls.global_entity_cache)
 
         callbacks = RunCallbacks(
+            on_before_all_tasks_start=on_before_all_tasks_start,
             on_child_process_task_start=JobExecutor.on_child_process_task_start,
             on_child_process_task_complete=JobExecutor.on_child_process_task_complete,
             on_after_all_tasks_complete=on_after_all_tasks_complete_closure,

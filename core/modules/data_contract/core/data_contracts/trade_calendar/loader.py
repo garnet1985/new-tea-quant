@@ -27,13 +27,17 @@ class TradeCalendarLoader(BaseDataContractLoader):
             交易日历列表（包含 date、is_open 等字段）
 
         设计：
-        - 使用 DataManager.service.calendar.get_trade_calendar()
+        - 使用 DataManager.service.calendar.load_open_dates()
+        - params 须含 ``start``、``end``（YYYYMMDD）
         - 返回交易日历列表（每个元素包含 date、is_open 等字段）
         - GLOBAL scope（全局共享）
         - TIME_SERIES type（时序数据）
         """
         start = params.get("start")
         end = params.get("end")
+        if not start or not end:
+            raise ValueError("trade.calendar loader params 须含 start、end（YYYYMMDD）")
+        market = str(params.get("market") or "SSE").strip() or "SSE"
 
         try:
             from core.modules.data_manager import DataManager
@@ -41,19 +45,11 @@ class TradeCalendarLoader(BaseDataContractLoader):
             data_mgr = DataManager(is_verbose=False)
             cal_svc = data_mgr.service.calendar
 
-            # 获取交易日历
-            trade_calendar = cal_svc.get_trade_calendar(
-                start_date=str(start) if start else None,
-                end_date=str(end) if end else None,
-            )
+            period_start = str(start).strip()
+            period_end = str(end).strip()
 
-            # 转换为标准格式
-            result = []
-            for date_str in trade_calendar:
-                result.append({
-                    "date": date_str,
-                    "is_open": True,  # 交易日历中的日期都是交易日
-                })
+            open_dates = cal_svc.load_open_dates(period_start, period_end, market=market)
+            result = [{"date": date_str, "is_open": True} for date_str in open_dates]
 
             logger.info(
                 f"TradeCalendarLoader.load() 成功：start={start}, end={end}, "

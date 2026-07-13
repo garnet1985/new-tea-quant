@@ -1,7 +1,6 @@
 """用户 hook 侧 DataContext — 策略决策所需的业务数据。"""
 from __future__ import annotations
 
-from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterator, List, Optional, TypeVar
 
@@ -32,7 +31,8 @@ class _HookDataStore:
         return iter(self._store.keys())
 
     def to_dict(self) -> Dict[str, Any]:
-        return deepcopy(self._store)
+        """Shallow view for hook reads; nested rows are shared references (do not mutate)."""
+        return dict(self._store)
 
     def update(self, mapping: Dict[str, Any]) -> None:
         self._store.update(mapping)

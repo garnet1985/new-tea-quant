@@ -3,12 +3,13 @@ from __future__ import annotations
 
 from typing import Dict, Any
 
+from ..data_keys import SYS_DATA_KEY
 from .loader import IndexWeightDailyLoader
 
 
 INDEX_WEIGHT_DAILY_DECLARATION: Dict[str, Any] = {
     "meta": {
-        "key": "index.weight.daily",
+        "key": SYS_DATA_KEY.INDEX_WEIGHT_DAILY,
         "type": "time_series",
         "scope": "per_entity",
         "display_name": "指数日频成分权重",

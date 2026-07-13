@@ -3,9 +3,14 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, ClassVar, Dict, List, Optional
 
 from core.infra.project_context import ProjectContext
+from core.infra.job_pipeline.profile import (
+    WorkerProfiles,
+    resolve_entity_based_performance_for_profile,
+)
 from core.modules.strategy.core.engines.enumerator.entity_based.executor import (
     ExecutorHooksContext,
     JobExecutor,
@@ -28,6 +33,8 @@ from core.modules.strategy.core.engines.shared.services.finger_print.fingerprint
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
+
+logger = logging.getLogger(__name__)
 from core.modules.strategy.core.services.discovery.data.discovered_strategy import EnabledStrategyInfo
 
 
@@ -126,6 +133,7 @@ class EnumeratorPipeline:
         results = cls._step_to_execute_backtest(
             jobs=jobs,
             report_manager=report_manager,
+            effective_settings_obj=effective_settings_obj,
         )
         cls._step_to_generate_reports(
             results=results,
@@ -166,6 +174,7 @@ class EnumeratorPipeline:
         *,
         jobs: List[Dict[str, Any]],
         report_manager: ReportManager,
+        effective_settings_obj: StrategySettings,
     ) -> Dict[str, Any]:
         from core.modules.backtest_engine import BacktestEngine
 
@@ -176,6 +185,7 @@ class EnumeratorPipeline:
         run_result = BacktestEngine.entity_based.run(
             jobs=jobs,
             execute_fn=JobExecutor.execute,
+            performance=cls._resolve_backtest_performance(effective_settings_obj),
             callbacks=JobExecutor.build_run_callbacks(
                 ExecutorHooksContext(
                     report_manager=report_manager,
@@ -186,6 +196,16 @@ class EnumeratorPipeline:
         )
 
         return cls._pack_backtest_results(run_result, report_manager=report_manager)
+
+    @staticmethod
+    def _resolve_backtest_performance(effective_settings: StrategySettings) -> Dict[str, Any]:
+        raw = effective_settings.raw_settings or {}
+        perf_override = raw.get("performance")
+        override = dict(perf_override) if isinstance(perf_override, dict) else None
+        return resolve_entity_based_performance_for_profile(
+            WorkerProfiles.ENUMERATOR,
+            override,
+        )
 
     @classmethod
     def _step_to_generate_reports(
@@ -263,14 +283,13 @@ class EnumeratorPipeline:
     ) -> List[str]:
         """按 sampling 配置缩小 entity 范围（smoke / 抽样）。"""
         sampling = effective_settings.raw_settings.get("sampling") or {}
-        stock_pool = sampling.get("stock_pool")
-        if stock_pool:
-            pool = [str(item).strip() for item in stock_pool if str(item).strip()]
-            known = set(stock_ids)
-            filtered = [entity_id for entity_id in pool if entity_id in known]
-            return filtered or pool
-
         if sampling.get("use_sampling"):
+            stock_pool = sampling.get("stock_pool")
+            if stock_pool:
+                pool = [str(item).strip() for item in stock_pool if str(item).strip()]
+                known = set(stock_ids)
+                filtered = [entity_id for entity_id in pool if entity_id in known]
+                return filtered or pool
             return StockSampler.sample(stock_ids, sampling, strategy_key)
 
         return stock_ids

@@ -11,6 +11,10 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Callable
 
 from core.infra.machine_capacity import MachineCapacity, MachineInfo
+from core.infra.job_pipeline.profile.dispatch_settings import (
+    clamp_entities_per_job,
+    default_auto_entities_per_job,
+)
 from core.modules.backtest_engine.core.shared.base_planner import BasePlanner
 from core.modules.backtest_engine.core.shared.types import JobContext, ChildProcessTaskStartFn, ChildProcessTaskCompleteFn
 from core.modules.backtest_engine.core.entity_based.probe import (
@@ -27,8 +31,6 @@ from core.modules.backtest_engine.core.entity_based.monitor import (
 
 logger = logging.getLogger(__name__)
 
-# stock_based v1 (2026-06-22): epj=5 optimal wall time vs epj=1; see devtools/performance/strategy/enumerator/reports/v1/
-DEFAULT_OPTIMAL_ENTITIES_PER_JOB: int = 5
 DEFAULT_PREFETCH_AHEAD: int = 1
 
 
@@ -325,12 +327,12 @@ class EntityPlanner(BasePlanner):
         if epj_override not in (None, "", "auto"):
             return max(1, int(epj_override)), "settings"
 
-        epj = EntityPlanner._clamp_entities(DEFAULT_OPTIMAL_ENTITIES_PER_JOB, performance)
+        epj = default_auto_entities_per_job(performance)
         single_job_mb = epj * mb_per_entity
         if single_job_mb <= memory_budget_mb:
             return epj, "default"
 
-        fitted = EntityPlanner._clamp_entities(
+        fitted = clamp_entities_per_job(
             max(1, int(memory_budget_mb / mb_per_entity)),
             performance,
         )
@@ -387,14 +389,7 @@ class EntityPlanner(BasePlanner):
             )
             return workers, "memory_capped"
         return workers, "auto"
-    
-    @staticmethod
-    def _clamp_entities(n: int, performance: Dict[str, Any]) -> int:
-        """约束entities_per_job到合理范围。"""
-        lo = max(5, int(performance.get("entities_per_job_min", 5)))
-        hi = max(lo, int(performance.get("entities_per_job_max", 50)))
-        return max(lo, min(hi, n))
-    
+
     # ===== Step 4: split_job_batches =====
     
     @staticmethod

@@ -64,7 +64,7 @@ class JobExecutor:
             BatchDataLoader,
         )
 
-        loaded_data = BatchDataLoader.load_bundle_data(job_context.payload)
+        loaded_data = BatchDataLoader.load_bundle_data(job_context.payload, perf=perf)
         perf.end("load_data")
 
         logger.info(
@@ -185,6 +185,7 @@ class JobExecutor:
             entity_contracts=entity_contracts,
             global_data=global_data,
             entity_specified=entity_specified,
+            perf=perf,
         )
 
         if not payload.get("_dispatch_probe"):

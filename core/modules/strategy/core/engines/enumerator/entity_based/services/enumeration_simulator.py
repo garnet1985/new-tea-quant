@@ -2,9 +2,13 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from core.modules.strategy.core.engines.enumerator.entity_based.services.enum_job_perf import (
+    EnumJobPerfRecorder,
+)
 from core.modules.strategy.core.engines.enumerator.entity_based.state.entity_tracker import (
     EntityTracker,
 )
@@ -56,6 +60,7 @@ class EntityEnumerationSimulator:
         entity_contracts: Dict[str, Any],
         global_data: Dict[str, Any],
         entity_specified: List[Dict[str, Any]],
+        perf: Optional[EnumJobPerfRecorder] = None,
     ) -> Dict[str, EntityTracker]:
         settings_dict = settings.to_dict()
         resolver = StrategyDataResolver(settings_dict)
@@ -78,12 +83,12 @@ class EntityEnumerationSimulator:
             "open_dates": open_dates,
         }
 
-        ctx_bases: Dict[str, DataContext] = {}
+        scan_contexts: Dict[str, DataContext] = {}
         for entity_item in entity_specified:
             entity_id = str(entity_item.get("id") or "").strip()
             if not entity_id or entity_id not in self.trackers:
                 continue
-            ctx_bases[entity_id] = DataContext.assemble(
+            ctx = DataContext.assemble(
                 strategy_name=strategy_name,
                 settings=settings,
                 stock_list=[entity_id],
@@ -93,15 +98,23 @@ class EntityEnumerationSimulator:
                     **self._stock_info.get(entity_id, {}),
                 },
             )
+            ctx.calendar = calendar_dict
+            scan_contexts[entity_id] = ctx
 
         for now in filtered_dates:
-            pit_data_by_entity = self._load_pit_by_entity(entity_contracts, now)
+            if perf is not None:
+                perf.begin("enum_pit_until")
+            pit_data_by_entity = self._load_pit_by_entity(
+                entity_contracts, now, perf=perf
+            )
+            if perf is not None:
+                perf.end("enum_pit_until", accumulate=True)
 
             for entity_item in entity_specified:
                 entity_id = str(entity_item.get("id") or "").strip()
                 tracker = self.trackers.get(entity_id)
-                ctx_base = ctx_bases.get(entity_id)
-                if tracker is None or ctx_base is None:
+                scan_ctx = scan_contexts.get(entity_id)
+                if tracker is None or scan_ctx is None:
                     continue
 
                 per_entity_pit = pit_data_by_entity.get(entity_id, {})
@@ -114,20 +127,27 @@ class EntityEnumerationSimulator:
                 if bar is not None:
                     self._last_bar_by_entity[entity_id] = bar
                     tick = InvestmentTickInput(as_of_date=now, bar=bar, data_as_of=now)
+                    if perf is not None:
+                        perf.begin("enum_process_tick")
                     tracker.process_tick(tick)
+                    if perf is not None:
+                        perf.end("enum_process_tick", accumulate=True)
 
                 if bar is None:
                     continue
 
-                complete_data = {**per_entity_pit, **global_data}
+                complete_data = per_entity_pit
+                if global_data:
+                    complete_data = {**global_data, **per_entity_pit}
                 try:
-                    ctx = DataContext.fill(
-                        ctx_base,
-                        now=now,
-                        data=complete_data,
-                        calendar=calendar_dict,
-                    )
+                    if perf is not None:
+                        perf.begin("enum_context_fill")
+                    scan_ctx.refill(now=now, data=complete_data)
+                    if perf is not None:
+                        perf.end("enum_context_fill", accumulate=True)
                 except Exception as exc:
+                    if perf is not None:
+                        perf.end("enum_context_fill", accumulate=True)
                     logger.error(
                         "构建 DataContext 失败：entity_id=%s now=%s error=%s",
                         entity_id,
@@ -138,8 +158,14 @@ class EntityEnumerationSimulator:
                     continue
 
                 try:
-                    scanned = hooks.scan_opportunity(ctx)
+                    if perf is not None:
+                        perf.begin("enum_scan")
+                    scanned = hooks.scan_opportunity(scan_ctx)
+                    if perf is not None:
+                        perf.end("enum_scan", accumulate=True)
                 except Exception as exc:
+                    if perf is not None:
+                        perf.end("enum_scan", accumulate=True)
                     logger.error(
                         "scan_opportunity 失败：entity_id=%s now=%s error=%s",
                         entity_id,
@@ -199,11 +225,19 @@ class EntityEnumerationSimulator:
     def _load_pit_by_entity(
         entity_contracts: Dict[str, Any],
         as_of: str,
+        *,
+        perf: Optional[EnumJobPerfRecorder] = None,
     ) -> Dict[str, Dict[str, Any]]:
         pit_data_by_entity: Dict[str, Dict[str, Any]] = {}
         for data_key, contract in entity_contracts.items():
             try:
+                until_t0 = time.perf_counter()
                 pit_data_dict = contract.until(as_of=as_of)
+                if perf is not None:
+                    perf.record_contract_until(
+                        str(data_key),
+                        time.perf_counter() - until_t0,
+                    )
             except Exception as exc:
                 logger.error(
                     "Contract.until 失败：data_key=%s as_of=%s error=%s",
@@ -237,5 +271,28 @@ class EntityEnumerationSimulator:
             if key not in last:
                 raise ValueError(f"K 线缺少字段 {key!r}: date={as_of}")
         return last
+
+
+# ---------------------------------------------------------------------------
+# perf 实验（已 revert）：bar 驱动 + DataCursor 一次 until 推进全 slot
+# 结论：未优于 calendar × per-contract.until；保留备查，默认不启用。
+# ---------------------------------------------------------------------------
+# from core.modules.data_cursor.data_cursor import DataCursor
+#
+# _USE_BAR_DRIVEN_ENUM = False
+#
+# def _run_bar_driven(...):
+#     pit_cursors[entity_id] = DataCursor.from_rows(
+#         _entity_rows_by_source(entity_contracts, entity_id)
+#     )
+#     for bar in _entity_klines_in_range(...):
+#         pit_data = _pit_until_unified(cursor, as_of, perf=perf)
+#         ...
+#
+# def _pit_until_unified(cursor, as_of, *, perf=None):
+#     pit_raw = cursor.until(as_of)
+#     perf.record_unified_until(...)
+#     return {str(k): v for k, v in pit_raw.items()}
+
 
 __all__ = ["EntityEnumerationSimulator"]

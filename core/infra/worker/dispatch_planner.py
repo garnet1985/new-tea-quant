@@ -27,9 +27,8 @@
    - 即使 epj=100 也不会 OOM
 
 调度策略（基于实验）：
-- entities_per_job ∈ [5, 50] (硬约束)
-- workers ∈ [1, cpu_count-1] (预留系统资源)
-- 小规模优先单进程，大规模适度并行
+- entities_per_job ∈ [20, 100] (默认 clamp 范围，可通过 settings 覆盖)
+- workers ∈ [1, cpu_count-reserve] (可通过 max_parallel_jobs_cap 封顶)
 
 ``auto`` 依赖：
 1. 调度探针给出的 ``measured_mb_per_entity``（推荐），或
@@ -46,6 +45,11 @@ import math
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
+from core.infra.job_pipeline.profile.constants import ENUMERATOR_DISPATCH_DEFAULTS
+from core.infra.job_pipeline.profile.dispatch_settings import (
+    clamp_entities_per_job,
+    entities_per_job_bounds,
+)
 from core.infra.job_pipeline.profile import (
     WorkerProfiles,
     profile_reserve_cores,
@@ -142,17 +146,7 @@ def _parse_entities_per_job_override(performance: Dict[str, Any]) -> Optional[in
 
 
 def _clamp_entities(n: int, performance: Dict[str, Any]) -> int:
-    """
-    约束 entities_per_job 到合理范围。
-
-    基于实验数据（2026-06-22）：
-    - 最小值: 5 (低于此值批量加载收益不明显)
-    - 最大值: 50 (高于此值批处理管理开销增加)
-    """
-    # 实验验证的最优范围 [5, 50]
-    lo = max(5, int(performance.get("entities_per_job_min", 5)))
-    hi = max(lo, min(50, int(performance.get("entities_per_job_max", 50))))
-    return max(lo, min(hi, n))
+    return clamp_entities_per_job(n, performance)
 
 
 def _resolve_mb_per_entity(
@@ -276,7 +270,7 @@ def resolve_dispatch_plan(
         source_max_workers=mw_source,
         source_mb_per_entity=mb_source,
     )
-    ep_max = int(performance.get("entities_per_job_max", 50))
+    ep_max = entities_per_job_bounds(performance)[1]
     logger.info(
         "%s 智能调度规划: entities=%s → dispatch_jobs≈%s (entities_per_job=%s, %s), "
         "workers=%s (%s, cpu=%s), prefetch=%s, "
@@ -331,26 +325,17 @@ def _resolve_smart_entities_per_job(
     - epj=5: 27.66s (parallelism=1.33x) ⭐ 最优
     - epj=10-100: 27.8-28.2s (parallelism≈1.30x)
 
-    调度策略：
-    - 小规模 (<200 股): epj=5 (最小批量，避免过度调度)
-    - 中等规模 (200-1000 股): epj=10 (适度批量，平衡 IO 和内存)
-    - 大规模 (>1000 股): epj=5 (最优平衡点，实验验证)
-
-    约束条件：
-    - 最小值: 5 (低于此值批量加载收益不明显)
-    - 最大值: 50 (高于此值批处理管理开销增加)
-    - 内存安全: 单 job 内存不超过预算的 50%
+    调度策略（2026-07 默认区间 [20, 100]）：
+    - 小规模 (<200 股): epj=20
+    - 中等规模 (200-1000 股): epj=50
+    - 大规模 (>1000 股): epj=20（留更多 job 给进程池并行）
     """
-    # 基于规模的启发式规则
     if total_entities < 200:
-        # 小规模：使用最小批量
-        recommended = 5
+        recommended = int(ENUMERATOR_DISPATCH_DEFAULTS["entities_per_job_auto_target"])
     elif total_entities < 1000:
-        # 中等规模：适度批量
-        recommended = 10
+        recommended = int(ENUMERATOR_DISPATCH_DEFAULTS.get("entities_per_job_auto_target_medium", 50))
     else:
-        # 大规模：使用实验验证的最优点
-        recommended = 5
+        recommended = int(ENUMERATOR_DISPATCH_DEFAULTS["entities_per_job_auto_target"])
 
     # 内存安全检查：确保单 job 不超过预算的 50%
     max_by_memory = int((memory_budget_mb * 0.5) / mb_per_entity) if mb_per_entity > 0 else 50

@@ -7,7 +7,8 @@
     },
     "enumerator": {
       "reserve_cores": 2,
-      "max_parallel_jobs_cap": null,
+      "max_workers": "auto",
+      "_comment_dispatch": "entities_per_job 等见 dispatch；代码 fallback 见 job_pipeline/profile/constants.py",
       "calendar_slice": {
         "reader_workers": "auto",
         "queue_depth": "auto",
@@ -22,8 +23,9 @@
         "monitor_interval": 5,
         "entities_per_job": "auto",
         "dispatch_probe": true,
-        "entities_per_job_min": 1,
-        "entities_per_job_max": 500
+        "entities_per_job_auto_target": 20,
+        "entities_per_job_min": 20,
+        "entities_per_job_max": 100
       }
     },
     "tag": {

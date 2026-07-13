@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, Hashable, List, Mapping, Optional
 
-from core.modules.data_contract.contracts import DataContract
+from core.modules.data_contract.contracts import BaseDataContract
 
 from .data_cursor import DataCursor
 
@@ -17,7 +17,7 @@ class DataCursorManager:
     def create_cursor(
         self,
         name: str,
-        contracts: Mapping[Hashable, DataContract],
+        contracts: Mapping[Hashable, BaseDataContract],
         *,
         time_field_overrides: Optional[Mapping[Hashable, Optional[str]]] = None,
     ) -> DataCursor:

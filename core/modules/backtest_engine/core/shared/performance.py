@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, fields
 from typing import Any, Dict, Optional, Union
 
+from core.infra.job_pipeline.profile.constants import ENUMERATOR_DISPATCH_DEFAULTS
 from core.infra.machine_capacity import MachineCapacity, MachineInfo
 
 AutoValue = Union[int, float, str, bool, None]
@@ -45,8 +46,8 @@ class EntityBasedPerformance:
     prefetch_ahead: int = 1
     reserve_cores: int = 1
     max_parallel_jobs_cap: Optional[int] = None
-    entities_per_job_min: int = 1
-    entities_per_job_max: int = 500
+    entities_per_job_min: int = ENUMERATOR_DISPATCH_DEFAULTS["entities_per_job_min"]
+    entities_per_job_max: int = ENUMERATOR_DISPATCH_DEFAULTS["entities_per_job_max"]
     memory_budget_mb: Union[int, float, str] = "auto"
     memory_floor_mb: Union[int, float, str] = "auto"
     worker_memory_fraction: float = 0.85

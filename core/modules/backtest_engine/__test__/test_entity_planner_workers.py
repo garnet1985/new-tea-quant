@@ -82,8 +82,8 @@ def test_resolve_max_workers_memory_capped_on_tiny_budget() -> None:
     assert source == "memory_capped"
 
 
-def test_resolve_entities_per_job_auto_defaults_to_five() -> None:
-    performance = {"entities_per_job_min": 1, "entities_per_job_max": 50}
+def test_resolve_entities_per_job_auto_defaults_to_twenty() -> None:
+    performance = {"entities_per_job_min": 20, "entities_per_job_max": 100}
 
     epj, source = EntityPlanner._resolve_entities_per_job(
         total_entities=473,
@@ -93,5 +93,5 @@ def test_resolve_entities_per_job_auto_defaults_to_five() -> None:
         log_label="enum",
     )
 
-    assert epj == 5
+    assert epj == 20
     assert source == "default"

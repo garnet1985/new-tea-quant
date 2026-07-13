@@ -89,8 +89,8 @@ cases:
         name: test_resolve_max_workers_memory_capped_on_tiny_budget
         description: 内存不足时 memory_capped
       - id: 5
-        name: test_resolve_entities_per_job_auto_defaults_to_five
-        description: entities_per_job auto 默认 5
+        name: test_resolve_entities_per_job_auto_defaults_to_twenty
+        description: entities_per_job auto 默认 20
 
   - id: 4
     case: entity_planner_dispatch

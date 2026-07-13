@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, Hashable, List, Mapping, MutableMapping, Optional
 
-from core.modules.data_contract.contracts import ContractType, DataContract
+from core.modules.data_contract.contracts import BaseDataContract, ContractType
 from core.utils.date.date_utils import DateUtils
 
 
@@ -26,7 +26,7 @@ class DataCursor:
     - 本类只维护运行期游标状态，返回累计视图
     """
 
-    contracts: Mapping[Hashable, DataContract]
+    contracts: Mapping[Hashable, BaseDataContract]
     time_field_overrides: Optional[Mapping[Hashable, Optional[str]]] = None
 
     _states: MutableMapping[Hashable, _CursorState] = field(init=False, default_factory=dict)
@@ -119,7 +119,7 @@ class DataCursor:
         return out
 
     @staticmethod
-    def _resolve_time_field(contract: DataContract) -> Optional[str]:
+    def _resolve_time_field(contract: BaseDataContract) -> Optional[str]:
         if contract.meta and isinstance(contract.meta.attrs, dict):
             ctype = contract.meta.attrs.get("type")
             if ctype == ContractType.NON_TIME_SERIES:

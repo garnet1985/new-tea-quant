@@ -34,6 +34,10 @@ class _HookDataStore:
         """Shallow view for hook reads; nested rows are shared references (do not mutate)."""
         return dict(self._store)
 
+    def replace(self, mapping: Dict[str, Any]) -> None:
+        self._store.clear()
+        self._store.update(mapping)
+
     def update(self, mapping: Dict[str, Any]) -> None:
         self._store.update(mapping)
 
@@ -61,12 +65,42 @@ class DataContext:
     extra: Dict[str, Any] = field(default_factory=dict)
     opportunity: Optional[Opportunity] = None
     calendar: Dict[str, Any] = field(default_factory=dict)
+    _cached_settings_dict: Optional[Dict[str, Any]] = field(
+        default=None,
+        repr=False,
+        compare=False,
+    )
 
     def get(self, key: str, default: Any = None) -> Any:
         return self.data.get(key, default)
 
     def effective_settings_dict(self) -> Dict[str, Any]:
-        return self.settings.to_dict()
+        cached = self._cached_settings_dict
+        if cached is None:
+            cached = self.settings.to_dict()
+            self._cached_settings_dict = cached
+        return cached
+
+    def refill(
+        self,
+        *,
+        now: str,
+        data: Optional[Dict[str, Any]] = None,
+        calendar: Optional[Dict[str, Any]] = None,
+    ) -> "DataContext":
+        """热路径：复用同一 context，仅替换当日 data 视图（避免 per-scan 分配）。"""
+        stock_list = self.get("stock_list")
+        if not isinstance(stock_list, list):
+            raise ValueError("DataContext.refill 要求已通过 assemble 建立（含 stock_list）")
+
+        store: Dict[str, Any] = {"stock_list": list(stock_list), "now": now}
+        if data:
+            store.update(data)
+        self.data.replace(store)
+        if calendar is not None:
+            self.calendar = calendar
+        self.opportunity = None
+        return self
 
     @classmethod
     def assemble(

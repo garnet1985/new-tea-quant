@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Any, Dict, List
 
 from core.modules.data_contract import ContractIssuer
@@ -24,7 +25,11 @@ class BatchDataLoader:
     """
 
     @staticmethod
-    def load_bundle_data(payload: Dict[str, Any]) -> Dict[str, Any]:
+    def load_bundle_data(
+        payload: Dict[str, Any],
+        *,
+        perf: Any = None,
+    ) -> Dict[str, Any]:
         """批量加载 bundle job 的所有数据（返回Contract实例）。
 
         Args:
@@ -71,15 +76,23 @@ class BatchDataLoader:
         )
 
         # 3. 批量加载 per_entity 数据（返回Contract实例）
+        if perf is not None:
+            perf.begin("load_contract_issue")
         entity_contracts = BatchDataLoader._load_per_entity_contracts(
-            entity_ids, entity_shared
+            entity_ids, entity_shared, perf=perf
         )
+        if perf is not None:
+            perf.end("load_contract_issue", accumulate=True)
 
         from core.modules.strategy.core.engines.enumerator.entity_based.services.contract_indicators import (
             apply_indicators_to_contracts,
         )
 
+        if perf is not None:
+            perf.begin("load_apply_indicators")
         apply_indicators_to_contracts(entity_contracts, entity_shared)
+        if perf is not None:
+            perf.end("load_apply_indicators", accumulate=True)
 
         # 4. 从共享内存读取 global 数据
         global_data = BatchDataLoader._load_global_data_from_shm(
@@ -101,6 +114,8 @@ class BatchDataLoader:
     def _load_per_entity_contracts(
         entity_ids: List[str],
         entity_shared: Dict[str, Dict[str, Any]],
+        *,
+        perf: Any = None,
     ) -> Dict[str, Any]:
         """批量加载所有 entity_ids 的 per_entity Contract实例。
 
@@ -129,6 +144,7 @@ class BatchDataLoader:
             logger.info(f"批量加载 per_entity Contract：data_key={data_key_str}")
 
             try:
+                load_t0 = time.perf_counter()
                 # 提取参数
                 start = params_dict.get("start")
                 end = params_dict.get("end")
@@ -158,6 +174,11 @@ class BatchDataLoader:
                 if contract.is_loaded and contract.data:
                     # 存储Contract实例
                     entity_contracts[data_key_str] = contract
+                    if perf is not None:
+                        perf.record_storage_load(
+                            data_key_str,
+                            time.perf_counter() - load_t0,
+                        )
 
                     logger.info(
                         f"per_entity Contract加载成功：data_key={data_key_str}, "

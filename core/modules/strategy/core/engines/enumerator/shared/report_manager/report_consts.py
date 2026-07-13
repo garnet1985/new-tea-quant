@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 # 全局产物（0_ 前缀 — 目录列表中排在 per-entity 文件之前）
-GLOBAL_PREFIX = ""
+GLOBAL_PREFIX = "0_"
 RUNTIME_ENV_FILE = f"{GLOBAL_PREFIX}runtime_env.json"
 ENTITY_IDS_FILE = f"{GLOBAL_PREFIX}entity_ids.txt"
 PERFORMANCE_FILE = f"{GLOBAL_PREFIX}performance.json"

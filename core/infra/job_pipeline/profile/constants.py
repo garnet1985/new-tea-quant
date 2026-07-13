@@ -33,6 +33,12 @@ USER_PIPELINE_POOL_KEYS: FrozenSet[str] = frozenset(
 
 DEFAULT_PRICE_ENTITIES_PER_JOB: int = 1000
 
+# entity_based 调度：代码 fallback（运行时以 worker.json job_pipeline 为准，会覆盖此处）
+ENUMERATOR_POOL_DEFAULTS: Dict[str, Any] = {
+    "reserve_cores": 2,
+    "max_workers": "auto",
+}
+
 ENUMERATOR_DISPATCH_DEFAULTS: Dict[str, Any] = {
     "memory_budget_mb": "auto",
     "memory_floor_mb": "auto",
@@ -41,11 +47,21 @@ ENUMERATOR_DISPATCH_DEFAULTS: Dict[str, Any] = {
     "max_batch_size": "auto",
     "monitor_interval": 5,
     "entities_per_job": "auto",
+    "entities_per_job_auto_target": 20,
+    "entities_per_job_auto_target_medium": 50,
+    "dispatch_probe": True,
+    "entities_per_job_min": 20,
+    "entities_per_job_max": 100,
+    "worker_memory_fraction": 0.85,
+    "prefetch_ahead": 1,
+}
+
+TAG_DISPATCH_DEFAULTS: Dict[str, Any] = {
+    "entities_per_job": "auto",
     "dispatch_probe": True,
     "entities_per_job_min": 1,
     "entities_per_job_max": 500,
-    "worker_memory_fraction": 0.85,
-    "prefetch_ahead": 1,
+    "memory_floor_mb": "auto",
 }
 
 CALENDAR_SLICE_RUNTIME_DEFAULTS: Dict[str, Any] = {
@@ -62,13 +78,16 @@ PRICE_FACTOR_DISPATCH_DEFAULTS: Dict[str, Any] = {
 
 DISPATCH_DEFAULTS_BY_PROFILE: Dict[str, Dict[str, Any]] = {
     WorkerProfiles.ENUMERATOR: ENUMERATOR_DISPATCH_DEFAULTS,
-    WorkerProfiles.TAG: {
-        "entities_per_job": "auto",
-        "dispatch_probe": True,
-        "entities_per_job_min": 1,
-        "entities_per_job_max": 500,
-    },
+    WorkerProfiles.TAG: TAG_DISPATCH_DEFAULTS,
     WorkerProfiles.PRICE_FACTOR: PRICE_FACTOR_DISPATCH_DEFAULTS,
+}
+
+PROFILE_POOL_DEFAULTS_BY_WORKER: Dict[str, Dict[str, Any]] = {
+    WorkerProfiles.DEFAULT: {"reserve_cores": 1, "max_parallel_jobs_cap": None},
+    WorkerProfiles.ENUMERATOR: dict(ENUMERATOR_POOL_DEFAULTS),
+    WorkerProfiles.TAG: {"reserve_cores": 1, "max_parallel_jobs_cap": None},
+    WorkerProfiles.PRICE_FACTOR: {"reserve_cores": 1, "max_parallel_jobs_cap": None},
+    WorkerProfiles.SCANNER: {"reserve_cores": 1, "max_parallel_jobs_cap": None},
 }
 
 ENUMERATOR_STRATEGY_DISPATCH_KEYS: FrozenSet[str] = frozenset(

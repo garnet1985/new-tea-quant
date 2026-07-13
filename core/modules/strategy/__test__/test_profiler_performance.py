@@ -42,7 +42,28 @@ def test_profiler_summary_default_omits_jobs(tmp_path: Path) -> None:
             success=True,
             data={
                 ENGINE_PERF_KEY: {"init_sec": 0.2, "execute_sec": 1.0, "complete_sec": 0.3},
-                ENUM_PERF_KEY: {"phases": {"load_data": 0.4, "enumerate": 0.5, "flush_csv": 0.1}},
+                ENUM_PERF_KEY: {
+                    "phases": {
+                        "load_data": 0.4,
+                        "enumerate": 0.5,
+                        "flush_csv": 0.1,
+                        "enum_pit_until": 0.2,
+                        "enum_contract_until": 0.18,
+                        "enum_scan": 0.15,
+                        "load_contract_issue": 0.3,
+                        "load_apply_indicators": 0.05,
+                    },
+                    "storage": {
+                        "load_calls": 4,
+                        "load_time_seconds": 0.35,
+                        "loads_by_slot": {"stock.kline.daily": 0.2},
+                    },
+                    "contract": {
+                        "until_calls": 120,
+                        "until_time_seconds": 0.18,
+                        "until_by_slot": {"stock.kline.daily": 0.1},
+                    },
+                },
             },
         )
     )
@@ -52,7 +73,28 @@ def test_profiler_summary_default_omits_jobs(tmp_path: Path) -> None:
             success=True,
             data={
                 ENGINE_PERF_KEY: {"init_sec": 0.1, "execute_sec": 0.8, "complete_sec": 0.2},
-                ENUM_PERF_KEY: {"phases": {"load_data": 0.3, "enumerate": 0.4, "flush_csv": 0.05}},
+                ENUM_PERF_KEY: {
+                    "phases": {
+                        "load_data": 0.3,
+                        "enumerate": 0.4,
+                        "flush_csv": 0.05,
+                        "enum_pit_until": 0.1,
+                        "enum_contract_until": 0.09,
+                        "enum_scan": 0.08,
+                        "load_contract_issue": 0.25,
+                        "load_apply_indicators": 0.03,
+                    },
+                    "storage": {
+                        "load_calls": 4,
+                        "load_time_seconds": 0.25,
+                        "loads_by_slot": {"stock.kline.daily": 0.15},
+                    },
+                    "contract": {
+                        "until_calls": 80,
+                        "until_time_seconds": 0.09,
+                        "until_by_slot": {"stock.kline.daily": 0.05},
+                    },
+                },
             },
         )
     )
@@ -71,6 +113,19 @@ def test_profiler_summary_default_omits_jobs(tmp_path: Path) -> None:
     phase_totals = summary["phase_totals_sec"]
     assert phase_totals["engine_init"] == 0.3
     assert phase_totals["engine_execute"] == 1.8
+    assert phase_totals["enum_pit_until"] == 0.3
+    assert phase_totals["enum_contract_until"] == 0.27
+    assert phase_totals["enum_scan"] == 0.23
+    assert phase_totals["load_contract_issue"] == 0.55
+    assert phase_totals["load_apply_indicators"] == 0.08
+    storage_totals = summary["storage_totals"]
+    assert storage_totals["load_calls"] == 8
+    assert storage_totals["load_time_seconds"] == 0.6
+    assert storage_totals["loads_by_slot"]["stock.kline.daily"] == 0.35
+    contract_totals = summary["contract_totals"]
+    assert contract_totals["until_calls"] == 200
+    assert contract_totals["until_time_seconds"] == 0.27
+    assert contract_totals["until_by_slot"]["stock.kline.daily"] == 0.15
 
 
 def test_profiler_full_includes_jobs(tmp_path: Path) -> None:

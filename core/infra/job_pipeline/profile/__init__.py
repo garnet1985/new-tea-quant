@@ -18,9 +18,11 @@ from core.infra.job_pipeline.profile.resolver import (
     pipeline_max_parallel_jobs_cap,
     pipeline_reserve_cores,
     profile_dispatch_config,
+    profile_entity_based_performance,
     profile_calendar_slice_config,
     profile_max_parallel_jobs_cap,
     profile_reserve_cores,
+    resolve_entity_based_performance_for_profile,
     resolve_pipeline_workers,
     resolve_worker_profile,
 )
@@ -43,8 +45,10 @@ __all__ = [
     "pipeline_reserve_cores",
     "profile_calendar_slice_config",
     "profile_dispatch_config",
+    "profile_entity_based_performance",
     "profile_max_parallel_jobs_cap",
     "profile_reserve_cores",
+    "resolve_entity_based_performance_for_profile",
     "resolve_pipeline_workers",
     "resolve_worker_profile",
 ]

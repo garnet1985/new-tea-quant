@@ -306,6 +306,8 @@ class ProfilerPerformance:
             job.entities_with_opportunities for job in self.jobs
         )
         phase_totals = _aggregate_phase_totals(self.jobs)
+        storage_totals = _aggregate_storage_totals(self.jobs)
+        contract_totals = _aggregate_contract_totals(self.jobs)
         payload: Dict[str, Any] = {
             "strategy_key": self.strategy_key,
             "version_id": self.version_id,
@@ -327,6 +329,8 @@ class ProfilerPerformance:
                 "sum_job_wall_seconds": job_wall_sum,
                 "parallelism_factor": self._parallelism_factor(job_wall_sum),
                 "phase_totals_sec": phase_totals,
+                "storage_totals": storage_totals,
+                "contract_totals": contract_totals,
             },
             "dispatch": self.dispatch.to_dict(),
             "monitor": self.monitor.to_dict(),
@@ -498,6 +502,14 @@ def _aggregate_phase_totals(jobs: List[JobPerformance]) -> Dict[str, float]:
         "load_data": 0.0,
         "enumerate": 0.0,
         "flush_csv": 0.0,
+        "enum_pit_until": 0.0,
+        "enum_pit_until_unified": 0.0,
+        "enum_contract_until": 0.0,
+        "enum_process_tick": 0.0,
+        "enum_context_fill": 0.0,
+        "enum_scan": 0.0,
+        "load_contract_issue": 0.0,
+        "load_apply_indicators": 0.0,
     }
     for job in jobs:
         totals["engine_init"] += job.engine_perf.init_sec
@@ -505,10 +517,75 @@ def _aggregate_phase_totals(jobs: List[JobPerformance]) -> Dict[str, float]:
         totals["engine_complete"] += job.engine_perf.complete_sec
         phases = (job.enum_perf or {}).get("phases") or {}
         if isinstance(phases, dict):
-            totals["load_data"] += float(phases.get("load_data") or 0.0)
-            totals["enumerate"] += float(phases.get("enumerate") or 0.0)
-            totals["flush_csv"] += float(phases.get("flush_csv") or 0.0)
+            for key in (
+                "load_data",
+                "enumerate",
+                "flush_csv",
+                "load_contract_issue",
+                "load_apply_indicators",
+                "enum_pit_until",
+                "enum_pit_until_unified",
+                "enum_contract_until",
+                "enum_process_tick",
+                "enum_context_fill",
+                "enum_scan",
+            ):
+                totals[key] += float(phases.get(key) or 0.0)
     return {key: round(value, 4) for key, value in totals.items()}
+
+
+def _aggregate_storage_totals(jobs: List[JobPerformance]) -> Dict[str, Any]:
+    load_calls = 0
+    load_time_seconds = 0.0
+    loads_by_slot: Dict[str, float] = {}
+    for job in jobs:
+        storage = (job.enum_perf or {}).get("storage") or {}
+        if not isinstance(storage, dict):
+            continue
+        load_calls += int(storage.get("load_calls") or 0)
+        load_time_seconds += float(storage.get("load_time_seconds") or 0.0)
+        slot_map = storage.get("loads_by_slot") or {}
+        if isinstance(slot_map, dict):
+            for slot, seconds in slot_map.items():
+                loads_by_slot[str(slot)] = loads_by_slot.get(str(slot), 0.0) + float(
+                    seconds or 0.0
+                )
+    return {
+        "load_calls": load_calls,
+        "load_time_seconds": round(load_time_seconds, 4),
+        "loads_by_slot": {key: round(value, 4) for key, value in loads_by_slot.items()},
+    }
+
+
+def _aggregate_contract_totals(jobs: List[JobPerformance]) -> Dict[str, Any]:
+    until_calls = 0
+    until_time_seconds = 0.0
+    until_by_slot: Dict[str, float] = {}
+    unified_until_calls = 0
+    unified_until_time_seconds = 0.0
+    for job in jobs:
+        contract = (job.enum_perf or {}).get("contract") or {}
+        if not isinstance(contract, dict):
+            continue
+        until_calls += int(contract.get("until_calls") or 0)
+        until_time_seconds += float(contract.get("until_time_seconds") or 0.0)
+        unified_until_calls += int(contract.get("unified_until_calls") or 0)
+        unified_until_time_seconds += float(
+            contract.get("unified_until_time_seconds") or 0.0
+        )
+        slot_map = contract.get("until_by_slot") or {}
+        if isinstance(slot_map, dict):
+            for slot, seconds in slot_map.items():
+                until_by_slot[str(slot)] = until_by_slot.get(str(slot), 0.0) + float(
+                    seconds or 0.0
+                )
+    return {
+        "until_calls": until_calls,
+        "until_time_seconds": round(until_time_seconds, 4),
+        "until_by_slot": {key: round(value, 4) for key, value in until_by_slot.items()},
+        "unified_until_calls": unified_until_calls,
+        "unified_until_time_seconds": round(unified_until_time_seconds, 4),
+    }
 
 
 __all__ = [

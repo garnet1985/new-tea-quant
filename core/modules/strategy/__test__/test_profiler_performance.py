@@ -50,6 +50,8 @@ def test_profiler_summary_default_omits_jobs(tmp_path: Path) -> None:
                         "enum_pit_until": 0.2,
                         "enum_contract_until": 0.18,
                         "enum_scan": 0.15,
+                        "enum_context_fill": 0.05,
+                        "enum_process_tick": 0.02,
                         "load_contract_issue": 0.3,
                         "load_apply_indicators": 0.05,
                     },
@@ -81,6 +83,8 @@ def test_profiler_summary_default_omits_jobs(tmp_path: Path) -> None:
                         "enum_pit_until": 0.1,
                         "enum_contract_until": 0.09,
                         "enum_scan": 0.08,
+                        "enum_context_fill": 0.03,
+                        "enum_process_tick": 0.01,
                         "load_contract_issue": 0.25,
                         "load_apply_indicators": 0.03,
                     },
@@ -126,6 +130,16 @@ def test_profiler_summary_default_omits_jobs(tmp_path: Path) -> None:
     assert contract_totals["until_calls"] == 200
     assert contract_totals["until_time_seconds"] == 0.27
     assert contract_totals["until_by_slot"]["stock.kline.daily"] == 0.15
+
+    v1 = summary["v1_compat"]
+    assert v1["wall_clock_seconds"] == 10.0
+    assert v1["job_batch_hydrate_seconds"] == 0.63
+    assert v1["sum_worker_total_seconds"] == 0.79
+    assert v1["parallelism_factor"] == 0.08
+    assert v1["worker_phase_sums_seconds"]["enumerate"] == 0.64
+    assert v1["worker_phase_sums_seconds"]["save_csv"] == 0.15
+    assert v1["worker_phase_sums_seconds"]["load_contracts"] == 0.0
+    assert v1["storage"]["sum_load_time_seconds"] == 0.6
 
 
 def test_profiler_full_includes_jobs(tmp_path: Path) -> None:

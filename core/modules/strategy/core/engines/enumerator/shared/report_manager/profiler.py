@@ -308,6 +308,12 @@ class ProfilerPerformance:
         phase_totals = _aggregate_phase_totals(self.jobs)
         storage_totals = _aggregate_storage_totals(self.jobs)
         contract_totals = _aggregate_contract_totals(self.jobs)
+        v1_compat = _aggregate_v1_compat(
+            self.jobs,
+            elapsed_seconds=self.elapsed_seconds,
+            entity_count=self.entity_count,
+            storage_totals=storage_totals,
+        )
         payload: Dict[str, Any] = {
             "strategy_key": self.strategy_key,
             "version_id": self.version_id,
@@ -331,6 +337,7 @@ class ProfilerPerformance:
                 "phase_totals_sec": phase_totals,
                 "storage_totals": storage_totals,
                 "contract_totals": contract_totals,
+                "v1_compat": v1_compat,
             },
             "dispatch": self.dispatch.to_dict(),
             "monitor": self.monitor.to_dict(),
@@ -492,6 +499,98 @@ def _coerce_job_performance(item: Any) -> JobPerformance:
     if isinstance(item, dict):
         return JobPerformance.from_dict(item)
     return JobPerformance.from_job_report(item)
+
+
+# legacy performance_profiler.WORKER_PHASE_KEYS（v1 基线口径）
+_V1_WORKER_PHASE_KEYS = (
+    "load_contracts",
+    "calculate_indicators",
+    "build_cursor",
+    "load_extras",
+    "enumerate",
+    "serialize",
+    "save_csv",
+)
+
+
+def _job_enum_phases(job: JobPerformance) -> Dict[str, float]:
+    phases = (job.enum_perf or {}).get("phases") or {}
+    if not isinstance(phases, dict):
+        return {}
+    return {str(key): float(value or 0.0) for key, value in phases.items()}
+
+
+def _v1_enumerate_seconds(phases: Dict[str, float]) -> float:
+    """legacy worker 内 scan 循环：until + scan + context + tick。"""
+    return sum(
+        float(phases.get(key) or 0.0)
+        for key in (
+            "enum_pit_until",
+            "enum_scan",
+            "enum_context_fill",
+            "enum_process_tick",
+        )
+    )
+
+
+def _v1_job_batch_hydrate_seconds(phases: Dict[str, float]) -> float:
+    """legacy run_enumeration_payload 内 hydrate（job 级 batch 触库，在 per-stock profiler 外）。"""
+    return float(phases.get("load_contract_issue") or 0.0) + float(
+        phases.get("load_apply_indicators") or 0.0
+    )
+
+
+def _aggregate_v1_compat(
+    jobs: List[JobPerformance],
+    *,
+    elapsed_seconds: float,
+    entity_count: int,
+    storage_totals: Dict[str, Any],
+) -> Dict[str, Any]:
+    """汇总为 legacy AggregateProfiler / 0_performance_report.json 可对齐的口径。"""
+    phase_sums: Dict[str, float] = {key: 0.0 for key in _V1_WORKER_PHASE_KEYS}
+    job_batch_hydrate = 0.0
+
+    for job in jobs:
+        phases = _job_enum_phases(job)
+        job_batch_hydrate += _v1_job_batch_hydrate_seconds(phases)
+        # epj>1 时 legacy per-stock load_contracts 仅 adopt 切片；新引擎无 per-entity adopt
+        phase_sums["enumerate"] += _v1_enumerate_seconds(phases)
+        phase_sums["save_csv"] += float(phases.get("flush_csv") or 0.0)
+
+    phase_sums["total"] = sum(phase_sums[key] for key in _V1_WORKER_PHASE_KEYS)
+    wall = max(0.0, float(elapsed_seconds or 0.0))
+    sum_worker = phase_sums["total"]
+
+    return {
+        "interpretation": {
+            "wall_clock_seconds": "legacy AggregateProfiler.summary.wall_clock_seconds",
+            "job_batch_hydrate_seconds": (
+                "legacy StrategyJobContractBatch.hydrate（job 级 batch 触库，不计入 sum_worker_total）"
+            ),
+            "sum_worker_total_seconds": "legacy 各股 time.total 之和（不含 job batch hydrate）",
+            "worker_phase_sums_seconds": "legacy worker_phase_sums_seconds 同名字段",
+            "parallelism_factor": "sum_worker_total_seconds / wall_clock_seconds",
+        },
+        "wall_clock_seconds": round(wall, 4),
+        "job_batch_hydrate_seconds": round(job_batch_hydrate, 4),
+        "sum_worker_total_seconds": round(sum_worker, 4),
+        "parallelism_factor": round(sum_worker / wall, 2) if wall > 0 else 0.0,
+        "avg_worker_total_per_entity_ms": round(
+            (sum_worker / float(entity_count)) * 1000.0, 3
+        )
+        if entity_count > 0
+        else 0.0,
+        "worker_phase_sums_seconds": {
+            key: round(phase_sums[key], 4) for key in (*_V1_WORKER_PHASE_KEYS, "total")
+        },
+        "storage": {
+            "sum_load_time_seconds": round(
+                float(storage_totals.get("load_time_seconds") or 0.0), 4
+            ),
+            "total_load_calls": int(storage_totals.get("load_calls") or 0),
+        },
+    }
 
 
 def _aggregate_phase_totals(jobs: List[JobPerformance]) -> Dict[str, float]:

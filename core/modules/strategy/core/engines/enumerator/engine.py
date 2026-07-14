@@ -28,7 +28,12 @@ class EnumeratorEngine:
         if execution_mode == "slice_based":
             from .slice_based.pipeline import SliceBasedJobPipeline
 
-            return SliceBasedJobPipeline.run(self.strategy_info)
+            # TODO(extract-shared): 与 entity_based 分支同参调用，跑通后可合并路由体
+            return SliceBasedJobPipeline.run(
+                self.strategy_info,
+                runtime_settings=runtime_settings,
+                ignore_cache=ignore_cache,
+            )
 
         if execution_mode == "entity_based":
             return EntityBasedJobPipeline.run(

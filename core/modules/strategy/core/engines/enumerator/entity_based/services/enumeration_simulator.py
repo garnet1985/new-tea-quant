@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 from core.modules.strategy.core.engines.enumerator.entity_based.services.enum_job_perf import (
     EnumJobPerfRecorder,
 )
-from core.modules.strategy.core.engines.enumerator.entity_based.state.entity_tracker import (
+from core.modules.strategy.core.engines.enumerator.shared.state.entity_tracker import (
     EntityTracker,
 )
 from core.modules.strategy.core.engines.shared.data_class import InvestmentTickInput, Opportunity
@@ -186,6 +186,10 @@ class EntityEnumerationSimulator:
                     stock_info=self._stock_info.get(entity_id, {"id": entity_id}),
                     trigger_date=now,
                     trigger_price=float(bar["close"]),
+                )
+                # buy_price_model=close|open 只能在 trigger 日成交；须在 register 后补 tick
+                tracker.process_tick(
+                    InvestmentTickInput(as_of_date=now, bar=bar, data_as_of=now)
                 )
 
         last_day = filtered_dates[-1]

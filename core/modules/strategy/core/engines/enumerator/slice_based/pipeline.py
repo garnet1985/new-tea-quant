@@ -4,10 +4,22 @@ from __future__ import annotations
 import logging
 from typing import Any, ClassVar, Dict, List, Optional
 
+from core.infra.job_pipeline.profile import WorkerProfiles, profile_calendar_slice_config
 from core.infra.project_context import ProjectContext
+from core.modules.backtest_engine.core.shared.performance import resolve_slice_based_performance
 from core.modules.strategy.core.engines.enumerator.shared.report_manager import ReportManager
+from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_consts import (
+    report_output_config,
+)
+from core.modules.strategy.core.engines.enumerator.slice_based.executor import (
+    ExecutorHooksContext,
+    JobExecutor,
+)
 from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
+)
+from core.modules.strategy.core.engines.shared.services.entity_loader.stock_sampling import (
+    StockSampler,
 )
 from core.modules.strategy.core.engines.shared.services.entity_loader.strategy_data_resolver import (
     StrategyDataResolver,
@@ -174,7 +186,44 @@ class SliceBasedJobPipeline:
         report_manager: ReportManager,
         effective_settings_obj: StrategySettings,
     ) -> Dict[str, Any]:
-        raise NotImplementedError("slice_based._step_to_execute_backtest")
+        from core.modules.backtest_engine import BacktestEngine
+
+        report_manager.profiler.begin_collect(
+            entity_count=cls._count_entities_in_jobs(jobs),
+        )
+
+        run_result = BacktestEngine.slice_based.run(
+            jobs=jobs,
+            execute_fn=JobExecutor.execute,
+            performance=cls._resolve_backtest_performance(effective_settings_obj),
+            callbacks=JobExecutor.build_run_callbacks(
+                ExecutorHooksContext(
+                    report_manager=report_manager,
+                    global_entity_cache=cls.global_entity_cache,
+                )
+            ),
+            task_name=f"strategy_{report_manager.strategy_key}",
+        )
+
+        # BE.slice_based 不转发 on_after_all_tasks_complete；主进程显式清理
+        JobExecutor.on_after_all_tasks_complete(
+            list(run_result.job_results or []),
+            cls.global_entity_cache,
+        )
+
+        return cls._pack_backtest_results(run_result, report_manager=report_manager)
+
+    @staticmethod
+    def _resolve_backtest_performance(effective_settings: StrategySettings) -> Dict[str, Any]:
+        raw = effective_settings.raw_settings or {}
+        perf_override = raw.get("performance")
+        override: Dict[str, Any] = dict(profile_calendar_slice_config(WorkerProfiles.ENUMERATOR))
+        calendar_slice = raw.get("calendar_slice")
+        if isinstance(calendar_slice, dict):
+            override.update(calendar_slice)
+        if isinstance(perf_override, dict):
+            override.update(perf_override)
+        return resolve_slice_based_performance(override)
 
     @classmethod
     def _step_to_generate_reports(
@@ -185,7 +234,72 @@ class SliceBasedJobPipeline:
         entity_count: int,
         effective_settings_obj: StrategySettings,
     ) -> None:
-        raise NotImplementedError("slice_based._step_to_generate_reports")
+        # TODO(extract-shared): 与 entity_based._step_to_generate_reports 相同
+        run_result = results.pop("_run_result", None)
+        if run_result is None:
+            return
+        report_manager.finalize_from_run_result(
+            run_result,
+            entity_count=entity_count,
+            opportunities_count=int(results.get("opportunities_count") or 0),
+            performance_config=report_output_config(effective_settings_obj.raw_settings),
+        )
+
+    @staticmethod
+    def _count_entities_in_jobs(jobs: List[Dict[str, Any]]) -> int:
+        # TODO(extract-shared): 与 entity 同构；slice 额外认 stock_ids / entity_ids
+        total = 0
+        for job in jobs:
+            if not isinstance(job, dict):
+                continue
+            payload = job.get("payload") or job
+            if not isinstance(payload, dict):
+                continue
+            for key in ("entity_ids", "stock_ids"):
+                ids = payload.get(key)
+                if isinstance(ids, list) and ids:
+                    total += len(ids)
+                    break
+            else:
+                specified = payload.get("entity_specified")
+                if isinstance(specified, list):
+                    total += len(specified)
+        return total
+
+    @staticmethod
+    def _pack_backtest_results(
+        run_result: Any,
+        *,
+        report_manager: ReportManager,
+    ) -> Dict[str, Any]:
+        # TODO(extract-shared): 与 entity_based._pack_backtest_results 相同
+        failed_entities: List[Dict[str, Any]] = []
+        opportunities_count = 0
+
+        for job_report in run_result.job_results:
+            if not job_report.success:
+                failed_entities.append(
+                    {
+                        "job_id": job_report.job_id,
+                        "error": job_report.error or "Unknown error",
+                    }
+                )
+            elif isinstance(job_report.data, dict):
+                opportunities_count += int(job_report.data.get("opportunities_count") or 0)
+
+        return {
+            "success": run_result.success,
+            "output_dir": str(report_manager.output_dir),
+            "version_id": report_manager.version_id,
+            "strategy_key": report_manager.strategy_key,
+            "total_jobs": run_result.total_jobs,
+            "completed_jobs": run_result.completed_jobs,
+            "failed_jobs": run_result.failed_jobs,
+            "elapsed_seconds": run_result.elapsed_seconds,
+            "opportunities_count": opportunities_count,
+            "failed_entities": failed_entities,
+            "_run_result": run_result,
+        }
 
     @classmethod
     def _resolve_entity_ids(
@@ -195,7 +309,17 @@ class SliceBasedJobPipeline:
         strategy_key: str,
     ) -> List[str]:
         # TODO(extract-shared): 与 entity_based._resolve_entity_ids 相同
-        raise NotImplementedError("slice_based._resolve_entity_ids")
+        sampling = effective_settings.raw_settings.get("sampling") or {}
+        if sampling.get("use_sampling"):
+            stock_pool = sampling.get("stock_pool")
+            if stock_pool:
+                pool = [str(item).strip() for item in stock_pool if str(item).strip()]
+                known = set(stock_ids)
+                filtered = [entity_id for entity_id in pool if entity_id in known]
+                return filtered or pool
+            return StockSampler.sample(stock_ids, sampling, strategy_key)
+
+        return stock_ids
 
     @classmethod
     def _find_cache_by_fingerprints(cls, settings_fp: str, env_fp: str) -> Optional[Dict[str, Any]]:

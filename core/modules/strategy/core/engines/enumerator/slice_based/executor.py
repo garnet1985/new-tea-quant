@@ -1,360 +1,304 @@
-"""slice_based 核心计算：on_calendar_asof → holdings → scan。"""
+"""slice_based job executor（enumerator 的回调函数集合）。"""
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
-
-from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import StrategySettings
-from core.modules.strategy.core.engines.enumerator.slice_based.context.data import SliceBasedDataContext
-from core.modules.strategy.core.engines.enumerator.slice_based.resolver.calendar import BacktestCalendarResolver
-from core.modules.strategy.core.engines.enumerator.slice_based.state.holdings import EntityHoldings
-from core.modules.strategy.core.engines.shared.data_class import Opportunity
-from core.modules.strategy.core.engines.enumerator.slice_based.types import CalendarAsOfResult
-from core.modules.strategy.core.helpers.calendar import CalendarOpenDateHelper
-from core.modules.strategy.core.helpers.opportunity_csv import OpportunityCsvHelper
-from core.modules.strategy.core.helpers.stock_meta import StockMetaHelper
-from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
-from core.modules.strategy.core.services.data.entity_data import EntityContractBatch, EntityDataLoader
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class _EntitySliceState:
-    stock_id: str
-    stock_info: Dict[str, Any]
-    data_loader: EntityDataLoader
-    holdings: EntityHoldings
-    opp_counter: int = 0
+@dataclass(frozen=True)
+class ExecutorHooksContext:
+    """JobExecutor 构建 RunCallbacks 时的主进程上下文。"""
+
+    report_manager: Any = None
+    global_entity_cache: Any = None
 
 
-class SliceBasedCompute:
-    """单进程 slice 计算：按 open_dates 驱动 asof + holdings + scan。"""
+class JobExecutor:
+    """slice_based job executor（enumerator 的回调函数集合）。
 
-    def __init__(self, job_payload: Dict[str, Any]) -> None:
-        self.job_payload = dict(job_payload)
-        stock_ids_raw = self.job_payload.get("stock_ids")
-        if not isinstance(stock_ids_raw, list) or not stock_ids_raw:
-            raise ValueError("SliceBasedCompute 缺少非空 stock_ids")
-        self.stock_ids = [str(s).strip() for s in stock_ids_raw if str(s).strip()]
-        if not self.stock_ids:
-            raise ValueError("SliceBasedCompute stock_ids 无有效条目")
+    BE.slice_based 只转发 ``on_single_task_result``，不跑子进程 init/release 钩子。
+    因此 ``execute`` 内用 ``run_job_lifecycle`` 自行串联 start → body → complete，
+    与 entity_based 钩子语义对齐；外层 ``build_run_callbacks`` 仍暴露同名钩子，
+    便于以后 BE 补齐或主进程手动调用 ``on_after_all_tasks_complete``。
 
-        self.strategy_name = str(self.job_payload["strategy_name"])
-        self.start_date = str(self.job_payload["start_date"])
-        self.end_date = str(self.job_payload["end_date"])
-        self.output_dir = str(self.job_payload["output_dir"])
+    TODO(extract-shared): 与 entity_based.JobExecutor 同构处：callbacks 组装、
+    ReportManager buffer/flush、hooks 加载、profiler collect；差异在
+    open_dates 来源（payload）与后续 slice simulator / window load。
+    """
 
-        settings_raw = self.job_payload.get("settings")
-        if not isinstance(settings_raw, dict):
-            raise ValueError("SliceBasedCompute 缺少 settings")
-        self.settings = StrategySettings(raw_settings=settings_raw)
-        self._base_data_key = self.settings.data.base_data_key
-        self._min_required = self.settings.data.min_required_records
-        self._max_holding_days = self._resolve_max_holding_days(settings_raw)
-        self._assert_entry_price_model(settings_raw)
+    @staticmethod
+    def build_run_callbacks(ctx: ExecutorHooksContext) -> Any:
+        """组装 BacktestEngine RunCallbacks（主进程结果钩子 + 备用子进程钩子）。"""
+        from core.modules.backtest_engine.contracts import RunCallbacks
 
-        self._open_dates = self._resolve_open_dates()
-        self._hook_runtime = StrategyHookRuntime.from_job_payload(
-            self.job_payload,
-            settings=self.settings,
-        )
-        self._session_state: Dict[str, Any] = {}
-        self._states: Dict[str, _EntitySliceState] = {}
-        self._stock_list: List[str] = []
-        self._ctx_base: Optional[SliceBasedDataContext] = None
-
-    def run(self) -> Dict[str, Any]:
-        try:
-            self._hydrate_entity_data()
-            self._ctx_base = SliceBasedDataContext.assemble(
-                strategy_name=self.strategy_name,
-                settings=self.settings,
-                stock_list=list(self._stock_list),
-            )
-            for index, as_of in enumerate(self._open_dates):
-                self._run_open_date(as_of, open_date_index=index)
-
-            stock_results = [self._state_result(state) for state in self._states.values()]
-            self._write_outputs(stock_results)
-
-            return {
-                "success": all(bool(row.get("success")) for row in stock_results),
-                "bulk": True,
-                "stock_results": stock_results,
-                "stock_ids": list(self.stock_ids),
-                "session_state": dict(self._session_state),
-                "open_dates_processed": len(self._open_dates),
-            }
-        finally:
-            self._clear_loaders()
-
-    def _assert_entry_price_model(self, settings: Dict[str, Any]) -> None:
-        simulation = settings.get("simulation")
-        if not isinstance(simulation, dict):
-            raise ValueError("SliceBasedCompute 缺少 settings.simulation")
-        model = simulation.get("buy_price_model")
-        if model != "close":
-            raise ValueError(
-                f"slice_based 当前仅支持 simulation.buy_price_model='close'，实际: {model!r}"
-            )
-
-    def _resolve_max_holding_days(self, settings: Dict[str, Any]) -> int:
-        simulation = settings.get("simulation")
-        if not isinstance(simulation, dict):
-            raise ValueError("SliceBasedCompute 缺少 settings.simulation")
-        max_days = simulation.get("max_holding_days")
-        if max_days is None:
-            return 0
-        if not isinstance(max_days, int) or max_days < 0:
-            raise ValueError("settings.simulation.max_holding_days 须为非负整数")
-        return max_days
-
-    def _resolve_open_dates(self) -> List[str]:
-        calendar = self.job_payload.get("backtest_calendar")
-        if not isinstance(calendar, dict):
-            raise ValueError("SliceBasedCompute 缺少 backtest_calendar")
-        raw = calendar.get("open_dates")
-        if not isinstance(raw, list) or not raw:
-            raise ValueError("backtest_calendar.open_dates 须为非空 list")
-        open_dates = BacktestCalendarResolver.filter_in_range(raw, self.start_date, self.end_date)
-        if not open_dates:
-            raise ValueError(
-                f"slice_based 无有效 open_dates: {self.start_date}—{self.end_date}"
-            )
-        return open_dates
-
-    def _hydrate_entity_data(self) -> None:
-        settings_dict = self.settings.to_dict()
-        actual_start = EntityDataLoader.enumeration_actual_start_date(
-            self.start_date,
-            self._min_required,
-        )
-        global_data = self.job_payload.get("global_data")
-        if not isinstance(global_data, dict):
-            raise ValueError("SliceBasedCompute 缺少 global_data")
-
-        self._ensure_universe()
-
-        job_batch = EntityContractBatch.hydrate(
-            entity_ids=self.stock_ids,
-            settings=settings_dict,
-            start=actual_start,
-            end=self.end_date,
-            global_data=global_data,
-            fresh_strategy_cache=True,
-        )
-
-        for stock_id in self.stock_ids:
-            loader = EntityDataLoader(
-                stock_id=stock_id,
-                settings=settings_dict,
-                global_data=global_data,
-            )
-            loader.load(
-                actual_start,
-                self.end_date,
-                job_batch=job_batch,
-                fresh_strategy_cache=False,
-            )
-            self._states[stock_id] = _EntitySliceState(
-                stock_id=stock_id,
-                stock_info=StockMetaHelper.load(stock_id),
-                data_loader=loader,
-                holdings=EntityHoldings(),
-            )
-        self._stock_list = list(self._stock_list)
-
-    def _ensure_universe(self) -> None:
-        if self._stock_list:
-            return
-        global_data = self.job_payload.get("global_data")
-        if not isinstance(global_data, dict):
-            raise ValueError("SliceBasedCompute 缺少 global_data")
-
-        stock_list = global_data.get("stock_list")
-        if not isinstance(stock_list, list) or not stock_list:
-            raise ValueError("SliceBasedCompute global_data.stock_list 须为非空 list")
-        universe = [str(x).strip() for x in stock_list if str(x).strip()]
-        if not universe:
-            raise ValueError("SliceBasedCompute global_data.stock_list 无有效条目")
-        missing = [sid for sid in self.stock_ids if sid not in universe]
-        if missing:
-            raise ValueError(f"stock_ids 不在 global_data.stock_list 中: {missing}")
-        self._stock_list = universe
-
-    def _run_open_date(self, as_of: str, *, open_date_index: int) -> None:
-        for state in self._states.values():
-            bar = self._bar_on(state, as_of)
-            if bar is None:
-                continue
-            state.holdings.close_goal_targets(bar)
-            close_price = float(bar["close"])
-            if self._max_holding_days > 0:
-                state.holdings.close_expired(
-                    as_of,
-                    close_price,
-                    max_holding_days=self._max_holding_days,
-                    open_dates=self._open_dates,
-                )
-
-        stocks_ctx = self._build_stocks_context(as_of)
-        calendar = self._build_calendar_view(
-            as_of,
-            stocks=stocks_ctx,
-            open_date_index=open_date_index,
-        )
-
-        asof_ctx = SliceBasedDataContext.fill(
-            self._ctx_base,
-            now=as_of,
-            calendar=calendar,
-        )
-        asof_result = self._hook_runtime.call("on_calendar_asof", asof_ctx)
-        if not isinstance(asof_result, CalendarAsOfResult):
-            raise TypeError("on_calendar_asof 必须返回 CalendarAsOfResult")
-        self._session_state = dict(asof_result.session_state)
-
-        force_exit_date = str(self._session_state.get("force_exit_open_date") or "").strip()
-        if force_exit_date == as_of:
-            for state in self._states.values():
-                bar = self._bar_on(state, as_of)
-                if bar is None:
-                    continue
-                state.holdings.force_exit_all(
-                    as_of,
-                    float(bar["close"]),
-                    reason="period_end",
-                )
-
-        for stock_id in asof_result.stocks:
-            sid = str(stock_id).strip()
-            if sid not in self._states:
-                raise ValueError(f"on_calendar_asof 返回未知 stock_id: {sid}")
-            self._scan_entity(self._states[sid], as_of, calendar=calendar)
-
-    def _bar_on(self, state: _EntitySliceState, as_of: str) -> Optional[Dict[str, Any]]:
-        data = state.data_loader.data_until(as_of)
-        base_rows = data.get(self._base_data_key)
-        if not isinstance(base_rows, list) or not base_rows:
-            return None
-        last = base_rows[-1]
-        if str(last.get("date") or "") != as_of:
-            return None
-        if len(base_rows) < self._min_required:
-            return None
-        for key in ("open", "high", "low", "close"):
-            if key not in last:
-                raise ValueError(f"K 线缺少字段 {key!r}: stock_id={state.stock_id} date={as_of}")
-        return last
-
-    def _build_stocks_context(self, as_of: str) -> Dict[str, Dict[str, Any]]:
-        out: Dict[str, Dict[str, Any]] = {}
-        for sid, state in self._states.items():
-            data = state.data_loader.data_until(as_of)
-            base_rows = data.get(self._base_data_key)
-            if not isinstance(base_rows, list) or not base_rows:
-                continue
-            if str(base_rows[-1].get("date") or "") != as_of:
-                continue
-            if len(base_rows) < self._min_required:
-                continue
-            out[sid] = data
-        return out
-
-    def _build_calendar_view(
-        self,
-        as_of: str,
-        *,
-        stocks: Dict[str, Dict[str, Any]],
-        open_date_index: int,
-    ) -> Dict[str, Any]:
-        all_open: Sequence[str] = self._open_dates
-        return {
-            "as_of_date": as_of,
-            "session_state": dict(self._session_state),
-            "stocks": dict(stocks),
-            "open_date_index": open_date_index,
-            "is_period_start": CalendarOpenDateHelper.is_first_open_of_year(as_of, all_open),
-            "is_period_end": CalendarOpenDateHelper.is_last_open_of_year(as_of, all_open),
-            "is_first_open_of_month": CalendarOpenDateHelper.is_first_open_of_month(as_of, all_open),
-            "is_last_open_of_month": CalendarOpenDateHelper.is_last_open_of_month(as_of, all_open),
-            "is_first_open_of_year": CalendarOpenDateHelper.is_first_open_of_year(as_of, all_open),
-            "is_last_open_of_year": CalendarOpenDateHelper.is_last_open_of_year(as_of, all_open),
-        }
-
-    def _scan_entity(
-        self,
-        state: _EntitySliceState,
-        as_of: str,
-        *,
-        calendar: Dict[str, Any],
-    ) -> None:
-        bar = self._bar_on(state, as_of)
-        if bar is None:
-            return
-        data = state.data_loader.data_until(as_of)
-
-        ctx = SliceBasedDataContext.fill(
-            self._ctx_base,
-            now=as_of,
-            data=data,
-            calendar=calendar,
-            entity_id=state.stock_id,
-            entity_info=state.stock_info,
-        )
-        self._hook_runtime.call("on_before_scan", ctx)
-        opportunity = self._hook_runtime.call("scan_opportunity", ctx)
-        self._hook_runtime.call(
-            "on_after_scan",
-            SliceBasedDataContext.fill(
-                self._ctx_base,
-                now=as_of,
-                data=data,
-                calendar=calendar,
-                entity_id=state.stock_id,
-                entity_info=state.stock_info,
-                opportunity=opportunity if isinstance(opportunity, Opportunity) else None,
+        return RunCallbacks(
+            on_before_all_tasks_start=JobExecutor.on_before_all_tasks_start,
+            on_child_process_task_start=JobExecutor.on_child_process_task_start,
+            on_child_process_task_complete=JobExecutor.on_child_process_task_complete,
+            on_after_all_tasks_complete=lambda job_reports: JobExecutor.on_after_all_tasks_complete(
+                job_reports,
+                ctx.global_entity_cache,
+            ),
+            on_single_task_result=lambda report, progress: JobExecutor.on_single_task_result(
+                report,
+                progress,
+                report_manager=ctx.report_manager,
             ),
         )
-        if not isinstance(opportunity, Opportunity):
-            return
 
-        state.opp_counter += 1
-        opportunity.bind_scan_context(
-            strategy_name=self.strategy_name,
-            stock_id=state.stock_id,
-            stock_info=state.stock_info,
-            trigger_date=as_of,
-            trigger_price=float(bar["close"]),
-            opportunity_index=state.opp_counter,
+    @staticmethod
+    def on_before_all_tasks_start(plan: Any, batches: List[Any]) -> None:
+        """主进程钩子：调度 plan 就绪后打印摘要（BE.slice 当前未转发，保留同构）。"""
+        print(
+            f"  调度: {len(batches)} batches, "
+            f"slice_open_days={getattr(plan, 'slice_open_days', '?')}, "
+            f"reader_workers={getattr(plan, 'reader_workers', '?')}",
+            flush=True,
         )
-        state.holdings.register_entry(opportunity)
 
-    def _state_result(self, state: _EntitySliceState) -> Dict[str, Any]:
-        opportunities_dict = [row.to_dict() for row in state.holdings.recorded]
+    @staticmethod
+    def on_child_process_task_start(job_context: Any) -> Dict[str, Any]:
+        """子进程/进程内钩子：batch load（先复用 entity BatchDataLoader）。"""
+        # TODO(extract-shared): EnumJobPerfRecorder / BatchDataLoader 与 entity 同构
+        from core.modules.strategy.core.engines.enumerator.entity_based.services.enum_job_perf import (
+            EnumJobPerfRecorder,
+        )
+
+        logger.info("slice task 开始：job_id=%s", job_context.job_id)
+        perf = EnumJobPerfRecorder.attach(job_context.payload)
+        perf.begin("load_data")
+
+        # TODO(extract-shared / slice-window): 一期全量 load；二期按 _slice_plan 窗口
+        from core.modules.strategy.core.engines.enumerator.entity_based.services.batch_data_loader import (
+            BatchDataLoader,
+        )
+
+        loaded_data = BatchDataLoader.load_bundle_data(job_context.payload, perf=perf)
+        perf.end("load_data")
+
+        logger.info(
+            "slice task 开始完成：entity_contracts_count=%d, global_keys=%d",
+            len(loaded_data.get("entity_contracts", {})),
+            len(loaded_data.get("global_data", {})),
+        )
+        return loaded_data
+
+    @staticmethod
+    def on_child_process_task_complete(job_context: Any) -> None:
+        """子进程/进程内钩子：将缓冲的 opportunities 写入 CSV。"""
+        if job_context.payload.get("_dispatch_probe"):
+            return
+        from core.modules.strategy.core.engines.enumerator.entity_based.services.enum_job_perf import (
+            EnumJobPerfRecorder,
+        )
+        from core.modules.strategy.core.engines.enumerator.shared.report_manager import (
+            ReportManager,
+        )
+
+        perf = EnumJobPerfRecorder.attach(job_context.payload)
+        perf.begin("flush_csv")
+        ReportManager.worker_flush_job_investments(job_context.payload)
+        perf.end("flush_csv")
+
+    @staticmethod
+    def execute(job_context: Any) -> Dict[str, Any]:
+        """执行函数：BE.slice 入口；内部自带 lifecycle（start → body → complete）。"""
+        from core.modules.backtest_engine.core.shared.job_lifecycle import run_job_lifecycle
+
+        return run_job_lifecycle(
+            JobExecutor._execute_body,
+            job_context,
+            on_child_process_task_start=JobExecutor.on_child_process_task_start,
+            on_child_process_task_complete=JobExecutor.on_child_process_task_complete,
+        )
+
+    @staticmethod
+    def _execute_body(job_context: Any) -> Dict[str, Any]:
+        """实际枚举体：hooks + open_dates + SliceEnumerationSimulator。"""
+        from core.modules.strategy.core.engines.enumerator.entity_based.services.enum_job_perf import (
+            EnumJobPerfRecorder,
+        )
+
+        logger.info("slice 执行开始（slice_based模式）")
+        perf = EnumJobPerfRecorder.attach(job_context.payload)
+        perf.begin("enumerate")
+
+        payload = job_context.payload
+        loaded_data = job_context.init or {}
+        entity_contracts = loaded_data.get("entity_contracts", {})
+        global_data = loaded_data.get("global_data", {})
+        strategy_info = payload.get("strategy_info", {})
+        settings_dict = payload.get("settings", {})
+
+        hooks_module_path = strategy_info.get("hooks_module_path")
+        hooks_class_name = strategy_info.get("hooks_class_name")
+        hooks_file_path = strategy_info.get("hooks_file_path", "")
+        if not hooks_module_path or not hooks_class_name:
+            logger.error("缺少hooks信息：hooks_module_path或hooks_class_name")
+            perf.end("enumerate")
+            return {"success": False, "opportunities_count": 0, "error": "缺少hooks信息"}
+
+        try:
+            from core.modules.strategy.core.services.discovery.worker_loader import (
+                StrategyWorkerLoader,
+            )
+
+            hooks_class = StrategyWorkerLoader.import_hooks_class(
+                worker_module_path=hooks_module_path,
+                worker_class_name=hooks_class_name,
+                worker_file_path=str(hooks_file_path or ""),
+            )
+            hooks_instance = hooks_class()
+        except Exception as exc:
+            logger.error("加载hooks类失败：%s", exc, exc_info=True)
+            perf.end("enumerate")
+            return {"success": False, "opportunities_count": 0, "error": str(exc)}
+
+        from core.modules.strategy.core.engines.enumerator.shared.report_manager import (
+            ReportManager,
+        )
+        from core.modules.strategy.core.engines.enumerator.slice_based.services.enumeration_simulator import (
+            SliceEnumerationSimulator,
+        )
+        from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
+            StrategySettings,
+        )
+
+        try:
+            settings_obj = StrategySettings.from_dict(settings_dict)
+        except Exception as exc:
+            logger.error("构建StrategySettings失败：%s", exc, exc_info=True)
+            perf.end("enumerate")
+            return {"success": False, "opportunities_count": 0, "error": str(exc)}
+
+        open_dates = JobExecutor._resolve_open_dates(payload, global_data)
+        if not open_dates:
+            logger.warning("open_dates 为空，无法遍历日期")
+            perf.end("enumerate")
+            return {"success": True, "opportunities_count": 0, "warning": "open_dates为空"}
+
+        entity_ids = JobExecutor._resolve_entity_ids(payload)
+        start_date = str(payload.get("start_date") or open_dates[0])
+        end_date = str(payload.get("end_date") or open_dates[-1])
+
+        simulator = SliceEnumerationSimulator(entity_ids)
+        simulator.run(
+            open_dates=open_dates,
+            start_date=start_date,
+            end_date=end_date,
+            settings=settings_obj,
+            hooks=hooks_instance,
+            strategy_name=strategy_info.get("key", ""),
+            entity_contracts=entity_contracts,
+            global_data=global_data,
+            payload=payload,
+            perf=perf,
+        )
+
+        if not payload.get("_dispatch_probe"):
+            ReportManager.worker_buffer_opportunities(
+                payload,
+                simulator.buffer_for_recorder(),
+            )
+
+        perf.end("enumerate")
+        opportunities_count = simulator.total_recorded_count()
+        logger.info("slice 执行完成：opportunities_count=%d", opportunities_count)
+
         return {
             "success": True,
-            "stock_id": state.stock_id,
-            "stock_name": str(state.stock_info.get("name") or state.stock_id),
-            "opportunities": opportunities_dict,
-            "opportunity_count": len(opportunities_dict),
+            "opportunities_count": opportunities_count,
+            "entities_with_opportunities": simulator.entities_with_investments(),
+            "entities_count": len(entity_ids),
         }
 
-    def _write_outputs(self, stock_results: List[Dict[str, Any]]) -> None:
-        if not self.output_dir:
-            return
-        output_dir = Path(self.output_dir)
-        for row in stock_results:
-            stock_id = str(row["stock_id"]).strip()
-            opportunities = row["opportunities"]
-            OpportunityCsvHelper.write(output_dir, stock_id, opportunities)
+    @staticmethod
+    def _resolve_open_dates(payload: Dict[str, Any], global_data: Dict[str, Any]) -> List[str]:
+        """优先 payload.open_dates（JobBuilder / BE 契约）；回退 trade.calendar shm。"""
+        raw = payload.get("open_dates")
+        if isinstance(raw, list) and raw:
+            return [str(day).strip() for day in raw if str(day).strip()]
 
-    def _clear_loaders(self) -> None:
-        for state in self._states.values():
-            state.data_loader.clear_working_state()
+        calendar = payload.get("backtest_calendar")
+        if isinstance(calendar, dict):
+            cal_dates = calendar.get("open_dates")
+            if isinstance(cal_dates, list) and cal_dates:
+                return [str(day).strip() for day in cal_dates if str(day).strip()]
+
+        from core.modules.data_contract import DATA_KEY
+
+        calendar_data = global_data.get(DATA_KEY.TRADE_CALENDAR, [])
+        return [
+            str(item.get("date") or "").strip()
+            for item in calendar_data
+            if item.get("is_open") and str(item.get("date") or "").strip()
+        ]
+
+    @staticmethod
+    def _resolve_entity_ids(payload: Dict[str, Any]) -> List[str]:
+        for key in ("entity_ids", "stock_ids"):
+            raw = payload.get(key)
+            if isinstance(raw, list) and raw:
+                return [str(item).strip() for item in raw if str(item).strip()]
+        specified = payload.get("entity_specified") or []
+        return [
+            str(item.get("id") or "").strip()
+            for item in specified
+            if isinstance(item, dict) and str(item.get("id") or "").strip()
+        ]
+
+    @staticmethod
+    def on_single_task_result(
+        report: Any,
+        progress: Any,
+        *,
+        report_manager: Optional[Any] = None,
+    ) -> None:
+        """主进程钩子：单 task 完成（进度日志 + profiler 采集）。"""
+        if report_manager is not None:
+            report_manager.profiler.collect(report)
+
+        logger.info(
+            "Task完成进度：%s/%s (成功=%s, 失败=%s)",
+            progress.finished,
+            progress.total,
+            progress.ok,
+            progress.fail,
+        )
+        logger.info("Task报告：job_id=%s, success=%s", report.job_id, report.success)
+        if report.success and report.data:
+            count = int(report.data.get("opportunities_count") or 0)
+            logger.info("Task opportunities_count=%d", count)
+        if not report.success:
+            logger.error(
+                "Task失败：job_id=%s, error=%s",
+                report.job_id,
+                report.error or "Unknown error",
+            )
+
+    @staticmethod
+    def on_after_all_tasks_complete(job_reports: List[Any], global_entity_cache: Any = None) -> None:
+        """主进程钩子：全局清理（BE.slice 未转发，由 pipeline 在 run 后显式调用）。"""
+        logger.info("所有tasks完成：total=%d", len(job_reports))
+
+        if global_entity_cache:
+            try:
+                global_entity_cache.cleanup()
+                logger.info("全局缓存清理完成")
+            except Exception as exc:
+                logger.warning("清理全局缓存失败：%s", exc)
+
+        success_count = sum(1 for report in job_reports if report.success)
+        fail_count = len(job_reports) - success_count
+        logger.info(
+            "最终统计：total=%d, success=%d, fail=%d",
+            len(job_reports),
+            success_count,
+            fail_count,
+        )
 
 
-__all__ = ["SliceBasedCompute"]
+__all__ = ["ExecutorHooksContext", "JobExecutor"]

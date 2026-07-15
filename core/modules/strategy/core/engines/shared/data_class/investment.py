@@ -634,6 +634,14 @@ class Investment(Opportunity):
         self.outcome.price_return = roi
         self.outcome.weighted_roi = roi * ratio
         self.outcome.result = InvestmentResult.WIN if roi >= 0 else InvestmentResult.LOSS
+        # custom goal 无 expiration 时 holding.days 可能一直未更新；退出时补齐
+        entry_date = str(self.entry.entry_date or "").strip()
+        if entry_date and int(self.holding.days or 0) <= 0:
+            mode = self.holding.mode or ExpirationMode.OPEN_DAY
+            self.holding.days = _holding_days(
+                entry_date, as_of, mode, self.run_deps.open_dates
+            )
+            self.holding.last_bar_date = as_of
         self.pending_exit = None
         return True
 

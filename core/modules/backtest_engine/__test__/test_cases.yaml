@@ -109,30 +109,27 @@ cases:
 
   - id: 5
     case: slice_probe
-    description: slice_based 探针与 executor 进程模型
+    description: slice_based head 采样（全 entity、正式片宽、计入输出）
     file: test_slice_probe.py
     scenarios:
       - id: 1
-        name: test_should_run_requires_worker_for_tag
-        description: 探针需要 worker_module_path
+        name: test_should_run_requires_hooks
+        description: 需要 strategy_info.hooks_module_path 或 worker_module_path
       - id: 2
-        name: test_should_run_respects_slice_probe_flag
-        description: slice_probe=False 跳过探针
+        name: test_should_run_respects_dispatch_probe_flag
+        description: dispatch_probe/slice_probe=False 跳过 head 采样
       - id: 3
-        name: test_build_probe_payload_truncates_open_dates_and_entities
-        description: 探针 payload 截断 open_dates / entities
+        name: test_build_probe_payload_keeps_all_entities
+        description: head payload 保留全 entity；日历=probe_slice_count×slice_open_days
       - id: 4
-        name: test_extract_slice_probe_metrics_from_runtime_plan
-        description: 从 runtime plan 提取探针指标
+        name: test_annotate_preserves_full_calendar
+        description: annotate 保留完整日历，只打 head 采样标记
       - id: 5
-        name: test_dispatch_uses_subprocess_and_builds_result
-        description: dispatch 构建探针结果
+        name: test_extract_slice_probe_metrics_from_runtime_plan
+        description: 从 runtime plan 提取 head 片指标
       - id: 6
-        name: test_slice_executor_runs_orchestrator_in_process
-        description: SliceExecutor 不启动外层 ProcessPool
-      - id: 7
-        name: test_extract_metrics_requires_samples
-        description: 无 slice_samples 时抛出 RuntimeError
+        name: test_result_from_execute_report
+        description: 从正式 execute 报告构建 SliceProbeResult
 
   - id: 6
     case: slice_monitor

@@ -35,6 +35,11 @@ from core.modules.backtest_engine.core.slice_based.probe import (
     SliceProbe,
     SliceProbeResult,
 )
+from core.modules.backtest_engine.core.slice_based.preload import (
+    MAX_PRELOAD_DEPTH,
+    resolve_preload_depth,
+)
+from core.modules.backtest_engine.core.shared.performance import DEFAULT_PRELOAD_DEPTH
 
 logger = logging.getLogger(__name__)
 
@@ -48,20 +53,23 @@ class SliceDispatchPlan:
     reader_memory_budget_mb: float
     
     # Compute配置
-    compute_processes: int  # 通常为1（单进程）
+    compute_processes: int  # 通常为1（单进程）；报告侧别名 compute_workers
     compute_memory_budget_mb: float
     
-    # 队列配置
+    # 队列配置：queue_capacity 与 preload_depth 同值（单一名：preload_depth）
     queue_capacity: int
     preload_depth: int
     
     # Slice配置
     slice_open_days: int
-    dispatch_jobs: int
+    dispatch_jobs: int  # 报告侧别名 total_slices
     
     # 内存管理
     memory_budget_mb: float
     oom_adjusted: bool
+
+    # 探针快照（供 performance 报告；可选）
+    probe: Optional[Dict[str, Any]] = None
 
 
 @dataclass(frozen=True)
@@ -93,18 +101,14 @@ class SlicePlanner(BasePlanner):
         executor: Optional[str] = None,
         log_label: str = "切片调度",
     ) -> Tuple[SliceDispatchPlan, List[SliceJobBatch], SliceMonitorConfig]:
-        """Planner的编排层（对外API）。
-        
-        Args:
-            jobs: 待执行的job列表
-            performance: 配置字典
-            executor: 执行器
-            log_label: 日志标签
-            
-        Returns:
-            Tuple[SliceDispatchPlan, List[SliceJobBatch]]: 规划结果和切片批次
+        """Skeleton plan before execute.
+
+        Head-phase sampling (first N formal slices) runs during execute and
+        counts toward official output; see ``refine_plan_from_probe`` /
+        ``SliceExecutePipeline``.
         """
-        # 1. 获取机器容量（共享）
+        _ = execute_fn
+        _ = executor
         capacity = cls._get_machine_capacity(performance)
 
         provisional_days = performance.get("slice_open_days")
@@ -112,6 +116,8 @@ class SlicePlanner(BasePlanner):
             provisional_days = 20
         else:
             provisional_days = int(provisional_days)
+
+        sample_head = SliceProbe.should_run(jobs, performance)
 
         resolved_performance = SliceBasedPerformance.resolve_for_planning(
             performance,
@@ -125,61 +131,103 @@ class SlicePlanner(BasePlanner):
         if dispatch_slices > 0:
             resolved_performance = dict(resolved_performance)
             resolved_performance["_dispatch_slices"] = dispatch_slices
+        resolved_performance["_sample_head_slices"] = sample_head
 
-        # 2. slice探针测量（读算分离内存）
-        probe_result = cls._measure_slice_probe(
-            jobs, capacity, resolved_performance, execute_fn, log_label
-        )
-
-        # 3. 制定读算分离规划（reader_workers、queue_capacity等）
+        # Skeleton only — preload provisional until head samples refine it.
         plan = cls._resolve_slice_plan(
-            jobs, capacity, probe_result, resolved_performance, log_label
+            jobs, capacity, None, resolved_performance, log_label
         )
-        
-        # 4. 切割slice jobs
         batches = cls._split_slice_batches(jobs, plan)
-
+        head_n = SliceProbe.head_slice_count(resolved_performance) if sample_head else 0
+        annotated: List[SliceJobBatch] = []
+        for batch in batches:
+            payload = SliceProbe.annotate_payload_for_head_sampling(
+                batch.payload,
+                slice_open_days=plan.slice_open_days,
+                probe_slice_count=head_n,
+                sample_enabled=sample_head,
+            )
+            annotated.append(
+                SliceJobBatch(
+                    batch_id=batch.batch_id,
+                    slice_ids=list(batch.slice_ids),
+                    slices_count=batch.slices_count,
+                    payload=payload,
+                )
+            )
         monitor_config = cls._build_monitor(plan, resolved_performance)
+        if sample_head:
+            logger.info(
+                "%s骨架规划完成；执行时采样前 %s 片（全 entity，片宽=%s）计入输出",
+                log_label,
+                head_n,
+                plan.slice_open_days,
+            )
+        else:
+            logger.info("%s跳过 head 采样（配置已固定 preload/staged）", log_label)
+        return plan, annotated, monitor_config
 
-        return plan, batches, monitor_config
-    
     @classmethod
-    def _measure_slice_probe(
+    def refine_plan_from_probe(
         cls,
-        jobs: List[Dict[str, Any]],
+        plan: SliceDispatchPlan,
+        probe_result: Optional[SliceProbeResult],
         capacity: MachineCapacity,
         performance: Dict[str, Any],
-        execute_fn: Optional[Callable[[JobContext], Dict[str, Any]]],
-        log_label: str,
-    ) -> Optional[SliceProbeResult]:
-        """slice探针测量（读算分离内存）。
-        
-        Args:
-            jobs: 待执行的job列表
-            capacity: 机器容量
-            performance: 配置字典
-            executor: 执行器
-            log_label: 日志标签
-            
-        Returns:
-            Optional[SliceProbeResult]: 探针结果
-        """
-        # 检查是否需要探针
-        if not SliceProbe.should_run(jobs, performance):
-            logger.info("%s跳过探针（用户指定配置）", log_label)
-            return None
-        
-        # 构建探针jobs
-        probe_jobs = SliceProbe.build_probe_jobs(jobs, capacity, performance)
-        
-        # 执行探针
-        return SliceProbe.dispatch(
-            probe_jobs,
-            execute_fn=execute_fn,
-            performance=performance,
-            log_label=log_label,
+        log_label: str = "切片调度",
+    ) -> SliceDispatchPlan:
+        """Recompute preload_depth from head samples; keep reader_workers fixed."""
+        if probe_result is None or int(probe_result.slices_sampled or 0) <= 0:
+            return plan
+
+        available_memory_mb = MachineInfo.worker_pool_budget_mb(capacity)
+        mb_in_flight = max(
+            1.0,
+            float(probe_result.mb_per_slice_reader)
+            + float(probe_result.mb_per_slice_payload),
         )
-    
+        raw_depth = performance.get("preload_depth")
+        if raw_depth in (None, "", "auto"):
+            preload_depth = resolve_preload_depth(
+                t_io_sec=probe_result.sec_per_slice_reader,
+                t_compute_sec=probe_result.sec_per_slice_compute,
+                memory_budget_mb=available_memory_mb,
+                mb_per_in_flight_slice=mb_in_flight,
+                prefetch_enabled=bool(performance.get("prefetch_enabled", True)),
+            )
+        else:
+            preload_depth = max(1, min(MAX_PRELOAD_DEPTH, int(raw_depth)))
+
+        base = SliceDispatchPlan(
+            reader_workers=plan.reader_workers,
+            reader_memory_budget_mb=0.0,
+            compute_processes=plan.compute_processes,
+            compute_memory_budget_mb=probe_result.mb_per_slice_compute,
+            queue_capacity=preload_depth,
+            preload_depth=preload_depth,
+            slice_open_days=plan.slice_open_days,
+            dispatch_jobs=plan.dispatch_jobs,
+            memory_budget_mb=plan.memory_budget_mb,
+            oom_adjusted=False,
+            probe=None,
+        )
+        refined = cls._apply_oom_protection(base, capacity, probe_result)
+        probe_snap = cls._probe_to_dict(probe_result)
+        from dataclasses import replace
+
+        refined = replace(refined, probe=probe_snap)
+        logger.info(
+            "%shead 采样 refine: preload_depth=%s (=queue), readers=%s, "
+            "sec_read=%.3f sec_compute=%.3f slices=%s",
+            log_label,
+            refined.preload_depth,
+            refined.reader_workers,
+            probe_result.sec_per_slice_reader,
+            probe_result.sec_per_slice_compute,
+            probe_result.slices_sampled,
+        )
+        return refined
+
     @classmethod
     def _resolve_slice_plan(
         cls,
@@ -206,21 +254,63 @@ class SlicePlanner(BasePlanner):
         
         # 3.2: OOM保护（更严格的管控）
         final_plan = cls._apply_oom_protection(base_plan, capacity, probe_result)
+
+        # 始终挂 probe 快照：真探针或 OOM 使用的默认单价（报告可回填 estimated）
+        probe_snap = cls._probe_to_dict(probe_result)
+        if probe_snap is None:
+            probe_snap = {
+                "ran": False,
+                "source": "plan_defaults",
+                "slices_sampled": 0,
+                "mb_per_slice_reader": 10.0,
+                "mb_per_slice_compute": 15.0,
+                "mb_per_slice_payload": 5.0,
+                "sec_per_slice_reader": 0.0,
+                "sec_per_slice_compute": 0.0,
+                "sec_per_slice_serialize": 0.0,
+                "sec_per_slice_deserialize": 0.0,
+                "peak_rss_mb_reader": 0.0,
+                "peak_rss_mb_compute": 0.0,
+                "wall_sec": 0.0,
+            }
+        from dataclasses import replace
+
+        final_plan = replace(final_plan, probe=probe_snap)
         
         logger.info(
-            "%s规划: reader_workers=%s, compute_processes=%s, queue=%s, "
-            "preload=%s, slice_days=%s, jobs=%s, oom=%s",
+            "%s规划: reader_workers=%s (standby), compute_processes=%s, "
+            "preload_depth=%s (=queue), slice_days=%s, jobs=%s, oom=%s, probe=%s",
             log_label,
             final_plan.reader_workers,
             final_plan.compute_processes,
-            final_plan.queue_capacity,
             final_plan.preload_depth,
             final_plan.slice_open_days,
             final_plan.dispatch_jobs,
             final_plan.oom_adjusted,
+            "ran" if probe_snap.get("ran") else probe_snap.get("source", "none"),
         )
         
         return final_plan
+
+    @staticmethod
+    def _probe_to_dict(probe_result: Optional[SliceProbeResult]) -> Optional[Dict[str, Any]]:
+        if probe_result is None:
+            return None
+        return {
+            "ran": True,
+            "source": "probe",
+            "slices_sampled": int(probe_result.slices_sampled),
+            "mb_per_slice_reader": float(probe_result.mb_per_slice_reader),
+            "mb_per_slice_compute": float(probe_result.mb_per_slice_compute),
+            "mb_per_slice_payload": float(probe_result.mb_per_slice_payload),
+            "sec_per_slice_reader": float(probe_result.sec_per_slice_reader),
+            "sec_per_slice_compute": float(probe_result.sec_per_slice_compute),
+            "sec_per_slice_serialize": float(probe_result.sec_per_slice_serialize),
+            "sec_per_slice_deserialize": float(probe_result.sec_per_slice_deserialize),
+            "peak_rss_mb_reader": float(probe_result.peak_rss_mb_reader),
+            "peak_rss_mb_compute": float(probe_result.peak_rss_mb_compute),
+            "wall_sec": float(probe_result.wall_sec),
+        }
     
     @classmethod
     def _resolve_base_plan(
@@ -230,40 +320,53 @@ class SlicePlanner(BasePlanner):
         probe_result: Optional[SliceProbeResult],
         performance: Dict[str, Any],
     ) -> SliceDispatchPlan:
-        """计算基础规划（不考虑OOM）。
-        
-        Args:
-            jobs: 待执行的job列表
-            capacity: 机器容量
-            probe_result: 探针结果
-            performance: 配置字典
-            
-        Returns:
-            SliceDispatchPlan: 基础规划
+        """计算基础规划（不考虑 OOM 二次砍深度）。
+
+        Reader = fixed standby pool. ``preload_depth`` (= ``queue_capacity``)
+        comes from ``t_io / t_compute`` then memory clip when still auto.
         """
         slice_open_days = int(performance.get("slice_open_days", 20))
         total_slices = cls._count_calendar_slices(jobs, slice_open_days)
-
-        reader_workers_base = int(performance.get("reader_workers", 2))
-        
-        # Compute processes（单进程）
+        reader_workers = max(1, int(performance.get("reader_workers", 1)))
         compute_processes = int(performance.get("compute_processes", 1))
-        
-        # Queue capacity（管道队列控制）
-        queue_capacity_base = int(performance.get("queue_capacity", 10))
-        
-        # Preload depth（预加载深度）
-        preload_depth_base = int(performance.get("preload_depth", 2))
-        
+        prefetch_enabled = bool(performance.get("prefetch_enabled", True))
+        available_memory_mb = MachineInfo.worker_pool_budget_mb(capacity)
+
+        mb_reader = probe_result.mb_per_slice_reader if probe_result else 10.0
+        mb_payload = probe_result.mb_per_slice_payload if probe_result else 5.0
+        mb_compute = probe_result.mb_per_slice_compute if probe_result else 15.0
+        # Standby model: in-flight cost ≈ one reader slice + one queued payload
+        mb_in_flight = max(1.0, mb_reader + mb_payload)
+
+        raw_depth = performance.get("preload_depth")
+        if raw_depth in (None, "", "auto"):
+            t_io = probe_result.sec_per_slice_reader if probe_result else None
+            t_compute = probe_result.sec_per_slice_compute if probe_result else None
+            preload_depth = resolve_preload_depth(
+                t_io_sec=t_io,
+                t_compute_sec=t_compute,
+                memory_budget_mb=available_memory_mb,
+                mb_per_in_flight_slice=mb_in_flight,
+                prefetch_enabled=prefetch_enabled,
+            )
+            if probe_result is None and prefetch_enabled:
+                preload_depth = min(preload_depth, DEFAULT_PRELOAD_DEPTH)
+        else:
+            preload_depth = max(1, min(MAX_PRELOAD_DEPTH, int(raw_depth)))
+            if not prefetch_enabled:
+                preload_depth = 1
+
+        # Unified name: queue_capacity always equals preload_depth
+        queue_capacity = preload_depth
         dispatch_jobs = max(1, total_slices)
-        
+
         return SliceDispatchPlan(
-            reader_workers=reader_workers_base,
-            reader_memory_budget_mb=0.0,  # filled by _apply_oom_protection when probe runs
+            reader_workers=reader_workers,
+            reader_memory_budget_mb=0.0,  # filled in OOM pass
             compute_processes=compute_processes,
-            compute_memory_budget_mb=0.0,  # filled by _apply_oom_protection when probe runs
-            queue_capacity=queue_capacity_base,
-            preload_depth=preload_depth_base,
+            compute_memory_budget_mb=mb_compute,
+            queue_capacity=queue_capacity,
+            preload_depth=preload_depth,
             slice_open_days=slice_open_days,
             dispatch_jobs=dispatch_jobs,
             memory_budget_mb=capacity.memory_budget_mb,
@@ -277,123 +380,73 @@ class SlicePlanner(BasePlanner):
         capacity: MachineCapacity,
         probe_result: Optional[SliceProbeResult],
     ) -> SliceDispatchPlan:
-        """OOM保护（更严格的管控）。
-        
-        根据探针结果计算内存使用：
-        - Reader内存：reader_workers * mb_per_slice_reader * preload_depth
-        - Compute内存：mb_per_slice_compute（单进程）
-        - Payload内存：queue_capacity * mb_per_slice_payload
-        
-        Args:
-            base_plan: 基础规划
-            capacity: 机器容量
-            probe_result: 探针结果
-            
-        Returns:
-            SliceDispatchPlan: 最终规划（OOM保护后）
+        """OOM 保护：只砍 ``preload_depth``（= queue），不砍 standby readers。
+
+        Resident estimate (standby pool)::
+
+            preload_depth * (mb_reader + mb_payload) + mb_compute
         """
         available_memory_mb = MachineInfo.worker_pool_budget_mb(capacity)
-        
-        # 根据探针结果计算内存消耗（如果没有探针，使用默认值）
+
         mb_per_slice_reader = probe_result.mb_per_slice_reader if probe_result else 10.0
         mb_per_slice_compute = probe_result.mb_per_slice_compute if probe_result else 15.0
         mb_per_slice_payload = probe_result.mb_per_slice_payload if probe_result else 5.0
-        
-        # 计算当前内存使用
-        reader_memory_mb = base_plan.reader_workers * mb_per_slice_reader * base_plan.preload_depth
-        compute_memory_mb = mb_per_slice_compute
-        payload_memory_mb = base_plan.queue_capacity * mb_per_slice_payload
-        total_memory_mb = reader_memory_mb + compute_memory_mb + payload_memory_mb
-        
-        # 检查OOM风险
-        if total_memory_mb <= available_memory_mb:
-            # 没有OOM风险，直接返回基础规划
-            return SliceDispatchPlan(
-                reader_workers=base_plan.reader_workers,
-                reader_memory_budget_mb=reader_memory_mb,
-                compute_processes=base_plan.compute_processes,
-                compute_memory_budget_mb=compute_memory_mb,
-                queue_capacity=base_plan.queue_capacity,
-                preload_depth=base_plan.preload_depth,
-                slice_open_days=base_plan.slice_open_days,
-                dispatch_jobs=base_plan.dispatch_jobs,
-                memory_budget_mb=capacity.memory_budget_mb,
-                oom_adjusted=False,
-            )
-        
-        # OOM风险，调整规划
-        logger.warning(
-            "OOM风险检测: 当前使用=%.1fMB, 可用=%.1fMB, 调整规划...",
-            total_memory_mb,
-            available_memory_mb,
-        )
-        
-        # 调整策略：优先降低reader_workers，再降低queue_capacity和preload_depth
+        mb_in_flight = max(1.0, mb_per_slice_reader + mb_per_slice_payload)
+
         reader_workers = base_plan.reader_workers
-        queue_capacity = base_plan.queue_capacity
         preload_depth = base_plan.preload_depth
-        
-        # Step 1: 降低reader_workers（Reader占大头）
-        max_reader_workers_by_memory = int(
-            (available_memory_mb - compute_memory_mb - payload_memory_mb) 
-            / (mb_per_slice_reader * preload_depth)
-        )
-        if reader_workers > max_reader_workers_by_memory:
-            reader_workers = max(1, max_reader_workers_by_memory)
-        
-        # Step 2: 降低queue_capacity（Payload内存）
-        max_queue_capacity_by_memory = int(
-            (available_memory_mb - reader_workers * mb_per_slice_reader * preload_depth - compute_memory_mb)
-            / mb_per_slice_payload
-        )
-        if queue_capacity > max_queue_capacity_by_memory:
-            queue_capacity = max(1, min(max_queue_capacity_by_memory, preload_depth * 2))
-        
-        # Step 3: 降低preload_depth（进一步降低Reader内存）
-        max_preload_depth_by_memory = int(
-            (available_memory_mb - compute_memory_mb - queue_capacity * mb_per_slice_payload)
-            / (reader_workers * mb_per_slice_reader)
-        )
-        if preload_depth > max_preload_depth_by_memory:
-            preload_depth = max(1, min(max_preload_depth_by_memory, queue_capacity))
-        
-        # 再次检查内存使用
-        reader_memory_mb = reader_workers * mb_per_slice_reader * preload_depth
         compute_memory_mb = mb_per_slice_compute
-        payload_memory_mb = queue_capacity * mb_per_slice_payload
-        final_memory_mb = reader_memory_mb + compute_memory_mb + payload_memory_mb
-        
+
+        def _total(depth: int) -> float:
+            return depth * mb_in_flight + compute_memory_mb
+
+        total_memory_mb = _total(preload_depth)
+        oom_adjusted = False
+
+        if total_memory_mb > available_memory_mb:
+            max_depth = max(
+                1,
+                min(
+                    MAX_PRELOAD_DEPTH,
+                    int((available_memory_mb - compute_memory_mb) / mb_in_flight),
+                ),
+            )
+            if preload_depth > max_depth:
+                logger.warning(
+                    "OOM保护: preload_depth %s→%s (readers fixed=%s; "
+                    "估内存 %.1fMB→%.1fMB, 可用=%.1fMB)",
+                    preload_depth,
+                    max_depth,
+                    reader_workers,
+                    total_memory_mb,
+                    _total(max_depth),
+                    available_memory_mb,
+                )
+                preload_depth = max_depth
+                oom_adjusted = True
+
+        reader_memory_mb = preload_depth * mb_per_slice_reader
+        payload_memory_mb = preload_depth * mb_per_slice_payload
+        final_memory_mb = reader_memory_mb + payload_memory_mb + compute_memory_mb
+
         if final_memory_mb > available_memory_mb:
             logger.error(
-                "OOM保护失败: 最终使用=%.1fMB > 可用=%.1fMB，无法满足",
+                "OOM保护后仍超预算: 最终使用=%.1fMB > 可用=%.1fMB",
                 final_memory_mb,
                 available_memory_mb,
             )
-        
-        logger.info(
-            "OOM保护: reader_workers %s→%s, queue %s→%s, preload %s→%s "
-            "(内存 %.1fMB→%.1fMB)",
-            base_plan.reader_workers,
-            reader_workers,
-            base_plan.queue_capacity,
-            queue_capacity,
-            base_plan.preload_depth,
-            preload_depth,
-            total_memory_mb,
-            final_memory_mb,
-        )
-        
+
         return SliceDispatchPlan(
             reader_workers=reader_workers,
             reader_memory_budget_mb=reader_memory_mb,
             compute_processes=base_plan.compute_processes,
             compute_memory_budget_mb=compute_memory_mb,
-            queue_capacity=queue_capacity,
+            queue_capacity=preload_depth,
             preload_depth=preload_depth,
             slice_open_days=base_plan.slice_open_days,
             dispatch_jobs=base_plan.dispatch_jobs,
             memory_budget_mb=capacity.memory_budget_mb,
-            oom_adjusted=True,
+            oom_adjusted=oom_adjusted,
         )
     
     @classmethod

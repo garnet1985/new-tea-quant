@@ -27,6 +27,17 @@ from core.modules.strategy.core.hooks.context.data_context import DataContext
 logger = logging.getLogger(__name__)
 
 
+def _process_rss_mb() -> float:
+    try:
+        import os
+
+        import psutil
+
+        return float(psutil.Process(os.getpid()).memory_info().rss) / (1024.0 * 1024.0)
+    except Exception:
+        return 0.0
+
+
 @dataclass
 class SliceEnumerationSimulator:
     """在 slice job 内驱动「open_dates × entities」枚举。
@@ -68,7 +79,6 @@ class SliceEnumerationSimulator:
         payload: Dict[str, Any],
         perf: Optional[EnumJobPerfRecorder] = None,
     ) -> None:
-        _ = payload
         settings_dict = settings.to_dict()
         self._assert_entry_price_model(settings_dict)
         rebalance_period = self._resolve_rebalance_period(settings_dict)
@@ -88,11 +98,27 @@ class SliceEnumerationSimulator:
         self._open_dates = list(filtered_dates)
         open_dates_tuple = tuple(filtered_dates)
 
+        slice_open_days = max(
+            1,
+            int(
+                payload.get("_slice_open_days")
+                or (payload.get("_slice_plan") or {}).get("slice_open_days")
+                or 20
+            ),
+        )
+        head_sample_slices = max(0, int(payload.get("_slice_head_sample_slices") or 0))
+        self._slice_samples: List[Dict[str, Any]] = []
+        self._baseline_rss_mb = _process_rss_mb()
+
         ctx_base = DataContext.assemble(
             strategy_name=strategy_name,
             settings=settings,
             stock_list=list(self.entity_ids),
         )
+
+        window_start_idx = 0
+        slice_index = 0
+        window_t0 = time.perf_counter()
 
         for index, as_of in enumerate(filtered_dates):
             if perf is not None:
@@ -195,6 +221,39 @@ class SliceEnumerationSimulator:
                     open_dates=open_dates_tuple,
                     perf=perf,
                 )
+
+            # Logical slice boundary sample (head windows only).
+            days_in_window = index - window_start_idx + 1
+            hit_window_end = days_in_window >= slice_open_days
+            is_last_day = index == len(filtered_dates) - 1
+            if (
+                head_sample_slices > 0
+                and slice_index < head_sample_slices
+                and (hit_window_end or is_last_day)
+            ):
+                elapsed = max(0.0, time.perf_counter() - window_t0)
+                rss = _process_rss_mb()
+                # Day-loop fuses PIT+scan; split wall evenly so preload ratio is defined.
+                half = round(elapsed / 2.0, 4)
+                self._slice_samples.append(
+                    {
+                        "slice_index": slice_index,
+                        "load_sec": half,
+                        "compute_sec": half,
+                        "serialize_sec": 0.0,
+                        "deserialize_sec": 0.0,
+                        "rss_after_mb": round(rss, 1),
+                        "payload_mb": round(
+                            max(0.0, rss - self._baseline_rss_mb), 1
+                        ),
+                        "payload_bytes": int(
+                            max(0.0, rss - self._baseline_rss_mb) * 1024 * 1024
+                        ),
+                    }
+                )
+                slice_index += 1
+                window_start_idx = index + 1
+                window_t0 = time.perf_counter()
 
         # 5) 区间结束仍未平仓 → settle
         last_day = filtered_dates[-1]
@@ -326,6 +385,13 @@ class SliceEnumerationSimulator:
                     }
                 )
         return rows
+
+    def slice_runtime_plan_dict(self) -> Dict[str, Any]:
+        samples = list(getattr(self, "_slice_samples", None) or [])
+        return {
+            "baseline_rss_mb": float(getattr(self, "_baseline_rss_mb", 0.0) or 0.0),
+            "slice_samples": samples,
+        }
 
     def _build_stocks_context(
         self,

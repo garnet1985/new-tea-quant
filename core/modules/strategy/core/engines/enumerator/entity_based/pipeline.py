@@ -156,6 +156,7 @@ class EnumeratorPipeline:
     ) -> ReportManager:
         return ReportManager.begin(
             strategy_info.key,
+            strategy_path=strategy_info.unique_relative_path,
             entity_ids=stock_ids,
             settings_fp=settings_fp,
             env_fp=env_fp,
@@ -199,13 +200,16 @@ class EnumeratorPipeline:
 
     @staticmethod
     def _resolve_backtest_performance(effective_settings: StrategySettings) -> Dict[str, Any]:
+        # 调度参数只吃系统 worker.json / profile；策略 settings.performance 不得覆盖
         raw = effective_settings.raw_settings or {}
-        perf_override = raw.get("performance")
-        override = dict(perf_override) if isinstance(perf_override, dict) else None
-        return resolve_entity_based_performance_for_profile(
-            WorkerProfiles.ENUMERATOR,
-            override,
-        )
+        if isinstance(raw.get("performance"), dict) and raw["performance"]:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "忽略 settings.performance=%s；请用 userspace/config/worker.json → job_pipeline.enumerator",
+                sorted(raw["performance"].keys()),
+            )
+        return resolve_entity_based_performance_for_profile(WorkerProfiles.ENUMERATOR)
 
     @classmethod
     def _step_to_generate_reports(

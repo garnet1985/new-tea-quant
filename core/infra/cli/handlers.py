@@ -267,18 +267,9 @@ def _run_strategy_enumerate(args: argparse.Namespace) -> None:
         runtime_settings=runtime_settings or None,
     )
     wall_sec = time.perf_counter() - t0
-    execute_sec = float(result.get("elapsed_seconds") or 0.0)
 
-    print(f"  success: {result.get('success')}", flush=True)
-    print(f"  opportunities: {result.get('opportunities_count', 0)}", flush=True)
-    total_jobs = result.get("total_jobs")
-    completed_jobs = result.get("completed_jobs")
-    if total_jobs is not None:
-        print(f"  jobs: {completed_jobs}/{total_jobs}", flush=True)
-    print(f"  回测执行: {execute_sec:.2f}s", flush=True)
-    print(f"  总耗时: {wall_sec:.2f}s", flush=True)
+    # 终局摘要统一走 ReportManager.present（entity / slice 相同契约）
     if result.get("output_dir"):
-        print(f"  output_dir: {result['output_dir']}", flush=True)
         try:
             from pathlib import Path
 
@@ -287,10 +278,19 @@ def _run_strategy_enumerate(args: argparse.Namespace) -> None:
             )
 
             ReportManager.from_output_dir(Path(result["output_dir"])).present()
-        except FileNotFoundError:
-            pass
+        except FileNotFoundError as exc:
+            logger.warning("展示枚举汇总失败（缺产物）: %s", exc)
+            print(f"  success: {result.get('success')}", flush=True)
+            print(f"  output_dir: {result.get('output_dir')}", flush=True)
         except Exception as exc:
             logger.warning("展示枚举汇总失败: %s", exc)
+            print(f"  success: {result.get('success')}", flush=True)
+            print(f"  output_dir: {result.get('output_dir')}", flush=True)
+    else:
+        print(f"  success: {result.get('success')}", flush=True)
+        print(f"  opportunities: {result.get('opportunities_count', 0)}", flush=True)
+
+    print(f"  总耗时(含调度): {wall_sec:.2f}s", flush=True)
     if not result.get("success"):
         failed = result.get("failed_entities") or []
         if failed:

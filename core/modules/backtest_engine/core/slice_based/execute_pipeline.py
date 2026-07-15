@@ -1,7 +1,8 @@
-"""Slice execute pipeline: plan → monitor → subprocess orchestrator."""
+"""Slice execute pipeline: skeleton plan → execute (head samples in-run) → refine."""
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -25,12 +26,13 @@ from core.modules.backtest_engine.core.slice_based.planner import (
     SliceJobBatch,
     SlicePlanner,
 )
+from core.modules.backtest_engine.core.slice_based.probe import SliceProbe
 
 logger = logging.getLogger(__name__)
 
 
 class SliceExecutePipeline:
-    """End-to-end calendar-slice backtest: plan → monitor → execute."""
+    """End-to-end calendar-slice backtest: plan → execute → refine from head samples."""
 
     ExecuteFn = SliceExecutor.ExecuteFn
     OnResultHook = SliceExecutor.OnResultHook
@@ -42,6 +44,7 @@ class SliceExecutePipeline:
         monitor_config: SliceMonitorConfig
         execution: SliceExecutor.ExecutionResult
         monitor_stats: Any = None
+        pipeline_phases_sec: Optional[Dict[str, float]] = None
 
     def __init__(self, *, log_label: str = "slice_based") -> None:
         self._log_label = log_label
@@ -57,6 +60,8 @@ class SliceExecutePipeline:
         enable_progress_display: bool = True,
     ) -> SliceExecutePipeline.Result:
         label = task_name or self._log_label
+        wall_t0 = time.perf_counter()
+        phase_marks: Dict[str, float] = {"prep": wall_t0}
         progress = RunProgressReporter(
             task_name=label,
             run_mode=BacktestMode.SLICE_BASED.value,
@@ -67,6 +72,7 @@ class SliceExecutePipeline:
         if jobs:
             BacktestJob.validate_many(jobs, mode=BacktestMode.SLICE_BASED)
 
+        phase_marks["plan"] = time.perf_counter()
         progress.mark_phase(RunPhase.PLAN)
         plan, batches, monitor_config = SlicePlanner.plan_jobs(
             jobs,
@@ -111,6 +117,7 @@ class SliceExecutePipeline:
             if on_single_task_result is not None:
                 on_single_task_result(report, run_progress)
 
+        phase_marks["execute"] = time.perf_counter()
         progress.mark_phase(RunPhase.EXECUTE)
         execution = SliceExecutorDuckDB.execute(
             plan,
@@ -128,7 +135,34 @@ class SliceExecutePipeline:
             ),
         )
         monitor.flush()
+
+        # Refine preload from head-slice samples embedded in execute results.
+        probe_result = None
+        for report in execution.job_results or []:
+            if not report.success or not isinstance(report.data, dict):
+                continue
+            data = dict(report.data)
+            if data.get("performance_metrics"):
+                probe_result = SliceProbe.result_from_execute_report(
+                    data, performance=performance
+                )
+                if probe_result.slices_sampled > 0:
+                    break
+                probe_result = None
+
+        if probe_result is not None and probe_result.slices_sampled > 0:
+            plan = SlicePlanner.refine_plan_from_probe(
+                plan,
+                probe_result,
+                capacity,
+                performance,
+                log_label=self._log_label,
+            )
+            monitor_config = SlicePlanner._build_monitor(plan, performance)
+
+        phase_marks["finish"] = time.perf_counter()
         progress.mark_phase(RunPhase.FINISH)
+        wall_end = time.perf_counter()
 
         return SliceExecutePipeline.Result(
             plan=plan,
@@ -136,7 +170,22 @@ class SliceExecutePipeline:
             monitor_config=monitor_config,
             execution=execution,
             monitor_stats=monitor.stats,
+            pipeline_phases_sec=_pipeline_phases_sec(phase_marks, wall_end),
         )
+
+
+def _pipeline_phases_sec(phase_marks: Dict[str, float], wall_end: float) -> Dict[str, float]:
+    prep_t0 = float(phase_marks.get("prep") or wall_end)
+    plan_t0 = float(phase_marks.get("plan") or prep_t0)
+    execute_t0 = float(phase_marks.get("execute") or plan_t0)
+    finish_t0 = float(phase_marks.get("finish") or execute_t0)
+    return {
+        "prep": round(max(0.0, plan_t0 - prep_t0), 4),
+        "plan": round(max(0.0, execute_t0 - plan_t0), 4),
+        "execute": round(max(0.0, finish_t0 - execute_t0), 4),
+        "finish": round(max(0.0, wall_end - finish_t0), 4),
+        "wall": round(max(0.0, wall_end - prep_t0), 4),
+    }
 
 
 __all__ = ["SliceExecutePipeline"]

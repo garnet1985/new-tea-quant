@@ -26,12 +26,13 @@ class SliceBasedRuntimeContext(BacktestRuntimeContext):
 
     @classmethod
     def performance_baseline(cls) -> Dict[str, Any]:
+        # Scheduling defaults live in SliceBasedPerformance (backtest_engine).
+        # Only list strategy-side knobs that subclasses commonly override.
         return {
             "reader_workers": cls.READER_WORKERS,
             "queue_depth": cls.QUEUE_DEPTH,
             "prefetch_enabled": cls.PREFETCH_ENABLED,
             "slice_open_days": cls.SLICE_OPEN_DAYS,
-            "slice_probe": False,
         }
 
     @classmethod

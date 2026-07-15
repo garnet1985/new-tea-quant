@@ -87,13 +87,16 @@ class WorkerTaskProfiler:
     def attach(self, out: Dict[str, Any], *, enum_perf: Any = None) -> Dict[str, Any]:
         wall_sec = time.perf_counter() - self._wall_t0
         rss_after_mb = self._process_rss_mb()
+        peak_rss_mb = max(self._rss_before_mb, rss_after_mb)
         payload = dict(out)
+        payload["wall_sec"] = wall_sec
+        payload["peak_rss_mb"] = peak_rss_mb
         payload[ENGINE_PERF_KEY] = WorkerTaskPerf(
             init_sec=self.init_sec,
             execute_sec=self.execute_sec,
             complete_sec=self.complete_sec,
             wall_sec=wall_sec,
-            peak_rss_mb=max(self._rss_before_mb, rss_after_mb),
+            peak_rss_mb=peak_rss_mb,
             worker_pid=self._worker_pid,
         ).to_dict()
         if isinstance(enum_perf, dict):

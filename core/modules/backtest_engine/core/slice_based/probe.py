@@ -1,64 +1,61 @@
 """
 Backtest Engine - Slice-based Probe
 
-Calendar-slice dispatch probe: in-process orchestrator sample + runtime plan metrics.
+Head-phase sampling for slice_based:
+
+- Full entity universe (never truncate entities).
+- Slice width = resolved formal ``slice_open_days``.
+- Sample the first ``probe_slice_count`` slices (default 2); those slices are
+  real work and count toward official output.
+- Remaining calendar continues in the same run; metrics refine ``preload_depth``.
 """
 from __future__ import annotations
 
 import copy
 import logging
-import time
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.infra.machine_capacity import MachineCapacity
-from core.modules.backtest_engine.core.shared.types import JobContext
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_PROBE_SLICE_COUNT: int = 2
-DEFAULT_PROBE_SLICE_OPEN_DAYS: int = 5
-DEFAULT_PROBE_ENTITY_COUNT: int = 3
 DEFAULT_PROBE_SAFETY_FACTOR: float = 1.25
-
-PROBE_EXECUTOR_TAG = "tag"
-PROBE_EXECUTOR_STRATEGY_ENUM = "strategy.enum"
-
 
 
 @dataclass(frozen=True)
 class SliceProbeResult:
-    """切片探针结果。"""
+    """Per-slice unit costs from head-phase samples."""
 
     mb_per_slice_reader: float
     mb_per_slice_compute: float
     mb_per_slice_payload: float
     sec_per_slice_reader: float
     sec_per_slice_compute: float
-    slices_sampled: int
-    wall_sec: float
-    peak_rss_mb_reader: float
-    peak_rss_mb_compute: float
+    sec_per_slice_serialize: float = 0.0
+    sec_per_slice_deserialize: float = 0.0
+    slices_sampled: int = 0
+    wall_sec: float = 0.0
+    peak_rss_mb_reader: float = 0.0
+    peak_rss_mb_compute: float = 0.0
 
 
 class SliceProbe:
-    """Calendar-slice dispatch probe."""
+    """Head-phase helpers for slice_based planning."""
 
     @staticmethod
     def should_run(
         jobs: List[Dict[str, Any]],
         performance: Dict[str, Any],
     ) -> bool:
-        if performance.get("slice_probe") is False:
-            return False
         if performance.get("dispatch_probe") is False:
             return False
-        if (
-            performance.get("reader_workers") not in (None, "", "auto")
-            and performance.get("queue_capacity") not in (None, "", "auto")
-            and performance.get("queue_depth") not in (None, "", "auto")
-        ):
+        if performance.get("slice_probe") is False:
+            return False
+        # Skip when preload depth is already fixed or staged memory cost is given.
+        if performance.get("preload_depth") not in (None, "", "auto"):
             return False
         if performance.get("mb_per_slice_staged") not in (None, ""):
             return False
@@ -67,11 +64,121 @@ class SliceProbe:
         payload = BacktestJob.from_dict(jobs[0]).payload
         if not SliceProbe._resolve_open_dates(payload):
             return False
-        if not (payload.get("entity_ids") or payload.get("stock_ids")):
+        if not (
+            payload.get("entity_ids")
+            or payload.get("stock_ids")
+            or payload.get("entity_specified")
+        ):
             return False
-        if not payload.get("worker_module_path"):
+        if not SliceProbe._has_worker_hooks(payload):
             return False
         return True
+
+    @staticmethod
+    def _has_worker_hooks(payload: Dict[str, Any]) -> bool:
+        if payload.get("worker_module_path"):
+            return True
+        info = payload.get("strategy_info")
+        if isinstance(info, dict) and info.get("hooks_module_path"):
+            return True
+        return False
+
+    @staticmethod
+    def head_slice_count(performance: Dict[str, Any]) -> int:
+        return max(1, int(performance.get("probe_slice_count", DEFAULT_PROBE_SLICE_COUNT)))
+
+    @staticmethod
+    def annotate_payload_for_head_sampling(
+        payload: Dict[str, Any],
+        *,
+        slice_open_days: int,
+        probe_slice_count: int,
+        sample_enabled: bool,
+    ) -> Dict[str, Any]:
+        """Mark payload so the executor samples the first N formal-width slices.
+
+        Full open_dates and full entities are preserved; head slices are part of
+        the official run, not a throwaway truncated job.
+        """
+        out = dict(payload)
+        out["_slice_head_sample_slices"] = (
+            max(1, int(probe_slice_count)) if sample_enabled else 0
+        )
+        out["_slice_open_days"] = max(1, int(slice_open_days))
+        out.pop("_slice_probe", None)
+        out.pop("_dispatch_probe", None)
+        return out
+
+    @staticmethod
+    def split_open_dates_into_windows(
+        open_dates: List[str],
+        *,
+        slice_open_days: int,
+    ) -> List[List[str]]:
+        days = max(1, int(slice_open_days))
+        windows: List[List[str]] = []
+        for start in range(0, len(open_dates), days):
+            windows.append(list(open_dates[start : start + days]))
+        return windows
+
+    @staticmethod
+    def result_from_execute_report(
+        report_or_result: Dict[str, Any],
+        *,
+        performance: Dict[str, Any],
+        safety_factor: Optional[float] = None,
+    ) -> SliceProbeResult:
+        """Build ``SliceProbeResult`` from an execute return / JobReport data."""
+        safety = max(
+            1.0,
+            float(
+                safety_factor
+                if safety_factor is not None
+                else (
+                    performance.get("slice_probe_safety_factor")
+                    or performance.get("dispatch_probe_safety_factor")
+                    or DEFAULT_PROBE_SAFETY_FACTOR
+                )
+            ),
+        )
+        body = report_or_result
+        if "data" in body and isinstance(body.get("data"), dict):
+            # JobReport-shaped
+            if body.get("performance_metrics"):
+                body = {
+                    "success": body.get("success", True),
+                    "performance_metrics": body.get("performance_metrics"),
+                    "wall_sec": body.get("wall_sec"),
+                }
+            else:
+                data = body["data"]
+                body = dict(data)
+                if "wall_sec" in report_or_result:
+                    body.setdefault("wall_sec", report_or_result["wall_sec"])
+
+        try:
+            metrics = SliceProbe._extract_metrics_from_plan(body, safety_factor=safety)
+        except RuntimeError:
+            logger.warning("slice head samples missing; using plan defaults")
+            return SliceProbe._default_result(performance)
+
+        return SliceProbeResult(
+            mb_per_slice_reader=float(metrics["mb_per_slice_reader"]),
+            mb_per_slice_compute=float(metrics["mb_per_slice_compute"]),
+            mb_per_slice_payload=float(metrics["mb_per_slice_payload"]),
+            sec_per_slice_reader=float(metrics["sec_per_slice_reader"]),
+            sec_per_slice_compute=float(metrics["sec_per_slice_compute"]),
+            sec_per_slice_serialize=float(metrics.get("sec_per_slice_serialize") or 0.0),
+            sec_per_slice_deserialize=float(
+                metrics.get("sec_per_slice_deserialize") or 0.0
+            ),
+            slices_sampled=int(metrics["slices_sampled"]),
+            wall_sec=float(body.get("wall_sec") or 0.0),
+            peak_rss_mb_reader=float(metrics["peak_rss_mb_reader"]),
+            peak_rss_mb_compute=float(metrics["peak_rss_mb_compute"]),
+        )
+
+    # --- legacy names kept as thin wrappers for older call sites / tests ---
 
     @staticmethod
     def build_probe_jobs(
@@ -79,10 +186,10 @@ class SliceProbe:
         capacity: MachineCapacity,
         performance: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
+        """Deprecated throwaway path — prefer annotate + continuous execute."""
         _ = capacity
         if not jobs:
             return []
-
         probe_payload = SliceProbe.build_probe_payload(jobs, performance)
         job_id = str(probe_payload.pop("_probe_job_id", "slice_probe"))
         return [{"id": job_id, "payload": probe_payload}]
@@ -92,39 +199,25 @@ class SliceProbe:
         jobs: List[Dict[str, Any]],
         performance: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """Build a truncated bulk calendar_slice payload for probe."""
+        """Build head-window payload: full entities, formal slice width × N.
+
+        Kept for tests/helpers. Pipeline uses annotate_payload_for_head_sampling
+        on the full calendar instead of this truncated calendar.
+        """
         parsed = BacktestJob.from_dict(jobs[0])
         job_id, payload = parsed.id, parsed.payload
         probe = copy.deepcopy(payload)
 
-        probe_slice_count = max(1, int(performance.get("probe_slice_count", DEFAULT_PROBE_SLICE_COUNT)))
-        probe_slice_open_days = max(
+        slice_days = max(
             1,
-            int(performance.get("probe_slice_open_days", DEFAULT_PROBE_SLICE_OPEN_DAYS)),
+            int(
+                performance.get("slice_open_days")
+                if performance.get("slice_open_days") not in (None, "", "auto")
+                else 20
+            ),
         )
-        probe_entity_count = max(
-            1,
-            int(performance.get("probe_entity_count", DEFAULT_PROBE_ENTITY_COUNT)),
-        )
-
-        probe["_slice_probe"] = True
-        probe["_probe_max_slices"] = probe_slice_count
-        probe["_probe_slice_open_days"] = probe_slice_open_days
-        probe["slice_open_days"] = "auto"
-        probe["_probe_job_id"] = f"{job_id}_probe"
-
-        entity_ids = list(probe.get("entity_ids") or [])
-        if entity_ids:
-            probe["entity_ids"] = entity_ids[:probe_entity_count]
-            entities = probe.get("entities")
-            if isinstance(entities, list):
-                probe["entities"] = entities[:probe_entity_count]
-
-        stock_ids = list(probe.get("stock_ids") or [])
-        if stock_ids:
-            probe["stock_ids"] = stock_ids[:probe_entity_count]
-
-        needed_open_days = probe_slice_count * probe_slice_open_days
+        probe_slice_count = SliceProbe.head_slice_count(performance)
+        needed_open_days = probe_slice_count * slice_days
         open_dates = SliceProbe._resolve_open_dates(probe)
         if open_dates:
             truncated = open_dates[:needed_open_days]
@@ -141,135 +234,30 @@ class SliceProbe:
                 probe["start_date"] = truncated[0]
                 probe["end_date"] = truncated[-1]
 
+        entity_n = 0
+        if isinstance(probe.get("entity_ids"), list):
+            entity_n = len(probe["entity_ids"])
+        elif isinstance(probe.get("stock_ids"), list):
+            entity_n = len(probe["stock_ids"])
+
+        probe = SliceProbe.annotate_payload_for_head_sampling(
+            probe,
+            slice_open_days=slice_days,
+            probe_slice_count=probe_slice_count,
+            sample_enabled=True,
+        )
+        probe["_probe_job_id"] = f"{job_id}_probe"
+        probe["slice_open_days"] = slice_days
+
         logger.info(
-            "Slice探针payload: job=%s slices=%s slice_days=%s entities=%s open_days=%s",
+            "Slice head payload: job=%s slices=%s slice_days=%s entities=%s open_days=%s",
             job_id,
             probe_slice_count,
-            probe_slice_open_days,
-            probe_entity_count,
+            slice_days,
+            entity_n,
             len(probe.get("open_dates") or []),
         )
         return probe
-
-    @staticmethod
-    def dispatch(
-        probe_jobs: List[Dict[str, Any]],
-        *,
-        execute_fn: Optional[Callable[[JobContext], Dict[str, Any]]],
-        performance: Dict[str, Any],
-        log_label: str = "Slice探针",
-        task_name: str = "",
-    ) -> SliceProbeResult:
-        if not probe_jobs:
-            return SliceProbe._default_result(performance)
-
-        if execute_fn is None:
-            logger.warning("%s探针跳过：未提供 execute_fn", log_label)
-            return SliceProbe._default_result(performance)
-
-        payload = BacktestJob.from_dict(probe_jobs[0]).payload
-        probe_payload = dict(payload)
-
-        logger.info(
-            "%s启动: open_days=%s",
-            log_label,
-            len(probe_payload.get("open_dates") or []),
-        )
-
-        raw = SliceProbe._run_probe_in_subprocess(
-            execute_fn,
-            probe_payload,
-            task_name or f"{log_label}:probe",
-            performance,
-            log_label,
-        )
-        return SliceProbe._build_probe_result(raw, performance, log_label)
-
-    @staticmethod
-    def _run_probe_in_subprocess(
-        execute_fn: Callable[[JobContext], Dict[str, Any]],
-        probe_payload: Dict[str, Any],
-        task_name: str,
-        performance: Dict[str, Any],
-        log_label: str,
-    ) -> Dict[str, Any]:
-        from core.infra.db.engines.duckdb.process_pool_scope import (
-            is_duckdb_backend,
-            is_main_duckdb_worker_pool_active,
-            prepare_main_for_worker_pool,
-            restore_after_worker_pool,
-            wait_pool_children_done,
-        )
-
-        prepared_here = False
-        if is_duckdb_backend():
-            wait_pool_children_done(timeout_sec=30.0)
-            if not is_main_duckdb_worker_pool_active():
-                prepare_main_for_worker_pool(None)
-                prepared_here = True
-
-        try:
-            raw = _slice_probe_worker((execute_fn, probe_payload, task_name))
-            wait_pool_children_done(timeout_sec=15.0)
-            return raw
-        finally:
-            if prepared_here:
-                restore_after_worker_pool()
-
-    @staticmethod
-    def _build_probe_result(
-        raw: Dict[str, Any],
-        performance: Dict[str, Any],
-        log_label: str,
-    ) -> SliceProbeResult:
-        safety = max(
-            1.0,
-            float(
-                performance.get("slice_probe_safety_factor")
-                or performance.get("dispatch_probe_safety_factor")
-                or DEFAULT_PROBE_SAFETY_FACTOR
-            ),
-        )
-
-        if not raw.get("success", True):
-            raise RuntimeError(f"{log_label}探针 job 失败: {raw!r}")
-
-        orchestrator_out = raw.get("orchestrator_result")
-        if not isinstance(orchestrator_out, dict):
-            raise RuntimeError(f"{log_label}探针缺少 orchestrator_result: {raw!r}")
-
-        if not orchestrator_out.get("success", True):
-            raise RuntimeError(
-                f"{log_label}探针 orchestrator 失败: {orchestrator_out!r}"
-            )
-
-        metrics = SliceProbe._extract_metrics_from_plan(orchestrator_out, safety_factor=safety)
-        wall_sec = float(raw.get("wall_sec") or 0.0)
-        slices_sampled = int(metrics["slices_sampled"])
-
-        result = SliceProbeResult(
-            mb_per_slice_reader=float(metrics["mb_per_slice_reader"]),
-            mb_per_slice_compute=float(metrics["mb_per_slice_compute"]),
-            mb_per_slice_payload=float(metrics["mb_per_slice_payload"]),
-            sec_per_slice_reader=float(metrics["sec_per_slice_reader"]),
-            sec_per_slice_compute=float(metrics["sec_per_slice_compute"]),
-            slices_sampled=slices_sampled,
-            wall_sec=wall_sec,
-            peak_rss_mb_reader=float(metrics["peak_rss_mb_reader"]),
-            peak_rss_mb_compute=float(metrics["peak_rss_mb_compute"]),
-        )
-
-        logger.info(
-            "%s完成: reader=%.1fMB/slice compute=%.1fMB/slice payload=%.1fMB/slice "
-            "wall=%.2fs slices=%s",
-            log_label,
-            result.mb_per_slice_reader,
-            result.mb_per_slice_compute,
-            result.mb_per_slice_payload,
-            result.wall_sec,
-            result.slices_sampled,
-        )
-        return result
 
     @staticmethod
     def _extract_metrics_from_plan(
@@ -277,11 +265,6 @@ class SliceProbe:
         *,
         safety_factor: float,
     ) -> Dict[str, float]:
-        """
-        Parse ``performance_metrics.calendar_slice_runtime_plan`` probe samples.
-
-        Derives per-slice reader / compute / payload estimates for OOM planning.
-        """
         perf = orchestrator_result.get("performance_metrics") or {}
         plan = perf.get("calendar_slice_runtime_plan") or {}
         samples: List[Dict[str, Any]] = list(plan.get("slice_samples") or [])
@@ -308,8 +291,22 @@ class SliceProbe:
             for sample in samples
             if float(sample.get("compute_sec") or 0.0) > 0.0
         ]
+        serializes = [
+            float(sample.get("serialize_sec") or 0.0)
+            for sample in samples
+            if float(sample.get("serialize_sec") or 0.0) > 0.0
+        ]
+        deserializes = [
+            float(sample.get("deserialize_sec") or 0.0)
+            for sample in samples
+            if float(sample.get("deserialize_sec") or 0.0) > 0.0
+        ]
         sec_reader = sum(loads) / len(loads) if loads else 0.1
         sec_compute = sum(computes) / len(computes) if computes else 0.1
+        sec_serialize = sum(serializes) / len(serializes) if serializes else 0.0
+        sec_deserialize = (
+            sum(deserializes) / len(deserializes) if deserializes else 0.0
+        )
 
         rss_deltas = [
             max(float(sample.get("rss_after_mb") or 0.0) - baseline, 1.0)
@@ -328,6 +325,8 @@ class SliceProbe:
             "mb_per_slice_payload": max(0.1, payload_mb * safety),
             "sec_per_slice_reader": sec_reader,
             "sec_per_slice_compute": sec_compute,
+            "sec_per_slice_serialize": sec_serialize,
+            "sec_per_slice_deserialize": sec_deserialize,
             "slices_sampled": float(len(samples)),
             "peak_rss_mb_reader": max(0.1, peak_delta * io_share),
             "peak_rss_mb_compute": max(0.1, peak_delta * (1.0 - io_share)),
@@ -378,42 +377,6 @@ class SliceProbe:
             if isinstance(calendar_dates, list) and calendar_dates:
                 return [str(d) for d in calendar_dates if str(d).strip()]
         return []
-
-
-def _slice_probe_worker(args: tuple) -> Dict[str, Any]:
-    execute_fn, probe_payload, task_name = args
-    rss_before_mb = _process_rss_mb()
-    t0 = time.perf_counter()
-    ctx = JobContext(
-        job_id=str(probe_payload.get("_job_id") or probe_payload.get("job_id") or "slice_probe"),
-        payload=dict(probe_payload),
-        task_name=task_name,
-    )
-    orchestrator_result = execute_fn(ctx)
-    if not isinstance(orchestrator_result, dict):
-        orchestrator_result = {"success": True, "data": orchestrator_result}
-    rss_after_mb = _process_rss_mb()
-    wall_sec = time.perf_counter() - t0
-    return {
-        "success": bool(orchestrator_result.get("success", True)),
-        "orchestrator_result": orchestrator_result,
-        "peak_rss_mb": max(rss_before_mb, rss_after_mb),
-        "rss_before_mb": rss_before_mb,
-        "wall_sec": wall_sec,
-    }
-
-
-def _process_rss_mb() -> float:
-    try:
-        import os
-
-        import psutil
-
-        return float(psutil.Process(os.getpid()).memory_info().rss) / (
-            1024.0 * 1024.0
-        )
-    except Exception:
-        return 0.0
 
 
 __all__ = [

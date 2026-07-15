@@ -105,6 +105,7 @@ class RuntimeSnapshot:
     system: SystemEnv
     settings_snapshot: SettingsSnapshot
     created_at: str = ""
+    strategy_path: str = ""
 
     @property
     def entity_count(self) -> int:
@@ -125,6 +126,7 @@ class RuntimeSnapshot:
         settings_diff: Dict[str, Any],
         execution_mode: str,
         market_profile: str,
+        strategy_path: str = "",
     ) -> "RuntimeSnapshot":
         return cls(
             strategy_key=strategy_key,
@@ -141,6 +143,7 @@ class RuntimeSnapshot:
                 settings_diff=dict(settings_diff or {}),
             ),
             created_at=datetime.now().isoformat(),
+            strategy_path=str(strategy_path or strategy_key or "").strip(),
         )
 
     @classmethod
@@ -202,6 +205,7 @@ class RuntimeSnapshot:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "strategy_key": self.strategy_key,
+            "strategy_path": self.strategy_path or self.strategy_key,
             "version_id": self.version_id,
             "execution_mode": self.execution_mode,
             "market_profile": self.market_profile,
@@ -229,9 +233,10 @@ class RuntimeSnapshot:
         settings_raw = data.get("settings") or {}
         if "effective_settings" not in settings_raw and "settings_snapshot" in data:
             settings_raw = data.get("settings_snapshot") or {}
+        strategy_key = str(data.get("strategy_key") or "")
 
         return cls(
-            strategy_key=str(data.get("strategy_key") or ""),
+            strategy_key=strategy_key,
             version_id=int(data.get("version_id") or 0),
             execution_mode=str(data.get("execution_mode") or ""),
             market_profile=str(data.get("market_profile") or ""),
@@ -244,6 +249,7 @@ class RuntimeSnapshot:
             system=SystemEnv.from_dict(data.get("system") or {}),
             settings_snapshot=SettingsSnapshot.from_dict(settings_raw),
             created_at=str(data.get("created_at") or ""),
+            strategy_path=str(data.get("strategy_path") or strategy_key or ""),
         )
 
     # ── private ──
@@ -326,6 +332,7 @@ class RuntimeReport:
     ) -> SavedRuntimeArtifacts:
         snapshot = RuntimeSnapshot.build(
             strategy_key=self._manager.strategy_key,
+            strategy_path=self._manager.strategy_path,
             version_id=self._manager.version_id,
             entity_ids=entity_ids,
             settings_fp=settings_fp,

@@ -46,6 +46,8 @@ class DispatchPlan:
     worker_job_budget_mb: float
     source_entities_per_job: str
     source_max_workers: str
+    # 调度探针快照（entities_sampled=0 表示跳过或估计）
+    probe: Optional[ProbeResult] = None
 
 
 @dataclass(frozen=True)
@@ -104,6 +106,17 @@ class EntityPlanner(BasePlanner):
         )
         plan = cls._settle_plan(
             jobs, capacity, probe_result, performance, log_label
+        )
+        plan = DispatchPlan(
+            entities_per_job=plan.entities_per_job,
+            max_workers=plan.max_workers,
+            dispatch_jobs=plan.dispatch_jobs,
+            prefetch_ahead=plan.prefetch_ahead,
+            memory_budget_mb=plan.memory_budget_mb,
+            worker_job_budget_mb=plan.worker_job_budget_mb,
+            source_entities_per_job=plan.source_entities_per_job,
+            source_max_workers=plan.source_max_workers,
+            probe=probe_result,
         )
         batches = cls._split_job_batches(jobs, plan)
         monitor_config = cls._build_monitor(plan, performance)

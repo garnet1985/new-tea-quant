@@ -1,12 +1,9 @@
 """Slice probe unit tests."""
 from __future__ import annotations
 
-from unittest.mock import patch
-
 import pytest
 
 from core.modules.backtest_engine.core.slice_based.probe import SliceProbe
-from core.modules.backtest_engine.contracts import JobContext
 
 
 def _sample_orchestrator_result() -> dict:
@@ -38,46 +35,49 @@ def _sample_orchestrator_result() -> dict:
     }
 
 
-def test_should_run_requires_worker_for_tag() -> None:
+def test_should_run_requires_hooks() -> None:
     jobs = [{"id": "j1", "payload": {"entity_ids": ["000001.SZ"], "open_dates": ["20240102"]}}]
     assert SliceProbe.should_run(jobs, {}) is False
 
-    jobs_with_worker = [
+    jobs_with_hooks = [
         {
             "id": "j1",
             "payload": {
                 "entity_ids": ["000001.SZ"],
                 "open_dates": ["20240102"],
-                "worker_module_path": "userspace.extensions.tags.demo.tag_worker",
+                "strategy_info": {"hooks_module_path": "userspace.strategies.demo.hooks"},
             },
         }
     ]
-    assert SliceProbe.should_run(jobs_with_worker, {}) is True
+    assert SliceProbe.should_run(jobs_with_hooks, {}) is True
 
 
-def test_should_run_respects_slice_probe_flag() -> None:
+def test_should_run_respects_dispatch_probe_flag() -> None:
     jobs = [
         {
             "id": "j1",
             "payload": {
                 "entity_ids": ["000001.SZ"],
                 "open_dates": ["20240102"],
-                "worker_module_path": "userspace.extensions.tags.demo.tag_worker",
+                "strategy_info": {"hooks_module_path": "userspace.strategies.demo.hooks"},
             },
         }
     ]
+    assert SliceProbe.should_run(jobs, {"dispatch_probe": False}) is False
     assert SliceProbe.should_run(jobs, {"slice_probe": False}) is False
+    assert SliceProbe.should_run(jobs, {"preload_depth": 4}) is False
+    assert SliceProbe.should_run(jobs, {"mb_per_slice_staged": 12.0}) is False
+    assert SliceProbe.should_run(jobs, {"preload_depth": "auto"}) is True
 
 
-def test_build_probe_payload_truncates_open_dates_and_entities() -> None:
+def test_build_probe_payload_keeps_all_entities() -> None:
     jobs = [
         {
             "id": "tag_calendar_slice",
             "payload": {
-                "tag_execution_mode": "calendar_slice",
                 "entity_ids": ["a", "b", "c", "d"],
                 "open_dates": [f"202401{d:02d}" for d in range(1, 31)],
-                "slice_open_days": "auto",
+                "strategy_info": {"hooks_module_path": "x.hooks"},
             },
         }
     ]
@@ -85,15 +85,29 @@ def test_build_probe_payload_truncates_open_dates_and_entities() -> None:
         jobs,
         {
             "probe_slice_count": 2,
-            "probe_slice_open_days": 5,
-            "probe_entity_count": 2,
+            "slice_open_days": 5,
+            "probe_entity_count": 2,  # ignored — must keep full universe
         },
     )
-    assert payload["_slice_probe"] is True
-    assert payload["_probe_max_slices"] == 2
-    assert payload["_probe_slice_open_days"] == 5
-    assert payload["entity_ids"] == ["a", "b"]
-    assert len(payload["open_dates"]) == 10
+    assert payload["entity_ids"] == ["a", "b", "c", "d"]
+    assert len(payload["open_dates"]) == 10  # 2 * 5
+    assert payload["_slice_head_sample_slices"] == 2
+    assert payload["_slice_open_days"] == 5
+
+
+def test_annotate_preserves_full_calendar() -> None:
+    payload = {
+        "entity_ids": ["a", "b"],
+        "open_dates": [f"202401{d:02d}" for d in range(1, 21)],
+    }
+    out = SliceProbe.annotate_payload_for_head_sampling(
+        payload,
+        slice_open_days=20,
+        probe_slice_count=2,
+        sample_enabled=True,
+    )
+    assert len(out["open_dates"]) == 20
+    assert out["_slice_head_sample_slices"] == 2
 
 
 def test_extract_slice_probe_metrics_from_runtime_plan() -> None:
@@ -105,82 +119,13 @@ def test_extract_slice_probe_metrics_from_runtime_plan() -> None:
     assert metrics["mb_per_slice_payload"] == pytest.approx(48.0, rel=0.01)
     assert metrics["sec_per_slice_reader"] == pytest.approx(0.45, rel=0.01)
     assert metrics["sec_per_slice_compute"] == pytest.approx(0.225, rel=0.01)
-    assert metrics["mb_per_slice_reader"] > 0
-    assert metrics["mb_per_slice_compute"] > 0
 
 
-def test_dispatch_uses_subprocess_and_builds_result() -> None:
-    probe_jobs = [
-        {
-            "id": "probe",
-            "payload": SliceProbe.build_probe_payload(
-                [{"id": "j1", "payload": {"entity_ids": ["000001.SZ"], "open_dates": ["20240102"]}}],
-                {},
-            ),
-        }
-    ]
-    raw = {
-        "success": True,
-        "wall_sec": 1.5,
-        "orchestrator_result": _sample_orchestrator_result(),
-    }
-    def _fake_execute(ctx: JobContext) -> dict:
-        return _sample_orchestrator_result()
-
-    with patch.object(SliceProbe, "_run_probe_in_subprocess", return_value=raw):
-        result = SliceProbe.dispatch(
-            probe_jobs,
-            execute_fn=_fake_execute,
-            performance={},
-            log_label="test",
-        )
+def test_result_from_execute_report() -> None:
+    result = SliceProbe.result_from_execute_report(
+        _sample_orchestrator_result(),
+        performance={},
+        safety_factor=1.0,
+    )
     assert result.slices_sampled == 2
-    assert result.mb_per_slice_payload > 0
-
-
-def test_slice_executor_runs_orchestrator_in_process() -> None:
-    from unittest.mock import MagicMock, patch
-
-    from core.modules.backtest_engine.core.shared.context import ExecutionContext
-    from core.modules.backtest_engine.core.slice_based.executor import SliceExecutor
-    from core.modules.backtest_engine.core.slice_based.planner import (
-        SliceDispatchPlan,
-        SliceJobBatch,
-    )
-
-    plan = SliceDispatchPlan(
-        reader_workers=1,
-        reader_memory_budget_mb=10.0,
-        compute_processes=1,
-        compute_memory_budget_mb=10.0,
-        queue_capacity=2,
-        preload_depth=1,
-        slice_open_days=5,
-        dispatch_jobs=1,
-        memory_budget_mb=4096.0,
-        oom_adjusted=False,
-    )
-    batches = [
-        SliceJobBatch(
-            batch_id="batch_0",
-            slice_ids=["slice_0"],
-            slices_count=1,
-            payload={"stock_ids": ["000001.SZ"]},
-        )
-    ]
-    context = ExecutionContext.create(task_name="test", total_jobs=1)
-    execute_fn = MagicMock(return_value={"success": True})
-
-    with patch("concurrent.futures.ProcessPoolExecutor") as pool_cls:
-        SliceExecutor.execute(plan, batches, context, execute_fn, log_label="test")
-        pool_cls.assert_not_called()
-
-    execute_fn.assert_called_once()
-
-
-def test_extract_metrics_requires_samples() -> None:
-    with pytest.raises(RuntimeError, match="no slice_samples"):
-        SliceProbe._extract_metrics_from_plan(
-            {"success": True, "performance_metrics": {}},
-            safety_factor=1.0,
-        )
+    assert result.sec_per_slice_reader > 0

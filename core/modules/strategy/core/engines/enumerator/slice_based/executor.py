@@ -89,8 +89,7 @@ class JobExecutor:
     @staticmethod
     def on_child_process_task_complete(job_context: Any) -> None:
         """子进程/进程内钩子：将缓冲的 opportunities 写入 CSV。"""
-        if job_context.payload.get("_dispatch_probe"):
-            return
+        # Head-phase samples are official work — always flush (do not skip as throwaway probe).
         from core.modules.strategy.core.engines.enumerator.entity_based.services.enum_job_perf import (
             EnumJobPerfRecorder,
         )
@@ -198,21 +197,25 @@ class JobExecutor:
             perf=perf,
         )
 
-        if not payload.get("_dispatch_probe"):
-            ReportManager.worker_buffer_opportunities(
-                payload,
-                simulator.buffer_for_recorder(),
-            )
+        # Official output: always buffer (head slices are not throwaway).
+        ReportManager.worker_buffer_opportunities(
+            payload,
+            simulator.buffer_for_recorder(),
+        )
 
         perf.end("enumerate")
         opportunities_count = simulator.total_recorded_count()
         logger.info("slice 执行完成：opportunities_count=%d", opportunities_count)
 
+        runtime_plan = simulator.slice_runtime_plan_dict()
         return {
             "success": True,
             "opportunities_count": opportunities_count,
             "entities_with_opportunities": simulator.entities_with_investments(),
             "entities_count": len(entity_ids),
+            "performance_metrics": {
+                "calendar_slice_runtime_plan": runtime_plan,
+            },
         }
 
     @staticmethod

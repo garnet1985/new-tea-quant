@@ -1,7 +1,8 @@
-"""枚举 version 目录产物路径约定。"""
+"""枚举 version 目录产物路径约定（entity_based / slice_based 共用契约）。"""
 from __future__ import annotations
 
 from pathlib import Path
+from typing import FrozenSet
 
 # 全局产物（0_ 前缀 — 目录列表中排在 per-entity 文件之前）
 GLOBAL_PREFIX = "0_"
@@ -13,8 +14,26 @@ OVERALL_REPORT_FILE = f"{GLOBAL_PREFIX}overall_report.json"
 # 每股 CSV 子目录（避免 version 根目录上千文件）
 ENTITIES_SUBDIR = "entities"
 
+# version 根目录必有文件（契约；entities/ 内 CSV 按命中动态）
+ENUM_VERSION_REQUIRED_FILES = (
+    RUNTIME_ENV_FILE,
+    ENTITY_IDS_FILE,
+    PERFORMANCE_FILE,
+    OVERALL_REPORT_FILE,
+)
+
 PERFORMANCE_DETAIL_SUMMARY = "summary"
 PERFORMANCE_DETAIL_FULL = "full"
+
+# overall「Goal 成交」不计这些退出腿（强制收口 / 到期，非目标止盈止损）
+NON_GOAL_EXIT_REASONS: FrozenSet[str] = frozenset(
+    {
+        "simulate_end",
+        "expired",
+        "period_end",
+        "max_holding",
+    }
+)
 
 
 def entities_dir(output_dir: Path) -> Path:
@@ -41,7 +60,9 @@ def report_output_config(raw_settings: dict | None) -> dict:
 __all__ = [
     "ENTITIES_SUBDIR",
     "ENTITY_IDS_FILE",
+    "ENUM_VERSION_REQUIRED_FILES",
     "GLOBAL_PREFIX",
+    "NON_GOAL_EXIT_REASONS",
     "OVERALL_REPORT_FILE",
     "PERFORMANCE_DETAIL_FULL",
     "PERFORMANCE_DETAIL_SUMMARY",

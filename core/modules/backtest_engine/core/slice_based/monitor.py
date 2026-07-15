@@ -236,32 +236,35 @@ class SliceRunMonitor:
         preload = self._stats.runtime_preload_depth or plan.preload_depth
         readers = self._stats.runtime_reader_workers or plan.reader_workers
 
-        mb_reader = max(0.1, self._stats.mb_per_slice_reader_hat or plan.reader_memory_budget_mb / max(readers * preload, 1))
-        mb_compute = max(0.1, self._stats.mb_per_slice_compute_hat or plan.compute_memory_budget_mb)
-        mb_payload = max(0.1, self._stats.mb_per_slice_payload_hat or plan.payload_memory_budget_mb / max(plan.queue_capacity, 1))
-
-        in_flight_mb = (
-            readers * preload * mb_reader
-            + mb_compute
-            + plan.queue_capacity * mb_payload
+        mb_reader = max(
+            0.1,
+            self._stats.mb_per_slice_reader_hat
+            or plan.reader_memory_budget_mb / max(preload, 1),
         )
+        mb_compute = max(0.1, self._stats.mb_per_slice_compute_hat or plan.compute_memory_budget_mb)
+        mb_payload = max(
+            0.1,
+            self._stats.mb_per_slice_payload_hat
+            or plan.payload_memory_budget_mb / max(plan.queue_capacity, 1),
+        )
+
+        # Standby readers: resident ≈ preload * (reader + payload) + compute
+        in_flight_mb = preload * (mb_reader + mb_payload) + mb_compute
         high = self._available_memory_mb * self._config.memory_high_watermark
 
         if in_flight_mb > high:
             self._stats.memory_pressure_detected = True
             recommended_preload = max(1, preload - 1)
-            recommended_readers = readers
-            if recommended_preload == preload and readers > 1:
-                recommended_readers = readers - 1
+            # Keep reader pool fixed; only recommend cutting preload_depth
             self._stats.recommended_preload_depth = recommended_preload
-            self._stats.recommended_reader_workers = recommended_readers
+            self._stats.recommended_reader_workers = readers
             logger.info(
                 "Slice monitor: memory high (%.0fMB > %.0fMB), "
-                "recommend preload=%s readers=%s",
+                "recommend preload_depth=%s (readers fixed=%s)",
                 in_flight_mb,
                 high,
                 recommended_preload,
-                recommended_readers,
+                readers,
             )
 
     def _finalize_recommendations(self) -> None:

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
@@ -49,6 +50,7 @@ class EntityExecutePipeline:
         monitor_config: EntityMonitorConfig
         execution: EntityExecutor.ExecutionResult
         monitor_stats: Any = None
+        pipeline_phases_sec: Optional[Dict[str, float]] = None
 
     def __init__(self, *, log_label: str = "entity_based") -> None:
         self._log_label = log_label
@@ -68,6 +70,8 @@ class EntityExecutePipeline:
         enable_progress_display: bool = True,
     ) -> EntityExecutePipeline.Result:
         label = task_name or self._log_label
+        wall_t0 = time.perf_counter()
+        phase_marks: Dict[str, float] = {"prep": wall_t0}
         progress = RunProgressReporter(
             task_name=label,
             run_mode=BacktestMode.ENTITY_BASED.value,
@@ -78,6 +82,7 @@ class EntityExecutePipeline:
         if jobs:
             BacktestJob.validate_many(jobs, mode=BacktestMode.ENTITY_BASED)
 
+        phase_marks["plan"] = time.perf_counter()
         progress.mark_phase(RunPhase.PLAN)
         plan, batches, monitor_config = self._plan(
             jobs,
@@ -127,6 +132,7 @@ class EntityExecutePipeline:
             if on_single_task_result is not None:
                 on_single_task_result(report, run_progress)
 
+        phase_marks["execute"] = time.perf_counter()
         progress.mark_phase(RunPhase.EXECUTE)
         execution = EntityExecutorDuckDB.execute(
             plan,
@@ -147,7 +153,9 @@ class EntityExecutePipeline:
             ),
         )
         monitor.flush()
+        phase_marks["finish"] = time.perf_counter()
         progress.mark_phase(RunPhase.FINISH)
+        wall_end = time.perf_counter()
 
         return EntityExecutePipeline.Result(
             plan=plan,
@@ -155,6 +163,7 @@ class EntityExecutePipeline:
             monitor_config=monitor_config,
             execution=execution,
             monitor_stats=monitor.stats,
+            pipeline_phases_sec=_pipeline_phases_sec(phase_marks, wall_end),
         )
 
     def _plan(
@@ -176,6 +185,21 @@ class EntityExecutePipeline:
         )
 
 
+def _pipeline_phases_sec(phase_marks: Dict[str, float], wall_end: float) -> Dict[str, float]:
+    """Convert phase start marks → per-phase + total wall seconds."""
+    prep_t0 = float(phase_marks.get("prep") or wall_end)
+    plan_t0 = float(phase_marks.get("plan") or prep_t0)
+    execute_t0 = float(phase_marks.get("execute") or plan_t0)
+    finish_t0 = float(phase_marks.get("finish") or execute_t0)
+    return {
+        "prep": round(max(0.0, plan_t0 - prep_t0), 4),
+        "plan": round(max(0.0, execute_t0 - plan_t0), 4),
+        "execute": round(max(0.0, finish_t0 - execute_t0), 4),
+        "finish": round(max(0.0, wall_end - finish_t0), 4),
+        "wall": round(max(0.0, wall_end - prep_t0), 4),
+    }
+
+
 def _job_sample_from_report(
     report: JobReport,
     batch_entities: Dict[str, int],
@@ -184,11 +208,15 @@ def _job_sample_from_report(
     entities_count = int(
         data.get("entities_count") or batch_entities.get(report.job_id, 0)
     )
+    engine = data.get("engine_perf") or {}
     peak_rss = data.get("peak_rss_mb")
+    if peak_rss is None and isinstance(engine, dict):
+        peak_rss = engine.get("peak_rss_mb")
+    wall_sec = float(data.get("wall_sec") or (engine.get("wall_sec") if isinstance(engine, dict) else 0) or 0.0)
     return EntityJobSample(
         job_id=report.job_id,
         entities_count=entities_count,
-        wall_sec=float(data.get("wall_sec") or 0.0),
+        wall_sec=wall_sec,
         peak_rss_mb=float(peak_rss) if peak_rss is not None else None,
         success=report.success,
     )

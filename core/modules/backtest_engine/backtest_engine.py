@@ -43,6 +43,7 @@ class BacktestEngine:
         job_results: List[JobReport]
         plan: Any = None
         monitor_stats: Any = None
+        pipeline_phases_sec: Optional[Dict[str, float]] = None
 
         @classmethod
         def from_slice_based(
@@ -50,6 +51,7 @@ class BacktestEngine:
             result: SliceExecutePipeline.Result,
         ) -> BacktestEngine.RunResult:
             execution = result.execution
+            phases = dict(getattr(result, "pipeline_phases_sec", None) or {})
             return cls(
                 mode=BacktestMode.SLICE_BASED.value,
                 success=execution.success,
@@ -60,6 +62,7 @@ class BacktestEngine:
                 job_results=list(execution.job_results),
                 plan=result.plan,
                 monitor_stats=result.monitor_stats,
+                pipeline_phases_sec=phases or None,
             )
 
         @classmethod
@@ -68,6 +71,7 @@ class BacktestEngine:
             result: EntityExecutePipeline.Result,
         ) -> BacktestEngine.RunResult:
             execution = result.execution
+            phases = dict(getattr(result, "pipeline_phases_sec", None) or {})
             return cls(
                 mode=BacktestMode.ENTITY_BASED.value,
                 success=execution.success,
@@ -78,6 +82,7 @@ class BacktestEngine:
                 job_results=list(execution.job_results),
                 plan=result.plan,
                 monitor_stats=result.monitor_stats,
+                pipeline_phases_sec=phases or None,
             )
 
     class EntityBased:

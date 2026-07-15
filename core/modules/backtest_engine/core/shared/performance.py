@@ -125,10 +125,14 @@ class SliceBasedPerformance:
     compute_processes: Union[int, str] = 1
     reserve_cores: int = 1
     max_parallel_jobs_cap: Optional[int] = None
-    slice_probe: Optional[bool] = None
+    # Canonical on/off for dispatch probe (same name as entity_based).
+    # Incoming ``slice_probe`` is folded into this in ``from_dict``.
     dispatch_probe: bool = True
     mb_per_slice_staged: Optional[float] = None
+    # Head-phase length (formal slices that count toward output).
     probe_slice_count: int = 2
+    # Deprecated / ignored for slice sizing (kept for config back-compat only):
+    # slice width follows ``slice_open_days``; entities are never truncated.
     probe_slice_open_days: int = 5
     probe_entity_count: int = 2
     slice_probe_safety_factor: Optional[float] = None
@@ -144,6 +148,11 @@ class SliceBasedPerformance:
     @classmethod
     def from_dict(cls, data: Optional[RawPerformance]) -> SliceBasedPerformance:
         raw = dict(data or {})
+        # Deprecated alias → canonical dispatch_probe (alias wins when present).
+        if "slice_probe" in raw:
+            alias = raw.pop("slice_probe")
+            if alias is not None:
+                raw["dispatch_probe"] = bool(alias)
         known = {f.name for f in fields(cls) if f.name != "extra"}
         kwargs = {key: raw.pop(key) for key in list(raw) if key in known}
         perf = cls(**kwargs)
@@ -173,7 +182,6 @@ class SliceBasedPerformance:
             "compute_processes": self.compute_processes,
             "reserve_cores": self.reserve_cores,
             "max_parallel_jobs_cap": self.max_parallel_jobs_cap,
-            "slice_probe": self.slice_probe,
             "dispatch_probe": self.dispatch_probe,
             "mb_per_slice_staged": self.mb_per_slice_staged,
             "probe_slice_count": self.probe_slice_count,
@@ -189,12 +197,25 @@ class SliceBasedPerformance:
 
     @staticmethod
     def normalize_worker_fields(settings: RawPerformance) -> None:
-        if "queue_depth" in settings and "queue_capacity" not in settings:
-            settings["queue_capacity"] = settings["queue_depth"]
-        if "prefetch_enabled" in settings and "preload_depth" not in settings:
-            settings["preload_depth"] = (
-                DEFAULT_PRELOAD_DEPTH if settings["prefetch_enabled"] else 1
-            )
+        """Canonical depth name is ``preload_depth``.
+
+        ``queue_depth`` / ``queue_capacity`` are legacy aliases. If only an
+        alias is set, lift it into ``preload_depth``. At plan time
+        ``queue_capacity`` is forced equal to ``preload_depth``.
+
+        Probe switch: canonical ``dispatch_probe`` (see ``from_dict`` for
+        deprecated ``slice_probe`` alias).
+        """
+        if _is_auto(settings.get("preload_depth")):
+            alias = settings.get("queue_capacity")
+            if _is_auto(alias):
+                alias = settings.get("queue_depth")
+            if not _is_auto(alias):
+                settings["preload_depth"] = alias
+        if settings.get("prefetch_enabled") is False and _is_auto(
+            settings.get("preload_depth")
+        ):
+            settings["preload_depth"] = 1
 
     @classmethod
     def resolve_for_planning(
@@ -204,7 +225,12 @@ class SliceBasedPerformance:
         *,
         dispatch_slices: int,
     ) -> RawPerformance:
-        """Resolve ``auto`` fields once before planner / OOM logic."""
+        """Resolve known fields before planner.
+
+        - ``reader_workers`` auto → full standby pool (``cpu - reserve_cores``)
+        - ``preload_depth`` stays ``auto`` until probe timings + memory clip
+        - ``queue_capacity`` tracks ``preload_depth`` after planner resolves it
+        """
         perf = cls.from_dict(performance)
         perf.validate()
         settings = perf.to_dict()
@@ -215,19 +241,23 @@ class SliceBasedPerformance:
 
         available_workers = MachineInfo.get_available_workers(capacity)
         if _is_auto(settings.get("reader_workers")):
-            settings["reader_workers"] = max(1, available_workers - 1)
-
-        if _is_auto(settings.get("preload_depth")):
-            prefetch_enabled = settings.get("prefetch_enabled", True)
-            settings["preload_depth"] = DEFAULT_PRELOAD_DEPTH if prefetch_enabled else 1
-
-        preload_depth = int(settings["preload_depth"])
-        if _is_auto(settings.get("queue_capacity")):
-            reader_workers = int(settings["reader_workers"])
-            settings["queue_capacity"] = max(preload_depth * 2, reader_workers)
+            # Standby pool: who-is-free reads. Depth (not reader count) matches IO.
+            settings["reader_workers"] = max(1, available_workers)
+            settings["_reader_workers_fixed"] = True
 
         if _is_auto(settings.get("compute_processes")):
             settings["compute_processes"] = 1
+
+        # Keep preload_depth / queue_capacity as auto until SlicePlanner uses probe.
+        if not _is_auto(settings.get("preload_depth")):
+            depth = max(1, int(settings["preload_depth"]))
+            settings["preload_depth"] = depth
+            settings["queue_capacity"] = depth
+            settings["queue_depth"] = depth
+
+        # Strip deprecated probe truncation knobs so they cannot affect sizing.
+        settings.pop("probe_slice_open_days", None)
+        settings.pop("probe_entity_count", None)
 
         cls._validate_resolved(settings)
         if dispatch_slices > 0:
@@ -239,9 +269,15 @@ class SliceBasedPerformance:
         slice_open_days = int(settings.get("slice_open_days", 0))
         if slice_open_days <= 0:
             raise ValueError(f"slice_open_days must be > 0: {slice_open_days}")
-        for field_name in ("reader_workers", "compute_processes", "queue_capacity", "preload_depth"):
+        for field_name in ("reader_workers", "compute_processes"):
             value = int(settings[field_name])
             if value <= 0:
+                raise ValueError(f"{field_name} must be > 0: {value}")
+        for field_name in ("preload_depth", "queue_capacity"):
+            value = settings.get(field_name)
+            if _is_auto(value):
+                continue
+            if int(value) <= 0:
                 raise ValueError(f"{field_name} must be > 0: {value}")
 
 

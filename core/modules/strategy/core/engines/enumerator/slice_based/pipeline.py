@@ -166,6 +166,7 @@ class SliceBasedJobPipeline:
         # execution_mode 来自 strategy_info，会写成 slice_based 进 0_runtime_env.json
         return ReportManager.begin(
             strategy_info.key,
+            strategy_path=strategy_info.unique_relative_path,
             entity_ids=stock_ids,
             settings_fp=settings_fp,
             env_fp=env_fp,
@@ -215,14 +216,19 @@ class SliceBasedJobPipeline:
 
     @staticmethod
     def _resolve_backtest_performance(effective_settings: StrategySettings) -> Dict[str, Any]:
+        # 并行/epj/探针：系统 profile；calendar_slice 仍可读策略窗配置
         raw = effective_settings.raw_settings or {}
-        perf_override = raw.get("performance")
+        if isinstance(raw.get("performance"), dict) and raw["performance"]:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "忽略 settings.performance=%s；请用 userspace/config/worker.json → job_pipeline.enumerator",
+                sorted(raw["performance"].keys()),
+            )
         override: Dict[str, Any] = dict(profile_calendar_slice_config(WorkerProfiles.ENUMERATOR))
         calendar_slice = raw.get("calendar_slice")
         if isinstance(calendar_slice, dict):
             override.update(calendar_slice)
-        if isinstance(perf_override, dict):
-            override.update(perf_override)
         return resolve_slice_based_performance(override)
 
     @classmethod

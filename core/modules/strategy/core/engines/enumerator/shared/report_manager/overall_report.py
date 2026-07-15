@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional, TextIO, TYPE_CHECKING
 
 from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_consts import (
+    NON_GOAL_EXIT_REASONS,
     OVERALL_REPORT_FILE,
 )
 from core.modules.strategy.core.engines.enumerator.shared.report_manager.runtime_snapshot import (
@@ -155,10 +156,13 @@ class OverallReport:
         for entity_id in StockInvestments.collect_entity_ids(output_dir):
             investments = StockInvestments.load(output_dir, entity_id)
             goals = GoalAchievements.load(output_dir, entity_id)
-            row = cls._summarize_entity(entity_id, investments.rows, len(goals.rows))
+            goal_fill_count = sum(
+                1 for g in goals.rows if OverallReport._is_goal_fill(g.reason, g.goal_name)
+            )
+            row = cls._summarize_entity(entity_id, investments.rows, goal_fill_count)
             entity_rows.append(row)
             all_investments.extend(investments.rows)
-            total_goals += len(goals.rows)
+            total_goals += goal_fill_count
             for inv in investments.rows:
                 if inv.lifecycle == Lifecycle.COMPLETE.value and inv.exit_reason:
                     key = inv.exit_reason
@@ -275,6 +279,15 @@ class OverallReport:
         )
 
     # ── private: 统计 ──
+
+    @staticmethod
+    def _is_goal_fill(reason: str, goal_name: str = "") -> bool:
+        """止盈/止损等目标腿；排除 simulate_end / expired 等强制收口。"""
+        r = str(reason or "").strip().lower()
+        n = str(goal_name or "").strip().lower()
+        if r in NON_GOAL_EXIT_REASONS or n in NON_GOAL_EXIT_REASONS:
+            return False
+        return bool(r or n)
 
     @staticmethod
     def _summarize_entity(

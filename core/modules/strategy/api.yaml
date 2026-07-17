@@ -8,7 +8,7 @@ requires: core>=0.5.0
 #   Strategy        — Facade，对外唯一入口
 #   namespace       — scan / enumerate / analyze / discovery
 #   strategy_name   — 策略名称
-#   SimulateKind    — 预留模拟类型（price_factor / capital_allocation / full；enumerate 用 Strategy.enumerate）
+#   SimulateKind    — enumerate / price_factor / capital_allocation / full（Strategy.simulate）
 #
 # ---------------------------------------------------------------------------
 
@@ -16,7 +16,8 @@ requires: core>=0.5.0
 
 Strategy:
   layer: facade
-  description: "策略模块 Facade — scan / enumerate / analyze / discovery API"
+  description: "策略模块 Facade — scan / enumerate / price_factor / portfolio / simulate / discovery"
+
 
   apis:
     scan:
@@ -74,8 +75,8 @@ Strategy:
             notes: "策略扫描根目录，默认 userspace/strategies；devtools 测试可指向 test_base_strategies"
       returns: Dict[str, Any]
       notes: |
-        - 使用 EntityBasedRuntimeContext.default_performance() 内置性能基线，用户不可覆盖
-        - simulate(kind=...) 尚未实现；枚举请直接调用本 API
+        - 编排层先算指纹并查 EnumCacheManager；miss 后进入 EnumeratorPipeline（带 settings_fp/env_fp）
+        - 等价于 Strategy.simulate(kind=enumerate)
       example: |
         result = Strategy.enumerate("demo/random/random_v1_null_baseline")
         print(result["total_opportunities"])

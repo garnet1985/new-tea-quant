@@ -24,7 +24,6 @@ from core.modules.strategy.core.engines.shared.services.entity_loader.stock_samp
 from core.modules.strategy.core.engines.shared.services.entity_loader.strategy_data_resolver import (
     StrategyDataResolver,
 )
-from core.modules.strategy.core.engines.shared.services.finger_print.fingerprint import Fingerprint
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
@@ -42,10 +41,9 @@ class EnumeratorPipeline:
     """枚举统一编排入口。
 
     边界:
-    - 负责: settings → fingerprint/cache → 抽样 → ReportManager →
-      按 execution_mode 选用 JobBuilder/Executor → BacktestEngine → finalize
-    - 不负责: 子进程内 scan/Investment、BE 内部调度细节
-    - 调用方: Strategy.enumerate / CLI
+    - 负责: 在给定指纹下执行枚举、落盘，并写回 EnumCacheManager
+    - 不负责: 进入引擎前的缓存查找（由 Strategy 编排层完成）
+    - 调用方: Strategy.enumerate / simulate（miss 之后）
     """
 
     global_entity_cache: ClassVar[Optional[GlobalEntityCache]] = None
@@ -54,49 +52,51 @@ class EnumeratorPipeline:
     def run(
         cls,
         strategy_info: EnabledStrategyInfo,
-        runtime_settings: dict = None,
-        ignore_cache: bool = False,
+        *,
+        settings_fp: str,
+        env_fp: str,
+        runtime_settings: Optional[dict] = None,
+        effective_settings: Optional[StrategySettings] = None,
+        settings_diff: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """运行枚举（settings → 执行 → 产物落盘）。"""
+        """运行枚举并按指纹填充缓存。
+
+        settings_fp / env_fp 由编排层在查缓存前算好并传入；本方法不再查缓存。
+        """
+        from core.modules.strategy.core.services.simulation_cache import EnumCacheManager
+
         execution_mode = strategy_info.get_execution_mode()
         if execution_mode not in {_MODE_ENTITY, _MODE_SLICE}:
             raise ValueError(f"不支持的execution_mode: {execution_mode}")
 
-        effective_settings_obj, settings_diff = StrategySettings.calculate_effective_settings(
-            disk_settings=strategy_info.settings,
-            user_settings=runtime_settings or {},
-        )
+        if effective_settings is None or settings_diff is None:
+            effective_settings, settings_diff = StrategySettings.calculate_effective_settings(
+                disk_settings=strategy_info.settings,
+                user_settings=runtime_settings or {},
+            )
 
-        cls.global_entity_cache = GlobalEntityCache(effective_settings_obj)
+        cls.global_entity_cache = GlobalEntityCache(effective_settings)
         stock_ids = cls.global_entity_cache.init_system_globals().get_stock_ids()
 
         declaration_groups = StrategyDataResolver.group_from_settings(
-            effective_settings_obj.raw_settings
+            effective_settings.raw_settings
         )
-        settings_fp = Fingerprint.to_settings_diff_fingerprint(settings_diff, stock_ids)
-        env_fp = Fingerprint.to_env_fingerprint(
+
+        results = cls._run_by_steps(
             strategy_info=strategy_info,
-            effective_settings=effective_settings_obj,
-            entity_ids=stock_ids,
+            effective_settings_obj=effective_settings,
+            settings_diff=settings_diff,
+            settings_fp=settings_fp,
+            env_fp=env_fp,
+            declaration_groups=declaration_groups,
+            execution_mode=execution_mode,
+            stock_ids=stock_ids,
         )
-
-        results: Optional[Dict[str, Any]] = None
-        if not ignore_cache:
-            cache = cls._find_cache_by_fingerprints(settings_fp, env_fp)
-            if cache:
-                results = cls._cache_to_results(cache)
-
-        if results is None:
-            results = cls._run_by_steps(
-                strategy_info=strategy_info,
-                effective_settings_obj=effective_settings_obj,
-                settings_diff=settings_diff,
-                settings_fp=settings_fp,
-                env_fp=env_fp,
-                declaration_groups=declaration_groups,
-                execution_mode=execution_mode,
-            )
-
+        EnumCacheManager.store(
+            settings_fp=settings_fp,
+            env_fp=env_fp,
+            results=results,
+        )
         return cls._to_report(results)
 
     @classmethod
@@ -110,12 +110,14 @@ class EnumeratorPipeline:
         env_fp: str,
         declaration_groups: Dict[str, Any],
         execution_mode: str,
+        stock_ids: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         cls.global_entity_cache.load_global_declarations(
             declaration_groups["global_declarations"]
         )
 
-        stock_ids = cls.global_entity_cache.get_stock_ids()
+        if stock_ids is None:
+            stock_ids = cls.global_entity_cache.get_stock_ids()
         stock_ids = cls._resolve_entity_ids(
             stock_ids,
             effective_settings_obj,
@@ -397,16 +399,6 @@ class EnumeratorPipeline:
                 return filtered or pool
             return StockSampler.sample(stock_ids, sampling, strategy_key)
         return stock_ids
-
-    @classmethod
-    def _find_cache_by_fingerprints(
-        cls, settings_fp: str, env_fp: str
-    ) -> Optional[Dict[str, Any]]:
-        return None
-
-    @classmethod
-    def _cache_to_results(cls, cache: Dict[str, Any]) -> Dict[str, Any]:
-        return dict(cache.get("results") or cache)
 
     @classmethod
     def _to_report(cls, results: Optional[Dict[str, Any]]) -> Dict[str, Any]:

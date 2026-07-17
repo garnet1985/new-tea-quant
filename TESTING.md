@@ -32,7 +32,7 @@ Remove or narrow the skip hook in `/conftest.py` when the refactor stabilizes.
 | `StrategyContext` | `load_strategy` → validate files / hooks / settings |
 | `StrategyContext` | `with_userspace` resolves dates, entity_ids, output_dir once |
 | `StrategySettings` | `resolve`, `execution_mode`, `fingerprint_hash` |
-| `EnumeratorEngine` | thin route: `StrategyContext` → entity/slice pipeline |
+| `EnumeratorPipeline` | 统一编排：settings → jobs → BE → report；按 mode 选用 JobBuilder/Executor |
 | Facade | `Strategy.enumerate` only discovery + engine |
 
 See also `core/modules/strategy/__test__/test_cases.yaml`.

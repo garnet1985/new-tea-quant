@@ -33,15 +33,15 @@ class Strategy:
         runtime_settings: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """对单个策略运行枚举器。"""
-        from .core.engines.enumerator import EnumeratorEngine
+        from .core.engines.enumerator import EnumeratorPipeline
 
         strategy = DiscoveryService.find_strategy(key_or_id)
 
         if strategy is None:
             raise ValueError(f"当前策略不存在或未启用: {key_or_id}")
 
-        enumerator = EnumeratorEngine(strategy)
-        return enumerator.run(
+        return EnumeratorPipeline.run(
+            strategy,
             ignore_cache=ignore_cache,
             runtime_settings=runtime_settings,
         )

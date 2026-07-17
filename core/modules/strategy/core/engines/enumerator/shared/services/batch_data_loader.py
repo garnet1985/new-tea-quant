@@ -16,12 +16,12 @@ logger = logging.getLogger(__name__)
 
 
 class BatchDataLoader:
-    """批量数据加载服务。
+    """批量数据加载（entity / slice 子进程共用）。
 
-    职责：
-    1. 批量加载所有 entity_ids 的 per_entity 数据（entity_shared）
-    2. 从共享内存读取 global 数据
-    3. 返回结构化数据（供 execute_fn 使用）
+    边界:
+    - 负责: 批量 issue per_entity Contract、读 shm global、应用 indicators
+    - 不负责: 枚举模拟、CSV 落盘
+    - 调用方: entity_based / slice_based JobExecutor.on_child_process_task_start
     """
 
     @staticmethod
@@ -84,13 +84,13 @@ class BatchDataLoader:
         if perf is not None:
             perf.end("load_contract_issue", accumulate=True)
 
-        from core.modules.strategy.core.engines.enumerator.entity_based.services.contract_indicators import (
-            apply_indicators_to_contracts,
+        from core.modules.strategy.core.engines.enumerator.shared.services.contract_indicators import (
+            ContractIndicators,
         )
 
         if perf is not None:
             perf.begin("load_apply_indicators")
-        apply_indicators_to_contracts(entity_contracts, entity_shared)
+        ContractIndicators.apply(entity_contracts, entity_shared)
         if perf is not None:
             perf.end("load_apply_indicators", accumulate=True)
 

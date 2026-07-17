@@ -1,19 +1,19 @@
-"""slice_based 主执行流程 — settings → BacktestEngine.slice_based → 报告。"""
+"""枚举器统一编排入口（entity_based / slice_based 共用步骤）。"""
 from __future__ import annotations
 
 import logging
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any, ClassVar, Dict, List, Optional, Tuple, Type
 
-from core.infra.job_pipeline.profile import WorkerProfiles, profile_calendar_slice_config
+from core.infra.job_pipeline.profile import (
+    WorkerProfiles,
+    profile_calendar_slice_config,
+    resolve_entity_based_performance_for_profile,
+)
 from core.infra.project_context import ProjectContext
 from core.modules.backtest_engine.core.shared.performance import resolve_slice_based_performance
 from core.modules.strategy.core.engines.enumerator.shared.report_manager import ReportManager
 from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_consts import (
-    report_output_config,
-)
-from core.modules.strategy.core.engines.enumerator.slice_based.executor import (
-    ExecutorHooksContext,
-    JobExecutor,
+    ReportPaths,
 )
 from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
@@ -34,12 +34,18 @@ from core.modules.strategy.core.services.discovery.data.discovered_strategy impo
 
 logger = logging.getLogger(__name__)
 
+_MODE_ENTITY = "entity_based"
+_MODE_SLICE = "slice_based"
 
-class SliceBasedJobPipeline:
-    """slice_based 枚举完整流程。
 
-    TODO(extract-shared): ``run`` / fingerprint / GlobalEntityCache 初始化与
-    ``entity_based.EnumeratorPipeline.run`` 同构，全链路跑通后再抽到 shared。
+class EnumeratorPipeline:
+    """枚举统一编排入口。
+
+    边界:
+    - 负责: settings → fingerprint/cache → 抽样 → ReportManager →
+      按 execution_mode 选用 JobBuilder/Executor → BacktestEngine → finalize
+    - 不负责: 子进程内 scan/Investment、BE 内部调度细节
+    - 调用方: Strategy.enumerate / CLI
     """
 
     global_entity_cache: ClassVar[Optional[GlobalEntityCache]] = None
@@ -51,8 +57,11 @@ class SliceBasedJobPipeline:
         runtime_settings: dict = None,
         ignore_cache: bool = False,
     ) -> Dict[str, Any]:
-        """运行 slice-based 枚举（settings → 执行 → 产物落盘）。"""
-        # TODO(extract-shared): calculate_effective_settings 入口与 entity_based 相同
+        """运行枚举（settings → 执行 → 产物落盘）。"""
+        execution_mode = strategy_info.get_execution_mode()
+        if execution_mode not in {_MODE_ENTITY, _MODE_SLICE}:
+            raise ValueError(f"不支持的execution_mode: {execution_mode}")
+
         effective_settings_obj, settings_diff = StrategySettings.calculate_effective_settings(
             disk_settings=strategy_info.settings,
             user_settings=runtime_settings or {},
@@ -85,11 +94,10 @@ class SliceBasedJobPipeline:
                 settings_fp=settings_fp,
                 env_fp=env_fp,
                 declaration_groups=declaration_groups,
+                execution_mode=execution_mode,
             )
 
         return cls._to_report(results)
-
-    # ── 编排 steps（逐步实现）──
 
     @classmethod
     def _run_by_steps(
@@ -101,8 +109,8 @@ class SliceBasedJobPipeline:
         settings_fp: str,
         env_fp: str,
         declaration_groups: Dict[str, Any],
+        execution_mode: str,
     ) -> Dict[str, Any]:
-        # TODO(extract-shared): 与 entity_based._run_by_steps 同构；差异在 JobBuilder / BE mode
         cls.global_entity_cache.load_global_declarations(
             declaration_groups["global_declarations"]
         )
@@ -123,12 +131,70 @@ class SliceBasedJobPipeline:
             settings_diff=settings_diff,
         )
 
-        from core.modules.strategy.core.engines.enumerator.slice_based.services.job_builder import (
+        jobs = cls._build_jobs(
+            strategy_info=strategy_info,
+            effective_settings_obj=effective_settings_obj,
+            stock_ids=stock_ids,
+            declaration_groups=declaration_groups,
+            report_manager=report_manager,
+            execution_mode=execution_mode,
+        )
+
+        results = cls._step_to_execute_backtest(
+            jobs=jobs,
+            report_manager=report_manager,
+            effective_settings_obj=effective_settings_obj,
+            execution_mode=execution_mode,
+        )
+        cls._step_to_generate_reports(
+            results=results,
+            report_manager=report_manager,
+            entity_count=len(stock_ids),
+            effective_settings_obj=effective_settings_obj,
+        )
+        return results
+
+    @classmethod
+    def _mode_job_stack(
+        cls, execution_mode: str
+    ) -> Tuple[Type[Any], Type[Any], Type[Any]]:
+        """按 mode 返回 (JobBuilder, JobExecutor, ExecutorHooksContext)。"""
+        from core.modules.strategy.core.engines.enumerator.shared.executor_hooks import (
+            ExecutorHooksContext,
+        )
+
+        if execution_mode == _MODE_SLICE:
+            from core.modules.strategy.core.engines.enumerator.slice_based.executor import (
+                JobExecutor,
+            )
+            from core.modules.strategy.core.engines.enumerator.slice_based.services.job_builder import (
+                JobBuilder,
+            )
+
+            return JobBuilder, JobExecutor, ExecutorHooksContext
+
+        from core.modules.strategy.core.engines.enumerator.entity_based.executor import (
+            JobExecutor,
+        )
+        from core.modules.strategy.core.engines.enumerator.entity_based.services.job_builder import (
             JobBuilder,
         )
 
-        # 与 entity 调用点同形；payload 含 open_dates + stock_ids 以满足 BE.slice_based
-        jobs = JobBuilder.build_backtest_engine_jobs(
+        return JobBuilder, JobExecutor, ExecutorHooksContext
+
+    @classmethod
+    def _build_jobs(
+        cls,
+        *,
+        strategy_info: EnabledStrategyInfo,
+        effective_settings_obj: StrategySettings,
+        stock_ids: List[str],
+        declaration_groups: Dict[str, Any],
+        report_manager: ReportManager,
+        execution_mode: str,
+    ) -> List[Dict[str, Any]]:
+        job_builder, _, _ = cls._mode_job_stack(execution_mode)
+        return job_builder.build_backtest_engine_jobs(
             strategy_info=strategy_info,
             effective_settings=effective_settings_obj,
             entity_ids=stock_ids,
@@ -138,18 +204,74 @@ class SliceBasedJobPipeline:
             output_recorder_snapshot=report_manager.to_worker_binding(),
         )
 
-        results = cls._step_to_execute_backtest(
-            jobs=jobs,
-            report_manager=report_manager,
-            effective_settings_obj=effective_settings_obj,
+    @classmethod
+    def _step_to_execute_backtest(
+        cls,
+        *,
+        jobs: List[Dict[str, Any]],
+        report_manager: ReportManager,
+        effective_settings_obj: StrategySettings,
+        execution_mode: str,
+    ) -> Dict[str, Any]:
+        from core.modules.backtest_engine import BacktestEngine
+
+        _, job_executor, hooks_ctx_cls = cls._mode_job_stack(execution_mode)
+        report_manager.profiler.begin_collect(
+            entity_count=cls._count_entities_in_jobs(jobs),
         )
-        cls._step_to_generate_reports(
-            results=results,
-            report_manager=report_manager,
-            entity_count=len(stock_ids),
-            effective_settings_obj=effective_settings_obj,
+        callbacks = job_executor.build_run_callbacks(
+            hooks_ctx_cls(
+                report_manager=report_manager,
+                global_entity_cache=cls.global_entity_cache,
+            )
         )
-        return results
+        performance = cls._resolve_backtest_performance(
+            effective_settings_obj, execution_mode=execution_mode
+        )
+        task_name = f"strategy_{report_manager.strategy_key}"
+
+        if execution_mode == _MODE_SLICE:
+            run_result = BacktestEngine.slice_based.run(
+                jobs=jobs,
+                execute_fn=job_executor.execute,
+                performance=performance,
+                callbacks=callbacks,
+                task_name=task_name,
+            )
+            # BE.slice_based 不转发 on_after_all_tasks_complete；主进程显式清理
+            job_executor.on_after_all_tasks_complete(
+                list(run_result.job_results or []),
+                cls.global_entity_cache,
+            )
+        else:
+            run_result = BacktestEngine.entity_based.run(
+                jobs=jobs,
+                execute_fn=job_executor.execute,
+                performance=performance,
+                callbacks=callbacks,
+                task_name=task_name,
+            )
+
+        return cls._pack_backtest_results(run_result, report_manager=report_manager)
+
+    @classmethod
+    def _resolve_backtest_performance(
+        cls,
+        effective_settings: StrategySettings,
+        *,
+        execution_mode: str,
+    ) -> Dict[str, Any]:
+        raw = effective_settings.raw_settings or {}
+        cls._warn_ignore_settings_performance(raw)
+        if execution_mode == _MODE_SLICE:
+            override: Dict[str, Any] = dict(
+                profile_calendar_slice_config(WorkerProfiles.ENUMERATOR)
+            )
+            calendar_slice = raw.get("calendar_slice")
+            if isinstance(calendar_slice, dict):
+                override.update(calendar_slice)
+            return resolve_slice_based_performance(override)
+        return resolve_entity_based_performance_for_profile(WorkerProfiles.ENUMERATOR)
 
     @classmethod
     def _step_to_begin_report_manager(
@@ -162,8 +284,6 @@ class SliceBasedJobPipeline:
         effective_settings_obj: StrategySettings,
         settings_diff: Dict[str, Any],
     ) -> ReportManager:
-        # TODO(extract-shared): 与 entity_based._step_to_begin_report_manager 相同
-        # execution_mode 来自 strategy_info，会写成 slice_based 进 0_runtime_env.json
         return ReportManager.begin(
             strategy_info.key,
             strategy_path=strategy_info.unique_relative_path,
@@ -180,58 +300,6 @@ class SliceBasedJobPipeline:
         )
 
     @classmethod
-    def _step_to_execute_backtest(
-        cls,
-        *,
-        jobs: List[Dict[str, Any]],
-        report_manager: ReportManager,
-        effective_settings_obj: StrategySettings,
-    ) -> Dict[str, Any]:
-        from core.modules.backtest_engine import BacktestEngine
-
-        report_manager.profiler.begin_collect(
-            entity_count=cls._count_entities_in_jobs(jobs),
-        )
-
-        run_result = BacktestEngine.slice_based.run(
-            jobs=jobs,
-            execute_fn=JobExecutor.execute,
-            performance=cls._resolve_backtest_performance(effective_settings_obj),
-            callbacks=JobExecutor.build_run_callbacks(
-                ExecutorHooksContext(
-                    report_manager=report_manager,
-                    global_entity_cache=cls.global_entity_cache,
-                )
-            ),
-            task_name=f"strategy_{report_manager.strategy_key}",
-        )
-
-        # BE.slice_based 不转发 on_after_all_tasks_complete；主进程显式清理
-        JobExecutor.on_after_all_tasks_complete(
-            list(run_result.job_results or []),
-            cls.global_entity_cache,
-        )
-
-        return cls._pack_backtest_results(run_result, report_manager=report_manager)
-
-    @staticmethod
-    def _resolve_backtest_performance(effective_settings: StrategySettings) -> Dict[str, Any]:
-        # 并行/epj/探针：系统 profile；calendar_slice 仍可读策略窗配置
-        raw = effective_settings.raw_settings or {}
-        if isinstance(raw.get("performance"), dict) and raw["performance"]:
-            import logging
-
-            logging.getLogger(__name__).warning(
-                "忽略 settings.performance=%s；请用 userspace/config/worker.json → job_pipeline.enumerator",
-                sorted(raw["performance"].keys()),
-            )
-        override: Dict[str, Any] = dict(profile_calendar_slice_config(WorkerProfiles.ENUMERATOR))
-        calendar_slice = raw.get("calendar_slice")
-        if isinstance(calendar_slice, dict):
-            override.update(calendar_slice)
-        return resolve_slice_based_performance(override)
-
-    @classmethod
     def _step_to_generate_reports(
         cls,
         *,
@@ -240,7 +308,6 @@ class SliceBasedJobPipeline:
         entity_count: int,
         effective_settings_obj: StrategySettings,
     ) -> None:
-        # TODO(extract-shared): 与 entity_based._step_to_generate_reports 相同
         run_result = results.pop("_run_result", None)
         if run_result is None:
             return
@@ -248,12 +315,13 @@ class SliceBasedJobPipeline:
             run_result,
             entity_count=entity_count,
             opportunities_count=int(results.get("opportunities_count") or 0),
-            performance_config=report_output_config(effective_settings_obj.raw_settings),
+            performance_config=ReportPaths.report_output_config(
+                effective_settings_obj.raw_settings
+            ),
         )
 
     @staticmethod
     def _count_entities_in_jobs(jobs: List[Dict[str, Any]]) -> int:
-        # TODO(extract-shared): 与 entity 同构；slice 额外认 stock_ids / entity_ids
         total = 0
         for job in jobs:
             if not isinstance(job, dict):
@@ -270,6 +338,8 @@ class SliceBasedJobPipeline:
                 specified = payload.get("entity_specified")
                 if isinstance(specified, list):
                     total += len(specified)
+                elif isinstance(job.get("entity_specified"), list):
+                    total += len(job["entity_specified"])
         return total
 
     @staticmethod
@@ -278,7 +348,6 @@ class SliceBasedJobPipeline:
         *,
         report_manager: ReportManager,
     ) -> Dict[str, Any]:
-        # TODO(extract-shared): 与 entity_based._pack_backtest_results 相同
         failed_entities: List[Dict[str, Any]] = []
         opportunities_count = 0
 
@@ -314,7 +383,7 @@ class SliceBasedJobPipeline:
         effective_settings: StrategySettings,
         strategy_key: str,
     ) -> List[str]:
-        # TODO(extract-shared): 与 entity_based._resolve_entity_ids 相同
+        """按 sampling 配置缩小 entity 范围（smoke / 抽样）。"""
         sampling = effective_settings.raw_settings.get("sampling") or {}
         if sampling.get("use_sampling"):
             stock_pool = sampling.get("stock_pool")
@@ -324,12 +393,12 @@ class SliceBasedJobPipeline:
                 filtered = [entity_id for entity_id in pool if entity_id in known]
                 return filtered or pool
             return StockSampler.sample(stock_ids, sampling, strategy_key)
-
         return stock_ids
 
     @classmethod
-    def _find_cache_by_fingerprints(cls, settings_fp: str, env_fp: str) -> Optional[Dict[str, Any]]:
-        # TODO(extract-shared): 与 entity_based 相同 stub
+    def _find_cache_by_fingerprints(
+        cls, settings_fp: str, env_fp: str
+    ) -> Optional[Dict[str, Any]]:
         return None
 
     @classmethod
@@ -338,7 +407,6 @@ class SliceBasedJobPipeline:
 
     @classmethod
     def _to_report(cls, results: Optional[Dict[str, Any]]) -> Dict[str, Any]:
-        # TODO(extract-shared): 与 entity_based._to_report 相同
         if not results:
             return {"success": False, "failed_entities": []}
         return {
@@ -354,5 +422,13 @@ class SliceBasedJobPipeline:
             "elapsed_seconds": results.get("elapsed_seconds", 0.0),
         }
 
+    @staticmethod
+    def _warn_ignore_settings_performance(raw: Dict[str, Any]) -> None:
+        if isinstance(raw.get("performance"), dict) and raw["performance"]:
+            logger.warning(
+                "忽略 settings.performance=%s；请用 userspace/config/worker.json → job_pipeline.enumerator",
+                sorted(raw["performance"].keys()),
+            )
 
-__all__ = ["SliceBasedJobPipeline"]
+
+__all__ = ["EnumeratorPipeline"]

@@ -1,6 +1,6 @@
 # Strategy Module (v0.6.0)
 
-策略执行模块。枚举入口：`Strategy.enumerate()` → `EnumeratorEngine`（薄路由）→ `entity_based` / `slice_based`。
+策略执行模块。枚举入口：`Strategy.enumerate()` → `EnumeratorPipeline`（按 execution_mode 接 entity/slice JobBuilder·Executor）。
 
 ## 三层结构
 

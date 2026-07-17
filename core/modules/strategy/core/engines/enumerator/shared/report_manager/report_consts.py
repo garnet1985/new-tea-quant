@@ -36,25 +36,35 @@ NON_GOAL_EXIT_REASONS: FrozenSet[str] = frozenset(
 )
 
 
-def entities_dir(output_dir: Path) -> Path:
-    return Path(output_dir) / ENTITIES_SUBDIR
+class ReportPaths:
+    """枚举产物路径与 report 输出配置解析。
 
+    边界:
+    - 负责: version 目录路径约定、performance_detail / report config 读取
+    - 不负责: 写盘、统计聚合
+    - 调用方: ReportManager 子模块、entity/slice Pipeline
+    """
 
-def resolve_performance_detail(performance_config: dict | None) -> str:
-    raw = str((performance_config or {}).get("performance_detail") or "").strip().lower()
-    if raw in {PERFORMANCE_DETAIL_FULL, "full", "detailed", "jobs"}:
-        return PERFORMANCE_DETAIL_FULL
-    return PERFORMANCE_DETAIL_SUMMARY
+    @staticmethod
+    def entities_dir(output_dir: Path) -> Path:
+        return Path(output_dir) / ENTITIES_SUBDIR
 
+    @staticmethod
+    def resolve_performance_detail(performance_config: dict | None) -> str:
+        raw = str((performance_config or {}).get("performance_detail") or "").strip().lower()
+        if raw in {PERFORMANCE_DETAIL_FULL, "full", "detailed", "jobs"}:
+            return PERFORMANCE_DETAIL_FULL
+        return PERFORMANCE_DETAIL_SUMMARY
 
-def report_output_config(raw_settings: dict | None) -> dict:
-    """从 strategy settings 读取 report 输出配置。"""
-    settings = dict(raw_settings or {})
-    output = settings.get("output") or {}
-    report = output.get("report") or {}
-    if isinstance(report, dict):
-        return dict(report)
-    return {}
+    @staticmethod
+    def report_output_config(raw_settings: dict | None) -> dict:
+        """从 strategy settings 读取 report 输出配置。"""
+        settings = dict(raw_settings or {})
+        output = settings.get("output") or {}
+        report = output.get("report") or {}
+        if isinstance(report, dict):
+            return dict(report)
+        return {}
 
 
 __all__ = [
@@ -68,7 +78,5 @@ __all__ = [
     "PERFORMANCE_DETAIL_SUMMARY",
     "PERFORMANCE_FILE",
     "RUNTIME_ENV_FILE",
-    "entities_dir",
-    "report_output_config",
-    "resolve_performance_detail",
+    "ReportPaths",
 ]

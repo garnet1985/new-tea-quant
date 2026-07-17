@@ -30,6 +30,14 @@ from core.modules.strategy.core.services.data.simulation_output_recorder import 
 
 @dataclass
 class SavedRunArtifacts:
+    """一次 finalize 写盘后的关键文件路径。
+
+    边界:
+    - 负责: 携带 performance/overall/runtime/entity_ids 路径
+    - 不负责: 写盘逻辑
+    - 调用方: ReportManager.finalize
+    """
+
     performance_path: Path
     overall_report_path: Path
     runtime_env_path: Path
@@ -38,10 +46,12 @@ class SavedRunArtifacts:
 
 @dataclass
 class ReportManager:
-    """一次 enum run 的产物管理者（entity / slice 对外唯一入口）。
+    """枚举 run 产物编排（entity / slice 共用）。
 
-    职责：分配 version 目录；runtime / investments CSV / performance / overall 落盘；CLI present。
-    不负责：回测调度、scan/hooks、指纹索引（缓存另接）。
+    边界:
+    - 负责: version 目录、runtime/performance/overall 落盘、worker buffer/flush、present
+    - 不负责: BE 调度、枚举模拟逻辑、指纹索引
+    - 调用方: EnumeratorPipeline / JobExecutor
     """
 
     output_dir: Path

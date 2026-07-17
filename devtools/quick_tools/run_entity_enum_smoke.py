@@ -17,7 +17,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 
-from core.modules.strategy.core.engines.enumerator.entity_based.pipeline import EnumeratorPipeline
+from core.modules.strategy.core.engines.enumerator.pipeline import EnumeratorPipeline
 from core.modules.strategy.core.helpers.opportunity_csv import OpportunityCsvHelper
 from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
     EnabledStrategyInfo,

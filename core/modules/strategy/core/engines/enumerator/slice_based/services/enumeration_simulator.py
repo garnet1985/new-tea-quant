@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
 from core.modules.strategy.contracts import CalendarAsOfResult, Opportunity
-from core.modules.strategy.core.engines.enumerator.entity_based.services.enum_job_perf import (
+from core.modules.strategy.core.engines.enumerator.shared.services.enum_job_perf import (
     EnumJobPerfRecorder,
 )
 from core.modules.strategy.core.engines.enumerator.shared.state.entity_tracker import (
@@ -27,24 +27,17 @@ from core.modules.strategy.core.hooks.context.data_context import DataContext
 logger = logging.getLogger(__name__)
 
 
-def _process_rss_mb() -> float:
-    try:
-        import os
-
-        import psutil
-
-        return float(psutil.Process(os.getpid()).memory_info().rss) / (1024.0 * 1024.0)
-    except Exception:
-        return 0.0
-
-
 @dataclass
 class SliceEnumerationSimulator:
     """在 slice job 内驱动「open_dates × entities」枚举。
 
-    状态：每 entity 一份 shared ``EntityTracker``（Investment 生命周期）。
+    边界:
+    - 负责: asof 选股、Investment 生命周期、换仓 settle、head 片 wall/RSS 采样
+    - 不负责: Contract 加载、CSV 落盘、BE reader/preload
+    - 调用方: slice_based.JobExecutor
+
+    状态：每 entity 一份 shared ``EntityTracker``。
     钩子：on_calendar_asof →（选出的 stocks）before/scan/after → register Investment。
-    换仓日：session_state.force_exit_open_date → settle_incomplete。
 
     TODO(extract-shared): calendar 日循环骨架与 entity EntityEnumerationSimulator 接近；
     差异在 asof 选股与全量 universe 上下文。
@@ -108,7 +101,7 @@ class SliceEnumerationSimulator:
         )
         head_sample_slices = max(0, int(payload.get("_slice_head_sample_slices") or 0))
         self._slice_samples: List[Dict[str, Any]] = []
-        self._baseline_rss_mb = _process_rss_mb()
+        self._baseline_rss_mb = SliceEnumerationSimulator._process_rss_mb()
 
         ctx_base = DataContext.assemble(
             strategy_name=strategy_name,
@@ -232,7 +225,7 @@ class SliceEnumerationSimulator:
                 and (hit_window_end or is_last_day)
             ):
                 elapsed = max(0.0, time.perf_counter() - window_t0)
-                rss = _process_rss_mb()
+                rss = SliceEnumerationSimulator._process_rss_mb()
                 # Day-loop fuses PIT+scan; split wall evenly so preload ratio is defined.
                 half = round(elapsed / 2.0, 4)
                 self._slice_samples.append(
@@ -392,6 +385,17 @@ class SliceEnumerationSimulator:
             "baseline_rss_mb": float(getattr(self, "_baseline_rss_mb", 0.0) or 0.0),
             "slice_samples": samples,
         }
+
+    @staticmethod
+    def _process_rss_mb() -> float:
+        try:
+            import os
+
+            import psutil
+
+            return float(psutil.Process(os.getpid()).memory_info().rss) / (1024.0 * 1024.0)
+        except Exception:
+            return 0.0
 
     def _build_stocks_context(
         self,

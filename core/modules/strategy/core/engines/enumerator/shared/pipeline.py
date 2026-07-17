@@ -1,1 +1,0 @@
-# TODO:will be the public pipeline logic for both entity and slice based enumerator

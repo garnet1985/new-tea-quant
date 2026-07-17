@@ -11,7 +11,13 @@ logger = logging.getLogger(__name__)
 
 
 class BacktestCalendarResolver:
-    """加载回测窗开市日，供 slice_based dispatch job 使用。"""
+    """加载回测窗开市日，供 slice_based dispatch job 使用。
+
+    边界:
+    - 负责: 解析 market 日历 → open_dates + backtest_calendar dict
+    - 不负责: job payload 其它字段、执行
+    - 调用方: slice_based.JobBuilder
+    """
 
     _DEFAULT_MARKET = "SSE"
     _DEFAULT_MARKET_PROFILE = "china_a_stock"

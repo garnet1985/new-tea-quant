@@ -121,6 +121,6 @@ cases:
         description: with_userspace 解析 dates / entity_ids / output_dir
       - id: 3
         name: test_enumerate_facade_load_and_route
-        description: Strategy.enumerate → load_strategy → EnumeratorEngine
+        description: Strategy.enumerate → load_strategy → EnumeratorPipeline
 
 ---

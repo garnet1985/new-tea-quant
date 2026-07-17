@@ -1,18 +1,18 @@
-"""枚举器引擎（lazy — 避免 contracts ↔ pipeline 循环 import）。"""
+"""枚举器统一编排入口（lazy — 避免 contracts ↔ pipeline 循环 import）。"""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .engine import EnumeratorEngine
+    from .pipeline import EnumeratorPipeline
 
-__all__ = ["EnumeratorEngine"]
+__all__ = ["EnumeratorPipeline"]
 
 
 def __getattr__(name: str):
-    if name == "EnumeratorEngine":
-        from .engine import EnumeratorEngine
+    if name == "EnumeratorPipeline":
+        from .pipeline import EnumeratorPipeline
 
-        return EnumeratorEngine
+        return EnumeratorPipeline
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -20,6 +20,14 @@ from core.system import get_version
 
 @dataclass
 class BacktestPeriod:
+    """回测开市日区间。
+
+    边界:
+    - 负责: start/end 日期对的序列化
+    - 不负责: 从 settings 解析（见 RuntimeSnapshot.resolve_period）
+    - 调用方: RuntimeSnapshot / JobBuilder
+    """
+
     start_date: str
     end_date: str
 
@@ -40,6 +48,14 @@ class BacktestPeriod:
 
 @dataclass
 class SystemEnv:
+    """运行环境快照片段（data/db/engine_version）。
+
+    边界:
+    - 负责: 环境字段序列化
+    - 不负责: 探测系统版本（构建时由 RuntimeSnapshot 填入）
+    - 调用方: RuntimeSnapshot
+    """
+
     data: Dict[str, Any] = field(default_factory=dict)
     database_type: str = ""
     engine_version: str = ""
@@ -63,6 +79,14 @@ class SystemEnv:
 
 @dataclass
 class SettingsSnapshot:
+    """策略 settings 快照（effective + diff）。
+
+    边界:
+    - 负责: settings 字段序列化
+    - 不负责: fingerprint 计算
+    - 调用方: RuntimeSnapshot
+    """
+
     effective_settings: Dict[str, Any] = field(default_factory=dict)
     settings_diff: Dict[str, Any] = field(default_factory=dict)
 
@@ -83,13 +107,27 @@ class SettingsSnapshot:
 
 @dataclass
 class SavedRuntimeArtifacts:
+    """runtime 启动落盘路径。
+
+    边界:
+    - 负责: 携带 entity_ids / runtime_env 路径
+    - 不负责: 写文件内容
+    - 调用方: RuntimeReport.save_begin
+    """
+
     entity_ids_path: Path
     runtime_env_path: Path
 
 
 @dataclass
 class RuntimeSnapshot:
-    """一次枚举 run 的全部运行时配置（env + settings 合并）。"""
+    """一次枚举 run 的全部运行时配置（env + settings 合并）。
+
+    边界:
+    - 负责: 组装/序列化 runtime_env.json 与 entity_ids.txt；解析 backtest period
+    - 不负责: performance / overall
+    - 调用方: RuntimeReport
+    """
 
     ENTITY_IDS_FILE = ENTITY_IDS_FILE
     RUNTIME_ENV_FILE = RUNTIME_ENV_FILE
@@ -310,7 +348,13 @@ class RuntimeSnapshot:
 
 
 class RuntimeReport:
-    """ReportManager.runtime 门面：启动快照读写。"""
+    """ReportManager.runtime 门面：启动快照读写。
+
+    边界:
+    - 负责: runtime_env / entity_ids 落盘与 period 解析
+    - 不负责: performance / overall
+    - 调用方: ReportManager / JobBuilder（resolve_period）
+    """
 
     def __init__(self, manager: "ReportManager") -> None:
         self._manager = manager

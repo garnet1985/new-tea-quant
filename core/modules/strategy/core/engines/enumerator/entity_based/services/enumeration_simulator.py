@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from core.modules.strategy.core.engines.enumerator.entity_based.services.enum_job_perf import (
+from core.modules.strategy.core.engines.enumerator.shared.services.enum_job_perf import (
     EnumJobPerfRecorder,
 )
 from core.modules.strategy.core.engines.enumerator.shared.state.entity_tracker import (
@@ -29,7 +29,15 @@ logger = logging.getLogger(__name__)
 class EntityEnumerationSimulator:
     """在子进程内驱动「全局 calendar × 多 entity」枚举。
 
-    每个 entity 独立 ``EntityTracker``；本类负责 calendar 循环、scan → Investment、tick 调度。
+    边界:
+    - 负责: calendar 循环、per-entity scan → Investment、tick、buffer 行
+    - 不负责: Contract 加载、CSV 落盘、BE 调度
+    - 调用方: entity_based.JobExecutor
+
+    每个 entity 独立 ``EntityTracker``。
+
+    TODO(extract-shared): 日循环骨架 / buffer_for_recorder / PIT bar 与
+    ``SliceEnumerationSimulator`` 接近；差异在无 on_calendar_asof 选股。
     """
 
     entity_ids: List[str]

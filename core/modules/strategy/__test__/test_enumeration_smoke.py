@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# MARK: STALE — 依赖已 UNUSED 的 SliceBasedJobs / SliceBasedCompute / EntityBasedJobs；
+# 热路径已改 JobBuilder + SliceEnumerationSimulator。整文件 skip，待重写。
 """阶段 A：data 声明 + discover + enumerate 链路 smoke（分步建设，允许未跑通）。"""
 
 from __future__ import annotations
@@ -8,9 +10,16 @@ from pathlib import Path
 from typing import Any, Dict
 from unittest.mock import patch
 
-from core.modules.strategy.core.engines.enumerator.slice_based.compute import SliceBasedCompute
-from core.modules.strategy.core.engines.enumerator.entity_based.services.job_builder import EntityBasedJobs
-from core.modules.strategy.core.engines.enumerator.slice_based.resolver.jobs import SliceBasedJobs
+import pytest
+
+pytest.skip(
+    "MARK: STALE — SliceBasedJobs/SliceBasedCompute archived as UNUSED",
+    allow_module_level=True,
+)
+
+# from core.modules.strategy.core.engines.enumerator.slice_based.compute import SliceBasedCompute
+# from core.modules.strategy.core.engines.enumerator.entity_based.services.job_builder import EntityBasedJobs
+# from core.modules.strategy.core.engines.enumerator.slice_based.resolver.jobs import SliceBasedJobs
 from core.modules.strategy.core.helpers.calendar import CalendarOpenDateHelper
 from core.modules.strategy.core.services.data.entity_data import GlobalDataPreloader
 from core.modules.strategy.core.engines.shared.services.strategy_settings.data_settings import DataSettings

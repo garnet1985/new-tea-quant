@@ -43,7 +43,7 @@ Engine 入口，在 Layer 1 上追加：
 ```
 Strategy.enumerate(name)
   → DiscoveryService.load_strategy() → DiscoveredStrategy
-  → EnumeratorEngine(discovered).run()
+  → EnumeratorPipeline.run(discovered)
       → StrategyContext.from_discovered(...)
       → pipeline.build_runtime → EntityBasedRuntimeContext.from_strategy_context(...)
       → BacktestRuntime(context, status)

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# MARK: STALE — 依赖已 UNUSED 的 SliceBasedCompute；热路径改 SliceEnumerationSimulator。
 """slice_based 集成：period_end force_exit + 真实 hooks（合成 K 线，不依赖行情库）。"""
 
 from __future__ import annotations
@@ -9,11 +10,18 @@ from pathlib import Path
 from typing import Any, Dict, List
 from unittest.mock import patch
 
-from core.modules.strategy.core.engines.enumerator.slice_based.compute import (
-    SliceBasedCompute,
-    _EntitySliceState,
+import pytest
+
+pytest.skip(
+    "MARK: STALE — SliceBasedCompute archived as UNUSED",
+    allow_module_level=True,
 )
-from core.modules.strategy.core.engines.enumerator.slice_based.state.holdings import EntityHoldings
+
+# from core.modules.strategy.core.engines.enumerator.slice_based.compute import (
+#     SliceBasedCompute,
+#     _EntitySliceState,
+# )
+# from core.modules.strategy.core.engines.enumerator.slice_based.state.holdings import EntityHoldings
 from core.modules.strategy.core.helpers.opportunity_csv import OpportunityCsvHelper
 from core.modules.strategy.core.services.discovery.discovery_service import DiscoveryService
 

@@ -8,7 +8,13 @@ ENUM_PERF_PAYLOAD_KEY = "_enum_perf"
 
 
 class EnumJobPerfRecorder:
-    """在 enumerator worker 内记录 load / enumerate / flush 等阶段。"""
+    """enumerator worker 内业务阶段耗时（entity / slice 共用）。
+
+    边界:
+    - 负责: load / enumerate / flush 等 phase 计时写入 payload
+    - 不负责: 汇总 performance.json（ProfilerReport）
+    - 调用方: JobExecutor / BatchDataLoader / Simulator
+    """
 
     def __init__(self, payload: Dict[str, Any]) -> None:
         if ENUM_PERF_PAYLOAD_KEY not in payload:

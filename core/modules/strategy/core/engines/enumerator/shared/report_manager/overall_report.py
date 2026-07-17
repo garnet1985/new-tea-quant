@@ -29,6 +29,14 @@ from core.modules.strategy.core.helpers.statistics import StatisticsHelper
 
 @dataclass
 class EntitySummaryRow:
+    """overall 报告中单 entity 摘要行。
+
+    边界:
+    - 负责: 持仓数/胜负/ROI 等聚合字段的序列化
+    - 不负责: 从 CSV 扫描聚合（见 OverallReport.build）
+    - 调用方: OverallReport
+    """
+
     entity_id: str
     investment_count: int = 0
     completed_count: int = 0
@@ -67,6 +75,14 @@ class EntitySummaryRow:
 
 @dataclass
 class OverallSummary:
+    """跨 entity 枚举汇总指标。
+
+    边界:
+    - 负责: 总数/触发率/胜率等汇总字段的序列化
+    - 不负责: 扫描 CSV（见 OverallReport）
+    - 调用方: OverallReport
+    """
+
     total_entities: int = 0
     entities_with_investments: int = 0
     total_investments: int = 0
@@ -123,7 +139,13 @@ class OverallSummary:
 
 @dataclass
 class OverallReport:
-    """跨 entity 业务汇总（从每股 CSV 聚合）。"""
+    """跨 entity 业务汇总（从每股 CSV 聚合 → overall_report.json）。
+
+    边界:
+    - 负责: 扫描 investments CSV → summary/entity_rows；落盘与 present
+    - 不负责: 写单股 CSV、performance.json
+    - 调用方: OverallReportHandle
+    """
 
     OVERALL_REPORT_FILE = OVERALL_REPORT_FILE
 
@@ -369,7 +391,13 @@ class OverallReport:
 
 
 class OverallReportHandle:
-    """ReportManager.overall 门面：跨 entity 汇总读写与展示。"""
+    """ReportManager.overall 门面：跨 entity 汇总读写与展示。
+
+    边界:
+    - 负责: overall_report.json 构建/落盘/present
+    - 不负责: 单股 CSV 写入
+    - 调用方: ReportManager
+    """
 
     def __init__(self, manager: "ReportManager") -> None:
         self._manager = manager

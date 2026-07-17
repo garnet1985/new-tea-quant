@@ -1,47 +1,39 @@
-"""entity_based job executor（enumerator 的回调函数集合）。"""
+"""entity_based job executor（mode 专有 execute + 共用钩子）。"""
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
+
+from core.modules.strategy.core.engines.enumerator.shared.executor_hooks import (
+    ExecutorHooks,
+    ExecutorHooksContext,
+)
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
-class ExecutorHooksContext:
-    """JobExecutor 构建 RunCallbacks 时的主进程上下文。"""
-
-    report_manager: Any = None
-    global_entity_cache: Any = None
-
-
 class JobExecutor:
-    """entity_based job executor（enumerator 的回调函数集合）。"""
+    """entity_based job executor（BE 钩子 + execute_fn）。
+
+    边界:
+    - 负责: entity 日循环枚举模拟；共用钩子委托 ExecutorHooks
+    - 不负责: Pipeline 编排、BE 进程池调度
+    - 调用方: BacktestEngine.entity_based（via EnumeratorPipeline）
+    """
 
     @staticmethod
     def build_run_callbacks(ctx: ExecutorHooksContext) -> Any:
-        """组装 BacktestEngine RunCallbacks（主进程 + 子进程钩子）。"""
-        from core.modules.backtest_engine.contracts import RunCallbacks
-
-        return RunCallbacks(
+        return ExecutorHooks.build_run_callbacks(
+            ctx,
             on_before_all_tasks_start=JobExecutor.on_before_all_tasks_start,
             on_child_process_task_start=JobExecutor.on_child_process_task_start,
             on_child_process_task_complete=JobExecutor.on_child_process_task_complete,
-            on_after_all_tasks_complete=lambda job_reports: JobExecutor.on_after_all_tasks_complete(
-                job_reports,
-                ctx.global_entity_cache,
-            ),
-            on_single_task_result=lambda report, progress: JobExecutor.on_single_task_result(
-                report,
-                progress,
-                report_manager=ctx.report_manager,
-            ),
+            on_after_all_tasks_complete=ExecutorHooks.on_after_all_tasks_complete,
+            on_single_task_result=ExecutorHooks.on_single_task_result,
         )
 
     @staticmethod
     def on_before_all_tasks_start(plan: Any, batches: List[Any]) -> None:
-        """主进程钩子：调度 plan 就绪后打印摘要。"""
         print(
             f"  调度: {len(batches)} batches, "
             f"~{getattr(plan, 'entities_per_job', '?')} entities/job, "
@@ -51,51 +43,18 @@ class JobExecutor:
 
     @staticmethod
     def on_child_process_task_start(job_context: Any) -> Dict[str, Any]:
-        """子进程钩子：初始化 per entity contracts，batch load 降低 IO。"""
-        from core.modules.strategy.core.engines.enumerator.entity_based.services.enum_job_perf import (
-            EnumJobPerfRecorder,
-        )
-
-        logger.info("子进程task开始：job_id=%s", job_context.job_id)
-        perf = EnumJobPerfRecorder.attach(job_context.payload)
-        perf.begin("load_data")
-
-        from core.modules.strategy.core.engines.enumerator.entity_based.services.batch_data_loader import (
-            BatchDataLoader,
-        )
-
-        loaded_data = BatchDataLoader.load_bundle_data(job_context.payload, perf=perf)
-        perf.end("load_data")
-
-        logger.info(
-            "子进程task开始完成：entity_contracts_count=%d, global_keys=%d",
-            len(loaded_data.get("entity_contracts", {})),
-            len(loaded_data.get("global_data", {})),
-        )
-
-        return loaded_data
+        return ExecutorHooks.load_bundle_data(job_context, log_label="子进程task")
 
     @staticmethod
     def on_child_process_task_complete(job_context: Any) -> None:
-        """子进程钩子：将缓冲的 opportunities 写入 CSV 后清空 buffer。"""
         if job_context.payload.get("_dispatch_probe"):
             return
-        from core.modules.strategy.core.engines.enumerator.entity_based.services.enum_job_perf import (
-            EnumJobPerfRecorder,
-        )
-        from core.modules.strategy.core.engines.enumerator.shared.report_manager import (
-            ReportManager,
-        )
-
-        perf = EnumJobPerfRecorder.attach(job_context.payload)
-        perf.begin("flush_csv")
-        ReportManager.worker_flush_job_investments(job_context.payload)
-        perf.end("flush_csv")
+        ExecutorHooks.flush_job_investments(job_context)
 
     @staticmethod
     def execute(job_context: Any) -> Dict[str, Any]:
         """执行函数：calendar 时间轴 + per-entity tracker 枚举。"""
-        from core.modules.strategy.core.engines.enumerator.entity_based.services.enum_job_perf import (
+        from core.modules.strategy.core.engines.enumerator.shared.services.enum_job_perf import (
             EnumJobPerfRecorder,
         )
 
@@ -111,29 +70,10 @@ class JobExecutor:
         settings_dict = payload.get("settings", {})
         entity_specified = payload.get("entity_specified", [])
 
-        hooks_module_path = strategy_info.get("hooks_module_path")
-        hooks_class_name = strategy_info.get("hooks_class_name")
-        hooks_file_path = strategy_info.get("hooks_file_path", "")
-        if not hooks_module_path or not hooks_class_name:
-            logger.error("缺少hooks信息：hooks_module_path或hooks_class_name")
+        hooks_instance, err = ExecutorHooks.load_hooks(strategy_info)
+        if err is not None:
             perf.end("enumerate")
-            return {"success": False, "opportunities_count": 0, "error": "缺少hooks信息"}
-
-        try:
-            from core.modules.strategy.core.services.discovery.worker_loader import (
-                StrategyWorkerLoader,
-            )
-
-            hooks_class = StrategyWorkerLoader.import_hooks_class(
-                worker_module_path=hooks_module_path,
-                worker_class_name=hooks_class_name,
-                worker_file_path=str(hooks_file_path or ""),
-            )
-            hooks_instance = hooks_class()
-        except Exception as exc:
-            logger.error("加载hooks类失败：%s", exc, exc_info=True)
-            perf.end("enumerate")
-            return {"success": False, "opportunities_count": 0, "error": str(exc)}
+            return err
 
         from core.modules.data_contract import DATA_KEY
         from core.modules.strategy.core.engines.enumerator.entity_based.services.enumeration_simulator import (
@@ -204,56 +144,6 @@ class JobExecutor:
             "entities_with_opportunities": simulator.entities_with_investments(),
             "entities_count": len(entity_specified),
         }
-
-    @staticmethod
-    def on_single_task_result(
-        report: Any,
-        progress: Any,
-        *,
-        report_manager: Optional[Any] = None,
-    ) -> None:
-        """主进程钩子：单 task 完成（进度日志 + profiler 采集）。"""
-        if report_manager is not None:
-            report_manager.profiler.collect(report)
-
-        logger.info(
-            "Task完成进度：%s/%s (成功=%s, 失败=%s)",
-            progress.finished,
-            progress.total,
-            progress.ok,
-            progress.fail,
-        )
-        logger.info("Task报告：job_id=%s, success=%s", report.job_id, report.success)
-        if report.success and report.data:
-            count = int(report.data.get("opportunities_count") or 0)
-            logger.info("Task opportunities_count=%d", count)
-        if not report.success:
-            logger.error(
-                "Task失败：job_id=%s, error=%s",
-                report.job_id,
-                report.error or "Unknown error",
-            )
-
-    @staticmethod
-    def on_after_all_tasks_complete(job_reports: List[Any], global_entity_cache: Any = None) -> None:
-        """主进程钩子：全局清理。"""
-        logger.info("所有tasks完成：total=%d", len(job_reports))
-
-        if global_entity_cache:
-            try:
-                global_entity_cache.cleanup()
-                logger.info("全局缓存清理完成")
-            except Exception as exc:
-                logger.warning("清理全局缓存失败：%s", exc)
-
-        success_count = sum(1 for report in job_reports if report.success)
-        fail_count = len(job_reports) - success_count
-        logger.info(
-            "最终统计：total=%d, success=%d, fail=%d",
-            len(job_reports),
-            success_count,
-            fail_count,
-        )
 
 
 __all__ = ["ExecutorHooksContext", "JobExecutor"]

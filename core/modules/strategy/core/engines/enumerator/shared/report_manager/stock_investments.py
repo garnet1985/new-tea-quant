@@ -6,60 +6,80 @@ from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Sequence, Tuple, TYPE_CHECKING
 
 from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_consts import (
-    entities_dir,
+    ReportPaths,
 )
 from core.utils.io.csv_io import read_csv_to_dicts, write_dicts_to_csv
 
 
-def _as_str(value: Any) -> str:
-    if value is None:
-        return ""
-    if hasattr(value, "value"):
-        return str(value.value)
-    return str(value).strip()
+class _RowCoerce:
+    """Investment / Goal CSV 行字段强制转换。
 
+    边界:
+    - 负责: str/float/int 与必填字段校验
+    - 不负责: 业务语义、文件 IO
+    - 调用方: InvestmentRow / GoalAchievementRow（模块内私有）
+    """
 
-def _as_float(value: Any, default: float = 0.0) -> float:
-    if value is None or value == "":
-        return default
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
+    @staticmethod
+    def as_str(value: Any) -> str:
+        if value is None:
+            return ""
+        if hasattr(value, "value"):
+            return str(value.value)
+        return str(value).strip()
 
+    @staticmethod
+    def as_float(value: Any, default: float = 0.0) -> float:
+        if value is None or value == "":
+            return default
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
 
-def _as_int(value: Any, default: int = 0) -> int:
-    if value is None or value == "":
-        return default
-    try:
-        return int(float(value))
-    except (TypeError, ValueError):
-        return default
+    @staticmethod
+    def as_int(value: Any, default: int = 0) -> int:
+        if value is None or value == "":
+            return default
+        try:
+            return int(float(value))
+        except (TypeError, ValueError):
+            return default
 
+    @staticmethod
+    def require_non_empty_str(value: Any, field_name: str) -> str:
+        if value is None:
+            raise ValueError(f"{field_name} 不能为空")
+        text = _RowCoerce.as_str(value)
+        if not text:
+            raise ValueError(f"{field_name} 不能为空")
+        return text
 
-def _require_non_empty_str(value: Any, field_name: str) -> str:
-    if value is None:
-        raise ValueError(f"{field_name} 不能为空")
-    text = _as_str(value)
-    if not text:
-        raise ValueError(f"{field_name} 不能为空")
-    return text
+    @staticmethod
+    def require_dict(raw: Dict[str, Any], key: str) -> Dict[str, Any]:
+        value = raw.get(key)
+        if not isinstance(value, dict):
+            raise ValueError(f"investment payload 缺少 {key}")
+        return value
 
-
-def _require_dict(raw: Dict[str, Any], key: str) -> Dict[str, Any]:
-    value = raw.get(key)
-    if not isinstance(value, dict):
-        raise ValueError(f"investment payload 缺少 {key}")
-    return value
-
-
-def _require_investment_id(raw: Dict[str, Any]) -> str:
-    meta = _require_dict(raw, "meta")
-    return _require_non_empty_str(meta.get("opportunity_id"), "meta.opportunity_id")
+    @staticmethod
+    def require_investment_id(raw: Dict[str, Any]) -> str:
+        meta = _RowCoerce.require_dict(raw, "meta")
+        return _RowCoerce.require_non_empty_str(
+            meta.get("opportunity_id"), "meta.opportunity_id"
+        )
 
 
 @dataclass
 class InvestmentRow:
+    """单笔 investment → stock_investments.csv 行。
+
+    边界:
+    - 负责: payload/CSV 行互转（核心字段）
+    - 不负责: 文件 IO（见 StockInvestments）
+    - 调用方: StockInvestments / OverallReport
+    """
+
     investment_id: str = ""
     trigger_date: str = ""
     trigger_price: float = 0.0
@@ -75,25 +95,25 @@ class InvestmentRow:
 
     @classmethod
     def from_payload(cls, raw: Dict[str, Any]) -> "InvestmentRow":
-        entry = _require_dict(raw, "entry")
-        exit_info = _require_dict(raw, "exit_info")
-        holding = _require_dict(raw, "holding")
-        outcome = _require_dict(raw, "outcome")
-        lifecycle = _require_non_empty_str(raw.get("lifecycle"), "lifecycle")
+        entry = _RowCoerce.require_dict(raw, "entry")
+        exit_info = _RowCoerce.require_dict(raw, "exit_info")
+        holding = _RowCoerce.require_dict(raw, "holding")
+        outcome = _RowCoerce.require_dict(raw, "outcome")
+        lifecycle = _RowCoerce.require_non_empty_str(raw.get("lifecycle"), "lifecycle")
         exit_price = exit_info.get("exit_price")
         return cls(
-            investment_id=_require_investment_id(raw),
-            trigger_date=_require_non_empty_str(raw.get("trigger_date"), "trigger_date"),
-            trigger_price=_as_float(raw.get("trigger_price")),
-            entry_date=_as_str(entry.get("entry_date")),
-            entry_price=_as_float(entry.get("entry_price")),
-            exit_date=_as_str(exit_info.get("exit_date")),
-            exit_price=_as_float(exit_price) if exit_price not in (None, "") else 0.0,
-            exit_reason=_as_str(exit_info.get("exit_reason")),
+            investment_id=_RowCoerce.require_investment_id(raw),
+            trigger_date=_RowCoerce.require_non_empty_str(raw.get("trigger_date"), "trigger_date"),
+            trigger_price=_RowCoerce.as_float(raw.get("trigger_price")),
+            entry_date=_RowCoerce.as_str(entry.get("entry_date")),
+            entry_price=_RowCoerce.as_float(entry.get("entry_price")),
+            exit_date=_RowCoerce.as_str(exit_info.get("exit_date")),
+            exit_price=_RowCoerce.as_float(exit_price) if exit_price not in (None, "") else 0.0,
+            exit_reason=_RowCoerce.as_str(exit_info.get("exit_reason")),
             lifecycle=lifecycle,
-            result=_as_str(outcome.get("result")),
-            weighted_roi=_as_float(outcome.get("weighted_roi")),
-            holding_days=_as_int(holding.get("days")),
+            result=_RowCoerce.as_str(outcome.get("result")),
+            weighted_roi=_RowCoerce.as_float(outcome.get("weighted_roi")),
+            holding_days=_RowCoerce.as_int(holding.get("days")),
         )
 
     def to_csv_row(self) -> Dict[str, Any]:
@@ -116,23 +136,31 @@ class InvestmentRow:
     def from_csv_row(cls, raw: Dict[str, Any]) -> "InvestmentRow":
         data = raw or {}
         return cls(
-            investment_id=_as_str(data.get("investment_id")),
-            trigger_date=_as_str(data.get("trigger_date")),
-            trigger_price=_as_float(data.get("trigger_price")),
-            entry_date=_as_str(data.get("entry_date")),
-            entry_price=_as_float(data.get("entry_price")),
-            exit_date=_as_str(data.get("exit_date")),
-            exit_price=_as_float(data.get("exit_price")),
-            exit_reason=_as_str(data.get("exit_reason")),
-            lifecycle=_as_str(data.get("lifecycle")),
-            result=_as_str(data.get("result")),
-            weighted_roi=_as_float(data.get("weighted_roi")),
-            holding_days=_as_int(data.get("holding_days")),
+            investment_id=_RowCoerce.as_str(data.get("investment_id")),
+            trigger_date=_RowCoerce.as_str(data.get("trigger_date")),
+            trigger_price=_RowCoerce.as_float(data.get("trigger_price")),
+            entry_date=_RowCoerce.as_str(data.get("entry_date")),
+            entry_price=_RowCoerce.as_float(data.get("entry_price")),
+            exit_date=_RowCoerce.as_str(data.get("exit_date")),
+            exit_price=_RowCoerce.as_float(data.get("exit_price")),
+            exit_reason=_RowCoerce.as_str(data.get("exit_reason")),
+            lifecycle=_RowCoerce.as_str(data.get("lifecycle")),
+            result=_RowCoerce.as_str(data.get("result")),
+            weighted_roi=_RowCoerce.as_float(data.get("weighted_roi")),
+            holding_days=_RowCoerce.as_int(data.get("holding_days")),
         )
 
 
 @dataclass
 class GoalAchievementRow:
+    """单笔 goal 成交腿 → goal_achievements.csv 行。
+
+    边界:
+    - 负责: goal payload/CSV 行互转
+    - 不负责: 文件 IO（见 GoalAchievements）
+    - 调用方: GoalAchievements / OverallReport
+    """
+
     investment_id: str = ""
     goal_name: str = ""
     date: str = ""
@@ -148,15 +176,15 @@ class GoalAchievementRow:
         if not isinstance(raw, dict):
             raise ValueError("goal payload 必须是 dict")
         return cls(
-            investment_id=_require_non_empty_str(investment_id, "investment_id"),
-            goal_name=_require_non_empty_str(raw.get("name"), "name"),
-            date=_require_non_empty_str(raw.get("date"), "date"),
-            price=_as_float(raw.get("price")),
-            exit_ratio=_as_float(raw.get("exit_ratio"), default=1.0),
-            profit=_as_float(raw.get("profit")),
-            weighted_profit=_as_float(raw.get("weighted_profit")),
-            reason=_require_non_empty_str(raw.get("reason"), "reason"),
-            roi=_as_float(raw.get("roi")),
+            investment_id=_RowCoerce.require_non_empty_str(investment_id, "investment_id"),
+            goal_name=_RowCoerce.require_non_empty_str(raw.get("name"), "name"),
+            date=_RowCoerce.require_non_empty_str(raw.get("date"), "date"),
+            price=_RowCoerce.as_float(raw.get("price")),
+            exit_ratio=_RowCoerce.as_float(raw.get("exit_ratio"), default=1.0),
+            profit=_RowCoerce.as_float(raw.get("profit")),
+            weighted_profit=_RowCoerce.as_float(raw.get("weighted_profit")),
+            reason=_RowCoerce.require_non_empty_str(raw.get("reason"), "reason"),
+            roi=_RowCoerce.as_float(raw.get("roi")),
         )
 
     def to_csv_row(self) -> Dict[str, Any]:
@@ -176,21 +204,27 @@ class GoalAchievementRow:
     def from_csv_row(cls, raw: Dict[str, Any]) -> "GoalAchievementRow":
         data = raw or {}
         return cls(
-            investment_id=_require_non_empty_str(data.get("investment_id"), "investment_id"),
-            goal_name=_require_non_empty_str(data.get("goal_name"), "goal_name"),
-            date=_require_non_empty_str(data.get("date"), "date"),
-            price=_as_float(data.get("price")),
-            exit_ratio=_as_float(data.get("exit_ratio"), default=1.0),
-            profit=_as_float(data.get("profit")),
-            weighted_profit=_as_float(data.get("weighted_profit")),
-            reason=_require_non_empty_str(data.get("reason"), "reason"),
-            roi=_as_float(data.get("roi")),
+            investment_id=_RowCoerce.require_non_empty_str(data.get("investment_id"), "investment_id"),
+            goal_name=_RowCoerce.require_non_empty_str(data.get("goal_name"), "goal_name"),
+            date=_RowCoerce.require_non_empty_str(data.get("date"), "date"),
+            price=_RowCoerce.as_float(data.get("price")),
+            exit_ratio=_RowCoerce.as_float(data.get("exit_ratio"), default=1.0),
+            profit=_RowCoerce.as_float(data.get("profit")),
+            weighted_profit=_RowCoerce.as_float(data.get("weighted_profit")),
+            reason=_RowCoerce.require_non_empty_str(data.get("reason"), "reason"),
+            roi=_RowCoerce.as_float(data.get("roi")),
         )
 
 
 @dataclass
 class StockInvestments:
-    """单只股票的全部 investment 记录 → ``{entity_id}_stock_investments.csv``。"""
+    """单只股票的全部 investment 记录 → ``{entity_id}_stock_investments.csv``。
+
+    边界:
+    - 负责: 从 investment dicts 构建行、读写 CSV
+    - 不负责: overall 汇总
+    - 调用方: InvestmentsReport
+    """
 
     FILE_SUFFIX: ClassVar[str] = "_stock_investments.csv"
     COLUMNS: ClassVar[Tuple[str, ...]] = (
@@ -232,7 +266,7 @@ class StockInvestments:
 
     @classmethod
     def file_path(cls, output_dir: Path, entity_id: str) -> Path:
-        return entities_dir(output_dir) / f"{str(entity_id or '').strip()}{cls.FILE_SUFFIX}"
+        return ReportPaths.entities_dir(output_dir) / f"{str(entity_id or '').strip()}{cls.FILE_SUFFIX}"
 
     @classmethod
     def _scan_entity_ids(cls, directory: Path) -> List[str]:
@@ -247,7 +281,7 @@ class StockInvestments:
 
     @classmethod
     def collect_entity_ids(cls, output_dir: Path) -> List[str]:
-        nested = cls._scan_entity_ids(entities_dir(output_dir))
+        nested = cls._scan_entity_ids(ReportPaths.entities_dir(output_dir))
         if nested:
             return nested
         return cls._scan_entity_ids(output_dir)
@@ -265,7 +299,13 @@ class StockInvestments:
 
 @dataclass
 class GoalAchievements:
-    """单只股票的全部 goal 成交腿 → ``{entity_id}_goal_achievements.csv``。"""
+    """单只股票的全部 goal 成交腿 → ``{entity_id}_goal_achievements.csv``。
+
+    边界:
+    - 负责: 从 investment.goals 构建行、读写 CSV
+    - 不负责: overall 汇总
+    - 调用方: InvestmentsReport
+    """
 
     FILE_SUFFIX: ClassVar[str] = "_goal_achievements.csv"
     COLUMNS: ClassVar[Tuple[str, ...]] = (
@@ -289,7 +329,7 @@ class GoalAchievements:
         for investment in investments or []:
             if not isinstance(investment, dict):
                 continue
-            investment_id = _require_investment_id(investment)
+            investment_id = _RowCoerce.require_investment_id(investment)
             goal_legs = investment.get("completed_goals")
             if goal_legs is None:
                 goal_legs = []
@@ -310,7 +350,7 @@ class GoalAchievements:
 
     @classmethod
     def file_path(cls, output_dir: Path, entity_id: str) -> Path:
-        return entities_dir(output_dir) / f"{str(entity_id or '').strip()}{cls.FILE_SUFFIX}"
+        return ReportPaths.entities_dir(output_dir) / f"{str(entity_id or '').strip()}{cls.FILE_SUFFIX}"
 
     def save(self, output_dir: Path, *, append: bool = False) -> Path:
         path = self.file_path(output_dir, self.entity_id)
@@ -324,7 +364,13 @@ class GoalAchievements:
 
 
 class InvestmentsReport:
-    """ReportManager.investments 门面：每股 CSV 追加写入。"""
+    """ReportManager.investments 门面：每股 CSV 追加写入。
+
+    边界:
+    - 负责: stock_investments / goal_achievements CSV
+    - 不负责: overall 汇总、performance
+    - 调用方: ReportManager（worker_buffer / flush）
+    """
 
     def __init__(self, manager: "ReportManager") -> None:
         self._manager = manager

@@ -19,11 +19,15 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.strate
 class EntityTracker:
     """单只股票（entity）在完整 calendar 上的枚举状态。
 
-    枚举产物是 **Investment**（模拟后的完整生命周期），不是裸 Opportunity。
+    边界:
+    - 负责: Investment 注册 / tick / settle；recorded 供写 CSV
+    - 不负责: 选股、数据加载、报告落盘
+    - 调用方: EntityEnumerationSimulator / SliceEnumerationSimulator（entity / slice 共用）
 
+    枚举产物是 **Investment**（模拟后的完整生命周期），不是裸 Opportunity。
     - ``active``：持仓中、尚未 complete 的 investment
-    - ``recorded``：本 run 内全部 investment（含已完结），供写 CSV
-    - ``extras``：策略/用户可在时间线上累积的自定义数据（entity 级，非单笔 investment）
+    - ``recorded``：本 run 内全部 investment（含已完结）
+    - ``extras``：策略可在时间线上累积的自定义数据
     """
 
     entity_id: str

@@ -319,7 +319,7 @@ def run_tag_timeline_via_backtest_engine(
         execute_tag_timeline_job,
         performance=performance,
         task_name=run_name,
-        callbacks=RunCallbacks(on_single_task_result=on_engine_result),
+        callbacks=RunCallbacks(on_task_result=on_engine_result),
     )
 
     # ---- 5. flush save_buffer（批量入库）----
@@ -497,7 +497,7 @@ def run_tag_sliced_via_backtest_engine(
             execute_tag_sliced_job,
             performance=performance,
             task_name=run_name,
-            callbacks=RunCallbacks(on_single_task_result=on_engine_result),
+            callbacks=RunCallbacks(on_task_result=on_engine_result),
         )
     finally:
         _slice_save_hook.reset(hook_token)

@@ -27,7 +27,7 @@ class ExecutorHooks:
 
     边界:
     - 负责: callbacks 组装、batch load、flush CSV、单 task 进度、全局 cleanup
-    - 不负责: mode 专有 execute 体（entity 日循环 / slice lifecycle+asof）
+    - 不负责: mode 专有日业务（EntityAdvancementHooks / SliceAdvancementHooks）
     - 调用方: entity_based.JobExecutor / slice_based.JobExecutor
     """
 
@@ -36,22 +36,22 @@ class ExecutorHooks:
         ctx: ExecutorHooksContext,
         *,
         on_before_all_tasks_start: Callable[[Any, List[Any]], None],
-        on_child_process_task_start: Callable[[Any], Dict[str, Any]],
-        on_child_process_task_complete: Callable[[Any], None],
+        on_before_task_start: Callable[[Any], Dict[str, Any]],
+        on_after_task_complete: Callable[[Any], None],
         on_after_all_tasks_complete: Callable[..., None],
-        on_single_task_result: Callable[..., None],
+        on_task_result: Callable[..., None],
     ) -> Any:
         from core.modules.backtest_engine.contracts import RunCallbacks
 
         return RunCallbacks(
             on_before_all_tasks_start=on_before_all_tasks_start,
-            on_child_process_task_start=on_child_process_task_start,
-            on_child_process_task_complete=on_child_process_task_complete,
+            on_before_task_start=on_before_task_start,
+            on_after_task_complete=on_after_task_complete,
             on_after_all_tasks_complete=lambda job_reports: on_after_all_tasks_complete(
                 job_reports,
                 ctx.global_entity_cache,
             ),
-            on_single_task_result=lambda report, progress: on_single_task_result(
+            on_task_result=lambda report, progress: on_task_result(
                 report,
                 progress,
                 report_manager=ctx.report_manager,
@@ -95,7 +95,7 @@ class ExecutorHooks:
         perf.end("flush_csv")
 
     @staticmethod
-    def on_single_task_result(
+    def on_task_result(
         report: Any,
         progress: Any,
         *,

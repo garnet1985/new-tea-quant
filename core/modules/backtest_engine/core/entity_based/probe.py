@@ -28,7 +28,7 @@ from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from core.modules.backtest_engine.core.shared.job_lifecycle import run_job_lifecycle
-from core.modules.backtest_engine.core.shared.types import JobContext, ChildProcessTaskStartFn, ChildProcessTaskCompleteFn
+from core.modules.backtest_engine.core.shared.types import JobContext, TaskStartFn, TaskCompleteFn
 
 logger = logging.getLogger(__name__)
 
@@ -216,8 +216,8 @@ class Probe:
         log_label: str = "调度",
         task_name: str = "",
         *,
-        on_child_process_task_start: Optional[ChildProcessTaskStartFn] = None,
-        on_child_process_task_complete: Optional[ChildProcessTaskCompleteFn] = None,
+        on_before_task_start: Optional[TaskStartFn] = None,
+        on_after_task_complete: Optional[TaskCompleteFn] = None,
     ) -> ProbeResult:
         """执行探针（子进程测量内存和时间）。"""
         if not probe_jobs:
@@ -245,8 +245,8 @@ class Probe:
             task_name or f"{log_label}:probe",
             performance,
             log_label,
-            on_child_process_task_start=on_child_process_task_start,
-            on_child_process_task_complete=on_child_process_task_complete,
+            on_before_task_start=on_before_task_start,
+            on_after_task_complete=on_after_task_complete,
         )
 
         return Probe._build_probe_result(
@@ -261,16 +261,16 @@ class Probe:
         performance: Dict[str, Any],
         log_label: str,
         *,
-        on_child_process_task_start: Optional[ChildProcessTaskStartFn] = None,
-        on_child_process_task_complete: Optional[ChildProcessTaskCompleteFn] = None,
+        on_before_task_start: Optional[TaskStartFn] = None,
+        on_after_task_complete: Optional[TaskCompleteFn] = None,
     ) -> Dict[str, Any]:
         """在独立子进程运行探针（默认主进程内试跑，避免嵌套进程池 + DuckDB 锁）。"""
         worker_args = (
             execute_fn,
             probe_payload,
             task_name,
-            on_child_process_task_start,
-            on_child_process_task_complete,
+            on_before_task_start,
+            on_after_task_complete,
         )
         if not bool(performance.get("probe_in_subprocess", False)):
             logger.info("%s探针：主进程内试跑（缩短窗口）", log_label)
@@ -390,7 +390,7 @@ class Probe:
 
 def _probe_worker(args: tuple) -> Dict[str, Any]:
     """探针 worker：init → execute_fn → release。"""
-    execute_fn, payload, task_name, on_child_process_task_start, on_child_process_task_complete = args
+    execute_fn, payload, task_name, on_before_task_start, on_after_task_complete = args
     entities = int(payload.get("_probe_entity_count") or payload.get("entities_count") or 1)
     logger.info("探针 worker 开始：entities=%d dispatch_probe=%s", entities, payload.get("_dispatch_probe"))
     rss_before_mb = _process_rss_mb()
@@ -404,8 +404,8 @@ def _probe_worker(args: tuple) -> Dict[str, Any]:
     out = run_job_lifecycle(
         execute_fn,
         ctx,
-        on_child_process_task_start=on_child_process_task_start,
-        on_child_process_task_complete=on_child_process_task_complete,
+        on_before_task_start=on_before_task_start,
+        on_after_task_complete=on_after_task_complete,
     )
     if not isinstance(out, dict):
         out = {"success": True, "data": out}

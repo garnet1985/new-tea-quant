@@ -4,13 +4,18 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from core.modules.backtest_engine.core.shared.context import ExecutionContext
 from core.infra.machine_capacity import MachineInfo
 from core.modules.backtest_engine.core.shared.modes import BacktestMode
 from core.modules.backtest_engine.core.shared.progress import RunPhase, RunProgressReporter
-from core.modules.backtest_engine.core.shared.types import JobReport, RunProgress
+from core.modules.backtest_engine.core.shared.types import (
+    JobReport,
+    RunProgress,
+    TaskCompleteFn,
+    TaskStartFn,
+)
 from core.modules.backtest_engine.core.slice_based.executor import SliceExecutor
 from core.modules.backtest_engine.core.slice_based.executor_duckdb import (
     SliceExecutorDuckDB,
@@ -56,7 +61,11 @@ class SliceExecutePipeline:
         *,
         execute_fn: SliceExecutor.ExecuteFn,
         task_name: str = "",
-        on_single_task_result: Optional[SliceExecutor.OnResultHook] = None,
+        on_before_all_tasks_start: Optional[Callable[[Any, List[Any]], None]] = None,
+        on_before_task_start: Optional[TaskStartFn] = None,
+        on_after_task_complete: Optional[TaskCompleteFn] = None,
+        on_after_all_tasks_complete: Optional[Callable[[List[JobReport]], None]] = None,
+        on_task_result: Optional[SliceExecutor.OnResultHook] = None,
         enable_progress_display: bool = True,
     ) -> SliceExecutePipeline.Result:
         label = task_name or self._log_label
@@ -82,6 +91,12 @@ class SliceExecutePipeline:
         )
         execute_units = plan.dispatch_jobs if plan.dispatch_jobs > 0 else len(batches)
         progress.set_execute_total(execute_units)
+
+        if on_before_all_tasks_start is not None:
+            try:
+                on_before_all_tasks_start(plan, batches)
+            except Exception as exc:
+                logger.warning("on_before_all_tasks_start failed: %s", exc)
 
         capacity = MachineInfo.get_capacity(performance)
         available_memory_mb = MachineInfo.worker_pool_budget_mb(capacity)
@@ -112,10 +127,10 @@ class SliceExecutePipeline:
             performance=performance,
         )
 
-        def monitored_on_single_task_result(report: JobReport, run_progress: RunProgress) -> None:
+        def monitored_on_task_result(report: JobReport, run_progress: RunProgress) -> None:
             monitor.record_from_job_report(report)
-            if on_single_task_result is not None:
-                on_single_task_result(report, run_progress)
+            if on_task_result is not None:
+                on_task_result(report, run_progress)
 
         phase_marks["execute"] = time.perf_counter()
         progress.mark_phase(RunPhase.EXECUTE)
@@ -124,7 +139,9 @@ class SliceExecutePipeline:
             batches,
             context,
             execute_fn,
-            on_result=monitored_on_single_task_result,
+            on_result=monitored_on_task_result,
+            on_before_task_start=on_before_task_start,
+            on_after_task_complete=on_after_task_complete,
             log_label=self._log_label,
             progress_reporter=progress,
             duckdb_process_pool_scope=str(
@@ -159,6 +176,12 @@ class SliceExecutePipeline:
                 log_label=self._log_label,
             )
             monitor_config = SlicePlanner._build_monitor(plan, performance)
+
+        if on_after_all_tasks_complete is not None:
+            try:
+                on_after_all_tasks_complete(list(execution.job_results or []))
+            except Exception as exc:
+                logger.warning("on_after_all_tasks_complete failed: %s", exc)
 
         phase_marks["finish"] = time.perf_counter()
         progress.mark_phase(RunPhase.FINISH)

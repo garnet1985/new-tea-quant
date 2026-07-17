@@ -20,8 +20,8 @@ from core.modules.backtest_engine.core.shared.types import (
     JobContext,
     JobFailure,
     JobFailurePhase,
-    ChildProcessTaskStartFn,
-    ChildProcessTaskCompleteFn,
+    TaskStartFn,
+    TaskCompleteFn,
     JobReport,
     RunProgress,
 )
@@ -41,7 +41,7 @@ class EntityExecutor:
         def __call__(self, reports: List[JobReport]) -> None:
             ...
 
-    class OnSingleTaskResultHook(Callable):
+    class OnTaskResultHook(Callable):
         """单task结果回调：接收 JobReport 和 RunProgress（主进程，用于进度更新）。"""
 
         def __call__(self, report: JobReport, progress: RunProgress) -> None:
@@ -65,9 +65,9 @@ class EntityExecutor:
         batches: List[JobBatch],
         context: ExecutionContext,
         execute_fn: ExecuteFn,
-        on_child_process_task_start: Optional[ChildProcessTaskStartFn] = None,
-        on_child_process_task_complete: Optional[ChildProcessTaskCompleteFn] = None,
-        on_single_task_result: Optional[EntityExecutor.OnSingleTaskResultHook] = None,
+        on_before_task_start: Optional[TaskStartFn] = None,
+        on_after_task_complete: Optional[TaskCompleteFn] = None,
+        on_task_result: Optional[EntityExecutor.OnTaskResultHook] = None,
         on_after_all_tasks_complete: Optional[EntityExecutor.OnAfterAllTasksCompleteHook] = None,
         log_label: str = "执行",
         admission_limit: Optional[int] = None,
@@ -130,8 +130,8 @@ class EntityExecutor:
                             EntityExecutor._invoke_worker,
                             execute_fn,
                             job_context,
-                            on_child_process_task_start,
-                            on_child_process_task_complete,
+                            on_before_task_start,
+                            on_after_task_complete,
                         )
                         futures[future] = job
 
@@ -147,7 +147,7 @@ class EntityExecutor:
                             context,
                             failures,
                             job_results,
-                            on_single_task_result,
+                            on_task_result,
                             on_after_all_tasks_complete,
                             log_label,
                         )
@@ -192,8 +192,8 @@ class EntityExecutor:
     def _invoke_worker(
         execute_fn: ExecuteFn,
         job_context: JobContext,
-        on_child_process_task_start: Optional[ChildProcessTaskStartFn] = None,
-        on_child_process_task_complete: Optional[ChildProcessTaskCompleteFn] = None,
+        on_before_task_start: Optional[TaskStartFn] = None,
+        on_after_task_complete: Optional[TaskCompleteFn] = None,
     ) -> Dict[str, Any]:
         """Process-pool entry: init → execute_fn → release。"""
         from core.modules.backtest_engine.core.shared.profiler import WorkerTaskProfiler
@@ -203,11 +203,11 @@ class EntityExecutor:
 
         bootstrap_worker_data_manager()
         profiler = WorkerTaskProfiler()
-        profiler.run_init(on_child_process_task_start, job_context)
+        profiler.run_init(on_before_task_start, job_context)
 
         raw, exc = profiler.run_execute(execute_fn, job_context)
         if exc is not None:
-            profiler.run_complete(on_child_process_task_complete, job_context)
+            profiler.run_complete(on_after_task_complete, job_context)
             return profiler.attach(
                 {
                     "success": False,
@@ -220,7 +220,7 @@ class EntityExecutor:
                 enum_perf=job_context.payload.get("_enum_perf"),
             )
 
-        profiler.run_complete(on_child_process_task_complete, job_context)
+        profiler.run_complete(on_after_task_complete, job_context)
         normalized = EntityExecutor._normalize_worker_result(
             job_context,
             raw,
@@ -239,7 +239,7 @@ class EntityExecutor:
         context: ExecutionContext,
         failures: List[JobFailure],
         job_results: List[JobReport],
-        on_single_task_result: Optional[EntityExecutor.OnSingleTaskResultHook],
+        on_task_result: Optional[EntityExecutor.OnTaskResultHook],
         on_after_all_tasks_complete: Optional[EntityExecutor.OnAfterAllTasksCompleteHook],
         log_label: str,
     ) -> None:
@@ -257,8 +257,8 @@ class EntityExecutor:
                 )
             job_results.append(report)
             context.update_progress(report.success)
-            if on_single_task_result:
-                on_single_task_result(
+            if on_task_result:
+                on_task_result(
                     report,
                     RunProgress(
                         finished=context.finished_jobs,
@@ -276,8 +276,8 @@ class EntityExecutor:
                 )
             )
             context.update_progress(success=False)
-            if on_single_task_result:
-                on_single_task_result(
+            if on_task_result:
+                on_task_result(
                     JobReport(job_id=job.job_id, success=False, error=str(exc)),
                     RunProgress(
                         finished=context.finished_jobs,

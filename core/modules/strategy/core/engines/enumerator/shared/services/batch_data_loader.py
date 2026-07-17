@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""批量数据加载服务（用于子进程 on_child_process_task_start 钩子）。"""
+"""批量数据加载服务（用于 on_before_task_start 钩子）。"""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ class BatchDataLoader:
     边界:
     - 负责: 批量 issue per_entity Contract、读 shm global、应用 indicators
     - 不负责: 枚举模拟、CSV 落盘
-    - 调用方: entity_based / slice_based JobExecutor.on_child_process_task_start
+    - 调用方: entity_based / slice_based JobExecutor.on_before_task_start
     """
 
     @staticmethod

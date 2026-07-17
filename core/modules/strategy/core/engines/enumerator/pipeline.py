@@ -231,22 +231,25 @@ class EnumeratorPipeline:
         task_name = f"strategy_{report_manager.strategy_key}"
 
         if execution_mode == _MODE_SLICE:
+            from core.modules.strategy.core.engines.enumerator.slice_based.advancement import (
+                build_slice_advancement_hooks,
+            )
+
             run_result = BacktestEngine.slice_based.run(
                 jobs=jobs,
-                execute_fn=job_executor.execute,
+                advancement_hooks_factory=build_slice_advancement_hooks,
                 performance=performance,
                 callbacks=callbacks,
                 task_name=task_name,
             )
-            # BE.slice_based 不转发 on_after_all_tasks_complete；主进程显式清理
-            job_executor.on_after_all_tasks_complete(
-                list(run_result.job_results or []),
-                cls.global_entity_cache,
-            )
         else:
+            from core.modules.strategy.core.engines.enumerator.entity_based.advancement import (
+                build_entity_advancement_hooks,
+            )
+
             run_result = BacktestEngine.entity_based.run(
                 jobs=jobs,
-                execute_fn=job_executor.execute,
+                advancement_hooks_factory=build_entity_advancement_hooks,
                 performance=performance,
                 callbacks=callbacks,
                 task_name=task_name,

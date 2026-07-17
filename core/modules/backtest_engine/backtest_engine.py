@@ -5,6 +5,10 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+from core.modules.backtest_engine.core.shared.advancement import (
+    AdvancementHooksFactory,
+    resolve_worker_execute_fn,
+)
 from core.modules.backtest_engine.core.shared.modes import BacktestMode
 from core.modules.backtest_engine.core.shared.performance import (
     resolve_entity_based_performance,
@@ -91,8 +95,9 @@ class BacktestEngine:
         @staticmethod
         def run(
             jobs: List[Dict[str, Any]],
-            execute_fn: ExecuteFn,
+            execute_fn: Optional[ExecuteFn] = None,
             *,
+            advancement_hooks_factory: Optional[AdvancementHooksFactory] = None,
             performance: Optional[Dict[str, Any]] = None,
             task_name: str = "",
             callbacks: Optional[RunCallbacks] = None,
@@ -100,7 +105,8 @@ class BacktestEngine:
         ) -> BacktestEngine.RunResult:
             return BacktestEngine._run_entity_based(
                 jobs,
-                execute_fn,
+                execute_fn=execute_fn,
+                advancement_hooks_factory=advancement_hooks_factory,
                 performance=performance,
                 task_name=task_name,
                 callbacks=callbacks,
@@ -113,8 +119,9 @@ class BacktestEngine:
         @staticmethod
         def run(
             jobs: List[Dict[str, Any]],
-            execute_fn: ExecuteFn,
+            execute_fn: Optional[ExecuteFn] = None,
             *,
+            advancement_hooks_factory: Optional[AdvancementHooksFactory] = None,
             performance: Optional[Dict[str, Any]] = None,
             task_name: str = "",
             callbacks: Optional[RunCallbacks] = None,
@@ -122,7 +129,8 @@ class BacktestEngine:
         ) -> BacktestEngine.RunResult:
             return BacktestEngine._run_slice_based(
                 jobs,
-                execute_fn,
+                execute_fn=execute_fn,
+                advancement_hooks_factory=advancement_hooks_factory,
                 performance=performance,
                 task_name=task_name,
                 callbacks=callbacks,
@@ -135,13 +143,18 @@ class BacktestEngine:
     @staticmethod
     def _run_entity_based(
         jobs: List[Dict[str, Any]],
-        execute_fn: ExecuteFn,
         *,
+        execute_fn: Optional[ExecuteFn] = None,
+        advancement_hooks_factory: Optional[AdvancementHooksFactory] = None,
         performance: Optional[Dict[str, Any]] = None,
         task_name: str = "",
         callbacks: Optional[RunCallbacks] = None,
         enable_progress_display: bool = True,
     ) -> BacktestEngine.RunResult:
+        worker_fn = resolve_worker_execute_fn(
+            execute_fn=execute_fn,
+            advancement_hooks_factory=advancement_hooks_factory,
+        )
         if jobs:
             BacktestJob.validate_many(jobs, mode=BacktestMode.ENTITY_BASED)
         resolved_performance = resolve_entity_based_performance(performance)
@@ -151,13 +164,13 @@ class BacktestEngine:
         pipeline_result = pipeline.run(
             jobs,
             resolved_performance,
-            execute_fn=execute_fn,
+            execute_fn=worker_fn,
             task_name=label,
             on_before_all_tasks_start=resolved_callbacks.on_before_all_tasks_start,
-            on_child_process_task_start=resolved_callbacks.on_child_process_task_start,
-            on_child_process_task_complete=resolved_callbacks.on_child_process_task_complete,
+            on_before_task_start=resolved_callbacks.on_before_task_start,
+            on_after_task_complete=resolved_callbacks.on_after_task_complete,
             on_after_all_tasks_complete=resolved_callbacks.on_after_all_tasks_complete,
-            on_single_task_result=resolved_callbacks.on_single_task_result,
+            on_task_result=resolved_callbacks.on_task_result,
             enable_progress_display=enable_progress_display,
         )
         return BacktestEngine.RunResult.from_entity_based(pipeline_result)
@@ -165,13 +178,18 @@ class BacktestEngine:
     @staticmethod
     def _run_slice_based(
         jobs: List[Dict[str, Any]],
-        execute_fn: ExecuteFn,
         *,
+        execute_fn: Optional[ExecuteFn] = None,
+        advancement_hooks_factory: Optional[AdvancementHooksFactory] = None,
         performance: Optional[Dict[str, Any]] = None,
         task_name: str = "",
         callbacks: Optional[RunCallbacks] = None,
         enable_progress_display: bool = True,
     ) -> BacktestEngine.RunResult:
+        worker_fn = resolve_worker_execute_fn(
+            execute_fn=execute_fn,
+            advancement_hooks_factory=advancement_hooks_factory,
+        )
         if jobs:
             BacktestJob.validate_many(jobs, mode=BacktestMode.SLICE_BASED)
         resolved_performance = resolve_slice_based_performance(performance)
@@ -181,9 +199,13 @@ class BacktestEngine:
         pipeline_result = pipeline.run(
             jobs,
             resolved_performance,
-            execute_fn=execute_fn,
+            execute_fn=worker_fn,
             task_name=label,
-            on_single_task_result=resolved_callbacks.on_single_task_result,
+            on_before_all_tasks_start=resolved_callbacks.on_before_all_tasks_start,
+            on_before_task_start=resolved_callbacks.on_before_task_start,
+            on_after_task_complete=resolved_callbacks.on_after_task_complete,
+            on_after_all_tasks_complete=resolved_callbacks.on_after_all_tasks_complete,
+            on_task_result=resolved_callbacks.on_task_result,
             enable_progress_display=enable_progress_display,
         )
         return BacktestEngine.RunResult.from_slice_based(pipeline_result)
@@ -193,8 +215,9 @@ class BacktestEngine:
         cls,
         mode: str | BacktestMode,
         jobs: List[Dict[str, Any]],
-        execute_fn: ExecuteFn,
+        execute_fn: Optional[ExecuteFn] = None,
         *,
+        advancement_hooks_factory: Optional[AdvancementHooksFactory] = None,
         performance: Optional[Dict[str, Any]] = None,
         task_name: str = "",
         callbacks: Optional[RunCallbacks] = None,
@@ -204,7 +227,8 @@ class BacktestEngine:
         if normalized == BacktestMode.ENTITY_BASED.value:
             return cls._run_entity_based(
                 jobs,
-                execute_fn,
+                execute_fn=execute_fn,
+                advancement_hooks_factory=advancement_hooks_factory,
                 performance=performance,
                 task_name=task_name,
                 callbacks=callbacks,
@@ -213,7 +237,8 @@ class BacktestEngine:
         if normalized == BacktestMode.SLICE_BASED.value:
             return cls._run_slice_based(
                 jobs,
-                execute_fn,
+                execute_fn=execute_fn,
+                advancement_hooks_factory=advancement_hooks_factory,
                 performance=performance,
                 task_name=task_name,
                 callbacks=callbacks,

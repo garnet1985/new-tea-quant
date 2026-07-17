@@ -11,8 +11,8 @@ from core.infra.machine_capacity import MachineInfo
 from core.modules.backtest_engine.core.shared.modes import BacktestMode
 from core.modules.backtest_engine.core.shared.progress import RunPhase, RunProgressReporter
 from core.modules.backtest_engine.core.shared.types import (
-    ChildProcessTaskStartFn,
-    ChildProcessTaskCompleteFn,
+    TaskStartFn,
+    TaskCompleteFn,
     JobReport,
     RunProgress,
 )
@@ -40,7 +40,7 @@ class EntityExecutePipeline:
     """End-to-end entity_based backtest: plan → monitor → execute."""
 
     ExecuteFn = EntityExecutor.ExecuteFn
-    OnSingleTaskResultHook = EntityExecutor.OnSingleTaskResultHook
+    OnTaskResultHook = EntityExecutor.OnTaskResultHook
     OnAfterAllTasksCompleteHook = EntityExecutor.OnAfterAllTasksCompleteHook
 
     @dataclass(frozen=True)
@@ -63,10 +63,10 @@ class EntityExecutePipeline:
         execute_fn: EntityExecutor.ExecuteFn,
         task_name: str = "",
         on_before_all_tasks_start: Optional[Callable[[Any, List[Any]], None]] = None,
-        on_child_process_task_start: Optional[ChildProcessTaskStartFn] = None,
-        on_child_process_task_complete: Optional[ChildProcessTaskCompleteFn] = None,
+        on_before_task_start: Optional[TaskStartFn] = None,
+        on_after_task_complete: Optional[TaskCompleteFn] = None,
         on_after_all_tasks_complete: Optional[Callable[[List[JobReport]], None]] = None,
-        on_single_task_result: Optional[Callable[[JobReport, RunProgress], None]] = None,
+        on_task_result: Optional[Callable[[JobReport, RunProgress], None]] = None,
         enable_progress_display: bool = True,
     ) -> EntityExecutePipeline.Result:
         label = task_name or self._log_label
@@ -88,8 +88,8 @@ class EntityExecutePipeline:
             jobs,
             performance,
             execute_fn,
-            on_child_process_task_start=on_child_process_task_start,
-            on_child_process_task_complete=on_child_process_task_complete,
+            on_before_task_start=on_before_task_start,
+            on_after_task_complete=on_after_task_complete,
         )
         progress.set_execute_total(len(batches))
 
@@ -124,13 +124,13 @@ class EntityExecutePipeline:
 
         batch_entities = {batch.batch_id: batch.entities_count for batch in batches}
 
-        def monitored_on_single_task_result(report: JobReport, run_progress: RunProgress) -> None:
+        def monitored_on_task_result(report: JobReport, run_progress: RunProgress) -> None:
             monitor.record(
                 _job_sample_from_report(report, batch_entities),
             )
             progress.mark_execute_unit(run_progress.finished)
-            if on_single_task_result is not None:
-                on_single_task_result(report, run_progress)
+            if on_task_result is not None:
+                on_task_result(report, run_progress)
 
         phase_marks["execute"] = time.perf_counter()
         progress.mark_phase(RunPhase.EXECUTE)
@@ -139,10 +139,10 @@ class EntityExecutePipeline:
             batches,
             context,
             execute_fn,
-            on_single_task_result=monitored_on_single_task_result,
+            on_task_result=monitored_on_task_result,
             on_after_all_tasks_complete=on_after_all_tasks_complete,
-            on_child_process_task_start=on_child_process_task_start,
-            on_child_process_task_complete=on_child_process_task_complete,
+            on_before_task_start=on_before_task_start,
+            on_after_task_complete=on_after_task_complete,
             log_label=self._log_label,
             get_admission_limit=lambda: monitor.admission_limit,
             duckdb_process_pool_scope=str(
@@ -172,15 +172,15 @@ class EntityExecutePipeline:
         performance: Dict[str, Any],
         execute_fn: EntityExecutor.ExecuteFn,
         *,
-        on_child_process_task_start: Optional[ChildProcessTaskStartFn] = None,
-        on_child_process_task_complete: Optional[ChildProcessTaskCompleteFn] = None,
+        on_before_task_start: Optional[TaskStartFn] = None,
+        on_after_task_complete: Optional[TaskCompleteFn] = None,
     ) -> tuple[DispatchPlan, List[JobBatch], EntityMonitorConfig]:
         return EntityPlanner.plan_jobs(
             jobs,
             performance,
             execute_fn=execute_fn,
-            on_child_process_task_start=on_child_process_task_start,
-            on_child_process_task_complete=on_child_process_task_complete,
+            on_before_task_start=on_before_task_start,
+            on_after_task_complete=on_after_task_complete,
             log_label=self._log_label,
         )
 

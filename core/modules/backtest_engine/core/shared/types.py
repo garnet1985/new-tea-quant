@@ -56,23 +56,30 @@ class Job:
     payload: Dict[str, Any] = field(default_factory=dict)
 
 
+TaskStartFn = Callable[["JobContext"], Any]
+TaskCompleteFn = Callable[["JobContext"], None]
+
+
 @dataclass
 class RunCallbacks:
-    """BacktestEngine run的生命周期钩子（统一命名，清晰明确）。"""
+    """BacktestEngine run 生命周期钩子（entity / slice 共用）。
 
-    # ── 主进程钩子 ──
+    task = 最小工作单元（entity: 子进程 job；slice: 一个 slice 计算单元）。
+    """
+
+    # ── 主进程 ──
     on_before_all_tasks_start: Optional[Callable[[Any, List[Any]], None]] = None
     on_after_all_tasks_complete: Optional[Callable[[List["JobReport"]], None]] = None
-    on_single_task_result: Optional[Callable[["JobReport", "RunProgress"], None]] = None
+    on_task_result: Optional[Callable[["JobReport", "RunProgress"], None]] = None
 
-    # ── 子进程钩子 ──
-    on_child_process_task_start: Optional[ChildProcessTaskStartFn] = None      # 子进程task开始（初始化）
-    on_child_process_task_complete: Optional[ChildProcessTaskCompleteFn] = None # 子进程task完成（清理）
+    # ── 工作单元侧（worker / slice 计算）──
+    on_before_task_start: Optional[TaskStartFn] = None
+    on_after_task_complete: Optional[TaskCompleteFn] = None
 
 
 @dataclass
 class JobContext:
-    """子进程 execute 收到的当前 job 作用域（由 Dispatcher 注入 job_id / task_name）。"""
+    """execute 收到的当前 task 作用域（由 Dispatcher 注入 job_id / task_name）。"""
 
     job_id: str
     payload: Dict[str, Any]
@@ -102,7 +109,7 @@ class JobResult:
 
 @dataclass
 class RunProgress:
-    """单次 run 的进度快照，传给 on_single_task_result。"""
+    """单次 run 的进度快照，传给 on_task_result。"""
 
     finished: int
     total: int
@@ -130,8 +137,6 @@ class DispatchResult:
 
 
 ExecuteFn = Callable[[JobContext], Any]
-ChildProcessTaskStartFn = Callable[[JobContext], Any]
-ChildProcessTaskCompleteFn = Callable[[JobContext], None]
 
 
 __all__ = [
@@ -148,6 +153,6 @@ __all__ = [
     "JobFailure",
     "DispatchResult",
     "ExecuteFn",
-    "ChildProcessTaskStartFn",
-    "ChildProcessTaskCompleteFn",
+    "TaskStartFn",
+    "TaskCompleteFn",
 ]

@@ -10,7 +10,6 @@ ProcessPoolExecutor would run inside a daemon worker, which cannot fork again
 from __future__ import annotations
 
 import logging
-import multiprocessing as mp
 import time
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
@@ -25,6 +24,8 @@ from core.modules.backtest_engine.core.shared.types import (
     JobFailurePhase,
     JobReport,
     RunProgress,
+    TaskCompleteFn,
+    TaskStartFn,
 )
 from core.modules.backtest_engine.core.slice_based.planner import (
     SliceDispatchPlan,
@@ -64,6 +65,8 @@ class SliceExecutor:
         context: ExecutionContext,
         execute_fn: ExecuteFn,
         on_result: Optional[SliceExecutor.OnResultHook] = None,
+        on_before_task_start: Optional[TaskStartFn] = None,
+        on_after_task_complete: Optional[TaskCompleteFn] = None,
         log_label: str = "切片执行",
         progress_reporter: Optional[RunProgressReporter] = None,
     ) -> SliceExecutor.ExecutionResult:
@@ -108,7 +111,12 @@ class SliceExecutor:
                     progress_reporter=progress_reporter,
                 )
                 try:
-                    raw_result = SliceExecutor._invoke_worker(execute_fn, job_context)
+                    raw_result = SliceExecutor._invoke_worker(
+                        execute_fn,
+                        job_context,
+                        on_before_task_start=on_before_task_start,
+                        on_after_task_complete=on_after_task_complete,
+                    )
                     report = SliceExecutor._normalize_report(job.job_id, raw_result)
                     if not report.success:
                         failures.append(
@@ -157,6 +165,13 @@ class SliceExecutor:
                                 fail=context.fail_count,
                             ),
                         )
+                    logger.error(
+                        "%s job失败: job_id=%s error=%s",
+                        log_label,
+                        job.job_id,
+                        exc,
+                        exc_info=True,
+                    )
         except KeyboardInterrupt:
             logger.warning("%s收到Ctrl+C，停止执行", log_label)
             return SliceExecutor.ExecutionResult(
@@ -194,8 +209,11 @@ class SliceExecutor:
     def _invoke_worker(
         execute_fn: ExecuteFn,
         job_context: JobContext,
+        on_before_task_start: Optional[TaskStartFn] = None,
+        on_after_task_complete: Optional[TaskCompleteFn] = None,
     ) -> Dict[str, Any]:
-        """Process-pool entry: run caller execute_fn and attach metrics."""
+        """Task 入口: before_start → execute_fn → after_complete。"""
+        from core.modules.backtest_engine.core.shared.job_lifecycle import run_job_lifecycle
         from core.modules.backtest_engine.core.shared.worker_data_runtime import (
             bootstrap_worker_data_manager,
         )
@@ -204,7 +222,12 @@ class SliceExecutor:
         rss_before_mb = SliceExecutor._process_rss_mb()
         t0 = time.perf_counter()
         try:
-            raw = execute_fn(job_context)
+            raw = run_job_lifecycle(
+                execute_fn,
+                job_context,
+                on_before_task_start=on_before_task_start,
+                on_after_task_complete=on_after_task_complete,
+            )
         except Exception as exc:
             wall_sec = time.perf_counter() - t0
             rss_after_mb = SliceExecutor._process_rss_mb()

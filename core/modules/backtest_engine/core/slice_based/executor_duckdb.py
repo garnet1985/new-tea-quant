@@ -11,6 +11,7 @@ from core.modules.backtest_engine.core.shared.context import ExecutionContext
 from core.modules.backtest_engine.core.shared.duckdb_executor_scope import (
     execute_with_duckdb_process_pool_scope,
 )
+from core.modules.backtest_engine.core.shared.types import TaskCompleteFn, TaskStartFn
 from core.modules.backtest_engine.core.slice_based.executor import SliceExecutor
 from core.modules.backtest_engine.core.slice_based.planner import (
     SliceDispatchPlan,
@@ -28,6 +29,8 @@ class SliceExecutorDuckDB(SliceExecutor):
         context: ExecutionContext,
         execute_fn: SliceExecutor.ExecuteFn,
         on_result: Optional[SliceExecutor.OnResultHook] = None,
+        on_before_task_start: Optional[TaskStartFn] = None,
+        on_after_task_complete: Optional[TaskCompleteFn] = None,
         log_label: str = "切片执行",
         *,
         data_mgr: Optional[Any] = None,
@@ -45,6 +48,8 @@ class SliceExecutorDuckDB(SliceExecutor):
             context=context,
             execute_fn=execute_fn,
             on_result=on_result,
+            on_before_task_start=on_before_task_start,
+            on_after_task_complete=on_after_task_complete,
             log_label=log_label,
             progress_reporter=progress_reporter,
         )

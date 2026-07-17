@@ -105,14 +105,14 @@ def test_slice_based_empty_jobs_returns_success() -> None:
     assert result.total_jobs == 0
 
 
-def test_run_callbacks_forward_on_child_process_task_start_and_complete() -> None:
+def test_run_callbacks_forward_on_before_task_start_and_complete() -> None:
     phases: list[str] = []
 
-    def on_child_process_task_start(context: JobContext) -> str:
+    def on_before_task_start(context: JobContext) -> str:
         phases.append("init")
         return "session"
 
-    def on_child_process_task_complete(context: JobContext) -> None:
+    def on_after_task_complete(context: JobContext) -> None:
         phases.append("release")
         assert context.init == "session"
 
@@ -127,16 +127,16 @@ def test_run_callbacks_forward_on_child_process_task_start_and_complete() -> Non
     run_job_lifecycle(
         execute,
         ctx,
-        on_child_process_task_start=on_child_process_task_start,
-        on_child_process_task_complete=on_child_process_task_complete,
+        on_before_task_start=on_before_task_start,
+        on_after_task_complete=on_after_task_complete,
     )
     assert phases == ["init", "execute", "release"]
 
 
-def test_run_callbacks_forward_on_single_task_result() -> None:
+def test_run_callbacks_forward_on_task_result() -> None:
     seen: list[str] = []
 
-    def on_single_task_result(report, progress) -> None:
+    def on_task_result(report, progress) -> None:
         seen.append(report.job_id)
 
     mock_execution = EntityExecutor.ExecutionResult(
@@ -165,7 +165,7 @@ def test_run_callbacks_forward_on_single_task_result() -> None:
     ]
 
     def fake_run(_self, _jobs, _performance, **kwargs):
-        hook = kwargs.get("on_single_task_result")
+        hook = kwargs.get("on_task_result")
         if hook is not None:
             hook(
                 JobReport(job_id="job-1", success=True),
@@ -178,7 +178,61 @@ def test_run_callbacks_forward_on_single_task_result() -> None:
             jobs,
             _noop_execute,
             task_name="demo",
-            callbacks=RunCallbacks(on_single_task_result=on_single_task_result),
+            callbacks=RunCallbacks(on_task_result=on_task_result),
         )
 
     assert seen == ["job-1"]
+
+
+def test_require_execute_xor_advancement() -> None:
+    from core.modules.backtest_engine.core.shared.advancement import (
+        require_execute_xor_advancement,
+    )
+
+    with pytest.raises(ValueError, match="恰好其一"):
+        require_execute_xor_advancement()
+    with pytest.raises(ValueError, match="恰好其一"):
+        require_execute_xor_advancement(
+            execute_fn=_noop_execute,
+            advancement_hooks_factory=lambda ctx: None,
+        )
+    require_execute_xor_advancement(execute_fn=_noop_execute)
+    require_execute_xor_advancement(
+        advancement_hooks_factory=lambda ctx: None,
+    )
+
+
+def test_calendar_advancer_day_order() -> None:
+    from core.modules.backtest_engine.core.shared.advancement import CalendarAdvancer
+
+    events: list[str] = []
+
+    class Hooks:
+        def on_run_begin(self, open_dates):
+            events.append(f"begin:{len(open_dates)}")
+
+        def on_day(self, day, index, *, is_last):
+            events.append(f"day:{day}:{index}:{is_last}")
+
+        def on_run_end(self, open_dates):
+            events.append(f"end:{len(open_dates)}")
+            return {"success": True, "n": len(open_dates)}
+
+    result = CalendarAdvancer.run(
+        open_dates=["20240101", "20240102", "20240103", "20240110"],
+        hooks=Hooks(),
+        start_date="20240102",
+        end_date="20240103",
+    )
+    assert result == {"success": True, "n": 2}
+    assert events == [
+        "begin:2",
+        "day:20240102:0:False",
+        "day:20240103:1:True",
+        "end:2",
+    ]
+
+
+def test_entity_based_rejects_missing_worker() -> None:
+    with pytest.raises(ValueError, match="恰好其一"):
+        BacktestEngine.entity_based.run([], performance={"max_workers": 1})

@@ -76,7 +76,7 @@ class JobExecutor:
             return err
 
         from core.modules.data_contract import DATA_KEY
-        from core.modules.strategy.core.engines.enumerator.entity_based.services.enumeration_simulator import (
+        from core.modules.strategy.core.engines.enumerator.entity_based.simulation import (
             EntityEnumerationSimulator,
         )
         from core.modules.strategy.core.engines.enumerator.shared.report_manager import (

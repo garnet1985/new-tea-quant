@@ -167,7 +167,7 @@ class EnumeratorPipeline:
             from core.modules.strategy.core.engines.enumerator.slice_based.executor import (
                 JobExecutor,
             )
-            from core.modules.strategy.core.engines.enumerator.slice_based.services.job_builder import (
+            from core.modules.strategy.core.engines.enumerator.slice_based.job_builder.job_builder import (
                 JobBuilder,
             )
 
@@ -176,7 +176,7 @@ class EnumeratorPipeline:
         from core.modules.strategy.core.engines.enumerator.entity_based.executor import (
             JobExecutor,
         )
-        from core.modules.strategy.core.engines.enumerator.entity_based.services.job_builder import (
+        from core.modules.strategy.core.engines.enumerator.entity_based.job_builder.job_builder import (
             JobBuilder,
         )
 

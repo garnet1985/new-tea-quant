@@ -89,7 +89,7 @@ class JobExecutor:
         from core.modules.strategy.core.engines.enumerator.shared.report_manager import (
             ReportManager,
         )
-        from core.modules.strategy.core.engines.enumerator.slice_based.services.enumeration_simulator import (
+        from core.modules.strategy.core.engines.enumerator.slice_based.simulation import (
             SliceEnumerationSimulator,
         )
         from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (

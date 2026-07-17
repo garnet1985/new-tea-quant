@@ -16,22 +16,22 @@ from core.modules.backtest_engine.core.shared.types import (
     TaskCompleteFn,
     TaskStartFn,
 )
-from core.modules.backtest_engine.core.slice_based.executor import SliceExecutor
-from core.modules.backtest_engine.core.slice_based.executor_duckdb import (
+from core.modules.backtest_engine.core.schedule.slice_based.executor import SliceExecutor
+from core.modules.backtest_engine.core.schedule.slice_based.executor_duckdb import (
     SliceExecutorDuckDB,
 )
-from core.modules.backtest_engine.core.slice_based.monitor import (
+from core.modules.backtest_engine.core.schedule.slice_based.monitor import (
     SliceMonitorConfig,
     SliceMonitorPlanSnapshot,
     SliceRunMonitor,
 )
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
-from core.modules.backtest_engine.core.slice_based.planner import (
+from core.modules.backtest_engine.core.schedule.slice_based.planner import (
     SliceDispatchPlan,
     SliceJobBatch,
     SlicePlanner,
 )
-from core.modules.backtest_engine.core.slice_based.probe import SliceProbe
+from core.modules.backtest_engine.core.schedule.slice_based.probe import SliceProbe
 
 logger = logging.getLogger(__name__)
 

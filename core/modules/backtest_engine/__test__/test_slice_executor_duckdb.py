@@ -5,11 +5,11 @@ from contextlib import contextmanager
 from unittest.mock import patch
 
 from core.modules.backtest_engine.core.shared.context import ExecutionContext
-from core.modules.backtest_engine.core.slice_based.executor import SliceExecutor
-from core.modules.backtest_engine.core.slice_based.executor_duckdb import (
+from core.modules.backtest_engine.core.schedule.slice_based.executor import SliceExecutor
+from core.modules.backtest_engine.core.schedule.slice_based.executor_duckdb import (
     SliceExecutorDuckDB,
 )
-from core.modules.backtest_engine.core.slice_based.planner import (
+from core.modules.backtest_engine.core.schedule.slice_based.planner import (
     SliceDispatchPlan,
     SliceJobBatch,
 )

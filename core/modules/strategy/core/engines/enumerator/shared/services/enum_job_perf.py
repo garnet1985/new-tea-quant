@@ -13,7 +13,7 @@ class EnumJobPerfRecorder:
     边界:
     - 负责: load / enumerate / flush 等 phase 计时写入 payload
     - 不负责: 汇总 performance.json（ProfilerReport）
-    - 调用方: JobExecutor / BatchDataLoader / Simulator
+    - 调用方: JobExecutor / JobBundleLoader / TimelineHooks
     """
 
     def __init__(self, payload: Dict[str, Any]) -> None:

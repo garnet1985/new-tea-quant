@@ -2,13 +2,13 @@
 from __future__ import annotations
 
 from core.infra.machine_capacity import MachineCapacity
-from core.modules.backtest_engine.core.shared.performance import SliceBasedPerformance
-from core.modules.backtest_engine.core.slice_based.planner import SlicePlanner
-from core.modules.backtest_engine.core.slice_based.preload import (
+from core.modules.backtest_engine.core.performance.settings import SliceBasedPerformance
+from core.modules.backtest_engine.core.schedule.slice_based.planner import SlicePlanner
+from core.modules.backtest_engine.core.schedule.slice_based.preload import (
     ideal_preload_from_timings,
     resolve_preload_depth,
 )
-from core.modules.backtest_engine.core.slice_based.probe import SliceProbeResult
+from core.modules.backtest_engine.core.schedule.slice_based.probe import SliceProbeResult
 
 
 def test_ideal_preload_from_timings_ratio() -> None:

@@ -11,8 +11,8 @@ from core.modules.backtest_engine.core.shared.context import ExecutionContext
 from core.modules.backtest_engine.core.shared.duckdb_executor_scope import (
     execute_with_duckdb_process_pool_scope,
 )
-from core.modules.backtest_engine.core.entity_based.executor import EntityExecutor
-from core.modules.backtest_engine.core.entity_based.planner import DispatchPlan, JobBatch
+from core.modules.backtest_engine.core.schedule.entity_based.executor import EntityExecutor
+from core.modules.backtest_engine.core.schedule.entity_based.planner import DispatchPlan, JobBatch
 from core.modules.backtest_engine.core.shared.types import ExecuteFn, TaskStartFn, TaskCompleteFn
 
 

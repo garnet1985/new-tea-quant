@@ -1,4 +1,4 @@
-"""entity_based AdvancementHooks：BE CalendarAdvancer 驱动，本类实现单日业务。"""
+"""entity_based TimelineHooks：BE TimelineDriver 驱动，本类实现单日业务。"""
 from __future__ import annotations
 
 import logging
@@ -27,13 +27,13 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class EntityAdvancementHooks:
+class EntityTimelineHooks:
     """entity 日业务：tick + scan_opportunity（无 asof）。
 
     边界:
     - 负责: per-entity DataContext、Investment 生命周期、结果 dict
-    - 不负责: open_dates 迭代（CalendarAdvancer）、Contract 加载 / CSV
-    - 调用方: BacktestEngine via build_entity_advancement_hooks
+    - 不负责: open_dates 迭代（TimelineDriver）、Contract 加载 / CSV
+    - 调用方: BacktestEngine via EntityTimelineHooks.factory
     """
 
     entity_ids: List[str]
@@ -74,7 +74,7 @@ class EntityAdvancementHooks:
         self._min_required = resolver.min_required_records
 
     @classmethod
-    def from_job_context(cls, job_context: JobContext) -> "EntityAdvancementHooks":
+    def from_job_context(cls, job_context: JobContext) -> "EntityTimelineHooks":
         from core.modules.strategy.core.engines.enumerator.shared.executor_hooks import (
             ExecutorHooks,
         )
@@ -306,10 +306,10 @@ class EntityAdvancementHooks:
                 )
         return rows
 
+    @staticmethod
+    def factory(job_context: JobContext) -> "EntityTimelineHooks":
+        """可 pickle 的 TimelineHooksFactory。"""
+        return EntityTimelineHooks.from_job_context(job_context)
 
-def build_entity_advancement_hooks(job_context: JobContext) -> EntityAdvancementHooks:
-    """可 pickle 的 factory（模块级函数）。"""
-    return EntityAdvancementHooks.from_job_context(job_context)
 
-
-__all__ = ["EntityAdvancementHooks", "build_entity_advancement_hooks"]
+__all__ = ["EntityTimelineHooks"]

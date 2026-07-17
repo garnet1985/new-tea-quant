@@ -40,7 +40,7 @@ class StrategyDataResolver:
     不负责：
     - 系统级 global（stock.list、trade.calendar、latest completed trading date）
       → GlobalEntityCache.init_system_globals()
-    - 实际加载 contract 数据 → GlobalEntityCache / BatchDataLoader
+    - 实际加载 contract 数据 → GlobalEntityCache / JobBundleLoader
     """
 
     def __init__(self, settings: Dict[str, Any]) -> None:

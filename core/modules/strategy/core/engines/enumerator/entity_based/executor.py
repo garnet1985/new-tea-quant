@@ -1,4 +1,4 @@
-"""entity_based job executor（task 生命周期钩子；日推进由 BE + AdvancementHooks）。"""
+"""entity_based job executor（task 生命周期钩子；日推进由 BE TimelineDriver）。"""
 from __future__ import annotations
 
 from typing import Any, Dict, List
@@ -13,8 +13,8 @@ class JobExecutor:
     """entity_based task 钩子集合。
 
     边界:
-    - 负责: RunCallbacks（load / flush / 进度）；advancement factory 入口
-    - 不负责: 日历日循环（CalendarAdvancer）、Investment 细节（EntityAdvancementHooks）
+    - 负责: RunCallbacks（load / flush / 进度）
+    - 不负责: 日历日循环（TimelineDriver）、Investment（EntityTimelineHooks）
     - 调用方: EnumeratorPipeline → BacktestEngine.entity_based
     """
 
@@ -28,14 +28,6 @@ class JobExecutor:
             on_after_all_tasks_complete=ExecutorHooks.on_after_all_tasks_complete,
             on_task_result=ExecutorHooks.on_task_result,
         )
-
-    @staticmethod
-    def advancement_hooks_factory(job_context: Any) -> Any:
-        from core.modules.strategy.core.engines.enumerator.entity_based.advancement import (
-            build_entity_advancement_hooks,
-        )
-
-        return build_entity_advancement_hooks(job_context)
 
     @staticmethod
     def on_before_all_tasks_start(plan: Any, batches: List[Any]) -> None:

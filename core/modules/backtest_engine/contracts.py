@@ -1,11 +1,8 @@
-"""BacktestEngine 对外执行契约（跨模块 import 入口）。"""
-from core.modules.backtest_engine.core.shared.advancement import (
-    AdvancementHooks,
-    AdvancementHooksFactory,
-    BoundAdvancementExecute,
-    CalendarAdvancer,
-    resolve_worker_execute_fn,
-)
+"""BacktestEngine 对外执行契约（跨模块 import 入口）。
+
+引擎职责: job 调度 / 时间推进 / 性能监控。
+数据装载（JobBundleLoader 等）由使用方经 on_before_task_start 注入，不在此导出。
+"""
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.modules.backtest_engine.core.shared.modes import BacktestMode
 from core.modules.backtest_engine.core.shared.types import (
@@ -21,17 +18,18 @@ from core.modules.backtest_engine.core.shared.types import (
     RunCallbacks,
     RunProgress,
 )
+from core.modules.backtest_engine.core.timeline import (
+    TimelineDriver,
+    TimelineHooks,
+    TimelineHooksFactory,
+    TimelineWorkerExecute,
+    WorkerExecuteResolver,
+)
 
 __all__ = [
-    "AdvancementHooks",
-    "AdvancementHooksFactory",
-    "BoundAdvancementExecute",
     "BacktestJob",
     "BacktestMode",
-    "CalendarAdvancer",
     "ExecuteFn",
-    "TaskStartFn",
-    "TaskCompleteFn",
     "JobContext",
     "JobFailure",
     "JobFailurePhase",
@@ -40,5 +38,11 @@ __all__ = [
     "JobStatus",
     "RunCallbacks",
     "RunProgress",
-    "resolve_worker_execute_fn",
+    "TaskStartFn",
+    "TaskCompleteFn",
+    "TimelineDriver",
+    "TimelineHooks",
+    "TimelineHooksFactory",
+    "TimelineWorkerExecute",
+    "WorkerExecuteResolver",
 ]

@@ -17,7 +17,7 @@ import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from core.modules.backtest_engine.contracts import BacktestJob, JobContext, JobReport, RunCallbacks, RunProgress
-from core.modules.backtest_engine.core.shared.performance import (
+from core.modules.backtest_engine.core.performance.settings import (
     resolve_entity_based_performance,
     resolve_slice_based_performance,
 )

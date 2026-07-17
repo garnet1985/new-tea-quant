@@ -1,4 +1,4 @@
-"""slice_based AdvancementHooks：BE CalendarAdvancer 驱动，本类实现 asof 日业务。"""
+"""slice_based TimelineHooks：BE TimelineDriver 驱动，本类实现 asof 日业务。"""
 from __future__ import annotations
 
 import logging
@@ -30,13 +30,13 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class SliceAdvancementHooks:
+class SliceTimelineHooks:
     """slice 日业务：tick-all → on_calendar_asof → scan 选股。
 
     边界:
     - 负责: asof 选股、Investment、force_exit、head RSS 采样、结果 dict
-    - 不负责: open_dates 迭代（CalendarAdvancer）、Contract 加载 / CSV
-    - 调用方: BacktestEngine via build_slice_advancement_hooks
+    - 不负责: open_dates 迭代（TimelineDriver）、Contract 加载 / CSV
+    - 调用方: BacktestEngine via SliceTimelineHooks.factory
     """
 
     entity_ids: List[str]
@@ -82,7 +82,7 @@ class SliceAdvancementHooks:
         self._min_required = resolver.min_required_records
 
     @classmethod
-    def from_job_context(cls, job_context: JobContext) -> "SliceAdvancementHooks":
+    def from_job_context(cls, job_context: JobContext) -> "SliceTimelineHooks":
         from core.modules.strategy.core.engines.enumerator.shared.executor_hooks import (
             ExecutorHooks,
         )
@@ -540,9 +540,10 @@ class SliceAdvancementHooks:
             )
 
 
-def build_slice_advancement_hooks(job_context: JobContext) -> SliceAdvancementHooks:
-    """可 pickle 的 factory（模块级函数）。"""
-    return SliceAdvancementHooks.from_job_context(job_context)
+    @staticmethod
+    def factory(job_context: JobContext) -> "SliceTimelineHooks":
+        """可 pickle 的 TimelineHooksFactory。"""
+        return SliceTimelineHooks.from_job_context(job_context)
 
 
-__all__ = ["SliceAdvancementHooks", "build_slice_advancement_hooks"]
+__all__ = ["SliceTimelineHooks"]

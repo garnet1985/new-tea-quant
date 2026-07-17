@@ -25,7 +25,7 @@ from core.modules.backtest_engine.core.shared.types import (
     JobReport,
     RunProgress,
 )
-from core.modules.backtest_engine.core.entity_based.planner import DispatchPlan, JobBatch
+from core.modules.backtest_engine.core.schedule.entity_based.planner import DispatchPlan, JobBatch
 
 logger = logging.getLogger(__name__)
 
@@ -196,7 +196,7 @@ class EntityExecutor:
         on_after_task_complete: Optional[TaskCompleteFn] = None,
     ) -> Dict[str, Any]:
         """Process-pool entry: init → execute_fn → release。"""
-        from core.modules.backtest_engine.core.shared.profiler import WorkerTaskProfiler
+        from core.modules.backtest_engine.core.performance.profiler import WorkerTaskProfiler
         from core.modules.backtest_engine.core.shared.worker_data_runtime import (
             bootstrap_worker_data_manager,
         )

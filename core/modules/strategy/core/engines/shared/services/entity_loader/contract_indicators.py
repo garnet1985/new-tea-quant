@@ -1,4 +1,4 @@
-"""Batch-apply declared indicators onto loaded per-entity contracts (once per job)."""
+"""Apply declared indicators onto loaded per-entity contracts (once per job)."""
 from __future__ import annotations
 
 import logging
@@ -13,9 +13,9 @@ class ContractIndicators:
     """对已 load 的 per-entity Contract 批量写入声明的 indicators。
 
     边界:
-    - 负责: 按 entity_shared.indicators 配置计算并写回 kline rows
+    - 负责: 按 entity_shared.indicators 计算并写回 kline rows
     - 不负责: Contract 加载 / job 编排
-    - 调用方: BatchDataLoader（entity / slice 共用）
+    - 调用方: JobBundleLoader
     """
 
     @staticmethod
@@ -60,7 +60,6 @@ class ContractIndicators:
         entity_contracts: Dict[str, Any],
         entity_shared: Dict[str, Dict[str, Any]],
     ) -> None:
-        """Precompute indicators on full kline rows (legacy ``apply_indicators`` parity)."""
         for data_key, params_dict in entity_shared.items():
             indicators_cfg = params_dict.get("indicators") or {}
             if not indicators_cfg:
@@ -71,7 +70,7 @@ class ContractIndicators:
             data = getattr(contract, "data", None)
             if not isinstance(data, dict):
                 continue
-            for entity_id, rows in data.items():
+            for _entity_id, rows in data.items():
                 if not isinstance(rows, list) or not rows:
                     continue
                 ContractIndicators._apply_to_rows(rows, indicators_cfg)

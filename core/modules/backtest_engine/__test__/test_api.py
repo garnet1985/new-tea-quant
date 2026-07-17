@@ -7,10 +7,10 @@ import pytest
 
 from core.modules.backtest_engine import BacktestEngine
 from core.modules.backtest_engine.contracts import JobContext, JobReport, RunCallbacks, RunProgress
-from core.modules.backtest_engine.core.entity_based.execute_pipeline import (
+from core.modules.backtest_engine.core.schedule.entity_based.execute_pipeline import (
     EntityExecutePipeline,
 )
-from core.modules.backtest_engine.core.entity_based.executor import EntityExecutor
+from core.modules.backtest_engine.core.schedule.entity_based.executor import EntityExecutor
 
 
 def _noop_execute(context: JobContext) -> dict:
@@ -184,26 +184,22 @@ def test_run_callbacks_forward_on_task_result() -> None:
     assert seen == ["job-1"]
 
 
-def test_require_execute_xor_advancement() -> None:
-    from core.modules.backtest_engine.core.shared.advancement import (
-        require_execute_xor_advancement,
-    )
+def test_worker_execute_resolver_xor() -> None:
+    from core.modules.backtest_engine.core.timeline.worker import WorkerExecuteResolver
 
     with pytest.raises(ValueError, match="恰好其一"):
-        require_execute_xor_advancement()
+        WorkerExecuteResolver.resolve()
     with pytest.raises(ValueError, match="恰好其一"):
-        require_execute_xor_advancement(
+        WorkerExecuteResolver.resolve(
             execute_fn=_noop_execute,
-            advancement_hooks_factory=lambda ctx: None,
+            timeline_hooks_factory=lambda ctx: None,
         )
-    require_execute_xor_advancement(execute_fn=_noop_execute)
-    require_execute_xor_advancement(
-        advancement_hooks_factory=lambda ctx: None,
-    )
+    WorkerExecuteResolver.resolve(execute_fn=_noop_execute)
+    WorkerExecuteResolver.resolve(timeline_hooks_factory=lambda ctx: None)
 
 
-def test_calendar_advancer_day_order() -> None:
-    from core.modules.backtest_engine.core.shared.advancement import CalendarAdvancer
+def test_timeline_driver_day_order() -> None:
+    from core.modules.backtest_engine.core.timeline.driver import TimelineDriver
 
     events: list[str] = []
 
@@ -218,7 +214,7 @@ def test_calendar_advancer_day_order() -> None:
             events.append(f"end:{len(open_dates)}")
             return {"success": True, "n": len(open_dates)}
 
-    result = CalendarAdvancer.run(
+    result = TimelineDriver.run(
         open_dates=["20240101", "20240102", "20240103", "20240110"],
         hooks=Hooks(),
         start_date="20240102",

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List
 
-from core.modules.backtest_engine.core.shared.profiler import (
+from core.modules.backtest_engine.core.performance.profiler import (
     ENGINE_PERF_KEY,
     ENUM_PERF_KEY,
 )

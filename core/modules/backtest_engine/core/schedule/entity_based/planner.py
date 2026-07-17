@@ -17,14 +17,14 @@ from core.infra.job_pipeline.profile.dispatch_settings import (
 )
 from core.modules.backtest_engine.core.shared.base_planner import BasePlanner
 from core.modules.backtest_engine.core.shared.types import JobContext, TaskStartFn, TaskCompleteFn
-from core.modules.backtest_engine.core.entity_based.probe import (
+from core.modules.backtest_engine.core.schedule.entity_based.probe import (
     Probe,
     ProbeResult,
     WorkerProbe,
     DEFAULT_PROBE_ENTITIES,
 )
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
-from core.modules.backtest_engine.core.entity_based.monitor import (
+from core.modules.backtest_engine.core.schedule.entity_based.monitor import (
     MonitorPlanSnapshot,
     EntityMonitorConfig,
 )

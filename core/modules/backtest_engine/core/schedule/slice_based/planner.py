@@ -26,20 +26,20 @@ from core.infra.machine_capacity import MachineCapacity, MachineInfo
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.modules.backtest_engine.core.shared.types import JobContext
 from core.modules.backtest_engine.core.shared.base_planner import BasePlanner
-from core.modules.backtest_engine.core.shared.performance import SliceBasedPerformance
-from core.modules.backtest_engine.core.slice_based.monitor import (
+from core.modules.backtest_engine.core.performance.settings import SliceBasedPerformance
+from core.modules.backtest_engine.core.schedule.slice_based.monitor import (
     SliceMonitorConfig,
     SliceMonitorPlanSnapshot,
 )
-from core.modules.backtest_engine.core.slice_based.probe import (
+from core.modules.backtest_engine.core.schedule.slice_based.probe import (
     SliceProbe,
     SliceProbeResult,
 )
-from core.modules.backtest_engine.core.slice_based.preload import (
+from core.modules.backtest_engine.core.schedule.slice_based.preload import (
     MAX_PRELOAD_DEPTH,
     resolve_preload_depth,
 )
-from core.modules.backtest_engine.core.shared.performance import DEFAULT_PRELOAD_DEPTH
+from core.modules.backtest_engine.core.performance.settings import DEFAULT_PRELOAD_DEPTH
 
 logger = logging.getLogger(__name__)
 

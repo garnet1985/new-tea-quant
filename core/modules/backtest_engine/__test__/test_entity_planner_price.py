@@ -6,8 +6,8 @@ import math
 import pytest
 
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
-from core.modules.backtest_engine.core.shared.performance import resolve_entity_based_performance
-from core.modules.backtest_engine.core.entity_based.planner import EntityPlanner
+from core.modules.backtest_engine.core.performance.settings import resolve_entity_based_performance
+from core.modules.backtest_engine.core.schedule.entity_based.planner import EntityPlanner
 from core.modules.strategy.services.execution.worker_profile import (
     profile_price_factor_dispatch_config,
 )

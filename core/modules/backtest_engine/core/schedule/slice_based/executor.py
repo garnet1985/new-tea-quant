@@ -27,7 +27,7 @@ from core.modules.backtest_engine.core.shared.types import (
     TaskCompleteFn,
     TaskStartFn,
 )
-from core.modules.backtest_engine.core.slice_based.planner import (
+from core.modules.backtest_engine.core.schedule.slice_based.planner import (
     SliceDispatchPlan,
     SliceJobBatch,
 )

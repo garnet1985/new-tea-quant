@@ -1,4 +1,4 @@
-"""Shared PIT / bar helpers for enumerator advancement (entity + slice)."""
+"""Shared PIT / bar helpers for enumerator timeline hooks (entity + slice)."""
 from __future__ import annotations
 
 import logging
@@ -18,7 +18,7 @@ class PitBars:
     边界:
     - 负责: until 聚合、bar_on 校验
     - 不负责: 日循环、Investment
-    - 调用方: entity / slice AdvancementHooks
+    - 调用方: entity / slice TimelineHooks
     """
 
     @staticmethod

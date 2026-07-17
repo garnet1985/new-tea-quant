@@ -11,7 +11,7 @@
 不负责：
 - settings.data 声明解析与 global/per_entity 分组 → StrategyDataResolver
 - entity 采样 → StockSampler（pipeline 层）
-- per_entity contracts → JobBuilder / BatchDataLoader
+- per_entity contracts → JobBuilder / entity_loader.JobBundleLoader
 """
 
 from __future__ import annotations

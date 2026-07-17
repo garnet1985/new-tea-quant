@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from core.infra.machine_capacity import MachineCapacity
-from core.modules.backtest_engine.core.entity_based.planner import EntityPlanner
+from core.modules.backtest_engine.core.schedule.entity_based.planner import EntityPlanner
 
 
 def test_resolve_max_workers_auto_uses_cpu_cap() -> None:

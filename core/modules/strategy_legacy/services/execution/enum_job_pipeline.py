@@ -8,7 +8,7 @@ from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.
     profile_enumerator_calendar_slice_config,
     profile_enumerator_dispatch_config,
 )
-from core.modules.backtest_engine.core.shared.performance import (
+from core.modules.backtest_engine.core.performance.settings import (
     resolve_entity_based_performance,
     resolve_slice_based_performance,
 )

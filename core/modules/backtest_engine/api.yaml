@@ -30,7 +30,7 @@ requires: core>=0.4.0
 
 BacktestEngine:
   layer: orchestrator
-  description: "回测调度 Facade — entity_based / slice_based 两种执行模式"
+  description: "回测 Facade（调度 / 时间推进 / 性能）— entity_based / slice_based；数据装载由调用方经 callbacks 注入"
 
   apis:
     run:

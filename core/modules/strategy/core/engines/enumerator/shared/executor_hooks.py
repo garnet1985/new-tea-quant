@@ -26,8 +26,8 @@ class ExecutorHooks:
     """entity / slice JobExecutor 共用的主进程钩子与数据加载。
 
     边界:
-    - 负责: callbacks 组装、batch load、flush CSV、单 task 进度、全局 cleanup
-    - 不负责: mode 专有日业务（EntityAdvancementHooks / SliceAdvancementHooks）
+    - 负责: callbacks 组装、batch load（JobBundleLoader）、flush CSV、单 task 进度、全局 cleanup
+    - 不负责: mode 专有日业务（EntityTimelineHooks / SliceTimelineHooks）；亦不归属 BacktestEngine 本体
     - 调用方: entity_based.JobExecutor / slice_based.JobExecutor
     """
 
@@ -60,8 +60,8 @@ class ExecutorHooks:
 
     @staticmethod
     def load_bundle_data(job_context: Any, *, log_label: str) -> Dict[str, Any]:
-        from core.modules.strategy.core.engines.enumerator.shared.services.batch_data_loader import (
-            BatchDataLoader,
+        from core.modules.strategy.core.engines.shared.services.entity_loader.job_bundle_loader import (
+            JobBundleLoader,
         )
         from core.modules.strategy.core.engines.enumerator.shared.services.enum_job_perf import (
             EnumJobPerfRecorder,
@@ -70,7 +70,7 @@ class ExecutorHooks:
         logger.info("%s开始：job_id=%s", log_label, job_context.job_id)
         perf = EnumJobPerfRecorder.attach(job_context.payload)
         perf.begin("load_data")
-        loaded_data = BatchDataLoader.load_bundle_data(job_context.payload, perf=perf)
+        loaded_data = JobBundleLoader.load(job_context.payload, perf=perf)
         perf.end("load_data")
         logger.info(
             "%s完成：entity_contracts_count=%d, global_keys=%d",

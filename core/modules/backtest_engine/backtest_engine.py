@@ -1,43 +1,44 @@
-"""BacktestEngine facade — public entry for entity_based / slice_based backtest runs."""
+"""BacktestEngine facade — schedule / timeline / performance entry."""
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from core.modules.backtest_engine.core.shared.advancement import (
-    AdvancementHooksFactory,
-    resolve_worker_execute_fn,
-)
-from core.modules.backtest_engine.core.shared.modes import BacktestMode
-from core.modules.backtest_engine.core.shared.performance import (
+from core.modules.backtest_engine.core.performance.settings import (
     resolve_entity_based_performance,
     resolve_slice_based_performance,
 )
-from core.modules.backtest_engine.core.shared.jobs import BacktestJob
-from core.modules.backtest_engine.core.shared.types import ExecuteFn, JobReport, RunCallbacks
-from core.modules.backtest_engine.core.slice_based.execute_pipeline import (
+from core.modules.backtest_engine.core.schedule.entity_based.execute_pipeline import (
+    EntityExecutePipeline,
+)
+from core.modules.backtest_engine.core.schedule.slice_based.execute_pipeline import (
     SliceExecutePipeline,
 )
-from core.modules.backtest_engine.core.entity_based.execute_pipeline import (
-    EntityExecutePipeline,
+from core.modules.backtest_engine.core.shared.jobs import BacktestJob
+from core.modules.backtest_engine.core.shared.modes import BacktestMode
+from core.modules.backtest_engine.core.shared.types import ExecuteFn, JobReport, RunCallbacks
+from core.modules.backtest_engine.core.timeline.worker import (
+    TimelineHooksFactory,
+    WorkerExecuteResolver,
 )
 
 logger = logging.getLogger(__name__)
 
 
 class BacktestEngine:
-    """Backtest engine facade."""
+    """Backtest engine facade（调度 / 时间推进 / 性能监控）。
+
+    数据装载不在引擎内：使用方经 ``callbacks.on_before_task_start`` 写入
+    ``job_context.init``（如 enumerator 的 JobBundleLoader）。
+    """
 
     Mode = BacktestMode
-
     ExecuteFn = ExecuteFn
     RunCallbacks = RunCallbacks
 
     @dataclass(frozen=True)
     class RunResult:
-        """Stable run summary returned by BacktestEngine."""
-
         mode: str
         success: bool
         total_jobs: int
@@ -50,10 +51,7 @@ class BacktestEngine:
         pipeline_phases_sec: Optional[Dict[str, float]] = None
 
         @classmethod
-        def from_slice_based(
-            cls,
-            result: SliceExecutePipeline.Result,
-        ) -> BacktestEngine.RunResult:
+        def from_slice_based(cls, result: SliceExecutePipeline.Result) -> BacktestEngine.RunResult:
             execution = result.execution
             phases = dict(getattr(result, "pipeline_phases_sec", None) or {})
             return cls(
@@ -70,10 +68,7 @@ class BacktestEngine:
             )
 
         @classmethod
-        def from_entity_based(
-            cls,
-            result: EntityExecutePipeline.Result,
-        ) -> BacktestEngine.RunResult:
+        def from_entity_based(cls, result: EntityExecutePipeline.Result) -> BacktestEngine.RunResult:
             execution = result.execution
             phases = dict(getattr(result, "pipeline_phases_sec", None) or {})
             return cls(
@@ -90,14 +85,12 @@ class BacktestEngine:
             )
 
     class EntityBased:
-        """entity_based API (entity-level jobs, process-pool QUEUE)."""
-
         @staticmethod
         def run(
             jobs: List[Dict[str, Any]],
             execute_fn: Optional[ExecuteFn] = None,
             *,
-            advancement_hooks_factory: Optional[AdvancementHooksFactory] = None,
+            timeline_hooks_factory: Optional[TimelineHooksFactory] = None,
             performance: Optional[Dict[str, Any]] = None,
             task_name: str = "",
             callbacks: Optional[RunCallbacks] = None,
@@ -106,7 +99,7 @@ class BacktestEngine:
             return BacktestEngine._run_entity_based(
                 jobs,
                 execute_fn=execute_fn,
-                advancement_hooks_factory=advancement_hooks_factory,
+                timeline_hooks_factory=timeline_hooks_factory,
                 performance=performance,
                 task_name=task_name,
                 callbacks=callbacks,
@@ -114,14 +107,12 @@ class BacktestEngine:
             )
 
     class SliceBased:
-        """slice_based API (calendar slice, bulk job + orchestrator)."""
-
         @staticmethod
         def run(
             jobs: List[Dict[str, Any]],
             execute_fn: Optional[ExecuteFn] = None,
             *,
-            advancement_hooks_factory: Optional[AdvancementHooksFactory] = None,
+            timeline_hooks_factory: Optional[TimelineHooksFactory] = None,
             performance: Optional[Dict[str, Any]] = None,
             task_name: str = "",
             callbacks: Optional[RunCallbacks] = None,
@@ -130,7 +121,7 @@ class BacktestEngine:
             return BacktestEngine._run_slice_based(
                 jobs,
                 execute_fn=execute_fn,
-                advancement_hooks_factory=advancement_hooks_factory,
+                timeline_hooks_factory=timeline_hooks_factory,
                 performance=performance,
                 task_name=task_name,
                 callbacks=callbacks,
@@ -145,15 +136,15 @@ class BacktestEngine:
         jobs: List[Dict[str, Any]],
         *,
         execute_fn: Optional[ExecuteFn] = None,
-        advancement_hooks_factory: Optional[AdvancementHooksFactory] = None,
+        timeline_hooks_factory: Optional[TimelineHooksFactory] = None,
         performance: Optional[Dict[str, Any]] = None,
         task_name: str = "",
         callbacks: Optional[RunCallbacks] = None,
         enable_progress_display: bool = True,
     ) -> BacktestEngine.RunResult:
-        worker_fn = resolve_worker_execute_fn(
+        worker_fn = WorkerExecuteResolver.resolve(
             execute_fn=execute_fn,
-            advancement_hooks_factory=advancement_hooks_factory,
+            timeline_hooks_factory=timeline_hooks_factory,
         )
         if jobs:
             BacktestJob.validate_many(jobs, mode=BacktestMode.ENTITY_BASED)
@@ -180,15 +171,15 @@ class BacktestEngine:
         jobs: List[Dict[str, Any]],
         *,
         execute_fn: Optional[ExecuteFn] = None,
-        advancement_hooks_factory: Optional[AdvancementHooksFactory] = None,
+        timeline_hooks_factory: Optional[TimelineHooksFactory] = None,
         performance: Optional[Dict[str, Any]] = None,
         task_name: str = "",
         callbacks: Optional[RunCallbacks] = None,
         enable_progress_display: bool = True,
     ) -> BacktestEngine.RunResult:
-        worker_fn = resolve_worker_execute_fn(
+        worker_fn = WorkerExecuteResolver.resolve(
             execute_fn=execute_fn,
-            advancement_hooks_factory=advancement_hooks_factory,
+            timeline_hooks_factory=timeline_hooks_factory,
         )
         if jobs:
             BacktestJob.validate_many(jobs, mode=BacktestMode.SLICE_BASED)
@@ -217,7 +208,7 @@ class BacktestEngine:
         jobs: List[Dict[str, Any]],
         execute_fn: Optional[ExecuteFn] = None,
         *,
-        advancement_hooks_factory: Optional[AdvancementHooksFactory] = None,
+        timeline_hooks_factory: Optional[TimelineHooksFactory] = None,
         performance: Optional[Dict[str, Any]] = None,
         task_name: str = "",
         callbacks: Optional[RunCallbacks] = None,
@@ -228,7 +219,7 @@ class BacktestEngine:
             return cls._run_entity_based(
                 jobs,
                 execute_fn=execute_fn,
-                advancement_hooks_factory=advancement_hooks_factory,
+                timeline_hooks_factory=timeline_hooks_factory,
                 performance=performance,
                 task_name=task_name,
                 callbacks=callbacks,
@@ -238,7 +229,7 @@ class BacktestEngine:
             return cls._run_slice_based(
                 jobs,
                 execute_fn=execute_fn,
-                advancement_hooks_factory=advancement_hooks_factory,
+                timeline_hooks_factory=timeline_hooks_factory,
                 performance=performance,
                 task_name=task_name,
                 callbacks=callbacks,

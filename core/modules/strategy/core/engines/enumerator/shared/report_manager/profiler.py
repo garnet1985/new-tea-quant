@@ -12,8 +12,8 @@ if TYPE_CHECKING:
         ReportManager,
     )
 
-from core.modules.backtest_engine.core.entity_based.monitor import EntityMonitorStats
-from core.modules.backtest_engine.core.shared.profiler import (
+from core.modules.backtest_engine.core.schedule.entity_based.monitor import EntityMonitorStats
+from core.modules.backtest_engine.core.performance.profiler import (
     ENGINE_PERF_KEY,
     ENUM_PERF_KEY,
     WorkerTaskPerf,

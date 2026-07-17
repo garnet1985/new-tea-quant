@@ -129,7 +129,7 @@ def resolve_entity_based_performance_for_profile(
     override: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """profile 合并 + EntityBasedPerformance 校验（enum / tag 等统一入口）。"""
-    from core.modules.backtest_engine.core.shared.performance import (
+    from core.modules.backtest_engine.core.performance.settings import (
         resolve_entity_based_performance,
     )
 

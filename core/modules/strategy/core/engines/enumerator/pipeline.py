@@ -10,7 +10,7 @@ from core.infra.job_pipeline.profile import (
     resolve_entity_based_performance_for_profile,
 )
 from core.infra.project_context import ProjectContext
-from core.modules.backtest_engine.core.shared.performance import resolve_slice_based_performance
+from core.modules.backtest_engine.core.performance.settings import resolve_slice_based_performance
 from core.modules.strategy.core.engines.enumerator.shared.report_manager import ReportManager
 from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_consts import (
     ReportPaths,
@@ -231,25 +231,25 @@ class EnumeratorPipeline:
         task_name = f"strategy_{report_manager.strategy_key}"
 
         if execution_mode == _MODE_SLICE:
-            from core.modules.strategy.core.engines.enumerator.slice_based.advancement import (
-                build_slice_advancement_hooks,
+            from core.modules.strategy.core.engines.enumerator.slice_based.timeline import (
+                SliceTimelineHooks,
             )
 
             run_result = BacktestEngine.slice_based.run(
                 jobs=jobs,
-                advancement_hooks_factory=build_slice_advancement_hooks,
+                timeline_hooks_factory=SliceTimelineHooks.factory,
                 performance=performance,
                 callbacks=callbacks,
                 task_name=task_name,
             )
         else:
-            from core.modules.strategy.core.engines.enumerator.entity_based.advancement import (
-                build_entity_advancement_hooks,
+            from core.modules.strategy.core.engines.enumerator.entity_based.timeline import (
+                EntityTimelineHooks,
             )
 
             run_result = BacktestEngine.entity_based.run(
                 jobs=jobs,
-                advancement_hooks_factory=build_entity_advancement_hooks,
+                timeline_hooks_factory=EntityTimelineHooks.factory,
                 performance=performance,
                 callbacks=callbacks,
                 task_name=task_name,

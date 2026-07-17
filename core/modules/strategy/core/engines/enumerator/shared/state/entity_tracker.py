@@ -22,7 +22,7 @@ class EntityTracker:
     边界:
     - 负责: Investment 注册 / tick / settle；recorded 供写 CSV
     - 不负责: 选股、数据加载、报告落盘
-    - 调用方: EntityAdvancementHooks / SliceAdvancementHooks（entity / slice 共用）
+    - 调用方: EntityTimelineHooks / SliceTimelineHooks（entity / slice 共用）
 
     枚举产物是 **Investment**（模拟后的完整生命周期），不是裸 Opportunity。
     - ``active``：持仓中、尚未 complete 的 investment

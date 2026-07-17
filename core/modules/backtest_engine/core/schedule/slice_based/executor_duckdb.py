@@ -12,8 +12,8 @@ from core.modules.backtest_engine.core.shared.duckdb_executor_scope import (
     execute_with_duckdb_process_pool_scope,
 )
 from core.modules.backtest_engine.core.shared.types import TaskCompleteFn, TaskStartFn
-from core.modules.backtest_engine.core.slice_based.executor import SliceExecutor
-from core.modules.backtest_engine.core.slice_based.planner import (
+from core.modules.backtest_engine.core.schedule.slice_based.executor import SliceExecutor
+from core.modules.backtest_engine.core.schedule.slice_based.planner import (
     SliceDispatchPlan,
     SliceJobBatch,
 )

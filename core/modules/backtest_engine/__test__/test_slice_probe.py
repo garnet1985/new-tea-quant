@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.modules.backtest_engine.core.slice_based.probe import SliceProbe
+from core.modules.backtest_engine.core.schedule.slice_based.probe import SliceProbe
 
 
 def _sample_orchestrator_result() -> dict:

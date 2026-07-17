@@ -91,7 +91,7 @@ def run_scanner_timeline_via_backtest_engine(
     from core.modules.backtest_engine import BacktestEngine
     from core.modules.backtest_engine.contracts import JobReport, RunProgress
 
-    from core.modules.backtest_engine.core.shared.performance import (
+    from core.modules.backtest_engine.core.performance.settings import (
         resolve_entity_based_performance,
     )
     from .worker_profile import profile_scanner_dispatch_config

@@ -22,7 +22,7 @@ class JobBundleLoader:
     边界:
     - 负责: issue per_entity Contract、读 shm global、应用 indicators
     - 不负责: 日历推进、策略 hooks、CSV、job 调度
-    - 调用方: enumerator ExecutorHooks.on_before_task_start（写入 job_context.init）
+    - 调用方: enumerator JobExecutor.on_before_task_start（写入 job_context.init）
     """
 
     @staticmethod

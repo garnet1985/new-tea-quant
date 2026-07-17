@@ -1,9 +1,9 @@
-"""公共 JobExecutor 钩子（entity / slice 共用主进程回调与 load/flush）。"""
+"""enumerator JobExecutor 基类（entity / slice 共用 task 生命周期钩子）。"""
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -22,48 +22,59 @@ class ExecutorHooksContext:
     global_entity_cache: Any = None
 
 
-class ExecutorHooks:
-    """entity / slice JobExecutor 共用的主进程钩子与数据加载。
+class BaseJobExecutor:
+    """entity / slice JobExecutor 基类。
 
     边界:
-    - 负责: callbacks 组装、batch load（JobBundleLoader）、flush CSV、单 task 进度、全局 cleanup
-    - 不负责: mode 专有日业务（EntityTimelineHooks / SliceTimelineHooks）；亦不归属 BacktestEngine 本体
-    - 调用方: entity_based.JobExecutor / slice_based.JobExecutor
+    - 负责: RunCallbacks 组装、bundle load、flush、进度、hooks 加载
+    - 不负责: 日历日循环（TimelineDriver）、mode 专有调度日志（子类覆盖）
+    - 调用方: entity_based / slice_based JobExecutor；TimelineHooks.load_hooks
     """
 
-    @staticmethod
-    def build_run_callbacks(
-        ctx: ExecutorHooksContext,
-        *,
-        on_before_all_tasks_start: Callable[[Any, List[Any]], None],
-        on_before_task_start: Callable[[Any], Dict[str, Any]],
-        on_after_task_complete: Callable[[Any], None],
-        on_after_all_tasks_complete: Callable[..., None],
-        on_task_result: Callable[..., None],
-    ) -> Any:
+    #: 子类可覆盖，用于 load 日志前缀
+    task_log_label: str = "task"
+
+    @classmethod
+    def build_run_callbacks(cls, ctx: ExecutorHooksContext) -> Any:
         from core.modules.backtest_engine.contracts import RunCallbacks
 
         return RunCallbacks(
-            on_before_all_tasks_start=on_before_all_tasks_start,
-            on_before_task_start=on_before_task_start,
-            on_after_task_complete=on_after_task_complete,
-            on_after_all_tasks_complete=lambda job_reports: on_after_all_tasks_complete(
+            on_before_all_tasks_start=cls.on_before_all_tasks_start,
+            on_before_task_start=cls.on_before_task_start,
+            on_after_task_complete=cls.on_after_task_complete,
+            on_after_all_tasks_complete=lambda job_reports: cls.on_after_all_tasks_complete(
                 job_reports,
                 ctx.global_entity_cache,
             ),
-            on_task_result=lambda report, progress: on_task_result(
+            on_task_result=lambda report, progress: cls.on_task_result(
                 report,
                 progress,
                 report_manager=ctx.report_manager,
             ),
         )
 
-    @staticmethod
-    def load_bundle_data(job_context: Any, *, log_label: str) -> Dict[str, Any]:
+    @classmethod
+    def on_before_all_tasks_start(cls, plan: Any, batches: List[Any]) -> None:
+        print(
+            f"  调度: {len(batches)} batches, "
+            f"workers={getattr(plan, 'max_workers', '?')}",
+            flush=True,
+        )
+
+    @classmethod
+    def on_before_task_start(cls, job_context: Any) -> Dict[str, Any]:
+        return cls.load_bundle_data(job_context, log_label=cls.task_log_label)
+
+    @classmethod
+    def on_after_task_complete(cls, job_context: Any) -> None:
+        cls.flush_job_investments(job_context)
+
+    @classmethod
+    def load_bundle_data(cls, job_context: Any, *, log_label: str) -> Dict[str, Any]:
         from core.modules.strategy.core.engines.shared.services.entity_loader.job_bundle_loader import (
             JobBundleLoader,
         )
-        from core.modules.strategy.core.engines.enumerator.shared.services.enum_job_perf import (
+        from core.modules.strategy.core.engines.enumerator.shared.performance_tracker.performance_tracker import (
             EnumJobPerfRecorder,
         )
 
@@ -80,9 +91,9 @@ class ExecutorHooks:
         )
         return loaded_data
 
-    @staticmethod
-    def flush_job_investments(job_context: Any) -> None:
-        from core.modules.strategy.core.engines.enumerator.shared.services.enum_job_perf import (
+    @classmethod
+    def flush_job_investments(cls, job_context: Any) -> None:
+        from core.modules.strategy.core.engines.enumerator.shared.performance_tracker.performance_tracker import (
             EnumJobPerfRecorder,
         )
         from core.modules.strategy.core.engines.enumerator.shared.report_manager import (
@@ -94,8 +105,9 @@ class ExecutorHooks:
         ReportManager.worker_flush_job_investments(job_context.payload)
         perf.end("flush_csv")
 
-    @staticmethod
+    @classmethod
     def on_task_result(
+        cls,
         report: Any,
         progress: Any,
         *,
@@ -122,9 +134,11 @@ class ExecutorHooks:
                 report.error or "Unknown error",
             )
 
-    @staticmethod
+    @classmethod
     def on_after_all_tasks_complete(
-        job_reports: List[Any], global_entity_cache: Any = None
+        cls,
+        job_reports: List[Any],
+        global_entity_cache: Any = None,
     ) -> None:
         logger.info("所有tasks完成：total=%d", len(job_reports))
 
@@ -144,14 +158,18 @@ class ExecutorHooks:
             fail_count,
         )
 
-    @staticmethod
-    def load_hooks(strategy_info: Dict[str, Any]) -> Any:
+    @classmethod
+    def load_hooks(cls, strategy_info: Dict[str, Any]) -> Any:
         """加载策略 hooks 类实例；失败返回 (None, error_dict)。"""
         hooks_module_path = strategy_info.get("hooks_module_path")
         hooks_class_name = strategy_info.get("hooks_class_name")
         hooks_file_path = strategy_info.get("hooks_file_path", "")
         if not hooks_module_path or not hooks_class_name:
-            return None, {"success": False, "opportunities_count": 0, "error": "缺少hooks信息"}
+            return None, {
+                "success": False,
+                "opportunities_count": 0,
+                "error": "缺少hooks信息",
+            }
 
         try:
             from core.modules.strategy.core.services.discovery.worker_loader import (
@@ -166,7 +184,11 @@ class ExecutorHooks:
             return hooks_class(), None
         except Exception as exc:
             logger.error("加载hooks类失败：%s", exc, exc_info=True)
-            return None, {"success": False, "opportunities_count": 0, "error": str(exc)}
+            return None, {
+                "success": False,
+                "opportunities_count": 0,
+                "error": str(exc),
+            }
 
 
-__all__ = ["ExecutorHooksContext", "ExecutorHooks"]
+__all__ = ["ExecutorHooksContext", "BaseJobExecutor"]

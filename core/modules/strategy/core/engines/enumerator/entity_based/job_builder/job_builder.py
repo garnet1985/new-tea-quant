@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from core.modules.strategy.core.engines.enumerator.shared.services.job_payload import (
-    JobPayloadBuilder,
+from core.modules.strategy.core.engines.enumerator.shared.base_job_builder import (
+    BaseJobBuilder,
 )
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
@@ -15,17 +15,18 @@ from core.modules.strategy.core.services.discovery.data.discovered_strategy impo
 )
 
 
-class JobBuilder:
-    """entity_based Job 构建（无状态）。
+class JobBuilder(BaseJobBuilder):
+    """entity_based Job 构建。
 
     边界:
-    - 负责: 组装 bundle job（调用 JobPayloadBuilder 公共主体）
-    - 不负责: 执行、日历 open_dates（slice 侧额外写入）
+    - 负责: 组装单 bundle job（复用基类 payload）
+    - 不负责: 执行、日历 open_dates（slice 侧追加）
     - 调用方: EnumeratorPipeline
     """
 
-    @staticmethod
+    @classmethod
     def build_backtest_engine_jobs(
+        cls,
         strategy_info: EnabledStrategyInfo,
         effective_settings: StrategySettings,
         entity_ids: List[str],
@@ -34,8 +35,8 @@ class JobBuilder:
         shm_info: Dict[str, Any],
         output_recorder_snapshot: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
-        period = JobPayloadBuilder.resolve_period(effective_settings)
-        payload = JobPayloadBuilder.build_core_payload(
+        period = cls._resolve_period(effective_settings)
+        payload = cls._build_core_payload(
             strategy_info=strategy_info,
             effective_settings=effective_settings,
             entity_ids=entity_ids,

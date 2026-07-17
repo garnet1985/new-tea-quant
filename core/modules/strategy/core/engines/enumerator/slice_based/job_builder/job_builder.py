@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List
 
-from core.modules.strategy.core.engines.enumerator.shared.services.job_payload import (
-    JobPayloadBuilder,
+from core.modules.strategy.core.engines.enumerator.shared.base_job_builder import (
+    BaseJobBuilder,
 )
 from core.modules.strategy.core.engines.enumerator.slice_based.resolver.calendar import (
     BacktestCalendarResolver,
@@ -21,17 +21,18 @@ from core.modules.strategy.core.services.discovery.data.discovered_strategy impo
 logger = logging.getLogger(__name__)
 
 
-class JobBuilder:
-    """slice_based Job 构建（无状态）。
+class JobBuilder(BaseJobBuilder):
+    """slice_based Job 构建。
 
     边界:
-    - 负责: JobPayloadBuilder 公共主体 + open_dates / backtest_calendar / stock_ids
+    - 负责: 基类 payload + open_dates / backtest_calendar / stock_ids
     - 不负责: 执行、报告落盘
     - 调用方: EnumeratorPipeline
     """
 
-    @staticmethod
+    @classmethod
     def build_backtest_engine_jobs(
+        cls,
         strategy_info: EnabledStrategyInfo,
         effective_settings: StrategySettings,
         entity_ids: List[str],
@@ -40,7 +41,7 @@ class JobBuilder:
         shm_info: Dict[str, Any],
         output_recorder_snapshot: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
-        period = JobPayloadBuilder.resolve_period(effective_settings)
+        period = cls._resolve_period(effective_settings)
         start_date = period.start_date
         end_date = period.end_date
 
@@ -50,7 +51,7 @@ class JobBuilder:
             end_date=end_date,
         )
 
-        payload = JobPayloadBuilder.build_core_payload(
+        payload = cls._build_core_payload(
             strategy_info=strategy_info,
             effective_settings=effective_settings,
             entity_ids=entity_ids,

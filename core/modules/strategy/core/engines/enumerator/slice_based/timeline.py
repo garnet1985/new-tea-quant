@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from core.modules.backtest_engine.contracts import JobContext
 from core.modules.strategy.contracts import CalendarAsOfResult, Opportunity
-from core.modules.strategy.core.engines.enumerator.shared.services.enum_job_perf import (
+from core.modules.strategy.core.engines.enumerator.shared.performance_tracker.performance_tracker import (
     EnumJobPerfRecorder,
 )
 from core.modules.strategy.core.engines.enumerator.shared.services.pit_bars import PitBars
@@ -83,15 +83,15 @@ class SliceTimelineHooks:
 
     @classmethod
     def from_job_context(cls, job_context: JobContext) -> "SliceTimelineHooks":
-        from core.modules.strategy.core.engines.enumerator.shared.executor_hooks import (
-            ExecutorHooks,
+        from core.modules.strategy.core.engines.enumerator.shared.base_executor import (
+            BaseJobExecutor,
         )
 
         payload = job_context.payload or {}
         loaded = job_context.init or {}
         strategy_info = payload.get("strategy_info") or {}
         settings = StrategySettings.from_dict(payload.get("settings") or {})
-        hooks_instance, err = ExecutorHooks.load_hooks(strategy_info)
+        hooks_instance, err = BaseJobExecutor.load_hooks(strategy_info)
         if err is not None:
             raise RuntimeError(err.get("error") or "缺少hooks信息")
 

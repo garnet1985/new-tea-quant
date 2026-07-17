@@ -159,7 +159,7 @@ class EnumeratorPipeline:
         cls, execution_mode: str
     ) -> Tuple[Type[Any], Type[Any], Type[Any]]:
         """按 mode 返回 (JobBuilder, JobExecutor, ExecutorHooksContext)。"""
-        from core.modules.strategy.core.engines.enumerator.shared.executor_hooks import (
+        from core.modules.strategy.core.engines.enumerator.shared.base_executor import (
             ExecutorHooksContext,
         )
 

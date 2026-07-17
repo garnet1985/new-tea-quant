@@ -1,4 +1,4 @@
-"""公共 job payload 组装（entity / slice JobBuilder 共用主体）。"""
+"""enumerator JobBuilder 基类（entity / slice 共用 payload 组装）。"""
 from __future__ import annotations
 
 import logging
@@ -14,25 +14,26 @@ from core.modules.strategy.core.services.discovery.data.discovered_strategy impo
 logger = logging.getLogger(__name__)
 
 
-class JobPayloadBuilder:
-    """组装 BacktestEngine job payload 的公共字段。
+class BaseJobBuilder:
+    """entity / slice JobBuilder 基类。
 
     边界:
-    - 负责: entity_specified / entity_shared / global / shm / strategy_info / settings
-    - 不负责: slice 专有 open_dates / backtest_calendar（由 slice JobBuilder 追加）
+    - 负责: 公共 payload 字段（entity_specified / entity_shared / global / shm / …）
+    - 不负责: mode 专有字段（如 slice 的 open_dates）；由子类追加
     - 调用方: entity_based / slice_based JobBuilder
     """
 
-    @staticmethod
-    def resolve_period(effective_settings: StrategySettings) -> Any:
+    @classmethod
+    def _resolve_period(cls, effective_settings: StrategySettings) -> Any:
         from core.modules.strategy.core.engines.enumerator.shared.report_manager.runtime_snapshot import (
             RuntimeReport,
         )
 
         return RuntimeReport.resolve_period(effective_settings)
 
-    @staticmethod
-    def build_core_payload(
+    @classmethod
+    def _build_core_payload(
+        cls,
         *,
         strategy_info: EnabledStrategyInfo,
         effective_settings: StrategySettings,
@@ -87,7 +88,7 @@ class JobPayloadBuilder:
         }
 
         logger.info(
-            "JobPayloadBuilder.build_core_payload() 成功："
+            "BaseJobBuilder._build_core_payload() 成功："
             "entity_count=%d, per_entity_keys=%d, global_keys=%d, shm_name=%s",
             len(ids),
             len(entity_shared),
@@ -97,4 +98,4 @@ class JobPayloadBuilder:
         return payload
 
 
-__all__ = ["JobPayloadBuilder"]
+__all__ = ["BaseJobBuilder"]

@@ -1,13 +1,15 @@
-"""StrategyHooks 加载与按阶段调用。"""
+"""StrategyHooks 加载与按阶段调用（热路径唯一入口）。"""
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any, Dict, Optional, Tuple, Union
 
+from core.modules.strategy.core.engines.enumerator.slice_based.types import (
+    CalendarAsOfResult,
+)
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
-from core.modules.strategy.core.engines.enumerator.slice_based.types import CalendarAsOfResult
 from core.modules.strategy.core.hooks.context import DataContext
 from core.modules.strategy.core.services.discovery.worker_loader import StrategyWorkerLoader
 
@@ -17,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class StrategyHookRuntime:
-    """加载 hooks 类并按阶段调用；主进程与子进程共用。"""
+    """加载 hooks 并统一调用；主进程 / worker / timeline 共用。"""
 
     def __init__(
         self,
@@ -39,7 +41,7 @@ class StrategyHookRuntime:
         worker_module_path: str,
         worker_class_name: str,
         worker_file_path: str = "",
-    ) -> StrategyHookRuntime:
+    ) -> "StrategyHookRuntime":
         hooks_cls = StrategyWorkerLoader.import_hooks_class(
             worker_module_path=worker_module_path,
             worker_class_name=worker_class_name,
@@ -48,20 +50,57 @@ class StrategyHookRuntime:
         return cls(hooks_cls(), strategy_name=strategy_name, settings=settings)
 
     @classmethod
-    def from_job_payload(
+    def from_strategy_info(
         cls,
-        job_payload: dict[str, Any],
-        *,
-        settings: Optional[StrategySettings] = None,
-    ) -> StrategyHookRuntime:
-        resolved_settings = settings or StrategySettings(raw_settings=dict(job_payload["settings"]))
-        return cls.from_worker_ref(
-            strategy_name=str(job_payload["strategy_name"]),
-            settings=resolved_settings,
-            worker_module_path=str(job_payload["worker_module_path"]),
-            worker_class_name=str(job_payload["worker_class_name"]),
-            worker_file_path=str(job_payload.get("worker_file_path") or ""),
-        )
+        strategy_info: Union[Dict[str, Any], Any],
+        settings: StrategySettings,
+    ) -> Tuple[Optional["StrategyHookRuntime"], Optional[Dict[str, Any]]]:
+        """从 payload.strategy_info 或 EnabledStrategyInfo 加载；失败返回 (None, error_dict)。"""
+        if isinstance(strategy_info, dict):
+            module_path = str(strategy_info.get("hooks_module_path") or "").strip()
+            class_name = str(strategy_info.get("hooks_class_name") or "").strip()
+            if not class_name:
+                hooks_cls = strategy_info.get("hooks_class")
+                class_name = getattr(hooks_cls, "__name__", "") or ""
+            file_path = str(strategy_info.get("hooks_file_path") or "").strip()
+            strategy_name = str(
+                strategy_info.get("key")
+                or strategy_info.get("unique_relative_path")
+                or ""
+            ).strip()
+        else:
+            module_path = str(getattr(strategy_info, "hooks_module_path", "") or "").strip()
+            hooks_cls = getattr(strategy_info, "hooks_class", None)
+            class_name = hooks_cls.__name__ if hooks_cls is not None else ""
+            file_path = str(getattr(strategy_info, "strategy_file", "") or "")
+            strategy_name = str(
+                getattr(strategy_info, "key", None)
+                or getattr(strategy_info, "unique_relative_path", "")
+                or ""
+            ).strip()
+
+        if not module_path or not class_name:
+            return None, {
+                "success": False,
+                "opportunities_count": 0,
+                "error": "缺少hooks信息",
+            }
+        try:
+            runtime = cls.from_worker_ref(
+                strategy_name=strategy_name,
+                settings=settings,
+                worker_module_path=module_path,
+                worker_class_name=class_name,
+                worker_file_path=file_path,
+            )
+            return runtime, None
+        except Exception as exc:
+            logger.error("加载hooks类失败：%s", exc, exc_info=True)
+            return None, {
+                "success": False,
+                "opportunities_count": 0,
+                "error": str(exc),
+            }
 
     def is_overridden(self, method: str) -> bool:
         base = getattr(StrategyHooks, method, None)

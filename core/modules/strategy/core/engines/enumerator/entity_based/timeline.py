@@ -38,7 +38,7 @@ class EntityTimelineHooks:
 
     entity_ids: List[str]
     settings: StrategySettings
-    hooks: Any
+    hook_runtime: Any
     strategy_name: str
     entity_contracts: Dict[str, Any]
     global_data: Dict[str, Any]
@@ -84,7 +84,7 @@ class EntityTimelineHooks:
         strategy_info = payload.get("strategy_info") or {}
         settings_dict = payload.get("settings") or {}
         settings = StrategySettings.from_dict(settings_dict)
-        hooks_instance, err = BaseJobExecutor.load_hooks(strategy_info)
+        hook_runtime, err = BaseJobExecutor.load_hooks(strategy_info, settings)
         if err is not None:
             raise RuntimeError(err.get("error") or "缺少hooks信息")
 
@@ -98,7 +98,7 @@ class EntityTimelineHooks:
         return cls(
             entity_ids=entity_ids,
             settings=settings,
-            hooks=hooks_instance,
+            hook_runtime=hook_runtime,
             strategy_name=str(strategy_info.get("key") or ""),
             entity_contracts=loaded.get("entity_contracts") or {},
             global_data=loaded.get("global_data") or {},
@@ -219,7 +219,7 @@ class EntityTimelineHooks:
             try:
                 if perf is not None:
                     perf.begin("enum_scan")
-                scanned = self.hooks.scan_opportunity(scan_ctx)
+                scanned = self.hook_runtime.call("scan_opportunity", scan_ctx)
                 if perf is not None:
                     perf.end("enum_scan", accumulate=True)
             except Exception as exc:

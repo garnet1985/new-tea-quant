@@ -41,7 +41,7 @@ class SliceTimelineHooks:
 
     entity_ids: List[str]
     settings: StrategySettings
-    hooks: Any
+    hook_runtime: Any
     strategy_name: str
     entity_contracts: Dict[str, Any]
     global_data: Dict[str, Any]
@@ -91,7 +91,7 @@ class SliceTimelineHooks:
         loaded = job_context.init or {}
         strategy_info = payload.get("strategy_info") or {}
         settings = StrategySettings.from_dict(payload.get("settings") or {})
-        hooks_instance, err = BaseJobExecutor.load_hooks(strategy_info)
+        hook_runtime, err = BaseJobExecutor.load_hooks(strategy_info, settings)
         if err is not None:
             raise RuntimeError(err.get("error") or "缺少hooks信息")
 
@@ -99,7 +99,7 @@ class SliceTimelineHooks:
         return cls(
             entity_ids=entity_ids,
             settings=settings,
-            hooks=hooks_instance,
+            hook_runtime=hook_runtime,
             strategy_name=str(strategy_info.get("key") or ""),
             entity_contracts=loaded.get("entity_contracts") or {},
             global_data=loaded.get("global_data") or {},
@@ -219,7 +219,7 @@ class SliceTimelineHooks:
         try:
             if perf is not None:
                 perf.begin("enum_calendar_asof")
-            asof_result = self.hooks.on_calendar_asof(asof_ctx)
+            asof_result = self.hook_runtime.call("on_calendar_asof", asof_ctx)
             if perf is not None:
                 perf.end("enum_calendar_asof", accumulate=True)
         except Exception as exc:
@@ -375,9 +375,10 @@ class SliceTimelineHooks:
         try:
             if perf is not None:
                 perf.begin("enum_scan")
-            self.hooks.on_before_scan(scan_ctx)
-            opportunity = self.hooks.scan_opportunity(scan_ctx)
-            self.hooks.on_after_scan(
+            self.hook_runtime.call_if_overridden("on_before_scan", scan_ctx)
+            opportunity = self.hook_runtime.call("scan_opportunity", scan_ctx)
+            self.hook_runtime.call_if_overridden(
+                "on_after_scan",
                 DataContext.fill(
                     self._ctx_base,
                     now=as_of,
@@ -386,7 +387,7 @@ class SliceTimelineHooks:
                     entity_id=entity_id,
                     entity_info={"id": entity_id, **stock_info},
                     opportunity=opportunity if isinstance(opportunity, Opportunity) else None,
-                )
+                ),
             )
             if perf is not None:
                 perf.end("enum_scan", accumulate=True)

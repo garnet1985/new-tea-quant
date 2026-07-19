@@ -65,7 +65,7 @@ def _load_latest_row(model, strategy_name: str) -> Optional[Dict[str, Any]]:
 
 
 def _row_usable(row: Dict[str, Any]) -> bool:
-    return isinstance(row.get("settings_snapshot"), dict)
+    return isinstance(row.get("settings_diff"), dict)
 
 
 def fetch_workbench_by_version(
@@ -74,7 +74,7 @@ def fetch_workbench_by_version(
     """
     按 ``strategy_name`` + 工作台 ``version``（表中列名）读取一行。
 
-    不存在、``version`` 非正、或 ``settings_snapshot`` 不可用 → ``None``（与 **V2-08** 404 对齐）。
+    不存在、``version`` 非正、或 ``settings_diff`` 不可用 → ``None``（与 **V2-08** 404 对齐）。
     """
     name = str(strategy_name or "").strip()
     sid = int(version)
@@ -91,7 +91,7 @@ def fetch_workbench_by_version(
         return None
     out = dict(row)
     # 合并差异字段和磁盘上的 settings
-    settings_diff = out.get("settings_snapshot")  # 数据库中存储的是差异字段
+    settings_diff = out.get("settings_diff")
     if isinstance(settings_diff, dict):  # 即使是空字典也需要合并
         from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.settings_diff import (
             merge_settings,
@@ -101,7 +101,7 @@ def fetch_workbench_by_version(
         if discovered is not None:
             disk_settings = dict(discovered.settings.to_dict())
             merged_settings = merge_settings(disk_settings, settings_diff)
-            out["settings_snapshot"] = merged_settings  # 替换为合并后的完整 settings
+            out["settings_snapshot"] = merged_settings  # API：合并后的完整 settings
     rr = row.get("result_report") or {}
     if isinstance(rr, dict):
         rr = hydrate_workbench_result_report(name, rr)
@@ -166,7 +166,7 @@ def fetch_latest_workbench_snapshot(strategy_name: str) -> Optional[Dict[str, An
         if _row_usable(row):
             out = dict(row)
             # 合并差异字段和磁盘上的 settings
-            settings_diff = out.get("settings_snapshot")  # 数据库中存储的是差异字段
+            settings_diff = out.get("settings_diff")
             if isinstance(settings_diff, dict):  # 即使是空字典也需要合并
                 from core.modules.strategy.services.cache.simulator_res_db_cache.finger_print.settings_diff import (
                     merge_settings,
@@ -176,7 +176,7 @@ def fetch_latest_workbench_snapshot(strategy_name: str) -> Optional[Dict[str, An
                 if discovered is not None:
                     disk_settings = dict(discovered.settings.to_dict())
                     merged_settings = merge_settings(disk_settings, settings_diff)
-                    out["settings_snapshot"] = merged_settings  # 替换为合并后的完整 settings
+                    out["settings_snapshot"] = merged_settings  # API：合并后的完整 settings
             rr = out.get("result_report")
             if isinstance(rr, dict):
                 out["result_report"] = hydrate_workbench_result_report(name, rr)

@@ -120,7 +120,7 @@ class SimulatorResDbCacheWriteRequest:
         )
         if not row:
             return False
-        settings_diff = row.get("settings_snapshot")  # 数据库中存储的是差异字段
+        settings_diff = row.get("settings_diff")
         if not isinstance(settings_diff, dict) or not settings_diff:
             return False
 

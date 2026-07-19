@@ -14,6 +14,7 @@ def _fps(**overrides):
     base = {
         "settings_fp": "sfp",
         "env_fp": "efp",
+        "disk_settings_hash": "dsh",
         "settings_diff": {"sampling": {"use_sampling": True}},
         "effective_settings": None,
         "entity_ids": [],

@@ -96,10 +96,13 @@ class SimulationCacheManager(BaseCacheManager):
             return None
         sfp = str(fps.settings_fp or "").strip()
         efp = str(fps.env_fp or "").strip()
+        dsh = str(getattr(fps, "disk_settings_hash", "") or "").strip()
         if not sfp or not efp:
             return None
 
-        row = cls._load_row_by_fingerprints(strategy_name, sfp, efp)
+        row = cls._load_row_by_fingerprints(
+            strategy_name, sfp, efp, disk_settings_hash=dsh
+        )
         if not row:
             return None
         reports = cls._reports_from_row(row)
@@ -123,6 +126,7 @@ class SimulationCacheManager(BaseCacheManager):
         strategy_name = str(key or "").strip()
         sfp = str(fps.settings_fp or "").strip()
         efp = str(fps.env_fp or "").strip()
+        dsh = str(getattr(fps, "disk_settings_hash", "") or "").strip()
         if not strategy_name or not sfp or not efp:
             return 0
 
@@ -135,7 +139,9 @@ class SimulationCacheManager(BaseCacheManager):
             logger.warning("表 %s 未注册，跳过 set_cache", cls.table_name)
             return 0
 
-        row = cls._load_row_by_fingerprints(strategy_name, sfp, efp, model=model)
+        row = cls._load_row_by_fingerprints(
+            strategy_name, sfp, efp, disk_settings_hash=dsh, model=model
+        )
         if row:
             version = int(row.get("version") or 0)
             if version <= 0:
@@ -149,6 +155,7 @@ class SimulationCacheManager(BaseCacheManager):
                 merged,
                 settings_finger_print_id=sfp,
                 env_fingerprint_id=efp,
+                disk_settings_hash=dsh,
             )
             cls._prune_oldest(model, strategy_name)
             return version
@@ -161,6 +168,7 @@ class SimulationCacheManager(BaseCacheManager):
             merged,
             settings_finger_print_id=sfp,
             env_fingerprint_id=efp,
+            disk_settings_hash=dsh,
         )
         version = int((created or {}).get("version") or 0)
         if version > 0:

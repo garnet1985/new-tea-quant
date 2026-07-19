@@ -64,6 +64,7 @@ class BaseCacheManager(ABC):
         settings_fp: str,
         env_fp: str,
         *,
+        disk_settings_hash: str = "",
         model: Any = None,
     ) -> Optional[Dict[str, Any]]:
         op = model if model is not None else cls._table()
@@ -73,6 +74,7 @@ class BaseCacheManager(ABC):
             strategy_name=strategy_name,
             settings_finger_print_id=settings_fp,
             env_fingerprint_id=env_fp,
+            disk_settings_hash=str(disk_settings_hash or "").strip(),
             limit=1,
         )
         if not rows:

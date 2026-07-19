@@ -159,36 +159,23 @@ class BaseJobExecutor:
         )
 
     @classmethod
-    def load_hooks(cls, strategy_info: Dict[str, Any]) -> Any:
-        """加载策略 hooks 类实例；失败返回 (None, error_dict)。"""
-        hooks_module_path = strategy_info.get("hooks_module_path")
-        hooks_class_name = strategy_info.get("hooks_class_name")
-        hooks_file_path = strategy_info.get("hooks_file_path", "")
-        if not hooks_module_path or not hooks_class_name:
-            return None, {
-                "success": False,
-                "opportunities_count": 0,
-                "error": "缺少hooks信息",
-            }
+    def load_hooks(
+        cls,
+        strategy_info: Dict[str, Any],
+        settings: Any = None,
+    ) -> Any:
+        """加载 ``StrategyHookRuntime``；失败返回 (None, error_dict)。"""
+        from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
+            StrategySettings,
+        )
+        from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
 
-        try:
-            from core.modules.strategy.core.services.discovery.worker_loader import (
-                StrategyWorkerLoader,
-            )
-
-            hooks_class = StrategyWorkerLoader.import_hooks_class(
-                worker_module_path=hooks_module_path,
-                worker_class_name=hooks_class_name,
-                worker_file_path=str(hooks_file_path or ""),
-            )
-            return hooks_class(), None
-        except Exception as exc:
-            logger.error("加载hooks类失败：%s", exc, exc_info=True)
-            return None, {
-                "success": False,
-                "opportunities_count": 0,
-                "error": str(exc),
-            }
+        resolved = settings
+        if resolved is None:
+            resolved = StrategySettings.from_dict({})
+        elif not isinstance(resolved, StrategySettings):
+            resolved = StrategySettings.from_dict(dict(resolved or {}))
+        return StrategyHookRuntime.from_strategy_info(strategy_info, resolved)
 
 
 __all__ = ["ExecutorHooksContext", "BaseJobExecutor"]

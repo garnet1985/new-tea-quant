@@ -35,6 +35,7 @@ class StockSampler:
         - uniform：均匀采样（固定间隔）
         - stratified：分层采样（按市场分层）
         - random：随机采样（可设置 seed）
+        - weighted：加权无放回（``weighted.weights`` / ``weighted.seed``）
         - continuous：连续采样（从 start_idx 开始）
         - pool：从指定 pool 采样（文件或直接配置 stock_ids）
         - blacklist：排除 blacklist 采样（文件或直接配置 blacklist_ids）
@@ -43,26 +44,29 @@ class StockSampler:
         
         if sampling_strategy == "uniform":
             return StockSampler._sample_uniformly(stock_list, sampling_config)
-        
+
         if sampling_strategy == "stratified":
             return StockSampler._sample_stratified(stock_list, sampling_config)
-        
+
         if sampling_strategy == "random":
             return StockSampler._sample_randomly(stock_list, sampling_config)
-        
+
+        if sampling_strategy == "weighted":
+            return StockSampler._sample_weighted(stock_list, sampling_config)
+
         if sampling_strategy == "continuous":
             # 连续采样需要额外的 start_idx 参数
             start_idx = sampling_config.get("continuous", {}).get("start_idx", 0)
             amount = sampling_config.get("sampling_amount", 10)
             end_idx = min(start_idx + amount, len(stock_list))
             return stock_list[start_idx:end_idx]
-        
+
         if sampling_strategy == "pool":
             return StockSampler._sample_from_white_list(stock_list, sampling_config, strategy_name)
-        
+
         if sampling_strategy == "blacklist":
             return StockSampler._sample_exclude_black_list(stock_list, sampling_config, strategy_name)
-        
+
         logger.warning("未知的采样策略: %s，使用全部股票", sampling_strategy)
         amount = sampling_config.get("sampling_amount", 10)
         return stock_list[:amount]
@@ -100,9 +104,45 @@ class StockSampler:
         stock_list: List[str],
         sampling_config: Dict[str, Any],
     ) -> List[str]:
-        """加权采样（TODO：未来实现）。"""
-        logger.warning("_sample_weighted() 未实现，使用均匀采样")
-        return StockSampler._sample_uniformly(stock_list, sampling_config)
+        """加权无放回采样。
+
+        配置 ``sampling.weighted``:
+        - ``weights``: ``{stock_id: weight}``，缺省权重 1.0
+        - ``seed``: 可选随机种子
+        """
+        amount = int(sampling_config.get("sampling_amount", 10) or 10)
+        if amount <= 0 or not stock_list:
+            return []
+        if amount >= len(stock_list):
+            return list(stock_list)
+
+        cfg = sampling_config.get("weighted") or {}
+        seed = cfg.get("seed")
+        weights_map = cfg.get("weights") if isinstance(cfg.get("weights"), dict) else {}
+        if seed is not None:
+            random.seed(seed)
+
+        remaining = list(stock_list)
+        remaining_weights = [
+            max(0.0, float(weights_map.get(sid, 1.0) or 0.0)) for sid in remaining
+        ]
+        if sum(remaining_weights) <= 0:
+            logger.warning("weighted 权重全为 0，回退均匀采样")
+            return StockSampler._sample_uniformly(stock_list, sampling_config)
+
+        picked: List[str] = []
+        for _ in range(amount):
+            if not remaining:
+                break
+            total = sum(remaining_weights)
+            if total <= 0:
+                break
+            choice = random.choices(remaining, weights=remaining_weights, k=1)[0]
+            idx = remaining.index(choice)
+            picked.append(choice)
+            del remaining[idx]
+            del remaining_weights[idx]
+        return picked
 
     @staticmethod
     def _sample_stratified(

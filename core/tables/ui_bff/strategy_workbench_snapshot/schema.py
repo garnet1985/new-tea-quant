@@ -19,7 +19,7 @@ schema = {
             "description": "自增主键",
         },
         {
-            "name": "strategy_name",
+            "name": "strategy_key",
             "type": "varchar",
             "length": 128,
             "isRequired": True,
@@ -48,7 +48,7 @@ schema = {
             "description": "三个回测步骤的 reports 聚合：enum/price/capital",
         },
         {
-            "name": "settings_finger_print_id",
+            "name": "settings_fingerprint_id",
             "type": "varchar",
             "length": 128,
             "isRequired": False,
@@ -87,9 +87,9 @@ schema = {
         },
     ],
     "indexes": [
-        {"name": "uk_swb_snapshot_strategy_version", "fields": ["strategy_name", "version"], "unique": True},
-        {"name": "idx_swb_snapshot_strategy_updated", "fields": ["strategy_name", "updated_at"]},
-        {"name": "idx_swb_snapshot_strategy_settings_fp", "fields": ["strategy_name", "settings_finger_print_id"]},
-        {"name": "idx_swb_snapshot_strategy_env_fp", "fields": ["strategy_name", "env_fingerprint_id"]},
+        {"name": "uk_swb_snapshot_strategy_version", "fields": ["strategy_key", "version"], "unique": True},
+        {"name": "idx_swb_snapshot_strategy_updated", "fields": ["strategy_key", "updated_at"]},
+        {"name": "idx_swb_snapshot_strategy_settings_fp", "fields": ["strategy_key", "settings_fingerprint_id"]},
+        {"name": "idx_swb_snapshot_strategy_env_fp", "fields": ["strategy_key", "env_fingerprint_id"]},
     ],
 }

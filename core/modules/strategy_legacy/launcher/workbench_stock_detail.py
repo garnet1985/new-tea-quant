@@ -251,7 +251,7 @@ def _build_price_markers(
 
 
 def _settings_view_from_row(row: Dict[str, Any]) -> Optional[StrategySettingsView]:
-    snap = row.get("settings_snapshot")
+    snap = row.get("settings_diff")
     if not isinstance(snap, dict) or not snap:
         return None
     try:

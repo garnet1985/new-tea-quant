@@ -57,19 +57,28 @@ def main() -> int:
 
     print("=== entity_based enum smoke ===", flush=True)
     started = time.time()
-    from core.modules.strategy.core.services.simulation_cache import (
-        SimulationFingerprintResolver,
+    from core.modules.strategy.contracts import SimulateKind
+    from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import (
+        GlobalEntityCache,
     )
+    from core.modules.strategy.core.services.simulation_cache.fingerprints import (
+        FingerprintCalculator,
+    )
+    from core.modules.strategy.strategy import SimulateRuntimeContext
 
-    fps = SimulationFingerprintResolver.resolve(strategy, runtime)
-    result = EnumeratorPipeline.run(
+    fp_res = FingerprintCalculator.calculate_fingerprints(
         strategy,
-        settings_fp=fps.settings_fp,
-        env_fp=fps.env_fp,
-        runtime_settings=runtime,
-        effective_settings=fps.effective_settings,
-        settings_diff=fps.settings_diff,
+        runtime,
+        GlobalEntityCache.get_stock_list(),
+        GlobalEntityCache.get_latest_completed_trading_date(),
     )
+    ctx = SimulateRuntimeContext(
+        strategy_info=strategy,
+        fp_res=fp_res,
+        kind=SimulateKind.ENUMERATE,
+        steps=[SimulateKind.ENUMERATE],
+    )
+    result = EnumeratorPipeline.run(ctx)
     elapsed = time.time() - started
 
     print("RESULT:", result, flush=True)

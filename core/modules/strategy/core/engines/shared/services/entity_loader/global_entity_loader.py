@@ -98,6 +98,45 @@ class GlobalEntityCache:
             stock_list = self._global_data.get(DATA_KEY.STOCK_LIST, [])
         return [stock.get("id") for stock in stock_list if stock.get("id")]
 
+    @staticmethod
+    def get_stock_list() -> List[str]:
+        """加载全市场股票 id 列表（不依赖策略 settings；供编排层算指纹）。"""
+        try:
+            contract = ContractIssuer.issue(DATA_KEY.STOCK_LIST, fill_in_data=True)
+            rows = list(contract.get_data() or [])
+            return [str(row.get("id")).strip() for row in rows if row.get("id")]
+        except Exception as exc:
+            logger.error("get_stock_list 失败：%s", exc, exc_info=True)
+            return []
+
+    @staticmethod
+    def get_latest_completed_trading_date() -> str:
+        """最新已完成交易日（与 load_latest_completed_trading_date 同源）。"""
+        return GlobalEntityCache.load_latest_completed_trading_date()
+
+    def seed_system_globals(
+        self,
+        *,
+        stock_list: Optional[List[str]] = None,
+        latest_completed_trading_date: Optional[str] = None,
+    ) -> "GlobalEntityCache":
+        """用编排层已取好的 stock / latest_date 填充缓存，避免重复 IO。"""
+        if latest_completed_trading_date is None:
+            latest_completed_trading_date = self.load_latest_completed_trading_date()
+        self._global_meta["latest_completed_trading_date"] = str(
+            latest_completed_trading_date or ""
+        )
+
+        if stock_list is None:
+            self.init_stock_list()
+        else:
+            self._global_data[DATA_KEY.STOCK_LIST] = [
+                {"id": str(stock_id).strip()}
+                for stock_id in stock_list
+                if str(stock_id).strip()
+            ]
+        return self
+
     def load_global_declarations(self, global_declarations: List[DataDeclaration]) -> None:
         """按 StrategyDataResolver 分组结果加载 global 数据，并写入共享内存。"""
         if not global_declarations:
@@ -115,7 +154,9 @@ class GlobalEntityCache:
         end_date = sampling.get("end_date")
 
         if not end_date:
-            end_date = self.load_latest_completed_trading_date()
+            end_date = self._global_meta.get("latest_completed_trading_date") or (
+                self.load_latest_completed_trading_date()
+            )
             logger.info(
                 "sampling 未配置 end_date，使用 latest completed trading date: %s",
                 end_date,

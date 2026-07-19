@@ -1,14 +1,12 @@
-"""模拟三步缓存服务入口。"""
+"""策略结果缓存服务入口（simulate；后续 scan 可并列继承 BaseCacheManager）。"""
 
-from .enum_cache import EnumCacheManager
-from .fingerprints import SimulationFingerprintResolver, SimulationFingerprints
-from .portfolio_cache import PortfolioCacheManager
-from .price_factor_cache import PriceFactorCacheManager
+from .base_cache_manager import BaseCacheManager
+from .cache_manager import SimulationCacheManager
+from .fingerprints import FingerprintCalculator, FingerprintResult
 
 __all__ = [
-    "EnumCacheManager",
-    "PortfolioCacheManager",
-    "PriceFactorCacheManager",
-    "SimulationFingerprintResolver",
-    "SimulationFingerprints",
+    "BaseCacheManager",
+    "FingerprintCalculator",
+    "FingerprintResult",
+    "SimulationCacheManager",
 ]

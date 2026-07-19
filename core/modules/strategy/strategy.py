@@ -2,20 +2,106 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Type, Union
 
 from .contracts import SimulateKind
 from .core.services.discovery import DiscoveryService
+from .core.services.discovery.data.discovered_strategy import EnabledStrategyInfo
+from .core.engines.shared.services.entity_loader.global_entity_loader import (
+    GlobalEntityCache,
+)
+from .core.services.simulation_cache.cache_manager import (
+    SimulationCacheManager,
+)
+from .core.services.simulation_cache.fingerprints import (
+    FingerprintCalculator,
+    FingerprintResult,
+)
 
 
-class RunPipelines:
-    SimulateKind.ENUMERATE: EnumeratorPipeline
-    SimulateKind.PRICE_FACTOR: PriceFactorPipeline
-    SimulateKind.CAPITAL_ALLOCATION: PortfolioPipeline
+@dataclass
+class SimulateRuntimeContext:
+    """一次 simulate 的编排会话（Facade → Pipeline；不含 CacheManager）。
 
-class SimulationFingerprint:
-    settings: str
-    env: str
+    每次 simulate 新建；不在内存里跨请求复用（settings / env 可能变）。
+    """
+
+    strategy_info: EnabledStrategyInfo
+    fp_res: FingerprintResult
+    kind: SimulateKind
+    enum_version: Optional[str] = None
+    steps: List[SimulateKind] = field(default_factory=list)
+
+    @property
+    def settings_fp(self) -> str:
+        return self.fp_res.settings_fp
+
+    @property
+    def env_fp(self) -> str:
+        return self.fp_res.env_fp
+
+    @property
+    def effective_settings(self):
+        return self.fp_res.effective_settings
+
+    @property
+    def settings_diff(self):
+        return self.fp_res.settings_diff
+
+    @property
+    def global_entity_cache(self):
+        return self.fp_res.global_entity_cache
+
+    @property
+    def entity_ids(self) -> List[str]:
+        return self.fp_res.entity_ids
+
+    @property
+    def strategy_key(self) -> str:
+        return str(
+            self.strategy_info.unique_relative_path or self.strategy_info.key or ""
+        )
+
+    def validate_for_run(self) -> None:
+        """跑 Pipeline 前自检。"""
+        if self.strategy_info is None:
+            raise ValueError("SimulateRuntimeContext.strategy_info 不能为空")
+        if self.fp_res is None:
+            raise ValueError("SimulateRuntimeContext.fp_res 不能为空")
+        if not self.settings_fp or not self.env_fp:
+            raise ValueError("settings_fp / env_fp 不能为空")
+        if self.fp_res.global_entity_cache is None:
+            raise ValueError("global_entity_cache 不能为空")
+        if self.kind == SimulateKind.FULL:
+            raise ValueError("simulate(kind=full) 暂不支持")
+        if not self.steps:
+            raise ValueError("steps 为空：请先 _resolve_steps")
+        if (
+            self.kind != SimulateKind.ENUMERATE
+            and self.enum_version is None
+            and SimulateKind.ENUMERATE not in self.steps
+        ):
+            raise ValueError(
+                f"{self.kind.value} 需要 enum_version 或 steps 中包含 enumerate"
+            )
+
+
+class BackTestPipelines:
+    """kind → Pipeline 映射（按需 import；未落地的 step 访问时再报错）。"""
+
+    ENUMERATE = SimulateKind.ENUMERATE
+    PRICE_FACTOR = SimulateKind.PRICE_FACTOR
+    CAPITAL_ALLOCATION = SimulateKind.CAPITAL_ALLOCATION
+
+    @classmethod
+    def __class_getitem__(cls, kind: SimulateKind) -> Type[Any]:
+        if kind == SimulateKind.ENUMERATE:
+            from .core.engines.enumerator import EnumeratorPipeline
+
+            return EnumeratorPipeline
+        raise NotImplementedError(f"Pipeline for {kind!r} 尚未接入")
+
 
 class Strategy:
     """策略模块 Facade。
@@ -97,41 +183,89 @@ class Strategy:
         2. 查该 step 缓存；命中则直接返回
         3. 未命中则执行（price/capital 必要时先补跑枚举）并写缓存
         """
+        strategy_info = DiscoveryService.find_strategy(key_or_id)
+        if strategy_info is None:
+            raise ValueError(f"当前策略不存在或未启用: {key_or_id}")
 
-        fps, effective_settings = SimulationCacheManager.fingerprint.calc(key_or_id, runtime_settings)
-        res = {}
+        step = (
+            kind
+            if isinstance(kind, SimulateKind)
+            else SimulateKind(str(kind).strip().lower())
+        )
+        if step == SimulateKind.FULL:
+            raise ValueError("simulate(kind=full) 暂不支持")
+
+        stock_list = GlobalEntityCache.get_stock_list()
+        latest_completed_trading_date = (
+            GlobalEntityCache.get_latest_completed_trading_date()
+        )
+        fp_res = FingerprintCalculator.calculate_fingerprints(
+            strategy_info,
+            runtime_settings,
+            stock_list,
+            latest_completed_trading_date,
+        )
+
+        ctx = SimulateRuntimeContext(
+            strategy_info=strategy_info,
+            fp_res=fp_res,
+            kind=step,
+        )
+
+        cache_key = ctx.strategy_key or key_or_id
+        res: Dict[str, Any] = {}
 
         if ignore_cache:
-            steps = self._resolve_steps(kind)
-            res = self._run_steps(steps, fps, effective_settings)
-            SimulationCacheManager.set_cache(key_or_id, fps, res)
+            Strategy._resolve_steps(ctx)
+            ctx.validate_for_run()
+            res = Strategy._run_steps(ctx)
+            SimulationCacheManager.set_cache(cache_key, ctx.fp_res, res)
         else:
-            cached_result = SimulationCacheManager.get_cache(key_or_id, fps, kind)
+            cached_result = SimulationCacheManager.get_cache(
+                cache_key, ctx.fp_res, ctx.kind
+            )
             if cached_result:
                 res = cached_result
             else:
-                steps = self._resolve_steps(kind)
-                res = self._run_steps(steps, fps, effective_settings)
-                SimulationCacheManager.set_cache(key_or_id, fps, res)
+                Strategy._resolve_steps(ctx)
+                ctx.validate_for_run()
+                res = Strategy._run_steps(ctx)
+                SimulationCacheManager.set_cache(cache_key, ctx.fp_res, res)
+
+        # TODO: should return a job id
         return res
 
-    def _resolve_steps(self, kind: SimulateKind) -> List[Type[Any]]:
-        steps = []
-        if kind != SimulateKind.ENUMERATE:
-            output_version = EnumeratorPipeline.find_output_version_via_fps(fps)
-            if output_version:
-                steps = [RunPipelines[kind]]
-            else:
-                steps = [RunPipelines[RunPipelines.ENUMERATE], RunPipelines[kind]]
-        else:
-            steps = [RunPipelines[RunPipelines.ENUMERATE]]
-        return steps
+    @staticmethod
+    def _resolve_steps(ctx: SimulateRuntimeContext) -> None:
+        """按目标 kind + fp 是否已有枚举产物，写入 ctx.steps / ctx.enum_version。"""
+        from .core.engines.enumerator import EnumeratorPipeline
 
-    def _run_steps(self, steps: List[Type[Any]], fps: SimulationFingerprint, runtime_settings: Dict[str, Any]) -> Dict[str, Any]:
-        consolidated_result = {}
-        for step in steps:
-            result = step.run(fps, runtime_settings)
-            consolidated_result.update(result)
+        step = ctx.kind
+        if step == SimulateKind.ENUMERATE:
+            ctx.steps = [SimulateKind.ENUMERATE]
+            ctx.enum_version = None
+            return
+
+        enum_version = EnumeratorPipeline.find_output_version_via_fps(ctx)
+        if enum_version:
+            ctx.steps = [step]
+            ctx.enum_version = enum_version
+            return
+
+        ctx.steps = [SimulateKind.ENUMERATE, step]
+        ctx.enum_version = None
+
+    @staticmethod
+    def _run_steps(ctx: SimulateRuntimeContext) -> Dict[str, Any]:
+        """依次执行 Pipeline（无 CacheManager）；入参为 runtime context。"""
+        consolidated_result: Dict[str, Any] = {}
+        for step in ctx.steps:
+            step_res = BackTestPipelines[step].run(ctx)
+            consolidated_result[step.value] = step_res
+            if step == SimulateKind.ENUMERATE:
+                version_id = step_res.get("version_id")
+                if version_id:
+                    ctx.enum_version = str(version_id)
         return consolidated_result
 
     @staticmethod
@@ -176,4 +310,4 @@ class Strategy:
         return None
 
 
-__all__ = ["Strategy"]
+__all__ = ["Strategy", "SimulateRuntimeContext"]

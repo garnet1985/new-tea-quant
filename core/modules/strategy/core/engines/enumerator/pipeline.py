@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, ClassVar, Dict, List, Optional, Tuple, Type
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Tuple, Type
 
 from core.infra.job_pipeline.profile import (
     WorkerProfiles,
@@ -30,6 +30,8 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.strate
 from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
     EnabledStrategyInfo,
 )
+if TYPE_CHECKING:
+    from core.modules.strategy.strategy import SimulateRuntimeContext
 
 logger = logging.getLogger(__name__)
 
@@ -41,42 +43,35 @@ class EnumeratorPipeline:
     """枚举统一编排入口。
 
     边界:
-    - 负责: 在给定指纹下执行枚举、落盘，并写回 EnumCacheManager
-    - 不负责: 进入引擎前的缓存查找（由 Strategy 编排层完成）
-    - 调用方: Strategy.enumerate / simulate（miss 之后）
+    - 负责: 用编排层已算好的 SimulateRuntimeContext 执行枚举并落盘
+    - 不负责: 指纹、GlobalEntityCache 系统级加载、DB 缓存读写（Strategy / CacheManager）
+    - 调用方: Strategy._run_steps（cache miss 之后）
     """
 
     global_entity_cache: ClassVar[Optional[GlobalEntityCache]] = None
 
     @classmethod
-    def run(
-        cls,
-        strategy_info: EnabledStrategyInfo,
-        *,
-        settings_fp: str,
-        env_fp: str,
-        runtime_settings: Optional[dict] = None,
-        effective_settings: Optional[StrategySettings] = None,
-        settings_diff: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        """运行枚举并按指纹填充缓存。
+    def find_output_version_via_fps(cls, ctx: "SimulateRuntimeContext") -> Optional[str]:
+        """按双指纹查工作台 enum 槽的 ``version_id``；未找到返回 None。"""
+        from core.modules.strategy.core.services.simulation_cache.cache_manager import (
+            SimulationCacheManager,
+        )
 
-        settings_fp / env_fp 由编排层在查缓存前算好并传入；本方法不再查缓存。
-        """
-        from core.modules.strategy.core.services.simulation_cache import EnumCacheManager
+        return SimulationCacheManager.find_enum_output_version(
+            ctx.strategy_key,
+            ctx.fp_res,
+        )
 
+    @classmethod
+    def run(cls, ctx: "SimulateRuntimeContext") -> Dict[str, Any]:
+        """运行枚举；复用 ctx 内已 seed 的 cache / settings / 指纹。"""
+        strategy_info = ctx.strategy_info
         execution_mode = strategy_info.get_execution_mode()
         if execution_mode not in {_MODE_ENTITY, _MODE_SLICE}:
             raise ValueError(f"不支持的execution_mode: {execution_mode}")
 
-        if effective_settings is None or settings_diff is None:
-            effective_settings, settings_diff = StrategySettings.calculate_effective_settings(
-                disk_settings=strategy_info.settings,
-                user_settings=runtime_settings or {},
-            )
-
-        cls.global_entity_cache = GlobalEntityCache(effective_settings)
-        stock_ids = cls.global_entity_cache.init_system_globals().get_stock_ids()
+        effective_settings = ctx.effective_settings
+        cls.global_entity_cache = ctx.global_entity_cache
 
         declaration_groups = StrategyDataResolver.group_from_settings(
             effective_settings.raw_settings
@@ -85,17 +80,12 @@ class EnumeratorPipeline:
         results = cls._run_by_steps(
             strategy_info=strategy_info,
             effective_settings_obj=effective_settings,
-            settings_diff=settings_diff,
-            settings_fp=settings_fp,
-            env_fp=env_fp,
+            settings_diff=ctx.settings_diff,
+            settings_fp=ctx.settings_fp,
+            env_fp=ctx.env_fp,
             declaration_groups=declaration_groups,
             execution_mode=execution_mode,
-            stock_ids=stock_ids,
-        )
-        EnumCacheManager.store(
-            settings_fp=settings_fp,
-            env_fp=env_fp,
-            results=results,
+            stock_ids=list(ctx.entity_ids),
         )
         return cls._to_report(results)
 

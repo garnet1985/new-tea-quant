@@ -5,8 +5,12 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List
 
+from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.modules.strategy.core.engines.enumerator.shared.base_job_builder import (
     BaseJobBuilder,
+)
+from core.modules.strategy.core.engines.enumerator.shared.services.enumerator_timeline import (
+    EnumeratorTimeline,
 )
 from core.modules.strategy.core.engines.enumerator.slice_based.resolver.calendar import (
     BacktestCalendarResolver,
@@ -25,8 +29,8 @@ class JobBuilder(BaseJobBuilder):
     """slice_based Job 构建。
 
     边界:
-    - 负责: 基类 payload + open_dates / backtest_calendar / stock_ids
-    - 不负责: 执行、报告落盘
+    - 负责: 基类 payload + entity_ids + timeline_point_count（全量 points 不进 payload）
+    - 不负责: 执行、报告落盘；Timeline 由 worker 从全局 trade.calendar 解析
     - 调用方: EnumeratorPipeline
     """
 
@@ -45,11 +49,13 @@ class JobBuilder(BaseJobBuilder):
         start_date = period.start_date
         end_date = period.end_date
 
-        open_dates, calendar_dict = BacktestCalendarResolver.resolve(
+        open_points, calendar_dict = BacktestCalendarResolver.resolve(
             settings=effective_settings.raw_settings,
             start_date=start_date,
             end_date=end_date,
         )
+        if not open_points:
+            raise ValueError("slice JobBuilder: open_points 为空，无法规划 timeline_point_count")
 
         payload = cls._build_core_payload(
             strategy_info=strategy_info,
@@ -63,30 +69,19 @@ class JobBuilder(BaseJobBuilder):
             output_recorder_snapshot=output_recorder_snapshot,
         )
         if not payload.get("entity_specified"):
-            payload.update(
-                {
-                    "stock_ids": [],
-                    "entity_ids": [],
-                    "open_dates": [],
-                }
-            )
-            return [{"id": "strategy_run", "payload": payload}]
+            logger.warning("slice JobBuilder: entity_specified 为空，跳过 job")
+            return []
 
         ids = [item["id"] for item in payload["entity_specified"]]
-        payload.update(
-            {
-                "stock_ids": list(ids),
-                "entity_ids": list(ids),
-                "open_dates": list(open_dates),
-                "backtest_calendar": dict(calendar_dict),
-                "start_date": start_date,
-                "end_date": end_date,
-            }
-        )
+        payload[BacktestJob.SLICE_BASED_ENTITY_KEY] = list(ids)
+        payload["start_date"] = start_date
+        payload["end_date"] = end_date
+        EnumeratorTimeline.bind_point_count(payload, len(open_points))
         logger.info(
-            "slice JobBuilder 补齐契约字段：entity_count=%d, open_dates=%d",
+            "slice JobBuilder: entity_count=%d, timeline_point_count=%d, market=%s",
             len(ids),
-            len(open_dates),
+            len(open_points),
+            calendar_dict.get("market"),
         )
         return [{"id": "strategy_run", "payload": payload}]
 

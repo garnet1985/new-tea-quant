@@ -1,15 +1,16 @@
-"""entity_based TimelineHooks：BE TimelineDriver 驱动，本类实现单日业务。"""
+"""entity_based TimelineHooks：BE TimelineDriver 驱动，本类实现单点业务。"""
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Sequence
 
-from core.modules.backtest_engine.contracts import JobContext
+from core.modules.backtest_engine.contracts import JobContext, Timeline
 from core.modules.strategy.core.engines.enumerator.shared.performance_tracker.performance_tracker import (
     EnumJobPerfRecorder,
+)
+from core.modules.strategy.core.engines.enumerator.shared.services.enumerator_timeline import (
+    EnumeratorTimeline,
 )
 from core.modules.strategy.core.engines.enumerator.shared.services.pit_bars import PitBars
 from core.modules.strategy.core.engines.enumerator.shared.state.entity_tracker import (
@@ -30,11 +31,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class EntityTimelineHooks:
-    """entity 日业务：tick + scan_opportunity（无 asof）。
+    """entity 点业务：tick + scan_opportunity（无 asof）。
 
     边界:
-    - 负责: per-entity DataContext、Investment 生命周期、结果 dict
-    - 不负责: open_dates 迭代（TimelineDriver）、Contract 加载 / CSV
+    - 负责: resolve_timeline 注入、per-entity DataContext、Investment、结果 dict
+    - 不负责: points 迭代（TimelineDriver）、Contract 加载 / CSV
     - 调用方: BacktestEngine via EntityTimelineHooks.factory
     """
 
@@ -54,7 +55,7 @@ class EntityTimelineHooks:
     _scan_contexts: Dict[str, DataContext] = field(init=False, repr=False)
     _base_data_key: str = field(init=False, repr=False)
     _min_required: int = field(init=False, repr=False)
-    _open_dates_tuple: tuple = field(default_factory=tuple, init=False, repr=False)
+    _timeline_points: tuple = field(default_factory=tuple, init=False, repr=False)
     _start_date: str = field(default="", init=False, repr=False)
     _end_date: str = field(default="", init=False, repr=False)
     _ready_date_by_entity: Dict[str, str] = field(
@@ -117,79 +118,25 @@ class EntityTimelineHooks:
             perf=perf,
         )
 
-    @staticmethod
-    def _experiment_pad_empty_open_dates() -> List[str]:
-        """实验用：NTQ_ENUM_PAD_EMPTY_START/END（YYYYMMDD）注入伪开市日（周一到周五）。
+    def resolve_timeline(self, job_context: JobContext) -> Timeline:
+        """从全局 trade.calendar 解析（不读 payload.timeline）。"""
+        return EnumeratorTimeline.resolve_for_job(job_context)
 
-        用于测量「日历有开市日但无行情」的沉默成本；正式裁剪实现后可删。
-        """
-        start_raw = str(os.environ.get("NTQ_ENUM_PAD_EMPTY_START") or "").strip()
-        end_raw = str(os.environ.get("NTQ_ENUM_PAD_EMPTY_END") or "").strip()
-        if not start_raw or not end_raw:
-            return []
-        try:
-            start = datetime.strptime(start_raw, "%Y%m%d").date()
-            end = datetime.strptime(end_raw, "%Y%m%d").date()
-        except ValueError:
-            logger.warning(
-                "NTQ_ENUM_PAD_EMPTY_* 日期非法：start=%s end=%s",
-                start_raw,
-                end_raw,
-            )
-            return []
-        if end < start:
-            return []
-        out: List[str] = []
-        cur = start
-        while cur <= end:
-            if cur.weekday() < 5:
-                out.append(cur.strftime("%Y%m%d"))
-            cur += timedelta(days=1)
-        return out
-
-    def resolve_open_dates(self, job_context: JobContext) -> List[str]:
-        from core.modules.data_contract import DATA_KEY
-
-        loaded = job_context.init or {}
-        global_data = loaded.get("global_data") or {}
-        calendar_data = global_data.get(DATA_KEY.TRADE_CALENDAR, [])
-        dates = [
-            str(item.get("date") or "").strip()
-            for item in calendar_data
-            if item.get("is_open") and str(item.get("date") or "").strip()
-        ]
-        pad = self._experiment_pad_empty_open_dates()
-        if pad:
-            return pad + dates
-        return dates
-
-    def resolve_period(self, job_context: JobContext) -> tuple:
-        payload = job_context.payload or {}
-        entity_shared = payload.get("entity_shared") or {}
-        first = list(entity_shared.values())[0] if entity_shared else {}
-        open_dates = self.resolve_open_dates(job_context)
-        start = str((first or {}).get("start") or (open_dates[0] if open_dates else "")).strip()
-        end = str((first or {}).get("end") or (open_dates[-1] if open_dates else "")).strip()
-        pad = self._experiment_pad_empty_open_dates()
-        if pad:
-            # TimelineDriver 会按 period 再滤一次；垫片日起点必须纳入
-            start = pad[0]
-        return start, end
-
-    def on_run_begin(self, open_dates: Sequence[str]) -> None:
+    def on_run_begin(self, timeline: Timeline) -> None:
         if self.perf is not None:
             self.perf.begin("enumerate")
-        self._open_dates_tuple = tuple(open_dates)
-        self._start_date = open_dates[0] if open_dates else ""
-        self._end_date = open_dates[-1] if open_dates else ""
+        points = timeline.points
+        self._timeline_points = tuple(points)
+        self._start_date = points[0] if points else timeline.start
+        self._end_date = points[-1] if points else timeline.end
         calendar_dict = {
             "period_start": self._start_date,
             "period_end": self._end_date,
-            "open_dates": list(open_dates),
+            "open_dates": list(points),
         }
         if self.perf is not None:
             self.perf.set_calendar_meta(
-                open_dates_count=len(open_dates),
+                open_dates_count=len(points),
                 period_start=self._start_date,
                 period_end=self._end_date,
                 entities_in_job=len(self.trackers),
@@ -220,9 +167,9 @@ class EntityTimelineHooks:
             ctx.calendar = calendar_dict
             self._scan_contexts[entity_id] = ctx
 
-    def on_day(self, day: str, index: int, *, is_last: bool) -> None:
+    def on_tick(self, point: str, index: int, *, is_last: bool) -> None:
         _ = index, is_last
-        now = day
+        now = point
         perf = self.perf
         entity_n = len(self.trackers)
 
@@ -330,7 +277,7 @@ class EntityTimelineHooks:
             tracker.register_from_opportunity(
                 scanned,
                 settings=self.settings,
-                open_dates=self._open_dates_tuple,
+                open_dates=self._timeline_points,
                 strategy_name=self.strategy_name,
                 stock_info=self._stock_info.get(entity_id, {"id": entity_id}),
                 trigger_date=now,
@@ -348,9 +295,10 @@ class EntityTimelineHooks:
                 pit_sec=pit_sec,
             )
 
-    def on_run_end(self, open_dates: Sequence[str]) -> Dict[str, Any]:
-        if open_dates:
-            last_day = open_dates[-1]
+    def on_run_end(self, timeline: Timeline) -> Dict[str, Any]:
+        points = timeline.points
+        if points:
+            last_day = points[-1]
             for entity_id, tracker in self.trackers.items():
                 if not tracker.active:
                     continue

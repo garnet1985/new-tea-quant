@@ -111,9 +111,9 @@ resolve_entity_based_performance(profile_tag_entity_timeline_config())
 
 ## Job 契约
 
-**entity_based** payload 需包含单 entity 键（如 `entity_id` / `stock_id`）或 batch 路径 `jobs: [...]`。
+**entity_based** payload 须含非空 ``entity_specified``（``List[{id}]``）；不允许 ``entity_id`` / ``stock_id`` 等别名。
 
-**slice_based** payload 需包含 `open_dates` 与 bulk entity 键（如 `entity_ids`）。
+**slice_based** payload 须含非空 ``entity_ids`` 与正整数 ``timeline_point_count``；全量 points 不进 payload，worker 从全局 ``trade.calendar`` 解析。
 
 校验：`BacktestJob.validate_many(jobs, mode=...)`，facade 在 run 前 fail-fast。
 

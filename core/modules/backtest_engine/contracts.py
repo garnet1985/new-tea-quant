@@ -19,6 +19,7 @@ from core.modules.backtest_engine.core.shared.types import (
     RunProgress,
 )
 from core.modules.backtest_engine.core.timeline import (
+    Timeline,
     TimelineDriver,
     TimelineHooks,
     TimelineHooksFactory,
@@ -40,6 +41,7 @@ __all__ = [
     "RunProgress",
     "TaskStartFn",
     "TaskCompleteFn",
+    "Timeline",
     "TimelineDriver",
     "TimelineHooks",
     "TimelineHooksFactory",

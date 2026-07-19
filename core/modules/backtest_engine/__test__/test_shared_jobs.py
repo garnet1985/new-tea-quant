@@ -8,13 +8,17 @@ from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 
 
 def test_from_dict_accepts_contract() -> None:
-    job = BacktestJob.from_dict({"id": "000001.SZ", "payload": {"stock_id": "000001.SZ"}})
+    job = BacktestJob.from_dict(
+        {"id": "000001.SZ", "payload": {"entity_specified": [{"id": "000001.SZ"}]}}
+    )
     assert job.id == "000001.SZ"
-    assert job.payload == {"stock_id": "000001.SZ"}
+    assert job.payload == {"entity_specified": [{"id": "000001.SZ"}]}
 
 
 def test_validate_many_accepts_contract() -> None:
-    BacktestJob.validate_many([{"id": "000001.SZ", "payload": {"stock_id": "000001.SZ"}}])
+    BacktestJob.validate_many(
+        [{"id": "000001.SZ", "payload": {"entity_specified": [{"id": "000001.SZ"}]}}]
+    )
 
 
 def test_validate_many_entity_based_requires_entity_key() -> None:
@@ -25,17 +29,48 @@ def test_validate_many_entity_based_requires_entity_key() -> None:
         )
 
 
-def test_validate_many_entity_based_accepts_batch_jobs() -> None:
+def test_validate_many_entity_based_rejects_aliases() -> None:
+    with pytest.raises(ValueError, match="entity_specified"):
+        BacktestJob.validate_many(
+            [{"id": "000001.SZ", "payload": {"entity_id": "000001.SZ"}}],
+            mode=BacktestMode.ENTITY_BASED,
+        )
+
+
+def test_validate_many_entity_based_accepts_bundle_jobs() -> None:
     BacktestJob.validate_many(
-        [{"id": "batch_0", "payload": {"jobs": [{"id": "000001.SZ", "payload": {}}]}}],
+        [
+            {
+                "id": "batch_0",
+                "payload": {
+                    "entity_specified": [{"id": "000001.SZ"}, {"id": "000002.SZ"}],
+                },
+            }
+        ],
         mode=BacktestMode.ENTITY_BASED,
     )
 
 
-def test_validate_many_slice_based_requires_open_dates() -> None:
-    with pytest.raises(ValueError, match="open_dates"):
+def test_validate_many_slice_based_requires_point_count() -> None:
+    with pytest.raises(ValueError, match="timeline_point_count"):
         BacktestJob.validate_many(
             [{"id": "bulk", "payload": {"entity_ids": ["000001.SZ"]}}],
+            mode=BacktestMode.SLICE_BASED,
+        )
+
+
+def test_validate_many_slice_based_rejects_stock_ids_alias() -> None:
+    with pytest.raises(ValueError, match="entity_ids"):
+        BacktestJob.validate_many(
+            [
+                {
+                    "id": "bulk",
+                    "payload": {
+                        "stock_ids": ["000001.SZ"],
+                        "timeline_point_count": 1,
+                    },
+                }
+            ],
             mode=BacktestMode.SLICE_BASED,
         )
 
@@ -47,7 +82,7 @@ def test_validate_many_slice_based_accepts_bulk_job() -> None:
                 "id": "bulk",
                 "payload": {
                     "entity_ids": ["000001.SZ"],
-                    "open_dates": ["20240101"],
+                    "timeline_point_count": 1,
                 },
             }
         ],
@@ -57,22 +92,36 @@ def test_validate_many_slice_based_accepts_bulk_job() -> None:
 
 def test_from_dict_rejects_flat_row() -> None:
     with pytest.raises(ValueError, match="BacktestEngine job"):
-        BacktestJob.from_dict({"stock_id": "000001.SZ"})
+        BacktestJob.from_dict({"entity_specified": [{"id": "000001.SZ"}]})
 
 
 def test_batch_payloads_unwraps_payloads() -> None:
     rows = BacktestJob.batch_payloads(
         [
-            {"id": "000001.SZ", "payload": {"stock_id": "000001.SZ"}},
-            {"id": "000002.SZ", "payload": {"stock_id": "000002.SZ"}},
+            {
+                "id": "000001.SZ",
+                "payload": {"entity_specified": [{"id": "000001.SZ"}]},
+            },
+            {
+                "id": "000002.SZ",
+                "payload": {"entity_specified": [{"id": "000002.SZ"}]},
+            },
         ]
     )
-    assert rows == [{"stock_id": "000001.SZ"}, {"stock_id": "000002.SZ"}]
+    assert rows == [
+        {"entity_specified": [{"id": "000001.SZ"}]},
+        {"entity_specified": [{"id": "000002.SZ"}]},
+    ]
 
 
 def test_to_dict_round_trip() -> None:
-    job_dict = BacktestJob(id="000001.SZ", payload={"stock_id": "000001.SZ"}).to_dict()
-    assert BacktestJob.from_dict(job_dict).payload == {"stock_id": "000001.SZ"}
+    job_dict = BacktestJob(
+        id="000001.SZ",
+        payload={"entity_specified": [{"id": "000001.SZ"}]},
+    ).to_dict()
+    assert BacktestJob.from_dict(job_dict).payload == {
+        "entity_specified": [{"id": "000001.SZ"}]
+    }
 
 
 def test_normalize_mode_rejects_unknown() -> None:

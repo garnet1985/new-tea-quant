@@ -417,6 +417,8 @@ def execute_tag_sliced_job(context: JobContext) -> Dict[str, Any]:
 
 
 def _wrap_tag_sliced_dispatch_job(job: Dict[str, Any]) -> Dict[str, Any]:
+    from core.modules.backtest_engine.core.shared.jobs import BacktestJob
+
     job_id = str(job.get("job_id") or job.get("id") or "tag_calendar_slice")
     payload = {
         key: value
@@ -425,6 +427,33 @@ def _wrap_tag_sliced_dispatch_job(job: Dict[str, Any]) -> Dict[str, Any]:
     }
     payload.setdefault("_job_id", job_id)
     payload["_executor"] = TAG_SLICED_EXECUTOR_KEY
+
+    entity_ids = payload.get(BacktestJob.SLICE_BASED_ENTITY_KEY)
+    if not isinstance(entity_ids, list) or not entity_ids:
+        raise ValueError(
+            f"tag slice job 缺少非空 {BacktestJob.SLICE_BASED_ENTITY_KEY!r}"
+        )
+
+    point_count = payload.get(BacktestJob.TIMELINE_POINT_COUNT_KEY)
+    if not isinstance(point_count, int) or point_count <= 0:
+        points: list = []
+        raw = payload.get("open_dates")
+        if isinstance(raw, list) and raw:
+            points = [str(d).strip() for d in raw if str(d).strip()]
+        else:
+            calendar = payload.get("backtest_calendar")
+            if isinstance(calendar, dict):
+                cal_dates = calendar.get("open_dates")
+                if isinstance(cal_dates, list):
+                    points = [str(d).strip() for d in cal_dates if str(d).strip()]
+        if not points:
+            raise ValueError(
+                f"tag slice job 缺少 {BacktestJob.TIMELINE_POINT_COUNT_KEY!r} / open_dates"
+            )
+        point_count = len(points)
+    payload[BacktestJob.TIMELINE_POINT_COUNT_KEY] = point_count
+    # 全量 points 不进 payload；worker 从全局 calendar 解析
+    payload.pop("timeline", None)
     return BacktestJob(id=job_id, payload=payload).to_dict()
 
 

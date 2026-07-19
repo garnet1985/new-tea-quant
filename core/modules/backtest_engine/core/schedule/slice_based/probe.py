@@ -62,13 +62,11 @@ class SliceProbe:
         if not jobs:
             return False
         payload = BacktestJob.from_dict(jobs[0]).payload
-        if not SliceProbe._resolve_open_dates(payload):
+        entity_ids = payload.get(BacktestJob.SLICE_BASED_ENTITY_KEY)
+        if not isinstance(entity_ids, list) or not entity_ids:
             return False
-        if not (
-            payload.get("entity_ids")
-            or payload.get("stock_ids")
-            or payload.get("entity_specified")
-        ):
+        point_count = payload.get(BacktestJob.TIMELINE_POINT_COUNT_KEY)
+        if not isinstance(point_count, int) or point_count <= 0:
             return False
         if not SliceProbe._has_worker_hooks(payload):
             return False
@@ -97,8 +95,8 @@ class SliceProbe:
     ) -> Dict[str, Any]:
         """Mark payload so the executor samples the first N formal-width slices.
 
-        Full open_dates and full entities are preserved; head slices are part of
-        the official run, not a throwaway truncated job.
+        Full entity universe and timeline_point_count are preserved; head slices are
+        part of the official run (worker 从全局 calendar 解析 points，不读 payload.timeline).
         """
         out = dict(payload)
         out["_slice_head_sample_slices"] = (
@@ -110,15 +108,15 @@ class SliceProbe:
         return out
 
     @staticmethod
-    def split_open_dates_into_windows(
-        open_dates: List[str],
+    def split_points_into_windows(
+        points: List[str],
         *,
         slice_open_days: int,
     ) -> List[List[str]]:
         days = max(1, int(slice_open_days))
         windows: List[List[str]] = []
-        for start in range(0, len(open_dates), days):
-            windows.append(list(open_dates[start : start + days]))
+        for start in range(0, len(points), days):
+            windows.append(list(points[start : start + days]))
         return windows
 
     @staticmethod
@@ -218,27 +216,21 @@ class SliceProbe:
         )
         probe_slice_count = SliceProbe.head_slice_count(performance)
         needed_open_days = probe_slice_count * slice_days
-        open_dates = SliceProbe._resolve_open_dates(probe)
-        if open_dates:
-            truncated = open_dates[:needed_open_days]
-            probe["open_dates"] = truncated
-            calendar = probe.get("backtest_calendar")
-            if isinstance(calendar, dict):
-                calendar = dict(calendar)
-                calendar["open_dates"] = truncated
-                if truncated:
-                    calendar["start_date"] = truncated[0]
-                    calendar["end_date"] = truncated[-1]
-                probe["backtest_calendar"] = calendar
-            if truncated:
-                probe["start_date"] = truncated[0]
-                probe["end_date"] = truncated[-1]
+        original_count = probe.get(BacktestJob.TIMELINE_POINT_COUNT_KEY)
+        if not isinstance(original_count, int) or original_count <= 0:
+            raise ValueError(
+                f"slice probe 需要正整数 {BacktestJob.TIMELINE_POINT_COUNT_KEY!r}"
+            )
+        probe[BacktestJob.TIMELINE_POINT_COUNT_KEY] = min(
+            original_count, needed_open_days
+        )
 
-        entity_n = 0
-        if isinstance(probe.get("entity_ids"), list):
-            entity_n = len(probe["entity_ids"])
-        elif isinstance(probe.get("stock_ids"), list):
-            entity_n = len(probe["stock_ids"])
+        entity_ids = probe.get(BacktestJob.SLICE_BASED_ENTITY_KEY)
+        if not isinstance(entity_ids, list) or not entity_ids:
+            raise ValueError(
+                f"slice probe 需要非空 {BacktestJob.SLICE_BASED_ENTITY_KEY!r}"
+            )
+        entity_n = len(entity_ids)
 
         probe = SliceProbe.annotate_payload_for_head_sampling(
             probe,
@@ -250,12 +242,13 @@ class SliceProbe:
         probe["slice_open_days"] = slice_days
 
         logger.info(
-            "Slice head payload: job=%s slices=%s slice_days=%s entities=%s open_days=%s",
+            "Slice head payload: job=%s slices=%s slice_days=%s entities=%s "
+            "timeline_point_count=%s",
             job_id,
             probe_slice_count,
             slice_days,
             entity_n,
-            len(probe.get("open_dates") or []),
+            probe[BacktestJob.TIMELINE_POINT_COUNT_KEY],
         )
         return probe
 
@@ -364,19 +357,6 @@ class SliceProbe:
             peak_rss_mb_reader=10.0,
             peak_rss_mb_compute=15.0,
         )
-
-    @staticmethod
-    def _resolve_open_dates(payload: Dict[str, Any]) -> List[str]:
-        open_dates = payload.get("open_dates")
-        if isinstance(open_dates, list) and open_dates:
-            return [str(d) for d in open_dates if str(d).strip()]
-
-        calendar = payload.get("backtest_calendar")
-        if isinstance(calendar, dict):
-            calendar_dates = calendar.get("open_dates")
-            if isinstance(calendar_dates, list) and calendar_dates:
-                return [str(d) for d in calendar_dates if str(d).strip()]
-        return []
 
 
 __all__ = [

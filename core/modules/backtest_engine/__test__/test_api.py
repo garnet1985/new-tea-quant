@@ -83,7 +83,7 @@ def test_slice_based_bulk_job_embeds_slice_plan() -> None:
             "payload": {
                 "tag_execution_mode": "calendar_slice",
                 "entity_ids": ["000001.SZ"],
-                "open_dates": [f"202401{d:02d}" for d in range(1, 41)],
+                "timeline_point_count": 40,
             },
         }
     ]
@@ -198,33 +198,39 @@ def test_worker_execute_resolver_xor() -> None:
     WorkerExecuteResolver.resolve(timeline_hooks_factory=lambda ctx: None)
 
 
-def test_timeline_driver_day_order() -> None:
+def test_timeline_driver_tick_order() -> None:
     from core.modules.backtest_engine.core.timeline.driver import TimelineDriver
+    from core.modules.backtest_engine.core.timeline.timeline import Timeline
 
     events: list[str] = []
 
     class Hooks:
-        def on_run_begin(self, open_dates):
-            events.append(f"begin:{len(open_dates)}")
+        def resolve_timeline(self, job_context):
+            raise AssertionError("run() 不走 resolve_timeline")
 
-        def on_day(self, day, index, *, is_last):
-            events.append(f"day:{day}:{index}:{is_last}")
+        def on_run_begin(self, timeline):
+            events.append(f"begin:{len(timeline.points)}")
 
-        def on_run_end(self, open_dates):
-            events.append(f"end:{len(open_dates)}")
-            return {"success": True, "n": len(open_dates)}
+        def on_tick(self, point, index, *, is_last):
+            events.append(f"tick:{point}:{index}:{is_last}")
+
+        def on_run_end(self, timeline):
+            events.append(f"end:{len(timeline.points)}")
+            return {"success": True, "n": len(timeline.points)}
 
     result = TimelineDriver.run(
-        open_dates=["20240101", "20240102", "20240103", "20240110"],
+        timeline=Timeline.from_points(
+            ["20240101", "20240102", "20240103", "20240110"],
+            start="20240102",
+            end="20240103",
+        ),
         hooks=Hooks(),
-        start_date="20240102",
-        end_date="20240103",
     )
     assert result == {"success": True, "n": 2}
     assert events == [
         "begin:2",
-        "day:20240102:0:False",
-        "day:20240103:1:True",
+        "tick:20240102:0:False",
+        "tick:20240103:1:True",
         "end:2",
     ]
 

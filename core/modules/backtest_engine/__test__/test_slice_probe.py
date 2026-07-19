@@ -4,6 +4,7 @@ from __future__ import annotations
 import pytest
 
 from core.modules.backtest_engine.core.schedule.slice_based.probe import SliceProbe
+from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 
 
 def _sample_orchestrator_result() -> dict:
@@ -36,7 +37,15 @@ def _sample_orchestrator_result() -> dict:
 
 
 def test_should_run_requires_hooks() -> None:
-    jobs = [{"id": "j1", "payload": {"entity_ids": ["000001.SZ"], "open_dates": ["20240102"]}}]
+    jobs = [
+        {
+            "id": "j1",
+            "payload": {
+                "entity_ids": ["000001.SZ"],
+                "timeline_point_count": 1,
+            },
+        }
+    ]
     assert SliceProbe.should_run(jobs, {}) is False
 
     jobs_with_hooks = [
@@ -44,7 +53,7 @@ def test_should_run_requires_hooks() -> None:
             "id": "j1",
             "payload": {
                 "entity_ids": ["000001.SZ"],
-                "open_dates": ["20240102"],
+                "timeline_point_count": 1,
                 "strategy_info": {"hooks_module_path": "userspace.strategies.demo.hooks"},
             },
         }
@@ -58,7 +67,7 @@ def test_should_run_respects_dispatch_probe_flag() -> None:
             "id": "j1",
             "payload": {
                 "entity_ids": ["000001.SZ"],
-                "open_dates": ["20240102"],
+                "timeline_point_count": 1,
                 "strategy_info": {"hooks_module_path": "userspace.strategies.demo.hooks"},
             },
         }
@@ -76,7 +85,7 @@ def test_build_probe_payload_keeps_all_entities() -> None:
             "id": "tag_calendar_slice",
             "payload": {
                 "entity_ids": ["a", "b", "c", "d"],
-                "open_dates": [f"202401{d:02d}" for d in range(1, 31)],
+                "timeline_point_count": 30,
                 "strategy_info": {"hooks_module_path": "x.hooks"},
             },
         }
@@ -90,15 +99,15 @@ def test_build_probe_payload_keeps_all_entities() -> None:
         },
     )
     assert payload["entity_ids"] == ["a", "b", "c", "d"]
-    assert len(payload["open_dates"]) == 10  # 2 * 5
+    assert payload[BacktestJob.TIMELINE_POINT_COUNT_KEY] == 10  # 2 * 5
     assert payload["_slice_head_sample_slices"] == 2
     assert payload["_slice_open_days"] == 5
 
 
-def test_annotate_preserves_full_calendar() -> None:
+def test_annotate_preserves_point_count() -> None:
     payload = {
         "entity_ids": ["a", "b"],
-        "open_dates": [f"202401{d:02d}" for d in range(1, 21)],
+        "timeline_point_count": 20,
     }
     out = SliceProbe.annotate_payload_for_head_sampling(
         payload,
@@ -106,7 +115,7 @@ def test_annotate_preserves_full_calendar() -> None:
         probe_slice_count=2,
         sample_enabled=True,
     )
-    assert len(out["open_dates"]) == 20
+    assert out[BacktestJob.TIMELINE_POINT_COUNT_KEY] == 20
     assert out["_slice_head_sample_slices"] == 2
 
 
@@ -118,14 +127,3 @@ def test_extract_slice_probe_metrics_from_runtime_plan() -> None:
     assert metrics["slices_sampled"] == 2.0
     assert metrics["mb_per_slice_payload"] == pytest.approx(48.0, rel=0.01)
     assert metrics["sec_per_slice_reader"] == pytest.approx(0.45, rel=0.01)
-    assert metrics["sec_per_slice_compute"] == pytest.approx(0.225, rel=0.01)
-
-
-def test_result_from_execute_report() -> None:
-    result = SliceProbe.result_from_execute_report(
-        _sample_orchestrator_result(),
-        performance={},
-        safety_factor=1.0,
-    )
-    assert result.slices_sampled == 2
-    assert result.sec_per_slice_reader > 0

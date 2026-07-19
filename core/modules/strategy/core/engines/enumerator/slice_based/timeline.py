@@ -6,10 +6,13 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
-from core.modules.backtest_engine.contracts import JobContext
+from core.modules.backtest_engine.contracts import JobContext, Timeline
 from core.modules.strategy.contracts import CalendarAsOfResult, Opportunity
 from core.modules.strategy.core.engines.enumerator.shared.performance_tracker.performance_tracker import (
     EnumJobPerfRecorder,
+)
+from core.modules.strategy.core.engines.enumerator.shared.services.enumerator_timeline import (
+    EnumeratorTimeline,
 )
 from core.modules.strategy.core.engines.enumerator.shared.services.pit_bars import PitBars
 from core.modules.strategy.core.engines.enumerator.shared.state.entity_tracker import (
@@ -31,11 +34,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SliceTimelineHooks:
-    """slice 日业务：tick-all → on_calendar_asof → scan 选股。
+    """slice 点业务：tick-all → on_calendar_asof → scan 选股。
 
     边界:
-    - 负责: asof 选股、Investment、force_exit、head RSS 采样、结果 dict
-    - 不负责: open_dates 迭代（TimelineDriver）、Contract 加载 / CSV
+    - 负责: resolve_timeline 注入、asof 选股、Investment、force_exit、结果 dict
+    - 不负责: points 迭代（TimelineDriver）、Contract 加载 / CSV
     - 调用方: BacktestEngine via SliceTimelineHooks.factory
     """
 
@@ -117,51 +120,22 @@ class SliceTimelineHooks:
 
     @staticmethod
     def _resolve_entity_ids(payload: Dict[str, Any]) -> List[str]:
-        for key in ("entity_ids", "stock_ids"):
-            raw = payload.get(key)
-            if isinstance(raw, list) and raw:
-                return [str(item).strip() for item in raw if str(item).strip()]
-        specified = payload.get("entity_specified") or []
-        return [
-            str(item.get("id") or "").strip()
-            for item in specified
-            if isinstance(item, dict) and str(item.get("id") or "").strip()
-        ]
+        raw = payload.get("entity_ids")
+        if not isinstance(raw, list) or not raw:
+            raise ValueError("slice_based payload requires non-empty entity_ids")
+        ids = [str(item).strip() for item in raw if str(item).strip()]
+        if not ids:
+            raise ValueError("slice_based payload entity_ids 不能为空")
+        return ids
 
-    def resolve_open_dates(self, job_context: JobContext) -> List[str]:
-        payload = job_context.payload or {}
-        raw = payload.get("open_dates")
-        if isinstance(raw, list) and raw:
-            return [str(day).strip() for day in raw if str(day).strip()]
+    def resolve_timeline(self, job_context: JobContext) -> Timeline:
+        """从全局 trade.calendar 解析（不读 payload.timeline）。"""
+        return EnumeratorTimeline.resolve_for_job(job_context)
 
-        calendar = payload.get("backtest_calendar")
-        if isinstance(calendar, dict):
-            cal_dates = calendar.get("open_dates")
-            if isinstance(cal_dates, list) and cal_dates:
-                return [str(day).strip() for day in cal_dates if str(day).strip()]
-
-        from core.modules.data_contract import DATA_KEY
-
-        loaded = job_context.init or {}
-        global_data = loaded.get("global_data") or {}
-        calendar_data = global_data.get(DATA_KEY.TRADE_CALENDAR, [])
-        return [
-            str(item.get("date") or "").strip()
-            for item in calendar_data
-            if item.get("is_open") and str(item.get("date") or "").strip()
-        ]
-
-    def resolve_period(self, job_context: JobContext) -> tuple:
-        payload = job_context.payload or {}
-        open_dates = self.resolve_open_dates(job_context)
-        start = str(payload.get("start_date") or (open_dates[0] if open_dates else "")).strip()
-        end = str(payload.get("end_date") or (open_dates[-1] if open_dates else "")).strip()
-        return start, end
-
-    def on_run_begin(self, open_dates: Sequence[str]) -> None:
+    def on_run_begin(self, timeline: Timeline) -> None:
         if self.perf is not None:
             self.perf.begin("enumerate")
-        self._open_dates = list(open_dates)
+        self._open_dates = list(timeline.points)
         self._slice_open_days = max(
             1,
             int(
@@ -192,8 +166,8 @@ class SliceTimelineHooks:
         self._job_min_ready_date = PitBars.job_min_ready_date(self._ready_date_by_entity)
         self._job_has_work = bool(self._job_min_ready_date)
 
-    def on_day(self, day: str, index: int, *, is_last: bool) -> None:
-        as_of = day
+    def on_tick(self, point: str, index: int, *, is_last: bool) -> None:
+        as_of = point
         perf = self.perf
 
         # 尽早短路：全 job 尚无任何 entity 达到 min_required → 不 until / 不 asof
@@ -208,7 +182,7 @@ class SliceTimelineHooks:
                     pit_sec=0.0,
                     skipped_before_ready=True,
                 )
-            # 空日前缀不计入 slice window
+            # 空点前缀不计入 slice window
             self._window_start_idx = index + 1
             self._window_t0 = time.perf_counter()
             return
@@ -332,9 +306,10 @@ class SliceTimelineHooks:
             self._window_start_idx = index + 1
             self._window_t0 = time.perf_counter()
 
-    def on_run_end(self, open_dates: Sequence[str]) -> Dict[str, Any]:
-        if open_dates:
-            last_day = open_dates[-1]
+    def on_run_end(self, timeline: Timeline) -> Dict[str, Any]:
+        points = timeline.points
+        if points:
+            last_day = points[-1]
             for entity_id, tracker in self.trackers.items():
                 if not tracker.active:
                     continue

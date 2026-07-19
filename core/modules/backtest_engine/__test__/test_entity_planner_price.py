@@ -14,7 +14,14 @@ from core.modules.strategy.services.execution.worker_profile import (
 
 
 def _engine_jobs(n: int) -> list[dict]:
-    return [{"id": f"s{i}", "payload": {"stock_id": f"s{i}"}} for i in range(n)]
+    return [
+        {
+            "id": "bundle",
+            "payload": {
+                "entity_specified": [{"id": f"s{i}"} for i in range(n)],
+            },
+        }
+    ]
 
 
 def test_price_explicit_entities_per_job_from_dispatch() -> None:

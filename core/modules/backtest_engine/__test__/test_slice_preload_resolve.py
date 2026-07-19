@@ -75,7 +75,7 @@ def test_refine_plan_from_probe_sets_ran_snapshot() -> None:
         reserve_cores=1,
     )
     skeleton = SlicePlanner._resolve_slice_plan(
-        [{"id": "j1", "payload": {"open_dates": [f"202401{d:02d}" for d in range(1, 31)], "entity_ids": ["a"]}}],
+        [{"id": "j1", "payload": {"timeline_point_count": 30, "entity_ids": ["a"]}}],
         cap,
         None,
         {
@@ -141,8 +141,8 @@ def test_base_plan_sets_queue_equal_preload_from_probe() -> None:
         {
             "id": "j1",
             "payload": {
-                "stock_ids": ["a"],
-                "open_dates": [f"202401{d:02d}" for d in range(1, 21)],
+                "entity_ids": ["a"],
+                "timeline_point_count": 20,
             },
         }
     ]
@@ -171,7 +171,7 @@ def test_oom_cuts_preload_not_readers() -> None:
         peak_rss_mb_compute=40.0,
     )
     base = SlicePlanner._resolve_base_plan(
-        [{"id": "j", "payload": {"stock_ids": ["a"], "open_dates": ["20240101"]}}],
+        [{"id": "j", "payload": {"entity_ids": ["a"], "timeline_point_count": 1}}],
         cap,
         probe,
         {

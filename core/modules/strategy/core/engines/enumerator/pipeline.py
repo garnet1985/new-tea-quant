@@ -324,17 +324,13 @@ class EnumeratorPipeline:
             payload = job.get("payload") or job
             if not isinstance(payload, dict):
                 continue
-            for key in ("entity_ids", "stock_ids"):
-                ids = payload.get(key)
-                if isinstance(ids, list) and ids:
-                    total += len(ids)
-                    break
-            else:
-                specified = payload.get("entity_specified")
-                if isinstance(specified, list):
-                    total += len(specified)
-                elif isinstance(job.get("entity_specified"), list):
-                    total += len(job["entity_specified"])
+            entity_ids = payload.get("entity_ids")
+            if isinstance(entity_ids, list) and entity_ids:
+                total += len(entity_ids)
+                continue
+            specified = payload.get("entity_specified")
+            if isinstance(specified, list):
+                total += len(specified)
         return total
 
     @staticmethod

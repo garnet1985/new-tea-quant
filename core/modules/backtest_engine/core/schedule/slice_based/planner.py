@@ -514,14 +514,15 @@ class SlicePlanner(BasePlanner):
 
     @classmethod
     def _is_bulk_calendar_job(cls, jobs: List[Dict[str, Any]]) -> bool:
-        """单 bulk job + 日历 open_dates：calendar_slice 形态（与具体业务模块无关）。"""
+        """单 bulk job + entity_ids + timeline_point_count：calendar_slice 形态。"""
         if len(jobs) != 1:
             return False
         payload = BacktestJob.from_dict(jobs[0]).payload
-        if not cls._resolve_open_dates(jobs):
+        entity_ids = payload.get(BacktestJob.SLICE_BASED_ENTITY_KEY)
+        if not isinstance(entity_ids, list) or not entity_ids:
             return False
-        bulk_keys = ("entity_ids", "entities", "stock_ids", "entity_id", "stock_id")
-        return any(payload.get(key) for key in bulk_keys)
+        point_count = payload.get(BacktestJob.TIMELINE_POINT_COUNT_KEY)
+        return isinstance(point_count, int) and point_count > 0
 
     @classmethod
     def _count_calendar_slices(cls, jobs: List[Dict[str, Any]], slice_open_days: int) -> int:
@@ -529,27 +530,14 @@ class SlicePlanner(BasePlanner):
             return 0
 
         days = max(1, int(slice_open_days))
-        open_dates = cls._resolve_open_dates(jobs)
-        if open_dates:
-            return max(1, math.ceil(len(open_dates) / days))
+        payload = BacktestJob.from_dict(jobs[0]).payload
+        point_count = payload.get(BacktestJob.TIMELINE_POINT_COUNT_KEY)
+        if isinstance(point_count, int) and point_count > 0:
+            return max(1, math.ceil(point_count / days))
 
         if len(jobs) > 1:
             return len(jobs)
         return 1
-
-    @classmethod
-    def _resolve_open_dates(cls, jobs: List[Dict[str, Any]]) -> List[str]:
-        payload = BacktestJob.from_dict(jobs[0]).payload
-        open_dates = payload.get("open_dates")
-        if isinstance(open_dates, list) and open_dates:
-            return [str(d) for d in open_dates if str(d).strip()]
-
-        calendar = payload.get("backtest_calendar")
-        if isinstance(calendar, dict):
-            calendar_dates = calendar.get("open_dates")
-            if isinstance(calendar_dates, list) and calendar_dates:
-                return [str(d) for d in calendar_dates if str(d).strip()]
-        return []
 
 
     @staticmethod

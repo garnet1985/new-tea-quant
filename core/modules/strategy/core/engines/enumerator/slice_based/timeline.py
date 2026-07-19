@@ -66,12 +66,20 @@ class SliceTimelineHooks:
     _window_start_idx: int = field(default=0, init=False, repr=False)
     _slice_index: int = field(default=0, init=False, repr=False)
     _window_t0: float = field(default=0.0, init=False, repr=False)
+    _ready_date_by_entity: Dict[str, str] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    _job_min_ready_date: str = field(default="", init=False, repr=False)
+    _job_has_work: bool = field(default=True, init=False, repr=False)
 
     def __post_init__(self) -> None:
         ids = [str(eid).strip() for eid in self.entity_ids if str(eid).strip()]
         self.entity_ids = ids
         self.trackers = {eid: EntityTracker(entity_id=eid) for eid in ids}
         self._stock_info = {eid: StockMetaHelper.load(eid) for eid in ids}
+        self._ready_date_by_entity = {}
+        self._job_min_ready_date = ""
+        self._job_has_work = True
         settings_dict = self.settings.to_dict()
         self._assert_entry_price_model(settings_dict)
         self._rebalance_period = self._resolve_rebalance_period(settings_dict)
@@ -175,10 +183,36 @@ class SliceTimelineHooks:
         self._window_start_idx = 0
         self._slice_index = 0
         self._window_t0 = time.perf_counter()
+        base_contract = self.entity_contracts.get(self._base_data_key)
+        self._ready_date_by_entity = PitBars.ready_date_by_entity(
+            base_contract,
+            list(self.trackers.keys()),
+            min_required=self._min_required,
+        )
+        self._job_min_ready_date = PitBars.job_min_ready_date(self._ready_date_by_entity)
+        self._job_has_work = bool(self._job_min_ready_date)
 
     def on_day(self, day: str, index: int, *, is_last: bool) -> None:
         as_of = day
         perf = self.perf
+
+        # 尽早短路：全 job 尚无任何 entity 达到 min_required → 不 until / 不 asof
+        if (not self._job_has_work) or (
+            self._job_min_ready_date and as_of < self._job_min_ready_date
+        ):
+            if perf is not None:
+                perf.record_calendar_day(
+                    any_bar=False,
+                    bar_hits=0,
+                    bar_misses=len(self.trackers),
+                    pit_sec=0.0,
+                    skipped_before_ready=True,
+                )
+            # 空日前缀不计入 slice window
+            self._window_start_idx = index + 1
+            self._window_t0 = time.perf_counter()
+            return
+
         if perf is not None:
             perf.begin("enum_pit_until")
         pit_by_entity = PitBars.load_pit_by_entity(
@@ -188,6 +222,9 @@ class SliceTimelineHooks:
             perf.end("enum_pit_until", accumulate=True)
 
         for entity_id, tracker in self.trackers.items():
+            ready = self._ready_date_by_entity.get(entity_id) or ""
+            if (not ready) or as_of < ready:
+                continue
             bar = PitBars.bar_on(
                 pit_by_entity.get(entity_id, {}),
                 base_data_key=self._base_data_key,

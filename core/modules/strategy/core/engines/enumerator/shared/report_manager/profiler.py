@@ -532,6 +532,7 @@ class ProfilerPerformance:
         phase_totals = _ProfilerBlocks._aggregate_phase_totals(self.jobs)
         storage_totals = _ProfilerBlocks._aggregate_storage_totals(self.jobs)
         contract_totals = _ProfilerBlocks._aggregate_contract_totals(self.jobs)
+        calendar_totals = _ProfilerBlocks._aggregate_calendar_totals(self.jobs)
         memory = _ProfilerBlocks._build_memory_usage(self.jobs, self.monitor, self.dispatch)
         execute_elapsed = self.execute_elapsed_seconds or float(
             (self.pipeline_phases_sec or {}).get("execute") or 0.0
@@ -619,6 +620,7 @@ class ProfilerPerformance:
                 "detail": {
                     "storage": storage_totals,
                     "contract": contract_totals,
+                    "calendar": calendar_totals,
                     "memory": memory,
                     "cold_start": _ProfilerBlocks._build_cold_start(self.jobs),
                     "failures": _ProfilerBlocks._build_failures(self.jobs, failed_jobs=self.failed_jobs),
@@ -2015,6 +2017,69 @@ class _ProfilerBlocks:
             "until_by_slot": {key: round(value, 4) for key, value in until_by_slot.items()},
             "unified_until_calls": unified_until_calls,
             "unified_until_time_seconds": round(unified_until_time_seconds, 4),
+        }
+
+    @staticmethod
+    def _aggregate_calendar_totals(jobs: List[JobPerformance]) -> Dict[str, Any]:
+        """跨 job 汇总日历沉默成本计数（entity_day miss / 全日 empty pit）。"""
+        open_dates_count = 0
+        days_total = 0
+        days_with_any_bar = 0
+        days_all_empty = 0
+        days_skipped_before_ready = 0
+        entity_day_bar_hit = 0
+        entity_day_bar_miss = 0
+        pit_active_day_sec = 0.0
+        pit_empty_day_sec = 0.0
+        entities_in_jobs = 0
+        period_start = ""
+        period_end = ""
+        for job in jobs:
+            calendar = (job.enum_perf or {}).get("calendar") or {}
+            if not isinstance(calendar, dict):
+                continue
+            open_dates_count = max(
+                open_dates_count, int(calendar.get("open_dates_count") or 0)
+            )
+            days_total += int(calendar.get("days_total") or 0)
+            days_with_any_bar += int(calendar.get("days_with_any_bar") or 0)
+            days_all_empty += int(calendar.get("days_all_empty") or 0)
+            days_skipped_before_ready += int(
+                calendar.get("days_skipped_before_ready") or 0
+            )
+            entity_day_bar_hit += int(calendar.get("entity_day_bar_hit") or 0)
+            entity_day_bar_miss += int(calendar.get("entity_day_bar_miss") or 0)
+            pit_active_day_sec += float(calendar.get("pit_active_day_sec") or 0.0)
+            pit_empty_day_sec += float(calendar.get("pit_empty_day_sec") or 0.0)
+            entities_in_jobs += int(calendar.get("entities_in_job") or 0)
+            ps = str(calendar.get("period_start") or "").strip()
+            pe = str(calendar.get("period_end") or "").strip()
+            if ps and (not period_start or ps < period_start):
+                period_start = ps
+            if pe and (not period_end or pe > period_end):
+                period_end = pe
+        entity_days = entity_day_bar_hit + entity_day_bar_miss
+        miss_ratio = (
+            float(entity_day_bar_miss) / float(entity_days) if entity_days else 0.0
+        )
+        empty_day_ratio = (
+            float(days_all_empty) / float(days_total) if days_total else 0.0
+        )
+        return {
+            "open_dates_count": open_dates_count,
+            "period_start": period_start,
+            "period_end": period_end,
+            "entities_in_jobs": entities_in_jobs,
+            "days_total": days_total,
+            "days_with_any_bar": days_with_any_bar,
+            "days_all_empty": days_all_empty,
+            "days_skipped_before_ready": days_skipped_before_ready,
+            "empty_day_ratio": round(empty_day_ratio, 4),
+            "entity_day_bar_hit": entity_day_bar_hit,
+            "entity_day_bar_miss": entity_day_bar_miss,
+            "entity_day_miss_ratio": round(miss_ratio, 4),
+            "pit_active_day_sec": round(pit_active_day_sec, 4),
+            "pit_empty_day_sec": round(pit_empty_day_sec, 4),
         }
 
 

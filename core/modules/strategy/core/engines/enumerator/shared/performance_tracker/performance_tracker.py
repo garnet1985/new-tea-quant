@@ -18,7 +18,12 @@ class EnumJobPerfRecorder:
 
     def __init__(self, payload: Dict[str, Any]) -> None:
         if ENUM_PERF_PAYLOAD_KEY not in payload:
-            payload[ENUM_PERF_PAYLOAD_KEY] = {"phases": {}, "storage": {}, "contract": {}}
+            payload[ENUM_PERF_PAYLOAD_KEY] = {
+                "phases": {},
+                "storage": {},
+                "contract": {},
+                "calendar": {},
+            }
         bucket = payload[ENUM_PERF_PAYLOAD_KEY]
         if "phases" not in bucket:
             bucket["phases"] = {}
@@ -26,10 +31,13 @@ class EnumJobPerfRecorder:
             bucket["storage"] = {}
         if "contract" not in bucket:
             bucket["contract"] = {}
+        if "calendar" not in bucket:
+            bucket["calendar"] = {}
         self._root: Dict[str, Any] = bucket
         self._phases: Dict[str, float] = bucket["phases"]
         self._storage: Dict[str, Any] = bucket["storage"]
         self._contract: Dict[str, Any] = bucket["contract"]
+        self._calendar: Dict[str, Any] = bucket["calendar"]
         self._timers: Dict[str, float] = {}
 
     @classmethod
@@ -96,11 +104,65 @@ class EnumJobPerfRecorder:
         ) + elapsed
         self.record("enum_pit_until_unified", elapsed, accumulate=True)
 
+    def set_calendar_meta(
+        self,
+        *,
+        open_dates_count: int,
+        period_start: str = "",
+        period_end: str = "",
+        entities_in_job: int = 0,
+    ) -> None:
+        """记录本 job 日历窗口元信息（沉默成本分母）。"""
+        self._calendar["open_dates_count"] = int(open_dates_count)
+        self._calendar["period_start"] = str(period_start or "")
+        self._calendar["period_end"] = str(period_end or "")
+        self._calendar["entities_in_job"] = int(entities_in_job)
+
+    def record_calendar_day(
+        self,
+        *,
+        any_bar: bool,
+        bar_hits: int,
+        bar_misses: int,
+        pit_sec: float = 0.0,
+        skipped_before_ready: bool = False,
+    ) -> None:
+        """按日累计 bar 命中/空转，并把 pit 耗时拆到 empty / active。"""
+        self._calendar["days_total"] = int(self._calendar.get("days_total") or 0) + 1
+        hits = max(0, int(bar_hits))
+        misses = max(0, int(bar_misses))
+        self._calendar["entity_day_bar_hit"] = (
+            int(self._calendar.get("entity_day_bar_hit") or 0) + hits
+        )
+        self._calendar["entity_day_bar_miss"] = (
+            int(self._calendar.get("entity_day_bar_miss") or 0) + misses
+        )
+        if skipped_before_ready:
+            self._calendar["days_skipped_before_ready"] = (
+                int(self._calendar.get("days_skipped_before_ready") or 0) + 1
+            )
+        elapsed = max(0.0, float(pit_sec))
+        if any_bar:
+            self._calendar["days_with_any_bar"] = (
+                int(self._calendar.get("days_with_any_bar") or 0) + 1
+            )
+            self._calendar["pit_active_day_sec"] = (
+                float(self._calendar.get("pit_active_day_sec") or 0.0) + elapsed
+            )
+        else:
+            self._calendar["days_all_empty"] = (
+                int(self._calendar.get("days_all_empty") or 0) + 1
+            )
+            self._calendar["pit_empty_day_sec"] = (
+                float(self._calendar.get("pit_empty_day_sec") or 0.0) + elapsed
+            )
+
     def snapshot(self) -> Dict[str, Any]:
         return {
             "phases": dict(self._phases),
             "storage": dict(self._storage),
             "contract": dict(self._contract),
+            "calendar": dict(self._calendar),
         }
 
 

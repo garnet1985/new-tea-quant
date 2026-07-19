@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 from core.modules.strategy.core.engines.enumerator.shared.performance_tracker.performance_tracker import (
     EnumJobPerfRecorder,
@@ -16,10 +16,45 @@ class PitBars:
     """Contract.until → per-entity PIT，以及当日 base bar 判定。
 
     边界:
-    - 负责: until 聚合、bar_on 校验
+    - 负责: until 聚合、bar_on 校验、ready_date（until 前门闩）
     - 不负责: 日循环、Investment
     - 调用方: entity / slice TimelineHooks
     """
+
+    @staticmethod
+    def ready_date_by_entity(
+        base_contract: Any,
+        entity_ids: Sequence[str],
+        *,
+        min_required: int,
+        time_field: str = "date",
+    ) -> Dict[str, str]:
+        """各 entity 最早可做事日 = 第 min_required 根 K 线日期；不足则空串。
+
+        用于 until 之前短路：as_of < ready_date 时不应 scan / 不应为「做事」付 until。
+        """
+        need = max(1, int(min_required or 1))
+        out: Dict[str, str] = {}
+        if base_contract is None:
+            return {str(eid).strip(): "" for eid in entity_ids if str(eid).strip()}
+        for raw_id in entity_ids:
+            entity_id = str(raw_id or "").strip()
+            if not entity_id:
+                continue
+            rows = base_contract.get_entity_data(entity_id) if hasattr(
+                base_contract, "get_entity_data"
+            ) else None
+            if not isinstance(rows, list) or len(rows) < need:
+                out[entity_id] = ""
+                continue
+            out[entity_id] = str(rows[need - 1].get(time_field) or "").strip()
+        return out
+
+    @staticmethod
+    def job_min_ready_date(ready_by_entity: Dict[str, str]) -> str:
+        """job 内最早可做事日；全无 ready 则返回空串。"""
+        dates = [str(d).strip() for d in (ready_by_entity or {}).values() if str(d).strip()]
+        return min(dates) if dates else ""
 
     @staticmethod
     def load_pit_by_entity(

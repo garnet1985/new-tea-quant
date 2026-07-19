@@ -33,6 +33,8 @@ class BaseTimeSeriesContract(BaseDataContract):
 
         # 初始化 cursor 状态
         self._cursor_states: Dict[str, CursorState] = {}
+        # until 快路径：全表最早一行时间（normalize 后）；None=未计算，""=无数据
+        self._pit_min_date: Optional[str] = None
 
     def _initialize_cursors(self) -> None:
         """初始化 cursor 状态（在 fill_in_data 后调用）。"""
@@ -49,6 +51,31 @@ class BaseTimeSeriesContract(BaseDataContract):
                     entity_id: CursorState()
                     for entity_id in self.data.keys()
                 }
+        self._pit_min_date = None
+
+    def _ensure_pit_min_date(self, time_field: str) -> str:
+        """缓存全 contract 最早 row 时间，供 until 在 as_of 早于全部数据时整段短路。"""
+        if self._pit_min_date is not None:
+            return self._pit_min_date
+        min_date = ""
+        if self.is_global():
+            rows = self.data if isinstance(self.data, list) else []
+            if rows:
+                raw = rows[0].get(time_field)
+                if raw is not None:
+                    min_date = self.normalize_as_of(str(raw))
+        elif isinstance(self.data, dict):
+            for rows in self.data.values():
+                if not isinstance(rows, list) or not rows:
+                    continue
+                raw = rows[0].get(time_field)
+                if raw is None:
+                    continue
+                candidate = self.normalize_as_of(str(raw))
+                if candidate and (not min_date or candidate < min_date):
+                    min_date = candidate
+        self._pit_min_date = min_date
+        return min_date
 
     def get_time_window(self) -> Optional[TimeRange]:
         """获取时间窗口（用户定义的时间范围）。
@@ -202,6 +229,11 @@ class BaseTimeSeriesContract(BaseDataContract):
 
         # 获取时间字段
         time_field = self.get_base_time_field() or "date"
+
+        # as_of 早于全部数据：无需遍历 entity（空日沉默成本主因）
+        pit_min = self._ensure_pit_min_date(time_field)
+        if pit_min and as_of_norm < pit_min:
+            return {entity_id: state.acc for entity_id, state in self._cursor_states.items()}
 
         # 遍历所有 entity，推进各自的 cursor
         result = {}

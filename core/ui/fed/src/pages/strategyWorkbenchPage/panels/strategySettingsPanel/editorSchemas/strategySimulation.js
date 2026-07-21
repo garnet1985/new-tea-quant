@@ -268,7 +268,7 @@ export function resolveSimulationDisplayValue(
   return normalizeSimulationSettings(simulation, simulationTemplateProfiles);
 }
 
-/** preset 仅持久化 template（及 retention 等块外字段由上层保留）；custom 保留完整细项。 */
+/** preset 仅持久化 template + 时间窗/执行模式等块外字段；custom 保留完整细项。 */
 export function cleanupSimulationByTemplate(simulation) {
   const next = simulation && typeof simulation === 'object' ? { ...simulation } : {};
   if (!next.template) {
@@ -278,6 +278,18 @@ export function cleanupSimulationByTemplate(simulation) {
     return ensureCustomDefaults(next);
   }
   const out = { template: next.template };
+  if (next.start_date !== undefined && next.start_date !== null && next.start_date !== '') {
+    out.start_date = next.start_date;
+  }
+  if (next.end_date !== undefined && next.end_date !== null && next.end_date !== '') {
+    out.end_date = next.end_date;
+  }
+  if (next.execution_mode) {
+    out.execution_mode = next.execution_mode;
+  }
+  if (Array.isArray(next.execute_steps) && next.execute_steps.length > 0) {
+    out.execute_steps = [...next.execute_steps];
+  }
   if (next.retention && typeof next.retention === 'object') {
     out.retention = { ...next.retention };
   }
@@ -297,6 +309,17 @@ export function buildStrategySimulationSchema(
     type: 'fieldGroup',
     label: '',
     children: [
+      {
+        name: 'simulation.dateRange',
+        label: '回测时间窗',
+        tooltip: 'enum / price / portfolio 共用的行情区间（YYYYMMDD）。开始或结束留空表示由系统按 data.json 边界推断。',
+        type: 'dateRange',
+        layout: 'vertical',
+        startName: 'start_date',
+        endName: 'end_date',
+        startLabel: '开始日期',
+        endLabel: '结束日期',
+      },
       {
         name: 'template',
         type: 'select',

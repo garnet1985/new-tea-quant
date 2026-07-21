@@ -206,8 +206,8 @@ class EnumeratorPipeline:
         execution_mode: str,
     ) -> Dict[str, Any]:
         from core.modules.backtest_engine import BacktestEngine
-        from core.modules.strategy.core.engines.enumerator.shared.services.enumerator_timeline import (
-            EnumeratorTimeline,
+        from core.modules.strategy.core.engines.enumerator.shared.report_manager.runtime_snapshot import (
+            RuntimeSnapshot,
         )
 
         _, job_executor, hooks_ctx_cls = cls._mode_job_stack(execution_mode)
@@ -224,12 +224,13 @@ class EnumeratorPipeline:
             effective_settings_obj, execution_mode=execution_mode
         )
         task_name = f"strategy_{report_manager.strategy_key}"
-        timeline = EnumeratorTimeline.from_global_cache(cls.global_entity_cache)
+        period = RuntimeSnapshot.resolve_period(effective_settings_obj)
 
         if execution_mode == _MODE_SLICE:
             run_result = BacktestEngine.slice_based.run(
                 jobs=jobs,
-                timeline=timeline,
+                start=period.start_date,
+                end=period.end_date,
                 performance=performance,
                 callbacks=callbacks,
                 task_name=task_name,
@@ -237,7 +238,8 @@ class EnumeratorPipeline:
         else:
             run_result = BacktestEngine.entity_based.run(
                 jobs=jobs,
-                timeline=timeline,
+                start=period.start_date,
+                end=period.end_date,
                 performance=performance,
                 callbacks=callbacks,
                 task_name=task_name,
@@ -371,16 +373,13 @@ class EnumeratorPipeline:
         strategy_key: str,
     ) -> List[str]:
         """按 sampling 配置缩小 entity 范围（smoke / 抽样）。"""
-        sampling = effective_settings.raw_settings.get("sampling") or {}
-        if sampling.get("use_sampling"):
-            stock_pool = sampling.get("stock_pool")
-            if stock_pool:
-                pool = [str(item).strip() for item in stock_pool if str(item).strip()]
-                known = set(stock_ids)
-                filtered = [entity_id for entity_id in pool if entity_id in known]
-                return filtered or pool
-            return StockSampler.sample(stock_ids, sampling, strategy_key)
-        return stock_ids
+        if not effective_settings.sampling.use_sampling:
+            return stock_ids
+        return StockSampler.sample(
+            stock_ids,
+            effective_settings.sampling.sampling,
+            strategy_key,
+        )
 
     @classmethod
     def _to_report(cls, results: Optional[Dict[str, Any]]) -> Dict[str, Any]:

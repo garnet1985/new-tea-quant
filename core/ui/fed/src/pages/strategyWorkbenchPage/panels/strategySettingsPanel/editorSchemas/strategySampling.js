@@ -82,6 +82,9 @@ export function normalizeSamplingSettings(sampling) {
   if (typeof next.use_sampling !== 'boolean') {
     next.use_sampling = Boolean(next.use_sampling);
   }
+  // 时间窗已迁至 simulation；编辑时丢掉 sampling 下遗留日期字段
+  delete next.start_date;
+  delete next.end_date;
   return next;
 }
 
@@ -110,19 +113,7 @@ export function buildStrategySamplingSchema(samplingStrategyOptions = DEFAULT_SA
         name: 'use_sampling',
         type: 'switch',
         label: '是否使用采样',
-        tooltip: '开启后按下方规则缩小回测股票池与日期区间；关闭时使用策略默认范围。',
-      },
-      {
-        name: 'sampling.dateRange',
-        label: '时间段',
-        tooltip: '回测使用的行情区间（YYYYMMDD）。开始或结束留空表示由系统自动推断。',
-        type: 'dateRange',
-        layout: 'vertical',
-        startName: 'start_date',
-        endName: 'end_date',
-        startLabel: '开始日期',
-        endLabel: '结束日期',
-        visibleWhen: whenSamplingEnabled,
+        tooltip: '开启后按下方规则缩小回测股票池；关闭时使用全市场（或策略默认）候选池。回测时间窗在「回测执行假设」中配置。',
       },
       {
         name: 'strategy',

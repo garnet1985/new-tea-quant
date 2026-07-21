@@ -4,7 +4,6 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List
 
-from core.modules.backtest_engine.contracts import Timeline
 from core.modules.strategy.core.engines.price_factor.enum_data import EnumVersionData
 
 logger = logging.getLogger(__name__)
@@ -18,16 +17,12 @@ class JobBuilder:
 
     边界:
     - 负责: 单 bundle（entity_specified + enum 目录路径）；CSV 不进 payload
-    - 不负责: 执行、读 entities CSV、切 batch（BE Planner）
+    - 不负责: 执行、读 entities CSV、切 batch（BE Planner）、建 timeline 轴
     - 调用方: PriceFactorPipeline
     """
 
     @classmethod
-    def build_jobs(
-        cls,
-        data: EnumVersionData,
-        timeline: Timeline,
-    ) -> List[Dict[str, Any]]:
+    def build_jobs(cls, data: EnumVersionData) -> List[Dict[str, Any]]:
         """返回 ``[{"id", "payload"}, ...]``（通常 1 个 bundle）。"""
         entity_ids = [
             str(entity_id).strip()
@@ -44,9 +39,6 @@ class JobBuilder:
             raise ValueError(
                 f"枚举 version 缺少 period.start_date/end_date: {data.output_dir}"
             )
-        point_count = len(timeline.points)
-        if point_count <= 0:
-            raise ValueError("timeline.points 不能为空")
 
         runtime = data.runtime
         strategy_key = str(runtime.strategy_key or "").strip()
@@ -64,7 +56,6 @@ class JobBuilder:
                     "enum_version_id": str(data.version_id),
                     "start_date": start,
                     "end_date": end,
-                    "timeline_point_count": point_count,
                 }
             },
             "shm_info": {},
@@ -77,11 +68,10 @@ class JobBuilder:
         }
 
         logger.info(
-            "price_factor JobBuilder: entities=%d, period=%s~%s, timeline_points=%d, enum_dir=%s",
+            "price_factor JobBuilder: entities=%d, period=%s~%s, enum_dir=%s",
             len(entity_ids),
             start,
             end,
-            point_count,
             data.output_dir,
         )
         return [{"id": "price_factor_run", "payload": payload}]

@@ -46,7 +46,11 @@ class EnumeratorTimeline:
 
     @classmethod
     def from_global_cache(cls, cache: Any) -> Timeline:
-        """主进程：用 GlobalEntityCache 已加载的 trade.calendar 构造轴（传给 BE timeline=）。"""
+        """主进程：用 GlobalEntityCache 已加载的 trade.calendar 构造轴（调试/兼容）。
+
+        正式路径应在外部 resolve simulation period 后 ``run(start=, end=)``，
+        由 BE CalendarService 建轴；勿再依赖本方法整根 override。
+        """
         from core.modules.data_contract import DATA_KEY
 
         calendar_data = list(cache.get_trade_calendar() or [])

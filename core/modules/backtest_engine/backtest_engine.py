@@ -26,9 +26,11 @@ logger = logging.getLogger(__name__)
 class BacktestEngine:
     """Backtest engine facade（调度 / 时间推进 / 性能监控）。
 
-    Timeline（探针前必须就绪）::
+    Timeline（探针前必须就绪；simulation window 必传）::
 
-        run(timeline=...)  >  set_timeline(...) / Timeline.set(...)  >  CalendarService 默认轴
+        run(start=, end=[, timeline=])  >  set_timeline(start=, end=[, timeline=])
+        → 无 points 覆盖时按 window 调 CalendarService 建轴
+        → window 必须落在 data.json 系统范围内
 
     主进程 SharedMemory 发布；worker ``Timeline.read_for_job`` + ``callbacks.on_tick``。
     ``on_tick`` 可选（缺省空转 + warning 一次）。
@@ -39,13 +41,19 @@ class BacktestEngine:
     RunCallbacks = RunCallbacks
 
     @classmethod
-    def set_timeline(cls, timeline: TimelineInput) -> None:
-        """注入覆盖时间轴。须在 ``run`` / 探针前调用。"""
-        Timeline.set(timeline)
+    def set_timeline(
+        cls,
+        timeline: TimelineInput = None,
+        *,
+        start: str = "",
+        end: str = "",
+    ) -> None:
+        """注入 simulation window，并可选覆盖 points。须在 ``run`` / 探针前调用。"""
+        Timeline.set(timeline, start=start, end=end)
 
     @classmethod
     def clear_timeline(cls) -> None:
-        """清除 ``set_timeline`` 覆盖。"""
+        """清除 ``set_timeline`` 的 window / points 覆盖。"""
         Timeline.clear()
 
     @dataclass(frozen=True)
@@ -100,6 +108,8 @@ class BacktestEngine:
         def run(
             jobs: List[Dict[str, Any]],
             *,
+            start: str = "",
+            end: str = "",
             timeline: TimelineInput = None,
             performance: Optional[Dict[str, Any]] = None,
             task_name: str = "",
@@ -108,6 +118,8 @@ class BacktestEngine:
         ) -> BacktestEngine.RunResult:
             return BacktestEngine._run_entity_based(
                 jobs,
+                start=start,
+                end=end,
                 timeline=timeline,
                 performance=performance,
                 task_name=task_name,
@@ -120,6 +132,8 @@ class BacktestEngine:
         def run(
             jobs: List[Dict[str, Any]],
             *,
+            start: str = "",
+            end: str = "",
             timeline: TimelineInput = None,
             performance: Optional[Dict[str, Any]] = None,
             task_name: str = "",
@@ -128,6 +142,8 @@ class BacktestEngine:
         ) -> BacktestEngine.RunResult:
             return BacktestEngine._run_slice_based(
                 jobs,
+                start=start,
+                end=end,
                 timeline=timeline,
                 performance=performance,
                 task_name=task_name,
@@ -142,19 +158,28 @@ class BacktestEngine:
     def _prepare_jobs_timeline(
         jobs: List[Dict[str, Any]],
         *,
-        timeline: TimelineInput,
+        start: str = "",
+        end: str = "",
+        timeline: TimelineInput = None,
     ) -> tuple[List[Dict[str, Any]], bool]:
         """探针前就绪 timeline。返回 (jobs, published)。无 jobs 时不发布。"""
         job_list = list(jobs or [])
         if not job_list:
             return job_list, False
-        stamped, _effective = Timeline.begin_run(job_list, timeline)
+        stamped, _effective = Timeline.begin_run(
+            job_list,
+            timeline,
+            start=start,
+            end=end,
+        )
         return stamped, True
 
     @staticmethod
     def _run_entity_based(
         jobs: List[Dict[str, Any]],
         *,
+        start: str = "",
+        end: str = "",
         timeline: TimelineInput = None,
         performance: Optional[Dict[str, Any]] = None,
         task_name: str = "",
@@ -166,6 +191,8 @@ class BacktestEngine:
         try:
             stamped_jobs, published = BacktestEngine._prepare_jobs_timeline(
                 jobs,
+                start=start,
+                end=end,
                 timeline=timeline,
             )
             worker_fn = TimelineWorkerExecute(resolved_callbacks)
@@ -195,6 +222,8 @@ class BacktestEngine:
     def _run_slice_based(
         jobs: List[Dict[str, Any]],
         *,
+        start: str = "",
+        end: str = "",
         timeline: TimelineInput = None,
         performance: Optional[Dict[str, Any]] = None,
         task_name: str = "",
@@ -206,6 +235,8 @@ class BacktestEngine:
         try:
             stamped_jobs, published = BacktestEngine._prepare_jobs_timeline(
                 jobs,
+                start=start,
+                end=end,
                 timeline=timeline,
             )
             worker_fn = TimelineWorkerExecute(resolved_callbacks)
@@ -237,6 +268,8 @@ class BacktestEngine:
         mode: str | BacktestMode,
         jobs: List[Dict[str, Any]],
         *,
+        start: str = "",
+        end: str = "",
         timeline: TimelineInput = None,
         performance: Optional[Dict[str, Any]] = None,
         task_name: str = "",
@@ -247,6 +280,8 @@ class BacktestEngine:
         if normalized == BacktestMode.ENTITY_BASED.value:
             return cls._run_entity_based(
                 jobs,
+                start=start,
+                end=end,
                 timeline=timeline,
                 performance=performance,
                 task_name=task_name,
@@ -256,6 +291,8 @@ class BacktestEngine:
         if normalized == BacktestMode.SLICE_BASED.value:
             return cls._run_slice_based(
                 jobs,
+                start=start,
+                end=end,
                 timeline=timeline,
                 performance=performance,
                 task_name=task_name,

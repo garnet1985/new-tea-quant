@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from core.modules.backtest_engine.contracts import Timeline
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_consts import (
     ENTITY_IDS_FILE,
@@ -21,7 +20,13 @@ from core.modules.strategy.core.engines.price_factor.job_builder import (
 pytestmark = pytest.mark.force_run
 
 
-def _write_runtime(output_dir: Path, *, entity_ids: list[str]) -> None:
+def _write_runtime(
+    output_dir: Path,
+    *,
+    entity_ids: list[str],
+    start: str = "20240102",
+    end: str = "20240110",
+) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / ENTITY_IDS_FILE).write_text(
         "\n".join(entity_ids) + ("\n" if entity_ids else ""),
@@ -33,7 +38,7 @@ def _write_runtime(output_dir: Path, *, entity_ids: list[str]) -> None:
         "version_id": 3,
         "execution_mode": "entity_based",
         "market_profile": "china_a_stock",
-        "period": {"start_date": "20240102", "end_date": "20240110"},
+        "period": {"start_date": start, "end_date": end},
         "fingerprints": {"settings": "s", "env": "e"},
         "system": {},
         "settings": {"effective_settings": {"market_profile": "china_a_stock"}},
@@ -47,14 +52,8 @@ def _write_runtime(output_dir: Path, *, entity_ids: list[str]) -> None:
 def test_build_jobs_bundle_shape(tmp_path: Path) -> None:
     _write_runtime(tmp_path, entity_ids=["000001.SZ", "000002.SZ"])
     data = load_enum_version(tmp_path, "3")
-    timeline = Timeline.from_points(
-        ["20240102", "20240103", "20240104"],
-        start="20240102",
-        end="20240110",
-        kind="calendar",
-    )
 
-    jobs = JobBuilder.build_jobs(data, timeline)
+    jobs = JobBuilder.build_jobs(data)
     BacktestJob.validate_many(jobs, mode="entity_based")
 
     assert len(jobs) == 1
@@ -70,20 +69,17 @@ def test_build_jobs_bundle_shape(tmp_path: Path) -> None:
     assert meta["enum_version_id"] == "3"
     assert meta["start_date"] == "20240102"
     assert meta["end_date"] == "20240110"
-    assert meta["timeline_point_count"] == 3
     assert PRICE_FACTOR_GLOBAL_KEY in payload["global"]
 
 
 def test_build_jobs_empty_entity_ids(tmp_path: Path) -> None:
     _write_runtime(tmp_path, entity_ids=[])
     data = load_enum_version(tmp_path, "1")
-    timeline = Timeline.from_points(["20240102"], start="20240102", end="20240102")
-    assert JobBuilder.build_jobs(data, timeline) == []
+    assert JobBuilder.build_jobs(data) == []
 
 
-def test_build_jobs_rejects_empty_timeline(tmp_path: Path) -> None:
-    _write_runtime(tmp_path, entity_ids=["000001.SZ"])
+def test_build_jobs_rejects_missing_period(tmp_path: Path) -> None:
+    _write_runtime(tmp_path, entity_ids=["000001.SZ"], start="", end="")
     data = load_enum_version(tmp_path, "1")
-    timeline = Timeline.from_points([], start="20240102", end="20240110")
-    with pytest.raises(ValueError, match="timeline.points"):
-        JobBuilder.build_jobs(data, timeline)
+    with pytest.raises(ValueError, match="period"):
+        JobBuilder.build_jobs(data)

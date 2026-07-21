@@ -116,7 +116,7 @@ class BaseJobExecutor:
         timeline = Timeline.read_for_job(job_context.payload)
         if timeline is None:
             raise ValueError(
-                "未找到引擎 timeline：EnumeratorPipeline 须传 timeline= 给 BacktestEngine"
+                "未找到引擎 timeline：EnumeratorPipeline 须传 start/end window 给 BacktestEngine"
             )
         clipped = timeline.clipped()
         hooks.on_run_begin(clipped)

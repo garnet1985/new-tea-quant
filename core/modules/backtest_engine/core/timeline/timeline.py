@@ -3,8 +3,10 @@
 职责::
 
     - Timeline 值对象（points / clip / serialize）
-    - 注入：set / clear / run(timeline=) 优先级
-    - 默认：CalendarService 开市日轴
+    - 注入：必传 simulation window（start/end）；可选 points 覆盖
+      优先级：run(start,end[,timeline]) > set(start,end[,timeline])
+    - 建轴：无 points 覆盖时用 CalendarService.load_open_dates(window)
+      并校验 window ∈ data.json 系统范围
     - 发布：SharedMemory（失败则嵌入 payload.global）
     - 读取：read_for_job
     - 推进：drive / drive_for_job（调 on_tick）
@@ -42,7 +44,7 @@ class Timeline:
     - ``start`` / ``end``: 可选裁剪界
     - ``kind``: ``calendar`` | ``clock`` | ``event`` | ``custom``
 
-    类方法负责引擎侧：set / 默认 calendar / 探针前发布 / worker 读取。
+    类方法负责引擎侧：set window / 可选 points / 探针前发布 / worker 读取。
     """
 
     # enumerator 等仍可把轴写在 payload["timeline"]
@@ -59,6 +61,7 @@ class Timeline:
 
     # ── 主进程状态（一次 run）──
     _override: ClassVar[Optional["Timeline"]] = None
+    _window: ClassVar[Optional[Tuple[str, str]]] = None
     _run_active: ClassVar[bool] = False
     _shm_name: ClassVar[Optional[str]] = None
     _shm_size: ClassVar[int] = 0
@@ -158,93 +161,226 @@ class Timeline:
             meta=dict(self.meta),
         )
 
-    # ── 引擎：注入 / 默认 / 发布 ──
+    # ── 引擎：注入 window / 可选轴 / 发布 ──
 
     @classmethod
-    def set(cls, timeline: TimelineInput) -> None:
-        """注入覆盖轴。应在 ``run`` / 探针前调用。"""
+    def set(
+        cls,
+        timeline: TimelineInput = None,
+        *,
+        start: str = "",
+        end: str = "",
+    ) -> None:
+        """注入 simulation window，并可选覆盖 points。应在 ``run`` / 探针前调用。
+
+        ``start`` / ``end`` 必须是已 resolve 的日期（``YYYYMMDD``）。也可在
+        ``run(start=, end=)`` 再传；二者至少一处提供。
+        """
         if cls._run_active:
             logger.warning(
                 "Timeline.set 应在 run/探针前调用；"
                 "当前 run 已启动，本次设置不会影响本轮已发布的 timeline"
             )
-        normalized = cls.normalize(timeline)
-        if normalized is None:
-            raise ValueError("Timeline.set 需要非空 Timeline 或日期列表")
-        cls._override = normalized
-        logger.info(
-            "Timeline.set: points=%d start=%s end=%s",
-            len(normalized.points),
-            normalized.start,
-            normalized.end,
-        )
+        s = str(start or "").strip()
+        e = str(end or "").strip()
+        if s or e:
+            if not s or not e:
+                raise ValueError("Timeline.set 需要同时提供 start 与 end")
+            cls._window = (s, e)
+        if timeline is not None:
+            normalized = cls.normalize(timeline)
+            if normalized is None:
+                raise ValueError("Timeline.set(timeline=) 需要非空 Timeline 或日期列表")
+            cls._override = normalized
+            if cls._window is None and normalized.start and normalized.end:
+                cls._window = (normalized.start, normalized.end)
+            logger.info(
+                "Timeline.set: points=%d start=%s end=%s",
+                len(normalized.points),
+                (cls._window or ("", ""))[0] or normalized.start,
+                (cls._window or ("", ""))[1] or normalized.end,
+            )
+        elif cls._window is not None:
+            logger.info(
+                "Timeline.set: window=%s~%s (points 待 run 时由 CalendarService 建)",
+                cls._window[0],
+                cls._window[1],
+            )
+        else:
+            raise ValueError(
+                "Timeline.set 需要 start/end window，或带 start/end 的 timeline"
+            )
 
     @classmethod
     def clear(cls) -> None:
-        """清除 Timeline.set 覆盖。"""
+        """清除 Timeline.set 的 window / points 覆盖。"""
         if cls._run_active:
             logger.warning(
                 "Timeline.clear 在 run 进行中调用；本轮已发布 timeline 不受影响"
             )
         cls._override = None
+        cls._window = None
 
     @classmethod
-    def default_from_calendar(cls, *, market: str = "SSE") -> "Timeline":
-        """CalendarService：data.json 默认 start → latest completed 开市日。"""
+    def system_bounds(cls, *, market: str = "SSE") -> Tuple[str, str]:
+        """data.json 系统合法窗：default_start_date → latest completed。"""
         from core.infra.project_context import ProjectContext
         from core.modules.data_manager import DataManager
 
+        _ = market
         data_mgr = DataManager(is_verbose=False)
         cal = data_mgr.service.calendar
         start = str(ProjectContext.config.get_default_start_date() or "").strip()
         end = str(cal.get_latest_completed_trading_date() or "").strip()
         if not start or not end:
             raise ValueError(
-                f"默认 timeline 需要有效 start/end：start={start!r} end={end!r}"
+                f"data.json 系统窗无效：start={start!r} end={end!r}"
             )
-        points = list(cal.load_open_dates(start, end, market=market) or [])
+        return start, end
+
+    @classmethod
+    def validate_window(cls, start: str, end: str) -> Tuple[str, str]:
+        """校验已 resolve 的 window 落在 data.json 系统范围内。"""
+        s = str(start or "").strip()
+        e = str(end or "").strip()
+        if not s or not e:
+            raise ValueError(
+                "simulation window 必传：需要已 resolve 的 start/end（YYYYMMDD）"
+            )
+        if s > e:
+            raise ValueError(f"window start > end: {s} > {e}")
+        bound_start, bound_end = cls.system_bounds()
+        if s < bound_start or e > bound_end:
+            raise ValueError(
+                f"window [{s}, {e}] 超出 data.json 范围 [{bound_start}, {bound_end}]"
+            )
+        return s, e
+
+    @classmethod
+    def from_calendar_window(
+        cls,
+        start: str,
+        end: str,
+        *,
+        market: str = "SSE",
+    ) -> "Timeline":
+        """按 window 从 CalendarService 建开市日轴（先校验 data.json 范围）。"""
+        from core.modules.data_manager import DataManager
+
+        s, e = cls.validate_window(start, end)
+        data_mgr = DataManager(is_verbose=False)
+        points = list(
+            data_mgr.service.calendar.load_open_dates(s, e, market=market) or []
+        )
         if not points:
             raise ValueError(
-                f"CalendarService 未返回开市日：start={start} end={end} market={market}"
+                f"CalendarService 未返回开市日：start={s} end={e} market={market}"
             )
         return cls.from_points(
             points,
-            start=start,
-            end=end,
+            start=s,
+            end=e,
             kind="calendar",
             meta={"source": "calendar_service", "market": market},
         )
 
     @classmethod
-    def resolve(cls, timeline_arg: TimelineInput = None) -> "Timeline":
-        """探针前解析：run 参数 > set > calendar 默认。"""
-        from_run = cls.normalize(timeline_arg)
-        if from_run is not None:
-            logger.info("Timeline: 使用 run(timeline=) points=%d", len(from_run.points))
-            return from_run
+    def _resolve_window(
+        cls,
+        *,
+        start: str = "",
+        end: str = "",
+        timeline_arg: TimelineInput = None,
+    ) -> Tuple[str, str]:
+        """run(start,end) > set(window) > timeline 上的 start/end > points 首尾。"""
+        s = str(start or "").strip()
+        e = str(end or "").strip()
+        if s and e:
+            return s, e
+        if s or e:
+            raise ValueError("run/set 的 start 与 end 必须成对提供")
+        if cls._window is not None:
+            return cls._window
+        if isinstance(timeline_arg, Timeline):
+            if timeline_arg.start and timeline_arg.end:
+                return timeline_arg.start, timeline_arg.end
+            if timeline_arg.points:
+                return timeline_arg.points[0], timeline_arg.points[-1]
         if cls._override is not None:
-            logger.info(
-                "Timeline: 使用 Timeline.set points=%d",
-                len(cls._override.points),
-            )
-            return cls._override
-        default = cls.default_from_calendar()
-        logger.info(
-            "Timeline: 使用 CalendarService 默认轴 points=%d start=%s end=%s",
-            len(default.points),
-            default.start,
-            default.end,
+            if cls._override.start and cls._override.end:
+                return cls._override.start, cls._override.end
+            if cls._override.points:
+                return cls._override.points[0], cls._override.points[-1]
+        if timeline_arg is not None and not isinstance(timeline_arg, Timeline):
+            points = [str(p).strip() for p in timeline_arg if str(p).strip()]
+            if points:
+                return points[0], points[-1]
+        raise ValueError(
+            "simulation window 必传：请在 run(start=, end=) 或 "
+            "Timeline.set(start=, end=) / set_timeline(...) 中提供已 resolve 的起止日期"
         )
-        return default
+
+    @classmethod
+    def resolve(
+        cls,
+        timeline_arg: TimelineInput = None,
+        *,
+        start: str = "",
+        end: str = "",
+    ) -> "Timeline":
+        """探针前解析：必传 window；可选 points 覆盖；否则 CalendarService 建轴。"""
+        window_start, window_end = cls._resolve_window(
+            start=start,
+            end=end,
+            timeline_arg=timeline_arg,
+        )
+        window_start, window_end = cls.validate_window(window_start, window_end)
+
+        from_run = cls.normalize(timeline_arg)
+        source = from_run if from_run is not None else cls._override
+        if source is not None:
+            effective = cls.from_points(
+                source.points,
+                start=window_start,
+                end=window_end,
+                kind=source.kind,
+                meta={
+                    **dict(source.meta),
+                    "window": {"start": window_start, "end": window_end},
+                },
+            ).clipped()
+            if not effective.points:
+                raise ValueError(
+                    f"timeline points 经 window [{window_start}, {window_end}] 裁剪后为空"
+                )
+            logger.info(
+                "Timeline: 使用覆盖轴 points=%d window=%s~%s",
+                len(effective.points),
+                window_start,
+                window_end,
+            )
+            return effective
+
+        effective = cls.from_calendar_window(window_start, window_end)
+        logger.info(
+            "Timeline: CalendarService 建轴 points=%d window=%s~%s",
+            len(effective.points),
+            window_start,
+            window_end,
+        )
+        return effective
 
     @classmethod
     def begin_run(
         cls,
         jobs: List[Dict[str, Any]],
         timeline_arg: TimelineInput = None,
+        *,
+        start: str = "",
+        end: str = "",
     ) -> Tuple[List[Dict[str, Any]], "Timeline"]:
         """探针前：解析 → 发布 → stamp jobs。"""
-        effective = cls.resolve(timeline_arg)
+        effective = cls.resolve(timeline_arg, start=start, end=end)
         cls._publish(effective)
         stamped = cls._stamp_jobs(jobs, effective)
         cls._run_active = True
@@ -292,7 +428,7 @@ class Timeline:
         timeline = cls.read_for_job(job_context.payload)
         if timeline is None:
             raise ValueError(
-                "未找到引擎 timeline：请在探针前 Timeline.set / run(timeline=)，"
+                "未找到引擎 timeline：请在探针前 run(start=, end=) / Timeline.set，"
                 "或依赖 CalendarService 默认轴"
             )
         return cls.drive(

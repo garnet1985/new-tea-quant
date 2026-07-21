@@ -508,7 +508,7 @@ export async function fetchStrategyReportStockKline(strategyName, runId, stockId
 }
 
 /**
- * SWB-02：资金分配模式选项（`capital_simulator.allocation.mode`）
+ * SWB-02：资金分配模式选项（`portfolio.allocation.mode`）
  * @returns {Promise<StrategySettingOption[]>}
  */
 export async function fetchCapitalAllocationModeOptions() {

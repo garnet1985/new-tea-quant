@@ -26,8 +26,6 @@ settings = {
     "core": {
         "rsi_oversold_threshold": 20,
         "min_netprofit_yoy": 0.0,
-        "start_date": "20240101",
-        "end_date": "20241231",
     },
 
     # ========================================
@@ -49,6 +47,8 @@ settings = {
 
     # 与 random_v1 对齐：收盘出信号 → 次日开盘成交；对称 ±20% goal
     "simulation": {
+        "start_date": "20240101",
+        "end_date": "20241231",
         "template": "custom",
         "execution_mode": "entity_based",
         "monitor_price_model": "close",
@@ -90,9 +90,9 @@ settings = {
 
     "sampling": {
         "use_sampling": True,
-        "strategy": "uniform",
+        "strategy": "pool",
         "sampling_amount": 500,
-        "stock_pool": ["600000.SH"],
+        "pool": {"stock_ids": ["600000.SH"]},
     },
 
     "enumerator": {
@@ -106,11 +106,7 @@ settings = {
         "transfer_fee_rate": 0.0,
     },
 
-    "price_simulator": {
-        "base_version": "latest",
-    },
-
-    "capital_simulator": {
+    "portfolio": {
         "base_version": "latest",
         "initial_capital": 100_000,
         "allocation": {

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any, Dict, List
 
 from core.modules.strategy.core.engines.shared.data_class.investment import (
@@ -17,13 +18,23 @@ from .validation_report import ValidationReport
 
 @dataclass
 class SimulationSettings(SettingsBase):
-    """``settings.simulation`` block."""
+    """``settings.simulation`` block（时间窗 + 成交假设）。"""
 
     raw_settings: Dict[str, Any]
 
     @property
     def simulation(self) -> Dict[str, Any]:
         return SettingsBase.ensure_dict_block(self.raw_settings, "simulation")
+
+    @property
+    def start_date(self) -> str:
+        """已配置的回测开始日（YYYYMMDD）；空表示交由系统默认。"""
+        return str(self.simulation.get("start_date") or "").strip()
+
+    @property
+    def end_date(self) -> str:
+        """已配置的回测结束日（YYYYMMDD）；空表示交由系统默认。"""
+        return str(self.simulation.get("end_date") or "").strip()
 
     @property
     def execute_steps(self) -> List[str]:
@@ -33,18 +44,22 @@ class SimulationSettings(SettingsBase):
         return [str(item).strip() for item in raw if str(item).strip()]
 
     def apply_defaults(self) -> None:
-        if "simulation" not in self.raw_settings or not isinstance(self.raw_settings["simulation"], dict):
+        if "simulation" not in self.raw_settings or not isinstance(
+            self.raw_settings["simulation"], dict
+        ):
             self.raw_settings["simulation"] = {}
-        if "execute_steps" not in self.simulation:
-            self.raw_settings["simulation"]["execute_steps"] = [
-                step.value for step in DEFAULT_EXECUTE_STEPS
-            ]
+        sim = self.raw_settings["simulation"]
+        if "start_date" not in sim:
+            sim["start_date"] = ""
+        if "end_date" not in sim:
+            sim["end_date"] = ""
+        if "execute_steps" not in sim:
+            sim["execute_steps"] = [step.value for step in DEFAULT_EXECUTE_STEPS]
 
     def validate(self) -> ValidationReport:
         report = SettingsBase.new_validation()
         self.apply_defaults()
 
-        simulation = self.simulation
         if not isinstance(self.raw_settings.get("simulation"), dict):
             SettingsBase.add_critical(
                 report,
@@ -54,6 +69,54 @@ class SimulationSettings(SettingsBase):
             )
             return report
 
+        self._validate_period(report)
+        self._warn_legacy_sampling_dates(report)
+        self._validate_execute_steps(report)
+        return report
+
+    def _validate_period(self, report: ValidationReport) -> None:
+        start = self.start_date
+        end = self.end_date
+        if start:
+            if not self._is_yyyymmdd(start):
+                SettingsBase.add_critical(
+                    report,
+                    "simulation.start_date",
+                    f"invalid date {start!r}, expected YYYYMMDD",
+                    suggested_fix='Use e.g. "20240101", or "" for system default',
+                )
+        if end:
+            if not self._is_yyyymmdd(end):
+                SettingsBase.add_critical(
+                    report,
+                    "simulation.end_date",
+                    f"invalid date {end!r}, expected YYYYMMDD",
+                    suggested_fix='Use e.g. "20241231", or "" for system default',
+                )
+        if start and end and self._is_yyyymmdd(start) and self._is_yyyymmdd(end):
+            if start > end:
+                SettingsBase.add_critical(
+                    report,
+                    "simulation.start_date",
+                    f"start_date {start} > end_date {end}",
+                    suggested_fix="Ensure start_date <= end_date",
+                )
+
+    def _warn_legacy_sampling_dates(self, report: ValidationReport) -> None:
+        sampling = SettingsBase.ensure_dict_block(self.raw_settings, "sampling")
+        legacy_start = str(sampling.get("start_date") or "").strip()
+        legacy_end = str(sampling.get("end_date") or "").strip()
+        if not legacy_start and not legacy_end:
+            return
+        SettingsBase.add_warning(
+            report,
+            "sampling.start_date/end_date",
+            "dates under sampling are ignored; use simulation.start_date/end_date",
+            suggested_fix="Move start_date/end_date into settings.simulation",
+        )
+
+    def _validate_execute_steps(self, report: ValidationReport) -> None:
+        simulation = self.simulation
         raw_steps = simulation.get("execute_steps")
         if not isinstance(raw_steps, list) or not raw_steps:
             SettingsBase.add_critical(
@@ -62,7 +125,7 @@ class SimulationSettings(SettingsBase):
                 "execute_steps must be a non-empty list",
                 suggested_fix=f"Use default: {[s.value for s in DEFAULT_EXECUTE_STEPS]}",
             )
-            return report
+            return
 
         parsed: List[ExecuteStep] = []
         seen: set[str] = set()
@@ -90,7 +153,7 @@ class SimulationSettings(SettingsBase):
             parsed.append(step)
 
         if not report.is_valid:
-            return report
+            return
 
         step_values = {step.value for step in parsed}
         if ExecuteStep.CHECK_SETTLEMENT.value not in step_values:
@@ -110,11 +173,21 @@ class SimulationSettings(SettingsBase):
                 suggested_fix="Otherwise positions can only close via simulate_end",
             )
 
-        return report
+    @staticmethod
+    def _is_yyyymmdd(value: str) -> bool:
+        if len(value) != 8 or not value.isdigit():
+            return False
+        try:
+            datetime.strptime(value, "%Y%m%d")
+        except ValueError:
+            return False
+        return True
 
     def to_dict(self) -> Dict[str, Any]:
         self.apply_defaults()
         return {
+            "start_date": self.start_date,
+            "end_date": self.end_date,
             "execute_steps": list(self.execute_steps),
         }
 

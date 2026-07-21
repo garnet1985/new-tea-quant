@@ -14,7 +14,7 @@ import strategyDataSchema from '../../strategyWorkbenchPage/panels/strategySetti
 import { buildStrategyMetaSchema } from '../../strategyWorkbenchPage/panels/strategySettingsPanel/editorSchemas/strategyMeta';
 import strategyFeesSchema from '../../strategyWorkbenchPage/panels/strategySettingsPanel/editorSchemas/strategyFees';
 import strategyPriceSimulatorSchema from '../../strategyWorkbenchPage/panels/strategySettingsPanel/editorSchemas/strategyPriceSimulator';
-import { buildStrategyCapitalSimulatorSchema } from '../../strategyWorkbenchPage/panels/strategySettingsPanel/editorSchemas/strategyCapitalSimulator';
+import { buildStrategyPortfolioSchema } from '../../strategyWorkbenchPage/panels/strategySettingsPanel/editorSchemas/strategyPortfolio';
 import { buildStrategySamplingSchema } from '../../strategyWorkbenchPage/panels/strategySettingsPanel/editorSchemas/strategySampling';
 import { buildStrategySimulationSchema } from '../../strategyWorkbenchPage/panels/strategySettingsPanel/editorSchemas/strategySimulation';
 import {
@@ -107,7 +107,7 @@ function StrategyDesignSettingsPanel({
   onFeesChange,
   onSimulationChange,
   onPriceSimulatorChange,
-  onCapitalSimulatorChange,
+  onPortfolioChange,
   allocationModeOptions,
   samplingStrategyOptions,
   simulationTemplateOptions,
@@ -115,14 +115,14 @@ function StrategyDesignSettingsPanel({
   skipInvestmentWhenOptions,
   marketProfileOptions,
 }) {
-  const [samplingEditorErrors, setSamplingEditorErrors] = useState({});
+  const [simulationEditorErrors, setSimulationEditorErrors] = useState({});
 
   const marketProfileSchema = useMemo(
     () => buildMarketProfileOnlySchema(marketProfileOptions),
     [marketProfileOptions],
   );
-  const capitalSimulatorSchema = useMemo(
-    () => buildStrategyCapitalSimulatorSchema(allocationModeOptions),
+  const portfolioSchema = useMemo(
+    () => buildStrategyPortfolioSchema(allocationModeOptions),
     [allocationModeOptions],
   );
   const samplingSchema = useMemo(
@@ -139,7 +139,7 @@ function StrategyDesignSettingsPanel({
     [editorContext, coreEditor],
   );
 
-  const validateSamplingDates = useCallback((nextValue) => {
+  const validateSimulationDates = useCallback((nextValue) => {
     const start = nextValue?.start_date || '';
     const end = nextValue?.end_date || '';
     const errors = {};
@@ -197,11 +197,11 @@ function StrategyDesignSettingsPanel({
     if (activeStep === 'capital') {
       return (
         <>
-          <SectionAccordion title="资金模拟参数">
+          <SectionAccordion title="资金组合参数">
             <SettingsSchemaEditor
-              schema={capitalSimulatorSchema}
-              value={settings?.capital_simulator}
-              onChange={onCapitalSimulatorChange}
+              schema={portfolioSchema}
+              value={settings?.portfolio}
+              onChange={onPortfolioChange}
               context={editorContext}
             />
           </SectionAccordion>
@@ -225,10 +225,10 @@ function StrategyDesignSettingsPanel({
     return null;
   }, [
     activeStep,
-    capitalSimulatorSchema,
+    portfolioSchema,
     coreEditorContext,
     editorContext,
-    onCapitalSimulatorChange,
+    onPortfolioChange,
     onFeesChange,
     onGoalChange,
     onPriceSimulatorChange,
@@ -259,9 +259,6 @@ function StrategyDesignSettingsPanel({
           sampling={settings?.sampling}
           onSamplingChange={onSamplingChange}
           schema={samplingSchema}
-          errors={samplingEditorErrors}
-          onValidate={validateSamplingDates}
-          onValidationChange={setSamplingEditorErrors}
           context={editorContext}
         />
       </SectionAccordion>
@@ -271,6 +268,9 @@ function StrategyDesignSettingsPanel({
           onSimulationChange={onSimulationChange}
           schema={simulationSchema}
           simulationTemplateProfiles={simulationTemplateProfiles}
+          errors={simulationEditorErrors}
+          onValidate={validateSimulationDates}
+          onValidationChange={setSimulationEditorErrors}
           context={editorContext}
         />
       </SectionAccordion>

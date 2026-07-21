@@ -127,7 +127,7 @@ class FingerprintCalculator:
         else:
             settings_obj = StrategySettings.from_dict(dict(effective_settings or {}))
 
-        # 与 RuntimeSnapshot.resolve_period / GlobalEntityCache 一致：sampling + data.json 默认
+        # 与 RuntimeSnapshot.resolve_period / GlobalEntityCache 一致：simulation + data.json 默认
         from core.modules.strategy.core.engines.enumerator.shared.report_manager.runtime_snapshot import (
             RuntimeSnapshot,
         )

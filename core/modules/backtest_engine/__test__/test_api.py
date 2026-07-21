@@ -79,11 +79,14 @@ def test_slice_based_bulk_job_embeds_slice_plan() -> None:
             },
         }
     ]
-    result = BacktestEngine.slice_based.run(
-        jobs,
-        timeline=["20240102", "20240103"],
-        callbacks=RunCallbacks(on_tick=_noop_on_tick),
-    )
+    with patch.object(Timeline, "validate_window", side_effect=lambda s, e: (s, e)):
+        result = BacktestEngine.slice_based.run(
+            jobs,
+            start="20240102",
+            end="20240103",
+            timeline=["20240102", "20240103"],
+            callbacks=RunCallbacks(on_tick=_noop_on_tick),
+        )
     assert result.success is True
     assert result.total_jobs == 1
     assert result.completed_jobs == 1
@@ -169,12 +172,15 @@ def test_run_callbacks_forward_on_task_result() -> None:
         return mock_result
 
     with patch.object(EntityExecutePipeline, "run", fake_run):
-        BacktestEngine.entity_based.run(
-            jobs,
-            timeline=["20240102"],
-            task_name="demo",
-            callbacks=RunCallbacks(on_task_result=on_task_result),
-        )
+        with patch.object(Timeline, "validate_window", side_effect=lambda s, e: (s, e)):
+            BacktestEngine.entity_based.run(
+                jobs,
+                start="20240102",
+                end="20240102",
+                timeline=["20240102"],
+                task_name="demo",
+                callbacks=RunCallbacks(on_task_result=on_task_result),
+            )
 
     assert seen == ["job-1"]
 

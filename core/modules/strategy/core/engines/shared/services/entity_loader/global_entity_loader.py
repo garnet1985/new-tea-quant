@@ -69,9 +69,9 @@ class GlobalEntityCache:
         return self
 
     def init_trade_calendar(self) -> "GlobalEntityCache":
-        """加载 trade_calendar 并写入缓存（日期来自 settings.sampling）。"""
+        """加载 trade_calendar 并写入缓存（日期来自 settings.simulation）。"""
         try:
-            start_date, end_date = self._resolve_sampling_date_range()
+            start_date, end_date = self._resolve_simulation_date_range()
             contract = ContractIssuer.issue(
                 DATA_KEY.TRADE_CALENDAR,
                 runtime={"start": start_date, "end": end_date},
@@ -148,28 +148,14 @@ class GlobalEntityCache:
         self._load_global_data(global_declarations)
         self._create_shared_memory()
 
-    def _resolve_sampling_date_range(self) -> tuple[str, str]:
-        sampling = self._settings.raw_settings.get("sampling", {}) or {}
-        start_date = sampling.get("start_date")
-        end_date = sampling.get("end_date")
+    def _resolve_simulation_date_range(self) -> tuple[str, str]:
+        """与 RuntimeSnapshot.resolve_period 一致：读 simulation.start/end。"""
+        from core.modules.strategy.core.engines.enumerator.shared.report_manager.runtime_snapshot import (
+            RuntimeSnapshot,
+        )
 
-        if not end_date:
-            end_date = self._global_meta.get("latest_completed_trading_date") or (
-                self.load_latest_completed_trading_date()
-            )
-            logger.info(
-                "sampling 未配置 end_date，使用 latest completed trading date: %s",
-                end_date,
-            )
-        if not start_date:
-            from core.infra.project_context import ProjectContext
-
-            start_date = ProjectContext.config.get_default_start_date()
-            logger.info(
-                "sampling 未配置 start_date，使用系统默认: %s (data.json)",
-                start_date,
-            )
-        return str(start_date), str(end_date)
+        period = RuntimeSnapshot.resolve_period(self._settings)
+        return str(period.start_date), str(period.end_date)
 
     def _load_global_data(self, declarations: List[DataDeclaration]) -> None:
         for decl in declarations:

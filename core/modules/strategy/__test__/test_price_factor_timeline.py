@@ -1,9 +1,8 @@
-"""price_factor.resolve_timeline：枚举 period → 开市日日历轴。"""
+"""price_factor.resolve_simulation_window：枚举 period → start/end。"""
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -12,7 +11,7 @@ from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_
     RUNTIME_ENV_FILE,
 )
 from core.modules.strategy.core.engines.price_factor.enum_data import load_enum_version
-from core.modules.strategy.core.engines.price_factor.timeline import resolve_price_timeline
+from core.modules.strategy.core.engines.price_factor.timeline import resolve_simulation_window
 
 pytestmark = pytest.mark.force_run
 
@@ -36,29 +35,16 @@ def _write_runtime(output_dir: Path, *, start: str, end: str) -> None:
     )
 
 
-def test_resolve_price_timeline_uses_runtime_period(tmp_path: Path) -> None:
+def test_resolve_simulation_window_uses_runtime_period(tmp_path: Path) -> None:
     _write_runtime(tmp_path, start="20240102", end="20240105")
     data = load_enum_version(tmp_path, "1")
-    open_dates = ["20240102", "20240103", "20240104", "20240105"]
-
-    with patch(
-        "core.modules.strategy.core.engines.price_factor.timeline.BacktestCalendarResolver.resolve",
-        return_value=(open_dates, {"open_dates": open_dates}),
-    ) as resolve_mock:
-        timeline = resolve_price_timeline(data)
-
-    resolve_mock.assert_called_once()
-    kwargs = resolve_mock.call_args.kwargs
-    assert kwargs["start_date"] == "20240102"
-    assert kwargs["end_date"] == "20240105"
-    assert timeline.kind == "calendar"
-    assert list(timeline.points) == open_dates
-    assert timeline.start == "20240102"
-    assert timeline.end == "20240105"
+    start, end = resolve_simulation_window(data)
+    assert start == "20240102"
+    assert end == "20240105"
 
 
-def test_resolve_price_timeline_requires_period(tmp_path: Path) -> None:
+def test_resolve_simulation_window_requires_period(tmp_path: Path) -> None:
     _write_runtime(tmp_path, start="", end="")
     data = load_enum_version(tmp_path, "1")
     with pytest.raises(ValueError, match="period"):
-        resolve_price_timeline(data)
+        resolve_simulation_window(data)

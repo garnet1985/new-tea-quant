@@ -25,8 +25,6 @@ settings = {
         "max_close": 5.0,
         "top_n": 20,
         "cap_filter": "none",
-        "start_date": "20240101",
-        "end_date": "20241231",
     },
     "data": {
         "base": {
@@ -38,6 +36,8 @@ settings = {
         "min_required_records": 1,
     },
     "simulation": {
+        "start_date": "20240101",
+        "end_date": "20241231",
         "template": "custom",
         "execution_mode": "slice_based",
         "monitor_price_model": "close",
@@ -60,9 +60,9 @@ settings = {
     "goal": {"is_customized": True},
     "sampling": {
         "use_sampling": True,
-        "strategy": "uniform",
+        "strategy": "pool",
         "sampling_amount": 500,
-        "stock_pool": ["600000.SH", "600036.SH"],
+        "pool": {"stock_ids": ["600000.SH", "600036.SH"]},
     },
     "enumerator": {"is_verbose": False},
     "fees": {
@@ -71,8 +71,8 @@ settings = {
         "stamp_duty_rate": 0.001,
         "transfer_fee_rate": 0.0,
     },
-    "price_simulator": {"base_version": "latest"},
-    "capital_simulator": {
+
+    "portfolio": {
         "base_version": "latest",
         "initial_capital": 25_000,
         "allocation": {

@@ -55,11 +55,11 @@ function resolveAllocationModeOptions(allocationModeOptions) {
   });
 }
 
-export function buildStrategyCapitalSimulatorSchema(allocationModeOptions = DEFAULT_ALLOCATION_MODE_OPTIONS) {
+export function buildStrategyPortfolioSchema(allocationModeOptions = DEFAULT_ALLOCATION_MODE_OPTIONS) {
   const modeOptions = resolveAllocationModeOptions(allocationModeOptions);
 
   return {
-    name: 'strategyCapitalSimulator',
+    name: 'strategyPortfolio',
     type: 'fieldGroup',
     label: '',
     children: [
@@ -67,7 +67,7 @@ export function buildStrategyCapitalSimulatorSchema(allocationModeOptions = DEFA
         name: 'initial_capital',
         type: 'number',
         label: '初始资金',
-        tooltip: '资金模拟账户的起始可用资金（元），用于计算仓位规模与净值曲线。',
+        tooltip: '资金组合账户的起始可用资金（元），用于计算仓位规模与净值曲线。',
         parse: parseNumber,
       },
       {
@@ -117,6 +117,9 @@ export function buildStrategyCapitalSimulatorSchema(allocationModeOptions = DEFA
   };
 }
 
-const strategyCapitalSimulatorSchema = buildStrategyCapitalSimulatorSchema();
+/** @deprecated 使用 buildStrategyPortfolioSchema */
+export const buildStrategyCapitalSimulatorSchema = buildStrategyPortfolioSchema;
 
-export default strategyCapitalSimulatorSchema;
+const strategyPortfolioSchema = buildStrategyPortfolioSchema();
+
+export default strategyPortfolioSchema;

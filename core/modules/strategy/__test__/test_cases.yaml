@@ -140,14 +140,14 @@ cases:
 
   - id: 10
     case: price_factor_timeline
-    description: 价格回测 start–end 开市日 Timeline
+    description: 价格回测 simulation window（枚举 period start/end）
     file: test_price_factor_timeline.py
     scenarios:
       - id: 1
-        name: test_resolve_price_timeline_uses_runtime_period
-        description: 使用枚举 runtime period 解析日历轴
+        name: test_resolve_simulation_window_uses_runtime_period
+        description: 使用枚举 runtime period 解析 window
       - id: 2
-        name: test_resolve_price_timeline_requires_period
+        name: test_resolve_simulation_window_requires_period
         description: period 缺失时报错
 
   - id: 11
@@ -162,8 +162,8 @@ cases:
         name: test_build_jobs_empty_entity_ids
         description: entity_ids 为空时返回空 jobs
       - id: 3
-        name: test_build_jobs_rejects_empty_timeline
-        description: timeline.points 为空时报错
+        name: test_build_jobs_rejects_missing_period
+        description: period 缺失时报错
 
   - id: 12
     case: price_factor_executor

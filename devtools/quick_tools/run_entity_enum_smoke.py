@@ -48,8 +48,11 @@ def main() -> int:
     runtime = {
         "sampling": {
             "use_sampling": True,
-            "stock_pool": ["600000.SH"],
+            "strategy": "pool",
             "sampling_amount": 1,
+            "pool": {"stock_ids": ["600000.SH"]},
+        },
+        "simulation": {
             "start_date": "20240101",
             "end_date": "20240331",
         },

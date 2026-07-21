@@ -190,9 +190,9 @@ class RuntimeSnapshot:
             GlobalEntityCache,
         )
 
-        sampling = effective_settings.raw_settings.get("sampling", {}) or {}
-        start_date = str(sampling.get("start_date") or "").strip()
-        end_date = str(sampling.get("end_date") or "").strip()
+        # 根：SimulationSettings.start_date / end_date（validate 已保证格式）
+        start_date = str(effective_settings.simulation.start_date or "").strip()
+        end_date = str(effective_settings.simulation.end_date or "").strip()
 
         if not end_date:
             end_date = GlobalEntityCache.load_latest_completed_trading_date()

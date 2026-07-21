@@ -1,6 +1,7 @@
 /**
  * 从 Run 提交 payload 中移除已迁出 strategy settings 的 dispatch / performance 字段。
  * 与 core fingerprint strip 规则对齐（0.4.0 worker.json profile）。
+ * 并对旧 key 做轻量迁移（capital_simulator → portfolio；sampling 日期 → simulation）。
  */
 
 const ENUMERATOR_DISPATCH_KEYS = [
@@ -50,9 +51,47 @@ function stripKeysFromBlock(block, keys) {
   return out;
 }
 
-export function stripLegacyStrategySettingsForRun(settings) {
+/**
+ * 工作台草稿 / 提交前：旧 section key → 新结构。
+ * - capital_simulator → portfolio
+ * - sampling.start_date/end_date → simulation（仅当 simulation 尚未配置对应字段）
+ */
+export function migrateLegacyStrategySettings(settings) {
   if (!settings || typeof settings !== 'object') return settings;
   const out = { ...settings };
+
+  if (out.capital_simulator && typeof out.capital_simulator === 'object') {
+    if (!out.portfolio || typeof out.portfolio !== 'object') {
+      out.portfolio = { ...out.capital_simulator };
+    } else {
+      out.portfolio = { ...out.capital_simulator, ...out.portfolio };
+    }
+  }
+  delete out.capital_simulator;
+
+  const sampling = out.sampling && typeof out.sampling === 'object' ? { ...out.sampling } : null;
+  if (sampling) {
+    const simulation = out.simulation && typeof out.simulation === 'object'
+      ? { ...out.simulation }
+      : {};
+    if (sampling.start_date && !simulation.start_date) {
+      simulation.start_date = sampling.start_date;
+    }
+    if (sampling.end_date && !simulation.end_date) {
+      simulation.end_date = sampling.end_date;
+    }
+    delete sampling.start_date;
+    delete sampling.end_date;
+    out.sampling = sampling;
+    out.simulation = simulation;
+  }
+
+  return out;
+}
+
+export function stripLegacyStrategySettingsForRun(settings) {
+  if (!settings || typeof settings !== 'object') return settings;
+  const out = migrateLegacyStrategySettings(settings);
   delete out.performance;
 
   if (out.enumerator) {

@@ -4,10 +4,11 @@
 
     1. load_enum_data       — 读 enum version 的 runtime + entity_ids（不读 entities CSV）
     2. resolve_window       — 枚举 period start–end（已 resolve；传给 BE）
-    3. JobBuilder.build_jobs — bundle：entity ids + enum_dir；CSV 在 worker 读
-    4. BacktestEngine.entity_based — 调度自管；callbacks=JobExecutor；
+    3. ReportManager.begin  — 分配 price_factor version，写 runtime / entity_ids
+    4. JobBuilder.build_jobs — bundle：entity ids + enum_dir；CSV 在 worker 读
+    5. BacktestEngine.entity_based — 调度自管；callbacks=JobExecutor；
        start/end window 必传（BE 校验 data.json 并建轴）
-    5. ReportManager        — （待实现）新格式落盘
+    6. ReportManager.finalize — overall + performance；返回可缓存 report dict
 
 Worker 输入契约（仅新格式）::
 
@@ -15,8 +16,8 @@ Worker 输入契约（仅新格式）::
     enum_version/entities/{entity_id}_goal_achievements.csv
 
 边界:
-    - 负责: 准备 jobs + simulation window + JobExecutor 回调
-    - 不负责: 切 batch / worker 数（BE）、指纹缓存、legacy 格式
+    - 负责: 准备 jobs + simulation window + JobExecutor 回调 + 报告落盘
+    - 不负责: 切 batch / worker 数（BE）、指纹缓存、legacy 格式、tick 业务回放
     - 调用方: Strategy._run_steps（cache miss 之后）
 """
 from __future__ import annotations
@@ -31,6 +32,7 @@ from core.modules.strategy.core.engines.price_factor.enum_data import (
 )
 from core.modules.strategy.core.engines.price_factor.executor import JobExecutor
 from core.modules.strategy.core.engines.price_factor.job_builder import JobBuilder
+from core.modules.strategy.core.engines.price_factor.report_manager import ReportManager
 from core.modules.strategy.core.engines.price_factor.timeline import resolve_simulation_window
 
 if TYPE_CHECKING:
@@ -42,31 +44,17 @@ class PriceFactorPipeline:
 
     @classmethod
     def run(cls, ctx: "SimulateRuntimeContext") -> Dict[str, Any]:
-        # TODO: 待实现
-        # cache = CacheManager.get_cache(ctx)
-        # if cache.is_hit():
-        #     return cache.get_result()
-
-        result = cls.run_by_steps(ctx)
-
-        # TODO: 待实现
-        # cache = CacheManager.set_cache(ctx, result)
-
-        return result
+        return cls.run_by_steps(ctx)
 
     @classmethod
     def run_by_steps(cls, ctx: "SimulateRuntimeContext") -> Dict[str, Any]:
         """按步骤串起各步，返回本 step 的 report dict。"""
         data = cls.load_enum_data(ctx)
         start, end = cls.resolve_window(data)
-        jobs = cls.build_jobs(data)
+        report = ReportManager.begin(ctx, data, start=start, end=end)
+        jobs = cls.build_jobs(data, report=report)
         run_result = cls.execute_backtest(jobs, start=start, end=end, data=data)
-        raise NotImplementedError(
-            "PriceFactorPipeline: execute 已接 BE（start/end + JobExecutor）；"
-            f"ReportManager 待实现 (entities={len(data.entity_ids)}, "
-            f"version={data.version_id}, window={start}~{end}, "
-            f"jobs={len(jobs)}, success={getattr(run_result, 'success', None)})"
-        )
+        return report.finalize(run_result, data=data)
 
     @classmethod
     def load_enum_data(cls, ctx: "SimulateRuntimeContext") -> EnumVersionData:
@@ -83,9 +71,14 @@ class PriceFactorPipeline:
         return resolve_simulation_window(data)
 
     @classmethod
-    def build_jobs(cls, data: EnumVersionData) -> List[Dict[str, Any]]:
+    def build_jobs(
+        cls,
+        data: EnumVersionData,
+        *,
+        report: ReportManager,
+    ) -> List[Dict[str, Any]]:
         """组装 BacktestEngine entity_based bundle jobs。"""
-        return JobBuilder.build_jobs(data)
+        return JobBuilder.build_jobs(data, report=report)
 
     @classmethod
     def execute_backtest(

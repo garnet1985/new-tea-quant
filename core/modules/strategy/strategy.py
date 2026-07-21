@@ -100,6 +100,10 @@ class BackTestPipelines:
             from .core.engines.enumerator import EnumeratorPipeline
 
             return EnumeratorPipeline
+        if kind == SimulateKind.PRICE_FACTOR:
+            from .core.engines.price_factor import PriceFactorPipeline
+
+            return PriceFactorPipeline
         raise NotImplementedError(f"Pipeline for {kind!r} 尚未接入")
 
 

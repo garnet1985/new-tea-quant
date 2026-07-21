@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from core.modules.strategy.core.engines.price_factor.enum_data import EnumVersionData
+
+if TYPE_CHECKING:
+    from core.modules.strategy.core.engines.price_factor.report_manager import ReportManager
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +25,12 @@ class JobBuilder:
     """
 
     @classmethod
-    def build_jobs(cls, data: EnumVersionData) -> List[Dict[str, Any]]:
+    def build_jobs(
+        cls,
+        data: EnumVersionData,
+        *,
+        report: Optional["ReportManager"] = None,
+    ) -> List[Dict[str, Any]]:
         """返回 ``[{"id", "payload"}, ...]``（通常 1 个 bundle）。"""
         entity_ids = [
             str(entity_id).strip()
@@ -47,17 +55,20 @@ class JobBuilder:
         if not settings.get("market_profile") and runtime.market_profile:
             settings["market_profile"] = str(runtime.market_profile).strip()
 
+        price_meta: Dict[str, Any] = {
+            "enum_output_dir": str(data.output_dir),
+            "enum_version_id": str(data.version_id),
+            "start_date": start,
+            "end_date": end,
+        }
+        if report is not None:
+            price_meta["price_output_dir"] = str(report.output_dir)
+            price_meta["price_version_id"] = int(report.version_id)
+
         payload: Dict[str, Any] = {
             "entity_specified": [{"id": entity_id} for entity_id in entity_ids],
             "entity_shared": {},
-            "global": {
-                PRICE_FACTOR_GLOBAL_KEY: {
-                    "enum_output_dir": str(data.output_dir),
-                    "enum_version_id": str(data.version_id),
-                    "start_date": start,
-                    "end_date": end,
-                }
-            },
+            "global": {PRICE_FACTOR_GLOBAL_KEY: price_meta},
             "shm_info": {},
             "strategy_info": {
                 "key": strategy_key,

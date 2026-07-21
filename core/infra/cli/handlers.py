@@ -204,7 +204,7 @@ def _handle_renew(app: CliApp, args: argparse.Namespace) -> None:
         raise SystemExit(1) from exc
 
 
-def _resolve_enumerate_strategy(name: Optional[str]) -> str:
+def _resolve_strategy_key(name: Optional[str]) -> str:
     from core.modules.strategy.core.services.discovery.discovery_service import DiscoveryService
 
     explicit = _strategy_name(name)
@@ -233,12 +233,16 @@ def _resolve_enumerate_strategy(name: Optional[str]) -> str:
     return enabled[0].key
 
 
+# 兼容旧名
+_resolve_enumerate_strategy = _resolve_strategy_key
+
+
 def _run_strategy_enumerate(args: argparse.Namespace) -> None:
     import time
 
     from core.modules.strategy import Strategy
 
-    strategy_key = _resolve_enumerate_strategy(getattr(args, "strategy", None))
+    strategy_key = _resolve_strategy_key(getattr(args, "strategy", None))
     force = bool(getattr(args, "force", False))
     stock_count = getattr(args, "stocks", None)
 
@@ -268,8 +272,10 @@ def _run_strategy_enumerate(args: argparse.Namespace) -> None:
     )
     wall_sec = time.perf_counter() - t0
 
+    enum_result = result.get("enumerate") if isinstance(result.get("enumerate"), dict) else result
+
     # 终局摘要统一走 ReportManager.present（entity / slice 相同契约）
-    if result.get("output_dir"):
+    if enum_result.get("output_dir"):
         try:
             from pathlib import Path
 
@@ -277,30 +283,80 @@ def _run_strategy_enumerate(args: argparse.Namespace) -> None:
                 ReportManager,
             )
 
-            ReportManager.from_output_dir(Path(result["output_dir"])).present()
+            ReportManager.from_output_dir(Path(enum_result["output_dir"])).present()
         except FileNotFoundError as exc:
             logger.warning("展示枚举汇总失败（缺产物）: %s", exc)
-            print(f"  success: {result.get('success')}", flush=True)
-            print(f"  output_dir: {result.get('output_dir')}", flush=True)
+            print(f"  success: {enum_result.get('success')}", flush=True)
+            print(f"  output_dir: {enum_result.get('output_dir')}", flush=True)
         except Exception as exc:
             logger.warning("展示枚举汇总失败: %s", exc)
-            print(f"  success: {result.get('success')}", flush=True)
-            print(f"  output_dir: {result.get('output_dir')}", flush=True)
+            print(f"  success: {enum_result.get('success')}", flush=True)
+            print(f"  output_dir: {enum_result.get('output_dir')}", flush=True)
     else:
-        print(f"  success: {result.get('success')}", flush=True)
-        print(f"  opportunities: {result.get('opportunities_count', 0)}", flush=True)
+        print(f"  success: {enum_result.get('success')}", flush=True)
+        print(f"  opportunities: {enum_result.get('opportunities_count', 0)}", flush=True)
 
     print(f"  总耗时(含调度): {wall_sec:.2f}s", flush=True)
-    if not result.get("success"):
-        failed = result.get("failed_entities") or []
+    if not enum_result.get("success"):
+        failed = enum_result.get("failed_entities") or []
         if failed:
             print(f"  failed: {failed[0].get('error')}")
+        raise SystemExit(1)
+
+
+def _run_strategy_price_factor(args: argparse.Namespace) -> None:
+    import time
+
+    from core.modules.strategy import Strategy
+
+    strategy_key = _resolve_strategy_key(getattr(args, "strategy", None))
+    force = bool(getattr(args, "force", False))
+
+    print("💹 价格因子回测…", flush=True)
+    print(f"  策略: {strategy_key}", flush=True)
+    if force:
+        print("  --force: 忽略缓存重跑", flush=True)
+    print("  依赖: 同指纹枚举产物；缺失时会先补跑枚举", flush=True)
+
+    t0 = time.perf_counter()
+    result = Strategy.price_factor(
+        strategy_key,
+        ignore_cache=force,
+    )
+    wall_sec = time.perf_counter() - t0
+
+    pf = result.get("price_factor") if isinstance(result.get("price_factor"), dict) else result
+    enum_part = result.get("enumerate") if isinstance(result.get("enumerate"), dict) else None
+    if enum_part:
+        print(
+            f"  枚举: success={enum_part.get('success')} version={enum_part.get('version_id')}",
+            flush=True,
+        )
+    summary = pf.get("summary") if isinstance(pf, dict) else {}
+    print(f"  output_dir: {pf.get('output_dir')}", flush=True)
+    print(f"  version: {pf.get('version_id')}", flush=True)
+    print(f"  enum_version: {pf.get('enum_version_id')}", flush=True)
+    if summary:
+        print(
+            "  summary: "
+            f"investments={summary.get('total_investments', 0)} "
+            f"win_rate={summary.get('win_rate', 0):.2f}% "
+            f"avg_roi={summary.get('avg_roi', 0):.4f}",
+            flush=True,
+        )
+    print(f"  success: {pf.get('success')}", flush=True)
+    print(f"  总耗时: {wall_sec:.2f}s", flush=True)
+    if not pf.get("success", True):
         raise SystemExit(1)
 
 
 def _handle_strategy(cmd: str, app: CliApp, args: argparse.Namespace) -> None:
     if cmd == "strategy_enumerate":
         _run_strategy_enumerate(args)
+        return
+
+    if cmd == "strategy_price_factor":
+        _run_strategy_price_factor(args)
         return
 
     mgr = app._ensure_strategy_manager()
@@ -310,10 +366,6 @@ def _handle_strategy(cmd: str, app: CliApp, args: argparse.Namespace) -> None:
     if cmd == "scan":
         logger.info("🔍 扫描投资机会...")
         mgr.scan(strategy_name=name, demo=bool(getattr(args, "demo", False)))
-        return
-
-    if cmd == "strategy_price_factor":
-        mgr.simulate("price_factor", strategy_name=name, force_refresh=force)
         return
 
     if cmd in ("strategy_capital_allocate", "strategy_portfolio"):

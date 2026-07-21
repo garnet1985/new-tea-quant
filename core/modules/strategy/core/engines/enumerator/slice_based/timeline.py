@@ -1,4 +1,4 @@
-"""slice_based TimelineHooks：BE TimelineDriver 驱动，本类实现 asof 日业务。"""
+"""slice_based 日历日业务（由 JobExecutor.on_tick / on_ticks_complete 驱动）。"""
 from __future__ import annotations
 
 import logging
@@ -10,9 +10,6 @@ from core.modules.backtest_engine.contracts import JobContext, Timeline
 from core.modules.strategy.contracts import CalendarAsOfResult, Opportunity
 from core.modules.strategy.core.engines.enumerator.shared.performance_tracker.performance_tracker import (
     EnumJobPerfRecorder,
-)
-from core.modules.strategy.core.engines.enumerator.shared.services.enumerator_timeline import (
-    EnumeratorTimeline,
 )
 from core.modules.strategy.core.engines.enumerator.shared.services.pit_bars import PitBars
 from core.modules.strategy.core.engines.enumerator.shared.state.entity_tracker import (
@@ -37,9 +34,9 @@ class SliceTimelineHooks:
     """slice 点业务：tick-all → on_calendar_asof → scan 选股。
 
     边界:
-    - 负责: resolve_timeline 注入、asof 选股、Investment、force_exit、结果 dict
-    - 不负责: points 迭代（TimelineDriver）、Contract 加载 / CSV
-    - 调用方: BacktestEngine via SliceTimelineHooks.factory
+    - 负责: asof 选股、Investment、force_exit、结果 dict
+    - 不负责: points 迭代（Timeline.drive）、Contract 加载 / CSV
+    - 调用方: slice JobExecutor.on_tick / on_ticks_complete
     """
 
     entity_ids: List[str]
@@ -127,10 +124,6 @@ class SliceTimelineHooks:
         if not ids:
             raise ValueError("slice_based payload entity_ids 不能为空")
         return ids
-
-    def resolve_timeline(self, job_context: JobContext) -> Timeline:
-        """从全局 trade.calendar 解析（不读 payload.timeline）。"""
-        return EnumeratorTimeline.resolve_for_job(job_context)
 
     def on_run_begin(self, timeline: Timeline) -> None:
         if self.perf is not None:
@@ -551,12 +544,6 @@ class SliceTimelineHooks:
             raise ValueError(
                 f"slice_based 当前仅支持 simulation.buy_price_model='close'，实际: {model!r}"
             )
-
-
-    @staticmethod
-    def factory(job_context: JobContext) -> "SliceTimelineHooks":
-        """可 pickle 的 TimelineHooksFactory。"""
-        return SliceTimelineHooks.from_job_context(job_context)
 
 
 __all__ = ["SliceTimelineHooks"]

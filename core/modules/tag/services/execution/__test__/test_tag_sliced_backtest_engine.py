@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from core.modules.backtest_engine.contracts import JobContext
+from core.modules.backtest_engine.contracts import JobContext, Timeline
 from core.modules.tag.services.execution.tag_job_pipeline import (
     execute_tag_sliced_job,
     run_tag_sliced_via_backtest_engine,
@@ -90,14 +90,14 @@ def test_run_tag_sliced_via_backtest_engine_staged_save(monkeypatch) -> None:
         lambda _name: fake_save_fn,
     )
 
-    def fake_be_run(jobs, execute_fn, **kwargs):
-        execute_fn(
-            JobContext(
-                job_id=jobs[0]["id"],
-                payload=jobs[0]["payload"],
-                task_name=kwargs["task_name"],
-            )
+    def fake_be_run(jobs, **kwargs):
+        factory = kwargs["timeline_hooks_factory"]
+        ctx = JobContext(
+            job_id=jobs[0]["id"],
+            payload=jobs[0]["payload"],
+            task_name=kwargs["task_name"],
         )
+        factory(ctx).on_run_end(Timeline(points=(), start="", end="", kind="opaque"))
         return type(
             "RunResult",
             (),

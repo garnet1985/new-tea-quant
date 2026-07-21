@@ -16,7 +16,14 @@ import logging
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from core.modules.backtest_engine.contracts import BacktestJob, JobContext, JobReport, RunCallbacks, RunProgress
+from core.modules.backtest_engine.contracts import (
+    BacktestJob,
+    JobContext,
+    JobReport,
+    RunCallbacks,
+    RunProgress,
+    Timeline,
+)
 from core.modules.backtest_engine.core.performance.settings import (
     resolve_entity_based_performance,
     resolve_slice_based_performance,
@@ -89,6 +96,56 @@ def _resolve_timeline_worker_payload(context: JobContext) -> Dict[str, Any]:
                 merged[key] = value
         return merged
     return payload
+
+
+class _TagOpaqueTimelineHooks:
+    """opaque tag execute → 空时间轴 + on_run_end（BE 已去掉 execute_fn 参数）。"""
+
+    def __init__(self, job_context: JobContext) -> None:
+        self._job_context = job_context
+
+    def resolve_timeline(self, job_context: JobContext) -> Timeline:
+        _ = job_context
+        return Timeline(points=(), start="", end="", kind="opaque")
+
+    def on_run_begin(self, timeline: Timeline) -> None:
+        _ = timeline
+
+    def on_tick(self, point: str, index: int, *, is_last: bool) -> None:
+        _ = (point, index, is_last)
+
+    def on_run_end(self, timeline: Timeline) -> Dict[str, Any]:
+        _ = timeline
+        return execute_tag_timeline_job(self._job_context)
+
+    @staticmethod
+    def timeline_factory(job_context: JobContext) -> "_TagOpaqueTimelineHooks":
+        return _TagOpaqueTimelineHooks(job_context)
+
+
+class _TagOpaqueSlicedHooks:
+    """opaque tag sliced execute → 空时间轴 + on_run_end。"""
+
+    def __init__(self, job_context: JobContext) -> None:
+        self._job_context = job_context
+
+    def resolve_timeline(self, job_context: JobContext) -> Timeline:
+        _ = job_context
+        return Timeline(points=(), start="", end="", kind="opaque")
+
+    def on_run_begin(self, timeline: Timeline) -> None:
+        _ = timeline
+
+    def on_tick(self, point: str, index: int, *, is_last: bool) -> None:
+        _ = (point, index, is_last)
+
+    def on_run_end(self, timeline: Timeline) -> Dict[str, Any]:
+        _ = timeline
+        return execute_tag_sliced_job(self._job_context)
+
+    @staticmethod
+    def sliced_factory(job_context: JobContext) -> "_TagOpaqueSlicedHooks":
+        return _TagOpaqueSlicedHooks(job_context)
 
 
 def execute_tag_timeline_job(context: JobContext) -> Dict[str, Any]:
@@ -316,7 +373,7 @@ def run_tag_timeline_via_backtest_engine(
     # ---- 4. 调用 BacktestEngine.entity_based.run() ----
     result = BacktestEngine.entity_based.run(
         engine_jobs,
-        execute_tag_timeline_job,
+        timeline_hooks_factory=_TagOpaqueTimelineHooks.timeline_factory,
         performance=performance,
         task_name=run_name,
         callbacks=RunCallbacks(on_task_result=on_engine_result),
@@ -523,7 +580,7 @@ def run_tag_sliced_via_backtest_engine(
     try:
         result = BacktestEngine.slice_based.run(
             engine_jobs,
-            execute_tag_sliced_job,
+            timeline_hooks_factory=_TagOpaqueSlicedHooks.sliced_factory,
             performance=performance,
             task_name=run_name,
             callbacks=RunCallbacks(on_task_result=on_engine_result),

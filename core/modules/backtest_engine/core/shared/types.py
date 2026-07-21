@@ -58,6 +58,9 @@ class Job:
 
 TaskStartFn = Callable[["JobContext"], Any]
 TaskCompleteFn = Callable[["JobContext"], None]
+TickFn = Callable[["JobContext", str, int], None]
+TicksCompleteFn = Callable[["JobContext", Any], Any]
+ExecuteFn = Callable[["JobContext"], Any]
 
 
 @dataclass
@@ -65,6 +68,9 @@ class RunCallbacks:
     """BacktestEngine run 生命周期钩子（entity / slice 共用）。
 
     task = 最小工作单元（entity: 子进程 job；slice: 一个 slice 计算单元）。
+
+    日历推进：``on_tick`` 可选（缺省空转 + warning 一次）；
+    ``on_ticks_complete`` 可选（全部 tick 后结算，返回 dict 并入 worker 结果）。
     """
 
     # ── 主进程 ──
@@ -75,6 +81,10 @@ class RunCallbacks:
     # ── 工作单元侧（worker / slice 计算）──
     on_before_task_start: Optional[TaskStartFn] = None
     on_after_task_complete: Optional[TaskCompleteFn] = None
+
+    # ── 日历推进 ──
+    on_tick: Optional[TickFn] = None
+    on_ticks_complete: Optional[TicksCompleteFn] = None
 
 
 @dataclass
@@ -136,9 +146,6 @@ class DispatchResult:
     task_name: str = ""
 
 
-ExecuteFn = Callable[[JobContext], Any]
-
-
 __all__ = [
     "JobFailurePhase",
     "ExecutionBackend",
@@ -155,4 +162,6 @@ __all__ = [
     "ExecuteFn",
     "TaskStartFn",
     "TaskCompleteFn",
+    "TickFn",
+    "TicksCompleteFn",
 ]

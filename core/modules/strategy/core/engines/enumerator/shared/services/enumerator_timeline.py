@@ -33,7 +33,7 @@ class EnumeratorTimeline:
 
     @classmethod
     def resolve_for_job(cls, job_context: JobContext) -> Timeline:
-        """Hooks.resolve_timeline：始终从全局 trade.calendar 解析，不读 payload.timeline。"""
+        """Worker 侧：从 init.global_data 的 trade.calendar 解析（兼容旧路径）。"""
         timeline = cls.default_from_trade_calendar(job_context)
         pad = cls._experiment_pad_points()
         if pad:
@@ -41,6 +41,30 @@ class EnumeratorTimeline:
         if not timeline.points:
             raise ValueError(
                 "Timeline.points 为空：确保 trade.calendar 已加载到 global_data（SHM）"
+            )
+        return timeline
+
+    @classmethod
+    def from_global_cache(cls, cache: Any) -> Timeline:
+        """主进程：用 GlobalEntityCache 已加载的 trade.calendar 构造轴（传给 BE timeline=）。"""
+        from core.modules.data_contract import DATA_KEY
+
+        calendar_data = list(cache.get_trade_calendar() or [])
+        points: List[str] = [
+            str(item.get("date") or "").strip()
+            for item in calendar_data
+            if item.get("is_open") and str(item.get("date") or "").strip()
+        ]
+        timeline = cls.from_open_points(
+            points,
+            meta={"source": "trade.calendar"},
+        )
+        pad = cls._experiment_pad_points()
+        if pad:
+            timeline = timeline.with_prepended_points(pad)
+        if not timeline.points:
+            raise ValueError(
+                "Timeline.points 为空：GlobalEntityCache 未加载有效 trade.calendar"
             )
         return timeline
 

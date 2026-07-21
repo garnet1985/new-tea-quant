@@ -258,9 +258,10 @@ class TestTagManager:
         mock_data_mgr.db = MagicMock()
         mock_data_manager.return_value = mock_data_mgr
 
-        def fake_timeline_run(jobs, execute_fn, **kwargs):
+        def fake_timeline_run(jobs, **kwargs):
             callbacks = kwargs["callbacks"]
             assert callbacks is not None
+            assert kwargs.get("timeline_hooks_factory") is not None
             callbacks.on_task_result(
                 JobReport(
                     job_id="job1",
@@ -329,7 +330,7 @@ class TestTagManager:
         mock_data_mgr.db = MagicMock()
         mock_data_manager.return_value = mock_data_mgr
 
-        def fake_timeline_run(jobs, execute_fn, **kwargs):
+        def fake_timeline_run(jobs, **kwargs):
             on_task_result = kwargs["callbacks"].on_task_result
             for i in range(3):
                 on_task_result(

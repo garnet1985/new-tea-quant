@@ -1,19 +1,13 @@
-"""Timeline pillar: contract + driver + hooks."""
+"""Timeline pillar：``timeline.py``（轴 + 发布 + 推进 + worker 入口）。"""
 
-from core.modules.backtest_engine.core.timeline.driver import TimelineDriver
-from core.modules.backtest_engine.core.timeline.hooks import TimelineHooks
-from core.modules.backtest_engine.core.timeline.timeline import Timeline
-from core.modules.backtest_engine.core.timeline.worker import (
-    TimelineHooksFactory,
+from core.modules.backtest_engine.core.timeline.timeline import (
+    Timeline,
+    TimelineInput,
     TimelineWorkerExecute,
-    WorkerExecuteResolver,
 )
 
 __all__ = [
     "Timeline",
-    "TimelineDriver",
-    "TimelineHooks",
-    "TimelineHooksFactory",
+    "TimelineInput",
     "TimelineWorkerExecute",
-    "WorkerExecuteResolver",
 ]

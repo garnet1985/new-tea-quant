@@ -206,6 +206,9 @@ class EnumeratorPipeline:
         execution_mode: str,
     ) -> Dict[str, Any]:
         from core.modules.backtest_engine import BacktestEngine
+        from core.modules.strategy.core.engines.enumerator.shared.services.enumerator_timeline import (
+            EnumeratorTimeline,
+        )
 
         _, job_executor, hooks_ctx_cls = cls._mode_job_stack(execution_mode)
         report_manager.profiler.begin_collect(
@@ -221,27 +224,20 @@ class EnumeratorPipeline:
             effective_settings_obj, execution_mode=execution_mode
         )
         task_name = f"strategy_{report_manager.strategy_key}"
+        timeline = EnumeratorTimeline.from_global_cache(cls.global_entity_cache)
 
         if execution_mode == _MODE_SLICE:
-            from core.modules.strategy.core.engines.enumerator.slice_based.timeline import (
-                SliceTimelineHooks,
-            )
-
             run_result = BacktestEngine.slice_based.run(
                 jobs=jobs,
-                timeline_hooks_factory=SliceTimelineHooks.factory,
+                timeline=timeline,
                 performance=performance,
                 callbacks=callbacks,
                 task_name=task_name,
             )
         else:
-            from core.modules.strategy.core.engines.enumerator.entity_based.timeline import (
-                EntityTimelineHooks,
-            )
-
             run_result = BacktestEngine.entity_based.run(
                 jobs=jobs,
-                timeline_hooks_factory=EntityTimelineHooks.factory,
+                timeline=timeline,
                 performance=performance,
                 callbacks=callbacks,
                 task_name=task_name,

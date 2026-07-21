@@ -1,8 +1,11 @@
-"""entity_based job executor（task 生命周期钩子；日推进由 BE TimelineDriver）。"""
+"""entity_based job executor（task 生命周期钩子；日推进由 BE Timeline.drive）。"""
 from __future__ import annotations
 
 from typing import Any, List
 
+from core.modules.strategy.core.engines.enumerator.entity_based.timeline import (
+    EntityTimelineHooks,
+)
 from core.modules.strategy.core.engines.enumerator.shared.base_executor import (
     BaseJobExecutor,
     ExecutorHooksContext,
@@ -13,12 +16,13 @@ class JobExecutor(BaseJobExecutor):
     """entity_based task 钩子集合。
 
     边界:
-    - 负责: mode 专有调度日志；probe 跳过 flush
-    - 不负责: 日历日循环（TimelineDriver）、Investment（EntityTimelineHooks）
+    - 负责: mode 专有调度日志；probe 跳过 flush；on_tick → EntityTimelineHooks
+    - 不负责: 日历日循环（Timeline.drive）
     - 调用方: EnumeratorPipeline → BacktestEngine.entity_based
     """
 
     task_log_label = "子进程task"
+    timeline_hooks_cls = EntityTimelineHooks
 
     @classmethod
     def on_before_all_tasks_start(cls, plan: Any, batches: List[Any]) -> None:

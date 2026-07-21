@@ -6,30 +6,23 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from core.modules.backtest_engine import BacktestEngine
-from core.modules.backtest_engine.contracts import JobContext, JobReport, RunCallbacks, RunProgress
+from core.modules.backtest_engine.contracts import (
+    JobContext,
+    JobReport,
+    RunCallbacks,
+    RunProgress,
+    Timeline,
+)
 from core.modules.backtest_engine.core.schedule.entity_based.execute_pipeline import (
     EntityExecutePipeline,
 )
 from core.modules.backtest_engine.core.schedule.entity_based.executor import EntityExecutor
 
-
-def _noop_execute(context: JobContext) -> dict:
-    jobs = context.payload.get("jobs") or []
-    return {
-        "success": True,
-        "job_id": context.job_id,
-        "entities_count": len(jobs),
-    }
+pytestmark = pytest.mark.force_run
 
 
-def _sliced_execute(context: JobContext) -> dict:
-    slice_plan = context.payload.get("_slice_plan") or {}
-    return {
-        "success": True,
-        "job_id": context.job_id,
-        "slices_count": slice_plan.get("dispatch_jobs", 1),
-        "reader_workers": slice_plan.get("reader_workers"),
-    }
+def _noop_on_tick(context: JobContext, point: str, index: int) -> None:
+    _ = (context, point, index)
 
 
 def test_facade_export() -> None:
@@ -54,7 +47,7 @@ def test_run_accepts_mode_enum() -> None:
     result = BacktestEngine.run(
         BacktestEngine.Mode.ENTITY_BASED,
         [],
-        _noop_execute,
+        callbacks=RunCallbacks(on_tick=_noop_on_tick),
     )
     assert result.mode == "entity_based"
 
@@ -64,12 +57,11 @@ def test_run_unknown_mode_raises() -> None:
         BacktestEngine.run(
             "invalid",
             [],
-            _noop_execute,
         )
 
 
 def test_entity_based_empty_jobs_returns_success() -> None:
-    result = BacktestEngine.entity_based.run([], _noop_execute)
+    result = BacktestEngine.entity_based.run([])
     assert isinstance(result, BacktestEngine.RunResult)
     assert result.mode == "entity_based"
     assert result.success is True
@@ -87,18 +79,21 @@ def test_slice_based_bulk_job_embeds_slice_plan() -> None:
             },
         }
     ]
-    result = BacktestEngine.slice_based.run(jobs, _sliced_execute)
+    result = BacktestEngine.slice_based.run(
+        jobs,
+        timeline=["20240102", "20240103"],
+        callbacks=RunCallbacks(on_tick=_noop_on_tick),
+    )
     assert result.success is True
     assert result.total_jobs == 1
     assert result.completed_jobs == 1
     assert result.plan is not None
     assert result.plan.slice_open_days == 20
     assert result.plan.dispatch_jobs == 2
-    assert result.job_results[0].data["reader_workers"] is not None
 
 
 def test_slice_based_empty_jobs_returns_success() -> None:
-    result = BacktestEngine.slice_based.run([], _sliced_execute)
+    result = BacktestEngine.slice_based.run([])
     assert isinstance(result, BacktestEngine.RunResult)
     assert result.mode == "slice_based"
     assert result.success is True
@@ -176,7 +171,7 @@ def test_run_callbacks_forward_on_task_result() -> None:
     with patch.object(EntityExecutePipeline, "run", fake_run):
         BacktestEngine.entity_based.run(
             jobs,
-            _noop_execute,
+            timeline=["20240102"],
             task_name="demo",
             callbacks=RunCallbacks(on_task_result=on_task_result),
         )
@@ -184,57 +179,56 @@ def test_run_callbacks_forward_on_task_result() -> None:
     assert seen == ["job-1"]
 
 
-def test_worker_execute_resolver_xor() -> None:
-    from core.modules.backtest_engine.core.timeline.worker import WorkerExecuteResolver
+def test_timeline_worker_execute_wires_on_tick() -> None:
+    from core.modules.backtest_engine.core.timeline.timeline import TimelineWorkerExecute
 
-    with pytest.raises(ValueError, match="恰好其一"):
-        WorkerExecuteResolver.resolve()
-    with pytest.raises(ValueError, match="恰好其一"):
-        WorkerExecuteResolver.resolve(
-            execute_fn=_noop_execute,
-            timeline_hooks_factory=lambda ctx: None,
-        )
-    WorkerExecuteResolver.resolve(execute_fn=_noop_execute)
-    WorkerExecuteResolver.resolve(timeline_hooks_factory=lambda ctx: None)
+    worker = TimelineWorkerExecute()
+    assert worker.callbacks.on_tick is None
+
+    worker_tick = TimelineWorkerExecute(RunCallbacks(on_tick=_noop_on_tick))
+    assert worker_tick.callbacks.on_tick is _noop_on_tick
 
 
-def test_timeline_driver_tick_order() -> None:
-    from core.modules.backtest_engine.core.timeline.driver import TimelineDriver
-    from core.modules.backtest_engine.core.timeline.timeline import Timeline
+def test_idle_on_tick_warns_once(caplog) -> None:
+    import logging
 
+    from core.modules.backtest_engine.core.timeline import timeline as timeline_mod
+
+    timeline_mod._idle_tick_warned = False
+    ctx = JobContext(job_id="j1", payload={})
+    with caplog.at_level(logging.WARNING):
+        Timeline._dispatch_tick(ctx, "20240102", 0, on_tick=None)
+        Timeline._dispatch_tick(ctx, "20240103", 1, on_tick=None)
+    warnings = [r for r in caplog.records if "on_tick 未提供" in r.getMessage()]
+    assert len(warnings) == 1
+    timeline_mod._idle_tick_warned = False
+
+
+def test_timeline_drive_tick_order() -> None:
     events: list[str] = []
+    ctx = JobContext(job_id="j1", payload={})
 
-    class Hooks:
-        def resolve_timeline(self, job_context):
-            raise AssertionError("run() 不走 resolve_timeline")
+    def on_tick(job_context, point, index):
+        _ = job_context
+        events.append(f"tick:{point}:{index}")
 
-        def on_run_begin(self, timeline):
-            events.append(f"begin:{len(timeline.points)}")
-
-        def on_tick(self, point, index, *, is_last):
-            events.append(f"tick:{point}:{index}:{is_last}")
-
-        def on_run_end(self, timeline):
-            events.append(f"end:{len(timeline.points)}")
-            return {"success": True, "n": len(timeline.points)}
-
-    result = TimelineDriver.run(
-        timeline=Timeline.from_points(
+    result = Timeline.drive(
+        ctx,
+        Timeline.from_points(
             ["20240101", "20240102", "20240103", "20240110"],
             start="20240102",
             end="20240103",
         ),
-        hooks=Hooks(),
+        on_tick=on_tick,
     )
-    assert result == {"success": True, "n": 2}
+    assert result == {"success": True}
     assert events == [
-        "begin:2",
-        "tick:20240102:0:False",
-        "tick:20240103:1:True",
-        "end:2",
+        "tick:20240102:0",
+        "tick:20240103:1",
     ]
 
 
-def test_entity_based_rejects_missing_worker() -> None:
-    with pytest.raises(ValueError, match="恰好其一"):
-        BacktestEngine.entity_based.run([], performance={"max_workers": 1})
+def test_entity_based_allows_missing_on_tick() -> None:
+    result = BacktestEngine.entity_based.run([], performance={"max_workers": 1})
+    assert result.success is True
+    assert result.total_jobs == 0

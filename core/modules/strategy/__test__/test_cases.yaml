@@ -123,4 +123,70 @@ cases:
         name: test_enumerate_facade_load_and_route
         description: Strategy.enumerate → load_strategy → EnumeratorPipeline
 
+  - id: 9
+    case: price_factor_enum_data
+    description: 价格回测加载枚举 version runtime（不读 entities CSV）
+    file: test_price_factor_enum_data.py
+    scenarios:
+      - id: 1
+        name: test_load_enum_version_reads_runtime_and_entity_ids
+        description: 读 0_runtime_env + 0_entity_ids，忽略 entities CSV
+      - id: 2
+        name: test_load_enum_version_empty_entity_ids
+        description: entity_ids 为空列表
+      - id: 3
+        name: test_load_enum_version_requires_runtime_env
+        description: 缺少 runtime_env 时报错
+
+  - id: 10
+    case: price_factor_timeline
+    description: 价格回测 start–end 开市日 Timeline
+    file: test_price_factor_timeline.py
+    scenarios:
+      - id: 1
+        name: test_resolve_price_timeline_uses_runtime_period
+        description: 使用枚举 runtime period 解析日历轴
+      - id: 2
+        name: test_resolve_price_timeline_requires_period
+        description: period 缺失时报错
+
+  - id: 11
+    case: price_factor_job_builder
+    description: 价格回测 bundle job（entity ids + enum_dir）
+    file: test_price_factor_job_builder.py
+    scenarios:
+      - id: 1
+        name: test_build_jobs_bundle_shape
+        description: payload 含 entity_specified 与 global.price_factor
+      - id: 2
+        name: test_build_jobs_empty_entity_ids
+        description: entity_ids 为空时返回空 jobs
+      - id: 3
+        name: test_build_jobs_rejects_empty_timeline
+        description: timeline.points 为空时报错
+
+  - id: 12
+    case: price_factor_executor
+    description: 价格回测子进程加载本 batch 枚举 CSV
+    file: test_price_factor_executor.py
+    scenarios:
+      - id: 1
+        name: test_load_batch_enum_data
+        description: 按 entity_specified 加载 investments/goals
+      - id: 2
+        name: test_load_batch_enum_data_missing_goals_ok
+        description: 无 goals 文件时 goals.rows 为空
+
+  - id: 13
+    case: price_factor_timeline_hooks
+    description: 价格回测 JobExecutor RunCallbacks（含 on_tick）
+    file: test_price_factor_timeline_hooks.py
+    scenarios:
+      - id: 1
+        name: test_build_run_callbacks_wires_lifecycle_and_on_tick
+        description: build_run_callbacks 挂上生命周期与 on_tick
+      - id: 2
+        name: test_on_tick_is_noop_for_now
+        description: on_tick 目前为空实现（业务后续填）
+
 ---

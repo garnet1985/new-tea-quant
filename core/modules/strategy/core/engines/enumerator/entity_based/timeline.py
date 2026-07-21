@@ -1,4 +1,4 @@
-"""entity_based TimelineHooks：BE TimelineDriver 驱动，本类实现单点业务。"""
+"""entity_based 日历日业务（由 JobExecutor.on_tick / on_ticks_complete 驱动）。"""
 from __future__ import annotations
 
 import logging
@@ -8,9 +8,6 @@ from typing import Any, Dict, List, Optional, Sequence
 from core.modules.backtest_engine.contracts import JobContext, Timeline
 from core.modules.strategy.core.engines.enumerator.shared.performance_tracker.performance_tracker import (
     EnumJobPerfRecorder,
-)
-from core.modules.strategy.core.engines.enumerator.shared.services.enumerator_timeline import (
-    EnumeratorTimeline,
 )
 from core.modules.strategy.core.engines.enumerator.shared.services.pit_bars import PitBars
 from core.modules.strategy.core.engines.enumerator.shared.state.entity_tracker import (
@@ -34,9 +31,9 @@ class EntityTimelineHooks:
     """entity 点业务：tick + scan_opportunity（无 asof）。
 
     边界:
-    - 负责: resolve_timeline 注入、per-entity DataContext、Investment、结果 dict
-    - 不负责: points 迭代（TimelineDriver）、Contract 加载 / CSV
-    - 调用方: BacktestEngine via EntityTimelineHooks.factory
+    - 负责: per-entity DataContext、Investment、结果 dict
+    - 不负责: points 迭代（Timeline.drive）、Contract 加载 / CSV
+    - 调用方: entity JobExecutor.on_tick / on_ticks_complete
     """
 
     entity_ids: List[str]
@@ -117,10 +114,6 @@ class EntityTimelineHooks:
             payload=payload,
             perf=perf,
         )
-
-    def resolve_timeline(self, job_context: JobContext) -> Timeline:
-        """从全局 trade.calendar 解析（不读 payload.timeline）。"""
-        return EnumeratorTimeline.resolve_for_job(job_context)
 
     def on_run_begin(self, timeline: Timeline) -> None:
         if self.perf is not None:
@@ -351,11 +344,6 @@ class EntityTimelineHooks:
                     }
                 )
         return rows
-
-    @staticmethod
-    def factory(job_context: JobContext) -> "EntityTimelineHooks":
-        """可 pickle 的 TimelineHooksFactory。"""
-        return EntityTimelineHooks.from_job_context(job_context)
 
 
 __all__ = ["EntityTimelineHooks"]

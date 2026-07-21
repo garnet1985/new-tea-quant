@@ -283,5 +283,12 @@ class GlobalEntityCache:
             "shm_size": self._shm_size or 0,
         }
 
+    def get_trade_calendar(self) -> List[Any]:
+        """返回已加载的 trade.calendar 行（主进程规划 timeline 用）。"""
+        from core.modules.data_contract import DATA_KEY
+
+        rows = self._global_data.get(DATA_KEY.TRADE_CALENDAR)
+        return list(rows or [])
+
 
 __all__ = ["GlobalEntityCache"]

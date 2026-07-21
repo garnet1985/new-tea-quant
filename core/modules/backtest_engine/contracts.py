@@ -12,6 +12,8 @@ from core.modules.backtest_engine.core.shared.types import (
     JobFailurePhase,
     TaskStartFn,
     TaskCompleteFn,
+    TickFn,
+    TicksCompleteFn,
     JobReport,
     JobResult,
     JobStatus,
@@ -20,11 +22,8 @@ from core.modules.backtest_engine.core.shared.types import (
 )
 from core.modules.backtest_engine.core.timeline import (
     Timeline,
-    TimelineDriver,
-    TimelineHooks,
-    TimelineHooksFactory,
+    TimelineInput,
     TimelineWorkerExecute,
-    WorkerExecuteResolver,
 )
 
 __all__ = [
@@ -41,10 +40,9 @@ __all__ = [
     "RunProgress",
     "TaskStartFn",
     "TaskCompleteFn",
+    "TickFn",
+    "TicksCompleteFn",
     "Timeline",
-    "TimelineDriver",
-    "TimelineHooks",
-    "TimelineHooksFactory",
+    "TimelineInput",
     "TimelineWorkerExecute",
-    "WorkerExecuteResolver",
 ]

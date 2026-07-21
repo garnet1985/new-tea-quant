@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Type, Union
 
@@ -18,6 +19,8 @@ from .core.services.simulation_cache.fingerprints import (
     FingerprintCalculator,
     FingerprintResult,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -110,8 +113,8 @@ class BackTestPipelines:
 class Strategy:
     """策略模块 Facade。
 
-    模拟编排：先解析指纹 → 查对应 CacheManager → miss 再进引擎；
-    引擎执行后由 Pipeline / 后续步骤写回缓存。
+    模拟编排：算指纹 → 查目标 kind 槽 → miss 则 resolve steps（必要时先 enum）
+    → 每步 Pipeline.run 后 ``set_cache`` 写自己的 slot。
     """
 
     @staticmethod
@@ -180,12 +183,18 @@ class Strategy:
         ignore_cache: bool = False,
         runtime_settings: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """统一模拟入口：枚举 / 价格 / 资金 / full。
+        """统一模拟入口：枚举 / 价格 / 资金。
 
-        流程（各 step 共用）:
-        1. 解析 settings_fp + env_fp
-        2. 查该 step 缓存；命中则直接返回
-        3. 未命中则执行（price/capital 必要时先补跑枚举）并写缓存
+        缓存与指纹流程（各 step 共用）::
+
+            1. 计算 settings_fp / env_fp（与磁盘 settings ⊕ runtime 对齐）
+            2. 查目标 kind 槽位缓存；命中则直接返回
+            3. 未命中：
+               - price/capital：先按指纹找 enum version
+                 · 有 → 只跑本 step（enum_version 来自缓存 / 枚举产物）
+                 · 无 → 先跑 enumerate，再跑本 step
+            4. 每完成一个 step 即 ``set_cache`` 合并写入该 step 的 slot
+               （写入 enum 会清掉下游 price/capital 槽）
         """
         strategy_info = DiscoveryService.find_strategy(key_or_id)
         if strategy_info is None:
@@ -215,33 +224,36 @@ class Strategy:
             fp_res=fp_res,
             kind=step,
         )
-
         cache_key = ctx.strategy_key or key_or_id
-        res: Dict[str, Any] = {}
 
-        if ignore_cache:
-            Strategy._resolve_steps(ctx)
-            ctx.validate_for_run()
-            res = Strategy._run_steps(ctx)
-            SimulationCacheManager.set_cache(cache_key, ctx.fp_res, res)
-        else:
-            cached_result = SimulationCacheManager.get_cache(
-                cache_key, ctx.fp_res, ctx.kind
+        if not ignore_cache:
+            cached = SimulationCacheManager.get_cache(cache_key, ctx.fp_res, ctx.kind)
+            if cached:
+                logger.info(
+                    "simulate cache hit: kind=%s strategy=%s",
+                    ctx.kind.value,
+                    cache_key,
+                )
+                return cached
+            logger.info(
+                "simulate cache miss: kind=%s strategy=%s",
+                ctx.kind.value,
+                cache_key,
             )
-            if cached_result:
-                res = cached_result
-            else:
-                Strategy._resolve_steps(ctx)
-                ctx.validate_for_run()
-                res = Strategy._run_steps(ctx)
-                SimulationCacheManager.set_cache(cache_key, ctx.fp_res, res)
+        else:
+            logger.info(
+                "simulate ignore_cache: kind=%s strategy=%s",
+                ctx.kind.value,
+                cache_key,
+            )
 
-        # TODO: should return a job id
-        return res
+        Strategy._resolve_steps(ctx)
+        ctx.validate_for_run()
+        return Strategy._run_steps(ctx, cache_key=cache_key)
 
     @staticmethod
     def _resolve_steps(ctx: SimulateRuntimeContext) -> None:
-        """按目标 kind + fp 是否已有枚举产物，写入 ctx.steps / ctx.enum_version。"""
+        """按目标 kind + 指纹是否已有枚举产物，写入 ctx.steps / ctx.enum_version。"""
         from .core.engines.enumerator import EnumeratorPipeline
 
         step = ctx.kind
@@ -252,25 +264,51 @@ class Strategy:
 
         enum_version = EnumeratorPipeline.find_output_version_via_fps(ctx)
         if enum_version:
+            logger.info(
+                "reuse enum version via fingerprints: %s (strategy=%s)",
+                enum_version,
+                ctx.strategy_key,
+            )
             ctx.steps = [step]
             ctx.enum_version = enum_version
             return
 
+        logger.info(
+            "enum version missing for fingerprints; will run enumerate then %s",
+            step.value,
+        )
         ctx.steps = [SimulateKind.ENUMERATE, step]
         ctx.enum_version = None
 
     @staticmethod
-    def _run_steps(ctx: SimulateRuntimeContext) -> Dict[str, Any]:
-        """依次执行 Pipeline（无 CacheManager）；入参为 runtime context。"""
-        consolidated_result: Dict[str, Any] = {}
+    def _run_steps(
+        ctx: SimulateRuntimeContext,
+        *,
+        cache_key: str,
+    ) -> Dict[str, Any]:
+        """依次执行 Pipeline；每步完成后按指纹更新对应 cache slot。"""
+        consolidated: Dict[str, Any] = {}
         for step in ctx.steps:
             step_res = BackTestPipelines[step].run(ctx)
-            consolidated_result[step.value] = step_res
+            consolidated[step.value] = step_res
             if step == SimulateKind.ENUMERATE:
                 version_id = step_res.get("version_id")
                 if version_id:
                     ctx.enum_version = str(version_id)
-        return consolidated_result
+
+            # 逐步写 slot：enum 先落盘后，即使下游 price 失败，指纹→enum version 仍可复用
+            SimulationCacheManager.set_cache(
+                cache_key,
+                ctx.fp_res,
+                {step.value: step_res},
+            )
+            logger.info(
+                "simulate cache updated: kind=%s strategy=%s version_id=%s",
+                step.value,
+                cache_key,
+                step_res.get("version_id"),
+            )
+        return consolidated
 
     @staticmethod
     def list_strategies(*, strategies_root: Optional[str] = None) -> List[str]:

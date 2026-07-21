@@ -109,3 +109,51 @@ def test_find_enum_output_version():
             SimulationCacheManager.find_enum_output_version("demo/strategy", _fps())
             == "out-12"
         )
+
+
+def test_get_cache_price_factor_slot():
+    model = MagicMock()
+    model.list_by_strategy_fingerprints.return_value = [
+        {
+            "version": 4,
+            "result_report": {
+                "enum": {"version_id": "v1"},
+                "price_factor": {"version_id": 2, "success": True},
+            },
+        }
+    ]
+    with patch.object(SimulationCacheManager, "_table", return_value=model):
+        hit = SimulationCacheManager.get_cache(
+            "demo/strategy",
+            _fps(),
+            SimulateKind.PRICE_FACTOR,
+        )
+    assert hit == {
+        SimulateKind.PRICE_FACTOR.value: {"version_id": 2, "success": True}
+    }
+
+
+def test_set_cache_price_factor_merges_without_clearing_enum():
+    model = MagicMock()
+    model.list_by_strategy_fingerprints.return_value = [
+        {
+            "version": 5,
+            "result_report": {"enum": {"version_id": "v1"}},
+        }
+    ]
+    with patch.object(SimulationCacheManager, "_table", return_value=model):
+        version = SimulationCacheManager.set_cache(
+            "demo/strategy",
+            _fps(),
+            {
+                SimulateKind.PRICE_FACTOR.value: {
+                    "version_id": 3,
+                    "enum_version_id": "v1",
+                    "success": True,
+                }
+            },
+        )
+    assert version == 5
+    merged = model.update_result_report.call_args[0][2]
+    assert merged["enum"]["version_id"] == "v1"
+    assert merged["price_factor"]["version_id"] == 3

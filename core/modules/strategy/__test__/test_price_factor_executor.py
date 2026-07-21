@@ -14,6 +14,7 @@ from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_i
 )
 from core.modules.strategy.core.engines.price_factor.executor import JobExecutor
 from core.modules.strategy.core.engines.price_factor.job_builder import PRICE_FACTOR_GLOBAL_KEY
+from core.modules.strategy.core.engines.price_factor.report_manager import EntityInvestments
 
 pytestmark = pytest.mark.force_run
 
@@ -66,7 +67,7 @@ def test_load_batch_enum_data(tmp_path: Path) -> None:
         },
     }
     job_context = SimpleNamespace(job_id="batch_0", payload=payload)
-    init = JobExecutor.load_batch_enum_data(job_context)
+    init = JobExecutor._load_batch_enum_data(job_context)
 
     assert set(init["entities"]) == {"000001.SZ", "000002.SZ"}
     assert len(init["entities"]["000001.SZ"]["investments"].rows) == 1
@@ -101,7 +102,63 @@ def test_load_batch_enum_data_missing_goals_ok(tmp_path: Path) -> None:
             }
         },
     }
-    init = JobExecutor.load_batch_enum_data(
+    init = JobExecutor._load_batch_enum_data(
         SimpleNamespace(job_id="b", payload=payload)
     )
     assert init["entities"]["000003.SZ"]["goals"].rows == []
+
+
+def test_replay_and_save_batch(tmp_path: Path) -> None:
+    enum_dir = tmp_path / "enum"
+    price_dir = tmp_path / "price"
+    _write_enum_csv(enum_dir, "000001.SZ")
+    # overlapping second opp should be locked out
+    StockInvestments(
+        entity_id="000001.SZ",
+        rows=[
+            InvestmentRow(
+                investment_id="opp-a",
+                trigger_date="20240102",
+                entry_date="20240103",
+                entry_price=10.0,
+                exit_date="20240120",
+                exit_price=11.0,
+                lifecycle="complete",
+                result="win",
+                weighted_roi=0.1,
+                holding_days=10,
+            ),
+            InvestmentRow(
+                investment_id="opp-b",
+                trigger_date="20240105",
+                entry_date="20240106",
+                entry_price=10.0,
+                exit_date="20240108",
+                exit_price=9.0,
+                lifecycle="complete",
+                result="loss",
+                weighted_roi=-0.1,
+                holding_days=2,
+            ),
+        ],
+    ).save(enum_dir)
+
+    payload = {
+        "entity_specified": [{"id": "000001.SZ"}],
+        "global": {
+            PRICE_FACTOR_GLOBAL_KEY: {
+                "enum_output_dir": str(enum_dir),
+                "price_output_dir": str(price_dir),
+                "enum_version_id": "1",
+                "start_date": "20240102",
+                "end_date": "20240131",
+            }
+        },
+    }
+    ctx = SimpleNamespace(job_id="batch_0", payload=payload, init={})
+    ctx.init = JobExecutor._load_batch_enum_data(ctx)
+    stats = JobExecutor._replay_and_save_batch(ctx)
+    assert stats["investments"] == 1
+    saved = EntityInvestments.load(price_dir, "000001.SZ")
+    assert len(saved) == 1
+    assert saved[0].opportunity_id == "opp-a"

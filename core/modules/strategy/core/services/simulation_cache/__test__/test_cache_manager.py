@@ -67,7 +67,7 @@ def test_set_cache_enum_clears_downstream_on_update():
             "result_report": {
                 "enum": {"version_id": "old"},
                 "price_factor": {"win_rate": 50.0},
-                "capital_allocation": {"total_return": 0.1},
+                "portfolio": {"total_return": 0.1},
             },
         }
     ]
@@ -81,7 +81,7 @@ def test_set_cache_enum_clears_downstream_on_update():
     merged = model.update_result_report.call_args[0][2]
     assert merged["enum"]["version_id"] == "new"
     assert "price_factor" not in merged
-    assert "capital_allocation" not in merged
+    assert "portfolio" not in merged
 
 
 def test_set_cache_creates_row_when_miss():

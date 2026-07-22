@@ -156,6 +156,33 @@ class TestInvestmentExpiration(unittest.TestCase):
         self.assertEqual(inv.exit_info.exit_reason, "expired")
 
 
+class TestInvestmentToOpportunity(unittest.TestCase):
+    def test_to_opportunity_strips_runtime_results(self) -> None:
+        settings = _settings()
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH", name="浦发银行"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+            trigger_price_raw=20.0,
+        )
+        inv = _inv(opp, settings)
+        inv.meta.opportunity_id = "opp-1"
+        inv.tick(_tick("20240103", o=10.5, h=11, l=9.5, c=10.8))
+        self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
+
+        projected = inv.to_opportunity()
+        self.assertIsInstance(projected, Opportunity)
+        self.assertNotIsInstance(projected, Investment)
+        self.assertEqual(projected.meta.opportunity_id, "opp-1")
+        self.assertEqual(projected.trigger_price_raw, 20.0)
+        self.assertFalse(hasattr(projected, "runtime_state") and projected.__dict__.get("runtime_state"))
+        dumped = projected.to_dict()
+        self.assertNotIn("runtime_state", dumped)
+        self.assertNotIn("deps", dumped)
+        self.assertNotIn("entry", dumped)
+
+
 class TestInvestmentRawPrices(unittest.TestCase):
     def test_entry_and_exit_record_raw_from_bar(self) -> None:
         settings = _settings()

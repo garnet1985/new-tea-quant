@@ -95,7 +95,7 @@ class BackTestPipelines:
 
     ENUMERATE = SimulateKind.ENUMERATE
     PRICE_FACTOR = SimulateKind.PRICE_FACTOR
-    CAPITAL_ALLOCATION = SimulateKind.CAPITAL_ALLOCATION
+    PORTFOLIO = SimulateKind.PORTFOLIO
 
     @classmethod
     def __class_getitem__(cls, kind: SimulateKind) -> Type[Any]:
@@ -107,6 +107,10 @@ class BackTestPipelines:
             from .core.engines.price_factor import PriceFactorPipeline
 
             return PriceFactorPipeline
+        if kind == SimulateKind.PORTFOLIO:
+            from .core.engines.portfolio import PortfolioPipeline
+
+            return PortfolioPipeline
         raise NotImplementedError(f"Pipeline for {kind!r} 尚未接入")
 
 
@@ -170,7 +174,7 @@ class Strategy:
         """资金/组合回测（依赖上游产物）。"""
         return Strategy.simulate(
             key_or_id,
-            kind=SimulateKind.CAPITAL_ALLOCATION,
+            kind=SimulateKind.PORTFOLIO,
             ignore_cache=ignore_cache,
             runtime_settings=runtime_settings,
         )
@@ -190,11 +194,11 @@ class Strategy:
             1. 计算 settings_fp / env_fp（与磁盘 settings ⊕ runtime 对齐）
             2. 查目标 kind 槽位缓存；命中则直接返回
             3. 未命中：
-               - price/capital：先按指纹找 enum version
+               - price/portfolio：先按指纹找 enum version
                  · 有 → 只跑本 step（enum_version 来自缓存 / 枚举产物）
                  · 无 → 先跑 enumerate，再跑本 step
             4. 每完成一个 step 即 ``set_cache`` 合并写入该 step 的 slot
-               （写入 enum 会清掉下游 price/capital 槽）
+               （写入 enum 会清掉下游 price/portfolio 槽）
         """
         strategy_info = DiscoveryService.find_strategy(key_or_id)
         if strategy_info is None:

@@ -167,6 +167,32 @@ class InvestmentRow:
             holding_days=_RowCoerce.as_int(data.get("holding_days")),
         )
 
+    def to_opportunity(self, entity_id: str) -> "Opportunity":
+        """投影为 Opportunity，仅保留信号字段（屏蔽 entry/exit/result/roi 等）。
+
+        供 portfolio ``on_pick_portfolio_member`` 使用。
+        """
+        from core.modules.strategy.core.engines.shared.data_class.opportunity import (
+            Opportunity,
+            OpportunityMeta,
+            StockInfo,
+        )
+
+        eid = str(entity_id or "").strip()
+        inv_id = str(self.investment_id or "").strip()
+        trigger_date = str(self.trigger_date or "").strip()
+        return Opportunity(
+            stock=StockInfo(id=eid),
+            record_of_today={},
+            trigger_date=trigger_date,
+            trigger_price=float(self.trigger_price or 0.0),
+            trigger_price_raw=float(self.trigger_price_raw or 0.0),
+            meta=OpportunityMeta(
+                opportunity_id=inv_id,
+                scan_date=trigger_date,
+            ),
+        )
+
 
 @dataclass
 class GoalAchievementRow:

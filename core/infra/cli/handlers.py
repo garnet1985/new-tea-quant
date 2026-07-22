@@ -171,7 +171,6 @@ def execute(args: argparse.Namespace, app: CliApp) -> None:
         "scan",
         "strategy_enumerate",
         "strategy_price_factor",
-        "strategy_capital_allocate",
         "strategy_portfolio",
         "strategy_simulate",
         "strategy_analyse",
@@ -350,6 +349,51 @@ def _run_strategy_price_factor(args: argparse.Namespace) -> None:
         raise SystemExit(1)
 
 
+def _run_strategy_portfolio(args: argparse.Namespace) -> None:
+    import time
+
+    from core.modules.strategy import Strategy
+
+    strategy_key = _resolve_strategy_key(getattr(args, "strategy", None))
+    force = bool(getattr(args, "force", False))
+
+    print("💰 组合回测（portfolio）…", flush=True)
+    print(f"  策略: {strategy_key}", flush=True)
+    if force:
+        print("  --force: 忽略缓存重跑", flush=True)
+    print("  依赖: 同指纹枚举产物；缺失时会先补跑枚举", flush=True)
+
+    t0 = time.perf_counter()
+    result = Strategy.portfolio(
+        strategy_key,
+        ignore_cache=force,
+    )
+    wall_sec = time.perf_counter() - t0
+
+    pf = result.get("portfolio") if isinstance(result.get("portfolio"), dict) else result
+    enum_part = result.get("enumerate") if isinstance(result.get("enumerate"), dict) else None
+    if enum_part:
+        print(
+            f"  枚举: success={enum_part.get('success')} version={enum_part.get('version_id')}",
+            flush=True,
+        )
+    summary = pf.get("summary") if isinstance(pf, dict) else {}
+    print(f"  output_dir: {pf.get('output_dir')}", flush=True)
+    print(f"  version: {pf.get('version_id')}", flush=True)
+    print(f"  enum_version: {pf.get('enum_version_id')}", flush=True)
+    if summary:
+        print(
+            "  summary: "
+            f"trades={summary.get('total_trades', summary.get('total_investments', 0))} "
+            f"total_return={summary.get('total_return', summary.get('roi', 0))}",
+            flush=True,
+        )
+    print(f"  success: {pf.get('success')}", flush=True)
+    print(f"  总耗时: {wall_sec:.2f}s", flush=True)
+    if not pf.get("success", True):
+        raise SystemExit(1)
+
+
 def _handle_strategy(cmd: str, app: CliApp, args: argparse.Namespace) -> None:
     if cmd == "strategy_enumerate":
         _run_strategy_enumerate(args)
@@ -357,6 +401,10 @@ def _handle_strategy(cmd: str, app: CliApp, args: argparse.Namespace) -> None:
 
     if cmd == "strategy_price_factor":
         _run_strategy_price_factor(args)
+        return
+
+    if cmd == "strategy_portfolio":
+        _run_strategy_portfolio(args)
         return
 
     mgr = app._ensure_strategy_manager()
@@ -368,12 +416,8 @@ def _handle_strategy(cmd: str, app: CliApp, args: argparse.Namespace) -> None:
         mgr.scan(strategy_name=name, demo=bool(getattr(args, "demo", False)))
         return
 
-    if cmd in ("strategy_capital_allocate", "strategy_portfolio"):
-        mgr.simulate("capital_allocation", strategy_name=name, force_refresh=force)
-        return
-
     if cmd == "strategy_simulate":
-        print("🎮 模拟链路 · PriceFactor → CapitalAllocation …")
+        print("🎮 模拟链路 · PriceFactor → Portfolio …")
         mgr.simulate("full", strategy_name=name, force_refresh=force)
         return
 

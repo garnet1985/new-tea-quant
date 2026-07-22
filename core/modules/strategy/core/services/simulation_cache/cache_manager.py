@@ -21,13 +21,13 @@ class _ReportSlot(str, Enum):
 
     ENUM = "enum"
     PRICE_FACTOR = "price_factor"
-    CAPITAL_ALLOCATION = "capital_allocation"
+    PORTFOLIO = "portfolio"
 
 
 _KIND_TO_SLOT = {
     SimulateKind.ENUMERATE: _ReportSlot.ENUM,
     SimulateKind.PRICE_FACTOR: _ReportSlot.PRICE_FACTOR,
-    SimulateKind.CAPITAL_ALLOCATION: _ReportSlot.CAPITAL_ALLOCATION,
+    SimulateKind.PORTFOLIO: _ReportSlot.PORTFOLIO,
 }
 
 # Facade / Pipeline 结果 key → DB slot（含历史别名 ``enum``）
@@ -35,13 +35,13 @@ _VALUE_KEY_TO_SLOT = {
     SimulateKind.ENUMERATE.value: _ReportSlot.ENUM,
     _ReportSlot.ENUM.value: _ReportSlot.ENUM,
     SimulateKind.PRICE_FACTOR.value: _ReportSlot.PRICE_FACTOR,
-    SimulateKind.CAPITAL_ALLOCATION.value: _ReportSlot.CAPITAL_ALLOCATION,
+    SimulateKind.PORTFOLIO.value: _ReportSlot.PORTFOLIO,
 }
 
 _SLOT_TO_KIND_VALUE = {
     _ReportSlot.ENUM: SimulateKind.ENUMERATE.value,
     _ReportSlot.PRICE_FACTOR: SimulateKind.PRICE_FACTOR.value,
-    _ReportSlot.CAPITAL_ALLOCATION: SimulateKind.CAPITAL_ALLOCATION.value,
+    _ReportSlot.PORTFOLIO: SimulateKind.PORTFOLIO.value,
 }
 
 
@@ -68,7 +68,7 @@ def _slot_to_kind_value(slot: _ReportSlot) -> str:
 
 
 class SimulationCacheManager(BaseCacheManager):
-    """模拟三步缓存（enum / price_factor / capital_allocation 槽位）。
+    """模拟三步缓存（enum / price_factor / portfolio 槽位）。
 
     边界:
     - 负责: 双指纹 AND 查/写工作台快照；按 kind 读写槽位
@@ -121,7 +121,7 @@ class SimulationCacheManager(BaseCacheManager):
         """把 ``value`` 内各 step 结果 merge 进双指纹对应行；返回 workbench version（失败 0）。
 
         ``value`` 形如 ``{"enumerate": {...}, "price_factor": {...}}``（也可直接用 DB slot 名）。
-        写入 ``enum`` 时清除下游 ``price_factor`` / ``capital_allocation``。
+        写入 ``enum`` 时清除下游 ``price_factor`` / ``portfolio``。
         """
         strategy_name = str(key or "").strip()
         sfp = str(fps.settings_fp or "").strip()
@@ -222,7 +222,7 @@ class SimulationCacheManager(BaseCacheManager):
             merged[slot.value] = dict(payload)
             if slot is _ReportSlot.ENUM:
                 merged.pop(_ReportSlot.PRICE_FACTOR.value, None)
-                merged.pop(_ReportSlot.CAPITAL_ALLOCATION.value, None)
+                merged.pop(_ReportSlot.PORTFOLIO.value, None)
         return merged
 
 

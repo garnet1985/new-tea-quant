@@ -120,6 +120,12 @@ class PathNamespace:
         return PathManager.get_strategy_simulation_capital_directory(strategy_name)
 
     @staticmethod
+    def get_strategy_directory_simulation_portfolio(strategy_name: str) -> Path:
+        """获取策略模拟组合目录"""
+        from .path_manager import PathManager
+        return PathManager.get_strategy_simulation_portfolio_directory(strategy_name)
+
+    @staticmethod
     def get_strategy_directory_simulation_enum(strategy_name: str) -> Path:
         """获取策略模拟枚举目录"""
         from .path_manager import PathManager
@@ -224,6 +230,12 @@ class PathNamespace:
         """获取策略模拟资金目录"""
         from .path_manager import PathManager
         return PathManager.get_strategy_simulation_capital_directory(strategy_name)
+
+    @staticmethod
+    def get_strategy_simulation_portfolio_directory(strategy_name: str) -> Path:
+        """获取策略模拟组合目录"""
+        from .path_manager import PathManager
+        return PathManager.get_strategy_simulation_portfolio_directory(strategy_name)
 
     @staticmethod
     def get_strategy_simulation_enum_directory(strategy_name: str) -> Path:

@@ -9,8 +9,7 @@ CLI_COMMAND_REFERENCE = """
   python cli.py c                       扫描          同 scan [--strategy NAME] [--demo]
   python cli.py se                      枚举          同 strategy_enumerate [--strategy NAME]
   python cli.py sp                      价格因子模拟  同 strategy_price_factor [--strategy NAME]
-  python cli.py sa                      资金分配模拟  同 strategy_capital_allocate（将用 so 替代）
-  python cli.py so                      组合模拟      同 strategy_portfolio
+  python cli.py so                      组合模拟      同 strategy_portfolio [--strategy NAME]
   python cli.py s                       完整模拟链路  同 strategy_simulate
   python cli.py sy                      分析结果      同 strategy_analyse [--session ID]
 

@@ -837,6 +837,24 @@ class Investment(Opportunity):
             next_idx = idx
         return next_idx < len(open_dates) and open_dates[next_idx] == as_of
 
+    def to_opportunity(self) -> Opportunity:
+        """投影为 Opportunity，剥离 lifecycle / entry / exit / goals / outcome 等结果字段。
+
+        供 ``on_pick_portfolio_member`` 等用户钩子使用，避免用结果数据作弊选仓。
+        """
+        return Opportunity(
+            stock=StockInfo.from_dict(self.stock.to_dict()),
+            record_of_today=dict(self.record_of_today or {}),
+            trigger_date=str(self.trigger_date or ""),
+            trigger_price=float(self.trigger_price or 0.0),
+            trigger_price_raw=float(self.trigger_price_raw or 0.0),
+            market_profile=str(self.market_profile or ""),
+            meta=self._copy_dataclass(self.meta, OpportunityMeta),
+            contributor=self._copy_dataclass(self.contributor, OpportunityContributor),
+            extra_fields=dict(self.extra_fields or {}),
+            metadata=dict(self.metadata or {}),
+        )
+
 
 __all__ = [
     "DEFAULT_EXECUTE_STEPS",

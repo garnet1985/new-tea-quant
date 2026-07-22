@@ -13,7 +13,6 @@ terms:
     Scanner: ""
     Enumerator: ""
     PriceFactorSimulator: ""
-    CapitalAllocationSimulator(Depreciated): ""
     Portfolio: ""
 
   - Runtime level components:

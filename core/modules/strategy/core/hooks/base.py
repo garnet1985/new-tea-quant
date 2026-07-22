@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 from core.modules.strategy.contracts import CalendarAsOfResult, Opportunity
 from core.modules.strategy.core.hooks.context import DataContext
@@ -31,6 +31,42 @@ class StrategyHooks(ABC):
     def on_after_scan(self, ctx: DataContext) -> None:
         """scan 后 hook。"""
         return None
+
+    def on_pick_portfolio_member(
+        self, ctx: DataContext
+    ) -> Sequence[Union[Opportunity, str]]:
+        """挑选当日要进入组合的 members（可多个）。
+
+        ``ctx.get("opportunities")``：当日可用机会（已 ``to_opportunity``，无结果字段）。
+        ``ctx.get("account")``：容量快照（``held_entity_ids`` / ``remaining_slots`` 等）。
+
+        返回选中的 ``Opportunity`` 列表，或 ``opportunity_id`` 字符串列表。
+        **不返回仓位 sizing**（shares/weight 由 AllocationStrategy 按配置计算）。
+
+        未 override 时，引擎用 ``EntrySelector``（顺序 + ``max_portfolio_size`` 剩余槽位）。
+        """
+        from core.modules.strategy.core.engines.portfolio.enter_selection import (
+            EntrySelector,
+        )
+
+        opps = ctx.get("opportunities")
+        if not isinstance(opps, list):
+            return []
+        account = ctx.get("account") if isinstance(ctx.get("account"), dict) else {}
+        max_size = int(account.get("max_portfolio_size") or 0)
+        if max_size <= 0:
+            try:
+                max_size = int(ctx.settings.portfolio.allocation.max_portfolio_size)
+            except Exception:
+                max_size = 10
+        held = {
+            str(x or "").strip()
+            for x in (account.get("held_entity_ids") or [])
+            if str(x or "").strip()
+        }
+        return EntrySelector(max_portfolio_size=max_size).pick(
+            opps, held_entity_ids=held
+        )
 
     # ── scan 辅助原语 ──
 

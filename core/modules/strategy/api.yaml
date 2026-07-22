@@ -8,7 +8,7 @@ requires: core>=0.5.0
 #   Strategy        — Facade，对外唯一入口
 #   namespace       — scan / enumerate / analyze / discovery
 #   strategy_name   — 策略名称
-#   SimulateKind    — enumerate / price_factor / capital_allocation / full（Strategy.simulate）
+#   SimulateKind    — enumerate / price_factor / portfolio / full（Strategy.simulate）
 #
 # ---------------------------------------------------------------------------
 
@@ -95,7 +95,7 @@ Strategy:
       returns: None
       notes: |
         - 读取各启用策略的模拟结果摘要
-        - 打印price_factor和capital_allocation的版本信息
+        - 打印price_factor和portfolio的版本信息
         - session_id预留参数，当前未实现
       example: |
         Strategy.analyze()
@@ -149,7 +149,7 @@ SimulateKind:
   values:
     - ENUMERATE: 枚举机会
     - PRICE_FACTOR: 价格因子模拟
-    - CAPITAL_ALLOCATION: 资金分配模拟
+    - PORTFOLIO: 组合/资金回测
     - FULL: 完整流程
 
 ExecutionMode:

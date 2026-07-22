@@ -39,7 +39,7 @@ class SimulateKind(Enum):
 
     ENUMERATE = "enumerate"
     PRICE_FACTOR = "price_factor"
-    CAPITAL_ALLOCATION = "capital_allocation"
+    PORTFOLIO = "portfolio"
     FULL = "full"
 
 

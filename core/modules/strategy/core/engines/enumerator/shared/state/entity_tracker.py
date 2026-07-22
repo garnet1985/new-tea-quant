@@ -56,6 +56,7 @@ class EntityTracker:
         trigger_date: str,
         trigger_price: float,
         trigger_price_raw: float = 0.0,
+        status_tags_provider: Any = None,
     ) -> Investment:
         """Scan 命中：Opportunity → Investment，进入 active / recorded。"""
         self._investment_index += 1
@@ -73,6 +74,7 @@ class EntityTracker:
             opportunity,
             settings=settings,
             open_dates=open_dates,
+            status_tags_provider=status_tags_provider,
         )
         self.active.append(investment)
         self.recorded.append(investment)

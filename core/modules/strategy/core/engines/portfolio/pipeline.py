@@ -59,6 +59,9 @@ from core.modules.strategy.core.engines.shared.data_class.opportunity import Opp
 from core.modules.strategy.core.engines.shared.services.strategy_settings.portfolio_settings import (
     PortfolioSettings,
 )
+from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings import (
+    SkipInvestmentWhen,
+)
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
@@ -100,7 +103,12 @@ class PortfolioPipeline:
         data = cls.load_enum_data(ctx)
         portfolio_settings = cls.load_portfolio_settings(ctx)
         report = cls.begin_report(ctx, data, settings=portfolio_settings)
-        events, opportunities = cls.build_events(data, settings=portfolio_settings)
+        strategy_settings = cls._strategy_settings(ctx)
+        events, opportunities = cls.build_events(
+            data,
+            settings=portfolio_settings,
+            skip_investment_when=strategy_settings.simulation.skip_investment_when,
+        )
         sim_result = cls.simulate(
             events,
             opportunities,
@@ -201,12 +209,15 @@ class PortfolioPipeline:
         data: EnumVersionData,
         *,
         settings: PortfolioSettings,
+        skip_investment_when: Optional[SkipInvestmentWhen] = None,
     ) -> Tuple[List[PortfolioEvent], Dict[str, Opportunity]]:
         """读 enum CSV → 事件列表 + 已屏蔽结果字段的 Opportunity 索引。
 
         买入价固定为 ``entry_price_raw``；缺 raw 的行跳过（不回退 qfq）。
+        ``skip_investment_when`` 命中触发日状态的行不生成事件（枚举 CSV 仍在）。
         """
         _ = settings
+        policy = skip_investment_when or SkipInvestmentWhen(())
         entity_ids = list(data.entity_ids) or StockInvestments.collect_entity_ids(
             data.output_dir
         )
@@ -221,6 +232,8 @@ class PortfolioPipeline:
                 continue
             loaded = StockInvestments.load(data.output_dir, eid)
             for row in loaded.rows:
+                if policy.match_reason(row.stock_status_at_trigger):
+                    continue
                 row_events = PortfolioEvent.from_investment_row(row, eid)
                 if not row_events:
                     continue

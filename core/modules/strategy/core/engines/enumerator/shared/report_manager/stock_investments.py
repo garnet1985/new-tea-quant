@@ -1,6 +1,7 @@
 """每股枚举产物：stock_investments.csv / goal_achievements.csv（仅核心字段）。"""
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING
@@ -75,6 +76,32 @@ class _RowCoerce:
         return "1" if value else "0"
 
     @staticmethod
+    def status_tags_from_raw(raw: Any) -> Tuple[str, ...]:
+        if raw is None or raw == "":
+            return ()
+        if isinstance(raw, str):
+            text = raw.strip()
+            if not text:
+                return ()
+            if text.startswith("["):
+                try:
+                    raw = json.loads(text)
+                except json.JSONDecodeError:
+                    return ()
+            else:
+                return (text,)
+        if not isinstance(raw, (list, tuple)):
+            return ()
+        return tuple(str(x).strip() for x in raw if str(x).strip())
+
+    @staticmethod
+    def status_tags_to_csv(tags: Sequence[str]) -> str:
+        cleaned = [str(t).strip() for t in tags if str(t).strip()]
+        if not cleaned:
+            return ""
+        return json.dumps(cleaned, ensure_ascii=False)
+
+    @staticmethod
     def require_non_empty_str(value: Any, field_name: str) -> str:
         if value is None:
             raise ValueError(f"{field_name} 不能为空")
@@ -129,6 +156,7 @@ class InvestmentRow:
     buy_at_limit_up: Optional[bool] = None
     sell_prev_close: Optional[float] = None
     sell_at_limit_down: Optional[bool] = None
+    stock_status_at_trigger: Tuple[str, ...] = ()
 
     @classmethod
     def from_payload(cls, raw: Dict[str, Any]) -> "InvestmentRow":
@@ -139,6 +167,14 @@ class InvestmentRow:
         lifecycle = _RowCoerce.require_non_empty_str(raw.get("lifecycle"), "lifecycle")
         exit_price = exit_info.get("exit_price")
         exit_price_raw = exit_info.get("exit_price_raw")
+        metadata = raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {}
+        status_tags = _RowCoerce.status_tags_from_raw(
+            metadata.get("stock_status_at_trigger")
+        )
+        if not status_tags:
+            status_tags = _RowCoerce.status_tags_from_raw(
+                raw.get("stock_status_at_trigger")
+            )
         return cls(
             investment_id=_RowCoerce.require_investment_id(raw),
             trigger_date=_RowCoerce.require_non_empty_str(raw.get("trigger_date"), "trigger_date"),
@@ -163,6 +199,7 @@ class InvestmentRow:
             sell_at_limit_down=_RowCoerce.as_optional_bool(
                 exit_info.get("sell_at_limit_down")
             ),
+            stock_status_at_trigger=status_tags,
         )
 
     def to_csv_row(self) -> Dict[str, Any]:
@@ -186,6 +223,9 @@ class InvestmentRow:
             "buy_at_limit_up": _RowCoerce.optional_bool_to_csv(self.buy_at_limit_up),
             "sell_prev_close": "" if self.sell_prev_close is None else self.sell_prev_close,
             "sell_at_limit_down": _RowCoerce.optional_bool_to_csv(self.sell_at_limit_down),
+            "stock_status_at_trigger": _RowCoerce.status_tags_to_csv(
+                self.stock_status_at_trigger
+            ),
         }
 
     @classmethod
@@ -211,6 +251,9 @@ class InvestmentRow:
             buy_at_limit_up=_RowCoerce.as_optional_bool(data.get("buy_at_limit_up")),
             sell_prev_close=_RowCoerce.as_optional_float(data.get("sell_prev_close")),
             sell_at_limit_down=_RowCoerce.as_optional_bool(data.get("sell_at_limit_down")),
+            stock_status_at_trigger=_RowCoerce.status_tags_from_raw(
+                data.get("stock_status_at_trigger")
+            ),
         )
 
     def to_opportunity(self, entity_id: str) -> "Opportunity":
@@ -227,6 +270,11 @@ class InvestmentRow:
         eid = str(entity_id or "").strip()
         inv_id = str(self.investment_id or "").strip()
         trigger_date = str(self.trigger_date or "").strip()
+        metadata: Dict[str, Any] = {}
+        if self.stock_status_at_trigger:
+            metadata[Opportunity.STATUS_AT_TRIGGER_KEY] = list(
+                self.stock_status_at_trigger
+            )
         return Opportunity(
             stock=StockInfo(id=eid),
             record_of_today={},
@@ -237,6 +285,7 @@ class InvestmentRow:
                 opportunity_id=inv_id,
                 scan_date=trigger_date,
             ),
+            metadata=metadata,
         )
 
 
@@ -336,6 +385,11 @@ class StockInvestments:
         "result",
         "weighted_roi",
         "holding_days",
+        "buy_prev_close",
+        "buy_at_limit_up",
+        "sell_prev_close",
+        "sell_at_limit_down",
+        "stock_status_at_trigger",
     )
 
     entity_id: str

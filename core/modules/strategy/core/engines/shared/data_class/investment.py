@@ -27,7 +27,6 @@ TODO(investment lifecycle — not yet implemented)
 - Full ``buy_price_model`` / ``sell_price_model`` matrix beyond next_open | open | close.
 - Distinguish scheduled ``next_open`` defer vs failed-fill retry in ``PENDING_TO_EXIT``.
 - Non-trading / missing bar days (simulator currently skips).
-- ``status_tags`` (ST 等) 传入涨跌停判断。
 """
 
 from __future__ import annotations
@@ -204,6 +203,8 @@ class InvestmentRunDeps:
     # simulation.edges — 贴板成交政策（非市场硬规则）
     allow_buy_at_limit_up: bool = False
     allow_sell_at_limit_down: bool = False
+    # 提供 ``status_tags_at(entity_id, trade_date)``（如 StockStPeriodsContract）；缺省则不加 ST 板幅
+    status_tags_provider: Any = None
 
     @classmethod
     def from_settings(
@@ -212,6 +213,7 @@ class InvestmentRunDeps:
         settings: "StrategySettings",
         market_rules: Any,
         open_dates: Sequence[str],
+        status_tags_provider: Any = None,
     ) -> "InvestmentRunDeps":
         raw = settings.raw_settings
         simulation = raw.get("simulation") if isinstance(raw.get("simulation"), dict) else {}
@@ -226,6 +228,7 @@ class InvestmentRunDeps:
             monitor_price_model=str(simulation.get("monitor_price_model") or "close"),
             allow_buy_at_limit_up=bool(sim_settings.allow_buy_at_limit_up),
             allow_sell_at_limit_down=bool(sim_settings.allow_sell_at_limit_down),
+            status_tags_provider=status_tags_provider,
         )
 
 
@@ -400,6 +403,7 @@ class Investment(Opportunity):
         *,
         settings: "StrategySettings",
         open_dates: Sequence[str],
+        status_tags_provider: Any = None,
     ) -> "Investment":
         from core.infra.project_context import ProjectContext
         from core.modules.market_profile.core.markets import create_market_rules
@@ -407,10 +411,13 @@ class Investment(Opportunity):
         profile = str(
             opportunity.market_profile or ProjectContext.config.get_default_market_profile_key()
         ).strip()
+        opportunity.market_profile = profile
+        opportunity.stamp_status_at_trigger(status_tags_provider=status_tags_provider)
         run_deps = InvestmentRunDeps.from_settings(
             settings=settings,
             market_rules=create_market_rules(profile),
             open_dates=open_dates,
+            status_tags_provider=status_tags_provider,
         )
         expiration = cls._expiration_rule_from_goal(run_deps.goal.expiration)
         return cls(
@@ -799,6 +806,20 @@ class Investment(Opportunity):
             return str(stock.get("id") or "").strip()
         return ""
 
+    def _status_tags(self, bar: Dict[str, Any]) -> Tuple[str, ...]:
+        """成交日 status tags（ST 等）；无 provider 或无法解析日期时为空。"""
+        provider = self.run_deps.status_tags_provider
+        if provider is None:
+            return ()
+        trade_date = str(bar.get("date") or "").strip()
+        entity_id = self._entity_id()
+        if not trade_date or not entity_id:
+            return ()
+        tags = provider.status_tags_at(entity_id, trade_date)
+        if not tags:
+            return ()
+        return tuple(str(t) for t in tags)
+
     def _eval_limit_up(
         self, price: float, bar: Dict[str, Any]
     ) -> Tuple[Optional[bool], Optional[float]]:
@@ -808,7 +829,14 @@ class Investment(Opportunity):
         if prev <= 0 or not entity_id:
             return None, (prev if prev > 0 else None)
         return (
-            bool(self.run_deps.market_rules.is_at_limit_up(price, prev, entity_id)),
+            bool(
+                self.run_deps.market_rules.is_at_limit_up(
+                    price,
+                    prev,
+                    entity_id,
+                    status_tags=self._status_tags(bar),
+                )
+            ),
             float(prev),
         )
 
@@ -821,7 +849,14 @@ class Investment(Opportunity):
         if prev <= 0 or not entity_id:
             return None, (prev if prev > 0 else None)
         return (
-            bool(self.run_deps.market_rules.is_at_limit_down(price, prev, entity_id)),
+            bool(
+                self.run_deps.market_rules.is_at_limit_down(
+                    price,
+                    prev,
+                    entity_id,
+                    status_tags=self._status_tags(bar),
+                )
+            ),
             float(prev),
         )
 

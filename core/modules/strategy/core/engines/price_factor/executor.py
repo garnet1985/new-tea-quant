@@ -16,6 +16,12 @@ from core.modules.strategy.core.engines.price_factor.report_manager import (
     EntityInvestments,
     PriceInvestmentRow,
 )
+from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings import (
+    SkipInvestmentWhen,
+)
+from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
+    StrategySettings,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -148,12 +154,17 @@ class JobExecutor:
             end_date = str(meta.get("end_date") or "").strip()
 
         total_inv = 0
+        skip_when = cls._skip_investment_when_from_payload(job_context.payload or {})
         for entity_id, pack in entities.items():
             if not isinstance(pack, dict):
                 continue
             stock_inv = pack.get("investments")
             rows = list(getattr(stock_inv, "rows", None) or [])
-            price_rows = cls._replay_entity_investments(rows, backtest_end=end_date)
+            price_rows = cls._replay_entity_investments(
+                rows,
+                backtest_end=end_date,
+                skip_investment_when=skip_when,
+            )
             EntityInvestments.save(out_dir, str(entity_id), price_rows)
             total_inv += len(price_rows)
 
@@ -172,11 +183,13 @@ class JobExecutor:
         investments: Sequence[InvestmentRow],
         *,
         backtest_end: str = "",
+        skip_investment_when: Optional[SkipInvestmentWhen] = None,
     ) -> List[PriceInvestmentRow]:
         """单 entity：枚举 investments → 买 1 / 锁仓 → PriceInvestmentRow。
 
-        v1 信任枚举 entry/exit；只做无效买入过滤与同股锁仓。
+        v1 信任枚举 entry/exit；只做无效买入过滤、skip_investment_when 与同股锁仓。
         """
+        policy = skip_investment_when or SkipInvestmentWhen(())
         ordered = sorted(
             list(investments or []),
             key=lambda row: (
@@ -189,6 +202,9 @@ class JobExecutor:
         end = str(backtest_end or "").strip()
 
         for row in ordered:
+            if policy.match_reason(row.stock_status_at_trigger):
+                continue
+
             buy_date = str(row.entry_date or "").strip()
             buy_price = float(row.entry_price or 0.0)
             if not buy_date or buy_price <= 0:
@@ -232,6 +248,15 @@ class JobExecutor:
                 holding_until = end or buy_date
 
         return out
+
+    @staticmethod
+    def _skip_investment_when_from_payload(payload: Dict[str, Any]) -> SkipInvestmentWhen:
+        settings_raw = payload.get("settings") if isinstance(payload, dict) else None
+        if not isinstance(settings_raw, dict):
+            return SkipInvestmentWhen(())
+        settings = StrategySettings.from_dict(dict(settings_raw))
+        settings.simulation.apply_defaults()
+        return settings.simulation.skip_investment_when
 
     @staticmethod
     def _entity_ids_from_payload(payload: Dict[str, Any]) -> List[str]:

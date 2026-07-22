@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple
 
 from core.modules.strategy.core.engines.shared.data_class.investment import (
     DEFAULT_EXECUTE_STEPS,
@@ -25,6 +25,59 @@ class SimulationEdgesConfig:
 
     allow_buy_at_limit_up: bool = False
     allow_sell_at_limit_down: bool = False
+
+
+@dataclass(frozen=True)
+class SkipInvestmentWhen:
+    """``settings.simulation.skip_investment_when`` — 触发日状态命中则跳过 price/portfolio。
+
+    枚举产物仍保留；仅下游模拟不纳入该笔投资。
+    允许标签：``st`` / ``star_st``（与 ``stock_status_at_trigger`` 一致）。
+    """
+
+    KNOWN_TAGS: ClassVar[frozenset] = frozenset({"st", "star_st"})
+    REASON_PREFIX: ClassVar[str] = "stock_status:"
+
+    tags: Tuple[str, ...] = ()
+
+    @classmethod
+    def from_raw(cls, raw: Any) -> "SkipInvestmentWhen":
+        if raw is None:
+            return cls(())
+        if not isinstance(raw, list):
+            raise ValueError("simulation.skip_investment_when 必须为 list")
+        out: List[str] = []
+        for idx, item in enumerate(raw):
+            tag = str(item or "").strip().lower()
+            if not tag:
+                continue
+            if tag not in cls.KNOWN_TAGS:
+                raise ValueError(
+                    f"simulation.skip_investment_when[{idx}] 非法: {item!r}；"
+                    f"允许: {sorted(cls.KNOWN_TAGS)}"
+                )
+            if tag not in out:
+                out.append(tag)
+        return cls(tuple(out))
+
+    def match_reason(self, status_tags: Sequence[str]) -> Optional[str]:
+        """命中任一 skip 标签时返回 ``stock_status:<tag>``，否则 ``None``。"""
+        if not self.tags:
+            return None
+        active = {
+            str(tag).strip().lower()
+            for tag in status_tags
+            if str(tag).strip()
+        }
+        if not active:
+            return None
+        for tag in self.tags:
+            if tag in active:
+                return f"{self.REASON_PREFIX}{tag}"
+        return None
+
+    def to_list(self) -> List[str]:
+        return list(self.tags)
 
 
 @dataclass
@@ -68,6 +121,11 @@ class SimulationSettings(SettingsBase):
         """贴跌停时是否仍允许卖出成交（默认 False）。"""
         return self.edges.allow_sell_at_limit_down
 
+    @property
+    def skip_investment_when(self) -> SkipInvestmentWhen:
+        """触发日状态命中则跳过 price/portfolio（默认不跳过）。"""
+        return self._parse_skip_investment_when()
+
     def apply_defaults(self) -> None:
         if "simulation" not in self.raw_settings or not isinstance(
             self.raw_settings["simulation"], dict
@@ -86,6 +144,8 @@ class SimulationSettings(SettingsBase):
         if isinstance(edges, dict):
             edges.setdefault("allow_buy_at_limit_up", False)
             edges.setdefault("allow_sell_at_limit_down", False)
+        if "skip_investment_when" not in sim or sim.get("skip_investment_when") is None:
+            sim["skip_investment_when"] = []
 
     def validate(self) -> ValidationReport:
         report = SettingsBase.new_validation()
@@ -99,7 +159,7 @@ class SimulationSettings(SettingsBase):
             )
             return report
 
-        # edges 类型须在 apply_defaults 改写前检查
+        # edges / skip_investment_when 类型须在 apply_defaults 改写前检查
         edges_raw = self.simulation.get("edges")
         if edges_raw is not None and not isinstance(edges_raw, dict):
             SettingsBase.add_critical(
@@ -111,6 +171,25 @@ class SimulationSettings(SettingsBase):
                     '"allow_sell_at_limit_down": false}'
                 ),
             )
+
+        skip_raw = self.simulation.get("skip_investment_when")
+        if skip_raw is not None and not isinstance(skip_raw, list):
+            SettingsBase.add_critical(
+                report,
+                "simulation.skip_investment_when",
+                "skip_investment_when must be list",
+                suggested_fix='Use e.g. ["st"] or ["st", "star_st"]',
+            )
+        elif isinstance(skip_raw, list):
+            try:
+                SkipInvestmentWhen.from_raw(skip_raw)
+            except ValueError as exc:
+                SettingsBase.add_critical(
+                    report,
+                    "simulation.skip_investment_when",
+                    str(exc),
+                    suggested_fix=f"Allowed tags: {sorted(SkipInvestmentWhen.KNOWN_TAGS)}",
+                )
 
         self.apply_defaults()
         self._validate_period(report)
@@ -226,6 +305,12 @@ class SimulationSettings(SettingsBase):
             allow_sell_at_limit_down=bool(raw.get("allow_sell_at_limit_down", False)),
         )
 
+    def _parse_skip_investment_when(self) -> SkipInvestmentWhen:
+        raw = self.simulation.get("skip_investment_when")
+        if raw is None:
+            return SkipInvestmentWhen(())
+        return SkipInvestmentWhen.from_raw(raw)
+
     @staticmethod
     def _is_yyyymmdd(value: str) -> bool:
         if len(value) != 8 or not value.isdigit():
@@ -247,6 +332,7 @@ class SimulationSettings(SettingsBase):
                 "allow_buy_at_limit_up": edges.allow_buy_at_limit_up,
                 "allow_sell_at_limit_down": edges.allow_sell_at_limit_down,
             },
+            "skip_investment_when": self.skip_investment_when.to_list(),
         }
 
     def parsed_execute_steps(self) -> List[ExecuteStep]:
@@ -258,4 +344,5 @@ class SimulationSettings(SettingsBase):
 __all__ = [
     "SimulationEdgesConfig",
     "SimulationSettings",
+    "SkipInvestmentWhen",
 ]

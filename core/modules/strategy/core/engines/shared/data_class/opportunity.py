@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, ClassVar, Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -60,6 +60,8 @@ class Opportunity:
 
     Signal fields use ``trigger_*``; post-fill trade fields use ``entry_*`` / ``exit_info.*``.
     """
+
+    STATUS_AT_TRIGGER_KEY: ClassVar[str] = "stock_status_at_trigger"
 
     stock: StockInfo
     record_of_today: Dict[str, Any]
@@ -143,6 +145,45 @@ class Opportunity:
         self.stock = StockInfo.from_dict(merged)
         self.meta.updated_at = datetime.now().isoformat()
         return self
+
+    def stamp_status_at_trigger(
+        self,
+        *,
+        status_tags_provider: Any,
+        trade_date: Optional[str] = None,
+    ) -> Tuple[str, ...]:
+        """写入 ``metadata.stock_status_at_trigger``（触发日 ST 等标签）。
+
+        - 有 provider：写入标签列表（无状态则为 ``[]``）
+        - 无 provider：不改 metadata，返回空 tuple
+        """
+        if status_tags_provider is None:
+            return ()
+        day = str(
+            trade_date if trade_date is not None else self.trigger_date or ""
+        ).strip()
+        entity_id = ""
+        if isinstance(self.stock, StockInfo):
+            entity_id = str(self.stock.id or "").strip()
+        elif isinstance(self.stock, dict):
+            entity_id = str(self.stock.get("id") or "").strip()
+        tags: List[str] = []
+        if day and entity_id:
+            raw = status_tags_provider.status_tags_at(entity_id, day)
+            if raw:
+                tags = [str(t).strip() for t in raw if str(t).strip()]
+        if not isinstance(self.metadata, dict):
+            self.metadata = {}
+        self.metadata[self.STATUS_AT_TRIGGER_KEY] = tags
+        self.meta.updated_at = datetime.now().isoformat()
+        return tuple(tags)
+
+    def status_tags_at_trigger(self) -> Tuple[str, ...]:
+        """读取已打标的触发日状态；未打标返回空。"""
+        raw = self.metadata.get(self.STATUS_AT_TRIGGER_KEY) if isinstance(self.metadata, dict) else None
+        if not isinstance(raw, (list, tuple)):
+            return ()
+        return tuple(str(t).strip() for t in raw if str(t).strip())
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

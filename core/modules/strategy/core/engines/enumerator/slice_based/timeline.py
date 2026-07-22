@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
 from core.modules.backtest_engine.contracts import JobContext, Timeline
+from core.modules.data_contract import DATA_KEY
 from core.modules.strategy.contracts import CalendarAsOfResult, Opportunity
 from core.modules.strategy.core.engines.enumerator.shared.performance_tracker.performance_tracker import (
     EnumJobPerfRecorder,
@@ -421,6 +422,7 @@ class SliceTimelineHooks:
             trigger_date=as_of,
             trigger_price=float(bar["close"]),
             trigger_price_raw=BarPrices.field(bar, "close", use_raw=True),
+            status_tags_provider=self.entity_contracts.get(DATA_KEY.STOCK_ST_PERIODS),
         )
         tracker.process_tick(
             InvestmentTickInput(as_of_date=as_of, bar=bar, data_as_of=as_of)

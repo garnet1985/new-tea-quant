@@ -97,12 +97,18 @@ def _settings(**overrides) -> StrategySettings:
     return settings
 
 
-def _inv(opp: Opportunity, settings: StrategySettings) -> Investment:
+def _inv(
+    opp: Opportunity,
+    settings: StrategySettings,
+    *,
+    status_tags_provider=None,
+) -> Investment:
     opp.market_profile = "china_a_stock"
     return Investment.create_from_opportunity(
         opp,
         settings=settings,
         open_dates=OPEN_DATES,
+        status_tags_provider=status_tags_provider,
     )
 
 
@@ -413,6 +419,137 @@ class TestInvestmentLimitTradability(unittest.TestCase):
         roundtrip = InvestmentRow.from_csv_row(csv_row)
         self.assertTrue(roundtrip.buy_at_limit_up)
         self.assertTrue(roundtrip.sell_at_limit_down)
+
+
+class _FixedStatusTags:
+    """测试用 status_tags_provider：固定返回给定 tags。"""
+
+    def __init__(self, tags_by_date: dict[str, list[str]]) -> None:
+        self._tags_by_date = tags_by_date
+
+    def status_tags_at(self, entity_id: str, trade_date: str) -> list[str]:
+        return list(self._tags_by_date.get(str(trade_date), []))
+
+
+class TestInvestmentStStatusTagsLimit(unittest.TestCase):
+    def test_st_day_uses_five_percent_band_for_buy_block(self) -> None:
+        """ST 日：pre_close=10 → 涨停 10.5；10.5 应被挡，10.4 可买。"""
+        settings = _settings()
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        provider = _FixedStatusTags({"20240103": ["st"], "20240104": ["st"]})
+        inv = _inv(opp, settings, status_tags_provider=provider)
+
+        # 无 ST 时 10.5 不是 10% 涨停；有 ST 时是 5% 涨停 → 不买
+        self.assertTrue(
+            inv.tick(_tick("20240103", o=10.5, h=10.5, l=10.2, c=10.5, pre_close=10.0))
+        )
+        self.assertEqual(inv.lifecycle, Lifecycle.PENDING_TO_ENTER)
+
+        self.assertTrue(
+            inv.tick(_tick("20240104", o=10.4, h=10.6, l=10.2, c=10.5, pre_close=10.0))
+        )
+        self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
+        self.assertEqual(inv.entry.entry_price, 10.4)
+
+    def test_without_provider_ten_percent_band(self) -> None:
+        """无 provider 时仍按主板 10%：开盘 10.5 可买。"""
+        settings = _settings()
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings)
+        self.assertTrue(
+            inv.tick(_tick("20240103", o=10.5, h=10.8, l=10.2, c=10.6, pre_close=10.0))
+        )
+        self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
+        self.assertEqual(inv.entry.entry_price, 10.5)
+
+    def test_st_day_sell_block_at_five_percent_down(self) -> None:
+        settings = _settings(
+            goal={"stop_loss": {"stages": [{"ratio": -0.02, "close_invest": True}]}}
+        )
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        provider = _FixedStatusTags(
+            {
+                "20240103": [],
+                "20240104": ["st"],
+                "20240105": ["st"],
+            }
+        )
+        inv = _inv(opp, settings, status_tags_provider=provider)
+        inv.tick(_tick("20240103", o=10.0, h=10.2, l=9.9, c=10.0, pre_close=10.0))
+        self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
+
+        # ST 跌停 = 9.5；收盘贴板 → 挂起
+        self.assertTrue(
+            inv.tick(_tick("20240104", o=9.8, h=9.9, l=9.5, c=9.5, pre_close=10.0))
+        )
+        self.assertEqual(inv.lifecycle, Lifecycle.PENDING_TO_EXIT)
+
+        self.assertFalse(
+            inv.tick(_tick("20240105", o=9.6, h=9.7, l=9.55, c=9.6, pre_close=9.5))
+        )
+        self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
+        self.assertEqual(inv.exit_info.exit_price, 9.6)
+
+    def test_enum_output_stamps_stock_status_at_trigger(self) -> None:
+        settings = _settings()
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        provider = _FixedStatusTags({"20240102": ["st", "star_st"]})
+        inv = _inv(opp, settings, status_tags_provider=provider)
+        inv.meta.opportunity_id = "opp-st-stamp"
+
+        self.assertEqual(inv.status_tags_at_trigger(), ("st", "star_st"))
+        self.assertEqual(
+            inv.metadata[Opportunity.STATUS_AT_TRIGGER_KEY], ["st", "star_st"]
+        )
+        # 源 Opportunity 同步打标
+        self.assertEqual(opp.status_tags_at_trigger(), ("st", "star_st"))
+
+        from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_investments import (
+            InvestmentRow,
+        )
+
+        # 需 entry/exit 结构：走一轮最小成交
+        inv.tick(_tick("20240103", o=10.0, h=10.5, l=9.8, c=10.2, pre_close=10.0))
+        row = InvestmentRow.from_payload(inv.to_dict())
+        self.assertEqual(row.stock_status_at_trigger, ("st", "star_st"))
+        csv_row = row.to_csv_row()
+        self.assertEqual(csv_row["stock_status_at_trigger"], '["st", "star_st"]')
+        roundtrip = InvestmentRow.from_csv_row(csv_row)
+        self.assertEqual(roundtrip.stock_status_at_trigger, ("st", "star_st"))
+        projected = roundtrip.to_opportunity("600000.SH")
+        self.assertEqual(projected.status_tags_at_trigger(), ("st", "star_st"))
+
+    def test_without_provider_does_not_stamp_status_key(self) -> None:
+        settings = _settings()
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings)
+        self.assertNotIn(Opportunity.STATUS_AT_TRIGGER_KEY, inv.metadata)
+        self.assertEqual(inv.status_tags_at_trigger(), ())
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ from core.modules.strategy.core.engines.enumerator.shared.state.entity_tracker i
     EntityTracker,
 )
 from core.modules.strategy.core.engines.shared.data_class import InvestmentTickInput, Opportunity
+from core.modules.strategy.core.engines.shared.data_class.investment import BarPrices
 from core.modules.strategy.core.engines.shared.services.entity_loader.strategy_data_resolver import (
     StrategyDataResolver,
 )
@@ -275,6 +276,7 @@ class EntityTimelineHooks:
                 stock_info=self._stock_info.get(entity_id, {"id": entity_id}),
                 trigger_date=now,
                 trigger_price=float(bar["close"]),
+                trigger_price_raw=BarPrices.field(bar, "close", use_raw=True),
             )
             tracker.process_tick(
                 InvestmentTickInput(as_of_date=now, bar=bar, data_as_of=now)

@@ -55,6 +55,7 @@ class EntityTracker:
         stock_info: Dict[str, Any],
         trigger_date: str,
         trigger_price: float,
+        trigger_price_raw: float = 0.0,
     ) -> Investment:
         """Scan 命中：Opportunity → Investment，进入 active / recorded。"""
         self._investment_index += 1
@@ -64,6 +65,7 @@ class EntityTracker:
             stock_info=stock_info,
             trigger_date=trigger_date,
             trigger_price=trigger_price,
+            trigger_price_raw=trigger_price_raw,
             opportunity_index=self._investment_index,
             market_profile=ProjectContext.config.get_default_market_profile_key(),
         )

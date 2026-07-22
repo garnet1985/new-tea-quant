@@ -20,12 +20,36 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.strate
 OPEN_DATES = ("20240102", "20240103", "20240104", "20240105", "20240108")
 
 
-def _bar(date: str, *, o: float, h: float, l: float, c: float) -> dict:
-    return {"date": date, "open": o, "high": h, "low": l, "close": c}
+def _bar(
+    date: str,
+    *,
+    o: float,
+    h: float,
+    l: float,
+    c: float,
+    raw: dict | None = None,
+) -> dict:
+    row = {"date": date, "open": o, "high": h, "low": l, "close": c}
+    if raw is not None:
+        row["raw"] = raw
+    return row
 
 
-def _tick(date: str, *, o: float, h: float, l: float, c: float) -> InvestmentTickInput:
-    return InvestmentTickInput(as_of_date=date, bar=_bar(date, o=o, h=h, l=l, c=c), data_as_of=date)
+def _tick(
+    date: str,
+    *,
+    o: float,
+    h: float,
+    l: float,
+    c: float,
+    raw: dict | None = None,
+) -> InvestmentTickInput:
+    return InvestmentTickInput(
+        as_of_date=date,
+        bar=_bar(date, o=o, h=h, l=l, c=c, raw=raw),
+        data_as_of=date,
+    )
+
 
 
 def _settings(**overrides) -> StrategySettings:
@@ -130,6 +154,68 @@ class TestInvestmentExpiration(unittest.TestCase):
         inv.tick(_tick("20240103", o=10, h=10.5, l=9.8, c=10.2))
         self.assertFalse(inv.tick(_tick("20240104", o=10.2, h=10.5, l=10.0, c=10.3)))
         self.assertEqual(inv.exit_info.exit_reason, "expired")
+
+
+class TestInvestmentRawPrices(unittest.TestCase):
+    def test_entry_and_exit_record_raw_from_bar(self) -> None:
+        settings = _settings()
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar(
+                "20240102",
+                o=10,
+                h=11,
+                l=9,
+                c=10,
+                raw={"open": 20, "high": 22, "low": 18, "close": 20},
+            ),
+            trigger_date="20240102",
+            trigger_price=10.0,
+            trigger_price_raw=20.0,
+        )
+        inv = _inv(opp, settings)
+        inv.meta.opportunity_id = "1"
+        self.assertEqual(inv.trigger_price_raw, 20.0)
+
+        self.assertTrue(
+            inv.tick(
+                _tick(
+                    "20240103",
+                    o=10.5,
+                    h=11,
+                    l=9.5,
+                    c=10.8,
+                    raw={"open": 21.0, "high": 22, "low": 19, "close": 21.5},
+                )
+            )
+        )
+        self.assertEqual(inv.entry.entry_price, 10.5)
+        self.assertEqual(inv.entry.entry_price_raw, 21.0)
+
+        self.assertFalse(
+            inv.tick(
+                _tick(
+                    "20240104",
+                    o=9.5,
+                    h=10,
+                    l=7.5,
+                    c=8.0,
+                    raw={"open": 19, "high": 20, "low": 15, "close": 16.0},
+                )
+            )
+        )
+        self.assertEqual(inv.exit_info.exit_price, 8.0)
+        self.assertEqual(inv.exit_info.exit_price_raw, 16.0)
+        self.assertEqual(inv.completed_goals[0]["price_raw"], 16.0)
+
+        from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_investments import (
+            InvestmentRow,
+        )
+
+        row = InvestmentRow.from_payload(inv.to_dict())
+        self.assertEqual(row.trigger_price_raw, 20.0)
+        self.assertEqual(row.entry_price_raw, 21.0)
+        self.assertEqual(row.exit_price_raw, 16.0)
 
 
 class TestGoalSettingsExpiration(unittest.TestCase):

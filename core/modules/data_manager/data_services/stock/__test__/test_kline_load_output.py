@@ -34,6 +34,20 @@ class TestKlineLoadOutput(unittest.TestCase):
         self.assertNotIn("qfq_open", row)
         self.assertNotIn("qfq_close", row)
 
+    def test_load_qfq_embeds_raw_ohlc(self):
+        dm = DataManager()
+        svc = dm.service.stock.kline
+        raw_rows = svc.load_raw(_DEMO_STOCK, "daily", _DEMO_START, _DEMO_START)
+        qfq_rows = svc.load_qfq_split(_DEMO_STOCK, "daily", _DEMO_START, _DEMO_START)
+        self.assertEqual(len(raw_rows), 1)
+        self.assertEqual(len(qfq_rows), 1)
+        qfq = qfq_rows[0]
+        raw = raw_rows[0]
+        self.assertIsInstance(qfq.get("raw"), dict)
+        for field in ("open", "high", "low", "close"):
+            self.assertEqual(qfq["raw"][field], raw[field])
+        self.assertNotEqual(qfq["close"], qfq["raw"]["close"])
+
     def test_load_raw_matches_db_ohlc(self):
         dm = DataManager()
         svc = dm.service.stock.kline
@@ -42,6 +56,20 @@ class TestKlineLoadOutput(unittest.TestCase):
         self.assertEqual(len(raw), 1)
         self.assertEqual(len(qfq), 1)
         self.assertNotEqual(raw[0]["close"], qfq[0]["close"])
+
+    def test_apply_qfq_snapshots_raw_even_without_event(self):
+        kline = {"date": "20250102", "open": 10.0, "high": 11.0, "low": 9.0, "close": 10.5}
+        KlineService._apply_qfq_from_event_info(
+            KlineService.__new__(KlineService),
+            kline,
+            {"event": None, "qfq_diff": 0.0, "is_adjusted": False},
+            factor_latest=1.0,
+        )
+        self.assertEqual(
+            kline["raw"],
+            {"open": 10.0, "high": 11.0, "low": 9.0, "close": 10.5},
+        )
+        self.assertEqual(kline["close"], 10.5)
 
     def test_global_offset_resolves_from_latest_anchor(self):
         events = [
@@ -73,6 +101,8 @@ class TestKlineLoadOutput(unittest.TestCase):
         }
         self.assertLess(rows[_EX_CHECK_DATE]["close"], 2.6)
         self.assertGreater(rows[_EX_CHECK_DATE]["close"], 2.1)
+        self.assertIn("raw", rows[_EX_CHECK_DATE])
+        self.assertIn("close", rows[_EX_CHECK_DATE]["raw"])
 
 
 if __name__ == "__main__":

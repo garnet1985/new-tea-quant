@@ -65,6 +65,7 @@ class Opportunity:
     record_of_today: Dict[str, Any]
     trigger_date: str = ""
     trigger_price: float = 0.0
+    trigger_price_raw: float = 0.0
     market_profile: str = ""
     meta: OpportunityMeta = field(default_factory=OpportunityMeta)
     contributor: OpportunityContributor = field(default_factory=OpportunityContributor)
@@ -78,6 +79,10 @@ class Opportunity:
             self.trigger_date = str(self.record_of_today.get("date") or "")
         if not self.trigger_price and self.record_of_today:
             self.trigger_price = float(self.record_of_today.get("close") or 0.0)
+        if not self.trigger_price_raw and self.record_of_today:
+            raw = self.record_of_today.get("raw")
+            if isinstance(raw, dict):
+                self.trigger_price_raw = float(raw.get("close") or 0.0)
         if not self.meta.created_at:
             self.meta.created_at = datetime.now().isoformat()
         if not self.meta.updated_at:
@@ -98,6 +103,10 @@ class Opportunity:
             self.trigger_date = str(self.record_of_today.get("date") or "")
         if not self.trigger_price and self.record_of_today:
             self.trigger_price = float(self.record_of_today.get("close") or 0.0)
+        if not self.trigger_price_raw and self.record_of_today:
+            raw = self.record_of_today.get("raw")
+            if isinstance(raw, dict):
+                self.trigger_price_raw = float(raw.get("close") or 0.0)
         self.meta.updated_at = datetime.now().isoformat()
 
     def bind_scan_context(
@@ -108,6 +117,7 @@ class Opportunity:
         stock_info: Optional[Dict[str, Any]] = None,
         trigger_date: Optional[str] = None,
         trigger_price: Optional[float] = None,
+        trigger_price_raw: Optional[float] = None,
         opportunity_index: Optional[int] = None,
         market_profile: Optional[str] = None,
     ) -> "Opportunity":
@@ -116,6 +126,8 @@ class Opportunity:
             if float(trigger_price) <= 0:
                 raise ValueError("trigger_price 须 > 0")
             self.trigger_price = float(trigger_price)
+        if trigger_price_raw is not None:
+            self.trigger_price_raw = float(trigger_price_raw)
         if trigger_date is not None:
             self.trigger_date = str(trigger_date)
             self.meta.scan_date = str(trigger_date)
@@ -146,11 +158,13 @@ class Opportunity:
             **{f.name: contributor_raw.get(f.name, "") for f in fields(OpportunityContributor)}
         )
         trigger_price = cls._to_float(raw.get("trigger_price"), 0.0)
+        trigger_price_raw = cls._to_float(raw.get("trigger_price_raw"), 0.0)
         return cls(
             stock=stock,
             record_of_today=dict(raw.get("record_of_today") or {}),
             trigger_date=str(raw.get("trigger_date") or ""),
             trigger_price=trigger_price,
+            trigger_price_raw=trigger_price_raw,
             market_profile=str(raw.get("market_profile") or ""),
             meta=meta,
             contributor=contributor,

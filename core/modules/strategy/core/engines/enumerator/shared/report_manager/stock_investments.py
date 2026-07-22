@@ -78,15 +78,20 @@ class InvestmentRow:
     - 负责: payload/CSV 行互转（核心字段）
     - 不负责: 文件 IO（见 StockInvestments）
     - 调用方: StockInvestments / OverallReport
+
+    价格字段：无后缀为前复权（qfq）；``*_raw`` 为不复权成交价（供 portfolio 定仓）。
     """
 
     investment_id: str = ""
     trigger_date: str = ""
     trigger_price: float = 0.0
+    trigger_price_raw: float = 0.0
     entry_date: str = ""
     entry_price: float = 0.0
+    entry_price_raw: float = 0.0
     exit_date: str = ""
     exit_price: float = 0.0
+    exit_price_raw: float = 0.0
     exit_reason: str = ""
     lifecycle: str = ""
     result: str = ""
@@ -101,14 +106,20 @@ class InvestmentRow:
         outcome = _RowCoerce.require_dict(raw, "outcome")
         lifecycle = _RowCoerce.require_non_empty_str(raw.get("lifecycle"), "lifecycle")
         exit_price = exit_info.get("exit_price")
+        exit_price_raw = exit_info.get("exit_price_raw")
         return cls(
             investment_id=_RowCoerce.require_investment_id(raw),
             trigger_date=_RowCoerce.require_non_empty_str(raw.get("trigger_date"), "trigger_date"),
             trigger_price=_RowCoerce.as_float(raw.get("trigger_price")),
+            trigger_price_raw=_RowCoerce.as_float(raw.get("trigger_price_raw")),
             entry_date=_RowCoerce.as_str(entry.get("entry_date")),
             entry_price=_RowCoerce.as_float(entry.get("entry_price")),
+            entry_price_raw=_RowCoerce.as_float(entry.get("entry_price_raw")),
             exit_date=_RowCoerce.as_str(exit_info.get("exit_date")),
             exit_price=_RowCoerce.as_float(exit_price) if exit_price not in (None, "") else 0.0,
+            exit_price_raw=(
+                _RowCoerce.as_float(exit_price_raw) if exit_price_raw not in (None, "") else 0.0
+            ),
             exit_reason=_RowCoerce.as_str(exit_info.get("exit_reason")),
             lifecycle=lifecycle,
             result=_RowCoerce.as_str(outcome.get("result")),
@@ -121,10 +132,13 @@ class InvestmentRow:
             "investment_id": self.investment_id,
             "trigger_date": self.trigger_date,
             "trigger_price": self.trigger_price,
+            "trigger_price_raw": self.trigger_price_raw,
             "entry_date": self.entry_date,
             "entry_price": self.entry_price,
+            "entry_price_raw": self.entry_price_raw,
             "exit_date": self.exit_date,
             "exit_price": self.exit_price,
+            "exit_price_raw": self.exit_price_raw,
             "exit_reason": self.exit_reason,
             "lifecycle": self.lifecycle,
             "result": self.result,
@@ -139,10 +153,13 @@ class InvestmentRow:
             investment_id=_RowCoerce.as_str(data.get("investment_id")),
             trigger_date=_RowCoerce.as_str(data.get("trigger_date")),
             trigger_price=_RowCoerce.as_float(data.get("trigger_price")),
+            trigger_price_raw=_RowCoerce.as_float(data.get("trigger_price_raw")),
             entry_date=_RowCoerce.as_str(data.get("entry_date")),
             entry_price=_RowCoerce.as_float(data.get("entry_price")),
+            entry_price_raw=_RowCoerce.as_float(data.get("entry_price_raw")),
             exit_date=_RowCoerce.as_str(data.get("exit_date")),
             exit_price=_RowCoerce.as_float(data.get("exit_price")),
+            exit_price_raw=_RowCoerce.as_float(data.get("exit_price_raw")),
             exit_reason=_RowCoerce.as_str(data.get("exit_reason")),
             lifecycle=_RowCoerce.as_str(data.get("lifecycle")),
             result=_RowCoerce.as_str(data.get("result")),
@@ -165,6 +182,7 @@ class GoalAchievementRow:
     goal_name: str = ""
     date: str = ""
     price: float = 0.0
+    price_raw: float = 0.0
     exit_ratio: float = 0.0
     profit: float = 0.0
     weighted_profit: float = 0.0
@@ -180,6 +198,7 @@ class GoalAchievementRow:
             goal_name=_RowCoerce.require_non_empty_str(raw.get("name"), "name"),
             date=_RowCoerce.require_non_empty_str(raw.get("date"), "date"),
             price=_RowCoerce.as_float(raw.get("price")),
+            price_raw=_RowCoerce.as_float(raw.get("price_raw")),
             exit_ratio=_RowCoerce.as_float(raw.get("exit_ratio"), default=1.0),
             profit=_RowCoerce.as_float(raw.get("profit")),
             weighted_profit=_RowCoerce.as_float(raw.get("weighted_profit")),
@@ -193,6 +212,7 @@ class GoalAchievementRow:
             "goal_name": self.goal_name,
             "date": self.date,
             "price": self.price,
+            "price_raw": self.price_raw,
             "exit_ratio": self.exit_ratio,
             "profit": self.profit,
             "weighted_profit": self.weighted_profit,
@@ -208,6 +228,7 @@ class GoalAchievementRow:
             goal_name=_RowCoerce.require_non_empty_str(data.get("goal_name"), "goal_name"),
             date=_RowCoerce.require_non_empty_str(data.get("date"), "date"),
             price=_RowCoerce.as_float(data.get("price")),
+            price_raw=_RowCoerce.as_float(data.get("price_raw")),
             exit_ratio=_RowCoerce.as_float(data.get("exit_ratio"), default=1.0),
             profit=_RowCoerce.as_float(data.get("profit")),
             weighted_profit=_RowCoerce.as_float(data.get("weighted_profit")),
@@ -231,10 +252,13 @@ class StockInvestments:
         "investment_id",
         "trigger_date",
         "trigger_price",
+        "trigger_price_raw",
         "entry_date",
         "entry_price",
+        "entry_price_raw",
         "exit_date",
         "exit_price",
+        "exit_price_raw",
         "exit_reason",
         "lifecycle",
         "result",
@@ -313,6 +337,7 @@ class GoalAchievements:
         "goal_name",
         "date",
         "price",
+        "price_raw",
         "exit_ratio",
         "profit",
         "weighted_profit",

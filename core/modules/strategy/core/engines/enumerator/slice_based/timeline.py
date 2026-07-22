@@ -16,6 +16,7 @@ from core.modules.strategy.core.engines.enumerator.shared.state.entity_tracker i
     EntityTracker,
 )
 from core.modules.strategy.core.engines.shared.data_class import InvestmentTickInput
+from core.modules.strategy.core.engines.shared.data_class.investment import BarPrices
 from core.modules.strategy.core.engines.shared.services.entity_loader.strategy_data_resolver import (
     StrategyDataResolver,
 )
@@ -419,6 +420,7 @@ class SliceTimelineHooks:
             stock_info=stock_info,
             trigger_date=as_of,
             trigger_price=float(bar["close"]),
+            trigger_price_raw=BarPrices.field(bar, "close", use_raw=True),
         )
         tracker.process_tick(
             InvestmentTickInput(as_of_date=as_of, bar=bar, data_as_of=as_of)

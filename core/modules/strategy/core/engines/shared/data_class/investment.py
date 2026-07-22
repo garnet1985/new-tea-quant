@@ -143,6 +143,44 @@ class InvestmentTickInput:
         return str(self.data_as_of or self.as_of_date or "").strip()
 
 
+class BarPrices:
+    """从 K 线 bar dict 读取价格（顶层 qfq；``raw`` 为不复权）。"""
+
+    @classmethod
+    def field(cls, bar: Dict[str, Any], name: str, *, use_raw: bool = False) -> float:
+        source = cls._source(bar, use_raw=use_raw)
+        if not source:
+            return 0.0
+        try:
+            return float(source.get(name) or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    @classmethod
+    def for_model(cls, bar: Dict[str, Any], model: str, *, use_raw: bool = False) -> float:
+        """按 ``simulation.*_price_model`` 从当前 bar 取价。
+
+        ``next_open`` 表示在本 tick 用 ``open`` 成交（延后到下一根 open 由调用方门控）。
+        """
+        key = str(model or "close").strip().lower()
+        if key == "next_open":
+            return cls.field(bar, "open", use_raw=use_raw)
+        if key in {"open", "high", "low", "close", "pre_close"}:
+            return cls.field(bar, key, use_raw=use_raw)
+        source = cls._source(bar, use_raw=use_raw)
+        if key in source:
+            return cls.field(bar, key, use_raw=use_raw)
+        raise ValueError(f"unsupported price model: {model!r}")
+
+    @classmethod
+    def _source(cls, bar: Dict[str, Any], *, use_raw: bool) -> Dict[str, Any]:
+        if not isinstance(bar, dict):
+            return {}
+        if not use_raw:
+            return bar
+        raw = bar.get("raw")
+        return raw if isinstance(raw, dict) else {}
+
 
 @dataclass(frozen=True)
 class InvestmentRunDeps:
@@ -184,6 +222,7 @@ class InvestmentRunDeps:
 @dataclass
 class EntryInfo:
     entry_price: float = 0.0
+    entry_price_raw: float = 0.0
     entry_date: str = ""
     direction: TradeSide = TradeSide.BUY
 
@@ -191,6 +230,7 @@ class EntryInfo:
 @dataclass
 class ExitInfo:
     exit_price: Optional[float] = None
+    exit_price_raw: Optional[float] = None
     exit_date: str = ""
     exit_reason: str = ""
     exit_ratio: float = 0.0
@@ -357,21 +397,22 @@ class Investment(Opportunity):
             market_rules=create_market_rules(profile),
             open_dates=open_dates,
         )
-        expiration = _expiration_rule_from_goal(run_deps.goal.expiration)
+        expiration = cls._expiration_rule_from_goal(run_deps.goal.expiration)
         return cls(
             stock=opportunity.stock,
             record_of_today=dict(opportunity.record_of_today),
             trigger_date=str(opportunity.trigger_date or ""),
             trigger_price=float(opportunity.trigger_price or 0.0),
+            trigger_price_raw=float(opportunity.trigger_price_raw or 0.0),
             market_profile=profile,
-            meta=_copy_dataclass(opportunity.meta, OpportunityMeta),
-            contributor=_copy_dataclass(opportunity.contributor, OpportunityContributor),
+            meta=cls._copy_dataclass(opportunity.meta, OpportunityMeta),
+            contributor=cls._copy_dataclass(opportunity.contributor, OpportunityContributor),
             extra_fields=dict(opportunity.extra_fields),
             metadata=dict(opportunity.metadata),
             deps=run_deps,
             runtime_state=InvestmentTickState(
                 state=Lifecycle.PENDING_TO_ENTER,
-                holding=_holding_from_expiration(expiration),
+                holding=cls._holding_from_expiration(expiration),
             ),
             execute_steps=list(run_deps.execute_steps),
         )
@@ -467,7 +508,7 @@ class Investment(Opportunity):
         entry_date = str(self.entry.entry_date or "").strip()
         if not entry_date:
             return True
-        held = _settlement_days_held(entry_date, as_of, self.run_deps.open_dates)
+        held = self._settlement_days_held(entry_date, as_of, self.run_deps.open_dates)
         return self.run_deps.market_rules.is_allowed_to_sell(held)
 
     def _check_stop_loss(self, as_of: str, bar: Dict[str, Any]) -> bool:
@@ -513,7 +554,7 @@ class Investment(Opportunity):
         entry_date = str(self.entry.entry_date or "").strip()
         if not entry_date:
             return False
-        held = _holding_days(entry_date, as_of, self.holding.mode, self.run_deps.open_dates)
+        held = self._holding_days(entry_date, as_of, self.holding.mode, self.run_deps.open_dates)
         self.holding.days = held
         if held >= self.holding.window_days:
             self.pending_exit = PendingExit(
@@ -541,16 +582,25 @@ class Investment(Opportunity):
         price = self._resolve_entry_price(as_of, bar)
         if price is None:
             return
+        raw_price = self._resolve_entry_price(as_of, bar, use_raw=True)
         self.entry = EntryInfo(
             entry_price=price,
+            entry_price_raw=float(raw_price or 0.0),
             entry_date=str(as_of or "").strip(),
             direction=TradeSide.BUY,
         )
 
-    def _resolve_entry_price(self, as_of: str, bar: Dict[str, Any]) -> Optional[float]:
+    def _resolve_entry_price(
+        self,
+        as_of: str,
+        bar: Dict[str, Any],
+        *,
+        use_raw: bool = False,
+    ) -> Optional[float]:
         """Entry fill price for this tick, or ``None`` if not ready.
 
         Controlled by ``run_deps.buy_price_model`` (``next_open`` | ``open`` | ``close``).
+        ``use_raw=True`` 时从 ``bar["raw"]`` 取同一 model 对应字段。
         TODO: tradability gate before returning a price.
         """
         if self.lifecycle != Lifecycle.PENDING_TO_ENTER:
@@ -564,20 +614,15 @@ class Investment(Opportunity):
         model = str(self.run_deps.buy_price_model or "next_open").strip().lower()
         open_dates = self.run_deps.open_dates
         if model == "next_open":
-            if as_of <= trigger or not _is_first_open_after(trigger, as_of, open_dates):
+            if as_of <= trigger or not self._is_first_open_after(trigger, as_of, open_dates):
                 return None
-            price = float(bar["open"])
-        elif model == "close":
+        elif model in {"close", "open"}:
             if as_of != trigger:
                 return None
-            price = float(bar["close"])
-        elif model == "open":
-            if as_of != trigger:
-                return None
-            price = float(bar["open"])
         else:
             raise ValueError(f"unsupported buy_price_model: {model!r}")
 
+        price = BarPrices.for_model(bar, model, use_raw=use_raw)
         if price <= 0:
             return None
         return price
@@ -611,12 +656,16 @@ class Investment(Opportunity):
         basis = float(self.entry.entry_price or self.trigger_price or 0.0)
         profit = exit_price - basis
         roi = (profit / basis) if basis > 0 else 0.0
+        exit_price_raw = self._resolve_exit_price(
+            as_of, bar, price_model=price_model, use_raw=True
+        )
 
         self.completed_goals.append(
             {
                 "name": self.pending_exit.goal_name or self.pending_exit.reason,
                 "date": as_of,
                 "price": exit_price,
+                "price_raw": float(exit_price_raw or 0.0),
                 "exit_ratio": ratio,
                 "profit": profit,
                 "weighted_profit": profit * ratio,
@@ -627,6 +676,7 @@ class Investment(Opportunity):
 
         self.exit_info = ExitInfo(
             exit_price=exit_price,
+            exit_price_raw=float(exit_price_raw or 0.0),
             exit_date=as_of,
             exit_reason=self.pending_exit.reason,
             exit_ratio=ratio,
@@ -638,7 +688,7 @@ class Investment(Opportunity):
         entry_date = str(self.entry.entry_date or "").strip()
         if entry_date and int(self.holding.days or 0) <= 0:
             mode = self.holding.mode or ExpirationMode.OPEN_DAY
-            self.holding.days = _holding_days(
+            self.holding.days = self._holding_days(
                 entry_date, as_of, mode, self.run_deps.open_dates
             )
             self.holding.last_bar_date = as_of
@@ -651,6 +701,7 @@ class Investment(Opportunity):
         bar: Dict[str, Any],
         *,
         price_model: Optional[str] = None,
+        use_raw: bool = False,
     ) -> Optional[float]:
         """Exit fill price for this tick, or ``None`` if not ready / not allowed."""
         _ = as_of
@@ -660,7 +711,7 @@ class Investment(Opportunity):
             return None
 
         model = str(price_model or self.run_deps.sell_price_model or "close").strip().lower()
-        exit_price = _resolve_price(bar, model)
+        exit_price = BarPrices.for_model(bar, model, use_raw=use_raw)
         if exit_price <= 0:
             return None
         # TODO: tradability — return None when limit up/down blocks sell at exit_price
@@ -709,99 +760,88 @@ class Investment(Opportunity):
         entry_date = str(self.entry.entry_date or "").strip()
         if not entry_date:
             return
-        self.holding.days = _holding_days(
+        self.holding.days = self._holding_days(
             entry_date, as_of, self.holding.mode, self.run_deps.open_dates
         )
         self.holding.last_bar_date = as_of
         self.holding.counter_initialized = True
 
+    @staticmethod
+    def _copy_dataclass(value: Any, cls: type) -> Any:
+        if isinstance(value, cls):
+            return cls(**{f.name: getattr(value, f.name) for f in fields(cls)})
+        if isinstance(value, dict):
+            return cls(**{f.name: value.get(f.name, "") for f in fields(cls)})
+        return cls()
 
-def _copy_dataclass(value: Any, cls: type) -> Any:
-    if isinstance(value, cls):
-        return cls(**{f.name: getattr(value, f.name) for f in fields(cls)})
-    if isinstance(value, dict):
-        return cls(**{f.name: value.get(f.name, "") for f in fields(cls)})
-    return cls()
+    @staticmethod
+    def _expiration_rule_from_goal(expiration: Optional[Any]) -> Optional[ExpirationRule]:
+        if expiration is None:
+            return None
+        return ExpirationRule(
+            window_days=expiration.window_days,
+            mode=ExpirationMode(expiration.mode),
+        )
 
+    @staticmethod
+    def _holding_from_expiration(expiration: Optional[ExpirationRule]) -> HoldingState:
+        if expiration is None:
+            return HoldingState()
+        return HoldingState(mode=expiration.mode, window_days=expiration.window_days)
 
-def _expiration_rule_from_goal(expiration: Optional[Any]) -> Optional[ExpirationRule]:
-    if expiration is None:
-        return None
-    return ExpirationRule(
-        window_days=expiration.window_days,
-        mode=ExpirationMode(expiration.mode),
-    )
+    @staticmethod
+    def _open_days_inclusive(start_date: str, end_date: str, open_dates: Sequence[str]) -> int:
+        start = str(start_date).strip()
+        end = str(end_date).strip()
+        if not start or not end or not open_dates:
+            return 0
+        if start > end:
+            return 0
+        start_idx = bisect_left(open_dates, start)
+        end_idx = bisect_left(open_dates, end)
+        if start_idx >= len(open_dates) or open_dates[start_idx] != start:
+            return 0
+        if end_idx >= len(open_dates) or open_dates[end_idx] != end:
+            return 0
+        return end_idx - start_idx + 1
 
+    @classmethod
+    def _settlement_days_held(cls, entry_date: str, as_of: str, open_dates: Sequence[str]) -> int:
+        """Trading days held for settlement (entry day does not count toward T+N)."""
+        inclusive = cls._open_days_inclusive(entry_date, as_of, open_dates)
+        return max(inclusive - 1, 0)
 
-def _holding_from_expiration(expiration: Optional[ExpirationRule]) -> HoldingState:
-    if expiration is None:
-        return HoldingState()
-    return HoldingState(mode=expiration.mode, window_days=expiration.window_days)
+    @classmethod
+    def _holding_days(
+        cls,
+        entry_date: str,
+        as_of: str,
+        mode: ExpirationMode,
+        open_dates: Sequence[str],
+    ) -> int:
+        if mode in (ExpirationMode.OPEN_DAY, ExpirationMode.TRADING_DAY):
+            return cls._open_days_inclusive(entry_date, as_of, open_dates)
+        try:
+            start_dt = datetime.strptime(str(entry_date).strip(), "%Y%m%d")
+            end_dt = datetime.strptime(str(as_of).strip(), "%Y%m%d")
+            return max((end_dt - start_dt).days, 0)
+        except ValueError:
+            return 0
 
-
-def _open_days_inclusive(start_date: str, end_date: str, open_dates: Sequence[str]) -> int:
-    start = str(start_date).strip()
-    end = str(end_date).strip()
-    if not start or not end or not open_dates:
-        return 0
-    if start > end:
-        return 0
-    start_idx = bisect_left(open_dates, start)
-    end_idx = bisect_left(open_dates, end)
-    if start_idx >= len(open_dates) or open_dates[start_idx] != start:
-        return 0
-    if end_idx >= len(open_dates) or open_dates[end_idx] != end:
-        return 0
-    return end_idx - start_idx + 1
-
-
-def _settlement_days_held(entry_date: str, as_of: str, open_dates: Sequence[str]) -> int:
-    """Trading days held for settlement (entry day does not count toward T+N)."""
-    inclusive = _open_days_inclusive(entry_date, as_of, open_dates)
-    return max(inclusive - 1, 0)
-
-
-def _holding_days(
-    entry_date: str,
-    as_of: str,
-    mode: ExpirationMode,
-    open_dates: Sequence[str],
-) -> int:
-    if mode in (ExpirationMode.OPEN_DAY, ExpirationMode.TRADING_DAY):
-        return _open_days_inclusive(entry_date, as_of, open_dates)
-    try:
-        start_dt = datetime.strptime(str(entry_date).strip(), "%Y%m%d")
-        end_dt = datetime.strptime(str(as_of).strip(), "%Y%m%d")
-        return max((end_dt - start_dt).days, 0)
-    except ValueError:
-        return 0
-
-
-def _is_first_open_after(trigger: str, as_of: str, open_dates: Sequence[str]) -> bool:
-    idx = bisect_left(open_dates, trigger)
-    if idx < len(open_dates) and open_dates[idx] == trigger:
-        next_idx = idx + 1
-    else:
-        next_idx = idx
-    return next_idx < len(open_dates) and open_dates[next_idx] == as_of
-
-
-def _resolve_price(bar: Dict[str, Any], model: str) -> float:
-    """Map ``simulation.*_price_model`` to a price on the **current** bar only."""
-    key = str(model or "close").strip().lower()
-    if key == "next_open":
-        # Filled on a later tick; that tick's ``bar.open`` is the fill price.
-        return float(bar.get("open") or 0.0)
-    if key in bar:
-        return float(bar[key])
-    if key == "close":
-        return float(bar.get("close") or 0.0)
-    raise ValueError(f"unsupported price model: {model!r}")
+    @staticmethod
+    def _is_first_open_after(trigger: str, as_of: str, open_dates: Sequence[str]) -> bool:
+        idx = bisect_left(open_dates, trigger)
+        if idx < len(open_dates) and open_dates[idx] == trigger:
+            next_idx = idx + 1
+        else:
+            next_idx = idx
+        return next_idx < len(open_dates) and open_dates[next_idx] == as_of
 
 
 __all__ = [
     "DEFAULT_EXECUTE_STEPS",
     "EXIT_TRIGGER_EXECUTE_STEPS",
+    "BarPrices",
     "EntryInfo",
     "ExecuteStep",
     "ExitInfo",

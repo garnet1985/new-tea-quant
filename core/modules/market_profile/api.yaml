@@ -171,6 +171,44 @@ public:
         returns: bool
         description: 判断特定股票的价格是否在涨跌幅范围内
         since: 0.1.0-beta
+
+      is_at_limit_up:
+        parameters:
+          price:
+            type: float
+            description: 拟成交价
+          prev_close:
+            type: float
+            description: 前收盘价
+          stock_id:
+            type: str
+            description: 股票ID
+          status_tags:
+            type: Optional[Sequence[str]]
+            default: None
+            description: 状态标签（如 ['st']）
+        returns: bool
+        description: 成交价是否视为涨停（贴涨停）；无涨跌幅/无效输入返回 False
+        since: 0.1.0-beta
+
+      is_at_limit_down:
+        parameters:
+          price:
+            type: float
+            description: 拟成交价
+          prev_close:
+            type: float
+            description: 前收盘价
+          stock_id:
+            type: str
+            description: 股票ID
+          status_tags:
+            type: Optional[Sequence[str]]
+            default: None
+            description: 状态标签（如 ['st']）
+        returns: bool
+        description: 成交价是否视为跌停（贴跌停）；无涨跌幅/无效输入返回 False
+        since: 0.1.0-beta
       
       # ==================== 整手规则 ====================
       

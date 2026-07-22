@@ -146,5 +146,53 @@ class AmplitudeLimitService:
         """判断价格是否在涨跌幅范围内"""
         return limit_down <= current_price <= limit_up
 
+    @staticmethod
+    def limit_touch_eps(price_decimals: int) -> float:
+        """贴涨/跌停比较容差：半个最小报价单位。"""
+        decimals = max(int(price_decimals), 0)
+        return 0.5 * (10.0 ** -decimals)
+
+    @staticmethod
+    def is_at_limit_up(
+        price: float,
+        limit_up: float,
+        *,
+        ratio: float,
+        price_decimals: int,
+    ) -> bool:
+        """成交价是否视为涨停（贴涨停）。
+
+        ``ratio <= 0``（无涨跌幅市场）恒为 False；无效输入也为 False。
+        """
+        if float(ratio or 0.0) <= 0:
+            return False
+        px = float(price or 0.0)
+        up = float(limit_up or 0.0)
+        if px <= 0 or up <= 0:
+            return False
+        eps = AmplitudeLimitService.limit_touch_eps(price_decimals)
+        return px >= up - eps
+
+    @staticmethod
+    def is_at_limit_down(
+        price: float,
+        limit_down: float,
+        *,
+        ratio: float,
+        price_decimals: int,
+    ) -> bool:
+        """成交价是否视为跌停（贴跌停）。
+
+        ``ratio <= 0``（无涨跌幅市场）恒为 False；无效输入也为 False。
+        """
+        if float(ratio or 0.0) <= 0:
+            return False
+        px = float(price or 0.0)
+        down = float(limit_down or 0.0)
+        if px <= 0 or down <= 0:
+            return False
+        eps = AmplitudeLimitService.limit_touch_eps(price_decimals)
+        return px <= down + eps
+
 
 __all__ = ["AmplitudeLimitService", "AmplitudeLimitEntry"]

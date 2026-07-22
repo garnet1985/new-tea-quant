@@ -17,7 +17,7 @@ from .data_settings import DataSettings
 from .sampling_settings import SamplingSettings
 from .goal_settings import ExpirationConfig, GoalSettings, GoalStage
 from .fees_settings import FeesSettings
-from .simulation_settings import SimulationSettings
+from .simulation_settings import SimulationEdgesConfig, SimulationSettings
 from .portfolio_settings import AllocationConfig, OutputConfig, PortfolioSettings
 from .scanner_settings import ScannerSettings
 from .strategy_settings import StrategySettings
@@ -32,6 +32,7 @@ __all__ = [
     "GoalStage",
     "ExpirationConfig",
     "FeesSettings",
+    "SimulationEdgesConfig",
     "SimulationSettings",
     "AllocationConfig",
     "OutputConfig",

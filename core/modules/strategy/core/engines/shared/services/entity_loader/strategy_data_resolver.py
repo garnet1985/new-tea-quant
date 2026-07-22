@@ -14,6 +14,11 @@ SYSTEM_GLOBAL_DATA_KEYS = frozenset({
     DATA_KEY.TRADE_CALENDAR,
 })
 
+# 回测默认自动注入的 per_entity 旁路数据（用户 settings.data 无需声明）
+SYSTEM_AUTO_REQUIRED_DATA_KEYS = (
+    DATA_KEY.STOCK_ST_PERIODS,
+)
+
 
 class DataDeclaration(TypedDict):
     """数据声明结构。"""
@@ -34,8 +39,9 @@ class StrategyDataResolver:
 
     职责：
     1. 解析 base + required 数据声明
-    2. 用 ContractIssuer.is_global() 分组为 global / per_entity
-    3. 供 GlobalEntityCache（加载 global）与 JobBuilder（构建 per_entity job）消费
+    2. 回测默认注入系统旁路数据（如 ``stock.st_periods``）
+    3. 用 ContractIssuer.is_global() 分组为 global / per_entity
+    4. 供 GlobalEntityCache（加载 global）与 JobBuilder（构建 per_entity job）消费
 
     不负责：
     - 系统级 global（stock.list、trade.calendar、latest completed trading date）
@@ -88,7 +94,7 @@ class StrategyDataResolver:
         return 20
 
     def issue_declarations(self) -> List[Dict[str, Any]]:
-        """base + required，供 issue 迭代（不写入 settings）。"""
+        """base + required + 系统默认旁路，供 issue 迭代（不写入 settings）。"""
         items = [self._normalize_declaration(self.base)]
         seen = {str(items[0]["data_key"])}
         for index, raw in enumerate(self.required):
@@ -100,7 +106,32 @@ class StrategyDataResolver:
                 raise ValueError(f"data 声明重复 data_key: {data_key!r}")
             seen.add(data_key)
             items.append(item)
+        for auto_key in SYSTEM_AUTO_REQUIRED_DATA_KEYS:
+            key = str(auto_key)
+            if key in seen:
+                continue
+            if not self._should_auto_inject(key):
+                continue
+            items.append(
+                {
+                    "data_key": key,
+                    "params": {},
+                    "indicators": {},
+                }
+            )
+            seen.add(key)
+            logger.debug("auto-inject data declaration: %s", key)
         return items
+
+    def _should_auto_inject(self, data_key: str) -> bool:
+        """是否默认注入旁路 contract。
+
+        ``stock.st_periods``：base 为股票 K 线族时注入（A 股回测主路径）。
+        """
+        if data_key == DATA_KEY.STOCK_ST_PERIODS:
+            base_key = str(self.base.get("data_key") or "").strip()
+            return base_key.startswith("stock.kline.")
+        return False
 
     @staticmethod
     def normalize_indicators(raw: Any) -> Dict[str, Any]:

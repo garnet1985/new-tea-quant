@@ -96,6 +96,11 @@ ratio = rules.get_limit_ratio_for_stock("000001.SZ", status_tags=["st"])  # 0.05
 up, down = rules.compute_limit_prices_for_stock(10.0, "000001.SZ", status_tags=["st"])
 # (10.5, 9.5)
 
+# 贴涨停 / 贴跌停（tradability 谓词）
+rules.is_at_limit_up(11.0, 10.0, "000001.SZ")   # True（主板涨停）
+rules.is_at_limit_down(9.0, 10.0, "000001.SZ")  # True（主板跌停）
+rules.is_at_limit_up(10.5, 10.0, "000001.SZ", status_tags=["st"])  # True（ST 涨停）
+
 # 2. 整手规则
 
 # 主板股票

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Sequence, Tuple, TYPE_CHECKING
+from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING
 
 from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_consts import (
     ReportPaths,
@@ -45,6 +45,34 @@ class _RowCoerce:
             return int(float(value))
         except (TypeError, ValueError):
             return default
+
+    @staticmethod
+    def as_optional_float(value: Any) -> Optional[float]:
+        if value is None or value == "":
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def as_optional_bool(value: Any) -> Optional[bool]:
+        if value is None or value == "":
+            return None
+        if isinstance(value, bool):
+            return value
+        text = str(value).strip().lower()
+        if text in ("true", "1", "yes"):
+            return True
+        if text in ("false", "0", "no"):
+            return False
+        return None
+
+    @staticmethod
+    def optional_bool_to_csv(value: Optional[bool]) -> str:
+        if value is None:
+            return ""
+        return "1" if value else "0"
 
     @staticmethod
     def require_non_empty_str(value: Any, field_name: str) -> str:
@@ -97,6 +125,10 @@ class InvestmentRow:
     result: str = ""
     weighted_roi: float = 0.0
     holding_days: int = 0
+    buy_prev_close: Optional[float] = None
+    buy_at_limit_up: Optional[bool] = None
+    sell_prev_close: Optional[float] = None
+    sell_at_limit_down: Optional[bool] = None
 
     @classmethod
     def from_payload(cls, raw: Dict[str, Any]) -> "InvestmentRow":
@@ -125,6 +157,12 @@ class InvestmentRow:
             result=_RowCoerce.as_str(outcome.get("result")),
             weighted_roi=_RowCoerce.as_float(outcome.get("weighted_roi")),
             holding_days=_RowCoerce.as_int(holding.get("days")),
+            buy_prev_close=_RowCoerce.as_optional_float(entry.get("buy_prev_close")),
+            buy_at_limit_up=_RowCoerce.as_optional_bool(entry.get("buy_at_limit_up")),
+            sell_prev_close=_RowCoerce.as_optional_float(exit_info.get("sell_prev_close")),
+            sell_at_limit_down=_RowCoerce.as_optional_bool(
+                exit_info.get("sell_at_limit_down")
+            ),
         )
 
     def to_csv_row(self) -> Dict[str, Any]:
@@ -144,6 +182,10 @@ class InvestmentRow:
             "result": self.result,
             "weighted_roi": self.weighted_roi,
             "holding_days": self.holding_days,
+            "buy_prev_close": "" if self.buy_prev_close is None else self.buy_prev_close,
+            "buy_at_limit_up": _RowCoerce.optional_bool_to_csv(self.buy_at_limit_up),
+            "sell_prev_close": "" if self.sell_prev_close is None else self.sell_prev_close,
+            "sell_at_limit_down": _RowCoerce.optional_bool_to_csv(self.sell_at_limit_down),
         }
 
     @classmethod
@@ -165,6 +207,10 @@ class InvestmentRow:
             result=_RowCoerce.as_str(data.get("result")),
             weighted_roi=_RowCoerce.as_float(data.get("weighted_roi")),
             holding_days=_RowCoerce.as_int(data.get("holding_days")),
+            buy_prev_close=_RowCoerce.as_optional_float(data.get("buy_prev_close")),
+            buy_at_limit_up=_RowCoerce.as_optional_bool(data.get("buy_at_limit_up")),
+            sell_prev_close=_RowCoerce.as_optional_float(data.get("sell_prev_close")),
+            sell_at_limit_down=_RowCoerce.as_optional_bool(data.get("sell_at_limit_down")),
         )
 
     def to_opportunity(self, entity_id: str) -> "Opportunity":

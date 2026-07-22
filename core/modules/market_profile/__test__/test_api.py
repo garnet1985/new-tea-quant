@@ -255,6 +255,8 @@ class TestMarketsAPI:
             'compute_limit_prices_for_stock',
             'is_within_price_limit',
             'is_within_price_limit_for_stock',
+            'is_at_limit_up',
+            'is_at_limit_down',
             'get_min_lot',
             'get_lot_step',
             'is_valid_quantity',

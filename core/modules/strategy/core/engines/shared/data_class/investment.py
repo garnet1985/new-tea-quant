@@ -22,11 +22,12 @@ Lifecycle (MVP — see TODOs on ``Investment``)
 
 TODO(investment lifecycle — not yet implemented)
 ------------------------------------------------
-- Tradability via ``market_profile`` (limit up/down, suspended) → block fill, stay pending.
+- Suspended / non-trading day gates beyond limit-up/down fill blocks.
 - ``exit_ratio < 1`` partial exit → ``OPEN`` not ``COMPLETE``.
 - Full ``buy_price_model`` / ``sell_price_model`` matrix beyond next_open | open | close.
 - Distinguish scheduled ``next_open`` defer vs failed-fill retry in ``PENDING_TO_EXIT``.
 - Non-trading / missing bar days (simulator currently skips).
+- ``status_tags`` (ST 等) 传入涨跌停判断。
 """
 
 from __future__ import annotations
@@ -132,6 +133,8 @@ class InvestmentTickInput:
 
     Only ``as_of_date`` + ``bar`` are required. ``next_open`` fills happen on a *later*
     tick's ``bar`` (``PENDING_TO_EXIT``), never by peeking at a future bar in the same call.
+
+    ``bar`` 宜含 ``pre_close``（昨收），供涨跌停贴板判断；缺失则不做贴板拦截。
     """
 
     as_of_date: str
@@ -155,6 +158,11 @@ class BarPrices:
             return float(source.get(name) or 0.0)
         except (TypeError, ValueError):
             return 0.0
+
+    @classmethod
+    def prev_close(cls, bar: Dict[str, Any], *, use_raw: bool = False) -> float:
+        """昨收：读 ``pre_close`` 字段。"""
+        return cls.field(bar, "pre_close", use_raw=use_raw)
 
     @classmethod
     def for_model(cls, bar: Dict[str, Any], model: str, *, use_raw: bool = False) -> float:
@@ -193,6 +201,9 @@ class InvestmentRunDeps:
     buy_price_model: str = "next_open"
     sell_price_model: str = "close"
     monitor_price_model: str = "close"
+    # simulation.edges — 贴板成交政策（非市场硬规则）
+    allow_buy_at_limit_up: bool = False
+    allow_sell_at_limit_down: bool = False
 
     @classmethod
     def from_settings(
@@ -202,20 +213,19 @@ class InvestmentRunDeps:
         market_rules: Any,
         open_dates: Sequence[str],
     ) -> "InvestmentRunDeps":
-        from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings import (
-            resolve_execute_steps,
-        )
-
         raw = settings.raw_settings
         simulation = raw.get("simulation") if isinstance(raw.get("simulation"), dict) else {}
+        sim_settings = settings.simulation
         return cls(
             market_rules=market_rules,
             open_dates=tuple(open_dates),
             goal=settings.goal,
-            execute_steps=tuple(resolve_execute_steps(raw)),
+            execute_steps=tuple(sim_settings.parsed_execute_steps()),
             buy_price_model=str(simulation.get("buy_price_model") or "next_open"),
             sell_price_model=str(simulation.get("sell_price_model") or "close"),
             monitor_price_model=str(simulation.get("monitor_price_model") or "close"),
+            allow_buy_at_limit_up=bool(sim_settings.allow_buy_at_limit_up),
+            allow_sell_at_limit_down=bool(sim_settings.allow_sell_at_limit_down),
         )
 
 
@@ -225,6 +235,9 @@ class EntryInfo:
     entry_price_raw: float = 0.0
     entry_date: str = ""
     direction: TradeSide = TradeSide.BUY
+    # 成交日贴板标注（可观测；None = 无法判断，如缺 pre_close）
+    buy_prev_close: Optional[float] = None
+    buy_at_limit_up: Optional[bool] = None
 
 
 @dataclass
@@ -234,6 +247,8 @@ class ExitInfo:
     exit_date: str = ""
     exit_reason: str = ""
     exit_ratio: float = 0.0
+    sell_prev_close: Optional[float] = None
+    sell_at_limit_down: Optional[bool] = None
 
 
 @dataclass
@@ -483,7 +498,7 @@ class Investment(Opportunity):
                     # TODO: partial exit (exit_ratio < 1) → Lifecycle.OPEN
                     self.lifecycle = Lifecycle.COMPLETE
                     return False
-                # TODO: tradability blocked fill — retry on later ticks
+                # 贴板等导致本 tick 无法成交 → 挂起，后续 tick 重试
                 self.lifecycle = Lifecycle.PENDING_TO_EXIT
             return True
 
@@ -583,11 +598,14 @@ class Investment(Opportunity):
         if price is None:
             return
         raw_price = self._resolve_entry_price(as_of, bar, use_raw=True)
+        at_limit_up, prev_close = self._eval_limit_up(price, bar)
         self.entry = EntryInfo(
             entry_price=price,
             entry_price_raw=float(raw_price or 0.0),
             entry_date=str(as_of or "").strip(),
             direction=TradeSide.BUY,
+            buy_prev_close=prev_close,
+            buy_at_limit_up=at_limit_up,
         )
 
     def _resolve_entry_price(
@@ -596,12 +614,14 @@ class Investment(Opportunity):
         bar: Dict[str, Any],
         *,
         use_raw: bool = False,
+        check_tradability: bool = True,
     ) -> Optional[float]:
-        """Entry fill price for this tick, or ``None`` if not ready.
+        """Entry fill price for this tick, or ``None`` if not ready / blocked.
 
         Controlled by ``run_deps.buy_price_model`` (``next_open`` | ``open`` | ``close``).
-        ``use_raw=True`` 时从 ``bar["raw"]`` 取同一 model 对应字段。
-        TODO: tradability gate before returning a price.
+        ``use_raw=True`` 时从 ``bar["raw"]`` 取同一 model 对应字段（不再次做贴板门禁）。
+
+        ``next_open``：信号日之后任一交易日的 open 均可尝试成交；贴涨停被挡后可在后续日重试。
         """
         if self.lifecycle != Lifecycle.PENDING_TO_ENTER:
             return None
@@ -612,9 +632,8 @@ class Investment(Opportunity):
             return None
 
         model = str(self.run_deps.buy_price_model or "next_open").strip().lower()
-        open_dates = self.run_deps.open_dates
         if model == "next_open":
-            if as_of <= trigger or not self._is_first_open_after(trigger, as_of, open_dates):
+            if as_of <= trigger:
                 return None
         elif model in {"close", "open"}:
             if as_of != trigger:
@@ -625,6 +644,12 @@ class Investment(Opportunity):
         price = BarPrices.for_model(bar, model, use_raw=use_raw)
         if price <= 0:
             return None
+        if (
+            check_tradability
+            and not use_raw
+            and self._is_buy_blocked_by_limit_up(price, bar)
+        ):
+            return None
         return price
 
     def _is_able_to_exit(
@@ -633,12 +658,18 @@ class Investment(Opportunity):
         bar: Dict[str, Any],
         *,
         price_model: Optional[str] = None,
+        check_tradability: bool = True,
     ) -> bool:
-        """Whether this tick can fill exit per ``sell_price_model`` (no mutation).
-
-        TODO: ``market_profile`` tradability (limit up/down, suspended, T+N already in goals).
-        """
-        return self._resolve_exit_price(as_of, bar, price_model=price_model) is not None
+        """Whether this tick can fill exit per ``sell_price_model`` (no mutation)."""
+        return (
+            self._resolve_exit_price(
+                as_of,
+                bar,
+                price_model=price_model,
+                check_tradability=check_tradability,
+            )
+            is not None
+        )
 
     def _apply_exit(
         self,
@@ -646,9 +677,15 @@ class Investment(Opportunity):
         bar: Dict[str, Any],
         *,
         price_model: Optional[str] = None,
+        check_tradability: bool = True,
     ) -> bool:
         """Record exit leg from ``pending_exit``. Returns ``True`` if fill applied."""
-        exit_price = self._resolve_exit_price(as_of, bar, price_model=price_model)
+        exit_price = self._resolve_exit_price(
+            as_of,
+            bar,
+            price_model=price_model,
+            check_tradability=check_tradability,
+        )
         if exit_price is None or self.pending_exit is None:
             return False
 
@@ -657,8 +694,13 @@ class Investment(Opportunity):
         profit = exit_price - basis
         roi = (profit / basis) if basis > 0 else 0.0
         exit_price_raw = self._resolve_exit_price(
-            as_of, bar, price_model=price_model, use_raw=True
+            as_of,
+            bar,
+            price_model=price_model,
+            use_raw=True,
+            check_tradability=False,
         )
+        at_limit_down, sell_prev_close = self._eval_limit_down(exit_price, bar)
 
         self.completed_goals.append(
             {
@@ -680,6 +722,8 @@ class Investment(Opportunity):
             exit_date=as_of,
             exit_reason=self.pending_exit.reason,
             exit_ratio=ratio,
+            sell_prev_close=sell_prev_close,
+            sell_at_limit_down=at_limit_down,
         )
         self.outcome.price_return = roi
         self.outcome.weighted_roi = roi * ratio
@@ -702,8 +746,9 @@ class Investment(Opportunity):
         *,
         price_model: Optional[str] = None,
         use_raw: bool = False,
+        check_tradability: bool = True,
     ) -> Optional[float]:
-        """Exit fill price for this tick, or ``None`` if not ready / not allowed."""
+        """Exit fill price for this tick, or ``None`` if not ready / blocked."""
         _ = as_of
         if self.pending_exit is None:
             return None
@@ -714,7 +759,12 @@ class Investment(Opportunity):
         exit_price = BarPrices.for_model(bar, model, use_raw=use_raw)
         if exit_price <= 0:
             return None
-        # TODO: tradability — return None when limit up/down blocks sell at exit_price
+        if (
+            check_tradability
+            and not use_raw
+            and self._is_sell_blocked_by_limit_down(exit_price, bar)
+        ):
+            return None
         return exit_price
 
     def settle(self, tick_input: InvestmentTickInput) -> bool:
@@ -731,9 +781,63 @@ class Investment(Opportunity):
         )
         as_of = str(tick_input.as_of_date or "").strip()
         if self.lifecycle in (Lifecycle.OPEN, Lifecycle.PENDING_TO_EXIT):
-            self._apply_exit(as_of, tick_input.bar, price_model="close")
+            # 强平不受贴板政策拦截
+            self._apply_exit(
+                as_of,
+                tick_input.bar,
+                price_model="close",
+                check_tradability=False,
+            )
         self.lifecycle = Lifecycle.COMPLETE
         return False
+
+    def _entity_id(self) -> str:
+        stock = self.stock
+        if isinstance(stock, StockInfo):
+            return str(stock.id or "").strip()
+        if isinstance(stock, dict):
+            return str(stock.get("id") or "").strip()
+        return ""
+
+    def _eval_limit_up(
+        self, price: float, bar: Dict[str, Any]
+    ) -> Tuple[Optional[bool], Optional[float]]:
+        """返回 ``(是否贴涨停, prev_close)``；无法判断时 flag 为 None。"""
+        prev = BarPrices.prev_close(bar)
+        entity_id = self._entity_id()
+        if prev <= 0 or not entity_id:
+            return None, (prev if prev > 0 else None)
+        return (
+            bool(self.run_deps.market_rules.is_at_limit_up(price, prev, entity_id)),
+            float(prev),
+        )
+
+    def _eval_limit_down(
+        self, price: float, bar: Dict[str, Any]
+    ) -> Tuple[Optional[bool], Optional[float]]:
+        """返回 ``(是否贴跌停, prev_close)``；无法判断时 flag 为 None。"""
+        prev = BarPrices.prev_close(bar)
+        entity_id = self._entity_id()
+        if prev <= 0 or not entity_id:
+            return None, (prev if prev > 0 else None)
+        return (
+            bool(self.run_deps.market_rules.is_at_limit_down(price, prev, entity_id)),
+            float(prev),
+        )
+
+    def _is_buy_blocked_by_limit_up(self, price: float, bar: Dict[str, Any]) -> bool:
+        """贴涨停且 settings 不允许买 → True（本 tick 不成交）。"""
+        if self.run_deps.allow_buy_at_limit_up:
+            return False
+        at_limit, _ = self._eval_limit_up(price, bar)
+        return bool(at_limit)
+
+    def _is_sell_blocked_by_limit_down(self, price: float, bar: Dict[str, Any]) -> bool:
+        """贴跌停且 settings 不允许卖 → True（本 tick 不成交）。"""
+        if self.run_deps.allow_sell_at_limit_down:
+            return False
+        at_limit, _ = self._eval_limit_down(price, bar)
+        return bool(at_limit)
 
     def _update_extremes(self, as_of: str, bar: Dict[str, Any]) -> None:
         if self.lifecycle != Lifecycle.OPEN:
@@ -827,15 +931,6 @@ class Investment(Opportunity):
             return max((end_dt - start_dt).days, 0)
         except ValueError:
             return 0
-
-    @staticmethod
-    def _is_first_open_after(trigger: str, as_of: str, open_dates: Sequence[str]) -> bool:
-        idx = bisect_left(open_dates, trigger)
-        if idx < len(open_dates) and open_dates[idx] == trigger:
-            next_idx = idx + 1
-        else:
-            next_idx = idx
-        return next_idx < len(open_dates) and open_dates[next_idx] == as_of
 
     def to_opportunity(self) -> Opportunity:
         """投影为 Opportunity，剥离 lifecycle / entry / exit / goals / outcome 等结果字段。

@@ -176,6 +176,54 @@ class MarketBaseRules(ABC):
         limit_up, limit_down = self.compute_limit_prices_for_stock(prev_close, stock_id, status_tags)
         return AmplitudeLimitService.is_within_limit(current_price, limit_up, limit_down)
 
+    def is_at_limit_up(
+        self,
+        price: float,
+        prev_close: float,
+        stock_id: str,
+        status_tags: Optional[Sequence[str]] = None,
+    ) -> bool:
+        """成交价是否视为涨停（贴涨停 → 通常难买入）。
+
+        无涨跌幅市场、无效 ``prev_close``/``price`` 时返回 False（不挡交易）。
+        """
+        if float(prev_close or 0.0) <= 0 or float(price or 0.0) <= 0:
+            return False
+        ratio = self.get_limit_ratio_for_stock(stock_id, status_tags)
+        limit_up, _ = self.compute_limit_prices_for_stock(
+            prev_close, stock_id, status_tags
+        )
+        return AmplitudeLimitService.is_at_limit_up(
+            price,
+            limit_up,
+            ratio=ratio,
+            price_decimals=self._price_decimals,
+        )
+
+    def is_at_limit_down(
+        self,
+        price: float,
+        prev_close: float,
+        stock_id: str,
+        status_tags: Optional[Sequence[str]] = None,
+    ) -> bool:
+        """成交价是否视为跌停（贴跌停 → 通常难卖出）。
+
+        无涨跌幅市场、无效 ``prev_close``/``price`` 时返回 False（不挡交易）。
+        """
+        if float(prev_close or 0.0) <= 0 or float(price or 0.0) <= 0:
+            return False
+        ratio = self.get_limit_ratio_for_stock(stock_id, status_tags)
+        _, limit_down = self.compute_limit_prices_for_stock(
+            prev_close, stock_id, status_tags
+        )
+        return AmplitudeLimitService.is_at_limit_down(
+            price,
+            limit_down,
+            ratio=ratio,
+            price_decimals=self._price_decimals,
+        )
+
     # ==================== 整手规则（默认实现） ====================
 
     def get_min_lot(self) -> int:

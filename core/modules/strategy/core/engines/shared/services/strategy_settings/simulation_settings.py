@@ -16,6 +16,17 @@ from .settings_base import SettingsBase
 from .validation_report import ValidationReport
 
 
+@dataclass(frozen=True)
+class SimulationEdgesConfig:
+    """``settings.simulation.edges`` — 成交边角假设（risk / simulation policy）。
+
+    贴涨/跌停是否允许成交是仿真假设，不是市场硬规则。
+    """
+
+    allow_buy_at_limit_up: bool = False
+    allow_sell_at_limit_down: bool = False
+
+
 @dataclass
 class SimulationSettings(SettingsBase):
     """``settings.simulation`` block（时间窗 + 成交假设）。"""
@@ -43,6 +54,20 @@ class SimulationSettings(SettingsBase):
             return [step.value for step in DEFAULT_EXECUTE_STEPS]
         return [str(item).strip() for item in raw if str(item).strip()]
 
+    @property
+    def edges(self) -> SimulationEdgesConfig:
+        return self._parse_edges()
+
+    @property
+    def allow_buy_at_limit_up(self) -> bool:
+        """贴涨停时是否仍允许买入成交（默认 False）。"""
+        return self.edges.allow_buy_at_limit_up
+
+    @property
+    def allow_sell_at_limit_down(self) -> bool:
+        """贴跌停时是否仍允许卖出成交（默认 False）。"""
+        return self.edges.allow_sell_at_limit_down
+
     def apply_defaults(self) -> None:
         if "simulation" not in self.raw_settings or not isinstance(
             self.raw_settings["simulation"], dict
@@ -55,10 +80,15 @@ class SimulationSettings(SettingsBase):
             sim["end_date"] = ""
         if "execute_steps" not in sim:
             sim["execute_steps"] = [step.value for step in DEFAULT_EXECUTE_STEPS]
+        if "edges" not in sim:
+            sim["edges"] = {}
+        edges = sim.get("edges")
+        if isinstance(edges, dict):
+            edges.setdefault("allow_buy_at_limit_up", False)
+            edges.setdefault("allow_sell_at_limit_down", False)
 
     def validate(self) -> ValidationReport:
         report = SettingsBase.new_validation()
-        self.apply_defaults()
 
         if not isinstance(self.raw_settings.get("simulation"), dict):
             SettingsBase.add_critical(
@@ -69,6 +99,20 @@ class SimulationSettings(SettingsBase):
             )
             return report
 
+        # edges 类型须在 apply_defaults 改写前检查
+        edges_raw = self.simulation.get("edges")
+        if edges_raw is not None and not isinstance(edges_raw, dict):
+            SettingsBase.add_critical(
+                report,
+                "simulation.edges",
+                "edges must be dict",
+                suggested_fix=(
+                    'Use {"allow_buy_at_limit_up": false, '
+                    '"allow_sell_at_limit_down": false}'
+                ),
+            )
+
+        self.apply_defaults()
         self._validate_period(report)
         self._warn_legacy_sampling_dates(report)
         self._validate_execute_steps(report)
@@ -173,6 +217,15 @@ class SimulationSettings(SettingsBase):
                 suggested_fix="Otherwise positions can only close via simulate_end",
             )
 
+    def _parse_edges(self) -> SimulationEdgesConfig:
+        raw = self.simulation.get("edges")
+        if not isinstance(raw, dict):
+            raw = {}
+        return SimulationEdgesConfig(
+            allow_buy_at_limit_up=bool(raw.get("allow_buy_at_limit_up", False)),
+            allow_sell_at_limit_down=bool(raw.get("allow_sell_at_limit_down", False)),
+        )
+
     @staticmethod
     def _is_yyyymmdd(value: str) -> bool:
         if len(value) != 8 or not value.isdigit():
@@ -185,18 +238,24 @@ class SimulationSettings(SettingsBase):
 
     def to_dict(self) -> Dict[str, Any]:
         self.apply_defaults()
+        edges = self.edges
         return {
             "start_date": self.start_date,
             "end_date": self.end_date,
             "execute_steps": list(self.execute_steps),
+            "edges": {
+                "allow_buy_at_limit_up": edges.allow_buy_at_limit_up,
+                "allow_sell_at_limit_down": edges.allow_sell_at_limit_down,
+            },
         }
 
-
-def resolve_execute_steps(settings: Dict[str, Any]) -> List[ExecuteStep]:
-    """Parse ``simulation.execute_steps`` after defaults."""
-    helper = SimulationSettings(raw_settings=settings)
-    helper.apply_defaults()
-    return [ExecuteStep.parse(item) for item in helper.execute_steps]
+    def parsed_execute_steps(self) -> List[ExecuteStep]:
+        """Parse ``simulation.execute_steps`` after defaults."""
+        self.apply_defaults()
+        return [ExecuteStep.parse(item) for item in self.execute_steps]
 
 
-__all__ = ["SimulationSettings", "resolve_execute_steps"]
+__all__ = [
+    "SimulationEdgesConfig",
+    "SimulationSettings",
+]

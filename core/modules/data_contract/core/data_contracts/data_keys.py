@@ -55,6 +55,7 @@ class SYS_DATA_KEY:
     STOCK_INDICATORS_DAILY = "stock.indicators.daily" # 日指标数据（per_entity）
     STOCK_ADJ_FACTOR_EVENTLOG = "stock.adj_factor.eventlog" # 复权因子（per_entity）
     STOCK_MONEYFLOW_DAILY = "stock.moneyflow.daily" # 资金流向（per_entity）
+    STOCK_ST_PERIODS = "stock.st_periods"           # ST/*ST 警示时段（per_entity）
     
     # Index 相关
     INDEX_LIST = "index.list"                    # 指数列表（全局）
@@ -86,6 +87,7 @@ class SYS_DATA_KEY:
             cls.STOCK_INDICATORS_DAILY,
             cls.STOCK_ADJ_FACTOR_EVENTLOG,
             cls.STOCK_MONEYFLOW_DAILY,
+            cls.STOCK_ST_PERIODS,
             cls.INDEX_LIST,
             cls.INDEX_KLINE_DAILY,
             cls.INDEX_WEIGHT_DAILY,

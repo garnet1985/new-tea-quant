@@ -21,9 +21,10 @@ class TestApi(unittest.TestCase):
         pass
 
     def test_scan_api(self):
-        """scan API 可调用且参数正确"""
-        # TODO: 实现测试逻辑
-        pass
+        """scan API 可调用且参数正确（实现见 test_scanner_api.py）。"""
+        from core.modules.strategy import Strategy
+
+        self.assertTrue(callable(Strategy.scan))
 
     def test_enumerate_api(self):
         """enumerate API 可调用且参数正确"""

@@ -111,7 +111,7 @@ def test_price_replay_skips_matching_status() -> None:
             stock_status_at_trigger=(),
         ),
     ]
-    out = JobExecutor._replay_entity_investments(
+    out, _ = JobExecutor._replay_entity_investments(
         rows,
         risk=RiskControl.with_skip_enter(["st"]),
     )

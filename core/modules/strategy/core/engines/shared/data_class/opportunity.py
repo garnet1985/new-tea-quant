@@ -76,6 +76,24 @@ class Opportunity:
     extra_fields: Dict[str, Any] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def stock_id(self) -> str:
+        if isinstance(self.stock, StockInfo):
+            return str(self.stock.id or "").strip()
+        if isinstance(self.stock, dict):
+            return str(self.stock.get("id") or "").strip()
+        return ""
+
+    @property
+    def stock_name(self) -> str:
+        if isinstance(self.stock, StockInfo):
+            return str(self.stock.name or self.stock.id or "").strip()
+        if isinstance(self.stock, dict):
+            return str(
+                self.stock.get("name") or self.stock.get("id") or ""
+            ).strip()
+        return ""
+
     def __post_init__(self) -> None:
         if isinstance(self.stock, dict):
             self.stock = StockInfo.from_dict(self.stock)

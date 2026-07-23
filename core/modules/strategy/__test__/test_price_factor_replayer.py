@@ -35,7 +35,7 @@ def test_replay_keeps_non_overlapping() -> None:
         _row(investment_id="1", entry_date="20240102", exit_date="20240105"),
         _row(investment_id="2", entry_date="20240106", exit_date="20240108", weighted_roi=-0.05, result="loss"),
     ]
-    out = JobExecutor._replay_entity_investments(rows)
+    out, _ = JobExecutor._replay_entity_investments(rows)
     assert [r.opportunity_id for r in out] == ["1", "2"]
 
 
@@ -45,7 +45,7 @@ def test_replay_skips_while_locked() -> None:
         _row(investment_id="2", entry_date="20240105", exit_date="20240108"),
         _row(investment_id="3", entry_date="20240111", exit_date="20240112"),
     ]
-    out = JobExecutor._replay_entity_investments(rows)
+    out, _ = JobExecutor._replay_entity_investments(rows)
     assert [r.opportunity_id for r in out] == ["1", "3"]
 
 
@@ -62,7 +62,7 @@ def test_replay_open_locks_until_backtest_end() -> None:
         ),
         _row(investment_id="2", entry_date="20240601", exit_date="20240602"),
     ]
-    out = JobExecutor._replay_entity_investments(rows, backtest_end="20241231")
+    out, _ = JobExecutor._replay_entity_investments(rows, backtest_end="20241231")
     assert [r.opportunity_id for r in out] == ["1"]
 
 
@@ -71,5 +71,5 @@ def test_replay_skips_invalid_entry() -> None:
         _row(investment_id="1", entry_date="", entry_price=0.0),
         _row(investment_id="2", entry_date="20240102", entry_price=10.0),
     ]
-    out = JobExecutor._replay_entity_investments(rows)
+    out, _ = JobExecutor._replay_entity_investments(rows)
     assert [r.opportunity_id for r in out] == ["2"]

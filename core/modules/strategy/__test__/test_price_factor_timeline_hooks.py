@@ -22,5 +22,6 @@ def test_build_run_callbacks_wires_lifecycle_and_on_tick() -> None:
 
 
 def test_on_tick_is_noop_for_now() -> None:
+    """日历推进仍预留；跌停顺延卖出在 after_task 事件回放中处理。"""
     ctx = SimpleNamespace(job_id="batch_0", payload={}, init={})
     JobExecutor.on_tick(ctx, "20240102", 0)

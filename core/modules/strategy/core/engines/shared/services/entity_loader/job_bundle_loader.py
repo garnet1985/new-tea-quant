@@ -128,10 +128,18 @@ class JobBundleLoader:
         global_keys: Dict[str, Any],
     ) -> Dict[str, Any]:
         _ = global_keys
-        shm_name = shm_info.get("shm_name", "")
-        shm_size = shm_info.get("shm_size", 0)
+        info = shm_info if isinstance(shm_info, dict) else {}
+        shm_name = str(info.get("shm_name") or "").strip()
+        try:
+            shm_size = int(info.get("shm_size") or 0)
+        except (TypeError, ValueError):
+            shm_size = 0
         if not shm_name or shm_size <= 0:
-            logger.warning("共享内存信息无效，无法读取 global 数据")
+            # 空 shm 是合法路径（scanner / 未挂 GlobalEntityCache）；仅残缺配置才告警
+            if shm_name or info.get("shm_size") not in (None, "", 0, "0"):
+                logger.warning("共享内存信息无效，无法读取 global 数据")
+            else:
+                logger.debug("无 shm_info，跳过 global 数据读取")
             return {}
         try:
             global_data = GlobalEntityCache.access_shared_memory(shm_name, shm_size)

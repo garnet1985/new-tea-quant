@@ -394,6 +394,48 @@ def _run_strategy_portfolio(args: argparse.Namespace) -> None:
         raise SystemExit(1)
 
 
+def _run_strategy_scan(args: argparse.Namespace) -> None:
+    from core.modules.strategy import Strategy
+
+    name = _strategy_name(getattr(args, "strategy", None))
+    demo = bool(getattr(args, "demo", False))
+
+    print("🔍 扫描投资机会…", flush=True)
+    if name:
+        print(f"  策略: {name}", flush=True)
+    else:
+        print("  策略: （全部已启用）", flush=True)
+    if demo:
+        print("  --demo: 放宽严格交易日门闸", flush=True)
+
+    results = Strategy.scan(name, demo=demo)
+    if not results:
+        print("  无扫描结果（策略被跳过或未发现）", flush=True)
+        return
+
+    for key, report in results.items():
+        if not isinstance(report, dict):
+            print(f"  [{key}] {report}", flush=True)
+            continue
+        summary = report.get("summary") if isinstance(report.get("summary"), dict) else {}
+        date_meta = report.get("date_meta") if isinstance(report.get("date_meta"), dict) else {}
+        print(
+            f"  [{key}] date={report.get('date')} "
+            f"opportunities={report.get('total_opportunities', 0)} "
+            f"universe={report.get('total_stocks', 0)} "
+            f"hit_stocks={summary.get('total_stocks', 0)} "
+            f"at_limit_up={summary.get('at_limit_up_count', 0)}",
+            flush=True,
+        )
+        mode_label = str(date_meta.get("mode_label") or "").strip()
+        detail = str(date_meta.get("source_detail") or "").strip()
+        if mode_label or detail:
+            print(
+                f"         日期模式={mode_label or '?'}；{detail or '来源未记录'}",
+                flush=True,
+            )
+
+
 def _handle_strategy(cmd: str, app: CliApp, args: argparse.Namespace) -> None:
     if cmd == "strategy_enumerate":
         _run_strategy_enumerate(args)
@@ -407,14 +449,13 @@ def _handle_strategy(cmd: str, app: CliApp, args: argparse.Namespace) -> None:
         _run_strategy_portfolio(args)
         return
 
+    if cmd == "scan":
+        _run_strategy_scan(args)
+        return
+
     mgr = app._ensure_strategy_manager()
     name = _strategy_name(getattr(args, "strategy", None))
     force = bool(getattr(args, "force", False))
-
-    if cmd == "scan":
-        logger.info("🔍 扫描投资机会...")
-        mgr.scan(strategy_name=name, demo=bool(getattr(args, "demo", False)))
-        return
 
     if cmd == "strategy_simulate":
         print("🎮 模拟链路 · PriceFactor → Portfolio …")

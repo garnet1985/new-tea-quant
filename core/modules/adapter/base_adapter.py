@@ -165,20 +165,28 @@ class BaseOpportunityAdapter(ABC):
             opportunities: 机会列表
             context: 上下文信息
         """
-        if not opportunities:
-            print("\n[默认输出] 没有发现任何机会")
-            return
-        
         date = context.get('date', 'unknown')
         strategy_name = context.get('strategy_name', 'unknown')
+        date_meta = context.get('date_meta') if isinstance(context.get('date_meta'), dict) else {}
         
         print("\n" + "=" * 60)
         print(f"📊 扫描结果（默认输出）")
         print("=" * 60)
         print(f"策略: {strategy_name}")
         print(f"日期: {date}")
+        mode_label = str(date_meta.get("mode_label") or "").strip()
+        detail = str(date_meta.get("source_detail") or "").strip()
+        if mode_label:
+            print(f"日期模式: {mode_label}")
+        if detail:
+            print(f"日期来源: {detail}")
         print(f"机会数: {len(opportunities)}")
         print("=" * 60)
+
+        if not opportunities:
+            print("\n[默认输出] 没有发现任何机会")
+            print("=" * 60)
+            return
         
         for i, opp in enumerate(opportunities, 1):
             print(f"\n【机会 {i}】")

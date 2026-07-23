@@ -76,10 +76,29 @@ PRICE_FACTOR_DISPATCH_DEFAULTS: Dict[str, Any] = {
     "force_main_process": False,
 }
 
+# scanner：与 enumerator 同风格由 BE 切 bundle；默认 auto + probe
+SCANNER_DISPATCH_DEFAULTS: Dict[str, Any] = {
+    "memory_budget_mb": "auto",
+    "memory_floor_mb": "auto",
+    "warmup_batch_size": "auto",
+    "min_batch_size": "auto",
+    "max_batch_size": "auto",
+    "monitor_interval": 5,
+    "entities_per_job": "auto",
+    "entities_per_job_auto_target": 50,
+    "entities_per_job_auto_target_medium": 100,
+    "dispatch_probe": True,
+    "entities_per_job_min": 20,
+    "entities_per_job_max": 200,
+    "worker_memory_fraction": 0.85,
+    "prefetch_ahead": 1,
+}
+
 DISPATCH_DEFAULTS_BY_PROFILE: Dict[str, Dict[str, Any]] = {
     WorkerProfiles.ENUMERATOR: ENUMERATOR_DISPATCH_DEFAULTS,
     WorkerProfiles.TAG: TAG_DISPATCH_DEFAULTS,
     WorkerProfiles.PRICE_FACTOR: PRICE_FACTOR_DISPATCH_DEFAULTS,
+    WorkerProfiles.SCANNER: SCANNER_DISPATCH_DEFAULTS,
 }
 
 PROFILE_POOL_DEFAULTS_BY_WORKER: Dict[str, Dict[str, Any]] = {

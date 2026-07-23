@@ -103,6 +103,20 @@ def test_pipeline_cache_hit_skips_be(
             _ = use_strict
             return "20240110", ["600000.SH", "000001.SZ"]
 
+        def resolve_scan_date_with_meta(self, *, use_strict: bool):
+            day, ids = self.resolve_scan_date(use_strict=use_strict)
+            return (
+                day,
+                ids,
+                {
+                    "scan_date": day,
+                    "use_strict": use_strict,
+                    "mode": "strict" if use_strict else "non_strict",
+                    "mode_label": "严格模式" if use_strict else "非严格模式",
+                    "source_detail": "test fixture",
+                },
+            )
+
     monkeypatch.setattr(
         "core.modules.strategy.core.engines.scanner.pipeline.ScanDateResolver",
         _Resolver,

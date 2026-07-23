@@ -9,6 +9,7 @@ from core.infra.job_pipeline.profile.constants import (
     JOB_PIPELINE_PROFILE_NAMES,
     PRICE_FACTOR_DISPATCH_DEFAULTS,
     PRICE_STRATEGY_DISPATCH_KEYS,
+    SCANNER_DISPATCH_DEFAULTS,
     USER_PIPELINE_POOL_KEYS,
     WorkerProfiles,
 )
@@ -37,6 +38,7 @@ __all__ = [
     "JOB_PIPELINE_PROFILE_NAMES",
     "PRICE_FACTOR_DISPATCH_DEFAULTS",
     "PRICE_STRATEGY_DISPATCH_KEYS",
+    "SCANNER_DISPATCH_DEFAULTS",
     "USER_PIPELINE_POOL_KEYS",
     "WorkerProfiles",
     "WorkerProbe",

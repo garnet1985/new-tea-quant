@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -31,39 +31,140 @@ class ScanDateResolver:
     @staticmethod
     def resolve_anchor_date(data_manager: Any, *, use_strict: bool) -> str:
         """严格：real-world 上一完整交易日；非严格：freshness 截至日（并 clamp 到 K 线最新）。"""
+        meta = ScanDateResolver.resolve_anchor_meta(data_manager, use_strict=use_strict)
+        return str(meta.get("scan_date") or "").strip()
+
+    @staticmethod
+    def resolve_anchor_meta(data_manager: Any, *, use_strict: bool) -> Dict[str, Any]:
+        """解析扫描锚点，并返回来源说明（供报告 / CLI 标注）。"""
         cal_svc = getattr(getattr(data_manager, "service", None), "calendar", None)
+        kline_latest = ScanDateResolver.load_kline_latest_date(data_manager)
+
+        configured_as_of = ""
+        try:
+            from core.infra.project_context import ProjectContext
+
+            configured_as_of = str(
+                ProjectContext.config.get_as_of_latest_completed_trading_date() or ""
+            ).strip()
+        except Exception:
+            configured_as_of = ""
+
+        raw_anchor = ""
+        source = ""
+        source_detail = ""
+
         if cal_svc is None:
-            return ""
+            return ScanDateResolver._finalize_meta(
+                scan_date="",
+                use_strict=use_strict,
+                raw_anchor="",
+                kline_latest=kline_latest,
+                configured_as_of=configured_as_of,
+                source="unavailable",
+                source_detail="calendar service 不可用，无法解析扫描日",
+            )
+
         try:
             if use_strict:
-                return str(
+                raw_anchor = str(
                     cal_svc.get_real_world_latest_completed_trading_date() or ""
                 ).strip()
-            from core.modules.data_source.catalog.freshness_probe import (
-                _resolve_freshness_end_date,
+                source = "real_world_latest_completed"
+                source_detail = (
+                    "严格模式：取真实世界上一完整交易日"
+                    f"（get_real_world_latest_completed_trading_date → {raw_anchor or '空'}）"
+                )
+            else:
+                from core.modules.data_source.catalog.freshness_probe import (
+                    _resolve_freshness_end_date,
+                )
+
+                raw_anchor = str(_resolve_freshness_end_date(data_manager) or "").strip()
+                if configured_as_of:
+                    source = "data_json_as_of"
+                    source_detail = (
+                        "非严格模式：data.json 的 as_of_latest_completed_trading_date="
+                        f"{configured_as_of}，经交易日历对齐为 {raw_anchor or '空'}"
+                    )
+                else:
+                    source = "freshness_latest_completed"
+                    source_detail = (
+                        "非严格模式：未配置 data.json 截断，按 freshness/"
+                        f"最新完整交易日解析 → {raw_anchor or '空'}"
+                    )
+        except Exception as exc:
+            logger.debug("resolve_anchor_meta failed use_strict=%s: %s", use_strict, exc)
+            return ScanDateResolver._finalize_meta(
+                scan_date="",
+                use_strict=use_strict,
+                raw_anchor="",
+                kline_latest=kline_latest,
+                configured_as_of=configured_as_of,
+                source="error",
+                source_detail=f"解析扫描锚点失败: {exc}",
             )
 
-            anchor = str(_resolve_freshness_end_date(data_manager) or "").strip()
-        except Exception as exc:
-            logger.debug("resolve_anchor_date failed use_strict=%s: %s", use_strict, exc)
-            return ""
+        return ScanDateResolver._finalize_meta(
+            scan_date=raw_anchor,
+            use_strict=use_strict,
+            raw_anchor=raw_anchor,
+            kline_latest=kline_latest,
+            configured_as_of=configured_as_of,
+            source=source,
+            source_detail=source_detail,
+        )
 
-        if not anchor:
-            return ""
-
-        kline_latest = ScanDateResolver.load_kline_latest_date(data_manager)
-        if kline_latest and anchor > kline_latest:
+    @staticmethod
+    def _finalize_meta(
+        *,
+        scan_date: str,
+        use_strict: bool,
+        raw_anchor: str,
+        kline_latest: str,
+        configured_as_of: str,
+        source: str,
+        source_detail: str,
+    ) -> Dict[str, Any]:
+        day = str(scan_date or "").strip()
+        clamped = False
+        if day and kline_latest and day > kline_latest:
             logger.warning(
                 "扫描锚点 %s 晚于库内 K 线最新日 %s，按 %s 执行扫描",
-                anchor,
+                day,
                 kline_latest,
                 kline_latest,
             )
-            return kline_latest
-        return anchor
+            day = kline_latest
+            clamped = True
+            source_detail = (
+                f"{source_detail}；锚点晚于库内 K 线最新日 {kline_latest}，已截断到该日"
+            )
+            source = f"{source}+kline_clamp"
+
+        mode = "strict" if use_strict else "non_strict"
+        return {
+            "scan_date": day,
+            "use_strict": bool(use_strict),
+            "mode": mode,
+            "mode_label": "严格模式" if use_strict else "非严格模式",
+            "raw_anchor": str(raw_anchor or "").strip(),
+            "kline_latest": str(kline_latest or "").strip(),
+            "configured_as_of": str(configured_as_of or "").strip(),
+            "clamped_to_kline": clamped,
+            "source": source,
+            "source_detail": source_detail,
+        }
 
     def resolve_scan_date(self, *, use_strict: bool) -> Tuple[str, List[str]]:
-        scan_date = self.resolve_anchor_date(self.data_manager, use_strict=use_strict)
+        day, ids, _meta = self.resolve_scan_date_with_meta(use_strict=use_strict)
+        return day, ids
+
+    def resolve_scan_date_with_meta(
+        self, *, use_strict: bool
+    ) -> Tuple[str, List[str], Dict[str, Any]]:
+        meta = self.resolve_anchor_meta(self.data_manager, use_strict=use_strict)
+        scan_date = str(meta.get("scan_date") or "").strip()
         if not scan_date:
             raise ValueError(
                 "failed to resolve scan date "
@@ -72,7 +173,7 @@ class ScanDateResolver:
         stock_ids = self.stocks_with_kline(scan_date)
         if not stock_ids:
             raise ValueError(f"no kline data on {scan_date}")
-        return scan_date, stock_ids
+        return scan_date, stock_ids, meta
 
     def stocks_with_kline(self, date: str) -> List[str]:
         get_table = getattr(self.data_manager, "get_table", None)

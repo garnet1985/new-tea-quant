@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+from io import StringIO
+from unittest.mock import patch
+
 import pytest
 
 from core.infra.cli.abbrev import expand_argv, is_help_argv
+from core.infra.cli.main import main
 from core.infra.cli.parser import parse_args
+
+pytestmark = pytest.mark.force_run
 
 
 @pytest.mark.parametrize(
@@ -62,3 +68,28 @@ def test_parse_tag_new() -> None:
 def test_is_help_argv() -> None:
     assert is_help_argv(["-h"]) is True
     assert is_help_argv([]) is False
+
+
+def test_default_argv_prints_help_then_version() -> None:
+    buf = StringIO()
+    with patch("sys.stdout", buf):
+        code = main([])
+    assert code == 0
+    text = buf.getvalue()
+    assert "usage:" in text.lower() or "规则:" in text or "Command" in text or "python cli.py" in text
+    assert "NTQ Core Version:" in text
+    help_pos = text.find("python cli.py")
+    ver_pos = text.find("NTQ Core Version:")
+    assert help_pos >= 0
+    assert ver_pos > help_pos
+
+
+def test_explicit_version_skips_help_preamble() -> None:
+    buf = StringIO()
+    with patch("sys.stdout", buf):
+        code = main(["version"])
+    assert code == 0
+    text = buf.getvalue()
+    assert "NTQ Core Version:" in text
+    # 显式 version 不应先整屏 dump help
+    assert text.strip().startswith("NTQ Core Version:")

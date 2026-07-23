@@ -49,8 +49,9 @@ class ScannerPipeline:
         ).strip()
 
         resolver = ScanDateResolver(dm)
-        scan_date, stock_ids = resolver.resolve_scan_date(
-            use_strict=settings.scanner.use_strict_previous_trading_day
+        use_strict = settings.scanner.use_strict_previous_trading_day
+        scan_date, stock_ids, date_meta = resolver.resolve_scan_date_with_meta(
+            use_strict=use_strict
         )
 
         cache = ScanCacheManager(
@@ -98,6 +99,7 @@ class ScannerPipeline:
                 "date": scan_date,
                 "strategy_name": strategy_key,
                 "scan_summary": summary,
+                "date_meta": date_meta,
             },
         )
         return {
@@ -105,6 +107,7 @@ class ScannerPipeline:
             "total_opportunities": len(opportunities),
             "total_stocks": len(stock_ids),
             "summary": summary,
+            "date_meta": date_meta,
         }
 
     @classmethod

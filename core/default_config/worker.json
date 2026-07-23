@@ -61,8 +61,11 @@
       "reserve_cores": 1,
       "max_parallel_jobs_cap": null,
       "dispatch": {
-        "entities_per_job": 1,
-        "dispatch_probe": false
+        "entities_per_job": "auto",
+        "entities_per_job_auto_target": 50,
+        "entities_per_job_min": 20,
+        "entities_per_job_max": 200,
+        "dispatch_probe": true
       }
     }
   },

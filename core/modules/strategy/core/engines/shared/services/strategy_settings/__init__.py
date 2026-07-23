@@ -15,7 +15,7 @@ from .settings_base import SettingsBase
 from .meta_settings import MetaSettings
 from .data_settings import DataSettings
 from .sampling_settings import SamplingSettings
-from .goal_settings import ExpirationConfig, GoalSettings, GoalStage
+from .goal_settings import ExpirationConfig, GoalSettings, GoalStage, SideLossConfig
 from .fees_settings import FeesSettings
 from .simulation_settings import (
     AssumptionSettings,
@@ -44,6 +44,7 @@ __all__ = [
     "SamplingSettings",
     "GoalSettings",
     "GoalStage",
+    "SideLossConfig",
     "ExpirationConfig",
     "FeesSettings",
     "AssumptionSettings",

@@ -85,7 +85,9 @@ def test_investment_run_deps_reads_edges() -> None:
             edges={
                 "allow_enter_at_limit_up": True,
                 "allow_exit_at_limit_down": False,
-            }
+                "no_next_tick": "use_last_close",
+            },
+            slippage={"enter_bps": 5.0, "exit_bps": 3.0},
         )
     )
     settings.apply_defaults()
@@ -96,3 +98,6 @@ def test_investment_run_deps_reads_edges() -> None:
     )
     assert deps.allow_enter_at_limit_up is True
     assert deps.allow_exit_at_limit_down is False
+    assert deps.no_next_tick == "use_last_close"
+    assert deps.slippage.enter_bps == 5.0
+    assert deps.slippage.exit_bps == 3.0

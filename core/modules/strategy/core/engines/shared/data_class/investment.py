@@ -45,6 +45,9 @@ from core.modules.strategy.core.engines.shared.data_class.opportunity import (
 from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings.risk_control import (
     RiskControl,
 )
+from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings.tradability import (
+    SlippageConfig,
+)
 
 if TYPE_CHECKING:
     from core.modules.market_profile.core.base.market_base_rules import MarketBaseRules
@@ -74,6 +77,8 @@ class ExitReason(str, Enum):
     EXPIRED = "expired"
     STOP_LOSS = "stop_loss"
     TAKE_PROFIT = "take_profit"
+    PROTECT_LOSS = "protect_loss"
+    DYNAMIC_LOSS = "dynamic_loss"
     SIMULATE_END = "simulate_end"
 
 
@@ -219,6 +224,10 @@ class InvestmentRunDeps:
     # assumption.tradability.edges — 贴板成交政策（非市场硬规则）
     allow_enter_at_limit_up: bool = False
     allow_exit_at_limit_down: bool = False
+    # assumption.tradability.edges.no_next_tick — 样本末无下一 tick 时
+    no_next_tick: str = "skip_trade"
+    # assumption.tradability.slippage
+    slippage: SlippageConfig = field(default_factory=SlippageConfig)
     # assumption.tradability.delisted_exit_price
     delisted_exit_price: str = "last_tradable_close"
     # 提供 ``status_tags_at(entity_id, trade_date)``（如 StockStPeriodsContract）
@@ -237,6 +246,7 @@ class InvestmentRunDeps:
     ) -> "InvestmentRunDeps":
         sim = settings.simulation
         sim.apply_defaults()
+        tradability = sim.tradability
         return cls(
             market_rules=market_rules,
             open_dates=tuple(open_dates),
@@ -247,6 +257,11 @@ class InvestmentRunDeps:
             monitor_price=str(sim.monitor_price or "close"),
             allow_enter_at_limit_up=bool(sim.allow_enter_at_limit_up),
             allow_exit_at_limit_down=bool(sim.allow_exit_at_limit_down),
+            no_next_tick=str(
+                tradability.edges.no_next_tick or "skip_trade"
+            ).strip().lower()
+            or "skip_trade",
+            slippage=tradability.slippage,
             delisted_exit_price=str(
                 sim.delisted_exit_price or "last_tradable_close"
             ).strip().lower()
@@ -310,14 +325,6 @@ class ExtremePriceEdge:
     lowest_return: Optional[float] = None
 
 
-# TODO: below goals are dynamically injected when simulating, is triggered by goal extra actions
-# @dataclass
-# class DynamicGoalState:
-#     protect_loss_is_on: bool = False
-#     dynamic_loss_is_on: bool = False
-#     dynamic_loss_peak: Optional[float] = None
-
-
 @dataclass
 class GoalOutcome:
     result: Optional[InvestmentResult] = None
@@ -343,8 +350,13 @@ class InvestmentTickState:
     triggered_force_exit_tags: List[str] = field(default_factory=list)
     # 上一根已处理 tick 的 bar（退市 last_tradable_close 定价）
     last_bar: Optional[Dict[str, Any]] = None
-    # TODO: active_goals — typed ``Goal`` list when goal pipeline is refactored
-    # TODO: dynamic goal flags (protect_loss, dynamic_loss) from goal extra actions
+    # goal 多阶段 / 动态止损
+    triggered_stop_loss_idx: int = -1
+    triggered_take_profit_idx: int = -1
+    remaining_ratio: float = 1.0
+    protect_loss_active: bool = False
+    dynamic_loss_active: bool = False
+    dynamic_loss_peak: Optional[float] = None
 
 
 @dataclass
@@ -354,7 +366,6 @@ class Investment(Opportunity):
     runtime_state: InvestmentTickState = field(default_factory=InvestmentTickState)
     deps: Optional[InvestmentRunDeps] = None
     execute_steps: List[ExecuteStep] = field(default_factory=list)
-    # TODO: ``init_state`` snapshot (frozen entry context) separate from ``deps``
 
     _EXECUTE_STEP_HANDLERS: ClassVar[Dict[ExecuteStep, str]] = {
         ExecuteStep.CHECK_SETTLEMENT: "_check_settlement",
@@ -524,39 +535,62 @@ class Investment(Opportunity):
             if self._is_able_to_exit(
                 as_of, bar, check_tradability=not skip_tradability
             ):
-                ratio = self._pending_exit_ratio()
                 self._apply_exit(
                     as_of, bar, check_tradability=not skip_tradability
                 )
+                if self.runtime_state.remaining_ratio <= 1e-12:
+                    self.lifecycle = Lifecycle.COMPLETE
+                    self._remember_bar(bar)
+                    return False
+                # 部分平仓后回到 OPEN，同 tick 继续评估 goals
+                self.lifecycle = Lifecycle.OPEN
+                keep = self._process_open_exits(as_of, bar, check_force=False)
                 self._remember_bar(bar)
-                return self._after_exit_fill(ratio)
+                return keep
             self._remember_bar(bar)
             return True
 
         if self.lifecycle == Lifecycle.OPEN:
             self._update_extremes(as_of, bar)
             self._update_holding(as_of)
-            # 持仓风控优先于 stop/take-profit/expiration
-            if self._check_force_exit(as_of, bar) or self._evaluate_goals(as_of, bar):
-                if self._should_defer_exit(as_of, bar):
-                    self.lifecycle = Lifecycle.PENDING_TO_EXIT
-                    self._remember_bar(bar)
-                    return True
-                skip_tradability = self._exit_skips_tradability()
-                if self._is_able_to_exit(
-                    as_of, bar, check_tradability=not skip_tradability
-                ):
-                    ratio = self._pending_exit_ratio()
-                    self._apply_exit(
-                        as_of, bar, check_tradability=not skip_tradability
-                    )
-                    self._remember_bar(bar)
-                    return self._after_exit_fill(ratio)
-                # 贴板等导致本 tick 无法成交 → 挂起，后续 tick 重试
-                self.lifecycle = Lifecycle.PENDING_TO_EXIT
+            keep = self._process_open_exits(as_of, bar, check_force=True)
             self._remember_bar(bar)
-            return True
+            return keep
 
+        return True
+
+    def _process_open_exits(
+        self,
+        as_of: str,
+        bar: Dict[str, Any],
+        *,
+        check_force: bool,
+    ) -> bool:
+        """处理 force_exit / goals；部分平仓后同 tick 再评估。返回是否继续跟踪。"""
+        need_exit = self._check_force_exit(as_of, bar) if check_force else False
+        for _ in range(8):
+            if not need_exit:
+                need_exit = self._evaluate_goals(as_of, bar)
+            if not need_exit:
+                break
+            if self._should_defer_exit(as_of, bar):
+                self.lifecycle = Lifecycle.PENDING_TO_EXIT
+                return True
+            skip_tradability = self._exit_skips_tradability()
+            if self._is_able_to_exit(
+                as_of, bar, check_tradability=not skip_tradability
+            ):
+                self._apply_exit(
+                    as_of, bar, check_tradability=not skip_tradability
+                )
+                if self.runtime_state.remaining_ratio <= 1e-12:
+                    self.lifecycle = Lifecycle.COMPLETE
+                    return False
+                self.lifecycle = Lifecycle.OPEN
+                need_exit = False
+                continue
+            self.lifecycle = Lifecycle.PENDING_TO_EXIT
+            return True
         return True
 
     def _exit_skips_tradability(self) -> bool:
@@ -573,14 +607,6 @@ class Investment(Opportunity):
         if self.pending_exit is None:
             return 1.0
         return float(self.pending_exit.exit_ratio or 1.0)
-
-    def _after_exit_fill(self, exit_ratio: float) -> bool:
-        """全平 → COMPLETE；部分平仓 → 留在 OPEN 继续跟踪。"""
-        if float(exit_ratio) >= 1.0 - 1e-12:
-            self.lifecycle = Lifecycle.COMPLETE
-            return False
-        self.lifecycle = Lifecycle.OPEN
-        return True
 
     def _check_force_exit(self, as_of: str, bar: Dict[str, Any]) -> bool:
         """``RiskControl.should_force_exit``；命中则写 ``pending_exit``（先于 goals）。"""
@@ -635,12 +661,24 @@ class Investment(Opportunity):
         return None
 
     def _evaluate_goals(self, as_of: str, bar: Dict[str, Any]) -> bool:
-        """Run ``simulation.execution.steps`` in order; True if an exit trigger fired."""
+        """Run settlement gate → protect/dynamic（若激活）→ ``execution.steps``。"""
+        ran_side_loss = False
         for step in self._resolve_execute_steps():
             if step == ExecuteStep.CHECK_SETTLEMENT:
                 if not self._check_settlement(as_of):
                     return False
+                if self._check_protect_loss(as_of, bar):
+                    return True
+                if self._check_dynamic_loss(as_of, bar):
+                    return True
+                ran_side_loss = True
                 continue
+            if not ran_side_loss:
+                if self._check_protect_loss(as_of, bar):
+                    return True
+                if self._check_dynamic_loss(as_of, bar):
+                    return True
+                ran_side_loss = True
             handler_name = self._EXECUTE_STEP_HANDLERS[step]
             if getattr(self, handler_name)(as_of, bar):
                 return True
@@ -656,39 +694,147 @@ class Investment(Opportunity):
         held = self._settlement_days_held(entry_date, as_of, self.run_deps.open_dates)
         return self.run_deps.market_rules.is_allowed_to_sell(held)
 
+    def _monitor_px(self, bar: Dict[str, Any]) -> float:
+        model = str(self.run_deps.monitor_price or "close").strip().lower() or "close"
+        return BarPrices.for_model(bar, model, use_raw=False)
+
+    def _arm_goal_exit(
+        self,
+        *,
+        reason: str,
+        exit_ratio: float,
+        goal_name: str,
+    ) -> bool:
+        self.pending_exit = PendingExit(
+            reason=reason,
+            exit_ratio=float(exit_ratio),
+            goal_name=goal_name,
+        )
+        return True
+
+    def _check_protect_loss(self, as_of: str, bar: Dict[str, Any]) -> bool:
+        _ = as_of
+        if (
+            self.lifecycle != Lifecycle.OPEN
+            or not self.runtime_state.protect_loss_active
+        ):
+            return False
+        cfg = self.run_deps.goal.protect_loss
+        if cfg is None:
+            return False
+        basis = float(self.entry.entry_price or self.trigger_price or 0.0)
+        monitor = self._monitor_px(bar)
+        if basis <= 0 or monitor <= 0:
+            return False
+        price_return = (monitor - basis) / basis
+        if price_return > float(cfg.ratio):
+            return False
+        exit_ratio = 1.0 if cfg.close_invest else float(cfg.exit_ratio)
+        return self._arm_goal_exit(
+            reason=ExitReason.PROTECT_LOSS.value,
+            exit_ratio=exit_ratio,
+            goal_name=cfg.name,
+        )
+
+    def _check_dynamic_loss(self, as_of: str, bar: Dict[str, Any]) -> bool:
+        _ = as_of
+        if (
+            self.lifecycle != Lifecycle.OPEN
+            or not self.runtime_state.dynamic_loss_active
+        ):
+            return False
+        cfg = self.run_deps.goal.dynamic_loss
+        if cfg is None:
+            return False
+        monitor = self._monitor_px(bar)
+        if monitor <= 0:
+            return False
+        basis = float(self.entry.entry_price or self.trigger_price or 0.0)
+        peak = self.runtime_state.dynamic_loss_peak
+        if peak is None or peak <= 0:
+            peak = basis if basis > 0 else monitor
+        extreme_hi = self.extreme.highest
+        if extreme_hi is not None and float(extreme_hi) > 0:
+            peak = max(float(peak), float(extreme_hi))
+        peak = max(float(peak), monitor)
+        self.runtime_state.dynamic_loss_peak = peak
+        drawdown = (monitor - peak) / peak if peak > 0 else 0.0
+        if drawdown > float(cfg.ratio):
+            return False
+        exit_ratio = 1.0 if cfg.close_invest else float(cfg.exit_ratio)
+        return self._arm_goal_exit(
+            reason=ExitReason.DYNAMIC_LOSS.value,
+            exit_ratio=exit_ratio,
+            goal_name=cfg.name,
+        )
+
     def _check_stop_loss(self, as_of: str, bar: Dict[str, Any]) -> bool:
-        stage = self.run_deps.goal.stop_loss
-        if self.lifecycle != Lifecycle.OPEN or stage is None:
+        _ = as_of
+        if self.lifecycle != Lifecycle.OPEN:
+            return False
+        stages = self.run_deps.goal.stop_loss_stages
+        if not stages:
             return False
         basis = float(self.entry.entry_price or self.trigger_price or 0.0)
         if basis <= 0:
             return False
-        stop_price = self.run_deps.goal.exit_price(stage, basis)
-        if float(bar["low"]) <= stop_price:
-            self.pending_exit = PendingExit(
+        low = float(bar["low"])
+        for idx, stage in enumerate(stages):
+            if idx <= self.runtime_state.triggered_stop_loss_idx:
+                continue
+            stop_price = self.run_deps.goal.exit_price(stage, basis)
+            if low > stop_price:
+                continue
+            self.runtime_state.triggered_stop_loss_idx = idx
+            exit_ratio = 1.0 if stage.close_invest else float(stage.exit_ratio)
+            return self._arm_goal_exit(
                 reason=ExitReason.STOP_LOSS.value,
-                exit_ratio=stage.exit_ratio,
+                exit_ratio=exit_ratio,
                 goal_name=stage.name,
             )
-            return True
         return False
 
     def _check_take_profit(self, as_of: str, bar: Dict[str, Any]) -> bool:
-        stage = self.run_deps.goal.take_profit
-        if self.lifecycle != Lifecycle.OPEN or stage is None:
+        _ = as_of
+        if self.lifecycle != Lifecycle.OPEN:
+            return False
+        stages = self.run_deps.goal.take_profit_stages
+        if not stages:
             return False
         basis = float(self.entry.entry_price or self.trigger_price or 0.0)
         if basis <= 0:
             return False
-        target_price = self.run_deps.goal.exit_price(stage, basis)
-        if float(bar["high"]) >= target_price:
-            self.pending_exit = PendingExit(
+        high = float(bar["high"])
+        for idx, stage in enumerate(stages):
+            if idx <= self.runtime_state.triggered_take_profit_idx:
+                continue
+            target_price = self.run_deps.goal.exit_price(stage, basis)
+            if high < target_price:
+                continue
+            self.runtime_state.triggered_take_profit_idx = idx
+            self._apply_take_profit_actions(stage, bar)
+            exit_ratio = 1.0 if stage.close_invest else float(stage.exit_ratio)
+            return self._arm_goal_exit(
                 reason=ExitReason.TAKE_PROFIT.value,
-                exit_ratio=stage.exit_ratio,
+                exit_ratio=exit_ratio,
                 goal_name=stage.name,
             )
-            return True
         return False
+
+    def _apply_take_profit_actions(self, stage: Any, bar: Dict[str, Any]) -> None:
+        actions = tuple(getattr(stage, "actions", ()) or ())
+        for action in actions:
+            if action == "set_protect_loss":
+                self.runtime_state.protect_loss_active = True
+            elif action == "set_dynamic_loss":
+                self.runtime_state.dynamic_loss_active = True
+                monitor = self._monitor_px(bar)
+                high = float(bar.get("high") or 0.0) or monitor
+                peak = max(monitor, high)
+                prev = self.runtime_state.dynamic_loss_peak
+                if prev is not None and prev > 0:
+                    peak = max(peak, float(prev))
+                self.runtime_state.dynamic_loss_peak = peak
 
     def _check_expiration(self, as_of: str, bar: Dict[str, Any]) -> bool:
         _ = bar
@@ -702,12 +848,11 @@ class Investment(Opportunity):
         held = self._holding_days(entry_date, as_of, self.holding.mode, self.run_deps.open_dates)
         self.holding.days = held
         if held >= self.holding.window_days:
-            self.pending_exit = PendingExit(
+            return self._arm_goal_exit(
                 reason=ExitReason.EXPIRED.value,
                 exit_ratio=1.0,
                 goal_name="expiration",
             )
-            return True
         return False
 
     def _should_defer_exit(self, as_of: str, bar: Dict[str, Any]) -> bool:
@@ -778,7 +923,7 @@ class Investment(Opportunity):
             and self._is_buy_blocked_by_limit_up(price, bar)
         ):
             return None
-        return price
+        return self.run_deps.slippage.apply_enter(price)
 
     def _is_able_to_exit(
         self,
@@ -819,7 +964,17 @@ class Investment(Opportunity):
         if exit_price is None or self.pending_exit is None:
             return False
 
-        ratio = float(self.pending_exit.exit_ratio or 1.0)
+        # pending.exit_ratio = 相对剩余仓位；记入 completed_goals 用相对初始份额
+        relative = float(self.pending_exit.exit_ratio or 1.0)
+        if relative <= 0:
+            return False
+        prev_remaining = float(self.runtime_state.remaining_ratio or 0.0)
+        if prev_remaining <= 1e-12:
+            return False
+        abs_ratio = prev_remaining * min(relative, 1.0)
+        new_remaining = max(0.0, prev_remaining - abs_ratio)
+        self.runtime_state.remaining_ratio = new_remaining
+
         basis = float(self.entry.entry_price or self.trigger_price or 0.0)
         profit = exit_price - basis
         roi = (profit / basis) if basis > 0 else 0.0
@@ -838,29 +993,36 @@ class Investment(Opportunity):
                 "date": fill_as_of,
                 "price": exit_price,
                 "price_raw": float(exit_price_raw or 0.0),
-                "exit_ratio": ratio,
+                "exit_ratio": abs_ratio,
                 "profit": profit,
-                "weighted_profit": profit * ratio,
+                "weighted_profit": profit * abs_ratio,
                 "reason": self.pending_exit.reason,
                 "roi": roi,
             }
         )
 
-        if ratio >= 1.0 - 1e-12:
+        prev_weighted = float(self.outcome.weighted_roi or 0.0)
+        self.outcome.weighted_roi = prev_weighted + roi * abs_ratio
+        self.outcome.price_return = roi
+
+        if new_remaining <= 1e-12:
+            total_abs = sum(
+                float(g.get("exit_ratio") or 0.0) for g in self.completed_goals
+            )
             self.exit_info = ExitInfo(
                 exit_price=exit_price,
                 exit_price_raw=float(exit_price_raw or 0.0),
                 exit_date=fill_as_of,
                 exit_reason=self.pending_exit.reason,
-                exit_ratio=ratio,
+                exit_ratio=total_abs if total_abs > 0 else abs_ratio,
                 sell_prev_close=sell_prev_close,
                 sell_at_limit_down=at_limit_down,
                 sell_bar_volume=BarPrices.volume(fill_bar),
             )
-            self.outcome.price_return = roi
-            self.outcome.weighted_roi = roi * ratio
             self.outcome.result = (
-                InvestmentResult.WIN if roi >= 0 else InvestmentResult.LOSS
+                InvestmentResult.WIN
+                if float(self.outcome.weighted_roi or 0.0) >= 0
+                else InvestmentResult.LOSS
             )
             entry_date = str(self.entry.entry_date or "").strip()
             if entry_date and int(self.holding.days or 0) <= 0:
@@ -869,10 +1031,6 @@ class Investment(Opportunity):
                     entry_date, fill_as_of, mode, self.run_deps.open_dates
                 )
                 self.holding.last_bar_date = fill_as_of
-        else:
-            # 部分平仓：累加加权收益，最终 exit_info 等全平再写
-            prev = float(self.outcome.weighted_roi or 0.0)
-            self.outcome.weighted_roi = prev + roi * ratio
         self.pending_exit = None
         return True
 
@@ -915,15 +1073,21 @@ class Investment(Opportunity):
             and self._is_sell_blocked_by_limit_down(exit_price, bar)
         ):
             return None
-        return exit_price
+        return self.run_deps.slippage.apply_exit(exit_price)
 
     def settle(self, tick_input: InvestmentTickInput) -> bool:
-        """Force-close at simulate end. Returns ``False`` (stop tracking)."""
+        """Force-close at simulate end. Returns ``False`` (stop tracking).
+
+        ``PENDING_TO_ENTER`` + ``enter_price=next_open`` 且再无下一 tick 时：
+        - ``no_next_tick=skip_trade``：放弃进场（COMPLETE，无成交）
+        - ``no_next_tick=use_last_close``：用信号日 close 进场，再按模拟结束强平
+        """
         if self.lifecycle == Lifecycle.COMPLETE:
             return False
         if self.lifecycle == Lifecycle.PENDING_TO_ENTER:
-            self.lifecycle = Lifecycle.COMPLETE
-            return False
+            if not self._apply_no_next_tick_enter(tick_input):
+                self.lifecycle = Lifecycle.COMPLETE
+                return False
         self.pending_exit = PendingExit(
             reason=ExitReason.SIMULATE_END.value,
             exit_ratio=1.0,
@@ -940,6 +1104,46 @@ class Investment(Opportunity):
             )
         self.lifecycle = Lifecycle.COMPLETE
         return False
+
+    def _apply_no_next_tick_enter(self, tick_input: InvestmentTickInput) -> bool:
+        """样本末尾处理挂起的 ``next_open`` 进场。成功则进入 ``OPEN``。"""
+        model = str(self.run_deps.enter_price or "next_open").strip().lower()
+        if model != "next_open":
+            return False
+        policy = str(self.run_deps.no_next_tick or "skip_trade").strip().lower()
+        if policy != "use_last_close":
+            return False
+
+        signal_bar = self.record_of_today if isinstance(self.record_of_today, dict) else None
+        if not signal_bar:
+            signal_bar = tick_input.bar if isinstance(tick_input.bar, dict) else {}
+        as_of = str(
+            (signal_bar.get("date") if isinstance(signal_bar, dict) else None)
+            or tick_input.as_of_date
+            or self.trigger_date
+            or ""
+        ).strip()
+        price = BarPrices.for_model(signal_bar, "close", use_raw=False)
+        if price <= 0:
+            return False
+        at_limit_up, prev_close = self._eval_limit_up(price, signal_bar)
+        price = self.run_deps.slippage.apply_enter(price)
+        raw_price = BarPrices.for_model(signal_bar, "close", use_raw=True)
+        if raw_price > 0:
+            raw_price = self.run_deps.slippage.apply_enter(raw_price)
+        self.entry = EntryInfo(
+            entry_price=price,
+            entry_price_raw=float(raw_price or 0.0),
+            entry_date=as_of,
+            direction=TradeSide.BUY,
+            buy_prev_close=prev_close,
+            buy_at_limit_up=at_limit_up,
+            buy_bar_volume=BarPrices.volume(signal_bar),
+        )
+        self.lifecycle = Lifecycle.OPEN
+        self._update_extremes(as_of, signal_bar)
+        self._remember_bar(signal_bar)
+        return True
 
     def _entity_id(self) -> str:
         stock = self.stock

@@ -31,6 +31,20 @@ class SlippageConfig:
     enter_bps: float = 0.0
     exit_bps: float = 0.0
 
+    def apply_enter(self, price: float) -> float:
+        """进场：对理论价上浮 ``enter_bps``。"""
+        px = float(price)
+        if px <= 0:
+            return px
+        return px * (1.0 + max(0.0, float(self.enter_bps)) / 10_000.0)
+
+    def apply_exit(self, price: float) -> float:
+        """出场：对理论价下浮 ``exit_bps``。"""
+        px = float(price)
+        if px <= 0:
+            return px
+        return px * (1.0 - max(0.0, float(self.exit_bps)) / 10_000.0)
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "enter_bps": float(self.enter_bps),

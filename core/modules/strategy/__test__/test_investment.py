@@ -727,5 +727,151 @@ class TestInvestmentForceExit(unittest.TestCase):
         self.assertEqual(inv.exit_info.exit_date, "20240105")
 
 
+class TestInvestmentMultiStageGoals(unittest.TestCase):
+    def test_two_stage_take_profit_same_bar(self) -> None:
+        """high 同时触及两档：同 tick 先平 50% 再清仓。"""
+        settings = _settings(
+            simulation={"enter_price": "close", "exit_price": "close"},
+            goal={
+                "take_profit": {
+                    "stages": [
+                        {"ratio": 0.1, "exit_ratio": 0.5},
+                        {"ratio": 0.2, "close_invest": True},
+                    ]
+                },
+                "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
+            },
+        )
+        # 去掉默认 stop_loss，避免干扰
+        settings.raw_settings["goal"].pop("stop_loss", None)
+        settings.apply_defaults()
+
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings)
+        inv.tick(_tick("20240102", o=10, h=11, l=9, c=10))
+        inv.tick(_tick("20240103", o=10, h=11, l=9, c=10.5))
+        # entry=10; 10%→11, 20%→12；high=12.5 两档同日
+        self.assertFalse(inv.tick(_tick("20240104", o=10, h=12.5, l=10, c=12)))
+        self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
+        self.assertEqual(len(inv.completed_goals), 2)
+        self.assertAlmostEqual(inv.completed_goals[0]["exit_ratio"], 0.5)
+        self.assertAlmostEqual(inv.completed_goals[1]["exit_ratio"], 0.5)
+        self.assertEqual(inv.completed_goals[0]["reason"], "take_profit")
+        self.assertAlmostEqual(inv.runtime_state.remaining_ratio, 0.0)
+
+    def test_protect_loss_after_take_profit_action(self) -> None:
+        settings = _settings(
+            simulation={"enter_price": "close", "exit_price": "close"},
+            goal={
+                "take_profit": {
+                    "stages": [
+                        {
+                            "ratio": 0.1,
+                            "exit_ratio": 0.5,
+                            "actions": ["set_protect_loss"],
+                        }
+                    ]
+                },
+                "protect_loss": {"ratio": 0.0, "close_invest": True},
+                "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
+            },
+        )
+        settings.raw_settings["goal"].pop("stop_loss", None)
+        settings.apply_defaults()
+
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings)
+        inv.tick(_tick("20240102", o=10, h=11, l=9, c=10))
+        inv.tick(_tick("20240103", o=10, h=11, l=9, c=10.5))
+        # 触及 10% 止盈半仓 + 激活 protect
+        self.assertTrue(inv.tick(_tick("20240104", o=10, h=11.5, l=10.5, c=11.2)))
+        self.assertTrue(inv.runtime_state.protect_loss_active)
+        self.assertEqual(len(inv.completed_goals), 1)
+        self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
+        # 回落到成本价 → protect_loss 清剩余
+        self.assertFalse(inv.tick(_tick("20240105", o=10, h=10.2, l=9.8, c=10.0)))
+        self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
+        self.assertEqual(inv.exit_info.exit_reason, "protect_loss")
+        self.assertEqual(len(inv.completed_goals), 2)
+
+    def test_dynamic_loss_after_take_profit_action(self) -> None:
+        settings = _settings(
+            simulation={"enter_price": "close", "exit_price": "close"},
+            goal={
+                "take_profit": {
+                    "stages": [
+                        {
+                            "ratio": 0.1,
+                            "exit_ratio": 0.5,
+                            "actions": ["set_dynamic_loss"],
+                        }
+                    ]
+                },
+                "dynamic_loss": {"ratio": -0.1, "close_invest": True},
+                "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
+            },
+        )
+        settings.raw_settings["goal"].pop("stop_loss", None)
+        settings.apply_defaults()
+
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings)
+        inv.tick(_tick("20240102", o=10, h=11, l=9, c=10))
+        inv.tick(_tick("20240103", o=10, h=11, l=9, c=10.5))
+        # 止盈半仓，peak≈11.5
+        self.assertTrue(inv.tick(_tick("20240104", o=10, h=11.5, l=10.5, c=11.2)))
+        self.assertTrue(inv.runtime_state.dynamic_loss_active)
+        # 从 peak 回撤 ≥10%：peak 至少 11.5，close 10.3 → -10.4%
+        self.assertFalse(inv.tick(_tick("20240105", o=11, h=11.2, l=10.0, c=10.3)))
+        self.assertEqual(inv.exit_info.exit_reason, "dynamic_loss")
+
+    def test_multi_stage_stop_loss_ordered(self) -> None:
+        settings = _settings(
+            simulation={"enter_price": "close", "exit_price": "close"},
+            goal={
+                "stop_loss": {
+                    "stages": [
+                        {"ratio": -0.1, "exit_ratio": 0.5},
+                        {"ratio": -0.2, "close_invest": True},
+                    ]
+                },
+                "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
+            },
+        )
+        settings.raw_settings["goal"].pop("take_profit", None)
+        settings.apply_defaults()
+
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings)
+        inv.tick(_tick("20240102", o=10, h=11, l=9, c=10))
+        inv.tick(_tick("20240103", o=10, h=11, l=9, c=10.5))
+        # low=8 同时低于 -10% 与 -20%；同 tick 先触发第一档再第二档
+        self.assertFalse(inv.tick(_tick("20240104", o=9, h=9.5, l=8.0, c=8.5)))
+        self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
+        self.assertEqual(len(inv.completed_goals), 2)
+        self.assertEqual(inv.completed_goals[0]["reason"], "stop_loss")
+        self.assertAlmostEqual(inv.completed_goals[0]["exit_ratio"], 0.5)
+
+
 if __name__ == "__main__":
     unittest.main()

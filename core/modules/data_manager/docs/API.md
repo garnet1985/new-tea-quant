@@ -197,7 +197,8 @@ qfq(t) = raw(t) × F(段) / F(最新) + C
 C = qfq_anchor_最新 - raw_anchor_最新 × F_最新事件 / F(最新)
 ```
 
-- `open/close/high/low/pre_close` 同式；返回列名与 raw 一致，语义为前复权价。
+- 顶层 `open/close/high/low/pre_close` 同式；列名与 raw 一致，语义为前复权价。
+- 同层附带 `raw: {open, high, low, close, pre_close?}` 为折算前不复权价（无事件时与顶层相同）。
 - 详见 `userspace/extensions/data_source/handlers/adj_factor_event/README.md`；对比基准见 `experiments/qfq_baseline/方案B_tencent_validation.json`。
 
 ### 2.4 CorporateFinanceService（企业财务）

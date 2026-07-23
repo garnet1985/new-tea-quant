@@ -18,7 +18,7 @@ import {
 } from './settingsSectionMeta';
 import SettingsAccordionTitle from 'components/settingsAccordionTitle/settingsAccordionTitle';
 import strategyPriceSimulatorSchema from './editorSchemas/strategyPriceSimulator';
-import { buildStrategyCapitalSimulatorSchema } from './editorSchemas/strategyCapitalSimulator';
+import { buildStrategyPortfolioSchema } from './editorSchemas/strategyPortfolio';
 import { buildStrategySamplingSchema } from './editorSchemas/strategySampling';
 import { buildStrategySimulationSchema } from './editorSchemas/strategySimulation';
 import {
@@ -71,7 +71,7 @@ export function StrategySettingsPanel({
   onFeesChange,
   onSimulationChange,
   onPriceSimulatorChange,
-  onCapitalSimulatorChange,
+  onPortfolioChange,
   allocationModeOptions,
   samplingStrategyOptions,
   simulationTemplateOptions,
@@ -79,13 +79,13 @@ export function StrategySettingsPanel({
   skipInvestmentWhenOptions,
   marketProfileOptions,
 }) {
-  const [samplingEditorErrors, setSamplingEditorErrors] = useState({});
+  const [simulationEditorErrors, setSimulationEditorErrors] = useState({});
   const metaSchema = useMemo(
     () => buildStrategyMetaSchema(marketProfileOptions),
     [marketProfileOptions],
   );
-  const capitalSimulatorSchema = useMemo(
-    () => buildStrategyCapitalSimulatorSchema(allocationModeOptions),
+  const portfolioSchema = useMemo(
+    () => buildStrategyPortfolioSchema(allocationModeOptions),
     [allocationModeOptions],
   );
   const samplingSchema = useMemo(
@@ -102,7 +102,7 @@ export function StrategySettingsPanel({
     [workbenchEditorContext, coreEditor],
   );
 
-  const validateSamplingDates = useCallback((nextValue) => {
+  const validateSimulationDates = useCallback((nextValue) => {
     const start = nextValue?.start_date || '';
     const end = nextValue?.end_date || '';
     const errors = {};
@@ -162,6 +162,9 @@ export function StrategySettingsPanel({
             onSimulationChange={onSimulationChange}
             schema={simulationSchema}
             simulationTemplateProfiles={simulationTemplateProfiles}
+            errors={simulationEditorErrors}
+            onValidate={validateSimulationDates}
+            onValidationChange={setSimulationEditorErrors}
             context={workbenchEditorContext}
           />
         </SectionAccordion>
@@ -170,9 +173,6 @@ export function StrategySettingsPanel({
             sampling={settings?.sampling}
             onSamplingChange={onSamplingChange}
             schema={samplingSchema}
-            errors={samplingEditorErrors}
-            onValidate={validateSamplingDates}
-            onValidationChange={setSamplingEditorErrors}
             context={workbenchEditorContext}
           />
         </SectionAccordion>
@@ -186,11 +186,11 @@ export function StrategySettingsPanel({
             />
           </SectionAccordion>
         ) : null}
-        <SectionAccordion title="资金模拟参数">
+        <SectionAccordion title="资金组合参数">
           <SettingsSchemaEditor
-            schema={capitalSimulatorSchema}
-            value={settings?.capital_simulator}
-            onChange={onCapitalSimulatorChange}
+            schema={portfolioSchema}
+            value={settings?.portfolio}
+            onChange={onPortfolioChange}
             context={workbenchEditorContext}
           />
         </SectionAccordion>

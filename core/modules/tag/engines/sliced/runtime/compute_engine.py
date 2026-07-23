@@ -6,19 +6,19 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Tuple, Type
 
-from core.modules.strategy.engines.shared.helpers.backtest_calendar_context import (
+from core.modules.strategy_legacy.engines.shared.helpers.backtest_calendar_context import (
     BacktestCalendarContext,
 )
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.messages import (
+from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.runtime.messages import (
     SlicePayload,
 )
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.slice_plan import (
+from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.slice_plan import (
     is_first_open_of_month,
     is_first_open_of_year,
     is_last_open_of_month,
     is_last_open_of_year,
 )
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.types import (
+from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.types import (
     CalendarAsOfContext,
 )
 from core.modules.tag.engines.shared.base_worker import BaseTagWorker, worker_uses_calendar_asof

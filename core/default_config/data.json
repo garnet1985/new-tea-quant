@@ -1,4 +1,5 @@
 {
+  "default_market_profile_key": "china_a_stock",
   "default_start_date": "20080101",
   "as_of_latest_completed_trading_date": null,
   "use_sample_stock_list": null,

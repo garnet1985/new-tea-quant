@@ -108,14 +108,15 @@ class RunProgressReporter:
             f"执行总进度：{snapshot.percent:.0f}%"
         )
         if detail and snapshot.execute_total > 0:
-            detail_line = (
+            line = (
                 f"任务：{self._task_name} {self._run_mode} "
                 f"回测进度：{snapshot.execute_completed}/{snapshot.execute_total}，"
                 f"执行总进度：{snapshot.percent:.0f}%"
             )
-            logger.info(detail_line)
         else:
-            logger.info(total_line)
+            line = total_line
+        print(line, flush=True)
+        logger.info(line)
 
 
 def report_execute_unit_from_context(payload: dict, completed: int) -> None:

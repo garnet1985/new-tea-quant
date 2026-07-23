@@ -17,7 +17,7 @@ export function simulatePriceResult() {
 }
 
 export function simulateCapitalResult(settings) {
-  const initialCapital = Number(settings?.capital_simulator?.initial_capital || 1000000);
+  const initialCapital = Number(settings?.portfolio?.initial_capital || 1000000);
   const retPct = Number((Math.random() * 40 - 8).toFixed(1));
   const endCapital = Math.round(initialCapital * (1 + retPct / 100));
   const profit = endCapital - initialCapital;

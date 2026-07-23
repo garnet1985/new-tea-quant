@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from core.modules.data_contract.cache import ContractCacheManager
+from core.modules.data_contract import DataContracts
 from core.modules.tag.engines.shared.data.tag_data_manager import TagDataManager
 from core.modules.tag.engines.shared.staging.batch_stage import stage_entities_batch
 from core.modules.tag.engines.shared.staging.prior_values import fetch_prior_tag_values
@@ -26,10 +26,8 @@ class TagJobStager:
         self,
         *,
         data_mgr: "DataManager",
-        contract_cache: Optional[ContractCacheManager] = None,
     ) -> None:
         self._data_mgr = data_mgr
-        self._contract_cache = contract_cache or ContractCacheManager()
 
     def stage_job(self, job: TagStageJob) -> TagStageJob:
         payload = dict(job.payload)
@@ -77,7 +75,6 @@ class TagJobStager:
             scenario_name=scenario_name,
             settings=settings,
             data_mgr=self._data_mgr,
-            contract_cache=self._contract_cache,
             global_extra_cache=payload.get("global_extra_cache") or {},
         )
         tag_data_manager.hydrate_row_slots(start_date, end_date)

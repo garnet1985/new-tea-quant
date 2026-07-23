@@ -120,6 +120,12 @@ class PathNamespace:
         return PathManager.get_strategy_simulation_capital_directory(strategy_name)
 
     @staticmethod
+    def get_strategy_directory_simulation_portfolio(strategy_name: str) -> Path:
+        """获取策略模拟组合目录"""
+        from .path_manager import PathManager
+        return PathManager.get_strategy_simulation_portfolio_directory(strategy_name)
+
+    @staticmethod
     def get_strategy_directory_simulation_enum(strategy_name: str) -> Path:
         """获取策略模拟枚举目录"""
         from .path_manager import PathManager
@@ -226,6 +232,12 @@ class PathNamespace:
         return PathManager.get_strategy_simulation_capital_directory(strategy_name)
 
     @staticmethod
+    def get_strategy_simulation_portfolio_directory(strategy_name: str) -> Path:
+        """获取策略模拟组合目录"""
+        from .path_manager import PathManager
+        return PathManager.get_strategy_simulation_portfolio_directory(strategy_name)
+
+    @staticmethod
     def get_strategy_simulation_enum_directory(strategy_name: str) -> Path:
         """获取策略模拟枚举目录"""
         from .path_manager import PathManager
@@ -326,6 +338,14 @@ class ConfigNamespace:
         """
         from .config_manager import ConfigManager
         return ConfigManager.get_default_start_date()
+
+    @staticmethod
+    def get_default_market_profile_key() -> str:
+        """
+        ``data.json`` → ``default_market_profile_key``（全系统默认市场 profile id）。
+        """
+        from .config_manager import ConfigManager
+        return ConfigManager.get_default_market_profile_key()
 
     @staticmethod
     def get_use_sample_stock_list() -> Optional[int]:

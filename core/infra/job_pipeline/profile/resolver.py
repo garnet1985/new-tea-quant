@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 from core.infra.project_context import ProjectContext
 from core.infra.job_pipeline.profile.constants import (
     DISPATCH_DEFAULTS_BY_PROFILE,
+    PROFILE_POOL_DEFAULTS_BY_WORKER,
     WorkerProfiles,
 )
 from core.infra.job_pipeline.profile.probe import WorkerProbe
@@ -53,10 +54,11 @@ def resolve_worker_profile(worker_id: str = WorkerProfiles.DEFAULT) -> Dict[str,
     wid = str(worker_id or WorkerProfiles.DEFAULT).strip() or WorkerProfiles.DEFAULT
     if wid == WorkerProfiles.DEFAULT:
         return default
+    pool_defaults = dict(PROFILE_POOL_DEFAULTS_BY_WORKER.get(wid, {}))
     specific = block.get(wid)
     if not isinstance(specific, dict):
         specific = {}
-    return {**default, **specific}
+    return {**default, **pool_defaults, **specific}
 
 
 def profile_calendar_slice_config(worker_id: str = WorkerProfiles.ENUMERATOR) -> Dict[str, Any]:
@@ -102,6 +104,38 @@ def resolve_pipeline_workers(
     if dispatch_jobs is not None and dispatch_jobs > 0:
         workers = min(workers, dispatch_jobs)
     return max(1, workers)
+
+
+def profile_entity_based_performance(
+    worker_id: str = WorkerProfiles.ENUMERATOR,
+    override: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """合并 worker profile + dispatch 块，供 entity_based BacktestEngine 使用。"""
+    prof = resolve_worker_profile(worker_id)
+    dispatch = profile_dispatch_config(worker_id)
+    merged: Dict[str, Any] = dict(dispatch)
+    for key in ("reserve_cores", "max_parallel_jobs_cap", "max_workers"):
+        if key in prof and prof[key] is not None:
+            merged[key] = prof[key]
+    if override:
+        for key, value in override.items():
+            if value is not None:
+                merged[key] = value
+    return merged
+
+
+def resolve_entity_based_performance_for_profile(
+    worker_id: str = WorkerProfiles.ENUMERATOR,
+    override: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """profile 合并 + EntityBasedPerformance 校验（enum / tag 等统一入口）。"""
+    from core.modules.backtest_engine.core.performance.settings import (
+        resolve_entity_based_performance,
+    )
+
+    return resolve_entity_based_performance(
+        profile_entity_based_performance(worker_id, override)
+    )
 
 
 def job_pipeline_profile(worker_id: str = WorkerProfiles.DEFAULT) -> Dict[str, Any]:

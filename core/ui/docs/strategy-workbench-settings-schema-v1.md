@@ -137,14 +137,13 @@ UI 交互：
 
 ---
 
-## Section：Capital Simulator
+## Section：Capital Simulator → Portfolio
 
 ### 基础字段
 
 | fieldPath | displayNameZh | type | editable | 说明 |
 |---|---|---|---|---|
-| `capital_simulator.use_sampling` | 使用采样版本 | switch | true | false=output，true=test |
-| `capital_simulator.initial_capital` | 初始资金 | number | true | 默认 1_000_000 |
+| `portfolio.initial_capital` | 初始资金 | number | true | 默认 1_000_000 |
 
 ### allocation（按 mode 动态）
 
@@ -152,7 +151,7 @@ UI 交互：
 
 | fieldPath | displayNameZh | type | editable |
 |---|---|---|---|
-| `capital_simulator.allocation.mode` | 资金分配模式 | select | true |
+| `portfolio.allocation.mode` | 资金分配模式 | select | true |
 
 `mode` 枚举值：
 - `equal_capital`
@@ -164,24 +163,13 @@ UI 交互：
 
 | fieldPath | displayNameZh | type | 显示条件 |
 |---|---|---|---|
-| `capital_simulator.allocation.max_portfolio_size` | 最大持仓数 | number | `mode in [equal_capital, equal_shares, kelly, custom]` |
-| `capital_simulator.allocation.max_weight_per_stock` | 单票最大权重 | number | `mode in [equal_capital, equal_shares, kelly, custom]` |
-| `capital_simulator.allocation.lot_size` | 每手股数 | number | `mode == equal_shares` |
-| `capital_simulator.allocation.lots_per_trade` | 每次手数 | number | `mode == equal_shares` |
-| `capital_simulator.allocation.kelly_fraction` | Kelly 折扣系数 | number | `mode == kelly` |
+| `portfolio.allocation.max_portfolio_size` | 最大持仓数 | number | `mode in [equal_capital, equal_shares, kelly, custom]` |
+| `portfolio.allocation.max_weight_per_stock` | 单票最大权重 | number | `mode in [equal_capital, equal_shares, kelly, custom]` |
+| `portfolio.allocation.lot_size` | 每手股数 | number | `mode == equal_shares` |
+| `portfolio.allocation.lots_per_trade` | 每次手数 | number | `mode == equal_shares` |
+| `portfolio.allocation.kelly_fraction` | Kelly 折扣系数 | number | `mode == kelly` |
 
-### fees（可选覆盖）
-
-UI 交互与 price_simulator 相同（checkbox 控制覆盖）：
-
-| fieldPath | displayNameZh | type | editable |
-|---|---|---|---|
-| `capital_simulator.fees.commission_rate` | 佣金率 | number | true |
-| `capital_simulator.fees.min_commission` | 最低佣金 | number | true |
-| `capital_simulator.fees.stamp_duty_rate` | 印花税率 | number | true |
-| `capital_simulator.fees.transfer_fee_rate` | 过户费率 | number | true |
-
-取消勾选时删除 `capital_simulator.fees`。
+> 费率仅根级 `fees`；勿在 `portfolio` 下再写 `fees`。旧 key `capital_simulator` 已废弃。
 
 ---
 
@@ -191,6 +179,7 @@ UI 交互与 price_simulator 相同（checkbox 控制覆盖）：
 
 | fieldPath | displayNameZh | type | editable | 说明 |
 |---|---|---|---|---|
+| `sampling.use_sampling` | 是否使用采样 | switch | true | false 时可整段省略 |
 | `sampling.strategy` | 采样模式 | select | true | `uniform/stratified/random/continuous/pool/blacklist` |
 | `sampling.sampling_amount` | 采样数量 | number | true | 默认 10 |
 
@@ -205,6 +194,21 @@ UI 交互与 price_simulator 相同（checkbox 控制覆盖）：
 | `sampling.pool.file` | 股票池文件路径 | text | `strategy == pool` |
 | `sampling.blacklist.stock_ids` | 黑名单列表 | array(text) | `strategy == blacklist` |
 | `sampling.blacklist.file` | 黑名单文件路径 | text | `strategy == blacklist` |
+
+> 回测时间窗不在 sampling；见 `simulation.start_date` / `end_date`。
+
+---
+
+## Section：Simulation（时间窗 + 成交假设）
+
+| fieldPath | displayNameZh | type | editable | 说明 |
+|---|---|---|---|---|
+| `simulation.start_date` | 开始日期 | text (YYYYMMDD) | true | enum / price / portfolio 共用 |
+| `simulation.end_date` | 结束日期 | text (YYYYMMDD) | true | 同上；结束不得早于开始 |
+| `simulation.template` | 回测模板 | select | true | preset / custom |
+| `simulation.execution_mode` | 执行模式 | select | true | entity_based / slice_based |
+
+其余成交假设字段见工作台「回测执行假设」表单。
 
 ---
 

@@ -1,6 +1,6 @@
 # Data Contract 设计说明
 
-**版本：** `0.3.3`（0.3.0 中 **IssueResult / load_batch** 见下文「PER_ENTITY plural」；**已实现**）
+**版本：** `0.5.0`（0.3.0 **IssueResult / load_batch**；0.5.0 **Facade 黑盒 cache** — **已实现**）
 
 本文档描述 **`DataSpec` 字段**、**core 默认路由表摘要**、**缓存策略**、**userspace 合并**及 **Tag 专用 `DataKey.TAG`**。实现以 `mapping.py`、`data_contract_manager.py`、`cache/policy.py`、`discovery.py` 为准。
 
@@ -118,6 +118,6 @@ DCM **优先** loader 的 **`load_batch`**（相对 `BaseLoader` 默认实现）
 
 ## 相关文档
 
-- [API.md](API.md)
+- [api.yaml](../api.yaml)
 - [DECISIONS.md](DECISIONS.md)
 - [ROADMAP.md](ROADMAP.md)

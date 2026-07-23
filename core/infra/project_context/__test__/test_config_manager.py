@@ -19,7 +19,15 @@ class TestConfigManager:
 
         assert isinstance(data_config, dict)
         assert "default_start_date" in data_config
+        assert "default_market_profile_key" in data_config
         assert "decimal_places" in data_config
+
+    def test_get_default_market_profile_key(self):
+        """测试获取默认 market profile key"""
+        key = ProjectContext.config.get_default_market_profile_key()
+
+        assert isinstance(key, str)
+        assert key == "china_a_stock"
 
     def test_get_default_start_date(self):
         """测试获取默认开始日期"""

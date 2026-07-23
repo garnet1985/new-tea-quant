@@ -30,7 +30,7 @@ requires: core>=0.4.0
 
 BacktestEngine:
   layer: orchestrator
-  description: "回测调度 Facade — entity_based / slice_based 两种执行模式"
+  description: "回测 Facade（调度 / 时间推进 / 性能）— entity_based / slice_based；数据装载由调用方经 callbacks 注入"
 
   apis:
     run:
@@ -276,15 +276,14 @@ JobValidation:
 
     entity_based:
       description: "entity 独立并行；无 slice 内 cross-entity 编排"
-      payload_required_one_of:
-        - "单 entity 键（entity_id / stock_id 等）"
-        - "jobs: List[job dict]（batch 路径）"
+      payload_required:
+        - entity_specified  # List[{id: str}, ...]，非空；不允许 entity_id/stock_id 等别名
 
     slice_based:
       description: "日历切片 bulk；slice 内多 entity 经 orchestrator 交互"
       payload_required:
-        - open_dates
-        - entity_ids | stock_ids | 等价 bulk entity 键
+        - entity_ids  # List[str]，非空；不允许 stock_ids 等别名
+        - timeline_point_count  # 正整数；全量 points 不进 payload，worker 从全局 trade.calendar 解析
 
 ---
 

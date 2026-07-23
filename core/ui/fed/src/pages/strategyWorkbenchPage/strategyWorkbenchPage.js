@@ -689,7 +689,7 @@ function StrategyWorkbenchPage() {
           onFeesChange,
           onSimulationChange,
           onPriceSimulatorChange,
-          onCapitalSimulatorChange,
+          onPortfolioChange,
         }) => (
           <>
             {(() => {
@@ -857,7 +857,7 @@ function StrategyWorkbenchPage() {
                   onFeesChange={onFeesChange}
                   onSimulationChange={onSimulationChange}
                   onPriceSimulatorChange={onPriceSimulatorChange}
-                  onCapitalSimulatorChange={onCapitalSimulatorChange}
+                  onPortfolioChange={onPortfolioChange}
                 />
                 <PlaceholderSection
                   title="其他策略"

@@ -45,7 +45,7 @@ function StrategyDesignStepPage() {
           onFeesChange,
           onSimulationChange,
           onPriceSimulatorChange,
-          onCapitalSimulatorChange,
+          onPortfolioChange,
         }) => (
           <>
             <StrategyDesignDraftSync
@@ -72,7 +72,7 @@ function StrategyDesignStepPage() {
                     onFeesChange={onFeesChange}
                     onSimulationChange={onSimulationChange}
                     onPriceSimulatorChange={onPriceSimulatorChange}
-                    onCapitalSimulatorChange={onCapitalSimulatorChange}
+                    onPortfolioChange={onPortfolioChange}
                     allocationModeOptions={options.allocationModeOptions}
                     samplingStrategyOptions={options.samplingStrategyOptions}
                     simulationTemplateOptions={options.simulationTemplateOptions}

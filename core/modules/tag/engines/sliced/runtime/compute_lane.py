@@ -6,10 +6,10 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List
 
-from core.modules.strategy.engines.shared.helpers.backtest_calendar_context import (
+from core.modules.strategy_legacy.engines.shared.helpers.backtest_calendar_context import (
     BacktestCalendarContext,
 )
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.messages import (
+from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.runtime.messages import (
     SHUTDOWN,
     FinalizeDone,
     LaneError,

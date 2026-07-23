@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.modules.data_contract.contract_const import DataKey
+from core.modules.data_contract.contracts import DataKey
 from core.modules.strategy.services.data.helper import storage_key_for
 from core.modules.tag.engines.shared.base_worker import BaseTagWorker
 from core.modules.tag.models.tag_model import TagModel

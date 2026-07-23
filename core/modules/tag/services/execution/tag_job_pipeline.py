@@ -16,8 +16,15 @@ import logging
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from core.modules.backtest_engine.contracts import BacktestJob, JobContext, JobReport, RunCallbacks, RunProgress
-from core.modules.backtest_engine.core.shared.performance import (
+from core.modules.backtest_engine.contracts import (
+    BacktestJob,
+    JobContext,
+    JobReport,
+    RunCallbacks,
+    RunProgress,
+    Timeline,
+)
+from core.modules.backtest_engine.core.performance.settings import (
     resolve_entity_based_performance,
     resolve_slice_based_performance,
 )
@@ -89,6 +96,56 @@ def _resolve_timeline_worker_payload(context: JobContext) -> Dict[str, Any]:
                 merged[key] = value
         return merged
     return payload
+
+
+class _TagOpaqueTimelineHooks:
+    """opaque tag execute → 空时间轴 + on_run_end（BE 已去掉 execute_fn 参数）。"""
+
+    def __init__(self, job_context: JobContext) -> None:
+        self._job_context = job_context
+
+    def resolve_timeline(self, job_context: JobContext) -> Timeline:
+        _ = job_context
+        return Timeline(points=(), start="", end="", kind="opaque")
+
+    def on_run_begin(self, timeline: Timeline) -> None:
+        _ = timeline
+
+    def on_tick(self, point: str, index: int, *, is_last: bool) -> None:
+        _ = (point, index, is_last)
+
+    def on_run_end(self, timeline: Timeline) -> Dict[str, Any]:
+        _ = timeline
+        return execute_tag_timeline_job(self._job_context)
+
+    @staticmethod
+    def timeline_factory(job_context: JobContext) -> "_TagOpaqueTimelineHooks":
+        return _TagOpaqueTimelineHooks(job_context)
+
+
+class _TagOpaqueSlicedHooks:
+    """opaque tag sliced execute → 空时间轴 + on_run_end。"""
+
+    def __init__(self, job_context: JobContext) -> None:
+        self._job_context = job_context
+
+    def resolve_timeline(self, job_context: JobContext) -> Timeline:
+        _ = job_context
+        return Timeline(points=(), start="", end="", kind="opaque")
+
+    def on_run_begin(self, timeline: Timeline) -> None:
+        _ = timeline
+
+    def on_tick(self, point: str, index: int, *, is_last: bool) -> None:
+        _ = (point, index, is_last)
+
+    def on_run_end(self, timeline: Timeline) -> Dict[str, Any]:
+        _ = timeline
+        return execute_tag_sliced_job(self._job_context)
+
+    @staticmethod
+    def sliced_factory(job_context: JobContext) -> "_TagOpaqueSlicedHooks":
+        return _TagOpaqueSlicedHooks(job_context)
 
 
 def execute_tag_timeline_job(context: JobContext) -> Dict[str, Any]:
@@ -316,10 +373,10 @@ def run_tag_timeline_via_backtest_engine(
     # ---- 4. 调用 BacktestEngine.entity_based.run() ----
     result = BacktestEngine.entity_based.run(
         engine_jobs,
-        execute_tag_timeline_job,
+        timeline_hooks_factory=_TagOpaqueTimelineHooks.timeline_factory,
         performance=performance,
         task_name=run_name,
-        callbacks=RunCallbacks(on_result=on_engine_result),
+        callbacks=RunCallbacks(on_task_result=on_engine_result),
     )
 
     # ---- 5. flush save_buffer（批量入库）----
@@ -417,6 +474,8 @@ def execute_tag_sliced_job(context: JobContext) -> Dict[str, Any]:
 
 
 def _wrap_tag_sliced_dispatch_job(job: Dict[str, Any]) -> Dict[str, Any]:
+    from core.modules.backtest_engine.core.shared.jobs import BacktestJob
+
     job_id = str(job.get("job_id") or job.get("id") or "tag_calendar_slice")
     payload = {
         key: value
@@ -425,6 +484,33 @@ def _wrap_tag_sliced_dispatch_job(job: Dict[str, Any]) -> Dict[str, Any]:
     }
     payload.setdefault("_job_id", job_id)
     payload["_executor"] = TAG_SLICED_EXECUTOR_KEY
+
+    entity_ids = payload.get(BacktestJob.SLICE_BASED_ENTITY_KEY)
+    if not isinstance(entity_ids, list) or not entity_ids:
+        raise ValueError(
+            f"tag slice job 缺少非空 {BacktestJob.SLICE_BASED_ENTITY_KEY!r}"
+        )
+
+    point_count = payload.get(BacktestJob.TIMELINE_POINT_COUNT_KEY)
+    if not isinstance(point_count, int) or point_count <= 0:
+        points: list = []
+        raw = payload.get("open_dates")
+        if isinstance(raw, list) and raw:
+            points = [str(d).strip() for d in raw if str(d).strip()]
+        else:
+            calendar = payload.get("backtest_calendar")
+            if isinstance(calendar, dict):
+                cal_dates = calendar.get("open_dates")
+                if isinstance(cal_dates, list):
+                    points = [str(d).strip() for d in cal_dates if str(d).strip()]
+        if not points:
+            raise ValueError(
+                f"tag slice job 缺少 {BacktestJob.TIMELINE_POINT_COUNT_KEY!r} / open_dates"
+            )
+        point_count = len(points)
+    payload[BacktestJob.TIMELINE_POINT_COUNT_KEY] = point_count
+    # 全量 points 不进 payload；worker 从全局 calendar 解析
+    payload.pop("timeline", None)
     return BacktestJob(id=job_id, payload=payload).to_dict()
 
 
@@ -494,10 +580,10 @@ def run_tag_sliced_via_backtest_engine(
     try:
         result = BacktestEngine.slice_based.run(
             engine_jobs,
-            execute_tag_sliced_job,
+            timeline_hooks_factory=_TagOpaqueSlicedHooks.sliced_factory,
             performance=performance,
             task_name=run_name,
-            callbacks=RunCallbacks(on_result=on_engine_result),
+            callbacks=RunCallbacks(on_task_result=on_engine_result),
         )
     finally:
         _slice_save_hook.reset(hook_token)

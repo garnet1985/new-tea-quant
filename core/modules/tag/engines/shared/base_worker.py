@@ -29,7 +29,7 @@ class BaseTagWorker(ABC):
         
         self.entity = {
             'id': job_payload.get('entity_id'),
-            'type': job_payload.get('entity_type', 'stock')
+            'attach_to_data_key': job_payload.get('attach_to_data_key', 'stock.kline.daily')
         }
         
         scenario_name = job_payload.get('scenario_name', '')
@@ -54,7 +54,6 @@ class BaseTagWorker(ABC):
         self.tracker = {}
         self._extract_settings()
 
-        from core.modules.data_contract.cache import ContractCacheManager
         from core.modules.tag.engines.shared.data.tag_data_manager import TagDataManager
 
         if self._inject_mode:
@@ -66,11 +65,10 @@ class BaseTagWorker(ABC):
 
         self.tag_data_manager = TagDataManager(
             entity_id=self.entity['id'],
-            entity_type=self.entity['type'],
+            attach_to_data_key=self.entity['attach_to_data_key'],
             scenario_name=self.scenario['name'],
             settings=self.settings,
             data_mgr=self.data_mgr,
-            contract_cache=ContractCacheManager(),
             global_extra_cache=job_payload.get("global_extra_cache") or {},
         )
         
@@ -130,7 +128,7 @@ class BaseTagWorker(ABC):
             )
             return {
                 "entity_id": self.entity['id'],
-                "entity_type": self.entity['type'],
+                "attach_to_data_key": self.entity['attach_to_data_key'],
                 "scenario_name": self.scenario['name'],
                 "total_dates": 0,
                 "processed_dates": 0,

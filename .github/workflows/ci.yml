@@ -53,7 +53,9 @@ jobs:
           EOF
 
       - name: Run core tests
-        run: python -m pytest -v
+        run: |
+          echo "UT frozen during strategy refactor (see TESTING.md); expecting all skipped unless NTQ_TESTS_ENABLED=1"
+          python -m pytest -v -rs
 
   # UI 仅装 BFF 依赖时，launcher / BFF 冷启动链不得 import 未声明的三方包
   minimal-ui-imports:

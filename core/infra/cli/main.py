@@ -43,6 +43,9 @@ def main(argv: list[str] | None = None) -> int:
         build_parser().print_help()
         return 0
 
+    # 无参数默认走 version：先展示与 -h 相同的命令参考，再打出版本
+    show_help_before_version = not raw
+
     if not raw:
         raw = []
 
@@ -52,6 +55,10 @@ def main(argv: list[str] | None = None) -> int:
     except SystemExit as exc:
         code = exc.code
         return int(code) if isinstance(code, int) else 1
+
+    if show_help_before_version and args.command == "version":
+        build_parser().print_help()
+        print()
 
     early = run_early_command(args)
     if early is not None:

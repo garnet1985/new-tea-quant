@@ -7,7 +7,7 @@ from core.modules.tag.engines.shared.base_worker import BaseTagWorker
 from core.modules.tag.engines.sliced.runtime.compute_engine import TagSliceComputeEngine
 from core.modules.tag.engines.sliced.entity_context import build_entity_historical_context, build_entity_contexts, EntityDataContext
 from core.modules.tag.engines.sliced.types import TagCalendarAsOfResult
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.messages import (
+from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.runtime.messages import (
     SlicePayload,
 )
 

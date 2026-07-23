@@ -15,9 +15,11 @@ from typing import Any, Dict, List, Optional
 from core.infra.db import DbBaseModel
 from core.tables.ui_bff.strategy_workbench_snapshot.schema import schema as _schema
 
-COL_SETTINGS_FP = "settings_finger_print_id"
+COL_STRATEGY_KEY = "strategy_key"
+COL_SETTINGS_FP = "settings_fingerprint_id"
 COL_ENV_FP = "env_fingerprint_id"
 COL_REPORTS = "reports"
+COL_SETTINGS_DIFF = "settings_diff"
 
 
 class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
@@ -52,14 +54,19 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
             except Exception:
                 exists = False
             if not exists:
-                self.db.schema_manager.create_table_with_indexes(self.schema, self.db.get_connection)
+                self.db.schema_manager.create_table_with_indexes(
+                    self.schema, self.db.get_connection
+                )
             self.__class__._table_ready = True
 
     def load_by_strategy_version(
         self, strategy_name: str, version: int
     ) -> Optional[Dict[str, Any]]:
         self._ensure_table_ready()
-        row = self.load_one("strategy_name = %s AND version = %s", (strategy_name, int(version)))
+        row = self.load_one(
+            f"{COL_STRATEGY_KEY} = %s AND version = %s",
+            (strategy_name, int(version)),
+        )
         return self._normalize_row(row) if row else None
 
     def touch_version_updated_at(self, strategy_name: str, version: int) -> int:
@@ -68,7 +75,7 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
         return self.execute_raw_update(
             (
                 f"UPDATE {self.table_name} SET updated_at = %s "
-                "WHERE strategy_name = %s AND version = %s"
+                f"WHERE {COL_STRATEGY_KEY} = %s AND version = %s"
             ),
             (datetime.now(), str(strategy_name), int(version)),
         )
@@ -77,7 +84,7 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
         self._ensure_table_ready()
         safe_limit = max(1, min(int(limit or 100), 500))
         rows = self.load(
-            "strategy_name = %s",
+            f"{COL_STRATEGY_KEY} = %s",
             (strategy_name,),
             order_by="version DESC",
             limit=safe_limit,
@@ -86,7 +93,7 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
 
     def _normalize_row(self, row: Dict[str, Any]) -> Dict[str, Any]:
         out = dict(row or {})
-        out["settings_snapshot"] = self._coerce_json_dict(out.get("settings_snapshot"))
+        out[COL_SETTINGS_DIFF] = self._coerce_json_dict(out.get(COL_SETTINGS_DIFF))
         blob = self._coerce_json_dict(out.get(COL_REPORTS))
         out[COL_REPORTS] = blob
         out["result_report"] = blob
@@ -97,7 +104,7 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
     def get_next_version(self, strategy_name: str) -> int:
         self._ensure_table_ready()
         latest = self.load(
-            "strategy_name = %s",
+            f"{COL_STRATEGY_KEY} = %s",
             (strategy_name,),
             order_by="version DESC",
             limit=1,
@@ -110,7 +117,7 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
     def create_snapshot(
         self,
         strategy_name: str,
-        settings_snapshot: Dict[str, Any],
+        settings_diff: Dict[str, Any],
         result_report: Optional[Dict[str, Any]] = None,
         settings_finger_print_id: str = "",
         env_fingerprint_id: str = "",
@@ -120,9 +127,9 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
         version = self.get_next_version(strategy_name)
         now = datetime.now()
         payload = {
-            "strategy_name": strategy_name,
+            COL_STRATEGY_KEY: strategy_name,
             "version": version,
-            "settings_snapshot": settings_snapshot or {},
+            COL_SETTINGS_DIFF: settings_diff or {},
             COL_REPORTS: result_report or {},
             COL_SETTINGS_FP: str(settings_finger_print_id or ""),
             COL_ENV_FP: str(env_fingerprint_id or ""),
@@ -130,8 +137,8 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
             "created_at": now,
             "updated_at": now,
         }
-        self.upsert_one(payload, unique_keys=["strategy_name", "version"])
-        return {"strategy_name": strategy_name, "version": version}
+        self.upsert_one(payload, unique_keys=[COL_STRATEGY_KEY, "version"])
+        return {COL_STRATEGY_KEY: strategy_name, "version": version}
 
     def update_result_report(
         self,
@@ -164,10 +171,10 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
         )
         return self.execute_raw_update(
             (
-                f"UPDATE sys_strategy_workbench_snapshot "
+                f"UPDATE {self.table_name} "
                 f"SET {COL_REPORTS} = %s, {COL_SETTINGS_FP} = %s, {COL_ENV_FP} = %s, "
                 f"disk_settings_hash = %s, updated_at = %s "
-                "WHERE strategy_name = %s AND version = %s"
+                f"WHERE {COL_STRATEGY_KEY} = %s AND version = %s"
             ),
             (
                 json.dumps(result_report or {}, ensure_ascii=False),
@@ -203,35 +210,37 @@ class SysStrategyWorkbenchSnapshotModel(DbBaseModel):
         disk_hash = str(disk_settings_hash or "").strip()
         if settings_fp and env_fp:
             where = (
-                f"strategy_name = %s AND {COL_SETTINGS_FP} = %s AND {COL_ENV_FP} = %s"
+                f"{COL_STRATEGY_KEY} = %s AND {COL_SETTINGS_FP} = %s AND {COL_ENV_FP} = %s"
             )
             params = (strategy_name, settings_fp, env_fp)
         elif settings_fp:
-            where = f"strategy_name = %s AND {COL_SETTINGS_FP} = %s"
+            where = f"{COL_STRATEGY_KEY} = %s AND {COL_SETTINGS_FP} = %s"
             params = (strategy_name, settings_fp)
         elif env_fp:
-            where = f"strategy_name = %s AND {COL_ENV_FP} = %s"
+            where = f"{COL_STRATEGY_KEY} = %s AND {COL_ENV_FP} = %s"
             params = (strategy_name, env_fp)
         else:
             return []
-        # 如果 disk_settings_hash 不为空，添加 disk_settings_hash 的条件
         if disk_hash:
-            where += f" AND disk_settings_hash = %s"
+            where += " AND disk_settings_hash = %s"
             params = tuple(list(params) + [disk_hash])
         rows = self.load(where, params, order_by="version DESC", limit=safe_limit)
         return [self._normalize_row(row) for row in rows]
 
     def delete_version_row(self, strategy_name: str, version: int) -> int:
-        """删除指定策略版本行（``strategy_name`` + ``version``）。"""
+        """删除指定策略版本行（``strategy_key`` + ``version``）。"""
         self._ensure_table_ready()
-        return self.delete_one("strategy_name = %s AND version = %s", (strategy_name, int(version)))
+        return self.delete_one(
+            f"{COL_STRATEGY_KEY} = %s AND version = %s",
+            (strategy_name, int(version)),
+        )
 
     def list_versions_asc(self, strategy_name: str, *, limit: int = 500) -> List[Dict[str, Any]]:
         """同一策略下按 ``version`` 升序（用于淘汰最早版本）。"""
         self._ensure_table_ready()
         safe_limit = max(1, min(int(limit or 500), 1000))
         rows = self.load(
-            "strategy_name = %s",
+            f"{COL_STRATEGY_KEY} = %s",
             (strategy_name,),
             order_by="version ASC",
             limit=safe_limit,

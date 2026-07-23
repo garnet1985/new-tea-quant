@@ -15,7 +15,6 @@ from core.infra.db.engines.duckdb.process_pool_scope import (
     suspend_main_database,
     wait_pool_children_done,
 )
-from core.modules.data_contract.cache import ContractCacheManager
 from core.modules.tag.engines.shared.staging.job_stager import TagJobStager, TagStageJob
 
 logger = logging.getLogger(__name__)
@@ -88,7 +87,7 @@ def get_worker_stager() -> TagJobStager:
     if cached is not None:
         return cached[1]
     data_mgr = create_worker_data_manager()
-    stager = TagJobStager(data_mgr=data_mgr, contract_cache=ContractCacheManager())
+    stager = TagJobStager(data_mgr=data_mgr)
     _PID_STAGER[pid] = (data_mgr, stager)
     return stager
 

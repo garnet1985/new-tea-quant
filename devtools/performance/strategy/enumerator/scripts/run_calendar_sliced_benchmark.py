@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Calendar-Sliced (切片模式) 枚举器性能基准测试
+Calendar-Sliced (slice_based) 枚举器性能基准测试
 
 目标：
-  - 定义 calendar_sliced 模式的性能基线
+  - 定义 slice_based 模式的性能基线
   - 测试不同配置下的表现
   - 与 stock_based 模式对比
 
@@ -47,7 +47,7 @@ for _ in range(10):  # 最多向上找10层
         break
     PROJECT_ROOT = PROJECT_ROOT.parent
 
-BENCHMARK_STRATEGIES_DIR = PROJECT_ROOT / "devtools" / "performance" / " strategy" / "test_base_strategies"
+BENCHMARK_STRATEGIES_DIR = PROJECT_ROOT / "devtools" / "performance" / "strategy" / "test_base_strategies"
 USERSPACE_STRATEGIES_DIR = PROJECT_ROOT / "userspace" / "strategies"
 RESULTS_BASE = _SCRIPT_DIR / "results"
 
@@ -133,7 +133,7 @@ def _prepare_strategy(
     sample_size: int = DEFAULT_SAMPLE_SIZE,
 ) -> Path:
     """准备测试用的临时策略目录"""
-    src = BENCHMARK_STRATEGIES_DIR / "cross_sectional"
+    src = BENCHMARK_STRATEGIES_DIR / "slice_based"
     dst = USERSPACE_STRATEGIES_DIR / TEMP_STRATEGY_NAME
     
     if dst.exists():

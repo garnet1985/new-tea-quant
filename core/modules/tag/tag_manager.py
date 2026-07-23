@@ -12,9 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from core.modules.data_contract.cache import ContractCacheManager
-from core.modules.data_contract.contract_const import ContractScope, DataKey
-from core.modules.data_contract.data_contract_manager import DataContractManager
+from core.modules.data_contract import DataContracts
+from core.modules.data_contract.contracts import ContractScope, DataKey
 from core.modules.data_manager import DataManager
 from core.modules.tag.config import get_scenarios_root
 from core.modules.tag.engines.shared.base_worker import BaseTagWorker
@@ -36,8 +35,7 @@ class TagManager:
         self._pipeline_progress_callback: Optional[Any] = None
         self.data_mgr = DataManager()
         self.tag_data_service = self.data_mgr.stock.tags
-        self._contract_cache = ContractCacheManager()
-        self._data_contract_manager = DataContractManager(contract_cache=self._contract_cache)
+        self._data_contract_manager = DataContracts()
         self.scenario_cache: Dict[str, Dict[str, Any]] = {}
         self.entity_list_cache: Dict[str, List[str]] = {}
         self._discover_scenarios_from_folder()
@@ -266,6 +264,7 @@ class TagManager:
         for tag_key, item in discovered.items():
             scenario_cache[tag_key] = {
                 "tag_key": tag_key,
+                "key": item.module_key,
                 "name": item.settings_name,
                 "scenario_folder_path": tag_key,
                 "settings": item.settings,

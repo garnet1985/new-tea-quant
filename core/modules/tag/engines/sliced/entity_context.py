@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Any, Dict, Mapping, Optional
 
 from core.utils.date.date_utils import DateUtils
-from core.modules.data_cursor.data_cursor import DataCursor
+from core.modules.data_cursor import DataCursor
 
 
 class EntityDataContext:

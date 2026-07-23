@@ -618,6 +618,13 @@ class ConfigManager:
         return data_config.get('default_start_date')
 
     @staticmethod
+    def get_default_market_profile_key() -> str:
+        """``data.json`` → ``default_market_profile_key``（全系统默认市场 profile）。"""
+        data_config = ConfigManager.load_data_config()
+        key = str(data_config.get("default_market_profile_key") or "china_a_stock").strip()
+        return key or "china_a_stock"
+
+    @staticmethod
     def get_as_of_latest_completed_trading_date() -> Optional[str]:
         """
         data.json ``as_of_latest_completed_trading_date``（全系统 as-of 权威）。

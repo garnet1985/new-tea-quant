@@ -259,7 +259,8 @@ class KlineService(BaseDataService):
         """
         前复权：K 线与复权事件分两次简单查询，在内存合并（无大 JOIN）。
 
-        返回行的 ``open/close/high/low`` 即为前复权价（非 ``qfq_*`` 宽列）。
+        返回行：顶层 ``open/close/high/low`` 为前复权价（非 ``qfq_*`` 宽列）；
+        ``raw`` 为折算前不复权 OHLC：``{"open","high","low","close","pre_close"?}``。
         与 ``load_qfq(..., use_join=False)`` 等价，单独暴露便于批量路径复用。
         """
         start_date = self._normalize_date(start_date)
@@ -329,7 +330,9 @@ class KlineService(BaseDataService):
         - is_strict=True（严格）：缺历史事件不推断，保持未复权原价
         - 复权计算：``raw×F(段)/F(最新) + C``，``C`` 由**最新事件** anchor 折算；``qfq_diff`` 仅 anchor 缺失时应急
 
-        返回 ``open/close/high/low`` 为前复权价（与 ``load_raw`` 列名一致，语义由本方法决定）。
+        返回行形态：
+        - 顶层 ``open/close/high/low``：前复权价（与 ``load_raw`` 列名一致，语义由本方法决定）
+        - ``raw``：折算前不复权价 ``{open, high, low, close, pre_close?}``（无事件时与顶层相同）
         """
         if not use_join:
             return self.load_qfq_split(
@@ -1034,6 +1037,18 @@ class KlineService(BaseDataService):
             return raw_price
         return raw_price * factor_eff / factor_latest + qfq_diff
 
+    @staticmethod
+    def _snapshot_raw_prices(kline: Dict[str, Any]) -> None:
+        """把当前顶层价格字段快照进 ``raw``（仅首次；调用方须在折算前调用）。"""
+        existing = kline.get("raw")
+        if isinstance(existing, dict) and existing:
+            return
+        raw: Dict[str, Any] = {}
+        for field in _PRICE_FIELDS:
+            if field in kline:
+                raw[field] = kline.get(field)
+        kline["raw"] = raw
+
     def _apply_qfq_from_event_info(
         self,
         kline: Dict[str, Any],
@@ -1043,11 +1058,15 @@ class KlineService(BaseDataService):
         global_qfq_context: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
-        按生效事件对 OHLC 应用前复权，结果写回 ``open/close/high/low/pre_close``。
+        按生效事件对 OHLC 应用前复权，结果写回顶层 ``open/close/high/low/pre_close``；
+        折算前不复权价保留在 ``raw``。
 
         主路径：``raw×F(段)/F(最新) + C``（C 由最新事件 anchor 折算，段内 ``F(段)`` 仍按当日生效事件）。
         最新事件缺 anchor 时，回退段内 ``qfq_diff`` 应急。
+        无生效事件时顶层保持原价，仍写入 ``raw``（与顶层一致）。
         """
+        self._snapshot_raw_prices(kline)
+
         event = info.get("event")
         if not event:
             return
@@ -1056,11 +1075,13 @@ class KlineService(BaseDataService):
         if factor_eff <= 0:
             factor_eff = 1.0
 
+        raw_prices = kline.get("raw") if isinstance(kline.get("raw"), dict) else {}
+
         ctx = global_qfq_context or {"use_global_offset": False, "global_offset": 0.0}
         if ctx.get("use_global_offset"):
             global_offset = float(ctx.get("global_offset") or 0.0)
             for field in _PRICE_FIELDS:
-                raw_value = kline.get(field)
+                raw_value = raw_prices.get(field, kline.get(field))
                 if raw_value is None:
                     kline[field] = None
                     continue
@@ -1091,7 +1112,7 @@ class KlineService(BaseDataService):
                 qfq_diff = 0.0
 
             for field in _PRICE_FIELDS:
-                raw_value = kline.get(field)
+                raw_value = raw_prices.get(field, kline.get(field))
                 if raw_value is None:
                     kline[field] = None
                     continue
@@ -1104,7 +1125,7 @@ class KlineService(BaseDataService):
             return
 
         for field in _PRICE_FIELDS:
-            raw_value = kline.get(field)
+            raw_value = raw_prices.get(field, kline.get(field))
             if raw_value is None:
                 kline[field] = None
                 continue

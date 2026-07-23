@@ -9,30 +9,30 @@ import time
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from core.modules.tag.engines.shared.worker_settings_keys import TAG_EXECUTOR_KEY
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.memory_monitor import (
+from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.runtime.memory_monitor import (
     collect_child_pids,
     job_tree_rss_mb,
 )
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.messages import (
+from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.runtime.messages import (
     SHUTDOWN,
     FinalizeDone,
     LaneError,
     SliceDone,
     SliceLoadRequest,
 )
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.payload_relay import (
+from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.runtime.payload_relay import (
     PayloadRelayThread,
 )
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.planner import (
+from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.runtime.planner import (
     build_runtime_plan,
 )
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.runtime_plan import (
+from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.runtime.runtime_plan import (
     CalendarSliceRuntimePlan,
 )
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.settings import (
+from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.runtime.settings import (
     CalendarSliceRuntimeSettings,
 )
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.slice_plan import (
+from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.slice_plan import (
     plan_calendar_slices,
 )
 from core.modules.tag.engines.sliced.runtime.compute_lane import (

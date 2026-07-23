@@ -10,13 +10,13 @@ schema = {
     "primaryKey": ["entity_id", "tag_definition_id", "as_of_date"],
     "fields": [
         {
-            "name": "entity_type",
+            "name": "attach_to_data_key",
             "type": "varchar",
-            "length": 32,
+            "length": 64,
             "isRequired": True,
             "nullable": True,
-            "default": "stock",
-            "description": "实体类型，默认 stock",
+            "default": "stock.kline.daily",
+            "description": "Tag attach 的数据源（DataKey，例如 stock.kline.daily）",
         },
         {
             "name": "entity_id",

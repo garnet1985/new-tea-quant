@@ -45,7 +45,6 @@ def build_parser() -> argparse.ArgumentParser:
     _p_scan(sub)
     _p_strategy_enumerate(sub)
     _p_strategy_price_factor(sub)
-    _p_strategy_capital_allocate(sub)
     _p_strategy_portfolio(sub)
     _p_strategy_simulate(sub)
     _p_strategy_analyse(sub)
@@ -95,22 +94,12 @@ def _p_strategy_price_factor(sub: argparse._SubParsersAction) -> None:
     _add_strategy_target(p)
 
 
-def _p_strategy_capital_allocate(sub: argparse._SubParsersAction) -> None:
-    p = _cmd(
-        sub,
-        "strategy_capital_allocate",
-        aliases=aliases_for("strategy_capital_allocate"),
-        help="资金分配模拟（与 so 相同；将用 strategy_portfolio / so 替代）",
-    )
-    _add_strategy_target(p)
-
-
 def _p_strategy_portfolio(sub: argparse._SubParsersAction) -> None:
     p = _cmd(
         sub,
         "strategy_portfolio",
         aliases=aliases_for("strategy_portfolio"),
-        help="组合模拟（portfolio）",
+        help="组合/资金回测（portfolio）",
     )
     _add_strategy_target(p)
 

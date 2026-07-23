@@ -6,7 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.types import (
+from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.types import (
     CalendarAsOfContext,
     CalendarAsOfResult,
 )

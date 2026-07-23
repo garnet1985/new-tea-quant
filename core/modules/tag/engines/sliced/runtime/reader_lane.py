@@ -9,7 +9,7 @@ import time
 from typing import Any, Dict, List
 
 from core.modules.tag.engines.shared.staging.batch_stage import stage_entities_batch
-from core.modules.strategy.engines.simulator.enumerator.calendar_sliced.runtime.messages import (
+from core.modules.strategy_legacy.engines.simulator.enumerator.calendar_sliced.runtime.messages import (
     SHUTDOWN,
     LaneError,
     SliceLoadRequest,

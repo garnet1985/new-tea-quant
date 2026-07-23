@@ -11,6 +11,7 @@ from core.infra.system_actions.shortcuts._shared import (
     ScaffoldResult,
     copy_template,
     enable_in_settings,
+    inject_meta_key_in_settings_file,
     resolve_dest,
 )
 from core.modules.strategy.services.discovery.path_rules import is_machine_readable_strategy_path
@@ -29,6 +30,7 @@ def scaffold_strategy(raw_path: str) -> ScaffoldResult:
     template = (root / STRATEGY_TEMPLATE_REL).resolve()
     copy_template(template=template, dest=dest)
     enable_in_settings(dest / "settings.py")
+    inject_meta_key_in_settings_file(dest / "settings.py", key)
     return ScaffoldResult(kind="strategy", key=key, dest=dest)
 
 

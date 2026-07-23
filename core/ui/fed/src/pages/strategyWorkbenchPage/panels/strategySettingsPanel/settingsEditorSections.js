@@ -55,6 +55,9 @@ export const SimulationSettingsEditor = React.memo(function SimulationSettingsEd
   context,
   schema,
   simulationTemplateProfiles = {},
+  errors,
+  onValidate,
+  onValidationChange,
 }) {
   const value = useMemo(
     () => resolveSimulationDisplayValue(simulation, simulationTemplateProfiles),
@@ -70,6 +73,9 @@ export const SimulationSettingsEditor = React.memo(function SimulationSettingsEd
       schema={schema}
       value={value}
       onChange={handleChange}
+      errors={errors}
+      onValidate={onValidate}
+      onValidationChange={onValidationChange}
       context={context}
     />
   );
@@ -80,9 +86,6 @@ export const SamplingSettingsEditor = React.memo(function SamplingSettingsEditor
   onSamplingChange,
   context,
   schema,
-  errors,
-  onValidate,
-  onValidationChange,
 }) {
   const value = useMemo(() => normalizeSamplingSettings(sampling), [sampling]);
   const handleChange = useCallback(
@@ -95,9 +98,6 @@ export const SamplingSettingsEditor = React.memo(function SamplingSettingsEditor
       schema={schema}
       value={value}
       onChange={handleChange}
-      errors={errors}
-      onValidate={onValidate}
-      onValidationChange={onValidationChange}
       context={context}
     />
   );

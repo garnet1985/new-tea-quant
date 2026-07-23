@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from core.modules.backtest_engine.core.shared.types import JobReport
-from core.modules.backtest_engine.core.slice_based.monitor import (
+from core.modules.backtest_engine.core.schedule.slice_based.monitor import (
     SliceMonitorConfig,
     SliceMonitorPlanSnapshot,
     SliceProgressSample,

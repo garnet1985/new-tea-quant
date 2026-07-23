@@ -374,6 +374,7 @@ class TestInvestmentLimitTradability(unittest.TestCase):
         )
         self.assertEqual(inv.lifecycle, Lifecycle.PENDING_TO_EXIT)
         self.assertFalse(bool(inv.exit_info.exit_date))
+        self.assertEqual(inv.pending_exit.kind, "fill_retry")
 
         # 次日收盘离开跌停 → 卖出
         self.assertFalse(
@@ -572,6 +573,82 @@ class TestInvestmentStStatusTagsLimit(unittest.TestCase):
         inv = _inv(opp, settings)
         self.assertNotIn(Opportunity.STATUS_AT_TRIGGER_KEY, inv.metadata)
         self.assertEqual(inv.status_tags_at_trigger(), ())
+
+
+class TestPendingExitKind(unittest.TestCase):
+    def test_next_open_exit_defers_then_fills_at_open(self) -> None:
+        settings = _settings(
+            simulation={
+                "enter_price": "close",
+                "exit_price": "next_open",
+            },
+            goal={
+                "stop_loss": {"stages": [{"ratio": -0.05, "close_invest": True}]},
+                "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
+            },
+        )
+        settings.raw_settings["goal"].pop("take_profit", None)
+        settings.apply_defaults()
+
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings)
+        inv.tick(_tick("20240102", o=10, h=11, l=9, c=10))
+        self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
+        inv.tick(_tick("20240103", o=10, h=10.5, l=9.8, c=10))
+        self.assertTrue(
+            inv.tick(_tick("20240104", o=9.8, h=9.9, l=9.0, c=9.2, pre_close=10.0))
+        )
+        self.assertEqual(inv.lifecycle, Lifecycle.PENDING_TO_EXIT)
+        assert inv.pending_exit is not None
+        self.assertEqual(inv.pending_exit.kind, "next_open_defer")
+        self.assertEqual(inv.pending_exit.armed_as_of, "20240104")
+        self.assertFalse(bool(inv.exit_info.exit_date))
+        self.assertFalse(
+            inv.tick(_tick("20240105", o=9.4, h=9.6, l=9.3, c=9.55, pre_close=9.2))
+        )
+        self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
+        self.assertEqual(inv.exit_info.exit_price, 9.4)
+
+    def test_next_open_defer_blocked_at_open_retries_open(self) -> None:
+        settings = _settings(
+            simulation={
+                "enter_price": "close",
+                "exit_price": "next_open",
+            },
+            goal={
+                "stop_loss": {"stages": [{"ratio": -0.05, "close_invest": True}]},
+                "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
+            },
+        )
+        settings.raw_settings["goal"].pop("take_profit", None)
+        settings.apply_defaults()
+
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings)
+        inv.tick(_tick("20240102", o=10, h=11, l=9, c=10))
+        inv.tick(_tick("20240103", o=10, h=10.5, l=9.8, c=10))
+        inv.tick(_tick("20240104", o=9.8, h=9.9, l=9.0, c=9.2, pre_close=10.0))
+        assert inv.pending_exit is not None
+        self.assertEqual(inv.pending_exit.kind, "next_open_defer")
+        self.assertTrue(
+            inv.tick(_tick("20240105", o=8.28, h=8.5, l=8.2, c=8.4, pre_close=9.2))
+        )
+        self.assertEqual(inv.lifecycle, Lifecycle.PENDING_TO_EXIT)
+        self.assertEqual(inv.pending_exit.kind, "next_open_defer")
+        self.assertFalse(
+            inv.tick(_tick("20240108", o=8.5, h=8.7, l=8.4, c=8.6, pre_close=8.4))
+        )
+        self.assertEqual(inv.exit_info.exit_price, 8.5)
 
 
 class _TagProvider:

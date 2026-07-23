@@ -13,19 +13,20 @@ Three kinds of runtime data
 Returns ``True`` while the tracker should keep this investment in the active bucket;
 ``False`` when it is ``COMPLETE`` (ready to leave the active bucket).
 
-Lifecycle (MVP — see TODOs on ``Investment``)
-----------------------------------------------
-- ``PENDING_TO_ENTER``: default; waiting for ``enter_price`` fill (e.g. next open).
-- ``OPEN``: entered; normal tracking.
-- ``PENDING_TO_EXIT``: ``pending_exit`` armed; fill deferred (next_open) or retry (future).
+Lifecycle
+---------
+- ``PENDING_TO_ENTER``: waiting for ``enter_price`` fill (e.g. next open).
+- ``OPEN``: entered; normal tracking (含部分平仓后 ``remaining_ratio > 0``).
+- ``PENDING_TO_EXIT``: ``pending_exit`` armed；见 ``PendingExit.kind``：
+  - ``next_open_defer``：计划延期到次日 open 成交
+  - ``fill_retry``：本 tick 因贴板等未能成交，后续 tick 按原 ``exit_price`` 重试
 - ``COMPLETE``: done (including ``settle`` force-close).
 
-TODO(investment lifecycle — not yet implemented)
-------------------------------------------------
+TODO(investment lifecycle — deferred)
+-------------------------------------
 - Suspended / non-trading day gates beyond limit-up/down fill blocks.
-- Full ``enter_price`` / ``exit_price`` matrix beyond next_open | open | close.
-- Distinguish scheduled ``next_open`` defer vs failed-fill retry in ``PENDING_TO_EXIT``.
-- Non-trading / missing bar days (simulator currently skips).
+- Non-trading / missing bar days (simulator currently skips entity that day).
+- Optional: ``enter_price`` / ``exit_price`` beyond next_open | open | close (legacy 亦仅此三者).
 """
 
 from __future__ import annotations
@@ -71,6 +72,13 @@ class Lifecycle(str, Enum):
     PENDING_TO_ENTER = "pending_to_enter"  # default; awaiting entry fill
     PENDING_TO_EXIT = "pending_to_exit"  # exit armed; awaiting fill / retry
     COMPLETE = "complete"  # archived; includes simulate-end force close
+
+
+class PendingExitKind(str, Enum):
+    """``PENDING_TO_EXIT`` 挂起原因（决定后续用什么价、何时可成交）。"""
+
+    NEXT_OPEN_DEFER = "next_open_defer"  # 计划：次日 open 成交
+    FILL_RETRY = "fill_retry"  # 失败重试：按原 exit_price 继续试
 
 
 class ExitReason(str, Enum):
@@ -303,6 +311,10 @@ class PendingExit:
     goal_name: str = ""
     # 退市等场景可指定成交用 bar（如 last_tradable_close → 上一根 tick）
     fill_bar: Optional[Dict[str, Any]] = None
+    # next_open_defer | fill_retry（见 PendingExitKind）
+    kind: str = ""
+    # next_open_defer：触发日；须 as_of > armed_as_of 才允许用 open 成交
+    armed_as_of: str = ""
 
 
 @dataclass
@@ -574,6 +586,9 @@ class Investment(Opportunity):
             if not need_exit:
                 break
             if self._should_defer_exit(as_of, bar):
+                self._mark_pending_exit_kind(
+                    PendingExitKind.NEXT_OPEN_DEFER, armed_as_of=as_of
+                )
                 self.lifecycle = Lifecycle.PENDING_TO_EXIT
                 return True
             skip_tradability = self._exit_skips_tradability()
@@ -589,9 +604,25 @@ class Investment(Opportunity):
                 self.lifecycle = Lifecycle.OPEN
                 need_exit = False
                 continue
+            self._mark_pending_exit_kind(PendingExitKind.FILL_RETRY, armed_as_of=as_of)
             self.lifecycle = Lifecycle.PENDING_TO_EXIT
             return True
         return True
+
+    def _mark_pending_exit_kind(
+        self,
+        kind: PendingExitKind,
+        *,
+        armed_as_of: str = "",
+    ) -> None:
+        pending = self.pending_exit
+        if pending is None:
+            return
+        pending.kind = kind.value
+        if kind == PendingExitKind.NEXT_OPEN_DEFER:
+            pending.armed_as_of = str(armed_as_of or "").strip()
+        elif not pending.armed_as_of and armed_as_of:
+            pending.armed_as_of = str(armed_as_of).strip()
 
     def _exit_skips_tradability(self) -> bool:
         """退市定价用 ``fill_bar`` 时不做贴板拦截（强平须成交）。"""
@@ -858,8 +889,19 @@ class Investment(Opportunity):
     def _should_defer_exit(self, as_of: str, bar: Dict[str, Any]) -> bool:
         """True when ``exit_price`` requires a later tick to fill (MVP: ``next_open`` only)."""
         _ = (as_of, bar)
+        pending = self.pending_exit
+        # 已是贴板重试：不再按 next_open 延期逻辑处理
+        if pending is not None and str(pending.kind or "") == PendingExitKind.FILL_RETRY.value:
+            return False
         model = str(self.run_deps.exit_price or "close").strip().lower()
         return model == "next_open"
+
+    def _pending_exit_fill_model(self) -> str:
+        """PENDING_TO_EXIT 成交价模型：next_open_defer → open；否则用配置的 exit_price。"""
+        pending = self.pending_exit
+        if pending is not None and str(pending.kind or "") == PendingExitKind.NEXT_OPEN_DEFER.value:
+            return "open"
+        return str(self.run_deps.exit_price or "close").strip().lower() or "close"
 
     def _is_able_to_enter(self, as_of: str, bar: Dict[str, Any]) -> bool:
         """Whether this tick can fill entry per ``enter_price`` (no mutation)."""
@@ -1057,13 +1099,26 @@ class Investment(Opportunity):
         check_tradability: bool = True,
     ) -> Optional[float]:
         """Exit fill price for this tick, or ``None`` if not ready / blocked."""
-        _ = as_of
         if self.pending_exit is None:
             return None
         if self.lifecycle not in (Lifecycle.OPEN, Lifecycle.PENDING_TO_EXIT):
             return None
 
-        model = str(price_model or self.run_deps.exit_price or "close").strip().lower()
+        pending = self.pending_exit
+        kind = str(pending.kind or "").strip().lower()
+        if kind == PendingExitKind.NEXT_OPEN_DEFER.value:
+            armed = str(pending.armed_as_of or "").strip()
+            day = str(as_of or "").strip()
+            if armed and day and day <= armed:
+                return None
+
+        if price_model is not None:
+            model = str(price_model).strip().lower()
+        elif self.lifecycle == Lifecycle.PENDING_TO_EXIT:
+            model = self._pending_exit_fill_model()
+        else:
+            model = str(self.run_deps.exit_price or "close").strip().lower()
+
         exit_price = BarPrices.for_model(bar, model, use_raw=use_raw)
         if exit_price <= 0:
             return None
@@ -1353,5 +1408,6 @@ __all__ = [
     "GoalOutcome",
     "Lifecycle",
     "PendingExit",
+    "PendingExitKind",
     "TradeSide",
 ]

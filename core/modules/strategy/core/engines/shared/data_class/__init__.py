@@ -8,6 +8,7 @@ from .investment import (
     InvestmentTickInput,
     InvestmentResult,
     Lifecycle,
+    PendingExitKind,
     TradeSide,
 )
 from .opportunity import Opportunity, OpportunityContributor, OpportunityMeta, StockInfo
@@ -23,6 +24,7 @@ __all__ = [
     "Opportunity",
     "OpportunityContributor",
     "OpportunityMeta",
+    "PendingExitKind",
     "StockInfo",
     "TradeSide",
 ]

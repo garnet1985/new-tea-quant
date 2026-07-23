@@ -99,11 +99,24 @@ def _slice_settings() -> Dict[str, Any]:
             "min_required_records": 1,
         },
         "simulation": {
-            "template": "custom",
-            "execution_mode": "slice_based",
-            "monitor_price_model": "close",
-            "buy_price_model": "close",
-            "sell_price_model": "close",
+            "execution": {
+                "mode": "slice_based",
+                "steps": [
+                    "check_settlement",
+                    "check_stop_loss",
+                    "check_take_profit",
+                    "check_expiration",
+                ],
+            },
+            "assumption": {
+                "template": "custom",
+                "tradability": {
+                    "monitor_price": "close",
+                    "enter_price": "close",
+                    "exit_price": "close",
+                },
+            },
+            "risk_control": {},
         },
         "goal": {"is_customized": True},
     }

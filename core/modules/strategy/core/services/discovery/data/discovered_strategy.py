@@ -65,10 +65,23 @@ class StrategyDraft:
             if "is_enabled" not in settings_dict:
                 self._validation_errors.append("settings.py缺少is_enabled字段")
 
-            # 验证execution_mode
-            execution_mode = settings_dict.get("simulation", {}).get("execution_mode", None)
-            if execution_mode not in ["entity_based", "slice_based"]:
-                self._validation_errors.append("settings.py中simulation.execution_mode必须是entity_based或slice_based")
+            # 验证 simulation.execution.mode
+            simulation = settings_dict.get("simulation")
+            if not isinstance(simulation, dict):
+                self._validation_errors.append("settings.py缺少simulation或simulation不是dict")
+            else:
+                execution = simulation.get("execution")
+                if not isinstance(execution, dict):
+                    self._validation_errors.append(
+                        "settings.py中simulation.execution必须是dict"
+                    )
+                else:
+                    execution_mode = execution.get("mode")
+                    if execution_mode not in ["entity_based", "slice_based"]:
+                        self._validation_errors.append(
+                            "settings.py中simulation.execution.mode必须是"
+                            "entity_based或slice_based"
+                        )
 
         except Exception as exc:
             self._validation_errors.append(f"无法加载settings.py: {exc}")
@@ -153,8 +166,19 @@ class EnabledStrategyInfo(StrategyInfo):
     """
 
     def get_execution_mode(self) -> str:
-        """execution_mode 是已经验证过的，所以这里直接返回。"""
-        return self.settings["simulation"]["execution_mode"]
+        """``simulation.execution.mode``（发现阶段已校验）。"""
+        simulation = self.settings.get("simulation")
+        if not isinstance(simulation, dict):
+            raise ValueError("settings.simulation 须为 dict")
+        execution = simulation.get("execution")
+        if not isinstance(execution, dict):
+            raise ValueError("settings.simulation.execution 须为 dict")
+        mode = str(execution.get("mode") or "").strip()
+        if mode not in ("entity_based", "slice_based"):
+            raise ValueError(
+                f"settings.simulation.execution.mode 非法: {mode!r}"
+            )
+        return mode
 
 
 __all__ = ["StrategyDraft", "StrategyInfo", "EnabledStrategyInfo"]

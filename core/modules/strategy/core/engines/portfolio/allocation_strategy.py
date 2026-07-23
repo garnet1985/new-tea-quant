@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Optional, Tuple
 
 from core.modules.market_profile.core.base.market_base_rules import MarketBaseRules
 from core.modules.strategy.core.engines.portfolio.data_class.account import Account
@@ -11,6 +11,9 @@ from core.modules.strategy.core.engines.portfolio.fee_calculator import FeeCalcu
 from core.modules.strategy.core.engines.shared.services.strategy_settings.portfolio_settings import (
     AllocationConfig,
     PortfolioSettings,
+)
+from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings import (
+    LiquidityConfig,
 )
 
 
@@ -26,6 +29,7 @@ class AllocationStrategy:
     skip_trade_when_insufficient: bool
     market_rules: MarketBaseRules
     fee_calculator: FeeCalculator
+    liquidity: LiquidityConfig = field(default_factory=LiquidityConfig)
 
     @classmethod
     def create(
@@ -34,6 +38,7 @@ class AllocationStrategy:
         portfolio: PortfolioSettings,
         market_rules: MarketBaseRules,
         fee_calculator: Optional[FeeCalculator] = None,
+        liquidity: Optional[LiquidityConfig] = None,
     ) -> "AllocationStrategy":
         alloc: AllocationConfig = portfolio.allocation
         mode = str(alloc.mode or "equal_capital").strip().lower()
@@ -50,6 +55,7 @@ class AllocationStrategy:
             skip_trade_when_insufficient=bool(alloc.skip_trade_when_insufficient),
             market_rules=market_rules,
             fee_calculator=fee_calculator or FeeCalculator(),
+            liquidity=liquidity or LiquidityConfig(),
         )
 
     @property
@@ -79,6 +85,21 @@ class AllocationStrategy:
     def floor_shares(self, shares: int, entity_id: str) -> int:
         return int(
             self.market_rules.floor_quantity_for_stock(max(int(shares), 0), entity_id)
+        )
+
+    def apply_participation(
+        self,
+        planned_shares: int,
+        *,
+        bar_volume: Optional[float],
+        entity_id: str,
+    ) -> Tuple[int, Optional[str]]:
+        """按 ``simulation.liquidity`` 约束股数；返回 ``(shares, tag)``。"""
+        return self.liquidity.apply_to_shares(
+            planned_shares,
+            tick_volume=bar_volume,
+            floor_shares_fn=self.floor_shares,
+            entity_id=entity_id,
         )
 
     def min_buy_shares(self, entity_id: str) -> int:

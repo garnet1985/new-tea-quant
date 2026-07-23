@@ -538,15 +538,19 @@ class SliceTimelineHooks:
 
     @staticmethod
     def _assert_entry_price_model(settings: Dict[str, Any]) -> None:
-        simulation = settings.get("simulation")
-        if not isinstance(simulation, dict):
+        from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
+            StrategySettings,
+        )
+
+        if not isinstance(settings.get("simulation"), dict):
             return
-        model = simulation.get("buy_price_model")
-        if model is None:
-            return
-        if model != "close":
+        sim = StrategySettings.from_dict(dict(settings)).simulation
+        sim.apply_defaults()
+        model = str(sim.enter_price or "").strip().lower()
+        if model and model != "close":
             raise ValueError(
-                f"slice_based 当前仅支持 simulation.buy_price_model='close'，实际: {model!r}"
+                f"slice_based 当前仅支持 simulation.assumption.tradability.enter_price"
+                f"='close'，实际: {model!r}"
             )
 
 

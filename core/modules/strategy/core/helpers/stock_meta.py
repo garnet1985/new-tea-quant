@@ -21,6 +21,7 @@ class StockMetaHelper:
             "industry": "",
             "type": "",
             "exchange_center": "",
+            "delist_date": "",
         }
         try:
             row = DataManager().stock.list.load_meta(stock_id)

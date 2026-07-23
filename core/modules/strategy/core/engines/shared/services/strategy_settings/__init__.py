@@ -18,9 +18,19 @@ from .sampling_settings import SamplingSettings
 from .goal_settings import ExpirationConfig, GoalSettings, GoalStage
 from .fees_settings import FeesSettings
 from .simulation_settings import (
-    SimulationEdgesConfig,
+    AssumptionSettings,
+    AssumptionTemplate,
+    EdgesConfig,
+    ExecutionSettings,
+    ForceExitDecision,
+    ForceExitRule,
+    ForceExitWhenPolicy,
+    LiquidityConfig,
+    RiskControl,
     SimulationSettings,
-    SkipInvestmentWhen,
+    SlippageConfig,
+    StatusTagPolicy,
+    TradabilityConfig,
 )
 from .portfolio_settings import AllocationConfig, OutputConfig, PortfolioSettings
 from .scanner_settings import ScannerSettings
@@ -36,9 +46,19 @@ __all__ = [
     "GoalStage",
     "ExpirationConfig",
     "FeesSettings",
-    "SimulationEdgesConfig",
+    "AssumptionSettings",
+    "AssumptionTemplate",
+    "EdgesConfig",
+    "ExecutionSettings",
+    "ForceExitDecision",
+    "ForceExitRule",
+    "ForceExitWhenPolicy",
+    "LiquidityConfig",
+    "RiskControl",
     "SimulationSettings",
-    "SkipInvestmentWhen",
+    "SlippageConfig",
+    "StatusTagPolicy",
+    "TradabilityConfig",
     "AllocationConfig",
     "OutputConfig",
     "PortfolioSettings",

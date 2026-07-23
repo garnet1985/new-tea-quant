@@ -23,6 +23,7 @@ class StockInfo:
     industry: str = ""
     type: str = ""
     exchange_center: str = ""
+    delist_date: str = ""
 
     @classmethod
     def from_dict(cls, raw: Any) -> "StockInfo":
@@ -33,6 +34,7 @@ class StockInfo:
             industry=str(data.get("industry") or ""),
             type=str(data.get("type") or ""),
             exchange_center=str(data.get("exchange_center") or ""),
+            delist_date=str(data.get("delist_date") or data.get("delisted_date") or ""),
         )
 
     def to_dict(self) -> Dict[str, Any]:

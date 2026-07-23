@@ -1,4 +1,4 @@
-"""simulation.skip_investment_when — settings + price/portfolio 跳过。"""
+"""simulation.risk_control.skip_enter_when — settings + price/portfolio 跳过。"""
 
 from __future__ import annotations
 
@@ -18,62 +18,66 @@ from core.modules.strategy.core.engines.portfolio.pipeline import PortfolioPipel
 from core.modules.strategy.core.engines.price_factor.enum_data import EnumVersionData
 from core.modules.strategy.core.engines.price_factor.executor import JobExecutor
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
+    RiskControl,
+    StatusTagPolicy,
     StrategySettings,
 )
 from core.modules.strategy.core.engines.shared.services.strategy_settings.portfolio_settings import (
     PortfolioSettings,
 )
-from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings import (
-    SkipInvestmentWhen,
-)
 
 
-def _base_simulation(**overrides):
-    sim = {
-        "execute_steps": [
-            "check_settlement",
-            "check_stop_loss",
-            "check_take_profit",
-            "check_expiration",
-        ],
+def _base_simulation(**risk_overrides):
+    return {
+        "simulation": {
+            "execution": {
+                "mode": "entity_based",
+                "steps": [
+                    "check_settlement",
+                    "check_stop_loss",
+                    "check_take_profit",
+                    "check_expiration",
+                ],
+            },
+            "assumption": {"template": "none"},
+            "risk_control": dict(risk_overrides),
+        }
     }
-    sim.update(overrides)
-    return {"simulation": sim}
 
 
-def test_skip_investment_when_defaults_empty() -> None:
+def test_skip_enter_when_defaults_empty() -> None:
     settings = StrategySettings.from_dict(_base_simulation())
     settings.apply_defaults()
-    assert settings.simulation.skip_investment_when.tags == ()
-    assert settings.simulation.to_dict()["skip_investment_when"] == []
+    assert settings.simulation.risk_control.skip_enter_when.tags == ()
+    assert settings.simulation.to_dict()["risk_control"]["skip_enter_when"] == []
 
 
-def test_skip_investment_when_parses_and_validates() -> None:
+def test_skip_enter_when_parses_and_validates() -> None:
     settings = StrategySettings.from_dict(
-        _base_simulation(skip_investment_when=["st", "star_st", "st"])
+        _base_simulation(skip_enter_when=["st", "star_st", "st"])
     )
     report = settings.validate()
     assert report.is_valid
-    assert settings.simulation.skip_investment_when.tags == ("st", "star_st")
+    assert settings.simulation.risk_control.skip_enter_when.tags == ("st", "star_st")
 
 
-def test_skip_investment_when_rejects_unknown_tag() -> None:
+def test_skip_enter_when_rejects_unknown_tag() -> None:
     settings = StrategySettings.from_dict(
-        _base_simulation(skip_investment_when=["st", "delisted"])
+        _base_simulation(skip_enter_when=["st", "delisted"])
     )
     report = settings.validate()
     assert not report.is_valid
     assert any(
-        "skip_investment_when" in (e.get("field_path") or "") for e in report.errors
+        "skip_enter_when" in (e.get("field_path") or "") for e in report.errors
     )
 
 
 def test_match_reason() -> None:
-    policy = SkipInvestmentWhen.from_raw(["star_st"])
+    policy = StatusTagPolicy.from_raw(["star_st"])
     assert policy.match_reason(["st"]) is None
     assert policy.match_reason(["star_st"]) == "stock_status:star_st"
     assert policy.match_reason(["st", "star_st"]) == "stock_status:star_st"
-    assert SkipInvestmentWhen(()).match_reason(["st"]) is None
+    assert StatusTagPolicy(()).match_reason(["st"]) is None
 
 
 def _inv_row(**kwargs) -> InvestmentRow:
@@ -109,7 +113,7 @@ def test_price_replay_skips_matching_status() -> None:
     ]
     out = JobExecutor._replay_entity_investments(
         rows,
-        skip_investment_when=SkipInvestmentWhen.from_raw(["st"]),
+        risk=RiskControl.with_skip_enter(["st"]),
     )
     assert [r.opportunity_id for r in out] == ["2"]
 
@@ -149,7 +153,7 @@ def test_portfolio_build_events_skips_matching_status(tmp_path: Path) -> None:
     events, opps = PortfolioPipeline.build_events(
         data,
         settings=portfolio,
-        skip_investment_when=SkipInvestmentWhen.from_raw(["st"]),
+        risk=RiskControl.with_skip_enter(["st"]),
     )
     assert sorted(opps.keys()) == ["2", "3"]
     assert {e.investment_id for e in events if e.is_buy()} == {"2", "3"}

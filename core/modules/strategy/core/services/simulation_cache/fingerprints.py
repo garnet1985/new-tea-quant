@@ -145,8 +145,14 @@ class FingerprintCalculator:
         try:
             execution_mode = settings_obj.execution_mode
         except Exception:
+            simulation = settings_obj.raw_settings.get("simulation") or {}
+            execution = (
+                simulation.get("execution")
+                if isinstance(simulation, dict)
+                else {}
+            )
             execution_mode = str(
-                (settings_obj.raw_settings.get("simulation") or {}).get("execution_mode")
+                (execution.get("mode") if isinstance(execution, dict) else "")
                 or ""
             )
 

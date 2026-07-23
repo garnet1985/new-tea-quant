@@ -1,4 +1,4 @@
-"""SimulationSettings：start/end date 校验。"""
+"""SimulationSettings：execution.start/end date 校验。"""
 from __future__ import annotations
 
 import pytest
@@ -10,14 +10,22 @@ pytestmark = pytest.mark.force_run
 
 def _base_simulation(**overrides):
     sim = {
-        "execution_mode": "entity_based",
-        "execute_steps": [
-            "check_settlement",
-            "check_stop_loss",
-            "check_take_profit",
-            "check_expiration",
-        ],
+        "execution": {
+            "mode": "entity_based",
+            "steps": [
+                "check_settlement",
+                "check_stop_loss",
+                "check_take_profit",
+                "check_expiration",
+            ],
+        },
+        "assumption": {"template": "none"},
+        "risk_control": {},
     }
+    execution = sim["execution"]
+    for key in ("start_date", "end_date", "mode", "steps"):
+        if key in overrides:
+            execution[key] = overrides.pop(key)
     sim.update(overrides)
     return {"simulation": sim}
 
@@ -31,7 +39,7 @@ def test_simulation_period_valid() -> None:
     assert settings.is_valid()
     assert settings.simulation.start_date == "20240101"
     assert settings.simulation.end_date == "20240630"
-    assert settings.start_date == "20240101"  # thin alias
+    assert settings.start_date == "20240101"
     assert settings.end_date == "20240630"
 
 

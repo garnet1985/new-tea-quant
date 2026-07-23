@@ -157,6 +157,8 @@ class InvestmentRow:
     sell_prev_close: Optional[float] = None
     sell_at_limit_down: Optional[bool] = None
     stock_status_at_trigger: Tuple[str, ...] = ()
+    buy_bar_volume: Optional[float] = None
+    sell_bar_volume: Optional[float] = None
 
     @classmethod
     def from_payload(cls, raw: Dict[str, Any]) -> "InvestmentRow":
@@ -200,6 +202,10 @@ class InvestmentRow:
                 exit_info.get("sell_at_limit_down")
             ),
             stock_status_at_trigger=status_tags,
+            buy_bar_volume=_RowCoerce.as_optional_float(entry.get("buy_bar_volume")),
+            sell_bar_volume=_RowCoerce.as_optional_float(
+                exit_info.get("sell_bar_volume")
+            ),
         )
 
     def to_csv_row(self) -> Dict[str, Any]:
@@ -225,6 +231,10 @@ class InvestmentRow:
             "sell_at_limit_down": _RowCoerce.optional_bool_to_csv(self.sell_at_limit_down),
             "stock_status_at_trigger": _RowCoerce.status_tags_to_csv(
                 self.stock_status_at_trigger
+            ),
+            "buy_bar_volume": "" if self.buy_bar_volume is None else self.buy_bar_volume,
+            "sell_bar_volume": (
+                "" if self.sell_bar_volume is None else self.sell_bar_volume
             ),
         }
 
@@ -254,6 +264,8 @@ class InvestmentRow:
             stock_status_at_trigger=_RowCoerce.status_tags_from_raw(
                 data.get("stock_status_at_trigger")
             ),
+            buy_bar_volume=_RowCoerce.as_optional_float(data.get("buy_bar_volume")),
+            sell_bar_volume=_RowCoerce.as_optional_float(data.get("sell_bar_volume")),
         )
 
     def to_opportunity(self, entity_id: str) -> "Opportunity":
@@ -390,6 +402,8 @@ class StockInvestments:
         "sell_prev_close",
         "sell_at_limit_down",
         "stock_status_at_trigger",
+        "buy_bar_volume",
+        "sell_bar_volume",
     )
 
     entity_id: str

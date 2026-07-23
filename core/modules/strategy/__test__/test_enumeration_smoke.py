@@ -140,7 +140,7 @@ class TestDevtoolsDiscoverySmoke(unittest.TestCase):
         info = discovered[_DEVTOOLS_SLICE_BASED]
         self.assertEqual(info["worker_class_name"], "LowPricePitRebalanceHooks")
         settings = info["settings"]
-        self.assertEqual(settings["simulation"]["execution_mode"], "slice_based")
+        self.assertEqual(settings["simulation"]["execution"]["mode"], "slice_based")
 
     def test_discover_userspace_random_v1_contracts_hooks(self) -> None:
         """userspace 参考 demo：contracts + DataContext。"""
@@ -154,7 +154,7 @@ class TestDevtoolsDiscoverySmoke(unittest.TestCase):
         info = discovered[_USERSPACE_RANDOM_V1]
         self.assertEqual(info["worker_class_name"], "RandomNullBaselineStrategy")
         settings = info["settings"]
-        self.assertEqual(settings["simulation"]["execution_mode"], "entity_based")
+        self.assertEqual(settings["simulation"]["execution"]["mode"], "entity_based")
         self.assertEqual(settings["data"]["base"]["data_key"], "stock.kline.daily")
 
     def test_discover_userspace_rsi_v1_contracts_hooks(self) -> None:
@@ -169,7 +169,7 @@ class TestDevtoolsDiscoverySmoke(unittest.TestCase):
         info = discovered[_USERSPACE_RSI_V1]
         self.assertEqual(info["worker_class_name"], "ExampleStrategy")
         settings = info["settings"]
-        self.assertEqual(settings["simulation"]["execution_mode"], "entity_based")
+        self.assertEqual(settings["simulation"]["execution"]["mode"], "entity_based")
         self.assertIn("rsi", settings["data"]["base"]["indicators"])
 
     def test_discover_userspace_low_price_v2_slice_based(self) -> None:
@@ -184,7 +184,7 @@ class TestDevtoolsDiscoverySmoke(unittest.TestCase):
         info = discovered[_USERSPACE_LOW_PRICE_V2]
         self.assertEqual(info["worker_class_name"], "LowPricePitRebalanceStrategy")
         settings = info["settings"]
-        self.assertEqual(settings["simulation"]["execution_mode"], "slice_based")
+        self.assertEqual(settings["simulation"]["execution"]["mode"], "slice_based")
         self.assertEqual(settings["data"]["base"]["data_key"], "stock.kline.daily")
 
 

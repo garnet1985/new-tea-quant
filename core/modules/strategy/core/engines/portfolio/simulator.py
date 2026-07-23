@@ -39,6 +39,10 @@ class PortfolioSimResult:
     skipped_sells: int = 0
     completed_count: int = 0
     win_count: int = 0
+    buy_participation_skip: int = 0
+    buy_participation_clipped: int = 0
+    sell_participation_skip: int = 0
+    sell_participation_clipped: int = 0
 
     @property
     def success(self) -> bool:
@@ -131,6 +135,24 @@ class PortfolioSimulator:
             result.skipped_buys += 1
             return
 
+        shares, part_tag = self.allocation.apply_participation(
+            shares,
+            bar_volume=event.bar_volume,
+            entity_id=entity_id,
+        )
+        if part_tag in (
+            self.allocation.liquidity.TAG_SKIP,
+            self.allocation.liquidity.TAG_CLIP_ZERO,
+        ):
+            result.buy_participation_skip += 1
+            result.skipped_buys += 1
+            return
+        if part_tag == self.allocation.liquidity.TAG_CLIPPED:
+            result.buy_participation_clipped += 1
+        if shares <= 0:
+            result.skipped_buys += 1
+            return
+
         fees = self.fee_calculator.calculate_fees(shares * price, "buy")
         trade = Trade.make_buy(
             date=event.date,
@@ -184,6 +206,24 @@ class PortfolioSimulator:
 
         sell_price = float(event.price or 0.0)
         shares = int(position.shares)
+        shares, part_tag = self.allocation.apply_participation(
+            shares,
+            bar_volume=event.bar_volume,
+            entity_id=entity_id,
+        )
+        if part_tag in (
+            self.allocation.liquidity.TAG_SKIP,
+            self.allocation.liquidity.TAG_CLIP_ZERO,
+        ):
+            result.sell_participation_skip += 1
+            result.skipped_sells += 1
+            return
+        if part_tag == self.allocation.liquidity.TAG_CLIPPED:
+            result.sell_participation_clipped += 1
+        if shares <= 0:
+            result.skipped_sells += 1
+            return
+
         fees = self.fee_calculator.calculate_fees(shares * sell_price, "sell")
         trade = Trade.make_sell(
             date=event.date,
@@ -197,16 +237,20 @@ class PortfolioSimulator:
         net = float(trade.net_proceeds if trade.net_proceeds is not None else trade.amount - fees)
         account.cash += net
         position.realized_profit += float(trade.profit or 0.0)
-        position.shares = 0
-        position.current_investment_id = None
-        open_lots.pop(inv_id, None)
+        position.shares = max(0, int(position.shares) - shares)
+        if position.shares <= 0:
+            position.current_investment_id = None
+            open_lots.pop(inv_id, None)
+            result.completed_count += 1
+            if float(trade.profit or 0.0) > 0:
+                result.win_count += 1
+        else:
+            # 参与率砍量后仍有剩余仓位：更新 open lot，等后续卖出事件（若有）
+            lot.shares = int(position.shares)
 
         trade.cash_after = account.cash
         trade.equity_after = account.equity({entity_id: sell_price})
         result.trades.append(trade)
-        result.completed_count += 1
-        if float(trade.profit or 0.0) > 0:
-            result.win_count += 1
 
     def _win_rate(self, result: PortfolioSimResult) -> float:
         if result.completed_count <= 0:

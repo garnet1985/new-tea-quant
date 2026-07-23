@@ -62,18 +62,27 @@ def _tick(
 def _settings(**overrides) -> StrategySettings:
     raw: dict = {
         "simulation": {
-            "buy_price_model": "next_open",
-            "sell_price_model": "close",
-            "execute_steps": [
-                "check_settlement",
-                "check_stop_loss",
-                "check_take_profit",
-                "check_expiration",
-            ],
-            "edges": {
-                "allow_buy_at_limit_up": False,
-                "allow_sell_at_limit_down": False,
+            "execution": {
+                "mode": "entity_based",
+                "steps": [
+                    "check_settlement",
+                    "check_stop_loss",
+                    "check_take_profit",
+                    "check_expiration",
+                ],
             },
+            "assumption": {
+                "template": "none",
+                "tradability": {
+                    "enter_price": "next_open",
+                    "exit_price": "close",
+                    "edges": {
+                        "allow_enter_at_limit_up": False,
+                        "allow_exit_at_limit_down": False,
+                    },
+                },
+            },
+            "risk_control": {},
         },
         "goal": {
             "stop_loss": {"stages": [{"ratio": -0.2, "close_invest": True}]},
@@ -82,14 +91,27 @@ def _settings(**overrides) -> StrategySettings:
         },
     }
     for key, value in overrides.items():
-        if key in ("simulation", "goal") and isinstance(value, dict):
-            block = raw.setdefault(key, {})
+        if key == "simulation" and isinstance(value, dict):
+            sim = raw.setdefault("simulation", {})
             for nested_key, nested_value in value.items():
                 if nested_key == "edges" and isinstance(nested_value, dict):
-                    edges = block.setdefault("edges", {})
+                    tradability = (
+                        sim.setdefault("assumption", {})
+                        .setdefault("tradability", {})
+                    )
+                    edges = tradability.setdefault("edges", {})
                     edges.update(nested_value)
+                elif nested_key in {"enter_price", "exit_price", "monitor_price"}:
+                    tradability = (
+                        sim.setdefault("assumption", {})
+                        .setdefault("tradability", {})
+                    )
+                    tradability[nested_key] = nested_value
                 else:
-                    block[nested_key] = nested_value
+                    sim[nested_key] = nested_value
+        elif key == "goal" and isinstance(value, dict):
+            block = raw.setdefault("goal", {})
+            block.update(value)
         else:
             raw[key] = value
     settings = StrategySettings(raw_settings=raw)
@@ -310,12 +332,12 @@ class TestInvestmentLimitTradability(unittest.TestCase):
         self.assertEqual(inv.entry.entry_date, "20240104")
         self.assertEqual(inv.entry.entry_price, 10.5)
 
-    def test_allow_buy_at_limit_up_fills(self) -> None:
+    def test_allow_enter_at_limit_up_fills(self) -> None:
         settings = _settings(
             simulation={
                 "edges": {
-                    "allow_buy_at_limit_up": True,
-                    "allow_sell_at_limit_down": False,
+                    "allow_enter_at_limit_up": True,
+                    "allow_exit_at_limit_down": False,
                 }
             }
         )
@@ -380,8 +402,8 @@ class TestInvestmentLimitTradability(unittest.TestCase):
         settings = _settings(
             simulation={
                 "edges": {
-                    "allow_buy_at_limit_up": True,
-                    "allow_sell_at_limit_down": True,
+                    "allow_enter_at_limit_up": True,
+                    "allow_exit_at_limit_down": True,
                 }
             },
             goal={"stop_loss": {"stages": [{"ratio": -0.05, "close_invest": True}]}},
@@ -550,6 +572,159 @@ class TestInvestmentStStatusTagsLimit(unittest.TestCase):
         inv = _inv(opp, settings)
         self.assertNotIn(Opportunity.STATUS_AT_TRIGGER_KEY, inv.metadata)
         self.assertEqual(inv.status_tags_at_trigger(), ())
+
+
+class _TagProvider:
+    def __init__(self, mapping):
+        self.mapping = mapping
+
+    def status_tags_at(self, entity_id: str, trade_date: str):
+        return list(self.mapping.get((entity_id, trade_date), ()))
+
+
+class TestInvestmentForceExit(unittest.TestCase):
+    def test_force_exit_on_st_tag(self) -> None:
+        settings = _settings(
+            simulation={
+                "risk_control": {"force_exit_when": ["st"]},
+                "enter_price": "close",
+                "exit_price": "close",
+            },
+            goal={
+                "stop_loss": None,
+                "take_profit": None,
+                "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
+            },
+        )
+        # goal None override may not work via _settings — clear stages after
+        settings.raw_settings["goal"] = {
+            "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
+        }
+        settings.apply_defaults()
+
+        provider = _TagProvider({("600000.SH", "20240104"): ("st",)})
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings, status_tags_provider=provider)
+
+        self.assertTrue(inv.tick(_tick("20240102", o=10, h=11, l=9, c=10)))
+        self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
+        # T+1 settlement day
+        self.assertTrue(inv.tick(_tick("20240103", o=10, h=11, l=9, c=10.5)))
+        self.assertFalse(inv.tick(_tick("20240104", o=10, h=11, l=9, c=9.5)))
+        self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
+        self.assertEqual(inv.exit_info.exit_reason, "stock_status:st")
+        self.assertEqual(inv.exit_info.exit_price, 9.5)
+
+    def test_force_exit_partial_ratio_stays_open(self) -> None:
+        settings = _settings(
+            simulation={
+                "risk_control": {
+                    "force_exit_when": [
+                        {"status": "st", "close_invest": False, "exit_ratio": 0.5},
+                    ]
+                },
+                "enter_price": "close",
+                "exit_price": "close",
+            },
+        )
+        settings.raw_settings["goal"] = {
+            "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
+        }
+        settings.apply_defaults()
+
+        provider = _TagProvider({("600000.SH", "20240104"): ("st",)})
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings, status_tags_provider=provider)
+        inv.tick(_tick("20240102", o=10, h=11, l=9, c=10))
+        inv.tick(_tick("20240103", o=10, h=11, l=9, c=10.5))
+        self.assertTrue(inv.tick(_tick("20240104", o=10, h=11, l=9, c=9.0)))
+        self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
+        self.assertEqual(len(inv.completed_goals), 1)
+        self.assertEqual(inv.completed_goals[0]["exit_ratio"], 0.5)
+        self.assertEqual(inv.completed_goals[0]["reason"], "stock_status:st")
+        self.assertIn("st", inv.runtime_state.triggered_force_exit_tags)
+        # 同一 tag 不再二次触发
+        self.assertTrue(inv.tick(_tick("20240105", o=10, h=11, l=9, c=9.0)))
+        self.assertEqual(len(inv.completed_goals), 1)
+
+    def test_delisted_exit_uses_last_tradable_close(self) -> None:
+        settings = _settings(
+            simulation={
+                "enter_price": "close",
+                "exit_price": "close",
+                "assumption": {
+                    "template": "none",
+                    "tradability": {
+                        "enter_price": "close",
+                        "exit_price": "close",
+                        "delisted_exit_price": "last_tradable_close",
+                    },
+                },
+            },
+        )
+        settings.raw_settings["goal"] = {
+            "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
+        }
+        settings.apply_defaults()
+
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH", delist_date="20240105"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings)
+        inv.tick(_tick("20240102", o=10, h=11, l=9, c=10))
+        inv.tick(_tick("20240103", o=10, h=11, l=9, c=10.5))
+        inv.tick(_tick("20240104", o=10, h=11, l=9, c=12.0))
+        self.assertFalse(inv.tick(_tick("20240105", o=10, h=11, l=9, c=1.0)))
+        self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
+        self.assertEqual(inv.exit_info.exit_reason, "stock_status:delisted")
+        # 定价用上一根 close=12，不是退市日 close=1
+        self.assertEqual(inv.exit_info.exit_price, 12.0)
+        self.assertEqual(inv.exit_info.exit_date, "20240104")
+
+    def test_delisted_exit_same_tick_close(self) -> None:
+        settings = _settings(
+            simulation={
+                "assumption": {
+                    "template": "none",
+                    "tradability": {
+                        "enter_price": "close",
+                        "exit_price": "close",
+                        "delisted_exit_price": "same_tick_close",
+                    },
+                },
+            },
+        )
+        settings.raw_settings["goal"] = {
+            "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
+        }
+        settings.apply_defaults()
+
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH", delist_date="20240105"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings)
+        inv.tick(_tick("20240102", o=10, h=11, l=9, c=10))
+        inv.tick(_tick("20240103", o=10, h=11, l=9, c=10.5))
+        inv.tick(_tick("20240104", o=10, h=11, l=9, c=12.0))
+        self.assertFalse(inv.tick(_tick("20240105", o=10, h=11, l=9, c=3.0)))
+        self.assertEqual(inv.exit_info.exit_price, 3.0)
+        self.assertEqual(inv.exit_info.exit_date, "20240105")
 
 
 if __name__ == "__main__":

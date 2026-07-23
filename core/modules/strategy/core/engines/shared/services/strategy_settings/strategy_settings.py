@@ -129,13 +129,12 @@ class StrategySettings:
 
     @property
     def execution_mode(self) -> str:
-        simulation = self.raw_settings.get("simulation")
-        if not isinstance(simulation, dict):
-            raise ValueError("settings.simulation 须为 dict")
-        raw = simulation.get("execution_mode")
-        if raw is None or str(raw).strip() == "":
+        sim = self.simulation
+        sim.apply_defaults()
+        raw = sim.mode
+        if not raw:
             raise ValueError(
-                f"settings.simulation.execution_mode 必填"
+                f"settings.simulation.execution.mode 必填"
                 f"（{BacktestMode.ENTITY_BASED.value} | {BacktestMode.SLICE_BASED.value}）"
             )
         return BacktestMode.normalize(raw)

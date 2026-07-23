@@ -15,7 +15,7 @@
     - 调用方: Strategy._run_steps（cache miss 之后）
 
 与 legacy 差异:
-    - 买入用 entry_price_raw（buy_price_model 对应 raw 字段，默认 next_open→raw open；
+    - 买入用 entry_price_raw（enter_price 对应 raw 字段，默认 next_open→raw open；
       不用 raw close 定仓；卖出不用 exit_price_raw）
     - profit = sell share value − purchase share value（Trade.share_value_profit）
     - on_pick_portfolio_member：Investment/InvestmentRow.to_opportunity 屏蔽结果字段；
@@ -56,11 +56,11 @@ from core.modules.strategy.core.engines.price_factor.enum_data import (
     resolve_enum_version_dir,
 )
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
+from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings import (
+    RiskControl,
+)
 from core.modules.strategy.core.engines.shared.services.strategy_settings.portfolio_settings import (
     PortfolioSettings,
-)
-from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings import (
-    SkipInvestmentWhen,
 )
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
@@ -107,7 +107,7 @@ class PortfolioPipeline:
         events, opportunities = cls.build_events(
             data,
             settings=portfolio_settings,
-            skip_investment_when=strategy_settings.simulation.skip_investment_when,
+            risk=strategy_settings.simulation.risk_control,
         )
         sim_result = cls.simulate(
             events,
@@ -209,15 +209,15 @@ class PortfolioPipeline:
         data: EnumVersionData,
         *,
         settings: PortfolioSettings,
-        skip_investment_when: Optional[SkipInvestmentWhen] = None,
+        risk: Optional[RiskControl] = None,
     ) -> Tuple[List[PortfolioEvent], Dict[str, Opportunity]]:
         """读 enum CSV → 事件列表 + 已屏蔽结果字段的 Opportunity 索引。
 
         买入价固定为 ``entry_price_raw``；缺 raw 的行跳过（不回退 qfq）。
-        ``skip_investment_when`` 命中触发日状态的行不生成事件（枚举 CSV 仍在）。
+        ``risk.should_skip_enter`` 命中触发日状态的行不生成事件（枚举 CSV 仍在）。
         """
         _ = settings
-        policy = skip_investment_when or SkipInvestmentWhen(())
+        control = risk or RiskControl(raw_settings={})
         entity_ids = list(data.entity_ids) or StockInvestments.collect_entity_ids(
             data.output_dir
         )
@@ -232,7 +232,7 @@ class PortfolioPipeline:
                 continue
             loaded = StockInvestments.load(data.output_dir, eid)
             for row in loaded.rows:
-                if policy.match_reason(row.stock_status_at_trigger):
+                if control.should_skip_enter(status_tags=row.stock_status_at_trigger):
                     continue
                 row_events = PortfolioEvent.from_investment_row(row, eid)
                 if not row_events:
@@ -278,6 +278,7 @@ class PortfolioPipeline:
             portfolio=settings,
             market_rules=market_rules,
             fee_calculator=fee_calculator,
+            liquidity=strategy_settings.simulation.liquidity,
         )
         return PortfolioSimulator.create(
             allocation=allocation,

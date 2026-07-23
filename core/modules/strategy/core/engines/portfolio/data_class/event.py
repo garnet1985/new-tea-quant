@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, List, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_investments import (
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 class PortfolioEvent:
     """资金回放事件（替换 legacy trigger/target）。
 
-    - buy: ``price`` = ``entry_price_raw``（来自 buy_price_model 对应 raw 字段，
+    - buy: ``price`` = ``entry_price_raw``（来自 enter_price 对应 raw 字段，
       默认 next_open→raw open；**不用** raw close 定仓）
     - sell: ``price`` = ``entry_price_raw * (1 + roi)``（**不用** exit_price_raw / raw close）
       其中 roi 来自枚举 ``weighted_roi``（前复权收益率）
@@ -30,6 +30,8 @@ class PortfolioEvent:
     roi: float = 0.0
     entry_price_raw: float = 0.0
     exit_price_raw: float = 0.0
+    # 成交日 bar 成交量（股）；buy / sell 事件各自带当日 volume
+    bar_volume: Optional[float] = None
 
     def is_buy(self) -> bool:
         return str(self.kind or "").strip().lower() == "buy"
@@ -52,6 +54,7 @@ class PortfolioEvent:
             roi=float(raw.get("roi") or 0.0),
             entry_price_raw=float(raw.get("entry_price_raw") or 0.0),
             exit_price_raw=float(raw.get("exit_price_raw") or 0.0),
+            bar_volume=_optional_float(raw.get("bar_volume")),
         )
 
     @classmethod
@@ -86,6 +89,7 @@ class PortfolioEvent:
                 roi=0.0,
                 entry_price_raw=entry_raw,
                 exit_price_raw=exit_raw,
+                bar_volume=_optional_float(getattr(row, "buy_bar_volume", None)),
             )
         ]
         if exit_date and entry_raw > 0:
@@ -100,6 +104,17 @@ class PortfolioEvent:
                     roi=roi,
                     entry_price_raw=entry_raw,
                     exit_price_raw=exit_raw,
+                    bar_volume=_optional_float(getattr(row, "sell_bar_volume", None)),
                 )
             )
         return events
+
+
+def _optional_float(value: Any) -> Optional[float]:
+    if value is None or value == "":
+        return None
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return None
+    return out if out > 0 else None

@@ -62,6 +62,10 @@ class PortfolioReportWriter:
             "trade_count": len(sim.trades),
             "skipped_buys": int(sim.skipped_buys),
             "skipped_sells": int(sim.skipped_sells),
+            "buy_participation_skip": int(sim.buy_participation_skip),
+            "buy_participation_clipped": int(sim.buy_participation_clipped),
+            "sell_participation_skip": int(sim.sell_participation_skip),
+            "sell_participation_clipped": int(sim.sell_participation_clipped),
         }
 
     def _build_summary(
@@ -97,6 +101,10 @@ class PortfolioReportWriter:
             "realized_profit": float(sum(sell_profits)),
             "skipped_buys": int(sim.skipped_buys),
             "skipped_sells": int(sim.skipped_sells),
+            "buy_participation_skip": int(sim.buy_participation_skip),
+            "buy_participation_clipped": int(sim.buy_participation_clipped),
+            "sell_participation_skip": int(sim.sell_participation_skip),
+            "sell_participation_clipped": int(sim.sell_participation_clipped),
             "period": dict(period or {}),
         }
 

@@ -21,10 +21,10 @@ class PriceInvestmentRow:
     """价格层单笔投资记录（成交回放后）。"""
 
     opportunity_id: str = ""
-    buy_date: str = ""
-    buy_price: float = 0.0
-    sell_date: str = ""
-    sell_price: float = 0.0
+    enter_date: str = ""
+    enter_price: float = 0.0
+    exit_date: str = ""
+    exit_price: float = 0.0
     roi: float = 0.0
     holding_days: int = 0
     holding_trading_days: int = 0
@@ -35,10 +35,10 @@ class PriceInvestmentRow:
 
     COLUMN_ORDER: ClassVar[Sequence[str]] = (
         "opportunity_id",
-        "buy_date",
-        "buy_price",
-        "sell_date",
-        "sell_price",
+        "enter_date",
+        "enter_price",
+        "exit_date",
+        "exit_price",
         "roi",
         "holding_days",
         "holding_trading_days",
@@ -56,10 +56,10 @@ class PriceInvestmentRow:
         data = raw or {}
         return cls(
             opportunity_id=str(data.get("opportunity_id") or "").strip(),
-            buy_date=str(data.get("buy_date") or "").strip(),
-            buy_price=_as_float(data.get("buy_price")),
-            sell_date=str(data.get("sell_date") or "").strip(),
-            sell_price=_as_float(data.get("sell_price")),
+            enter_date=str(data.get("enter_date") or "").strip(),
+            enter_price=_as_float(data.get("enter_price")),
+            exit_date=str(data.get("exit_date") or "").strip(),
+            exit_price=_as_float(data.get("exit_price")),
             roi=_as_float(data.get("roi")),
             holding_days=_as_int(data.get("holding_days")),
             holding_trading_days=_as_int(data.get("holding_trading_days")),
@@ -126,7 +126,7 @@ class EntityInvestments:
         for raw in raw_rows:
             row = PriceInvestmentRow.from_dict(raw)
             # 跳过仅表头占位行
-            if not row.opportunity_id and not row.buy_date:
+            if not row.opportunity_id and not row.enter_date:
                 continue
             out.append(row)
         return out

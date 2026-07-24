@@ -94,7 +94,7 @@ class PortfolioEvent:
                 roi=0.0,
                 entry_price_raw=entry_raw,
                 exit_price_raw=exit_raw,
-                bar_volume=_optional_float(getattr(row, "buy_bar_volume", None)),
+                bar_volume=_optional_float(getattr(row, "enter_bar_volume", None)),
             )
         ]
         if exit_date and entry_raw > 0:
@@ -109,7 +109,7 @@ class PortfolioEvent:
                     roi=roi,
                     entry_price_raw=entry_raw,
                     exit_price_raw=exit_raw,
-                    bar_volume=_optional_float(getattr(row, "sell_bar_volume", None)),
+                    bar_volume=_optional_float(getattr(row, "exit_bar_volume", None)),
                 )
             )
         return events

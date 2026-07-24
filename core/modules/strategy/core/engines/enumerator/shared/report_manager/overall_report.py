@@ -20,7 +20,7 @@ from core.modules.strategy.core.engines.shared.services.simulation_input.stock_i
     InvestmentRow,
     StockInvestments,
 )
-from core.modules.strategy.core.engines.shared.data_class.investments import (
+from core.modules.strategy.core.engines.shared.data_class.investment import (
     InvestmentResult,
     Lifecycle,
 )

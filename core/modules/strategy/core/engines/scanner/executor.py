@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 from core.modules.backtest_engine.contracts import RunCallbacks
 from core.modules.data_contract import DATA_KEY
 from core.modules.strategy.core.engines.scanner.helpers.tradability import (
-    annotate_buy_at_limit_up,
+    annotate_enter_at_limit,
 )
 from core.modules.strategy.core.engines.scanner.job_builder import JobBuilder
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
@@ -210,7 +210,7 @@ class JobExecutor:
                 klines = complete.get(base_key) or []
                 if not isinstance(klines, list):
                     klines = []
-                annotate_buy_at_limit_up(
+                annotate_enter_at_limit(
                     opportunity,
                     market_profile=market_profile,
                     klines=klines,

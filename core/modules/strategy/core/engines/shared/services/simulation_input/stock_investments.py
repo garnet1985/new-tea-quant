@@ -159,13 +159,13 @@ class InvestmentRow:
     result: str = ""
     weighted_roi: float = 0.0
     holding_days: int = 0
-    buy_prev_close: Optional[float] = None
-    buy_at_limit_up: Optional[bool] = None
-    sell_prev_close: Optional[float] = None
-    sell_at_limit_down: Optional[bool] = None
+    enter_prev_close: Optional[float] = None
+    enter_at_limit: Optional[bool] = None
+    exit_prev_close: Optional[float] = None
+    exit_at_limit: Optional[bool] = None
     stock_status_at_trigger: Tuple[str, ...] = ()
-    buy_bar_volume: Optional[float] = None
-    sell_bar_volume: Optional[float] = None
+    enter_bar_volume: Optional[float] = None
+    exit_bar_volume: Optional[float] = None
 
     @classmethod
     def from_payload(cls, raw: Dict[str, Any]) -> "InvestmentRow":
@@ -174,8 +174,8 @@ class InvestmentRow:
         holding = _RowCoerce.require_dict(raw, "holding")
         outcome = _RowCoerce.require_dict(raw, "outcome")
         lifecycle = _RowCoerce.require_non_empty_str(raw.get("lifecycle"), "lifecycle")
-        exit_price = exit_info.get("exit_price")
-        exit_price_raw = exit_info.get("exit_price_raw")
+        exit_price = exit_info.get("price")
+        exit_price_raw = exit_info.get("price_raw")
         metadata = raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {}
         status_tags = _RowCoerce.status_tags_from_raw(
             metadata.get("stock_status_at_trigger")
@@ -189,29 +189,29 @@ class InvestmentRow:
             trigger_date=_RowCoerce.require_non_empty_str(raw.get("trigger_date"), "trigger_date"),
             trigger_price=_RowCoerce.as_float(raw.get("trigger_price")),
             trigger_price_raw=_RowCoerce.as_float(raw.get("trigger_price_raw")),
-            entry_date=_RowCoerce.as_str(entry.get("entry_date")),
-            entry_price=_RowCoerce.as_float(entry.get("entry_price")),
-            entry_price_raw=_RowCoerce.as_float(entry.get("entry_price_raw")),
-            exit_date=_RowCoerce.as_str(exit_info.get("exit_date")),
+            entry_date=_RowCoerce.as_str(entry.get("date")),
+            entry_price=_RowCoerce.as_float(entry.get("price")),
+            entry_price_raw=_RowCoerce.as_float(entry.get("price_raw")),
+            exit_date=_RowCoerce.as_str(exit_info.get("date")),
             exit_price=_RowCoerce.as_float(exit_price) if exit_price not in (None, "") else 0.0,
             exit_price_raw=(
                 _RowCoerce.as_float(exit_price_raw) if exit_price_raw not in (None, "") else 0.0
             ),
-            exit_reason=_RowCoerce.as_str(exit_info.get("exit_reason")),
+            exit_reason=_RowCoerce.as_str(exit_info.get("reason")),
             lifecycle=lifecycle,
             result=_RowCoerce.as_str(outcome.get("result")),
             weighted_roi=_RowCoerce.as_float(outcome.get("weighted_roi")),
             holding_days=_RowCoerce.as_int(holding.get("days")),
-            buy_prev_close=_RowCoerce.as_optional_float(entry.get("buy_prev_close")),
-            buy_at_limit_up=_RowCoerce.as_optional_bool(entry.get("buy_at_limit_up")),
-            sell_prev_close=_RowCoerce.as_optional_float(exit_info.get("sell_prev_close")),
-            sell_at_limit_down=_RowCoerce.as_optional_bool(
-                exit_info.get("sell_at_limit_down")
+            enter_prev_close=_RowCoerce.as_optional_float(entry.get("prev_close")),
+            enter_at_limit=_RowCoerce.as_optional_bool(entry.get("at_limit")),
+            exit_prev_close=_RowCoerce.as_optional_float(exit_info.get("prev_close")),
+            exit_at_limit=_RowCoerce.as_optional_bool(
+                exit_info.get("at_limit")
             ),
             stock_status_at_trigger=status_tags,
-            buy_bar_volume=_RowCoerce.as_optional_float(entry.get("buy_bar_volume")),
-            sell_bar_volume=_RowCoerce.as_optional_float(
-                exit_info.get("sell_bar_volume")
+            enter_bar_volume=_RowCoerce.as_optional_float(entry.get("bar_volume")),
+            exit_bar_volume=_RowCoerce.as_optional_float(
+                exit_info.get("bar_volume")
             ),
         )
 
@@ -232,16 +232,16 @@ class InvestmentRow:
             "result": self.result,
             "weighted_roi": self.weighted_roi,
             "holding_days": self.holding_days,
-            "buy_prev_close": "" if self.buy_prev_close is None else self.buy_prev_close,
-            "buy_at_limit_up": _RowCoerce.optional_bool_to_csv(self.buy_at_limit_up),
-            "sell_prev_close": "" if self.sell_prev_close is None else self.sell_prev_close,
-            "sell_at_limit_down": _RowCoerce.optional_bool_to_csv(self.sell_at_limit_down),
+            "enter_prev_close": "" if self.enter_prev_close is None else self.enter_prev_close,
+            "enter_at_limit": _RowCoerce.optional_bool_to_csv(self.enter_at_limit),
+            "exit_prev_close": "" if self.exit_prev_close is None else self.exit_prev_close,
+            "exit_at_limit": _RowCoerce.optional_bool_to_csv(self.exit_at_limit),
             "stock_status_at_trigger": _RowCoerce.status_tags_to_csv(
                 self.stock_status_at_trigger
             ),
-            "buy_bar_volume": "" if self.buy_bar_volume is None else self.buy_bar_volume,
-            "sell_bar_volume": (
-                "" if self.sell_bar_volume is None else self.sell_bar_volume
+            "enter_bar_volume": "" if self.enter_bar_volume is None else self.enter_bar_volume,
+            "exit_bar_volume": (
+                "" if self.exit_bar_volume is None else self.exit_bar_volume
             ),
         }
 
@@ -264,15 +264,15 @@ class InvestmentRow:
             result=_RowCoerce.as_str(data.get("result")),
             weighted_roi=_RowCoerce.as_float(data.get("weighted_roi")),
             holding_days=_RowCoerce.as_int(data.get("holding_days")),
-            buy_prev_close=_RowCoerce.as_optional_float(data.get("buy_prev_close")),
-            buy_at_limit_up=_RowCoerce.as_optional_bool(data.get("buy_at_limit_up")),
-            sell_prev_close=_RowCoerce.as_optional_float(data.get("sell_prev_close")),
-            sell_at_limit_down=_RowCoerce.as_optional_bool(data.get("sell_at_limit_down")),
+            enter_prev_close=_RowCoerce.as_optional_float(data.get("enter_prev_close")),
+            enter_at_limit=_RowCoerce.as_optional_bool(data.get("enter_at_limit")),
+            exit_prev_close=_RowCoerce.as_optional_float(data.get("exit_prev_close")),
+            exit_at_limit=_RowCoerce.as_optional_bool(data.get("exit_at_limit")),
             stock_status_at_trigger=_RowCoerce.status_tags_from_raw(
                 data.get("stock_status_at_trigger")
             ),
-            buy_bar_volume=_RowCoerce.as_optional_float(data.get("buy_bar_volume")),
-            sell_bar_volume=_RowCoerce.as_optional_float(data.get("sell_bar_volume")),
+            enter_bar_volume=_RowCoerce.as_optional_float(data.get("enter_bar_volume")),
+            exit_bar_volume=_RowCoerce.as_optional_float(data.get("exit_bar_volume")),
         )
 
     def to_opportunity(self, entity_id: str) -> "Opportunity":
@@ -404,13 +404,13 @@ class StockInvestments:
         "result",
         "weighted_roi",
         "holding_days",
-        "buy_prev_close",
-        "buy_at_limit_up",
-        "sell_prev_close",
-        "sell_at_limit_down",
+        "enter_prev_close",
+        "enter_at_limit",
+        "exit_prev_close",
+        "exit_at_limit",
         "stock_status_at_trigger",
-        "buy_bar_volume",
-        "sell_bar_volume",
+        "enter_bar_volume",
+        "exit_bar_volume",
     )
 
     entity_id: str

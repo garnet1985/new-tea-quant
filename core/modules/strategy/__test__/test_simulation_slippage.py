@@ -103,13 +103,13 @@ class TestInvestmentSlippage(unittest.TestCase):
         # enter at trigger close 10 → 10.1
         self.assertTrue(_react(inv, _tick("20240102", o=10, h=11, l=9, c=10)))
         self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
-        self.assertAlmostEqual(inv.entry.entry_price, 10.1)
+        self.assertAlmostEqual(inv.entry.price, 10.1)
 
         # T+1 then stop via expiration? use settle for clean exit
         _react(inv, _tick("20240103", o=10, h=11, l=9, c=10))
         self.assertFalse(inv.settle(*_tick("20240104", o=10, h=11, l=9, c=12)))
         # exit close 12 → 12 * 0.99 = 11.88
-        self.assertAlmostEqual(inv.exit_info.exit_price, 11.88)
+        self.assertAlmostEqual(inv.exit_info.price, 11.88)
 
     def test_settings_reads_slippage_and_no_next_tick(self) -> None:
         settings = _settings(
@@ -131,8 +131,8 @@ class TestNoNextTick(unittest.TestCase):
         # 无下一交易日 open → settle 放弃
         self.assertFalse(inv.settle(*_tick("20240102", o=10, h=11, l=9, c=10)))
         self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
-        self.assertEqual(inv.entry.entry_price, 0.0)
-        self.assertFalse(inv.exit_info.exit_date)
+        self.assertEqual(inv.entry.price, 0.0)
+        self.assertFalse(inv.exit_info.date)
 
     def test_use_last_close_fills_then_settles(self) -> None:
         settings = _settings(
@@ -143,10 +143,10 @@ class TestNoNextTick(unittest.TestCase):
         # 信号日 close=10，进场 10.1；再用 settle bar close=12 出场
         self.assertFalse(inv.settle(*_tick("20240108", o=11, h=12, l=10, c=12)))
         self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
-        self.assertAlmostEqual(inv.entry.entry_price, 10.1)
-        self.assertEqual(inv.entry.entry_date, "20240102")
-        self.assertAlmostEqual(inv.exit_info.exit_price, 12.0)
-        self.assertEqual(inv.exit_info.exit_reason, "simulate_end")
+        self.assertAlmostEqual(inv.entry.price, 10.1)
+        self.assertEqual(inv.entry.date, "20240102")
+        self.assertAlmostEqual(inv.exit_info.price, 12.0)
+        self.assertEqual(inv.exit_info.reason, "simulate_end")
 
 
 if __name__ == "__main__":

@@ -115,18 +115,18 @@ class OverallSummary:
                     continue
                 result = (row.result or "").strip().lower()
                 lifecycle = (row.lifecycle or "").strip().lower()
-                if result in {"win", "profit"} or (row.roi > 0 and row.sell_date):
+                if result in {"win", "profit"} or (row.roi > 0 and row.exit_date):
                     win += 1
                     completed += 1
-                elif result in {"loss"} or (row.roi < 0 and row.sell_date):
+                elif result in {"loss"} or (row.roi < 0 and row.exit_date):
                     loss += 1
                     completed += 1
-                elif row.sell_date:
+                elif row.exit_date:
                     completed += 1
-                elif lifecycle in {"open", "holding", "active"} or not row.sell_date:
+                elif lifecycle in {"open", "holding", "active"} or not row.exit_date:
                     open_count += 1
 
-                if row.sell_date or row.roi != 0.0:
+                if row.exit_date or row.roi != 0.0:
                     roi_sum += float(row.roi)
                     roi_n += 1
                 if row.holding_days:

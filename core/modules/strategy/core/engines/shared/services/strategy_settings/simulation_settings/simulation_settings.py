@@ -23,7 +23,7 @@ from .risk_control import RiskControl
 from .tradability import EdgesConfig, LiquidityConfig, TradabilityConfig
 
 if TYPE_CHECKING:
-    from core.modules.strategy.core.engines.shared.data_class.investments import (
+    from core.modules.strategy.core.engines.shared.data_class.investment import (
         TargetCheckStep,
     )
 

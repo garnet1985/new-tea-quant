@@ -187,7 +187,7 @@ class JobExecutor:
             market_rules = None
 
         total_inv = 0
-        skipped_sell_at_limit_down = 0
+        skipped_exit_at_limit = 0
         for entity_id, pack in entities.items():
             if not isinstance(pack, dict):
                 continue
@@ -205,22 +205,22 @@ class JobExecutor:
             )
             EntityInvestments.save(out_dir, str(entity_id), price_rows)
             total_inv += len(price_rows)
-            skipped_sell_at_limit_down += skip_sell
+            skipped_exit_at_limit += skip_sell
 
         logger.info(
             "%s 回放落盘：job_id=%s entities=%d investments=%d "
-            "skipped_sell_at_limit_down=%d → %s",
+            "skipped_exit_at_limit=%d → %s",
             cls.task_log_label,
             job_context.job_id,
             len(entities),
             total_inv,
-            skipped_sell_at_limit_down,
+            skipped_exit_at_limit,
             out_dir,
         )
         return {
             "entities": len(entities),
             "investments": total_inv,
-            "skipped_sell_at_limit_down": skipped_sell_at_limit_down,
+            "skipped_exit_at_limit": skipped_exit_at_limit,
         }
 
     @staticmethod
@@ -236,7 +236,7 @@ class JobExecutor:
     ) -> Tuple[List[PriceInvestmentRow], int]:
         """单 entity：枚举 investments → 买 1 / 锁仓 / 跌停顺延卖出 → PriceInvestmentRow。
 
-        返回 ``(rows, skipped_sell_at_limit_down)``。
+        返回 ``(rows, skipped_exit_at_limit)``。
         """
         strategy = settings or StrategySettings.from_dict({})
         sim = strategy.simulation
@@ -262,15 +262,15 @@ class JobExecutor:
             if control.should_skip_enter(status_tags=row.stock_status_at_trigger):
                 continue
 
-            buy_date = str(row.entry_date or "").strip()
-            buy_price = float(row.entry_price or 0.0)
-            if not buy_date or buy_price <= 0:
+            enter_date = str(row.entry_date or "").strip()
+            enter_price = float(row.entry_price or 0.0)
+            if not enter_date or enter_price <= 0:
                 continue
 
-            if holding_until and buy_date <= holding_until:
+            if holding_until and enter_date <= holding_until:
                 continue
 
-            if row.buy_at_limit_up is True and not allow_enter_at_limit_up:
+            if row.enter_at_limit is True and not allow_enter_at_limit_up:
                 continue
 
             inv_id = str(row.investment_id or "").strip()
@@ -280,7 +280,7 @@ class JobExecutor:
             skipped_legs: List[Dict[str, Any]] = []
             for leg in legs:
                 if (
-                    leg.get("sell_at_limit_down") is True
+                    leg.get("exit_at_limit") is True
                     and not allow_exit_at_limit_down
                 ):
                     skipped_sell += 1
@@ -292,11 +292,11 @@ class JobExecutor:
             if skipped_legs and not position_fully_closed(processed):
                 klines = kline_loader(
                     sid,
-                    start_date=buy_date,
-                    end_date=end or buy_date,
+                    start_date=enter_date,
+                    end_date=end or enter_date,
                 )
                 processed, pending, defer_skips = retry_deferred_exits(
-                    buy_price=buy_price,
+                    enter_price=enter_price,
                     processed_legs=processed,
                     skipped_legs=skipped_legs,
                     klines=klines,
@@ -308,15 +308,15 @@ class JobExecutor:
 
             holding_until = resolve_holding_until(
                 processed_legs=processed,
-                buy_date=buy_date,
+                enter_date=enter_date,
                 backtest_end_date=end,
             )
 
             out.append(
                 _to_price_row(
                     row=row,
-                    buy_date=buy_date,
-                    buy_price=buy_price,
+                    enter_date=enter_date,
+                    enter_price=enter_price,
                     processed=processed,
                     pending=pending,
                 )
@@ -365,40 +365,40 @@ def _build_exit_legs(
             day = str(g.date or "").strip()
             flag: Optional[bool] = None
             if len(goal_legs) == 1 or (exit_date and day == exit_date):
-                flag = row.sell_at_limit_down
+                flag = row.exit_at_limit
             legs.append(
                 {
                     "date": day,
-                    "sell_date": day,
-                    "sell_price": float(g.price or 0.0),
+                    "exit_date": day,
+                    "exit_price": float(g.price or 0.0),
                     "exit_ratio": float(g.exit_ratio or 0.0) or 1.0,
                     "reason": str(g.reason or "").strip(),
-                    "sell_at_limit_down": flag,
+                    "exit_at_limit": flag,
                 }
             )
         return legs
 
-    sell_date = str(row.exit_date or "").strip()
-    if not sell_date:
+    exit_date = str(row.exit_date or "").strip()
+    if not exit_date:
         return []
     return [
         {
-            "date": sell_date,
-            "sell_date": sell_date,
-            "sell_price": float(row.exit_price or 0.0),
+            "date": exit_date,
+            "exit_date": exit_date,
+            "exit_price": float(row.exit_price or 0.0),
             "exit_ratio": 1.0,
             "reason": str(row.exit_reason or "").strip(),
-            "sell_at_limit_down": row.sell_at_limit_down,
+            "exit_at_limit": row.exit_at_limit,
         }
     ]
 
 
 def _leg_date(leg: Dict[str, Any]) -> str:
-    return str(leg.get("date") or leg.get("sell_date") or "").strip()
+    return str(leg.get("date") or leg.get("exit_date") or "").strip()
 
 
-def _aggregate_roi(processed: List[Dict[str, Any]], buy_price: float) -> float:
-    basis = float(buy_price or 0.0)
+def _aggregate_roi(processed: List[Dict[str, Any]], enter_price: float) -> float:
+    basis = float(enter_price or 0.0)
     if basis <= 0 or not processed:
         return 0.0
     remaining = 1.0
@@ -414,7 +414,7 @@ def _aggregate_roi(processed: List[Dict[str, Any]], buy_price: float) -> float:
         ratio = min(ratio, 1.0)
         sold = remaining * ratio
         try:
-            sell_px = float(leg.get("sell_price") or 0.0)
+            sell_px = float(leg.get("exit_price") or 0.0)
         except (TypeError, ValueError):
             sell_px = 0.0
         weighted_profit += (sell_px - basis) * sold
@@ -425,17 +425,17 @@ def _aggregate_roi(processed: List[Dict[str, Any]], buy_price: float) -> float:
 def _to_price_row(
     *,
     row: InvestmentRow,
-    buy_date: str,
-    buy_price: float,
+    enter_date: str,
+    enter_price: float,
     processed: List[Dict[str, Any]],
     pending: Any,
 ) -> PriceInvestmentRow:
     closed = position_fully_closed(processed)
     if closed:
         last = max(processed, key=_leg_date)
-        sell_date = _leg_date(last)
-        sell_price = float(last.get("sell_price") or 0.0)
-        roi = _aggregate_roi(processed, buy_price)
+        exit_date = _leg_date(last)
+        exit_price = float(last.get("exit_price") or 0.0)
+        roi = _aggregate_roi(processed, enter_price)
         exit_reason = str(last.get("reason") or row.exit_reason or "").strip()
         lifecycle = "complete"
         if roi > 0:
@@ -445,8 +445,8 @@ def _to_price_row(
         else:
             result = str(row.result or "").strip()
     else:
-        sell_date = ""
-        sell_price = 0.0
+        exit_date = ""
+        exit_price = 0.0
         roi = 0.0
         if pending is not None:
             exit_reason = str(getattr(pending, "reason", "") or row.exit_reason or "").strip()
@@ -456,22 +456,22 @@ def _to_price_row(
         result = ""
 
     holding_days = int(row.holding_days or 0)
-    if closed and sell_date and buy_date and len(buy_date) == 8 and len(sell_date) == 8:
+    if closed and exit_date and enter_date and len(enter_date) == 8 and len(exit_date) == 8:
         try:
             from datetime import datetime
 
-            d0 = datetime.strptime(buy_date, "%Y%m%d")
-            d1 = datetime.strptime(sell_date, "%Y%m%d")
+            d0 = datetime.strptime(enter_date, "%Y%m%d")
+            d1 = datetime.strptime(exit_date, "%Y%m%d")
             holding_days = max(0, (d1 - d0).days)
         except ValueError:
             pass
 
     return PriceInvestmentRow(
         opportunity_id=str(row.investment_id or "").strip(),
-        buy_date=buy_date,
-        buy_price=buy_price,
-        sell_date=sell_date,
-        sell_price=sell_price,
+        enter_date=enter_date,
+        enter_price=enter_price,
+        exit_date=exit_date,
+        exit_price=exit_price,
         roi=roi,
         holding_days=holding_days,
         holding_trading_days=holding_days,

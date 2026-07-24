@@ -1,7 +1,7 @@
 """扫描命中后的贴板标注（写入 Opportunity.metadata）。
 
 本文件:
-- annotate_buy_at_limit_up / opportunity_buy_at_limit_up: 涨停买入判定
+- annotate_enter_at_limit / opportunity_enter_at_limit: 进场贴板判定
   边界: 负责 metadata 标注；不负责 market_rules 定义或 scan hook 逻辑
 """
 
@@ -13,17 +13,17 @@ from core.modules.market_profile.core.markets import create_market_rules
 from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import SafeBarValue
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
 
-BUY_AT_LIMIT_UP_KEY = "buy_at_limit_up"
+ENTER_AT_LIMIT_KEY = "enter_at_limit"
 
 
-def annotate_buy_at_limit_up(
+def annotate_enter_at_limit(
     opportunity: Opportunity,
     *,
     market_profile: str,
     klines: List[Dict[str, Any]],
     scan_date: Optional[str] = None,
 ) -> None:
-    """用 trigger 价 vs 昨收判断是否贴涨停，写入 ``metadata.buy_at_limit_up``。"""
+    """用 trigger 价 vs 昨收判断是否贴涨停，写入 ``metadata.enter_at_limit``。"""
     if opportunity is None:
         return
     day = str(scan_date or opportunity.trigger_date or "").strip()
@@ -58,13 +58,13 @@ def annotate_buy_at_limit_up(
 
     if not isinstance(opportunity.metadata, dict):
         opportunity.metadata = {}
-    opportunity.metadata[BUY_AT_LIMIT_UP_KEY] = at_up
+    opportunity.metadata[ENTER_AT_LIMIT_KEY] = at_up
 
 
-def opportunity_buy_at_limit_up(opportunity: Opportunity) -> Optional[bool]:
+def opportunity_enter_at_limit(opportunity: Opportunity) -> Optional[bool]:
     if not isinstance(opportunity.metadata, dict):
         return None
-    raw = opportunity.metadata.get(BUY_AT_LIMIT_UP_KEY)
+    raw = opportunity.metadata.get(ENTER_AT_LIMIT_KEY)
     if raw is None or raw == "":
         return None
     if isinstance(raw, bool):
@@ -94,7 +94,7 @@ def _bar_index(klines: List[Dict[str, Any]], day: str) -> Optional[int]:
 
 
 __all__ = [
-    "BUY_AT_LIMIT_UP_KEY",
-    "annotate_buy_at_limit_up",
-    "opportunity_buy_at_limit_up",
+    "ENTER_AT_LIMIT_KEY",
+    "annotate_enter_at_limit",
+    "opportunity_enter_at_limit",
 ]

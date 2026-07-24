@@ -16,7 +16,7 @@ from .assumption_templates import AssumptionTemplate
 from .tradability import TradabilityConfig
 
 if TYPE_CHECKING:
-    from core.modules.strategy.core.engines.shared.data_class.investments import (
+    from core.modules.strategy.core.engines.shared.data_class.investment import (
         TargetCheckStep,
     )
 
@@ -72,7 +72,7 @@ class AssumptionSettings(SettingsBase):
         return [str(item).strip() for item in raw if str(item).strip()]
 
     def parsed_target_check_order(self) -> List["TargetCheckStep"]:
-        from core.modules.strategy.core.engines.shared.data_class.investments import (
+        from core.modules.strategy.core.engines.shared.data_class.investment import (
             TargetCheckStep,
         )
 
@@ -195,7 +195,7 @@ class AssumptionSettings(SettingsBase):
         return report
 
     def _validate_target_check_order(self, report: ValidationReport) -> None:
-        from core.modules.strategy.core.engines.shared.data_class.investments import (
+        from core.modules.strategy.core.engines.shared.data_class.investment import (
             TargetCheckStep,
         )
 

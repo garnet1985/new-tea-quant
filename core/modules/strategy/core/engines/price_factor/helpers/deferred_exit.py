@@ -28,7 +28,7 @@ class DeferredPendingExit:
 
 
 def _leg_date(leg: Dict[str, Any]) -> str:
-    return str(leg.get("date") or leg.get("sell_date") or "").strip()
+    return str(leg.get("date") or leg.get("exit_date") or "").strip()
 
 
 def _leg_exit_ratio(leg: Dict[str, Any]) -> float:
@@ -79,7 +79,7 @@ def _is_blocked_at_limit_down(
     if allow_exit_at_limit_down:
         return False
     if market_rules is None:
-        # 无规则时：若 bar 显式带 sell_at_limit_down 由调用方处理；此处不拦
+        # 无规则时：若 bar 显式带 exit_at_limit 由调用方处理；此处不拦
         return False
     prev = SafeBarValue.optional_float(bar, "pre_close")
     if prev is None or prev <= 0 or not entity_id:
@@ -94,33 +94,33 @@ def _build_executed_leg(
     *,
     source: Dict[str, Any],
     bar: Dict[str, Any],
-    sell_price: float,
-    buy_price: float,
+    exit_price: float,
+    enter_price: float,
     at_limit_down: Optional[bool],
 ) -> Dict[str, Any]:
     exit_ratio = _leg_exit_ratio(source) or 1.0
-    basis = float(buy_price or 0.0)
-    profit = sell_price - basis
+    basis = float(enter_price or 0.0)
+    profit = exit_price - basis
     weighted_profit = profit * exit_ratio
     roi = (weighted_profit / basis) if basis > 0 else 0.0
     day = str(bar.get("date") or "").strip()
     return {
         "date": day,
-        "sell_date": day,
-        "sell_price": sell_price,
+        "exit_date": day,
+        "exit_price": exit_price,
         "exit_ratio": exit_ratio,
         "profit": profit,
         "weighted_profit": weighted_profit,
         "roi": roi,
         "reason": str(source.get("reason") or "").strip(),
-        "sell_at_limit_down": at_limit_down,
-        "sell_prev_close": SafeBarValue.optional_float(bar, "pre_close") or None,
+        "exit_at_limit": at_limit_down,
+        "exit_prev_close": SafeBarValue.optional_float(bar, "pre_close") or None,
     }
 
 
 def retry_deferred_exits(
     *,
-    buy_price: float,
+    enter_price: float,
     processed_legs: List[Dict[str, Any]],
     skipped_legs: List[Dict[str, Any]],
     klines: List[Dict[str, Any]],
@@ -190,8 +190,8 @@ def retry_deferred_exits(
                 _build_executed_leg(
                     source=src,
                     bar=bar,
-                    sell_price=sell_px,
-                    buy_price=buy_price,
+                    exit_price=sell_px,
+                    enter_price=enter_price,
                     at_limit_down=at_limit,
                 )
             )

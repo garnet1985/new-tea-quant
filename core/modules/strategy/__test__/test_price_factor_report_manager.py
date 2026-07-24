@@ -73,10 +73,10 @@ def test_report_manager_finalize_writes_globals(tmp_path: Path, monkeypatch) -> 
         [
             PriceInvestmentRow(
                 opportunity_id="opp_1",
-                buy_date="20240103",
-                buy_price=10.0,
-                sell_date="20240105",
-                sell_price=11.0,
+                enter_date="20240103",
+                enter_price=10.0,
+                exit_date="20240105",
+                exit_price=11.0,
                 roi=0.1,
                 holding_days=2,
                 result="win",

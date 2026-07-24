@@ -71,7 +71,7 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 | `entity_loader` 整包 | S E（+ Facade/fingerprints） | — | **keep（整块）** | 含 job_bundle / resolver / global / sampling / indicators；不拆子模块 |
 | `entity_loader` → `runtime_snapshot` | — | — | **done** | 已改 import shared.simulation_input |
 | `strategy_settings` 整包 | S E P O | hooks, core.services | **keep（整块）** | 含 simulation/portfolio/scanner 等；**不拆根/叶** |
-| `data_class/investments/*` 子目录 | （无独立引用） | — | **核对** | 枚举似已内联在 `investment.py`；可能是死目录 |
+| `data_class/investment/*` 子目录 | investment / enums / investment_state | — | ok | Investment 与小类型同目录 |
 
 ### B. 跨引擎 / 跨层私有 import（应 promote 或 fix）
 

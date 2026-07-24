@@ -5,7 +5,7 @@
 
 本文件:
 - Investment: 生命周期反应 API（try_enter / check_targets / try_exit / settle）
-  边界: 不自驱 tick；由 EntityTracker 按分桶调用；小类型见 ``investments/``
+  边界: 不自驱 tick；由 EntityTracker 按分桶调用；小类型见 ``investment/``
 """
 
 from __future__ import annotations
@@ -21,16 +21,20 @@ from core.modules.strategy.core.engines.shared.data_class.opportunity import (
     OpportunityMeta,
     StockInfo,
 )
-from core.modules.strategy.core.engines.shared.data_class.investments import (
+from core.modules.strategy.core.engines.shared.data_class.investment import (
     DEFAULT_TARGET_CHECK_ORDER,
+    EnterState,
     ExitReason,
+    ExitState,
     ExpirationMode,
-    InvestmentTickState,
+    ExtremeState,
+    HoldingState,
+    InvestmentState,
     InvestmentResult,
     Lifecycle,
+    OutcomeState,
     PendingExit,
     PendingExitKind,
-    StateBag,
     TargetCheckStep,
     TradeSide,
 )
@@ -56,7 +60,7 @@ class Investment(Opportunity):
     ``status_tags_provider``（非 settings 切片投影）。
     """
 
-    runtime_state: InvestmentTickState = field(default_factory=InvestmentTickState)
+    runtime_state: InvestmentState = field(default_factory=InvestmentState)
     settings: Optional["StrategySettings"] = None
     market_rules: Any = None
     open_dates: Tuple[str, ...] = field(default_factory=tuple)
@@ -77,19 +81,19 @@ class Investment(Opportunity):
         self.runtime_state.state = value
 
     @property
-    def entry(self) -> StateBag:
+    def entry(self) -> EnterState:
         return self.runtime_state.entry
 
     @entry.setter
-    def entry(self, value: StateBag) -> None:
+    def entry(self, value: EnterState) -> None:
         self.runtime_state.entry = value
 
     @property
-    def exit_info(self) -> StateBag:
+    def exit_info(self) -> ExitState:
         return self.runtime_state.exit_info
 
     @exit_info.setter
-    def exit_info(self, value: StateBag) -> None:
+    def exit_info(self, value: ExitState) -> None:
         self.runtime_state.exit_info = value
 
     @property
@@ -101,27 +105,27 @@ class Investment(Opportunity):
         self.runtime_state.pending_exit = value
 
     @property
-    def holding(self) -> StateBag:
+    def holding(self) -> HoldingState:
         return self.runtime_state.holding
 
     @holding.setter
-    def holding(self, value: StateBag) -> None:
+    def holding(self, value: HoldingState) -> None:
         self.runtime_state.holding = value
 
     @property
-    def extreme(self) -> StateBag:
+    def extreme(self) -> ExtremeState:
         return self.runtime_state.extreme
 
     @extreme.setter
-    def extreme(self, value: StateBag) -> None:
+    def extreme(self, value: ExtremeState) -> None:
         self.runtime_state.extreme = value
 
     @property
-    def outcome(self) -> StateBag:
+    def outcome(self) -> OutcomeState:
         return self.runtime_state.outcome
 
     @outcome.setter
-    def outcome(self, value: StateBag) -> None:
+    def outcome(self, value: OutcomeState) -> None:
         self.runtime_state.outcome = value
 
     @property
@@ -148,7 +152,7 @@ class Investment(Opportunity):
         opportunity.stamp_status_at_trigger(status_tags_provider=status_tags_provider)
         settings.apply_defaults()
         market_rules = create_market_rules(profile)
-        holding = StateBag()
+        holding = HoldingState()
         expiration = settings.goal.expiration
         if expiration is not None:
             holding.mode = ExpirationMode(expiration.mode)
@@ -168,7 +172,7 @@ class Investment(Opportunity):
             market_rules=market_rules,
             open_dates=tuple(open_dates),
             status_tags_provider=status_tags_provider,
-            runtime_state=InvestmentTickState(
+            runtime_state=InvestmentState(
                 state=Lifecycle.PENDING_TO_ENTER,
                 holding=holding,
             ),
@@ -177,32 +181,36 @@ class Investment(Opportunity):
     def to_dict(self) -> Dict[str, Any]:
         """JSON/CSV-safe export（省略 settings / market_rules 等非序列化依赖）。"""
         payload = Opportunity.to_dict(self)
-        # StateBag 不能走 asdict；先导出标量再合并 bags
+        rs = self.runtime_state
         state = {
             "state": self.lifecycle.value,
+            "entry": asdict(rs.entry),
+            "exit_info": asdict(rs.exit_info),
+            "holding": asdict(rs.holding),
+            "extreme": asdict(rs.extreme),
+            "outcome": asdict(rs.outcome),
             "completed_goals": list(self.completed_goals),
-            "customized_state": dict(self.runtime_state.customized_state or {}),
-            "triggered_force_exit_tags": list(
-                self.runtime_state.triggered_force_exit_tags or []
-            ),
-            "last_bar": self.runtime_state.last_bar,
-            "triggered_stop_loss_idx": self.runtime_state.triggered_stop_loss_idx,
-            "triggered_take_profit_idx": self.runtime_state.triggered_take_profit_idx,
-            "remaining_ratio": self.runtime_state.remaining_ratio,
-            "protect_loss_active": self.runtime_state.protect_loss_active,
-            "dynamic_loss_active": self.runtime_state.dynamic_loss_active,
-            "dynamic_loss_peak": self.runtime_state.dynamic_loss_peak,
+            "customized_state": dict(rs.customized_state or {}),
+            "triggered_force_exit_tags": list(rs.triggered_force_exit_tags or []),
+            "last_bar": rs.last_bar,
+            "triggered_stop_loss_idx": rs.triggered_stop_loss_idx,
+            "triggered_take_profit_idx": rs.triggered_take_profit_idx,
+            "remaining_ratio": rs.remaining_ratio,
+            "protect_loss_active": rs.protect_loss_active,
+            "dynamic_loss_active": rs.dynamic_loss_active,
+            "dynamic_loss_peak": rs.dynamic_loss_peak,
         }
-        state.update(self.runtime_state.bags_to_dict())
+        if rs.pending_exit is not None:
+            state["pending_exit"] = asdict(rs.pending_exit)
         payload.update(
             {
                 "lifecycle": self.lifecycle.value,
                 "runtime_state": state,
-                "entry": self.entry.to_dict(),
-                "exit_info": self.exit_info.to_dict(),
-                "holding": self.holding.to_dict(),
-                "extreme": self.extreme.to_dict(),
-                "outcome": self.outcome.to_dict(),
+                "entry": asdict(self.entry),
+                "exit_info": asdict(self.exit_info),
+                "holding": asdict(self.holding),
+                "extreme": asdict(self.extreme),
+                "outcome": asdict(self.outcome),
                 "completed_goals": list(self.completed_goals),
                 "target_check_order": [
                     step.value for step in self._resolve_target_check_order()
@@ -406,7 +414,7 @@ class Investment(Opportunity):
         """Gate: False blocks remaining steps for this bar."""
         if self.lifecycle != Lifecycle.OPEN:
             return True
-        entry_date = str(self.entry.entry_date or "").strip()
+        entry_date = str(self.entry.date or "").strip()
         if not entry_date:
             return True
         held = self._settlement_days_held(entry_date, as_of, self.open_dates)
@@ -440,7 +448,7 @@ class Investment(Opportunity):
         cfg = self.settings.goal.protect_loss
         if cfg is None:
             return False
-        basis = float(self.entry.entry_price or self.trigger_price or 0.0)
+        basis = float(self.entry.price or self.trigger_price or 0.0)
         monitor = self._monitor_px(bar)
         if basis <= 0 or monitor <= 0:
             return False
@@ -467,7 +475,7 @@ class Investment(Opportunity):
         monitor = self._monitor_px(bar)
         if monitor <= 0:
             return False
-        basis = float(self.entry.entry_price or self.trigger_price or 0.0)
+        basis = float(self.entry.price or self.trigger_price or 0.0)
         peak = self.runtime_state.dynamic_loss_peak
         if peak is None or peak <= 0:
             peak = basis if basis > 0 else monitor
@@ -493,7 +501,7 @@ class Investment(Opportunity):
         stages = self.settings.goal.stop_loss_stages
         if not stages:
             return False
-        basis = float(self.entry.entry_price or self.trigger_price or 0.0)
+        basis = float(self.entry.price or self.trigger_price or 0.0)
         if basis <= 0:
             return False
         low = float(bar["low"])
@@ -519,7 +527,7 @@ class Investment(Opportunity):
         stages = self.settings.goal.take_profit_stages
         if not stages:
             return False
-        basis = float(self.entry.entry_price or self.trigger_price or 0.0)
+        basis = float(self.entry.price or self.trigger_price or 0.0)
         if basis <= 0:
             return False
         high = float(bar["high"])
@@ -560,7 +568,7 @@ class Investment(Opportunity):
             return False
         if int(self.holding.window_days or 0) <= 0 or self.holding.mode is None:
             return False
-        entry_date = str(self.entry.entry_date or "").strip()
+        entry_date = str(self.entry.date or "").strip()
         if not entry_date:
             return False
         held = self._holding_days(entry_date, as_of, self.holding.mode, self.open_dates)
@@ -605,14 +613,14 @@ class Investment(Opportunity):
             return
         raw_price = self._resolve_entry_price(as_of, bar, use_raw=True)
         at_limit_up, prev_close = self._eval_limit_up(price, bar)
-        self.entry = StateBag(
-            entry_price=price,
-            entry_price_raw=float(raw_price or 0.0),
-            entry_date=str(as_of or "").strip(),
+        self.entry = EnterState(
+            price=price,
+            price_raw=float(raw_price or 0.0),
+            date=str(as_of or "").strip(),
             direction=TradeSide.BUY,
-            buy_prev_close=prev_close,
-            buy_at_limit_up=at_limit_up,
-            buy_bar_volume=SafeBarValue.volume(bar),
+            prev_close=prev_close,
+            at_limit=at_limit_up,
+            bar_volume=SafeBarValue.volume(bar),
         )
 
     def _resolve_entry_price(
@@ -654,7 +662,7 @@ class Investment(Opportunity):
         if (
             check_tradability
             and not use_raw
-            and self._is_buy_blocked_by_limit_up(price, bar)
+            and self._is_enter_blocked_by_limit_up(price, bar)
         ):
             return None
         return self.settings.simulation.tradability.slippage.apply_enter(price)
@@ -709,7 +717,7 @@ class Investment(Opportunity):
         new_remaining = max(0.0, prev_remaining - abs_ratio)
         self.runtime_state.remaining_ratio = new_remaining
 
-        basis = float(self.entry.entry_price or self.trigger_price or 0.0)
+        basis = float(self.entry.price or self.trigger_price or 0.0)
         profit = exit_price - basis
         roi = (profit / basis) if basis > 0 else 0.0
         exit_price_raw = self._resolve_exit_price(
@@ -719,7 +727,7 @@ class Investment(Opportunity):
             use_raw=True,
             check_tradability=False,
         )
-        at_limit_down, sell_prev_close = self._eval_limit_down(exit_price, fill_bar)
+        at_limit_down, exit_prev_close = self._eval_limit_down(exit_price, fill_bar)
 
         self.completed_goals.append(
             {
@@ -743,22 +751,22 @@ class Investment(Opportunity):
             total_abs = sum(
                 float(g.get("exit_ratio") or 0.0) for g in self.completed_goals
             )
-            self.exit_info = StateBag(
-                exit_price=exit_price,
-                exit_price_raw=float(exit_price_raw or 0.0),
-                exit_date=fill_as_of,
-                exit_reason=self.pending_exit.reason,
-                exit_ratio=total_abs if total_abs > 0 else abs_ratio,
-                sell_prev_close=sell_prev_close,
-                sell_at_limit_down=at_limit_down,
-                sell_bar_volume=SafeBarValue.volume(fill_bar),
+            self.exit_info = ExitState(
+                price=exit_price,
+                price_raw=float(exit_price_raw or 0.0),
+                date=fill_as_of,
+                reason=self.pending_exit.reason,
+                ratio=total_abs if total_abs > 0 else abs_ratio,
+                prev_close=exit_prev_close,
+                at_limit=at_limit_down,
+                bar_volume=SafeBarValue.volume(fill_bar),
             )
             self.outcome.result = (
                 InvestmentResult.WIN
                 if float(self.outcome.weighted_roi or 0.0) >= 0
                 else InvestmentResult.LOSS
             )
-            entry_date = str(self.entry.entry_date or "").strip()
+            entry_date = str(self.entry.date or "").strip()
             if entry_date and int(self.holding.days or 0) <= 0:
                 mode = self.holding.mode or ExpirationMode.OPEN_DAY
                 self.holding.days = self._holding_days(
@@ -817,7 +825,7 @@ class Investment(Opportunity):
         if (
             check_tradability
             and not use_raw
-            and self._is_sell_blocked_by_limit_down(exit_price, bar)
+            and self._is_exit_blocked_by_limit_down(exit_price, bar)
         ):
             return None
         return self.settings.simulation.tradability.slippage.apply_exit(exit_price)
@@ -878,14 +886,14 @@ class Investment(Opportunity):
         raw_price = SafeBarValue.price_for_model(signal_bar, "close", use_raw=True)
         if raw_price > 0:
             raw_price = self.settings.simulation.tradability.slippage.apply_enter(raw_price)
-        self.entry = StateBag(
-            entry_price=price,
-            entry_price_raw=float(raw_price or 0.0),
-            entry_date=fill_as_of,
+        self.entry = EnterState(
+            price=price,
+            price_raw=float(raw_price or 0.0),
+            date=fill_as_of,
             direction=TradeSide.BUY,
-            buy_prev_close=prev_close,
-            buy_at_limit_up=at_limit_up,
-            buy_bar_volume=SafeBarValue.volume(signal_bar),
+            prev_close=prev_close,
+            at_limit=at_limit_up,
+            bar_volume=SafeBarValue.volume(signal_bar),
         )
         self.lifecycle = Lifecycle.OPEN
         self._update_extremes(fill_as_of, signal_bar)
@@ -954,14 +962,14 @@ class Investment(Opportunity):
             float(prev),
         )
 
-    def _is_buy_blocked_by_limit_up(self, price: float, bar: Dict[str, Any]) -> bool:
+    def _is_enter_blocked_by_limit_up(self, price: float, bar: Dict[str, Any]) -> bool:
         """贴涨停且 settings 不允许进场 → True（本 tick 不成交）。"""
         if self.settings.simulation.allow_enter_at_limit_up:
             return False
         at_limit, _ = self._eval_limit_up(price, bar)
         return bool(at_limit)
 
-    def _is_sell_blocked_by_limit_down(self, price: float, bar: Dict[str, Any]) -> bool:
+    def _is_exit_blocked_by_limit_down(self, price: float, bar: Dict[str, Any]) -> bool:
         """贴跌停且 settings 不允许出场 → True（本 tick 不成交）。"""
         if self.settings.simulation.allow_exit_at_limit_down:
             return False
@@ -971,7 +979,7 @@ class Investment(Opportunity):
     def _update_extremes(self, as_of: str, bar: Dict[str, Any]) -> None:
         if self.lifecycle != Lifecycle.OPEN:
             return
-        basis = float(self.entry.entry_price or 0.0)
+        basis = float(self.entry.price or 0.0)
         if basis <= 0:
             return
         high = float(bar.get("high") or bar.get("close") or 0.0)
@@ -990,7 +998,7 @@ class Investment(Opportunity):
     def _update_holding(self, as_of: str) -> None:
         if self.lifecycle != Lifecycle.OPEN or self.holding.mode is None:
             return
-        entry_date = str(self.entry.entry_date or "").strip()
+        entry_date = str(self.entry.date or "").strip()
         if not entry_date:
             return
         self.holding.days = self._holding_days(

@@ -22,7 +22,7 @@ from core.modules.strategy.core.engines.scanner.helpers import (
     AdapterDispatcher,
     ScanCacheManager,
     ScanDateResolver,
-    opportunity_buy_at_limit_up,
+    opportunity_enter_at_limit,
 )
 from core.modules.strategy.core.engines.scanner.job_builder import JobBuilder
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
@@ -299,7 +299,7 @@ class ScannerPipeline:
             }
         stocks = {opp.stock_id for opp in opportunities if opp.stock_id}
         at_limit = sum(
-            1 for opp in opportunities if opportunity_buy_at_limit_up(opp) is True
+            1 for opp in opportunities if opportunity_enter_at_limit(opp) is True
         )
         return {
             "total_opportunities": len(opportunities),

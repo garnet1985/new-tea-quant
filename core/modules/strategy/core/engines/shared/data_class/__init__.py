@@ -8,8 +8,8 @@
 """
 
 from .calendar_as_of import CalendarAsOfContext, CalendarAsOfResult
-from .investment import Investment
-from .investments import (
+from .investment.investment import Investment
+from .investment import (
     DEFAULT_TARGET_CHECK_ORDER,
     InvestmentResult,
     Lifecycle,

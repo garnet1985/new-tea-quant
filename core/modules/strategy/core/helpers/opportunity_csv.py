@@ -1,4 +1,9 @@
-"""Opportunity CSV 读写格式工具。"""
+"""Opportunity CSV 读写格式工具（enum / slice 产物共用）。
+
+本文件:
+- OpportunityCsvHelper: 按 stock_id 写/收 opportunities CSV
+  边界: 负责 CSV 格式约定；不负责 scan 缓存目录或 DB 工作台缓存
+"""
 
 from __future__ import annotations
 

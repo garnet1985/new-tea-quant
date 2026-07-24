@@ -1,4 +1,9 @@
-"""Scanner settings (``settings.scanner``)。"""
+"""``settings.scanner`` — 扫描模式与缓存/adapter 配置。
+
+本文件:
+- ScannerSettings: 锚点严格模式、max_cache_days、adapter_names 等
+  边界: 负责 scanner section；不负责 ScanDateResolver 或 BE 扫描
+"""
 
 from __future__ import annotations
 

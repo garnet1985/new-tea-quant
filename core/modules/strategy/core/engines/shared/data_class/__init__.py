@@ -1,4 +1,8 @@
-"""Shared strategy data classes (opportunity, investment)."""
+"""Shared strategy data classes (opportunity, investment).
+
+``SimulateSession`` 在 ``simulate_session`` 子模块；勿在此 re-export，
+以免 ``contracts`` → ``data_class`` → ``simulate_session`` → ``contracts`` 环依赖。
+"""
 
 from .investment import (
     DEFAULT_EXECUTE_STEPS,

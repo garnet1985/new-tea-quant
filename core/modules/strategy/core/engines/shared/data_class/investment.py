@@ -1,32 +1,8 @@
-"""Investment — simulated lifecycle for an ``Opportunity`` signal.
+"""Investment — Opportunity 的模拟生命周期（enumerator / price 共用）。
 
-Three kinds of runtime data
----------------------------
-1. **Run deps** (``Investment.deps``, set at ``create_from_opportunity``): ``market_rules``,
-   ``open_dates``, ``goal``, price models — fixed for the investment run.
-2. **Accumulators** (``InvestmentTickState`` on ``Investment``): ``entry``, ``holding``,
-   ``extreme``, ``completed_goals``, … — updated each ``tick``.
-3. **Tick input** (``InvestmentTickInput``, passed per step, not stored): ``as_of_date``,
-   ``data_as_of``, ``bar`` — supplied by the backtester / enumerator loop.
-
-``tick`` orchestrates entry → accumulator updates → goal evaluation → exit.
-Returns ``True`` while the tracker should keep this investment in the active bucket;
-``False`` when it is ``COMPLETE`` (ready to leave the active bucket).
-
-Lifecycle
----------
-- ``PENDING_TO_ENTER``: waiting for ``enter_price`` fill (e.g. next open).
-- ``OPEN``: entered; normal tracking (含部分平仓后 ``remaining_ratio > 0``).
-- ``PENDING_TO_EXIT``: ``pending_exit`` armed；见 ``PendingExit.kind``：
-  - ``next_open_defer``：计划延期到次日 open 成交
-  - ``fill_retry``：本 tick 因贴板等未能成交，后续 tick 按原 ``exit_price`` 重试
-- ``COMPLETE``: done (including ``settle`` force-close).
-
-TODO(investment lifecycle — deferred)
--------------------------------------
-- Suspended / non-trading day gates beyond limit-up/down fill blocks.
-- Non-trading / missing bar days (simulator currently skips entity that day).
-- Optional: ``enter_price`` / ``exit_price`` beyond next_open | open | close (legacy 亦仅此三者).
+本文件:
+- Investment 及 tick 相关类型（InvestmentTickInput/State、Entry/Exit、Lifecycle 枚举等）
+  边界: 负责单信号生命周期与 tick 状态机；不负责 portfolio 资金回放或 CSV 落盘
 """
 
 from __future__ import annotations

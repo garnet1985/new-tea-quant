@@ -4,8 +4,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from core.modules.strategy.contracts import SimulateKind
-from core.modules.strategy.strategy import Strategy, SimulateRuntimeContext
+from core.modules.strategy.core.enums import SimulateKind
+from core.modules.strategy.strategy import Strategy
+from core.modules.strategy.core.engines.shared.data_class.simulate_session import SimulateSession
 
 
 def _fps():
@@ -24,7 +25,7 @@ def _ctx(*, kind=SimulateKind.PRICE_FACTOR):
     info = MagicMock()
     info.id.return_value = "demo/rsi"
     info.relative_path = "demo/rsi"
-    return SimulateRuntimeContext(strategy_info=info, fp_res=_fps(), kind=kind)
+    return SimulateSession(strategy_info=info, fp_res=_fps(), kind=kind)
 
 
 def test_resolve_steps_price_reuses_enum_version():

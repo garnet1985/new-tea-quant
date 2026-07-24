@@ -1,4 +1,9 @@
-"""枚举器统一编排入口（entity_based / slice_based 共用步骤）。"""
+"""枚举器统一编排（entity_based / slice_based 共用步骤）。
+
+本文件:
+- EnumeratorPipeline: 采样→job 构建→BE→ReportManager；``find_output_version_via_fps``
+  边界: 负责 enum run 编排与落盘；不负责指纹计算、DB 缓存读写（Strategy / CacheManager）
+"""
 from __future__ import annotations
 
 import logging
@@ -31,7 +36,7 @@ from core.modules.strategy.core.services.discovery.data.discovered_strategy impo
     EnabledStrategyInfo,
 )
 if TYPE_CHECKING:
-    from core.modules.strategy.strategy import SimulateRuntimeContext
+    from core.modules.strategy.core.engines.shared.data_class.simulate_session import SimulateSession
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +48,7 @@ class EnumeratorPipeline:
     """枚举统一编排入口。
 
     边界:
-    - 负责: 用编排层已算好的 SimulateRuntimeContext 执行枚举并落盘
+    - 负责: 用编排层已算好的 SimulateSession 执行枚举并落盘
     - 不负责: 指纹、GlobalEntityCache 系统级加载、DB 缓存读写（Strategy / CacheManager）
     - 调用方: Strategy._run_steps（cache miss 之后）
     """
@@ -51,7 +56,7 @@ class EnumeratorPipeline:
     global_entity_cache: ClassVar[Optional[GlobalEntityCache]] = None
 
     @classmethod
-    def find_output_version_via_fps(cls, ctx: "SimulateRuntimeContext") -> Optional[str]:
+    def find_output_version_via_fps(cls, ctx: "SimulateSession") -> Optional[str]:
         """按双指纹查工作台 enum 槽的 ``version_id``；未找到返回 None。"""
         from core.modules.strategy.core.services.simulation_cache.cache_manager import (
             SimulationCacheManager,
@@ -63,7 +68,7 @@ class EnumeratorPipeline:
         )
 
     @classmethod
-    def run(cls, ctx: "SimulateRuntimeContext") -> Dict[str, Any]:
+    def run(cls, ctx: "SimulateSession") -> Dict[str, Any]:
         """运行枚举；复用 ctx 内已 seed 的 cache / settings / 指纹。"""
         strategy_info = ctx.strategy_info
         execution_mode = strategy_info.get_execution_mode()

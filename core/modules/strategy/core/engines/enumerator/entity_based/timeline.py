@@ -1,4 +1,9 @@
-"""entity_based 日历日业务（由 JobExecutor.on_tick / on_ticks_complete 驱动）。"""
+"""entity_based 日历日业务（JobExecutor.on_tick / on_ticks_complete 驱动）。
+
+本文件:
+- EntityTimelineHooks: per-entity DataContext、Investment tick、opportunity 注册
+  边界: 负责 entity 点 scan/investment 逻辑；不负责 points 迭代或 Contract 加载
+"""
 from __future__ import annotations
 
 import logging

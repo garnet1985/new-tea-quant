@@ -1,4 +1,10 @@
-"""Portfolio 账户事件回放（类导出）。"""
+"""Portfolio 账户事件回放。
+
+本文件:
+- PortfolioSimulator: 按 PortfolioEvent 序更新 Account、生成 Trade / equity_curve
+- PortfolioSimResult / OpenLot: 回放结果与在途 lot
+  边界: 负责资金层事件回放；不负责选仓（EnterSelection）或 enum 读盘
+"""
 
 from __future__ import annotations
 

@@ -1,9 +1,8 @@
-"""成交记录。
+"""Portfolio 成交记录 data class。
 
-定价与盈亏（相对 legacy）:
-- 买入价用不复权 ``entry_price_raw``（不用前复权价）
-- 卖出价 = ``entry_price_raw * (1 + roi)``，使仓位市值按 qfq roi 缩放
-- ``profit`` = sell share value − purchase share value（不含 fees）
+本文件:
+- Trade: 单笔 buy/sell 成交；profit = sell share value − purchase share value
+  边界: 负责成交记录结构；不负责 FeeCalculator 或 Account 更新
 """
 
 from __future__ import annotations

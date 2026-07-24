@@ -1,4 +1,9 @@
-"""扫描命中后的贴板标注（写入 Opportunity.metadata）。"""
+"""扫描命中后的贴板标注（写入 Opportunity.metadata）。
+
+本文件:
+- annotate_buy_at_limit_up / opportunity_buy_at_limit_up: 涨停买入判定
+  边界: 负责 metadata 标注；不负责 market_rules 定义或 scan hook 逻辑
+"""
 
 from __future__ import annotations
 

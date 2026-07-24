@@ -1,4 +1,9 @@
-"""Portfolio 回放产物落盘（类导出）。"""
+"""Portfolio 回放产物落盘。
+
+本文件:
+- PortfolioReportWriter: trades / equity_curve / overall + 可缓存 report dict
+  边界: 负责 portfolio version 目录写盘；不负责 simulate 逻辑
+"""
 
 from __future__ import annotations
 

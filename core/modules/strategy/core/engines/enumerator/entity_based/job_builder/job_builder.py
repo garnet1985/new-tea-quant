@@ -1,5 +1,9 @@
-#!/usr/bin/env python3
-"""entity_based Job 构建（无状态）。"""
+"""entity_based Job 构建（单 bundle，无 open_dates 进 payload）。
+
+本文件:
+- JobBuilder: 复用 BaseJobBuilder 组装 enum payload
+  边界: 负责 job 列表；不负责执行、日历解析（slice 侧追加）
+"""
 from __future__ import annotations
 
 from typing import Any, Dict, List

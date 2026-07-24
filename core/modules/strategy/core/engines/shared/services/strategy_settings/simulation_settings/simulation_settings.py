@@ -1,4 +1,9 @@
-"""``settings.simulation`` 门面：execution / assumption / risk_control。"""
+"""``settings.simulation`` 门面（execution / assumption / risk_control）。
+
+本文件:
+- SimulationSettings: 子 section 聚合与 enter/exit 价解析 API
+  边界: 负责 simulation 配置对象化；不负责 Investment.tick 或 price 回放
+"""
 
 from __future__ import annotations
 

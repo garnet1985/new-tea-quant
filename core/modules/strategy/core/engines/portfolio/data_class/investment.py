@@ -1,4 +1,9 @@
-"""资金层投资汇总（由买卖 Trade 合成）。"""
+"""Portfolio 资金层投资汇总（由 Trade 合成）。
+
+本文件:
+- PortfolioInvestment: 一笔投资的买卖汇总与 realized_profit / roi
+  边界: 负责汇总模型；不负责 enum 源数据或 simulate 回放
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,9 @@
-"""价格回测 simulation window：枚举 runtime period（已 resolve 的 start/end）。"""
+"""价格回测 simulation window（来自 enum runtime period）。
+
+本文件:
+- resolve_simulation_window: 取出已 resolve 的 start/end 传给 BE
+  边界: 负责 period 提取；不负责建开市日轴（BE CalendarService）
+"""
 from __future__ import annotations
 
 from typing import Tuple

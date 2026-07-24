@@ -1,4 +1,9 @@
-"""股票元数据加载工具。"""
+"""股票元数据加载工具。
+
+本文件:
+- StockMetaHelper: 单股 meta fallback 加载
+  边界: 负责 DataManager.stock.list.load_meta 封装；不负责 sampling 或 contract 注入
+"""
 
 from __future__ import annotations
 

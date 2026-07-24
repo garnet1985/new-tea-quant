@@ -1,4 +1,9 @@
-"""价格回测 ReportManager：version 目录、runtime / overall / investments。"""
+"""价格回测 ReportManager — version 目录与产物落盘。
+
+本文件:
+- ReportManager: begin / merge worker CSV / finalize → report dict
+  边界: 负责 price_factor 落盘；不负责 BE 调度或 tick 回放（类级边界见 docstring）
+"""
 from __future__ import annotations
 
 import json
@@ -25,7 +30,7 @@ from core.modules.strategy.core.services.data.simulation_output_recorder import 
 
 if TYPE_CHECKING:
     from core.modules.strategy.core.engines.price_factor.enum_data import EnumVersionData
-    from core.modules.strategy.strategy import SimulateRuntimeContext
+    from core.modules.strategy.core.engines.shared.data_class.simulate_session import SimulateSession
 
 
 @dataclass
@@ -48,7 +53,7 @@ class ReportManager:
     @classmethod
     def begin(
         cls,
-        ctx: "SimulateRuntimeContext",
+        ctx: "SimulateSession",
         data: "EnumVersionData",
         *,
         start: str,

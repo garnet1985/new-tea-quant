@@ -1,4 +1,9 @@
-"""单 entity 枚举 tracker：贯穿时间线跟踪 Investment（entity / slice 共用）。"""
+"""单 entity 枚举状态 tracker（entity / slice TimelineHooks 共用）。
+
+本文件:
+- EntityTracker: Investment 注册 / process_tick / settle；recorded 供写 CSV
+  边界: 负责单股时间线状态；不负责选股、数据加载或报告落盘
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field

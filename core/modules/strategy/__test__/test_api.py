@@ -62,7 +62,7 @@ class TestContracts(unittest.TestCase):
 
     def test_simulate_kind_enum(self) -> None:
         """SimulateKind 枚举定义正确"""
-        from core.modules.strategy.contracts import SimulateKind
+        from core.modules.strategy.core.enums import SimulateKind
 
         self.assertEqual(SimulateKind.ENUMERATE.value, "enumerate")
 

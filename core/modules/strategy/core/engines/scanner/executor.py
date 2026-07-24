@@ -1,4 +1,9 @@
-"""Scanner JobExecutor：单日轴上加载 lookback 数据并调用 scan hooks。"""
+"""Scanner JobExecutor — 单日轴 lookback 加载 + scan hooks。
+
+本文件:
+- JobExecutor: RunCallbacks 面；on_tick 调 scan_opportunity、贴板标注
+  边界: 负责 worker 内 scan 业务；不负责 Pipeline 缓存/adapters、BE batch 切分
+"""
 from __future__ import annotations
 
 import logging

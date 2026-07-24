@@ -1,4 +1,9 @@
-"""Scanner Job 构建（entity_based；BE 按 scanner profile 切 batch）。"""
+"""Scanner Job 构建（entity_based bundle；BE 按 scanner profile 切 batch）。
+
+本文件:
+- JobBuilder: 组装 scan_date + lookback entity_shared + strategy_info payload
+  边界: 负责 job payload；不负责 BE 调度、hooks 调用或 CSV 缓存
+"""
 from __future__ import annotations
 
 import logging

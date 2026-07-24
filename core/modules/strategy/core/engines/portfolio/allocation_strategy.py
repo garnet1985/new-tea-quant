@@ -1,4 +1,9 @@
-"""仓位 sizing：equal_capital / equal_shares / kelly（类导出）。"""
+"""Portfolio 仓位 sizing（equal_capital / equal_shares / kelly）。
+
+本文件:
+- AllocationStrategy: 给定 buy 事件与账户快照计算股数
+  边界: 负责「买多少」；不负责选仓或费率以外的账户逻辑
+"""
 
 from __future__ import annotations
 

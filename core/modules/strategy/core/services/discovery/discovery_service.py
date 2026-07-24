@@ -1,4 +1,9 @@
-"""Strategy discovery 服务（扫描 + 验证）。"""
+"""Strategy discovery 服务（磁盘扫描 + 验证 + 启用过滤）。
+
+本文件:
+- DiscoveryService: 发现 strategies 目录下全部/启用策略
+  边界: 负责文件夹扫描、key 唯一性、draft→StrategyInfo 升级；不负责 hooks 热路径调用或回测
+"""
 from __future__ import annotations
 
 from dataclasses import fields

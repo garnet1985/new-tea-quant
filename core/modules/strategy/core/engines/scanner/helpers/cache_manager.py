@@ -1,4 +1,9 @@
-"""扫描结果 CSV 缓存。"""
+"""扫描结果按日 CSV 文件缓存（非 DB 工作台）。
+
+本文件:
+- ScanCacheManager: ``scan_results/{strategy}/{date}/opportunities.csv`` 读写与过期清理
+  边界: 负责磁盘 scan 缓存；不负责 SimulationCacheManager 或 enum 产物
+"""
 
 from __future__ import annotations
 

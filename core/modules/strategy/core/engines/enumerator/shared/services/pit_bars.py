@@ -1,4 +1,9 @@
-"""Shared PIT / bar helpers for enumerator timeline hooks (entity + slice)."""
+"""enumerator 共用 PIT / bar 辅助（entity + slice TimelineHooks）。
+
+本文件:
+- PitBars: Contract.until 聚合、bar_on、ready_date 门闩
+  边界: 负责 per-entity PIT 视图；不负责日循环或 Investment.tick
+"""
 from __future__ import annotations
 
 import logging

@@ -1,4 +1,11 @@
-"""策略发现信息的三层data class（内部使用）。"""
+"""策略发现三层 data class（draft → info → enabled）。
+
+本文件:
+- StrategyDraft: 磁盘发现 + settings/hooks 校验（未通过则丢弃）
+- StrategyInfo: 验证通过、可 UI 展示（含 settings dict、hooks_class）
+- EnabledStrategyInfo: is_enabled=True，供 scan / simulate 消费
+  边界: 负责发现阶段元数据与校验；不负责指纹、缓存或引擎编排
+"""
 from __future__ import annotations
 
 import logging

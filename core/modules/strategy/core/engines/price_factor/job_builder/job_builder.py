@@ -1,4 +1,9 @@
-"""价格回测 Job 构建（entity_based bundle）。"""
+"""价格回测 Job 构建（entity_based bundle；CSV 由 worker 读）。
+
+本文件:
+- JobBuilder: entity_specified + enum 目录路径；不含 entities CSV 内容
+  边界: 负责 job payload；不负责执行、读 CSV、BE batch 切分
+"""
 from __future__ import annotations
 
 import logging

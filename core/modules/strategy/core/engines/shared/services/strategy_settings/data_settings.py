@@ -1,4 +1,9 @@
-"""Data settings (``settings.data``)."""
+"""``settings.data`` — base/required 数据声明校验。
+
+本文件:
+- DataSettings: base_data_key、required 声明结构与校验
+  边界: 负责 data section 校验；不负责 Contract 加载（StrategyDataResolver / loaders）
+"""
 
 from __future__ import annotations
 

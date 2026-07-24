@@ -4,7 +4,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from core.modules.strategy.contracts import SimulateKind
+from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.simulation_cache.cache_manager import (
     SimulationCacheManager,
 )

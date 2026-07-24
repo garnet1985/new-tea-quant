@@ -1,4 +1,10 @@
-"""枚举 run 产物编排：version 目录、runtime / performance / overall 落盘与展示。"""
+"""枚举 run 产物编排（version 目录、runtime / overall / investments）。
+
+本文件:
+- ReportManager: begin / buffer / flush / finalize / present
+- SavedRunArtifacts: finalize 后关键路径句柄
+  边界: 负责 enum 落盘与展示；不负责 BE 调度或枚举 tick 业务（类级边界见各类 docstring）
+"""
 from __future__ import annotations
 
 import sys

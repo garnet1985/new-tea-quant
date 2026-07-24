@@ -60,14 +60,14 @@ def main() -> int:
 
     print("=== entity_based enum smoke ===", flush=True)
     started = time.time()
-    from core.modules.strategy.contracts import SimulateKind
+    from core.modules.strategy.core.enums import SimulateKind
     from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import (
         GlobalEntityCache,
     )
     from core.modules.strategy.core.services.simulation_cache.fingerprints import (
         FingerprintCalculator,
     )
-    from core.modules.strategy.strategy import SimulateRuntimeContext
+    from core.modules.strategy.core.engines.shared.data_class.simulate_session import SimulateSession
 
     fp_res = FingerprintCalculator.calculate_fingerprints(
         strategy,
@@ -75,7 +75,7 @@ def main() -> int:
         GlobalEntityCache.get_stock_list(),
         GlobalEntityCache.get_latest_completed_trading_date(),
     )
-    ctx = SimulateRuntimeContext(
+    ctx = SimulateSession(
         strategy_info=strategy,
         fp_res=fp_res,
         kind=SimulateKind.ENUMERATE,

@@ -1,4 +1,9 @@
-"""Scanner Pipeline — 日期解析 → cache / BE 扫描 → adapters。"""
+"""Scanner Pipeline — 单策略扫描编排（日期 → cache/BE → adapters）。
+
+本文件:
+- ScannerPipeline: 解析 scan_date、读/写 CSV 缓存、BE 扫描、adapter 分发
+  边界: 负责 scan 端到端编排；不负责 simulate 指纹或 enum/price 产物
+"""
 from __future__ import annotations
 
 import logging

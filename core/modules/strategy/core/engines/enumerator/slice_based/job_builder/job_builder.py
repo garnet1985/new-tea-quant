@@ -1,5 +1,9 @@
-#!/usr/bin/env python3
-"""slice_based Job 构建：公共 payload + BE.slice_based 契约字段。"""
+"""slice_based Job 构建（基类 payload + BE slice 契约字段）。
+
+本文件:
+- JobBuilder: timeline_point_count、BacktestCalendarResolver 产出的 calendar 元数据
+  边界: 负责 slice job payload；不负责 worker 内 Timeline 解析或报告落盘
+"""
 from __future__ import annotations
 
 import logging

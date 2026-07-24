@@ -1,4 +1,9 @@
-"""交易日历纯工具。"""
+"""交易日历纯工具（open_dates 过滤与月首/末判定）。
+
+本文件:
+- CalendarOpenDateHelper: 区间过滤、is_first/last_open_of_month 等
+  边界: 负责无 IO 的日历集合运算；不负责 DataManager 加载或 job 构建
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,10 @@
-"""settings.data 声明解析与 scope 分组（contract 注入边界）。"""
+"""settings.data 声明解析与 global / per_entity 分组。
+
+本文件:
+- StrategyDataResolver: base/required 声明、ContractIssuer.is_global 分组
+- DataDeclaration / DeclarationGroups: 声明与分组 TypedDict
+  边界: 负责解析与分组；不负责实际 contract 加载（GlobalEntityCache / JobBundleLoader）
+"""
 from __future__ import annotations
 
 import logging

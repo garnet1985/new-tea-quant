@@ -3,7 +3,7 @@
 
 from typing import Any, Dict, List, Tuple
 
-from core.modules.strategy.contracts import ExecutionMode
+from core.modules.strategy.core.enums import ExecutionMode
 
 
 def _strategy_job_fields(strategy_info: Any) -> Tuple[str, Any, str, str, str]:

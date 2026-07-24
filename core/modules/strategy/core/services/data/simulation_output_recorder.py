@@ -1,4 +1,9 @@
-"""模拟产物 Recorder 基类（enum / price / capital 共用基础设施）。"""
+"""模拟 run 产物 version 目录分配与跨进程 snapshot。
+
+本文件:
+- SimulationOutputRecorder: 分配 ``simulation/{kind}/{strategy}/{version}``、meta.json 递增
+  边界: 负责目录与 snapshot 序列化；不负责 report 内容写盘（各 ReportManager）
+"""
 from __future__ import annotations
 
 import json

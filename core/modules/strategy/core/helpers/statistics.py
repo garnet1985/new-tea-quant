@@ -1,4 +1,9 @@
-"""统计计算纯工具。"""
+"""统计计算纯工具（触发率、分位数、分组等）。
+
+本文件:
+- StatisticsHelper: 无外部依赖的汇总公式
+  边界: 负责数值统计；不负责读 opportunities 文件或写报告
+"""
 
 from __future__ import annotations
 

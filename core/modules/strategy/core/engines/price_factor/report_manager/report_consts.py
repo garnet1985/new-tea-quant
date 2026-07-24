@@ -1,4 +1,9 @@
-"""价格回测 version 目录产物路径约定。"""
+"""价格回测 version 目录产物路径约定。
+
+本文件:
+- ReportPaths: runtime / overall / entities 等文件名与路径 helper
+  边界: 负责路径常量；不负责写盘逻辑
+"""
 from __future__ import annotations
 
 from pathlib import Path

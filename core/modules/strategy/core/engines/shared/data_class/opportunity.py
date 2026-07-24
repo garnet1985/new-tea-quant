@@ -1,12 +1,8 @@
-"""Opportunity — scan signal record (shared across scan / enumerate / adapter).
+"""Opportunity — 扫描/枚举信号记录（scan → Investment / adapter）。
 
-Downstream paths
-----------------
-1. **Investment** — enumerator simulates trading this signal (full lifecycle).
-2. **Scanner adapter** — live / external pipeline consumes the signal as-is.
-
-Opportunity holds identity + entry-condition snapshot only (``trigger_*``,
-``record_of_today``, ``market_profile``). It has no exit, lifecycle, or goal completion fields.
+本文件:
+- StockInfo / OpportunityMeta / OpportunityContributor / Opportunity
+  边界: 负责入场条件快照（trigger_*）；不含 exit、lifecycle、goal 完成字段（见 Investment）
 """
 
 from __future__ import annotations

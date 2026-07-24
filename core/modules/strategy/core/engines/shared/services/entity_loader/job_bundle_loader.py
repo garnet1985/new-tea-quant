@@ -1,4 +1,9 @@
-"""Job bundle data loader (per-entity contracts + shm globals)."""
+"""Job bundle 数据面加载（per-entity contracts + shm globals）。
+
+本文件:
+- JobBundleLoader: issue per_entity Contract、读 shm、应用 indicators
+  边界: 负责 worker task 数据装载；不负责日历推进、hooks 或 CSV 落盘
+"""
 from __future__ import annotations
 
 import logging

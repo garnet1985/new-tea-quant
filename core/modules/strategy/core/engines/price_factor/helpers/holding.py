@@ -1,4 +1,9 @@
-"""价格回测持仓闭合：仅在实际成交退出后释放同股互斥。"""
+"""价格回测持仓闭合判定（同股互斥门闩）。
+
+本文件:
+- position_fully_closed / remaining_position_ratio / resolve_holding_until 等
+  边界: 负责 executed_legs 仓位数学；不负责 tradability 或 CSV 写盘
+"""
 
 from __future__ import annotations
 

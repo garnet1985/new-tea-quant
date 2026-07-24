@@ -1,4 +1,9 @@
-"""slice_based 交易日历解析。"""
+"""slice_based 回测窗开市日解析。
+
+本文件:
+- BacktestCalendarResolver: DataManager 日历 → open_dates + backtest_calendar dict
+  边界: 负责日历加载与区间过滤；不负责 job payload 其它字段或 BE 执行
+"""
 from __future__ import annotations
 
 import logging

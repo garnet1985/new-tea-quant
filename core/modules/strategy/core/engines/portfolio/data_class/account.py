@@ -1,4 +1,9 @@
-"""账户与持仓。"""
+"""Portfolio 账户与持仓 data class。
+
+本文件:
+- Position / Account: 资金层账户快照
+  边界: 负责数据结构；不负责事件回放或 sizing
+"""
 
 from __future__ import annotations
 

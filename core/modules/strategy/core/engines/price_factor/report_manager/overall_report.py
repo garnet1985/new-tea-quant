@@ -1,4 +1,9 @@
-"""价格回测整体 summary（``0_overall_report.json``）。"""
+"""价格回测 ``0_overall_report.json`` 跨 entity 汇总。
+
+本文件:
+- OverallSummary / OverallReport: 从 EntityInvestments 聚合 win_rate、avg_roi 等
+  边界: 负责 summary 计算与写盘；不负责单股 CSV 回放
+"""
 from __future__ import annotations
 
 import json

@@ -11,7 +11,7 @@ import pytest
 
 pytestmark = pytest.mark.force_run
 
-from core.modules.strategy.contracts import SimulateKind
+from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_investments import (
     InvestmentRow,
     StockInvestments,
@@ -33,7 +33,8 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.strate
 from core.modules.strategy.core.hooks.base import StrategyHooks
 from core.modules.strategy.core.hooks.context import DataContext
 from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
-from core.modules.strategy.strategy import BackTestPipelines, SimulateRuntimeContext
+from core.modules.strategy.strategy import BackTestPipelines
+from core.modules.strategy.core.engines.shared.data_class.simulate_session import SimulateSession
 
 
 def _opp(oid: str, entity_id: str) -> Opportunity:
@@ -64,7 +65,7 @@ def test_backtest_pipelines_wires_portfolio():
 
 
 def test_load_enum_data_requires_enum_version():
-    ctx = SimulateRuntimeContext(
+    ctx = SimulateSession(
         strategy_info=SimpleNamespace(
             key="demo",
             unique_relative_path="demo/rsi",

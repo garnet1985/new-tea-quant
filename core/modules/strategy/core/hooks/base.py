@@ -1,4 +1,9 @@
-"""Strategy hooks 基类。"""
+"""用户 StrategyHooks 抽象基类（userspace 继承实现）。
+
+本文件:
+- StrategyHooks: scan / asof / portfolio 等 hook 声明与默认实现
+  边界: 定义用户扩展点；不负责加载、DataContext 组装或 BE 调度
+"""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

@@ -1,4 +1,9 @@
-"""价格回测 runtime_env / entity_ids 落盘。"""
+"""价格回测 ``0_runtime_env.json`` 与 entity_ids 落盘。
+
+本文件:
+- PriceRuntimeEnv: runtime 字段序列化 / write_entity_ids
+  边界: 负责 runtime 文件内容；不负责 overall 汇总或 worker CSV
+"""
 from __future__ import annotations
 
 import json

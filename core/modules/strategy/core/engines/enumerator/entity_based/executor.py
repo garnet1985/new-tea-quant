@@ -1,4 +1,9 @@
-"""entity_based job executor（task 生命周期钩子；日推进由 BE Timeline.drive）。"""
+"""entity_based JobExecutor — task 钩子；日推进由 BE Timeline.drive。
+
+本文件:
+- JobExecutor: timeline_hooks_cls=EntityTimelineHooks；probe 跳过 flush
+  边界: 负责 mode 专有 task 回调；不负责 open_dates 迭代或 CSV 落盘编排
+"""
 from __future__ import annotations
 
 from typing import Any, List

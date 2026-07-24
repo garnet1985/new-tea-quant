@@ -1,4 +1,10 @@
-"""用户 hook 侧 DataContext — 策略决策所需的业务数据。"""
+"""用户 hook 侧 DataContext — 策略决策所需的业务数据视图。
+
+本文件:
+- DataContext: assemble / fill 两阶段 context；键与 DataKey 对齐
+- _HookDataStore: 模块内 dict 视图（不对外 export）
+  边界: 负责 hook 可读数据面；不含 job_payload、profiler、DataManager 等运行时内部对象
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field

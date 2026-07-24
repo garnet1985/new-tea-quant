@@ -1,4 +1,9 @@
-"""价格层：卖出因跌停跳过后，在后续可交易日顺延重试。"""
+"""价格层跌停顺延卖出重试。
+
+本文件:
+- DeferredPendingExit / retry_deferred_exits: 贴板跳过后的后续交易日重试
+  边界: 负责 deferred exit 状态机；不负责 JobExecutor 调度或 overall 汇总
+"""
 
 from __future__ import annotations
 

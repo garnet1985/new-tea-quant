@@ -1,4 +1,9 @@
-"""价格回测：按需加载单股日 K 线。"""
+"""价格回测：按需加载单股日 K 线。
+
+本文件:
+- load_stock_klines: DataManager qfq daily
+  边界: 负责 K 线 IO；不负责 slippage 或成交回放
+"""
 
 from __future__ import annotations
 

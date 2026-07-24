@@ -1,4 +1,9 @@
-"""扫描结果 → userspace adapters。"""
+"""扫描结果 → userspace opportunity adapters。
+
+本文件:
+- AdapterDispatcher: 按 settings.scanner.adapter_names 动态加载并 process
+  边界: 负责 adapter 分发；不负责 scan 本身或默认 adapter 以外的存储策略
+"""
 
 from __future__ import annotations
 

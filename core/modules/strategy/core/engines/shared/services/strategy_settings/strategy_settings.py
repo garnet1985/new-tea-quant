@@ -1,13 +1,8 @@
-"""Strategy settings proxy（外层壳 + 与 settings section 一一对应的子配置）。
+"""Strategy settings 外层代理（与各 settings section 一一对应）。
 
-有 dataclass 的 section::
-
-    meta, data, sampling, goal, fees, simulation, portfolio, scanner
-
-无 dataclass（原样留在 raw_settings）::
-
-    is_enabled, core, market_profile
-    enumerator / price_simulator（暂不建模）
+本文件:
+- StrategySettings: meta/data/sampling/goal/fees/simulation/portfolio/scanner 子配置 + merge/指纹字段
+  边界: 负责 settings 对象化与 effective merge；不负责磁盘 discovery 或引擎执行
 """
 
 from __future__ import annotations

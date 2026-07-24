@@ -1,4 +1,9 @@
-"""Strategy 路径 ID 规则。"""
+"""Strategy 路径与动态 module id 命名规则。
+
+本文件:
+- StrategyPathRules: 相对路径、机器可读段校验、``_ntq_strategy_*`` module 名
+  边界: 负责纯路径/命名规则；不负责 discovery 扫描或文件存在性
+"""
 from __future__ import annotations
 
 import re

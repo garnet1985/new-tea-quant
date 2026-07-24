@@ -1,4 +1,9 @@
-"""从磁盘加载策略 hooks 类。"""
+"""从磁盘动态加载用户 strategy.py 中的 hooks 类。
+
+本文件:
+- StrategyWorkerLoader: importlib 加载 + 查找公开 StrategyHooks 子类
+  边界: 负责模块 spec 与类解析；不负责 settings 校验或 hook 调用
+"""
 from __future__ import annotations
 
 import importlib

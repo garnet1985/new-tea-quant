@@ -1,4 +1,9 @@
-"""Portfolio settings (``settings.portfolio``) — 资金模拟配置。"""
+"""``settings.portfolio`` — 资金模拟与 allocation 配置。
+
+本文件:
+- AllocationConfig / OutputConfig / PortfolioSettings
+  边界: 负责 portfolio section；不负责 EnterSelection 或 PortfolioSimulator 回放
+"""
 
 from __future__ import annotations
 

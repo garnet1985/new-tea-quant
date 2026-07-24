@@ -1,4 +1,9 @@
-"""slice_based 日历日业务（由 JobExecutor.on_tick / on_ticks_complete 驱动）。"""
+"""slice_based 日历日业务（on_calendar_asof → scan 选股 → Investment）。
+
+本文件:
+- SliceTimelineHooks: tick-all、asof 选股、force_exit、Investment 注册
+  边界: 负责 slice 点业务；不负责 Timeline.drive 或 Contract/CSV 加载
+"""
 from __future__ import annotations
 
 import logging

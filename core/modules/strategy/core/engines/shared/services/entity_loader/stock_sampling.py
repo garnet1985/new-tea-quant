@@ -1,5 +1,9 @@
-#!/usr/bin/env python3
-"""股票采样服务（entity loader 的一部分）。"""
+"""股票采样（EnumeratorPipeline 层消费）。
+
+本文件:
+- StockSampler: uniform / stratified / random / pool / blacklist 等采样策略
+  边界: 负责从 stock_list 得到 entity_ids；不负责 global 加载或 job 构建
+"""
 
 from __future__ import annotations
 

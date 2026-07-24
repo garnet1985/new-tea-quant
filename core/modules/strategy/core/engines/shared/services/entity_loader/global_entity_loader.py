@@ -1,17 +1,8 @@
-#!/usr/bin/env python3
-"""全局数据加载与共享内存管理。
+"""全局 entity 数据加载与共享内存（跨引擎共用）。
 
-职责（仅加载，不解析/分组）：
-1. 固定加载三个系统级 global 数据：
-   - latest completed trading date（DataManager API，写入 meta，不进 contract）
-   - stock.list、trade.calendar（ContractIssuer，写入缓存 + 共享内存）
-2. 按 StrategyDataResolver 给出的策略 global 声明加载额外 global 数据
-3. 管理共享内存，供子进程读取
-
-不负责：
-- settings.data 声明解析与 global/per_entity 分组 → StrategyDataResolver
-- entity 采样 → StockSampler（pipeline 层）
-- per_entity contracts → JobBuilder / entity_loader.JobBundleLoader
+本文件:
+- GlobalEntityCache: 系统 global（stock.list / trade.calendar / latest date）+ 策略 global + shm
+  边界: 负责加载与 shm；不负责 settings.data 解析（StrategyDataResolver）或 per_entity bundle
 """
 
 from __future__ import annotations

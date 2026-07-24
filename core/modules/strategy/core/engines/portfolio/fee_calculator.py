@@ -1,4 +1,9 @@
-"""简易费率计算器（类导出）。"""
+"""Portfolio 成交费用计算。
+
+本文件:
+- FeeCalculator: 佣金 / 印花税 / 过户费；buy_total_cost / sell_net_proceeds
+  边界: 负责费率数学；不负责 settings 校验或账户状态更新
+"""
 
 from __future__ import annotations
 

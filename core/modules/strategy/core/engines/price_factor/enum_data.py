@@ -1,4 +1,10 @@
-"""枚举 version 轻量加载（价格回测主进程输入；不读 entities CSV）。"""
+"""枚举 version 轻量加载（price/portfolio 主进程输入；不读 entities CSV）。
+
+本文件:
+- EnumVersionData: output_dir / version_id / runtime snapshot 句柄
+- resolve_enum_version_dir / load_enum_version: 目录解析与 runtime 读取
+  边界: 负责主进程侧 enum 元数据；不负责 worker 批量读 entities CSV
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass

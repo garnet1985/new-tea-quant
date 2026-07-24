@@ -1,24 +1,8 @@
-"""价格因子 Pipeline — 主流程骨架（逐步落地）。
+"""价格因子 Pipeline — enum 产物 → BE 回放 → price_factor 报告。
 
-主流程::
-
-    1. load_enum_data       — 读 enum version 的 runtime + entity_ids（不读 entities CSV）
-    2. resolve_window       — 枚举 period start–end（已 resolve；传给 BE）
-    3. ReportManager.begin  — 分配 price_factor version，写 runtime / entity_ids
-    4. JobBuilder.build_jobs — bundle：entity ids + enum_dir；CSV 在 worker 读
-    5. BacktestEngine.entity_based — 调度自管；callbacks=JobExecutor；
-       start/end window 必传（BE 校验 data.json 并建轴）
-    6. ReportManager.finalize — overall + performance；返回可缓存 report dict
-
-Worker 输入契约（仅新格式）::
-
-    enum_version/entities/{entity_id}_stock_investments.csv
-    enum_version/entities/{entity_id}_goal_achievements.csv
-
-边界:
-    - 负责: 准备 jobs + simulation window + JobExecutor 回调 + 报告落盘
-    - 不负责: 切 batch / worker 数（BE）、指纹缓存、legacy 格式、tick 业务回放
-    - 调用方: Strategy._run_steps（cache miss 之后）
+本文件:
+- PriceFactorPipeline: load_enum_data → window → jobs → BE → ReportManager.finalize
+  边界: 负责 price step 编排；不负责指纹缓存、legacy CSV 格式、tick 回放细节（JobExecutor）
 """
 from __future__ import annotations
 
@@ -36,18 +20,18 @@ from core.modules.strategy.core.engines.price_factor.report_manager import Repor
 from core.modules.strategy.core.engines.price_factor.timeline import resolve_simulation_window
 
 if TYPE_CHECKING:
-    from core.modules.strategy.strategy import SimulateRuntimeContext
+    from core.modules.strategy.core.engines.shared.data_class.simulate_session import SimulateSession
 
 
 class PriceFactorPipeline:
     """价格因子统一编排入口。"""
 
     @classmethod
-    def run(cls, ctx: "SimulateRuntimeContext") -> Dict[str, Any]:
+    def run(cls, ctx: "SimulateSession") -> Dict[str, Any]:
         return cls.run_by_steps(ctx)
 
     @classmethod
-    def run_by_steps(cls, ctx: "SimulateRuntimeContext") -> Dict[str, Any]:
+    def run_by_steps(cls, ctx: "SimulateSession") -> Dict[str, Any]:
         """按步骤串起各步，返回本 step 的 report dict。"""
         data = cls.load_enum_data(ctx)
         start, end = cls.resolve_window(data)
@@ -57,10 +41,10 @@ class PriceFactorPipeline:
         return report.finalize(run_result, data=data)
 
     @classmethod
-    def load_enum_data(cls, ctx: "SimulateRuntimeContext") -> EnumVersionData:
+    def load_enum_data(cls, ctx: "SimulateSession") -> EnumVersionData:
         """解析 enum version 目录，加载 runtime + entity_ids（不读 CSV）。"""
         if ctx.enum_version is None or not str(ctx.enum_version).strip():
-            raise ValueError("SimulateRuntimeContext.enum_version 不能为空")
+            raise ValueError("SimulateSession.enum_version 不能为空")
         version_id = str(ctx.enum_version).strip()
         output_dir = resolve_enum_version_dir(ctx.strategy_key, version_id)
         return load_enum_version(output_dir, version_id)

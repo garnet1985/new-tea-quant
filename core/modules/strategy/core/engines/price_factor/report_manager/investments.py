@@ -1,4 +1,9 @@
-"""价格回测每股投资记录 CSV。"""
+"""价格回测每股 ``entities/{id}_price_investments.csv``。
+
+本文件:
+- PriceInvestmentRow / EntityInvestments: 行模型与 CSV 读写
+  边界: 负责 entity 级 price CSV；不负责 enum 源 CSV 或 overall 汇总
+"""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass

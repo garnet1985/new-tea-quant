@@ -1,11 +1,16 @@
-"""模拟结果缓存管理器（Facade 编排层查写 ``sys_strategy_workbench_snapshot``）。"""
+"""模拟结果 DB 缓存（Facade 查写 ``sys_strategy_workbench_snapshot``）。
+
+本文件:
+- SimulationCacheManager: enum / price_factor / portfolio 三槽位读写
+  边界: 负责双指纹 AND 命中、写 slot、enum 更新清下游；不负责算指纹或跑 Pipeline
+"""
 from __future__ import annotations
 
 import logging
 from enum import Enum
 from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
 
-from core.modules.strategy.contracts import SimulateKind
+from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.simulation_cache.base_cache_manager import (
     BaseCacheManager,
 )

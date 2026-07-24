@@ -1,4 +1,9 @@
-"""价格回测 JobExecutor：子进程加载 CSV + 回放落盘（经 RunCallbacks）。"""
+"""价格回测 JobExecutor — worker 读 enum CSV + 成交回放落盘。
+
+本文件:
+- JobExecutor: RunCallbacks；task 结束写 price entities CSV
+  边界: 负责 worker 内回放与 deferred exit；不负责 BE 切 batch、overall 汇总
+"""
 from __future__ import annotations
 
 import logging

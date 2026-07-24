@@ -1,4 +1,10 @@
-"""模拟指纹服务：settings_fp / env_fp / disk_settings_hash（进入引擎前）。"""
+"""模拟指纹：settings_fp / env_fp / disk_settings_hash（进入引擎前）。
+
+本文件:
+- FingerprintCalculator: 有效 settings merge、GlobalEntityCache seed、三类指纹
+- FingerprintResult: 一次 simulate 共享的指纹 + effective_settings + entity_ids
+  边界: 负责算指纹与 seed cache；不负责 DB 缓存读写或 Pipeline 执行
+"""
 from __future__ import annotations
 
 import hashlib

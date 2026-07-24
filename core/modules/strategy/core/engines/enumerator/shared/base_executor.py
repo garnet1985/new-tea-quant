@@ -1,4 +1,10 @@
-"""enumerator JobExecutor 基类（entity / slice 共用 task 生命周期钩子）。"""
+"""enumerator JobExecutor 基类（entity / slice 共用 task 生命周期）。
+
+本文件:
+- BaseJobExecutor: RunCallbacks 组装、bundle load、flush、进度分派
+- ExecutorHooksContext: ReportManager / GlobalEntityCache 引用载体
+  边界: 负责 task 级钩子骨架；不负责日历日业务（TimelineHooks 子类）
+"""
 from __future__ import annotations
 
 import logging

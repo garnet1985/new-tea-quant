@@ -1,8 +1,12 @@
-"""Strategy contracts — 跨模块与用户策略的公开 API（类型 + hooks 契约）。"""
+"""Strategy 跨模块公开契约（hooks + 共享数据类型 re-export）。
+
+本文件:
+- StrategyHooks / DataContext: 用户策略 hook 契约
+- Opportunity / Investment / CalendarAsOf*: 引擎共享数据类
+  边界: 仅类型与契约导出；全局枚举见 ``core.enums``；不含编排实现
+"""
 
 from __future__ import annotations
-
-from enum import Enum
 
 from core.modules.strategy.core.engines.enumerator.slice_based.types import (
     CalendarAsOfContext,
@@ -17,42 +21,13 @@ from core.modules.strategy.core.engines.shared.data_class import (
 from core.modules.strategy.core.hooks.base import StrategyHooks
 from core.modules.strategy.core.hooks.context import DataContext
 
-
-class ExecutionMode(Enum):
-    """执行模式"""
-
-    SCAN = "scan"
-    SIMULATE = "simulate"
-
-
-class SellReason(Enum):
-    """卖出原因"""
-
-    STOP_LOSS = "stop_loss"
-    TAKE_PROFIT = "take_profit"
-    MAX_HOLDING = "max_holding"
-    END_OF_PERIOD = "end_of_period"
-
-
-class SimulateKind(Enum):
-    """模拟类型"""
-
-    ENUMERATE = "enumerate"
-    PRICE_FACTOR = "price_factor"
-    PORTFOLIO = "portfolio"
-    FULL = "full"
-
-
 __all__ = [
     "CalendarAsOfContext",
     "CalendarAsOfResult",
     "DataContext",
-    "ExecutionMode",
     "Opportunity",
     "Investment",
     "InvestmentRunDeps",
     "InvestmentTickInput",
-    "SellReason",
-    "SimulateKind",
     "StrategyHooks",
 ]

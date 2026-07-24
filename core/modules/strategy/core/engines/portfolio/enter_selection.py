@@ -1,7 +1,9 @@
-"""Portfolio 入场挑选（只导出类）。
+"""Portfolio 入场挑选与 ``on_pick_portfolio_member`` 编排。
 
-- ``EntrySelector``：按配置选谁进组合（顺序 + 剩余槽位）
-- ``EnterSelection``：``on_pick_portfolio_member`` 编排（钩子 / 跨日容量 / 过滤事件）
+本文件:
+- EntrySelector: 按 max_portfolio_size + 顺序选 Opportunity（不算 sizing）
+- EnterSelection: 钩子 / 跨日 held 容量 / 事件过滤编排
+  边界: 负责「选谁进组合」；不负责股数计算（AllocationStrategy）或账户回放
 """
 
 from __future__ import annotations

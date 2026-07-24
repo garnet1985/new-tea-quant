@@ -1,4 +1,9 @@
-"""StrategyHooks 加载与按阶段调用（热路径唯一入口）。"""
+"""StrategyHooks 加载与按阶段调用（主进程 / worker 热路径入口）。
+
+本文件:
+- StrategyHookRuntime: 从 worker_ref / strategy_info 实例化 hooks 并分派调用
+  边界: 负责 hooks 生命周期与统一调用；不负责 contract 加载或报告落盘
+"""
 from __future__ import annotations
 
 import logging

@@ -1,4 +1,9 @@
-"""Portfolio 事件：由枚举 InvestmentRow 展开的 buy / sell。"""
+"""Portfolio 买卖事件（由 enum InvestmentRow 展开）。
+
+本文件:
+- PortfolioEvent: buy/sell 事件；定价规则见类 docstring
+  边界: 负责事件模型与 from_investment_row；不负责 simulate 或 hooks
+"""
 
 from __future__ import annotations
 

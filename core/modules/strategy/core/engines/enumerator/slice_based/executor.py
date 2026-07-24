@@ -1,4 +1,9 @@
-"""slice_based job executor（task 生命周期钩子；日推进由 BE Timeline.drive）。"""
+"""slice_based JobExecutor — task 钩子；日推进由 BE Timeline.drive。
+
+本文件:
+- JobExecutor: timeline_hooks_cls=SliceTimelineHooks
+  边界: 负责 slice mode task 回调；不负责 asof 选股细节（SliceTimelineHooks）
+"""
 from __future__ import annotations
 
 from typing import Any, List

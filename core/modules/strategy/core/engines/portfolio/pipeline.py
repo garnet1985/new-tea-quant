@@ -1,25 +1,8 @@
 """Portfolio Pipeline — 资金/组合回放（无 BacktestEngine）。
 
-主流程::
-
-    1. load_enum_data            — 读 enum version runtime + entity_ids
-    2. load_portfolio_settings   — 读 settings.portfolio
-    3. begin_report              — 分配 portfolio version，写最小 runtime
-    4. build_events              — enum investments → PortfolioEvent + Opportunity 索引
-    5. simulate                  — on_pick_portfolio_member 选仓 → 账户事件回放
-    6. finalize                  — overall / trades / equity 落盘 + 可缓存 report
-
-边界:
-    - 负责: 进程内编排（读 enum、settings、分配产物目录、选仓钩子、sizing、回放）
-    - 不负责: BacktestEngine 调度、指纹缓存（Facade）、legacy capital 路径
-    - 调用方: Strategy._run_steps（cache miss 之后）
-
-与 legacy 差异:
-    - 买入用 entry_price_raw（enter_price 对应 raw 字段，默认 next_open→raw open；
-      不用 raw close 定仓；卖出不用 exit_price_raw）
-    - profit = sell share value − purchase share value（Trade.share_value_profit）
-    - on_pick_portfolio_member：Investment/InvestmentRow.to_opportunity 屏蔽结果字段；
-      默认 EntrySelector（顺序 + max_portfolio_size 剩余槽位）；不返回仓位 sizing
+本文件:
+- PortfolioPipeline: enum → events → on_pick_portfolio_member → simulate → 落盘
+  边界: 负责 portfolio step 进程内编排；不负责指纹缓存、BE 调度（类级流程见 module 内注释）
 """
 from __future__ import annotations
 
@@ -72,7 +55,7 @@ from core.modules.strategy.core.services.data.simulation_output_recorder import 
 from core.system import get_version
 
 if TYPE_CHECKING:
-    from core.modules.strategy.strategy import SimulateRuntimeContext
+    from core.modules.strategy.core.engines.shared.data_class.simulate_session import SimulateSession
 
 _RUNTIME_ENV_FILE = "0_runtime_env.json"
 _DEFAULT_MARKET_PROFILE = "china_a_stock"
@@ -94,11 +77,11 @@ class PortfolioPipeline:
     """资金/组合统一编排入口（无 BE）。"""
 
     @classmethod
-    def run(cls, ctx: "SimulateRuntimeContext") -> Dict[str, Any]:
+    def run(cls, ctx: "SimulateSession") -> Dict[str, Any]:
         return cls.run_by_steps(ctx)
 
     @classmethod
-    def run_by_steps(cls, ctx: "SimulateRuntimeContext") -> Dict[str, Any]:
+    def run_by_steps(cls, ctx: "SimulateSession") -> Dict[str, Any]:
         """按步骤串起选仓 → 回放 → 落盘，返回可缓存 report。"""
         data = cls.load_enum_data(ctx)
         portfolio_settings = cls.load_portfolio_settings(ctx)
@@ -124,26 +107,26 @@ class PortfolioPipeline:
         )
 
     @classmethod
-    def load_enum_data(cls, ctx: "SimulateRuntimeContext") -> EnumVersionData:
+    def load_enum_data(cls, ctx: "SimulateSession") -> EnumVersionData:
         """解析 enum version 目录，加载 runtime + entity_ids（不读 CSV）。"""
         if ctx.enum_version is None or not str(ctx.enum_version).strip():
-            raise ValueError("SimulateRuntimeContext.enum_version 不能为空")
+            raise ValueError("SimulateSession.enum_version 不能为空")
         version_id = str(ctx.enum_version).strip()
         output_dir = resolve_enum_version_dir(ctx.strategy_key, version_id)
         return load_enum_version(output_dir, version_id)
 
     @classmethod
-    def load_portfolio_settings(cls, ctx: "SimulateRuntimeContext") -> PortfolioSettings:
+    def load_portfolio_settings(cls, ctx: "SimulateSession") -> PortfolioSettings:
         """从 fingerprint 有效 settings 读取 ``portfolio`` 块。"""
         effective = ctx.effective_settings
         if effective is None:
-            raise ValueError("SimulateRuntimeContext.effective_settings 不能为空")
+            raise ValueError("SimulateSession.effective_settings 不能为空")
         return effective.portfolio
 
     @classmethod
     def begin_report(
         cls,
-        ctx: "SimulateRuntimeContext",
+        ctx: "SimulateSession",
         data: EnumVersionData,
         *,
         settings: PortfolioSettings,
@@ -260,7 +243,7 @@ class PortfolioPipeline:
         *,
         settings: PortfolioSettings,
         report: PortfolioReportHandle,
-        ctx: "SimulateRuntimeContext",
+        ctx: "SimulateSession",
     ) -> PortfolioSimResult:
         """选仓钩子过滤事件后做账户回放。"""
         strategy_settings = cls._strategy_settings(ctx)
@@ -310,18 +293,18 @@ class PortfolioPipeline:
         )
 
     @classmethod
-    def _strategy_settings(cls, ctx: "SimulateRuntimeContext") -> StrategySettings:
+    def _strategy_settings(cls, ctx: "SimulateSession") -> StrategySettings:
         effective = ctx.effective_settings
         if isinstance(effective, StrategySettings):
             return effective
         if effective is None:
-            raise ValueError("SimulateRuntimeContext.effective_settings 不能为空")
+            raise ValueError("SimulateSession.effective_settings 不能为空")
         return StrategySettings.from_dict(dict(effective or {}))
 
     @classmethod
     def _load_hook_runtime(
         cls,
-        ctx: "SimulateRuntimeContext",
+        ctx: "SimulateSession",
         strategy_settings: StrategySettings,
     ) -> Optional[StrategyHookRuntime]:
         runtime, err = StrategyHookRuntime.from_strategy_info(

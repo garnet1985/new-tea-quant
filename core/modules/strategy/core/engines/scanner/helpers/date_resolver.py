@@ -1,4 +1,9 @@
-"""扫描日锚点与当日有 K 线的股票宇宙。"""
+"""扫描日锚点与当日有 K 线的股票宇宙。
+
+本文件:
+- ScanDateResolver: anchor_date、scan_date + stock_ids、K 线最新日
+  边界: 负责 DataManager 日历/K 线查询；不负责 BE 扫描或 CSV 缓存写盘
+"""
 
 from __future__ import annotations
 

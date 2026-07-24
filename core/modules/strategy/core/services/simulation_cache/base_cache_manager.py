@@ -1,4 +1,9 @@
-"""策略结果缓存基类（simulate / 后续 scan 等共用骨架）。"""
+"""策略结果 DB 缓存基类（simulate / 后续 scan 等共用骨架）。
+
+本文件:
+- BaseCacheManager: 表访问、按指纹 load row、LRU 淘汰等公共 persistence
+  边界: 负责 DB 骨架；不负责槽位语义（由 SimulationCacheManager 等子类定义）
+"""
 from __future__ import annotations
 
 import logging

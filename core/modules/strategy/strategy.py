@@ -1,101 +1,37 @@
-"""Strategy Facade — scan / enumerate / price / portfolio / simulate / discovery API。"""
+"""Strategy 模块 Facade — scan / enumerate / price / portfolio / simulate / discovery。
+
+本文件:
+- Strategy: 对外 API（扫描、模拟编排、策略发现查询）
+  边界: 负责指纹→缓存→Pipeline 编排；不负责各引擎内 tick/回放业务
+- BackTestPipelines: SimulateKind → Pipeline 懒加载映射
+"""
 
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Type, Union
 
-from .contracts import SimulateKind
+from .core.enums import SimulateKind
 from .core.services.discovery import DiscoveryService
-from .core.services.discovery.data.discovered_strategy import EnabledStrategyInfo
 from .core.engines.shared.services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
 )
+from .core.engines.shared.data_class.simulate_session import SimulateSession
 from .core.services.simulation_cache.cache_manager import (
     SimulationCacheManager,
 )
 from .core.services.simulation_cache.fingerprints import (
     FingerprintCalculator,
-    FingerprintResult,
 )
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class SimulateRuntimeContext:
-    """一次 simulate 的编排会话（Facade → Pipeline；不含 CacheManager）。
-
-    每次 simulate 新建；不在内存里跨请求复用（settings / env 可能变）。
-    """
-
-    strategy_info: EnabledStrategyInfo
-    fp_res: FingerprintResult
-    kind: SimulateKind
-    enum_version: Optional[str] = None
-    steps: List[SimulateKind] = field(default_factory=list)
-
-    @property
-    def settings_fp(self) -> str:
-        return self.fp_res.settings_fp
-
-    @property
-    def env_fp(self) -> str:
-        return self.fp_res.env_fp
-
-    @property
-    def effective_settings(self):
-        return self.fp_res.effective_settings
-
-    @property
-    def settings_diff(self):
-        return self.fp_res.settings_diff
-
-    @property
-    def global_entity_cache(self):
-        return self.fp_res.global_entity_cache
-
-    @property
-    def entity_ids(self) -> List[str]:
-        return self.fp_res.entity_ids
-
-    @property
-    def strategy_key(self) -> str:
-        return str(
-            self.strategy_info.unique_relative_path or self.strategy_info.key or ""
-        )
-
-    def validate_for_run(self) -> None:
-        """跑 Pipeline 前自检。"""
-        if self.strategy_info is None:
-            raise ValueError("SimulateRuntimeContext.strategy_info 不能为空")
-        if self.fp_res is None:
-            raise ValueError("SimulateRuntimeContext.fp_res 不能为空")
-        if not self.settings_fp or not self.env_fp:
-            raise ValueError("settings_fp / env_fp 不能为空")
-        if self.fp_res.global_entity_cache is None:
-            raise ValueError("global_entity_cache 不能为空")
-        if self.kind == SimulateKind.FULL:
-            raise ValueError("simulate(kind=full) 暂不支持")
-        if not self.steps:
-            raise ValueError("steps 为空：请先 _resolve_steps")
-        if (
-            self.kind != SimulateKind.ENUMERATE
-            and self.enum_version is None
-            and SimulateKind.ENUMERATE not in self.steps
-        ):
-            raise ValueError(
-                f"{self.kind.value} 需要 enum_version 或 steps 中包含 enumerate"
-            )
-
-
 class BackTestPipelines:
-    """kind → Pipeline 映射（按需 import；未落地的 step 访问时再报错）。"""
+    """SimulateKind → Pipeline 懒加载映射。
 
-    ENUMERATE = SimulateKind.ENUMERATE
-    PRICE_FACTOR = SimulateKind.PRICE_FACTOR
-    PORTFOLIO = SimulateKind.PORTFOLIO
+    边界: 负责按 kind 解析 Pipeline 类；不负责 run / 缓存 / 指纹。
+    """
 
     @classmethod
     def __class_getitem__(cls, kind: SimulateKind) -> Type[Any]:
@@ -307,7 +243,7 @@ class Strategy:
             latest_completed_trading_date,
         )
 
-        ctx = SimulateRuntimeContext(
+        ctx = SimulateSession.create(
             strategy_info=strategy_info,
             fp_res=fp_res,
             kind=step,
@@ -340,7 +276,7 @@ class Strategy:
         return Strategy._run_steps(ctx, cache_key=cache_key)
 
     @staticmethod
-    def _resolve_steps(ctx: SimulateRuntimeContext) -> None:
+    def _resolve_steps(ctx: SimulateSession) -> None:
         """按目标 kind + 指纹是否已有枚举产物，写入 ctx.steps / ctx.enum_version。"""
         from .core.engines.enumerator import EnumeratorPipeline
 
@@ -370,7 +306,7 @@ class Strategy:
 
     @staticmethod
     def _run_steps(
-        ctx: SimulateRuntimeContext,
+        ctx: SimulateSession,
         *,
         cache_key: str,
     ) -> Dict[str, Any]:
@@ -440,4 +376,4 @@ class Strategy:
         return None
 
 
-__all__ = ["Strategy", "SimulateRuntimeContext"]
+__all__ = ["Strategy", "BackTestPipelines"]

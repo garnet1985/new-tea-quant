@@ -1,4 +1,9 @@
-"""Settings base class with common validation utilities."""
+"""Settings section 基类与校验工具。
+
+本文件:
+- SettingsBase: ValidationReport 辅助、apply_defaults / validate 抽象骨架
+  边界: 负责 section 级校验模式；不负责 StrategySettings 外层 merge 或指纹
+"""
 
 from __future__ import annotations
 

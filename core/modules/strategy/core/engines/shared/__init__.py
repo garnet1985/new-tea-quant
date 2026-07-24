@@ -5,13 +5,13 @@
 """
 
 from .data_class import (
-    ExecuteStep,
     Investment,
     Opportunity,
+    TargetCheckStep,
 )
 
 __all__ = [
-    "ExecuteStep",
     "Investment",
     "Opportunity",
+    "TargetCheckStep",
 ]

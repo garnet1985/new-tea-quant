@@ -23,7 +23,9 @@ from .risk_control import RiskControl
 from .tradability import EdgesConfig, LiquidityConfig, TradabilityConfig
 
 if TYPE_CHECKING:
-    from core.modules.strategy.core.engines.shared.data_class.investments import ExecuteStep
+    from core.modules.strategy.core.engines.shared.data_class.investments import (
+        TargetCheckStep,
+    )
 
 
 @dataclass
@@ -63,8 +65,8 @@ class SimulationSettings(SettingsBase):
         return self.execution.mode
 
     @property
-    def steps(self) -> List[str]:
-        return self.execution.steps
+    def target_check_order(self) -> List[str]:
+        return self.assumption.target_check_order
 
     @property
     def tradability(self) -> TradabilityConfig:
@@ -102,8 +104,8 @@ class SimulationSettings(SettingsBase):
     def allow_exit_at_limit_down(self) -> bool:
         return self.edges.allow_exit_at_limit_down
 
-    def parsed_execute_steps(self) -> List["ExecuteStep"]:
-        return self.execution.parsed_steps()
+    def parsed_target_check_order(self) -> List["TargetCheckStep"]:
+        return self.assumption.parsed_target_check_order()
 
     def apply_defaults(self) -> None:
         if "simulation" not in self.raw_settings or not isinstance(

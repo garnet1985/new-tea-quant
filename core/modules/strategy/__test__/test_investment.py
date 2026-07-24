@@ -11,7 +11,6 @@ pytestmark = pytest.mark.force_run
 
 from core.modules.strategy.core.engines.shared.data_class import (
     Investment,
-    InvestmentRunDeps,
     Lifecycle,
 )
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity, StockInfo
@@ -74,12 +73,6 @@ def _settings(**overrides) -> StrategySettings:
         "simulation": {
             "execution": {
                 "mode": "entity_based",
-                "steps": [
-                    "check_settlement",
-                    "check_stop_loss",
-                    "check_take_profit",
-                    "check_expiration",
-                ],
             },
             "assumption": {
                 "template": "none",
@@ -157,7 +150,7 @@ class TestInvestmentFromOpportunity(unittest.TestCase):
         self.assertEqual(inv.trigger_price, 10.0)
         self.assertEqual(inv.lifecycle, Lifecycle.PENDING_TO_ENTER)
         self.assertEqual(inv.holding.window_days, 30)
-        self.assertIsInstance(inv.run_deps, InvestmentRunDeps)
+        self.assertIsNotNone(inv.settings)
 
 
 class TestInvestmentTick(unittest.TestCase):

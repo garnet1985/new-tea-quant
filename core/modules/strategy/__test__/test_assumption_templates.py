@@ -12,20 +12,10 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings import
 )
 
 
-def _steps():
-    return [
-        "check_settlement",
-        "check_stop_loss",
-        "check_take_profit",
-        "check_expiration",
-    ]
-
-
 def _sim(**overrides):
     base = {
         "execution": {
             "mode": "entity_based",
-            "steps": _steps(),
         },
         "assumption": {"template": "none"},
         "risk_control": {},

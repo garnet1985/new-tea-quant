@@ -101,12 +101,6 @@ def _slice_settings() -> Dict[str, Any]:
         "simulation": {
             "execution": {
                 "mode": "slice_based",
-                "steps": [
-                    "check_settlement",
-                    "check_stop_loss",
-                    "check_take_profit",
-                    "check_expiration",
-                ],
             },
             "assumption": {
                 "template": "custom",

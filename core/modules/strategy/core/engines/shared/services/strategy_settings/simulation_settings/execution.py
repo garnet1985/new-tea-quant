@@ -1,10 +1,10 @@
-"""``simulation.execution`` — 时间窗 + mode + Investment steps。"""
+"""``simulation.execution`` — 时间窗 + mode。"""
 
 from __future__ import annotations
 
 from datetime import datetime
 from dataclasses import dataclass
-from typing import Any, Dict, List, TYPE_CHECKING
+from typing import Any, Dict
 
 from core.modules.strategy.core.engines.shared.services.strategy_settings.settings_base import (
     SettingsBase,
@@ -13,24 +13,12 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.valida
     ValidationReport,
 )
 
-if TYPE_CHECKING:
-    from core.modules.strategy.core.engines.shared.data_class.investments import ExecuteStep
-
 _KNOWN_MODES = frozenset({"entity_based", "slice_based"})
-_DEFAULT_STEPS = [
-    "check_settlement",
-    "check_stop_loss",
-    "check_take_profit",
-    "check_expiration",
-]
-_EXIT_TRIGGER_STEPS = frozenset(
-    {"check_stop_loss", "check_take_profit", "check_expiration"}
-)
 
 
 @dataclass
 class ExecutionSettings(SettingsBase):
-    """``settings.simulation.execution``。"""
+    """``settings.simulation.execution``（日历窗 + entity/slice mode）。"""
 
     raw_settings: Dict[str, Any]
 
@@ -55,21 +43,6 @@ class ExecutionSettings(SettingsBase):
     def mode(self) -> str:
         return str(self.execution.get("mode") or "").strip().lower()
 
-    @property
-    def steps(self) -> List[str]:
-        raw = self.execution.get("steps")
-        if not isinstance(raw, list):
-            return list(_DEFAULT_STEPS)
-        return [str(item).strip() for item in raw if str(item).strip()]
-
-    def parsed_steps(self) -> List["ExecuteStep"]:
-        from core.modules.strategy.core.engines.shared.data_class.investments import (
-            ExecuteStep,
-        )
-
-        self.apply_defaults()
-        return [ExecuteStep.parse(item) for item in self.steps]
-
     def apply_defaults(self) -> None:
         sim = self.raw_settings.setdefault("simulation", {})
         if not isinstance(sim, dict):
@@ -82,7 +55,8 @@ class ExecutionSettings(SettingsBase):
         execution.setdefault("start_date", "")
         execution.setdefault("end_date", "")
         execution.setdefault("mode", "entity_based")
-        execution.setdefault("steps", list(_DEFAULT_STEPS))
+        # 历史误放的 steps 不再使用；避免残留误导
+        execution.pop("steps", None)
 
     def validate(self) -> ValidationReport:
         report = SettingsBase.new_validation()
@@ -105,7 +79,6 @@ class ExecutionSettings(SettingsBase):
         self.apply_defaults()
         self._validate_period(report)
         self._validate_mode(report)
-        self._validate_steps(report)
         return report
 
     def _validate_period(self, report: ValidationReport) -> None:
@@ -152,63 +125,6 @@ class ExecutionSettings(SettingsBase):
                 suggested_fix=f"Use one of {sorted(_KNOWN_MODES)}",
             )
 
-    def _validate_steps(self, report: ValidationReport) -> None:
-        from core.modules.strategy.core.engines.shared.data_class.investments import (
-            ExecuteStep,
-        )
-
-        raw_steps = self.execution.get("steps")
-        if not isinstance(raw_steps, list) or not raw_steps:
-            SettingsBase.add_critical(
-                report,
-                "simulation.execution.steps",
-                "steps must be a non-empty list",
-                suggested_fix=f"Use default: {_DEFAULT_STEPS}",
-            )
-            return
-
-        parsed: List[ExecuteStep] = []
-        seen: set[str] = set()
-        for idx, item in enumerate(raw_steps):
-            field_path = f"simulation.execution.steps[{idx}]"
-            try:
-                step = ExecuteStep.parse(item)
-            except ValueError as exc:
-                SettingsBase.add_critical(
-                    report,
-                    field_path,
-                    str(exc),
-                    suggested_fix=f"Allowed: {[s.value for s in ExecuteStep]}",
-                )
-                continue
-            if step.value in seen:
-                SettingsBase.add_critical(
-                    report,
-                    field_path,
-                    f"duplicate execute step: {step.value!r}",
-                )
-                continue
-            seen.add(step.value)
-            parsed.append(step)
-
-        if not report.is_valid:
-            return
-
-        step_values = {step.value for step in parsed}
-        if ExecuteStep.CHECK_SETTLEMENT.value not in step_values:
-            SettingsBase.add_critical(
-                report,
-                "simulation.execution.steps",
-                "missing required step check_settlement",
-            )
-        if not step_values.intersection(_EXIT_TRIGGER_STEPS):
-            SettingsBase.add_critical(
-                report,
-                "simulation.execution.steps",
-                "must include at least one exit trigger step "
-                "(check_stop_loss, check_take_profit, or check_expiration)",
-            )
-
     @staticmethod
     def _is_yyyymmdd(value: str) -> bool:
         if len(value) != 8 or not value.isdigit():
@@ -225,7 +141,6 @@ class ExecutionSettings(SettingsBase):
             "start_date": self.start_date,
             "end_date": self.end_date,
             "mode": self.mode or "entity_based",
-            "steps": list(self.steps),
         }
 
 

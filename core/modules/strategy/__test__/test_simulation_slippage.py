@@ -10,7 +10,6 @@ pytestmark = pytest.mark.force_run
 
 from core.modules.strategy.core.engines.shared.data_class import (
     Investment,
-    InvestmentRunDeps,
     Lifecycle,
 )
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity, StockInfo
@@ -49,12 +48,6 @@ def _settings(**tradability) -> StrategySettings:
         "simulation": {
             "execution": {
                 "mode": "entity_based",
-                "steps": [
-                    "check_settlement",
-                    "check_stop_loss",
-                    "check_take_profit",
-                    "check_expiration",
-                ],
             },
             "assumption": {
                 "template": "none",
@@ -118,19 +111,16 @@ class TestInvestmentSlippage(unittest.TestCase):
         # exit close 12 → 12 * 0.99 = 11.88
         self.assertAlmostEqual(inv.exit_info.exit_price, 11.88)
 
-    def test_run_deps_reads_slippage_and_no_next_tick(self) -> None:
+    def test_settings_reads_slippage_and_no_next_tick(self) -> None:
         settings = _settings(
             slippage={"enter_bps": 5.0, "exit_bps": 7.0},
             edges={"no_next_tick": "use_last_close"},
         )
-        deps = InvestmentRunDeps.from_settings(
-            settings=settings,
-            market_rules=object(),
-            open_dates=OPEN_DATES,
-        )
-        self.assertEqual(deps.slippage.enter_bps, 5.0)
-        self.assertEqual(deps.slippage.exit_bps, 7.0)
-        self.assertEqual(deps.no_next_tick, "use_last_close")
+        settings.apply_defaults()
+        tradability = settings.simulation.tradability
+        self.assertEqual(tradability.slippage.enter_bps, 5.0)
+        self.assertEqual(tradability.slippage.exit_bps, 7.0)
+        self.assertEqual(tradability.edges.no_next_tick, "use_last_close")
 
 
 class TestNoNextTick(unittest.TestCase):

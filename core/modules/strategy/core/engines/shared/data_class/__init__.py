@@ -10,12 +10,11 @@
 from .calendar_as_of import CalendarAsOfContext, CalendarAsOfResult
 from .investment import Investment
 from .investments import (
-    DEFAULT_EXECUTE_STEPS,
-    ExecuteStep,
-    InvestmentRunDeps,
+    DEFAULT_TARGET_CHECK_ORDER,
     InvestmentResult,
     Lifecycle,
     PendingExitKind,
+    TargetCheckStep,
     TradeSide,
 )
 from .opportunity import Opportunity, OpportunityContributor, OpportunityMeta, StockInfo
@@ -23,10 +22,8 @@ from .opportunity import Opportunity, OpportunityContributor, OpportunityMeta, S
 __all__ = [
     "CalendarAsOfContext",
     "CalendarAsOfResult",
-    "DEFAULT_EXECUTE_STEPS",
-    "ExecuteStep",
+    "DEFAULT_TARGET_CHECK_ORDER",
     "Investment",
-    "InvestmentRunDeps",
     "InvestmentResult",
     "Lifecycle",
     "Opportunity",
@@ -34,5 +31,6 @@ __all__ = [
     "OpportunityMeta",
     "PendingExitKind",
     "StockInfo",
+    "TargetCheckStep",
     "TradeSide",
 ]

@@ -1,4 +1,4 @@
-"""Investment 相关枚举（生命周期 / 成交 / 退出 / 结果 / 到期 / execute step）。"""
+"""Investment 相关枚举（生命周期 / 成交 / 退出 / 结果 / 到期 / target check）。"""
 
 from __future__ import annotations
 
@@ -47,50 +47,44 @@ class ExpirationMode(str, Enum):
     OPEN_DAY = "open_day"
 
 
-class ExecuteStep(str, Enum):
-    """``simulation.execution.steps`` entries; each maps to an ``Investment`` handler."""
+class TargetCheckStep(str, Enum):
+    """``simulation.assumption.target_check_order`` — ``check_targets`` 内互斥目标顺序。
 
-    CHECK_SETTLEMENT = "check_settlement"
+    同 bar 短路：先命中者武装出场。不含 settlement（门禁写死在 check_targets 前）。
+    """
+
     CHECK_STOP_LOSS = "check_stop_loss"
     CHECK_TAKE_PROFIT = "check_take_profit"
     CHECK_EXPIRATION = "check_expiration"
 
     @classmethod
-    def parse(cls, value: Any) -> "ExecuteStep":
+    def parse(cls, value: Any) -> "TargetCheckStep":
         text = str(value or "").strip().lower()
         if not text:
-            raise ValueError("execute step must be a non-empty string")
+            raise ValueError("target check step must be a non-empty string")
         try:
             return cls(text)
         except ValueError as exc:
             allowed = ", ".join(step.value for step in cls)
             raise ValueError(
-                f"unknown execute step {value!r}; allowed: {allowed}"
+                f"unknown target check step {value!r}; allowed: {allowed}"
             ) from exc
 
 
-DEFAULT_EXECUTE_STEPS: Tuple[ExecuteStep, ...] = (
-    ExecuteStep.CHECK_SETTLEMENT,
-    ExecuteStep.CHECK_STOP_LOSS,
-    ExecuteStep.CHECK_TAKE_PROFIT,
-    ExecuteStep.CHECK_EXPIRATION,
-)
-
-EXIT_TRIGGER_EXECUTE_STEPS: Tuple[ExecuteStep, ...] = (
-    ExecuteStep.CHECK_STOP_LOSS,
-    ExecuteStep.CHECK_TAKE_PROFIT,
-    ExecuteStep.CHECK_EXPIRATION,
+DEFAULT_TARGET_CHECK_ORDER: Tuple[TargetCheckStep, ...] = (
+    TargetCheckStep.CHECK_STOP_LOSS,
+    TargetCheckStep.CHECK_TAKE_PROFIT,
+    TargetCheckStep.CHECK_EXPIRATION,
 )
 
 
 __all__ = [
-    "DEFAULT_EXECUTE_STEPS",
-    "EXIT_TRIGGER_EXECUTE_STEPS",
-    "ExecuteStep",
+    "DEFAULT_TARGET_CHECK_ORDER",
     "ExitReason",
     "ExpirationMode",
     "InvestmentResult",
     "Lifecycle",
     "PendingExitKind",
+    "TargetCheckStep",
     "TradeSide",
 ]

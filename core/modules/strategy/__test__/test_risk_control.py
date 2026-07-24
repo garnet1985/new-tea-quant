@@ -18,12 +18,6 @@ def _settings(**risk_overrides) -> StrategySettings:
             "simulation": {
                 "execution": {
                     "mode": "entity_based",
-                    "steps": [
-                        "check_settlement",
-                        "check_stop_loss",
-                        "check_take_profit",
-                        "check_expiration",
-                    ],
                 },
                 "assumption": {"template": "none"},
                 "risk_control": dict(risk_overrides),

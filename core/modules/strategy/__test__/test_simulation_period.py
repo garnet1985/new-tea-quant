@@ -12,18 +12,12 @@ def _base_simulation(**overrides):
     sim = {
         "execution": {
             "mode": "entity_based",
-            "steps": [
-                "check_settlement",
-                "check_stop_loss",
-                "check_take_profit",
-                "check_expiration",
-            ],
         },
         "assumption": {"template": "none"},
         "risk_control": {},
     }
     execution = sim["execution"]
-    for key in ("start_date", "end_date", "mode", "steps"):
+    for key in ("start_date", "end_date", "mode"):
         if key in overrides:
             execution[key] = overrides.pop(key)
     sim.update(overrides)

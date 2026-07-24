@@ -86,8 +86,8 @@ class SliceTimelineHooks:
         self._ready_date_by_entity = {}
         self._job_min_ready_date = ""
         self._job_has_work = True
+        self._assert_entry_price_model(self.settings)
         settings_dict = self.settings.to_dict()
-        self._assert_entry_price_model(settings_dict)
         self._rebalance_period = self._resolve_rebalance_period(settings_dict)
         resolver = StrategyDataResolver(settings_dict)
         self._base_data_key = str(resolver.base.get("data_key") or "").strip()
@@ -531,16 +531,8 @@ class SliceTimelineHooks:
         return period if period in {"month", "year"} else "year"
 
     @staticmethod
-    def _assert_entry_price_model(settings: Dict[str, Any]) -> None:
-        from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
-            StrategySettings,
-        )
-
-        if not isinstance(settings.get("simulation"), dict):
-            return
-        sim = StrategySettings.from_dict(dict(settings)).simulation
-        sim.apply_defaults()
-        model = str(sim.enter_price or "").strip().lower()
+    def _assert_entry_price_model(settings: StrategySettings) -> None:
+        model = str(settings.simulation.enter_price or "").strip().lower()
         if model and model != "close":
             raise ValueError(
                 f"slice_based 当前仅支持 simulation.assumption.tradability.enter_price"

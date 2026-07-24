@@ -15,10 +15,12 @@ from core.modules.strategy.core.engines.portfolio.data_class.account import Acco
 from core.modules.strategy.core.engines.portfolio.fee_calculator import FeeCalculator
 from core.modules.strategy.core.engines.shared.services.strategy_settings.portfolio_settings import (
     AllocationConfig,
-    PortfolioSettings,
 )
 from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings import (
     LiquidityConfig,
+)
+from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
+    StrategySettings,
 )
 
 
@@ -40,11 +42,11 @@ class AllocationStrategy:
     def create(
         cls,
         *,
-        portfolio: PortfolioSettings,
+        settings: StrategySettings,
         market_rules: MarketBaseRules,
         fee_calculator: Optional[FeeCalculator] = None,
-        liquidity: Optional[LiquidityConfig] = None,
     ) -> "AllocationStrategy":
+        portfolio = settings.portfolio
         alloc: AllocationConfig = portfolio.allocation
         mode = str(alloc.mode or "equal_capital").strip().lower()
         if mode == "custom":
@@ -60,7 +62,7 @@ class AllocationStrategy:
             skip_trade_when_insufficient=bool(alloc.skip_trade_when_insufficient),
             market_rules=market_rules,
             fee_calculator=fee_calculator or FeeCalculator(),
-            liquidity=liquidity or LiquidityConfig(),
+            liquidity=settings.simulation.liquidity,
         )
 
     @property

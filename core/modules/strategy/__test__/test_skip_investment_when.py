@@ -18,12 +18,8 @@ from core.modules.strategy.core.engines.portfolio.pipeline import PortfolioPipel
 from core.modules.strategy.core.engines.shared.services.simulation_input.enum_loader import EnumVersionData
 from core.modules.strategy.core.engines.price_factor.executor import JobExecutor
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
-    RiskControl,
     StatusTagPolicy,
     StrategySettings,
-)
-from core.modules.strategy.core.engines.shared.services.strategy_settings.portfolio_settings import (
-    PortfolioSettings,
 )
 
 
@@ -107,7 +103,9 @@ def test_price_replay_skips_matching_status() -> None:
     ]
     out, _ = JobExecutor._replay_entity_investments(
         rows,
-        risk=RiskControl.with_skip_enter(["st"]),
+        settings=StrategySettings.from_dict(
+            _base_simulation(skip_enter_when=["st"])
+        ),
     )
     assert [r.opportunity_id for r in out] == ["2"]
 
@@ -143,11 +141,11 @@ def test_portfolio_build_events_skips_matching_status(tmp_path: Path) -> None:
     runtime.market_profile = ""
     runtime.period = SimpleNamespace(start_date="20240101", end_date="20240131")
     data = EnumVersionData(output_dir=tmp_path, version_id="1", runtime=runtime)
-    portfolio = PortfolioSettings(raw_settings={"portfolio": {}})
     events, opps = PortfolioPipeline.build_events(
         data,
-        settings=portfolio,
-        risk=RiskControl.with_skip_enter(["st"]),
+        settings=StrategySettings.from_dict(
+            _base_simulation(skip_enter_when=["st"])
+        ),
     )
     assert sorted(opps.keys()) == ["2", "3"]
     assert {e.investment_id for e in events if e.is_buy()} == {"2", "3"}

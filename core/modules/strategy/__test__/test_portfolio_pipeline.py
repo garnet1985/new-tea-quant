@@ -24,9 +24,6 @@ from core.modules.strategy.core.engines.portfolio.enter_selection import (
 from core.modules.strategy.core.engines.portfolio.pipeline import PortfolioPipeline
 from core.modules.strategy.core.engines.shared.services.simulation_input.enum_loader import EnumVersionData
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
-from core.modules.strategy.core.engines.shared.services.strategy_settings.portfolio_settings import (
-    PortfolioSettings,
-)
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
@@ -121,7 +118,7 @@ def test_build_events_uses_raw_buy_price_not_qfq(tmp_path: Path):
     runtime.period = SimpleNamespace(start_date="20240101", end_date="20240131")
     data = EnumVersionData(output_dir=tmp_path, version_id="1", runtime=runtime)
     events, opportunities = PortfolioPipeline.build_events(
-        data, settings=PortfolioSettings(raw_settings={})
+        data, settings=StrategySettings.from_dict({})
     )
     assert len(events) == 2
     buy, sell = events

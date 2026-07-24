@@ -13,6 +13,9 @@ from core.modules.strategy.core.engines.price_factor.executor import JobExecutor
 from core.modules.strategy.core.engines.price_factor.helpers.deferred_exit import (
     retry_deferred_exits,
 )
+from core.modules.strategy.core.engines.shared.services.strategy_settings import (
+    StrategySettings,
+)
 
 pytestmark = pytest.mark.force_run
 
@@ -36,6 +39,27 @@ def _row(**kwargs) -> InvestmentRow:
     )
     base.update(kwargs)
     return InvestmentRow(**base)
+
+
+def _settings(**edge_overrides) -> StrategySettings:
+    edges = {
+        "allow_enter_at_limit_up": False,
+        "allow_exit_at_limit_down": False,
+    }
+    edges.update(edge_overrides)
+    settings = StrategySettings.from_dict(
+        {
+            "simulation": {
+                "assumption": {
+                    "template": "none",
+                    "tradability": {"edges": edges},
+                },
+                "risk_control": {},
+            }
+        }
+    )
+    settings.apply_defaults()
+    return settings
 
 
 def test_retry_deferred_fills_on_next_non_limit_bar() -> None:
@@ -73,8 +97,8 @@ def test_retry_deferred_fills_on_next_non_limit_bar() -> None:
         skipped_legs=skipped,
         klines=klines,
         entity_id="600000.SH",
+        settings=_settings(allow_exit_at_limit_down=False),
         market_rules=rules,
-        allow_exit_at_limit_down=False,
     )
     assert pending is None
     assert len(processed) == 1
@@ -116,7 +140,7 @@ def test_replay_deferred_exit_moves_sell_date() -> None:
         rows,
         entity_id="600000.SH",
         backtest_end="20240131",
-        allow_exit_at_limit_down=False,
+        settings=_settings(allow_exit_at_limit_down=False),
         load_klines=_loader,
     )
     assert skipped >= 1
@@ -180,7 +204,7 @@ def test_replay_stuck_at_limit_locks_until_end() -> None:
         rows,
         entity_id="600000.SH",
         backtest_end="20240131",
-        allow_exit_at_limit_down=False,
+        settings=_settings(allow_exit_at_limit_down=False),
         market_rules=rules,
         load_klines=_loader,
     )
@@ -211,7 +235,7 @@ def test_replay_allow_exit_at_limit_down_trusts_enum() -> None:
         rows,
         entity_id="600000.SH",
         backtest_end="20240131",
-        allow_exit_at_limit_down=True,
+        settings=_settings(allow_exit_at_limit_down=True),
         load_klines=_loader,
     )
     assert called["n"] == 0
@@ -238,6 +262,6 @@ def test_replay_skips_buy_at_limit_up() -> None:
     ]
     out, _ = JobExecutor._replay_entity_investments(
         rows,
-        allow_enter_at_limit_up=False,
+        settings=_settings(allow_enter_at_limit_up=False),
     )
     assert [r.opportunity_id for r in out] == ["2"]

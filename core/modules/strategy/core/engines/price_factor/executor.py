@@ -32,12 +32,6 @@ from core.modules.strategy.core.engines.price_factor.report_manager import (
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StrategySettings,
 )
-from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings import (
-    RiskControl,
-)
-from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings.tradability import (
-    SlippageConfig,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -177,9 +171,7 @@ class JobExecutor:
             else None
         )
         settings_dict = dict(settings_raw) if isinstance(settings_raw, dict) else {}
-        risk = RiskControl(raw_settings=settings_dict)
         strategy = StrategySettings.from_dict(settings_dict)
-        sim = strategy.simulation
         market_profile = (
             str(settings_dict.get("market_profile") or "").strip()
             or _DEFAULT_MARKET_PROFILE
@@ -207,12 +199,8 @@ class JobExecutor:
                 rows,
                 entity_id=str(entity_id),
                 backtest_end=end_date,
-                risk=risk,
+                settings=strategy,
                 goal_rows=goal_rows,
-                allow_enter_at_limit_up=bool(sim.allow_enter_at_limit_up),
-                allow_exit_at_limit_down=bool(sim.allow_exit_at_limit_down),
-                exit_price_model=str(sim.exit_price or "close"),
-                slippage=sim.tradability.slippage,
                 market_rules=market_rules,
             )
             EntityInvestments.save(out_dir, str(entity_id), price_rows)
@@ -241,12 +229,8 @@ class JobExecutor:
         *,
         entity_id: str = "",
         backtest_end: str = "",
-        risk: Optional[RiskControl] = None,
+        settings: Optional[StrategySettings] = None,
         goal_rows: Optional[Sequence[GoalAchievementRow]] = None,
-        allow_enter_at_limit_up: bool = False,
-        allow_exit_at_limit_down: bool = False,
-        exit_price_model: str = "close",
-        slippage: Optional[SlippageConfig] = None,
         market_rules: Any = None,
         load_klines=None,
     ) -> Tuple[List[PriceInvestmentRow], int]:
@@ -254,9 +238,12 @@ class JobExecutor:
 
         返回 ``(rows, skipped_sell_at_limit_down)``。
         """
-        control = risk or RiskControl(raw_settings={})
+        strategy = settings or StrategySettings.from_dict({})
+        sim = strategy.simulation
+        control = sim.risk_control
+        allow_enter_at_limit_up = bool(sim.allow_enter_at_limit_up)
+        allow_exit_at_limit_down = bool(sim.allow_exit_at_limit_down)
         kline_loader = load_klines or load_stock_klines
-        slip = slippage or SlippageConfig()
         goals_by_inv = _index_goals_by_investment(goal_rows or [])
         ordered = sorted(
             list(investments or []),
@@ -314,10 +301,8 @@ class JobExecutor:
                     skipped_legs=skipped_legs,
                     klines=klines,
                     entity_id=sid,
-                    exit_price_model=exit_price_model,
-                    slippage=slip,
+                    settings=strategy,
                     market_rules=market_rules,
-                    allow_exit_at_limit_down=allow_exit_at_limit_down,
                 )
                 skipped_sell += int(defer_skips or 0)
 

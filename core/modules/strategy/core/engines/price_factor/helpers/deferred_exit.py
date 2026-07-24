@@ -14,8 +14,8 @@ from core.modules.strategy.core.engines.price_factor.helpers.holding import (
     position_fully_closed,
 )
 from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import SafeBarValue
-from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings.tradability import (
-    SlippageConfig,
+from core.modules.strategy.core.engines.shared.services.strategy_settings import (
+    StrategySettings,
 )
 
 
@@ -125,10 +125,8 @@ def retry_deferred_exits(
     skipped_legs: List[Dict[str, Any]],
     klines: List[Dict[str, Any]],
     entity_id: str,
-    exit_price_model: str = "close",
-    slippage: Optional[SlippageConfig] = None,
+    settings: Optional[StrategySettings] = None,
     market_rules: Any = None,
-    allow_exit_at_limit_down: bool = False,
 ) -> Tuple[List[Dict[str, Any]], Optional[DeferredPendingExit], int]:
     """对跳过的退出腿按交易日顺延重试。
 
@@ -137,7 +135,12 @@ def retry_deferred_exits(
     if position_fully_closed(processed_legs) or not skipped_legs:
         return processed_legs, None, 0
 
-    slip = slippage or SlippageConfig()
+    strategy = settings or StrategySettings.from_dict({})
+    sim = strategy.simulation
+    exit_price_model = str(sim.exit_price or "close")
+    slip = sim.tradability.slippage
+    allow_exit_at_limit_down = bool(sim.allow_exit_at_limit_down)
+
     by_date = _klines_by_date(klines)
     ordered = _ordered_kline_dates(klines)
     if not ordered:

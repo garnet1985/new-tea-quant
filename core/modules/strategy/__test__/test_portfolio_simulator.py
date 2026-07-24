@@ -21,12 +21,12 @@ from core.modules.strategy.core.engines.portfolio.report_writer import (
     PortfolioReportWriter,
 )
 from core.modules.strategy.core.engines.portfolio.simulator import PortfolioSimulator
-from core.modules.strategy.core.engines.shared.services.strategy_settings.portfolio_settings import (
-    PortfolioSettings,
+from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
+    StrategySettings,
 )
 
 
-def _portfolio_settings(**overrides) -> PortfolioSettings:
+def _strategy_settings(**overrides) -> StrategySettings:
     raw = {
         "portfolio": {
             "initial_capital": 1_000_000,
@@ -45,15 +45,15 @@ def _portfolio_settings(**overrides) -> PortfolioSettings:
             raw["portfolio"]["allocation"].update(value)
         else:
             raw["portfolio"][key] = value
-    settings = PortfolioSettings(raw_settings=raw)
+    settings = StrategySettings.from_dict(raw)
     settings.apply_defaults()
     return settings
 
 
 def _allocation(**kwargs) -> AllocationStrategy:
-    settings = _portfolio_settings(**kwargs)
+    settings = _strategy_settings(**kwargs)
     return AllocationStrategy.create(
-        portfolio=settings,
+        settings=settings,
         market_rules=create_market_rules("china_a_stock"),
         fee_calculator=FeeCalculator(
             commission_rate=0.0,

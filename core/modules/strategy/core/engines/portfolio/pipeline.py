@@ -39,9 +39,6 @@ from core.modules.strategy.core.engines.shared.services.simulation_input.enum_lo
     resolve_enum_version_dir,
 )
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
-from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings import (
-    RiskControl,
-)
 from core.modules.strategy.core.engines.shared.services.strategy_settings.portfolio_settings import (
     PortfolioSettings,
 )
@@ -89,8 +86,7 @@ class PortfolioPipeline:
         strategy_settings = cls._strategy_settings(ctx)
         events, opportunities = cls.build_events(
             data,
-            settings=portfolio_settings,
-            risk=strategy_settings.simulation.risk_control,
+            settings=strategy_settings,
         )
         sim_result = cls.simulate(
             events,
@@ -191,16 +187,14 @@ class PortfolioPipeline:
         cls,
         data: EnumVersionData,
         *,
-        settings: PortfolioSettings,
-        risk: Optional[RiskControl] = None,
+        settings: StrategySettings,
     ) -> Tuple[List[PortfolioEvent], Dict[str, Opportunity]]:
         """读 enum CSV → 事件列表 + 已屏蔽结果字段的 Opportunity 索引。
 
         买入价固定为 ``entry_price_raw``；缺 raw 的行跳过（不回退 qfq）。
-        ``risk.should_skip_enter`` 命中触发日状态的行不生成事件（枚举 CSV 仍在）。
+        ``simulation.risk_control.should_skip_enter`` 命中触发日状态的行不生成事件（枚举 CSV 仍在）。
         """
-        _ = settings
-        control = risk or RiskControl(raw_settings={})
+        control = settings.simulation.risk_control
         entity_ids = list(data.entity_ids) or StockInvestments.collect_entity_ids(
             data.output_dir
         )
@@ -258,10 +252,9 @@ class PortfolioPipeline:
         fee_calculator = FeeCalculator.from_fees_config(settings.fees_config())
         market_rules = create_market_rules(report.market_profile)
         allocation = AllocationStrategy.create(
-            portfolio=settings,
+            settings=strategy_settings,
             market_rules=market_rules,
             fee_calculator=fee_calculator,
-            liquidity=strategy_settings.simulation.liquidity,
         )
         return PortfolioSimulator.create(
             allocation=allocation,

@@ -47,8 +47,8 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 3. 现有 shared 入口打标注 — done
 4. 提升仿真输入契约（enum 产物被 price/portfolio 读） — done → `shared/services/simulation_input`
 5. 切断 Scanner→Enumerator 借包 — done（hooks→StrategyHookRuntime；PitBars→shared）
-6. 死目录等整块核对（`strategy_settings` / `entity_loader` 已定整块 keep）
-7. hooks→portfolio 泄漏
+6. investments / pit_bars 包结构 — **跳过**（后期：Investment 拆分、pit_bars 清理）
+7. hooks→portfolio 泄漏 — done（默认 on_pick 不再 import EntrySelector）
 8. 空壳/双路径清理
 9. pytest + 违规跨引擎私有 import 扫尾
 10. 专门整理 `simulation_input` 整块（结构/命名/边界）
@@ -89,7 +89,7 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 | B：stock_investments / runtime_snapshot / enum_data | #4 done |
 | B：S→E base_executor / PitBars | #5 |
 | A：settings / entity_loader 整块 keep；死目录核对 | #6 |
-| B：hooks→O | #7 |
+| B：hooks→O | #7 done |
 | 空壳 `core/services/settings` | #8 |
 
 ## Naming
@@ -120,7 +120,7 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 | 泄漏 | 路径 | 说明 |
 |------|------|------|
 | ~~Scanner → Enumerator~~ | — | **done**（#5） |
-| StrategyHooks → Portfolio | `hooks/base.py` 默认 `on_pick_portfolio_member` import `EntrySelector` | 用户 hook 基类依赖 portfolio 引擎；hooks 层应只依赖 contracts + 可选 lazy import |
+| ~~StrategyHooks → Portfolio~~ | — | **done**（#7）；未 override 由 EnterSelection 用 EntrySelector |
 | 指纹服务 → GlobalEntityCache | `fingerprints.py` 构造并 seed cache | 编排前置步骤合理，但 `simulation_cache` 包名暗示仅 DB 缓存 |
 | Portfolio → 多引擎 | `portfolio/pipeline.py` | ~~曾依赖 P.enum_data / E.stock_investments~~ → 现经 `shared.simulation_input` |
 | Discovery validation → WorkerLoader | `discovered_strategy.py` 校验阶段加载 hooks | 发现阶段副作用（exec 用户 strategy.py）；失败策略仍可能被 list 看到 draft 错误 |

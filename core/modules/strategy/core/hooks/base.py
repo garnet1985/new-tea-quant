@@ -48,30 +48,11 @@ class StrategyHooks(ABC):
         返回选中的 ``Opportunity`` 列表，或 ``opportunity_id`` 字符串列表。
         **不返回仓位 sizing**（shares/weight 由 AllocationStrategy 按配置计算）。
 
-        未 override 时，引擎用 ``EntrySelector``（顺序 + ``max_portfolio_size`` 剩余槽位）。
+        未 override 时，portfolio ``EnterSelection`` 直接用 ``EntrySelector``
+        （顺序 + ``max_portfolio_size`` 剩余槽位），不会调用本默认实现。
         """
-        from core.modules.strategy.core.engines.portfolio.enter_selection import (
-            EntrySelector,
-        )
+        return []
 
-        opps = ctx.get("opportunities")
-        if not isinstance(opps, list):
-            return []
-        account = ctx.get("account") if isinstance(ctx.get("account"), dict) else {}
-        max_size = int(account.get("max_portfolio_size") or 0)
-        if max_size <= 0:
-            try:
-                max_size = int(ctx.settings.portfolio.allocation.max_portfolio_size)
-            except Exception:
-                max_size = 10
-        held = {
-            str(x or "").strip()
-            for x in (account.get("held_entity_ids") or [])
-            if str(x or "").strip()
-        }
-        return EntrySelector(max_portfolio_size=max_size).pick(
-            opps, held_entity_ids=held
-        )
 
     # ── scan 辅助原语 ──
 

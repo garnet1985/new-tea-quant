@@ -20,9 +20,6 @@ pytest.skip(
 # from core.modules.strategy.core.engines.enumerator.slice_based.compute import SliceBasedCompute
 # from core.modules.strategy.core.engines.enumerator.entity_based.services.job_builder import EntityBasedJobs
 # from core.modules.strategy.core.engines.enumerator.slice_based.resolver.jobs import SliceBasedJobs
-from core.modules.strategy.core.helpers.calendar import CalendarOpenDateHelper
-from core.modules.strategy.core.services.data.entity_data import GlobalDataPreloader
-from core.modules.strategy.core.engines.shared.services.strategy_settings.data_settings import DataSettings
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import StrategySettings
 from core.modules.strategy.core.services.discovery.discovery_service import DiscoveryService
 
@@ -42,20 +39,6 @@ _USERSPACE_STRATEGIES_ROOT = (
 _USERSPACE_RANDOM_V1 = "demo/random/random_v1_null_baseline"
 _USERSPACE_RSI_V1 = "demo/regression/rsi/rsi_v1_without_value_anchor"
 _USERSPACE_LOW_PRICE_V2 = "demo/cross_sectional/low_price/low_price_v2_monthly_rebalance"
-
-
-def _minimal_settings() -> Dict[str, Any]:
-    return {
-        "data": {
-            "base": {
-                "data_key": "stock.kline.daily",
-                "params": {"adjust": "qfq"},
-                "indicators": {"rsi": [{"length": 14}]},
-            },
-            "required": [],
-            "min_required_records": 20,
-        },
-    }
 
 
 class TestDataSettingsSchema(unittest.TestCase):
@@ -99,20 +82,6 @@ class TestDataSettingsSchema(unittest.TestCase):
         settings.apply_defaults()
         with self.assertRaises(ValueError):
             settings.data.issue_declarations()
-
-
-class TestGlobalDataPreloadSmoke(unittest.TestCase):
-    """GLOBAL preload 只扫 data.required（不含 base）。"""
-
-    def test_preload_stock_list_only_when_required_empty(self) -> None:
-        global_data, meta = GlobalDataPreloader.preload(
-            settings=_minimal_settings(),
-            start_date="20240101",
-            end_date="20241231",
-            entity_ids=["600000.SH"],
-        )
-        self.assertEqual(global_data["stock_list"], ["600000.SH"])
-        self.assertEqual(meta["loaded_slots"], ["stock_list"])
 
 
 class TestDevtoolsDiscoverySmoke(unittest.TestCase):

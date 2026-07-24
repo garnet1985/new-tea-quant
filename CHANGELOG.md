@@ -78,13 +78,14 @@
 
 ### v0.4.4 (TBD)
 
-- 代码清理：删除logging infra模块
-- 代码清理：定义代码规范，并产出code style文档在根目录
-- 代码清理：按照标准清理project context模块，将discovery的快捷API迁入infra/discovery里
-- 代码清理：按照标准清理discovery模块
-- 代码清理：抽取了公共的回测管道调度逻辑，策略枚举器和标签模块现在公用同一套底层逻辑
+- 代码清理：删除logging（日志）模块 (技术债)
+- 代码清理：定义代码规范，并产出code style（代码风格）文档在根目录
+- 代码清理：所有模块统一格式，根目录下是同名模块入口层，另外还有contract（接口契约）来提供额外可能对外的API
+- 代码清理：所有模块统一文档，一个api，一个readme，与原有的module info合并成完整的使用文档
+- 代码清理：抽取了tag（标签模块）和strategy（策略模块）公共底层模块，独立成backtest engine（回测引擎）模块
+- 代码清理：将data cursor（数据游标）重置入data contract (数据契约)模块，并将时间推进功能从strategy（策略模块）挪入data contract（数据契约）模块
 - 修复了requirements发生变化会强制安装和重新import数据的危险bug
-
+- 重构了strategy模块，现在基于backtest engine，暴露了 on pick portfolio member接口
 - 在策略UI上增加策略文件快捷链接
 - 在策略UI上增加版本清除功能
 - 加入trace模块，记录用户使用方式反馈，以便提供更好的服务

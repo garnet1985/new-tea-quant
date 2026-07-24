@@ -1,3 +1,7 @@
-# """Strategy 业务数据服务（无 execution_mode 分支）。"""
+"""Strategy 数据服务（落盘 / 输出记录）。"""
 
-# __all__: list[str] = []
+from core.modules.strategy.core.services.data.simulation_output_recorder import (
+    SimulationOutputRecorder,
+)
+
+__all__ = ["SimulationOutputRecorder"]

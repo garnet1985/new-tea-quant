@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.modules.strategy.core.engines.shared.data_class.investment import (
+from core.modules.strategy.core.engines.shared.data_class.investments import (
     InvestmentRunDeps,
 )
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (

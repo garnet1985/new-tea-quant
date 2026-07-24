@@ -13,7 +13,6 @@ from core.modules.strategy.core.engines.shared.data_class import (
     CalendarAsOfResult,
     Investment,
     InvestmentRunDeps,
-    InvestmentTickInput,
     Opportunity,
 )
 from core.modules.strategy.core.hooks.base import StrategyHooks
@@ -26,6 +25,5 @@ __all__ = [
     "Opportunity",
     "Investment",
     "InvestmentRunDeps",
-    "InvestmentTickInput",
     "StrategyHooks",
 ]

@@ -91,6 +91,7 @@ class BaseJobExecutor:
 
     @classmethod
     def on_tick(cls, job_context: Any, point: str, index: int) -> None:
+        """BE 日历点回调 → TimelineHooks.on_tick（monitor 分桶 + scan）。"""
         hooks = cls._ensure_timeline_hooks(job_context)
         timeline = job_context.init.get(_TIMELINE_KEY)
         points = getattr(timeline, "points", ()) or ()

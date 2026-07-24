@@ -8,12 +8,11 @@
 """
 
 from .calendar_as_of import CalendarAsOfContext, CalendarAsOfResult
-from .investment import (
+from .investment import Investment
+from .investments import (
     DEFAULT_EXECUTE_STEPS,
     ExecuteStep,
-    Investment,
     InvestmentRunDeps,
-    InvestmentTickInput,
     InvestmentResult,
     Lifecycle,
     PendingExitKind,
@@ -28,7 +27,6 @@ __all__ = [
     "ExecuteStep",
     "Investment",
     "InvestmentRunDeps",
-    "InvestmentTickInput",
     "InvestmentResult",
     "Lifecycle",
     "Opportunity",

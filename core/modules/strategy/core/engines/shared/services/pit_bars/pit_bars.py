@@ -4,7 +4,7 @@
 
 本文件:
 - PitBars: Contract.until 聚合、bar_on、ready_date 门闩
-  边界: 负责 per-entity PIT 视图；不负责日循环或 Investment.tick
+  边界: 负责 per-entity PIT 视图；不负责日循环或 Investment 反应式推进
 """
 from __future__ import annotations
 

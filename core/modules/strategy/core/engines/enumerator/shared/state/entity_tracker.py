@@ -1,7 +1,15 @@
 """单 entity 枚举状态 tracker（entity / slice TimelineHooks 共用）。
 
+调用链:
+  BE Timeline.drive
+    → JobExecutor.on_tick
+    → Entity/Slice TimelineHooks.on_tick
+    → EntityTracker.process_tick(as_of, bar)
+         pending_exit.try_exit → pending_enter.try_enter → open.check_targets
+    →（同日 scan 后）register_from_opportunity → 再 process_tick
+
 本文件:
-- EntityTracker: Investment 注册 / process_tick / settle；recorded 供写 CSV
+- EntityTracker: 分桶编排 Investment 生命周期反应
   边界: 负责单股时间线状态；不负责选股、数据加载或报告落盘
 """
 from __future__ import annotations
@@ -12,7 +20,7 @@ from typing import Any, Dict, List, Sequence
 from core.infra.project_context import ProjectContext
 from core.modules.strategy.core.engines.shared.data_class import (
     Investment,
-    InvestmentTickInput,
+    Lifecycle,
     Opportunity,
 )
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
@@ -25,30 +33,86 @@ class EntityTracker:
     """单只股票（entity）在完整 calendar 上的枚举状态。
 
     边界:
-    - 负责: Investment 注册 / tick / settle；recorded 供写 CSV
+    - 负责: 注册机会；按分桶调用 try_enter / check_targets / try_exit / settle
     - 不负责: 选股、数据加载、报告落盘
     - 调用方: EntityTimelineHooks / SliceTimelineHooks（entity / slice 共用）
 
-    枚举产物是 **Investment**（模拟后的完整生命周期），不是裸 Opportunity。
-    - ``active``：持仓中、尚未 complete 的 investment
-    - ``recorded``：本 run 内全部 investment（含已完结）
-    - ``extras``：策略可在时间线上累积的自定义数据
+    生命周期分桶:
+    - ``pending_enter``：``PENDING_TO_ENTER``（条件未齐，如等次日 open）
+    - ``open``：``OPEN``
+    - ``pending_exit``：``PENDING_TO_EXIT``
+    - ``completed``：``COMPLETE``
     """
 
     entity_id: str
-    active: List[Investment] = field(default_factory=list)
-    recorded: List[Investment] = field(default_factory=list)
+    pending_enter: List[Investment] = field(default_factory=list)
+    open: List[Investment] = field(default_factory=list)
+    pending_exit: List[Investment] = field(default_factory=list)
+    completed: List[Investment] = field(default_factory=list)
     extras: Dict[str, Any] = field(default_factory=dict)
     _investment_index: int = field(default=0, repr=False)
 
-    def process_tick(self, tick: InvestmentTickInput) -> None:
-        """推进一个 calendar step：对每个 active investment 调 ``tick``，complete 的移出 active。"""
-        remaining: List[Investment] = []
-        for investment in self.active:
-            should_continue = investment.tick(tick)
-            if should_continue:
-                remaining.append(investment)
-        self.active = remaining
+    @property
+    def has_live(self) -> bool:
+        """仍有未完结 investment。"""
+        return bool(self.pending_enter or self.open or self.pending_exit)
+
+    def investment_count(self) -> int:
+        return (
+            len(self.pending_enter)
+            + len(self.open)
+            + len(self.pending_exit)
+            + len(self.completed)
+        )
+
+    def process_tick(self, as_of: str, bar: Dict[str, Any]) -> None:
+        """一个 calendar step：pending_exit → pending_enter → open。"""
+        as_of = str(as_of or "").strip()
+        next_pending_enter: List[Investment] = []
+        next_open: List[Investment] = []
+        next_pending_exit: List[Investment] = []
+
+        for investment in self.pending_exit:
+            investment.try_exit(as_of, bar)
+            self._place_after_react(
+                investment, next_pending_enter, next_open, next_pending_exit
+            )
+
+        for investment in self.pending_enter:
+            investment.try_enter(as_of, bar)
+            # 本 tick 刚入场 → 进 open，不跑 check_targets
+            self._place_after_react(
+                investment, next_pending_enter, next_open, next_pending_exit
+            )
+
+        for investment in self.open:
+            investment.check_targets(as_of, bar)
+            self._place_after_react(
+                investment, next_pending_enter, next_open, next_pending_exit
+            )
+
+        self.pending_enter = next_pending_enter
+        self.open = next_open
+        self.pending_exit = next_pending_exit
+
+    def _place_after_react(
+        self,
+        investment: Investment,
+        next_pending_enter: List[Investment],
+        next_open: List[Investment],
+        next_pending_exit: List[Investment],
+    ) -> None:
+        life = investment.lifecycle
+        if life == Lifecycle.COMPLETE:
+            self.completed.append(investment)
+        elif life == Lifecycle.PENDING_TO_ENTER:
+            next_pending_enter.append(investment)
+        elif life == Lifecycle.PENDING_TO_EXIT:
+            next_pending_exit.append(investment)
+        elif life == Lifecycle.OPEN:
+            next_open.append(investment)
+        else:
+            next_open.append(investment)
 
     def register_from_opportunity(
         self,
@@ -63,7 +127,7 @@ class EntityTracker:
         trigger_price_raw: float = 0.0,
         status_tags_provider: Any = None,
     ) -> Investment:
-        """Scan 命中：Opportunity → Investment，进入 active / recorded。"""
+        """Scan 命中：Opportunity → Investment（``PENDING_TO_ENTER``）→ ``pending_enter``。"""
         self._investment_index += 1
         opportunity.bind_scan_context(
             strategy_name=strategy_name,
@@ -81,19 +145,31 @@ class EntityTracker:
             open_dates=open_dates,
             status_tags_provider=status_tags_provider,
         )
-        self.active.append(investment)
-        self.recorded.append(investment)
+        self.pending_enter.append(investment)
         return investment
 
-    def settle_incomplete(self, tick: InvestmentTickInput) -> None:
-        """强制平仓：换仓日 / 模拟结束，对尚未 complete 的 active 调用 settle。"""
-        for investment in list(self.active):
-            investment.settle(tick)
-        self.active.clear()
+    def settle_incomplete(self, as_of: str, bar: Dict[str, Any]) -> None:
+        """强制平仓：换仓日 / 模拟结束，对未完结分桶 settle → completed。"""
+        as_of = str(as_of or "").strip()
+        live = list(self.pending_enter) + list(self.open) + list(self.pending_exit)
+        self.pending_enter.clear()
+        self.open.clear()
+        self.pending_exit.clear()
+        for investment in live:
+            investment.settle(as_of, bar)
+            self.completed.append(investment)
 
-    def recorded_as_dicts(self) -> List[Dict[str, Any]]:
+    def investments_as_dicts(self) -> List[Dict[str, Any]]:
         """供 recorder 写 investments / goals CSV。"""
-        return [inv.to_dict() for inv in self.recorded]
+        return [
+            inv.to_dict()
+            for inv in (
+                *self.pending_enter,
+                *self.open,
+                *self.pending_exit,
+                *self.completed,
+            )
+        ]
 
 
 __all__ = ["EntityTracker"]

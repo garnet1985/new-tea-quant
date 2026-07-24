@@ -19,8 +19,8 @@ from core.modules.strategy.core.engines.shared.services.pit_bars import PitBars
 from core.modules.strategy.core.engines.enumerator.shared.state.entity_tracker import (
     EntityTracker,
 )
-from core.modules.strategy.core.engines.shared.data_class import InvestmentTickInput, Opportunity
-from core.modules.strategy.core.engines.shared.data_class.investment import BarPrices
+from core.modules.strategy.core.engines.shared.data_class import Opportunity
+from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import SafeBarValue
 from core.modules.strategy.core.engines.shared.services.entity_loader.strategy_data_resolver import (
     StrategyDataResolver,
 )
@@ -220,10 +220,9 @@ class EntityTimelineHooks:
             if bar is not None:
                 bar_hits += 1
                 self._last_bar_by_entity[entity_id] = bar
-                tick = InvestmentTickInput(as_of_date=now, bar=bar, data_as_of=now)
                 if perf is not None:
                     perf.begin("enum_process_tick")
-                tracker.process_tick(tick)
+                tracker.process_tick(now, bar)
                 if perf is not None:
                     perf.end("enum_process_tick", accumulate=True)
             else:
@@ -282,12 +281,10 @@ class EntityTimelineHooks:
                 stock_info=self._stock_info.get(entity_id, {"id": entity_id}),
                 trigger_date=now,
                 trigger_price=float(bar["close"]),
-                trigger_price_raw=BarPrices.field(bar, "close", use_raw=True),
+                trigger_price_raw=SafeBarValue.float(bar, "close", use_raw=True),
                 status_tags_provider=self.entity_contracts.get(DATA_KEY.STOCK_ST_PERIODS),
             )
-            tracker.process_tick(
-                InvestmentTickInput(as_of_date=now, bar=bar, data_as_of=now)
-            )
+            tracker.process_tick(now, bar)
 
         if perf is not None:
             perf.record_calendar_day(
@@ -302,16 +299,12 @@ class EntityTimelineHooks:
         if points:
             last_day = points[-1]
             for entity_id, tracker in self.trackers.items():
-                if not tracker.active:
+                if not tracker.has_live:
                     continue
                 last_bar = self._last_bar_by_entity.get(entity_id)
                 if last_bar is None:
                     continue
-                tracker.settle_incomplete(
-                    InvestmentTickInput(
-                        as_of_date=last_day, bar=last_bar, data_as_of=last_day
-                    )
-                )
+                tracker.settle_incomplete(last_day, last_bar)
 
         if not self.payload.get("_dispatch_probe"):
             from core.modules.strategy.core.engines.enumerator.shared.report_manager import (
@@ -326,7 +319,7 @@ class EntityTimelineHooks:
         if self.perf is not None:
             self.perf.end("enumerate")
 
-        opportunities_count = self.total_recorded_count()
+        opportunities_count = self.total_investment_count()
         logger.info("子进程执行完成：opportunities_count=%d", opportunities_count)
         return {
             "success": True,
@@ -335,16 +328,16 @@ class EntityTimelineHooks:
             "entities_count": len(self.entity_specified),
         }
 
-    def total_recorded_count(self) -> int:
-        return sum(len(tracker.recorded) for tracker in self.trackers.values())
+    def total_investment_count(self) -> int:
+        return sum(tracker.investment_count() for tracker in self.trackers.values())
 
     def entities_with_investments(self) -> int:
-        return sum(1 for tracker in self.trackers.values() if tracker.recorded)
+        return sum(1 for tracker in self.trackers.values() if tracker.investment_count())
 
     def buffer_for_recorder(self) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
         for entity_id, tracker in self.trackers.items():
-            for inv_dict in tracker.recorded_as_dicts():
+            for inv_dict in tracker.investments_as_dicts():
                 rows.append(
                     {
                         "entity_id": entity_id,

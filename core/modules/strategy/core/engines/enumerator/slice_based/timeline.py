@@ -21,8 +21,7 @@ from core.modules.strategy.core.engines.shared.services.pit_bars import PitBars
 from core.modules.strategy.core.engines.enumerator.shared.state.entity_tracker import (
     EntityTracker,
 )
-from core.modules.strategy.core.engines.shared.data_class import InvestmentTickInput
-from core.modules.strategy.core.engines.shared.data_class.investment import BarPrices
+from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import SafeBarValue
 from core.modules.strategy.core.engines.shared.services.entity_loader.strategy_data_resolver import (
     StrategyDataResolver,
 )
@@ -210,9 +209,7 @@ class SliceTimelineHooks:
             self._last_bar_by_entity[entity_id] = bar
             if perf is not None:
                 perf.begin("enum_process_tick")
-            tracker.process_tick(
-                InvestmentTickInput(as_of_date=as_of, bar=bar, data_as_of=as_of)
-            )
+            tracker.process_tick(as_of, bar)
             if perf is not None:
                 perf.end("enum_process_tick", accumulate=True)
 
@@ -254,14 +251,12 @@ class SliceTimelineHooks:
         force_exit_date = str(self._session_state.get("force_exit_open_date") or "").strip()
         if force_exit_date == as_of:
             for entity_id, tracker in self.trackers.items():
-                if not tracker.active:
+                if not tracker.has_live:
                     continue
                 bar = self._last_bar_by_entity.get(entity_id)
                 if bar is None:
                     continue
-                tracker.settle_incomplete(
-                    InvestmentTickInput(as_of_date=as_of, bar=bar, data_as_of=as_of)
-                )
+                tracker.settle_incomplete(as_of, bar)
 
         open_dates_tuple = tuple(self._open_dates)
         for stock_id in asof_result.stocks:
@@ -311,16 +306,12 @@ class SliceTimelineHooks:
         if points:
             last_day = points[-1]
             for entity_id, tracker in self.trackers.items():
-                if not tracker.active:
+                if not tracker.has_live:
                     continue
                 last_bar = self._last_bar_by_entity.get(entity_id)
                 if last_bar is None:
                     continue
-                tracker.settle_incomplete(
-                    InvestmentTickInput(
-                        as_of_date=last_day, bar=last_bar, data_as_of=last_day
-                    )
-                )
+                tracker.settle_incomplete(last_day, last_bar)
 
         from core.modules.strategy.core.engines.enumerator.shared.report_manager import (
             ReportManager,
@@ -334,7 +325,7 @@ class SliceTimelineHooks:
         if self.perf is not None:
             self.perf.end("enumerate")
 
-        opportunities_count = self.total_recorded_count()
+        opportunities_count = self.total_investment_count()
         logger.info("slice 执行完成：opportunities_count=%d", opportunities_count)
         return {
             "success": True,
@@ -356,7 +347,7 @@ class SliceTimelineHooks:
         calendar: Dict[str, Any],
         open_dates: Sequence[str],
     ) -> None:
-        if tracker.active:
+        if tracker.has_live:
             return
 
         per_entity_pit = pit_by_entity.get(entity_id, {})
@@ -426,23 +417,21 @@ class SliceTimelineHooks:
             stock_info=stock_info,
             trigger_date=as_of,
             trigger_price=float(bar["close"]),
-            trigger_price_raw=BarPrices.field(bar, "close", use_raw=True),
+            trigger_price_raw=SafeBarValue.float(bar, "close", use_raw=True),
             status_tags_provider=self.entity_contracts.get(DATA_KEY.STOCK_ST_PERIODS),
         )
-        tracker.process_tick(
-            InvestmentTickInput(as_of_date=as_of, bar=bar, data_as_of=as_of)
-        )
+        tracker.process_tick(as_of, bar)
 
-    def total_recorded_count(self) -> int:
-        return sum(len(tracker.recorded) for tracker in self.trackers.values())
+    def total_investment_count(self) -> int:
+        return sum(tracker.investment_count() for tracker in self.trackers.values())
 
     def entities_with_investments(self) -> int:
-        return sum(1 for tracker in self.trackers.values() if tracker.recorded)
+        return sum(1 for tracker in self.trackers.values() if tracker.investment_count())
 
     def buffer_for_recorder(self) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
         for entity_id, tracker in self.trackers.items():
-            for inv_dict in tracker.recorded_as_dicts():
+            for inv_dict in tracker.investments_as_dicts():
                 rows.append(
                     {
                         "entity_id": entity_id,

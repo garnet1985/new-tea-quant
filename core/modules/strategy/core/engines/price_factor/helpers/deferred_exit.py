@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from core.modules.strategy.core.engines.price_factor.helpers.holding import (
     position_fully_closed,
 )
-from core.modules.strategy.core.engines.shared.data_class.investment import BarPrices
+from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import SafeBarValue
 from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings.tradability import (
     SlippageConfig,
 )
@@ -65,7 +65,7 @@ def _exit_fill_model(exit_price_model: str) -> str:
 
 def _theoretical_exit_price(bar: Dict[str, Any], exit_price_model: str) -> float:
     model = _exit_fill_model(exit_price_model)
-    return float(BarPrices.for_model(bar, model, use_raw=False) or 0.0)
+    return float(SafeBarValue.price_for_model(bar, model, use_raw=False) or 0.0)
 
 
 def _is_blocked_at_limit_down(
@@ -81,8 +81,8 @@ def _is_blocked_at_limit_down(
     if market_rules is None:
         # 无规则时：若 bar 显式带 sell_at_limit_down 由调用方处理；此处不拦
         return False
-    prev = BarPrices.prev_close(bar)
-    if prev <= 0 or not entity_id:
+    prev = SafeBarValue.optional_float(bar, "pre_close")
+    if prev is None or prev <= 0 or not entity_id:
         return False
     try:
         return bool(market_rules.is_at_limit_down(price, prev, entity_id))
@@ -114,7 +114,7 @@ def _build_executed_leg(
         "roi": roi,
         "reason": str(source.get("reason") or "").strip(),
         "sell_at_limit_down": at_limit_down,
-        "sell_prev_close": BarPrices.prev_close(bar) or None,
+        "sell_prev_close": SafeBarValue.optional_float(bar, "pre_close") or None,
     }
 
 
@@ -175,8 +175,8 @@ def retry_deferred_exits(
                 still_pending.append(src)
                 continue
             at_limit: Optional[bool] = None
-            prev = BarPrices.prev_close(bar)
-            if market_rules is not None and prev > 0 and entity_id:
+            prev = SafeBarValue.optional_float(bar, "pre_close")
+            if market_rules is not None and prev is not None and prev > 0 and entity_id:
                 try:
                     at_limit = bool(
                         market_rules.is_at_limit_down(sell_px, prev, entity_id)

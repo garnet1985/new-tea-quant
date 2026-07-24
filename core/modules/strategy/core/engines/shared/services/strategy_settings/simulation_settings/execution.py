@@ -14,7 +14,7 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.valida
 )
 
 if TYPE_CHECKING:
-    from core.modules.strategy.core.engines.shared.data_class.investment import ExecuteStep
+    from core.modules.strategy.core.engines.shared.data_class.investments import ExecuteStep
 
 _KNOWN_MODES = frozenset({"entity_based", "slice_based"})
 _DEFAULT_STEPS = [
@@ -63,7 +63,7 @@ class ExecutionSettings(SettingsBase):
         return [str(item).strip() for item in raw if str(item).strip()]
 
     def parsed_steps(self) -> List["ExecuteStep"]:
-        from core.modules.strategy.core.engines.shared.data_class.investment import (
+        from core.modules.strategy.core.engines.shared.data_class.investments import (
             ExecuteStep,
         )
 
@@ -153,7 +153,7 @@ class ExecutionSettings(SettingsBase):
             )
 
     def _validate_steps(self, report: ValidationReport) -> None:
-        from core.modules.strategy.core.engines.shared.data_class.investment import (
+        from core.modules.strategy.core.engines.shared.data_class.investments import (
             ExecuteStep,
         )
 

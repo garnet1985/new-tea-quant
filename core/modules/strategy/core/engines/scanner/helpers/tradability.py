@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from core.modules.market_profile.core.markets import create_market_rules
-from core.modules.strategy.core.engines.shared.data_class.investment import BarPrices
+from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import SafeBarValue
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
 
 BUY_AT_LIMIT_UP_KEY = "buy_at_limit_up"
@@ -36,17 +36,17 @@ def annotate_buy_at_limit_up(
     except (TypeError, ValueError):
         ref = 0.0
     if ref <= 0:
-        ref = float(BarPrices.field(signal_bar, "close") or 0.0)
+        ref = float(SafeBarValue.float(signal_bar, "close") or 0.0)
     if not entity_id or ref <= 0:
         return
 
-    prev = BarPrices.prev_close(signal_bar)
-    if prev <= 0:
+    prev = SafeBarValue.optional_float(signal_bar, "pre_close")
+    if prev is None or prev <= 0:
         # 尝试用前一根 bar 的 close
         idx = _bar_index(klines, day)
         if idx is not None and idx > 0:
-            prev = float(BarPrices.field(klines[idx - 1], "close") or 0.0)
-    if prev <= 0:
+            prev = SafeBarValue.float(klines[idx - 1], "close")
+    if prev is None or prev <= 0:
         return
 
     profile = str(market_profile or "").strip() or "china_a_stock"

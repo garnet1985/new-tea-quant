@@ -11,7 +11,6 @@ pytestmark = pytest.mark.force_run
 from core.modules.strategy.core.engines.shared.data_class import (
     Investment,
     InvestmentRunDeps,
-    InvestmentTickInput,
     Lifecycle,
 )
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity, StockInfo
@@ -28,12 +27,21 @@ def _bar(date: str, *, o: float, h: float, l: float, c: float) -> dict:
     return {"date": date, "open": o, "high": h, "low": l, "close": c}
 
 
-def _tick(date: str, *, o: float, h: float, l: float, c: float) -> InvestmentTickInput:
-    return InvestmentTickInput(
-        as_of_date=date,
-        bar=_bar(date, o=o, h=h, l=l, c=c),
-        data_as_of=date,
-    )
+def _tick(date: str, *, o: float, h: float, l: float, c: float):
+    return date, _bar(date, o=o, h=h, l=l, c=c)
+
+
+def _react(inv: Investment, tick) -> bool:
+    as_of, bar = tick
+    if inv.lifecycle == Lifecycle.COMPLETE:
+        return False
+    if inv.lifecycle == Lifecycle.PENDING_TO_ENTER:
+        inv.try_enter(as_of, bar)
+    elif inv.lifecycle == Lifecycle.PENDING_TO_EXIT:
+        inv.try_exit(as_of, bar)
+    elif inv.lifecycle == Lifecycle.OPEN:
+        inv.check_targets(as_of, bar)
+    return inv.lifecycle != Lifecycle.COMPLETE
 
 
 def _settings(**tradability) -> StrategySettings:
@@ -100,13 +108,13 @@ class TestInvestmentSlippage(unittest.TestCase):
 
         inv = _inv(settings, close=10.0)
         # enter at trigger close 10 → 10.1
-        self.assertTrue(inv.tick(_tick("20240102", o=10, h=11, l=9, c=10)))
+        self.assertTrue(_react(inv, _tick("20240102", o=10, h=11, l=9, c=10)))
         self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
         self.assertAlmostEqual(inv.entry.entry_price, 10.1)
 
         # T+1 then stop via expiration? use settle for clean exit
-        inv.tick(_tick("20240103", o=10, h=11, l=9, c=10))
-        self.assertFalse(inv.settle(_tick("20240104", o=10, h=11, l=9, c=12)))
+        _react(inv, _tick("20240103", o=10, h=11, l=9, c=10))
+        self.assertFalse(inv.settle(*_tick("20240104", o=10, h=11, l=9, c=12)))
         # exit close 12 → 12 * 0.99 = 11.88
         self.assertAlmostEqual(inv.exit_info.exit_price, 11.88)
 
@@ -131,7 +139,7 @@ class TestNoNextTick(unittest.TestCase):
         inv = _inv(settings)
         self.assertEqual(inv.lifecycle, Lifecycle.PENDING_TO_ENTER)
         # 无下一交易日 open → settle 放弃
-        self.assertFalse(inv.settle(_tick("20240102", o=10, h=11, l=9, c=10)))
+        self.assertFalse(inv.settle(*_tick("20240102", o=10, h=11, l=9, c=10)))
         self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
         self.assertEqual(inv.entry.entry_price, 0.0)
         self.assertFalse(inv.exit_info.exit_date)
@@ -143,7 +151,7 @@ class TestNoNextTick(unittest.TestCase):
         )
         inv = _inv(settings, close=10.0)
         # 信号日 close=10，进场 10.1；再用 settle bar close=12 出场
-        self.assertFalse(inv.settle(_tick("20240108", o=11, h=12, l=10, c=12)))
+        self.assertFalse(inv.settle(*_tick("20240108", o=11, h=12, l=10, c=12)))
         self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
         self.assertAlmostEqual(inv.entry.entry_price, 10.1)
         self.assertEqual(inv.entry.entry_date, "20240102")

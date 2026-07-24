@@ -18,7 +18,7 @@ from core.modules.backtest_engine.core.performance.profiler import (
     ENUM_PERF_KEY,
     WorkerTaskPerf,
 )
-from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_consts import (
+from core.modules.strategy.core.engines.shared.services.simulation_input.artifact_paths import (
     PERFORMANCE_DETAIL_FULL,
     PERFORMANCE_FILE,
     ReportPaths,

@@ -1,4 +1,7 @@
-"""枚举 version 轻量加载（price/portfolio 主进程输入；不读 entities CSV）。
+"""枚举 version 轻量加载（simulation_input 整块）。
+
+消费者: price_factor, portfolio
+其它: tests
 
 本文件:
 - EnumVersionData: output_dir / version_id / runtime snapshot 句柄
@@ -12,7 +15,7 @@ from pathlib import Path
 from typing import List
 
 from core.infra.project_context import ProjectContext
-from core.modules.strategy.core.engines.enumerator.shared.report_manager.runtime_snapshot import (
+from core.modules.strategy.core.engines.shared.services.simulation_input.runtime_snapshot import (
     RuntimeSnapshot,
 )
 

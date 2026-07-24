@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from core.infra.project_context import ProjectContext
 from core.modules.market_profile.core.markets import create_market_rules
-from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_investments import (
+from core.modules.strategy.core.engines.shared.services.simulation_input.stock_investments import (
     StockInvestments,
 )
 from core.modules.strategy.core.engines.portfolio.allocation_strategy import (
@@ -33,7 +33,7 @@ from core.modules.strategy.core.engines.portfolio.simulator import (
     PortfolioSimResult,
     PortfolioSimulator,
 )
-from core.modules.strategy.core.engines.price_factor.enum_data import (
+from core.modules.strategy.core.engines.shared.services.simulation_input.enum_loader import (
     EnumVersionData,
     load_enum_version,
     resolve_enum_version_dir,

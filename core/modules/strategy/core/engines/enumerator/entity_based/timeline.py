@@ -15,7 +15,7 @@ from core.modules.data_contract import DATA_KEY
 from core.modules.strategy.core.engines.enumerator.shared.performance_tracker.performance_tracker import (
     EnumJobPerfRecorder,
 )
-from core.modules.strategy.core.engines.enumerator.shared.services.pit_bars import PitBars
+from core.modules.strategy.core.engines.shared.services.pit_bars import PitBars
 from core.modules.strategy.core.engines.enumerator.shared.state.entity_tracker import (
     EntityTracker,
 )

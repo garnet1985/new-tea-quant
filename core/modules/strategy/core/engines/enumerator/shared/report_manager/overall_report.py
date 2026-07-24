@@ -8,14 +8,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional, TextIO, TYPE_CHECKING
 
-from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_consts import (
+from core.modules.strategy.core.engines.shared.services.simulation_input.artifact_paths import (
     NON_GOAL_EXIT_REASONS,
     OVERALL_REPORT_FILE,
 )
-from core.modules.strategy.core.engines.enumerator.shared.report_manager.runtime_snapshot import (
+from core.modules.strategy.core.engines.shared.services.simulation_input.runtime_snapshot import (
     RuntimeSnapshot,
 )
-from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_investments import (
+from core.modules.strategy.core.engines.shared.services.simulation_input.stock_investments import (
     GoalAchievements,
     InvestmentRow,
     StockInvestments,

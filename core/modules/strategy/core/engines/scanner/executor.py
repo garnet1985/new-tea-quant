@@ -11,10 +11,6 @@ from typing import Any, Dict, List, Optional
 
 from core.modules.backtest_engine.contracts import RunCallbacks
 from core.modules.data_contract import DATA_KEY
-from core.modules.strategy.core.engines.enumerator.shared.base_executor import (
-    BaseJobExecutor,
-)
-from core.modules.strategy.core.engines.enumerator.shared.services.pit_bars import PitBars
 from core.modules.strategy.core.engines.scanner.helpers.tradability import (
     annotate_buy_at_limit_up,
 )
@@ -23,11 +19,13 @@ from core.modules.strategy.core.engines.shared.data_class.opportunity import Opp
 from core.modules.strategy.core.engines.shared.services.entity_loader.job_bundle_loader import (
     JobBundleLoader,
 )
+from core.modules.strategy.core.engines.shared.services.pit_bars import PitBars
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
 from core.modules.strategy.core.helpers.stock_meta import StockMetaHelper
 from core.modules.strategy.core.hooks.context import DataContext
+from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +75,7 @@ class JobExecutor:
         )
         settings.apply_defaults()
 
-        hook_runtime, err = BaseJobExecutor.load_hooks(
+        hook_runtime, err = StrategyHookRuntime.from_strategy_info(
             payload.get("strategy_info") or {},
             settings,
         )

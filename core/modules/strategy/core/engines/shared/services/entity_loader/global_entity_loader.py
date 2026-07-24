@@ -1,4 +1,8 @@
-"""全局 entity 数据加载与共享内存（跨引擎共用）。
+"""全局 entity 数据加载与共享内存（entity_loader 整块之一）。
+
+消费者: enumerator
+其它: Facade, fingerprints
+（整块消费者见 entity_loader/__init__.py）
 
 本文件:
 - GlobalEntityCache: 系统 global（stock.list / trade.calendar / latest date）+ 策略 global + shm
@@ -141,7 +145,7 @@ class GlobalEntityCache:
 
     def _resolve_simulation_date_range(self) -> tuple[str, str]:
         """与 RuntimeSnapshot.resolve_period 一致：读 simulation.start/end。"""
-        from core.modules.strategy.core.engines.enumerator.shared.report_manager.runtime_snapshot import (
+        from core.modules.strategy.core.engines.shared.services.simulation_input.runtime_snapshot import (
             RuntimeSnapshot,
         )
 

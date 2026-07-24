@@ -1,4 +1,7 @@
-"""股票采样（EnumeratorPipeline 层消费）。
+"""股票采样（EnumeratorPipeline 层消费；属 entity_loader 整块）。
+
+消费者: enumerator
+（整块消费者见 entity_loader/__init__.py；不单独 demote）
 
 本文件:
 - StockSampler: uniform / stratified / random / pool / blacklist 等采样策略

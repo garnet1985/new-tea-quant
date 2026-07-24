@@ -1,5 +1,8 @@
 """Shared strategy data classes (opportunity, investment).
 
+消费者: scanner, enumerator, price_factor, portfolio
+其它: contracts, hooks
+
 ``SimulateSession`` 在 ``simulate_session`` 子模块；勿在此 re-export，
 以免 ``contracts`` → ``data_class`` → ``simulate_session`` → ``contracts`` 环依赖。
 """

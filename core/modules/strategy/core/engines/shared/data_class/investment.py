@@ -1,5 +1,8 @@
 """Investment — Opportunity 的模拟生命周期（enumerator / price 共用）。
 
+消费者: scanner, enumerator, price_factor
+其它: contracts
+
 本文件:
 - Investment 及 tick 相关类型（InvestmentTickInput/State、Entry/Exit、Lifecycle 枚举等）
   边界: 负责单信号生命周期与 tick 状态机；不负责 portfolio 资金回放或 CSV 落盘

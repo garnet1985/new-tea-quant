@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_consts import (
+from core.modules.strategy.core.engines.shared.services.simulation_input.artifact_paths import (
     ENTITY_IDS_FILE,
     RUNTIME_ENV_FILE,
 )
-from core.modules.strategy.core.engines.price_factor.enum_data import load_enum_version
+from core.modules.strategy.core.engines.shared.services.simulation_input.enum_loader import load_enum_version
 from core.modules.strategy.core.engines.price_factor.timeline import resolve_simulation_window
 
 pytestmark = pytest.mark.force_run

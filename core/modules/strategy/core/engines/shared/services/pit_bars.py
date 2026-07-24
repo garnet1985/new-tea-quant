@@ -1,4 +1,6 @@
-"""enumerator 共用 PIT / bar 辅助（entity + slice TimelineHooks）。
+"""PIT / bar 辅助（scanner + enumerator Timeline 共用）。
+
+消费者: scanner, enumerator
 
 本文件:
 - PitBars: Contract.until 聚合、bar_on、ready_date 门闩
@@ -10,10 +12,6 @@ import logging
 import time
 from typing import Any, Dict, List, Optional, Sequence
 
-from core.modules.strategy.core.engines.enumerator.shared.performance_tracker.performance_tracker import (
-    EnumJobPerfRecorder,
-)
-
 logger = logging.getLogger(__name__)
 
 
@@ -23,7 +21,7 @@ class PitBars:
     边界:
     - 负责: until 聚合、bar_on 校验、ready_date（until 前门闩）
     - 不负责: 日循环、Investment
-    - 调用方: entity / slice TimelineHooks
+    - 调用方: scanner JobExecutor、entity / slice TimelineHooks
     """
 
     @staticmethod
@@ -46,9 +44,11 @@ class PitBars:
             entity_id = str(raw_id or "").strip()
             if not entity_id:
                 continue
-            rows = base_contract.get_entity_data(entity_id) if hasattr(
-                base_contract, "get_entity_data"
-            ) else None
+            rows = (
+                base_contract.get_entity_data(entity_id)
+                if hasattr(base_contract, "get_entity_data")
+                else None
+            )
             if not isinstance(rows, list) or len(rows) < need:
                 out[entity_id] = ""
                 continue
@@ -58,7 +58,9 @@ class PitBars:
     @staticmethod
     def job_min_ready_date(ready_by_entity: Dict[str, str]) -> str:
         """job 内最早可做事日；全无 ready 则返回空串。"""
-        dates = [str(d).strip() for d in (ready_by_entity or {}).values() if str(d).strip()]
+        dates = [
+            str(d).strip() for d in (ready_by_entity or {}).values() if str(d).strip()
+        ]
         return min(dates) if dates else ""
 
     @staticmethod
@@ -66,8 +68,9 @@ class PitBars:
         entity_contracts: Dict[str, Any],
         as_of: str,
         *,
-        perf: Optional[EnumJobPerfRecorder] = None,
+        perf: Optional[Any] = None,
     ) -> Dict[str, Dict[str, Any]]:
+        """``perf`` 可选，需实现 ``record_contract_until(data_key, seconds)``（如 EnumJobPerfRecorder）。"""
         pit_data_by_entity: Dict[str, Dict[str, Any]] = {}
         for data_key, contract in entity_contracts.items():
             try:

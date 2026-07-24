@@ -6,7 +6,7 @@ from typing import Any, Dict, List
 import pytest
 
 from core.modules.market_profile.core.markets import create_market_rules
-from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_investments import (
+from core.modules.strategy.core.engines.shared.services.simulation_input.stock_investments import (
     InvestmentRow,
 )
 from core.modules.strategy.core.engines.price_factor.executor import JobExecutor

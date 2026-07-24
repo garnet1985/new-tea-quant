@@ -1,4 +1,8 @@
-"""枚举 version 目录产物路径约定（entity_based / slice_based 共用契约）。"""
+"""枚举 version 产物路径约定（simulation_input 整块）。
+
+消费者: enumerator, price_factor, portfolio
+其它: fingerprints, tests
+"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -42,7 +46,7 @@ class ReportPaths:
     边界:
     - 负责: version 目录路径约定、performance_detail / report config 读取
     - 不负责: 写盘、统计聚合
-    - 调用方: ReportManager 子模块、entity/slice Pipeline
+    - 调用方: simulation_input 读写、enumerator ReportManager、Pipeline
     """
 
     @staticmethod

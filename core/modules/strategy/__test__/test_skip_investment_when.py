@@ -10,12 +10,12 @@ import pytest
 
 pytestmark = pytest.mark.force_run
 
-from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_investments import (
+from core.modules.strategy.core.engines.shared.services.simulation_input.stock_investments import (
     InvestmentRow,
     StockInvestments,
 )
 from core.modules.strategy.core.engines.portfolio.pipeline import PortfolioPipeline
-from core.modules.strategy.core.engines.price_factor.enum_data import EnumVersionData
+from core.modules.strategy.core.engines.shared.services.simulation_input.enum_loader import EnumVersionData
 from core.modules.strategy.core.engines.price_factor.executor import JobExecutor
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     RiskControl,

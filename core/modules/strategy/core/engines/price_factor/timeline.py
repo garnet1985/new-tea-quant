@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Tuple
 
-from core.modules.strategy.core.engines.price_factor.enum_data import EnumVersionData
+from core.modules.strategy.core.engines.shared.services.simulation_input.enum_loader import EnumVersionData
 
 
 def resolve_simulation_window(data: EnumVersionData) -> Tuple[str, str]:

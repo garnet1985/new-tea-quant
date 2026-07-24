@@ -17,7 +17,7 @@ from core.infra.job_pipeline.profile import (
 from core.infra.project_context import ProjectContext
 from core.modules.backtest_engine.core.performance.settings import resolve_slice_based_performance
 from core.modules.strategy.core.engines.enumerator.shared.report_manager import ReportManager
-from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_consts import (
+from core.modules.strategy.core.engines.shared.services.simulation_input.artifact_paths import (
     ReportPaths,
 )
 from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import (
@@ -211,7 +211,7 @@ class EnumeratorPipeline:
         execution_mode: str,
     ) -> Dict[str, Any]:
         from core.modules.backtest_engine import BacktestEngine
-        from core.modules.strategy.core.engines.enumerator.shared.report_manager.runtime_snapshot import (
+        from core.modules.strategy.core.engines.shared.services.simulation_input.runtime_snapshot import (
             RuntimeSnapshot,
         )
 

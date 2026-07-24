@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_investments import (
+from core.modules.strategy.core.engines.shared.services.simulation_input.stock_investments import (
     GoalAchievementRow,
     GoalAchievements,
     InvestmentRow,

@@ -1,5 +1,8 @@
 """对已加载 per-entity Contract 批量应用声明 indicators。
 
+消费者: scanner, enumerator（经 JobBundleLoader）
+（整块消费者见 entity_loader/__init__.py）
+
 本文件:
 - ContractIndicators: IndicatorService.compute_batch 写回 kline rows
   边界: 负责 indicator 注入；不负责 Contract issue 或 job 编排

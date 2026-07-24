@@ -284,7 +284,7 @@ class TestInvestmentRawPrices(unittest.TestCase):
         self.assertEqual(inv.exit_info.exit_price_raw, 16.0)
         self.assertEqual(inv.completed_goals[0]["price_raw"], 16.0)
 
-        from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_investments import (
+        from core.modules.strategy.core.engines.shared.services.simulation_input.stock_investments import (
             InvestmentRow,
         )
 
@@ -429,7 +429,7 @@ class TestInvestmentLimitTradability(unittest.TestCase):
         self.assertTrue(inv.exit_info.sell_at_limit_down)
         self.assertEqual(inv.exit_info.sell_prev_close, 10.0)
 
-        from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_investments import (
+        from core.modules.strategy.core.engines.shared.services.simulation_input.stock_investments import (
             InvestmentRow,
         )
 
@@ -547,7 +547,7 @@ class TestInvestmentStStatusTagsLimit(unittest.TestCase):
         # 源 Opportunity 同步打标
         self.assertEqual(opp.status_tags_at_trigger(), ("st", "star_st"))
 
-        from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_investments import (
+        from core.modules.strategy.core.engines.shared.services.simulation_input.stock_investments import (
             InvestmentRow,
         )
 

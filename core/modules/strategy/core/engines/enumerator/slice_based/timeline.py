@@ -17,7 +17,7 @@ from core.modules.strategy.contracts import CalendarAsOfResult, Opportunity
 from core.modules.strategy.core.engines.enumerator.shared.performance_tracker.performance_tracker import (
     EnumJobPerfRecorder,
 )
-from core.modules.strategy.core.engines.enumerator.shared.services.pit_bars import PitBars
+from core.modules.strategy.core.engines.shared.services.pit_bars import PitBars
 from core.modules.strategy.core.engines.enumerator.shared.state.entity_tracker import (
     EntityTracker,
 )

@@ -1,5 +1,8 @@
 """Strategy settings 外层代理（与各 settings section 一一对应）。
 
+消费者: scanner, enumerator, price_factor, portfolio
+其它: hooks, core.services
+
 本文件:
 - StrategySettings: meta/data/sampling/goal/fees/simulation/portfolio/scanner 子配置 + merge/指纹字段
   边界: 负责 settings 对象化与 effective merge；不负责磁盘 discovery 或引擎执行

@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 from core.modules.backtest_engine import BacktestEngine
-from core.modules.strategy.core.engines.price_factor.enum_data import (
+from core.modules.strategy.core.engines.shared.services.simulation_input.enum_loader import (
     EnumVersionData,
     load_enum_version,
     resolve_enum_version_dir,

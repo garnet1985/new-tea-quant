@@ -1,5 +1,8 @@
 """settings.data 声明解析与 global / per_entity 分组。
 
+消费者: scanner, enumerator
+（整块消费者见 entity_loader/__init__.py）
+
 本文件:
 - StrategyDataResolver: base/required 声明、ContractIssuer.is_global 分组
 - DataDeclaration / DeclarationGroups: 声明与分组 TypedDict

@@ -9,9 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional, Tuple, Union
 
-from core.modules.strategy.core.engines.enumerator.slice_based.types import (
-    CalendarAsOfResult,
-)
+from core.modules.strategy.contracts import CalendarAsOfResult
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )

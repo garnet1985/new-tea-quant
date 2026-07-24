@@ -8,11 +8,9 @@
 
 from __future__ import annotations
 
-from core.modules.strategy.core.engines.enumerator.slice_based.types import (
+from core.modules.strategy.core.engines.shared.data_class import (
     CalendarAsOfContext,
     CalendarAsOfResult,
-)
-from core.modules.strategy.core.engines.shared.data_class import (
     Investment,
     InvestmentRunDeps,
     InvestmentTickInput,

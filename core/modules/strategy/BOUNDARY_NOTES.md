@@ -49,9 +49,10 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 5. 切断 Scanner→Enumerator 借包 — done（hooks→StrategyHookRuntime；PitBars→shared）
 6. investments / pit_bars 包结构 — **跳过**（后期：Investment 拆分、pit_bars 清理）
 7. hooks→portfolio 泄漏 — done（默认 on_pick 不再 import EntrySelector）
-8. 空壳/双路径清理
-9. pytest + 违规跨引擎私有 import 扫尾
-10. 专门整理 `simulation_input` 整块（结构/命名/边界）
+8. 空壳/双路径清理 — done（删除 `core/services/settings/`；唯一入口 `engines/shared/services/strategy_settings`）
+9. pytest + 违规跨引擎私有 import 扫尾 — done
+10. CalendarAsOf* → shared.data_class — done
+11. 专门整理 `simulation_input` 整块（结构/命名/边界）
 
 ## 消费矩阵（审计，2026-07-24）
 
@@ -78,7 +79,7 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 | fingerprints / entity_loader → runtime | — | **done** | 同上 |
 | ~~S → E load_hooks / PitBars~~ | — | **done** | hooks 直连 StrategyHookRuntime；PitBars → `shared/services/pit_bars` |
 | hooks → O `EntrySelector` | — | **fix-leak** | #7；contracts / lazy |
-| contracts / hooks → E `slice_based.types` | CalendarAsOf* | **promote?** | 可迁 shared `types` 或 contracts 自有；非四引擎 shared 急务 |
+| ~~contracts / hooks → E slice_based.types~~ | CalendarAsOf* | **done** | → `shared/data_class/calendar_as_of.py`；公开仍经 contracts |
 | Facade → S | ScannerPipeline | OK | Facade 编排，不算泄漏 |
 
 ### C. 与后续 todo 的对应
@@ -90,7 +91,7 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 | B：S→E base_executor / PitBars | #5 |
 | A：settings / entity_loader 整块 keep；死目录核对 | #6 |
 | B：hooks→O | #7 done |
-| 空壳 `core/services/settings` | #8 |
+| 空壳 `core/services/settings` | #8 done |
 
 ## Naming
 
@@ -102,7 +103,7 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 | `core/enums.py` vs `core/const.py` | 枚举与常量分离 | 全局 Enum 只放 enums；字面常量/默认值只放 const；contracts 不再承载枚举 |
 | userspace `strategy.py` vs 模块 `strategy.py` | 同名文件不同职责 | 用户 hooks 入口 vs 模块 Facade；discovery 动态 module id 已用 `_ntq_strategy_*` 区分 |
 | `SimulationOutputRecorder` vs 各引擎 `ReportManager` | Recorder / Manager 分工不直观 | Recorder 只管 version 目录分配；实际产物写盘在三套 ReportManager |
-| `core/services/settings/`（空壳 __init__） vs `engines/shared/services/strategy_settings/` | settings 两处 | 前者仅一句 docstring，真正建模全在后者 |
+| ~~`core/services/settings/`~~ | — | **done**；仅 `engines/shared/services/strategy_settings` |
 
 ## Location / package layout
 
@@ -111,7 +112,7 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 | `engines/shared/services/entity_loader/` | 跨引擎却放在 `engines/shared` 下 | scanner / enumerator / price_factor 均依赖；更像 `core/services/data_loader` |
 | `core/helpers/` vs `engines/scanner/helpers/` | helpers 分层不一致 | 顶层 helpers 无 IO；scanner helpers 含 DataManager、ProjectContext、adapter |
 | ~~`price_factor/enum_data` / enum CSV 契约~~ | — | **done** → `shared/services/simulation_input` |
-| `contracts.py` 深 import | 公开 API 依赖 `enumerator/slice_based/types` | Facade 契约与 slice 实现耦合；CalendarAsOf* 可考虑迁到 `shared/types` |
+| ~~`contracts.py` 深 import slice_based~~ | — | **done**；CalendarAsOf* 在 shared.data_class |
 | `core/services/data/simulation_output_recorder.py` | 与引擎 report_manager 分离 | 合理，但 enum/price/portfolio 三套 ReportManager 无 shared 基类，重复 begin/finalize 模式 |
 | `FingerprintCalculator` 在 `simulation_cache/` | 指纹非缓存 | 算指纹 + seed GlobalEntityCache；更接近 `core/services/fingerprints` 或 orchestration 层 |
 
@@ -153,11 +154,9 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
    - `cache_manager.py` 保留 DB 槽位语义  
    - 可选：scan CSV 缓存接口与 DB 缓存共用 `BaseCacheManager` 抽象（磁盘 vs 表）
 
-6. **contracts 瘦身**  
-   `CalendarAsOfContext/Result` 迁至 `core/engines/shared/types/` 或 `contracts/calendar.py`，避免 contracts 依赖 slice_based 包。
+6. **contracts 瘦身** — done（CalendarAsOf* → `shared/data_class/calendar_as_of.py`）。
 
 7. **Portfolio Investment 命名**  
    `PortfolioInvestment` 文件名与类名一致（已用类名）；shared `Investment` 文档中强调「信号生命周期」vs「资金汇总」。
 
-8. **settings 包归一**  
-   删除或合并空壳 `core/services/settings/`，对外只 export `engines/shared/services/strategy_settings`。
+8. **settings 包归一** — done。

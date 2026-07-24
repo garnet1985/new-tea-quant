@@ -1,4 +1,8 @@
-"""Calendar as-of hook types (slice_based only)."""
+"""Calendar as-of hook 类型（slice_based on_calendar_asof 契约）。
+
+消费者: enumerator
+其它: contracts, hooks
+"""
 
 from __future__ import annotations
 

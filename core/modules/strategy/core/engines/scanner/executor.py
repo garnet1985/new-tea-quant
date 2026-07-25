@@ -19,7 +19,7 @@ from core.modules.strategy.core.engines.shared.data_class.opportunity import Opp
 from core.modules.strategy.core.engines.shared.services.entity_loader.job_bundle_loader import (
     JobBundleLoader,
 )
-from core.modules.strategy.core.engines.shared.services.pit_bars import PitBars
+from core.modules.strategy.core.engines.shared.services.as_of_slice import AsOfSlice
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
@@ -133,6 +133,7 @@ class JobExecutor:
 
     @classmethod
     def on_tick(cls, job_context: Any, point: str, index: int) -> None:
+        """推进时间(point) → 切数据 → 执行业务。"""
         _ = index
         init = job_context.init if isinstance(job_context.init, dict) else {}
         runtime = init.get(_CTX_KEY)
@@ -145,7 +146,7 @@ class JobExecutor:
             runtime["scanned"] = True
             return
 
-        scan_date = str(runtime.get("scan_date") or point or "").strip()
+        as_of = str(point or "").strip()  # 唯一时钟：BE Timeline 传入的 point
         entity_contracts = init.get("entity_contracts") or {}
         global_data = init.get("global_data") or {}
         settings = runtime.get("settings")
@@ -157,16 +158,18 @@ class JobExecutor:
         market_profile = str(runtime.get("market_profile") or "").strip()
         st_provider = entity_contracts.get(DATA_KEY.STOCK_ST_PERIODS)
 
-        pit_by_entity = PitBars.load_pit_by_entity(entity_contracts, scan_date)
+        # —— 切数据 ——
+        sliced_by_entity = AsOfSlice.slice_contracts(entity_contracts, as_of)
         out: List[Opportunity] = runtime.setdefault("opportunities", [])
 
+        # —— 执行业务 ——
         for eid, base_ctx in (runtime.get("scan_contexts") or {}).items():
-            per_entity = pit_by_entity.get(eid) or {}
+            per_entity = sliced_by_entity.get(eid) or {}
             complete = {**global_data, **per_entity} if global_data else dict(per_entity)
             try:
                 scan_ctx = StrategyContext.fill(
                     base_ctx,
-                    now=scan_date,
+                    now=as_of,
                     items=complete,
                     entity_id=eid,
                     entity_info=base_ctx.data.entity_info,
@@ -200,12 +203,12 @@ class JobExecutor:
                     strategy_key=str(hook_runtime.strategy_name or ""),
                     stock_id=eid,
                     stock_info=stock_info,
-                    trigger_date=scan_date,
+                    trigger_date=as_of,
                     market_profile=market_profile or None,
                 )
                 opportunity.stamp_status_at_trigger(
                     status_tags_provider=st_provider,
-                    trade_date=scan_date,
+                    trade_date=as_of,
                 )
                 klines = complete.get(base_key) or []
                 if not isinstance(klines, list):
@@ -214,14 +217,14 @@ class JobExecutor:
                     opportunity,
                     market_profile=market_profile,
                     klines=klines,
-                    scan_date=scan_date,
+                    scan_date=as_of,
                 )
                 out.append(opportunity)
 
             try:
                 after_ctx = StrategyContext.fill(
                     base_ctx,
-                    now=scan_date,
+                    now=as_of,
                     items=complete,
                     opportunity=opportunity,
                     entity_id=eid,

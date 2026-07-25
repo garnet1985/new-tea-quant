@@ -1,10 +1,15 @@
-"""PIT / bar 辅助（scanner + enumerator Timeline 共用）。
+"""时钟点上的数据切片（推进时间之后、执行业务之前）。
 
 消费者: scanner, enumerator
 
+约定顺序:
+  1. BE Timeline 推进 → on_tick(point)
+  2. AsOfSlice 按 point 切 contracts（本服务）
+  3. 业务消费 (point, sliced) — 不再自行 invent as_of 去 until
+
 本文件:
-- PitBars: Contract.until 聚合、bar_on、ready_date 门闩
-  边界: 负责 per-entity PIT 视图；不负责日循环或 Investment 反应式推进
+- AsOfSlice: contract.until 聚合、当日 base bar、ready_date 门闩
+  边界: 只负责「这一刻可见什么」；不负责日循环或 Investment
 """
 from __future__ import annotations
 
@@ -15,13 +20,13 @@ from typing import Any, Dict, List, Optional, Sequence
 logger = logging.getLogger(__name__)
 
 
-class PitBars:
-    """Contract.until → per-entity PIT，以及当日 base bar 判定。
+class AsOfSlice:
+    """按时钟点 ``as_of`` 切出 per-entity 可见数据。
 
     边界:
-    - 负责: until 聚合、bar_on 校验、ready_date（until 前门闩）
-    - 不负责: 日循环、Investment
-    - 调用方: scanner JobExecutor、entity / slice Enumerator Executor
+    - 负责: until 聚合、base bar 校验、ready_date（until 前门闩）
+    - 不负责: 推进日历、Investment、hooks
+    - 调用方: scanner / entity / slice Enumerator 的 Executor（切数据阶段）
     """
 
     @staticmethod
@@ -34,7 +39,7 @@ class PitBars:
     ) -> Dict[str, str]:
         """各 entity 最早可做事日 = 第 min_required 根 K 线日期；不足则空串。
 
-        用于 until 之前短路：as_of < ready_date 时不应 scan / 不应为「做事」付 until。
+        用于切片之前短路：as_of < ready_date 时不应为「做事」付 until。
         """
         need = max(1, int(min_required or 1))
         out: Dict[str, str] = {}
@@ -64,18 +69,21 @@ class PitBars:
         return min(dates) if dates else ""
 
     @staticmethod
-    def load_pit_by_entity(
+    def slice_contracts(
         entity_contracts: Dict[str, Any],
         as_of: str,
         *,
         perf: Optional[Any] = None,
     ) -> Dict[str, Dict[str, Any]]:
-        """``perf`` 可选，需实现 ``record_contract_until(data_key, seconds)``（如 EnumJobPerfRecorder）。"""
-        pit_data_by_entity: Dict[str, Dict[str, Any]] = {}
+        """按 ``as_of`` 切 contracts → ``{entity_id: {data_key: rows}}``。
+
+        ``perf`` 可选，需实现 ``record_contract_until(data_key, seconds)``。
+        """
+        by_entity: Dict[str, Dict[str, Any]] = {}
         for data_key, contract in entity_contracts.items():
             try:
                 until_t0 = time.perf_counter()
-                pit_data_dict = contract.until(as_of=as_of)
+                sliced = contract.until(as_of=as_of)
                 if perf is not None:
                     perf.record_contract_until(
                         str(data_key),
@@ -90,19 +98,20 @@ class PitBars:
                     exc_info=True,
                 )
                 continue
-            for entity_id, pit_rows in pit_data_dict.items():
-                pit_data_by_entity.setdefault(entity_id, {})[data_key] = pit_rows
-        return pit_data_by_entity
+            for entity_id, rows in sliced.items():
+                by_entity.setdefault(entity_id, {})[data_key] = rows
+        return by_entity
 
     @staticmethod
-    def bar_on(
-        per_entity_pit: Dict[str, Any],
+    def base_bar(
+        per_entity_slice: Dict[str, Any],
         *,
         base_data_key: str,
         as_of: str,
         min_required: int,
     ) -> Optional[Dict[str, Any]]:
-        base_rows = per_entity_pit.get(base_data_key)
+        """当日 base K 线；无 bar / 根数不足则 None。"""
+        base_rows = per_entity_slice.get(base_data_key)
         if not isinstance(base_rows, list) or not base_rows:
             return None
         last = base_rows[-1]
@@ -116,4 +125,4 @@ class PitBars:
         return last
 
 
-__all__ = ["PitBars"]
+__all__ = ["AsOfSlice"]

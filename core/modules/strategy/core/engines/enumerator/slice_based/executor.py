@@ -25,7 +25,7 @@ from core.modules.strategy.core.engines.enumerator.common.base_executor import (
 from core.modules.strategy.core.engines.enumerator.common.performance_tracker.performance_tracker import (
     EnumJobPerfRecorder,
 )
-from core.modules.strategy.core.engines.shared.services.pit_bars import PitBars
+from core.modules.strategy.core.engines.shared.services.as_of_slice import AsOfSlice
 from core.modules.strategy.core.engines.enumerator.common.state.investment_tracker import (
     InvestmentTracker,
 )
@@ -157,16 +157,17 @@ class SliceTaskState:
         self._slice_index = 0
         self._window_t0 = time.perf_counter()
         base_contract = self.entity_contracts.get(self._base_data_key)
-        self._ready_date_by_entity = PitBars.ready_date_by_entity(
+        self._ready_date_by_entity = AsOfSlice.ready_date_by_entity(
             base_contract,
             list(self.trackers.keys()),
             min_required=self._min_required,
         )
-        self._job_min_ready_date = PitBars.job_min_ready_date(self._ready_date_by_entity)
+        self._job_min_ready_date = AsOfSlice.job_min_ready_date(self._ready_date_by_entity)
         self._job_has_work = bool(self._job_min_ready_date)
 
     def on_calendar_day(self, point: str, index: int, *, is_last: bool) -> None:
-        as_of = point
+        """推进时间(point) → 切数据 → 执行业务。"""
+        as_of = point  # 唯一时钟：BE Timeline 传入的 point
         perf = self.perf
 
         # 尽早短路：全 job 尚无任何 entity 达到 min_required → 不 until / 不 asof
@@ -186,20 +187,22 @@ class SliceTaskState:
             self._window_t0 = time.perf_counter()
             return
 
+        # —— 切数据 ——
         if perf is not None:
             perf.begin("enum_pit_until")
-        pit_by_entity = PitBars.load_pit_by_entity(
+        sliced_by_entity = AsOfSlice.slice_contracts(
             self.entity_contracts, as_of, perf=perf
         )
         if perf is not None:
             perf.end("enum_pit_until", accumulate=True)
 
+        # —— 执行业务 ——
         for entity_id, tracker in self.trackers.items():
             ready = self._ready_date_by_entity.get(entity_id) or ""
             if (not ready) or as_of < ready:
                 continue
-            bar = PitBars.bar_on(
-                pit_by_entity.get(entity_id, {}),
+            bar = AsOfSlice.base_bar(
+                sliced_by_entity.get(entity_id, {}),
                 base_data_key=self._base_data_key,
                 as_of=as_of,
                 min_required=self._min_required,
@@ -214,7 +217,7 @@ class SliceTaskState:
                 perf.end("enum_process_tick", accumulate=True)
 
         stocks_ctx = self._build_stocks_context(
-            pit_by_entity,
+            sliced_by_entity,
             as_of=as_of,
         )
         calendar = self._build_calendar_view(
@@ -273,7 +276,7 @@ class SliceTaskState:
                 tracker=tracker,
                 entity_id=entity_id,
                 as_of=as_of,
-                pit_by_entity=pit_by_entity,
+                sliced_by_entity=sliced_by_entity,
                 calendar=calendar,
                 open_dates=open_dates_tuple,
             )
@@ -348,16 +351,16 @@ class SliceTaskState:
         tracker: InvestmentTracker,
         entity_id: str,
         as_of: str,
-        pit_by_entity: Dict[str, Dict[str, Any]],
+        sliced_by_entity: Dict[str, Dict[str, Any]],
         calendar: Dict[str, Any],
         open_dates: Sequence[str],
     ) -> None:
         if tracker.has_live:
             return
 
-        per_entity_pit = pit_by_entity.get(entity_id, {})
-        bar = PitBars.bar_on(
-            per_entity_pit,
+        per_entity = sliced_by_entity.get(entity_id, {})
+        bar = AsOfSlice.base_bar(
+            per_entity,
             base_data_key=self._base_data_key,
             as_of=as_of,
             min_required=self._min_required,
@@ -365,9 +368,9 @@ class SliceTaskState:
         if bar is None:
             return
 
-        complete_data = dict(per_entity_pit)
+        complete_data = dict(per_entity)
         if self.global_data:
-            complete_data = {**self.global_data, **per_entity_pit}
+            complete_data = {**self.global_data, **per_entity}
 
         stock_info = self._stock_info.get(entity_id, {"id": entity_id})
         scan_ctx = StrategyContext.fill(
@@ -465,15 +468,15 @@ class SliceTaskState:
 
     def _build_stocks_context(
         self,
-        pit_by_entity: Dict[str, Dict[str, Any]],
+        sliced_by_entity: Dict[str, Dict[str, Any]],
         *,
         as_of: str,
     ) -> Dict[str, Dict[str, Any]]:
         out: Dict[str, Dict[str, Any]] = {}
         for entity_id in self.entity_ids:
-            per_entity = pit_by_entity.get(entity_id, {})
+            per_entity = sliced_by_entity.get(entity_id, {})
             if (
-                PitBars.bar_on(
+                AsOfSlice.base_bar(
                     per_entity,
                     base_data_key=self._base_data_key,
                     as_of=as_of,

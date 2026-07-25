@@ -83,8 +83,8 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 2. 消费矩阵审计（keep / promote / demote） — 见下节
 3. 现有 shared 入口打标注 — done
 4. 提升仿真输入契约（enum 产物被 price/portfolio 读） — done → `shared/services/simulation_output`
-5. 切断 Scanner→Enumerator 借包 — done（hooks→StrategyHookRuntime；PitBars→shared）
-6. investments / pit_bars 包结构 — **跳过**（后期：Investment 拆分、pit_bars 清理）
+5. 切断 Scanner→Enumerator 借包 — done（hooks→StrategyHookRuntime；AsOfSlice→shared）
+6. investments 包结构 — **跳过**（后期：Investment 拆分）；`as_of_slice` = 时钟点切数据（推进→切片→业务）
 7. hooks→portfolio 泄漏 — done（默认 on_pick 不再 import EntrySelector）
 8. 空壳/双路径清理 — done（删除 `core/services/settings/`；唯一入口 `engines/shared/services/strategy_settings`）
 9. pytest + 违规跨引擎私有 import 扫尾 — done
@@ -119,7 +119,7 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 | fingerprints / entity_loader → period | — | **done** | `StrategySettings.resolve_period` |
 | P/O 读 enum version | — | **done** | `simulation_output.EnumSource`；P/O `enum_input` 仅私有 CSV 行解析；写各自 report |
 | E runtime/CSV 内容 | — | **done** | `enumerator/common/artifacts` |
-| ~~S → E load_hooks / PitBars~~ | — | **done** | hooks 直连 StrategyHookRuntime；PitBars → `shared/services/pit_bars` |
+| ~~S → E load_hooks / AsOfSlice~~ | — | **done** | hooks 直连 StrategyHookRuntime；AsOfSlice → `shared/services/as_of_slice` |
 | hooks → O `EntrySelector` | — | **fix-leak** | #7；contracts / lazy |
 | ~~contracts / hooks → E slice_based.types~~ | CalendarAsOf* | **done** | → `shared/data_class/calendar_as_of.py`；公开仍经 contracts |
 | Facade → S | ScannerPipeline | OK | Facade 编排，不算泄漏 |
@@ -130,7 +130,7 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 |----------|------|
 | A 表 keep 项打消费者标注 | #3 |
 | B：stock_investments / runtime_snapshot / enum_data | #4 done |
-| B：S→E base_executor / PitBars | #5 |
+| B：S→E base_executor / AsOfSlice | #5 |
 | A：settings / entity_loader 整块 keep；死目录核对 | #6 |
 | B：hooks→O | #7 done |
 | 空壳 `core/services/settings` | #8 done |

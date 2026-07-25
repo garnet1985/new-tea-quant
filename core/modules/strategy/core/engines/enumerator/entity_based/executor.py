@@ -30,7 +30,7 @@ from core.modules.strategy.core.engines.shared.data_class import Opportunity
 from core.modules.strategy.core.engines.shared.services.entity_loader.strategy_data_resolver import (
     StrategyDataResolver,
 )
-from core.modules.strategy.core.engines.shared.services.pit_bars import PitBars
+from core.modules.strategy.core.engines.shared.services.as_of_slice import AsOfSlice
 from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import (
     SafeBarValue,
 )
@@ -148,12 +148,12 @@ class EntityTaskState:
                 entities_in_job=len(self.trackers),
             )
         base_contract = self.entity_contracts.get(self._base_data_key)
-        self._ready_date_by_entity = PitBars.ready_date_by_entity(
+        self._ready_date_by_entity = AsOfSlice.ready_date_by_entity(
             base_contract,
             list(self.trackers.keys()),
             min_required=self._min_required,
         )
-        self._job_min_ready_date = PitBars.job_min_ready_date(self._ready_date_by_entity)
+        self._job_min_ready_date = AsOfSlice.job_min_ready_date(self._ready_date_by_entity)
         self._job_has_work = bool(self._job_min_ready_date)
         self._scan_contexts = {}
         for entity_item in self.entity_specified:
@@ -182,8 +182,9 @@ class EntityTaskState:
             )
 
     def on_calendar_day(self, point: str, index: int, *, is_last: bool) -> None:
+        """推进时间(point) → 切数据 → 执行业务。"""
         _ = index, is_last
-        now = point
+        now = point  # 唯一时钟：BE Timeline 传入的 point
         perf = self.perf
         entity_n = len(self.trackers)
 
@@ -200,15 +201,17 @@ class EntityTaskState:
                 )
             return
 
+        # —— 切数据 ——
         if perf is not None:
             perf.begin("enum_pit_until")
-        pit_data_by_entity = PitBars.load_pit_by_entity(
+        sliced_by_entity = AsOfSlice.slice_contracts(
             self.entity_contracts, now, perf=perf
         )
         pit_sec = 0.0
         if perf is not None:
             pit_sec = perf.end("enum_pit_until", accumulate=True)
 
+        # —— 执行业务 ——
         bar_hits = 0
         bar_misses = 0
         for entity_item in self.entity_specified:
@@ -223,9 +226,9 @@ class EntityTaskState:
                 bar_misses += 1
                 continue
 
-            per_entity_pit = pit_data_by_entity.get(entity_id, {})
-            bar = PitBars.bar_on(
-                per_entity_pit,
+            per_entity = sliced_by_entity.get(entity_id, {})
+            bar = AsOfSlice.base_bar(
+                per_entity,
                 base_data_key=self._base_data_key,
                 as_of=now,
                 min_required=self._min_required,
@@ -244,9 +247,9 @@ class EntityTaskState:
             if bar is None:
                 continue
 
-            complete_data = per_entity_pit
+            complete_data = per_entity
             if self.global_data:
-                complete_data = {**self.global_data, **per_entity_pit}
+                complete_data = {**self.global_data, **per_entity}
             try:
                 if perf is not None:
                     perf.begin("enum_context_fill")

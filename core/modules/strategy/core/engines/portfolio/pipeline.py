@@ -6,13 +6,8 @@
 """
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass
-from datetime import datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
-from core.infra.project_context import ProjectContext
 from core.modules.market_profile.core.markets import create_market_rules
 from core.modules.strategy.core.engines.shared.services.simulation_output import (
     EntityInvestmentCsv,
@@ -25,8 +20,8 @@ from core.modules.strategy.core.engines.portfolio.enter_selection import (
     EnterSelection,
 )
 from core.modules.strategy.core.engines.portfolio.fee_calculator import FeeCalculator
-from core.modules.strategy.core.engines.portfolio.report_writer import (
-    PortfolioReportWriter,
+from core.modules.strategy.core.engines.portfolio.report_manager import (
+    ReportManager,
 )
 from core.modules.strategy.core.engines.portfolio.simulator import (
     PortfolioSimResult,
@@ -38,28 +33,9 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.strate
     StrategySettings,
 )
 from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
-from core.modules.strategy.core.services.data.simulation_output_recorder import (
-    SimulationOutputRecorder,
-)
-from core.system import get_version
 
 if TYPE_CHECKING:
     from core.modules.strategy.core.engines.shared.data_class.simulate_session import SimulateSession
-
-_RUNTIME_ENV_FILE = "0_runtime_env.json"
-_DEFAULT_MARKET_PROFILE = "china_a_stock"
-
-
-@dataclass
-class PortfolioReportHandle:
-    """本轮 run 的产物句柄（最小版；完整 ReportManager 后续补）。"""
-
-    output_dir: Path
-    strategy_key: str
-    strategy_path: str
-    version_id: int
-    enum_version_id: str
-    market_profile: str = _DEFAULT_MARKET_PROFILE
 
 
 class PortfolioPipeline:
@@ -104,60 +80,9 @@ class PortfolioPipeline:
         cls,
         ctx: "SimulateSession",
         data: EnumSource,
-    ) -> PortfolioReportHandle:
-        """分配 ``simulations/portfolio/{strategy}/{version}``，写最小 runtime。"""
-        info = ctx.strategy_info
-        strategy_key = str(getattr(info, "key", "") or "").strip()
-        strategy_path = str(
-            getattr(info, "unique_relative_path", "") or ctx.strategy_key or ""
-        ).strip()
-        if not strategy_path:
-            raise ValueError("strategy_path 不能为空")
-
-        root = ProjectContext.path.get_strategy_directory_simulation_portfolio(
-            strategy_path
-        )
-        output_dir, version_id = SimulationOutputRecorder.allocate_version_dir(
-            strategy_path,
-            root,
-        )
-        runtime = {
-            "strategy_key": strategy_key or strategy_path,
-            "strategy_path": strategy_path,
-            "version_id": int(version_id),
-            "enum_version_id": str(data.version_id),
-            "enum_output_dir": str(data.output_dir),
-            "settings_fp": str(ctx.settings_fp or ""),
-            "env_fp": str(ctx.env_fp or ""),
-            "period": {
-                "start_date": data.start_date,
-                "end_date": data.end_date,
-            },
-            "entity_ids": list(data.entity_ids),
-            "entity_count": len(data.entity_ids),
-            "market_profile": (
-                str(data.runtime.market_profile or "").strip() or _DEFAULT_MARKET_PROFILE
-            ),
-            "engine_version": get_version(),
-            "created_at": datetime.now().isoformat(),
-            "kind": "portfolio",
-        }
-        output_dir.mkdir(parents=True, exist_ok=True)
-        (output_dir / _RUNTIME_ENV_FILE).write_text(
-            json.dumps(runtime, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
-        market_profile = (
-            str(data.runtime.market_profile or "").strip() or _DEFAULT_MARKET_PROFILE
-        )
-        return PortfolioReportHandle(
-            output_dir=output_dir,
-            strategy_key=strategy_key or strategy_path,
-            strategy_path=strategy_path,
-            version_id=int(version_id),
-            enum_version_id=str(data.version_id),
-            market_profile=market_profile,
-        )
+    ) -> ReportManager:
+        """分配 portfolio version 目录并写 runtime。"""
+        return ReportManager.begin(ctx, data)
 
     @classmethod
     def build_events(
@@ -213,7 +138,7 @@ class PortfolioPipeline:
         opportunities: Dict[str, Opportunity],
         *,
         settings: StrategySettings,
-        report: PortfolioReportHandle,
+        report: ReportManager,
         ctx: "SimulateSession",
     ) -> PortfolioSimResult:
         """选仓钩子过滤事件后做账户回放。"""
@@ -241,7 +166,7 @@ class PortfolioPipeline:
     @classmethod
     def finalize(
         cls,
-        report: PortfolioReportHandle,
+        report: ReportManager,
         sim_result: PortfolioSimResult,
         *,
         data: EnumSource,
@@ -249,13 +174,7 @@ class PortfolioPipeline:
     ) -> Dict[str, Any]:
         """落盘 overall / trades / equity，返回可缓存 report dict。"""
         portfolio = settings.portfolio
-        return PortfolioReportWriter(
-            output_dir=report.output_dir,
-            strategy_key=report.strategy_key,
-            strategy_path=report.strategy_path,
-            version_id=report.version_id,
-            enum_version_id=report.enum_version_id,
-        ).finalize(
+        return report.finalize(
             sim_result,
             period={"start_date": data.start_date, "end_date": data.end_date},
             save_trades=bool(portfolio.output.save_trades),
@@ -287,4 +206,7 @@ class PortfolioPipeline:
         return runtime
 
 
-__all__ = ["PortfolioPipeline", "PortfolioReportHandle"]
+# 兼容旧导出名
+PortfolioReportHandle = ReportManager
+
+__all__ = ["PortfolioPipeline", "PortfolioReportHandle", "ReportManager"]

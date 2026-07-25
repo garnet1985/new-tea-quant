@@ -129,6 +129,7 @@ Pipeline    → 周边编排（采样、BE.run、ReportManager）
 | perf metric `pit_*` → `as_of_slice_*` / `enum_as_of_slice` | done |
 | JobBuilder/Executor 类名加引擎前缀（文件名不变） | done |
 | `PENDING_TO_ENTER` 挂单风控（touch / wait / drift / abort） | done |
+| ReportManager 统一生命周期（`BaseReportManager` + 四引擎） | done |
 
 `core/bff_support/`：**保留**（留给 UI 集成；当前空目录）。
 
@@ -172,9 +173,9 @@ Pipeline    → 周边编排（采样、BE.run、ReportManager）
 
 ---
 
-## 遗留问题（除 report manager）
+## 遗留问题
 
-> **Report 相关整块延期**：三套 ReportManager / `report_writer` / overall·performance 重复、基类与否 —— **本期不改**。下表不含该项。
+> **Report manager（done）**：`shared/services/report_manager.BaseReportManager` + 四引擎私有 `ReportManager`（begin → collect* → finalize=summarize+save → present*）。Scanner 落盘仍用 `scan_results/{date}/`，不强制 version 目录。
 
 ### 应尽快（正确性风险）
 
@@ -218,6 +219,6 @@ Pipeline    → 周边编排（采样、BE.run、ReportManager）
 
 ---
 
-## Suggested next（除 report）
+## Suggested next
 
-1. **Report manager 专项** — 另开一轮；本文不展开。
+1. 后期整理表中的剩余项（settings/cache、helpers 分层、Job payload 重叠等）按优先级择一。

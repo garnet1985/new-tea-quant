@@ -26,6 +26,9 @@ from core.modules.strategy.core.engines.enumerator.common.report_manager.runtime
 from core.modules.strategy.core.engines.enumerator.common.report_manager.stock_investments import (
     InvestmentsReport,
 )
+from core.modules.strategy.core.engines.shared.services.report_manager import (
+    BaseReportManager,
+)
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
@@ -51,7 +54,7 @@ class SavedRunArtifacts:
 
 
 @dataclass
-class ReportManager:
+class ReportManager(BaseReportManager):
     """枚举 run 产物编排（entity / slice 共用）。
 
     边界:
@@ -60,17 +63,25 @@ class ReportManager:
     - 调用方: EnumeratorPipeline / JobExecutor
     """
 
-    output_dir: Path
-    strategy_key: str
-    version_id: int
+    strategy_key: str = ""
+    version_id: int = 0
     strategy_path: str = ""
     runtime: RuntimeReport = field(init=False, repr=False)
     profiler: ProfilerReport = field(init=False, repr=False)
     overall: OverallReportHandle = field(init=False, repr=False)
     investments: InvestmentsReport = field(init=False, repr=False)
+    _finalize_entity_count: int = field(default=0, init=False, repr=False)
+    _finalize_run_result: Any = field(default=None, init=False, repr=False)
+    _finalize_opportunities_count: int = field(default=0, init=False, repr=False)
+    _finalize_performance_config: Optional[Dict[str, Any]] = field(
+        default=None, init=False, repr=False
+    )
+    _saved_artifacts: Optional[SavedRunArtifacts] = field(
+        default=None, init=False, repr=False
+    )
 
     def __post_init__(self) -> None:
-        self.output_dir = Path(self.output_dir)
+        super().__post_init__()
         self.strategy_path = str(self.strategy_path or self.strategy_key or "").strip()
         self.runtime = RuntimeReport(self)
         self.profiler = ProfilerReport(self)
@@ -149,7 +160,51 @@ class ReportManager:
             strategy_path=runtime.strategy_path or runtime.strategy_key,
         )
 
-    # ── run 结束 ──
+    # ── 生命周期（BaseReportManager）──
+
+    def collect(self, item: Any) -> None:
+        """主进程：收集 BE job report 性能样本。"""
+        self.profiler.collect(item)
+
+    def summarize(self) -> OverallReportHandle:
+        """构建 performance + overall（落盘前）。"""
+        self.profiler.build_from_run(
+            self._finalize_run_result,
+            entity_count=self._finalize_entity_count,
+            opportunities_count=self._finalize_opportunities_count,
+            performance_config=self._finalize_performance_config,
+        )
+        return self.overall.build(total_entities=self._finalize_entity_count)
+
+    def save(self) -> SavedRunArtifacts:
+        """写 0_performance.json + 0_overall_report.json。"""
+        performance_path = self.profiler.save()
+        overall_report_path = self.overall.save()
+        artifacts = SavedRunArtifacts(
+            performance_path=performance_path,
+            overall_report_path=overall_report_path,
+            runtime_env_path=self.output_dir / RuntimeEnv.RUNTIME_ENV_FILE,
+            entity_ids_path=self.output_dir / RuntimeEnv.ENTITY_IDS_FILE,
+        )
+        self._saved_artifacts = artifacts
+        return artifacts
+
+    def finalize(
+        self,
+        run_result: Any = None,
+        *,
+        entity_count: int = 0,
+        opportunities_count: int = 0,
+        performance_config: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> SavedRunArtifacts:
+        _ = kwargs
+        self._finalize_run_result = run_result
+        self._finalize_entity_count = int(entity_count or 0)
+        self._finalize_opportunities_count = int(opportunities_count or 0)
+        self._finalize_performance_config = performance_config
+        self.summarize()
+        return self.save()
 
     def finalize_from_run_result(
         self,
@@ -159,19 +214,12 @@ class ReportManager:
         opportunities_count: int,
         performance_config: Optional[Dict[str, Any]] = None,
     ) -> SavedRunArtifacts:
-        self.profiler.build_from_run(
+        """兼容别名 → ``finalize``。"""
+        return self.finalize(
             run_result,
             entity_count=entity_count,
             opportunities_count=opportunities_count,
             performance_config=performance_config,
-        )
-        performance_path = self.profiler.save()
-        overall_report_path = self.overall.build(total_entities=entity_count).save()
-        return SavedRunArtifacts(
-            performance_path=performance_path,
-            overall_report_path=overall_report_path,
-            runtime_env_path=self.output_dir / RuntimeEnv.RUNTIME_ENV_FILE,
-            entity_ids_path=self.output_dir / RuntimeEnv.ENTITY_IDS_FILE,
         )
 
     # ── 展示（CLI / UI）──

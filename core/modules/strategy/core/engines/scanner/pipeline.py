@@ -2,7 +2,7 @@
 
 本文件:
 - ScannerPipeline.scan: 解析目标策略、demo/严格门闸、逐策略执行
-- ScannerPipeline.run: 单策略（日期 → cache/BE → adapters）
+- ScannerPipeline.run: 单策略（日期 → cache/BE → ReportManager）
   边界: 负责 scan 领域端到端；不负责 simulate 指纹或 Facade 公开 API 形状以外的编排
 """
 from __future__ import annotations
@@ -19,12 +19,11 @@ from core.modules.backtest_engine import BacktestEngine
 from core.modules.data_manager import DataManager
 from core.modules.strategy.core.engines.scanner.executor import ScannerJobExecutor
 from core.modules.strategy.core.engines.scanner.helpers import (
-    AdapterDispatcher,
     ScanCacheManager,
     ScanDateResolver,
-    opportunity_enter_at_limit,
 )
 from core.modules.strategy.core.engines.scanner.job_builder import ScannerJobBuilder
+from core.modules.strategy.core.engines.scanner.report_manager import ReportManager
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
@@ -152,7 +151,7 @@ class ScannerPipeline:
         on_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
         data_manager: Any = None,
     ) -> Dict[str, Any]:
-        """单策略扫描（日期 → cache / BE → adapters）。"""
+        """单策略扫描（日期 → cache / BE → ReportManager）。"""
         settings.apply_defaults()
         dm = data_manager if data_manager is not None else DataManager()
         strategy_key = str(
@@ -174,8 +173,18 @@ class ScannerPipeline:
         csv_path = cache.opportunities_csv_path(scan_date)
         use_cache = (not force) and csv_path.is_file()
 
+        report = ReportManager.begin(
+            strategy_key=strategy_key,
+            scan_date=scan_date,
+            stock_ids=stock_ids,
+            date_meta=date_meta,
+            adapter_names=list(settings.scanner.adapter_names or []),
+            max_cache_days=settings.scanner.max_cache_days,
+            skip_save=use_cache,
+        )
+
         if use_cache:
-            opportunities = cache.load_opportunities(scan_date)
+            report.collect(cache.load_opportunities(scan_date))
             if callable(on_progress):
                 try:
                     on_progress(
@@ -199,27 +208,9 @@ class ScannerPipeline:
                 scan_date=scan_date,
                 on_progress=on_progress,
             )
-            if opportunities:
-                cache.save_opportunities(scan_date, opportunities)
+            report.collect(opportunities)
 
-        summary = cls.calculate_summary(opportunities)
-        AdapterDispatcher(strategy_key).dispatch(
-            adapter_names=settings.scanner.adapter_names,
-            opportunities=opportunities,
-            context={
-                "date": scan_date,
-                "strategy_name": strategy_key,
-                "scan_summary": summary,
-                "date_meta": date_meta,
-            },
-        )
-        return {
-            "date": scan_date,
-            "total_opportunities": len(opportunities),
-            "total_stocks": len(stock_ids),
-            "summary": summary,
-            "date_meta": date_meta,
-        }
+        return report.finalize(present=True)
 
     @classmethod
     def _scan_stocks(
@@ -269,44 +260,12 @@ class ScannerPipeline:
             except Exception:
                 logger.exception("scanner on_progress failed")
 
-        return cls._collect_opportunities(run_result)
-
-    @staticmethod
-    def _collect_opportunities(run_result: Any) -> List[Opportunity]:
-        if run_result is None:
-            return []
-        out: List[Opportunity] = []
-        for report in list(getattr(run_result, "job_results", None) or []):
-            if not getattr(report, "success", False):
-                continue
-            data = report.data if isinstance(report.data, dict) else {}
-            rows = data.get("opportunities") or []
-            if not isinstance(rows, list):
-                continue
-            for row in rows:
-                if isinstance(row, dict):
-                    out.append(Opportunity.from_dict(row))
-        return out
+        return ReportManager.collect_from_run_result(run_result)
 
     @staticmethod
     def calculate_summary(opportunities: List[Opportunity]) -> Dict[str, Any]:
-        if not opportunities:
-            return {
-                "total_opportunities": 0,
-                "total_stocks": 0,
-                "stocks_with_opportunities": [],
-                "at_limit_up_count": 0,
-            }
-        stocks = {opp.stock_id for opp in opportunities if opp.stock_id}
-        at_limit = sum(
-            1 for opp in opportunities if opportunity_enter_at_limit(opp) is True
-        )
-        return {
-            "total_opportunities": len(opportunities),
-            "total_stocks": len(stocks),
-            "stocks_with_opportunities": sorted(stocks),
-            "at_limit_up_count": at_limit,
-        }
+        """兼容别名 → ``ReportManager.calculate_summary``。"""
+        return ReportManager.calculate_summary(opportunities)
 
 
 __all__ = ["ScannerPipeline"]

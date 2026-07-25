@@ -124,7 +124,7 @@ def test_pipeline_cache_hit_skips_be(
     scan_stocks = MagicMock(return_value=[])
     monkeypatch.setattr(ScannerPipeline, "_scan_stocks", scan_stocks)
     monkeypatch.setattr(
-        "core.modules.strategy.core.engines.scanner.pipeline.AdapterDispatcher.dispatch",
+        "core.modules.strategy.core.engines.scanner.report_manager.AdapterDispatcher.dispatch",
         lambda *a, **k: None,
     )
 

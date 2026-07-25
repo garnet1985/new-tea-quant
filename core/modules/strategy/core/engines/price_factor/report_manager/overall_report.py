@@ -159,7 +159,7 @@ class OverallReport:
     """读写 ``0_overall_report.json``。"""
 
     @classmethod
-    def build_and_save(
+    def build(
         cls,
         output_dir: Path,
         *,
@@ -174,7 +174,7 @@ class OverallReport:
             period=period,
             enum_version_id=enum_version_id,
         )
-        payload = {
+        return {
             "summary": summary.to_dict(),
             "entity_summaries": [
                 {
@@ -185,11 +185,32 @@ class OverallReport:
                 if str(eid or "").strip()
             ],
         }
+
+    @classmethod
+    def save_payload(cls, output_dir: Path, payload: Dict[str, Any]) -> Path:
         path = ReportPaths.overall_report_path(output_dir)
         path.write_text(
             json.dumps(payload, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
+        return path
+
+    @classmethod
+    def build_and_save(
+        cls,
+        output_dir: Path,
+        *,
+        entity_ids: Sequence[str],
+        period: Dict[str, str],
+        enum_version_id: str,
+    ) -> Dict[str, Any]:
+        payload = cls.build(
+            output_dir,
+            entity_ids=entity_ids,
+            period=period,
+            enum_version_id=enum_version_id,
+        )
+        cls.save_payload(output_dir, payload)
         return payload
 
     @classmethod

@@ -29,7 +29,7 @@ from core.modules.strategy.core.services.data.simulation_output_recorder import 
 )
 
 if TYPE_CHECKING:
-    from core.modules.strategy.core.engines.shared.services.simulation_input.enum_loader import EnumVersionData
+    from core.modules.strategy.core.engines.price_factor.enum_input.source import EnumVersionData
     from core.modules.strategy.core.engines.shared.data_class.simulate_session import SimulateSession
 
 

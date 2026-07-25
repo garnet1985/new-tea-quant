@@ -133,12 +133,8 @@ class FingerprintCalculator:
         else:
             settings_obj = StrategySettings.from_dict(dict(effective_settings or {}))
 
-        # 与 RuntimeSnapshot.resolve_period / GlobalEntityCache 一致：simulation + data.json 默认
-        from core.modules.strategy.core.engines.shared.services.simulation_input.runtime_snapshot import (
-            RuntimeSnapshot,
-        )
-
-        period = RuntimeSnapshot.resolve_period(settings_obj)
+        # 与 StrategySettings.resolve_period 一致：simulation + data.json 默认
+        period = settings_obj.resolve_period()
         start_date = period.start_date
         end_date = period.end_date
 

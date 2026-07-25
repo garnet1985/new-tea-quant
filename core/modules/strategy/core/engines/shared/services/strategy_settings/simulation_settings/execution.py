@@ -16,6 +16,29 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.valida
 _KNOWN_MODES = frozenset({"entity_based", "slice_based"})
 
 
+
+@dataclass(frozen=True)
+class BacktestPeriod:
+    """已 resolve 的回测开市日区间（settings 空值已用系统默认补齐）。"""
+
+    start_date: str
+    end_date: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "start_date": self.start_date,
+            "end_date": self.end_date,
+        }
+
+    @classmethod
+    def from_dict(cls, raw: Dict[str, Any]) -> "BacktestPeriod":
+        data = raw or {}
+        return cls(
+            start_date=str(data.get("start_date") or ""),
+            end_date=str(data.get("end_date") or ""),
+        )
+
+
 @dataclass
 class ExecutionSettings(SettingsBase):
     """``settings.simulation.execution``（日历窗 + entity/slice mode）。"""
@@ -135,6 +158,22 @@ class ExecutionSettings(SettingsBase):
             return False
         return True
 
+
+    def resolve_period(self) -> BacktestPeriod:
+        """把 execution.start/end 空值补成系统默认（回测前统一入口）。"""
+        from core.infra.project_context import ProjectContext
+        from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import (
+            GlobalEntityCache,
+        )
+
+        start_date = self.start_date
+        end_date = self.end_date
+        if not end_date:
+            end_date = GlobalEntityCache.load_latest_completed_trading_date()
+        if not start_date:
+            start_date = ProjectContext.config.get_default_start_date()
+        return BacktestPeriod(start_date=start_date, end_date=end_date)
+
     def to_dict(self) -> Dict[str, Any]:
         self.apply_defaults()
         return {
@@ -144,4 +183,4 @@ class ExecutionSettings(SettingsBase):
         }
 
 
-__all__ = ["ExecutionSettings"]
+__all__ = ["BacktestPeriod", "ExecutionSettings"]

@@ -1,24 +1,24 @@
-"""ReportManager.investments 写门面（委托 shared simulation_input CSV 模型）。
+"""ReportManager.investments 写门面（委托 enumerator artifacts CSV 模型）。
 
 本文件:
 - InvestmentsReport: worker buffer → 每股 CSV 追加
-  边界: 仅绑 ReportManager；行模型在 shared.services.simulation_input
+  边界: 仅绑 ReportManager；行模型在 enumerator.common.artifacts
 """
 from __future__ import annotations
 
 from typing import Any, Dict, List, Sequence, TYPE_CHECKING
 
-from core.modules.strategy.core.engines.shared.services.simulation_input.stock_investments import (
-    GoalAchievements,
+from core.modules.strategy.core.engines.enumerator.common.artifacts.entity_investment_csv import (
+    GoalAchievementCsv,
     InvestmentRow,
-    StockInvestments,
+    EntityInvestmentCsv,
 )
 
 __all__ = [
     "InvestmentsReport",
     "InvestmentRow",
-    "StockInvestments",
-    "GoalAchievements",
+    "EntityInvestmentCsv",
+    "GoalAchievementCsv",
 ]
 
 
@@ -29,8 +29,8 @@ class InvestmentsReport:
         self._manager = manager
 
     def append_entity(self, entity_id: str, investments: Sequence[Dict[str, Any]]) -> Dict[str, int]:
-        stock_investments = StockInvestments.build(entity_id, investments)
-        goal_achievements = GoalAchievements.build(entity_id, investments)
+        stock_investments = EntityInvestmentCsv.build(entity_id, investments)
+        goal_achievements = GoalAchievementCsv.build(entity_id, investments)
         investment_files = 0
         goal_files = 0
         investment_rows = 0
@@ -98,6 +98,6 @@ class InvestmentsReport:
 
 
 if TYPE_CHECKING:
-    from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_manager import (
+    from core.modules.strategy.core.engines.enumerator.common.report_manager.report_manager import (
         ReportManager,
     )

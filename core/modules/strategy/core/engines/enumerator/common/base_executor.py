@@ -99,7 +99,7 @@ class BaseJobExecutor:
         from core.modules.strategy.core.engines.shared.services.entity_loader.job_bundle_loader import (
             JobBundleLoader,
         )
-        from core.modules.strategy.core.engines.enumerator.shared.performance_tracker.performance_tracker import (
+        from core.modules.strategy.core.engines.enumerator.common.performance_tracker.performance_tracker import (
             EnumJobPerfRecorder,
         )
 
@@ -118,10 +118,10 @@ class BaseJobExecutor:
 
     @classmethod
     def flush_job_investments(cls, job_context: Any) -> None:
-        from core.modules.strategy.core.engines.enumerator.shared.performance_tracker.performance_tracker import (
+        from core.modules.strategy.core.engines.enumerator.common.performance_tracker.performance_tracker import (
             EnumJobPerfRecorder,
         )
-        from core.modules.strategy.core.engines.enumerator.shared.report_manager import (
+        from core.modules.strategy.core.engines.enumerator.common.report_manager import (
             ReportManager,
         )
 

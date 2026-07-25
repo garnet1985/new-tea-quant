@@ -12,11 +12,11 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from core.modules.backtest_engine.contracts import RunCallbacks
 from core.modules.market_profile.core.markets import create_market_rules
-from core.modules.strategy.core.engines.shared.services.simulation_input.stock_investments import (
+from core.modules.strategy.core.engines.price_factor.enum_input.investments import (
     GoalAchievementRow,
-    GoalAchievements,
+    GoalAchievementCsv,
     InvestmentRow,
-    StockInvestments,
+    EntityInvestmentCsv,
 )
 from core.modules.strategy.core.engines.price_factor.helpers import (
     load_stock_klines,
@@ -132,8 +132,8 @@ class JobExecutor:
         entities: Dict[str, Dict[str, Any]] = {}
         for entity_id in entity_ids:
             entities[entity_id] = {
-                "investments": StockInvestments.load(enum_dir, entity_id),
-                "goals": GoalAchievements.load(enum_dir, entity_id),
+                "investments": EntityInvestmentCsv.load(enum_dir, entity_id),
+                "goals": GoalAchievementCsv.load(enum_dir, entity_id),
             }
 
         return {

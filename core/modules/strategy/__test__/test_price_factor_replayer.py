@@ -1,7 +1,7 @@
 """JobExecutor._replay_entity_investments：锁仓回放。"""
 from __future__ import annotations
 
-from core.modules.strategy.core.engines.shared.services.simulation_input.stock_investments import (
+from core.modules.strategy.core.engines.price_factor.enum_input.investments import (
     InvestmentRow,
 )
 from core.modules.strategy.core.engines.price_factor.executor import JobExecutor

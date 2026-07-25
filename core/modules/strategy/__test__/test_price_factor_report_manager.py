@@ -7,11 +7,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.modules.strategy.core.engines.shared.services.simulation_input.artifact_paths import (
+from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
     ENTITY_IDS_FILE,
     RUNTIME_ENV_FILE,
 )
-from core.modules.strategy.core.engines.shared.services.simulation_input.enum_loader import load_enum_version
+from core.modules.strategy.core.engines.price_factor.enum_input.source import EnumSource
 from core.modules.strategy.core.engines.price_factor.report_manager import (
     EntityInvestments,
     PriceInvestmentRow,
@@ -49,7 +49,7 @@ def _write_enum_runtime(output_dir: Path, entity_ids: list[str]) -> None:
 def test_report_manager_finalize_writes_globals(tmp_path: Path, monkeypatch) -> None:
     enum_dir = tmp_path / "enum" / "1"
     _write_enum_runtime(enum_dir, ["000001.SZ"])
-    data = load_enum_version(enum_dir, "1")
+    data = EnumSource.load(enum_dir, "1")
 
     price_root = tmp_path / "price"
     monkeypatch.setattr(

@@ -144,12 +144,8 @@ class GlobalEntityCache:
         self._create_shared_memory()
 
     def _resolve_simulation_date_range(self) -> tuple[str, str]:
-        """与 RuntimeSnapshot.resolve_period 一致：读 simulation.start/end。"""
-        from core.modules.strategy.core.engines.shared.services.simulation_input.runtime_snapshot import (
-            RuntimeSnapshot,
-        )
-
-        period = RuntimeSnapshot.resolve_period(self._settings)
+        """与 StrategySettings.resolve_period 一致：读 simulation.start/end。"""
+        period = self._settings.resolve_period()
         return str(period.start_date), str(period.end_date)
 
     def _load_global_data(self, declarations: List[DataDeclaration]) -> None:

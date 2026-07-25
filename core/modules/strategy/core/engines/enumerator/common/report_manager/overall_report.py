@@ -6,19 +6,18 @@ import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Optional, TextIO, TYPE_CHECKING
+from typing import Any, ClassVar, Dict, FrozenSet, List, Optional, TextIO, TYPE_CHECKING
 
-from core.modules.strategy.core.engines.shared.services.simulation_input.artifact_paths import (
-    NON_GOAL_EXIT_REASONS,
+from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
     OVERALL_REPORT_FILE,
 )
-from core.modules.strategy.core.engines.shared.services.simulation_input.runtime_snapshot import (
-    RuntimeSnapshot,
+from core.modules.strategy.core.engines.enumerator.common.artifacts.runtime_env import (
+    RuntimeEnv,
 )
-from core.modules.strategy.core.engines.shared.services.simulation_input.stock_investments import (
-    GoalAchievements,
+from core.modules.strategy.core.engines.enumerator.common.artifacts.entity_investment_csv import (
+    GoalAchievementCsv,
     InvestmentRow,
-    StockInvestments,
+    EntityInvestmentCsv,
 )
 from core.modules.strategy.core.engines.shared.data_class.investment import (
     InvestmentResult,
@@ -26,6 +25,15 @@ from core.modules.strategy.core.engines.shared.data_class.investment import (
 )
 from core.modules.strategy.core.helpers.statistics import StatisticsHelper
 
+# overall「Goal 成交」不计这些退出腿（强制收口 / 到期，非目标止盈止损）
+NON_GOAL_EXIT_REASONS: FrozenSet[str] = frozenset(
+    {
+        "simulate_end",
+        "expired",
+        "period_end",
+        "max_holding",
+    }
+)
 
 @dataclass
 class EntitySummaryRow:
@@ -166,7 +174,7 @@ class OverallReport:
         version_id: int,
         total_entities: Optional[int] = None,
     ) -> "OverallReport":
-        runtime = RuntimeSnapshot.load(output_dir)
+        runtime = RuntimeEnv.load(output_dir)
         entity_ids_in_run = runtime.entity_ids
         total = total_entities if total_entities is not None else len(entity_ids_in_run)
 
@@ -175,9 +183,9 @@ class OverallReport:
         total_goals = 0
         exit_reasons: Dict[str, int] = {}
 
-        for entity_id in StockInvestments.collect_entity_ids(output_dir):
-            investments = StockInvestments.load(output_dir, entity_id)
-            goals = GoalAchievements.load(output_dir, entity_id)
+        for entity_id in EntityInvestmentCsv.collect_entity_ids(output_dir):
+            investments = EntityInvestmentCsv.load(output_dir, entity_id)
+            goals = GoalAchievementCsv.load(output_dir, entity_id)
             goal_fill_count = sum(
                 1 for g in goals.rows if OverallReport._is_goal_fill(g.reason, g.goal_name)
             )
@@ -426,7 +434,7 @@ class OverallReportHandle:
 
 
 if TYPE_CHECKING:
-    from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_manager import (
+    from core.modules.strategy.core.engines.enumerator.common.report_manager.report_manager import (
         ReportManager,
     )
 

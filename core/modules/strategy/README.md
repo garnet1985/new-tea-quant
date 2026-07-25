@@ -52,7 +52,7 @@ Strategy.enumerate()
 
 | Context | 用户 hook | 机器 runtime | 运行状态 |
 |---------|-----------|--------------|----------|
-| 位置 | `hooks/data_context.py` | `enumerator/shared/runtime.py` + 各模式 `context/runtime.py` | 各模式 `context/status.py` |
+| 位置 | `hooks/data_context.py` | `enumerator/common/runtime.py` + 各模式 `context/runtime.py` | 各模式 `context/status.py` |
 | 组装 | 各模式 `context/data.py` | engine 构建 RuntimeContext | pipeline 更新 RuntimeStatus |
 
 ## 用户策略 import（公开面）

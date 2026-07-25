@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from core.modules.strategy.core.engines.shared.services.simulation_input.enum_loader import EnumVersionData
+from core.modules.strategy.core.engines.price_factor.enum_input.source import EnumVersionData
 
 if TYPE_CHECKING:
     from core.modules.strategy.core.engines.price_factor.report_manager import ReportManager

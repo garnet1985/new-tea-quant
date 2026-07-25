@@ -17,9 +17,9 @@ from core.infra.job_pipeline.profile import (
 )
 from core.infra.project_context import ProjectContext
 from core.modules.backtest_engine.core.performance.settings import resolve_slice_based_performance
-from core.modules.strategy.core.engines.enumerator.shared.report_manager import ReportManager
-from core.modules.strategy.core.engines.shared.services.simulation_input.artifact_paths import (
-    ReportPaths,
+from core.modules.strategy.core.engines.enumerator.common.report_manager import ReportManager
+from core.modules.strategy.core.engines.enumerator.common.report_manager.report_output import (
+    ReportOutput,
 )
 from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
@@ -143,7 +143,7 @@ class EnumeratorPipeline:
         cls, execution_mode: str
     ) -> Tuple[Type[Any], Type[Any], Type[Any]]:
         """按 mode 返回 (JobBuilder, JobExecutor, ExecutorHooksContext)。"""
-        from core.modules.strategy.core.engines.enumerator.shared.base_executor import (
+        from core.modules.strategy.core.engines.enumerator.common.base_executor import (
             ExecutorHooksContext,
         )
 
@@ -198,10 +198,6 @@ class EnumeratorPipeline:
         execution_mode: str,
     ) -> Dict[str, Any]:
         from core.modules.backtest_engine import BacktestEngine
-        from core.modules.strategy.core.engines.shared.services.simulation_input.runtime_snapshot import (
-            RuntimeSnapshot,
-        )
-
         _, job_executor, hooks_ctx_cls = cls._mode_job_stack(execution_mode)
         report_manager.profiler.begin_collect(
             entity_count=cls._count_entities_in_jobs(jobs),
@@ -216,7 +212,7 @@ class EnumeratorPipeline:
             effective_settings_obj, execution_mode=execution_mode
         )
         task_name = f"strategy_{report_manager.strategy_key}"
-        period = RuntimeSnapshot.resolve_period(effective_settings_obj)
+        period = effective_settings_obj.resolve_period()
 
         if execution_mode == _MODE_SLICE:
             run_result = BacktestEngine.slice_based.run(
@@ -300,7 +296,7 @@ class EnumeratorPipeline:
             run_result,
             entity_count=entity_count,
             opportunities_count=int(results.get("opportunities_count") or 0),
-            performance_config=ReportPaths.report_output_config(
+            performance_config=ReportOutput.config_from_settings(
                 effective_settings_obj.raw_settings
             ),
         )

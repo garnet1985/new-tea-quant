@@ -28,11 +28,7 @@ class BaseJobBuilder:
 
     @classmethod
     def _resolve_period(cls, effective_settings: StrategySettings) -> Any:
-        from core.modules.strategy.core.engines.shared.services.simulation_input.runtime_snapshot import (
-            RuntimeSnapshot,
-        )
-
-        return RuntimeSnapshot.resolve_period(effective_settings)
+        return effective_settings.resolve_period()
 
     @classmethod
     def _build_core_payload(

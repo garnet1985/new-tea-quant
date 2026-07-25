@@ -60,7 +60,7 @@ Pipeline    → 周边编排（采样、BE.run、ReportManager）
 | `services`（无引擎偏见的加载、解析、校验） | 某引擎 ReportManager / 写盘格式 |
 | （可选）纯类型并入 `data_class` 或旁挂 `types` | helpers（先私有；真 ≥3 再提成 **service**，不提成 helpers） |
 
-`enumerator/shared` 是**枚举引擎内部**（entity vs slice）共用，不是四引擎 shared；层级不同，命名可保留。
+`enumerator/common` 是**枚举引擎内部**（entity vs slice）共用；与四引擎 `engines/shared` 层级不同，故意不用 shared 以免混淆。
 
 ### 按功能块移动
 
@@ -82,14 +82,14 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 1. 本约定入库（本节） — done
 2. 消费矩阵审计（keep / promote / demote） — 见下节
 3. 现有 shared 入口打标注 — done
-4. 提升仿真输入契约（enum 产物被 price/portfolio 读） — done → `shared/services/simulation_input`
+4. 提升仿真输入契约（enum 产物被 price/portfolio 读） — done → `shared/services/simulation_output`
 5. 切断 Scanner→Enumerator 借包 — done（hooks→StrategyHookRuntime；PitBars→shared）
 6. investments / pit_bars 包结构 — **跳过**（后期：Investment 拆分、pit_bars 清理）
 7. hooks→portfolio 泄漏 — done（默认 on_pick 不再 import EntrySelector）
 8. 空壳/双路径清理 — done（删除 `core/services/settings/`；唯一入口 `engines/shared/services/strategy_settings`）
 9. pytest + 违规跨引擎私有 import 扫尾 — done
 10. CalendarAsOf* → shared.data_class — done
-11. 专门整理 `simulation_input` 整块（结构/命名/边界）
+11. 专门整理 `simulation_output` — **done**（收薄为布局服务：`file_names` / `paths` / `io` / `layout`；内容模型归 enumerator `artifacts` + price/portfolio `enum_input`）
 12. **后期** `PENDING_TO_ENTER` 入场风控：`max_wait_open_days` / `max_entry_drift` / `abort_enter_when` 接到 `try_enter`（与 `_is_able_to_enter` 分离：不能成交≠放弃机会）
 13. enumerator tick 调用链 — **done**：BE `Timeline.drive` → `JobExecutor.on_tick` → `EntityTaskState`/`SliceTaskState.on_calendar_day` → `InvestmentTracker.process_tick`（分桶 `try_exit` / `try_enter` / `check_targets`）→ Investment（**无** JobSession 层）
 14. 枚举器去 TimelineBuilder / 平行 session — **done**（见上文「与 BE 的关系」）
@@ -107,7 +107,7 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 | `data_class/investment`（含 BarPrices 等） | S E P | contracts | **keep** | ≥3；O 不直接用 |
 | `data_class/simulate_session` | E P O | Facade | **keep** | ≥3 |
 | `entity_loader` 整包 | S E（+ Facade/fingerprints） | — | **keep（整块）** | 含 job_bundle / resolver / global / sampling / indicators；不拆子模块 |
-| `entity_loader` → `runtime_snapshot` | — | — | **done** | 已改 import shared.simulation_input |
+| `entity_loader` → period | — | — | **done** | `StrategySettings.resolve_period`（挂在 settings） |
 | `strategy_settings` 整包 | S E P O | hooks, core.services | **keep（整块）** | 含 simulation/portfolio/scanner 等；**不拆根/叶** |
 | `data_class/investment/*` 子目录 | investment / enums / investment_state | — | ok | Investment 与小类型同目录 |
 
@@ -115,8 +115,10 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 
 | 边 | 目标 | 动作 | 说明 |
 |----|------|------|------|
-| ~~P/O → E stock_investments / runtime / enum_data~~ | — | **done** | 已整块进 `shared/services/simulation_input` |
-| fingerprints / entity_loader → runtime | — | **done** | 同上 |
+| ~~P/O → E stock_investments / runtime / enum_data~~ | — | **done** | 先经 shared；再收薄：布局留 shared，内容各引擎私有 |
+| fingerprints / entity_loader → period | — | **done** | `StrategySettings.resolve_period` |
+| P/O enum 输入 | — | **done** | `price_factor/enum_input`、`portfolio/enum_input`（`EnumSource` + 私有 CSV 解析） |
+| E runtime/CSV 内容 | — | **done** | `enumerator/common/artifacts` |
 | ~~S → E load_hooks / PitBars~~ | — | **done** | hooks 直连 StrategyHookRuntime；PitBars → `shared/services/pit_bars` |
 | hooks → O `EntrySelector` | — | **fix-leak** | #7；contracts / lazy |
 | ~~contracts / hooks → E slice_based.types~~ | CalendarAsOf* | **done** | → `shared/data_class/calendar_as_of.py`；公开仍经 contracts |
@@ -151,7 +153,8 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 |------|------|------|
 | `engines/shared/services/entity_loader/` | 跨引擎却放在 `engines/shared` 下 | scanner / enumerator / price_factor 均依赖；更像 `core/services/data_loader` |
 | `core/helpers/` vs `engines/scanner/helpers/` | helpers 分层不一致 | 顶层 helpers 无 IO；scanner helpers 含 DataManager、ProjectContext、adapter |
-| ~~`price_factor/enum_data` / enum CSV 契约~~ | — | **done** → `shared/services/simulation_input` |
+| ~~`price_factor/enum_data` / enum CSV 契约~~ | — | **done** → `shared/services/simulation_output` |
+
 | ~~`contracts.py` 深 import slice_based~~ | — | **done**；CalendarAsOf* 在 shared.data_class |
 | `core/services/data/simulation_output_recorder.py` | 与引擎 report_manager 分离 | 合理，但 enum/price/portfolio 三套 ReportManager 无 shared 基类，重复 begin/finalize 模式 |
 | `FingerprintCalculator` 在 `simulation_cache/` | 指纹非缓存 | 算指纹 + seed GlobalEntityCache；更接近 `core/services/fingerprints` 或 orchestration 层 |
@@ -163,7 +166,7 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 | ~~Scanner → Enumerator~~ | — | **done**（#5） |
 | ~~StrategyHooks → Portfolio~~ | — | **done**（#7）；未 override 由 EnterSelection 用 EntrySelector |
 | 指纹服务 → GlobalEntityCache | `fingerprints.py` 构造并 seed cache | 编排前置步骤合理，但 `simulation_cache` 包名暗示仅 DB 缓存 |
-| Portfolio → 多引擎 | `portfolio/pipeline.py` | ~~曾依赖 P.enum_data / E.stock_investments~~ → 现经 `shared.simulation_input` |
+| Portfolio → 多引擎 | `portfolio/pipeline.py` | ~~曾依赖 P.enum_data / E~~ → 布局 `simulation_output` + 私有 `enum_input` |
 | Discovery validation → WorkerLoader | `discovered_strategy.py` 校验阶段加载 hooks | 发现阶段副作用（exec 用户 strategy.py）；失败策略仍可能被 list 看到 draft 错误 |
 
 ## Duplication
@@ -171,17 +174,17 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 | 区域 | 重复内容 | 路径 |
 |------|----------|------|
 | 日历解析 | open_dates 过滤 | `helpers/calendar.py`、`scanner/helpers/date_resolver.py`（~~slice resolver/calendar~~ 已删；slice 规划点数用 BE `Timeline.from_calendar_window`） |
-| 报告编排 | version 目录 + runtime + overall + entities | `enumerator/shared/report_manager/`、`price_factor/report_manager/`、`portfolio/report_writer.py` |
+| 报告编排 | version 目录 + runtime + overall + entities | `enumerator/common/report_manager/`、`price_factor/report_manager/`、`portfolio/report_writer.py` |
 | CSV 机会格式 | opportunities 写盘 | `helpers/opportunity_csv.py`、`scanner/helpers/cache_manager.py`（内联 write_dicts_to_csv） |
-| Job payload 构建 | entity_shared / shm / strategy_info | `enumerator/shared/base_job_builder.py`、scanner/price 各自 JobBuilder |
+| Job payload 构建 | entity_shared / shm / strategy_info | `enumerator/common/base_job_builder.py`、scanner/price 各自 JobBuilder |
 | 贴板/tradability | limit up 判定 | `scanner/helpers/tradability.py` vs price `deferred_exit` + simulation tradability settings |
 
 ## Suggested merges / splits
 
-1. **提取 `SimulationInput` 包** — done（`engines/shared/services/simulation_input/`；`resolve_simulation_window` 仍在 price_factor，可后续整块再议）。
+1. **`simulation_output` 布局服务** — done（names/paths/io/layout；**不含** RuntimeEnv / CSV / overall 内容模型）。
 
-2. **Report 基类**  
-   `SimulationOutputRecorder` + 共享 `ReportPaths`/`begin`/`finalize` 骨架 → 减少 enum/price/portfolio 三套 ReportManager 重复。
+2. **Report 基类**（仅当确有共用业务骨架时）  
+   `SimulationOutputRecorder` + 可选写目录骨架 → 内容 dataclass 仍各引擎私有；勿为文件名造共享 Overall/Performance。
 
 3. **重命名 mode 内 Executor/JobBuilder**  
    例如 `ScannerJobExecutor`、`EnumEntityJobExecutor`、`PriceFactorJobExecutor`，或统一收到 `core/engines/{mode}/` 下用模块名消歧（保持类名简短时至少文档与 __all__ 用别名）。

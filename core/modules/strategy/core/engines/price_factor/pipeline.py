@@ -9,10 +9,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 from core.modules.backtest_engine import BacktestEngine
-from core.modules.strategy.core.engines.shared.services.simulation_input.enum_loader import (
+from core.modules.strategy.core.engines.price_factor.enum_input.source import (
+    EnumSource,
     EnumVersionData,
-    load_enum_version,
-    resolve_enum_version_dir,
 )
 from core.modules.strategy.core.engines.price_factor.executor import JobExecutor
 from core.modules.strategy.core.engines.price_factor.job_builder import JobBuilder
@@ -46,8 +45,8 @@ class PriceFactorPipeline:
         if ctx.enum_version is None or not str(ctx.enum_version).strip():
             raise ValueError("SimulateSession.enum_version 不能为空")
         version_id = str(ctx.enum_version).strip()
-        output_dir = resolve_enum_version_dir(ctx.strategy_key, version_id)
-        return load_enum_version(output_dir, version_id)
+        output_dir = EnumSource.resolve_dir(ctx.strategy_key, version_id)
+        return EnumSource.load(output_dir, version_id)
 
     @classmethod
     def resolve_window(cls, data: EnumVersionData) -> Tuple[str, str]:

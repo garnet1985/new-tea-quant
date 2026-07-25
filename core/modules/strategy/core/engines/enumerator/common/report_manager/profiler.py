@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_manager import (
+    from core.modules.strategy.core.engines.enumerator.common.report_manager.report_manager import (
         ReportManager,
     )
 
@@ -18,10 +18,11 @@ from core.modules.backtest_engine.core.performance.profiler import (
     ENUM_PERF_KEY,
     WorkerTaskPerf,
 )
-from core.modules.strategy.core.engines.shared.services.simulation_input.artifact_paths import (
-    PERFORMANCE_DETAIL_FULL,
+from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
     PERFORMANCE_FILE,
-    ReportPaths,
+)
+from core.modules.strategy.core.engines.enumerator.common.report_manager.report_output import (
+    ReportOutput,
 )
 
 
@@ -630,7 +631,7 @@ class ProfilerPerformance:
         }
         if self.performance_config:
             payload["performance_config"] = dict(self.performance_config)
-        if ReportPaths.resolve_performance_detail(self.performance_config) == PERFORMANCE_DETAIL_FULL:
+        if ReportOutput.resolve_performance_detail(self.performance_config) == ReportOutput.DETAIL_FULL:
             payload["jobs"] = [job.to_dict() for job in self.jobs]
         return payload
 

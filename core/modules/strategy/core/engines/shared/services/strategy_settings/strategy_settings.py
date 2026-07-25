@@ -24,7 +24,7 @@ from .data_settings import DataSettings
 from .sampling_settings import SamplingSettings
 from .goal_settings import GoalSettings
 from .fees_settings import FeesSettings
-from .simulation_settings import SimulationSettings
+from .simulation_settings import BacktestPeriod, SimulationSettings
 from .portfolio_settings import PortfolioSettings
 from .scanner_settings import ScannerSettings
 from .validation_report import ValidationReport
@@ -144,6 +144,10 @@ class StrategySettings:
     @property
     def end_date(self) -> str:
         return self.simulation.end_date
+
+    def resolve_period(self) -> BacktestPeriod:
+        """回测前：补齐空 start/end 后的开市日区间。"""
+        return self.simulation.resolve_period()
 
     @property
     def is_entity_based(self) -> bool:

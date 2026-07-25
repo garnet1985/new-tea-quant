@@ -6,11 +6,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.modules.strategy.core.engines.shared.services.simulation_input.stock_investments import (
+from core.modules.strategy.core.engines.price_factor.enum_input.investments import (
     GoalAchievementRow,
-    GoalAchievements,
+    GoalAchievementCsv,
     InvestmentRow,
-    StockInvestments,
+    EntityInvestmentCsv,
 )
 from core.modules.strategy.core.engines.price_factor.executor import JobExecutor
 from core.modules.strategy.core.engines.price_factor.job_builder import PRICE_FACTOR_GLOBAL_KEY
@@ -20,7 +20,7 @@ pytestmark = pytest.mark.force_run
 
 
 def _write_enum_csv(output_dir: Path, entity_id: str) -> None:
-    StockInvestments(
+    EntityInvestmentCsv(
         entity_id=entity_id,
         rows=[
             InvestmentRow(
@@ -32,7 +32,7 @@ def _write_enum_csv(output_dir: Path, entity_id: str) -> None:
             )
         ],
     ).save(output_dir)
-    GoalAchievements(
+    GoalAchievementCsv(
         entity_id=entity_id,
         rows=[
             GoalAchievementRow(
@@ -78,7 +78,7 @@ def test_load_batch_enum_data(tmp_path: Path) -> None:
 
 
 def test_load_batch_enum_data_missing_goals_ok(tmp_path: Path) -> None:
-    StockInvestments(
+    EntityInvestmentCsv(
         entity_id="000003.SZ",
         rows=[
             InvestmentRow(
@@ -113,7 +113,7 @@ def test_replay_and_save_batch(tmp_path: Path) -> None:
     price_dir = tmp_path / "price"
     _write_enum_csv(enum_dir, "000001.SZ")
     # overlapping second opp should be locked out
-    StockInvestments(
+    EntityInvestmentCsv(
         entity_id="000001.SZ",
         rows=[
             InvestmentRow(

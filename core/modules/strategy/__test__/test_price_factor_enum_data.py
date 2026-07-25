@@ -6,16 +6,18 @@ from pathlib import Path
 
 import pytest
 
-from core.modules.strategy.core.engines.shared.services.simulation_input.artifact_paths import (
+from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
     ENTITY_IDS_FILE,
     RUNTIME_ENV_FILE,
+)
+from core.modules.strategy.core.engines.shared.services.simulation_output.paths import (
     ReportPaths,
 )
-from core.modules.strategy.core.engines.shared.services.simulation_input.stock_investments import (
+from core.modules.strategy.core.engines.price_factor.enum_input.investments import (
     InvestmentRow,
-    StockInvestments,
+    EntityInvestmentCsv,
 )
-from core.modules.strategy.core.engines.shared.services.simulation_input.enum_loader import load_enum_version
+from core.modules.strategy.core.engines.price_factor.enum_input.source import EnumSource
 
 pytestmark = pytest.mark.force_run
 
@@ -48,10 +50,10 @@ def _write_runtime(
     )
 
 
-def test_load_enum_version_reads_runtime_and_entity_ids(tmp_path: Path) -> None:
+def test_load_enum_output_reads_runtime_and_entity_ids(tmp_path: Path) -> None:
     _write_runtime(tmp_path, entity_ids=["000001.SZ", "000002.SZ"])
     # entities CSV 存在也不应被主进程加载进 EnumVersionData
-    StockInvestments(
+    EntityInvestmentCsv(
         entity_id="000001.SZ",
         rows=[
             InvestmentRow(
@@ -64,7 +66,7 @@ def test_load_enum_version_reads_runtime_and_entity_ids(tmp_path: Path) -> None:
         ],
     ).save(tmp_path)
 
-    data = load_enum_version(tmp_path, "7")
+    data = EnumSource.load(tmp_path, "7")
 
     assert data.version_id == "7"
     assert data.output_dir == tmp_path
@@ -73,15 +75,15 @@ def test_load_enum_version_reads_runtime_and_entity_ids(tmp_path: Path) -> None:
     assert data.end_date == "20240131"
 
 
-def test_load_enum_version_empty_entity_ids(tmp_path: Path) -> None:
+def test_load_enum_output_empty_entity_ids(tmp_path: Path) -> None:
     _write_runtime(tmp_path, entity_ids=[])
     ReportPaths.entities_dir(tmp_path).mkdir(parents=True, exist_ok=True)
-    data = load_enum_version(tmp_path, "1")
+    data = EnumSource.load(tmp_path, "1")
     assert data.entity_ids == []
 
 
-def test_load_enum_version_requires_runtime_env(tmp_path: Path) -> None:
+def test_load_enum_output_requires_runtime_env(tmp_path: Path) -> None:
     tmp_path.mkdir(parents=True, exist_ok=True)
     (tmp_path / ENTITY_IDS_FILE).write_text("000001.SZ\n", encoding="utf-8")
     with pytest.raises(FileNotFoundError):
-        load_enum_version(tmp_path, "1")
+        EnumSource.load(tmp_path, "1")

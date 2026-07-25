@@ -16,14 +16,14 @@ from typing import Any, Dict, List, Optional
 
 from core.modules.backtest_engine.contracts import JobContext, Timeline
 from core.modules.data_contract import DATA_KEY
-from core.modules.strategy.core.engines.enumerator.shared.base_executor import (
+from core.modules.strategy.core.engines.enumerator.common.base_executor import (
     BaseJobExecutor,
     ExecutorHooksContext,
 )
-from core.modules.strategy.core.engines.enumerator.shared.performance_tracker.performance_tracker import (
+from core.modules.strategy.core.engines.enumerator.common.performance_tracker.performance_tracker import (
     EnumJobPerfRecorder,
 )
-from core.modules.strategy.core.engines.enumerator.shared.state.investment_tracker import (
+from core.modules.strategy.core.engines.enumerator.common.state.investment_tracker import (
     InvestmentTracker,
 )
 from core.modules.strategy.core.engines.shared.data_class import Opportunity
@@ -312,7 +312,7 @@ class EntityTaskState:
                 tracker.settle_incomplete(last_day, last_bar)
 
         if not self.payload.get("_dispatch_probe"):
-            from core.modules.strategy.core.engines.enumerator.shared.report_manager import (
+            from core.modules.strategy.core.engines.enumerator.common.report_manager import (
                 ReportManager,
             )
 

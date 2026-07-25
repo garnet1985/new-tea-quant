@@ -14,8 +14,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from core.infra.project_context import ProjectContext
 from core.modules.market_profile.core.markets import create_market_rules
-from core.modules.strategy.core.engines.shared.services.simulation_input.stock_investments import (
-    StockInvestments,
+from core.modules.strategy.core.engines.portfolio.enum_input.investments import (
+    EntityInvestmentCsv,
 )
 from core.modules.strategy.core.engines.portfolio.allocation_strategy import (
     AllocationStrategy,
@@ -32,10 +32,9 @@ from core.modules.strategy.core.engines.portfolio.simulator import (
     PortfolioSimResult,
     PortfolioSimulator,
 )
-from core.modules.strategy.core.engines.shared.services.simulation_input.enum_loader import (
+from core.modules.strategy.core.engines.portfolio.enum_input.source import (
+    EnumSource,
     EnumVersionData,
-    load_enum_version,
-    resolve_enum_version_dir,
 )
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
@@ -100,8 +99,8 @@ class PortfolioPipeline:
         if ctx.enum_version is None or not str(ctx.enum_version).strip():
             raise ValueError("SimulateSession.enum_version 不能为空")
         version_id = str(ctx.enum_version).strip()
-        output_dir = resolve_enum_version_dir(ctx.strategy_key, version_id)
-        return load_enum_version(output_dir, version_id)
+        output_dir = EnumSource.resolve_dir(ctx.strategy_key, version_id)
+        return EnumSource.load(output_dir, version_id)
 
     @classmethod
     def begin_report(
@@ -176,7 +175,7 @@ class PortfolioPipeline:
         ``simulation.risk_control.should_skip_enter`` 命中触发日状态的行不生成事件（枚举 CSV 仍在）。
         """
         control = settings.simulation.risk_control
-        entity_ids = list(data.entity_ids) or StockInvestments.collect_entity_ids(
+        entity_ids = list(data.entity_ids) or EntityInvestmentCsv.collect_entity_ids(
             data.output_dir
         )
         events: List[PortfolioEvent] = []
@@ -185,10 +184,10 @@ class PortfolioPipeline:
             eid = str(entity_id or "").strip()
             if not eid:
                 continue
-            path = StockInvestments.file_path(data.output_dir, eid)
+            path = EntityInvestmentCsv.file_path(data.output_dir, eid)
             if not path.is_file():
                 continue
-            loaded = StockInvestments.load(data.output_dir, eid)
+            loaded = EntityInvestmentCsv.load(data.output_dir, eid)
             for row in loaded.rows:
                 if control.should_skip_enter(status_tags=row.stock_status_at_trigger):
                     continue

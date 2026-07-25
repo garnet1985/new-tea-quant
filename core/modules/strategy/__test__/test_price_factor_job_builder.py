@@ -7,11 +7,11 @@ from pathlib import Path
 import pytest
 
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
-from core.modules.strategy.core.engines.shared.services.simulation_input.artifact_paths import (
+from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
     ENTITY_IDS_FILE,
     RUNTIME_ENV_FILE,
 )
-from core.modules.strategy.core.engines.shared.services.simulation_input.enum_loader import load_enum_version
+from core.modules.strategy.core.engines.price_factor.enum_input.source import EnumSource
 from core.modules.strategy.core.engines.price_factor.job_builder import (
     JobBuilder,
     PRICE_FACTOR_GLOBAL_KEY,
@@ -51,7 +51,7 @@ def _write_runtime(
 
 def test_build_jobs_bundle_shape(tmp_path: Path) -> None:
     _write_runtime(tmp_path, entity_ids=["000001.SZ", "000002.SZ"])
-    data = load_enum_version(tmp_path, "3")
+    data = EnumSource.load(tmp_path, "3")
 
     jobs = JobBuilder.build_jobs(data)
     BacktestJob.validate_many(jobs, mode="entity_based")
@@ -74,12 +74,12 @@ def test_build_jobs_bundle_shape(tmp_path: Path) -> None:
 
 def test_build_jobs_empty_entity_ids(tmp_path: Path) -> None:
     _write_runtime(tmp_path, entity_ids=[])
-    data = load_enum_version(tmp_path, "1")
+    data = EnumSource.load(tmp_path, "1")
     assert JobBuilder.build_jobs(data) == []
 
 
 def test_build_jobs_rejects_missing_period(tmp_path: Path) -> None:
     _write_runtime(tmp_path, entity_ids=["000001.SZ"], start="", end="")
-    data = load_enum_version(tmp_path, "1")
+    data = EnumSource.load(tmp_path, "1")
     with pytest.raises(ValueError, match="period"):
         JobBuilder.build_jobs(data)

@@ -18,7 +18,7 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.valida
 )
 
 from .assumption import AssumptionSettings
-from .execution import ExecutionSettings
+from .execution import BacktestPeriod, ExecutionSettings
 from .risk_control import RiskControl
 from .tradability import EdgesConfig, LiquidityConfig, TradabilityConfig
 
@@ -106,6 +106,10 @@ class SimulationSettings(SettingsBase):
 
     def parsed_target_check_order(self) -> List["TargetCheckStep"]:
         return self.assumption.parsed_target_check_order()
+
+    def resolve_period(self) -> BacktestPeriod:
+        """回测前：补齐空 start/end 后的开市日区间。"""
+        return self.execution.resolve_period()
 
     def apply_defaults(self) -> None:
         if "simulation" not in self.raw_settings or not isinstance(

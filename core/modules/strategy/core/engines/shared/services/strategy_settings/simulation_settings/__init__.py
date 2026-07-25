@@ -4,7 +4,7 @@
 
 ::
 
-    execution.py            — ExecutionSettings
+    execution.py            — BacktestPeriod / ExecutionSettings
     assumption.py           — AssumptionSettings
     assumption_templates.py — AssumptionTemplate
     tradability.py          — TradabilityConfig / Edges / Liquidity / Slippage
@@ -14,7 +14,7 @@
 
 from .assumption import AssumptionSettings
 from .assumption_templates import AssumptionTemplate
-from .execution import ExecutionSettings
+from .execution import BacktestPeriod, ExecutionSettings
 from .risk_control import (
     ForceExitDecision,
     ForceExitRule,
@@ -29,6 +29,7 @@ __all__ = [
     "AssumptionSettings",
     "AssumptionTemplate",
     "EdgesConfig",
+    "BacktestPeriod",
     "ExecutionSettings",
     "ForceExitDecision",
     "ForceExitRule",

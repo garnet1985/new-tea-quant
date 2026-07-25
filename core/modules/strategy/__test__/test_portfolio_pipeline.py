@@ -12,9 +12,9 @@ import pytest
 pytestmark = pytest.mark.force_run
 
 from core.modules.strategy.core.enums import SimulateKind
-from core.modules.strategy.core.engines.shared.services.simulation_input.stock_investments import (
+from core.modules.strategy.core.engines.portfolio.enum_input.investments import (
     InvestmentRow,
-    StockInvestments,
+    EntityInvestmentCsv,
 )
 from core.modules.strategy.core.engines.portfolio.data_class import PortfolioEvent
 from core.modules.strategy.core.engines.portfolio.enter_selection import (
@@ -22,7 +22,7 @@ from core.modules.strategy.core.engines.portfolio.enter_selection import (
     EntrySelector,
 )
 from core.modules.strategy.core.engines.portfolio.pipeline import PortfolioPipeline
-from core.modules.strategy.core.engines.shared.services.simulation_input.enum_loader import EnumVersionData
+from core.modules.strategy.core.engines.portfolio.enum_input.source import EnumVersionData
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
@@ -83,7 +83,7 @@ def test_load_enum_data_requires_enum_version():
 
 
 def test_build_events_uses_raw_buy_price_not_qfq(tmp_path: Path):
-    StockInvestments(
+    EntityInvestmentCsv(
         entity_id="600000.SH",
         rows=[
             InvestmentRow(
@@ -112,11 +112,12 @@ def test_build_events_uses_raw_buy_price_not_qfq(tmp_path: Path):
         ],
     ).save(tmp_path)
 
-    runtime = MagicMock()
-    runtime.entity_ids = ["600000.SH"]
-    runtime.market_profile = ""
-    runtime.period = SimpleNamespace(start_date="20240101", end_date="20240131")
-    data = EnumVersionData(output_dir=tmp_path, version_id="1", runtime=runtime)
+    data = EnumVersionData.stub(
+        tmp_path,
+        entity_ids=["600000.SH"],
+        start_date="20240101",
+        end_date="20240131",
+    )
     events, opportunities = PortfolioPipeline.build_events(
         data, settings=StrategySettings.from_dict({})
     )

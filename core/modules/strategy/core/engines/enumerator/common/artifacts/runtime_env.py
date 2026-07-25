@@ -1,23 +1,25 @@
-"""枚举 run 启动快照（simulation_input 整块）。
+"""枚举 version 运行环境（0_runtime_env.json + entity_ids）（enumerator 私有）。
 
-消费者: enumerator, price_factor, portfolio
-其它: Facade路径 fingerprints, entity_loader
-
-本文件: BacktestPeriod / SystemEnv / SettingsSnapshot / RuntimeSnapshot
-边界: 负责 runtime_env + entity_ids 契约读写；不负责 ReportManager 写门面
+本文件: SystemEnv / SettingsSnapshot / RuntimeEnv
+边界: 负责 enum runtime 内容组装与读写；布局/IO 委托 simulation_output
+period 解析见 StrategySettings.resolve_period / BacktestPeriod
 """
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
 from core.infra.project_context import ProjectContext
-from core.modules.strategy.core.engines.shared.services.simulation_input.artifact_paths import (
+from core.modules.strategy.core.engines.shared.services.strategy_settings import BacktestPeriod
+from core.modules.strategy.core.engines.shared.services.simulation_output.io import ArtifactIO
+from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
     ENTITY_IDS_FILE,
     RUNTIME_ENV_FILE,
+)
+from core.modules.strategy.core.engines.shared.services.simulation_output.paths import (
+    ArtifactPaths,
 )
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
@@ -26,42 +28,8 @@ from core.system import get_version
 
 
 @dataclass
-class BacktestPeriod:
-    """回测开市日区间。
-
-    边界:
-    - 负责: start/end 日期对的序列化
-    - 不负责: 从 settings 解析（见 RuntimeSnapshot.resolve_period）
-    - 调用方: RuntimeSnapshot / JobBuilder
-    """
-
-    start_date: str
-    end_date: str
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "start_date": self.start_date,
-            "end_date": self.end_date,
-        }
-
-    @classmethod
-    def from_dict(cls, raw: Dict[str, Any]) -> "BacktestPeriod":
-        data = raw or {}
-        return cls(
-            start_date=str(data.get("start_date") or ""),
-            end_date=str(data.get("end_date") or ""),
-        )
-
-
-@dataclass
 class SystemEnv:
-    """运行环境快照片段（data/db/engine_version）。
-
-    边界:
-    - 负责: 环境字段序列化
-    - 不负责: 探测系统版本（构建时由 RuntimeSnapshot 填入）
-    - 调用方: RuntimeSnapshot
-    """
+    """运行环境快照片段（data/db/engine_version）。"""
 
     data: Dict[str, Any] = field(default_factory=dict)
     database_type: str = ""
@@ -86,13 +54,7 @@ class SystemEnv:
 
 @dataclass
 class SettingsSnapshot:
-    """策略 settings 快照（effective + diff）。
-
-    边界:
-    - 负责: settings 字段序列化
-    - 不负责: fingerprint 计算
-    - 调用方: RuntimeSnapshot
-    """
+    """策略 settings 快照（effective + diff）。"""
 
     effective_settings: Dict[str, Any] = field(default_factory=dict)
     settings_diff: Dict[str, Any] = field(default_factory=dict)
@@ -113,28 +75,16 @@ class SettingsSnapshot:
 
 
 @dataclass
-class SavedRuntimeArtifacts:
-    """runtime 启动落盘路径。
-
-    边界:
-    - 负责: 携带 entity_ids / runtime_env 路径
-    - 不负责: 写文件内容
-    - 调用方: RuntimeReport.save_begin
-    """
+class SavedRuntimeEnvPaths:
+    """runtime_env / entity_ids 落盘路径。"""
 
     entity_ids_path: Path
     runtime_env_path: Path
 
 
 @dataclass
-class RuntimeSnapshot:
-    """一次枚举 run 的全部运行时配置（env + settings 合并）。
-
-    边界:
-    - 负责: 组装/序列化 runtime_env.json 与 entity_ids.txt；解析 backtest period
-    - 不负责: performance / overall
-    - 调用方: RuntimeReport
-    """
+class RuntimeEnv:
+    """一次枚举 run 的运行环境描述（对应 0_runtime_env.json）。"""
 
     ENTITY_IDS_FILE = ENTITY_IDS_FILE
     RUNTIME_ENV_FILE = RUNTIME_ENV_FILE
@@ -156,8 +106,6 @@ class RuntimeSnapshot:
     def entity_count(self) -> int:
         return len(self.entity_ids)
 
-    # ── 工厂 ──
-
     @classmethod
     def build(
         cls,
@@ -172,7 +120,7 @@ class RuntimeSnapshot:
         execution_mode: str,
         market_profile: str,
         strategy_path: str = "",
-    ) -> "RuntimeSnapshot":
+    ) -> "RuntimeEnv":
         return cls(
             strategy_key=strategy_key,
             version_id=int(version_id),
@@ -181,7 +129,7 @@ class RuntimeSnapshot:
             entity_ids=cls._normalize_entity_ids(entity_ids),
             settings_fp=str(settings_fp or ""),
             env_fp=str(env_fp or ""),
-            period=cls.resolve_period(effective_settings),
+            period=effective_settings.resolve_period(),
             system=cls._build_system_env(),
             settings_snapshot=SettingsSnapshot(
                 effective_settings=effective_settings.to_dict(),
@@ -192,60 +140,40 @@ class RuntimeSnapshot:
         )
 
     @classmethod
-    def resolve_period(cls, effective_settings: StrategySettings) -> BacktestPeriod:
-        from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import (
-            GlobalEntityCache,
-        )
-
-        # 根：SimulationSettings.start_date / end_date（validate 已保证格式）
-        start_date = str(effective_settings.simulation.start_date or "").strip()
-        end_date = str(effective_settings.simulation.end_date or "").strip()
-
-        if not end_date:
-            end_date = GlobalEntityCache.load_latest_completed_trading_date()
-        if not start_date:
-            start_date = ProjectContext.config.get_default_start_date()
-
-        return BacktestPeriod(start_date=start_date, end_date=end_date)
-
-    @classmethod
-    def _resolve_artifact_path(cls, output_dir: Path, filename: str, *, legacy: str) -> Path:
-        path = output_dir / filename
-        if path.is_file():
-            return path
-        legacy_path = output_dir / legacy
-        if legacy_path.is_file():
-            return legacy_path
-        return path
-
-    @classmethod
-    def load(cls, output_dir: Path) -> "RuntimeSnapshot":
+    def load(cls, output_dir: Path) -> "RuntimeEnv":
         runtime_env_path = cls._resolve_artifact_path(
-            output_dir,
-            cls.RUNTIME_ENV_FILE,
+            ArtifactPaths.runtime_env_path(output_dir),
             legacy="runtime_env.json",
         )
         entity_ids_path = cls._resolve_artifact_path(
-            output_dir,
-            cls.ENTITY_IDS_FILE,
+            ArtifactPaths.entity_ids_path(output_dir),
             legacy="entity_ids.txt",
         )
-        payload = cls._read_json(runtime_env_path)
-        entity_ids = cls._read_entity_ids(entity_ids_path)
+        if not runtime_env_path.is_file():
+            raise FileNotFoundError(f"缺少 {RUNTIME_ENV_FILE}: {output_dir}")
+        payload = ArtifactIO.read_json(runtime_env_path)
+        entity_ids = ArtifactIO.read_text_lines(entity_ids_path)
         return cls.from_dict(payload, entity_ids=entity_ids)
 
-    # ── 落盘 ──
-
-    def save(self, output_dir: Path) -> SavedRuntimeArtifacts:
+    def save(self, output_dir: Path) -> SavedRuntimeEnvPaths:
+        output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
-        entity_ids_path = self._write_entity_ids(output_dir / self.ENTITY_IDS_FILE)
-        runtime_env_path = self._write_json(output_dir / self.RUNTIME_ENV_FILE, self.to_dict())
-        return SavedRuntimeArtifacts(
+        entity_ids_path = ArtifactIO.write_text_lines(
+            ArtifactPaths.entity_ids_path(output_dir),
+            self.entity_ids,
+        )
+        runtime_env_path = ArtifactIO.write_json(
+            ArtifactPaths.runtime_env_path(output_dir),
+            self.to_dict(),
+        )
+        return SavedRuntimeEnvPaths(
             entity_ids_path=entity_ids_path,
             runtime_env_path=runtime_env_path,
         )
 
-    # ── 序列化 ──
+    def to_entity_ids_txt(self) -> str:
+        ids = self._normalize_entity_ids(self.entity_ids)
+        return "\n".join(ids) + ("\n" if ids else "")
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -272,7 +200,7 @@ class RuntimeSnapshot:
         raw: Dict[str, Any],
         *,
         entity_ids: List[str] | None = None,
-    ) -> "RuntimeSnapshot":
+    ) -> "RuntimeEnv":
         data = raw or {}
         fingerprints = data.get("fingerprints") or {}
         settings_raw = data.get("settings") or {}
@@ -297,8 +225,6 @@ class RuntimeSnapshot:
             strategy_path=str(data.get("strategy_path") or strategy_key or ""),
         )
 
-    # ── private ──
-
     @classmethod
     def _build_system_env(cls) -> SystemEnv:
         data_config = dict(ProjectContext.config.load_data_config() or {})
@@ -318,47 +244,19 @@ class RuntimeSnapshot:
         return sorted({str(item).strip() for item in entity_ids if str(item).strip()})
 
     @staticmethod
-    def _write_entity_ids_file(path: Path, entity_ids: List[str]) -> Path:
-        ids = RuntimeSnapshot._normalize_entity_ids(entity_ids)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            "\n".join(ids) + ("\n" if ids else ""),
-            encoding="utf-8",
-        )
+    def _resolve_artifact_path(path: Path, *, legacy: str) -> Path:
+        if path.is_file():
+            return path
+        legacy_path = path.parent / legacy
+        if legacy_path.is_file():
+            return legacy_path
         return path
-
-    def _write_entity_ids(self, path: Path) -> Path:
-        return self._write_entity_ids_file(path, self.entity_ids)
-
-    @staticmethod
-    def _read_entity_ids(path: Path) -> List[str]:
-        if not path.is_file():
-            return []
-        return [
-            line.strip()
-            for line in path.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
-
-    @staticmethod
-    def _write_json(path: Path, payload: Dict[str, Any]) -> Path:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(payload, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
-        return path
-
-    @staticmethod
-    def _read_json(path: Path) -> Dict[str, Any]:
-        return json.loads(path.read_text(encoding="utf-8"))
-
 
 
 __all__ = [
     "BacktestPeriod",
     "SystemEnv",
     "SettingsSnapshot",
-    "SavedRuntimeArtifacts",
-    "RuntimeSnapshot",
+    "SavedRuntimeEnvPaths",
+    "RuntimeEnv",
 ]

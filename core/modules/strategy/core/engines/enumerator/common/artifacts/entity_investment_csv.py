@@ -1,10 +1,7 @@
-"""枚举每股 CSV 行模型（simulation_input 整块）。
+"""枚举实体 investment / goal CSV（enumerator 私有写模型）。
 
-消费者: enumerator, price_factor, portfolio
-其它: tests
-
-本文件: InvestmentRow / GoalAchievementRow / StockInvestments / GoalAchievements
-边界: 负责 CSV 契约；不负责 ReportManager.investments 写门面
+本文件: InvestmentRow / GoalAchievementRow / EntityInvestmentCsv / GoalAchievementCsv
+边界: 负责 enum CSV 内容读写；路径委托 simulation_output.ArtifactPaths
 """
 from __future__ import annotations
 
@@ -13,8 +10,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple
 
-from core.modules.strategy.core.engines.shared.services.simulation_input.artifact_paths import (
-    ReportPaths,
+from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
+    GOAL_ACHIEVEMENTS_SUFFIX,
+    STOCK_INVESTMENTS_SUFFIX,
+)
+from core.modules.strategy.core.engines.shared.services.simulation_output.paths import (
+    ArtifactPaths,
 )
 from core.utils.io.csv_io import read_csv_to_dicts, write_dicts_to_csv
 
@@ -138,8 +139,8 @@ class InvestmentRow:
 
     边界:
     - 负责: payload/CSV 行互转（核心字段）
-    - 不负责: 文件 IO（见 StockInvestments）
-    - 调用方: StockInvestments / OverallReport
+    - 不负责: 文件 IO（见 EntityInvestmentCsv）
+    - 调用方: EntityInvestmentCsv / OverallReport
 
     价格字段：无后缀为前复权（qfq）；``*_raw`` 为不复权成交价（供 portfolio 定仓）。
     """
@@ -314,8 +315,8 @@ class GoalAchievementRow:
 
     边界:
     - 负责: goal payload/CSV 行互转
-    - 不负责: 文件 IO（见 GoalAchievements）
-    - 调用方: GoalAchievements / OverallReport
+    - 不负责: 文件 IO（见 GoalAchievementCsv）
+    - 调用方: GoalAchievementCsv / OverallReport
     """
 
     investment_id: str = ""
@@ -378,7 +379,7 @@ class GoalAchievementRow:
 
 
 @dataclass
-class StockInvestments:
+class EntityInvestmentCsv:
     """单只股票的全部 investment 记录 → ``{entity_id}_stock_investments.csv``。
 
     边界:
@@ -387,7 +388,7 @@ class StockInvestments:
     - 调用方: enumerator InvestmentsReport / price_factor / portfolio
     """
 
-    FILE_SUFFIX: ClassVar[str] = "_stock_investments.csv"
+    FILE_SUFFIX: ClassVar[str] = STOCK_INVESTMENTS_SUFFIX
     COLUMNS: ClassVar[Tuple[str, ...]] = (
         "investment_id",
         "trigger_date",
@@ -417,7 +418,7 @@ class StockInvestments:
     rows: List[InvestmentRow] = field(default_factory=list)
 
     @classmethod
-    def build(cls, entity_id: str, investments: Sequence[Dict[str, Any]]) -> "StockInvestments":
+    def build(cls, entity_id: str, investments: Sequence[Dict[str, Any]]) -> "EntityInvestmentCsv":
         return cls(
             entity_id=str(entity_id or "").strip(),
             rows=[
@@ -428,7 +429,7 @@ class StockInvestments:
         )
 
     @classmethod
-    def load(cls, output_dir: Path, entity_id: str) -> "StockInvestments":
+    def load(cls, output_dir: Path, entity_id: str) -> "EntityInvestmentCsv":
         path = cls.file_path(output_dir, entity_id)
         return cls(
             entity_id=str(entity_id or "").strip(),
@@ -437,7 +438,7 @@ class StockInvestments:
 
     @classmethod
     def file_path(cls, output_dir: Path, entity_id: str) -> Path:
-        return ReportPaths.entities_dir(output_dir) / f"{str(entity_id or '').strip()}{cls.FILE_SUFFIX}"
+        return ArtifactPaths.entities_dir(output_dir) / f"{str(entity_id or '').strip()}{cls.FILE_SUFFIX}"
 
     @classmethod
     def _scan_entity_ids(cls, directory: Path) -> List[str]:
@@ -452,7 +453,7 @@ class StockInvestments:
 
     @classmethod
     def collect_entity_ids(cls, output_dir: Path) -> List[str]:
-        nested = cls._scan_entity_ids(ReportPaths.entities_dir(output_dir))
+        nested = cls._scan_entity_ids(ArtifactPaths.entities_dir(output_dir))
         if nested:
             return nested
         return cls._scan_entity_ids(output_dir)
@@ -469,7 +470,7 @@ class StockInvestments:
 
 
 @dataclass
-class GoalAchievements:
+class GoalAchievementCsv:
     """单只股票的全部 goal 成交腿 → ``{entity_id}_goal_achievements.csv``。
 
     边界:
@@ -478,7 +479,7 @@ class GoalAchievements:
     - 调用方: enumerator InvestmentsReport / price_factor / portfolio
     """
 
-    FILE_SUFFIX: ClassVar[str] = "_goal_achievements.csv"
+    FILE_SUFFIX: ClassVar[str] = GOAL_ACHIEVEMENTS_SUFFIX
     COLUMNS: ClassVar[Tuple[str, ...]] = (
         "investment_id",
         "goal_name",
@@ -496,7 +497,7 @@ class GoalAchievements:
     rows: List[GoalAchievementRow] = field(default_factory=list)
 
     @classmethod
-    def build(cls, entity_id: str, investments: Sequence[Dict[str, Any]]) -> "GoalAchievements":
+    def build(cls, entity_id: str, investments: Sequence[Dict[str, Any]]) -> "GoalAchievementCsv":
         rows: List[GoalAchievementRow] = []
         for investment in investments or []:
             if not isinstance(investment, dict):
@@ -513,7 +514,7 @@ class GoalAchievements:
         return cls(entity_id=str(entity_id or "").strip(), rows=rows)
 
     @classmethod
-    def load(cls, output_dir: Path, entity_id: str) -> "GoalAchievements":
+    def load(cls, output_dir: Path, entity_id: str) -> "GoalAchievementCsv":
         path = cls.file_path(output_dir, entity_id)
         return cls(
             entity_id=str(entity_id or "").strip(),
@@ -522,7 +523,7 @@ class GoalAchievements:
 
     @classmethod
     def file_path(cls, output_dir: Path, entity_id: str) -> Path:
-        return ReportPaths.entities_dir(output_dir) / f"{str(entity_id or '').strip()}{cls.FILE_SUFFIX}"
+        return ArtifactPaths.entities_dir(output_dir) / f"{str(entity_id or '').strip()}{cls.FILE_SUFFIX}"
 
     def save(self, output_dir: Path, *, append: bool = False) -> Path:
         path = self.file_path(output_dir, self.entity_id)
@@ -538,6 +539,6 @@ class GoalAchievements:
 __all__ = [
     "InvestmentRow",
     "GoalAchievementRow",
-    "StockInvestments",
-    "GoalAchievements",
+    "EntityInvestmentCsv",
+    "GoalAchievementCsv",
 ]

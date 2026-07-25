@@ -13,17 +13,17 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, TextIO
 
 from core.infra.project_context import ProjectContext
-from core.modules.strategy.core.engines.enumerator.shared.report_manager.overall_report import (
+from core.modules.strategy.core.engines.enumerator.common.report_manager.overall_report import (
     OverallReportHandle,
 )
-from core.modules.strategy.core.engines.enumerator.shared.report_manager.profiler import (
+from core.modules.strategy.core.engines.enumerator.common.report_manager.profiler import (
     ProfilerReport,
 )
-from core.modules.strategy.core.engines.enumerator.shared.report_manager.runtime_snapshot import (
+from core.modules.strategy.core.engines.enumerator.common.report_manager.runtime_snapshot import (
     RuntimeReport,
-    RuntimeSnapshot,
+    RuntimeEnv,
 )
-from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_investments import (
+from core.modules.strategy.core.engines.enumerator.common.report_manager.stock_investments import (
     InvestmentsReport,
 )
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
@@ -141,7 +141,7 @@ class ReportManager:
 
     @classmethod
     def from_output_dir(cls, output_dir: Path) -> "ReportManager":
-        runtime = RuntimeSnapshot.load(Path(output_dir))
+        runtime = RuntimeEnv.load(Path(output_dir))
         return cls(
             output_dir=Path(output_dir),
             strategy_key=runtime.strategy_key,
@@ -170,8 +170,8 @@ class ReportManager:
         return SavedRunArtifacts(
             performance_path=performance_path,
             overall_report_path=overall_report_path,
-            runtime_env_path=self.output_dir / RuntimeSnapshot.RUNTIME_ENV_FILE,
-            entity_ids_path=self.output_dir / RuntimeSnapshot.ENTITY_IDS_FILE,
+            runtime_env_path=self.output_dir / RuntimeEnv.RUNTIME_ENV_FILE,
+            entity_ids_path=self.output_dir / RuntimeEnv.ENTITY_IDS_FILE,
         )
 
     # ── 展示（CLI / UI）──

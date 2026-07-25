@@ -3,19 +3,17 @@
 from __future__ import annotations
 
 from pathlib import Path
-from types import SimpleNamespace
-from unittest.mock import MagicMock
 
 import pytest
 
 pytestmark = pytest.mark.force_run
 
-from core.modules.strategy.core.engines.shared.services.simulation_input.stock_investments import (
+from core.modules.strategy.core.engines.portfolio.enum_input.investments import (
     InvestmentRow,
-    StockInvestments,
+    EntityInvestmentCsv,
 )
 from core.modules.strategy.core.engines.portfolio.pipeline import PortfolioPipeline
-from core.modules.strategy.core.engines.shared.services.simulation_input.enum_loader import EnumVersionData
+from core.modules.strategy.core.engines.portfolio.enum_input.source import EnumVersionData
 from core.modules.strategy.core.engines.price_factor.executor import JobExecutor
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StatusTagPolicy,
@@ -111,7 +109,7 @@ def test_price_replay_skips_matching_status() -> None:
 
 
 def test_portfolio_build_events_skips_matching_status(tmp_path: Path) -> None:
-    StockInvestments(
+    EntityInvestmentCsv(
         entity_id="600000.SH",
         rows=[
             _inv_row(
@@ -136,11 +134,12 @@ def test_portfolio_build_events_skips_matching_status(tmp_path: Path) -> None:
         ],
     ).save(tmp_path)
 
-    runtime = MagicMock()
-    runtime.entity_ids = ["600000.SH"]
-    runtime.market_profile = ""
-    runtime.period = SimpleNamespace(start_date="20240101", end_date="20240131")
-    data = EnumVersionData(output_dir=tmp_path, version_id="1", runtime=runtime)
+    data = EnumVersionData.stub(
+        tmp_path,
+        entity_ids=["600000.SH"],
+        start_date="20240101",
+        end_date="20240131",
+    )
     events, opps = PortfolioPipeline.build_events(
         data,
         settings=StrategySettings.from_dict(

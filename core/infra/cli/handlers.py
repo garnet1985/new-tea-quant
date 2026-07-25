@@ -278,7 +278,7 @@ def _run_strategy_enumerate(args: argparse.Namespace) -> None:
         try:
             from pathlib import Path
 
-            from core.modules.strategy.core.engines.enumerator.shared.report_manager import (
+            from core.modules.strategy.core.engines.enumerator.common.report_manager import (
                 ReportManager,
             )
 

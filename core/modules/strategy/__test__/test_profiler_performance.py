@@ -9,7 +9,7 @@ from core.modules.backtest_engine.core.performance.profiler import (
     ENGINE_PERF_KEY,
     ENUM_PERF_KEY,
 )
-from core.modules.strategy.core.engines.enumerator.shared.report_manager import (
+from core.modules.strategy.core.engines.enumerator.common.report_manager import (
     ReportManager,
 )
 
@@ -259,7 +259,7 @@ def test_profiler_full_includes_jobs(tmp_path: Path) -> None:
 
 
 def test_dispatch_plan_snapshot_entity_and_slice() -> None:
-    from core.modules.strategy.core.engines.enumerator.shared.report_manager.profiler import (
+    from core.modules.strategy.core.engines.enumerator.common.report_manager.profiler import (
         DispatchPlanSnapshot,
     )
 
@@ -422,7 +422,7 @@ def test_profiler_slice_quick_summary(tmp_path: Path) -> None:
 
 
 def test_overall_goal_fill_excludes_simulate_end() -> None:
-    from core.modules.strategy.core.engines.enumerator.shared.report_manager.overall_report import (
+    from core.modules.strategy.core.engines.enumerator.common.report_manager.overall_report import (
         OverallReport,
     )
 

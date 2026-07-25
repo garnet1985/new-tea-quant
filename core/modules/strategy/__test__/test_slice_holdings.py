@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# MARK: STALE — EntityHoldings 已删除；持仓逻辑在 EntityTracker / SliceEnumerationSimulator。
+# MARK: STALE — EntityHoldings 已删除；持仓逻辑在 InvestmentTracker / SliceEnumerationSimulator。
 """slice_based EntityHoldings 单元测试（已停用）。"""
 
 from __future__ import annotations

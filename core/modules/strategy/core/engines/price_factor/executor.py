@@ -48,7 +48,8 @@ class JobExecutor:
 
     说明:
     - 回放为 event-driven（信任枚举 entry；exit 遇跌停挡板时顺延重试），在
-      ``on_after_task_complete`` 执行；``on_tick`` 暂 noop（全日历状态机后续再迁）。
+      ``on_after_task_complete`` 执行；``on_tick`` 暂 noop。
+    - 勿为减少日历空转而先加 Timeline 复写；等回放迁到 on_tick 再议（BOUNDARY_NOTES）。
     """
 
     task_log_label = "price_factor task"

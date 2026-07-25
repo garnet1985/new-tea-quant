@@ -2,7 +2,7 @@
 
 本文件:
 - PortfolioPipeline: enum → events → on_pick_portfolio_member → simulate → 落盘
-  边界: 负责 portfolio step 进程内编排；不负责指纹缓存、BE 调度（类级流程见 module 内注释）
+  边界: 进程内事件流模拟；不用 BE / Timeline.drive（全局资金约束，无并行收益）
 """
 from __future__ import annotations
 

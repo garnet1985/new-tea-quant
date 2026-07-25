@@ -1,8 +1,10 @@
-# Strategy Module (v0.6.0)
+# Strategy Module
 
-策略执行模块。枚举入口：`Strategy.enumerate()` → `EnumeratorPipeline`（按 execution_mode 接 entity/slice JobBuilder·Executor）。
+策略执行：把用户钩子经 BacktestEngine ``RunCallbacks`` 挂入回测，并做 jobs / 报告等周边。
 
-## 三层结构
+**架构硬约束**见 [`BOUNDARY_NOTES.md`](BOUNDARY_NOTES.md)「与 BacktestEngine 的关系」——枚举器仅 JobBuilder + JobExecutor；勿加 TimelineBuilder / 平行 session。
+
+## 三层结构（示意；细节以代码与 BOUNDARY_NOTES 为准）
 
 ```
 core/

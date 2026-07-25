@@ -1,4 +1,7 @@
-"""enumerator JobBuilder 基类（entity / slice 共用 payload 组装）。"""
+"""enumerator JobBuilder 基类（entity / slice 共用 payload 组装）。
+
+边界: 只喂 BE job 字段；不覆盖 Timeline.points；period 仅作数据加载窗。
+"""
 from __future__ import annotations
 
 import logging
@@ -19,7 +22,7 @@ class BaseJobBuilder:
 
     边界:
     - 负责: 公共 payload 字段（entity_specified / entity_shared / global / shm / …）
-    - 不负责: mode 专有字段（如 slice 的 open_dates）；由子类追加
+    - 不负责: mode 专有字段（如 slice 的 ``timeline_point_count``）；由子类追加
     - 调用方: entity_based / slice_based JobBuilder
     """
 

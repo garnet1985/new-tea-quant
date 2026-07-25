@@ -1,8 +1,9 @@
-"""枚举器统一编排（entity_based / slice_based 共用步骤）。
+"""枚举器统一编排（entity_based / slice_based）。
 
 本文件:
-- EnumeratorPipeline: 采样→job 构建→BE→ReportManager；``find_output_version_via_fps``
-  边界: 负责 enum run 编排与落盘；不负责指纹计算、DB 缓存读写（Strategy / CacheManager）
+- EnumeratorPipeline: 采样 → JobBuilder → BE.run(callbacks=JobExecutor) → ReportManager
+  边界: 周边编排与落盘；不负责指纹/DB 缓存；不复写 BE Timeline
+  模式内核仅两件套: JobBuilder（喂 jobs）+ JobExecutor（RunCallbacks）
 """
 from __future__ import annotations
 
@@ -48,8 +49,8 @@ class EnumeratorPipeline:
     """枚举统一编排入口。
 
     边界:
-    - 负责: 用编排层已算好的 SimulateSession 执行枚举并落盘
-    - 不负责: 指纹、GlobalEntityCache 系统级加载、DB 缓存读写（Strategy / CacheManager）
+    - 负责: SimulateSession 上跑枚举（采样 / jobs / BE / 报告）
+    - 不负责: 指纹、系统级 GlobalEntityCache 加载、DB 缓存；不建平行 session / TimelineBuilder
     - 调用方: Strategy._run_steps（cache miss 之后）
     """
 
@@ -150,7 +151,7 @@ class EnumeratorPipeline:
             from core.modules.strategy.core.engines.enumerator.slice_based.executor import (
                 JobExecutor,
             )
-            from core.modules.strategy.core.engines.enumerator.slice_based.job_builder.job_builder import (
+            from core.modules.strategy.core.engines.enumerator.slice_based.job_builder import (
                 JobBuilder,
             )
 
@@ -159,7 +160,7 @@ class EnumeratorPipeline:
         from core.modules.strategy.core.engines.enumerator.entity_based.executor import (
             JobExecutor,
         )
-        from core.modules.strategy.core.engines.enumerator.entity_based.job_builder.job_builder import (
+        from core.modules.strategy.core.engines.enumerator.entity_based.job_builder import (
             JobBuilder,
         )
 

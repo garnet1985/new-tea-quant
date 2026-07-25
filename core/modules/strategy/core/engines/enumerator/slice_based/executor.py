@@ -1,12 +1,12 @@
 """slice_based JobExecutor — BE RunCallbacks；日业务与 per-task 状态。
 
-本文件（slice 两件套之一，与 JobBuilder）:
+本文件（slice 两件套之一，与 JobBuilder；见 ``BOUNDARY_NOTES.md``「与 BE 的关系」）:
 - JobExecutor: on_before_task_start / on_tick / on_ticks_complete / flush
-- SliceTaskState: 挂在 ``job_context.init`` 上的可变状态（非第二套 BE session）
+- SliceTaskState: 挂在 ``job_context.init`` 的可变袋（**不是**第二套 BE session）
 
 边界:
-- 负责: 通过 callback 改写 BE 执行过程中的数据与逻辑（asof / Investment）
-- 不负责: 建 jobs、覆盖 BE 默认日历轴
+- 负责: 经 callback 改写执行中的数据与逻辑（asof / Investment）
+- 不负责: 建 jobs；覆盖 BE 默认日历轴；平行 session / TimelineBuilder
 """
 from __future__ import annotations
 
@@ -26,8 +26,8 @@ from core.modules.strategy.core.engines.enumerator.shared.performance_tracker.pe
     EnumJobPerfRecorder,
 )
 from core.modules.strategy.core.engines.shared.services.pit_bars import PitBars
-from core.modules.strategy.core.engines.enumerator.shared.state.entity_tracker import (
-    EntityTracker,
+from core.modules.strategy.core.engines.enumerator.shared.state.investment_tracker import (
+    InvestmentTracker,
 )
 from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import SafeBarValue
 from core.modules.strategy.core.engines.shared.services.entity_loader.strategy_data_resolver import (
@@ -59,7 +59,7 @@ class SliceTaskState:
     payload: Dict[str, Any]
     perf: Optional[EnumJobPerfRecorder] = None
 
-    trackers: Dict[str, EntityTracker] = field(init=False)
+    trackers: Dict[str, InvestmentTracker] = field(init=False)
     _stock_info: Dict[str, Dict[str, Any]] = field(init=False, repr=False)
     _session_state: Dict[str, Any] = field(default_factory=dict, init=False, repr=False)
     _open_dates: List[str] = field(default_factory=list, init=False, repr=False)
@@ -86,7 +86,7 @@ class SliceTaskState:
     def __post_init__(self) -> None:
         ids = [str(eid).strip() for eid in self.entity_ids if str(eid).strip()]
         self.entity_ids = ids
-        self.trackers = {eid: EntityTracker(entity_id=eid) for eid in ids}
+        self.trackers = {eid: InvestmentTracker(entity_id=eid) for eid in ids}
         self._stock_info = {eid: StockMetaHelper.load(eid) for eid in ids}
         self._ready_date_by_entity = {}
         self._job_min_ready_date = ""
@@ -340,7 +340,7 @@ class SliceTaskState:
     def _scan_entity(
         self,
         *,
-        tracker: EntityTracker,
+        tracker: InvestmentTracker,
         entity_id: str,
         as_of: str,
         pit_by_entity: Dict[str, Dict[str, Any]],

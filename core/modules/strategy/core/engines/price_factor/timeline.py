@@ -2,7 +2,9 @@
 
 本文件:
 - resolve_simulation_window: 取出已 resolve 的 start/end 传给 BE
-  边界: 负责 period 提取；不负责建开市日轴（BE CalendarService）
+  边界: 只提 period；不建开市日轴、不复写 Timeline.points
+  说明: 真业务现为 after_task 事件回放；勿在此加 TimelineBuilder「为少空转」—
+        等 ``on_tick`` 成为回放主路径再议 event 轴（见 BOUNDARY_NOTES）
 """
 from __future__ import annotations
 

@@ -1,9 +1,10 @@
-"""enumerator JobExecutor 基类（entity / slice 共用 task 生命周期）。
+"""enumerator JobExecutor 基类（entity / slice 共用）。
 
 本文件:
-- BaseJobExecutor: RunCallbacks 组装、bundle load、flush、进度分派
-- ExecutorHooksContext: ReportManager / GlobalEntityCache 引用载体
-  边界: 负责 task 级 BE 钩子骨架；日业务由子类覆盖 on_tick / on_ticks_complete
+- BaseJobExecutor: RunCallbacks 组装、bundle load、flush、进度
+- ExecutorHooksContext: 主进程钩子上下文（可 pickle 的 ClassVar）
+  边界: 骨架与周边；日业务由子类钩子实现，状态只进 ``job_context.init``
+  勿在此恢复 JobSession 委托层
 """
 from __future__ import annotations
 

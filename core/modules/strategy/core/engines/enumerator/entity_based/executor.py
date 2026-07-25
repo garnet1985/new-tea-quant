@@ -1,12 +1,12 @@
 """entity_based JobExecutor — BE RunCallbacks；日业务与 per-task 状态。
 
-本文件（entity 两件套之一，与 JobBuilder）:
+本文件（entity 两件套之一，与 JobBuilder；见 ``BOUNDARY_NOTES.md``「与 BE 的关系」）:
 - JobExecutor: on_before_task_start / on_tick / on_ticks_complete / flush
-- EntityTaskState: 挂在 ``job_context.init`` 上的可变状态（非第二套 BE session）
+- EntityTaskState: 挂在 ``job_context.init`` 的可变袋（**不是**第二套 BE session）
 
 边界:
-- 负责: 通过 callback 改写 BE 执行过程中的数据与逻辑
-- 不负责: 建 jobs、覆盖 BE 默认日历轴
+- 负责: 经 callback 改写执行中的数据与逻辑
+- 不负责: 建 jobs；覆盖 BE 默认日历轴；平行 session / TimelineBuilder
 """
 from __future__ import annotations
 
@@ -23,8 +23,8 @@ from core.modules.strategy.core.engines.enumerator.shared.base_executor import (
 from core.modules.strategy.core.engines.enumerator.shared.performance_tracker.performance_tracker import (
     EnumJobPerfRecorder,
 )
-from core.modules.strategy.core.engines.enumerator.shared.state.entity_tracker import (
-    EntityTracker,
+from core.modules.strategy.core.engines.enumerator.shared.state.investment_tracker import (
+    InvestmentTracker,
 )
 from core.modules.strategy.core.engines.shared.data_class import Opportunity
 from core.modules.strategy.core.engines.shared.services.entity_loader.strategy_data_resolver import (
@@ -63,7 +63,7 @@ class EntityTaskState:
     payload: Dict[str, Any]
     perf: Optional[EnumJobPerfRecorder] = None
 
-    trackers: Dict[str, EntityTracker] = field(init=False)
+    trackers: Dict[str, InvestmentTracker] = field(init=False)
     _stock_info: Dict[str, Dict[str, Any]] = field(init=False, repr=False)
     _last_bar_by_entity: Dict[str, Dict[str, Any]] = field(init=False, repr=False)
     _scan_contexts: Dict[str, DataContext] = field(init=False, repr=False)
@@ -80,7 +80,7 @@ class EntityTaskState:
 
     def __post_init__(self) -> None:
         self.trackers = {
-            str(entity_id).strip(): EntityTracker(entity_id=str(entity_id).strip())
+            str(entity_id).strip(): InvestmentTracker(entity_id=str(entity_id).strip())
             for entity_id in self.entity_ids
             if str(entity_id).strip()
         }

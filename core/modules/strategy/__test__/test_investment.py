@@ -55,7 +55,7 @@ def _tick(
 
 
 def _react(inv: Investment, tick) -> bool:
-    """镜像 EntityTracker 分桶调用；True=仍 live。"""
+    """镜像 InvestmentTracker 分桶调用；True=仍 live。"""
     as_of, bar = tick
     if inv.lifecycle == Lifecycle.COMPLETE:
         return False

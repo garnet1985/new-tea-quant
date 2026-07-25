@@ -5,7 +5,7 @@
 
 本文件:
 - Investment: 生命周期反应 API（try_enter / check_targets / try_exit / settle）
-  边界: 不自驱 tick；由 EntityTracker 按分桶调用；小类型见 ``investment/``
+  边界: 不自驱 tick；由 InvestmentTracker 按分桶调用；小类型见 ``investment/``
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ if TYPE_CHECKING:
 class Investment(Opportunity):
     """Extends ``Opportunity`` with simulation state.
 
-    完整生命周期（由 EntityTracker 分桶驱动）:
+    完整生命周期（由 InvestmentTracker 分桶驱动）:
     机会 → ``create_from_opportunity``（``PENDING_TO_ENTER``）
       → ``try_enter``（条件未齐时挂起，如次日 open）
       → ``check_targets``（``OPEN``）

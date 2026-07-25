@@ -1,6 +1,43 @@
 # Strategy Module — Boundary Notes
 
-供后续 split/merge 参考。下方「Shared vs private」为约定；其余章节仍是观察清单。
+供后续 split/merge 与 agent 改动参考。下方「与 BE 的关系」为硬约束；「Shared vs private」为包布局约定。
+
+## 与 BacktestEngine 的关系（硬约束 — 勿再复杂化）
+
+**Strategy 模块的主业**：把用户策略钩子（及引擎业务）通过 BE `RunCallbacks` 挂进回测器，再做 jobs / 报告 / 指纹等周边。  
+**不**在 strategy 侧另起一套调度、日历推进、或平行于 BE 的 session 框架。
+
+| 谁 | 干什么 |
+|----|--------|
+| **BE** | jobs 调度、worker、`Timeline`（默认按 `run(start,end)` + CalendarService 建开市日轴并 `drive`）、`JobContext`（含 **`init`**） |
+| **Strategy 引擎** | `JobBuilder` 喂 jobs；`JobExecutor` 实现 callbacks；可变状态只挂在 **`job_context.init`** |
+
+### 枚举器（entity / slice）两件套 — 仅此
+
+```text
+JobBuilder  → 组装 BE jobs（payload 含数据加载窗；slice 另写 timeline_point_count 供规划）
+JobExecutor → RunCallbacks（on_before_task_start / on_tick / …）
+Pipeline    → 周边编排（采样、BE.run、ReportManager）
+```
+
+**禁止再引入：**
+
+- **TimelineBuilder / 枚举器侧复写推进轴** — 枚举走交易日历即可，交给 BE；不要为 enum 再 build 一份 start/end 或 points「覆盖默认轴」
+- **JobSession / 第二套 session** — BE 的 session 就是 `JobContext.init`（`on_before_task_start` 返回值）。`EntityTaskState` / `SliceTaskState` 只是 init 里的可变袋，不是平行 API
+- **Executor 空 proxy** — 日业务入口在 `JobExecutor` 钩子；不要再拆一层「只有转发」的 Session 类文件叙事
+- **自建日历 resolver 重复 BE** — slice 若只需 `timeline_point_count`，用 `Timeline.from_calendar_window` 取点数即可（见 slice `JobBuilder`）
+
+### 价格回测 / 投资组合 vs Timeline
+
+| 引擎 | Timeline 复写？ |
+|------|----------------|
+| **enumerator** | 不需要 |
+| **price_factor** | 现状：`run(start,end)` + 默认日历；真业务在 after_task 事件回放，`on_tick` noop。**不要**为「少空转」先加 TimelineBuilder；等回放迁到 `on_tick` 再议 event 轴 |
+| **portfolio** | **不用 BE**；enum → `PortfolioEvent` 排序 → 进程内模拟。不要为组合套 `Timeline.drive` |
+
+### 进程内传对象
+
+完整 dataclass（如 `StrategySettings`）在同进程路径直接传；**仅**在 pickle / job payload / 落盘边界 `to_dict`。勿把完整对象再投影成 bag/标量「中间层」。
 
 ## Shared vs private（约定）
 
@@ -54,7 +91,8 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 10. CalendarAsOf* → shared.data_class — done
 11. 专门整理 `simulation_input` 整块（结构/命名/边界）
 12. **后期** `PENDING_TO_ENTER` 入场风控：`max_wait_open_days` / `max_entry_drift` / `abort_enter_when` 接到 `try_enter`（与 `_is_able_to_enter` 分离：不能成交≠放弃机会）
-13. enumerator tick 调用链 — **done**：BE `Timeline.drive` → `JobExecutor.on_tick` → JobSession.on_calendar_day → `EntityTracker.process_tick`（分桶 `try_exit` / `try_enter` / `check_targets`）→ Investment
+13. enumerator tick 调用链 — **done**：BE `Timeline.drive` → `JobExecutor.on_tick` → `EntityTaskState`/`SliceTaskState.on_calendar_day` → `InvestmentTracker.process_tick`（分桶 `try_exit` / `try_enter` / `check_targets`）→ Investment（**无** JobSession 层）
+14. 枚举器去 TimelineBuilder / 平行 session — **done**（见上文「与 BE 的关系」）
 
 ## 消费矩阵（审计，2026-07-24）
 
@@ -132,7 +170,7 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 
 | 区域 | 重复内容 | 路径 |
 |------|----------|------|
-| 日历解析 | open_dates 过滤 | `helpers/calendar.py`、`slice_based/resolver/calendar.py`、`scanner/helpers/date_resolver.py` |
+| 日历解析 | open_dates 过滤 | `helpers/calendar.py`、`scanner/helpers/date_resolver.py`（~~slice resolver/calendar~~ 已删；slice 规划点数用 BE `Timeline.from_calendar_window`） |
 | 报告编排 | version 目录 + runtime + overall + entities | `enumerator/shared/report_manager/`、`price_factor/report_manager/`、`portfolio/report_writer.py` |
 | CSV 机会格式 | opportunities 写盘 | `helpers/opportunity_csv.py`、`scanner/helpers/cache_manager.py`（内联 write_dicts_to_csv） |
 | Job payload 构建 | entity_shared / shm / strategy_info | `enumerator/shared/base_job_builder.py`、scanner/price 各自 JobBuilder |

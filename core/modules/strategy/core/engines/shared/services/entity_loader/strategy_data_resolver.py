@@ -7,13 +7,19 @@
 - StrategyDataResolver: base/required 声明、ContractIssuer.is_global 分组
 - DataDeclaration / DeclarationGroups: 声明与分组 TypedDict
   边界: 负责解析与分组；不负责实际 contract 加载（GlobalEntityCache / JobBundleLoader）
+
+同进程优先传 ``StrategySettings``（读 ``raw_settings``，避免再 ``to_dict``）。
+跨进程 job payload 仍应序列化为 dict；worker 侧 ``from_dict`` 后再传入本类。
 """
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, TypedDict
+from typing import Any, Dict, List, Mapping, TypedDict, Union
 
 from core.modules.data_contract import DATA_KEY, ContractIssuer
+from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
+    StrategySettings,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +33,8 @@ SYSTEM_GLOBAL_DATA_KEYS = frozenset({
 SYSTEM_AUTO_REQUIRED_DATA_KEYS = (
     DATA_KEY.STOCK_ST_PERIODS,
 )
+
+SettingsInput = Union[StrategySettings, Mapping[str, Any]]
 
 
 class DataDeclaration(TypedDict):
@@ -58,8 +66,8 @@ class StrategyDataResolver:
     - 实际加载 contract 数据 → GlobalEntityCache / JobBundleLoader
     """
 
-    def __init__(self, settings: Dict[str, Any]) -> None:
-        self._settings = dict(settings or {})
+    def __init__(self, settings: SettingsInput) -> None:
+        self._settings = self._coerce_mapping(settings)
         data = self._settings.get("data")
         if not isinstance(data, dict):
             raise ValueError("settings.data 必填且须为 dict")
@@ -72,6 +80,13 @@ class StrategyDataResolver:
         raw_required = self._data.get("required")
         if raw_required is not None and not isinstance(raw_required, list):
             raise ValueError("data.required 须为 list")
+
+    @staticmethod
+    def _coerce_mapping(settings: SettingsInput) -> Mapping[str, Any]:
+        """同进程 ``StrategySettings`` → 直接用 ``raw_settings``（不深拷）。"""
+        if isinstance(settings, StrategySettings):
+            return settings.raw_settings
+        return dict(settings or {})
 
     @property
     def data(self) -> Dict[str, Any]:
@@ -180,9 +195,10 @@ class StrategyDataResolver:
         return data_key
 
     @classmethod
-    def group_from_settings(cls, settings: Dict[str, Any]) -> DeclarationGroups:
+    def group_from_settings(cls, settings: SettingsInput) -> DeclarationGroups:
         """从 settings 分组声明；无 data 或解析失败时返回空分组。"""
-        data = settings.get("data")
+        mapping = cls._coerce_mapping(settings)
+        data = mapping.get("data")
         if not isinstance(data, dict):
             return {"global_declarations": [], "per_entity_declarations": []}
         try:
@@ -241,4 +257,5 @@ __all__ = [
     "DataDeclaration",
     "DeclarationGroups",
     "SYSTEM_GLOBAL_DATA_KEYS",
+    "SettingsInput",
 ]

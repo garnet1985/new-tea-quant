@@ -46,9 +46,9 @@ class JobBuilder:
         if not day:
             raise ValueError("scan_date 不能为空")
 
-        settings_dict = settings.to_dict()
-        resolver = StrategyDataResolver(settings_dict)
-        groups = StrategyDataResolver.group_from_settings(settings_dict)
+        settings_dict = settings.to_dict()  # worker payload 边界：必须可 pickle 的 dict
+        resolver = StrategyDataResolver(settings)
+        groups = StrategyDataResolver.group_from_settings(settings)
         lookback = min(int(resolver.min_required_records or 1), _MAX_LOOKBACK_DAYS)
         start_date = cls._lookback_start(day, lookback)
 
@@ -62,7 +62,7 @@ class JobBuilder:
                 "indicators": declaration.get("indicators", {}),
             }
 
-        market_profile = str(settings_dict.get("market_profile") or "").strip()
+        market_profile = str(settings.raw_settings.get("market_profile") or "").strip()
         payload: Dict[str, Any] = {
             "entity_specified": [{"id": eid} for eid in ids],
             "entity_shared": entity_shared,

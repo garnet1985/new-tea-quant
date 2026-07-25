@@ -70,48 +70,34 @@ class EnumeratorPipeline:
     @classmethod
     def run(cls, ctx: "SimulateSession") -> Dict[str, Any]:
         """运行枚举；复用 ctx 内已 seed 的 cache / settings / 指纹。"""
-        strategy_info = ctx.strategy_info
-        execution_mode = strategy_info.get_execution_mode()
+        execution_mode = ctx.strategy_info.get_execution_mode()
         if execution_mode not in {_MODE_ENTITY, _MODE_SLICE}:
             raise ValueError(f"不支持的execution_mode: {execution_mode}")
 
-        effective_settings = ctx.effective_settings
         cls.global_entity_cache = ctx.global_entity_cache
-
         declaration_groups = StrategyDataResolver.group_from_settings(
-            effective_settings.raw_settings
+            ctx.effective_settings
         )
-
-        results = cls._run_by_steps(
-            strategy_info=strategy_info,
-            effective_settings_obj=effective_settings,
-            settings_diff=ctx.settings_diff,
-            settings_fp=ctx.settings_fp,
-            env_fp=ctx.env_fp,
-            declaration_groups=declaration_groups,
-            execution_mode=execution_mode,
-            stock_ids=list(ctx.entity_ids),
-        )
+        results = cls._run_by_steps(ctx, declaration_groups=declaration_groups)
         return cls._to_report(results)
 
     @classmethod
     def _run_by_steps(
         cls,
+        ctx: "SimulateSession",
         *,
-        strategy_info: EnabledStrategyInfo,
-        effective_settings_obj: StrategySettings,
-        settings_diff: Dict[str, Any],
-        settings_fp: str,
-        env_fp: str,
         declaration_groups: Dict[str, Any],
-        execution_mode: str,
-        stock_ids: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
+        strategy_info = ctx.strategy_info
+        execution_mode = strategy_info.get_execution_mode()
+        effective_settings_obj = ctx.effective_settings
+        stock_ids = list(ctx.entity_ids)
+
         cls.global_entity_cache.load_global_declarations(
             declaration_groups["global_declarations"]
         )
 
-        if stock_ids is None:
+        if not stock_ids:
             stock_ids = cls.global_entity_cache.get_stock_ids()
         stock_ids = cls._resolve_entity_ids(
             stock_ids,
@@ -122,10 +108,10 @@ class EnumeratorPipeline:
         report_manager = cls._step_to_begin_report_manager(
             strategy_info=strategy_info,
             stock_ids=stock_ids,
-            settings_fp=settings_fp,
-            env_fp=env_fp,
+            settings_fp=ctx.settings_fp,
+            env_fp=ctx.env_fp,
             effective_settings_obj=effective_settings_obj,
-            settings_diff=settings_diff,
+            settings_diff=ctx.settings_diff,
         )
 
         jobs = cls._build_jobs(

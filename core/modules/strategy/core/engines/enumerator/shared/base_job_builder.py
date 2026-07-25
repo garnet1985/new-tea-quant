@@ -83,7 +83,7 @@ class BaseJobBuilder:
                 "hooks_class_name": strategy_info.hooks_class.__name__,
                 "hooks_file_path": str(strategy_info.strategy_file.resolve()),
             },
-            "settings": effective_settings.to_dict(),
+            "settings": effective_settings.to_dict(),  # worker 边界：dict 可 pickle
             "output_recorder": output_recorder_snapshot,
         }
 

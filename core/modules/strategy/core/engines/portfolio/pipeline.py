@@ -23,7 +23,6 @@ from core.modules.strategy.core.engines.portfolio.allocation_strategy import (
 from core.modules.strategy.core.engines.portfolio.data_class import PortfolioEvent
 from core.modules.strategy.core.engines.portfolio.enter_selection import (
     EnterSelection,
-    EntrySelector,
 )
 from core.modules.strategy.core.engines.portfolio.fee_calculator import FeeCalculator
 from core.modules.strategy.core.engines.portfolio.report_writer import (
@@ -39,9 +38,6 @@ from core.modules.strategy.core.engines.shared.services.simulation_input.enum_lo
     resolve_enum_version_dir,
 )
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
-from core.modules.strategy.core.engines.shared.services.strategy_settings.portfolio_settings import (
-    PortfolioSettings,
-)
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
@@ -81,17 +77,13 @@ class PortfolioPipeline:
     def run_by_steps(cls, ctx: "SimulateSession") -> Dict[str, Any]:
         """按步骤串起选仓 → 回放 → 落盘，返回可缓存 report。"""
         data = cls.load_enum_data(ctx)
-        portfolio_settings = cls.load_portfolio_settings(ctx)
-        report = cls.begin_report(ctx, data, settings=portfolio_settings)
-        strategy_settings = cls._strategy_settings(ctx)
-        events, opportunities = cls.build_events(
-            data,
-            settings=strategy_settings,
-        )
+        settings = cls._strategy_settings(ctx)
+        report = cls.begin_report(ctx, data)
+        events, opportunities = cls.build_events(data, settings=settings)
         sim_result = cls.simulate(
             events,
             opportunities,
-            settings=portfolio_settings,
+            settings=settings,
             report=report,
             ctx=ctx,
         )
@@ -99,7 +91,7 @@ class PortfolioPipeline:
             report,
             sim_result,
             data=data,
-            settings=portfolio_settings,
+            settings=settings,
         )
 
     @classmethod
@@ -112,23 +104,12 @@ class PortfolioPipeline:
         return load_enum_version(output_dir, version_id)
 
     @classmethod
-    def load_portfolio_settings(cls, ctx: "SimulateSession") -> PortfolioSettings:
-        """从 fingerprint 有效 settings 读取 ``portfolio`` 块。"""
-        effective = ctx.effective_settings
-        if effective is None:
-            raise ValueError("SimulateSession.effective_settings 不能为空")
-        return effective.portfolio
-
-    @classmethod
     def begin_report(
         cls,
         ctx: "SimulateSession",
         data: EnumVersionData,
-        *,
-        settings: PortfolioSettings,
     ) -> PortfolioReportHandle:
         """分配 ``simulations/portfolio/{strategy}/{version}``，写最小 runtime。"""
-        _ = settings
         info = ctx.strategy_info
         strategy_key = str(getattr(info, "key", "") or "").strip()
         strategy_path = str(
@@ -235,32 +216,31 @@ class PortfolioPipeline:
         events: List[PortfolioEvent],
         opportunities: Dict[str, Opportunity],
         *,
-        settings: PortfolioSettings,
+        settings: StrategySettings,
         report: PortfolioReportHandle,
         ctx: "SimulateSession",
     ) -> PortfolioSimResult:
         """选仓钩子过滤事件后做账户回放。"""
-        strategy_settings = cls._strategy_settings(ctx)
-        hook_runtime = cls._load_hook_runtime(ctx, strategy_settings)
+        hook_runtime = cls._load_hook_runtime(ctx, settings)
         filtered = EnterSelection.create(
-            settings=strategy_settings,
+            settings=settings,
             strategy_name=str(ctx.strategy_key or report.strategy_key or ""),
             hook_runtime=hook_runtime,
-            selector=EntrySelector.from_portfolio_settings(settings),
         ).apply(events, opportunities)
 
-        fee_calculator = FeeCalculator.from_fees_config(settings.fees_config())
+        fee_calculator = FeeCalculator.from_fees(settings)
         market_rules = create_market_rules(report.market_profile)
         allocation = AllocationStrategy.create(
-            settings=strategy_settings,
+            settings=settings,
             market_rules=market_rules,
             fee_calculator=fee_calculator,
         )
+        portfolio = settings.portfolio
         return PortfolioSimulator.create(
             allocation=allocation,
             fee_calculator=fee_calculator,
-            save_equity_curve=bool(settings.output.save_equity_curve),
-        ).run(filtered, initial_capital=float(settings.initial_capital))
+            save_equity_curve=bool(portfolio.output.save_equity_curve),
+        ).run(filtered, initial_capital=float(portfolio.initial_capital))
 
     @classmethod
     def finalize(
@@ -269,9 +249,10 @@ class PortfolioPipeline:
         sim_result: PortfolioSimResult,
         *,
         data: EnumVersionData,
-        settings: PortfolioSettings,
+        settings: StrategySettings,
     ) -> Dict[str, Any]:
         """落盘 overall / trades / equity，返回可缓存 report dict。"""
+        portfolio = settings.portfolio
         return PortfolioReportWriter(
             output_dir=report.output_dir,
             strategy_key=report.strategy_key,
@@ -281,8 +262,8 @@ class PortfolioPipeline:
         ).finalize(
             sim_result,
             period={"start_date": data.start_date, "end_date": data.end_date},
-            save_trades=bool(settings.output.save_trades),
-            save_equity_curve=bool(settings.output.save_equity_curve),
+            save_trades=bool(portfolio.output.save_trades),
+            save_equity_curve=bool(portfolio.output.save_equity_curve),
         )
 
     @classmethod

@@ -8,7 +8,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Literal
+from typing import Any, Dict, Literal, Optional, Union
+
+from core.modules.strategy.core.engines.shared.services.strategy_settings.fees_settings import (
+    FeesSettings,
+)
+from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
+    StrategySettings,
+)
 
 
 @dataclass(frozen=True)
@@ -21,8 +28,22 @@ class FeeCalculator:
     transfer_fee_rate: float = 0.00001
 
     @classmethod
-    def from_fees_config(cls, fees: Dict[str, Any] | None) -> "FeeCalculator":
-        raw = fees if isinstance(fees, dict) else {}
+    def from_fees(
+        cls,
+        fees: Optional[Union[FeesSettings, StrategySettings, Dict[str, Any]]] = None,
+    ) -> "FeeCalculator":
+        """从 ``FeesSettings`` / ``StrategySettings`` / raw fees dict 构建。"""
+        raw: Dict[str, Any]
+        if fees is None:
+            raw = {}
+        elif isinstance(fees, StrategySettings):
+            raw = fees.fees.fees
+        elif isinstance(fees, FeesSettings):
+            raw = fees.fees
+        elif isinstance(fees, dict):
+            raw = fees
+        else:
+            raw = {}
         return cls(
             commission_rate=float(raw.get("commission_rate", 0.0003) or 0.0003),
             min_commission=float(raw.get("min_commission", 5.0) or 5.0),

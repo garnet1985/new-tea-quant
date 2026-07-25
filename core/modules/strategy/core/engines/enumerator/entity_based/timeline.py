@@ -82,7 +82,7 @@ class EntityTimelineHooks:
         self._ready_date_by_entity = {}
         self._job_min_ready_date = ""
         self._job_has_work = True
-        resolver = StrategyDataResolver(self.settings.to_dict())
+        resolver = StrategyDataResolver(self.settings)
         self._base_data_key = str(resolver.base.get("data_key") or "").strip()
         if not self._base_data_key:
             raise ValueError("settings.data.base.data_key 不能为空")

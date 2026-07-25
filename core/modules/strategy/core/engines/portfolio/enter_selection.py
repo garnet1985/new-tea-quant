@@ -13,10 +13,6 @@ from typing import Any, Dict, List, Optional, Sequence, Set
 
 from core.modules.strategy.core.engines.portfolio.data_class import PortfolioEvent
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
-from core.modules.strategy.core.engines.shared.services.strategy_settings.portfolio_settings import (
-    AllocationConfig,
-    PortfolioSettings,
-)
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
@@ -34,19 +30,11 @@ class EntrySelector:
     max_portfolio_size: int
 
     @classmethod
-    def from_allocation(cls, allocation: AllocationConfig) -> "EntrySelector":
-        size = int(getattr(allocation, "max_portfolio_size", 0) or 0)
+    def from_strategy_settings(cls, settings: StrategySettings) -> "EntrySelector":
+        size = int(settings.portfolio.allocation.max_portfolio_size or 0)
         if size <= 0:
             raise ValueError("max_portfolio_size 必须 > 0")
         return cls(max_portfolio_size=size)
-
-    @classmethod
-    def from_portfolio_settings(cls, portfolio: PortfolioSettings) -> "EntrySelector":
-        return cls.from_allocation(portfolio.allocation)
-
-    @classmethod
-    def from_strategy_settings(cls, settings: StrategySettings) -> "EntrySelector":
-        return cls.from_portfolio_settings(settings.portfolio)
 
     @staticmethod
     def opportunity_id(opportunity: Opportunity) -> str:

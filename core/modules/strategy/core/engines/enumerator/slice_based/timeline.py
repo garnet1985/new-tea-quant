@@ -87,9 +87,8 @@ class SliceTimelineHooks:
         self._job_min_ready_date = ""
         self._job_has_work = True
         self._assert_entry_price_model(self.settings)
-        settings_dict = self.settings.to_dict()
-        self._rebalance_period = self._resolve_rebalance_period(settings_dict)
-        resolver = StrategyDataResolver(settings_dict)
+        self._rebalance_period = self._resolve_rebalance_period(self.settings)
+        resolver = StrategyDataResolver(self.settings)
         self._base_data_key = str(resolver.base.get("data_key") or "").strip()
         if not self._base_data_key:
             raise ValueError("settings.data.base.data_key 不能为空")
@@ -523,8 +522,8 @@ class SliceTimelineHooks:
         }
 
     @staticmethod
-    def _resolve_rebalance_period(settings: Dict[str, Any]) -> str:
-        core = settings.get("core")
+    def _resolve_rebalance_period(settings: StrategySettings) -> str:
+        core = settings.raw_settings.get("core")
         if not isinstance(core, dict):
             return "year"
         period = str(core.get("rebalance_period") or "year").strip().lower()

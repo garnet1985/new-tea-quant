@@ -38,7 +38,7 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.strate
     StrategySettings,
 )
 from core.modules.strategy.core.helpers.stock_meta import StockMetaHelper
-from core.modules.strategy.core.hooks.context.data_context import DataContext
+from core.modules.strategy.core.hooks.hook_params import StrategyContext, StrategyData
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ class EntityTaskState:
     trackers: Dict[str, InvestmentTracker] = field(init=False)
     _stock_info: Dict[str, Dict[str, Any]] = field(init=False, repr=False)
     _last_bar_by_entity: Dict[str, Dict[str, Any]] = field(init=False, repr=False)
-    _scan_contexts: Dict[str, DataContext] = field(init=False, repr=False)
+    _scan_contexts: Dict[str, StrategyContext] = field(init=False, repr=False)
     _base_data_key: str = field(init=False, repr=False)
     _min_required: int = field(init=False, repr=False)
     _timeline_points: tuple = field(default_factory=tuple, init=False, repr=False)
@@ -160,8 +160,8 @@ class EntityTaskState:
             entity_id = str(entity_item.get("id") or "").strip()
             if not entity_id or entity_id not in self.trackers:
                 continue
-            ctx = DataContext.assemble(
-                strategy_name=self.strategy_name,
+            self._scan_contexts[entity_id] = StrategyContext.assemble(
+                strategy_key=self.strategy_name,
                 settings=self.settings,
                 stock_list=[entity_id],
                 entity_id=entity_id,
@@ -169,9 +169,17 @@ class EntityTaskState:
                     "id": entity_id,
                     **self._stock_info.get(entity_id, {}),
                 },
+            ).with_data(
+                StrategyData.build(
+                    stock_list=[entity_id],
+                    entity_id=entity_id,
+                    entity_info={
+                        "id": entity_id,
+                        **self._stock_info.get(entity_id, {}),
+                    },
+                    calendar=calendar_dict,
+                )
             )
-            ctx.calendar = calendar_dict
-            self._scan_contexts[entity_id] = ctx
 
     def on_calendar_day(self, point: str, index: int, *, is_last: bool) -> None:
         _ = index, is_last
@@ -242,14 +250,14 @@ class EntityTaskState:
             try:
                 if perf is not None:
                     perf.begin("enum_context_fill")
-                scan_ctx.refill(now=now, data=complete_data)
+                scan_ctx.refill(now=now, items=complete_data)
                 if perf is not None:
                     perf.end("enum_context_fill", accumulate=True)
             except Exception as exc:
                 if perf is not None:
                     perf.end("enum_context_fill", accumulate=True)
                 logger.error(
-                    "构建 DataContext 失败：entity_id=%s now=%s error=%s",
+                    "构建 StrategyContext 失败：entity_id=%s now=%s error=%s",
                     entity_id,
                     now,
                     exc,

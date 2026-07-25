@@ -25,7 +25,7 @@ core/
 │       └── output_recorder.py
 │
 ├── hooks/                   # 用户策略契约
-│   └── context/data_context.py   # DataContext（hook 数据视图）
+│   └── context/data_context.py   # StrategyContext（hook 数据视图）
 │
 └── engines/enumerator/      # 主逻辑（编排 + 计算）
     ├── engine.py            # 薄路由：preprocess → mode pipeline → postprocess
@@ -52,7 +52,7 @@ Strategy.enumerate()
 
 | Context | 用户 hook | 机器 runtime | 运行状态 |
 |---------|-----------|--------------|----------|
-| 位置 | `hooks/data_context.py` | `enumerator/common/runtime.py` + 各模式 `context/runtime.py` | 各模式 `context/status.py` |
+| 位置 | `hooks/hook_params/strategy_context.py` | `enumerator/common/runtime.py` + 各模式 `context/runtime.py` | 各模式 `context/status.py` |
 | 组装 | 各模式 `context/data.py` | engine 构建 RuntimeContext | pipeline 更新 RuntimeStatus |
 
 ## 用户策略 import（公开面）
@@ -62,7 +62,7 @@ Strategy.enumerate()
 ```python
 from core.modules.strategy.contracts import (
     CalendarAsOfResult,
-    DataContext,
+    StrategyContext,
     Opportunity,
     StrategyHooks,
 )
@@ -71,7 +71,7 @@ from core.modules.strategy.contracts import (
 `CalendarAsOfContext` 等同理；`Strategy` facade 亦可在包根 import：
 
 ```python
-from core.modules.strategy import DataContext, Opportunity, Strategy, StrategyHooks
+from core.modules.strategy import StrategyContext, Opportunity, Strategy, StrategyHooks
 ```
 
 `core.hooks.*` 为模块内部路径，用户策略勿直接 import。

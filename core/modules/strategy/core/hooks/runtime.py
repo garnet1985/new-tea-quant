@@ -9,11 +9,11 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional, Tuple, Union
 
-from core.modules.strategy.contracts import CalendarAsOfResult
+from core.modules.strategy.core.engines.shared.data_class import CalendarAsOfResult
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
-from core.modules.strategy.core.hooks.context import DataContext
+from core.modules.strategy.core.hooks.hook_params import StrategyContext
 from core.modules.strategy.core.services.discovery.worker_loader import StrategyWorkerLoader
 
 from .base import StrategyHooks
@@ -114,7 +114,7 @@ class StrategyHookRuntime:
             return True
         return getattr(impl, "__func__", impl) is not base
 
-    def call(self, method: str, ctx: DataContext) -> Any:
+    def call(self, method: str, ctx: StrategyContext) -> Any:
         hook = getattr(self.hooks, method, None)
         if not callable(hook):
             raise AttributeError(f"StrategyHooks has no method {method!r}")
@@ -135,7 +135,7 @@ class StrategyHookRuntime:
             )
             raise
 
-    def call_if_overridden(self, method: str, ctx: DataContext) -> Any:
+    def call_if_overridden(self, method: str, ctx: StrategyContext) -> Any:
         if not self.is_overridden(method):
             return None
         return self.call(method, ctx)

@@ -16,7 +16,7 @@ from core.modules.strategy.core.engines.shared.data_class.opportunity import Opp
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
-from core.modules.strategy.core.hooks.context import DataContext
+from core.modules.strategy.core.hooks.hook_params import StrategyContext, StrategyData, StrategyInfo
 from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
 
 
@@ -195,18 +195,16 @@ class EnterSelection:
             and self.hook_runtime.is_overridden("on_pick_portfolio_member")
         )
         if use_hook:
-            ctx = DataContext(
-                strategy_name=self.strategy_name,
+            ctx = StrategyContext(
+                strategy=StrategyInfo(key=self.strategy_name),
                 settings=self.settings,
-                base_data_key="",
-            )
-            ctx.data.update(
-                {
-                    "stock_list": [],
-                    "now": str(date or "").strip(),
-                    "opportunities": opps,
-                    "account": snapshot,
-                }
+                data=StrategyData.build(
+                    now=str(date or "").strip(),
+                    items={
+                        "opportunities": opps,
+                        "account": snapshot,
+                    },
+                ),
             )
             selected = self.hook_runtime.call("on_pick_portfolio_member", ctx)
             return self.normalize_selected_ids(opps, selected)

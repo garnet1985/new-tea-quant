@@ -112,7 +112,7 @@ class TestDevtoolsDiscoverySmoke(unittest.TestCase):
         self.assertEqual(settings["simulation"]["execution"]["mode"], "slice_based")
 
     def test_discover_userspace_random_v1_contracts_hooks(self) -> None:
-        """userspace 参考 demo：contracts + DataContext。"""
+        """userspace 参考 demo：contracts + StrategyContext。"""
         root = _USERSPACE_STRATEGIES_ROOT
         if not root.is_dir():
             self.skipTest(f"missing userspace strategies root: {root}")

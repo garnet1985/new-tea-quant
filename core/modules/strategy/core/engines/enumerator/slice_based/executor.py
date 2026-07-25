@@ -38,7 +38,7 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.strate
 )
 from core.modules.strategy.core.helpers.calendar import CalendarOpenDateHelper
 from core.modules.strategy.core.helpers.stock_meta import StockMetaHelper
-from core.modules.strategy.core.hooks.context.data_context import DataContext
+from core.modules.strategy.core.hooks.hook_params import StrategyContext
 
 logger = logging.getLogger(__name__)
 
@@ -148,8 +148,8 @@ class SliceTaskState:
         )
         self._slice_samples = []
         self._baseline_rss_mb = self._process_rss_mb()
-        self._ctx_base = DataContext.assemble(
-            strategy_name=self.strategy_name,
+        self._ctx_base = StrategyContext.assemble(
+            strategy_key=self.strategy_name,
             settings=self.settings,
             stock_list=list(self.entity_ids),
         )
@@ -223,7 +223,12 @@ class SliceTaskState:
             open_date_index=index,
         )
 
-        asof_ctx = DataContext.fill(self._ctx_base, now=as_of, calendar=calendar)
+        asof_ctx = StrategyContext.fill(
+            self._ctx_base,
+            now=as_of,
+            by_entity=stocks_ctx,
+            calendar=calendar,
+        )
         try:
             if perf is not None:
                 perf.begin("enum_calendar_asof")
@@ -365,10 +370,10 @@ class SliceTaskState:
             complete_data = {**self.global_data, **per_entity_pit}
 
         stock_info = self._stock_info.get(entity_id, {"id": entity_id})
-        scan_ctx = DataContext.fill(
+        scan_ctx = StrategyContext.fill(
             self._ctx_base,
             now=as_of,
-            data=complete_data,
+            items=complete_data,
             calendar=calendar,
             entity_id=entity_id,
             entity_info={"id": entity_id, **stock_info},
@@ -382,10 +387,10 @@ class SliceTaskState:
             opportunity = self.hook_runtime.call("scan_opportunity", scan_ctx)
             self.hook_runtime.call_if_overridden(
                 "on_after_scan",
-                DataContext.fill(
+                StrategyContext.fill(
                     self._ctx_base,
                     now=as_of,
-                    data=complete_data,
+                    items=complete_data,
                     calendar=calendar,
                     entity_id=entity_id,
                     entity_info={"id": entity_id, **stock_info},
@@ -501,10 +506,10 @@ class SliceTaskState:
         else:
             is_period_start = CalendarOpenDateHelper.is_first_open_of_year(as_of, all_open)
             is_period_end = CalendarOpenDateHelper.is_last_open_of_year(as_of, all_open)
+        _ = stocks  # 全市场 payload 在 StrategyData.by_entity
         return {
             "as_of_date": as_of,
             "session_state": dict(self._session_state),
-            "stocks": dict(stocks),
             "open_date_index": open_date_index,
             "is_period_start": is_period_start,
             "is_period_end": is_period_end,

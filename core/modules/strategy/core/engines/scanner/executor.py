@@ -24,7 +24,7 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.strate
     StrategySettings,
 )
 from core.modules.strategy.core.helpers.stock_meta import StockMetaHelper
-from core.modules.strategy.core.hooks.context import DataContext
+from core.modules.strategy.core.hooks.hook_params import StrategyContext
 from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
 
 logger = logging.getLogger(__name__)
@@ -106,10 +106,10 @@ class JobExecutor:
             or ""
         ).strip()
 
-        scan_contexts: Dict[str, DataContext] = {}
+        scan_contexts: Dict[str, StrategyContext] = {}
         for eid in entity_ids:
-            ctx = DataContext.assemble(
-                strategy_name=strategy_name,
+            ctx = StrategyContext.assemble(
+                strategy_key=strategy_name,
                 settings=settings,
                 stock_list=[eid],
                 entity_id=eid,
@@ -164,16 +164,16 @@ class JobExecutor:
             per_entity = pit_by_entity.get(eid) or {}
             complete = {**global_data, **per_entity} if global_data else dict(per_entity)
             try:
-                scan_ctx = DataContext.fill(
+                scan_ctx = StrategyContext.fill(
                     base_ctx,
                     now=scan_date,
-                    data=complete,
+                    items=complete,
                     entity_id=eid,
-                    entity_info=base_ctx.entity_info,
+                    entity_info=base_ctx.data.entity_info,
                 )
             except Exception as exc:
                 logger.error(
-                    "scanner DataContext.fill 失败 entity=%s: %s",
+                    "scanner StrategyContext.fill 失败 entity=%s: %s",
                     eid,
                     exc,
                     exc_info=True,
@@ -197,7 +197,7 @@ class JobExecutor:
                 opportunity = scanned
                 stock_info = (runtime.get("stock_info") or {}).get(eid, {"id": eid})
                 opportunity.bind_scan_context(
-                    strategy_name=str(hook_runtime.strategy_name or ""),
+                    strategy_key=str(hook_runtime.strategy_name or ""),
                     stock_id=eid,
                     stock_info=stock_info,
                     trigger_date=scan_date,
@@ -219,13 +219,13 @@ class JobExecutor:
                 out.append(opportunity)
 
             try:
-                after_ctx = DataContext.fill(
+                after_ctx = StrategyContext.fill(
                     base_ctx,
                     now=scan_date,
-                    data=complete,
+                    items=complete,
                     opportunity=opportunity,
                     entity_id=eid,
-                    entity_info=base_ctx.entity_info,
+                    entity_info=base_ctx.data.entity_info,
                 )
                 hook_runtime.call_if_overridden("on_after_scan", after_ctx)
             except Exception as exc:

@@ -14,7 +14,7 @@ from typing import Any, Dict, List
 class CalendarAsOfContext:
     """on_calendar_asof 入参轻量类型（slice_based）。
 
-    边界: 仅携带 as_of_date；完整 DataContext 由 hooks 侧组装。
+    边界: 仅携带 as_of_date；完整 StrategyContext 由 hooks 侧组装。
     """
 
     as_of_date: str = ""

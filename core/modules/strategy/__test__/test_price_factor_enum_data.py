@@ -17,7 +17,7 @@ from core.modules.strategy.core.engines.price_factor.enum_input.investments impo
     InvestmentRow,
     EntityInvestmentCsv,
 )
-from core.modules.strategy.core.engines.price_factor.enum_input.source import EnumSource
+from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
 
 pytestmark = pytest.mark.force_run
 
@@ -52,7 +52,7 @@ def _write_runtime(
 
 def test_load_enum_output_reads_runtime_and_entity_ids(tmp_path: Path) -> None:
     _write_runtime(tmp_path, entity_ids=["000001.SZ", "000002.SZ"])
-    # entities CSV 存在也不应被主进程加载进 EnumVersionData
+    # entities CSV 存在也不应被主进程加载进 EnumSource
     EntityInvestmentCsv(
         entity_id="000001.SZ",
         rows=[

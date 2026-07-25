@@ -29,7 +29,7 @@ from core.modules.strategy.core.services.data.simulation_output_recorder import 
 )
 
 if TYPE_CHECKING:
-    from core.modules.strategy.core.engines.price_factor.enum_input.source import EnumVersionData
+    from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
     from core.modules.strategy.core.engines.shared.data_class.simulate_session import SimulateSession
 
 
@@ -54,7 +54,7 @@ class ReportManager:
     def begin(
         cls,
         ctx: "SimulateSession",
-        data: "EnumVersionData",
+        data: "EnumSource",
         *,
         start: str,
         end: str,
@@ -114,7 +114,7 @@ class ReportManager:
         self,
         run_result: Any,
         *,
-        data: "EnumVersionData",
+        data: "EnumSource",
     ) -> Dict[str, Any]:
         """聚合 entities CSV → overall；返回可供缓存的 report dict。"""
         _ = data

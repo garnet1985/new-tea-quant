@@ -7,7 +7,7 @@
 以免 ``contracts`` → ``data_class`` → ``simulate_session`` → ``contracts`` 环依赖。
 """
 
-from .calendar_as_of import CalendarAsOfContext, CalendarAsOfResult
+from .calendar_as_of import CalendarAsOfResult
 from .investment.investment import Investment
 from .investment import (
     DEFAULT_TARGET_CHECK_ORDER,
@@ -20,7 +20,6 @@ from .investment import (
 from .opportunity import Opportunity, OpportunityContributor, OpportunityMeta, StockInfo
 
 __all__ = [
-    "CalendarAsOfContext",
     "CalendarAsOfResult",
     "DEFAULT_TARGET_CHECK_ORDER",
     "Investment",

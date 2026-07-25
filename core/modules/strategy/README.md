@@ -68,7 +68,7 @@ from core.modules.strategy.contracts import (
 )
 ```
 
-`CalendarAsOfContext` 等同理；`Strategy` facade 亦可在包根 import：
+`Strategy` facade 亦可在包根 import：
 
 ```python
 from core.modules.strategy import StrategyContext, Opportunity, Strategy, StrategyHooks

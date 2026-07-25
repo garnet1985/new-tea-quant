@@ -11,7 +11,7 @@ from core.modules.strategy.core.engines.shared.services.simulation_output.file_n
     ENTITY_IDS_FILE,
     RUNTIME_ENV_FILE,
 )
-from core.modules.strategy.core.engines.price_factor.enum_input.source import EnumSource
+from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
 from core.modules.strategy.core.engines.price_factor.report_manager import (
     EntityInvestments,
     PriceInvestmentRow,

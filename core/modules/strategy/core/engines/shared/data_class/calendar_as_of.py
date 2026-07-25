@@ -1,23 +1,15 @@
-"""Calendar as-of hook 类型（slice_based on_calendar_asof 契约）。
+"""Calendar as-of hook 返回类型（slice_based on_calendar_asof 契约）。
 
 消费者: enumerator
 其它: contracts, hooks
+
+入参统一为 StrategyContext；本文件只保留返回值类型。
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
-
-
-@dataclass
-class CalendarAsOfContext:
-    """on_calendar_asof 入参轻量类型（slice_based）。
-
-    边界: 仅携带 as_of_date；完整 StrategyContext 由 hooks 侧组装。
-    """
-
-    as_of_date: str = ""
 
 
 @dataclass
@@ -33,4 +25,4 @@ class CalendarAsOfResult:
     stock_overrides: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
 
-__all__ = ["CalendarAsOfContext", "CalendarAsOfResult"]
+__all__ = ["CalendarAsOfResult"]

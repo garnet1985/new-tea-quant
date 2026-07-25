@@ -1,19 +1,16 @@
-"""price_factor 对枚举产物的私有输入层。"""
+"""price_factor 对枚举投资 CSV 的私有解析（读 enum 产物行模型）。
+
+读 version 句柄见 ``simulation_output.EnumSource``；本包不写 P 自有报告。
+"""
 from .investments import (
     EntityInvestmentCsv,
     GoalAchievementCsv,
     GoalAchievementRow,
     InvestmentRow,
 )
-from .source import (
-    EnumSource,
-    EnumVersionData,
-)
 
 __all__ = [
     "EntityInvestmentCsv",
-    "EnumSource",
-    "EnumVersionData",
     "GoalAchievementCsv",
     "GoalAchievementRow",
     "InvestmentRow",

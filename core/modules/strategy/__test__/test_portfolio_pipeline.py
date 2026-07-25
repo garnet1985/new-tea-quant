@@ -22,7 +22,7 @@ from core.modules.strategy.core.engines.portfolio.enter_selection import (
     EntrySelector,
 )
 from core.modules.strategy.core.engines.portfolio.pipeline import PortfolioPipeline
-from core.modules.strategy.core.engines.portfolio.enum_input.source import EnumVersionData
+from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
@@ -112,7 +112,7 @@ def test_build_events_uses_raw_buy_price_not_qfq(tmp_path: Path):
         ],
     ).save(tmp_path)
 
-    data = EnumVersionData.stub(
+    data = EnumSource.stub(
         tmp_path,
         entity_ids=["600000.SH"],
         start_date="20240101",

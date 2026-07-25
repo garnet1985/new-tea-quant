@@ -10,10 +10,10 @@ from __future__ import annotations
 
 from typing import Tuple
 
-from core.modules.strategy.core.engines.price_factor.enum_input.source import EnumVersionData
+from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
 
 
-def resolve_simulation_window(data: EnumVersionData) -> Tuple[str, str]:
+def resolve_simulation_window(data: EnumSource) -> Tuple[str, str]:
     """从枚举 ``0_runtime_env.json`` period 取出已 resolve 的 start/end。
 
     不在此建开市日轴；BE ``run(start=, end=)`` 按 window 调 CalendarService。

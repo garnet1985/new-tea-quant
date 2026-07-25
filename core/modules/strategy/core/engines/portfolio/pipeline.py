@@ -32,10 +32,7 @@ from core.modules.strategy.core.engines.portfolio.simulator import (
     PortfolioSimResult,
     PortfolioSimulator,
 )
-from core.modules.strategy.core.engines.portfolio.enum_input.source import (
-    EnumSource,
-    EnumVersionData,
-)
+from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
@@ -94,7 +91,7 @@ class PortfolioPipeline:
         )
 
     @classmethod
-    def load_enum_data(cls, ctx: "SimulateSession") -> EnumVersionData:
+    def load_enum_data(cls, ctx: "SimulateSession") -> EnumSource:
         """解析 enum version 目录，加载 runtime + entity_ids（不读 CSV）。"""
         if ctx.enum_version is None or not str(ctx.enum_version).strip():
             raise ValueError("SimulateSession.enum_version 不能为空")
@@ -106,7 +103,7 @@ class PortfolioPipeline:
     def begin_report(
         cls,
         ctx: "SimulateSession",
-        data: EnumVersionData,
+        data: EnumSource,
     ) -> PortfolioReportHandle:
         """分配 ``simulations/portfolio/{strategy}/{version}``，写最小 runtime。"""
         info = ctx.strategy_info
@@ -165,7 +162,7 @@ class PortfolioPipeline:
     @classmethod
     def build_events(
         cls,
-        data: EnumVersionData,
+        data: EnumSource,
         *,
         settings: StrategySettings,
     ) -> Tuple[List[PortfolioEvent], Dict[str, Opportunity]]:
@@ -247,7 +244,7 @@ class PortfolioPipeline:
         report: PortfolioReportHandle,
         sim_result: PortfolioSimResult,
         *,
-        data: EnumVersionData,
+        data: EnumSource,
         settings: StrategySettings,
     ) -> Dict[str, Any]:
         """落盘 overall / trades / equity，返回可缓存 report dict。"""

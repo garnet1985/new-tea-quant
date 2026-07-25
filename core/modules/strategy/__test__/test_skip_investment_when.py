@@ -13,7 +13,7 @@ from core.modules.strategy.core.engines.portfolio.enum_input.investments import 
     EntityInvestmentCsv,
 )
 from core.modules.strategy.core.engines.portfolio.pipeline import PortfolioPipeline
-from core.modules.strategy.core.engines.portfolio.enum_input.source import EnumVersionData
+from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
 from core.modules.strategy.core.engines.price_factor.executor import JobExecutor
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StatusTagPolicy,
@@ -134,7 +134,7 @@ def test_portfolio_build_events_skips_matching_status(tmp_path: Path) -> None:
         ],
     ).save(tmp_path)
 
-    data = EnumVersionData.stub(
+    data = EnumSource.stub(
         tmp_path,
         entity_ids=["600000.SH"],
         start_date="20240101",

@@ -19,10 +19,6 @@ from core.modules.strategy.core.hooks.hook_params import StrategyContext
 class StrategyHooks(ABC):
     """用户策略 hooks 基类。"""
 
-    def on_entity_init(self, ctx: StrategyContext) -> None:
-        """实体级初始化（可选）。"""
-        return None
-
     def on_calendar_asof(self, ctx: StrategyContext) -> CalendarAsOfResult:
         """Calendar as-of hook（slice_based 使用；entity_based 默认空）。"""
         return CalendarAsOfResult(as_of_date=str(ctx.data.now or ""), stocks=[])

@@ -1,10 +1,10 @@
-"""simulation_output — 仿真 version 产物布局服务（命名 / 定位 / 边界 IO）。
+"""simulation_output — 仿真 version 产物布局与枚举读取。
 
 消费者: enumerator, price_factor, portfolio
 其它: fingerprints（period 在 strategy_settings）
 
-职责: 统一文件名、路径、json/txt 读写方式。
-不负责: runtime/CSV/overall/performance 的业务内容模型（各引擎私有）。
+职责: 统一文件名、路径、json/txt IO；枚举 version 只读句柄（EnumSource）。
+不负责: P/O 自有产物写盘；runtime/CSV/overall 业务内容模型（各引擎私有）。
 """
 
 from .file_names import (
@@ -20,6 +20,7 @@ from .file_names import (
 )
 from .io import ArtifactIO
 from .enumerator_output import EnumOutput
+from .enum_source import EnumRuntimeMeta, EnumSource
 from .paths import ArtifactPaths, ReportPaths
 
 __all__ = [
@@ -36,4 +37,6 @@ __all__ = [
     "ArtifactPaths",
     "ReportPaths",
     "EnumOutput",
+    "EnumRuntimeMeta",
+    "EnumSource",
 ]

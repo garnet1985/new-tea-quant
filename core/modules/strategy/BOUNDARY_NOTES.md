@@ -117,7 +117,7 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 |----|------|------|------|
 | ~~P/O → E stock_investments / runtime / enum_data~~ | — | **done** | 先经 shared；再收薄：布局留 shared，内容各引擎私有 |
 | fingerprints / entity_loader → period | — | **done** | `StrategySettings.resolve_period` |
-| P/O enum 输入 | — | **done** | `price_factor/enum_input`、`portfolio/enum_input`（`EnumSource` + 私有 CSV 解析） |
+| P/O 读 enum version | — | **done** | `simulation_output.EnumSource`；P/O `enum_input` 仅私有 CSV 行解析；写各自 report |
 | E runtime/CSV 内容 | — | **done** | `enumerator/common/artifacts` |
 | ~~S → E load_hooks / PitBars~~ | — | **done** | hooks 直连 StrategyHookRuntime；PitBars → `shared/services/pit_bars` |
 | hooks → O `EntrySelector` | — | **fix-leak** | #7；contracts / lazy |

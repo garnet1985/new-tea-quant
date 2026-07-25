@@ -9,10 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 from core.modules.backtest_engine import BacktestEngine
-from core.modules.strategy.core.engines.price_factor.enum_input.source import (
-    EnumSource,
-    EnumVersionData,
-)
+from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
 from core.modules.strategy.core.engines.price_factor.executor import JobExecutor
 from core.modules.strategy.core.engines.price_factor.job_builder import JobBuilder
 from core.modules.strategy.core.engines.price_factor.report_manager import ReportManager
@@ -40,7 +37,7 @@ class PriceFactorPipeline:
         return report.finalize(run_result, data=data)
 
     @classmethod
-    def load_enum_data(cls, ctx: "SimulateSession") -> EnumVersionData:
+    def load_enum_data(cls, ctx: "SimulateSession") -> EnumSource:
         """解析 enum version 目录，加载 runtime + entity_ids（不读 CSV）。"""
         if ctx.enum_version is None or not str(ctx.enum_version).strip():
             raise ValueError("SimulateSession.enum_version 不能为空")
@@ -49,14 +46,14 @@ class PriceFactorPipeline:
         return EnumSource.load(output_dir, version_id)
 
     @classmethod
-    def resolve_window(cls, data: EnumVersionData) -> Tuple[str, str]:
+    def resolve_window(cls, data: EnumSource) -> Tuple[str, str]:
         """枚举 runtime period → 已 resolve 的 simulation window。"""
         return resolve_simulation_window(data)
 
     @classmethod
     def build_jobs(
         cls,
-        data: EnumVersionData,
+        data: EnumSource,
         *,
         report: ReportManager,
     ) -> List[Dict[str, Any]]:
@@ -70,7 +67,7 @@ class PriceFactorPipeline:
         *,
         start: str,
         end: str,
-        data: EnumVersionData,
+        data: EnumSource,
     ) -> Any:
         """BE 自管调度；``start``/``end`` window 必传；钩子仅 ``JobExecutor.build_run_callbacks()``。"""
         if not jobs:

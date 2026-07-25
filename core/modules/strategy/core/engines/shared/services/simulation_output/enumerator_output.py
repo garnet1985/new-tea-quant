@@ -1,7 +1,8 @@
-"""枚举 version 目录定位与边界读取（无内容 schema）。
+"""枚举 version 目录定位与原始 IO（无业务投影）。
 
-消费者: price_factor, portfolio
-边界: 解析目录位置、读出 json/dict 与 entity_ids 文本行；业务解析由各引擎完成
+消费者: EnumSource；enumerator（写路径经 ArtifactPaths）
+边界: 目录位置、json/dict、entity_ids 文本行
+不负责: runtime/period 字段投影（见 enum_source.EnumSource）
 """
 from __future__ import annotations
 

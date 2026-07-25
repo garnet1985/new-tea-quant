@@ -1,8 +1,8 @@
-"""枚举 version 输入句柄（布局定位 + 私有解析 runtime 字段）。
+"""枚举 version 产物读取句柄（下游主进程侧）。
 
-本文件: EnumSource / EnumRuntimeMeta
-边界: 用 simulation_output.EnumOutput 找文件；业务字段本地解析
-不负责: 共享 RuntimeEnv dataclass、读 entities CSV
+消费者: price_factor, portfolio
+边界: 基于 EnumOutput 定位目录；投影 runtime / period / entity_ids
+不负责: 写 P/O 自有产物；不读 entities CSV 业务行（各引擎私有解析）
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ class EnumRuntimeMeta:
 
 @dataclass(frozen=True)
 class EnumSource:
-    """枚举 version 的主进程侧句柄。"""
+    """一次枚举 version 的只读句柄（定位 + 常用字段投影）。"""
 
     output_dir: Path
     version_id: str
@@ -106,11 +106,7 @@ class EnumSource:
         )
 
 
-# 兼容旧名
-EnumVersionData = EnumSource
-
 __all__ = [
     "EnumRuntimeMeta",
     "EnumSource",
-    "EnumVersionData",
 ]

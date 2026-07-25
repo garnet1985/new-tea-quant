@@ -2,7 +2,7 @@
 
 策略执行：把用户钩子经 BacktestEngine ``RunCallbacks`` 挂入回测，并做 jobs / 报告等周边。
 
-**架构硬约束**见 [`BOUNDARY_NOTES.md`](BOUNDARY_NOTES.md)「与 BacktestEngine 的关系」——枚举器仅 JobBuilder + JobExecutor；勿加 TimelineBuilder / 平行 session。
+**架构硬约束**见 [`BOUNDARY_NOTES.md`](BOUNDARY_NOTES.md)「与 BacktestEngine 的关系」——枚举器仅 *JobBuilder + *JobExecutor；勿加 TimelineBuilder / 平行 session。
 
 ## 三层结构（示意；细节以代码与 BOUNDARY_NOTES 为准）
 

@@ -1,7 +1,7 @@
-"""entity_based JobBuilder — 为 BE 组装 jobs。
+"""entity_based EnumEntityJobBuilder — 为 BE 组装 jobs。
 
 本文件（entity 两件套之一，与 Executor）:
-- JobBuilder: 复用 BaseJobBuilder 组装 enum payload
+- EnumEntityJobBuilder: 复用 BaseJobBuilder 组装 enum payload
   边界: 负责 job 列表与数据加载窗；推进轴交给 BE 默认日历
 """
 from __future__ import annotations
@@ -19,7 +19,7 @@ from core.modules.strategy.core.services.discovery.data.discovered_strategy impo
 )
 
 
-class JobBuilder(BaseJobBuilder):
+class EnumEntityJobBuilder(BaseJobBuilder):
     """entity_based Job 构建。
 
     边界:
@@ -54,4 +54,4 @@ class JobBuilder(BaseJobBuilder):
         return [{"id": "strategy_run", "payload": payload}]
 
 
-__all__ = ["JobBuilder"]
+__all__ = ["EnumEntityJobBuilder"]

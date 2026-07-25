@@ -287,7 +287,7 @@ class TestInvestmentRawPrices(unittest.TestCase):
         self.assertEqual(inv.exit_info.price_raw, 16.0)
         self.assertEqual(inv.completed_goals[0]["price_raw"], 16.0)
 
-        from core.modules.strategy.core.engines.enumerator.common.artifacts.entity_investment_csv import (
+        from core.modules.strategy.core.engines.shared.services.simulation_output import (
             InvestmentRow,
         )
 
@@ -432,7 +432,7 @@ class TestInvestmentLimitTradability(unittest.TestCase):
         self.assertTrue(inv.exit_info.at_limit)
         self.assertEqual(inv.exit_info.prev_close, 10.0)
 
-        from core.modules.strategy.core.engines.enumerator.common.artifacts.entity_investment_csv import (
+        from core.modules.strategy.core.engines.shared.services.simulation_output import (
             InvestmentRow,
         )
 
@@ -550,7 +550,7 @@ class TestInvestmentStStatusTagsLimit(unittest.TestCase):
         # 源 Opportunity 同步打标
         self.assertEqual(opp.status_tags_at_trigger(), ("st", "star_st"))
 
-        from core.modules.strategy.core.engines.enumerator.common.artifacts.entity_investment_csv import (
+        from core.modules.strategy.core.engines.shared.services.simulation_output import (
             InvestmentRow,
         )
 

@@ -1,7 +1,7 @@
-"""价格回测 JobExecutor — worker 读 enum CSV + 成交回放落盘。
+"""价格回测 PriceFactorJobExecutor — worker 读 enum CSV + 成交回放落盘。
 
 本文件:
-- JobExecutor: RunCallbacks；task 结束写 price entities CSV
+- PriceFactorJobExecutor: RunCallbacks；task 结束写 price entities CSV
   边界: 负责 worker 内回放与 deferred exit；不负责 BE 切 batch、overall 汇总
 """
 from __future__ import annotations
@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from core.modules.backtest_engine.contracts import RunCallbacks
 from core.modules.market_profile.core.markets import create_market_rules
-from core.modules.strategy.core.engines.price_factor.enum_input.investments import (
+from core.modules.strategy.core.engines.shared.services.simulation_output import (
     GoalAchievementRow,
     GoalAchievementCsv,
     InvestmentRow,
@@ -24,7 +24,7 @@ from core.modules.strategy.core.engines.price_factor.helpers import (
     resolve_holding_until,
     retry_deferred_exits,
 )
-from core.modules.strategy.core.engines.price_factor.job_builder import JobBuilder
+from core.modules.strategy.core.engines.price_factor.job_builder import PriceFactorJobBuilder
 from core.modules.strategy.core.engines.price_factor.report_manager import (
     EntityInvestments,
     PriceInvestmentRow,
@@ -38,13 +38,13 @@ logger = logging.getLogger(__name__)
 _DEFAULT_MARKET_PROFILE = "china_a_stock"
 
 
-class JobExecutor:
+class PriceFactorJobExecutor:
     """价格回测唯一对外钩子面（生命周期 + 日历推进）。
 
     边界:
     - 负责: 读本 batch 枚举 CSV；task 结束时按锁仓规则回放并写 price entities CSV
     - 不负责: BE 调度/切 batch、overall 汇总（ReportManager.finalize）
-    - 调用方: PriceFactorPipeline → ``callbacks=JobExecutor.build_run_callbacks()``
+    - 调用方: PriceFactorPipeline → ``callbacks=PriceFactorJobExecutor.build_run_callbacks()``
 
     说明:
     - 回放为 event-driven（信任枚举 entry；exit 遇跌停挡板时顺延重试），在
@@ -115,7 +115,7 @@ class JobExecutor:
     def _load_batch_enum_data(cls, job_context: Any) -> Dict[str, Any]:
         """读本 batch entity 的枚举 CSV → ``job_context.init``。"""
         payload = job_context.payload or {}
-        meta = JobBuilder.price_factor_meta(payload)
+        meta = PriceFactorJobBuilder.price_factor_meta(payload)
         enum_dir = Path(str(meta.get("enum_output_dir") or "")).expanduser()
         if not enum_dir.is_dir():
             raise FileNotFoundError(f"enum_output_dir 不存在: {enum_dir}")
@@ -154,7 +154,7 @@ class JobExecutor:
         price_output_dir = str(init.get("price_output_dir") or "").strip()
         if not price_output_dir:
             payload = job_context.payload or {}
-            meta = JobBuilder.price_factor_meta(payload)
+            meta = PriceFactorJobBuilder.price_factor_meta(payload)
             price_output_dir = str(meta.get("price_output_dir") or "").strip()
         if not price_output_dir:
             raise ValueError("price_output_dir 缺失：无法落盘价格投资记录")
@@ -163,7 +163,7 @@ class JobExecutor:
         end_date = str(init.get("end_date") or "").strip()
         if not end_date:
             payload = job_context.payload or {}
-            meta = JobBuilder.price_factor_meta(payload)
+            meta = PriceFactorJobBuilder.price_factor_meta(payload)
             end_date = str(meta.get("end_date") or "").strip()
 
         settings_raw = (
@@ -483,4 +483,4 @@ def _to_price_row(
     )
 
 
-__all__ = ["JobExecutor"]
+__all__ = ["PriceFactorJobExecutor"]

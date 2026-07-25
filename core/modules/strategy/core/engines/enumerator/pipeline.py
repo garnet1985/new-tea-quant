@@ -21,13 +21,13 @@ from core.modules.strategy.core.engines.enumerator.common.report_manager import 
 from core.modules.strategy.core.engines.enumerator.common.report_manager.report_output import (
     ReportOutput,
 )
-from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import (
+from core.modules.strategy.core.services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
 )
-from core.modules.strategy.core.engines.shared.services.entity_loader.stock_sampling import (
+from core.modules.strategy.core.services.entity_loader.stock_sampling import (
     StockSampler,
 )
-from core.modules.strategy.core.engines.shared.services.entity_loader.strategy_data_resolver import (
+from core.modules.strategy.core.services.entity_loader.strategy_data_resolver import (
     StrategyDataResolver,
 )
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
@@ -142,29 +142,29 @@ class EnumeratorPipeline:
     def _mode_job_stack(
         cls, execution_mode: str
     ) -> Tuple[Type[Any], Type[Any], Type[Any]]:
-        """按 mode 返回 (JobBuilder, JobExecutor, ExecutorHooksContext)。"""
+        """按 mode 返回 (JobBuilder类, JobExecutor类, ExecutorHooksContext)。"""
         from core.modules.strategy.core.engines.enumerator.common.base_executor import (
             ExecutorHooksContext,
         )
 
         if execution_mode == _MODE_SLICE:
             from core.modules.strategy.core.engines.enumerator.slice_based.executor import (
-                JobExecutor,
+                EnumSliceJobExecutor,
             )
             from core.modules.strategy.core.engines.enumerator.slice_based.job_builder import (
-                JobBuilder,
+                EnumSliceJobBuilder,
             )
 
-            return JobBuilder, JobExecutor, ExecutorHooksContext
+            return EnumSliceJobBuilder, EnumSliceJobExecutor, ExecutorHooksContext
 
         from core.modules.strategy.core.engines.enumerator.entity_based.executor import (
-            JobExecutor,
+            EnumEntityJobExecutor,
         )
         from core.modules.strategy.core.engines.enumerator.entity_based.job_builder import (
-            JobBuilder,
+            EnumEntityJobBuilder,
         )
 
-        return JobBuilder, JobExecutor, ExecutorHooksContext
+        return EnumEntityJobBuilder, EnumEntityJobExecutor, ExecutorHooksContext
 
     @classmethod
     def _build_jobs(

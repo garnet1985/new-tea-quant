@@ -8,13 +8,13 @@ import pytest
 
 pytestmark = pytest.mark.force_run
 
-from core.modules.strategy.core.engines.portfolio.enum_input.investments import (
+from core.modules.strategy.core.engines.shared.services.simulation_output import (
     InvestmentRow,
     EntityInvestmentCsv,
 )
 from core.modules.strategy.core.engines.portfolio.pipeline import PortfolioPipeline
 from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
-from core.modules.strategy.core.engines.price_factor.executor import JobExecutor
+from core.modules.strategy.core.engines.price_factor.executor import PriceFactorJobExecutor
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StatusTagPolicy,
     StrategySettings,
@@ -99,7 +99,7 @@ def test_price_replay_skips_matching_status() -> None:
             stock_status_at_trigger=(),
         ),
     ]
-    out, _ = JobExecutor._replay_entity_investments(
+    out, _ = PriceFactorJobExecutor._replay_entity_investments(
         rows,
         settings=StrategySettings.from_dict(
             _base_simulation(skip_enter_when=["st"])

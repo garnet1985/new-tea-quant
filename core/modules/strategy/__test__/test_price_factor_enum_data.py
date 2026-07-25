@@ -13,7 +13,7 @@ from core.modules.strategy.core.engines.shared.services.simulation_output.file_n
 from core.modules.strategy.core.engines.shared.services.simulation_output.paths import (
     ReportPaths,
 )
-from core.modules.strategy.core.engines.price_factor.enum_input.investments import (
+from core.modules.strategy.core.engines.shared.services.simulation_output import (
     InvestmentRow,
     EntityInvestmentCsv,
 )

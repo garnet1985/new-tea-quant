@@ -17,14 +17,14 @@ from core.infra.job_pipeline.profile import (
 )
 from core.modules.backtest_engine import BacktestEngine
 from core.modules.data_manager import DataManager
-from core.modules.strategy.core.engines.scanner.executor import JobExecutor
+from core.modules.strategy.core.engines.scanner.executor import ScannerJobExecutor
 from core.modules.strategy.core.engines.scanner.helpers import (
     AdapterDispatcher,
     ScanCacheManager,
     ScanDateResolver,
     opportunity_enter_at_limit,
 )
-from core.modules.strategy.core.engines.scanner.job_builder import JobBuilder
+from core.modules.strategy.core.engines.scanner.job_builder import ScannerJobBuilder
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
@@ -231,7 +231,7 @@ class ScannerPipeline:
         scan_date: str,
         on_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
     ) -> List[Opportunity]:
-        jobs = JobBuilder.build_jobs(
+        jobs = ScannerJobBuilder.build_jobs(
             strategy_info=strategy_info,
             settings=settings,
             stock_ids=stock_ids,
@@ -248,7 +248,7 @@ class ScannerPipeline:
             start=scan_date,
             end=scan_date,
             performance=performance,
-            callbacks=JobExecutor.build_run_callbacks(),
+            callbacks=ScannerJobExecutor.build_run_callbacks(),
             task_name=f"scanner_{strategy_info.key or 'run'}",
         )
 

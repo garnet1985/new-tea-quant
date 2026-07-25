@@ -6,10 +6,10 @@ from typing import Any, Dict, List
 import pytest
 
 from core.modules.market_profile.core.markets import create_market_rules
-from core.modules.strategy.core.engines.price_factor.enum_input.investments import (
+from core.modules.strategy.core.engines.shared.services.simulation_output import (
     InvestmentRow,
 )
-from core.modules.strategy.core.engines.price_factor.executor import JobExecutor
+from core.modules.strategy.core.engines.price_factor.executor import PriceFactorJobExecutor
 from core.modules.strategy.core.engines.price_factor.helpers.deferred_exit import (
     retry_deferred_exits,
 )
@@ -136,7 +136,7 @@ def test_replay_deferred_exit_moves_sell_date() -> None:
         _ = (start_date, end_date)
         return klines
 
-    out, skipped = JobExecutor._replay_entity_investments(
+    out, skipped = PriceFactorJobExecutor._replay_entity_investments(
         rows,
         entity_id="600000.SH",
         backtest_end="20240131",
@@ -200,7 +200,7 @@ def test_replay_stuck_at_limit_locks_until_end() -> None:
         _ = (start_date, end_date)
         return klines
 
-    out, skipped = JobExecutor._replay_entity_investments(
+    out, skipped = PriceFactorJobExecutor._replay_entity_investments(
         rows,
         entity_id="600000.SH",
         backtest_end="20240131",
@@ -231,7 +231,7 @@ def test_replay_allow_exit_at_limit_down_trusts_enum() -> None:
         called["n"] += 1
         return []
 
-    out, skipped = JobExecutor._replay_entity_investments(
+    out, skipped = PriceFactorJobExecutor._replay_entity_investments(
         rows,
         entity_id="600000.SH",
         backtest_end="20240131",
@@ -260,7 +260,7 @@ def test_replay_skips_buy_at_limit_up() -> None:
             enter_at_limit=False,
         ),
     ]
-    out, _ = JobExecutor._replay_entity_investments(
+    out, _ = PriceFactorJobExecutor._replay_entity_investments(
         rows,
         settings=_settings(allow_enter_at_limit_up=False),
     )

@@ -61,7 +61,7 @@ def main() -> int:
     print("=== entity_based enum smoke ===", flush=True)
     started = time.time()
     from core.modules.strategy.core.enums import SimulateKind
-    from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import (
+    from core.modules.strategy.core.services.entity_loader.global_entity_loader import (
         GlobalEntityCache,
     )
     from core.modules.strategy.core.services.simulation_cache.fingerprints import (

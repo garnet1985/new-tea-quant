@@ -1,7 +1,7 @@
-"""slice_based JobBuilder — 为 BE 组装 jobs。
+"""slice_based EnumSliceJobBuilder — 为 BE 组装 jobs。
 
 本文件（slice 两件套之一，与 Executor）:
-- JobBuilder: payload + ``timeline_point_count``（仅 BE 规划切片规模，**不是**推进轴复写）
+- EnumSliceJobBuilder: payload + ``timeline_point_count``（仅 BE 规划切片规模，**不是**推进轴复写）
   边界: 喂 jobs；点数用 ``Timeline.from_calendar_window``；轴仍由 BE ``run(start,end)`` 建
 """
 from __future__ import annotations
@@ -24,7 +24,7 @@ from core.modules.strategy.core.services.discovery.data.discovered_strategy impo
 logger = logging.getLogger(__name__)
 
 
-class JobBuilder(BaseJobBuilder):
+class EnumSliceJobBuilder(BaseJobBuilder):
     """slice_based Job 构建。
 
     边界:
@@ -61,7 +61,7 @@ class JobBuilder(BaseJobBuilder):
             output_recorder_snapshot=output_recorder_snapshot,
         )
         if not payload.get("entity_specified"):
-            logger.warning("slice JobBuilder: entity_specified 为空，跳过 job")
+            logger.warning("slice EnumSliceJobBuilder: entity_specified 为空，跳过 job")
             return []
 
         ids = [item["id"] for item in payload["entity_specified"]]
@@ -72,7 +72,7 @@ class JobBuilder(BaseJobBuilder):
         payload[BacktestJob.TIMELINE_POINT_COUNT_KEY] = point_count
         payload.pop(Timeline.PAYLOAD_KEY, None)
         logger.info(
-            "slice JobBuilder: entity_count=%d, timeline_point_count=%d",
+            "slice EnumSliceJobBuilder: entity_count=%d, timeline_point_count=%d",
             len(ids),
             point_count,
         )
@@ -84,10 +84,10 @@ class JobBuilder(BaseJobBuilder):
         points = Timeline.from_calendar_window(start_date, end_date).points
         if not points:
             raise ValueError(
-                f"slice JobBuilder: 回测窗 {start_date}—{end_date} 无开市日，"
+                f"slice EnumSliceJobBuilder: 回测窗 {start_date}—{end_date} 无开市日，"
                 "无法规划 timeline_point_count"
             )
         return len(points)
 
 
-__all__ = ["JobBuilder"]
+__all__ = ["EnumSliceJobBuilder"]

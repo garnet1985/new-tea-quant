@@ -1,18 +1,24 @@
 """枚举 version 产物读取句柄（下游主进程侧）。
 
-消费者: price_factor, portfolio
-边界: 基于 EnumOutput 定位目录；投影 runtime / period / entity_ids
-不负责: 写 P/O 自有产物；不读 entities CSV 业务行（各引擎私有解析）
+消费者: price_factor, portfolio（enumerator 写路径用 EnumOutput / investment_csv）
+边界: 基于 EnumOutput 定位；投影 runtime / period / entity_ids；委托加载 investments/goals CSV
+不负责: 写 P/O 自有产物；CSV 行 schema 定义见 investment_csv
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List
 
 from core.modules.strategy.core.engines.shared.services.simulation_output.enumerator_output import (
     EnumOutput,
 )
+
+if TYPE_CHECKING:
+    from core.modules.strategy.core.engines.shared.services.simulation_output.investment_csv import (
+        EntityInvestmentCsv,
+        GoalAchievementCsv,
+    )
 
 
 @dataclass(frozen=True)
@@ -104,6 +110,30 @@ class EnumSource:
             start_date=str(start_date or "").strip(),
             end_date=str(end_date or "").strip(),
         )
+
+    def load_investments(self, entity_id: str) -> "EntityInvestmentCsv":
+        """读 ``{entity_id}_stock_investments.csv``。"""
+        from core.modules.strategy.core.engines.shared.services.simulation_output.investment_csv import (
+            EntityInvestmentCsv,
+        )
+
+        return EntityInvestmentCsv.load(self.output_dir, entity_id)
+
+    def load_goals(self, entity_id: str) -> "GoalAchievementCsv":
+        """读 ``{entity_id}_goal_achievements.csv``。"""
+        from core.modules.strategy.core.engines.shared.services.simulation_output.investment_csv import (
+            GoalAchievementCsv,
+        )
+
+        return GoalAchievementCsv.load(self.output_dir, entity_id)
+
+    def investment_entity_ids(self) -> List[str]:
+        """按 investments CSV 文件名收集 entity_id（runtime 列表为空时兜底）。"""
+        from core.modules.strategy.core.engines.shared.services.simulation_output.investment_csv import (
+            EntityInvestmentCsv,
+        )
+
+        return EntityInvestmentCsv.collect_entity_ids(self.output_dir)
 
 
 __all__ = [

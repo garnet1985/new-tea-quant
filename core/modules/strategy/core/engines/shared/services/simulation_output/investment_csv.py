@@ -1,7 +1,9 @@
-"""枚举实体 investment / goal CSV（enumerator 私有写模型）。
+"""枚举 version 投资 / goal CSV 内容模型（InvestmentCsv）。
 
-本文件: InvestmentRow / GoalAchievementRow / EntityInvestmentCsv / GoalAchievementCsv
-边界: 负责 enum CSV 内容读写；路径委托 simulation_output.ArtifactPaths
+消费者: enumerator, price_factor, portfolio
+边界: 行模型 + 按 ArtifactPaths 读/写 CSV
+不负责: version 目录 resolve / runtime 投影（见 EnumOutput / EnumSource）
+说明: 不仅是 parser——enumerator 写盘与 P/O 读取共用同一契约
 """
 from __future__ import annotations
 

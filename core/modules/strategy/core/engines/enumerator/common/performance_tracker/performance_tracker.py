@@ -102,7 +102,7 @@ class EnumJobPerfRecorder:
         self._contract["unified_until_time_seconds"] = float(
             self._contract.get("unified_until_time_seconds") or 0.0
         ) + elapsed
-        self.record("enum_pit_until_unified", elapsed, accumulate=True)
+        self.record("enum_as_of_slice_unified", elapsed, accumulate=True)
 
     def set_calendar_meta(
         self,
@@ -124,10 +124,10 @@ class EnumJobPerfRecorder:
         any_bar: bool,
         bar_hits: int,
         bar_misses: int,
-        pit_sec: float = 0.0,
+        as_of_slice_sec: float = 0.0,
         skipped_before_ready: bool = False,
     ) -> None:
-        """按日累计 bar 命中/空转，并把 pit 耗时拆到 empty / active。"""
+        """按日累计 bar 命中/空转，并把 as_of_slice 耗时拆到 empty / active。"""
         self._calendar["days_total"] = int(self._calendar.get("days_total") or 0) + 1
         hits = max(0, int(bar_hits))
         misses = max(0, int(bar_misses))
@@ -141,20 +141,20 @@ class EnumJobPerfRecorder:
             self._calendar["days_skipped_before_ready"] = (
                 int(self._calendar.get("days_skipped_before_ready") or 0) + 1
             )
-        elapsed = max(0.0, float(pit_sec))
+        elapsed = max(0.0, float(as_of_slice_sec))
         if any_bar:
             self._calendar["days_with_any_bar"] = (
                 int(self._calendar.get("days_with_any_bar") or 0) + 1
             )
-            self._calendar["pit_active_day_sec"] = (
-                float(self._calendar.get("pit_active_day_sec") or 0.0) + elapsed
+            self._calendar["as_of_active_day_sec"] = (
+                float(self._calendar.get("as_of_active_day_sec") or 0.0) + elapsed
             )
         else:
             self._calendar["days_all_empty"] = (
                 int(self._calendar.get("days_all_empty") or 0) + 1
             )
-            self._calendar["pit_empty_day_sec"] = (
-                float(self._calendar.get("pit_empty_day_sec") or 0.0) + elapsed
+            self._calendar["as_of_empty_day_sec"] = (
+                float(self._calendar.get("as_of_empty_day_sec") or 0.0) + elapsed
             )
 
     def snapshot(self) -> Dict[str, Any]:

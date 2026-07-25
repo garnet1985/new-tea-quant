@@ -14,10 +14,10 @@ import time
 from typing import Any, Dict, List
 
 from core.modules.data_contract import ContractIssuer
-from core.modules.strategy.core.engines.shared.services.entity_loader.contract_indicators import (
+from core.modules.strategy.core.services.entity_loader.contract_indicators import (
     ContractIndicators,
 )
-from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import (
+from core.modules.strategy.core.services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
 )
 

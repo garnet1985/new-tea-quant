@@ -865,8 +865,8 @@ class _ProfilerBlocks:
             "load_contract_issue": float(phase_totals.get("load_contract_issue") or 0.0),
             "load_apply_indicators": float(phase_totals.get("load_apply_indicators") or 0.0),
             "enumerate": float(phase_totals.get("enumerate") or 0.0),
-            "enum_pit_until": float(phase_totals.get("enum_pit_until") or 0.0),
-            "enum_pit_until_unified": float(phase_totals.get("enum_pit_until_unified") or 0.0),
+            "enum_as_of_slice": float(phase_totals.get("enum_as_of_slice") or 0.0),
+            "enum_as_of_slice_unified": float(phase_totals.get("enum_as_of_slice_unified") or 0.0),
             "enum_contract_until": float(phase_totals.get("enum_contract_until") or 0.0),
             "enum_scan": float(phase_totals.get("enum_scan") or 0.0),
             "enum_context_fill": float(phase_totals.get("enum_context_fill") or 0.0),
@@ -1933,8 +1933,8 @@ class _ProfilerBlocks:
             "load_data": 0.0,
             "enumerate": 0.0,
             "flush_csv": 0.0,
-            "enum_pit_until": 0.0,
-            "enum_pit_until_unified": 0.0,
+            "enum_as_of_slice": 0.0,
+            "enum_as_of_slice_unified": 0.0,
             "enum_contract_until": 0.0,
             "enum_process_tick": 0.0,
             "enum_context_fill": 0.0,
@@ -1954,8 +1954,8 @@ class _ProfilerBlocks:
                     "flush_csv",
                     "load_contract_issue",
                     "load_apply_indicators",
-                    "enum_pit_until",
-                    "enum_pit_until_unified",
+                    "enum_as_of_slice",
+                    "enum_as_of_slice_unified",
                     "enum_contract_until",
                     "enum_process_tick",
                     "enum_context_fill",
@@ -2022,7 +2022,7 @@ class _ProfilerBlocks:
 
     @staticmethod
     def _aggregate_calendar_totals(jobs: List[JobPerformance]) -> Dict[str, Any]:
-        """跨 job 汇总日历沉默成本计数（entity_day miss / 全日 empty pit）。"""
+        """跨 job 汇总日历沉默成本计数（entity_day miss / 全日 empty as_of_slice）。"""
         open_dates_count = 0
         days_total = 0
         days_with_any_bar = 0
@@ -2030,8 +2030,8 @@ class _ProfilerBlocks:
         days_skipped_before_ready = 0
         entity_day_bar_hit = 0
         entity_day_bar_miss = 0
-        pit_active_day_sec = 0.0
-        pit_empty_day_sec = 0.0
+        as_of_active_day_sec = 0.0
+        as_of_empty_day_sec = 0.0
         entities_in_jobs = 0
         period_start = ""
         period_end = ""
@@ -2050,8 +2050,8 @@ class _ProfilerBlocks:
             )
             entity_day_bar_hit += int(calendar.get("entity_day_bar_hit") or 0)
             entity_day_bar_miss += int(calendar.get("entity_day_bar_miss") or 0)
-            pit_active_day_sec += float(calendar.get("pit_active_day_sec") or 0.0)
-            pit_empty_day_sec += float(calendar.get("pit_empty_day_sec") or 0.0)
+            as_of_active_day_sec += float(calendar.get("as_of_active_day_sec") or 0.0)
+            as_of_empty_day_sec += float(calendar.get("as_of_empty_day_sec") or 0.0)
             entities_in_jobs += int(calendar.get("entities_in_job") or 0)
             ps = str(calendar.get("period_start") or "").strip()
             pe = str(calendar.get("period_end") or "").strip()
@@ -2079,8 +2079,8 @@ class _ProfilerBlocks:
             "entity_day_bar_hit": entity_day_bar_hit,
             "entity_day_bar_miss": entity_day_bar_miss,
             "entity_day_miss_ratio": round(miss_ratio, 4),
-            "pit_active_day_sec": round(pit_active_day_sec, 4),
-            "pit_empty_day_sec": round(pit_empty_day_sec, 4),
+            "as_of_active_day_sec": round(as_of_active_day_sec, 4),
+            "as_of_empty_day_sec": round(as_of_empty_day_sec, 4),
         }
 
 

@@ -3,8 +3,12 @@
 消费者: enumerator, price_factor, portfolio
 其它: fingerprints（period 在 strategy_settings）
 
-职责: 统一文件名、路径、json/txt IO；枚举 version 只读句柄（EnumSource）。
-不负责: P/O 自有产物写盘；runtime/CSV/overall 业务内容模型（各引擎私有）。
+职责:
+- 布局: file_names / paths / io / EnumOutput
+- 读句柄: EnumSource（runtime 投影 + 委托读 investments CSV）
+- CSV 行模型: investment_csv（E 写、P/O 读，同一份）
+
+不负责: P/O 自有产物写盘；enumerator RuntimeEnv 业务写模型（仍在 artifacts）
 """
 
 from .file_names import (
@@ -21,6 +25,12 @@ from .file_names import (
 from .io import ArtifactIO
 from .enumerator_output import EnumOutput
 from .enum_source import EnumRuntimeMeta, EnumSource
+from .investment_csv import (
+    EntityInvestmentCsv,
+    GoalAchievementCsv,
+    GoalAchievementRow,
+    InvestmentRow,
+)
 from .paths import ArtifactPaths, ReportPaths
 
 __all__ = [
@@ -39,4 +49,8 @@ __all__ = [
     "EnumOutput",
     "EnumRuntimeMeta",
     "EnumSource",
+    "EntityInvestmentCsv",
+    "GoalAchievementCsv",
+    "GoalAchievementRow",
+    "InvestmentRow",
 ]

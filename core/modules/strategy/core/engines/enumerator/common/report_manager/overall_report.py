@@ -14,7 +14,7 @@ from core.modules.strategy.core.engines.shared.services.simulation_output.file_n
 from core.modules.strategy.core.engines.enumerator.common.artifacts.runtime_env import (
     RuntimeEnv,
 )
-from core.modules.strategy.core.engines.enumerator.common.artifacts.entity_investment_csv import (
+from core.modules.strategy.core.engines.shared.services.simulation_output import (
     GoalAchievementCsv,
     InvestmentRow,
     EntityInvestmentCsv,

@@ -1,14 +1,14 @@
-"""ReportManager.investments 写门面（委托 enumerator artifacts CSV 模型）。
+"""ReportManager.investments 写门面（委托 simulation_output CSV 模型）。
 
 本文件:
 - InvestmentsReport: worker buffer → 每股 CSV 追加
-  边界: 仅绑 ReportManager；行模型在 enumerator.common.artifacts
+  边界: 仅绑 ReportManager；行模型在 simulation_output.investment_csv
 """
 from __future__ import annotations
 
 from typing import Any, Dict, List, Sequence, TYPE_CHECKING
 
-from core.modules.strategy.core.engines.enumerator.common.artifacts.entity_investment_csv import (
+from core.modules.strategy.core.engines.shared.services.simulation_output import (
     GoalAchievementCsv,
     InvestmentRow,
     EntityInvestmentCsv,

@@ -1,7 +1,7 @@
-"""entity_based JobExecutor — BE RunCallbacks；日业务与 per-task 状态。
+"""entity_based EnumEntityJobExecutor — BE RunCallbacks；日业务与 per-task 状态。
 
-本文件（entity 两件套之一，与 JobBuilder；见 ``BOUNDARY_NOTES.md``「与 BE 的关系」）:
-- JobExecutor: on_before_task_start / on_tick / on_ticks_complete / flush
+本文件（entity 两件套之一，与 EnumEntityJobBuilder；见 ``BOUNDARY_NOTES.md``「与 BE 的关系」）:
+- EnumEntityJobExecutor: on_before_task_start / on_tick / on_ticks_complete / flush
 - EntityTaskState: 挂在 ``job_context.init`` 的可变袋（**不是**第二套 BE session）
 
 边界:
@@ -27,7 +27,7 @@ from core.modules.strategy.core.engines.enumerator.common.state.investment_track
     InvestmentTracker,
 )
 from core.modules.strategy.core.engines.shared.data_class import Opportunity
-from core.modules.strategy.core.engines.shared.services.entity_loader.strategy_data_resolver import (
+from core.modules.strategy.core.services.entity_loader.strategy_data_resolver import (
     StrategyDataResolver,
 )
 from core.modules.strategy.core.engines.shared.services.as_of_slice import AsOfSlice
@@ -196,20 +196,20 @@ class EntityTaskState:
                     any_bar=False,
                     bar_hits=0,
                     bar_misses=entity_n,
-                    pit_sec=0.0,
+                    as_of_slice_sec=0.0,
                     skipped_before_ready=True,
                 )
             return
 
         # —— 切数据 ——
         if perf is not None:
-            perf.begin("enum_pit_until")
+            perf.begin("enum_as_of_slice")
         sliced_by_entity = AsOfSlice.slice_contracts(
             self.entity_contracts, now, perf=perf
         )
-        pit_sec = 0.0
+        as_of_slice_sec = 0.0
         if perf is not None:
-            pit_sec = perf.end("enum_pit_until", accumulate=True)
+            as_of_slice_sec = perf.end("enum_as_of_slice", accumulate=True)
 
         # —— 执行业务 ——
         bar_hits = 0
@@ -307,7 +307,7 @@ class EntityTaskState:
                 any_bar=bar_hits > 0,
                 bar_hits=bar_hits,
                 bar_misses=bar_misses,
-                pit_sec=pit_sec,
+                as_of_slice_sec=as_of_slice_sec,
             )
 
     def finalize(self, timeline: Timeline) -> Dict[str, Any]:
@@ -364,12 +364,12 @@ class EntityTaskState:
         return rows
 
 
-class JobExecutor(BaseJobExecutor):
-    """entity_based BE 钩子 — 日历日 PIT / scan / Investment。
+class EnumEntityJobExecutor(BaseJobExecutor):
+    """entity_based BE 钩子 — 日历日 AsOfSlice / scan / Investment。
 
     边界:
     - 负责: RunCallbacks；把 EntityTaskState 写入 ``job_context.init``
-    - 不负责: JobBuilder；BE Timeline.drive 循环（默认日历轴）
+    - 不负责: EnumEntityJobBuilder；BE Timeline.drive 循环（默认日历轴）
     - 调用方: EnumeratorPipeline → BacktestEngine.entity_based
     """
 
@@ -403,7 +403,7 @@ class JobExecutor(BaseJobExecutor):
 
     @classmethod
     def on_tick(cls, job_context: Any, point: str, index: int) -> None:
-        """BE 日历点 → PIT / scan / Investment。"""
+        """BE 日历点 → AsOfSlice / scan / Investment。"""
         init = job_context.init
         if not isinstance(init, dict):
             raise TypeError("job_context.init 必须是 dict（on_before_task_start 返回值）")
@@ -429,4 +429,4 @@ class JobExecutor(BaseJobExecutor):
         cls.flush_job_investments(job_context)
 
 
-__all__ = ["ExecutorHooksContext", "EntityTaskState", "JobExecutor"]
+__all__ = ["ExecutorHooksContext", "EntityTaskState", "EnumEntityJobExecutor"]

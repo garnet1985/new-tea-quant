@@ -12,7 +12,7 @@ import pytest
 pytestmark = pytest.mark.force_run
 
 from core.modules.strategy.core.enums import SimulateKind
-from core.modules.strategy.core.engines.portfolio.enum_input.investments import (
+from core.modules.strategy.core.engines.shared.services.simulation_output import (
     InvestmentRow,
     EntityInvestmentCsv,
 )

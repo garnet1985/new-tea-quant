@@ -1,7 +1,7 @@
-"""Scanner JobExecutor — 单日轴 lookback 加载 + scan hooks。
+"""ScannerJobExecutor — 单日轴 lookback 加载 + scan hooks。
 
 本文件:
-- JobExecutor: RunCallbacks 面；on_tick 调 scan_opportunity、贴板标注
+- ScannerJobExecutor: RunCallbacks 面；on_tick 调 scan_opportunity、贴板标注
   边界: 负责 worker 内 scan 业务；不负责 Pipeline 缓存/adapters、BE batch 切分
 """
 from __future__ import annotations
@@ -14,9 +14,9 @@ from core.modules.data_contract import DATA_KEY
 from core.modules.strategy.core.engines.scanner.helpers.tradability import (
     annotate_enter_at_limit,
 )
-from core.modules.strategy.core.engines.scanner.job_builder import JobBuilder
+from core.modules.strategy.core.engines.scanner.job_builder import ScannerJobBuilder
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
-from core.modules.strategy.core.engines.shared.services.entity_loader.job_bundle_loader import (
+from core.modules.strategy.core.services.entity_loader.job_bundle_loader import (
     JobBundleLoader,
 )
 from core.modules.strategy.core.engines.shared.services.as_of_slice import AsOfSlice
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 _CTX_KEY = "_scanner_runtime"
 
 
-class JobExecutor:
+class ScannerJobExecutor:
     """扫描 worker 钩子面。
 
     边界:
@@ -65,7 +65,7 @@ class JobExecutor:
     @classmethod
     def on_before_task_start(cls, job_context: Any) -> Dict[str, Any]:
         payload = job_context.payload or {}
-        meta = JobBuilder.scanner_meta(payload)
+        meta = ScannerJobBuilder.scanner_meta(payload)
         scan_date = str(meta.get("scan_date") or "").strip()
         settings_raw = payload.get("settings") if isinstance(payload, dict) else {}
         settings = (
@@ -275,4 +275,4 @@ class JobExecutor:
         )
 
 
-__all__ = ["JobExecutor"]
+__all__ = ["ScannerJobExecutor"]

@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from core.infra.project_context import ProjectContext
-from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import (
+from core.modules.strategy.core.services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
 )
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (

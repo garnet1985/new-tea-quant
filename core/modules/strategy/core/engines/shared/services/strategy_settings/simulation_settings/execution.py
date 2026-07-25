@@ -162,7 +162,7 @@ class ExecutionSettings(SettingsBase):
     def resolve_period(self) -> BacktestPeriod:
         """把 execution.start/end 空值补成系统默认（回测前统一入口）。"""
         from core.infra.project_context import ProjectContext
-        from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import (
+        from core.modules.strategy.core.services.entity_loader.global_entity_loader import (
             GlobalEntityCache,
         )
 

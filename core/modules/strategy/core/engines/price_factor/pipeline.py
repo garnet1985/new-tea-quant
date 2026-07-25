@@ -2,7 +2,7 @@
 
 本文件:
 - PriceFactorPipeline: load_enum_data → window → jobs → BE → ReportManager.finalize
-  边界: 负责 price step 编排；不负责指纹缓存、legacy CSV 格式、tick 回放细节（JobExecutor）
+  边界: 负责 price step 编排；不负责指纹缓存、legacy CSV 格式、tick 回放细节（PriceFactorJobExecutor）
 """
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
 from core.modules.backtest_engine import BacktestEngine
 from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
-from core.modules.strategy.core.engines.price_factor.executor import JobExecutor
-from core.modules.strategy.core.engines.price_factor.job_builder import JobBuilder
+from core.modules.strategy.core.engines.price_factor.executor import PriceFactorJobExecutor
+from core.modules.strategy.core.engines.price_factor.job_builder import PriceFactorJobBuilder
 from core.modules.strategy.core.engines.price_factor.report_manager import ReportManager
 from core.modules.strategy.core.engines.price_factor.timeline import resolve_simulation_window
 
@@ -58,7 +58,7 @@ class PriceFactorPipeline:
         report: ReportManager,
     ) -> List[Dict[str, Any]]:
         """组装 BacktestEngine entity_based bundle jobs。"""
-        return JobBuilder.build_jobs(data, report=report)
+        return PriceFactorJobBuilder.build_jobs(data, report=report)
 
     @classmethod
     def execute_backtest(
@@ -69,7 +69,7 @@ class PriceFactorPipeline:
         end: str,
         data: EnumSource,
     ) -> Any:
-        """BE 自管调度；``start``/``end`` window 必传；钩子仅 ``JobExecutor.build_run_callbacks()``。"""
+        """BE 自管调度；``start``/``end`` window 必传；钩子仅 ``PriceFactorJobExecutor.build_run_callbacks()``。"""
         if not jobs:
             return None
 
@@ -78,7 +78,7 @@ class PriceFactorPipeline:
             jobs=jobs,
             start=start,
             end=end,
-            callbacks=JobExecutor.build_run_callbacks(),
+            callbacks=PriceFactorJobExecutor.build_run_callbacks(),
             task_name=f"price_factor_{strategy_key}",
         )
 

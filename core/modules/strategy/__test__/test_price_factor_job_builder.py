@@ -1,4 +1,4 @@
-"""price_factor JobBuilder：bundle entity ids + enum_dir。"""
+"""price_factor PriceFactorJobBuilder：bundle entity ids + enum_dir。"""
 from __future__ import annotations
 
 import json
@@ -13,7 +13,7 @@ from core.modules.strategy.core.engines.shared.services.simulation_output.file_n
 )
 from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
 from core.modules.strategy.core.engines.price_factor.job_builder import (
-    JobBuilder,
+    PriceFactorJobBuilder,
     PRICE_FACTOR_GLOBAL_KEY,
 )
 
@@ -53,7 +53,7 @@ def test_build_jobs_bundle_shape(tmp_path: Path) -> None:
     _write_runtime(tmp_path, entity_ids=["000001.SZ", "000002.SZ"])
     data = EnumSource.load(tmp_path, "3")
 
-    jobs = JobBuilder.build_jobs(data)
+    jobs = PriceFactorJobBuilder.build_jobs(data)
     BacktestJob.validate_many(jobs, mode="entity_based")
 
     assert len(jobs) == 1
@@ -64,7 +64,7 @@ def test_build_jobs_bundle_shape(tmp_path: Path) -> None:
         {"id": "000001.SZ"},
         {"id": "000002.SZ"},
     ]
-    meta = JobBuilder.price_factor_meta(payload)
+    meta = PriceFactorJobBuilder.price_factor_meta(payload)
     assert meta["enum_output_dir"] == str(tmp_path)
     assert meta["enum_version_id"] == "3"
     assert meta["start_date"] == "20240102"
@@ -75,11 +75,11 @@ def test_build_jobs_bundle_shape(tmp_path: Path) -> None:
 def test_build_jobs_empty_entity_ids(tmp_path: Path) -> None:
     _write_runtime(tmp_path, entity_ids=[])
     data = EnumSource.load(tmp_path, "1")
-    assert JobBuilder.build_jobs(data) == []
+    assert PriceFactorJobBuilder.build_jobs(data) == []
 
 
 def test_build_jobs_rejects_missing_period(tmp_path: Path) -> None:
     _write_runtime(tmp_path, entity_ids=["000001.SZ"], start="", end="")
     data = EnumSource.load(tmp_path, "1")
     with pytest.raises(ValueError, match="period"):
-        JobBuilder.build_jobs(data)
+        PriceFactorJobBuilder.build_jobs(data)

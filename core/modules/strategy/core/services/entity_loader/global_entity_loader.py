@@ -16,7 +16,7 @@ import pickle
 from typing import Any, Dict, List, Optional
 
 from core.modules.data_contract import ContractIssuer, DATA_KEY
-from core.modules.strategy.core.engines.shared.services.entity_loader.strategy_data_resolver import (
+from core.modules.strategy.core.services.entity_loader.strategy_data_resolver import (
     SYSTEM_GLOBAL_DATA_KEYS,
     DataDeclaration,
 )

@@ -1,7 +1,7 @@
-"""slice_based JobExecutor — BE RunCallbacks；日业务与 per-task 状态。
+"""slice_based EnumSliceJobExecutor — BE RunCallbacks；日业务与 per-task 状态。
 
-本文件（slice 两件套之一，与 JobBuilder；见 ``BOUNDARY_NOTES.md``「与 BE 的关系」）:
-- JobExecutor: on_before_task_start / on_tick / on_ticks_complete / flush
+本文件（slice 两件套之一，与 EnumSliceJobBuilder；见 ``BOUNDARY_NOTES.md``「与 BE 的关系」）:
+- EnumSliceJobExecutor: on_before_task_start / on_tick / on_ticks_complete / flush
 - SliceTaskState: 挂在 ``job_context.init`` 的可变袋（**不是**第二套 BE session）
 
 边界:
@@ -30,7 +30,7 @@ from core.modules.strategy.core.engines.enumerator.common.state.investment_track
     InvestmentTracker,
 )
 from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import SafeBarValue
-from core.modules.strategy.core.engines.shared.services.entity_loader.strategy_data_resolver import (
+from core.modules.strategy.core.services.entity_loader.strategy_data_resolver import (
     StrategyDataResolver,
 )
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
@@ -179,7 +179,7 @@ class SliceTaskState:
                     any_bar=False,
                     bar_hits=0,
                     bar_misses=len(self.trackers),
-                    pit_sec=0.0,
+                    as_of_slice_sec=0.0,
                     skipped_before_ready=True,
                 )
             # 空点前缀不计入 slice window
@@ -189,12 +189,12 @@ class SliceTaskState:
 
         # —— 切数据 ——
         if perf is not None:
-            perf.begin("enum_pit_until")
+            perf.begin("enum_as_of_slice")
         sliced_by_entity = AsOfSlice.slice_contracts(
             self.entity_contracts, as_of, perf=perf
         )
         if perf is not None:
-            perf.end("enum_pit_until", accumulate=True)
+            perf.end("enum_as_of_slice", accumulate=True)
 
         # —— 执行业务 ——
         for entity_id, tracker in self.trackers.items():
@@ -552,12 +552,12 @@ _STATE_KEY = "_slice_task_state"
 _TIMELINE_KEY = "_slice_timeline"
 
 
-class JobExecutor(BaseJobExecutor):
+class EnumSliceJobExecutor(BaseJobExecutor):
     """slice_based BE 钩子 — 日历日 asof / Investment。
 
     边界:
     - 负责: RunCallbacks；把 SliceTaskState 写入 ``job_context.init``
-    - 不负责: JobBuilder；BE Timeline.drive 循环（默认日历轴）
+    - 不负责: EnumSliceJobBuilder；BE Timeline.drive 循环（默认日历轴）
     - 调用方: EnumeratorPipeline → BacktestEngine.slice_based
     """
 
@@ -611,4 +611,4 @@ class JobExecutor(BaseJobExecutor):
         return state.finalize(timeline)
 
 
-__all__ = ["ExecutorHooksContext", "SliceTaskState", "JobExecutor"]
+__all__ = ["ExecutorHooksContext", "SliceTaskState", "EnumSliceJobExecutor"]

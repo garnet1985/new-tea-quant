@@ -96,7 +96,7 @@ class BaseJobExecutor:
 
     @classmethod
     def load_bundle_data(cls, job_context: Any, *, log_label: str) -> Dict[str, Any]:
-        from core.modules.strategy.core.engines.shared.services.entity_loader.job_bundle_loader import (
+        from core.modules.strategy.core.services.entity_loader.job_bundle_loader import (
             JobBundleLoader,
         )
         from core.modules.strategy.core.engines.enumerator.common.performance_tracker.performance_tracker import (

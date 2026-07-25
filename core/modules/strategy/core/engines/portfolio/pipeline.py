@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from core.infra.project_context import ProjectContext
 from core.modules.market_profile.core.markets import create_market_rules
-from core.modules.strategy.core.engines.portfolio.enum_input.investments import (
+from core.modules.strategy.core.engines.shared.services.simulation_output import (
     EntityInvestmentCsv,
 )
 from core.modules.strategy.core.engines.portfolio.allocation_strategy import (

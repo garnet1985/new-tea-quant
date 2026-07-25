@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Type, Union
 
 from .core.enums import SimulateKind
 from .core.services.discovery import DiscoveryService
-from .core.engines.shared.services.entity_loader.global_entity_loader import (
+from .core.services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
 )
 from .core.engines.shared.data_class.simulate_session import SimulateSession

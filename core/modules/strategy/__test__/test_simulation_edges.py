@@ -4,9 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-from core.modules.strategy.core.engines.shared.data_class.investment import (
-    InvestmentRunDeps,
-)
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StrategySettings,
 )
@@ -21,12 +18,6 @@ def _base_simulation(**tradability_overrides):
         "simulation": {
             "execution": {
                 "mode": "entity_based",
-                "steps": [
-                    "check_settlement",
-                    "check_stop_loss",
-                    "check_take_profit",
-                    "check_expiration",
-                ],
             },
             "assumption": {"template": "none", "tradability": tradability},
             "risk_control": {},
@@ -79,7 +70,7 @@ def test_to_dict_includes_edges() -> None:
     assert edges["allow_exit_at_limit_down"] is False
 
 
-def test_investment_run_deps_reads_edges() -> None:
+def test_settings_reads_edges() -> None:
     settings = StrategySettings.from_dict(
         _base_simulation(
             edges={
@@ -91,13 +82,9 @@ def test_investment_run_deps_reads_edges() -> None:
         )
     )
     settings.apply_defaults()
-    deps = InvestmentRunDeps.from_settings(
-        settings=settings,
-        market_rules=object(),
-        open_dates=["20240102", "20240103"],
-    )
-    assert deps.allow_enter_at_limit_up is True
-    assert deps.allow_exit_at_limit_down is False
-    assert deps.no_next_tick == "use_last_close"
-    assert deps.slippage.enter_bps == 5.0
-    assert deps.slippage.exit_bps == 3.0
+    sim = settings.simulation
+    assert sim.allow_enter_at_limit_up is True
+    assert sim.allow_exit_at_limit_down is False
+    assert sim.tradability.edges.no_next_tick == "use_last_close"
+    assert sim.tradability.slippage.enter_bps == 5.0
+    assert sim.tradability.slippage.exit_bps == 3.0

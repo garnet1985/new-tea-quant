@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Investment.tick 单元测试。"""
+"""Investment 生命周期反应 API 单元测试。"""
 
 from __future__ import annotations
 
@@ -11,8 +11,6 @@ pytestmark = pytest.mark.force_run
 
 from core.modules.strategy.core.engines.shared.data_class import (
     Investment,
-    InvestmentRunDeps,
-    InvestmentTickInput,
     Lifecycle,
 )
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity, StockInfo
@@ -51,12 +49,23 @@ def _tick(
     c: float,
     pre_close: float | None = None,
     raw: dict | None = None,
-) -> InvestmentTickInput:
-    return InvestmentTickInput(
-        as_of_date=date,
-        bar=_bar(date, o=o, h=h, l=l, c=c, pre_close=pre_close, raw=raw),
-        data_as_of=date,
-    )
+):
+    """返回 (as_of, bar)。"""
+    return date, _bar(date, o=o, h=h, l=l, c=c, pre_close=pre_close, raw=raw)
+
+
+def _react(inv: Investment, tick) -> bool:
+    """镜像 InvestmentTracker 分桶调用；True=仍 live。"""
+    as_of, bar = tick
+    if inv.lifecycle == Lifecycle.COMPLETE:
+        return False
+    if inv.lifecycle == Lifecycle.PENDING_TO_ENTER:
+        inv.try_enter(as_of, bar)
+    elif inv.lifecycle == Lifecycle.PENDING_TO_EXIT:
+        inv.try_exit(as_of, bar)
+    elif inv.lifecycle == Lifecycle.OPEN:
+        inv.check_targets(as_of, bar)
+    return inv.lifecycle != Lifecycle.COMPLETE
 
 
 def _settings(**overrides) -> StrategySettings:
@@ -64,12 +73,6 @@ def _settings(**overrides) -> StrategySettings:
         "simulation": {
             "execution": {
                 "mode": "entity_based",
-                "steps": [
-                    "check_settlement",
-                    "check_stop_loss",
-                    "check_take_profit",
-                    "check_expiration",
-                ],
             },
             "assumption": {
                 "template": "none",
@@ -147,7 +150,7 @@ class TestInvestmentFromOpportunity(unittest.TestCase):
         self.assertEqual(inv.trigger_price, 10.0)
         self.assertEqual(inv.lifecycle, Lifecycle.PENDING_TO_ENTER)
         self.assertEqual(inv.holding.window_days, 30)
-        self.assertIsInstance(inv.run_deps, InvestmentRunDeps)
+        self.assertIsNotNone(inv.settings)
 
 
 class TestInvestmentTick(unittest.TestCase):
@@ -161,16 +164,16 @@ class TestInvestmentTick(unittest.TestCase):
         )
         inv = _inv(opp, settings)
 
-        self.assertTrue(inv.tick(_tick("20240103", o=10.5, h=11, l=9.5, c=10.8)))
+        self.assertTrue(_react(inv, _tick("20240103", o=10.5, h=11, l=9.5, c=10.8)))
         self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
-        self.assertEqual(inv.entry.entry_date, "20240103")
+        self.assertEqual(inv.entry.date, "20240103")
 
         # T+0: settlement gate blocks stop on entry day
-        self.assertTrue(inv.tick(_tick("20240103", o=10.5, h=11, l=8.0, c=9.0)))
+        self.assertTrue(_react(inv, _tick("20240103", o=10.5, h=11, l=8.0, c=9.0)))
 
-        self.assertFalse(inv.tick(_tick("20240104", o=9.5, h=10, l=7.5, c=8.0)))
+        self.assertFalse(_react(inv, _tick("20240104", o=9.5, h=10, l=7.5, c=8.0)))
         self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
-        self.assertEqual(inv.exit_info.exit_reason, "stop_loss")
+        self.assertEqual(inv.exit_info.reason, "stop_loss")
 
 
 class TestInvestmentTakeProfit(unittest.TestCase):
@@ -183,9 +186,9 @@ class TestInvestmentTakeProfit(unittest.TestCase):
             trigger_price=10.0,
         )
         inv = _inv(opp, settings)
-        inv.tick(_tick("20240103", o=10, h=11, l=9.5, c=10))
-        self.assertFalse(inv.tick(_tick("20240104", o=10, h=12.0, l=9.8, c=11.5)))
-        self.assertEqual(inv.exit_info.exit_reason, "take_profit")
+        _react(inv, _tick("20240103", o=10, h=11, l=9.5, c=10))
+        self.assertFalse(_react(inv, _tick("20240104", o=10, h=12.0, l=9.8, c=11.5)))
+        self.assertEqual(inv.exit_info.reason, "take_profit")
 
 
 class TestInvestmentExpiration(unittest.TestCase):
@@ -200,9 +203,9 @@ class TestInvestmentExpiration(unittest.TestCase):
             trigger_price=10.0,
         )
         inv = _inv(opp, settings)
-        inv.tick(_tick("20240103", o=10, h=10.5, l=9.8, c=10.2))
-        self.assertFalse(inv.tick(_tick("20240104", o=10.2, h=10.5, l=10.0, c=10.3)))
-        self.assertEqual(inv.exit_info.exit_reason, "expired")
+        _react(inv, _tick("20240103", o=10, h=10.5, l=9.8, c=10.2))
+        self.assertFalse(_react(inv, _tick("20240104", o=10.2, h=10.5, l=10.0, c=10.3)))
+        self.assertEqual(inv.exit_info.reason, "expired")
 
 
 class TestInvestmentToOpportunity(unittest.TestCase):
@@ -217,7 +220,7 @@ class TestInvestmentToOpportunity(unittest.TestCase):
         )
         inv = _inv(opp, settings)
         inv.meta.opportunity_id = "opp-1"
-        inv.tick(_tick("20240103", o=10.5, h=11, l=9.5, c=10.8))
+        _react(inv, _tick("20240103", o=10.5, h=11, l=9.5, c=10.8))
         self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
 
         projected = inv.to_opportunity()
@@ -254,7 +257,7 @@ class TestInvestmentRawPrices(unittest.TestCase):
         self.assertEqual(inv.trigger_price_raw, 20.0)
 
         self.assertTrue(
-            inv.tick(
+            _react(inv, 
                 _tick(
                     "20240103",
                     o=10.5,
@@ -265,11 +268,11 @@ class TestInvestmentRawPrices(unittest.TestCase):
                 )
             )
         )
-        self.assertEqual(inv.entry.entry_price, 10.5)
-        self.assertEqual(inv.entry.entry_price_raw, 21.0)
+        self.assertEqual(inv.entry.price, 10.5)
+        self.assertEqual(inv.entry.price_raw, 21.0)
 
         self.assertFalse(
-            inv.tick(
+            _react(inv, 
                 _tick(
                     "20240104",
                     o=9.5,
@@ -280,11 +283,11 @@ class TestInvestmentRawPrices(unittest.TestCase):
                 )
             )
         )
-        self.assertEqual(inv.exit_info.exit_price, 8.0)
-        self.assertEqual(inv.exit_info.exit_price_raw, 16.0)
+        self.assertEqual(inv.exit_info.price, 8.0)
+        self.assertEqual(inv.exit_info.price_raw, 16.0)
         self.assertEqual(inv.completed_goals[0]["price_raw"], 16.0)
 
-        from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_investments import (
+        from core.modules.strategy.core.engines.shared.services.simulation_output import (
             InvestmentRow,
         )
 
@@ -320,17 +323,17 @@ class TestInvestmentLimitTradability(unittest.TestCase):
 
         # 次日开盘涨停（pre_close=10 → limit_up=11）→ 不买
         self.assertTrue(
-            inv.tick(_tick("20240103", o=11.0, h=11.0, l=10.5, c=11.0, pre_close=10.0))
+            _react(inv, _tick("20240103", o=11.0, h=11.0, l=10.5, c=11.0, pre_close=10.0))
         )
         self.assertEqual(inv.lifecycle, Lifecycle.PENDING_TO_ENTER)
 
         # 再下一日开盘未涨停 → 买入
         self.assertTrue(
-            inv.tick(_tick("20240104", o=10.5, h=11.0, l=10.0, c=10.8, pre_close=11.0))
+            _react(inv, _tick("20240104", o=10.5, h=11.0, l=10.0, c=10.8, pre_close=11.0))
         )
         self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
-        self.assertEqual(inv.entry.entry_date, "20240104")
-        self.assertEqual(inv.entry.entry_price, 10.5)
+        self.assertEqual(inv.entry.date, "20240104")
+        self.assertEqual(inv.entry.price, 10.5)
 
     def test_allow_enter_at_limit_up_fills(self) -> None:
         settings = _settings(
@@ -349,10 +352,10 @@ class TestInvestmentLimitTradability(unittest.TestCase):
         )
         inv = _inv(opp, settings)
         self.assertTrue(
-            inv.tick(_tick("20240103", o=11.0, h=11.0, l=10.8, c=11.0, pre_close=10.0))
+            _react(inv, _tick("20240103", o=11.0, h=11.0, l=10.8, c=11.0, pre_close=10.0))
         )
         self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
-        self.assertEqual(inv.entry.entry_price, 11.0)
+        self.assertEqual(inv.entry.price, 11.0)
 
     def test_sell_blocked_at_limit_down_then_retries(self) -> None:
         settings = _settings(
@@ -365,24 +368,24 @@ class TestInvestmentLimitTradability(unittest.TestCase):
             trigger_price=10.0,
         )
         inv = _inv(opp, settings)
-        inv.tick(_tick("20240103", o=10.0, h=10.5, l=9.8, c=10.0, pre_close=10.0))
+        _react(inv, _tick("20240103", o=10.0, h=10.5, l=9.8, c=10.0, pre_close=10.0))
         self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
 
         # T+1：触发止损，但收盘贴跌停（pre=10 → down=9）→ 挂起
         self.assertTrue(
-            inv.tick(_tick("20240104", o=9.8, h=9.9, l=9.0, c=9.0, pre_close=10.0))
+            _react(inv, _tick("20240104", o=9.8, h=9.9, l=9.0, c=9.0, pre_close=10.0))
         )
         self.assertEqual(inv.lifecycle, Lifecycle.PENDING_TO_EXIT)
-        self.assertFalse(bool(inv.exit_info.exit_date))
+        self.assertFalse(bool(inv.exit_info.date))
         self.assertEqual(inv.pending_exit.kind, "fill_retry")
 
         # 次日收盘离开跌停 → 卖出
         self.assertFalse(
-            inv.tick(_tick("20240105", o=9.2, h=9.5, l=9.1, c=9.3, pre_close=9.0))
+            _react(inv, _tick("20240105", o=9.2, h=9.5, l=9.1, c=9.3, pre_close=9.0))
         )
         self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
-        self.assertEqual(inv.exit_info.exit_reason, "stop_loss")
-        self.assertEqual(inv.exit_info.exit_price, 9.3)
+        self.assertEqual(inv.exit_info.reason, "stop_loss")
+        self.assertEqual(inv.exit_info.price, 9.3)
 
     def test_missing_pre_close_does_not_block(self) -> None:
         settings = _settings()
@@ -394,10 +397,10 @@ class TestInvestmentLimitTradability(unittest.TestCase):
         )
         inv = _inv(opp, settings)
         # 开盘 11 若无 pre_close 则无法判涨停 → 允许成交
-        self.assertTrue(inv.tick(_tick("20240103", o=11.0, h=11.0, l=10.5, c=11.0)))
+        self.assertTrue(_react(inv, _tick("20240103", o=11.0, h=11.0, l=10.5, c=11.0)))
         self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
-        self.assertIsNone(inv.entry.buy_at_limit_up)
-        self.assertIsNone(inv.entry.buy_prev_close)
+        self.assertIsNone(inv.entry.at_limit)
+        self.assertIsNone(inv.entry.prev_close)
 
     def test_fill_stamps_limit_flags_on_entry_and_exit(self) -> None:
         settings = _settings(
@@ -417,31 +420,31 @@ class TestInvestmentLimitTradability(unittest.TestCase):
         )
         inv = _inv(opp, settings)
         inv.meta.opportunity_id = "opp-limit-stamp"
-        inv.tick(_tick("20240103", o=11.0, h=11.0, l=10.8, c=11.0, pre_close=10.0))
+        _react(inv, _tick("20240103", o=11.0, h=11.0, l=10.8, c=11.0, pre_close=10.0))
         self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
-        self.assertTrue(inv.entry.buy_at_limit_up)
-        self.assertEqual(inv.entry.buy_prev_close, 10.0)
+        self.assertTrue(inv.entry.at_limit)
+        self.assertEqual(inv.entry.prev_close, 10.0)
 
         self.assertFalse(
-            inv.tick(_tick("20240104", o=9.8, h=9.9, l=9.0, c=9.0, pre_close=10.0))
+            _react(inv, _tick("20240104", o=9.8, h=9.9, l=9.0, c=9.0, pre_close=10.0))
         )
         self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
-        self.assertTrue(inv.exit_info.sell_at_limit_down)
-        self.assertEqual(inv.exit_info.sell_prev_close, 10.0)
+        self.assertTrue(inv.exit_info.at_limit)
+        self.assertEqual(inv.exit_info.prev_close, 10.0)
 
-        from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_investments import (
+        from core.modules.strategy.core.engines.shared.services.simulation_output import (
             InvestmentRow,
         )
 
         row = InvestmentRow.from_payload(inv.to_dict())
-        self.assertTrue(row.buy_at_limit_up)
-        self.assertTrue(row.sell_at_limit_down)
+        self.assertTrue(row.enter_at_limit)
+        self.assertTrue(row.exit_at_limit)
         csv_row = row.to_csv_row()
-        self.assertEqual(csv_row["buy_at_limit_up"], "1")
-        self.assertEqual(csv_row["sell_at_limit_down"], "1")
+        self.assertEqual(csv_row["enter_at_limit"], "1")
+        self.assertEqual(csv_row["exit_at_limit"], "1")
         roundtrip = InvestmentRow.from_csv_row(csv_row)
-        self.assertTrue(roundtrip.buy_at_limit_up)
-        self.assertTrue(roundtrip.sell_at_limit_down)
+        self.assertTrue(roundtrip.enter_at_limit)
+        self.assertTrue(roundtrip.exit_at_limit)
 
 
 class _FixedStatusTags:
@@ -469,15 +472,15 @@ class TestInvestmentStStatusTagsLimit(unittest.TestCase):
 
         # 无 ST 时 10.5 不是 10% 涨停；有 ST 时是 5% 涨停 → 不买
         self.assertTrue(
-            inv.tick(_tick("20240103", o=10.5, h=10.5, l=10.2, c=10.5, pre_close=10.0))
+            _react(inv, _tick("20240103", o=10.5, h=10.5, l=10.2, c=10.5, pre_close=10.0))
         )
         self.assertEqual(inv.lifecycle, Lifecycle.PENDING_TO_ENTER)
 
         self.assertTrue(
-            inv.tick(_tick("20240104", o=10.4, h=10.6, l=10.2, c=10.5, pre_close=10.0))
+            _react(inv, _tick("20240104", o=10.4, h=10.6, l=10.2, c=10.5, pre_close=10.0))
         )
         self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
-        self.assertEqual(inv.entry.entry_price, 10.4)
+        self.assertEqual(inv.entry.price, 10.4)
 
     def test_without_provider_ten_percent_band(self) -> None:
         """无 provider 时仍按主板 10%：开盘 10.5 可买。"""
@@ -490,10 +493,10 @@ class TestInvestmentStStatusTagsLimit(unittest.TestCase):
         )
         inv = _inv(opp, settings)
         self.assertTrue(
-            inv.tick(_tick("20240103", o=10.5, h=10.8, l=10.2, c=10.6, pre_close=10.0))
+            _react(inv, _tick("20240103", o=10.5, h=10.8, l=10.2, c=10.6, pre_close=10.0))
         )
         self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
-        self.assertEqual(inv.entry.entry_price, 10.5)
+        self.assertEqual(inv.entry.price, 10.5)
 
     def test_st_day_sell_block_at_five_percent_down(self) -> None:
         settings = _settings(
@@ -513,20 +516,20 @@ class TestInvestmentStStatusTagsLimit(unittest.TestCase):
             }
         )
         inv = _inv(opp, settings, status_tags_provider=provider)
-        inv.tick(_tick("20240103", o=10.0, h=10.2, l=9.9, c=10.0, pre_close=10.0))
+        _react(inv, _tick("20240103", o=10.0, h=10.2, l=9.9, c=10.0, pre_close=10.0))
         self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
 
         # ST 跌停 = 9.5；收盘贴板 → 挂起
         self.assertTrue(
-            inv.tick(_tick("20240104", o=9.8, h=9.9, l=9.5, c=9.5, pre_close=10.0))
+            _react(inv, _tick("20240104", o=9.8, h=9.9, l=9.5, c=9.5, pre_close=10.0))
         )
         self.assertEqual(inv.lifecycle, Lifecycle.PENDING_TO_EXIT)
 
         self.assertFalse(
-            inv.tick(_tick("20240105", o=9.6, h=9.7, l=9.55, c=9.6, pre_close=9.5))
+            _react(inv, _tick("20240105", o=9.6, h=9.7, l=9.55, c=9.6, pre_close=9.5))
         )
         self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
-        self.assertEqual(inv.exit_info.exit_price, 9.6)
+        self.assertEqual(inv.exit_info.price, 9.6)
 
     def test_enum_output_stamps_stock_status_at_trigger(self) -> None:
         settings = _settings()
@@ -547,12 +550,12 @@ class TestInvestmentStStatusTagsLimit(unittest.TestCase):
         # 源 Opportunity 同步打标
         self.assertEqual(opp.status_tags_at_trigger(), ("st", "star_st"))
 
-        from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_investments import (
+        from core.modules.strategy.core.engines.shared.services.simulation_output import (
             InvestmentRow,
         )
 
         # 需 entry/exit 结构：走一轮最小成交
-        inv.tick(_tick("20240103", o=10.0, h=10.5, l=9.8, c=10.2, pre_close=10.0))
+        _react(inv, _tick("20240103", o=10.0, h=10.5, l=9.8, c=10.2, pre_close=10.0))
         row = InvestmentRow.from_payload(inv.to_dict())
         self.assertEqual(row.stock_status_at_trigger, ("st", "star_st"))
         csv_row = row.to_csv_row()
@@ -597,22 +600,22 @@ class TestPendingExitKind(unittest.TestCase):
             trigger_price=10.0,
         )
         inv = _inv(opp, settings)
-        inv.tick(_tick("20240102", o=10, h=11, l=9, c=10))
+        _react(inv, _tick("20240102", o=10, h=11, l=9, c=10))
         self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
-        inv.tick(_tick("20240103", o=10, h=10.5, l=9.8, c=10))
+        _react(inv, _tick("20240103", o=10, h=10.5, l=9.8, c=10))
         self.assertTrue(
-            inv.tick(_tick("20240104", o=9.8, h=9.9, l=9.0, c=9.2, pre_close=10.0))
+            _react(inv, _tick("20240104", o=9.8, h=9.9, l=9.0, c=9.2, pre_close=10.0))
         )
         self.assertEqual(inv.lifecycle, Lifecycle.PENDING_TO_EXIT)
         assert inv.pending_exit is not None
         self.assertEqual(inv.pending_exit.kind, "next_open_defer")
         self.assertEqual(inv.pending_exit.armed_as_of, "20240104")
-        self.assertFalse(bool(inv.exit_info.exit_date))
+        self.assertFalse(bool(inv.exit_info.date))
         self.assertFalse(
-            inv.tick(_tick("20240105", o=9.4, h=9.6, l=9.3, c=9.55, pre_close=9.2))
+            _react(inv, _tick("20240105", o=9.4, h=9.6, l=9.3, c=9.55, pre_close=9.2))
         )
         self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
-        self.assertEqual(inv.exit_info.exit_price, 9.4)
+        self.assertEqual(inv.exit_info.price, 9.4)
 
     def test_next_open_defer_blocked_at_open_retries_open(self) -> None:
         settings = _settings(
@@ -635,20 +638,20 @@ class TestPendingExitKind(unittest.TestCase):
             trigger_price=10.0,
         )
         inv = _inv(opp, settings)
-        inv.tick(_tick("20240102", o=10, h=11, l=9, c=10))
-        inv.tick(_tick("20240103", o=10, h=10.5, l=9.8, c=10))
-        inv.tick(_tick("20240104", o=9.8, h=9.9, l=9.0, c=9.2, pre_close=10.0))
+        _react(inv, _tick("20240102", o=10, h=11, l=9, c=10))
+        _react(inv, _tick("20240103", o=10, h=10.5, l=9.8, c=10))
+        _react(inv, _tick("20240104", o=9.8, h=9.9, l=9.0, c=9.2, pre_close=10.0))
         assert inv.pending_exit is not None
         self.assertEqual(inv.pending_exit.kind, "next_open_defer")
         self.assertTrue(
-            inv.tick(_tick("20240105", o=8.28, h=8.5, l=8.2, c=8.4, pre_close=9.2))
+            _react(inv, _tick("20240105", o=8.28, h=8.5, l=8.2, c=8.4, pre_close=9.2))
         )
         self.assertEqual(inv.lifecycle, Lifecycle.PENDING_TO_EXIT)
         self.assertEqual(inv.pending_exit.kind, "next_open_defer")
         self.assertFalse(
-            inv.tick(_tick("20240108", o=8.5, h=8.7, l=8.4, c=8.6, pre_close=8.4))
+            _react(inv, _tick("20240108", o=8.5, h=8.7, l=8.4, c=8.6, pre_close=8.4))
         )
-        self.assertEqual(inv.exit_info.exit_price, 8.5)
+        self.assertEqual(inv.exit_info.price, 8.5)
 
 
 class _TagProvider:
@@ -688,14 +691,14 @@ class TestInvestmentForceExit(unittest.TestCase):
         )
         inv = _inv(opp, settings, status_tags_provider=provider)
 
-        self.assertTrue(inv.tick(_tick("20240102", o=10, h=11, l=9, c=10)))
+        self.assertTrue(_react(inv, _tick("20240102", o=10, h=11, l=9, c=10)))
         self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
         # T+1 settlement day
-        self.assertTrue(inv.tick(_tick("20240103", o=10, h=11, l=9, c=10.5)))
-        self.assertFalse(inv.tick(_tick("20240104", o=10, h=11, l=9, c=9.5)))
+        self.assertTrue(_react(inv, _tick("20240103", o=10, h=11, l=9, c=10.5)))
+        self.assertFalse(_react(inv, _tick("20240104", o=10, h=11, l=9, c=9.5)))
         self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
-        self.assertEqual(inv.exit_info.exit_reason, "stock_status:st")
-        self.assertEqual(inv.exit_info.exit_price, 9.5)
+        self.assertEqual(inv.exit_info.reason, "stock_status:st")
+        self.assertEqual(inv.exit_info.price, 9.5)
 
     def test_force_exit_partial_ratio_stays_open(self) -> None:
         settings = _settings(
@@ -722,16 +725,16 @@ class TestInvestmentForceExit(unittest.TestCase):
             trigger_price=10.0,
         )
         inv = _inv(opp, settings, status_tags_provider=provider)
-        inv.tick(_tick("20240102", o=10, h=11, l=9, c=10))
-        inv.tick(_tick("20240103", o=10, h=11, l=9, c=10.5))
-        self.assertTrue(inv.tick(_tick("20240104", o=10, h=11, l=9, c=9.0)))
+        _react(inv, _tick("20240102", o=10, h=11, l=9, c=10))
+        _react(inv, _tick("20240103", o=10, h=11, l=9, c=10.5))
+        self.assertTrue(_react(inv, _tick("20240104", o=10, h=11, l=9, c=9.0)))
         self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
         self.assertEqual(len(inv.completed_goals), 1)
         self.assertEqual(inv.completed_goals[0]["exit_ratio"], 0.5)
         self.assertEqual(inv.completed_goals[0]["reason"], "stock_status:st")
         self.assertIn("st", inv.runtime_state.triggered_force_exit_tags)
         # 同一 tag 不再二次触发
-        self.assertTrue(inv.tick(_tick("20240105", o=10, h=11, l=9, c=9.0)))
+        self.assertTrue(_react(inv, _tick("20240105", o=10, h=11, l=9, c=9.0)))
         self.assertEqual(len(inv.completed_goals), 1)
 
     def test_delisted_exit_uses_last_tradable_close(self) -> None:
@@ -761,15 +764,15 @@ class TestInvestmentForceExit(unittest.TestCase):
             trigger_price=10.0,
         )
         inv = _inv(opp, settings)
-        inv.tick(_tick("20240102", o=10, h=11, l=9, c=10))
-        inv.tick(_tick("20240103", o=10, h=11, l=9, c=10.5))
-        inv.tick(_tick("20240104", o=10, h=11, l=9, c=12.0))
-        self.assertFalse(inv.tick(_tick("20240105", o=10, h=11, l=9, c=1.0)))
+        _react(inv, _tick("20240102", o=10, h=11, l=9, c=10))
+        _react(inv, _tick("20240103", o=10, h=11, l=9, c=10.5))
+        _react(inv, _tick("20240104", o=10, h=11, l=9, c=12.0))
+        self.assertFalse(_react(inv, _tick("20240105", o=10, h=11, l=9, c=1.0)))
         self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
-        self.assertEqual(inv.exit_info.exit_reason, "stock_status:delisted")
+        self.assertEqual(inv.exit_info.reason, "stock_status:delisted")
         # 定价用上一根 close=12，不是退市日 close=1
-        self.assertEqual(inv.exit_info.exit_price, 12.0)
-        self.assertEqual(inv.exit_info.exit_date, "20240104")
+        self.assertEqual(inv.exit_info.price, 12.0)
+        self.assertEqual(inv.exit_info.date, "20240104")
 
     def test_delisted_exit_same_tick_close(self) -> None:
         settings = _settings(
@@ -796,12 +799,12 @@ class TestInvestmentForceExit(unittest.TestCase):
             trigger_price=10.0,
         )
         inv = _inv(opp, settings)
-        inv.tick(_tick("20240102", o=10, h=11, l=9, c=10))
-        inv.tick(_tick("20240103", o=10, h=11, l=9, c=10.5))
-        inv.tick(_tick("20240104", o=10, h=11, l=9, c=12.0))
-        self.assertFalse(inv.tick(_tick("20240105", o=10, h=11, l=9, c=3.0)))
-        self.assertEqual(inv.exit_info.exit_price, 3.0)
-        self.assertEqual(inv.exit_info.exit_date, "20240105")
+        _react(inv, _tick("20240102", o=10, h=11, l=9, c=10))
+        _react(inv, _tick("20240103", o=10, h=11, l=9, c=10.5))
+        _react(inv, _tick("20240104", o=10, h=11, l=9, c=12.0))
+        self.assertFalse(_react(inv, _tick("20240105", o=10, h=11, l=9, c=3.0)))
+        self.assertEqual(inv.exit_info.price, 3.0)
+        self.assertEqual(inv.exit_info.date, "20240105")
 
 
 class TestInvestmentMultiStageGoals(unittest.TestCase):
@@ -830,10 +833,10 @@ class TestInvestmentMultiStageGoals(unittest.TestCase):
             trigger_price=10.0,
         )
         inv = _inv(opp, settings)
-        inv.tick(_tick("20240102", o=10, h=11, l=9, c=10))
-        inv.tick(_tick("20240103", o=10, h=11, l=9, c=10.5))
+        _react(inv, _tick("20240102", o=10, h=11, l=9, c=10))
+        _react(inv, _tick("20240103", o=10, h=11, l=9, c=10.5))
         # entry=10; 10%→11, 20%→12；high=12.5 两档同日
-        self.assertFalse(inv.tick(_tick("20240104", o=10, h=12.5, l=10, c=12)))
+        self.assertFalse(_react(inv, _tick("20240104", o=10, h=12.5, l=10, c=12)))
         self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
         self.assertEqual(len(inv.completed_goals), 2)
         self.assertAlmostEqual(inv.completed_goals[0]["exit_ratio"], 0.5)
@@ -868,17 +871,17 @@ class TestInvestmentMultiStageGoals(unittest.TestCase):
             trigger_price=10.0,
         )
         inv = _inv(opp, settings)
-        inv.tick(_tick("20240102", o=10, h=11, l=9, c=10))
-        inv.tick(_tick("20240103", o=10, h=11, l=9, c=10.5))
+        _react(inv, _tick("20240102", o=10, h=11, l=9, c=10))
+        _react(inv, _tick("20240103", o=10, h=11, l=9, c=10.5))
         # 触及 10% 止盈半仓 + 激活 protect
-        self.assertTrue(inv.tick(_tick("20240104", o=10, h=11.5, l=10.5, c=11.2)))
+        self.assertTrue(_react(inv, _tick("20240104", o=10, h=11.5, l=10.5, c=11.2)))
         self.assertTrue(inv.runtime_state.protect_loss_active)
         self.assertEqual(len(inv.completed_goals), 1)
         self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
         # 回落到成本价 → protect_loss 清剩余
-        self.assertFalse(inv.tick(_tick("20240105", o=10, h=10.2, l=9.8, c=10.0)))
+        self.assertFalse(_react(inv, _tick("20240105", o=10, h=10.2, l=9.8, c=10.0)))
         self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
-        self.assertEqual(inv.exit_info.exit_reason, "protect_loss")
+        self.assertEqual(inv.exit_info.reason, "protect_loss")
         self.assertEqual(len(inv.completed_goals), 2)
 
     def test_dynamic_loss_after_take_profit_action(self) -> None:
@@ -908,14 +911,14 @@ class TestInvestmentMultiStageGoals(unittest.TestCase):
             trigger_price=10.0,
         )
         inv = _inv(opp, settings)
-        inv.tick(_tick("20240102", o=10, h=11, l=9, c=10))
-        inv.tick(_tick("20240103", o=10, h=11, l=9, c=10.5))
+        _react(inv, _tick("20240102", o=10, h=11, l=9, c=10))
+        _react(inv, _tick("20240103", o=10, h=11, l=9, c=10.5))
         # 止盈半仓，peak≈11.5
-        self.assertTrue(inv.tick(_tick("20240104", o=10, h=11.5, l=10.5, c=11.2)))
+        self.assertTrue(_react(inv, _tick("20240104", o=10, h=11.5, l=10.5, c=11.2)))
         self.assertTrue(inv.runtime_state.dynamic_loss_active)
         # 从 peak 回撤 ≥10%：peak 至少 11.5，close 10.3 → -10.4%
-        self.assertFalse(inv.tick(_tick("20240105", o=11, h=11.2, l=10.0, c=10.3)))
-        self.assertEqual(inv.exit_info.exit_reason, "dynamic_loss")
+        self.assertFalse(_react(inv, _tick("20240105", o=11, h=11.2, l=10.0, c=10.3)))
+        self.assertEqual(inv.exit_info.reason, "dynamic_loss")
 
     def test_multi_stage_stop_loss_ordered(self) -> None:
         settings = _settings(
@@ -940,10 +943,10 @@ class TestInvestmentMultiStageGoals(unittest.TestCase):
             trigger_price=10.0,
         )
         inv = _inv(opp, settings)
-        inv.tick(_tick("20240102", o=10, h=11, l=9, c=10))
-        inv.tick(_tick("20240103", o=10, h=11, l=9, c=10.5))
+        _react(inv, _tick("20240102", o=10, h=11, l=9, c=10))
+        _react(inv, _tick("20240103", o=10, h=11, l=9, c=10.5))
         # low=8 同时低于 -10% 与 -20%；同 tick 先触发第一档再第二档
-        self.assertFalse(inv.tick(_tick("20240104", o=9, h=9.5, l=8.0, c=8.5)))
+        self.assertFalse(_react(inv, _tick("20240104", o=9, h=9.5, l=8.0, c=8.5)))
         self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
         self.assertEqual(len(inv.completed_goals), 2)
         self.assertEqual(inv.completed_goals[0]["reason"], "stop_loss")

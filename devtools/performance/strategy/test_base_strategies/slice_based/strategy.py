@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.modules.data_contract.contracts import DataKey
-from core.modules.strategy.contracts import CalendarAsOfResult, DataContext, Opportunity, StrategyHooks
+from core.modules.strategy.contracts import CalendarAsOfResult, StrategyContext, Opportunity, StrategyHooks
 
 _SHARED = Path(__file__).resolve().parents[1] / "shared"
 if str(_SHARED) not in sys.path:
@@ -32,16 +32,16 @@ __all__ = ["LowPricePitRebalanceHooks"]
 class LowPricePitRebalanceHooks(StrategyHooks):
     """PIT 全市场：周期首个交易日 slice 选股，末个交易日清仓。"""
 
-    def on_calendar_asof(self, ctx: DataContext) -> CalendarAsOfResult:
-        calendar = ctx.calendar
+    def on_calendar_asof(self, ctx: StrategyContext) -> CalendarAsOfResult:
+        calendar = ctx.data.calendar
         if not calendar:
-            return CalendarAsOfResult(as_of_date=str(ctx.get("now") or ""), stocks=[])
+            return CalendarAsOfResult(as_of_date=str(ctx.data.now or ""), stocks=[])
 
-        settings = ctx.effective_settings_dict()
+        settings = ctx.settings.to_dict()
         # session_state：一次 enumerate run 内跨开市日持久化的策略状态
         session_state = dict(calendar.get("session_state") or {})
         period = require_rebalance_period(settings)
-        as_of_date = str(calendar.get("as_of_date") or ctx.get("now") or "")
+        as_of_date = str(calendar.get("as_of_date") or ctx.data.now or "")
 
         if is_rebalance_period_end(calendar, period):
             session_state["force_exit_open_date"] = as_of_date
@@ -60,9 +60,7 @@ class LowPricePitRebalanceHooks(StrategyHooks):
             )
 
         filters = RebalanceFilters.from_settings(settings)
-        stocks_map = calendar.get("stocks") or {}
-        if not isinstance(stocks_map, dict):
-            stocks_map = {}
+        stocks_map = dict(ctx.data.by_entity)
 
         candidates: List[Tuple[str, float]] = []
         for sid, stock_data in stocks_map.items():
@@ -106,9 +104,9 @@ class LowPricePitRebalanceHooks(StrategyHooks):
             session_state=session_state,
         )
 
-    def scan_opportunity(self, ctx: DataContext) -> Optional[Opportunity]:
-        data = ctx.data.to_dict()
-        settings = ctx.effective_settings_dict()
+    def scan_opportunity(self, ctx: StrategyContext) -> Optional[Opportunity]:
+        data = ctx.data.items_with_meta()
+        settings = ctx.settings.to_dict()
         record_of_today = self.get_record_of_today(data, base_data_key=ctx.base_data_key)
         if record_of_today is None:
             return None

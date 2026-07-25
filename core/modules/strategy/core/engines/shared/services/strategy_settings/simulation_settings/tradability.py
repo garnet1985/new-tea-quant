@@ -8,6 +8,8 @@ from typing import Any, ClassVar, Dict, Optional, Tuple
 
 _KNOWN_DELISTED_EXIT_PRICES = frozenset({"last_tradable_close", "same_tick_close"})
 _KNOWN_NO_NEXT_TICK = frozenset({"skip_trade", "use_last_close"})
+_KNOWN_ENTER_PRICES = frozenset({"next_open", "touch", "open", "close"})
+_KNOWN_EXIT_PRICES = frozenset({"next_open", "open", "close", "high", "low"})
 
 
 @dataclass(frozen=True)
@@ -174,7 +176,7 @@ class TradabilityConfig:
     """解析后的 ``assumption.tradability`` 快照。"""
 
     monitor_price: str = "close"
-    enter_price: str = "next_open"
+    enter_price: str = "touch"
     exit_price: str = "close"
     slippage: SlippageConfig = field(default_factory=SlippageConfig)
     edges: EdgesConfig = field(default_factory=EdgesConfig)
@@ -216,12 +218,19 @@ class TradabilityConfig:
                 f"允许 {sorted(_KNOWN_DELISTED_EXIT_PRICES)}"
             )
 
+        enter_price = str(raw.get("enter_price") or "touch").strip().lower() or "touch"
+        if enter_price not in _KNOWN_ENTER_PRICES:
+            raise ValueError(
+                f"{field_path}.enter_price 非法: {enter_price!r}；"
+                f"允许 {sorted(_KNOWN_ENTER_PRICES)}"
+            )
+        exit_price = str(raw.get("exit_price") or "close").strip().lower() or "close"
+
         return cls(
             monitor_price=str(raw.get("monitor_price") or "close").strip().lower()
             or "close",
-            enter_price=str(raw.get("enter_price") or "next_open").strip().lower()
-            or "next_open",
-            exit_price=str(raw.get("exit_price") or "close").strip().lower() or "close",
+            enter_price=enter_price,
+            exit_price=exit_price,
             slippage=SlippageConfig(
                 enter_bps=float(slip_raw.get("enter_bps") or 0.0),
                 exit_bps=float(slip_raw.get("exit_bps") or 0.0),

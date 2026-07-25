@@ -13,6 +13,10 @@ class AssumptionTemplate:
 
     ``none`` / ``custom`` / 缺省 → 使用显式 tradability，不走本类快照。
     风险对策不在此（见 ``RiskControl``）。
+
+    进场价约定：
+    - standard / strict / ideal → ``touch``（限价触及，更贴近实盘）
+    - extreme → ``next_open``（简化乐观成交）
     """
 
     STANDARD: ClassVar[str] = "standard"
@@ -56,7 +60,7 @@ class AssumptionTemplate:
             return TradabilityConfig.from_raw(
                 {
                     "monitor_price": "close",
-                    "enter_price": "next_open",
+                    "enter_price": "touch",
                     "exit_price": "close",
                     "edges": {
                         "allow_enter_at_limit_up": False,
@@ -72,7 +76,7 @@ class AssumptionTemplate:
             return TradabilityConfig.from_raw(
                 {
                     "monitor_price": "close",
-                    "enter_price": "next_open",
+                    "enter_price": "touch",
                     "exit_price": "close",
                     "edges": {
                         "allow_enter_at_limit_up": False,
@@ -88,7 +92,7 @@ class AssumptionTemplate:
             return TradabilityConfig.from_raw(
                 {
                     "monitor_price": "close",
-                    "enter_price": "next_open",
+                    "enter_price": "touch",
                     "exit_price": "close",
                     "edges": {
                         "allow_enter_at_limit_up": True,
@@ -101,11 +105,12 @@ class AssumptionTemplate:
                 }
             )
         if key == cls.EXTREME:
+            # 简化成交：次日 open 必尝试（比 touch 更乐观、更易成交）
             return TradabilityConfig.from_raw(
                 {
-                    "monitor_price": "extreme",
-                    "enter_price": "extreme",
-                    "exit_price": "extreme",
+                    "monitor_price": "close",
+                    "enter_price": "next_open",
+                    "exit_price": "close",
                     "edges": {
                         "allow_enter_at_limit_up": True,
                         "allow_exit_at_limit_down": True,

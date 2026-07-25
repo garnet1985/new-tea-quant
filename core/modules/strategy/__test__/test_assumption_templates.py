@@ -12,20 +12,10 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings import
 )
 
 
-def _steps():
-    return [
-        "check_settlement",
-        "check_stop_loss",
-        "check_take_profit",
-        "check_expiration",
-    ]
-
-
 def _sim(**overrides):
     base = {
         "execution": {
             "mode": "entity_based",
-            "steps": _steps(),
         },
         "assumption": {"template": "none"},
         "risk_control": {},
@@ -55,7 +45,7 @@ def test_standard_template_short_circuits_explicit_tradability() -> None:
         )
     )
     settings.apply_defaults()
-    assert settings.simulation.enter_price == "next_open"
+    assert settings.simulation.enter_price == "touch"
     assert settings.simulation.allow_enter_at_limit_up is False
     assert settings.simulation.liquidity.participation_on_exceed == "clip"
 

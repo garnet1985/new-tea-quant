@@ -9,7 +9,7 @@ from core.modules.backtest_engine.core.performance.profiler import (
     ENGINE_PERF_KEY,
     ENUM_PERF_KEY,
 )
-from core.modules.strategy.core.engines.enumerator.shared.report_manager import (
+from core.modules.strategy.core.engines.enumerator.common.report_manager import (
     ReportManager,
 )
 
@@ -72,7 +72,7 @@ def _sample_jobs() -> List[_FakeJobReport]:
                         "load_data": 0.4,
                         "enumerate": 0.5,
                         "flush_csv": 0.1,
-                        "enum_pit_until": 0.2,
+                        "enum_as_of_slice": 0.2,
                         "enum_contract_until": 0.18,
                         "enum_scan": 0.15,
                         "enum_context_fill": 0.05,
@@ -106,7 +106,7 @@ def _sample_jobs() -> List[_FakeJobReport]:
                         "load_data": 0.3,
                         "enumerate": 0.4,
                         "flush_csv": 0.05,
-                        "enum_pit_until": 0.1,
+                        "enum_as_of_slice": 0.1,
                         "enum_contract_until": 0.09,
                         "enum_scan": 0.08,
                         "enum_context_fill": 0.03,
@@ -155,7 +155,7 @@ def test_profiler_summary_default_omits_jobs(tmp_path: Path) -> None:
     planner = payload["planner"]
     child = payload["child_process"]
 
-    assert perf_path.name == "0_performance.json"
+    assert perf_path.name == "performance.json"
     assert payload["mode"] == "entity_based"
     assert "execution_mode" not in payload
     assert "dispatch" not in payload
@@ -217,7 +217,7 @@ def test_profiler_summary_default_omits_jobs(tmp_path: Path) -> None:
     assert staged["init"] == 0.3
     assert staged["load_data"] == 0.7
     assert staged["enumerate"] == 0.9
-    assert staged["enum_pit_until"] == 0.3
+    assert staged["enum_as_of_slice"] == 0.3
     assert staged["enum_contract_until"] == 0.27
     assert staged["enum_scan"] == 0.23
     assert staged["load_contract_issue"] == 0.55
@@ -259,7 +259,7 @@ def test_profiler_full_includes_jobs(tmp_path: Path) -> None:
 
 
 def test_dispatch_plan_snapshot_entity_and_slice() -> None:
-    from core.modules.strategy.core.engines.enumerator.shared.report_manager.profiler import (
+    from core.modules.strategy.core.engines.enumerator.common.report_manager.profiler import (
         DispatchPlanSnapshot,
     )
 
@@ -422,7 +422,7 @@ def test_profiler_slice_quick_summary(tmp_path: Path) -> None:
 
 
 def test_overall_goal_fill_excludes_simulate_end() -> None:
-    from core.modules.strategy.core.engines.enumerator.shared.report_manager.overall_report import (
+    from core.modules.strategy.core.engines.enumerator.common.report_manager.overall_report import (
         OverallReport,
     )
 

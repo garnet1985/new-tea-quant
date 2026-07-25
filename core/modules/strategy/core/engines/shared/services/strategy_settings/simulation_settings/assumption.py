@@ -1,9 +1,9 @@
-"""``simulation.assumption`` — template + 有效 tradability。"""
+"""``simulation.assumption`` — template + 有效 tradability + target_check_order。"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, List, TYPE_CHECKING
 
 from core.modules.strategy.core.engines.shared.services.strategy_settings.settings_base import (
     SettingsBase,
@@ -15,12 +15,24 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.valida
 from .assumption_templates import AssumptionTemplate
 from .tradability import TradabilityConfig
 
+if TYPE_CHECKING:
+    from core.modules.strategy.core.engines.shared.data_class.investment import (
+        TargetCheckStep,
+    )
+
+_DEFAULT_TARGET_CHECK_ORDER = [
+    "check_stop_loss",
+    "check_take_profit",
+    "check_expiration",
+]
+
 
 @dataclass
 class AssumptionSettings(SettingsBase):
     """``settings.simulation.assumption``。
 
     命名 ``template`` 短路 → 预设 tradability；``none`` / ``custom`` → 显式块。
+    ``target_check_order``：``check_targets`` 内 SL/TP/expire 短路顺序（同 bar 冲突裁决）。
     """
 
     raw_settings: Dict[str, Any]
@@ -52,6 +64,21 @@ class AssumptionSettings(SettingsBase):
             field_path="simulation.assumption.tradability",
         )
 
+    @property
+    def target_check_order(self) -> List[str]:
+        raw = self.assumption.get("target_check_order")
+        if not isinstance(raw, list) or not raw:
+            return list(_DEFAULT_TARGET_CHECK_ORDER)
+        return [str(item).strip() for item in raw if str(item).strip()]
+
+    def parsed_target_check_order(self) -> List["TargetCheckStep"]:
+        from core.modules.strategy.core.engines.shared.data_class.investment import (
+            TargetCheckStep,
+        )
+
+        self.apply_defaults()
+        return [TargetCheckStep.parse(item) for item in self.target_check_order]
+
     def apply_defaults(self) -> None:
         sim = self.raw_settings.setdefault("simulation", {})
         if not isinstance(sim, dict):
@@ -82,10 +109,17 @@ class AssumptionSettings(SettingsBase):
                 tradability = assumption["tradability"]
             self._ensure_tradability_defaults(tradability)
 
+        if (
+            "target_check_order" not in assumption
+            or not isinstance(assumption.get("target_check_order"), list)
+            or not assumption.get("target_check_order")
+        ):
+            assumption["target_check_order"] = list(_DEFAULT_TARGET_CHECK_ORDER)
+
     @staticmethod
     def _ensure_tradability_defaults(tradability: Dict[str, Any]) -> None:
         tradability.setdefault("monitor_price", "close")
-        tradability.setdefault("enter_price", "next_open")
+        tradability.setdefault("enter_price", "touch")
         tradability.setdefault("exit_price", "close")
         slip = tradability.setdefault("slippage", {})
         if isinstance(slip, dict):
@@ -126,6 +160,7 @@ class AssumptionSettings(SettingsBase):
             return report
 
         self.apply_defaults()
+        self._validate_target_check_order(report)
 
         if tmpl in AssumptionTemplate.NAMED:
             try:
@@ -159,11 +194,49 @@ class AssumptionSettings(SettingsBase):
             SettingsBase.add_critical(report, path, msg)
         return report
 
+    def _validate_target_check_order(self, report: ValidationReport) -> None:
+        from core.modules.strategy.core.engines.shared.data_class.investment import (
+            TargetCheckStep,
+        )
+
+        raw = self.assumption.get("target_check_order")
+        if not isinstance(raw, list) or not raw:
+            SettingsBase.add_critical(
+                report,
+                "simulation.assumption.target_check_order",
+                "target_check_order must be a non-empty list",
+                suggested_fix=f"Use default: {_DEFAULT_TARGET_CHECK_ORDER}",
+            )
+            return
+
+        seen: set[str] = set()
+        for idx, item in enumerate(raw):
+            field_path = f"simulation.assumption.target_check_order[{idx}]"
+            try:
+                step = TargetCheckStep.parse(item)
+            except ValueError as exc:
+                SettingsBase.add_critical(
+                    report,
+                    field_path,
+                    str(exc),
+                    suggested_fix=f"Allowed: {[s.value for s in TargetCheckStep]}",
+                )
+                continue
+            if step.value in seen:
+                SettingsBase.add_critical(
+                    report,
+                    field_path,
+                    f"duplicate target check step: {step.value!r}",
+                )
+                continue
+            seen.add(step.value)
+
     def to_dict(self) -> Dict[str, Any]:
         self.apply_defaults()
         return {
             "template": self.template or AssumptionTemplate.NONE,
             "tradability": self.tradability.to_dict(),
+            "target_check_order": list(self.target_check_order),
         }
 
 

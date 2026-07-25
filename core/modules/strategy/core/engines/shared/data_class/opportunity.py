@@ -1,5 +1,8 @@
 """Opportunity — 扫描/枚举信号记录（scan → Investment / adapter）。
 
+消费者: scanner, enumerator, portfolio
+其它: contracts, hooks
+
 本文件:
 - StockInfo / OpportunityMeta / OpportunityContributor / Opportunity
   边界: 负责入场条件快照（trigger_*）；不含 exit、lifecycle、goal 完成字段（见 Investment）

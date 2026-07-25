@@ -13,7 +13,7 @@ from core.modules.data_contract import DATA_KEY, ContractIssuer
 from core.modules.data_contract.core.data_contracts.stock_st_periods.contract import (
     StockStPeriodsContract,
 )
-from core.modules.strategy.core.engines.shared.services.entity_loader.strategy_data_resolver import (
+from core.modules.strategy.core.services.entity_loader.strategy_data_resolver import (
     StrategyDataResolver,
 )
 

@@ -1,8 +1,8 @@
 """Strategy 模块 Facade — scan / enumerate / price / portfolio / simulate / discovery。
 
 本文件:
-- Strategy: 对外 API（扫描、模拟编排、策略发现查询）
-  边界: 负责指纹→缓存→Pipeline 编排；不负责各引擎内 tick/回放业务
+- Strategy: 对外 API（扫描委托 ScannerPipeline；simulate 指纹→缓存→Pipeline）
+  边界: 负责公开入口与 simulate 跨 step 编排；scan 领域逻辑在 ScannerPipeline
 - BackTestPipelines: SimulateKind → Pipeline 懒加载映射
 """
 
@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Type, Union
 
 from .core.enums import SimulateKind
 from .core.services.discovery import DiscoveryService
-from .core.engines.shared.services.entity_loader.global_entity_loader import (
+from .core.services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
 )
 from .core.engines.shared.data_class.simulate_session import SimulateSession
@@ -63,93 +63,10 @@ class Strategy:
         *,
         demo: bool = False,
     ) -> Dict[str, Any]:
-        """执行机会扫描。
-
-        未指定 ``key_or_id`` 时扫描全部已启用策略；显式指定时即使未启用也扫。
-        ``demo=True`` 放宽严格交易日门闸（等同放宽日历 vs K 线对齐）。
-        """
-        from core.modules.data_manager import DataManager
+        """执行机会扫描（委托 ``ScannerPipeline.scan``）。"""
         from core.modules.strategy.core.engines.scanner import ScannerPipeline
-        from core.modules.strategy.core.engines.scanner.helpers import ScanDateResolver
-        from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
-            StrategySettings,
-        )
 
-        targets = Strategy._resolve_scan_targets(key_or_id)
-        if not targets:
-            return {}
-
-        dm = DataManager()
-        kline_latest = ScanDateResolver.load_kline_latest_date(dm)
-        if not kline_latest:
-            logger.error("无法解析 K 线最新日期（sys_stock_klines 可能为空）")
-            return {}
-
-        results: Dict[str, Any] = {}
-        for info in targets:
-            name = str(info.key or info.unique_relative_path or "").strip()
-            settings = StrategySettings.from_dict(dict(info.settings or {}))
-            settings.apply_defaults()
-            if demo:
-                settings.scanner.set_use_strict_previous_trading_day(False)
-
-            if not demo:
-                anchor = ScanDateResolver.resolve_anchor_date(
-                    dm,
-                    use_strict=settings.scanner.use_strict_previous_trading_day,
-                )
-                if anchor and anchor != kline_latest:
-                    logger.warning(
-                        "跳过扫描 %s：锚点 %s ≠ K 线最新 %s（demo=True 可放宽）",
-                        name,
-                        anchor,
-                        kline_latest,
-                    )
-                    continue
-
-            try:
-                results[name] = ScannerPipeline.run(
-                    info,
-                    settings,
-                    data_manager=dm,
-                )
-            except Exception as exc:
-                logger.error("扫描失败 strategy=%s error=%s", name, exc, exc_info=True)
-        return results
-
-    @staticmethod
-    def _resolve_scan_targets(
-        key_or_id: Optional[str],
-    ) -> List["EnabledStrategyInfo"]:
-        """显式名 → 单策略（未启用也允许）；未指定 → 全部启用。"""
-        from dataclasses import fields as dc_fields
-
-        from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
-            EnabledStrategyInfo,
-        )
-
-        needle = str(key_or_id or "").strip()
-        field_names = {f.name for f in dc_fields(EnabledStrategyInfo) if f.init}
-
-        def _as_enabled(info: Any) -> EnabledStrategyInfo:
-            if isinstance(info, EnabledStrategyInfo):
-                return info
-            kwargs = {k: v for k, v in info.__dict__.items() if k in field_names}
-            return EnabledStrategyInfo(**kwargs)
-
-        if needle:
-            for info in DiscoveryService.discover_strategies():
-                if info.key == needle or info.id() == needle:
-                    if not info.is_enabled:
-                        logger.warning("策略未启用，仍将扫描: %s", needle)
-                    return [_as_enabled(info)]
-            logger.error("策略不存在: %s", needle)
-            return []
-
-        enabled = DiscoveryService.get_enabled_strategies()
-        if not enabled:
-            logger.warning("没有可扫描的策略")
-        return sorted(enabled, key=lambda x: str(x.key or x.unique_relative_path or ""))
+        return ScannerPipeline.scan(key_or_id, demo=demo)
 
     @staticmethod
     def analyze(*, session_id: Optional[str] = None) -> None:

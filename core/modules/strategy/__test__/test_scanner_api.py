@@ -1,4 +1,4 @@
-"""Strategy.scan Facade 契约（可在 refactor freeze 下跑）。"""
+"""Strategy.scan Facade 契约（委托 ScannerPipeline.scan）。"""
 from __future__ import annotations
 
 from unittest.mock import patch
@@ -6,16 +6,23 @@ from unittest.mock import patch
 import pytest
 
 from core.modules.strategy import Strategy
+from core.modules.strategy.core.engines.scanner import ScannerPipeline
 
 pytestmark = pytest.mark.force_run
 
 
-def test_strategy_scan_empty_targets() -> None:
-    with patch.object(Strategy, "_resolve_scan_targets", return_value=[]):
-        assert Strategy.scan() == {}
+def test_strategy_scan_delegates_to_pipeline() -> None:
+    with patch.object(ScannerPipeline, "scan", return_value={}) as scan:
+        assert Strategy.scan("demo", demo=True) == {}
+    scan.assert_called_once_with("demo", demo=True)
 
 
-def test_strategy_scan_calls_pipeline() -> None:
+def test_scanner_pipeline_scan_empty_targets() -> None:
+    with patch.object(ScannerPipeline, "resolve_targets", return_value=[]):
+        assert ScannerPipeline.scan() == {}
+
+
+def test_scanner_pipeline_scan_calls_run() -> None:
     fake_report = {
         "date": "20240110",
         "total_opportunities": 0,
@@ -41,15 +48,12 @@ def test_strategy_scan_calls_pipeline() -> None:
             "is_enabled": True,
         },
     )()
-    with patch.object(Strategy, "_resolve_scan_targets", return_value=[info]):
+    with patch.object(ScannerPipeline, "resolve_targets", return_value=[info]):
         with patch(
-            "core.modules.strategy.core.engines.scanner.helpers.ScanDateResolver.load_kline_latest_date",
+            "core.modules.strategy.core.engines.scanner.pipeline.ScanDateResolver.load_kline_latest_date",
             return_value="20240110",
         ):
-            with patch(
-                "core.modules.strategy.core.engines.scanner.ScannerPipeline.run",
-                return_value=fake_report,
-            ) as run:
-                out = Strategy.scan("demo", demo=True)
+            with patch.object(ScannerPipeline, "run", return_value=fake_report) as run:
+                out = ScannerPipeline.scan("demo", demo=True)
     assert out == {"demo": fake_report}
     run.assert_called_once()

@@ -25,7 +25,7 @@ def remaining_position_ratio(executed_legs: List[Dict[str, Any]]) -> float:
     remaining = 1.0
     ordered = sorted(
         executed_legs,
-        key=lambda t: str(t.get("date") or t.get("sell_date") or ""),
+        key=lambda t: str(t.get("date") or t.get("exit_date") or ""),
     )
     for leg in ordered:
         ratio = _leg_exit_ratio(leg)
@@ -44,7 +44,7 @@ def position_fully_closed(executed_legs: List[Dict[str, Any]]) -> bool:
 def latest_executed_exit_date(executed_legs: List[Dict[str, Any]]) -> str:
     dates: List[str] = []
     for leg in executed_legs:
-        day = str(leg.get("date") or leg.get("sell_date") or "").strip()
+        day = str(leg.get("date") or leg.get("exit_date") or "").strip()
         if day:
             dates.append(day)
     return max(dates) if dates else ""
@@ -53,12 +53,12 @@ def latest_executed_exit_date(executed_legs: List[Dict[str, Any]]) -> str:
 def resolve_holding_until(
     *,
     processed_legs: List[Dict[str, Any]],
-    buy_date: str,
+    enter_date: str,
     backtest_end_date: str,
 ) -> str:
     """平仓后释放至最后成交日；未平仓则锁至回测结束。"""
     if position_fully_closed(processed_legs):
-        return latest_executed_exit_date(processed_legs) or str(buy_date or "").strip()
+        return latest_executed_exit_date(processed_legs) or str(enter_date or "").strip()
     end = str(backtest_end_date or "").strip()
     return end or _OPEN_HOLDING_FALLBACK_END
 

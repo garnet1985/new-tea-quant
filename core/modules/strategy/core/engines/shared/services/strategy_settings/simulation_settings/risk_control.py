@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple, Union
 
 from core.modules.strategy.core.engines.shared.services.strategy_settings.settings_base import (
@@ -89,6 +89,84 @@ class StatusTagPolicy:
 
     def to_list(self) -> List[str]:
         return list(self.tags)
+
+
+@dataclass(frozen=True)
+class PendingEnterPolicy:
+    """``risk_control.pending_enter`` — PENDING_TO_ENTER 挂单风控。
+
+    - ``max_wait_open_days``：仅计交易日（开市日），自 trigger 次一开市日起算
+    - ``max_entry_drift``：相对 trigger 的 |候选价-trigger|/trigger；``None``=关闭
+    - ``abort_enter_when``：挂起期间 status 命中则放弃进场（退市恒生效，不写列表）
+    """
+
+    max_wait_open_days: int = 5
+    max_entry_drift: Optional[float] = None
+    abort_enter_when: StatusTagPolicy = field(default_factory=lambda: StatusTagPolicy(()))
+
+    @classmethod
+    def from_raw(
+        cls,
+        raw: Any,
+        *,
+        field_path: str = "simulation.risk_control.pending_enter",
+    ) -> "PendingEnterPolicy":
+        if raw is None:
+            return cls()
+        if not isinstance(raw, dict):
+            raise ValueError(f"{field_path} 必须为 dict")
+
+        wait_raw = raw.get("max_wait_open_days", 5)
+        if wait_raw is None or wait_raw == "":
+            wait = 5
+        else:
+            try:
+                wait = int(wait_raw)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"{field_path}.max_wait_open_days 须为非负整数（交易日）"
+                ) from exc
+            if wait < 0:
+                raise ValueError(
+                    f"{field_path}.max_wait_open_days 须为非负整数（交易日）"
+                )
+
+        drift_raw = raw.get("max_entry_drift", None)
+        drift: Optional[float]
+        if drift_raw is None or drift_raw == "":
+            drift = None
+        else:
+            try:
+                drift = float(drift_raw)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"{field_path}.max_entry_drift 须为 (0, 1] 内数字或 null"
+                ) from exc
+            if drift <= 0.0 or drift > 1.0:
+                raise ValueError(
+                    f"{field_path}.max_entry_drift 须在 (0, 1] 内；null 表示关闭"
+                )
+
+        abort = StatusTagPolicy.from_raw(
+            raw.get("abort_enter_when"),
+            field_path=f"{field_path}.abort_enter_when",
+        )
+        return cls(
+            max_wait_open_days=wait,
+            max_entry_drift=drift,
+            abort_enter_when=abort,
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "max_wait_open_days": int(self.max_wait_open_days),
+            "max_entry_drift": (
+                None
+                if self.max_entry_drift is None
+                else float(self.max_entry_drift)
+            ),
+            "abort_enter_when": self.abort_enter_when.to_list(),
+        }
 
 
 @dataclass(frozen=True)
@@ -215,6 +293,7 @@ class RiskControl(SettingsBase):
 
     - ``should_skip_enter``：触发日状态 → 跳过下游模拟（枚举仍保留）
     - ``should_force_exit``：持仓强平（退市恒生效 + ``force_exit_when``）
+    - ``pending_enter``：PENDING_TO_ENTER 挂单超时 / 漂移 / status abort
     """
 
     raw_settings: Dict[str, Any]
@@ -240,6 +319,13 @@ class RiskControl(SettingsBase):
         return ForceExitWhenPolicy.from_raw(
             self.risk_control.get("force_exit_when"),
             field_path="simulation.risk_control.force_exit_when",
+        )
+
+    @property
+    def pending_enter(self) -> PendingEnterPolicy:
+        return PendingEnterPolicy.from_raw(
+            self.risk_control.get("pending_enter"),
+            field_path="simulation.risk_control.pending_enter",
         )
 
     @classmethod
@@ -319,6 +405,14 @@ class RiskControl(SettingsBase):
             risk["skip_enter_when"] = []
         if "force_exit_when" not in risk or risk.get("force_exit_when") is None:
             risk["force_exit_when"] = []
+        if "pending_enter" not in risk or risk.get("pending_enter") is None:
+            risk["pending_enter"] = PendingEnterPolicy().to_dict()
+        elif isinstance(risk.get("pending_enter"), dict):
+            pe = risk["pending_enter"]
+            pe.setdefault("max_wait_open_days", 5)
+            if "max_entry_drift" not in pe:
+                pe["max_entry_drift"] = None
+            pe.setdefault("abort_enter_when", [])
 
     def validate(self) -> ValidationReport:
         report = SettingsBase.new_validation()
@@ -359,6 +453,21 @@ class RiskControl(SettingsBase):
                     f"allowed: {sorted(ForceExitWhenPolicy.KNOWN_TAGS)}"
                 ),
             )
+        try:
+            PendingEnterPolicy.from_raw(
+                self.risk_control.get("pending_enter"),
+                field_path="simulation.risk_control.pending_enter",
+            )
+        except ValueError as exc:
+            SettingsBase.add_critical(
+                report,
+                "simulation.risk_control.pending_enter",
+                str(exc),
+                suggested_fix=(
+                    '{"max_wait_open_days":5,"max_entry_drift":null,'
+                    '"abort_enter_when":["st"]}'
+                ),
+            )
         return report
 
     def to_dict(self) -> Dict[str, Any]:
@@ -366,6 +475,7 @@ class RiskControl(SettingsBase):
         return {
             "skip_enter_when": self.skip_enter_when.to_list(),
             "force_exit_when": self.force_exit_when.to_list(),
+            "pending_enter": self.pending_enter.to_dict(),
         }
 
 
@@ -373,6 +483,7 @@ __all__ = [
     "ForceExitDecision",
     "ForceExitRule",
     "ForceExitWhenPolicy",
+    "PendingEnterPolicy",
     "RiskControl",
     "StatusTagPolicy",
 ]

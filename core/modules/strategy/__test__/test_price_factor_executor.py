@@ -1,4 +1,4 @@
-"""price_factor JobExecutor：子进程加载本 batch 枚举 CSV。"""
+"""price_factor PriceFactorJobExecutor：子进程加载本 batch 枚举 CSV。"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -6,13 +6,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_investments import (
+from core.modules.strategy.core.engines.shared.services.simulation_output import (
     GoalAchievementRow,
-    GoalAchievements,
+    GoalAchievementCsv,
     InvestmentRow,
-    StockInvestments,
+    EntityInvestmentCsv,
 )
-from core.modules.strategy.core.engines.price_factor.executor import JobExecutor
+from core.modules.strategy.core.engines.price_factor.executor import PriceFactorJobExecutor
 from core.modules.strategy.core.engines.price_factor.job_builder import PRICE_FACTOR_GLOBAL_KEY
 from core.modules.strategy.core.engines.price_factor.report_manager import EntityInvestments
 
@@ -20,7 +20,7 @@ pytestmark = pytest.mark.force_run
 
 
 def _write_enum_csv(output_dir: Path, entity_id: str) -> None:
-    StockInvestments(
+    EntityInvestmentCsv(
         entity_id=entity_id,
         rows=[
             InvestmentRow(
@@ -32,7 +32,7 @@ def _write_enum_csv(output_dir: Path, entity_id: str) -> None:
             )
         ],
     ).save(output_dir)
-    GoalAchievements(
+    GoalAchievementCsv(
         entity_id=entity_id,
         rows=[
             GoalAchievementRow(
@@ -67,7 +67,7 @@ def test_load_batch_enum_data(tmp_path: Path) -> None:
         },
     }
     job_context = SimpleNamespace(job_id="batch_0", payload=payload)
-    init = JobExecutor._load_batch_enum_data(job_context)
+    init = PriceFactorJobExecutor._load_batch_enum_data(job_context)
 
     assert set(init["entities"]) == {"000001.SZ", "000002.SZ"}
     assert len(init["entities"]["000001.SZ"]["investments"].rows) == 1
@@ -78,7 +78,7 @@ def test_load_batch_enum_data(tmp_path: Path) -> None:
 
 
 def test_load_batch_enum_data_missing_goals_ok(tmp_path: Path) -> None:
-    StockInvestments(
+    EntityInvestmentCsv(
         entity_id="000003.SZ",
         rows=[
             InvestmentRow(
@@ -102,7 +102,7 @@ def test_load_batch_enum_data_missing_goals_ok(tmp_path: Path) -> None:
             }
         },
     }
-    init = JobExecutor._load_batch_enum_data(
+    init = PriceFactorJobExecutor._load_batch_enum_data(
         SimpleNamespace(job_id="b", payload=payload)
     )
     assert init["entities"]["000003.SZ"]["goals"].rows == []
@@ -113,7 +113,7 @@ def test_replay_and_save_batch(tmp_path: Path) -> None:
     price_dir = tmp_path / "price"
     _write_enum_csv(enum_dir, "000001.SZ")
     # overlapping second opp should be locked out
-    StockInvestments(
+    EntityInvestmentCsv(
         entity_id="000001.SZ",
         rows=[
             InvestmentRow(
@@ -156,8 +156,8 @@ def test_replay_and_save_batch(tmp_path: Path) -> None:
         },
     }
     ctx = SimpleNamespace(job_id="batch_0", payload=payload, init={})
-    ctx.init = JobExecutor._load_batch_enum_data(ctx)
-    stats = JobExecutor._replay_and_save_batch(ctx)
+    ctx.init = PriceFactorJobExecutor._load_batch_enum_data(ctx)
+    stats = PriceFactorJobExecutor._replay_and_save_batch(ctx)
     assert stats["investments"] == 1
     saved = EntityInvestments.load(price_dir, "000001.SZ")
     assert len(saved) == 1

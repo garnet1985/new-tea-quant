@@ -1,4 +1,7 @@
-"""Strategy settings data classes（与 settings.py section 一一对应）。
+"""Strategy settings 整块入口（与 settings.py section 一一对应）。
+
+消费者: scanner, enumerator, price_factor, portfolio
+其它: hooks, core.services
 
 建模::
 
@@ -8,6 +11,8 @@
 
     is_enabled, core, market_profile
     enumerator / price_simulator（暂缓）
+
+整块 keep：不拆根/叶到各引擎。
 """
 
 from .validation_report import ValidationReport
@@ -21,6 +26,7 @@ from .simulation_settings import (
     AssumptionSettings,
     AssumptionTemplate,
     EdgesConfig,
+    BacktestPeriod,
     ExecutionSettings,
     ForceExitDecision,
     ForceExitRule,
@@ -49,6 +55,7 @@ __all__ = [
     "FeesSettings",
     "AssumptionSettings",
     "AssumptionTemplate",
+    "BacktestPeriod",
     "EdgesConfig",
     "ExecutionSettings",
     "ForceExitDecision",

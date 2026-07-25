@@ -167,7 +167,7 @@ from core.modules.backtest_engine.contracts import (
 数据装载：
 
 ```python
-from core.modules.strategy.core.engines.shared.services.entity_loader.job_bundle_loader import (
+from core.modules.strategy.core.services.entity_loader.job_bundle_loader import (
     JobBundleLoader,
 )
 ```

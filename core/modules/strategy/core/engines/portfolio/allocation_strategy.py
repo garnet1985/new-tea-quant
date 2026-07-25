@@ -3,11 +3,13 @@
 本文件:
 - AllocationStrategy: 给定 buy 事件与账户快照计算股数
   边界: 负责「买多少」；不负责选仓或费率以外的账户逻辑
+
+同进程持有 ``StrategySettings`` 引用，不把 portfolio/liquidity 再投影成标量袋。
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional, Tuple
 
 from core.modules.market_profile.core.base.market_base_rules import MarketBaseRules
@@ -15,10 +17,12 @@ from core.modules.strategy.core.engines.portfolio.data_class.account import Acco
 from core.modules.strategy.core.engines.portfolio.fee_calculator import FeeCalculator
 from core.modules.strategy.core.engines.shared.services.strategy_settings.portfolio_settings import (
     AllocationConfig,
-    PortfolioSettings,
 )
 from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings import (
     LiquidityConfig,
+)
+from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
+    StrategySettings,
 )
 
 
@@ -26,42 +30,59 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.simula
 class AllocationStrategy:
     """按配置计算买入股数（只算多少，不选谁）。"""
 
-    mode: str
-    initial_capital: float
-    max_portfolio_size: int
-    lots_per_trade: int
-    kelly_fraction: float
-    skip_trade_when_insufficient: bool
+    settings: StrategySettings
     market_rules: MarketBaseRules
     fee_calculator: FeeCalculator
-    liquidity: LiquidityConfig = field(default_factory=LiquidityConfig)
+    _mode: str = "equal_capital"
 
     @classmethod
     def create(
         cls,
         *,
-        portfolio: PortfolioSettings,
+        settings: StrategySettings,
         market_rules: MarketBaseRules,
         fee_calculator: Optional[FeeCalculator] = None,
-        liquidity: Optional[LiquidityConfig] = None,
     ) -> "AllocationStrategy":
-        alloc: AllocationConfig = portfolio.allocation
+        alloc: AllocationConfig = settings.portfolio.allocation
         mode = str(alloc.mode or "equal_capital").strip().lower()
         if mode == "custom":
             mode = "equal_capital"
         if mode not in {"equal_capital", "equal_shares", "kelly"}:
             raise ValueError(f"unsupported allocation.mode: {alloc.mode!r}")
         return cls(
-            mode=mode,
-            initial_capital=float(portfolio.initial_capital),
-            max_portfolio_size=int(alloc.max_portfolio_size),
-            lots_per_trade=max(int(alloc.lots_per_trade or 1), 1),
-            kelly_fraction=float(alloc.kelly_fraction),
-            skip_trade_when_insufficient=bool(alloc.skip_trade_when_insufficient),
+            settings=settings,
             market_rules=market_rules,
             fee_calculator=fee_calculator or FeeCalculator(),
-            liquidity=liquidity or LiquidityConfig(),
+            _mode=mode,
         )
+
+    @property
+    def mode(self) -> str:
+        return self._mode
+
+    @property
+    def initial_capital(self) -> float:
+        return float(self.settings.portfolio.initial_capital)
+
+    @property
+    def max_portfolio_size(self) -> int:
+        return int(self.settings.portfolio.allocation.max_portfolio_size)
+
+    @property
+    def lots_per_trade(self) -> int:
+        return max(int(self.settings.portfolio.allocation.lots_per_trade or 1), 1)
+
+    @property
+    def kelly_fraction(self) -> float:
+        return float(self.settings.portfolio.allocation.kelly_fraction)
+
+    @property
+    def skip_trade_when_insufficient(self) -> bool:
+        return bool(self.settings.portfolio.allocation.skip_trade_when_insufficient)
+
+    @property
+    def liquidity(self) -> LiquidityConfig:
+        return self.settings.simulation.liquidity
 
     @property
     def per_trade_capital(self) -> float:

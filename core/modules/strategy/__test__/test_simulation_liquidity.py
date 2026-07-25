@@ -17,9 +17,6 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings import
     LiquidityConfig,
     StrategySettings,
 )
-from core.modules.strategy.core.engines.shared.services.strategy_settings.portfolio_settings import (
-    PortfolioSettings,
-)
 
 
 def _base_simulation(**tradability_overrides):
@@ -29,12 +26,6 @@ def _base_simulation(**tradability_overrides):
         "simulation": {
             "execution": {
                 "mode": "entity_based",
-                "steps": [
-                    "check_settlement",
-                    "check_stop_loss",
-                    "check_take_profit",
-                    "check_expiration",
-                ],
             },
             "assumption": {"template": "none", "tradability": tradability},
             "risk_control": {},
@@ -91,8 +82,8 @@ def test_apply_clip_and_skip() -> None:
 
 
 def _allocation(liquidity: LiquidityConfig) -> AllocationStrategy:
-    portfolio = PortfolioSettings(
-        raw_settings={
+    settings = StrategySettings.from_dict(
+        {
             "portfolio": {
                 "initial_capital": 1_000_000,
                 "allocation": {
@@ -102,12 +93,28 @@ def _allocation(liquidity: LiquidityConfig) -> AllocationStrategy:
                     "kelly_fraction": 0.5,
                     "skip_trade_when_insufficient": False,
                 },
-            }
+            },
+            "simulation": {
+                "assumption": {
+                    "template": "none",
+                    "tradability": {
+                        "liquidity": {
+                            "max_participation_rate": float(
+                                liquidity.max_participation_rate
+                            ),
+                            "participation_on_exceed": str(
+                                liquidity.participation_on_exceed
+                            ),
+                        }
+                    },
+                },
+                "risk_control": {},
+            },
         }
     )
-    portfolio.apply_defaults()
+    settings.apply_defaults()
     return AllocationStrategy.create(
-        portfolio=portfolio,
+        settings=settings,
         market_rules=create_market_rules("china_a_stock"),
         fee_calculator=FeeCalculator(
             commission_rate=0.0,
@@ -115,7 +122,6 @@ def _allocation(liquidity: LiquidityConfig) -> AllocationStrategy:
             stamp_duty_rate=0.0,
             transfer_fee_rate=0.0,
         ),
-        liquidity=liquidity,
     )
 
 

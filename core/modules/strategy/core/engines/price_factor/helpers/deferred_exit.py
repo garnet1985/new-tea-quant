@@ -13,9 +13,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from core.modules.strategy.core.engines.price_factor.helpers.holding import (
     position_fully_closed,
 )
-from core.modules.strategy.core.engines.shared.data_class.investment import BarPrices
-from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings.tradability import (
-    SlippageConfig,
+from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import SafeBarValue
+from core.modules.strategy.core.engines.shared.services.strategy_settings import (
+    StrategySettings,
 )
 
 
@@ -28,7 +28,7 @@ class DeferredPendingExit:
 
 
 def _leg_date(leg: Dict[str, Any]) -> str:
-    return str(leg.get("date") or leg.get("sell_date") or "").strip()
+    return str(leg.get("date") or leg.get("exit_date") or "").strip()
 
 
 def _leg_exit_ratio(leg: Dict[str, Any]) -> float:
@@ -65,7 +65,7 @@ def _exit_fill_model(exit_price_model: str) -> str:
 
 def _theoretical_exit_price(bar: Dict[str, Any], exit_price_model: str) -> float:
     model = _exit_fill_model(exit_price_model)
-    return float(BarPrices.for_model(bar, model, use_raw=False) or 0.0)
+    return float(SafeBarValue.price_for_model(bar, model, use_raw=False) or 0.0)
 
 
 def _is_blocked_at_limit_down(
@@ -79,10 +79,10 @@ def _is_blocked_at_limit_down(
     if allow_exit_at_limit_down:
         return False
     if market_rules is None:
-        # 无规则时：若 bar 显式带 sell_at_limit_down 由调用方处理；此处不拦
+        # 无规则时：若 bar 显式带 exit_at_limit 由调用方处理；此处不拦
         return False
-    prev = BarPrices.prev_close(bar)
-    if prev <= 0 or not entity_id:
+    prev = SafeBarValue.optional_float(bar, "pre_close")
+    if prev is None or prev <= 0 or not entity_id:
         return False
     try:
         return bool(market_rules.is_at_limit_down(price, prev, entity_id))
@@ -94,41 +94,39 @@ def _build_executed_leg(
     *,
     source: Dict[str, Any],
     bar: Dict[str, Any],
-    sell_price: float,
-    buy_price: float,
+    exit_price: float,
+    enter_price: float,
     at_limit_down: Optional[bool],
 ) -> Dict[str, Any]:
     exit_ratio = _leg_exit_ratio(source) or 1.0
-    basis = float(buy_price or 0.0)
-    profit = sell_price - basis
+    basis = float(enter_price or 0.0)
+    profit = exit_price - basis
     weighted_profit = profit * exit_ratio
     roi = (weighted_profit / basis) if basis > 0 else 0.0
     day = str(bar.get("date") or "").strip()
     return {
         "date": day,
-        "sell_date": day,
-        "sell_price": sell_price,
+        "exit_date": day,
+        "exit_price": exit_price,
         "exit_ratio": exit_ratio,
         "profit": profit,
         "weighted_profit": weighted_profit,
         "roi": roi,
         "reason": str(source.get("reason") or "").strip(),
-        "sell_at_limit_down": at_limit_down,
-        "sell_prev_close": BarPrices.prev_close(bar) or None,
+        "exit_at_limit": at_limit_down,
+        "exit_prev_close": SafeBarValue.optional_float(bar, "pre_close") or None,
     }
 
 
 def retry_deferred_exits(
     *,
-    buy_price: float,
+    enter_price: float,
     processed_legs: List[Dict[str, Any]],
     skipped_legs: List[Dict[str, Any]],
     klines: List[Dict[str, Any]],
     entity_id: str,
-    exit_price_model: str = "close",
-    slippage: Optional[SlippageConfig] = None,
+    settings: Optional[StrategySettings] = None,
     market_rules: Any = None,
-    allow_exit_at_limit_down: bool = False,
 ) -> Tuple[List[Dict[str, Any]], Optional[DeferredPendingExit], int]:
     """对跳过的退出腿按交易日顺延重试。
 
@@ -137,7 +135,12 @@ def retry_deferred_exits(
     if position_fully_closed(processed_legs) or not skipped_legs:
         return processed_legs, None, 0
 
-    slip = slippage or SlippageConfig()
+    strategy = settings or StrategySettings.from_dict({})
+    sim = strategy.simulation
+    exit_price_model = str(sim.exit_price or "close")
+    slip = sim.tradability.slippage
+    allow_exit_at_limit_down = bool(sim.allow_exit_at_limit_down)
+
     by_date = _klines_by_date(klines)
     ordered = _ordered_kline_dates(klines)
     if not ordered:
@@ -175,8 +178,8 @@ def retry_deferred_exits(
                 still_pending.append(src)
                 continue
             at_limit: Optional[bool] = None
-            prev = BarPrices.prev_close(bar)
-            if market_rules is not None and prev > 0 and entity_id:
+            prev = SafeBarValue.optional_float(bar, "pre_close")
+            if market_rules is not None and prev is not None and prev > 0 and entity_id:
                 try:
                     at_limit = bool(
                         market_rules.is_at_limit_down(sell_px, prev, entity_id)
@@ -187,8 +190,8 @@ def retry_deferred_exits(
                 _build_executed_leg(
                     source=src,
                     bar=bar,
-                    sell_price=sell_px,
-                    buy_price=buy_price,
+                    exit_price=sell_px,
+                    enter_price=enter_price,
                     at_limit_down=at_limit,
                 )
             )

@@ -1,7 +1,7 @@
-"""Scanner JobExecutor — 单日轴 lookback 加载 + scan hooks。
+"""ScannerJobExecutor — 单日轴 lookback 加载 + scan hooks。
 
 本文件:
-- JobExecutor: RunCallbacks 面；on_tick 调 scan_opportunity、贴板标注
+- ScannerJobExecutor: RunCallbacks 面；on_tick 调 scan_opportunity、贴板标注
   边界: 负责 worker 内 scan 业务；不负责 Pipeline 缓存/adapters、BE batch 切分
 """
 from __future__ import annotations
@@ -11,30 +11,28 @@ from typing import Any, Dict, List, Optional
 
 from core.modules.backtest_engine.contracts import RunCallbacks
 from core.modules.data_contract import DATA_KEY
-from core.modules.strategy.core.engines.enumerator.shared.base_executor import (
-    BaseJobExecutor,
-)
-from core.modules.strategy.core.engines.enumerator.shared.services.pit_bars import PitBars
 from core.modules.strategy.core.engines.scanner.helpers.tradability import (
-    annotate_buy_at_limit_up,
+    annotate_enter_at_limit,
 )
-from core.modules.strategy.core.engines.scanner.job_builder import JobBuilder
+from core.modules.strategy.core.engines.scanner.job_builder import ScannerJobBuilder
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
-from core.modules.strategy.core.engines.shared.services.entity_loader.job_bundle_loader import (
+from core.modules.strategy.core.services.entity_loader.job_bundle_loader import (
     JobBundleLoader,
 )
+from core.modules.strategy.core.engines.shared.services.as_of_slice import AsOfSlice
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
 from core.modules.strategy.core.helpers.stock_meta import StockMetaHelper
-from core.modules.strategy.core.hooks.context import DataContext
+from core.modules.strategy.core.hooks.hook_params import StrategyContext
+from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
 
 logger = logging.getLogger(__name__)
 
 _CTX_KEY = "_scanner_runtime"
 
 
-class JobExecutor:
+class ScannerJobExecutor:
     """扫描 worker 钩子面。
 
     边界:
@@ -67,7 +65,7 @@ class JobExecutor:
     @classmethod
     def on_before_task_start(cls, job_context: Any) -> Dict[str, Any]:
         payload = job_context.payload or {}
-        meta = JobBuilder.scanner_meta(payload)
+        meta = ScannerJobBuilder.scanner_meta(payload)
         scan_date = str(meta.get("scan_date") or "").strip()
         settings_raw = payload.get("settings") if isinstance(payload, dict) else {}
         settings = (
@@ -77,7 +75,7 @@ class JobExecutor:
         )
         settings.apply_defaults()
 
-        hook_runtime, err = BaseJobExecutor.load_hooks(
+        hook_runtime, err = StrategyHookRuntime.from_strategy_info(
             payload.get("strategy_info") or {},
             settings,
         )
@@ -108,10 +106,10 @@ class JobExecutor:
             or ""
         ).strip()
 
-        scan_contexts: Dict[str, DataContext] = {}
+        scan_contexts: Dict[str, StrategyContext] = {}
         for eid in entity_ids:
-            ctx = DataContext.assemble(
-                strategy_name=strategy_name,
+            ctx = StrategyContext.assemble(
+                strategy_key=strategy_name,
                 settings=settings,
                 stock_list=[eid],
                 entity_id=eid,
@@ -135,6 +133,7 @@ class JobExecutor:
 
     @classmethod
     def on_tick(cls, job_context: Any, point: str, index: int) -> None:
+        """推进时间(point) → 切数据 → 执行业务。"""
         _ = index
         init = job_context.init if isinstance(job_context.init, dict) else {}
         runtime = init.get(_CTX_KEY)
@@ -147,7 +146,7 @@ class JobExecutor:
             runtime["scanned"] = True
             return
 
-        scan_date = str(runtime.get("scan_date") or point or "").strip()
+        as_of = str(point or "").strip()  # 唯一时钟：BE Timeline 传入的 point
         entity_contracts = init.get("entity_contracts") or {}
         global_data = init.get("global_data") or {}
         settings = runtime.get("settings")
@@ -159,23 +158,25 @@ class JobExecutor:
         market_profile = str(runtime.get("market_profile") or "").strip()
         st_provider = entity_contracts.get(DATA_KEY.STOCK_ST_PERIODS)
 
-        pit_by_entity = PitBars.load_pit_by_entity(entity_contracts, scan_date)
+        # —— 切数据 ——
+        sliced_by_entity = AsOfSlice.slice_contracts(entity_contracts, as_of)
         out: List[Opportunity] = runtime.setdefault("opportunities", [])
 
+        # —— 执行业务 ——
         for eid, base_ctx in (runtime.get("scan_contexts") or {}).items():
-            per_entity = pit_by_entity.get(eid) or {}
+            per_entity = sliced_by_entity.get(eid) or {}
             complete = {**global_data, **per_entity} if global_data else dict(per_entity)
             try:
-                scan_ctx = DataContext.fill(
+                scan_ctx = StrategyContext.fill(
                     base_ctx,
-                    now=scan_date,
-                    data=complete,
+                    now=as_of,
+                    items=complete,
                     entity_id=eid,
-                    entity_info=base_ctx.entity_info,
+                    entity_info=base_ctx.data.entity_info,
                 )
             except Exception as exc:
                 logger.error(
-                    "scanner DataContext.fill 失败 entity=%s: %s",
+                    "scanner StrategyContext.fill 失败 entity=%s: %s",
                     eid,
                     exc,
                     exc_info=True,
@@ -199,35 +200,35 @@ class JobExecutor:
                 opportunity = scanned
                 stock_info = (runtime.get("stock_info") or {}).get(eid, {"id": eid})
                 opportunity.bind_scan_context(
-                    strategy_name=str(hook_runtime.strategy_name or ""),
+                    strategy_key=str(hook_runtime.strategy_name or ""),
                     stock_id=eid,
                     stock_info=stock_info,
-                    trigger_date=scan_date,
+                    trigger_date=as_of,
                     market_profile=market_profile or None,
                 )
                 opportunity.stamp_status_at_trigger(
                     status_tags_provider=st_provider,
-                    trade_date=scan_date,
+                    trade_date=as_of,
                 )
                 klines = complete.get(base_key) or []
                 if not isinstance(klines, list):
                     klines = []
-                annotate_buy_at_limit_up(
+                annotate_enter_at_limit(
                     opportunity,
                     market_profile=market_profile,
                     klines=klines,
-                    scan_date=scan_date,
+                    scan_date=as_of,
                 )
                 out.append(opportunity)
 
             try:
-                after_ctx = DataContext.fill(
+                after_ctx = StrategyContext.fill(
                     base_ctx,
-                    now=scan_date,
-                    data=complete,
+                    now=as_of,
+                    items=complete,
                     opportunity=opportunity,
                     entity_id=eid,
-                    entity_info=base_ctx.entity_info,
+                    entity_info=base_ctx.data.entity_info,
                 )
                 hook_runtime.call_if_overridden("on_after_scan", after_ctx)
             except Exception as exc:
@@ -274,4 +275,4 @@ class JobExecutor:
         )
 
 
-__all__ = ["JobExecutor"]
+__all__ = ["ScannerJobExecutor"]

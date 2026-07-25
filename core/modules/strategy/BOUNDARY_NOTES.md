@@ -1,76 +1,224 @@
 # Strategy Module — Boundary Notes
 
-供后续 split/merge 参考。仅记录观察，不代表必须改动。
+供后续 split/merge 与 agent 改动参考。  
+「与 BE 的关系」「时钟 → 切数据 → 业务」「simulation_output 读路径」为硬约束；「Shared vs private」为包布局约定。
 
-## Naming
+> README 架构树等 report manager 整理后再改；以本文为准。
 
-| 路径 | 问题 | 说明 |
+## 与 BacktestEngine 的关系（硬约束 — 勿再复杂化）
+
+**Strategy 模块的主业**：把用户策略钩子（及引擎业务）通过 BE `RunCallbacks` 挂进回测器，再做 jobs / 报告 / 指纹等周边。  
+**不**在 strategy 侧另起一套调度、日历推进、或平行于 BE 的 session 框架。
+
+| 谁 | 干什么 |
+|----|--------|
+| **BE** | jobs 调度、worker、`Timeline`（默认按 `run(start,end)` + CalendarService 建开市日轴并 `drive`）、`JobContext`（含 **`init`**） |
+| **Strategy 引擎** | 各模式 `*JobBuilder` 喂 jobs；`*JobExecutor` 实现 callbacks；可变状态只挂在 **`job_context.init`** |
+
+### 枚举器（entity / slice）两件套 — 仅此
+
+```text
+*JobBuilder  → 组装 BE jobs（payload 含数据加载窗；slice 另写 timeline_point_count 供规划）
+*JobExecutor → RunCallbacks（on_before_task_start / on_tick / …）
+Pipeline    → 周边编排（采样、BE.run、ReportManager）
+```
+
+**禁止再引入：**
+
+- **TimelineBuilder / 枚举器侧复写推进轴** — 枚举走交易日历即可，交给 BE
+- **JobSession / 第二套 session** — BE 的 session 就是 `JobContext.init`。`EntityTaskState` / `SliceTaskState` 只是 init 里的可变袋
+- **Executor 空 proxy** — 日业务入口在 `JobExecutor` 钩子
+- **自建日历 resolver 重复 BE** — slice 规划点数用 `Timeline.from_calendar_window` 即可
+
+### 时钟 → 切数据 → 业务（硬约定）
+
+每个 BE 日历 tick 必须按此顺序，**不得**在业务里另造 `as_of`：
+
+```text
+1. BE Timeline.drive → JobExecutor.on_tick(point)     # 唯一时钟
+2. AsOfSlice（shared/services/as_of_slice）按 point 切 contracts / base_bar
+3. 业务消费 (point, sliced) — scan / Investment / hooks
+```
+
+- `AsOfSlice`：时钟点数据切片服务（原 `PitBars` 已删）
+- Scanner tick 路径只认 BE `point`；payload 里的 `scan_date` 仅作 job 元数据（建单日轴），**不可**在 `on_tick` 里覆盖时钟
+
+### 价格回测 / 投资组合 vs Timeline
+
+| 引擎 | Timeline 复写？ |
+|------|----------------|
+| **enumerator** | 不需要 |
+| **price_factor** | 现状：`run(start,end)` + 默认日历；真业务在 after_task 事件回放，`on_tick` noop。**不要**为「少空转」先加 TimelineBuilder；等回放迁到 `on_tick` 再议 event 轴 |
+| **portfolio** | **不用 BE**；enum → `PortfolioEvent` 排序 → 进程内模拟。不要为组合套 `Timeline.drive` |
+
+### 进程内传对象
+
+完整 dataclass（如 `StrategySettings`）在同进程路径直接传；**仅**在 pickle / job payload / 落盘边界 `to_dict`。
+
+---
+
+## simulation_output 读路径（硬约定）
+
+包：`engines/shared/services/simulation_output/`
+
+| 类型 | 文件 | 职责 |
 |------|------|------|
-| 各引擎 `job_builder.py` / `executor.py` | 同名类 `JobBuilder` / `JobExecutor` 重复 | scanner / enumerator(entity+slice) / price_factor 各自独立，import 必须带包路径，易混淆 |
-| `engines/scanner/helpers/cache_manager.py` vs `services/simulation_cache/cache_manager.py` | 都叫 CacheManager | 前者磁盘 scan CSV，后者 DB workbench；语义完全不同 |
-| `shared/data_class/investment.py` vs `portfolio/data_class/investment.py` | Investment 一词两用 | 前者 enum 生命周期对象，后者 `PortfolioInvestment` 资金汇总；命名未对齐 |
-| `core/enums.py` vs `core/const.py` | 枚举与常量分离 | 全局 Enum 只放 enums；字面常量/默认值只放 const；contracts 不再承载枚举 |
-| userspace `strategy.py` vs 模块 `strategy.py` | 同名文件不同职责 | 用户 hooks 入口 vs 模块 Facade；discovery 动态 module id 已用 `_ntq_strategy_*` 区分 |
-| `SimulationOutputRecorder` vs 各引擎 `ReportManager` | Recorder / Manager 分工不直观 | Recorder 只管 version 目录分配；实际产物写盘在三套 ReportManager |
-| `core/services/settings/`（空壳 __init__） vs `engines/shared/services/strategy_settings/` | settings 两处 | 前者仅一句 docstring，真正建模全在后者 |
+| **EnumOutput** | `enumerator_output.py` | version 目录**布局**：resolve 路径、读 raw `runtime_env` / `entity_ids`、CSV 路径助手 |
+| **EnumSource** | `enum_source.py` | 下游**只读句柄**：包一层 `EnumOutput`，投影 period / entity_ids / runtime；**委托** `load_investments` / `load_goals` |
+| **investment_csv** | `investment_csv.py` | 投资/goal CSV **行模型 + 读写**（E 写、P/O 读，同一份） |
+| 布局 IO | `file_names` / `paths` / `io` | 文件名、路径、json/txt 读写 |
 
-## Location / package layout
+**写边界：**
 
-| 路径 | 问题 | 说明 |
+- 枚举 **RuntimeEnv** 等写模型 → `enumerator/common/artifacts`（CSV 行模型已上移，artifacts 仅 re-export）
+- P/O **写自有产物** → 各自 report（**本期先不动**）
+- 已删除 P/O `enum_input/`（不再私有拷贝 CSV 解析）
+
+---
+
+## Shared vs private（约定）
+
+四大引擎：`scanner` / `enumerator` / `price_factor` / `portfolio`。
+
+### 何时进 `engines/shared`
+
+| 条件 | 动作 |
+|------|------|
+| **≥3 个引擎**依赖同一概念 | 必须进 `engines/shared` |
+| **恰好 2 个**，且是上游产物 → 下游消费的稳定契约 | 也进 shared（或 `shared/services/...`） |
+| 仅 1 个引擎用 | 留在该引擎私有包 |
+| Facade / hooks / `core/services` | 不算第五大件；依赖 shared 时**消费者标注须写出** |
+
+### shared 只允许两类
+
+| 可放 | 不放 |
+|------|------|
+| `data_class`（跨引擎 DTO / 生命周期对象） | Pipeline / JobBuilder / Executor |
+| `services`（无引擎偏见的加载、解析、校验、切片） | 某引擎 ReportManager / 写盘格式 |
+| （可选）纯类型并入 `data_class` | helpers（先私有；真 ≥3 再提成 **service**） |
+
+`enumerator/common` 是**枚举引擎内部**（entity vs slice）共用；与四引擎 `engines/shared` 层级不同。
+
+### 入口必须标消费者
+
+每个 shared 对外入口文件顶：
+
+```text
+消费者: scanner, enumerator, …
+```
+
+---
+
+## 已完成（摘要）
+
+| 项 | 状态 |
+|----|------|
+| Shared vs private 约定 + 消费者标注 | done |
+| 仿真输入契约 → `simulation_output`（布局 + `EnumSource`） | done |
+| Scanner→Enumerator 借包切断；`AsOfSlice` → shared | done |
+| hooks→portfolio `EntrySelector` 泄漏切断 | done |
+| 删除空壳 `core/services/settings/`；唯一 `strategy_settings` | done |
+| `CalendarAsOfContext` 删除；仅留 `CalendarAsOfResult`；`on_entity_init` 删除 | done |
+| hooks 上下文 → `hooks/hook_params/StrategyContext` | done |
+| period → `StrategySettings.resolve_period` | done |
+| 枚举器仅 JobBuilder + JobExecutor；无 TimelineBuilder / JobSession | done |
+| tick：推进 → `AsOfSlice` → 业务 | done（命名 + Executor 接线） |
+| 旧 skip 测删除；`EnumVersionData` → `EnumSource` | done |
+| enum 投资 CSV 三份拷贝 → `simulation_output.investment_csv` | done |
+| `entity_loader` 整块上移 → `core/services/entity_loader` | done |
+| perf metric `pit_*` → `as_of_slice_*` / `enum_as_of_slice` | done |
+| JobBuilder/Executor 类名加引擎前缀（文件名不变） | done |
+| `PENDING_TO_ENTER` 挂单风控（touch / wait / drift / abort） | done |
+| ReportManager 统一生命周期（`BaseReportManager` + 四引擎） | done |
+
+`core/bff_support/`：**保留**（留给 UI 集成；当前空目录）。
+
+---
+
+## 消费矩阵（审计，2026-07-25）
+
+引擎缩写：S=scanner E=enumerator P=price_factor O=portfolio。
+
+### A. `engines/shared` 的物品
+
+| 物品 | 引擎消费者 | 其它 | 动作 | 说明 |
+|------|------------|------|------|------|
+| `data_class/opportunity` | S E O | contracts, hooks | **keep** | ≥3 |
+| `data_class/investment` | E（+ contracts） | — | **keep** | 信号生命周期；P/O 用私有 `InvestmentRow`，勿与 `PortfolioInvestment` 混淆 |
+| `data_class/simulate_session` | E P O | Facade | **keep** | ≥3 |
+| `data_class/calendar_as_of` | E | contracts, hooks | **keep** | 仅 `CalendarAsOfResult` |
+| `strategy_settings` 整包 | S E P O | hooks, core.services | **keep（整块）** | period 挂在 settings |
+| `simulation_output` | E（写路径经 Artifact*）P O（读） | fingerprints | **keep** | 见上文读路径表 |
+| `as_of_slice` | S E | — | **keep** | 时钟点切数据 |
+| `safe_values` | （按需） | — | keep | 小工具 |
+
+### A2. `core/services`（跨引擎 + Facade，非整引擎私有）
+
+| 物品 | 引擎消费者 | 其它 | 动作 | 说明 |
+|------|------------|------|------|------|
+| `entity_loader` 整包 | S E | Facade, fingerprints | **keep（整块）** | 已从 `engines/shared` 上移；含 job_bundle / resolver / global / sampling / indicators；**P 不依赖** |
+| `simulation_cache` | — | Facade / fingerprints | keep | DB 槽位 + 指纹（指纹服务于 cache，**不拆出**） |
+| `discovery` | — | Facade | keep | 策略发现 |
+| `data/simulation_output_recorder` | E P O | — | keep | version 目录分配 |
+
+### B. 跨引擎边（现状）
+
+| 边 | 状态 | 说明 |
+|----|------|------|
+| P/O 读 enum version | **done** | `EnumSource` + `investment_csv`；无 P/O 私有拷贝 |
+| E 写 runtime/CSV 内容 | **done** | `enumerator/common/artifacts` |
+| S/E 切当日数据 | **done** | `AsOfSlice` |
+| hooks → O EntrySelector | **done** | 无 import；默认选股在 `EnterSelection` |
+| Facade → S | OK | 编排不算泄漏 |
+
+---
+
+## 遗留问题
+
+> **Report manager（done）**：`shared/services/report_manager.BaseReportManager` + 四引擎私有 `ReportManager`（begin → collect* → finalize=summarize+save → present*）。无兼容别名；各引擎 `report_manager/` 包布局统一（`report_manager.py` + 私有 summary 数据类）。Scanner 落盘仍用 `scan_results/{date}/`。
+
+### 应尽快（正确性风险）
+
+| 问题 | 路径 | 说明 |
 |------|------|------|
-| `engines/shared/services/entity_loader/` | 跨引擎却放在 `engines/shared` 下 | scanner / enumerator / price_factor 均依赖；更像 `core/services/data_loader` |
-| `core/helpers/` vs `engines/scanner/helpers/` | helpers 分层不一致 | 顶层 helpers 无 IO；scanner helpers 含 DataManager、ProjectContext、adapter |
-| `price_factor/enum_data.py` | enum 加载放在 price_factor 包 | portfolio pipeline 也 import；应提升到 `shared/services/simulation_input` 或 `enumerator` 出口 |
-| `enumerator/shared/report_manager/stock_investments.py` | enum CSV 模型被 portfolio / price 引用 | 报告模型成为跨 step 契约，位置偏 enum 私有 |
-| `contracts.py` 深 import | 公开 API 依赖 `enumerator/slice_based/types` | Facade 契约与 slice 实现耦合；CalendarAsOf* 可考虑迁到 `shared/types` |
-| `core/services/data/simulation_output_recorder.py` | 与引擎 report_manager 分离 | 合理，但 enum/price/portfolio 三套 ReportManager 无 shared 基类，重复 begin/finalize 模式 |
-| `FingerprintCalculator` 在 `simulation_cache/` | 指纹非缓存 | 算指纹 + seed GlobalEntityCache；更接近 `core/services/fingerprints` 或 orchestration 层 |
+| **`PENDING_TO_ENTER` 入场风控** | — | **done**：`risk_control.pending_enter` + `enter_price=touch`；abort ≠ unable-to-enter |
 
-## Boundary leaks
+### 后期整理
 
-| 泄漏 | 路径 | 说明 |
+| 问题 | 路径 | 说明 |
 |------|------|------|
-| Scanner → Enumerator 基类 | `scanner/executor.py` import `enumerator.shared.base_executor.BaseJobExecutor` | scan 与 enum 执行面耦合；scanner 未继承 BaseJobExecutor 但调用其 `load_hooks` |
-| Scanner → Enumerator PIT | `scanner/executor.py` import `PitBars` | 扫描仅需 lookback bar，复用 enum PIT 工具，边界上可接受但包依赖向上 |
-| StrategyHooks → Portfolio | `hooks/base.py` 默认 `on_pick_portfolio_member` import `EntrySelector` | 用户 hook 基类依赖 portfolio 引擎；hooks 层应只依赖 contracts + 可选 lazy import |
-| 指纹服务 → GlobalEntityCache | `fingerprints.py` 构造并 seed cache | 编排前置步骤合理，但 `simulation_cache` 包名暗示仅 DB 缓存 |
-| Portfolio → 多引擎 | `portfolio/pipeline.py` | 同时依赖 `price_factor.enum_data`、`enumerator.report_manager.stock_investments` |
-| Discovery validation → WorkerLoader | `discovered_strategy.py` 校验阶段加载 hooks | 发现阶段副作用（exec 用户 strategy.py）；失败策略仍可能被 list 看到 draft 错误 |
+| settings → GlobalEntityCache | `strategy_settings/.../execution.py` | `resolve_period` 耦合 cache；可再收薄 |
+| helpers 分层不一致 | `core/helpers/*` vs `scanner/helpers/*` vs `price_factor/helpers/*` | 顶层宜无 IO；引擎 helpers 含 DataManager / adapter |
+| 日历/日期双表面 | `helpers/calendar.py` vs `scanner/helpers/date_resolver.py` | 职责不同但「日期」入口分散 |
+| Job payload 组装重叠 | `enumerator/common/base_job_builder.py` vs S/P `JobBuilder` | entity_shared / shm / strategy_info 模式重复 |
+| 贴板/tradability 重叠 | `scanner/helpers/tradability.py` vs price `deferred_exit` + simulation risk settings | 语义近，实现散 |
+| Discovery 校验副作用 | `discovery` → `StrategyWorkerLoader` | 发现阶段 exec 用户 `strategy.py`；失败策略仍可能进 list |
+| 空壳 / 薄目录 | `core/bff_support/`（空，**保留**）；`core/services/data/` 仅 recorder；`discovery/__test__/` 空 | bff 留给 UI；其余可随手清 |
+| shared `Investment` 体量 | `data_class/investment/` | #6 曾跳过拆分；与入场风控一起再拆更合适 |
+| price_factor `on_tick` noop | `price_factor/executor.py` | 回放仍在 after_task；迁 `on_tick` 后再议 event 轴（勿先加 TimelineBuilder） |
 
-## Duplication
+### 命名 / 易混（低优先级）
 
-| 区域 | 重复内容 | 路径 |
-|------|----------|------|
-| 日历解析 | open_dates 过滤 | `helpers/calendar.py`、`slice_based/resolver/calendar.py`、`scanner/helpers/date_resolver.py` |
-| 报告编排 | version 目录 + runtime + overall + entities | `enumerator/shared/report_manager/`、`price_factor/report_manager/`、`portfolio/report_writer.py` |
-| CSV 机会格式 | opportunities 写盘 | `helpers/opportunity_csv.py`、`scanner/helpers/cache_manager.py`（内联 write_dicts_to_csv） |
-| Job payload 构建 | entity_shared / shm / strategy_info | `enumerator/shared/base_job_builder.py`、scanner/price 各自 JobBuilder |
-| 贴板/tradability | limit up 判定 | `scanner/helpers/tradability.py` vs price `deferred_exit` + simulation tradability settings |
+| 问题 | 说明 |
+|------|------|
+| 多引擎同名 `JobBuilder` / `JobExecutor` | — | **done**：类名加前缀（文件名不变）`Scanner*` / `EnumEntity*` / `EnumSlice*` / `PriceFactor*`；基类仍 `BaseJob*` |
 
-## Suggested merges / splits
+| 两个 `CacheManager` | `scanner/helpers/cache_manager.py`（磁盘 scan CSV）vs `simulation_cache/cache_manager.py`（DB workbench） |
+| `Investment` vs `PortfolioInvestment` | 文件名 `portfolio/data_class/investment.py` 仍易混；类名已区分 |
+| userspace `strategy.py` vs 模块 `strategy.py` | discovery 已用 `_ntq_strategy_*` 区分 |
+| Scanner runtime `scan_date` 键名 | 与 tick `as_of`/`point` 并存；可逐步改成只作 meta，避免再当时钟 |
 
-1. **提取 `SimulationInput` 包**  
-   合并 `price_factor/enum_data.py` + `resolve_simulation_window` + portfolio 内重复的 enum 读取 → `core/services/simulation_input/`，供 price/portfolio 共用。
+### 明确不做 / 已否决
 
-2. **Report 基类**  
-   `SimulationOutputRecorder` + 共享 `ReportPaths`/`begin`/`finalize` 骨架 → 减少 enum/price/portfolio 三套 ReportManager 重复。
+| 项 | 说明 |
+|----|------|
+| 在 BE 内核调 `contract.until` | 切片属 Strategy 适配层（`AsOfSlice`），不把 data_contract 绑进 BE |
+| 为 enum 再引入 TimelineBuilder / JobSession | 禁止 |
+| 删 `bff_support` | 留给 UI |
+| 拆 `fingerprints` 出 `simulation_cache` | **不做**：指纹本就是给 cache 用的；以后若边界变了再挪 |
 
-3. **重命名 mode 内 Executor/JobBuilder**  
-   例如 `ScannerJobExecutor`、`EnumEntityJobExecutor`、`PriceFactorJobExecutor`，或统一收到 `core/engines/{mode}/` 下用模块名消歧（保持类名简短时至少文档与 __all__ 用别名）。
+---
 
-4. **上移 entity_loader**  
-   `core/services/entity_loader/`（或 `core/data/`），scanner 不再从 `engines/enumerator` 借 BaseJobExecutor；scanner 自有 `ScannerHookLoader` 薄封装。
+## Suggested next
 
-5. **拆分 simulation_cache 包**  
-   - `fingerprints.py` → `core/services/fingerprints/`  
-   - `cache_manager.py` 保留 DB 槽位语义  
-   - 可选：scan CSV 缓存接口与 DB 缓存共用 `BaseCacheManager` 抽象（磁盘 vs 表）
-
-6. **contracts 瘦身**  
-   `CalendarAsOfContext/Result` 迁至 `core/engines/shared/types/` 或 `contracts/calendar.py`，避免 contracts 依赖 slice_based 包。
-
-7. **Portfolio Investment 命名**  
-   `PortfolioInvestment` 文件名与类名一致（已用类名）；shared `Investment` 文档中强调「信号生命周期」vs「资金汇总」。
-
-8. **settings 包归一**  
-   删除或合并空壳 `core/services/settings/`，对外只 export `engines/shared/services/strategy_settings`。
+1. 后期整理表中的剩余项（settings/cache、helpers 分层、Job payload 重叠等）按优先级择一。

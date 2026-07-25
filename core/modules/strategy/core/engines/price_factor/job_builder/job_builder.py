@@ -1,7 +1,7 @@
 """价格回测 Job 构建（entity_based bundle；CSV 由 worker 读）。
 
 本文件:
-- JobBuilder: entity_specified + enum 目录路径；不含 entities CSV 内容
+- PriceFactorJobBuilder: entity_specified + enum 目录路径；不含 entities CSV 内容
   边界: 负责 job payload；不负责执行、读 CSV、BE batch 切分
 """
 from __future__ import annotations
@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from core.modules.strategy.core.engines.price_factor.enum_data import EnumVersionData
+from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
 
 if TYPE_CHECKING:
     from core.modules.strategy.core.engines.price_factor.report_manager import ReportManager
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 PRICE_FACTOR_GLOBAL_KEY = "price_factor"
 
 
-class JobBuilder:
+class PriceFactorJobBuilder:
     """组装价格回测 bundle job。
 
     边界:
@@ -32,7 +32,7 @@ class JobBuilder:
     @classmethod
     def build_jobs(
         cls,
-        data: EnumVersionData,
+        data: EnumSource,
         *,
         report: Optional["ReportManager"] = None,
     ) -> List[Dict[str, Any]]:
@@ -43,7 +43,7 @@ class JobBuilder:
             if str(entity_id).strip()
         ]
         if not entity_ids:
-            logger.warning("price_factor JobBuilder: entity_ids 为空，返回空 jobs")
+            logger.warning("price_factor PriceFactorJobBuilder: entity_ids 为空，返回空 jobs")
             return []
 
         start = data.start_date
@@ -84,7 +84,7 @@ class JobBuilder:
         }
 
         logger.info(
-            "price_factor JobBuilder: entities=%d, period=%s~%s, enum_dir=%s",
+            "price_factor PriceFactorJobBuilder: entities=%d, period=%s~%s, enum_dir=%s",
             len(entity_ids),
             start,
             end,
@@ -104,4 +104,4 @@ class JobBuilder:
         return dict(meta)
 
 
-__all__ = ["JobBuilder", "PRICE_FACTOR_GLOBAL_KEY"]
+__all__ = ["PriceFactorJobBuilder", "PRICE_FACTOR_GLOBAL_KEY"]

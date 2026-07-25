@@ -7,7 +7,7 @@ import logging
 from typing import Any, Dict, Optional
 
 from core.modules.data_contract import DATA_KEY
-from core.modules.strategy.contracts import DataContext, Opportunity, StrategyHooks
+from core.modules.strategy.contracts import StrategyContext, Opportunity, StrategyHooks
 from core.modules.strategy.core.engines.shared.services.strategy_settings.data_settings import DataSettings
 
 logger = logging.getLogger(__name__)
@@ -23,9 +23,9 @@ class RsiFundamentalGateHooks(StrategyHooks):
     ``DataCursor.until(signal_date)`` 保证，策略只消费 cursor 前缀的最后一行。
     """
 
-    def scan_opportunity(self, ctx: DataContext) -> Optional[Opportunity]:
-        data = ctx.data.to_dict()
-        settings = ctx.effective_settings_dict()
+    def scan_opportunity(self, ctx: StrategyContext) -> Optional[Opportunity]:
+        data = ctx.data.items_with_meta()
+        settings = ctx.settings.to_dict()
         record_of_today = self.get_record_of_today(data, base_data_key=ctx.base_data_key)
         if record_of_today is None or not self._has_rsi_warmup(data, settings):
             return None

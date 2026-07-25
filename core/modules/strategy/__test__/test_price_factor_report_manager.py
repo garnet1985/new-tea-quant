@@ -7,11 +7,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_consts import (
+from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
     ENTITY_IDS_FILE,
     RUNTIME_ENV_FILE,
 )
-from core.modules.strategy.core.engines.price_factor.enum_data import load_enum_version
+from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
 from core.modules.strategy.core.engines.price_factor.report_manager import (
     EntityInvestments,
     PriceInvestmentRow,
@@ -49,7 +49,7 @@ def _write_enum_runtime(output_dir: Path, entity_ids: list[str]) -> None:
 def test_report_manager_finalize_writes_globals(tmp_path: Path, monkeypatch) -> None:
     enum_dir = tmp_path / "enum" / "1"
     _write_enum_runtime(enum_dir, ["000001.SZ"])
-    data = load_enum_version(enum_dir, "1")
+    data = EnumSource.load(enum_dir, "1")
 
     price_root = tmp_path / "price"
     monkeypatch.setattr(
@@ -73,10 +73,10 @@ def test_report_manager_finalize_writes_globals(tmp_path: Path, monkeypatch) -> 
         [
             PriceInvestmentRow(
                 opportunity_id="opp_1",
-                buy_date="20240103",
-                buy_price=10.0,
-                sell_date="20240105",
-                sell_price=11.0,
+                enter_date="20240103",
+                enter_price=10.0,
+                exit_date="20240105",
+                exit_price=11.0,
                 roi=0.1,
                 holding_days=2,
                 result="win",

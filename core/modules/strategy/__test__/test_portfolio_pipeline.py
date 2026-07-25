@@ -12,9 +12,9 @@ import pytest
 pytestmark = pytest.mark.force_run
 
 from core.modules.strategy.core.enums import SimulateKind
-from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_investments import (
+from core.modules.strategy.core.engines.shared.services.simulation_output import (
     InvestmentRow,
-    StockInvestments,
+    EntityInvestmentCsv,
 )
 from core.modules.strategy.core.engines.portfolio.data_class import PortfolioEvent
 from core.modules.strategy.core.engines.portfolio.enter_selection import (
@@ -22,16 +22,13 @@ from core.modules.strategy.core.engines.portfolio.enter_selection import (
     EntrySelector,
 )
 from core.modules.strategy.core.engines.portfolio.pipeline import PortfolioPipeline
-from core.modules.strategy.core.engines.price_factor.enum_data import EnumVersionData
+from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
-from core.modules.strategy.core.engines.shared.services.strategy_settings.portfolio_settings import (
-    PortfolioSettings,
-)
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
 from core.modules.strategy.core.hooks.base import StrategyHooks
-from core.modules.strategy.core.hooks.context import DataContext
+from core.modules.strategy.core.hooks.hook_params import StrategyContext
 from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
 from core.modules.strategy.strategy import BackTestPipelines
 from core.modules.strategy.core.engines.shared.data_class.simulate_session import SimulateSession
@@ -86,7 +83,7 @@ def test_load_enum_data_requires_enum_version():
 
 
 def test_build_events_uses_raw_buy_price_not_qfq(tmp_path: Path):
-    StockInvestments(
+    EntityInvestmentCsv(
         entity_id="600000.SH",
         rows=[
             InvestmentRow(
@@ -115,13 +112,14 @@ def test_build_events_uses_raw_buy_price_not_qfq(tmp_path: Path):
         ],
     ).save(tmp_path)
 
-    runtime = MagicMock()
-    runtime.entity_ids = ["600000.SH"]
-    runtime.market_profile = ""
-    runtime.period = SimpleNamespace(start_date="20240101", end_date="20240131")
-    data = EnumVersionData(output_dir=tmp_path, version_id="1", runtime=runtime)
+    data = EnumSource.stub(
+        tmp_path,
+        entity_ids=["600000.SH"],
+        start_date="20240101",
+        end_date="20240131",
+    )
     events, opportunities = PortfolioPipeline.build_events(
-        data, settings=PortfolioSettings(raw_settings={})
+        data, settings=StrategySettings.from_dict({})
     )
     assert len(events) == 2
     buy, sell = events
@@ -190,11 +188,11 @@ def test_default_enter_selection_respects_max_portfolio_size():
 
 def test_on_pick_portfolio_member_override_filters_by_id():
     class PickOne(StrategyHooks):
-        def scan_opportunity(self, ctx: DataContext):
+        def scan_opportunity(self, ctx: StrategyContext):
             return None
 
         def on_pick_portfolio_member(
-            self, ctx: DataContext
+            self, ctx: StrategyContext
         ) -> Sequence[Union[Opportunity, str]]:
             return ["a"]
 

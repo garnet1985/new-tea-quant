@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from core.infra.project_context import ProjectContext
-from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import (
+from core.modules.strategy.core.services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
 )
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
@@ -133,12 +133,8 @@ class FingerprintCalculator:
         else:
             settings_obj = StrategySettings.from_dict(dict(effective_settings or {}))
 
-        # 与 RuntimeSnapshot.resolve_period / GlobalEntityCache 一致：simulation + data.json 默认
-        from core.modules.strategy.core.engines.enumerator.shared.report_manager.runtime_snapshot import (
-            RuntimeSnapshot,
-        )
-
-        period = RuntimeSnapshot.resolve_period(settings_obj)
+        # 与 StrategySettings.resolve_period 一致：simulation + data.json 默认
+        period = settings_obj.resolve_period()
         start_date = period.start_date
         end_date = period.end_date
 

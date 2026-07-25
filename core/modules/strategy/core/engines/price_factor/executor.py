@@ -1,7 +1,7 @@
-"""价格回测 JobExecutor — worker 读 enum CSV + 成交回放落盘。
+"""价格回测 PriceFactorJobExecutor — worker 读 enum CSV + 成交回放落盘。
 
 本文件:
-- JobExecutor: RunCallbacks；task 结束写 price entities CSV
+- PriceFactorJobExecutor: RunCallbacks；task 结束写 price entities CSV
   边界: 负责 worker 内回放与 deferred exit；不负责 BE 切 batch、overall 汇总
 """
 from __future__ import annotations
@@ -12,11 +12,11 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from core.modules.backtest_engine.contracts import RunCallbacks
 from core.modules.market_profile.core.markets import create_market_rules
-from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_investments import (
+from core.modules.strategy.core.engines.shared.services.simulation_output import (
     GoalAchievementRow,
-    GoalAchievements,
+    GoalAchievementCsv,
     InvestmentRow,
-    StockInvestments,
+    EntityInvestmentCsv,
 )
 from core.modules.strategy.core.engines.price_factor.helpers import (
     load_stock_klines,
@@ -24,7 +24,7 @@ from core.modules.strategy.core.engines.price_factor.helpers import (
     resolve_holding_until,
     retry_deferred_exits,
 )
-from core.modules.strategy.core.engines.price_factor.job_builder import JobBuilder
+from core.modules.strategy.core.engines.price_factor.job_builder import PriceFactorJobBuilder
 from core.modules.strategy.core.engines.price_factor.report_manager import (
     EntityInvestments,
     PriceInvestmentRow,
@@ -32,29 +32,24 @@ from core.modules.strategy.core.engines.price_factor.report_manager import (
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StrategySettings,
 )
-from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings import (
-    RiskControl,
-)
-from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings.tradability import (
-    SlippageConfig,
-)
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_MARKET_PROFILE = "china_a_stock"
 
 
-class JobExecutor:
+class PriceFactorJobExecutor:
     """价格回测唯一对外钩子面（生命周期 + 日历推进）。
 
     边界:
     - 负责: 读本 batch 枚举 CSV；task 结束时按锁仓规则回放并写 price entities CSV
     - 不负责: BE 调度/切 batch、overall 汇总（ReportManager.finalize）
-    - 调用方: PriceFactorPipeline → ``callbacks=JobExecutor.build_run_callbacks()``
+    - 调用方: PriceFactorPipeline → ``callbacks=PriceFactorJobExecutor.build_run_callbacks()``
 
     说明:
     - 回放为 event-driven（信任枚举 entry；exit 遇跌停挡板时顺延重试），在
-      ``on_after_task_complete`` 执行；``on_tick`` 暂 noop（全日历状态机后续再迁）。
+      ``on_after_task_complete`` 执行；``on_tick`` 暂 noop。
+    - 勿为减少日历空转而先加 Timeline 复写；等回放迁到 on_tick 再议（BOUNDARY_NOTES）。
     """
 
     task_log_label = "price_factor task"
@@ -120,7 +115,7 @@ class JobExecutor:
     def _load_batch_enum_data(cls, job_context: Any) -> Dict[str, Any]:
         """读本 batch entity 的枚举 CSV → ``job_context.init``。"""
         payload = job_context.payload or {}
-        meta = JobBuilder.price_factor_meta(payload)
+        meta = PriceFactorJobBuilder.price_factor_meta(payload)
         enum_dir = Path(str(meta.get("enum_output_dir") or "")).expanduser()
         if not enum_dir.is_dir():
             raise FileNotFoundError(f"enum_output_dir 不存在: {enum_dir}")
@@ -137,8 +132,8 @@ class JobExecutor:
         entities: Dict[str, Dict[str, Any]] = {}
         for entity_id in entity_ids:
             entities[entity_id] = {
-                "investments": StockInvestments.load(enum_dir, entity_id),
-                "goals": GoalAchievements.load(enum_dir, entity_id),
+                "investments": EntityInvestmentCsv.load(enum_dir, entity_id),
+                "goals": GoalAchievementCsv.load(enum_dir, entity_id),
             }
 
         return {
@@ -159,7 +154,7 @@ class JobExecutor:
         price_output_dir = str(init.get("price_output_dir") or "").strip()
         if not price_output_dir:
             payload = job_context.payload or {}
-            meta = JobBuilder.price_factor_meta(payload)
+            meta = PriceFactorJobBuilder.price_factor_meta(payload)
             price_output_dir = str(meta.get("price_output_dir") or "").strip()
         if not price_output_dir:
             raise ValueError("price_output_dir 缺失：无法落盘价格投资记录")
@@ -168,7 +163,7 @@ class JobExecutor:
         end_date = str(init.get("end_date") or "").strip()
         if not end_date:
             payload = job_context.payload or {}
-            meta = JobBuilder.price_factor_meta(payload)
+            meta = PriceFactorJobBuilder.price_factor_meta(payload)
             end_date = str(meta.get("end_date") or "").strip()
 
         settings_raw = (
@@ -177,9 +172,7 @@ class JobExecutor:
             else None
         )
         settings_dict = dict(settings_raw) if isinstance(settings_raw, dict) else {}
-        risk = RiskControl(raw_settings=settings_dict)
         strategy = StrategySettings.from_dict(settings_dict)
-        sim = strategy.simulation
         market_profile = (
             str(settings_dict.get("market_profile") or "").strip()
             or _DEFAULT_MARKET_PROFILE
@@ -195,7 +188,7 @@ class JobExecutor:
             market_rules = None
 
         total_inv = 0
-        skipped_sell_at_limit_down = 0
+        skipped_exit_at_limit = 0
         for entity_id, pack in entities.items():
             if not isinstance(pack, dict):
                 continue
@@ -207,32 +200,28 @@ class JobExecutor:
                 rows,
                 entity_id=str(entity_id),
                 backtest_end=end_date,
-                risk=risk,
+                settings=strategy,
                 goal_rows=goal_rows,
-                allow_enter_at_limit_up=bool(sim.allow_enter_at_limit_up),
-                allow_exit_at_limit_down=bool(sim.allow_exit_at_limit_down),
-                exit_price_model=str(sim.exit_price or "close"),
-                slippage=sim.tradability.slippage,
                 market_rules=market_rules,
             )
             EntityInvestments.save(out_dir, str(entity_id), price_rows)
             total_inv += len(price_rows)
-            skipped_sell_at_limit_down += skip_sell
+            skipped_exit_at_limit += skip_sell
 
         logger.info(
             "%s 回放落盘：job_id=%s entities=%d investments=%d "
-            "skipped_sell_at_limit_down=%d → %s",
+            "skipped_exit_at_limit=%d → %s",
             cls.task_log_label,
             job_context.job_id,
             len(entities),
             total_inv,
-            skipped_sell_at_limit_down,
+            skipped_exit_at_limit,
             out_dir,
         )
         return {
             "entities": len(entities),
             "investments": total_inv,
-            "skipped_sell_at_limit_down": skipped_sell_at_limit_down,
+            "skipped_exit_at_limit": skipped_exit_at_limit,
         }
 
     @staticmethod
@@ -241,22 +230,21 @@ class JobExecutor:
         *,
         entity_id: str = "",
         backtest_end: str = "",
-        risk: Optional[RiskControl] = None,
+        settings: Optional[StrategySettings] = None,
         goal_rows: Optional[Sequence[GoalAchievementRow]] = None,
-        allow_enter_at_limit_up: bool = False,
-        allow_exit_at_limit_down: bool = False,
-        exit_price_model: str = "close",
-        slippage: Optional[SlippageConfig] = None,
         market_rules: Any = None,
         load_klines=None,
     ) -> Tuple[List[PriceInvestmentRow], int]:
         """单 entity：枚举 investments → 买 1 / 锁仓 / 跌停顺延卖出 → PriceInvestmentRow。
 
-        返回 ``(rows, skipped_sell_at_limit_down)``。
+        返回 ``(rows, skipped_exit_at_limit)``。
         """
-        control = risk or RiskControl(raw_settings={})
+        strategy = settings or StrategySettings.from_dict({})
+        sim = strategy.simulation
+        control = sim.risk_control
+        allow_enter_at_limit_up = bool(sim.allow_enter_at_limit_up)
+        allow_exit_at_limit_down = bool(sim.allow_exit_at_limit_down)
         kline_loader = load_klines or load_stock_klines
-        slip = slippage or SlippageConfig()
         goals_by_inv = _index_goals_by_investment(goal_rows or [])
         ordered = sorted(
             list(investments or []),
@@ -275,15 +263,15 @@ class JobExecutor:
             if control.should_skip_enter(status_tags=row.stock_status_at_trigger):
                 continue
 
-            buy_date = str(row.entry_date or "").strip()
-            buy_price = float(row.entry_price or 0.0)
-            if not buy_date or buy_price <= 0:
+            enter_date = str(row.entry_date or "").strip()
+            enter_price = float(row.entry_price or 0.0)
+            if not enter_date or enter_price <= 0:
                 continue
 
-            if holding_until and buy_date <= holding_until:
+            if holding_until and enter_date <= holding_until:
                 continue
 
-            if row.buy_at_limit_up is True and not allow_enter_at_limit_up:
+            if row.enter_at_limit is True and not allow_enter_at_limit_up:
                 continue
 
             inv_id = str(row.investment_id or "").strip()
@@ -293,7 +281,7 @@ class JobExecutor:
             skipped_legs: List[Dict[str, Any]] = []
             for leg in legs:
                 if (
-                    leg.get("sell_at_limit_down") is True
+                    leg.get("exit_at_limit") is True
                     and not allow_exit_at_limit_down
                 ):
                     skipped_sell += 1
@@ -305,33 +293,31 @@ class JobExecutor:
             if skipped_legs and not position_fully_closed(processed):
                 klines = kline_loader(
                     sid,
-                    start_date=buy_date,
-                    end_date=end or buy_date,
+                    start_date=enter_date,
+                    end_date=end or enter_date,
                 )
                 processed, pending, defer_skips = retry_deferred_exits(
-                    buy_price=buy_price,
+                    enter_price=enter_price,
                     processed_legs=processed,
                     skipped_legs=skipped_legs,
                     klines=klines,
                     entity_id=sid,
-                    exit_price_model=exit_price_model,
-                    slippage=slip,
+                    settings=strategy,
                     market_rules=market_rules,
-                    allow_exit_at_limit_down=allow_exit_at_limit_down,
                 )
                 skipped_sell += int(defer_skips or 0)
 
             holding_until = resolve_holding_until(
                 processed_legs=processed,
-                buy_date=buy_date,
+                enter_date=enter_date,
                 backtest_end_date=end,
             )
 
             out.append(
                 _to_price_row(
                     row=row,
-                    buy_date=buy_date,
-                    buy_price=buy_price,
+                    enter_date=enter_date,
+                    enter_price=enter_price,
                     processed=processed,
                     pending=pending,
                 )
@@ -380,40 +366,40 @@ def _build_exit_legs(
             day = str(g.date or "").strip()
             flag: Optional[bool] = None
             if len(goal_legs) == 1 or (exit_date and day == exit_date):
-                flag = row.sell_at_limit_down
+                flag = row.exit_at_limit
             legs.append(
                 {
                     "date": day,
-                    "sell_date": day,
-                    "sell_price": float(g.price or 0.0),
+                    "exit_date": day,
+                    "exit_price": float(g.price or 0.0),
                     "exit_ratio": float(g.exit_ratio or 0.0) or 1.0,
                     "reason": str(g.reason or "").strip(),
-                    "sell_at_limit_down": flag,
+                    "exit_at_limit": flag,
                 }
             )
         return legs
 
-    sell_date = str(row.exit_date or "").strip()
-    if not sell_date:
+    exit_date = str(row.exit_date or "").strip()
+    if not exit_date:
         return []
     return [
         {
-            "date": sell_date,
-            "sell_date": sell_date,
-            "sell_price": float(row.exit_price or 0.0),
+            "date": exit_date,
+            "exit_date": exit_date,
+            "exit_price": float(row.exit_price or 0.0),
             "exit_ratio": 1.0,
             "reason": str(row.exit_reason or "").strip(),
-            "sell_at_limit_down": row.sell_at_limit_down,
+            "exit_at_limit": row.exit_at_limit,
         }
     ]
 
 
 def _leg_date(leg: Dict[str, Any]) -> str:
-    return str(leg.get("date") or leg.get("sell_date") or "").strip()
+    return str(leg.get("date") or leg.get("exit_date") or "").strip()
 
 
-def _aggregate_roi(processed: List[Dict[str, Any]], buy_price: float) -> float:
-    basis = float(buy_price or 0.0)
+def _aggregate_roi(processed: List[Dict[str, Any]], enter_price: float) -> float:
+    basis = float(enter_price or 0.0)
     if basis <= 0 or not processed:
         return 0.0
     remaining = 1.0
@@ -429,7 +415,7 @@ def _aggregate_roi(processed: List[Dict[str, Any]], buy_price: float) -> float:
         ratio = min(ratio, 1.0)
         sold = remaining * ratio
         try:
-            sell_px = float(leg.get("sell_price") or 0.0)
+            sell_px = float(leg.get("exit_price") or 0.0)
         except (TypeError, ValueError):
             sell_px = 0.0
         weighted_profit += (sell_px - basis) * sold
@@ -440,17 +426,17 @@ def _aggregate_roi(processed: List[Dict[str, Any]], buy_price: float) -> float:
 def _to_price_row(
     *,
     row: InvestmentRow,
-    buy_date: str,
-    buy_price: float,
+    enter_date: str,
+    enter_price: float,
     processed: List[Dict[str, Any]],
     pending: Any,
 ) -> PriceInvestmentRow:
     closed = position_fully_closed(processed)
     if closed:
         last = max(processed, key=_leg_date)
-        sell_date = _leg_date(last)
-        sell_price = float(last.get("sell_price") or 0.0)
-        roi = _aggregate_roi(processed, buy_price)
+        exit_date = _leg_date(last)
+        exit_price = float(last.get("exit_price") or 0.0)
+        roi = _aggregate_roi(processed, enter_price)
         exit_reason = str(last.get("reason") or row.exit_reason or "").strip()
         lifecycle = "complete"
         if roi > 0:
@@ -460,8 +446,8 @@ def _to_price_row(
         else:
             result = str(row.result or "").strip()
     else:
-        sell_date = ""
-        sell_price = 0.0
+        exit_date = ""
+        exit_price = 0.0
         roi = 0.0
         if pending is not None:
             exit_reason = str(getattr(pending, "reason", "") or row.exit_reason or "").strip()
@@ -471,22 +457,22 @@ def _to_price_row(
         result = ""
 
     holding_days = int(row.holding_days or 0)
-    if closed and sell_date and buy_date and len(buy_date) == 8 and len(sell_date) == 8:
+    if closed and exit_date and enter_date and len(enter_date) == 8 and len(exit_date) == 8:
         try:
             from datetime import datetime
 
-            d0 = datetime.strptime(buy_date, "%Y%m%d")
-            d1 = datetime.strptime(sell_date, "%Y%m%d")
+            d0 = datetime.strptime(enter_date, "%Y%m%d")
+            d1 = datetime.strptime(exit_date, "%Y%m%d")
             holding_days = max(0, (d1 - d0).days)
         except ValueError:
             pass
 
     return PriceInvestmentRow(
         opportunity_id=str(row.investment_id or "").strip(),
-        buy_date=buy_date,
-        buy_price=buy_price,
-        sell_date=sell_date,
-        sell_price=sell_price,
+        enter_date=enter_date,
+        enter_price=enter_price,
+        exit_date=exit_date,
+        exit_price=exit_price,
         roi=roi,
         holding_days=holding_days,
         holding_trading_days=holding_days,
@@ -497,4 +483,4 @@ def _to_price_row(
     )
 
 
-__all__ = ["JobExecutor"]
+__all__ = ["PriceFactorJobExecutor"]

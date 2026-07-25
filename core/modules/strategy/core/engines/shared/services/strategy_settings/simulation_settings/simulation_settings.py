@@ -2,7 +2,7 @@
 
 本文件:
 - SimulationSettings: 子 section 聚合与 enter/exit 价解析 API
-  边界: 负责 simulation 配置对象化；不负责 Investment.tick 或 price 回放
+  边界: 负责 simulation 配置对象化；不负责 Investment 反应式推进或 price 回放
 """
 
 from __future__ import annotations
@@ -18,12 +18,14 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.valida
 )
 
 from .assumption import AssumptionSettings
-from .execution import ExecutionSettings
+from .execution import BacktestPeriod, ExecutionSettings
 from .risk_control import RiskControl
 from .tradability import EdgesConfig, LiquidityConfig, TradabilityConfig
 
 if TYPE_CHECKING:
-    from core.modules.strategy.core.engines.shared.data_class.investment import ExecuteStep
+    from core.modules.strategy.core.engines.shared.data_class.investment import (
+        TargetCheckStep,
+    )
 
 
 @dataclass
@@ -63,8 +65,8 @@ class SimulationSettings(SettingsBase):
         return self.execution.mode
 
     @property
-    def steps(self) -> List[str]:
-        return self.execution.steps
+    def target_check_order(self) -> List[str]:
+        return self.assumption.target_check_order
 
     @property
     def tradability(self) -> TradabilityConfig:
@@ -102,8 +104,12 @@ class SimulationSettings(SettingsBase):
     def allow_exit_at_limit_down(self) -> bool:
         return self.edges.allow_exit_at_limit_down
 
-    def parsed_execute_steps(self) -> List["ExecuteStep"]:
-        return self.execution.parsed_steps()
+    def parsed_target_check_order(self) -> List["TargetCheckStep"]:
+        return self.assumption.parsed_target_check_order()
+
+    def resolve_period(self) -> BacktestPeriod:
+        """回测前：补齐空 start/end 后的开市日区间。"""
+        return self.execution.resolve_period()
 
     def apply_defaults(self) -> None:
         if "simulation" not in self.raw_settings or not isinstance(

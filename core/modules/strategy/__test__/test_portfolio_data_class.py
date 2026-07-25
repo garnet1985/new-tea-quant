@@ -6,7 +6,7 @@ import pytest
 
 pytestmark = pytest.mark.force_run
 
-from core.modules.strategy.core.engines.enumerator.shared.report_manager.stock_investments import (
+from core.modules.strategy.core.engines.shared.services.simulation_output import (
     InvestmentRow,
 )
 from core.modules.strategy.core.engines.portfolio.data_class import (

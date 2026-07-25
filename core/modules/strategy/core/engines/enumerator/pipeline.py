@@ -1,8 +1,9 @@
-"""枚举器统一编排（entity_based / slice_based 共用步骤）。
+"""枚举器统一编排（entity_based / slice_based）。
 
 本文件:
-- EnumeratorPipeline: 采样→job 构建→BE→ReportManager；``find_output_version_via_fps``
-  边界: 负责 enum run 编排与落盘；不负责指纹计算、DB 缓存读写（Strategy / CacheManager）
+- EnumeratorPipeline: 采样 → JobBuilder → BE.run(callbacks=JobExecutor) → ReportManager
+  边界: 周边编排与落盘；不负责指纹/DB 缓存；不复写 BE Timeline
+  模式内核仅两件套: JobBuilder（喂 jobs）+ JobExecutor（RunCallbacks）
 """
 from __future__ import annotations
 
@@ -16,17 +17,17 @@ from core.infra.job_pipeline.profile import (
 )
 from core.infra.project_context import ProjectContext
 from core.modules.backtest_engine.core.performance.settings import resolve_slice_based_performance
-from core.modules.strategy.core.engines.enumerator.shared.report_manager import ReportManager
-from core.modules.strategy.core.engines.enumerator.shared.report_manager.report_consts import (
-    ReportPaths,
+from core.modules.strategy.core.engines.enumerator.common.report_manager import ReportManager
+from core.modules.strategy.core.engines.enumerator.common.report_manager.report_output import (
+    ReportOutput,
 )
-from core.modules.strategy.core.engines.shared.services.entity_loader.global_entity_loader import (
+from core.modules.strategy.core.services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
 )
-from core.modules.strategy.core.engines.shared.services.entity_loader.stock_sampling import (
+from core.modules.strategy.core.services.entity_loader.stock_sampling import (
     StockSampler,
 )
-from core.modules.strategy.core.engines.shared.services.entity_loader.strategy_data_resolver import (
+from core.modules.strategy.core.services.entity_loader.strategy_data_resolver import (
     StrategyDataResolver,
 )
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
@@ -48,8 +49,8 @@ class EnumeratorPipeline:
     """枚举统一编排入口。
 
     边界:
-    - 负责: 用编排层已算好的 SimulateSession 执行枚举并落盘
-    - 不负责: 指纹、GlobalEntityCache 系统级加载、DB 缓存读写（Strategy / CacheManager）
+    - 负责: SimulateSession 上跑枚举（采样 / jobs / BE / 报告）
+    - 不负责: 指纹、系统级 GlobalEntityCache 加载、DB 缓存；不建平行 session / TimelineBuilder
     - 调用方: Strategy._run_steps（cache miss 之后）
     """
 
@@ -70,48 +71,34 @@ class EnumeratorPipeline:
     @classmethod
     def run(cls, ctx: "SimulateSession") -> Dict[str, Any]:
         """运行枚举；复用 ctx 内已 seed 的 cache / settings / 指纹。"""
-        strategy_info = ctx.strategy_info
-        execution_mode = strategy_info.get_execution_mode()
+        execution_mode = ctx.strategy_info.get_execution_mode()
         if execution_mode not in {_MODE_ENTITY, _MODE_SLICE}:
             raise ValueError(f"不支持的execution_mode: {execution_mode}")
 
-        effective_settings = ctx.effective_settings
         cls.global_entity_cache = ctx.global_entity_cache
-
         declaration_groups = StrategyDataResolver.group_from_settings(
-            effective_settings.raw_settings
+            ctx.effective_settings
         )
-
-        results = cls._run_by_steps(
-            strategy_info=strategy_info,
-            effective_settings_obj=effective_settings,
-            settings_diff=ctx.settings_diff,
-            settings_fp=ctx.settings_fp,
-            env_fp=ctx.env_fp,
-            declaration_groups=declaration_groups,
-            execution_mode=execution_mode,
-            stock_ids=list(ctx.entity_ids),
-        )
+        results = cls._run_by_steps(ctx, declaration_groups=declaration_groups)
         return cls._to_report(results)
 
     @classmethod
     def _run_by_steps(
         cls,
+        ctx: "SimulateSession",
         *,
-        strategy_info: EnabledStrategyInfo,
-        effective_settings_obj: StrategySettings,
-        settings_diff: Dict[str, Any],
-        settings_fp: str,
-        env_fp: str,
         declaration_groups: Dict[str, Any],
-        execution_mode: str,
-        stock_ids: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
+        strategy_info = ctx.strategy_info
+        execution_mode = strategy_info.get_execution_mode()
+        effective_settings_obj = ctx.effective_settings
+        stock_ids = list(ctx.entity_ids)
+
         cls.global_entity_cache.load_global_declarations(
             declaration_groups["global_declarations"]
         )
 
-        if stock_ids is None:
+        if not stock_ids:
             stock_ids = cls.global_entity_cache.get_stock_ids()
         stock_ids = cls._resolve_entity_ids(
             stock_ids,
@@ -122,10 +109,10 @@ class EnumeratorPipeline:
         report_manager = cls._step_to_begin_report_manager(
             strategy_info=strategy_info,
             stock_ids=stock_ids,
-            settings_fp=settings_fp,
-            env_fp=env_fp,
+            settings_fp=ctx.settings_fp,
+            env_fp=ctx.env_fp,
             effective_settings_obj=effective_settings_obj,
-            settings_diff=settings_diff,
+            settings_diff=ctx.settings_diff,
         )
 
         jobs = cls._build_jobs(
@@ -155,29 +142,29 @@ class EnumeratorPipeline:
     def _mode_job_stack(
         cls, execution_mode: str
     ) -> Tuple[Type[Any], Type[Any], Type[Any]]:
-        """按 mode 返回 (JobBuilder, JobExecutor, ExecutorHooksContext)。"""
-        from core.modules.strategy.core.engines.enumerator.shared.base_executor import (
+        """按 mode 返回 (JobBuilder类, JobExecutor类, ExecutorHooksContext)。"""
+        from core.modules.strategy.core.engines.enumerator.common.base_executor import (
             ExecutorHooksContext,
         )
 
         if execution_mode == _MODE_SLICE:
             from core.modules.strategy.core.engines.enumerator.slice_based.executor import (
-                JobExecutor,
+                EnumSliceJobExecutor,
             )
-            from core.modules.strategy.core.engines.enumerator.slice_based.job_builder.job_builder import (
-                JobBuilder,
+            from core.modules.strategy.core.engines.enumerator.slice_based.job_builder import (
+                EnumSliceJobBuilder,
             )
 
-            return JobBuilder, JobExecutor, ExecutorHooksContext
+            return EnumSliceJobBuilder, EnumSliceJobExecutor, ExecutorHooksContext
 
         from core.modules.strategy.core.engines.enumerator.entity_based.executor import (
-            JobExecutor,
+            EnumEntityJobExecutor,
         )
-        from core.modules.strategy.core.engines.enumerator.entity_based.job_builder.job_builder import (
-            JobBuilder,
+        from core.modules.strategy.core.engines.enumerator.entity_based.job_builder import (
+            EnumEntityJobBuilder,
         )
 
-        return JobBuilder, JobExecutor, ExecutorHooksContext
+        return EnumEntityJobBuilder, EnumEntityJobExecutor, ExecutorHooksContext
 
     @classmethod
     def _build_jobs(
@@ -211,10 +198,6 @@ class EnumeratorPipeline:
         execution_mode: str,
     ) -> Dict[str, Any]:
         from core.modules.backtest_engine import BacktestEngine
-        from core.modules.strategy.core.engines.enumerator.shared.report_manager.runtime_snapshot import (
-            RuntimeSnapshot,
-        )
-
         _, job_executor, hooks_ctx_cls = cls._mode_job_stack(execution_mode)
         report_manager.profiler.begin_collect(
             entity_count=cls._count_entities_in_jobs(jobs),
@@ -229,7 +212,7 @@ class EnumeratorPipeline:
             effective_settings_obj, execution_mode=execution_mode
         )
         task_name = f"strategy_{report_manager.strategy_key}"
-        period = RuntimeSnapshot.resolve_period(effective_settings_obj)
+        period = effective_settings_obj.resolve_period()
 
         if execution_mode == _MODE_SLICE:
             run_result = BacktestEngine.slice_based.run(
@@ -309,11 +292,11 @@ class EnumeratorPipeline:
         run_result = results.pop("_run_result", None)
         if run_result is None:
             return
-        report_manager.finalize_from_run_result(
+        report_manager.finalize(
             run_result,
             entity_count=entity_count,
             opportunities_count=int(results.get("opportunities_count") or 0),
-            performance_config=ReportPaths.report_output_config(
+            performance_config=ReportOutput.config_from_settings(
                 effective_settings_obj.raw_settings
             ),
         )

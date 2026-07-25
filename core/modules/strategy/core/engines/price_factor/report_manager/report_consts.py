@@ -1,20 +1,20 @@
 """价格回测 version 目录产物路径约定。
 
 本文件:
-- ReportPaths: runtime / overall / entities 等文件名与路径 helper
-  边界: 负责路径常量；不负责写盘逻辑
+- ReportPaths: 复用 simulation_output 文件名；补充 price 专有路径 helper
+  边界: 负责路径；不负责写盘逻辑
 """
 from __future__ import annotations
 
 from pathlib import Path
 
-GLOBAL_PREFIX = "0_"
-RUNTIME_ENV_FILE = f"{GLOBAL_PREFIX}runtime_env.json"
-ENTITY_IDS_FILE = f"{GLOBAL_PREFIX}entity_ids.txt"
-PERFORMANCE_FILE = f"{GLOBAL_PREFIX}performance.json"
-OVERALL_REPORT_FILE = f"{GLOBAL_PREFIX}overall_report.json"
-
-ENTITIES_SUBDIR = "entities"
+from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
+    ENTITIES_SUBDIR,
+    ENTITY_IDS_FILE,
+    OVERALL_REPORT_FILE,
+    PERFORMANCE_FILE,
+    RUNTIME_ENV_FILE,
+)
 
 PRICE_VERSION_REQUIRED_FILES = (
     RUNTIME_ENV_FILE,
@@ -27,7 +27,7 @@ class ReportPaths:
     """价格回测产物路径。
 
     边界:
-    - 负责: version 目录内文件名约定
+    - 负责: version 目录内文件名约定（共享常量 + price 专有 investments CSV）
     - 不负责: 写盘
     """
 

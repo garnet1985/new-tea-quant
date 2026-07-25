@@ -1,8 +1,10 @@
-# Strategy Module (v0.6.0)
+# Strategy Module
 
-策略执行模块。枚举入口：`Strategy.enumerate()` → `EnumeratorPipeline`（按 execution_mode 接 entity/slice JobBuilder·Executor）。
+策略执行：把用户钩子经 BacktestEngine ``RunCallbacks`` 挂入回测，并做 jobs / 报告等周边。
 
-## 三层结构
+**架构硬约束**见 [`BOUNDARY_NOTES.md`](BOUNDARY_NOTES.md)「与 BacktestEngine 的关系」——枚举器仅 *JobBuilder + *JobExecutor；勿加 TimelineBuilder / 平行 session。
+
+## 三层结构（示意；细节以代码与 BOUNDARY_NOTES 为准）
 
 ```
 core/
@@ -23,7 +25,7 @@ core/
 │       └── output_recorder.py
 │
 ├── hooks/                   # 用户策略契约
-│   └── context/data_context.py   # DataContext（hook 数据视图）
+│   └── context/data_context.py   # StrategyContext（hook 数据视图）
 │
 └── engines/enumerator/      # 主逻辑（编排 + 计算）
     ├── engine.py            # 薄路由：preprocess → mode pipeline → postprocess
@@ -50,7 +52,7 @@ Strategy.enumerate()
 
 | Context | 用户 hook | 机器 runtime | 运行状态 |
 |---------|-----------|--------------|----------|
-| 位置 | `hooks/data_context.py` | `enumerator/shared/runtime.py` + 各模式 `context/runtime.py` | 各模式 `context/status.py` |
+| 位置 | `hooks/hook_params/strategy_context.py` | `enumerator/common/runtime.py` + 各模式 `context/runtime.py` | 各模式 `context/status.py` |
 | 组装 | 各模式 `context/data.py` | engine 构建 RuntimeContext | pipeline 更新 RuntimeStatus |
 
 ## 用户策略 import（公开面）
@@ -60,16 +62,16 @@ Strategy.enumerate()
 ```python
 from core.modules.strategy.contracts import (
     CalendarAsOfResult,
-    DataContext,
+    StrategyContext,
     Opportunity,
     StrategyHooks,
 )
 ```
 
-`CalendarAsOfContext` 等同理；`Strategy` facade 亦可在包根 import：
+`Strategy` facade 亦可在包根 import：
 
 ```python
-from core.modules.strategy import DataContext, Opportunity, Strategy, StrategyHooks
+from core.modules.strategy import StrategyContext, Opportunity, Strategy, StrategyHooks
 ```
 
 `core.hooks.*` 为模块内部路径，用户策略勿直接 import。

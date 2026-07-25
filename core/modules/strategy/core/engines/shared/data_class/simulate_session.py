@@ -1,5 +1,8 @@
 """一次 simulate 编排会话（Facade → Pipeline）。
 
+消费者: enumerator, price_factor, portfolio
+其它: Facade
+
 本文件:
 - SimulateSession: discovery 之后、Pipeline 之前组装的会话袋
   边界: 负责携带 EnabledStrategyInfo + FingerprintResult + kind/steps/enum_version；

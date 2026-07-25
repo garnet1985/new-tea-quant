@@ -1,4 +1,4 @@
-"""价格回测 ``0_overall_report.json`` 跨 entity 汇总。
+"""价格回测 ``overall_report.json`` 跨 entity 汇总。
 
 本文件:
 - OverallSummary / OverallReport: 从 EntityInvestments 聚合 win_rate、avg_roi 等
@@ -115,18 +115,18 @@ class OverallSummary:
                     continue
                 result = (row.result or "").strip().lower()
                 lifecycle = (row.lifecycle or "").strip().lower()
-                if result in {"win", "profit"} or (row.roi > 0 and row.sell_date):
+                if result in {"win", "profit"} or (row.roi > 0 and row.exit_date):
                     win += 1
                     completed += 1
-                elif result in {"loss"} or (row.roi < 0 and row.sell_date):
+                elif result in {"loss"} or (row.roi < 0 and row.exit_date):
                     loss += 1
                     completed += 1
-                elif row.sell_date:
+                elif row.exit_date:
                     completed += 1
-                elif lifecycle in {"open", "holding", "active"} or not row.sell_date:
+                elif lifecycle in {"open", "holding", "active"} or not row.exit_date:
                     open_count += 1
 
-                if row.sell_date or row.roi != 0.0:
+                if row.exit_date or row.roi != 0.0:
                     roi_sum += float(row.roi)
                     roi_n += 1
                 if row.holding_days:
@@ -156,10 +156,10 @@ class OverallSummary:
 
 
 class OverallReport:
-    """读写 ``0_overall_report.json``。"""
+    """读写 ``overall_report.json``。"""
 
     @classmethod
-    def build_and_save(
+    def build(
         cls,
         output_dir: Path,
         *,
@@ -174,7 +174,7 @@ class OverallReport:
             period=period,
             enum_version_id=enum_version_id,
         )
-        payload = {
+        return {
             "summary": summary.to_dict(),
             "entity_summaries": [
                 {
@@ -185,11 +185,32 @@ class OverallReport:
                 if str(eid or "").strip()
             ],
         }
+
+    @classmethod
+    def save_payload(cls, output_dir: Path, payload: Dict[str, Any]) -> Path:
         path = ReportPaths.overall_report_path(output_dir)
         path.write_text(
             json.dumps(payload, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
+        return path
+
+    @classmethod
+    def build_and_save(
+        cls,
+        output_dir: Path,
+        *,
+        entity_ids: Sequence[str],
+        period: Dict[str, str],
+        enum_version_id: str,
+    ) -> Dict[str, Any]:
+        payload = cls.build(
+            output_dir,
+            entity_ids=entity_ids,
+            period=period,
+            enum_version_id=enum_version_id,
+        )
+        cls.save_payload(output_dir, payload)
         return payload
 
     @classmethod

@@ -139,11 +139,6 @@ class PortfolioSettings(SettingsBase):
     def output(self) -> OutputConfig:
         return self._parse_output()
 
-    def fees_config(self) -> Dict[str, Any]:
-        """根级 ``settings.fees``（FeesSettings 仍为空壳时的读取入口）。"""
-        top = self.raw_settings.get("fees", {}) or {}
-        return top if isinstance(top, dict) else {}
-
     def _parse_allocation(self) -> AllocationConfig:
         a = self.portfolio.get("allocation") or {}
         if not isinstance(a, dict):

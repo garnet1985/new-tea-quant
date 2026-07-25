@@ -85,19 +85,35 @@ class StrategyContext:
     settings: StrategySettings
     data: StrategyData
     custom: Dict[str, Any] = field(default_factory=dict)
+    _cached_settings_dict: Optional[Dict[str, Any]] = field(
+        default=None,
+        init=False,
+        repr=False,
+        compare=False,
+    )
 
     @property
     def base_data_key(self) -> str:
         return self.settings.data.base_data_key
 
+    def effective_settings_dict(self) -> Dict[str, Any]:
+        """settings 的 dict 视图（缓存；热路径勿每 tick 调 ``settings.to_dict()``）。"""
+        cached = self._cached_settings_dict
+        if cached is None:
+            cached = self.settings.to_dict()
+            self._cached_settings_dict = cached
+        return cached
+
     def with_data(self, data: StrategyData) -> "StrategyContext":
-        """引擎：换 data，共享同一 ``custom`` dict。"""
-        return StrategyContext(
+        """引擎：换 data，共享同一 ``custom`` dict 与 settings 缓存。"""
+        ctx = StrategyContext(
             strategy=self.strategy,
             settings=self.settings,
             data=data,
             custom=self.custom,
         )
+        ctx._cached_settings_dict = self._cached_settings_dict
+        return ctx
 
     def refill(
         self,

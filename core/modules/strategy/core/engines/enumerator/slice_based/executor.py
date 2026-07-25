@@ -541,10 +541,11 @@ class SliceTaskState:
     @staticmethod
     def _assert_entry_price_model(settings: StrategySettings) -> None:
         model = str(settings.simulation.enter_price or "").strip().lower()
-        if model and model != "close":
+        allowed = {"close", "open", "next_open", "touch"}
+        if model and model not in allowed:
             raise ValueError(
-                f"slice_based 当前仅支持 simulation.assumption.tradability.enter_price"
-                f"='close'，实际: {model!r}"
+                f"slice_based simulation.assumption.tradability.enter_price"
+                f" 非法: {model!r}；允许 {sorted(allowed)}"
             )
 
 

@@ -227,18 +227,29 @@ class Investment(Opportunity):
         return list(DEFAULT_TARGET_CHECK_ORDER)
 
     def try_enter(self, as_of: str, bar: Dict[str, Any]) -> None:
-        """``PENDING_TO_ENTER``：尝试进场。
+        """``PENDING_TO_ENTER``：先判 abort，再尝试进场。
 
-        典型：信号日已建仓意图，但 ``enter_price=next_open`` 须等到次日 open 才能成交；
-        涨停挡买等也会继续挂起，直至条件满足 → ``OPEN``。
+        - abort（超时 / 漂移 / status / 退市）→ ``COMPLETE``（无成交）
+        - 今日能成交 → ``OPEN``
+        - 否则继续挂（涨停挡买、未触及限价等）
         """
         if self.lifecycle != Lifecycle.PENDING_TO_ENTER:
             return
         as_of = str(as_of or "").strip()
+        abort_reason = self.should_abort_enter(as_of, bar)
+        if abort_reason:
+            self._abort_enter(as_of, abort_reason)
+            self._remember_bar(bar)
+            return
         if self._is_able_to_enter(as_of, bar):
             self._apply_enter(as_of, bar)
             self.lifecycle = Lifecycle.OPEN
             self._update_extremes(as_of, bar)
+            self._remember_bar(bar)
+            return
+        # 末日仍未成交：放弃
+        if self._pending_wait_exhausted(as_of):
+            self._abort_enter(as_of, "pending_enter:max_wait_open_days")
         self._remember_bar(bar)
 
     def check_targets(self, as_of: str, bar: Dict[str, Any]) -> None:
@@ -601,11 +612,134 @@ class Investment(Opportunity):
     def _is_able_to_enter(self, as_of: str, bar: Dict[str, Any]) -> bool:
         """Whether this tick can fill entry per ``enter_price`` (no mutation).
 
-        TODO(后期): 入场风控（等待超时 / 相对 trigger 漂移过大 / 挂起期 status abort）
-        不应塞进本函数——此处 ``False`` 表示「今天不成交、继续挂」；
-        放弃进场应另走 ``should_abort_enter`` → ``COMPLETE``。
+        ``False`` = 今天不成交、继续挂；放弃进场见 ``should_abort_enter``。
         """
         return self._resolve_entry_price(as_of, bar) is not None
+
+    def should_abort_enter(self, as_of: str, bar: Dict[str, Any]) -> Optional[str]:
+        """挂单硬取消：退市 / abort_enter_when / 等待超限 / 漂移超限。
+
+        返回 reason 字符串；``None`` = 不 abort（仍可尝试成交或继续挂）。
+        """
+        if self.lifecycle != Lifecycle.PENDING_TO_ENTER:
+            return None
+        if self.settings is None:
+            return None
+        as_of = str(as_of or "").strip()
+        policy = self.settings.simulation.risk_control.pending_enter
+
+        stock_meta = self._stock_meta_dict()
+        if self._is_delisted_on(stock_meta, as_of):
+            return "pending_enter:delisted"
+
+        status_hit = policy.abort_enter_when.match_reason(self._status_tags(bar))
+        if status_hit:
+            return f"pending_enter:{status_hit}"
+
+        waited = self._pending_wait_open_days(as_of)
+        attempts = self._pending_attempts_allowed(policy.max_wait_open_days)
+        if waited > attempts:
+            return "pending_enter:max_wait_open_days"
+
+        drift_reason = self._pending_drift_abort_reason(as_of, bar)
+        if drift_reason:
+            return drift_reason
+        return None
+
+    def _abort_enter(self, as_of: str, reason: str) -> None:
+        """放弃进场 → COMPLETE（无 entry）。"""
+        self.lifecycle = Lifecycle.COMPLETE
+        self.exit_info = ExitState(
+            date=str(as_of or "").strip(),
+            reason=str(reason or "pending_enter:abort"),
+            ratio=0.0,
+        )
+
+    def _pending_attempts_allowed(self, max_wait_open_days: int) -> int:
+        """``0`` → 仅 1 次可成交日；``N>0`` → N 个交易日。"""
+        n = int(max_wait_open_days)
+        return 1 if n <= 0 else n
+
+    def _pending_wait_open_days(self, as_of: str) -> int:
+        """自 trigger 次一开市日起，到 as_of（含）已经历的交易日数。"""
+        trigger = str(self.trigger_date or "").strip()
+        as_of = str(as_of or "").strip()
+        if not trigger or not as_of or as_of <= trigger:
+            return 0
+        dates = [str(d).strip() for d in (self.open_dates or ()) if str(d).strip()]
+        if not dates:
+            # 无日历时：至少算 1 个可成交日（as_of > trigger）
+            return 1
+        return sum(1 for d in dates if trigger < d <= as_of)
+
+    def _pending_wait_exhausted(self, as_of: str) -> bool:
+        if self.settings is None:
+            return False
+        policy = self.settings.simulation.risk_control.pending_enter
+        waited = self._pending_wait_open_days(as_of)
+        return waited >= self._pending_attempts_allowed(policy.max_wait_open_days)
+
+    def _pending_drift_abort_reason(
+        self, as_of: str, bar: Dict[str, Any]
+    ) -> Optional[str]:
+        if self.settings is None:
+            return None
+        policy = self.settings.simulation.risk_control.pending_enter
+        if policy.max_entry_drift is None:
+            return None
+        trigger_px = float(self.trigger_price or 0.0)
+        if trigger_px <= 0:
+            return None
+        model = str(self.settings.simulation.enter_price or "touch").strip().lower()
+        if model in {"open", "close"}:
+            return None
+        if as_of <= str(self.trigger_date or "").strip():
+            return None
+        open_px = SafeBarValue.float(bar, "open")
+        if open_px <= 0:
+            return None
+        drift = abs(open_px - trigger_px) / trigger_px
+        if drift <= float(policy.max_entry_drift):
+            return None
+        # touch：若当日已触及限价，仍按限价成交，不因 open 跳空 abort
+        if model == "touch" and self._touch_limit_hit(bar):
+            return None
+        return "pending_enter:max_entry_drift"
+
+    def _touch_limit_hit(self, bar: Dict[str, Any]) -> bool:
+        limit = float(self.trigger_price or 0.0)
+        if limit <= 0:
+            return False
+        low = SafeBarValue.float(bar, "low")
+        high = SafeBarValue.float(bar, "high")
+        if low <= 0 or high <= 0:
+            return False
+        return low <= limit <= high
+
+    def _stock_meta_dict(self) -> Dict[str, Any]:
+        stock = self.stock
+        if isinstance(stock, StockInfo):
+            return {
+                "id": stock.id,
+                "delist_date": getattr(stock, "delist_date", "") or "",
+                "delisted_date": getattr(stock, "delist_date", "") or "",
+            }
+        if isinstance(stock, dict):
+            return dict(stock)
+        return {}
+
+    @staticmethod
+    def _is_delisted_on(stock_meta: Optional[Dict[str, Any]], trade_date: str) -> bool:
+        if not stock_meta or not trade_date:
+            return False
+        delist = str(
+            stock_meta.get("delist_date")
+            or stock_meta.get("delisted_date")
+            or ""
+        ).strip()
+        if not delist:
+            return False
+        return trade_date >= delist
 
     def _apply_enter(self, as_of: str, bar: Dict[str, Any]) -> None:
         price = self._resolve_entry_price(as_of, bar)
@@ -633,10 +767,8 @@ class Investment(Opportunity):
     ) -> Optional[float]:
         """Entry fill price for this tick, or ``None`` if not ready / blocked.
 
-        Controlled by ``settings.simulation.enter_price`` (``next_open`` | ``open`` | ``close``).
-        ``use_raw=True`` 时从 ``bar["raw"]`` 取同一 model 对应字段（不再次做贴板门禁）。
-
-        ``next_open``：信号日之后任一交易日的 open 均可尝试成交；贴涨停被挡后可在后续日重试。
+        ``enter_price``: ``next_open`` | ``touch`` | ``open`` | ``close``。
+        ``touch``：限价=``trigger_price``，当日 high/low 触及则成交。
         """
         if self.lifecycle != Lifecycle.PENDING_TO_ENTER:
             return None
@@ -646,17 +778,31 @@ class Investment(Opportunity):
         if not trigger or not as_of:
             return None
 
-        model = str(self.settings.simulation.enter_price or "next_open").strip().lower()
+        model = str(self.settings.simulation.enter_price or "touch").strip().lower()
         if model == "next_open":
             if as_of <= trigger:
                 return None
+            price = SafeBarValue.price_for_model(bar, "open", use_raw=use_raw)
+        elif model == "touch":
+            if as_of <= trigger:
+                return None
+            if not self._touch_limit_hit(bar):
+                return None
+            limit = float(self.trigger_price or 0.0)
+            if limit <= 0:
+                return None
+            if use_raw:
+                # 无独立 raw trigger 时用同一限价
+                price = limit
+            else:
+                price = limit
         elif model in {"close", "open"}:
             if as_of != trigger:
                 return None
+            price = SafeBarValue.price_for_model(bar, model, use_raw=use_raw)
         else:
             raise ValueError(f"unsupported enter_price: {model!r}")
 
-        price = SafeBarValue.price_for_model(bar, model, use_raw=use_raw)
         if price <= 0:
             return None
         if (
@@ -862,7 +1008,7 @@ class Investment(Opportunity):
 
     def _apply_no_next_tick_enter(self, as_of: str, bar: Dict[str, Any]) -> bool:
         """样本末尾处理挂起的 ``next_open`` 进场。成功则进入 ``OPEN``。"""
-        model = str(self.settings.simulation.enter_price or "next_open").strip().lower()
+        model = str(self.settings.simulation.enter_price or "touch").strip().lower()
         if model != "next_open":
             return False
         policy = str(self.settings.simulation.tradability.edges.no_next_tick or "skip_trade").strip().lower()

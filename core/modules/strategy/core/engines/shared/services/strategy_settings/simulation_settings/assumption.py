@@ -119,7 +119,7 @@ class AssumptionSettings(SettingsBase):
     @staticmethod
     def _ensure_tradability_defaults(tradability: Dict[str, Any]) -> None:
         tradability.setdefault("monitor_price", "close")
-        tradability.setdefault("enter_price", "next_open")
+        tradability.setdefault("enter_price", "touch")
         tradability.setdefault("exit_price", "close")
         slip = tradability.setdefault("slippage", {})
         if isinstance(slip, dict):

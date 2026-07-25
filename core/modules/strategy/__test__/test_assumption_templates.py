@@ -45,7 +45,7 @@ def test_standard_template_short_circuits_explicit_tradability() -> None:
         )
     )
     settings.apply_defaults()
-    assert settings.simulation.enter_price == "next_open"
+    assert settings.simulation.enter_price == "touch"
     assert settings.simulation.allow_enter_at_limit_up is False
     assert settings.simulation.liquidity.participation_on_exceed == "clip"
 

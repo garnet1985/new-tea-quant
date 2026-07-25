@@ -128,6 +128,7 @@ Pipeline    → 周边编排（采样、BE.run、ReportManager）
 | `entity_loader` 整块上移 → `core/services/entity_loader` | done |
 | perf metric `pit_*` → `as_of_slice_*` / `enum_as_of_slice` | done |
 | JobBuilder/Executor 类名加引擎前缀（文件名不变） | done |
+| `PENDING_TO_ENTER` 挂单风控（touch / wait / drift / abort） | done |
 
 `core/bff_support/`：**保留**（留给 UI 集成；当前空目录）。
 
@@ -155,7 +156,7 @@ Pipeline    → 周边编排（采样、BE.run、ReportManager）
 | 物品 | 引擎消费者 | 其它 | 动作 | 说明 |
 |------|------------|------|------|------|
 | `entity_loader` 整包 | S E | Facade, fingerprints | **keep（整块）** | 已从 `engines/shared` 上移；含 job_bundle / resolver / global / sampling / indicators；**P 不依赖** |
-| `simulation_cache` | — | Facade / fingerprints | keep | DB 槽位；指纹文件仍在此包（可再拆） |
+| `simulation_cache` | — | Facade / fingerprints | keep | DB 槽位 + 指纹（指纹服务于 cache，**不拆出**） |
 | `discovery` | — | Facade | keep | 策略发现 |
 | `data/simulation_output_recorder` | E P O | — | keep | version 目录分配 |
 
@@ -179,13 +180,12 @@ Pipeline    → 周边编排（采样、BE.run、ReportManager）
 
 | 问题 | 路径 | 说明 |
 |------|------|------|
-| **`PENDING_TO_ENTER` 入场风控未接** | `shared/data_class/investment/investment.py`（`_is_able_to_enter` TODO）；settings 侧字段 | `max_wait_open_days` / `max_entry_drift` / `abort_enter_when` 尚未接到 `try_enter`（不能成交 ≠ 放弃机会） |
+| **`PENDING_TO_ENTER` 入场风控** | — | **done**：`risk_control.pending_enter` + `enter_price=touch`；abort ≠ unable-to-enter |
 
 ### 后期整理
 
 | 问题 | 路径 | 说明 |
 |------|------|------|
-| 指纹塞在 cache 包 | `core/services/simulation_cache/fingerprints.py` | 算指纹 + seed `GlobalEntityCache`；更像 `core/services/fingerprints` |
 | settings → GlobalEntityCache | `strategy_settings/.../execution.py` | `resolve_period` 耦合 cache；可再收薄 |
 | helpers 分层不一致 | `core/helpers/*` vs `scanner/helpers/*` vs `price_factor/helpers/*` | 顶层宜无 IO；引擎 helpers 含 DataManager / adapter |
 | 日历/日期双表面 | `helpers/calendar.py` vs `scanner/helpers/date_resolver.py` | 职责不同但「日期」入口分散 |
@@ -214,11 +214,10 @@ Pipeline    → 周边编排（采样、BE.run、ReportManager）
 | 在 BE 内核调 `contract.until` | 切片属 Strategy 适配层（`AsOfSlice`），不把 data_contract 绑进 BE |
 | 为 enum 再引入 TimelineBuilder / JobSession | 禁止 |
 | 删 `bff_support` | 留给 UI |
+| 拆 `fingerprints` 出 `simulation_cache` | **不做**：指纹本就是给 cache 用的；以后若边界变了再挪 |
 
 ---
 
 ## Suggested next（除 report）
 
-1. **接线 `PENDING_TO_ENTER` 风控**。
-2. （可选）拆 `fingerprints` 出 `simulation_cache`。
-3. **Report manager 专项** — 另开一轮；本文不展开。
+1. **Report manager 专项** — 另开一轮；本文不展开。

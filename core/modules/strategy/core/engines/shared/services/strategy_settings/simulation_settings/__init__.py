@@ -19,6 +19,7 @@ from .risk_control import (
     ForceExitDecision,
     ForceExitRule,
     ForceExitWhenPolicy,
+    PendingEnterPolicy,
     RiskControl,
     StatusTagPolicy,
 )
@@ -34,6 +35,7 @@ __all__ = [
     "ForceExitDecision",
     "ForceExitRule",
     "ForceExitWhenPolicy",
+    "PendingEnterPolicy",
     "LiquidityConfig",
     "RiskControl",
     "SimulationSettings",

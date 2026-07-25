@@ -60,15 +60,14 @@ class EnumOutput:
         return ArtifactPaths.entities_dir(self.output_dir)
 
     def read_runtime_env(self) -> Dict[str, Any]:
-        """读 ``0_runtime_env.json`` 为原始 dict（兼容无 0_ 前缀旧名）。"""
-        path = self._resolve_existing(self.runtime_env_path, legacy="runtime_env.json")
+        """读 ``runtime_env.json``。"""
+        path = self.runtime_env_path
         if not path.is_file():
             raise FileNotFoundError(f"缺少 {RUNTIME_ENV_FILE}: {self.output_dir}")
         return ArtifactIO.read_json(path)
 
     def read_entity_ids(self) -> List[str]:
-        path = self._resolve_existing(self.entity_ids_path, legacy="entity_ids.txt")
-        return ArtifactIO.read_text_lines(path)
+        return ArtifactIO.read_text_lines(self.entity_ids_path)
 
     def stock_investments_path(self, entity_id: str) -> Path:
         return ArtifactPaths.stock_investments_path(self.output_dir, entity_id)
@@ -78,15 +77,6 @@ class EnumOutput:
 
     def collect_stock_investment_entity_ids(self) -> List[str]:
         return ArtifactPaths.collect_entity_ids_from_stock_investments(self.output_dir)
-
-    @staticmethod
-    def _resolve_existing(path: Path, *, legacy: str) -> Path:
-        if path.is_file():
-            return path
-        legacy_path = path.parent / legacy
-        if legacy_path.is_file():
-            return legacy_path
-        return path
 
 
 __all__ = ["EnumOutput"]

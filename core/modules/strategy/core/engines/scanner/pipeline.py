@@ -24,7 +24,6 @@ from core.modules.strategy.core.engines.scanner.helpers import (
 )
 from core.modules.strategy.core.engines.scanner.job_builder import ScannerJobBuilder
 from core.modules.strategy.core.engines.scanner.report_manager import ReportManager
-from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
@@ -201,19 +200,19 @@ class ScannerPipeline:
                 except Exception:
                     logger.exception("scanner on_progress failed (cache)")
         else:
-            opportunities = cls._scan_stocks(
+            run_result = cls._run_backtest(
                 strategy_info=strategy_info,
                 settings=settings,
                 stock_ids=stock_ids,
                 scan_date=scan_date,
                 on_progress=on_progress,
             )
-            report.collect(opportunities)
+            report.collect(run_result)
 
         return report.finalize(present=True)
 
     @classmethod
-    def _scan_stocks(
+    def _run_backtest(
         cls,
         *,
         strategy_info: EnabledStrategyInfo,
@@ -221,7 +220,7 @@ class ScannerPipeline:
         stock_ids: List[str],
         scan_date: str,
         on_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
-    ) -> List[Opportunity]:
+    ) -> Any:
         jobs = ScannerJobBuilder.build_jobs(
             strategy_info=strategy_info,
             settings=settings,
@@ -229,7 +228,7 @@ class ScannerPipeline:
             scan_date=scan_date,
         )
         if not jobs:
-            return []
+            return None
 
         performance = resolve_entity_based_performance_for_profile(
             WorkerProfiles.SCANNER
@@ -260,12 +259,7 @@ class ScannerPipeline:
             except Exception:
                 logger.exception("scanner on_progress failed")
 
-        return ReportManager.collect_from_run_result(run_result)
-
-    @staticmethod
-    def calculate_summary(opportunities: List[Opportunity]) -> Dict[str, Any]:
-        """兼容别名 → ``ReportManager.calculate_summary``。"""
-        return ReportManager.calculate_summary(opportunities)
+        return run_result
 
 
 __all__ = ["ScannerPipeline"]

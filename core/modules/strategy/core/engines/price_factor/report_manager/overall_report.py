@@ -1,4 +1,4 @@
-"""价格回测 ``0_overall_report.json`` 跨 entity 汇总。
+"""价格回测 ``overall_report.json`` 跨 entity 汇总。
 
 本文件:
 - OverallSummary / OverallReport: 从 EntityInvestments 聚合 win_rate、avg_roi 等
@@ -156,7 +156,7 @@ class OverallSummary:
 
 
 class OverallReport:
-    """读写 ``0_overall_report.json``。"""
+    """读写 ``overall_report.json``。"""
 
     @classmethod
     def build(

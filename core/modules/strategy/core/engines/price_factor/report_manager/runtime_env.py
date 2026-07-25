@@ -1,4 +1,4 @@
-"""价格回测 ``0_runtime_env.json`` 与 entity_ids 落盘。
+"""价格回测 ``runtime_env.json`` 与 entity_ids 落盘。
 
 本文件:
 - PriceRuntimeEnv: runtime 字段序列化 / write_entity_ids
@@ -20,7 +20,7 @@ from core.system import get_version
 
 @dataclass
 class PriceRuntimeEnv:
-    """价格回测 version 的 ``0_runtime_env.json``。"""
+    """价格回测 version 的 ``runtime_env.json``。"""
 
     strategy_key: str
     strategy_path: str

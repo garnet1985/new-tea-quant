@@ -12,6 +12,7 @@ from core.modules.strategy.core.engines.scanner.helpers.tradability import (
     annotate_enter_at_limit,
     opportunity_enter_at_limit,
 )
+from core.modules.strategy.core.engines.scanner.report_manager import ScanSummary
 from core.modules.strategy.core.engines.scanner.pipeline import ScannerPipeline
 from core.modules.strategy.core.engines.shared.data_class.opportunity import (
     Opportunity,
@@ -40,14 +41,15 @@ def _opp(
     return opp
 
 
-def test_calculate_summary_counts_limit_up() -> None:
-    summary = ScannerPipeline.calculate_summary(
+def test_scan_summary_counts_limit_up() -> None:
+    summary = ScanSummary.from_opportunities(
         [
             _opp("600000.SH", at_limit=True),
             _opp("600000.SH", at_limit=False),
             _opp("000001.SZ", at_limit=True),
         ]
-    )
+    ).to_dict()
+
     assert summary["total_opportunities"] == 3
     assert summary["total_stocks"] == 2
     assert sorted(summary["stocks_with_opportunities"]) == ["000001.SZ", "600000.SH"]
@@ -121,10 +123,10 @@ def test_pipeline_cache_hit_skips_be(
         "core.modules.strategy.core.engines.scanner.pipeline.ScanDateResolver",
         _Resolver,
     )
-    scan_stocks = MagicMock(return_value=[])
-    monkeypatch.setattr(ScannerPipeline, "_scan_stocks", scan_stocks)
+    scan_stocks = MagicMock(return_value=None)
+    monkeypatch.setattr(ScannerPipeline, "_run_backtest", scan_stocks)
     monkeypatch.setattr(
-        "core.modules.strategy.core.engines.scanner.report_manager.AdapterDispatcher.dispatch",
+        "core.modules.strategy.core.engines.scanner.report_manager.report_manager.AdapterDispatcher.dispatch",
         lambda *a, **k: None,
     )
 

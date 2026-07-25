@@ -216,10 +216,6 @@ class OverallReport:
     @classmethod
     def load(cls, output_dir: Path) -> "OverallReport":
         path = output_dir / cls.OVERALL_REPORT_FILE
-        if not path.is_file():
-            legacy = output_dir / "overall_report.json"
-            if legacy.is_file():
-                path = legacy
         return cls.from_dict(cls._read_json(path))
 
     # ── 落盘 ──

@@ -88,7 +88,7 @@ cases:
     scenarios:
       - id: 1
         name: test_load_enum_version_reads_runtime_and_entity_ids
-        description: 读 0_runtime_env + 0_entity_ids，忽略 entities CSV
+        description: 读 runtime_env + entity_ids，忽略 entities CSV
       - id: 2
         name: test_load_enum_version_empty_entity_ids
         description: entity_ids 为空列表

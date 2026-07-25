@@ -175,7 +175,7 @@ Pipeline    → 周边编排（采样、BE.run、ReportManager）
 
 ## 遗留问题
 
-> **Report manager（done）**：`shared/services/report_manager.BaseReportManager` + 四引擎私有 `ReportManager`（begin → collect* → finalize=summarize+save → present*）。Scanner 落盘仍用 `scan_results/{date}/`，不强制 version 目录。
+> **Report manager（done）**：`shared/services/report_manager.BaseReportManager` + 四引擎私有 `ReportManager`（begin → collect* → finalize=summarize+save → present*）。无兼容别名；各引擎 `report_manager/` 包布局统一（`report_manager.py` + 私有 summary 数据类）。Scanner 落盘仍用 `scan_results/{date}/`。
 
 ### 应尽快（正确性风险）
 

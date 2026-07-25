@@ -17,8 +17,8 @@ from core.modules.strategy.core.engines.portfolio.data_class import (
     PortfolioEvent,
 )
 from core.modules.strategy.core.engines.portfolio.fee_calculator import FeeCalculator
-from core.modules.strategy.core.engines.portfolio.report_writer import (
-    PortfolioReportWriter,
+from core.modules.strategy.core.engines.portfolio.report_manager import (
+    ReportManager,
 )
 from core.modules.strategy.core.engines.portfolio.simulator import PortfolioSimulator
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
@@ -150,7 +150,7 @@ def test_simulator_skips_sell_without_open_lot():
     assert result.trades == []
 
 
-def test_report_writer_finalize_writes_files(tmp_path: Path):
+def test_report_manager_finalize_writes_files(tmp_path: Path):
     alloc = _allocation(allocation={"max_portfolio_size": 2})
     fees = FeeCalculator(
         commission_rate=0.0, min_commission=0.0, stamp_duty_rate=0.0, transfer_fee_rate=0.0
@@ -174,7 +174,7 @@ def test_report_writer_finalize_writes_files(tmp_path: Path):
         ],
         initial_capital=1_000_000,
     )
-    report = PortfolioReportWriter(
+    report = ReportManager(
         output_dir=tmp_path / "1",
         strategy_key="demo",
         strategy_path="demo/rsi",
@@ -185,6 +185,6 @@ def test_report_writer_finalize_writes_files(tmp_path: Path):
     assert report["version_id"] == 1
     assert (tmp_path / "1" / "trades.json").is_file()
     assert (tmp_path / "1" / "equity_curve.json").is_file()
-    assert (tmp_path / "1" / "0_overall_report.json").is_file()
+    assert (tmp_path / "1" / "overall_report.json").is_file()
     assert report["summary"]["completed_investments"] == 1
     assert report["summary"]["total_return"] == pytest.approx(0.05)

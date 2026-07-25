@@ -1,4 +1,4 @@
-"""枚举 version 运行环境（0_runtime_env.json + entity_ids）（enumerator 私有）。
+"""枚举 version 运行环境（runtime_env.json + entity_ids）（enumerator 私有）。
 
 本文件: SystemEnv / SettingsSnapshot / RuntimeEnv
 边界: 负责 enum runtime 内容组装与读写；布局/IO 委托 simulation_output
@@ -84,7 +84,7 @@ class SavedRuntimeEnvPaths:
 
 @dataclass
 class RuntimeEnv:
-    """一次枚举 run 的运行环境描述（对应 0_runtime_env.json）。"""
+    """一次枚举 run 的运行环境描述（对应 runtime_env.json）。"""
 
     ENTITY_IDS_FILE = ENTITY_IDS_FILE
     RUNTIME_ENV_FILE = RUNTIME_ENV_FILE
@@ -141,14 +141,8 @@ class RuntimeEnv:
 
     @classmethod
     def load(cls, output_dir: Path) -> "RuntimeEnv":
-        runtime_env_path = cls._resolve_artifact_path(
-            ArtifactPaths.runtime_env_path(output_dir),
-            legacy="runtime_env.json",
-        )
-        entity_ids_path = cls._resolve_artifact_path(
-            ArtifactPaths.entity_ids_path(output_dir),
-            legacy="entity_ids.txt",
-        )
+        runtime_env_path = ArtifactPaths.runtime_env_path(output_dir)
+        entity_ids_path = ArtifactPaths.entity_ids_path(output_dir)
         if not runtime_env_path.is_file():
             raise FileNotFoundError(f"缺少 {RUNTIME_ENV_FILE}: {output_dir}")
         payload = ArtifactIO.read_json(runtime_env_path)
@@ -242,15 +236,6 @@ class RuntimeEnv:
     @staticmethod
     def _normalize_entity_ids(entity_ids: List[str]) -> List[str]:
         return sorted({str(item).strip() for item in entity_ids if str(item).strip()})
-
-    @staticmethod
-    def _resolve_artifact_path(path: Path, *, legacy: str) -> Path:
-        if path.is_file():
-            return path
-        legacy_path = path.parent / legacy
-        if legacy_path.is_file():
-            return legacy_path
-        return path
 
 
 __all__ = [

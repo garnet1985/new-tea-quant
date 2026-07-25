@@ -155,7 +155,7 @@ def test_profiler_summary_default_omits_jobs(tmp_path: Path) -> None:
     planner = payload["planner"]
     child = payload["child_process"]
 
-    assert perf_path.name == "0_performance.json"
+    assert perf_path.name == "performance.json"
     assert payload["mode"] == "entity_based"
     assert "execution_mode" not in payload
     assert "dispatch" not in payload

@@ -104,7 +104,7 @@ class ReportManager(BaseReportManager):
         market_profile: str,
         strategy_path: str = "",
     ) -> "ReportManager":
-        """分配 version 目录并写入 0_runtime_env.json / 0_entity_ids.txt。
+        """分配 version 目录并写入 runtime_env.json / entity_ids.txt。
 
         strategy_key: settings.meta.key（展示 / 指纹身份）
         strategy_path: strategies 根下相对路径（落盘位置；缺省回退到 key）
@@ -177,7 +177,7 @@ class ReportManager(BaseReportManager):
         return self.overall.build(total_entities=self._finalize_entity_count)
 
     def save(self) -> SavedRunArtifacts:
-        """写 0_performance.json + 0_overall_report.json。"""
+        """写 performance.json + overall_report.json。"""
         performance_path = self.profiler.save()
         overall_report_path = self.overall.save()
         artifacts = SavedRunArtifacts(
@@ -205,22 +205,6 @@ class ReportManager(BaseReportManager):
         self._finalize_performance_config = performance_config
         self.summarize()
         return self.save()
-
-    def finalize_from_run_result(
-        self,
-        run_result: Any,
-        *,
-        entity_count: int,
-        opportunities_count: int,
-        performance_config: Optional[Dict[str, Any]] = None,
-    ) -> SavedRunArtifacts:
-        """兼容别名 → ``finalize``。"""
-        return self.finalize(
-            run_result,
-            entity_count=entity_count,
-            opportunities_count=opportunities_count,
-            performance_config=performance_config,
-        )
 
     # ── 展示（CLI / UI）──
 

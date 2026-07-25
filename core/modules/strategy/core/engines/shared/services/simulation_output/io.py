@@ -18,7 +18,7 @@ class ArtifactIO:
         return json.loads(Path(path).read_text(encoding="utf-8"))
 
     @classmethod
-    def write_json(cls, path: Path, payload: Dict[str, Any]) -> Path:
+    def write_json(cls, path: Path, payload: Any) -> Path:
         target = Path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(

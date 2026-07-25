@@ -292,7 +292,7 @@ class EnumeratorPipeline:
         run_result = results.pop("_run_result", None)
         if run_result is None:
             return
-        report_manager.finalize_from_run_result(
+        report_manager.finalize(
             run_result,
             entity_count=entity_count,
             opportunities_count=int(results.get("opportunities_count") or 0),

@@ -206,7 +206,4 @@ class PortfolioPipeline:
         return runtime
 
 
-# 兼容旧导出名
-PortfolioReportHandle = ReportManager
-
-__all__ = ["PortfolioPipeline", "PortfolioReportHandle", "ReportManager"]
+__all__ = ["PortfolioPipeline"]

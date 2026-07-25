@@ -510,10 +510,6 @@ class ProfilerPerformance:
     @classmethod
     def load(cls, output_dir: Path) -> "ProfilerPerformance":
         path = output_dir / cls.PERFORMANCE_FILE
-        if not path.is_file():
-            legacy = output_dir / "performance.json"
-            if legacy.is_file():
-                path = legacy
         return cls.from_dict(cls._read_json(path))
 
     # ── 落盘 ──
@@ -826,10 +822,6 @@ class ProfilerReport:
 
     def load(self) -> Dict[str, Any]:
         path = self._manager.output_dir / ProfilerPerformance.PERFORMANCE_FILE
-        if not path.is_file():
-            legacy = self._manager.output_dir / "performance.json"
-            if legacy.is_file():
-                path = legacy
         return ProfilerPerformance._read_json(path)
 
     def summary(self) -> Dict[str, Any]:

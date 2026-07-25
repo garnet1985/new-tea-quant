@@ -3,18 +3,15 @@
 本文件:
 - BaseJobExecutor: RunCallbacks 组装、bundle load、flush、进度分派
 - ExecutorHooksContext: ReportManager / GlobalEntityCache 引用载体
-  边界: 负责 task 级钩子骨架；不负责日历日业务（TimelineHooks 子类）
+  边界: 负责 task 级 BE 钩子骨架；日业务由子类覆盖 on_tick / on_ticks_complete
 """
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, ClassVar, Dict, List, Optional, Type
+from typing import Any, ClassVar, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
-
-_HOOKS_KEY = "_enum_timeline_hooks"
-_TIMELINE_KEY = "_enum_timeline"
 
 
 @dataclass(frozen=True)
@@ -35,14 +32,13 @@ class BaseJobExecutor:
     """entity / slice JobExecutor 基类。
 
     边界:
-    - 负责: RunCallbacks 组装（含 on_tick / on_ticks_complete）、bundle load、flush、进度
-    - 不负责: 日历日业务细节（EntityTimelineHooks / SliceTimelineHooks）
+    - 负责: RunCallbacks 组装、bundle load、flush、进度
+    - 日业务: 子类覆盖 ``on_before_task_start`` / ``on_tick`` / ``on_ticks_complete``，
+      可变状态挂在 BE ``job_context.init``
     - 调用方: entity_based / slice_based JobExecutor
     """
 
     task_log_label: str = "task"
-    #: 子类指定：EntityTimelineHooks / SliceTimelineHooks
-    timeline_hooks_cls: Optional[Type[Any]] = None
     #: 主进程钩子上下文（避免 lambda，保证 RunCallbacks 可 pickle）
     _hooks_ctx: ClassVar[Optional[ExecutorHooksContext]] = None
 
@@ -91,45 +87,11 @@ class BaseJobExecutor:
 
     @classmethod
     def on_tick(cls, job_context: Any, point: str, index: int) -> None:
-        """BE 日历点回调 → TimelineHooks.on_tick（monitor 分桶 + scan）。"""
-        hooks = cls._ensure_timeline_hooks(job_context)
-        timeline = job_context.init.get(_TIMELINE_KEY)
-        points = getattr(timeline, "points", ()) or ()
-        is_last = bool(points) and index == len(points) - 1
-        hooks.on_tick(point, index, is_last=is_last)
+        raise NotImplementedError(f"{cls.__name__} 须覆盖 on_tick")
 
     @classmethod
     def on_ticks_complete(cls, job_context: Any, timeline: Any) -> Dict[str, Any]:
-        hooks = cls._ensure_timeline_hooks(job_context)
-        return hooks.on_run_end(timeline)
-
-    @classmethod
-    def _ensure_timeline_hooks(cls, job_context: Any) -> Any:
-        from core.modules.backtest_engine.contracts import Timeline
-
-        hooks_cls = cls.timeline_hooks_cls
-        if hooks_cls is None:
-            raise RuntimeError(f"{cls.__name__}.timeline_hooks_cls 未设置")
-
-        init = job_context.init
-        if not isinstance(init, dict):
-            raise TypeError("job_context.init 必须是 dict（on_before_task_start 返回值）")
-
-        hooks = init.get(_HOOKS_KEY)
-        if hooks is not None:
-            return hooks
-
-        hooks = hooks_cls.from_job_context(job_context)
-        timeline = Timeline.read_for_job(job_context.payload)
-        if timeline is None:
-            raise ValueError(
-                "未找到引擎 timeline：EnumeratorPipeline 须传 start/end window 给 BacktestEngine"
-            )
-        clipped = timeline.clipped()
-        hooks.on_run_begin(clipped)
-        init[_HOOKS_KEY] = hooks
-        init[_TIMELINE_KEY] = clipped
-        return hooks
+        raise NotImplementedError(f"{cls.__name__} 须覆盖 on_ticks_complete")
 
     @classmethod
     def load_bundle_data(cls, job_context: Any, *, log_label: str) -> Dict[str, Any]:

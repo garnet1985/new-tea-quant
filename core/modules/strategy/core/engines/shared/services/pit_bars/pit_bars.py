@@ -21,7 +21,7 @@ class PitBars:
     边界:
     - 负责: until 聚合、bar_on 校验、ready_date（until 前门闩）
     - 不负责: 日循环、Investment
-    - 调用方: scanner JobExecutor、entity / slice TimelineHooks
+    - 调用方: scanner JobExecutor、entity / slice Enumerator Executor
     """
 
     @staticmethod

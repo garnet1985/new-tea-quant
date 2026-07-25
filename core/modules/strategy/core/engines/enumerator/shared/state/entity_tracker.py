@@ -1,9 +1,9 @@
-"""单 entity 枚举状态 tracker（entity / slice TimelineHooks 共用）。
+"""单 entity 枚举状态 tracker（entity / slice Executor 共用）。
 
 调用链:
   BE Timeline.drive
     → JobExecutor.on_tick
-    → Entity/Slice TimelineHooks.on_tick
+    → EntityTaskState / SliceTaskState.on_calendar_day
     → EntityTracker.process_tick(as_of, bar)
          pending_exit.try_exit → pending_enter.try_enter → open.check_targets
     →（同日 scan 后）register_from_opportunity → 再 process_tick
@@ -35,7 +35,7 @@ class EntityTracker:
     边界:
     - 负责: 注册机会；按分桶调用 try_enter / check_targets / try_exit / settle
     - 不负责: 选股、数据加载、报告落盘
-    - 调用方: EntityTimelineHooks / SliceTimelineHooks（entity / slice 共用）
+    - 调用方: EntityTaskState / SliceTaskState（entity / slice 共用）
 
     生命周期分桶:
     - ``pending_enter``：``PENDING_TO_ENTER``（条件未齐，如等次日 open）

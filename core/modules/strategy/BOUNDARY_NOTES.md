@@ -54,7 +54,7 @@ promote / demote 时**整块**搬迁（例如整个 `strategy_settings` 包）�
 10. CalendarAsOf* → shared.data_class — done
 11. 专门整理 `simulation_input` 整块（结构/命名/边界）
 12. **后期** `PENDING_TO_ENTER` 入场风控：`max_wait_open_days` / `max_entry_drift` / `abort_enter_when` 接到 `try_enter`（与 `_is_able_to_enter` 分离：不能成交≠放弃机会）
-13. enumerator tick 调用链 — **done**：BE `Timeline.drive` → `JobExecutor.on_tick` → TimelineHooks → `EntityTracker.process_tick`（分桶 `try_exit` / `try_enter` / `check_targets`）→ Investment
+13. enumerator tick 调用链 — **done**：BE `Timeline.drive` → `JobExecutor.on_tick` → JobSession.on_calendar_day → `EntityTracker.process_tick`（分桶 `try_exit` / `try_enter` / `check_targets`）→ Investment
 
 ## 消费矩阵（审计，2026-07-24）
 

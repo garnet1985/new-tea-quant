@@ -1,8 +1,8 @@
-"""entity_based Job 构建（单 bundle，无 open_dates 进 payload）。
+"""entity_based JobBuilder — 为 BE 组装 jobs。
 
-本文件:
+本文件（entity 两件套之一，与 Executor）:
 - JobBuilder: 复用 BaseJobBuilder 组装 enum payload
-  边界: 负责 job 列表；不负责执行、日历解析（slice 侧追加）
+  边界: 负责 job 列表与数据加载窗；推进轴交给 BE 默认日历
 """
 from __future__ import annotations
 
@@ -23,8 +23,8 @@ class JobBuilder(BaseJobBuilder):
     """entity_based Job 构建。
 
     边界:
-    - 负责: 组装单 bundle job（复用基类 payload）
-    - 不负责: 执行、日历 open_dates（slice 侧追加）
+    - 负责: 组装单 bundle job（payload 起止来自 settings period）
+    - 不负责: 覆盖 BE Timeline.points；执行
     - 调用方: EnumeratorPipeline
     """
 

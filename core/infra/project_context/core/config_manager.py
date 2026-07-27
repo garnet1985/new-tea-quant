@@ -562,20 +562,6 @@ class ConfigManager:
         )
     
     @staticmethod
-    def load_worker_config() -> Dict[str, Any]:
-        """
-        加载 Worker 配置（合并后的完整配置）
-        
-        Returns:
-            Worker 配置字典
-        """
-        return ConfigManager.load_core_config(
-            'worker',
-            deep_merge_fields=set(),
-            override_fields=set()
-        )
-    
-    @staticmethod
     def load_system_config() -> Dict[str, Any]:
         """
         加载系统配置（合并后的完整配置）
@@ -724,40 +710,3 @@ class ConfigManager:
         """
         db_config = ConfigManager.load_database_config()
         return db_config.get('database_type', 'postgresql')
-    
-    @staticmethod
-    def get_module_config(module_name: str) -> Dict[str, Any]:
-        """
-        获取模块的任务配置（用于 Worker）
-        
-        Args:
-            module_name: 模块名称（如 'OpportunityEnumerator', 'Simulator' 等）
-        
-        Returns:
-            配置字典 {'task_type': TaskType, 'reserve_cores': int}
-        """
-        worker_config = ConfigManager.load_worker_config()
-        
-        module_task_config = worker_config.get('module_task_config', {})
-        default_task_config = worker_config.get('default_task_config', {
-            'task_type': 'MIXED',
-            'reserve_cores': 2
-        })
-        
-        # 获取模块配置或使用默认配置
-        module_config = module_task_config.get(module_name, default_task_config)
-        
-        # 转换 task_type 字符串为枚举
-        from core.infra.worker.multi_process.task_type import TaskType
-        task_type_map = {
-            'CPU_INTENSIVE': TaskType.CPU_INTENSIVE,
-            'IO_INTENSIVE': TaskType.IO_INTENSIVE,
-            'MIXED': TaskType.MIXED,
-        }
-        task_type_str = module_config.get('task_type', 'MIXED')
-        task_type = task_type_map.get(task_type_str.upper(), TaskType.MIXED)
-        
-        return {
-            'task_type': task_type,
-            'reserve_cores': module_config.get('reserve_cores', 2)
-        }

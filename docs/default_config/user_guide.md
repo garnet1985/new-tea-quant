@@ -59,7 +59,7 @@ userspace/config/                  # 用户配置（可选）
 
 回测/策略用的**股票池**不在 `data.json` 里配置：由 `ListService`（回测窗口 `period_start` / `period_end`）、策略 `pool` 文件、以及未来的 **Tag** 负责筛选。API 见 [`core/modules/data_manager/docs/API.md`](../../core/modules/data_manager/docs/API.md) 中 ListService 一节。
 
-**Worker 并发**：在 `worker.json` 中按需覆盖 `default_task_config`、`module_task_config` 等（参见 `core/default_config/worker.json` 结构）。
+**Worker 并发**：在 `worker.json` 中按需覆盖 ``job_pipeline`` 下各 profile（参见 `core/default_config/worker.json`）。由 BacktestEngine 读取并传给调度。
 
 ---
 
@@ -67,7 +67,7 @@ userspace/config/                  # 用户配置（可选）
 
 不直接读 JSON。通过 Project Context 的配置管理组件读取，例如：
 
-- `ConfigManager.load_database_config()`、`ConfigManager.load_data_config()`、`ConfigManager.load_worker_config()` 等；
+- `ConfigManager.load_database_config()`、`ConfigManager.load_data_config()` 等；
 - 或 `ProjectContextManager().config.load_with_defaults(default_path, user_path, ...)`。
 
 详见 [`core/infra/project_context/docs/API.md`](../../core/infra/project_context/docs/API.md) 与 [`ARCHITECTURE.md`](../../core/infra/project_context/docs/ARCHITECTURE.md)。

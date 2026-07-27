@@ -51,7 +51,7 @@ core/modules/tag/
 
 ## 模块依赖（`module_info.yaml`）
 
-运行时依赖 **`modules.data_manager`**、**`modules.data_contract`**、**`modules.data_cursor`**、**`infra.project_context`**、**`infra.worker`**。
+运行时依赖 **`modules.data_manager`**、**`modules.data_contract`**、**`modules.data_cursor`**、**`infra.project_context`**。
 
 ## 相关文档
 

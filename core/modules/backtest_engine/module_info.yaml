@@ -11,6 +11,7 @@ changelog:
       - RunCallbacks 聚合 on_*；parameters 区分 positional / keyword_only
       - performance dataclass、dispatch.yaml 应用层配置、RunProgressReporter
       - 文档：OVERVIEW.md + docs/ARCHITECTURE.md / docs/DECISIONS.md（现状）
+      - worker.json job_pipeline profile 解析迁入 core.performance.worker_profile
   - version: "0.2.0"
     changes:
       - 模块标准化：glossary.yaml、api.yaml 对齐实际 Facade API

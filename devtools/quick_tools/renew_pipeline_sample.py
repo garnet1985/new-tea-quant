@@ -42,7 +42,7 @@ def _configure_logging(verbose: bool) -> None:
     )
     if verbose:
         logging.getLogger("core.modules.data_source").setLevel(logging.INFO)
-        logging.getLogger("core.infra.job_pipeline").setLevel(logging.INFO)
+        logging.getLogger("core.modules.data_source.service.pipeline").setLevel(logging.INFO)
 
 
 def _apply_sample_env(n: int, offset: int) -> None:

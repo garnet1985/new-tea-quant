@@ -1,7 +1,7 @@
 """
 ApiJobExecutor: 单 bundle 内 ApiJob 拓扑执行 + 限流。
 
-多 bundle 并发由 ``DataSourcePipelineRunner``（``infra.job_pipeline``）负责。
+多 bundle 并发由 ``DataSourcePipelineRunner``（私有线程队列）负责。
 """
 from __future__ import annotations
 

@@ -11,7 +11,7 @@ import logging
 from dataclasses import fields as dc_fields
 from typing import Any, Callable, Dict, List, Optional
 
-from core.infra.job_pipeline.profile import (
+from core.modules.backtest_engine.core.performance.worker_profile import (
     WorkerProfiles,
     resolve_entity_based_performance_for_profile,
 )

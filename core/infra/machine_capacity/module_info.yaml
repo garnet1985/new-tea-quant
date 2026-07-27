@@ -1,0 +1,10 @@
+name: infra.machine_capacity
+version: 0.1.0
+compatible_core_versions: ">=0.4.0"
+description: "机器 CPU / 内存容量探测：供 BacktestEngine 等调度器解析 worker 数与内存预算。"
+dependencies: []
+changelog:
+  - version: "0.1.0"
+    changes:
+      - 从单文件提升为 infra 子模块（MachineCapacity / MachineInfo）
+      - 补充 module_info / api.yaml / glossary / README

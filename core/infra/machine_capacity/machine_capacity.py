@@ -1,4 +1,4 @@
-"""机器 CPU / 内存容量探测（跨模块基础设施）。"""
+"""机器 CPU / 内存容量探测（infra.machine_capacity）。"""
 from __future__ import annotations
 
 import logging

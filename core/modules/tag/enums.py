@@ -1,7 +1,17 @@
 """
-Tag 系统枚举定义
+Tag 系统枚举定义（旧路径）。
 
-包含 Tag 配置中使用的所有枚举类型，用于减少用户输入错误。
+MIGRATED → ``core.modules.tag.core.enums``
+
+AUDIT: 待旧 engines / TagManager / ScenarioModel 切到 ``tag.core.enums`` 后删除本文件。
+新代码请::
+
+    from core.modules.tag.core.enums import (
+        FileName,
+        TagUpdateMode,
+        TagTargetType,
+        TagExecutionMode,
+    )
 """
 from enum import Enum
 

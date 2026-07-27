@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
-"""Tag settings 规范化服务（单点声明，删除隐形转换）。"""
+"""
+MIGRATED → ``core.modules.tag.core.engines.shared.tag_settings.TagSettings``
+
+本文件为旧 freestanding normalize API，仅供尚未迁移的旧引擎 / discovery 调用。
+新代码请使用::
+
+    from core.modules.tag.core.engines.shared.tag_settings import TagSettings
+    ts = TagSettings.from_dict(settings, tag_key=...)
+    report = ts.validate()
+    payload = ts.to_dict()
+
+AUDIT: 待 discovery / ScenarioModel / engines 切到 TagSettings 后删除本文件。
+"""
 
 from __future__ import annotations
 
@@ -22,9 +34,8 @@ def _contract_issuer() -> ContractIssuer:
 def normalize_tag_settings(settings: Dict[str, Any], tag_key: str) -> Dict[str, Any]:
     """规范化 tag settings，返回标准化后的 settings dict。
 
-    Userspace 契约见 ``userspace/extensions/tags/settings_example.py``。
-    本函数将 calculation.execution / data.base / tag_definitions 等展开为
-    引擎可读的扁平字段（execution_mode、start_date、data.required 等）。
+    .. deprecated::
+        使用 ``TagSettings.from_dict(...).to_dict()`` 替代。
     """
     settings = dict(settings or {})
     name = settings.get("name")
@@ -197,7 +208,11 @@ def _normalize_required_item(item: Dict[str, Any], *, label: str = "data.require
 
 
 def declaration_data_key(item: Optional[Dict[str, Any]]) -> str:
-    """从声明项读取 data_key（规范化后唯一字段）。"""
+    """从声明项读取 data_key（规范化后唯一字段）。
+
+    .. deprecated::
+        使用 ``DataSettings.declaration_data_key`` 替代。
+    """
     if not isinstance(item, dict):
         return ""
     return str(item.get("data_key") or "").strip()

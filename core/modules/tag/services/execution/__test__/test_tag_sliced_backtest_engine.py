@@ -44,7 +44,7 @@ def test_execute_tag_sliced_job_wires_slice_save_hook(monkeypatch) -> None:
                 payload={
                     "job_id": "scenario_calendar_slice",
                     "entity_ids": ["000001"],
-                    "tag_execution_mode": "calendar_slice",
+                    "tag_mode": "slice_based",
                     "slice_open_days": "auto",
                     "_executor": "tag",
                     "_slice_plan": {"slice_open_days": 20},
@@ -123,7 +123,7 @@ def test_run_tag_sliced_via_backtest_engine_staged_save(monkeypatch) -> None:
                 {
                     "job_id": "scenario_calendar_slice",
                     "entity_ids": ["000001"],
-                    "tag_execution_mode": "calendar_slice",
+                    "tag_mode": "slice_based",
                     "slice_open_days": "auto",
                 }
             ],

@@ -4,6 +4,7 @@ Tag discovery service.
 
 递归发现 userspace/extensions/tags 下含 settings.py + tag_worker.py 的目录。
 系统 tag_key = 相对 tags 根的 POSIX 路径（与 strategy 发现一致）。
+CLI / API 优先用 meta.key。
 """
 
 from __future__ import annotations
@@ -14,7 +15,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 
-from core.infra.project_context import ProjectContext
 from core.infra.discovery import Discovery
 
 from core.modules.tag.config import get_scenarios_root
@@ -58,11 +58,23 @@ class TagDiscoveryHelper:
             return {}
 
         discovered: Dict[str, DiscoveredTag] = {}
+        keys_seen: Dict[str, str] = {}
         for folder in TagDiscoveryHelper._iter_tag_directories(root):
             item = TagDiscoveryHelper.load_tag(folder, tags_root=root)
-            if item is not None:
-                discovered[item.tag_key] = item
-                logger.info("发现 Tag 场景: %s", item.tag_key)
+            if item is None:
+                continue
+            meta_key = item.module_key
+            if meta_key in keys_seen:
+                logger.error(
+                    "Duplicate meta.key=%r: already used by %s (skip %s)",
+                    meta_key,
+                    keys_seen[meta_key],
+                    item.tag_key,
+                )
+                continue
+            keys_seen[meta_key] = item.tag_key
+            discovered[item.tag_key] = item
+            logger.info("发现 Tag 场景: %s (key=%s)", item.tag_key, meta_key)
         return discovered
 
     @staticmethod
@@ -101,8 +113,7 @@ class TagDiscoveryHelper:
 
         settings_file = folder / "settings.py"
         try:
-            # 迁移：使用 Discovery.file.load_python_config 代替 ProjectContext.load_python
-            settings_dict = Discovery.file.load_python_config(settings_file, var_name="Settings")
+            settings_dict = Discovery.file.load_python_config(settings_file, var_name="settings")
             if settings_dict is None:
                 logger.error("加载 Tag settings 失败: %s", tag_key)
                 return None
@@ -111,7 +122,7 @@ class TagDiscoveryHelper:
             return None
 
         if not isinstance(settings_dict, dict):
-            logger.error("Tag %s 的 Settings 不是 dict", tag_key)
+            logger.error("Tag %s 的 settings 不是 dict", tag_key)
             return None
 
         TagDiscoveryHelper._ensure_meta_key(settings_dict, default_key=tag_key)
@@ -146,18 +157,18 @@ class TagDiscoveryHelper:
         name_or_key: str,
         discovered: Dict[str, DiscoveredTag],
     ) -> Optional[str]:
-        """按 tag_key 或 settings['name'] 解析（后者须唯一）。"""
+        """按 tag_key 或 meta.key 解析（后者须唯一）。"""
         key = str(name_or_key or "").strip()
         if not key:
             return None
         if key in discovered:
             return key
-        matches = [k for k, item in discovered.items() if item.settings_name == key]
+        matches = [k for k, item in discovered.items() if item.module_key == key]
         if len(matches) == 1:
             return matches[0]
         if len(matches) > 1:
             logger.warning(
-                "Tag settings.name=%r 对应多个路径: %s，请使用完整 tag_key",
+                "Tag meta.key=%r 对应多个路径: %s，请使用完整 tag_key",
                 key,
                 ", ".join(matches),
             )

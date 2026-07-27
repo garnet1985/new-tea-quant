@@ -1,11 +1,12 @@
-from core.modules.tag.settings.normalize import normalize_tag_settings
-from core.modules.tag.settings.worker_profile import (
-    profile_tag_calendar_slice_config,
-    profile_tag_entity_timeline_config,
+from .worker_profile import (
+    profile_tag_entity_based_config,
+    profile_tag_slice_based_config,
 )
+from .normalize import normalize_tag_settings, declaration_data_key
 
 __all__ = [
     "normalize_tag_settings",
-    "profile_tag_entity_timeline_config",
-    "profile_tag_calendar_slice_config",
+    "declaration_data_key",
+    "profile_tag_entity_based_config",
+    "profile_tag_slice_based_config",
 ]

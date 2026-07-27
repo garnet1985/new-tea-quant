@@ -95,13 +95,13 @@ class TestTagManager:
             "meta": {"display_name": "test"},
             "calculation": {"update_mode": "incremental"},
             "data": {
-                "base_required_data": {
-                    "data_id": "stock.kline.daily",
+                "base": {
+                    "data_key": "stock.kline.daily",
                     "params": {"adjust": "qfq"},
                 },
                 "min_required_records": 10,
             },
-            "tags": [{"name": "tag1"}],
+            "tag_definitions": [{"name": "tag1"}],
         }
         
         with patch.object(TagManager, '_discover_scenarios_from_folder'), \
@@ -216,7 +216,7 @@ class TestTagManager:
             scenario_model = MagicMock()
             scenario_model.is_enabled.return_value = True
             scenario_model.get_name.return_value = "macro_general"
-            scenario_model.get_execution_mode.return_value = TagExecutionMode.ENTITY_TIMELINE
+            scenario_model.get_execution_mode.return_value = TagExecutionMode.ENTITY_BASED
             scenario_model.get_settings.return_value = {
                 "name": "macro_general",
                 "tag_target_type": "general",
@@ -225,10 +225,10 @@ class TestTagManager:
                     "entities_per_job": 100,
                 },
                 "data": {
-                    "required": [{"data_id": "macro.gdp", "params": {}}],
+                    "required": [{"data_key": "macro.gdp", "params": {}}],
                     "tag_time_axis_based_on": "macro.gdp",
                 },
-                "tags": [{"name": "macro_tag"}],
+                "tag_definitions": [{"name": "macro_tag"}],
             }
             manager._run_scenario(scenario_model, tag_key="macro_general")
 

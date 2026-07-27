@@ -13,7 +13,7 @@ def test_stage_entities_batch_bulk_io():
     settings = {
         "data": {
             "required": [
-                {"data_id": "stock.kline.daily", "params": {"adjust": "qfq"}},
+                {"data_key": "stock.kline.daily", "params": {"adjust": "qfq"}},
             ]
         }
     }
@@ -47,7 +47,7 @@ def test_stage_entities_batch_moneyflow_only():
     settings = {
         "data": {
             "required": [
-                {"data_id": "stock.moneyflow.daily", "params": {}},
+                {"data_key": "stock.moneyflow.daily", "params": {}},
             ]
         }
     }

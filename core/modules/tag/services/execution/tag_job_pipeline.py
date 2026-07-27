@@ -29,8 +29,8 @@ from core.modules.backtest_engine.core.performance.settings import (
     resolve_slice_based_performance,
 )
 from core.modules.tag.settings.worker_profile import (
-    profile_tag_calendar_slice_config,
-    profile_tag_entity_timeline_config,
+    profile_tag_entity_based_config,
+    profile_tag_slice_based_config,
 )
 
 logger = logging.getLogger(__name__)
@@ -285,7 +285,7 @@ def run_tag_timeline_via_backtest_engine(
         resume_main_database_with_retry,
     )
 
-    performance = resolve_entity_based_performance(profile_tag_entity_timeline_config())
+    performance = resolve_entity_based_performance(profile_tag_entity_based_config())
     run_options = dict(settings.get("run_options") or {})
     stage_in_worker = bool(performance.get("stage_in_worker", False))
     scenario_name = settings.get("scenario_name", "")
@@ -529,7 +529,7 @@ def run_tag_sliced_via_backtest_engine(
     from core.modules.tag.engines.shared.runner import maybe_checkpoint_duckdb_after_tag_run
     from core.modules.tag.engines.shared.backend import backend_is_duckdb
 
-    performance = resolve_slice_based_performance(profile_tag_calendar_slice_config())
+    performance = resolve_slice_based_performance(profile_tag_slice_based_config())
     run_options = dict(settings.get("run_options") or {})
     scenario_name = settings.get("scenario_name", "")
     dry_run = bool(run_options.get("dry_run", False))

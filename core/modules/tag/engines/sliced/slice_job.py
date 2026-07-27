@@ -21,7 +21,7 @@ def build_tag_calendar_slice_job(
 ) -> Dict[str, Any]:
     ids = [str(e).strip() for e in entity_ids if str(e).strip()]
     if not ids:
-        raise ValueError("calendar_slice tag job 需要非空 entity_ids")
+        raise ValueError("slice_based tag job 需要非空 entity_ids")
 
     start_date = str(settings.get("start_date") or "")
     end_date = str(settings.get("end_date") or "")
@@ -35,7 +35,7 @@ def build_tag_calendar_slice_job(
     tag_definitions = [tag_model.to_dict() for tag_model in tag_models]
     update_mode = scenario_model.calculate_update_mode()
     if update_mode != TagUpdateMode.REFRESH:
-        raise ValueError("calendar_slice tag 当前仅支持 REFRESH 模式")
+        raise ValueError("slice_based tag 当前仅支持 REFRESH 模式")
 
     entities = [
         {"entity_id": eid, "start_date": start_date, "end_date": end_date}
@@ -43,7 +43,7 @@ def build_tag_calendar_slice_job(
     ]
     scenario_name = scenario_model.get_name()
     return {
-        "tag_execution_mode": TagExecutionMode.CALENDAR_SLICE.value,
+        "tag_execution_mode": TagExecutionMode.SLICE_BASED.value,
         "slice_open_days": "auto",
         "entity_ids": ids,
         "entities": entities,

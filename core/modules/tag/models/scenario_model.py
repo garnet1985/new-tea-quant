@@ -4,14 +4,23 @@ import logging
 
 from core.infra.project_context import ProjectContext
 
-from core.modules.data_contract.contracts import ContractScope, ContractType, DataKey
-from core.modules.data_contract.core.registry.mapping import default_map
+from core.modules.data_contract import ContractIssuer, ContractScope, ContractType
 from core.utils.date.date_utils import DateUtils
 from core.modules.tag.enums import TagTargetType, TagUpdateMode, TagExecutionMode
 from core.modules.tag.models.tag_model import TagModel
 
 
 logger = logging.getLogger(__name__)
+
+_issuer: Optional[Any] = None
+
+
+def _contract_issuer() -> ContractIssuer:
+    global _issuer
+    if _issuer is None:
+        _issuer = ContractIssuer()
+        _issuer.discover()
+    return _issuer
 
 
 class ScenarioModel:
@@ -191,32 +200,32 @@ class ScenarioModel:
         if not execution_mode:
             logger.error(
                 f"当前传入的{scenario_name} settings 缺少必须字段: execution_mode "
-                "(entity_timeline | calendar_slice)"
+                "(entity_based | slice_based；来自 calculation.execution.mode)"
             )
             return False
         if execution_mode not in {x.value for x in TagExecutionMode}:
             logger.error(
                 f"当前传入的{scenario_name} settings 的 execution_mode 无效: {execution_mode!r}，"
-                "仅支持 entity_timeline / calendar_slice"
+                "仅支持 entity_based / slice_based"
             )
             return False
-        if execution_mode == TagExecutionMode.CALENDAR_SLICE.value:
+        if execution_mode == TagExecutionMode.SLICE_BASED.value:
             if tag_target_type != TagTargetType.ENTITY_BASED.value:
                 logger.error(
-                    f"当前传入的{scenario_name} settings: calendar_slice 仅支持 entity_based"
+                    f"当前传入的{scenario_name} settings: slice_based 仅支持 tag_target_type=entity_based"
                 )
                 return False
             recompute = bool(settings.get("recompute", False))
             update_mode_str = settings.get("update_mode")
             if not update_mode_str:
                 logger.error(
-                    f"当前传入的{scenario_name} settings: calendar_slice 须在 "
+                    f"当前传入的{scenario_name} settings: slice_based 须在 "
                     "calculation.update_mode 中声明 refresh，或设置 recompute=true"
                 )
                 return False
             if not recompute and str(update_mode_str).strip().lower() != TagUpdateMode.REFRESH.value:
                 logger.error(
-                    f"当前传入的{scenario_name} settings: calendar_slice 当前仅支持 "
+                    f"当前传入的{scenario_name} settings: slice_based 当前仅支持 "
                     "recompute=true 或 update_mode=refresh"
                 )
                 return False
@@ -242,17 +251,17 @@ class ScenarioModel:
         if settings.get("recompute") is None:
             settings["recompute"] = False
 
-        tags_setting = settings.get("tags", None)
+        tags_setting = settings.get("tag_definitions", None)
         if not tags_setting:
-            logger.debug(f"当前传入的{scenario_name} settings里缺少tags字段")
+            logger.debug(f"当前传入的{scenario_name} settings里缺少 tag_definitions 字段")
             return False
 
         if not isinstance(tags_setting, list):
-            logger.debug(f"当前传入的{scenario_name} settings内的tags字段必须是列表类型")
+            logger.debug(f"当前传入的{scenario_name} settings内的 tag_definitions 必须是列表类型")
             return False
 
         if len(tags_setting) == 0:
-            logger.debug(f"当前传入的{scenario_name} settings内的tags字段必须至少包含一个 tag")
+            logger.debug(f"当前传入的{scenario_name} settings内的 tag_definitions 必须至少包含一个 tag")
             return False
         
         update_mode_str = settings.get("update_mode")
@@ -309,10 +318,10 @@ class ScenarioModel:
             or ""
         )
         
-        # 设置 attach_to_data_key（从 settings.data.base_required_data.data_id 获取）
+        # 设置 attach_to_data_key（从 settings.data.base.data_key 获取）
         data_config = scenario_setting.get("data", {}) or {}
-        base_required_data = data_config.get("base_required_data", {}) or {}
-        self.attach_to_data_key = base_required_data.get("data_id")  # 直接存储 DataKey（例如 "stock.kline.daily"）
+        base_data = data_config.get("base", {}) or {}
+        self.attach_to_data_key = base_data.get("data_key")
         
         # id, created_at, updated_at 保持为 None
         
@@ -369,7 +378,7 @@ class ScenarioModel:
         filled_settings.setdefault("run_options", {})
         filled_settings.pop("performance", None)
         
-        # tags: 必须字段，不需要默认值（已在验证中检查）
+        # tag_definitions: 必须字段，不需要默认值（已在验证中检查）
         # 但需要为每个 tag 填充默认值（在 TagModel 中处理）
         
         return filled_settings
@@ -384,65 +393,53 @@ class ScenarioModel:
         if not isinstance(required, list) or not required:
             raise ValueError("data.required 必须是非空 list")
 
-        data_ids: List[str] = []
-        per_entity_data_ids: List[str] = []
+        data_keys: List[str] = []
+        per_entity_data_keys: List[str] = []
+        issuer = _contract_issuer()
         for i, item in enumerate(required):
             if not isinstance(item, dict):
                 raise ValueError(f"data.required[{i}] 必须为 dict")
-            data_id = str(item.get("data_id") or "").strip()
-            if not data_id:
-                raise ValueError(f"data.required[{i}].data_id 不能为空")
-            if data_id in data_ids:
-                raise ValueError(f"data.required 出现重复 data_id: {data_id}")
+            data_key = str(item.get("data_key") or "").strip()
+            if not data_key:
+                raise ValueError(f"data.required[{i}].data_key 不能为空")
+            if data_key in data_keys:
+                raise ValueError(f"data.required 出现重复 data_key: {data_key}")
             params = item.get("params")
             if params is not None and not isinstance(params, dict):
                 raise ValueError(f"data.required[{i}].params 必须为 dict")
-            try:
-                dk = DataKey(data_id)
-            except ValueError as e:
-                raise ValueError(f"data.required[{i}].data_id 不合法: {data_id!r}") from e
-            spec = default_map.get(dk)
-            if spec is None:
-                raise ValueError(f"data.required[{i}].data_id 未注册: {data_id!r}")
-            if spec.get("scope") == ContractScope.PER_ENTITY:
-                list_data_id = spec.get("entity_list_data_id")
-                if not isinstance(list_data_id, DataKey):
-                    raise ValueError(
-                        f"data.required[{i}].data_id={data_id!r} 为 PER_ENTITY，"
-                        "但未注册 entity_list_data_id"
-                    )
-                list_spec = default_map.get(list_data_id)
-                if list_spec is None:
-                    raise ValueError(
-                        f"data.required[{i}].data_id={data_id!r} 的 entity_list_data_id={list_data_id.value!r} 未注册"
-                    )
-                if list_spec.get("scope") != ContractScope.GLOBAL:
-                    raise ValueError(
-                        f"data.required[{i}].data_id={data_id!r} 的 entity_list_data_id={list_data_id.value!r} 必须为 GLOBAL"
-                    )
-                per_entity_data_ids.append(data_id)
-            data_ids.append(data_id)
+            decl = issuer.get_declaration(data_key)
+            if not isinstance(decl, dict):
+                raise ValueError(f"data.required[{i}].data_key 未注册: {data_key!r}")
+            meta = decl.get("meta") if isinstance(decl.get("meta"), dict) else {}
+            scope = str(meta.get("scope") or "").strip().lower()
+            if scope == ContractScope.PER_ENTITY:
+                per_entity_data_keys.append(data_key)
+            data_keys.append(data_key)
 
         axis = str(data_cfg.get("tag_time_axis_based_on") or "").strip()
         if tag_target_type == TagTargetType.GENERAL.value:
             if not axis:
                 raise ValueError("general 模式必须提供 data.tag_time_axis_based_on")
         else:
-            if not per_entity_data_ids:
+            if not per_entity_data_keys:
                 raise ValueError(
                     "entity_based 模式下 data.required 必须至少包含一个 PER_ENTITY 数据源"
                 )
             if not axis:
-                # 默认使用第一个 PER_ENTITY 源作为时间轴（source of truth 直接来自 contract map）
-                axis = per_entity_data_ids[0]
+                axis = per_entity_data_keys[0]
 
-        if axis and axis not in data_ids:
+        if axis and axis not in data_keys:
             raise ValueError(
-                f"data.tag_time_axis_based_on={axis!r} 不在 data.required 的 data_id 列表内"
+                f"data.tag_time_axis_based_on={axis!r} 不在 data.required 的 data_key 列表内"
             )
         if axis:
-            axis_spec = default_map.get(DataKey(axis))
-            if axis_spec and axis_spec.get("type") != ContractType.TIME_SERIES:
+            axis_decl = issuer.get_declaration(axis)
+            axis_meta = (
+                axis_decl.get("meta")
+                if isinstance(axis_decl, dict) and isinstance(axis_decl.get("meta"), dict)
+                else {}
+            )
+            if axis_meta and str(axis_meta.get("type") or "").strip().lower() != ContractType.TIME_SERIES:
                 raise ValueError(
                     f"data.tag_time_axis_based_on={axis!r} 必须指向时序数据源"
                 )
@@ -464,7 +461,7 @@ class ScenarioModel:
         缓存 tag_models
         """
         tag_models = []
-        for tag_setting in settings["tags"]:
+        for tag_setting in settings["tag_definitions"]:
             tag_model = TagModel.create_from_settings(tag_setting)
             tag_models.append(tag_model)
             

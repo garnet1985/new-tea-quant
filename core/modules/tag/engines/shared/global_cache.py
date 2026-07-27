@@ -25,7 +25,7 @@ def build_global_extra_cache(
         return {}
     out: Dict[str, List[Dict[str, Any]]] = {}
     for item in declarations:
-        data_id = str(item.get("data_id") or "").strip()
+        data_id = str(item.get("data_key") or "").strip()
         if not data_id:
             continue
         dk = DataKey(data_id)

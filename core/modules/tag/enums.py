@@ -24,10 +24,10 @@ class TagTargetType(Enum):
 
 
 class TagExecutionMode(Enum):
-    """Tag 执行模式：按实体分批（默认）或按日历片全市场 bulk。"""
+    """Tag 执行模式：与 strategy / BacktestEngine 对齐（entity_based | slice_based）。"""
 
-    ENTITY_TIMELINE = "entity_timeline"
-    CALENDAR_SLICE = "calendar_slice"
+    ENTITY_BASED = "entity_based"
+    SLICE_BASED = "slice_based"
 
 
 # 已废弃：版本管理相关枚举已移除

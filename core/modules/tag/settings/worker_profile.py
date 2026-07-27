@@ -31,17 +31,17 @@ def _merge_dispatch_section(section: str) -> Dict[str, Any]:
     return merged
 
 
-def profile_tag_entity_timeline_config() -> Dict[str, Any]:
-    """entity_timeline dispatch（性能基准，用户不可覆盖）。"""
-    return dict(_merge_dispatch_section("entity_timeline"))
+def profile_tag_entity_based_config() -> Dict[str, Any]:
+    """entity_based dispatch（性能基准，用户不可覆盖）。"""
+    return dict(_merge_dispatch_section("entity_based"))
 
 
-def profile_tag_calendar_slice_config() -> Dict[str, Any]:
-    """calendar_slice dispatch（性能基准，用户不可覆盖）。"""
-    return dict(_merge_dispatch_section("calendar_slice"))
+def profile_tag_slice_based_config() -> Dict[str, Any]:
+    """slice_based dispatch（性能基准，用户不可覆盖）。"""
+    return dict(_merge_dispatch_section("slice_based"))
 
 
 __all__ = [
-    "profile_tag_entity_timeline_config",
-    "profile_tag_calendar_slice_config",
+    "profile_tag_entity_based_config",
+    "profile_tag_slice_based_config",
 ]

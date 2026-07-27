@@ -69,7 +69,7 @@ def test_calendar_asof_fan_out_and_carry():
         "tag_definitions": [{"id": 9, "name": "tag1", "tag_name": "tag1"}],
         "settings": {
             "data": {
-                "required": [{"data_id": "stock.kline.daily", "params": {"adjust": "qfq"}}],
+                "required": [{"data_key": "stock.kline.daily", "params": {"adjust": "qfq"}}],
             },
             "incremental_required_records_before_as_of_date": 1,
         },

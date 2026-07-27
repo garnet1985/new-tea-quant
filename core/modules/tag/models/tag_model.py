@@ -12,7 +12,7 @@ class TagModel:
     
     使用流程：
     1. 创建实例：tag = TagModel()
-    2. 从 settings 配置：tag.create_from_settings(settings["tags"][i])
+    2. 从 settings 配置：tag.create_from_settings(settings["tag_definitions"][i])
     3. ensure_metadata 后：tag 完整（所有字段都有值）
     
     注意：
@@ -48,7 +48,7 @@ class TagModel:
         用于在 ensure_metadata 之前从 settings 创建配置 Model。
         
         Args:
-            tag_setting: settings["tags"][i] 字典，必须包含 "name"
+            tag_setting: settings["tag_definitions"][i] 字典，必须包含 "name"
         
         Returns:
             TagModel: 返回实例

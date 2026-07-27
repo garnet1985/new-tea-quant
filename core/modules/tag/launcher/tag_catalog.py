@@ -20,7 +20,7 @@ def _iso_dt(value: Any) -> Optional[str]:
 
 def _tag_definitions_from_settings(settings: Dict[str, Any]) -> List[Dict[str, str]]:
     out: List[Dict[str, str]] = []
-    tags = settings.get("tags") or []
+    tags = settings.get("tag_definitions") or []
     if not isinstance(tags, list):
         return out
     for item in tags:
@@ -37,9 +37,11 @@ def _tag_definitions_from_settings(settings: Dict[str, Any]) -> List[Dict[str, s
 def _execution_mode(settings: Dict[str, Any]) -> str:
     calc = settings.get("calculation") or {}
     if isinstance(calc, dict):
-        mode = str(calc.get("execution_mode") or "").strip()
-        if mode:
-            return mode
+        execution = calc.get("execution") or {}
+        if isinstance(execution, dict):
+            mode = str(execution.get("mode") or "").strip()
+            if mode:
+                return mode
     return str(settings.get("execution_mode") or "").strip()
 
 

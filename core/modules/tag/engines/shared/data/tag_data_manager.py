@@ -62,7 +62,7 @@ class TagDataManager:
         dcm = self._contract_manager()
         for raw in declarations:
             item = self._normalize_declaration_item(raw)
-            dk = DataKey(str(item["data_id"]))
+            dk = DataKey(str(item["data_key"]))
             params = dict(item.get("params") or {})
             spec = dcm.map.get(dk)
             if spec is None:
@@ -90,7 +90,7 @@ class TagDataManager:
 
     def _normalize_declaration_item(self, raw: Dict[str, Any]) -> Dict[str, Any]:
         item = dict(raw)
-        dk = DataKey(str(item["data_id"]))
+        dk = DataKey(str(item["data_key"]))
         params = dict(item.get("params") or {})
         if dk == DataKey.TAG:
             if str(params.get("scenario_name") or "").strip() == "":
@@ -212,7 +212,7 @@ class TagDataManager:
         # 默认主轴：使用 required 中第一个 PER_ENTITY 合约（source of truth 来自 contract map）
         dcm = self._contract_manager()
         for item in declarations:
-            raw = str(item.get("data_id") or "").strip()
+            raw = str(item.get("data_key") or "").strip()
             if not raw:
                 continue
             try:
@@ -224,7 +224,7 @@ class TagDataManager:
                 return dk.value
 
         if declarations:
-            return str(declarations[0].get("data_id") or "").strip() or None
+            return str(declarations[0].get("data_key") or "").strip() or None
         return None
 
     def _adapt_worker_data(self, data: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]:

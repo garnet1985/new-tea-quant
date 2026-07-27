@@ -27,7 +27,7 @@ class TestTagKlineIntegration(unittest.TestCase):
                 "data": {
                     "required": [
                         {
-                            "data_id": DataKey.STOCK_KLINE_DAILY.value,
+                            "data_key": DataKey.STOCK_KLINE_DAILY.value,
                             "params": {"adjust": "qfq"},
                         }
                     ]

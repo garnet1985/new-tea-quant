@@ -19,9 +19,9 @@ class _TestWorker(BaseTagWorker):
 def test_load_scenario_settings_success():
     mock_settings_path = Path("/test/scenario/settings.py")
     with patch(
-        "core.modules.tag.engines.shared.helper.tag_helper.FileManager.find_file"
+        "core.modules.tag.engines.shared.helper.tag_helper.Discovery.file.find_file"
     ) as mock_find_file, patch(
-        "core.modules.tag.engines.shared.helper.tag_helper.ConfigManager.load_python"
+        "core.modules.tag.engines.shared.helper.tag_helper.Discovery.file.load_python_config"
     ) as mock_load_python:
         mock_find_file.return_value = mock_settings_path
         mock_load_python.return_value = {
@@ -31,12 +31,12 @@ def test_load_scenario_settings_success():
             "data": {
                 "required": [
                     {
-                        "data_id": "stock.kline.daily",
+                        "data_key": "stock.kline.daily",
                         "params": {"adjust": "qfq"},
                     }
                 ]
             },
-            "tags": [{"name": "tag1"}],
+            "tag_definitions": [{"name": "tag1"}],
         }
 
         settings_path, settings_dict = TagHelper.load_scenario_settings(
@@ -46,7 +46,7 @@ def test_load_scenario_settings_success():
     assert settings_path == mock_settings_path
     assert settings_dict is not None
     assert settings_dict["name"] == "test_scenario"
-    mock_load_python.assert_called_once_with(mock_settings_path, var_name="Settings")
+    mock_load_python.assert_called_once_with(mock_settings_path, var_name="settings")
 
 
 @pytest.mark.parametrize(
@@ -59,9 +59,9 @@ def test_load_scenario_settings_success():
 )
 def test_load_scenario_settings_failure(find_return, load_return):
     with patch(
-        "core.modules.tag.engines.shared.helper.tag_helper.FileManager.find_file"
+        "core.modules.tag.engines.shared.helper.tag_helper.Discovery.file.find_file"
     ) as mock_find_file, patch(
-        "core.modules.tag.engines.shared.helper.tag_helper.ConfigManager.load_python"
+        "core.modules.tag.engines.shared.helper.tag_helper.Discovery.file.load_python_config"
     ) as mock_load_python:
         mock_find_file.return_value = find_return
         mock_load_python.return_value = load_return

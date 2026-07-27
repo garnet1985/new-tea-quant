@@ -19,7 +19,7 @@ def kline_declaration_from_settings(
 ) -> Tuple[str, str, str]:
     """从 scenario settings 解析 K 线 data_id / term / adjust。"""
     for item in (settings.get("data") or {}).get("required") or []:
-        data_id = str(item.get("data_id") or "").strip()
+        data_id = str(item.get("data_key") or "").strip()
         if not is_stock_kline_data_id_value(data_id):
             continue
         params = dict(item.get("params") or {})
@@ -43,7 +43,7 @@ def per_entity_declarations(
     """``data.required`` 中 scope=PER_ENTITY 的声明列表。"""
     out: List[Dict[str, Any]] = []
     for item in (settings.get("data") or {}).get("required") or []:
-        raw = str(item.get("data_id") or "").strip()
+        raw = str(item.get("data_key") or "").strip()
         if not raw:
             continue
         spec = dcm.map.get(DataKey(raw))
@@ -60,7 +60,7 @@ def axis_slot_from_settings(
     if configured:
         return configured
     if declarations:
-        return str(declarations[0].get("data_id") or "").strip()
+        return str(declarations[0].get("data_key") or "").strip()
     return "stock.kline.daily"
 
 
@@ -115,7 +115,7 @@ def stage_entities_batch(
     declarations = per_entity_declarations(settings, dcm=dcm)
     if not declarations:
         kline_slot, term, adjust = kline_declaration_from_settings(settings)
-        declarations = [{"data_id": kline_slot, "params": {"adjust": adjust}}]
+        declarations = [{"data_key": kline_slot, "params": {"adjust": adjust}}]
 
     axis_slot = axis_slot_from_settings(settings, declarations)
     slot_maps: Dict[str, Dict[str, List[Dict[str, Any]]]] = {
@@ -123,7 +123,7 @@ def stage_entities_batch(
     }
 
     for item in declarations:
-        raw = str(item.get("data_id") or "").strip()
+        raw = str(item.get("data_key") or "").strip()
         if not raw:
             continue
         slot = raw

@@ -3,36 +3,29 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from core.modules.tag.models.tag_enums import TagTargetType, TagUpdateMode
+from core.modules.data_contract import ContractIssuer, ContractType
+from core.modules.tag.enums import TagExecutionMode, TagTargetType, TagUpdateMode
+
+_issuer: Optional[ContractIssuer] = None
+
+
+def _contract_issuer() -> ContractIssuer:
+    global _issuer
+    if _issuer is None:
+        _issuer = ContractIssuer()
+        _issuer.discover()
+    return _issuer
 
 
 def normalize_tag_settings(settings: Dict[str, Any], tag_key: str) -> Dict[str, Any]:
     """规范化 tag settings，返回标准化后的 settings dict。
 
-    Args:
-        settings: Raw settings dict（可能缺少字段或格式不规范）
-        tag_key: Tag scenario key（用于定位 scenario）
-
-    Returns:
-        规范化后的 settings dict，包含所有必需字段和默认值
-
-    流程：
-    1. 验证必需字段（name, execution_mode, data）
-    2. 规范化 execution_mode（默认 entity_timeline）
-    3. 规范化 update_mode（默认 refresh）
-    4. 规范化 data block（base + required + min_required_records）
-    5. 从 base_required_data 获取 attach_to_data_key（单点声明）
-    6. 自动填充 meta（避免重复声明）
-    7. 删除 performance block（不需要）
-
-    关键设计：
-    - attach_to_data_key 直接使用 base_required_data.data_id（单点声明）
-    - 不需要隐形转换（直接存储 DataKey，例如 "stock.kline.daily"）
-    - 不需要用户显式声明 attach_to_data_key（避免配置不一致）
+    Userspace 契约见 ``userspace/extensions/tags/settings_example.py``。
+    本函数将 calculation.execution / data.base / tag_definitions 等展开为
+    引擎可读的扁平字段（execution_mode、start_date、data.required 等）。
     """
-    # 1. 验证必需字段
     settings = dict(settings or {})
     name = settings.get("name")
     if not name:
@@ -41,41 +34,55 @@ def normalize_tag_settings(settings: Dict[str, Any], tag_key: str) -> Dict[str, 
     if not isinstance(name, str) or not str(name).strip():
         raise ValueError("name 必填且须为 str")
 
-    # 2. 规范化 execution_mode
-    execution_mode = str(settings.get("execution_mode") or "").strip().lower()
-    if not execution_mode:
-        execution_mode = "entity_timeline"
-    if execution_mode not in {"entity_timeline", "calendar_slice"}:
-        raise ValueError(f"execution_mode 必须为 entity_timeline 或 calendar_slice，收到 {execution_mode!r}")
-    settings["execution_mode"] = execution_mode
-
-    # 3. 规范化 update_mode
     calculation = settings.get("calculation") or {}
     if not isinstance(calculation, dict):
         calculation = {}
-    update_mode = str(calculation.get("update_mode") or "refresh").strip().lower()
-    if update_mode not in {"refresh", "incremental"}:
+
+    execution = calculation.get("execution") or {}
+    if not isinstance(execution, dict):
+        execution = {}
+
+    execution_mode = str(execution.get("mode") or "").strip().lower()
+    if not execution_mode:
+        execution_mode = TagExecutionMode.ENTITY_BASED.value
+    if execution_mode not in {x.value for x in TagExecutionMode}:
+        raise ValueError(
+            f"calculation.execution.mode 必须为 entity_based 或 slice_based，收到 {execution_mode!r}"
+        )
+    settings["execution_mode"] = execution_mode
+    settings["start_date"] = str(execution.get("start_date") or "").strip()
+    settings["end_date"] = str(execution.get("end_date") or "").strip()
+
+    update_mode = str(calculation.get("update_mode") or TagUpdateMode.REFRESH.value).strip().lower()
+    if update_mode not in {x.value for x in TagUpdateMode}:
         raise ValueError(f"update_mode 必须为 refresh 或 incremental，收到 {update_mode!r}")
     settings["update_mode"] = update_mode
-    settings["recompute"] = bool(calculation.get("recompute", True))
+    settings["recompute"] = bool(calculation.get("recompute", False))
 
-    # 4. 规范化 data block
     data_block = settings.get("data")
     if not isinstance(data_block, dict):
         raise ValueError("data 须为 dict")
-    expanded_data, min_records, base_id = _expand_data_block(data_block)
+    expanded_data, min_records, base_key = _expand_data_block(data_block)
     settings["data"] = expanded_data
     settings["incremental_required_records_before_as_of_date"] = min_records
     settings["tag_target_type"] = TagTargetType.ENTITY_BASED.value
+    settings["attach_to_data_key"] = base_key
+    settings["target_entity"] = {"type": base_key.replace(".", "_")}
 
-    # 5. 从 base_required_data 获取 attach_to_data_key（单点声明）
-    # 直接使用 DataKey（例如 "stock.kline.daily"），不需要隐形转换
-    attach_to_data_key = base_id  # 例如 "stock.kline.daily"
-    settings["attach_to_data_key"] = attach_to_data_key
+    meta = settings.get("meta")
+    if not isinstance(meta, dict):
+        meta = {}
+        settings["meta"] = meta
+    meta["attach_to_data_key"] = base_key
+    if not str(meta.get("key") or "").strip():
+        meta["key"] = str(tag_key).strip()
 
-    # 自动填充 meta（避免重复声明）
-    settings.setdefault("meta", {})
-    settings["meta"]["attach_to_data_key"] = attach_to_data_key
+    tag_definitions = settings.get("tag_definitions")
+    if tag_definitions is None:
+        raise ValueError("tag_definitions 必填且须为非空 list")
+    if not isinstance(tag_definitions, list):
+        raise ValueError("tag_definitions 须为 list")
+    settings["tag_definitions"] = tag_definitions
 
     settings.pop("performance", None)
     settings.setdefault("run_options", {})
@@ -84,98 +91,91 @@ def normalize_tag_settings(settings: Dict[str, Any], tag_key: str) -> Dict[str, 
 
 
 def _expand_data_block(data_block: Dict[str, Any]) -> Tuple[Dict[str, Any], int, str]:
-    """展开 data block，返回规范化后的 data dict。
-
-    Args:
-        data_block: Raw data block dict
-
-    Returns:
-        Tuple: (expanded_data, min_records, base_id)
-
-    流程：
-    1. 验证 base_required_data（必填）
-    2. 规范化 extra_required_data_sources（可选）
-    3. 计算 min_required_records
-    4. 获取 base_id（直接使用 DataKey）
-    5. 设置 tag_time_axis_based_on（用于 tag job）
-
-    关键设计：
-    - base_id 直接使用 DataKey（例如 "stock.kline.daily"）
-    - 不需要隐形转换（直接存储 DataKey）
-    - attach_to_data_key = base_id（单点声明）
-    """
+    """展开 data block：base + required → 引擎用 data.required。"""
     if not isinstance(data_block, dict):
         raise ValueError("data_block 须为 dict")
 
-    base_required_data = data_block.get("base_required_data")
-    if not isinstance(base_required_data, dict):
-        raise ValueError("data.base_required_data 必填且须为 dict")
+    base = data_block.get("base")
+    if not isinstance(base, dict):
+        raise ValueError("data.base 必填且须为 dict")
 
-    base_id = str(base_required_data.get("data_id") or "").strip()
-    if not base_id:
-        raise ValueError("data.base_required_data.data_id 必填")
+    base_key = str(base.get("data_key") or "").strip()
+    if not base_key:
+        raise ValueError("data.base.data_key 必填")
 
-    # 规范化 base_required_data
     normalized_base = {
-        "data_id": base_id,
-        "params": dict(base_required_data.get("params") or {}),
-        "indicators": dict(base_required_data.get("indicators") or {}),
+        "data_key": base_key,
+        "params": dict(base.get("params") or {}),
+        "indicators": dict(base.get("indicators") or {}),
     }
 
-    # 规范化 extra_required_data_sources
-    extra_required_data_sources = data_block.get("extra_required_data_sources")
-    if extra_required_data_sources is None:
-        extra_required_data_sources = []
-    elif not isinstance(extra_required_data_sources, list):
-        raise ValueError("data.extra_required_data_sources 须为 list")
+    required_raw = data_block.get("required")
+    if required_raw is None:
+        required_raw = []
+    elif not isinstance(required_raw, list):
+        raise ValueError("data.required 须为 list")
 
-    normalized_required = []
-    for index, item in enumerate(extra_required_data_sources):
+    normalized_required: List[Dict[str, Any]] = []
+    for index, item in enumerate(required_raw):
         if not isinstance(item, dict):
-            raise ValueError(f"data.extra_required_data_sources[{index}] 须为 dict")
-        normalized_required.append(_normalize_required_item(item, label=f"data.extra_required_data_sources[{index}]"))
+            raise ValueError(f"data.required[{index}] 须为 dict")
+        normalized_required.append(
+            _normalize_required_item(item, label=f"data.required[{index}]")
+        )
 
-    # 合并 base 和 required（base 放在最前面）
     all_required = [normalized_base] + normalized_required
 
-    # 计算 min_required_records
     min_required_records = data_block.get("min_required_records")
     if min_required_records is None:
-        min_required_records = 20
-    try:
-        min_records = max(1, int(min_required_records))
-    except (TypeError, ValueError):
-        min_records = 20
+        min_records = 0
+    else:
+        try:
+            min_records = max(0, int(min_required_records))
+        except (TypeError, ValueError):
+            min_records = 0
 
-    # 设置 tag_time_axis_based_on（用于 tag job）
+    axis = _resolve_time_axis(all_required, preferred=base_key)
     expanded_data = {
-        "base_required_data": normalized_base,
+        "base": normalized_base,
         "required": all_required,
         "min_required_records": min_records,
-        "tag_time_axis_based_on": base_id,  # tag 时间轴基于 base data（DataKey）
+        "tag_time_axis_based_on": axis,
     }
 
-    return expanded_data, min_records, base_id
+    return expanded_data, min_records, base_key
+
+
+def _resolve_time_axis(all_required: List[Dict[str, Any]], *, preferred: str) -> str:
+    """时间轴：优先 base（若为时序），否则第一个时序 data_key。"""
+    preferred_key = str(preferred or "").strip()
+    if preferred_key and _is_time_series(preferred_key):
+        return preferred_key
+    for item in all_required:
+        key = str(item.get("data_key") or "").strip()
+        if key and _is_time_series(key):
+            return key
+    return preferred_key
+
+
+def _declaration_meta(data_key: str) -> Optional[Dict[str, Any]]:
+    decl = _contract_issuer().get_declaration(str(data_key or "").strip())
+    if not isinstance(decl, dict):
+        return None
+    meta = decl.get("meta")
+    return meta if isinstance(meta, dict) else None
+
+
+def _is_time_series(data_key: str) -> bool:
+    meta = _declaration_meta(data_key)
+    if not meta:
+        return False
+    return str(meta.get("type") or "").strip().lower() == ContractType.TIME_SERIES
 
 
 def _normalize_required_item(item: Dict[str, Any], *, label: str = "data.required[]") -> Dict[str, Any]:
-    """规范化单个 required data item。
-
-    Args:
-        item: Raw required data item dict
-        label: Error message label（用于定位错误）
-
-    Returns:
-        规范化后的 required data item dict
-
-    规范化字段：
-    - data_id：必填，验证非空
-    - params：可选，默认 {}
-    - indicators：可选，默认 {}
-    """
-    data_id = str(item.get("data_id") or "").strip()
-    if not data_id:
-        raise ValueError(f"{label}.data_id 必填")
+    data_key = str(item.get("data_key") or "").strip()
+    if not data_key:
+        raise ValueError(f"{label}.data_key 必填")
 
     params = item.get("params")
     if params is None:
@@ -190,10 +190,17 @@ def _normalize_required_item(item: Dict[str, Any], *, label: str = "data.require
         raise ValueError(f"{label}.indicators 必须为 dict")
 
     return {
-        "data_id": data_id,
+        "data_key": data_key,
         "params": dict(params),
         "indicators": dict(indicators),
     }
 
 
-__all__ = ["normalize_tag_settings"]
+def declaration_data_key(item: Optional[Dict[str, Any]]) -> str:
+    """从声明项读取 data_key（规范化后唯一字段）。"""
+    if not isinstance(item, dict):
+        return ""
+    return str(item.get("data_key") or "").strip()
+
+
+__all__ = ["normalize_tag_settings", "declaration_data_key"]

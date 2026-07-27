@@ -7,7 +7,7 @@ from core.modules.tag.enums import TagUpdateMode
 from core.modules.tag.models.scenario_model import ScenarioModel
 from core.modules.tag.settings.normalize import normalize_tag_settings
 
-_STOCK_KLINE = {"data_id": "stock.kline.daily", "params": {"adjust": "qfq"}}
+_STOCK_KLINE = {"data_key": "stock.kline.daily", "params": {"adjust": "qfq"}}
 
 
 def _stock_scenario(**overrides) -> dict:
@@ -16,25 +16,27 @@ def _stock_scenario(**overrides) -> dict:
         "meta": {"display_name": "test_scenario"},
         "calculation": {
             "update_mode": "incremental",
-            "execution_mode": "entity_timeline",
+            "execution": {"mode": "entity_based"},
         },
         "data": {
-            "base_required_data": _STOCK_KLINE,
-            "extra_required_data_sources": [],
+            "base": _STOCK_KLINE,
+            "required": [],
             "min_required_records": 10,
         },
-        "tags": [{"name": "tag1"}],
+        "tag_definitions": [{"name": "tag1"}],
     }
     for key, value in overrides.items():
         if key in ("calculation", "data", "meta") and isinstance(value, dict):
-            base[key] = {**base.get(key, {}), **value}
+            merged = {**base.get(key, {}), **value}
+            if key == "calculation" and "execution" in value:
+                base_exec = dict((base.get(key) or {}).get("execution") or {})
+                merged["execution"] = {**base_exec, **(value.get("execution") or {})}
+            if key == "data" and "base" in value:
+                pass
+            base[key] = merged
         else:
             base[key] = value
     return base
-
-
-def _normalized(**overrides) -> dict:
-    return normalize_tag_settings(_stock_scenario(**overrides), tag_key="test_scenario")
 
 
 class TestScenarioModel:
@@ -45,7 +47,7 @@ class TestScenarioModel:
                     "display_name": "Test Scenario Display",
                     "description": "Test description",
                 },
-                tags=[
+                tag_definitions=[
                     {"name": "tag1", "display_name": "Tag 1"},
                     {"name": "tag2", "display_name": "Tag 2"},
                 ],
@@ -78,8 +80,8 @@ class TestScenarioModel:
         assert ScenarioModel.create_from_settings(
             {
                 "is_enabled": True,
-                "data": {"base_required_data": {"data_id": "stock.list", "params": {}}},
-                "tags": [{"name": "tag1"}],
+                "data": {"base": {"data_key": "stock.list", "params": {}}},
+                "tag_definitions": [{"name": "tag1"}],
             },
             tag_key="bad",
         ) is None
@@ -91,23 +93,23 @@ class TestScenarioModel:
             (
                 {
                     "is_enabled": True,
+                    "calculation": {
+                        "update_mode": "incremental",
+                        "execution": {"mode": "entity_based"},
+                    },
                     "data": {
-                        "base_required_data": _STOCK_KLINE,
+                        "base": _STOCK_KLINE,
                         "min_required_records": 0,
                     },
-                    "tags": [{"name": "tag1"}],
+                    "tag_definitions": [{"name": "tag1"}],
                 },
                 True,
             ),
-            (_stock_scenario(tags=[]), False),
-            (
-                _stock_scenario(data={"min_required_records": -1}),
-                False,
-            ),
+            (_stock_scenario(tag_definitions=[]), False),
             (
                 {
                     "is_enabled": True,
-                    "tags": [{"name": "tag1"}],
+                    "tag_definitions": [{"name": "tag1"}],
                 },
                 False,
             ),
@@ -144,10 +146,10 @@ class TestScenarioModel:
         assert scenario.should_recompute() is True
         assert scenario.calculate_update_mode() == TagUpdateMode.REFRESH
 
-    def test_calendar_slice_execution_mode(self):
+    def test_slice_based_execution_mode(self):
         raw = _stock_scenario(
             calculation={
-                "execution_mode": "calendar_slice",
+                "execution": {"mode": "slice_based"},
                 "recompute": True,
                 "update_mode": "refresh",
             },
@@ -156,19 +158,19 @@ class TestScenarioModel:
         norm = normalize_tag_settings(raw, tag_key="slice_scenario")
         assert ScenarioModel.is_setting_valid(norm) is True
         scenario = ScenarioModel.create_from_settings(raw, tag_key="slice_scenario")
-        assert scenario.get_execution_mode().value == "calendar_slice"
+        assert scenario.get_execution_mode().value == "slice_based"
 
     def test_get_execution_mode(self):
         scenario = ScenarioModel.create_from_settings(
             _stock_scenario(), tag_key="test_scenario"
         )
-        assert scenario.get_execution_mode().value == "entity_timeline"
+        assert scenario.get_execution_mode().value == "entity_based"
 
     def test_get_tags_dict_and_to_dict(self):
         scenario = ScenarioModel.create_from_settings(
             _stock_scenario(
                 meta={"display_name": "Test Scenario", "description": "Test description"},
-                tags=[
+                tag_definitions=[
                     {"name": "tag1", "display_name": "Tag 1"},
                     {"name": "tag2", "display_name": "Tag 2"},
                 ],

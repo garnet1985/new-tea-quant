@@ -111,7 +111,7 @@ def axis_data_id_from_settings(settings: Dict[str, Any]) -> str:
     if configured:
         return configured
     for item in data.get("required") or []:
-        raw = str(item.get("data_id") or "").strip()
+        raw = str(item.get("data_key") or "").strip()
         if raw:
             return raw
     return "stock.kline.daily"

@@ -125,7 +125,7 @@ class TagManager:
             self._dispatch_overrides["dry_run"] = True
             logger.info("[DRY RUN] 模式已启用，计算结果不会写入数据库")
 
-        if scenario_model.get_execution_mode() == TagExecutionMode.CALENDAR_SLICE:
+        if scenario_model.get_execution_mode() == TagExecutionMode.SLICE_BASED:
             result = run_sliced_pipeline(
                 self,
                 scenario_model=scenario_model,
@@ -133,7 +133,7 @@ class TagManager:
                 settings=settings,
                 tag_key=tag_key,
             )
-            self._save_performance_report(result, scenario_model, tag_key, "calendar_sliced")
+            self._save_performance_report(result, scenario_model, tag_key, "slice_based")
             return
 
         result = run_timeline_pipeline(
@@ -144,7 +144,7 @@ class TagManager:
             worker_class=worker_class,
             tag_key=tag_key,
         )
-        self._save_performance_report(result, scenario_model, tag_key, "entity_timeline")
+        self._save_performance_report(result, scenario_model, tag_key, "entity_based")
 
     def _save_performance_report(
         self,
@@ -287,13 +287,13 @@ class TagManager:
         matches = [
             tag_key
             for tag_key, cache in self.scenario_cache.items()
-            if str((cache.get("settings") or {}).get("name") or "") == key
+            if str(cache.get("key") or "") == key
         ]
         if len(matches) == 1:
             return matches[0]
         if len(matches) > 1:
             logger.warning(
-                "settings.name=%r 对应多个 tag 路径: %s，请使用完整 tag_key",
+                "meta.key=%r 对应多个 tag 路径: %s，请使用完整 tag_key",
                 key,
                 ", ".join(matches),
             )
@@ -338,7 +338,7 @@ class TagManager:
 
     def _pick_primary_per_entity_data_id(self, declarations: List[Dict[str, Any]]) -> Optional[DataKey]:
         for item in declarations:
-            raw = str(item.get("data_id") or "").strip()
+            raw = str(item.get("data_key") or "").strip()
             if not raw:
                 continue
             try:

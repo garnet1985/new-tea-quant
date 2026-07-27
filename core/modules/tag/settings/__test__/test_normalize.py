@@ -6,7 +6,7 @@ import pytest
 from core.modules.tag.models.scenario_model import ScenarioModel
 from core.modules.tag.settings.normalize import normalize_tag_settings
 
-_STOCK_KLINE = {"data_id": "stock.kline.daily", "params": {"adjust": "qfq"}}
+_STOCK_KLINE = {"data_key": "stock.kline.daily", "params": {"adjust": "qfq"}}
 
 
 def _userspace_settings(**overrides) -> dict:
@@ -15,14 +15,14 @@ def _userspace_settings(**overrides) -> dict:
         "meta": {"display_name": "test"},
         "calculation": {
             "update_mode": "incremental",
-            "execution_mode": "entity_timeline",
+            "execution": {"mode": "entity_based"},
         },
         "data": {
-            "base_required_data": _STOCK_KLINE,
-            "extra_required_data_sources": [],
+            "base": _STOCK_KLINE,
+            "required": [],
             "min_required_records": 0,
         },
-        "tags": [{"name": "tag1"}],
+        "tag_definitions": [{"name": "tag1"}],
     }
     for key, value in overrides.items():
         if key in ("calculation", "data", "meta") and isinstance(value, dict):
@@ -36,9 +36,9 @@ class TestNormalizeTagSettings:
     def test_expands_calculation_and_data(self):
         raw = _userspace_settings(
             data={
-                "base_required_data": _STOCK_KLINE,
-                "extra_required_data_sources": [
-                    {"data_id": "stock.indicators.daily", "params": {}},
+                "base": _STOCK_KLINE,
+                "required": [
+                    {"data_key": "stock.indicators.daily", "params": {}},
                 ],
                 "min_required_records": 5,
             },
@@ -46,14 +46,14 @@ class TestNormalizeTagSettings:
         )
         norm = normalize_tag_settings(raw, tag_key="demo/market_cap_tier")
         assert norm["name"] == "demo/market_cap_tier"
-        assert norm["execution_mode"] == "entity_timeline"
+        assert norm["execution_mode"] == "entity_based"
         assert norm["recompute"] is True
         assert norm["update_mode"] == "refresh"
         assert norm["incremental_required_records_before_as_of_date"] == 5
         assert norm["target_entity"] == {"type": "stock_kline_daily"}
         assert norm["tag_target_type"] == "entity_based"
         assert norm["data"]["tag_time_axis_based_on"] == "stock.kline.daily"
-        assert [x["data_id"] for x in norm["data"]["required"]] == [
+        assert [x["data_key"] for x in norm["data"]["required"]] == [
             "stock.kline.daily",
             "stock.indicators.daily",
         ]
@@ -65,15 +65,15 @@ class TestNormalizeTagSettings:
         assert norm["meta"]["key"] == "cap_tier"
 
     def test_market_cap_tier_settings(self):
-        from userspace.extensions.tags.demo.market_cap_tier.settings import Settings
+        from userspace.extensions.tags.demo.market_cap_tier.settings import settings as demo_settings
 
-        norm = normalize_tag_settings(Settings, tag_key="demo/market_cap_tier")
+        norm = normalize_tag_settings(demo_settings, tag_key="demo/market_cap_tier")
         assert norm["update_mode"] == "incremental"
         assert norm["incremental_required_records_before_as_of_date"] == 1
-        scenario = ScenarioModel.create_from_settings(Settings, tag_key="demo/market_cap_tier")
+        scenario = ScenarioModel.create_from_settings(demo_settings, tag_key="demo/market_cap_tier")
         assert scenario is not None
         assert scenario.get_target_entity() == "stock_kline_daily"
 
     def test_rejects_missing_base(self):
         with pytest.raises(ValueError, match="data 须为 dict"):
-            normalize_tag_settings({"tags": [{"name": "t"}]}, tag_key="x")
+            normalize_tag_settings({"tag_definitions": [{"name": "t"}]}, tag_key="x")

@@ -32,8 +32,8 @@
       "reserve_cores": 1,
       "max_parallel_jobs_cap": null,
       "_comment": "Tag 系统有两种执行模式，配置相互独立：",
-      "_comment_entity_timeline": "Entity Timeline: 多实体并行，每个 Worker 独立 IO + 计算",
-      "entity_timeline": {
+      "_comment_entity_based": "entity_based: 多实体并行，每个 Worker 独立 IO + 计算",
+      "entity_based": {
         "stage_in_worker": true,
         "dispatch_probe": true,
         "entities_per_job": "auto",
@@ -41,8 +41,8 @@
         "entities_per_job_max": 500,
         "memory_floor_mb": "auto"
       },
-      "_comment_calendar_slice": "Calendar Sliced: Reader + Compute 双通道，Reader 多进程读，Compute 单进程算",
-      "calendar_slice": {
+      "_comment_slice_based": "slice_based: Reader + Compute 双通道，Reader 多进程读，Compute 单进程算",
+      "slice_based": {
         "reader_workers": "auto",
         "queue_depth": "auto",
         "prefetch_enabled": true,

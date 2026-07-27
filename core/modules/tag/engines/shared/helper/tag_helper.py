@@ -31,7 +31,7 @@ class TagHelper:
         Returns:
             Tuple[Optional[Path], Optional[Dict[str, Any]]]: 
             - (settings_path, settings_dict) 如果成功
-            - (None, None) 如果失败（找不到文件或没有 Settings 变量）
+            - (None, None) 如果失败（找不到文件或没有 settings 变量）
         """
         # 1. 查找 settings.py 文件
         settings_path = Discovery.file.find_file(
@@ -43,7 +43,7 @@ class TagHelper:
             return None, None
 
         # 2. 使用 Discovery.file 加载 settings 变量
-        settings_dict = Discovery.file.load_python_config(settings_path, var_name="Settings")
+        settings_dict = Discovery.file.load_python_config(settings_path, var_name="settings")
         
         if not settings_dict or not isinstance(settings_dict, dict):
             return None, None

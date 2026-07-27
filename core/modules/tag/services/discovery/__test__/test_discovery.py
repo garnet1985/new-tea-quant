@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 
+from core.infra.project_context.core.path_manager import PathManager
 from core.modules.tag.services.discovery import TagDiscoveryHelper
 
 
@@ -17,17 +18,17 @@ def _minimal_settings(**overrides):
         "meta": {"display_name": "nested_tag"},
         "calculation": {
             "update_mode": "incremental",
-            "execution_mode": "entity_timeline",
+            "execution": {"mode": "entity_based"},
         },
         "data": {
-            "base_required_data": {
-                "data_id": "stock.kline.daily",
+            "base": {
+                "data_key": "stock.kline.daily",
                 "params": {"adjust": "qfq"},
             },
-            "extra_required_data_sources": [],
+            "required": [],
             "min_required_records": 1,
         },
-        "tags": [{"name": "nested_tag"}],
+        "tag_definitions": [{"name": "nested_tag"}],
     }
     for key, value in overrides.items():
         if key in ("calculation", "data", "meta") and isinstance(value, dict):
@@ -42,16 +43,18 @@ def tags_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     us = tmp_path / "userspace"
     root = us / "extensions" / "tags"
     root.mkdir(parents=True)
-    monkeypatch.setattr(PathManager, "extensions_root", staticmethod(lambda: us / "extensions"))
-    monkeypatch.setattr(PathManager, "tags", staticmethod(lambda: root))
+    monkeypatch.setattr(PathManager, "get_extensions_root", staticmethod(lambda: us / "extensions"))
+    monkeypatch.setattr(PathManager, "get_tags_root", staticmethod(lambda: root))
     return root
 
 
-def _write_tag(folder: Path) -> None:
+def _write_tag(folder: Path, *, meta_key: str | None = None) -> None:
     folder.mkdir(parents=True, exist_ok=True)
     settings = _minimal_settings()
+    if meta_key:
+        settings["meta"] = {**(settings.get("meta") or {}), "key": meta_key}
     folder.joinpath("settings.py").write_text(
-        f"Settings = {settings!r}\n",
+        f"settings = {settings!r}\n",
         encoding="utf-8",
     )
     folder.joinpath("tag_worker.py").write_text(
@@ -72,15 +75,17 @@ def _write_tag(folder: Path) -> None:
 
 def test_discover_nested_tag(tags_tree: Path):
     target = tags_tree / "demo" / "market_cap_tier"
-    _write_tag(target)
+    _write_tag(target, meta_key="market_cap_tier")
 
     found = TagDiscoveryHelper.discover_tags(tags_tree)
     assert "demo/market_cap_tier" in found
     assert found["demo/market_cap_tier"].settings_name == "demo/market_cap_tier"
+    assert found["demo/market_cap_tier"].module_key == "market_cap_tier"
     assert found["demo/market_cap_tier"].settings["calculation"]["update_mode"] == "incremental"
 
 
 def test_resolve_by_tag_key(tags_tree: Path):
-    _write_tag(tags_tree / "market_cap_tier")
+    _write_tag(tags_tree / "market_cap_tier", meta_key="cap_alias")
     found = TagDiscoveryHelper.discover_tags(tags_tree)
     assert TagDiscoveryHelper.resolve_tag_key("market_cap_tier", found) == "market_cap_tier"
+    assert TagDiscoveryHelper.resolve_tag_key("cap_alias", found) == "market_cap_tier"

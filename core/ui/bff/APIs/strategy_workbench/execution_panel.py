@@ -1,4 +1,4 @@
-"""工作台执行面板三行摘要：由快照 ``result_report`` 派生，供 V2-01 / V2-08 与前端展示。"""
+"""工作台执行面板三行摘要：由快照 ``result_report`` 派生。"""
 
 from __future__ import annotations
 
@@ -13,57 +13,45 @@ def _num(val: Any, default: float = 0.0) -> float:
 
 
 def _enum_line_from_result_report(rr: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    from core.modules.strategy.services.cache.simulator_res_db_cache.report_slot_disk_hydrate import (
-        attach_enum_opportunities_field,
-        enum_opportunity_count_from_slot,
-    )
-
     raw = rr.get("enum")
     if not isinstance(raw, dict) or not raw:
         return None
-    merged = attach_enum_opportunities_field(dict(raw))
-    count = enum_opportunity_count_from_slot(merged)
+    metrics = raw.get("enumMetrics") if isinstance(raw.get("enumMetrics"), dict) else {}
+    count = metrics.get("totalOpportunities")
     if count is None:
         return None
-    return {"opportunities": int(count)}
+    try:
+        return {"opportunities": int(count)}
+    except (TypeError, ValueError):
+        return None
 
 
 def _price_line_from_result_report(rr: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     raw = rr.get("price_factor")
     if not isinstance(raw, dict) or not raw:
         return None
-    wr = _num(raw.get("win_rate", raw.get("winRate")))
-    ar = _num(raw.get("avg_roi", raw.get("roi", raw.get("avgRoi"))))
-    if ar != 0.0 and abs(ar) < 1.0:
-        ar = round(ar * 100.0, 2)
-    else:
-        ar = round(ar, 2)
-    if wr == 0.0 and ar == 0.0 and not raw.get("win_rate") and not raw.get("avg_roi"):
+    metrics = raw.get("priceMetrics") if isinstance(raw.get("priceMetrics"), dict) else {}
+    wr = _num(metrics.get("winRate"))
+    ar = _num(metrics.get("avgRoi"))
+    if wr == 0.0 and ar == 0.0 and not metrics:
         return None
-    return {"winRate": round(wr, 2), "roi": ar}
+    return {"winRate": round(wr, 2), "roi": round(ar, 2)}
 
 
 def _capital_line_from_result_report(rr: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    raw = rr.get("capital_allocation")
+    raw = rr.get("portfolio")
     if not isinstance(raw, dict) or not raw:
         return None
-    profit = _num(raw.get("total_profit", raw.get("profit")))
-    ic = _num(raw.get("initial_capital", raw.get("initialCapital")))
-    ec = _num(raw.get("final_total_equity", raw.get("end_capital", raw.get("endCapital"))))
-    if ec == 0.0 and (ic != 0.0 or profit != 0.0):
-        ec = ic + profit
-    ret_pct = _num(
-        raw.get("total_return", raw.get("retPct", raw.get("return_pct", raw.get("ret_pct"))))
-    )
-    if ret_pct != 0.0 and abs(ret_pct) <= 1.0:
-        ret_pct = round(ret_pct * 100.0, 4)
-    else:
-        ret_pct = round(ret_pct, 4)
-    if ic == 0.0 and ec == 0.0 and profit == 0.0:
+    metrics = raw.get("capitalMetrics") if isinstance(raw.get("capitalMetrics"), dict) else {}
+    profit = _num(metrics.get("totalProfit"))
+    ic = _num(metrics.get("initialCapital"))
+    ec = _num(metrics.get("finalEquity"))
+    ret_pct = _num(metrics.get("totalReturnPct"))
+    if ic == 0.0 and ec == 0.0 and profit == 0.0 and not metrics:
         return None
     return {
         "profit": profit,
-        "retPct": ret_pct,
+        "retPct": round(ret_pct, 4),
         "initialCapital": ic,
         "endCapital": ec,
     }

@@ -33,8 +33,28 @@ class ScanCacheManager:
         )
         self.cache_base_dir.mkdir(parents=True, exist_ok=True)
 
+    def date_dir(self, date: str) -> Path:
+        return self.cache_base_dir / str(date).strip()
+
     def opportunities_csv_path(self, date: str) -> Path:
-        return self.cache_base_dir / str(date).strip() / "opportunities.csv"
+        return self.date_dir(date) / "opportunities.csv"
+
+    def scan_summary_path(self, date: str) -> Path:
+        return self.date_dir(date) / "scan_summary.json"
+
+    def save_scan_summary(self, date: str, payload: dict) -> Path:
+        """写入 ``scan_summary.json``（即使 0 机会也落盘）。"""
+        day = str(date or "").strip()
+        if not day:
+            raise ValueError("scan date 不能为空")
+        date_dir = self.date_dir(day)
+        date_dir.mkdir(parents=True, exist_ok=True)
+        path = date_dir / "scan_summary.json"
+        path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        return path
 
     def save_opportunities(self, date: str, opportunities: List[Opportunity]) -> None:
         if not opportunities:
@@ -42,7 +62,7 @@ class ScanCacheManager:
         day = str(date or "").strip()
         if not day:
             return
-        date_dir = self.cache_base_dir / day
+        date_dir = self.date_dir(day)
         date_dir.mkdir(parents=True, exist_ok=True)
         csv_path = date_dir / "opportunities.csv"
         rows = []

@@ -1,19 +1,10 @@
-"""Data source 多 bundle 执行：JobPipeline（THREAD）+ on_result 写库。"""
+"""Data source 多 bundle 执行：私有 JobPipeline（线程队列）+ on_result 写库。"""
 from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Tuple, Union
 
-from core.infra.job_pipeline import (
-    Job,
-    JobContext,
-    JobPipeline,
-    JobPipelineSettings,
-    JobReport,
-    RunProgress,
-)
-from core.infra.job_pipeline.types import ExecuteMode, ExecutionBackend
 from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
 from core.modules.data_source.data_class.config import DataSourceConfig
@@ -23,6 +14,14 @@ from core.modules.data_source.service.executor.bundle_progress import (
     install as install_bundle_progress,
 )
 from core.modules.data_source.service.pipeline.async_bridge import run_async_in_sync
+from core.modules.data_source.service.pipeline.job_pipeline import (
+    Job,
+    JobContext,
+    JobPipeline,
+    JobPipelineSettings,
+    JobReport,
+    RunProgress,
+)
 from core.modules.data_source.service.pipeline.save_buffer import DataSourceSaveBuffer
 from core.modules.data_source.service.pipeline.save_utils import (
     BundleSaveItem,
@@ -39,7 +38,7 @@ PROGRESS_LOG_EVERY_N = 100
 
 
 class DataSourcePipelineRunner:
-    """将多 bundle 抓取迁到 JobPipeline（线程池），保存集中在主进程 on_result。"""
+    """多 bundle 抓取：线程队列并行，保存集中在主线程 on_result。"""
 
     def run_bundles(
         self,
@@ -162,7 +161,7 @@ class DataSourcePipelineRunner:
                 )
                 return {"success": False, "error": str(exc)}
 
-        jobs = [
+        pipeline_jobs = [
             Job(
                 job_id=bundle_id,
                 payload={"bundle_id": bundle_id, "apis": apis},
@@ -171,15 +170,13 @@ class DataSourcePipelineRunner:
         ]
 
         settings = JobPipelineSettings(
-            worker=ExecutionBackend.THREAD,
-            execute_mode=ExecuteMode.QUEUE,
             max_workers="auto",
             prefetch_ahead=2,
             continue_on_failure=True,
         )
         run_name = f"ds:{data_source_key}"
 
-        logger.info("[%s] 开始抓取（JobPipeline），共 %s 个 bundle", data_source_key, total_bundles)
+        logger.info("[%s] 开始抓取（线程队列），共 %s 个 bundle", data_source_key, total_bundles)
 
         dispatcher = JobPipeline(
             settings=settings,
@@ -188,7 +185,7 @@ class DataSourcePipelineRunner:
         )
 
         try:
-            dispatch_result = dispatcher.run(jobs, run_name=run_name)
+            dispatch_result = dispatcher.run(pipeline_jobs, run_name=run_name)
         except KeyboardInterrupt:
             logger.warning("[%s] 抓取中断", data_source_key)
             raise
@@ -220,7 +217,7 @@ class DataSourcePipelineRunner:
 
         if dispatch_result.failed:
             logger.warning(
-                "[%s] JobPipeline: 失败 %s/%s",
+                "[%s] 线程队列: 失败 %s/%s",
                 data_source_key,
                 dispatch_result.failed,
                 dispatch_result.total,

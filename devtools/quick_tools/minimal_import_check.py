@@ -21,7 +21,7 @@ import venv
 from dataclasses import dataclass
 from pathlib import Path
 
-from core.utils import i as icon
+from core.infra.cmd_layout import i as icon
 from devtools.quick_tools._paths import REPO_ROOT
 
 BFF_REQUIREMENTS = REPO_ROOT / "core" / "ui" / "bff" / "requirements.txt"

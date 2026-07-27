@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Callable
 
 from core.infra.machine_capacity import MachineCapacity, MachineInfo
-from core.infra.job_pipeline.profile.dispatch_settings import (
+from core.modules.backtest_engine.core.performance.worker_profile.dispatch_settings import (
     clamp_entities_per_job,
     default_auto_entities_per_job,
 )
@@ -426,14 +426,15 @@ class EntityPlanner(BasePlanner):
             entity_shared: {data_key: {params, start, end, indicators}},
             global: {data_key: {}},
             shm_info: {...},
-            strategy_info: {...},
-            settings: {...}
+            strategy_info / tag_info: {...},  # 业务 hooks 元数据（透传）
+            settings: {...},
+            ...  # 其余业务字段原样透传
         }
         """
         if plan.dispatch_jobs <= 0:
             return []
 
-        # Bundle模式：切割entity_specified，传递完整的entity_shared和global
+        # Bundle模式：切割 entity_specified，其余 payload 字段透传
         bundle_job = jobs[0]
         payload = bundle_job["payload"]
 
@@ -451,18 +452,15 @@ class EntityPlanner(BasePlanner):
             batch_entities = entity_specified[start_idx:end_idx]
             batch_entity_ids = [item.get("id") for item in batch_entities if item.get("id")]
 
-            # 构建batch payload：切割的entity_specified + 完整的entity_shared + global
+            # 构建batch payload：切割 entity_specified，其余业务字段原样透传
+            # （strategy_info / tag_info / tag_definitions / scenario_name 等）
             batch_payload = {
-                "entity_specified": batch_entities,
-                "entity_shared": payload.get("entity_shared", {}),
-                "global": payload.get("global", {}),
-                "shm_info": payload.get("shm_info", {}),
-                "strategy_info": payload.get("strategy_info", {}),
-                "settings": payload.get("settings", {}),
-                "entities_count": len(batch_entities),
+                k: v
+                for k, v in payload.items()
+                if k not in {"entity_specified", "entities_count"}
             }
-            if payload.get("output_recorder"):
-                batch_payload["output_recorder"] = payload["output_recorder"]
+            batch_payload["entity_specified"] = batch_entities
+            batch_payload["entities_count"] = len(batch_entities)
 
             batch = JobBatch(
                 batch_id=f"batch_{i}",

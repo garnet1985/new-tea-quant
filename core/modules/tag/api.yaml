@@ -1,0 +1,138 @@
+module: modules.tag
+version: 0.4.0
+requires: core>=0.4.4
+
+# ---------------------------------------------------------------------------
+# 用语
+#
+#   Tag                 — Facade，对外唯一入口
+#   scenario / tag_key  — userspace 路径 id（相对 tags 根）或 meta.key
+#   TagHooks            — userspace tag.py 钩子基类
+#   entity_based        — 按实体时序推进
+#   slice_based         — 日历切片 + on_calendar_asof
+#   update_mode         — incremental（续算） / refresh（重算）
+#
+# ---------------------------------------------------------------------------
+
+---
+
+Tag:
+  layer: facade
+  description: "标签模块 Facade — discovery / execute / list"
+
+  apis:
+    execute:
+      description: "执行 tag 计算（metadata ensure → entity/slice pipeline → 落库）"
+      stability: beta
+      binding: instance
+      parameters:
+        keyword:
+          - name: scenario_name
+            type: Optional[str]
+            required: false
+            default: null
+            notes: "meta.key 或相对路径；与 tag_key / settings 互斥组合见 notes"
+          - name: settings
+            type: Optional[Dict[str, Any]]
+            required: false
+            default: null
+            notes: "内联 settings；须同时给 tag_key 或 scenario_name，且 hooks 已 discovery"
+        keyword_only:
+          - name: tag_key
+            type: Optional[str]
+            required: false
+            default: null
+          - name: on_pipeline_progress
+            type: Optional[Callable[[Dict[str, Any]], None]]
+            required: false
+            default: null
+          - name: dry_run
+            type: bool
+            required: false
+            default: false
+      returns: Optional[Dict[str, Any]]
+      notes: |
+        - 都不传：跑全部已启用 tag
+        - incremental 水位为 last_calculated_end（非 max(as_of)）
+      example: |
+        from core.modules.tag import Tag
+        Tag().execute(scenario_name="market_cap_tier")
+
+    refresh:
+      description: "重新 discovery（含未启用）"
+      stability: beta
+      binding: instance
+      parameters: {}
+      returns: null
+      example: |
+        tag = Tag()
+        tag.refresh()
+
+    list_keys:
+      description: "列出已发现 tag 的 key（默认仅 enabled）"
+      stability: beta
+      binding: instance
+      parameters:
+        keyword_only:
+          - name: enabled_only
+            type: bool
+            required: false
+            default: true
+      returns: List[str]
+
+    find:
+      description: "按 meta.key 或路径查找 TagInfo"
+      stability: beta
+      binding: instance
+      parameters:
+        positional:
+          - name: key_or_id
+            type: str
+            required: true
+      returns: Optional[TagInfo]
+
+TagCatalog:
+  layer: bff_support
+  description: "UI 列表：discovery + freshness 摘要"
+  apis:
+    fetch_page:
+      description: "分页返回 scenario 摘要"
+      stability: beta
+      binding: class
+      parameters:
+        positional:
+          - name: page
+            type: int
+            required: true
+          - name: limit
+            type: int
+            required: true
+      returns: "Tuple[List[Dict], int, Dict]"
+
+TagRunLauncher:
+  layer: bff_support
+  description: "UI 异步跑 tag（锁 / lease / progress）"
+  apis:
+    trigger:
+      description: "触发后台计算"
+      stability: beta
+      binding: class
+      parameters:
+        keyword_only:
+          - name: tag_key
+            type: str
+            required: true
+      returns: Dict[str, Any]
+    get_progress:
+      description: "查询进度"
+      stability: beta
+      binding: class
+      parameters:
+        keyword_only:
+          - name: tag_key
+            type: str
+            required: true
+          - name: job_id
+            type: str
+            required: true
+      returns: Optional[Dict[str, Any]]

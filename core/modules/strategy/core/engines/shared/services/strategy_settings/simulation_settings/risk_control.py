@@ -383,11 +383,14 @@ class RiskControl(SettingsBase):
     ) -> bool:
         if not stock_meta or not trade_date:
             return False
-        delist = str(
-            stock_meta.get("delist_date")
-            or stock_meta.get("delisted_date")
-            or ""
-        ).strip()
+        # 与 ListService 一致：Tushare 等源的 0 / 0.0 视为无退市日
+        from core.modules.data_manager.data_services.stock.sub_services.list_service import (
+            ListService,
+        )
+
+        delist = ListService._normalize_delist_date(
+            stock_meta.get("delist_date") or stock_meta.get("delisted_date")
+        )
         if not delist:
             return False
         return trade_date >= delist

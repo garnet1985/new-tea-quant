@@ -17,7 +17,7 @@ class GoalStage:
     ratio: float
     name: str
     close_invest: bool
-    exit_ratio: float  # 0~1；close_invest=True 时为 1.0（相对剩余仓位全平）
+    exit_ratio: float  # 0~1；相对**初始总仓位**的绝对份额；close_invest=True 时为 1.0
     actions: Tuple[str, ...] = ()
 
 
@@ -27,7 +27,7 @@ class SideLossConfig:
 
     ratio: float
     close_invest: bool
-    exit_ratio: float
+    exit_ratio: float  # 相对初始总仓位；close_invest=True 时为 1.0
     name: str
 
 
@@ -51,7 +51,8 @@ class GoalSettings(SettingsBase):
     @property
     def stop_loss_stages(self) -> Tuple[GoalStage, ...]:
         return self._parse_stages(
-            self.goal.get("stop_loss"), label="goal.stop_loss"
+            self.goal.get("stop_loss"),
+            label="goal.stop_loss",
         )
 
     @property
@@ -59,7 +60,6 @@ class GoalSettings(SettingsBase):
         return self._parse_stages(
             self.goal.get("take_profit"),
             label="goal.take_profit",
-            require_coverage=True,
         )
 
     @property
@@ -178,21 +178,24 @@ class GoalSettings(SettingsBase):
                 cls._parse_stage_item(item, field_path=f"{label}.stages[{idx}]")
             )
 
-        if require_coverage and len(out) > 1:
-            cls._validate_take_profit_coverage(out, label=label)
+        if require_coverage:
+            cls._validate_stage_coverage(out, label=label)
         return tuple(out)
 
     @classmethod
-    def _validate_take_profit_coverage(
+    def _validate_stage_coverage(
         cls, stages: Sequence[GoalStage], *, label: str
     ) -> None:
+        """保留给显式调用；默认不强制止盈/止损合计为 1。
+
+        剩余仓位可由后续档位 / protect_loss / dynamic_loss / expiration / simulate_end 收口。
+        """
         if any(stage.close_invest or stage.exit_ratio >= 1.0 - 1e-12 for stage in stages):
             return
         total = sum(float(stage.exit_ratio) for stage in stages)
         if total + 1e-12 < 1.0:
             raise ValueError(
-                f"{label}.stages 须至少一阶段 close_invest=True，"
-                f"或 exit_ratio 合计 ≥ 1（当前合计={total:g}）"
+                f"{label}.stages exit_ratio 合计={total:g} < 1（相对初始总仓位）"
             )
 
     @classmethod
@@ -288,9 +291,8 @@ class GoalSettings(SettingsBase):
         )
 
     def exit_price(self, stage: GoalStage, basis_price: float) -> float:
-        if basis_price <= 0:
-            raise ValueError("basis_price 须 > 0")
-        return round(basis_price * (1.0 + stage.ratio), 6)
+        # qfq 基准可为负/0；目标价=basis*(1+ratio)，不做正负校验
+        return round(float(basis_price) * (1.0 + stage.ratio), 6)
 
     def to_dict(self) -> Dict[str, Any]:
         self.apply_defaults()

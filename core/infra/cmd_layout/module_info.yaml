@@ -1,0 +1,19 @@
+name: infra.cmd_layout
+version: 0.3.0
+compatible_core_versions: ">=0.4.0"
+description: "CLI 布局辅助：为 strategy report present 提供跨平台标题、分割线、图标与图表等输出组件。"
+dependencies: []
+changelog:
+  - version: "0.3.0"
+    changes:
+      - 将 IconService 收入 cmd_layout.icon（CmdLayout.icon.get / i）
+      - 删除 core.utils.icon；调用方统一走 infra.cmd_layout
+  - version: "0.2.0"
+    changes:
+      - 新增 title namespace（banner / section）
+      - 新增 separator namespace（line / thick / star / blank）
+  - version: "0.1.0"
+    changes:
+      - 新增 CmdLayout facade 与 bar_chart namespace
+      - 支持已分桶 render / 连续样本 from_values 直方图
+      - 纯 ASCII 条形图，兼容 Windows / Linux / macOS 终端

@@ -1,26 +1,40 @@
-"""价格回测 ReportManager — version 目录与产物落盘。
+"""价格回测 ReportManager — 三报告稿 + 引擎 artifact 编排。
 
-本文件:
-- ReportManager: begin / collect / summarize / save / finalize / present
-  边界: 负责 price_factor 落盘；不负责 BE 调度或 tick 回放
+报告稿（CMD / UI / DB 同一契约）:
+- overall_report.json
+- entity_list.json
+- performance.json
+
+引擎 artifact（非报告正文）:
+- runtime_env.json / entity_ids.txt
+- entities/*_investments.csv
 """
 from __future__ import annotations
 
-import json
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TextIO, TYPE_CHECKING
 
+from core.infra.cmd_layout import CmdLayout
 from core.infra.project_context import ProjectContext
-from core.modules.strategy.core.engines.price_factor.report_manager.investments import (
-    EntityInvestments,
+from core.modules.strategy.core.engines.price_factor.report_manager.entity_list_report import (
+    EntityListReport,
+    EntityListReportHandle,
 )
 from core.modules.strategy.core.engines.price_factor.report_manager.overall_report import (
     OverallReport,
+    OverallReportHandle,
+)
+from core.modules.strategy.core.engines.price_factor.report_manager.performance_report import (
+    PerformanceReport,
+    PerformanceReportHandle,
 )
 from core.modules.strategy.core.engines.price_factor.report_manager.report_consts import (
     ReportPaths,
+)
+from core.modules.strategy.core.engines.price_factor.report_manager.report_scan import (
+    PriceCsvScan,
 )
 from core.modules.strategy.core.engines.price_factor.report_manager.runtime_env import (
     PriceRuntimeEnv,
@@ -28,33 +42,55 @@ from core.modules.strategy.core.engines.price_factor.report_manager.runtime_env 
 from core.modules.strategy.core.engines.shared.services.report_manager import (
     BaseReportManager,
 )
+from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
+    ENTITY_LIST_FILE,
+    OVERALL_REPORT_FILE,
+    PERFORMANCE_FILE,
+)
 from core.modules.strategy.core.services.data.simulation_output_recorder import (
     SimulationOutputRecorder,
 )
 
 if TYPE_CHECKING:
-    from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
-    from core.modules.strategy.core.engines.shared.data_class.simulate_session import SimulateSession
+    from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import (
+        EnumSource,
+    )
+    from core.modules.strategy.core.engines.shared.data_class.simulate_session import (
+        SimulateSession,
+    )
+
+
+@dataclass
+class SavedRunArtifacts:
+    """一次 finalize 写盘后的报告稿路径。"""
+
+    overall_report_path: Path
+    entity_list_path: Path
+    performance_path: Path
 
 
 @dataclass
 class ReportManager(BaseReportManager):
-    """价格回测产物编排。
-
-    边界:
-    - 负责: version 目录、runtime/overall/entity investments 落盘、返回 report dict
-    - 不负责: BE 调度、tick 业务回放
-    - 调用方: PriceFactorPipeline
-    """
+    """价格回测产物编排。"""
 
     strategy_key: str = ""
     strategy_path: str = ""
     version_id: int = 0
     runtime: PriceRuntimeEnv = field(default=None)  # type: ignore[assignment]
     entity_ids: List[str] = field(default_factory=list)
-    _overall_payload: Dict[str, Any] = field(default_factory=dict, init=False, repr=False)
+    overall: OverallReportHandle = field(init=False, repr=False)
+    entity_list: EntityListReportHandle = field(init=False, repr=False)
+    performance: PerformanceReportHandle = field(init=False, repr=False)
     _run_result: Any = field(default=None, init=False, repr=False)
-    _report_dict: Dict[str, Any] = field(default_factory=dict, init=False, repr=False)
+    _saved_artifacts: Optional[SavedRunArtifacts] = field(
+        default=None, init=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self.overall = OverallReportHandle(self)
+        self.entity_list = EntityListReportHandle(self)
+        self.performance = PerformanceReportHandle(self)
 
     @classmethod
     def begin(
@@ -116,51 +152,31 @@ class ReportManager(BaseReportManager):
             entity_ids=list(runtime.entity_ids),
         )
 
-    def collect(self, item: Any) -> None:
-        """可选：``(entity_id, rows)`` 写入 entity investments CSV。"""
-        if not isinstance(item, (tuple, list)) or len(item) != 2:
-            return
-        entity_id, rows = item[0], item[1]
-        self.save_entity_investments(str(entity_id), list(rows or []))
-
-    def summarize(self) -> Dict[str, Any]:
-        """扫描 entity CSV → overall payload（未落盘）。"""
-        self._overall_payload = OverallReport.build(
+    def summarize(self) -> OverallReportHandle:
+        """构建 performance + overall + entity_list（落盘前）。"""
+        self.performance.build_from_run(self._run_result)
+        scan = PriceCsvScan.collect(
             self.output_dir,
-            entity_ids=self.entity_ids,
-            period=dict(self.runtime.period or {}),
-            enum_version_id=self.runtime.enum_version_id,
+            entity_ids=list(self.entity_ids),
+            strategy_key=self.strategy_key,
+            version_id=self.version_id,
         )
-        return self._overall_payload
+        self.overall.build_from_scan(scan)
+        self.entity_list.build_from_scan(scan)
+        return self.overall
 
-    def save(self) -> Dict[str, Any]:
-        """写 overall + performance stub；组装可缓存 report dict。"""
-        if not self._overall_payload:
-            self.summarize()
-        OverallReport.save_payload(self.output_dir, self._overall_payload)
-        self._write_performance_stub(self._run_result)
-
-        success = True
-        run_result = self._run_result
-        if run_result is not None:
-            success = bool(getattr(run_result, "success", True))
-
-        self._report_dict = {
-            "success": success,
-            "output_dir": str(self.output_dir),
-            "version_id": int(self.version_id),
-            "strategy_key": self.strategy_key,
-            "strategy_path": self.strategy_path,
-            "enum_version_id": self.runtime.enum_version_id,
-            "period": dict(self.runtime.period or {}),
-            "entity_count": len(self.entity_ids),
-            "summary": self._overall_payload.get("summary") or {},
-            "total_jobs": int(getattr(run_result, "total_jobs", 0) or 0),
-            "completed_jobs": int(getattr(run_result, "completed_jobs", 0) or 0),
-            "failed_jobs": int(getattr(run_result, "failed_jobs", 0) or 0),
-            "elapsed_seconds": float(getattr(run_result, "elapsed_seconds", 0.0) or 0.0),
-        }
-        return self._report_dict
+    def save(self) -> SavedRunArtifacts:
+        """写三份报告稿。"""
+        performance_path = self.performance.save()
+        overall_report_path = self.overall.save()
+        entity_list_path = self.entity_list.save()
+        artifacts = SavedRunArtifacts(
+            overall_report_path=overall_report_path,
+            entity_list_path=entity_list_path,
+            performance_path=performance_path,
+        )
+        self._saved_artifacts = artifacts
+        return artifacts
 
     def finalize(
         self,
@@ -170,77 +186,61 @@ class ReportManager(BaseReportManager):
         present: bool = False,
         **kwargs: Any,
     ) -> Dict[str, Any]:
-        """聚合 entities CSV → overall；返回可供缓存的 report dict。"""
+        """聚合 CSV → 三稿；返回可供缓存的 UI 契约 dict。"""
         _ = data
         _ = kwargs
         self._run_result = run_result
         self.summarize()
-        result = self.save()
+        self.save()
+        result = self.to_cache_dict()
         if present:
             self.present()
         return result
 
+    def to_cache_dict(self) -> Dict[str, Any]:
+        """DB ``result_report.price_factor`` / pipeline 返回值。"""
+        overall = self.overall.report
+        if overall is None:
+            overall = OverallReport.load(self.output_dir)
+        perf = None
+        try:
+            perf = PerformanceReport.load(self.output_dir)
+        except Exception:
+            perf = None
+        success = True
+        if self._run_result is not None:
+            success = bool(getattr(self._run_result, "success", True))
+        payload = overall.to_ui_dict()
+        payload["success"] = success
+        payload["output_dir"] = str(self.output_dir)
+        payload["summary"] = overall.summary.to_dict()
+        if perf is not None:
+            payload["elapsed_seconds"] = perf.elapsed_seconds
+            payload["total_jobs"] = perf.total_jobs
+            payload["completed_jobs"] = perf.completed_jobs
+            payload["failed_jobs"] = perf.failed_jobs
+        return payload
+
     def present(self, stream: Optional[TextIO] = None) -> None:
+        """CMD：依次 present 三份报告稿。"""
         out = stream or sys.stdout
-        period = dict(self.runtime.period or {})
-        summary = dict((self._report_dict or self._overall_payload or {}).get("summary") or {})
-        if not summary and ReportPaths.overall_report_path(self.output_dir).is_file():
-            try:
-                summary = dict(
-                    json.loads(
-                        ReportPaths.overall_report_path(self.output_dir).read_text(
-                            encoding="utf-8"
-                        )
-                    ).get("summary")
-                    or {}
-                )
-            except Exception:
-                summary = {}
+        icon = CmdLayout.icon.get
+        OverallReport.load(self.output_dir).present(stream=out)
+        CmdLayout.separator.print_line(width=60, stream=out)
+        EntityListReport.load(self.output_dir).present(stream=out)
+        CmdLayout.separator.print_line(width=60, stream=out)
+        try:
+            PerformanceReport.load(self.output_dir).present(stream=out)
+        except Exception:
+            CmdLayout.title.print_section(f"{icon('clock')} 性能", stream=out)
+            print(f"{icon('warning')} 缺少 {PERFORMANCE_FILE}", file=out, flush=True)
+        CmdLayout.separator.print_line(width=60, stream=out)
+        print(f"{icon('info')} 产物: {self.output_dir}", file=out, flush=True)
         print(
-            f"price: {self.strategy_key} v{self.version_id}  "
-            f"path={self.strategy_path or '-'}  "
-            f"entities={len(self.entity_ids)}  "
-            f"period={period.get('start_date', '')}~{period.get('end_date', '')}",
+            f"   reports: {OVERALL_REPORT_FILE}, {ENTITY_LIST_FILE}, {PERFORMANCE_FILE}",
             file=out,
             flush=True,
         )
-        print(
-            f"summary: investments={summary.get('total_investments', 0)}  "
-            f"win={summary.get('total_win', 0)}  "
-            f"loss={summary.get('total_loss', 0)}",
-            file=out,
-            flush=True,
-        )
-        print(f"产物目录: {self.output_dir}", file=out, flush=True)
-
-    def save_entity_investments(
-        self,
-        entity_id: str,
-        rows: List[Any],
-    ) -> Path:
-        """供 worker / tick 回放写入每股投资记录。"""
-        return EntityInvestments.save(self.output_dir, entity_id, rows)
-
-    def _write_performance_stub(self, run_result: Any) -> None:
-        path = ReportPaths.performance_path(self.output_dir)
-        payload = {
-            "elapsed_seconds": float(getattr(run_result, "elapsed_seconds", 0.0) or 0.0)
-            if run_result is not None
-            else 0.0,
-            "total_jobs": int(getattr(run_result, "total_jobs", 0) or 0)
-            if run_result is not None
-            else 0,
-            "completed_jobs": int(getattr(run_result, "completed_jobs", 0) or 0)
-            if run_result is not None
-            else 0,
-            "failed_jobs": int(getattr(run_result, "failed_jobs", 0) or 0)
-            if run_result is not None
-            else 0,
-        }
-        path.write_text(
-            json.dumps(payload, indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
 
 
-__all__ = ["ReportManager"]
+__all__ = ["ReportManager", "SavedRunArtifacts"]

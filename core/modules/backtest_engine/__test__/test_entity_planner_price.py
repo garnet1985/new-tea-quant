@@ -7,10 +7,11 @@ import pytest
 
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.modules.backtest_engine.core.performance.settings import resolve_entity_based_performance
-from core.modules.backtest_engine.core.schedule.entity_based.planner import EntityPlanner
-from core.modules.strategy.services.execution.worker_profile import (
-    profile_price_factor_dispatch_config,
+from core.modules.backtest_engine.core.performance.worker_profile import (
+    WorkerProfiles,
+    profile_dispatch_config,
 )
+from core.modules.backtest_engine.core.schedule.entity_based.planner import EntityPlanner
 
 
 def _engine_jobs(n: int) -> list[dict]:
@@ -25,7 +26,9 @@ def _engine_jobs(n: int) -> list[dict]:
 
 
 def test_price_explicit_entities_per_job_from_dispatch() -> None:
-    performance = resolve_entity_based_performance(profile_price_factor_dispatch_config())
+    performance = resolve_entity_based_performance(
+        profile_dispatch_config(WorkerProfiles.PRICE_FACTOR)
+    )
     assert performance["entities_per_job"] == 1000
     assert performance.get("dispatch_probe") is False
 

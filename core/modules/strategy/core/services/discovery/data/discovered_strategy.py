@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
 
 from core.infra.discovery import Discovery
-from core.modules.strategy.core.services.discovery.worker_loader import StrategyWorkerLoader
+from core.modules.strategy.core.services.discovery.hooks_loader import StrategyHooksLoader
 
 if TYPE_CHECKING:
     from core.modules.strategy.core.hooks.base import StrategyHooks
@@ -95,7 +95,7 @@ class StrategyDraft:
 
     def _validate_hooks(self) -> None:
         """验证strategy.py中的hooks类。"""
-        hooks_result = StrategyWorkerLoader.load_hooks_class(
+        hooks_result = StrategyHooksLoader.load_hooks_class(
             self.strategy_file.parent, self.unique_relative_path
         )
         if hooks_result is None:
@@ -142,7 +142,7 @@ class StrategyInfo(StrategyDraft):
         )
 
         # 加载hooks
-        hooks_result = StrategyWorkerLoader.load_hooks_class(
+        hooks_result = StrategyHooksLoader.load_hooks_class(
             draft.strategy_file.parent, draft.unique_relative_path
         )
         if hooks_result is None:

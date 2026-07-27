@@ -11,6 +11,7 @@ from typing import List
 from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
     ENTITIES_SUBDIR,
     ENTITY_IDS_FILE,
+    ENTITY_LIST_FILE,
     GOAL_ACHIEVEMENTS_SUFFIX,
     OVERALL_REPORT_FILE,
     PERFORMANCE_FILE,
@@ -37,6 +38,10 @@ class ArtifactPaths:
     @staticmethod
     def overall_report_path(output_dir: Path) -> Path:
         return Path(output_dir) / OVERALL_REPORT_FILE
+
+    @staticmethod
+    def entity_list_path(output_dir: Path) -> Path:
+        return Path(output_dir) / ENTITY_LIST_FILE
 
     @staticmethod
     def performance_path(output_dir: Path) -> Path:

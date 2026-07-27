@@ -16,7 +16,7 @@ from datetime import date
 from pathlib import Path
 from typing import List, Sequence, Tuple
 
-from core.utils import i as icon
+from core.infra.cmd_layout import i as icon
 from devtools.quick_tools.changelog_sync import (
     compare_system_new_features,
     sync_version_metadata_from_changelog,

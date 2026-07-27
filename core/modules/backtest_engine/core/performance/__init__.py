@@ -1,4 +1,4 @@
-"""Performance pillar: dispatch settings + worker profiling."""
+"""Performance pillar: dispatch settings + worker profiling + worker.json profile."""
 
 from core.modules.backtest_engine.core.performance.profiler import WorkerTaskProfiler
 from core.modules.backtest_engine.core.performance.settings import (

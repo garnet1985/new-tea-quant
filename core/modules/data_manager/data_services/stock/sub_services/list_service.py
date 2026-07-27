@@ -94,12 +94,14 @@ class ListService(BaseDataService):
         row = self.load_single(stock_id)
         if not row:
             return None
+        # 出口即清洗：0 / 0.0 占位符 → 空，避免策略侧误判已退市
+        delist = self._normalize_delist_date(row.get("delist_date"))
         return {
             "id": row.get("id"),
             "name": row.get("name"),
             "list_status": row.get("list_status"),
             "list_date": row.get("list_date"),
-            "delist_date": row.get("delist_date"),
+            "delist_date": delist or "",
         }
 
     # ---------- 全表 / 按 status ----------

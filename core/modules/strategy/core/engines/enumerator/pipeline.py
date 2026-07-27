@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Tuple, Type
 
-from core.infra.job_pipeline.profile import (
+from core.modules.backtest_engine.core.performance.worker_profile import (
     WorkerProfiles,
     profile_calendar_slice_config,
     resolve_entity_based_performance_for_profile,

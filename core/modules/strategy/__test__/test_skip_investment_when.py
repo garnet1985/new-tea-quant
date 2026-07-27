@@ -146,5 +146,5 @@ def test_portfolio_build_events_skips_matching_status(tmp_path: Path) -> None:
             _base_simulation(skip_enter_when=["st"])
         ),
     )
-    assert sorted(opps.keys()) == ["2", "3"]
+    assert sorted(opps.keys()) == ["600000.SH:2", "600000.SH:3"]
     assert {e.investment_id for e in events if e.is_buy()} == {"2", "3"}

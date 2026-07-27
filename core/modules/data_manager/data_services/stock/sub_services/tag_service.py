@@ -70,15 +70,20 @@ class TagDataService(BaseDataService):
         self,
         scenario_name: str,
         display_name: str = None,
-        description: str = None
+        description: str = None,
+        *,
+        key: str = None,
+        attach_to_data_key: str = None,
     ) -> Dict[str, Any]:
         """
         创建新的 scenario
         
         Args:
-            scenario_name: Scenario 名称
+            scenario_name: Scenario 名称（系统路径 ID）
             display_name: 显示名称（可选，默认使用 scenario_name）
             description: 描述（可选，默认空字符串）
+            key: CLI alias（meta.key）
+            attach_to_data_key: Tag 贴附的 data_key
         
         Returns:
             Dict[str, Any]: 新创建的 scenario 记录
@@ -88,6 +93,12 @@ class TagDataService(BaseDataService):
             'display_name': display_name or scenario_name,
             'description': description or ''
         }
+        if key is not None:
+            scenario_data['key'] = str(key or '').strip() or None
+        if attach_to_data_key is not None:
+            scenario_data['attach_to_data_key'] = (
+                str(attach_to_data_key or '').strip() or None
+            )
         
         # 统一通过 DataService 封装 upsert 规则：按唯一 name 约束
         self._tag_scenario_model.upsert_many(
@@ -105,7 +116,10 @@ class TagDataService(BaseDataService):
         scenario_name: str = None,
         display_name: str = None,
         description: str = None,
-        current_scenario: Dict[str, Any] = None
+        current_scenario: Dict[str, Any] = None,
+        *,
+        key: str = None,
+        attach_to_data_key: str = None,
     ) -> Dict[str, Any]:
         """
         更新 scenario 信息
@@ -116,6 +130,8 @@ class TagDataService(BaseDataService):
             display_name: 显示名称（可选）
             description: 描述（可选）
             current_scenario: 当前的 scenario 数据（可选，如果提供则避免额外查询）
+            key: CLI alias（meta.key）
+            attach_to_data_key: Tag 贴附的 data_key
         
         Returns:
             Dict[str, Any]: 更新后的 scenario 记录
@@ -127,6 +143,12 @@ class TagDataService(BaseDataService):
             update_data['display_name'] = display_name
         if description is not None:
             update_data['description'] = description
+        if key is not None:
+            update_data['key'] = str(key or '').strip() or None
+        if attach_to_data_key is not None:
+            update_data['attach_to_data_key'] = (
+                str(attach_to_data_key or '').strip() or None
+            )
         
         # SysTagScenarioModel 未实现通用 update()；这里用 upsert_many 统一覆盖（按主键 id）。
         # 语义：仅更新传入字段，其余字段保持 current_scenario 的值。

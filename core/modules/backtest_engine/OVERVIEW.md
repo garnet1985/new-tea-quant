@@ -28,7 +28,7 @@ from core.modules.backtest_engine.core.performance.settings import (
 )
 
 # 应用方 dispatch 配置（见 tag/settings/dispatch.yaml 等）
-from core.modules.tag.settings.worker_profile import profile_tag_entity_timeline_config
+from core.modules.tag.settings.worker_profile import profile_tag_entity_based_config
 
 def execute_fn(ctx: JobContext) -> dict:
     # 子进程 / 主进程内执行单 job 逻辑
@@ -39,7 +39,7 @@ jobs = [{"id": "000001.SZ", "payload": {"entity_id": "000001.SZ"}}]
 result = BacktestEngine.entity_based.run(
     jobs,
     execute_fn=execute_fn,
-    performance=resolve_entity_based_performance(profile_tag_entity_timeline_config()),
+    performance=resolve_entity_based_performance(profile_tag_entity_based_config()),
     task_name="tag:demo",
     callbacks=RunCallbacks(on_task_result=lambda report, progress: None),
     enable_progress_display=True,
@@ -104,7 +104,7 @@ engine base defaults（EntityBasedPerformance / SliceBasedPerformance）
 示例（tag timeline）：
 
 ```python
-resolve_entity_based_performance(profile_tag_entity_timeline_config())
+resolve_entity_based_performance(profile_tag_entity_based_config())
 ```
 
 ---

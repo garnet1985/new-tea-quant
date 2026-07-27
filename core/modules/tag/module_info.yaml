@@ -1,14 +1,19 @@
 name: modules.tag
-version: 0.3.2
-compatible_core_versions: ">=0.4.0"
-description: "标签资产层：按场景（Scenario）发现配置、多进程执行 TagWorker，基于 DataContract + DataCursor 按 as_of 切片计算并批量落库。"
+version: 0.4.0
+compatible_core_versions: ">=0.4.4"
+description: "标签资产层：Tag facade 提供 discovery / execute；entity_based / slice_based 经 BacktestEngine 计算并落库；BFF 经 core.bff_support。"
 dependencies:
   - modules.data_manager
   - modules.data_contract
-  - modules.data_cursor
   - modules.backtest_engine
   - infra.project_context
 changelog:
+  - version: "0.4.0"
+    changes:
+      - 标准模块根契约：tag.py Facade、api.yaml、contracts.py、glossary.yaml
+      - launcher 迁入 core/bff_support（TagCatalog / TagRunLauncher）
+      - incremental 水位改为 last_calculated_end（非 max(as_of)）
+      - 删除旧 engines/timeline/sliced/BaseTagWorker 路径
   - version: "0.3.2"
     changes:
       - Tag timeline / calendar_slice 执行迁移至 BacktestEngine

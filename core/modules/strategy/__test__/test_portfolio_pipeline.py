@@ -125,7 +125,7 @@ def test_build_events_uses_raw_buy_price_not_qfq(tmp_path: Path):
     buy, sell = events
     assert buy.price == 20.0
     assert sell.price == 22.0
-    dumped = opportunities["1"].to_dict()
+    dumped = opportunities["600000.SH:1"].to_dict()
     assert "weighted_roi" not in dumped
     assert "result" not in dumped
 
@@ -138,17 +138,20 @@ def test_entry_selector_picks_in_order_within_capacity():
         _opp("c", "600002.SH"),
     ]
     picked = selector.pick_ids(available, held_entity_ids=set())
-    assert picked == ["a", "b"]
+    assert picked == ["600000.SH:a", "600001.SH:b"]
 
     picked2 = selector.pick_ids(available, held_entity_ids={"600000.SH"})
     # remaining = 2 - 1 = 1 → 只再接 1 个
-    assert picked2 == ["b"]
+    assert picked2 == ["600001.SH:b"]
 
 
 def test_entry_selector_skips_already_held_entity():
     selector = EntrySelector(max_portfolio_size=5)
     available = [_opp("a", "600000.SH"), _opp("b", "600000.SH"), _opp("c", "600001.SH")]
-    assert selector.pick_ids(available, held_entity_ids=set()) == ["a", "c"]
+    assert selector.pick_ids(available, held_entity_ids=set()) == [
+        "600000.SH:a",
+        "600001.SH:c",
+    ]
 
 
 def test_default_enter_selection_respects_max_portfolio_size():
@@ -227,4 +230,6 @@ def test_on_pick_portfolio_member_override_filters_by_id():
 
 def test_normalize_selected_ids_rejects_unknown():
     available = [_opp("a", "x")]
-    assert EnterSelection.normalize_selected_ids(available, ["a", "ghost", "a"]) == ["a"]
+    assert EnterSelection.normalize_selected_ids(available, ["a", "ghost", "a"]) == [
+        "x:a"
+    ]

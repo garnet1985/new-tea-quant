@@ -1,25 +1,34 @@
-"""
-Tag 系统：场景化标签计算与落库。
+"""Tag 模块公开 API。"""
 
-公开 API：
-- TagManager.execute — 唯一执行入口
-- BaseTagWorker — userspace tag_worker 基类
-"""
+from typing import Any
 
-from core.modules.tag.engines.shared.base_worker import BaseTagWorker
-from core.modules.tag.tag_manager import TagManager
-from core.modules.tag.enums import TagUpdateMode
-from core.modules.tag.config import get_scenarios_root
-from core.modules.tag.engines.sliced.types import (
-    CalendarAsOfContext,
+from core.modules.tag.contracts import (
     TagCalendarAsOfResult,
+    TagContext,
+    TagData,
+    TagExecutionMode,
+    TagHooks,
+    TagInfo,
+    TagUpdateMode,
 )
+from core.modules.tag.tag import Tag
 
 __all__ = [
-    "BaseTagWorker",
-    "TagManager",
-    "TagUpdateMode",
-    "get_scenarios_root",
-    "CalendarAsOfContext",
+    "Tag",
     "TagCalendarAsOfResult",
+    "TagContext",
+    "TagData",
+    "TagExecutionMode",
+    "TagHooks",
+    "TagInfo",
+    "TagUpdateMode",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    # AUDIT: CLI / run_tag 仍用 TagManager 名；新代码用 Tag
+    if name == "TagManager":
+        from core.modules.tag.tag_manager import TagManager
+
+        return TagManager
+    raise AttributeError(f"module {__name__!r} has no attribute {name}")

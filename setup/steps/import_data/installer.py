@@ -8,7 +8,7 @@ Init Data 导入流程（必跑步骤的执行体）。
 """
 from __future__ import annotations
 
-from core.utils.icon.icon_service import IconService
+from core.infra.cmd_layout import IconService
 
 import hashlib
 import json

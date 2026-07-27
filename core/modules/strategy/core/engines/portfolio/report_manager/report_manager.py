@@ -1,25 +1,49 @@
-"""Portfolio ReportManager — version 目录 + trades / equity / overall。
+"""Portfolio ReportManager — 三报告稿 + 引擎 artifact。
 
-生命周期: begin → collect* → summarize → save → present / finalize
+报告稿（CMD / UI / DB 同一契约）:
+- overall_report.json
+- entity_list.json
+- performance.json
+
+引擎 artifact（非报告正文）:
+- runtime_env.json
+- trades.json / equity_curve.json
 """
 from __future__ import annotations
 
 import sys
+import time
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, TextIO, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TextIO, TYPE_CHECKING
 
+from core.infra.cmd_layout import CmdLayout
 from core.infra.project_context import ProjectContext
-from core.modules.strategy.core.engines.portfolio.report_manager.portfolio_summary import (
-    PortfolioSummary,
+from core.modules.strategy.core.engines.portfolio.report_manager.entity_list_report import (
+    EntityListReport,
+    EntityListReportHandle,
+)
+from core.modules.strategy.core.engines.portfolio.report_manager.overall_report import (
+    OverallReport,
+    OverallReportHandle,
+)
+from core.modules.strategy.core.engines.portfolio.report_manager.performance_report import (
+    PerformanceReport,
+    PerformanceReportHandle,
+)
+from core.modules.strategy.core.engines.portfolio.report_manager.report_consts import (
+    ReportPaths,
+)
+from core.modules.strategy.core.engines.portfolio.report_manager.runtime_env import (
+    PortfolioRuntimeEnv,
 )
 from core.modules.strategy.core.engines.shared.services.report_manager import (
     BaseReportManager,
 )
 from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
+    ENTITY_LIST_FILE,
     OVERALL_REPORT_FILE,
-    RUNTIME_ENV_FILE,
+    PERFORMANCE_FILE,
 )
 from core.modules.strategy.core.engines.shared.services.simulation_output.io import (
     ArtifactIO,
@@ -27,7 +51,6 @@ from core.modules.strategy.core.engines.shared.services.simulation_output.io imp
 from core.modules.strategy.core.services.data.simulation_output_recorder import (
     SimulationOutputRecorder,
 )
-from core.system import get_version
 
 if TYPE_CHECKING:
     from core.modules.strategy.core.engines.portfolio.simulator import PortfolioSimResult
@@ -38,32 +61,42 @@ if TYPE_CHECKING:
         EnumSource,
     )
 
-_TRADES_FILE = "trades.json"
-_EQUITY_FILE = "equity_curve.json"
 _DEFAULT_MARKET_PROFILE = "china_a_stock"
 
 
 @dataclass
-class ReportManager(BaseReportManager):
-    """Portfolio 产物编排。
+class SavedRunArtifacts:
+    overall_report_path: Path
+    entity_list_path: Path
+    performance_path: Path
 
-    边界:
-    - 负责: version 目录、runtime/overall/trades/equity 落盘、present
-    - 不负责: 事件构建 / 账户回放
-    - 调用方: PortfolioPipeline
-    """
+
+@dataclass
+class ReportManager(BaseReportManager):
+    """Portfolio 产物编排。"""
 
     strategy_key: str = ""
     strategy_path: str = ""
     version_id: int = 0
     enum_version_id: str = ""
     market_profile: str = _DEFAULT_MARKET_PROFILE
+    overall: OverallReportHandle = field(init=False, repr=False)
+    entity_list: EntityListReportHandle = field(init=False, repr=False)
+    performance: PerformanceReportHandle = field(init=False, repr=False)
     _sim: Any = field(default=None, init=False, repr=False)
     _period: Dict[str, str] = field(default_factory=dict, init=False, repr=False)
     _save_trades: bool = field(default=True, init=False, repr=False)
     _save_equity_curve: bool = field(default=True, init=False, repr=False)
-    _summary: Optional[PortfolioSummary] = field(default=None, init=False, repr=False)
-    _report_dict: Dict[str, Any] = field(default_factory=dict, init=False, repr=False)
+    _elapsed_seconds: float = field(default=0.0, init=False, repr=False)
+    _saved_artifacts: Optional[SavedRunArtifacts] = field(
+        default=None, init=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self.overall = OverallReportHandle(self)
+        self.entity_list = EntityListReportHandle(self)
+        self.performance = PerformanceReportHandle(self)
 
     @classmethod
     def begin(
@@ -71,7 +104,6 @@ class ReportManager(BaseReportManager):
         ctx: "SimulateSession",
         data: "EnumSource",
     ) -> "ReportManager":
-        """分配 ``simulations/portfolio/{strategy}/{version}``，写 runtime。"""
         info = ctx.strategy_info
         strategy_key = str(getattr(info, "key", "") or "").strip()
         strategy_path = str(
@@ -90,86 +122,79 @@ class ReportManager(BaseReportManager):
         market_profile = (
             str(data.runtime.market_profile or "").strip() or _DEFAULT_MARKET_PROFILE
         )
-        runtime = {
-            "strategy_key": strategy_key or strategy_path,
-            "strategy_path": strategy_path,
-            "version_id": int(version_id),
-            "enum_version_id": str(data.version_id),
-            "enum_output_dir": str(data.output_dir),
-            "settings_fp": str(ctx.settings_fp or ""),
-            "env_fp": str(ctx.env_fp or ""),
-            "period": {
+        runtime = PortfolioRuntimeEnv(
+            strategy_key=strategy_key or strategy_path,
+            strategy_path=strategy_path,
+            version_id=int(version_id),
+            enum_version_id=str(data.version_id),
+            enum_output_dir=str(data.output_dir),
+            settings_fp=str(ctx.settings_fp or ""),
+            env_fp=str(ctx.env_fp or ""),
+            period={
                 "start_date": data.start_date,
                 "end_date": data.end_date,
             },
-            "entity_ids": list(data.entity_ids),
-            "entity_count": len(data.entity_ids),
-            "market_profile": market_profile,
-            "engine_version": get_version(),
-            "created_at": datetime.now().isoformat(),
-            "kind": "portfolio",
-        }
-        output_dir.mkdir(parents=True, exist_ok=True)
-        ArtifactIO.write_json(output_dir / RUNTIME_ENV_FILE, runtime)
+            entity_ids=list(data.entity_ids),
+            market_profile=market_profile,
+        )
+        runtime.save(output_dir)
         return cls(
             output_dir=output_dir,
-            strategy_key=strategy_key or strategy_path,
+            strategy_key=runtime.strategy_key,
             strategy_path=strategy_path,
             version_id=int(version_id),
             enum_version_id=str(data.version_id),
             market_profile=market_profile,
         )
 
-    def summarize(self) -> PortfolioSummary:
-        if self._sim is None:
-            self._summary = PortfolioSummary(period=dict(self._period or {}))
-            return self._summary
-        self._summary = PortfolioSummary.from_sim(
-            self._sim, period=dict(self._period or {})
+    @classmethod
+    def from_output_dir(cls, output_dir: Path) -> "ReportManager":
+        runtime = PortfolioRuntimeEnv.load(output_dir)
+        mgr = cls(
+            output_dir=Path(output_dir),
+            strategy_key=runtime.strategy_key,
+            strategy_path=runtime.strategy_path or runtime.strategy_key,
+            version_id=int(runtime.version_id),
+            enum_version_id=str(runtime.enum_version_id),
+            market_profile=str(runtime.market_profile or _DEFAULT_MARKET_PROFILE),
         )
-        return self._summary
+        mgr._period = dict(runtime.period or {})
+        return mgr
 
-    def save(self) -> Dict[str, Any]:
+    def summarize(self) -> OverallReportHandle:
         sim = self._sim
         if sim is None:
-            return {}
+            raise RuntimeError("portfolio summarize 需要先 finalize(sim)")
+        self.performance.build(elapsed_seconds=self._elapsed_seconds)
+        self.overall.build_from_sim(sim)
+        self.entity_list.build_from_trades(list(sim.trades or []))
+        return self.overall
+
+    def save(self) -> SavedRunArtifacts:
+        sim = self._sim
+        if sim is None:
+            raise RuntimeError("portfolio save 需要先 finalize(sim)")
         self.output_dir.mkdir(parents=True, exist_ok=True)
         if self._save_trades:
             ArtifactIO.write_json(
-                self.output_dir / _TRADES_FILE,
+                ReportPaths.trades_path(self.output_dir),
                 [t.to_dict() for t in sim.trades],
             )
         if self._save_equity_curve:
             ArtifactIO.write_json(
-                self.output_dir / _EQUITY_FILE,
+                ReportPaths.equity_curve_path(self.output_dir),
                 list(sim.equity_curve),
             )
-        summary = self._summary or self.summarize()
-        overall = {
-            "summary": summary.to_dict(),
-            "period": dict(self._period or {}),
-            "enum_version_id": self.enum_version_id,
-            "version_id": int(self.version_id),
-        }
-        ArtifactIO.write_json(self.output_dir / OVERALL_REPORT_FILE, overall)
-        self._report_dict = {
-            "success": bool(sim.success),
-            "output_dir": str(self.output_dir),
-            "version_id": int(self.version_id),
-            "strategy_key": self.strategy_key,
-            "strategy_path": self.strategy_path,
-            "enum_version_id": self.enum_version_id,
-            "period": dict(self._period or {}),
-            "summary": summary.to_dict(),
-            "trade_count": len(sim.trades),
-            "skipped_buys": int(sim.skipped_buys),
-            "skipped_sells": int(sim.skipped_sells),
-            "buy_participation_skip": int(sim.buy_participation_skip),
-            "buy_participation_clipped": int(sim.buy_participation_clipped),
-            "sell_participation_skip": int(sim.sell_participation_skip),
-            "sell_participation_clipped": int(sim.sell_participation_clipped),
-        }
-        return self._report_dict
+        performance_path = self.performance.save()
+        overall_report_path = self.overall.save()
+        entity_list_path = self.entity_list.save()
+        artifacts = SavedRunArtifacts(
+            overall_report_path=overall_report_path,
+            entity_list_path=entity_list_path,
+            performance_path=performance_path,
+        )
+        self._saved_artifacts = artifacts
+        return artifacts
 
     def finalize(
         self,
@@ -182,42 +207,60 @@ class ReportManager(BaseReportManager):
         **kwargs: Any,
     ) -> Dict[str, Any]:
         _ = kwargs
+        started = time.perf_counter()
         self._sim = sim
         self._period = dict(period or {})
         self._save_trades = bool(save_trades)
         self._save_equity_curve = bool(save_equity_curve)
         self.summarize()
-        result = self.save()
+        self._elapsed_seconds = float(time.perf_counter() - started)
+        self.performance.build(elapsed_seconds=self._elapsed_seconds)
+        self.save()
+        result = self.to_cache_dict()
         if present:
             self.present()
         return result
 
+    def to_cache_dict(self) -> Dict[str, Any]:
+        overall = self.overall.report
+        if overall is None:
+            overall = OverallReport.load(self.output_dir)
+        entity = self.entity_list.report
+        if entity is None:
+            try:
+                entity = EntityListReport.load(self.output_dir)
+            except Exception:
+                entity = None
+        success = True
+        if self._sim is not None:
+            success = bool(getattr(self._sim, "success", True))
+        payload = overall.to_ui_dict()
+        payload["success"] = success
+        payload["output_dir"] = str(self.output_dir)
+        payload["summary"] = overall.summary.to_dict()
+        if entity is not None:
+            payload["stockRows"] = entity.to_ui_rows()
+        return payload
+
     def present(self, stream: Optional[TextIO] = None) -> None:
         out = stream or sys.stdout
-        summary = self._summary
-        summary_dict = (
-            summary.to_dict()
-            if summary is not None
-            else dict((self._report_dict or {}).get("summary") or {})
-        )
-        period = dict(self._period or summary_dict.get("period") or {})
+        icon = CmdLayout.icon.get
+        OverallReport.load(self.output_dir).present(stream=out)
+        CmdLayout.separator.print_line(width=60, stream=out)
+        EntityListReport.load(self.output_dir).present(stream=out)
+        CmdLayout.separator.print_line(width=60, stream=out)
+        try:
+            PerformanceReport.load(self.output_dir).present(stream=out)
+        except Exception:
+            CmdLayout.title.print_section(f"{icon('clock')} 性能", stream=out)
+            print(f"{icon('warning')} 缺少 {PERFORMANCE_FILE}", file=out, flush=True)
+        CmdLayout.separator.print_line(width=60, stream=out)
+        print(f"{icon('info')} 产物: {self.output_dir}", file=out, flush=True)
         print(
-            f"portfolio: {self.strategy_key} v{self.version_id}  "
-            f"path={self.strategy_path or '-'}  "
-            f"period={period.get('start_date', '')}~{period.get('end_date', '')}",
+            f"   reports: {OVERALL_REPORT_FILE}, {ENTITY_LIST_FILE}, {PERFORMANCE_FILE}",
             file=out,
             flush=True,
         )
-        print(
-            f"capital: {summary_dict.get('initial_capital', '?')} → "
-            f"{summary_dict.get('final_equity', '?')}  "
-            f"return={summary_dict.get('total_return', '?')}  "
-            f"trades={summary_dict.get('total_trades', 0)}  "
-            f"win_rate={summary_dict.get('win_rate', '?')}",
-            file=out,
-            flush=True,
-        )
-        print(f"产物目录: {self.output_dir}", file=out, flush=True)
 
 
-__all__ = ["ReportManager"]
+__all__ = ["ReportManager", "SavedRunArtifacts"]

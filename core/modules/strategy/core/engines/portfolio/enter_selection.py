@@ -47,6 +47,26 @@ class EntrySelector:
             return ""
         return str(getattr(stock, "id", "") or "").strip()
 
+    @classmethod
+    def selection_key(cls, entity_id: str, investment_id: str) -> str:
+        """跨股唯一键（裸 investment_id 会在多标的间碰撞）。"""
+        return f"{str(entity_id or '').strip()}:{str(investment_id or '').strip()}"
+
+    @classmethod
+    def opportunity_selection_key(cls, opportunity: Opportunity) -> str:
+        oid = cls.opportunity_id(opportunity)
+        eid = cls.entity_id(opportunity)
+        if ":" in oid:
+            return oid
+        return cls.selection_key(eid, oid)
+
+    @classmethod
+    def event_selection_key(cls, event: PortfolioEvent) -> str:
+        return cls.selection_key(
+            str(event.entity_id or "").strip(),
+            str(event.investment_id or "").strip(),
+        )
+
     def remaining_slots(self, held_entity_ids: Set[str]) -> int:
         held = {str(x or "").strip() for x in held_entity_ids if str(x or "").strip()}
         return max(0, int(self.max_portfolio_size) - len(held))
@@ -91,9 +111,9 @@ class EntrySelector:
         held_entity_ids: Optional[Set[str]] = None,
     ) -> List[str]:
         return [
-            self.opportunity_id(opp)
+            self.opportunity_selection_key(opp)
             for opp in self.pick(available, held_entity_ids=held_entity_ids)
-            if self.opportunity_id(opp)
+            if self.opportunity_selection_key(opp)
         ]
 
     def account_snapshot(self, held_entity_ids: Set[str]) -> Dict[str, Any]:
@@ -139,18 +159,25 @@ class EnterSelection:
         available: Sequence[Opportunity],
         selected: Optional[Sequence[Any]],
     ) -> List[str]:
-        """将钩子返回值规范为 opportunity_id 列表（仅保留当日 available 内的 id）。"""
+        """将钩子返回值规范为 selection_key 列表（仅保留当日 available 内的 id）。"""
         available_ids = {
-            EntrySelector.opportunity_id(opp)
+            EntrySelector.opportunity_selection_key(opp)
             for opp in available
-            if EntrySelector.opportunity_id(opp)
+            if EntrySelector.opportunity_selection_key(opp)
         }
+        # 兼容钩子只返回裸 investment_id
+        bare_to_keys: Dict[str, List[str]] = {}
+        for opp in available or []:
+            bare = EntrySelector.opportunity_id(opp)
+            key = EntrySelector.opportunity_selection_key(opp)
+            if bare and key:
+                bare_to_keys.setdefault(bare, []).append(key)
         out: List[str] = []
         seen: Set[str] = set()
         for item in selected or []:
             oid = ""
             if isinstance(item, Opportunity):
-                oid = EntrySelector.opportunity_id(item)
+                oid = EntrySelector.opportunity_selection_key(item)
             elif isinstance(item, str):
                 oid = item.strip()
             elif isinstance(item, dict):
@@ -158,6 +185,16 @@ class EnterSelection:
                 oid = str(
                     meta.get("opportunity_id") or item.get("opportunity_id") or ""
                 ).strip()
+                eid = ""
+                stock = item.get("stock") if isinstance(item.get("stock"), dict) else {}
+                if stock:
+                    eid = str(stock.get("id") or "").strip()
+                if oid and eid and ":" not in oid:
+                    oid = EntrySelector.selection_key(eid, oid)
+            if oid and oid not in available_ids and oid in bare_to_keys:
+                # 裸 id 仅当日唯一时可展开
+                keys = bare_to_keys[oid]
+                oid = keys[0] if len(keys) == 1 else ""
             if not oid or oid not in available_ids or oid in seen:
                 continue
             seen.add(oid)
@@ -174,7 +211,7 @@ class EnterSelection:
         return [
             event
             for event in events
-            if str(event.investment_id or "").strip() in keep
+            if EntrySelector.event_selection_key(event) in keep
         ]
 
     def select_for_date(
@@ -230,24 +267,24 @@ class EnterSelection:
         selected: Set[str] = set()
         held_entities: Set[str] = set()
         inv_entity: Dict[str, str] = {
-            oid: EntrySelector.entity_id(opp)
-            for oid, opp in opportunities_by_id.items()
-            if oid and EntrySelector.entity_id(opp)
+            key: EntrySelector.entity_id(opp)
+            for key, opp in opportunities_by_id.items()
+            if key and EntrySelector.entity_id(opp)
         }
         for event in events:
-            oid = str(event.investment_id or "").strip()
+            key = EntrySelector.event_selection_key(event)
             eid = str(event.entity_id or "").strip()
-            if oid and eid:
-                inv_entity.setdefault(oid, eid)
+            if key and eid:
+                inv_entity.setdefault(key, eid)
 
         for date in dates:
             for event in events:
                 if str(event.date or "").strip() != date or not event.is_sell():
                     continue
-                oid = str(event.investment_id or "").strip()
-                if oid not in selected:
+                key = EntrySelector.event_selection_key(event)
+                if key not in selected:
                     continue
-                eid = inv_entity.get(oid) or str(event.entity_id or "").strip()
+                eid = inv_entity.get(key) or str(event.entity_id or "").strip()
                 if eid:
                     held_entities.discard(eid)
 
@@ -258,8 +295,11 @@ class EnterSelection:
             ]
             available: List[Opportunity] = []
             for buy in day_buys:
-                oid = str(buy.investment_id or "").strip()
-                opp = opportunities_by_id.get(oid)
+                key = EntrySelector.event_selection_key(buy)
+                opp = opportunities_by_id.get(key)
+                if opp is None:
+                    # 兼容旧索引：裸 investment_id
+                    opp = opportunities_by_id.get(str(buy.investment_id or "").strip())
                 if opp is not None:
                     available.append(opp)
 
@@ -268,21 +308,23 @@ class EnterSelection:
                 available=available,
                 held_entity_ids=held_entities,
             )
-            for oid in picked_ids:
-                selected.add(oid)
-                eid = inv_entity.get(oid, "")
+            for key in picked_ids:
+                selected.add(key)
+                eid = inv_entity.get(key, "")
                 if not eid:
-                    opp = opportunities_by_id.get(oid)
+                    opp = opportunities_by_id.get(key)
                     if opp is not None:
                         eid = EntrySelector.entity_id(opp)
+                if not eid and ":" in key:
+                    eid = key.split(":", 1)[0]
                 if not eid:
                     for buy in day_buys:
-                        if str(buy.investment_id or "").strip() == oid:
+                        if EntrySelector.event_selection_key(buy) == key:
                             eid = str(buy.entity_id or "").strip()
                             break
                 if eid:
                     held_entities.add(eid)
-                    inv_entity[oid] = eid
+                    inv_entity[key] = eid
 
         return self.filter_events(events, selected)
 

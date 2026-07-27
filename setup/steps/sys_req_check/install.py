@@ -15,8 +15,8 @@ from setup.setup import NewTeaQuantSetup
 
 NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
 
+from core.infra.cmd_layout import i
 from core.system import python_minimum
-from core.utils import i
 
 
 def main() -> None:

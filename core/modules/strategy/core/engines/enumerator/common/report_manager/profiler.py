@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TextIO, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.modules.strategy.core.engines.enumerator.common.report_manager.report_manager import (
@@ -426,6 +426,10 @@ class ProfilerPerformance:
     created_at: str = ""
     pipeline_phases_sec: Dict[str, float] = field(default_factory=dict)
     execute_elapsed_seconds: float = 0.0
+    # load 时保留磁盘正文，供 present 直接展示（避免无 jobs 时 to_dict 重算失真）
+    _source_payload: Optional[Dict[str, Any]] = field(
+        default=None, repr=False, compare=False
+    )
 
     # ── 工厂 ──
 
@@ -518,6 +522,68 @@ class ProfilerPerformance:
         output_dir.mkdir(parents=True, exist_ok=True)
         path = self._write_json(output_dir / self.PERFORMANCE_FILE, self.to_dict())
         return SavedPerformanceArtifact(performance_path=path)
+
+    def present(self, stream: Optional[TextIO] = None) -> None:
+        """CMD presenter：性能速览（优先磁盘原文 quick_summary）。"""
+        import sys
+
+        from core.infra.cmd_layout import CmdLayout
+
+        out = stream or sys.stdout
+        icon = CmdLayout.icon.get
+        payload = (
+            dict(self._source_payload)
+            if isinstance(self._source_payload, dict)
+            else self.to_dict()
+        )
+        summary = dict(payload.get("summary") or {})
+        glance = dict(payload.get("quick_summary") or {})
+
+        CmdLayout.title.print_section(f"{icon('clock')} 性能", stream=out)
+        elapsed = float(
+            glance.get("total_sec_spent") or summary.get("elapsed_seconds") or 0.0
+        )
+        plan = dict(glance.get("plan") or {})
+        batches = dict(glance.get("job_batches") or {})
+        print(
+            f"{icon('rocket')} {elapsed:.2f}s  "
+            f"saved={glance.get('saved_sec', plan.get('saved_sec', '?'))}s  "
+            f"parallelism≈{glance.get('parallelism', plan.get('parallelism', plan.get('speedup', '?')))}x  "
+            f"jobs={batches.get('success', '?')}/{batches.get('total', '?')}",
+            file=out,
+            flush=True,
+        )
+        where = dict(glance.get("time_distribution") or glance.get("time_share") or {})
+        buckets = self._time_distribution_buckets(where)
+        if buckets:
+            CmdLayout.bar_chart.print(
+                buckets,
+                title=f"{icon('ongoing')} 时间占比",
+                width=24,
+                stream=out,
+            )
+
+    @staticmethod
+    def _time_distribution_buckets(where: Dict[str, Any]) -> List[Tuple[str, float]]:
+        """Build bar-chart buckets from quick_summary time_distribution."""
+        if not where:
+            return []
+        buckets: List[Tuple[str, float]] = []
+        mid_key = "read" if where.get("read") else "load_data"
+        mid_label = "read" if where.get("read") else "load"
+        for key, label in (
+            ("planning", "plan"),
+            (mid_key, mid_label),
+            ("compute", "compute"),
+            ("report", "report"),
+        ):
+            block = dict(where.get(key) or {})
+            try:
+                pct = float(block.get("pct") or 0.0)
+            except (TypeError, ValueError):
+                pct = 0.0
+            buckets.append((label, pct))
+        return buckets
 
     # ── 序列化 ──
 
@@ -636,50 +702,30 @@ class ProfilerPerformance:
         data = raw or {}
         summary = data.get("summary") or {}
         glance = data.get("quick_summary") or {}
-        planner_raw = data.get("planner") or data.get("dispatch") or {}
+        planner_raw = dict(data.get("planner") or {})
         jobs_raw = data.get("jobs") or []
-        # 新格式：墙钟段在 quick_summary.time_distribution；旧格式在 summary.pipeline_phases_sec
-        phases = dict(summary.get("pipeline_phases_sec") or {})
-        if not phases:
-            td = dict(glance.get("time_distribution") or {})
-            phases = {
-                "plan": float((td.get("planning") or {}).get("sec") or 0.0),
-                "execute": float((td.get("load_data") or {}).get("sec") or 0.0)
-                + float((td.get("compute") or {}).get("sec") or 0.0),
-                "finish": float((td.get("report") or {}).get("sec") or 0.0),
-                "wall": float(glance.get("total_sec_spent") or 0.0),
-            }
-        execute_elapsed = float(
-            summary.get("execute_elapsed_seconds")
-            or phases.get("execute")
-            or summary.get("elapsed_seconds")
-            or glance.get("total_sec_spent")
-            or 0.0
-        )
+        td = dict(glance.get("time_distribution") or {})
+        load_or_read = float((td.get("load_data") or td.get("read") or {}).get("sec") or 0.0)
+        phases = {
+            "plan": float((td.get("planning") or {}).get("sec") or 0.0),
+            "execute": load_or_read + float((td.get("compute") or {}).get("sec") or 0.0),
+            "finish": float((td.get("report") or {}).get("sec") or 0.0),
+            "wall": float(glance.get("total_sec_spent") or 0.0),
+        }
         batches = dict(glance.get("job_batches") or {})
         plan_g = dict(glance.get("plan") or {})
-        mode = str(data.get("mode") or data.get("execution_mode") or planner_raw.get("mode") or "")
+        mode = str(data.get("mode") or planner_raw.get("mode") or "")
         if mode and not planner_raw.get("mode"):
-            planner_raw = dict(planner_raw)
             planner_raw["mode"] = mode
         return cls(
             strategy_key=str(data.get("strategy_key") or ""),
             version_id=int(data.get("version_id") or 0),
-            elapsed_seconds=float(
-                summary.get("elapsed_seconds")
-                or glance.get("total_sec_spent")
-                or 0.0
-            ),
-            total_jobs=int(summary.get("total_jobs") or batches.get("total") or 0),
-            completed_jobs=int(
-                summary.get("completed_jobs") or batches.get("success") or 0
-            ),
-            failed_jobs=int(summary.get("failed_jobs") or batches.get("fail") or 0),
+            elapsed_seconds=float(glance.get("total_sec_spent") or 0.0),
+            total_jobs=int(batches.get("total") or 0),
+            completed_jobs=int(batches.get("success") or 0),
+            failed_jobs=int(batches.get("fail") or 0),
             entity_count=int(
-                summary.get("entity_count")
-                or glance.get("total_entity")
-                or plan_g.get("total_entity")
-                or 0
+                glance.get("total_entity") or plan_g.get("total_entity") or 0
             ),
             opportunities_count=int(summary.get("opportunities_count") or 0),
             dispatch=DispatchPlanSnapshot.from_dict(planner_raw),
@@ -688,7 +734,8 @@ class ProfilerPerformance:
             jobs=[JobPerformance.from_dict(item) for item in jobs_raw if isinstance(item, dict)],
             created_at=str(data.get("created_at") or ""),
             pipeline_phases_sec=phases,
-            execute_elapsed_seconds=execute_elapsed,
+            execute_elapsed_seconds=float(phases.get("execute") or 0.0),
+            _source_payload=dict(data),
         )
 
     # ── private ──
@@ -1354,9 +1401,6 @@ class _ProfilerBlocks:
         job_wall_sum: float = 0.0,
         execute_elapsed_seconds: float = 0.0,
         pipeline_phases_sec: Optional[Dict[str, float]] = None,
-        # legacy kwargs（旧调用兼容，已不用）
-        entities_per_job: int = 0,
-        max_workers: int = 0,
     ) -> Dict[str, Any]:
         """人读一眼摘要：吞吐 + job 批次 + 计划 + 内存估算/实测分层。"""
         disp = dispatch or DispatchPlanSnapshot()
@@ -1383,8 +1427,8 @@ class _ProfilerBlocks:
         took = float(elapsed_seconds or 0.0)
         execute_took = float(execute_elapsed_seconds or 0.0) or took
         n_entity = int(entity_count or 0)
-        epj = max(0, int(disp.entities_per_job or entities_per_job or 0))
-        workers = max(1, int(disp.max_workers or max_workers or 1))
+        epj = max(0, int(disp.entities_per_job or 0))
+        workers = max(1, int(disp.max_workers or 1))
         pool_mb = float(memory.get("available_pool_mb") or 0.0)
         worker_actual = float(memory.get("per_process_peak_rss_mb_median") or 0.0)
         worker_peak = float(memory.get("per_process_peak_rss_mb_max") or 0.0)
@@ -1553,10 +1597,6 @@ class _ProfilerBlocks:
             "available_pool_mb": round(pool_mb, 1),
             "fair_share_per_worker_mb": round(fair_slot_mb, 1),
             "pool_utilization": round(concurrent_est_mb / pool_mb, 4) if pool_mb > 0 else 0.0,
-            # 兼容旧字段名
-            "peak_job_rss_mb_median": round(median_peak, 1),
-            "peak_job_rss_mb_max": round(max_peak, 1),
-            "plan_budget_mb": round(pool_mb, 1),
             "worker_job_budget_mb": round(float(dispatch.worker_job_budget_mb or 0.0), 1),
             "note": note,
         }
@@ -2078,4 +2118,5 @@ class _ProfilerBlocks:
 
 __all__ = [
     "ProfilerReport",
+    "ProfilerPerformance",
 ]

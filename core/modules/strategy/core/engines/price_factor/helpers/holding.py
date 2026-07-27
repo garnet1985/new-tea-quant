@@ -21,8 +21,11 @@ def _leg_exit_ratio(leg: Dict[str, Any]) -> float:
 
 
 def remaining_position_ratio(executed_legs: List[Dict[str, Any]]) -> float:
-    """``exit_ratio`` 作用于当前剩余仓位（连乘）。"""
-    remaining = 1.0
+    """``exit_ratio`` 为相对**初始仓位**的绝对份额（与 enum goals CSV 一致，可加总）。
+
+    例：两腿各 0.5 → 剩余 0；若误按「相对剩余」连乘会剩 0.25 并被判未平仓。
+    """
+    sold = 0.0
     ordered = sorted(
         executed_legs,
         key=lambda t: str(t.get("date") or t.get("exit_date") or ""),
@@ -31,8 +34,8 @@ def remaining_position_ratio(executed_legs: List[Dict[str, Any]]) -> float:
         ratio = _leg_exit_ratio(leg)
         if ratio <= 0:
             continue
-        remaining *= max(0.0, 1.0 - min(ratio, 1.0))
-    return remaining
+        sold += max(0.0, min(ratio, 1.0))
+    return max(0.0, 1.0 - sold)
 
 
 def position_fully_closed(executed_legs: List[Dict[str, Any]]) -> bool:

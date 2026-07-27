@@ -421,17 +421,6 @@ def test_profiler_slice_quick_summary(tmp_path: Path) -> None:
     assert planner["probe"]["status"] == "ran"
 
 
-def test_overall_goal_fill_excludes_simulate_end() -> None:
-    from core.modules.strategy.core.engines.enumerator.common.report_manager.overall_report import (
-        OverallReport,
-    )
-
-    assert OverallReport._is_goal_fill("stop_loss", "stop_loss")
-    assert OverallReport._is_goal_fill("take_profit", "tp1")
-    assert not OverallReport._is_goal_fill("simulate_end", "simulate_end")
-    assert not OverallReport._is_goal_fill("expired", "expiration")
-
-
 def test_profiler_full_records_failed_job(tmp_path: Path) -> None:
     manager = ReportManager.open(tmp_path, strategy_key="demo", version_id=1)
     manager.profiler.begin_collect(entity_count=1)

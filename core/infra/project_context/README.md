@@ -46,7 +46,7 @@ python3 -m pytest core/infra/project_context/__test__/ -q
 
 ## 模块依赖
 
-无（YAML 级）。`ConfigManager.get_module_config` 在调用时按需导入 `infra.worker` 的 `TaskType`，不在模块 import 时依赖 Worker。
+无（YAML 级）。Worker 并发配置见 `worker.json` 的 ``job_pipeline``（由 BacktestEngine `worker_profile` 读取）。
 
 ## 当前实现说明（代码对齐）
 

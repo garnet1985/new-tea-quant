@@ -17,7 +17,7 @@ mgr = DataSourceManager(is_verbose=True)
 mgr.execute()  # 运行 mapping 中所有 is_enabled 的数据源
 ```
 
-多 bundle 并发经 **`infra.job_pipeline`**（线程池 + 主进程 `on_result` 攒批写库，适配 DuckDB）。见 `service/pipeline/`。本模块**不**依赖 `infra.worker`；`save_batch_size: auto` 见 `service/executor/save_batch_auto_sizer.py`。
+多 bundle 并发经 **私有线程队列**（`service/pipeline/job_pipeline.py`：线程池 + 主线程 `on_result` 攒批写库，适配 DuckDB）。见 `service/pipeline/`。本模块**不**依赖 `infra.worker` / `infra.job_pipeline`；`save_batch_size: auto` 见 `service/executor/save_batch_auto_sizer.py`。
 
 **样本股票池**：名单在 `core/modules/data_source/dev/stock_pool/`；`data.json` 配置 `use_sample_stock_list: 500`（对应 `stratified_500.csv`）；或 `python dev-cli.py -sample_stock_list -500`。
 

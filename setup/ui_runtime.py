@@ -13,7 +13,7 @@ from typing import Tuple
 from core.system import python_minimum
 from core.ui.process_cleanup import kill_process_group
 from core.ui.ports import ALL_UI_PORTS, UI_BFF_PORT, UI_DEV_PORT
-from core.utils.icon.icon_service import IconService
+from core.infra.cmd_layout import IconService
 
 from setup.install_runtime import (
     REPO_ROOT,

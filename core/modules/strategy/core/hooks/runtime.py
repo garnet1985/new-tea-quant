@@ -1,7 +1,7 @@
-"""StrategyHooks 加载与按阶段调用（主进程 / worker 热路径入口）。
+"""StrategyHooks 加载与按阶段调用（主进程 / 引擎热路径入口）。
 
 本文件:
-- StrategyHookRuntime: 从 worker_ref / strategy_info 实例化 hooks 并分派调用
+- StrategyHookRuntime: 从 hooks_ref / strategy_info 实例化 hooks 并分派调用
   边界: 负责 hooks 生命周期与统一调用；不负责 contract 加载或报告落盘
 """
 from __future__ import annotations
@@ -14,7 +14,7 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.strate
     StrategySettings,
 )
 from core.modules.strategy.core.hooks.hook_params import StrategyContext
-from core.modules.strategy.core.services.discovery.worker_loader import StrategyWorkerLoader
+from core.modules.strategy.core.services.discovery.hooks_loader import StrategyHooksLoader
 
 from .base import StrategyHooks
 
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class StrategyHookRuntime:
-    """加载 hooks 并统一调用；主进程 / worker / timeline 共用。"""
+    """加载 hooks 并统一调用；主进程 / timeline 共用。"""
 
     def __init__(
         self,
@@ -36,19 +36,19 @@ class StrategyHookRuntime:
         self.settings = settings
 
     @classmethod
-    def from_worker_ref(
+    def from_hooks_ref(
         cls,
         *,
         strategy_name: str,
         settings: StrategySettings,
-        worker_module_path: str,
-        worker_class_name: str,
-        worker_file_path: str = "",
+        hooks_module_path: str,
+        hooks_class_name: str,
+        hooks_file_path: str = "",
     ) -> "StrategyHookRuntime":
-        hooks_cls = StrategyWorkerLoader.import_hooks_class(
-            worker_module_path=worker_module_path,
-            worker_class_name=worker_class_name,
-            worker_file_path=worker_file_path,
+        hooks_cls = StrategyHooksLoader.import_hooks_class(
+            hooks_module_path=hooks_module_path,
+            hooks_class_name=hooks_class_name,
+            hooks_file_path=hooks_file_path,
         )
         return cls(hooks_cls(), strategy_name=strategy_name, settings=settings)
 
@@ -89,12 +89,12 @@ class StrategyHookRuntime:
                 "error": "缺少hooks信息",
             }
         try:
-            runtime = cls.from_worker_ref(
+            runtime = cls.from_hooks_ref(
                 strategy_name=strategy_name,
                 settings=settings,
-                worker_module_path=module_path,
-                worker_class_name=class_name,
-                worker_file_path=file_path,
+                hooks_module_path=module_path,
+                hooks_class_name=class_name,
+                hooks_file_path=file_path,
             )
             return runtime, None
         except Exception as exc:

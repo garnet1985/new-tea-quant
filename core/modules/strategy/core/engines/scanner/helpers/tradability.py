@@ -35,18 +35,17 @@ def annotate_enter_at_limit(
         ref = float(opportunity.trigger_price or 0.0)
     except (TypeError, ValueError):
         ref = 0.0
-    if ref <= 0:
-        ref = float(SafeBarValue.float(signal_bar, "close") or 0.0)
-    if not entity_id or ref <= 0:
+    if not entity_id:
         return
 
     prev = SafeBarValue.optional_float(signal_bar, "pre_close")
-    if prev is None or prev <= 0:
+    if prev is None:
         # 尝试用前一根 bar 的 close
         idx = _bar_index(klines, day)
         if idx is not None and idx > 0:
             prev = SafeBarValue.float(klines[idx - 1], "close")
-    if prev is None or prev <= 0:
+    # 涨跌停比例带需要 /prev；prev 缺失时无法判定（非“价格非法”）
+    if prev is None or prev == 0:
         return
 
     profile = str(market_profile or "").strip() or "china_a_stock"

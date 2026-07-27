@@ -296,7 +296,7 @@ class EntityTaskState:
                 strategy_name=self.strategy_name,
                 stock_info=self._stock_info.get(entity_id, {"id": entity_id}),
                 trigger_date=now,
-                trigger_price=float(bar["close"]),
+                trigger_price=SafeBarValue.float(bar, "close"),
                 trigger_price_raw=SafeBarValue.float(bar, "close", use_raw=True),
                 status_tags_provider=self.entity_contracts.get(DATA_KEY.STOCK_ST_PERIODS),
             )

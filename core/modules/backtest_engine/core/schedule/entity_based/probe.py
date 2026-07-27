@@ -159,17 +159,16 @@ class Probe:
             payload.get("entity_shared", {})
         )
 
-        # 构建探针 bundle job（缩短日期窗口；不写 CSV）
+        # 构建探针 bundle job（缩短日期窗口；其余业务字段透传）
         probe_bundle_payload = {
-            "entity_specified": probe_entity_specified,
-            "entity_shared": entity_shared,
-            "global": payload.get("global", {}),
-            "shm_info": payload.get("shm_info", {}),
-            "strategy_info": payload.get("strategy_info", {}),
-            "settings": payload.get("settings", {}),
-            "entities_count": len(probe_entity_specified),
-            "_dispatch_probe": True,
+            k: v
+            for k, v in payload.items()
+            if k not in {"entity_specified", "entity_shared", "entities_count", "_dispatch_probe"}
         }
+        probe_bundle_payload["entity_specified"] = probe_entity_specified
+        probe_bundle_payload["entity_shared"] = entity_shared
+        probe_bundle_payload["entities_count"] = len(probe_entity_specified)
+        probe_bundle_payload["_dispatch_probe"] = True
 
         probe_jobs = [{
             "id": bundle_job["id"],

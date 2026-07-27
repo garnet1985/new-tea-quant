@@ -144,8 +144,7 @@ class Opportunity:
     ) -> "Opportunity":
         """补全枚举/scan 运行时上下文（策略 hook 只产出信号，引擎填入 meta/stock/trigger）。"""
         if trigger_price is not None:
-            if float(trigger_price) <= 0:
-                raise ValueError("trigger_price 须 > 0")
+            # qfq 信号价可为负/0（前复权穿越零轴）；裸价成交层才要求 > 0
             self.trigger_price = float(trigger_price)
         if trigger_price_raw is not None:
             self.trigger_price_raw = float(trigger_price_raw)

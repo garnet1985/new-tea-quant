@@ -253,8 +253,8 @@ class PathManager:
 
     @staticmethod
     def get_tag_scenario_worker_path(scenario_name: str) -> Path:
-        """获取指定 Tag scenario 的 worker 文件：.../tags/{scenario_name}/tag_worker.py"""
-        return PathManager.get_tag_scenario_directory(scenario_name) / "tag_worker.py"
+        """获取指定 Tag scenario 的 hooks 文件：.../tags/{scenario_name}/tag.py"""
+        return PathManager.get_tag_scenario_directory(scenario_name) / "tag.py"
 
     # ========== extensions: Data Source ==========
 

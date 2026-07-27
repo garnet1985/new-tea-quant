@@ -143,3 +143,15 @@ def test_delisted_aborts_pending_enter() -> None:
     inv.try_enter("20240103", _bar("20240103", o=10, h=10.5, l=9.5, c=10.0))
     assert inv.lifecycle == Lifecycle.COMPLETE
     assert "delisted" in inv.exit_info.reason
+
+
+@pytest.mark.parametrize("sentinel", ["0", "0.0", 0, 0.0])
+def test_delist_date_sentinel_does_not_abort_pending_enter(sentinel) -> None:
+    """Tushare 等源用 0/0.0 表示未退市，不得当成已退市 abort。"""
+    inv = _inv(
+        enter_price="next_open",
+        delist_date=sentinel,  # type: ignore[arg-type]
+    )
+    inv.try_enter("20240103", _bar("20240103", o=10, h=10.5, l=9.5, c=10.0))
+    assert inv.lifecycle == Lifecycle.OPEN
+    assert inv.entry.price == pytest.approx(10.0)

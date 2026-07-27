@@ -1,4 +1,4 @@
-"""Data source JobPipeline 集成（线程后端 + on_result 攒批写库）。"""
+"""Data source 多 bundle 管线（私有线程队列 + on_result 攒批写库）。"""
 
 from core.modules.data_source.service.pipeline.runner import (
     DataSourcePipelineRunner,

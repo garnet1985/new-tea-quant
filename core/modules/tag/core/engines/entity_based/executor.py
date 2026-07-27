@@ -40,6 +40,10 @@ class EntityTaskState:
     global_data: Dict[str, Any]
     payload: Dict[str, Any]
     tag_values: List[Dict[str, Any]] = field(default_factory=list)
+    entity_start_by_id: Dict[str, str] = field(default_factory=dict)
+    entity_end_by_id: Dict[str, str] = field(default_factory=dict)
+    # entity_id -> {tag_definition_id|str name -> scalar prior}
+    prior_by_entity: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     _ctx_base: TagContext = field(init=False, repr=False)
     _base_data_key: str = field(init=False, repr=False)
     _min_required: int = field(init=False, repr=False)
@@ -84,15 +88,34 @@ class EntityTaskState:
         if err is not None or hook_runtime is None:
             raise RuntimeError((err or {}).get("error") or "缺少hooks信息")
 
-        entity_ids = [
-            str(item.get("id") or "").strip()
-            for item in (payload.get("entity_specified") or [])
-            if str(item.get("id") or "").strip()
-        ]
+        entity_ids: List[str] = []
+        entity_start_by_id: Dict[str, str] = {}
+        entity_end_by_id: Dict[str, str] = {}
+        for item in payload.get("entity_specified") or []:
+            if not isinstance(item, dict):
+                continue
+            eid = str(item.get("id") or "").strip()
+            if not eid:
+                continue
+            entity_ids.append(eid)
+            start = str(item.get("start_date") or "").strip()
+            end = str(item.get("end_date") or "").strip()
+            if start:
+                entity_start_by_id[eid] = start
+            if end:
+                entity_end_by_id[eid] = end
         definitions: List[TagDefinition] = []
         for raw in payload.get("tag_definitions") or []:
             if isinstance(raw, dict):
                 definitions.append(TagDefinition.from_dict(raw))
+
+        raw_priors = payload.get("prior_tag_values") or {}
+        prior_by_entity: Dict[str, Dict[str, Any]] = {}
+        if isinstance(raw_priors, dict):
+            for eid, by_tag in raw_priors.items():
+                key = str(eid or "").strip()
+                if key and isinstance(by_tag, dict):
+                    prior_by_entity[key] = dict(by_tag)
 
         return cls(
             entity_ids=entity_ids,
@@ -104,6 +127,9 @@ class EntityTaskState:
             entity_contracts=loaded.get("entity_contracts") or {},
             global_data=loaded.get("global_data") or {},
             payload=payload,
+            entity_start_by_id=entity_start_by_id,
+            entity_end_by_id=entity_end_by_id,
+            prior_by_entity=prior_by_entity,
         )
 
     def buffer_tag_value(
@@ -174,6 +200,12 @@ class TagEntityJobExecutor:
 
         sliced_by_entity = AsOfSlice.slice_contracts(state.entity_contracts, as_of)
         for entity_id in state.entity_ids:
+            entity_start = state.entity_start_by_id.get(entity_id) or ""
+            if entity_start and as_of < entity_start:
+                continue
+            entity_end = state.entity_end_by_id.get(entity_id) or ""
+            if entity_end and as_of > entity_end:
+                continue
             ready = state._ready_date_by_entity.get(entity_id) or ""
             if (not ready) or as_of < ready:
                 continue
@@ -190,6 +222,12 @@ class TagEntityJobExecutor:
             if state.global_data:
                 complete_data = {**state.global_data, **per_entity}
             for definition in state.tag_definitions:
+                prior = None
+                by_tag = state.prior_by_entity.get(entity_id) or {}
+                if definition.id is not None:
+                    prior = by_tag.get(str(int(definition.id)))
+                if prior is None and definition.name:
+                    prior = by_tag.get(str(definition.name))
                 scan_ctx = TagContext.fill(
                     state._ctx_base,
                     now=as_of,
@@ -197,6 +235,7 @@ class TagEntityJobExecutor:
                     entity_id=entity_id,
                     entity_info={"id": entity_id},
                     tag_definition=definition,
+                    prior_value=prior,
                 )
                 try:
                     result = state.hook_runtime.call("calculate_tag", scan_ctx)
@@ -235,4 +274,4 @@ class TagEntityJobExecutor:
         }
 
 
-__all__ = ["TagEntityJobExecutor", "EntityTaskState"]
+__all__ = ["TagEntityJobExecutor"]

@@ -362,4 +362,4 @@ class TagSliceJobExecutor:
         }
 
 
-__all__ = ["TagSliceJobExecutor", "SliceTaskState"]
+__all__ = ["TagSliceJobExecutor"]

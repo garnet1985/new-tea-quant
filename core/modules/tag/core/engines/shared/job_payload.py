@@ -7,9 +7,13 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.modules.tag.core.data_class.scenario import Scenario
+from core.modules.tag.core.engines.shared.calc_window import (
+    EntityCalcWindow,
+    TagCalcWindows,
+)
 from core.modules.tag.core.engines.shared.tag_settings.data_settings import DataSettings
 from core.modules.tag.core.engines.shared.tag_settings.tag_settings import TagSettings
 from core.modules.tag.core.services.discovery.data.discovered_tag import EnabledTagInfo
@@ -48,9 +52,22 @@ class TagJobPayloadBuilder:
         shm_info: Dict[str, Any],
         start_date: str,
         end_date: str,
+        calc_windows: Optional[TagCalcWindows] = None,
     ) -> Dict[str, Any]:
-        ids = [str(eid).strip() for eid in entity_ids if str(eid).strip()]
-        if not ids:
+        if calc_windows is not None:
+            entity_windows = list(calc_windows.entities)
+            start_date = calc_windows.data_start
+            end_date = calc_windows.data_end
+        else:
+            ids = [str(eid).strip() for eid in entity_ids if str(eid).strip()]
+            entity_windows = [
+                EntityCalcWindow(
+                    entity_id=eid, start_date=start_date, end_date=end_date
+                )
+                for eid in ids
+            ]
+
+        if not entity_windows:
             return {"entity_specified": [], "entity_shared": {}}
 
         per_entity, global_decls = cls.split_declarations(settings)
@@ -78,12 +95,21 @@ class TagJobPayloadBuilder:
         else:
             hooks_file_path = str(hooks_file or "")
 
+        entity_specified = [
+            {
+                "id": w.entity_id,
+                "start_date": w.start_date,
+                "end_date": w.end_date,
+            }
+            for w in entity_windows
+        ]
+
         return {
-            "entity_specified": [{"id": eid} for eid in ids],
+            "entity_specified": entity_specified,
             "entity_shared": entity_shared,
             "global": global_data_keys,
             "shm_info": shm_info or {},
-            "entities_count": len(ids),
+            "entities_count": len(entity_specified),
             "tag_info": {
                 "key": tag_info.key,
                 "unique_relative_path": tag_info.unique_relative_path,
@@ -98,6 +124,7 @@ class TagJobPayloadBuilder:
             "settings": scenario.settings or settings.to_dict(),
             "start_date": start_date,
             "end_date": end_date,
+            "update_mode": scenario.effective_update_mode(),
         }
 
 

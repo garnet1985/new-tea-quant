@@ -17,6 +17,7 @@ from core.modules.backtest_engine.core.performance.settings import (
 from core.modules.tag.core.data_class.scenario import Scenario
 from core.modules.tag.core.engines.entity_based.executor import TagEntityJobExecutor
 from core.modules.tag.core.engines.entity_based.job_builder import TagEntityJobBuilder
+from core.modules.tag.core.engines.shared.calc_progress import TagCalcProgressStore
 from core.modules.tag.core.engines.shared.pipeline_hooks import (
     TagPipelineHooks,
     TagPipelineRunContext,
@@ -57,13 +58,13 @@ class TagEntityPipeline:
             tag_key=scenario.name,
         )
         settings.apply_defaults()
-        period = settings.resolve_period()
 
         jobs = TagEntityJobBuilder.build_backtest_engine_jobs(
             tag_info,
             scenario,
             entity_ids,
             shm_info or {},
+            tag_data_service=tag_data_service,
         )
         if not jobs:
             return {
@@ -73,6 +74,13 @@ class TagEntityPipeline:
                 "tag_values_count": 0,
                 "message": "no jobs",
             }
+
+        run_start = str(jobs[0]["payload"].get("start_date") or "").strip()
+        run_end = str(jobs[0]["payload"].get("end_date") or "").strip()
+        if not run_start or not run_end:
+            period = settings.resolve_period()
+            run_start = period.start_date
+            run_end = period.end_date
 
         flush = TagValueFlushService(
             tag_data_service,
@@ -100,16 +108,19 @@ class TagEntityPipeline:
             )
 
             logger.info(
-                "TagEntityPipeline start: scenario=%s entities=%d jobs=%d dry_run=%s",
+                "TagEntityPipeline start: scenario=%s entities=%d jobs=%d "
+                "period=%s—%s dry_run=%s",
                 scenario.name,
                 len(entity_ids),
                 len(jobs),
+                run_start,
+                run_end,
                 dry_run,
             )
             BacktestEngine.entity_based.run(
                 jobs=jobs,
-                start=period.start_date,
-                end=period.end_date,
+                start=run_start,
+                end=run_end,
                 performance=performance,
                 callbacks=callbacks,
                 task_name=f"tag:{scenario.name}",
@@ -119,8 +130,27 @@ class TagEntityPipeline:
             TagPipelineHooks.clear()
 
         elapsed = time.monotonic() - t0
+        success = run_ctx.fail == 0
+        if success and (not dry_run):
+            # incremental 水位 = 本次成功算到的业务 end（非 max(as_of)）
+            entity_ends: Dict[str, str] = {}
+            for item in jobs[0]["payload"].get("entity_specified") or []:
+                if not isinstance(item, dict):
+                    continue
+                eid = str(item.get("id") or "").strip()
+                end = str(item.get("end_date") or run_end or "").strip()
+                if eid and end:
+                    entity_ends[eid] = end
+            if entity_ends:
+                TagCalcProgressStore.mark_entities(scenario.name, entity_ends)
+                logger.info(
+                    "incremental progress saved: scenario=%s entities=%d end≈%s",
+                    scenario.name,
+                    len(entity_ends),
+                    run_end,
+                )
         return {
-            "success": run_ctx.fail == 0,
+            "success": success,
             "jobs": len(jobs),
             "ok": run_ctx.ok,
             "fail": run_ctx.fail,

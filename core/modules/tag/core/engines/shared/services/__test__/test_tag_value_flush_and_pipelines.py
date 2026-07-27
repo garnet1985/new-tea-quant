@@ -140,7 +140,9 @@ class TestTagEntityJobBuilder:
         payload = jobs[0]["payload"]
         assert BacktestJob.SLICE_BASED_ENTITY_KEY not in payload
         assert BacktestJob.TIMELINE_POINT_COUNT_KEY not in payload
-        assert payload["entity_specified"] == [{"id": "e1"}]
+        assert payload["entity_specified"] == [
+            {"id": "e1", "start_date": "20240102", "end_date": "20240105"}
+        ]
 
 
 class TestTagEntityJobExecutor:

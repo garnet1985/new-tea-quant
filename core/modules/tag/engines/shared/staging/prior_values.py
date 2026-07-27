@@ -1,4 +1,10 @@
-"""主进程预取 prior tag_value；Worker inject 模式读取，避免子进程触 tag 库。"""
+"""主进程预取 prior tag_value；Worker inject 模式读取，避免子进程触 tag 库。
+
+MIGRATED (新 core 路径) →
+    ``core.modules.tag.core.engines.shared.prior_values.TagPriorValues``
+
+AUDIT: 旧 engines / BaseTagWorker 切走后删除本文件。
+"""
 from __future__ import annotations
 
 import json

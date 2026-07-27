@@ -20,8 +20,7 @@ if TYPE_CHECKING:
     from core.modules.tag.core.data_class.tag_definition import TagDefinition
 
 
-def _freeze_map(raw: Optional[Mapping[str, Any]]) -> Mapping[str, Any]:
-    return MappingProxyType(dict(raw or {}))
+_UNSET: Any = object()
 
 
 @dataclass(frozen=True)
@@ -30,6 +29,10 @@ class TagInfo:
 
     key: str
     path: str = ""
+
+    @staticmethod
+    def freeze_map(raw: Optional[Mapping[str, Any]]) -> Mapping[str, Any]:
+        return MappingProxyType(dict(raw or {}))
 
 
 @dataclass(frozen=True)
@@ -48,6 +51,8 @@ class TagData:
     by_entity: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
     calendar: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
     tag_definition: Optional["TagDefinition"] = None
+    # incremental 续跑时，该 definition 在 DB 中的最新标量（变化检测暖启动）
+    prior_value: Any = None
 
     @staticmethod
     def build(
@@ -60,18 +65,21 @@ class TagData:
         by_entity: Optional[Mapping[str, Any]] = None,
         calendar: Optional[Mapping[str, Any]] = None,
         tag_definition: Optional["TagDefinition"] = None,
+        prior_value: Any = None,
     ) -> "TagData":
+        freeze = TagInfo.freeze_map
         return TagData(
             now=str(now or "").strip(),
             entity_list=tuple(
                 str(x).strip() for x in (entity_list or []) if str(x).strip()
             ),
             entity_id=str(entity_id or "").strip(),
-            entity_info=_freeze_map(entity_info),
-            items=_freeze_map(items),
-            by_entity=_freeze_map(by_entity),
-            calendar=_freeze_map(calendar),
+            entity_info=freeze(entity_info),
+            items=freeze(items),
+            by_entity=freeze(by_entity),
+            calendar=freeze(calendar),
             tag_definition=tag_definition,
+            prior_value=prior_value,
         )
 
 
@@ -150,6 +158,7 @@ class TagContext:
         entity_id: Optional[str] = None,
         entity_info: Optional[Mapping[str, Any]] = None,
         tag_definition: Optional["TagDefinition"] = None,
+        prior_value: Any = _UNSET,
     ) -> "TagContext":
         """基于 base 填当日只读 data（共享 custom）。"""
         if base is None:
@@ -157,6 +166,9 @@ class TagContext:
         entity_list = list(base.data.entity_list)
         if not entity_list:
             raise ValueError("TagContext.fill 要求 base 已 assemble（含 entity_list）")
+        resolved_prior = (
+            base.data.prior_value if prior_value is _UNSET else prior_value
+        )
         return base.with_data(
             TagData.build(
                 now=now,
@@ -173,6 +185,7 @@ class TagContext:
                     if tag_definition is None
                     else tag_definition
                 ),
+                prior_value=resolved_prior,
             )
         )
 

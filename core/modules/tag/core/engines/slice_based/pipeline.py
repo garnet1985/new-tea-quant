@@ -14,11 +14,15 @@ import time
 from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 
 from core.modules.backtest_engine import BacktestEngine
-from core.modules.backtest_engine.contracts import JobReport, RunCallbacks, RunProgress
+from core.modules.backtest_engine.contracts import RunCallbacks
 from core.modules.backtest_engine.core.performance.settings import (
     resolve_slice_based_performance,
 )
 from core.modules.tag.core.data_class.scenario import Scenario
+from core.modules.tag.core.engines.shared.pipeline_hooks import (
+    TagPipelineHooks,
+    TagPipelineRunContext,
+)
 from core.modules.tag.core.engines.shared.services.tag_value_flush import (
     TagValueFlushService,
 )
@@ -80,68 +84,49 @@ class TagSlicePipeline:
             batch_size=save_batch_size,
         )
         performance = resolve_slice_based_performance(profile_tag_slice_based_config())
-
-        finished = 0
-        ok = 0
-        fail = 0
-        tag_values_count = 0
+        run_ctx = TagPipelineRunContext(
+            flush=flush,
+            total_jobs=len(jobs),
+            on_progress=on_progress,
+        )
+        TagPipelineHooks.bind(run_ctx)
         t0 = time.monotonic()
+        saved = 0
+        try:
+            base_cb = TagSliceJobExecutor.build_run_callbacks()
+            callbacks = RunCallbacks(
+                on_before_task_start=base_cb.on_before_task_start,
+                on_tick=base_cb.on_tick,
+                on_ticks_complete=base_cb.on_ticks_complete,
+                on_task_result=TagPipelineHooks.on_task_result,
+            )
 
-        def on_task_result(report: JobReport, progress: RunProgress) -> None:
-            nonlocal finished, ok, fail, tag_values_count
-            finished += 1
-            if report.success:
-                ok += 1
-            else:
-                fail += 1
-            data = report.data if isinstance(report.data, dict) else {}
-            rows = data.get("tag_values") or []
-            if rows:
-                tag_values_count += flush.extend(rows)
-            if on_progress is not None:
-                on_progress(
-                    {
-                        "finished": finished,
-                        "total": max(len(jobs), 1),
-                        "ok": ok,
-                        "fail": fail,
-                        "progress_pct": min(
-                            100.0, finished / max(len(jobs), 1) * 100.0
-                        ),
-                    }
-                )
+            logger.info(
+                "TagSlicePipeline start: scenario=%s entities=%d jobs=%d dry_run=%s",
+                scenario.name,
+                len(entity_ids),
+                len(jobs),
+                dry_run,
+            )
+            BacktestEngine.slice_based.run(
+                jobs=jobs,
+                start=period.start_date,
+                end=period.end_date,
+                performance=performance,
+                callbacks=callbacks,
+                task_name=f"tag:{scenario.name}",
+            )
+            saved = flush.flush()
+        finally:
+            TagPipelineHooks.clear()
 
-        base_cb = TagSliceJobExecutor.build_run_callbacks()
-        callbacks = RunCallbacks(
-            on_before_task_start=base_cb.on_before_task_start,
-            on_tick=base_cb.on_tick,
-            on_ticks_complete=base_cb.on_ticks_complete,
-            on_task_result=on_task_result,
-        )
-
-        logger.info(
-            "TagSlicePipeline start: scenario=%s entities=%d jobs=%d dry_run=%s",
-            scenario.name,
-            len(entity_ids),
-            len(jobs),
-            dry_run,
-        )
-        BacktestEngine.slice_based.run(
-            jobs=jobs,
-            start=period.start_date,
-            end=period.end_date,
-            performance=performance,
-            callbacks=callbacks,
-            task_name=f"tag:{scenario.name}",
-        )
-        saved = flush.flush()
         elapsed = time.monotonic() - t0
         return {
-            "success": fail == 0,
+            "success": run_ctx.fail == 0,
             "jobs": len(jobs),
-            "ok": ok,
-            "fail": fail,
-            "tag_values_count": tag_values_count,
+            "ok": run_ctx.ok,
+            "fail": run_ctx.fail,
+            "tag_values_count": run_ctx.tag_values_count,
             "saved_tag_values": saved,
             "elapsed_seconds": elapsed,
             "dry_run": dry_run,

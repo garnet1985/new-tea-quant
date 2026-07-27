@@ -161,19 +161,18 @@ class ExecutionSettings(SettingsBase):
         return True
 
     def resolve_period(self) -> CalculationPeriod:
-        """把 execution.start/end 空值补成系统默认。"""
+        """把 execution.start/end 空值补成系统默认（与 strategy.simulation.execution 对齐）。"""
         from core.infra.project_context import ProjectContext
-        from core.utils.date.date_utils import DateUtils
+        from core.modules.strategy.core.services.entity_loader.global_entity_loader import (
+            GlobalEntityCache,
+        )
 
         start_date = self.start_date
         end_date = self.end_date
+        if not end_date:
+            end_date = GlobalEntityCache.load_latest_completed_trading_date()
         if not start_date:
             start_date = ProjectContext.config.get_default_start_date()
-        if not end_date:
-            try:
-                end_date = DateUtils.today()
-            except Exception:
-                end_date = ""
         return CalculationPeriod(start_date=start_date, end_date=end_date)
 
     def to_dict(self) -> Dict[str, Any]:

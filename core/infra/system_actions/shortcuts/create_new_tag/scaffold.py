@@ -14,7 +14,7 @@ from core.infra.system_actions.shortcuts._shared import (
     inject_meta_key_in_settings_file,
     resolve_dest,
 )
-from core.modules.tag.services.discovery.path_rules import is_machine_readable_tag_path
+from core.modules.tag.core.services.discovery.path_rules import TagPathRules
 
 TAG_TEMPLATE_REL = Path("_template") / "empty_scenario"
 
@@ -25,7 +25,7 @@ def scaffold_tag(raw_path: str) -> ScaffoldResult:
     dest, key = resolve_dest(
         root=root,
         raw_path=raw_path,
-        path_validator=is_machine_readable_tag_path,
+        path_validator=TagPathRules.is_machine_readable_path,
     )
     template = (root / TAG_TEMPLATE_REL).resolve()
     copy_template(template=template, dest=dest)

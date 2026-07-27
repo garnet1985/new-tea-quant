@@ -44,7 +44,7 @@ class MetadataEnsureService:
         return scenario
 
     def ensure_scenario(self, scenario: Scenario) -> None:
-        """同步 ``sys_tag_scenario``；recompute 时重建；refresh 时清 tag values。"""
+        """同步 ``sys_tag_scenario``；recompute 时清值并重建 definitions，保留 scenario.id。"""
         existing = self._tags.load_scenario(scenario.name)
 
         if not existing:
@@ -52,6 +52,8 @@ class MetadataEnsureService:
                 scenario.name,
                 display_name=scenario.display_name or scenario.name,
                 description=scenario.description or "",
+                key=scenario.key or scenario.name,
+                attach_to_data_key=scenario.attach_to_data_key or "",
             )
             scenario.apply_db_meta(new_meta or {})
             return
@@ -62,17 +64,22 @@ class MetadataEnsureService:
 
         if scenario.recompute:
             logger.info(
-                "recompute=True, recreate scenario metadata: %s", scenario.name
+                "recompute=True, clear tag values/definitions (keep scenario id=%s): %s",
+                scenario_id,
+                scenario.name,
             )
             self._tags.delete_tag_values_by_scenario(scenario_id)
             self._tags.delete_tag_definitions_by_scenario(scenario_id)
-            self._tags.delete_scenario(scenario_id, cascade=False)
-            new_meta = self._tags.save_scenario(
-                scenario.name,
+            # 保留 scenario 行，避免 id 自增；同步 meta（含 key）
+            new_meta = self._tags.update_scenario(
+                scenario_id,
                 display_name=scenario.display_name or scenario.name,
                 description=scenario.description or "",
+                current_scenario=existing,
+                key=scenario.key or scenario.name,
+                attach_to_data_key=scenario.attach_to_data_key or "",
             )
-            scenario.apply_db_meta(new_meta or {})
+            scenario.apply_db_meta(new_meta or existing)
             return
 
         if scenario.effective_update_mode() == TagUpdateMode.REFRESH.value:
@@ -87,6 +94,8 @@ class MetadataEnsureService:
                 display_name=scenario.display_name or scenario.name,
                 description=scenario.description or "",
                 current_scenario=existing,
+                key=scenario.key or scenario.name,
+                attach_to_data_key=scenario.attach_to_data_key or "",
             )
             scenario.apply_db_meta(new_meta or existing)
         else:

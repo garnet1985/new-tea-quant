@@ -1,385 +1,230 @@
-"""TagManager 单元测试。"""
+"""TagManager / Tag facade 单元测试。"""
+
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from core.modules.tag.core.services.discovery.data.discovered_tag import TagInfo
+
+
+def _make_tag_info(
+    *,
+    relative: str = "demo",
+    key: str = "demo",
+    enabled: bool = True,
+    mode: str = "entity_based",
+) -> TagInfo:
+    return TagInfo(
+        unique_relative_path=relative,
+        tag_file=Path(f"/tags/{relative}/tag.py"),
+        settings_file=Path(f"/tags/{relative}/settings.py"),
+        folder=Path(f"/tags/{relative}"),
+        key=key,
+        display_name=key,
+        is_enabled=enabled,
+        settings={
+            "is_enabled": enabled,
+            "meta": {"key": key, "display_name": key},
+            "calculation": {
+                "execution": {
+                    "mode": mode,
+                    "start_date": "20200101",
+                    "end_date": "20200131",
+                },
+                "update_mode": "incremental",
+            },
+            "data": {
+                "base": {"data_key": "stock.kline.daily", "params": {}},
+                "required": [],
+            },
+            "tag_definitions": [{"name": "t1"}],
+            "tag_target_type": "entity_based",
+        },
+        hooks_class=MagicMock,
+        hooks_module_path="hooks.mod",
+        hooks_class_name="Hooks",
+        hooks_file_path=Path(f"/tags/{relative}/tag.py"),
+    )
+
 
 class TestTagManager:
-    """TagManager 测试类"""
-    
-    @patch('core.modules.tag.tag_manager.DataManager')
-    @patch('core.modules.tag.tag_manager.get_scenarios_root')
-    def test_init(self, mock_get_scenarios_root, mock_data_manager):
-        """测试 TagManager 初始化"""
+    @patch("core.modules.tag.core.tag.DiscoveryService.discover_tags", return_value=[])
+    @patch("core.modules.tag.core.tag.DataManager")
+    def test_init(self, mock_data_manager, _mock_discover):
         from core.modules.tag.tag_manager import TagManager
-        from pathlib import Path
-        
-        # Mock scenarios root
-        mock_root = Path("/test/scenarios")
-        mock_get_scenarios_root.return_value = mock_root
-        
-        # Mock DataManager
+
         mock_data_mgr = MagicMock()
         mock_tag_service = MagicMock()
-        mock_tag_service.save_batch.side_effect = lambda rows: len(rows)
         mock_data_mgr.stock.tags = mock_tag_service
         mock_data_manager.return_value = mock_data_mgr
-        
-        # Mock scenario discovery
-        with patch.object(TagManager, '_discover_scenarios_from_folder') as mock_discover:
-            manager = TagManager(is_verbose=False)
-            
-            assert manager.is_verbose is False
-            assert manager.data_mgr == mock_data_mgr
-            assert manager.tag_data_service == mock_tag_service
-            assert manager.scenario_cache == {}
-            assert manager.entity_list_cache == {}
-            mock_discover.assert_called_once()
-    
-    @patch('core.modules.tag.tag_manager.DataManager')
-    @patch('core.modules.tag.tag_manager.get_scenarios_root')
-    def test_refresh_scenario(self, mock_get_scenarios_root, mock_data_manager):
-        """测试 refresh_scenario"""
+
+        manager = TagManager(is_verbose=False)
+
+        assert manager.is_verbose is False
+        assert manager.data_mgr == mock_data_mgr
+        assert manager.tag_data_service == mock_tag_service
+        assert manager.scenario_cache == {}
+
+    @patch("core.modules.tag.core.tag.DiscoveryService.discover_tags")
+    @patch("core.modules.tag.core.tag.DataManager")
+    def test_refresh_scenario(self, mock_data_manager, mock_discover):
         from core.modules.tag.tag_manager import TagManager
-        
-        mock_get_scenarios_root.return_value = Path("/test/scenarios")
-        mock_data_mgr = MagicMock()
-        mock_data_mgr.stock.tags = MagicMock()
-        mock_data_manager.return_value = mock_data_mgr
-        
-        with patch.object(TagManager, '_discover_scenarios_from_folder') as mock_discover, \
-             patch.object(TagManager, '_clear_cache') as mock_clear_cache:
-            
-            manager = TagManager(is_verbose=False)
-            # 重置 mock 调用计数（因为 __init__ 中已经调用了一次）
-            mock_discover.reset_mock()
-            manager.scenario_cache = {"test": "cache"}
-            manager.entity_list_cache = {"test": "cache"}
-            
-            manager.refresh_scenario()
-            
-            mock_clear_cache.assert_called_once()
-            mock_discover.assert_called_once()
-    
-    @patch('core.modules.tag.tag_manager.DataManager')
-    @patch('core.modules.tag.tag_manager.get_scenarios_root')
-    def test_execute_with_scenario_name(self, mock_get_scenarios_root, mock_data_manager):
-        """测试 execute（指定 scenario_name）"""
+
+        mock_data_manager.return_value = MagicMock(stock=MagicMock(tags=MagicMock()))
+        mock_discover.return_value = [_make_tag_info()]
+
+        manager = TagManager(is_verbose=False)
+        assert "demo" in manager.scenario_cache
+
+        mock_discover.return_value = []
+        manager.refresh_scenario()
+        assert manager.scenario_cache == {}
+
+    @patch("core.modules.tag.core.tag.Tag._execute_named")
+    @patch("core.modules.tag.core.tag.DiscoveryService.discover_tags", return_value=[])
+    @patch("core.modules.tag.core.tag.DataManager")
+    def test_execute_with_scenario_name(
+        self, mock_data_manager, _mock_discover, mock_execute_named
+    ):
         from core.modules.tag.tag_manager import TagManager
-        
-        mock_get_scenarios_root.return_value = Path("/test/scenarios")
-        mock_data_mgr = MagicMock()
-        mock_data_mgr.stock.tags = MagicMock()
-        mock_data_manager.return_value = mock_data_mgr
-        
-        with patch.object(TagManager, '_discover_scenarios_from_folder'), \
-             patch.object(TagManager, '_execute_named') as mock_execute_named:
-            
-            manager = TagManager(is_verbose=False)
-            manager.execute(scenario_name="test_scenario")
-            
-            mock_execute_named.assert_called_once_with("test_scenario")
-    
-    @patch('core.modules.tag.tag_manager.DataManager')
-    @patch('core.modules.tag.tag_manager.get_scenarios_root')
-    def test_execute_with_settings(self, mock_get_scenarios_root, mock_data_manager):
-        """测试 execute（指定 settings）"""
+
+        mock_data_manager.return_value = MagicMock(stock=MagicMock(tags=MagicMock()))
+        mock_execute_named.return_value = {"ok": 1}
+
+        manager = TagManager(is_verbose=False)
+        manager.execute(scenario_name="test_scenario")
+
+        mock_execute_named.assert_called_once()
+        assert mock_execute_named.call_args.args[0] == "test_scenario"
+
+    @patch("core.modules.tag.core.tag.Tag._execute_inline_settings")
+    @patch("core.modules.tag.core.tag.DiscoveryService.discover_tags", return_value=[])
+    @patch("core.modules.tag.core.tag.DataManager")
+    def test_execute_with_settings(
+        self, mock_data_manager, _mock_discover, mock_inline
+    ):
         from core.modules.tag.tag_manager import TagManager
-        
-        mock_get_scenarios_root.return_value = Path("/test/scenarios")
-        mock_data_mgr = MagicMock()
-        mock_data_mgr.stock.tags = MagicMock()
-        mock_data_manager.return_value = mock_data_mgr
-        
-        settings = {
-            "is_enabled": True,
-            "meta": {"display_name": "test"},
-            "calculation": {"update_mode": "incremental"},
-            "data": {
-                "base": {
-                    "data_key": "stock.kline.daily",
-                    "params": {"adjust": "qfq"},
-                },
-                "min_required_records": 10,
-            },
-            "tag_definitions": [{"name": "tag1"}],
+
+        mock_data_manager.return_value = MagicMock(stock=MagicMock(tags=MagicMock()))
+        mock_inline.return_value = {"ok": 1}
+        settings = {"is_enabled": True, "meta": {"key": "demo"}}
+
+        manager = TagManager(is_verbose=False)
+        manager.execute(scenario_name="demo", settings=settings)
+
+        mock_inline.assert_called_once()
+        assert mock_inline.call_args.kwargs["tag_key"] == "demo"
+        assert mock_inline.call_args.args[0] == settings
+
+    @patch("core.modules.tag.core.tag.Tag._execute_tag_info")
+    @patch("core.modules.tag.core.tag.DiscoveryService.get_enabled_tags")
+    @patch("core.modules.tag.core.tag.DiscoveryService.discover_tags")
+    @patch("core.modules.tag.core.tag.DataManager")
+    def test_execute_all(
+        self,
+        mock_data_manager,
+        mock_discover,
+        mock_get_enabled,
+        mock_execute_tag_info,
+    ):
+        from core.modules.tag.tag_manager import TagManager
+
+        mock_data_manager.return_value = MagicMock(stock=MagicMock(tags=MagicMock()))
+        t1 = _make_tag_info(relative="a", key="a")
+        t2 = _make_tag_info(relative="b", key="b")
+        mock_discover.return_value = [t1, t2]
+        mock_get_enabled.return_value = [t1, t2]
+        mock_execute_tag_info.return_value = {"ok": 1}
+
+        manager = TagManager(is_verbose=False)
+        manager.execute()
+
+        assert mock_execute_tag_info.call_count == 2
+
+    @patch("core.modules.tag.core.tag.DiscoveryService.discover_tags", return_value=[])
+    @patch("core.modules.tag.core.tag.DataManager")
+    def test_scenario_cache_lookup(self, mock_data_manager, mock_discover):
+        from core.modules.tag.tag_manager import TagManager
+
+        mock_data_manager.return_value = MagicMock(stock=MagicMock(tags=MagicMock()))
+        info = _make_tag_info()
+        mock_discover.return_value = [info]
+
+        manager = TagManager(is_verbose=False)
+        cached = manager.scenario_cache.get("demo")
+        assert cached is not None
+        assert cached["key"] == "demo"
+        assert cached["settings"]["meta"]["key"] == "demo"
+
+    @patch("core.modules.tag.core.tag.TagEntityPipeline.run")
+    @patch("core.modules.tag.core.tag.TagEntityListResolver.resolve")
+    @patch("core.modules.tag.core.tag.MetadataEnsureService")
+    @patch("core.modules.tag.core.tag.DiscoveryService.discover_tags")
+    @patch("core.modules.tag.core.tag.DataManager")
+    def test_execute_named_entity_based(
+        self,
+        mock_data_manager,
+        mock_discover,
+        mock_ensure_cls,
+        mock_resolve,
+        mock_pipeline_run,
+    ):
+        from core.modules.tag.tag_manager import TagManager
+
+        mock_tag_service = MagicMock()
+        mock_data_manager.return_value = MagicMock(
+            stock=MagicMock(tags=mock_tag_service)
+        )
+        info = _make_tag_info(mode="entity_based")
+        mock_discover.return_value = [info]
+        mock_resolve.return_value = ["000001.SZ"]
+        mock_pipeline_run.return_value = {
+            "success": True,
+            "jobs": 1,
+            "ok": 1,
+            "fail": 0,
+            "saved_tag_values": 0,
+            "elapsed_seconds": 0.1,
         }
-        
-        with patch.object(TagManager, '_discover_scenarios_from_folder'), \
-             patch.object(TagManager, '_run_scenario') as mock_run_scenario:
-            
-            manager = TagManager(is_verbose=False)
-            manager.execute(scenario_name="test_scenario", settings=settings)
-            
-            mock_run_scenario.assert_called_once()
-    
-    @patch('core.modules.tag.tag_manager.DataManager')
-    @patch('core.modules.tag.tag_manager.get_scenarios_root')
-    def test_execute_all(self, mock_get_scenarios_root, mock_data_manager):
-        """测试 execute（执行所有 scenarios）"""
-        from core.modules.tag.tag_manager import TagManager
-        
-        mock_get_scenarios_root.return_value = Path("/test/scenarios")
-        mock_data_mgr = MagicMock()
-        mock_data_mgr.stock.tags = MagicMock()
-        mock_data_manager.return_value = mock_data_mgr
-        
-        with patch.object(TagManager, '_discover_scenarios_from_folder'), \
-             patch.object(TagManager, '_execute_named') as mock_execute_named:
-            
-            manager = TagManager(is_verbose=False)
-            manager.scenario_cache = {
-                "scenario1": {},
-                "scenario2": {}
-            }
-            
-            manager.execute()
-            
-            assert mock_execute_named.call_count == 2
-            mock_execute_named.assert_any_call("scenario1")
-            mock_execute_named.assert_any_call("scenario2")
-    
-    @patch('core.modules.tag.tag_manager.DataManager')
-    @patch('core.modules.tag.tag_manager.get_scenarios_root')
-    def test_discover_scenarios_from_folder_not_exists(self, mock_get_scenarios_root, mock_data_manager):
-        """测试 _discover_scenarios_from_folder（目录不存在）"""
-        from core.modules.tag.tag_manager import TagManager
-        
-        mock_root = Path("/test/scenarios")
-        mock_get_scenarios_root.return_value = mock_root
-        
-        mock_data_mgr = MagicMock()
-        mock_data_mgr.stock.tags = MagicMock()
-        mock_data_manager.return_value = mock_data_mgr
-        
-        with patch.object(Path, 'exists', return_value=False):
-            manager = TagManager(is_verbose=False)
-            
-            assert manager.scenario_cache == {}
-    
-    @patch('core.modules.tag.tag_manager.DataManager')
-    @patch('core.modules.tag.tag_manager.get_scenarios_root')
-    def test_scenario_cache_lookup(self, mock_get_scenarios_root, mock_data_manager):
-        """scenario_cache 按名称读取配置。"""
-        from core.modules.tag.tag_manager import TagManager
-        
-        mock_get_scenarios_root.return_value = Path("/test/scenarios")
-        mock_data_mgr = MagicMock()
-        mock_data_mgr.stock.tags = MagicMock()
-        mock_data_manager.return_value = mock_data_mgr
-        
-        with patch.object(TagManager, '_discover_scenarios_from_folder'):
-            manager = TagManager(is_verbose=False)
-            manager.scenario_cache = {
-                "test_scenario": {
-                    "settings": {"name": "test_scenario"},
-                    "worker_class": None
-                }
-            }
-            
-            result = manager.scenario_cache.get("test_scenario")
-            
-            assert result is not None
-            assert result["settings"]["name"] == "test_scenario"
-
-    @patch('core.modules.tag.tag_manager.DataManager')
-    @patch('core.modules.tag.tag_manager.get_scenarios_root')
-    def test_scenario_cache_miss(self, mock_get_scenarios_root, mock_data_manager):
-        from core.modules.tag.tag_manager import TagManager
-        
-        mock_get_scenarios_root.return_value = Path("/test/scenarios")
-        mock_data_mgr = MagicMock()
-        mock_data_mgr.stock.tags = MagicMock()
-        mock_data_manager.return_value = mock_data_mgr
-        
-        with patch.object(TagManager, '_discover_scenarios_from_folder'):
-            manager = TagManager(is_verbose=False)
-            manager.scenario_cache = {}
-            
-            assert manager.scenario_cache.get("test_scenario") is None
-
-    @patch('core.modules.tag.tag_manager.DataManager')
-    @patch('core.modules.tag.tag_manager.get_scenarios_root')
-    def test_run_scenario_general_uses_general_owner(self, mock_get_scenarios_root, mock_data_manager):
-        """测试 general 模式固定使用 __general__ owner"""
-        from core.modules.tag.enums import TagExecutionMode
-        from core.modules.tag.tag_manager import TagManager
-
-        mock_get_scenarios_root.return_value = Path("/test/scenarios")
-        mock_data_mgr = MagicMock()
-        mock_data_mgr.stock.tags = MagicMock()
-        mock_data_manager.return_value = mock_data_mgr
-
-        with patch.object(TagManager, "_discover_scenarios_from_folder"), \
-             patch.object(TagManager, "_get_worker_class", return_value=MagicMock()), \
-             patch("core.modules.tag.tag_manager.run_timeline_pipeline") as mock_run:
-            manager = TagManager(is_verbose=False)
-            scenario_model = MagicMock()
-            scenario_model.is_enabled.return_value = True
-            scenario_model.get_name.return_value = "macro_general"
-            scenario_model.get_execution_mode.return_value = TagExecutionMode.ENTITY_BASED
-            scenario_model.get_settings.return_value = {
-                "name": "macro_general",
-                "tag_target_type": "general",
-                "performance": {
-                    "update_mode": "incremental",
-                    "entities_per_job": 100,
-                },
-                "data": {
-                    "required": [{"data_key": "macro.gdp", "params": {}}],
-                    "tag_time_axis_based_on": "macro.gdp",
-                },
-                "tag_definitions": [{"name": "macro_tag"}],
-            }
-            manager._run_scenario(scenario_model, tag_key="macro_general")
-
-            _, kwargs = mock_run.call_args
-            assert kwargs["entity_list"] == ["__general__"]
-
-    @patch("core.modules.backtest_engine.BacktestEngine.entity_based.run")
-    @patch("core.modules.tag.tag_manager.DataManager")
-    @patch("core.modules.tag.tag_manager.get_scenarios_root")
-    def test_run_tag_timeline_saves_on_engine_result(
-        self,
-        mock_get_scenarios_root,
-        mock_data_manager,
-        mock_timeline_run,
-    ):
-        """Worker 返回 tag_values，主进程 on_result 调用 save_batch。"""
-        from core.modules.backtest_engine.contracts import JobReport, RunProgress
-        from core.modules.tag.services.execution.tag_job_pipeline import (
-            run_tag_timeline_via_backtest_engine,
-        )
-
-        mock_get_scenarios_root.return_value = Path("/test/scenarios")
-        mock_data_mgr = MagicMock()
-        mock_tag_service = MagicMock()
-        mock_tag_service.save_batch.side_effect = lambda rows: len(rows)
-        mock_data_mgr.stock.tags = mock_tag_service
-        mock_data_mgr.db = MagicMock()
-        mock_data_manager.return_value = mock_data_mgr
-
-        def fake_timeline_run(jobs, **kwargs):
-            callbacks = kwargs["callbacks"]
-            assert callbacks is not None
-            assert kwargs.get("timeline_hooks_factory") is not None
-            callbacks.on_task_result(
-                JobReport(
-                    job_id="job1",
-                    success=True,
-                    data={"tag_values": [{"entity_id": "000001", "json_value": "1"}]},
-                ),
-                RunProgress(finished=1, total=1, ok=1, fail=0),
-            )
-            return type(
-                "RunResult",
-                (),
-                {
-                    "job_results": [],
-                    "success": True,
-                    "total_jobs": 1,
-                    "completed_jobs": 1,
-                    "failed_jobs": 0,
-                    "elapsed_seconds": 0.0,
-                    "mode": "entity_based",
-                    "plan": None,
-                    "monitor_stats": None,
-                },
-            )()
-
-        mock_timeline_run.side_effect = fake_timeline_run
+        mock_ensure_cls.return_value.ensure = MagicMock()
 
         with patch(
-            "core.modules.tag.services.execution.tag_job_pipeline._make_tag_save_fn",
-            lambda _name: mock_tag_service.save_batch,
+            "core.modules.tag.core.tag.Tag._save_performance_report"
         ):
-            result = run_tag_timeline_via_backtest_engine(
-                timeline_jobs=[{"job_id": "job1", "entity_id": "000001"}],
-                settings={
-                    "scenario_name": "test_scenario",
-                    "run_options": {"save_batch_size": 500},
-                },
-                duckdb_data_mgr=mock_data_mgr,
-            )
+            manager = TagManager(is_verbose=False)
+            result = manager.execute(scenario_name="demo")
 
-        mock_tag_service.save_batch.assert_called_once_with(
-            [{"entity_id": "000001", "json_value": "1"}]
-        )
-        assert result["completed_jobs"] == 1
-        assert result["saved_tag_values"] == 1
+        assert result["success"] is True
+        mock_pipeline_run.assert_called_once()
+        assert mock_pipeline_run.call_args.kwargs["entity_ids"] == ["000001.SZ"]
 
-    @patch("core.modules.backtest_engine.BacktestEngine.entity_based.run")
-    @patch("core.modules.tag.tag_manager.DataManager")
-    @patch("core.modules.tag.tag_manager.get_scenarios_root")
-    def test_run_tag_timeline_batches_save_on_engine_result(
+    @patch("core.modules.tag.core.tag.TagEntityPipeline.run")
+    @patch("core.modules.tag.core.tag.TagEntityListResolver.resolve")
+    @patch("core.modules.tag.core.tag.MetadataEnsureService")
+    @patch("core.modules.tag.core.tag.DiscoveryService.discover_tags")
+    @patch("core.modules.tag.core.tag.DataManager")
+    def test_execute_general_uses_general_owner(
         self,
-        mock_get_scenarios_root,
         mock_data_manager,
-        mock_timeline_run,
+        mock_discover,
+        mock_ensure_cls,
+        mock_resolve,
+        mock_pipeline_run,
     ):
-        """多个 job 的 tag_values 按 save_batch_size 合并 upsert。"""
-        from core.modules.backtest_engine.contracts import JobReport, RunProgress
-        from core.modules.tag.services.execution.tag_job_pipeline import (
-            run_tag_timeline_via_backtest_engine,
-        )
+        from core.modules.tag.tag_manager import TagManager
 
-        mock_get_scenarios_root.return_value = Path("/test/scenarios")
-        mock_data_mgr = MagicMock()
-        mock_tag_service = MagicMock()
-        mock_tag_service.save_batch.side_effect = lambda rows: len(rows)
-        mock_data_mgr.stock.tags = mock_tag_service
-        mock_data_mgr.db = MagicMock()
-        mock_data_manager.return_value = mock_data_mgr
-
-        def fake_timeline_run(jobs, **kwargs):
-            on_task_result = kwargs["callbacks"].on_task_result
-            for i in range(3):
-                on_task_result(
-                    JobReport(
-                        job_id=f"job{i}",
-                        success=True,
-                        data={"tag_values": [{"entity_id": f"00000{i}", "json_value": "1"}]},
-                    ),
-                    RunProgress(finished=i + 1, total=3, ok=i + 1, fail=0),
-                )
-            return type(
-                "RunResult",
-                (),
-                {
-                    "job_results": [],
-                    "success": True,
-                    "total_jobs": 3,
-                    "completed_jobs": 3,
-                    "failed_jobs": 0,
-                    "elapsed_seconds": 0.0,
-                    "mode": "entity_based",
-                    "plan": None,
-                    "monitor_stats": None,
-                },
-            )()
-
-        mock_timeline_run.side_effect = fake_timeline_run
+        mock_data_manager.return_value = MagicMock(stock=MagicMock(tags=MagicMock()))
+        info = _make_tag_info(key="macro_general", relative="macro_general")
+        info.settings["tag_target_type"] = "general"
+        mock_discover.return_value = [info]
+        mock_resolve.return_value = ["__general__"]
+        mock_pipeline_run.return_value = {"success": True, "jobs": 1}
+        mock_ensure_cls.return_value.ensure = MagicMock()
 
         with patch(
-            "core.modules.tag.services.execution.tag_job_pipeline._make_tag_save_fn",
-            lambda _name: mock_tag_service.save_batch,
+            "core.modules.tag.core.tag.Tag._save_performance_report"
         ):
-            result = run_tag_timeline_via_backtest_engine(
-                timeline_jobs=[{"job_id": f"job{i}"} for i in range(3)],
-                settings={
-                    "scenario_name": "test_scenario",
-                    "run_options": {
-                        "save_batch_size": 2,
-                    },
-                },
-                duckdb_data_mgr=mock_data_mgr,
-            )
+            manager = TagManager(is_verbose=False)
+            manager.execute(scenario_name="macro_general")
 
-        assert mock_tag_service.save_batch.call_count == 2
-        assert mock_tag_service.save_batch.call_args_list[0].args[0] == [
-            {"entity_id": "000000", "json_value": "1"},
-            {"entity_id": "000001", "json_value": "1"},
-        ]
-        assert mock_tag_service.save_batch.call_args_list[1].args[0] == [
-            {"entity_id": "000002", "json_value": "1"},
-        ]
-        assert result["saved_tag_values"] == 3
+        mock_resolve.assert_called_once()
+        assert mock_pipeline_run.call_args.kwargs["entity_ids"] == ["__general__"]

@@ -52,15 +52,22 @@ class TagHooksLoader:
             sys.modules[module_id] = module
             spec.loader.exec_module(module)
 
+            from core.modules.tag.core.engines.shared.hooks.tag_hooks import TagHooks
+
             hooks_class: Optional[Type] = None
             hooks_class_name: Optional[str] = None
             for attr_name in dir(module):
                 attr = getattr(module, attr_name)
-                if isinstance(attr, type) and not attr_name.startswith("_"):
-                    if attr.__module__ == module_id or attr.__module__.startswith("_ntq_tag_"):
-                        hooks_class = attr
-                        hooks_class_name = attr_name
-                        break
+                if not isinstance(attr, type) or attr_name.startswith("_"):
+                    continue
+                if attr is TagHooks or not issubclass(attr, TagHooks):
+                    continue
+                if attr.__module__ == module_id or attr.__module__.startswith(
+                    "_ntq_tag_"
+                ):
+                    hooks_class = attr
+                    hooks_class_name = attr_name
+                    break
 
             if hooks_class is None:
                 logger.warning("Tag %s missing hooks class", tag_key)

@@ -217,6 +217,14 @@ class Scenario:
             self.display_name = str(meta.get("display_name") or self.display_name)
         if meta.get("description") is not None:
             self.description = str(meta.get("description") or "")
+        if meta.get("key") is not None:
+            key = str(meta.get("key") or "").strip()
+            if key:
+                self.key = key
+        if meta.get("attach_to_data_key") is not None:
+            attach = str(meta.get("attach_to_data_key") or "").strip()
+            if attach:
+                self.attach_to_data_key = attach
         if "created_at" in meta:
             self.created_at = meta.get("created_at")
         if "updated_at" in meta:
@@ -228,6 +236,14 @@ class Scenario:
         if (self.display_name or self.name) != str(db_meta.get("display_name") or ""):
             return True
         if self.description != str(db_meta.get("description") or ""):
+            return True
+        want_key = str(self.key or self.name or "").strip()
+        have_key = str(db_meta.get("key") or "").strip()
+        if want_key != have_key:
+            return True
+        want_attach = str(self.attach_to_data_key or "").strip()
+        have_attach = str(db_meta.get("attach_to_data_key") or "").strip()
+        if want_attach != have_attach:
             return True
         return False
 

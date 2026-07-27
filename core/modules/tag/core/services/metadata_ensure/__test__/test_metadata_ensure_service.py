@@ -13,14 +13,17 @@ def _scenario(
     recompute: bool = False,
     update_mode: str = "incremental",
     display_name: str = "Demo",
+    key: str = "cap",
+    attach_to_data_key: str = "stock.kline.daily",
 ) -> Scenario:
     return Scenario(
         name="demo/cap",
-        key="cap",
+        key=key,
         display_name=display_name,
         description="d",
         recompute=recompute,
         update_mode=update_mode,
+        attach_to_data_key=attach_to_data_key,
         tag_definitions=[
             TagDefinition(
                 name="tier",
@@ -40,6 +43,8 @@ class TestMetadataEnsureService:
             "name": "demo/cap",
             "display_name": "Demo",
             "description": "d",
+            "key": "cap",
+            "attach_to_data_key": "stock.kline.daily",
             "created_at": "c",
             "updated_at": "u",
         }
@@ -58,7 +63,13 @@ class TestMetadataEnsureService:
         assert scenario.id == 10
         assert scenario.tag_definitions[0].id == 20
         assert scenario.tag_definitions[0].scenario_id == 10
-        tags.save_scenario.assert_called_once()
+        tags.save_scenario.assert_called_once_with(
+            "demo/cap",
+            display_name="Demo",
+            description="d",
+            key="cap",
+            attach_to_data_key="stock.kline.daily",
+        )
         tags.save.assert_called_once_with("tier", 10, "Tier", "t")
 
     def test_refresh_clears_values_without_recreate(self):
@@ -67,6 +78,8 @@ class TestMetadataEnsureService:
             "id": 10,
             "display_name": "Demo",
             "description": "d",
+            "key": "cap",
+            "attach_to_data_key": "stock.kline.daily",
         }
         tags.load.return_value = {
             "id": 20,
@@ -84,20 +97,26 @@ class TestMetadataEnsureService:
         assert scenario.id == 10
         assert scenario.tag_definitions[0].id == 20
 
-    def test_recompute_recreates_scenario_and_tags(self):
+    def test_recompute_keeps_scenario_id(self):
         tags = MagicMock()
-        tags.load_scenario.side_effect = [
-            {"id": 10, "display_name": "Demo", "description": "d"},
-        ]
-        tags.save_scenario.return_value = {
-            "id": 11,
+        tags.load_scenario.return_value = {
+            "id": 10,
             "display_name": "Demo",
             "description": "d",
+            "key": None,
+            "attach_to_data_key": None,
+        }
+        tags.update_scenario.return_value = {
+            "id": 10,
+            "display_name": "Demo",
+            "description": "d",
+            "key": "cap",
+            "attach_to_data_key": "stock.kline.daily",
         }
         tags.load.return_value = None
         tags.save.return_value = {
             "id": 21,
-            "scenario_id": 11,
+            "scenario_id": 10,
             "display_name": "Tier",
             "description": "t",
         }
@@ -107,9 +126,44 @@ class TestMetadataEnsureService:
 
         tags.delete_tag_values_by_scenario.assert_called_once_with(10)
         tags.delete_tag_definitions_by_scenario.assert_called_once_with(10)
-        tags.delete_scenario.assert_called_once_with(10, cascade=False)
-        assert scenario.id == 11
+        tags.delete_scenario.assert_not_called()
+        tags.save_scenario.assert_not_called()
+        tags.update_scenario.assert_called_once()
+        assert scenario.id == 10
         assert scenario.tag_definitions[0].id == 21
+        assert scenario.tag_definitions[0].scenario_id == 10
+
+    def test_updates_when_key_missing_in_db(self):
+        tags = MagicMock()
+        tags.load_scenario.return_value = {
+            "id": 10,
+            "display_name": "Demo",
+            "description": "d",
+            "key": None,
+            "attach_to_data_key": None,
+        }
+        tags.update_scenario.return_value = {
+            "id": 10,
+            "display_name": "Demo",
+            "description": "d",
+            "key": "cap",
+            "attach_to_data_key": "stock.kline.daily",
+        }
+        tags.load.return_value = {
+            "id": 20,
+            "scenario_id": 10,
+            "display_name": "Tier",
+            "description": "t",
+        }
+
+        scenario = _scenario()
+        MetadataEnsureService(tags).ensure(scenario)
+
+        tags.update_scenario.assert_called_once()
+        kwargs = tags.update_scenario.call_args.kwargs
+        assert kwargs["key"] == "cap"
+        assert kwargs["attach_to_data_key"] == "stock.kline.daily"
+        assert scenario.id == 10
 
     def test_updates_when_display_name_differs(self):
         tags = MagicMock()
@@ -117,11 +171,15 @@ class TestMetadataEnsureService:
             "id": 10,
             "display_name": "Old",
             "description": "d",
+            "key": "cap",
+            "attach_to_data_key": "stock.kline.daily",
         }
         tags.update_scenario.return_value = {
             "id": 10,
             "display_name": "Demo",
             "description": "d",
+            "key": "cap",
+            "attach_to_data_key": "stock.kline.daily",
         }
         tags.load.return_value = {
             "id": 20,

@@ -229,8 +229,14 @@ def test_report_manager_finalize_writes_files(tmp_path: Path):
     ).finalize(result, period={"start_date": "20240101", "end_date": "20240131"})
     assert report["success"] is True
     assert report["version_id"] == 1
+    assert report["capitalMetrics"]["totalTrades"] >= 2
+    assert report["capitalMetrics"]["winTrades"] == 1
+    assert len(report["capitalMetrics"]["equityCurveLabels"]) >= 2
     assert (tmp_path / "1" / "trades.json").is_file()
     assert (tmp_path / "1" / "equity_curve.json").is_file()
     assert (tmp_path / "1" / "overall_report.json").is_file()
+    assert (tmp_path / "1" / "entity_list.json").is_file()
+    assert (tmp_path / "1" / "performance.json").is_file()
     assert report["summary"]["completed_investments"] == 1
     assert report["summary"]["total_return"] == pytest.approx(0.05)
+    assert report["summary"]["final_total_equity"] == pytest.approx(1_050_000.0)

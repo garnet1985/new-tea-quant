@@ -43,7 +43,7 @@ function slotDone(entry) {
 }
 
 /**
- * @param {object|null|undefined} apiStepStatus BFF：``enum`` / ``price_factor`` / ``capital_allocation`` → ``{ done: boolean }``
+ * @param {object|null|undefined} apiStepStatus BFF：``enum`` / ``price_factor`` / ``portfolio`` → ``{ done: boolean }``
  * @returns {{ enum: string, price: string, capital: string }}
  */
 export function mapWorkbenchStepStatusToExecutionCards(apiStepStatus) {
@@ -53,7 +53,7 @@ export function mapWorkbenchStepStatusToExecutionCards(apiStepStatus) {
   return {
     enum: slotDone(apiStepStatus.enum) ? 'done' : 'idle',
     price: slotDone(apiStepStatus.price_factor) ? 'done' : 'idle',
-    capital: slotDone(apiStepStatus.capital_allocation) ? 'done' : 'idle',
+    capital: slotDone(apiStepStatus.portfolio) ? 'done' : 'idle',
   };
 }
 

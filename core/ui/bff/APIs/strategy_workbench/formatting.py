@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from core.modules.strategy.launcher.workbench_execution_panel import (
+from core.modules.strategy_legacy.launcher.workbench_execution_panel import (
     build_execution_panel_from_result_report,
 )
 
 # Aligns with ``SimulatorResDbCacheService`` report slot keys + UI steps (enum / price / capital).
-_STEP_KEYS = ("enum", "price_factor", "capital_allocation")
+_STEP_KEYS = ("enum", "price_factor", "portfolio")
 
 
 def _step_status_from_result_report(result_report: Dict[str, Any]) -> Dict[str, Any]:

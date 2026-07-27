@@ -169,9 +169,10 @@ function StrategyReportPanel({
       return { priceMetrics: normalizePriceMetricsFromSummary(slot), stockRows: priceStockRowsForGrid };
     }
     const slot = slotFromResultReport(reportSource, 'capital');
+    const stockRows = Array.isArray(slot?.stockRows) ? slot.stockRows : [];
     return {
       capitalMetrics: normalizeCapitalMetricsFromSummary(slot),
-      stockRows: [],
+      stockRows,
     };
   };
 

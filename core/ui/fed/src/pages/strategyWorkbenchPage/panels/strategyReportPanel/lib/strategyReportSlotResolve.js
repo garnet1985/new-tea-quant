@@ -6,7 +6,7 @@
 export const TAB_TO_RESULT_REPORT_SLOT = {
   enum: 'enum',
   price: 'price_factor',
-  capital: 'capital_allocation',
+  capital: 'portfolio',
 };
 
 /**

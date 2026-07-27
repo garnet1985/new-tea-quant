@@ -1,0 +1,52 @@
+# NTQ Glossary - infra.cmd_layout
+# Version: 0.2.0
+#
+# 目的：统一 CLI layout 组件术语，供 report present 与实现共用。
+
+---
+
+recommended_terms:
+  CmdLayout:
+    meaning: "CLI 布局 Facade；对外唯一入口"
+  bar_chart:
+    meaning: "水平 ASCII 分布 / 直方图 namespace"
+  title:
+    meaning: "标题 namespace：banner（主标题）/ section（小节）"
+  separator:
+    meaning: "分割线 namespace：line / thick / star / blank"
+  BarBucket:
+    meaning: "单柱数据：(label, value)；value 为非负计数或权重"
+  banner:
+    meaning: "上下规则线包裹的主标题块"
+  section:
+    meaning: "小节标题，形如 -- 文本 --"
+  bin:
+    meaning: "from_values 等宽分桶区间"
+  width:
+    meaning: "条/线宽度；标题规则线可按正文终端列宽推导（CJK=2）"
+  fill_char:
+    meaning: "条形填充字符 '#'（纯 ASCII，跨平台）"
+  empty_char:
+    meaning: "空白字符 ' '（纯 ASCII，跨平台）"
+
+forbidden_terms:
+  - term: "█ / ░ / emoji 作为条形填充"
+    reason: "Windows GBK 等终端易乱码；统一用 # 与空格"
+  - term: "── Unicode 盒线作为默认分割"
+    reason: "跨平台默认用 ASCII - / = / *；需要时可由调用方自定 char"
+  - term: "histogram widget / GUI chart"
+    reason: "本模块只做 CLI 字符串输出"
+
+naming:
+  files:
+    - pattern: "bar_chart.py"
+      usage: "条形图实现与 BarChartNamespace"
+    - pattern: "title.py"
+      usage: "标题实现与 TitleNamespace"
+    - pattern: "separator.py"
+      usage: "分割线实现与 SeparatorNamespace"
+  apis:
+    - render / from_values: "分布图 → 字符串"
+    - banner / section: "标题 → 字符串"
+    - line / thick / star / blank: "分割线 → 字符串"
+    - print_*: "同上并写入 stream"

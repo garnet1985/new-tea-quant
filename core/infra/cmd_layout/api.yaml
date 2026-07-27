@@ -1,0 +1,318 @@
+module: infra.cmd_layout
+version: 0.2.0
+requires: core>=0.4.0
+
+# ---------------------------------------------------------------------------
+# 用语
+#
+#   CmdLayout   — Facade，对外唯一入口
+#   bar_chart   — 水平 ASCII 分布 / 直方图 namespace
+#   title       — 主标题 banner / 小节 section
+#   separator   — 分割线 line / thick / star / blank
+#   BarBucket   — 单柱 (label, value)
+#
+# ---------------------------------------------------------------------------
+
+---
+
+CmdLayout:
+  layer: facade
+  description: "CLI layout helpers for strategy report present()"
+
+  namespaces:
+    bar_chart:
+      description: "水平 ASCII 分布条形图（Win/Linux/Mac 纯 ASCII）"
+
+      apis:
+        render:
+          description: "将已分桶数据渲染为多行 ASCII 条形图字符串"
+          stability: stable
+          binding: static
+          parameters:
+            positional:
+              - name: buckets
+                type: Sequence[BarBucket | Tuple[str, float] | Mapping]
+                required: true
+                notes: "每项为 BarBucket、(label, value) 或含 label/value(count) 的 mapping；负值 clamp 为 0"
+            keyword_only:
+              - name: title
+                type: str
+                required: false
+                default: "''"
+              - name: width
+                type: int
+                required: false
+                default: 20
+                notes: "条内格子数；最高柱铺满 width"
+              - name: show_count
+                type: bool
+                required: false
+                default: true
+              - name: show_pct
+                type: bool
+                required: false
+                default: true
+          returns: str
+          example: |
+            text = CmdLayout.bar_chart.render(
+                [("win", 42), ("loss", 18)],
+                title="胜负",
+            )
+
+        from_values:
+          description: "对连续样本等宽分桶后渲染直方图"
+          stability: stable
+          binding: static
+          parameters:
+            positional:
+              - name: values
+                type: Sequence[float]
+                required: true
+            keyword_only:
+              - name: bins
+                type: int
+                required: false
+                default: 10
+              - name: title
+                type: str
+                required: false
+                default: "''"
+              - name: width
+                type: int
+                required: false
+                default: 20
+              - name: show_count
+                type: bool
+                required: false
+                default: true
+              - name: show_pct
+                type: bool
+                required: false
+                default: true
+              - name: label_format
+                type: str
+                required: false
+                default: "'.2f'"
+                notes: "分桶边界 format 规格（可带或不带前导冒号）"
+          returns: str
+          notes: "空列表仅返回 title（若有）；全相等样本输出单柱"
+          example: |
+            text = CmdLayout.bar_chart.from_values(
+                rois,
+                bins=10,
+                title="ROI",
+                label_format=".2f",
+            )
+
+        print:
+          description: "render 并将结果打印到 stream（默认 stdout）"
+          stability: stable
+          binding: static
+          parameters:
+            positional:
+              - name: buckets
+                type: Sequence[BarBucket | Tuple[str, float] | Mapping]
+                required: true
+            keyword_only:
+              - name: title
+                type: str
+                required: false
+                default: "''"
+              - name: width
+                type: int
+                required: false
+                default: 20
+              - name: show_count
+                type: bool
+                required: false
+                default: true
+              - name: show_pct
+                type: bool
+                required: false
+                default: true
+              - name: stream
+                type: Optional[TextIO]
+                required: false
+                default: None
+          returns: str
+          notes: "返回与打印内容相同的字符串"
+
+        print_from_values:
+          description: "from_values 并将结果打印到 stream（默认 stdout）"
+          stability: stable
+          binding: static
+          parameters:
+            positional:
+              - name: values
+                type: Sequence[float]
+                required: true
+            keyword_only:
+              - name: bins
+                type: int
+                required: false
+                default: 10
+              - name: title
+                type: str
+                required: false
+                default: "''"
+              - name: width
+                type: int
+                required: false
+                default: 20
+              - name: show_count
+                type: bool
+                required: false
+                default: true
+              - name: show_pct
+                type: bool
+                required: false
+                default: true
+              - name: label_format
+                type: str
+                required: false
+                default: "'.2f'"
+              - name: stream
+                type: Optional[TextIO]
+                required: false
+                default: None
+          returns: str
+
+    title:
+      description: "ASCII 标题块（Win/Linux/Mac）"
+
+      apis:
+        banner:
+          description: "主标题：上下规则线包裹正文"
+          stability: stable
+          binding: static
+          parameters:
+            positional:
+              - name: text
+                type: str
+                required: true
+            keyword_only:
+              - name: char
+                type: str
+                required: false
+                default: "'*'"
+              - name: width
+                type: Optional[int]
+                required: false
+                default: None
+                notes: "规则线宽度；默认按正文终端列宽（CJK=2）"
+              - name: center
+                type: bool
+                required: false
+                default: false
+          returns: str
+          example: |
+            text = CmdLayout.title.banner("枚举报告")
+            # ***************
+            # 枚举报告
+            # ***************
+
+        section:
+          description: "小节标题：-- 文本 --"
+          stability: stable
+          binding: static
+          parameters:
+            positional:
+              - name: text
+                type: str
+                required: true
+            keyword_only:
+              - name: char
+                type: str
+                required: false
+                default: "'-'"
+          returns: str
+          example: |
+            CmdLayout.title.section("枚举汇总")  # -- 枚举汇总 --
+
+        print_banner:
+          description: "banner 并打印到 stream（默认 stdout）"
+          stability: stable
+          binding: static
+          returns: str
+
+        print_section:
+          description: "section 并打印到 stream（默认 stdout）"
+          stability: stable
+          binding: static
+          returns: str
+
+    separator:
+      description: "ASCII 分割线"
+
+      apis:
+        line:
+          description: "单行分割线（默认 '-'）"
+          stability: stable
+          binding: static
+          parameters:
+            keyword_only:
+              - name: char
+                type: str
+                required: false
+                default: "'-'"
+              - name: width
+                type: int
+                required: false
+                default: 60
+          returns: str
+          example: |
+            CmdLayout.separator.line(width=40)
+
+        thick:
+          description: "粗分割线（'='）"
+          stability: stable
+          binding: static
+          parameters:
+            keyword_only:
+              - name: width
+                type: int
+                required: false
+                default: 60
+          returns: str
+
+        star:
+          description: "星号分割线（'*'，与 banner 风格一致）"
+          stability: stable
+          binding: static
+          parameters:
+            keyword_only:
+              - name: width
+                type: int
+                required: false
+                default: 60
+          returns: str
+
+        blank:
+          description: "空行（print 时输出一个换行）"
+          stability: stable
+          binding: static
+          returns: str
+
+        print_line:
+          description: "line 并打印到 stream"
+          stability: stable
+          binding: static
+          returns: str
+
+        print_thick:
+          description: "thick 并打印到 stream"
+          stability: stable
+          binding: static
+          returns: str
+
+        print_star:
+          description: "star 并打印到 stream"
+          stability: stable
+          binding: static
+          returns: str
+
+        print_blank:
+          description: "blank 并打印到 stream"
+          stability: stable
+          binding: static
+          returns: str

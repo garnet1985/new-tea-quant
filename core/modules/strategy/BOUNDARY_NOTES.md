@@ -192,7 +192,7 @@ Pipeline    → 周边编排（采样、BE.run、ReportManager）
 | 日历/日期双表面 | `helpers/calendar.py` vs `scanner/helpers/date_resolver.py` | 职责不同但「日期」入口分散 |
 | Job payload 组装重叠 | `enumerator/common/base_job_builder.py` vs S/P `JobBuilder` | entity_shared / shm / strategy_info 模式重复 |
 | 贴板/tradability 重叠 | `scanner/helpers/tradability.py` vs price `deferred_exit` + simulation risk settings | 语义近，实现散 |
-| Discovery 校验副作用 | `discovery` → `StrategyWorkerLoader` | 发现阶段 exec 用户 `strategy.py`；失败策略仍可能进 list |
+| Discovery 校验副作用 | `discovery` → `StrategyHooksLoader` | 发现阶段 exec 用户 `strategy.py`；失败策略仍可能进 list |
 | 空壳 / 薄目录 | `core/bff_support/`（空，**保留**）；`core/services/data/` 仅 recorder；`discovery/__test__/` 空 | bff 留给 UI；其余可随手清 |
 | shared `Investment` 体量 | `data_class/investment/` | #6 曾跳过拆分；与入场风控一起再拆更合适 |
 | price_factor `on_tick` noop | `price_factor/executor.py` | 回放仍在 after_task；迁 `on_tick` 后再议 event 轴（勿先加 TimelineBuilder） |

@@ -1,3 +1,15 @@
+"""
+MIGRATED → ``core.modules.tag.core.data_class.TagDefinition``
+
+旧 TagModel（含 ensure_metadata DB IO）。新代码请::
+
+    from core.modules.tag.core.data_class import TagDefinition
+    d = TagDefinition.from_settings_item({"name": "..."})
+    # DB ensure 将迁到独立 service，不挂在 data class 上
+    # → ``core.modules.tag.core.services.metadata_ensure.MetadataEnsureService``
+
+AUDIT: 待 engines / TagManager 切走后删除本文件。
+"""
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 import logging
@@ -9,6 +21,9 @@ logger = logging.getLogger(__name__)
 class TagModel:
     """
     Tag Model (Tag Definition Model)
+
+    .. deprecated::
+        使用 ``TagDefinition`` + ``MetadataEnsureService`` 替代。
     
     使用流程：
     1. 创建实例：tag = TagModel()
@@ -139,16 +154,8 @@ class TagModel:
 
     def ensure_metadata(self, tag_data_mgr, scenario_id: int, recompute: bool = False):
         """
-        确保元信息存在
-        
-        简化逻辑：
-        - 如果 recompute=True 或 tag 不存在：创建新的 tag
-        - 如果 recompute=False 且 tag 存在：检查 diff 并更新（如果需要）
-        
-        Args:
-            tag_data_mgr: TagDataManager 实例
-            scenario_id: Scenario ID（从 ScenarioModel 传入）
-            recompute: 是否强制重新计算（从 ScenarioModel 传入）
+        .. deprecated::
+            使用 ``MetadataEnsureService.ensure_tag_definition`` 替代。
         """
         # 设置 scenario_id（在调用 save_tag/update_tag 前必须设置）
         self.scenario_id = scenario_id

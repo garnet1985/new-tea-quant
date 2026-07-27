@@ -1,7 +1,7 @@
-"""从磁盘动态加载用户 strategy.py 中的 hooks 类。
+"""从磁盘动态加载用户 ``strategy.py`` 中的 hooks 类。
 
 本文件:
-- StrategyWorkerLoader: importlib 加载 + 查找公开 StrategyHooks 子类
+- StrategyHooksLoader: importlib 加载 + 查找公开 StrategyHooks 子类
   边界: 负责模块 spec 与类解析；不负责 settings 校验或 hook 调用
 """
 from __future__ import annotations
@@ -17,8 +17,8 @@ from .path_rules import StrategyPathRules
 logger = logging.getLogger(__name__)
 
 
-class StrategyWorkerLoader:
-    """策略 strategy.py 中 hooks 类的动态加载。"""
+class StrategyHooksLoader:
+    """从 ``strategy.py`` 动态加载用户 hooks 类。"""
 
     @classmethod
     def load_hooks_class(
@@ -26,18 +26,22 @@ class StrategyWorkerLoader:
         strategy_folder: Path,
         strategy_key: str,
     ) -> Optional[Tuple[str, str, Path, Type]]:
-        """加载 hooks 类；失败返回 None。"""
+        """加载 hooks 类；失败返回 None。
+
+        Returns:
+            ``(hooks_module_path, hooks_class_name, hooks_file_path, hooks_class)``
+        """
         folder = Path(strategy_folder)
-        worker_file = folder / "strategy.py"
-        if not worker_file.is_file():
+        hooks_file = folder / "strategy.py"
+        if not hooks_file.is_file():
             return None
 
         module_id = StrategyPathRules.strategy_module_id(strategy_key, suffix="strategy")
 
         try:
-            spec = importlib.util.spec_from_file_location(module_id, worker_file)
+            spec = importlib.util.spec_from_file_location(module_id, hooks_file)
             if spec is None or spec.loader is None:
-                logger.warning("Cannot create module spec for worker: %s", worker_file)
+                logger.warning("Cannot create module spec for hooks: %s", hooks_file)
                 return None
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
@@ -59,7 +63,7 @@ class StrategyWorkerLoader:
             return (
                 module_id,
                 hooks_class_name,
-                worker_file.resolve(),
+                hooks_file.resolve(),
                 hooks_class,
             )
         except Exception as exc:
@@ -70,17 +74,17 @@ class StrategyWorkerLoader:
     def import_hooks_class(
         cls,
         *,
-        worker_module_path: str,
-        worker_class_name: str,
-        worker_file_path: str = "",
+        hooks_module_path: str,
+        hooks_class_name: str,
+        hooks_file_path: str = "",
     ) -> Type:
         """主进程 / 子进程共用：优先 import 已注册模块，否则按文件路径加载。"""
         from core.modules.strategy.core.hooks.base import StrategyHooks
 
-        mod_path = str(worker_module_path or "").strip()
-        cls_name = str(worker_class_name or "").strip()
+        mod_path = str(hooks_module_path or "").strip()
+        cls_name = str(hooks_class_name or "").strip()
         if not mod_path or not cls_name:
-            raise ValueError("worker_module_path and worker_class_name are required")
+            raise ValueError("hooks_module_path and hooks_class_name are required")
 
         try:
             module = importlib.import_module(mod_path)
@@ -94,7 +98,7 @@ class StrategyWorkerLoader:
         except Exception:
             pass
 
-        file_path = Path(str(worker_file_path or "").strip())
+        file_path = Path(str(hooks_file_path or "").strip())
         if not file_path.is_file():
             raise ValueError(f"cannot import strategy hooks: {mod_path}")
 
@@ -113,4 +117,4 @@ class StrategyWorkerLoader:
         return hooks_class
 
 
-__all__ = ["StrategyWorkerLoader"]
+__all__ = ["StrategyHooksLoader"]

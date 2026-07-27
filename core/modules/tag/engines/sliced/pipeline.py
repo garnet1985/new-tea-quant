@@ -1,4 +1,11 @@
-"""Tag calendar_slice 执行流水线。"""
+"""
+MIGRATED → ``core.modules.tag.core.engines.slice_based``
+
+旧 Tag calendar_slice 执行流水线。新代码请用 TagSliceJobBuilder + TagSliceJobExecutor
++ BacktestEngine.slice_based.run(callbacks=...)。
+
+AUDIT: 待 TagManager 切走后删除。
+"""
 from __future__ import annotations
 
 import logging

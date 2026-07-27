@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""从磁盘加载 tag_worker（嵌套目录，不依赖 userspace 包路径）。"""
+"""
+MIGRATED → ``core.modules.tag.core.services.discovery.TagHooksLoader``
+
+旧 freestanding worker loader（``tag_worker.py`` + ``BaseTagWorker``）。
+新约定：``tag.py`` + ``TagHooks``（主逻辑 hooks 文件，不再是子进程 worker）。
+
+AUDIT: 待旧引擎切走后删除本文件。
+"""
 
 from __future__ import annotations
 
@@ -23,6 +30,9 @@ def load_tag_worker_class(
 ) -> Optional[Tuple[str, str, Path, Type[BaseTagWorker]]]:
     """
     加载 tag worker 类。
+
+    .. deprecated::
+        使用 ``TagHooksLoader.load_hooks_class`` 替代。
 
     Returns:
         ``(worker_module_path, worker_class_name, worker_file_path, worker_class)``
@@ -72,7 +82,11 @@ def import_tag_worker_class(
     worker_class_name: str,
     worker_file_path: str = "",
 ) -> Type[BaseTagWorker]:
-    """主进程 / 子进程共用：优先 import 已注册模块，否则按文件路径加载。"""
+    """主进程 / 子进程共用：优先 import 已注册模块，否则按文件路径加载。
+
+    .. deprecated::
+        使用 ``TagHooksLoader.import_hooks_class`` 替代。
+    """
     mod_path = str(worker_module_path or "").strip()
     cls_name = str(worker_class_name or "").strip()
     if not mod_path or not cls_name:

@@ -1,3 +1,17 @@
+"""
+MIGRATED → ``core.modules.tag.core.data_class.Scenario``
+
+旧 ScenarioModel（含 normalize / 重校验 / ensure_metadata DB IO）。新代码请::
+
+    from core.modules.tag.core.engines.shared.tag_settings import TagSettings
+    from core.modules.tag.core.data_class import Scenario
+    ts = TagSettings.from_dict(settings, tag_key=...)
+    ts.validate()
+    scenario = Scenario.from_tag_settings(ts)
+    # DB ensure → MetadataEnsureService(tag_data_service).ensure(scenario)
+
+AUDIT: 待 TagManager / engines 切走后删除本文件。
+"""
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 import logging
@@ -26,6 +40,9 @@ def _contract_issuer() -> ContractIssuer:
 class ScenarioModel:
     """
     Scenario Model
+
+    .. deprecated::
+        使用 ``Scenario`` + ``TagSettings`` + ``MetadataEnsureService`` 替代。
     
     使用流程：
     1. 创建实例：scenario = ScenarioModel()
@@ -132,12 +149,8 @@ class ScenarioModel:
 
     def ensure_metadata(self, tag_data_mgr):
         """
-        确保元信息存在
-        
-        简化逻辑：
-        - 如果 scenario 不存在：创建新的
-        - 如果 scenario 存在且 recompute=True：删除旧的 scenario 和 tags，创建新的
-        - 如果 scenario 存在且 recompute=False：检查 meta 差异并更新（如果需要）
+        .. deprecated::
+            使用 ``MetadataEnsureService.ensure`` 替代。
         """
         self._ensure_scenario_metadata(tag_data_mgr)
         self._ensure_tags_metadata(tag_data_mgr)

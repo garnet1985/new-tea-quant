@@ -120,6 +120,24 @@ class DataSettings(SettingsBase):
         if report.is_valid:
             try:
                 decls = self.issue_declarations()
+                # userspace required 不应与 base 重复（issue_declarations 会静默去重）
+                base_key = decls[0]["data_key"] if decls else ""
+                extras = self.data.get("required") or []
+                if isinstance(extras, list):
+                    seen_extra = set()
+                    for i, raw in enumerate(extras):
+                        if not isinstance(raw, dict):
+                            continue
+                        key = str(raw.get("data_key") or "").strip()
+                        if not key:
+                            continue
+                        if key == base_key or key in seen_extra:
+                            SettingsBase.add_critical(
+                                report,
+                                f"data.required[{i}]",
+                                f"duplicate data_key: {key}",
+                            )
+                        seen_extra.add(key)
                 self._validate_declarations(decls)
                 axis = self.resolve_time_axis()
                 self.raw_settings["data"]["tag_time_axis_based_on"] = axis
@@ -162,14 +180,14 @@ class DataSettings(SettingsBase):
         }
 
     def issue_declarations(self) -> List[Dict[str, Any]]:
-        """返回 [base] + required（去重后）。"""
+        """返回 [base] + required（去重后；兼容 to_dict 展开后再 from_dict）。"""
         decls: List[Dict[str, Any]] = [self.normalize_base(self.base)]
         seen = {decls[0]["data_key"]}
         for raw in self.data.get("required") or []:
             item = self.normalize_declaration_item(raw)
             data_key = item["data_key"]
             if data_key in seen:
-                raise ValueError(f"duplicate data_key: {data_key}")
+                continue
             seen.add(data_key)
             decls.append(item)
         return decls

@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Tag 路径 ID 规则（系统 tag_key = tags 根下相对路径）。"""
+"""
+MIGRATED → ``core.modules.tag.core.services.discovery.DiscoveryService``
+
+旧 freestanding path helpers。新代码请使用::
+
+    from core.modules.tag.core.services.discovery import TagPathRules
+
+AUDIT: 待旧 TagManager / CLI 切到新 DiscoveryService 后删除本文件。
+"""
 
 from __future__ import annotations
 

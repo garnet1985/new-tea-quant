@@ -10,7 +10,7 @@ from enum import Enum
 
 class FileName(Enum):
     SETTINGS = "settings.py"
-    TAG_WORKER = "tag.py"
+    TAG = "tag.py"  # 用户 hooks 主文件（非子进程 worker）
 
 
 class TagUpdateMode(Enum):

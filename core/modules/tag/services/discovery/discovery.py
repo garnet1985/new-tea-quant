@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """
-Tag discovery service.
+MIGRATED → ``core.modules.tag.core.services.discovery.DiscoveryService``
 
-递归发现 userspace/extensions/tags 下含 settings.py + tag_worker.py 的目录。
-系统 tag_key = 相对 tags 根的 POSIX 路径（与 strategy 发现一致）。
-CLI / API 优先用 meta.key。
+旧 discovery（``tag_worker.py`` + ``normalize_tag_settings`` + ``DiscoveredTag`` dict）。
+新约定与 strategy 对齐::
+
+    from core.modules.tag.core.services.discovery import DiscoveryService
+    tags = DiscoveryService.discover_tags()
+    enabled = DiscoveryService.get_enabled_tags()
+    one = DiscoveryService.find_tag("market_cap_tier")  # meta.key 或路径
+
+AUDIT: 待 TagManager / CLI / catalog 切走后删除本包。
 """
 
 from __future__ import annotations
@@ -30,7 +36,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class DiscoveredTag:
-    """Discovery 输出。"""
+    """Discovery 输出。
+
+    .. deprecated::
+        使用 ``TagInfo`` / ``EnabledTagInfo`` 替代。
+    """
 
     tag_key: str
     folder: Path
@@ -50,6 +60,8 @@ class DiscoveredTag:
 
 
 class TagDiscoveryHelper:
+    """.. deprecated:: 使用 ``DiscoveryService`` 替代。"""
+
     @staticmethod
     def discover_tags(tags_root: Path | None = None) -> Dict[str, DiscoveredTag]:
         root = Path(tags_root) if tags_root is not None else get_scenarios_root()

@@ -1,9 +1,6 @@
 """Tag prior value 预取（incremental 变化检测暖启动）。
 
 消费者: TagEntityJobBuilder
-
-旧 freestanding helpers 见
-``core.modules.tag.engines.shared.staging.prior_values``（AUDIT 待切走后删）。
 """
 
 from __future__ import annotations

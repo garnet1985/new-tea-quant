@@ -47,8 +47,8 @@ def _make_tag_info(
 
 
 class TestTagManager:
-    @patch("core.modules.tag.core.tag.DiscoveryService.discover_tags", return_value=[])
-    @patch("core.modules.tag.core.tag.DataManager")
+    @patch("core.modules.tag.tag.DiscoveryService.discover_tags", return_value=[])
+    @patch("core.modules.tag.tag.DataManager")
     def test_init(self, mock_data_manager, _mock_discover):
         from core.modules.tag.tag_manager import TagManager
 
@@ -64,8 +64,8 @@ class TestTagManager:
         assert manager.tag_data_service == mock_tag_service
         assert manager.scenario_cache == {}
 
-    @patch("core.modules.tag.core.tag.DiscoveryService.discover_tags")
-    @patch("core.modules.tag.core.tag.DataManager")
+    @patch("core.modules.tag.tag.DiscoveryService.discover_tags")
+    @patch("core.modules.tag.tag.DataManager")
     def test_refresh_scenario(self, mock_data_manager, mock_discover):
         from core.modules.tag.tag_manager import TagManager
 
@@ -79,9 +79,9 @@ class TestTagManager:
         manager.refresh_scenario()
         assert manager.scenario_cache == {}
 
-    @patch("core.modules.tag.core.tag.Tag._execute_named")
-    @patch("core.modules.tag.core.tag.DiscoveryService.discover_tags", return_value=[])
-    @patch("core.modules.tag.core.tag.DataManager")
+    @patch("core.modules.tag.tag.Tag._execute_named")
+    @patch("core.modules.tag.tag.DiscoveryService.discover_tags", return_value=[])
+    @patch("core.modules.tag.tag.DataManager")
     def test_execute_with_scenario_name(
         self, mock_data_manager, _mock_discover, mock_execute_named
     ):
@@ -96,9 +96,9 @@ class TestTagManager:
         mock_execute_named.assert_called_once()
         assert mock_execute_named.call_args.args[0] == "test_scenario"
 
-    @patch("core.modules.tag.core.tag.Tag._execute_inline_settings")
-    @patch("core.modules.tag.core.tag.DiscoveryService.discover_tags", return_value=[])
-    @patch("core.modules.tag.core.tag.DataManager")
+    @patch("core.modules.tag.tag.Tag._execute_inline_settings")
+    @patch("core.modules.tag.tag.DiscoveryService.discover_tags", return_value=[])
+    @patch("core.modules.tag.tag.DataManager")
     def test_execute_with_settings(
         self, mock_data_manager, _mock_discover, mock_inline
     ):
@@ -115,10 +115,10 @@ class TestTagManager:
         assert mock_inline.call_args.kwargs["tag_key"] == "demo"
         assert mock_inline.call_args.args[0] == settings
 
-    @patch("core.modules.tag.core.tag.Tag._execute_tag_info")
-    @patch("core.modules.tag.core.tag.DiscoveryService.get_enabled_tags")
-    @patch("core.modules.tag.core.tag.DiscoveryService.discover_tags")
-    @patch("core.modules.tag.core.tag.DataManager")
+    @patch("core.modules.tag.tag.Tag._execute_tag_info")
+    @patch("core.modules.tag.tag.DiscoveryService.get_enabled_tags")
+    @patch("core.modules.tag.tag.DiscoveryService.discover_tags")
+    @patch("core.modules.tag.tag.DataManager")
     def test_execute_all(
         self,
         mock_data_manager,
@@ -140,8 +140,8 @@ class TestTagManager:
 
         assert mock_execute_tag_info.call_count == 2
 
-    @patch("core.modules.tag.core.tag.DiscoveryService.discover_tags", return_value=[])
-    @patch("core.modules.tag.core.tag.DataManager")
+    @patch("core.modules.tag.tag.DiscoveryService.discover_tags", return_value=[])
+    @patch("core.modules.tag.tag.DataManager")
     def test_scenario_cache_lookup(self, mock_data_manager, mock_discover):
         from core.modules.tag.tag_manager import TagManager
 
@@ -155,11 +155,11 @@ class TestTagManager:
         assert cached["key"] == "demo"
         assert cached["settings"]["meta"]["key"] == "demo"
 
-    @patch("core.modules.tag.core.tag.TagEntityPipeline.run")
-    @patch("core.modules.tag.core.tag.TagEntityListResolver.resolve")
-    @patch("core.modules.tag.core.tag.MetadataEnsureService")
-    @patch("core.modules.tag.core.tag.DiscoveryService.discover_tags")
-    @patch("core.modules.tag.core.tag.DataManager")
+    @patch("core.modules.tag.tag.TagEntityPipeline.run")
+    @patch("core.modules.tag.tag.TagEntityListResolver.resolve")
+    @patch("core.modules.tag.tag.MetadataEnsureService")
+    @patch("core.modules.tag.tag.DiscoveryService.discover_tags")
+    @patch("core.modules.tag.tag.DataManager")
     def test_execute_named_entity_based(
         self,
         mock_data_manager,
@@ -188,7 +188,7 @@ class TestTagManager:
         mock_ensure_cls.return_value.ensure = MagicMock()
 
         with patch(
-            "core.modules.tag.core.tag.Tag._save_performance_report"
+            "core.modules.tag.tag.Tag._save_performance_report"
         ):
             manager = TagManager(is_verbose=False)
             result = manager.execute(scenario_name="demo")
@@ -197,11 +197,11 @@ class TestTagManager:
         mock_pipeline_run.assert_called_once()
         assert mock_pipeline_run.call_args.kwargs["entity_ids"] == ["000001.SZ"]
 
-    @patch("core.modules.tag.core.tag.TagEntityPipeline.run")
-    @patch("core.modules.tag.core.tag.TagEntityListResolver.resolve")
-    @patch("core.modules.tag.core.tag.MetadataEnsureService")
-    @patch("core.modules.tag.core.tag.DiscoveryService.discover_tags")
-    @patch("core.modules.tag.core.tag.DataManager")
+    @patch("core.modules.tag.tag.TagEntityPipeline.run")
+    @patch("core.modules.tag.tag.TagEntityListResolver.resolve")
+    @patch("core.modules.tag.tag.MetadataEnsureService")
+    @patch("core.modules.tag.tag.DiscoveryService.discover_tags")
+    @patch("core.modules.tag.tag.DataManager")
     def test_execute_general_uses_general_owner(
         self,
         mock_data_manager,
@@ -221,7 +221,7 @@ class TestTagManager:
         mock_ensure_cls.return_value.ensure = MagicMock()
 
         with patch(
-            "core.modules.tag.core.tag.Tag._save_performance_report"
+            "core.modules.tag.tag.Tag._save_performance_report"
         ):
             manager = TagManager(is_verbose=False)
             manager.execute(scenario_name="macro_general")

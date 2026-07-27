@@ -136,7 +136,10 @@ class TestTagSliceJobBuilder:
         assert payload["tag_definitions"][0]["id"] == 7
         assert payload["scenario_name"] == "demo/cap"
         assert "stock.kline.daily" in payload["entity_shared"]
-        assert payload["entity_specified"] == [{"id": "e1"}, {"id": "e2"}]
+        assert payload["entity_specified"] == [
+            {"id": "e1", "start_date": "20240102", "end_date": "20240105"},
+            {"id": "e2", "start_date": "20240102", "end_date": "20240105"},
+        ]
 
 
 class TestTagSliceJobExecutor:

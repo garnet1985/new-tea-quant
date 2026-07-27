@@ -1,50 +1,34 @@
-"""
-Tag 系统：场景化标签计算与落库。
-
-公开 API：
-- Tag / TagManager.execute — 执行入口
-- TagHooks — userspace ``tag.py`` 基类
-"""
+"""Tag 模块公开 API。"""
 
 from typing import Any
 
-from core.modules.tag.core.enums import TagUpdateMode
-from core.modules.tag.config import get_scenarios_root
+from core.modules.tag.contracts import (
+    TagCalendarAsOfResult,
+    TagContext,
+    TagData,
+    TagExecutionMode,
+    TagHooks,
+    TagInfo,
+    TagUpdateMode,
+)
+from core.modules.tag.tag import Tag
 
 __all__ = [
     "Tag",
-    "TagManager",
-    "TagHooks",
-    "TagUpdateMode",
-    "get_scenarios_root",
     "TagCalendarAsOfResult",
+    "TagContext",
+    "TagData",
+    "TagExecutionMode",
+    "TagHooks",
+    "TagInfo",
+    "TagUpdateMode",
 ]
 
 
 def __getattr__(name: str) -> Any:
-    if name == "Tag":
-        from core.modules.tag.core.tag import Tag
-
-        return Tag
+    # AUDIT: CLI / run_tag 仍用 TagManager 名；新代码用 Tag
     if name == "TagManager":
         from core.modules.tag.tag_manager import TagManager
 
         return TagManager
-    if name == "TagHooks":
-        from core.modules.tag.core.engines.shared.hooks import TagHooks
-
-        return TagHooks
-    if name == "TagCalendarAsOfResult":
-        from core.modules.tag.core.engines.shared.data_class import TagCalendarAsOfResult
-
-        return TagCalendarAsOfResult
-    if name == "BaseTagWorker":
-        # 旧 API；保留懒加载供未迁移 userspace
-        from core.modules.tag.engines.shared.base_worker import BaseTagWorker
-
-        return BaseTagWorker
-    if name in {"CalendarAsOfContext"}:
-        from core.modules.tag.engines.sliced.types import CalendarAsOfContext
-
-        return CalendarAsOfContext
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    raise AttributeError(f"module {__name__!r} has no attribute {name}")

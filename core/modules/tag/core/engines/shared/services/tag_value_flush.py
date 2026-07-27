@@ -13,7 +13,9 @@ import json
 import logging
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from core.modules.tag.engines.shared.report_save_buffer import TagReportSaveBuffer
+from core.modules.tag.core.engines.shared.services.report_save_buffer import (
+    TagReportSaveBuffer,
+)
 
 if TYPE_CHECKING:
     from core.modules.data_manager.data_services.stock.sub_services.tag_service import (

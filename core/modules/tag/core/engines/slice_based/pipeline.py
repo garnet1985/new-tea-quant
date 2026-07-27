@@ -30,7 +30,7 @@ from core.modules.tag.core.engines.shared.tag_settings.tag_settings import TagSe
 from core.modules.tag.core.engines.slice_based.executor import TagSliceJobExecutor
 from core.modules.tag.core.engines.slice_based.job_builder import TagSliceJobBuilder
 from core.modules.tag.core.services.discovery.data.discovered_tag import EnabledTagInfo
-from core.modules.tag.settings.worker_profile import profile_tag_slice_based_config
+from core.modules.tag.core.engines.shared.worker_profile import TagWorkerProfile
 
 if TYPE_CHECKING:
     from core.modules.data_manager.data_services.stock.sub_services.tag_service import (
@@ -83,7 +83,7 @@ class TagSlicePipeline:
             dry_run=dry_run,
             batch_size=save_batch_size,
         )
-        performance = resolve_slice_based_performance(profile_tag_slice_based_config())
+        performance = resolve_slice_based_performance(TagWorkerProfile.slice_based())
         run_ctx = TagPipelineRunContext(
             flush=flush,
             total_jobs=len(jobs),

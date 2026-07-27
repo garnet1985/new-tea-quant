@@ -27,7 +27,7 @@ from core.modules.tag.core.engines.shared.services.tag_value_flush import (
 )
 from core.modules.tag.core.engines.shared.tag_settings.tag_settings import TagSettings
 from core.modules.tag.core.services.discovery.data.discovered_tag import EnabledTagInfo
-from core.modules.tag.settings.worker_profile import profile_tag_entity_based_config
+from core.modules.tag.core.engines.shared.worker_profile import TagWorkerProfile
 
 if TYPE_CHECKING:
     from core.modules.data_manager.data_services.stock.sub_services.tag_service import (
@@ -88,7 +88,7 @@ class TagEntityPipeline:
             batch_size=save_batch_size,
         )
         performance = resolve_entity_based_performance(
-            profile_tag_entity_based_config()
+            TagWorkerProfile.entity_based()
         )
         run_ctx = TagPipelineRunContext(
             flush=flush,

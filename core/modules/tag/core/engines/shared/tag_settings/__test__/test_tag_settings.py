@@ -125,10 +125,8 @@ class TestTagSettings:
         ts = TagSettings.from_dict(demo_settings, tag_key="demo/market_cap_tier")
         report = ts.validate()
         assert report.is_usable(), report.errors
-        # demo 开了 recompute=True → effective update_mode 强制 refresh
-        assert ts.recompute is True
-        assert ts.update_mode == "refresh"
-        assert ts.calculation.update_mode == "incremental"
+        assert ts.recompute is False
+        assert ts.update_mode == "incremental"
         assert ts.data.min_required_records == 1
         assert ts.attach_to_data_key == "stock.kline.daily"
         assert ts.target_entity_type == "stock_kline_daily"

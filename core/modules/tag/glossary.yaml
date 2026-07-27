@@ -1,0 +1,53 @@
+# Tag 术语表
+# Version: 0.4.0
+
+terms:
+  Tag:
+    definition: "标签模块 Facade：discovery / execute / list"
+    aliases: ["tag facade"]
+    avoid: ["TagManager（仅 CLI 兼容 shim）", "TagWorker"]
+
+  TagHooks:
+    definition: "userspace tag.py 钩子基类（calculate_tag / on_calendar_asof）"
+    aliases: ["tag hooks"]
+    avoid: ["BaseTagWorker", "tag_worker.py"]
+
+  scenario:
+    definition: "一个 tag 场景目录；系统名 = 相对 userspace/extensions/tags 的路径"
+    aliases: ["tag_key path id", "scenario_name"]
+    avoid: ["把 meta.key 当作 DB scenario.name（DB 用路径）"]
+
+  meta.key:
+    definition: "CLI/API 短 alias（全局唯一）"
+    aliases: ["tag alias"]
+    avoid: ["与路径 id 混用而不做查找"]
+
+  entity_based:
+    definition: "执行模式：各实体按交易日推进；常规打标"
+    aliases: ["entity parallel"]
+    avoid: ["timeline（旧名）"]
+
+  slice_based:
+    definition: "执行模式：日历切片 + on_calendar_asof 横截面"
+    aliases: ["calendar slice"]
+    avoid: ["sliced（旧名）"]
+
+  update_mode:
+    definition: "incremental=从 last_calculated_end 续算；refresh=目标区间重算语义"
+    aliases: ["calculation.update_mode"]
+    avoid: ["用 max(as_of_date) 当 incremental 水位"]
+
+  last_calculated_end:
+    definition: "每实体上次成功算到的业务日（TagCalcProgressStore）"
+    aliases: ["calc progress watermark"]
+    avoid: ["calculated_at（落库墙钟）", "scenario.updated_at（元数据）"]
+
+  TagContext:
+    definition: "钩子入参壳：tag + settings + data + custom"
+    aliases: []
+    avoid: ["把整份 settings dict 当唯一入参"]
+
+  TagCalendarAsOfResult:
+    definition: "slice_based on_calendar_asof 返回：entity_tags + carry"
+    aliases: []
+    avoid: ["CalendarAsOfContext（旧名）"]

@@ -461,7 +461,8 @@ class Investment(Opportunity):
             return False
         basis = float(self.entry.price or self.trigger_price or 0.0)
         monitor = self._monitor_px(bar)
-        if basis <= 0 or monitor <= 0:
+        # 相对收益需 /basis；basis=0 时本 tick 无法定义，不代表价格非法
+        if basis == 0:
             return False
         price_return = (monitor - basis) / basis
         if price_return > float(cfg.ratio):
@@ -484,18 +485,19 @@ class Investment(Opportunity):
         if cfg is None:
             return False
         monitor = self._monitor_px(bar)
-        if monitor <= 0:
-            return False
         basis = float(self.entry.price or self.trigger_price or 0.0)
         peak = self.runtime_state.dynamic_loss_peak
-        if peak is None or peak <= 0:
-            peak = basis if basis > 0 else monitor
+        if peak is None:
+            peak = basis
         extreme_hi = self.extreme.highest
-        if extreme_hi is not None and float(extreme_hi) > 0:
+        if extreme_hi is not None:
             peak = max(float(peak), float(extreme_hi))
         peak = max(float(peak), monitor)
         self.runtime_state.dynamic_loss_peak = peak
-        drawdown = (monitor - peak) / peak if peak > 0 else 0.0
+        # 回撤需 /peak；peak=0 时本 tick 无法定义
+        if peak == 0:
+            return False
+        drawdown = (monitor - peak) / peak
         if drawdown > float(cfg.ratio):
             return False
         exit_ratio = 1.0 if cfg.close_invest else float(cfg.exit_ratio)
@@ -513,8 +515,6 @@ class Investment(Opportunity):
         if not stages:
             return False
         basis = float(self.entry.price or self.trigger_price or 0.0)
-        if basis <= 0:
-            return False
         low = float(bar["low"])
         for idx, stage in enumerate(stages):
             if idx <= self.runtime_state.triggered_stop_loss_idx:
@@ -539,8 +539,6 @@ class Investment(Opportunity):
         if not stages:
             return False
         basis = float(self.entry.price or self.trigger_price or 0.0)
-        if basis <= 0:
-            return False
         high = float(bar["high"])
         for idx, stage in enumerate(stages):
             if idx <= self.runtime_state.triggered_take_profit_idx:
@@ -688,17 +686,16 @@ class Investment(Opportunity):
         if policy.max_entry_drift is None:
             return None
         trigger_px = float(self.trigger_price or 0.0)
-        if trigger_px <= 0:
-            return None
         model = str(self.settings.simulation.enter_price or "touch").strip().lower()
         if model in {"open", "close"}:
             return None
         if as_of <= str(self.trigger_date or "").strip():
             return None
-        open_px = SafeBarValue.float(bar, "open")
-        if open_px <= 0:
+        # 漂移百分比需 /|trigger|；trigger=0 时本 tick 无法定义
+        if trigger_px == 0:
             return None
-        drift = abs(open_px - trigger_px) / trigger_px
+        open_px = SafeBarValue.float(bar, "open")
+        drift = abs(open_px - trigger_px) / abs(trigger_px)
         if drift <= float(policy.max_entry_drift):
             return None
         # touch：若当日已触及限价，仍按限价成交，不因 open 跳空 abort
@@ -708,12 +705,8 @@ class Investment(Opportunity):
 
     def _touch_limit_hit(self, bar: Dict[str, Any]) -> bool:
         limit = float(self.trigger_price or 0.0)
-        if limit <= 0:
-            return False
         low = SafeBarValue.float(bar, "low")
         high = SafeBarValue.float(bar, "high")
-        if low <= 0 or high <= 0:
-            return False
         return low <= limit <= high
 
     def _stock_meta_dict(self) -> Dict[str, Any]:
@@ -792,8 +785,6 @@ class Investment(Opportunity):
             if not self._touch_limit_hit(bar):
                 return None
             limit = float(self.trigger_price or 0.0)
-            if limit <= 0:
-                return None
             if use_raw:
                 # 无独立 raw trigger 时用同一限价
                 price = limit
@@ -806,7 +797,8 @@ class Investment(Opportunity):
         else:
             raise ValueError(f"unsupported enter_price: {model!r}")
 
-        if price <= 0:
+        # 裸价成交层仍要求 > 0；qfq（含 0/负）一律可用
+        if use_raw and price <= 0:
             return None
         if (
             check_tradability
@@ -871,7 +863,7 @@ class Investment(Opportunity):
 
         basis = float(self.entry.price or self.trigger_price or 0.0)
         profit = exit_price - basis
-        roi = (profit / basis) if basis > 0 else 0.0
+        roi = (profit / basis) if basis != 0 else 0.0
         exit_price_raw = self._resolve_exit_price(
             fill_as_of,
             fill_bar,
@@ -972,7 +964,8 @@ class Investment(Opportunity):
             model = str(self.settings.simulation.exit_price or "close").strip().lower()
 
         exit_price = SafeBarValue.price_for_model(bar, model, use_raw=use_raw)
-        if exit_price <= 0:
+        # 裸价成交层仍要求 > 0；qfq（含 0/负）一律可用
+        if use_raw and exit_price <= 0:
             return None
         if (
             check_tradability
@@ -1031,8 +1024,6 @@ class Investment(Opportunity):
             or ""
         ).strip()
         price = SafeBarValue.price_for_model(signal_bar, "close", use_raw=False)
-        if price <= 0:
-            return False
         at_limit_up, prev_close = self._eval_limit_up(price, signal_bar)
         price = self.settings.simulation.tradability.slippage.apply_enter(price)
         raw_price = SafeBarValue.price_for_model(signal_bar, "close", use_raw=True)
@@ -1080,8 +1071,9 @@ class Investment(Opportunity):
         """返回 ``(是否贴涨停, prev_close)``；无法判断时 flag 为 None。"""
         prev = SafeBarValue.optional_float(bar, "pre_close")
         entity_id = self._entity_id()
-        if prev is None or prev <= 0 or not entity_id:
-            return None, (prev if prev is not None and prev > 0 else None)
+        # 涨跌停比例带需 /prev；prev 缺失或为 0 时无法判定
+        if prev is None or prev == 0 or not entity_id:
+            return None, (prev if prev not in (None, 0) else None)
         return (
             bool(
                 self.market_rules.is_at_limit_up(
@@ -1100,8 +1092,9 @@ class Investment(Opportunity):
         """返回 ``(是否贴跌停, prev_close)``；无法判断时 flag 为 None。"""
         prev = SafeBarValue.optional_float(bar, "pre_close")
         entity_id = self._entity_id()
-        if prev is None or prev <= 0 or not entity_id:
-            return None, (prev if prev is not None and prev > 0 else None)
+        # 涨跌停比例带需 /prev；prev 缺失或为 0 时无法判定
+        if prev is None or prev == 0 or not entity_id:
+            return None, (prev if prev not in (None, 0) else None)
         return (
             bool(
                 self.market_rules.is_at_limit_down(
@@ -1132,20 +1125,20 @@ class Investment(Opportunity):
         if self.lifecycle != Lifecycle.OPEN:
             return
         basis = float(self.entry.price or 0.0)
-        if basis <= 0:
-            return
         high = float(bar.get("high") or bar.get("close") or 0.0)
         low = float(bar.get("low") or bar.get("close") or 0.0)
-        if high <= 0 or low <= 0:
-            return
         if self.extreme.highest is None or high > self.extreme.highest:
             self.extreme.highest = high
             self.extreme.highest_date = as_of
-            self.extreme.highest_return = (high - basis) / basis
+            self.extreme.highest_return = (
+                (high - basis) / basis if basis != 0 else 0.0
+            )
         if self.extreme.lowest is None or low < self.extreme.lowest:
             self.extreme.lowest = low
             self.extreme.lowest_date = as_of
-            self.extreme.lowest_return = (low - basis) / basis
+            self.extreme.lowest_return = (
+                (low - basis) / basis if basis != 0 else 0.0
+            )
 
     def _update_holding(self, as_of: str) -> None:
         if self.lifecycle != Lifecycle.OPEN or self.holding.mode is None:

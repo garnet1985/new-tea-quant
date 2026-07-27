@@ -25,6 +25,14 @@ from core.modules.strategy.core.engines.shared.data_class.investment import (
     Lifecycle,
 )
 from core.modules.strategy.core.helpers.statistics import StatisticsHelper
+from core.modules.strategy.core.engines.enumerator.common.report_manager.opportunity_metrics import (
+    OpportunityCountBuckets,
+    TimingDispersion,
+    TradabilityMetrics,
+    build_opportunity_count_buckets,
+    compute_timing_dispersion,
+    compute_tradability,
+)
 
 # overall「Goal 成交」不计这些退出腿（强制收口 / 到期，非目标止盈止损）
 NON_GOAL_EXIT_REASONS: FrozenSet[str] = frozenset(
@@ -105,10 +113,16 @@ class OverallSummary:
     trigger_ratio: float = 0.0
     completed_ratio: float = 0.0
     win_ratio: float = 0.0
+    avg_per_stock: float = 0.0
     exit_reasons: Dict[str, int] = field(default_factory=dict)
+    opportunity_buckets: OpportunityCountBuckets = field(
+        default_factory=OpportunityCountBuckets
+    )
+    timing: TimingDispersion = field(default_factory=TimingDispersion)
+    tradability: TradabilityMetrics = field(default_factory=TradabilityMetrics)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        payload = {
             "total_entities": self.total_entities,
             "entities_with_investments": self.entities_with_investments,
             "total_investments": self.total_investments,
@@ -122,8 +136,13 @@ class OverallSummary:
             "trigger_ratio": self.trigger_ratio,
             "completed_ratio": self.completed_ratio,
             "win_ratio": self.win_ratio,
+            "avg_per_stock": self.avg_per_stock,
             "exit_reasons": dict(self.exit_reasons or {}),
         }
+        payload.update(self.opportunity_buckets.to_dict())
+        payload.update(self.timing.to_dict())
+        payload.update(self.tradability.to_dict())
+        return payload
 
     @classmethod
     def from_dict(cls, raw: Dict[str, Any]) -> "OverallSummary":
@@ -142,7 +161,11 @@ class OverallSummary:
             trigger_ratio=float(data.get("trigger_ratio") or 0.0),
             completed_ratio=float(data.get("completed_ratio") or 0.0),
             win_ratio=float(data.get("win_ratio") or 0.0),
+            avg_per_stock=float(data.get("avg_per_stock") or 0.0),
             exit_reasons=dict(data.get("exit_reasons") or {}),
+            opportunity_buckets=OpportunityCountBuckets.from_dict(data),
+            timing=TimingDispersion.from_dict(data),
+            tradability=TradabilityMetrics.from_dict(data),
         )
 
 
@@ -181,6 +204,7 @@ class OverallReport:
 
         entity_rows: List[EntitySummaryRow] = []
         all_investments: List[InvestmentRow] = []
+        investments_by_entity: Dict[str, List[InvestmentRow]] = {}
         total_goals = 0
         exit_reasons: Dict[str, int] = {}
 
@@ -193,6 +217,7 @@ class OverallReport:
             row = cls._summarize_entity(entity_id, investments.rows, goal_fill_count)
             entity_rows.append(row)
             all_investments.extend(investments.rows)
+            investments_by_entity[entity_id] = list(investments.rows)
             total_goals += goal_fill_count
             for inv in investments.rows:
                 if inv.lifecycle == Lifecycle.COMPLETE.value and inv.exit_reason:
@@ -203,6 +228,7 @@ class OverallReport:
             total_entities=total,
             entity_rows=entity_rows,
             investments=all_investments,
+            investments_by_entity=investments_by_entity,
             total_goals=total_goals,
             exit_reasons=exit_reasons,
         )
@@ -228,7 +254,7 @@ class OverallReport:
     # ── 展示 ──
 
     def present(self, stream: Optional[TextIO] = None) -> None:
-        """CLI 展示：聚焦「找机会」——机会量、触发覆盖、分布均匀度。
+        """CLI 展示：机会量、完整度、触发覆盖、分布、可交易性、节奏。
 
         不展示 ROI / 胜负 / 退出原因（那是价格回测关注点）。
         """
@@ -236,69 +262,93 @@ class OverallReport:
         summary = self.summary
         icon = CmdLayout.icon.get
 
-        CmdLayout.title.print_section(f"{icon('target')} 机会概览", stream=out)
         total = max(0, int(summary.total_entities))
         triggered = max(0, int(summary.entities_with_investments))
-        idle = max(0, total - triggered)
         opportunities = max(0, int(summary.total_investments))
-        avg_per_hit = (opportunities / triggered) if triggered > 0 else 0.0
+        completed = max(0, int(summary.completed_investments))
+        buckets = summary.opportunity_buckets
+        timing = summary.timing
+        tradability = summary.tradability
 
+        CmdLayout.title.print_section(f"{icon('target')} 机会概览", stream=out)
         print(
-            f"{icon('rocket')} 机会 {opportunities}    "
-            f"{icon('green_dot')} 触发 {triggered}/{total} "
-            f"({summary.trigger_ratio * 100:.1f}%)    "
-            f"{icon('blue_dot')} 均每触发股 {avg_per_hit:.1f}",
+            f"{icon('rocket')} 机会总数 {opportunities}（共 {total} 只股票）",
+            file=out,
+            flush=True,
+        )
+        print(
+            f"{icon('success')} 机会完整度: {completed}/{opportunities} "
+            f"({summary.completed_ratio * 100:.1f}%)",
+            file=out,
+            flush=True,
+        )
+        print(
+            f"{icon('green_dot')} 触发机会的股票占比: {triggered}/{total} "
+            f"({summary.trigger_ratio * 100:.1f}%)",
+            file=out,
+            flush=True,
+        )
+        print(
+            f"{icon('chart')} 平均每股产生机会数: {summary.avg_per_stock:.2f}",
             file=out,
             flush=True,
         )
 
-        if total > 0:
+        if buckets.labels:
+            CmdLayout.title.print_section(
+                f"{icon('bar_chart')} 每股机会数分布 "
+                f"[{buckets.min_count}~{buckets.max_count}] "
+                f"（{max(1, buckets.bucket_count)} 档）",
+                stream=out,
+            )
             CmdLayout.bar_chart.print(
                 [
-                    ("triggered", triggered),
-                    ("idle", idle),
+                    (
+                        f"{label} 次",
+                        buckets.stock_counts[idx]
+                        if idx < len(buckets.stock_counts)
+                        else 0,
+                    )
+                    for idx, label in enumerate(buckets.labels)
                 ],
-                title=f"{icon('search')} 触发覆盖",
+                title="",
                 width=24,
                 stream=out,
             )
 
-        counts = [
-            int(row.investment_count)
-            for row in self.entity_rows
-            if int(row.investment_count) > 0
-        ]
-        if counts:
-            CmdLayout.bar_chart.print_from_values(
-                [float(c) for c in counts],
-                bins=min(8, max(3, len(set(counts)))),
-                title=f"{icon('bar_chart')} 机会分布 (每触发实体)",
-                width=24,
-                label_format=".0f",
-                skip_empty=True,
-                stream=out,
-            )
+        CmdLayout.title.print_section(f"{icon('warning')} 可交易性", stream=out)
+        print(
+            f"🔺 涨停无法买入: {tradability.buy_at_limit_up_count}/"
+            f"{tradability.buy_tradability_sample_count} "
+            f"({tradability.limit_up_buy_ratio}%)",
+            file=out,
+            flush=True,
+        )
+        print(
+            f"🔻 跌停无法卖出: {tradability.sell_at_limit_down_count}/"
+            f"{tradability.sell_tradability_sample_count} "
+            f"({tradability.limit_down_sell_ratio}%)",
+            file=out,
+            flush=True,
+        )
 
-        top = sorted(
-            self.entity_rows,
-            key=lambda row: row.investment_count,
-            reverse=True,
-        )[:5]
-        if top and opportunities > 0:
-            top_sum = sum(int(row.investment_count) for row in top)
-            top_share = top_sum / float(opportunities)
-            print(
-                f"{icon('warning') if top_share >= 0.5 else icon('success')} "
-                f"Top5 集中度 {top_share * 100:.1f}%  ({top_sum}/{opportunities})",
-                file=out,
-                flush=True,
-            )
-            CmdLayout.bar_chart.print(
-                [(row.entity_id, row.investment_count) for row in top],
-                title=f"{icon('chart')} Top 实体",
-                width=24,
-                stream=out,
-            )
+        CmdLayout.title.print_section(f"{icon('clock')} 节奏与分散度", stream=out)
+        print(
+            f"⏱️ 平均每股机会间隔: {timing.mean_gap} 天",
+            file=out,
+            flush=True,
+        )
+        print(
+            f"⌛ 平均每股机会持续: {timing.mean_duration} 天",
+            file=out,
+            flush=True,
+        )
+        print(
+            f"📏 机会分散度: SD {timing.std_gap} 天 · CV {timing.cv} · "
+            f"{timing.dispersion_conclusion or '—'}",
+            file=out,
+            flush=True,
+        )
 
     # ── 序列化 ──
 
@@ -366,6 +416,7 @@ class OverallReport:
         total_entities: int,
         entity_rows: List[EntitySummaryRow],
         investments: List[InvestmentRow],
+        investments_by_entity: Dict[str, List[InvestmentRow]],
         total_goals: int,
         exit_reasons: Dict[str, int],
     ) -> OverallSummary:
@@ -380,12 +431,27 @@ class OverallReport:
         ]
         entities_with_investments = sum(1 for row in entity_rows if row.investment_count > 0)
         decided = len(wins) + len(losses)
+        total = max(0, int(total_entities))
+        total_investments = len(investments)
+
+        per_stock_counts = [int(row.investment_count) for row in entity_rows]
+        zero_count = max(0, total - len(per_stock_counts))
+        all_counts = list(per_stock_counts) + ([0] * zero_count)
+
+        opportunity_buckets = build_opportunity_count_buckets(
+            all_counts,
+            total_stocks=total,
+            target_bucket_count=5,
+        )
+        timing = compute_timing_dispersion(investments_by_entity)
+        tradability = compute_tradability(investments)
+
         return OverallSummary(
-            total_entities=max(0, int(total_entities)),
+            total_entities=total,
             entities_with_investments=entities_with_investments,
-            total_investments=len(investments),
+            total_investments=total_investments,
             completed_investments=len(completed),
-            unfinished_investments=len(investments) - len(completed),
+            unfinished_investments=total_investments - len(completed),
             win_count=len(wins),
             loss_count=len(losses),
             total_goals=total_goals,
@@ -393,14 +459,24 @@ class OverallReport:
             avg_holding_days=StatisticsHelper.calculate_avg(holding_values),
             trigger_ratio=StatisticsHelper.calculate_trigger_ratio(
                 entities_with_investments,
-                max(0, int(total_entities)),
+                total,
             ),
             completed_ratio=StatisticsHelper.calculate_completed_ratio(
                 len(completed),
-                len(investments),
+                total_investments,
             ),
             win_ratio=(len(wins) / decided) if decided > 0 else 0.0,
+            avg_per_stock=round(
+                StatisticsHelper.calculate_avg_per_stock(
+                    total_investments,
+                    entities_with_investments,
+                ),
+                2,
+            ),
             exit_reasons=exit_reasons,
+            opportunity_buckets=opportunity_buckets,
+            timing=timing,
+            tradability=tradability,
         )
 
     @staticmethod

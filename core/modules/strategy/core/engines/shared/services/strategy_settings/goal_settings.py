@@ -291,9 +291,8 @@ class GoalSettings(SettingsBase):
         )
 
     def exit_price(self, stage: GoalStage, basis_price: float) -> float:
-        if basis_price <= 0:
-            raise ValueError("basis_price 须 > 0")
-        return round(basis_price * (1.0 + stage.ratio), 6)
+        # qfq 基准可为负/0；目标价=basis*(1+ratio)，不做正负校验
+        return round(float(basis_price) * (1.0 + stage.ratio), 6)
 
     def to_dict(self) -> Dict[str, Any]:
         self.apply_defaults()

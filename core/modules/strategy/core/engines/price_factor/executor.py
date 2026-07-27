@@ -265,7 +265,8 @@ class PriceFactorJobExecutor:
 
             enter_date = str(row.entry_date or "").strip()
             enter_price = float(row.entry_price or 0.0)
-            if not enter_date or enter_price <= 0:
+            # entry_price 为 qfq（可为负/0）；只要求有进场日
+            if not enter_date:
                 continue
 
             if holding_until and enter_date <= holding_until:
@@ -400,7 +401,10 @@ def _leg_date(leg: Dict[str, Any]) -> str:
 
 def _aggregate_roi(processed: List[Dict[str, Any]], enter_price: float) -> float:
     basis = float(enter_price or 0.0)
-    if basis <= 0 or not processed:
+    if not processed:
+        return 0.0
+    # basis=0 时相对 ROI 无定义 → 记 0
+    if basis == 0:
         return 0.0
     weighted_profit = 0.0
     # exit_ratio = 相对初始仓位的绝对份额（与 enum completed_goals / goals CSV 一致）

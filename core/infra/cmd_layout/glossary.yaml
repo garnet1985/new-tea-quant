@@ -1,5 +1,5 @@
 # NTQ Glossary - infra.cmd_layout
-# Version: 0.2.0
+# Version: 0.3.0
 #
 # 目的：统一 CLI layout 组件术语，供 report present 与实现共用。
 
@@ -14,6 +14,10 @@ recommended_terms:
     meaning: "标题 namespace：banner（主标题）/ section（小节）"
   separator:
     meaning: "分割线 namespace：line / thick / star / blank"
+  icon:
+    meaning: "跨平台图标 namespace：get / i / supports_emoji"
+  IconService:
+    meaning: "图标实现；归属 cmd_layout.icon"
   BarBucket:
     meaning: "单柱数据：(label, value)；value 为非负计数或权重"
   banner:
@@ -45,8 +49,11 @@ naming:
       usage: "标题实现与 TitleNamespace"
     - pattern: "separator.py"
       usage: "分割线实现与 SeparatorNamespace"
+    - pattern: "icon.py"
+      usage: "IconService 与 IconNamespace"
   apis:
     - render / from_values: "分布图 → 字符串"
     - banner / section: "标题 → 字符串"
     - line / thick / star / blank: "分割线 → 字符串"
+    - icon.get / icon.i: "图标名 → emoji 或 ASCII"
     - print_*: "同上并写入 stream"

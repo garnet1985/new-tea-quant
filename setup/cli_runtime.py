@@ -9,7 +9,7 @@ import os
 import subprocess
 import sys
 
-from core.utils.icon.icon_service import IconService
+from core.infra.cmd_layout import IconService
 import time
 from pathlib import Path
 from typing import List, Tuple

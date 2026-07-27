@@ -732,11 +732,14 @@ class Investment(Opportunity):
     def _is_delisted_on(stock_meta: Optional[Dict[str, Any]], trade_date: str) -> bool:
         if not stock_meta or not trade_date:
             return False
-        delist = str(
-            stock_meta.get("delist_date")
-            or stock_meta.get("delisted_date")
-            or ""
-        ).strip()
+        # 与 ListService 一致：Tushare 等源的 0 / 0.0 视为无退市日
+        from core.modules.data_manager.data_services.stock.sub_services.list_service import (
+            ListService,
+        )
+
+        delist = ListService._normalize_delist_date(
+            stock_meta.get("delist_date") or stock_meta.get("delisted_date")
+        )
         if not delist:
             return False
         return trade_date >= delist
@@ -852,14 +855,17 @@ class Investment(Opportunity):
         if exit_price is None or self.pending_exit is None:
             return False
 
-        # pending.exit_ratio = 相对剩余仓位；记入 completed_goals 用相对初始份额
-        relative = float(self.pending_exit.exit_ratio or 1.0)
-        if relative <= 0:
+        # pending.exit_ratio = 相对**初始总仓位**的绝对份额（非相对剩余）
+        # close_invest 在配置层会写成 1.0；实际成交不超过当前 remaining
+        requested = float(self.pending_exit.exit_ratio or 1.0)
+        if requested <= 0:
             return False
         prev_remaining = float(self.runtime_state.remaining_ratio or 0.0)
         if prev_remaining <= 1e-12:
             return False
-        abs_ratio = prev_remaining * min(relative, 1.0)
+        abs_ratio = min(min(requested, 1.0), prev_remaining)
+        if abs_ratio <= 1e-12:
+            return False
         new_remaining = max(0.0, prev_remaining - abs_ratio)
         self.runtime_state.remaining_ratio = new_remaining
 

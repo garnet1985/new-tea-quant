@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Sequence
 
-from core.utils import i as icon
+from core.infra.cmd_layout import i as icon
 from devtools.quick_tools._paths import REPO_ROOT
 
 INIT_USERSPACE_DIR = REPO_ROOT / "setup" / "init_userspace"

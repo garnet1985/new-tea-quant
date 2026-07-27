@@ -130,6 +130,52 @@ def test_simulator_buy_sell_realizes_share_value_profit():
     assert len(result.equity_curve) >= 1
 
 
+def test_simulator_same_investment_id_does_not_cross_entity_sell():
+    """裸 investment_id 跨股碰撞时，不得用 B 的卖价平 A 的仓。"""
+    alloc = _allocation(allocation={"max_portfolio_size": 10})
+    fees = FeeCalculator(
+        commission_rate=0.0,
+        min_commission=0.0,
+        stamp_duty_rate=0.0,
+        transfer_fee_rate=0.0,
+    )
+    sim = PortfolioSimulator.create(allocation=alloc, fee_calculator=fees)
+    events = [
+        PortfolioEvent(
+            kind="buy",
+            date="20240103",
+            entity_id="600000.SH",
+            investment_id="1",
+            price=10.0,
+        ),
+        # 另一标的同号 sell：修复前会误平 600000
+        PortfolioEvent(
+            kind="sell",
+            date="20240104",
+            entity_id="000001.SZ",
+            investment_id="1",
+            price=100.0,
+            roi=9.0,
+        ),
+        PortfolioEvent(
+            kind="sell",
+            date="20240110",
+            entity_id="600000.SH",
+            investment_id="1",
+            price=11.0,
+            roi=0.1,
+        ),
+    ]
+    result = sim.run(events, initial_capital=1_000_000)
+    assert result.skipped_sells == 1  # 000001 无对应 buy
+    assert result.completed_count == 1
+    sells = [t for t in result.trades if t.is_sell()]
+    assert len(sells) == 1
+    assert sells[0].entity_id == "600000.SH"
+    assert sells[0].price == pytest.approx(11.0)
+    assert sells[0].profit == pytest.approx(result.trades[0].shares * 1.0)
+
+
 def test_simulator_skips_sell_without_open_lot():
     alloc = _allocation()
     fees = FeeCalculator(

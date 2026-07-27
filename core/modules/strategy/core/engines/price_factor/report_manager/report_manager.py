@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TextIO, TYPE_CHECKING
 
+from core.infra.cmd_layout import CmdLayout
 from core.infra.project_context import ProjectContext
 from core.modules.strategy.core.engines.price_factor.report_manager.investments import (
     EntityInvestments,
@@ -107,7 +108,7 @@ class ReportManager(BaseReportManager):
     @classmethod
     def from_output_dir(cls, output_dir: Path) -> "ReportManager":
         runtime = PriceRuntimeEnv.load(output_dir)
-        return cls(
+        mgr = cls(
             output_dir=Path(output_dir),
             strategy_key=runtime.strategy_key,
             strategy_path=runtime.strategy_path or runtime.strategy_key,
@@ -115,6 +116,13 @@ class ReportManager(BaseReportManager):
             runtime=runtime,
             entity_ids=list(runtime.entity_ids),
         )
+        overall_path = ReportPaths.overall_report_path(mgr.output_dir)
+        if overall_path.is_file():
+            try:
+                mgr._overall_payload = OverallReport.load(mgr.output_dir)
+            except Exception:
+                mgr._overall_payload = {}
+        return mgr
 
     def collect(self, item: Any) -> None:
         """可选：``(entity_id, rows)`` 写入 entity investments CSV。"""
@@ -181,7 +189,9 @@ class ReportManager(BaseReportManager):
         return result
 
     def present(self, stream: Optional[TextIO] = None) -> None:
+        """CLI 展示：聚焦价格回测结果质量（胜率 / ROI / 仓位状态）。"""
         out = stream or sys.stdout
+        icon = CmdLayout.icon.get
         period = dict(self.runtime.period or {})
         summary = dict((self._report_dict or self._overall_payload or {}).get("summary") or {})
         if not summary and ReportPaths.overall_report_path(self.output_dir).is_file():
@@ -196,22 +206,88 @@ class ReportManager(BaseReportManager):
                 )
             except Exception:
                 summary = {}
+
+        CmdLayout.title.print_banner(
+            f"{icon('line_chart')} 价格回测报告",
+            stream=out,
+        )
         print(
-            f"price: {self.strategy_key} v{self.version_id}  "
-            f"path={self.strategy_path or '-'}  "
-            f"entities={len(self.entity_ids)}  "
-            f"period={period.get('start_date', '')}~{period.get('end_date', '')}",
+            f"{icon('gear')} {self.strategy_key} v{self.version_id}  "
+            f"{icon('calendar')} {period.get('start_date', '')}~{period.get('end_date', '')}  "
+            f"entities={len(self.entity_ids)}",
             file=out,
             flush=True,
         )
+        print(f"   path={self.strategy_path or '-'}", file=out, flush=True)
+
+        CmdLayout.separator.print_line(width=60, stream=out)
+        CmdLayout.title.print_section(f"{icon('target')} 结果概览", stream=out)
+
+        total = int(summary.get("total_investments") or 0)
+        completed = int(summary.get("total_completed") or 0)
+        open_n = int(summary.get("total_open") or 0)
+        skipped = int(summary.get("total_skipped") or 0)
+        win = int(summary.get("total_win") or 0)
+        loss = int(summary.get("total_loss") or 0)
+        win_rate = float(summary.get("win_rate") or 0.0)
+        avg_roi = float(summary.get("avg_roi") or 0.0)
+        hold_days = float(summary.get("avg_holding_days") or 0.0)
+        roi_icon = icon("line_chart") if avg_roi >= 0 else icon("downward_trend")
+        wr_icon = icon("success") if win_rate >= 50.0 else icon("warning")
+
         print(
-            f"summary: investments={summary.get('total_investments', 0)}  "
-            f"win={summary.get('total_win', 0)}  "
-            f"loss={summary.get('total_loss', 0)}",
+            f"{wr_icon} 胜率 {win_rate:.1f}%    "
+            f"{roi_icon} 均ROI {avg_roi * 100:.2f}%    "
+            f"{icon('clock')} 均持有 {hold_days:.1f}天    "
+            f"{icon('rocket')} 投资 {total}",
             file=out,
             flush=True,
         )
-        print(f"产物目录: {self.output_dir}", file=out, flush=True)
+
+        status_buckets = [
+            ("completed", completed),
+            ("open", open_n),
+            ("skipped", skipped),
+        ]
+        if any(v > 0 for _, v in status_buckets):
+            CmdLayout.bar_chart.print(
+                status_buckets,
+                title=f"{icon('search')} 仓位状态",
+                width=24,
+                skip_empty=True,
+                stream=out,
+            )
+
+        if win or loss:
+            CmdLayout.bar_chart.print(
+                [("win", win), ("loss", loss)],
+                title=f"{icon('bar_chart')} 胜负",
+                width=24,
+                stream=out,
+            )
+
+        entity_rows = list(
+            (self._report_dict or self._overall_payload or {}).get("entity_summaries")
+            or []
+        )
+        counts = [
+            int(row.get("investment_count") or 0)
+            for row in entity_rows
+            if isinstance(row, dict) and int(row.get("investment_count") or 0) > 0
+        ]
+        if counts:
+            CmdLayout.bar_chart.print_from_values(
+                [float(c) for c in counts],
+                bins=min(8, max(3, len(set(counts)))),
+                title=f"{icon('chart')} 投资分布 (每实体)",
+                width=24,
+                label_format=".0f",
+                skip_empty=True,
+                stream=out,
+            )
+
+        CmdLayout.separator.print_line(width=60, stream=out)
+        print(f"{icon('info')} 产物: {self.output_dir}", file=out, flush=True)
 
     def save_entity_investments(
         self,

@@ -94,21 +94,62 @@ class TestGoalSettings(unittest.TestCase):
         report = settings.validate()
         self.assertTrue(report.is_valid)
 
-    def test_multi_stage_without_coverage_invalid(self) -> None:
+    def test_partial_take_profit_with_protect_is_valid(self) -> None:
+        """止盈不必盖满 1：半仓止盈 + protect_loss 收口是合法设计。"""
         settings = StrategySettings(
             raw_settings={
                 "goal": {
                     "take_profit": {
                         "stages": [
-                            {"ratio": 0.1, "exit_ratio": 0.3},
-                            {"ratio": 0.2, "exit_ratio": 0.3},
+                            {
+                                "ratio": 0.1,
+                                "exit_ratio": 0.5,
+                                "actions": ["set_protect_loss"],
+                            }
+                        ]
+                    },
+                    "protect_loss": {"ratio": 0.0, "close_invest": True},
+                },
+            }
+        )
+        report = settings.validate()
+        self.assertTrue(report.is_valid)
+
+    def test_partial_stages_plus_dynamic_is_valid(self) -> None:
+        """10%→50%、20%→40%，剩余由 dynamic_loss 收口。"""
+        settings = StrategySettings(
+            raw_settings={
+                "goal": {
+                    "take_profit": {
+                        "stages": [
+                            {"ratio": 0.1, "exit_ratio": 0.5},
+                            {"ratio": 0.2, "exit_ratio": 0.4},
+                        ]
+                    },
+                    "dynamic_loss": {"ratio": -0.1, "close_invest": True},
+                },
+            }
+        )
+        report = settings.validate()
+        self.assertTrue(report.is_valid)
+        stages = settings.goal.take_profit_stages
+        self.assertAlmostEqual(sum(s.exit_ratio for s in stages), 0.9)
+
+    def test_two_absolute_half_stages_valid(self) -> None:
+        settings = StrategySettings(
+            raw_settings={
+                "goal": {
+                    "take_profit": {
+                        "stages": [
+                            {"ratio": 0.1, "exit_ratio": 0.5},
+                            {"ratio": 0.2, "exit_ratio": 0.5},
                         ]
                     }
                 },
             }
         )
         report = settings.validate()
-        self.assertFalse(report.is_valid)
+        self.assertTrue(report.is_valid)
 
     def test_rejects_bad_action(self) -> None:
         settings = StrategySettings(

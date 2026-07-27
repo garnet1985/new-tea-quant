@@ -45,9 +45,12 @@ class BarChart:
         width: int = DEFAULT_WIDTH,
         show_count: bool = True,
         show_pct: bool = True,
+        skip_empty: bool = False,
     ) -> str:
         """Render pre-binned buckets to a multi-line ASCII chart string."""
         parsed = [cls._coerce_bucket(item) for item in buckets]
+        if skip_empty:
+            parsed = [b for b in parsed if b.value > 0]
         bar_width = max(1, int(width))
 
         lines: List[str] = []
@@ -91,6 +94,7 @@ class BarChart:
         show_count: bool = True,
         show_pct: bool = True,
         label_format: str = ".2f",
+        skip_empty: bool = False,
     ) -> str:
         """Equal-width histogram from raw samples, then render."""
         buckets = cls._bin_values(values, bins=bins, label_format=label_format)
@@ -100,6 +104,7 @@ class BarChart:
             width=width,
             show_count=show_count,
             show_pct=show_pct,
+            skip_empty=skip_empty,
         )
 
     @classmethod
@@ -111,6 +116,7 @@ class BarChart:
         width: int = DEFAULT_WIDTH,
         show_count: bool = True,
         show_pct: bool = True,
+        skip_empty: bool = False,
         stream: Optional[TextIO] = None,
     ) -> str:
         """Render pre-binned buckets and print to stream (default stdout)."""
@@ -120,6 +126,7 @@ class BarChart:
             width=width,
             show_count=show_count,
             show_pct=show_pct,
+            skip_empty=skip_empty,
         )
         cls._write(text, stream=stream)
         return text
@@ -135,6 +142,7 @@ class BarChart:
         show_count: bool = True,
         show_pct: bool = True,
         label_format: str = ".2f",
+        skip_empty: bool = False,
         stream: Optional[TextIO] = None,
     ) -> str:
         """Histogram from raw samples, print to stream (default stdout)."""
@@ -146,6 +154,7 @@ class BarChart:
             show_count=show_count,
             show_pct=show_pct,
             label_format=label_format,
+            skip_empty=skip_empty,
         )
         cls._write(text, stream=stream)
         return text
@@ -239,6 +248,7 @@ class BarChartNamespace:
         width: int = BarChart.DEFAULT_WIDTH,
         show_count: bool = True,
         show_pct: bool = True,
+        skip_empty: bool = False,
     ) -> str:
         return BarChart.render(
             buckets,
@@ -246,6 +256,7 @@ class BarChartNamespace:
             width=width,
             show_count=show_count,
             show_pct=show_pct,
+            skip_empty=skip_empty,
         )
 
     @staticmethod
@@ -258,6 +269,7 @@ class BarChartNamespace:
         show_count: bool = True,
         show_pct: bool = True,
         label_format: str = ".2f",
+        skip_empty: bool = False,
     ) -> str:
         return BarChart.from_values(
             values,
@@ -267,6 +279,7 @@ class BarChartNamespace:
             show_count=show_count,
             show_pct=show_pct,
             label_format=label_format,
+            skip_empty=skip_empty,
         )
 
     @staticmethod
@@ -277,6 +290,7 @@ class BarChartNamespace:
         width: int = BarChart.DEFAULT_WIDTH,
         show_count: bool = True,
         show_pct: bool = True,
+        skip_empty: bool = False,
         stream: Optional[TextIO] = None,
     ) -> str:
         return BarChart.print(
@@ -285,6 +299,7 @@ class BarChartNamespace:
             width=width,
             show_count=show_count,
             show_pct=show_pct,
+            skip_empty=skip_empty,
             stream=stream,
         )
 
@@ -298,6 +313,7 @@ class BarChartNamespace:
         show_count: bool = True,
         show_pct: bool = True,
         label_format: str = ".2f",
+        skip_empty: bool = False,
         stream: Optional[TextIO] = None,
     ) -> str:
         return BarChart.print_from_values(
@@ -308,6 +324,7 @@ class BarChartNamespace:
             show_count=show_count,
             show_pct=show_pct,
             label_format=label_format,
+            skip_empty=skip_empty,
             stream=stream,
         )
 

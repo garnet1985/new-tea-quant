@@ -402,8 +402,8 @@ def _aggregate_roi(processed: List[Dict[str, Any]], enter_price: float) -> float
     basis = float(enter_price or 0.0)
     if basis <= 0 or not processed:
         return 0.0
-    remaining = 1.0
     weighted_profit = 0.0
+    # exit_ratio = 相对初始仓位的绝对份额（与 enum completed_goals / goals CSV 一致）
     ordered = sorted(processed, key=_leg_date)
     for leg in ordered:
         try:
@@ -413,13 +413,11 @@ def _aggregate_roi(processed: List[Dict[str, Any]], enter_price: float) -> float
         if ratio <= 0:
             continue
         ratio = min(ratio, 1.0)
-        sold = remaining * ratio
         try:
             sell_px = float(leg.get("exit_price") or 0.0)
         except (TypeError, ValueError):
             sell_px = 0.0
-        weighted_profit += (sell_px - basis) * sold
-        remaining *= max(0.0, 1.0 - ratio)
+        weighted_profit += (sell_px - basis) * ratio
     return weighted_profit / basis
 
 

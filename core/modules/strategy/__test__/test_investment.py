@@ -844,6 +844,39 @@ class TestInvestmentMultiStageGoals(unittest.TestCase):
         self.assertEqual(inv.completed_goals[0]["reason"], "take_profit")
         self.assertAlmostEqual(inv.runtime_state.remaining_ratio, 0.0)
 
+    def test_two_stage_absolute_exit_ratios_without_close_invest(self) -> None:
+        """两档 exit_ratio 各 0.5 = 各平总仓 50%，应完全平仓（不是剩 25%）。"""
+        settings = _settings(
+            simulation={"enter_price": "close", "exit_price": "close"},
+            goal={
+                "take_profit": {
+                    "stages": [
+                        {"ratio": 0.1, "exit_ratio": 0.5},
+                        {"ratio": 0.2, "exit_ratio": 0.5},
+                    ]
+                },
+                "expiration": {"fixed_window_in_days": 30, "mode": "open_day"},
+            },
+        )
+        settings.raw_settings["goal"].pop("stop_loss", None)
+        settings.apply_defaults()
+
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings)
+        _react(inv, _tick("20240102", o=10, h=11, l=9, c=10))
+        _react(inv, _tick("20240103", o=10, h=11, l=9, c=10.5))
+        self.assertFalse(_react(inv, _tick("20240104", o=10, h=12.5, l=10, c=12)))
+        self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
+        self.assertEqual(len(inv.completed_goals), 2)
+        self.assertAlmostEqual(inv.completed_goals[0]["exit_ratio"], 0.5)
+        self.assertAlmostEqual(inv.completed_goals[1]["exit_ratio"], 0.5)
+        self.assertAlmostEqual(inv.runtime_state.remaining_ratio, 0.0)
+
     def test_protect_loss_after_take_profit_action(self) -> None:
         settings = _settings(
             simulation={"enter_price": "close", "exit_price": "close"},

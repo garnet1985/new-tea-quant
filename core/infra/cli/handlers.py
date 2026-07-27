@@ -305,6 +305,7 @@ def _run_strategy_enumerate(args: argparse.Namespace) -> None:
 
 def _run_strategy_price_factor(args: argparse.Namespace) -> None:
     import time
+    from pathlib import Path
 
     from core.modules.strategy import Strategy
 
@@ -331,26 +332,34 @@ def _run_strategy_price_factor(args: argparse.Namespace) -> None:
             f"  枚举: success={enum_part.get('success')} version={enum_part.get('version_id')}",
             flush=True,
         )
-    summary = pf.get("summary") if isinstance(pf, dict) else {}
-    print(f"  output_dir: {pf.get('output_dir')}", flush=True)
-    print(f"  version: {pf.get('version_id')}", flush=True)
-    print(f"  enum_version: {pf.get('enum_version_id')}", flush=True)
-    if summary:
-        print(
-            "  summary: "
-            f"investments={summary.get('total_investments', 0)} "
-            f"win_rate={summary.get('win_rate', 0):.2f}% "
-            f"avg_roi={summary.get('avg_roi', 0):.4f}",
-            flush=True,
-        )
-    print(f"  success: {pf.get('success')}", flush=True)
+
+    # 终局摘要统一走 ReportManager.present
+    if isinstance(pf, dict) and pf.get("output_dir"):
+        try:
+            from core.modules.strategy.core.engines.price_factor.report_manager import (
+                ReportManager,
+            )
+
+            ReportManager.from_output_dir(Path(pf["output_dir"])).present()
+        except FileNotFoundError as exc:
+            logger.warning("展示价格回测汇总失败（缺产物）: %s", exc)
+            print(f"  success: {pf.get('success')}", flush=True)
+            print(f"  output_dir: {pf.get('output_dir')}", flush=True)
+        except Exception as exc:
+            logger.warning("展示价格回测汇总失败: %s", exc)
+            print(f"  success: {pf.get('success')}", flush=True)
+            print(f"  output_dir: {pf.get('output_dir')}", flush=True)
+    else:
+        print(f"  success: {pf.get('success') if isinstance(pf, dict) else False}", flush=True)
+
     print(f"  总耗时: {wall_sec:.2f}s", flush=True)
-    if not pf.get("success", True):
+    if not (pf.get("success", True) if isinstance(pf, dict) else True):
         raise SystemExit(1)
 
 
 def _run_strategy_portfolio(args: argparse.Namespace) -> None:
     import time
+    from pathlib import Path
 
     from core.modules.strategy import Strategy
 
@@ -377,20 +386,28 @@ def _run_strategy_portfolio(args: argparse.Namespace) -> None:
             f"  枚举: success={enum_part.get('success')} version={enum_part.get('version_id')}",
             flush=True,
         )
-    summary = pf.get("summary") if isinstance(pf, dict) else {}
-    print(f"  output_dir: {pf.get('output_dir')}", flush=True)
-    print(f"  version: {pf.get('version_id')}", flush=True)
-    print(f"  enum_version: {pf.get('enum_version_id')}", flush=True)
-    if summary:
-        print(
-            "  summary: "
-            f"trades={summary.get('total_trades', summary.get('total_investments', 0))} "
-            f"total_return={summary.get('total_return', summary.get('roi', 0))}",
-            flush=True,
-        )
-    print(f"  success: {pf.get('success')}", flush=True)
+
+    # 终局摘要统一走 ReportManager.present
+    if isinstance(pf, dict) and pf.get("output_dir"):
+        try:
+            from core.modules.strategy.core.engines.portfolio.report_manager import (
+                ReportManager,
+            )
+
+            ReportManager.from_output_dir(Path(pf["output_dir"])).present()
+        except FileNotFoundError as exc:
+            logger.warning("展示组合回测汇总失败（缺产物）: %s", exc)
+            print(f"  success: {pf.get('success')}", flush=True)
+            print(f"  output_dir: {pf.get('output_dir')}", flush=True)
+        except Exception as exc:
+            logger.warning("展示组合回测汇总失败: %s", exc)
+            print(f"  success: {pf.get('success')}", flush=True)
+            print(f"  output_dir: {pf.get('output_dir')}", flush=True)
+    else:
+        print(f"  success: {pf.get('success') if isinstance(pf, dict) else False}", flush=True)
+
     print(f"  总耗时: {wall_sec:.2f}s", flush=True)
-    if not pf.get("success", True):
+    if not (pf.get("success", True) if isinstance(pf, dict) else True):
         raise SystemExit(1)
 
 

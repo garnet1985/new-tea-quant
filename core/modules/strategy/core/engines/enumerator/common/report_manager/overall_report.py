@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, ClassVar, Dict, FrozenSet, List, Optional, TextIO, TYPE_CHECKING
 
+from core.infra.cmd_layout import CmdLayout
 from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
     OVERALL_REPORT_FILE,
 )
@@ -227,55 +228,77 @@ class OverallReport:
     # ── 展示 ──
 
     def present(self, stream: Optional[TextIO] = None) -> None:
+        """CLI 展示：聚焦「找机会」——机会量、触发覆盖、分布均匀度。
+
+        不展示 ROI / 胜负 / 退出原因（那是价格回测关注点）。
+        """
         out = stream or sys.stdout
         summary = self.summary
-        lines = [
-            "",
-            "── 枚举汇总 ──",
-            f"策略: {self.strategy_key}  version: {self.version_id}",
-            (
-                f"实体: {summary.total_entities}  "
-                f"有投资: {summary.entities_with_investments}  "
-                f"触发率: {summary.trigger_ratio * 100:.1f}%"
-            ),
-            (
-                f"投资: {summary.total_investments}  "
-                f"完成: {summary.completed_investments}  "
-                f"未完成: {summary.unfinished_investments}  "
-                f"完成率: {summary.completed_ratio * 100:.1f}%"
-            ),
-            (
-                f"胜负: win {summary.win_count} / loss {summary.loss_count}  "
-                f"胜率: {summary.win_ratio * 100:.1f}%"
-            ),
-            (
-                f"平均 ROI: {summary.avg_weighted_roi * 100:.2f}%  "
-                f"平均持有: {summary.avg_holding_days:.1f} 天  "
-                f"Goal 成交: {summary.total_goals}"
-            ),
-        ]
-        if summary.exit_reasons:
-            reasons = ", ".join(
-                f"{name}={count}"
-                for name, count in sorted(summary.exit_reasons.items())
+        icon = CmdLayout.icon.get
+
+        CmdLayout.title.print_section(f"{icon('target')} 机会概览", stream=out)
+        total = max(0, int(summary.total_entities))
+        triggered = max(0, int(summary.entities_with_investments))
+        idle = max(0, total - triggered)
+        opportunities = max(0, int(summary.total_investments))
+        avg_per_hit = (opportunities / triggered) if triggered > 0 else 0.0
+
+        print(
+            f"{icon('rocket')} 机会 {opportunities}    "
+            f"{icon('green_dot')} 触发 {triggered}/{total} "
+            f"({summary.trigger_ratio * 100:.1f}%)    "
+            f"{icon('blue_dot')} 均每触发股 {avg_per_hit:.1f}",
+            file=out,
+            flush=True,
+        )
+
+        if total > 0:
+            CmdLayout.bar_chart.print(
+                [
+                    ("triggered", triggered),
+                    ("idle", idle),
+                ],
+                title=f"{icon('search')} 触发覆盖",
+                width=24,
+                stream=out,
             )
-            lines.append(f"退出原因: {reasons}")
+
+        counts = [
+            int(row.investment_count)
+            for row in self.entity_rows
+            if int(row.investment_count) > 0
+        ]
+        if counts:
+            CmdLayout.bar_chart.print_from_values(
+                [float(c) for c in counts],
+                bins=min(8, max(3, len(set(counts)))),
+                title=f"{icon('bar_chart')} 机会分布 (每触发实体)",
+                width=24,
+                label_format=".0f",
+                skip_empty=True,
+                stream=out,
+            )
 
         top = sorted(
             self.entity_rows,
             key=lambda row: row.investment_count,
             reverse=True,
         )[:5]
-        if top:
-            lines.append("Top 实体 (按投资数):")
-            for row in top:
-                lines.append(
-                    f"  {row.entity_id}: investments={row.investment_count} "
-                    f"completed={row.completed_count} goals={row.goal_count}"
-                )
-
-        for line in lines:
-            print(line, file=out, flush=True)
+        if top and opportunities > 0:
+            top_sum = sum(int(row.investment_count) for row in top)
+            top_share = top_sum / float(opportunities)
+            print(
+                f"{icon('warning') if top_share >= 0.5 else icon('success')} "
+                f"Top5 集中度 {top_share * 100:.1f}%  ({top_sum}/{opportunities})",
+                file=out,
+                flush=True,
+            )
+            CmdLayout.bar_chart.print(
+                [(row.entity_id, row.investment_count) for row in top],
+                title=f"{icon('chart')} Top 实体",
+                width=24,
+                stream=out,
+            )
 
     # ── 序列化 ──
 

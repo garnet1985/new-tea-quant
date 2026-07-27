@@ -10,8 +10,9 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TextIO
+from typing import Any, Dict, List, Optional, TextIO, Tuple
 
+from core.infra.cmd_layout import CmdLayout
 from core.infra.project_context import ProjectContext
 from core.modules.strategy.core.engines.enumerator.common.report_manager.overall_report import (
     OverallReportHandle,
@@ -209,24 +210,33 @@ class ReportManager(BaseReportManager):
     # ── 展示（CLI / UI）──
 
     def present(self, stream: Optional[TextIO] = None) -> None:
-        """CLI / UI 终局摘要（entity / slice 共用；handlers 应主要依赖本方法）。"""
+        """CLI 终局摘要：机会能力为主，性能只留一行速览。"""
         out = stream or sys.stdout
+        icon = CmdLayout.icon.get
         runtime = self.runtime.load()
         period = runtime.get("period") or {}
         mode = str(runtime.get("execution_mode") or "").strip() or "-"
         entity_count = int(runtime.get("entity_count") or 0)
         if entity_count <= 0:
             entity_count = len(runtime.get("entity_ids") or [])
+
+        CmdLayout.title.print_banner(
+            f"{icon('search')} 枚举报告",
+            stream=out,
+        )
         print(
-            f"run: {runtime.get('strategy_key', self.strategy_key)} "
+            f"{icon('gear')} {runtime.get('strategy_key', self.strategy_key)} "
             f"v{runtime.get('version_id', self.version_id)}  "
-            f"path={runtime.get('strategy_path') or self.strategy_path or '-'}  "
-            f"mode={mode}  "
-            f"entities={entity_count}  "
-            f"period={period.get('start_date', '')}~{period.get('end_date', '')}",
+            f"{icon('calendar')} {period.get('start_date', '')}~{period.get('end_date', '')}  "
+            f"{icon('blue_dot')} {mode}  "
+            f"entities={entity_count}",
             file=out,
             flush=True,
         )
+        path = runtime.get("strategy_path") or self.strategy_path or "-"
+        print(f"   path={path}", file=out, flush=True)
+
+        CmdLayout.separator.print_line(width=60, stream=out)
         self.overall.present(stream=out)
 
         perf_payload: Dict[str, Any] = {}
@@ -240,149 +250,73 @@ class ReportManager(BaseReportManager):
             or perf_payload.get("at_a_glance")
             or {}
         )
-        child = dict(perf_payload.get("child_process") or {})
-        planner = dict(perf_payload.get("planner") or {})
-        mode_hint = str(perf_payload.get("mode") or mode)
 
-        if glance:
-            plan = dict(glance.get("plan") or {})
-            batches = dict(glance.get("job_batches") or {})
-            mem = dict(glance.get("memory") or {})
-            cap = dict(glance.get("process_capacity") or {})
-            pe = dict(mem.get("per_entity") or {})
-            wk = dict(mem.get("worker") or {})
-            cc = dict(mem.get("concurrent") or {})
-            print(
-                f"quick: {glance.get('total_sec_spent', glance.get('took_sec', '?'))}s  "
-                f"saved={glance.get('saved_sec', plan.get('saved_sec', '?'))}s  "
-                f"entities={glance.get('total_entity', '?')}  "
-                f"jobs={batches.get('success', '?')}/{batches.get('total', '?')}  "
-                f"workers={plan.get('worker', '?')}  "
-                f"parallelism≈{glance.get('parallelism', plan.get('parallelism', plan.get('speedup', '?')))}x  "
-                f"eff={glance.get('parallelism_efficiency', plan.get('parallelism_efficiency', '?'))}",
-                file=out,
-                flush=True,
-            )
-            where = dict(
-                glance.get("time_distribution") or glance.get("time_share") or {}
-            )
-            if where.get("planning") or where.get("load_data") or where.get("read"):
-                pl = dict(where.get("planning") or {})
-                ld = dict(where.get("load_data") or where.get("read") or {})
-                cp = dict(where.get("compute") or {})
-                rp = dict(where.get("report") or {})
-                mid = "read" if where.get("read") else "load"
-                print(
-                    f"  time: plan={pl.get('pct', '?')}%  "
-                    f"{mid}={ld.get('pct', '?')}%  "
-                    f"compute={cp.get('pct', '?')}%  "
-                    f"report={rp.get('pct', '?')}%",
-                    file=out,
-                    flush=True,
-                )
-            elif where:
-                print(
-                    f"  time: load={where.get('load_data_pct', '?')}%  "
-                    f"strategy={where.get('strategy_pct', '?')}%",
-                    file=out,
-                    flush=True,
-                )
-            if cap:
-                print(
-                    f"  capacity: {cap.get('entity_per_sec', '?')} entity/s  "
-                    f"{cap.get('mb_per_sec', '?')} MB/s",
-                    file=out,
-                    flush=True,
-                )
-            if mem:
-                unit = mem.get("unit") or "MB"
-                print(
-                    f"  mem({unit}): pool={mem.get('overall_available', mem.get('overall_available_mb', '?'))}  "
-                    f"avg_util={mem.get('avg_usage_rate', '?')}  "
-                    f"peak_util={mem.get('peak_usage_rate', '?')}",
-                    file=out,
-                    flush=True,
-                )
-                print(
-                    f"  entity: est={pe.get('estimated')}  "
-                    f"actual={pe.get('actual')}  "
-                    f"acc={pe.get('estimate_accuracy')}  "
-                    f"overshoot={pe.get('peak_overshoot', pe.get('peak_OOM_rate'))}  "
-                    f"buf={pe.get('buffer_rate')}",
-                    file=out,
-                    flush=True,
-                )
-                print(
-                    f"  worker: est={wk.get('estimated')}  "
-                    f"actual={wk.get('actual')}  "
-                    f"acc={wk.get('estimate_accuracy')}  "
-                    f"overshoot={wk.get('peak_overshoot', wk.get('peak_OOM_rate'))}",
-                    file=out,
-                    flush=True,
-                )
-                print(
-                    f"  concurrent: est={cc.get('estimated')}  "
-                    f"actual={cc.get('actual')}  "
-                    f"acc={cc.get('estimate_accuracy')}  "
-                    f"overshoot={cc.get('peak_overshoot', cc.get('peak_OOM_rate'))}",
-                    file=out,
-                    flush=True,
-                )
-            if glance.get("probe_status"):
-                print(
-                    f"  probe: {glance.get('probe_status')}  "
-                    f"bind={glance.get('binding_constraint')}",
-                    file=out,
-                    flush=True,
-                )
-
-        if mode_hint == "slice_based":
-            planner_line = (
-                f"planner: slices={planner.get('total_slices', planner.get('dispatch_jobs', 0))}  "
-                f"readers={planner.get('reader_workers', 0)}  "
-                f"compute={planner.get('compute_workers', planner.get('compute_processes', 0))}  "
-                f"max_queue={planner.get('max_queue', planner.get('queue_capacity', 0))}  "
-                f"days={planner.get('slice_open_days', 0)}"
-            )
-            pa = dict(glance.get("plan_accuracy") or {}) if glance else {}
-            if pa:
-                est = dict(pa.get("estimated") or {})
-                act = dict(pa.get("actual") or {})
-                print(
-                    f"  wait: est={est.get('compute_wait_for_reader_sec', '?')}s  "
-                    f"actual={act.get('compute_wait_for_reader_sec', '?')}s  "
-                    f"acc={pa.get('wait_estimate_accuracy', '?')}  "
-                    f"gap={pa.get('wait_gap_sec', '?')}s",
-                    file=out,
-                    flush=True,
-                )
-        elif mode_hint == "entity_based":
-            planner_line = (
-                f"planner: jobs={planner.get('dispatch_jobs', 0)}  "
-                f"epj={planner.get('entities_per_job', 0)}  "
-                f"workers={planner.get('max_workers', 0)}"
-            )
-        else:
-            planner_line = f"planner: mode={mode_hint or '-'}"
-        print(planner_line, file=out, flush=True)
-        staged = dict(child.get("staged") or {})
-        if staged:
-            print(
-                f"child: load={float(staged.get('load_data') or 0):.2f}s  "
-                f"enumerate={float(staged.get('enumerate') or 0):.2f}s  "
-                f"flush={float(staged.get('flush_csv') or 0):.2f}s",
-                file=out,
-                flush=True,
-            )
+        CmdLayout.separator.print_line(width=60, stream=out)
+        CmdLayout.title.print_section(f"{icon('clock')} 性能", stream=out)
+        elapsed = float(
+            glance.get("total_sec_spent") or summary.get("elapsed_seconds") or 0.0
+        )
+        plan = dict(glance.get("plan") or {}) if glance else {}
+        batches = dict(glance.get("job_batches") or {}) if glance else {}
         print(
-            f"性能: elapsed={float(glance.get('total_sec_spent') or summary.get('elapsed_seconds') or 0):.2f}s  "
-            f"saved={glance.get('saved_sec', '?')}s  "
-            f"parallelism={glance.get('parallelism', summary.get('parallelism_factor', 0))}  "
-            f"efficiency={glance.get('parallelism_efficiency', summary.get('parallelism_efficiency', 0))}",
+            f"{icon('rocket')} {elapsed:.2f}s  "
+            f"saved={glance.get('saved_sec', plan.get('saved_sec', '?'))}s  "
+            f"parallelism≈{glance.get('parallelism', plan.get('parallelism', plan.get('speedup', '?')))}x  "
+            f"jobs={batches.get('success', '?')}/{batches.get('total', '?')}",
             file=out,
             flush=True,
         )
-        print(f"产物目录: {self.output_dir}", file=out, flush=True)
+        where = dict(
+            (glance.get("time_distribution") or glance.get("time_share") or {})
+            if glance
+            else {}
+        )
+        time_buckets = self._time_distribution_buckets(where)
+        if time_buckets:
+            CmdLayout.bar_chart.print(
+                time_buckets,
+                title=f"{icon('ongoing')} 时间占比",
+                width=24,
+                stream=out,
+            )
+
+        CmdLayout.separator.print_line(width=60, stream=out)
+        print(f"{icon('info')} 产物: {self.output_dir}", file=out, flush=True)
+
+    @staticmethod
+    def _time_distribution_buckets(where: Dict[str, Any]) -> List[Tuple[str, float]]:
+        """Build bar-chart buckets from quick_summary time_distribution."""
+        if not where:
+            return []
+        buckets: List[Tuple[str, float]] = []
+        if where.get("planning") or where.get("load_data") or where.get("read"):
+            mid_key = "read" if where.get("read") else "load_data"
+            mid_label = "read" if where.get("read") else "load"
+            for key, label in (
+                ("planning", "plan"),
+                (mid_key, mid_label),
+                ("compute", "compute"),
+                ("report", "report"),
+            ):
+                block = dict(where.get(key) or {})
+                try:
+                    pct = float(block.get("pct") or 0.0)
+                except (TypeError, ValueError):
+                    pct = 0.0
+                buckets.append((label, pct))
+            return buckets
+        for key, label in (
+            ("load_data_pct", "load"),
+            ("strategy_pct", "strategy"),
+        ):
+            if key not in where:
+                continue
+            try:
+                pct = float(where.get(key) or 0.0)
+            except (TypeError, ValueError):
+                pct = 0.0
+            buckets.append((label, pct))
+        return buckets
 
     def to_worker_binding(self) -> Dict[str, Any]:
         """写入 job payload，供 worker 子进程还原 output 目录。"""

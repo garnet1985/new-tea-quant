@@ -73,3 +73,44 @@ def test_replay_skips_invalid_entry() -> None:
     ]
     out, _ = PriceFactorJobExecutor._replay_entity_investments(rows)
     assert [r.opportunity_id for r in out] == ["2"]
+
+
+def test_replay_multi_leg_absolute_exit_ratios_complete() -> None:
+    """goals CSV 的 exit_ratio 为绝对份额：两腿 0.5+0.5 必须 complete，不能剩 25% open。"""
+    from core.modules.strategy.core.engines.shared.services.simulation_output import (
+        GoalAchievementRow,
+    )
+
+    rows = [
+        _row(
+            investment_id="1",
+            entry_date="20240102",
+            entry_price=10.0,
+            exit_date="20240110",
+            exit_price=12.0,
+            exit_reason="take_profit",
+            weighted_roi=0.15,
+        )
+    ]
+    goals = [
+        GoalAchievementRow(
+            investment_id="1",
+            goal_name="take_profit",
+            date="20240108",
+            price=11.0,
+            exit_ratio=0.5,
+            reason="take_profit",
+        ),
+        GoalAchievementRow(
+            investment_id="1",
+            goal_name="take_profit",
+            date="20240110",
+            price=12.0,
+            exit_ratio=0.5,
+            reason="take_profit",
+        ),
+    ]
+    out, _ = PriceFactorJobExecutor._replay_entity_investments(rows, goal_rows=goals)
+    assert len(out) == 1
+    assert out[0].lifecycle == "complete"
+    assert out[0].roi == pytest.approx(0.15)  # 0.5*0.1 + 0.5*0.2

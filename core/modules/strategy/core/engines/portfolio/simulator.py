@@ -34,6 +34,11 @@ class OpenLot:
     buy_date: str
 
 
+def _lot_key(entity_id: str, investment_id: str) -> str:
+    """开仓索引键：必须带 entity，否则跨股 investment_id 会串单。"""
+    return f"{str(entity_id or '').strip()}\t{str(investment_id or '').strip()}"
+
+
 @dataclass
 class PortfolioSimResult:
     """回放结果。"""
@@ -126,7 +131,8 @@ class PortfolioSimulator:
         if account.open_position_count() >= self.allocation.max_portfolio_size:
             result.skipped_buys += 1
             return
-        if inv_id in open_lots:
+        lot_key = _lot_key(entity_id, inv_id)
+        if lot_key in open_lots:
             result.skipped_buys += 1
             return
 
@@ -180,7 +186,7 @@ class PortfolioSimulator:
             average_cost=total_cost / shares if shares > 0 else price,
             current_investment_id=inv_id,
         )
-        open_lots[inv_id] = OpenLot(
+        open_lots[lot_key] = OpenLot(
             investment_id=inv_id,
             entity_id=entity_id,
             shares=shares,
@@ -199,7 +205,9 @@ class PortfolioSimulator:
         result: PortfolioSimResult,
     ) -> None:
         inv_id = str(event.investment_id or "").strip()
-        lot = open_lots.get(inv_id)
+        entity_id = str(event.entity_id or "").strip()
+        lot_key = _lot_key(entity_id, inv_id)
+        lot = open_lots.get(lot_key)
         if lot is None:
             result.skipped_sells += 1
             return
@@ -207,7 +215,7 @@ class PortfolioSimulator:
         position = account.get_position(entity_id)
         if position is None or position.shares <= 0:
             result.skipped_sells += 1
-            open_lots.pop(inv_id, None)
+            open_lots.pop(lot_key, None)
             return
 
         sell_price = float(event.price or 0.0)
@@ -246,7 +254,7 @@ class PortfolioSimulator:
         position.shares = max(0, int(position.shares) - shares)
         if position.shares <= 0:
             position.current_investment_id = None
-            open_lots.pop(inv_id, None)
+            open_lots.pop(lot_key, None)
             result.completed_count += 1
             if float(trade.profit or 0.0) > 0:
                 result.win_count += 1

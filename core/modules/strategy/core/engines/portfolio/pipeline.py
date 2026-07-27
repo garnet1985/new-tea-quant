@@ -118,8 +118,14 @@ class PortfolioPipeline:
                     continue
                 events.extend(row_events)
                 oid = str(row.investment_id or "").strip()
-                if oid and oid not in opportunities:
-                    opportunities[oid] = row.to_opportunity(eid)
+                if oid:
+                    key = f"{eid}:{oid}"
+                    if key not in opportunities:
+                        opp = row.to_opportunity(eid)
+                        # 选仓索引用 entity:investment，避免跨股 id 碰撞
+                        if opp.meta is not None:
+                            opp.meta.opportunity_id = key
+                        opportunities[key] = opp
 
         events.sort(
             key=lambda e: (

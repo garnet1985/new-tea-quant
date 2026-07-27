@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 from typing import ClassVar, Sequence
 
-from core.utils.icon.icon_service import IconService
+from core.infra.cmd_layout import IconService
 
 
 class NewTeaQuantSetup:

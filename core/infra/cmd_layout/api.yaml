@@ -1,5 +1,5 @@
 module: infra.cmd_layout
-version: 0.2.0
+version: 0.3.0
 requires: core>=0.4.0
 
 # ---------------------------------------------------------------------------
@@ -9,6 +9,7 @@ requires: core>=0.4.0
 #   bar_chart   — 水平 ASCII 分布 / 直方图 namespace
 #   title       — 主标题 banner / 小节 section
 #   separator   — 分割线 line / thick / star / blank
+#   icon        — 跨平台图标（emoji / ASCII fallback）
 #   BarBucket   — 单柱 (label, value)
 #
 # ---------------------------------------------------------------------------
@@ -316,3 +317,39 @@ CmdLayout:
           stability: stable
           binding: static
           returns: str
+
+    icon:
+      description: "跨平台图标（UTF-8 emoji / Windows GBK ASCII）"
+
+      apis:
+        get:
+          description: "按名称取图标字符串（支持别名，大小写不敏感）"
+          stability: stable
+          binding: static
+          parameters:
+            positional:
+              - name: icon_name
+                type: str
+                required: true
+          returns: str
+          notes: "未知名称返回空串；Win32 非 UTF-8 stdout 时返回 ascii fallback"
+          example: |
+            CmdLayout.icon.get("success")  # ✅ 或 [OK]
+            CmdLayout.icon.get("chart")    # 别名 → bar_chart
+
+        i:
+          description: "get 的简写"
+          stability: stable
+          binding: static
+          parameters:
+            positional:
+              - name: icon_name
+                type: str
+                required: true
+          returns: str
+
+        supports_emoji:
+          description: "当前 stdout 是否适合输出 emoji"
+          stability: stable
+          binding: static
+          returns: bool

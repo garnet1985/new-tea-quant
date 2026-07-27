@@ -115,3 +115,15 @@ def test_should_force_exit_delisted() -> None:
     )
     assert decision is not None
     assert decision.reason == "stock_status:delisted"
+
+
+@pytest.mark.parametrize("sentinel", ["0", "0.0", 0, 0.0])
+def test_delist_date_sentinel_does_not_force_exit(sentinel) -> None:
+    """未退市占位符不得触发 stock_status:delisted。"""
+    risk = RiskControl(raw_settings={"simulation": {"risk_control": {}}})
+    decision = risk.should_force_exit(
+        entity_id="600000.SH",
+        trade_date="20240601",
+        stock_meta={"delist_date": sentinel},
+    )
+    assert decision is None

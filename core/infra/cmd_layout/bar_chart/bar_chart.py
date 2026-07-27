@@ -46,8 +46,13 @@ class BarChart:
         show_count: bool = True,
         show_pct: bool = True,
         skip_empty: bool = False,
+        headers: Optional[Tuple[str, str, str, str]] = None,
     ) -> str:
-        """Render pre-binned buckets to a multi-line ASCII chart string."""
+        """Render pre-binned buckets to a multi-line ASCII chart string.
+
+        ``headers``: optional ``(label, bar, count, pct)`` column titles.
+        Pass ``""`` for unused columns (e.g. no bar title).
+        """
         parsed = [cls._coerce_bucket(item) for item in buckets]
         if skip_empty:
             parsed = [b for b in parsed if b.value > 0]
@@ -64,6 +69,19 @@ class BarChart:
         total = sum(b.value for b in parsed)
         label_width = max(len(b.label) for b in parsed)
         count_width = max(len(cls._format_count(b.value)) for b in parsed)
+        if headers:
+            h_label, h_bar, h_count, h_pct = headers
+            label_width = max(label_width, len(str(h_label or "")))
+            count_width = max(count_width, len(str(h_count or "")))
+            bar_header = str(h_bar or "")
+            bar_pad = max(bar_width + 2, len(bar_header))  # +2 for []
+            header_row = f"  {str(h_label or ''):<{label_width}}  {bar_header:<{bar_pad}}"
+            if show_count:
+                header_row += f"  {str(h_count or ''):>{count_width}}"
+            if show_pct:
+                pct_h = str(h_pct or "")
+                header_row += f"  {pct_h:>6}"
+            lines.append(header_row)
 
         for bucket in parsed:
             filled = (
@@ -73,6 +91,9 @@ class BarChart:
             )
             filled = max(0, min(bar_width, filled))
             bar = f"[{cls.FILL * filled}{cls.EMPTY * (bar_width - filled)}]"
+            if headers and headers[1]:
+                bar_pad = max(bar_width + 2, len(str(headers[1])))
+                bar = f"{bar:<{bar_pad}}"
             row = f"  {bucket.label:<{label_width}}  {bar}"
             if show_count:
                 row += f"  {cls._format_count(bucket.value):>{count_width}}"
@@ -117,6 +138,7 @@ class BarChart:
         show_count: bool = True,
         show_pct: bool = True,
         skip_empty: bool = False,
+        headers: Optional[Tuple[str, str, str, str]] = None,
         stream: Optional[TextIO] = None,
     ) -> str:
         """Render pre-binned buckets and print to stream (default stdout)."""
@@ -127,6 +149,7 @@ class BarChart:
             show_count=show_count,
             show_pct=show_pct,
             skip_empty=skip_empty,
+            headers=headers,
         )
         cls._write(text, stream=stream)
         return text
@@ -249,6 +272,7 @@ class BarChartNamespace:
         show_count: bool = True,
         show_pct: bool = True,
         skip_empty: bool = False,
+        headers: Optional[Tuple[str, str, str, str]] = None,
     ) -> str:
         return BarChart.render(
             buckets,
@@ -257,6 +281,7 @@ class BarChartNamespace:
             show_count=show_count,
             show_pct=show_pct,
             skip_empty=skip_empty,
+            headers=headers,
         )
 
     @staticmethod
@@ -291,6 +316,7 @@ class BarChartNamespace:
         show_count: bool = True,
         show_pct: bool = True,
         skip_empty: bool = False,
+        headers: Optional[Tuple[str, str, str, str]] = None,
         stream: Optional[TextIO] = None,
     ) -> str:
         return BarChart.print(
@@ -300,6 +326,7 @@ class BarChartNamespace:
             show_count=show_count,
             show_pct=show_pct,
             skip_empty=skip_empty,
+            headers=headers,
             stream=stream,
         )
 

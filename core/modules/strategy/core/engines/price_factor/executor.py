@@ -25,7 +25,7 @@ from core.modules.strategy.core.engines.price_factor.helpers import (
     retry_deferred_exits,
 )
 from core.modules.strategy.core.engines.price_factor.job_builder import PriceFactorJobBuilder
-from core.modules.strategy.core.engines.price_factor.report_manager import (
+from core.modules.strategy.core.engines.price_factor.report_manager.investments import (
     EntityInvestments,
     PriceInvestmentRow,
 )

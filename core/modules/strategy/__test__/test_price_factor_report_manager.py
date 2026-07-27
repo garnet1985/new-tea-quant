@@ -1,4 +1,4 @@
-"""price_factor ReportManager：runtime / overall 骨架落盘。"""
+"""price_factor ReportManager：三报告稿落盘。"""
 from __future__ import annotations
 
 import json
@@ -9,13 +9,18 @@ import pytest
 
 from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
     ENTITY_IDS_FILE,
+    ENTITY_LIST_FILE,
+    OVERALL_REPORT_FILE,
+    PERFORMANCE_FILE,
     RUNTIME_ENV_FILE,
 )
 from core.modules.strategy.core.engines.shared.services.simulation_output.enum_source import EnumSource
-from core.modules.strategy.core.engines.price_factor.report_manager import (
+from core.modules.strategy.core.engines.price_factor.report_manager import ReportManager
+from core.modules.strategy.core.engines.price_factor.report_manager.investments import (
     EntityInvestments,
     PriceInvestmentRow,
-    ReportManager,
+)
+from core.modules.strategy.core.engines.price_factor.report_manager.report_consts import (
     ReportPaths,
 )
 
@@ -80,15 +85,50 @@ def test_report_manager_finalize_writes_globals(tmp_path: Path, monkeypatch) -> 
                 roi=0.1,
                 holding_days=2,
                 result="win",
+                lifecycle="complete",
+                exit_reason="take_profit",
             )
         ],
     )
-    result = report.finalize(SimpleNamespace(success=True, total_jobs=1, completed_jobs=1, failed_jobs=0, elapsed_seconds=1.2), data=data)
+    result = report.finalize(
+        SimpleNamespace(
+            success=True,
+            total_jobs=1,
+            completed_jobs=1,
+            failed_jobs=0,
+            elapsed_seconds=1.2,
+        ),
+        data=data,
+    )
 
     assert result["success"] is True
+    assert result["priceMetrics"]["totalInvestments"] == 1
+    assert result["priceMetrics"]["totalWinInvestments"] == 1
     assert result["summary"]["total_investments"] == 1
-    assert result["summary"]["total_win"] == 1
+    assert result["summary"]["total_win_investments"] == 1
     assert ReportPaths.runtime_env_path(report.output_dir).is_file()
     assert ReportPaths.overall_report_path(report.output_dir).is_file()
+    assert ReportPaths.entity_list_path(report.output_dir).is_file()
+    assert ReportPaths.performance_path(report.output_dir).is_file()
     assert ReportPaths.entity_ids_path(report.output_dir).is_file()
     assert ReportPaths.investments_csv(report.output_dir, "000001.SZ").is_file()
+
+    overall = json.loads(
+        (report.output_dir / OVERALL_REPORT_FILE).read_text(encoding="utf-8")
+    )
+    assert "entity_summaries" not in overall
+    assert "win_rate" in overall["summary"]
+    assert "avg_duration_in_days" in overall["summary"]
+
+    entity_list = json.loads(
+        (report.output_dir / ENTITY_LIST_FILE).read_text(encoding="utf-8")
+    )
+    assert len(entity_list["rows"]) == 1
+    assert entity_list["rows"][0]["entity_id"] == "000001.SZ"
+    assert entity_list["rows"][0]["total_investments"] == 1
+
+    perf = json.loads(
+        (report.output_dir / PERFORMANCE_FILE).read_text(encoding="utf-8")
+    )
+    assert perf["elapsed_seconds"] == 1.2
+    assert perf["completed_jobs"] == 1

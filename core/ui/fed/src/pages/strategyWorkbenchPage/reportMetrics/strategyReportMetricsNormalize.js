@@ -1,8 +1,8 @@
 /**
  * 策略报告 metrics：仅认 BFF V2-07 / 快照槽位当前形态，不做字段别名与推导补全。
  *
- * - enum：``{ enumMetrics: { … } }``（``EnumeratorReport.to_bff_payload``，camelCase）
- * - price：``PriceReport.to_dict()`` 扁平 snake_case
+ * - enum：``{ enumMetrics: { … } }``（camelCase）
+ * - price：``{ priceMetrics: { … } }``（OverallReport.to_ui_dict，camelCase）
  * - capital：``CapitalReport`` + BFF 扩展，snake_case
  */
 
@@ -11,6 +11,12 @@ export const REPORT_BLOCK_UNAVAILABLE_ZH = '数据异常，无法显示该结果
 function readEnumMetrics(slot) {
   if (!slot || typeof slot !== 'object') return null;
   const inner = slot.enumMetrics;
+  return inner && typeof inner === 'object' ? inner : null;
+}
+
+function readPriceMetrics(slot) {
+  if (!slot || typeof slot !== 'object') return null;
+  const inner = slot.priceMetrics;
   return inner && typeof inner === 'object' ? inner : null;
 }
 
@@ -154,57 +160,55 @@ export function normalizeEnumMetricsFromSummary(slot) {
   };
 }
 
-/** ``result_report.price_factor``：``PriceReport.to_dict()`` 扁平 snake_case。 */
+/** ``result_report.price_factor``：``{ priceMetrics: { … } }`` camelCase。 */
 export function normalizePriceMetricsFromSummary(slot) {
-  if (!slot || typeof slot !== 'object') return null;
+  const m = readPriceMetrics(slot);
+  if (!m) return null;
 
-  const num = (key) => numOrNaN(slot[key]);
+  const num = (key) => numOrNaN(m[key]);
 
-  const winRate = num('win_rate');
-  const avgRoiRaw = num('avg_roi');
-  const avgRoi = Number.isFinite(avgRoiRaw) && Math.abs(avgRoiRaw) < 1 ? avgRoiRaw * 100 : avgRoiRaw;
-  const avgDurationDays = num('avg_duration_in_days');
-  // PriceReport.annual_return 为小数比例（1.05 = 105%），与控制台 ann_cal * 100 一致；不可沿用「<1 才 ×100」
-  const annualRaw = num('annual_return');
-  const annualReturn = Number.isFinite(annualRaw) ? annualRaw * 100 : NaN;
+  const winRate = num('winRate');
+  const avgRoi = num('avgRoi');
+  const avgDurationDays = num('avgDurationDays');
+  const annualReturn = num('annualReturn');
 
-  const totalInvestments = num('total_investments');
-  const totalOpenInvestments = num('total_open_investments');
-  const totalWinInvestments = num('total_win_investments');
-  const totalLossInvestments = num('total_loss_investments');
-  const stocksWithOpportunities = num('stocks_have_opportunities');
-  const avgInvestmentsPerStock = num('avg_investments_per_stock');
-  const avgProfitPerInvestment = num('avg_profit_per_investment');
-  const avgProfitPerStock = num('avg_profit_per_stock');
+  const totalInvestments = num('totalInvestments');
+  const totalOpenInvestments = num('totalOpenInvestments');
+  const totalWinInvestments = num('totalWinInvestments');
+  const totalLossInvestments = num('totalLossInvestments');
+  const stocksWithOpportunities = num('stocksHaveOpportunities');
+  const avgInvestmentsPerStock = num('avgInvestmentsPerStock');
+  const avgProfitPerInvestment = num('avgProfitPerInvestment');
+  const avgProfitPerStock = num('avgProfitPerStock');
 
-  const roiPctLabelsIn = toStringList(slot.roi_percentile_labels);
-  const roiPctValuesRaw = toNumberList(slot.roi_percentile_values);
+  const roiPctLabelsIn = toStringList(m.roiPercentileLabels);
+  const roiPctValuesRaw = toNumberList(m.roiPercentileValues);
   const pv = roiPctValuesRaw.length >= 9 ? roiPctValuesRaw.slice(0, 9) : [];
 
-  const roiP10 = num('roi_p10');
-  const roiP20 = num('roi_p20');
-  const roiP30 = num('roi_p30');
-  const roiP40 = num('roi_p40');
-  const roiP50 = num('roi_p50');
-  const roiP60 = num('roi_p60');
-  const roiP70 = num('roi_p70');
-  const roiP80 = num('roi_p80');
-  const roiP90 = num('roi_p90');
-  const roiP25 = num('roi_p25');
-  const roiP75 = num('roi_p75');
-  const roiIqr = num('roi_iqr');
-  const roiConclusion = String(slot.roi_conclusion ?? '').trim();
-  const roiStdPct = num('roi_std_pct');
+  const roiP10 = num('roiP10');
+  const roiP20 = num('roiP20');
+  const roiP30 = num('roiP30');
+  const roiP40 = num('roiP40');
+  const roiP50 = num('roiP50');
+  const roiP60 = num('roiP60');
+  const roiP70 = num('roiP70');
+  const roiP80 = num('roiP80');
+  const roiP90 = num('roiP90');
+  const roiP25 = num('roiP25');
+  const roiP75 = num('roiP75');
+  const roiIqr = num('roiIqr');
+  const roiConclusion = String(m.roiConclusion ?? '').trim();
+  const roiStdPct = num('roiStdPct');
 
-  const roiBucketLabels = toStringList(slot.roi_bucket_labels);
-  const roiBucketCounts = toNumberList(slot.roi_bucket_counts);
-  const roiBucketBinCount = num('roi_bucket_bin_count');
-  const roiTruncatedExitCount = num('roi_truncated_exit_count');
-  const roiDistributionSampleCount = num('roi_distribution_sample_count');
+  const roiBucketLabels = toStringList(m.roiBucketLabels);
+  const roiBucketCounts = toNumberList(m.roiBucketCounts);
+  const roiBucketBinCount = num('roiBucketBinCount');
+  const roiTruncatedExitCount = num('roiTruncatedExitCount');
+  const roiDistributionSampleCount = num('roiDistributionSampleCount');
 
-  const skippedBuyAtLimitUp = num('skipped_buy_at_limit_up');
-  const skippedSellAtLimitDown = num('skipped_sell_at_limit_down');
-  const skippedStockStatus = num('skipped_stock_status');
+  const skippedBuyAtLimitUp = num('skippedBuyAtLimitUp');
+  const skippedSellAtLimitDown = num('skippedSellAtLimitDown');
+  const skippedStockStatus = num('skippedStockStatus');
 
   const overviewOk = [winRate, avgRoi, avgDurationDays, annualReturn].every((x) => Number.isFinite(x));
   const sampleCoverageOk = [totalInvestments, stocksWithOpportunities, avgInvestmentsPerStock, totalOpenInvestments]

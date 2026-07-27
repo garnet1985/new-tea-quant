@@ -1,7 +1,7 @@
 /** 与 ``sortMappedPriceRows`` 字段一致；仅用于首屏默认顺序 */
 export const PRICE_REF_DEFAULT_SORT = { sortBy: 'avg_roi', order: 'desc' };
 
-/** 价格回测 ``0_stock_ref.json`` 逐股条目（snake_case）。 */
+/** 价格回测逐股 ref（``entity_list.json`` / legacy ``0_stock_ref.json``，snake_case）。 */
 export function mapPriceStockRefToRows(stockRef) {
   if (!stockRef || typeof stockRef !== 'object') return [];
   return Object.entries(stockRef).map(([code, v]) => {

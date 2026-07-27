@@ -57,35 +57,35 @@ class PriceInvestmentRow:
         return cls(
             opportunity_id=str(data.get("opportunity_id") or "").strip(),
             enter_date=str(data.get("enter_date") or "").strip(),
-            enter_price=_as_float(data.get("enter_price")),
+            enter_price=cls.as_float(data.get("enter_price")),
             exit_date=str(data.get("exit_date") or "").strip(),
-            exit_price=_as_float(data.get("exit_price")),
-            roi=_as_float(data.get("roi")),
-            holding_days=_as_int(data.get("holding_days")),
-            holding_trading_days=_as_int(data.get("holding_trading_days")),
+            exit_price=cls.as_float(data.get("exit_price")),
+            roi=cls.as_float(data.get("roi")),
+            holding_days=cls.as_int(data.get("holding_days")),
+            holding_trading_days=cls.as_int(data.get("holding_trading_days")),
             exit_reason=str(data.get("exit_reason") or "").strip(),
             skip_reason=str(data.get("skip_reason") or "").strip(),
             lifecycle=str(data.get("lifecycle") or "").strip(),
             result=str(data.get("result") or "").strip(),
         )
 
+    @staticmethod
+    def as_float(value: Any, default: float = 0.0) -> float:
+        if value is None or value == "":
+            return default
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
 
-def _as_float(value: Any, default: float = 0.0) -> float:
-    if value is None or value == "":
-        return default
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _as_int(value: Any, default: int = 0) -> int:
-    if value is None or value == "":
-        return default
-    try:
-        return int(float(value))
-    except (TypeError, ValueError):
-        return default
+    @staticmethod
+    def as_int(value: Any, default: int = 0) -> int:
+        if value is None or value == "":
+            return default
+        try:
+            return int(float(value))
+        except (TypeError, ValueError):
+            return default
 
 
 class EntityInvestments:

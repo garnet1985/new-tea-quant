@@ -112,33 +112,34 @@ def build_price_stock_ref_map(stock_summaries: List[Dict[str, Any]]) -> Dict[str
 
 
 def load_price_stock_ref_from_dir(output_dir: Path) -> Dict[str, Dict[str, Any]]:
-    """优先读 ``0_stock_ref.json``；否则扫描单股 ``{id}.json`` 聚合。"""
+    """读 ``entity_list.json`` → UI stock_ref map。"""
     base = Path(output_dir)
-    ref_path = base / STOCK_REF_FILENAME
-    if ref_path.is_file():
-        try:
-            raw = json.loads(ref_path.read_text(encoding="utf-8"))
-            if isinstance(raw, dict) and raw:
-                return {str(k): dict(v) for k, v in raw.items() if isinstance(v, dict)}
-        except Exception:
-            logger.exception("读取价格回测 stock_ref 失败: %s", ref_path)
-
+    entity_list_path = base / "entity_list.json"
+    if not entity_list_path.is_file():
+        return {}
+    try:
+        raw = json.loads(entity_list_path.read_text(encoding="utf-8"))
+    except Exception:
+        logger.exception("读取价格回测 entity_list 失败: %s", entity_list_path)
+        return {}
+    rows = raw.get("rows") if isinstance(raw, dict) else None
+    if not isinstance(rows, list) or not rows:
+        return {}
     out: Dict[str, Dict[str, Any]] = {}
-    for path in sorted(base.glob("*.json")):
-        if path.name.startswith("0_"):
+    for item in rows:
+        if not isinstance(item, dict):
             continue
-        sid = path.stem.strip()
+        sid = str(item.get("entity_id") or "").strip()
         if not sid:
             continue
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        if not isinstance(raw, dict):
-            continue
-        entry = build_price_stock_ref_entry(raw)
-        if entry:
-            out[sid] = entry
+        out[sid] = {
+            "stock_name": str(item.get("stock_name") or sid),
+            "win_rate": float(item.get("win_rate") or 0.0),
+            "avg_roi": float(item.get("avg_roi") or 0.0),
+            "avg_duration_in_days": float(item.get("avg_duration_in_days") or 0.0),
+            "expiration_ratio": float(item.get("expiration_ratio") or 0.0),
+            "total_investments": int(item.get("total_investments") or 0),
+        }
     return out
 
 

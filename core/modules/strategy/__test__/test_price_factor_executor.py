@@ -14,7 +14,7 @@ from core.modules.strategy.core.engines.shared.services.simulation_output import
 )
 from core.modules.strategy.core.engines.price_factor.executor import PriceFactorJobExecutor
 from core.modules.strategy.core.engines.price_factor.job_builder import PRICE_FACTOR_GLOBAL_KEY
-from core.modules.strategy.core.engines.price_factor.report_manager import EntityInvestments
+from core.modules.strategy.core.engines.price_factor.report_manager.investments import EntityInvestments
 
 pytestmark = pytest.mark.force_run
 

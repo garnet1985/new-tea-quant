@@ -269,15 +269,6 @@ class CalculationSettings(SettingsBase):
         if not exec_report.is_valid:
             report.is_valid = False
 
-        mode = self.mode
-        if mode == TagExecutionMode.SLICE_BASED.value:
-            if not self.recompute and self.update_mode != TagUpdateMode.REFRESH.value:
-                SettingsBase.add_critical(
-                    report,
-                    "calculation",
-                    "slice_based currently requires recompute=true or update_mode=refresh",
-                )
-
         return report
 
     def normalized_mode(self) -> str:

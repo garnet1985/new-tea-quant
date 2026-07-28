@@ -9,8 +9,9 @@ Tag Data Service - Tag 系统数据服务
 - tag_scenario: 业务场景表
 - tag_definition: 标签定义表
 - tag_value: 标签值表
+- tag_calc_progress: 增量计算水位（frontier）
 """
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Mapping, Optional
 import logging
 from core.utils.date.date_utils import DateUtils
 
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 _TAG_VALUE_TABLE = "sys_tag_value"
 _TAG_DEFINITION_TABLE = "sys_tag_definition"
+_TAG_CALC_PROGRESS_TABLE = "sys_tag_calc_progress"
 
 
 class TagDataService(BaseDataService):
@@ -39,7 +41,10 @@ class TagDataService(BaseDataService):
         self._tag_scenario_model = data_manager.get_table("sys_tag_scenario")
         self._tag_definition_model = data_manager.get_table("sys_tag_definition")
         self._tag_value_model = data_manager.get_table("sys_tag_value")
-        
+        self._tag_calc_progress_model = data_manager.get_table(
+            "sys_tag_calc_progress"
+        )
+
         from core.infra.db import DatabaseManager
 
         dm_db = getattr(data_manager, "db", None)
@@ -416,10 +421,9 @@ class TagDataService(BaseDataService):
                 - entity_id: str - 实体ID
                 - tag_definition_id: int - Tag definition ID
                 - as_of_date: str - 业务日期（YYYYMMDD）
-                - value: str - 标签值（字符串）
-                - start_date: str (可选) - 起始日期（YYYYMMDD）
-                - end_date: str (可选) - 结束日期（YYYYMMDD）
-                - entity_type: str (可选) - 实体类型（默认 "stock"）
+                - json_value / value: 标签值
+                - start_date: str (可选) - 结果有效区间起点
+                - end_date: str (可选) - 结果有效区间终点
         
         Returns:
             int: 保存的记录数（通常是 1）
@@ -486,7 +490,105 @@ class TagDataService(BaseDataService):
         except Exception as e:
             logger.error(f"删除 tag values 失败: scenario_id={scenario_id}, error={e}")
             raise
-    
+
+    def get_entity_calc_progress(self, scenario_name: str) -> Dict[str, str]:
+        """加载 scenario 下各实体的计算水位 map：entity_id → last_calculated_end (YYYYMMDD)。
+
+        不在当前 entity list 中的残留行仍会返回；调用方裁窗时只遍历 list 内实体即可忽略。
+        无 progress 行的实体不在 map 中 → 从 settings 起点算。
+        """
+        scenario = self.load_scenario(scenario_name)
+        if not scenario or scenario.get("id") is None:
+            return {}
+        scenario_id = int(scenario["id"])
+        try:
+            sql = """
+                SELECT entity_id, last_calculated_end
+                FROM sys_tag_calc_progress
+                WHERE scenario_id = %s
+            """
+            rows = self.db.execute_sync_query_for_table(
+                _TAG_CALC_PROGRESS_TABLE, sql, (scenario_id,)
+            )
+            out: Dict[str, str] = {}
+            for row in rows or []:
+                eid = str(row.get("entity_id") or "").strip()
+                end = self._normalize_date_to_yyyymmdd(
+                    row.get("last_calculated_end")
+                )
+                if eid and end:
+                    out[eid] = end
+            return out
+        except Exception as e:
+            logger.error(
+                "加载 tag calc progress 失败: scenario_name=%s, error=%s",
+                scenario_name,
+                e,
+            )
+            return {}
+
+    def mark_entity_calc_progress(
+        self,
+        scenario_name: str,
+        entity_ends: Mapping[str, str],
+    ) -> int:
+        """将给定 entity 的 last_calculated_end 推进为至少 ``end``（取 max）。"""
+        if not entity_ends:
+            return 0
+        scenario = self.load_scenario(scenario_name)
+        if not scenario or scenario.get("id") is None:
+            logger.warning(
+                "mark_entity_calc_progress: scenario 不存在: %s", scenario_name
+            )
+            return 0
+        scenario_id = int(scenario["id"])
+        current = self.get_entity_calc_progress(scenario_name)
+        rows: List[Dict[str, Any]] = []
+        for eid, end in entity_ends.items():
+            key = str(eid or "").strip()
+            val = self._normalize_date_to_yyyymmdd(end) or str(end or "").strip()
+            if not key or not val:
+                continue
+            prev = current.get(key) or ""
+            if prev and not (val > prev):
+                continue
+            rows.append(
+                {
+                    "scenario_id": scenario_id,
+                    "entity_id": key,
+                    "last_calculated_end": val,
+                }
+            )
+        if not rows:
+            return 0
+        return int(self._tag_calc_progress_model.save_records(rows) or len(rows))
+
+    def clear_calc_progress_by_scenario(self, scenario_id: int) -> None:
+        """删除指定 scenario 下全部计算水位（refresh / recompute）。"""
+        sql = "DELETE FROM sys_tag_calc_progress WHERE scenario_id = %s"
+        try:
+            with self.db.get_sync_cursor_for_table(_TAG_CALC_PROGRESS_TABLE) as cursor:
+                cursor.execute(sql, (scenario_id,))
+                affected = int(cursor.rowcount)
+                if affected < 0:
+                    logger.info(
+                        "已清空 scenario %s 的 tag calc progress（存储未返回删除行数）",
+                        scenario_id,
+                    )
+                else:
+                    logger.info(
+                        "已删除 scenario %s 下的 %s 条 tag calc progress",
+                        scenario_id,
+                        affected,
+                    )
+        except Exception as e:
+            logger.error(
+                "删除 tag calc progress 失败: scenario_id=%s, error=%s",
+                scenario_id,
+                e,
+            )
+            raise
+
     def get_max_as_of_date(self, tag_definition_ids: List[int]) -> Optional[str]:
         """
         获取指定 tag definitions 的最大 as_of_date（用于增量计算）
@@ -590,7 +692,6 @@ class TagDataService(BaseDataService):
         scenario_name: str,
         start_date: str,
         end_date: str,
-        entity_type: str = "stock",
     ) -> List[Dict[str, Any]]:
         """
         加载某个实体在指定 scenario 下、指定时间区间内的所有 tag values。
@@ -598,13 +699,13 @@ class TagDataService(BaseDataService):
         说明：
         - 对外只暴露 scenario 维度，不暴露单个 tag definition 的加载接口
         - 返回结果中会包含 tag_definition 的 name/display_name，方便上层策略按需使用
+        - attach_to_data_key 取自 scenario（value 表不重复该列）
 
         Args:
             entity_id: 实体 ID（例如股票代码）
             scenario_name: Scenario 名称（例如 'momentum_mid_term'）
             start_date: 开始日期（YYYYMMDD）
             end_date: 结束日期（YYYYMMDD）
-            entity_type: 实体类型，默认 'stock'
 
         Returns:
             List[Dict[str, Any]]: 标签值列表，按 as_of_date 升序、tag_name 升序排列
@@ -630,13 +731,15 @@ class TagDataService(BaseDataService):
                     tv.json_value,
                     td.name AS tag_name,
                     td.display_name AS tag_display_name,
-                    td.scenario_id
+                    td.scenario_id,
+                    sc.attach_to_data_key AS attach_to_data_key
                 FROM sys_tag_value tv
                 INNER JOIN sys_tag_definition td
                     ON tv.tag_definition_id = td.id
+                INNER JOIN sys_tag_scenario sc
+                    ON td.scenario_id = sc.id
                 WHERE
-                    tv.entity_type = %s
-                    AND tv.entity_id = %s
+                    tv.entity_id = %s
                     AND td.scenario_id = %s
                     AND tv.as_of_date >= %s
                     AND tv.as_of_date <= %s
@@ -644,7 +747,6 @@ class TagDataService(BaseDataService):
             """
 
             params = (
-                entity_type,
                 entity_id,
                 scenario_id,
                 start_date,
@@ -667,7 +769,6 @@ class TagDataService(BaseDataService):
         scenario_name: str,
         start_date: str,
         end_date: str,
-        entity_type: str = "stock",
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
         批量加载多个实体在指定 scenario 下、指定时间区间内的所有 tag values（优化：一次查询所有实体）。
@@ -677,7 +778,6 @@ class TagDataService(BaseDataService):
             scenario_name: Scenario 名称（例如 'momentum_mid_term'）
             start_date: 开始日期（YYYYMMDD）
             end_date: 结束日期（YYYYMMDD）
-            entity_type: 实体类型，默认 'stock'
 
         Returns:
             Dict[entity_id, List[Dict]]: 每个实体的标签值列表，按 as_of_date 升序、tag_name 升序排列
@@ -708,20 +808,22 @@ class TagDataService(BaseDataService):
                     tv.json_value,
                     td.name AS tag_name,
                     td.display_name AS tag_display_name,
-                    td.scenario_id
+                    td.scenario_id,
+                    sc.attach_to_data_key AS attach_to_data_key
                 FROM sys_tag_value tv
                 INNER JOIN sys_tag_definition td
                     ON tv.tag_definition_id = td.id
+                INNER JOIN sys_tag_scenario sc
+                    ON td.scenario_id = sc.id
                 WHERE
-                    tv.entity_type = %s
-                    AND tv.entity_id IN ({placeholders})
+                    tv.entity_id IN ({placeholders})
                     AND td.scenario_id = %s
                     AND tv.as_of_date >= %s
                     AND tv.as_of_date <= %s
                 ORDER BY tv.entity_id ASC, tv.as_of_date ASC, td.name ASC
             """
 
-            params = [entity_type] + list(entity_ids) + [scenario_id, start_date, end_date]
+            params = list(entity_ids) + [scenario_id, start_date, end_date]
 
             all_results = self.db.execute_sync_query_for_table(_TAG_VALUE_TABLE, sql, tuple(params))
 

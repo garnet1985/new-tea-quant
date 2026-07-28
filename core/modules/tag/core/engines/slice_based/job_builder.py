@@ -3,21 +3,28 @@
 消费者: TagSlicePipeline
 
 本文件:
-- TagSliceJobBuilder: payload + ``timeline_point_count``
+- TagSliceJobBuilder: payload + ``timeline_point_count``；
+  incremental 时按 ``sys_tag_calc_progress`` 裁窗
   边界: 喂 jobs；点数用 ``Timeline.from_calendar_window``；不负责执行
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from core.modules.backtest_engine.contracts import Timeline
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.modules.tag.core.data_class.scenario import Scenario
+from core.modules.tag.core.engines.shared.calc_window import TagCalcWindowResolver
 from core.modules.tag.core.engines.shared.job_payload import TagJobPayloadBuilder
 from core.modules.tag.core.engines.shared.tag_settings.tag_settings import TagSettings
 from core.modules.tag.core.services.discovery.data.discovered_tag import EnabledTagInfo
+
+if TYPE_CHECKING:
+    from core.modules.data_manager.data_services.stock.sub_services.tag_service import (
+        TagDataService,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -31,24 +38,36 @@ class TagSliceJobBuilder:
         tag_info: EnabledTagInfo,
         scenario: Scenario,
         entity_ids: List[str],
+        *,
+        tag_data_service: Optional["TagDataService"] = None,
     ) -> List[Dict[str, Any]]:
         settings = TagSettings.from_dict(
             dict(scenario.settings or {}),
             tag_key=scenario.name,
         )
         settings.apply_defaults()
-        period = settings.resolve_period()
-        start_date = period.start_date
-        end_date = period.end_date
-        point_count = cls._count_open_dates(start_date, end_date)
+        windows = TagCalcWindowResolver.resolve(
+            scenario=scenario,
+            settings=settings,
+            entity_ids=entity_ids,
+            tag_data_service=tag_data_service,
+        )
+        if not windows.entities:
+            logger.info(
+                "TagSliceJobBuilder: 无待算实体（skipped_up_to_date=%d），跳过 job",
+                windows.skipped_up_to_date,
+            )
+            return []
 
+        point_count = cls._count_open_dates(windows.data_start, windows.data_end)
         payload = TagJobPayloadBuilder.build_core_payload(
             tag_info=tag_info,
             scenario=scenario,
             settings=settings,
             entity_ids=entity_ids,
-            start_date=start_date,
-            end_date=end_date,
+            start_date=windows.data_start,
+            end_date=windows.data_end,
+            calc_windows=windows,
         )
         if not payload.get("entity_specified"):
             logger.warning("TagSliceJobBuilder: entity_specified 为空，跳过 job")
@@ -60,9 +79,14 @@ class TagSliceJobBuilder:
         payload.pop(Timeline.PAYLOAD_KEY, None)
 
         logger.info(
-            "TagSliceJobBuilder: entity_count=%d, timeline_point_count=%d",
+            "TagSliceJobBuilder: entity_count=%d timeline_point_count=%d "
+            "period=%s—%s update_mode=%s skipped=%d",
             len(ids),
             point_count,
+            payload.get("start_date"),
+            payload.get("end_date"),
+            payload.get("update_mode"),
+            windows.skipped_up_to_date,
         )
         return [{"id": "tag_run", "payload": payload}]
 

@@ -19,7 +19,7 @@
 | `calculation.execution.mode` | 含义 |
 |------------------------------|------|
 | `entity_based` | 各实体按各自交易日推进；钩子 `calculate_tag(ctx)` |
-| `slice_based` | 日历切片；钩子 `on_calendar_asof(ctx)`（当前须 recompute 或 `update_mode=refresh`） |
+| `slice_based` | 日历切片；钩子 `on_calendar_asof(ctx)`；`incremental` 同样走 progress 裁窗 |
 
 ---
 
@@ -27,12 +27,12 @@
 
 | `update_mode` | 含义 |
 |---------------|------|
-| `incremental` | 从每实体 **`last_calculated_end`** 续算（不是 `max(as_of)`） |
-| `refresh` | 对目标区间按重算语义清值后重算 |
+| `incremental` | 从每实体 **`last_calculated_end`** 续算（不是 `max(as_of)`）；entity / slice 均写 progress |
+| `refresh` | 对目标区间按重算语义清值后重算；**不写** progress（清库时一并清空） |
 
 `recompute=True`：运维开关，等价本次 refresh，并可重建 definition 元数据（**dry_run 时跳过清库**）。
 
-水位文件：`userspace/.ntq/tag_calc_progress/`（`TagCalcProgressStore`）。
+水位：``sys_tag_calc_progress``（``TagDataService.get_entity_calc_progress``）。
 
 ---
 
@@ -49,7 +49,7 @@
 userspace `tag.py` 继承 `TagHooks`：
 
 - `calculate_tag(ctx)` — entity_based
-- `on_calendar_asof(ctx)` — slice_based（可选）
+- `on_calendar_asof(ctx)` — slice_based（可选）；返回 ``TagCalendarAsOfResult``（``entity_tags`` + ``session_state``，同 strategy）
 
 旧 `BaseTagWorker` / `tag_worker.py` 生命周期钩子已移除。
 

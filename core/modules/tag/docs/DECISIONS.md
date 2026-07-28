@@ -27,7 +27,7 @@ Tag 只做 JobBuilder / JobExecutor（RunCallbacks）与 flush；并行与 Timel
 用 `max(as_of_date)` 做水位会在「变更才写」类标签上错误跳过区间。
 
 **决策**  
-每实体进度存 `TagCalcProgressStore.last_calculated_end`；成功且非 dry_run 时推进。`calculated_at` / `scenario.updated_at` 仅元数据，不作业务水位。
+每实体进度存 `sys_tag_calc_progress.last_calculated_end`（经 `TagDataService`）；成功且非 dry_run 时推进。`calculated_at` / `scenario.updated_at` 仅元数据，不作业务水位。
 
 **后果**  
 UI 列表的 `last_computed_as_of`（`get_max_as_of_date`）可以与增量水位不同，属展示字段。
@@ -41,7 +41,9 @@ UI 列表的 `last_computed_as_of`（`get_max_as_of_date`）可以与增量水�
 
 **决策**  
 - `entity_based` + `calculate_tag`：常规按实体推进  
-- `slice_based` + `on_calendar_asof`：日历切片横截面（当前强制 refresh/recompute）
+- `slice_based` + `on_calendar_asof`：日历切片横截面  
+
+二者在 `update_mode=incremental` 时都读写 `sys_tag_calc_progress`；`refresh` / `recompute` 清 progress，跑完不回写水位。
 
 `general` 目标类型仅有 stub（`__general__`），不对 userspace 开放同等配置。
 
@@ -54,3 +56,15 @@ UI 列表的 `last_computed_as_of`（`get_max_as_of_date`）可以与增量水�
 
 **决策**  
 对外唯一入口为 `Tag`；`TagManager` / `run_tag` / 模块 `__main__` 已删除。BFF 经 `TagCatalog` / `TagRunLauncher`。
+
+---
+
+## 决策 5：Tag 表字段单一真相
+
+**背景**  
+`sys_tag_value` 曾重复 `attach_to_data_key`，且写入路径使用未在 schema 声明的 `entity_type`。
+
+**决策**  
+- `attach_to_data_key` SOT = `sys_tag_scenario`；读 value 时 JOIN scenario  
+- `sys_tag_value` / `sys_tag_calc_progress` 不存 `entity_type`（当前默认 stock）  
+- frontier = progress.`last_calculated_end`；value 的 as_of / calculated_at 不作水位

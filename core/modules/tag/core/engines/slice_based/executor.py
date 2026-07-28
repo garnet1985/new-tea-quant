@@ -47,12 +47,15 @@ class SliceTaskState:
     _ctx_base: TagContext = field(init=False, repr=False)
     _base_data_key: str = field(init=False, repr=False)
     _min_required: int = field(init=False, repr=False)
+    _entity_window: Dict[str, tuple] = field(
+        default_factory=dict, init=False, repr=False
+    )
     _ready_date_by_entity: Dict[str, str] = field(
         default_factory=dict, init=False, repr=False
     )
     _job_min_ready_date: str = field(default="", init=False, repr=False)
     _uses_calendar_asof: bool = field(default=False, init=False, repr=False)
-    _session_carry: Dict[str, Any] = field(default_factory=dict, init=False, repr=False)
+    _session_state: Dict[str, Any] = field(default_factory=dict, init=False, repr=False)
 
     def __post_init__(self) -> None:
         ids = [str(eid).strip() for eid in self.entity_ids if str(eid).strip()]
@@ -60,6 +63,7 @@ class SliceTaskState:
         self._base_data_key = self.settings.data.base_data_key
         self._min_required = max(int(self.settings.data.min_required_records or 0), 0) or 1
         self._uses_calendar_asof = self.hook_runtime.is_overridden("on_calendar_asof")
+        self._entity_window = self._parse_entity_windows(self.payload)
         self._ctx_base = TagContext.assemble(
             tag_key=self.tag_name,
             settings=self.settings,
@@ -76,6 +80,33 @@ class SliceTaskState:
         self._job_min_ready_date = AsOfSlice.job_min_ready_date(
             self._ready_date_by_entity
         )
+
+    @staticmethod
+    def _parse_entity_windows(payload: Dict[str, Any]) -> Dict[str, tuple]:
+        out: Dict[str, tuple] = {}
+        for item in (payload or {}).get("entity_specified") or []:
+            if not isinstance(item, dict):
+                continue
+            eid = str(item.get("id") or "").strip()
+            if not eid:
+                continue
+            start = str(item.get("start_date") or "").strip()
+            end = str(item.get("end_date") or "").strip()
+            out[eid] = (start, end)
+        return out
+
+    def entity_in_calc_window(self, entity_id: str, as_of: str) -> bool:
+        """实体在 payload 计算窗内才参与该 as_of（incremental 裁窗）。"""
+        win = self._entity_window.get(entity_id)
+        if not win:
+            return True
+        start, end = win
+        day = str(as_of or "").strip()
+        if start and day < start:
+            return False
+        if end and day > end:
+            return False
+        return True
 
     @classmethod
     def from_job_context(cls, job_context: Any) -> "SliceTaskState":
@@ -153,6 +184,8 @@ class SliceTaskState:
         for entity_id, items in (entity_tags or {}).items():
             eid = str(entity_id or "").strip()
             if not eid:
+                continue
+            if not self.entity_in_calc_window(eid, as_of):
                 continue
             for item in items or []:
                 if not isinstance(item, dict):
@@ -239,7 +272,7 @@ class TagSliceJobExecutor:
         stocks_ctx = cls._build_stocks_context(state, sliced_by_entity, as_of=as_of)
         calendar = {
             "as_of_date": as_of,
-            "carry": dict(state._session_carry),
+            "session_state": dict(state._session_state),
         }
         asof_ctx = TagContext.fill(
             state._ctx_base,
@@ -248,20 +281,20 @@ class TagSliceJobExecutor:
             calendar=calendar,
         )
         try:
-            result = state.hook_runtime.call("on_calendar_asof", asof_ctx)
+            asof_result = state.hook_runtime.call("on_calendar_asof", asof_ctx)
         except Exception as exc:
             logger.error(
                 "on_calendar_asof 失败：as_of=%s error=%s", as_of, exc, exc_info=True
             )
             return
-        if not isinstance(result, TagCalendarAsOfResult):
+        if not isinstance(asof_result, TagCalendarAsOfResult):
             raise TypeError(
                 f"on_calendar_asof 必须返回 TagCalendarAsOfResult，"
-                f"实际: {type(result).__name__}"
+                f"实际: {type(asof_result).__name__}"
             )
-        state._session_carry = dict(result.carry or {})
+        state._session_state = dict(asof_result.session_state or {})
         state.buffer_calendar_entity_tags(
-            as_of=as_of, entity_tags=result.entity_tags or {}
+            as_of=as_of, entity_tags=asof_result.entity_tags or {}
         )
 
     @classmethod
@@ -273,6 +306,8 @@ class TagSliceJobExecutor:
         sliced_by_entity: Dict[str, Dict[str, Any]],
     ) -> None:
         for entity_id in state.entity_ids:
+            if not state.entity_in_calc_window(entity_id, as_of):
+                continue
             ready = state._ready_date_by_entity.get(entity_id) or ""
             if (not ready) or as_of < ready:
                 continue
@@ -327,6 +362,8 @@ class TagSliceJobExecutor:
     ) -> Dict[str, Any]:
         out: Dict[str, Any] = {}
         for entity_id in state.entity_ids:
+            if not state.entity_in_calc_window(entity_id, as_of):
+                continue
             ready = state._ready_date_by_entity.get(entity_id) or ""
             if (not ready) or as_of < ready:
                 continue

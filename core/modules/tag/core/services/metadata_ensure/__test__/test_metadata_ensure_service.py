@@ -94,6 +94,7 @@ class TestMetadataEnsureService:
         MetadataEnsureService(tags).ensure(scenario)
 
         tags.delete_tag_values_by_scenario.assert_called_once_with(10)
+        tags.clear_calc_progress_by_scenario.assert_called_once_with(10)
         tags.delete_scenario.assert_not_called()
         tags.save_scenario.assert_not_called()
         assert scenario.id == 10
@@ -128,6 +129,7 @@ class TestMetadataEnsureService:
 
         tags.delete_tag_values_by_scenario.assert_called_once_with(10)
         tags.delete_tag_definitions_by_scenario.assert_called_once_with(10)
+        tags.clear_calc_progress_by_scenario.assert_called_once_with(10)
         tags.delete_scenario.assert_not_called()
         tags.save_scenario.assert_not_called()
         tags.update_scenario.assert_called_once()
@@ -224,6 +226,7 @@ class TestMetadataEnsureService:
         MetadataEnsureService(tags).ensure(scenario)
 
         tags.delete_tag_values_by_scenario.assert_not_called()
+        tags.clear_calc_progress_by_scenario.assert_not_called()
         assert scenario.id == 10
         assert scenario.tag_definitions[0].id == 20
 
@@ -255,6 +258,7 @@ class TestMetadataEnsureService:
 
         tags.delete_tag_values_by_scenario.assert_not_called()
         tags.delete_tag_definitions_by_scenario.assert_not_called()
+        tags.clear_calc_progress_by_scenario.assert_not_called()
         tags.delete_tag_definition.assert_not_called()
         tags.save.assert_not_called()
         assert scenario.id == 10

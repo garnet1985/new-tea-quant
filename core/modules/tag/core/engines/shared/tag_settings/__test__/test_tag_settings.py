@@ -97,7 +97,7 @@ class TestTagSettings:
         ts.apply_defaults()
         assert ts.update_mode == "refresh"
 
-    def test_slice_based_requires_refresh(self):
+    def test_slice_based_allows_incremental(self):
         raw = _userspace_settings(
             calculation={
                 "update_mode": "incremental",
@@ -107,7 +107,8 @@ class TestTagSettings:
         )
         ts = TagSettings.from_dict(raw, tag_key="demo/x")
         report = ts.validate()
-        assert not report.is_usable()
+        assert report.is_usable(), report.errors
+        assert ts.update_mode == "incremental"
 
     def test_tag_definitions_required(self):
         raw = _userspace_settings()

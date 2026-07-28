@@ -38,9 +38,9 @@ terms:
     avoid: ["用 max(as_of_date) 当 incremental 水位"]
 
   last_calculated_end:
-    definition: "每实体上次成功算到的业务日（TagCalcProgressStore）"
+    definition: "每实体上次成功算到的业务日（sys_tag_calc_progress / TagDataService）"
     aliases: ["calc progress watermark"]
-    avoid: ["calculated_at（落库墙钟）", "scenario.updated_at（元数据）"]
+    avoid: ["calculated_at（落库墙钟）", "scenario.updated_at（元数据）", "max(as_of_date)"]
 
   TagContext:
     definition: "钩子入参壳：tag + settings + data + custom"
@@ -48,6 +48,6 @@ terms:
     avoid: ["把整份 settings dict 当唯一入参"]
 
   TagCalendarAsOfResult:
-    definition: "slice_based on_calendar_asof 返回：entity_tags + carry"
+    definition: "slice_based on_calendar_asof 返回：entity_tags + session_state（同 strategy）"
     aliases: []
-    avoid: ["CalendarAsOfContext（旧名）"]
+    avoid: ["CalendarAsOfContext（旧名）", "carry（已改为 session_state）"]

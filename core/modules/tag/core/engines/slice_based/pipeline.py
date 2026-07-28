@@ -29,6 +29,7 @@ from core.modules.tag.core.engines.shared.services.tag_value_flush import (
 from core.modules.tag.core.engines.shared.tag_settings.tag_settings import TagSettings
 from core.modules.tag.core.engines.slice_based.executor import TagSliceJobExecutor
 from core.modules.tag.core.engines.slice_based.job_builder import TagSliceJobBuilder
+from core.modules.tag.core.enums import TagUpdateMode
 from core.modules.tag.core.services.discovery.data.discovered_tag import EnabledTagInfo
 from core.modules.tag.core.engines.shared.worker_profile import TagWorkerProfile
 
@@ -60,12 +61,12 @@ class TagSlicePipeline:
             tag_key=scenario.name,
         )
         settings.apply_defaults()
-        period = settings.resolve_period()
 
         jobs = TagSliceJobBuilder.build_backtest_engine_jobs(
             tag_info,
             scenario,
             entity_ids,
+            tag_data_service=tag_data_service,
         )
         if not jobs:
             return {
@@ -75,6 +76,14 @@ class TagSlicePipeline:
                 "tag_values_count": 0,
                 "message": "no jobs",
             }
+
+        payload0 = jobs[0].get("payload") or {}
+        run_start = str(payload0.get("start_date") or "").strip()
+        run_end = str(payload0.get("end_date") or "").strip()
+        if not run_start or not run_end:
+            period = settings.resolve_period()
+            run_start = period.start_date
+            run_end = period.end_date
 
         flush = TagValueFlushService(
             tag_data_service,
@@ -100,16 +109,19 @@ class TagSlicePipeline:
             )
 
             logger.info(
-                "TagSlicePipeline start: scenario=%s entities=%d jobs=%d dry_run=%s",
+                "TagSlicePipeline start: scenario=%s entities=%d jobs=%d "
+                "period=%s—%s dry_run=%s",
                 scenario.name,
                 len(entity_ids),
                 len(jobs),
+                run_start,
+                run_end,
                 dry_run,
             )
             BacktestEngine.slice_based.run(
                 jobs=jobs,
-                start=period.start_date,
-                end=period.end_date,
+                start=run_start,
+                end=run_end,
                 performance=performance,
                 callbacks=callbacks,
                 task_name=f"tag:{scenario.name}",
@@ -119,8 +131,38 @@ class TagSlicePipeline:
             TagPipelineHooks.clear()
 
         elapsed = time.monotonic() - t0
+        success = run_ctx.fail == 0
+        if (
+            success
+            and (not dry_run)
+            and scenario.effective_update_mode() == TagUpdateMode.INCREMENTAL.value
+        ):
+            # slice：本跑实体批量推进到同一业务 end
+            entity_ends: Dict[str, str] = {}
+            for item in payload0.get("entity_specified") or []:
+                if not isinstance(item, dict):
+                    continue
+                eid = str(item.get("id") or "").strip()
+                end = str(item.get("end_date") or run_end or "").strip()
+                if eid and end:
+                    entity_ends[eid] = end
+            if entity_ends and tag_data_service is not None:
+                tag_data_service.mark_entity_calc_progress(
+                    scenario.name, entity_ends
+                )
+                logger.info(
+                    "incremental progress saved: scenario=%s entities=%d end≈%s",
+                    scenario.name,
+                    len(entity_ends),
+                    run_end,
+                )
+            elif entity_ends and tag_data_service is None:
+                logger.warning(
+                    "incremental progress skipped (no tag_data_service): scenario=%s",
+                    scenario.name,
+                )
         return {
-            "success": run_ctx.fail == 0,
+            "success": success,
             "jobs": len(jobs),
             "ok": run_ctx.ok,
             "fail": run_ctx.fail,

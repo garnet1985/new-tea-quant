@@ -41,7 +41,7 @@ class _CalendarHooks(TagHooks):
             entity_tags={
                 "e1": [{"tag_name": "tier", "value": "high"}],
             },
-            carry={"n": 1},
+            session_state={"n": 1},
         )
 
 
@@ -140,6 +140,38 @@ class TestTagSliceJobBuilder:
             {"id": "e2", "start_date": "20240102", "end_date": "20240105"},
         ]
 
+    def test_incremental_uses_progress_map(self):
+        raw = _settings_dict()
+        raw["calculation"]["update_mode"] = "incremental"
+        raw["calculation"]["recompute"] = False
+        info = _enabled_tag_info()
+        info.settings = raw
+        ts = TagSettings.from_dict(raw, tag_key="demo/cap")
+        assert ts.validate().is_usable(), ts.validate().errors
+        scenario = Scenario.from_tag_settings(ts)
+        scenario.tag_definitions[0].id = 7
+
+        tags = MagicMock()
+        tags.get_entity_calc_progress.return_value = {
+            "e1": "20240103",
+            "e2": "20240105",
+        }
+        with patch.object(TagSliceJobBuilder, "_count_open_dates", return_value=2):
+            jobs = TagSliceJobBuilder.build_backtest_engine_jobs(
+                info,
+                scenario,
+                entity_ids=["e1", "e2"],
+                tag_data_service=tags,
+            )
+        assert len(jobs) == 1
+        payload = jobs[0]["payload"]
+        assert payload["entity_specified"] == [
+            {"id": "e1", "start_date": "20240104", "end_date": "20240105"},
+        ]
+        assert payload["start_date"] == "20240104"
+        assert payload["end_date"] == "20240105"
+        tags.get_entity_calc_progress.assert_called_once_with("demo/cap")
+
 
 class TestTagSliceJobExecutor:
     def _make_state(self, hooks: TagHooks) -> SliceTaskState:
@@ -182,16 +214,19 @@ class TestTagSliceJobExecutor:
         )
         assert len(state.tag_values) == 1
         assert state.tag_values[0]["value"] == "high"
-        assert state._session_carry == {"n": 1}
+        assert state._session_state == {"n": 1}
 
-    def test_on_ticks_complete(self):
+    def test_entity_in_calc_window_skips_before_start(self):
         state = self._make_state(_EchoHooks())
-        state.tag_values.append({"entity_id": "e1", "value": 1})
-        ctx = JobContext(
-            job_id="j1",
-            payload={},
-            init={TagSliceJobExecutor._STATE_KEY: state},
+        state._entity_window = {"e1": ("20240104", "20240105")}
+        sliced = {"e1": {"stock.kline.daily": [_bar("20240102")]}}
+        TagSliceJobExecutor._tick_per_entity(
+            state, as_of="20240102", sliced_by_entity=sliced
         )
-        result = TagSliceJobExecutor.on_ticks_complete(ctx, timeline=None)
-        assert result["success"] is True
-        assert result["tag_values_count"] == 1
+        assert state.tag_values == []
+        TagSliceJobExecutor._tick_per_entity(
+            state,
+            as_of="20240104",
+            sliced_by_entity={"e1": {"stock.kline.daily": [_bar("20240104")]}},
+        )
+        assert len(state.tag_values) == 1

@@ -283,8 +283,7 @@ def prune_stock_universe_to_sample_pool(data_manager: Any) -> int:
 
     try:
         sql = (
-            f"DELETE FROM sys_tag_value WHERE entity_type = 'stock' "
-            f"AND entity_id NOT IN ({placeholders})"
+            f"DELETE FROM sys_tag_value WHERE entity_id NOT IN ({placeholders})"
         )
         n = int(eng.execute_write(sql, params) or 0)
         if n:

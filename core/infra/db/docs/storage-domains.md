@@ -71,6 +71,7 @@ schema = {
 ### tag（3 张）
 
 - `sys_tag_scenario`, `sys_tag_definition`, `sys_tag_value`
+- `sys_tag_calc_progress`（增量 frontier；与 value 不同事实）
 - `sys_tag_cache`（新建，可选）
 
 ### strategy（core + userspace 默认归此域）

@@ -34,11 +34,9 @@ class TagValueFlushService:
         *,
         dry_run: bool = False,
         batch_size: int = 5000,
-        entity_type: str = "stock",
     ) -> None:
         self._tags = tag_data_service
         self._dry_run = bool(dry_run)
-        self._entity_type = str(entity_type or "stock").strip() or "stock"
         self._buffer = TagReportSaveBuffer(
             save_fn=self._save_db_rows,
             batch_size=batch_size,
@@ -56,13 +54,11 @@ class TagValueFlushService:
         return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
     @classmethod
-    def to_db_row(
-        cls,
-        buffered: Dict[str, Any],
-        *,
-        entity_type: str = "stock",
-    ) -> Dict[str, Any]:
-        """executor buffer 行 → TagDataService.save_batch 行。"""
+    def to_db_row(cls, buffered: Dict[str, Any]) -> Dict[str, Any]:
+        """executor buffer 行 → TagDataService.save_batch 行。
+
+        不写 attach_to_data_key / entity_type（SOT 在 scenario；本表仅点事实）。
+        """
         if not isinstance(buffered, dict):
             raise TypeError("buffered tag value must be dict")
         entity_id = str(buffered.get("entity_id") or "").strip()
@@ -78,7 +74,6 @@ class TagValueFlushService:
         if "json_value" in buffered and buffered.get("json_value") is not None:
             json_value = str(buffered.get("json_value"))
         else:
-            # buffer 形态：value + 可选 start/end；编码时去掉非结果字段
             encode_src = {
                 k: v
                 for k, v in buffered.items()
@@ -90,6 +85,7 @@ class TagValueFlushService:
                     "tag_name",
                     "as_of_date",
                     "json_value",
+                    "attach_to_data_key",
                 }
             }
             if "value" not in encode_src and "value" in buffered:
@@ -98,10 +94,6 @@ class TagValueFlushService:
 
         row: Dict[str, Any] = {
             "entity_id": entity_id,
-            "entity_type": str(
-                buffered.get("entity_type") or entity_type or "stock"
-            ).strip()
-            or "stock",
             "tag_definition_id": int(tag_definition_id),
             "as_of_date": as_of_date,
             "json_value": json_value,
@@ -129,9 +121,7 @@ class TagValueFlushService:
         return int(self._buffer.saved_row_count)
 
     def _save_db_rows(self, rows: List[Dict[str, Any]]) -> int:
-        db_rows = [
-            self.to_db_row(r, entity_type=self._entity_type) for r in rows
-        ]
+        db_rows = [self.to_db_row(r) for r in rows]
         if self._dry_run:
             logger.info("[DRY RUN] skip save_batch rows=%d", len(db_rows))
             return len(db_rows)

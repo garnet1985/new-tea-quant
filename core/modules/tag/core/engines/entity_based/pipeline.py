@@ -17,7 +17,6 @@ from core.modules.backtest_engine.core.performance.settings import (
 from core.modules.tag.core.data_class.scenario import Scenario
 from core.modules.tag.core.engines.entity_based.executor import TagEntityJobExecutor
 from core.modules.tag.core.engines.entity_based.job_builder import TagEntityJobBuilder
-from core.modules.tag.core.engines.shared.calc_progress import TagCalcProgressStore
 from core.modules.tag.core.engines.shared.pipeline_hooks import (
     TagPipelineHooks,
     TagPipelineRunContext,
@@ -26,6 +25,7 @@ from core.modules.tag.core.engines.shared.services.tag_value_flush import (
     TagValueFlushService,
 )
 from core.modules.tag.core.engines.shared.tag_settings.tag_settings import TagSettings
+from core.modules.tag.core.enums import TagUpdateMode
 from core.modules.tag.core.services.discovery.data.discovered_tag import EnabledTagInfo
 from core.modules.tag.core.engines.shared.worker_profile import TagWorkerProfile
 
@@ -129,7 +129,11 @@ class TagEntityPipeline:
 
         elapsed = time.monotonic() - t0
         success = run_ctx.fail == 0
-        if success and (not dry_run):
+        if (
+            success
+            and (not dry_run)
+            and scenario.effective_update_mode() == TagUpdateMode.INCREMENTAL.value
+        ):
             # incremental 水位 = 本次成功算到的业务 end（非 max(as_of)）
             entity_ends: Dict[str, str] = {}
             for item in jobs[0]["payload"].get("entity_specified") or []:
@@ -139,13 +143,20 @@ class TagEntityPipeline:
                 end = str(item.get("end_date") or run_end or "").strip()
                 if eid and end:
                     entity_ends[eid] = end
-            if entity_ends:
-                TagCalcProgressStore.mark_entities(scenario.name, entity_ends)
+            if entity_ends and tag_data_service is not None:
+                tag_data_service.mark_entity_calc_progress(
+                    scenario.name, entity_ends
+                )
                 logger.info(
                     "incremental progress saved: scenario=%s entities=%d end≈%s",
                     scenario.name,
                     len(entity_ends),
                     run_end,
+                )
+            elif entity_ends and tag_data_service is None:
+                logger.warning(
+                    "incremental progress skipped (no tag_data_service): scenario=%s",
+                    scenario.name,
                 )
         return {
             "success": success,

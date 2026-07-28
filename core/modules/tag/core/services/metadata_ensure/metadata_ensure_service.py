@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from core.modules.tag.core.data_class.scenario import Scenario
 from core.modules.tag.core.data_class.tag_definition import TagDefinition
-from core.modules.tag.core.engines.shared.calc_progress import TagCalcProgressStore
 from core.modules.tag.core.enums import TagUpdateMode
 
 if TYPE_CHECKING:
@@ -82,7 +81,7 @@ class MetadataEnsureService:
                 )
                 self._tags.delete_tag_values_by_scenario(scenario_id)
                 self._tags.delete_tag_definitions_by_scenario(scenario_id)
-                TagCalcProgressStore.clear(scenario.name)
+                self._tags.clear_calc_progress_by_scenario(scenario_id)
             # 保留 scenario 行，避免 id 自增；同步 meta（含 key）
             new_meta = self._tags.update_scenario(
                 scenario_id,
@@ -106,7 +105,7 @@ class MetadataEnsureService:
                     "update_mode=refresh, clear tag values: %s", scenario.name
                 )
                 self._tags.delete_tag_values_by_scenario(scenario_id)
-                TagCalcProgressStore.clear(scenario.name)
+                self._tags.clear_calc_progress_by_scenario(scenario_id)
 
         if scenario.has_meta_diff(existing):
             new_meta = self._tags.update_scenario(

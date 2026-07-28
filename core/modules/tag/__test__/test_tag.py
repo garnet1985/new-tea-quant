@@ -1,4 +1,4 @@
-"""TagManager / Tag facade 单元测试。"""
+"""Tag facade 单元测试。"""
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -46,38 +46,39 @@ def _make_tag_info(
     )
 
 
-class TestTagManager:
+class TestTag:
     @patch("core.modules.tag.tag.DiscoveryService.discover_tags", return_value=[])
     @patch("core.modules.tag.tag.DataManager")
     def test_init(self, mock_data_manager, _mock_discover):
-        from core.modules.tag.tag_manager import TagManager
+        from core.modules.tag import Tag
 
         mock_data_mgr = MagicMock()
         mock_tag_service = MagicMock()
         mock_data_mgr.stock.tags = mock_tag_service
         mock_data_manager.return_value = mock_data_mgr
 
-        manager = TagManager(is_verbose=False)
+        tag = Tag(is_verbose=False)
 
-        assert manager.is_verbose is False
-        assert manager.data_mgr == mock_data_mgr
-        assert manager.tag_data_service == mock_tag_service
-        assert manager.scenario_cache == {}
+        assert tag.is_verbose is False
+        assert tag.data_mgr == mock_data_mgr
+        assert tag.tag_data_service == mock_tag_service
+        assert tag.list_ids(enabled_only=False) == []
 
     @patch("core.modules.tag.tag.DiscoveryService.discover_tags")
     @patch("core.modules.tag.tag.DataManager")
-    def test_refresh_scenario(self, mock_data_manager, mock_discover):
-        from core.modules.tag.tag_manager import TagManager
+    def test_refresh_and_list(self, mock_data_manager, mock_discover):
+        from core.modules.tag import Tag
 
         mock_data_manager.return_value = MagicMock(stock=MagicMock(tags=MagicMock()))
         mock_discover.return_value = [_make_tag_info()]
 
-        manager = TagManager(is_verbose=False)
-        assert "demo" in manager.scenario_cache
+        tag = Tag(is_verbose=False)
+        assert tag.list_ids() == ["demo"]
+        assert tag.find("demo") is not None
 
         mock_discover.return_value = []
-        manager.refresh_scenario()
-        assert manager.scenario_cache == {}
+        tag.refresh()
+        assert tag.list_ids(enabled_only=False) == []
 
     @patch("core.modules.tag.tag.Tag._execute_named")
     @patch("core.modules.tag.tag.DiscoveryService.discover_tags", return_value=[])
@@ -85,13 +86,13 @@ class TestTagManager:
     def test_execute_with_scenario_name(
         self, mock_data_manager, _mock_discover, mock_execute_named
     ):
-        from core.modules.tag.tag_manager import TagManager
+        from core.modules.tag import Tag
 
         mock_data_manager.return_value = MagicMock(stock=MagicMock(tags=MagicMock()))
         mock_execute_named.return_value = {"ok": 1}
 
-        manager = TagManager(is_verbose=False)
-        manager.execute(scenario_name="test_scenario")
+        tag = Tag(is_verbose=False)
+        tag.execute(scenario_name="test_scenario")
 
         mock_execute_named.assert_called_once()
         assert mock_execute_named.call_args.args[0] == "test_scenario"
@@ -102,14 +103,14 @@ class TestTagManager:
     def test_execute_with_settings(
         self, mock_data_manager, _mock_discover, mock_inline
     ):
-        from core.modules.tag.tag_manager import TagManager
+        from core.modules.tag import Tag
 
         mock_data_manager.return_value = MagicMock(stock=MagicMock(tags=MagicMock()))
         mock_inline.return_value = {"ok": 1}
         settings = {"is_enabled": True, "meta": {"key": "demo"}}
 
-        manager = TagManager(is_verbose=False)
-        manager.execute(scenario_name="demo", settings=settings)
+        tag = Tag(is_verbose=False)
+        tag.execute(scenario_name="demo", settings=settings)
 
         mock_inline.assert_called_once()
         assert mock_inline.call_args.kwargs["tag_key"] == "demo"
@@ -126,7 +127,7 @@ class TestTagManager:
         mock_get_enabled,
         mock_execute_tag_info,
     ):
-        from core.modules.tag.tag_manager import TagManager
+        from core.modules.tag import Tag
 
         mock_data_manager.return_value = MagicMock(stock=MagicMock(tags=MagicMock()))
         t1 = _make_tag_info(relative="a", key="a")
@@ -135,25 +136,10 @@ class TestTagManager:
         mock_get_enabled.return_value = [t1, t2]
         mock_execute_tag_info.return_value = {"ok": 1}
 
-        manager = TagManager(is_verbose=False)
-        manager.execute()
+        tag = Tag(is_verbose=False)
+        tag.execute()
 
         assert mock_execute_tag_info.call_count == 2
-
-    @patch("core.modules.tag.tag.DiscoveryService.discover_tags", return_value=[])
-    @patch("core.modules.tag.tag.DataManager")
-    def test_scenario_cache_lookup(self, mock_data_manager, mock_discover):
-        from core.modules.tag.tag_manager import TagManager
-
-        mock_data_manager.return_value = MagicMock(stock=MagicMock(tags=MagicMock()))
-        info = _make_tag_info()
-        mock_discover.return_value = [info]
-
-        manager = TagManager(is_verbose=False)
-        cached = manager.scenario_cache.get("demo")
-        assert cached is not None
-        assert cached["key"] == "demo"
-        assert cached["settings"]["meta"]["key"] == "demo"
 
     @patch("core.modules.tag.tag.TagEntityPipeline.run")
     @patch("core.modules.tag.tag.TagEntityListResolver.resolve")
@@ -168,7 +154,7 @@ class TestTagManager:
         mock_resolve,
         mock_pipeline_run,
     ):
-        from core.modules.tag.tag_manager import TagManager
+        from core.modules.tag import Tag
 
         mock_tag_service = MagicMock()
         mock_data_manager.return_value = MagicMock(
@@ -187,11 +173,9 @@ class TestTagManager:
         }
         mock_ensure_cls.return_value.ensure = MagicMock()
 
-        with patch(
-            "core.modules.tag.tag.Tag._save_performance_report"
-        ):
-            manager = TagManager(is_verbose=False)
-            result = manager.execute(scenario_name="demo")
+        with patch("core.modules.tag.tag.Tag._save_performance_report"):
+            tag = Tag(is_verbose=False)
+            result = tag.execute(scenario_name="demo")
 
         assert result["success"] is True
         mock_pipeline_run.assert_called_once()
@@ -210,7 +194,7 @@ class TestTagManager:
         mock_resolve,
         mock_pipeline_run,
     ):
-        from core.modules.tag.tag_manager import TagManager
+        from core.modules.tag import Tag
 
         mock_data_manager.return_value = MagicMock(stock=MagicMock(tags=MagicMock()))
         info = _make_tag_info(key="macro_general", relative="macro_general")
@@ -220,11 +204,9 @@ class TestTagManager:
         mock_pipeline_run.return_value = {"success": True, "jobs": 1}
         mock_ensure_cls.return_value.ensure = MagicMock()
 
-        with patch(
-            "core.modules.tag.tag.Tag._save_performance_report"
-        ):
-            manager = TagManager(is_verbose=False)
-            manager.execute(scenario_name="macro_general")
+        with patch("core.modules.tag.tag.Tag._save_performance_report"):
+            tag = Tag(is_verbose=False)
+            tag.execute(scenario_name="macro_general")
 
         mock_resolve.assert_called_once()
         assert mock_pipeline_run.call_args.kwargs["entity_ids"] == ["__general__"]

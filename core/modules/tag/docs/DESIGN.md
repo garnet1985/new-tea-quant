@@ -1,51 +1,63 @@
 # Tag 设计说明
 
-**版本：** `0.2.1`
+**版本：** `0.4.0`
 
 ---
 
 ## Scenario 与目录约定
 
-- 根路径：**`get_scenarios_root()`** → **`PathManager.tags()`**（通常为 **`userspace/extensions/tags`**）。
-- **递归发现**（与 strategy 一致）：任意深度子目录，若同时含 **`settings.py`** + **`tag_worker.py`** 即为一个场景。
-- **tag_key** = 相对 tags 根的 POSIX 路径（如 `demo/market_cap_tier`）；CLI `--scenario` 可用 tag_key 或唯一的 `Settings.name`。
-- 跳过以下划线 `_` 开头的目录名；路径段须 machine-readable（字母开头，仅 ASCII 字母/数字/下划线）。
+- 根路径：`ProjectContext.path.get_tags_root()`（通常 `userspace/extensions/tags`）。
+- 发现条件：子目录同时含 **`settings.py`** + **`tag.py`**（`TagHooks`）。
+- **系统 id（tag_key / scenario 路径）** = 相对 tags 根的 POSIX 路径（如 `demo/market_cap_tier`）。
+- `meta.key`：短名索引；CLI / `find` 可用路径或 key。DB scenario.name 用**路径**。
+- 跳过 `_` 开头目录；路径段须 machine-readable。
 
 ---
 
-## 数据与 as_of 语义
+## 执行模式
 
-- **`TagDataManager`** 根据 settings 中的数据声明装载行槽、重建 **`DataCursor`**。
-- 每个交易日 **`as_of`**：**`get_data_until(as_of)`** 返回「截至该日（含）」的累计切片；键为 **`data_id`**（如 **`stock.kline.daily`**），值为历史行列表。
-- K 线行使用标准 **`open` / `high` / `low` / `close`**；`adjust=qfq` 时即为前复权价（无 `qfq_*` 宽列）。
-- **`calculate_tag(as_of_date, historical_data, tag_definition)`** 只应基于该切片做决策，避免偷看未来。
-
----
-
-## 更新模式（`TagUpdateMode`）
-
-- **`INCREMENTAL`**：在已有标签基础上按日期范围增量延伸（具体起止由 Job 与元数据解析决定）。
-- **`REFRESH`**：按场景配置对目标区间做全量重算语义（与元数据/库内已有行协同，由 `JobHelper` 等实现细节约束）。
+| `calculation.execution.mode` | 含义 |
+|------------------------------|------|
+| `entity_based` | 各实体按各自交易日推进；钩子 `calculate_tag(ctx)` |
+| `slice_based` | 日历切片；钩子 `on_calendar_asof(ctx)`（当前须 recompute 或 `update_mode=refresh`） |
 
 ---
 
-## 目标类型（`TagTargetType`）
+## 更新模式
 
-- **`ENTITY_BASED`**：按股票（或其它实体）维度拆分 Job，一实体一 Worker流程。
-- **`GENERAL`**：非「逐实体」类场景的全局型目标（与场景模型字段一致，用于扩展非股票主键的打标）。
+| `update_mode` | 含义 |
+|---------------|------|
+| `incremental` | 从每实体 **`last_calculated_end`** 续算（不是 `max(as_of)`） |
+| `refresh` | 对目标区间按重算语义清值后重算 |
 
----
+`recompute=True`：运维开关，等价本次 refresh，并可重建 definition 元数据（**dry_run 时跳过清库**）。
 
-## Worker 生命周期（摘要）
-
-1. **`__init__`**：解析 `job_payload`，构造 **`TagDataManager`**，调用 **`on_init`**。
-2. **`process_entity`**：**`_preprocess`**（hydrate、游标、交易日、**`on_before_execute_tagging`**）→ **`_execute_tagging`** → **`_postprocess`**（批量保存、**`on_after_execute_tagging`**）。
-3.逐日、逐 tag 调用 **`calculate_tag`**；非空结果进入待保存列表，并触发 **`on_tag_created`**；单 tag 异常走 **`on_calculate_error`**（返回 `False` 可中断该日该 tag 链）。
+水位文件：`userspace/.ntq/tag_calc_progress/`（`TagCalcProgressStore`）。
 
 ---
 
-## 相关文档
+## Dry run
 
-- [ARCHITECTURE.md](ARCHITECTURE.md)
-- [API.md](API.md)
-- [DECISIONS.md](DECISIONS.md)
+- settings：`calculation.is_dry_run`（默认 `False`）
+- CLI：`--dry-run`
+- 二者 OR：只计算、不写 `tag_value`、不更新 progress、不做 refresh/recompute 清库。
+
+---
+
+## 钩子面
+
+userspace `tag.py` 继承 `TagHooks`：
+
+- `calculate_tag(ctx)` — entity_based
+- `on_calendar_asof(ctx)` — slice_based（可选）
+
+旧 `BaseTagWorker` / `tag_worker.py` 生命周期钩子已移除。
+
+---
+
+## 数据与 as_of
+
+- 数据声明在 `settings.data`（`base` / `required` / `min_required_records`），与 strategy 的 `data_key` 对齐。
+- Job 内通过 `TagContext` / 注入数据按 as_of 可见；业务钩子不应偷看未来。
+
+配置字段 SOT：`userspace/extensions/tags/settings_example.py`。

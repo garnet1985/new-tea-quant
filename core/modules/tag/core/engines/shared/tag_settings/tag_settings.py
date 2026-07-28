@@ -131,6 +131,10 @@ class TagSettings:
         return self.calculation.recompute
 
     @property
+    def is_dry_run(self) -> bool:
+        return self.calculation.is_dry_run
+
+    @property
     def is_entity_based(self) -> bool:
         return self.execution_mode == BacktestMode.ENTITY_BASED.value
 
@@ -176,6 +180,7 @@ class TagSettings:
         self.raw_settings["target_entity"] = {"type": self.data.target_entity_type}
         self.raw_settings["update_mode"] = self.calculation.effective_update_mode()
         self.raw_settings["recompute"] = self.calculation.recompute
+        self.raw_settings["is_dry_run"] = self.calculation.is_dry_run
         self.raw_settings["execution_mode"] = self.calculation.normalized_mode()
         self.raw_settings["start_date"] = self.calculation.start_date
         self.raw_settings["end_date"] = self.calculation.end_date
@@ -202,7 +207,7 @@ class TagSettings:
             SettingsBase.add_warning(
                 report,
                 "performance",
-                "performance is ignored; use worker.json job_pipeline.tag",
+                "performance is ignored; tune worker.json → job_pipeline.tag",
             )
             self.raw_settings.pop("performance", None)
 

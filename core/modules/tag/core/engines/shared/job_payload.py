@@ -49,7 +49,6 @@ class TagJobPayloadBuilder:
         scenario: Scenario,
         settings: TagSettings,
         entity_ids: List[str],
-        shm_info: Dict[str, Any],
         start_date: str,
         end_date: str,
         calc_windows: Optional[TagCalcWindows] = None,
@@ -108,7 +107,6 @@ class TagJobPayloadBuilder:
             "entity_specified": entity_specified,
             "entity_shared": entity_shared,
             "global": global_data_keys,
-            "shm_info": shm_info or {},
             "entities_count": len(entity_specified),
             "tag_info": {
                 "key": tag_info.key,

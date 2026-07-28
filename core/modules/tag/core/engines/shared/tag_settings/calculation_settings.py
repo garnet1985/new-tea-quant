@@ -209,6 +209,11 @@ class CalculationSettings(SettingsBase):
         return bool(self.calculation.get("recompute", False))
 
     @property
+    def is_dry_run(self) -> bool:
+        """只计算不落库；默认 False。"""
+        return bool(self.calculation.get("is_dry_run", False))
+
+    @property
     def start_date(self) -> str:
         return self.execution.start_date
 
@@ -237,6 +242,7 @@ class CalculationSettings(SettingsBase):
         calc = self.raw_settings["calculation"]
         calc.setdefault("update_mode", TagUpdateMode.INCREMENTAL.value)
         calc.setdefault("recompute", False)
+        calc.setdefault("is_dry_run", False)
         self.execution.apply_defaults()
 
     def validate(self) -> ValidationReport:
@@ -282,6 +288,7 @@ class CalculationSettings(SettingsBase):
         return {
             "update_mode": self.update_mode or TagUpdateMode.INCREMENTAL.value,
             "recompute": self.recompute,
+            "is_dry_run": self.is_dry_run,
             "execution": self.execution.to_dict(),
         }
 

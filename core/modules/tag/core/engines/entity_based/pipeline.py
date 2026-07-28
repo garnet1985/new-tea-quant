@@ -1,6 +1,6 @@
 """Tag entity_based 编排：JobBuilder → BE.entity_based.run → flush。
 
-消费者: Tag facade / TagManager（迁移后）
+消费者: Tag facade
 """
 
 from __future__ import annotations
@@ -48,7 +48,6 @@ class TagEntityPipeline:
         scenario: Scenario,
         entity_ids: List[str],
         tag_data_service: Optional["TagDataService"] = None,
-        shm_info: Optional[Dict[str, Any]] = None,
         dry_run: bool = False,
         save_batch_size: int = 500,
         on_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
@@ -63,7 +62,6 @@ class TagEntityPipeline:
             tag_info,
             scenario,
             entity_ids,
-            shm_info or {},
             tag_data_service=tag_data_service,
         )
         if not jobs:

@@ -1,96 +1,56 @@
 # Tag 设计决策
 
-**版本：** `0.2.1`
+**版本：** `0.4.0`
+
+仅保留仍有效的决策。已废弃的 JobPipeline / BaseTagWorker / 模块内 CLI 决策不再收录。
 
 ---
 
-## 决策 3：主进程 batch stage IO（待集成，先跑通再优化）
+## 决策 1：调度交给 BacktestEngine
 
-**背景（Context）**  
-Tag 已切到 **JobPipeline + inject/report**：主进程 `on_stage_job` 每股执行 `hydrate_row_slots`（kline）+ `fetch_prior_tag_values`（prior 点查）。profile 与专用 benchmark 表明 **stage 读库是主要瓶颈**（全量 ~47s / ~60s wall），而非 checkpoint、pickle 或子进程计算。
+**背景**  
+旧 Tag 自建 JobPipeline + ProcessWorker + BaseTagWorker，与 strategy 双轨。
 
-**决策（Decision）**  
-**暂不实现**；pipeline 稳定后再做 **主进程 bulk SQL stage**：
+**决策**  
+Tag 只做 JobBuilder / JobExecutor（RunCallbacks）与 flush；并行与 Timeline/Slice 由 **BacktestEngine** 负责。性能与 strategy 一样走 **`worker.json` → `job_pipeline.tag`**（`dispatch` = entity_based，`calendar_slice` = slice_based）。
 
-1. kline：`DataManager.stock.kline.load_batch(entity_ids, ...)`（`IN` 一次查多股）  
-2. prior：`fetch_prior_tag_values_batch`（每 chunk 一次 window SQL，已实现于 `tag_prior_values.py`，TagJobStager 尚未接入）  
-3. 按 chunk（建议 **20–100 股**）预取后，仍 **每股一个 job / 一份 inject payload** 交给 worker（不是把多股合并进单个 worker job）  
-4. 配置入口预留：`settings.performance.stage_batch_size` 或与 `DispatchConfig.chunk_size` 对齐  
-
-**理由（Rationale）**  
-Benchmark 工具 `python -m core.modules.tag.tools.tag_read_benchmark`（100 股、activity-ratio20 窗口）实测 **仅当 batch 真正减少 SQL 次数** 才有收益；「多股同 task 但每股仍单独查库」无意义。
-
-| 引擎 | point_io | batch_io（chunk） | batch/point |
-|------|----------|-------------------|-------------|
-| MySQL | ~0.73–0.80s | chunk=100 | **~0.78x（~22%）** |
-| DuckDB | ~0.64s | chunk=100 | **~0.55x（~45%）** |
-
-- checkpoint（`get_tag_value_last_update_info`）整场景 **~0.5s（MySQL）/ ~0.005s（DuckDB）**，非 per-job 热点  
-- per-entity 读：kline **~80%**，prior **~20%**  
-- chunk=5 收益过小；chunk≥20 后收益明显，DuckDB 上 batch 边际大于 MySQL  
-- 多进程并行读库 **不采用**（spawn + 多连接；DuckDB WAL 风险；实测不比主进程串行快）  
-- spill / 向量计算 **优先级低于 batch stage**（profile 与 benchmark 未支持）  
-
-**明确不做（本优化点内）**  
-- 仅合并 job 粒度而不合并 SQL  
-- worker 内多股共读（除非 stage 已 bulk 预取并拆分 inject）  
-- 为 batch stage 提前上 spill  
-
-**影响（Consequences）**  
-集成时需改 `TagJobStager`（或上层 bulk prefetch + 按 entity 组装 `_inject`），并补测试；全量回填 stage 可望缩短 **~20%（MySQL）～ ~45%（DuckDB）**；日常增量（~13s）收益较小。  
-
-**验收（将来）**  
-- `tag_read_benchmark` 在目标 chunk 下 batch/point **≤ 0.8x**（MySQL）  
-- 全量 Tag profile 中 `stage(on_stage_job)` 相对 baseline 下降  
-- DuckDB 跑 benchmark / Tag 后无 WAL 回归（仍单进程 stage）  
+**后果**  
+- 禁止再引入模块内 JobPipeline / BaseTagWorker  
+- CLI 不在 tag 包内（`core/infra/cli`）  
+- userspace `settings.performance` 忽略；调参改 `worker.json`（可 `userspace/config/worker.json` 覆盖）
 
 ---
 
-## 决策 1：实体型（`entity_based`）与通用型（`general`）标签目标
+## 决策 2：增量水位用 last_calculated_end
 
-**背景（Context）**  
-标签既需要按股票等实体逐只计算，也需要少量不绑定单实体的全局结果；配置层需可扩展且类型安全。
+**背景**  
+用 `max(as_of_date)` 做水位会在「变更才写」类标签上错误跳过区间。
 
-**决策（Decision）**  
-引入 **`TagTargetType`**：**`ENTITY_BASED`** 与 **`GENERAL`**，由 **`ScenarioModel`** 与 Job 构建逻辑区分执行路径。
+**决策**  
+每实体进度存 `TagCalcProgressStore.last_calculated_end`；成功且非 dry_run 时推进。`calculated_at` / `scenario.updated_at` 仅元数据，不作业务水位。
 
-**理由（Rationale）**  
-实体型与全局型的数据准备、并行粒度不同，显式分类避免隐式约定导致错误分片或空跑。
-
-**影响（Consequences）**  
-新增场景类型时需正确设置 target 类型，并与 **`TagManager`** 的实体列表解析保持一致。
+**后果**  
+UI 列表的 `last_computed_as_of`（`get_max_as_of_date`）可以与增量水位不同，属展示字段。
 
 ---
 
-## 决策 2：横截面（cross-sectional）与 calendar_slice 钩子
+## 决策 3：entity_based vs slice_based
 
-**背景（Context）**  
-全市场同一日截面上的排名、分位等依赖「当日多实体联合」视图。Tag 已支持 `execution_mode: calendar_slice`，需与 Strategy 对齐横截面 API。
+**背景**  
+时序打标与横截面打标数据形态不同。
 
-**决策（Decision）**  
-在 Tag 模块提供一等公民 **`on_calendar_asof(ctx, settings) -> TagCalendarAsOfResult`**：
+**决策**  
+- `entity_based` + `calculate_tag`：常规按实体推进  
+- `slice_based` + `on_calendar_asof`：日历切片横截面（当前强制 refresh/recompute）
 
-- 复用 Strategy 的 **`CalendarAsOfContext`**（含 `stocks`、`carry`、月初/月末标记）
-- **`carry`** 为 slice 编排层状态机，跨 open_date / slice 传递
-- Compute Engine 将 `entity_tags` fan-out 为各 entity 的 tag_value 行
-- 单股时序类 tag（如市值档位）仍走 **`entity_timeline` + `calculate_tag`**
-
-**理由（Rationale）**  
-横截面 tag 与 per-entity tag 分轨；calendar_slice inject 已 bulk stage 全市场数据，应用 hook 消费而非逐股重复 IO。
-
-**影响（Consequences）**  
-userspace worker 可实现 `on_calendar_asof`；互斥档位等 change-point tag 无需 `end_date`，以变更日 `as_of_date` 为准。
+`general` 目标类型仅有 stub（`__general__`），不对 userspace 开放同等配置。
 
 ---
 
-## 决策 2（已废止）：横截面暂不纳入框架核心
+## 决策 4：Facade 名称为 Tag
 
-**状态：** 已由上文「决策 2：横截面与 calendar_slice 钩子」取代（2026-06）。
+**背景**  
+迁移期保留 `TagManager` shim。
 
----
-
-## 相关文档
-
-- [ARCHITECTURE.md](ARCHITECTURE.md)
-- [DESIGN.md](DESIGN.md)
-- [API.md](API.md)
+**决策**  
+对外唯一入口为 `Tag`；`TagManager` / `run_tag` / 模块 `__main__` 已删除。BFF 经 `TagCatalog` / `TagRunLauncher`。

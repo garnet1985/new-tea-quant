@@ -20,14 +20,6 @@ logger = logging.getLogger(__name__)
 class TagPriorValues:
     """按 entity / tag_definition 取最新 json_value 并解析标量。"""
 
-    _LATEST_SQL = """
-        SELECT json_value
-        FROM sys_tag_value
-        WHERE entity_id = %s AND tag_definition_id = %s
-        ORDER BY as_of_date DESC
-        LIMIT 1
-    """
-
     _BATCH_SQL = """
         SELECT entity_id, tag_definition_id, json_value
         FROM (

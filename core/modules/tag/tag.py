@@ -65,6 +65,13 @@ class Tag:
                     info.is_enabled,
                 )
 
+    def list_ids(self, *, enabled_only: bool = True) -> List[str]:
+        """已发现 tag 的路径 id（相对 tags 根）。"""
+        items = list(self._by_id.values())
+        if enabled_only:
+            items = [t for t in items if t.is_enabled]
+        return sorted(t.id() for t in items)
+
     def list_keys(self, *, enabled_only: bool = True) -> List[str]:
         items = list(self._by_id.values())
         if enabled_only:
@@ -209,6 +216,8 @@ class Tag:
             return None
 
         scenario = Scenario.from_tag_settings(ts)
+        effective_dry_run = bool(dry_run or ts.is_dry_run)
+        scenario.is_dry_run = effective_dry_run
         if not self.tag_data_service:
             logger.error("无法获取 tag_data_service，跳过执行")
             return None
@@ -229,8 +238,7 @@ class Tag:
             scenario=scenario,
             entity_ids=entity_ids,
             tag_data_service=self.tag_data_service,
-            shm_info={},
-            dry_run=bool(dry_run or self._dispatch_overrides.get("dry_run")),
+            dry_run=effective_dry_run,
             on_progress=on_progress,
         )
         if mode == TagExecutionMode.SLICE_BASED.value:

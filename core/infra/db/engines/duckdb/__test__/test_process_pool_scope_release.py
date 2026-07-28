@@ -1,3 +1,4 @@
+"""process_pool_scope：从 DataManager 收集并释放主进程 DB 句柄。"""
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch

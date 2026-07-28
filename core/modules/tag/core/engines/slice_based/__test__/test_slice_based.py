@@ -126,7 +126,6 @@ class TestTagSliceJobBuilder:
                 _enabled_tag_info(),
                 scenario,
                 entity_ids=["e1", "e2"],
-                shm_info={"shm_name": "x"},
             )
         assert len(jobs) == 1
         payload = jobs[0]["payload"]

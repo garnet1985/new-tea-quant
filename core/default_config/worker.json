@@ -1,6 +1,6 @@
 {
   "job_pipeline": {
-    "_comment": "BE 调度配置（ProcessPool / entities_per_job 等）；策略 settings 不可覆盖。default 为兜底；各 profile 可设 reserve_cores / max_parallel_jobs_cap / dispatch。用户可在 userspace/config/worker.json 用相同结构覆盖。代码 fallback：backtest_engine.performance.worker_profile.constants",
+    "_comment": "BE 调度配置（ProcessPool / entities_per_job 等）；策略/Tag settings 不可覆盖。default 为兜底；各 profile 可设 reserve_cores / max_parallel_jobs_cap / dispatch / calendar_slice。用户可在 userspace/config/worker.json 用相同结构覆盖。代码 fallback：backtest_engine.performance.worker_profile.constants",
     "default": {
       "reserve_cores": 1,
       "max_parallel_jobs_cap": null
@@ -31,18 +31,15 @@
     "tag": {
       "reserve_cores": 1,
       "max_parallel_jobs_cap": null,
-      "_comment": "Tag 系统有两种执行模式，配置相互独立：",
-      "_comment_entity_based": "entity_based: 多实体并行，每个 Worker 独立 IO + 计算",
-      "entity_based": {
-        "stage_in_worker": true,
+      "_comment": "Tag SOT：与 enumerator 同构（dispatch=entity_based，calendar_slice=slice_based）",
+      "dispatch": {
         "dispatch_probe": true,
         "entities_per_job": "auto",
         "entities_per_job_min": 1,
         "entities_per_job_max": 500,
         "memory_floor_mb": "auto"
       },
-      "_comment_slice_based": "slice_based: Reader + Compute 双通道，Reader 多进程读，Compute 单进程算",
-      "slice_based": {
+      "calendar_slice": {
         "reader_workers": "auto",
         "queue_depth": "auto",
         "prefetch_enabled": true,

@@ -135,7 +135,6 @@ class TestTagEntityJobBuilder:
             _enabled_tag_info(mode="entity_based"),
             scenario,
             entity_ids=["e1"],
-            shm_info={},
         )
         payload = jobs[0]["payload"]
         assert BacktestJob.SLICE_BASED_ENTITY_KEY not in payload

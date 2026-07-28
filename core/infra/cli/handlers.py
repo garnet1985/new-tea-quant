@@ -154,6 +154,15 @@ def execute(args: argparse.Namespace, app: CliApp) -> None:
     if cmd == "tag":
         if getattr(args, "new_path", None):
             raise SystemExit("新建 Tag 请使用: cli.py t -n PATH")
+        if getattr(args, "list", False):
+            names = app.list_tags(enabled_only=False)
+            if not names:
+                print("未发现 tag（检查 userspace/extensions/tags 下 settings.py + tag.py）")
+                raise SystemExit(1)
+            print("可用 tag:")
+            for name in names:
+                print(f"  - {name}")
+            return
         logger.info("🏷️  执行标签计算...")
         dry_run = getattr(args, "dry_run", False)
         if dry_run:
@@ -162,8 +171,6 @@ def execute(args: argparse.Namespace, app: CliApp) -> None:
             scenario_name=getattr(args, "scenario", None),
             dry_run=dry_run,
             stock_limit=getattr(args, "stock_limit", None),
-            profile=getattr(args, "profile", False),
-            entities_per_job=getattr(args, "entities_per_job", None),
         )
         return
 

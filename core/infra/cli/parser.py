@@ -147,15 +147,29 @@ def _p_tag(sub: argparse._SubParsersAction) -> None:
         aliases=aliases_for("tag"),
         help="执行标签计算（``t -n PATH`` 为从模版新建 Tag 到 PATH）",
     )
-    p.add_argument("--scenario", type=str, default=None)
-    p.add_argument("--dry-run", action="store_true",
-                   help="Dry run 模式：运行计算但不写入数据库")
-    p.add_argument("--stock-limit", type=int, default=None,
-                   help="实体数量限制")
-    p.add_argument("--profile", action="store_true",
-                   help="启用性能 profiling")
-    p.add_argument("--entities-per-job", type=int, default=None,
-                   help="每个 job 的实体数")
+    p.add_argument(
+        "--scenario",
+        type=str,
+        default=None,
+        help="tag 路径或 meta.key；省略则跑全部已启用",
+    )
+    p.add_argument(
+        "--list",
+        action="store_true",
+        help="列出已发现的 tag 并退出",
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="只计算不落库（与 settings.calculation.is_dry_run 为 OR）",
+    )
+    p.add_argument(
+        "--stock-limit",
+        type=int,
+        default=None,
+        metavar="N",
+        help="只跑前 N 个实体（试验用）",
+    )
 
 
 def _p_export_strategy(sub: argparse._SubParsersAction) -> None:

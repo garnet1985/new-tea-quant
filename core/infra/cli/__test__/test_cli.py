@@ -65,6 +65,14 @@ def test_parse_tag_new() -> None:
     assert args.new_path == "demo/tag"
 
 
+def test_parse_tag_list_and_dry_run() -> None:
+    args = parse_args(["tag", "--list", "--dry-run", "--stock-limit", "10"])
+    assert args.command == "tag"
+    assert args.list is True
+    assert args.dry_run is True
+    assert args.stock_limit == 10
+
+
 def test_is_help_argv() -> None:
     assert is_help_argv(["-h"]) is True
     assert is_help_argv([]) is False

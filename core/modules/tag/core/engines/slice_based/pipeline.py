@@ -1,6 +1,6 @@
 """Tag slice_based 编排：JobBuilder → BE.slice_based.run → flush。
 
-消费者: Tag facade / TagManager（迁移后）
+消费者: Tag facade
 
 本文件:
 - TagSlicePipeline: 组装 jobs/callbacks/performance，跑 BE，攒批落库
@@ -51,7 +51,6 @@ class TagSlicePipeline:
         scenario: Scenario,
         entity_ids: List[str],
         tag_data_service: Optional["TagDataService"] = None,
-        shm_info: Optional[Dict[str, Any]] = None,
         dry_run: bool = False,
         save_batch_size: int = 5000,
         on_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
@@ -67,7 +66,6 @@ class TagSlicePipeline:
             tag_info,
             scenario,
             entity_ids,
-            shm_info or {},
         )
         if not jobs:
             return {

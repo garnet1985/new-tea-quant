@@ -31,7 +31,6 @@ class TagSliceJobBuilder:
         tag_info: EnabledTagInfo,
         scenario: Scenario,
         entity_ids: List[str],
-        shm_info: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         settings = TagSettings.from_dict(
             dict(scenario.settings or {}),
@@ -48,7 +47,6 @@ class TagSliceJobBuilder:
             scenario=scenario,
             settings=settings,
             entity_ids=entity_ids,
-            shm_info=shm_info or {},
             start_date=start_date,
             end_date=end_date,
         )

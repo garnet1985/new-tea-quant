@@ -117,6 +117,27 @@ class TestTagSettings:
         assert not report.is_usable()
         assert any(e["field_path"] == "tag_definitions" for e in report.errors)
 
+    def test_is_dry_run_defaults_false(self):
+        ts = TagSettings.from_dict(_userspace_settings(), tag_key="demo/x")
+        ts.apply_defaults()
+        assert ts.is_dry_run is False
+        assert ts.to_dict()["is_dry_run"] is False
+        assert ts.to_dict()["calculation"]["is_dry_run"] is False
+
+    def test_is_dry_run_from_settings(self):
+        raw = _userspace_settings(
+            calculation={
+                "update_mode": "incremental",
+                "is_dry_run": True,
+                "execution": {"mode": "entity_based"},
+            }
+        )
+        ts = TagSettings.from_dict(raw, tag_key="demo/x")
+        report = ts.validate()
+        assert report.is_usable(), report.errors
+        assert ts.is_dry_run is True
+        assert ts.to_dict()["is_dry_run"] is True
+
     def test_demo_market_cap_tier_settings(self):
         from userspace.extensions.tags.demo.market_cap_tier.settings import (
             settings as demo_settings,
@@ -126,6 +147,7 @@ class TestTagSettings:
         report = ts.validate()
         assert report.is_usable(), report.errors
         assert ts.recompute is False
+        assert ts.is_dry_run is False
         assert ts.update_mode == "incremental"
         assert ts.data.min_required_records == 1
         assert ts.attach_to_data_key == "stock.kline.daily"

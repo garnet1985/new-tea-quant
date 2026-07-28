@@ -1,6 +1,6 @@
 """解析 Tag 计算所需的 entity id 列表。
 
-消费者: Tag / TagManager
+消费者: Tag
 """
 
 from __future__ import annotations

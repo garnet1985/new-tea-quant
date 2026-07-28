@@ -17,8 +17,8 @@
 
 ### BFF 边界
 
-- BFF **不做** tag 业务缓存决策；是否 incremental、是否写库由 **TagManager / 引擎** 决定。
-- BFF 职责：HTTP 校验、调用 discovery / TagManager、维护 **单进程 tag run 编排**（job 文件或内存 + 后台线程），统一 `ok` / `error` 信封。
+- BFF **不做** tag 业务缓存决策；是否 incremental、是否写库由 **`Tag` / 引擎**（含 settings `is_dry_run`）决定。
+- BFF 职责：HTTP 校验、调用 **`TagCatalog` / `TagRunLauncher`**、维护 **单进程 tag run 编排**，统一 `ok` / `error` 信封。
 
 ## API 清单（T1 — MVP）
 
@@ -121,7 +121,7 @@ FED 建议：进 `/tags` 调 T1-00；任一 tag 运行中再调 T1-03；全局 `
 
 ### T1-01 `GET /tags/list`
 
-**语义**：返回 userspace 下通过 `TagDiscoveryHelper.discover_tags()` 发现的 scenario 摘要，并合并 tag DB 侧可选元数据（最后计算日期等）。
+**语义**：返回 userspace 下通过 discovery 发现的 scenario 摘要（`TagCatalog.fetch_page`），并合并 tag DB 侧可选元数据（最后计算日期等）。
 
 **Query**
 
@@ -189,7 +189,7 @@ FED 建议：进 `/tags` 调 T1-00；任一 tag 运行中再调 T1-03；全局 `
 
 ### T1-02 `POST /tag/<path:tag_key>/run`
 
-**语义**：在后台启动 **单个** scenario 的 `TagManager.execute(scenario_name=tag_key)`（或等价 BED 入口）。MVP **不支持** body 内联 settings。
+**语义**：在后台启动 **单个** scenario 的 `Tag().execute(scenario_name=tag_key)`（经 `TagRunLauncher.trigger`）。MVP **不支持** body 内联 settings。
 
 **请求体**
 

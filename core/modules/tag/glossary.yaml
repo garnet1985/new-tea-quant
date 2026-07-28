@@ -5,7 +5,7 @@ terms:
   Tag:
     definition: "标签模块 Facade：discovery / execute / list"
     aliases: ["tag facade"]
-    avoid: ["TagManager（仅 CLI 兼容 shim）", "TagWorker"]
+    avoid: ["TagManager", "TagWorker"]
 
   TagHooks:
     definition: "userspace tag.py 钩子基类（calculate_tag / on_calendar_asof）"

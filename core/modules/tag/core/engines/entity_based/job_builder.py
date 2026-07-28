@@ -38,7 +38,6 @@ class TagEntityJobBuilder:
         tag_info: EnabledTagInfo,
         scenario: Scenario,
         entity_ids: List[str],
-        shm_info: Dict[str, Any],
         *,
         tag_data_service: Optional["TagDataService"] = None,
     ) -> List[Dict[str, Any]]:
@@ -58,7 +57,6 @@ class TagEntityJobBuilder:
             scenario=scenario,
             settings=settings,
             entity_ids=entity_ids,
-            shm_info=shm_info or {},
             start_date=windows.data_start,
             end_date=windows.data_end,
             calc_windows=windows,

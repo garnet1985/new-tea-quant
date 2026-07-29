@@ -2,8 +2,8 @@
 
 消费者: Tag
 
-实体池由 ``data.base``（``attach_to_data_key``）对应 per_entity
-contract 的 ``meta.list_data_key`` 决定（如 stock.list / index.list）。
+- ``data.base`` scope=global → 哨兵 ``GLOBAL_ENTITY_ID``
+- ``data.base`` per_entity → ``meta.list_data_key`` 对应 list（stock.list / index.list）
 """
 
 from __future__ import annotations
@@ -13,6 +13,10 @@ from typing import List, Optional
 
 from core.modules.data_contract import DATA_KEY, ContractIssuer
 from core.modules.tag.core.data_class.scenario import Scenario
+from core.modules.tag.core.engines.global_based.constants import GLOBAL_ENTITY_ID
+from core.modules.tag.core.engines.per_entity.shared.tag_settings.data_settings import (
+    DataSettings,
+)
 from core.modules.tag.core.enums import TagTargetType
 
 logger = logging.getLogger(__name__)
@@ -29,11 +33,16 @@ class TagEntityListResolver:
         stock_limit: Optional[int] = None,
         entity_limit: Optional[int] = None,
     ) -> List[str]:
+        # 兼容旧 stub；产品入口以 data.base scope 为准
         target_type = str(
             scenario.settings.get("tag_target_type") or TagTargetType.ENTITY_BASED.value
         ).strip().lower()
         if target_type == TagTargetType.GENERAL.value:
-            return ["__general__"]
+            return [GLOBAL_ENTITY_ID]
+
+        base_key = cls._base_data_key(scenario)
+        if base_key and DataSettings.is_global(base_key):
+            return [GLOBAL_ENTITY_ID]
 
         list_key = cls.resolve_list_data_key(scenario)
         entity_ids = cls._load_entity_ids(list_key)
@@ -60,6 +69,12 @@ class TagEntityListResolver:
                 DATA_KEY.STOCK_LIST,
             )
             return DATA_KEY.STOCK_LIST
+
+        if DataSettings.is_global(base_key):
+            raise ValueError(
+                f"base={base_key!r} 为 global scope，无 list_data_key；"
+                f"实体池应为 {[GLOBAL_ENTITY_ID]}"
+            )
 
         try:
             return ContractIssuer.get_list_data_key(base_key)

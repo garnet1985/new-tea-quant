@@ -20,7 +20,7 @@ from core.infra.discovery import Discovery
 from core.modules.tag.core.services.discovery.hooks_loader import TagHooksLoader
 
 if TYPE_CHECKING:
-    from core.modules.tag.core.engines.shared.hooks.tag_hooks import TagHooks
+    from core.modules.tag.core.engines.per_entity.shared.hooks.tag_hooks import TagHooks
 
 logger = logging.getLogger(__name__)
 

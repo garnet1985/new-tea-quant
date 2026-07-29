@@ -21,7 +21,7 @@ from core.modules.tag.core.data_class.tag_definition import TagDefinition
 from core.modules.tag.core.enums import TagExecutionMode, TagUpdateMode
 
 if TYPE_CHECKING:
-    from core.modules.tag.core.engines.shared.tag_settings.tag_settings import TagSettings
+    from core.modules.tag.core.engines.per_entity.shared.tag_settings.tag_settings import TagSettings
 
 
 @dataclass

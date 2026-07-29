@@ -16,9 +16,10 @@ from typing import Any, Callable, Dict, List, Optional
 from core.infra.project_context import ProjectContext
 from core.modules.data_manager import DataManager
 from core.modules.tag.core.data_class.scenario import Scenario
-from core.modules.tag.core.engines.entity_based import TagEntityPipeline
-from core.modules.tag.core.engines.shared.tag_settings import TagSettings
-from core.modules.tag.core.engines.slice_based import TagSlicePipeline
+from core.modules.tag.core.engines.global_based import TagGlobalPipeline
+from core.modules.tag.core.engines.per_entity.entity_based import TagEntityPipeline
+from core.modules.tag.core.engines.per_entity.shared.tag_settings import TagSettings
+from core.modules.tag.core.engines.per_entity.slice_based import TagSlicePipeline
 from core.modules.tag.core.enums import TagExecutionMode
 from core.modules.tag.core.services.discovery import DiscoveryService
 from core.modules.tag.core.services.discovery.data.discovered_tag import (
@@ -232,7 +233,7 @@ class Tag:
             logger.info("无法获取实体列表，跳过执行: %s", tag_key)
             return None
 
-        mode = scenario.execution_mode
+        route = ts.data.base_route()
         run_kwargs = dict(
             tag_info=tag_info,
             scenario=scenario,
@@ -241,6 +242,21 @@ class Tag:
             dry_run=effective_dry_run,
             on_progress=on_progress,
         )
+
+        if route == "global":
+            result = TagGlobalPipeline.run(**run_kwargs)
+            self._save_performance_report(result, scenario, tag_key, "global")
+            return result
+
+        if route == "non_time_series":
+            logger.error(
+                "Tag non_time_series 路由尚未实现，跳过: %s base=%s",
+                tag_key,
+                ts.data.base_data_key,
+            )
+            return None
+
+        mode = scenario.execution_mode
         if mode == TagExecutionMode.SLICE_BASED.value:
             result = TagSlicePipeline.run(**run_kwargs)
             self._save_performance_report(result, scenario, tag_key, "slice_based")

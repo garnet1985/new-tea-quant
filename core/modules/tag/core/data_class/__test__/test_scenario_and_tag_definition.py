@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from core.modules.tag.core.data_class import Scenario, TagDefinition
-from core.modules.tag.core.engines.shared.tag_settings import TagSettings
+from core.modules.tag.core.engines.per_entity.shared.tag_settings import TagSettings
 
 
 def _userspace_settings(**overrides) -> dict:

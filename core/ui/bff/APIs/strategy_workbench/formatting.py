@@ -6,14 +6,15 @@ from typing import Any, Dict
 
 from .execution_panel import build_execution_panel_from_result_report
 
-# Aligns with ``SimulatorResDbCacheService`` report slot keys + UI steps (enum / price / capital).
+# Aligns with SimulationCacheManager report slot keys + UI steps.
 _STEP_KEYS = ("enum", "price_factor", "portfolio")
 
 
 def _step_status_from_result_report(result_report: Dict[str, Any]) -> Dict[str, Any]:
+    rr = dict(result_report or {})
     out: Dict[str, Any] = {}
     for key in _STEP_KEYS:
-        if key in result_report and result_report[key] is not None:
+        if key in rr and rr[key] is not None:
             out[key] = {"done": True}
         else:
             out[key] = {"done": False}

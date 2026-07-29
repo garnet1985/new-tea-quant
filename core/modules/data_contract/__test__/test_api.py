@@ -896,6 +896,17 @@ class TestEdgeCases:
         assert isinstance(declaration, dict)
         assert "meta" in declaration
         assert declaration["meta"]["key"] == "stock.kline.daily"
+        assert declaration["meta"]["list_data_key"] == "stock.list"
+
+    def test_get_list_data_key(self):
+        """per_entity → list_data_key；index / stock。"""
+        assert ContractIssuer.get_list_data_key("stock.kline.daily") == "stock.list"
+        assert ContractIssuer.get_list_data_key("index.kline.daily") == "index.list"
+        assert ContractIssuer.get_list_data_key("index.weight.daily") == "index.list"
+
+    def test_get_list_data_key_rejects_global(self):
+        with pytest.raises(ValueError, match="list_data_key"):
+            ContractIssuer.get_list_data_key("stock.list")
 
     def test_get_declaration_nonexistent_key(self):
         """测试 get_declaration()：获取不存在的 key。"""

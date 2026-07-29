@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from core.modules.tag.core.data_class.scenario import Scenario
 from core.modules.tag.core.data_class.tag_definition import TagDefinition
-from core.modules.tag.core.engines.shared.calc_progress import TagCalcProgressStore
 from core.modules.tag.core.enums import TagUpdateMode
 
 if TYPE_CHECKING:
@@ -45,7 +44,11 @@ class MetadataEnsureService:
         return scenario
 
     def ensure_scenario(self, scenario: Scenario) -> None:
-        """同步 ``sys_tag_scenario``；recompute 时清值并重建 definitions，保留 scenario.id。"""
+        """同步 ``sys_tag_scenario``；recompute 时清值并重建 definitions，保留 scenario.id。
+
+        dry_run 时仍可创建/更新元数据以便拿到 id，但跳过清值、删 definition、清进度水位。
+        """
+        dry_run = bool(scenario.is_dry_run)
         existing = self._tags.load_scenario(scenario.name)
 
         if not existing:
@@ -64,14 +67,21 @@ class MetadataEnsureService:
             raise ValueError(f"DB scenario missing id: {scenario.name!r}")
 
         if scenario.recompute:
-            logger.info(
-                "recompute=True, clear tag values/definitions (keep scenario id=%s): %s",
-                scenario_id,
-                scenario.name,
-            )
-            self._tags.delete_tag_values_by_scenario(scenario_id)
-            self._tags.delete_tag_definitions_by_scenario(scenario_id)
-            TagCalcProgressStore.clear(scenario.name)
+            if dry_run:
+                logger.info(
+                    "dry_run=True, skip recompute clear (keep scenario id=%s): %s",
+                    scenario_id,
+                    scenario.name,
+                )
+            else:
+                logger.info(
+                    "recompute=True, clear tag values/definitions (keep scenario id=%s): %s",
+                    scenario_id,
+                    scenario.name,
+                )
+                self._tags.delete_tag_values_by_scenario(scenario_id)
+                self._tags.delete_tag_definitions_by_scenario(scenario_id)
+                self._tags.clear_calc_progress_by_scenario(scenario_id)
             # 保留 scenario 行，避免 id 自增；同步 meta（含 key）
             new_meta = self._tags.update_scenario(
                 scenario_id,
@@ -85,11 +95,17 @@ class MetadataEnsureService:
             return
 
         if scenario.effective_update_mode() == TagUpdateMode.REFRESH.value:
-            logger.info(
-                "update_mode=refresh, clear tag values: %s", scenario.name
-            )
-            self._tags.delete_tag_values_by_scenario(scenario_id)
-            TagCalcProgressStore.clear(scenario.name)
+            if dry_run:
+                logger.info(
+                    "dry_run=True, skip refresh clear tag values: %s",
+                    scenario.name,
+                )
+            else:
+                logger.info(
+                    "update_mode=refresh, clear tag values: %s", scenario.name
+                )
+                self._tags.delete_tag_values_by_scenario(scenario_id)
+                self._tags.clear_calc_progress_by_scenario(scenario_id)
 
         if scenario.has_meta_diff(existing):
             new_meta = self._tags.update_scenario(
@@ -112,11 +128,13 @@ class MetadataEnsureService:
                 f"scenario.id missing before ensuring tag definitions: {scenario.name!r}"
             )
 
+        # dry_run 下 recompute 不删重建 definition，仅复用/补齐现有元数据
+        recompute = bool(scenario.recompute) and (not scenario.is_dry_run)
         for definition in scenario.tag_definitions:
             self.ensure_tag_definition(
                 definition,
                 scenario_id=scenario_id,
-                recompute=scenario.recompute,
+                recompute=recompute,
             )
 
     def ensure_tag_definition(

@@ -115,3 +115,39 @@ class TestDiscoveryService:
         _write_tag(tags_tree / "b", meta_key="dup")
         found = DiscoveryService.discover_tags()
         assert len([t for t in found if t.key == "dup"]) == 1
+
+    def test_global_base_allows_omitted_mode(self, tags_tree: Path):
+        folder = tags_tree / "demo" / "macro_rate"
+        folder.mkdir(parents=True)
+        settings = _minimal_settings(
+            meta={"key": "macro_rate", "display_name": "macro"},
+            calculation={
+                "update_mode": "incremental",
+                "execution": {"start_date": "", "end_date": ""},
+            },
+            data={
+                "base": {"data_key": "macro.lpr", "params": {}},
+                "required": [],
+                "min_required_records": 0,
+            },
+        )
+        folder.joinpath("settings.py").write_text(
+            f"settings = {settings!r}\n", encoding="utf-8"
+        )
+        folder.joinpath("tag.py").write_text(
+            "\n".join(
+                [
+                    "from core.modules.tag.core.engines.shared.hooks.tag_hooks import TagHooks",
+                    "",
+                    "class MacroHooks(TagHooks):",
+                    "    def calculate_tag(self, ctx):",
+                    "        return None",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        found = DiscoveryService.discover_tags()
+        by_id = {t.id(): t for t in found}
+        assert "demo/macro_rate" in by_id
+        assert by_id["demo/macro_rate"].key == "macro_rate"

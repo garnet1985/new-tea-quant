@@ -4,23 +4,21 @@
 
 本文件:
 - DiscoveryService: 发现 tags 目录下全部/启用 tag
-  边界: 负责文件夹扫描、key 唯一性、draft→TagInfo 升级；不负责 hooks 热路径或引擎执行
+  边界: 负责文件夹扫描、key 唯一性、draft→DiscoveredTagInfo 升级；不负责 hooks 热路径或引擎执行
 """
 
 from __future__ import annotations
 
 import logging
 import os
-from dataclasses import fields
 from pathlib import Path
 from typing import Dict, List, Optional
 
 from core.infra.project_context import ProjectContext
 
 from core.modules.tag.core.services.discovery.data.discovered_tag import (
-    EnabledTagInfo,
+    DiscoveredTagInfo,
     TagDraft,
-    TagInfo,
 )
 
 from .constants import TAG_FILE_NAME, TAG_SETTINGS_FILE_NAME
@@ -33,7 +31,7 @@ class DiscoveryService:
     """Tag 发现服务。"""
 
     @staticmethod
-    def discover_tags() -> List[TagInfo]:
+    def discover_tags() -> List[DiscoveredTagInfo]:
         """发现全部 tag（UI 显示）。"""
         tags_root = ProjectContext.path.get_tags_root()
 
@@ -42,11 +40,11 @@ class DiscoveryService:
             return []
 
         drafts = DiscoveryService._scan_folders(tags_root)
-        tags: List[TagInfo] = []
+        tags: List[DiscoveredTagInfo] = []
         keys_seen: Dict[str, str] = {}
 
         for draft in drafts:
-            info = TagInfo.from_draft(draft)
+            info = DiscoveredTagInfo.from_draft(draft)
             if info is None:
                 continue
 
@@ -65,31 +63,16 @@ class DiscoveryService:
 
     @staticmethod
     def get_enabled_tags(
-        tags: Optional[List[TagInfo]] = None,
-    ) -> List[EnabledTagInfo]:
-        """从 tag 列表中筛选出启用的 tag。"""
+        tags: Optional[List[DiscoveredTagInfo]] = None,
+    ) -> List[DiscoveredTagInfo]:
+        """筛选 ``is_enabled=True`` 的 tag。"""
         if tags is None:
             tags = DiscoveryService.discover_tags()
-
-        enabled: List[EnabledTagInfo] = []
-        field_names = {f.name for f in fields(EnabledTagInfo) if f.init}
-        for info in tags:
-            if info.is_enabled:
-                try:
-                    kwargs = {k: v for k, v in info.__dict__.items() if k in field_names}
-                    enabled_info = EnabledTagInfo(**kwargs)
-                    enabled.append(enabled_info)
-                except ValueError as exc:
-                    logger.warning(
-                        "Failed to create EnabledTagInfo: %s, error: %s",
-                        info.unique_relative_path,
-                        exc,
-                    )
-        return enabled
+        return [info for info in tags if info.is_enabled]
 
     @staticmethod
-    def find_tag(key_or_id: str) -> Optional[EnabledTagInfo]:
-        """按 ``meta.key``（CLI alias）或目录相对路径查找单个启用的 tag。"""
+    def find_tag(key_or_id: str) -> Optional[DiscoveredTagInfo]:
+        """按 ``meta.key`` 或目录相对路径查找单个**已启用** tag。"""
         needle = str(key_or_id or "").strip()
         if not needle:
             return None

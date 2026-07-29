@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 from core.modules.backtest_engine.contracts import JobReport, RunProgress
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.modules.tag.core.data_class import Scenario, TagDefinition
-from core.modules.tag.core.engines.entity_based import (
+from core.modules.tag.core.engines.per_entity.entity_based import (
     EntityTaskState,
     TagEntityJobBuilder,
     TagEntityJobExecutor,
@@ -17,9 +17,9 @@ from core.modules.tag.core.engines.entity_based import (
 from core.modules.tag.core.engines.shared.hooks import TagContext, TagHookRuntime, TagHooks
 from core.modules.tag.core.engines.shared.services import TagValueFlushService
 from core.modules.tag.core.engines.shared.tag_settings import TagSettings
-from core.modules.tag.core.engines.slice_based import TagSlicePipeline
-from core.modules.tag.core.engines.slice_based.job_builder import TagSliceJobBuilder
-from core.modules.tag.core.services.discovery.data.discovered_tag import EnabledTagInfo
+from core.modules.tag.core.engines.per_entity.slice_based import TagSlicePipeline
+from core.modules.tag.core.engines.per_entity.slice_based.job_builder import TagSliceJobBuilder
+from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
 
 
 class _EchoHooks(TagHooks):
@@ -51,8 +51,8 @@ def _settings_dict(*, mode: str = "slice_based") -> dict:
     }
 
 
-def _enabled_tag_info(mode: str = "slice_based") -> EnabledTagInfo:
-    return EnabledTagInfo(
+def _enabled_tag_info(mode: str = "slice_based") -> DiscoveredTagInfo:
+    return DiscoveredTagInfo(
         unique_relative_path="demo/cap",
         tag_file=Path("/tmp/demo/cap/tag.py"),
         settings_file=Path("/tmp/demo/cap/settings.py"),
@@ -73,6 +73,8 @@ class TestTagValueFlushService:
         row = TagValueFlushService.to_db_row(
             {
                 "entity_id": "e1",
+                "entity_type": "stock",
+                "attach_to_data_key": "stock.kline.daily",
                 "as_of_date": "20240102",
                 "tag_definition_id": 7,
                 "tag_name": "tier",
@@ -84,6 +86,8 @@ class TestTagValueFlushService:
         assert "json_value" in row
         assert "high" in row["json_value"]
         assert "tag_name" not in row
+        assert "entity_type" not in row
+        assert "attach_to_data_key" not in row
 
     def test_extend_and_flush_calls_save_batch(self):
         tags = MagicMock()
@@ -135,7 +139,6 @@ class TestTagEntityJobBuilder:
             _enabled_tag_info(mode="entity_based"),
             scenario,
             entity_ids=["e1"],
-            shm_info={},
         )
         payload = jobs[0]["payload"]
         assert BacktestJob.SLICE_BASED_ENTITY_KEY not in payload
@@ -181,7 +184,7 @@ class TestTagEntityJobExecutor:
             }
         }
         with patch(
-            "core.modules.tag.core.engines.entity_based.executor.AsOfSlice.slice_contracts",
+            "core.modules.tag.core.engines.per_entity.entity_based.executor.AsOfSlice.slice_contracts",
             return_value=sliced,
         ):
             TagEntityJobExecutor.on_tick(ctx, "20240102", 0)
@@ -219,7 +222,7 @@ class TestTagSlicePipeline:
             return MagicMock()
 
         with patch.object(TagSliceJobBuilder, "_count_open_dates", return_value=2), patch(
-            "core.modules.tag.core.engines.slice_based.pipeline.BacktestEngine"
+            "core.modules.tag.core.engines.per_entity.slice_based.pipeline.BacktestEngine"
         ) as be:
             be.slice_based.run.side_effect = fake_run
             result = TagSlicePipeline.run(
@@ -236,3 +239,46 @@ class TestTagSlicePipeline:
         call_kwargs = be.slice_based.run.call_args.kwargs
         assert call_kwargs.get("start")
         assert call_kwargs.get("callbacks") is not None
+
+    def test_incremental_marks_progress_on_success(self):
+        raw = _settings_dict()
+        raw["calculation"]["update_mode"] = "incremental"
+        raw["calculation"]["recompute"] = False
+        info = _enabled_tag_info()
+        info.settings = raw
+        ts = TagSettings.from_dict(raw, tag_key="demo/cap")
+        assert ts.validate().is_usable()
+        scenario = Scenario.from_tag_settings(ts)
+        scenario.tag_definitions[0].id = 9
+        tags = MagicMock()
+        tags.get_entity_calc_progress.return_value = {}
+
+        def fake_run(jobs, **kwargs):
+            cb = kwargs.get("callbacks")
+            if cb and cb.on_task_result:
+                cb.on_task_result(
+                    JobReport(
+                        job_id="tag_run",
+                        success=True,
+                        data={"tag_values": []},
+                    ),
+                    RunProgress(finished=1, total=1, ok=1, fail=0),
+                )
+            return MagicMock()
+
+        with patch.object(TagSliceJobBuilder, "_count_open_dates", return_value=2), patch(
+            "core.modules.tag.core.engines.per_entity.slice_based.pipeline.BacktestEngine"
+        ) as be:
+            be.slice_based.run.side_effect = fake_run
+            result = TagSlicePipeline.run(
+                tag_info=info,
+                scenario=scenario,
+                entity_ids=["e1"],
+                tag_data_service=tags,
+                dry_run=False,
+            )
+        assert result["success"] is True
+        tags.mark_entity_calc_progress.assert_called_once()
+        args = tags.mark_entity_calc_progress.call_args.args
+        assert args[0] == "demo/cap"
+        assert args[1] == {"e1": "20240105"}

@@ -71,6 +71,7 @@ class SYS_DATA_KEY:
     MACRO_PPI = "macro.ppi"                     # PPI数据
     MACRO_PMI = "macro.pmi"                     # PMI数据
     MACRO_LPR = "macro.lpr"                     # LPR数据
+    MACRO_SHIBOR = "macro.shibor"               # Shibor数据
     
     # Tag
     TAG = "tag"                                 # 标签数据（全局）
@@ -97,6 +98,7 @@ class SYS_DATA_KEY:
             cls.MACRO_PPI,
             cls.MACRO_PMI,
             cls.MACRO_LPR,
+            cls.MACRO_SHIBOR,
             cls.TAG,
         ]
 

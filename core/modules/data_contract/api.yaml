@@ -112,6 +112,23 @@ ContractIssuer:
       throws:
         - KeyError: key 不存在
 
+    get_list_data_key:
+      description: "读取 per_entity contract 的 meta.list_data_key（所属 GLOBAL list）"
+      stability: stable
+      binding: classmethod
+      parameters:
+        positional:
+          - name: data_key
+            type: str
+            required: true
+            notes: "如 stock.kline.daily / index.kline.daily"
+      returns: str
+      throws:
+        - ValueError: key 未发现、非 per_entity、或缺少 list_data_key
+      notes: |
+        示例：stock.kline.daily → stock.list；index.kline.daily → index.list。
+        Tag 用此解析实体池。
+
     list_available_keys:
       description: "列出所有可用的契约 key（系统 + 用户）"
       stability: beta

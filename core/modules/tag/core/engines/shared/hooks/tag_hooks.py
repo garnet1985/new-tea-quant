@@ -39,7 +39,7 @@ class TagHooks(ABC):
         return TagCalendarAsOfResult(
             as_of_date=str(ctx.data.now or ""),
             entity_tags={},
-            carry={},
+            session_state={},
         )
 
 

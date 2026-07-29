@@ -1,13 +1,23 @@
 name: modules.tag
-version: 0.4.0
+version: 0.4.2
 compatible_core_versions: ">=0.4.4"
-description: "标签资产层：Tag facade 提供 discovery / execute；entity_based / slice_based 经 BacktestEngine 计算并落库；BFF 经 core.bff_support。"
+description: "标签资产层：按 data.base 路由；per_entity 经 BacktestEngine；global / non_time_series 主进程推进器；BFF 经 core.bff_support。"
 dependencies:
   - modules.data_manager
   - modules.data_contract
   - modules.backtest_engine
   - infra.project_context
 changelog:
+  - version: "0.4.2"
+    changes:
+      - non_time_series：TagNonTimeSeriesPipeline 主进程一次计算（不走 BE）
+      - DataSettings 放开纯非时序 base；落库 as_of 取计算窗 end_date
+  - version: "0.4.1"
+    changes:
+      - data.base 路由：per_entity / global / non_time_series
+      - per_entity contract meta.list_data_key → 实体池（含 index.list）
+      - global 时序：TagGlobalPipeline 主进程推进（不走 BE）；哨兵 __global__
+      - engines 包布局：per_entity / global_based / non_time_series
   - version: "0.4.0"
     changes:
       - 标准模块根契约：tag.py Facade、api.yaml、contracts.py、glossary.yaml
@@ -29,7 +39,7 @@ changelog:
       - 支持sliced块状切片
       - engines 目录重组：shared / timeline / sliced + router
       - TagManager 精简为发现与调度入口
-      - Tag calendar_slice 一等 API on_calendar_asof + carry + entity_tags fan-out
+      - Tag calendar_slice 一等 API on_calendar_asof + session_state + entity_tags fan-out
       - Tag 控制台 launcher + BFF（T1-00…03）；全局 pipeline 租约
   - version: "0.2.1"
     changes:

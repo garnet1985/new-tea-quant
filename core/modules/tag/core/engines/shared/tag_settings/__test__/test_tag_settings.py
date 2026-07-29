@@ -61,7 +61,7 @@ class TestTagSettings:
         assert out["update_mode"] == "refresh"
         assert out["incremental_required_records_before_as_of_date"] == 5
         assert out["target_entity"] == {"type": "stock_kline_daily"}
-        assert out["tag_target_type"] == "entity_based"
+        assert "tag_target_type" not in out
         assert out["data"]["tag_time_axis_based_on"] == "stock.kline.daily"
         assert [x["data_key"] for x in out["data"]["required"]] == [
             "stock.kline.daily",
@@ -97,7 +97,7 @@ class TestTagSettings:
         ts.apply_defaults()
         assert ts.update_mode == "refresh"
 
-    def test_slice_based_requires_refresh(self):
+    def test_slice_based_allows_incremental(self):
         raw = _userspace_settings(
             calculation={
                 "update_mode": "incremental",
@@ -107,7 +107,8 @@ class TestTagSettings:
         )
         ts = TagSettings.from_dict(raw, tag_key="demo/x")
         report = ts.validate()
-        assert not report.is_usable()
+        assert report.is_usable(), report.errors
+        assert ts.update_mode == "incremental"
 
     def test_tag_definitions_required(self):
         raw = _userspace_settings()
@@ -116,6 +117,87 @@ class TestTagSettings:
         report = ts.validate()
         assert not report.is_usable()
         assert any(e["field_path"] == "tag_definitions" for e in report.errors)
+
+    def test_is_dry_run_defaults_false(self):
+        ts = TagSettings.from_dict(_userspace_settings(), tag_key="demo/x")
+        ts.apply_defaults()
+        assert ts.is_dry_run is False
+        assert ts.to_dict()["is_dry_run"] is False
+        assert ts.to_dict()["calculation"]["is_dry_run"] is False
+
+    def test_is_dry_run_from_settings(self):
+        raw = _userspace_settings(
+            calculation={
+                "update_mode": "incremental",
+                "is_dry_run": True,
+                "execution": {"mode": "entity_based"},
+            }
+        )
+        ts = TagSettings.from_dict(raw, tag_key="demo/x")
+        report = ts.validate()
+        assert report.is_usable(), report.errors
+        assert ts.is_dry_run is True
+        assert ts.to_dict()["is_dry_run"] is True
+
+    def test_global_base_macro_gdp_validates(self):
+        raw = _userspace_settings(
+            data={
+                "base": {"data_key": "macro.gdp", "params": {}},
+                "required": [],
+                "min_required_records": 0,
+            },
+            calculation={
+                "update_mode": "incremental",
+                "execution": {"mode": "entity_based"},
+            },
+        )
+        ts = TagSettings.from_dict(raw, tag_key="demo/macro_gdp")
+        report = ts.validate()
+        assert report.is_usable(), report.errors
+        assert ts.data.base_route() == "global"
+        assert any(
+            w["field_path"] == "calculation.execution.mode" for w in report.warnings
+        )
+        assert ts.data.tag_time_axis_based_on == "macro.gdp"
+
+    def test_global_base_without_mode_ok(self):
+        raw = _userspace_settings(
+            data={
+                "base": {"data_key": "macro.cpi", "params": {}},
+                "required": [],
+                "min_required_records": 0,
+            },
+        )
+        raw["calculation"] = {
+            "update_mode": "incremental",
+            "execution": {"start_date": "", "end_date": ""},
+        }
+        ts = TagSettings.from_dict(raw, tag_key="demo/macro_cpi")
+        report = ts.validate()
+        assert report.is_usable(), report.errors
+        assert ts.data.base_route() == "global"
+        assert not any(
+            w["field_path"] == "calculation.execution.mode" for w in report.warnings
+        )
+
+    def test_non_time_series_base_ok(self):
+        raw = _userspace_settings(
+            data={
+                "base": {"data_key": "stock.list", "params": {}},
+                "required": [],
+                "min_required_records": 0,
+            },
+        )
+        raw["calculation"] = {
+            "update_mode": "refresh",
+            "recompute": True,
+            "execution": {"start_date": "", "end_date": ""},
+        }
+        ts = TagSettings.from_dict(raw, tag_key="demo/list")
+        report = ts.validate()
+        assert report.is_usable(), report.errors
+        assert ts.data.base_route() == "non_time_series"
+        assert ts.data.tag_time_axis_based_on == ""
 
     def test_demo_market_cap_tier_settings(self):
         from userspace.extensions.tags.demo.market_cap_tier.settings import (
@@ -126,6 +208,7 @@ class TestTagSettings:
         report = ts.validate()
         assert report.is_usable(), report.errors
         assert ts.recompute is False
+        assert ts.is_dry_run is False
         assert ts.update_mode == "incremental"
         assert ts.data.min_required_records == 1
         assert ts.attach_to_data_key == "stock.kline.daily"

@@ -12,6 +12,8 @@ TAG_DECLARATION: Dict[str, Any] = {
         "key": SYS_DATA_KEY.TAG,
         "type": "time_series",  # 默认值（实际由 scenario 决定）
         "scope": "per_entity",  # 默认值（实际由 scenario 决定）
+        # 默认股票池；实际实体族由 scenario.attach_to / data.base 决定
+        "list_data_key": SYS_DATA_KEY.STOCK_LIST,
         "display_name": "特征标签（按场景）",
         "description": "特征标签数据，需要 scenario 参数才能加载",
         "unique_keys": ["entity_id", "tag_definition_id", "as_of_date"],

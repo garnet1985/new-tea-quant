@@ -23,12 +23,10 @@
 ```python
 from core.modules.backtest_engine import BacktestEngine
 from core.modules.backtest_engine.contracts import JobContext, RunCallbacks, RunProgress
-from core.modules.backtest_engine.core.performance.settings import (
-    resolve_entity_based_performance,
+from core.modules.backtest_engine.core.performance.worker_profile import (
+    WorkerProfiles,
+    resolve_entity_based_performance_for_profile,
 )
-
-# 应用方 dispatch 配置（见 tag/settings/dispatch.yaml 等）
-from core.modules.tag.settings.worker_profile import profile_tag_entity_based_config
 
 def execute_fn(ctx: JobContext) -> dict:
     # 子进程 / 主进程内执行单 job 逻辑
@@ -39,7 +37,7 @@ jobs = [{"id": "000001.SZ", "payload": {"entity_id": "000001.SZ"}}]
 result = BacktestEngine.entity_based.run(
     jobs,
     execute_fn=execute_fn,
-    performance=resolve_entity_based_performance(profile_tag_entity_based_config()),
+    performance=resolve_entity_based_performance_for_profile(WorkerProfiles.TAG),
     task_name="tag:demo",
     callbacks=RunCallbacks(on_task_result=lambda report, progress: None),
     enable_progress_display=True,
@@ -180,7 +178,7 @@ from core.modules.strategy.core.services.entity_loader.job_bundle_loader import 
 
 | 模块 | 典型入口 |
 |------|----------|
-| tag | `run_tag_timeline_via_backtest_engine`, `run_tag_sliced_via_backtest_engine` |
+| tag | `TagEntityPipeline` / `TagSlicePipeline`（经 BE）；global / non_ts 不走 BE |
 | strategy | enumerator pipeline / price / portfolio（经 BE 调度；各自负责数据面） |
 
 ---

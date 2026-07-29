@@ -11,10 +11,10 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Dict, FrozenSet, List
+from typing import Any, Dict, List
 
 from core.modules.backtest_engine.core.shared.modes import BacktestMode
-from core.modules.tag.core.enums import TagTargetType, TagUpdateMode
+from core.modules.tag.core.enums import TagUpdateMode
 
 from .calculation_settings import CalculationPeriod, CalculationSettings
 from .data_settings import DataSettings
@@ -30,23 +30,6 @@ class TagSettings:
 
     内层子类与 settings section 一一对应。
     """
-
-    # Tag 暂无 simulation fingerprint；预留字段集合供后续 cache 使用
-    FINGERPRINT_FIELDS: ClassVar[FrozenSet[str]] = frozenset(
-        {
-            "core",
-            "data",
-            "calculation",
-            "tag_definitions",
-        }
-    )
-
-    NON_FINGERPRINT_FIELDS: ClassVar[FrozenSet[str]] = frozenset(
-        {
-            "meta",
-            "is_enabled",
-        }
-    )
 
     raw_settings: Dict[str, Any]
     _validated: bool = field(default=False, repr=False)
@@ -131,18 +114,16 @@ class TagSettings:
         return self.calculation.recompute
 
     @property
+    def is_dry_run(self) -> bool:
+        return self.calculation.is_dry_run
+
+    @property
     def is_entity_based(self) -> bool:
         return self.execution_mode == BacktestMode.ENTITY_BASED.value
 
     @property
     def is_slice_based(self) -> bool:
         return self.execution_mode == BacktestMode.SLICE_BASED.value
-
-    @property
-    def tag_target_type(self) -> str:
-        return str(
-            self.raw_settings.get("tag_target_type") or TagTargetType.ENTITY_BASED.value
-        ).strip().lower()
 
     @property
     def attach_to_data_key(self) -> str:
@@ -164,7 +145,6 @@ class TagSettings:
         if self._tag_key:
             self.meta.ensure_key(self._tag_key)
             self.raw_settings.setdefault("name", self._tag_key)
-        self.raw_settings.setdefault("tag_target_type", TagTargetType.ENTITY_BASED.value)
         self.raw_settings.setdefault("core", {})
         self.meta.apply_defaults()
         self.data.apply_defaults()
@@ -176,6 +156,7 @@ class TagSettings:
         self.raw_settings["target_entity"] = {"type": self.data.target_entity_type}
         self.raw_settings["update_mode"] = self.calculation.effective_update_mode()
         self.raw_settings["recompute"] = self.calculation.recompute
+        self.raw_settings["is_dry_run"] = self.calculation.is_dry_run
         self.raw_settings["execution_mode"] = self.calculation.normalized_mode()
         self.raw_settings["start_date"] = self.calculation.start_date
         self.raw_settings["end_date"] = self.calculation.end_date
@@ -186,8 +167,18 @@ class TagSettings:
         if isinstance(meta, dict):
             meta["attach_to_data_key"] = self.data.attach_to_data_key
 
+    def _user_set_execution_mode(self) -> bool:
+        calc = self.raw_settings.get("calculation")
+        if not isinstance(calc, dict):
+            return False
+        execution = calc.get("execution")
+        if not isinstance(execution, dict):
+            return False
+        return bool(str(execution.get("mode") or "").strip())
+
     def validate(self) -> ValidationReport:
         report = ValidationReport(is_valid=True)
+        user_set_mode = self._user_set_execution_mode()
         self.apply_defaults()
 
         if not isinstance(self.raw_settings.get("is_enabled"), bool):
@@ -202,21 +193,41 @@ class TagSettings:
             SettingsBase.add_warning(
                 report,
                 "performance",
-                "performance is ignored; use worker.json job_pipeline.tag",
+                "performance is ignored; tune worker.json → job_pipeline.tag",
             )
             self.raw_settings.pop("performance", None)
 
-        for sub in (
-            self.meta,
-            self.data,
-            self.calculation,
-            self.tag_definitions,
-        ):
+        if "tag_target_type" in self.raw_settings:
+            SettingsBase.add_critical(
+                report,
+                "tag_target_type",
+                "tag_target_type is removed; entity universe is inferred from data.base",
+                suggested_fix="Delete tag_target_type from settings.py",
+            )
+            self.raw_settings.pop("tag_target_type", None)
+
+        for sub in (self.meta, self.data, self.tag_definitions):
             sub_report = sub.validate()
             report.errors.extend(sub_report.errors)
             report.warnings.extend(sub_report.warnings)
             if not sub_report.is_valid:
                 report.is_valid = False
+
+        require_mode = self.data.requires_execution_mode()
+        calc_report = self.calculation.validate(require_execution_mode=require_mode)
+        report.errors.extend(calc_report.errors)
+        report.warnings.extend(calc_report.warnings)
+        if not calc_report.is_valid:
+            report.is_valid = False
+
+        route = self.data.base_route()
+        if route in {"global", "non_time_series"} and user_set_mode:
+            SettingsBase.add_warning(
+                report,
+                "calculation.execution.mode",
+                f"execution.mode is ignored for data.base route={route!r} "
+                f"(lightweight main-process runner; no BacktestEngine mode)",
+            )
 
         # incremental 下 min_required_records 须显式存在（可为 0）
         if self.update_mode == TagUpdateMode.INCREMENTAL.value:
@@ -252,7 +263,7 @@ class TagSettings:
         out["calculation"] = self.calculation.to_dict()
         out["tag_definitions"] = self.tag_definitions.to_dict()
         out.pop("performance", None)
-        out.setdefault("run_options", {})
+        out.pop("tag_target_type", None)
         return out
 
 

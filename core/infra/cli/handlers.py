@@ -86,7 +86,7 @@ def run_early_command(args: argparse.Namespace) -> int | None:
         name = _strategy_name(getattr(args, "name", None))
         if not name:
             raise SystemExit("export_strategy 需要名称（例: cli.py ex example）")
-        from core.modules.strategy.launcher.package_cli import run_export
+        from core.modules.strategy.core.services.package.package_cli import run_export
 
         _setup_logging(verbose=args.verbose)
         out = getattr(args, "output", None)
@@ -97,7 +97,9 @@ def run_early_command(args: argparse.Namespace) -> int | None:
         path = _strategy_name(getattr(args, "path", None))
         if not path:
             raise SystemExit("import_strategy 需要包路径（例: cli.py im ./pkg.zip）")
-        from core.modules.strategy.launcher.package_cli import run_strategy_bundle_import
+        from core.modules.strategy.core.services.package.package_cli import (
+            run_strategy_bundle_import,
+        )
 
         _setup_logging(verbose=args.verbose)
         return run_strategy_bundle_import(
@@ -154,6 +156,15 @@ def execute(args: argparse.Namespace, app: CliApp) -> None:
     if cmd == "tag":
         if getattr(args, "new_path", None):
             raise SystemExit("新建 Tag 请使用: cli.py t -n PATH")
+        if getattr(args, "list", False):
+            names = app.list_tags(enabled_only=False)
+            if not names:
+                print("未发现 tag（检查 userspace/extensions/tags 下 settings.py + tag.py）")
+                raise SystemExit(1)
+            print("可用 tag:")
+            for name in names:
+                print(f"  - {name}")
+            return
         logger.info("🏷️  执行标签计算...")
         dry_run = getattr(args, "dry_run", False)
         if dry_run:
@@ -161,9 +172,7 @@ def execute(args: argparse.Namespace, app: CliApp) -> None:
         app.tag(
             scenario_name=getattr(args, "scenario", None),
             dry_run=dry_run,
-            stock_limit=getattr(args, "stock_limit", None),
-            profile=getattr(args, "profile", False),
-            entities_per_job=getattr(args, "entities_per_job", None),
+            entity_limit=getattr(args, "entity_limit", None),
         )
         return
 
@@ -453,6 +462,73 @@ def _run_strategy_scan(args: argparse.Namespace) -> None:
             )
 
 
+def _run_strategy_simulate(args: argparse.Namespace) -> None:
+    """完整模拟链路：price_factor → portfolio（缺失枚举时各自会先补跑）。"""
+    import time
+
+    from core.modules.strategy import Strategy
+
+    strategy_key = _resolve_strategy_key(getattr(args, "strategy", None))
+    force = bool(getattr(args, "force", False))
+
+    print("🎮 模拟链路 · PriceFactor → Portfolio …", flush=True)
+    print(f"  策略: {strategy_key}", flush=True)
+    if force:
+        print("  --force: 忽略缓存重跑", flush=True)
+
+    t0 = time.perf_counter()
+    pf_result = Strategy.price_factor(strategy_key, ignore_cache=force)
+    pf = (
+        pf_result.get("price_factor")
+        if isinstance(pf_result.get("price_factor"), dict)
+        else pf_result
+    )
+    if not (pf.get("success", True) if isinstance(pf, dict) else True):
+        print(f"  price_factor 失败: {pf}", flush=True)
+        raise SystemExit(1)
+    print(
+        f"  price_factor: success={pf.get('success') if isinstance(pf, dict) else True} "
+        f"version={pf.get('version_id') if isinstance(pf, dict) else None}",
+        flush=True,
+    )
+
+    po_result = Strategy.portfolio(strategy_key, ignore_cache=force)
+    po = (
+        po_result.get("portfolio")
+        if isinstance(po_result.get("portfolio"), dict)
+        else po_result
+    )
+    wall_sec = time.perf_counter() - t0
+    if isinstance(po, dict) and po.get("output_dir"):
+        try:
+            from pathlib import Path
+
+            from core.modules.strategy.core.engines.portfolio.report_manager import (
+                ReportManager,
+            )
+
+            ReportManager.from_output_dir(Path(po["output_dir"])).present()
+        except Exception as exc:
+            logger.warning("展示组合回测汇总失败: %s", exc)
+            print(f"  portfolio success: {po.get('success')}", flush=True)
+    else:
+        print(
+            f"  portfolio success: {po.get('success') if isinstance(po, dict) else False}",
+            flush=True,
+        )
+
+    print(f"  总耗时: {wall_sec:.2f}s", flush=True)
+    if not (po.get("success", True) if isinstance(po, dict) else True):
+        raise SystemExit(1)
+
+
+def _run_strategy_analyse(args: argparse.Namespace) -> None:
+    from core.modules.strategy import Strategy
+
+    logger.info("📊 分析模拟结果...")
+    Strategy.analyze(session_id=getattr(args, "session", None))
+
+
 def _handle_strategy(cmd: str, app: CliApp, args: argparse.Namespace) -> None:
     if cmd == "strategy_enumerate":
         _run_strategy_enumerate(args)
@@ -470,18 +546,12 @@ def _handle_strategy(cmd: str, app: CliApp, args: argparse.Namespace) -> None:
         _run_strategy_scan(args)
         return
 
-    mgr = app._ensure_strategy_manager()
-    name = _strategy_name(getattr(args, "strategy", None))
-    force = bool(getattr(args, "force", False))
-
     if cmd == "strategy_simulate":
-        print("🎮 模拟链路 · PriceFactor → Portfolio …")
-        mgr.simulate("full", strategy_name=name, force_refresh=force)
+        _run_strategy_simulate(args)
         return
 
     if cmd == "strategy_analyse":
-        logger.info("📊 分析模拟结果...")
-        mgr.analyze_simulation_outputs(session_id=getattr(args, "session", None))
+        _run_strategy_analyse(args)
         return
 
     raise SystemExit(f"未知命令: {cmd}")

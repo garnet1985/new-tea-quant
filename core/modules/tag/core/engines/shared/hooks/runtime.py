@@ -60,7 +60,7 @@ class TagHookRuntime:
         tag_info: Union[Dict[str, Any], Any],
         settings: TagSettings,
     ) -> Tuple[Optional["TagHookRuntime"], Optional[Dict[str, Any]]]:
-        """从 payload.tag_info 或 EnabledTagInfo 加载；失败返回 (None, error_dict)。"""
+        """从 payload.tag_info 或 DiscoveredTagInfo 加载；失败返回 (None, error_dict)。"""
         if isinstance(tag_info, dict):
             module_path = str(tag_info.get("hooks_module_path") or "").strip()
             class_name = str(tag_info.get("hooks_class_name") or "").strip()

@@ -10,7 +10,7 @@
 ## 页面功能描述
 - 页面标题为“查看标签”。
 - 仅按 URL 传入 scenario 展示，不提供“全部场景”切换。
-- 表格字段为：`entity_type`、`entity_id`、`tag_name`、`as_of_date`、`json_value`。
+- 表格字段为：`entity_id`、`tag_name`、`as_of_date`、`json_value`（attach 在 scenario，不在 value 行）。
 - 顶部统计卡和详情区随当前过滤结果变化。
 
 ## 页面假设与 Placeholder

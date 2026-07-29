@@ -15,7 +15,7 @@ from core.infra.system_actions.cache_cleanup.pipeline_lease import (
     PipelineLeaseBusyError,
     read_pipeline_status,
 )
-from core.modules.strategy_legacy.services.progress import ProgressRecorder
+from core.modules.strategy.core.services.progress import ProgressRecorder
 from core.modules.tag.tag import Tag
 from core.modules.tag.core.services.discovery import DiscoveryService
 

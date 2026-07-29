@@ -15,6 +15,7 @@ def _scenario(
     display_name: str = "Demo",
     key: str = "cap",
     attach_to_data_key: str = "stock.kline.daily",
+    is_dry_run: bool = False,
 ) -> Scenario:
     return Scenario(
         name="demo/cap",
@@ -24,6 +25,7 @@ def _scenario(
         recompute=recompute,
         update_mode=update_mode,
         attach_to_data_key=attach_to_data_key,
+        is_dry_run=is_dry_run,
         tag_definitions=[
             TagDefinition(
                 name="tier",
@@ -92,6 +94,7 @@ class TestMetadataEnsureService:
         MetadataEnsureService(tags).ensure(scenario)
 
         tags.delete_tag_values_by_scenario.assert_called_once_with(10)
+        tags.clear_calc_progress_by_scenario.assert_called_once_with(10)
         tags.delete_scenario.assert_not_called()
         tags.save_scenario.assert_not_called()
         assert scenario.id == 10
@@ -126,6 +129,7 @@ class TestMetadataEnsureService:
 
         tags.delete_tag_values_by_scenario.assert_called_once_with(10)
         tags.delete_tag_definitions_by_scenario.assert_called_once_with(10)
+        tags.clear_calc_progress_by_scenario.assert_called_once_with(10)
         tags.delete_scenario.assert_not_called()
         tags.save_scenario.assert_not_called()
         tags.update_scenario.assert_called_once()
@@ -201,3 +205,61 @@ class TestMetadataEnsureService:
         tags.update_tag_definition.assert_called_once()
         assert scenario.display_name == "Demo"
         assert scenario.tag_definitions[0].display_name == "Tier"
+
+    def test_dry_run_skips_refresh_clear(self):
+        tags = MagicMock()
+        tags.load_scenario.return_value = {
+            "id": 10,
+            "display_name": "Demo",
+            "description": "d",
+            "key": "cap",
+            "attach_to_data_key": "stock.kline.daily",
+        }
+        tags.load.return_value = {
+            "id": 20,
+            "scenario_id": 10,
+            "display_name": "Tier",
+            "description": "t",
+        }
+
+        scenario = _scenario(update_mode="refresh", is_dry_run=True)
+        MetadataEnsureService(tags).ensure(scenario)
+
+        tags.delete_tag_values_by_scenario.assert_not_called()
+        tags.clear_calc_progress_by_scenario.assert_not_called()
+        assert scenario.id == 10
+        assert scenario.tag_definitions[0].id == 20
+
+    def test_dry_run_skips_recompute_clear(self):
+        tags = MagicMock()
+        tags.load_scenario.return_value = {
+            "id": 10,
+            "display_name": "Demo",
+            "description": "d",
+            "key": "cap",
+            "attach_to_data_key": "stock.kline.daily",
+        }
+        tags.update_scenario.return_value = {
+            "id": 10,
+            "display_name": "Demo",
+            "description": "d",
+            "key": "cap",
+            "attach_to_data_key": "stock.kline.daily",
+        }
+        tags.load.return_value = {
+            "id": 20,
+            "scenario_id": 10,
+            "display_name": "Tier",
+            "description": "t",
+        }
+
+        scenario = _scenario(recompute=True, is_dry_run=True)
+        MetadataEnsureService(tags).ensure(scenario)
+
+        tags.delete_tag_values_by_scenario.assert_not_called()
+        tags.delete_tag_definitions_by_scenario.assert_not_called()
+        tags.clear_calc_progress_by_scenario.assert_not_called()
+        tags.delete_tag_definition.assert_not_called()
+        tags.save.assert_not_called()
+        assert scenario.id == 10
+        assert scenario.tag_definitions[0].id == 20

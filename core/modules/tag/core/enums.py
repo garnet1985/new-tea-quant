@@ -18,11 +18,6 @@ class TagUpdateMode(Enum):
     REFRESH = "refresh"
 
 
-class TagTargetType(Enum):
-    ENTITY_BASED = "entity_based"
-    GENERAL = "general"
-
-
 class TagExecutionMode(Enum):
     """与 strategy / BacktestEngine 对齐。"""
 
@@ -33,6 +28,5 @@ class TagExecutionMode(Enum):
 __all__ = [
     "FileName",
     "TagUpdateMode",
-    "TagTargetType",
     "TagExecutionMode",
 ]

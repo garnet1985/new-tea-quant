@@ -85,7 +85,7 @@ class ExecutionSettings(SettingsBase):
         execution.setdefault("end_date", "")
         execution.setdefault("mode", TagExecutionMode.ENTITY_BASED.value)
 
-    def validate(self) -> ValidationReport:
+    def validate(self, *, require_mode: bool = True) -> ValidationReport:
         report = SettingsBase.new_validation()
         calc = self.raw_settings.get("calculation")
         if calc is not None and not isinstance(calc, dict):
@@ -103,7 +103,8 @@ class ExecutionSettings(SettingsBase):
 
         self.apply_defaults()
         self._validate_period(report)
-        self._validate_mode(report)
+        if require_mode:
+            self._validate_mode(report)
         return report
 
     def _validate_period(self, report: ValidationReport) -> None:
@@ -209,6 +210,11 @@ class CalculationSettings(SettingsBase):
         return bool(self.calculation.get("recompute", False))
 
     @property
+    def is_dry_run(self) -> bool:
+        """只计算不落库；默认 False。"""
+        return bool(self.calculation.get("is_dry_run", False))
+
+    @property
     def start_date(self) -> str:
         return self.execution.start_date
 
@@ -237,9 +243,10 @@ class CalculationSettings(SettingsBase):
         calc = self.raw_settings["calculation"]
         calc.setdefault("update_mode", TagUpdateMode.INCREMENTAL.value)
         calc.setdefault("recompute", False)
+        calc.setdefault("is_dry_run", False)
         self.execution.apply_defaults()
 
-    def validate(self) -> ValidationReport:
+    def validate(self, *, require_execution_mode: bool = True) -> ValidationReport:
         report = SettingsBase.new_validation()
         calc = self.raw_settings.get("calculation")
         if calc is not None and not isinstance(calc, dict):
@@ -257,20 +264,11 @@ class CalculationSettings(SettingsBase):
                 suggested_fix=f"Use one of {sorted(_KNOWN_UPDATE_MODES)}",
             )
 
-        exec_report = self.execution.validate()
+        exec_report = self.execution.validate(require_mode=require_execution_mode)
         report.errors.extend(exec_report.errors)
         report.warnings.extend(exec_report.warnings)
         if not exec_report.is_valid:
             report.is_valid = False
-
-        mode = self.mode
-        if mode == TagExecutionMode.SLICE_BASED.value:
-            if not self.recompute and self.update_mode != TagUpdateMode.REFRESH.value:
-                SettingsBase.add_critical(
-                    report,
-                    "calculation",
-                    "slice_based currently requires recompute=true or update_mode=refresh",
-                )
 
         return report
 
@@ -282,6 +280,7 @@ class CalculationSettings(SettingsBase):
         return {
             "update_mode": self.update_mode or TagUpdateMode.INCREMENTAL.value,
             "recompute": self.recompute,
+            "is_dry_run": self.is_dry_run,
             "execution": self.execution.to_dict(),
         }
 

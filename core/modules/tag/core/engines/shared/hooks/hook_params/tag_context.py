@@ -1,4 +1,4 @@
-"""用户钩子回调入参：TagContext 壳 + 嵌套只读块。
+"""用户钩子回调入参：TagContext + 嵌套只读块。
 
 消费者: TagHooks, TagSliceJobExecutor
 
@@ -23,16 +23,16 @@ if TYPE_CHECKING:
 _UNSET: Any = object()
 
 
+def _freeze_map(raw: Optional[Mapping[str, Any]]) -> Mapping[str, Any]:
+    return MappingProxyType(dict(raw or {}))
+
+
 @dataclass(frozen=True)
 class TagInfo:
     """Tag 身份（只读；CLI alias / 路径）。"""
 
     key: str
     path: str = ""
-
-    @staticmethod
-    def freeze_map(raw: Optional[Mapping[str, Any]]) -> Mapping[str, Any]:
-        return MappingProxyType(dict(raw or {}))
 
 
 @dataclass(frozen=True)
@@ -67,17 +67,16 @@ class TagData:
         tag_definition: Optional["TagDefinition"] = None,
         prior_value: Any = None,
     ) -> "TagData":
-        freeze = TagInfo.freeze_map
         return TagData(
             now=str(now or "").strip(),
             entity_list=tuple(
                 str(x).strip() for x in (entity_list or []) if str(x).strip()
             ),
             entity_id=str(entity_id or "").strip(),
-            entity_info=freeze(entity_info),
-            items=freeze(items),
-            by_entity=freeze(by_entity),
-            calendar=freeze(calendar),
+            entity_info=_freeze_map(entity_info),
+            items=_freeze_map(items),
+            by_entity=_freeze_map(by_entity),
+            calendar=_freeze_map(calendar),
             tag_definition=tag_definition,
             prior_value=prior_value,
         )
@@ -85,7 +84,7 @@ class TagData:
 
 @dataclass
 class TagContext:
-    """钩子回调入参壳：只读块 + 唯一可写 ``custom``。"""
+    """钩子回调入参：只读块 + 唯一可写 ``custom``。"""
 
     tag: TagInfo
     settings: TagSettings
@@ -131,7 +130,7 @@ class TagContext:
         entity_info: Optional[Mapping[str, Any]] = None,
         custom: Optional[Dict[str, Any]] = None,
     ) -> "TagContext":
-        """0→1：建立壳（尚无当日 items / by_entity）。"""
+        """0→1：建立上下文（尚无当日 items / by_entity）。"""
         return cls(
             tag=TagInfo(
                 key=str(tag_key or "").strip(),

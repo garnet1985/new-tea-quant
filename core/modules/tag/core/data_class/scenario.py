@@ -36,6 +36,7 @@ class Scenario:
     description: str = ""
     is_enabled: bool = False
     recompute: bool = False
+    is_dry_run: bool = False
     attach_to_data_key: str = ""
     target_entity_type: str = ""
     execution_mode: str = TagExecutionMode.ENTITY_BASED.value
@@ -68,6 +69,7 @@ class Scenario:
             description=tag_settings.meta.description,
             is_enabled=tag_settings.is_enabled,
             recompute=tag_settings.recompute,
+            is_dry_run=tag_settings.is_dry_run,
             attach_to_data_key=tag_settings.attach_to_data_key,
             target_entity_type=tag_settings.target_entity_type,
             execution_mode=tag_settings.execution_mode,

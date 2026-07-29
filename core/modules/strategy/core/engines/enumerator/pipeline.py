@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Tuple, Type
 
 from core.modules.backtest_engine.core.performance.worker_profile import (
@@ -373,7 +374,7 @@ class EnumeratorPipeline:
     def _to_report(cls, results: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         if not results:
             return {"success": False, "failed_entities": []}
-        return {
+        out: Dict[str, Any] = {
             "success": bool(results.get("success", True)),
             "output_dir": results.get("output_dir"),
             "version_id": results.get("version_id"),
@@ -385,6 +386,22 @@ class EnumeratorPipeline:
             "failed_jobs": results.get("failed_jobs", 0),
             "elapsed_seconds": results.get("elapsed_seconds", 0.0),
         }
+        # DB / BFF：附带 ``enumMetrics``（与 price/portfolio ``to_cache_dict`` 对齐）
+        output_dir = results.get("output_dir")
+        if output_dir:
+            try:
+                from core.modules.strategy.core.engines.enumerator.common.report_manager.overall_report import (
+                    OverallReport,
+                )
+
+                out.update(OverallReport.load(Path(output_dir)).to_ui_dict())
+            except Exception:
+                logger.debug(
+                    "enum _to_report: overall_report unavailable at %s",
+                    output_dir,
+                    exc_info=True,
+                )
+        return out
 
     @staticmethod
     def _warn_ignore_settings_performance(raw: Dict[str, Any]) -> None:

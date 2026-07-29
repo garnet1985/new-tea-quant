@@ -81,7 +81,6 @@ class TagLoader(BaseDataContractLoader):
         data_mgr = DataManager()
         tag_service = data_mgr.stock.tags
 
-        entity_type = str(params.get("entity_type") or "stock")
         scenario_name = self._resolve_scenario_name(params, tag_service=tag_service)
 
         time_field = "as_of_date"
@@ -109,7 +108,6 @@ class TagLoader(BaseDataContractLoader):
                 scenario_name=scenario_name,
                 start_date=q_start,
                 end_date=q_end,
-                entity_type=entity_type,
             )
 
         # all
@@ -170,7 +168,6 @@ class TagLoader(BaseDataContractLoader):
         data_mgr = DataManager()
         tag_service = data_mgr.stock.tags
 
-        entity_type = str(params.get("entity_type") or "stock")
         scenario_name = self._resolve_scenario_name(params, tag_service=tag_service)
 
         start = DateUtils.normalize_str(params.get("start")) if params.get("start") is not None else None
@@ -186,5 +183,4 @@ class TagLoader(BaseDataContractLoader):
             scenario_name=scenario_name,
             start_date=q_start,
             end_date=q_end,
-            entity_type=entity_type,
         )

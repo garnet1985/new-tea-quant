@@ -12,6 +12,7 @@ STOCK_MONEYFLOW_DAILY_DECLARATION: Dict[str, Any] = {
         "key": SYS_DATA_KEY.STOCK_MONEYFLOW_DAILY,
         "type": "time_series",
         "scope": "per_entity",
+        "list_data_key": SYS_DATA_KEY.STOCK_LIST,
         "display_name": "个股日频资金流向",
         "unique_keys": ["id", "date"],
         "loader": StockMoneyflowDailyLoader,

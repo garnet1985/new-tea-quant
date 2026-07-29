@@ -3,9 +3,10 @@
 消费者: TagSettings
 
 相对 strategy.DataSettings：
-- tag 的 base **允许非时序** data_key
+- tag 的 base **允许非时序** data_key（路由 ``non_time_series`` → 主进程一次计算）
+- tag 的 base **允许纯 global 时序**（如 macro.gdp）
 - 默认 ``min_required_records=0``
-- 提供时间轴 / attach_to 推导
+- 提供时间轴 / attach_to / ``base_route()`` 推导
 """
 
 from __future__ import annotations
@@ -64,6 +65,8 @@ class DataSettings(SettingsBase):
 
     @property
     def tag_time_axis_based_on(self) -> str:
+        if self.base_route() == "non_time_series":
+            return ""
         configured = str(self.data.get("tag_time_axis_based_on") or "").strip()
         if configured:
             return configured
@@ -139,9 +142,13 @@ class DataSettings(SettingsBase):
                             )
                         seen_extra.add(key)
                 self._validate_declarations(decls)
-                axis = self.resolve_time_axis()
-                self.raw_settings["data"]["tag_time_axis_based_on"] = axis
-                self._validate_time_axis(axis, decls)
+                if self.base_route() == "non_time_series":
+                    # 无统一时间轴；落库 as_of 由 runner 用 calculation 窗 end 填充
+                    self.raw_settings["data"]["tag_time_axis_based_on"] = ""
+                else:
+                    axis = self.resolve_time_axis()
+                    self.raw_settings["data"]["tag_time_axis_based_on"] = axis
+                    self._validate_time_axis(axis, decls)
             except ValueError as exc:
                 SettingsBase.add_critical(report, "data", str(exc))
 
@@ -180,7 +187,7 @@ class DataSettings(SettingsBase):
         }
 
     def issue_declarations(self) -> List[Dict[str, Any]]:
-        """返回 [base] + required（去重后；兼容 to_dict 展开后再 from_dict）。"""
+        """返回 [base] + required（去重；含已展开的 to_dict 形态）。"""
         decls: List[Dict[str, Any]] = [self.normalize_base(self.base)]
         seen = {decls[0]["data_key"]}
         for raw in self.data.get("required") or []:
@@ -212,12 +219,6 @@ class DataSettings(SettingsBase):
         return meta if isinstance(meta, dict) else None
 
     @classmethod
-    def declaration_data_key(cls, item: Optional[Dict[str, Any]]) -> str:
-        if not isinstance(item, dict):
-            return ""
-        return str(item.get("data_key") or "").strip()
-
-    @classmethod
     def is_time_series(cls, data_key: str) -> bool:
         meta = cls.declaration_meta(data_key)
         if not meta:
@@ -231,21 +232,53 @@ class DataSettings(SettingsBase):
             return False
         return str(meta.get("scope") or "").strip().lower() == ContractScope.PER_ENTITY
 
+    @classmethod
+    def is_global(cls, data_key: str) -> bool:
+        meta = cls.declaration_meta(data_key)
+        if not meta:
+            return False
+        return str(meta.get("scope") or "").strip().lower() == ContractScope.GLOBAL
+
+    @classmethod
+    def is_non_time_series(cls, data_key: str) -> bool:
+        meta = cls.declaration_meta(data_key)
+        if not meta:
+            return False
+        return (
+            str(meta.get("type") or "").strip().lower()
+            == ContractType.NON_TIME_SERIES
+        )
+
+    def base_route(self) -> str:
+        """由 ``data.base`` 推断执行路由：``per_entity`` | ``global`` | ``non_time_series``。
+
+        优先级：非时序 base → ``non_time_series``；否则 global 时序 → ``global``；
+        其余（含 per_entity 时序）→ ``per_entity``。
+        """
+        key = self.base_data_key
+        if self.is_non_time_series(key):
+            return "non_time_series"
+        if self.is_global(key) and self.is_time_series(key):
+            return "global"
+        return "per_entity"
+
+    def requires_execution_mode(self) -> bool:
+        """仅 per_entity 时序需要 ``calculation.execution.mode``。"""
+        return self.base_route() == "per_entity"
+
     def _validate_declarations(self, decls: List[Dict[str, Any]]) -> None:
         issuer = self.contract_issuer()
-        per_entity: List[str] = []
         for i, item in enumerate(decls):
             data_key = item["data_key"]
             decl = issuer.get_declaration(data_key)
             if not isinstance(decl, dict):
                 label = "data.base" if i == 0 else f"data.required[{i - 1}]"
                 raise ValueError(f"{label}.data_key 未注册: {data_key!r}")
-            if self.is_per_entity(data_key):
-                per_entity.append(data_key)
-        if not per_entity:
-            raise ValueError("data 声明须至少包含一个 PER_ENTITY 数据源")
 
     def _validate_time_axis(self, axis: str, decls: List[Dict[str, Any]]) -> None:
+        """global / per_entity 时序路由要求能解析出时序轴；non_time_series 跳过。"""
+        if self.base_route() == "non_time_series":
+            return
         keys = {str(d.get("data_key") or "") for d in decls}
         if axis not in keys:
             raise ValueError(

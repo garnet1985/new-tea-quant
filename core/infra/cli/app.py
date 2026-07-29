@@ -20,8 +20,7 @@ class CliApp:
         self.data_manager = DataManager(is_verbose=is_verbose)
         self.db = self.data_manager.db
         self.data_source = DataSourceManager(is_verbose=is_verbose)
-        self.tag_manager = None
-        self.strategy_manager = None
+        self._tag = None
 
     async def renew_data(
         self,
@@ -31,38 +30,30 @@ class CliApp:
     ) -> None:
         self.data_source.renew(table_name=table_name, force=force)
 
-    def _ensure_strategy_manager(self):
-        if self.strategy_manager is None:
-            from core.modules.strategy_legacy import StrategyManager
+    def _ensure_tag(self):
+        if self._tag is None:
+            from core.modules.tag import Tag
 
-            self.strategy_manager = StrategyManager(is_verbose=self.is_verbose)
-        return self.strategy_manager
+            self._tag = Tag(is_verbose=self.is_verbose)
+        return self._tag
+
+    def list_tags(self, *, enabled_only: bool = False) -> list[str]:
+        """列出已发现的 tag 路径 id（相对 tags 根）。"""
+        return self._ensure_tag().list_ids(enabled_only=enabled_only)
 
     def tag(
         self,
         scenario_name: str | None = None,
         *,
         dry_run: bool = False,
-        stock_limit: int | None = None,
-        profile: bool = False,
-        entities_per_job: int | None = None,
+        entity_limit: int | None = None,
     ) -> None:
-        from core.modules.tag import TagManager
-
-        if self.tag_manager is None:
-            self.tag_manager = TagManager(is_verbose=self.is_verbose)
-
-        # 传递额外的参数到 tag manager
-        if stock_limit is not None:
-            self.tag_manager._dispatch_overrides["stock_limit"] = stock_limit
-        if profile:
-            # 同时设置两个 key 以确保兼容性
-            self.tag_manager._dispatch_overrides["profile"] = True
-            self.tag_manager._dispatch_overrides["profile_enabled"] = True
-        if entities_per_job is not None:
-            self.tag_manager._dispatch_overrides["entities_per_job"] = entities_per_job
-
-        self.tag_manager.execute(scenario_name=scenario_name, dry_run=dry_run)
+        tag = self._ensure_tag()
+        overrides: dict = {}
+        if entity_limit is not None:
+            overrides["entity_limit"] = max(1, int(entity_limit))
+        tag._dispatch_overrides = overrides
+        tag.execute(scenario_name=scenario_name, dry_run=dry_run)
 
     def export_adj_factor_csv(
         self,

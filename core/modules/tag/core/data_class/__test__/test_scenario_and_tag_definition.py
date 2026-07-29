@@ -80,9 +80,24 @@ class TestScenario:
         assert scenario.target_entity_type == "stock_kline_daily"
         assert scenario.is_entity_based is True
         assert scenario.effective_update_mode() == "incremental"
+        assert scenario.is_dry_run is False
         assert [d.name for d in scenario.tag_definitions] == ["market_cap_tier"]
         assert scenario.definitions_by_name()["market_cap_tier"].display_name == "市值"
         assert scenario.settings["execution_mode"] == "entity_based"
+
+    def test_is_dry_run_from_settings(self):
+        ts = TagSettings.from_dict(
+            _userspace_settings(
+                calculation={
+                    "update_mode": "incremental",
+                    "is_dry_run": True,
+                    "execution": {"mode": "entity_based"},
+                }
+            ),
+            tag_key="demo/x",
+        )
+        scenario = Scenario.from_tag_settings(ts)
+        assert scenario.is_dry_run is True
 
     def test_recompute_forces_refresh(self):
         ts = TagSettings.from_dict(

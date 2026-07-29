@@ -12,7 +12,7 @@ def get_strategy_scan_stack() -> SimpleNamespace:
     global _stack
     if _stack is not None:
         return _stack
-    from core.modules.strategy.launcher.scanner_run import (
+    from core.modules.strategy.core.bff_support.scanner_run import (
         get_scan_page_context,
         get_scan_progress,
         get_scan_readiness,

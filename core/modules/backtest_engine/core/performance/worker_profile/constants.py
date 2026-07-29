@@ -61,6 +61,7 @@ ENUMERATOR_DISPATCH_DEFAULTS: Dict[str, Any] = {
 }
 
 TAG_DISPATCH_DEFAULTS: Dict[str, Any] = {
+    # worker.json → job_pipeline.tag.dispatch 的代码 fallback
     "entities_per_job": "auto",
     "dispatch_probe": True,
     "entities_per_job_min": 1,

@@ -33,13 +33,18 @@ terms:
     avoid: ["局部数据"]
 
   PER_ENTITY:
-    definition: "局部数据契约，每个实体都有自己的数据。比如公司财务数据。"
+    definition: "局部数据契约，每个实体都有自己的数据。比如公司财务数据。per_entity 必须声明 list_data_key，指向实体所属的 GLOBAL list（如 stock.list）。"
     aliases: ["局部数据"]
     avoid: ["全局数据"]
 
+  list_data_key:
+    definition: "per_entity contract meta 字段：该系列数据所属实体宇宙的 GLOBAL list data_key（如 stock.kline.daily → stock.list，index.kline.daily → index.list）。"
+    aliases: ["entity list data key", "实体列表 data_key"]
+    avoid: ["entity_list_data_id"]
+
   Entity:
-    definition: "实体，在当前模块中多指单个股票、公司等。"
-    aliases: ["stock", "company"]
+    definition: "实体：股票、指数等；具体宇宙由 per_entity 的 list_data_key 指向的 list 决定。"
+    aliases: ["stock", "index", "company"]
     avoid: []
 
   DataContractType:

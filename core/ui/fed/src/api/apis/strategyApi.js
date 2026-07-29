@@ -570,7 +570,7 @@ export async function fetchSamplingStrategyConfig() {
 }
 
 /**
- * SWB：回测执行模板选项（`simulation.template`）
+ * SWB：回测执行模板选项（`simulation.assumption.template`）
  * @returns {Promise<StrategySettingOption[]>}
  */
 export async function fetchSimulationTemplateOptions() {
@@ -584,8 +584,8 @@ export async function fetchSimulationTemplateOptions() {
 }
 
 /**
- * SWB：回测模板选项 + 联动字段 profile（当前无 profile，与 sampling 对齐）。
- * @returns {Promise<{ options: StrategySettingOption[], profiles: Record<string, StrategySettingProfile> }>}
+ * SWB：回测模板选项 + defaults（嵌套 ``{ tradability: {...} }``，供 assumption 合并）。
+ * @returns {Promise<{ options: StrategySettingOption[], profiles: Record<string, object> }>}
  */
 export async function fetchSimulationTemplateConfig() {
   const json = await requestJson(API_SETTINGS_SIMULATION_TEMPLATES, { method: 'GET' });
@@ -607,7 +607,8 @@ export async function fetchSimulationTemplateConfig() {
 }
 
 /**
- * ``simulation.skip_investment_when`` 可勾选标签（``st`` / ``star_st``）。
+ * ``simulation.risk_control.skip_enter_when`` 可勾选标签（``st`` / ``star_st``）。
+ * HTTP 路径仍为 ``/settings/skip-investment-when``（兼容）。
  * @returns {Promise<StrategySettingOption[]>}
  */
 export async function fetchSkipInvestmentWhenOptions() {

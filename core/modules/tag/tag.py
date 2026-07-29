@@ -16,14 +16,15 @@ from typing import Any, Callable, Dict, List, Optional
 from core.infra.project_context import ProjectContext
 from core.modules.data_manager import DataManager
 from core.modules.tag.core.data_class.scenario import Scenario
-from core.modules.tag.core.engines.entity_based import TagEntityPipeline
+from core.modules.tag.core.engines.global_based import TagGlobalPipeline
+from core.modules.tag.core.engines.non_time_series import TagNonTimeSeriesPipeline
+from core.modules.tag.core.engines.per_entity.entity_based import TagEntityPipeline
 from core.modules.tag.core.engines.shared.tag_settings import TagSettings
-from core.modules.tag.core.engines.slice_based import TagSlicePipeline
+from core.modules.tag.core.engines.per_entity.slice_based import TagSlicePipeline
 from core.modules.tag.core.enums import TagExecutionMode
 from core.modules.tag.core.services.discovery import DiscoveryService
 from core.modules.tag.core.services.discovery.data.discovered_tag import (
-    EnabledTagInfo,
-    TagInfo,
+    DiscoveredTagInfo,
 )
 from core.modules.tag.core.services.entity_list import TagEntityListResolver
 from core.modules.tag.core.services.metadata_ensure import MetadataEnsureService
@@ -44,8 +45,8 @@ class Tag:
         self._dispatch_overrides = dict(dispatch_overrides or {})
         self.data_mgr = DataManager()
         self.tag_data_service = self.data_mgr.stock.tags
-        self._by_id: Dict[str, TagInfo] = {}
-        self._by_key: Dict[str, TagInfo] = {}
+        self._by_id: Dict[str, DiscoveredTagInfo] = {}
+        self._by_key: Dict[str, DiscoveredTagInfo] = {}
         self.refresh()
 
     def refresh(self) -> None:
@@ -65,13 +66,20 @@ class Tag:
                     info.is_enabled,
                 )
 
+    def list_ids(self, *, enabled_only: bool = True) -> List[str]:
+        """已发现 tag 的路径 id（相对 tags 根）。"""
+        items = list(self._by_id.values())
+        if enabled_only:
+            items = [t for t in items if t.is_enabled]
+        return sorted(t.id() for t in items)
+
     def list_keys(self, *, enabled_only: bool = True) -> List[str]:
         items = list(self._by_id.values())
         if enabled_only:
             items = [t for t in items if t.is_enabled]
         return sorted({t.key or t.id() for t in items})
 
-    def find(self, key_or_id: str) -> Optional[TagInfo]:
+    def find(self, key_or_id: str) -> Optional[DiscoveredTagInfo]:
         needle = str(key_or_id or "").strip()
         if not needle:
             return None
@@ -82,11 +90,8 @@ class Tag:
         return DiscoveryService.find_tag(needle)
 
     @staticmethod
-    def _to_enabled(info: TagInfo) -> Optional[EnabledTagInfo]:
-        if not info.is_enabled:
-            return None
-        enabled = DiscoveryService.get_enabled_tags([info])
-        return enabled[0] if enabled else None
+    def _require_enabled(info: DiscoveredTagInfo) -> Optional[DiscoveredTagInfo]:
+        return info if info.is_enabled else None
 
     def execute(
         self,
@@ -142,7 +147,7 @@ class Tag:
         if info is None:
             logger.info("找不到场景: %s，跳过执行", name_or_key)
             return None
-        enabled = self._to_enabled(info)
+        enabled = self._require_enabled(info)
         if enabled is None:
             logger.info("场景 %s 未开启，跳过执行", info.id())
             return None
@@ -165,7 +170,7 @@ class Tag:
             )
             return None
         # 用调用方 settings 覆盖磁盘 settings，但保留 hooks 定位信息
-        merged_info = TagInfo(
+        merged_info = DiscoveredTagInfo(
             unique_relative_path=info.unique_relative_path,
             tag_file=info.tag_file,
             settings_file=info.settings_file,
@@ -179,7 +184,7 @@ class Tag:
             hooks_class_name=info.hooks_class_name,
             hooks_file_path=info.hooks_file_path,
         )
-        enabled = self._to_enabled(merged_info)
+        enabled = self._require_enabled(merged_info)
         if enabled is None:
             logger.info("场景 %s 未开启，跳过执行", info.id())
             return None
@@ -189,7 +194,7 @@ class Tag:
 
     def _execute_tag_info(
         self,
-        tag_info: EnabledTagInfo,
+        tag_info: DiscoveredTagInfo,
         *,
         on_progress: Optional[Callable[[Dict[str, Any]], None]],
         dry_run: bool,
@@ -209,30 +214,45 @@ class Tag:
             return None
 
         scenario = Scenario.from_tag_settings(ts)
+        effective_dry_run = bool(dry_run or ts.is_dry_run)
+        scenario.is_dry_run = effective_dry_run
         if not self.tag_data_service:
             logger.error("无法获取 tag_data_service，跳过执行")
             return None
         MetadataEnsureService(self.tag_data_service).ensure(scenario)
 
-        stock_limit = self._dispatch_overrides.get("stock_limit")
+        entity_limit = self._dispatch_overrides.get("entity_limit")
         entity_ids = TagEntityListResolver.resolve(
             scenario,
-            stock_limit=int(stock_limit) if stock_limit is not None else None,
+            entity_limit=int(entity_limit) if entity_limit is not None else None,
         )
         if not entity_ids:
             logger.info("无法获取实体列表，跳过执行: %s", tag_key)
             return None
 
-        mode = scenario.execution_mode
+        route = ts.data.base_route()
         run_kwargs = dict(
             tag_info=tag_info,
             scenario=scenario,
             entity_ids=entity_ids,
             tag_data_service=self.tag_data_service,
-            shm_info={},
-            dry_run=bool(dry_run or self._dispatch_overrides.get("dry_run")),
+            dry_run=effective_dry_run,
             on_progress=on_progress,
         )
+
+        if route == "global":
+            result = TagGlobalPipeline.run(**run_kwargs)
+            self._save_performance_report(result, scenario, tag_key, "global")
+            return result
+
+        if route == "non_time_series":
+            result = TagNonTimeSeriesPipeline.run(**run_kwargs)
+            self._save_performance_report(
+                result, scenario, tag_key, "non_time_series"
+            )
+            return result
+
+        mode = scenario.execution_mode
         if mode == TagExecutionMode.SLICE_BASED.value:
             result = TagSlicePipeline.run(**run_kwargs)
             self._save_performance_report(result, scenario, tag_key, "slice_based")

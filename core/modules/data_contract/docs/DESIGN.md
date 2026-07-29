@@ -17,7 +17,7 @@
 | `unique_keys` | `validate_raw` 时要求行记录上存在的列（轻量校验）。 |
 | `time_axis_field` / `time_axis_format` | 时序模板使用（如 `date` + `YYYYMMDD`，或 `quarter` + `YYYYQ`）。 |
 | `loader` | `BaseLoader` 子类（非实例）；可选 override **`load_batch`**，见下文。 |
-| `entity_list_data_id` | 部分 per-entity loader 依赖的全局列表类 `DataKey`（如股票池）。 |
+| `list_data_key` | **`scope=per_entity` 必填**：所属实体 GLOBAL list 的 `DataKey`（如 `stock.list` / `index.list`）。Tag / 策略据此解析实体池。 |
 | `display_name` | 展示用名称。 |
 | `defaults` | 与 `issue(..., **override_params)` 合并为 `loader_params`，后者覆盖前者。 |
 

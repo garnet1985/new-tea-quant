@@ -1,6 +1,6 @@
 """从磁盘动态加载用户 ``tag.py`` 中的 hooks 类。
 
-消费者: TagDraft / TagInfo, 后续 engines
+消费者: TagDraft / DiscoveredTagInfo, 后续 engines
 
 本文件:
 - TagHooksLoader: importlib 加载 + 查找公开 TagHooks 子类

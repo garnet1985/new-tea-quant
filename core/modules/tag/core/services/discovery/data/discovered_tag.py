@@ -1,11 +1,10 @@
-"""Tag 发现三层 data class（draft → info → enabled）。
+"""Tag 发现 data class（draft → info）。
 
 消费者: DiscoveryService
 
 本文件:
 - TagDraft: 磁盘发现 + settings/hooks 轻量校验（未通过则丢弃）
-- TagInfo: 验证通过、可 UI 展示（含 settings dict、hooks_class）
-- EnabledTagInfo: is_enabled=True，供后续 calculation 消费
+- DiscoveredTagInfo: 验证通过、可 UI 展示（含 settings dict、hooks_class）；启用与否看 is_enabled
   边界: 负责发现阶段元数据与校验；不负责 TagSettings 全量校验或引擎编排
 """
 
@@ -82,15 +81,43 @@ class TagDraft:
                         "settings.py中calculation.execution必须是dict"
                     )
                 else:
-                    execution_mode = execution.get("mode")
-                    if execution_mode not in ["entity_based", "slice_based"]:
-                        self._validation_errors.append(
-                            "settings.py中calculation.execution.mode必须是"
-                            "entity_based或slice_based"
-                        )
+                    self._validate_execution_mode(settings_dict, execution)
 
         except Exception as exc:
             self._validation_errors.append(f"无法加载settings.py: {exc}")
+
+    def _validate_execution_mode(
+        self,
+        settings_dict: Dict[str, Any],
+        execution: Dict[str, Any],
+    ) -> None:
+        """仅 per_entity 路由要求 mode；global / non_ts 可省略。"""
+        from core.modules.tag.core.engines.shared.tag_settings import (
+            TagSettings,
+        )
+
+        ts = TagSettings.from_dict(
+            dict(settings_dict),
+            tag_key=self.unique_relative_path,
+        )
+        ts.apply_defaults()
+        require_mode = ts.data.requires_execution_mode()
+        execution_mode = execution.get("mode")
+        mode_set = bool(str(execution_mode or "").strip())
+
+        if require_mode:
+            if execution_mode not in ("entity_based", "slice_based"):
+                self._validation_errors.append(
+                    "settings.py中calculation.execution.mode必须是"
+                    "entity_based或slice_based"
+                )
+            return
+
+        if mode_set and execution_mode not in ("entity_based", "slice_based"):
+            self._validation_errors.append(
+                "settings.py中calculation.execution.mode若填写须为"
+                "entity_based或slice_based（对本 base 路由会被忽略）"
+            )
 
     def _validate_hooks(self) -> None:
         hooks_result = TagHooksLoader.load_hooks_class(
@@ -101,14 +128,15 @@ class TagDraft:
 
 
 @dataclass
-class TagInfo(TagDraft):
+class DiscoveredTagInfo(TagDraft):
     """验证合格的 tag 信息（UI 显示）。
 
     符合以下条件：
     1. tag.py 和 settings.py 存在
     2. settings.py 包含 meta.key（全局唯一）
     3. settings.py 包含 is_enabled
-    4. calculation.execution.mode ∈ {entity_based, slice_based}
+    4. per_entity 时 calculation.execution.mode ∈ {entity_based, slice_based}；
+       global / non_time_series 可省略 mode
     5. tag.py 包含公开 hooks 类
     """
 
@@ -123,7 +151,7 @@ class TagInfo(TagDraft):
     folder: Path = field(default_factory=lambda: Path("."))
 
     @classmethod
-    def from_draft(cls, draft: TagDraft) -> Optional["TagInfo"]:
+    def from_draft(cls, draft: TagDraft) -> Optional["DiscoveredTagInfo"]:
         if not draft.is_valid():
             logger.warning(
                 "Tag validation failed: %s, errors: %s",
@@ -162,24 +190,5 @@ class TagInfo(TagDraft):
         )
 
 
-@dataclass
-class EnabledTagInfo(TagInfo):
-    """启用的 tag 信息（calculation 消费）。``is_enabled=True`` 约束。"""
 
-    def get_execution_mode(self) -> str:
-        """``calculation.execution.mode``（发现阶段已校验）。"""
-        calculation = self.settings.get("calculation")
-        if not isinstance(calculation, dict):
-            raise ValueError("settings.calculation 须为 dict")
-        execution = calculation.get("execution")
-        if not isinstance(execution, dict):
-            raise ValueError("settings.calculation.execution 须为 dict")
-        mode = str(execution.get("mode") or "").strip()
-        if mode not in ("entity_based", "slice_based"):
-            raise ValueError(
-                f"settings.calculation.execution.mode 非法: {mode!r}"
-            )
-        return mode
-
-
-__all__ = ["TagDraft", "TagInfo", "EnabledTagInfo"]
+__all__ = ["TagDraft", "DiscoveredTagInfo"]

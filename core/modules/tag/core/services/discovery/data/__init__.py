@@ -1,5 +1,5 @@
 """Discovery data classes."""
 
-from .discovered_tag import EnabledTagInfo, TagDraft, TagInfo
+from .discovered_tag import DiscoveredTagInfo, TagDraft
 
-__all__ = ["TagDraft", "TagInfo", "EnabledTagInfo"]
+__all__ = ["TagDraft", "DiscoveredTagInfo"]

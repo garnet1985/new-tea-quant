@@ -1,7 +1,7 @@
 name: modules.strategy
 version: 0.6.0
 compatible_core_versions: ">=0.4.4"
-description: "策略执行模块：Strategy facade 提供 scan / simulate / analyze / discovery namespace API，内部实现参考strategy_legacy模块迁移。"
+description: "策略执行模块：Strategy facade 提供 scan / simulate / analyze / discovery namespace API。"
 dependencies:
   - modules.data_manager
   - modules.data_contract
@@ -16,5 +16,5 @@ changelog:
       - 创建strategy.py作为Facade，使用namespace API（scan/simulate/analyze/discovery）
       - 创建api.yaml定义公开API契约
       - 创建contracts.py定义公开类型（ExecutionMode/SellReason/SimulateKind）
-      - 内部实现从strategy_legacy迁移（保留参考实现）
+      - 工作台 / CLI / package / progress 已迁入本模块（bff_support + services）
       - 简化__init__.py导出，只导出Strategy和contracts类型

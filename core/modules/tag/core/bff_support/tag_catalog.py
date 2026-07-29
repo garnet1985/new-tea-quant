@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from core.modules.data_manager import DataManager
 from core.modules.tag.core.services.discovery import DiscoveryService
-from core.modules.tag.core.services.discovery.data.discovered_tag import TagInfo
+from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
 
 
 class TagCatalog:
@@ -66,7 +66,7 @@ class TagCatalog:
     @classmethod
     def _summary(
         cls,
-        item: TagInfo,
+        item: DiscoveredTagInfo,
         tag_svc: Any,
         *,
         effective_end: str,
@@ -135,32 +135,27 @@ class TagCatalog:
     @classmethod
     def _execution_mode(cls, settings: Dict[str, Any]) -> str:
         calc = settings.get("calculation") or {}
-        if isinstance(calc, dict):
-            execution = calc.get("execution") or {}
-            if isinstance(execution, dict):
-                mode = str(execution.get("mode") or "").strip()
-                if mode:
-                    return mode
-        return str(settings.get("execution_mode") or "").strip()
+        if not isinstance(calc, dict):
+            return ""
+        execution = calc.get("execution") or {}
+        if not isinstance(execution, dict):
+            return ""
+        return str(execution.get("mode") or "").strip()
 
     @classmethod
     def _update_mode(cls, settings: Dict[str, Any]) -> str:
         calc = settings.get("calculation") or {}
-        if isinstance(calc, dict):
-            mode = str(calc.get("update_mode") or "").strip().lower()
-            if mode:
-                return mode
-        return (
-            str(settings.get("update_mode") or "incremental").strip().lower()
-            or "incremental"
-        )
+        if not isinstance(calc, dict):
+            return "incremental"
+        mode = str(calc.get("update_mode") or "").strip().lower()
+        return mode or "incremental"
 
     @classmethod
     def _recompute(cls, settings: Dict[str, Any]) -> bool:
         calc = settings.get("calculation") or {}
-        if isinstance(calc, dict) and "recompute" in calc:
-            return bool(calc.get("recompute"))
-        return bool(settings.get("recompute"))
+        if not isinstance(calc, dict):
+            return False
+        return bool(calc.get("recompute"))
 
     @classmethod
     def _last_computed_as_of(cls, tag_key: str, tag_svc: Any) -> Optional[str]:

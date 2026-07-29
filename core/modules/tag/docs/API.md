@@ -1,6 +1,6 @@
 # Tag 模块 API 文档
 
-**版本：** `0.4.0`
+**版本：** `0.4.1`
 
 公开导出以 **`core.modules.tag`** / **`api.yaml`** 为准。配置字段以场景 **`settings.py`** 与 **`settings_example.py`** 为准。
 
@@ -15,6 +15,18 @@ CLI 在 **`core/infra/cli`**：
 ```text
 cli.py tag [--scenario PATH] [--list] [--dry-run] [--stock-limit N]
 ```
+
+---
+
+## 路由（`data.base`）
+
+| base contract | 执行 |
+|---------------|------|
+| per_entity 时序 | BacktestEngine：`entity_based` / `slice_based` |
+| global 时序 | `TagGlobalPipeline`（主进程；`execution.mode` 忽略） |
+| non_time_series | 尚未实现 |
+
+实体池：per_entity → `meta.list_data_key`；global → `__global__`。
 
 ---
 
@@ -42,7 +54,16 @@ cli.py tag [--scenario PATH] [--list] [--dry-run] [--stock-limit N]
 
 ## TagHooks
 
-userspace 场景目录的 **`tag.py`** 实现钩子（见 `contracts.TagHooks`）。旧 **`BaseTagWorker` / `tag_worker.py` / `TagManager`** 已移除。
+userspace 场景目录的 **`tag.py`** 实现钩子（见 `contracts.TagHooks`）。
+
+```python
+from core.modules.tag import TagContext, TagHooks
+```
+
+- `calculate_tag(ctx)` — per_entity 的 entity_based；**global 主进程同样复用**
+- `on_calendar_asof(ctx)` — 仅 per_entity 的 slice_based（可选）
+
+旧 **`BaseTagWorker` / `tag_worker.py` / `TagManager`** 已移除。
 
 ---
 

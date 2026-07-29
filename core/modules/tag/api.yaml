@@ -1,5 +1,5 @@
 module: modules.tag
-version: 0.4.0
+version: 0.4.1
 requires: core>=0.4.4
 
 # ---------------------------------------------------------------------------
@@ -8,8 +8,11 @@ requires: core>=0.4.4
 #   Tag                 — Facade，对外唯一入口
 #   scenario / tag_key  — userspace 路径 id（相对 tags 根）或 meta.key
 #   TagHooks            — userspace tag.py 钩子基类
-#   entity_based        — 按实体时序推进
-#   slice_based         — 日历切片 + on_calendar_asof
+#   base_route          — 由 data.base 推断：per_entity | global | non_time_series
+#   entity_based        — 仅 per_entity：按实体时序推进（BE）
+#   slice_based         — 仅 per_entity：日历切片 + on_calendar_asof（BE）
+#   TagGlobalPipeline   — global 时序主进程推进器（不走 BE）
+#   __global__          — global 落库 / progress 哨兵 entity_id
 #   update_mode         — incremental（续算） / refresh（重算）
 #
 # ---------------------------------------------------------------------------

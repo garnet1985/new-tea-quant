@@ -1,11 +1,13 @@
-"""Tests for devcli abbrev expansion and parser."""
+"""Tests for dev CLI abbrev expansion and parser."""
 
 from __future__ import annotations
 
 import pytest
 
-from core.infra.cli.dev.abbrev import expand_argv, is_help_argv
+from core.infra.cli.dev.abbrev import DevAbbrev
 from core.infra.cli.dev.parser import parse_args
+
+pytestmark = pytest.mark.force_run
 
 
 @pytest.mark.parametrize(
@@ -25,7 +27,7 @@ from core.infra.cli.dev.parser import parse_args
     ],
 )
 def test_expand_argv(raw: list[str], expected: list[str]) -> None:
-    assert expand_argv(raw) == expected
+    assert DevAbbrev.expand_argv(raw) == expected
 
 
 def test_parse_default_version() -> None:
@@ -56,5 +58,5 @@ def test_parse_ssp_count() -> None:
 
 
 def test_is_help_argv() -> None:
-    assert is_help_argv(["-h"]) is True
-    assert is_help_argv([]) is False
+    assert DevAbbrev.is_help_argv(["-h"]) is True
+    assert DevAbbrev.is_help_argv([]) is False

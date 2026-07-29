@@ -1,5 +1,1 @@
-"""NTQ developer CLI (``devcli.py``)."""
-
-from core.infra.cli.dev.main import main
-
-__all__ = ["main"]
+"""Dev CLI implementation package (public API: ``Cli.dev``)."""

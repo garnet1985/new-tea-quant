@@ -1,4 +1,4 @@
-"""Tests for CLI abbrev expansion and parser."""
+"""Tests for user CLI abbrev expansion and parser."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
-from core.infra.cli.user.abbrev import expand_argv, is_help_argv
-from core.infra.cli.user.main import main
+from core.infra.cli import Cli
+from core.infra.cli.user.abbrev import UserAbbrev
 from core.infra.cli.user.parser import parse_args
 
 pytestmark = pytest.mark.force_run
@@ -23,7 +23,10 @@ pytestmark = pytest.mark.force_run
         (["v"], ["version"]),
         (["c"], ["scan"]),
         (["sp"], ["strategy_price_factor"]),
-        (["sp", "-f", "--strategy", "demo/x"], ["strategy_price_factor", "-f", "--strategy", "demo/x"]),
+        (
+            ["sp", "-f", "--strategy", "demo/x"],
+            ["strategy_price_factor", "-f", "--strategy", "demo/x"],
+        ),
         (["se", "--strategy", "demo"], ["strategy_enumerate", "--strategy", "demo"]),
         (["so"], ["strategy_portfolio"]),
         (["sy"], ["strategy_analyse"]),
@@ -33,7 +36,7 @@ pytestmark = pytest.mark.force_run
     ],
 )
 def test_expand_argv(raw: list[str], expected: list[str]) -> None:
-    assert expand_argv(raw) == expected
+    assert UserAbbrev.expand_argv(raw) == expected
 
 
 def test_parse_default_version() -> None:
@@ -74,17 +77,22 @@ def test_parse_tag_list_and_dry_run() -> None:
 
 
 def test_is_help_argv() -> None:
-    assert is_help_argv(["-h"]) is True
-    assert is_help_argv([]) is False
+    assert UserAbbrev.is_help_argv(["-h"]) is True
+    assert UserAbbrev.is_help_argv([]) is False
 
 
 def test_default_argv_prints_help_then_version() -> None:
     buf = StringIO()
     with patch("sys.stdout", buf):
-        code = main([])
+        code = Cli.user.main([])
     assert code == 0
     text = buf.getvalue()
-    assert "usage:" in text.lower() or "规则:" in text or "Command" in text or "python cli.py" in text
+    assert (
+        "usage:" in text.lower()
+        or "规则:" in text
+        or "Command" in text
+        or "python cli.py" in text
+    )
     assert "NTQ Core Version:" in text
     help_pos = text.find("python cli.py")
     ver_pos = text.find("NTQ Core Version:")
@@ -95,9 +103,8 @@ def test_default_argv_prints_help_then_version() -> None:
 def test_explicit_version_skips_help_preamble() -> None:
     buf = StringIO()
     with patch("sys.stdout", buf):
-        code = main(["version"])
+        code = Cli.user.main(["version"])
     assert code == 0
     text = buf.getvalue()
     assert "NTQ Core Version:" in text
-    # 显式 version 不应先整屏 dump help
     assert text.strip().startswith("NTQ Core Version:")

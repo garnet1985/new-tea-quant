@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 
-from core.infra.cli.user.commands import DEFAULT_COMMAND, aliases_for
+from core.infra.cli.user.commands import UserCommands
 from core.infra.cli.user.help_text import CLI_COMMAND_REFERENCE
 
 
@@ -68,7 +68,7 @@ def _cmd(sub: argparse._SubParsersAction, name: str, **kwargs: object) -> argpar
 
 
 def _p_scan(sub: argparse._SubParsersAction) -> None:
-    p = _cmd(sub, "scan", aliases=aliases_for("scan"), help="扫描当前投资机会")
+    p = _cmd(sub, "scan", aliases=UserCommands.aliases_for("scan"), help="扫描当前投资机会")
     _add_strategy_target(p)
     p.add_argument("--demo", action="store_true", help="demo 模式")
 
@@ -77,7 +77,7 @@ def _p_strategy_enumerate(sub: argparse._SubParsersAction) -> None:
     p = _cmd(
         sub,
         "strategy_enumerate",
-        aliases=aliases_for("strategy_enumerate"),
+        aliases=UserCommands.aliases_for("strategy_enumerate"),
         help="枚举投资机会",
     )
     _add_strategy_target(p)
@@ -88,7 +88,7 @@ def _p_strategy_price_factor(sub: argparse._SubParsersAction) -> None:
     p = _cmd(
         sub,
         "strategy_price_factor",
-        aliases=aliases_for("strategy_price_factor"),
+        aliases=UserCommands.aliases_for("strategy_price_factor"),
         help="价格因子回放模拟",
     )
     _add_strategy_target(p)
@@ -98,7 +98,7 @@ def _p_strategy_portfolio(sub: argparse._SubParsersAction) -> None:
     p = _cmd(
         sub,
         "strategy_portfolio",
-        aliases=aliases_for("strategy_portfolio"),
+        aliases=UserCommands.aliases_for("strategy_portfolio"),
         help="组合/资金回测（portfolio）",
     )
     _add_strategy_target(p)
@@ -108,7 +108,7 @@ def _p_strategy_simulate(sub: argparse._SubParsersAction) -> None:
     p = _cmd(
         sub,
         "strategy_simulate",
-        aliases=aliases_for("strategy_simulate"),
+        aliases=UserCommands.aliases_for("strategy_simulate"),
         help="完整模拟链路（price → portfolio）",
     )
     _add_strategy_target(p)
@@ -118,14 +118,14 @@ def _p_strategy_analyse(sub: argparse._SubParsersAction) -> None:
     p = _cmd(
         sub,
         "strategy_analyse",
-        aliases=aliases_for("strategy_analyse"),
+        aliases=UserCommands.aliases_for("strategy_analyse"),
         help="分析模拟结果",
     )
     p.add_argument("--session", type=str, default=None)
 
 
 def _p_renew(sub: argparse._SubParsersAction) -> None:
-    p = _cmd(sub, "renew", aliases=aliases_for("renew"), help="更新 data source")
+    p = _cmd(sub, "renew", aliases=UserCommands.aliases_for("renew"), help="更新 data source")
     p.add_argument(
         "source",
         nargs="?",
@@ -144,7 +144,7 @@ def _p_tag(sub: argparse._SubParsersAction) -> None:
     p = _cmd(
         sub,
         "tag",
-        aliases=aliases_for("tag"),
+        aliases=UserCommands.aliases_for("tag"),
         help="执行标签计算（``t -n PATH`` 为从模版新建 Tag 到 PATH）",
     )
     p.add_argument(
@@ -176,7 +176,7 @@ def _p_export_strategy(sub: argparse._SubParsersAction) -> None:
     p = _cmd(
         sub,
         "export_strategy",
-        aliases=aliases_for("export_strategy"),
+        aliases=UserCommands.aliases_for("export_strategy"),
         help="导出策略交流包（zip）",
     )
     p.add_argument("name", nargs="?", default=None, metavar="NAME")
@@ -187,7 +187,7 @@ def _p_import_strategy(sub: argparse._SubParsersAction) -> None:
     p = _cmd(
         sub,
         "import_strategy",
-        aliases=aliases_for("import_strategy"),
+        aliases=UserCommands.aliases_for("import_strategy"),
         help="导入策略交流包",
     )
     p.add_argument("path", nargs="?", default=None, metavar="PATH")
@@ -196,11 +196,11 @@ def _p_import_strategy(sub: argparse._SubParsersAction) -> None:
 
 
 def _p_update(sub: argparse._SubParsersAction) -> None:
-    sub.add_parser("update", aliases=aliases_for("update"), help="检查并升级 core")
+    sub.add_parser("update", aliases=UserCommands.aliases_for("update"), help="检查并升级 core")
 
 
 def _p_version(sub: argparse._SubParsersAction) -> None:
-    sub.add_parser("version", aliases=aliases_for("version"), help="显示 core 版本")
+    sub.add_parser("version", aliases=UserCommands.aliases_for("version"), help="显示 core 版本")
 
 
 def _epilog() -> str:
@@ -208,9 +208,9 @@ def _epilog() -> str:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    from core.infra.cli.user.abbrev import expand_argv
+    from core.infra.cli.user.abbrev import UserAbbrev
 
-    expanded = expand_argv(argv or [])
+    expanded = UserAbbrev.expand_argv(argv or [])
     parser = build_parser()
     args = parser.parse_args(expanded)
 
@@ -218,5 +218,5 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         return args
 
     if args.command is None:
-        args.command = DEFAULT_COMMAND
+        args.command = UserCommands.DEFAULT_COMMAND
     return args

@@ -5,6 +5,10 @@ Layout::
     shared/  — argv expand / help helpers
     user/    — end-user commands
     dev/     — developer / ops commands
+
+Public API: ``from core.infra.cli import Cli``.
 """
 
-__all__: list[str] = []
+from .cli import Cli
+
+__all__ = ["Cli"]

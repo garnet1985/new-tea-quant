@@ -70,9 +70,86 @@ class Strategy:
 
     @staticmethod
     def analyze(*, session_id: Optional[str] = None) -> None:
-        """分析模拟结果。"""
+        """读取各启用策略下 price / portfolio 最新 version 摘要并 present。
+
+        ``session_id`` 预留，当前未使用。
+        """
+        import json
+        from pathlib import Path
+
+        from core.infra.project_context import ProjectContext
+
         _ = session_id
-        raise NotImplementedError("Strategy.analyze() implementation pending")
+
+        enabled = DiscoveryService.get_enabled_strategies()
+        if not enabled:
+            logger.warning("没有启用的策略可分析")
+            return
+
+        def _latest_version_dir(root: Path) -> Optional[Path]:
+            meta_path = root / "meta.json"
+            if not meta_path.is_file():
+                return None
+            try:
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            except Exception:
+                return None
+            try:
+                latest_id = int(meta.get("next_output_version") or 1) - 1
+            except (TypeError, ValueError):
+                return None
+            if latest_id <= 0:
+                return None
+            version_dir = root / str(latest_id)
+            return version_dir if version_dir.is_dir() else None
+
+        found = False
+        for info in enabled:
+            sn = str(info.unique_relative_path or info.key or "").strip()
+            if not sn:
+                continue
+            pf_root = ProjectContext.path.get_strategy_directory_simulation_price(sn)
+            po_root = ProjectContext.path.get_strategy_directory_simulation_portfolio(sn)
+            pf_latest = _latest_version_dir(pf_root)
+            po_latest = _latest_version_dir(po_root)
+            if not pf_latest and not po_latest:
+                continue
+
+            found = True
+            logger.info("📊 strategy=%s", sn)
+
+            if pf_latest:
+                try:
+                    from core.modules.strategy.core.engines.price_factor.report_manager import (
+                        ReportManager as PriceReportManager,
+                    )
+
+                    PriceReportManager.from_output_dir(pf_latest).present()
+                except Exception as exc:
+                    logger.warning(
+                        "   price_factor: version=%s present failed: %s",
+                        pf_latest.name,
+                        exc,
+                    )
+
+            if po_latest:
+                try:
+                    from core.modules.strategy.core.engines.portfolio.report_manager import (
+                        ReportManager as PortfolioReportManager,
+                    )
+
+                    PortfolioReportManager.from_output_dir(po_latest).present()
+                except Exception as exc:
+                    logger.warning(
+                        "   portfolio: version=%s present failed: %s",
+                        po_latest.name,
+                        exc,
+                    )
+
+        if not found:
+            logger.warning(
+                "未找到可分析的 simulations 结果（请先运行 strategy_price_factor / strategy_portfolio）"
+            )
 
     @staticmethod
     def enumerate(

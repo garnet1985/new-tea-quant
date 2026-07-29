@@ -14,7 +14,7 @@ from core.infra.system_actions.shortcuts._shared import (
     inject_meta_key_in_settings_file,
     resolve_dest,
 )
-from core.modules.strategy.services.discovery.path_rules import is_machine_readable_strategy_path
+from core.modules.strategy.core.services.discovery.path_rules import StrategyPathRules
 
 STRATEGY_TEMPLATE_REL = Path("_template") / "empty_strategy"
 
@@ -25,7 +25,7 @@ def scaffold_strategy(raw_path: str) -> ScaffoldResult:
     dest, key = resolve_dest(
         root=root,
         raw_path=raw_path,
-        path_validator=is_machine_readable_strategy_path,
+        path_validator=StrategyPathRules.is_machine_readable_path,
     )
     template = (root / STRATEGY_TEMPLATE_REL).resolve()
     copy_template(template=template, dest=dest)

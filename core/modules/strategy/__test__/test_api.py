@@ -33,8 +33,9 @@ class TestApi(unittest.TestCase):
 
     def test_analyze_api(self):
         """analyze API 可调用且参数正确"""
-        # TODO: 实现测试逻辑
-        pass
+        from core.modules.strategy import Strategy
+
+        self.assertTrue(callable(Strategy.analyze))
 
     def test_list_strategies_api(self):
         """list_strategies API 可调用"""
@@ -80,20 +81,20 @@ class TestContracts(unittest.TestCase):
 
 
 class TestIntegration(unittest.TestCase):
-    """Strategy 与 legacy 模块集成验证"""
+    """Strategy facade 集成验证"""
 
-    def test_strategy_scan_matches_legacy(self):
-        """Strategy.scan() 与 legacy StrategyManager.scan() 结果一致"""
+    def test_strategy_scan_api(self):
+        """Strategy.scan() 可调用"""
         # TODO: 实现测试逻辑
         pass
 
-    def test_strategy_enumerate_matches_legacy(self):
-        """Strategy.enumerate() 与 legacy 枚举结果一致"""
+    def test_strategy_enumerate_api(self):
+        """Strategy.enumerate() 可调用"""
         # TODO: 实现测试逻辑
         pass
 
-    def test_strategy_list_strategies_matches_legacy(self):
-        """Strategy.list_strategies() 与 legacy 结果一致"""
+    def test_strategy_list_strategies_api(self):
+        """Strategy discovery 列表可用"""
         # TODO: 实现测试逻辑
         pass
 

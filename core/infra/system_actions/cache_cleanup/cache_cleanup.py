@@ -20,30 +20,27 @@ def _rm_tree(path: Path) -> None:
 
 
 def _discovered_strategy_keys(*, strategy_names: Optional[Iterable[str]] = None) -> List[str]:
-    """策略 path key 列表；默认走 ``StrategyDiscoveryHelper`` 递归发现（与扫描/列表页一致）。"""
+    """策略 path key 列表；默认走 ``DiscoveryService`` 递归发现（与扫描/列表页一致）。"""
     if strategy_names is not None:
         return sorted({str(name).strip() for name in strategy_names if str(name).strip()})
 
-    from core.modules.strategy.services.discovery import StrategyDiscoveryHelper
-    from core.modules.strategy.services.discovery.path_rules import relative_strategy_key
+    from core.modules.strategy.core.services.discovery import DiscoveryService
 
-    root = ProjectContext.path.get_strategies_root()
-    if not root.is_dir():
-        return []
     keys: List[str] = []
-    for folder in StrategyDiscoveryHelper._iter_strategy_directories(root):
-        try:
-            keys.append(relative_strategy_key(folder, root))
-        except ValueError:
-            continue
+    for info in DiscoveryService.discover_strategies():
+        key = str(info.unique_relative_path or info.key or "").strip()
+        if key:
+            keys.append(key)
     return sorted(keys)
 
 
 def clear_workbench_db_cache() -> int:
     """清空 ``sys_strategy_workbench_snapshot`` 表。返回删除行数。"""
-    from core.modules.strategy.launcher.workbench import clear_workbench_simulation_cache_all
+    from core.modules.strategy.core.bff_support.workbench_cache_clear import (
+        WorkbenchCacheClear,
+    )
 
-    out = clear_workbench_simulation_cache_all()
+    out = WorkbenchCacheClear.clear_all()
     if not out.get("ok"):
         raise RuntimeError(str(out.get("error") or "存储不可用"))
     return int(out.get("deleted_count") or 0)

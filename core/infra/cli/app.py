@@ -21,7 +21,6 @@ class CliApp:
         self.db = self.data_manager.db
         self.data_source = DataSourceManager(is_verbose=is_verbose)
         self._tag = None
-        self.strategy_manager = None
 
     async def renew_data(
         self,
@@ -30,13 +29,6 @@ class CliApp:
         force: bool = False,
     ) -> None:
         self.data_source.renew(table_name=table_name, force=force)
-
-    def _ensure_strategy_manager(self):
-        if self.strategy_manager is None:
-            from core.modules.strategy_legacy import StrategyManager
-
-            self.strategy_manager = StrategyManager(is_verbose=self.is_verbose)
-        return self.strategy_manager
 
     def _ensure_tag(self):
         if self._tag is None:

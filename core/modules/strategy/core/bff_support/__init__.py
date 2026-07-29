@@ -1,8 +1,14 @@
-"""Strategy BFF support — UI catalog / settings / snapshots / run / reports.
+"""Strategy BFF support — UI catalog / settings / snapshots / run / reports / scan.
 
 Consumers: ``core.ui.bff.APIs.strategy_workbench`` / ``strategy_scan``
 """
 
+from .scanner_run import (
+    get_scan_page_context,
+    get_scan_progress,
+    get_scan_readiness,
+    trigger_strategy_scan_run,
+)
 from .settings_options import StrategySettingsOptions
 from .strategy_catalog import StrategyCatalog
 from .workbench_apply_settings import WorkbenchApplySettings
@@ -21,4 +27,8 @@ __all__ = [
     "WorkbenchRunLauncher",
     "WorkbenchSnapshots",
     "WorkbenchStockDetail",
+    "get_scan_page_context",
+    "get_scan_progress",
+    "get_scan_readiness",
+    "trigger_strategy_scan_run",
 ]

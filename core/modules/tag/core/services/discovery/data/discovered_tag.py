@@ -82,15 +82,43 @@ class TagDraft:
                         "settings.py中calculation.execution必须是dict"
                     )
                 else:
-                    execution_mode = execution.get("mode")
-                    if execution_mode not in ["entity_based", "slice_based"]:
-                        self._validation_errors.append(
-                            "settings.py中calculation.execution.mode必须是"
-                            "entity_based或slice_based"
-                        )
+                    self._validate_execution_mode(settings_dict, execution)
 
         except Exception as exc:
             self._validation_errors.append(f"无法加载settings.py: {exc}")
+
+    def _validate_execution_mode(
+        self,
+        settings_dict: Dict[str, Any],
+        execution: Dict[str, Any],
+    ) -> None:
+        """仅 per_entity 路由要求 mode；global / non_ts 可省略。"""
+        from core.modules.tag.core.engines.per_entity.shared.tag_settings import (
+            TagSettings,
+        )
+
+        ts = TagSettings.from_dict(
+            dict(settings_dict),
+            tag_key=self.unique_relative_path,
+        )
+        ts.apply_defaults()
+        require_mode = ts.data.requires_execution_mode()
+        execution_mode = execution.get("mode")
+        mode_set = bool(str(execution_mode or "").strip())
+
+        if require_mode:
+            if execution_mode not in ("entity_based", "slice_based"):
+                self._validation_errors.append(
+                    "settings.py中calculation.execution.mode必须是"
+                    "entity_based或slice_based"
+                )
+            return
+
+        if mode_set and execution_mode not in ("entity_based", "slice_based"):
+            self._validation_errors.append(
+                "settings.py中calculation.execution.mode若填写须为"
+                "entity_based或slice_based（对本 base 路由会被忽略）"
+            )
 
     def _validate_hooks(self) -> None:
         hooks_result = TagHooksLoader.load_hooks_class(
@@ -108,7 +136,8 @@ class TagInfo(TagDraft):
     1. tag.py 和 settings.py 存在
     2. settings.py 包含 meta.key（全局唯一）
     3. settings.py 包含 is_enabled
-    4. calculation.execution.mode ∈ {entity_based, slice_based}
+    4. per_entity 时 calculation.execution.mode ∈ {entity_based, slice_based}；
+       global / non_time_series 可省略 mode
     5. tag.py 包含公开 hooks 类
     """
 

@@ -12,12 +12,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, TYPE_CHECKING
 
-from core.modules.tag.core.engines.per_entity.shared.data_class.calendar_as_of import (
+from core.modules.tag.core.engines.shared.data_class.calendar_as_of import (
     TagCalendarAsOfResult,
 )
 
 if TYPE_CHECKING:
-    from core.modules.tag.core.engines.per_entity.shared.hooks.hook_params import TagContext
+    from core.modules.tag.core.engines.shared.hooks.hook_params import TagContext
 
 
 class TagHooks(ABC):

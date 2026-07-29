@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Dict, List, Mapping, Optional, Tuple, TYPE_CHECKING
 
-from core.modules.tag.core.engines.per_entity.shared.tag_settings.tag_settings import TagSettings
+from core.modules.tag.core.engines.shared.tag_settings.tag_settings import TagSettings
 
 if TYPE_CHECKING:
     from core.modules.tag.core.data_class.tag_definition import TagDefinition

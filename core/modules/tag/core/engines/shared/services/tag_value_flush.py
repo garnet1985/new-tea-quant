@@ -13,7 +13,7 @@ import json
 import logging
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from core.modules.tag.core.engines.per_entity.shared.services.report_save_buffer import (
+from core.modules.tag.core.engines.shared.services.report_save_buffer import (
     TagReportSaveBuffer,
 )
 

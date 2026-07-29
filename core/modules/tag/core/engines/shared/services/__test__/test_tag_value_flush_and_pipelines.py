@@ -14,9 +14,9 @@ from core.modules.tag.core.engines.per_entity.entity_based import (
     TagEntityJobBuilder,
     TagEntityJobExecutor,
 )
-from core.modules.tag.core.engines.per_entity.shared.hooks import TagContext, TagHookRuntime, TagHooks
-from core.modules.tag.core.engines.per_entity.shared.services import TagValueFlushService
-from core.modules.tag.core.engines.per_entity.shared.tag_settings import TagSettings
+from core.modules.tag.core.engines.shared.hooks import TagContext, TagHookRuntime, TagHooks
+from core.modules.tag.core.engines.shared.services import TagValueFlushService
+from core.modules.tag.core.engines.shared.tag_settings import TagSettings
 from core.modules.tag.core.engines.per_entity.slice_based import TagSlicePipeline
 from core.modules.tag.core.engines.per_entity.slice_based.job_builder import TagSliceJobBuilder
 from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo

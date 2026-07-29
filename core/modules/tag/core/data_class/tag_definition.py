@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, Optional, Union
 
-from core.modules.tag.core.engines.per_entity.shared.tag_settings.tag_definition_settings import (
+from core.modules.tag.core.engines.shared.tag_settings.tag_definition_settings import (
     TagDefinitionItem,
 )
 

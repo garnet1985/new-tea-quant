@@ -22,10 +22,10 @@ from core.modules.tag.core.engines.per_entity.shared.pipeline_hooks import (
     TagPipelineHooks,
     TagPipelineRunContext,
 )
-from core.modules.tag.core.engines.per_entity.shared.services.tag_value_flush import (
+from core.modules.tag.core.engines.shared.services.tag_value_flush import (
     TagValueFlushService,
 )
-from core.modules.tag.core.engines.per_entity.shared.tag_settings.tag_settings import TagSettings
+from core.modules.tag.core.engines.shared.tag_settings.tag_settings import TagSettings
 from core.modules.tag.core.enums import TagUpdateMode
 from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
 

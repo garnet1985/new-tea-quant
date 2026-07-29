@@ -19,7 +19,7 @@ from core.modules.tag.core.data_class.scenario import Scenario
 from core.modules.tag.core.engines.global_based import TagGlobalPipeline
 from core.modules.tag.core.engines.non_time_series import TagNonTimeSeriesPipeline
 from core.modules.tag.core.engines.per_entity.entity_based import TagEntityPipeline
-from core.modules.tag.core.engines.per_entity.shared.tag_settings import TagSettings
+from core.modules.tag.core.engines.shared.tag_settings import TagSettings
 from core.modules.tag.core.engines.per_entity.slice_based import TagSlicePipeline
 from core.modules.tag.core.enums import TagExecutionMode
 from core.modules.tag.core.services.discovery import DiscoveryService

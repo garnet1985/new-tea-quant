@@ -14,10 +14,10 @@ import logging
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from core.modules.tag.core.data_class.scenario import Scenario
-from core.modules.tag.core.engines.per_entity.shared.calc_window import TagCalcWindowResolver
+from core.modules.tag.core.engines.shared.calc_window import TagCalcWindowResolver
 from core.modules.tag.core.engines.per_entity.shared.job_payload import TagJobPayloadBuilder
-from core.modules.tag.core.engines.per_entity.shared.prior_values import TagPriorValues
-from core.modules.tag.core.engines.per_entity.shared.tag_settings.tag_settings import TagSettings
+from core.modules.tag.core.engines.shared.prior_values import TagPriorValues
+from core.modules.tag.core.engines.shared.tag_settings.tag_settings import TagSettings
 from core.modules.tag.core.enums import TagUpdateMode
 from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.modules.tag.core.engines.per_entity.shared.tag_settings import TagSettings
+from core.modules.tag.core.engines.shared.tag_settings import TagSettings
 
 _STOCK_KLINE = {"data_key": "stock.kline.daily", "params": {"adjust": "qfq"}}
 

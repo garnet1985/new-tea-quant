@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, ClassVar, Dict, Optional
 
 from core.modules.backtest_engine.contracts import JobReport, RunProgress
-from core.modules.tag.core.engines.per_entity.shared.services.tag_value_flush import (
+from core.modules.tag.core.engines.shared.services.tag_value_flush import (
     TagValueFlushService,
 )
 

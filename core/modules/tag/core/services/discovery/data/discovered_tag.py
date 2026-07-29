@@ -19,7 +19,7 @@ from core.infra.discovery import Discovery
 from core.modules.tag.core.services.discovery.hooks_loader import TagHooksLoader
 
 if TYPE_CHECKING:
-    from core.modules.tag.core.engines.per_entity.shared.hooks.tag_hooks import TagHooks
+    from core.modules.tag.core.engines.shared.hooks.tag_hooks import TagHooks
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +92,7 @@ class TagDraft:
         execution: Dict[str, Any],
     ) -> None:
         """仅 per_entity 路由要求 mode；global / non_ts 可省略。"""
-        from core.modules.tag.core.engines.per_entity.shared.tag_settings import (
+        from core.modules.tag.core.engines.shared.tag_settings import (
             TagSettings,
         )
 

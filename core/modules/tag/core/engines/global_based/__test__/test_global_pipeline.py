@@ -12,9 +12,9 @@ from core.modules.tag.core.engines.global_based import (
     TagGlobalDataLoader,
     TagGlobalPipeline,
 )
-from core.modules.tag.core.engines.per_entity.shared.hooks import TagHooks
-from core.modules.tag.core.engines.per_entity.shared.hooks.hook_params import TagContext
-from core.modules.tag.core.engines.per_entity.shared.tag_settings import TagSettings
+from core.modules.tag.core.engines.shared.hooks import TagHooks
+from core.modules.tag.core.engines.shared.hooks.hook_params import TagContext
+from core.modules.tag.core.engines.shared.tag_settings import TagSettings
 from core.modules.tag.core.enums import TagUpdateMode
 from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
 

@@ -52,7 +52,7 @@ class TagHooksLoader:
             sys.modules[module_id] = module
             spec.loader.exec_module(module)
 
-            from core.modules.tag.core.engines.per_entity.shared.hooks.tag_hooks import TagHooks
+            from core.modules.tag.core.engines.shared.hooks.tag_hooks import TagHooks
 
             hooks_class: Optional[Type] = None
             hooks_class_name: Optional[str] = None
@@ -92,7 +92,7 @@ class TagHooksLoader:
         hooks_file_path: str = "",
     ) -> Type:
         """主进程 / 子进程共用：优先 import 已注册模块，否则按文件路径加载。"""
-        from core.modules.tag.core.engines.per_entity.shared.hooks.tag_hooks import TagHooks
+        from core.modules.tag.core.engines.shared.hooks.tag_hooks import TagHooks
 
         mod_path = str(hooks_module_path or "").strip()
         cls_name = str(hooks_class_name or "").strip()

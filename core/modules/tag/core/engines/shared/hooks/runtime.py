@@ -12,12 +12,12 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Optional, Tuple, Union
 
-from core.modules.tag.core.engines.per_entity.shared.data_class.calendar_as_of import (
+from core.modules.tag.core.engines.shared.data_class.calendar_as_of import (
     TagCalendarAsOfResult,
 )
-from core.modules.tag.core.engines.per_entity.shared.hooks.hook_params import TagContext
-from core.modules.tag.core.engines.per_entity.shared.hooks.tag_hooks import TagHooks
-from core.modules.tag.core.engines.per_entity.shared.tag_settings.tag_settings import TagSettings
+from core.modules.tag.core.engines.shared.hooks.hook_params import TagContext
+from core.modules.tag.core.engines.shared.hooks.tag_hooks import TagHooks
+from core.modules.tag.core.engines.shared.tag_settings.tag_settings import TagSettings
 from core.modules.tag.core.services.discovery.hooks_loader import TagHooksLoader
 
 logger = logging.getLogger(__name__)

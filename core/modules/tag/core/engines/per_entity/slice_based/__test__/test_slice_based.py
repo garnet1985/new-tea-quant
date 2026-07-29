@@ -9,13 +9,13 @@ from unittest.mock import MagicMock, patch
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.modules.backtest_engine.core.shared.types import JobContext
 from core.modules.tag.core.data_class import Scenario, TagDefinition
-from core.modules.tag.core.engines.per_entity.shared.data_class import TagCalendarAsOfResult
-from core.modules.tag.core.engines.per_entity.shared.hooks import (
+from core.modules.tag.core.engines.shared.data_class import TagCalendarAsOfResult
+from core.modules.tag.core.engines.shared.hooks import (
     TagContext,
     TagHookRuntime,
     TagHooks,
 )
-from core.modules.tag.core.engines.per_entity.shared.tag_settings import TagSettings
+from core.modules.tag.core.engines.shared.tag_settings import TagSettings
 from core.modules.tag.core.engines.per_entity.slice_based import (
     SliceTaskState,
     TagSliceJobBuilder,

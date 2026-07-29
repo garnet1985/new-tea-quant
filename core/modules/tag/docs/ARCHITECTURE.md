@@ -31,7 +31,8 @@
 | `tag.py` | Facade：`execute` / `refresh` / `list_*` / `find`；按 `base_route` 分发 |
 | `contracts.py` | 公开 hooks / 枚举类型 |
 | `core/services/` | discovery、metadata_ensure、entity_list |
-| `core/engines/per_entity/` | entity_based / slice_based + shared |
+| `core/engines/shared/` | 全引擎共用：tag_settings / hooks / flush / calc_window / prior_values |
+| `core/engines/per_entity/` | entity_based / slice_based；`shared/` 仅 BE job_payload / pipeline_hooks |
 | `core/engines/global_based/` | TagGlobalPipeline / TagGlobalDataLoader |
 | `core/engines/non_time_series/` | TagNonTimeSeriesPipeline / TagNonTimeSeriesDataLoader |
 | `core/bff_support/` | UI：`TagCatalog` / `TagRunLauncher` |

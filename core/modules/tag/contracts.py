@@ -9,9 +9,9 @@
 
 from __future__ import annotations
 
-from core.modules.tag.core.engines.per_entity.shared.data_class import TagCalendarAsOfResult
-from core.modules.tag.core.engines.per_entity.shared.hooks import TagHooks
-from core.modules.tag.core.engines.per_entity.shared.hooks.hook_params import (
+from core.modules.tag.core.engines.shared.data_class import TagCalendarAsOfResult
+from core.modules.tag.core.engines.shared.hooks import TagHooks
+from core.modules.tag.core.engines.shared.hooks.hook_params import (
     TagContext,
     TagData,
     TagInfo,

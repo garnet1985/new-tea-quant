@@ -10,12 +10,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.modules.tag.core.data_class.scenario import Scenario
-from core.modules.tag.core.engines.per_entity.shared.calc_window import (
+from core.modules.tag.core.engines.shared.calc_window import (
     EntityCalcWindow,
     TagCalcWindows,
 )
-from core.modules.tag.core.engines.per_entity.shared.tag_settings.data_settings import DataSettings
-from core.modules.tag.core.engines.per_entity.shared.tag_settings.tag_settings import TagSettings
+from core.modules.tag.core.engines.shared.tag_settings.data_settings import DataSettings
+from core.modules.tag.core.engines.shared.tag_settings.tag_settings import TagSettings
 from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
 
 logger = logging.getLogger(__name__)

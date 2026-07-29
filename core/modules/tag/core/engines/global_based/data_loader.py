@@ -9,10 +9,10 @@ import logging
 from typing import Any, Dict, List
 
 from core.modules.data_contract import ContractIssuer
-from core.modules.tag.core.engines.per_entity.shared.tag_settings.data_settings import (
+from core.modules.tag.core.engines.shared.tag_settings.data_settings import (
     DataSettings,
 )
-from core.modules.tag.core.engines.per_entity.shared.tag_settings.tag_settings import (
+from core.modules.tag.core.engines.shared.tag_settings.tag_settings import (
     TagSettings,
 )
 

@@ -5,8 +5,8 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 from core.modules.tag.core.data_class.scenario import Scenario
-from core.modules.tag.core.engines.per_entity.shared.calc_window import TagCalcWindowResolver
-from core.modules.tag.core.engines.per_entity.shared.tag_settings import TagSettings
+from core.modules.tag.core.engines.shared.calc_window import TagCalcWindowResolver
+from core.modules.tag.core.engines.shared.tag_settings import TagSettings
 from core.modules.tag.core.enums import TagUpdateMode
 
 

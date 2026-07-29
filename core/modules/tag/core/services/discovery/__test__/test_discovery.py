@@ -66,7 +66,7 @@ def _write_tag(
     folder.joinpath("tag.py").write_text(
         "\n".join(
             [
-                "from core.modules.tag.core.engines.per_entity.shared.hooks.tag_hooks import TagHooks",
+                "from core.modules.tag.core.engines.shared.hooks.tag_hooks import TagHooks",
                 "",
                 "class NestedTagHooks(TagHooks):",
                 "    def calculate_tag(self, ctx):",
@@ -137,7 +137,7 @@ class TestDiscoveryService:
         folder.joinpath("tag.py").write_text(
             "\n".join(
                 [
-                    "from core.modules.tag.core.engines.per_entity.shared.hooks.tag_hooks import TagHooks",
+                    "from core.modules.tag.core.engines.shared.hooks.tag_hooks import TagHooks",
                     "",
                     "class MacroHooks(TagHooks):",
                     "    def calculate_tag(self, ctx):",

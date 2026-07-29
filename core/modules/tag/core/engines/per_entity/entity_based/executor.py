@@ -19,9 +19,9 @@ from core.modules.strategy.core.services.entity_loader.job_bundle_loader import 
     JobBundleLoader,
 )
 from core.modules.tag.core.data_class.tag_definition import TagDefinition
-from core.modules.tag.core.engines.per_entity.shared.hooks.hook_params import TagContext
-from core.modules.tag.core.engines.per_entity.shared.hooks.runtime import TagHookRuntime
-from core.modules.tag.core.engines.per_entity.shared.tag_settings.tag_settings import TagSettings
+from core.modules.tag.core.engines.shared.hooks.hook_params import TagContext
+from core.modules.tag.core.engines.shared.hooks.runtime import TagHookRuntime
+from core.modules.tag.core.engines.shared.tag_settings.tag_settings import TagSettings
 
 logger = logging.getLogger(__name__)
 

@@ -20,16 +20,16 @@ from core.modules.tag.core.engines.global_based.constants import GLOBAL_ENTITY_I
 from core.modules.tag.core.engines.non_time_series.data_loader import (
     TagNonTimeSeriesDataLoader,
 )
-from core.modules.tag.core.engines.per_entity.shared.calc_window import (
+from core.modules.tag.core.engines.shared.calc_window import (
     TagCalcWindowResolver,
 )
-from core.modules.tag.core.engines.per_entity.shared.hooks.hook_params import TagContext
-from core.modules.tag.core.engines.per_entity.shared.hooks.runtime import TagHookRuntime
-from core.modules.tag.core.engines.per_entity.shared.prior_values import TagPriorValues
-from core.modules.tag.core.engines.per_entity.shared.services.tag_value_flush import (
+from core.modules.tag.core.engines.shared.hooks.hook_params import TagContext
+from core.modules.tag.core.engines.shared.hooks.runtime import TagHookRuntime
+from core.modules.tag.core.engines.shared.prior_values import TagPriorValues
+from core.modules.tag.core.engines.shared.services.tag_value_flush import (
     TagValueFlushService,
 )
-from core.modules.tag.core.engines.per_entity.shared.tag_settings.tag_settings import (
+from core.modules.tag.core.engines.shared.tag_settings.tag_settings import (
     TagSettings,
 )
 from core.modules.tag.core.enums import TagUpdateMode

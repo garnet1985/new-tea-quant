@@ -13,6 +13,7 @@ STOCK_CORPORATE_FINANCE_DECLARATION: Dict[str, Any] = {
         "key": SYS_DATA_KEY.STOCK_FINANCE_QUARTERLY,
         "type": "time_series",
         "scope": "per_entity",
+        "list_data_key": SYS_DATA_KEY.STOCK_LIST,
         "display_name": "公司财报（季频）",
         "description": "公司财务报表数据（季度序列）",
         "unique_keys": ["id", "quarter"],

@@ -12,6 +12,7 @@ INDEX_WEIGHT_DAILY_DECLARATION: Dict[str, Any] = {
         "key": SYS_DATA_KEY.INDEX_WEIGHT_DAILY,
         "type": "time_series",
         "scope": "per_entity",
+        "list_data_key": SYS_DATA_KEY.INDEX_LIST,
         "display_name": "指数日频成分权重",
         "unique_keys": ["id", "date", "stock_id"],
         "loader": IndexWeightDailyLoader,

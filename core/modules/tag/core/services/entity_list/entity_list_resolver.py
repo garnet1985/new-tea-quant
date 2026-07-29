@@ -1,6 +1,9 @@
 """解析 Tag 计算所需的 entity id 列表。
 
 消费者: Tag
+
+实体池由 ``data.base``（``attach_to_data_key``）对应 per_entity
+contract 的 ``meta.list_data_key`` 决定（如 stock.list / index.list）。
 """
 
 from __future__ import annotations
@@ -16,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 class TagEntityListResolver:
-    """从 scenario settings / ContractIssuer 推导实体列表。"""
+    """从 scenario base / ContractIssuer 推导实体列表。"""
 
     @classmethod
     def resolve(
@@ -24,6 +27,7 @@ class TagEntityListResolver:
         scenario: Scenario,
         *,
         stock_limit: Optional[int] = None,
+        entity_limit: Optional[int] = None,
     ) -> List[str]:
         target_type = str(
             scenario.settings.get("tag_target_type") or TagTargetType.ENTITY_BASED.value
@@ -31,23 +35,69 @@ class TagEntityListResolver:
         if target_type == TagTargetType.GENERAL.value:
             return ["__general__"]
 
-        entity_ids = cls._load_stock_ids()
-        if stock_limit is not None and len(entity_ids) > int(stock_limit):
+        list_key = cls.resolve_list_data_key(scenario)
+        entity_ids = cls._load_entity_ids(list_key)
+
+        limit = entity_limit if entity_limit is not None else stock_limit
+        if limit is not None and len(entity_ids) > int(limit):
             logger.warning(
-                "实体列表截断 %d → %d（stock_limit）",
+                "实体列表截断 %d → %d（entity_limit）list=%s",
                 len(entity_ids),
-                int(stock_limit),
+                int(limit),
+                list_key,
             )
-            entity_ids = entity_ids[: int(stock_limit)]
+            entity_ids = entity_ids[: int(limit)]
         return entity_ids
 
     @classmethod
-    def _load_stock_ids(cls) -> List[str]:
+    def resolve_list_data_key(cls, scenario: Scenario) -> str:
+        """从 base / attach_to 读 per_entity 声明的 ``list_data_key``。"""
+        base_key = cls._base_data_key(scenario)
+        if not base_key:
+            logger.warning(
+                "scenario %s 缺少 attach_to / data.base，回退 %s",
+                scenario.name,
+                DATA_KEY.STOCK_LIST,
+            )
+            return DATA_KEY.STOCK_LIST
+
         try:
-            contract = ContractIssuer.issue(DATA_KEY.STOCK_LIST, fill_in_data=True)
+            return ContractIssuer.get_list_data_key(base_key)
+        except Exception as exc:
+            logger.error(
+                "读取 base=%s list_data_key 失败，回退 %s: %s",
+                base_key,
+                DATA_KEY.STOCK_LIST,
+                exc,
+                exc_info=True,
+            )
+            return DATA_KEY.STOCK_LIST
+
+    @classmethod
+    def _base_data_key(cls, scenario: Scenario) -> str:
+        attach = str(scenario.attach_to_data_key or "").strip()
+        if attach:
+            return attach
+        settings = scenario.settings if isinstance(scenario.settings, dict) else {}
+        data = settings.get("data")
+        if isinstance(data, dict):
+            base = data.get("base")
+            if isinstance(base, dict):
+                return str(base.get("data_key") or "").strip()
+        return ""
+
+    @classmethod
+    def _load_entity_ids(cls, list_data_key: str) -> List[str]:
+        try:
+            contract = ContractIssuer.issue(list_data_key, fill_in_data=True)
             rows = list(contract.get_data() or [])
         except Exception as exc:
-            logger.error("加载 stock.list 失败: %s", exc, exc_info=True)
+            logger.error(
+                "加载实体列表失败 list_data_key=%s: %s",
+                list_data_key,
+                exc,
+                exc_info=True,
+            )
             return []
         return [str(row.get("id")).strip() for row in rows if row.get("id")]
 

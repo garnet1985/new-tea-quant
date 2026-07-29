@@ -33,6 +33,8 @@ class ContractMeta:
     description: str = ""  # 描述
     unique_keys: List[str] = field(default_factory=list)  # 唯一键字段列表
     loader: Optional[Type[BaseDataContractLoader]] = None  # Loader 类
+    # per_entity 必填：实体所属 GLOBAL list 的 data_key（如 stock.list）
+    list_data_key: str = ""
 
     @classmethod
     def from_dict(cls, meta: Dict[str, Any]) -> ContractMeta:
@@ -45,6 +47,7 @@ class ContractMeta:
             description=meta.get("description", ""),
             unique_keys=meta.get("unique_keys", []),
             loader=meta.get("loader"),
+            list_data_key=str(meta.get("list_data_key") or "").strip(),
         )
 
 

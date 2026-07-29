@@ -28,7 +28,7 @@ class ContractIssuer:
     - declaration.py 文件必须存在
     - loader.py 文件必须存在
     - loader 必须继承 BaseDataContractLoader
-    - meta 必须包含必要字段（key, type, scope）
+    - meta 必须包含必要字段（key, type, scope；per_entity 另需 list_data_key）
 
     使用方式：
         # 方式1：实例方式（传统）
@@ -463,6 +463,15 @@ class ContractIssuer:
             if meta["scope"] not in valid_scopes:
                 errors.append(f"meta.scope 值无效: {meta['scope']}，必须是 {valid_scopes}")
 
+        # per_entity 必须声明所属实体 list 的 data_key
+        if meta.get("scope") == "per_entity":
+            list_data_key = str(meta.get("list_data_key") or "").strip()
+            if not list_data_key:
+                errors.append(
+                    "meta.scope=per_entity 时必须提供 meta.list_data_key"
+                    "（指向 GLOBAL list 的 data_key，如 stock.list）"
+                )
+
         return errors
 
     def get_contract(self, key: str) -> BaseDataContract:
@@ -714,6 +723,41 @@ class ContractIssuer:
         
         # 判断scope
         return meta.get("scope") == "global"
+
+    @classmethod
+    def get_list_data_key(cls, data_key: str) -> str:
+        """读取 per_entity contract 的 ``meta.list_data_key``。
+
+        Args:
+            data_key: 如 ``stock.kline.daily`` / ``index.kline.daily``
+
+        Returns:
+            GLOBAL list 的 data_key（如 ``stock.list``）
+
+        Raises:
+            ValueError: key 未发现，或不是 per_entity / 缺少 list_data_key
+        """
+        if not cls._discovered:
+            cls._auto_discover()
+
+        key = str(data_key or "").strip()
+        if key not in cls._declarations_cache:
+            raise ValueError(f"未发现的 contract: {key}")
+
+        meta = cls._declarations_cache[key].get("meta") or {}
+        if not isinstance(meta, dict):
+            raise ValueError(f"contract {key} 缺少 meta")
+
+        scope = str(meta.get("scope") or "").strip().lower()
+        if scope != "per_entity":
+            raise ValueError(
+                f"contract {key} 的 scope={scope!r}，仅 per_entity 有 list_data_key"
+            )
+
+        list_key = str(meta.get("list_data_key") or "").strip()
+        if not list_key:
+            raise ValueError(f"per_entity contract {key} 缺少 meta.list_data_key")
+        return list_key
 
     @classmethod
     def _auto_discover(cls) -> None:

@@ -12,6 +12,7 @@ STOCK_INDICATORS_DAILY_DECLARATION: Dict[str, Any] = {
         "key": SYS_DATA_KEY.STOCK_INDICATORS_DAILY,
         "type": "time_series",
         "scope": "per_entity",
+        "list_data_key": SYS_DATA_KEY.STOCK_LIST,
         "display_name": "股票日频指标（PE/PB/市值）",
         "unique_keys": ["id", "date"],
         "loader": StockIndicatorsDailyLoader,

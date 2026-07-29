@@ -1,7 +1,7 @@
 /** 与 ``sortMappedEnumRows`` 字段一致；仅用于首屏默认顺序（后续排序为 DataGrid 客户端） */
 export const ENUM_REF_DEFAULT_SORT = { sortBy: 'opportunities', order: 'desc' };
 
-/** ``0_stock_ref.json`` 逐股条目（snake_case）。 */
+/** ``entity_list.json`` 逐股条目（snake_case）。 */
 export function mapStockRefToRows(stockRef) {
   if (!stockRef || typeof stockRef !== 'object') return [];
   return Object.entries(stockRef).map(([code, v]) => {
@@ -12,7 +12,7 @@ export function mapStockRefToRows(stockRef) {
       stockName: String(row.stock_name || code),
       opportunities: Number(row.opportunities ?? 0),
       completionRate: Number(row.completion_rate ?? 0),
-      triggerSpanDays: Number(row.trigger_span_days ?? 0),
+      triggerSpanDays: Number(row.avg_gap_days ?? 0),
     };
   });
 }

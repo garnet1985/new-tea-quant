@@ -2,23 +2,28 @@ const ACTION_NONE = '';
 const ACTION_SET_PROTECT_LOSS = 'set_protect_loss';
 const ACTION_SET_DYNAMIC_LOSS = 'set_dynamic_loss';
 
-const STOCK_STATUS_RULE_NAMES = ['st', 'star_st'];
-
-const STOCK_STATUS_RULE_META = {
-  st: {
-    label: 'ST（含 SST）',
-    tooltip: '持仓期间进入 ST 状态时触发本规则。',
-  },
-  star_st: {
-    label: '*ST（含 S*ST）',
-    tooltip: '持仓期间进入 *ST 状态时触发本规则。',
-  },
-};
-
 const TAKE_PROFIT_ACTION_OPTIONS = [
   { label: '不触发', value: ACTION_NONE },
   { label: '保本止损', value: ACTION_SET_PROTECT_LOSS },
   { label: '动态止损', value: ACTION_SET_DYNAMIC_LOSS },
+];
+
+const EXPIRATION_MODE_OPTIONS = [
+  {
+    label: '开市日',
+    value: 'open_day',
+    tooltip: '按开市日计数持有期（与 Investment 一致，常用）。',
+  },
+  {
+    label: '交易日',
+    value: 'trading_day',
+    tooltip: '按交易日计数持有期。',
+  },
+  {
+    label: '自然日',
+    value: 'natural_day',
+    tooltip: '按自然日计数持有期。',
+  },
 ];
 
 function takeProfitActionFromStage(stage) {
@@ -38,12 +43,23 @@ function toNumberOrEmpty(value, fallback = '') {
   return Number.isNaN(n) ? fallback : n;
 }
 
+function normalizeExpirationMode(expiration) {
+  if (!expiration || typeof expiration !== 'object') return 'open_day';
+  if (expiration.mode) return String(expiration.mode);
+  if (expiration.is_trading_days === false) return 'natural_day';
+  if (expiration.is_trading_days === true) return 'trading_day';
+  return 'open_day';
+}
+
 function normalizeStage(stage) {
+  const exitRatio = stage?.exit_ratio !== undefined
+    ? stage.exit_ratio
+    : stage?.sell_ratio;
   return {
     name: stage?.name || '',
     ratio: toNumberOrEmpty(stage?.ratio, ''),
     close_invest: Boolean(stage?.close_invest),
-    sell_ratio: toNumberOrEmpty(stage?.sell_ratio, ''),
+    exit_ratio: toNumberOrEmpty(exitRatio, ''),
     actions: Array.isArray(stage?.actions) ? stage.actions : [],
     action: takeProfitActionFromStage(stage),
   };
@@ -53,42 +69,8 @@ function hasGoalExpiration(goal) {
   return goal?.expiration != null && typeof goal.expiration === 'object';
 }
 
-function readStockStatusRules(goal) {
-  const raw = goal?.stock_status_risk_management;
-  if (Array.isArray(raw)) return raw;
-  if (raw && typeof raw === 'object' && Array.isArray(raw.rules)) return raw.rules;
-  return [];
-}
-
-function normalizeStockStatusRuleDraft(rules, name) {
-  const rule = rules.find((row) => String(row?.name || '').trim().toLowerCase() === name);
-  if (!rule) {
-    return { enabled: false, close_invest: true, sell_ratio: '' };
-  }
-  const closeInvest = rule.close_invest !== false ? Boolean(rule.close_invest) : false;
-  return {
-    enabled: true,
-    close_invest: closeInvest,
-    sell_ratio: closeInvest ? '' : toNumberOrEmpty(rule.sell_ratio, ''),
-  };
-}
-
-function stockStatusRuleToPayload(draft, name) {
-  if (!draft?.enabled) return null;
-  if (Boolean(draft.close_invest)) {
-    return { name, close_invest: true };
-  }
-  const ratio = toNumberOrEmpty(draft.sell_ratio, '');
-  const payload = { name, close_invest: false };
-  if (ratio !== '' && Number(ratio) > 0) {
-    payload.sell_ratio = Number(ratio);
-  }
-  return payload;
-}
-
 export function normalizeGoalSettings(goal) {
   const expirationEnabled = hasGoalExpiration(goal);
-  const stockStatusRules = readStockStatusRules(goal);
   return {
     expirationEnabled,
     expiration: {
@@ -96,9 +78,7 @@ export function normalizeGoalSettings(goal) {
         expirationEnabled ? goal.expiration.fixed_window_in_days : undefined,
         30,
       ),
-      is_trading_days: expirationEnabled
-        ? goal.expiration.is_trading_days !== false
-        : true,
+      mode: expirationEnabled ? normalizeExpirationMode(goal.expiration) : 'open_day',
     },
     stop_loss: {
       stages: Array.isArray(goal?.stop_loss?.stages)
@@ -109,10 +89,6 @@ export function normalizeGoalSettings(goal) {
       stages: Array.isArray(goal?.take_profit?.stages)
         ? goal.take_profit.stages.map(normalizeStage)
         : [],
-    },
-    stock_status_risk_management: {
-      st: normalizeStockStatusRuleDraft(stockStatusRules, 'st'),
-      star_st: normalizeStockStatusRuleDraft(stockStatusRules, 'star_st'),
     },
     protect_loss: goal?.protect_loss
       ? {
@@ -156,7 +132,7 @@ export function applyGoalActions(goal) {
     const days = toNumberOrEmpty(expDraft.fixed_window_in_days, 30);
     next.expiration = {
       fixed_window_in_days: days === '' ? 30 : days,
-      is_trading_days: expDraft.is_trading_days !== false,
+      mode: expDraft.mode || 'open_day',
     };
   } else {
     delete next.expiration;
@@ -199,55 +175,13 @@ export function applyGoalActions(goal) {
     };
   }
 
-  const stockStatusDraft = next.stock_status_risk_management;
+  // 股票状态风控已迁至 simulation.risk_control
   delete next.stock_status_risk_management;
-  const stockStatusRules = STOCK_STATUS_RULE_NAMES
-    .map((name) => stockStatusRuleToPayload(stockStatusDraft?.[name], name))
-    .filter(Boolean);
-  if (stockStatusRules.length > 0) {
-    next.stock_status_risk_management = { rules: stockStatusRules };
-  }
 
   return next;
 }
 
 const goalExpirationEnabled = ({ values }) => Boolean(values?.expirationEnabled);
-
-const stockStatusRuleEnabled = (name) => ({ values }) => (
-  Boolean(values?.stock_status_risk_management?.[name]?.enabled)
-);
-
-const stockStatusRuleSellRatioReadonly = (name) => ({ values }) => (
-  Boolean(values?.stock_status_risk_management?.[name]?.close_invest)
-);
-
-function buildStockStatusRuleFields(name) {
-  const meta = STOCK_STATUS_RULE_META[name];
-  return [
-    {
-      name: `stock_status_risk_management.${name}.enabled`,
-      type: 'switch',
-      label: '启用规则',
-      tooltip: meta.tooltip,
-    },
-    {
-      name: `stock_status_risk_management.${name}.close_invest`,
-      type: 'switch',
-      label: '触发清仓',
-      tooltip: '开启后触发时全部卖出；关闭后可填写部分平仓比例。',
-      visibleWhen: stockStatusRuleEnabled(name),
-    },
-    {
-      name: `stock_status_risk_management.${name}.sell_ratio`,
-      type: 'number',
-      label: '平仓比例',
-      tooltip: '部分卖出比例（0～1 的小数）；开启「触发清仓」时不可编辑。',
-      parse: (raw) => toNumberOrEmpty(raw, ''),
-      visibleWhen: stockStatusRuleEnabled(name),
-      readonlyWhen: stockStatusRuleSellRatioReadonly(name),
-    },
-  ];
-}
 
 const goalBaseFields = [
   {
@@ -260,15 +194,16 @@ const goalBaseFields = [
     name: 'expiration.fixed_window_in_days',
     type: 'number',
     label: '到期窗口天数',
-    tooltip: '指过去多少个交易日或工作日后自动平仓，是自然日还是交易日请在「是否按照交易日计数」里设置',
+    tooltip: '持有多少天后自动平仓；计数口径见「到期计数模式」。',
     parse: (raw) => toNumberOrEmpty(raw, ''),
     visibleWhen: goalExpirationEnabled,
   },
   {
-    name: 'expiration.is_trading_days',
-    type: 'switch',
-    label: '是否按照交易日计数',
-    tooltip: '如果不是开启按照交易日计算，那么回测到期则会按照自然日计数',
+    name: 'expiration.mode',
+    type: 'select',
+    label: '到期计数模式',
+    tooltip: 'open_day / trading_day / natural_day，与 Investment 持有期计数一致。',
+    options: EXPIRATION_MODE_OPTIONS,
     visibleWhen: goalExpirationEnabled,
   },
 ];
@@ -309,7 +244,7 @@ const goalStageSchemas = [
       name: '',
       ratio: '',
       close_invest: false,
-      sell_ratio: '',
+      exit_ratio: '',
       actions: [],
     }),
     template: [
@@ -328,7 +263,7 @@ const goalStageSchemas = [
         parse: (raw) => toNumberOrEmpty(raw, ''),
       },
       {
-        key: 'sell_ratio',
+        key: 'exit_ratio',
         type: 'number',
         label: '平仓比例',
         tooltip: '这个阶段完成时卖出多少仓位，用小数表示百分比（0～1）',
@@ -346,7 +281,7 @@ const goalStageSchemas = [
       name: '',
       ratio: '',
       close_invest: false,
-      sell_ratio: '',
+      exit_ratio: '',
       actions: [],
       action: ACTION_NONE,
     }),
@@ -366,7 +301,7 @@ const goalStageSchemas = [
         parse: (raw) => toNumberOrEmpty(raw, ''),
       },
       {
-        key: 'sell_ratio',
+        key: 'exit_ratio',
         type: 'number',
         label: '平仓比例',
         tooltip: '这个阶段完成时卖出多少仓位，用小数表示百分比（0～1）',
@@ -455,19 +390,6 @@ const strategyGoalSchema = {
       label: '动态止损设置',
       visibleWhen: hasDynamicLossAction,
       children: dynamicLossFields.map(toEditorField),
-    },
-    {
-      name: 'strategyGoal.stockStatusRisk',
-      type: 'fieldGroup',
-      label: '股票状态风险管控',
-      tooltip: '持仓期间遇 ST/*ST 时的强平规则；退市强平由引擎默认启用，不可关闭。',
-      children: STOCK_STATUS_RULE_NAMES.map((name) => ({
-        name: `strategyGoal.stockStatusRisk.${name}`,
-        type: 'fieldGroup',
-        label: STOCK_STATUS_RULE_META[name].label,
-        tooltip: STOCK_STATUS_RULE_META[name].tooltip,
-        children: buildStockStatusRuleFields(name).map(toEditorField),
-      })),
     },
   ],
 };

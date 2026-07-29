@@ -131,7 +131,7 @@ Pipeline    → 周边编排（采样、BE.run、ReportManager）
 | `PENDING_TO_ENTER` 挂单风控（touch / wait / drift / abort） | done |
 | ReportManager 统一生命周期（`BaseReportManager` + 四引擎） | done |
 
-`core/bff_support/`：**保留**（留给 UI 集成；当前空目录）。
+`core/bff_support/`：UI 集成适配层（BFF 调用；core 不依赖 BFF）。已有 `StrategyCatalog`、`StrategySettingsOptions`、`WorkbenchSnapshots`、`WorkbenchRunLauncher`（V2-01…06）。
 
 ---
 
@@ -193,7 +193,7 @@ Pipeline    → 周边编排（采样、BE.run、ReportManager）
 | Job payload 组装重叠 | `enumerator/common/base_job_builder.py` vs S/P `JobBuilder` | entity_shared / shm / strategy_info 模式重复 |
 | 贴板/tradability 重叠 | `scanner/helpers/tradability.py` vs price `deferred_exit` + simulation risk settings | 语义近，实现散 |
 | Discovery 校验副作用 | `discovery` → `StrategyHooksLoader` | 发现阶段 exec 用户 `strategy.py`；失败策略仍可能进 list |
-| 空壳 / 薄目录 | `core/bff_support/`（空，**保留**）；`core/services/data/` 仅 recorder；`discovery/__test__/` 空 | bff 留给 UI；其余可随手清 |
+| 空壳 / 薄目录 | `core/services/data/` 仅 recorder；`discovery/__test__/` 空 | 可随手清；`bff_support` 已开始接 UI |
 | shared `Investment` 体量 | `data_class/investment/` | #6 曾跳过拆分；与入场风控一起再拆更合适 |
 | price_factor `on_tick` noop | `price_factor/executor.py` | 回放仍在 after_task；迁 `on_tick` 后再议 event 轴（勿先加 TimelineBuilder） |
 
@@ -214,7 +214,7 @@ Pipeline    → 周边编排（采样、BE.run、ReportManager）
 |----|------|
 | 在 BE 内核调 `contract.until` | 切片属 Strategy 适配层（`AsOfSlice`），不把 data_contract 绑进 BE |
 | 为 enum 再引入 TimelineBuilder / JobSession | 禁止 |
-| 删 `bff_support` | 留给 UI |
+| 删 `bff_support` | 已接 UI；随迁移扩展 |
 | 拆 `fingerprints` 出 `simulation_cache` | **不做**：指纹本就是给 cache 用的；以后若边界变了再挪 |
 
 ---

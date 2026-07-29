@@ -94,7 +94,10 @@ def get_settings_simulation_templates():
     methods=["GET"],
 )
 def get_settings_skip_investment_when():
-    """GET /strategy/settings/skip-investment-when"""
+    """GET /strategy/settings/skip-investment-when
+
+    URL 兼容旧路径；语义为 ``simulation.risk_control.skip_enter_when``。
+    """
     s = get_strategy_workbench_stack()
     return ok({"items": s.items_skip_investment_when()})
 
@@ -224,13 +227,13 @@ def get_strategy_step_report(strategy_name, step, version_id):
     return ok(msg)
 
 
-# --- V2-07b：枚举逐股 ref（``0_stock_ref.json``） ---
+# --- V2-07b：枚举 / 价格逐股 ref（``entity_list.json``） ---
 @strategy_workbench_api_bp.route(
     "/v1/strategy/<path:strategy_name>/<step>/report_ref/<version_id>",
     methods=["GET"],
 )
 def get_strategy_step_report_ref(strategy_name, step, version_id):
-    """GET …/report_ref/<version_id> — ``enum`` / ``price`` 逐股 ref；``stock_ref`` 可空（见 ``stock_ref_available``）。"""
+    """GET …/report_ref/<version_id> — ``enum`` / ``price`` 逐股 ref（NEW ``entity_list.json``）；``stock_ref`` 可空（见 ``stock_ref_available``）。"""
     s = get_strategy_workbench_stack()
     norm = s.normalize_step(step)
     if norm is None:

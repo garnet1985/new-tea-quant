@@ -175,7 +175,17 @@ class Strategy:
                     ctx.kind.value,
                     cache_key,
                 )
-                return cached
+                row = SimulationCacheManager._load_row_by_fingerprints(
+                    cache_key,
+                    ctx.fp_res.settings_fp,
+                    ctx.fp_res.env_fp,
+                    disk_settings_hash=str(
+                        getattr(ctx.fp_res, "disk_settings_hash", "") or ""
+                    ),
+                )
+                out = dict(cached)
+                out["_workbench_version"] = int((row or {}).get("version") or 0)
+                return out
             logger.info(
                 "simulate cache miss: kind=%s strategy=%s",
                 ctx.kind.value,
@@ -229,6 +239,7 @@ class Strategy:
     ) -> Dict[str, Any]:
         """依次执行 Pipeline；每步完成后按指纹更新对应 cache slot。"""
         consolidated: Dict[str, Any] = {}
+        last_wb_version = 0
         for step in ctx.steps:
             step_res = BackTestPipelines[step].run(ctx)
             consolidated[step.value] = step_res
@@ -238,17 +249,21 @@ class Strategy:
                     ctx.enum_version = str(version_id)
 
             # 逐步写 slot：enum 先落盘后，即使下游 price 失败，指纹→enum version 仍可复用
-            SimulationCacheManager.set_cache(
+            wb_version = SimulationCacheManager.set_cache(
                 cache_key,
                 ctx.fp_res,
                 {step.value: step_res},
             )
+            if int(wb_version or 0) > 0:
+                last_wb_version = int(wb_version)
             logger.info(
-                "simulate cache updated: kind=%s strategy=%s version_id=%s",
+                "simulate cache updated: kind=%s strategy=%s version_id=%s workbench=%s",
                 step.value,
                 cache_key,
                 step_res.get("version_id"),
+                last_wb_version,
             )
+        consolidated["_workbench_version"] = last_wb_version
         return consolidated
 
     @staticmethod

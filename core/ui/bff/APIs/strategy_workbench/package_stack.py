@@ -14,16 +14,14 @@ def get_strategy_package_stack() -> SimpleNamespace:
         return _stack
 
     from core.infra.export_import import ExportImport
-    from core.modules.strategy.launcher.package_cli import (
+    from core.modules.strategy.core.services.package import (
         bundle_filename,
-        parse_export_target,
-        single_entity_filename,
-    )
-    from core.modules.strategy.services.package import (
         export_single_entity,
         export_strategy_bundle,
         import_strategy_bundle,
+        parse_export_target,
         preview_strategy_bundle_import,
+        single_entity_filename,
     )
 
     _stack = SimpleNamespace(

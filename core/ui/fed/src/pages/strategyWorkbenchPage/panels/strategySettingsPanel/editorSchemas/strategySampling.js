@@ -15,8 +15,8 @@ function parseNumber(raw) {
   return Number.isNaN(n) ? '' : n;
 }
 
-const STRATEGY_DEFAULT = 'continuous';
-const STRATEGY_KEYS = ['continuous', 'uniform', 'stratified', 'random', 'pool', 'blacklist'];
+const STRATEGY_DEFAULT = 'uniform';
+const STRATEGY_KEYS = ['continuous', 'uniform', 'stratified', 'random', 'weighted', 'pool', 'blacklist'];
 
 const SAMPLING_STRATEGY_META = {
   continuous: {
@@ -34,6 +34,10 @@ const SAMPLING_STRATEGY_META = {
   random: {
     label: '随机采样',
     tooltip: '在候选池中随机抽取指定数量；可设种子固定随机结果。',
+  },
+  weighted: {
+    label: '加权采样',
+    tooltip: '按权重抽取样本；需提供权重配置。',
   },
   pool: {
     label: '股票池',

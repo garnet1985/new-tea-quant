@@ -1,6 +1,6 @@
 # Tag 架构
 
-**版本：** `0.4.1`
+**版本：** `0.4.2`
 
 ---
 
@@ -11,8 +11,8 @@
 **Discovery**（`settings.py` + `tag.py`）→ **settings 校验** → **metadata ensure** → 按 **`data.base` 路由** → **flush tag_value**。
 
 - **per_entity** → `TagEntityPipeline` / `TagSlicePipeline`（经 BacktestEngine）
-- **global** → `TagGlobalPipeline`（主进程，不走 BE）
-- **non_time_series** → 尚未开放
+- **global** → `TagGlobalPipeline`（主进程日历推进，不走 BE）
+- **non_time_series** → `TagNonTimeSeriesPipeline`（主进程一次计算，不走 BE）
 
 ---
 
@@ -33,7 +33,7 @@
 | `core/services/` | discovery、metadata_ensure、entity_list |
 | `core/engines/per_entity/` | entity_based / slice_based + shared |
 | `core/engines/global_based/` | TagGlobalPipeline / TagGlobalDataLoader |
-| `core/engines/non_time_series/` | 占位（未开放） |
+| `core/engines/non_time_series/` | TagNonTimeSeriesPipeline / TagNonTimeSeriesDataLoader |
 | `core/bff_support/` | UI：`TagCatalog` / `TagRunLauncher` |
 | `core/infra/cli` | `cli.py tag`（模块内无 CLI） |
 
@@ -50,8 +50,8 @@ Tag.execute
   → base_route = data.base（scope × type）
   → per_entity: TagEntityListResolver(list_data_key)
        → TagEntityPipeline | TagSlicePipeline → BacktestEngine → flush
-  → global: TagEntityListResolver → [__global__]
-       → TagGlobalPipeline（主进程 as_of 循环）→ flush
+  → global: [__global__] → TagGlobalPipeline（日历 as_of 循环）→ flush
+  → non_time_series: [__global__] → TagNonTimeSeriesPipeline（一次 calculate_tag）→ flush
 ```
 
 边界细节见 [BOUNDARY_NOTES.md](BOUNDARY_NOTES.md)。
@@ -60,4 +60,4 @@ Tag.execute
 
 ## 依赖
 
-见根目录 `module_info.yaml`。数据读写依赖 `data_manager`；**per_entity** 调度依赖 `backtest_engine`（global 不依赖 BE 执行路径）。
+见根目录 `module_info.yaml`。数据读写依赖 `data_manager`；**per_entity** 调度依赖 `backtest_engine`（global / non_ts 不依赖 BE 执行路径）。

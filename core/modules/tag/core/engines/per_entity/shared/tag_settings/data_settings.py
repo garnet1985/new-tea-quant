@@ -3,7 +3,7 @@
 消费者: TagSettings
 
 相对 strategy.DataSettings：
-- tag 的 base **允许非时序** data_key（路由 ``non_time_series`` 尚未实现）
+- tag 的 base **允许非时序** data_key（路由 ``non_time_series`` → 主进程一次计算）
 - tag 的 base **允许纯 global 时序**（如 macro.gdp）
 - 默认 ``min_required_records=0``
 - 提供时间轴 / attach_to / ``base_route()`` 推导
@@ -65,6 +65,8 @@ class DataSettings(SettingsBase):
 
     @property
     def tag_time_axis_based_on(self) -> str:
+        if self.base_route() == "non_time_series":
+            return ""
         configured = str(self.data.get("tag_time_axis_based_on") or "").strip()
         if configured:
             return configured
@@ -140,9 +142,13 @@ class DataSettings(SettingsBase):
                             )
                         seen_extra.add(key)
                 self._validate_declarations(decls)
-                axis = self.resolve_time_axis()
-                self.raw_settings["data"]["tag_time_axis_based_on"] = axis
-                self._validate_time_axis(axis, decls)
+                if self.base_route() == "non_time_series":
+                    # 无统一时间轴；落库 as_of 由 runner 用 calculation 窗 end 填充
+                    self.raw_settings["data"]["tag_time_axis_based_on"] = ""
+                else:
+                    axis = self.resolve_time_axis()
+                    self.raw_settings["data"]["tag_time_axis_based_on"] = axis
+                    self._validate_time_axis(axis, decls)
             except ValueError as exc:
                 SettingsBase.add_critical(report, "data", str(exc))
 
@@ -276,12 +282,9 @@ class DataSettings(SettingsBase):
                 raise ValueError(f"{label}.data_key 未注册: {data_key!r}")
 
     def _validate_time_axis(self, axis: str, decls: List[Dict[str, Any]]) -> None:
-        # 非时序 base 路由另开；本阶段仍要求能解析出时序轴（global / per_entity）
+        """global / per_entity 时序路由要求能解析出时序轴；non_time_series 跳过。"""
         if self.base_route() == "non_time_series":
-            raise ValueError(
-                "data.base 为非时序：non_time_series 路由尚未实现；"
-                "请使用时序 base，或将时序源放入 data.required 并改用时序 base"
-            )
+            return
         keys = {str(d.get("data_key") or "") for d in decls}
         if axis not in keys:
             raise ValueError(

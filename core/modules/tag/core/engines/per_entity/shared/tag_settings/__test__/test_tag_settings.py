@@ -180,7 +180,7 @@ class TestTagSettings:
             w["field_path"] == "calculation.execution.mode" for w in report.warnings
         )
 
-    def test_non_time_series_base_still_blocked(self):
+    def test_non_time_series_base_ok(self):
         raw = _userspace_settings(
             data={
                 "base": {"data_key": "stock.list", "params": {}},
@@ -188,10 +188,16 @@ class TestTagSettings:
                 "min_required_records": 0,
             },
         )
+        raw["calculation"] = {
+            "update_mode": "refresh",
+            "recompute": True,
+            "execution": {"start_date": "", "end_date": ""},
+        }
         ts = TagSettings.from_dict(raw, tag_key="demo/list")
         report = ts.validate()
-        assert not report.is_usable()
-        assert any("non_time_series" in (e.get("message") or "") for e in report.errors)
+        assert report.is_usable(), report.errors
+        assert ts.data.base_route() == "non_time_series"
+        assert ts.data.tag_time_axis_based_on == ""
 
     def test_demo_market_cap_tier_settings(self):
         from userspace.extensions.tags.demo.market_cap_tier.settings import (

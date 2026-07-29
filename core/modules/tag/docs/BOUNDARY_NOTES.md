@@ -27,6 +27,7 @@ tag/
 - CLI 在 **`core/infra/cli`**（`cli.py tag`），模块内不放 `__main__` / `run_tag`
 - **禁止**再引入 BaseTagWorker / JobPipeline / 旧 timeline|sliced 编排
 - global / non_ts：**不**把 `execution.mode` 映射到 BE，不设 mode 探针
+- non_ts：主进程 **一次** `calculate_tag`；落库 `as_of` = 计算窗 `end_date`（无日历循环）
 - incremental 水位：``sys_tag_calc_progress.last_calculated_end``（DB），**不是** max(as_of) / calculated_at / scenario.updated_at
 - **表 SOT**：`attach_to_data_key` 仅在 ``sys_tag_scenario``；``sys_tag_value`` 只存点事实（as_of + json_value）；frontier 在 progress，value ≠ 水位
 - per_entity 实体池：base 的 ``meta.list_data_key``

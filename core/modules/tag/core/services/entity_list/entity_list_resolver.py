@@ -2,7 +2,7 @@
 
 消费者: Tag
 
-- ``data.base`` scope=global → 哨兵 ``GLOBAL_ENTITY_ID``
+- ``data.base`` scope=global（含非时序 list / 时序 macro）→ 哨兵 ``GLOBAL_ENTITY_ID``
 - ``data.base`` per_entity → ``meta.list_data_key`` 对应 list（stock.list / index.list）
 """
 

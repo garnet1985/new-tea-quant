@@ -1,6 +1,6 @@
 # Tag 模块 API 文档
 
-**版本：** `0.4.1`
+**版本：** `0.4.2`
 
 公开导出以 **`core.modules.tag`** / **`api.yaml`** 为准。配置字段以场景 **`settings.py`** 与 **`settings_example.py`** 为准。
 
@@ -23,10 +23,10 @@ cli.py tag [--scenario PATH] [--list] [--dry-run] [--stock-limit N]
 | base contract | 执行 |
 |---------------|------|
 | per_entity 时序 | BacktestEngine：`entity_based` / `slice_based` |
-| global 时序 | `TagGlobalPipeline`（主进程；`execution.mode` 忽略） |
-| non_time_series | 尚未实现 |
+| global 时序 | `TagGlobalPipeline`（主进程日历推进；`execution.mode` 忽略） |
+| non_time_series | `TagNonTimeSeriesPipeline`（主进程一次计算；`execution.mode` 忽略） |
 
-实体池：per_entity → `meta.list_data_key`；global → `__global__`。
+实体池：per_entity → `meta.list_data_key`；global / non_time_series → `__global__`。
 
 ---
 

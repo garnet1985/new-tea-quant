@@ -17,6 +17,7 @@ from core.infra.project_context import ProjectContext
 from core.modules.data_manager import DataManager
 from core.modules.tag.core.data_class.scenario import Scenario
 from core.modules.tag.core.engines.global_based import TagGlobalPipeline
+from core.modules.tag.core.engines.non_time_series import TagNonTimeSeriesPipeline
 from core.modules.tag.core.engines.per_entity.entity_based import TagEntityPipeline
 from core.modules.tag.core.engines.per_entity.shared.tag_settings import TagSettings
 from core.modules.tag.core.engines.per_entity.slice_based import TagSlicePipeline
@@ -249,12 +250,11 @@ class Tag:
             return result
 
         if route == "non_time_series":
-            logger.error(
-                "Tag non_time_series 路由尚未实现，跳过: %s base=%s",
-                tag_key,
-                ts.data.base_data_key,
+            result = TagNonTimeSeriesPipeline.run(**run_kwargs)
+            self._save_performance_report(
+                result, scenario, tag_key, "non_time_series"
             )
-            return None
+            return result
 
         mode = scenario.execution_mode
         if mode == TagExecutionMode.SLICE_BASED.value:

@@ -1,6 +1,6 @@
 # Tag 设计决策
 
-**版本：** `0.4.1`
+**版本：** `0.4.2`
 
 仅保留仍有效的决策。已废弃的 JobPipeline / BaseTagWorker / 模块内 CLI 决策不再收录。
 
@@ -26,7 +26,8 @@
 
 **后果**  
 - Facade 按 base 元数据分发 pipeline / runner  
-- global 实体池为哨兵（如 `__global__`），progress / value 仍用同一套表  
+- global / non_time_series 实体池为哨兵（如 `__global__`），progress / value 仍用同一套表  
+- non_time_series 无日历循环；落库 `as_of` 取计算窗 `end_date`
 
 ---
 

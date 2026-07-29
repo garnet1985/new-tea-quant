@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from core.modules.data_contract.core.base.base_loader import BaseDataContractLoader
 from core.modules.data_manager import DataManager
-from core.utils.date.date_utils import DateUtils
+from core.infra.utils.date.date_utils import DateUtils
 
 
 class StockIndicatorsDailyLoader(BaseDataContractLoader):

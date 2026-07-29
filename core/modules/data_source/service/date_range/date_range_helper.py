@@ -20,7 +20,7 @@ from core.modules.data_source.enums import TermType, UpdateMode
 from core.infra.project_context import ProjectContext
 
 from core.modules.data_source.service.renew.renew_common_helper import RenewCommonHelper
-from core.utils.date.date_utils import DateUtils
+from core.infra.utils.date.date_utils import DateUtils
 
 
 logger = logging.getLogger(__name__)

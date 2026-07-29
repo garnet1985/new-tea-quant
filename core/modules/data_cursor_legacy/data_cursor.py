@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Hashable, List, Mapping, MutableMapping, Optional
 
 from core.modules.data_contract.contracts import BaseDataContract, ContractType
-from core.utils.date.date_utils import DateUtils
+from core.infra.utils.date.date_utils import DateUtils
 
 
 @dataclass

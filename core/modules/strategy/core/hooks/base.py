@@ -94,7 +94,7 @@ class StrategyHooks(ABC):
 
     @staticmethod
     def deterministic_roll(*key_parts: Any) -> float:
-        from core.utils.math.deterministic_random import deterministic_unit_float
+        from core.infra.utils.math.deterministic_random import deterministic_unit_float
 
         return deterministic_unit_float(*key_parts)
 

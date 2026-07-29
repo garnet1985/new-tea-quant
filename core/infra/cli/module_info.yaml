@@ -1,11 +1,19 @@
 name: infra.cli
-version: 0.2.1
+version: 0.4.0
 compatible_core_versions: ">=0.4.1"
-description: "NTQ 用户 CLI：策略/标签/数据扫描/更新/模拟/分析/管理。"
+description: "NTQ CLI Facade：Cli.user / Cli.dev / Cli.shared；双入口 cli.py 与 devcli.py。"
 dependencies:
   - infra.project_context
   - infra.system_actions
 changelog:
+  - version: "0.4.0"
+    changes:
+      - 标准模块化：Facade Cli + namespace；仅 export 类
+      - 补齐 api.yaml / glossary.yaml / docs；无自由函数公开导出
+  - version: "0.3.0"
+    changes:
+      - 合并 infra.devcli：cli/{shared,user,dev}；入口仍为 cli.py / devcli.py
+      - 删除独立 infra.devcli 包（无兼容层）
   - version: "0.2.1"
     changes:
       - 新增 tag 的 dry-run 模式：运行计算但不写入数据库

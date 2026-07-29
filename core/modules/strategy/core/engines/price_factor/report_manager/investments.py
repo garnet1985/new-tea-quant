@@ -13,7 +13,7 @@ from typing import Any, ClassVar, Dict, List, Sequence
 from core.modules.strategy.core.engines.price_factor.report_manager.report_consts import (
     ReportPaths,
 )
-from core.utils.io.csv_io import read_csv_to_dicts, write_dicts_to_csv
+from core.infra.utils.io.csv_io import read_csv_to_dicts, write_dicts_to_csv
 
 
 @dataclass

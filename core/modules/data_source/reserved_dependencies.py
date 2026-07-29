@@ -51,7 +51,7 @@ def _resolve_latest_completed_trading_date() -> List[dict]:
         logger.warning(
             "DataManager 或 service 不可用，保留依赖 latest_completed_trading_date 无法解析"
         )
-        from core.utils.date.date_utils import DateUtils
+        from core.infra.utils.date.date_utils import DateUtils
         fallback = DateUtils.today()
         return [{"date": fallback}]
     calendar = getattr(data_manager.service, "calendar", None)
@@ -59,7 +59,7 @@ def _resolve_latest_completed_trading_date() -> List[dict]:
         logger.warning(
             "CalendarService 不可用，保留依赖 latest_completed_trading_date 使用当前日期兜底"
         )
-        from core.utils.date.date_utils import DateUtils
+        from core.infra.utils.date.date_utils import DateUtils
         fallback = DateUtils.today()
         return [{"date": fallback}]
     date_str = calendar.get_latest_completed_trading_date()

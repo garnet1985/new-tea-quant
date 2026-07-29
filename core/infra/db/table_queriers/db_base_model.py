@@ -57,8 +57,8 @@ from typing import Dict, List, Any, Optional, Literal
 
 from core.infra.db.engines._shared import dialect as db_dialect, row_sql
 from core.infra.db.table_queriers.services.batch_operation import BatchOperation
-from core.utils.io import csv_io
-from core.utils.io import file_io
+from core.infra.utils.io import csv_io
+from core.infra.utils.io import file_io
 
 
 logger = logging.getLogger(__name__)

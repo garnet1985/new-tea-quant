@@ -36,7 +36,7 @@ from core.infra.discovery import Discovery
 # 所有功能已迁移到 data_services
 from core.infra.project_context import ProjectContext
 
-from core.utils.date.date_utils import DateUtils
+from core.infra.utils.date.date_utils import DateUtils
 
 
 logger = logging.getLogger(__name__)

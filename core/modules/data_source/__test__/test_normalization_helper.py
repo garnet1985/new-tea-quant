@@ -100,7 +100,7 @@ class TestNormalizationHelper:
         ]
 
         # patch DateUtils 以避免依赖真实实现（patch 到实际导入位置）
-        with patch("core.utils.date.date_utils.DateUtils") as MockDateUtils:
+        with patch("core.infra.utils.date.date_utils.DateUtils") as MockDateUtils:
             MockDateUtils.PERIOD_DAY = "day"
 
             def fake_normalize_period_type(fmt: str) -> str:

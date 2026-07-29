@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Sequence
 from core.modules.strategy.core.engines.shared.services.simulation_output import (
     InvestmentRow,
 )
-from core.utils.date.date_utils import DateUtils
+from core.infra.utils.date.date_utils import DateUtils
 
 
 @dataclass

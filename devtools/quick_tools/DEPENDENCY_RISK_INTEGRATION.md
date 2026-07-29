@@ -81,9 +81,9 @@ devcli.py pack v1.0.0
 |------|------|------|
 | [devtools/quick_tools/dependency_risk.py](file:///Users/garnet/Desktop/new-tea-quant/devtools/quick_tools/dependency_risk.py) | ✅ 新增 | 依赖风险检测器（从 scripts 移动） |
 | [devtools/quick_tools/publish_prep.py](file:///Users/garnet/Desktop/new-tea-quant/devtools/quick_tools/publish_prep.py) | ✏️ 修改 | 集成依赖检测到 pack 流程 |
-| [core/infra/devcli/parser.py](file:///Users/garnet/Desktop/new-tea-quant/core/infra/devcli/parser.py) | ✏️ 修改 | 添加 check_deps 命令和 --skip-dep-check 参数 |
-| [core/infra/devcli/handlers.py](file:///Users/garnet/Desktop/new-tea-quant/core/infra/devcli/handlers.py) | ✏️ 修改 | 实现 cmd_check_deps 和传递参数 |
-| [core/infra/devcli/commands.py](file:///Users/garnet/Desktop/new-tea-quant/core/infra/devcli/commands.py) | ✏️ 修改 | 注册 check_deps 命令和别名 cd |
+| [core/infra/cli/dev/parser.py](file:///Users/garnet/Desktop/new-tea-quant/core/infra/cli/dev/parser.py) | ✏️ 修改 | 添加 check_deps 命令和 --skip-dep-check 参数 |
+| [core/infra/cli/dev/handlers.py](file:///Users/garnet/Desktop/new-tea-quant/core/infra/cli/dev/handlers.py) | ✏️ 修改 | 实现 cmd_check_deps 和传递参数 |
+| [core/infra/cli/dev/commands.py](file:///Users/garnet/Desktop/new-tea-quant/core/infra/cli/dev/commands.py) | ✏️ 修改 | 注册 check_deps 命令和别名 cd |
 
 #### 清理的文件（已删除）
 

@@ -41,6 +41,8 @@ jobs:
           import importlib
           modules = [
               "core.infra.project_context.path_manager",
+              "core.infra.cli",
+              "core.infra.utils",
               "core.modules.strategy",
               "core.modules.data_manager",
               "core.modules.data_source",

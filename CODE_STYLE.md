@@ -1,7 +1,7 @@
 # New Tea Quant 代码风格规范
 
 > 最后更新：2026-06-30
-> 适用范围：core/infra, core/modules, core/utils
+> 适用范围：core/infra, core/modules
 
 ---
 
@@ -480,7 +480,7 @@ import pandas as pd
 
 # 3. 本项目内部模块（绝对导入）
 from core.infra.db.db_manager import DatabaseManager
-from core.utils.utils import Utils
+from core.infra.utils.utils import Utils
 
 # 4. 相对导入（仅在包内部使用）
 from .constants import MAX_RETRY
@@ -1295,7 +1295,7 @@ from sqlalchemy import create_engine
 
 # 3. 本项目内部模块
 from core.infra.db.db_manager import DatabaseManager
-from core.utils.utils import Utils
+from core.infra.utils.utils import Utils
 from core.exceptions import ValidationError
 
 # 4. 常量和类型定义

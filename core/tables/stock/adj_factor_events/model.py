@@ -12,7 +12,7 @@ import re
 logger = logging.getLogger(__name__)
 from core.infra.db import DbBaseModel
 from core.tables.stock.adj_factor_events.schema import schema as _schema
-from core.utils.io import csv_io, file_io
+from core.infra.utils.io import csv_io, file_io
 
 
 CSV_PREFERRED_COLUMNS = [
@@ -417,7 +417,7 @@ class DataAdjFactorEventModel(DbBaseModel):
 
     def get_current_quarter_csv_name(self, base_date: Optional[str] = None) -> str:
         """``adj_factor_events_YYYYQn.csv``（base_date 默认今天）。"""
-        from core.utils.date import DateUtils
+        from core.infra.utils.date import DateUtils
 
         if base_date:
             d = str(base_date).replace("-", "")[:8]

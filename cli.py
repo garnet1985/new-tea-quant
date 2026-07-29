@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# NTQ 用户 CLI。与 python cli.py -h 相同；维护请改 core/infra/cli/help_text.py
+# NTQ 用户 CLI。与 python cli.py -h 相同；维护请改 core/infra/cli/user/help_text.py
 #
 # 规则: xx=命令  -f/-n=全局  --xx=对象参数
 #
@@ -22,13 +22,13 @@ _REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from core.infra.cli.bootstrap import ensure_app_installed_if_needed, ensure_venv_for_cli
+from core.infra.cli.user.bootstrap import ensure_app_installed_if_needed, ensure_venv_for_cli
 
 ensure_venv_for_cli(__file__)
 ensure_app_installed_if_needed()
 
 try:
-    from core.infra.cli.main import main
+    from core.infra.cli.user.main import main
 except ModuleNotFoundError as exc:
     missing = getattr(exc, "name", None) or str(exc)
     sys.stderr.write(

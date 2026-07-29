@@ -1,5 +1,10 @@
-"""NTQ user CLI: semantic ``domain verb`` plus equivalent abbrev flags."""
+"""NTQ CLIs: user (``cli.py``) and dev (``devcli.py``).
 
-from core.infra.cli.main import main
+Layout::
 
-__all__ = ["main"]
+    shared/  — argv expand / help helpers
+    user/    — end-user commands
+    dev/     — developer / ops commands
+"""
+
+__all__: list[str] = []

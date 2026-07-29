@@ -6,7 +6,7 @@ from core.infra.project_context import ProjectContext
 
 from core.modules.data_source.data_class.api_config import ApiConfig
 from core.modules.data_source.data_class.api_job import ApiJob
-from core.utils.utils import Utils
+from core.infra.utils.utils import Utils
 from core.modules.data_source.service.normalization import normalization_helper as nh
 from core.modules.data_source.service.executor import fetched_data_helper as fd
 from core.modules.data_source.service.date_range import date_range_helper as drh
@@ -363,7 +363,7 @@ class DataSourceHandlerHelper:
         Returns:
             最后一个交易日（YYYYMMDD格式），如果找不到则返回target_date
         """
-        from core.utils.date.date_utils import DateUtils
+        from core.infra.utils.date.date_utils import DateUtils
         from datetime import datetime, timedelta
         
         # 确保不超过latest_completed_trading_date

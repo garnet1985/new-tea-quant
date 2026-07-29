@@ -30,7 +30,7 @@ from core.modules.strategy.core.engines.price_factor.report_manager.investments 
     EntityInvestments,
     PriceInvestmentRow,
 )
-from core.utils.date.date_utils import DateUtils
+from core.infra.utils.date.date_utils import DateUtils
 
 from .report_hydrate import resolve_simulation_output_dirs
 from .workbench_snapshots import WorkbenchSnapshots

@@ -59,7 +59,7 @@ class NormalizationService:
         # 使用 DateUtils 的 period 规范化逻辑，将各种配置值统一为
         # "day" / "month" / "quarter"，再交给 normalize_date_field 处理。
         try:
-            from core.utils.date.date_utils import DateUtils
+            from core.infra.utils.date.date_utils import DateUtils
 
             target_format = DateUtils.normalize_period_type(date_format or DateUtils.PERIOD_DAY)
         except Exception:

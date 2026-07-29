@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional, Set, Tuple
 from core.modules.data_source.enums import UpdateMode
 from core.modules.data_source.data_class.config import DataSourceConfig
 from core.modules.data_source.service.date_range import date_range_helper as drh
-from core.utils.date.date_utils import DateUtils
+from core.infra.utils.date.date_utils import DateUtils
 
 
 def _period_sort_key(value: str, date_format: str) -> str:

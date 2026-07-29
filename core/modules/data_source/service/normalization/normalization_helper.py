@@ -10,7 +10,7 @@ import logging
 from core.modules.data_source.data_class.api_config import ApiConfig
 from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.data_class.config import DataSourceConfig
-from core.utils.utils import Utils
+from core.infra.utils.utils import Utils
 
 
 logger = logging.getLogger(__name__)
@@ -216,7 +216,7 @@ def normalize_date_field(
         return records
 
     try:
-        from core.utils.date.date_utils import DateUtils
+        from core.infra.utils.date.date_utils import DateUtils
     except ImportError:
         logger.warning("无法导入 DateUtils，normalize_date_field 将跳过处理")
         return records

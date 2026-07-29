@@ -17,7 +17,7 @@ from typing import List
 
 from core.infra.project_context import ProjectContext
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
-from core.utils.io.csv_io import write_dicts_to_csv
+from core.infra.utils.io.csv_io import write_dicts_to_csv
 
 logger = logging.getLogger(__name__)
 

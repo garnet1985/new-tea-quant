@@ -6,7 +6,7 @@ Incremental Renew Service
 from typing import Dict, Any, Tuple, Optional, Union
 import logging
 
-from core.utils.date.date_utils import DateUtils
+from core.infra.utils.date.date_utils import DateUtils
 from core.modules.data_source.service.renew.renew_common_helper import RenewCommonHelper
 
 

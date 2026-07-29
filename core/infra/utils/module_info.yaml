@@ -1,0 +1,10 @@
+name: infra.utils
+version: 0.1.0
+compatible_core_versions: ">=0.4.0"
+description: "通用无业务工具：DateUtils、Utils（类型/DataFrame）、CSV/文件 IO、确定性随机。"
+dependencies: []
+changelog:
+  - version: "0.1.0"
+    changes:
+      - 从 core/utils 迁入 core/infra/utils（无兼容层）
+      - 导出 DateUtils、Utils、deterministic_unit_float；io.csv_io / io.file_io

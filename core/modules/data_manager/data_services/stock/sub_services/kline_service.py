@@ -14,7 +14,7 @@ from typing import List, Dict, Any, Optional, Sequence, Union
 import logging
 
 from ... import BaseDataService
-from core.utils.date.date_utils import DateUtils
+from core.infra.utils.date.date_utils import DateUtils
 
 logger = logging.getLogger(__name__)
 

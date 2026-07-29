@@ -12,7 +12,7 @@ from core.modules.data_source.service.sample_stock_list import (
     invalidate_pool_cache,
     pool_csv_path,
 )
-from core.utils.io import csv_io
+from core.infra.utils.io import csv_io
 from devtools.demo_exporter.config import (
     LIST_STATUS_LABELS,
     MIN_PER_STRATUM,

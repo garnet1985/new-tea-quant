@@ -6,7 +6,7 @@ from typing import Optional, Tuple, Dict, List, Any
 from dataclasses import dataclass, field
 
 from .base_contract import BaseDataContract
-from core.utils.date.date_utils import DateUtils
+from core.infra.utils.date.date_utils import DateUtils
 
 
 @dataclass

@@ -10,7 +10,7 @@
 from typing import List, Dict, Any, Optional
 import logging
 
-from core.utils.date.date_utils import DateUtils
+from core.infra.utils.date.date_utils import DateUtils
 from ... import BaseDataService
 
 

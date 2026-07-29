@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from core.utils.date.date_utils import DateUtils
+from core.infra.utils.date.date_utils import DateUtils
 
 ST_LEVEL_STAR_ST = "STAR_ST"
 ST_LEVEL_S_STAR_ST = "S_STAR_ST"

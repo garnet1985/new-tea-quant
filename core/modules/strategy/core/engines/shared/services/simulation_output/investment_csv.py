@@ -19,7 +19,7 @@ from core.modules.strategy.core.engines.shared.services.simulation_output.file_n
 from core.modules.strategy.core.engines.shared.services.simulation_output.paths import (
     ArtifactPaths,
 )
-from core.utils.io.csv_io import read_csv_to_dicts, write_dicts_to_csv
+from core.infra.utils.io.csv_io import read_csv_to_dicts, write_dicts_to_csv
 
 
 class _RowCoerce:

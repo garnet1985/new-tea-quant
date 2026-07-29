@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# NTQ 开发 CLI。与 python devcli.py -h 相同；维护请改 core/infra/devcli/help_text.py
+# NTQ 开发 CLI。与 python devcli.py -h 相同；维护请改 core/infra/cli/dev/help_text.py
 #
 # 规则: xx=命令  -v=版本  --xx=对象参数
 #
@@ -23,7 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from core.infra.devcli.main import main
+from core.infra.cli.dev.main import main
 
 if __name__ == "__main__":
     raise SystemExit(main())

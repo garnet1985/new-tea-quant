@@ -164,7 +164,7 @@ def _p_tag(sub: argparse._SubParsersAction) -> None:
         help="只计算不落库（与 settings.calculation.is_dry_run 为 OR）",
     )
     p.add_argument(
-        "--stock-limit",
+        "--entity-limit",
         type=int,
         default=None,
         metavar="N",

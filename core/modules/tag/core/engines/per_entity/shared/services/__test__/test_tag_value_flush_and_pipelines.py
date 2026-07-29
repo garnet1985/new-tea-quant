@@ -19,7 +19,7 @@ from core.modules.tag.core.engines.per_entity.shared.services import TagValueFlu
 from core.modules.tag.core.engines.per_entity.shared.tag_settings import TagSettings
 from core.modules.tag.core.engines.per_entity.slice_based import TagSlicePipeline
 from core.modules.tag.core.engines.per_entity.slice_based.job_builder import TagSliceJobBuilder
-from core.modules.tag.core.services.discovery.data.discovered_tag import EnabledTagInfo
+from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
 
 
 class _EchoHooks(TagHooks):
@@ -51,8 +51,8 @@ def _settings_dict(*, mode: str = "slice_based") -> dict:
     }
 
 
-def _enabled_tag_info(mode: str = "slice_based") -> EnabledTagInfo:
-    return EnabledTagInfo(
+def _enabled_tag_info(mode: str = "slice_based") -> DiscoveredTagInfo:
+    return DiscoveredTagInfo(
         unique_relative_path="demo/cap",
         tag_file=Path("/tmp/demo/cap/tag.py"),
         settings_file=Path("/tmp/demo/cap/settings.py"),

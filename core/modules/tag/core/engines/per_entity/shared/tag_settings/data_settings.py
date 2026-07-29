@@ -187,7 +187,7 @@ class DataSettings(SettingsBase):
         }
 
     def issue_declarations(self) -> List[Dict[str, Any]]:
-        """返回 [base] + required（去重后；兼容 to_dict 展开后再 from_dict）。"""
+        """返回 [base] + required（去重；含已展开的 to_dict 形态）。"""
         decls: List[Dict[str, Any]] = [self.normalize_base(self.base)]
         seen = {decls[0]["data_key"]}
         for raw in self.data.get("required") or []:
@@ -217,12 +217,6 @@ class DataSettings(SettingsBase):
             return None
         meta = decl.get("meta")
         return meta if isinstance(meta, dict) else None
-
-    @classmethod
-    def declaration_data_key(cls, item: Optional[Dict[str, Any]]) -> str:
-        if not isinstance(item, dict):
-            return ""
-        return str(item.get("data_key") or "").strip()
 
     @classmethod
     def is_time_series(cls, data_key: str) -> bool:

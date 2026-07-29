@@ -21,7 +21,7 @@ from core.modules.tag.core.engines.per_entity.slice_based import (
     TagSliceJobBuilder,
     TagSliceJobExecutor,
 )
-from core.modules.tag.core.services.discovery.data.discovered_tag import EnabledTagInfo
+from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
 
 
 class _EchoHooks(TagHooks):
@@ -71,8 +71,8 @@ def _bar(date: str = "20240102") -> dict:
     return {"date": date, "open": 1, "high": 1, "low": 1, "close": 1}
 
 
-def _enabled_tag_info() -> EnabledTagInfo:
-    return EnabledTagInfo(
+def _enabled_tag_info() -> DiscoveredTagInfo:
+    return DiscoveredTagInfo(
         unique_relative_path="demo/cap",
         tag_file=Path("/tmp/demo/cap/tag.py"),
         settings_file=Path("/tmp/demo/cap/settings.py"),

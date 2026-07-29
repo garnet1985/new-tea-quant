@@ -17,7 +17,6 @@ from core.modules.tag.core.engines.global_based.constants import GLOBAL_ENTITY_I
 from core.modules.tag.core.engines.per_entity.shared.tag_settings.data_settings import (
     DataSettings,
 )
-from core.modules.tag.core.enums import TagTargetType
 
 logger = logging.getLogger(__name__)
 
@@ -30,16 +29,8 @@ class TagEntityListResolver:
         cls,
         scenario: Scenario,
         *,
-        stock_limit: Optional[int] = None,
         entity_limit: Optional[int] = None,
     ) -> List[str]:
-        # 兼容旧 stub；产品入口以 data.base scope 为准
-        target_type = str(
-            scenario.settings.get("tag_target_type") or TagTargetType.ENTITY_BASED.value
-        ).strip().lower()
-        if target_type == TagTargetType.GENERAL.value:
-            return [GLOBAL_ENTITY_ID]
-
         base_key = cls._base_data_key(scenario)
         if base_key and DataSettings.is_global(base_key):
             return [GLOBAL_ENTITY_ID]
@@ -47,15 +38,14 @@ class TagEntityListResolver:
         list_key = cls.resolve_list_data_key(scenario)
         entity_ids = cls._load_entity_ids(list_key)
 
-        limit = entity_limit if entity_limit is not None else stock_limit
-        if limit is not None and len(entity_ids) > int(limit):
+        if entity_limit is not None and len(entity_ids) > int(entity_limit):
             logger.warning(
                 "实体列表截断 %d → %d（entity_limit）list=%s",
                 len(entity_ids),
-                int(limit),
+                int(entity_limit),
                 list_key,
             )
-            entity_ids = entity_ids[: int(limit)]
+            entity_ids = entity_ids[: int(entity_limit)]
         return entity_ids
 
     @classmethod

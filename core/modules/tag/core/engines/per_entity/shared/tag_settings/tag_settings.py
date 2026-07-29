@@ -11,10 +11,10 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Dict, FrozenSet, List
+from typing import Any, Dict, List
 
 from core.modules.backtest_engine.core.shared.modes import BacktestMode
-from core.modules.tag.core.enums import TagTargetType, TagUpdateMode
+from core.modules.tag.core.enums import TagUpdateMode
 
 from .calculation_settings import CalculationPeriod, CalculationSettings
 from .data_settings import DataSettings
@@ -30,23 +30,6 @@ class TagSettings:
 
     内层子类与 settings section 一一对应。
     """
-
-    # Tag 暂无 simulation fingerprint；预留字段集合供后续 cache 使用
-    FINGERPRINT_FIELDS: ClassVar[FrozenSet[str]] = frozenset(
-        {
-            "core",
-            "data",
-            "calculation",
-            "tag_definitions",
-        }
-    )
-
-    NON_FINGERPRINT_FIELDS: ClassVar[FrozenSet[str]] = frozenset(
-        {
-            "meta",
-            "is_enabled",
-        }
-    )
 
     raw_settings: Dict[str, Any]
     _validated: bool = field(default=False, repr=False)
@@ -143,12 +126,6 @@ class TagSettings:
         return self.execution_mode == BacktestMode.SLICE_BASED.value
 
     @property
-    def tag_target_type(self) -> str:
-        return str(
-            self.raw_settings.get("tag_target_type") or TagTargetType.ENTITY_BASED.value
-        ).strip().lower()
-
-    @property
     def attach_to_data_key(self) -> str:
         return self.data.attach_to_data_key
 
@@ -168,7 +145,6 @@ class TagSettings:
         if self._tag_key:
             self.meta.ensure_key(self._tag_key)
             self.raw_settings.setdefault("name", self._tag_key)
-        self.raw_settings.setdefault("tag_target_type", TagTargetType.ENTITY_BASED.value)
         self.raw_settings.setdefault("core", {})
         self.meta.apply_defaults()
         self.data.apply_defaults()
@@ -220,6 +196,15 @@ class TagSettings:
                 "performance is ignored; tune worker.json → job_pipeline.tag",
             )
             self.raw_settings.pop("performance", None)
+
+        if "tag_target_type" in self.raw_settings:
+            SettingsBase.add_critical(
+                report,
+                "tag_target_type",
+                "tag_target_type is removed; entity universe is inferred from data.base",
+                suggested_fix="Delete tag_target_type from settings.py",
+            )
+            self.raw_settings.pop("tag_target_type", None)
 
         for sub in (self.meta, self.data, self.tag_definitions):
             sub_report = sub.validate()
@@ -278,7 +263,7 @@ class TagSettings:
         out["calculation"] = self.calculation.to_dict()
         out["tag_definitions"] = self.tag_definitions.to_dict()
         out.pop("performance", None)
-        out.setdefault("run_options", {})
+        out.pop("tag_target_type", None)
         return out
 
 

@@ -61,7 +61,7 @@ class TestTagSettings:
         assert out["update_mode"] == "refresh"
         assert out["incremental_required_records_before_as_of_date"] == 5
         assert out["target_entity"] == {"type": "stock_kline_daily"}
-        assert out["tag_target_type"] == "entity_based"
+        assert "tag_target_type" not in out
         assert out["data"]["tag_time_axis_based_on"] == "stock.kline.daily"
         assert [x["data_key"] for x in out["data"]["required"]] == [
             "stock.kline.daily",

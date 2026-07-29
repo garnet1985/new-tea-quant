@@ -10,11 +10,10 @@ from core.modules.tag.core.services.entity_list import TagEntityListResolver
 
 def _scenario(
     *,
-    tag_target_type: str = "entity_based",
     attach_to_data_key: str = "",
     base_data_key: str = "",
 ) -> Scenario:
-    settings = {"tag_target_type": tag_target_type}
+    settings: dict = {}
     if base_data_key:
         settings["data"] = {"base": {"data_key": base_data_key}}
     return Scenario(
@@ -28,10 +27,6 @@ def _scenario(
 
 
 class TestTagEntityListResolver:
-    def test_general_returns_sentinel(self):
-        ids = TagEntityListResolver.resolve(_scenario(tag_target_type="general"))
-        assert ids == [GLOBAL_ENTITY_ID]
-
     @patch(
         "core.modules.tag.core.services.entity_list.entity_list_resolver.DataSettings.is_global",
         return_value=True,
@@ -39,6 +34,16 @@ class TestTagEntityListResolver:
     def test_global_base_returns_sentinel(self, _mock_global):
         ids = TagEntityListResolver.resolve(
             _scenario(attach_to_data_key="macro.gdp")
+        )
+        assert ids == [GLOBAL_ENTITY_ID]
+
+    @patch(
+        "core.modules.tag.core.services.entity_list.entity_list_resolver.DataSettings.is_global",
+        return_value=True,
+    )
+    def test_non_ts_list_base_returns_sentinel(self, _mock_global):
+        ids = TagEntityListResolver.resolve(
+            _scenario(base_data_key="stock.list")
         )
         assert ids == [GLOBAL_ENTITY_ID]
 
@@ -115,7 +120,7 @@ class TestTagEntityListResolver:
     @patch(
         "core.modules.tag.core.services.entity_list.entity_list_resolver.ContractIssuer"
     )
-    def test_stock_limit(self, mock_issuer, _mock_global):
+    def test_entity_limit(self, mock_issuer, _mock_global):
         mock_issuer.get_list_data_key.return_value = "stock.list"
         contract = MagicMock()
         contract.get_data.return_value = [{"id": f"{i:06d}.SZ"} for i in range(5)]
@@ -123,7 +128,7 @@ class TestTagEntityListResolver:
 
         ids = TagEntityListResolver.resolve(
             _scenario(attach_to_data_key="stock.kline.daily"),
-            stock_limit=2,
+            entity_limit=2,
         )
         assert ids == ["000000.SZ", "000001.SZ"]
 

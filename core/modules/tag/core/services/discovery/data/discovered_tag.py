@@ -1,11 +1,10 @@
-"""Tag 发现三层 data class（draft → info → enabled）。
+"""Tag 发现 data class（draft → info）。
 
 消费者: DiscoveryService
 
 本文件:
 - TagDraft: 磁盘发现 + settings/hooks 轻量校验（未通过则丢弃）
-- TagInfo: 验证通过、可 UI 展示（含 settings dict、hooks_class）
-- EnabledTagInfo: is_enabled=True，供后续 calculation 消费
+- DiscoveredTagInfo: 验证通过、可 UI 展示（含 settings dict、hooks_class）；启用与否看 is_enabled
   边界: 负责发现阶段元数据与校验；不负责 TagSettings 全量校验或引擎编排
 """
 
@@ -129,7 +128,7 @@ class TagDraft:
 
 
 @dataclass
-class TagInfo(TagDraft):
+class DiscoveredTagInfo(TagDraft):
     """验证合格的 tag 信息（UI 显示）。
 
     符合以下条件：
@@ -152,7 +151,7 @@ class TagInfo(TagDraft):
     folder: Path = field(default_factory=lambda: Path("."))
 
     @classmethod
-    def from_draft(cls, draft: TagDraft) -> Optional["TagInfo"]:
+    def from_draft(cls, draft: TagDraft) -> Optional["DiscoveredTagInfo"]:
         if not draft.is_valid():
             logger.warning(
                 "Tag validation failed: %s, errors: %s",
@@ -191,24 +190,5 @@ class TagInfo(TagDraft):
         )
 
 
-@dataclass
-class EnabledTagInfo(TagInfo):
-    """启用的 tag 信息（calculation 消费）。``is_enabled=True`` 约束。"""
 
-    def get_execution_mode(self) -> str:
-        """``calculation.execution.mode``（发现阶段已校验）。"""
-        calculation = self.settings.get("calculation")
-        if not isinstance(calculation, dict):
-            raise ValueError("settings.calculation 须为 dict")
-        execution = calculation.get("execution")
-        if not isinstance(execution, dict):
-            raise ValueError("settings.calculation.execution 须为 dict")
-        mode = str(execution.get("mode") or "").strip()
-        if mode not in ("entity_based", "slice_based"):
-            raise ValueError(
-                f"settings.calculation.execution.mode 非法: {mode!r}"
-            )
-        return mode
-
-
-__all__ = ["TagDraft", "TagInfo", "EnabledTagInfo"]
+__all__ = ["TagDraft", "DiscoveredTagInfo"]

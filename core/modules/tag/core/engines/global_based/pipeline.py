@@ -31,7 +31,7 @@ from core.modules.tag.core.engines.per_entity.shared.tag_settings.tag_settings i
     TagSettings,
 )
 from core.modules.tag.core.enums import TagUpdateMode
-from core.modules.tag.core.services.discovery.data.discovered_tag import EnabledTagInfo
+from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
 
 if TYPE_CHECKING:
     from core.modules.data_manager.data_services.stock.sub_services.tag_service import (
@@ -48,7 +48,7 @@ class TagGlobalPipeline:
     def run(
         cls,
         *,
-        tag_info: EnabledTagInfo,
+        tag_info: DiscoveredTagInfo,
         scenario: Scenario,
         entity_ids: Optional[List[str]] = None,
         tag_data_service: Optional["TagDataService"] = None,

@@ -67,10 +67,15 @@ terms:
     aliases: ["calc progress watermark"]
     avoid: ["calculated_at（落库墙钟）", "scenario.updated_at（元数据）", "max(as_of_date)"]
 
-  TagContext:
-    definition: "钩子入参壳：tag + settings + data + custom"
+  TagInfo:
+    definition: "hooks 身份（key/path）；公开自 contracts；勿与 discovery 的 DiscoveredTagInfo 混淆"
     aliases: []
-    avoid: ["把整份 settings dict 当唯一入参"]
+    avoid: ["把 Tag.find() 返回值当成 hooks.TagInfo"]
+
+  DiscoveredTagInfo:
+    definition: "discovery 校验通过后的场景元数据（settings + hooks_class）；Tag.find 返回此类型"
+    aliases: ["discovery TagInfo（旧名，已改名）"]
+    avoid: ["与 hooks TagInfo 同名混用"]
 
   TagCalendarAsOfResult:
     definition: "slice_based on_calendar_asof 返回：entity_tags + session_state（同 strategy）"

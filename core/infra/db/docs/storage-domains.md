@@ -318,9 +318,9 @@ DuckdbEngine（duckdb 时）
 
 | 位置 | 说明 |
 |------|------|
-| `tag_manager` / `base_tag_worker` | 写 `sys_tag_value` → tag 域管道 |
+| `Tag` facade / pipelines / flush | 写 `sys_tag_value` → tag 域管道 |
 | `TagDataService` | 三表均在 tag；raw SQL 安全若连接正确 |
-| `TagDataManager` | 通过 DataContract 读 data — 与 strategy 类似，只读 data |
+| `DataManager().stock.tags` | Tag 经 DataManager 访问 tag 域；行情/list 走 DataContract |
 
 ### 7.7 其它
 

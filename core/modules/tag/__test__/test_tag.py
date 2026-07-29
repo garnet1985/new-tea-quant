@@ -3,7 +3,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from core.modules.tag.core.services.discovery.data.discovered_tag import TagInfo
+from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
 
 
 def _make_tag_info(
@@ -12,8 +12,8 @@ def _make_tag_info(
     key: str = "demo",
     enabled: bool = True,
     mode: str = "entity_based",
-) -> TagInfo:
-    return TagInfo(
+) -> DiscoveredTagInfo:
+    return DiscoveredTagInfo(
         unique_relative_path=relative,
         tag_file=Path(f"/tags/{relative}/tag.py"),
         settings_file=Path(f"/tags/{relative}/settings.py"),
@@ -37,7 +37,6 @@ def _make_tag_info(
                 "required": [],
             },
             "tag_definitions": [{"name": "t1"}],
-            "tag_target_type": "entity_based",
         },
         hooks_class=MagicMock,
         hooks_module_path="hooks.mod",
@@ -181,12 +180,12 @@ class TestTag:
         mock_pipeline_run.assert_called_once()
         assert mock_pipeline_run.call_args.kwargs["entity_ids"] == ["000001.SZ"]
 
-    @patch("core.modules.tag.tag.TagEntityPipeline.run")
+    @patch("core.modules.tag.tag.TagGlobalPipeline.run")
     @patch("core.modules.tag.tag.TagEntityListResolver.resolve")
     @patch("core.modules.tag.tag.MetadataEnsureService")
     @patch("core.modules.tag.tag.DiscoveryService.discover_tags")
     @patch("core.modules.tag.tag.DataManager")
-    def test_execute_general_uses_general_owner(
+    def test_execute_global_routes_to_global_pipeline(
         self,
         mock_data_manager,
         mock_discover,
@@ -195,18 +194,28 @@ class TestTag:
         mock_pipeline_run,
     ):
         from core.modules.tag import Tag
+        from core.modules.tag.core.engines.global_based import GLOBAL_ENTITY_ID
 
         mock_data_manager.return_value = MagicMock(stock=MagicMock(tags=MagicMock()))
-        info = _make_tag_info(key="macro_general", relative="macro_general")
-        info.settings["tag_target_type"] = "general"
+        info = _make_tag_info(key="macro_rate_stance", relative="demo/macro_rate_stance")
+        info.settings["data"] = {
+            "base": {"data_key": "macro.lpr", "params": {}},
+            "required": [{"data_key": "macro.shibor", "params": {}}],
+            "min_required_records": 0,
+        }
+        info.settings["calculation"] = {
+            "update_mode": "incremental",
+            "execution": {"start_date": "20240101", "end_date": "20240131"},
+        }
         mock_discover.return_value = [info]
-        mock_resolve.return_value = ["__general__"]
+        mock_resolve.return_value = [GLOBAL_ENTITY_ID]
         mock_pipeline_run.return_value = {"success": True, "jobs": 1}
         mock_ensure_cls.return_value.ensure = MagicMock()
 
         with patch("core.modules.tag.tag.Tag._save_performance_report"):
             tag = Tag(is_verbose=False)
-            tag.execute(scenario_name="macro_general")
+            tag.execute(scenario_name="macro_rate_stance")
 
         mock_resolve.assert_called_once()
-        assert mock_pipeline_run.call_args.kwargs["entity_ids"] == ["__general__"]
+        mock_pipeline_run.assert_called_once()
+        assert mock_pipeline_run.call_args.kwargs["entity_ids"] == [GLOBAL_ENTITY_ID]

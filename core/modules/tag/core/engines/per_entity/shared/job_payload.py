@@ -16,13 +16,13 @@ from core.modules.tag.core.engines.per_entity.shared.calc_window import (
 )
 from core.modules.tag.core.engines.per_entity.shared.tag_settings.data_settings import DataSettings
 from core.modules.tag.core.engines.per_entity.shared.tag_settings.tag_settings import TagSettings
-from core.modules.tag.core.services.discovery.data.discovered_tag import EnabledTagInfo
+from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
 
 logger = logging.getLogger(__name__)
 
 
 class TagJobPayloadBuilder:
-    """组装 BE 兼容的 tag job 核心 payload。"""
+    """组装 tag job 核心 payload（供 BacktestEngine）。"""
 
     @classmethod
     def split_declarations(
@@ -45,7 +45,7 @@ class TagJobPayloadBuilder:
     def build_core_payload(
         cls,
         *,
-        tag_info: EnabledTagInfo,
+        tag_info: DiscoveredTagInfo,
         scenario: Scenario,
         settings: TagSettings,
         entity_ids: List[str],

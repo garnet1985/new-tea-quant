@@ -321,13 +321,15 @@
 # ✅ 推荐：Facade + 根目录契约模块
 from core.modules.backtest_engine import BacktestEngine
 from core.modules.backtest_engine.contracts import JobContext, RunCallbacks
-from core.modules.tag.settings.worker_profile import profile_tag_entity_based_config
-from core.modules.backtest_engine.core.shared.performance import resolve_entity_based_performance
+from core.modules.backtest_engine.core.performance.worker_profile import (
+    WorkerProfiles,
+    resolve_entity_based_performance_for_profile,
+)
 
 result = BacktestEngine.entity_based.run(
     jobs,
     execute_fn,
-    performance=resolve_entity_based_performance(profile_tag_entity_based_config()),
+    performance=resolve_entity_based_performance_for_profile(WorkerProfiles.TAG),
     task_name="tag:demo",
     callbacks=RunCallbacks(on_result=handle_result),
     enable_progress_display=True,

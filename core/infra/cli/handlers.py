@@ -170,7 +170,7 @@ def execute(args: argparse.Namespace, app: CliApp) -> None:
         app.tag(
             scenario_name=getattr(args, "scenario", None),
             dry_run=dry_run,
-            stock_limit=getattr(args, "stock_limit", None),
+            entity_limit=getattr(args, "entity_limit", None),
         )
         return
 

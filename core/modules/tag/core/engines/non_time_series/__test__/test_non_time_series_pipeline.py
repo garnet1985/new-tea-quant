@@ -16,7 +16,7 @@ from core.modules.tag.core.engines.per_entity.shared.hooks import TagHooks
 from core.modules.tag.core.engines.per_entity.shared.hooks.hook_params import TagContext
 from core.modules.tag.core.engines.per_entity.shared.tag_settings import TagSettings
 from core.modules.tag.core.enums import TagUpdateMode
-from core.modules.tag.core.services.discovery.data.discovered_tag import EnabledTagInfo
+from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
 
 
 class _ListHooks(TagHooks):
@@ -58,8 +58,8 @@ def _scenario(*, update_mode: str = "refresh") -> Scenario:
     return scenario
 
 
-def _tag_info() -> EnabledTagInfo:
-    return EnabledTagInfo(
+def _tag_info() -> DiscoveredTagInfo:
+    return DiscoveredTagInfo(
         unique_relative_path="demo/list",
         tag_file=Path("/tmp/demo/list/tag.py"),
         settings_file=Path("/tmp/demo/list/settings.py"),

@@ -37,7 +37,7 @@
 | `core/bff_support/` | UI：`TagCatalog` / `TagRunLauncher` |
 | `core/infra/cli` | `cli.py tag`（模块内无 CLI） |
 
-调度配置（仅 per_entity）：`core/default_config/worker.json` → `job_pipeline.tag`（经 `TagWorkerProfile` / BE worker_profile）。
+调度配置（仅 per_entity）：`core/default_config/worker.json` → `job_pipeline.tag`（经 BE `WorkerProfiles.TAG`）。
 
 ---
 

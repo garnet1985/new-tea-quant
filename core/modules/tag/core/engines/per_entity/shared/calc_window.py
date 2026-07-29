@@ -6,6 +6,9 @@ incremental：从 DB ``sys_tag_calc_progress`` 取 entity → last_calculated_en
 再对 list 内实体裁窗（start = end+1）；无行则从 settings 起点。
 refresh：全员使用 settings 默认窗。
 
+水位 API（``TagDataService``）：``get_entity_calc_progress`` /
+``mark_entity_calc_progress`` / ``clear_calc_progress_by_scenario``。
+
 注意：不要用 max(as_of_date) 当水位——变化日写入的 tag 的 as_of
 只表示最近一次落库结果日，不等于计算推进到的日期。
 ``calculated_at`` / scenario.updated_at 是墙钟/元数据时间，同样不能当水位。

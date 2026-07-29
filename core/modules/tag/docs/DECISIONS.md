@@ -58,14 +58,14 @@ UI 列表的 `last_computed_as_of`（`get_max_as_of_date`）可以与增量水�
 二者在 `update_mode=incremental` 时都读写 `sys_tag_calc_progress`；`refresh` / `recompute` 清 progress，跑完不回写水位。
 
 global / non_ts **不适用** 本决策；不提供同等 `execution.mode` 语义（见决策 1）。  
-手写 `tag_target_type=general` stub 不再作为产品入口；宇宙由 base 的 scope 推断。
+勿手写 `tag_target_type`；宇宙由 `data.base` 的 scope 推断（已删除该字段注入）。
 
 ---
 
 ## 决策 4：Facade 名称为 Tag
 
 **背景**  
-迁移期保留 `TagManager` shim。
+历史上曾用 `TagManager` / 模块内 CLI 作入口。
 
 **决策**  
 对外唯一入口为 `Tag`；`TagManager` / `run_tag` / 模块 `__main__` 已删除。BFF 经 `TagCatalog` / `TagRunLauncher`。

@@ -18,6 +18,10 @@ from core.modules.backtest_engine.contracts import RunCallbacks
 from core.modules.backtest_engine.core.performance.settings import (
     resolve_slice_based_performance,
 )
+from core.modules.backtest_engine.core.performance.worker_profile import (
+    WorkerProfiles,
+    profile_calendar_slice_config,
+)
 from core.modules.tag.core.data_class.scenario import Scenario
 from core.modules.tag.core.engines.per_entity.shared.pipeline_hooks import (
     TagPipelineHooks,
@@ -30,8 +34,7 @@ from core.modules.tag.core.engines.per_entity.shared.tag_settings.tag_settings i
 from core.modules.tag.core.engines.per_entity.slice_based.executor import TagSliceJobExecutor
 from core.modules.tag.core.engines.per_entity.slice_based.job_builder import TagSliceJobBuilder
 from core.modules.tag.core.enums import TagUpdateMode
-from core.modules.tag.core.services.discovery.data.discovered_tag import EnabledTagInfo
-from core.modules.tag.core.engines.per_entity.shared.worker_profile import TagWorkerProfile
+from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
 
 if TYPE_CHECKING:
     from core.modules.data_manager.data_services.stock.sub_services.tag_service import (
@@ -48,7 +51,7 @@ class TagSlicePipeline:
     def run(
         cls,
         *,
-        tag_info: EnabledTagInfo,
+        tag_info: DiscoveredTagInfo,
         scenario: Scenario,
         entity_ids: List[str],
         tag_data_service: Optional["TagDataService"] = None,
@@ -90,7 +93,9 @@ class TagSlicePipeline:
             dry_run=dry_run,
             batch_size=save_batch_size,
         )
-        performance = resolve_slice_based_performance(TagWorkerProfile.slice_based())
+        performance = resolve_slice_based_performance(
+            profile_calendar_slice_config(WorkerProfiles.TAG)
+        )
         run_ctx = TagPipelineRunContext(
             flush=flush,
             total_jobs=len(jobs),

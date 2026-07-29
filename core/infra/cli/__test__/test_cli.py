@@ -66,11 +66,11 @@ def test_parse_tag_new() -> None:
 
 
 def test_parse_tag_list_and_dry_run() -> None:
-    args = parse_args(["tag", "--list", "--dry-run", "--stock-limit", "10"])
+    args = parse_args(["tag", "--list", "--dry-run", "--entity-limit", "10"])
     assert args.command == "tag"
     assert args.list is True
     assert args.dry_run is True
-    assert args.stock_limit == 10
+    assert args.entity_limit == 10
 
 
 def test_is_help_argv() -> None:

@@ -334,7 +334,7 @@ C = qfq_anchor_最新 - raw_anchor_最新 × F_最新事件 / F(最新)
 
 访问方式：`data_mgr.service`。
 
-DataService 仅作为子服务入口，无跨服务聚合方法。数据按需通过 `data_mgr.stock`、`data_mgr.macro`、`data_mgr.calendar` 等组装；业务模块（Tag、Strategy）使用各自的数据管理器（如 TagWorkerDataManager、StrategyWorkerDataManager）。
+DataService 仅作为子服务入口，无跨服务聚合方法。数据按需通过 `data_mgr.stock`、`data_mgr.macro`、`data_mgr.calendar` 等组装；业务模块（Tag、Strategy）经 DataManager 子服务与 DataContract 取数（Tag 写库走 `data_mgr.stock.tags`）。
 
 ---
 

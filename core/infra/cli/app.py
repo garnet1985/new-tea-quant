@@ -54,12 +54,12 @@ class CliApp:
         scenario_name: str | None = None,
         *,
         dry_run: bool = False,
-        stock_limit: int | None = None,
+        entity_limit: int | None = None,
     ) -> None:
         tag = self._ensure_tag()
         overrides: dict = {}
-        if stock_limit is not None:
-            overrides["stock_limit"] = max(1, int(stock_limit))
+        if entity_limit is not None:
+            overrides["entity_limit"] = max(1, int(entity_limit))
         tag._dispatch_overrides = overrides
         tag.execute(scenario_name=scenario_name, dry_run=dry_run)
 

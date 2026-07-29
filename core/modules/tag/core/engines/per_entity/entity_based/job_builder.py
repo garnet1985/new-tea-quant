@@ -19,7 +19,7 @@ from core.modules.tag.core.engines.per_entity.shared.job_payload import TagJobPa
 from core.modules.tag.core.engines.per_entity.shared.prior_values import TagPriorValues
 from core.modules.tag.core.engines.per_entity.shared.tag_settings.tag_settings import TagSettings
 from core.modules.tag.core.enums import TagUpdateMode
-from core.modules.tag.core.services.discovery.data.discovered_tag import EnabledTagInfo
+from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
 
 if TYPE_CHECKING:
     from core.modules.data_manager.data_services.stock.sub_services.tag_service import (
@@ -35,7 +35,7 @@ class TagEntityJobBuilder:
     @classmethod
     def build_backtest_engine_jobs(
         cls,
-        tag_info: EnabledTagInfo,
+        tag_info: DiscoveredTagInfo,
         scenario: Scenario,
         entity_ids: List[str],
         *,

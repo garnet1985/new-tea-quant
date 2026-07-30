@@ -162,7 +162,7 @@
 
 ---
 
-## V2-02 `GET /strategies/list`
+## V2-02 `GET /strategy/catalog/{page}/{limit}`
 
 **作用**：返回**物理 workspace 里存在的策略**列表，供列表页使用；**必须分页**。请求使用 **`page`、`limit`**（query，默认值与上限按项目约定）；响应必须带 **`total`** 及与 [`API.md`](./API.md)「固定约定」一致的 **`page_info`（或等价结构）**。数据来源只有 core 的 discover；分页（排序、切片、填 `total`）在**步骤 2** 完成，不单独拆步骤。
 

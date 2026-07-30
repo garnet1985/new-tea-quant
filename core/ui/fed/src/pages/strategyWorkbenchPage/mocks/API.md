@@ -5,7 +5,7 @@
 ## HTTP 前缀与契约编号
 
 - **BFF** 蓝图挂载前缀为 **`/api`**（见 `core/bff/app.py` 中 `register_blueprint(..., url_prefix='/api')`）。
-- 路由声明形如 **`/v1/strategy/...`**、**`/v1/strategies/list`** 等，与蓝图拼接后的**完整路径**为 **`/api/v1/strategy/...`**、**`/api/v1/strategies/list`**。
+- 路由声明形如 **`/v1/strategy/...`** 等，与蓝图拼接后的**完整路径**为 **`/api/v1/strategy/...`**（例如 catalog：`/api/v1/strategy/catalog/{page}/{limit}`）。
 - 下文表格与细则中的路径均省略 **`/api`** 前缀时，仍指上述蓝图下的同一资源。
 - **「V2-xx」** 为本契约的接口族编号；URL 中的 **`/v1/`** 仅为 REST 路径版本段，**不表示存在另一套「产品级 API v1」文档**。
 
@@ -92,7 +92,7 @@
 | 编号 | 方法 | 路径 | 用途 |
 |------|------|------|------|
 | V2-01 | GET | `/strategy/{strategy_name}/version/latest` | 获取 latest；**路径** `strategy_name` **必填**；响应含 `version_id`、`settings`、`step_status`、`result_report` 等 |
-| V2-02 | GET | `/strategies/list` | 策略列表（分页） |
+| V2-02 | GET | `/strategy/catalog/{page}/{limit}` | 策略目录（分页） |
 | V2-03 | GET | `/strategy/{strategy_name}/versions` | 某策略工作台版本的**最近 10 条**（固定条数、不分页），用于「恢复到某一版本」下拉框 |
 | V2-04 | GET | 多个明确路径（见下） | 选项类 / profile 类全量数据；**非**单一泛化 `/strategy/{entity}`，implementation 按资源拆路由 |
 | V2-05 | POST | `/strategy/{strategy_name}/{step}/run` | **启动**一步对应的 job；成功返回 **`job_id`** / **`run_id`** 与 **`steps[]`**（编排计划） |
@@ -243,7 +243,7 @@
 
 ---
 
-- **分页**：查询参数与响应结构沿用本项目内对 **`page` / `limit` / `total`** 的既有约定（含 `page_info` 或等价字段的具体形状在实现时与现有列表接口对齐）。**V2-02** `GET /strategies/list`、**V2-10** `GET /strategy/{strategy_name}/versions/range` **必须按此分页**（非全量一次返回；除非后续契约显式改为一页拉全量）。
+- **分页**：查询参数与响应结构沿用本项目内对 **`page` / `limit` / `total`** 的既有约定（含 `page_info` 或等价字段的具体形状在实现时与现有列表接口对齐）。**V2-02** `GET /strategy/catalog/{page}/{limit}`、**V2-10** `GET /strategy/{strategy_name}/versions/range` **必须按此分页**（非全量一次返回；除非后续契约显式改为一页拉全量）。
 - **选项类接口**：各选项资源的 **URL 拆分方式** 与现有 settings 相关 GET 约定对齐；不在本文档中新增「运行时动态展开泛型路径」的规则。
 
 ## V2-07 与 V2-08：何时调用、数据关系

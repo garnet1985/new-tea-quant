@@ -1,6 +1,6 @@
 """Workbench async run launcher for UI (V2-05 / V2-06 / V2-06b).
 
-Consumers: ``core.bff.APIs.strategy.workbench.strategy_stack``
+Consumers: ``core.bff.APIs.strategy.stack``
 
 Runs ``Strategy.simulate`` in a daemon thread; progress via run envelope files.
 """

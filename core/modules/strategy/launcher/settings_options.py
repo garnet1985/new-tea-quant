@@ -1,6 +1,6 @@
 """Strategy settings option catalogs for UI (V2-04).
 
-Consumers: ``core.bff.APIs.strategy.workbench.strategy_stack``
+Consumers: ``core.bff.APIs.strategy.stack``
 
 Option values and template defaults come from the new strategy settings
 model (``portfolio`` / ``sampling`` / ``assumption`` / ``risk_control``).

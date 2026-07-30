@@ -1,6 +1,6 @@
 """Workbench snapshot read APIs for UI (V2-01 / V2-03 / V2-08).
 
-Consumers: ``core.bff.APIs.strategy.workbench.strategy_stack``
+Consumers: ``core.bff.APIs.strategy.stack``
 
 Reads ``sys_strategy_workbench_snapshot`` + discovery disk settings.
 Does not key by fingerprint (that is ``SimulationCacheManager`` write/hit path).

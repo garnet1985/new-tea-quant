@@ -12,8 +12,7 @@ HTTP 路径与响应契约保持不变；仅目录与 blueprint 归属按业务�
 | platform | `APIs/settings` | `APIs/platform/app_settings` | `/api/v1/settings/*` |
 | data | `APIs/data_source` | `APIs/data/sources` | `/api/v1/data-sources/*` |
 | data | `APIs/data_contract` | `APIs/data/contracts` | `/api/v1/data-contracts/*` |
-| strategy | `APIs/strategy_workbench` | `APIs/strategy/workbench` | `/api/v1/strategy/*`, `/api/v1/strategies/*` |
-| strategy | `APIs/strategy_scan` | `APIs/strategy/scan` | `/api/v1/strategy/*/scan*` |
+| strategy | `APIs/strategy_workbench` + `strategy_scan` | `APIs/strategy/`（`routes/` + `helpers/`） | `/api/v1/strategy/*` |
 | tag | `APIs/tag` | `APIs/tag` | `/api/v1/tags/*`, `/api/v1/tag/*` |
 
 ## settings 消歧

@@ -1,29 +1,29 @@
-"""Strategy list for UI (V2-02).
+"""Catalog implementer: discovery → page DTO for FED.
 
-Consumers: ``core.bff.APIs.strategy.workbench.strategy_stack``
+Calls ``DiscoveryService.discover_strategies`` (strategy core); pagination / row
+shaping stay in BFF — not in ``modules.strategy.launcher``.
 """
 
 from __future__ import annotations
 
 from typing import Any, Dict, List, Sequence, Tuple
 
-from core.modules.strategy.core.services.discovery import DiscoveryService
-from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
-    StrategyInfo,
-)
 
+class StrategyCatalogImplementer:
+    def __init__(self) -> None:
+        self._DiscoveryService = None
 
-class StrategyCatalog:
-    """UI strategy list: discovery + paginated row DTO."""
+    def lazy_load(self) -> "StrategyCatalogImplementer":
+        if self._DiscoveryService is None:
+            from core.modules.strategy.core.services.discovery import DiscoveryService
+            self._DiscoveryService = DiscoveryService
+        return self
 
-    @classmethod
-    def fetch_discovered_strategies_page(
-        cls,
-        page: int,
-        limit: int,
+    def list_strategies(
+        self, page: int, limit: int
     ) -> Tuple[List[Dict[str, Any]], int]:
-        """Paginated discovered strategies; ``page`` is 1-based, sorted by ``name``."""
-        discovered = DiscoveryService.discover_strategies()
+        assert self._DiscoveryService is not None
+        discovered = self._DiscoveryService.discover_strategies()
         ordered = sorted(discovered, key=lambda info: str(info.id()))
         total = len(ordered)
         if total == 0:
@@ -33,10 +33,9 @@ class StrategyCatalog:
         limit = max(1, int(limit))
         start = (page - 1) * limit
         chunk = ordered[start : start + limit]
-        return [cls._summary(info) for info in chunk], total
+        return [self._summary(info) for info in chunk], total
 
-    @classmethod
-    def _summary(cls, info: StrategyInfo) -> Dict[str, Any]:
+    def _summary(self, info: Any) -> Dict[str, Any]:
         meta = info.settings.get("meta") if isinstance(info.settings, dict) else {}
         if not isinstance(meta, dict):
             meta = {}
@@ -58,13 +57,14 @@ class StrategyCatalog:
 
         hooks_class = info.hooks_class
         return {
+            "key": str(info.key or "").strip(),
             "name": str(info.id()),
             "display_name": str(info.display_name or "").strip(),
             "is_enabled": bool(info.is_enabled),
             "worker_class_name": hooks_class.__name__ if hooks_class is not None else "",
             "folder": str(info.folder),
-            "description": cls._coerce_meta_text(meta.get("description")),
-            "keywords": cls._keywords(meta.get("keywords")),
+            "description": self._coerce_meta_text(meta.get("description")),
+            "keywords": self._keywords(meta.get("keywords")),
             "details": details,
         }
 
@@ -97,4 +97,4 @@ class StrategyCatalog:
         return out
 
 
-__all__ = ["StrategyCatalog"]
+impl = StrategyCatalogImplementer()

@@ -1,6 +1,6 @@
 """Workbench single-stock detail (V2-07c): K-line + step markers.
 
-Consumers: ``core.bff.APIs.strategy.workbench.strategy_stack``
+Consumers: ``core.bff.APIs.strategy.stack``
 
 NEW artifacts only:
 - enum: ``entities/{id}_stock_investments.csv``

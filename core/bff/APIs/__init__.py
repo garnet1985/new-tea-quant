@@ -11,7 +11,7 @@ from .platform import (
     settings_api_bp,
 )
 from .data import data_source_api_bp, data_contract_api_bp
-from .strategy import strategy_api_bp, strategy_workbench_api_bp, strategy_scan_api_bp
+from .strategy import strategy_api_bp
 from .tag import tag_api_bp
 
 __all__ = [
@@ -24,7 +24,5 @@ __all__ = [
     "data_source_api_bp",
     "data_contract_api_bp",
     "strategy_api_bp",
-    "strategy_workbench_api_bp",
-    "strategy_scan_api_bp",
     "tag_api_bp",
 ]

@@ -1,6 +1,6 @@
 """Workbench apply-settings (V2-09): snapshot settings → userspace ``settings.py``.
 
-Consumers: ``core.bff.APIs.strategy.workbench.strategy_stack``
+Consumers: ``core.bff.APIs.strategy.stack``
 """
 
 from __future__ import annotations

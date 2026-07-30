@@ -1,6 +1,6 @@
 """Workbench step report APIs for UI (V2-07 / V2-07b).
 
-Consumers: ``core.bff.APIs.strategy.workbench.strategy_stack``
+Consumers: ``core.bff.APIs.strategy.stack``
 
 Reads snapshot ``result_report`` slots + NEW disk reports
 (``overall_report.json`` / ``entity_list.json``).

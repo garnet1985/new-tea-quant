@@ -3,8 +3,9 @@ import { coerceMetaDescription } from '../../utils/formatStrategyDescription';
 import { API_VERSION_PREFIX } from '../conf/apiConfig';
 import { mapDataEnd } from '../shared/dataEnd';
 
-/** 分页策略列表（V2-02）：`/api/v1/strategies/list` */
-const API_STRATEGIES_LIST_BASE = `${API_VERSION_PREFIX}/strategies/list`;
+/** 分页策略目录（V2-02）：`/api/v1/strategy/catalog/:page/:limit` */
+const API_STRATEGY_CATALOG = (page, limit) =>
+  `${API_VERSION_PREFIX}/strategy/catalog/${encodeURIComponent(page)}/${encodeURIComponent(limit)}`;
 const API_STRATEGY_SCAN_CONTEXT = `${API_VERSION_PREFIX}/strategy/scan/context`;
 /** 策略列表/扫描页展示名：优先 ``display_name``，否则回退路径 ID。 */
 export function getStrategyDisplayLabel(item) {
@@ -37,17 +38,17 @@ const API_SETTINGS_MARKET_PROFILES = `${API_VERSION_PREFIX}/strategy/settings/ma
 
 /**
  * 获取已发现策略列表（策略工作台 list 页使用）
- * V2 BFF：`GET /api/v1/strategies/list` → `{ status, message: { items, total, page, limit } }`
+ * V2 BFF：`GET /api/v1/strategy/catalog/:page/:limit` → `{ status, message: { items, total, page, limit } }`
  * @returns {Promise<{ data: object[] }>}
  */
 export async function fetchStrategyList() {
-  const params = new URLSearchParams({ page: '1', limit: '100' });
-  const json = await requestJson(`${API_STRATEGIES_LIST_BASE}?${params.toString()}`, { method: 'GET' });
+  const json = await requestJson(API_STRATEGY_CATALOG(1, 100), { method: 'GET' });
   const list = json?.message?.items || [];
   return {
     data: list.map((item) => ({
       id: item.name,
       name: item.name,
+      key: String(item.key || '').trim(),
       display_name: getStrategyDisplayLabel(item),
       description: coerceMetaDescription(item.description),
       keywords: Array.isArray(item.keywords) ? item.keywords : [],
@@ -633,6 +634,8 @@ export async function fetchMarketProfileOptions() {
 
 const API_STRATEGY_PACKAGE_IMPORT = `${API_VERSION_PREFIX}/strategy/package/import`;
 const API_STRATEGY_PACKAGE_IMPORT_PREVIEW = `${API_VERSION_PREFIX}/strategy/package/import/preview`;
+const API_STRATEGY_PACKAGE_EXPORT = (strategyKeyOrName) =>
+  `${API_VERSION_PREFIX}/strategy/package/export/${encodeStrategyPathSegments(strategyKeyOrName)}`;
 
 async function readFetchErrorDetail(response) {
   try {
@@ -644,19 +647,19 @@ async function readFetchErrorDetail(response) {
 }
 
 /**
- * 下载策略交流包（V2-13）：`GET /api/v1/strategy/{name}/package/export`
- * @param {string} strategyName
+ * 下载策略交流包（V2-13）：`GET /api/v1/strategy/package/export/:strategy_key_or_name`
+ * @param {string} strategyKeyOrName ``settings.meta.key`` 或 path name
  * @param {{ scope?: 'bundle'|'strategy' }} [options]
  */
-export async function downloadStrategyPackage(strategyName, { scope = 'bundle' } = {}) {
+export async function downloadStrategyPackage(strategyKeyOrName, { scope = 'bundle' } = {}) {
   const params = new URLSearchParams({ scope });
-  const url = `${apiStrategyPath(strategyName)}/package/export?${params.toString()}`;
+  const url = `${API_STRATEGY_PACKAGE_EXPORT(strategyKeyOrName)}?${params.toString()}`;
   const response = await fetch(url, { method: 'GET' });
   if (!response.ok) {
     throw new Error(await readFetchErrorDetail(response));
   }
   const blob = await response.blob();
-  let filename = `${strategyName}-strategy.zip`;
+  let filename = `${strategyKeyOrName}-strategy.zip`;
   const cd = response.headers.get('Content-Disposition') || '';
   const match = /filename\*?=(?:UTF-8''|utf-8'')?["']?([^"';]+)/i.exec(cd);
   if (match?.[1]) {

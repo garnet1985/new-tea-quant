@@ -10,7 +10,6 @@ from .scanner_run import (
     trigger_strategy_scan_run,
 )
 from .settings_options import StrategySettingsOptions
-from .strategy_catalog import StrategyCatalog
 from .workbench_apply_settings import WorkbenchApplySettings
 from .workbench_cache_clear import WorkbenchCacheClear
 from .workbench_reports import WorkbenchReports
@@ -19,7 +18,6 @@ from .workbench_snapshots import WorkbenchSnapshots
 from .workbench_stock_detail import WorkbenchStockDetail
 
 __all__ = [
-    "StrategyCatalog",
     "StrategySettingsOptions",
     "WorkbenchApplySettings",
     "WorkbenchCacheClear",

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-UI 最小依赖 import 冒烟：仅在 ``core/ui/bff/requirements.txt`` 已安装的环境下，
+UI 最小依赖 import 冒烟：仅在 ``core/bff/requirements.txt`` 已安装的环境下，
 验证 launcher / BFF 冷启动链不会因顶层 import 拉起未声明的三方包。
 
 用法::
@@ -70,10 +70,10 @@ UI_BOOTSTRAP_CHECKS: tuple[ImportCheck, ...] = (
         "Setup 步骤元数据",
     ),
     ImportCheck(
-        "core.ui.bff.app",
+        "core.bff.app",
         textwrap.dedent(
             """
-            from core.ui.bff.app import create_app
+            from core.bff.app import create_app
             create_app()
             """
         ).strip(),
@@ -213,7 +213,7 @@ def main(argv: list[str] | None = None) -> int:
             print(check.description, file=sys.stderr, flush=True)
         print(err, file=sys.stderr, flush=True)
     print(
-        "\n提示: 将重依赖移入函数内 import，或把缺失包加入 core/ui/bff/requirements.txt；"
+        "\n提示: 将重依赖移入函数内 import，或把缺失包加入 core/bff/requirements.txt；"
         "工作台首请求栈需全量 requirements.txt，不在本检查范围。",
         file=sys.stderr,
         flush=True,

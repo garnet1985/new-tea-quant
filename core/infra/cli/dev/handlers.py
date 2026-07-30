@@ -51,7 +51,7 @@ def kill_listeners_on_ports(
     fed_root = str((REPO_ROOT / "core" / "ui" / "fed").resolve())
     repo_s = str(REPO_ROOT)
     ntq_markers = (
-        "core.ui.bff.app",
+        "core.bff.app",
         "react-scripts",
         "webpack",
         "webpack-dev-server",

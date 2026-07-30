@@ -4,7 +4,7 @@
 
 ## HTTP 前缀与契约编号
 
-- **BFF** 蓝图挂载前缀为 **`/api`**（见 `core/ui/bff/app.py` 中 `register_blueprint(..., url_prefix='/api')`）。
+- **BFF** 蓝图挂载前缀为 **`/api`**（见 `core/bff/app.py` 中 `register_blueprint(..., url_prefix='/api')`）。
 - 路由声明形如 **`/v1/strategy/...`**、**`/v1/strategies/list`** 等，与蓝图拼接后的**完整路径**为 **`/api/v1/strategy/...`**、**`/api/v1/strategies/list`**。
 - 下文表格与细则中的路径均省略 **`/api`** 前缀时，仍指上述蓝图下的同一资源。
 - **「V2-xx」** 为本契约的接口族编号；URL 中的 **`/v1/`** 仅为 REST 路径版本段，**不表示存在另一套「产品级 API v1」文档**。

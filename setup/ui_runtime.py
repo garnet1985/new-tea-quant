@@ -223,7 +223,7 @@ def _force_shutdown_ui_ports() -> None:
 def release_ui_listen_ports(ports: tuple[int, ...] = ALL_UI_PORTS) -> None:
     """启动前清掉指定 UI 端口上的 NTQ 监听进程。"""
     markers = (
-        "core.ui.bff.app",
+        "core.bff.app",
         "react-scripts",
         "webpack",
         "webpack-dev-server",
@@ -323,7 +323,7 @@ def launch_ui_stack() -> None:
     fed_proc: subprocess.Popen | None = None
     try:
         bff_proc = subprocess.Popen(
-            [sys.executable, "-m", "core.ui.bff.app"],
+            [sys.executable, "-m", "core.bff.app"],
             cwd=str(REPO_ROOT),
             env=bff_env,
         )

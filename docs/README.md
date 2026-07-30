@@ -30,7 +30,7 @@
 当前仓库内已有 UI 代码骨架：
 
 - `core/ui/fed/`：React 前端（ECharts，可接入 MUI）
-- `core/ui/bff/`：Python Flask BFF
+- `core/bff/`：Python Flask BFF
 
 ## 零散工具（`tools/`）
 

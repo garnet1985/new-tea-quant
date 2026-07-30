@@ -15,7 +15,6 @@ tag/
   contracts.py        # hooks / 公开类型
   api.yaml / glossary.yaml / module_info.yaml
   core/
-    bff_support/      # UI：TagCatalog / TagRunLauncher
     engines/
       per_entity/     # BE：entity_based / slice_based + shared
       global_based/   # 轻量主进程（包名不可用 global 关键字）

@@ -16,5 +16,5 @@ changelog:
       - 创建strategy.py作为Facade，使用namespace API（scan/simulate/analyze/discovery）
       - 创建api.yaml定义公开API契约
       - 创建contracts.py定义公开类型（ExecutionMode/SellReason/SimulateKind）
-      - 工作台 / CLI / package / progress 已迁入本模块（bff_support + services）
+      - 工作台 / CLI / package / progress 已迁入本模块 services；UI 适配见 core.bff.support.strategy
       - 简化__init__.py导出，只导出Strategy和contracts类型

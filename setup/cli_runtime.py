@@ -73,6 +73,15 @@ def install_cli_runtime(force: bool = False) -> None:
         print("CLI 安装检查通过，跳过安装步骤。", flush=True)
         return
 
+    try:
+        from core.infra.trace import Trace
+
+        Trace.ask_permission(source="cli_install")
+    except KeyboardInterrupt:
+        raise
+    except Exception:
+        pass
+
     if scope == "deps_only":
         steps = list(CLI_DEPS_ONLY_STEPS)
         print(
@@ -88,6 +97,7 @@ def install_cli_runtime(force: bool = False) -> None:
         code = _run_step(step_id)
         if code != 0:
             mark_runtime("cli", success=False, failed_step_id=step_id)
+            _trace_install_complete(success=False, error_code=f"step_failed:{step_id}")
             raise RuntimeError(f"安装步骤失败: {step_id} (exit={code})")
         NewTeaQuantSetup.print_check_item("done", f"[{i}/{len(steps)}] {step_id}")
 
@@ -101,7 +111,25 @@ def install_cli_runtime(force: bool = False) -> None:
             },
         },
     )
+    _trace_install_complete(success=True, error_code=None)
     print("CLI 应用安装完成。", flush=True)
+
+
+def _trace_install_complete(*, success: bool, error_code: str | None) -> None:
+    """Best-effort install.complete event; never affects install outcome."""
+    try:
+        from core.infra.trace import Trace
+
+        body = {
+            "success": bool(success),
+            "source": "cli_install",
+        }
+        if error_code:
+            body["error_code"] = str(error_code)[:128]
+        Trace.track("install.complete", body)
+        Trace.flush(budget="standard")
+    except Exception:
+        pass
 
 
 def ensure_cli_install_via_install_py() -> int:

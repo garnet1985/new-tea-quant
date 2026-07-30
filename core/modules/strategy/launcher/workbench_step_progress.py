@@ -9,7 +9,7 @@ STAGES: Tuple[str, ...] = ("load", "dispatch", "execute", "report")
 STEP_STAGE_WEIGHTS: Dict[str, Dict[str, float]] = {
     "enum": {"load": 0.05, "dispatch": 0.03, "execute": 0.9, "report": 0.02},
     "price": {"load": 0.1, "dispatch": 0.03, "execute": 0.85, "report": 0.02},
-    "capital": {"load": 0.2, "dispatch": 0.1, "execute": 0.6, "report": 0.1},
+    "portfolio": {"load": 0.2, "dispatch": 0.1, "execute": 0.6, "report": 0.1},
 }
 
 STAGE_LABELS: Dict[str, str] = {

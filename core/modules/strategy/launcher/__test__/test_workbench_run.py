@@ -17,8 +17,9 @@ from core.modules.strategy.launcher.workbench_run_envelope import (
 def test_normalize_step():
     assert WorkbenchRunLauncher.normalize_step("enum") == "enum"
     assert WorkbenchRunLauncher.normalize_step("PRICE") == "price"
-    assert WorkbenchRunLauncher.normalize_step("capital") == "capital"
-    assert WorkbenchRunLauncher.normalize_step("portfolio") is None
+    assert WorkbenchRunLauncher.normalize_step("portfolio") == "portfolio"
+    assert WorkbenchRunLauncher.normalize_step("capital") is None
+    assert WorkbenchRunLauncher.normalize_step("nope") is None
 
 
 def test_envelope_seed_and_progress_roundtrip(tmp_path, monkeypatch):

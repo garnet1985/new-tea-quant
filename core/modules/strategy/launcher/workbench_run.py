@@ -18,7 +18,7 @@ from core.infra.system_actions.cache_cleanup.pipeline_lease import (
     read_pipeline_status,
 )
 from core.modules.strategy import Strategy
-from core.modules.strategy.core.enums import SimulateKind
+from core.modules.strategy.core.enums import SimulateKind, WorkbenchStep
 from core.modules.strategy.core.services.discovery import DiscoveryService
 from core.modules.strategy.core.services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
@@ -43,13 +43,6 @@ from .workbench_run_envelope import (
 
 logger = logging.getLogger(__name__)
 
-_VALID_STEPS = frozenset({"enum", "price", "capital"})
-_STEP_TO_KIND = {
-    "enum": SimulateKind.ENUMERATE,
-    "price": SimulateKind.PRICE_FACTOR,
-    "capital": SimulateKind.PORTFOLIO,
-}
-
 
 class WorkbenchRunLauncher:
     """UI async workbench run: lease / envelope / Strategy.simulate thread."""
@@ -59,8 +52,8 @@ class WorkbenchRunLauncher:
 
     @staticmethod
     def normalize_step(step: str) -> Optional[str]:
-        text = str(step or "").strip().lower()
-        return text if text in _VALID_STEPS else None
+        parsed = WorkbenchStep.try_parse(step)
+        return parsed.value if parsed is not None else None
 
     @classmethod
     def submit(
@@ -77,7 +70,7 @@ class WorkbenchRunLauncher:
         if not name:
             return {"is_triggered": False, "reason": "strategy_name 无效"}
         if norm is None:
-            return {"is_triggered": False, "reason": "step 须为 enum / price / capital"}
+            return {"is_triggered": False, "reason": "step 须为 enum / price / portfolio"}
         if not isinstance(api_settings, dict):
             return {"is_triggered": False, "reason": "settings 必须为对象"}
 
@@ -178,7 +171,7 @@ class WorkbenchRunLauncher:
         runtime_settings: Dict[str, Any],
     ) -> List[str]:
         """Mirror Facade omit-enum rules for envelope step list."""
-        kind = _STEP_TO_KIND[norm_step]
+        kind = WorkbenchStep.parse(norm_step).to_simulate_kind()
         if kind == SimulateKind.ENUMERATE:
             return ["enum"]
         if force_refresh:
@@ -239,7 +232,7 @@ class WorkbenchRunLauncher:
                     strategy_name, job_id, 0, len(plan_steps), plan_steps[0]
                 )
 
-            kind = _STEP_TO_KIND[norm_step]
+            kind = WorkbenchStep.parse(norm_step).to_simulate_kind()
             result = Strategy.simulate(
                 strategy_name,
                 kind=kind,

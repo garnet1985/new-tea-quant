@@ -6,12 +6,12 @@
 export const TAB_TO_RESULT_REPORT_SLOT = {
   enum: 'enum',
   price: 'price_factor',
-  capital: 'portfolio',
+  portfolio: 'portfolio',
 };
 
 /**
  * @param {object|null|undefined} resultReport V2-08 ``result_report``
- * @param {'enum'|'price'|'capital'} tabKey
+ * @param {'enum'|'price'|'portfolio'} tabKey
  */
 export function slotFromResultReport(resultReport, tabKey) {
   if (!resultReport || typeof resultReport !== 'object') return null;

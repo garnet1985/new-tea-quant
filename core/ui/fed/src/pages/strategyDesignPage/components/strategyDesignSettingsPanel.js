@@ -149,7 +149,7 @@ function StrategyDesignSettingsPanel({
     return errors;
   }, []);
 
-  const showCoreHint = activeStep === 'price' || activeStep === 'capital';
+  const showCoreHint = activeStep === 'price' || activeStep === 'portfolio';
 
   const stepSettingsBody = useMemo(() => {
     if (activeStep === 'enum') {
@@ -194,7 +194,7 @@ function StrategyDesignSettingsPanel({
       );
     }
 
-    if (activeStep === 'capital') {
+    if (activeStep === 'portfolio') {
       return (
         <>
           <SectionAccordion title="资金组合参数">

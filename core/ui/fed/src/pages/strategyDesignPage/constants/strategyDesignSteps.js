@@ -2,7 +2,7 @@
 export const STRATEGY_DESIGN_STEPS = [
   { key: 'enum', no: 1, label: '枚举机会', pathSegment: 'enum' },
   { key: 'price', no: 2, label: '价格回测', pathSegment: 'price' },
-  { key: 'capital', no: 3, label: '资金模拟', pathSegment: 'capital' },
+  { key: 'portfolio', no: 3, label: '资金模拟', pathSegment: 'portfolio' },
 ];
 
 /** Meta 顶栏：当前步说明（标题 + 一句摘要） */
@@ -15,7 +15,7 @@ export const STRATEGY_DESIGN_STEP_INTRO = {
     title: '价格回测',
     summary: '单股模拟，初步验证策略盈利表现',
   },
-  capital: {
+  portfolio: {
     title: '资金模拟',
     summary: '给定资金下的组合交易与收益评估',
   },

@@ -1,94 +1,88 @@
+from core.bff.APIs.strategy.api_base import API_BASE_PATH, strategy_api_bp
+from core.bff.APIs.strategy.routes.report.implementer import impl
+from core.bff.shared.response import error, ok
 
 # ***********************************************
 #     Strategy Report
 # ***********************************************
+#
+# ``strategy_key_or_name`` 一律放路径末尾（``<path:>``），与 package/export 一致。
+# 含字面量 ``ref`` / ``stock`` 的路由须注册在泛化 GET 之前。
 
-# TODO: url need to update to /strategy/report/:strategy_key/:step/:version_id
+
 @strategy_api_bp.route(
-    "/v1/strategy/<path:strategy_name>/<step>/report/<version_id>",
+    f"{API_BASE_PATH}/report/<step>/<version_id>/ref/<path:strategy_key_or_name>",
     methods=["GET"],
 )
-def get_strategy_step_report(strategy_name, step, version_id):
-    s = get_stack()
-    norm = s.normalize_step(step)
-    if norm is None:
-        return error("step 须为 enum / price / capital", 400)
+def get_strategy_step_report_ref(
+    step: str, version_id: str, strategy_key_or_name: str
+):
+    """
+    GET /api/v1/strategy/report/:step/:version_id/ref/:strategy_key_or_name
 
-    path_vid = str(version_id or "").strip()
-    if not path_vid:
-        return error("缺少路径参数 version_id", 400)
-
-    sid = s.parse_version_id(path_vid)
-    if sid is None:
-        return error("version_id 无效", 400)
-    msg = s.build_step_report_message(
-        strategy_name=strategy_name,
-        normalized_step=norm,
-        version=sid,
-    )
-    if msg is None:
-        return error("快照不存在", 404)
-    return ok(msg)
-
-# what is report_ref? what does it do?
-# TODO: url need to update to /strategy/report/:strategy_key/:step/:version_id
-@strategy_api_bp.route(
-    "/v1/strategy/<path:strategy_name>/<step>/report_ref/<version_id>",
-    methods=["GET"],
-)
-def get_strategy_step_report_ref(strategy_name, step, version_id):
-    s = get_stack()
-    norm = s.normalize_step(step)
-    if norm is None:
-        return error("step 须为 enum / price / capital", 400)
-
-    path_vid = str(version_id or "").strip()
-    if not path_vid:
-        return error("缺少路径参数 version_id", 400)
-
-    sid = s.parse_version_id(path_vid)
-    if sid is None:
-        return error("version_id 无效", 400)
-    msg = s.build_step_report_ref_message(
-        strategy_name=strategy_name,
-        normalized_step=norm,
-        version=sid,
-    )
-    if msg is None:
-        return error("快照不存在", 404)
+    枚举 / 价格逐股 ref（``entity_list.json``）。
+    """
+    report = impl.lazy_load()
+    try:
+        msg = report.build_step_report_ref(
+            strategy_key_or_name=strategy_key_or_name,
+            step=step,
+            version_id=version_id,
+        )
+    except ValueError as exc:
+        return error(str(exc), 400)
+    except FileNotFoundError as exc:
+        return error(str(exc), 404)
     return ok(msg)
 
 
-# TODO: url need to update to /strategy/report/:strategy_key/:step/:version_id
 @strategy_api_bp.route(
-    "/v1/strategy/<path:strategy_name>/<step>/stock/<path:stock_id>",
+    f"{API_BASE_PATH}/report/<step>/<version_id>/stock/<stock_id>/<path:strategy_key_or_name>",
     methods=["GET"],
 )
-def get_strategy_step_stock_detail(strategy_name, step, stock_id):
-    s = get_stack()
-    norm = s.normalize_step(step)
-    if norm is None:
-        return error("step 须为 enum / price / capital", 400)
+def get_strategy_step_stock_detail(
+    step: str, version_id: str, stock_id: str, strategy_key_or_name: str
+):
+    """
+    GET /api/v1/strategy/report/:step/:version_id/stock/:stock_id/:strategy_key_or_name
 
-    path_vid = str(request.args.get("version_id") or "").strip()
-    if not path_vid:
-        return error("缺少 query 参数 version_id", 400)
-
-    sid = s.parse_version_id(path_vid)
-    if sid is None:
-        return error("version_id 无效", 400)
-
-    code = str(stock_id or "").strip()
-    if not code:
-        return error("stock_id 无效", 400)
-
-    msg = s.build_stock_detail_message(
-        strategy_name=strategy_name,
-        normalized_step=norm,
-        version=sid,
-        stock_id=code,
-    )
-    if msg is None:
-        return error("快照不存在", 404)
+    单股 K 线 + markers。
+    """
+    report = impl.lazy_load()
+    try:
+        msg = report.build_stock_detail(
+            strategy_key_or_name=strategy_key_or_name,
+            step=step,
+            version_id=version_id,
+            stock_id=stock_id,
+        )
+    except ValueError as exc:
+        return error(str(exc), 400)
+    except FileNotFoundError as exc:
+        return error(str(exc), 404)
     return ok(msg)
 
+
+@strategy_api_bp.route(
+    f"{API_BASE_PATH}/report/<step>/<version_id>/<path:strategy_key_or_name>",
+    methods=["GET"],
+)
+def get_strategy_step_report(step: str, version_id: str, strategy_key_or_name: str):
+    """
+    GET /api/v1/strategy/report/:step/:version_id/:strategy_key_or_name
+
+    ``step``: ``WorkbenchStep``（enum | price | portfolio）；
+    ``strategy_key_or_name``: meta.key 或 path name。
+    """
+    report = impl.lazy_load()
+    try:
+        msg = report.build_step_report(
+            strategy_key_or_name=strategy_key_or_name,
+            step=step,
+            version_id=version_id,
+        )
+    except ValueError as exc:
+        return error(str(exc), 400)
+    except FileNotFoundError as exc:
+        return error(str(exc), 404)
+    return ok(msg)

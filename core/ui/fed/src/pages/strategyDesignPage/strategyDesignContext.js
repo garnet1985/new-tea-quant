@@ -15,7 +15,7 @@ import {
 
 const StrategyDesignContext = createContext(null);
 
-const VALID_STEPS = new Set(['enum', 'price', 'capital']);
+const VALID_STEPS = new Set(['enum', 'price', 'portfolio']);
 
 export function StrategyDesignProvider({ strategyName, initialStep = '', children }) {
   const [session, setSession] = useState(() => {

@@ -60,7 +60,7 @@ def _capital_line_from_result_report(rr: Dict[str, Any]) -> Optional[Dict[str, A
 def build_execution_panel_from_result_report(
     result_report: Optional[Dict[str, Any]],
 ) -> Dict[str, Any]:
-    """执行面板三行卡片摘要（``enum`` / ``price`` / ``capital``）；无槽位则对应键省略。"""
+    """执行面板三行卡片摘要（``enum`` / ``price`` / ``portfolio``）；无槽位则对应键省略。"""
     rr = dict(result_report or {})
     out: Dict[str, Any] = {}
     enum_line = _enum_line_from_result_report(rr)
@@ -71,7 +71,7 @@ def build_execution_panel_from_result_report(
         out["price"] = price_line
     capital_line = _capital_line_from_result_report(rr)
     if capital_line:
-        out["capital"] = capital_line
+        out["portfolio"] = capital_line
     return out
 
 

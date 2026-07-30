@@ -1,18 +1,15 @@
-"""Tests for workbench stock detail (V2-07c)."""
+"""Tests for BFF stock detail (V2-07c)."""
 
 from __future__ import annotations
 
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from core.modules.strategy.launcher.workbench_stock_detail import (
-    WorkbenchStockDetail,
+from core.bff.APIs.strategy.routes.report.stock_detail import WorkbenchStockDetail
+from core.modules.strategy.core.engines.price_factor.report_manager.investments import (
+    PriceInvestmentRow,
 )
 from core.modules.strategy.core.engines.shared.services.simulation_output.investment_csv import (
     InvestmentRow,
-)
-from core.modules.strategy.core.engines.price_factor.report_manager.investments import (
-    PriceInvestmentRow,
 )
 
 
@@ -27,7 +24,6 @@ def test_enum_markers_use_trigger_date():
         result="win",
         exit_reason="take_profit",
     )
-    # coerce via constructor may need floats - set after
     inv.trigger_price = 10.5
     candles = [
         {"date": "20200102", "open": 10, "high": 11, "low": 9, "close": 10.2},
@@ -77,7 +73,7 @@ def test_enum_metrics_for_stock():
 
 @patch.object(WorkbenchStockDetail, "_build_enum")
 @patch(
-    "core.modules.strategy.launcher.workbench_stock_detail.WorkbenchSnapshots.fetch_by_version"
+    "core.bff.APIs.strategy.routes.report.stock_detail.WorkbenchSnapshots.fetch_by_version"
 )
 def test_build_routes_enum(mock_fetch, mock_enum):
     mock_fetch.return_value = {"version": 3, "result_report": {}}
@@ -93,7 +89,7 @@ def test_build_routes_enum(mock_fetch, mock_enum):
 
 
 @patch(
-    "core.modules.strategy.launcher.workbench_stock_detail.WorkbenchSnapshots.fetch_by_version",
+    "core.bff.APIs.strategy.routes.report.stock_detail.WorkbenchSnapshots.fetch_by_version",
     return_value=None,
 )
 def test_build_missing_snapshot(_mock_fetch):
@@ -116,7 +112,7 @@ def test_resolve_output_dir_requires_entity_csv(tmp_path, monkeypatch):
         "investment_id,trigger_date\nx,20200101\n", encoding="utf-8"
     )
     monkeypatch.setattr(
-        "core.modules.strategy.launcher.workbench_stock_detail.resolve_simulation_output_dirs",
+        "core.bff.APIs.strategy.routes.report.stock_detail.resolve_simulation_output_dirs",
         lambda *a, **k: [out_dir],
     )
     resolved = WorkbenchStockDetail._resolve_output_dir(

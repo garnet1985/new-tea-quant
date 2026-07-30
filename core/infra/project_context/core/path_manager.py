@@ -220,11 +220,6 @@ class PathManager:
         return PathManager.get_strategy_results_directory(strategy_name) / "simulations" / "price"
 
     @staticmethod
-    def get_strategy_simulation_capital_directory(strategy_name: str) -> Path:
-        """获取资金模拟结果目录：.../results/simulations/capital/"""
-        return PathManager.get_strategy_results_directory(strategy_name) / "simulations" / "capital"
-
-    @staticmethod
     def get_strategy_simulation_portfolio_directory(strategy_name: str) -> Path:
         """获取组合模拟结果目录：.../results/simulations/portfolio/"""
         return PathManager.get_strategy_results_directory(strategy_name) / "simulations" / "portfolio"

@@ -15,7 +15,7 @@
 #     s = get_stack()
 #     norm = s.normalize_step(step)
 #     if norm is None:
-#         return error("step 须为 enum / price / capital", 400)
+#         return error("step 须为 enum / price / portfolio", 400)
 
 #     path_vid = str(version_id or "").strip()
 #     if not path_vid:
@@ -42,7 +42,7 @@
 #     s = get_stack()
 #     norm = s.normalize_step(step)
 #     if norm is None:
-#         return error("step 须为 enum / price / capital", 400)
+#         return error("step 须为 enum / price / portfolio", 400)
 
 #     path_vid = str(version_id or "").strip()
 #     if not path_vid:
@@ -69,7 +69,7 @@
 #     s = get_stack()
 #     norm = s.normalize_step(step)
 #     if norm is None:
-#         return error("step 须为 enum / price / capital", 400)
+#         return error("step 须为 enum / price / portfolio", 400)
 
 #     path_vid = str(request.args.get("version_id") or "").strip()
 #     if not path_vid:

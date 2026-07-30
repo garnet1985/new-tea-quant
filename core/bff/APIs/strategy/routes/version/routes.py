@@ -1,6 +1,79 @@
+from core.bff.APIs.strategy.api_base import API_BASE_PATH, strategy_api_bp
+from core.bff.APIs.strategy.helpers.formatting import workbench_snapshot_to_message
+from core.bff.APIs.strategy.routes.version.implementer import impl as version_impl
+from core.bff.APIs.strategy.stack import get_stack
+from core.bff.shared.request import json_payload
+from core.bff.shared.response import error, ok
+
+# ***********************************************
+#     Strategy Version (snapshots + cache clear)
+# ***********************************************
+
+
+def _http_from_cache_result(out: dict, *, all_mode: bool):
+    if out.get("ok"):
+        if all_mode:
+            return ok(
+                {
+                    "cleared": True,
+                    "deleted_count": int(out.get("deleted_count") or 0),
+                }
+            )
+        return ok(
+            {
+                "deleted": True,
+                "strategy_name": out.get("strategy_name"),
+                "version_id": out.get("version_id"),
+            }
+        )
+    err = str(out.get("error") or ("清理失败" if all_mode else "删除失败"))
+    if err == "存储不可用":
+        return error(err, 503)
+    if err == "快照不存在":
+        return error(err, 404)
+    return error(err, 400)
+
 
 @strategy_api_bp.route(
-    "/v1/strategy/<path:strategy_name>/version/latest",
+    f"{API_BASE_PATH}/version/cache",
+    methods=["DELETE"],
+)
+def delete_strategy_version_cache_all():
+    """
+    DELETE /api/v1/strategy/version/cache
+
+    清空工作台快照 DbCache 表全部行（原 V2-11）。
+    """
+    versions = version_impl.lazy_load()
+    return _http_from_cache_result(versions.clear_cache_all(), all_mode=True)
+
+
+@strategy_api_bp.route(
+    f"{API_BASE_PATH}/version/<version_id>/cache/<path:strategy_key_or_name>",
+    methods=["DELETE"],
+)
+def delete_strategy_version_cache_by_version(
+    version_id: str, strategy_key_or_name: str
+):
+    """
+    DELETE /api/v1/strategy/version/:version_id/cache/:strategy_key_or_name
+
+    ``strategy_key_or_name``: ``settings.meta.key`` 或 path name。
+    """
+    versions = version_impl.lazy_load()
+    try:
+        out = versions.clear_cache_by_version(
+            strategy_key_or_name=strategy_key_or_name, version_id=version_id
+        )
+    except ValueError as exc:
+        return error(str(exc), 400)
+    except FileNotFoundError as exc:
+        return error(str(exc), 404)
+    return _http_from_cache_result(out, all_mode=False)
+
+
+@strategy_api_bp.route(
+    f"{API_BASE_PATH}/<path:strategy_name>/version/latest",
     methods=["GET"],
 )
 def get_strategy_version_latest(strategy_name):
@@ -14,7 +87,7 @@ def get_strategy_version_latest(strategy_name):
 
 
 @strategy_api_bp.route(
-    "/v1/strategy/<path:strategy_name>/versions",
+    f"{API_BASE_PATH}/<path:strategy_name>/versions",
     methods=["GET"],
 )
 def get_strategy_versions(strategy_name):
@@ -25,7 +98,7 @@ def get_strategy_versions(strategy_name):
 
 
 @strategy_api_bp.route(
-    "/v1/strategy/<path:strategy_name>/version/<version_id>",
+    f"{API_BASE_PATH}/<path:strategy_name>/version/<version_id>",
     methods=["GET"],
 )
 def get_strategy_version_snapshot(strategy_name, version_id):
@@ -40,14 +113,8 @@ def get_strategy_version_snapshot(strategy_name, version_id):
     return ok(workbench_snapshot_to_message(row))
 
 
-
-
-# ********************************
-#     Strategy Settings
-# ********************************
-
 @strategy_api_bp.route(
-    "/v1/strategy/<path:strategy_name>/apply-settings/<version_id>",
+    f"{API_BASE_PATH}/<path:strategy_name>/apply-settings/<version_id>",
     methods=["POST"],
 )
 def post_apply_settings(strategy_name, version_id):
@@ -74,55 +141,3 @@ def post_apply_settings(strategy_name, version_id):
             return error(err, 500)
         return error(err, 400)
     return ok(out)
-
-
-
-# ********************************
-#     Strategy Run Cache
-# ********************************
-
-# TODO: url need to update to /strategy/cache/clear/all
-@strategy_api_bp.route(
-    "/v1/strategy/workbench-snapshot-cache",
-    methods=["DELETE"],
-)
-def delete_workbench_snapshot_cache_all():
-    s = get_stack()
-    out = s.clear_workbench_simulation_cache_all()
-    if not out.get("ok"):
-        err = str(out.get("error") or "清理失败")
-        if err == "存储不可用":
-            return error(err, 503)
-        return error(err, 400)
-    return ok(
-        {
-            "cleared": True,
-            "deleted_count": int(out.get("deleted_count") or 0),
-        }
-    )
-
-# TODO: url need to update to /strategy/cache/clear/:version_id
-@strategy_api_bp.route(
-    "/v1/strategy/<path:strategy_name>/version/<version_id>/workbench-snapshot-cache",
-    methods=["DELETE"],
-)
-def delete_workbench_snapshot_cache_by_version(strategy_name, version_id):
-    s = get_stack()
-    sid = s.parse_version_id(version_id)
-    if sid is None:
-        return error("version_id 无效", 400)
-    out = s.clear_workbench_simulation_cache_by_version(strategy_name, sid)
-    if not out.get("ok"):
-        err = str(out.get("error") or "删除失败")
-        if err == "存储不可用":
-            return error(err, 503)
-        if err == "快照不存在":
-            return error(err, 404)
-        return error(err, 400)
-    return ok(
-        {
-            "deleted": True,
-            "strategy_name": out.get("strategy_name"),
-            "version_id": out.get("version_id"),
-        }
-    )

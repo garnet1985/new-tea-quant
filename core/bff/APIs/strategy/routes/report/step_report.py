@@ -1,8 +1,6 @@
-"""Workbench step report APIs for UI (V2-07 / V2-07b).
+"""BFF step report builders (V2-07 / V2-07b).
 
-Consumers: ``core.bff.APIs.strategy.stack``
-
-Reads snapshot ``result_report`` slots + NEW disk reports
+Reads snapshot ``result_report`` slots + disk reports
 (``overall_report.json`` / ``entity_list.json``).
 """
 
@@ -19,23 +17,17 @@ from core.modules.strategy.core.engines.shared.services.simulation_output.file_n
 from core.modules.strategy.core.engines.shared.services.simulation_output.paths import (
     ArtifactPaths,
 )
-
-from .report_hydrate import (
+from core.modules.strategy.core.enums import WorkbenchStep
+from core.modules.strategy.launcher.report_hydrate import (
     attach_enum_opportunities_field,
     hydrate_enum_slot,
     hydrate_portfolio_slot,
     hydrate_price_slot,
     resolve_simulation_output_dirs,
 )
-from .workbench_snapshots import WorkbenchSnapshots
+from core.modules.strategy.launcher.workbench_snapshots import WorkbenchSnapshots
 
 logger = logging.getLogger(__name__)
-
-_STEP_TO_REPORT_SLOT = {
-    "enum": "enum",
-    "price": "price_factor",
-    "capital": "portfolio",
-}
 
 
 class WorkbenchReports:
@@ -50,8 +42,8 @@ class WorkbenchReports:
         version: int,
     ) -> Optional[Dict[str, Any]]:
         """Read snapshot slot for step; missing row → ``None`` (route 404)."""
-        slot_key = _STEP_TO_REPORT_SLOT.get(normalized_step)
-        if not slot_key:
+        step = WorkbenchStep.try_parse(normalized_step)
+        if step is None:
             return None
 
         name = str(strategy_name).strip()
@@ -61,14 +53,14 @@ class WorkbenchReports:
 
         report = cls._resolve_step_report(
             name,
-            normalized_step,
+            step,
             row,
             workbench_version=int(version),
         )
         return {
             "version_id": f"v{int(version)}",
             "strategy_name": name,
-            "step": normalized_step,
+            "step": step.value,
             "report": report,
         }
 
@@ -84,8 +76,12 @@ class WorkbenchReports:
 
         Missing snapshot → ``None``. Missing disk file → ``stock_ref_available=False``.
         """
-        if normalized_step not in ("enum", "price"):
+        if normalized_step not in (
+            WorkbenchStep.ENUM.value,
+            WorkbenchStep.PRICE.value,
+        ):
             return None
+        step = WorkbenchStep.parse(normalized_step)
         name = str(strategy_name).strip()
         if not name or version <= 0:
             return None
@@ -95,7 +91,7 @@ class WorkbenchReports:
             return None
 
         rr = dict(row.get("result_report") or {})
-        slot_key = _STEP_TO_REPORT_SLOT[normalized_step]
+        slot_key = step.report_slot
         slot = rr.get(slot_key) if isinstance(rr.get(slot_key), dict) else {}
 
         stock_ref: Optional[Dict[str, Any]] = None
@@ -103,13 +99,13 @@ class WorkbenchReports:
 
         for output_dir in resolve_simulation_output_dirs(
             name,
-            step=normalized_step,
+            step=step.value,
             slot=slot if isinstance(slot, dict) else {},
             workbench_version=int(version),
         ):
             if not output_dir.is_dir():
                 continue
-            loaded = cls._load_stock_ref_from_dir(normalized_step, output_dir)
+            loaded = cls._load_stock_ref_from_dir(step.value, output_dir)
             if loaded:
                 stock_ref = loaded
                 resolved_dir = output_dir.name
@@ -118,7 +114,7 @@ class WorkbenchReports:
         common = {
             "version_id": f"v{int(version)}",
             "strategy_name": name,
-            "step": normalized_step,
+            "step": step.value,
         }
         if stock_ref is None:
             return {
@@ -140,24 +136,23 @@ class WorkbenchReports:
     def _resolve_step_report(
         cls,
         strategy_name: str,
-        normalized_step: str,
+        step: WorkbenchStep,
         row: Dict[str, Any],
         *,
         workbench_version: int,
     ) -> Dict[str, Any]:
         rr = dict(row.get("result_report") or {})
-        slot_key = _STEP_TO_REPORT_SLOT[normalized_step]
-        raw = rr.get(slot_key)
+        raw = rr.get(step.report_slot)
         if not isinstance(raw, dict) or not raw:
             return {}
 
-        if normalized_step == "enum":
+        if step is WorkbenchStep.ENUM:
             return attach_enum_opportunities_field(
                 hydrate_enum_slot(
                     strategy_name, raw, workbench_version=workbench_version
                 )
             )
-        if normalized_step == "price":
+        if step is WorkbenchStep.PRICE:
             return hydrate_price_slot(
                 strategy_name, raw, workbench_version=workbench_version
             )

@@ -120,12 +120,12 @@ export function getStrategyWorkbenchPath(strategyName) {
   return `/strategy-workbench/${encoded}`;
 }
 
-/** 制定策略：单策略调试页路径（可选 step：enum | price | capital） */
+/** 制定策略：单策略调试页路径（可选 step：enum | price | portfolio） */
 export function getStrategyDesignPath(strategyName, step = '') {
   const encoded = encodeStrategyPathSegments(strategyName);
   const base = `/strategy-design/${encoded}`;
   const seg = String(step || '').trim();
-  if (seg === 'enum' || seg === 'price' || seg === 'capital') {
+  if (seg === 'enum' || seg === 'price' || seg === 'portfolio') {
     return `${base}/${seg}`;
   }
   return base;
@@ -249,7 +249,7 @@ export async function createStrategyVersion(strategyName, settings, source = 'ma
 /**
  * V2-05：启动 run（路径上的 ``step`` 为用户点击步；实际子步骤链见响应 ``steps`` / ``resolved_chain``，由后端 ``plan_schema`` 规划）。
  * @param {string} strategyName
- * @param {'enum'|'price'|'capital'} targetStep
+ * @param {'enum'|'price'|'portfolio'} targetStep
  * @param {object=} settings
  */
 export async function startStrategyRun(strategyName, targetStep, settings, options = {}) {
@@ -288,52 +288,56 @@ export async function fetchEnumeratorReusePreview(strategyName) {
 
 /**
  * V2-07：按路径 ``version_id`` 读取该步 ``report`` 槽位 JSON。
- * @param {string} strategyName
- * @param {'enum'|'price'|'capital'} step
+ * GET /api/v1/strategy/report/:step/:version_id/:strategy_key_or_name
+ * @param {string} strategyKeyOrName ``settings.meta.key``（推荐）或 path name
+ * @param {'enum'|'price'|'portfolio'} step
  * @param {string} versionId 如 ``v3`` / ``3``
  */
-export async function fetchStrategyStepReport(strategyName, step, versionId) {
+export async function fetchStrategyStepReport(strategyKeyOrName, step, versionId) {
+  const id = encodeStrategyPathSegments(strategyKeyOrName);
   const vid = encodeURIComponent(String(versionId || '').trim());
-  if (!vid) {
-    throw new Error('缺少 version_id');
+  if (!id || !vid) {
+    throw new Error('缺少 strategy_key_or_name 或 version_id');
   }
   const json = await requestJson(
-    `${apiStrategyPath(strategyName)}/${encodeURIComponent(step)}/report/${vid}`,
+    `${API_VERSION_PREFIX}/strategy/report/${encodeURIComponent(step)}/${vid}/${id}`,
     { method: 'GET' },
   );
   return json?.message || {};
 }
 
 /**
- * 枚举逐股 ref（``0_stock_ref.json``）。成功时 ``message.stock_ref`` 可为 ``null``（磁盘已清理），
+ * 枚举逐股 ref（``entity_list.json``）。成功时 ``message.stock_ref`` 可为 ``null``（磁盘已清理），
  * 此时 ``stock_ref_available === false``；仅快照不存在时 HTTP 非 2xx。
- * @param {string} strategyName
- * @param {'enum'|'price'|'capital'} step
+ * GET /api/v1/strategy/report/:step/:version_id/ref/:strategy_key_or_name
+ * @param {string} strategyKeyOrName
+ * @param {'enum'|'price'|'portfolio'} step
  * @param {string} versionId
  * @returns {Promise<object|null>}
  */
 /**
  * V2-07c：单股 K 线 + 步骤 markers。
- * GET /api/v1/strategy/{name}/{step}/stock/{stock_id}?version_id=...
+ * GET /api/v1/strategy/report/:step/:version_id/stock/:stock_id/:strategy_key_or_name
  */
-export async function fetchStrategyStockDetail(strategyName, step, versionId, stockId) {
+export async function fetchStrategyStockDetail(strategyKeyOrName, step, versionId, stockId) {
+  const id = encodeStrategyPathSegments(strategyKeyOrName);
   const vid = encodeURIComponent(String(versionId || '').trim());
   const code = encodeURIComponent(String(stockId || '').trim());
-  if (!vid || !code) {
-    throw new Error('缺少 version_id 或 stock_id');
+  if (!id || !vid || !code) {
+    throw new Error('缺少 strategy_key_or_name、version_id 或 stock_id');
   }
-  const params = new URLSearchParams({ version_id: String(versionId || '').trim() });
-  const url = `${apiStrategyPath(strategyName)}/${encodeURIComponent(step)}/stock/${code}?${params.toString()}`;
+  const url = `${API_VERSION_PREFIX}/strategy/report/${encodeURIComponent(step)}/${vid}/stock/${code}/${id}`;
   const json = await requestJson(url, { method: 'GET' });
   return json?.message || {};
 }
 
-export async function fetchStrategyStepReportRef(strategyName, step, versionId) {
+export async function fetchStrategyStepReportRef(strategyKeyOrName, step, versionId) {
+  const id = encodeStrategyPathSegments(strategyKeyOrName);
   const vid = encodeURIComponent(String(versionId || '').trim());
-  if (!vid) {
+  if (!id || !vid) {
     return null;
   }
-  const url = `${apiStrategyPath(strategyName)}/${encodeURIComponent(step)}/report_ref/${vid}`;
+  const url = `${API_VERSION_PREFIX}/strategy/report/${encodeURIComponent(step)}/${vid}/ref/${id}`;
   const response = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
   });
@@ -377,7 +381,7 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
   const step_progress = {};
   steps.forEach((row) => {
     const k = String(row.step_name || '').trim();
-    if (k !== 'enum' && k !== 'price' && k !== 'capital') return;
+    if (k !== 'enum' && k !== 'price' && k !== 'portfolio') return;
     const st = String(row.status || '').toLowerCase();
     if (st === 'pending') step_status_merge[k] = 'pending';
     else if (st === 'running') step_status_merge[k] = 'running';
@@ -396,7 +400,7 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
   else if (allDone || phase === 'completed') state = 'done';
 
   let running_step = '';
-  ['enum', 'price', 'capital'].forEach((k) => {
+  ['enum', 'price', 'portfolio'].forEach((k) => {
     if (step_status_merge[k] === 'running') running_step = k;
   });
   if (!running_step && runProgress?.substep) {
@@ -453,7 +457,7 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
  * 第三参 ``step`` 已废弃，保留签名以兼容旧调用。
  * @param {string} strategyName
  * @param {string} jobId
- * @param {'enum'|'price'|'capital'} [_step]
+ * @param {'enum'|'price'|'portfolio'} [_step]
  */
 export async function fetchStrategyRunStatus(strategyName, jobId, _step = 'enum') {
   void _step;

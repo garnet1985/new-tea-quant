@@ -179,17 +179,17 @@ function StrategyWorkbenchPage() {
     stepStatus: {
       enum: 'idle',
       price: 'idle',
-      capital: 'idle',
+      portfolio: 'idle',
     },
     result: {
       enum: null,
       price: null,
-      capital: null,
+      portfolio: null,
     },
     compareVersion: {
       enum: '',
       price: '',
-      capital: '',
+      portfolio: '',
     },
     runningStep: '',
     runId: '',
@@ -270,17 +270,17 @@ function StrategyWorkbenchPage() {
       stepStatus: {
         enum: 'idle',
         price: 'idle',
-        capital: 'idle',
+        portfolio: 'idle',
       },
       result: {
         enum: null,
         price: null,
-        capital: null,
+        portfolio: null,
       },
       compareVersion: {
         enum: '',
         price: '',
-        capital: '',
+        portfolio: '',
       },
       runningStep: '',
       runId: '',
@@ -308,7 +308,7 @@ function StrategyWorkbenchPage() {
   }, [strategyName]);
 
   const handleRunStepComplete = useCallback((step) => {
-    if (step !== 'enum' && step !== 'price' && step !== 'capital') return;
+    if (step !== 'enum' && step !== 'price' && step !== 'portfolio') return;
     reportTabFocusSeqRef.current += 1;
     setReportTabFocusRequest({ step, tick: reportTabFocusSeqRef.current });
     const draft = draftSettingsRef.current;
@@ -443,9 +443,9 @@ function StrategyWorkbenchPage() {
       setStrategyDisplayName('');
       setWorkbenchSnapshot(emptyWorkbenchSnapshot());
       setExecutionState({
-        stepStatus: { enum: 'idle', price: 'idle', capital: 'idle' },
-        result: { enum: null, price: null, capital: null },
-        compareVersion: { enum: '', price: '', capital: '' },
+        stepStatus: { enum: 'idle', price: 'idle', portfolio: 'idle' },
+        result: { enum: null, price: null, portfolio: null },
+        compareVersion: { enum: '', price: '', portfolio: '' },
         runningStep: '',
         runId: '',
         activeRunId: '',
@@ -513,7 +513,7 @@ function StrategyWorkbenchPage() {
         setExecutionState({
           stepStatus: hydration.stepStatus,
           result: hydration.result,
-          compareVersion: { enum: '', price: '', capital: '' },
+          compareVersion: { enum: '', price: '', portfolio: '' },
           runningStep: '',
           runId: '',
           activeRunId: '',
@@ -532,9 +532,9 @@ function StrategyWorkbenchPage() {
         lastRunSyncedVersionRef.current = '';
         setWorkbenchSnapshot(emptyWorkbenchSnapshot());
         setExecutionState({
-          stepStatus: { enum: 'idle', price: 'idle', capital: 'idle' },
-          result: { enum: null, price: null, capital: null },
-          compareVersion: { enum: '', price: '', capital: '' },
+          stepStatus: { enum: 'idle', price: 'idle', portfolio: 'idle' },
+          result: { enum: null, price: null, portfolio: null },
+          compareVersion: { enum: '', price: '', portfolio: '' },
           runningStep: '',
           runId: '',
           activeRunId: '',
@@ -1008,7 +1008,7 @@ function StrategyWorkbenchPage() {
                         setExecutionState({
                           stepStatus: hydrationRestore.stepStatus,
                           result: hydrationRestore.result,
-                          compareVersion: { enum: '', price: '', capital: '' },
+                          compareVersion: { enum: '', price: '', portfolio: '' },
                           runningStep: '',
                           runId: '',
                           activeRunId: '',

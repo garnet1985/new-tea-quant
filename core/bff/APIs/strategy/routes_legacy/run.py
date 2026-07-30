@@ -72,7 +72,7 @@
 #     s = get_stack()
 #     norm = s.normalize_step(step)
 #     if norm is None:
-#         return error("step 须为 enum / price / capital", 400)
+#         return error("step 须为 enum / price / portfolio", 400)
 #     q_job = (request.args.get("job_id") or "").strip()
 #     if not q_job:
 #         return error("缺少必填 query 参数 job_id", 400)

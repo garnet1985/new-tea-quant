@@ -1,6 +1,4 @@
-"""Workbench single-stock detail (V2-07c): K-line + step markers.
-
-Consumers: ``core.bff.APIs.strategy.stack``
+"""BFF single-stock detail (V2-07c): K-line + step markers.
 
 NEW artifacts only:
 - enum: ``entities/{id}_stock_investments.csv``
@@ -14,8 +12,14 @@ import math
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from core.infra.utils.date.date_utils import DateUtils
 from core.modules.data_manager import DataManager
 from core.modules.indicator import IndicatorService
+from core.modules.strategy.core.enums import WorkbenchStep
+from core.modules.strategy.core.engines.price_factor.report_manager.investments import (
+    EntityInvestments,
+    PriceInvestmentRow,
+)
 from core.modules.strategy.core.engines.shared.data_class.investment.enums import (
     Lifecycle,
 )
@@ -26,14 +30,8 @@ from core.modules.strategy.core.engines.shared.services.simulation_output import
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StrategySettings,
 )
-from core.modules.strategy.core.engines.price_factor.report_manager.investments import (
-    EntityInvestments,
-    PriceInvestmentRow,
-)
-from core.infra.utils.date.date_utils import DateUtils
-
-from .report_hydrate import resolve_simulation_output_dirs
-from .workbench_snapshots import WorkbenchSnapshots
+from core.modules.strategy.launcher.report_hydrate import resolve_simulation_output_dirs
+from core.modules.strategy.launcher.workbench_snapshots import WorkbenchSnapshots
 
 logger = logging.getLogger(__name__)
 
@@ -49,11 +47,6 @@ _INDICATOR_LINE_COLORS = (
     "#FF8A65",
     "#F06292",
 )
-
-_STEP_TO_SLOT = {
-    "enum": "enum",
-    "price": "price_factor",
-}
 
 
 class WorkbenchStockDetail:
@@ -84,7 +77,10 @@ class WorkbenchStockDetail:
             "stock_id": sid,
         }
 
-        if normalized_step not in ("enum", "price"):
+        if normalized_step not in (
+            WorkbenchStep.ENUM.value,
+            WorkbenchStep.PRICE.value,
+        ):
             return {
                 **common,
                 "step_ready": False,
@@ -98,7 +94,7 @@ class WorkbenchStockDetail:
                 "report": {"placeholder": True, "message": "即将支持"},
             }
 
-        if normalized_step == "price":
+        if normalized_step == WorkbenchStep.PRICE.value:
             return cls._build_price(name, row, sid, common, int(version))
         return cls._build_enum(name, row, sid, common, int(version))
 
@@ -242,7 +238,8 @@ class WorkbenchStockDetail:
     @staticmethod
     def _slot(row: Dict[str, Any], step: str) -> Dict[str, Any]:
         rr = dict(row.get("result_report") or {})
-        key = _STEP_TO_SLOT.get(step, "")
+        parsed = WorkbenchStep.try_parse(step)
+        key = parsed.report_slot if parsed is not None else ""
         raw = rr.get(key)
         return dict(raw) if isinstance(raw, dict) else {}
 

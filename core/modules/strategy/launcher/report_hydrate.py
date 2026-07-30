@@ -1,6 +1,6 @@
 """Workbench ``result_report`` slot hydrate (disk body + path metadata).
 
-Consumers: ``workbench_snapshots``, ``workbench_reports``
+Consumers: ``workbench_snapshots``, ``core.bff.APIs.strategy.routes.report``
 
 NEW layout only: ``overall_report.json`` → engine ``to_ui_dict()``
 (``enumMetrics`` / ``priceMetrics`` / ``capitalMetrics``). Slot key ``portfolio``.
@@ -120,7 +120,7 @@ def resolve_simulation_output_dirs(
         root = ProjectContext.path.get_strategy_directory_simulation_enum(sn)
     elif step == "price":
         root = ProjectContext.path.get_strategy_directory_simulation_price(sn)
-    elif step in ("capital", "portfolio"):
+    elif step == "portfolio":
         root = ProjectContext.path.get_strategy_directory_simulation_portfolio(sn)
     else:
         return []

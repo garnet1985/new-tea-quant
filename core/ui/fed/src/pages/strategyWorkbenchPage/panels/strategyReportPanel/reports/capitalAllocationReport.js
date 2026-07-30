@@ -219,7 +219,7 @@ function CapitalAllocationReport({
       {showStockSampleGrid ? (
         <ReportStockSampleGrid
           title="逐股样本"
-          tip={REPORT_STOCK_GRID_TIPS.capital}
+          tip={REPORT_STOCK_GRID_TIPS.portfolio}
           searchValue={stockSearch}
           onSearchChange={setStockSearch}
           rows={filteredRows}

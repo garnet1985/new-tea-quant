@@ -17,11 +17,8 @@ def _load() -> dict[str, Any]:
     from core.modules.strategy.launcher import (
         StrategySettingsOptions,
         WorkbenchApplySettings,
-        WorkbenchCacheClear,
-        WorkbenchReports,
         WorkbenchRunLauncher,
         WorkbenchSnapshots,
-        WorkbenchStockDetail,
     )
     from core.modules.strategy.launcher.scanner_run import (
         get_scan_page_context,
@@ -54,16 +51,8 @@ def _load() -> dict[str, Any]:
         "get_run_progress": WorkbenchRunLauncher.get_run_progress,
         "get_step_progress": WorkbenchRunLauncher.get_step_progress,
         "normalize_step": WorkbenchRunLauncher.normalize_step,
-        # reports
-        "build_step_report_message": WorkbenchReports.build_step_report,
-        "build_step_report_ref_message": WorkbenchReports.build_step_report_ref,
-        "build_stock_detail_message": WorkbenchStockDetail.build,
-        # apply / cache
+        # apply
         "apply_workbench_snapshot_settings_to_userspace": WorkbenchApplySettings.apply,
-        "clear_workbench_simulation_cache_all": WorkbenchCacheClear.clear_all,
-        "clear_workbench_simulation_cache_by_version": (
-            WorkbenchCacheClear.clear_by_version
-        ),
         # scan
         "get_scan_page_context": get_scan_page_context,
         "get_scan_progress": get_scan_progress,

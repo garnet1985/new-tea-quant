@@ -50,7 +50,7 @@
   - **命中缓存、复用已有快照行**：**不会**产生新的版本行，**`version_id` 可以与进页时相同**；不得以「必须比进页大一号」作为契约。
 
 - **`result_report` 三槽位（2026-06，BED 权威说明见 `core/modules/strategy/docs/db-cache-service.md` §6.1）**：
-  - 每个快照行最多三个业务键：`enum`、`price_factor`、`capital_allocation`；**仅对应步骤 job 成功后**由 BED 写入，**禁止**其它步骤代写（例如价格步**不得**注入 `enum` 路径）。
+  - 每个快照行最多三个业务键：`enum`、`price_factor`、`portfolio`；**仅对应步骤 job 成功后**由 BED 写入，**禁止**其它步骤代写（例如价格步**不得**注入 `enum` 路径）。
   - **读路径**：V2-01 / V2-07 / V2-08 只读**该 `version_id` 行**上对应槽位；**无槽即无数据**，服务端**不得**从 `price_factor.enumerator_output_dir`、兄弟 `version` 或磁盘猜测补全。仅有 `price_factor` 却无 `enum` → **视为 BED bug**，FED 显示空/异常并提示重跑枚举，**不**展示伪造的 opportunities。
   - **体积**：槽位在 DB 中**不内嵌**逐股大块；保留摘要指标与可选相对路径。`enumMetrics`、`stock_summary` 等可在槽位内直接存摘要，或由服务端在槽位**已有路径引用**时从 ``userspace/strategies/.../results/simulations/...`` **hydrate** 补全；物理文件缺失时与 **V2-07b `report_ref`** 一致，由前端提示对该步 **重新 run**。
   - **`price_factor.output_version.enumerator_output_dir`**：价格回测依赖的枚举磁盘目录（血缘元数据），**不能**代替 `enum` 槽用于 UI 指标或 V2-07 `step=enum` 报告。
@@ -98,13 +98,13 @@
 | V2-05 | POST | `/strategy/{strategy_name}/{step}/run` | **启动**一步对应的 job；成功返回 **`job_id`** / **`run_id`** 与 **`steps[]`**（编排计划） |
 | V2-06b | GET | `/strategy/{strategy_name}/run/progress` | **轮询整次 run**：query **`job_id`**；响应 **`steps[]`** + **`phase`**（编排单一数据源） |
 | V2-06 | GET | `/strategy/{strategy_name}/{step}/progress` | **轮询**该路径 **`step`** 的 legacy 单文件进度（与 V2-06b 并存；新 UI 优先 06b） |
-| V2-07 | GET | `/strategy/{strategy_name}/{step}/report/{version_id}` | **路径** **`version_id`**（``v3`` / ``3``）；响应含该步 **`report`** 并回显 **`version_id`** |
-| V2-07b | GET | `/strategy/{strategy_name}/{step}/report_ref/{version_id}` | 枚举 **`step=enum`**：读取磁盘 **`0_stock_ref.json`**（逐股摘要）；无文件或非枚举步 → **404** |
+| V2-07 | GET | `/strategy/report/{step}/{version_id}/{strategy_key_or_name}` | **路径** **`version_id`**（``v3`` / ``3``）；``strategy_key_or_name`` 为 ``meta.key``（推荐）或 path name（可多段）；响应含该步 **`report`** 并回显 **`version_id`** |
+| V2-07b | GET | `/strategy/report/{step}/{version_id}/ref/{strategy_key_or_name}` | 枚举 / 价格：读取磁盘 **`entity_list.json`**（逐股摘要）；无文件 → **`stock_ref_available=false`** |
 | V2-08 | GET | `/strategy/{strategy_name}/version/{version_id}` | 按 **`version_id`** 读完整快照；**路径** `strategy_name` **必填**；响应与 **V2-01** 同形（切换版本后用；内含汇总 summary，见「V2-07 与 V2-08」） |
 | V2-09 | POST | `/strategy/{strategy_name}/apply-settings/{version_id}` | 将某工作台版本的 **`settings` 快照** **永久化**到该策略目录的 **`settings.py`**（反向写磁盘）；**路径** `strategy_name` **必填** |
 | V2-10 | GET | `/strategy/{strategy_name}/versions/range` | 按**时间段**筛选版本列表，**必须分页**（浏览 / 检索历史版本） |
-| V2-11 | DELETE | `/strategy/workbench-snapshot-cache` | 清空模拟结果 DbCache 表（`sys_strategy_workbench_snapshot`）**全部行** |
-| V2-12 | DELETE | `/strategy/{strategy_name}/version/{version_id}/workbench-snapshot-cache` | 删除指定策略工作台 **version** 对应的一条快照行 |
+| V2-11 | DELETE | `/strategy/version/cache` | 清空模拟结果 DbCache 表（`sys_strategy_workbench_snapshot`）**全部行** |
+| V2-12 | DELETE | `/strategy/version/{version_id}/cache/{strategy_key_or_name}` | 删除指定策略工作台 **version** 对应的一条快照行 |
 
 ### V2-04 说明（选项类家族）
 
@@ -118,9 +118,9 @@
 | `GET /strategy/settings/simulation-templates` | 回测执行模板等枚举选项（label 中文，value 英文） |
 | `GET /strategy/settings/market-profiles` | 根级 `market_profile` 可选值（扫描 markets 配置） |
 
-### `result_report.capital_allocation`（FED 仅认此格式，snake_case）
+### `result_report.portfolio`（FED 仅认此格式；指标体为 ``capitalMetrics`` camelCase）
 
-资金报告 Tab / 对比 **必须** 由 V2-07 或快照合并返回完整槽位；旧 camelCase 摘要、`result.capital`、无 `equity_curve_*` 的缓存一律视为无效（UI 显示「数据异常」）。清缓存后重跑 **资金模拟**。
+资金报告 Tab / 对比 **必须** 由 V2-07 或快照合并返回完整槽位；旧 camelCase 摘要、`result.capital`、无 `equity_curve_*` 的缓存一律视为无效（UI 显示「数据异常」）。清缓存后重跑 **资金模拟（portfolio）**。
 
 必填：`initial_capital`, `final_total_equity`, `total_return`, `max_drawdown`, `win_rate`, `total_profit`, `total_trades`, `buy_trades`, `sell_trades`, `win_trades`, `loss_trades`, `avg_pnl_per_trade`, `equity_curve_labels`, `equity_curve_values`（等长且 ≥2 点）。可选 BFF 扩展：`calmar_ratio`, `drawdown_curve_values`, `average_open_positions`, `worst_sell_pnls`, `stock_summary`, 等（见 ``capital_allocation_flow_impl._merge_bff_ui_extensions``）。
 
@@ -138,7 +138,7 @@
 ### V2-05 `POST /strategy/{strategy_name}/{step}/run`
 
 - **路径参数 `strategy_name`**：与 **V2-03** / **V2-10** 相同，标识目标策略；**请求体不得**用另一策略名覆盖（若 body 含 `strategy_name` 作校验，则**必须**与路径**完全相同**，否则 **400**；推荐实现为**只认路径、忽略或禁止 body 中的** `strategy_name`）。
-- **路径参数 `step`**：要触达的目标步骤，取值限定为 **`enum` | `price` | `capital`**（与前端步骤条、引擎管线一致；大小写按实现统一，建议全小写）。
+- **路径参数 `step`**：要触达的目标步骤，取值限定为 **`enum` | `price` | `portfolio`**（与前端步骤条、引擎管线一致；大小写按实现统一，建议全小写）。
 - **请求体（JSON）**（字段以实现校验为准，以下为语义必备集）：
   - **`settings`**：`object`，**必填**。须为 FED 事先通过 **GET**（如 **V2-01** `GET /strategy/{strategy_name}/version/latest`）加载并与表单绑定后的 **API 形态 settings**；POST 时随请求提交。**若缺失、为 `null` 或非 object** → **400**（或 **422**，项目统一即可），服务端**不**再读库用「当前最新快照」兜底。
   - **`is_force`**：`boolean`，默认 `false`。含义由 **BED** 统一实现（如是否绕过可复用结果、强制重算），**BFF/FED 不解释业务分支**。
@@ -159,7 +159,7 @@
 - **成功**响应正文（信封内 **`message`**）至少包含：
   - **`run_id`**：与 **`job_id`** 一致。
   - **`phase`**：如 **`queued`** / **`running`** / **`completed`** / **`failed`**。
-  - **`steps`**：`array`。每项含 **`step_name`**（`enum` \| `price` \| `capital`）、**`progress`**（0～100）、**`status`**（**`pending`** \| **`running`** \| **`completed`** \| **`failed`**）、**`result`**（未完成多为 **`null`**；完成时为小对象，含 **`message`**，及 **`version_id`**（如 **`v12`**）、**`report_step`**（与 **V2-07** 路径 **`step`** 一致），以及可选 **`card`**：仅含执行面板三行所需的 **`enum` / `price` / `capital`** 标量摘要（非整份 **`report`**）；完整指标仍以 **V2-07** 为准）。
+  - **`steps`**：`array`。每项含 **`step_name`**（`enum` \| `price` \| `portfolio`）、**`progress`**（0～100）、**`status`**（**`pending`** \| **`running`** \| **`completed`** \| **`failed`**）、**`result`**（未完成多为 **`null`**；完成时为小对象，含 **`message`**，及 **`version_id`**（如 **`v12`**）、**`report_step`**（与 **V2-07** 路径 **`step`** 一致），以及可选 **`card`**：仅含执行面板三行所需的 **`enum` / `price` / `portfolio`** 标量摘要（非整份 **`report`**）；完整指标仍以 **V2-07** 为准）。
 - **失败**：无对应编排文件或与策略不匹配 → **404**。
 - **与 V2-07**：某步 **`status`** 为 **`completed`** 且 **`result.version_id`** 非空时，FED 应用 **`GET …/{report_step}/report/{version_id}`** 拉曲线与全量指标。
 
@@ -167,19 +167,21 @@
 
 - **职责**：**只读进度**（legacy：按 URL **`step`** 读单文件进度）；**不**区分是否命中缓存。新实现请优先 **V2-06b**。
 - **路径参数 `strategy_name`**：与 **V2-05** 一致。
-- **路径参数 `step`**：**枚举** `enum` | `price` | `capital`。**必填** query **`job_id`**（与 **V2-05** 返回一致）。
+- **路径参数 `step`**：**枚举** `enum` | `price` | `portfolio`。**必填** query **`job_id`**（与 **V2-05** 返回一致）。
 - **`version_id`（可选呈现）**：当 **`status`** 为已完成且本次运行已写入快照 **`snapshot_id`** 时，响应**可以**包含 **`version_id`** / **`snapshot_id`**，供紧接着调用 **V2-07**。
 - **轮询**：重复请求直到 **100%**（或失败）；随后用 **`version_id`** 拉 **V2-07**。
 - 进度数值保留 **两位小数**；可含 `is_success`、`reason`。
 - **卡住进度超时**属前端行为；网络超时按全局 HTTP。
 - **同一 `strategy_name`** 与 **`step`**（及给定 **`job_id`**）对应唯一一条任务记录；同屏至多一条 active job，与 **V2-05** 互斥一致。
 
-### V2-07 `GET /strategy/{strategy_name}/{step}/report/{version_id}`
+### V2-07 `GET /strategy/report/{step}/{version_id}/{strategy_key_or_name}`
 
+- **路径参数 `strategy_key_or_name`**：``settings.meta.key``（推荐）或 path name（可多段，置于 URL 末尾）。
 - **路径参数 `version_id`**（`v3` 或 `3`）。典型来源：**V2-06b** / **V2-06** 在任务完成且已落库后给出的 **`version_id`**；或 **V2-03** / 进页锚点等「已知版本」场景。
-- **语义**：读取该快照 **`result_report`** 中与 **`step`** 对应的槽位（`enum` / `price_factor` / `capital_allocation`），作为 **`report`** 返回；**`strategy_name`** 须与快照一致，否则 **404**。槽位缺失时 **`report` 为空对象或实现约定之 404**；**禁止** BFF/BED 用其它槽位或历史版本自动修补（见上文 **三槽位**）。
+- **语义**：读取该快照 **`result_report`** 中与 **`step`** 对应的槽位（`enum` / `price_factor` / `portfolio`），作为 **`report`** 返回；策略须能解析到快照所属 path name，否则 **404**。槽位缺失时 **`report` 为空对象或实现约定之 404**；**禁止** BFF/BED 用其它槽位或历史版本自动修补（见上文 **三槽位**）。
 - **调用时机**：须在已有可信 **`version_id`** 之后（通常 **progress** 已为 **completed** 且带回 **`version_id`**）。
 - 响应须**回显** **`version_id`**；**失败 / 无快照** → **404**。
+- **V2-07b** `…/ref/{strategy_key_or_name}`：逐股 ``entity_list``；**V2-07c** `…/stock/{stock_id}/{strategy_key_or_name}`：单股 K 线。
 
 ### V2-08 `GET /strategy/{strategy_name}/version/{version_id}`
 
@@ -207,16 +209,16 @@
 - **条数**：服务端**固定返回至多 10 条**，按版本从新到旧（或按 `updated_at` 降序，实现阶段择一并在 BED 固定）；**不支持**客户端改 `limit`（避免与「下拉专用」语义混淆）。
 - **用途**：恢复版本下拉、对比目标列表的快速数据源（与其他「全量浏览」接口区分）。
 
-### V2-11 `DELETE /strategy/workbench-snapshot-cache`
+### V2-11 `DELETE /strategy/version/cache`
 
 - **语义**：删除 ``sys_strategy_workbench_snapshot`` 表内**全部**快照行（所有策略、所有 `version`）。
 - **范围**：**仅 DB**；**不**删除 ``userspace/strategies/.../results/simulations/`` 磁盘目录（与 ``dev-cli.py -cu`` 不同）。
 - **成功**：`{ "cleared": true, "deleted_count": <int> }`（`deleted_count` 可为 0，表示表本已空）。
 - **失败**：表未注册 / 存储不可用 → **503**。
 
-### V2-12 `DELETE /strategy/{strategy_name}/version/{version_id}/workbench-snapshot-cache`
+### V2-12 `DELETE /strategy/version/{version_id}/cache/{strategy_key_or_name}`
 
-- **路径参数**：``strategy_name``、``version_id``（``v3`` / ``3``，与 V2-08 一致）。
+- **路径参数**：``version_id``（``v3`` / ``3``）、``strategy_key_or_name``。
 - **语义**：删除该策略下**指定工作台 version** 的一行快照；其它 version 保留。
 - **成功**：`{ "deleted": true, "strategy_name": "...", "version_id": "v3" }`。
 - **失败**：``version_id`` 无效 → **400**；行不存在 → **404**；存储不可用 → **503**。

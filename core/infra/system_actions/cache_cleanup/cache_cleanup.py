@@ -36,7 +36,7 @@ def _discovered_strategy_keys(*, strategy_names: Optional[Iterable[str]] = None)
 
 def clear_workbench_db_cache() -> int:
     """清空 ``sys_strategy_workbench_snapshot`` 表。返回删除行数。"""
-    from core.modules.strategy.core.bff_support.workbench_cache_clear import (
+    from core.modules.strategy.core.services.workbench_cache_clear import (
         WorkbenchCacheClear,
     )
 

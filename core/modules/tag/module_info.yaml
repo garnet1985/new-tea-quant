@@ -1,7 +1,7 @@
 name: modules.tag
 version: 0.4.2
 compatible_core_versions: ">=0.4.4"
-description: "标签资产层：按 data.base 路由；per_entity 经 BacktestEngine；global / non_time_series 主进程推进器；BFF 经 core.bff_support。"
+description: "标签资产层：按 data.base 路由；per_entity 经 BacktestEngine；global / non_time_series 主进程推进器。UI 适配见 core.bff.support.tag。"
 dependencies:
   - modules.data_manager
   - modules.data_contract

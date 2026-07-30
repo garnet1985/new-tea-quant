@@ -1,10 +1,10 @@
 # Tag 控制台 API（T1）
 
-本文档描述 Tag 列表与运行（MVP）的 BFF 契约。实现编排见 `core/ui/bff/APIs/tag/ROUTES_ORCHESTRATION.md`。
+本文档描述 Tag 列表与运行（MVP）的 BFF 契约。实现编排见 `core/bff/APIs/tag/ROUTES_ORCHESTRATION.md`。
 
 ## HTTP 前缀
 
-- BFF 蓝图前缀 **`/api`**（`core/ui/bff/app.py`）。
+- BFF 蓝图前缀 **`/api`**（`core/bff/app.py`）。
 - 下文路径省略 `/api` 时，完整 URL 仍为 **`/api/v1/...`**。
 - **「T1-xx」** 为本契约接口族编号；路径中的 **`/v1/`** 为 REST 版本段。
 
@@ -65,7 +65,7 @@ FED 建议：进 `/tags` 调 T1-00；任一 tag 运行中再调 T1-03；全局 `
 }
 ```
 
-与 strategy / scan BFF 一致（`core/ui/bff/shared/response.py`）。
+与 strategy / scan BFF 一致（`core/bff/shared/response.py`）。
 
 ### 分页（T1-01）
 

@@ -40,12 +40,3 @@ class TestContracts(unittest.TestCase):
 
         self.assertEqual(TagUpdateMode.INCREMENTAL.value, "incremental")
         self.assertEqual(TagUpdateMode.REFRESH.value, "refresh")
-
-
-class TestBffSupport(unittest.TestCase):
-    def test_catalog_and_run_export(self):
-        from core.modules.tag.core.bff_support import TagCatalog, TagRunLauncher
-
-        self.assertTrue(callable(TagCatalog.fetch_page))
-        self.assertTrue(callable(TagRunLauncher.trigger))
-        self.assertTrue(callable(TagRunLauncher.get_progress))

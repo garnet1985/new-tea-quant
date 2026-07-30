@@ -84,9 +84,20 @@ def _register_shutdown_hooks() -> None:
     atexit.register(_shutdown_worker_children)
 
 
+def _start_trace_drain() -> None:
+    """Lazy-start usage trace background drain (must not be a top-level import)."""
+    try:
+        from core.infra.trace import Trace
+
+        Trace.start_background_drain()
+    except Exception:
+        pass
+
+
 if __name__ == "__main__":
     _register_shutdown_hooks()
     app = create_app()
+    _start_trace_drain()
     app.run(
         host=str(conf["HOST"]),
         port=int(conf["PORT"]),

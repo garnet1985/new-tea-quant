@@ -1,0 +1,171 @@
+module: infra.trace
+version: 0.1.1
+requires: core>=0.4.1
+
+# ---------------------------------------------------------------------------
+# 用语
+#
+#   Trace            — Facade，对外唯一入口
+#   installation_id  — 本机匿名安装标识（ntq_i_<hex>）
+#   queue            — userspace/.ntq/trace/queue 本地事件文件队列
+#
+# ---------------------------------------------------------------------------
+
+---
+
+Trace:
+  layer: facade
+  description: "Usage tracing — local queue + budgeted flush to New Tea"
+
+  apis:
+    track:
+      description: "校验 body、自动填充 meta，写入本地队列；未取得用户同意时静默丢弃；不做网络 I/O；永不抛异常"
+      stability: stable
+      binding: static
+      parameters:
+        positional:
+          - name: event
+            type: str
+            required: true
+            notes: "稳定事件名，如 install.complete"
+          - name: body
+            type: Optional[Mapping[str, Any]]
+            required: false
+            default: null
+            notes: "事件业务字段（success/msg/…）；环境信息勿放这里"
+      returns: null
+      example: |
+        from core.infra.trace import Trace
+        Trace.track("install.complete", {"success": True, "error_code": "step_failed:x"})
+
+    flush:
+      description: "按预算发送队列；standard=1s/5，extreme=2s/10；auto 按深度选择"
+      stability: stable
+      binding: static
+      parameters:
+        keyword_only:
+          - name: budget
+            type: Optional[str]
+            required: false
+            default: null
+            notes: "standard | extreme | None(auto)"
+      returns: int
+      example: |
+        from core.infra.trace import Trace
+        n = Trace.flush(budget="standard")
+
+    start_background_drain:
+      description: "BFF 等长进程启动后台定时 drain（幂等）"
+      stability: stable
+      binding: static
+      parameters: {}
+      returns: null
+      example: |
+        from core.infra.trace import Trace
+        Trace.start_background_drain()
+
+    ask_permission:
+      description: >
+        若尚无用户决定则在交互式终端询问（仅 y 同意，其他不同意）；
+        已有决定则 no-op。非 TTY 不询问、不写文件，留给 UI。
+        返回当前是否已授权 track。
+      stability: stable
+      binding: static
+      parameters:
+        keyword_only:
+          - name: source
+            type: str
+            required: false
+            default: "cli"
+            notes: "来源标记，如 cli / cli_install"
+      returns: bool
+      example: |
+        from core.infra.trace import Trace
+        Trace.ask_permission(source="cli_install")
+
+  namespaces:
+    config:
+      description: "读取 enabled / target_url 等配置"
+      apis:
+        is_enabled:
+          description: "当前是否启用 trace"
+          stability: stable
+          binding: static
+          parameters: {}
+          returns: bool
+        load:
+          description: "返回解析后的 trace 配置字典（含 consent_decided / consent_enabled）"
+          stability: stable
+          binding: static
+          parameters: {}
+          returns: dict
+
+    consent:
+      description: "用户是否同意分享匿名 debug 数据；默认未同意，落盘于 userspace/system/config/trace_consent.json"
+      apis:
+        is_decided:
+          description: "是否已经询问过用户；False 时 UI/CLI 应发起询问"
+          stability: stable
+          binding: static
+          parameters: {}
+          returns: bool
+        needs_ask:
+          description: "尚无 decision 文件时为 True（UI 用此判断是否弹 welcome / checkbox）"
+          stability: stable
+          binding: static
+          parameters: {}
+          returns: bool
+        is_granted:
+          description: "用户是否已同意"
+          stability: stable
+          binding: static
+          parameters: {}
+          returns: bool
+        grant:
+          description: "记录用户同意"
+          stability: stable
+          binding: static
+          parameters:
+            keyword_only:
+              - name: source
+                type: str
+                required: false
+                default: ""
+                notes: "来源标记，如 ui / cli / installer"
+          returns: bool
+        revoke:
+          description: "记录用户拒绝，并清空本地未发送队列"
+          stability: stable
+          binding: static
+          parameters:
+            keyword_only:
+              - name: source
+                type: str
+                required: false
+                default: ""
+          returns: bool
+        set:
+          description: "按 checkbox 值写入同意状态"
+          stability: stable
+          binding: static
+          parameters:
+            positional:
+              - name: enabled
+                type: bool
+                required: true
+            keyword_only:
+              - name: source
+                type: str
+                required: false
+                default: ""
+          returns: bool
+          example: |
+            from core.infra.trace import Trace
+            if not Trace.consent.is_decided():
+                Trace.consent.set(checkbox_value, source="ui")
+        read:
+          description: "返回 {decided, enabled, decided_at, source}"
+          stability: stable
+          binding: static
+          parameters: {}
+          returns: dict

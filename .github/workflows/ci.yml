@@ -13,6 +13,7 @@ jobs:
     env:
       # CI 已在 setup-python 解释器安装 requirements-dev；勿再切到空 venv/
       NTQ_SKIP_AUTO_VENV: "1"
+      NTQ_TRACE_ENABLED: "0"
 
     steps:
       - name: Checkout repository
@@ -43,6 +44,7 @@ jobs:
               "core.infra.project_context.path_manager",
               "core.infra.cli",
               "core.infra.utils",
+              "core.infra.trace",
               "core.modules.strategy",
               "core.modules.data_manager",
               "core.modules.data_source",

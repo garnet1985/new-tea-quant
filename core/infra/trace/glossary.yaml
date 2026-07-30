@@ -1,0 +1,13 @@
+terms:
+  Trace:
+    definition: "NTQ usage/behavior tracing Facade（非 UI 请求排障 traceId）"
+  installation_id:
+    definition: "本机持久化的匿名安装标识，格式 ntq_i_<uuid-hex>"
+  event_id:
+    definition: "单条事件唯一 UUID，服务端可据此去重"
+  queue:
+    definition: "userspace/.ntq/trace/queue 下一事件一文件的本地 outbox"
+  budget:
+    definition: "flush 时间与条数上限；standard=1s/5，extreme=2s/10"
+  properties:
+    definition: "调用方附加字段；仅白名单键会上传"

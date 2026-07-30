@@ -1,0 +1,14 @@
+name: infra.trace
+version: 0.1.1
+compatible_core_versions: ">=0.4.1"
+description: "匿名 usage trace：本地文件队列 + 预算 flush，向 New Tea 接收端上报。"
+dependencies:
+  - infra.project_context
+changelog:
+  - version: "0.1.1"
+    changes:
+      - "整理为 contracts + core/services；仅导出 Facade Trace（静态 API）"
+  - version: "0.1.0"
+    changes:
+      - "初始 Trace Facade：track / flush / config / BFF background drain"
+      - "本地 queue + installation_id；敏感字段白名单；失败静默"

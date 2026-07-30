@@ -63,9 +63,25 @@ class UserRunner:
             build_parser().print_help()
             print()
 
+        try:
+            from core.infra.trace import Trace
+
+            Trace.flush(budget="auto")
+        except Exception:
+            pass
+
         early = run_early_command(args)
         if early is not None:
             return early
+
+        try:
+            from core.infra.trace import Trace
+
+            Trace.ask_permission(source="cli")
+        except KeyboardInterrupt:
+            return 0
+        except Exception:
+            pass
 
         UserRunner._setup_logging(verbose=args.verbose)
 

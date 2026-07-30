@@ -360,7 +360,7 @@
 
 ---
 
-### 子路径 — `GET /strategy/settings/capital-allocation-strategies`
+### 子路径 — `GET /strategy/settings/portfolio`
 
 **用途**：资金分配等相关控件的可选值（如 equal_capital、kelly 等），供表单绑定 **`value`**、界面展示 **`label`**。
 
@@ -381,7 +381,7 @@
 
 ---
 
-### 子路径 — `GET /strategy/settings/sampling-strategies`
+### 子路径 — `GET /strategy/settings/sampling`
 
 **用途**：采样策略枚举（如 continuous、stratified 等），供表单与校验层共用同一套稳定 **`value`**。
 
@@ -405,7 +405,7 @@
 **step1** — `requestStrategySettingsOptions(resourceKey)`
 
 - **何时做**：打开依赖该选项集的表单区域、或工作台首次需要渲染对应控件时（可按 `resourceKey` 缓存，避免重复请求）。
-- **输入**：`'capital-allocation-strategies' | 'sampling-strategies' | …`（与路由或模块常量对齐，不求与 URL 字符串强行同一）。
+- **输入**：`'portfolio' | 'sampling' | 'simulation' | 'risk-control' | 'market-rules'`（与路由对齐）。
 - **输出**：`Promise<StrategySettingsOptionsDto>`（与 **`items`** 契约同形）。
 
 **step2** — `bindSettingsOptionItems`
@@ -621,7 +621,7 @@
 
 ---
 
-## V2-09 `POST /strategy/{strategy_name}/apply-settings/{version_id}`
+## V2-09 `POST /strategy/settings/apply/{version_id}/{strategy_key_or_name}`
 
 **作用**：把 **`version_id`** 对应的快照 **`settings`** **写入**该策略 workspace 下物理 **`settings.py`**，完成「工作台临时态 → 用户目录永久落盘」。**指纹/缓存不在 BFF**；写盘与校验在 **BED**。详见 [`API.md`](./API.md) **V2-09**。
 
@@ -696,7 +696,7 @@
 
 - **输入**：`versionId`，`strategyName`，可选 body 选项
 - **输出**：`Promise<ApplySettingsDto>`
-- **说明**：`POST …/strategy/{strategyName}/apply-settings/{versionId}`。
+- **说明**：`POST …/strategy/settings/apply/{versionId}/{strategyKeyOrName}`。
 
 **step3** — `onApplySettingsSuccess` / **`onApplySettingsError`**
 

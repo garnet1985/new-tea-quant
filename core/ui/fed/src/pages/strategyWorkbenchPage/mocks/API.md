@@ -101,10 +101,11 @@
 | V2-07 | GET | `/strategy/report/{step}/{version_id}/{strategy_key_or_name}` | **路径** **`version_id`**（``v3`` / ``3``）；``strategy_key_or_name`` 为 ``meta.key``（推荐）或 path name（可多段）；响应含该步 **`report`** 并回显 **`version_id`** |
 | V2-07b | GET | `/strategy/report/{step}/{version_id}/ref/{strategy_key_or_name}` | 枚举 / 价格：读取磁盘 **`entity_list.json`**（逐股摘要）；无文件 → **`stock_ref_available=false`** |
 | V2-08 | GET | `/strategy/{strategy_name}/version/{version_id}` | 按 **`version_id`** 读完整快照；**路径** `strategy_name` **必填**；响应与 **V2-01** 同形（切换版本后用；内含汇总 summary，见「V2-07 与 V2-08」） |
-| V2-09 | POST | `/strategy/{strategy_name}/apply-settings/{version_id}` | 将某工作台版本的 **`settings` 快照** **永久化**到该策略目录的 **`settings.py`**（反向写磁盘）；**路径** `strategy_name` **必填** |
+| V2-09 | POST | `/strategy/settings/apply/{version_id}/{strategy_key_or_name}` | 将某工作台版本的 **`settings` 快照** **永久化**到该策略目录的 **`settings.py`**（反向写磁盘） |
 | V2-10 | GET | `/strategy/{strategy_name}/versions/range` | 按**时间段**筛选版本列表，**必须分页**（浏览 / 检索历史版本） |
 | V2-11 | DELETE | `/strategy/version/cache` | 清空模拟结果 DbCache 表（`sys_strategy_workbench_snapshot`）**全部行** |
 | V2-12 | DELETE | `/strategy/version/{version_id}/cache/{strategy_key_or_name}` | 删除指定策略工作台 **version** 对应的一条快照行 |
+
 
 ### V2-04 说明（选项类家族）
 
@@ -113,10 +114,11 @@
 
 | 子路径 | 用途 |
 |--------|------|
-| `GET /strategy/settings/capital-allocation-strategies` | 资金分配方式等枚举选项（表单下拉 / radio） |
-| `GET /strategy/settings/sampling-strategies` | 采样策略等枚举选项 |
-| `GET /strategy/settings/simulation-templates` | 回测执行模板等枚举选项（label 中文，value 英文） |
-| `GET /strategy/settings/market-profiles` | 根级 `market_profile` 可选值（扫描 markets 配置） |
+| `GET /strategy/settings/portfolio` | 资金分配方式等枚举选项（`portfolio.allocation.mode`） |
+| `GET /strategy/settings/sampling` | 采样策略等枚举选项（`sampling.strategy`） |
+| `GET /strategy/settings/simulation` | 回测执行模板等枚举选项（`simulation.assumption.template`） |
+| `GET /strategy/settings/risk-control` | 进场跳过标签（`simulation.risk_control.skip_enter_when`） |
+| `GET /strategy/settings/market-rules` | 根级 `market_profile` 可选值（扫描 markets 配置） |
 
 ### `result_report.portfolio`（FED 仅认此格式；指标体为 ``capitalMetrics`` camelCase）
 
@@ -191,9 +193,9 @@
 - **与 V2-01 的差异**：**不**存在「无快照则冷启动从磁盘造首条」的 **2.1** 分支；若 **`version_id`** 不存在、或与 **`strategy_name`** 不匹配 → **404**。行损坏时的校验 / 删除 / 重试可与 **V2-01** 分支 **2.2** 同构（约定 A/B），见 [`API_LAYER_STEPS.md`](./API_LAYER_STEPS.md)。
 - **缓存/指纹**：由 **BED** 决定；**BFF** 仅转发与映射（见 **BFF 边界**）。
 
-### V2-09 `POST /strategy/{strategy_name}/apply-settings/{version_id}`
+### V2-09 `POST /strategy/settings/apply/{version_id}/{strategy_key_or_name}`
 
-- **路径参数 `strategy_name`**：目标策略；**须**出现在 URL 中（与 **V2-01** 等一致）。
+- **路径参数 `strategy_key_or_name`**：``meta.key``（推荐）或 path name（可多段，置于 URL 末尾）。
 - **路径参数 `version_id`**：要落地到磁盘的那份工作台快照版本。
 - **工作台数据模型**：页面加载与版本列表等工作台功能**一律以快照（DB）为准**，除非尚无任何快照（此时走 **V2-01** 冷启动首条等分支）。
 - **语义**：将该 **`version_id`** 对应的 **`settings_snapshot`（API 形态经 BED 规范化后）** **写入**该策略目录下的物理 **`settings.py`**（覆盖用户空间文件），即把「仅存在于工作台 DB / 临时缓存语义下的版本」**永久化**到 repo 内策略包；**不等价**于一次新的 **`POST …/run`**。

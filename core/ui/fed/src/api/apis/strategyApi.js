@@ -27,11 +27,11 @@ function apiStrategyPath(strategyName) {
   return `${API_VERSION_PREFIX}/strategy/${encoded}`;
 }
 /** V2-04 全局选项（无 strategy_name 路径段） */
-const API_SETTINGS_CAPITAL = `${API_VERSION_PREFIX}/strategy/settings/capital-allocation-strategies`;
-const API_SETTINGS_SAMPLING = `${API_VERSION_PREFIX}/strategy/settings/sampling-strategies`;
-const API_SETTINGS_SIMULATION_TEMPLATES = `${API_VERSION_PREFIX}/strategy/settings/simulation-templates`;
-const API_SETTINGS_SKIP_INVESTMENT_WHEN = `${API_VERSION_PREFIX}/strategy/settings/skip-investment-when`;
-const API_SETTINGS_MARKET_PROFILES = `${API_VERSION_PREFIX}/strategy/settings/market-profiles`;
+const API_SETTINGS_PORTFOLIO = `${API_VERSION_PREFIX}/strategy/settings/portfolio`;
+const API_SETTINGS_SAMPLING = `${API_VERSION_PREFIX}/strategy/settings/sampling`;
+const API_SETTINGS_SIMULATION = `${API_VERSION_PREFIX}/strategy/settings/simulation`;
+const API_SETTINGS_RISK_CONTROL = `${API_VERSION_PREFIX}/strategy/settings/risk-control`;
+const API_SETTINGS_MARKET_RULES = `${API_VERSION_PREFIX}/strategy/settings/market-rules`;
 
 /** @typedef {{ value: string, label: string }} StrategySettingOption */
 /** @typedef {{ configurable_fields: string[], required_fields: string[] }} StrategySettingProfile */
@@ -155,28 +155,29 @@ export async function fetchStrategySettings(strategyName) {
 /**
  * V2-09：将**指定快照版本**的 settings 写入 userspace `settings.py`。
  * 若未传 `versionId`，则用当前 **latest**（先隐式依赖 V2-01）的 `version_id`。
- * @param {string} strategyName
- * @param {object} _settings 保留参数兼容旧调用；V2 以服务端快照为准，此参数不参与请求体
+ * @param {string} strategyKeyOrName ``meta.key``（推荐）或 path name
+ * @param {object} _settings 保留参数；V2 以服务端快照为准，此参数不参与请求体
  * @param {{ version_id?: string }} [opts]
  */
-export async function applyStrategySettingsToUserspace(strategyName, _settings, opts = {}) {
+export async function applyStrategySettingsToUserspace(strategyKeyOrName, _settings, opts = {}) {
   let versionId = typeof opts.version_id === 'string' ? opts.version_id.trim() : '';
   if (!versionId) {
-    const latest = await fetchStrategySettings(strategyName);
+    const latest = await fetchStrategySettings(strategyKeyOrName);
     versionId = (latest.workbench_version_id || '').trim();
   }
   if (!versionId) {
     throw new Error('缺少工作台 version_id，无法发布（请先加载有效快照）');
   }
+  const id = encodeStrategyPathSegments(strategyKeyOrName);
   const json = await requestJson(
-    `${apiStrategyPath(strategyName)}/apply-settings/${encodeURIComponent(versionId)}`,
+    `${API_VERSION_PREFIX}/strategy/settings/apply/${encodeURIComponent(versionId)}/${id}`,
     {
       method: 'POST',
       body: JSON.stringify({}),
     },
   );
   return {
-    strategy_name: json?.message?.strategy_name || strategyName,
+    strategy_name: json?.message?.strategy_name || strategyKeyOrName,
     applied: Boolean(json?.message?.applied),
   };
 }
@@ -517,7 +518,7 @@ export async function fetchStrategyReportStockKline(strategyName, runId, stockId
  * @returns {Promise<StrategySettingOption[]>}
  */
 export async function fetchCapitalAllocationModeOptions() {
-  const json = await requestJson(API_SETTINGS_CAPITAL, { method: 'GET' });
+  const json = await requestJson(API_SETTINGS_PORTFOLIO, { method: 'GET' });
   const items = json?.message?.items ?? [];
   return items.map((row) => ({
     value: row.value,
@@ -531,7 +532,7 @@ export async function fetchCapitalAllocationModeOptions() {
  * @returns {Promise<{ options: StrategySettingOption[], profiles: Record<string, StrategySettingProfile> }>}
  */
 export async function fetchCapitalAllocationModeConfig() {
-  const json = await requestJson(API_SETTINGS_CAPITAL, { method: 'GET' });
+  const json = await requestJson(API_SETTINGS_PORTFOLIO, { method: 'GET' });
   const items = json?.message?.items ?? [];
   return {
     options: items.map((row) => ({
@@ -579,7 +580,7 @@ export async function fetchSamplingStrategyConfig() {
  * @returns {Promise<StrategySettingOption[]>}
  */
 export async function fetchSimulationTemplateOptions() {
-  const json = await requestJson(API_SETTINGS_SIMULATION_TEMPLATES, { method: 'GET' });
+  const json = await requestJson(API_SETTINGS_SIMULATION, { method: 'GET' });
   const items = json?.message?.items ?? [];
   return items.map((row) => ({
     value: row.value,
@@ -593,7 +594,7 @@ export async function fetchSimulationTemplateOptions() {
  * @returns {Promise<{ options: StrategySettingOption[], profiles: Record<string, object> }>}
  */
 export async function fetchSimulationTemplateConfig() {
-  const json = await requestJson(API_SETTINGS_SIMULATION_TEMPLATES, { method: 'GET' });
+  const json = await requestJson(API_SETTINGS_SIMULATION, { method: 'GET' });
   const items = json?.message?.items ?? [];
   const profiles = {};
   items.forEach((row) => {
@@ -613,11 +614,11 @@ export async function fetchSimulationTemplateConfig() {
 
 /**
  * ``simulation.risk_control.skip_enter_when`` 可勾选标签（``st`` / ``star_st``）。
- * HTTP 路径仍为 ``/settings/skip-investment-when``（兼容）。
+ * GET /api/v1/strategy/settings/risk-control
  * @returns {Promise<StrategySettingOption[]>}
  */
 export async function fetchSkipInvestmentWhenOptions() {
-  const json = await requestJson(API_SETTINGS_SKIP_INVESTMENT_WHEN, { method: 'GET' });
+  const json = await requestJson(API_SETTINGS_RISK_CONTROL, { method: 'GET' });
   const items = json?.message?.items ?? [];
   return items.map((row) => ({
     value: row.value,
@@ -631,7 +632,7 @@ export async function fetchSkipInvestmentWhenOptions() {
  * @returns {Promise<StrategySettingOption[]>}
  */
 export async function fetchMarketProfileOptions() {
-  const json = await requestJson(API_SETTINGS_MARKET_PROFILES, { method: 'GET' });
+  const json = await requestJson(API_SETTINGS_MARKET_RULES, { method: 'GET' });
   const items = json?.message?.items ?? [];
   return items.map((row) => ({ value: row.value, label: row.label }));
 }

@@ -1,7 +1,4 @@
-"""Workbench apply-settings (V2-09): snapshot settings → userspace ``settings.py``.
-
-Consumers: ``core.bff.APIs.strategy.stack``
-"""
+"""Apply snapshot settings → userspace ``settings.py`` (V2-09)."""
 
 from __future__ import annotations
 
@@ -17,8 +14,7 @@ from core.modules.data_manager import DataManager
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StrategySettings,
 )
-
-from .workbench_snapshots import WorkbenchSnapshots
+from core.modules.strategy.launcher.workbench_snapshots import WorkbenchSnapshots
 
 logger = logging.getLogger(__name__)
 

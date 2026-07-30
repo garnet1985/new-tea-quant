@@ -15,8 +15,6 @@ _lock = threading.Lock()
 
 def _load() -> dict[str, Any]:
     from core.modules.strategy.launcher import (
-        StrategySettingsOptions,
-        WorkbenchApplySettings,
         WorkbenchRunLauncher,
         WorkbenchSnapshots,
     )
@@ -28,18 +26,6 @@ def _load() -> dict[str, Any]:
     )
 
     return {
-        # simulation options
-        "items_capital_allocation_strategies": (
-            StrategySettingsOptions.items_capital_allocation_strategies
-        ),
-        "items_sampling_strategies": StrategySettingsOptions.items_sampling_strategies,
-        "items_simulation_templates": (
-            StrategySettingsOptions.items_simulation_templates
-        ),
-        "items_skip_investment_when": (
-            StrategySettingsOptions.items_skip_investment_when
-        ),
-        "items_market_profiles": StrategySettingsOptions.items_market_profiles,
         # snapshots
         "fetch_latest_workbench_snapshot": WorkbenchSnapshots.fetch_latest,
         "fetch_workbench_by_version": WorkbenchSnapshots.fetch_by_version,
@@ -51,8 +37,6 @@ def _load() -> dict[str, Any]:
         "get_run_progress": WorkbenchRunLauncher.get_run_progress,
         "get_step_progress": WorkbenchRunLauncher.get_step_progress,
         "normalize_step": WorkbenchRunLauncher.normalize_step,
-        # apply
-        "apply_workbench_snapshot_settings_to_userspace": WorkbenchApplySettings.apply,
         # scan
         "get_scan_page_context": get_scan_page_context,
         "get_scan_progress": get_scan_progress,

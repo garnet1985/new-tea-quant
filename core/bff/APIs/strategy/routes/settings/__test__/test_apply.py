@@ -1,20 +1,17 @@
-"""Tests for workbench apply-settings (V2-09)."""
+"""Tests for settings apply (V2-09)."""
 
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from core.modules.strategy.launcher.workbench_apply_settings import (
-    WorkbenchApplySettings,
-)
+from core.bff.APIs.strategy.routes.settings.apply import WorkbenchApplySettings
 
 
 @patch.object(WorkbenchApplySettings, "_write_settings_py")
 @patch.object(WorkbenchApplySettings, "_backup_settings_file")
 @patch.object(WorkbenchApplySettings, "_snapshot_model")
 @patch(
-    "core.modules.strategy.launcher.workbench_apply_settings.WorkbenchSnapshots.fetch_by_version"
+    "core.bff.APIs.strategy.routes.settings.apply.WorkbenchSnapshots.fetch_by_version"
 )
 def test_apply_success(mock_fetch, mock_model, mock_backup, mock_write):
     mock_fetch.return_value = {
@@ -49,7 +46,7 @@ def test_apply_success(mock_fetch, mock_model, mock_backup, mock_write):
 
 
 @patch(
-    "core.modules.strategy.launcher.workbench_apply_settings.WorkbenchSnapshots.fetch_by_version",
+    "core.bff.APIs.strategy.routes.settings.apply.WorkbenchSnapshots.fetch_by_version",
     return_value=None,
 )
 def test_apply_missing_snapshot(_mock_fetch):

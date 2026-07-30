@@ -2,36 +2,34 @@
 
 from __future__ import annotations
 
-from core.modules.strategy.launcher.settings_options import (
-    StrategySettingsOptions,
-)
+from core.bff.APIs.strategy.routes.settings.options import StrategySettingsOptions
 from core.modules.strategy.core.engines.shared.services.strategy_settings.simulation_settings.assumption_templates import (
     AssumptionTemplate,
 )
 
 
-def test_capital_allocation_modes_match_portfolio():
-    items = StrategySettingsOptions.items_capital_allocation_strategies()
+def test_portfolio_allocation_modes():
+    items = StrategySettingsOptions.items_portfolio()
     values = {row["value"] for row in items}
     assert values == {"equal_capital", "equal_shares", "kelly", "custom"}
     assert all("label" in row for row in items)
 
 
 def test_sampling_strategies_include_weighted():
-    items = StrategySettingsOptions.items_sampling_strategies()
+    items = StrategySettingsOptions.items_sampling()
     values = {row["value"] for row in items}
     assert "weighted" in values
     assert "uniform" in values
 
 
-def test_skip_enter_when_tags():
-    items = StrategySettingsOptions.items_skip_enter_when()
+def test_risk_control_tags():
+    items = StrategySettingsOptions.items_risk_control()
     values = {row["value"] for row in items}
     assert values == {"st", "star_st"}
 
 
 def test_simulation_template_defaults_are_nested_tradability():
-    items = StrategySettingsOptions.items_simulation_templates()
+    items = StrategySettingsOptions.items_simulation()
     by_value = {row["value"]: row for row in items}
     assert set(AssumptionTemplate.KNOWN).issubset(by_value.keys())
 
@@ -47,7 +45,7 @@ def test_simulation_template_defaults_are_nested_tradability():
     assert none == {}
 
 
-def test_market_profiles_non_empty():
-    items = StrategySettingsOptions.items_market_profiles()
+def test_market_rules_non_empty():
+    items = StrategySettingsOptions.items_market_rules()
     assert len(items) >= 1
     assert any(row["value"] == "china_a_stock" for row in items)

@@ -1,6 +1,6 @@
 """Version implementer: workbench snapshot-cache clear (DbCache rows).
 
-Version read / apply-settings still via stack until this package is fully migrated.
+Version read still via stack until this package is fully migrated.
 """
 
 from __future__ import annotations

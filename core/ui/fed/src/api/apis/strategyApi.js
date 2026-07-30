@@ -133,14 +133,17 @@ export function getStrategyDesignPath(strategyName, step = '') {
 
 /**
  * V2-01：读取 latest 工作台快照（settings + version_id + step_status + result_report）。
- * @param {string} strategyName
+ * @param {string} strategyKeyOrName ``meta.key``（推荐）或 path name
  * @returns {Promise<{ strategy_name: string, settings: object, workbench_version_id?: string, has_persisted_snapshot?: boolean, has_other_versions?: boolean }>}
  */
-export async function fetchStrategySettings(strategyName) {
-  const json = await requestJson(`${apiStrategyPath(strategyName)}/version/latest`, { method: 'GET' });
+export async function fetchStrategySettings(strategyKeyOrName) {
+  const json = await requestJson(
+    `${apiStrategyPath(strategyKeyOrName)}/version/latest`,
+    { method: 'GET' },
+  );
   const m = json?.message || {};
   return {
-    strategy_name: strategyName,
+    strategy_name: strategyKeyOrName,
     settings: m.settings || {},
     settings_source: undefined,
     workbench_version_id: typeof m.version_id === 'string' ? m.version_id : '',
@@ -168,9 +171,8 @@ export async function applyStrategySettingsToUserspace(strategyKeyOrName, _setti
   if (!versionId) {
     throw new Error('缺少工作台 version_id，无法发布（请先加载有效快照）');
   }
-  const id = encodeStrategyPathSegments(strategyKeyOrName);
   const json = await requestJson(
-    `${API_VERSION_PREFIX}/strategy/settings/apply/${encodeURIComponent(versionId)}/${id}`,
+    `${apiStrategyPath(strategyKeyOrName)}/settings/apply/${encodeURIComponent(versionId)}`,
     {
       method: 'POST',
       body: JSON.stringify({}),
@@ -183,12 +185,15 @@ export async function applyStrategySettingsToUserspace(strategyKeyOrName, _setti
 }
 
 /**
- * SWB-17：读取策略工作台版本列表。
- * @param {string} strategyName
+ * V2-03：读取策略工作台版本列表（至多 10 条）。
+ * @param {string} strategyKeyOrName ``meta.key``（推荐）或 path name
  * @returns {Promise<{ versions: Array<{ version_id: string, version: number, created_at: string, updated_at: string }> }>}
  */
-export async function fetchStrategyVersions(strategyName) {
-  const json = await requestJson(`${apiStrategyPath(strategyName)}/versions`, { method: 'GET' });
+export async function fetchStrategyVersions(strategyKeyOrName) {
+  const json = await requestJson(
+    `${apiStrategyPath(strategyKeyOrName)}/versions`,
+    { method: 'GET' },
+  );
   const items = json?.message?.items ?? [];
   return {
     versions: items.map((row) => ({
@@ -201,14 +206,14 @@ export async function fetchStrategyVersions(strategyName) {
 }
 
 /**
- * SWB-18：读取单个版本详情。
- * @param {string} strategyName
+ * V2-08：读取单个版本详情（与 V2-01 同形，无冷启动）。
+ * @param {string} strategyKeyOrName ``meta.key``（推荐）或 path name
  * @param {string} versionId
  * @returns {Promise<{ version_id: string, settings: object }>}
  */
-export async function fetchStrategyVersionDetail(strategyName, versionId) {
+export async function fetchStrategyVersionDetail(strategyKeyOrName, versionId) {
   const json = await requestJson(
-    `${apiStrategyPath(strategyName)}/version/${encodeURIComponent(versionId)}`,
+    `${apiStrategyPath(strategyKeyOrName)}/version/${encodeURIComponent(versionId)}`,
     { method: 'GET' },
   );
   const m = json?.message || {};
@@ -222,14 +227,14 @@ export async function fetchStrategyVersionDetail(strategyName, versionId) {
 }
 
 /**
- * 恢复历史版本到工作台：无单独写库 restore；以 **V2-08** ``GET …/version/{id}`` 的快照正文为准。
- * 与 ``GET …/version/latest`` 正文同形（冷启动仅 latest 有合成行）；前端页面加载仍用 latest，恢复快照只用 detail。
- * @param {string} strategyName
+ * 恢复历史版本到工作台：无单独写库 restore；以 **V2-08** 快照正文为准。
+ * 与 ``GET …/{strategy}/version/latest`` 正文同形（冷启动仅 latest 有合成行）。
+ * @param {string} strategyKeyOrName
  * @param {string} versionId
  * @returns {Promise<{ restored: boolean, version_id: string, detail: object }>}
  */
-export async function restoreStrategyVersion(strategyName, versionId) {
-  const detail = await fetchStrategyVersionDetail(strategyName, versionId);
+export async function restoreStrategyVersion(strategyKeyOrName, versionId) {
+  const detail = await fetchStrategyVersionDetail(strategyKeyOrName, versionId);
   return {
     restored: true,
     version_id: versionId,
@@ -289,28 +294,28 @@ export async function fetchEnumeratorReusePreview(strategyName) {
 
 /**
  * V2-07：按路径 ``version_id`` 读取该步 ``report`` 槽位 JSON。
- * GET /api/v1/strategy/report/:step/:version_id/:strategy_key_or_name
+ * GET /api/v1/strategy/:strategy_key_or_name/report/:step/:version_id
  * @param {string} strategyKeyOrName ``settings.meta.key``（推荐）或 path name
  * @param {'enum'|'price'|'portfolio'} step
  * @param {string} versionId 如 ``v3`` / ``3``
  */
 export async function fetchStrategyStepReport(strategyKeyOrName, step, versionId) {
-  const id = encodeStrategyPathSegments(strategyKeyOrName);
+  const base = apiStrategyPath(strategyKeyOrName);
   const vid = encodeURIComponent(String(versionId || '').trim());
-  if (!id || !vid) {
+  if (!base || !vid) {
     throw new Error('缺少 strategy_key_or_name 或 version_id');
   }
   const json = await requestJson(
-    `${API_VERSION_PREFIX}/strategy/report/${encodeURIComponent(step)}/${vid}/${id}`,
+    `${base}/report/${encodeURIComponent(step)}/${vid}`,
     { method: 'GET' },
   );
   return json?.message || {};
 }
 
 /**
- * 枚举逐股 ref（``entity_list.json``）。成功时 ``message.stock_ref`` 可为 ``null``（磁盘已清理），
+ * V2-07b：枚举逐股 ref（``entity_list.json``）。成功时 ``message.stock_ref`` 可为 ``null``（磁盘已清理），
  * 此时 ``stock_ref_available === false``；仅快照不存在时 HTTP 非 2xx。
- * GET /api/v1/strategy/report/:step/:version_id/ref/:strategy_key_or_name
+ * GET /api/v1/strategy/:strategy_key_or_name/report/:step/:version_id/ref
  * @param {string} strategyKeyOrName
  * @param {'enum'|'price'|'portfolio'} step
  * @param {string} versionId
@@ -318,27 +323,27 @@ export async function fetchStrategyStepReport(strategyKeyOrName, step, versionId
  */
 /**
  * V2-07c：单股 K 线 + 步骤 markers。
- * GET /api/v1/strategy/report/:step/:version_id/stock/:stock_id/:strategy_key_or_name
+ * GET /api/v1/strategy/:strategy_key_or_name/report/:step/:version_id/stock/:stock_id
  */
 export async function fetchStrategyStockDetail(strategyKeyOrName, step, versionId, stockId) {
-  const id = encodeStrategyPathSegments(strategyKeyOrName);
+  const base = apiStrategyPath(strategyKeyOrName);
   const vid = encodeURIComponent(String(versionId || '').trim());
   const code = encodeURIComponent(String(stockId || '').trim());
-  if (!id || !vid || !code) {
+  if (!base || !vid || !code) {
     throw new Error('缺少 strategy_key_or_name、version_id 或 stock_id');
   }
-  const url = `${API_VERSION_PREFIX}/strategy/report/${encodeURIComponent(step)}/${vid}/stock/${code}/${id}`;
+  const url = `${base}/report/${encodeURIComponent(step)}/${vid}/stock/${code}`;
   const json = await requestJson(url, { method: 'GET' });
   return json?.message || {};
 }
 
 export async function fetchStrategyStepReportRef(strategyKeyOrName, step, versionId) {
-  const id = encodeStrategyPathSegments(strategyKeyOrName);
+  const base = apiStrategyPath(strategyKeyOrName);
   const vid = encodeURIComponent(String(versionId || '').trim());
-  if (!id || !vid) {
+  if (!base || !vid) {
     return null;
   }
-  const url = `${API_VERSION_PREFIX}/strategy/report/${encodeURIComponent(step)}/${vid}/ref/${id}`;
+  const url = `${base}/report/${encodeURIComponent(step)}/${vid}/ref`;
   const response = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
   });
@@ -486,14 +491,13 @@ export async function fetchStrategyRunResults(strategyName, runId) {
 }
 
 /**
- * SWB-10：工作台快照版本标识列表（含 latest），供下拉等选用。
- * @param {string} strategyName
+ * 工作台快照版本标识列表（含 latest），供下拉等选用（基于 V2-03）。
+ * @param {string} strategyKeyOrName
  * @returns {Promise<{ versions: string[] }>}
  */
-export async function fetchStrategyVersionHistory(strategyName) {
-  const json = await requestJson(`${apiStrategyPath(strategyName)}/versions`, { method: 'GET' });
-  const items = json?.message?.items ?? [];
-  const ids = items
+export async function fetchStrategyVersionHistory(strategyKeyOrName) {
+  const { versions } = await fetchStrategyVersions(strategyKeyOrName);
+  const ids = versions
     .map((row) => (typeof row.version_id === 'string' ? row.version_id.trim() : ''))
     .filter(Boolean);
   return { versions: ids.length ? ['latest', ...ids] : ['latest'] };
@@ -640,7 +644,7 @@ export async function fetchMarketProfileOptions() {
 const API_STRATEGY_PACKAGE_IMPORT = `${API_VERSION_PREFIX}/strategy/package/import`;
 const API_STRATEGY_PACKAGE_IMPORT_PREVIEW = `${API_VERSION_PREFIX}/strategy/package/import/preview`;
 const API_STRATEGY_PACKAGE_EXPORT = (strategyKeyOrName) =>
-  `${API_VERSION_PREFIX}/strategy/package/export/${encodeStrategyPathSegments(strategyKeyOrName)}`;
+  `${apiStrategyPath(strategyKeyOrName)}/package/export`;
 
 async function readFetchErrorDetail(response) {
   try {
@@ -652,7 +656,7 @@ async function readFetchErrorDetail(response) {
 }
 
 /**
- * 下载策略交流包（V2-13）：`GET /api/v1/strategy/package/export/:strategy_key_or_name`
+ * 下载策略交流包（V2-13）：`GET /api/v1/strategy/:strategy_key_or_name/package/export`
  * @param {string} strategyKeyOrName ``settings.meta.key`` 或 path name
  * @param {{ scope?: 'bundle'|'strategy' }} [options]
  */

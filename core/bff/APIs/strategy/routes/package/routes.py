@@ -13,12 +13,12 @@ from core.bff.shared.response import error, ok
 
 
 @strategy_api_bp.route(
-    f"{API_BASE_PATH}/package/export/<path:strategy_key_or_name>",
+    f"{API_BASE_PATH}/<path:strategy_key_or_name>/package/export",
     methods=["GET"],
 )
 def get_strategy_package_export(strategy_key_or_name: str):
     """
-    GET /api/v1/strategy/package/export/:strategy_key_or_name
+    GET /api/v1/strategy/:strategy_key_or_name/package/export
 
     ``strategy_key_or_name``: ``settings.meta.key`` 或 path name（userspace 相对路径）。
     Query ``scope``: ``bundle`` (default) | ``strategy``

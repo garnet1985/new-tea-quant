@@ -1,11 +1,13 @@
 from core.bff.APIs.strategy.api_base import API_BASE_PATH, strategy_api_bp
 from core.bff.APIs.strategy.helpers.formatting import workbench_snapshot_to_message
 from core.bff.APIs.strategy.routes.version.implementer import impl as version_impl
-from core.bff.APIs.strategy.stack import get_stack
 from core.bff.shared.response import error, ok
 
 # ***********************************************
 #     Strategy Version (snapshots + cache clear)
+#
+# Pattern: /v1/strategy/{target}/version/…
+# Global (no target): DELETE …/version/cache
 # ***********************************************
 
 
@@ -41,23 +43,68 @@ def delete_strategy_version_cache_all():
     """
     DELETE /api/v1/strategy/version/cache
 
-    清空工作台快照 DbCache 表全部行（原 V2-11）。
+    清空工作台快照 DbCache 表全部行（V2-11，无 target）。
     """
     versions = version_impl.lazy_load()
     return _http_from_cache_result(versions.clear_cache_all(), all_mode=True)
 
 
 @strategy_api_bp.route(
-    f"{API_BASE_PATH}/version/<version_id>/cache/<path:strategy_key_or_name>",
+    f"{API_BASE_PATH}/<path:strategy_key_or_name>/version/latest",
+    methods=["GET"],
+)
+def get_strategy_version_latest(strategy_key_or_name: str):
+    """
+    GET /api/v1/strategy/:strategy_key_or_name/version/latest
+
+    V2-01：latest 快照（可含冷启动合成行）+ ui_flags。
+    须注册在 ``…/version/<version_id>`` 之前，避免 ``latest`` 被当成 version_id。
+    """
+    versions = version_impl.lazy_load()
+    try:
+        row, flags = versions.fetch_latest(strategy_key_or_name)
+    except ValueError as exc:
+        return error(str(exc), 400)
+    except FileNotFoundError as exc:
+        return error(str(exc), 404)
+    if row is None:
+        return error("策略不存在或无法加载工作台数据", 404)
+    msg = workbench_snapshot_to_message(row)
+    msg.update(flags)
+    return ok(msg)
+
+
+@strategy_api_bp.route(
+    f"{API_BASE_PATH}/<path:strategy_key_or_name>/versions",
+    methods=["GET"],
+)
+def get_strategy_versions(strategy_key_or_name: str):
+    """
+    GET /api/v1/strategy/:strategy_key_or_name/versions
+
+    V2-03：下拉 / 版本对比，至多 10 条。
+    """
+    versions = version_impl.lazy_load()
+    try:
+        items = versions.list_versions(strategy_key_or_name)
+    except ValueError as exc:
+        return error(str(exc), 400)
+    except FileNotFoundError as exc:
+        return error(str(exc), 404)
+    return ok({"items": items})
+
+
+@strategy_api_bp.route(
+    f"{API_BASE_PATH}/<path:strategy_key_or_name>/version/<version_id>/cache",
     methods=["DELETE"],
 )
 def delete_strategy_version_cache_by_version(
-    version_id: str, strategy_key_or_name: str
+    strategy_key_or_name: str, version_id: str
 ):
     """
-    DELETE /api/v1/strategy/version/:version_id/cache/:strategy_key_or_name
+    DELETE /api/v1/strategy/:strategy_key_or_name/version/:version_id/cache
 
-    ``strategy_key_or_name``: ``settings.meta.key`` 或 path name。
+    V2-12：删除指定工作台 version 的一条快照行。
     """
     versions = version_impl.lazy_load()
     try:
@@ -72,41 +119,22 @@ def delete_strategy_version_cache_by_version(
 
 
 @strategy_api_bp.route(
-    f"{API_BASE_PATH}/<path:strategy_name>/version/latest",
+    f"{API_BASE_PATH}/<path:strategy_key_or_name>/version/<version_id>",
     methods=["GET"],
 )
-def get_strategy_version_latest(strategy_name):
-    s = get_stack()
-    row = s.fetch_latest_workbench_snapshot(strategy_name)
-    if row is None:
-        return error("策略不存在或无法加载工作台数据", 404)
-    msg = workbench_snapshot_to_message(row)
-    msg.update(s.workbench_latest_ui_flags(strategy_name, row))
-    return ok(msg)
+def get_strategy_version_snapshot(strategy_key_or_name: str, version_id: str):
+    """
+    GET /api/v1/strategy/:strategy_key_or_name/version/:version_id
 
-
-@strategy_api_bp.route(
-    f"{API_BASE_PATH}/<path:strategy_name>/versions",
-    methods=["GET"],
-)
-def get_strategy_versions(strategy_name):
-    """GET /strategy/{strategy_name}/versions — 下拉 / 版本对比，至多 10 条。"""
-    s = get_stack()
-    items = s.fetch_strategy_versions_dropdown(strategy_name)
-    return ok({"items": items})
-
-
-@strategy_api_bp.route(
-    f"{API_BASE_PATH}/<path:strategy_name>/version/<version_id>",
-    methods=["GET"],
-)
-def get_strategy_version_snapshot(strategy_name, version_id):
-    """GET /strategy/{strategy_name}/version/{version_id} — 与 latest 同形，按 id 取行（无冷启动）。"""
-    s = get_stack()
-    sid = s.parse_version_id(version_id)
-    if sid is None:
-        return error("version_id 无效", 400)
-    row = s.fetch_workbench_by_version(strategy_name, sid)
-    if row is None:
-        return error("快照不存在", 404)
+    V2-08：与 latest 同形，按 id 取行（无冷启动）。
+    """
+    versions = version_impl.lazy_load()
+    try:
+        row = versions.fetch_by_version(
+            strategy_key_or_name=strategy_key_or_name, version_id=version_id
+        )
+    except ValueError as exc:
+        return error(str(exc), 400)
+    except FileNotFoundError as exc:
+        return error(str(exc), 404)
     return ok(workbench_snapshot_to_message(row))

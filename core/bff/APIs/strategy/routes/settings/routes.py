@@ -59,12 +59,12 @@ def get_settings_market_rules():
 
 
 @strategy_api_bp.route(
-    f"{API_BASE_PATH}/settings/apply/<version_id>/<path:strategy_key_or_name>",
+    f"{API_BASE_PATH}/<path:strategy_key_or_name>/settings/apply/<version_id>",
     methods=["POST"],
 )
-def post_settings_apply(version_id: str, strategy_key_or_name: str):
+def post_settings_apply(strategy_key_or_name: str, version_id: str):
     """
-    POST /api/v1/strategy/settings/apply/:version_id/:strategy_key_or_name
+    POST /api/v1/strategy/:strategy_key_or_name/settings/apply/:version_id
 
     将指定工作台版本的 settings 写回 userspace ``settings.py``。
     Body 可选 ``{ "pretty": bool }``。

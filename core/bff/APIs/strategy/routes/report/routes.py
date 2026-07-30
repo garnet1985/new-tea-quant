@@ -4,21 +4,21 @@ from core.bff.shared.response import error, ok
 
 # ***********************************************
 #     Strategy Report
-# ***********************************************
 #
-# ``strategy_key_or_name`` 一律放路径末尾（``<path:>``），与 package/export 一致。
+# Pattern: /v1/strategy/{target}/report/{step}/{version_id}[/ref|/stock/…]
 # 含字面量 ``ref`` / ``stock`` 的路由须注册在泛化 GET 之前。
+# ***********************************************
 
 
 @strategy_api_bp.route(
-    f"{API_BASE_PATH}/report/<step>/<version_id>/ref/<path:strategy_key_or_name>",
+    f"{API_BASE_PATH}/<path:strategy_key_or_name>/report/<step>/<version_id>/ref",
     methods=["GET"],
 )
 def get_strategy_step_report_ref(
-    step: str, version_id: str, strategy_key_or_name: str
+    strategy_key_or_name: str, step: str, version_id: str
 ):
     """
-    GET /api/v1/strategy/report/:step/:version_id/ref/:strategy_key_or_name
+    GET /api/v1/strategy/:strategy_key_or_name/report/:step/:version_id/ref
 
     枚举 / 价格逐股 ref（``entity_list.json``）。
     """
@@ -37,14 +37,14 @@ def get_strategy_step_report_ref(
 
 
 @strategy_api_bp.route(
-    f"{API_BASE_PATH}/report/<step>/<version_id>/stock/<stock_id>/<path:strategy_key_or_name>",
+    f"{API_BASE_PATH}/<path:strategy_key_or_name>/report/<step>/<version_id>/stock/<stock_id>",
     methods=["GET"],
 )
 def get_strategy_step_stock_detail(
-    step: str, version_id: str, stock_id: str, strategy_key_or_name: str
+    strategy_key_or_name: str, step: str, version_id: str, stock_id: str
 ):
     """
-    GET /api/v1/strategy/report/:step/:version_id/stock/:stock_id/:strategy_key_or_name
+    GET /api/v1/strategy/:strategy_key_or_name/report/:step/:version_id/stock/:stock_id
 
     单股 K 线 + markers。
     """
@@ -64,12 +64,14 @@ def get_strategy_step_stock_detail(
 
 
 @strategy_api_bp.route(
-    f"{API_BASE_PATH}/report/<step>/<version_id>/<path:strategy_key_or_name>",
+    f"{API_BASE_PATH}/<path:strategy_key_or_name>/report/<step>/<version_id>",
     methods=["GET"],
 )
-def get_strategy_step_report(step: str, version_id: str, strategy_key_or_name: str):
+def get_strategy_step_report(
+    strategy_key_or_name: str, step: str, version_id: str
+):
     """
-    GET /api/v1/strategy/report/:step/:version_id/:strategy_key_or_name
+    GET /api/v1/strategy/:strategy_key_or_name/report/:step/:version_id
 
     ``step``: ``WorkbenchStep``（enum | price | portfolio）；
     ``strategy_key_or_name``: meta.key 或 path name。

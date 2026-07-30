@@ -1,7 +1,7 @@
 """Strategy UI launchers — snapshots / run / scan.
 
 Settings options + apply live in ``core.bff.APIs.strategy.routes.settings``.
-Consumers: ``core.bff.APIs.strategy.stack`` (remaining).
+Consumers: ``core.bff.APIs.strategy.routes`` (version / report / runner / …).
 """
 
 from .scanner_run import (

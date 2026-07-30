@@ -1,4 +1,4 @@
-"""Strategy domain BFF — HTTP via ``routes/``; remaining areas still use launcher via stack."""
+"""Strategy domain BFF — HTTP via ``routes/`` (catalog / package / report / settings / version / runner)."""
 
 from .api_base import strategy_api_bp
 from . import routes as _routes  # noqa: F401 — register handlers

@@ -95,9 +95,9 @@
 | V2-02 | GET | `/strategy/catalog/{page}/{limit}` | 策略目录（分页） |
 | V2-03 | GET | `/strategy/{strategy_key_or_name}/versions` | 某策略工作台版本的**最近 10 条**（固定条数、不分页），用于「恢复到某一版本」下拉框 |
 | V2-04 | GET | 多个明确路径（见下） | 选项类 / profile 类全量数据；**非**单一泛化 `/strategy/{entity}`，implementation 按资源拆路由 |
-| V2-05 | POST | `/strategy/{strategy_name}/{step}/run` | **启动**一步对应的 job；成功返回 **`job_id`** / **`run_id`** 与 **`steps[]`**（编排计划） |
-| V2-06b | GET | `/strategy/{strategy_name}/run/progress` | **轮询整次 run**：query **`job_id`**；响应 **`steps[]`** + **`phase`**（编排单一数据源） |
-| V2-06 | GET | `/strategy/{strategy_name}/{step}/progress` | **轮询**该路径 **`step`** 的 legacy 单文件进度（与 V2-06b 并存；新 UI 优先 06b） |
+| V2-05 | POST | `/strategy/{strategy_key_or_name}/{step}/run` | **启动**一步对应的 job；成功返回 **`job_id`** / **`run_id`** 与 **`steps[]`**（编排计划） |
+| V2-06b | GET | `/strategy/{strategy_key_or_name}/run/progress` | **轮询整次 run**：query **`job_id`**；响应 **`steps[]`** + **`phase`**（编排单一数据源） |
+| V2-06 | GET | `/strategy/{strategy_key_or_name}/{step}/progress` | **轮询**该路径 **`step`** 的 legacy 单文件进度（与 V2-06b 并存；新 UI 优先 06b） |
 | V2-07 | GET | `/strategy/{strategy_key_or_name}/report/{step}/{version_id}` | **路径** **`version_id`**（``v3`` / ``3``）；``strategy_key_or_name`` 为 ``meta.key``（推荐）或 path name（可多段）；响应含该步 **`report`** 并回显 **`version_id`** |
 | V2-07b | GET | `/strategy/{strategy_key_or_name}/report/{step}/{version_id}/ref` | 枚举 / 价格：读取磁盘 **`entity_list.json`**（逐股摘要）；无文件 → **`stock_ref_available=false`** |
 | V2-07c | GET | `/strategy/{strategy_key_or_name}/report/{step}/{version_id}/stock/{stock_id}` | 单股 K 线 + markers |
@@ -139,13 +139,13 @@
 - **尚无任意快照时**：见 **「`latest` 的初始化」**（可由物理 `settings` 冷启动首条）；一旦存在快照行，**正常工作台状态一律以 DB 快照为准**。
 - **扩展字段（仅 latest）**：``has_persisted_snapshot``、``has_other_versions``。
 
-### V2-05 `POST /strategy/{strategy_name}/{step}/run`
+### V2-05 `POST /strategy/{strategy_key_or_name}/{step}/run`
 
-- **路径参数 `strategy_name`**：与 **V2-03** / **V2-10** 相同，标识目标策略；**请求体不得**用另一策略名覆盖（若 body 含 `strategy_name` 作校验，则**必须**与路径**完全相同**，否则 **400**；推荐实现为**只认路径、忽略或禁止 body 中的** `strategy_name`）。
+- **路径参数 `strategy_key_or_name`**：``meta.key``（推荐）或 path name（可多段，置于 namespace 之后）；**请求体不得**用另一策略覆盖（若 body 含 `strategy_name` 作校验，则**必须**与路径解析到同一策略，否则 **400**；推荐实现为**只认路径、忽略或禁止 body 中的** `strategy_name`）。
 - **路径参数 `step`**：要触达的目标步骤，取值限定为 **`enum` | `price` | `portfolio`**（与前端步骤条、引擎管线一致；大小写按实现统一，建议全小写）。
 - **请求体（JSON）**（字段以实现校验为准，以下为语义必备集）：
   - **`settings`**：`object`，**必填**。须为 FED 事先通过 **GET**（如 **V2-01** `GET /strategy/{strategy_key_or_name}/version/latest`）加载并与表单绑定后的 **API 形态 settings**；POST 时随请求提交。**若缺失、为 `null` 或非 object** → **400**（或 **422**，项目统一即可），服务端**不**再读库用「当前最新快照」兜底。
-  - **`is_force`**：`boolean`，默认 `false`。含义由 **BED** 统一实现（如是否绕过可复用结果、强制重算），**BFF/FED 不解释业务分支**。
+  - **`force_refresh`**（亦可写作 **`is_force`**）：`boolean`，默认 `false`。含义由 **BED** 统一实现（如是否绕过可复用结果、强制重算），**BFF/FED 不解释业务分支**。
 
 #### 响应（本接口的语义终点 =「是否成功触发 job」）
 
@@ -155,28 +155,28 @@
 - **不要求**返回新快照 **`version_id`**（新 id 在子步骤持久化完成后才出现在 **V2-06b** 的 **`result`** 或 **V2-07** 中）。
 - **失败**响应：`is_triggered: false`，`reason: object | string`。
 
-### V2-06b `GET /strategy/{strategy_name}/run/progress`
+### V2-06b `GET /strategy/{strategy_key_or_name}/run/progress`
 
 - **职责**：读取**单次 run** 的编排信封（**唯一推荐**的轮询入口）；**不**依赖路径上的 **`{step}`**。
-- **路径参数 `strategy_name`**：与 **V2-05** 一致。
+- **路径参数 `strategy_key_or_name`**：与 **V2-05** 一致。
 - **必填** query **`job_id`**（与 **V2-05** 返回的 **`job_id`** / **`run_id`** 一致）。
 - **成功**响应正文（信封内 **`message`**）至少包含：
   - **`run_id`**：与 **`job_id`** 一致。
   - **`phase`**：如 **`queued`** / **`running`** / **`completed`** / **`failed`**。
   - **`steps`**：`array`。每项含 **`step_name`**（`enum` \| `price` \| `portfolio`）、**`progress`**（0～100）、**`status`**（**`pending`** \| **`running`** \| **`completed`** \| **`failed`**）、**`result`**（未完成多为 **`null`**；完成时为小对象，含 **`message`**，及 **`version_id`**（如 **`v12`**）、**`report_step`**（与 **V2-07** 路径 **`step`** 一致），以及可选 **`card`**：仅含执行面板三行所需的 **`enum` / `price` / `portfolio`** 标量摘要（非整份 **`report`**）；完整指标仍以 **V2-07** 为准）。
 - **失败**：无对应编排文件或与策略不匹配 → **404**。
-- **与 V2-07**：某步 **`status`** 为 **`completed`** 且 **`result.version_id`** 非空时，FED 应用 **`GET …/{report_step}/report/{version_id}`** 拉曲线与全量指标。
+- **与 V2-07**：某步 **`status`** 为 **`completed`** 且 **`result.version_id`** 非空时，FED 应用 **`GET …/report/{step}/{version_id}`** 拉曲线与全量指标。
 
-### V2-06 `GET /strategy/{strategy_name}/{step}/progress`
+### V2-06 `GET /strategy/{strategy_key_or_name}/{step}/progress`
 
 - **职责**：**只读进度**（legacy：按 URL **`step`** 读单文件进度）；**不**区分是否命中缓存。新实现请优先 **V2-06b**。
-- **路径参数 `strategy_name`**：与 **V2-05** 一致。
+- **路径参数 `strategy_key_or_name`**：与 **V2-05** 一致。
 - **路径参数 `step`**：**枚举** `enum` | `price` | `portfolio`。**必填** query **`job_id`**（与 **V2-05** 返回一致）。
 - **`version_id`（可选呈现）**：当 **`status`** 为已完成且本次运行已写入快照 **`snapshot_id`** 时，响应**可以**包含 **`version_id`** / **`snapshot_id`**，供紧接着调用 **V2-07**。
 - **轮询**：重复请求直到 **100%**（或失败）；随后用 **`version_id`** 拉 **V2-07**。
 - 进度数值保留 **两位小数**；可含 `is_success`、`reason`。
 - **卡住进度超时**属前端行为；网络超时按全局 HTTP。
-- **同一 `strategy_name`** 与 **`step`**（及给定 **`job_id`**）对应唯一一条任务记录；同屏至多一条 active job，与 **V2-05** 互斥一致。
+- **同一 `strategy_key_or_name`** 与 **`step`**（及给定 **`job_id`**）对应唯一一条任务记录；同屏至多一条 active job，与 **V2-05** 互斥一致。
 
 ### V2-07 `GET /strategy/{strategy_key_or_name}/report/{step}/{version_id}`
 

@@ -2,6 +2,8 @@ module: modules.strategy
 version: 0.6.0
 requires: core>=0.5.0
 
+# UI 读模型 / 异步 job 外壳：modules.strategy.launcher
+# （catalog、snapshots、reports、run、scan；BFF 仅 HTTP 编排）
 # ---------------------------------------------------------------------------
 # 用语
 #

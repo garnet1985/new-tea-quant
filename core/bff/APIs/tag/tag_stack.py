@@ -12,7 +12,7 @@ def get_tag_stack() -> SimpleNamespace:
     global _stack
     if _stack is not None:
         return _stack
-    from core.bff.support.tag import TagCatalog, TagRunLauncher
+    from core.modules.tag.launcher import TagCatalog, TagRunLauncher
 
     _stack = SimpleNamespace(
         fetch_discovered_tags_page=TagCatalog.fetch_page,

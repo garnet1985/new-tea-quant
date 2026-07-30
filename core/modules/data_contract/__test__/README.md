@@ -14,7 +14,7 @@
 | `test_data_contract_smoke.py` | 5 | GLOBAL / PER_ENTITY issue 形态、until |
 | `test_mapping_completeness.py` | 1 | `DataKey` ↔ `default_map` 全覆盖 |
 | `test_tag_entity_type.py` | 6 | `resolve_tag_entity_type`（5 组 parametrize + 1 异常） |
-| `core/launcher/__test__/test_contract_catalog.py` | 4 | BFF catalog 分页与 summary |
+| `launcher/__test__/test_contract_catalog.py` | 4 | BFF catalog 分页与 summary |
 
 **合计：** 25（模块 `__test__` 21 + launcher 4）
 

@@ -2,7 +2,7 @@
 
 from flask import Blueprint, request
 
-from core.bff.APIs.strategy_workbench.helpers import pagination_params
+from core.bff.shared.request import pagination_params
 from core.bff.shared.response import error, ok
 
 from .tag_stack import get_tag_stack

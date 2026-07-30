@@ -1,6 +1,6 @@
 # Tag 控制台 BFF：`routes` 编排约定
 
-契约与字段语义以 [`core/ui/fed/src/pages/tagPage/API.md`](../../../fed/src/pages/tagPage/API.md) 为准。
+契约与字段语义以 [`core/ui/fed/src/pages/tagPage/API.md`](../../../ui/fed/src/pages/tagPage/API.md) 为准。
 
 ## HTTP 前缀
 
@@ -17,7 +17,7 @@ core/bff/APIs/tag/
   ROUTES_ORCHESTRATION.md
 ```
 
-实现在 **`core.bff.support.tag`**（`TagCatalog` / `TagRunLauncher`），BFF 只做 HTTP 编排。
+实现在 **`core.modules.tag.launcher`**（`TagCatalog` / `TagRunLauncher`），BFF 只做 HTTP 编排。
 
 ## 原则
 
@@ -29,12 +29,12 @@ core/bff/APIs/tag/
 
 ## T1 路由 × 编排步骤
 
-| T1 | 方法 | 路由 | 编排摘要 |
-|----|------|------|----------|
-| T1-00 | GET | `/v1/runtime/pipeline` | `pipeline_lease.read()` → `ok({busy,...})` |
-| T1-01 | GET | `/v1/tags/list` | pagination → `TagCatalog.fetch_page` → `ok({items,total,...})` |
-| T1-02 | POST | `/v1/tag/<path:tag_key>/run` | tag 锁 + lease → `TagRunLauncher.trigger` → `ok` / **409** |
-| T1-03 | GET | `/v1/tag/<path:tag_key>/run/progress` | `TagRunLauncher.get_progress` → `ok` / **404** |
+| T1 | 方法 | 路由 | 归属 | 编排摘要 |
+|----|------|------|------|----------|
+| T1-00 | GET | `/v1/runtime/pipeline` | **platform/runtime**（非本包） | `read_pipeline_status()` → `ok({busy,...})` |
+| T1-01 | GET | `/v1/tags/list` | tag | pagination → `TagCatalog.fetch_page` → `ok({items,total,...})` |
+| T1-02 | POST | `/v1/tag/<path:tag_key>/run` | tag | tag 锁 + lease → `TagRunLauncher.trigger` → `ok` / **409** |
+| T1-03 | GET | `/v1/tag/<path:tag_key>/run/progress` | tag | `TagRunLauncher.get_progress` → `ok` / **404** |
 
 ## 错误映射
 

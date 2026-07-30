@@ -42,7 +42,8 @@ core/bff/
 |----|------|------|
 | `APIs/*/routes.py` 或 `routes/` | 解析 HTTP、校验入参、调 `implementer` / stack、`ok`/`error` | 文件 I/O、DB、线程、DTO 拼装 |
 | `APIs/*/routes/*/implementer.py` 或 `stack.py` | 懒加载 import，编排领域 / launcher 调用 | Flask 响应细节 |
-| `APIs/*/helpers/` | HTTP/DTO 辅助（无领域 I/O） | launcher / DB |
+| `APIs/*/helpers/` | HTTP/DTO 辅助（以类方法组织） | 重业务编排、DB 写 |
+
 | `modules/*/launcher/` | UI 读模型、分页 catalog、异步 job 外壳 | Flask、HTTP 状态码 |
 | `modules/*` facade | `Strategy.simulate` / `Tag.execute` 等领域 API | 页面字段命名 |
 | `bff/shared/` | response envelope、pagination、file multipart | 任何业务域知识 |

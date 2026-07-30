@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
+from core.modules.strategy.core.enums import WorkbenchStep
+from core.modules.strategy.core.services.discovery import DiscoveryService
+
 
 class StrategyRunnerImplementer:
     def __init__(self) -> None:
-        self._DiscoveryService = None
         self._WorkbenchRunLauncher = None
         self._get_scan_page_context = None
         self._get_scan_readiness = None
@@ -16,7 +18,6 @@ class StrategyRunnerImplementer:
 
     def lazy_load(self) -> "StrategyRunnerImplementer":
         if self._WorkbenchRunLauncher is None:
-            from core.modules.strategy.core.services.discovery import DiscoveryService
             from core.modules.strategy.launcher.scanner_run import (
                 get_scan_page_context,
                 get_scan_progress,
@@ -25,7 +26,6 @@ class StrategyRunnerImplementer:
             )
             from core.modules.strategy.launcher.workbench_run import WorkbenchRunLauncher
 
-            self._DiscoveryService = DiscoveryService
             self._WorkbenchRunLauncher = WorkbenchRunLauncher
             self._get_scan_page_context = get_scan_page_context
             self._get_scan_readiness = get_scan_readiness
@@ -33,20 +33,14 @@ class StrategyRunnerImplementer:
             self._trigger_strategy_scan_run = trigger_strategy_scan_run
         return self
 
-    def resolve_strategy_name(self, strategy_key_or_name: str) -> str:
-        """``meta.key`` 或 path name → userspace 相对 path。"""
-        assert self._DiscoveryService is not None
-        needle = str(strategy_key_or_name or "").strip()
-        if not needle:
-            raise ValueError("strategy_key_or_name 不能为空")
-        for info in self._DiscoveryService.discover_strategies():
-            if info.key == needle or info.id() == needle:
-                return str(info.id())
-        raise FileNotFoundError(f"策略不存在: {needle!r}")
+    @staticmethod
+    def resolve_strategy_name(strategy_key_or_name: str) -> str:
+        return DiscoveryService.resolve_strategy_path(strategy_key_or_name)
 
-    def normalize_step(self, step: str) -> Optional[str]:
-        assert self._WorkbenchRunLauncher is not None
-        return self._WorkbenchRunLauncher.normalize_step(step)
+    @staticmethod
+    def normalize_step(step: str) -> Optional[str]:
+        parsed = WorkbenchStep.try_parse(step)
+        return parsed.value if parsed is not None else None
 
     def submit_run(
         self,
@@ -57,7 +51,7 @@ class StrategyRunnerImplementer:
         force_refresh: bool,
     ) -> Dict[str, Any]:
         assert self._WorkbenchRunLauncher is not None
-        name = self.resolve_strategy_name(strategy_key_or_name)
+        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
         return self._WorkbenchRunLauncher.submit(
             strategy_name=name,
             step=step,
@@ -69,7 +63,7 @@ class StrategyRunnerImplementer:
         self, *, strategy_key_or_name: str, job_id: str
     ) -> Optional[Dict[str, Any]]:
         assert self._WorkbenchRunLauncher is not None
-        name = self.resolve_strategy_name(strategy_key_or_name)
+        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
         return self._WorkbenchRunLauncher.get_run_progress(
             strategy_name=name, job_id=job_id
         )
@@ -82,8 +76,8 @@ class StrategyRunnerImplementer:
         job_id: str,
     ) -> Optional[Dict[str, Any]]:
         assert self._WorkbenchRunLauncher is not None
-        name = self.resolve_strategy_name(strategy_key_or_name)
-        norm = self.normalize_step(step)
+        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
+        norm = StrategyRunnerImplementer.normalize_step(step)
         if norm is None:
             raise ValueError("step 须为 enum / price / portfolio")
         return self._WorkbenchRunLauncher.get_step_progress(
@@ -100,14 +94,14 @@ class StrategyRunnerImplementer:
         self, *, strategy_key_or_name: str, demo: bool
     ) -> Dict[str, Any]:
         assert self._get_scan_readiness is not None
-        name = self.resolve_strategy_name(strategy_key_or_name)
+        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
         return self._get_scan_readiness(strategy_name=name, demo=bool(demo))
 
     def trigger_scan(
         self, *, strategy_key_or_name: str, demo: bool, force: bool
     ) -> Dict[str, Any]:
         assert self._trigger_strategy_scan_run is not None
-        name = self.resolve_strategy_name(strategy_key_or_name)
+        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
         return self._trigger_strategy_scan_run(
             strategy_name=name, demo=bool(demo), force=bool(force)
         )
@@ -116,7 +110,7 @@ class StrategyRunnerImplementer:
         self, *, strategy_key_or_name: str, job_id: str
     ) -> Optional[Dict[str, Any]]:
         assert self._get_scan_progress is not None
-        name = self.resolve_strategy_name(strategy_key_or_name)
+        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
         return self._get_scan_progress(strategy_name=name, job_id=job_id)
 
 

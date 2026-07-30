@@ -35,16 +35,9 @@ class WorkbenchSnapshots:
     @staticmethod
     def parse_version_id(version_id: str) -> Optional[int]:
         """Accept ``v3`` / ``3`` forms."""
-        text = str(version_id or "").strip()
-        if not text:
-            return None
-        if text.lower().startswith("v"):
-            text = text[1:]
-        try:
-            n = int(text)
-            return n if n > 0 else None
-        except ValueError:
-            return None
+        from core.modules.strategy.core.helpers.version_id import WorkbenchVersionId
+
+        return WorkbenchVersionId.parse(version_id)
 
     @classmethod
     def fetch_latest(cls, strategy_name: str) -> Optional[Dict[str, Any]]:

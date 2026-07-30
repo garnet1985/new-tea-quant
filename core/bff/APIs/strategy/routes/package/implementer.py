@@ -11,21 +11,20 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
+from core.modules.strategy.core.services.discovery import DiscoveryService
+
 
 class StrategyPackageImplementer:
     def __init__(self) -> None:
         self._pkg = None
-        self._DiscoveryService = None
         self._ConflictPolicy = None
 
     def lazy_load(self) -> "StrategyPackageImplementer":
         if self._pkg is None:
             from core.infra.export_import import ExportImport
             from core.modules.strategy.core.services import package as pkg
-            from core.modules.strategy.core.services.discovery import DiscoveryService
 
             self._pkg = pkg
-            self._DiscoveryService = DiscoveryService
             self._ConflictPolicy = ExportImport.types.ConflictPolicy
         return self
 
@@ -43,16 +42,10 @@ class StrategyPackageImplementer:
             )
         return mapping[text]
 
-    def resolve_strategy_name(self, key_or_name: str) -> str:
+    @staticmethod
+    def resolve_strategy_name(key_or_name: str) -> str:
         """``meta.key`` 或 path name → userspace 相对 path（package API 入参）。"""
-        assert self._DiscoveryService is not None
-        needle = str(key_or_name or "").strip()
-        if not needle:
-            raise ValueError("strategy_key_or_name 不能为空")
-        for info in self._DiscoveryService.discover_strategies():
-            if info.key == needle or info.id() == needle:
-                return str(info.id())
-        raise FileNotFoundError(f"策略不存在: {needle!r}")
+        return DiscoveryService.resolve_strategy_path(key_or_name)
 
     def export_zip(self, strategy_key_or_name: str, scope: str) -> Tuple[bytes, str]:
         """Return ``(zip_bytes, download_filename)``.
@@ -60,7 +53,7 @@ class StrategyPackageImplementer:
         ``strategy_key_or_name``: ``settings.meta.key`` 或 path name。
         """
         assert self._pkg is not None
-        name = self.resolve_strategy_name(strategy_key_or_name)
+        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
         scope_norm = str(scope or "bundle").strip().lower() or "bundle"
 
         if scope_norm == "bundle":

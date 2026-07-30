@@ -7,6 +7,7 @@
 ```text
 core/bff/APIs/strategy/
   api_base.py               # strategy_api_bp, API_BASE_PATH
+  helpers/                  # formatting / params / query / …
   routes/
     catalog/                # V2-02
     package/                # V2-13 … 15
@@ -20,6 +21,7 @@ core/bff/APIs/strategy/
 ## 原则
 
 - **路径**：有 target 时统一为 `/v1/strategy/{strategy_key_or_name}/…`（``meta.key`` 或 path name，可多段）；无 target 的全局资源（catalog、settings 选项、package import、全表 cache、scan/context）不加 strategy 段。
+- **共用类方法**：``DiscoveryService.resolve_strategy_path``、``WorkbenchVersionId.parse``、``WorkbenchStep.try_parse``（挂在类上，不单独 export 函数）。
 - **routes/<area>/routes.py**：解析 HTTP → `impl.lazy_load()` → `ok` / `error`。
 - **routes/<area>/implementer.py**：领域编排 / DTO；可 lazy-import strategy core / launcher。
 - 不再保留独立的 ``cache`` 路由模块；快照 DbCache 清理挂在 **version**。

@@ -74,7 +74,7 @@ class StockService(BaseDataService):
         self._stock_list = data_manager.get_table("sys_stock_list")
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
-        from core.infra.db import DatabaseManager
+        from core.infra.db.contracts import DatabaseManager
         self.db = DatabaseManager.get_default(auto_init=True)
     
     # ==================== 股票基础信息 ====================

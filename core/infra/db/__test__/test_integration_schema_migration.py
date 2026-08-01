@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from core.infra.db.core.schema_manager import SchemaManager
+from core.infra.db.contracts import SchemaManager
 from core.infra.db.core.migration.schema_diff import diff_expected_schemas
 from core.infra.db.core.migration.execution_plan import (
     plan_from_schema_diff,

@@ -20,8 +20,8 @@ DbBaseModel - 数据库表操作的通用基类
 
 使用方式：
     # 方式 1: 直接使用（简单场景）
-    from core.infra.db import DbBaseModel
-    from core.infra.db import DatabaseManager
+    from core.infra.db.contracts import DbBaseModel
+    from core.infra.db.core.db_manager import DatabaseManager
     
     db = DatabaseManager()
     db.initialize()
@@ -103,7 +103,7 @@ class DbBaseModel:
             table_name: 表名
             db: DatabaseManager 实例（可选，测试时传入；默认使用 get_default）
         """
-        from core.infra.db import DatabaseManager
+        from core.infra.db.core.db_manager import DatabaseManager
         self.db = db if db is not None else DatabaseManager.get_default(auto_init=True)
         self.table_name = table_name
         self.schema = self.load_schema()

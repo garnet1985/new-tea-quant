@@ -98,7 +98,7 @@ def snapshot_core_table_schemas_for_migration(repo_root: Path) -> Optional[Path]
         return None
 
     try:
-        from core.infra.db.core.schema_manager import SchemaManager
+        from core.infra.db.contracts import SchemaManager
     except ImportError:
         return None
 

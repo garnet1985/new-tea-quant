@@ -39,7 +39,7 @@ class KlineService(BaseDataService):
         self._adj_factor_event = data_manager.get_table("sys_adj_factor_events")
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
-        from core.infra.db import DatabaseManager
+        from core.infra.db.contracts import DatabaseManager
         self.db = DatabaseManager.get_default(auto_init=True)
     
     # ==================== K线基础方法 ====================

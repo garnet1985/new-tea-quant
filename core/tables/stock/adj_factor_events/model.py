@@ -10,7 +10,7 @@ import logging
 import re
 
 logger = logging.getLogger(__name__)
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 from core.tables.stock.adj_factor_events.schema import schema as _schema
 from core.infra.utils.io import csv_io, file_io
 

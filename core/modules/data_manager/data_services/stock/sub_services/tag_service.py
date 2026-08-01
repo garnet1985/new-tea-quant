@@ -45,7 +45,7 @@ class TagDataService(BaseDataService):
             "sys_tag_calc_progress"
         )
 
-        from core.infra.db import DatabaseManager
+        from core.infra.db.contracts import DatabaseManager
 
         dm_db = getattr(data_manager, "db", None)
         if dm_db is not None and getattr(dm_db, "_initialized", False):

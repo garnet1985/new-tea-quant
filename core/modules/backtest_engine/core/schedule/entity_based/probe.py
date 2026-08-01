@@ -276,32 +276,27 @@ class Probe:
             print("  探针：主进程内试跑…", flush=True)
             return _probe_worker(worker_args)
 
-        from core.infra.db.core.engines.duckdb.process_pool_scope import (
-            is_duckdb_backend,
-            is_main_duckdb_worker_pool_active,
-            prepare_main_for_worker_pool,
-            restore_after_worker_pool,
-            wait_pool_children_done,
-        )
-        
+        from core.infra.db import Db
+
         start_method = str(performance.get("start_method", "spawn"))
-        
+        wp = Db.duckdb.worker_pool
+
         prepared_here = False
-        if is_duckdb_backend():
-            wait_pool_children_done(timeout_sec=30.0)
-            if not is_main_duckdb_worker_pool_active():
-                prepare_main_for_worker_pool(None)
+        if wp.is_backend():
+            wp.wait_pool_children_done(timeout_sec=30.0)
+            if not wp.is_main_active():
+                wp.prepare_main(None)
                 prepared_here = True
-        
+
         try:
             ctx = mp.get_context(start_method)
             with ctx.Pool(processes=1) as pool:
                 raw = pool.apply(_probe_worker, (worker_args,))
-            wait_pool_children_done(timeout_sec=15.0)
+            wp.wait_pool_children_done(timeout_sec=15.0)
             return raw
         finally:
             if prepared_here:
-                restore_after_worker_pool()
+                wp.restore_after()
     
     @staticmethod
     def _build_probe_result(

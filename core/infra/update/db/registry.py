@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Dict, Optional
 
 if TYPE_CHECKING:
-    from core.infra.db.core.db_manager import DatabaseManager
+    from core.infra.db.contracts import DatabaseManager
 
 logger = logging.getLogger(__name__)
 

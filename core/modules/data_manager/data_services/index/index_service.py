@@ -35,7 +35,7 @@ class IndexService(BaseDataService):
         self._stock_index_indicator_weight = data_manager.get_table("sys_index_weight")
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
-        from core.infra.db import DatabaseManager
+        from core.infra.db.contracts import DatabaseManager
         self.db = DatabaseManager.get_default(auto_init=True)
     
     # ==================== 指数指标数据 ====================

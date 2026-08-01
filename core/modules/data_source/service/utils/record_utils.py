@@ -14,18 +14,18 @@ def clean_nan_in_records(records: List[Dict[str, Any]], default: Any = None) -> 
     """
     清理一批记录中的 NaN/None 等异常数值，返回清洗后的记录列表。
 
-    内部委托 row_sql.clean_nan_in_list，调用方无需关心细节。
+    内部委托 ``Db.rows.clean_nan_in_list``，调用方无需关心细节。
     """
     if not records:
         return records
 
     try:
-        from core.infra.db.core.engines.shared.row_sql import clean_nan_in_list
+        from core.infra.db import Db
     except ImportError:
-        logger.warning("无法导入 row_sql，clean_nan_in_records 将跳过处理")
+        logger.warning("无法导入 Db，clean_nan_in_records 将跳过处理")
         return records
 
-    return clean_nan_in_list(records, default=default)
+    return Db.rows.clean_nan_in_list(records, default=default)
 
 
 def clean_nan_in_normalized_data(normalized_data: Dict[str, Any], default: Any = None) -> Dict[str, Any]:

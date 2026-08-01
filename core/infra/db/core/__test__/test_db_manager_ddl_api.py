@@ -1,7 +1,7 @@
 """DatabaseManager.create_table / drop_table 委托 engine。"""
 from unittest.mock import MagicMock, patch
 
-from core.infra.db import DatabaseManager
+from core.infra.db.contracts import DatabaseManager
 
 
 def test_create_table_delegates_to_engine():

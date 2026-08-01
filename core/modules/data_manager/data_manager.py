@@ -29,7 +29,7 @@ import pkgutil
 import inspect
 from pathlib import Path
 
-from core.infra.db import DatabaseManager
+from core.infra.db.contracts import DatabaseManager
 from core.infra.discovery import Discovery
 
 # Loaders 已废弃，不再导入
@@ -181,11 +181,9 @@ class DataManager:
                 # 迁移：通过 ProjectContext.config 调用
                 db_cfg = ProjectContext.config.load_database_config()
                 if str(db_cfg.get("database_type") or "").lower() == "duckdb":
-                    from core.infra.db.core.engines.duckdb.process_pool_scope import (
-                        wait_for_main_duckdb_worker_pool_end,
-                    )
+                    from core.infra.db import Db
 
-                    wait_for_main_duckdb_worker_pool_end()
+                    Db.duckdb.worker_pool.wait_for_main_end()
 
                 # 1. 初始化 DatabaseManager（只初始化连接池，不创建表）
                 if self.db is None:
@@ -251,9 +249,9 @@ class DataManager:
         Returns:
             Model 类（继承自 DbBaseModel），若校验不通过或加载失败返回 None
         """
-        from core.infra.db import DbBaseModel
+        from core.infra.db.contracts import DbBaseModel
         from core.infra.project_context import ProjectContext
-        from core.infra.db.core.schema_manager import SchemaManager
+        from core.infra.db.contracts import SchemaManager
 
         try:
             table_folder = Path(table_folder_path)

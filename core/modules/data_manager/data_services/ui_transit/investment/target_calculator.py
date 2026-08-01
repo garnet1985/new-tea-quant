@@ -88,7 +88,7 @@ class TargetCalculator:
             if strategy_name:
                 try:
                     # 加载策略
-                    from core.infra.db import DatabaseManager
+                    from core.infra.db.contracts import DatabaseManager
                     db = DatabaseManager()
                     db.initialize()
                     

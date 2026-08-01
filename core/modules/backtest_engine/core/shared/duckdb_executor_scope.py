@@ -4,6 +4,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable, TypeVar
 
+from core.infra.db import Db
+
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
@@ -18,13 +20,8 @@ def execute_with_duckdb_process_pool_scope(
     **inner_kwargs: Any,
 ) -> T:
     """Run *inner_execute* inside DuckDB worker pool scope when applicable."""
-    from core.infra.db.core.engines.duckdb.process_pool_scope import (
-        maybe_duckdb_worker_pool_scope,
-        should_apply_process_pool_scope,
-    )
-
     log_label = str(inner_kwargs.get("log_label", "执行"))
-    use_scope = should_apply_process_pool_scope(
+    use_scope = Db.duckdb.worker_pool.should_apply(
         mode=duckdb_process_pool_scope,  # type: ignore[arg-type]
         use_process_pool=True,
         data_mgr=data_mgr,
@@ -42,7 +39,7 @@ def execute_with_duckdb_process_pool_scope(
             duckdb_process_pool_scope,
         )
 
-    with maybe_duckdb_worker_pool_scope(
+    with Db.duckdb.worker_pool.maybe_scope(
         mode=duckdb_process_pool_scope,  # type: ignore[arg-type]
         use_process_pool=True,
         data_mgr=data_mgr,

@@ -4,7 +4,7 @@ data_corporate_finance 表 Model
 企业财务数据。
 """
 from typing import List, Dict, Any, Optional
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 from core.tables.stock.corporate_finance.schema import schema as _schema
 
 

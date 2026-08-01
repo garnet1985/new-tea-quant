@@ -20,10 +20,10 @@
 ## 常见问题
 
 **Q：现在该 import 什么？**  
-A：门面 `from core.infra.db import Db`；表模型等 `from core.infra.db.contracts import DbBaseModel, Field`。过渡期包根仍兼容 `from core.infra.db import DatabaseManager` 等，见 [API.md](./API.md)。
+A：门面 `from core.infra.db import Db`；类型 `from core.infra.db.contracts import DbBaseModel, Field, DatabaseManager`。包根**只**导出 `Db`。
 
 **Q：实现代码在哪？**  
-A：全部在 `core/` 子包；跨模块请勿长期依赖 `core.infra.db.core...` 深路径（后续将收口到 `Db`）。
+A：全部在 `core/` 子包；跨模块请经 `Db` / `contracts`，勿依赖 `core.infra.db.core...` 深路径。
 
 ## 相关文档
 

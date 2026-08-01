@@ -4,7 +4,7 @@ data_stock_indicators 表 Model
 股票日度基本面指标（原 daily_basic），与 K 线表分离。
 """
 from typing import List, Dict, Any, Optional
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 
 from core.tables.stock.stock_indicators.schema import schema as _schema
 

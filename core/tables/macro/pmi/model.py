@@ -4,7 +4,7 @@ data_pmi 表 Model
 采购经理人指数（原 price_indexes 拆分）。
 """
 from typing import List, Dict, Any, Optional
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 
 from core.tables.macro.pmi.schema import schema as _schema
 

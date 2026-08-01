@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 _UPDATER_HELPER = _REPO_ROOT / "setup" / "updater" / "helper.py"
 
 

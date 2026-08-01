@@ -72,9 +72,9 @@ def _ensure_tushare_token() -> None:
 
 
 def _write_schema_snapshot_if_missing() -> Path:
-    from core.infra.db.core.migration.runner import default_pre_mirror_snapshot_path
+    from core.infra.db import Db
 
-    snap = default_pre_mirror_snapshot_path(REPO_ROOT)
+    snap = Db.migration.default_snapshot_path(REPO_ROOT)
     if snap.is_file():
         return snap
     snap.parent.mkdir(parents=True, exist_ok=True)
@@ -88,23 +88,29 @@ def _write_schema_snapshot_if_missing() -> Path:
 
 
 def _run_migrate() -> None:
-    from core.infra.db.core.migrate_manager import cmd_apply
-    from argparse import Namespace
+    from core.infra.db import Db
 
     snap = _write_schema_snapshot_if_missing()
-    code = cmd_apply(
-        Namespace(
-            pre_mirror_snapshot=str(snap),
-            repo_root=str(REPO_ROOT),
+    try:
+        result = Db.migration.apply(
+            snap,
+            repo_root=REPO_ROOT,
             tables_dir=None,
+            against_database=False,
             database_type="postgresql",
-            dry_run=False,
-            result_json=None,
-            verbose=True,
         )
-    )
-    if code != 0:
-        raise SystemExit(f"schema migrate 失败 exit={code}")
+    except Exception as exc:
+        raise SystemExit(f"schema migrate 失败: {exc}") from exc
+    if result.skipped_reason:
+        logger.info("跳过迁移: %s", result.skipped_reason)
+    else:
+        logger.info(
+            "migrate old=%s new=%s steps=%s applied=%s",
+            result.old_schema_count,
+            result.new_schema_count,
+            result.step_count,
+            result.applied,
+        )
 
 
 def _recreate_modified_tables() -> None:

@@ -3,7 +3,7 @@ sys_trade_calendar 表 Model
 """
 from typing import Any, Dict, List, Optional
 
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 
 from core.tables.calendar.trade_calendar.schema import schema as _schema
 

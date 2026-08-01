@@ -2,7 +2,7 @@
 sys_stock_list 表 Model
 """
 from typing import List, Dict, Any, Optional
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 
 from core.tables.stock.stock_list.schema import schema as _schema
 

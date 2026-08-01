@@ -14,7 +14,7 @@ from core.infra.db.core.engines.duckdb.process_pool_scope import (
 
 
 def test_collect_includes_calendar_model_db():
-    from core.infra.db import DatabaseManager
+    from core.infra.db.core.db_manager import DatabaseManager
 
     calendar_db = MagicMock(spec=DatabaseManager)
     calendar_db._initialized = True
@@ -44,7 +44,7 @@ def test_collect_includes_calendar_model_db():
 
 
 def test_release_all_closes_calendar_model_db():
-    from core.infra.db import DatabaseManager
+    from core.infra.db.core.db_manager import DatabaseManager
 
     calendar_db = MagicMock(spec=DatabaseManager)
     calendar_db._initialized = True

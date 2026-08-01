@@ -140,7 +140,7 @@ def connect_duckdb_domains(
 
 
 def _collect_db_managers_from_data_mgr(data_mgr: Any) -> list[Any]:
-    from core.infra.db import DatabaseManager
+    from core.infra.db.core.db_manager import DatabaseManager
 
     found: list[Any] = []
     seen: set[int] = set()
@@ -209,7 +209,7 @@ def release_all_main_db_handles(data_mgr: Any) -> None:
     关闭主进程全部 DuckDB 连接（data_mgr、get_default、DataService / Model 缓存）。
     worker 池开跑前必须调用，否则子进程 read_only 会遇 Conflicting lock。
     """
-    from core.infra.db import DatabaseManager
+    from core.infra.db.core.db_manager import DatabaseManager
 
     found = _collect_db_managers_from_data_mgr(data_mgr)
     closed_ids: set[int] = set()
@@ -239,7 +239,7 @@ def release_all_main_db_handles(data_mgr: Any) -> None:
 
 def release_all_process_duckdb_handles(data_mgr: Any = None) -> None:
     """进程内所有 DataManager / DatabaseManager 句柄（BFF refresh / 并发工作台）。"""
-    from core.infra.db import DatabaseManager
+    from core.infra.db.core.db_manager import DatabaseManager
     from core.modules.data_manager import DataManager
 
     wait_pool_children_done(timeout_sec=30.0)
@@ -262,7 +262,7 @@ def suspend_main_database(data_mgr: Any) -> None:
 
 
 def _attach_data_manager_db(data_mgr: Any, db: Any) -> None:
-    from core.infra.db import DatabaseManager
+    from core.infra.db.core.db_manager import DatabaseManager
     from core.modules.data_manager import DataManager
     from core.modules.data_manager.data_services import DataService
 
@@ -280,7 +280,7 @@ def resume_main_database(data_mgr: Any) -> None:
     db = getattr(data_mgr, "db", None)
     if db is not None and getattr(db, "_initialized", False):
         return
-    from core.infra.db import DatabaseManager
+    from core.infra.db.core.db_manager import DatabaseManager
 
     db = DatabaseManager(is_verbose=bool(getattr(data_mgr, "is_verbose", False)))
     db.initialize()
@@ -289,7 +289,7 @@ def resume_main_database(data_mgr: Any) -> None:
 
 def resume_main_database_tag_write_only(data_mgr: Any) -> None:
     """仅连接 tag 域写库，不打开 data.duckdb（波次 digest）。"""
-    from core.infra.db import DatabaseManager
+    from core.infra.db.core.db_manager import DatabaseManager
     from core.infra.db.core.engines.duckdb.engine import DuckdbEngine
     from core.infra.db.core.engines.factory import create_engine
 
@@ -458,7 +458,7 @@ def _finalize_worker_pool_main_process(
 
 def prepare_main_for_worker_pool(data_mgr: Any = None) -> None:
     """进程池开跑前：等待遗留子进程退出、关闭主库、禁止 get_default(auto_init) 抢锁。"""
-    from core.infra.db import DatabaseManager
+    from core.infra.db.core.db_manager import DatabaseManager
 
     release_all_process_duckdb_handles(data_mgr)
     DatabaseManager._auto_init_enabled = False
@@ -467,7 +467,7 @@ def prepare_main_for_worker_pool(data_mgr: Any = None) -> None:
 
 def restore_after_worker_pool() -> None:
     """进程池结束后恢复 get_default(auto_init)（具体连接由 resume_* 再打开）。"""
-    from core.infra.db import DatabaseManager
+    from core.infra.db.core.db_manager import DatabaseManager
 
     DatabaseManager._auto_init_enabled = True
 
@@ -489,7 +489,7 @@ def release_worker_db_handles(data_mgr: Optional[Any] = None) -> None:
     """
     if mp.current_process().name == "MainProcess":
         return
-    from core.infra.db import DatabaseManager
+    from core.infra.db.core.db_manager import DatabaseManager
 
     if data_mgr is not None:
         db = getattr(data_mgr, "db", None)

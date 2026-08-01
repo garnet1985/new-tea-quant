@@ -3,7 +3,7 @@ DatabaseManager 单元测试
 """
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-from core.infra.db import DatabaseManager
+from core.infra.db.contracts import DatabaseManager
 
 
 def _minimal_mysql_config():

@@ -1,39 +1,49 @@
-# 测试用例 — `infra.db`
+# 测试用例 — `infra.db`（模块根）
 
 **模块：** `infra.db`  
-**覆盖版本：** `0.4.0`  
+**覆盖版本：** `0.5.0`  
 **本文件位置：** `__test__/`
 
 ---
 
 ## Scope
 
-验证门面 `Db`、`contracts` 导出，以及（存量）包根过渡 re-export。实现向单测仍在本目录各 `test_*.py`（后续可下沉到 `core/**/__test__/`）。
+验证门面 `Db` 与 `contracts`（`test_api.py`），以及少量跨包子集成（`test_integration_*.py`）。  
+包内实现单测在各 `core/**/__test__/`。
 
 ## 边界
 
 **负责**
 
-- `Db.manager` / `migration` / `duckdb` 可调用
-- `contracts` 关键符号存在
-- 过渡期 `from core.infra.db import DatabaseManager` 仍可用
+- 包根仅导出 `Db`
+- `Db` 各命名空间与 `contracts` 类型面
+- 跨多个内部包、仍属本模块的集成行为
 
 **不负责**
 
-- 完整引擎 / 迁移行为（见各专题 `test_*.py`）
-- 外部模块业务正确性
+- 单包细单测（见 `core/**/__test__`）
+- updater 编排（见 `setup/updater/__test__`）
 
-**允许的测试类型（本目录）：** `api` · 存量实现单测
+**允许的测试类型（本目录）：** `api` · `integration`
 
 ---
 
 ## Scenario：facade_and_contracts
 
-| Case（pytest 函数名） | 文件 | 说明 |
-|----------------------|------|------|
-| `test_facade_exported` | `test_api.py` | `Db` 在 `__all__`，三 namespace齐全 |
-| `test_manager_namespace` | `test_api.py` | manager 方法可调用 |
-| `test_migration_namespace` | `test_api.py` | migration 转发 |
-| `test_duckdb_namespace` | `test_api.py` | process_pool 模块可取 |
-| `test_contracts_symbols` | `test_api.py` | contracts 符号 |
-| `test_transitional_package_reexports` | `test_api.py` | 包根过渡导出 |
+| Case | 文件 | 说明 |
+|------|------|------|
+| `test_facade_exported_only` | `test_api.py` | `__all__ == ["Db"]` |
+| `test_manager_namespace` | `test_api.py` | manager |
+| `test_migration_namespace` | `test_api.py` | migration |
+| `test_engine_namespace` | `test_api.py` | engine.build_meta / create |
+| `test_duckdb_namespaces` | `test_api.py` | worker_pool / wal |
+| `test_sql_and_rows_namespaces` | `test_api.py` | sql / rows |
+| `test_contracts_symbols` | `test_api.py` | contracts 无游离工厂 |
+
+## Scenario：integration
+
+| Case 文件 | 说明 |
+|-----------|------|
+| `test_integration_schema_parser.py` | parsers + factory + SchemaManager |
+| `test_integration_schema_migration.py` | schema_manager + migration diff/plan |
+| `test_integration_decimal_contract.py` | row_sql + duckdb + batch 标量契约 |

@@ -1,5 +1,5 @@
 # Database 术语表
-# Version: 0.4.0
+# Version: 0.5.0
 
 terms:
   NTQ:
@@ -9,23 +9,24 @@ terms:
     avoid: []
 
   Facade:
-    definition: "门面：对外统一入口类。本模块门面类是 Db。"
+    definition: "门面：对外统一入口类。本模块门面类是 Db；公开行为一律挂在 Db 命名空间上。"
     aliases:
       - "门面"
       - "门面类"
     avoid:
+      - "导出游离函数"
       - "长期把 core.infra.db.core.* 深路径当公开 API"
 
   Db:
-    definition: "本模块门面类；挂载 manager / migration / duckdb 命名空间。"
+    definition: "本模块门面类；挂载 manager / migration / engine / duckdb / sql / rows 命名空间。"
     aliases: []
     avoid: []
 
   DatabaseManager:
-    definition: "按配置挂载一个 backend Engine 的运行时管理器；过渡期可从包根或 contracts 导入。"
-    aliases:
-      - "Db.manager.DatabaseManager"
-    avoid: []
+    definition: "按配置挂载一个 backend Engine 的运行时管理器；从 contracts 导入。"
+    aliases: []
+    avoid:
+      - "from core.infra.db import DatabaseManager"
 
   Engine:
     definition: "某一数据库后端的实现包（mysql / pgsql / duckdb），含 connector、table_operator 等。"
@@ -57,7 +58,9 @@ terms:
       - "把 updater 编排当成 db 模块职责"
 
   process_pool_scope:
-    definition: "多进程 DuckDB worker 池期间，主进程释放/恢复数据库句柄的协作逻辑。"
+    definition: "多进程 DuckDB worker 池期间，主进程释放/恢复数据库句柄的协作逻辑；公开入口为 Db.duckdb.worker_pool。"
     aliases:
       - "worker pool scope"
-    avoid: []
+      - "Db.duckdb.worker_pool"
+    avoid:
+      - "直接 import process_pool_scope 模块级函数"

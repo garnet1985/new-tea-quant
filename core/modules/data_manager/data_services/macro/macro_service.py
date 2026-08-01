@@ -67,7 +67,7 @@ class MacroService(BaseDataService):
         self._shibor = data_manager.get_table("sys_shibor")
         self._lpr = data_manager.get_table("sys_lpr")
         
-        from core.infra.db import DatabaseManager
+        from core.infra.db.contracts import DatabaseManager
         self.db = DatabaseManager.get_default(auto_init=True)
     
     # ==================== GDP 数据 ====================

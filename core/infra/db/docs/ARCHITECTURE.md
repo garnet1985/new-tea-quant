@@ -1,6 +1,6 @@
 # Database — 架构
 
-**版本：** `0.4.0`
+**版本：** `0.5.0`
 
 统一数据库基础设施：门面 `Db` + 实现包 `core/`（按 backend 挂载 Engine）。词条见 [glossary.yaml](../glossary.yaml)。
 
@@ -28,7 +28,7 @@
 core/infra/db/
 ├── db.py                 # 门面 Db
 ├── contracts.py          # 跨模块契约
-├── __init__.py           # 导出 Db（+ 过渡期 re-export）
+├── __init__.py           # 仅导出 Db
 ├── API.md / QUICKSTART.md / glossary.yaml / module_info.yaml
 ├── core/                 # 实现
 │   ├── db_manager.py
@@ -38,7 +38,8 @@ core/infra/db/
 │   ├── engines/          # mysql | pgsql | duckdb | shared | abc
 │   ├── migration/
 │   └── table_queriers/
-├── __test__/
+├── __test__/             # test_api + 少量 integration
+├── core/**/__test__/     # 功能包单测（下沉）
 └── docs/
 ```
 

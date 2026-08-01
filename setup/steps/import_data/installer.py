@@ -20,7 +20,7 @@ import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.infra.db.core.engines.shared.dialect import sql_qualify_table_name
+from core.infra.db import Db
 
 from .archives import collect_table_archives
 
@@ -140,7 +140,7 @@ class SetupDataInstaller:
             existing_rows = 0
             qualified = ""
             if registered and db:
-                qualified = sql_qualify_table_name(db.config, target)
+                qualified = Db.sql.qualify_table_name(db.config, target)
                 existing_rows = _count_rows_in_table(db, qualified)
             arch_names = [p.name for p in paths]
             if len(arch_names) == 1:

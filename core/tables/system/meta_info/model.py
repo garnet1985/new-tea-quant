@@ -4,7 +4,7 @@ sys_meta_info 表 Model
 系统元信息。
 """
 from typing import Optional, Dict, Any, List
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 from core.tables.system.meta_info.schema import schema as _schema
 
 

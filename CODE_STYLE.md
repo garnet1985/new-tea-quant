@@ -479,7 +479,7 @@ import numpy as np
 import pandas as pd
 
 # 3. 本项目内部模块（绝对导入）
-from core.infra.db import DatabaseManager
+from core.infra.db.contracts import DatabaseManager
 from core.infra.utils.utils import Utils
 
 # 4. 相对导入（仅在包内部使用）
@@ -1242,7 +1242,7 @@ class BacktestEngine:
 1. **优先绝对导入**
    ```python
    # ✅ 推荐
-   from core.infra.db import DatabaseManager
+   from core.infra.db.contracts import DatabaseManager
 
    # ❌ 避免
    from ..db.db_manager import DatabaseManager
@@ -1294,7 +1294,7 @@ import pandas as pd
 from sqlalchemy import create_engine
 
 # 3. 本项目内部模块
-from core.infra.db import DatabaseManager
+from core.infra.db.contracts import DatabaseManager
 from core.infra.utils.utils import Utils
 from core.exceptions import ValidationError
 

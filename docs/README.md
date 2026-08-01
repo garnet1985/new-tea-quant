@@ -2,12 +2,7 @@
 
 **主文档与教程请优先访问官网 [new-tea.cn](https://new-tea.cn)。** 以下为仓库内 Markdown，便于离线查阅。
 
-## 配置文档（仓库内）
-
-- [默认配置总览](default_config/overview.md)
-- [默认配置架构](default_config/architecture.md)
-- [默认配置决策](default_config/decisions.md)
-- [默认配置用户指南](default_config/user_guide.md)
+配置约定见模块文档（如 [`project_context`](../core/infra/project_context/README.md)）与 `core/default_config/` JSON；不再在仓库根 `docs/` 单独维护配置专题。
 
 ## 用户指南（迁移至 userspace）
 

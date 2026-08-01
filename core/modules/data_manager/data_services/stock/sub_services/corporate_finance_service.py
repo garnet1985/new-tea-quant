@@ -105,7 +105,7 @@ class CorporateFinanceService(BaseDataService):
 
     @staticmethod
     def _prepare_time_series_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """按 ``ann_date`` 升序排列，供 DataCursor PIT 前缀切片使用。"""
+        """按 ``ann_date`` 升序排列，供 data_contract ``until`` PIT 前缀切片使用。"""
         prepared: List[Dict[str, Any]] = []
         for row in rows:
             ann_date = DateUtils.normalize(row.get("ann_date"), fmt=DateUtils.FMT_YYYYMMDD)

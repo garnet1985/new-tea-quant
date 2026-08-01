@@ -7,8 +7,8 @@ settings = {'is_enabled': True,
           'keywords': ['性能测试'],
           'details': {'entry': ['RSI(14) 低于超卖阈值（见 core.rsi_oversold_threshold，默认 20）',
                                 '最新已披露季度 netprofit_yoy ≥ core.min_netprofit_yoy（默认 0，即不同比下滑）',
-                                '财报 PIT 由 stock.finance.quarterly 的 ann_date 时间轴 + DataCursor '
-                                '切片保证']}},
+                                '财报 PIT 由 stock.finance.quarterly 的 ann_date 时间轴 + '
+                                'contract.until 切片保证']}},
  'market_profile': 'china_a_stock',
  'core': {'rsi_oversold_threshold': 20, 'min_netprofit_yoy': 0.0},
  'data': {'base': {'data_key': 'stock.kline.daily',

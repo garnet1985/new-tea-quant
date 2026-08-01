@@ -5,7 +5,6 @@ description: "策略执行模块：Strategy facade 提供 scan / simulate / anal
 dependencies:
   - modules.data_manager
   - modules.data_contract
-  - modules.data_cursor
   - modules.indicator
   - modules.backtest_engine
   - infra.project_context

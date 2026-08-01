@@ -1,7 +1,4 @@
-"""Tag scenario list for UI (T1-01)。
-
-消费者: BFF tag_stack
-"""
+"""Tag scenario list for UI (T1-01)."""
 
 from __future__ import annotations
 

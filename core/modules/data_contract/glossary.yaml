@@ -93,9 +93,9 @@ terms:
     avoid: []
 
   DataCursor:
-    definition: "时间游标，是个记录当前数据契约流逝到时间窗口的什么位置的一个指针。模块中就是记录AsOfDate的时间点。"
-    aliases: []
-    avoid: []
+    definition: "概念上的时间游标：记录时序契约推进到时间窗口的哪个位置（AsOfDate）。实现上为 BaseTimeSeriesContract 内的 CursorState，由 until(as_of) 推进；已无独立 data_cursor 模块。"
+    aliases: ["CursorState"]
+    avoid: ["modules.data_cursor", "DataCursor 独立包"]
 
   Fill_in_Data:
     definition: "对数据契约填充数据。"

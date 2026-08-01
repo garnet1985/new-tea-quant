@@ -1,4 +1,4 @@
-"""Tests for data source catalog launcher."""
+"""Tests for data source catalog (BFF helpers)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from core.modules.data_source.catalog.provider_probe import (
     resolve_api_rate_limit_per_minute,
     summarize_provider_auth,
 )
-from core.modules.data_source.launcher import (
+from core.bff.APIs.data.sources.helpers.source_catalog import (
     fetch_data_source_catalog_page,
     fetch_data_source_freshness,
 )

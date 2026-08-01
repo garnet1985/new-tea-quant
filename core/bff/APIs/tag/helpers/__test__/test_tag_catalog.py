@@ -1,11 +1,10 @@
-"""Tests for tag catalog launcher."""
+"""Tests for tag catalog (BFF helpers)."""
 
 from __future__ import annotations
 
 from unittest.mock import patch
 
-from core.modules.tag.launcher.tag_catalog import TagCatalog
-from core.modules.tag.launcher.tag_run import TagRunLauncher
+from core.bff.APIs.tag.helpers.tag_catalog import TagCatalog
 
 
 def test_compute_status_needs_recompute_when_behind_effective_end():
@@ -28,7 +27,7 @@ def test_compute_status_up_to_date_when_caught_up():
 
 
 @patch(
-    "core.modules.tag.launcher.tag_catalog.DiscoveryService.discover_tags",
+    "core.bff.APIs.tag.helpers.tag_catalog.DiscoveryService.discover_tags",
     return_value=[],
 )
 def test_fetch_discovered_tags_page_empty_returns_data_end(_mock_discover):

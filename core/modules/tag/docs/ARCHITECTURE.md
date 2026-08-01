@@ -35,7 +35,7 @@
 | `core/engines/per_entity/` | entity_based / slice_based；`shared/` 仅 BE job_payload / pipeline_hooks |
 | `core/engines/global_based/` | TagGlobalPipeline / TagGlobalDataLoader |
 | `core/engines/non_time_series/` | TagNonTimeSeriesPipeline / TagNonTimeSeriesDataLoader |
-| `core.modules.tag.launcher`（BFF 包，非本模块） | UI：`TagCatalog` / `TagRunLauncher` |
+| `core.bff.APIs.tag` | UI catalog / runner 薄壳；进度 `TagRunProgress` |
 | `core/infra/cli` | `cli.py tag`（模块内无 CLI） |
 
 调度配置（仅 per_entity）：`core/default_config/worker.json` → `job_pipeline.tag`（经 BE `WorkerProfiles.TAG`）。

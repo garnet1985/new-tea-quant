@@ -1,4 +1,4 @@
-"""Deprecated: BFF support has moved to ``core.modules.*.launcher``.
+"""Deprecated: BFF support moved to ``APIs/*/helpers`` + domain core progress services.
 
 Do not add new logic here. See ``core/bff/README.md`` layering rules.
 """

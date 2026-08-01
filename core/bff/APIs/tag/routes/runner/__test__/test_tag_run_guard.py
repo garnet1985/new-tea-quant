@@ -1,10 +1,10 @@
-"""Tag launcher guard tests (no full Tag run)."""
+"""Tag runner guard tests (no full Tag run)."""
 
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from core.modules.tag.launcher.tag_run import TagRunLauncher
+from core.bff.APIs.tag.routes.runner.tag_run import TagRunLauncher
 
 
 def test_trigger_unknown_scenario():
@@ -16,7 +16,7 @@ def test_trigger_unknown_scenario():
 
 def test_trigger_rejects_when_pipeline_busy(monkeypatch):
     monkeypatch.setattr(
-        "core.modules.tag.launcher.tag_run.read_pipeline_status",
+        "core.bff.APIs.tag.routes.runner.tag_run.read_pipeline_status",
         lambda: {"busy": True, "kind": "strategy_run", "job_id": "x"},
     )
     info = MagicMock()

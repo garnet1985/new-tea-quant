@@ -40,7 +40,7 @@
 
 - [项目概览](project_overview.md)
 - [模块文档规范](module-doc-standard.md)
-- 已就近迁移的模块（如 `core/infra/*`、`core/modules/adapter`、`core/modules/data_contract`、`core/modules/data_cursor`、`core/modules/data_manager`、`core/modules/data_source`、`core/modules/indicator`、`core/modules/strategy`、`core/modules/tag`）：各模块根目录 `README.md` 与 `docs/`
+- 已就近迁移的模块（如 `core/infra/*`、`core/modules/adapter`、`core/modules/data_contract`、`core/modules/data_manager`、`core/modules/data_source`、`core/modules/indicator`、`core/modules/strategy`、`core/modules/tag`）：各模块根目录 `README.md` 与 `docs/`
 - 尚未迁移的业务模块：`docs/core_modules/*/overview.md`、`architecture.md`、`api.md`（按子目录浏览）
 
 ## 归档

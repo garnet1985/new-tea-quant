@@ -1,29 +1,18 @@
-"""Tag console routes — T1-01 … T1-03."""
+"""Tag runner routes — T1-02 / T1-03."""
 
-from flask import Blueprint, request
+from flask import request
 
-from core.bff.shared.request import pagination_params
+from core.bff.APIs.tag.api_base import tag_api_bp
 from core.bff.shared.response import error, ok
 
-from .tag_stack import get_tag_stack
-
-tag_api_bp = Blueprint("tag_api", __name__)
-
-
-@tag_api_bp.route("/v1/tags/list", methods=["GET"])
-def get_tags_list():
-    """GET /v1/tags/list — paginated tag scenario catalog."""
-    s = get_tag_stack()
-    page, limit = pagination_params()
-    items, total, data_end = s.fetch_discovered_tags_page(page, limit)
-    return ok({"items": items, "total": total, "page": page, "limit": limit, "data_end": data_end})
+from .implementer import impl as runner_impl
 
 
 @tag_api_bp.route("/v1/tag/<path:tag_key>/run", methods=["POST"])
 def post_tag_run(tag_key: str):
     """POST /v1/tag/{tag_key}/run — start async tag calculation."""
-    s = get_tag_stack()
-    out = s.trigger_tag_run(tag_key=tag_key)
+    api = runner_impl.lazy_load()
+    out = api.trigger_run(tag_key=tag_key)
     if not out.get("is_triggered"):
         reason = str(out.get("reason") or "启动 Tag 任务失败")
         status = 409 if "运行中" in reason or "进行中" in reason else 400
@@ -42,11 +31,11 @@ def post_tag_run(tag_key: str):
 @tag_api_bp.route("/v1/tag/<path:tag_key>/run/progress", methods=["GET"])
 def get_tag_run_progress_route(tag_key: str):
     """GET /v1/tag/{tag_key}/run/progress?job_id=..."""
-    s = get_tag_stack()
+    api = runner_impl.lazy_load()
     q_job = (request.args.get("job_id") or "").strip()
     if not q_job:
         return error("缺少必填 query 参数 job_id", 400)
-    payload = s.get_tag_run_progress(tag_key=tag_key, job_id=q_job)
+    payload = api.get_progress(tag_key=tag_key, job_id=q_job)
     if payload is None:
         return error("任务不存在或与路径不匹配", 404)
     return ok(payload)

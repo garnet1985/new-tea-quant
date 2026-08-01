@@ -221,8 +221,8 @@ Tag `tag_batch_stage`、Strategy 历史 `_preloaded_klines` 等路径直调 `Dat
 对上述声明：
 
 1. **只** 解析声明项；
-2. **只** 通过 **`DataContractManager.issue`**（多 entity job 传 `entity_ids`）获取 **`IssueResult`**；
-3. **只** 从 **`IssueResult.by_entity`** 或 **`IssueResult.contract`** 装填 `DataCursor` / worker inject。
+2. **只** 通过 **`ContractIssuer.issue`**（多 entity job 传 `entity_ids`）获取契约句柄；
+3. **只** 从签发句柄取数 / `until`，再注入 worker。
 
 禁止：对**同一已声明** `DataKey` 在 worker / stager 内再写 **`DataManager.*.load_*`** 旁路（实验脚本与 **loader 实现内部** 除外）。
 
@@ -277,14 +277,11 @@ Strategy / Tag 删除 per-call `ContractCacheManager()`；测试可用 `cache_en
 
 - **`issue(..., should_load_initially=True)`**（默认）：签发后立即 **`load`**。
 - **`should_load_initially=False`**：仅签发句柄；调用方 **`DataContracts.load(issued)`** 再物化。
-- PIT 前缀裁剪：**`DataContracts.until(contract, as_of)`**（委托 `modules.data_cursor`）；句柄上 **不** 暴露公开 `until()`。
-- 时间语义 helper（`get_start_time`、`get_data_window`、`row_count` 等）均在 Facade。
+- PIT 前缀裁剪：时序句柄 **`BaseTimeSeriesContract.until(as_of)`**（`CursorState` 内置）。
+- 时间语义 helper（`get_time_window`、`normalize_as_of` 等）在时序基类。
 
 **理由（Rationale）**  
-batch job 可先批量 `issue` 再一次 `load`；裁剪与多源 cursor 职责分离。
-
-**影响（Consequences）**  
-详见 [`api.yaml`](../api.yaml) 0.5.0。
+batch job 可先批量 `issue` 再 `fill_in_data`；游标状态与契约句柄同生命周期，无需独立 cursor 模块。
 
 ---
 

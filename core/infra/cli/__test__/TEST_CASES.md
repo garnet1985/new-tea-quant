@@ -1,7 +1,7 @@
 # 测试用例 — `infra.cli` 公开 API / CLI 行为
 
 **模块：** `infra.cli`  
-**覆盖版本：** `0.4.1`  
+**覆盖版本：** `0.4.2`  
 **本文件位置：** `__test__/`
 
 ---
@@ -12,12 +12,12 @@
 
 ## 边界
 
-**In scope**
+**负责**
 
 - `Cli` 导出面与 `user` / `dev` / `shared` 公开方法
 - user / dev 侧 abbrev 展开（含 dev `pack` 的 `-core_v`）
 
-**Out of scope**
+**不负责**
 
 - 各业务 handler 的完整业务正确性（应在对应模块或集成测试中覆盖）
 - 依赖模块（project_context / system_actions）自身行为

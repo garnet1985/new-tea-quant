@@ -128,19 +128,29 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 2. 下一行：反引号完整签名（含默认值与返回注解，与代码一致）
 3. 列表字段（键名固定）：
    - **类型：** `instance` / `classmethod` / `static`
-   - **状态：** `experimental` / `beta` / `stable` / `deprecated`
+   - **状态：** `experimental` / `beta` / `stable` / `deprecated`（取值约束见下「稳定性」）
    - **引入版本：** 该入口引入时的模块版本
    - **描述：** 一句话职责
    - **参数：** 无参写 `无`；有参用三列表格；可选参数名字列标 `(可选)`
    - **返回值：** 单值一行 `类型 — 语义`；多字段再用表格
 4. 可选：**错误与异常：**、**举例：**
 
+**稳定性（硬性）：**
+
+| 项目 / core 版本 | 公开 API「状态」允许值 |
+|------------------|------------------------|
+| core 仍为 `0.x`（未到 **1.0.0**） | 最高 **`beta`**：只许 `experimental` / `beta` / `deprecated`；**禁止**标 `stable` |
+| core ≥ **1.0.0** | 可用满档：`experimental` / `beta` / `stable` / `deprecated` |
+
+> 当前仓库 core 为 `0.x`（见 `core/system.json`）。整改与新建模块的 `API.md` 一律按上表：成熟公开入口写 `beta`，不要写 `stable`。
+
 **禁止项：**
 
 - ❌ 不写内部私有方法（不出现 `internal`）
 - ❌ 不与 `CONCEPTS.md` / `ARCHITECTURE.md` 大段重复
 - ❌ 不并行维护第二份 API 真源（`api.yaml`、`docs/API.md` 等）
-- ❌ 不在无 `__test__/test_api.py` 覆盖的情况下宣称 API 已稳定对外
+- ❌ 不在无 `__test__/test_api.py` 覆盖的情况下把入口标成对外可用（`beta` / 日后 `stable`）
+- ❌ core 未到 1.0 时把任何公开入口标成 `stable`
 
 **遗留：** 历史上部分模块使用根目录 `api.yaml` 或 `docs/API.md`。自 **1.2.0** 起统一为模块根 `API.md`；存量迁移完成后删除，标准不再要求。
 
@@ -212,7 +222,7 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 | 章节 | 必须 / 可选 | 说明 |
 |------|------------|------|
 | 文首版本 + 定位 | 必须 | 版本 = `module_info.yaml` |
-| 职责与边界（In / Out） | 必须 | 已定结论 |
+| 职责与边界（负责 / 不负责） | 必须 | 已定结论；勿用 In/Out of scope 作标题 |
 | 模块结构图 | 必须 | 目录 / 包结构 |
 | 架构图 | 必须 | 组件 / 分层 / 主调用关系 |
 | 数据流 | 可选 | 有显著数据流时写 |
@@ -261,7 +271,7 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 > 模板：[`__test__/TEST_CASES.md`](doc_templates/module/__test__/TEST_CASES.md)。  
 > 测试类型与目录职责见 [CORE 指标 2](../CORE_MODULE_STANDARDS.md)。
 
-**固定结构：** 文首（模块 / 覆盖版本 / 路径）→ Scope → 边界 → 若干 `## Scenario` → 其下 Case 表（函数名 / 文件 / 说明）。
+**固定结构：** 文首（模块 / 覆盖版本 / 路径）→ Scope → 负责 / 不负责 → 若干 `## Scenario` → 其下 Case 表（函数名 / 文件 / 说明）。
 
 **规则：**
 

@@ -9,7 +9,7 @@ import os
 import subprocess
 import sys
 
-from core.infra.cmd_layout import IconService
+from core.infra.cmd_layout import CmdLayout
 import time
 from pathlib import Path
 from typing import List, Tuple
@@ -136,7 +136,7 @@ def ensure_cli_install_via_install_py() -> int:
     """通过根目录 ``install.py`` 执行 CLI 安装（``cli.py`` 自动触发时使用）。"""
     script = REPO_ROOT / "install.py"
     if not script.is_file():
-        print(f"{IconService.get('error')} 未找到安装入口: {script}", flush=True)
+        print(f"{CmdLayout.icon.get('error')} 未找到安装入口: {script}", flush=True)
         return 1
     proc = subprocess.run([sys.executable, str(script)], cwd=str(REPO_ROOT))
     return int(proc.returncode)

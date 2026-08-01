@@ -1,9 +1,9 @@
-"""CmdLayout — CLI layout helpers for strategy report presentation.
+"""命令行布局助手（CmdLayout）。
 
-See api.yaml for contract; title / separator / bar_chart / icon for ASCII layouts.
+公开 API：``from core.infra.cmd_layout import CmdLayout``。
+契约见根目录 ``API.md``。
 """
 
 from .cmd_layout import CmdLayout
-from .icon import IconService, i
 
-__all__ = ["CmdLayout", "IconService", "i"]
+__all__ = ["CmdLayout"]

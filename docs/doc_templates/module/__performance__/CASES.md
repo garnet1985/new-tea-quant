@@ -12,11 +12,11 @@
 
 ## 边界
 
-**In scope**
+**负责**
 
 - `<本模块公开路径上的性能指标>`
 
-**Out of scope**
+**不负责**
 
 - `<跨模块 e2e（→ devtools/performance）；功能正确性（→ __test__）>`
 

@@ -8,7 +8,7 @@ Init Data 导入流程（必跑步骤的执行体）。
 """
 from __future__ import annotations
 
-from core.infra.cmd_layout import IconService
+from core.infra.cmd_layout import CmdLayout
 
 import hashlib
 import json
@@ -105,7 +105,7 @@ class SetupDataInstaller:
             return zips
         names = ", ".join(p.name for p in zips)
         raise RuntimeError(
-            f"{IconService.get('error')} 为避免混包导入，setup/init_data/ 下只允许存在 1 个 .zip 初始化数据包。\n"
+            f"{CmdLayout.icon.get('error')} 为避免混包导入，setup/init_data/ 下只允许存在 1 个 .zip 初始化数据包。\n"
             f"当前发现 {len(zips)} 个：{names}\n"
             "请保留您需要导入的zip数据文件，另一个zip数据文件移走/改后缀后重新运行install.py。"
         )

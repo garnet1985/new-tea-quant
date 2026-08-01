@@ -1,6 +1,6 @@
 # CLI API 文档
 
-**版本：** `0.4.1`  
+**版本：** `0.4.2`  
 **最低支持核心版本：** `>=0.4.1`
 
 > 须与 `module_info.yaml` 的 `version` / `compatible_core_versions` 一致。  
@@ -24,7 +24,7 @@
 `Cli.user.bootstrap(entry_file: str) -> None`
 
 - **类型：** `static`
-- **状态：** `stable`
+- **状态：** `beta`
 - **引入版本：** `0.4.0`
 - **描述：** venv 重入与 install 门闸（仅 user 入口需要）
 - **参数：**
@@ -47,7 +47,7 @@ Cli.user.bootstrap(__file__)
 `Cli.user.main(argv: list[str] | None = None) -> int`
 
 - **类型：** `static`
-- **状态：** `stable`
+- **状态：** `beta`
 - **引入版本：** `0.4.0`
 - **描述：** 解析 argv 并执行用户命令
 - **参数：**
@@ -76,7 +76,7 @@ raise SystemExit(Cli.user.main())
 `Cli.dev.main(argv: list[str] | None = None) -> int`
 
 - **类型：** `static`
-- **状态：** `stable`
+- **状态：** `beta`
 - **引入版本：** `0.4.0`
 - **描述：** 解析 argv 并执行开发命令
 - **参数：**
@@ -105,7 +105,7 @@ raise SystemExit(Cli.dev.main())
 `Cli.shared.expand_argv(argv, *, short_to_long, long_commands, default_command="version", version_argv=None, after_expand=None) -> list[str]`
 
 - **类型：** `static`
-- **状态：** `stable`
+- **状态：** `beta`
 - **引入版本：** `0.4.0`
 - **描述：** 将首 token 的短命令别名展开为长命令名；空 argv 或仅 version 旗标时回落到 `default_command`
 - **参数：**
@@ -137,7 +137,7 @@ Cli.shared.expand_argv(
 `Cli.shared.is_help_argv(argv: Sequence[str]) -> bool`
 
 - **类型：** `static`
-- **状态：** `stable`
+- **状态：** `beta`
 - **引入版本：** `0.4.0`
 - **描述：** 首 token 是否为 `-h` / `--help` / `help`
 - **参数：**
@@ -160,7 +160,7 @@ Cli.shared.is_help_argv(["-h"])  # True
 `Cli.shared.aliases_for(short_to_long: Mapping[str, str], long_name: str) -> list[str]`
 
 - **类型：** `static`
-- **状态：** `stable`
+- **状态：** `beta`
 - **引入版本：** `0.4.0`
 - **描述：** 给定长命令名，返回对应短别名列表（排序）
 - **参数：**

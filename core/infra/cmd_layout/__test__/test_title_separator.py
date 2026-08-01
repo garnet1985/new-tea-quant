@@ -6,9 +6,13 @@ from __future__ import annotations
 import io
 import unittest
 
+import pytest
+
 from core.infra.cmd_layout import CmdLayout
 from core.infra.cmd_layout.title import Title, display_width
 from core.infra.cmd_layout.separator import Separator
+
+pytestmark = pytest.mark.force_run
 
 
 class TestTitle(unittest.TestCase):

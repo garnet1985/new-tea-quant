@@ -1,6 +1,6 @@
 # CLI — 快速开始
 
-**模块：** `infra.cli` · **版本：** `0.4.1`
+**模块：** `infra.cli` · **版本：** `0.4.2`
 
 最短路径：仓库根启动用户 / 开发入口，或在入口脚本里调用门面类 `Cli`（见 [glossary.yaml](./glossary.yaml) 的 Facade / Cli）。
 

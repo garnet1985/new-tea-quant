@@ -255,7 +255,7 @@
 | 内容 | 要求 |
 |------|------|
 | 覆盖版本 | = `module_info.yaml` 的 `version`（或注明兼容范围） |
-| Scope / 边界 | In / Out of scope；允许的测试类型 |
+| Scope / 边界 | 负责 / 不负责；允许的测试类型 |
 | Scenario → Case | Case 名 = pytest 函数名；标明所属 `test_*.py` |
 | 与 API 对齐 | 根目录 API suite 须能映射到 `API.md` |
 | 性能正式 case | 写在 `__performance__/CASES.md`；根 `TEST_CASES` 可仅链接，不复制大段 |
@@ -310,7 +310,8 @@
 
 > `API.md` 的版式、字段与禁止项见文档 SSOT：  
 > → [`docs/module-doc-standard.md` §2](docs/module-doc-standard.md)  
-> 模块侧硬性：位置在模块根；与 `__test__/test_api.py` 成对（指标 2 / 3）。
+> 模块侧硬性：位置在模块根；与 `__test__/test_api.py` 成对（指标 2 / 3）。  
+> **稳定性：** core 仍为 `0.x` 时，公开 API 状态最高 `beta`，**禁止** `stable`（细则见文档规范）。
 
 ---
 
@@ -445,8 +446,8 @@ settings["performance"] = {"max_workers": 8}
 
 | 段 | 中文 | 何时递增 | 示例 |
 |----|------|----------|------|
-| **PATCH**（小版本） | 小 | 修 bug；改注释；**内部**改名/整理；API **稳定性标注**变更（如 `stable→deprecated` 且未删）；**新加**公开 API；其他**无破坏性**改动 | `0.5.0` → `0.5.1` |
-| **MINOR**（中版本） | 中 | 改动**已有稳定** API / 配置契约；任何**破坏性**改动（公开符号改名、删 API、改签名/语义/行为） | `0.5.1` → `0.6.0` |
+| **PATCH**（小版本） | 小 | 修 bug；改注释；**内部**改名/整理；API **稳定性标注**变更（如 `beta→deprecated` 且未删）；**新加**公开 API；其他**无破坏性**改动 | `0.5.0` → `0.5.1` |
+| **MINOR**（中版本） | 中 | 改动**已有**（`beta` / 日后 `stable`）公开 API / 配置契约；任何**破坏性**改动（公开符号改名、删 API、改签名/语义/行为） | `0.5.1` → `0.6.0` |
 | **MAJOR**（大版本） | 大 | **随 core 大版本**；core 仍为 `0.x` 时模块 MAJOR **保持 0** | core `1.0.0` 时模块可 → `1.0.0` |
 
 **补充约定：**

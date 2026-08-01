@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 from typing import ClassVar, Sequence
 
-from core.infra.cmd_layout import IconService
+from core.infra.cmd_layout import CmdLayout
 
 
 class NewTeaQuantSetup:
@@ -116,10 +116,10 @@ class NewTeaQuantSetup:
     @classmethod
     def print_info(cls, title: str, msg: str, icon: str = None) -> None:
         icon_map = {
-            "success": IconService.get("success"),
-            "green_dot": IconService.get("green_dot"),
-            "failed": IconService.get("error"),
-            "ongoing": IconService.get("ongoing"),
+            "success": CmdLayout.icon.get("success"),
+            "green_dot": CmdLayout.icon.get("green_dot"),
+            "failed": CmdLayout.icon.get("error"),
+            "ongoing": CmdLayout.icon.get("ongoing"),
         }
         icon_text = icon_map.get(icon, "")
         if icon:
@@ -138,22 +138,22 @@ class NewTeaQuantSetup:
     @staticmethod
     def print_check_item(status: str, msg: str) -> None:
         marks = {
-            "running": IconService.get("ongoing"),
-            "done": IconService.get("success"),
-            "warn": IconService.get("warning"),
+            "running": CmdLayout.icon.get("ongoing"),
+            "done": CmdLayout.icon.get("success"),
+            "warn": CmdLayout.icon.get("warning"),
             "skip": "[SKIP]",
-            "fail": IconService.get("error"),
+            "fail": CmdLayout.icon.get("error"),
         }
-        mark = marks.get(status, IconService.get("info"))
+        mark = marks.get(status, CmdLayout.icon.get("info"))
         print(f"{mark} {msg}", flush=True)
 
     @staticmethod
     def print_check_ok(msg: str) -> None:
-        print(f"{IconService.get('success')} {msg}", flush=True)
+        print(f"{CmdLayout.icon.get('success')} {msg}", flush=True)
 
     @staticmethod
     def print_check_fail(msg: str) -> None:
-        print(f"{IconService.get('error')} {msg}", flush=True)
+        print(f"{CmdLayout.icon.get('error')} {msg}", flush=True)
 
     @staticmethod
     def print_check_info(msg: str) -> None:

@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Sequence
 
-from core.infra.cmd_layout import i as icon
+from core.infra.cmd_layout import CmdLayout
 from devtools.quick_tools._paths import REPO_ROOT
 
 INIT_USERSPACE_DIR = REPO_ROOT / "setup" / "init_userspace"
@@ -302,7 +302,7 @@ def _write_userspace_meta(*, repo_root: Path, zip_path: Path | None) -> None:
         encoding="utf-8",
     )
     print(
-        f"{icon('success')} 已写入 {META_PATH.relative_to(REPO_ROOT)} "
+        f"{CmdLayout.icon.i('success')} 已写入 {META_PATH.relative_to(REPO_ROOT)} "
         f"(core_version={core_display})",
         flush=True,
     )
@@ -339,7 +339,7 @@ def package_init_userspace(
     root = (repo_root or REPO_ROOT).resolve()
     src = root / "userspace"
     if not src.is_dir():
-        print(f"{icon('error')} 未找到源目录: {src}", flush=True)
+        print(f"{CmdLayout.icon.i('error')} 未找到源目录: {src}", flush=True)
         return 1
 
     print(f"[package-userspace] 源: {src}", flush=True)
@@ -358,12 +358,12 @@ def package_init_userspace(
     if write_zip:
         _write_userspace_zip(INIT_TREE, ZIP_PATH)
         print(
-            f"{icon('success')} 已写入 {ZIP_PATH.relative_to(REPO_ROOT)} "
+            f"{CmdLayout.icon.i('success')} 已写入 {ZIP_PATH.relative_to(REPO_ROOT)} "
             f"（{ZIP_PATH.stat().st_size // 1024} KiB）",
             flush=True,
         )
     else:
-        print(f"{icon('success')} init userspace 源树已更新（未写 zip）", flush=True)
+        print(f"{CmdLayout.icon.i('success')} init userspace 源树已更新（未写 zip）", flush=True)
 
     _write_userspace_meta(repo_root=root, zip_path=ZIP_PATH if write_zip else None)
 

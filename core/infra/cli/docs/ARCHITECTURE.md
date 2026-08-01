@@ -1,6 +1,6 @@
 # CLI — 架构
 
-**版本：** `0.4.1`
+**版本：** `0.4.2`
 
 双入口命令行门面（Facade：对外统一入口类 `Cli`）：用户侧与开发侧分入口，共享命令行参数（argv）脚手架；业务处理函数留在各自包内，不对外导出。词条见 [glossary.yaml](../glossary.yaml)。
 
@@ -8,14 +8,14 @@
 
 ## 职责与边界（结论）
 
-**In scope**
+**负责**
 
 - 对外唯一入口类 `Cli`，命名空间：`user` / `dev` / `shared`
 - 仓库根入口脚本 `cli.py` / `devcli.py` 分发到门面类
 - user / dev 各自的短别名与命令注册表
 - 用户侧虚拟环境 / 安装的启动前检查（bootstrap）
 
-**Out of scope**
+**不负责**
 
 - 具体业务动作的实现（交给 `system_actions`、各业务模块等）
 - 把 `user/`、`dev/`、`shared/` 作为跨模块公开 import 面

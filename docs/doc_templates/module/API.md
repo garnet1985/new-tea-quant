@@ -28,7 +28,7 @@
 `<ClassName>.<namespace>.<method_name>(<params>) -> <Ret>`
 
 - **类型：** `<instance | classmethod | static>`
-- **状态：** `<experimental | beta | stable | deprecated>`
+- **状态：** `<experimental | beta | deprecated>`（core `0.x` 时；core ≥1.0 才可写 `stable`）
 - **引入版本：** `<version>`
 - **描述：** `<一句话职责；必要时补一句边界或语义注意>`
 - **参数：** 无
@@ -45,7 +45,7 @@
 `<ClassName>.<namespace>.<another_method>(<params>) -> <Ret>`
 
 - **类型：** `<instance | classmethod | static>`
-- **状态：** `<experimental | beta | stable | deprecated>`
+- **状态：** `<experimental | beta | deprecated>`
 - **引入版本：** `<version>`
 - **描述：** `<一句话职责>`
 - **参数：**
@@ -78,7 +78,7 @@
 `<Signature(...) -> Ret>`
 
 - **类型：** `<instance | classmethod | static>`
-- **状态：** `<experimental | beta | stable | deprecated>`
+- **状态：** `<experimental | beta | deprecated>`
 - **引入版本：** `<version>`
 - **描述：** `<一句话>`
 - **参数：**
@@ -107,7 +107,7 @@
 `ProjectContext.path.get_project_root() -> Path`
 
 - **类型：** `static`
-- **状态：** `stable`
+- **状态：** `beta`
 - **引入版本：** `0.4.0`
 - **描述：** 获取项目根目录绝对路径
 - **参数：** 无
@@ -125,7 +125,7 @@ root = ProjectContext.path.get_project_root()
 1. **层级**：`## Class` →（可选）`### namespace` → `#### method`；无 namespace 时方法用 `###`。
 2. **签名行**：方法标题下必须有一行反引号完整签名，与代码一致。
 3. **类型**：只允许 `instance` / `classmethod` / `static`。
-4. **状态**：只允许 `experimental` / `beta` / `stable` / `deprecated`。
+4. **状态**：词表为 `experimental` / `beta` / `stable` / `deprecated`；**core 未到 1.0 时禁止 `stable`**（最高 `beta`）。见 [module-doc-standard](../../module-doc-standard.md)。
 5. **参数**：无参写 `**参数：** 无`；有参用三列表格；可选参数名字列标 `(可选)`。
 6. **返回值**：单值用一行 `类型 — 语义`；多字段再用表格。
 7. **测试覆盖**：与 `__test__/test_api.py` + `__test__/TEST_CASES.md` 成对维护。

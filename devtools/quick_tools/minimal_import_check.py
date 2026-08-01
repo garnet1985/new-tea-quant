@@ -21,7 +21,7 @@ import venv
 from dataclasses import dataclass
 from pathlib import Path
 
-from core.infra.cmd_layout import i as icon
+from core.infra.cmd_layout import CmdLayout
 from devtools.quick_tools._paths import REPO_ROOT
 
 BFF_REQUIREMENTS = REPO_ROOT / "core" / "ui" / "bff" / "requirements.txt"
@@ -154,7 +154,7 @@ def run_ui_bootstrap_checks(*, python: Path, repo_root: Path = REPO_ROOT) -> lis
     failures: list[tuple[ImportCheck, str]] = []
     for check in UI_BOOTSTRAP_CHECKS:
         ok, err = _probe_import(python, repo_root, check)
-        mark = icon("success") if ok else icon("error")
+        mark = CmdLayout.icon.i("success") if ok else CmdLayout.icon.i("error")
         print(f"  {mark} {check.check_id}", flush=True)
         if not ok:
             failures.append((check, err))
@@ -203,7 +203,7 @@ def main(argv: list[str] | None = None) -> int:
 
     failures = run_ui_bootstrap_checks(python=python, repo_root=repo_root)
     if not failures:
-        print(f"{icon('success')} 全部通过。", flush=True)
+        print(f"{CmdLayout.icon.i('success')} 全部通过。", flush=True)
         return 0
 
     print(f"\n失败 {len(failures)} 项:", file=sys.stderr, flush=True)

@@ -1,263 +1,44 @@
-# NTQ Glossary - infra.discovery
-# Version: 0.3.0
-# Last Updated: 2026-06-27
-#
-# 目的：
-#   - 统一discovery模块术语和命名规范
-#   - 作为准则，确保命名一致
-#   - 便于新成员理解代码
-#
-# 使用原则：
-#   - 所有代码、文档、注释必须遵循此术语表
-#   - 优先使用"推荐术语"
-#   - 避免"禁止术语"
-#   - 如果发现新的术语冲突，请及时更新此表
+# Discovery 术语表
+# Version: 0.4.0
 
----
+terms:
+  NTQ:
+    definition: "New Tea Quant 的简称，即本项目 / 框架名称。"
+    aliases:
+      - "New Tea Quant"
+    avoid: []
 
-# ========== 文件命名规范 ==========
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面类是 Discovery。"
+    aliases:
+      - "门面"
+      - "门面类"
+    avoid:
+      - "直接 import FileUtils / ClassDiscovery 当公开 API"
 
-file_naming:
-  description: "文件命名规范"
-  rules:
-    - pattern: "xxx_utils.py"
-      usage: "工具类文件（提供静态方法集合）"
-      example: |
-        # 推荐
-        file_utils.py
-        path_utils.py
+  Discovery:
+    definition: "本模块门面类；挂载 file / discover / class_discovery 命名空间。"
+    aliases: []
+    avoid: []
 
-        # 禁止
-        file_helper.py
-        path_functions.py
+  namespace:
+    definition: "门面下的命名空间（如 Discovery.file），把一组相关静态方法挂在一起。"
+    aliases:
+      - "命名空间"
+    avoid: []
 
-    - pattern: "xxx_discovery.py"
-      usage: "发现类文件（提供批量发现功能）"
-      example: |
-        # 推荐
-        file_discovery.py
-        class_discovery.py
+  DiscoveryConfig:
+    definition: "类发现规则数据类（基类、模块路径模式、过滤与键提取等）；见 contracts。"
+    aliases: []
+    avoid: []
 
-        # 禁止
-        file_finder.py
-        class_scanner.py
+  DiscoveryResult:
+    definition: "一次类发现的结果容器：classes + metadata；见 contracts。"
+    aliases: []
+    avoid: []
 
-    - pattern: "xxx_manager.py"
-      usage: "管理器文件（提供状态管理功能）"
-      example: |
-        # 推荐
-        cache_manager.py
-
-        # 禁止
-        cache_handler.py
-        cache_controller.py
-
-# ========== API命名规范 ==========
-
-api_naming:
-  description: "API命名规范（namespace.xxx格式）"
-  rules:
-    - pattern: "namespace.method"
-      usage: "namespace实例的方法调用"
-      example: |
-        # 推荐 - 使用namespace实例
-        from core.infra.discovery import api
-        path = api.file.find_file(directory, filename)
-        files = api.discover.files(directory, pattern)
-
-        # 禁止 - 直接使用类
-        from core.infra.discovery import FileUtils
-        path = FileUtils.find_file(directory, filename)
-
-    - pattern: "find_xxx"
-      usage: "查找特定文件或对象"
-      example: |
-        # 推荐
-        api.file.find_file(directory, filename)
-
-        # 禁止
-        api.file.search_file(directory, filename)
-        api.file.locate_file(directory, filename)
-
-    - pattern: "discover_xxx"
-      usage: "批量发现文件或类"
-      example: |
-        # 推荐
-        api.discover.files(directory, pattern)
-
-        # 禁止
-        api.discover.scan_files(directory, pattern)
-        api.discover.find_files(directory, pattern)
-
-    - pattern: "load_xxx"
-      usage: "从文件加载数据"
-      example: |
-        # 推荐
-        api.file.load_json(path)
-        api.file.load_yaml(path)
-
-        # 禁止
-        api.file.read_json(path)
-        api.file.parse_json(path)
-
-# ========== 类命名规范 ==========
-
-class_naming:
-  description: "类命名规范"
-  rules:
-    - pattern: "XxxUtils"
-      usage: "工具类（静态方法集合）"
-      example: |
-        # 推荐
-        FileUtils
-        PathUtils
-
-        # 禁止
-        FileHelper
-        PathFunctions
-
-    - pattern: "XxxDiscovery"
-      usage: "发现类（批量发现功能）"
-      example: |
-        # 推荐
-        FileDiscovery
-        ClassDiscovery
-
-        # 禁止
-        FileFinder
-        ClassScanner
-
-    - pattern: "XxxNamespace"
-      usage: "Namespace类（API门面）"
-      example: |
-        # 推荐
-        FileNamespace
-        DiscoverNamespace
-
-        # 禁止
-        FileAPI
-        DiscoverFacade
-
-# ========== 变量命名规范 ==========
-
-variable_naming:
-  description: "变量命名规范（遵循CODE_STYLE.md）"
-  rules:
-    - pattern: "snake_case"
-      usage: "普通变量和函数"
-      example: |
-        # 推荐
-        file_path
-        base_dir
-        max_depth
-
-        # 禁止
-        filePath
-        BaseDir
-        MAX_DEPTH
-
-    - pattern: "PascalCase"
-      usage: "类名"
-      example: |
-        # 推荐
-        FileUtils
-        FileDiscovery
-
-        # 禁止
-        file_utils
-        file_discovery
-
-    - pattern: "UPPER_CASE"
-      usage: "常量"
-      example: |
-        # 推荐
-        MAX_SEARCH_DEPTH
-        DEFAULT_ENCODING
-
-        # 禁止
-        maxSearchDepth
-        defaultEncoding
-
-# ========== 目录结构命名规范 ==========
-
-folder_naming:
-  description: "目录结构命名规范"
-  rules:
-    - name: "core"
-      usage: "内部实现代码"
-      description: "包含具体的实现类，不对外暴露"
-
-    - name: "__test__"
-      usage: "测试代码"
-      description: "包含所有测试文件"
-
-    - name: "docs"
-      usage: "文档"
-      description: "包含API文档、设计文档等"
-
-    - name: "."
-      usage: "模块根目录"
-      description: "包含api.py、__init__.py等对外暴露文件"
-
-# ========== 架构层次术语 ==========
-
-architecture_layers:
-  description: "架构层次术语"
-  terms:
-    - name: "Utils"
-      description: "工具层（原子性操作，静态方法集合）"
-      example: "FileUtils, PathUtils"
-
-    - name: "Discovery"
-      description: "发现层（批量发现功能，有状态）"
-      example: "FileDiscovery, ClassDiscovery"
-
-    - name: "Namespace"
-      description: "API层（对外暴露，门面模式）"
-      example: "FileNamespace, DiscoverNamespace"
-
-    - name: "Manager"
-      description: "管理层（状态管理）"
-      example: "CacheManager"
-
-# ========== 核心概念术语 ==========
-
-core_concepts:
-  description: "核心概念术语"
-  terms:
-    - name: "原子操作"
-      description: "单个文件的单一操作，无状态"
-      recommended_terms:
-        - 原子操作
-        - atomic operation
-      forbidden_terms:
-        - 单一操作
-        - simple operation
-
-    - name: "批量发现"
-      description: "多个文件或类的批量扫描和发现"
-      recommended_terms:
-        - 批量发现
-        - batch discovery
-      forbidden_terms:
-        - 批量扫描
-        - batch scan
-
-    - name: "缓存"
-      description: "发现结果的缓存"
-      recommended_terms:
-        - 缓存
-        - cache
-      forbidden_terms:
-        - 暂存
-        - temporary storage
-
-# ========== 注意事项 ==========
-
-notes:
-  - "所有新代码必须遵循此术语表"
-  - "重构旧代码时，逐步更新术语"
-  - "如果发现术语冲突，请及时更新此表"
-  - "术语表应定期review和更新"
-  - "优先使用英文术语，中文术语用于注释和文档"
-  - "API命名统一使用namespace实例方式，不暴露类"
+  fail-soft:
+    definition: "发现过程中单模块失败时记日志并跳过，仍返回已收集结果。"
+    aliases:
+      - "软失败"
+    avoid: []

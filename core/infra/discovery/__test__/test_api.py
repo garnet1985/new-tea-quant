@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
-"""Discovery module API contract tests.
-
-遵循 CORE_MODULE_STANDARDS.md 规范：
-- test_cases.yaml 定义测试注册表
-- 覆盖 api.yaml 中定义的稳定 API
-- 分组测试、契约验证、边界测试
-"""
+"""对齐根目录 API.md 的契约测试。"""
 
 from __future__ import annotations
 
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Dict, Any
+
+import pytest
 
 from core.infra.discovery import Discovery
+
+pytestmark = pytest.mark.force_run
 
 
 class TestApi(unittest.TestCase):
@@ -32,10 +29,23 @@ class TestApi(unittest.TestCase):
 
     def test_facade_export(self):
         """facade 导出 file / discover / class_discovery namespace"""
-        # 验证 namespace 存在
-        self.assertTrue(hasattr(Discovery, 'file'))
-        self.assertTrue(hasattr(Discovery, 'discover'))
-        self.assertTrue(hasattr(Discovery, 'class_discovery'))
+        import core.infra.discovery as pkg
+
+        self.assertEqual(pkg.__all__, ["Discovery"])
+        self.assertTrue(hasattr(Discovery, "file"))
+        self.assertTrue(hasattr(Discovery, "discover"))
+        self.assertTrue(hasattr(Discovery, "class_discovery"))
+
+    def test_contracts_symbols(self):
+        from core.infra.discovery import contracts
+
+        for name in (
+            "DiscoveryConfig",
+            "DiscoveryResult",
+            "ClassDiscovery",
+            "FileDiscoveryConfig",
+        ):
+            self.assertTrue(hasattr(contracts, name), name)
 
     def test_file_namespace_methods(self):
         """file namespace 包含所有文件操作 API"""

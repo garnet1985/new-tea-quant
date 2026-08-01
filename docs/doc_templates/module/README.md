@@ -2,7 +2,7 @@
 
 <!-- 例：Database（`infra.db`）、Project Context（`infra.project_context`） -->
 
-`<一句话模块职责。写「做什么」，不写实现细节。>`
+`<一句话模块职责。写「做什么」，不写实现细节。缩写 / 生僻英文首次出现括注，或指向 glossary.yaml（如 NTQ＝New Tea Quant；Facade＝门面）。>`
 
 ## 适用场景
 

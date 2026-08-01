@@ -233,6 +233,10 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 ### 写作约束
 
 - 中文为主，英文术语可括注；短句，避免营销腔
+- **缩写与生僻英文须可读：** 如 `NTQ`（New Tea Quant）、`Facade`（门面：对外统一入口）等，读者未必熟悉。做法二选一或并用：  
+  1）**首次出现**用中文释义或括注全称；  
+  2）收入本模块 [`glossary.yaml`](doc_templates/module/glossary.yaml)，正文可写「见术语表」。  
+  不要在 README 首句堆未解释的英文黑话。
 - **README 尽量不出现代码块**；上手代码放 `QUICKSTART`（若有）或 `API.md` 举例；原理放 `CONCEPTS`（若有）
 - 非 `API.md` / `docs/DESIGN.md` 不写历史沿革，只描述当前事实（DESIGN 内按设计点追加历史）
 - 避免多文档大段重复：重复处用相对链接

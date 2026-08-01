@@ -14,7 +14,7 @@ import {
   persistDesignActiveRun,
 } from '../lib/strategyDesignActiveRunPersistence';
 
-const RUN_STEPS = new Set(['enum', 'price', 'capital']);
+const RUN_STEPS = new Set(['enum', 'price', 'portfolio']);
 
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -83,7 +83,7 @@ export function useStrategyDesignExecution({
         runId: '',
         lastCompletedWorkbenchVersionId: '',
       }, {
-        stepProgress: { enum: 0, price: 0, capital: 0 },
+        stepProgress: { enum: 0, price: 0, portfolio: 0 },
       });
 
       const resolvedSettings = getDraftSettingsForSubmit?.();
@@ -101,7 +101,7 @@ export function useStrategyDesignExecution({
       const nextRunning = started?.resolved_chain?.[0] || target;
       const nextStepStatus = stepStatusFromRunPlanSteps(
         planSteps,
-        getExecutionState()?.stepStatus || { enum: 'idle', price: 'idle', capital: 'idle' },
+        getExecutionState()?.stepStatus || { enum: 'idle', price: 'idle', portfolio: 'idle' },
       );
 
       patchExecutionSession({
@@ -152,7 +152,7 @@ export function useStrategyDesignExecution({
           progressPollStepRef.current = pollStep;
           setSession((prev) => {
             const stepStatus = mergeStepStatusFromRunProgress(
-              prev.executionState?.stepStatus || { enum: 'idle', price: 'idle', capital: 'idle' },
+              prev.executionState?.stepStatus || { enum: 'idle', price: 'idle', portfolio: 'idle' },
               status?.step_status_merge,
             );
             return {
@@ -237,7 +237,7 @@ export function useStrategyDesignExecution({
 
       setSession((prev) => {
         const nextStepStatus = mergeStepStatusFromRunProgress(
-          prev.executionState?.stepStatus || { enum: 'idle', price: 'idle', capital: 'idle' },
+          prev.executionState?.stepStatus || { enum: 'idle', price: 'idle', portfolio: 'idle' },
           patch,
         );
         const mergedProgress = { ...(prev.stepProgress || {}), ...progressPatch };

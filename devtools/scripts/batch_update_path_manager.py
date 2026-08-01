@@ -39,7 +39,7 @@ METHOD_MAPPING = {
     'PathManager.strategy_results': 'PathManager.get_strategy_results_directory',
     'PathManager.strategy_simulation_enum': 'PathManager.get_strategy_simulation_enum_directory',
     'PathManager.strategy_simulation_price': 'PathManager.get_strategy_simulation_price_directory',
-    'PathManager.strategy_simulation_capital': 'PathManager.get_strategy_simulation_capital_directory',
+    'PathManager.strategy_simulation_portfolio': 'PathManager.get_strategy_simulation_portfolio_directory',
     'PathManager.strategy_scan_results': 'PathManager.get_strategy_scan_results_directory',
 
     # Tag 相关方法
@@ -114,7 +114,7 @@ def batch_update_files():
         "core/modules/strategy/launcher/workbench.py",
         "core/modules/strategy/engines/simulator/enumerator/shared/services.py",
         "core/modules/tag/engines/shared/runner.py",
-        "core/modules/strategy/launcher/workbench_stock_detail.py",
+        "core/bff/APIs/strategy/routes/report/stock_detail.py",
         "devtools/quick_tools/stock_pool_ops.py",
         "core/bff/APIs/settings/routes.py",
         "core/modules/strategy/strategy_manager.py",

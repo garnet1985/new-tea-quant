@@ -104,6 +104,22 @@ class DiscoveryService:
         return None
 
     @staticmethod
+    def resolve_strategy_path(key_or_name: str) -> str:
+        """``meta.key`` 或 path name → userspace 相对 path（含未启用策略）。
+
+        Raises:
+            ValueError: 空 needle
+            FileNotFoundError: 发现列表中无匹配
+        """
+        needle = str(key_or_name or "").strip()
+        if not needle:
+            raise ValueError("strategy_key_or_name 不能为空")
+        for info in DiscoveryService.discover_strategies():
+            if info.key == needle or info.id() == needle:
+                return str(info.id())
+        raise FileNotFoundError(f"策略不存在: {needle!r}")
+
+    @staticmethod
     def list_enabled_keys() -> List[str]:
         """已启用策略的 ``meta.key`` 列表（供 CLI 提示）。"""
         return [s.key for s in DiscoveryService.get_enabled_strategies() if s.key]

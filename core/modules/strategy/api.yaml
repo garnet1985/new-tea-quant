@@ -2,6 +2,7 @@ module: modules.strategy
 version: 0.6.0
 requires: core>=0.5.0
 
+# UI snapshot 读模型在 BFF helpers；进度落盘 PipelineProgress / ScanProgress 在本模块。
 # ---------------------------------------------------------------------------
 # 用语
 #

@@ -118,8 +118,7 @@ new-tea-quant/
 │   │   ├── data_source/           # 数据源系统（抓数据）
 │   │   ├── tag/                   # 标签系统（一次算好，多次复用）
 │   │   ├── indicator/             # 技术指标（对 pandas-ta 的代理）
-│   │   ├── data_contract/         # DataKey、数据契约签发与缓存
-│   │   ├── data_cursor/           # 多源时序前缀游标（as_of 累计视图）
+│   │   ├── data_contract/         # DATA_KEY、契约签发与 until PIT 游标
 │   │   └── adapter/               # 扫描结果适配器（userspace 扩展）
 │   ├── infra/                     # 基础设施
 │   │   ├── db/                    # 数据库连接 & Schema 管理
@@ -227,7 +226,6 @@ new-tea-quant/
   - [`modules/tag`](../core/modules/tag/README.md)（模块内 [`docs/`](../core/modules/tag/docs/)）
   - [`modules/adapter`](../core/modules/adapter/README.md)（模块内 [`docs/`](../core/modules/adapter/docs/)）
   - [`modules/data_contract`](../core/modules/data_contract/README.md)（模块内 [`docs/`](../core/modules/data_contract/docs/)）
-  - [`modules/data_cursor`](../core/modules/data_cursor/README.md)（模块内 [`docs/`](../core/modules/data_cursor/docs/)）
   - [`modules/data_manager`](../core/modules/data_manager/README.md)（模块内 [`docs/`](../core/modules/data_manager/docs/)）
   - [`modules/data_source`](../core/modules/data_source/README.md)（模块内 [`docs/`](../core/modules/data_source/docs/)）
   - [`modules/indicator`](../core/modules/indicator/README.md)（模块内 [`docs/`](../core/modules/indicator/docs/)）

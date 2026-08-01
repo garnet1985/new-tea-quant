@@ -145,7 +145,8 @@ function StrategyListPage({
       filterable: false,
       renderCell: (params) => {
         const name = params.row.name;
-        const isExporting = exportingName === name;
+        const exportId = params.row.key || name;
+        const isExporting = exportingName === exportId;
         return (
           <Stack direction="row" spacing={1} alignItems="center">
             <Link
@@ -167,7 +168,7 @@ function StrategyListPage({
               disabled={Boolean(exportingName)}
               onClick={(e) => {
                 e.stopPropagation();
-                handleExportStrategyPackage(name);
+                handleExportStrategyPackage(exportId);
               }}
               sx={{
                 border: 'none',

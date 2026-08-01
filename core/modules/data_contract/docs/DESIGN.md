@@ -83,9 +83,9 @@ load_batch(entity_ids, params, context)
 
 DCM **优先** loader 的 **`load_batch`**（相对 `BaseLoader` 默认实现）；无优化实现时自动 fallback，语义与循环 **`load`** 一致。
 
-### 与 `DataCursor` 的衔接
+### PIT 游标（`until`）
 
-每个 **`DataContract`** 的 **`data`** 仍为 **单 entity 的 `List[Dict]`**（时序）或等价 payload；**不**在一个句柄内存 `Dict[entity_id, rows]`。多 entity 在 **`IssueResult.by_entity`** 层拆分；Strategy / Tag 每股取 **`by_entity[stock_id]`** 再建 cursor。
+时序契约在 **`BaseTimeSeriesContract`** 内维护每 entity 的 **`CursorState`**；**`contract.until(as_of)`** 累进推进前缀。多 entity 数据按 scope 组织；Strategy / Tag 在 as_of 日调用 `until` 取可见前缀。
 
 ---
 

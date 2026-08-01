@@ -40,6 +40,8 @@ class BaseJobExecutor:
     """
 
     task_log_label: str = "task"
+    #: Bound PipelineProgress.pipeline_name this executor may tick (None = never).
+    progress_pipeline_name: ClassVar[Optional[str]] = "enum"
     #: 主进程钩子上下文（避免 lambda，保证 RunCallbacks 可 pickle）
     _hooks_ctx: ClassVar[Optional[ExecutorHooksContext]] = None
 
@@ -140,6 +142,15 @@ class BaseJobExecutor:
     ) -> None:
         if report_manager is not None:
             report_manager.profiler.collect(report)
+
+        try:
+            from core.modules.strategy.core.services.progress import PipelineProgress
+
+            name = cls.progress_pipeline_name
+            if name and PipelineProgress.drives_pipeline(name):
+                PipelineProgress.tick_from_run_progress(progress)
+        except Exception:
+            logger.exception("PipelineProgress.tick_from_run_progress failed")
 
         logger.info(
             "Task完成进度：%s/%s (成功=%s, 失败=%s)",

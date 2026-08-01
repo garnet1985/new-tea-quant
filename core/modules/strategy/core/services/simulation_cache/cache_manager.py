@@ -186,7 +186,7 @@ class SimulationCacheManager(BaseCacheManager):
         key: str,
         fps: FingerprintResult,
     ) -> Optional[str]:
-        """双指纹命中且 enum 槽有 ``version_id`` 时返回之（供补跑 price/capital 用）。"""
+        """双指纹命中且 enum 槽有 ``version_id`` 时返回之（供补跑 price/portfolio 用）。"""
         cached = cls.get_cache(key, fps, SimulateKind.ENUMERATE)
         if not cached:
             return None

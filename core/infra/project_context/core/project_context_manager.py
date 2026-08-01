@@ -109,11 +109,6 @@ class ProjectContext(ProjectContextAPI):
         return cls.path.get_strategy_directory_simulation_price(strategy_name)
 
     @classmethod
-    def get_strategy_directory_simulation_capital(cls, strategy_name: str) -> Path:
-        """获取策略模拟资金目录"""
-        return cls.path.get_strategy_directory_simulation_capital(strategy_name)
-
-    @classmethod
     def get_strategy_directory_simulation_portfolio(cls, strategy_name: str) -> Path:
         """获取策略模拟组合目录"""
         return cls.path.get_strategy_directory_simulation_portfolio(strategy_name)
@@ -219,11 +214,6 @@ class ProjectContext(ProjectContextAPI):
     def get_strategy_simulation_price_directory(cls, strategy_name: str) -> Path:
         """获取策略模拟价格目录"""
         return cls.path.get_strategy_simulation_price_directory(strategy_name)
-
-    @classmethod
-    def get_strategy_simulation_capital_directory(cls, strategy_name: str) -> Path:
-        """获取策略模拟资金目录"""
-        return cls.path.get_strategy_simulation_capital_directory(strategy_name)
 
     @classmethod
     def get_strategy_simulation_portfolio_directory(cls, strategy_name: str) -> Path:

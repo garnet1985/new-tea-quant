@@ -45,7 +45,7 @@ schema = {
             "type": "json",
             "isRequired": False,
             "nullable": True,
-            "description": "三个回测步骤的 reports 聚合：enum/price/capital",
+            "description": "三个回测步骤的 reports 聚合：enum/price/portfolio",
         },
         {
             "name": "settings_fingerprint_id",

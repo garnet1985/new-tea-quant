@@ -20,7 +20,7 @@ class RsiFundamentalGateHooks(StrategyHooks):
     RSI(14) 超卖触发；最新已披露季度 ``netprofit_yoy`` 不低于阈值才入场。
 
     财报 PIT 由 ``stock.finance.quarterly`` contract 的 ``ann_date`` 时间轴 +
-    ``DataCursor.until(signal_date)`` 保证，策略只消费 cursor 前缀的最后一行。
+    ``contract.until(signal_date)`` 保证，策略只消费 cursor 前缀的最后一行。
     """
 
     def scan_opportunity(self, ctx: StrategyContext) -> Optional[Opportunity]:

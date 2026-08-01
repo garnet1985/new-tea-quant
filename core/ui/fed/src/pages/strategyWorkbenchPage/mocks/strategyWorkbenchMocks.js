@@ -37,22 +37,22 @@ export const MOCK_EXECUTION_COMPARE_SUMMARIES_BY_VERSION = {
   latest: {
     enum: { opportunities: 100 },
     price: { winRate: 56.2, roi: 18.4 },
-    capital: { initialCapital: 1000000, endCapital: 1031800, profit: 31800, retPct: 31.8 },
+    portfolio: { initialCapital: 1000000, endCapital: 1031800, profit: 31800, retPct: 31.8 },
   },
   v3: {
     enum: { opportunities: 108 },
     price: { winRate: 52.8, roi: 12.6 },
-    capital: { initialCapital: 1000000, endCapital: 1065000, profit: 65000, retPct: 6.5 },
+    portfolio: { initialCapital: 1000000, endCapital: 1065000, profit: 65000, retPct: 6.5 },
   },
   v2: {
     enum: { opportunities: 103 },
     price: { winRate: 49.6, roi: 9.3 },
-    capital: { initialCapital: 1000000, endCapital: 1042000, profit: 42000, retPct: 4.2 },
+    portfolio: { initialCapital: 1000000, endCapital: 1042000, profit: 42000, retPct: 4.2 },
   },
   v1: {
     enum: { opportunities: 115 },
     price: { winRate: 44.1, roi: 6.7 },
-    capital: { initialCapital: 1000000, endCapital: 1020000, profit: 20000, retPct: 2.0 },
+    portfolio: { initialCapital: 1000000, endCapital: 1020000, profit: 20000, retPct: 2.0 },
   },
 };
 

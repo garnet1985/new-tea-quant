@@ -8,7 +8,7 @@ from .contracts import (
     StrategyHooks,
     StrategyInfo,
 )
-from .core.enums import ExecutionMode, SellReason, SimulateKind
+from .core.enums import ExecutionMode, SellReason, SimulateKind, WorkbenchStep
 from .strategy import Strategy
 
 __all__ = [
@@ -22,4 +22,5 @@ __all__ = [
     "StrategyData",
     "StrategyHooks",
     "StrategyInfo",
+    "WorkbenchStep",
 ]

@@ -254,7 +254,7 @@ def _wait_http_ok(url: str, timeout_sec: int = 30) -> bool:
 
 def _warm_bff_api(host: str, port: int) -> None:
     """预加载 strategy 栈，避免 CRA 首屏并发请求时 BFF 冷启动导致 proxy ECONNRESET。"""
-    url = f"http://{host}:{port}/api/v1/strategies/list?page=1&limit=1"
+    url = f"http://{host}:{port}/api/v1/strategy/catalog/1/1"
     print("正在预加载 BFF API（首次较慢）…", flush=True)
     try:
         with urllib.request.urlopen(url, timeout=120) as resp:

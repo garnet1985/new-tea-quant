@@ -18,7 +18,7 @@
 ### BFF 边界
 
 - BFF **不做** tag 业务缓存决策；是否 incremental、是否写库由 **`Tag` / 引擎**（含 settings `is_dry_run`）决定。
-- BFF 职责：HTTP 校验、调用 **`TagCatalog` / `TagRunLauncher`**、维护 **单进程 tag run 编排**，统一 `ok` / `error` 信封。
+- BFF 职责：HTTP 校验、调用 **`TagCatalog` / `TagRunLauncher`**（BFF helpers / runner 薄壳；进度经 core `TagRunProgress`）、维护 **单进程 tag run 编排**，统一 `ok` / `error` 信封。
 
 ## API 清单（T1 — MVP）
 

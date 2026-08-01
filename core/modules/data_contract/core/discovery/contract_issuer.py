@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import logging
 from pathlib import Path
 from typing import Dict, List, Any, Optional
@@ -111,14 +112,18 @@ class ContractIssuer:
             logger.warning(f"加载系统 SYS_DATA_KEY 失败：{e}")
             return []
             
-    def _load_user_data_keys(self) -> List[str]:
+    def _load_user_data_keys(self, user_space_path: Optional[Path] = None) -> List[str]:
         """加载用户 data_keys.py 文件（USER_DATA_KEY类）。
-        
+
+        Args:
+            user_space_path: 保留参数（与 discover 签名对齐）；实际路径取自 ProjectContext。
+
         Returns:
             用户 DATA_KEYS 列表（从USER_DATA_KEY类提取）
             
         使用ProjectContext API避免硬编码路径错误。
         """
+        _ = user_space_path
         # 使用ProjectContext API获取路径（避免硬编码）
         user_data_keys_file = ProjectContext.path.get_data_contract_root() / "data_keys.py"
         

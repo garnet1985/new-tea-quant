@@ -37,6 +37,11 @@
 - [核心模块标准](../CORE_MODULE_STANDARDS.md)（模块规则：结构 / 测试 / 版本 / Facade 等）
 - **文档 SSOT：** [模块文档规范](module-doc-standard.md)（格式 / 放置 / 章节）
 - [模块文档模板](doc_templates/module/)（与真实模块同结构；整棵 copy + 填 `<xxx>`）
+- 模块文档就近：`core/infra/*`、`core/modules/*` 等各模块根目录 `README.md` / `API.md` 与 `docs/`
+
+## 归档
+
+- 历史根 README 归档已移除（请以仓库根 `README.md` 与模块文档为准）
 
 ## 变更记录
 

@@ -1,7 +1,7 @@
 name: modules.tag
 version: 0.4.2
 compatible_core_versions: ">=0.4.4"
-description: "标签资产层：按 data.base 路由；per_entity 经 BacktestEngine；global / non_time_series 主进程推进器。UI 适配见 core.bff.support.tag。"
+description: "标签资产层：按 data.base 路由；per_entity 经 BacktestEngine；global / non_time_series 主进程推进器。UI catalog/run 在 BFF；进度落盘 TagRunProgress。"
 dependencies:
   - modules.data_manager
   - modules.data_contract
@@ -21,7 +21,7 @@ changelog:
   - version: "0.4.0"
     changes:
       - 标准模块根契约：tag.py Facade、api.yaml、contracts.py、glossary.yaml
-      - launcher 迁入 core/bff_support（TagCatalog / TagRunLauncher）
+      - UI catalog/run 薄壳在 BFF；进度落盘 TagRunProgress（core services）
       - incremental 水位改为 last_calculated_end（非 max(as_of)）
       - 删除旧 engines/timeline/sliced/BaseTagWorker 路径
   - version: "0.3.2"
@@ -47,4 +47,4 @@ changelog:
       - dispatch 调优文档与 JobPipeline worker_profile 对齐
   - version: "0.2.0"
     changes:
-      - Scenario 发现、TagWorker 多进程、DataContract + DataCursor as_of 切片落库
+      - Scenario 发现、TagWorker 多进程、DataContract until as_of 切片落库

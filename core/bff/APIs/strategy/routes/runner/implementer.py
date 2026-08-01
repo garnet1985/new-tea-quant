@@ -24,7 +24,9 @@ class StrategyRunnerImplementer:
                 get_scan_readiness,
                 trigger_strategy_scan_run,
             )
-            from core.modules.strategy.launcher.workbench_run import WorkbenchRunLauncher
+            from core.bff.APIs.strategy.routes.runner.workbench_run import (
+                WorkbenchRunLauncher,
+            )
 
             self._WorkbenchRunLauncher = WorkbenchRunLauncher
             self._get_scan_page_context = get_scan_page_context

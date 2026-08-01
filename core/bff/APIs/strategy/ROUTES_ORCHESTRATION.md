@@ -14,7 +14,7 @@ core/bff/APIs/strategy/
     report/                 # V2-07*
     settings/               # V2-04 / V2-09
     version/                # V2-01/03/08 + cache
-    runner/                 # V2-05/06* + scan
+    runner/                 # V2-05/06* + scan；workbench run/envelope 已在本包
   helpers/
 ```
 

@@ -131,7 +131,7 @@ Pipeline    → 周边编排（采样、BE.run、ReportManager）
 | `PENDING_TO_ENTER` 挂单风控（touch / wait / drift / abort） | done |
 | ReportManager 统一生命周期（`BaseReportManager` + 四引擎） | done |
 
-UI 集成适配层已迁至 ``core.modules.strategy.launcher``（``StrategyCatalog``、``StrategySettingsOptions``、``WorkbenchSnapshots``、``WorkbenchRunLauncher`` 等）。模块内仅保留领域 Facade / services。
+UI 工作台 run / envelope 已迁至 ``core.bff.APIs.strategy.routes.runner``（``WorkbenchRunLauncher`` 等）。``launcher`` 仍保留 snapshots / scan（待拆分）。模块内仅保留领域 Facade / services。
 
 ---
 

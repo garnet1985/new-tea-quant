@@ -1,6 +1,4 @@
-"""Workbench async run launcher for UI (V2-05 / V2-06 / V2-06b).
-
-Consumers: ``core.bff.APIs.strategy.routes.runner``
+"""Workbench async run for UI (V2-05 / V2-06 / V2-06b).
 
 Runs ``Strategy.simulate`` in a daemon thread; progress via run envelope files.
 """
@@ -30,16 +28,7 @@ from core.modules.strategy.core.services.simulation_cache.fingerprints import (
     FingerprintCalculator,
 )
 
-from .workbench_run_envelope import (
-    get_run_progress,
-    get_step_progress_from_envelope,
-    run_envelope_fail,
-    run_envelope_mark_phase_completed,
-    run_envelope_mark_started,
-    run_envelope_on_substep_finish,
-    run_envelope_on_substep_start,
-    seed_workbench_run_envelope,
-)
+from .workbench_run_envelope import WorkbenchRunEnvelope
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +53,6 @@ class WorkbenchRunLauncher:
         api_settings: Dict[str, Any],
         force_refresh: bool,
     ) -> Dict[str, Any]:
-        """BFF contract entry (also exposed as ``submit_workbench_step_via_bff_contract``)."""
         name = str(strategy_name or "").strip()
         norm = cls.normalize_step(step)
         if not name:
@@ -76,7 +64,6 @@ class WorkbenchRunLauncher:
 
         info = DiscoveryService.find_strategy(name)
         if info is None:
-            # allow path id that matches discover list even if disabled? simulate needs enabled
             discovered = cls._find_any(name)
             if discovered is None:
                 return {"is_triggered": False, "reason": f"策略不存在: {name}"}
@@ -108,7 +95,7 @@ class WorkbenchRunLauncher:
             force_refresh=bool(force_refresh),
             runtime_settings=api_settings,
         )
-        steps = seed_workbench_run_envelope(name, jid, plan_steps)
+        steps = WorkbenchRunEnvelope.seed(name, jid, plan_steps)
         thread = threading.Thread(
             target=cls._background_job,
             args=(jid, name, norm, dict(api_settings), bool(force_refresh), plan_steps),
@@ -123,9 +110,6 @@ class WorkbenchRunLauncher:
             "steps": steps,
         }
 
-    # Compat alias for strategy_stack attribute name.
-    submit_workbench_step_via_bff_contract = submit
-
     @classmethod
     def get_run_progress(
         cls,
@@ -133,7 +117,9 @@ class WorkbenchRunLauncher:
         strategy_name: str,
         job_id: str,
     ) -> Optional[Dict[str, Any]]:
-        return get_run_progress(strategy_name=strategy_name, job_id=job_id)
+        return WorkbenchRunEnvelope.get_run_progress(
+            strategy_name=strategy_name, job_id=job_id
+        )
 
     @classmethod
     def get_step_progress(
@@ -143,13 +129,11 @@ class WorkbenchRunLauncher:
         normalized_step: str,
         job_id: str,
     ) -> Optional[Dict[str, Any]]:
-        return get_step_progress_from_envelope(
+        return WorkbenchRunEnvelope.get_step_progress(
             strategy_name=strategy_name,
             normalized_step=normalized_step,
             job_id=job_id,
         )
-
-    # --- internals ---------------------------------------------------------
 
     @classmethod
     def _find_any(cls, key_or_id: str):
@@ -219,16 +203,16 @@ class WorkbenchRunLauncher:
         try:
             lease.acquire()
         except PipelineLeaseBusyError as exc:
-            run_envelope_fail(strategy_name, job_id, 0, str(exc))
+            WorkbenchRunEnvelope.fail(strategy_name, job_id, 0, str(exc))
             cls._clear_active(strategy_name, job_id)
             return
 
         try:
-            run_envelope_mark_started(strategy_name, job_id)
+            WorkbenchRunEnvelope.mark_started(strategy_name, job_id)
             cls._duckdb_prepare()
 
             if plan_steps:
-                run_envelope_on_substep_start(
+                WorkbenchRunEnvelope.on_substep_start(
                     strategy_name, job_id, 0, len(plan_steps), plan_steps[0]
                 )
 
@@ -244,10 +228,10 @@ class WorkbenchRunLauncher:
             for idx, ui_step in enumerate(plan_steps):
                 current_idx = idx
                 if idx > 0:
-                    run_envelope_on_substep_start(
+                    WorkbenchRunEnvelope.on_substep_start(
                         strategy_name, job_id, idx, len(plan_steps), ui_step
                     )
-                run_envelope_on_substep_finish(
+                WorkbenchRunEnvelope.on_substep_finish(
                     strategy_name,
                     job_id,
                     idx,
@@ -255,10 +239,10 @@ class WorkbenchRunLauncher:
                     ui_step,
                     wb_version,
                 )
-            run_envelope_mark_phase_completed(strategy_name, job_id)
+            WorkbenchRunEnvelope.mark_phase_completed(strategy_name, job_id)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Workbench run failed job_id=%s", job_id)
-            run_envelope_fail(strategy_name, job_id, current_idx, str(exc))
+            WorkbenchRunEnvelope.fail(strategy_name, job_id, current_idx, str(exc))
         finally:
             cls._duckdb_finalize()
             try:

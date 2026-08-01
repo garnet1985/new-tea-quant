@@ -1,7 +1,6 @@
-"""Strategy UI launchers — snapshots / run / scan.
+"""Strategy UI launchers remaining in modules — snapshots / scan (to be split).
 
-Settings options + apply live in ``core.bff.APIs.strategy.routes.settings``.
-Consumers: ``core.bff.APIs.strategy.routes`` (version / report / runner / …).
+Workbench run / envelope live in ``core.bff.APIs.strategy.routes.runner``.
 """
 
 from .scanner_run import (
@@ -10,11 +9,9 @@ from .scanner_run import (
     get_scan_readiness,
     trigger_strategy_scan_run,
 )
-from .workbench_run import WorkbenchRunLauncher
 from .workbench_snapshots import WorkbenchSnapshots
 
 __all__ = [
-    "WorkbenchRunLauncher",
     "WorkbenchSnapshots",
     "get_scan_page_context",
     "get_scan_progress",

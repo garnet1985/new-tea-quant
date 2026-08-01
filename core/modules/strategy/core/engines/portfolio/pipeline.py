@@ -33,9 +33,12 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.strate
     StrategySettings,
 )
 from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
+from core.modules.strategy.core.services.progress import PipelineProgress
 
 if TYPE_CHECKING:
     from core.modules.strategy.core.engines.shared.data_class.simulate_session import SimulateSession
+
+_PROGRESS_PIPELINE = "portfolio"
 
 
 class PortfolioPipeline:
@@ -48,10 +51,21 @@ class PortfolioPipeline:
     @classmethod
     def run_by_steps(cls, ctx: "SimulateSession") -> Dict[str, Any]:
         """按步骤串起选仓 → 回放 → 落盘，返回可缓存 report。"""
+        drive = PipelineProgress.drives_pipeline(_PROGRESS_PIPELINE)
+        if drive:
+            PipelineProgress.enter_step_bound("load")
         data = cls.load_enum_data(ctx)
         settings = cls._strategy_settings(ctx)
         report = cls.begin_report(ctx, data)
+        if drive:
+            PipelineProgress.complete_step_bound("load")
+            PipelineProgress.enter_step_bound("dispatch")
         events, opportunities = cls.build_events(data, settings=settings)
+        if drive:
+            PipelineProgress.complete_step_bound("dispatch")
+            PipelineProgress.enter_step_bound("execute")
+            # No BE task ticks; mark execute mid-way before simulate returns.
+            PipelineProgress.tick_execute_bound(0, 1)
         sim_result = cls.simulate(
             events,
             opportunities,
@@ -59,12 +73,19 @@ class PortfolioPipeline:
             report=report,
             ctx=ctx,
         )
-        return cls.finalize(
+        if drive:
+            PipelineProgress.tick_execute_bound(1, 1)
+            PipelineProgress.complete_step_bound("execute")
+            PipelineProgress.enter_step_bound("report")
+        out = cls.finalize(
             report,
             sim_result,
             data=data,
             settings=settings,
         )
+        if drive:
+            PipelineProgress.complete_step_bound("report")
+        return out
 
     @classmethod
     def load_enum_data(cls, ctx: "SimulateSession") -> EnumSource:

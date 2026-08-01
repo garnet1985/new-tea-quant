@@ -1,6 +1,7 @@
 """Workbench async run for UI (V2-05 / V2-06 / V2-06b).
 
-Runs ``Strategy.simulate`` in a daemon thread; progress via run envelope files.
+Runs ``Strategy.simulate`` in a daemon thread; progress via strategy
+``PipelineProgress`` (core module owns weighting + disk).
 """
 
 from __future__ import annotations
@@ -8,7 +9,7 @@ from __future__ import annotations
 import logging
 import threading
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from core.infra.system_actions.cache_cleanup.pipeline_lease import (
     PipelineLease,
@@ -16,25 +17,15 @@ from core.infra.system_actions.cache_cleanup.pipeline_lease import (
     read_pipeline_status,
 )
 from core.modules.strategy import Strategy
-from core.modules.strategy.core.enums import SimulateKind, WorkbenchStep
+from core.modules.strategy.core.enums import WorkbenchStep
 from core.modules.strategy.core.services.discovery import DiscoveryService
-from core.modules.strategy.core.services.entity_loader.global_entity_loader import (
-    GlobalEntityCache,
-)
-from core.modules.strategy.core.services.simulation_cache.cache_manager import (
-    SimulationCacheManager,
-)
-from core.modules.strategy.core.services.simulation_cache.fingerprints import (
-    FingerprintCalculator,
-)
-
-from .workbench_run_envelope import WorkbenchRunEnvelope
+from core.modules.strategy.core.services.progress import PipelineProgress
 
 logger = logging.getLogger(__name__)
 
 
 class WorkbenchRunLauncher:
-    """UI async workbench run: lease / envelope / Strategy.simulate thread."""
+    """UI async workbench run: lease / PipelineProgress / Strategy.simulate thread."""
 
     _LOCK = threading.Lock()
     _ACTIVE_BY_STRATEGY: Dict[str, str] = {}
@@ -89,16 +80,15 @@ class WorkbenchRunLauncher:
             jid = f"wb-run-{uuid.uuid4().hex[:12]}"
             cls._ACTIVE_BY_STRATEGY[name] = jid
 
-        plan_steps = cls._plan_ui_steps(
+        PipelineProgress.seed(
             name,
-            norm,
-            force_refresh=bool(force_refresh),
-            runtime_settings=api_settings,
+            jid,
+            pipeline_name=norm,
+            pipeline_description=PipelineProgress.pipeline_description(norm),
         )
-        steps = WorkbenchRunEnvelope.seed(name, jid, plan_steps)
         thread = threading.Thread(
             target=cls._background_job,
-            args=(jid, name, norm, dict(api_settings), bool(force_refresh), plan_steps),
+            args=(jid, name, norm, dict(api_settings), bool(force_refresh)),
             daemon=True,
             name=f"wb-run-{jid[:8]}",
         )
@@ -107,7 +97,9 @@ class WorkbenchRunLauncher:
             "is_triggered": True,
             "job_id": jid,
             "run_id": jid,
-            "steps": steps,
+            "pipeline_id": jid,
+            "pipeline_name": norm,
+            "pipeline_description": PipelineProgress.pipeline_description(norm),
         }
 
     @classmethod
@@ -117,9 +109,19 @@ class WorkbenchRunLauncher:
         strategy_name: str,
         job_id: str,
     ) -> Optional[Dict[str, Any]]:
-        return WorkbenchRunEnvelope.get_run_progress(
-            strategy_name=strategy_name, job_id=job_id
-        )
+        sn = str(strategy_name or "").strip()
+        jid = str(job_id or "").strip()
+        if not jid:
+            return None
+        doc = PipelineProgress.get(sn, jid, apply_stale=True)
+        if not doc:
+            return None
+        # HTTP aliases for existing clients (run_id / phase).
+        out = dict(doc)
+        out.setdefault("run_id", out.get("pipeline_id") or jid)
+        out.setdefault("job_id", out.get("pipeline_id") or jid)
+        out.setdefault("phase", out.get("status"))
+        return out
 
     @classmethod
     def get_step_progress(
@@ -129,11 +131,35 @@ class WorkbenchRunLauncher:
         normalized_step: str,
         job_id: str,
     ) -> Optional[Dict[str, Any]]:
-        return WorkbenchRunEnvelope.get_step_progress(
-            strategy_name=strategy_name,
-            normalized_step=normalized_step,
-            job_id=job_id,
-        )
+        """V2-06 legacy: path step must match pipeline_name."""
+        env = cls.get_run_progress(strategy_name=strategy_name, job_id=job_id)
+        if not env:
+            return None
+        step = str(normalized_step or "").strip()
+        if str(env.get("pipeline_name") or "").strip() != step:
+            return None
+        jid = str(job_id or "").strip()
+        status = str(env.get("status") or "").strip().lower()
+        try:
+            pct = float(env.get("progress") or 0.0)
+        except (TypeError, ValueError):
+            pct = 0.0
+        out: Dict[str, Any] = {
+            "progress": round(pct, 2),
+            "status": status or "running",
+            "job_id": jid,
+        }
+        result = env.get("result") if isinstance(env.get("result"), dict) else {}
+        if status == "completed":
+            out["is_success"] = True
+            vid = result.get("version_id")
+            if vid:
+                out["version_id"] = str(vid)
+        elif status in ("failed", "cancelled"):
+            out["is_success"] = False
+            if env.get("error"):
+                out["reason"] = str(env.get("error"))
+        return out
 
     @classmethod
     def _find_any(cls, key_or_id: str):
@@ -146,43 +172,6 @@ class WorkbenchRunLauncher:
         return None
 
     @classmethod
-    def _plan_ui_steps(
-        cls,
-        strategy_name: str,
-        norm_step: str,
-        *,
-        force_refresh: bool,
-        runtime_settings: Dict[str, Any],
-    ) -> List[str]:
-        """Mirror Facade omit-enum rules for envelope step list."""
-        kind = WorkbenchStep.parse(norm_step).to_simulate_kind()
-        if kind == SimulateKind.ENUMERATE:
-            return ["enum"]
-        if force_refresh:
-            return ["enum", norm_step]
-        try:
-            strategy_info = DiscoveryService.find_strategy(strategy_name)
-            if strategy_info is None:
-                return ["enum", norm_step]
-            stock_list = GlobalEntityCache.get_stock_list()
-            latest = GlobalEntityCache.get_latest_completed_trading_date()
-            fp_res = FingerprintCalculator.calculate_fingerprints(
-                strategy_info,
-                runtime_settings,
-                stock_list,
-                latest,
-            )
-            cache_key = str(
-                strategy_info.unique_relative_path or strategy_info.key or strategy_name
-            )
-            enum_ver = SimulationCacheManager.find_enum_output_version(cache_key, fp_res)
-            if enum_ver:
-                return [norm_step]
-        except Exception:
-            logger.exception("plan_ui_steps probe failed; defaulting to enum+target")
-        return ["enum", norm_step]
-
-    @classmethod
     def _background_job(
         cls,
         job_id: str,
@@ -190,9 +179,7 @@ class WorkbenchRunLauncher:
         norm_step: str,
         api_settings: Dict[str, Any],
         force_refresh: bool,
-        plan_steps: List[str],
     ) -> None:
-        current_idx = 0
         lease = PipelineLease(
             kind="strategy_run",
             job_id=job_id,
@@ -203,46 +190,40 @@ class WorkbenchRunLauncher:
         try:
             lease.acquire()
         except PipelineLeaseBusyError as exc:
-            WorkbenchRunEnvelope.fail(strategy_name, job_id, 0, str(exc))
+            inst = PipelineProgress.load(strategy_name, job_id)
+            if inst is not None:
+                inst.fail(str(exc))
             cls._clear_active(strategy_name, job_id)
             return
 
         try:
-            WorkbenchRunEnvelope.mark_started(strategy_name, job_id)
-            cls._duckdb_prepare()
-
-            if plan_steps:
-                WorkbenchRunEnvelope.on_substep_start(
-                    strategy_name, job_id, 0, len(plan_steps), plan_steps[0]
-                )
-
-            kind = WorkbenchStep.parse(norm_step).to_simulate_kind()
-            result = Strategy.simulate(
-                strategy_name,
-                kind=kind,
-                ignore_cache=force_refresh,
-                runtime_settings=api_settings,
-            )
-            wb_version = int((result or {}).get("_workbench_version") or 0)
-
-            for idx, ui_step in enumerate(plan_steps):
-                current_idx = idx
-                if idx > 0:
-                    WorkbenchRunEnvelope.on_substep_start(
-                        strategy_name, job_id, idx, len(plan_steps), ui_step
-                    )
-                WorkbenchRunEnvelope.on_substep_finish(
+            with PipelineProgress.bind(strategy_name, job_id) as prog:
+                prog.mark_running()
+                cls._duckdb_prepare()
+                kind = WorkbenchStep.parse(norm_step).to_simulate_kind()
+                result = Strategy.simulate(
                     strategy_name,
-                    job_id,
-                    idx,
-                    len(plan_steps),
-                    ui_step,
-                    wb_version,
+                    kind=kind,
+                    ignore_cache=force_refresh,
+                    runtime_settings=api_settings,
                 )
-            WorkbenchRunEnvelope.mark_phase_completed(strategy_name, job_id)
+                wb_version = int((result or {}).get("_workbench_version") or 0)
+                payload: Dict[str, Any] = {"message": f"{norm_step} 已完成"}
+                if wb_version > 0:
+                    payload["version_id"] = f"v{wb_version}"
+                    payload["report_step"] = norm_step
+                prog.complete(result=payload)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Workbench run failed job_id=%s", job_id)
-            WorkbenchRunEnvelope.fail(strategy_name, job_id, current_idx, str(exc))
+            inst = PipelineProgress.load(strategy_name, job_id)
+            if inst is not None:
+                inst.fail(str(exc))
+            else:
+                try:
+                    with PipelineProgress.bind(strategy_name, job_id) as prog:
+                        prog.fail(str(exc))
+                except Exception:
+                    logger.exception("PipelineProgress.fail unavailable job_id=%s", job_id)
         finally:
             cls._duckdb_finalize()
             try:

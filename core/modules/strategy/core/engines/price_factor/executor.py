@@ -88,6 +88,14 @@ class PriceFactorJobExecutor:
 
     @classmethod
     def on_task_result(cls, report: Any, progress: Any) -> None:
+        try:
+            from core.modules.strategy.core.services.progress import PipelineProgress
+
+            if PipelineProgress.drives_pipeline("price"):
+                PipelineProgress.tick_from_run_progress(progress)
+        except Exception:
+            logger.exception("PipelineProgress tick failed (price_factor)")
+
         logger.info(
             "price_factor 进度：%s/%s (ok=%s, fail=%s) job_id=%s success=%s",
             progress.finished,

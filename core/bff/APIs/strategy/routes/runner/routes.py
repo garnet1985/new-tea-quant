@@ -96,7 +96,9 @@ def post_strategy_step_run(strategy_key_or_name: str, step: str):
                 "is_triggered": True,
                 "job_id": out["job_id"],
                 "run_id": out.get("run_id") or out["job_id"],
-                "steps": out.get("steps") or [],
+                "pipeline_id": out.get("pipeline_id") or out["job_id"],
+                "pipeline_name": out.get("pipeline_name"),
+                "pipeline_description": out.get("pipeline_description"),
             }
         )
     return ok({"is_triggered": False, "reason": out.get("reason", "未知错误")})

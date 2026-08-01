@@ -14,9 +14,12 @@ from core.modules.strategy.core.engines.price_factor.executor import PriceFactor
 from core.modules.strategy.core.engines.price_factor.job_builder import PriceFactorJobBuilder
 from core.modules.strategy.core.engines.price_factor.report_manager import ReportManager
 from core.modules.strategy.core.engines.price_factor.timeline import resolve_simulation_window
+from core.modules.strategy.core.services.progress import PipelineProgress
 
 if TYPE_CHECKING:
     from core.modules.strategy.core.engines.shared.data_class.simulate_session import SimulateSession
+
+_PROGRESS_PIPELINE = "price"
 
 
 class PriceFactorPipeline:
@@ -29,12 +32,27 @@ class PriceFactorPipeline:
     @classmethod
     def run_by_steps(cls, ctx: "SimulateSession") -> Dict[str, Any]:
         """按步骤串起各步，返回本 step 的 report dict。"""
+        drive = PipelineProgress.drives_pipeline(_PROGRESS_PIPELINE)
+        if drive:
+            PipelineProgress.enter_step_bound("load")
         data = cls.load_enum_data(ctx)
         start, end = cls.resolve_window(data)
         report = ReportManager.begin(ctx, data, start=start, end=end)
+        if drive:
+            PipelineProgress.complete_step_bound("load")
+            PipelineProgress.enter_step_bound("dispatch")
         jobs = cls.build_jobs(data, report=report)
+        if drive:
+            PipelineProgress.complete_step_bound("dispatch")
+            PipelineProgress.enter_step_bound("execute")
         run_result = cls.execute_backtest(jobs, start=start, end=end, data=data)
-        return report.finalize(run_result, data=data)
+        if drive:
+            PipelineProgress.complete_step_bound("execute")
+            PipelineProgress.enter_step_bound("report")
+        out = report.finalize(run_result, data=data)
+        if drive:
+            PipelineProgress.complete_step_bound("report")
+        return out
 
     @classmethod
     def load_enum_data(cls, ctx: "SimulateSession") -> EnumSource:

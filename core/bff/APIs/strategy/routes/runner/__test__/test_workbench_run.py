@@ -1,12 +1,13 @@
-"""Tests for workbench run launcher / envelope (V2-05 / V2-06)."""
+"""Tests for workbench run launcher (V2-05 / V2-06)."""
 
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
 from core.bff.APIs.strategy.routes.runner.workbench_run import WorkbenchRunLauncher
-from core.bff.APIs.strategy.routes.runner.workbench_run_envelope import (
-    WorkbenchRunEnvelope,
+from core.modules.strategy.core.services.progress import (
+    PipelineProgress,
+    ProgressRecorder,
 )
 
 
@@ -18,34 +19,48 @@ def test_normalize_step():
     assert WorkbenchRunLauncher.normalize_step("nope") is None
 
 
-def test_envelope_seed_and_progress_roundtrip(tmp_path, monkeypatch):
-    from core.modules.strategy.core.services.progress import ProgressRecorder
-
+def test_pipeline_progress_roundtrip_via_launcher(tmp_path, monkeypatch):
     def _build(channel, file_key):
         return tmp_path / "progress" / channel / f"{file_key}.json"
 
     monkeypatch.setattr(ProgressRecorder, "build_path", staticmethod(_build))
 
-    steps = WorkbenchRunEnvelope.seed("demo/x", "job1", ["enum", "price"])
-    assert [s["step_name"] for s in steps] == ["enum", "price"]
-    assert steps[0]["status"] == "pending"
+    PipelineProgress.seed("demo/x", "job1", pipeline_name="price")
+    with PipelineProgress.bind("demo/x", "job1") as prog:
+        prog.mark_running()
+        prog.enter_step("load")
+        prog.complete_step()
+        prog.enter_step("execute")
+        prog.tick_execute(2, 2)
+        prog.complete_step()
+        prog.enter_step("report")
+        prog.complete_step()
+        prog.complete(result={"version_id": "v3", "message": "price 已完成"})
 
-    WorkbenchRunEnvelope.on_substep_finish("demo/x", "job1", 0, 2, "enum", 3)
-    WorkbenchRunEnvelope.on_substep_finish("demo/x", "job1", 1, 2, "price", 3)
-    WorkbenchRunEnvelope.mark_phase_completed("demo/x", "job1")
-
-    env = WorkbenchRunEnvelope.get_run_progress(strategy_name="demo/x", job_id="job1")
+    env = WorkbenchRunLauncher.get_run_progress(strategy_name="demo/x", job_id="job1")
     assert env is not None
+    assert env["status"] == "completed"
     assert env["phase"] == "completed"
-    assert env["steps"][0]["result"]["version_id"] == "v3"
+    assert env["pipeline_name"] == "price"
+    assert env["result"]["version_id"] == "v3"
+    assert "load" in [x["name"] for x in env["completed_steps"]]
 
-    step = WorkbenchRunEnvelope.get_step_progress(
+    step = WorkbenchRunLauncher.get_step_progress(
         strategy_name="demo/x",
         normalized_step="price",
         job_id="job1",
     )
     assert step["status"] == "completed"
     assert step["version_id"] == "v3"
+
+    assert (
+        WorkbenchRunLauncher.get_step_progress(
+            strategy_name="demo/x",
+            normalized_step="enum",
+            job_id="job1",
+        )
+        is None
+    )
 
 
 @patch(

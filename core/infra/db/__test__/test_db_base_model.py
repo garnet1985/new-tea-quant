@@ -3,8 +3,8 @@ DbBaseModel 单元测试
 """
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-from core.infra.db.table_queriers.db_base_model import DbBaseModel
-from core.infra.db.engines._shared import row_sql
+from core.infra.db.core.table_queriers.db_base_model import DbBaseModel
+from core.infra.db.core.engines.shared import row_sql
 
 
 class TestRowSql:
@@ -64,7 +64,7 @@ class TestDbBaseModel:
     
     def test_init_without_db(self):
         """测试使用默认 db 初始化"""
-        with patch('core.infra.db.db_manager.DatabaseManager.get_default') as mock_get_default:
+        with patch('core.infra.db.core.db_manager.DatabaseManager.get_default') as mock_get_default:
             mock_db = _mock_database_manager()
             mock_get_default.return_value = mock_db
             

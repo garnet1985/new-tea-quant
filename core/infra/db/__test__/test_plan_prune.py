@@ -1,13 +1,13 @@
 """plan 按库 catalog 裁剪。"""
 from __future__ import annotations
 
-from core.infra.db.migration.execution_plan import (
+from core.infra.db.core.migration.execution_plan import (
     ExecutionPlan,
     MigrationStep,
     MigrationStepKind,
 )
-from core.infra.db.migration.introspection import DatabaseCatalog
-from core.infra.db.migration.plan_prune import prune_plan_for_database
+from core.infra.db.core.migration.introspection import DatabaseCatalog
+from core.infra.db.core.migration.plan_prune import prune_plan_for_database
 
 
 def _step(kind: MigrationStepKind, step_id: str, sql: str = "SQL", depends_on=()) -> MigrationStep:

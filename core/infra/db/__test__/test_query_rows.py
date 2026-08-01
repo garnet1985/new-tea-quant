@@ -7,7 +7,7 @@ from decimal import Decimal
 import numpy as np
 import pytest
 
-from core.infra.db.engines._shared.query_rows import (
+from core.infra.db.core.engines.shared.query_rows import (
     fetch_result_to_normalized_rows,
     fetch_result_to_rows,
     normalize_cell_value,

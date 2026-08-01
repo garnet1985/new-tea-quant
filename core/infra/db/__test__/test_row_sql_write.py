@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import numpy as np
 
-from core.infra.db.engines._shared import row_sql
+from core.infra.db.core.engines.shared import row_sql
 
 
 def test_normalize_write_rows():

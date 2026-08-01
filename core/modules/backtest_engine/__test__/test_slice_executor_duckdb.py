@@ -50,10 +50,10 @@ def test_duckdb_executor_wraps_scope_and_delegates() -> None:
         yield
 
     with patch(
-        "core.infra.db.engines.duckdb.process_pool_scope.should_apply_process_pool_scope",
+        "core.infra.db.core.engines.duckdb.process_pool_scope.should_apply_process_pool_scope",
         return_value=True,
     ), patch(
-        "core.infra.db.engines.duckdb.process_pool_scope.maybe_duckdb_worker_pool_scope",
+        "core.infra.db.core.engines.duckdb.process_pool_scope.maybe_duckdb_worker_pool_scope",
         side_effect=fake_scope,
     ), patch.object(
         SliceExecutor,

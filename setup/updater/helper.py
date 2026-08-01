@@ -98,7 +98,7 @@ def snapshot_core_table_schemas_for_migration(repo_root: Path) -> Optional[Path]
         return None
 
     try:
-        from core.infra.db.schema_manager import SchemaManager
+        from core.infra.db.core.schema_manager import SchemaManager
     except ImportError:
         return None
 
@@ -1136,7 +1136,7 @@ class DatabaseMigrationResult:
 
 def _preflight_migrate_module(repo_root: Path, py: Path, env: Dict[str, str]) -> None:
     r = subprocess.run(
-        [str(py), "-c", "import core.infra.db.migrate_manager"],
+        [str(py), "-c", "import core.infra.db.core.migrate_manager"],
         cwd=str(repo_root),
         env=env,
         capture_output=True,
@@ -1145,7 +1145,7 @@ def _preflight_migrate_module(repo_root: Path, py: Path, env: Dict[str, str]) ->
     if r.returncode != 0:
         detail = (r.stderr or r.stdout or "").strip()
         raise RuntimeError(
-            "NTQ updater: cannot import core.infra.db.migrate_manager "
+            "NTQ updater: cannot import core.infra.db.core.migrate_manager "
             f"(check PYTHONPATH/venv). {detail}"
         )
 
@@ -1167,7 +1167,7 @@ def spawn_database_migration_cli(
     dry_run: bool = False,
 ) -> DatabaseMigrationResult:
     """
-    子进程调用 ``python -m core.infra.db.migrate_manager apply``，stdout/stderr 写入 ``userspace/.ntq/update/logs/``。
+    子进程调用 ``python -m core.infra.db.core.migrate_manager apply``，stdout/stderr 写入 ``userspace/.ntq/update/logs/``。
 
     - 跳过整步：``NTQ_UPDATE_SKIP_DB_MIGRATION=1``
     - 无快照文件：默认 **抛出 RuntimeError**；设 ``NTQ_UPDATE_ALLOW_MISSING_SCHEMA_SNAPSHOT=1`` 则跳过并返回 ``skipped=True``
@@ -1210,7 +1210,7 @@ def spawn_database_migration_cli(
     cmd: List[str] = [
         str(py),
         "-m",
-        "core.infra.db.migrate_manager",
+        "core.infra.db.core.migrate_manager",
         "apply",
         "--pre-mirror-snapshot",
         str(snap),

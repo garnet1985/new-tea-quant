@@ -181,7 +181,7 @@ class DataManager:
                 # 迁移：通过 ProjectContext.config 调用
                 db_cfg = ProjectContext.config.load_database_config()
                 if str(db_cfg.get("database_type") or "").lower() == "duckdb":
-                    from core.infra.db.engines.duckdb.process_pool_scope import (
+                    from core.infra.db.core.engines.duckdb.process_pool_scope import (
                         wait_for_main_duckdb_worker_pool_end,
                     )
 
@@ -253,7 +253,7 @@ class DataManager:
         """
         from core.infra.db import DbBaseModel
         from core.infra.project_context import ProjectContext
-        from core.infra.db.schema_manager import SchemaManager
+        from core.infra.db.core.schema_manager import SchemaManager
 
         try:
             table_folder = Path(table_folder_path)

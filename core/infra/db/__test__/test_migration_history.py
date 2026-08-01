@@ -5,17 +5,17 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.infra.db.migration.execution_plan import (
+from core.infra.db.core.migration.execution_plan import (
     ExecutionPlan,
     MigrationStep,
     MigrationStepKind,
 )
-from core.infra.db.migration.migration_history import (
+from core.infra.db.core.migration.migration_history import (
     create_history_table_sql,
     is_step_applied,
     record_step_applied,
 )
-from core.infra.db.migration.plan_executor import execute_plan
+from core.infra.db.core.migration.plan_executor import execute_plan
 from core.infra.update.db.registry import get_data_script, register_data_script
 
 
@@ -44,7 +44,7 @@ def test_is_step_applied_queries_log():
     db.config = _pg_config()
     db.execute_sync_query.return_value = [{"ok": 1}]
     with patch(
-        "core.infra.db.migration.migration_history.ensure_history_table",
+        "core.infra.db.core.migration.migration_history.ensure_history_table",
         return_value=None,
     ):
         assert is_step_applied(db, "add_column:sys_t:note") is True
@@ -75,7 +75,7 @@ def test_execute_plan_skips_applied_steps():
         ]
     )
     with patch(
-        "core.infra.db.migration.plan_executor.is_step_applied",
+        "core.infra.db.core.migration.plan_executor.is_step_applied",
         return_value=True,
     ) as mock_applied:
         execute_plan(db, plan)
@@ -101,10 +101,10 @@ def test_execute_plan_runs_data_script():
     db.get_connection.return_value.__exit__ = MagicMock(return_value=False)
 
     with patch(
-        "core.infra.db.migration.plan_executor.is_step_applied",
+        "core.infra.db.core.migration.plan_executor.is_step_applied",
         return_value=False,
     ), patch(
-        "core.infra.db.migration.plan_executor.record_step_applied",
+        "core.infra.db.core.migration.plan_executor.record_step_applied",
     ) as mock_record:
         execute_plan(db, plan, script_context=ctx)
 

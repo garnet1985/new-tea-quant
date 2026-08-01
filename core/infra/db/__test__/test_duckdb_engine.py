@@ -3,9 +3,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.infra.db.engines import build_engine_meta, create_engine
-from core.infra.db.engines.duckdb.engine import DuckdbEngine
-from core.infra.db.engines.duckdb.table_operator import DuckdbTableOperator
+from core.infra.db.core.engines import build_engine_meta, create_engine
+from core.infra.db.core.engines.duckdb.engine import DuckdbEngine
+from core.infra.db.core.engines.duckdb.table_operator import DuckdbTableOperator
 
 
 DUCKDB_CONFIG = {

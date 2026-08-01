@@ -1,5 +1,5 @@
 """DuckDB wal_policy 配置解析。"""
-from core.infra.db.engines.duckdb.wal_policy import (
+from core.infra.db.core.engines.duckdb.wal_policy import (
     duckdb_shared_config,
     should_checkpoint_after_batch,
     should_checkpoint_after_tag_run,

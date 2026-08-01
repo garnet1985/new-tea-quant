@@ -276,7 +276,7 @@ class Probe:
             print("  探针：主进程内试跑…", flush=True)
             return _probe_worker(worker_args)
 
-        from core.infra.db.engines.duckdb.process_pool_scope import (
+        from core.infra.db.core.engines.duckdb.process_pool_scope import (
             is_duckdb_backend,
             is_main_duckdb_worker_pool_active,
             prepare_main_for_worker_pool,

@@ -60,7 +60,7 @@ def checkpoint_after_batch_save(context: Dict[str, Any]) -> None:
     """batch 合并写入后 CHECKPOINT。"""
     import logging
 
-    from core.infra.db.engines.duckdb.wal_policy import should_checkpoint_after_batch
+    from core.infra.db.core.engines.duckdb.wal_policy import should_checkpoint_after_batch
 
     logger = logging.getLogger(__name__)
     dm = context.get("data_manager")

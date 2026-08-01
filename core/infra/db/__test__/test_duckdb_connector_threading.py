@@ -5,7 +5,7 @@ import threading
 
 import duckdb
 
-from core.infra.db.engines.duckdb.connector import DuckdbDomainConnection
+from core.infra.db.core.engines.duckdb.connector import DuckdbDomainConnection
 
 
 def test_concurrent_execute_query_on_one_connection(tmp_path):

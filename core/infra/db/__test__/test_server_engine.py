@@ -3,8 +3,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.infra.db.engines import build_engine_meta, create_engine
-from core.infra.db.engines.mysql.engine import MysqlEngine
+from core.infra.db.core.engines import build_engine_meta, create_engine
+from core.infra.db.core.engines.mysql.engine import MysqlEngine
 
 
 MYSQL_CONFIG = {

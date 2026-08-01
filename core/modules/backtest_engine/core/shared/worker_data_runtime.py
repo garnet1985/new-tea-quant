@@ -7,7 +7,7 @@ import os
 import time
 from typing import Any, Dict, Optional
 
-from core.infra.db.engines.duckdb.process_pool_scope import (
+from core.infra.db.core.engines.duckdb.process_pool_scope import (
     connect_duckdb_domains,
     database_config_read_only,
     release_worker_db_handles,
@@ -49,8 +49,8 @@ def _connect_duckdb_data_domain_readonly(db: Any) -> None:
 def create_worker_data_manager() -> Any:
     """子进程专用 DataManager：DuckDB 只读 data 域，或 MySQL 等完整 initialize。"""
     from core.infra.db import DatabaseManager
-    from core.infra.db.engines.duckdb.engine import DuckdbEngine
-    from core.infra.db.engines.factory import create_engine
+    from core.infra.db.core.engines.duckdb.engine import DuckdbEngine
+    from core.infra.db.core.engines.factory import create_engine
     from core.modules.data_manager import DataManager
     from core.modules.data_manager.data_services import DataService
 

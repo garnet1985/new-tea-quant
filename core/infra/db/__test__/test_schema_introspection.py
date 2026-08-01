@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import duckdb
 
-from core.infra.db.engines._shared.schema_introspection import fetch_column_names
+from core.infra.db.core.engines.shared.schema_introspection import fetch_column_names
 
 
 def test_fetch_column_names_duckdb(tmp_path):

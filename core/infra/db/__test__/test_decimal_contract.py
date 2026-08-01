@@ -5,9 +5,9 @@ from decimal import Decimal
 
 import pytest
 
-from core.infra.db.engines._shared import row_sql
-from core.infra.db.engines.duckdb.connector import DuckdbDomainConnection
-from core.infra.db.table_queriers.services.batch_operation import BatchOperation
+from core.infra.db.core.engines.shared import row_sql
+from core.infra.db.core.engines.duckdb.connector import DuckdbDomainConnection
+from core.infra.db.core.table_queriers.services.batch_operation import BatchOperation
 
 
 class TestWriteInlet:

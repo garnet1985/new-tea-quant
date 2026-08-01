@@ -72,7 +72,7 @@ def _ensure_tushare_token() -> None:
 
 
 def _write_schema_snapshot_if_missing() -> Path:
-    from core.infra.db.migration.runner import default_pre_mirror_snapshot_path
+    from core.infra.db.core.migration.runner import default_pre_mirror_snapshot_path
 
     snap = default_pre_mirror_snapshot_path(REPO_ROOT)
     if snap.is_file():
@@ -88,7 +88,7 @@ def _write_schema_snapshot_if_missing() -> Path:
 
 
 def _run_migrate() -> None:
-    from core.infra.db.migrate_manager import cmd_apply
+    from core.infra.db.core.migrate_manager import cmd_apply
     from argparse import Namespace
 
     snap = _write_schema_snapshot_if_missing()

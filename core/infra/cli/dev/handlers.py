@@ -207,8 +207,8 @@ def cmd_db_checkpoint(args: argparse.Namespace) -> int:
         if str(db.config.get("database_type", "")).lower() != "duckdb":
             print("当前 database_type 不是 duckdb，跳过。", flush=True)
             return 1
-        from core.infra.db.engines.duckdb.engine import DuckdbEngine
-        from core.infra.db.engines.duckdb.paths import resolve_duckdb_db_path
+        from core.infra.db.core.engines.duckdb.engine import DuckdbEngine
+        from core.infra.db.core.engines.duckdb.paths import resolve_duckdb_db_path
 
         eng = db.engine
         paths = {}

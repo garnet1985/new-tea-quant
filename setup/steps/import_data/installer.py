@@ -20,7 +20,7 @@ import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.infra.db.engines._shared.dialect import sql_qualify_table_name
+from core.infra.db.core.engines.shared.dialect import sql_qualify_table_name
 
 from .archives import collect_table_archives
 

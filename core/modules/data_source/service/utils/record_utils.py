@@ -20,7 +20,7 @@ def clean_nan_in_records(records: List[Dict[str, Any]], default: Any = None) -> 
         return records
 
     try:
-        from core.infra.db.engines._shared.row_sql import clean_nan_in_list
+        from core.infra.db.core.engines.shared.row_sql import clean_nan_in_list
     except ImportError:
         logger.warning("无法导入 row_sql，clean_nan_in_records 将跳过处理")
         return records

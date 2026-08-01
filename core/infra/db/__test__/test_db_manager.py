@@ -51,7 +51,7 @@ class TestDatabaseManager:
             "core.infra.project_context.core.config_manager.ConfigManager.load_database_config",
             return_value=_minimal_mysql_config(),
         ), patch(
-            "core.infra.db.engines.mysql.connector.MysqlConnector.connect"
+            "core.infra.db.core.engines.mysql.connector.MysqlConnector.connect"
         ):
             db = DatabaseManager.get_default()
             assert db is not None
@@ -72,7 +72,7 @@ class TestDatabaseManager:
         config = _minimal_mysql_config()
         db = DatabaseManager(config=config, is_verbose=False)
 
-        with patch("core.infra.db.engines.mysql.connector.MysqlConnector.connect"):
+        with patch("core.infra.db.core.engines.mysql.connector.MysqlConnector.connect"):
             db.initialize()
             assert db._initialized is True
             assert db.uses_engine_path
@@ -85,7 +85,7 @@ class TestDatabaseManager:
         config = _minimal_mysql_config()
         db = DatabaseManager(config=config, is_verbose=False)
 
-        with patch("core.infra.db.engines.mysql.connector.MysqlConnector.connect"):
+        with patch("core.infra.db.core.engines.mysql.connector.MysqlConnector.connect"):
             db.initialize()
 
         db.engine.execute_sync_query = Mock(return_value=[{"id": "001", "name": "test"}])
@@ -109,7 +109,7 @@ class TestDatabaseManager:
             },
         }
         db = DatabaseManager(config=config, is_verbose=False)
-        with patch("core.infra.db.engines.pgsql.connector.PgsqlConnector.connect"):
+        with patch("core.infra.db.core.engines.pgsql.connector.PgsqlConnector.connect"):
             db.initialize()
 
         stats = db.get_stats()
@@ -123,7 +123,7 @@ class TestDatabaseManager:
         config = _minimal_mysql_config()
         db = DatabaseManager(config=config, is_verbose=False)
 
-        with patch("core.infra.db.engines.mysql.connector.MysqlConnector.connect"):
+        with patch("core.infra.db.core.engines.mysql.connector.MysqlConnector.connect"):
             db.initialize()
 
         mock_engine_close = Mock()

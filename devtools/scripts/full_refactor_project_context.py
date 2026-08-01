@@ -140,9 +140,9 @@ def batch_refactor_all_files():
         "core/modules/data_source/catalog/freshness_probe.py",
         "core/modules/strategy/launcher/workbench_catalog.py",
         "core/modules/data_manager/data_services/calendar/calendar_service.py",
-        "core/infra/db/db_manager.py",
+        "core/infra/db/core/db_manager.py",
         "core/modules/strategy/engines/shared/data_classes/strategy_settings/market_profile_settings.py",
-        "core/infra/db/engines/duckdb/process_pool_scope.py",
+        "core/infra/db/core/engines/duckdb/process_pool_scope.py",
         "core/modules/market_profile/market_profile_manager.py",
         "core/modules/market_profile/__test__/test_profile.py",
     ]

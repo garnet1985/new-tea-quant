@@ -150,7 +150,7 @@ TagWritePipeline / DataWritePipeline / …  →  batch upsert → CHECKPOINT（�
 - **不替代**：多进程占文件规则；CHECKPOINT 后 RW 连接仍可占锁。
 - **禁止**：只读连接或 routine 路径 **手删 `.wal`**（未 checkpoint 的已提交数据会丢）。
 
-**WAL 合并（实现于 `core/infra/db/engines/duckdb/wal_policy.py`）：**
+**WAL 合并（实现于 `core/infra/db/core/engines/duckdb/wal_policy.py`）：**
 
 | 时机 | 行为 |
 |------|------|
@@ -168,7 +168,7 @@ TagWritePipeline / DataWritePipeline / …  →  batch upsert → CHECKPOINT（�
 - **跨域读**（如 strategy 域 Model 读 `sys_stock_list`）：技术上 `ATTACH` + qualify（`data.main.sys_stock_list`）；由 duckdb engine **QueryPlanner** 在 `DbBaseModel.query` 路径上自动处理（扫描注册表名 → 映射 domain → ATTACH → qualify）。无法安全解析时 **fail fast**。
 - **跨域写**（含跨文件 `INSERT … SELECT … JOIN`、`UPDATE`/`DELETE` 跨域等）：**v1 不支持**；当前无产品用例。表 Model 写操作使用单表 `upsert` / `upsert_many`；跨表复杂 JOIN 优先 **DataService**。
 - 实现前：**禁止**假设无前缀表名的裸 SQL 能跨库 JOIN；须走 engine 路由或显式 qualify。
-- 定案详见：[engines/ARCHITECTURE.md §10](../engines/ARCHITECTURE.md)、[决策 10](./DECISIONS.md)。
+- 定案详见：[engines/ARCHITECTURE.md §10](../engines/ARCHITECTURE.md)、[决策 10](./DESIGN.md)。
 
 ### 4.4 运行时解析（定案）
 
@@ -368,6 +368,6 @@ ROADMAP 核心功能：用户沿交易日手动推进，查看每日机会池、
 ## 10. 相关文档
 
 - [Database 架构](./ARCHITECTURE.md)
-- [Database 决策](./DECISIONS.md) — 决策 6
+- [Database 决策](./DESIGN.md) — 决策 6
 - [Data Manager 架构](../../modules/data_manager/docs/ARCHITECTURE.md)
 - [ROADMAP 0.5.x 决策者模式](../../../../ROADMAP.md)

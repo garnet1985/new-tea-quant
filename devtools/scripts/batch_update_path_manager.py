@@ -151,11 +151,11 @@ def batch_update_files():
         "core/modules/data_source/base_class/base_provider.py",
         "core/modules/strategy/engines/shared/helpers/stock_sampling.py",
         "core/infra/db/migration/runner.py",
-        "core/infra/db/schema_manager.py",
+        "core/infra/db/core/schema_manager.py",
         "core/modules/data_source/service/manager_helper.py",
         "core/modules/strategy/engines/scanner/helpers/cache_manager.py",
         "core/modules/strategy/engines/analyzer/helpers/ml.py",
-        "core/infra/db/engines/duckdb/paths.py",
+        "core/infra/db/core/engines/duckdb/paths.py",
         "devtools/automation/table_exporting/export_table.py",
     ]
 

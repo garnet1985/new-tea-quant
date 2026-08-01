@@ -2,7 +2,7 @@
 import duckdb
 import pytest
 
-from core.infra.db.engines.duckdb.connector import DuckdbDomainConnection
+from core.infra.db.core.engines.duckdb.connector import DuckdbDomainConnection
 
 
 def test_read_only_wal_replay_failure_does_not_delete_wal(tmp_path, monkeypatch):

@@ -1,7 +1,7 @@
 """DDL 多语句拆分与执行。"""
 from unittest.mock import Mock
 
-from core.infra.db.engines._shared.ddl_executor import execute_ddl, split_ddl_statements
+from core.infra.db.core.engines.shared.ddl_executor import execute_ddl, split_ddl_statements
 
 
 def test_split_ddl_statements_sequence_and_table():

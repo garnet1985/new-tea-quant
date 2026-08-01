@@ -1,10 +1,14 @@
 """Engine 配置 dataclass 与 build_engine_meta 解析。"""
-from core.infra.db.engines.duckdb.settings import DuckdbSettings
-from core.infra.db.engines.meta import build_engine_meta
-from core.infra.db.engines.mysql.settings import MysqlSettings
-from core.infra.db.engines.pgsql.settings import PgsqlSettings
-from core.infra.db.engines._shared.config_parse import parse_database_config
-from core.infra.db.engines._shared.batch_write_settings import BatchWriteSettings
+import pytest
+
+pytestmark = pytest.mark.force_run
+
+from core.infra.db.core.engines.duckdb.settings import DuckdbSettings
+from core.infra.db.core.engines.meta import build_engine_meta
+from core.infra.db.core.engines.mysql.settings import MysqlSettings
+from core.infra.db.core.engines.pgsql.settings import PgsqlSettings
+from core.infra.db.core.engines.shared.config_parse import parse_database_config
+from core.infra.db.core.engines.shared.batch_write_settings import BatchWriteSettings
 
 
 def test_build_engine_meta_mysql():

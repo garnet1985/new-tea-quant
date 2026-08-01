@@ -283,7 +283,7 @@ class WorkbenchRunLauncher:
     @staticmethod
     def _duckdb_prepare() -> None:
         try:
-            from core.infra.db.engines.duckdb.process_pool_scope import (
+            from core.infra.db.core.engines.duckdb.process_pool_scope import (
                 is_duckdb_backend,
                 recover_after_worker_pool_interrupt,
             )
@@ -296,7 +296,7 @@ class WorkbenchRunLauncher:
     @staticmethod
     def _duckdb_finalize() -> None:
         try:
-            from core.infra.db.engines.duckdb.process_pool_scope import (
+            from core.infra.db.core.engines.duckdb.process_pool_scope import (
                 ensure_data_manager_restored,
                 is_duckdb_backend,
                 wait_pool_children_done,

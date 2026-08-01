@@ -1,8 +1,8 @@
 """Per-engine schema_parser 与 SchemaManager 委托一致性。"""
-from core.infra.db.engines.duckdb.schema_parser import DuckdbSchemaParser
-from core.infra.db.engines.mysql.schema_parser import MysqlSchemaParser
-from core.infra.db.engines.schema_parser_factory import get_schema_parser
-from core.infra.db.schema_manager import SchemaManager
+from core.infra.db.core.engines.duckdb.schema_parser import DuckdbSchemaParser
+from core.infra.db.core.engines.mysql.schema_parser import MysqlSchemaParser
+from core.infra.db.core.engines.schema_parser_factory import get_schema_parser
+from core.infra.db.core.schema_manager import SchemaManager
 
 
 def test_factory_returns_dialect_parser():

@@ -1,8 +1,8 @@
 """StorageRegistry 与 DuckDB 配置解析测试。"""
 import pytest
 
-from core.infra.db.storage_registry import StorageRegistry, normalize_storage_domain
-from core.infra.db.engines._shared.config_parse import parse_database_config
+from core.infra.db.core.storage_registry import StorageRegistry, normalize_storage_domain
+from core.infra.db.core.engines.shared.config_parse import parse_database_config
 
 
 class TestStorageRegistry:

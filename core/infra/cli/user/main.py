@@ -103,7 +103,7 @@ class UserRunner:
         except KeyboardInterrupt:
             logger.warning("\n⚠️  用户中断执行")
             try:
-                from core.infra.db.engines.duckdb.process_pool_scope import (
+                from core.infra.db.core.engines.duckdb.process_pool_scope import (
                     recover_after_worker_pool_interrupt,
                 )
 

@@ -1,65 +1,47 @@
 # Database 模块单元测试
 
-**架构版本：** `0.3.0`（Engine 挂载）
+**架构版本：** `0.4.0`（实现位于 `core/`；门面 `Db`）
 
-测试集中在 `core/infra/db/__test__/`，与源码同包；默认使用 **Mock**，不依赖真实数据库。
+测试集中在 `core/infra/db/__test__/`（另有部分在 `core/engines/duckdb/__test__/`）。默认使用 **Mock**，不依赖真实数据库。  
+契约测试见 [TEST_CASES.md](./TEST_CASES.md) 与 `test_api.py`。
 
 ## 目录结构（与源码对应）
 
 ```text
 core/infra/db/
-├── db_manager.py
-├── schema_manager.py
-├── migrate_manager.py
-├── storage_registry.py
-├── engines/                    # mysql | pgsql | duckdb + _shared
-├── migration/                  # diff / plan / execute（由 migrate_manager 门面调用）
-├── table_queriers/
-│   ├── db_base_model.py
-│   └── services/               # BatchOperation, BatchWriteQueue
+├── db.py / contracts.py      # 门面与契约
+├── core/
+│   ├── db_manager.py
+│   ├── schema_manager.py
+│   ├── migrate_manager.py
+│   ├── storage_registry.py
+│   ├── engines/              # mysql | pgsql | duckdb | shared | abc
+│   ├── migration/
+│   └── table_queriers/
 └── __test__/
-    ├── test_db_manager.py
-    ├── test_db_manager_ddl_api.py
-    ├── test_db_schema_manager.py
-    ├── test_schema_parser.py
-    ├── test_config_parse.py
-    ├── test_storage_registry.py
-    ├── test_db_base_model.py
-    ├── test_batch_write_queue.py
-    ├── test_ddl_executor.py
-    ├── test_engine_settings.py
-    ├── test_engines_skeleton.py
-    ├── test_server_engine.py
-    ├── test_duckdb_engine.py
-    ├── test_duckdb_domain_catalog.py
-    ├── test_duckdb_wal_policy.py
-    ├── test_duckdb_wal_policy_helpers.py
-    ├── test_schema_migration.py
-    ├── test_migration_runner.py
-    ├── test_migration_history.py
-    ├── test_plan_prune.py
-    └── test_updater_migration_spawn.py
+    ├── test_api.py
+    ├── TEST_CASES.md
+    └── test_*.py             # 实现向单测
 ```
-
-已删除、**无**对应测试目录：`connection_management/`、`table_management/`、`table_queriers/adapters/`、`helpers/`。
 
 ## 运行测试
 
 ```bash
-# 项目根目录 — 全量 db 包测试
+# 项目根目录 — 全量 db 包测试（refactor freeze 下多数需 force_run）
 pytest core/infra/db/__test__/ -v
+
+# 契约 / 门面
+pytest core/infra/db/__test__/test_api.py -v
 
 # 单文件
 pytest core/infra/db/__test__/test_db_manager.py -v
-
-# 单用例
-pytest core/infra/db/__test__/test_db_manager.py::TestDatabaseManager::test_init_with_config -v
 ```
 
 ## 测试分组说明
 
 | 文件前缀 / 主题 | 覆盖对象 |
 |-----------------|----------|
+| `test_api` | 门面 `Db`、`contracts`、过渡期包根 re-export |
 | `test_db_manager*` | `DatabaseManager` 初始化、DDL API、默认实例 |
 | `test_db_schema_manager`, `test_schema_parser` | `SchemaManager`、各 engine `schema_parser` |
 | `test_config_parse`, `test_engine_settings` | `parse_database_config`、`EngineConfigMeta` |
@@ -71,7 +53,7 @@ pytest core/infra/db/__test__/test_db_manager.py::TestDatabaseManager::test_init
 | `test_schema_migration`, `test_migration_*`, `test_plan_prune` | `migration/` 管线 |
 | `test_migration_runner` | `migrate_manager` CLI |
 | `test_updater_migration_spawn` | updater 子进程集成（轻量） |
-| `test_ddl_executor` | `engines._shared.ddl_executor` |
+| `test_ddl_executor` | `engines.shared.ddl_executor` |
 
 ## 编写约定
 
@@ -81,6 +63,6 @@ pytest core/infra/db/__test__/test_db_manager.py::TestDatabaseManager::test_init
 
 ## 相关文档
 
-- [../docs/API.md](../docs/API.md)
+- [../API.md](../API.md)
 - [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md)
 - [../README.md](../README.md)

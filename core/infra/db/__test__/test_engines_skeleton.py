@@ -1,16 +1,18 @@
 """Engine mount 架构骨架测试。"""
 import pytest
 
-from core.infra.db.engines import (
+pytestmark = pytest.mark.force_run
+
+from core.infra.db.core.engines import (
     DbEngineAbc,
     DbTableAbc,
     build_engine_meta,
     create_engine,
 )
-from core.infra.db.engines.duckdb.engine import DuckdbEngine
-from core.infra.db.engines.mysql.engine import MysqlEngine
-from core.infra.db.engines.pgsql.engine import PgsqlEngine
-from core.infra.db.engines._shared.config_parse import parse_database_config
+from core.infra.db.core.engines.duckdb.engine import DuckdbEngine
+from core.infra.db.core.engines.mysql.engine import MysqlEngine
+from core.infra.db.core.engines.pgsql.engine import PgsqlEngine
+from core.infra.db.core.engines.shared.config_parse import parse_database_config
 
 _MYSQL = {
     "host": "127.0.0.1",

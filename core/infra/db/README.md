@@ -1,92 +1,36 @@
-# Database 模块（`infra.db`）
+# Database（`infra.db`）
 
-数据库基础设施层，负责 NTQ 在 DuckDB / PostgreSQL / MySQL 上的统一连接、schema 与表写入能力。
+为 New Tea Quant（简称 **NTQ**）提供统一的数据库基础设施：按配置挂载一个后端引擎（Engine：DuckDB / PostgreSQL / MySQL）、schema 管理、表级读写与（DuckDB）多存储域协作。对外门面类（Facade）为 `Db`；表模型等契约见 `contracts.py`。词条见 [glossary.yaml](./glossary.yaml)。
 
 ## 适用场景
 
-- 上层模块需要统一执行 SQL 查询。
-- 需要批量写入与异步写入队列能力。
-- 需要根据 schema 自动建表和表结构管理。
-- 需要在多进程场景中使用默认数据库实例。
-
-## 快速定位
-
-```text
-core/infra/db/
-├── db_manager.py          # 挂载 Engine，对外统一入口
-├── engines/               # mysql | pgsql | duckdb（connector / engine / table_operator …）
-├── schema_manager.py      # 加载 core/tables、建表编排
-├── migrate_manager.py     # 升级门面（CLI: python -m core.infra.db.migrate_manager）
-├── table_queriers/        # DbBaseModel、BatchOperation、写队列
-├── migration/             # diff / plan / execute 实现
-└── docs/
-```
-
-升级用 **单步数据脚本** 放在同级包 **`core/infra/update/db/`**（由本模块注册表引用，见下文「与 updater / 数据脚本的边界」）。
+- 上层模块需要统一执行 SQL、表级 CRUD 或批量写入。
+- 需要按 `core/tables` 管理 schema，并在升级时做结构迁移。
+- 多进程场景下与 DuckDB worker 池协作（释放 / 恢复主进程连接等）。
 
 ## 模块依赖
 
-- `infra.project_context`：用于读取数据库配置与项目路径上下文。
+- `infra.project_context`：读取数据库配置与项目路径
 
-## 当前实现说明（代码对齐）
+## 设计初衷
 
-- 支持：`duckdb`（三存储域）、`postgresql`、`mysql`。
-- `DatabaseManager.initialize()` → `create_engine` → `engine.initialize()`；无旧三层 `ConnectionManager` / `TableManager`。
-- 业务访问：`db.engine.table_operator(name)` 或 `DbBaseModel`（内部转发 engine）。
-- DuckDB：`db.checkpoint_duckdb()`、`db.duckdb_file_map_for_table(name)`。
-- 默认实例：`DatabaseManager.set_default` / `get_default`。
-- 架构说明：[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)、[engines/ARCHITECTURE.md](engines/ARCHITECTURE.md)。
-- **DECIMAL 出入库契约**（库内定点、应用内 float）：[docs/DECISIONS.md §12](docs/DECISIONS.md#决策-12decimal-存储--infra-统一出入库标量契约)。
+- **要解决的问题：** 用单一挂载入口屏蔽多后端差异，并把 schema / 迁移收在基础设施层。
+- **明确不做：** 业务领域逻辑；应用升级流水线编排（在 updater）；GUI。
 
-## Schema 与升级（约定 + 部分实现）
+## 常见问题
 
-本模块负责 **数据库结构** 与 **升级时的 schema 迁移**；**应用升级编排**在 `userspace/updater/`（见该目录 `README.md` §8 / §8.1）。
+**Q：现在该 import 什么？**  
+A：门面 `from core.infra.db import Db`；表模型等 `from core.infra.db.contracts import DbBaseModel, Field`。过渡期包根仍兼容 `from core.infra.db import DatabaseManager` 等，见 [API.md](./API.md)。
 
-### 已实现（期望 schema 代码侧）
-
-- 包路径：**`core/infra/db/migration/`**  
-  - **`diff_expected_schemas(old, new)`**：两份 `{表名: schema dict}` 的字段/索引 diff（不含库 introspection）。  
-  - **`plan_from_schema_diff(...)`**：编译为 DDL 步骤（`ExecutionPlan`）；删列/改列/删表等保守地 **`MigrationPlanError`**。  
-  - **`execute_plan(db, plan)`**：对已初始化的 **`DatabaseManager`** 拓扑顺序执行。  
-  - **`run_schema_migration(...)`** / **`python -m core.infra.db.migrate_manager`**：加载快照 + 新 ``core/tables`` → diff → plan →（连库时 **introspection 裁剪**）→ apply。  
-- **幂等**：``sys_schema_migration_log`` 按 ``step_id`` 记录已执行步骤；``execute_plan`` 自动跳过。  
-- **数据脚本**：``core/infra/update/db/registry.py`` + ``@register_data_script``；plan 中 ``RUN_DATA_SCRIPT`` 步骤由执行器调用。  
-- **仍待**：将破坏性变更自动挂接注册脚本、更细的「期望 vs 实际库」diff。
-
-### `update_key`（`core/tables`）
-
-- 每个 **`core/tables/**/schema.py`** 内的 `schema` dict 须含 **`update_key`**：作者手填、**全局唯一**的稳定字符串，用于迁移脚本、`action_id` 与 diff 锚定；**不等同于**物理表名 `name`（表名可改，`update_key` 不轻易改）。  
-- 加载时由 **`SchemaManager._validate_schema`** 校验；`load_all_schemas` 检查 **重复 `update_key`**。  
-- **`userspace`** 等非 `core/tables` 路径下的 schema **不要求** `update_key`。
-
-### 迁移管线（概念分层）
-
-1. **Diff report**：仅描述相对「当前库 introspection」与「期望 schema（代码）」的差异；三维度：**meta**（如表重命名，自动化路径中 **最后执行**）、**fields**、**indexes**。  
-   **升级场景**：「升级前期望」应来自 updater 在 **`managed_scope` 镜像之前** 写入的 **`userspace/.ntq/update/cache/pre_mirror_core_table_schemas.json`**（`{表名: schema dict}`），勿依赖镜像后仍可从旧路径读取的 `core/tables`；「升级后期望」来自镜像后的代码或 staging 中的新版 `core/tables`。  
-2. **Execution plan**：由 diff 编译出的可执行单元，带 **`depends_on` / `action_id`**；**拓扑排序**后执行。  
-3. **索引（简化策略）**：若某表存在 **字段类变更**，则对该表先 **删除全部二级索引**，字段 DDL 完成后再按期望 schema **重建索引**；仅索引变化且无字段变更时，可对索引做增量 DROP/CREATE。  
-4. **新列**：默认 **`NULL`**；若存在与 `action_id` 对应的 **数据脚本** 则执行（脚本/registry 路径在实现时定）；无脚本则保持全空。破坏性变更（改类型、缩 `varchar`、删列等）走 **显式脚本或拒绝自动**。  
-5. **执行入口**：**`python -m core.infra.db.migrate_manager`**（子命令 ``plan`` / ``apply``）；由 updater **`helper.spawn_database_migration_cli`** 子进程调用；**编排**在 updater，**diff → plan → 执行 plan** 在本包内完成。
-
-### 与 updater / 数据脚本的边界
-
-| 责任方 | 内容 |
-|--------|------|
-| **`core/infra/db`** | **schema diff**、**diff → execution plan**、**实施 plan**（DDL、方言、拓扑执行）、**幂等与迁移历史表**、按注册表 **调用** 数据脚本 |
-| **`core/infra/update/db`**（与 `core/infra/db` 并列的包） | **升级用单步脚本**（回填、破坏性变更等）：由 **`update_key` / `action_id`** 注册；**不负责** diff/plan/编排；由 **`core/infra/db`** 在执行 plan 时解析注册表并调用 |
-| **`userspace/updater`** | 流水线编排：镜像前 **schema 快照**（见该目录 `README.md` §8 步骤 6）；`_run_database_migrations` 内 **spawn**、环境变量、`PYTHONPATH=repo_root`；不实现 SQL、不扫描脚本目录 |
-
-### 职责与接口契约（已定）
-
-- **Plan 产物**：以 **进程内数据结构**（变量 / 对象）为主即可；若需 dry-run、排障或重放，可 **额外** 落盘到 `userspace/.ntq/update/cache/`（非必选）。  
-- **编排 vs 执行**：updater 与子进程之间约定 **少量 CLI 子命令与退出码**；子进程内由 **`core/infra/db`** 完成 plan 与执行，避免 updater `import` 长事务迁移逻辑。  
-- **脚本如何被找到**：在 **`core/infra/db`** 内维护 **`update_key` / `action_id` → 可调用项或脚本路径** 的注册表；**`core/infra/update/db`** 只放实现，由注册表挂接。  
-- **数据脚本 vs DDL**：DDL 与脚本 **调度** 均在 **`core/infra/db`**；脚本 **实现** 在 **`core/infra/update/db`**；失败记录与幂等仍以 **`core/infra/db`** 为准，updater 仅看进程退出码。  
-- **升级时 diff 的「旧 / 新」期望**：**旧版** = 镜像前快照 **`pre_mirror_core_table_schemas.json`**；**新版** = 镜像后的 **`core/tables`**（在 staging 未清理前也可与 staging 内新版对齐，语义一致）。即 **新版 tables schema 与旧版（快照）对比**，再结合当前库 introspection。
+**Q：实现代码在哪？**  
+A：全部在 `core/` 子包；跨模块请勿长期依赖 `core.infra.db.core...` 深路径（后续将收口到 `Db`）。
 
 ## 相关文档
 
-- `docs/ARCHITECTURE.md`
-- `docs/DESIGN.md`
-- `docs/API.md`
-- `docs/DECISIONS.md`
+- [快速开始](./QUICKSTART.md)
+- [公开 API](./API.md)
+- [术语表](./glossary.yaml)
+- [架构](./docs/ARCHITECTURE.md)
+- [设计](./docs/DESIGN.md)
+- [存储域](./docs/storage-domains.md)
+- [测试用例](./__test__/TEST_CASES.md)

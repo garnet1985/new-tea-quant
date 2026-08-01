@@ -1,7 +1,9 @@
 """config_parse.parse_database_config 单元测试。"""
 import pytest
 
-from core.infra.db.engines._shared.config_parse import parse_database_config
+pytestmark = pytest.mark.force_run
+
+from core.infra.db.core.engines.shared.config_parse import parse_database_config
 
 
 class TestParseDatabaseConfig:

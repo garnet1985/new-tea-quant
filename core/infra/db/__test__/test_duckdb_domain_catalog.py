@@ -1,8 +1,8 @@
 """DuckdbDomainCatalog — 动态 schema → 表文件映射。"""
 import pytest
 
-from core.infra.db.engines.duckdb.domain_catalog import DuckdbDomainCatalog
-from core.infra.db.engines.duckdb.settings import DuckdbSettings
+from core.infra.db.core.engines.duckdb.domain_catalog import DuckdbDomainCatalog
+from core.infra.db.core.engines.duckdb.settings import DuckdbSettings
 
 
 def _settings():

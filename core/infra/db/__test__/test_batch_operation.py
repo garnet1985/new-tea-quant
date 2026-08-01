@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import numpy as np
 
-from core.infra.db.table_queriers.services.batch_operation import BatchOperation
+from core.infra.db.core.table_queriers.services.batch_operation import BatchOperation
 
 
 def test_format_value_decimal_as_numeric_literal():

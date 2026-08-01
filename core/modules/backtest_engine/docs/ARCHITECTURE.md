@@ -168,7 +168,7 @@ SliceBasedPerformance.base()
 ## 依赖
 
 - `core.infra.machine_capacity` — CPU/内存预算
-- `core.infra.db.engines.duckdb.process_pool_scope` — 可选 DuckDB 进程池包装
+- `core.infra.db.core.engines.duckdb.process_pool_scope` — 可选 DuckDB 进程池包装
 - Python `concurrent.futures.ProcessPoolExecutor`（entity_based 外层池）
 
 ---

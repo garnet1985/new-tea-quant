@@ -18,7 +18,7 @@ def execute_with_duckdb_process_pool_scope(
     **inner_kwargs: Any,
 ) -> T:
     """Run *inner_execute* inside DuckDB worker pool scope when applicable."""
-    from core.infra.db.engines.duckdb.process_pool_scope import (
+    from core.infra.db.core.engines.duckdb.process_pool_scope import (
         maybe_duckdb_worker_pool_scope,
         should_apply_process_pool_scope,
     )

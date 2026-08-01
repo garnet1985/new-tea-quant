@@ -10,7 +10,7 @@ HTTP 前缀一律为 `/api`（见 `core/bff/app.py`）。契约细节以 FED `AP
 | platform / app_settings | `APIs/platform/app_settings` | — | `app_settings/service.py` + `database_defaults` |
 | data / sources | `APIs/data/sources` | — | `modules.data_source.launcher` |
 | data / contracts | `APIs/data/contracts` | — | `modules.data_contract.launcher` |
-| strategy | `APIs/strategy`（`routes/`） | [`strategy/ROUTES_ORCHESTRATION.md`](APIs/strategy/ROUTES_ORCHESTRATION.md) | `modules.strategy.launcher` |
+| strategy | `APIs/strategy`（`routes/` + `helpers/`） | [`strategy/ROUTES_ORCHESTRATION.md`](APIs/strategy/ROUTES_ORCHESTRATION.md) | core `PipelineProgress` / `ScanJob`；BFF snapshots + runner 薄壳 |
 | tag | `APIs/tag` | [`tag/ROUTES_ORCHESTRATION.md`](APIs/tag/ROUTES_ORCHESTRATION.md) | `modules.tag.launcher` |
 
 分组准则见 [`GROUPING.md`](GROUPING.md)、[`README.md`](README.md)。

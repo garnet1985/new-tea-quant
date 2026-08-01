@@ -1,4 +1,4 @@
-"""Runner implementer: workbench run + scan (launcher wrappers)."""
+"""Runner implementer: workbench run + scan (BFF shells over core progress/jobs)."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ class StrategyRunnerImplementer:
 
     def lazy_load(self) -> "StrategyRunnerImplementer":
         if self._WorkbenchRunLauncher is None:
-            from core.modules.strategy.launcher.scanner_run import (
+            from core.bff.APIs.strategy.routes.runner.scanner_run import (
                 get_scan_page_context,
                 get_scan_progress,
                 get_scan_readiness,

@@ -6,7 +6,7 @@ from typing import Optional
 
 
 class WorkbenchVersionId:
-    """Parse workbench snapshot version tokens used in BFF paths / launcher."""
+    """Parse workbench snapshot version tokens used in BFF paths."""
 
     @staticmethod
     def parse(version_id: str) -> Optional[int]:

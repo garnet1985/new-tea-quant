@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from core.modules.strategy.launcher.workbench_snapshots import WorkbenchSnapshots
+from core.bff.APIs.strategy.helpers.workbench_snapshots import WorkbenchSnapshots
 from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
     StrategyInfo,
 )

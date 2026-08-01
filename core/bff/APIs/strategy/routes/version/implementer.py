@@ -1,6 +1,6 @@
 """Version implementer: workbench snapshot reads + DbCache clear.
 
-Reads go through launcher ``WorkbenchSnapshots`` (cold-start / hydrate stay there).
+Reads go through BFF ``WorkbenchSnapshots`` (UI snapshot read model).
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ class StrategyVersionImplementer:
             from core.modules.strategy.core.services.workbench_cache_clear import (
                 WorkbenchCacheClear,
             )
-            from core.modules.strategy.launcher.workbench_snapshots import (
+            from core.bff.APIs.strategy.helpers.workbench_snapshots import (
                 WorkbenchSnapshots,
             )
 

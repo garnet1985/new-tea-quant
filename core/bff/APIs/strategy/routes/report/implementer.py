@@ -1,6 +1,6 @@
 """Report implementer: step report / ref / stock detail.
 
-Snapshot rows via launcher ``WorkbenchSnapshots``.
+Snapshot rows via BFF ``WorkbenchSnapshots``.
 """
 
 from __future__ import annotations

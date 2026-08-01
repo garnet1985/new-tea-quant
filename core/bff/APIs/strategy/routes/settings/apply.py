@@ -14,7 +14,7 @@ from core.modules.data_manager import DataManager
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StrategySettings,
 )
-from core.modules.strategy.launcher.workbench_snapshots import WorkbenchSnapshots
+from core.bff.APIs.strategy.helpers.workbench_snapshots import WorkbenchSnapshots
 
 logger = logging.getLogger(__name__)
 

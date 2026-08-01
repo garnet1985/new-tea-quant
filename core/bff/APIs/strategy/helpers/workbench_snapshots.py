@@ -1,9 +1,9 @@
-"""Workbench snapshot read APIs for UI (V2-01 / V2-03 / V2-08).
+"""Workbench snapshot read model for UI (V2-01 / V2-03 / V2-08).
 
-Consumers: ``core.bff.APIs.strategy.routes.version`` (and report/settings apply).
+Frontend-only concept: multi-version settings / cold-start / ui_flags.
+Backend run uses fingerprint cache (``SimulationCacheManager``), not this reader.
 
-Reads ``sys_strategy_workbench_snapshot`` + discovery disk settings.
-Does not key by fingerprint (that is ``SimulationCacheManager`` write/hit path).
+Consumers: ``routes/version``, ``routes/report``, ``routes/settings/apply``.
 """
 
 from __future__ import annotations
@@ -21,7 +21,9 @@ from core.modules.strategy.core.services.discovery.data.discovered_strategy impo
     StrategyInfo,
 )
 
-from .report_hydrate import hydrate_workbench_result_report
+from core.bff.APIs.strategy.helpers.report_hydrate import (
+    hydrate_workbench_result_report,
+)
 
 logger = logging.getLogger(__name__)
 

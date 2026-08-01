@@ -1,9 +1,7 @@
-"""Workbench ``result_report`` slot hydrate (disk body + path metadata).
+"""BFF ``result_report`` slot hydrate (disk body + path metadata).
 
-Consumers: ``workbench_snapshots``, ``core.bff.APIs.strategy.routes.report``
-
-NEW layout only: ``overall_report.json`` → engine ``to_ui_dict()``
-(``enumMetrics`` / ``priceMetrics`` / ``capitalMetrics``). Slot key ``portfolio``.
+Assembles UI metrics from engine ``OverallReport.to_ui_dict()``.
+Consumers: ``helpers/workbench_snapshots``, ``routes/report``.
 """
 
 from __future__ import annotations

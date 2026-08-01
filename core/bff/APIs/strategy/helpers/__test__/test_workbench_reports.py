@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from core.modules.strategy.launcher.report_hydrate import (
+from core.bff.APIs.strategy.helpers.report_hydrate import (
     hydrate_enum_slot,
     hydrate_portfolio_slot,
     hydrate_price_slot,
@@ -44,7 +44,7 @@ def test_hydrate_enum_slot_from_overall_report(tmp_path, monkeypatch):
     )
 
     monkeypatch.setattr(
-        "core.modules.strategy.launcher.report_hydrate.resolve_simulation_output_dirs",
+        "core.bff.APIs.strategy.helpers.report_hydrate.resolve_simulation_output_dirs",
         lambda *a, **k: [out_dir],
     )
 
@@ -70,7 +70,7 @@ def test_hydrate_price_slot_from_overall_report(tmp_path, monkeypatch):
     )
 
     monkeypatch.setattr(
-        "core.modules.strategy.launcher.report_hydrate.resolve_simulation_output_dirs",
+        "core.bff.APIs.strategy.helpers.report_hydrate.resolve_simulation_output_dirs",
         lambda *a, **k: [out_dir],
     )
     slot = hydrate_price_slot("demo/x", {"output_dir": str(out_dir)})
@@ -93,7 +93,7 @@ def test_hydrate_portfolio_slot_from_overall_report(tmp_path, monkeypatch):
     )
 
     monkeypatch.setattr(
-        "core.modules.strategy.launcher.report_hydrate.resolve_simulation_output_dirs",
+        "core.bff.APIs.strategy.helpers.report_hydrate.resolve_simulation_output_dirs",
         lambda *a, **k: [out_dir],
     )
     slot = hydrate_portfolio_slot("demo/x", {"output_dir": str(out_dir)})

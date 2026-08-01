@@ -1,7 +1,7 @@
 """Catalog implementer: discovery → page DTO for FED.
 
 Calls ``DiscoveryService.discover_strategies`` (strategy core); pagination / row
-shaping stay in BFF — not in ``modules.strategy.launcher``.
+shaping stay in BFF.
 """
 
 from __future__ import annotations

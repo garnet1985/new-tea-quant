@@ -30,8 +30,8 @@ from core.modules.strategy.core.engines.shared.services.simulation_output import
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
     StrategySettings,
 )
-from core.modules.strategy.launcher.report_hydrate import resolve_simulation_output_dirs
-from core.modules.strategy.launcher.workbench_snapshots import WorkbenchSnapshots
+from core.bff.APIs.strategy.helpers.report_hydrate import resolve_simulation_output_dirs
+from core.bff.APIs.strategy.helpers.workbench_snapshots import WorkbenchSnapshots
 
 logger = logging.getLogger(__name__)
 

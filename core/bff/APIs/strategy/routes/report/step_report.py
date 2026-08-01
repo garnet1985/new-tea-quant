@@ -18,14 +18,14 @@ from core.modules.strategy.core.engines.shared.services.simulation_output.paths 
     ArtifactPaths,
 )
 from core.modules.strategy.core.enums import WorkbenchStep
-from core.modules.strategy.launcher.report_hydrate import (
+from core.bff.APIs.strategy.helpers.report_hydrate import (
     attach_enum_opportunities_field,
     hydrate_enum_slot,
     hydrate_portfolio_slot,
     hydrate_price_slot,
     resolve_simulation_output_dirs,
 )
-from core.modules.strategy.launcher.workbench_snapshots import WorkbenchSnapshots
+from core.bff.APIs.strategy.helpers.workbench_snapshots import WorkbenchSnapshots
 
 logger = logging.getLogger(__name__)
 

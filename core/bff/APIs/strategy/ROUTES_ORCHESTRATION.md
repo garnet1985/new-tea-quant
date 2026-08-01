@@ -7,15 +7,14 @@
 ```text
 core/bff/APIs/strategy/
   api_base.py               # strategy_api_bp, API_BASE_PATH
-  helpers/                  # formatting / params / query / …
+  helpers/                  # snapshots / report_hydrate / formatting …
   routes/
     catalog/                # V2-02
     package/                # V2-13 … 15
     report/                 # V2-07*
     settings/               # V2-04 / V2-09
     version/                # V2-01/03/08 + cache
-    runner/                 # V2-05/06* + scan；submit/read only — progress 在 strategy PipelineProgress
-  helpers/
+    runner/                 # V2-05/06* + scan 薄壳；进度落盘在 strategy core
 ```
 
 ## 原则
@@ -23,7 +22,8 @@ core/bff/APIs/strategy/
 - **路径**：有 target 时统一为 `/v1/strategy/{strategy_key_or_name}/…`（``meta.key`` 或 path name，可多段）；无 target 的全局资源（catalog、settings 选项、package import、全表 cache、scan/context）不加 strategy 段。
 - **共用类方法**：``DiscoveryService.resolve_strategy_path``、``WorkbenchVersionId.parse``、``WorkbenchStep.try_parse``（挂在类上，不单独 export 函数）。
 - **routes/<area>/routes.py**：解析 HTTP → `impl.lazy_load()` → `ok` / `error`。
-- **routes/<area>/implementer.py**：领域编排 / DTO；可 lazy-import strategy core / launcher。
+- **routes/<area>/implementer.py**：领域编排 / DTO；lazy-import strategy core 与本包 helpers。
+- **Snapshot**：前端概念（多 version settings）；读模型在 ``helpers/workbench_snapshots``。后端 run 只认指纹缓存写表。
 - 不再保留独立的 ``cache`` 路由模块；快照 DbCache 清理挂在 **version**。
 - BFF 不做缓存命中判断。
 - 工作台三步 ``enum | price | portfolio`` 与核心共用 ``WorkbenchStep``（``core.modules.strategy.core.enums``）。

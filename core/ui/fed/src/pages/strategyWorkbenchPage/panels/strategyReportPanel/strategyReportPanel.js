@@ -62,7 +62,7 @@ function StrategyReportPanel({
   configVersions = [],
   /** V2-01 / V2-08 工作台快照；执行/报告/对比左侧同源 */
   workbenchSnapshot = null,
-  /** ``{ step: 'enum'|'price'|'capital', tick }``：单步跑完后由工作台页注入，切到对应报告 */
+  /** ``{ step: 'enum'|'price'|'portfolio', tick }``：单步跑完后由工作台页注入，切到对应报告 */
   reportTabFocusRequest = null,
   onForceEnumerate,
   /** 至少两条快照时可对比报告；仅一条时隐藏「对比结果」 */
@@ -168,7 +168,7 @@ function StrategyReportPanel({
       const slot = slotFromResultReport(reportSource, 'price');
       return { priceMetrics: normalizePriceMetricsFromSummary(slot), stockRows: priceStockRowsForGrid };
     }
-    const slot = slotFromResultReport(reportSource, 'capital');
+    const slot = slotFromResultReport(reportSource, 'portfolio');
     const stockRows = Array.isArray(slot?.stockRows) ? slot.stockRows : [];
     return {
       capitalMetrics: normalizeCapitalMetricsFromSummary(slot),
@@ -249,7 +249,7 @@ function StrategyReportPanel({
         />
       );
     }
-    if (tabKey === 'capital') {
+    if (tabKey === 'portfolio') {
       if (!reportData?.capitalMetrics) {
         return (
           <Typography {...unavailableTypographyProps}>{unavailableZh}</Typography>
@@ -399,9 +399,9 @@ function StrategyReportPanel({
     }
 
     return renderReportByTab(
-      'capital',
-      buildMetricsPayloadForTab('capital'),
-      REPORT_TAB_SECTION_TITLES.capital,
+      'portfolio',
+      buildMetricsPayloadForTab('portfolio'),
+      REPORT_TAB_SECTION_TITLES.portfolio,
       { hideTitle: true },
     );
   };

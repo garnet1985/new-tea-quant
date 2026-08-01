@@ -3,8 +3,8 @@
  * 摘要数值由后端 ``execution_panel`` 提供，前端不做指标换算。
  */
 
-const IDLE = { enum: 'idle', price: 'idle', capital: 'idle' };
-const RUN_STEP_NAMES = new Set(['enum', 'price', 'capital']);
+const IDLE = { enum: 'idle', price: 'idle', portfolio: 'idle' };
+const RUN_STEP_NAMES = new Set(['enum', 'price', 'portfolio']);
 
 /**
  * V2-05 POST ``steps[]`` → 执行面板 stepStatus。只更新计划内步骤，其余保留 ``prev``（依赖链由后端规划）。
@@ -44,7 +44,7 @@ function slotDone(entry) {
 
 /**
  * @param {object|null|undefined} apiStepStatus BFF：``enum`` / ``price_factor`` / ``portfolio`` → ``{ done: boolean }``
- * @returns {{ enum: string, price: string, capital: string }}
+ * @returns {{ enum: string, price: string, portfolio: string }}
  */
 export function mapWorkbenchStepStatusToExecutionCards(apiStepStatus) {
   if (!apiStepStatus || typeof apiStepStatus !== 'object') {
@@ -53,24 +53,24 @@ export function mapWorkbenchStepStatusToExecutionCards(apiStepStatus) {
   return {
     enum: slotDone(apiStepStatus.enum) ? 'done' : 'idle',
     price: slotDone(apiStepStatus.price_factor) ? 'done' : 'idle',
-    capital: slotDone(apiStepStatus.portfolio) ? 'done' : 'idle',
+    portfolio: slotDone(apiStepStatus.portfolio) ? 'done' : 'idle',
   };
 }
 
 /**
  * 从 BFF ``execution_panel`` 读取执行面板三行摘要。
  * @param {object|null|undefined} executionPanel
- * @returns {{ enum: object|null, price: object|null, capital: object|null }}
+ * @returns {{ enum: object|null, price: object|null, portfolio: object|null }}
  */
 export function buildExecutionResultFromExecutionPanel(executionPanel) {
-  const empty = { enum: null, price: null, capital: null };
+  const empty = { enum: null, price: null, portfolio: null };
   if (!executionPanel || typeof executionPanel !== 'object') {
     return empty;
   }
   return {
     enum: executionPanel.enum ?? null,
     price: executionPanel.price ?? null,
-    capital: executionPanel.capital ?? null,
+    portfolio: executionPanel.portfolio ?? null,
   };
 }
 

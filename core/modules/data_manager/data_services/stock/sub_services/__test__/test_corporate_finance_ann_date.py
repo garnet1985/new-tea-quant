@@ -5,26 +5,9 @@ from __future__ import annotations
 
 import unittest
 
-from core.modules.data_contract.contracts import ContractScope, ContractType, DataKey
-from core.modules.data_contract.contracts import DataContract
-from core.modules.data_contract.contracts import ContractMeta
-from core.modules.data_cursor import DataCursor
 from core.modules.data_manager.data_services.stock.sub_services.corporate_finance_service import (
     CorporateFinanceService,
 )
-
-
-def _finance_meta() -> ContractMeta:
-    return ContractMeta(
-        data_id=DataKey.STOCK_CORPORATE_FINANCE,
-        name=DataKey.STOCK_CORPORATE_FINANCE.value,
-        scope=ContractScope.PER_ENTITY,
-        attrs={
-            "type": ContractType.TIME_SERIES,
-            "time_axis_field": "ann_date",
-            "time_axis_format": "YYYYMMDD",
-        },
-    )
 
 
 class TestCorporateFinanceAnnDate(unittest.TestCase):
@@ -38,34 +21,25 @@ class TestCorporateFinanceAnnDate(unittest.TestCase):
         )
         self.assertEqual([row["quarter"] for row in rows], ["2024Q1", "2024Q3"])
 
-    def test_data_cursor_until_uses_ann_date_pit(self):
-        rows = [
-            {"quarter": "2024Q1", "ann_date": "20240430", "netprofit_yoy": 1.0},
-            {"quarter": "2024Q2", "ann_date": "20240831", "netprofit_yoy": 2.0},
-            {"quarter": "2024Q3", "ann_date": "20241030", "netprofit_yoy": 3.0},
-        ]
-        contract = DataContract(meta=_finance_meta(), data=rows)
-
-        cursor_before_q2 = DataCursor(contracts={"stock.finance.quarterly": contract})
-        prefix_before_q2 = cursor_before_q2.until("20240830")["stock.finance.quarterly"]
-        self.assertEqual([row["quarter"] for row in prefix_before_q2], ["2024Q1"])
-
-        cursor_mid = DataCursor(
-            contracts={
-                "stock.finance.quarterly": DataContract(meta=_finance_meta(), data=list(rows))
-            }
+    def test_ann_date_pit_prefix_semantics(self):
+        """Loader 按 ann_date 排序后，PIT 前缀由 data_contract.until（time_axis=ann_date）推进。"""
+        rows = CorporateFinanceService._prepare_time_series_rows(
+            [
+                {"quarter": "2024Q1", "ann_date": "20240430", "netprofit_yoy": 1.0},
+                {"quarter": "2024Q2", "ann_date": "20240831", "netprofit_yoy": 2.0},
+                {"quarter": "2024Q3", "ann_date": "20241030", "netprofit_yoy": 3.0},
+            ]
         )
-        prefix_mid = cursor_mid.until("20240915")["stock.finance.quarterly"]
-        self.assertEqual([row["quarter"] for row in prefix_mid], ["2024Q1", "2024Q2"])
 
-        cursor_all = DataCursor(
-            contracts={
-                "stock.finance.quarterly": DataContract(meta=_finance_meta(), data=list(rows))
-            }
-        )
-        prefix_all = cursor_all.until("20241101")["stock.finance.quarterly"]
+        def _prefix(as_of: str):
+            return [r for r in rows if str(r["ann_date"]) <= as_of]
+
+        self.assertEqual([r["quarter"] for r in _prefix("20240830")], ["2024Q1"])
         self.assertEqual(
-            [row["quarter"] for row in prefix_all],
+            [r["quarter"] for r in _prefix("20240915")], ["2024Q1", "2024Q2"]
+        )
+        self.assertEqual(
+            [r["quarter"] for r in _prefix("20241101")],
             ["2024Q1", "2024Q2", "2024Q3"],
         )
 

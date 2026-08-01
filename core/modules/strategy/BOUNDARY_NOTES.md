@@ -131,7 +131,10 @@ Pipeline    → 周边编排（采样、BE.run、ReportManager）
 | `PENDING_TO_ENTER` 挂单风控（touch / wait / drift / abort） | done |
 | ReportManager 统一生命周期（`BaseReportManager` + 四引擎） | done |
 
-UI 集成适配层已迁至 ``core.bff.support.strategy``（``StrategyCatalog``、``StrategySettingsOptions``、``WorkbenchSnapshots``、``WorkbenchRunLauncher`` 等）。模块内仅保留领域 Facade / services。
+UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``。
+**加权进度 / 落盘**：``PipelineProgress``（workbench）、``ScanProgress`` + ``ScanJob``（扫描）；BFF 只读 / 薄壳。
+**Snapshot 读模型**（多 version settings、冷启动、hydrate）在 BFF ``helpers/workbench_snapshots`` + ``report_hydrate``——前端概念；后端 run 只走指纹 ``SimulationCacheManager``。
+``launcher`` 包已删除。
 
 ---
 
@@ -214,7 +217,7 @@ UI 集成适配层已迁至 ``core.bff.support.strategy``（``StrategyCatalog``�
 |----|------|
 | 在 BE 内核调 `contract.until` | 切片属 Strategy 适配层（`AsOfSlice`），不把 data_contract 绑进 BE |
 | 为 enum 再引入 TimelineBuilder / JobSession | 禁止 |
-| 删模块内 `bff_support` | **done**：已迁至 ``core.bff.support.strategy`` |
+| 删模块内 `bff_support` / `launcher` | **done**：UI snapshot/hydrate → BFF helpers；scan/job progress → core services；BFF runner 薄壳 |
 | 拆 `fingerprints` 出 `simulation_cache` | **不做**：指纹本就是给 cache 用的；以后若边界变了再挪 |
 
 ---

@@ -3,7 +3,7 @@
  *
  * - enum：``{ enumMetrics: { … } }``（camelCase）
  * - price：``{ priceMetrics: { … } }``（camelCase）
- * - capital：``{ capitalMetrics: { … } }``（OverallReport.to_ui_dict，camelCase）
+ * - portfolio：``{ capitalMetrics: { … } }``（OverallReport.to_ui_dict，camelCase）
  */
 
 export const REPORT_BLOCK_UNAVAILABLE_ZH = '数据异常，无法显示该结果。';

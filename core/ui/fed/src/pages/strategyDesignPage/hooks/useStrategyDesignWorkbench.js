@@ -216,7 +216,7 @@ export function useStrategyDesignWorkbench() {
           executionState: {
             stepStatus: hydration.stepStatus,
             result: hydration.result,
-            compareVersion: { enum: '', price: '', capital: '' },
+            compareVersion: { enum: '', price: '', portfolio: '' },
             runningStep: '',
             runId: '',
             activeRunId: '',
@@ -471,7 +471,7 @@ export function useStrategyDesignWorkbench() {
           executionState: {
             stepStatus: hydrationRestore.stepStatus,
             result: hydrationRestore.result,
-            compareVersion: { enum: '', price: '', capital: '' },
+            compareVersion: { enum: '', price: '', portfolio: '' },
             runningStep: '',
             runId: '',
             activeRunId: '',

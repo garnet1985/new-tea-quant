@@ -68,7 +68,7 @@ global / non_ts **不适用** 本决策；不提供同等 `execution.mode` 语�
 历史上曾用 `TagManager` / 模块内 CLI 作入口。
 
 **决策**  
-对外唯一入口为 `Tag`；`TagManager` / `run_tag` / 模块 `__main__` 已删除。BFF 经 `TagCatalog` / `TagRunLauncher`。
+对外唯一入口为 `Tag`；`TagManager` / `run_tag` / 模块 `__main__` 已删除。BFF 经 `TagCatalog` / `TagRunLauncher`（BFF 包）+ `TagRunProgress`。
 
 ---
 

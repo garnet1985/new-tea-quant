@@ -28,7 +28,7 @@ import './strategyExecutionPanel.scss';
 import {
   EXECUTION_PANEL_TITLE,
   EXECUTION_PANEL_TOOLTIP,
-  EXEC_STEP_CAPITAL_TOOLTIP,
+  EXEC_STEP_PORTFOLIO_TOOLTIP,
   EXEC_STEP_ENUM_TOOLTIP,
   EXEC_STEP_PRICE_TOOLTIP,
 } from './executionSectionMeta';
@@ -47,7 +47,7 @@ import { clearStockKlineMemoryCache } from '../strategyReportPanel/lib/stockKlin
 
 const STEP_ENUM = 'enum';
 const STEP_PRICE = 'price';
-const STEP_CAPITAL = 'capital';
+const STEP_PORTFOLIO = 'portfolio';
 
 const ACTIVE_RUN_STORAGE_PREFIX = 'ntq-workbench-active-run';
 
@@ -229,11 +229,11 @@ function StrategyExecutionPanel({
   const [stepStatus, setStepStatus] = useState({
     enum: 'idle',
     price: 'idle',
-    capital: 'idle',
+    portfolio: 'idle',
   });
   const [runningStep, setRunningStep] = useState('');
   const [progress, setProgress] = useState(0);
-  const [stepProgress, setStepProgress] = useState({ enum: 0, price: 0, capital: 0 });
+  const [stepProgress, setStepProgress] = useState({ enum: 0, price: 0, portfolio: 0 });
   const [progressDetail, setProgressDetail] = useState({
     label: '',
     stageLabel: '',
@@ -242,15 +242,15 @@ function StrategyExecutionPanel({
   const [result, setResult] = useState({
     enum: null,
     price: null,
-    capital: null,
+    portfolio: null,
   });
   const [compareVersion, setCompareVersion] = useState({
     enum: '',
     price: '',
-    capital: '',
+    portfolio: '',
   });
   const [executionMoreVersionsOpen, setExecutionMoreVersionsOpen] = useState(false);
-  /** 打开「更多版本」时记录 enum / price / capital，选中后写入对应 ``compareVersion`` */
+  /** 打开「更多版本」时记录 enum / price / portfolio，选中后写入对应 ``compareVersion`` */
   const [executionMoreVersionsStepKey, setExecutionMoreVersionsStepKey] = useState('');
   const [versionSearch, setVersionSearch] = useState('');
   const [versionPickerPage, setVersionPickerPage] = useState(1);
@@ -292,19 +292,19 @@ function StrategyExecutionPanel({
     setStepStatus({
       enum: 'idle',
       price: 'idle',
-      capital: 'idle',
+      portfolio: 'idle',
     });
     setRunningStep('');
     setProgress(0);
     setResult({
       enum: null,
       price: null,
-      capital: null,
+      portfolio: null,
     });
     setCompareVersion({
       enum: '',
       price: '',
-      capital: '',
+      portfolio: '',
     });
     setCompareLinesByVersionId({});
     setActiveRunId('');
@@ -560,7 +560,7 @@ function StrategyExecutionPanel({
     setCompareVersion((prev) => {
       let touched = false;
       const next = { ...prev };
-      ['enum', 'price', 'capital'].forEach((k) => {
+      ['enum', 'price', 'portfolio'].forEach((k) => {
         if (next[k] === cur) {
           next[k] = '';
           touched = true;
@@ -633,7 +633,7 @@ function StrategyExecutionPanel({
   useEffect(() => {
     if (!strategyName) return undefined;
     const ids = [...new Set(
-      [compareVersion.enum, compareVersion.price, compareVersion.capital]
+      [compareVersion.enum, compareVersion.price, compareVersion.portfolio]
         .map((s) => String(s || '').trim())
         .filter(Boolean),
     )];
@@ -674,7 +674,7 @@ function StrategyExecutionPanel({
     return () => {
       cancelled = true;
     };
-  }, [strategyName, compareVersion.enum, compareVersion.price, compareVersion.capital]);
+  }, [strategyName, compareVersion.enum, compareVersion.price, compareVersion.portfolio]);
 
   const renderEnumSummary = () => {
     const currentOpportunities = result.enum?.opportunities;
@@ -811,12 +811,12 @@ function StrategyExecutionPanel({
   };
 
   const renderCapitalSummary = () => {
-    const cur = result.capital;
-    const vid = compareVersion.capital?.trim();
+    const cur = result.portfolio;
+    const vid = compareVersion.portfolio?.trim();
     const row = vid ? compareLinesByVersionId[vid] : null;
     const loading = Boolean(vid) && (!row || row.loading);
     const errMsg = row?.error;
-    const cmp = row?.execLine?.capital ?? null;
+    const cmp = row?.execLine?.portfolio ?? null;
 
     const gridSx = {
       ...EXEC_COMPARE_ROW_SX,
@@ -967,7 +967,7 @@ function StrategyExecutionPanel({
         if (
           finishedStep === STEP_ENUM
           || finishedStep === STEP_PRICE
-          || finishedStep === STEP_CAPITAL
+          || finishedStep === STEP_PORTFOLIO
         ) {
           onRunStepComplete?.(finishedStep);
         }
@@ -1022,7 +1022,7 @@ function StrategyExecutionPanel({
     const st =
       target === STEP_ENUM ? stepStatus.enum
         : target === STEP_PRICE ? stepStatus.price
-          : stepStatus.capital;
+          : stepStatus.portfolio;
     const isForce = st === 'done';
     return startRun(target, { isForce });
   };
@@ -1135,31 +1135,31 @@ function StrategyExecutionPanel({
             <Box
               className={[
                 'exec-step-card',
-                getStepClass(stepStatus.capital),
+                getStepClass(stepStatus.portfolio),
                 showVersionCompare ? 'exec-step-card--has-compare' : '',
               ].filter(Boolean).join(' ')}
               sx={{
                 border: 1,
                 borderRadius: 1,
                 p: 1.25,
-                ...getStepSx(stepStatus.capital),
+                ...getStepSx(stepStatus.portfolio),
               }}
             >
-              {renderStepProgressOverlay('capital')}
+              {renderStepProgressOverlay('portfolio')}
               <Box
                 className="ntq-exec-step-grid exec-step-card__body"
               >
                 <ExecStepLeadBlock
                   stepNo={3}
                   title="资金模拟"
-                  tooltip={EXEC_STEP_CAPITAL_TOOLTIP}
-                  done={stepStatus.capital === 'done'}
+                  tooltip={EXEC_STEP_PORTFOLIO_TOOLTIP}
+                  done={stepStatus.portfolio === 'done'}
                   disabled={executionBusy}
-                  onClick={() => runStep(STEP_CAPITAL)}
-                  ariaLabel={stepStatus.capital === 'done' ? '强制重跑资金模拟' : '运行资金模拟'}
+                  onClick={() => runStep(STEP_PORTFOLIO)}
+                  ariaLabel={stepStatus.portfolio === 'done' ? '强制重跑资金模拟' : '运行资金模拟'}
                 />
                 {renderCapitalSummary()}
-                {renderCompareSlot('capital')}
+                {renderCompareSlot('portfolio')}
               </Box>
             </Box>
           </Stack>

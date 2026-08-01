@@ -3,8 +3,9 @@ import { coerceMetaDescription } from '../../utils/formatStrategyDescription';
 import { API_VERSION_PREFIX } from '../conf/apiConfig';
 import { mapDataEnd } from '../shared/dataEnd';
 
-/** 分页策略列表（V2-02）：`/api/v1/strategies/list` */
-const API_STRATEGIES_LIST_BASE = `${API_VERSION_PREFIX}/strategies/list`;
+/** 分页策略目录（V2-02）：`/api/v1/strategy/catalog/:page/:limit` */
+const API_STRATEGY_CATALOG = (page, limit) =>
+  `${API_VERSION_PREFIX}/strategy/catalog/${encodeURIComponent(page)}/${encodeURIComponent(limit)}`;
 const API_STRATEGY_SCAN_CONTEXT = `${API_VERSION_PREFIX}/strategy/scan/context`;
 /** 策略列表/扫描页展示名：优先 ``display_name``，否则回退路径 ID。 */
 export function getStrategyDisplayLabel(item) {
@@ -26,28 +27,28 @@ function apiStrategyPath(strategyName) {
   return `${API_VERSION_PREFIX}/strategy/${encoded}`;
 }
 /** V2-04 全局选项（无 strategy_name 路径段） */
-const API_SETTINGS_CAPITAL = `${API_VERSION_PREFIX}/strategy/settings/capital-allocation-strategies`;
-const API_SETTINGS_SAMPLING = `${API_VERSION_PREFIX}/strategy/settings/sampling-strategies`;
-const API_SETTINGS_SIMULATION_TEMPLATES = `${API_VERSION_PREFIX}/strategy/settings/simulation-templates`;
-const API_SETTINGS_SKIP_INVESTMENT_WHEN = `${API_VERSION_PREFIX}/strategy/settings/skip-investment-when`;
-const API_SETTINGS_MARKET_PROFILES = `${API_VERSION_PREFIX}/strategy/settings/market-profiles`;
+const API_SETTINGS_PORTFOLIO = `${API_VERSION_PREFIX}/strategy/settings/portfolio`;
+const API_SETTINGS_SAMPLING = `${API_VERSION_PREFIX}/strategy/settings/sampling`;
+const API_SETTINGS_SIMULATION = `${API_VERSION_PREFIX}/strategy/settings/simulation`;
+const API_SETTINGS_RISK_CONTROL = `${API_VERSION_PREFIX}/strategy/settings/risk-control`;
+const API_SETTINGS_MARKET_RULES = `${API_VERSION_PREFIX}/strategy/settings/market-rules`;
 
 /** @typedef {{ value: string, label: string }} StrategySettingOption */
 /** @typedef {{ configurable_fields: string[], required_fields: string[] }} StrategySettingProfile */
 
 /**
  * 获取已发现策略列表（策略工作台 list 页使用）
- * V2 BFF：`GET /api/v1/strategies/list` → `{ status, message: { items, total, page, limit } }`
+ * V2 BFF：`GET /api/v1/strategy/catalog/:page/:limit` → `{ status, message: { items, total, page, limit } }`
  * @returns {Promise<{ data: object[] }>}
  */
 export async function fetchStrategyList() {
-  const params = new URLSearchParams({ page: '1', limit: '100' });
-  const json = await requestJson(`${API_STRATEGIES_LIST_BASE}?${params.toString()}`, { method: 'GET' });
+  const json = await requestJson(API_STRATEGY_CATALOG(1, 100), { method: 'GET' });
   const list = json?.message?.items || [];
   return {
     data: list.map((item) => ({
       id: item.name,
       name: item.name,
+      key: String(item.key || '').trim(),
       display_name: getStrategyDisplayLabel(item),
       description: coerceMetaDescription(item.description),
       keywords: Array.isArray(item.keywords) ? item.keywords : [],
@@ -119,12 +120,12 @@ export function getStrategyWorkbenchPath(strategyName) {
   return `/strategy-workbench/${encoded}`;
 }
 
-/** 制定策略：单策略调试页路径（可选 step：enum | price | capital） */
+/** 制定策略：单策略调试页路径（可选 step：enum | price | portfolio） */
 export function getStrategyDesignPath(strategyName, step = '') {
   const encoded = encodeStrategyPathSegments(strategyName);
   const base = `/strategy-design/${encoded}`;
   const seg = String(step || '').trim();
-  if (seg === 'enum' || seg === 'price' || seg === 'capital') {
+  if (seg === 'enum' || seg === 'price' || seg === 'portfolio') {
     return `${base}/${seg}`;
   }
   return base;
@@ -132,14 +133,17 @@ export function getStrategyDesignPath(strategyName, step = '') {
 
 /**
  * V2-01：读取 latest 工作台快照（settings + version_id + step_status + result_report）。
- * @param {string} strategyName
+ * @param {string} strategyKeyOrName ``meta.key``（推荐）或 path name
  * @returns {Promise<{ strategy_name: string, settings: object, workbench_version_id?: string, has_persisted_snapshot?: boolean, has_other_versions?: boolean }>}
  */
-export async function fetchStrategySettings(strategyName) {
-  const json = await requestJson(`${apiStrategyPath(strategyName)}/version/latest`, { method: 'GET' });
+export async function fetchStrategySettings(strategyKeyOrName) {
+  const json = await requestJson(
+    `${apiStrategyPath(strategyKeyOrName)}/version/latest`,
+    { method: 'GET' },
+  );
   const m = json?.message || {};
   return {
-    strategy_name: strategyName,
+    strategy_name: strategyKeyOrName,
     settings: m.settings || {},
     settings_source: undefined,
     workbench_version_id: typeof m.version_id === 'string' ? m.version_id : '',
@@ -154,39 +158,42 @@ export async function fetchStrategySettings(strategyName) {
 /**
  * V2-09：将**指定快照版本**的 settings 写入 userspace `settings.py`。
  * 若未传 `versionId`，则用当前 **latest**（先隐式依赖 V2-01）的 `version_id`。
- * @param {string} strategyName
- * @param {object} _settings 保留参数兼容旧调用；V2 以服务端快照为准，此参数不参与请求体
+ * @param {string} strategyKeyOrName ``meta.key``（推荐）或 path name
+ * @param {object} _settings 保留参数；V2 以服务端快照为准，此参数不参与请求体
  * @param {{ version_id?: string }} [opts]
  */
-export async function applyStrategySettingsToUserspace(strategyName, _settings, opts = {}) {
+export async function applyStrategySettingsToUserspace(strategyKeyOrName, _settings, opts = {}) {
   let versionId = typeof opts.version_id === 'string' ? opts.version_id.trim() : '';
   if (!versionId) {
-    const latest = await fetchStrategySettings(strategyName);
+    const latest = await fetchStrategySettings(strategyKeyOrName);
     versionId = (latest.workbench_version_id || '').trim();
   }
   if (!versionId) {
     throw new Error('缺少工作台 version_id，无法发布（请先加载有效快照）');
   }
   const json = await requestJson(
-    `${apiStrategyPath(strategyName)}/apply-settings/${encodeURIComponent(versionId)}`,
+    `${apiStrategyPath(strategyKeyOrName)}/settings/apply/${encodeURIComponent(versionId)}`,
     {
       method: 'POST',
       body: JSON.stringify({}),
     },
   );
   return {
-    strategy_name: json?.message?.strategy_name || strategyName,
+    strategy_name: json?.message?.strategy_name || strategyKeyOrName,
     applied: Boolean(json?.message?.applied),
   };
 }
 
 /**
- * SWB-17：读取策略工作台版本列表。
- * @param {string} strategyName
+ * V2-03：读取策略工作台版本列表（至多 10 条）。
+ * @param {string} strategyKeyOrName ``meta.key``（推荐）或 path name
  * @returns {Promise<{ versions: Array<{ version_id: string, version: number, created_at: string, updated_at: string }> }>}
  */
-export async function fetchStrategyVersions(strategyName) {
-  const json = await requestJson(`${apiStrategyPath(strategyName)}/versions`, { method: 'GET' });
+export async function fetchStrategyVersions(strategyKeyOrName) {
+  const json = await requestJson(
+    `${apiStrategyPath(strategyKeyOrName)}/versions`,
+    { method: 'GET' },
+  );
   const items = json?.message?.items ?? [];
   return {
     versions: items.map((row) => ({
@@ -199,14 +206,14 @@ export async function fetchStrategyVersions(strategyName) {
 }
 
 /**
- * SWB-18：读取单个版本详情。
- * @param {string} strategyName
+ * V2-08：读取单个版本详情（与 V2-01 同形，无冷启动）。
+ * @param {string} strategyKeyOrName ``meta.key``（推荐）或 path name
  * @param {string} versionId
  * @returns {Promise<{ version_id: string, settings: object }>}
  */
-export async function fetchStrategyVersionDetail(strategyName, versionId) {
+export async function fetchStrategyVersionDetail(strategyKeyOrName, versionId) {
   const json = await requestJson(
-    `${apiStrategyPath(strategyName)}/version/${encodeURIComponent(versionId)}`,
+    `${apiStrategyPath(strategyKeyOrName)}/version/${encodeURIComponent(versionId)}`,
     { method: 'GET' },
   );
   const m = json?.message || {};
@@ -220,14 +227,14 @@ export async function fetchStrategyVersionDetail(strategyName, versionId) {
 }
 
 /**
- * 恢复历史版本到工作台：无单独写库 restore；以 **V2-08** ``GET …/version/{id}`` 的快照正文为准。
- * 与 ``GET …/version/latest`` 正文同形（冷启动仅 latest 有合成行）；前端页面加载仍用 latest，恢复快照只用 detail。
- * @param {string} strategyName
+ * 恢复历史版本到工作台：无单独写库 restore；以 **V2-08** 快照正文为准。
+ * 与 ``GET …/{strategy}/version/latest`` 正文同形（冷启动仅 latest 有合成行）。
+ * @param {string} strategyKeyOrName
  * @param {string} versionId
  * @returns {Promise<{ restored: boolean, version_id: string, detail: object }>}
  */
-export async function restoreStrategyVersion(strategyName, versionId) {
-  const detail = await fetchStrategyVersionDetail(strategyName, versionId);
+export async function restoreStrategyVersion(strategyKeyOrName, versionId) {
+  const detail = await fetchStrategyVersionDetail(strategyKeyOrName, versionId);
   return {
     restored: true,
     version_id: versionId,
@@ -248,7 +255,7 @@ export async function createStrategyVersion(strategyName, settings, source = 'ma
 /**
  * V2-05：启动 run（路径上的 ``step`` 为用户点击步；实际子步骤链见响应 ``steps`` / ``resolved_chain``，由后端 ``plan_schema`` 规划）。
  * @param {string} strategyName
- * @param {'enum'|'price'|'capital'} targetStep
+ * @param {'enum'|'price'|'portfolio'} targetStep
  * @param {object=} settings
  */
 export async function startStrategyRun(strategyName, targetStep, settings, options = {}) {
@@ -287,52 +294,56 @@ export async function fetchEnumeratorReusePreview(strategyName) {
 
 /**
  * V2-07：按路径 ``version_id`` 读取该步 ``report`` 槽位 JSON。
- * @param {string} strategyName
- * @param {'enum'|'price'|'capital'} step
+ * GET /api/v1/strategy/:strategy_key_or_name/report/:step/:version_id
+ * @param {string} strategyKeyOrName ``settings.meta.key``（推荐）或 path name
+ * @param {'enum'|'price'|'portfolio'} step
  * @param {string} versionId 如 ``v3`` / ``3``
  */
-export async function fetchStrategyStepReport(strategyName, step, versionId) {
+export async function fetchStrategyStepReport(strategyKeyOrName, step, versionId) {
+  const base = apiStrategyPath(strategyKeyOrName);
   const vid = encodeURIComponent(String(versionId || '').trim());
-  if (!vid) {
-    throw new Error('缺少 version_id');
+  if (!base || !vid) {
+    throw new Error('缺少 strategy_key_or_name 或 version_id');
   }
   const json = await requestJson(
-    `${apiStrategyPath(strategyName)}/${encodeURIComponent(step)}/report/${vid}`,
+    `${base}/report/${encodeURIComponent(step)}/${vid}`,
     { method: 'GET' },
   );
   return json?.message || {};
 }
 
 /**
- * 枚举逐股 ref（``0_stock_ref.json``）。成功时 ``message.stock_ref`` 可为 ``null``（磁盘已清理），
+ * V2-07b：枚举逐股 ref（``entity_list.json``）。成功时 ``message.stock_ref`` 可为 ``null``（磁盘已清理），
  * 此时 ``stock_ref_available === false``；仅快照不存在时 HTTP 非 2xx。
- * @param {string} strategyName
- * @param {'enum'|'price'|'capital'} step
+ * GET /api/v1/strategy/:strategy_key_or_name/report/:step/:version_id/ref
+ * @param {string} strategyKeyOrName
+ * @param {'enum'|'price'|'portfolio'} step
  * @param {string} versionId
  * @returns {Promise<object|null>}
  */
 /**
  * V2-07c：单股 K 线 + 步骤 markers。
- * GET /api/v1/strategy/{name}/{step}/stock/{stock_id}?version_id=...
+ * GET /api/v1/strategy/:strategy_key_or_name/report/:step/:version_id/stock/:stock_id
  */
-export async function fetchStrategyStockDetail(strategyName, step, versionId, stockId) {
+export async function fetchStrategyStockDetail(strategyKeyOrName, step, versionId, stockId) {
+  const base = apiStrategyPath(strategyKeyOrName);
   const vid = encodeURIComponent(String(versionId || '').trim());
   const code = encodeURIComponent(String(stockId || '').trim());
-  if (!vid || !code) {
-    throw new Error('缺少 version_id 或 stock_id');
+  if (!base || !vid || !code) {
+    throw new Error('缺少 strategy_key_or_name、version_id 或 stock_id');
   }
-  const params = new URLSearchParams({ version_id: String(versionId || '').trim() });
-  const url = `${apiStrategyPath(strategyName)}/${encodeURIComponent(step)}/stock/${code}?${params.toString()}`;
+  const url = `${base}/report/${encodeURIComponent(step)}/${vid}/stock/${code}`;
   const json = await requestJson(url, { method: 'GET' });
   return json?.message || {};
 }
 
-export async function fetchStrategyStepReportRef(strategyName, step, versionId) {
+export async function fetchStrategyStepReportRef(strategyKeyOrName, step, versionId) {
+  const base = apiStrategyPath(strategyKeyOrName);
   const vid = encodeURIComponent(String(versionId || '').trim());
-  if (!vid) {
+  if (!base || !vid) {
     return null;
   }
-  const url = `${apiStrategyPath(strategyName)}/${encodeURIComponent(step)}/report_ref/${vid}`;
+  const url = `${base}/report/${encodeURIComponent(step)}/${vid}/ref`;
   const response = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
   });
@@ -376,7 +387,7 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
   const step_progress = {};
   steps.forEach((row) => {
     const k = String(row.step_name || '').trim();
-    if (k !== 'enum' && k !== 'price' && k !== 'capital') return;
+    if (k !== 'enum' && k !== 'price' && k !== 'portfolio') return;
     const st = String(row.status || '').toLowerCase();
     if (st === 'pending') step_status_merge[k] = 'pending';
     else if (st === 'running') step_status_merge[k] = 'running';
@@ -395,7 +406,7 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
   else if (allDone || phase === 'completed') state = 'done';
 
   let running_step = '';
-  ['enum', 'price', 'capital'].forEach((k) => {
+  ['enum', 'price', 'portfolio'].forEach((k) => {
     if (step_status_merge[k] === 'running') running_step = k;
   });
   if (!running_step && runProgress?.substep) {
@@ -452,7 +463,7 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
  * 第三参 ``step`` 已废弃，保留签名以兼容旧调用。
  * @param {string} strategyName
  * @param {string} jobId
- * @param {'enum'|'price'|'capital'} [_step]
+ * @param {'enum'|'price'|'portfolio'} [_step]
  */
 export async function fetchStrategyRunStatus(strategyName, jobId, _step = 'enum') {
   void _step;
@@ -480,14 +491,13 @@ export async function fetchStrategyRunResults(strategyName, runId) {
 }
 
 /**
- * SWB-10：工作台快照版本标识列表（含 latest），供下拉等选用。
- * @param {string} strategyName
+ * 工作台快照版本标识列表（含 latest），供下拉等选用（基于 V2-03）。
+ * @param {string} strategyKeyOrName
  * @returns {Promise<{ versions: string[] }>}
  */
-export async function fetchStrategyVersionHistory(strategyName) {
-  const json = await requestJson(`${apiStrategyPath(strategyName)}/versions`, { method: 'GET' });
-  const items = json?.message?.items ?? [];
-  const ids = items
+export async function fetchStrategyVersionHistory(strategyKeyOrName) {
+  const { versions } = await fetchStrategyVersions(strategyKeyOrName);
+  const ids = versions
     .map((row) => (typeof row.version_id === 'string' ? row.version_id.trim() : ''))
     .filter(Boolean);
   return { versions: ids.length ? ['latest', ...ids] : ['latest'] };
@@ -512,7 +522,7 @@ export async function fetchStrategyReportStockKline(strategyName, runId, stockId
  * @returns {Promise<StrategySettingOption[]>}
  */
 export async function fetchCapitalAllocationModeOptions() {
-  const json = await requestJson(API_SETTINGS_CAPITAL, { method: 'GET' });
+  const json = await requestJson(API_SETTINGS_PORTFOLIO, { method: 'GET' });
   const items = json?.message?.items ?? [];
   return items.map((row) => ({
     value: row.value,
@@ -526,7 +536,7 @@ export async function fetchCapitalAllocationModeOptions() {
  * @returns {Promise<{ options: StrategySettingOption[], profiles: Record<string, StrategySettingProfile> }>}
  */
 export async function fetchCapitalAllocationModeConfig() {
-  const json = await requestJson(API_SETTINGS_CAPITAL, { method: 'GET' });
+  const json = await requestJson(API_SETTINGS_PORTFOLIO, { method: 'GET' });
   const items = json?.message?.items ?? [];
   return {
     options: items.map((row) => ({
@@ -574,7 +584,7 @@ export async function fetchSamplingStrategyConfig() {
  * @returns {Promise<StrategySettingOption[]>}
  */
 export async function fetchSimulationTemplateOptions() {
-  const json = await requestJson(API_SETTINGS_SIMULATION_TEMPLATES, { method: 'GET' });
+  const json = await requestJson(API_SETTINGS_SIMULATION, { method: 'GET' });
   const items = json?.message?.items ?? [];
   return items.map((row) => ({
     value: row.value,
@@ -588,7 +598,7 @@ export async function fetchSimulationTemplateOptions() {
  * @returns {Promise<{ options: StrategySettingOption[], profiles: Record<string, object> }>}
  */
 export async function fetchSimulationTemplateConfig() {
-  const json = await requestJson(API_SETTINGS_SIMULATION_TEMPLATES, { method: 'GET' });
+  const json = await requestJson(API_SETTINGS_SIMULATION, { method: 'GET' });
   const items = json?.message?.items ?? [];
   const profiles = {};
   items.forEach((row) => {
@@ -608,11 +618,11 @@ export async function fetchSimulationTemplateConfig() {
 
 /**
  * ``simulation.risk_control.skip_enter_when`` 可勾选标签（``st`` / ``star_st``）。
- * HTTP 路径仍为 ``/settings/skip-investment-when``（兼容）。
+ * GET /api/v1/strategy/settings/risk-control
  * @returns {Promise<StrategySettingOption[]>}
  */
 export async function fetchSkipInvestmentWhenOptions() {
-  const json = await requestJson(API_SETTINGS_SKIP_INVESTMENT_WHEN, { method: 'GET' });
+  const json = await requestJson(API_SETTINGS_RISK_CONTROL, { method: 'GET' });
   const items = json?.message?.items ?? [];
   return items.map((row) => ({
     value: row.value,
@@ -626,13 +636,15 @@ export async function fetchSkipInvestmentWhenOptions() {
  * @returns {Promise<StrategySettingOption[]>}
  */
 export async function fetchMarketProfileOptions() {
-  const json = await requestJson(API_SETTINGS_MARKET_PROFILES, { method: 'GET' });
+  const json = await requestJson(API_SETTINGS_MARKET_RULES, { method: 'GET' });
   const items = json?.message?.items ?? [];
   return items.map((row) => ({ value: row.value, label: row.label }));
 }
 
 const API_STRATEGY_PACKAGE_IMPORT = `${API_VERSION_PREFIX}/strategy/package/import`;
 const API_STRATEGY_PACKAGE_IMPORT_PREVIEW = `${API_VERSION_PREFIX}/strategy/package/import/preview`;
+const API_STRATEGY_PACKAGE_EXPORT = (strategyKeyOrName) =>
+  `${apiStrategyPath(strategyKeyOrName)}/package/export`;
 
 async function readFetchErrorDetail(response) {
   try {
@@ -644,19 +656,19 @@ async function readFetchErrorDetail(response) {
 }
 
 /**
- * 下载策略交流包（V2-13）：`GET /api/v1/strategy/{name}/package/export`
- * @param {string} strategyName
+ * 下载策略交流包（V2-13）：`GET /api/v1/strategy/:strategy_key_or_name/package/export`
+ * @param {string} strategyKeyOrName ``settings.meta.key`` 或 path name
  * @param {{ scope?: 'bundle'|'strategy' }} [options]
  */
-export async function downloadStrategyPackage(strategyName, { scope = 'bundle' } = {}) {
+export async function downloadStrategyPackage(strategyKeyOrName, { scope = 'bundle' } = {}) {
   const params = new URLSearchParams({ scope });
-  const url = `${apiStrategyPath(strategyName)}/package/export?${params.toString()}`;
+  const url = `${API_STRATEGY_PACKAGE_EXPORT(strategyKeyOrName)}?${params.toString()}`;
   const response = await fetch(url, { method: 'GET' });
   if (!response.ok) {
     throw new Error(await readFetchErrorDetail(response));
   }
   const blob = await response.blob();
-  let filename = `${strategyName}-strategy.zip`;
+  let filename = `${strategyKeyOrName}-strategy.zip`;
   const cd = response.headers.get('Content-Disposition') || '';
   const match = /filename\*?=(?:UTF-8''|utf-8'')?["']?([^"';]+)/i.exec(cd);
   if (match?.[1]) {

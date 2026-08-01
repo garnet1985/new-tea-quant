@@ -51,7 +51,7 @@ export function clearStockKlineMemoryCache() {
   cache.clear();
 }
 
-/** 同策略/版本/股票任意已缓存 K 线（供 price/capital Tab 复用）。 */
+/** 同策略/版本/股票任意已缓存 K 线（供 price/portfolio Tab 复用）。 */
 export function findStockKlineCacheByStock({ strategyName, versionId, stockId }) {
   const prefix = [
     String(strategyName || '').trim(),

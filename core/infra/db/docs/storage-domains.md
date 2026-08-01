@@ -78,7 +78,7 @@ schema = {
 
 **已有 / 规划中的 DB 表：**
 
-- `sys_strategy_workbench_snapshot` — 自动三步（enum / price / capital）工作台快照与 DbCache
+- `sys_strategy_workbench_snapshot` — 自动三步（enum / price / portfolio）工作台快照与 DbCache
 - **决策者模式（ROADMAP 0.5.x，规划）：** 交互式按日推进的会话与曲线，**不单独拆 domain**，表名实现时再定，例如：
   - `sys_decision_session` — 会话主记录（策略名、区间、当前 simulation date、状态）
   - `sys_decision_step`（或按日拆分）— 用户每日仓位决策、权益/回撤曲线点

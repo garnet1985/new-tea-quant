@@ -37,6 +37,8 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.strate
 from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
     EnabledStrategyInfo,
 )
+from core.modules.strategy.core.services.progress import PipelineProgress
+
 if TYPE_CHECKING:
     from core.modules.strategy.core.engines.shared.data_class.simulate_session import SimulateSession
 
@@ -44,6 +46,7 @@ logger = logging.getLogger(__name__)
 
 _MODE_ENTITY = "entity_based"
 _MODE_SLICE = "slice_based"
+_PROGRESS_PIPELINE = "enum"
 
 
 class EnumeratorPipeline:
@@ -95,6 +98,10 @@ class EnumeratorPipeline:
         effective_settings_obj = ctx.effective_settings
         stock_ids = list(ctx.entity_ids)
 
+        drive = PipelineProgress.drives_pipeline(_PROGRESS_PIPELINE)
+        if drive:
+            PipelineProgress.enter_step_bound("load")
+
         cls.global_entity_cache.load_global_declarations(
             declaration_groups["global_declarations"]
         )
@@ -116,6 +123,10 @@ class EnumeratorPipeline:
             settings_diff=ctx.settings_diff,
         )
 
+        if drive:
+            PipelineProgress.complete_step_bound("load")
+            PipelineProgress.enter_step_bound("dispatch")
+
         jobs = cls._build_jobs(
             strategy_info=strategy_info,
             effective_settings_obj=effective_settings_obj,
@@ -125,18 +136,30 @@ class EnumeratorPipeline:
             execution_mode=execution_mode,
         )
 
+        if drive:
+            PipelineProgress.complete_step_bound("dispatch")
+            PipelineProgress.enter_step_bound("execute")
+
         results = cls._step_to_execute_backtest(
             jobs=jobs,
             report_manager=report_manager,
             effective_settings_obj=effective_settings_obj,
             execution_mode=execution_mode,
         )
+
+        if drive:
+            PipelineProgress.complete_step_bound("execute")
+            PipelineProgress.enter_step_bound("report")
+
         cls._step_to_generate_reports(
             results=results,
             report_manager=report_manager,
             entity_count=len(stock_ids),
             effective_settings_obj=effective_settings_obj,
         )
+
+        if drive:
+            PipelineProgress.complete_step_bound("report")
         return results
 
     @classmethod

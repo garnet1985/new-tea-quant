@@ -1,147 +1,88 @@
-"""
-通用工具模块
+"""Utils 门面 — date / types / io / math。"""
 
-提供配置文件的加载、合并等工具方法。
-pandas 仅在操作 DataFrame/Series 的方法内按需 import，避免轻量路径（如 DateUtils）顶层依赖 pandas。
-"""
 from __future__ import annotations
 
-import copy
-import datetime
-from typing import Any, Dict, List, Set, Tuple
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Literal, Mapping, Optional, Sequence
+
+from core.infra.utils.date.date_utils import DateUtils
+from core.infra.utils.type_utils import TypeUtils
+
+
+class IoNamespace:
+    """CSV / 归档 IO。"""
+
+    @staticmethod
+    def write_dicts_to_csv(
+        path: Path | str,
+        rows: Iterable[Mapping[str, Any]],
+        preferred_order: Optional[Sequence[str]] = None,
+    ) -> None:
+        from core.infra.utils.io.csv_io import write_dicts_to_csv
+
+        write_dicts_to_csv(path, rows, preferred_order=preferred_order)
+
+    @staticmethod
+    def read_csv_to_dicts(path: Path | str) -> List[dict]:
+        from core.infra.utils.io.csv_io import read_csv_to_dicts
+
+        return read_csv_to_dicts(path)
+
+    @staticmethod
+    def dicts_to_csv_bytes(
+        rows: Iterable[Mapping[str, Any]],
+        preferred_order: Optional[Sequence[str]] = None,
+    ) -> bytes:
+        from core.infra.utils.io.csv_io import dicts_to_csv_bytes
+
+        return dicts_to_csv_bytes(rows, preferred_order=preferred_order)
+
+    @staticmethod
+    def csv_bytes_to_dicts(data: bytes) -> List[dict]:
+        from core.infra.utils.io.csv_io import csv_bytes_to_dicts
+
+        return csv_bytes_to_dicts(data)
+
+    @staticmethod
+    def write_archive(
+        output_dir: str | Path,
+        archive_name: str,
+        files: Dict[str, bytes],
+        *,
+        format: Literal["tar.gz", "zip"] = "tar.gz",
+    ) -> Path:
+        from core.infra.utils.io.file_io import write_archive
+
+        return write_archive(output_dir, archive_name, files, format=format)
+
+    @staticmethod
+    def read_archive_files(
+        archive_path: str | Path,
+        *,
+        filter_ext: Optional[str] = None,
+    ) -> Dict[str, bytes]:
+        from core.infra.utils.io.file_io import read_archive_files
+
+        return read_archive_files(archive_path, filter_ext=filter_ext)
+
+
+class MathNamespace:
+    """确定性随机等数值工具。"""
+
+    @staticmethod
+    def deterministic_unit_float(*key_parts: Any) -> float:
+        from core.infra.utils.math.deterministic_random import deterministic_unit_float
+
+        return deterministic_unit_float(*key_parts)
 
 
 class Utils:
-    @staticmethod
-    def is_datetime(obj: Any) -> bool:
-        return isinstance(obj, datetime.datetime)
+    """通用无业务工具门面（Facade）。"""
 
-    @staticmethod
-    def is_date_string(obj: Any) -> bool:
-        return Utils.is_string(obj) and obj.isdigit()
+    date = DateUtils
+    types = TypeUtils
+    io = IoNamespace()
+    math = MathNamespace()
 
-    @staticmethod
-    def is_dict(obj: Any) -> bool:
-        return isinstance(obj, dict)
 
-    @staticmethod
-    def is_list(obj: Any) -> bool:
-        return isinstance(obj, list)
-
-    @staticmethod
-    def is_set(obj: Any) -> bool:
-        return isinstance(obj, set)
-
-    @staticmethod
-    def is_string(obj: Any) -> bool:
-        return isinstance(obj, str)
-
-    @staticmethod
-    def is_int(obj: Any) -> bool:
-        return isinstance(obj, int)
-
-    @staticmethod
-    def is_float(obj: Any) -> bool:
-        return isinstance(obj, float)
-
-    @staticmethod
-    def is_bool(obj: Any) -> bool:
-        return isinstance(obj, bool)
-
-    @staticmethod
-    def is_df(obj: Any) -> bool:
-        import pandas as pd
-
-        return isinstance(obj, pd.DataFrame)
-
-    @staticmethod
-    def is_df_column(obj: Any) -> bool:
-        import pandas as pd
-
-        return isinstance(obj, pd.Series)
-
-    @staticmethod
-    def deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
-        """深度合并两个字典（override 覆盖 base 同键叶子值）。
-
-        Args:
-            base: 基准字典
-            override: 覆盖字典
-        Returns:
-            合并后的字典（新字典，不修改原始字典）
-        """
-        merged = copy.deepcopy(base)
-
-        for key, value in override.items():
-            if key in merged:
-                if Utils.is_dict(merged[key]) and Utils.is_dict(value):
-                    merged[key] = Utils.deep_merge(merged[key], value)
-                else:
-                    merged[key] = copy.deepcopy(value)
-            else:
-                # 新增字段
-                merged[key] = copy.deepcopy(value)
-
-        return merged
-
-    @staticmethod
-    def deep_diff(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
-        """深度对比两个字典的差异（返回 override 相对于 base 的差异）。
-
-        Args:
-            base: 基准字典
-            override: 对比字典
-
-        Returns:
-            差异字典（只包含 override 相对于 base 的差异）
-        """
-        diff: Dict[str, Any] = {}
-
-        for key in override:
-            value_base = base.get(key)
-            value_override = override[key]
-
-            # override 有但 base 没有的（新增）
-            if key not in base:
-                diff[key] = copy.deepcopy(value_override)
-                continue
-
-            # 值不同
-            if isinstance(value_base, dict) and isinstance(value_override, dict):
-                # 递归对比嵌套字典
-                nested_diff = Utils.deep_diff(value_base, value_override)
-                if nested_diff:
-                    diff[key] = nested_diff
-            elif value_base != value_override:
-                # 值不同（非嵌套）
-                diff[key] = copy.deepcopy(value_override)
-
-        return diff
-
-    @staticmethod
-    def df_to_dict(df: Any) -> Dict[str, Any]:
-        import pandas as pd
-
-        if not isinstance(df, pd.DataFrame):
-            raise TypeError("df_to_dict expects a pandas.DataFrame")
-        return df.to_dict(orient="records")
-
-    @staticmethod
-    def dict_to_df(data: Dict[str, Any]) -> Any:
-        import pandas as pd
-
-        return pd.DataFrame(data)
-
-    @staticmethod
-    def df_to_header_and_lines(df: Any) -> Tuple[List[str], List[List[Any]]]:
-        import pandas as pd
-
-        if not isinstance(df, pd.DataFrame):
-            raise TypeError("df_to_header_and_lines expects a pandas.DataFrame")
-        return df.columns.tolist(), df.values.tolist()
-
-    @staticmethod
-    def header_and_lines_to_df(header: List[str], lines: List[List[Any]]) -> Any:
-        import pandas as pd
-
-        return pd.DataFrame(lines, columns=header)
+__all__ = ["Utils"]

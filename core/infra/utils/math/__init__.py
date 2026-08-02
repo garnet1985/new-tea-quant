@@ -1,5 +1,3 @@
-"""数值与概率相关静态工具。"""
+"""数值工具实现包（内部）。公开入口：``Utils.math``。"""
 
-from .deterministic_random import deterministic_unit_float
-
-__all__ = ["deterministic_unit_float"]
+__all__: list[str] = []

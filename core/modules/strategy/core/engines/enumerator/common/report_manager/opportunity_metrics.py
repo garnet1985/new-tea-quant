@@ -7,12 +7,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Sequence
 
+from core.infra.utils import Utils
 from core.modules.strategy.core.engines.shared.services.simulation_output import (
     InvestmentRow,
 )
-from core.infra.utils.date.date_utils import DateUtils
-
-
 @dataclass
 class OpportunityCountBuckets:
     """每股机会数动态分档。"""
@@ -208,7 +206,7 @@ class TimingDispersion:
         trigger_dates = sorted(
             d
             for d in (
-                DateUtils.normalize_str(str(r.trigger_date or ""))
+                Utils.date.normalize_str(str(r.trigger_date or ""))
                 for r in rows
             )
             if isinstance(d, str) and d
@@ -216,7 +214,7 @@ class TimingDispersion:
         if len(trigger_dates) < 2:
             return 0.0
         gaps = [
-            float(DateUtils.diff_days(trigger_dates[i - 1], trigger_dates[i]))
+            float(Utils.date.diff_days(trigger_dates[i - 1], trigger_dates[i]))
             for i in range(1, len(trigger_dates))
         ]
         return round(sum(gaps) / len(gaps), 1) if gaps else 0.0
@@ -231,21 +229,21 @@ class TimingDispersion:
         for rows in investments_by_entity.values():
             rows_sorted = sorted(rows, key=lambda r: str(r.trigger_date or ""))
             trigger_dates = [
-                DateUtils.normalize_str(str(r.trigger_date or ""))
+                Utils.date.normalize_str(str(r.trigger_date or ""))
                 for r in rows_sorted
             ]
             trigger_dates = [d for d in trigger_dates if isinstance(d, str) and d]
             for idx in range(1, len(trigger_dates)):
                 gaps.append(
                     float(
-                        DateUtils.diff_days(trigger_dates[idx - 1], trigger_dates[idx])
+                        Utils.date.diff_days(trigger_dates[idx - 1], trigger_dates[idx])
                     )
                 )
             for r in rows_sorted:
-                d0 = DateUtils.normalize_str(str(r.trigger_date or ""))
-                d1 = DateUtils.normalize_str(str(r.exit_date or ""))
+                d0 = Utils.date.normalize_str(str(r.trigger_date or ""))
+                d1 = Utils.date.normalize_str(str(r.exit_date or ""))
                 if d0 and d1:
-                    durations.append(float(DateUtils.diff_days(d0, d1)))
+                    durations.append(float(Utils.date.diff_days(d0, d1)))
                 elif int(r.holding_days or 0) > 0:
                     durations.append(float(r.holding_days))
 

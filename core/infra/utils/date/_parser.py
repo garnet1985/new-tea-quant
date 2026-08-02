@@ -6,7 +6,7 @@
 from datetime import datetime, date
 from typing import Any, Optional, Union
 
-from core.infra.utils.utils import Utils
+from core.infra.utils.type_utils import TypeUtils
 from core.infra.utils.date._constants import FMT_YYYYMMDD, FMT_YYYY_MM_DD, DEFAULT_FORMAT
 
 
@@ -151,14 +151,14 @@ def to_format_impl(input: Any, fmt: str = DEFAULT_FORMAT) -> Optional[str]:
         return None
     
     # datetime/date 对象
-    if Utils.is_datetime(input) or is_date(input):
+    if TypeUtils.is_datetime(input) or is_date(input):
         try:
             return input.strftime(fmt)
         except Exception:
             return None
     
     # 字符串
-    if Utils.is_string(input):
+    if TypeUtils.is_string(input):
         s = str(input).strip()
         if not s:
             return None
@@ -221,7 +221,7 @@ def datetime_to_format_impl(dt: datetime, fmt: str = DEFAULT_FORMAT) -> str:
     Raises:
         ValueError: 如果输入不是 datetime
     """
-    if not Utils.is_datetime(dt):
+    if not TypeUtils.is_datetime(dt):
         raise ValueError(f"输入必须是 datetime 对象，得到: {type(dt)}")
     return dt.strftime(fmt)
 
@@ -250,7 +250,7 @@ def str_to_format_impl(date_str: str, to_fmt: str, from_fmt: Optional[str] = Non
     Returns:
         str: 转换后的字符串，失败返回 None
     """
-    if not Utils.is_string(date_str):
+    if not TypeUtils.is_string(date_str):
         return None
     
     # 如果指定了源格式，直接转换
@@ -281,7 +281,7 @@ def normalize_str_impl(date_str: str, fmt: str = DEFAULT_FORMAT) -> Optional[str
     
     支持自动识别：YYYYMMDD, YYYY-MM-DD, YYYYMM, YYYYQ1 等
     """
-    if not Utils.is_string(date_str):
+    if not TypeUtils.is_string(date_str):
         return None
     return normalize_impl(date_str, fmt)
 
@@ -310,7 +310,7 @@ def str_to_datetime_impl(date_str: str, fmt: Optional[str] = None) -> datetime:
     Raises:
         ValueError: 解析失败时抛出
     """
-    if not Utils.is_string(date_str):
+    if not TypeUtils.is_string(date_str):
         raise ValueError(f"输入必须是字符串，得到: {type(date_str)}")
     
     # 如果指定了格式，直接解析

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from core.infra.utils import Utils
 """
 DbBaseModel - 数据库表操作的通用基类
 
@@ -57,8 +58,6 @@ from typing import Dict, List, Any, Optional, Literal
 
 from core.infra.db.core.engines.shared import dialect as db_dialect, row_sql
 from core.infra.db.core.table_queriers.services.batch_operation import BatchOperation
-from core.infra.utils.io import csv_io
-from core.infra.utils.io import file_io
 
 
 logger = logging.getLogger(__name__)
@@ -364,7 +363,7 @@ class DbBaseModel:
         """
         将行列表序列化为 CSV（二进制），使用 DictWriter。
         """
-        return csv_io.dicts_to_csv_bytes(rows)
+        return Utils.io.dicts_to_csv_bytes(rows)
 
     def export_data(
         self,
@@ -414,7 +413,7 @@ class DbBaseModel:
                 raise
 
             csv_bytes = self._rows_to_csv_bytes(rows)
-            archive_path = file_io.write_archive(
+            archive_path = Utils.io.write_archive(
                 out_dir,
                 archive_name=self.table_name,
                 files={f"{self.table_name}.csv": csv_bytes},
@@ -466,7 +465,7 @@ class DbBaseModel:
 
             csv_bytes = self._rows_to_csv_bytes(rows)
             archive_name = f"{self.table_name}_part{part_index}"
-            archive_path = file_io.write_archive(
+            archive_path = Utils.io.write_archive(
                 out_dir,
                 archive_name=archive_name,
                 files={f"{self.table_name}.csv": csv_bytes},
@@ -494,10 +493,10 @@ class DbBaseModel:
         """
         file_path = Path(file_path)
         if file_path.suffix.lower() == ".csv":
-            return csv_io.read_csv_to_dicts(file_path)
+            return Utils.io.read_csv_to_dicts(file_path)
 
         # 归档文件：tar.gz / zip
-        files_bytes = file_io.read_archive_files(file_path, filter_ext=".csv")
+        files_bytes = Utils.io.read_archive_files(file_path, filter_ext=".csv")
         if not files_bytes:
             return []
 
@@ -509,7 +508,7 @@ class DbBaseModel:
             # 任取一个 CSV
             _, data = next(iter(files_bytes.items()))
 
-        return csv_io.csv_bytes_to_dicts(data)
+        return Utils.io.csv_bytes_to_dicts(data)
 
     def _ensure_import_target_with_cursor(
         self,

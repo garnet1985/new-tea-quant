@@ -7,8 +7,8 @@ from typing import Dict, Any, Tuple, Optional, Union
 import logging
 
 from core.modules.data_source.enums import TermType
-from core.infra.utils.date.date_utils import DateUtils
 from core.modules.data_source.service.renew.renew_common_helper import RenewCommonHelper
+from core.infra.utils import Utils
 
 
 logger = logging.getLogger(__name__)
@@ -90,16 +90,16 @@ class RollingRenewService:
         end_date = RenewCommonHelper.get_end_date(date_format, context)
         latest_completed_trading_date = context.get("latest_completed_trading_date")
         if latest_completed_trading_date:
-            period_type = DateUtils.normalize_period_type(date_format)
-            end_value = DateUtils.to_period_str(latest_completed_trading_date, period_type)
+            period_type = Utils.date.normalize_period_type(date_format)
+            end_value = Utils.date.to_period_str(latest_completed_trading_date, period_type)
         else:
-            current_date = DateUtils.today()
-            period_type = DateUtils.normalize_period_type(date_format)
-            end_value = DateUtils.to_period_str(current_date, period_type)
+            current_date = Utils.date.today()
+            period_type = Utils.date.normalize_period_type(date_format)
+            end_value = Utils.date.to_period_str(current_date, period_type)
         
         # 计算 rolling 窗口的起始日期（从 end_value 前推 rolling_periods）
-        rolling_start_value = DateUtils.sub_periods(end_value, rolling_periods, period_type)
-        rolling_start_date = DateUtils.from_period_str(rolling_start_value, period_type, is_start=True)
+        rolling_start_value = Utils.date.sub_periods(end_value, rolling_periods, period_type)
+        rolling_start_date = Utils.date.from_period_str(rolling_start_value, period_type, is_start=True)
         
         # 获取是否需要分组
         needs_stock_grouping = RenewCommonHelper.get_needs_stock_grouping(context)
@@ -111,14 +111,14 @@ class RollingRenewService:
         
         # 定义滚动模式的起始日期计算函数：判断是否在窗口内
         def _calculate_rolling_start(latest_value: str, end_date: str, date_format: str) -> str:
-            period_diff = DateUtils.diff_periods(latest_value, end_value, period_type)
+            period_diff = Utils.date.diff_periods(latest_value, end_value, period_type)
             if period_diff <= rolling_periods:
                 # 在窗口内：使用 rolling 窗口的起始日期
                 return rolling_start_date
             else:
                 # 不在窗口内：从最新日期开始追赶
-                start_period = DateUtils.add_periods(latest_value, 1, period_type)
-                return DateUtils.from_period_str(start_period, period_type, is_start=True)
+                start_period = Utils.date.add_periods(latest_value, 1, period_type)
+                return Utils.date.from_period_str(start_period, period_type, is_start=True)
         
         # 如果不需要分组，返回单个日期范围
         if latest_dates_dict is None:

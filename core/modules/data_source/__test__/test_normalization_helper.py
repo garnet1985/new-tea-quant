@@ -88,7 +88,7 @@ class TestNormalizationHelper:
 
     def test_normalize_date_field_uses_dateutils_and_updates_records(self):
         """
-        normalize_date_field 应调用 DateUtils.normalize_period_value，
+        normalize_date_field 应调用 Utils.date.normalize_period_value，
         并将返回值写回记录。
         """
         from core.modules.data_source.service.normalization import normalization_helper as nh
@@ -100,20 +100,20 @@ class TestNormalizationHelper:
         ]
 
         # patch DateUtils 以避免依赖真实实现（patch 到实际导入位置）
-        with patch("core.infra.utils.date.date_utils.DateUtils") as MockDateUtils:
-            MockDateUtils.PERIOD_DAY = "day"
+        with patch("core.infra.utils.utils.Utils.date") as MockDate:
+            MockDate.PERIOD_DAY = "day"
 
             def fake_normalize_period_type(fmt: str) -> str:
                 assert fmt in ("day", "date")
                 return "day"
 
-            MockDateUtils.normalize_period_type.side_effect = fake_normalize_period_type
+            MockDate.normalize_period_type.side_effect = fake_normalize_period_type
 
             def fake_normalize_period_value(value: Any, period: str) -> str:
                 # 简单拼接方便断言
                 return f"norm:{value}"
 
-            MockDateUtils.normalize_period_value.side_effect = fake_normalize_period_value
+            MockDate.normalize_period_value.side_effect = fake_normalize_period_value
 
             out = nh.normalize_date_field(records, field="date", target_format="day")
 

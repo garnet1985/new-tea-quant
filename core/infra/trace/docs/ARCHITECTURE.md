@@ -1,5 +1,7 @@
 # Architecture — infra.trace
 
+**版本：** `0.2.0`
+
 ## 分层
 
 ```text

@@ -1,8 +1,3 @@
-"""
-日期工具模块
+"""日期工具实现包（内部）。公开入口：``Utils.date``。"""
 
-统一导出 DateUtils 类，用户只需导入 DateUtils 即可使用所有功能。
-"""
-from core.infra.utils.date.date_utils import DateUtils
-
-__all__ = ["DateUtils"]
+__all__: list[str] = []

@@ -1,4 +1,10 @@
-"""Public contracts for infra.trace (dataclass / enum). Not re-exported from __init__."""
+"""跨模块契约：FlushBudget / TraceEvent / TraceConfig / TraceConsent。
+
+推荐::
+
+    from core.infra.trace import Trace
+    from core.infra.trace.contracts import FlushBudget
+"""
 
 from __future__ import annotations
 
@@ -100,3 +106,11 @@ class TraceEvent:
             body=dict(body),
             attempts=int(raw.get("attempts") or 0),
         )
+
+
+__all__ = [
+    "FlushBudget",
+    "TraceConsent",
+    "TraceConfig",
+    "TraceEvent",
+]

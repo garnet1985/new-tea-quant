@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from core.infra.utils.date.date_utils import DateUtils
-
 from ... import BaseDataService
+from core.infra.utils import Utils
 
 
 class StockMoneyflowService(BaseDataService):
@@ -32,8 +31,8 @@ class StockMoneyflowService(BaseDataService):
         conditions = ["id = %s"]
         params: list[Any] = [stock_id]
 
-        start = DateUtils.normalize(start_date, fmt=DateUtils.FMT_YYYYMMDD) if start_date else None
-        end = DateUtils.normalize(end_date, fmt=DateUtils.FMT_YYYYMMDD) if end_date else None
+        start = Utils.date.normalize(start_date, fmt=Utils.date.FMT_YYYYMMDD) if start_date else None
+        end = Utils.date.normalize(end_date, fmt=Utils.date.FMT_YYYYMMDD) if end_date else None
         if start:
             conditions.append("date >= %s")
             params.append(start)
@@ -67,8 +66,8 @@ class StockMoneyflowService(BaseDataService):
         model = self._get_model()
 
         # 统一日期格式
-        start = DateUtils.normalize(start_date, fmt=DateUtils.FMT_YYYYMMDD) if start_date else None
-        end = DateUtils.normalize(end_date, fmt=DateUtils.FMT_YYYYMMDD) if end_date else None
+        start = Utils.date.normalize(start_date, fmt=Utils.date.FMT_YYYYMMDD) if start_date else None
+        end = Utils.date.normalize(end_date, fmt=Utils.date.FMT_YYYYMMDD) if end_date else None
 
         # 使用 IN 子句批量查询
         placeholders = ','.join(['%s'] * len(stock_ids))

@@ -6,8 +6,8 @@ Incremental Renew Service
 from typing import Dict, Any, Tuple, Optional, Union
 import logging
 
-from core.infra.utils.date.date_utils import DateUtils
 from core.modules.data_source.service.renew.renew_common_helper import RenewCommonHelper
+from core.infra.utils import Utils
 
 
 logger = logging.getLogger(__name__)
@@ -74,9 +74,9 @@ class IncrementalRenewService:
         
         # 定义增量模式的起始日期计算函数：最新日期的后一个周期
         def _calculate_incremental_start(latest_value: str, end_date: str, date_format: str) -> str:
-            period_type = DateUtils.normalize_period_type(date_format)
-            start_period = DateUtils.add_periods(latest_value, 1, period_type)
-            return DateUtils.from_period_str(start_period, period_type, is_start=True)
+            period_type = Utils.date.normalize_period_type(date_format)
+            start_period = Utils.date.add_periods(latest_value, 1, period_type)
+            return Utils.date.from_period_str(start_period, period_type, is_start=True)
         
         # 如果不需要分组，返回单个日期范围
         if latest_dates_dict is None:

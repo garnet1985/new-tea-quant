@@ -23,8 +23,7 @@ from typing import Dict, List, Optional, TYPE_CHECKING
 from core.modules.tag.core.data_class.scenario import Scenario
 from core.modules.tag.core.engines.shared.tag_settings.tag_settings import TagSettings
 from core.modules.tag.core.enums import TagUpdateMode
-from core.infra.utils.date.date_utils import DateUtils
-
+from core.infra.utils import Utils
 if TYPE_CHECKING:
     from core.modules.data_manager.data_services.stock.sub_services.tag_service import (
         TagDataService,
@@ -174,7 +173,7 @@ class TagCalcWindowResolver:
     ) -> tuple[str, str]:
         end = str(default_end or "").strip()
         if last_calculated_end:
-            start = DateUtils.add_days(str(last_calculated_end).strip(), 1)
+            start = Utils.date.add_days(str(last_calculated_end).strip(), 1)
         else:
             start = str(default_start or "").strip()
         return start, end

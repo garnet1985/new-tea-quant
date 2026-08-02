@@ -3,23 +3,21 @@
 from __future__ import annotations
 
 import unittest
-
-from core.infra.utils.math.deterministic_random import deterministic_unit_float
-
+from core.infra.utils import Utils
 
 class TestDeterministicUnitFloat(unittest.TestCase):
     def test_same_keys_same_value(self):
-        a = deterministic_unit_float("000001.SZ", "20240102", 42)
-        b = deterministic_unit_float("000001.SZ", "20240102", 42)
+        a = Utils.math.deterministic_unit_float("000001.SZ", "20240102", 42)
+        b = Utils.math.deterministic_unit_float("000001.SZ", "20240102", 42)
         self.assertEqual(a, b)
 
     def test_different_seed_different_value(self):
-        a = deterministic_unit_float("000001.SZ", "20240102", 42)
-        b = deterministic_unit_float("000001.SZ", "20240102", 7)
+        a = Utils.math.deterministic_unit_float("000001.SZ", "20240102", 42)
+        b = Utils.math.deterministic_unit_float("000001.SZ", "20240102", 7)
         self.assertNotEqual(a, b)
 
     def test_range_unit_interval(self):
-        value = deterministic_unit_float("probe", "20240614", 1)
+        value = Utils.math.deterministic_unit_float("probe", "20240614", 1)
         self.assertGreaterEqual(value, 0.0)
         self.assertLess(value, 1.0)
 

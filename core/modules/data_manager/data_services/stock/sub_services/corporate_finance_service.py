@@ -10,8 +10,8 @@
 from typing import List, Dict, Any, Optional
 import logging
 
-from core.infra.utils.date.date_utils import DateUtils
 from ... import BaseDataService
+from core.infra.utils import Utils
 
 
 logger = logging.getLogger(__name__)
@@ -108,7 +108,7 @@ class CorporateFinanceService(BaseDataService):
         """按 ``ann_date`` 升序排列，供 data_contract ``until`` PIT 前缀切片使用。"""
         prepared: List[Dict[str, Any]] = []
         for row in rows:
-            ann_date = DateUtils.normalize(row.get("ann_date"), fmt=DateUtils.FMT_YYYYMMDD)
+            ann_date = Utils.date.normalize(row.get("ann_date"), fmt=Utils.date.FMT_YYYYMMDD)
             if not ann_date:
                 continue
             item = dict(row)
@@ -406,10 +406,10 @@ class CorporateFinanceService(BaseDataService):
         try:
             # 如果包含 '-'，先转换为 YYYYMMDD 格式
             if '-' in date_str:
-                date_str = DateUtils.yyyy_mm_dd_to_yyyymmdd(date_str)
+                date_str = Utils.date.yyyy_mm_dd_to_yyyymmdd(date_str)
             
             # 使用 DateUtils 的 date_to_quarter 方法
-            return DateUtils.date_to_quarter(date_str)
+            return Utils.date.date_to_quarter(date_str)
         except Exception as e:
             logger.warning(f"日期转季度失败: {date_str}, error={e}")
             return None

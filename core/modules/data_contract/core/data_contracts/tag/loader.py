@@ -5,9 +5,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from core.modules.data_contract.core.base.base_loader import BaseDataContractLoader
 from core.modules.data_manager import DataManager
-from core.infra.utils.date.date_utils import DateUtils
-
-
+from core.infra.utils import Utils
 class TagLoader(BaseDataContractLoader):
     """
     统一 tag 数据 loader：DataKey 恒为 `tag`，通过 scenario 区分业务场景。
@@ -84,8 +82,8 @@ class TagLoader(BaseDataContractLoader):
         scenario_name = self._resolve_scenario_name(params, tag_service=tag_service)
 
         time_field = "as_of_date"
-        start = DateUtils.normalize_str(params.get("start")) if params.get("start") is not None else None
-        end = DateUtils.normalize_str(params.get("end")) if params.get("end") is not None else None
+        start = Utils.date.normalize_str(params.get("start")) if params.get("start") is not None else None
+        end = Utils.date.normalize_str(params.get("end")) if params.get("end") is not None else None
         amount = params.get("amount")
         direction = int(params.get("direction", -1))
         include_boundary = bool(params.get("include_boundary", True))
@@ -112,7 +110,7 @@ class TagLoader(BaseDataContractLoader):
 
         # all
         if start is None and end is None and amount is None:
-            return _fetch(DateUtils.get_query_date_range_min(), DateUtils.QUERY_DATE_RANGE_MAX)
+            return _fetch(Utils.date.get_query_date_range_min(), Utils.date.QUERY_DATE_RANGE_MAX)
 
         # range
         if start is not None and end is not None:
@@ -127,13 +125,13 @@ class TagLoader(BaseDataContractLoader):
 
         normalized_amount = amount if amount is not None else 1
         if direction == -1:
-            rows = _fetch(DateUtils.get_query_date_range_min(), start)
+            rows = _fetch(Utils.date.get_query_date_range_min(), start)
             rows = self.drop_boundary_rows(
                 rows, start=None, end=start, include_boundary=include_boundary, time_field=time_field
             )
             return rows[-normalized_amount:]
 
-        rows = _fetch(start, DateUtils.QUERY_DATE_RANGE_MAX)
+        rows = _fetch(start, Utils.date.QUERY_DATE_RANGE_MAX)
         rows = self.drop_boundary_rows(
             rows, start=start, end=None, include_boundary=include_boundary, time_field=time_field
         )
@@ -170,12 +168,12 @@ class TagLoader(BaseDataContractLoader):
 
         scenario_name = self._resolve_scenario_name(params, tag_service=tag_service)
 
-        start = DateUtils.normalize_str(params.get("start")) if params.get("start") is not None else None
-        end = DateUtils.normalize_str(params.get("end")) if params.get("end") is not None else None
+        start = Utils.date.normalize_str(params.get("start")) if params.get("start") is not None else None
+        end = Utils.date.normalize_str(params.get("end")) if params.get("end") is not None else None
 
         # 统一日期格式
-        q_start = start or DateUtils.get_query_date_range_min()
-        q_end = end or DateUtils.QUERY_DATE_RANGE_MAX
+        q_start = start or Utils.date.get_query_date_range_min()
+        q_end = end or Utils.date.QUERY_DATE_RANGE_MAX
 
         # 调用 service 层的批量 API
         return tag_service.load_values_for_entities_batch(

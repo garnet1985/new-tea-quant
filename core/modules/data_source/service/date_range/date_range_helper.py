@@ -20,9 +20,7 @@ from core.modules.data_source.enums import TermType, UpdateMode
 from core.infra.project_context import ProjectContext
 
 from core.modules.data_source.service.renew.renew_common_helper import RenewCommonHelper
-from core.infra.utils.date.date_utils import DateUtils
-
-
+from core.infra.utils import Utils
 logger = logging.getLogger(__name__)
 
 
@@ -34,14 +32,14 @@ def normalize_date_value(date_value: Any) -> Optional[str]:
 
     try:
         if isinstance(date_value, dt):
-            return DateUtils.datetime_to_format(date_value)
+            return Utils.date.datetime_to_format(date_value)
         if isinstance(date_value, str):
             s = str(date_value).strip()
-            normalized = DateUtils.normalize_str(s)
+            normalized = Utils.date.normalize_str(s)
             if normalized:
                 return normalized
             # 处理 DB 返回的 datetime 字符串（如 "2026-02-08 20:39:24"）
-            return DateUtils.str_to_format(s, DateUtils.FMT_YYYYMMDD, DateUtils.FMT_DATETIME)
+            return Utils.date.str_to_format(s, Utils.date.FMT_YYYYMMDD, Utils.date.FMT_DATETIME)
         # 兜底：粗暴去掉分隔符、截取前 8 位
         return str(date_value).replace("-", "").replace(" ", "").replace(":", "")[:8]
     except Exception as e:  # pragma: no cover - 防御性日志
@@ -176,9 +174,9 @@ def calc_last_update_based_on_renew_mode(
         if not last_update:
             return default_start_date
         try:
-            period_type = DateUtils.normalize_period_type(date_format)
-            start_period = DateUtils.add_periods(last_update, 1, period_type)
-            return DateUtils.from_period_str(start_period, period_type, is_start=True)
+            period_type = Utils.date.normalize_period_type(date_format)
+            start_period = Utils.date.add_periods(last_update, 1, period_type)
+            return Utils.date.from_period_str(start_period, period_type, is_start=True)
         except Exception:
             return default_start_date
 
@@ -192,9 +190,9 @@ def calc_last_update_based_on_renew_mode(
             if not last_update:
                 return default_start_date
             try:
-                period_type = DateUtils.normalize_period_type(date_format)
-                start_period = DateUtils.add_periods(last_update, 1, period_type)
-                return DateUtils.from_period_str(start_period, period_type, is_start=True)
+                period_type = Utils.date.normalize_period_type(date_format)
+                start_period = Utils.date.add_periods(last_update, 1, period_type)
+                return Utils.date.from_period_str(start_period, period_type, is_start=True)
             except Exception:
                 return default_start_date
 
@@ -234,15 +232,15 @@ def calc_last_update_based_on_renew_mode(
                 RenewCommonHelper.resolve_latest_completed_trading_date(data_manager)
             )
 
-        period_type = DateUtils.normalize_period_type(date_format)
+        period_type = Utils.date.normalize_period_type(date_format)
 
         if latest_completed_trading_date:
-            end_period = DateUtils.to_period_str(latest_completed_trading_date, period_type)
+            end_period = Utils.date.to_period_str(latest_completed_trading_date, period_type)
         else:
             end_period = ""
 
-        rolling_start_period = DateUtils.sub_periods(end_period, rolling_periods, period_type)
-        rolling_start_date = DateUtils.from_period_str(
+        rolling_start_period = Utils.date.sub_periods(end_period, rolling_periods, period_type)
+        rolling_start_date = Utils.date.from_period_str(
             rolling_start_period, period_type, is_start=True
         )
 
@@ -251,7 +249,7 @@ def calc_last_update_based_on_renew_mode(
             return default_start_date
 
         try:
-            period_diff = DateUtils.diff_periods(last_update, end_period, period_type)
+            period_diff = Utils.date.diff_periods(last_update, end_period, period_type)
         except Exception:
             return default_start_date
 
@@ -261,8 +259,8 @@ def calc_last_update_based_on_renew_mode(
 
         # 落后太多：从 last_update 的后一个周期开始追
         try:
-            start_period = DateUtils.add_periods(last_update, 1, period_type)
-            return DateUtils.from_period_str(start_period, period_type, is_start=True)
+            start_period = Utils.date.add_periods(last_update, 1, period_type)
+            return Utils.date.from_period_str(start_period, period_type, is_start=True)
         except Exception:
             return default_start_date
 
@@ -270,9 +268,9 @@ def calc_last_update_based_on_renew_mode(
     if not last_update:
         return default_start_date
     try:
-        period_type = DateUtils.normalize_period_type(date_format)
-        start_period = DateUtils.add_periods(last_update, 1, period_type)
-        return DateUtils.from_period_str(start_period, period_type, is_start=True)
+        period_type = Utils.date.normalize_period_type(date_format)
+        start_period = Utils.date.add_periods(last_update, 1, period_type)
+        return Utils.date.from_period_str(start_period, period_type, is_start=True)
     except Exception:
         return default_start_date
 
@@ -381,7 +379,7 @@ def compute_entity_date_ranges(
         # 第一层检查：更新频率（renew_if_over_days）
         # 计算距离上次更新的天数差
         try:
-            days_diff = DateUtils.diff_days(last_update, latest_completed_trading_date)
+            days_diff = Utils.date.diff_days(last_update, latest_completed_trading_date)
         except Exception:
             # 日期解析失败，保守策略：更新
             return True
@@ -406,9 +404,9 @@ def compute_entity_date_ranges(
             if not last_update:
                 return default_start_date
             try:
-                period_type = DateUtils.normalize_period_type(date_format)
-                start_period = DateUtils.add_periods(last_update, 1, period_type)
-                return DateUtils.from_period_str(start_period, period_type, is_start=True)
+                period_type = Utils.date.normalize_period_type(date_format)
+                start_period = Utils.date.add_periods(last_update, 1, period_type)
+                return Utils.date.from_period_str(start_period, period_type, is_start=True)
             except Exception:
                 # 回退到默认起点
                 return default_start_date
@@ -452,16 +450,16 @@ def compute_entity_date_ranges(
             rolling_periods = _convert_rolling_length_to_periods()
 
             # 计算 end_period / rolling_start
-            period_type = DateUtils.normalize_period_type(date_format)
+            period_type = Utils.date.normalize_period_type(date_format)
 
             if latest_completed_trading_date:
-                end_period = DateUtils.to_period_str(latest_completed_trading_date, period_type)
+                end_period = Utils.date.to_period_str(latest_completed_trading_date, period_type)
             else:
-                current_date = DateUtils.today()
-                end_period = DateUtils.to_period_str(current_date, period_type)
+                current_date = Utils.date.today()
+                end_period = Utils.date.to_period_str(current_date, period_type)
 
-            rolling_start_period = DateUtils.sub_periods(end_period, rolling_periods, period_type)
-            rolling_start_date = DateUtils.from_period_str(
+            rolling_start_period = Utils.date.sub_periods(end_period, rolling_periods, period_type)
+            rolling_start_date = Utils.date.from_period_str(
                 rolling_start_period, period_type, is_start=True
             )
 
@@ -470,7 +468,7 @@ def compute_entity_date_ranges(
                 return default_start_date
 
             try:
-                period_diff = DateUtils.diff_periods(last_update, end_period, period_type)
+                period_diff = Utils.date.diff_periods(last_update, end_period, period_type)
             except Exception:
                 # 日期解析失败，保守策略：从默认起点
                 return default_start_date
@@ -481,8 +479,8 @@ def compute_entity_date_ranges(
 
             # 落后太多：从 last_update 的后一个周期开始追
             try:
-                start_period = DateUtils.add_periods(last_update, 1, period_type)
-                return DateUtils.from_period_str(start_period, period_type, is_start=True)
+                start_period = Utils.date.add_periods(last_update, 1, period_type)
+                return Utils.date.from_period_str(start_period, period_type, is_start=True)
             except Exception:
                 return default_start_date
 
@@ -490,9 +488,9 @@ def compute_entity_date_ranges(
         if not last_update:
             return default_start_date
         try:
-            period_type = DateUtils.normalize_period_type(date_format)
-            start_period = DateUtils.add_periods(last_update, 1, period_type)
-            return DateUtils.from_period_str(start_period, period_type, is_start=True)
+            period_type = Utils.date.normalize_period_type(date_format)
+            start_period = Utils.date.add_periods(last_update, 1, period_type)
+            return Utils.date.from_period_str(start_period, period_type, is_start=True)
         except Exception:
             return default_start_date
 
@@ -684,7 +682,7 @@ def check_renew_if_over_days(
                 return None
 
             # ========== 步骤3：对比 - 计算天数差 ==========
-            days_diff = DateUtils.diff_days(latest_date_str, latest_completed_trading_date)
+            days_diff = Utils.date.diff_days(latest_date_str, latest_completed_trading_date)
 
             if days_diff >= threshold_days:
                 # 超过 threshold，返回 None（不过滤，需要更新）
@@ -723,7 +721,7 @@ def check_renew_if_over_days(
 
         # 计算天数差（renew_if_over_days 检查：更新频率）
         try:
-            days_diff = DateUtils.diff_days(latest_date_str, latest_completed_trading_date)
+            days_diff = Utils.date.diff_days(latest_date_str, latest_completed_trading_date)
 
             if days_diff >= threshold_days:
                 # 超过 threshold，进入 candidates

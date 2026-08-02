@@ -17,8 +17,6 @@ from dataclasses import dataclass, field
 from typing import Any, ClassVar, Dict, FrozenSet, List, Tuple
 
 from core.modules.backtest_engine.core.shared.modes import BacktestMode
-from core.infra.utils.utils import Utils
-
 from .meta_settings import MetaSettings
 from .data_settings import DataSettings
 from .sampling_settings import SamplingSettings
@@ -28,6 +26,7 @@ from .simulation_settings import BacktestPeriod, SimulationSettings
 from .portfolio_settings import PortfolioSettings
 from .scanner_settings import ScannerSettings
 from .validation_report import ValidationReport
+from core.infra.utils import Utils
 
 
 @dataclass
@@ -83,7 +82,7 @@ class StrategySettings:
 
     @classmethod
     def diff(cls, disk_settings: Dict[str, Any], user_settings: Dict[str, Any]) -> Dict[str, Any]:
-        return Utils.deep_diff(disk_settings, user_settings)
+        return Utils.types.deep_diff(disk_settings, user_settings)
 
     @classmethod
     def _filter_fingerprint_fields(cls, diff: Dict[str, Any]) -> Dict[str, Any]:
@@ -109,7 +108,7 @@ class StrategySettings:
     ) -> Dict[str, Any]:
         if not settings_diff:
             return copy.deepcopy(disk_settings)
-        return Utils.deep_merge(copy.deepcopy(disk_settings), settings_diff)
+        return Utils.types.deep_merge(copy.deepcopy(disk_settings), settings_diff)
 
     @classmethod
     def calculate_effective_settings(

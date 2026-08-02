@@ -5,9 +5,7 @@ from typing import Any, List, Mapping, Optional, Sequence
 
 from core.modules.data_contract.core.base.base_loader import BaseDataContractLoader
 from core.modules.data_manager import DataManager
-from core.infra.utils.date.date_utils import DateUtils
-
-
+from core.infra.utils import Utils
 class StockKlineLoader(BaseDataContractLoader):
     """Unified loader for stock kline (qfq/nfq)."""
 
@@ -43,8 +41,8 @@ class StockKlineLoader(BaseDataContractLoader):
         term = str(params.get("term", "daily"))
         adjust = str(params.get("adjust", "qfq")).lower()
 
-        start = DateUtils.normalize_str(params.get("start")) if params.get("start") is not None else None
-        end = DateUtils.normalize_str(params.get("end")) if params.get("end") is not None else None
+        start = Utils.date.normalize_str(params.get("start")) if params.get("start") is not None else None
+        end = Utils.date.normalize_str(params.get("end")) if params.get("end") is not None else None
         amount = params.get("amount")
         direction = int(params.get("direction", -1))
         include_boundary = bool(params.get("include_boundary", True))
@@ -127,8 +125,8 @@ class StockKlineLoader(BaseDataContractLoader):
 
         term = str(params.get("term", "daily"))
         adjust = str(params.get("adjust", "qfq")).lower()
-        start = DateUtils.normalize_str(params.get("start")) if params.get("start") is not None else None
-        end = DateUtils.normalize_str(params.get("end")) if params.get("end") is not None else None
+        start = Utils.date.normalize_str(params.get("start")) if params.get("start") is not None else None
+        end = Utils.date.normalize_str(params.get("end")) if params.get("end") is not None else None
         include_boundary = bool(params.get("include_boundary", True))
 
         if adjust not in ("qfq", "nfq", "none"):

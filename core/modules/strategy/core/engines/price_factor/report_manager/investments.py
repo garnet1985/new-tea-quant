@@ -10,10 +10,10 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Sequence
 
+from core.infra.utils import Utils
 from core.modules.strategy.core.engines.price_factor.report_manager.report_consts import (
     ReportPaths,
 )
-from core.infra.utils.io.csv_io import read_csv_to_dicts, write_dicts_to_csv
 
 
 @dataclass
@@ -113,7 +113,7 @@ class EntityInvestments:
         if not payloads:
             # 写表头，便于契约固定
             payloads = [{name: "" for name in PriceInvestmentRow.COLUMN_ORDER}]
-        write_dicts_to_csv(path, payloads, preferred_order=PriceInvestmentRow.COLUMN_ORDER)
+        Utils.io.write_dicts_to_csv(path, payloads, preferred_order=PriceInvestmentRow.COLUMN_ORDER)
         return path
 
     @classmethod
@@ -121,7 +121,7 @@ class EntityInvestments:
         path = cls.path(output_dir, entity_id)
         if not path.is_file():
             return []
-        raw_rows = read_csv_to_dicts(path)
+        raw_rows = Utils.io.read_csv_to_dicts(path)
         out: List[PriceInvestmentRow] = []
         for raw in raw_rows:
             row = PriceInvestmentRow.from_dict(raw)

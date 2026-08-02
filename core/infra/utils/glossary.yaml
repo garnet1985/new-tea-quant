@@ -1,0 +1,17 @@
+# glossary — infra.utils
+# Version: 0.2.0
+
+Utils:
+  description: "模块 Facade（date / types / io / math）"
+  recommended_terms: [Utils, Facade]
+  forbidden_terms: [DateUtils, TypeUtils]
+  example: |
+    from core.infra.utils import Utils
+    Utils.date.today()
+
+period_type:
+  description: "日/周/月/季/年周期类型字符串"
+  recommended_terms: [PERIOD_DAY, PERIOD_MONTH, period_type]
+  forbidden_terms: []
+  example: |
+    from core.infra.utils.contracts import PERIOD_DAY

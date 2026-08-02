@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional, Sequence, Tuple
 
+from core.infra.utils import Utils
 from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
     GOAL_ACHIEVEMENTS_SUFFIX,
     STOCK_INVESTMENTS_SUFFIX,
@@ -19,7 +20,6 @@ from core.modules.strategy.core.engines.shared.services.simulation_output.file_n
 from core.modules.strategy.core.engines.shared.services.simulation_output.paths import (
     ArtifactPaths,
 )
-from core.infra.utils.io.csv_io import read_csv_to_dicts, write_dicts_to_csv
 
 
 class _RowCoerce:
@@ -435,7 +435,7 @@ class EntityInvestmentCsv:
         path = cls.file_path(output_dir, entity_id)
         return cls(
             entity_id=str(entity_id or "").strip(),
-            rows=[InvestmentRow.from_csv_row(row) for row in read_csv_to_dicts(path)],
+            rows=[InvestmentRow.from_csv_row(row) for row in Utils.io.read_csv_to_dicts(path)],
         )
 
     @classmethod
@@ -465,9 +465,9 @@ class EntityInvestmentCsv:
         path.parent.mkdir(parents=True, exist_ok=True)
         rows = [row.to_csv_row() for row in self.rows]
         if append and path.is_file():
-            existing = read_csv_to_dicts(path)
+            existing = Utils.io.read_csv_to_dicts(path)
             rows = existing + rows
-        write_dicts_to_csv(path, rows, preferred_order=list(self.COLUMNS))
+        Utils.io.write_dicts_to_csv(path, rows, preferred_order=list(self.COLUMNS))
         return path
 
 
@@ -520,7 +520,7 @@ class GoalAchievementCsv:
         path = cls.file_path(output_dir, entity_id)
         return cls(
             entity_id=str(entity_id or "").strip(),
-            rows=[GoalAchievementRow.from_csv_row(row) for row in read_csv_to_dicts(path)],
+            rows=[GoalAchievementRow.from_csv_row(row) for row in Utils.io.read_csv_to_dicts(path)],
         )
 
     @classmethod
@@ -532,9 +532,9 @@ class GoalAchievementCsv:
         path.parent.mkdir(parents=True, exist_ok=True)
         rows = [row.to_csv_row() for row in self.rows]
         if append and path.is_file():
-            existing = read_csv_to_dicts(path)
+            existing = Utils.io.read_csv_to_dicts(path)
             rows = existing + rows
-        write_dicts_to_csv(path, rows, preferred_order=list(self.COLUMNS))
+        Utils.io.write_dicts_to_csv(path, rows, preferred_order=list(self.COLUMNS))
         return path
 
 

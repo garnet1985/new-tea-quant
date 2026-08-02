@@ -1,12 +1,12 @@
 # Indicator 架构文档
 
-**版本：** `0.2.1`
+**版本：** `0.3.0`
 
 ---
 
 ## 模块介绍
 
-`modules.indicator` 仅暴露 **`IndicatorService`**：类方法集合，**延迟导入** **`pandas_ta_classic`**，将业务侧 **K 线字典列表** 转为 **OHLCV DataFrame**，调用 TA 库函数后把结果序列化回 **Python 原生列表**，供策略与标签在无 DataFrame 的代码路径上使用。
+`modules.indicator` 仅暴露 **`Indicator`**：类方法集合，**延迟导入** **`pandas_ta_classic`**，将业务侧 **K 线字典列表** 转为 **OHLCV DataFrame**，调用 TA 库函数后把结果序列化回 **Python 原生列表**，供策略与标签在无 DataFrame 的代码路径上使用。
 
 ---
 
@@ -20,7 +20,7 @@
 
 ## 工作拆分
 
-- **`indicator_service.py`**：`_init_ta`、`_klines_to_dataframe`、`_result_to_list`、`calculate`、便捷封装、`list_indicators`、`get_indicator_help`。
+- **`indicator.py`**：`_init_ta`、`_klines_to_dataframe`、`_result_to_list`、`calculate`、便捷封装、`list_indicators`、`get_indicator_help`。
 
 ---
 

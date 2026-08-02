@@ -1,9 +1,17 @@
+# 模块元数据
 name: infra.cmd_layout
-version: 0.3.0
+version: "0.4.1"
 compatible_core_versions: ">=0.4.0"
-description: "CLI 布局辅助：为 strategy report present 提供跨平台标题、分割线、图标与图表等输出组件。"
+description: "命令行布局助手：标题、分割线、跨平台图标与 ASCII 条形图；门面 CmdLayout。"
 dependencies: []
 changelog:
+  - version: "0.4.1"
+    changes:
+      - 公开 API 状态按 core 0.x 规则改为最高 beta（禁止 stable）
+  - version: "0.4.0"
+    changes:
+      - 文档对齐 module-doc-standard：根目录 API.md / README / QUICKSTART / docs；移除 api.yaml
+      - __init__ 仅导出 CmdLayout；IconService / i 不再从包根导出（改走 CmdLayout.icon）
   - version: "0.3.0"
     changes:
       - 将 IconService 收入 cmd_layout.icon（CmdLayout.icon.get / i）

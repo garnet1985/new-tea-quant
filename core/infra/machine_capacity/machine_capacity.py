@@ -1,10 +1,14 @@
-"""机器 CPU / 内存容量探测（infra.machine_capacity）。"""
+"""MachineInfo 门面（Facade）— infra.machine_capacity 对外统一入口类。
+
+容量快照类型见 ``contracts.MachineCapacity``。
+"""
 from __future__ import annotations
 
 import logging
 import multiprocessing as mp
-from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
+
+from core.infra.machine_capacity.contracts import MachineCapacity
 
 logger = logging.getLogger(__name__)
 
@@ -13,18 +17,8 @@ _FALLBACK_MEMORY_FLOOR_MB: float = 2048.0
 _FALLBACK_BUDGET_MB: float = 4096.0
 
 
-@dataclass(frozen=True)
-class MachineCapacity:
-    """机器容量信息。"""
-
-    cpu_count: int
-    memory_budget_mb: float
-    memory_floor_mb: float
-    reserve_cores: int
-
-
 class MachineInfo:
-    """机器信息获取（面向对象方式）。"""
+    """New Tea Quant（NTQ）机器容量门面类（Facade）。"""
 
     @staticmethod
     def get_capacity(performance: Dict[str, Any]) -> MachineCapacity:
@@ -140,4 +134,4 @@ class MachineInfo:
             return None, None
 
 
-__all__ = ["MachineCapacity", "MachineInfo"]
+__all__ = ["MachineInfo"]

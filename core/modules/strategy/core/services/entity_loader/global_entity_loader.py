@@ -15,7 +15,8 @@ import logging
 import pickle
 from typing import Any, Dict, List, Optional
 
-from core.modules.data_contract import ContractIssuer, DATA_KEY
+from core.modules.data_contract import ContractIssuer
+from core.modules.data_contract.contracts import DATA_KEY
 from core.modules.strategy.core.services.entity_loader.strategy_data_resolver import (
     SYSTEM_GLOBAL_DATA_KEYS,
     DataDeclaration,
@@ -262,7 +263,7 @@ class GlobalEntityCache:
 
     def get_trade_calendar(self) -> List[Any]:
         """返回已加载的 trade.calendar 行（主进程规划 timeline 用）。"""
-        from core.modules.data_contract import DATA_KEY
+        from core.modules.data_contract.contracts import DATA_KEY
 
         rows = self._global_data.get(DATA_KEY.TRADE_CALENDAR)
         return list(rows or [])

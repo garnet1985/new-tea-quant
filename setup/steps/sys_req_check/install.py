@@ -15,18 +15,18 @@ from setup.setup import NewTeaQuantSetup
 
 NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
 
-from core.infra.cmd_layout import i
+from core.infra.cmd_layout import CmdLayout
 from core.system import python_minimum
 
 
 def main() -> None:
     min_ver = python_minimum()
     step_result = 0
-    step_icon = i("failed")
+    step_icon = CmdLayout.icon.i("failed")
 
     if sys.version_info >= min_ver:
         step_result = 1
-        step_icon = i("success")
+        step_icon = CmdLayout.icon.i("success")
 
     print(
         f"Python version: {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro} - {step_icon}",

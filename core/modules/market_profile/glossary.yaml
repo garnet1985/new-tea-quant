@@ -1,0 +1,17 @@
+# glossary — modules.market_profile
+# Version: 0.2.0
+
+MarketRulesProxy:
+  description: "模块 Facade：挂载与查询市场制度规则"
+  recommended_terms: [MarketRulesProxy, Facade]
+  forbidden_terms: [get_market_profile]
+  example: |
+    from core.modules.market_profile import MarketRulesProxy
+    MarketRulesProxy().get_market("china_a_stock")
+
+MarketBaseRules:
+  description: "单市场规则实例基类"
+  recommended_terms: [MarketBaseRules]
+  forbidden_terms: []
+  example: |
+    from core.modules.market_profile.contracts import MarketBaseRules

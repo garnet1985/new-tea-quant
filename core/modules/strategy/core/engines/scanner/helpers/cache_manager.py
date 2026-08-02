@@ -17,7 +17,7 @@ from typing import List
 
 from core.infra.project_context import ProjectContext
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
-from core.infra.utils.io.csv_io import write_dicts_to_csv
+from core.infra.utils import Utils
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +78,7 @@ class ScanCacheManager:
             rows.append(row)
         if rows:
             all_keys = {k for row in rows for k in row.keys()}
-            write_dicts_to_csv(csv_path, rows, preferred_order=sorted(all_keys))
+            Utils.io.write_dicts_to_csv(csv_path, rows, preferred_order=sorted(all_keys))
 
     def load_opportunities(self, date: str) -> List[Opportunity]:
         csv_path = self.opportunities_csv_path(date)

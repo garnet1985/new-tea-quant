@@ -1,5 +1,14 @@
-"""infra.machine_capacity — CPU / 内存容量探测。"""
+"""Machine Capacity（``infra.machine_capacity``）— CPU / 内存容量探测。
 
-from .machine_capacity import MachineCapacity, MachineInfo
+公开门面::
 
-__all__ = ["MachineCapacity", "MachineInfo"]
+    from core.infra.machine_capacity import MachineInfo
+
+容量快照类型::
+
+    from core.infra.machine_capacity.contracts import MachineCapacity
+"""
+
+from .machine_capacity import MachineInfo
+
+__all__ = ["MachineInfo"]

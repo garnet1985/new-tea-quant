@@ -50,6 +50,15 @@ class TestCliApi(unittest.TestCase):
         self.assertTrue(Cli.shared.is_help_argv(["-h"]))
         self.assertFalse(Cli.shared.is_help_argv([]))
 
+    def test_shared_aliases_for(self) -> None:
+        from core.infra.cli import Cli
+
+        aliases = Cli.shared.aliases_for(
+            {"sp": "strategy_price_factor", "spf": "strategy_price_factor"},
+            "strategy_price_factor",
+        )
+        self.assertEqual(aliases, ["sp", "spf"])
+
 
 if __name__ == "__main__":
     unittest.main()

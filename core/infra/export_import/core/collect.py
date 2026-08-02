@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List
 
 from .runtime_excludes import should_skip_dir, should_skip_file
-from ..types import ArtifactSpec, CollectedFile
+from ..contracts import ArtifactSpec, CollectedFile
 
 
 def collect_artifact_files(spec: ArtifactSpec) -> List[CollectedFile]:

@@ -1,0 +1,66 @@
+# Database 术语表
+# Version: 0.5.0
+
+terms:
+  NTQ:
+    definition: "New Tea Quant 的简称，即本项目 / 框架名称。"
+    aliases:
+      - "New Tea Quant"
+    avoid: []
+
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面类是 Db；公开行为一律挂在 Db 命名空间上。"
+    aliases:
+      - "门面"
+      - "门面类"
+    avoid:
+      - "导出游离函数"
+      - "长期把 core.infra.db.core.* 深路径当公开 API"
+
+  Db:
+    definition: "本模块门面类；挂载 manager / migration / engine / duckdb / sql / rows 命名空间。"
+    aliases: []
+    avoid: []
+
+  DatabaseManager:
+    definition: "按配置挂载一个 backend Engine 的运行时管理器；从 contracts 导入。"
+    aliases: []
+    avoid:
+      - "from core.infra.db import DatabaseManager  # 已移除；用 contracts"
+
+  Engine:
+    definition: "某一数据库后端的实现包（mysql / pgsql / duckdb），含 connector、table_operator 等。"
+    aliases:
+      - "后端引擎"
+    avoid: []
+
+  DbBaseModel:
+    definition: "单表 CRUD / 导入导出的业务表模型基类；定义在 contracts，实现在 core/table_queriers。"
+    aliases: []
+    avoid: []
+
+  Field:
+    definition: "跨后端的列类型语义定义；各 engine 的 schema_parser 再生成方言 DDL。"
+    aliases: []
+    avoid: []
+
+  storage_domain:
+    definition: "DuckDB 多文件存储域（如 data / tag 等）；由 StorageRegistry 把表路由到域。"
+    aliases:
+      - "存储域"
+    avoid: []
+
+  schema_migration:
+    definition: "对比期望 schema 与快照/库，生成并执行 DDL plan 的升级过程。"
+    aliases:
+      - "结构迁移"
+    avoid:
+      - "把 updater 编排当成 db 模块职责"
+
+  process_pool_scope:
+    definition: "多进程 DuckDB worker 池期间，主进程释放/恢复数据库句柄的协作逻辑；公开入口为 Db.duckdb.worker_pool。"
+    aliases:
+      - "worker pool scope"
+      - "Db.duckdb.worker_pool"
+    avoid:
+      - "直接 import process_pool_scope 模块级函数"

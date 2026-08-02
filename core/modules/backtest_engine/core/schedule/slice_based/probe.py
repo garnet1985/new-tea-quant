@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
-from core.infra.machine_capacity import MachineCapacity
+from core.infra.machine_capacity.contracts import MachineCapacity
 
 logger = logging.getLogger(__name__)
 

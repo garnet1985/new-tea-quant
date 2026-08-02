@@ -1,27 +1,42 @@
-# Glossary - infra.machine_capacity
-module: infra.machine_capacity
-version: 0.1.0
+# Machine Capacity 术语表
+# Version: 0.2.0
 
----
+terms:
+  NTQ:
+    definition: "New Tea Quant 的简称。"
+    aliases:
+      - "New Tea Quant"
+    avoid: []
 
-recommended_terms:
-  MachineCapacity:
-    meaning: "机器容量快照：CPU、内存预算、内存底线、预留核"
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面类是 MachineInfo。"
+    aliases:
+      - "门面"
+    avoid:
+      - "把 MachineInfo 再 export 到业务模块空壳"
+
   MachineInfo:
-    meaning: "容量 Facade：从 performance 解析 MachineCapacity 与 worker 可用度"
-  memory_budget_mb:
-    meaning: "可分配给 worker 池的内存预算（MB）；可为 auto"
-  memory_floor_mb:
-    meaning: "机器必须保留的空闲内存底线（MB），不参与 worker 预算"
-  reserve_cores:
-    meaning: "为系统/主进程预留的逻辑核数"
-  worker_memory_fraction:
-    meaning: "在 (available − floor) 上再取的可用比例，默认 0.85"
-  max_parallel_jobs_cap:
-    meaning: "并行 job 数上限；None 表示不封顶"
+    definition: "本模块门面类；从 performance 解析容量与可用 worker。"
+    aliases: []
+    avoid: []
 
-forbidden_terms:
-  - term: "WorkerProbe（本模块）"
-    reason: "并行度 auto 解析在 BacktestEngine.entity_based.probe；本模块只提供容量原语"
-  - term: "把 MachineInfo 再 export 到业务模块空壳"
-    reason: "调用方直接 from core.infra.machine_capacity import …"
+  MachineCapacity:
+    definition: "机器容量快照（冻结 dataclass）；从 contracts 导入。"
+    aliases: []
+    avoid:
+      - "from core.infra.machine_capacity import MachineCapacity"
+
+  memory_budget_mb:
+    definition: "可分配给 worker 池的内存预算（MB）；可为 auto。"
+    aliases: []
+    avoid: []
+
+  memory_floor_mb:
+    definition: "机器必须保留的空闲内存底线（MB），不参与 worker 预算。"
+    aliases: []
+    avoid: []
+
+  reserve_cores:
+    definition: "为系统/主进程预留的逻辑核数。"
+    aliases: []
+    avoid: []

@@ -10,7 +10,8 @@ import math
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Callable
 
-from core.infra.machine_capacity import MachineCapacity, MachineInfo
+from core.infra.machine_capacity import MachineInfo
+from core.infra.machine_capacity.contracts import MachineCapacity
 from core.modules.backtest_engine.core.performance.worker_profile.dispatch_settings import (
     clamp_entities_per_job,
     default_auto_entities_per_job,

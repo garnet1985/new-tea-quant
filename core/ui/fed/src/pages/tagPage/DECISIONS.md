@@ -104,7 +104,7 @@ Setup 完成 `import_data` 后，用户可在 Tag 列表触发计算；与 setup
 ## 附录：`sys_tag_scenario.updated_at` 在代码里如何更新
 
 1. **表定义**（`core/tables/tag/tag_scenario/schema.py`）：MySQL 风格 `default: CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`。
-2. **DuckDB 建表**（`core/infra/db/engines/_shared/fields/base.py`）：`ON UPDATE` 被去掉，仅剩 insert 默认值 → **无自动 on-update**。
+2. **DuckDB 建表**（`core/infra/db/core/engines/shared/fields/base.py`）：`ON UPDATE` 被去掉，仅剩 insert 默认值 → **无自动 on-update**。
 3. **写入路径**（`ScenarioModel._ensure_scenario_metadata` → `tag_service`）：
    - 首次：`save_scenario` → `upsert_many`
    - 已存在且 `recompute=True`：删旧 scenario 再 `save_scenario`

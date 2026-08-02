@@ -7,8 +7,8 @@ from typing import Dict, Any, Tuple, Optional
 import logging
 
 from core.modules.data_source.enums import TermType
-from core.infra.utils.date.date_utils import DateUtils
 from core.infra.project_context import ProjectContext
+from core.infra.utils import Utils
 
 logger = logging.getLogger(__name__)
 
@@ -121,8 +121,8 @@ class RenewCommonHelper:
             if date_format == "day":
                 end = latest_completed_trading_date
             else:
-                period_type = DateUtils.normalize_period_type(date_format)
-                end = DateUtils.to_period_str(latest_completed_trading_date, period_type)
+                period_type = Utils.date.normalize_period_type(date_format)
+                end = Utils.date.to_period_str(latest_completed_trading_date, period_type)
         else:
             end = ""
         return end

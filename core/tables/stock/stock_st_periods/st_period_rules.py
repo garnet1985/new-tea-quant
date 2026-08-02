@@ -4,8 +4,7 @@ ST / *ST 简称解析与时段判定（与数据源无关，供 core 与 handler
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Sequence, Tuple
-
-from core.infra.utils.date.date_utils import DateUtils
+from core.infra.utils import Utils
 
 ST_LEVEL_STAR_ST = "STAR_ST"
 ST_LEVEL_S_STAR_ST = "S_STAR_ST"
@@ -129,7 +128,7 @@ def consolidate_st_periods(periods: List[Dict[str, Any]]) -> List[Dict[str, Any]
             next_start = normalize_yyyymmdd(ordered[i + 1].get("start_date"))
             if next_start and start and next_start > start:
                 if not end or end >= next_start:
-                    period["end_date"] = DateUtils.sub_days(next_start, 1)
+                    period["end_date"] = Utils.date.sub_days(next_start, 1)
         elif not end:
             period["end_date"] = None
         else:
@@ -160,7 +159,7 @@ def _merge_interval_bounds(
         prev_start, prev_end = merged[-1]
         if prev_end is None:
             continue
-        if start <= DateUtils.add_days(prev_end, 1):
+        if start <= Utils.date.add_days(prev_end, 1):
             if end is None:
                 merged[-1] = (prev_start, None)
             else:

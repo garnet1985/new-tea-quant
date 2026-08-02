@@ -12,10 +12,10 @@ import math
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.infra.utils.date.date_utils import DateUtils
 from core.modules.data_manager import DataManager
-from core.modules.indicator import IndicatorService
+from core.modules.indicator import Indicator
 from core.modules.strategy.core.enums import WorkbenchStep
+from core.infra.utils import Utils
 from core.modules.strategy.core.engines.price_factor.report_manager.investments import (
     EntityInvestments,
     PriceInvestmentRow,
@@ -384,7 +384,7 @@ class WorkbenchStockDetail:
         markers: List[Dict[str, Any]] = []
         seen: set[str] = set()
         for inv in investments:
-            trigger = DateUtils.normalize_str(str(inv.trigger_date or "")) or ""
+            trigger = Utils.date.normalize_str(str(inv.trigger_date or "")) or ""
             if not trigger or trigger in seen:
                 continue
             seen.add(trigger)
@@ -424,7 +424,7 @@ class WorkbenchStockDetail:
         by_date = cls._candle_index_by_date(candles)
         markers: List[Dict[str, Any]] = []
         for inv in investments:
-            enter = DateUtils.normalize_str(str(inv.enter_date or "")) or ""
+            enter = Utils.date.normalize_str(str(inv.enter_date or "")) or ""
             if enter and enter in by_date:
                 bar = by_date[enter]
                 markers.append(
@@ -442,7 +442,7 @@ class WorkbenchStockDetail:
                         },
                     }
                 )
-            exit_d = DateUtils.normalize_str(str(inv.exit_date or "")) or ""
+            exit_d = Utils.date.normalize_str(str(inv.exit_date or "")) or ""
             if exit_d and exit_d in by_date:
                 bar = by_date[exit_d]
                 is_win = cls._price_row_is_win(inv)
@@ -548,14 +548,14 @@ class WorkbenchStockDetail:
     ) -> Dict[str, Dict[str, Any]]:
         out: Dict[str, Dict[str, Any]] = {}
         for row in candles:
-            key = DateUtils.normalize_str(str(row.get("date") or "")) or ""
+            key = Utils.date.normalize_str(str(row.get("date") or "")) or ""
             if key:
                 out[key] = row
         return out
 
     @classmethod
     def _api_candle_row(cls, row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        date_key = DateUtils.normalize_str(str(row.get("date") or ""))
+        date_key = Utils.date.normalize_str(str(row.get("date") or ""))
         if not date_key:
             return None
         open_ = cls._round_price(cls._float_or_none(row.get("open")))
@@ -610,7 +610,7 @@ class WorkbenchStockDetail:
         series_out: List[Dict[str, Any]] = []
         color_idx = 0
         try:
-            batch = IndicatorService.compute_batch(klines, indicators_cfg)
+            batch = Indicator.compute_batch(klines, indicators_cfg)
         except Exception:
             logger.exception("单股指标批量计算失败")
             return []

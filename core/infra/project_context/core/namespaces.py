@@ -430,6 +430,15 @@ class ConfigNamespace:
         from .config_manager import ConfigManager
         return ConfigManager.load_benchmark_stock_index_list()
 
+    @staticmethod
+    def merge_market_profile_dicts(
+        core: Dict[str, Any],
+        user: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """合并市场 profile 配置（供 discovery.load_overridable_config 的 merge_fn）。"""
+        from .config_merge_policies import ConfigMergePolicies
+        return ConfigMergePolicies.merge_market_profile_dicts(core, user)
+
 
 class DiscoveryNamespace:
     """配置发现命名空间"""

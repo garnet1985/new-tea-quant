@@ -1,10 +1,21 @@
+# 模块元数据
 name: infra.db
-version: 0.3.0
+version: "0.5.0"
 compatible_core_versions: ">=0.4.0"
-description: "NTQ 数据库基础设施：Engine 挂载、Schema 管理、迁移与表级写入。"
+description: "数据库基础设施：门面 Db（类挂靠 API）；契约在 contracts；实现位于 core/。"
 dependencies:
   - infra.project_context
 changelog:
+  - version: "0.5.0"
+    changes:
+      - "BREAKING：包根仅导出 Db；contracts 仅类型/类/常量，不再导出 create_engine / build_engine_meta"
+      - "BREAKING：去掉包根过渡期 re-export（DatabaseManager 等改从 contracts 导入）"
+      - "Db 加厚：engine / duckdb.worker_pool / duckdb.wal / sql / rows；删除 process_pool_module()"
+  - version: "0.4.0"
+    changes:
+      - 实现下沉至 core/；包根增加 Db 门面与 contracts.py；文档对齐 module-doc-standard
+      - 导入路径改为 core.infra.db.core.*；_shared 重命名为 engines/shared
+      - 过渡期包根仍 re-export DatabaseManager / DbBaseModel 等
   - version: "0.3.0"
     changes:
       - Engine 挂载架构（mysql / duckdb）；storage_domain 与表级域路由

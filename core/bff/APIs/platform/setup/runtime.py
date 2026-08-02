@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.infra.project_context import ProjectContext
-from core.infra.project_context.core.database_defaults import (
+from core.infra.project_context.contracts import (
     DEFAULT_DUCKDB_DOMAINS,
     DUCKDB_DOMAIN_FILES,
 )

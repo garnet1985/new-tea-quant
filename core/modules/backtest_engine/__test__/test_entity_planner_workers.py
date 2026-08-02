@@ -1,7 +1,7 @@
 """entity_based planner worker concurrency (memory budget must not double-subtract floor)."""
 from __future__ import annotations
 
-from core.infra.machine_capacity import MachineCapacity
+from core.infra.machine_capacity.contracts import MachineCapacity
 from core.modules.backtest_engine.core.schedule.entity_based.planner import EntityPlanner
 
 

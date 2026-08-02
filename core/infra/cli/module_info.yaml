@@ -1,11 +1,18 @@
+# 模块元数据
 name: infra.cli
-version: 0.4.0
+version: "0.4.2"
 compatible_core_versions: ">=0.4.1"
-description: "NTQ CLI Facade：Cli.user / Cli.dev / Cli.shared；双入口 cli.py 与 devcli.py。"
+description: "New Tea Quant（NTQ）双入口命令行门面（Cli.user / Cli.dev / Cli.shared）；入口脚本 cli.py 与 devcli.py。"
 dependencies:
   - infra.project_context
   - infra.system_actions
 changelog:
+  - version: "0.4.2"
+    changes:
+      - 公开 API 状态按 core 0.x 规则改为最高 beta（禁止 stable）
+  - version: "0.4.1"
+    changes:
+      - 文档对齐 module-doc-standard：根目录 API.md；DECISIONS 并入 DESIGN；TEST_CASES.md 取代 test_cases.yaml；移除 api.yaml
   - version: "0.4.0"
     changes:
       - 标准模块化：Facade Cli + namespace；仅 export 类

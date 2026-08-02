@@ -1,10 +1,14 @@
 name: modules.adapter
-version: 0.2.0
-compatible_core_versions: ">=0.2.0"
+version: 0.3.0
+compatible_core_versions: ">=0.4.0"
 description: "策略 Scanner 扫描结果的后续处理：基类、userspace 动态加载约定、校验与历史模拟统计加载（HistoryLoader）。"
 dependencies:
   - modules.strategy
 changelog:
+  - version: "0.3.0"
+    changes:
+      - "对齐 CORE_MODULE_STANDARDS：Facade Adapter；contracts；根 API/QUICKSTART/glossary/TEST_CASES"
+      - "BREAKING：包根仅导出 Adapter；validate 挂靠 Adapter.validate；基类/HistoryLoader 从 contracts 导入"
   - version: "0.2.0"
     changes:
       - Scanner adapter 发现与 console 等 userspace 扩展点

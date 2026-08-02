@@ -7,7 +7,8 @@ import logging
 import sys
 from pathlib import Path
 
-from core.infra.update.post_upgrade.runner import PostUpgradeRunResult, run_post_upgrade_actions
+from core.infra.update import Update
+from core.infra.update.contracts import PostUpgradeRunResult
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ def _write_result_json(path: Path, result: PostUpgradeRunResult) -> None:
 def _cmd_run(args: argparse.Namespace) -> int:
     repo = Path(args.repo_root).resolve()
     try:
-        result = run_post_upgrade_actions(repo)
+        result = Update.post_upgrade.run(repo)
     except Exception:
         logger.exception("post-upgrade 执行失败")
         return 1

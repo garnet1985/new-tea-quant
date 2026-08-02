@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-from core.infra.system_actions.cache_cleanup.cache_cleanup import run_cache_cleanup
+pytestmark = pytest.mark.force_run
+
+from core.infra.system_actions.cache_cleanup.cache_cleanup import CacheCleanup
 
 
 @pytest.fixture
@@ -53,10 +54,10 @@ def userspace_layout(tmp_path, monkeypatch):
 
 def test_run_cache_cleanup_rejects_when_pipeline_busy(userspace_layout):
     with patch(
-        "core.infra.system_actions.cache_cleanup.cache_cleanup.read_pipeline_status",
+        "core.infra.system_actions.cache_cleanup.pipeline_lease.PipelineLease.read_status",
         return_value={"busy": True, "label": "Tag 计算中", "kind": "tag_run"},
     ):
-        out = run_cache_cleanup(clear_userspace_ntq=True)
+        out = CacheCleanup.run(clear_userspace_ntq=True)
     assert out["ok"] is False
     assert out["error"] == "pipeline_busy"
     assert (userspace_layout / ".ntq").exists()
@@ -64,13 +65,18 @@ def test_run_cache_cleanup_rejects_when_pipeline_busy(userspace_layout):
 
 def test_run_cache_cleanup_selected_targets(userspace_layout):
     with patch(
-        "core.infra.system_actions.cache_cleanup.cache_cleanup.read_pipeline_status",
+        "core.infra.system_actions.cache_cleanup.pipeline_lease.PipelineLease.read_status",
         return_value={"busy": False},
-    ), patch(
-        "core.infra.system_actions.cache_cleanup.cache_cleanup.clear_workbench_db_cache",
+    ), patch.object(
+        CacheCleanup,
+        "clear_workbench_db_cache",
         return_value=2,
-    ) as mock_db:
-        out = run_cache_cleanup(
+    ) as mock_db, patch.object(
+        CacheCleanup,
+        "_discovered_strategy_keys",
+        return_value=["demo/nested/my_strategy"],
+    ):
+        out = CacheCleanup.run(
             clear_db_cache=True,
             clear_backtest_results=True,
             clear_scan_results=True,
@@ -78,12 +84,28 @@ def test_run_cache_cleanup_selected_targets(userspace_layout):
         )
     assert out == {"ok": True, "message": "缓存已经全部清理"}
     mock_db.assert_called_once()
-    assert not (userspace_layout / "strategies" / "demo" / "nested" / "my_strategy" / "results" / "simulations").exists()
-    assert not (userspace_layout / "strategies" / "demo" / "nested" / "my_strategy" / "results" / "scan").exists()
+    assert not (
+        userspace_layout
+        / "strategies"
+        / "demo"
+        / "nested"
+        / "my_strategy"
+        / "results"
+        / "simulations"
+    ).exists()
+    assert not (
+        userspace_layout
+        / "strategies"
+        / "demo"
+        / "nested"
+        / "my_strategy"
+        / "results"
+        / "scan"
+    ).exists()
     assert not (userspace_layout / ".ntq").exists()
 
 
 def test_run_cache_cleanup_nothing_selected():
-    out = run_cache_cleanup()
+    out = CacheCleanup.run()
     assert out["ok"] is False
     assert out["error"] == "nothing_selected"

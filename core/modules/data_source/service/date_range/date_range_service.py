@@ -11,26 +11,24 @@ from typing import Any, Dict, Optional, Set, Tuple
 from core.modules.data_source.enums import UpdateMode
 from core.modules.data_source.data_class.config import DataSourceConfig
 from core.modules.data_source.service.date_range import date_range_helper as drh
-from core.infra.utils.date.date_utils import DateUtils
-
-
+from core.infra.utils import Utils
 def _period_sort_key(value: str, date_format: str) -> str:
     """Normalize DB/API values to a comparable period key for ``date_format``."""
     raw = str(value or "").strip()
     if not raw:
         return ""
-    period_type = DateUtils.normalize_period_type(date_format)
-    if period_type == DateUtils.PERIOD_QUARTER and "Q" in raw.upper():
+    period_type = Utils.date.normalize_period_type(date_format)
+    if period_type == Utils.date.PERIOD_QUARTER and "Q" in raw.upper():
         return raw.upper().replace("-", "")
-    if period_type == DateUtils.PERIOD_MONTH and len(raw) == 6 and raw.isdigit():
+    if period_type == Utils.date.PERIOD_MONTH and len(raw) == 6 and raw.isdigit():
         return raw
-    normalized = DateUtils.normalize_str(raw) or raw.replace("-", "").replace(" ", "")[:8]
+    normalized = Utils.date.normalize_str(raw) or raw.replace("-", "").replace(" ", "")[:8]
     if not normalized:
         return raw
-    if period_type == DateUtils.PERIOD_MONTH:
+    if period_type == Utils.date.PERIOD_MONTH:
         return normalized[:6]
-    if period_type == DateUtils.PERIOD_QUARTER:
-        return DateUtils.to_period_str(normalized, period_type)
+    if period_type == Utils.date.PERIOD_QUARTER:
+        return Utils.date.to_period_str(normalized, period_type)
     return normalized[:8]
 
 

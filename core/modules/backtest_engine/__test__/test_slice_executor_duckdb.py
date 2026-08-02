@@ -4,6 +4,8 @@ from __future__ import annotations
 from contextlib import contextmanager
 from unittest.mock import patch
 
+import pytest
+
 from core.modules.backtest_engine.core.shared.context import ExecutionContext
 from core.modules.backtest_engine.core.schedule.slice_based.executor import SliceExecutor
 from core.modules.backtest_engine.core.schedule.slice_based.executor_duckdb import (
@@ -13,6 +15,8 @@ from core.modules.backtest_engine.core.schedule.slice_based.planner import (
     SliceDispatchPlan,
     SliceJobBatch,
 )
+
+pytestmark = pytest.mark.force_run
 
 
 def _plan() -> SliceDispatchPlan:
@@ -50,10 +54,10 @@ def test_duckdb_executor_wraps_scope_and_delegates() -> None:
         yield
 
     with patch(
-        "core.infra.db.engines.duckdb.process_pool_scope.should_apply_process_pool_scope",
+        "core.modules.backtest_engine.core.shared.duckdb_executor_scope.Db.duckdb.worker_pool.should_apply",
         return_value=True,
     ), patch(
-        "core.infra.db.engines.duckdb.process_pool_scope.maybe_duckdb_worker_pool_scope",
+        "core.modules.backtest_engine.core.shared.duckdb_executor_scope.Db.duckdb.worker_pool.maybe_scope",
         side_effect=fake_scope,
     ), patch.object(
         SliceExecutor,

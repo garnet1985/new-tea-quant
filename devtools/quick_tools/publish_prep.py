@@ -16,7 +16,7 @@ from datetime import date
 from pathlib import Path
 from typing import List, Sequence, Tuple
 
-from core.infra.cmd_layout import i as icon
+from core.infra.cmd_layout import CmdLayout
 from devtools.quick_tools.changelog_sync import (
     compare_system_new_features,
     sync_version_metadata_from_changelog,
@@ -161,7 +161,7 @@ def run_pytest() -> int:
         venv_marker = REPO_ROOT / "venv" / "bin" / "python"
     if not venv_marker.is_file():
         print(
-            f"  {icon('warning')} 未找到 venv/，当前 Python 可能缺少 Flask；"
+            f"  {CmdLayout.icon.i('warning')} 未找到 venv/，当前 Python 可能缺少 Flask；"
             "建议先运行 setup/install.py 或 pip install -r requirements-dev.txt",
             flush=True,
         )
@@ -180,10 +180,10 @@ def run_fed_build() -> int:
     """``core/ui/fed`` 生产构建（BFF 生产模式依赖 ``fed/build``）。"""
     print("\n[检查] FED 前端构建（npm run build）…", flush=True)
     if not _node_toolchain_available():
-        print(f"  {icon('error')} 未检测到 node / npm", flush=True)
+        print(f"  {CmdLayout.icon.i('error')} 未检测到 node / npm", flush=True)
         return 1
     if not (UI_FED_ROOT / "package.json").is_file():
-        print(f"  {icon('error')} 缺少 {UI_FED_ROOT.relative_to(REPO_ROOT)}/package.json", flush=True)
+        print(f"  {CmdLayout.icon.i('error')} 缺少 {UI_FED_ROOT.relative_to(REPO_ROOT)}/package.json", flush=True)
         return 1
     if not (UI_FED_ROOT / "node_modules").is_dir():
         print("  正在安装 FED 依赖（npm install）…", flush=True)
@@ -196,12 +196,12 @@ def run_fed_build() -> int:
         return int(proc.returncode or 1)
     if not fed_build_ready():
         print(
-            f"  {icon('error')} 构建完成但未找到 "
+            f"  {CmdLayout.icon.i('error')} 构建完成但未找到 "
             f"{(UI_FED_ROOT / 'build' / 'index.html').relative_to(REPO_ROOT)}",
             flush=True,
         )
         return 1
-    print(f"  {icon('success')} {UI_FED_ROOT.relative_to(REPO_ROOT)}/build 已就绪", flush=True)
+    print(f"  {CmdLayout.icon.i('success')} {UI_FED_ROOT.relative_to(REPO_ROOT)}/build 已就绪", flush=True)
     return 0
 
 
@@ -221,7 +221,7 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
                 flush=True,
             )
         except (FileNotFoundError, ValueError) as exc:
-            print(f"{icon('error')} CHANGELOG → system 同步失败: {exc}", flush=True)
+            print(f"{CmdLayout.icon.i('error')} CHANGELOG → system 同步失败: {exc}", flush=True)
             return 1
         sync_readme_version_badges(version)
     else:
@@ -237,10 +237,10 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
     if meta_issues:
         failures.append("CHANGELOG/system new_features 未同步")
         for line in meta_issues:
-            print(f"  {icon('error')} {line}", flush=True)
+            print(f"  {CmdLayout.icon.i('error')} {line}", flush=True)
     else:
         print(
-            f"  {icon('success')} CHANGELOG v{version} 与 system.json new_features 一致",
+            f"  {CmdLayout.icon.i('success')} CHANGELOG v{version} 与 system.json new_features 一致",
             flush=True,
         )
 
@@ -249,10 +249,10 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
     if missing:
         failures.append("module_info 缺失")
         for line in missing:
-            print(f"  {icon('error')} {line}", flush=True)
+            print(f"  {CmdLayout.icon.i('error')} {line}", flush=True)
     else:
         print(
-            f"  {icon('success')} core/modules/*、core/infra/*、core/ui 均已具备 module_info.yaml",
+            f"  {CmdLayout.icon.i('success')} core/modules/*、core/infra/*、core/ui 均已具备 module_info.yaml",
             flush=True,
         )
 
@@ -260,9 +260,9 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
     if changelog_issues:
         failures.append("module_info changelog 校验未通过")
         for line in changelog_issues:
-            print(f"  {icon('error')} {line}", flush=True)
+            print(f"  {CmdLayout.icon.i('error')} {line}", flush=True)
     else:
-        print(f"  {icon('success')} 各 module_info changelog 与 version 一致", flush=True)
+        print(f"  {CmdLayout.icon.i('success')} 各 module_info changelog 与 version 一致", flush=True)
 
     if not opts.skip_py39:
         from devtools.quick_tools.py39_compat_check import run_py39_compat_check
@@ -299,18 +299,18 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
         if dep_check_result == 1:
             failures.append("依赖风险检测发现关键问题")
         elif dep_check_result == 2:
-            print(f"  {icon('warning')} 发现高危依赖项，建议修复但允许继续", flush=True)
+            print(f"  {CmdLayout.icon.i('warning')} 发现高危依赖项，建议修复但允许继续", flush=True)
             # 高危不阻止打包，只警告
     else:
         print("\n[跳过] 依赖安装风险检测", flush=True)
 
     print("\n---", flush=True)
     if failures:
-        print(f"{icon('error')} 未通过: " + ", ".join(failures), flush=True)
+        print(f"{CmdLayout.icon.i('error')} 未通过: " + ", ".join(failures), flush=True)
         print("请处理 CHANGELOG 发布清单中的手工项（Changelog、module 文档、gitignore 等）。", flush=True)
         return 1
 
-    print(f"{icon('success')} 自动化项已通过。", flush=True)
+    print(f"{CmdLayout.icon.i('success')} 自动化项已通过。", flush=True)
 
     if opts.package_userspace:
         if opts.check_only:

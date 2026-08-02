@@ -117,20 +117,17 @@ def _run_scaffold(kind: str, raw_path: object, args: argparse.Namespace) -> int:
     if not path:
         raise SystemExit(f"new_{kind} 需要目标路径")
 
-    from core.infra.system_actions.shortcuts import (
-        ScaffoldError,
-        scaffold_strategy,
-        scaffold_tag,
-    )
+    from core.infra.system_actions import SystemActions
+    from core.infra.system_actions.contracts import ScaffoldError
 
     _setup_logging(verbose=args.verbose)
 
     try:
         if kind == "tag":
-            result = scaffold_tag(path)
+            result = SystemActions.scaffold.create_tag(path)
             label = "Tag 场景"
         else:
-            result = scaffold_strategy(path)
+            result = SystemActions.scaffold.create_strategy(path)
             label = "策略"
         logger.info("✅ 已新建 %s: %s", label, result.key)
         logger.info("   目录: %s", result.dest)
@@ -240,9 +237,6 @@ def _resolve_strategy_key(name: Optional[str]) -> str:
         )
     return enabled[0].key
 
-
-# 兼容旧名
-_resolve_enumerate_strategy = _resolve_strategy_key
 
 
 def _run_strategy_enumerate(args: argparse.Namespace) -> None:

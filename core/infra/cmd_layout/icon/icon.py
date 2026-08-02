@@ -67,9 +67,6 @@ class IconService:
             return str(encoding or "").lower() == "utf-8"
         return True
 
-    # Backward-compatible private alias used by older call sites / tests.
-    _supports_emoji = supports_emoji
-
     @classmethod
     def get(cls, icon_name: str) -> str:
         """Return emoji (UTF-8) or ASCII fallback (Windows GBK)."""
@@ -82,11 +79,6 @@ class IconService:
         if cls.supports_emoji():
             return icon_def["emoji"]
         return icon_def["ascii"]
-
-
-def i(icon_name: str) -> str:
-    """Shortcut for ``IconService.get``."""
-    return IconService.get(icon_name)
 
 
 class IconNamespace:
@@ -105,4 +97,4 @@ class IconNamespace:
         return IconService.supports_emoji()
 
 
-__all__ = ["IconService", "IconNamespace", "i"]
+__all__ = ["IconService", "IconNamespace"]

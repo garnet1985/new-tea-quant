@@ -15,7 +15,7 @@ from typing import List, Tuple, Union
 
 from .collect import collect_artifact_files
 from .manifest import MANIFEST_FILENAME, manifest_from_specs, read_manifest, write_manifest
-from ..types import ArtifactSpec, BundleManifest, CollectedFile
+from ..contracts import ArtifactSpec, BundleManifest, CollectedFile
 
 logger = logging.getLogger(__name__)
 

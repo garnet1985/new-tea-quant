@@ -1,48 +1,31 @@
 # Export / Import（`infra.export_import`）
 
-Userspace 制品**打包与安装**的公用基础设施，与具体业务（策略包、数据包等）解耦。
+为 New Tea Quant（简称 **NTQ**）提供 userspace 制品**打包与安装**公用能力：目录收集、zip 归档、`manifest.json`、冲突预检与按策略落盘。对外门面类（Facade）为 `ExportImport`。词条见 [glossary.yaml](./glossary.yaml)。
 
-## 职责
+## 适用场景
 
-- 从目录收集可导出文件（跳过 `results/`、`cache/`、`__pycache__` 等运行时路径）
-- 生成 `manifest.json` + zip 归档
-- 解压、安装前冲突预检（`reject` / `skip_existing` / `overwrite`）
-- 原子写入目标路径
+- 策略包 / 扩展包导出为 zip、再安装到另一环境的 userspace
+- 安装前按 `reject` / `skip_existing` / `overwrite` 做冲突预检
 
-## 不负责
+## 模块依赖
 
-- 从 strategy settings 解析 tag / adapter 依赖（由 `modules.strategy` 编排层完成）
-- 导入后的 discovery / validate（由调用方完成）
+无硬性模块依赖（路径由调用方传入）。
 
-## 快速示例
+## 设计初衷
 
-```python
-from pathlib import Path
+- **要解决的问题：** 把打包 / 落盘从具体业务编排中抽离，避免 strategy 等模块重复实现 zip 与冲突逻辑。
+- **明确不做：** 不解析业务依赖图（tag / adapter）；不负责导入后的 discovery / validate。
 
-from core.infra.export_import import (
-    ArtifactSpec,
-    ConflictPolicy,
-    create_bundle_archive,
-    install_bundle_archive,
-    preflight_install,
-)
+## 常见问题
 
-spec = ArtifactSpec(
-    kind="strategy",
-    name="demo",
-    source_dir=Path("userspace/strategies/demo"),
-    archive_prefix="strategies/demo",
-    target_relative="strategies/demo",
-)
+**Q：该 import 什么？**  
+A：`from core.infra.export_import import ExportImport`；类型用 `ExportImport.types` 或 `contracts`。见 [API.md](./API.md)。
 
-manifest, blob = create_bundle_archive([spec], metadata={"bundle_type": "strategy"})
+## 相关文档
 
-preview = preflight_install(manifest, Path("userspace"), ConflictPolicy.REJECT)
-result = install_bundle_archive(blob, Path("userspace"), ConflictPolicy.SKIP_EXISTING)
-```
-
-## 测试
-
-```bash
-python3 -m pytest core/infra/export_import/__test__/ -q
-```
+- [快速开始](./QUICKSTART.md)
+- [公开 API](./API.md)
+- [术语表](./glossary.yaml)
+- [架构](./docs/ARCHITECTURE.md)
+- [设计](./docs/DESIGN.md)
+- [测试用例](./__test__/TEST_CASES.md)

@@ -4,7 +4,7 @@ sys_tag_scenario 表 Model
 业务场景。
 """
 from typing import List, Dict, Any, Optional
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 from core.tables.tag.tag_scenario.schema import schema as _schema
 
 

@@ -1,4 +1,7 @@
-# Data Manager 模块（`modules.data_manager`）
+# Data Manager 模块（`modules.data_manager`）· **版本 0.4.0**
+
+> 公开 API：[API.md](./API.md) · 快速开始：[QUICKSTART.md](./QUICKSTART.md)  
+> 包根仅 `DataManager`；`BaseTableNames` → `contracts.py`；`CalendarService` → `DataManager.calendar`
 
 进程内 **统一数据访问门面**：持有 **`DatabaseManager`**，启动时创建库表、递归发现 **`core/tables`** 与 **`userspace/tables`** 下的 `schema.py`/`model.py` 并注册 **`DbBaseModel`**，再装配 **`DataService`**（`stock`、`macro`、`calendar`、`index`、`db_cache`）。业务代码通过 **`data_mgr.stock.kline.load(...)`** 等显式路径访问，避免直接依赖底层 Model。
 
@@ -49,5 +52,5 @@ core/modules/data_manager/
 
 - [架构与边界](docs/ARCHITECTURE.md)
 - [设计与表发现](docs/DESIGN.md)
-- [公开 API（含各 Service 索引）](docs/API.md)
-- [设计决策](docs/DECISIONS.md)
+- [公开 API](API.md)
+- [设计说明](docs/DESIGN.md)

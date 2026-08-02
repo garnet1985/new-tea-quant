@@ -1,22 +1,17 @@
 #!/usr/bin/env python3
-"""
-ExportImport module API contract tests.
-
-遵循 CODE_STYLE.md 规范：
-- 所有测试类遵循 TestXxxApi 命名
-- 所有测试方法遵循 test_xxx_api 功能命名
-- 所有测试覆盖 api.yaml 中定义的稳定 API
-- 分组测试、契约验证、边界测试
-"""
+"""对齐根目录 API.md 的契约测试。"""
 
 from __future__ import annotations
 
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Dict, Any
+
+import pytest
 
 from core.infra.export_import import ExportImport
+
+pytestmark = pytest.mark.force_run
 
 
 class TestExportImportApi(unittest.TestCase):
@@ -34,8 +29,23 @@ class TestExportImportApi(unittest.TestCase):
 
     def test_export_import_facade_exists(self):
         """测试 ExportImport Facade 类存在"""
-        from core.infra.export_import import ExportImport
+        import core.infra.export_import as pkg
+
+        self.assertEqual(pkg.__all__, ["ExportImport"])
         self.assertIsNotNone(ExportImport)
+
+    def test_contracts_symbols(self):
+        from core.infra.export_import import contracts
+
+        for name in (
+            "ArtifactSpec",
+            "ConflictPolicy",
+            "BundleManifest",
+            "PreflightResult",
+            "InstallResult",
+        ):
+            self.assertTrue(hasattr(contracts, name), name)
+            self.assertIs(getattr(ExportImport.types, name), getattr(contracts, name))
 
     def test_archive_namespace_exists(self):
         """测试 archive namespace 存在"""

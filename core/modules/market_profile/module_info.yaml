@@ -1,0 +1,13 @@
+name: modules.market_profile
+version: 0.2.0
+compatible_core_versions: ">=0.4.0"
+description: "市场制度规则（涨跌幅、整手、交收等）：MarketRulesProxy 统一挂载与查询。"
+dependencies: []
+changelog:
+  - version: "0.2.0"
+    changes:
+      - "对齐 CORE_MODULE_STANDARDS：根 API/QUICKSTART/glossary/README/TEST_CASES；contracts.MarketBaseRules"
+      - "BREAKING：删除遗留自由函数入口文档；测试改走 MarketRulesProxy"
+  - version: "0.1.0"
+    changes:
+      - MarketRulesProxy 与多市场规则实现

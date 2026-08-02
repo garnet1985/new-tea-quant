@@ -379,13 +379,13 @@ def _reinstall_dependencies(ctx: UpgradeContext) -> None:
 
 def _run_database_migrations(ctx: UpgradeContext) -> None:
     """
-    子进程调用 ``core.infra.db.migrate_manager apply``（见 ``helper.spawn_database_migration_cli``）。
+    子进程调用 ``core.infra.db.core.migrate_manager apply``（见 ``helper.spawn_database_migration_cli``）。
 
     使用 ``ctx.pre_mirror_schema_snapshot_path``；无快照时默认 **失败**（见
     ``NTQ_UPDATE_ALLOW_MISSING_SCHEMA_SNAPSHOT``）。结果写入 ``ctx.database_migration``。
     跳过整步：``NTQ_UPDATE_SKIP_DB_MIGRATION=1``。
     """
-    helper.pipeline_step_note("正在调用 core.infra.db.migrate_manager apply …")
+    helper.pipeline_step_note("正在调用 core.infra.db.core.migrate_manager apply …")
     ctx.database_migration = helper.spawn_database_migration_cli(
         ctx.repo_root,
         ctx.pre_mirror_schema_snapshot_path,

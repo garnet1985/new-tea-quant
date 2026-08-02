@@ -2,30 +2,17 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
+
+from core.infra.project_context.contracts import (
+    DiscoveredConfig,
+    MergeFn,
+    OverridableConfigNotFoundError,
+)
 
 from .config_manager import ConfigManager
 from .path_manager import PathManager
-
-MergeFn = Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, Any]]
-
-
-class OverridableConfigNotFoundError(FileNotFoundError):
-    """core 与 userspace 均未找到有效配置文件。"""
-
-
-@dataclass(frozen=True)
-class DiscoveredConfig:
-    domain: str
-    config_id: str
-    core_path: Optional[Path]
-    user_path: Optional[Path]
-
-    @property
-    def exists(self) -> bool:
-        return self.core_path is not None or self.user_path is not None
 
 
 class DiscoveryManager:
@@ -101,8 +88,8 @@ class DiscoveryManager:
                 )
             return merged
 
-        core_raw = ConfigManager.load_json(core_path) if core_path.is_file() else {}
-        user_raw = ConfigManager.load_json(user_path) if user_path.is_file() else {}
+        core_raw = ConfigManager.load_json_file(core_path) if core_path.is_file() else {}
+        user_raw = ConfigManager.load_json_file(user_path) if user_path.is_file() else {}
         if not isinstance(core_raw, dict):
             core_raw = {}
         if not isinstance(user_raw, dict):

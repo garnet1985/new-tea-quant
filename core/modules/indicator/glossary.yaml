@@ -1,0 +1,17 @@
+# glossary — modules.indicator
+# Version: 0.3.0
+
+Indicator:
+  description: "模块 Facade：pandas-ta-classic 代理与 K 线格式转换"
+  recommended_terms: [Indicator, Facade]
+  forbidden_terms: [IndicatorService]
+  example: |
+    from core.modules.indicator import Indicator
+    Indicator.rsi(klines, length=14)
+
+BatchIndicatorResult:
+  description: "compute_batch 单项结果 (name, params, values)"
+  recommended_terms: [BatchIndicatorResult]
+  forbidden_terms: []
+  example: |
+    from core.modules.indicator.contracts import BatchIndicatorResult

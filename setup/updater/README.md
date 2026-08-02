@@ -121,7 +121,7 @@ zip 下载 URL：Release 固定命名或由版本号推导；可选后续再加�
 | 7 | `_update_managed_scope` | 删 obsolete 顶层项 + 从 staging 安装新 map |
 | 8 | `_restore_exceptions` | 按 manifest 还原 lift-out |
 | 9 | `_reinstall_dependencies` | **CLI** `reinstall_runtime_dependencies_cli`（见 §6） |
-| 10 | `_run_database_migrations` | 子进程 ``python -m core.infra.db.migrate_manager apply``；日志 ``userspace/.ntq/update/logs/migrate-<UTC>.log``；摘要 ``cache/last_migration_result.json`` → ``ctx.database_migration``。无快照默认 **失败**；``NTQ_UPDATE_ALLOW_MISSING_SCHEMA_SNAPSHOT=1`` 可跳过；``NTQ_UPDATE_SKIP_DB_MIGRATION=1`` 跳过整步 |
+| 10 | `_run_database_migrations` | 子进程 ``python -m core.infra.db.core.migrate_manager apply``；日志 ``userspace/.ntq/update/logs/migrate-<UTC>.log``；摘要 ``cache/last_migration_result.json`` → ``ctx.database_migration``。无快照默认 **失败**；``NTQ_UPDATE_ALLOW_MISSING_SCHEMA_SNAPSHOT=1`` 可跳过；``NTQ_UPDATE_SKIP_DB_MIGRATION=1`` 跳过整步 |
 | 11 | `_trigger_core_extra_actions` | 子进程 ``python -m core.infra.update.post_upgrade run``；新版 ``core/infra/update/post_upgrade`` 注册表 **为空则跳过**；日志 ``logs/post-upgrade-<UTC>.log`` → ``ctx.post_upgrade``；``NTQ_UPDATE_SKIP_POST_UPGRADE=1`` 可跳过整步 |
 | 12 | `_cleanup_staging` | ``helper.cleanup_after_upgrade``：删 ``staging/``、``inbox`` zip、已还原的 ``lift-out/``、``pre_mirror`` 快照；**保留** ``logs/`` 与 ``last_*_result.json``；``NTQ_UPDATE_SKIP_CLEANUP=1`` 可跳过 |
 
@@ -132,7 +132,7 @@ zip 下载 URL：Release 固定命名或由版本号推导；可选后续再加�
 ## 8.1 与 `core/infra/db` 的分工（数据库升级）
 
 - **Diff / execution plan / DDL / 索引扒光策略 / 数据回填脚本查找** 均在 **`core/infra/db`**（及后续子模块）实现；约定见 **`core/infra/db/README.md`** 中「Schema 与升级」一节。  
-- **Updater** 只负责：步骤 6 快照；步骤 10 **子进程** 调 ``core.infra.db.migrate_manager``（日志落盘、结果回填 ``ctx.database_migration``）；不实现 SQL。环境变量见 §8 步骤 10。  
+- **Updater** 只负责：步骤 6 快照；步骤 10 **子进程** 调 ``core.infra.db.core.migrate_manager``（日志落盘、结果回填 ``ctx.database_migration``）；不实现 SQL。环境变量见 §8 步骤 10。  
 - **「旧版期望 schema」来源**：镜像后勿再从已被替换的 `core/tables` 反推旧版；应以该 JSON 快照（或等价内存结果）为升级前代码真源，与 **staging / 镜像后 `core/tables`**（新版期望）及 **当前库** 做 diff。  
 - **表级稳定键**：`core/tables` 下各 `schema.py` 已要求 **`update_key`**（作者维护），用于迁移脚本与 diff 的 `action_id` 锚定；`userspace` 自定义表不要求。
 

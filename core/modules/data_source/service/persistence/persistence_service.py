@@ -9,7 +9,7 @@ import logging
 
 from core.modules.data_source.data_class.config import DataSourceConfig
 from core.modules.data_manager.data_manager import DataManager
-from core.infra.db.engines.duckdb.wal_policy import should_checkpoint_after_persist
+from core.infra.db import Db
 
 
 logger = logging.getLogger(__name__)
@@ -114,7 +114,7 @@ class PersistenceService:
         schema: Any,
     ) -> None:
         db = getattr(data_manager, "db", None)
-        if db is None or not should_checkpoint_after_persist(db.config):
+        if db is None or not Db.duckdb.wal.should_checkpoint_after_persist(db.config):
             return
         if str(db.config.get("database_type") or "").lower() != "duckdb":
             return

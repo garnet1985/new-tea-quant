@@ -1,53 +1,34 @@
-# Core Utils（``infra.utils``）— 通用工具模块
+# Utils（`infra.utils`）
 
-提供各种与业务无关的辅助工具类和服务。
+与业务无关的通用工具：日期、类型/DataFrame、CSV/归档 IO、确定性随机。
 
-## 模块结构
+## 布局
 
-```
+```text
 core/infra/utils/
-├── __init__.py          # 统一导出
-├── module_info.yaml
-├── utils.py             # Utils 类（类型判断、DataFrame）
-├── math/                # 数值 / 确定性随机
-├── io/                  # csv_io / file_io
-└── date/
-    └── date_utils.py    # 日期工具类
+├── utils.py            # Facade Utils
+├── type_utils.py       # Utils.types 实现
+├── contracts.py
+├── date/ / io/ / math/ # 内部实现
+├── API.md / QUICKSTART.md / glossary.yaml
+├── __test__/
+└── docs/
 ```
-
-CLI 图标请使用 ``core.infra.cmd_layout``（``CmdLayout.icon`` / ``IconService`` / ``i``）。
 
 ## 快速开始
 
-```python
-from core.infra.utils import (
-    DateUtils,
-    deterministic_unit_float,
-)
-```
-
-配置 dict 合并请使用 `core.infra.project_context.ConfigManager`：
+见 [QUICKSTART.md](./QUICKSTART.md)。
 
 ```python
-from core.infra.project_context import ConfigManager
+from core.infra.utils import Utils
 
-ConfigManager.deep_merge_config(defaults, custom, deep_merge_fields={"params"})
-ConfigManager.merge_mapping_configs(defaults_mapping, custom_mapping, deep_merge_fields={"params"})
+Utils.date.today()
+Utils.io.write_dicts_to_csv(path, rows)
 ```
 
-## 各模块说明
+配置合并请用 `ProjectContext.config` / `ConfigManager`，不要用本模块替代。
 
-### 1. 日期工具 (DateUtils)
+## 相关文档
 
-```python
-from core.infra.utils import DateUtils
-
-date = DateUtils.get_today_str()  # "20240116"
-date_str = DateUtils.yyyymmdd_to_yyyy_mm_dd("20240116")  # "2024-01-16"
-days = DateUtils.get_duration_in_days("20240101", "20240116")  # 15
-quarter = DateUtils.date_to_quarter("20240116")  # "2024Q1"
-```
-
-### 2. 类型与 DataFrame 工具 (`Utils`)
-
-`core.infra.utils.utils.Utils` 提供类型判断与 pandas 薄封装；配置合并见 `ConfigManager`。
+- [API.md](./API.md)
+- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)

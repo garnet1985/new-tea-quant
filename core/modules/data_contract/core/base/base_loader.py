@@ -3,9 +3,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Any, List, Mapping, Optional, Sequence
-
-from core.infra.utils.date.date_utils import DateUtils
-
+from core.infra.utils import Utils
 
 class BaseDataContractLoader(ABC):
     """所有业务 Loader 的抽象基类。
@@ -114,7 +112,7 @@ class BaseDataContractLoader(ABC):
         out: List[Mapping[str, Any]] = []
         for row in rows:
             raw_d = row.get(time_field)
-            row_date = DateUtils.normalize_str(raw_d) if raw_d is not None else None
+            row_date = Utils.date.normalize_str(raw_d) if raw_d is not None else None
             if row_date is None:
                 out.append(row)
                 continue

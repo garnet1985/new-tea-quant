@@ -1,5 +1,3 @@
-"""Icon package — cross-platform CLI icons for CmdLayout."""
+"""Icon 实现包（内部）。公开入口：``CmdLayout.icon``。"""
 
-from .icon import IconNamespace, IconService, i
-
-__all__ = ["IconNamespace", "IconService", "i"]
+__all__: list[str] = []

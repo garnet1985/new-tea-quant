@@ -1,8 +1,12 @@
 # NTQ Core Module Standards - 核心模块创建与维护准则
 
-**版本：** 1.1.0
-**最后更新：** 2026-06-30
-**适用范围：** 所有 core 目录下的模块
+**版本：** 1.2.0  
+**最后更新：** 2026-08-01  
+**适用范围：** `core/modules/*`、`core/infra/*`（及其他 core 下按本标准收口的主模块）
+
+> **本文：** 核心模块的创建、维护、测试结构、版本、Facade / 导出等**模块规则**。  
+> **文档格式 / 清单 / 位置 / 章节：** 以 [`docs/module-doc-standard.md`](docs/module-doc-standard.md) 为准（文档 SSOT）。  
+> **可 copy 骨架：** [`docs/doc_templates/module/`](docs/doc_templates/module/)。
 
 ---
 
@@ -11,7 +15,8 @@
 本文档定义了 NTQ 项目核心模块的创建、维护和清理准则，确保：
 - **一致性**：所有核心模块遵循相同的规范
 - **可维护性**：强规则优于灵活性，便于长期维护
-- **稳定性**：API契约明确，避免破坏性变更
+- **稳定性**：API 契约明确，避免破坏性变更
+- **可发现性**：模块结构与契约统一；文档细节见 [模块文档规范](docs/module-doc-standard.md)
 
 ---
 
@@ -68,16 +73,16 @@
 
 ### **理念4：版本管理**
 
-> 核心模块需要有版本号，遵循语义化版本规范
+> 核心模块需要有版本号：`MAJOR.MINOR.PATCH`（见指标 4 / 11）
 
 **原因：**
 - 明确模块版本，便于管理依赖
 - 记录变更历史，便于追溯
 
 **实践：**
-- 语义化版本（MAJOR.MINOR.PATCH）
-- 版本一致性（所有文档使用相同的版本号）
-- 变更记录（每次改动都记录在changelog）
+- 小 / 中 / 大版本语义见指标 11（NTQ 约定：新 API 可进 PATCH；破坏性进 MINOR；MAJOR 随 core）
+- 版本一致性（`module_info` 与各文档文首一致）
+- 每次 bump `version` 须追加 `changelog`
 
 ---
 
@@ -146,80 +151,167 @@
 
 ### **指标1：文件结构要求**
 
-> 核心模块必须有完整的文件结构
+> 核心模块必须有完整的文件结构（代码契约 + 元数据；文档见指标3）
 
 **必需文件：**
 
 | 文件路径 | 文件类型 | 说明 | 检查方式 |
 |---------|---------|------|---------|
-| `api.yaml` | YAML文件 | API契约文档 | 文件存在 |
-| `api.py` | Python文件 | 抽象接口定义 | 文件存在，包含ABC类 |
-| `__init__.py` | Python文件 | 导出Facade类 | 文件存在，包含Facade类导出 |
+| `<module_name>.py` | Python文件 | 模块主文件 / Facade 实现 | 文件名与模块目录名一致 |
+| `__init__.py` | Python文件 | 导出 Facade 类 | 文件存在，包含 Facade 导出 |
 | `module_info.yaml` | YAML文件 | 模块元数据 | 文件存在 |
 | `glossary.yaml` | YAML文件 | 统一术语表 | 文件存在 |
+| `contracts.py` | Python文件 | 跨模块契约类型（dataclass / enum） | 有对外类型时必须存在 |
+
+**遗留说明：** 人读 API 统一为模块根 `API.md`（细则与迁移见 [模块文档规范](docs/module-doc-standard.md)）；存量 `api.yaml` / `docs/API.md` 迁完即删。
 
 ---
 
-### **指标2：测试文件要求**
+### **指标2：测试结构与文件要求**
 
-> 核心模块必须有测试覆盖
+> 测试分三块：**模块根 `__test__`**（公开契约 + 可选集成/冒烟）、**功能包 `__test__`**（私有单测）、**模块根 `__performance__/`**（正式本模块 benchmark，可选）。  
+> 单测用例索引为 **`TEST_CASES.md`**（取代 `test_cases.yaml`）；正文结构见 [模块文档规范 §4](docs/module-doc-standard.md)。  
+> 性能目录骨架见 [`docs/doc_templates/module/__performance__/`](docs/doc_templates/module/__performance__/)。
 
-**必需测试文件：**
+**目录职责：**
 
-| 文件路径 | 文件类型 | 说明 | 检查方式 |
-|---------|---------|------|---------|
-| `__test__/test_api.py` | Python文件 | API契约测试 | 文件存在，包含API测试 |
-| `__test__/test_cases.yaml` | YAML文件 | 测试用例注册表（推荐） | case id + scenarios + 对应 test 文件 |
-| `__test__/test_*.py` | Python文件 | 单元测试 | 文件存在，与 test_cases.yaml 对齐 |
+| 位置 | 放什么 | 不放什么 |
+|------|--------|----------|
+| `<module>/__test__/` | **`test_api.py`（必须）**；可选 `test_integration_*.py`、**薄** `test_performance_*.py`（CI 冒烟）；`TEST_CASES.md` | 正式 bench 的大输入/历史结果（→ `__performance__/`）；包内细单测 |
+| `<package>/__test__/` | 该包 **unit** + `TEST_CASES.md` | 超出该包职责；测其他模块行为 |
+| `<module>/__performance__/` | 本模块正式性能：固定输入、脚本、分版本结果、`CASES.md` | e2e/跨模块（→ `devtools/performance/`）；普通 API 单测 |
+
+```text
+<module_root>/
+├── API.md
+├── __test__/                          # 模块级（轻量，默认可进 CI）
+│   ├── TEST_CASES.md
+│   ├── test_api.py
+│   ├── test_integration_*.py          # 可选
+│   └── test_performance_*.py          # 可选：短冒烟，非正式 bench
+├── __performance__/                   # 可选：本模块正式 benchmark
+│   ├── README.md                      # 怎么跑、机器假设、指标含义
+│   ├── CASES.md                       # 性能 case 文档
+│   ├── inputs/                        # 固定输入（或生成脚本 + 说明/校验）
+│   ├── scripts/                       # benchmark 入口脚本
+│   └── results/
+│       └── <module.version>/          # 或 <date>_<gitsha>/；便于对比
+└── core/<feature>/__test__/           # 功能包级（按需）
+    ├── TEST_CASES.md
+    └── test_*.py
+```
+
+**模块根 `__test__` 允许的测试类型：**
+
+| 类型 | 文件模式 | 说明 |
+|------|----------|------|
+| API（必须） | `test_api.py` | 与 `API.md` 公开入口对应；抓 breaking change |
+| Integration（可选） | `test_integration_*.py` | 跨多个内部包、仍属本模块行为 |
+| Performance 冒烟（可选） | `test_performance_*.py` | **短、可 CI**；断言阈值/超时等，不替代 `__performance__/` |
+
+#### `__performance__/`（可选；正式本模块性能）
+
+> 与 `__test__` **分离**：大输入、脚本、多版本结果不进单测目录。  
+> 目录名固定为 **`__performance__/`**（与 `__test__` 对称）。  
+> 文档写法见 [模块文档规范 §4](docs/module-doc-standard.md)；骨架：[`__performance__/`](docs/doc_templates/module/__performance__/)。
+
+| 子路径 | 内容 |
+|--------|------|
+| `README.md` | 如何运行、环境/机器假设、指标含义、与 `devtools/performance` 的边界 |
+| `CASES.md` | 性能场景与 case；对应 `scripts/`；模板见上 |
+| `inputs/` | 固定输入数据，或「生成脚本 + 来源/校验和」说明（避免无说明的巨型二进制进库） |
+| `scripts/` | 正式 benchmark 入口（非 pytest 冒烟） |
+| `results/<version>/` | 按 **模块 version**（或 `date_gitsha`）归档的结果，便于对比 |
+
+**结果提交约定：**
+
+- 可提交**官方基线**（如某版本 `results/0.5.0/`）。
+- 本地噪声跑分默认不提交；可用 `.gitignore` 忽略 `results/_local/` 等。
+- 对比时以同机器假设 / README 中的环境说明为准。
+
+**Performance 内外分工：**
+
+| 放哪里 | 判据 |
+|--------|------|
+| `__test__/test_performance_*.py` | CI 可承受的短冒烟 |
+| `__performance__/` | 本模块正式 bench：固定输入 + 脚本 + 分版本结果；仅依赖本模块公开 API（+ 本地 fixture） |
+| `devtools/performance/` | e2e、跨模块、或强依赖全栈/多模块场景 |
+
+**CI：** 默认跑 `__test__/`；`__performance__/` 为手动或 nightly，不拖慢常规 PR（除非模块自行约定）。
+
+**Scope 硬性约定（包内 `__test__`）：**
+
+- 断言范围不得超出**当前包目录**的职责。
+- 可调用依赖模块的**公开 API** 作夹具；**不得**把依赖模块的正确性当作本 suite 的测试目标。
+
+**API 测试硬性约定：**
+
+- 模块根 `API.md` 与 `__test__/test_api.py` **成对**；缺一不可。
+- `API.md` 中每个对外入口须有对应 case（按 API 节/入口映射即可，不必一方法一文件）。
+- API 不破坏时，内部重构 / 包内单测调整 → 版本规则上可走**小版本**；破坏公开 API → **中版本**，并同步 `API.md` + `test_api.py` + `__test__/TEST_CASES.md`。
+
+**`TEST_CASES.md`（每个 `__test__` 目录一份）：**
+
+| 内容 | 要求 |
+|------|------|
+| 覆盖版本 | = `module_info.yaml` 的 `version`（或注明兼容范围） |
+| Scope / 边界 | 负责 / 不负责；允许的测试类型 |
+| Scenario → Case | Case 名 = pytest 函数名；标明所属 `test_*.py` |
+| 与 API 对齐 | 根目录 API suite 须能映射到 `API.md` |
+| 性能正式 case | 写在 `__performance__/CASES.md`；根 `TEST_CASES` 可仅链接，不复制大段 |
+
+**遗留：** 存量 `__test__/test_cases.yaml` 迁移为 `TEST_CASES.md` 后删除；模块专属旧 bench 从 `devtools/performance/<module>/` 迁入该模块 `__performance__/`。
 
 ---
 
 ### **指标3：文档文件要求**
 
-> 核心模块必须有文档
+> 核心模块必须有文档。**格式、清单、放置、章节、写作与维护触发**以文档 SSOT 为准：  
+> → [`docs/module-doc-standard.md`](docs/module-doc-standard.md)
 
-**必需文档文件：**
+**与模块规则交叉的硬性点（便于本文件检查清单）：**
 
-| 文件路径 | 文件类型 | 说明 | 检查方式 |
-|---------|---------|------|---------|
-| `docs/ARCHITECTURE.md` | Markdown文件 | 架构设计 | 文件存在 |
-| `docs/DESIGN.md` | Markdown文件 | 详细设计 | 文件存在 |
-| `docs/DECISIONS.md` | Markdown文件 | 设计决策 | 文件存在 |
+| 要求 | 说明 |
+|------|------|
+| 必需文件 | 根：`README.md`、`API.md`、`glossary.yaml`、`module_info.yaml`；`docs/ARCHITECTURE.md` |
+| API 位置 | 人读 API **仅**模块根 `API.md`（不得只放 `docs/API.md`） |
+| API ↔ 测试 | `API.md` 公开入口必须有 `__test__/test_api.py` 覆盖（见指标 2） |
+| 模板 | 整棵 copy [`docs/doc_templates/module/`](docs/doc_templates/module/) |
+
+细则（受众分工、可选文档、notes、交叉链接、各文档结构）不在本文重复。
 
 ---
 
 ### **指标4：module_info.yaml内容要求**
 
-> module_info.yaml必须有必需属性
+> 字段结构见 [`module_info.yaml`](docs/doc_templates/module/module_info.yaml)（保持原样，不增删必填字段）  
+> 位置：模块根目录 `module_info.yaml`
 
 **必需属性：**
 
 | 属性名 | 类型 | 说明 | 检查方式 |
 |--------|------|------|---------|
-| `name` | string | 模块名称 | 属性存在 |
-| `version` | string | 版本号 | 属性存在，格式正确 |
-| `compatible_core_versions` | string | 兼容版本 | 属性存在 |
+| `name` | string | 模块名称（如 `infra.db`） | 属性存在 |
+| `version` | string | 模块版本 `MAJOR.MINOR.PATCH` | 属性存在，格式正确 |
+| `compatible_core_versions` | string | 兼容的 **core** 版本 range（与模块 `version` 独立） | 属性存在 |
 | `description` | string | 模块描述 | 属性存在 |
-| `dependencies` | list | 依赖列表 | 属性存在 |
-| `changelog` | list | 变更历史 | 属性存在，有至少一条记录 |
+| `dependencies` | list | 模块级依赖列表 | 属性存在 |
+| `changelog` | list | 本模块变更记录 | 至少一条；`changelog[0].version` = 顶层 `version` |
+
+**`changelog` 格式：** 新 → 旧；每条含 `version` + `changes`（字符串列表）。
+
+**版本一致性：** `module_info.yaml` 的 `version`、`changelog[0].version` 与各文档文首版本一致（文档侧细则见 [模块文档规范](docs/module-doc-standard.md)）。
+
+**版本 bump 语义：** 见 **指标 11**（小 / 中 / 大）。
 
 ---
 
-### **指标5：api.yaml内容要求**
+### **指标5：模块根 `API.md` 内容要求**
 
-> api.yaml必须有必需属性
-
-**必需属性：**
-
-| 属性名 | 类型 | 说明 | 检查方式 |
-|--------|------|------|---------|
-| `Version` | string | 版本号 | 属性存在，格式正确 |
-| `apis` | dict | API列表 | 属性存在，有至少一个API |
-| `Requires` | string | 最小兼容版本 | 属性存在，如 `core>=0.3.0` |
-
-**禁止项：**
-- ❌ 删除冗余Examples字段（示例已在API定义中提供）
-- ❌ 不要重复描述参数和返回值（已在API定义中说明）
+> `API.md` 的版式、字段与禁止项见文档 SSOT：  
+> → [`docs/module-doc-standard.md` §2](docs/module-doc-standard.md)  
+> 模块侧硬性：位置在模块根；与 `__test__/test_api.py` 成对（指标 2 / 3）。  
+> **稳定性：** core 仍为 `0.x` 时，公开 API 状态最高 `beta`，**禁止** `stable`（细则见文档规范）。
 
 ---
 
@@ -271,15 +363,9 @@
 
 ### **指标8：文档内容要求**
 
-> 文档必须有必需内容
-
-**必需内容：**
-
-| 文档 | 必需内容 | 检查方式 |
-|------|---------|---------|
-| `docs/ARCHITECTURE.md` | 版本号、架构设计、API分组 | 文件包含必需内容 |
-| `docs/DESIGN.md` | 版本号、详细设计、设计原则 | 文件包含必需内容 |
-| `docs/DECISIONS.md` | 版本号、设计决策、决策列表 | 文件包含必需内容 |
+> 各文档固定章节、写作约束与维护触发见文档 SSOT：  
+> → [`docs/module-doc-standard.md` §3](docs/module-doc-standard.md)  
+> 模板骨架：[`docs/doc_templates/module/`](docs/doc_templates/module/)
 
 ---
 
@@ -291,14 +377,15 @@
 
 | 文件类型 | 命名规范 | 示例 | 检查方式 |
 |---------|---------|------|---------|
-| 模块名.py | 对外暴露API | `discovery.py`, `project_context.py` | 文件存在，文件名与模块名一致 |
+| 模块名.py | 对外暴露 API | `discovery.py`, `project_context.py` | 文件存在，文件名与模块名一致 |
 | 内部实现文件夹 | 使用 `core/` | `core/` 子目录存在 | 不使用 `_impl/`, `modules/` 等命名 |
-| 根目录文件 | 只保留必需文件 | 模块名.py、api.yaml、module_info.yaml、glossary.yaml、__init__.py、contracts.py 等契约入口 | 根目录文件数量符合要求 |
+| 文档文件名 / 位置 | 见文档规范 | README / API 在根；ARCHITECTURE 等在 `docs/` | [模块文档规范](docs/module-doc-standard.md) |
 
 **禁止项：**
 - ❌ 不使用 `_impl/` 命名内部实现目录
 - ❌ 不使用 `modules/` 命名内部实现目录
 - ❌ 根目录不保留冗余文件
+- ❌ 文档双源 / API 位置错误：见 [模块文档规范](docs/module-doc-standard.md)
 
 ---
 
@@ -344,55 +431,37 @@ settings["performance"] = {"max_workers": 8}
 
 ---
 
-### **指标14：test_cases.yaml 测试注册表（推荐）**
+### **指标14：TEST_CASES.md 用例索引**
 
-> 核心模块在 `__test__/test_cases.yaml` 维护测试索引；测试脚本与 case 对齐
-
-**结构：**
-
-```yaml
-cases:
-  - id: 1
-    case: api                    # 大类名
-    description: "公开 API 与 Mode 枚举"
-    file: test_api.py            # 一个 case 对应一个 test 文件（无 file 则仅文档/手工）
-    scenarios:
-      - id: 1
-        name: test_facade_export # 与 pytest 函数名一致
-        description: "..."
-```
-
-**规则：**
-- `id` 为整数，case 内 scenario `id` 从 1 递增
-- 每个 `file` 只出现一次；scenario 在文件内用函数名区分
-- 不测试 infra 职责的模块应删除对应 case（如 MachineInfo 测在 `core/infra`）
-- 集成测试留在业务模块 `__test__`，engine 层保持纯单元测试
-
-**参考：** `core/modules/backtest_engine/__test__/test_cases.yaml`
+> 每个 `__test__` 目录维护一份 `TEST_CASES.md`（取代 `test_cases.yaml`）。  
+> **正文结构与规则**见 [`docs/module-doc-standard.md` §4](docs/module-doc-standard.md)。  
+> 模块侧：存在该文件；Case 名与 pytest 一致；API suite 映射 `API.md`（指标 2）。
 
 ---
 
+### **指标11：版本号更新规范**
 
-> 核心模块版本号更新必须遵循规范
+> 模块 `version` 使用 `MAJOR.MINOR.PATCH`。**这是模块版本，不是**根目录 `CHANGELOG.md` 的 core 版本。  
+> 下列约定与经典 semver 不完全相同：请以本表为准。
 
-**版本更新规则：**
+| 段 | 中文 | 何时递增 | 示例 |
+|----|------|----------|------|
+| **PATCH**（小版本） | 小 | 修 bug；改注释；**内部**改名/整理；API **稳定性标注**变更（如 `beta→deprecated` 且未删）；**新加**公开 API；其他**无破坏性**改动 | `0.5.0` → `0.5.1` |
+| **MINOR**（中版本） | 中 | 改动**已有**（`beta` / 日后 `stable`）公开 API / 配置契约；任何**破坏性**改动（公开符号改名、删 API、改签名/语义/行为） | `0.5.1` → `0.6.0` |
+| **MAJOR**（大版本） | 大 | **随 core 大版本**；core 仍为 `0.x` 时模块 MAJOR **保持 0** | core `1.0.0` 时模块可 → `1.0.0` |
 
-| 变更类型 | 是否更新版本号 | 示例 |
-|---------|---------------|------|
-| 小改动（修复bug、优化代码） | ❌ 不更新 | 修复文档错误、优化性能 |
-| 分支没变（同一开发分支） | ❌ 不更新 | 同一分支上的多次提交 |
-| 中版本变化（新增功能、重构API） | ✅ 更新 | 0.3.0 → 0.4.0 |
-| 大版本变化（架构变更） | ✅ 更新 | 0.4.0 → 1.0.0 |
+**补充约定：**
 
-**版本号格式：**
-- 遵循语义化版本规范：`MAJOR.MINOR.PATCH`
-- 0.x 版本表示开发阶段，可以颠覆性改动
+- **公开符号改名** = 破坏性 → **中版本**；仅模块内部改名 → **小版本**。
+- 仅文档笔误、与行为无关的措辞修正：可不 bump；文档与实现对齐的实质性修正 → 至少 **小版本**。
+- 同一发布批次多次提交：合并为一次 bump；`changelog` 写清本版本要点。
+- bump 后同步：`module_info.version`、`changelog[0]`、相关文档文首版本、`API.md` 中受影响入口的「引入版本」只在新增时填写。
 
 ---
 
 ### **指标12：代码注释规范**
 
-> docstring 一句话说明「做什么」；签名/类型已表达的信息不重复；对外契约在 `api.yaml` / `OVERVIEW.md`
+> docstring 一句话说明「做什么」；签名/类型已表达的信息不重复；对外契约在模块根 `API.md`；概念见 `docs/CONCEPTS.md`（若有）
 
 **注释规则：**
 
@@ -400,8 +469,8 @@ cases:
 |---------|---------|------|
 | 一行 docstring（做什么） | ✅ 保留 | 公开/内部函数均可 |
 | 复杂逻辑行内注释 | ✅ 保留 | 解释非显而易见的算法或分支 |
-| 冗余 docstring（Args/Returns/Examples） | ❌ 不写 | 类型注解 + `api.yaml` 已覆盖 |
-| 冗余 docstring（Note/使用方式） | ❌ 不写 | 见 `OVERVIEW.md` / 架构文档 |
+| 冗余 docstring（Args/Returns/Examples） | ❌ 不写 | 类型注解 + 根目录 `API.md` 已覆盖 |
+| 冗余 docstring（Note/使用方式） | ❌ 不写 | 见 `docs/CONCEPTS.md` / `docs/ARCHITECTURE.md` |
 
 **示例：**
 ```python
@@ -420,16 +489,16 @@ def find_file(filename: str) -> Path:
     查找文件
 
     Args:
-        filename: 文件名  # ❌ 冗余，已在 api.yaml 中说明
+        filename: 文件名  # ❌ 冗余，已在 API.md 中说明
 
     Returns:
-        文件路径  # ❌ 冗余，已在 api.yaml 中说明
+        文件路径  # ❌ 冗余，已在 API.md 中说明
 
-    Examples:  # ❌ 冗余，已在 api.yaml 中提供
+    Examples:  # ❌ 冗余，已在 API.md 中提供
         >>> find_file("config.yaml")
         /path/to/config.yaml
 
-    Note:  # ❌ 冗余，应在文档中说明
+    Note:  # ❌ 冗余，应在 CONCEPTS / ARCHITECTURE 中说明
         该函数会递归搜索
     """
     pass
@@ -494,43 +563,62 @@ def check_core_module(module_path: Path) -> List[str]:
     """检查核心模块是否符合标准"""
     errors = []
     
-    # 检查必需文件
+    # 检查必需文件（代码契约 + 文档）
     required_files = [
-        "api.yaml",
-        "api.py",
         "__init__.py",
         "module_info.yaml",
         "glossary.yaml",
+        "README.md",
+        "API.md",
+        "glossary.yaml",
+        "module_info.yaml",
         "docs/ARCHITECTURE.md",
-        "docs/DESIGN.md",
-        "docs/DECISIONS.md",
+        # DESIGN / CONCEPTS / QUICKSTART 可选；DECISIONS 已取消
     ]
-    
+
     for file in required_files:
         if not (module_path / file).exists():
             errors.append(f"缺少必需文件：{file}")
-    
-    # 检查module_info.yaml内容
+
+    # API 文档位置：不得只放在 docs/
+    if (module_path / "docs/API.md").exists() and not (module_path / "API.md").exists():
+        errors.append("API.md 必须在模块根目录（请从 docs/API.md 迁出）")
+
+    # 遗留双源：迁移期若仍存在 api.yaml，提醒删除
+    if (module_path / "api.yaml").exists():
+        errors.append("遗留 api.yaml：请迁移至模块根 API.md 后删除")
+
+    # API 文档与测试成对
+    if (module_path / "API.md").exists() and not (module_path / "__test__/test_api.py").exists():
+        errors.append("API.md 存在但缺少 __test__/test_api.py（公开 API 必须有测试覆盖）")
+
+    # 检查 module_info.yaml 内容
     module_info_path = module_path / "module_info.yaml"
     if module_info_path.exists():
         module_info = yaml.safe_load(module_info_path.read_text())
-        required_attrs = ["name", "version", "description", "dependencies", "changelog"]
+        required_attrs = [
+            "name",
+            "version",
+            "compatible_core_versions",
+            "description",
+            "dependencies",
+            "changelog",
+        ]
         for attr in required_attrs:
             if attr not in module_info:
                 errors.append(f"module_info.yaml缺少必需属性：{attr}")
-    
-    # 检查api.yaml内容
-    api_yaml_path = module_path / "api.yaml"
-    if api_yaml_path.exists():
-        api_yaml = yaml.safe_load(api_yaml_path.read_text())
-        if "apis" not in api_yaml:
-            errors.append("api.yaml缺少必需属性：apis")
-    
+
     # 检查测试文件
     test_api_path = module_path / "__test__/test_api.py"
     if not test_api_path.exists():
         errors.append("缺少必需测试文件：__test__/test_api.py")
-    
+
+    test_cases_md = module_path / "__test__/TEST_CASES.md"
+    if not test_cases_md.exists():
+        errors.append("缺少 __test__/TEST_CASES.md（用例索引；取代 test_cases.yaml）")
+    if (module_path / "__test__/test_cases.yaml").exists():
+        errors.append("遗留 __test__/test_cases.yaml：请迁移为 TEST_CASES.md 后删除")
+
     return errors
 
 # 使用示例
@@ -552,16 +640,16 @@ else:
 
 | 检查项 | 类型 | 说明 |
 |--------|------|------|
-| ✅ 文件结构完整 | 硬性指标 | 所有必需文件存在 |
-| ✅ 测试覆盖完整 | 硬性指标 | API测试和UT测试存在 |
-| ✅ 文档齐全 | 硬性指标 | 架构、设计、决策文档存在 |
-| ✅ module_info.yaml属性完整 | 硬性指标 | 所有必需属性存在 |
-| ✅ api.yaml属性完整 | 硬性指标 | 所有必需属性存在 |
-| ✅ api.py包含ABC类 | 硬性指标 | 抽象接口定义存在 |
-| ✅ __init__.py正确导出 | 硬性指标 | Facade类正确导出 |
-| ✅ 收紧核心模块 | 理念 | Facade模式，单一入口点 |
-| ✅ 术语统一 | 理念 | 遵循glossary.yaml |
-| ✅ 版本管理 | 理念 | 语义化版本，changelog记录 |
+| ✅ 文件结构完整 | 硬性指标 | 代码契约与元数据文件存在 |
+| ✅ 测试结构 | 硬性指标 | 根 `__test__`：test_api + TEST_CASES.md；包内单测下沉；正式 bench 用 `__performance__/`（若有） |
+| ✅ 文档齐全 | 硬性指标 | 见 [模块文档规范](docs/module-doc-standard.md)；根 README+API+glossary+module_info；docs/ARCHITECTURE |
+| ✅ API 有测试覆盖 | 硬性指标 | `__test__/test_api.py` 覆盖 `API.md`；用例见 TEST_CASES.md |
+| ✅ 从模板 copy | 硬性指标 | 整棵 copy [`docs/doc_templates/module/`](docs/doc_templates/module/)；章节见文档规范 |
+| ✅ module_info.yaml 属性完整 | 硬性指标 | 所有必需属性存在 |
+| ✅ Facade + contracts | 硬性指标 | `__init__.py` 导出 Facade；契约在 `contracts.py` |
+| ✅ 收紧核心模块 | 理念 | Facade 模式，单一入口点 |
+| ✅ 术语统一 | 理念 | 遵循 glossary.yaml |
+| ✅ 版本管理 | 理念 | 语义化版本，changelog 记录 |
 | ✅ 依赖管理 | 理念 | 明确依赖关系 |
 
 ---
@@ -570,11 +658,13 @@ else:
 
 | 检查项 | 类型 | 说明 |
 |--------|------|------|
-| ✅ 版本号一致 | 硬性指标 | 所有文档使用相同的版本号 |
-| ✅ changelog更新 | 硬性指标 | 记录所有改动 |
-| ✅ 文档同步更新 | 硬性指标 | 文档与代码一致 |
+| ✅ 版本号一致 | 硬性指标 | module_info 与各文档文首版本一致 |
+| ✅ changelog 更新 | 硬性指标 | 记录所有改动 |
+| ✅ 文档同步更新 | 硬性指标 | 见 [模块文档规范](docs/module-doc-standard.md) 维护触发 |
+| ✅ 根目录 `API.md` 与实现一致 | 硬性指标 | 签名 / 状态 / 参数表对齐代码 |
+| ✅ API 测试同步 | 硬性指标 | `__test__/test_api.py` 覆盖文档中的公开入口 |
+| ✅ 无 api.yaml / docs/API.md 双源 | 硬性指标 | 迁移完成后只保留模块根 `API.md` |
 | ✅ 测试通过 | 硬性指标 | 所有测试通过 |
-| ✅ api.yaml和api.py一致 | 硬性指标 | API数量一致 |
 | ✅ 性能考虑 | 理念 | 避免过度抽象 |
 | ✅ 强规则优于灵活性 | 理念 | 单一调用方式 |
 
@@ -584,10 +674,11 @@ else:
 
 | 检查项 | 类型 | 说明 |
 |--------|------|------|
-| ✅ 删除冗余API | 理念 | 不要多个文件提供相同功能的API |
-| ✅ test_cases.yaml 对齐（推荐） | 硬性指标 | case/scenario 与 test 函数一致 |
+| ✅ 删除冗余 API | 理念 | 不要多个文件提供相同功能的 API |
+| ✅ TEST_CASES.md 对齐 | 硬性指标 | scenario/case 与 pytest 函数及文件一致；无遗留 test_cases.yaml |
 | ✅ 删除冗余代码 | 理念 | 无 re-export 空壳、无未使用 default/merge 层 |
-| ✅ 文档与代码一致 | 硬性指标 | 不用 backtest_scheduler 等旧模块名 |
+| ✅ 文档与代码一致 | 硬性指标 | 不用已退役模块名 |
+| ✅ 删除遗留 api.yaml / docs/API.md | 硬性指标 | 内容已迁入模块根 `API.md`，且有测试覆盖 |
 
 ---
 
@@ -595,35 +686,25 @@ else:
 
 **核心模块的标准分为两部分：**
 
-1. **设计理念（抽象原则）**：指导原则，需要人工判断
-   - 收紧核心模块
-   - 强规则优于灵活性
-   - 术语统一
-   - 版本管理
-   - 依赖管理
-   - 性能考虑
-   - 配置边界清晰
-   - 进度与可观测性内聚
+1. **设计理念（抽象原则）**：指导原则，需要人工判断  
+   收紧核心模块 · 强规则优于灵活性 · 术语统一 · 版本管理 · 依赖管理 · 性能考虑 · 配置边界清晰 · 进度与可观测性内聚
 
-2. **硬性指标（可自动化检查）**：具体要求，可以自动化检查
-   - 文件结构要求
-   - 测试文件要求
-   - 文档文件要求
-   - module_info.yaml内容要求
-   - api.yaml内容要求
-   - api.py内容要求
-   - __init__.py导出要求
-   - 文档内容要求
+2. **硬性指标（可自动化检查）**：具体要求  
+   文件结构 · 测试 · module_info · Facade/`__init__.py` · **API.md 必须有 test 覆盖** · 文档清单交叉点见指标 3
+
+**文档：** 格式 / 放置 / 章节以 [`docs/module-doc-standard.md`](docs/module-doc-standard.md) 为准。
 
 ---
 
 **参考文档：**
-- [CODE_STYLE.md](file:///Users/garnet/Desktop/new-tea-quant/CODE_STYLE.md) - 代码风格规范（命名规范、编排层+实施层等）
-- [glossary.yaml](file:///Users/garnet/Desktop/new-tea-quant/core/infra/project_context/glossary.yaml) - 统一术语表
+- [`docs/module-doc-standard.md`](docs/module-doc-standard.md) — 模块文档规范（文档 SSOT）
+- [`docs/doc_templates/module/`](docs/doc_templates/module/) — 可 copy 骨架
+- [CODE_STYLE.md](CODE_STYLE.md) — 代码风格
+- [`docs/README.md`](docs/README.md) — 仓库文档导航
 
 ---
 
-**最后更新：** 2026-06-30
+**最后更新：** 2026-08-01  
 **维护者：** NTQ Team
 
-**模块参考实现：** `core/modules/backtest_engine`（`OVERVIEW.md` + Facade + contracts + `docs/ARCHITECTURE.md` / `docs/DECISIONS.md`）
+**模块参考（迁移目标态，非全部已达标）：** `core/modules/backtest_engine`、`core/modules/data_contract`、`core/infra/db`（整改时以本文 + [模块文档规范](docs/module-doc-standard.md) + 模板为准）

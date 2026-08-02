@@ -93,7 +93,7 @@ def batch_refactor_files():
         "core/modules/strategy/services/cache/simulator_res_db_cache/finger_print/env_resolver.py",
         "core/infra/system_actions/shortcuts/create_new_strategy/scaffold.py",
         "core/infra/db/migration/runner.py",
-        "core/infra/db/schema_manager.py",
+        "core/infra/db/core/schema_manager.py",
         "core/infra/system_actions/shortcuts/create_new_tag/scaffold.py",
     ]
 

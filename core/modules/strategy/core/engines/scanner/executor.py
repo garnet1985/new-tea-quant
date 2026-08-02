@@ -10,7 +10,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from core.modules.backtest_engine.contracts import RunCallbacks
-from core.modules.data_contract import DATA_KEY
+from core.modules.data_contract.contracts import DATA_KEY
 from core.modules.strategy.core.engines.scanner.helpers.tradability import (
     annotate_enter_at_limit,
 )

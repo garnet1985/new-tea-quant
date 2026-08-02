@@ -1,0 +1,17 @@
+# glossary — modules.adapter
+# Version: 0.3.0
+
+Adapter:
+  description: "模块 Facade：校验 userspace opportunity adapter"
+  recommended_terms: [Adapter, Facade]
+  forbidden_terms: [validate_adapter]
+  example: |
+    from core.modules.adapter import Adapter
+    Adapter.validate("console")
+
+BaseOpportunityAdapter:
+  description: "userspace adapter 须继承的基类"
+  recommended_terms: [BaseOpportunityAdapter]
+  forbidden_terms: []
+  example: |
+    from core.modules.adapter.contracts import BaseOpportunityAdapter

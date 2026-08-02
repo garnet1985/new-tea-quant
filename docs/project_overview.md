@@ -51,7 +51,7 @@ New Tea Quant 是一个**面向研究和回测的量化框架**，希望帮用�
 
 - **项目与配置管理**
   - 统一的路径管理（项目根、数据、日志、结果、配置等）。
-  - `core/default_config` + `userspace/config` + 环境变量 的组合配置机制。
+  - `core/default_config` + `userspace/system/config` + 环境变量 的组合配置机制。
   - 针对不同环境（本地 / 服务器 / 生产）的可迁移项目结构。
 
 - **数据获取与存储**
@@ -151,9 +151,9 @@ new-tea-quant/
 
 - `core/infra/project_context/` 负责：
   - **PathManager**：统一管理所有路径（项目根目录、数据目录、日志目录、配置目录等）。
-  - **ConfigManager**：把 `core/default_config/`、`userspace/config/` 和环境变量组合成一份最终配置。
+  - **ConfigManager**：把 `core/default_config/`、`userspace/system/config/` 和环境变量组合成一份最终配置。
   - **FileManager` 等**：对文件和目录的通用操作封装。
-- `core/default_config/` + `userspace/config/` 共同定义：
+- `core/default_config/` + `userspace/system/config/` 共同定义：
   - 默认行为（框架给出的「推荐值」）。
   - 每个项目的差异化配置（只写差异，默认值自动补全）。
 
@@ -231,12 +231,12 @@ new-tea-quant/
   - [`modules/indicator`](../core/modules/indicator/README.md)（模块内 [`docs/`](../core/modules/indicator/docs/)）
 
 - **基础设施（Infra）+ 默认配置**
-  - [`infra/project_context`](../core/infra/project_context/README.md)（模块内 [`docs/`](../core/infra/project_context/docs/)）
+  - [`infra/project_context`](../core/infra/project_context/README.md)（模块内 [`docs/`](../core/infra/project_context/docs/)；含配置加载）
   - [`infra/worker`](../core/infra/worker/README.md)（模块内 [`docs/`](../core/infra/worker/docs/)）
   - [`infra/db`](../core/infra/db/README.md)（模块内 [`docs/`](../core/infra/db/docs/)）
   - [`infra/discovery`](../core/infra/discovery/README.md)（模块内 [`docs/`](../core/infra/discovery/docs/)）
   - [`infra/logging`](../core/infra/logging/README.md)（模块内 [`docs/`](../core/infra/logging/docs/)）
-  - `default_config/overview.md`
+  - `core/default_config/`（框架默认 JSON）
 
 安装与上手，请参见：
 

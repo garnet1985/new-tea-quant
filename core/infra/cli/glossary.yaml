@@ -1,41 +1,97 @@
-# NTQ Glossary - infra.cli
-# Version: 0.4.0
+# CLI 术语表
+# Version: 0.4.2
 #
-# 目的：统一 CLI 模块术语，避免 user/dev 混称。
-
----
+# 目的：解释本模块名词；同一事物在不同背景下的别名 / 易混名（aliases vs avoid）
+# 缩写与生僻英文优先在此集中说明，正文首次出现宜括注或链到本表
 
 terms:
+  NTQ:
+    definition: "New Tea Quant 的简称，即本项目 / 框架名称。"
+    aliases:
+      - "New Tea Quant"
+    avoid: []
+
+  Facade:
+    definition: "门面：对外只暴露一个统一入口类，隐藏内部多包 / 多实现。本模块的门面类是 Cli。"
+    aliases:
+      - "门面"
+      - "门面类"
+      - "CLI Facade"
+    avoid:
+      - "把内部 CliApp 或自由函数当作公开 API"
+
   Cli:
-    recommended: "Cli"
-    meaning: "Facade；对外唯一入口"
-    forbidden: ["CliApp as public API", "main 自由函数导出"]
+    definition: "本模块门面类（Facade）；对外唯一入口，挂载 user / dev / shared。"
+    aliases:
+      - "Cli 类"
+    avoid:
+      - "把 CliApp 当作公开 API"
+      - "导出 main / expand_argv 等自由函数"
+
+  CLI:
+    definition: "Command Line Interface，命令行界面 / 命令行工具。"
+    aliases:
+      - "命令行"
+      - "命令行入口"
+    avoid: []
+
+  namespace:
+    definition: "命名空间：挂在门面类下的分组（如 Cli.user），用来按职责组织一组方法，而不是再建一套独立入口。"
+    aliases:
+      - "命名空间"
+    avoid: []
+
+  argv:
+    definition: "命令行参数列表（argument vector）；通常指不含程序名的参数段，对应 Python 的 sys.argv[1:] 一类用法。"
+    aliases:
+      - "命令行参数"
+    avoid: []
 
   user_cli:
-    recommended: "user CLI / Cli.user"
-    meaning: "面向策略用户的入口（cli.py）"
-    forbidden: ["app cli", "prod cli"]
+    definition: "面向策略用户的入口（cli.py），对应 Cli.user。"
+    aliases:
+      - "user CLI"
+      - "Cli.user"
+      - "用户命令行"
+    avoid:
+      - "app cli"
+      - "prod cli"
 
   dev_cli:
-    recommended: "dev CLI / Cli.dev"
-    meaning: "面向开发与运维的入口（devcli.py）"
-    forbidden: ["devtools cli 作为包名"]
+    definition: "面向开发与运维的入口（devcli.py），对应 Cli.dev。"
+    aliases:
+      - "dev CLI"
+      - "Cli.dev"
+      - "开发命令行"
+    avoid:
+      - "devtools cli（作为本包名）"
 
   shared:
-    recommended: "Cli.shared / SharedNamespace"
-    meaning: "双入口共用的 argv 展开与 help 判定"
-    forbidden: ["utils", "helpers 作为公开导出"]
+    definition: "双入口共用的 argv 展开与 help 判定，挂在 Cli.shared；不是第三套命令行产品。"
+    aliases:
+      - "Cli.shared"
+      - "SharedNamespace"
+    avoid:
+      - "utils / helpers 作为公开导出名"
 
   abbrev:
-    recommended: "short alias / abbrev"
-    meaning: "无横杠短命令（如 sp → strategy_price_factor）"
-    notes: "user 与 dev 各有独立 SHORT_TO_LONG，允许同名短别名语义不同"
+    definition: "无横杠短命令别名（如 sp → strategy_price_factor）。user 与 dev 各有独立 SHORT_TO_LONG，允许同名短别名语义不同。"
+    aliases:
+      - "short alias"
+      - "短别名"
+    avoid: []
 
   command_registry:
-    recommended: "command registry"
-    meaning: "LONG_COMMANDS + SHORT_TO_LONG + DEFAULT_COMMAND"
-    forbidden: ["把两套 registry 合并成一张表"]
+    definition: "长命令集合与短别名表（LONG_COMMANDS + SHORT_TO_LONG + DEFAULT_COMMAND）。"
+    aliases:
+      - "command registry"
+      - "命令注册表"
+    avoid:
+      - "把 user / dev 两套 registry 合并成一张表"
 
   bootstrap:
-    recommended: "bootstrap"
-    meaning: "venv 重入与 install 门闸（仅 user）"
+    definition: "启动前准备：仅用户侧做虚拟环境（venv）重入与安装（install）门闸，对应 Cli.user.bootstrap。"
+    aliases:
+      - "UserBootstrap"
+      - "启动前检查"
+    avoid: []

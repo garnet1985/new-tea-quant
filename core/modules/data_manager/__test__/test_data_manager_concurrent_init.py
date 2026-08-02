@@ -4,7 +4,7 @@ from __future__ import annotations
 import threading
 from unittest.mock import MagicMock, patch
 
-from core.infra.db import DatabaseManager
+from core.infra.db.contracts import DatabaseManager
 from core.modules.data_manager.data_manager import DataManager
 
 

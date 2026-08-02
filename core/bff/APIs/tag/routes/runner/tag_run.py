@@ -7,11 +7,8 @@ import threading
 import uuid
 from typing import Any, Dict, Optional
 
-from core.infra.system_actions.cache_cleanup.pipeline_lease import (
-    PipelineLease,
-    PipelineLeaseBusyError,
-    read_pipeline_status,
-)
+from core.infra.system_actions import SystemActions
+from core.infra.system_actions.contracts import PipelineLeaseBusyError
 from core.modules.tag.core.services.discovery import DiscoveryService
 from core.modules.tag.core.services.progress import TagRunProgress
 from core.modules.tag.tag import Tag
@@ -37,7 +34,7 @@ class TagRunLauncher:
             return {"is_triggered": False, "reason": "Scenario 未启用"}
         run_key = str(item.id())
 
-        pipeline = read_pipeline_status()
+        pipeline = SystemActions.pipeline.read_status()
         if pipeline.get("busy"):
             kind = pipeline.get("kind") or "unknown"
             return {
@@ -113,7 +110,7 @@ class TagRunLauncher:
     @classmethod
     def _background_tag_job(cls, job_id: str, tag_key: str) -> None:
         prog = TagRunProgress.for_job(tag_key, job_id)
-        lease = PipelineLease(
+        lease = SystemActions.pipeline.lease(
             kind="tag_run",
             job_id=job_id,
             resource_key=tag_key,

@@ -1,302 +1,316 @@
-# 模块文档规范（Module Documentation Standard）
+# 模块文档规范
 
-本规范用于统一 NTQ 各模块的文档结构、写作格式与维护规则，作为后续文档整理的执行标准。
+**版本：** 1.2.0  
+**最后更新：** 2026-08-01  
+**适用范围：** `core/modules/*`、`core/infra/*`（及其他按 core 模块标准收口的主模块）的**文档**
 
----
+> **文档 SSOT：** 模块文档的格式、清单、位置与维护规则以**本文**为准。  
+> **模块规则（代码 / 测试结构 / 版本 / Facade 等）：** [`CORE_MODULE_STANDARDS.md`](../CORE_MODULE_STANDARDS.md)  
+> **可 copy 骨架：** [`docs/doc_templates/module/`](doc_templates/module/)（与真实模块同结构；整棵 copy 后替换 `<xxx>`，删除不需要的可选文件）
 
-## 1. 目标与范围
-
-**目标**：
-- 让新成员能在 5-10 分钟内理解一个模块做什么、怎么用、改哪里。
-- 让维护者能快速定位模块边界、关键决策和 API。
-- 降低文档重复、过期和链接失效概率。
-
-**范围**：
-- `core/modules/*`
-- `core/infra/*`
-- `userspace/*`（按轻量规范执行）
+**命名迁移：** `OVERVIEW` → `docs/CONCEPTS.md`；`DECISIONS` → `docs/DESIGN.md`；glossary 在模块根；临时笔记 → `docs/notes/`；用例索引 → `__test__/TEST_CASES.md`；本模块正式性能 → `__performance__/`（e2e 仍在 `devtools/performance`）。
 
 ---
 
-## 2. 文档放置策略
+## 1. 放置策略与清单
 
-### 2.1 权威入口
+> 细节文档就近放在模块内；仓库根 `docs/` 只放全局准则 / 总览 / 模板，**不**承载单模块实现细节。
 
-- 仓库对外入口：根目录 `README.md`
-- 版本变更入口：根目录 `CHANGELOG.md`
+| 位置 | 职责 |
+|------|------|
+| 模块根 `README.md` | **是什么 / 干什么**：**纯文字**介绍；**不含**代码块 |
+| 模块根 `API.md` | **怎么调**：公开调用面；与 `__test__/test_api.py` 成对 |
+| 模块根 `QUICKSTART.md` | **可选**；最短可运行路径 |
+| 模块根 `glossary.yaml` | **名词表**：定义 + aliases + avoid；与 CONCEPTS 分离 |
+| 模块根 `module_info.yaml` | 模块元数据（字段见 [CORE 指标 4](../CORE_MODULE_STANDARDS.md)） |
+| 模块 `docs/ARCHITECTURE.md` | 高阶已定结论：结构图、架构图、数据流（若有） |
+| 模块 `docs/DESIGN.md` | **可选**；设计点（初衷/背景/多方案/决定）；已合并原 DECISIONS |
+| 模块 `docs/CONCEPTS.md` | **可选**；运作原理与多步骤关系（**不是**词条表） |
+| 模块根 `__performance__/` | **可选**；正式本模块性能（目录结构见 [CORE 指标 2](../CORE_MODULE_STANDARDS.md)） |
+| 仓库根 `docs/` | 全局文档、模块准则、本文、可 copy 模板 |
 
-### 2.2 模块文档位置
+**根目录 vs `docs/`（硬性）：** 若存在下列文件，**必须**在模块根：`README.md`、`API.md`、`QUICKSTART.md`、`glossary.yaml`、`module_info.yaml`。标准模块文档（`ARCHITECTURE` / `DESIGN` / `CONCEPTS`）放在模块 `docs/` 根下（与 `notes/` 同级）。正式性能套件在模块根 `__performance__/`（不要放进 `docs/notes/`）。
 
-- 采用**混合方案（默认策略）**：
-  - 模块细节文档放在模块目录内的 `docs/` 子目录（就近放置、随代码演进）
-  - `docs/` 作为集中导航与跨模块专题目录
-- `docs/` 不作为模块实现细节的唯一来源。
+**临时 / 开发者自用笔记：** 不设模板、不进 must 清单。草稿、边界碎记、迁移草稿、用完即删的材料等，**一律放在** `docs/notes/`（可再分子目录）。
 
-示例（含可选的详细设计）：
-- `core/modules/strategy/README.md`
-- `core/modules/strategy/module_info.yaml`
-- `core/modules/strategy/docs/ARCHITECTURE.md`
-- `core/modules/strategy/docs/API.md`
-- `core/modules/strategy/docs/DECISIONS.md`
-- `core/modules/strategy/docs/DESIGN.md`（可选，见 §3.4）
+- 不要求与 `module_info` 版本对齐，不要求交叉链接齐全。
+- **不要**把正式文档（README / API / ARCHITECTURE 等）放进 `notes/`；`notes/` 内容不作为对外契约。
+- 例：原 `BOUNDARY_NOTES.md`、一次性 ROADMAP 草稿 → `docs/notes/`。
 
-### 2.3 目录职责边界
+### 必需文档
 
-- 根目录 `README.md`：对外入口、快速开始、最常用命令。
-- `docs/README.md`：文档导航中心（目录与链接，不承载模块实现细节）。
-- 模块根目录：保留 `README.md` 与 `module_info.yaml`。
-- 模块 `docs/`：放置 `ARCHITECTURE.md`、`API.md`、`DECISIONS.md` 等细节文档；若需要详细设计，则使用 `docs/DESIGN.md`（见 §3.4），**不得**在模块根目录另放一份同名设计文档以免双源。
-- `docs/` 专题文档：跨模块内容（例如规范、总览、迁移指南、术语）。
+| 文件路径 | 受众 | 说明 | 检查方式 |
+|---------|------|------|---------|
+| `README.md`（根） | 使用者 | 是什么、干什么 | 文件在模块根 |
+| `API.md`（根） | 调用方 | 公开接口；须有测试覆盖 | 模块根 + `__test__/test_api.py` |
+| `glossary.yaml`（根） | 全员 | 名词定义、aliases、avoid | 文件在模块根 |
+| `module_info.yaml`（根） | 维护者 | 元数据 | 见 CORE 指标 4 |
+| `docs/ARCHITECTURE.md` | 维护者 | 结构图、架构图、数据流（若有）；有版本 | 在 `docs/` |
 
-### 2.4 迁移与兼容原则
+### 可选文档
 
-- 现有集中在 `docs/core_modules/*`、`docs/infra/*` 的模块文档，后续逐步迁移到对应模块目录（`README.md` + `module_info.yaml` + `docs/*`）。
-- 某模块迁移完成后，删除 `docs/` 下与该模块重复的专题副本（例如已迁至 `core/infra/db/docs/` 的，则删除 `docs/infra/db/*`），并更新 `docs/project_overview.md` 等导航中的链接，避免双源。
-- 尚未迁移的模块可仍使用 `docs/infra/<name>/` 等路径；迁移完成即删旧稿。
+| 文件路径 | 受众 | 说明 | 何时需要 |
+|---------|------|------|---------|
+| `QUICKSTART.md`（根） | 要马上跑起来的人 | 最短可运行路径 | API 单条举例不够时 |
+| `docs/CONCEPTS.md` | 要懂原理的人 | 运作原理、多步骤关系（非词条表） | 复杂模块 |
+| `docs/DESIGN.md` | 维护者 | 设计点：初衷/背景/多方案/决定（含原 DECISIONS） | 有重要选型时 |
 
----
+### 受众分工
 
-## 3. 模块文档清单（必须/可选）
+| 目标 | 文档 |
+|------|------|
+| 是什么、干什么 | `README.md` |
+| 名词 / 别名 / 易混名 | `glossary.yaml`（与 CONCEPTS **分开**） |
+| 工作原理、多步骤关系 | `docs/CONCEPTS.md`（可选） |
+| 快速上手 | `QUICKSTART.md`（可选）+ `API.md` |
+| 正确调用 | `API.md` |
+| 高阶已定架构 | `docs/ARCHITECTURE.md` |
+| 设计选型与决定 | `docs/DESIGN.md`（可选） |
 
-## 3.1 Core/Infra 主模块（必须）
+### 模板用法
 
-每个主模块至少包含以下4 份文档：
+新建或整改模块时，整棵 copy [`doc_templates/module/`](doc_templates/module/) 到目标模块根，将 `<xxx>` 占位符替换为模块内容；不需要的可选文件（`QUICKSTART` / `docs/CONCEPTS` / `docs/DESIGN` / `__performance__/`）整份删除。固定章节以骨架内文件为准。
 
-1. `README.md`（模块入口）
-2. `docs/ARCHITECTURE.md`（架构与边界）
-3. `docs/API.md`（公开接口）
-4. `docs/DECISIONS.md`（关键设计决策）
+### 命名与位置
 
-并且必须包含：
+- 根目录文件名固定；`docs/` 下 `ARCHITECTURE.md` / `DESIGN.md` / `CONCEPTS.md` 使用大写（不要小写变体）。
+- **不再使用** `DECISIONS.md`（内容并入 `DESIGN.md`）。
+- ❌ 不并行维护 `api.yaml` / `docs/API.md` 与根目录 `API.md` 多套 API 真源。
+- ❌ 不把唯一人读 API 文档只放在 `docs/` 而模块根缺失 `API.md`。
 
-- `module_info.yaml`（模块元信息）
+### ARCHITECTURE vs DESIGN
 
-**不要求**每个主模块都有 `docs/DESIGN.md`。体量小、子模块少、行为可由 `ARCHITECTURE.md` 说清的模块可以省略；一旦出现 **`docs/DESIGN.md`**，则必须遵守 **§3.4**。
+| | ARCHITECTURE | DESIGN（可选） |
+|--|--------------|----------------|
+| 抽象层级 | High level | 具体设计点 |
+| 内容 | **已定结论**（结构图、架构图、数据流） | 初衷、背景、**多方案**、决定（按时间追加） |
+| 版本 | 必须 | 有则必须 |
 
-## 3.2 Userspace 模块（轻量必须）
+### glossary vs CONCEPTS
 
-每个 userspace 模块至少包含：
+glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述。二者**不合并**。
 
-1. `README.md`
-2. `docs/API.md`（若无可调用 API，可用“配置与扩展点说明”替代）
-3. `module_info.yaml`
+### 交叉链接（最低要求）
 
-建议有复杂逻辑时补充：
-- `docs/ARCHITECTURE.md`
-- `docs/DECISIONS.md`
-- `docs/DESIGN.md`（若达到 §3.4 的适用条件）
+- `README.md` 链到 `API.md`、`glossary.yaml`、`docs/ARCHITECTURE.md`；若有则链 QUICKSTART / docs/CONCEPTS / docs/DESIGN
+- `docs/ARCHITECTURE.md` 链到 `../API.md`、`../glossary.yaml`；若有 DESIGN / CONCEPTS 则链
 
-## 3.3 可选文档
+### 版本一致性
 
-- `MIGRATION.md`（破坏性变更迁移指南）
-- `FAQ.md`（高频问题）
-- `EXAMPLES.md`（模块专属示例）
-
-## 3.4 `docs/DESIGN.md`（可选；有则必规范）
-
-**何时需要**：满足任一条即可考虑新增或保留 `DESIGN.md`（否则用 `ARCHITECTURE.md` 即可）：
-
-- 多个协作子系统或分层，仅用「工作拆分」不足以说明协作方式；
-- 非平凡的数据流、并发/队列、生命周期或错误恢复路径；
-- 明确的扩展点、插件边界或适配器矩阵（例如多后端、多方言）；
-- 与配置、存储格式强耦合且易与实现漂移的细节（类图级说明有助于对齐代码）。
-
-**硬性约定**（只要仓库里存在该模块的设计文档且采用本规范，即适用）：
-
-1. **路径与文件名**：固定为模块内 `docs/DESIGN.md`，不写 `Design.md`、不放模块根目录。
-2. **与 ARCHITECTURE 分工**：`ARCHITECTURE.md` 保持 overview + 职责边界 + 工作拆分；**实现向**的类关系、序列/数据流、配置与扩展细节放在 `DESIGN.md`，避免两大段重复；重复处用链接指向另一文档。
-3. **交叉链接**：`ARCHITECTURE.md` 的「相关文档」中须包含指向 `DESIGN.md` 的链接；`DESIGN.md` 文首须有返回 `ARCHITECTURE.md` 的链接（及版本与 `module_info.yaml` 中 `version` 一致）。
-4. **事实来源**：`DESIGN.md` 以当前代码为准；不写历史沿革段落（沿革放在 `DECISIONS.md`）。
-5. **入口曝光**：若存在 `DESIGN.md`，`README.md` 的「相关文档」与「快速定位」目录树中须列出 `docs/DESIGN.md`。
+`module_info.yaml` 的 `version`、`changelog[0].version`，以及 `API.md` / `docs/ARCHITECTURE.md` / `glossary.yaml` 头注释版本（及若存在的 `DESIGN` / `docs/CONCEPTS` / `QUICKSTART`）必须一致。版本 bump 语义见 [CORE 指标 11](../CORE_MODULE_STANDARDS.md)。
 
 ---
 
-## 4. 每份文档固定结构（模板）
+## 2. 模块根 `API.md` 内容
 
-## 4.1 `README.md`（模块入口）
+> **位置（硬性）：** `API.md` 必须放在**模块根目录**（与 `README.md`、`module_info.yaml`、`<module>.py` 同级），**不得**只放在 `docs/API.md`。  
+> **测试（硬性）：** 与 `__test__/test_api.py` 成对；`API.md` 声明的公开 API **必须有测试覆盖**（测试目录见 [CORE 指标 2](../CORE_MODULE_STANDARDS.md)）。  
+> 人读 API 只维护这一份；不要求、不并行维护根目录 `api.yaml`。  
+> 版式以 [`doc_templates/module/API.md`](doc_templates/module/API.md) 为准。
 
-固定章节：
+**文首：**
 
-1. 模块职责（一句话）
-2. 适用场景（2-4 条）
-3. 快速开始（最小可运行示例）
-4. 目录结构（仅关键文件）
-5. 模块依赖（仅列 `module_info.yaml` 中声明的依赖及用途）
-6. 相关文档链接（`ARCHITECTURE` / `API` / `DECISIONS`；若存在 `DESIGN` 则一并列出）
+- 模块显示名、`**版本：**`（= `module_info.yaml` 的 `version`）
+- `**最低支持核心版本：**`（= `module_info.yaml` 的 `compatible_core_versions`）
+- 说明：本文件是公开调用面的唯一人读文档；所列入口须有 `__test__/test_api.py` 覆盖
 
-## 4.2 `ARCHITECTURE.md`（架构）
+**层级（固定）：**
 
-固定章节：
-
-1. 模块介绍（1-2 句话，说明该模块做什么）
-2. 模块目标（当前版本要完成的能力）
-3. 工作拆分（核心子模块/管理器 + 每项 1-2 句职责）
-4. 依赖说明（对应 `module_info.yaml` 的依赖及用途）
-5. 模块职责与边界（In scope / Out of scope）
-6. 架构/流程图
-7. 相关文档（链至 `./API.md`、`./DECISIONS.md`；若存在 `docs/DESIGN.md`，须链至 `./DESIGN.md`）
-
-额外约束：
-
-- `ARCHITECTURE.md` 为当前版本的架构总览（overview），内容保持极简。
-- 文档中的版本号必须与 `module_info.yaml` 的 `version` 一致。
-- 默认不写示例代码，除非没有示例就无法说明关键流程。
-
-## 4.3 `API.md`（接口）
-
-**版式（必须一致，全仓库统一）**
-
-文首用一两句说明：本模块 API 采用统一条目格式（可与 `core/infra/db/docs/API.md` 对齐）。
-
-按**类型或职责**分节（`## DatabaseManager`、`## ClassDiscovery` 等）。每个对外入口单独一块，结构固定为：
-
-1. 小节标题固定为 **`### 函数名`**（字面三个字，不用反引号包裹）。
-2. 下一行：反引号包住的**完整签名**（含参数默认值与返回注解，与代码一致）。
-3. 无序列表，键名固定（冒号为半角 `:`）：
-   - `状态：` `stable` / `beta` / `deprecated`
-   - `描述：` 一句话职责；必要时补一句边界或语义注意点
-   - `诞生版本：` 与 `module_info.yaml` 的 `version` 对齐（新接口写引入时的模块版本）
-   - `params：` 无参数时写 `params：无`。有参数时使用 **Markdown 表格**，列为 **`名字` | `类型` | `说明`**（表头第二行用 `|------|------|------|` 分隔）。**可选参数**在「名字」列用 `` `参数名` (可选) `` 标明（与签名中默认值对应）；「说明」列写语义、默认值或约束，避免仅用「可选」二字敷衍。
-   - `返回值：` 类型与语义；无返回值写 `None`
-4. 可选：`错误与异常：`（仅当调用方需要处理或文档必须提示时）
-
-表格与 `- 返回值：` 之间空一行。
-
-**数据类 / 仅类型无方法**：同样使用 `### 函数名` + 签名行（可写类型名或合成构造函数签名），字段用同一套三列表格，与 `DiscoveryResult`、`DiscoveryConfig` 等现有文档一致。
-
-**示例（代码）**
-
-- 简单 CRUD 式 API：条目内可不附示例，依赖 `README` 快速开始即可。
-- **配置对象 + 多参数、回调、或易混语义**（如发现规则、连接串、批量选项）：应在文档中给出示例，任选其一：
-  - 在该条目的列表末尾增加 **`- 示例：`**，下面接缩进代码块；或
-  - 在 `API.md` 文末增加 **`## 示例`**，集中放 1～2 段最小可运行代码（风格见 `core/infra/db/docs/API.md` 文末）。
-
-示例代码须与当前实现一致；需要占位处用注释标明（如「将 `BaseX` 换为项目基类」）。
-
-仅记录「用户或外部模块需要主动调用」的接口；内部私有方法不写入。
-
-## 4.4 `DECISIONS.md`（决策）
-
-每条决策统一格式：
-
-1. 背景（Context）
-2. 决策（Decision）
-3. 理由（Rationale）
-4. 影响（Consequences）
-5. 备选方案（Alternatives，可选）
-
-建议命名：`决策 N：<标题>`，并按时间追加，不覆盖历史。
-
-## 4.5 `DESIGN.md`（详细设计，可选）
-
-仅当模块包含 `docs/DESIGN.md` 时使用本节结构；清单与硬性约定见 **§3.4**。
-
-建议文首固定块：
-
-1. 标题与**版本**（与 `module_info.yaml` 的 `version` 一致）
-2. 一句话说明本文档覆盖范围
-3. **相关文档**：模块内 `docs/ARCHITECTURE.md`（必须）
-
-正文可按模块需要组织，常见章节包括：核心类型与职责、关键数据流/时序、配置与方言差异、扩展点与约束、与边界外系统的交互示意。保持与代码一致，大段说明避免与 `ARCHITECTURE.md` 重复。
-
-## 4.6 `module_info.yaml`（模块信息）
-
-固定字段：
-
-- `name`：机器名（示例：`infra.db`）
-- `version`：**当前模块版本**（semver `MAJOR.MINOR.PATCH`；文档中的「模块版本」均指此字段）
-- `compatible_core_versions`：兼容的 **core 发行版** semver range（示例：`>=0.4.0`），与模块 `version` 独立
-- `description`：模块简述
-- `dependencies`：模块依赖列表（模块级粒度）
-- `changelog`：**本模块**版本变更记录（必填；每次 bump `version` 须追加一条）
-
-### 版本号规则（`MAJOR.MINOR.PATCH`）
-
-在 **core 整体未到 `1.x` 之前，所有模块的 MAJOR（第一位）必须为 `0`**。
-
-| 段 | 何时递增 | 示例 |
-|----|----------|------|
-| **MAJOR** | core 颠覆性大版本（将来 `1.0.0` 起） | `0.x` → `1.0.0` |
-| **MINOR** | 模块内重构、职责调整、**破坏性** API/配置变更 | `0.2.0` → `0.3.0` |
-| **PATCH** | 小实现、结构整理（无破坏性）、修 bug、文档与实现对齐 | `0.2.0` → `0.2.1` |
-
-- `version` 表示**该模块**当前发布版本，**不是**根目录 `CHANGELOG.md` 的 core 版本。
-- `compatible_core_versions` 表示模块依赖的 core 能力下限；core 大版本发布时按需提高。
-
-### `changelog` 格式
-
-按时间**新 → 旧**排列；**第一条 `version` 必须与顶层 `version` 一致**：
-
-```yaml
-changelog:
-  - version: "0.2.0"
-    changes:
-      - pipeline / runtime / profile 子包拆分
-      - worker.json profile 并行度与 dispatch 默认值
-  - version: "0.1.0"
-    changes:
-      - 初始 JobPipeline（QUEUE / BATCH、ProcessPool）
+```text
+## <ClassName>                 # Facade / 公开类 / 契约类型
+### <namespace>                # 可选；无 namespace 则省略
+#### <method_name>             # 无 namespace 时方法用 ###
 ```
 
-- 每条 `changes` 为字符串列表，写**用户/维护者可理解**的摘要；无法追溯的早期历史可只保留当前版本的基线条目。
-- 发布前：`module_info.version`、`changelog[0].version`、模块 `docs/ARCHITECTURE.md` / `docs/API.md` 文首版本号须一致。
+**每个方法固定块：**
 
-建议可选字段（为未来模块生态预留）：
+1. 标题：`#### <method_name>`（或无 namespace 时的 `### <method_name>`）
+2. 下一行：反引号完整签名（含默认值与返回注解，与代码一致）
+3. 列表字段（键名固定）：
+   - **类型：** `instance` / `classmethod` / `static`
+   - **状态：** `experimental` / `beta` / `stable` / `deprecated`（取值约束见下「稳定性」）
+   - **引入版本：** 该入口引入时的模块版本
+   - **描述：** 一句话职责
+   - **参数：** 无参写 `无`；有参用三列表格；可选参数名字列标 `(可选)`
+   - **返回值：** 单值一行 `类型 — 语义`；多字段再用表格
+4. 可选：**错误与异常：**、**举例：**
 
-- `status`：`stable` / `beta` / `experimental` / `deprecated`
-- `entry`：模块入口（如 `python_path` 或脚本路径）
+**稳定性（硬性）：**
 
-旧规范中「所有模块初始 `0.2.0`」已废止；以各模块 `changelog` 与当前代码为准。
+| 项目 / core 版本 | 公开 API「状态」允许值 |
+|------------------|------------------------|
+| core 仍为 `0.x`（未到 **1.0.0**） | 最高 **`beta`**：只许 `experimental` / `beta` / `deprecated`；**禁止**标 `stable` |
+| core ≥ **1.0.0** | 可用满档：`experimental` / `beta` / `stable` / `deprecated` |
+
+> 当前仓库 core 为 `0.x`（见 `core/system.json`）。整改与新建模块的 `API.md` 一律按上表：成熟公开入口写 `beta`，不要写 `stable`。
+
+**禁止项：**
+
+- ❌ 不写内部私有方法（不出现 `internal`）
+- ❌ 不与 `CONCEPTS.md` / `ARCHITECTURE.md` 大段重复
+- ❌ 不并行维护第二份 API 真源（`api.yaml`、`docs/API.md` 等）
+- ❌ 不在无 `__test__/test_api.py` 覆盖的情况下把入口标成对外可用（`beta` / 日后 `stable`）
+- ❌ core 未到 1.0 时把任何公开入口标成 `stable`
+
+**遗留：** 历史上部分模块使用根目录 `api.yaml` 或 `docs/API.md`。自 **1.2.0** 起统一为模块根 `API.md`；存量迁移完成后删除，标准不再要求。
 
 ---
 
-## 5. 写作风格与格式约束
+## 3. 各文档内容结构
 
-- 中文为主，英文术语可括注。
-- 使用短句，避免营销性描述。
-- 示例代码必须可复制运行，优先使用 `start-cli.py` 相关命令。
-- 所有相对链接必须可在仓库内直接打开。
-- 避免在多个文档重复大段内容：重复信息用链接替代。
-- 非 `API.md` / `DECISIONS.md` 文档不写历史沿革，只描述当前事实。
+> 细节与 `<placeholder>` 以 [`doc_templates/module/`](doc_templates/module/) 为准。
 
----
+| 文档 | 必需内容 | 检查方式 |
+|------|---------|---------|
+| `README.md` | 见下「README 结构」；偏使用者 | 含必须章节；版式见模板 |
+| `glossary.yaml`（根） | 见下「glossary 结构」 | terms 含 definition；建议 aliases/avoid |
+| `QUICKSTART.md`（根，可选） | 见下「QUICKSTART 结构」 | 有则含最小示例 |
+| `docs/CONCEPTS.md`（可选） | 见下「CONCEPTS 结构」；原理与关系 | 有则文首有版本；非词条表 |
+| `docs/ARCHITECTURE.md` | 见下「ARCHITECTURE 结构」 | 文首有版本；结构图 + 架构图 |
+| `docs/DESIGN.md`（可选） | 见下「DESIGN 结构」；含原 DECISIONS | 有则每点四段齐全 |
+| `API.md`（模块根） | 见上文 §2；且有 `__test__/test_api.py` 覆盖 | 签名与代码一致；测试存在 |
 
-## 6. 文档维护触发规则
+### `README.md`（纯文字；模板见 [`README.md`](doc_templates/module/README.md)）
 
-满足任一条件时，必须同步更新对应模块文档：
+| 章节 | 必须 / 可选 | 说明 |
+|------|------------|------|
+| 标题 + 一句话职责 | 必须 | `# <Display>（\`<namespace.module>\`）` + 一行做什么 |
+| 适用场景 | 必须 | 2～4 条文字 |
+| 模块依赖 | 必须 | 对齐 `module_info.yaml`；无则写「无」；不贴代码 |
+| 设计初衷 | 可选 | 解决什么问题 / 不做什么；短；不写未来规划 |
+| 常见问题 | 可选 | 短文字 Q&A；名词 → glossary；原理 → docs/CONCEPTS；调用 → API |
+| 相关文档 | 必须 | 链到 `API.md`、`glossary.yaml`、`docs/ARCHITECTURE.md`；若有则链其余 |
+
+### `docs/CONCEPTS.md`（可选；模板见 [`docs/CONCEPTS.md`](doc_templates/module/docs/CONCEPTS.md)）
+
+> 专为**复杂模块**。写运作原理与多步骤关系。  
+> **不要**当词典（→ `glossary.yaml`）、不要目录树（→ ARCHITECTURE）、不要完整 API。  
+> 简单模块可省略。
+
+| 章节 | 必须 / 可选 | 说明 |
+|------|------------|------|
+| 文首（模块名 + 版本 + 本文补充什么） | 有则必须 | 版本 = `module_info.yaml`；链到 README / API |
+| 核心概念 / 主链路（可多节） | 有则必须 | 概念含义、步骤关系、模式差异；可用极短示意代码 |
+| 相关文档 | 有则必须 | README、API.md、docs/*、glossary.yaml |
+
+### `glossary.yaml`（模板见 [`glossary.yaml`](doc_templates/module/glossary.yaml)）
+
+> 解释模块名词；同一事物在不同背景下的叫法用 `aliases` / `avoid` 区分。  
+> **不与** `docs/CONCEPTS.md` 合并。
+
+| 字段 | 说明 |
+|------|------|
+| `terms.<Name>.definition` | 本模块中的含义 |
+| `terms.<Name>.aliases` | 可接受别名 / 其他上下文叫法 |
+| `terms.<Name>.avoid` | 易混淆、不应混用的名称 |
+
+### `QUICKSTART.md`（可选；模板见 [`QUICKSTART.md`](doc_templates/module/QUICKSTART.md)）
+
+> 只写**一条**最短主路径。API 单条举例已够用时可**省略**。
+
+| 章节 | 必须 / 可选 | 说明 |
+|------|------------|------|
+| 文首（模块名 + 版本 + 覆盖哪条路径） | 有则必须 | 版本 = `module_info.yaml` |
+| 前置条件 | 有则必须 | 可写「无特殊前置」 |
+| 最小示例 + 预期结果 | 有则必须 | 可运行代码；与实现一致 |
+| 下一步 | 有则必须 | 链到 API、glossary；（若有）docs/CONCEPTS；README；pytest |
+
+### `docs/ARCHITECTURE.md`（模板见 [`docs/ARCHITECTURE.md`](doc_templates/module/docs/ARCHITECTURE.md)）
+
+> **High level + 已定结论**。不写方案对比（→ DESIGN）。**必须有版本。**
+
+| 章节 | 必须 / 可选 | 说明 |
+|------|------------|------|
+| 文首版本 + 定位 | 必须 | 版本 = `module_info.yaml` |
+| 职责与边界（负责 / 不负责） | 必须 | 已定结论；勿用 In/Out of scope 作标题 |
+| 模块结构图 | 必须 | 目录 / 包结构 |
+| 架构图 | 必须 | 组件 / 分层 / 主调用关系 |
+| 数据流 | 可选 | 有显著数据流时写 |
+| 依赖 | 建议 | 对齐 `module_info.yaml` |
+| 相关文档 | 必须 | API、glossary；（若有）DESIGN / CONCEPTS |
+
+### `docs/DESIGN.md`（可选；模板见 [`docs/DESIGN.md`](doc_templates/module/docs/DESIGN.md)）
+
+> 按**设计点**组织。每点必须含四段。无必要设计点时**省略整文件**。
+
+| 每设计点章节 | 必须 |
+|-------------|------|
+| 设计初衷 | 解决什么问题 |
+| 设计背景 | 约束与上下文 |
+| 解决方案 | 多个方案及优劣 |
+| 决定 | 采用哪案、理由、影响 |
+
+### 写作约束
+
+- 中文为主，英文术语可括注；短句，避免营销腔
+- **缩写与生僻英文须可读：** 如 `NTQ`（New Tea Quant）、`Facade`（门面：对外统一入口）等，读者未必熟悉。做法二选一或并用：  
+  1）**首次出现**用中文释义或括注全称；  
+  2）收入本模块 [`glossary.yaml`](doc_templates/module/glossary.yaml)，正文可写「见术语表」。  
+  不要在 README 首句堆未解释的英文黑话。
+- **README 尽量不出现代码块**；上手代码放 `QUICKSTART`（若有）或 `API.md` 举例；原理放 `CONCEPTS`（若有）
+- 非 `API.md` / `docs/DESIGN.md` 不写历史沿革，只描述当前事实（DESIGN 内按设计点追加历史）
+- 避免多文档大段重复：重复处用相对链接
+- `QUICKSTART` / `API.md`（及 CONCEPTS 内示意代码）须可运行或明确标注占位
+- 所有相对链接须在仓库内可打开
+- README **不写**路线图 / 大段原理 / 上手教程（分属路线图文、CONCEPTS、QUICKSTART）
+
+### 维护触发（满足任一即同步文档）
 
 - 公共 API 变更（新增、删除、参数变化）
 - 模块职责边界变化
 - 关键流程变化（执行链路、数据流、存储结构）
 - 配置结构变化（字段、默认值、语义）
 
-发布前最低检查：
+---
 
-1. 根目录 `README.md`
-2. 根目录 `CHANGELOG.md`
-3. 涉及改动模块的文档（按本规范）
+## 4. `TEST_CASES.md` 与性能文档
+
+### `__test__/TEST_CASES.md`
+
+> 每个 `__test__` 目录维护一份；**取代** `test_cases.yaml`。  
+> 模板：[`__test__/TEST_CASES.md`](doc_templates/module/__test__/TEST_CASES.md)。  
+> 测试类型与目录职责见 [CORE 指标 2](../CORE_MODULE_STANDARDS.md)。
+
+**固定结构：** 文首（模块 / 覆盖版本 / 路径）→ Scope → 负责 / 不负责 → 若干 `## Scenario` → 其下 Case 表（函数名 / 文件 / 说明）。
+
+**规则：**
+
+- Case 名与 pytest 函数名一致，且能在表中落到具体 `test_*.py`。
+- 模块根 API suite：Scenario/Case 映射 `API.md` 公开面。
+- 包内 suite：仅 unit；不测他包/他模块职责。
+- 不测本模块职责外的 infra 行为（应在对应 infra 模块的 suite 中测）。
+
+### `__performance__/` 文档（可选）
+
+> 目录与运行约定见 [CORE 指标 2](../CORE_MODULE_STANDARDS.md)。  
+> 模板：[`__performance__/README.md`](doc_templates/module/__performance__/README.md)、[`CASES.md`](doc_templates/module/__performance__/CASES.md)。
+
+| 文件 | 内容 |
+|------|------|
+| `README.md` | 如何运行、环境/机器假设、指标含义、与 `devtools/performance` 的边界 |
+| `CASES.md` | 性能场景与 case；对应 `scripts/` |
 
 ---
 
-## 7. 文档健康检查清单（PR 自检）
+## 5. 文档检查清单（摘要）
 
-- [ ] 模块文档是否齐全（按模块级别）
-- [ ] `README.md` 是否提供最小可运行示例
-- [ ] `API.md` 中签名是否与代码一致，且条目结构符合 §4.3（`### 函数名`、`params` 三列表格、可选参数标 `(可选)`）
-- [ ] 复杂或易混 API 是否在 `API.md` 条目或 `## 示例` 中有最小示例（与实现一致）
-- [ ] `ARCHITECTURE.md` 的职责边界是否仍成立
-- [ ] `DECISIONS.md` 是否记录了新的关键取舍
-- [ ] 若存在 `docs/DESIGN.md`：路径是否为 `docs/DESIGN.md`，`ARCHITECTURE` / `DESIGN` / `README` 是否互相链上，内容是否仍与代码一致
-- [ ] 所有链接可用、命令可执行
+| 检查项 | 说明 |
+|--------|------|
+| 文档齐全 | 根：README + API + glossary + module_info；docs：ARCHITECTURE；（可选）DESIGN / CONCEPTS / QUICKSTART |
+| 从模板 copy | 章节与 [`doc_templates/module/`](doc_templates/module/) 一致 |
+| 版本号一致 | module_info 与各文档文首版本一致 |
+| 文档同步 | 与代码一致；触发见 §3 |
+| 根目录 `API.md` | 签名 / 状态 / 参数表对齐代码；有 `test_api.py` |
+| 无双源 | 无并行 `api.yaml` / `docs/API.md` |
+| `TEST_CASES.md` | scenario/case 与 pytest 对齐；无遗留 `test_cases.yaml` |
 
----
-
-## 8. 落地顺序建议
-
-1. 先补齐缺失文件（空壳模板也可）
-2. 再统一目录与命名（`README/ARCHITECTURE/API/DECISIONS`，按需 `DESIGN`）
-3. 最后做内容深度整理（避免一开始大改导致反复返工）
+模块创建 / 维护 / 清理的完整清单（含代码与测试）见 [`CORE_MODULE_STANDARDS.md`](../CORE_MODULE_STANDARDS.md)。
 
 ---
 
-**备注**：本规范不覆盖 `docs/development/`，该目录按内部工作文档管理。
+**参考：**
+
+- [`CORE_MODULE_STANDARDS.md`](../CORE_MODULE_STANDARDS.md) — 模块创建与维护准则
+- [`doc_templates/module/`](doc_templates/module/) — 可 copy 骨架
+- [`docs/README.md`](README.md) — 仓库文档导航
+- 术语表示例：[`core/infra/project_context/glossary.yaml`](../core/infra/project_context/glossary.yaml)

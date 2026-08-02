@@ -1,9 +1,14 @@
 name: infra.update
-version: 0.4.1
+version: 0.5.0
 compatible_core_versions: ">=0.4.1"
-description: "NTQ 更新基础设施：版本探测、升级编排、schema 快照、迁移执行。"
+description: "升级扩展：db 数据迁移脚本注册表（infra.db 调用）；post_upgrade 收尾注册表与 CLI（setup/updater 子进程调用）。编排见 setup/updater。"
 dependencies: []
 changelog:
+  - version: "0.5.0"
+    changes:
+      - 对齐 CORE_MODULE_STANDARDS：Facade Update（data_scripts / post_upgrade）；contracts；API.md / QUICKSTART / docs / test_api
+      - 澄清与 setup/updater 边界；误放本模块的 updater 测试迁至 setup/updater/__test__
+      - BREAKING：外部调用方改 Update.*；公开 API 最高 beta
   - version: "0.4.1"
     changes:
       - 升级编排与 schema 快照（面向 core 0.4.x 能力）

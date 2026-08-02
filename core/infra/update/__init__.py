@@ -1,5 +1,9 @@
-"""升级相关扩展（与 ``core/infra/db`` 并列）。
+"""升级扩展：数据迁移脚本注册表与 post-upgrade 收尾。
 
-- ``post_upgrade/``：主流程结束后的收尾动作（updater 步骤 11 子进程调用）
-- ``update/db/``：数据库迁移用单步数据脚本（由 ``infra.db`` 迁移执行器调用）
+编排 / 版本探测见 ``setup/updater/``。包根仅导出 ``Update``；类型见 ``contracts``。
+CLI 兼容：``python -m core.infra.update.post_upgrade run``。
 """
+
+from .update import Update
+
+__all__ = ["Update"]

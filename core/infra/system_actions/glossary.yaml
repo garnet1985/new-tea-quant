@@ -1,0 +1,24 @@
+# glossary — infra.system_actions
+# Version: 0.2.0
+
+pipeline_lease:
+  description: "全局长任务租约（userspace/.ntq/runtime/pipeline_active.json）"
+  recommended_terms: [pipeline_lease, PipelineLease, 租约]
+  forbidden_terms: [lock_file]
+  example: |
+    with SystemActions.pipeline.lease(kind="tag_run", job_id="j1"):
+        ...
+
+cache_cleanup:
+  description: "清理 workbench DB 缓存 / 模拟与扫描产物 / userspace .ntq"
+  recommended_terms: [cache_cleanup, SystemActions.cache]
+  forbidden_terms: []
+  example: |
+    SystemActions.cache.run(clear_db_cache=True)
+
+scaffold:
+  description: "从 _template 复制新建策略或 Tag"
+  recommended_terms: [scaffold, SystemActions.scaffold]
+  forbidden_terms: [create_new]
+  example: |
+    SystemActions.scaffold.create_strategy("demo/x")

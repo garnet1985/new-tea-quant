@@ -1,9 +1,14 @@
 name: infra.utils
-version: 0.1.0
+version: 0.2.0
 compatible_core_versions: ">=0.4.0"
-description: "通用无业务工具：DateUtils、Utils（类型/DataFrame）、CSV/文件 IO、确定性随机。"
+description: "通用无业务工具：日期、类型/DataFrame、CSV/归档 IO、确定性随机。"
 dependencies: []
 changelog:
+  - version: "0.2.0"
+    changes:
+      - 对齐 CORE_MODULE_STANDARDS：Facade Utils（date / types / io / math）；contracts；API.md / QUICKSTART / docs / test_api
+      - BREAKING：外部调用方改 Utils.*；禁止 deep-import date.date_utils / io.csv_io / 旧 Utils 类
+      - 原 Utils 类重命名为 TypeUtils（Utils.types）；公开 API 最高 beta
   - version: "0.1.0"
     changes:
       - 从 core/utils 迁入 core/infra/utils（无兼容层）

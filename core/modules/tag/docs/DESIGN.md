@@ -1,6 +1,6 @@
 # Tag 设计说明
 
-**版本：** `0.4.2`
+**模块：** `modules.tag` · **版本：** `0.5.0`
 
 ---
 
@@ -23,7 +23,7 @@
 | **non_time_series** | Tag 轻量主进程（不走 BE） | 忽略；配置了则 warning |
 
 per_entity 的实体池：读 base 的 `meta.list_data_key`（如 `stock.list` / `index.list`）。  
-global：哨兵实体（如 `__global__`）。详见 [DECISIONS.md](DECISIONS.md) 决策 1。
+global：哨兵实体（如 `__global__`）。详见下文「设计决策」。
 
 ---
 
@@ -74,3 +74,27 @@ userspace `tag.py` 继承 `TagHooks`：
 - 计算路径内通过 `TagContext` / 注入数据按 as_of 可见；业务钩子不应偷看未来。
 
 配置字段 SOT：`userspace/extensions/tags/settings_example.py`。
+
+---
+
+## 设计决策（原 DECISIONS.md）
+
+### 按 `data.base` 分流（BE vs 主进程）
+
+per_entity → BacktestEngine；global / non_time_series → Tag 轻量主进程推进器，忽略 `execution.mode`。
+
+### 增量水位用 last_calculated_end
+
+每实体 progress 存 `last_calculated_end`，非 `max(as_of_date)`。
+
+### entity_based vs slice_based（仅 per_entity）
+
+`entity_based` + `calculate_tag`；`slice_based` + `on_calendar_asof`。
+
+### Facade 名称为 Tag
+
+对外唯一入口 `Tag`；BFF 经 `TagCatalog` / `TagRunLauncher`。
+
+### Tag 表字段单一真相
+
+`attach_to_data_key` SOT = `sys_tag_scenario`；progress 水位用 `last_calculated_end`。

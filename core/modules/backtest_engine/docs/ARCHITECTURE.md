@@ -1,6 +1,6 @@
 # Backtest Engine — 架构
 
-**模块：** `modules.backtest_engine` · **版本：** 0.3.0
+**模块：** `modules.backtest_engine` · **版本：** 0.4.0
 
 ---
 
@@ -65,10 +65,9 @@
 
 ```text
 backtest_engine/
-├── OVERVIEW.md              # 使用者快速入门
+├── README.md / API.md / QUICKSTART.md
 ├── backtest_engine.py       # Facade
 ├── contracts.py             # 跨模块契约 re-export
-├── api.yaml                 # API 契约
 ├── glossary.yaml            # 术语
 ├── module_info.yaml
 ├── core/
@@ -161,20 +160,20 @@ SliceBasedPerformance.base()
 | `contracts.*` | `core/entity_based/*`, `core/slice_based/*` |
 | `BacktestJob`（`core/shared/jobs.py`） | `ExecutionContext` |
 
-契约细节见根目录 `api.yaml` 与 `glossary.yaml`。
+契约细节见根目录 `API.md` 与 `glossary.yaml`。
 
 ---
 
 ## 依赖
 
 - `core.infra.machine_capacity` — CPU/内存预算
-- `core.infra.db.engines.duckdb.process_pool_scope` — 可选 DuckDB 进程池包装
+- `Db.duckdb.worker_pool`（`core.infra.db`）— 可选 DuckDB 进程池包装
 - Python `concurrent.futures.ProcessPoolExecutor`（entity_based 外层池）
 
 ---
 
 ## 相关文档
 
-- [OVERVIEW.md](../OVERVIEW.md) — 使用者入门
-- [DECISIONS.md](./DECISIONS.md) — 设计决策
-- [api.yaml](../api.yaml) — API 契约
+- [README.md](../README.md) — 使用者入门
+- [DESIGN.md](./DESIGN.md) — 设计说明
+- [API.md](../API.md) — API 契约

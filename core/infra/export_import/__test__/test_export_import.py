@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from core.infra.export_import import ExportImport
+
+pytestmark = pytest.mark.force_run
 
 
 def _write_strategy_tree(base: Path) -> Path:

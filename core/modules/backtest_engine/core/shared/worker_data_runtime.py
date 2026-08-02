@@ -7,11 +7,8 @@ import os
 import time
 from typing import Any, Dict, Optional
 
-from core.infra.db.engines.duckdb.process_pool_scope import (
-    connect_duckdb_domains,
-    database_config_read_only,
-    release_worker_db_handles,
-)
+from core.infra.db import Db
+from core.infra.db.contracts import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +30,7 @@ def _connect_duckdb_data_domain_readonly(db: Any) -> None:
     last_exc: Optional[BaseException] = None
     for attempt in range(1, 9):
         try:
-            connect_duckdb_domains(db, domains=("data",), read_only=True)
+            Db.duckdb.worker_pool.connect_domains(db, domains=("data",), read_only=True)
             return
         except Exception as exc:
             last_exc = exc
@@ -48,16 +45,15 @@ def _connect_duckdb_data_domain_readonly(db: Any) -> None:
 
 def create_worker_data_manager() -> Any:
     """子进程专用 DataManager：DuckDB 只读 data 域，或 MySQL 等完整 initialize。"""
-    from core.infra.db import DatabaseManager
-    from core.infra.db.engines.duckdb.engine import DuckdbEngine
-    from core.infra.db.engines.factory import create_engine
     from core.modules.data_manager import DataManager
     from core.modules.data_manager.data_services import DataService
 
-    db = DatabaseManager(config=database_config_read_only(), is_verbose=False)
-    db.engine = create_engine(db.engine_meta)
+    db = DatabaseManager(
+        config=Db.duckdb.worker_pool.database_config_read_only(), is_verbose=False
+    )
+    db.engine = Db.engine.create(db.engine_meta)
     db.rebuild_storage_registry()
-    if isinstance(db.engine, DuckdbEngine):
+    if str(getattr(db.engine_meta, "engine_key", "") or "").lower() == "duckdb":
         db.engine.rebuild_table_file_map(
             table_to_domain=db.storage_registry.table_to_domain
         )
@@ -92,8 +88,6 @@ def bootstrap_worker_data_manager() -> Any:
 
         return DataManager(is_verbose=False)
 
-    from core.infra.db import DatabaseManager
-
     pid = os.getpid()
     default = DatabaseManager._default_instance
     cached = _PID_DATA_MANAGER.get(pid)
@@ -121,7 +115,7 @@ def release_worker_runtime() -> None:
     pid = os.getpid()
     cached = _PID_DATA_MANAGER.pop(pid, None)
     if cached is not None:
-        release_worker_db_handles(cached)
+        Db.duckdb.worker_pool.release_worker_db_handles(cached)
         from core.modules.data_manager import DataManager
 
         if DataManager.get_instance() is cached:

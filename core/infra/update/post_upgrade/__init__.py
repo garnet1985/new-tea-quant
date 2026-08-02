@@ -1,15 +1,6 @@
-"""升级收尾（post-upgrade）动作：注册表 + 执行器。"""
-from core.infra.update.post_upgrade.registry import (
-    register_post_upgrade_action,
-    list_registered_actions,
-    get_post_upgrade_action,
-)
-from core.infra.update.post_upgrade.runner import PostUpgradeRunResult, run_post_upgrade_actions
+"""升级收尾实现包（内部）。公开入口：``Update.post_upgrade``。
 
-__all__ = [
-    "register_post_upgrade_action",
-    "list_registered_actions",
-    "get_post_upgrade_action",
-    "PostUpgradeRunResult",
-    "run_post_upgrade_actions",
-]
+CLI：``python -m core.infra.update.post_upgrade run``（经 Facade 执行）。
+"""
+
+__all__: list[str] = []

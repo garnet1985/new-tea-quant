@@ -6,7 +6,6 @@ from core.infra.project_context import ProjectContext
 
 from core.modules.data_source.data_class.api_config import ApiConfig
 from core.modules.data_source.data_class.api_job import ApiJob
-from core.infra.utils.utils import Utils
 from core.modules.data_source.service.normalization import normalization_helper as nh
 from core.modules.data_source.service.executor import fetched_data_helper as fd
 from core.modules.data_source.service.date_range import date_range_helper as drh
@@ -363,11 +362,11 @@ class DataSourceHandlerHelper:
         Returns:
             最后一个交易日（YYYYMMDD格式），如果找不到则返回target_date
         """
-        from core.infra.utils.date.date_utils import DateUtils
+        from core.infra.utils import Utils
         from datetime import datetime, timedelta
         
         # 确保不超过latest_completed_trading_date
-        if DateUtils.is_after(target_date, latest_completed_trading_date):
+        if Utils.date.is_after(target_date, latest_completed_trading_date):
             target_date = latest_completed_trading_date
         
         # 简单往前查找：从target_date开始往前找，最多找max_days_back天
@@ -378,7 +377,7 @@ class DataSourceHandlerHelper:
             check_date_str = check_date.strftime("%Y%m%d")
             
             # 确保不超过latest_completed_trading_date
-            if DateUtils.is_after(check_date_str, latest_completed_trading_date):
+            if Utils.date.is_after(check_date_str, latest_completed_trading_date):
                 continue
             
             # 判断：周一到周五是交易日，周日也可能是交易日（A股的周交易日最后一天是周日）

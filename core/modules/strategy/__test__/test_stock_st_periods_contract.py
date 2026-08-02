@@ -9,7 +9,8 @@ import pytest
 
 pytestmark = pytest.mark.force_run
 
-from core.modules.data_contract import DATA_KEY, ContractIssuer
+from core.modules.data_contract import ContractIssuer
+from core.modules.data_contract.contracts import DATA_KEY
 from core.modules.data_contract.core.data_contracts.stock_st_periods.contract import (
     StockStPeriodsContract,
 )

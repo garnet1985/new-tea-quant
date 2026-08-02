@@ -6,8 +6,12 @@ from __future__ import annotations
 import io
 import unittest
 
+import pytest
+
 from core.infra.cmd_layout import CmdLayout
-from core.infra.cmd_layout.bar_chart import BarBucket, BarChart
+from core.infra.cmd_layout.bar_chart.bar_chart import BarBucket, BarChart
+
+pytestmark = pytest.mark.force_run
 
 
 class TestBarChart(unittest.TestCase):

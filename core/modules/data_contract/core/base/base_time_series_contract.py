@@ -6,9 +6,7 @@ from typing import Optional, Tuple, Dict, List, Any
 from dataclasses import dataclass, field
 
 from .base_contract import BaseDataContract
-from core.infra.utils.date.date_utils import DateUtils
-
-
+from core.infra.utils import Utils
 @dataclass
 class TimeRange:
     """时间范围。"""
@@ -166,7 +164,7 @@ class BaseTimeSeriesContract(BaseDataContract):
             normalized = contract.normalize_as_of("2020Q1")
             # normalized = "20200101"（季度转换为该季度第一天）
         """
-        return DateUtils.normalize_str(as_of) or as_of
+        return Utils.date.normalize_str(as_of) or as_of
 
     def is_in_time_window(self, start_time: str, end_time: str) -> bool:
         """检查时间范围是否在当前时间窗口内。

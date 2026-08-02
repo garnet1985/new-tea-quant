@@ -7,12 +7,12 @@ from pathlib import Path
 from typing import Tuple
 
 from core.infra.project_context import ProjectContext
+from core.infra.utils import Utils
 from core.modules.data_manager.data_manager import DataManager
 from core.modules.data_source.service.sample_stock_list import (
     invalidate_pool_cache,
     pool_csv_path,
 )
-from core.infra.utils.io import csv_io
 from devtools.demo_exporter.config import (
     LIST_STATUS_LABELS,
     MIN_PER_STRATUM,
@@ -100,7 +100,7 @@ def generate_stratified_pool_files(
     out = Path(output) if output else pool_csv_path(count)
     out.parent.mkdir(parents=True, exist_ok=True)
     rows = _rows_for_ids(universe, stock_ids)
-    csv_io.write_dicts_to_csv(
+    Utils.io.write_dicts_to_csv(
         out,
         rows,
         preferred_order=["id", "list_status", "board", "market"],

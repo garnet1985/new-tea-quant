@@ -1,15 +1,21 @@
-"""Discovery facade — public entry for file / discover / class_discovery namespace API."""
+"""Discovery 门面（Facade）— infra.discovery 对外统一入口类。
 
-from .core.namespaces import FileNamespace, DiscoverNamespace, ClassDiscoveryNamespace
+实现位于 ``core/``；跨模块契约类型见 ``contracts.py``。
+"""
+
+from .core.namespaces import (
+    ClassDiscoveryNamespace,
+    DiscoverNamespace,
+    FileNamespace,
+)
 
 
 class Discovery:
-    """Discovery module facade."""
+    """New Tea Quant（NTQ）发现门面类（Facade：对外统一入口）。"""
 
-    # namespace instances (static attributes)
     file = FileNamespace()
     discover = DiscoverNamespace()
     class_discovery = ClassDiscoveryNamespace()
 
 
-__all__ = ['Discovery']
+__all__ = ["Discovery"]

@@ -7,8 +7,8 @@ from typing import Dict, Any, Tuple
 import logging
 
 from core.modules.data_source.enums import TermType
-from core.infra.utils.date.date_utils import DateUtils
 from core.modules.data_source.service.renew.renew_common_helper import RenewCommonHelper
+from core.infra.utils import Utils
 
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ class RefreshRenewService:
             return start_date, end_date
         
         # 使用 default_date_range 计算日期范围
-        current_date = DateUtils.today()
+        current_date = Utils.date.today()
         start_date, end_date = self._calculate_date_range_from_config(
             current_date, date_format, default_date_range, context
         )
@@ -93,8 +93,8 @@ class RefreshRenewService:
         context = context or {}
         
         # 获取当前周期值
-        period_type = DateUtils.normalize_period_type(date_format)
-        current_value = DateUtils.to_period_str(current_date, period_type)
+        period_type = Utils.date.normalize_period_type(date_format)
+        current_value = Utils.date.to_period_str(current_date, period_type)
         
         # 获取结束日期（优先使用 latest_completed_trading_date）
         # 支持枚举和字符串两种格式（兼容性）
@@ -147,12 +147,12 @@ class RefreshRenewService:
         else:  # date_format == TermType.DAILY.value
             if "years" in default_date_range:
                 years = default_date_range["years"]
-                start_date = DateUtils.sub_days(end_date, years * 365)
+                start_date = Utils.date.sub_days(end_date, years * 365)
             elif "days" in default_date_range:
                 days = default_date_range["days"]
-                start_date = DateUtils.sub_days(end_date, days)
+                start_date = Utils.date.sub_days(end_date, days)
             else:
                 # 默认 5 年
-                start_date = DateUtils.sub_days(end_date, 5 * 365)
+                start_date = Utils.date.sub_days(end_date, 5 * 365)
         
         return start_date, end_date

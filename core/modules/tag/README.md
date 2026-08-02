@@ -1,11 +1,23 @@
-"""
-Tag 系统：场景化标签计算与落库。
+# Tag
 
-根契约：
-- ``tag.py`` — Facade
-- ``api.yaml`` / ``contracts.py`` / ``glossary.yaml`` / ``module_info.yaml``
+**模块：** `modules.tag` · **版本：** `0.5.0`
 
-UI：BFF ``APIs/tag``（``helpers.TagCatalog`` / ``routes/runner.TagRunLauncher``）；进度 ``TagRunProgress``。
+标签资产层：按 `data.base` 路由到 per_entity（BacktestEngine）或 global / non_time_series 主进程推进器。
 
-场景目录：``userspace/extensions/tags/<path>/``，需 ``settings.py`` + ``tag.py``（``TagHooks``）。
-"""
+## 文档
+
+| 文档 | 内容 |
+|------|------|
+| [API.md](./API.md) | 公开 API |
+| [QUICKSTART.md](./QUICKSTART.md) | 最短示例 |
+| [docs/DESIGN.md](./docs/DESIGN.md) | 路由、更新模式、钩子 |
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 架构 |
+
+## 公开 import
+
+```python
+from core.modules.tag import Tag
+from core.modules.tag.contracts import TagHooks, TagContext
+```
+
+UI catalog/run：`core/bff/APIs/tag`。

@@ -12,7 +12,7 @@ import threading
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 from core.tables.ui_bff.strategy_workbench_snapshot.schema import schema as _schema
 
 COL_STRATEGY_KEY = "strategy_key"

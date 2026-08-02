@@ -5,9 +5,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from core.modules.data_contract.core.base.base_loader import BaseDataContractLoader
 from core.modules.data_manager import DataManager
-from core.infra.utils.date.date_utils import DateUtils
-
-
+from core.infra.utils import Utils
 class StockIndicatorsDailyLoader(BaseDataContractLoader):
     """按股票加载 ``sys_stock_indicators`` 日频序列。"""
 
@@ -19,8 +17,8 @@ class StockIndicatorsDailyLoader(BaseDataContractLoader):
             raise ValueError("加载 stock.indicators.daily 失败：缺少 stock_id（请在 params 中提供 stock_id/id/entity_id）")
         sid = str(sid).strip()
 
-        start = DateUtils.normalize_str(params.get("start")) if params.get("start") is not None else None
-        end = DateUtils.normalize_str(params.get("end")) if params.get("end") is not None else None
+        start = Utils.date.normalize_str(params.get("start")) if params.get("start") is not None else None
+        end = Utils.date.normalize_str(params.get("end")) if params.get("end") is not None else None
         return dm.stock.indicators.load_range(sid, start_date=start, end_date=end)
 
     def load_batch(
@@ -43,8 +41,8 @@ class StockIndicatorsDailyLoader(BaseDataContractLoader):
             return {}
 
         dm = DataManager()
-        start = DateUtils.normalize_str(params.get("start")) if params.get("start") is not None else None
-        end = DateUtils.normalize_str(params.get("end")) if params.get("end") is not None else None
+        start = Utils.date.normalize_str(params.get("start")) if params.get("start") is not None else None
+        end = Utils.date.normalize_str(params.get("end")) if params.get("end") is not None else None
 
         # 调用 service 层的批量 API
         return dm.stock.indicators.load_batch(

@@ -7,7 +7,7 @@
 
 使用方式：
     # 系统 contract
-    from core.modules.data_contract import DATA_KEY
+    from core.modules.data_contract.contracts import DATA_KEY
     contract = ContractIssuer.issue(DATA_KEY.STOCK_LIST)
     
     # declaration 中使用

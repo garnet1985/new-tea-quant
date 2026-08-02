@@ -1,12 +1,3 @@
-"""从 userspace 模板快捷新建策略 / Tag。"""
+"""shortcuts 实现子包（内部）。公开入口：``SystemActions.scaffold``。"""
 
-from core.infra.system_actions.shortcuts._shared import ScaffoldError, ScaffoldResult
-from core.infra.system_actions.shortcuts.create_new_strategy.scaffold import scaffold_strategy
-from core.infra.system_actions.shortcuts.create_new_tag.scaffold import scaffold_tag
-
-__all__ = [
-    "ScaffoldError",
-    "ScaffoldResult",
-    "scaffold_strategy",
-    "scaffold_tag",
-]
+__all__: list[str] = []

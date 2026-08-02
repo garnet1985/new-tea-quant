@@ -4,7 +4,7 @@ data_cpi 表 Model
 消费者价格指数（原 price_indexes 拆分）。
 """
 from typing import List, Dict, Any, Optional
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 
 from core.tables.macro.cpi.schema import schema as _schema
 

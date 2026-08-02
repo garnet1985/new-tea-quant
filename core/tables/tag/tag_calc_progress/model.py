@@ -4,7 +4,7 @@ sys_tag_calc_progress 表 Model
 Tag 增量计算水位（frontier）。
 """
 from typing import List, Dict, Any
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 from core.tables.tag.tag_calc_progress.schema import schema as _schema
 
 

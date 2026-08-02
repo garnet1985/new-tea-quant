@@ -4,7 +4,7 @@ sys_tag_value 表 Model
 标签值。
 """
 from typing import List, Dict, Any
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 from core.tables.tag.tag_value.schema import schema as _schema
 
 

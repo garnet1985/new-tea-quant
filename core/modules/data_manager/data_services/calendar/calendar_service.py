@@ -20,9 +20,9 @@ import json
 
 from core.infra.project_context import ProjectContext
 
-from core.infra.utils.date.date_utils import DateUtils
 from core.modules.data_source.service.provider_helper import DataSourceProviderHelper
 from .. import BaseDataService
+from core.infra.utils import Utils
 
 
 logger = logging.getLogger(__name__)
@@ -112,7 +112,7 @@ class CalendarService(BaseDataService):
     def _derive_completed_from_trade_calendar(
         self, *, as_of_date: Optional[str] = None
     ) -> str:
-        anchor = str(as_of_date or DateUtils.today()).strip()
+        anchor = str(as_of_date or Utils.date.today()).strip()
         if not anchor or not self._trade_calendar:
             return ""
         try:
@@ -239,7 +239,7 @@ class CalendarService(BaseDataService):
 
         用于 Scanner 严格模式，以及 ``get_latest_completed_trading_date()`` 的 fallback。
         """
-        today = DateUtils.today()
+        today = Utils.date.today()
 
         # 1. 检查内存缓存（如果今天已请求过，直接返回）
         cached_date = self._get_cache_from_memory()
@@ -277,7 +277,7 @@ class CalendarService(BaseDataService):
         Returns:
             缓存的交易日，如果今天未请求过或不存在返回 None
         """
-        today = DateUtils.today()
+        today = Utils.date.today()
         with self._memory_cache["lock"]:
             last_request_date = self._memory_cache["last_request_date"]
             last_trading_date = self._memory_cache["last_trading_date"]
@@ -339,7 +339,7 @@ class CalendarService(BaseDataService):
         """
         with self._memory_cache["lock"]:
             self._memory_cache["last_trading_date"] = date
-            self._memory_cache["last_request_date"] = DateUtils.today()
+            self._memory_cache["last_request_date"] = Utils.date.today()
 
     def _save_to_db_cache(self, date: str, updated_at: str, provider: str):
         """
@@ -373,7 +373,7 @@ class CalendarService(BaseDataService):
         Returns:
             True 表示缓存已过期（不是今天更新的），False 表示缓存有效
         """
-        return updated_at != DateUtils.today()
+        return updated_at != Utils.date.today()
 
     def refresh(self) -> str:
         """
@@ -382,7 +382,7 @@ class CalendarService(BaseDataService):
         Returns:
             最新交易日（YYYYMMDD）
         """
-        today = DateUtils.today()
+        today = Utils.date.today()
         
         logger.info("🔄 强制刷新最新交易日（忽略缓存）...")
         new_trading_date, provider = self._fetch_with_fallback()
@@ -453,7 +453,7 @@ class CalendarService(BaseDataService):
         Returns:
             最新交易日（YYYYMMDD），如果失败或日期是今天返回 None
         """
-        today = DateUtils.today()
+        today = Utils.date.today()
         try:
             latest_date = fetch_func()
             if latest_date and latest_date != today:
@@ -545,7 +545,7 @@ class CalendarService(BaseDataService):
         """
         # 取最后2根
         last_two = klines[-2:] if len(klines) >= 2 else [klines[-1]]
-        today = DateUtils.today()
+        today = Utils.date.today()
         
         # 解析最后一根K线的日期
         last_kline = last_two[-1]
@@ -556,7 +556,7 @@ class CalendarService(BaseDataService):
             # 新浪财经格式：数组 ["日期", ...]
             last_date_str = last_kline[0]
         
-        last_date = DateUtils.normalize_str(last_date_str)
+        last_date = Utils.date.normalize_str(last_date_str)
         
         # 如果最后一根是今天，使用倒数第二根
         if last_date == today and len(last_two) >= 2:
@@ -565,7 +565,7 @@ class CalendarService(BaseDataService):
                 second_last_date_str = second_last_kline.split(',')[0]
             else:
                 second_last_date_str = second_last_kline[0]
-            return DateUtils.normalize_str(second_last_date_str)
+            return Utils.date.normalize_str(second_last_date_str)
         
         # 否则使用最后一根
         return last_date

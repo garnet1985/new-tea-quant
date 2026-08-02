@@ -1,24 +1,19 @@
 name: modules.data_manager
-version: 0.3.6
+version: 0.4.0
 compatible_core_versions: ">=0.4.1"
 description: "统一数据访问门面：DatabaseManager、core/userspace 表发现、各领域 DataService（stock/macro/calendar/index/db_cache）。"
 dependencies:
   - infra.db
   - infra.project_context
 changelog:
+  - version: "0.4.0"
+    changes:
+      - 对齐 CORE_MODULE_STANDARDS：包根仅 DataManager；contracts.py（BaseTableNames）
+      - 根 API.md / QUICKSTART / glossary / TEST_CASES / test_api
+      - CalendarService 不再包根导出；经 DataManager.calendar 访问
   - version: "0.3.6"
     changes:
-      - 优化 dispatch_planner 中的 entities_per_job 约束问题，效率最高提升约15%
-  - version: "0.3.5"
-    changes:
-      - 修改K线qfq的模拟算法，是误差更小，更贴近外部认可的数据来源
-  - version: "0.3.4"
-    changes:
-      - K 线加载查询优化（回测路径显著提速）
-      - 配合 DuckDB 域路由与 data_contract 批量取数
-  - version: "0.3.3"
-    changes:
-      - 交易日历、风险时段表与服务；全量股票列表（含退市）
+      - dispatch_planner entities_per_job 约束优化
   - version: "0.3.0"
     changes:
       - DataService 门面与 userspace 表发现基线

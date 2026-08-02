@@ -6,7 +6,12 @@ from __future__ import annotations
 import unittest
 from unittest import mock
 
-from core.infra.cmd_layout import CmdLayout, IconService, i
+import pytest
+
+from core.infra.cmd_layout import CmdLayout
+from core.infra.cmd_layout.icon.icon import IconService
+
+pytestmark = pytest.mark.force_run
 
 
 class TestIcon(unittest.TestCase):
@@ -21,7 +26,6 @@ class TestIcon(unittest.TestCase):
             self.assertEqual(CmdLayout.icon.get("success"), "✅")
             self.assertEqual(CmdLayout.icon.get("ok"), "✅")
             self.assertEqual(CmdLayout.icon.i("chart"), "📊")
-            self.assertEqual(i("success"), "✅")
 
     def test_ascii_fallback(self) -> None:
         with mock.patch.object(IconService, "supports_emoji", return_value=False):
@@ -33,8 +37,8 @@ class TestIcon(unittest.TestCase):
 
     def test_case_insensitive(self) -> None:
         with mock.patch.object(IconService, "supports_emoji", return_value=True):
-            self.assertEqual(IconService.get("SUCCESS"), "✅")
-            self.assertEqual(IconService.get("Green_Dot"), "🟢")
+            self.assertEqual(CmdLayout.icon.get("SUCCESS"), "✅")
+            self.assertEqual(CmdLayout.icon.get("Green_Dot"), "🟢")
 
 
 if __name__ == "__main__":

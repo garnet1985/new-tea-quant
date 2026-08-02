@@ -14,8 +14,7 @@ from typing import List, Dict, Any, Optional, Sequence, Union
 import logging
 
 from ... import BaseDataService
-from core.infra.utils.date.date_utils import DateUtils
-
+from core.infra.utils import Utils
 logger = logging.getLogger(__name__)
 
 # 价格字段配置（用于复权计算）
@@ -39,7 +38,7 @@ class KlineService(BaseDataService):
         self._adj_factor_event = data_manager.get_table("sys_adj_factor_events")
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
-        from core.infra.db import DatabaseManager
+        from core.infra.db.contracts import DatabaseManager
         self.db = DatabaseManager.get_default(auto_init=True)
     
     # ==================== K线基础方法 ====================
@@ -928,7 +927,7 @@ class KlineService(BaseDataService):
         Returns:
             YYYYMMDD 格式的日期字符串，如果输入为 None 则返回 None
         """
-        return DateUtils.normalize_str(date_str)
+        return Utils.date.normalize_str(date_str)
     
     def _load_stock_adj_factor_events(self, stock_id: str) -> List[Dict[str, Any]]:
         """加载单只股票全部复权事件（F(最新) 与 anchor 均依赖完整序列）。"""

@@ -195,7 +195,7 @@ def main() -> int:
                         f"域 {name}: db_path={block.get('db_path')!r}"
                     )
         try:
-            from core.infra.db.db_manager import DatabaseManager
+            from core.infra.db.contracts import DatabaseManager
 
             db = DatabaseManager(config=config, is_verbose=False)
             db.initialize()
@@ -294,7 +294,7 @@ def main() -> int:
                     "检测到已存在数据库：后续初始化步骤可能写入/覆盖初始化表数据，请先确认目标库是否正确。",
                 )
 
-        from core.infra.db.db_manager import DatabaseManager
+        from core.infra.db.contracts import DatabaseManager
         db = DatabaseManager(config=config, is_verbose=False)
         db.initialize()
         # 最小探活：不依赖任何业务表是否存在

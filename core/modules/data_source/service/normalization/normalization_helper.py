@@ -10,9 +10,6 @@ import logging
 from core.modules.data_source.data_class.api_config import ApiConfig
 from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.data_class.config import DataSourceConfig
-from core.infra.utils.utils import Utils
-
-
 logger = logging.getLogger(__name__)
 
 
@@ -216,12 +213,12 @@ def normalize_date_field(
         return records
 
     try:
-        from core.infra.utils.date.date_utils import DateUtils
+        from core.infra.utils import Utils
     except ImportError:
         logger.warning("无法导入 DateUtils，normalize_date_field 将跳过处理")
         return records
 
-    period = target_format or DateUtils.PERIOD_DAY
+    period = target_format or Utils.date.PERIOD_DAY
 
     for r in records:
         if not isinstance(r, dict) or field not in r:
@@ -230,7 +227,7 @@ def normalize_date_field(
         if value is None:
             continue
 
-        normalized = DateUtils.normalize_period_value(value, period)
+        normalized = Utils.date.normalize_period_value(value, period)
         if normalized:
             r[field] = normalized
 
@@ -257,12 +254,12 @@ def extract_mapped_records(
             # {api_name: {entity_id: raw_result}}
             # 这里避免使用 "or {}" 以防 raw_result 是 DataFrame 时触发
             # "The truth value of a DataFrame is ambiguous" 错误。
-            if Utils.is_dict(fetched_data):
+            if Utils.types.is_dict(fetched_data):
                 api_data = fetched_data.get(api_name)
             else:
                 api_data = {"_unified": fetched_data}
 
-            if not Utils.is_dict(api_data):
+            if not Utils.types.is_dict(api_data):
                 api_data = {"_unified": api_data}
 
             for raw in api_data.values():
@@ -293,12 +290,12 @@ def extract_mapped_records(
     mapped_records: List[Dict[str, Any]] = []
 
     for api_name, api_cfg in (apis_conf or {}).items():
-        if Utils.is_dict(fetched_data):
+        if Utils.types.is_dict(fetched_data):
             api_data = fetched_data.get(api_name)
         else:
             api_data = {"_unified": fetched_data}
 
-        if not Utils.is_dict(api_data):
+        if not Utils.types.is_dict(api_data):
             api_data = {"_unified": api_data}
 
         result_mapping = api_cfg.result_mapping

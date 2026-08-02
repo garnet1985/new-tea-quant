@@ -169,7 +169,7 @@ def cmd_userspace_package(args: argparse.Namespace) -> int:
 
 
 def cmd_db_checkpoint(args: argparse.Namespace) -> int:
-    from core.infra.db import DatabaseManager
+    from core.infra.db.contracts import DatabaseManager
     from core.infra.project_context import ProjectContext
 
     recover = bool(getattr(args, "recover_corrupt_wal", False))
@@ -207,22 +207,22 @@ def cmd_db_checkpoint(args: argparse.Namespace) -> int:
         if str(db.config.get("database_type", "")).lower() != "duckdb":
             print("当前 database_type 不是 duckdb，跳过。", flush=True)
             return 1
-        from core.infra.db.engines.duckdb.engine import DuckdbEngine
-        from core.infra.db.engines.duckdb.paths import resolve_duckdb_db_path
+        from core.infra.db import Db
 
         eng = db.engine
+        settings = getattr(eng, "_duckdb_settings", None)
         paths = {}
-        if isinstance(eng, DuckdbEngine):
-            paths = {d: cfg.db_path for d, cfg in eng._duckdb_settings.domains.items()}
+        if settings is not None:
+            paths = {d: cfg.db_path for d, cfg in settings.domains.items()}
         results = db.checkpoint_duckdb()
         print(f"CHECKPOINT 目标: {paths}", flush=True)
         for domain, ok in sorted(results.items()):
             print(f"  {domain}: {'ok' if ok else 'failed'}", flush=True)
         db_dir = None
-        if isinstance(eng, DuckdbEngine):
-            for cfg in eng._duckdb_settings.domains.values():
+        if settings is not None:
+            for cfg in settings.domains.values():
                 if cfg.db_path:
-                    db_dir = Path(resolve_duckdb_db_path(cfg.db_path)).parent
+                    db_dir = Path(Db.duckdb.resolve_db_path(cfg.db_path)).parent
                     break
         remaining = sorted(db_dir.glob("*.duckdb.wal")) if db_dir and db_dir.is_dir() else []
         if remaining:

@@ -4,7 +4,7 @@ data_lpr 表 Model
 贷款基础利率。
 """
 from typing import List, Dict, Any, Optional
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 from core.tables.macro.lpr.schema import schema as _schema
 
 

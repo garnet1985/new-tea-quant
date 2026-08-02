@@ -11,11 +11,8 @@ import threading
 import uuid
 from typing import Any, Dict, Optional
 
-from core.infra.system_actions.cache_cleanup.pipeline_lease import (
-    PipelineLease,
-    PipelineLeaseBusyError,
-    read_pipeline_status,
-)
+from core.infra.system_actions import SystemActions
+from core.infra.system_actions.contracts import PipelineLeaseBusyError
 from core.modules.strategy import Strategy
 from core.modules.strategy.core.enums import WorkbenchStep
 from core.modules.strategy.core.services.discovery import DiscoveryService
@@ -62,7 +59,7 @@ class WorkbenchRunLauncher:
                 return {"is_triggered": False, "reason": "策略未启用"}
             return {"is_triggered": False, "reason": f"策略不可运行: {name}"}
 
-        pipeline = read_pipeline_status()
+        pipeline = SystemActions.pipeline.read_status()
         if pipeline.get("busy"):
             kind = pipeline.get("kind") or "unknown"
             return {
@@ -180,7 +177,7 @@ class WorkbenchRunLauncher:
         api_settings: Dict[str, Any],
         force_refresh: bool,
     ) -> None:
-        lease = PipelineLease(
+        lease = SystemActions.pipeline.lease(
             kind="strategy_run",
             job_id=job_id,
             resource_key=strategy_name,
@@ -241,29 +238,24 @@ class WorkbenchRunLauncher:
     @staticmethod
     def _duckdb_prepare() -> None:
         try:
-            from core.infra.db.engines.duckdb.process_pool_scope import (
-                is_duckdb_backend,
-                recover_after_worker_pool_interrupt,
-            )
+            from core.infra.db import Db
 
-            if is_duckdb_backend():
-                recover_after_worker_pool_interrupt()
+            wp = Db.duckdb.worker_pool
+            if wp.is_backend():
+                wp.recover_after_interrupt()
         except Exception as exc:
             logger.warning("Workbench DuckDB prepare: %s", exc)
 
     @staticmethod
     def _duckdb_finalize() -> None:
         try:
-            from core.infra.db.engines.duckdb.process_pool_scope import (
-                ensure_data_manager_restored,
-                is_duckdb_backend,
-                wait_pool_children_done,
-            )
+            from core.infra.db import Db
 
-            if not is_duckdb_backend():
+            wp = Db.duckdb.worker_pool
+            if not wp.is_backend():
                 return
-            wait_pool_children_done(timeout_sec=30.0)
-            ensure_data_manager_restored()
+            wp.wait_pool_children_done(timeout_sec=30.0)
+            wp.ensure_data_manager_restored()
         except Exception as exc:
             logger.warning("Workbench DuckDB finalize: %s", exc)
 

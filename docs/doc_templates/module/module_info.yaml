@@ -1,0 +1,16 @@
+# 模块元数据
+# 版本 MAJOR.MINOR.PATCH（见 CORE_MODULE_STANDARDS 指标 4 / 11）：
+#   PATCH — 修 bug、注释、内部改名、稳定性标注、新加 API、无破坏性改动
+#   MINOR — 改已有稳定 API / 配置，或任何破坏性改动
+#   MAJOR — 随 core 大版本；core 为 0.x 时模块 MAJOR 保持 0
+
+name: <namespace.module_name> # 例：infra.db / modules.data_contract
+version: "<MAJOR.MINOR.PATCH>" # 须与 changelog[0].version 一致
+compatible_core_versions: ">=<core.min>" # 例：">=0.4.0"
+description: "<模块一句话简述>"
+dependencies:
+  - <dep.namespace.name> # 无则写 []
+changelog:
+  - version: "<MAJOR.MINOR.PATCH>"
+    changes:
+      - "<本版本变更摘要>"

@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 import logging
 
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 
 from core.tables.system.system_cache.schema import schema as _schema
 

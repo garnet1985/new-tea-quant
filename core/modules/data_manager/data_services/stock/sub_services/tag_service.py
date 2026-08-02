@@ -13,9 +13,8 @@ Tag Data Service - Tag 系统数据服务
 """
 from typing import List, Dict, Any, Mapping, Optional
 import logging
-from core.infra.utils.date.date_utils import DateUtils
-
 from ... import BaseDataService
+from core.infra.utils import Utils
 
 
 logger = logging.getLogger(__name__)
@@ -45,7 +44,7 @@ class TagDataService(BaseDataService):
             "sys_tag_calc_progress"
         )
 
-        from core.infra.db import DatabaseManager
+        from core.infra.db.contracts import DatabaseManager
 
         dm_db = getattr(data_manager, "db", None)
         if dm_db is not None and getattr(dm_db, "_initialized", False):
@@ -860,7 +859,7 @@ class TagDataService(BaseDataService):
         """
         # TODO: 委托给 CalendarService.get_next_trading_date() 实现
         # 当前使用简单逻辑：自然日 + 1 天
-        return DateUtils.add_days(date, 1)
+        return Utils.date.add_days(date, 1)
     
     # ==================== 私有辅助方法 ====================
     
@@ -993,11 +992,11 @@ class TagDataService(BaseDataService):
         
         try:
             if isinstance(date_value, str):
-                # 使用 DateUtils.normalize_str 处理字符串
-                return DateUtils.normalize_str(date_value)
+                # 使用 Utils.date.normalize_str 处理字符串
+                return Utils.date.normalize_str(date_value)
             else:
                 # 如果是 date/datetime 对象，转换为字符串
-                return DateUtils.normalize(date_value)
+                return Utils.date.normalize(date_value)
         except Exception as e:
             logger.warning(f"日期格式转换失败: {date_value}, error={e}")
             return None

@@ -4,7 +4,7 @@ data_stock_index_indicator_weight 表 Model
 股指成分股权重。
 """
 from typing import List, Dict, Any
-from core.infra.db import DbBaseModel
+from core.infra.db.contracts import DbBaseModel
 from core.tables.index.stock_index_weight.schema import schema as _schema
 
 

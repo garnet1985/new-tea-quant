@@ -4,7 +4,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.infra.machine_capacity import MachineCapacity
+from core.infra.machine_capacity.contracts import MachineCapacity
 
 
 class BasePlanner(ABC):

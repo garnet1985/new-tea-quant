@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from core.infra.discovery import Discovery
 from core.infra.project_context import ProjectContext
-from core.infra.project_context.core.database_defaults import (
+from core.infra.project_context.contracts import (
     DEFAULT_DUCKDB_DOMAINS,
     SUPPORTED_DB_TYPES,
 )
@@ -201,9 +201,9 @@ def run_cache_clear(payload: Dict[str, Any]) -> Dict[str, Any]:
     def _flag(key: str) -> bool:
         return bool(payload.get(key))
 
-    from core.infra.system_actions.cache_cleanup.cache_cleanup import run_cache_cleanup
+    from core.infra.system_actions import SystemActions
 
-    return run_cache_cleanup(
+    return SystemActions.cache.run(
         clear_db_cache=_flag("clear_db_cache"),
         clear_backtest_results=_flag("clear_backtest_results"),
         clear_scan_results=_flag("clear_scan_results"),

@@ -1,0 +1,15 @@
+# Data Source 术语表
+# Version: 0.4.0
+
+terms:
+  DataSourceManager:
+    definition: "数据源 Facade：mapping 发现、handler 构建、依赖拓扑执行"
+    aliases: ["data source manager"]
+
+  BaseHandler:
+    definition: "单数据源同步执行管线；从 contracts.py 导入"
+    aliases: ["handler"]
+
+  ApiJob:
+    definition: "单次 API 抓取 job 描述"
+    aliases: []

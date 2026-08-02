@@ -20,9 +20,6 @@ from core.infra.project_context.core.database_defaults import (
     DUCKDB_DOMAIN_FILES,
     SUPPORTED_DB_TYPES,
 )
-from core.infra.project_context.core.config_merge_policies import (
-    merge_market_profile_dicts,
-)
 
 
 class OverridableConfigNotFoundError(FileNotFoundError):
@@ -52,5 +49,4 @@ __all__ = [
     "DEFAULT_DUCKDB_DOMAINS",
     "DUCKDB_DOMAIN_FILES",
     "SUPPORTED_DB_TYPES",
-    "merge_market_profile_dicts",
 ]

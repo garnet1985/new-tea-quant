@@ -19,21 +19,21 @@ class DataScriptsNamespace:
 
     @staticmethod
     def register(action_id: str, *, description: str = ""):
-        from core.infra.update.db.registry import register_data_script
+        from core.infra.update.db.registry import DataScriptRegistry
 
-        return register_data_script(action_id, description=description)
+        return DataScriptRegistry.register(action_id, description=description)
 
     @staticmethod
     def get(action_id: str) -> Optional["RegisteredMigrationScript"]:
-        from core.infra.update.db.registry import get_data_script
+        from core.infra.update.db.registry import DataScriptRegistry
 
-        return get_data_script(action_id)
+        return DataScriptRegistry.get(action_id)
 
     @staticmethod
     def list() -> Dict[str, "RegisteredMigrationScript"]:
-        from core.infra.update.db.registry import list_registered_scripts
+        from core.infra.update.db.registry import DataScriptRegistry
 
-        return list_registered_scripts()
+        return DataScriptRegistry.list()
 
     @staticmethod
     def run(
@@ -42,9 +42,9 @@ class DataScriptsNamespace:
         *,
         context: Optional[dict] = None,
     ) -> None:
-        from core.infra.update.db.registry import run_data_script
+        from core.infra.update.db.registry import DataScriptRegistry
 
-        run_data_script(db, action_id, context=context)
+        DataScriptRegistry.run(db, action_id, context=context)
 
 
 class PostUpgradeNamespace:
@@ -52,21 +52,21 @@ class PostUpgradeNamespace:
 
     @staticmethod
     def register(action_id: str, *, description: str = ""):
-        from core.infra.update.post_upgrade.registry import register_post_upgrade_action
+        from core.infra.update.post_upgrade.registry import PostUpgradeRegistry
 
-        return register_post_upgrade_action(action_id, description=description)
+        return PostUpgradeRegistry.register(action_id, description=description)
 
     @staticmethod
     def get(action_id: str) -> Optional["RegisteredPostUpgradeAction"]:
-        from core.infra.update.post_upgrade.registry import get_post_upgrade_action
+        from core.infra.update.post_upgrade.registry import PostUpgradeRegistry
 
-        return get_post_upgrade_action(action_id)
+        return PostUpgradeRegistry.get(action_id)
 
     @staticmethod
     def list() -> List["RegisteredPostUpgradeAction"]:
-        from core.infra.update.post_upgrade.registry import list_registered_actions
+        from core.infra.update.post_upgrade.registry import PostUpgradeRegistry
 
-        return list_registered_actions()
+        return PostUpgradeRegistry.list()
 
     @staticmethod
     def run(
@@ -74,9 +74,9 @@ class PostUpgradeNamespace:
         *,
         context: Optional[Dict[str, Any]] = None,
     ) -> "PostUpgradeRunResult":
-        from core.infra.update.post_upgrade.runner import run_post_upgrade_actions
+        from core.infra.update.post_upgrade.runner import PostUpgradeRunner
 
-        return run_post_upgrade_actions(repo_root, context=context)
+        return PostUpgradeRunner.run(repo_root, context=context)
 
 
 class Update:

@@ -14,7 +14,7 @@
 
 ## 实现备注
 
-- `date` 内部拆 `_parser` / `_calculator` / `_period` / `_constants`
+- `date` 内部拆 `parser` / `calculator` / `period` / `constants`
 - `types` 的 pandas 依赖仅在 DataFrame 方法内 import
 - `math.deterministic_unit_float`：SHA-256 → `[0,1)`，可复现
 

@@ -161,23 +161,6 @@ class ConfigManager:
         """
         return ConfigManager._load_file(path, "json") or {}
 
-    # 保持向后兼容的别名（deprecated）
-    @staticmethod
-    def load_json(path: Path) -> Dict[str, Any]:
-        """
-        加载 JSON 配置文件（已废弃，请使用 load_json_file）
-
-        Args:
-            path: JSON 文件路径
-
-        Returns:
-            配置字典
-
-        Deprecated:
-            使用 load_json_file() 替代
-        """
-        return ConfigManager.load_json_file(path)
-    
     @staticmethod
     def parse_python_config(path: Path, var_name: str = "settings") -> Dict[str, Any]:
         """
@@ -202,24 +185,6 @@ class ConfigManager:
         result = ConfigManager._load_file(path, "py", var_name=var_name)
         return result if isinstance(result, dict) else {}
 
-    # 保持向后兼容的别名（deprecated）
-    @staticmethod
-    def load_python(path: Path, var_name: str = "settings") -> Dict[str, Any]:
-        """
-        解析 Python 配置文件（已废弃，请使用 parse_python_config）
-
-        Args:
-            path: Python 文件路径
-            var_name: 配置变量名
-
-        Returns:
-            配置字典
-
-        Deprecated:
-            使用 parse_python_config() 替代
-        """
-        return ConfigManager.parse_python_config(path, var_name)
-    
     @staticmethod
     def _load_file(
         path: Path,

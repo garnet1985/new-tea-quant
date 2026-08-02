@@ -1,9 +1,9 @@
 """CmdLayout facade — public entry for CLI layout helpers."""
 
-from .bar_chart import BarChartNamespace
-from .icon import IconNamespace
-from .separator import SeparatorNamespace
-from .title import TitleNamespace
+from .bar_chart.bar_chart import BarChartNamespace
+from .icon.icon import IconNamespace
+from .separator.separator import SeparatorNamespace
+from .title.title import TitleNamespace
 
 
 class CmdLayout:

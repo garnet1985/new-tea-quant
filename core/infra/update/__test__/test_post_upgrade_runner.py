@@ -7,11 +7,13 @@ from pathlib import Path
 import pytest
 
 from core.infra.update import Update
-from core.infra.update.post_upgrade.registry import clear_post_upgrade_registry
+from core.infra.update.post_upgrade.registry import PostUpgradeRegistry
+
+pytestmark = pytest.mark.force_run
 
 
 def test_run_skips_when_registry_empty():
-    clear_post_upgrade_registry()
+    PostUpgradeRegistry.clear()
     with tempfile.TemporaryDirectory() as td:
         result = Update.post_upgrade.run(Path(td))
     assert result.skipped is True
@@ -19,7 +21,7 @@ def test_run_skips_when_registry_empty():
 
 
 def test_run_executes_registered_actions_in_order():
-    clear_post_upgrade_registry()
+    PostUpgradeRegistry.clear()
     seen: list[str] = []
 
     @Update.post_upgrade.register("a_first")
@@ -38,4 +40,4 @@ def test_run_executes_registered_actions_in_order():
     assert result.action_ids == ["a_first", "b_second"]
     assert seen == ["a", "b"]
 
-    clear_post_upgrade_registry()
+    PostUpgradeRegistry.clear()

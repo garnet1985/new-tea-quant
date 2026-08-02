@@ -40,43 +40,43 @@ def _atomic_write(path: Path, payload: Dict[str, Any]) -> None:
     os.replace(str(tmp_path), str(path))
 
 
-def read_pipeline_status() -> Dict[str, Any]:
-    """Return idle or active lease snapshot for ``GET /runtime/pipeline``."""
-    with _LOCK:
-        path = _lease_path()
-        if not path.is_file():
-            return _idle_message()
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            return _idle_message()
-        if not isinstance(raw, dict) or not raw.get("job_id"):
-            return _idle_message()
-        return {
-            "busy": True,
-            "kind": raw.get("kind"),
-            "job_id": raw.get("job_id"),
-            "resource_key": raw.get("resource_key"),
-            "label": raw.get("label"),
-            "domains": list(raw.get("domains") or []),
-            "started_at": raw.get("started_at"),
-        }
-
-
-def _idle_message() -> Dict[str, Any]:
-    return {
-        "busy": False,
-        "kind": None,
-        "job_id": None,
-        "resource_key": None,
-        "label": None,
-        "domains": [],
-        "started_at": None,
-    }
-
-
 class PipelineLease:
     """Context manager: acquire on enter, release on exit."""
+
+    @staticmethod
+    def read_status() -> Dict[str, Any]:
+        """Return idle or active lease snapshot for ``GET /runtime/pipeline``."""
+        with _LOCK:
+            path = _lease_path()
+            if not path.is_file():
+                return PipelineLease._idle_message()
+            try:
+                raw = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                return PipelineLease._idle_message()
+            if not isinstance(raw, dict) or not raw.get("job_id"):
+                return PipelineLease._idle_message()
+            return {
+                "busy": True,
+                "kind": raw.get("kind"),
+                "job_id": raw.get("job_id"),
+                "resource_key": raw.get("resource_key"),
+                "label": raw.get("label"),
+                "domains": list(raw.get("domains") or []),
+                "started_at": raw.get("started_at"),
+            }
+
+    @staticmethod
+    def _idle_message() -> Dict[str, Any]:
+        return {
+            "busy": False,
+            "kind": None,
+            "job_id": None,
+            "resource_key": None,
+            "label": None,
+            "domains": [],
+            "started_at": None,
+        }
 
     def __init__(
         self,

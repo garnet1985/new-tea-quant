@@ -26,7 +26,7 @@ terms:
     definition: "按配置挂载一个 backend Engine 的运行时管理器；从 contracts 导入。"
     aliases: []
     avoid:
-      - "from core.infra.db import DatabaseManager"
+      - "from core.infra.db import DatabaseManager  # 已移除；用 contracts"
 
   Engine:
     definition: "某一数据库后端的实现包（mysql / pgsql / duckdb），含 connector、table_operator 等。"

@@ -436,8 +436,8 @@ class ConfigNamespace:
         user: Dict[str, Any],
     ) -> Dict[str, Any]:
         """合并市场 profile 配置（供 discovery.load_overridable_config 的 merge_fn）。"""
-        from .config_merge_policies import merge_market_profile_dicts
-        return merge_market_profile_dicts(core, user)
+        from .config_merge_policies import ConfigMergePolicies
+        return ConfigMergePolicies.merge_market_profile_dicts(core, user)
 
 
 class DiscoveryNamespace:

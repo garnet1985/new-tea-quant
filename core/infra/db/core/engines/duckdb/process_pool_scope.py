@@ -291,7 +291,7 @@ def resume_main_database_tag_write_only(data_mgr: Any) -> None:
     """仅连接 tag 域写库，不打开 data.duckdb（波次 digest）。"""
     from core.infra.db.core.db_manager import DatabaseManager
     from core.infra.db.core.engines.duckdb.engine import DuckdbEngine
-    from core.infra.db.core.engines.factory import create_engine
+    from core.infra.db.core.engines.factory import EngineFactory
 
     db = getattr(data_mgr, "db", None)
     if (
@@ -307,7 +307,7 @@ def resume_main_database_tag_write_only(data_mgr: Any) -> None:
         db.close()
 
     db = DatabaseManager(is_verbose=bool(getattr(data_mgr, "is_verbose", False)))
-    db.engine = create_engine(db.engine_meta)
+    db.engine = EngineFactory.create(db.engine_meta)
     db.rebuild_storage_registry()
     if isinstance(db.engine, DuckdbEngine):
         db.engine.rebuild_table_file_map(

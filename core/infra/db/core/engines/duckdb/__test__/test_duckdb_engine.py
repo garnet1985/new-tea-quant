@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.infra.db.core.engines import build_engine_meta, create_engine
+from core.infra.db.core.engines import EngineConfigMeta, EngineFactory
 from core.infra.db.core.engines.duckdb.engine import DuckdbEngine
 from core.infra.db.core.engines.duckdb.table_operator import DuckdbTableOperator
 
@@ -22,8 +22,8 @@ DUCKDB_CONFIG = {
 
 @pytest.fixture
 def duckdb_engine():
-    meta = build_engine_meta(DUCKDB_CONFIG, is_verbose=False)
-    engine = create_engine(meta)
+    meta = EngineConfigMeta.from_raw_config(DUCKDB_CONFIG, is_verbose=False)
+    engine = EngineFactory.create(meta)
     assert isinstance(engine, DuckdbEngine)
     engine.rebuild_table_file_map(table_to_domain={"sys_stock_list": "data"})
     with patch.object(engine.connector, "connect_all_domains"), patch.object(

@@ -16,7 +16,7 @@ def test_create_table_delegates_to_engine():
         },
     }
     schema = {"name": "sys_test", "storage_domain": "data", "fields": []}
-    with patch("core.infra.db.core.db_manager.create_engine") as mock_create:
+    with patch("core.infra.db.core.db_manager.EngineFactory.create") as mock_create:
         eng = MagicMock()
         mock_create.return_value = eng
         eng.schema_manager = MagicMock()
@@ -37,7 +37,7 @@ def test_drop_table_delegates_to_engine():
             "database": "db",
         },
     }
-    with patch("core.infra.db.core.db_manager.create_engine") as mock_create:
+    with patch("core.infra.db.core.db_manager.EngineFactory.create") as mock_create:
         eng = MagicMock()
         mock_create.return_value = eng
         eng.schema_manager = MagicMock()

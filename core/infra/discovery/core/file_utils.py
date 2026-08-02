@@ -258,34 +258,3 @@ class FileUtils:
             logger.error(f"加载Python配置文件失败: {file_path}, {e}")
             return None
 
-
-# ========== 便捷函数 ==========
-
-def find_file(
-    start_dir: Path,
-    filename: str,
-    *,
-    search_parents: bool = False
-) -> Optional[Path]:
-    """便捷函数：查找单个文件"""
-    return FileUtils.find_file(start_dir, filename, search_parents=search_parents)
-
-def load_json(file_path: Path) -> Optional[Dict[str, Any]]:
-    """便捷函数：加载JSON文件"""
-    return FileUtils.load_json(file_path)
-
-def load_yaml(file_path: Path) -> Optional[Dict[str, Any]]:
-    """便捷函数：加载YAML文件"""
-    return FileUtils.load_yaml(file_path)
-
-def load_file_content(file_path: Path, *, encoding: str = 'utf-8', auto_detect_format: bool = True) -> Optional[Union[str, Dict[str, Any], bytes]]:
-    """便捷函数：加载文件内容（自动识别JSON/YAML/文本）"""
-    return FileUtils.load_file_content(file_path, encoding=encoding, auto_detect_format=auto_detect_format)
-
-def save_file_content(file_path: Path, content: Union[str, Dict[str, Any], bytes], *, encoding: str = 'utf-8', ensure_parent_exists: bool = True) -> bool:
-    """便捷函数：保存文件内容（自动识别JSON/YAML/文本）"""
-    return FileUtils.save_file_content(file_path, content, encoding=encoding, ensure_parent_exists=ensure_parent_exists)
-
-def load_python_config(file_path: Path, var_name: str = "settings") -> Optional[Dict[str, Any]]:
-    """便捷函数：加载Python配置文件"""
-    return FileUtils.load_python_config(file_path, var_name)

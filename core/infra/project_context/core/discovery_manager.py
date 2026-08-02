@@ -88,8 +88,8 @@ class DiscoveryManager:
                 )
             return merged
 
-        core_raw = ConfigManager.load_json(core_path) if core_path.is_file() else {}
-        user_raw = ConfigManager.load_json(user_path) if user_path.is_file() else {}
+        core_raw = ConfigManager.load_json_file(core_path) if core_path.is_file() else {}
+        user_raw = ConfigManager.load_json_file(user_path) if user_path.is_file() else {}
         if not isinstance(core_raw, dict):
             core_raw = {}
         if not isinstance(user_raw, dict):

@@ -1,5 +1,3 @@
-"""Separator package — ASCII divider lines for CLI reports."""
+"""Separator 实现包（内部）。公开入口：``CmdLayout.separator``。"""
 
-from .separator import Separator, SeparatorNamespace
-
-__all__ = ["Separator", "SeparatorNamespace"]
+__all__: list[str] = []

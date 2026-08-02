@@ -238,9 +238,6 @@ def _resolve_strategy_key(name: Optional[str]) -> str:
     return enabled[0].key
 
 
-# 兼容旧名
-_resolve_enumerate_strategy = _resolve_strategy_key
-
 
 def _run_strategy_enumerate(args: argparse.Namespace) -> None:
     import time

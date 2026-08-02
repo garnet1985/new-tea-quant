@@ -16,8 +16,8 @@ from core.infra.db.core.schema_manager import SchemaManager
 from core.infra.db.core.engines.shared.config_parse import parse_database_config
 from core.infra.db.core.storage_registry import StorageRegistry
 from core.infra.db.core.engines.abc.engine_abc import DbEngineAbc
-from core.infra.db.core.engines.meta import EngineConfigMeta, build_engine_meta
-from core.infra.db.core.engines.factory import create_engine
+from core.infra.db.core.engines.factory import EngineFactory
+from core.infra.db.core.engines.meta import EngineConfigMeta
 
 
 logger = logging.getLogger(__name__)
@@ -46,7 +46,7 @@ class DatabaseManager:
             database_type=database_type,
         )
 
-        self.engine_meta: EngineConfigMeta = build_engine_meta(
+        self.engine_meta: EngineConfigMeta = EngineConfigMeta.from_raw_config(
             self.config, is_verbose=is_verbose
         )
         self.engine: Optional[DbEngineAbc] = None
@@ -106,7 +106,7 @@ class DatabaseManager:
             return
 
         try:
-            self.engine = create_engine(self.engine_meta)
+            self.engine = EngineFactory.create(self.engine_meta)
             self.rebuild_storage_registry()
             from core.infra.db.core.engines.duckdb.engine import DuckdbEngine
 

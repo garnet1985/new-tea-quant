@@ -6,7 +6,7 @@
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from core.infra.utils.date._constants import PERIOD_DAY, PERIOD_MONTH, PERIOD_QUARTER, PERIOD_YEAR, FMT_YYYYMMDD
+from core.infra.utils.date.constants import PERIOD_DAY, PERIOD_MONTH, PERIOD_QUARTER, PERIOD_YEAR, FMT_YYYYMMDD
 
 
 def normalize_date_str(date_str: Optional[str]) -> Optional[str]:
@@ -298,7 +298,7 @@ def diff_periods_impl(period1: str, period2: str, period_type: str) -> int:
     period_type = normalize_period_type(period_type)
     
     if period_type == PERIOD_DAY:
-        from core.infra.utils.date._calculator import diff_days_impl
+        from core.infra.utils.date.calculator import diff_days_impl
         return diff_days_impl(period1, period2)
     
     if period_type == PERIOD_MONTH:

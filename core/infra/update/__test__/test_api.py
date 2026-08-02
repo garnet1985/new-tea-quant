@@ -15,7 +15,7 @@ from core.infra.update.contracts import (
     RegisteredMigrationScript,
     RegisteredPostUpgradeAction,
 )
-from core.infra.update.post_upgrade.registry import clear_post_upgrade_registry
+from core.infra.update.post_upgrade.registry import PostUpgradeRegistry
 
 pytestmark = pytest.mark.force_run
 
@@ -42,7 +42,7 @@ class TestUpdateApi(unittest.TestCase):
         self.assertTrue(hasattr(PostUpgradeRunResult, "__dataclass_fields__"))
 
     def test_post_upgrade_run_skips_when_empty(self):
-        clear_post_upgrade_registry()
+        PostUpgradeRegistry.clear()
         with tempfile.TemporaryDirectory() as td:
             result = Update.post_upgrade.run(Path(td))
         self.assertTrue(result.skipped)

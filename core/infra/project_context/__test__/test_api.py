@@ -14,7 +14,6 @@ from core.infra.project_context.contracts import (
     DUCKDB_DOMAIN_FILES,
     OverridableConfigNotFoundError,
     SUPPORTED_DB_TYPES,
-    merge_market_profile_dicts,
 )
 
 pytestmark = pytest.mark.force_run
@@ -145,8 +144,7 @@ class TestContracts(unittest.TestCase):
         self.assertTrue(DUCKDB_DOMAIN_FILES)
         self.assertIn("duckdb", SUPPORTED_DB_TYPES)
 
-    def test_merge_market_profile_dicts_callable(self):
-        self.assertTrue(callable(merge_market_profile_dicts))
+    def test_merge_market_profile_dicts_on_facade(self):
         self.assertTrue(callable(ProjectContext.config.merge_market_profile_dicts))
 
 

@@ -9,8 +9,8 @@ import unittest
 import pytest
 
 from core.infra.cmd_layout import CmdLayout
-from core.infra.cmd_layout.title import Title, display_width
-from core.infra.cmd_layout.separator import Separator
+from core.infra.cmd_layout.title.title import Title
+from core.infra.cmd_layout.separator.separator import Separator
 
 pytestmark = pytest.mark.force_run
 
@@ -27,7 +27,7 @@ class TestTitle(unittest.TestCase):
         text = Title.banner("这里是标题")
         lines = text.splitlines()
         self.assertEqual(len(lines), 3)
-        expected = display_width("这里是标题") + Title.DEFAULT_BANNER_PAD
+        expected = Title.display_width("这里是标题") + Title.DEFAULT_BANNER_PAD
         self.assertEqual(lines[0], "*" * expected)
         self.assertEqual(lines[1], "这里是标题")
         self.assertEqual(lines[2], lines[0])

@@ -10,11 +10,8 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, Optional, Tuple
 
 from core.infra.db.core.db_manager import DatabaseManager
-from core.infra.db.core.engines.factory import create_engine as _create_engine
-from core.infra.db.core.engines.meta import (
-    EngineConfigMeta,
-    build_engine_meta as _build_engine_meta,
-)
+from core.infra.db.core.engines.factory import EngineFactory
+from core.infra.db.core.engines.meta import EngineConfigMeta
 from core.infra.db.core.migrate_manager import MigrationManager
 
 
@@ -72,11 +69,11 @@ class EngineNamespace:
     def build_meta(
         raw_config: Dict[str, Any], *, is_verbose: bool = False
     ) -> EngineConfigMeta:
-        return _build_engine_meta(raw_config, is_verbose=is_verbose)
+        return EngineConfigMeta.from_raw_config(raw_config, is_verbose=is_verbose)
 
     @staticmethod
     def create(meta: EngineConfigMeta):
-        return _create_engine(meta)
+        return EngineFactory.create(meta)
 
 
 class DuckdbWorkerPoolNamespace:

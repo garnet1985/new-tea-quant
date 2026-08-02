@@ -7,27 +7,30 @@ from core.infra.db.core.engines.abc.engine_abc import DbEngineAbc
 from core.infra.db.core.engines.meta import EngineConfigMeta
 
 
-def create_engine(meta: EngineConfigMeta) -> DbEngineAbc:
-    """根据 meta.engine_key 构造 Engine 实例（未 initialize）。"""
-    key = str(meta.engine_key).lower()
-    is_verbose = bool(meta.options.get("is_verbose", False))
+class EngineFactory:
+    """按 ``engine_key`` 构造 Engine 实例（未 initialize）。"""
 
-    if key == "mysql":
-        from core.infra.db.core.engines.mysql.engine import MysqlEngine
+    @staticmethod
+    def create(meta: EngineConfigMeta) -> DbEngineAbc:
+        key = str(meta.engine_key).lower()
+        is_verbose = bool(meta.options.get("is_verbose", False))
 
-        return MysqlEngine(meta, is_verbose=is_verbose)
+        if key == "mysql":
+            from core.infra.db.core.engines.mysql.engine import MysqlEngine
 
-    if key == "postgresql":
-        from core.infra.db.core.engines.pgsql.engine import PgsqlEngine
+            return MysqlEngine(meta, is_verbose=is_verbose)
 
-        return PgsqlEngine(meta, is_verbose=is_verbose)
+        if key == "postgresql":
+            from core.infra.db.core.engines.pgsql.engine import PgsqlEngine
 
-    if key == "duckdb":
-        from core.infra.db.core.engines.duckdb.engine import DuckdbEngine
+            return PgsqlEngine(meta, is_verbose=is_verbose)
 
-        return DuckdbEngine(meta, is_verbose=is_verbose)
+        if key == "duckdb":
+            from core.infra.db.core.engines.duckdb.engine import DuckdbEngine
 
-    raise ValueError(
-        f"不支持的 engine_key: {key!r}，"
-        f"支持: mysql, postgresql, duckdb"
-    )
+            return DuckdbEngine(meta, is_verbose=is_verbose)
+
+        raise ValueError(
+            f"不支持的 engine_key: {key!r}，"
+            f"支持: mysql, postgresql, duckdb"
+        )

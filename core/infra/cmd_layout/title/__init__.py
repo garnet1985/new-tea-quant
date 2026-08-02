@@ -1,5 +1,3 @@
-"""Title package — ASCII title / section headings for CLI reports."""
+"""Title 实现包（内部）。公开入口：``CmdLayout.title``。"""
 
-from .title import Title, TitleNamespace, display_width
-
-__all__ = ["Title", "TitleNamespace", "display_width"]
+__all__: list[str] = []

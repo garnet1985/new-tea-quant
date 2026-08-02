@@ -19,9 +19,9 @@ class CacheNamespace:
         clear_scan_results: bool = False,
         clear_userspace_ntq: bool = False,
     ) -> Dict[str, Any]:
-        from core.infra.system_actions.cache_cleanup.cache_cleanup import run_cache_cleanup
+        from core.infra.system_actions.cache_cleanup.cache_cleanup import CacheCleanup
 
-        return run_cache_cleanup(
+        return CacheCleanup.run(
             clear_db_cache=clear_db_cache,
             clear_backtest_results=clear_backtest_results,
             clear_scan_results=clear_scan_results,
@@ -30,43 +30,33 @@ class CacheNamespace:
 
     @staticmethod
     def clear_workbench_db() -> int:
-        from core.infra.system_actions.cache_cleanup.cache_cleanup import (
-            clear_workbench_db_cache,
-        )
+        from core.infra.system_actions.cache_cleanup.cache_cleanup import CacheCleanup
 
-        return clear_workbench_db_cache()
+        return CacheCleanup.clear_workbench_db_cache()
 
     @staticmethod
     def clear_backtest_results(*, strategy_names: Optional[Iterable[str]] = None) -> int:
-        from core.infra.system_actions.cache_cleanup.cache_cleanup import (
-            clear_backtest_results_disk,
-        )
+        from core.infra.system_actions.cache_cleanup.cache_cleanup import CacheCleanup
 
-        return clear_backtest_results_disk(strategy_names=strategy_names)
+        return CacheCleanup.clear_backtest_results_disk(strategy_names=strategy_names)
 
     @staticmethod
     def clear_scan_results(*, strategy_names: Optional[Iterable[str]] = None) -> int:
-        from core.infra.system_actions.cache_cleanup.cache_cleanup import (
-            clear_scan_results_disk,
-        )
+        from core.infra.system_actions.cache_cleanup.cache_cleanup import CacheCleanup
 
-        return clear_scan_results_disk(strategy_names=strategy_names)
+        return CacheCleanup.clear_scan_results_disk(strategy_names=strategy_names)
 
     @staticmethod
     def clear_strategy_results(*, strategy_names: Optional[Iterable[str]] = None) -> int:
-        from core.infra.system_actions.cache_cleanup.cache_cleanup import (
-            clear_strategy_results_disk,
-        )
+        from core.infra.system_actions.cache_cleanup.cache_cleanup import CacheCleanup
 
-        return clear_strategy_results_disk(strategy_names=strategy_names)
+        return CacheCleanup.clear_strategy_results_disk(strategy_names=strategy_names)
 
     @staticmethod
     def clear_userspace_ntq() -> None:
-        from core.infra.system_actions.cache_cleanup.cache_cleanup import (
-            clear_userspace_ntq_dir,
-        )
+        from core.infra.system_actions.cache_cleanup.cache_cleanup import CacheCleanup
 
-        clear_userspace_ntq_dir()
+        CacheCleanup.clear_userspace_ntq_dir()
 
 
 class PipelineNamespace:
@@ -74,11 +64,9 @@ class PipelineNamespace:
 
     @staticmethod
     def read_status() -> Dict[str, Any]:
-        from core.infra.system_actions.cache_cleanup.pipeline_lease import (
-            read_pipeline_status,
-        )
+        from core.infra.system_actions.cache_cleanup.pipeline_lease import PipelineLease
 
-        return read_pipeline_status()
+        return PipelineLease.read_status()
 
     @staticmethod
     def lease(
@@ -107,18 +95,18 @@ class ScaffoldNamespace:
     @staticmethod
     def create_strategy(raw_path: str):
         from core.infra.system_actions.shortcuts.create_new_strategy.scaffold import (
-            scaffold_strategy,
+            StrategyScaffold,
         )
 
-        return scaffold_strategy(raw_path)
+        return StrategyScaffold.create(raw_path)
 
     @staticmethod
     def create_tag(raw_path: str):
         from core.infra.system_actions.shortcuts.create_new_tag.scaffold import (
-            scaffold_tag,
+            TagScaffold,
         )
 
-        return scaffold_tag(raw_path)
+        return TagScaffold.create(raw_path)
 
 
 class SystemActions:

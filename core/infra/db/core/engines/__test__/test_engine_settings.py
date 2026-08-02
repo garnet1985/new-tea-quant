@@ -1,10 +1,10 @@
-"""Engine 配置 dataclass 与 build_engine_meta 解析。"""
+"""Engine 配置 dataclass 与 EngineConfigMeta.from_raw_config 解析。"""
 import pytest
 
 pytestmark = pytest.mark.force_run
 
 from core.infra.db.core.engines.duckdb.settings import DuckdbSettings
-from core.infra.db.core.engines.meta import build_engine_meta
+from core.infra.db.core.engines.meta import EngineConfigMeta
 from core.infra.db.core.engines.mysql.settings import MysqlSettings
 from core.infra.db.core.engines.pgsql.settings import PgsqlSettings
 from core.infra.db.core.engines.shared.config_parse import parse_database_config
@@ -26,7 +26,7 @@ def test_build_engine_meta_mysql():
         "batch_write": {"batch_size": 500, "_advanced": {"insert_batch_size": 2000}},
     }
     parsed = parse_database_config(raw)
-    meta = build_engine_meta(parsed)
+    meta = EngineConfigMeta.from_raw_config(parsed)
     assert isinstance(meta.backend, MysqlSettings)
     assert meta.backend.pool_minconn == 2
     assert meta.backend.pool_maxconn == 20
@@ -49,7 +49,7 @@ def test_build_engine_meta_duckdb_checkpoint_keys():
         "batch_write": {"enable": True},
     }
     parsed = parse_database_config(raw)
-    meta = build_engine_meta(parsed)
+    meta = EngineConfigMeta.from_raw_config(parsed)
     assert isinstance(meta.backend, DuckdbSettings)
     assert meta.backend.checkpoint_after_batch_save is False
     assert meta.options["checkpoint_after_write"] is False
@@ -69,6 +69,6 @@ def test_build_engine_meta_pgsql_schema():
         },
     }
     parsed = parse_database_config(raw)
-    meta = build_engine_meta(parsed)
+    meta = EngineConfigMeta.from_raw_config(parsed)
     assert isinstance(meta.backend, PgsqlSettings)
     assert meta.backend.pgsql_schema == "app"

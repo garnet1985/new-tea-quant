@@ -113,24 +113,6 @@ class FileManager:
         except Exception:
             return None
 
-    # 保持向后兼容的别名（deprecated）
-    @staticmethod
-    def read_file(path: Path, encoding: str = "utf-8") -> Optional[str]:
-        """
-        加载文件内容（已废弃，请使用 load_file_content）
-
-        Args:
-            path: 文件路径
-            encoding: 文件编码
-
-        Returns:
-            文件内容
-
-        Deprecated:
-            使用 load_file_content() 替代
-        """
-        return FileManager.load_file_content(path, encoding=encoding)
-    
     @staticmethod
     def file_exists(path: Path) -> bool:
         """

@@ -44,8 +44,8 @@ __all__ = [
 ]
 
 
-def from_dict(field_dict: Dict[str, Any]) -> Field:
-    """从字典创建 Field 对象（工厂方法）。"""
+def _field_from_dict(field_dict: Dict[str, Any]) -> Field:
+    """从字典创建 Field 对象（挂到 ``Field.from_dict``，非包级导出）。"""
     field_type = field_dict.get("type", "").upper()
     name = field_dict.get("name")
     is_required = field_dict.get("isRequired", False)
@@ -138,4 +138,4 @@ def from_dict(field_dict: Dict[str, Any]) -> Field:
     raise ValueError(f"不支持的字段类型: {field_type} (字段: {name})")
 
 
-Field.from_dict = staticmethod(from_dict)
+Field.from_dict = staticmethod(_field_from_dict)

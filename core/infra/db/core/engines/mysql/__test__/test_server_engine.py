@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core.infra.db.core.engines import build_engine_meta, create_engine
+from core.infra.db.core.engines import EngineConfigMeta, EngineFactory
 from core.infra.db.core.engines.mysql.engine import MysqlEngine
 
 
@@ -21,8 +21,8 @@ MYSQL_CONFIG = {
 
 @pytest.fixture
 def mysql_engine():
-    meta = build_engine_meta(MYSQL_CONFIG, is_verbose=False)
-    engine = create_engine(meta)
+    meta = EngineConfigMeta.from_raw_config(MYSQL_CONFIG, is_verbose=False)
+    engine = EngineFactory.create(meta)
     assert isinstance(engine, MysqlEngine)
     with patch.object(engine.connector, "connect"):
         engine.initialize()

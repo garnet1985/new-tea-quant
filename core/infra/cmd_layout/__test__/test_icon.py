@@ -9,7 +9,7 @@ from unittest import mock
 import pytest
 
 from core.infra.cmd_layout import CmdLayout
-from core.infra.cmd_layout.icon import IconService
+from core.infra.cmd_layout.icon.icon import IconService
 
 pytestmark = pytest.mark.force_run
 

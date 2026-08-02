@@ -126,7 +126,7 @@ userspace = ProjectContext.path.get_userspace_root()
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.5.0`
-- **描述：** 市场 profile 专用合并；亦可从 `contracts` 导入同名函数，供 `discovery.load_overridable_config(..., merge_fn=...)` 使用
+- **描述：** 市场 profile 专用合并；可作 `discovery.load_overridable_config(..., merge_fn=ProjectContext.config.merge_market_profile_dicts)`
 
 ### meta
 
@@ -174,13 +174,12 @@ userspace = ProjectContext.path.get_userspace_root()
 
 ```python
 from core.infra.project_context import ProjectContext
-from core.infra.project_context.contracts import (
-    OverridableConfigNotFoundError,
-    merge_market_profile_dicts,
-)
+from core.infra.project_context.contracts import OverridableConfigNotFoundError
 
 cfg = ProjectContext.discovery.load_overridable_config(
-    "markets", "china_a_stock", merge_fn=merge_market_profile_dicts
+    "markets",
+    "china_a_stock",
+    merge_fn=ProjectContext.config.merge_market_profile_dicts,
 )
 ```
 
@@ -193,7 +192,6 @@ cfg = ProjectContext.discovery.load_overridable_config(
 | `OverridableConfigNotFoundError` | 可覆盖配置未找到（`FileNotFoundError` 子类） |
 | `DiscoveredConfig` | 配置路径发现结果 dataclass |
 | `DEFAULT_DUCKDB_DOMAINS` / `DUCKDB_DOMAIN_FILES` / `SUPPORTED_DB_TYPES` | DuckDB 域默认与支持类型 |
-| `merge_market_profile_dicts` | 市场 profile 合并函数 |
 
 ```python
 from core.infra.project_context.contracts import (

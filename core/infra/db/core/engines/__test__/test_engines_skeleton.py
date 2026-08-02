@@ -6,8 +6,8 @@ pytestmark = pytest.mark.force_run
 from core.infra.db.core.engines import (
     DbEngineAbc,
     DbTableAbc,
-    build_engine_meta,
-    create_engine,
+    EngineConfigMeta,
+    EngineFactory,
 )
 from core.infra.db.core.engines.duckdb.engine import DuckdbEngine
 from core.infra.db.core.engines.mysql.engine import MysqlEngine
@@ -39,7 +39,7 @@ _DUCKDB = {
 
 def _meta(engine_key: str):
     raw = {"database_type": engine_key, engine_key: _MYSQL if engine_key == "mysql" else _PGSQL if engine_key == "postgresql" else _DUCKDB}
-    return build_engine_meta(parse_database_config(raw))
+    return EngineConfigMeta.from_raw_config(parse_database_config(raw))
 
 
 @pytest.mark.parametrize(
@@ -51,13 +51,13 @@ def _meta(engine_key: str):
     ],
 )
 def test_create_engine_by_key(engine_key, expected_cls):
-    engine = create_engine(_meta(engine_key))
+    engine = EngineFactory.create(_meta(engine_key))
     assert isinstance(engine, expected_cls)
     assert isinstance(engine, DbEngineAbc)
 
 
 def test_table_operator_returns_db_table_abc():
-    engine = create_engine(_meta("mysql"))
+    engine = EngineFactory.create(_meta("mysql"))
     op = engine.table_operator("sys_stock_list")
     assert isinstance(op, DbTableAbc)
     assert op.table_name == "sys_stock_list"
@@ -65,6 +65,6 @@ def test_table_operator_returns_db_table_abc():
 
 
 def test_db_table_abc_concrete_helpers():
-    op = create_engine(_meta("mysql")).table_operator("t")
+    op = EngineFactory.create(_meta("mysql")).table_operator("t")
     assert op.replace is not op.upsert
     assert op.insert_many is not op.insert

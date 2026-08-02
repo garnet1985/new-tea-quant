@@ -21,5 +21,3 @@ def deterministic_unit_float(*key_parts: Any) -> float:
     digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
     return int(digest[:8], 16) / float(0xFFFFFFFF)
 
-
-__all__ = ["deterministic_unit_float"]

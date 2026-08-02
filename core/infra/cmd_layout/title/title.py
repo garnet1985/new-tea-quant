@@ -6,17 +6,6 @@ import unicodedata
 from typing import Optional, TextIO
 
 
-def display_width(text: str) -> int:
-    """Terminal column width (CJK fullwidth counts as 2)."""
-    width = 0
-    for ch in text:
-        if unicodedata.east_asian_width(ch) in ("F", "W"):
-            width += 2
-        else:
-            width += 1
-    return width
-
-
 class Title:
     """Render ASCII title blocks for CLI reports."""
 
@@ -24,6 +13,18 @@ class Title:
     DEFAULT_SECTION_CHAR = "-"
     # Extra columns beyond title text so the star rules read as a clear banner.
     DEFAULT_BANNER_PAD = 16
+
+    @staticmethod
+    def display_width(text: str) -> int:
+        """Terminal column width (CJK fullwidth counts as 2)."""
+        width = 0
+        for ch in text:
+            if unicodedata.east_asian_width(ch) in ("F", "W"):
+                width += 2
+            else:
+                width += 1
+        return width
+
 
     @classmethod
     def banner(
@@ -45,7 +46,7 @@ class Title:
         """
         body = str(text)
         rule_char = (char or cls.DEFAULT_CHAR)[:1] or "*"
-        body_width = display_width(body)
+        body_width = Title.display_width(body)
         if width is not None:
             rule_width = max(1, int(width))
         else:
@@ -150,4 +151,4 @@ class TitleNamespace:
         return Title.print_section(text, char=char, stream=stream)
 
 
-__all__ = ["Title", "TitleNamespace", "display_width"]
+__all__ = ["Title", "TitleNamespace"]

@@ -5,10 +5,9 @@ from pathlib import Path
 import pytest
 
 from core.infra.project_context import ProjectContext
-from core.infra.project_context.contracts import (
-    OverridableConfigNotFoundError,
-    merge_market_profile_dicts,
-)
+from core.infra.project_context.contracts import OverridableConfigNotFoundError
+
+merge_market_profile_dicts = ProjectContext.config.merge_market_profile_dicts
 
 
 @pytest.fixture

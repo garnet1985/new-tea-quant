@@ -274,6 +274,81 @@ def cmd_check_deps(args: argparse.Namespace) -> int:
     return run_dependency_check(verbose=verbose)
 
 
+_PERF_SCRIPTS = (
+    REPO_ROOT / "core" / "modules" / "backtest_engine" / "__performance__" / "scripts"
+)
+
+
+def _normalize_be_perf_db(raw: str) -> str:
+    key = str(raw or "duckdb").strip().lower()
+    if key == "pgsql":
+        return "postgresql"
+    if key in {"duckdb", "mysql", "postgresql"}:
+        return key
+    raise SystemExit(f"未知 --db {raw!r}")
+
+
+def _import_be_perf_scripts():
+    scripts = str(_PERF_SCRIPTS.resolve())
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    import clean_up as clean_mod
+    import common as common_mod
+    import data_gen as data_gen_mod
+    import db_creation as db_mod
+    import test_script as test_mod
+
+    return common_mod, data_gen_mod, db_mod, test_mod, clean_mod
+
+
+def cmd_be_perf(args: argparse.Namespace) -> int:
+    """Run BE performance suite: gen (if needed) → import → idle cases."""
+    db = _normalize_be_perf_db(getattr(args, "db", "duckdb"))
+    with_io = bool(getattr(args, "with_io", False))
+
+    if db != "duckdb":
+        print(
+            f"--db {db} 尚未实现（当前仅 duckdb）。"
+            " MySQL/PgSQL 建库导入仍为 stub。",
+            flush=True,
+        )
+        return 2
+
+    common_mod, data_gen_mod, db_mod, test_mod, _clean_mod = _import_be_perf_scripts()
+    print(
+        f"be_perf: db=duckdb with_io={with_io}\n"
+        "  阶段: [1/3] fake_data → [2/3] 导入 DuckDB → [3/3] 跑 idle cases\n"
+        "  长时间无输出时看子阶段进度行（[data_gen]/[db_creation]/[test]）",
+        flush=True,
+    )
+
+    print("[be_perf 1/3] fake_data", flush=True)
+    if not common_mod.dataset_files_present():
+        print("  fake_data 缺失，运行 data_gen…", flush=True)
+        rc = int(data_gen_mod.main([]))
+        if rc != 0:
+            return rc
+    else:
+        print("  复用已有 fake_data", flush=True)
+
+    print("[be_perf 2/3] 导入临时 DuckDB（--reuse；不一致则重建）…", flush=True)
+    db_mod.create_duckdb(reuse=True)
+
+    print("[be_perf 3/3] 跑 idle cases…", flush=True)
+    test_argv = ["--case", "all"]
+    if with_io:
+        test_argv.append("--with-io")
+    return int(test_mod.main(test_argv))
+
+
+def cmd_be_perf_clear(args: argparse.Namespace) -> int:
+    """Remove BE __performance__ generated artifacts."""
+    _ = args
+    _common_mod, _data_gen_mod, _db_mod, _test_mod, clean_mod = _import_be_perf_scripts()
+    print("be_perf_clear: cleaning BE __performance__ (--all)", flush=True)
+    return int(clean_mod.main(["--all"]))
+
+
 def normalize_forward(rest: Sequence[str]) -> list[str]:
     rest = list(rest)
     if rest[:1] == ["--"]:

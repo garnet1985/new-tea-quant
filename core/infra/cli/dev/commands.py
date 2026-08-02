@@ -22,6 +22,8 @@ class DevCommands:
         "ssp": "sample_stock_pool",
         "pc": "pool_clear",
         "cd": "check_deps",
+        "bp": "be_perf",
+        "bpc": "be_perf_clear",
     }
 
     LONG_COMMANDS: frozenset[str] = frozenset(
@@ -41,6 +43,8 @@ class DevCommands:
             "sample_stock_pool",
             "pool_clear",
             "check_deps",
+            "be_perf",
+            "be_perf_clear",
         }
     )
 

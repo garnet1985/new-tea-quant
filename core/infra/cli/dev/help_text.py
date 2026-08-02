@@ -19,9 +19,13 @@ DEVCLI_COMMAND_REFERENCE = """
   python devcli.py p -core_v0.3.2          发布检查          同 pack --version 0.3.2
   python devcli.py ssp 500                 分层样本池        同 sample_stock_pool N
   python devcli.py pc                      取消样本池        同 pool_clear
+  python devcli.py be_perf                 BE 性能套件       同 bp [--db duckdb] [--with-io]
+  python devcli.py be_perf_clear           清理 BE 性能生成物  同 bpc
 
   --verbose                                详细日志
 
   例: python devcli.py p -core_v0.3.2 --check-only
       同 python devcli.py pack --version 0.3.2 --check-only
+      python devcli.py be_perf
+      python devcli.py bp --with-io
 """.strip()

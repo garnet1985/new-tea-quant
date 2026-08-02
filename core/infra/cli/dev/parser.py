@@ -142,6 +142,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="取消样本股票池（恢复全量 renew）",
     ).set_defaults(handler=h.cmd_pool_clear)
 
+    p_be_perf = sub.add_parser(
+        "be_perf",
+        aliases=DevCommands.aliases_for("be_perf"),
+        help="BacktestEngine 性能套件（默认 duckdb）",
+    )
+    p_be_perf.add_argument(
+        "--db",
+        default="duckdb",
+        choices=["duckdb", "mysql", "pgsql", "postgresql"],
+        help="临时库引擎（默认 duckdb；mysql/pgsql 尚未实现）",
+    )
+    p_be_perf.add_argument(
+        "--with-io",
+        action="store_true",
+        help="主进程预读日 K 后再跑 idle 调度",
+    )
+    p_be_perf.set_defaults(handler=h.cmd_be_perf)
+
+    sub.add_parser(
+        "be_perf_clear",
+        aliases=DevCommands.aliases_for("be_perf_clear"),
+        help="清理 BE __performance__ 生成物（fake_data / 临时库 / results/_local）",
+    ).set_defaults(handler=h.cmd_be_perf_clear)
+
     return parser
 
 

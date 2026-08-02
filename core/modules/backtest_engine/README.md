@@ -23,6 +23,7 @@
 | [glossary.yaml](./glossary.yaml) | 术语 |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 架构与目录 |
 | [docs/DESIGN.md](./docs/DESIGN.md) | 设计决策 |
+| [__performance__/README.md](./__performance__/README.md) | 调度空转性能基线（合成数据） |
 
 ## 公开 import
 

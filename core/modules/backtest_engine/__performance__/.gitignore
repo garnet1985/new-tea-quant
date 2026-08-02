@@ -1,0 +1,8 @@
+# Generated fixtures & temp DBs (keep generator scripts only)
+fake_data/*.csv
+fake_data/*.txt
+fake_data/*.json
+.workdir/
+results/_local/
+__pycache__/
+*.pyc

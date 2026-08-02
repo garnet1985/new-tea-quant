@@ -63,6 +63,15 @@ class TestDbApi(unittest.TestCase):
         from core.infra.db import Db
 
         self.assertTrue(callable(Db.duckdb.resolve_db_path))
+        self.assertTrue(callable(Db.duckdb.overlay_domain_paths))
+        overlay = Db.duckdb.overlay_domain_paths(
+            data="/tmp/perf_test_tmp.duckdb",
+            tag="/tmp/perf_test_tmp_tag.duckdb",
+            strategy="/tmp/perf_test_tmp_strategy.duckdb",
+        )
+        self.assertEqual(overlay.get("database_type"), "duckdb")
+        domains = overlay["duckdb"]["domains"]
+        self.assertEqual(domains["data"]["db_path"], "/tmp/perf_test_tmp.duckdb")
         wp = Db.duckdb.worker_pool
         for name in (
             "is_backend",

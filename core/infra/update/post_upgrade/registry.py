@@ -7,21 +7,11 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
-from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
+from core.infra.update.contracts import PostUpgradeFn, RegisteredPostUpgradeAction
+
 logger = logging.getLogger(__name__)
-
-PostUpgradeFn = Callable[[Path, dict], None]
-
-
-@dataclass(frozen=True)
-class RegisteredPostUpgradeAction:
-    action_id: str
-    description: str
-    run: PostUpgradeFn
-
 
 _REGISTRY: Dict[str, RegisteredPostUpgradeAction] = {}
 _ORDER: List[str] = []

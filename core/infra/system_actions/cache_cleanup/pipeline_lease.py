@@ -11,21 +11,12 @@ from tempfile import NamedTemporaryFile
 from typing import Any, Dict, List, Optional
 
 from core.infra.project_context import ProjectContext
-
-_LOCK = threading.Lock()
-
-VALID_KINDS = frozenset(
-    {"tag_run", "strategy_scan", "strategy_run", "data_renew"}
+from core.infra.system_actions.contracts import (
+    VALID_KINDS,
+    PipelineLeaseBusyError,
 )
 
-
-class PipelineLeaseBusyError(Exception):
-    """Raised when ``acquire`` fails because another job holds the lease."""
-
-    def __init__(self, active: Dict[str, Any]):
-        self.active = dict(active)
-        kind = active.get("kind") or "unknown"
-        super().__init__(f"pipeline busy: kind={kind}")
+_LOCK = threading.Lock()
 
 
 def _lease_path() -> Path:

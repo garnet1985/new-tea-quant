@@ -41,9 +41,9 @@ def execute_plan(
 
         if step.kind == MigrationStepKind.RUN_DATA_SCRIPT:
             script_id = step.script_action_id or step.action_id
-            from core.infra.update.db.registry import run_data_script
+            from core.infra.update import Update
 
-            run_data_script(db, script_id, context=script_context)
+            Update.data_scripts.run(db, script_id, context=script_context)
         else:
             if not step.sql.strip():
                 raise RuntimeError(f"迁移步骤 {step.step_id!r} 缺少 SQL")

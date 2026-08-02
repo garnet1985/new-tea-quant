@@ -6,23 +6,14 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Dict, Optional
+
+from core.infra.update.contracts import MigrationScriptFn, RegisteredMigrationScript
 
 if TYPE_CHECKING:
     from core.infra.db.contracts import DatabaseManager
 
 logger = logging.getLogger(__name__)
-
-MigrationScriptFn = Callable[["DatabaseManager", dict], None]
-
-
-@dataclass(frozen=True)
-class RegisteredMigrationScript:
-    action_id: str
-    description: str
-    run: MigrationScriptFn
-
 
 _REGISTRY: Dict[str, RegisteredMigrationScript] = {}
 

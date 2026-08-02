@@ -64,7 +64,7 @@ def test_pipeline_progress_roundtrip_via_launcher(tmp_path, monkeypatch):
 
 
 @patch(
-    "core.bff.APIs.strategy.routes.runner.workbench_run.read_pipeline_status",
+    "core.infra.system_actions.system_actions.PipelineNamespace.read_status",
     return_value={"busy": False},
 )
 @patch(
@@ -84,7 +84,7 @@ def test_submit_unknown_strategy(_find_any, _find, _pipe):
 
 
 @patch(
-    "core.bff.APIs.strategy.routes.runner.workbench_run.read_pipeline_status",
+    "core.infra.system_actions.system_actions.PipelineNamespace.read_status",
     return_value={"busy": True, "kind": "tag_run"},
 )
 @patch(

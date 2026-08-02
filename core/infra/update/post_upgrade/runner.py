@@ -4,24 +4,16 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.infra.update.post_upgrade.registry import (
+from core.infra.update.contracts import (
+    PostUpgradeRunResult,
     RegisteredPostUpgradeAction,
-    list_registered_actions,
 )
+from core.infra.update.post_upgrade.registry import list_registered_actions
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class PostUpgradeRunResult:
-    skipped: bool = False
-    skipped_reason: Optional[str] = None
-    action_ids: List[str] = field(default_factory=list)
-    executed_count: int = 0
 
 
 def _ensure_actions_loaded() -> None:

@@ -11,11 +11,8 @@ import threading
 import uuid
 from typing import Any, Dict, Optional
 
-from core.infra.system_actions.cache_cleanup.pipeline_lease import (
-    PipelineLease,
-    PipelineLeaseBusyError,
-    read_pipeline_status,
-)
+from core.infra.system_actions import SystemActions
+from core.infra.system_actions.contracts import PipelineLeaseBusyError
 from core.modules.strategy import Strategy
 from core.modules.strategy.core.enums import WorkbenchStep
 from core.modules.strategy.core.services.discovery import DiscoveryService
@@ -62,7 +59,7 @@ class WorkbenchRunLauncher:
                 return {"is_triggered": False, "reason": "策略未启用"}
             return {"is_triggered": False, "reason": f"策略不可运行: {name}"}
 
-        pipeline = read_pipeline_status()
+        pipeline = SystemActions.pipeline.read_status()
         if pipeline.get("busy"):
             kind = pipeline.get("kind") or "unknown"
             return {
@@ -180,7 +177,7 @@ class WorkbenchRunLauncher:
         api_settings: Dict[str, Any],
         force_refresh: bool,
     ) -> None:
-        lease = PipelineLease(
+        lease = SystemActions.pipeline.lease(
             kind="strategy_run",
             job_id=job_id,
             resource_key=strategy_name,

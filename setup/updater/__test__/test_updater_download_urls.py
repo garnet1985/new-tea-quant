@@ -5,7 +5,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
-_REPO = Path(__file__).resolve().parents[4]
+_REPO = Path(__file__).resolve().parents[3]
 _HELPER = _REPO / "setup" / "updater" / "helper.py"
 
 

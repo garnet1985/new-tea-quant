@@ -1,7 +1,9 @@
-"""系统级快捷操作（按子包导入，避免 BFF 冷启动拉起 tag/strategy 重链）。
+"""系统级操作：缓存清理、pipeline 租约、模板脚手架。
 
-- ``cache_cleanup.pipeline_lease`` / ``cache_cleanup.cache_cleanup``
-- ``shortcuts.create_new_strategy`` / ``shortcuts.create_new_tag``
+包根仅导出 ``SystemActions``；类型见 ``contracts``。
+Facade 方法内懒导入，避免 BFF 冷启动拉起 strategy/tag 重链。
 """
 
-__all__: list[str] = []
+from .system_actions import SystemActions
+
+__all__ = ["SystemActions"]

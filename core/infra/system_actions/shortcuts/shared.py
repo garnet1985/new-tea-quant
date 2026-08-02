@@ -4,24 +4,11 @@ from __future__ import annotations
 
 import re
 import shutil
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
 
-Kind = Literal["strategy", "tag"]
+from core.infra.system_actions.contracts import ScaffoldError, ScaffoldResult
 
 _IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store")
-
-
-class ScaffoldError(ValueError):
-    """新建 userspace 实体失败。"""
-
-
-@dataclass(frozen=True)
-class ScaffoldResult:
-    kind: Kind
-    key: str
-    dest: Path
 
 
 def resolve_dest(*, root: Path, raw_path: str, path_validator) -> tuple[Path, str]:

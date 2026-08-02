@@ -1,8 +1,7 @@
 """
 升级用单步数据脚本包。
 
-由 ``core.infra.db`` 迁移执行器通过 ``update_key`` / ``action_id`` 注册表调用；
-本包只放脚本实现，不负责 diff / plan / 编排。
+公开推荐：``Update.data_scripts``；本子包供内部 / 兼容导入。
 """
 
 from core.infra.update.db.registry import (

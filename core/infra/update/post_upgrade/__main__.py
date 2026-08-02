@@ -7,7 +7,8 @@ import logging
 import sys
 from pathlib import Path
 
-from core.infra.update.post_upgrade.runner import PostUpgradeRunResult, run_post_upgrade_actions
+from core.infra.update.contracts import PostUpgradeRunResult
+from core.infra.update.post_upgrade.runner import run_post_upgrade_actions
 
 logger = logging.getLogger(__name__)
 

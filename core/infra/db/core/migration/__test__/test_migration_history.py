@@ -16,7 +16,10 @@ from core.infra.db.core.migration.migration_history import (
     record_step_applied,
 )
 from core.infra.db.core.migration.plan_executor import execute_plan
-from core.infra.update.db.registry import get_data_script, register_data_script
+from core.infra.update import Update
+
+get_data_script = Update.data_scripts.get
+register_data_script = Update.data_scripts.register
 
 
 def _pg_config():

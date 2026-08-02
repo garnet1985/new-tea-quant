@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
-_REPO = Path(__file__).resolve().parents[4]
+_REPO = Path(__file__).resolve().parents[3]
 _ENTRY = _REPO / "setup" / "updater" / "upgrade_entry.py"
 
 

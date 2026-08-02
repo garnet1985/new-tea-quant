@@ -1,0 +1,23 @@
+# glossary — infra.update
+# Version: 0.5.0
+
+data_script:
+  description: "迁移执行器按 action_id 调用的数据脚本"
+  recommended_terms: [data_script, Update.data_scripts]
+  forbidden_terms: [migration_hook]
+  example: |
+    Update.data_scripts.run(db, "my_script")
+
+post_upgrade:
+  description: "镜像与 DB 迁移之后的收尾动作"
+  recommended_terms: [post_upgrade, Update.post_upgrade]
+  forbidden_terms: [after_update]
+  example: |
+    Update.post_upgrade.run(repo_root)
+
+updater:
+  description: "setup/updater 升级编排（非本模块）"
+  recommended_terms: [updater, setup/updater]
+  forbidden_terms: [infra.update.pipeline]
+  example: |
+    # 编排见 setup/updater/pipeline.py

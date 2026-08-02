@@ -7,7 +7,7 @@ from pathlib import Path
 
 from core.infra.project_context import ProjectContext
 
-from core.infra.system_actions.shortcuts._shared import (
+from core.infra.system_actions.shortcuts.shared import (
     ScaffoldResult,
     copy_template,
     enable_in_settings,

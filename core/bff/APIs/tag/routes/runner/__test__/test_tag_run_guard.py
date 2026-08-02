@@ -16,7 +16,7 @@ def test_trigger_unknown_scenario():
 
 def test_trigger_rejects_when_pipeline_busy(monkeypatch):
     monkeypatch.setattr(
-        "core.bff.APIs.tag.routes.runner.tag_run.read_pipeline_status",
+        "core.infra.system_actions.system_actions.PipelineNamespace.read_status",
         lambda: {"busy": True, "kind": "strategy_run", "job_id": "x"},
     )
     info = MagicMock()

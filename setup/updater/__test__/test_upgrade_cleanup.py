@@ -9,7 +9,7 @@ from types import ModuleType
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 _HELPER_PATH = _REPO_ROOT / "setup" / "updater" / "helper.py"
 
 

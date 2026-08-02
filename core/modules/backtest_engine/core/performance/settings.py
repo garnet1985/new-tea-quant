@@ -7,7 +7,8 @@ from typing import Any, Dict, Optional, Union
 from core.modules.backtest_engine.core.performance.worker_profile.constants import (
     ENUMERATOR_DISPATCH_DEFAULTS,
 )
-from core.infra.machine_capacity import MachineCapacity, MachineInfo
+from core.infra.machine_capacity import MachineInfo
+from core.infra.machine_capacity.contracts import MachineCapacity
 
 AutoValue = Union[int, float, str, bool, None]
 RawPerformance = Dict[str, Any]

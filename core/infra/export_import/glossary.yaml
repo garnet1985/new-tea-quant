@@ -1,304 +1,37 @@
-# NTQ Glossary - infra.export_import
-# Version: 0.2.0
-# Last Updated: 2026-06-28
-#
-# 目的：
-#   - 统一export_import模块术语和命名规范
-#   - 作为准则，确保命名一致
-#   - 便于新成员理解代码
-#
-# 使用原则：
-#   - 所有代码、文档、注释必须遵循此术语表
-#   - 优先使用"推荐术语"
-#   - 避免"禁止术语"
-#   - 如果发现新的术语冲突，请及时更新此表
+# Export / Import 术语表
+# Version: 0.3.0
 
----
+terms:
+  NTQ:
+    definition: "New Tea Quant 的简称。"
+    aliases:
+      - "New Tea Quant"
+    avoid: []
 
-# ========== 核心概念术语 ==========
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面类是 ExportImport。"
+    aliases:
+      - "门面"
+    avoid:
+      - "导出 create_bundle_archive 等游离函数"
 
-core_concepts:
-  description: "核心概念术语"
-  terms:
-    - name: "bundle"
-      description: "归档包（zip格式，包含manifest和payload文件）"
-      recommended_terms:
-        - bundle
-        - 归档包
-        - 包
-      forbidden_terms:
-        - archive
-        - package
-        - zip_file
+  ExportImport:
+    definition: "本模块门面类；挂载 archive / install / types 命名空间。"
+    aliases: []
+    avoid: []
 
-    - name: "manifest"
-      description: "归档包清单（JSON格式，包含entries和metadata）"
-      recommended_terms:
-        - manifest
-        - 清单
-        - manifest.json
-      forbidden_terms:
-        - metadata
-        - index
-        - catalog
+  bundle:
+    definition: "制品归档包（zip + manifest.json）。"
+    aliases:
+      - "归档包"
+    avoid: []
 
-    - name: "artifact"
-      description: "制品（逻辑单元，如strategy、tag scenario）"
-      recommended_terms:
-        - artifact
-        - 制品
-        - artifact_spec
-      forbidden_terms:
-        - item
-        - component
-        - module
+  ConflictPolicy:
+    definition: "安装冲突策略：reject / skip_existing / overwrite。"
+    aliases: []
+    avoid: []
 
-    - name: "userspace"
-      description: "用户空间（用户自定义目录）"
-      recommended_terms:
-        - userspace
-        - 用户空间
-        - userspace_root
-      forbidden_terms:
-        - user_space
-        - user_root
-        - workspace
-
-    - name: "preflight"
-      description: "安装前预检（检测冲突）"
-      recommended_terms:
-        - preflight
-        - 预检
-        - preflight_install
-      forbidden_terms:
-        - pre_check
-        - validate_before_install
-        - check_conflict
-
----
-
-# ========== 文件命名规范 ==========
-
-file_naming:
-  description: "文件命名规范"
-  rules:
-    - pattern: "export_import.py"
-      usage: "Facade类文件（模块级入口）"
-      example: |
-        # 推荐
-        export_import.py
-
-        # 禁止
-        facade.py
-        api.py
-
-    - pattern: "core/xxx.py"
-      usage: "核心实现文件（内部实现）"
-      example: |
-        # 推荐
-        core/archive.py
-        core/install.py
-        core/manifest.py
-
-        # 禁止
-        archive_impl.py
-        install_impl.py
-
-    - pattern: "types.py"
-      usage: "类型定义文件"
-      example: |
-        # 推荐
-        types.py
-
-        # 禁止
-        type_defs.py
-        models.py
-
----
-
-# ========== API命名规范 ==========
-
-api_naming:
-  description: "API命名规范（namespace.xxx格式）"
-  rules:
-    - pattern: "ExportImport.archive.xxx"
-      usage: "归档操作namespace"
-      example: |
-        # 推荐
-        ExportImport.archive.create(specs)
-        ExportImport.archive.extract(source)
-
-        # 禁止
-        ExportImport.create_archive(specs)
-        ExportImport.extract_archive(source)
-
-    - pattern: "ExportImport.install.xxx"
-      usage: "安装操作namespace"
-      example: |
-        # 推荐
-        ExportImport.install.install(archive, userspace_root, policy)
-        ExportImport.install.preflight(extracted_root, userspace_root, policy)
-
-        # 禁止
-        ExportImport.install_bundle(archive, userspace_root, policy)
-        ExportImport.preflight_install(extracted_root, userspace_root, policy)
-
-    - pattern: "ExportImport.types.xxx"
-      usage: "类型定义namespace"
-      example: |
-        # 推荐
-        ExportImport.types.ArtifactSpec
-        ExportImport.types.BundleManifest
-
-        # 禁止
-        from core.infra.export_import.types import ArtifactSpec
-
----
-
-# ========== 类命名规范 ==========
-
-class_naming:
-  description: "类命名规范"
-  rules:
-    - pattern: "ExportImport"
-      usage: "Facade类（对外唯一入口）"
-      example: |
-        # 推荐
-        ExportImport
-
-        # 禁止
-        ExportImportFacade
-        ExportImportAPI
-
-    - pattern: "XxxNamespace"
-      usage: "Namespace类（API门面）"
-      example: |
-        # 推荐
-        ArchiveNamespace
-        InstallNamespace
-
-        # 禁止
-        ArchiveAPI
-        InstallFacade
-
----
-
-# ========== 变量命名规范 ==========
-
-variable_naming:
-  description: "变量命名规范（遵循CODE_STYLE.md）"
-  rules:
-    - pattern: "snake_case"
-      usage: "普通变量和函数"
-      example: |
-        # 推荐
-        bundle_path
-        manifest_dict
-        policy_enum
-
-        # 禁止
-        bundlePath
-        ManifestDict
-        POLICY_ENUM
-
-    - pattern: "PascalCase"
-      usage: "类名"
-      example: |
-        # 推荐
-        ArtifactSpec
-        BundleManifest
-
-        # 禁止
-        artifact_spec
-        bundle_manifest
-
----
-
-# ========== 方法命名规范 ==========
-
-method_naming:
-  description: "方法命名规范"
-  rules:
-    - pattern: "create"
-      usage: "创建操作"
-      example: |
-        # 推荐
-        ExportImport.archive.create(specs)
-
-        # 禁止
-        ExportImport.archive.build(specs)
-        ExportImport.archive.make(specs)
-
-    - pattern: "extract"
-      usage: "解压操作"
-      example: |
-        # 推荐
-        ExportImport.archive.extract(source)
-
-        # 禁止
-        ExportImport.archive.unpack(source)
-        ExportImport.archive.decompress(source)
-
-    - pattern: "install"
-      usage: "安装操作"
-      example: |
-        # 推荐
-        ExportImport.install.install(archive, userspace_root, policy)
-
-        # 禁止
-        ExportImport.install.deploy(archive, userspace_root, policy)
-        ExportImport.install.apply(archive, userspace_root, policy)
-
----
-
-# ========== 目录结构命名规范 ==========
-
-folder_naming:
-  description: "目录结构命名规范"
-  rules:
-    - name: "core"
-      usage: "内部实现代码"
-      description: "包含核心实现类（archive、install、manifest等），不对外暴露"
-
-    - name: "types.py"
-      usage: "类型定义"
-      description: "包含所有类型定义（ArtifactSpec、BundleManifest等）"
-
-    - name: "export_import.py"
-      usage: "Facade类"
-      description: "包含ExportImport类，对外唯一入口"
-
-    - name: "__test__"
-      usage: "测试代码"
-      description: "包含所有测试文件"
-
----
-
-# ========== 架构层次术语 ==========
-
-architecture_layers:
-  description: "架构层次术语"
-  terms:
-    - name: "Facade"
-      description: "门面层（对外唯一入口）"
-      example: "ExportImport"
-
-    - name: "Namespace"
-      description: "命名空间层（API分组）"
-      example: "ArchiveNamespace, InstallNamespace"
-
-    - name: "Core"
-      description: "核心实现层（内部实现）"
-      example: "core/archive.py, core/install.py"
-
----
-
-# ========== 注意事项 ==========
-
-notes:
-  - "所有新代码必须遵循此术语表"
-  - "重构旧代码时，逐步更新术语"
-  - "如果发现术语冲突，请及时更新此表"
-  - "术语表应定期review和更新"
-  - "优先使用英文术语，中文术语用于注释和文档"
-  - "API命名统一使用namespace方式，不暴露函数"
+  ArtifactSpec:
+    definition: "单个可打包制品的规格（源目录、归档前缀、安装相对路径）。"
+    aliases: []
+    avoid: []

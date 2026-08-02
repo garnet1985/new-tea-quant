@@ -1,4 +1,10 @@
-"""Shared types for userspace bundle export/import."""
+"""跨模块契约类型（制品规格、清单、冲突策略等）。
+
+推荐::
+
+    from core.infra.export_import.contracts import ArtifactSpec, ConflictPolicy
+    # 或 ExportImport.types.ArtifactSpec
+"""
 
 from __future__ import annotations
 
@@ -125,3 +131,15 @@ class InstallResult:
     installed: List[ManifestEntry] = field(default_factory=list)
     skipped: List[ManifestEntry] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
+
+
+__all__ = [
+    "ConflictPolicy",
+    "ArtifactSpec",
+    "CollectedFile",
+    "ManifestEntry",
+    "BundleManifest",
+    "ConflictItem",
+    "PreflightResult",
+    "InstallResult",
+]

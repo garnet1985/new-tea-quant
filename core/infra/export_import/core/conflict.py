@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List
 
-from ..types import BundleManifest, ConflictItem, ConflictPolicy, ManifestEntry, PreflightResult
+from ..contracts import BundleManifest, ConflictItem, ConflictPolicy, ManifestEntry, PreflightResult
 
 
 def preflight_install(

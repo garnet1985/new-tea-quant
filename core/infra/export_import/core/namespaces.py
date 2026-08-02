@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Tuple, Union
 
-from ..types import ArtifactSpec, BundleManifest, ConflictPolicy, InstallResult, PreflightResult
+from ..contracts import ArtifactSpec, BundleManifest, ConflictPolicy, InstallResult, PreflightResult
 from .archive import create_bundle_archive, extract_bundle_archive
 from .install import install_bundle, install_bundle_archive
 

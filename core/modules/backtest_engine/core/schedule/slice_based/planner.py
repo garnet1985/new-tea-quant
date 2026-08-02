@@ -22,7 +22,8 @@ import math
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from core.infra.machine_capacity import MachineCapacity, MachineInfo
+from core.infra.machine_capacity import MachineInfo
+from core.infra.machine_capacity.contracts import MachineCapacity
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.modules.backtest_engine.core.shared.types import JobContext
 from core.modules.backtest_engine.core.shared.base_planner import BasePlanner

@@ -1,10 +1,14 @@
+# 模块元数据
 name: infra.machine_capacity
-version: 0.1.0
+version: "0.2.0"
 compatible_core_versions: ">=0.4.0"
-description: "机器 CPU / 内存容量探测：供 BacktestEngine 等调度器解析 worker 数与内存预算。"
+description: "机器 CPU / 内存容量探测：门面 MachineInfo；快照类型 MachineCapacity 在 contracts。"
 dependencies: []
 changelog:
+  - version: "0.2.0"
+    changes:
+      - "BREAKING：包根仅导出 MachineInfo；MachineCapacity 改从 contracts 导入"
+      - "文档对齐 module-doc-standard；删除 api.yaml；公开 API 状态最高 beta"
   - version: "0.1.0"
     changes:
       - 从单文件提升为 infra 子模块（MachineCapacity / MachineInfo）
-      - 补充 module_info / api.yaml / glossary / README

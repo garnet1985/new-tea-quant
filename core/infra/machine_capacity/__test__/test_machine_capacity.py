@@ -3,7 +3,12 @@ from __future__ import annotations
 
 import multiprocessing as mp
 
-from core.infra.machine_capacity import MachineCapacity, MachineInfo
+import pytest
+
+from core.infra.machine_capacity import MachineInfo
+from core.infra.machine_capacity.contracts import MachineCapacity
+
+pytestmark = pytest.mark.force_run
 
 
 def test_get_cpu_count_positive() -> None:

@@ -1,7 +1,7 @@
 """Unit tests for slice preload_depth sizing and performance resolve."""
 from __future__ import annotations
 
-from core.infra.machine_capacity import MachineCapacity
+from core.infra.machine_capacity.contracts import MachineCapacity
 from core.modules.backtest_engine.core.performance.settings import SliceBasedPerformance
 from core.modules.backtest_engine.core.schedule.slice_based.planner import SlicePlanner
 from core.modules.backtest_engine.core.schedule.slice_based.preload import (

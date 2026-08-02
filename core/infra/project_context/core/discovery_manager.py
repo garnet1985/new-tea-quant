@@ -2,30 +2,17 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
+
+from core.infra.project_context.contracts import (
+    DiscoveredConfig,
+    MergeFn,
+    OverridableConfigNotFoundError,
+)
 
 from .config_manager import ConfigManager
 from .path_manager import PathManager
-
-MergeFn = Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, Any]]
-
-
-class OverridableConfigNotFoundError(FileNotFoundError):
-    """core 与 userspace 均未找到有效配置文件。"""
-
-
-@dataclass(frozen=True)
-class DiscoveredConfig:
-    domain: str
-    config_id: str
-    core_path: Optional[Path]
-    user_path: Optional[Path]
-
-    @property
-    def exists(self) -> bool:
-        return self.core_path is not None or self.user_path is not None
 
 
 class DiscoveryManager:

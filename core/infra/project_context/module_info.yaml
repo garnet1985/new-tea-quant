@@ -1,38 +1,24 @@
 name: infra.project_context
-version: 0.4.0
+version: 0.5.0
 compatible_core_versions: ">=0.4.0"
-description: "NTQ 项目上下文基础设施：Facade模式，单一入口点，统一项目根路径、userspace 与配置目录、文件查找与默认/用户配置合并。"
+description: "NTQ 项目上下文基础设施：Facade 单一入口，统一项目根路径、userspace 与配置目录、文件查找与默认/用户配置合并。"
 dependencies: []
 changelog:
+  - version: "0.5.0"
+    changes:
+      - 对齐 CORE_MODULE_STANDARDS：根目录 API.md / QUICKSTART.md / TEST_CASES.md；删除 api.yaml 与 docs/DECISIONS.md
+      - 公开 API 状态最高 beta；contracts 扩展 DiscoveredConfig、DuckDB 默认常量、merge_market_profile_dicts
+      - 删除失效的 core/project_context_manager.py；BFF 改为从 contracts 导入 database defaults
   - version: "0.4.0"
     changes:
-      - 改为类方法（@classmethod），调用更简洁，不需要实例化
-      - 更新79个调用方文件，从ctx.method()改为ProjectContext.method()
-      - 更新api.yaml、api.py、project_context_manager.py、test_api.py
-      - 更新所有文档（ARCHITECTURE.md、DESIGN.md、DECISIONS.md）反映类方法设计
-      - 删除__init__方法，不需要实例状态
-      - 添加load_python辅助方法（供内部使用）
-  - version: "0.4.0"
-    changes:
-      - 重构为Facade + Abstract Interface架构，单一入口点
-      - 创建ProjectContextAPI抽象类，定义所有对外API（16个核心API）
-      - ProjectContext实现接口，对外唯一入口
-      - PathManager、ConfigManager、FileManager、DiscoveryManager变为内部实现（不对外暴露）
-      - 统一命名规范（get_xxx_root、get_xxx_directory、get_xxx_path）
-      - 更新45个调用方文件使用新架构
-      - 创建api.yaml、api.py、test_api.py确保三者一致
-      - 删除docs/API.md，更新所有文档
+      - Facade + namespace（path / config / meta / cache / discovery）
+      - 内部 Manager 不对外暴露；调用方改为 ProjectContext.*
   - version: "0.3.1"
     changes:
       - 新增 as_of_latest_completed_trading_date 和 use_sample_stock_list 配置
-      - 更改 decimal_places 配置结构
   - version: "0.3.0"
     changes:
-      - userspace 目录重组与 PathManager 引用更新
-      - ConfigManager 统一 default_config / userspace/config 合并（含 worker.json）
-  - version: "0.2.1"
-    changes:
-      - 职责边界收紧：路径发现与配置加载与业务模块解耦
+      - userspace 目录重组与配置合并统一
   - version: "0.2.0"
     changes:
       - ProjectContext、userspace 根路径与配置发现基线

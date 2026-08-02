@@ -2,7 +2,7 @@
 import pytest
 
 from core.infra.project_context import ProjectContext
-from core.infra.project_context.config_merge_policies import merge_market_profile_dicts
+from core.infra.project_context.contracts import merge_market_profile_dicts
 
 from core.modules.market_profile import (
     MARKETS_CONFIG_DIR,

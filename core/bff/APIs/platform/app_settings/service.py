@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from core.infra.discovery import Discovery
 from core.infra.project_context import ProjectContext
-from core.infra.project_context.core.database_defaults import (
+from core.infra.project_context.contracts import (
     DEFAULT_DUCKDB_DOMAINS,
     SUPPORTED_DB_TYPES,
 )

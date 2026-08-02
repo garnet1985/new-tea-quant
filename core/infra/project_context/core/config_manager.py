@@ -310,15 +310,20 @@ class ConfigManager:
         Returns:
             合并后的配置字典
         """
+        from core.infra.project_context.contracts import OverridableConfigNotFoundError
         from .discovery_manager import DiscoveryManager
 
-        return DiscoveryManager.load_overridable_config(
-            "",
-            config_name,
-            deep_merge_fields=deep_merge_fields,
-            override_fields=override_fields,
-            file_type="json",
-        )
+        try:
+            return DiscoveryManager.load_overridable_config(
+                "",
+                config_name,
+                deep_merge_fields=deep_merge_fields,
+                override_fields=override_fields,
+                file_type="json",
+            )
+        except OverridableConfigNotFoundError:
+            # 可选 core 配置：缺文件不阻断调用方（与 load_overridable_config 强失败区分）
+            return {}
 
     # =========================
     # 业务级便捷访问方法

@@ -13,7 +13,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Type
 
-from core.modules.adapter import BaseOpportunityAdapter
+from core.modules.adapter.contracts import BaseOpportunityAdapter
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
 
 logger = logging.getLogger(__name__)

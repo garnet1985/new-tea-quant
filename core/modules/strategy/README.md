@@ -71,7 +71,8 @@ from core.modules.strategy.contracts import (
 `Strategy` facade 亦可在包根 import：
 
 ```python
-from core.modules.strategy import StrategyContext, Opportunity, Strategy, StrategyHooks
+from core.modules.strategy import Strategy
+from core.modules.strategy.contracts import StrategyContext, Opportunity, StrategyHooks
 ```
 
 `core.hooks.*` 为模块内部路径，用户策略勿直接 import。

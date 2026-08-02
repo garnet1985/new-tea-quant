@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.modules.data_manager import DataManager
-from core.modules.indicator import IndicatorService
+from core.modules.indicator import Indicator
 from core.modules.strategy.core.enums import WorkbenchStep
 from core.infra.utils import Utils
 from core.modules.strategy.core.engines.price_factor.report_manager.investments import (
@@ -610,7 +610,7 @@ class WorkbenchStockDetail:
         series_out: List[Dict[str, Any]] = []
         color_idx = 0
         try:
-            batch = IndicatorService.compute_batch(klines, indicators_cfg)
+            batch = Indicator.compute_batch(klines, indicators_cfg)
         except Exception:
             logger.exception("单股指标批量计算失败")
             return []

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import unittest
 
-from core.modules.indicator.indicator_service import IndicatorService
+from core.modules.indicator import Indicator
 
 
 class TestIndicatorService(unittest.TestCase):
@@ -17,15 +17,15 @@ class TestIndicatorService(unittest.TestCase):
                 "extra": "drop-me",
             }
         ]
-        slim = IndicatorService._trim_klines_for_ohlcv(rows)
+        slim = Indicator._trim_klines_for_ohlcv(rows)
         self.assertEqual(set(slim[0].keys()), {"open", "high", "low", "close", "volume"})
         self.assertEqual(slim[0]["high"], 1.1)
         self.assertEqual(slim[0]["low"], 0.9)
 
     def test_compute_rsi_matches_rsi_helper(self):
         klines = [{"close": float(10 + i * 0.1)} for i in range(40)]
-        a = IndicatorService.compute("rsi", klines, length=14)
-        b = IndicatorService.rsi(klines, length=14)
+        a = Indicator.compute("rsi", klines, length=14)
+        b = Indicator.rsi(klines, length=14)
         self.assertIsNotNone(a)
         self.assertIsNotNone(b)
         self.assertEqual(len(a), len(b))
@@ -34,8 +34,8 @@ class TestIndicatorService(unittest.TestCase):
 
     def test_compute_ma_alias_uses_sma_close_path(self):
         klines = [{"close": float(i)} for i in range(30)]
-        via_ma = IndicatorService.compute("ma", klines, length=5)
-        via_sma = IndicatorService.compute("sma", klines, length=5)
+        via_ma = Indicator.compute("ma", klines, length=5)
+        via_sma = Indicator.compute("sma", klines, length=5)
         self.assertIsNotNone(via_ma)
         self.assertEqual(len(via_ma), len(via_sma))
         self.assertAlmostEqual(via_ma[-1], via_sma[-1], places=5)
@@ -53,10 +53,10 @@ class TestIndicatorService(unittest.TestCase):
             }
             for _ in range(25)
         ]
-        slim = IndicatorService._trim_klines_for_ohlcv(rows)
+        slim = Indicator._trim_klines_for_ohlcv(rows)
         self.assertNotIn("marker", slim[0])
         # calculate fallback path reads full rows (layer 3); sma exists on ta
-        out = IndicatorService.calculate("sma", rows, length=5)
+        out = Indicator.calculate("sma", rows, length=5)
         self.assertIsNotNone(out)
 
     def test_compute_unknown_ta_name_uses_trimmed_before_calculate(self):
@@ -71,8 +71,8 @@ class TestIndicatorService(unittest.TestCase):
             }
             for i in range(40)
         ]
-        via_compute = IndicatorService.compute("cci", klines, length=14)
-        via_layer2 = IndicatorService._ta_on_ohlcv("cci", klines, length=14)
+        via_compute = Indicator.compute("cci", klines, length=14)
+        via_layer2 = Indicator._ta_on_ohlcv("cci", klines, length=14)
         self.assertIsNotNone(via_compute)
         self.assertEqual(len(via_compute), len(via_layer2))
         self.assertAlmostEqual(via_compute[-1], via_layer2[-1], places=5)
@@ -93,11 +93,11 @@ class TestIndicatorService(unittest.TestCase):
             "sma": [{"length": 5}, {"length": 20}],
             "macd": [{"fast": 12, "slow": 26, "signal": 9}],
         }
-        batch_rows = IndicatorService.compute_batch(klines, cfg)
+        batch_rows = Indicator.compute_batch(klines, cfg)
         self.assertEqual(len(batch_rows), 4)
 
         for name, item_cfg, batch_result in batch_rows:
-            single = IndicatorService.compute(name, klines, **item_cfg)
+            single = Indicator.compute(name, klines, **item_cfg)
             self.assertIsNotNone(single)
             if isinstance(single, list):
                 self.assertEqual(len(batch_result), len(single))
@@ -116,7 +116,7 @@ class TestIndicatorService(unittest.TestCase):
             }
             for i in range(60)
         ]
-        out = IndicatorService.compute("macd", klines, fast=12, slow=26, signal=9)
+        out = Indicator.compute("macd", klines, fast=12, slow=26, signal=9)
         self.assertIsInstance(out, dict)
         self.assertGreaterEqual(len(out), 2)
 

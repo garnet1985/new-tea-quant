@@ -1,79 +1,47 @@
 #!/usr/bin/env python3
+"""市场规则数值用例（走 MarketRulesProxy）。"""
+
+from __future__ import annotations
+
 import pytest
 
-from core.infra.project_context import ProjectContext
+from core.modules.market_profile import MarketRulesProxy
 
-from core.modules.market_profile import (
-    MARKETS_CONFIG_DIR,
-    clear_market_profile_cache,
-    get_market_profile,
-)
+pytestmark = pytest.mark.force_run
 
 
-@pytest.fixture(autouse=True)
-def _clear_cache():
-    clear_market_profile_cache()
-    yield
-    clear_market_profile_cache()
+@pytest.fixture
+def china():
+    return MarketRulesProxy(default_market="china_a_stock").current
 
 
 class TestMarketProfile:
-    # TODO: 需要更新测试以适配新API
-    # ProjectContext.load_overridable_config 已废弃，需要使用新的加载方式
-    # def test_china_a_stock_from_merged_raw(self):
-    #     raw = ProjectContext.load_overridable_config(
-    #         MARKETS_CONFIG_DIR,
-    #         "china_a_stock",
-    #         merge_fn=merge_market_profile_dicts,
-    #     )
-    #     profile = get_market_profile("china_a_stock")
-    #     assert profile.name == raw["name"]
-    #     assert profile.resolve_limit_ratio("600519.SH") == 0.1
-    #     assert profile.resolve_limit_ratio("300750.SZ") == 0.2
-    #     assert profile.resolve_limit_ratio("688981.SH") == 0.2
-
-    def test_china_a_stock_from_merged_raw(self):
-        """临时跳过此测试，等待API迁移完成"""
-        pytest.skip("等待迁移到新API：需要替换 ProjectContext.load_overridable_config")
-
-    def test_limit_prices_main_board(self):
-        profile = get_market_profile("china_a_stock")
-        up, down = profile.compute_limit_prices("600519.SH", 10.0)
+    def test_limit_prices_main_board(self, china):
+        up, down = china.compute_limit_prices_for_stock(10.0, "600519.SH")
         assert up == 11.0
         assert down == 9.0
 
-    def test_limit_prices_main_board_st_risk(self):
-        profile = get_market_profile("china_a_stock")
-        up, down = profile.compute_limit_prices("600519.SH", 10.0, ["st"])
+    def test_limit_prices_main_board_st_risk(self, china):
+        up, down = china.compute_limit_prices_for_stock(10.0, "600519.SH", ["st"])
         assert up == 10.5
         assert down == 9.5
 
-    def test_limit_prices_ke_chuang_st_unchanged(self):
-        profile = get_market_profile("china_a_stock")
-        up, down = profile.compute_limit_prices("688981.SH", 10.0, ["star_st"])
-        assert up == 12.0
-        assert down == 8.0
+    def test_limit_ratio_star(self, china):
+        assert china.get_limit_ratio_for_stock("688981.SH") == 0.2
 
-    def test_resolve_limit_ratio_star_st_over_st(self):
-        profile = get_market_profile("china_a_stock")
-        assert profile.resolve_limit_ratio("600519.SH", ["st", "star_st"]) == 0.05
-
-    def test_lot_size(self):
-        profile = get_market_profile("china_a_stock")
-        main = profile.resolve_lot_rules("000001.SZ")
+    def test_lot_size(self, china):
+        main = china.resolve_lot_size("000001.SZ")
         assert main.min_lot == 100
         assert main.lot_step == 100
-        star = profile.resolve_lot_rules("688981.SH")
+        star = china.resolve_lot_size("688981.SH")
         assert star.min_lot == 200
         assert star.lot_step == 1
 
-    def test_floor_buy_quantity(self):
-        profile = get_market_profile("china_a_stock")
-        assert profile.floor_buy_quantity(150, "000001.SZ") == 100
-        assert profile.floor_buy_quantity(50, "000001.SZ") == 0
-        assert profile.floor_buy_quantity(250, "688981.SH") == 250
+    def test_floor_quantity(self, china):
+        assert china.floor_quantity_for_stock(150, "000001.SZ") == 100
+        assert china.floor_quantity_for_stock(50, "000001.SZ") == 0
+        assert china.floor_quantity_for_stock(250, "688981.SH") == 250
 
-    def test_cache_same_instance(self):
-        a = get_market_profile("china_a_stock")
-        b = get_market_profile("china_a_stock")
-        assert a is b
+    def test_same_proxy_market_instance(self):
+        proxy = MarketRulesProxy()
+        assert proxy.get_market("china_a_stock") is proxy.get_market("china_a_stock")

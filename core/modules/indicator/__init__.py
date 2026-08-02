@@ -1,6 +1,14 @@
-#!/usr/bin/env python3
-"""技术指标模块（`modules.indicator`）：见 `README.md` 与 `docs/`。"""
+"""技术指标模块（``modules.indicator``）。
 
-from .indicator_service import BatchIndicatorResult, IndicatorService
+公开门面::
 
-__all__ = ["BatchIndicatorResult", "IndicatorService"]
+    from core.modules.indicator import Indicator
+
+类型::
+
+    from core.modules.indicator.contracts import BatchIndicatorResult
+"""
+
+from .indicator import Indicator
+
+__all__ = ["Indicator"]

@@ -1,23 +1,5 @@
-"""Tag 模块公开 API。"""
+"""Tag 模块公开 API — 包根仅导出 Facade；类型见 ``contracts.py``。"""
 
-from core.modules.tag.contracts import (
-    TagCalendarAsOfResult,
-    TagContext,
-    TagData,
-    TagExecutionMode,
-    TagHooks,
-    TagInfo,
-    TagUpdateMode,
-)
 from core.modules.tag.tag import Tag
 
-__all__ = [
-    "Tag",
-    "TagCalendarAsOfResult",
-    "TagContext",
-    "TagData",
-    "TagExecutionMode",
-    "TagHooks",
-    "TagInfo",
-    "TagUpdateMode",
-]
+__all__ = ["Tag"]

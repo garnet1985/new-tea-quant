@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
 from core.modules.backtest_engine.contracts import JobContext, Timeline
-from core.modules.data_contract import DATA_KEY
+from core.modules.data_contract.contracts import DATA_KEY
 from core.modules.strategy.contracts import CalendarAsOfResult, Opportunity
 from core.modules.strategy.core.engines.enumerator.common.base_executor import (
     BaseJobExecutor,

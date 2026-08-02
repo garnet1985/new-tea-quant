@@ -1,15 +1,14 @@
-#!/usr/bin/env python3
+"""Adapter 模块（``modules.adapter``）。
+
+公开门面::
+
+    from core.modules.adapter import Adapter
+
+基类与 HistoryLoader::
+
+    from core.modules.adapter.contracts import BaseOpportunityAdapter, HistoryLoader
 """
-Adapter 模块
 
-职责：
-- 定义 BaseOpportunityAdapter 基类
-- 提供 adapter 的基础功能
-- 提供 adapter 验证方法
-"""
+from .adapter import Adapter
 
-from .base_adapter import BaseOpportunityAdapter
-from .adapter_validator import validate_adapter
-from .history_loader import HistoryLoader
-
-__all__ = ['BaseOpportunityAdapter', 'validate_adapter', 'HistoryLoader']
+__all__ = ["Adapter"]

@@ -16,7 +16,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Mapping, TypedDict, Union
 
-from core.modules.data_contract import DATA_KEY, ContractIssuer
+from core.modules.data_contract import ContractIssuer
+from core.modules.data_contract.contracts import DATA_KEY
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )

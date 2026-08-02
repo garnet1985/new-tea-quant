@@ -1,26 +1,5 @@
-"""Strategy 模块公开 API。"""
+"""Strategy 模块公开 API — 包根仅导出 Facade；类型见 ``contracts.py``。"""
 
-from .contracts import (
-    CalendarAsOfResult,
-    Opportunity,
-    StrategyContext,
-    StrategyData,
-    StrategyHooks,
-    StrategyInfo,
-)
-from .core.enums import ExecutionMode, SellReason, SimulateKind, WorkbenchStep
 from .strategy import Strategy
 
-__all__ = [
-    "CalendarAsOfResult",
-    "ExecutionMode",
-    "Opportunity",
-    "SellReason",
-    "SimulateKind",
-    "Strategy",
-    "StrategyContext",
-    "StrategyData",
-    "StrategyHooks",
-    "StrategyInfo",
-    "WorkbenchStep",
-]
+__all__ = ["Strategy"]

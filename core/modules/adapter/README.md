@@ -1,64 +1,26 @@
-# Adapter 模块（`modules.adapter`）
+# Adapter（`modules.adapter`）
 
-策略 **Scanner** 完成扫描后，将 `Opportunity` 列表与上下文交给用户配置的 **adapter** 做后续处理（控制台展示、Webhook、入库等）。本模块提供 **`BaseOpportunityAdapter`** 基类、**`validate_adapter`** 校验、以及可选的 **`HistoryLoader`**（读取价格模拟结果用于展示统计）。实际加载与调用在 **`core.modules.strategy.engines.scanner.helpers.adapter_dispatcher.AdapterDispatcher`** 中完成。
+策略 **Scanner** 完成后，将 `Opportunity` 列表交给 userspace **adapter** 做后续处理。对外门面为 `Adapter`；基类与 `HistoryLoader` 见 `contracts`。
 
 ## 适用场景
 
-- 在 **`userspace/adapters/<名称>/adapter.py`** 中实现自定义输出或对接外部系统。
-- 在策略的 **scanner** 配置中列出 `adapters`（如 `["console"]`），由框架按名称加载并依次调用。
-- 在设置校验阶段确认某 adapter 模块可加载且存在合法子类（`validate_adapter`）。
+- 设置校验阶段确认 adapter 可加载（`Adapter.validate`）
+- 编写 userspace adapter 时继承 `BaseOpportunityAdapter`
 
-## 快速开始
+## 模块依赖
 
-1. 新建目录 `userspace/adapters/my_adapter/`，添加 `adapter.py`：
+- `modules.strategy`（Opportunity 等）
 
-```python
-from typing import Any, Dict, List
+## 常见问题
 
-from core.modules.adapter import BaseOpportunityAdapter
-from core.modules.strategy.engines.shared.data_classes.opportunity import Opportunity
-
-
-class MyAdapter(BaseOpportunityAdapter):
-    def process(
-        self,
-        opportunities: List[Opportunity],
-        context: Dict[str, Any],
-    ) -> None:
-        self.log_info(f"收到 {len(opportunities)} 条机会")
-```
-
-2. 可选：同目录下 `settings.py` 中定义 `settings = { ... }`，在 `process` 内用 `self.get_config("key")` 读取。
-
-3. 在策略 scanner 配置中加入 `adapters` 列表，包含目录名 `my_adapter`。
-
-内置示例见 `userspace/adapters/console/`、`userspace/adapters/example/`。
-
-## 目录结构（本模块）
-
-```text
-core/modules/adapter/
-├── module_info.yaml
-├── __init__.py
-├── base_adapter.py          # BaseOpportunityAdapter
-├── adapter_validator.py     # validate_adapter
-├── history_loader.py        # HistoryLoader
-└── docs/
-    ├── ARCHITECTURE.md
-    ├── DESIGN.md
-    ├── API.md
-    └── DECISIONS.md
-```
-
-用户扩展目录约定见 [DESIGN.md](docs/DESIGN.md)。
-
-## 模块依赖（`module_info.yaml`）
-
-- **`modules.strategy`**：`BaseOpportunityAdapter.process` 使用 `Opportunity` 类型；`HistoryLoader` 通过策略侧的 `VersionManager`、`ResultPathManager` 解析结果路径。
+**Q：该 import 什么？**  
+A：`from core.modules.adapter import Adapter`；基类 `from core.modules.adapter.contracts import BaseOpportunityAdapter`。
 
 ## 相关文档
 
-- [架构与边界](docs/ARCHITECTURE.md)
-- [设计与扩展约定](docs/DESIGN.md)
-- [公开 API](docs/API.md)
-- [设计决策](docs/DECISIONS.md)
+- [快速开始](./QUICKSTART.md)
+- [公开 API](./API.md)
+- [术语表](./glossary.yaml)
+- [架构](./docs/ARCHITECTURE.md)
+- [设计](./docs/DESIGN.md)
+- [测试用例](./__test__/TEST_CASES.md)

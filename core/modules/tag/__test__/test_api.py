@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import unittest
 
+import pytest
+
+pytestmark = pytest.mark.force_run
+
 
 class TestApi(unittest.TestCase):
     def test_facade_export(self):
@@ -29,14 +33,20 @@ class TestApi(unittest.TestCase):
 
 class TestContracts(unittest.TestCase):
     def test_hooks_export(self):
-        from core.modules.tag import TagHooks, TagContext, TagCalendarAsOfResult
+        from core.modules.tag import Tag
+        from core.modules.tag.contracts import (
+            TagCalendarAsOfResult,
+            TagContext,
+            TagHooks,
+            TagUpdateMode,
+        )
 
         self.assertTrue(TagHooks is not None)
         self.assertTrue(TagContext is not None)
         self.assertTrue(TagCalendarAsOfResult is not None)
 
     def test_update_mode_enum(self):
-        from core.modules.tag import TagUpdateMode
+        from core.modules.tag.contracts import TagUpdateMode
 
         self.assertEqual(TagUpdateMode.INCREMENTAL.value, "incremental")
         self.assertEqual(TagUpdateMode.REFRESH.value, "refresh")

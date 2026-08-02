@@ -4,7 +4,7 @@
 （整块消费者见 entity_loader/__init__.py）
 
 本文件:
-- ContractIndicators: IndicatorService.compute_batch 写回 kline rows
+- ContractIndicators: Indicator.compute_batch 写回 kline rows
   边界: 负责 indicator 注入；不负责 Contract issue 或 job 编排
 """
 from __future__ import annotations
@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List
 
-from core.modules.indicator import IndicatorService
+from core.modules.indicator import Indicator
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class ContractIndicators:
         rows: List[Dict[str, Any]],
         indicators_cfg: Dict[str, Any],
     ) -> None:
-        for name, cfg, result in IndicatorService.compute_batch(rows, indicators_cfg):
+        for name, cfg, result in Indicator.compute_batch(rows, indicators_cfg):
             try:
                 if isinstance(result, list):
                     field = ContractIndicators._field_name(name, cfg)

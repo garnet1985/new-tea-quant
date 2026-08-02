@@ -113,10 +113,10 @@ class ScannerSettings(SettingsBase):
         s["watch_list"] = "" if wl is None else str(wl)
 
     def _validate_adapters(self, report: ValidationReport) -> None:
-        from core.modules.adapter import validate_adapter
+        from core.modules.adapter import Adapter
 
         for name in self.adapter_names:
-            ok, err = validate_adapter(name)
+            ok, err = Adapter.validate(name)
             if not ok:
                 SettingsBase.add_warning(
                     report,

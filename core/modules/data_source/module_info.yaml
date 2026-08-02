@@ -1,5 +1,5 @@
 name: modules.data_source
-version: 0.3.7
+version: 0.4.0
 compatible_core_versions: ">=0.3.3"
 description: "配置驱动的数据抓取：mapping + handler config、Provider 发现、BaseHandler 执行管线、调度器按依赖拓扑执行并写回绑定表。"
 dependencies:
@@ -7,15 +7,13 @@ dependencies:
   - infra.project_context
   - infra.discovery
 changelog:
+  - version: "0.4.0"
+    changes:
+      - 对齐 CORE_MODULE_STANDARDS：包根仅 DataSourceManager；contracts.py
+      - 根 API.md / QUICKSTART / glossary / TEST_CASES / test_api；删除 docs/API.md
   - version: "0.3.7"
     changes:
-      - 修复复权因子事件表的精度问题
-      - 清理了不需要的代码
-      - 多 bundle 并行迁入私有 service.pipeline.job_pipeline；移除 infra.job_pipeline 依赖
-  - version: "0.3.6"
-    changes:
-      - 修复批量写入路径；SaveBatchAutoSizer 按内存动态调整抓取批次
-      - JobPipeline 集成 handler 并行执行
+      - 多 bundle 并行迁入私有 job_pipeline
   - version: "0.3.0"
     changes:
       - 配置驱动 handler 管线与依赖拓扑调度（基线）

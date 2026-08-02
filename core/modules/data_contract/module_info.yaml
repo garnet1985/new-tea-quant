@@ -1,37 +1,22 @@
 name: modules.data_contract
-version: 0.5.0
+version: 0.6.0
 compatible_core_versions: ">=0.4.1"
-description: "DataKey 白名单、DataContracts Facade（issue/load/until）、GLOBAL 黑盒 cache、Loader 取数；PER_ENTITY load_batch；userspace 映射合并。"
+description: "DataKey 白名单、ContractIssuer 签发/load/until、GLOBAL cache、Loader 取数；PER_ENTITY load_batch；userspace 映射合并。"
 dependencies:
   - modules.data_manager
   - infra.project_context
 changelog:
+  - version: "0.6.0"
+    changes:
+      - 对齐 CORE_MODULE_STANDARDS：包根仅 ContractIssuer；DATA_KEY / 基类仅 contracts.py
+      - 根 API.md / QUICKSTART / TEST_CASES；删除 api.yaml；修正 DataContracts 文档漂移
+      - 下游 DATA_KEY / ContractScope 等改从 contracts 导入
   - version: "0.5.0"
     changes:
-      - DataContracts Facade：cache 黑盒（不可注入 ContractCacheManager）；issue/load 拆分与 should_load_initially
-      - until、时间窗 helper 上 Facade；PER_ENTITY 禁止用户显式 cache override
-      - contracts.py 仅导出类/枚举；删除 docs/API.md，契约以 api.yaml 为准
-      - Strategy / Tag / legacy 下游迁移至 DataContracts() + shared_cache()
+      - contracts.py 仅导出类/枚举；issue/load 拆分
   - version: "0.4.0"
     changes:
-      - 按 CORE_MODULE_STANDARDS 建立 core/ 五层结构（registry/issue/contract/load/cache）
-      - 新增 DataContracts Facade、contracts.py、api.yaml、glossary.yaml
-  - version: "0.3.6"
-    changes:
-      - 给 base loader 加入 load_batch 方法，支持批量加载
-  - version: "0.3.5"
-    changes:
-      - 增加对BFF的支持
-  - version: "0.3.4"
-    changes:
-      - 将Klines按照term拆分成3个数据契约
-  - version: "0.3.3"
-    changes:
-      - Strategy 枚举/回测路径接入 issue + load_batch
-      - PER_ENTITY plural、IssueResult 信封；entity_ids 糖化
+      - 按 CORE_MODULE_STANDARDS 建立 core/ 五层结构
   - version: "0.3.0"
     changes:
-      - DataKey 白名单、ContractIssuer、GLOBAL/PER_ENTITY 路由与 Loader 注册
-  - version: "0.2.0"
-    changes:
-      - 模块初版：DataSpec 与 issue 基线
+      - DataKey 白名单、ContractIssuer、GLOBAL/PER_ENTITY 路由

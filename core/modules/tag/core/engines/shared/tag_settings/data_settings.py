@@ -15,7 +15,8 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, ClassVar, Dict, List, Optional
 
-from core.modules.data_contract import ContractIssuer, ContractScope, ContractType
+from core.modules.data_contract import ContractIssuer
+from core.modules.data_contract.contracts import ContractScope, ContractType
 
 from .settings_base import SettingsBase
 from .validation_report import ValidationReport

@@ -1,27 +1,21 @@
 name: modules.backtest_engine
-version: 0.3.0
+version: 0.4.0
 compatible_core_versions: ">=0.4.0"
 description: "回测引擎：entity_based / slice_based 两种调度模式（probe → plan → execute → monitor）"
 dependencies:
   - infra.project_context
 changelog:
+  - version: "0.4.0"
+    changes:
+      - 对齐 CORE_MODULE_STANDARDS：根 API.md / QUICKSTART / README / TEST_CASES；docs/DESIGN.md 合并 DECISIONS
+      - 删除 api.yaml、OVERVIEW.md、docs/DECISIONS.md；包根仍仅 BacktestEngine
   - version: "0.3.0"
     changes:
       - 内部包 entity_based / slice_based 与公开模式名一致
-      - RunCallbacks 聚合 on_*；parameters 区分 positional / keyword_only
-      - performance dataclass、dispatch.yaml 应用层配置、RunProgressReporter
-      - 文档：OVERVIEW.md + docs/ARCHITECTURE.md / docs/DECISIONS.md（现状）
-      - worker.json job_pipeline profile 解析迁入 core.performance.worker_profile
+      - RunCallbacks 聚合 on_*；performance dataclass、dispatch.yaml 应用层配置
   - version: "0.2.0"
     changes:
       - 模块标准化：glossary.yaml、api.yaml 对齐实际 Facade API
-      - 探针内收：plan 阶段复用调用方 execute_fn，无 ProbeRegistry
-      - 根目录对外仅 BacktestEngine + contracts.py
-      - MachineInfo 迁至 core.infra.machine_capacity
-      - sliced bulk job 判定改为通用 open_dates + bulk entity 启发式
   - version: "0.1.0"
     changes:
       - 创建回测引擎模块架构
-      - 明确职责边界和Input/Output定义
-      - 支持MQ迁移（配置切换）
-      - Worker生命周期钩子管理

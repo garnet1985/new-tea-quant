@@ -11,7 +11,8 @@ from __future__ import annotations
 import logging
 from typing import List, Optional
 
-from core.modules.data_contract import DATA_KEY, ContractIssuer
+from core.modules.data_contract import ContractIssuer
+from core.modules.data_contract.contracts import DATA_KEY
 from core.modules.tag.core.data_class.scenario import Scenario
 from core.modules.tag.core.engines.global_based.constants import GLOBAL_ENTITY_ID
 from core.modules.tag.core.engines.shared.tag_settings.data_settings import (

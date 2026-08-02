@@ -1,9 +1,13 @@
 name: modules.indicator
-version: 0.2.2
+version: 0.3.0
 compatible_core_versions: ">=0.4.1"
-description: "技术指标计算：IndicatorService 作为 pandas-ta-classic 的代理，K 线 List[Dict] 与 DataFrame 互转，通用 calculate 与常用便捷方法。"
+description: "技术指标计算：Indicator 作为 pandas-ta-classic 的代理，K 线 List[Dict] 与 DataFrame 互转，通用 calculate 与常用便捷方法。"
 dependencies: []
 changelog:
+  - version: "0.3.0"
+    changes:
+      - "对齐 CORE_MODULE_STANDARDS：Facade Indicator；contracts.BatchIndicatorResult；根 API/QUICKSTART/glossary/TEST_CASES"
+      - "BREAKING：包根仅导出 Indicator（原 IndicatorService）；BatchIndicatorResult 从 contracts 导入"
   - version: "0.2.2"
     changes:
       - 修改K线qfq的模拟算法，是误差更小，更贴近外部认可的数据来源

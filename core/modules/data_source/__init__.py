@@ -1,15 +1,5 @@
-"""数据源模块（`modules.data_source`）：见模块 `README.md` 与 `docs/`。"""
+"""数据源模块 — 包根仅导出 ``DataSourceManager``；基类与 job 类型见 ``contracts.py``。"""
 
-from .data_source_manager import DataSourceManager  # renew / resolve_renew_target / execute
-from .base_class.base_provider import BaseProvider
-from .base_class.base_handler import BaseHandler
-from .data_class.api_job import ApiJob
-from .data_class.api_job_bundle import ApiJobBundle
+from .data_source_manager import DataSourceManager
 
-__all__ = [
-    "DataSourceManager",
-    "BaseProvider",
-    "BaseHandler",
-    "ApiJob",
-    "ApiJobBundle",
-]
+__all__ = ["DataSourceManager"]

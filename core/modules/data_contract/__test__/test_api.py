@@ -7,6 +7,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+pytestmark = pytest.mark.force_run
+
 try:
     import pandas as _pandas  # noqa: F401
 except ImportError:

@@ -1,0 +1,15 @@
+# Data Manager 术语表
+# Version: 0.4.0
+
+terms:
+  DataManager:
+    definition: "统一数据访问 Facade：DatabaseManager + 各领域 DataService"
+    aliases: ["data_mgr", "数据管理器"]
+
+  CalendarService:
+    definition: "交易日历服务；经 DataManager.calendar 访问"
+    aliases: ["calendar service"]
+
+  BaseTableNames:
+    definition: "基础 ORM 表名枚举；从 contracts.py 导入"
+    aliases: []

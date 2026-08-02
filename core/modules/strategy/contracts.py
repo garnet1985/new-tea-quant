@@ -14,6 +14,12 @@ from core.modules.strategy.core.engines.shared.data_class import (
     Opportunity,
 )
 from core.modules.strategy.core.hooks.base import StrategyHooks
+from core.modules.strategy.core.enums import (
+    ExecutionMode,
+    SellReason,
+    SimulateKind,
+    WorkbenchStep,
+)
 from core.modules.strategy.core.hooks.hook_params import (
     StrategyContext,
     StrategyData,
@@ -22,10 +28,14 @@ from core.modules.strategy.core.hooks.hook_params import (
 
 __all__ = [
     "CalendarAsOfResult",
-    "Opportunity",
+    "ExecutionMode",
     "Investment",
+    "Opportunity",
+    "SellReason",
+    "SimulateKind",
     "StrategyContext",
     "StrategyData",
-    "StrategyInfo",
     "StrategyHooks",
+    "StrategyInfo",
+    "WorkbenchStep",
 ]

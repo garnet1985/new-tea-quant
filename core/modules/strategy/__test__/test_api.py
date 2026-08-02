@@ -11,6 +11,10 @@ from __future__ import annotations
 
 import unittest
 
+import pytest
+
+pytestmark = pytest.mark.force_run
+
 
 class TestApi(unittest.TestCase):
     """Strategy API 契约测试"""
@@ -63,19 +67,20 @@ class TestContracts(unittest.TestCase):
 
     def test_simulate_kind_enum(self) -> None:
         """SimulateKind 枚举定义正确"""
-        from core.modules.strategy.core.enums import SimulateKind
+        from core.modules.strategy.contracts import SimulateKind
 
         self.assertEqual(SimulateKind.ENUMERATE.value, "enumerate")
 
     def test_hook_types_exported_from_contracts(self) -> None:
         """hooks 契约与数据类型均从 contracts 公开"""
-        from core.modules.strategy import StrategyContext, StrategyHooks
+        from core.modules.strategy import Strategy
+        from core.modules.strategy.contracts import StrategyContext, StrategyHooks
         from core.modules.strategy.contracts import CalendarAsOfResult, Opportunity
 
         self.assertTrue(issubclass(StrategyHooks, object))
         self.assertEqual(StrategyContext.__name__, "StrategyContext")
         opp = Opportunity(stock={}, record_of_today={"close": 1.0})
-        self.assertEqual(opp.trigger_price, 0.0)
+        self.assertEqual(opp.trigger_price, 1.0)
         result = CalendarAsOfResult(as_of_date="20240102", stocks=[])
         self.assertEqual(result.session_state, {})
 

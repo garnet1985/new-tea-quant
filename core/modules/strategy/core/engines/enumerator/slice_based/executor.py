@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
 from core.modules.backtest_engine.contracts import JobContext, Timeline
+from core.modules.backtest_engine.core.shared.progress import RunProgressReporter
 from core.modules.data_contract.contracts import DATA_KEY
 from core.modules.strategy.contracts import CalendarAsOfResult, Opportunity
 from core.modules.strategy.core.engines.enumerator.common.base_executor import (
@@ -156,6 +157,8 @@ class SliceTaskState:
         self._window_start_idx = 0
         self._slice_index = 0
         self._window_t0 = time.perf_counter()
+        # Load finished; show 0/N so execute phase is not a silent 15% hold.
+        RunProgressReporter.report_from_payload(self.payload, 0)
         base_contract = self.entity_contracts.get(self._base_data_key)
         self._ready_date_by_entity = AsOfSlice.ready_date_by_entity(
             base_contract,
@@ -283,17 +286,21 @@ class SliceTaskState:
 
         days_in_window = index - self._window_start_idx + 1
         hit_window_end = days_in_window >= self._slice_open_days
+        if hit_window_end or is_last:
+            self._complete_formal_slice(index)
+
+    def _complete_formal_slice(self, index: int) -> None:
+        """Close one formal slice window: optional head sample + progress tick."""
         if (
             self._head_sample_slices > 0
-            and self._slice_index < self._head_sample_slices
-            and (hit_window_end or is_last)
+            and len(self._slice_samples) < self._head_sample_slices
         ):
             elapsed = max(0.0, time.perf_counter() - self._window_t0)
             rss = self._process_rss_mb()
             half = round(elapsed / 2.0, 4)
             self._slice_samples.append(
                 {
-                    "slice_index": self._slice_index,
+                    "slice_index": len(self._slice_samples),
                     "load_sec": half,
                     "compute_sec": half,
                     "serialize_sec": 0.0,
@@ -305,9 +312,11 @@ class SliceTaskState:
                     ),
                 }
             )
-            self._slice_index += 1
-            self._window_start_idx = index + 1
-            self._window_t0 = time.perf_counter()
+
+        self._slice_index += 1
+        self._window_start_idx = index + 1
+        self._window_t0 = time.perf_counter()
+        RunProgressReporter.report_from_payload(self.payload, self._slice_index)
 
     def finalize(self, timeline: Timeline) -> Dict[str, Any]:
         points = timeline.points

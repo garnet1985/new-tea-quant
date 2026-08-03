@@ -5,7 +5,7 @@ from __future__ import annotations
 DEVCLI_COMMAND_REFERENCE = """
 规则:  xx=命令  -v=版本  --xx=对象参数
 
-  python devcli.py                         显示版本（默认）  同 -v / --version
+  python devcli.py                         显示版本和帮助（默认）  同 -v / --version / -h
   python devcli.py ui                      启动 UI（launcher -d）
   python devcli.py uk                      结束 UI 端口（8000 + 8888）  同 ui_kill [--ntq-only]
   python devcli.py ic                      import 冒烟       同 check_import
@@ -19,13 +19,14 @@ DEVCLI_COMMAND_REFERENCE = """
   python devcli.py p -core_v0.3.2          发布检查          同 pack --version 0.3.2
   python devcli.py ssp 500                 分层样本池        同 sample_stock_pool N
   python devcli.py pc                      取消样本池        同 pool_clear
-  python devcli.py be_perf                 BE 性能套件       同 bp [--db duckdb] [--with-io]
-  python devcli.py be_perf_clear           清理 BE 性能生成物  同 bpc
+  python devcli.py bp                      性能测试          同 be_perf [--db duckdb] [--idle]（默认 strategy enumerate）
+  python devcli.py bpc                     清理 BE 性能生成物  同 bp_perf_clear
 
   --verbose                                详细日志
 
   例: python devcli.py p -core_v0.3.2 --check-only
       同 python devcli.py pack --version 0.3.2 --check-only
-      python devcli.py be_perf
-      python devcli.py bp --with-io
+      python devcli.py bp
+      python devcli.py bp --idle
+      python devcli.py bpc
 """.strip()

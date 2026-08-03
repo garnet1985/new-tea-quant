@@ -86,6 +86,18 @@ def bootstrap_worker_data_manager() -> Any:
     if mp.current_process().name == "MainProcess":
         from core.modules.data_manager import DataManager
 
+        # Prefer the already-attached instance (e.g. BE perf overlay / slice
+        # in-process). Do not invent a ProjectContext DB while the caller still
+        # holds a live DataManager.
+        inst = DataManager.get_instance()
+        db = getattr(inst, "db", None) if inst is not None else None
+        if (
+            inst is not None
+            and getattr(inst, "_initialized", False)
+            and db is not None
+            and getattr(db, "_initialized", False)
+        ):
+            return inst
         return DataManager(is_verbose=False)
 
     pid = os.getpid()

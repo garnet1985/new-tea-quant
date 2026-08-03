@@ -275,6 +275,16 @@ class EnumeratorPipeline:
             calendar_slice = raw.get("calendar_slice")
             if isinstance(calendar_slice, dict):
                 override.update(calendar_slice)
+            # BE slice width resolution needs strategy min_required (not settings.performance).
+            try:
+                override["min_required_records"] = int(
+                    effective_settings.data.min_required_records
+                )
+            except Exception:
+                data = raw.get("data") if isinstance(raw.get("data"), dict) else {}
+                override["min_required_records"] = int(
+                    data.get("min_required_records") or 0
+                )
             return resolve_slice_based_performance(override)
         return resolve_entity_based_performance_for_profile(WorkerProfiles.ENUMERATOR)
 

@@ -302,8 +302,9 @@ def _import_be_perf_scripts():
 
 
 def cmd_be_perf(args: argparse.Namespace) -> int:
-    """Run BE performance suite: gen (if needed) → import → idle cases."""
+    """Run BE performance suite: gen (if needed) → import → strategy enumerate (default)."""
     db = _normalize_be_perf_db(getattr(args, "db", "duckdb"))
+    idle = bool(getattr(args, "idle", False))
     with_io = bool(getattr(args, "with_io", False))
 
     if db != "duckdb":
@@ -315,12 +316,22 @@ def cmd_be_perf(args: argparse.Namespace) -> int:
         return 2
 
     common_mod, data_gen_mod, db_mod, test_mod, _clean_mod = _import_be_perf_scripts()
+    suite = (
+        "idle schedule baseline"
+        if idle
+        else "strategy_enum_entity + strategy_enum_slice (null fixture)"
+    )
     print(
-        f"be_perf: db=duckdb with_io={with_io}\n"
-        "  阶段: [1/3] fake_data → [2/3] 导入 DuckDB → [3/3] 跑 idle cases\n"
+        f"be_perf: db=duckdb suite={suite}\n"
+        "  阶段: [1/3] fake_data → [2/3] 导入 DuckDB → [3/3] 跑 cases\n"
         "  长时间无输出时看子阶段进度行（[data_gen]/[db_creation]/[test]）",
         flush=True,
     )
+    if with_io:
+        print(
+            "  note: --with-io 已废弃；默认路径为 strategy_enumerate",
+            flush=True,
+        )
 
     print("[be_perf 1/3] fake_data", flush=True)
     if not common_mod.dataset_files_present():
@@ -334,10 +345,10 @@ def cmd_be_perf(args: argparse.Namespace) -> int:
     print("[be_perf 2/3] 导入临时 DuckDB（--reuse；不一致则重建）…", flush=True)
     db_mod.create_duckdb(reuse=True)
 
-    print("[be_perf 3/3] 跑 idle cases…", flush=True)
+    print(f"[be_perf 3/3] 跑 cases（{suite}）…", flush=True)
     test_argv = ["--case", "all"]
-    if with_io:
-        test_argv.append("--with-io")
+    if idle:
+        test_argv.append("--idle")
     return int(test_mod.main(test_argv))
 
 

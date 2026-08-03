@@ -155,6 +155,57 @@ cases:
         name: test_duckdb_executor_wraps_scope_and_delegates
         description: DuckDB scope 包装并委托 SliceExecutor
 
+  - id: 9
+    case: slice_width
+    description: 正式片宽决议与 reader 队列动态调整
+    file: test_slice_width.py
+    scenarios:
+      - id: 1
+        name: test_single_slice_start_uses_need_not_full_cap
+        description: 内存充裕时片宽取 max(floor,min_required)
+      - id: 2
+        name: test_floor_when_min_required_below_floor
+        description: min_required 低于 floor 时用 floor
+      - id: 3
+        name: test_fail_when_cap_below_floor
+        description: 内存 cap 低于 floor 时报错
+      - id: 4
+        name: test_fail_when_in_flight_cannot_cover_min_required
+        description: 并存片盖不住 min_required 时报错
+      - id: 5
+        name: test_width_with_large_in_flight_still_prefers_min_required
+        description: 大 in_flight 仍优先单片开算宽度
+      - id: 6
+        name: test_delayed_start_when_cap_between_floor_and_min_required
+        description: cap 介于 floor 与 min_required 时用 cap
+      - id: 7
+        name: test_reader_queue_scales_down_under_pressure
+        description: 内存压力下调 reader 队列
+      - id: 8
+        name: test_reader_queue_may_scale_up_when_slack
+        description: 内存宽裕时可上调队列
+
+  - id: 10
+    case: slice_preload_resolve
+    description: reader 队列按片内存决议（无 timing 估算）
+    file: test_slice_preload_resolve.py
+    scenarios:
+      - id: 1
+        name: test_resolve_reader_queue_clipped_by_memory
+        description: 紧内存下队列深度被裁到 1
+      - id: 2
+        name: test_resolve_for_planning_fixes_readers_leaves_preload_auto
+        description: planning resolve 固定 readers，preload 留 auto
+      - id: 3
+        name: test_refine_plan_from_probe_sets_ran_snapshot
+        description: head 采样 refine 挂 probe 快照并调队列
+      - id: 4
+        name: test_base_plan_sets_queue_from_memory_not_timing
+        description: 有探针时队列按内存而非 IO/compute 比
+      - id: 5
+        name: test_tight_memory_keeps_readers_and_small_queue
+        description: 紧内存保 readers、队列为 1
+
   - id: 8
     case: progress
     description: RunProgressReporter 分阶段进度与 display 开关
@@ -170,8 +221,8 @@ cases:
         name: test_enable_progress_display_false_skips_logging
         description: enable_progress_display=False 不写 CMD 日志
       - id: 4
-        name: test_report_execute_unit_from_context_invokes_hook
-        description: slice orchestrator hook 回调
+        name: test_report_from_payload_invokes_hook
+        description: payload 注入 hook 可推进 execute unit
       - id: 5
-        name: test_report_execute_unit_from_context_ignores_missing_hook
+        name: test_report_from_payload_ignores_missing_hook
         description: 无 hook 时静默跳过

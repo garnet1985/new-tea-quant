@@ -7,63 +7,56 @@
 
 ## Scope
 
-验证 BE `entity_based` / `slice_based` 调度空转（合成数据）。不测 strategy/tag 业务钩子。
+验证合成数据上的 BE 墙钟。  
+**默认**经 Strategy 枚举栈（`scripts/strategies/perf_null` → `EnumeratorPipeline` → BE entity / slice）。  
+idle 测调度空转下限。不测完整 price_factor / portfolio。
 
 ## 边界
 
 **负责**
 
-- BE 公开 `BacktestEngine.entity_based.run` / `slice_based.run` 的墙钟与调度行为
-- 可选：execute_fn 内经 DataManager 读日 K（`--with-io`）
+- 默认：`EnumeratorPipeline.run`（entity_based + slice_based）
+- 可选：BE 公开 API 的 idle / 手搓 io
 
 **不负责**
 
-- strategy enumerate / tag execute 端到端
+- 完整策略业务（机会产出恒为 null）
 - 功能正确性（→ `__test__/`）
 
 ---
 
-## 输入（fake_data/）
+## 输入
 
 | 名称 | 生成 | 说明 |
 |------|------|------|
-| `fake_v1_experiment` | `scripts/data_gen.py` | 默认 10 stocks × 20230101–20251231，仅 `term=daily`；seed 固定 |
+| `fake_data/` | `scripts/data_gen.py` | 10 股 × 2024；仅 daily |
+| `scripts/strategies/perf_null/` | 手写 | null hooks；mode 由 `test_script` 注入 |
 
 ---
 
-## Scenario：`idle_entity_based`
+## Scenario：`strategy_enum_entity` / `strategy_enum_slice`（默认）
 
 | 项 | 内容 |
 |----|------|
-| **目的** | entity 轴调度空转 |
-| **脚本** | `scripts/test_script.py --case idle_entity_based` |
-| **输入** | `fake_data/`（+ 可选 `.workdir` DuckDB） |
-| **结果** | `results/_local/idle_entity_based/` |
-| **关注指标** | wall_time、jobs、success |
+| **目的** | 实战枚举路径墙钟（读 K + 切片；无机会产出） |
+| **脚本** | `test_script.py`（`--case all` 或 `--case strategy_enumerate` = 两者） |
+| **结果** | `results/_local/strategy_enum_entity/`、`…/strategy_enum_slice/` |
+| **关注指标** | wall_time、elapsed_seconds、success、opportunities_count（期望 0） |
 
 ```bash
-python core/modules/backtest_engine/__performance__/scripts/test_script.py --case idle_entity_based
+python core/modules/backtest_engine/__performance__/scripts/test_script.py --case strategy_enum_entity
+python core/modules/backtest_engine/__performance__/scripts/test_script.py --case strategy_enum_slice
 ```
 
 ---
 
-## Scenario：`idle_slice_based`
+## Scenario：`idle_*`
 
-| 项 | 内容 |
-|----|------|
-| **目的** | slice 轴调度空转 |
-| **脚本** | `scripts/test_script.py --case idle_slice_based` |
-| **输入** | 同上 |
-| **结果** | `results/_local/idle_slice_based/` |
-| **关注指标** | wall_time、timeline_points、success |
-
-```bash
-python core/modules/backtest_engine/__performance__/scripts/test_script.py --case idle_slice_based
-```
+调度空转下限。`--idle` 或 `--case idle_*`。  
+**勿**与真实回测墙钟对比；对比请用 `strategy_enum_*`。
 
 ---
 
-## 结果与版本对比
+## Scenario：`io_*`（非默认）
 
-- 本地试跑：`results/_local/`（gitignore）
-- 正式基线是否提交：样本规模定稿后再定
+手搓 `load_batch` + as-of；仅遗留对比。

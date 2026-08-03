@@ -51,8 +51,15 @@ def wait_for_main_duckdb_worker_pool_end(*, timeout_sec: float = 600.0) -> None:
 
 
 def is_duckdb_backend(data_mgr: Any = None) -> bool:
-    if data_mgr is not None:
-        db = getattr(data_mgr, "db", None)
+    """True when the live DB (or ProjectContext) is DuckDB.
+
+    Prefer an attached ``DataManager`` / ``db`` over ProjectContext so overlays
+    (e.g. BE ``__performance__`` temp DuckDB while userspace is MySQL) still
+    enable ProcessPool file-lock scope.
+    """
+    dm = data_mgr if data_mgr is not None else resolve_data_manager(None)
+    if dm is not None:
+        db = getattr(dm, "db", None)
         if db is not None:
             return str(db.config.get("database_type") or "").lower() == "duckdb"
     from core.infra.project_context import ProjectContext
@@ -91,10 +98,22 @@ def should_apply_process_pool_scope(
     return use_process_pool and is_duckdb_backend(data_mgr)
 
 
+# Spawn workers inherit env; used by BE __performance__ to point RO bootstrap
+# at a temp DuckDB without relying on in-process monkeypatches.
+_ENV_DUCKDB_CONFIG_JSON = "NTQ_DUCKDB_CONFIG_JSON"
+
+
 def database_config_read_only() -> dict[str, Any]:
+    import json
+    import os
+
     from core.infra.project_context import ProjectContext
 
-    cfg = deepcopy(ProjectContext.config.load_database_config())
+    raw_overlay = str(os.environ.get(_ENV_DUCKDB_CONFIG_JSON) or "").strip()
+    if raw_overlay:
+        cfg = deepcopy(json.loads(raw_overlay))
+    else:
+        cfg = deepcopy(ProjectContext.config.load_database_config())
     if str(cfg.get("database_type") or "").lower() != "duckdb":
         return cfg
     duck = cfg.setdefault("duckdb", {})

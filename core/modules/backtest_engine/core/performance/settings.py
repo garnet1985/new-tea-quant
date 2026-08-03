@@ -13,6 +13,8 @@ from core.infra.machine_capacity.contracts import MachineCapacity
 AutoValue = Union[int, float, str, bool, None]
 RawPerformance = Dict[str, Any]
 
+# Provisional / floor default when auto (formal width resolved in SlicePlanner).
+# Keep in sync with slice_width.DEFAULT_SLICE_OPEN_DAYS_FLOOR / DEFAULT_PRELOAD_DEPTH.
 DEFAULT_SLICE_OPEN_DAYS = 20
 DEFAULT_PRELOAD_DEPTH = 2
 
@@ -131,13 +133,8 @@ class SliceBasedPerformance:
     # Canonical on/off for dispatch probe (same name as entity_based).
     # Incoming ``slice_probe`` is folded into this in ``from_dict``.
     dispatch_probe: bool = True
-    mb_per_slice_staged: Optional[float] = None
     # Head-phase length (formal slices that count toward output).
     probe_slice_count: int = 2
-    # Deprecated / ignored for slice sizing (kept for config back-compat only):
-    # slice width follows ``slice_open_days``; entities are never truncated.
-    probe_slice_open_days: int = 5
-    probe_entity_count: int = 2
     slice_probe_safety_factor: Optional[float] = None
     dispatch_probe_safety_factor: float = 1.0
     duckdb_process_pool_scope: str = "auto"
@@ -186,10 +183,7 @@ class SliceBasedPerformance:
             "reserve_cores": self.reserve_cores,
             "max_parallel_jobs_cap": self.max_parallel_jobs_cap,
             "dispatch_probe": self.dispatch_probe,
-            "mb_per_slice_staged": self.mb_per_slice_staged,
             "probe_slice_count": self.probe_slice_count,
-            "probe_slice_open_days": self.probe_slice_open_days,
-            "probe_entity_count": self.probe_entity_count,
             "slice_probe_safety_factor": self.slice_probe_safety_factor,
             "dispatch_probe_safety_factor": self.dispatch_probe_safety_factor,
             "duckdb_process_pool_scope": self.duckdb_process_pool_scope,
@@ -231,7 +225,7 @@ class SliceBasedPerformance:
         """Resolve known fields before planner.
 
         - ``reader_workers`` auto → full standby pool (``cpu - reserve_cores``)
-        - ``preload_depth`` stays ``auto`` until probe timings + memory clip
+        - ``preload_depth`` stays ``auto`` until planner sizes from per-slice MB
         - ``queue_capacity`` tracks ``preload_depth`` after planner resolves it
         """
         perf = cls.from_dict(performance)
@@ -240,7 +234,11 @@ class SliceBasedPerformance:
         cls.normalize_worker_fields(settings)
 
         if _is_auto(settings.get("slice_open_days")):
+            # Keep a provisional int for validation; planner resolves formal width.
+            settings["_slice_open_days_auto"] = True
             settings["slice_open_days"] = DEFAULT_SLICE_OPEN_DAYS
+        else:
+            settings["_slice_open_days_auto"] = False
 
         available_workers = MachineInfo.get_available_workers(capacity)
         if _is_auto(settings.get("reader_workers")):
@@ -251,16 +249,12 @@ class SliceBasedPerformance:
         if _is_auto(settings.get("compute_processes")):
             settings["compute_processes"] = 1
 
-        # Keep preload_depth / queue_capacity as auto until SlicePlanner uses probe.
+        # Keep preload_depth / queue_capacity as auto until SlicePlanner sizes queue.
         if not _is_auto(settings.get("preload_depth")):
             depth = max(1, int(settings["preload_depth"]))
             settings["preload_depth"] = depth
             settings["queue_capacity"] = depth
             settings["queue_depth"] = depth
-
-        # Strip deprecated probe truncation knobs so they cannot affect sizing.
-        settings.pop("probe_slice_open_days", None)
-        settings.pop("probe_entity_count", None)
 
         cls._validate_resolved(settings)
         if dispatch_slices > 0:

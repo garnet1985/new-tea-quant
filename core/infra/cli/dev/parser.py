@@ -154,9 +154,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="临时库引擎（默认 duckdb；mysql/pgsql 尚未实现）",
     )
     p_be_perf.add_argument(
+        "--idle",
+        action="store_true",
+        help="跑 idle 调度基线（默认跑 strategy_enumerate）",
+    )
+    p_be_perf.add_argument(
         "--with-io",
         action="store_true",
-        help="主进程预读日 K 后再跑 idle 调度",
+        help="已废弃：默认路径为 strategy_enumerate（兼容旧命令）",
     )
     p_be_perf.set_defaults(handler=h.cmd_be_perf)
 

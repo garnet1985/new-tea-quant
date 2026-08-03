@@ -54,10 +54,8 @@ class SliceProbe:
             return False
         if performance.get("slice_probe") is False:
             return False
-        # Skip when preload depth is already fixed or staged memory cost is given.
+        # Skip when preload depth is already fixed (no need to sample for queue size).
         if performance.get("preload_depth") not in (None, "", "auto"):
-            return False
-        if performance.get("mb_per_slice_staged") not in (None, ""):
             return False
         if not jobs:
             return False
@@ -332,20 +330,7 @@ class SliceProbe:
 
     @staticmethod
     def _default_result(performance: Dict[str, Any]) -> SliceProbeResult:
-        staged = performance.get("mb_per_slice_staged")
-        if staged not in (None, ""):
-            per = max(0.1, float(staged))
-            return SliceProbeResult(
-                mb_per_slice_reader=per * 0.4,
-                mb_per_slice_compute=per * 0.6,
-                mb_per_slice_payload=per * 0.2,
-                sec_per_slice_reader=0.1,
-                sec_per_slice_compute=0.2,
-                slices_sampled=0,
-                wall_sec=0.0,
-                peak_rss_mb_reader=per,
-                peak_rss_mb_compute=per,
-            )
+        _ = performance
         return SliceProbeResult(
             mb_per_slice_reader=10.0,
             mb_per_slice_compute=15.0,

@@ -107,14 +107,14 @@ class JobBundleLoader:
                 )
                 if contract.is_loaded and contract.data:
                     entity_contracts[data_key_str] = contract
+                    elapsed_sec = time.perf_counter() - load_t0
                     if perf is not None:
-                        perf.record_storage_load(
-                            data_key_str,
-                            time.perf_counter() - load_t0,
-                        )
+                        perf.record_storage_load(data_key_str, elapsed_sec)
                     logger.info(
-                        "per_entity Contract加载成功：data_key=%s",
+                        "per_entity Contract加载成功：data_key=%s entities=%d elapsed=%.2fs",
                         data_key_str,
+                        len(entity_ids),
+                        elapsed_sec,
                     )
                 else:
                     logger.warning(

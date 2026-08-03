@@ -36,13 +36,24 @@ from core.modules.backtest_engine.core.schedule.slice_based.probe import (
     SliceProbe,
     SliceProbeResult,
 )
-from core.modules.backtest_engine.core.schedule.slice_based.preload import (
+from core.modules.backtest_engine.core.schedule.slice_based.slice_width import (
+    DEFAULT_PRELOAD_DEPTH,
+    DEFAULT_SLICE_OPEN_DAYS_FLOOR,
+    DEFAULT_SLICE_OPEN_DAYS_UX_MAX,
     MAX_PRELOAD_DEPTH,
-    resolve_preload_depth,
+    SliceWidthError,
+    normalize_in_flight,
+    resolve_reader_queue_depth,
+    resolve_slice_open_days,
 )
-from core.modules.backtest_engine.core.performance.settings import DEFAULT_PRELOAD_DEPTH
 
 logger = logging.getLogger(__name__)
+
+# Conservative fallback when no probe/unit cost is available (~1MB/open day).
+_DEFAULT_MB_PER_OPEN_DAY = 1.0
+_DEFAULT_MB_PER_SLICE_READER = 10.0
+_DEFAULT_MB_PER_SLICE_PAYLOAD = 5.0
+_DEFAULT_MB_PER_SLICE_COMPUTE = 15.0
 
 
 @dataclass(frozen=True)
@@ -112,11 +123,11 @@ class SlicePlanner(BasePlanner):
         _ = executor
         capacity = cls._get_machine_capacity(performance)
 
-        provisional_days = performance.get("slice_open_days")
-        if provisional_days in (None, "", "auto"):
-            provisional_days = 20
-        else:
-            provisional_days = int(provisional_days)
+        raw_days = performance.get("slice_open_days")
+        is_auto_width = raw_days in (None, "", "auto")
+        provisional_days = (
+            DEFAULT_SLICE_OPEN_DAYS_FLOOR if is_auto_width else int(raw_days)
+        )
 
         sample_head = SliceProbe.should_run(jobs, performance)
 
@@ -125,12 +136,33 @@ class SlicePlanner(BasePlanner):
             capacity,
             dispatch_slices=cls._count_calendar_slices(jobs, provisional_days),
         )
+        resolved_performance = dict(resolved_performance)
+        if "min_required_records" in performance:
+            resolved_performance["min_required_records"] = performance[
+                "min_required_records"
+            ]
+        for key in ("mb_per_open_day",):
+            if key in performance and performance.get(key) not in (None, ""):
+                resolved_performance[key] = performance[key]
+
+        try:
+            resolved_performance["slice_open_days"] = cls._resolve_formal_slice_width(
+                jobs,
+                capacity,
+                resolved_performance,
+                is_auto_width=bool(
+                    resolved_performance.get("_slice_open_days_auto", is_auto_width)
+                ),
+            )
+        except SliceWidthError as exc:
+            logger.error("%s片宽决议失败: %s", log_label, exc)
+            raise
+
         dispatch_slices = cls._count_calendar_slices(
             jobs,
             int(resolved_performance["slice_open_days"]),
         )
         if dispatch_slices > 0:
-            resolved_performance = dict(resolved_performance)
             resolved_performance["_dispatch_slices"] = dispatch_slices
         resolved_performance["_sample_head_slices"] = sample_head
 
@@ -165,8 +197,69 @@ class SlicePlanner(BasePlanner):
                 plan.slice_open_days,
             )
         else:
-            logger.info("%s跳过 head 采样（配置已固定 preload/staged）", log_label)
+            logger.info("%s跳过 head 采样（dispatch_probe 关闭或 preload_depth 已固定）", log_label)
         return plan, annotated, monitor_config
+
+    @classmethod
+    def _resolve_formal_slice_width(
+        cls,
+        jobs: List[Dict[str, Any]],
+        capacity: MachineCapacity,
+        performance: Dict[str, Any],
+        *,
+        is_auto_width: bool,
+    ) -> int:
+        """Resolve formal slice_open_days (auto → memory/min_required principles)."""
+        point_count = 0
+        if jobs:
+            payload = BacktestJob.from_dict(jobs[0]).payload
+            raw_points = payload.get(BacktestJob.TIMELINE_POINT_COUNT_KEY)
+            if isinstance(raw_points, int) and raw_points > 0:
+                point_count = raw_points
+
+        readers = max(1, int(performance.get("reader_workers") or 1))
+        compute = max(1, int(performance.get("compute_processes") or 1))
+        in_flight = normalize_in_flight(readers + compute)
+        available_mb = float(MachineInfo.worker_pool_budget_mb(capacity))
+        mb_per_day = cls._estimate_mb_per_open_day(performance)
+        min_required = max(0, int(performance.get("min_required_records") or 0))
+        ux_max = int(
+            performance.get("slice_open_days_ux_max") or DEFAULT_SLICE_OPEN_DAYS_UX_MAX
+        )
+        floor = int(
+            performance.get("slice_open_days_floor") or DEFAULT_SLICE_OPEN_DAYS_FLOOR
+        )
+
+        explicit = None if is_auto_width else int(performance.get("slice_open_days") or floor)
+        width = resolve_slice_open_days(
+            available_mb=available_mb,
+            in_flight=in_flight,
+            mb_per_open_day=mb_per_day,
+            min_required=min_required,
+            total_open_days=point_count,
+            floor=floor,
+            ux_hard_max=ux_max,
+            explicit_width=explicit,
+        )
+        logger.info(
+            "片宽决议: width=%s auto=%s in_flight=%s min_required=%s "
+            "mb_per_open_day=%.4f available_mb=%.1f total_open_days=%s",
+            width,
+            is_auto_width,
+            in_flight,
+            min_required,
+            mb_per_day,
+            available_mb,
+            point_count,
+        )
+        return width
+
+    @staticmethod
+    def _estimate_mb_per_open_day(performance: Dict[str, Any]) -> float:
+        raw = performance.get("mb_per_open_day")
+        if raw not in (None, ""):
+            return max(float(raw), 1e-6)
+        return _DEFAULT_MB_PER_OPEN_DAY
 
     @classmethod
     def refine_plan_from_probe(
@@ -177,23 +270,24 @@ class SlicePlanner(BasePlanner):
         performance: Dict[str, Any],
         log_label: str = "切片调度",
     ) -> SliceDispatchPlan:
-        """Recompute preload_depth from head samples; keep reader_workers fixed."""
+        """Recompute preload_depth from head samples; keep slice_open_days fixed."""
         if probe_result is None or int(probe_result.slices_sampled or 0) <= 0:
             return plan
 
         available_memory_mb = MachineInfo.worker_pool_budget_mb(capacity)
-        mb_in_flight = max(
+        mb_per_slice = max(
             1.0,
             float(probe_result.mb_per_slice_reader)
             + float(probe_result.mb_per_slice_payload),
         )
         raw_depth = performance.get("preload_depth")
         if raw_depth in (None, "", "auto"):
-            preload_depth = resolve_preload_depth(
-                t_io_sec=probe_result.sec_per_slice_reader,
-                t_compute_sec=probe_result.sec_per_slice_compute,
-                memory_budget_mb=available_memory_mb,
-                mb_per_in_flight_slice=mb_in_flight,
+            preload_depth = resolve_reader_queue_depth(
+                available_mb=available_memory_mb,
+                mb_per_slice=mb_per_slice,
+                compute_processes=plan.compute_processes,
+                current_depth=None,
+                max_depth=MAX_PRELOAD_DEPTH,
                 prefetch_enabled=bool(performance.get("prefetch_enabled", True)),
             )
         else:
@@ -209,10 +303,10 @@ class SlicePlanner(BasePlanner):
             slice_open_days=plan.slice_open_days,
             dispatch_jobs=plan.dispatch_jobs,
             memory_budget_mb=plan.memory_budget_mb,
-            oom_adjusted=False,
+            oom_adjusted=preload_depth < plan.preload_depth,
             probe=None,
         )
-        refined = cls._apply_oom_protection(base, capacity, probe_result)
+        refined = cls._attach_memory_budgets(base, probe_result)
         probe_snap = cls._probe_to_dict(probe_result)
         from dataclasses import replace
 
@@ -250,22 +344,19 @@ class SlicePlanner(BasePlanner):
         Returns:
             SliceDispatchPlan: 切片调度规划
         """
-        # 3.1: 计算基础规划（reader_workers、queue_capacity等）
         base_plan = cls._resolve_base_plan(jobs, capacity, probe_result, performance)
-        
-        # 3.2: OOM保护（更严格的管控）
-        final_plan = cls._apply_oom_protection(base_plan, capacity, probe_result)
+        final_plan = cls._attach_memory_budgets(base_plan, probe_result)
 
-        # 始终挂 probe 快照：真探针或 OOM 使用的默认单价（报告可回填 estimated）
+        # 始终挂 probe 快照：真探针或规划默认单价（报告可回填 estimated）
         probe_snap = cls._probe_to_dict(probe_result)
         if probe_snap is None:
             probe_snap = {
                 "ran": False,
                 "source": "plan_defaults",
                 "slices_sampled": 0,
-                "mb_per_slice_reader": 10.0,
-                "mb_per_slice_compute": 15.0,
-                "mb_per_slice_payload": 5.0,
+                "mb_per_slice_reader": _DEFAULT_MB_PER_SLICE_READER,
+                "mb_per_slice_compute": _DEFAULT_MB_PER_SLICE_COMPUTE,
+                "mb_per_slice_payload": _DEFAULT_MB_PER_SLICE_PAYLOAD,
                 "sec_per_slice_reader": 0.0,
                 "sec_per_slice_compute": 0.0,
                 "sec_per_slice_serialize": 0.0,
@@ -321,133 +412,99 @@ class SlicePlanner(BasePlanner):
         probe_result: Optional[SliceProbeResult],
         performance: Dict[str, Any],
     ) -> SliceDispatchPlan:
-        """计算基础规划（不考虑 OOM 二次砍深度）。
+        """Skeleton / probe-aware base plan.
 
         Reader = fixed standby pool. ``preload_depth`` (= ``queue_capacity``)
-        comes from ``t_io / t_compute`` then memory clip when still auto.
+        is sized from per-slice MB only (no timing-ratio heuristic).
         """
-        slice_open_days = int(performance.get("slice_open_days", 20))
+        slice_open_days = int(
+            performance.get("slice_open_days", DEFAULT_SLICE_OPEN_DAYS_FLOOR)
+        )
         total_slices = cls._count_calendar_slices(jobs, slice_open_days)
         reader_workers = max(1, int(performance.get("reader_workers", 1)))
         compute_processes = int(performance.get("compute_processes", 1))
         prefetch_enabled = bool(performance.get("prefetch_enabled", True))
         available_memory_mb = MachineInfo.worker_pool_budget_mb(capacity)
 
-        mb_reader = probe_result.mb_per_slice_reader if probe_result else 10.0
-        mb_payload = probe_result.mb_per_slice_payload if probe_result else 5.0
-        mb_compute = probe_result.mb_per_slice_compute if probe_result else 15.0
-        # Standby model: in-flight cost ≈ one reader slice + one queued payload
-        mb_in_flight = max(1.0, mb_reader + mb_payload)
+        mb_reader = (
+            probe_result.mb_per_slice_reader
+            if probe_result
+            else _DEFAULT_MB_PER_SLICE_READER
+        )
+        mb_payload = (
+            probe_result.mb_per_slice_payload
+            if probe_result
+            else _DEFAULT_MB_PER_SLICE_PAYLOAD
+        )
+        mb_compute = (
+            probe_result.mb_per_slice_compute
+            if probe_result
+            else _DEFAULT_MB_PER_SLICE_COMPUTE
+        )
+        mb_per_slice = max(1.0, mb_reader + mb_payload)
 
         raw_depth = performance.get("preload_depth")
         if raw_depth in (None, "", "auto"):
-            t_io = probe_result.sec_per_slice_reader if probe_result else None
-            t_compute = probe_result.sec_per_slice_compute if probe_result else None
-            preload_depth = resolve_preload_depth(
-                t_io_sec=t_io,
-                t_compute_sec=t_compute,
-                memory_budget_mb=available_memory_mb,
-                mb_per_in_flight_slice=mb_in_flight,
-                prefetch_enabled=prefetch_enabled,
-            )
-            if probe_result is None and prefetch_enabled:
-                preload_depth = min(preload_depth, DEFAULT_PRELOAD_DEPTH)
+            if probe_result is None:
+                # Provisional until head samples refine queue depth.
+                preload_depth = DEFAULT_PRELOAD_DEPTH if prefetch_enabled else 1
+            else:
+                preload_depth = resolve_reader_queue_depth(
+                    available_mb=available_memory_mb,
+                    mb_per_slice=mb_per_slice,
+                    compute_processes=compute_processes,
+                    current_depth=None,
+                    max_depth=MAX_PRELOAD_DEPTH,
+                    prefetch_enabled=prefetch_enabled,
+                )
         else:
             preload_depth = max(1, min(MAX_PRELOAD_DEPTH, int(raw_depth)))
             if not prefetch_enabled:
                 preload_depth = 1
 
-        # Unified name: queue_capacity always equals preload_depth
-        queue_capacity = preload_depth
-        dispatch_jobs = max(1, total_slices)
-
         return SliceDispatchPlan(
             reader_workers=reader_workers,
-            reader_memory_budget_mb=0.0,  # filled in OOM pass
+            reader_memory_budget_mb=0.0,  # filled in attach pass
             compute_processes=compute_processes,
             compute_memory_budget_mb=mb_compute,
-            queue_capacity=queue_capacity,
+            queue_capacity=preload_depth,
             preload_depth=preload_depth,
             slice_open_days=slice_open_days,
-            dispatch_jobs=dispatch_jobs,
+            dispatch_jobs=max(1, total_slices),
             memory_budget_mb=capacity.memory_budget_mb,
             oom_adjusted=False,
         )
-    
+
     @classmethod
-    def _apply_oom_protection(
+    def _attach_memory_budgets(
         cls,
         base_plan: SliceDispatchPlan,
-        capacity: MachineCapacity,
         probe_result: Optional[SliceProbeResult],
     ) -> SliceDispatchPlan:
-        """OOM 保护：只砍 ``preload_depth``（= queue），不砍 standby readers。
-
-        Resident estimate (standby pool)::
-
-            preload_depth * (mb_reader + mb_payload) + mb_compute
-        """
-        available_memory_mb = MachineInfo.worker_pool_budget_mb(capacity)
-
-        mb_per_slice_reader = probe_result.mb_per_slice_reader if probe_result else 10.0
-        mb_per_slice_compute = probe_result.mb_per_slice_compute if probe_result else 15.0
-        mb_per_slice_payload = probe_result.mb_per_slice_payload if probe_result else 5.0
-        mb_in_flight = max(1.0, mb_per_slice_reader + mb_per_slice_payload)
-
-        reader_workers = base_plan.reader_workers
-        preload_depth = base_plan.preload_depth
-        compute_memory_mb = mb_per_slice_compute
-
-        def _total(depth: int) -> float:
-            return depth * mb_in_flight + compute_memory_mb
-
-        total_memory_mb = _total(preload_depth)
-        oom_adjusted = False
-
-        if total_memory_mb > available_memory_mb:
-            max_depth = max(
-                1,
-                min(
-                    MAX_PRELOAD_DEPTH,
-                    int((available_memory_mb - compute_memory_mb) / mb_in_flight),
-                ),
-            )
-            if preload_depth > max_depth:
-                logger.warning(
-                    "OOM保护: preload_depth %s→%s (readers fixed=%s; "
-                    "估内存 %.1fMB→%.1fMB, 可用=%.1fMB)",
-                    preload_depth,
-                    max_depth,
-                    reader_workers,
-                    total_memory_mb,
-                    _total(max_depth),
-                    available_memory_mb,
-                )
-                preload_depth = max_depth
-                oom_adjusted = True
-
-        reader_memory_mb = preload_depth * mb_per_slice_reader
-        payload_memory_mb = preload_depth * mb_per_slice_payload
-        final_memory_mb = reader_memory_mb + payload_memory_mb + compute_memory_mb
-
-        if final_memory_mb > available_memory_mb:
-            logger.error(
-                "OOM保护后仍超预算: 最终使用=%.1fMB > 可用=%.1fMB",
-                final_memory_mb,
-                available_memory_mb,
-            )
-
+        """Fill reader/compute budgets from depth × unit MB (queue already sized)."""
+        mb_reader = (
+            probe_result.mb_per_slice_reader
+            if probe_result
+            else _DEFAULT_MB_PER_SLICE_READER
+        )
+        mb_compute = (
+            probe_result.mb_per_slice_compute
+            if probe_result
+            else _DEFAULT_MB_PER_SLICE_COMPUTE
+        )
+        depth = base_plan.preload_depth
         return SliceDispatchPlan(
-            reader_workers=reader_workers,
-            reader_memory_budget_mb=reader_memory_mb,
+            reader_workers=base_plan.reader_workers,
+            reader_memory_budget_mb=depth * mb_reader,
             compute_processes=base_plan.compute_processes,
-            compute_memory_budget_mb=compute_memory_mb,
-            queue_capacity=preload_depth,
-            preload_depth=preload_depth,
+            compute_memory_budget_mb=mb_compute,
+            queue_capacity=depth,
+            preload_depth=depth,
             slice_open_days=base_plan.slice_open_days,
             dispatch_jobs=base_plan.dispatch_jobs,
-            memory_budget_mb=capacity.memory_budget_mb,
-            oom_adjusted=oom_adjusted,
+            memory_budget_mb=base_plan.memory_budget_mb,
+            oom_adjusted=base_plan.oom_adjusted,
+            probe=base_plan.probe,
         )
     
     @classmethod

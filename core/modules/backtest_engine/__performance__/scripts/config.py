@@ -4,11 +4,11 @@
 """
 from __future__ import annotations
 
-# ── 合成数据集默认规模 ──
+# ── 合成数据集默认规模（小流量验收；压测再调大）──
 DATASET_ID = "fake_v1_experiment"
-DEFAULT_STOCK_COUNT = 1000
-DEFAULT_START_DATE = "20200101"
-DEFAULT_END_DATE = "20250101"
+DEFAULT_STOCK_COUNT = 5000
+DEFAULT_START_DATE = "20230101"
+DEFAULT_END_DATE = "20260101"
 DEFAULT_SEED = 20260525
 DEFAULT_KLINE_TERM = "daily"
 

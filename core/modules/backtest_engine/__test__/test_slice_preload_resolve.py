@@ -4,27 +4,23 @@ from __future__ import annotations
 from core.infra.machine_capacity.contracts import MachineCapacity
 from core.modules.backtest_engine.core.performance.settings import SliceBasedPerformance
 from core.modules.backtest_engine.core.schedule.slice_based.planner import SlicePlanner
-from core.modules.backtest_engine.core.schedule.slice_based.preload import (
-    ideal_preload_from_timings,
-    resolve_preload_depth,
-)
 from core.modules.backtest_engine.core.schedule.slice_based.probe import SliceProbeResult
+from core.modules.backtest_engine.core.schedule.slice_based.slice_width import (
+    DEFAULT_PRELOAD_DEPTH,
+    MAX_PRELOAD_DEPTH,
+    resolve_reader_queue_depth,
+)
 
 
-def test_ideal_preload_from_timings_ratio() -> None:
-    # t_io=2, t_compute=1 → ceil(2*1.15)=3
-    assert ideal_preload_from_timings(2.0, 1.0) == 3
-    assert ideal_preload_from_timings(0.1, 0.1) == 2  # ceil(1.15)=2
-
-
-def test_resolve_preload_clipped_by_memory() -> None:
-    depth = resolve_preload_depth(
-        t_io_sec=10.0,
-        t_compute_sec=1.0,
-        memory_budget_mb=200.0,
-        mb_per_in_flight_slice=80.0,
+def test_resolve_reader_queue_clipped_by_memory() -> None:
+    depth = resolve_reader_queue_depth(
+        available_mb=200.0,
+        mb_per_slice=80.0,
+        compute_processes=1,
+        current_depth=None,
+        max_depth=MAX_PRELOAD_DEPTH,
     )
-    # io wants ~12 but cap 8; mem: (200-128-64)/80 = 0 → clamped to 1
+    # usable ≈ 200*0.85 - 80 = 90 → floor(90/80)=1
     assert depth == 1
 
 
@@ -42,29 +38,6 @@ def test_resolve_for_planning_fixes_readers_leaves_preload_auto() -> None:
     )
     assert resolved["reader_workers"] == 7  # 8-1
     assert resolved["preload_depth"] == "auto"
-
-
-def test_resolve_for_planning_drops_deprecated_probe_truncation_knobs() -> None:
-    cap = MachineCapacity(
-        cpu_count=8,
-        memory_budget_mb=8192.0,
-        memory_floor_mb=1024.0,
-        reserve_cores=1,
-    )
-    resolved = SliceBasedPerformance.resolve_for_planning(
-        {
-            "reader_workers": 2,
-            "preload_depth": "auto",
-            "probe_entity_count": 2,
-            "probe_slice_open_days": 5,
-            "probe_slice_count": 2,
-        },
-        cap,
-        dispatch_slices=10,
-    )
-    assert "probe_entity_count" not in resolved
-    assert "probe_slice_open_days" not in resolved
-    assert resolved["probe_slice_count"] == 2
 
 
 def test_refine_plan_from_probe_sets_ran_snapshot() -> None:
@@ -88,6 +61,7 @@ def test_refine_plan_from_probe_sets_ran_snapshot() -> None:
         },
         "test",
     )
+    assert skeleton.preload_depth == DEFAULT_PRELOAD_DEPTH
     probe = SliceProbeResult(
         mb_per_slice_reader=20.0,
         mb_per_slice_compute=30.0,
@@ -108,9 +82,11 @@ def test_refine_plan_from_probe_sets_ran_snapshot() -> None:
     assert refined.probe["slices_sampled"] == 2
     assert refined.probe["sec_per_slice_reader"] == 2.0
     assert refined.preload_depth == refined.queue_capacity
+    # Memory-ample → queue sized up toward MAX from provisional DEFAULT.
+    assert refined.preload_depth >= DEFAULT_PRELOAD_DEPTH
 
 
-def test_base_plan_sets_queue_equal_preload_from_probe() -> None:
+def test_base_plan_sets_queue_from_memory_not_timing() -> None:
     cap = MachineCapacity(
         cpu_count=8,
         memory_budget_mb=8192.0,
@@ -147,12 +123,13 @@ def test_base_plan_sets_queue_equal_preload_from_probe() -> None:
         }
     ]
     plan = SlicePlanner._resolve_base_plan(jobs, cap, probe, perf)
-    assert plan.preload_depth == 3  # ceil(2/1*1.15)
+    # Old timing path wanted ceil(2/1*1.15)=3; new path is memory-only → MAX.
+    assert plan.preload_depth == MAX_PRELOAD_DEPTH
     assert plan.queue_capacity == plan.preload_depth
     assert plan.reader_workers == 7
 
 
-def test_oom_cuts_preload_not_readers() -> None:
+def test_tight_memory_keeps_readers_and_small_queue() -> None:
     cap = MachineCapacity(
         cpu_count=8,
         memory_budget_mb=200.0,
@@ -176,13 +153,13 @@ def test_oom_cuts_preload_not_readers() -> None:
         probe,
         {
             "reader_workers": 7,
-            "preload_depth": 8,
+            "preload_depth": "auto",
             "slice_open_days": 20,
             "compute_processes": 1,
+            "prefetch_enabled": True,
         },
     )
-    assert base.reader_workers == 7
-    final = SlicePlanner._apply_oom_protection(base, cap, probe)
+    final = SlicePlanner._attach_memory_budgets(base, probe)
     assert final.reader_workers == 7
     assert final.preload_depth == final.queue_capacity
-    assert final.preload_depth < 8
+    assert final.preload_depth == 1

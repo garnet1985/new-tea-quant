@@ -221,15 +221,30 @@ class SliceTaskState:
             if perf is not None:
                 perf.end("enum_process_tick", accumulate=True)
 
-        stocks_ctx = self._build_stocks_context(
-            sliced_by_entity,
-            as_of=as_of,
-        )
+        # 日历优先：多数天 asof 只看 period 门闩，不必先组全宇宙 by_entity。
         calendar = self._build_calendar_view(
             as_of,
-            stocks=stocks_ctx,
+            stocks={},
             open_date_index=index,
         )
+        stocks_ctx: Dict[str, Dict[str, Any]] = {}
+        needs_by_entity = self._calendar_asof_needs_by_entity(
+            as_of=as_of, calendar=calendar
+        )
+        if needs_by_entity:
+            if perf is not None:
+                perf.begin("enum_context_fill")
+            stocks_ctx = self._build_stocks_context(
+                sliced_by_entity,
+                as_of=as_of,
+            )
+            if perf is not None:
+                perf.end("enum_context_fill", accumulate=True)
+            calendar = self._build_calendar_view(
+                as_of,
+                stocks=stocks_ctx,
+                open_date_index=index,
+            )
 
         asof_ctx = StrategyContext.fill(
             self._ctx_base,
@@ -258,6 +273,38 @@ class SliceTaskState:
             raise TypeError(
                 f"on_calendar_asof 必须返回 CalendarAsOfResult，实际: {type(asof_result).__name__}"
             )
+
+        # 声明不需要市况却返回了 stocks → 回退全量组包再调一次。
+        if (not needs_by_entity) and asof_result.stocks:
+            if perf is not None:
+                perf.begin("enum_context_fill")
+            stocks_ctx = self._build_stocks_context(
+                sliced_by_entity,
+                as_of=as_of,
+            )
+            if perf is not None:
+                perf.end("enum_context_fill", accumulate=True)
+            calendar = self._build_calendar_view(
+                as_of,
+                stocks=stocks_ctx,
+                open_date_index=index,
+            )
+            asof_ctx = StrategyContext.fill(
+                self._ctx_base,
+                now=as_of,
+                by_entity=stocks_ctx,
+                calendar=calendar,
+            )
+            if perf is not None:
+                perf.begin("enum_calendar_asof")
+            asof_result = self.hook_runtime.call("on_calendar_asof", asof_ctx)
+            if perf is not None:
+                perf.end("enum_calendar_asof", accumulate=True)
+            if not isinstance(asof_result, CalendarAsOfResult):
+                raise TypeError(
+                    f"on_calendar_asof 必须返回 CalendarAsOfResult，实际: {type(asof_result).__name__}"
+                )
+
         self._session_state = dict(asof_result.session_state)
         calendar["session_state"] = dict(self._session_state)
 
@@ -321,6 +368,25 @@ class SliceTaskState:
             "entities_with_opportunities": self.entities_with_investments(),
             "entities_count": len(self.entity_ids),
         }
+
+    def _calendar_asof_needs_by_entity(
+        self, *, as_of: str, calendar: Dict[str, Any]
+    ) -> bool:
+        """Decide whether to build full by_entity before on_calendar_asof."""
+        if not self.hook_runtime.is_overridden("on_calendar_asof"):
+            return False
+        probe_ctx = StrategyContext.fill(
+            self._ctx_base,
+            now=as_of,
+            by_entity={},
+            calendar=calendar,
+        )
+        try:
+            return bool(
+                self.hook_runtime.call("calendar_asof_needs_by_entity", probe_ctx)
+            )
+        except Exception:
+            return True
 
     def _scan_entity(
         self,

@@ -23,6 +23,16 @@ class StrategyHooks(ABC):
         """Calendar as-of hook（slice_based 使用；entity_based 默认空）。"""
         return CalendarAsOfResult(as_of_date=str(ctx.data.now or ""), stocks=[])
 
+    def calendar_asof_needs_by_entity(self, ctx: StrategyContext) -> bool:
+        """``on_calendar_asof`` 是否需要 ``ctx.data.by_entity`` 市况包。
+
+        返回 False 时，enumerator 可用空 ``by_entity`` 调用 asof，跳过全宇宙组包。
+        若仍返回非空 ``stocks``，引擎会回退为全量组包再调一次。
+        默认 True（安全）；纯日历门闩 / null 基准应覆盖为 False。
+        """
+        _ = ctx
+        return True
+
     def on_before_scan(self, ctx: StrategyContext) -> None:
         """scan 前 hook。"""
         return None

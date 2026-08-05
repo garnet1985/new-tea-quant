@@ -152,8 +152,11 @@ cases:
     file: test_slice_executor_duckdb.py
     scenarios:
       - id: 1
-        name: test_duckdb_executor_wraps_scope_and_delegates
-        description: DuckDB scope 包装并委托 SliceExecutor
+        name: test_duckdb_scope_enables_pool_when_readers_positive
+        description: R>0 时开启 DuckDB ProcessPool scope
+      - id: 2
+        name: test_duckdb_scope_keeps_main_db_when_readers_zero
+        description: R=0 时保留主进程 DuckDB
 
   - id: 9
     case: slice_width
@@ -226,3 +229,46 @@ cases:
       - id: 5
         name: test_report_from_payload_ignores_missing_hook
         description: 无 hook 时静默跳过
+
+  - id: 11
+    case: slice_reader_pool
+    description: SliceReaderPool sync / prefetch / ready 队列
+    file: test_slice_reader_pool.py
+    scenarios:
+      - id: 1
+        name: test_payload_for_reader_strips_hooks
+        description: reader payload 去掉不可 pickle 钩子
+      - id: 2
+        name: test_sync_load_when_readers_zero
+        description: R=0 走同步装载
+      - id: 3
+        name: test_prefetch_noop_when_queue_zero
+        description: N=0 时不 prefetch
+      - id: 4
+        name: test_prefetch_and_load_from_ready_queue
+        description: prefetch 入 ready 后 load_window 命中
+      - id: 5
+        name: test_from_plan_reads_preload_depth
+        description: from_plan 读 preload_depth
+      - id: 6
+        name: test_window_key_orders_bounds
+        description: window key 规范化起止
+      - id: 7
+        name: test_contracts_wire_roundtrip_preserves_data
+        description: worker wire 往返保留 data 并 hydrate Contract
+
+  - id: 12
+    case: slice_memory_probe
+    description: 内存探针 probe_mb 与活队列 N refine
+    file: test_slice_memory_probe.py
+    scenarios:
+      - id: 1
+        name: test_needs_memory_probe_when_both_missing
+        description: 无 probe_mb/单价时需要内存探针
+      - id: 2
+        name: test_measure_probe_mb_uses_window_and_rss_delta
+        description: 按 min_required 窗测 RSS 差
+      - id: 3
+        name: test_refine_queue_from_samples_updates_live_pool
+        description: head 采样后更新活队列 N
+

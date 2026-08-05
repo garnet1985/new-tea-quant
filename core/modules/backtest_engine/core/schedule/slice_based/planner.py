@@ -141,6 +141,19 @@ class SlicePlanner(BasePlanner):
             if key in performance and performance.get(key) not in (None, ""):
                 resolved_performance[key] = performance[key]
 
+        if SliceProbe.needs_memory_probe(resolved_performance):
+            try:
+                resolved_performance["probe_mb"] = SliceProbe.measure_probe_mb(
+                    jobs,
+                    min_required=min_required,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "%s内存探针失败（%s）；回退 mb_per_open_day 默认单价",
+                    log_label,
+                    exc,
+                )
+
         try:
             mem_plan = cls._resolve_memory_plan(
                 capacity,

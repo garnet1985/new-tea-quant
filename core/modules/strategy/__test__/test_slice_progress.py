@@ -24,6 +24,7 @@ def _bare_state(*, head_sample_slices: int = 2) -> SliceTaskState:
     state._loaded_end_idx = 19
     state.entity_contracts = {"k": object()}
     state._per_entity_load_count = 1
+    state._open_dates = []
     return state
 
 

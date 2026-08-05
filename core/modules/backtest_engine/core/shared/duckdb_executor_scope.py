@@ -23,8 +23,9 @@ def execute_with_duckdb_process_pool_scope(
     """Run *inner_execute* inside DuckDB worker pool scope when applicable.
 
     ``use_process_pool`` must match whether *inner_execute* actually spawns
-    worker processes. Slice runs in-process: pass ``False`` so the main DuckDB
-    connection is not released (otherwise JobBundleLoader sees an empty/wrong DB).
+    worker processes. Slice with ``reader_workers>0`` spawns reader children —
+    pass ``True``. Slice serial (R=0) loads on main — pass ``False`` so the
+    main DuckDB connection is not released.
     """
     log_label = str(inner_kwargs.get("log_label", "执行"))
     use_scope = Db.duckdb.worker_pool.should_apply(

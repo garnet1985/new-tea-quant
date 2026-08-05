@@ -104,8 +104,8 @@ N       = clamp(N_ideal, 0, N_max)
 
 | 谁 | 职责 |
 |----|------|
-| **BE** | 探针内存门槛、§4/§5 plan、多进程按片调度、进度 |
-| **Strategy** | 按窗 load 一片 per-entity、compute；禁止全窗一次装 per-entity |
+| **BE** | 探针内存门槛、§4/§5 plan、`SliceReaderPool` 生命周期、多进程按片调度、进度、活队列 N |
+| **Strategy** | 按日业务 / asof；通过 payload 注入的 pool 取片；禁止全窗一次装 per-entity |
 
 Strategy 装载入口（挂在 `JobBundleLoader` 类上）：
 
@@ -113,7 +113,9 @@ Strategy 装载入口（挂在 `JobBundleLoader` 类上）：
 - `load_per_entity_window(payload, start=, end=)` — 每个正式片一次 DB 读（含 lookback）  
 - `load(payload)` — **仅** entity_based 全窗路径  
 
-算法入口：`SliceMemoryPlanner`（类方法），见 `core/schedule/slice_based/slice_width.py`。
+算法入口：`SliceMemoryPlanner`（类方法），见 `core/schedule/slice_based/slice_width.py`。  
+内存探针入口：`SliceProbe.measure_probe_mb`（plan 前）。  
+活队列 N：`SliceReaderPool.refine_queue_from_samples`（head 采样后）。
 
 ---
 
@@ -124,6 +126,8 @@ Strategy 装载入口（挂在 `JobBundleLoader` 类上）：
 3. 初始 N 不依赖探针读算比  
 4. N 正式片 ≥ N 次 per-entity DB 读  
 5. 无 UX 硬上限；装不下报错  
+6. R>0：reader 走 ProcessPool（`SliceReaderPool`）；就绪队列深度 = N；主进程只取结果  
+7. R=0：compute 进程内同步 `load_window`（合法串行预读）  
 
 ---
 

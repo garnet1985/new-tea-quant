@@ -13,15 +13,14 @@ from core.modules.backtest_engine.core.schedule.slice_based.executor_duckdb impo
 )
 from core.modules.backtest_engine.core.schedule.slice_based.planner import (
     SliceDispatchPlan,
-    SliceJobBatch,
 )
 
 pytestmark = pytest.mark.force_run
 
 
-def _plan() -> SliceDispatchPlan:
+def _plan(*, reader_workers: int) -> SliceDispatchPlan:
     return SliceDispatchPlan(
-        reader_workers=2,
+        reader_workers=reader_workers,
         reader_memory_budget_mb=40.0,
         compute_processes=1,
         compute_memory_budget_mb=30.0,
@@ -34,8 +33,7 @@ def _plan() -> SliceDispatchPlan:
     )
 
 
-def test_duckdb_executor_wraps_scope_and_delegates() -> None:
-    plan = _plan()
+def _run(plan: SliceDispatchPlan) -> list[dict]:
     context = ExecutionContext.create(task_name="test", total_jobs=0)
     expected = SliceExecutor.ExecutionResult(
         success=True,
@@ -63,7 +61,7 @@ def test_duckdb_executor_wraps_scope_and_delegates() -> None:
         SliceExecutor,
         "execute",
         return_value=expected,
-    ) as execute_mock:
+    ):
         result = SliceExecutorDuckDB.execute(
             plan,
             [],
@@ -73,10 +71,18 @@ def test_duckdb_executor_wraps_scope_and_delegates() -> None:
             duckdb_process_pool_scope="auto",
             duckdb_resume_main_after_pool=False,
         )
-
     assert result is expected
-    execute_mock.assert_called_once()
+    return scope_calls
+
+
+def test_duckdb_scope_enables_pool_when_readers_positive() -> None:
+    scope_calls = _run(_plan(reader_workers=2))
     assert len(scope_calls) == 1
-    # Slice path keeps DuckDB on the main process (no ProcessPool workers).
-    assert scope_calls[0]["use_process_pool"] is False
+    assert scope_calls[0]["use_process_pool"] is True
     assert scope_calls[0]["resume_main_after"] is False
+
+
+def test_duckdb_scope_keeps_main_db_when_readers_zero() -> None:
+    scope_calls = _run(_plan(reader_workers=0))
+    assert len(scope_calls) == 1
+    assert scope_calls[0]["use_process_pool"] is False

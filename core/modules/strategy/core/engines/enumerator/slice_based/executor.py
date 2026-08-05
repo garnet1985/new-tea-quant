@@ -202,10 +202,15 @@ class SliceTaskState:
         pool = getattr(self, "_slice_reader_pool", None)
         if pool is not None:
             return pool
+        injected = self.payload.get("_slice_reader_pool")
+        if injected is not None:
+            self._slice_reader_pool = injected
+            return injected
         from core.modules.backtest_engine.core.schedule.slice_based.reader_pool import (
             SliceReaderPool,
         )
 
+        # Fallback when BE did not inject (unit tests / bare state).
         plan = self.payload.get("_slice_plan") or {}
         if isinstance(plan, dict):
             pool = SliceReaderPool(
@@ -220,6 +225,70 @@ class SliceTaskState:
             pool = SliceReaderPool.from_plan(plan)
         self._slice_reader_pool = pool
         return pool
+
+    def _maybe_refine_live_queue(self) -> None:
+        """After head samples fill, ask BE to refine live N (SOT §5)."""
+        if self._head_sample_slices <= 0:
+            return
+        if len(self._slice_samples) != self._head_sample_slices:
+            return
+        if getattr(self, "_queue_refined", False):
+            return
+        from core.modules.backtest_engine.core.schedule.slice_based.reader_pool import (
+            SliceReaderPool,
+        )
+
+        plan = self.payload.get("_slice_plan") or {}
+        raw_budget = (
+            plan.get("memory_budget_mb")
+            if isinstance(plan, dict)
+            else getattr(plan, "memory_budget_mb", None)
+        )
+        try:
+            budget = float(raw_budget) if raw_budget not in (None, "") else 0.0
+        except (TypeError, ValueError):
+            budget = 0.0
+        if budget <= 0:
+            return
+        pool = self._reader_pool()
+        new_n = SliceReaderPool.refine_queue_from_samples(
+            pool,
+            self._slice_samples,
+            budget_mb=budget,
+        )
+        self._queue_refined = True
+        if isinstance(plan, dict):
+            plan["preload_depth"] = new_n
+            plan["queue_capacity"] = new_n
+            plan["queue_depth"] = new_n
+            self.payload["_slice_plan"] = plan
+        logger.info(
+            "slice live queue refine after %s head samples → N=%s",
+            self._head_sample_slices,
+            new_n,
+        )
+
+    def _prefetch_ahead(self, *, after_end_idx: int) -> None:
+        """Submit next formal windows into the reader ready queue (R>0, N>0)."""
+        pool = self._reader_pool()
+        open_dates = getattr(self, "_open_dates", None) or []
+        if pool.reader_workers <= 0 or pool.queue_depth <= 0 or not open_dates:
+            return
+        last = len(open_dates) - 1
+        cursor = max(0, int(after_end_idx) + 1)
+        submitted = 0
+        while cursor <= last and submitted < pool.queue_depth:
+            nwe = min(cursor + self._slice_open_days - 1, last)
+            load_start = self._lookback_start_index(cursor, self._min_required)
+            ok = pool.prefetch(
+                self.payload,
+                start=open_dates[load_start],
+                end=open_dates[nwe],
+            )
+            if not ok:
+                break
+            submitted += 1
+            cursor = nwe + 1
 
     def _ensure_contracts_for_window(self, window_start_idx: int, window_end_idx: int) -> None:
         """Load per-entity data for [lookback_start, window_end] if not already covered."""
@@ -254,7 +323,7 @@ class SliceTaskState:
         self._window_compute_t0 = time.perf_counter()
         logger.info(
             "slice per-entity 窗装载：slice=%s window_idx=%s..%s "
-            "load_idx=%s..%s dates=%s..%s load_sec=%.3f loads=%s",
+            "load_idx=%s..%s dates=%s..%s load_sec=%.3f loads=%s ready=%s inflight=%s",
             self._slice_index,
             ws,
             we,
@@ -264,7 +333,10 @@ class SliceTaskState:
             end,
             load_sec,
             self._per_entity_load_count,
+            reader.ready_count(),
+            reader.inflight_count(),
         )
+        self._prefetch_ahead(after_end_idx=we)
 
     def on_calendar_day(self, point: str, index: int, *, is_last: bool) -> None:
         """推进时间(point) → 按需按片装载 → 切数据 → 执行业务。"""
@@ -423,6 +495,7 @@ class SliceTaskState:
                     ),
                 }
             )
+            self._maybe_refine_live_queue()
 
         self._slice_index += 1
         self._window_start_idx = index + 1
@@ -433,6 +506,10 @@ class SliceTaskState:
         self.entity_contracts = {}
         self._loaded_start_idx = -1
         self._loaded_end_idx = -1
+        # Prefetch subsequent formal windows while compute finishes this boundary.
+        open_dates = getattr(self, "_open_dates", None) or []
+        if index + 1 < len(open_dates):
+            self._prefetch_ahead(after_end_idx=index)
         RunProgressReporter.report_from_payload(self.payload, self._slice_index)
 
     def finalize(self, timeline: Timeline) -> Dict[str, Any]:
@@ -460,7 +537,11 @@ class SliceTaskState:
             self.perf.end("enumerate")
 
         opportunities_count = self.total_investment_count()
-        logger.info("slice 执行完成：opportunities_count=%d", opportunities_count)
+        logger.info(
+            "slice 执行完成：opportunities_count=%d per_entity_loads=%s",
+            opportunities_count,
+            self._per_entity_load_count,
+        )
         return {
             "success": True,
             "opportunities_count": opportunities_count,
@@ -576,11 +657,14 @@ class SliceTaskState:
         return rows
 
     def slice_runtime_plan_dict(self) -> Dict[str, Any]:
+        pool = getattr(self, "_slice_reader_pool", None)
         return {
             "baseline_rss_mb": float(self._baseline_rss_mb or 0.0),
             "slice_samples": list(self._slice_samples),
             "per_entity_load_count": int(self._per_entity_load_count),
             "formal_slices_completed": int(self._slice_index),
+            "reader_workers": int(getattr(pool, "reader_workers", 0) or 0),
+            "queue_depth": int(getattr(pool, "queue_depth", 0) or 0),
         }
 
     @staticmethod

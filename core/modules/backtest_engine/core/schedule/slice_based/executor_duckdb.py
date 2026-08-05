@@ -38,14 +38,15 @@ class SliceExecutorDuckDB(SliceExecutor):
         duckdb_process_pool_scope: str = "auto",
         duckdb_resume_main_after_pool: bool = True,
     ) -> SliceExecutor.ExecutionResult:
-        # Slice execute_fn runs in the main process (no ProcessPool workers).
-        # Do not suspend/release main DuckDB — that empties JobBundleLoader.
+        # R>0: readers use RO DuckDB in child processes → release main lock.
+        # R=0: sync loads on main → keep main DuckDB alive.
+        use_process_pool = int(getattr(plan, "reader_workers", 0) or 0) > 0
         return execute_with_duckdb_process_pool_scope(
             SliceExecutor.execute,
             data_mgr=data_mgr,
             duckdb_process_pool_scope=duckdb_process_pool_scope,
             duckdb_resume_main_after_pool=duckdb_resume_main_after_pool,
-            use_process_pool=False,
+            use_process_pool=use_process_pool,
             plan=plan,
             batches=batches,
             context=context,

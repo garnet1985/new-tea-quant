@@ -266,7 +266,7 @@ class SliceRunMonitor:
         self._stats.recommended_reader_workers = readers
 
         resident = (
-            SliceMemoryPlanner.in_flight(
+            SliceMemoryPlanner.peak_slices(
                 queue_depth=preload, reader_workers=readers
             )
             * mb_per_slice

@@ -6,17 +6,16 @@
 
 边界:
 - 负责: 经 callback 改写执行中的数据与逻辑（asof / Investment）
-- 不负责: 建 jobs；覆盖 BE 默认日历轴；平行 session / TimelineBuilder
+- 不负责: 建 jobs；覆盖 BE 默认日历轴；片窗装载 / reader / queue / 进度
+  （上述由 BE ``SliceOrchestrator`` 驱动，Strategy 只消费 ``init["entity_contracts"]``）
 """
 from __future__ import annotations
 
 import logging
-import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
 from core.modules.backtest_engine.contracts import JobContext, Timeline
-from core.modules.backtest_engine.core.shared.progress import RunProgressReporter
 from core.modules.data_contract.contracts import DATA_KEY
 from core.modules.strategy.contracts import CalendarAsOfResult, Opportunity
 from core.modules.strategy.core.engines.enumerator.common.base_executor import (
@@ -46,9 +45,10 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SliceTaskState:
-    """单 task 可变状态，存于 ``job_context.init``（BE hold 的 init）。
+    """单 task 可变业务状态，存于 ``job_context.init``（BE hold 的 init）。
 
     不是平行于 BE 的 session；仅是 Executor 在 init 袋里放的 trackers / asof 状态。
+    调度（窗宽 / reader / queue / 进度）由 BE ``SliceOrchestrator`` 持有，本类不感知。
     """
 
     entity_ids: List[str]
@@ -71,23 +71,12 @@ class SliceTaskState:
     _min_required: int = field(init=False, repr=False)
     _rebalance_period: str = field(init=False, repr=False)
     _ctx_base: Any = field(init=False, repr=False)
-    _slice_open_days: int = field(default=20, init=False, repr=False)
-    _head_sample_slices: int = field(default=0, init=False, repr=False)
-    _slice_samples: List[Dict[str, Any]] = field(default_factory=list, init=False, repr=False)
-    _baseline_rss_mb: float = field(default=0.0, init=False, repr=False)
-    _window_start_idx: int = field(default=0, init=False, repr=False)
-    _slice_index: int = field(default=0, init=False, repr=False)
-    _window_t0: float = field(default=0.0, init=False, repr=False)
-    _window_load_sec: float = field(default=0.0, init=False, repr=False)
-    _window_compute_t0: float = field(default=0.0, init=False, repr=False)
-    _loaded_start_idx: int = field(default=-1, init=False, repr=False)
-    _loaded_end_idx: int = field(default=-1, init=False, repr=False)
-    _per_entity_load_count: int = field(default=0, init=False, repr=False)
     _ready_date_by_entity: Dict[str, str] = field(
         default_factory=dict, init=False, repr=False
     )
     _job_min_ready_date: str = field(default="", init=False, repr=False)
     _job_has_work: bool = field(default=True, init=False, repr=False)
+    _contracts_token: int = field(default=0, init=False, repr=False)
 
     def __post_init__(self) -> None:
         ids = [str(eid).strip() for eid in self.entity_ids if str(eid).strip()]
@@ -141,47 +130,38 @@ class SliceTaskState:
         if self.perf is not None:
             self.perf.begin("enumerate")
         self._open_dates = list(timeline.points)
-        self._slice_open_days = max(
-            1,
-            int(
-                self.payload.get("_slice_open_days")
-                or (self.payload.get("_slice_plan") or {}).get("slice_open_days")
-                or 20
-            ),
-        )
-        self._head_sample_slices = max(
-            0, int(self.payload.get("_slice_head_sample_slices") or 0)
-        )
-        self._slice_samples = []
-        self._baseline_rss_mb = self._process_rss_mb()
         self._ctx_base = StrategyContext.assemble(
             strategy_key=self.strategy_name,
             settings=self.settings,
             stock_list=list(self.entity_ids),
         )
-        self._window_start_idx = 0
-        self._slice_index = 0
-        self._window_t0 = time.perf_counter()
-        self._window_load_sec = 0.0
-        self._window_compute_t0 = self._window_t0
-        self._loaded_start_idx = -1
-        self._loaded_end_idx = -1
-        self._per_entity_load_count = 0
         self.entity_contracts = {}
-        # First progress after globals; per-entity IO starts on demand per formal window.
-        RunProgressReporter.report_from_payload(self.payload, 0)
+        self._contracts_token = 0
         if not self._open_dates:
             self._ready_date_by_entity = {}
             self._job_min_ready_date = ""
             self._job_has_work = False
+
+    def bind_loaded_contracts(
+        self,
+        entity_contracts: Dict[str, Any],
+        *,
+        global_data: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Consume BE-loaded contracts for the current formal window."""
+        token = id(entity_contracts)
+        if token == self._contracts_token and entity_contracts is self.entity_contracts:
             return
-        # Bootstrap readiness: load leading window (lookback + first formal width).
-        boot_end = min(
-            max(self._min_required, self._slice_open_days) - 1,
-            len(self._open_dates) - 1,
-        )
-        self._ensure_contracts_for_window(0, boot_end)
-        self._refresh_ready_dates()
+        self.entity_contracts = entity_contracts if isinstance(entity_contracts, dict) else {}
+        self._contracts_token = token
+        if global_data is not None and isinstance(global_data, dict):
+            self.global_data = global_data
+        if self.entity_contracts:
+            self._refresh_ready_dates()
+        else:
+            self._ready_date_by_entity = {}
+            self._job_min_ready_date = ""
+            self._job_has_work = False
 
     def _refresh_ready_dates(self) -> None:
         base_contract = self.entity_contracts.get(self._base_data_key)
@@ -193,156 +173,10 @@ class SliceTaskState:
         self._job_min_ready_date = AsOfSlice.job_min_ready_date(self._ready_date_by_entity)
         self._job_has_work = bool(self._job_min_ready_date)
 
-    @staticmethod
-    def _lookback_start_index(window_start_idx: int, min_required: int) -> int:
-        need = max(1, int(min_required))
-        return max(0, int(window_start_idx) - need + 1)
-
-    def _reader_pool(self) -> Any:
-        pool = getattr(self, "_slice_reader_pool", None)
-        if pool is not None:
-            return pool
-        injected = self.payload.get("_slice_reader_pool")
-        if injected is not None:
-            self._slice_reader_pool = injected
-            return injected
-        from core.modules.backtest_engine.core.schedule.slice_based.reader_pool import (
-            SliceReaderPool,
-        )
-
-        # Fallback when BE did not inject (unit tests / bare state).
-        plan = self.payload.get("_slice_plan") or {}
-        if isinstance(plan, dict):
-            pool = SliceReaderPool(
-                reader_workers=int(plan.get("reader_workers") or 0),
-                queue_depth=int(
-                    plan.get("preload_depth")
-                    or plan.get("queue_capacity")
-                    or 0
-                ),
-            )
-        else:
-            pool = SliceReaderPool.from_plan(plan)
-        self._slice_reader_pool = pool
-        return pool
-
-    def _maybe_refine_live_queue(self) -> None:
-        """After head samples fill, ask BE to refine live N (SOT §5)."""
-        if self._head_sample_slices <= 0:
-            return
-        if len(self._slice_samples) != self._head_sample_slices:
-            return
-        if getattr(self, "_queue_refined", False):
-            return
-        from core.modules.backtest_engine.core.schedule.slice_based.reader_pool import (
-            SliceReaderPool,
-        )
-
-        plan = self.payload.get("_slice_plan") or {}
-        raw_budget = (
-            plan.get("memory_budget_mb")
-            if isinstance(plan, dict)
-            else getattr(plan, "memory_budget_mb", None)
-        )
-        try:
-            budget = float(raw_budget) if raw_budget not in (None, "") else 0.0
-        except (TypeError, ValueError):
-            budget = 0.0
-        if budget <= 0:
-            return
-        pool = self._reader_pool()
-        new_n = SliceReaderPool.refine_queue_from_samples(
-            pool,
-            self._slice_samples,
-            budget_mb=budget,
-        )
-        self._queue_refined = True
-        if isinstance(plan, dict):
-            plan["preload_depth"] = new_n
-            plan["queue_capacity"] = new_n
-            plan["queue_depth"] = new_n
-            self.payload["_slice_plan"] = plan
-        logger.info(
-            "slice live queue refine after %s head samples → N=%s",
-            self._head_sample_slices,
-            new_n,
-        )
-
-    def _prefetch_ahead(self, *, after_end_idx: int) -> None:
-        """Submit next formal windows into the reader ready queue (R>0, N>0)."""
-        pool = self._reader_pool()
-        open_dates = getattr(self, "_open_dates", None) or []
-        if pool.reader_workers <= 0 or pool.queue_depth <= 0 or not open_dates:
-            return
-        last = len(open_dates) - 1
-        cursor = max(0, int(after_end_idx) + 1)
-        submitted = 0
-        while cursor <= last and submitted < pool.queue_depth:
-            nwe = min(cursor + self._slice_open_days - 1, last)
-            load_start = self._lookback_start_index(cursor, self._min_required)
-            ok = pool.prefetch(
-                self.payload,
-                start=open_dates[load_start],
-                end=open_dates[nwe],
-            )
-            if not ok:
-                break
-            submitted += 1
-            cursor = nwe + 1
-
-    def _ensure_contracts_for_window(self, window_start_idx: int, window_end_idx: int) -> None:
-        """Load per-entity data for [lookback_start, window_end] if not already covered."""
-        if not self._open_dates:
-            return
-        last = len(self._open_dates) - 1
-        ws = max(0, min(int(window_start_idx), last))
-        we = max(ws, min(int(window_end_idx), last))
-        load_start = self._lookback_start_index(ws, self._min_required)
-        if (
-            self._loaded_start_idx >= 0
-            and load_start >= self._loaded_start_idx
-            and we <= self._loaded_end_idx
-        ):
-            return
-
-        start = self._open_dates[load_start]
-        end = self._open_dates[we]
-        t0 = time.perf_counter()
-        reader = self._reader_pool()
-        self.entity_contracts = reader.load_window(
-            self.payload,
-            start=start,
-            end=end,
-            perf=self.perf,
-        )
-        load_sec = max(0.0, time.perf_counter() - t0)
-        self._window_load_sec += load_sec
-        self._loaded_start_idx = load_start
-        self._loaded_end_idx = we
-        self._per_entity_load_count += 1
-        self._window_compute_t0 = time.perf_counter()
-        logger.info(
-            "slice per-entity 窗装载：slice=%s window_idx=%s..%s "
-            "load_idx=%s..%s dates=%s..%s load_sec=%.3f loads=%s ready=%s inflight=%s",
-            self._slice_index,
-            ws,
-            we,
-            load_start,
-            we,
-            start,
-            end,
-            load_sec,
-            self._per_entity_load_count,
-            reader.ready_count(),
-            reader.inflight_count(),
-        )
-        self._prefetch_ahead(after_end_idx=we)
-
-    def on_calendar_day(self, point: str, index: int, *, is_last: bool) -> None:
-        """推进时间(point) → 按需按片装载 → 切数据 → 执行业务。"""
-        as_of = point  # 唯一时钟：BE Timeline 传入的 point
+    def on_calendar_day(self, point: str, index: int) -> None:
+        """推进时间(point) → 切数据 → 执行业务（装载由 BE 完成）。"""
+        as_of = point  # 唯一时钟：BE Timeline / Orchestrator 传入的 point
         perf = self.perf
-        last_idx = max(0, len(self._open_dates) - 1)
 
         # —— 尽早短路：全 job 尚无任何 entity 达到 min_required ——
         if (not self._job_has_work) or (
@@ -356,21 +190,7 @@ class SliceTaskState:
                     as_of_slice_sec=0.0,
                     skipped_before_ready=True,
                 )
-            # 空点前缀不计入 slice window
-            self._window_start_idx = index + 1
-            self._window_t0 = time.perf_counter()
-            self._window_load_sec = 0.0
-            self._window_compute_t0 = self._window_t0
             return
-
-        # —— 按正式窗按需装载 per-entity（N 片 ≥ N 次 DB 读）——
-        window_end_idx = min(
-            self._window_start_idx + self._slice_open_days - 1,
-            last_idx,
-        )
-        self._ensure_contracts_for_window(self._window_start_idx, window_end_idx)
-        if not self._ready_date_by_entity:
-            self._refresh_ready_dates()
 
         # —— 切数据 ——
         if perf is not None:
@@ -466,52 +286,6 @@ class SliceTaskState:
                 open_dates=open_dates_tuple,
             )
 
-        days_in_window = index - self._window_start_idx + 1
-        hit_window_end = days_in_window >= self._slice_open_days
-        if hit_window_end or is_last:
-            self._complete_formal_slice(index)
-
-    def _complete_formal_slice(self, index: int) -> None:
-        """Close one formal slice window: sample timings + progress tick; drop stale contracts."""
-        if (
-            self._head_sample_slices > 0
-            and len(self._slice_samples) < self._head_sample_slices
-        ):
-            wall = max(0.0, time.perf_counter() - self._window_t0)
-            load_sec = round(max(0.0, self._window_load_sec), 4)
-            compute_sec = round(max(0.0, wall - load_sec), 4)
-            rss = self._process_rss_mb()
-            self._slice_samples.append(
-                {
-                    "slice_index": len(self._slice_samples),
-                    "load_sec": load_sec,
-                    "compute_sec": compute_sec,
-                    "serialize_sec": 0.0,
-                    "deserialize_sec": 0.0,
-                    "rss_after_mb": round(rss, 1),
-                    "payload_mb": round(max(0.0, rss - self._baseline_rss_mb), 1),
-                    "payload_bytes": int(
-                        max(0.0, rss - self._baseline_rss_mb) * 1024 * 1024
-                    ),
-                }
-            )
-            self._maybe_refine_live_queue()
-
-        self._slice_index += 1
-        self._window_start_idx = index + 1
-        self._window_t0 = time.perf_counter()
-        self._window_load_sec = 0.0
-        self._window_compute_t0 = self._window_t0
-        # Release per-entity contracts; next formal window issues a fresh DB read.
-        self.entity_contracts = {}
-        self._loaded_start_idx = -1
-        self._loaded_end_idx = -1
-        # Prefetch subsequent formal windows while compute finishes this boundary.
-        open_dates = getattr(self, "_open_dates", None) or []
-        if index + 1 < len(open_dates):
-            self._prefetch_ahead(after_end_idx=index)
-        RunProgressReporter.report_from_payload(self.payload, self._slice_index)
-
     def finalize(self, timeline: Timeline) -> Dict[str, Any]:
         points = timeline.points
         if points:
@@ -538,18 +312,14 @@ class SliceTaskState:
 
         opportunities_count = self.total_investment_count()
         logger.info(
-            "slice 执行完成：opportunities_count=%d per_entity_loads=%s",
+            "slice 执行完成：opportunities_count=%d",
             opportunities_count,
-            self._per_entity_load_count,
         )
         return {
             "success": True,
             "opportunities_count": opportunities_count,
             "entities_with_opportunities": self.entities_with_investments(),
             "entities_count": len(self.entity_ids),
-            "performance_metrics": {
-                "calendar_slice_runtime_plan": self.slice_runtime_plan_dict(),
-            },
         }
 
     def _scan_entity(
@@ -656,28 +426,6 @@ class SliceTaskState:
                 )
         return rows
 
-    def slice_runtime_plan_dict(self) -> Dict[str, Any]:
-        pool = getattr(self, "_slice_reader_pool", None)
-        return {
-            "baseline_rss_mb": float(self._baseline_rss_mb or 0.0),
-            "slice_samples": list(self._slice_samples),
-            "per_entity_load_count": int(self._per_entity_load_count),
-            "formal_slices_completed": int(self._slice_index),
-            "reader_workers": int(getattr(pool, "reader_workers", 0) or 0),
-            "queue_depth": int(getattr(pool, "queue_depth", 0) or 0),
-        }
-
-    @staticmethod
-    def _process_rss_mb() -> float:
-        try:
-            import os
-
-            import psutil
-
-            return float(psutil.Process(os.getpid()).memory_info().rss) / (1024.0 * 1024.0)
-        except Exception:
-            return 0.0
-
     def _build_stocks_context(
         self,
         sliced_by_entity: Dict[str, Dict[str, Any]],
@@ -770,7 +518,7 @@ class EnumSliceJobExecutor(BaseJobExecutor):
 
     边界:
     - 负责: RunCallbacks；把 SliceTaskState 写入 ``job_context.init``
-    - 不负责: EnumSliceJobBuilder；BE Timeline.drive 循环（默认日历轴）
+    - 不负责: EnumSliceJobBuilder；BE 片窗装载 / Timeline 调度循环
     - 调用方: EnumeratorPipeline → BacktestEngine.slice_based
     """
 
@@ -779,15 +527,13 @@ class EnumSliceJobExecutor(BaseJobExecutor):
     @classmethod
     def on_before_all_tasks_start(cls, plan: Any, batches: List[Any]) -> None:
         print(
-            f"  调度: {len(batches)} batches, "
-            f"slice_open_days={getattr(plan, 'slice_open_days', '?')}, "
-            f"reader_workers={getattr(plan, 'reader_workers', '?')}",
+            f"  调度: {len(batches)} batches",
             flush=True,
         )
 
     @classmethod
     def on_before_task_start(cls, job_context: Any) -> Dict[str, Any]:
-        """Globals only at task start; per-entity loads happen per formal slice."""
+        """Globals + business state only; per-entity IO is owned by BE orchestrator."""
         from core.modules.strategy.core.services.entity_loader.job_bundle_loader import (
             JobBundleLoader,
         )
@@ -816,24 +562,24 @@ class EnumSliceJobExecutor(BaseJobExecutor):
         loaded[_STATE_KEY] = state
         loaded[_TIMELINE_KEY] = clipped
         logger.info(
-            "%s就绪：global_keys=%d bootstrap_loads=%s",
+            "%s就绪：global_keys=%d",
             cls.task_log_label,
             len(global_data),
-            state._per_entity_load_count,
         )
         return loaded
 
     @classmethod
     def on_tick(cls, job_context: Any, point: str, index: int) -> None:
-        """BE 日历点 → asof / Investment。"""
+        """BE 日历点 → bind contracts → asof / Investment。"""
         init = job_context.init
         if not isinstance(init, dict):
             raise TypeError("job_context.init 必须是 dict（on_before_task_start 返回值）")
         state: SliceTaskState = init[_STATE_KEY]
-        timeline = init.get(_TIMELINE_KEY)
-        points = getattr(timeline, "points", ()) or ()
-        is_last = bool(points) and index == len(points) - 1
-        state.on_calendar_day(point, index, is_last=is_last)
+        state.bind_loaded_contracts(
+            init.get("entity_contracts") or {},
+            global_data=init.get("global_data"),
+        )
+        state.on_calendar_day(point, index)
 
     @classmethod
     def on_ticks_complete(cls, job_context: Any, timeline: Any) -> Dict[str, Any]:

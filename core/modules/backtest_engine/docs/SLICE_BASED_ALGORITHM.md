@@ -18,7 +18,8 @@
 - N 个正式片只读 1 次 DB  
 - UX 硬上限偷改 `min_required`  
 - 用探针空转期的读算比定 queue（不可靠）  
-- 模块级 export 的自由函数充当算法入口（算法挂类）
+- 模块级 export 的自由函数充当算法入口（算法挂类）  
+- Strategy 感知 / 记录 / 驱动调度状态（窗宽、reader、queue、进度）
 
 ---
 
@@ -39,14 +40,14 @@ mb_per_point = probe_mb / W_probe
 
 ---
 
-## 3. 在飞结构（OOM 用峰值）
+## 3. 峰值常驻结构（OOM 用峰值）
 
 | 符号 | 含义 | 怎么定 |
 |------|------|--------|
 | `compute_slices` | 算侧滑动窗 | 有回溯时 **2**（写死） |
 | `R` | 并发 reader（在读、尚未入队也可占 1 片） | `max(0, cores - reserved - 1)`（1 个 compute 进程） |
 | `N` | queue 中已就绪片数上限 | 初值见 §4；运行中真片再调 |
-| `in_flight` | 峰值上界 | **`2 + N + R`**（不是 `2+N`） |
+| `peak_slices` | 峰值上界 | **`compute_slices + N + R`**（即 `2 + N + R`） |
 
 单/双核时 `R` 常为 0 → 串行预读，合法。
 
@@ -58,11 +59,11 @@ mb_per_point = probe_mb / W_probe
 R = max(0, cores - reserved - 1)
 
 for N in R … 0:                    # 上限先取 R；优先较大 N
-    in_flight = 2 + N + R
-    width = floor(budget * 0.8 / in_flight / mb_per_point)
+    peak_slices = 2 + N + R
+    width = floor(budget * 0.8 / peak_slices / mb_per_point)
     if width >= W_probe:            # W_probe == min_required
-        return Plan(width, queue=N, readers=R, in_flight)
-fail("内存不足以支撑 min_required × 在飞")
+        return Plan(width, queue=N, readers=R, peak_slices)
+fail("内存不足以支撑 min_required × 峰值常驻")
 ```
 
 - 片宽 **无 UX 上限**  
@@ -87,7 +88,7 @@ N       = clamp(N_ideal, 0, N_max)
 
 ## 6. 数据分层与滑动窗
 
-- **per-entity**：按正式片 IO；峰值按 `in_flight`  
+- **per-entity**：按正式片 IO；峰值按 `peak_slices`  
 - **global**：全窗常驻（GDP/日历/list…）  
 - **算侧**：至少片1+片2 ready 再算；滑出 lookback 后释放旧片  
 - **tracker / session_state**：常驻，不随片释放  
@@ -104,16 +105,17 @@ N       = clamp(N_ideal, 0, N_max)
 
 | 谁 | 职责 |
 |----|------|
-| **BE** | 探针内存门槛、§4/§5 plan、`SliceReaderPool` 生命周期、多进程按片调度、进度、活队列 N |
-| **Strategy** | 按日业务 / asof；通过 payload 注入的 pool 取片；禁止全窗一次装 per-entity |
+| **BE** | 探针、§4/§5 plan、`SliceReaderPool`、`SliceOrchestrator`（窗切分 / lookback 装载 / prefetch / 进度 / 活队列 N）、多进程按片调度 |
+| **Strategy** | task 开头 `load_globals`；按日业务 / asof；只消费 `init["entity_contracts"]`；**不**驱动装载 / reader / queue / 进度 |
 
-Strategy 装载入口（挂在 `JobBundleLoader` 类上）：
+Strategy 装载入口（挂在 `JobBundleLoader` 类上，供 BE reader 调用）：
 
 - `load_globals(payload)` — task 开头；shm 常驻  
-- `load_per_entity_window(payload, start=, end=)` — 每个正式片一次 DB 读（含 lookback）  
+- `load_per_entity_window(payload, start=, end=)` — 每个正式片一次 DB 读（含 lookback）；由 BE `SliceReaderPool` 调用  
 - `load(payload)` — **仅** entity_based 全窗路径  
 
 算法入口：`SliceMemoryPlanner`（类方法），见 `core/schedule/slice_based/slice_width.py`。  
+调度入口：`SliceOrchestrator` / `SliceWorkerExecute`。  
 内存探针入口：`SliceProbe.measure_probe_mb`（plan 前）。  
 活队列 N：`SliceReaderPool.refine_queue_from_samples`（head 采样后）。
 
@@ -121,13 +123,14 @@ Strategy 装载入口（挂在 `JobBundleLoader` 类上）：
 
 ## 9. 不变量
 
-1. `in_flight = 2 + N + R`  
+1. `peak_slices = compute_slices + N + R`（默认 `2 + N + R`）  
 2. 探针 fail：`budget*0.8 < 2*probe_mb`  
 3. 初始 N 不依赖探针读算比  
 4. N 正式片 ≥ N 次 per-entity DB 读  
 5. 无 UX 硬上限；装不下报错  
 6. R>0：reader 走 ProcessPool（`SliceReaderPool`）；就绪队列深度 = N；主进程只取结果  
 7. R=0：compute 进程内同步 `load_window`（合法串行预读）  
+8. Strategy 不持有调度状态  
 
 ---
 

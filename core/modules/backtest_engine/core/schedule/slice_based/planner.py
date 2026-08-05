@@ -76,6 +76,9 @@ class SliceDispatchPlan:
     memory_budget_mb: float
     oom_adjusted: bool
 
+    # Lookback / readiness（与 Strategy settings 对齐，由 plan 写入）
+    min_required_records: int = 20
+
     # 探针快照（供 performance 报告；可选）
     probe: Optional[Dict[str, Any]] = None
 
@@ -174,7 +177,7 @@ class SlicePlanner(BasePlanner):
         resolved_performance["queue_depth"] = mem_plan.queue_depth
         resolved_performance["compute_processes"] = SliceMemoryPlanner.COMPUTE_PROCESSES
         resolved_performance["mb_per_open_day"] = mem_plan.mb_per_open_day
-        resolved_performance["_in_flight"] = mem_plan.in_flight
+        resolved_performance["_peak_slices"] = mem_plan.peak_slices
         resolved_performance["_compute_slices"] = mem_plan.compute_slices
 
         dispatch_slices = cls._count_calendar_slices(
@@ -272,10 +275,10 @@ class SlicePlanner(BasePlanner):
                 )
             # Keep R/N from memory plan; re-check peak with explicit width.
             slice_mb = width * mem_plan.mb_per_open_day
-            need = mem_plan.in_flight * slice_mb
+            need = mem_plan.peak_slices * slice_mb
             if need > available_mb * SliceMemoryPlanner.SAFETY:
                 raise SliceWidthError(
-                    f"显式片宽 {width} 在 in_flight={mem_plan.in_flight} 下超预算："
+                    f"显式片宽 {width} 在 peak_slices={mem_plan.peak_slices} 下超预算："
                     f"need={need:.1f}MB > budget*{SliceMemoryPlanner.SAFETY}"
                     f"={available_mb * SliceMemoryPlanner.SAFETY:.1f}MB"
                 )
@@ -284,12 +287,12 @@ class SlicePlanner(BasePlanner):
             mem_plan = replace(mem_plan, slice_open_days=width)
 
         logger.info(
-            "片宽决议: width=%s queue=%s readers=%s in_flight=%s "
+            "片宽决议: width=%s queue=%s readers=%s peak_slices=%s "
             "min_required=%s mb_per_open_day=%.4f budget_mb=%.1f",
             mem_plan.slice_open_days,
             mem_plan.queue_depth,
             mem_plan.reader_workers,
-            mem_plan.in_flight,
+            mem_plan.peak_slices,
             mem_plan.min_required,
             mem_plan.mb_per_open_day,
             mem_plan.budget_mb,
@@ -339,6 +342,7 @@ class SlicePlanner(BasePlanner):
             dispatch_jobs=plan.dispatch_jobs,
             memory_budget_mb=plan.memory_budget_mb,
             oom_adjusted=preload_depth < plan.preload_depth,
+            min_required_records=plan.min_required_records,
             probe=None,
         )
         refined = cls._attach_memory_budgets(base, probe_result)
@@ -498,6 +502,9 @@ class SlicePlanner(BasePlanner):
             dispatch_jobs=max(1, total_slices),
             memory_budget_mb=capacity.memory_budget_mb,
             oom_adjusted=False,
+            min_required_records=SliceMemoryPlanner.default_min_required(
+                performance.get("min_required_records")
+            ),
         )
 
     @classmethod
@@ -529,6 +536,7 @@ class SlicePlanner(BasePlanner):
             dispatch_jobs=base_plan.dispatch_jobs,
             memory_budget_mb=base_plan.memory_budget_mb,
             oom_adjusted=base_plan.oom_adjusted,
+            min_required_records=base_plan.min_required_records,
             probe=base_plan.probe,
         )
     

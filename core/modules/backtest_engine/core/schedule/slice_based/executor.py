@@ -287,7 +287,7 @@ class SliceExecutor:
             SliceReaderPool,
         )
 
-        # BE owns the pool lifetime for this job (Strategy only consumes it).
+        # BE owns pool lifetime; SliceOrchestrator drives load/prefetch/queue.
         reader_pool = SliceReaderPool.from_plan(plan)
         payload["_slice_reader_pool"] = reader_pool
         if progress_reporter is not None:
@@ -309,10 +309,12 @@ class SliceExecutor:
             "compute_memory_budget_mb": plan.compute_memory_budget_mb,
             "queue_capacity": plan.queue_capacity,
             "preload_depth": plan.preload_depth,
+            "queue_depth": plan.preload_depth,
             "slice_open_days": plan.slice_open_days,
             "dispatch_jobs": plan.dispatch_jobs,
             "memory_budget_mb": plan.memory_budget_mb,
             "oom_adjusted": plan.oom_adjusted,
+            "min_required_records": int(plan.min_required_records or 20),
         }
 
     @staticmethod

@@ -12,8 +12,8 @@
 
 | 谁 | 干什么 |
 |----|--------|
-| **BE** | jobs 调度、worker、`Timeline`（默认按 `run(start,end)` + CalendarService 建开市日轴并 `drive`）、`JobContext`（含 **`init`**） |
-| **Strategy 引擎** | 各模式 `*JobBuilder` 喂 jobs；`*JobExecutor` 实现 callbacks；可变状态只挂在 **`job_context.init`** |
+| **BE** | jobs 调度、worker、`Timeline`（默认按 `run(start,end)` + CalendarService 建开市日轴）、**slice：`SliceOrchestrator` 按正式片装载/释放**、`JobContext`（含 **`init`**） |
+| **Strategy 引擎** | 各模式 `*JobBuilder` 喂 jobs；`*JobExecutor` 实现 callbacks；可变**业务**状态只挂在 **`job_context.init`**；**不**驱动调度 |
 
 ### 枚举器（entity / slice）两件套 — 仅此
 
@@ -25,12 +25,14 @@ Pipeline    → 周边编排（采样、BE.run、ReportManager）
 
 **slice_based 装载算法（BE SOT，Strategy 必须遵守）：**  
 `core/modules/backtest_engine/docs/SLICE_BASED_ALGORITHM.md`  
-N 正式片 ⇒ 至少 N 次按片 DB 读；峰值由在飞片决定，不是全窗一次进内存。
+N 正式片 ⇒ 至少 N 次按片 DB 读；峰值由 `peak_slices = compute + queue + readers` 决定，不是全窗一次进内存。  
+调度状态（窗宽 / reader / queue / 进度）**仅**在 BE；Strategy 只绑定 `init["entity_contracts"]` 做日业务。
 
 **禁止再引入：**
 
 - **TimelineBuilder / 枚举器侧复写推进轴** — 枚举走交易日历即可，交给 BE
 - **JobSession / 第二套 session** — BE 的 session 就是 `JobContext.init`。`EntityTaskState` / `SliceTaskState` 只是 init 里的可变袋
+- **Strategy 侧片窗装载 / prefetch / queue refine / 进度** — 一律 `SliceOrchestrator`
 - **Executor 空 proxy** — 日业务入口在 `JobExecutor` 钩子
 - **自建日历 resolver 重复 BE** — slice 规划点数用 `Timeline.from_calendar_window` 即可
 
@@ -39,7 +41,7 @@ N 正式片 ⇒ 至少 N 次按片 DB 读；峰值由在飞片决定，不是全
 每个 BE 日历 tick 必须按此顺序，**不得**在业务里另造 `as_of`：
 
 ```text
-1. BE Timeline.drive → JobExecutor.on_tick(point)     # 唯一时钟
+1. BE SliceOrchestrator 按正式片装载 → on_tick(point)   # 唯一时钟
 2. AsOfSlice（shared/services/as_of_slice）按 point 切 contracts / base_bar
 3. 业务消费 (point, sliced) — scan / Investment / hooks
 ```

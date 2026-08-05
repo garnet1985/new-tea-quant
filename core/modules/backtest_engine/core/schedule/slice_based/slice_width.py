@@ -1,6 +1,7 @@
 """Slice memory / width / queue planning (SOT: docs/SLICE_BASED_ALGORITHM.md).
 
 All algorithm entry points are classmethods on ``SliceMemoryPlanner``.
+Peak resident slices = ``compute_slices + queue_depth + reader_workers``.
 """
 from __future__ import annotations
 
@@ -15,22 +16,22 @@ class SliceWidthError(ValueError):
 
 @dataclass(frozen=True)
 class SliceMemoryPlan:
-    """Resolved width + in-flight shape for slice_based."""
+    """Resolved width + resident shape for slice_based."""
 
     slice_open_days: int
     queue_depth: int
     reader_workers: int
     compute_slices: int
-    in_flight: int
+    peak_slices: int
     mb_per_open_day: float
     min_required: int
     budget_mb: float
 
 
 class SliceMemoryPlanner:
-    """Plan formal slice width and queue under peak in-flight memory.
+    """Plan formal slice width and queue under peak resident memory.
 
-    ``in_flight = compute_slices + queue_depth + reader_workers`` (peak upper bound).
+    ``peak_slices = compute_slices + queue_depth + reader_workers``.
     """
 
     SAFETY = 0.8
@@ -45,11 +46,11 @@ class SliceMemoryPlanner:
 
     @classmethod
     def reader_workers_from_cpu(cls, *, cpu_count: int, reserve_cores: int) -> int:
-        """R = max(0, cores - reserved - 1 compute process)."""
+        """Readers = max(0, cores - reserved - 1 compute process)."""
         return max(0, int(cpu_count) - max(0, int(reserve_cores)) - cls.COMPUTE_PROCESSES)
 
     @classmethod
-    def in_flight(cls, *, queue_depth: int, reader_workers: int) -> int:
+    def peak_slices(cls, *, queue_depth: int, reader_workers: int) -> int:
         return cls.COMPUTE_SLICES + max(0, int(queue_depth)) + max(0, int(reader_workers))
 
     @classmethod
@@ -75,7 +76,7 @@ class SliceMemoryPlanner:
         reserve_cores: int = 1,
         min_required: Optional[int] = None,
     ) -> SliceMemoryPlan:
-        """Initial plan: probe supplies MB only; N from memory feasibility, not timing ratio."""
+        """Initial plan: probe supplies MB only; queue from memory feasibility, not timing."""
         need = cls.default_min_required(min_required)
         width_probe = max(1, int(probe_width))
         cls.assert_probe_fits(budget_mb=budget_mb, probe_mb=probe_mb)
@@ -88,15 +89,15 @@ class SliceMemoryPlanner:
         usable = budget * cls.SAFETY
 
         for queue in range(readers, -1, -1):
-            flight = cls.in_flight(queue_depth=queue, reader_workers=readers)
-            width = int(math.floor(usable / float(flight) / mb_per_point))
+            peak = cls.peak_slices(queue_depth=queue, reader_workers=readers)
+            width = int(math.floor(usable / float(peak) / mb_per_point))
             if width >= need:
                 return SliceMemoryPlan(
                     slice_open_days=width,
                     queue_depth=queue,
                     reader_workers=readers,
                     compute_slices=cls.COMPUTE_SLICES,
-                    in_flight=flight,
+                    peak_slices=peak,
                     mb_per_open_day=mb_per_point,
                     min_required=need,
                     budget_mb=budget,
@@ -105,7 +106,7 @@ class SliceMemoryPlanner:
         raise SliceWidthError(
             f"内存不足以支撑 min_required={need}："
             f"即使 queue=0、readers={readers}，"
-            f"in_flight={cls.in_flight(queue_depth=0, reader_workers=readers)} "
+            f"peak_slices={cls.peak_slices(queue_depth=0, reader_workers=readers)} "
             f"下片宽仍 < min_required "
             f"(budget={budget:.1f}MB, mb_per_open_day={mb_per_point:.4f})"
         )
@@ -121,7 +122,7 @@ class SliceMemoryPlanner:
         t_load_sec: Optional[float] = None,
         t_compute_sec: Optional[float] = None,
     ) -> int:
-        """Runtime N: prefer ceil(t_load/t_compute), clamped by memory at fixed width."""
+        """Runtime queue: prefer ceil(t_load/t_compute), clamped by memory at fixed width."""
         readers = max(0, int(reader_workers))
         per = max(float(mb_per_slice), 1e-6)
         usable = max(float(budget_mb), 0.0) * cls.SAFETY

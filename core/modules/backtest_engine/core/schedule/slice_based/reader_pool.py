@@ -46,7 +46,7 @@ class SliceReaderPool:
         self.reader_workers = max(0, int(reader_workers))
         self.queue_depth = max(0, int(queue_depth))
         self._executor: Optional[ProcessPoolExecutor] = None
-        self._inflight: Dict[str, Future] = {}
+        self._loading: Dict[str, Future] = {}
         self._ready: "OrderedDict[str, SliceWindowResult]" = OrderedDict()
         self._started = False
         self._shutdown = False
@@ -74,10 +74,10 @@ class SliceReaderPool:
         if self.queue_depth <= 0:
             self._ready.clear()
         logger.info(
-            "SliceReaderPool queue_depth → %s (ready=%s inflight=%s)",
+            "SliceReaderPool queue_depth → %s (ready=%s loading=%s)",
             self.queue_depth,
             len(self._ready),
-            len(self._inflight),
+            len(self._loading),
         )
 
     @classmethod
@@ -138,9 +138,9 @@ class SliceReaderPool:
         if self._shutdown:
             return
         self._shutdown = True
-        for fut in list(self._inflight.values()):
+        for fut in list(self._loading.values()):
             fut.cancel()
-        self._inflight.clear()
+        self._loading.clear()
         self._ready.clear()
         if self._executor is not None:
             self._executor.shutdown(wait=True, cancel_futures=True)
@@ -186,7 +186,7 @@ class SliceReaderPool:
                 pass
             return ready.entity_contracts
 
-        fut = self._inflight.get(key.as_id())
+        fut = self._loading.get(key.as_id())
         if fut is not None:
             result = self._await_future(key, fut)
             return result.entity_contracts
@@ -215,11 +215,11 @@ class SliceReaderPool:
         self._harvest()
         key = self.window_key(start, end)
         kid = key.as_id()
-        if kid in self._ready or kid in self._inflight:
+        if kid in self._ready or kid in self._loading:
             return True
         if len(self._ready) >= self.queue_depth:
             return False
-        if len(self._inflight) >= self.reader_workers:
+        if len(self._loading) >= self.reader_workers:
             return False
 
         self._submit(payload, key)
@@ -229,9 +229,10 @@ class SliceReaderPool:
         self._harvest()
         return len(self._ready)
 
-    def inflight_count(self) -> int:
+    def loading_count(self) -> int:
+        """Number of reader tasks still loading (not yet in queue)."""
         self._harvest()
-        return len(self._inflight)
+        return len(self._loading)
 
     def _submit(self, payload: Dict[str, Any], key: SliceWindowKey) -> Future:
         assert self._executor is not None
@@ -242,7 +243,7 @@ class SliceReaderPool:
             key.start,
             key.end,
         )
-        self._inflight[key.as_id()] = fut
+        self._loading[key.as_id()] = fut
         return fut
 
     def _await_future(self, key: SliceWindowKey, fut: Future) -> SliceWindowResult:
@@ -256,7 +257,7 @@ class SliceReaderPool:
                 load_sec=0.0,
                 error=f"slice reader failed for {key.as_id()}: {exc}",
             )
-        self._inflight.pop(key.as_id(), None)
+        self._loading.pop(key.as_id(), None)
         if result.error:
             raise RuntimeError(result.error)
         return result
@@ -264,9 +265,9 @@ class SliceReaderPool:
     def _harvest(self) -> None:
         if self.queue_depth <= 0:
             return
-        done_ids = [kid for kid, fut in self._inflight.items() if fut.done()]
+        done_ids = [kid for kid, fut in self._loading.items() if fut.done()]
         for kid in done_ids:
-            fut = self._inflight.pop(kid)
+            fut = self._loading.pop(kid)
             try:
                 raw = fut.result()
                 start, end = kid.split(":", 1)

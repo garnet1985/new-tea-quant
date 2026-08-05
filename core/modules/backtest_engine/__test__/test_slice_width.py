@@ -28,7 +28,7 @@ def test_resolve_initial_prefers_large_queue_then_width() -> None:
     assert plan.min_required == 20
     assert plan.slice_open_days >= 20
     assert plan.queue_depth == plan.reader_workers
-    assert plan.in_flight == 2 + plan.queue_depth + plan.reader_workers
+    assert plan.peak_slices == 2 + plan.queue_depth + plan.reader_workers
     assert plan.mb_per_open_day == pytest.approx(1.0)
 
 
@@ -39,7 +39,7 @@ def test_default_min_required_when_unset_or_nonpositive() -> None:
 
 
 def test_fail_when_min_required_cannot_fit_even_at_queue_zero() -> None:
-    # probe fits (80 >= 2*20), but R=6 → in_flight≥8 → width≤10 < min_required=20
+    # probe fits (80 >= 2*20), but R=6 → peak_slices≥8 → width≤10 < min_required=20
     with pytest.raises(SliceWidthError, match="内存不足以支撑"):
         SliceMemoryPlanner.resolve_initial(
             budget_mb=100.0,

@@ -147,7 +147,7 @@ def test_resolve_memory_plan_sets_width_queue_and_readers() -> None:
     assert mem.reader_workers == 6
     assert mem.slice_open_days >= 20
     assert mem.queue_depth >= 0
-    assert mem.in_flight == 2 + mem.queue_depth + mem.reader_workers
+    assert mem.peak_slices == 2 + mem.queue_depth + mem.reader_workers
 
     plan = SlicePlanner._resolve_slice_plan(
         [

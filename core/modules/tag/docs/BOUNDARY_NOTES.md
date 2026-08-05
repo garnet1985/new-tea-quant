@@ -4,8 +4,15 @@
 
 | 谁 | 干什么 |
 |----|--------|
-| **BE** | **仅 per_entity 时序**：jobs 调度、Timeline/Slice、JobContext.init |
+| **BE** | **仅 per_entity 时序**：jobs 调度、Timeline；**slice：`SliceOrchestrator` 按正式片装载/释放**、JobContext.init |
 | **Tag** | per_entity：JobBuilder + JobExecutor + flush；**global / non_ts：自备轻量主进程推进器**（不进 BE） |
+
+**slice_based 硬约束（与 Strategy 对齐，SOT：`backtest_engine/docs/SLICE_BASED_ALGORITHM.md`）：**
+
+- Tag **只**提供 jobs + 日业务 callbacks；**不**驱动窗装载 / reader / queue / BE 进度
+- `on_before_task_start`：仅 `JobBundleLoader.load_globals`；`entity_contracts={}`
+- `on_tick`：绑定 `init["entity_contracts"]`（BE 按片写入）→ AsOfSlice → hooks
+- **禁止** task 开头全窗 `JobBundleLoader.load`（entity_based 全窗路径除外）
 
 ## 包布局
 

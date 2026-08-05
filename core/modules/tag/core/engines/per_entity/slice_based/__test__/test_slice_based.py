@@ -230,3 +230,51 @@ class TestTagSliceJobExecutor:
             sliced_by_entity={"e1": {"stock.kline.daily": [_bar("20240104")]}},
         )
         assert len(state.tag_values) == 1
+
+    def test_bind_loaded_contracts_refreshes_ready_dates(self):
+        state = self._make_state(_EchoHooks())
+        state.bind_loaded_contracts({})
+        assert state.entity_contracts == {}
+        assert state._job_min_ready_date == ""
+
+        contract = MagicMock()
+        contract.get_entity_data.side_effect = lambda eid: [_bar()] if eid == "e1" else []
+        state.bind_loaded_contracts({"stock.kline.daily": contract})
+        assert "stock.kline.daily" in state.entity_contracts
+
+    def test_on_before_task_start_globals_only(self):
+        payload = {
+            "entity_specified": [{"id": "e1", "start_date": "20240102", "end_date": "20240105"}],
+            "settings": _settings_dict(),
+            "tag_info": {
+                "key": "cap",
+                "unique_relative_path": "demo/cap",
+                "hooks_class_name": "_EchoHooks",
+                "hooks_module_path": "_ntq_tag_tag_demo_cap",
+                "hooks_file_path": "/tmp/demo/cap/tag.py",
+            },
+            "tag_definitions": [
+                {"id": 7, "name": "tier", "display_name": "Tier", "scenario_id": 1}
+            ],
+            "scenario_name": "demo/cap",
+        }
+        job_context = JobContext(job_id="j1", payload=payload, task_name="tag")
+        ts = TagSettings.from_dict(_settings_dict(), tag_key="demo/cap")
+        ts.apply_defaults()
+        runtime = TagHookRuntime(_EchoHooks(), tag_name="cap", settings=ts)
+
+        with patch(
+            "core.modules.tag.core.engines.per_entity.slice_based.executor.JobBundleLoader.load_globals",
+            return_value={"g": 1},
+        ) as load_globals, patch(
+            "core.modules.tag.core.engines.per_entity.slice_based.executor.JobBundleLoader.load"
+        ) as load_full, patch.object(
+            TagHookRuntime, "from_tag_info", return_value=(runtime, None)
+        ):
+            loaded = TagSliceJobExecutor.on_before_task_start(job_context)
+
+        load_globals.assert_called_once()
+        load_full.assert_not_called()
+        assert loaded["entity_contracts"] == {}
+        assert loaded["global_data"] == {"g": 1}
+        assert TagSliceJobExecutor._STATE_KEY in loaded

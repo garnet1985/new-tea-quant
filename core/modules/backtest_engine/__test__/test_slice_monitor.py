@@ -90,7 +90,7 @@ def test_memory_pressure_recommends_lower_preload() -> None:
         )
     monitor.flush()
     assert monitor.stats.memory_pressure_detected is True
-    assert monitor.stats.recommended_preload_depth == 1
+    assert monitor.stats.recommended_preload_depth == 0
 
 
 def test_warmup_skips_memory_policy() -> None:

@@ -77,5 +77,6 @@ def test_duckdb_executor_wraps_scope_and_delegates() -> None:
     assert result is expected
     execute_mock.assert_called_once()
     assert len(scope_calls) == 1
-    assert scope_calls[0]["use_process_pool"] is True
+    # Slice path keeps DuckDB on the main process (no ProcessPool workers).
+    assert scope_calls[0]["use_process_pool"] is False
     assert scope_calls[0]["resume_main_after"] is False

@@ -96,7 +96,8 @@ backtest_engine/
 │       └── monitor.py
 ├── docs/
 │   ├── ARCHITECTURE.md
-│   └── DECISIONS.md
+│   ├── DESIGN.md
+│   └── SLICE_BASED_ALGORITHM.md  # slice_based 算法 SOT（硬约束）
 └── __test__/
     ├── test_cases.yaml
     └── test_*.py
@@ -116,11 +117,15 @@ backtest_engine/
 
 ### slice_based
 
-1. **Plan**：slice probe → reader/compute/queue 规划 → `SliceDispatchPlan`
-2. **Execute**：**无外层 ProcessPool**；主进程调用 `execute_fn`，内部 orchestrator 自管 reader/compute 子进程
-3. **Monitor**：按 slice 样本聚合，内存压力时下调 preload
+**算法 SOT：** [SLICE_BASED_ALGORITHM.md](./SLICE_BASED_ALGORITHM.md)（实现必须以该文为准）。
 
-slice 细粒度进度：executor 向 payload 注入 `_engine_on_execute_unit_done`；orchestrator 每完成一个 slice 回调。
+1. **Probe**：小块真实装载+试算 → `mb_per_open_day`、`t_read` / `t_compute`  
+2. **Plan**：按内存规划 `slice_open_days`；按读算比与内存规划 `preload_depth`（在飞片）  
+3. **Execute**：Reader **按正式片**从 DB 装载入队；Compute 逐片计算并释放；**禁止**全窗一次加载  
+4. **Progress**：探针+首片可读后出第一次进度；之后每完成一片汇报（execute-unit hook）  
+5. **Monitor**：按片样本聚合；内存压力时下调预读深度（不改为一次读满）
+
+IO 不变量：正式片数 N ⇒ 至少 N 次按片 DB 装载。
 
 ---
 
@@ -176,4 +181,6 @@ SliceBasedPerformance.base()
 
 - [README.md](../README.md) — 使用者入门
 - [DESIGN.md](./DESIGN.md) — 设计说明
+- [SLICE_BASED_ALGORITHM.md](./SLICE_BASED_ALGORITHM.md) — slice_based 算法 SOT
 - [API.md](../API.md) — API 契约
+- [glossary.yaml](../glossary.yaml) — 术语

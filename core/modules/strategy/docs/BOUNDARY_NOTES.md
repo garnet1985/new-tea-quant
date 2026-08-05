@@ -18,10 +18,14 @@
 ### 枚举器（entity / slice）两件套 — 仅此
 
 ```text
-*JobBuilder  → 组装 BE jobs（payload 含数据加载窗；slice 另写 timeline_point_count 供规划）
-*JobExecutor → RunCallbacks（on_before_task_start / on_tick / …）
+*JobBuilder  → 组装 BE jobs（payload 含**按片**数据装载契约；slice 另写 timeline_point_count 供规划）
+*JobExecutor → RunCallbacks（on_before_task_start / on_tick / …）；**禁止** task 开头全窗一次 JobBundleLoader
 Pipeline    → 周边编排（采样、BE.run、ReportManager）
 ```
+
+**slice_based 装载算法（BE SOT，Strategy 必须遵守）：**  
+`core/modules/backtest_engine/docs/SLICE_BASED_ALGORITHM.md`  
+N 正式片 ⇒ 至少 N 次按片 DB 读；峰值由在飞片决定，不是全窗一次进内存。
 
 **禁止再引入：**
 

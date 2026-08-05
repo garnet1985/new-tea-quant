@@ -7,16 +7,15 @@ from typing import Any, Dict, Optional, Union
 from core.modules.backtest_engine.core.performance.worker_profile.constants import (
     ENUMERATOR_DISPATCH_DEFAULTS,
 )
-from core.infra.machine_capacity import MachineInfo
 from core.infra.machine_capacity.contracts import MachineCapacity
 
 AutoValue = Union[int, float, str, bool, None]
 RawPerformance = Dict[str, Any]
 
-# Provisional / floor default when auto (formal width resolved in SlicePlanner).
-# Keep in sync with slice_width.DEFAULT_SLICE_OPEN_DAYS_FLOOR / DEFAULT_PRELOAD_DEPTH.
+# Provisional defaults when auto (formal width / queue resolved in SlicePlanner).
+# Keep in sync with SliceMemoryPlanner.DEFAULT_MIN_REQUIRED.
 DEFAULT_SLICE_OPEN_DAYS = 20
-DEFAULT_PRELOAD_DEPTH = 2
+DEFAULT_PRELOAD_DEPTH = 0
 
 
 def _is_auto(value: Any) -> bool:
@@ -212,7 +211,7 @@ class SliceBasedPerformance:
         if settings.get("prefetch_enabled") is False and _is_auto(
             settings.get("preload_depth")
         ):
-            settings["preload_depth"] = 1
+            settings["preload_depth"] = 0
 
     @classmethod
     def resolve_for_planning(
@@ -224,10 +223,14 @@ class SliceBasedPerformance:
     ) -> RawPerformance:
         """Resolve known fields before planner.
 
-        - ``reader_workers`` auto → full standby pool (``cpu - reserve_cores``)
-        - ``preload_depth`` stays ``auto`` until planner sizes from per-slice MB
+        - ``reader_workers`` auto → ``max(0, cores - reserved - 1)`` (SOT R)
+        - ``preload_depth`` stays ``auto`` until SlicePlanner sizes N
         - ``queue_capacity`` tracks ``preload_depth`` after planner resolves it
         """
+        from core.modules.backtest_engine.core.schedule.slice_based.slice_width import (
+            SliceMemoryPlanner,
+        )
+
         perf = cls.from_dict(performance)
         perf.validate()
         settings = perf.to_dict()
@@ -240,18 +243,24 @@ class SliceBasedPerformance:
         else:
             settings["_slice_open_days_auto"] = False
 
-        available_workers = MachineInfo.get_available_workers(capacity)
+        reserve = int(
+            settings.get("reserve_cores")
+            or getattr(capacity, "reserve_cores", 1)
+            or 1
+        )
         if _is_auto(settings.get("reader_workers")):
-            # Standby pool: who-is-free reads. Depth (not reader count) matches IO.
-            settings["reader_workers"] = max(1, available_workers)
+            settings["reader_workers"] = SliceMemoryPlanner.reader_workers_from_cpu(
+                cpu_count=int(getattr(capacity, "cpu_count", 1) or 1),
+                reserve_cores=reserve,
+            )
             settings["_reader_workers_fixed"] = True
 
         if _is_auto(settings.get("compute_processes")):
-            settings["compute_processes"] = 1
+            settings["compute_processes"] = SliceMemoryPlanner.COMPUTE_PROCESSES
 
         # Keep preload_depth / queue_capacity as auto until SlicePlanner sizes queue.
         if not _is_auto(settings.get("preload_depth")):
-            depth = max(1, int(settings["preload_depth"]))
+            depth = max(0, int(settings["preload_depth"]))
             settings["preload_depth"] = depth
             settings["queue_capacity"] = depth
             settings["queue_depth"] = depth
@@ -266,16 +275,18 @@ class SliceBasedPerformance:
         slice_open_days = int(settings.get("slice_open_days", 0))
         if slice_open_days <= 0:
             raise ValueError(f"slice_open_days must be > 0: {slice_open_days}")
-        for field_name in ("reader_workers", "compute_processes"):
-            value = int(settings[field_name])
-            if value <= 0:
-                raise ValueError(f"{field_name} must be > 0: {value}")
+        compute = int(settings["compute_processes"])
+        if compute <= 0:
+            raise ValueError(f"compute_processes must be > 0: {compute}")
+        readers = int(settings["reader_workers"])
+        if readers < 0:
+            raise ValueError(f"reader_workers must be >= 0: {readers}")
         for field_name in ("preload_depth", "queue_capacity"):
             value = settings.get(field_name)
             if _is_auto(value):
                 continue
-            if int(value) <= 0:
-                raise ValueError(f"{field_name} must be > 0: {value}")
+            if int(value) < 0:
+                raise ValueError(f"{field_name} must be >= 0: {value}")
 
 
 def resolve_entity_based_performance(

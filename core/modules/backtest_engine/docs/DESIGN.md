@@ -19,9 +19,20 @@ API 与行为以根目录 [API.md](../API.md) 为准。
 | 模式 | 并行模型 | 何时选用 |
 |------|----------|----------|
 | entity_based | ProcessPoolExecutor，每 batch 调 `execute_fn` | entity 间无 slice 内 cross-entity 编排 |
-| slice_based | 主进程 `execute_fn` + reader/compute orchestrator | slice 内多 entity 管道交互 |
+| slice_based | 按日历片从 DB 分次装载 + reader/compute 预读管道 | 全截面数据可能大于可用内存 |
 
-内部包名与公开模式名一致；`BacktestMode` 定义于 `core/shared/modes.py`。
+### 2.1 slice_based 算法 SOT（硬约束）
+
+**权威算法：** [SLICE_BASED_ALGORITHM.md](./SLICE_BASED_ALGORITHM.md)。
+
+要点（细节以该文为准）：
+
+- 解决「全窗 10GB、内存 8GB」类问题：按片装载与释放，峰值由在飞片决定  
+- 探针先测 `mb/open_day` 与读/算单价，再规划片宽与预读深度  
+- N 个正式片 ⇒ **至少 N 次**按片 DB 读；禁止 task 开头一次拉满全窗  
+- 预读队列用 `t_read/t_compute` 对齐吞吐；进度按片汇报  
+
+实现或 Strategy 集成若与该文冲突，**改代码对齐文档**。
 
 ---
 
@@ -81,4 +92,5 @@ API 与行为以根目录 [API.md](../API.md) 为准。
 
 - [README.md](../README.md)
 - [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [SLICE_BASED_ALGORITHM.md](./SLICE_BASED_ALGORITHM.md) — slice_based 算法 SOT
 - [API.md](../API.md)

@@ -250,22 +250,28 @@ class SliceRunMonitor:
         mb_per_slice = max(1.0, mb_reader + mb_payload)
 
         from core.modules.backtest_engine.core.schedule.slice_based.slice_width import (
-            resolve_reader_queue_depth,
+            SliceMemoryPlanner,
         )
 
         # Width stays fixed; only the reader queue (preload_depth) adapts.
-        recommended = resolve_reader_queue_depth(
-            available_mb=self._available_memory_mb,
+        recommended = SliceMemoryPlanner.refine_queue_depth(
+            budget_mb=self._available_memory_mb,
             mb_per_slice=mb_per_slice,
-            compute_processes=1,
-            current_depth=preload,
-            high_watermark=self._config.memory_high_watermark,
-            low_watermark=self._config.memory_low_watermark,
+            reader_workers=readers,
+            current_queue=preload,
+            t_load_sec=self._stats.sec_per_slice_reader_hat or None,
+            t_compute_sec=self._stats.sec_per_slice_compute_hat or None,
         )
         self._stats.recommended_preload_depth = recommended
         self._stats.recommended_reader_workers = readers
 
-        resident = (preload + 1) * mb_per_slice + mb_compute
+        resident = (
+            SliceMemoryPlanner.in_flight(
+                queue_depth=preload, reader_workers=readers
+            )
+            * mb_per_slice
+            + mb_compute
+        )
         high = self._available_memory_mb * self._config.memory_high_watermark
         if resident > high or recommended < preload:
             self._stats.memory_pressure_detected = True

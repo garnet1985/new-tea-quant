@@ -1,119 +1,108 @@
-"""Unit tests for formal slice width resolution."""
+"""Unit tests for SliceMemoryPlanner (SOT: SLICE_BASED_ALGORITHM.md)."""
 from __future__ import annotations
 
 import pytest
 
 from core.modules.backtest_engine.core.schedule.slice_based.slice_width import (
+    SliceMemoryPlanner,
     SliceWidthError,
-    resolve_reader_queue_depth,
-    resolve_slice_open_days,
 )
 
 
-def test_single_slice_start_uses_need_not_full_cap() -> None:
-    # Huge memory → cap >> min_required; prefer start ASAP at max(floor, min_required).
-    width = resolve_slice_open_days(
-        available_mb=100_000.0,
-        in_flight=2,
-        mb_per_open_day=1.0,
-        min_required=100,
-        total_open_days=800,
-        floor=20,
-        ux_hard_max=500,
+def test_assert_probe_fits_rejects_too_large_probe() -> None:
+    with pytest.raises(SliceWidthError, match="探针块"):
+        SliceMemoryPlanner.assert_probe_fits(budget_mb=100.0, probe_mb=50.0)
+
+
+def test_resolve_initial_prefers_large_queue_then_width() -> None:
+    # budget*0.8=8000; R=6 (8-1-1); N from 6→0 until width>=min_required.
+    plan = SliceMemoryPlanner.resolve_initial(
+        budget_mb=10_000.0,
+        probe_mb=20.0,
+        probe_width=20,
+        cpu_count=8,
+        reserve_cores=1,
+        min_required=20,
     )
-    assert width == 100
+    assert plan.reader_workers == 6
+    assert plan.min_required == 20
+    assert plan.slice_open_days >= 20
+    assert plan.queue_depth == plan.reader_workers
+    assert plan.in_flight == 2 + plan.queue_depth + plan.reader_workers
+    assert plan.mb_per_open_day == pytest.approx(1.0)
 
 
-def test_floor_when_min_required_below_floor() -> None:
-    width = resolve_slice_open_days(
-        available_mb=100_000.0,
-        in_flight=2,
-        mb_per_open_day=1.0,
-        min_required=5,
-        total_open_days=800,
-        floor=20,
-        ux_hard_max=500,
-    )
-    assert width == 20
+def test_default_min_required_when_unset_or_nonpositive() -> None:
+    assert SliceMemoryPlanner.default_min_required(None) == 20
+    assert SliceMemoryPlanner.default_min_required(0) == 20
+    assert SliceMemoryPlanner.default_min_required(5) == 5
 
 
-def test_fail_when_cap_below_floor() -> None:
-    with pytest.raises(SliceWidthError, match="最小片宽"):
-        resolve_slice_open_days(
-            available_mb=30.0,
-            in_flight=2,
-            mb_per_open_day=1.0,
-            min_required=5,
-            total_open_days=800,
-            floor=20,
-            ux_hard_max=500,
-            discount=0.8,
+def test_fail_when_min_required_cannot_fit_even_at_queue_zero() -> None:
+    # probe fits (80 >= 2*20), but R=6 → in_flight≥8 → width≤10 < min_required=20
+    with pytest.raises(SliceWidthError, match="内存不足以支撑"):
+        SliceMemoryPlanner.resolve_initial(
+            budget_mb=100.0,
+            probe_mb=20.0,
+            probe_width=20,
+            cpu_count=8,
+            reserve_cores=1,
+            min_required=20,
         )
 
 
-def test_fail_when_in_flight_cannot_cover_min_required() -> None:
-    # mem_cap ≈ floor(1000/2/1*0.8)=400, but raise min_required beyond 2*cap
-    with pytest.raises(SliceWidthError, match="盖不住 min_required"):
-        resolve_slice_open_days(
-            available_mb=100.0,
-            in_flight=2,
-            mb_per_open_day=1.0,
-            min_required=500,
-            total_open_days=800,
-            floor=20,
-            ux_hard_max=500,
-            discount=0.8,
-        )
-
-
-def test_width_with_large_in_flight_still_prefers_min_required() -> None:
-    width = resolve_slice_open_days(
-        available_mb=10_000.0,
-        in_flight=9,
-        mb_per_open_day=1.0,
-        min_required=100,
-        total_open_days=800,
-        floor=20,
-        ux_hard_max=500,
+def test_reader_workers_zero_on_low_core() -> None:
+    assert (
+        SliceMemoryPlanner.reader_workers_from_cpu(cpu_count=1, reserve_cores=1) == 0
     )
-    assert width == 100
-
-
-def test_delayed_start_when_cap_between_floor_and_min_required() -> None:
-    # cap = floor(400/2/1*0.8)=160; min_required=200; 2*160>=200 → width=cap=160
-    width = resolve_slice_open_days(
-        available_mb=400.0,
-        in_flight=2,
-        mb_per_open_day=1.0,
-        min_required=200,
-        total_open_days=800,
-        floor=20,
-        ux_hard_max=500,
-        discount=0.8,
+    assert (
+        SliceMemoryPlanner.reader_workers_from_cpu(cpu_count=2, reserve_cores=1) == 0
     )
-    assert width == 160
+    assert (
+        SliceMemoryPlanner.reader_workers_from_cpu(cpu_count=3, reserve_cores=1) == 1
+    )
 
 
-def test_reader_queue_scales_down_under_pressure() -> None:
-    depth = resolve_reader_queue_depth(
-        available_mb=100.0,
+def test_resolve_from_unit_cost_matches_probe_path() -> None:
+    a = SliceMemoryPlanner.resolve_from_unit_cost(
+        budget_mb=5_000.0,
+        mb_per_open_day=2.0,
+        cpu_count=4,
+        reserve_cores=1,
+        min_required=20,
+    )
+    b = SliceMemoryPlanner.resolve_initial(
+        budget_mb=5_000.0,
+        probe_mb=40.0,
+        probe_width=20,
+        cpu_count=4,
+        reserve_cores=1,
+        min_required=20,
+    )
+    assert a == b
+
+
+def test_refine_queue_depth_uses_timing_clamped_by_memory() -> None:
+    # n_ideal=ceil(2/1)=2; n_max=floor(800/50 - 2 - 2)=floor(16-4)=12 → 2
+    depth = SliceMemoryPlanner.refine_queue_depth(
+        budget_mb=1_000.0,
+        mb_per_slice=50.0,
+        reader_workers=2,
+        current_queue=6,
+        t_load_sec=2.0,
+        t_compute_sec=1.0,
+    )
+    assert depth == 2
+
+
+def test_refine_queue_depth_memory_floor_to_zero() -> None:
+    # n_max=floor(80/40 - 2 - 2)=floor(2-4)=0
+    depth = SliceMemoryPlanner.refine_queue_depth(
+        budget_mb=100.0,
         mb_per_slice=40.0,
-        compute_processes=1,
-        current_depth=4,
-        high_watermark=0.85,
-        low_watermark=0.60,
+        reader_workers=2,
+        current_queue=4,
+        t_load_sec=2.0,
+        t_compute_sec=1.0,
     )
-    assert depth < 4
-    assert depth >= 1
-
-
-def test_reader_queue_may_scale_up_when_slack() -> None:
-    depth = resolve_reader_queue_depth(
-        available_mb=10_000.0,
-        mb_per_slice=10.0,
-        compute_processes=1,
-        current_depth=1,
-        high_watermark=0.85,
-        low_watermark=0.60,
-    )
-    assert depth >= 1
+    assert depth == 0

@@ -91,8 +91,12 @@ def test_slice_based_bulk_job_embeds_slice_plan() -> None:
     assert result.total_jobs == 1
     assert result.completed_jobs == 1
     assert result.plan is not None
-    assert result.plan.slice_open_days == 20
-    assert result.plan.dispatch_jobs == 2
+    assert result.plan.slice_open_days >= 20
+    assert result.plan.dispatch_jobs == max(
+        1, (40 + result.plan.slice_open_days - 1) // result.plan.slice_open_days
+    )
+    assert result.plan.reader_workers >= 0
+    assert result.plan.preload_depth == result.plan.queue_capacity
 
 
 def test_slice_based_empty_jobs_returns_success() -> None:

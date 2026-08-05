@@ -1,233 +1,167 @@
-"""Resolve formal slice width (open-date count per slice).
+"""Slice memory / width / queue planning (SOT: docs/SLICE_BASED_ALGORITHM.md).
 
-Principles (priority high → low):
-1. Hard OOM → fail (do not run).
-2. Start compute ASAP: prefer single-slice cover of ``min_required``.
-3. Keep slice size in a feedback-friendly band (FLOOR … UX hard max).
-
-``in_flight`` (concurrent resident slices) is dynamic:
-``max(2, reader_workers + compute_processes)``.
+All algorithm entry points are classmethods on ``SliceMemoryPlanner``.
 """
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from typing import Optional
-
-DEFAULT_SLICE_OPEN_DAYS_FLOOR = 20
-DEFAULT_SLICE_OPEN_DAYS_UX_MAX = 500
-SLICE_WIDTH_SAFETY = 0.8
-MIN_IN_FLIGHT = 2
-MAX_PRELOAD_DEPTH = 8
-DEFAULT_PRELOAD_DEPTH = 2
 
 
 class SliceWidthError(ValueError):
-    """Slice width cannot be resolved without OOM / readiness risk."""
+    """Slice plan cannot be resolved without OOM / readiness risk."""
 
 
-def normalize_in_flight(in_flight: int) -> int:
-    return max(MIN_IN_FLIGHT, int(in_flight))
+@dataclass(frozen=True)
+class SliceMemoryPlan:
+    """Resolved width + in-flight shape for slice_based."""
+
+    slice_open_days: int
+    queue_depth: int
+    reader_workers: int
+    compute_slices: int
+    in_flight: int
+    mb_per_open_day: float
+    min_required: int
+    budget_mb: float
 
 
-def memory_cap_open_days(
-    *,
-    available_mb: float,
-    in_flight: int,
-    mb_per_open_day: float,
-    discount: float = SLICE_WIDTH_SAFETY,
-    ux_hard_max: int = DEFAULT_SLICE_OPEN_DAYS_UX_MAX,
-) -> int:
-    """Max open days per slice afforded by memory (then UX hard max)."""
-    flight = normalize_in_flight(in_flight)
-    per_day = max(float(mb_per_open_day), 1e-6)
-    budget = max(float(available_mb), 0.0)
-    raw = math.floor(budget / flight / per_day * float(discount))
-    return max(0, min(int(ux_hard_max), int(raw)))
+class SliceMemoryPlanner:
+    """Plan formal slice width and queue under peak in-flight memory.
 
-
-def resolve_slice_open_days(
-    *,
-    available_mb: float,
-    in_flight: int,
-    mb_per_open_day: float,
-    min_required: int,
-    total_open_days: int,
-    floor: int = DEFAULT_SLICE_OPEN_DAYS_FLOOR,
-    ux_hard_max: int = DEFAULT_SLICE_OPEN_DAYS_UX_MAX,
-    discount: float = SLICE_WIDTH_SAFETY,
-    explicit_width: Optional[int] = None,
-) -> int:
-    """Pick formal ``slice_open_days`` or raise ``SliceWidthError``.
-
-    When ``explicit_width`` is set, that value is used after the same
-    feasibility checks (principle 1).
+    ``in_flight = compute_slices + queue_depth + reader_workers`` (peak upper bound).
     """
-    flight = normalize_in_flight(in_flight)
-    floor_n = max(1, int(floor))
-    ux_max = max(floor_n, int(ux_hard_max))
-    need_required = max(0, int(min_required))
-    total = max(0, int(total_open_days))
 
-    cap = memory_cap_open_days(
-        available_mb=available_mb,
-        in_flight=flight,
-        mb_per_open_day=mb_per_open_day,
-        discount=discount,
-        ux_hard_max=ux_max,
-    )
+    SAFETY = 0.8
+    COMPUTE_SLICES = 2
+    DEFAULT_MIN_REQUIRED = 20
+    COMPUTE_PROCESSES = 1
 
-    if explicit_width is not None:
-        width = max(1, int(explicit_width))
-        _assert_feasible(
-            width=width,
-            floor=floor_n,
-            cap=cap,
-            in_flight=flight,
-            min_required=need_required,
-            explicit=True,
+    @classmethod
+    def default_min_required(cls, min_required: Optional[int]) -> int:
+        raw = 0 if min_required is None else int(min_required)
+        return cls.DEFAULT_MIN_REQUIRED if raw <= 0 else max(1, raw)
+
+    @classmethod
+    def reader_workers_from_cpu(cls, *, cpu_count: int, reserve_cores: int) -> int:
+        """R = max(0, cores - reserved - 1 compute process)."""
+        return max(0, int(cpu_count) - max(0, int(reserve_cores)) - cls.COMPUTE_PROCESSES)
+
+    @classmethod
+    def in_flight(cls, *, queue_depth: int, reader_workers: int) -> int:
+        return cls.COMPUTE_SLICES + max(0, int(queue_depth)) + max(0, int(reader_workers))
+
+    @classmethod
+    def assert_probe_fits(cls, *, budget_mb: float, probe_mb: float) -> None:
+        """Fail if even 2 probe-sized slices cannot fit under discounted budget."""
+        budget = max(float(budget_mb), 0.0)
+        probe = max(float(probe_mb), 0.0)
+        if budget * cls.SAFETY < cls.COMPUTE_SLICES * probe:
+            raise SliceWidthError(
+                f"探针块无法满足回溯双片并存："
+                f"budget({budget:.1f})*{cls.SAFETY} < "
+                f"{cls.COMPUTE_SLICES}*{probe:.1f}MB；将 OOM，请减小 min_required 或增加内存"
+            )
+
+    @classmethod
+    def resolve_initial(
+        cls,
+        *,
+        budget_mb: float,
+        probe_mb: float,
+        probe_width: int,
+        cpu_count: int,
+        reserve_cores: int = 1,
+        min_required: Optional[int] = None,
+    ) -> SliceMemoryPlan:
+        """Initial plan: probe supplies MB only; N from memory feasibility, not timing ratio."""
+        need = cls.default_min_required(min_required)
+        width_probe = max(1, int(probe_width))
+        cls.assert_probe_fits(budget_mb=budget_mb, probe_mb=probe_mb)
+
+        mb_per_point = max(float(probe_mb), 1e-6) / float(width_probe)
+        readers = cls.reader_workers_from_cpu(
+            cpu_count=cpu_count, reserve_cores=reserve_cores
         )
-        return _maybe_split_for_calendar(
-            width,
-            total_open_days=total,
-            floor=floor_n,
-            cap=cap,
-            in_flight=flight,
-            min_required=need_required,
-        )
+        budget = max(float(budget_mb), 0.0)
+        usable = budget * cls.SAFETY
 
-    if cap < floor_n:
+        for queue in range(readers, -1, -1):
+            flight = cls.in_flight(queue_depth=queue, reader_workers=readers)
+            width = int(math.floor(usable / float(flight) / mb_per_point))
+            if width >= need:
+                return SliceMemoryPlan(
+                    slice_open_days=width,
+                    queue_depth=queue,
+                    reader_workers=readers,
+                    compute_slices=cls.COMPUTE_SLICES,
+                    in_flight=flight,
+                    mb_per_open_day=mb_per_point,
+                    min_required=need,
+                    budget_mb=budget,
+                )
+
         raise SliceWidthError(
-            f"内存不足以支撑最小片宽：cap={cap} < floor={floor_n} "
-            f"(available_mb={available_mb:.1f}, in_flight={flight}, "
-            f"mb_per_open_day={mb_per_open_day:.4f})"
-        )
-    if flight * cap < need_required:
-        raise SliceWidthError(
-            f"并存片总宽度仍盖不住 min_required："
-            f"in_flight({flight}) * cap({cap}) < min_required({need_required})；"
-            f"存在 OOM / 无法开算风险"
+            f"内存不足以支撑 min_required={need}："
+            f"即使 queue=0、readers={readers}，"
+            f"in_flight={cls.in_flight(queue_depth=0, reader_workers=readers)} "
+            f"下片宽仍 < min_required "
+            f"(budget={budget:.1f}MB, mb_per_open_day={mb_per_point:.4f})"
         )
 
-    need = max(floor_n, need_required)
-    if need <= cap:
-        width = need
-    else:
-        width = cap
+    @classmethod
+    def refine_queue_depth(
+        cls,
+        *,
+        budget_mb: float,
+        mb_per_slice: float,
+        reader_workers: int,
+        current_queue: int,
+        t_load_sec: Optional[float] = None,
+        t_compute_sec: Optional[float] = None,
+    ) -> int:
+        """Runtime N: prefer ceil(t_load/t_compute), clamped by memory at fixed width."""
+        readers = max(0, int(reader_workers))
+        per = max(float(mb_per_slice), 1e-6)
+        usable = max(float(budget_mb), 0.0) * cls.SAFETY
+        n_max = int(math.floor(usable / per - cls.COMPUTE_SLICES - readers))
+        n_max = max(0, n_max)
 
-    return _maybe_split_for_calendar(
-        width,
-        total_open_days=total,
-        floor=floor_n,
-        cap=cap,
-        in_flight=flight,
-        min_required=need_required,
-    )
+        if t_load_sec is not None and t_compute_sec is not None:
+            load = max(float(t_load_sec), 0.0)
+            compute = max(float(t_compute_sec), 1e-9)
+            n_ideal = int(math.ceil(load / compute))
+            return max(0, min(n_max, n_ideal))
 
+        return max(0, min(n_max, int(current_queue)))
 
-def resolve_reader_queue_depth(
-    *,
-    available_mb: float,
-    mb_per_slice: float,
-    compute_processes: int = 1,
-    current_depth: Optional[int] = None,
-    max_depth: int = MAX_PRELOAD_DEPTH,
-    high_watermark: float = 0.85,
-    low_watermark: float = 0.60,
-    prefetch_enabled: bool = True,
-) -> int:
-    """Size reader queue (``preload_depth``) from per-slice MB; width stays fixed.
-
-    - ``current_depth is None``: initial ideal from memory only.
-    - Otherwise: scale down under high pressure / up under low watermark.
-    """
-    if not prefetch_enabled:
-        return 1
-
-    cap_depth = max(1, min(int(max_depth), MAX_PRELOAD_DEPTH))
-    compute_n = max(1, int(compute_processes))
-    per = max(float(mb_per_slice), 1.0)
-    budget = max(float(available_mb), 0.0)
-    usable = max(0.0, budget * float(high_watermark) - compute_n * per)
-    ideal = max(1, min(cap_depth, int(usable / per)))
-
-    if current_depth is None:
-        return ideal
-
-    cur = max(1, min(cap_depth, int(current_depth)))
-    resident = (cur + compute_n) * per
-    high = budget * float(high_watermark)
-    low = budget * float(low_watermark)
-
-    if resident > high:
-        return max(1, min(ideal, cur - 1))
-    if resident < low and ideal > cur:
-        return min(cap_depth, cur + 1, ideal)
-    return min(cap_depth, max(1, min(cur, ideal)))
-
-
-def _assert_feasible(
-    *,
-    width: int,
-    floor: int,
-    cap: int,
-    in_flight: int,
-    min_required: int,
-    explicit: bool,
-) -> None:
-    if width < floor:
-        raise SliceWidthError(
-            f"{'显式' if explicit else ''}片宽 {width} 低于最小片宽 floor={floor}"
+    @classmethod
+    def resolve_from_unit_cost(
+        cls,
+        *,
+        budget_mb: float,
+        mb_per_open_day: float,
+        cpu_count: int,
+        reserve_cores: int = 1,
+        min_required: Optional[int] = None,
+    ) -> SliceMemoryPlan:
+        """Same as ``resolve_initial`` when probe_mb = mb_per_open_day * min_required."""
+        need = cls.default_min_required(min_required)
+        per = max(float(mb_per_open_day), 1e-6)
+        probe_mb = per * float(need)
+        return cls.resolve_initial(
+            budget_mb=budget_mb,
+            probe_mb=probe_mb,
+            probe_width=need,
+            cpu_count=cpu_count,
+            reserve_cores=reserve_cores,
+            min_required=need,
         )
-    if width > cap and cap >= floor:
-        raise SliceWidthError(
-            f"{'显式' if explicit else ''}片宽 {width} 超过内存/UX 上限 cap={cap}"
-        )
-    if in_flight * width < min_required:
-        raise SliceWidthError(
-            f"并存片总宽度盖不住 min_required："
-            f"in_flight({in_flight}) * width({width}) < min_required({min_required})"
-        )
-
-
-def _maybe_split_for_calendar(
-    width: int,
-    *,
-    total_open_days: int,
-    floor: int,
-    cap: int,
-    in_flight: int,
-    min_required: int,
-) -> int:
-    """Prefer ≥2 formal slices on long calendars; short windows may stay at 1."""
-    total = max(0, int(total_open_days))
-    if total < 2:
-        return width
-    if math.ceil(total / max(width, 1)) >= 2:
-        return width
-
-    adjusted = max(floor, int(math.ceil(total / 2.0)))
-    if adjusted > cap:
-        raise SliceWidthError(
-            f"为凑满 ≥2 个正式片需 width={adjusted}，但超过 cap={cap}"
-        )
-    if in_flight * adjusted < min_required:
-        raise SliceWidthError(
-            f"为凑满 ≥2 个正式片缩小后仍盖不住 min_required："
-            f"in_flight({in_flight}) * width({adjusted}) < min_required({min_required})"
-        )
-    return adjusted
 
 
 __all__ = [
-    "DEFAULT_PRELOAD_DEPTH",
-    "DEFAULT_SLICE_OPEN_DAYS_FLOOR",
-    "DEFAULT_SLICE_OPEN_DAYS_UX_MAX",
-    "MAX_PRELOAD_DEPTH",
-    "MIN_IN_FLIGHT",
-    "SLICE_WIDTH_SAFETY",
+    "SliceMemoryPlan",
+    "SliceMemoryPlanner",
     "SliceWidthError",
-    "memory_cap_open_days",
-    "normalize_in_flight",
-    "resolve_reader_queue_depth",
-    "resolve_slice_open_days",
 ]

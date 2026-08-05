@@ -13,9 +13,26 @@ terms:
     avoid: ["timeline", "stock_based only"]
 
   slice_based:
-    definition: "执行模式：按日历 open_dates 切片；slice 内多 entity 经 reader/compute 管道交互"
+    definition: >-
+      执行模式：全截面数据按日历正式片从 DB 分次装载+释放，reader/compute 预读管道控峰值内存；
+      算法 SOT 见 docs/SLICE_BASED_ALGORITHM.md。禁止全窗一次加载。
     aliases: ["calendar slice", "time-slice bulk"]
-    avoid: ["sliced", "chunk mode"]
+    avoid: ["sliced", "chunk mode", "全窗一次 JobBundleLoader"]
+
+  formal_slice:
+    definition: "连续 slice_open_days 个 open dates 构成的装载与调度单元；N 片至少 N 次按片 DB 读"
+    aliases: ["正式片", "calendar slice window"]
+    avoid: ["仅进度账本上的片（无对应 IO）"]
+
+  slice_probe:
+    definition: "小块真实试跑，产出 mb/open_day 与读/算单价，供片宽与 preload_depth 规划"
+    aliases: ["head probe", "slice 探针"]
+    avoid: ["用全窗加载代替探针"]
+
+  preload_depth:
+    definition: "读队列预取的正式片数；由 t_read/t_compute 与内存预算共同决定"
+    aliases: ["queue_capacity", "预读深度"]
+    avoid: ["靠一次读满消除等待"]
 
   timeline:
     definition: "已废弃别名 → entity_based（迁移期代码/文档）"

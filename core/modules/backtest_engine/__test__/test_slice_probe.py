@@ -75,7 +75,6 @@ def test_should_run_respects_dispatch_probe_flag() -> None:
     assert SliceProbe.should_run(jobs, {"dispatch_probe": False}) is False
     assert SliceProbe.should_run(jobs, {"slice_probe": False}) is False
     assert SliceProbe.should_run(jobs, {"preload_depth": 4}) is False
-    assert SliceProbe.should_run(jobs, {"mb_per_slice_staged": 12.0}) is False
     assert SliceProbe.should_run(jobs, {"preload_depth": "auto"}) is True
 
 
@@ -95,7 +94,6 @@ def test_build_probe_payload_keeps_all_entities() -> None:
         {
             "probe_slice_count": 2,
             "slice_open_days": 5,
-            "probe_entity_count": 2,  # ignored — must keep full universe
         },
     )
     assert payload["entity_ids"] == ["a", "b", "c", "d"]

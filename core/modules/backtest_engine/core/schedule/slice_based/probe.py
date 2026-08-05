@@ -1,20 +1,17 @@
 """
 Backtest Engine - Slice-based Probe
 
-Head-phase sampling for slice_based:
-
-- Full entity universe (never truncate entities).
-- Slice width = resolved formal ``slice_open_days``.
-- Sample the first ``probe_slice_count`` slices (default 2); those slices are
-  real work and count toward official output.
-- Remaining calendar continues in the same run; metrics refine ``preload_depth``.
+1) Memory probe (SOT §2): load ``min_required`` open days × full entities → ``probe_mb``.
+2) Head-phase timing samples during execute refine live queue depth N (SOT §5).
 """
 from __future__ import annotations
 
 import copy
+import gc
 import logging
+import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.infra.machine_capacity.contracts import MachineCapacity
@@ -43,7 +40,196 @@ class SliceProbeResult:
 
 
 class SliceProbe:
-    """Head-phase helpers for slice_based planning."""
+    """Memory probe + head-phase helpers for slice_based planning."""
+
+    @classmethod
+    def needs_memory_probe(cls, performance: Dict[str, Any]) -> bool:
+        """True when plan has neither ``probe_mb`` nor ``mb_per_open_day``."""
+        if performance.get("probe_mb") not in (None, ""):
+            return False
+        if performance.get("mb_per_open_day") not in (None, ""):
+            return False
+        return True
+
+    # RSS alone often under-counts (shared allocators / delayed commit). Prefer
+    # payload walk; reject absurdly tiny probes that would inflate slice width.
+    _MIN_PROBE_MB_PER_ENTITY = 0.02  # 20KB/entity for the probe window
+
+    @classmethod
+    def measure_probe_mb(
+        cls,
+        jobs: List[Dict[str, Any]],
+        *,
+        min_required: int,
+    ) -> float:
+        """Load W_probe open days for all entities; return ``probe_mb``.
+
+        Uses ``max(RSS Δ, walked payload MB)``. Timings are logged only —
+        never used for initial N (SOT §2).
+        """
+        if not jobs:
+            raise ValueError("measure_probe_mb requires non-empty jobs")
+        payload = BacktestJob.from_dict(jobs[0]).payload
+        start, end, width = cls._probe_window_bounds(payload, min_required=min_required)
+        entity_n = cls._entity_count(payload)
+
+        from core.modules.strategy.core.services.entity_loader.job_bundle_loader import (
+            JobBundleLoader,
+        )
+
+        gc.collect()
+        rss0 = cls._process_rss_mb()
+        t0 = time.perf_counter()
+        contracts = JobBundleLoader.load_per_entity_window(
+            payload,
+            start=start,
+            end=end,
+            perf=None,
+        )
+        load_sec = max(0.0, time.perf_counter() - t0)
+        rss1 = cls._process_rss_mb()
+        rss_delta = max(float(rss1 - rss0), 0.0)
+        payload_mb = cls.estimate_contracts_mb(contracts)
+        probe_mb = max(rss_delta, payload_mb, 0.1)
+        n_keys = len(contracts) if isinstance(contracts, dict) else 0
+        del contracts
+        gc.collect()
+
+        logger.info(
+            "slice memory probe: window=%s..%s width=%s entities=%s keys=%s "
+            "probe_mb=%.2f (rss_delta=%.2f payload=%.2f) load_sec=%.3f "
+            "(timing not used for initial N)",
+            start,
+            end,
+            width,
+            entity_n,
+            n_keys,
+            probe_mb,
+            rss_delta,
+            payload_mb,
+            load_sec,
+        )
+        if n_keys <= 0:
+            raise RuntimeError(
+                f"slice memory probe loaded no contracts for window {start}..{end}"
+            )
+        # Warm process / allocator reuse can make RSS Δ ≈ 0 and walked size
+        # collapse; use a conservative floor so width stays narrow instead of
+        # failing the run (or worse, planning one giant slice).
+        floor_mb = max(1, entity_n) * cls._MIN_PROBE_MB_PER_ENTITY
+        if probe_mb < floor_mb:
+            logger.warning(
+                "slice memory probe below floor for entities=%s: "
+                "probe_mb=%.2f < floor=%.2f (rss_delta=%.2f, payload=%.2f); "
+                "using floor_mb as probe_mb (narrower slices)",
+                entity_n,
+                probe_mb,
+                floor_mb,
+                rss_delta,
+                payload_mb,
+            )
+            return float(floor_mb)
+        return probe_mb
+
+    @classmethod
+    def estimate_contracts_mb(cls, contracts: Any) -> float:
+        """Best-effort deep size of contract payloads (MB)."""
+        if not isinstance(contracts, dict) or not contracts:
+            return 0.0
+        total = 0
+        for contract in contracts.values():
+            data = getattr(contract, "data", contract)
+            total += cls._nbytes(data)
+        return float(total) / (1024.0 * 1024.0)
+
+    @classmethod
+    def _nbytes(cls, obj: Any, *, _seen: Optional[set] = None) -> int:
+        if obj is None:
+            return 0
+        # Scalars: no identity de-dup (interned equal values would under-count rows).
+        if isinstance(obj, (bytes, bytearray, memoryview)):
+            return len(obj)
+        if isinstance(obj, str):
+            return len(obj) * 2
+        if isinstance(obj, (int, float, bool)):
+            return 24
+
+        if _seen is None:
+            _seen = set()
+        oid = id(obj)
+        if oid in _seen:
+            return 0
+        _seen.add(oid)
+
+        nbytes = getattr(obj, "nbytes", None)
+        if isinstance(nbytes, int):
+            return max(0, nbytes)
+
+        if isinstance(obj, dict):
+            return sum(
+                cls._nbytes(k, _seen=_seen) + cls._nbytes(v, _seen=_seen)
+                for k, v in obj.items()
+            )
+        if isinstance(obj, list):
+            if not obj:
+                return 0
+            # Homogeneous bar rows: n × first (avoids O(n) walk + shared-id collapse).
+            if isinstance(obj[0], dict):
+                return len(obj) * cls._nbytes(obj[0], _seen=set())
+            return sum(cls._nbytes(x, _seen=_seen) for x in obj)
+        if isinstance(obj, (tuple, set)):
+            return sum(cls._nbytes(x, _seen=_seen) for x in obj)
+        data = getattr(obj, "data", None)
+        if data is not None and data is not obj:
+            return cls._nbytes(data, _seen=_seen)
+        try:
+            import sys
+
+            return int(sys.getsizeof(obj))
+        except Exception:
+            return 0
+
+    @staticmethod
+    def _entity_count(payload: Dict[str, Any]) -> int:
+        specified = payload.get("entity_specified")
+        if isinstance(specified, list) and specified:
+            return len(specified)
+        ids = payload.get("entity_ids")
+        if isinstance(ids, list):
+            return len([x for x in ids if str(x).strip()])
+        return 0
+
+    @classmethod
+    def _probe_window_bounds(
+        cls,
+        payload: Dict[str, Any],
+        *,
+        min_required: int,
+    ) -> Tuple[str, str, int]:
+        from core.modules.backtest_engine.core.timeline.timeline import Timeline
+
+        timeline = Timeline.read_for_job(payload)
+        if timeline is None:
+            raise RuntimeError(
+                "slice memory probe 需要已发布的 Timeline（BacktestEngine.run 须先 stamp）"
+            )
+        points = list(timeline.clipped().points or [])
+        if not points:
+            raise RuntimeError("slice memory probe: timeline 无开市日")
+        width = max(1, int(min_required))
+        end_idx = min(width - 1, len(points) - 1)
+        return str(points[0]), str(points[end_idx]), end_idx + 1
+
+    @staticmethod
+    def _process_rss_mb() -> float:
+        try:
+            import os
+
+            import psutil
+
+            return float(psutil.Process(os.getpid()).memory_info().rss) / (1024.0 * 1024.0)
+        except Exception:
+            return 0.0
 
     @staticmethod
     def should_run(
@@ -54,10 +240,8 @@ class SliceProbe:
             return False
         if performance.get("slice_probe") is False:
             return False
-        # Skip when preload depth is already fixed or staged memory cost is given.
+        # Skip when preload depth is already fixed (no need to sample for queue size).
         if performance.get("preload_depth") not in (None, "", "auto"):
-            return False
-        if performance.get("mb_per_slice_staged") not in (None, ""):
             return False
         if not jobs:
             return False
@@ -332,20 +516,7 @@ class SliceProbe:
 
     @staticmethod
     def _default_result(performance: Dict[str, Any]) -> SliceProbeResult:
-        staged = performance.get("mb_per_slice_staged")
-        if staged not in (None, ""):
-            per = max(0.1, float(staged))
-            return SliceProbeResult(
-                mb_per_slice_reader=per * 0.4,
-                mb_per_slice_compute=per * 0.6,
-                mb_per_slice_payload=per * 0.2,
-                sec_per_slice_reader=0.1,
-                sec_per_slice_compute=0.2,
-                slices_sampled=0,
-                wall_sec=0.0,
-                peak_rss_mb_reader=per,
-                peak_rss_mb_compute=per,
-            )
+        _ = performance
         return SliceProbeResult(
             mb_per_slice_reader=10.0,
             mb_per_slice_compute=15.0,

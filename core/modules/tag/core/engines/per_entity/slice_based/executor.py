@@ -1,11 +1,14 @@
 """slice_based TagSliceJobExecutor — BE RunCallbacks；日业务与 per-task 状态。
 
-消费者: 后续 TagSlicePipeline
+消费者: TagSlicePipeline
 
 本文件:
 - TagSliceJobExecutor: on_before_task_start / on_tick / on_ticks_complete
 - SliceTaskState: 挂在 ``job_context.init`` 的可变袋
-  边界: AsOfSlice → hooks → buffer tag_values；本轮不写 DB
+
+边界:
+- 负责: AsOfSlice → hooks → buffer tag_values；本轮不写 DB
+- 不负责: 片窗装载 / reader / queue / 进度（BE ``SliceOrchestrator``）
 """
 
 from __future__ import annotations
@@ -32,7 +35,10 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SliceTaskState:
-    """单 task 可变状态，存于 ``job_context.init``。"""
+    """单 task 可变业务状态，存于 ``job_context.init``。
+
+    调度（窗宽 / reader / queue / 进度）由 BE ``SliceOrchestrator`` 持有，本类不感知。
+    """
 
     entity_ids: List[str]
     settings: TagSettings
@@ -56,6 +62,7 @@ class SliceTaskState:
     _job_min_ready_date: str = field(default="", init=False, repr=False)
     _uses_calendar_asof: bool = field(default=False, init=False, repr=False)
     _session_state: Dict[str, Any] = field(default_factory=dict, init=False, repr=False)
+    _contracts_token: int = field(default=0, init=False, repr=False)
 
     def __post_init__(self) -> None:
         ids = [str(eid).strip() for eid in self.entity_ids if str(eid).strip()]
@@ -71,15 +78,8 @@ class SliceTaskState:
             tag_path=self.tag_path,
             custom={},
         )
-        base_contract = self.entity_contracts.get(self._base_data_key)
-        self._ready_date_by_entity = AsOfSlice.ready_date_by_entity(
-            base_contract,
-            ids,
-            min_required=self._min_required,
-        )
-        self._job_min_ready_date = AsOfSlice.job_min_ready_date(
-            self._ready_date_by_entity
-        )
+        self._contracts_token = id(self.entity_contracts) if self.entity_contracts else 0
+        self._refresh_ready_dates()
 
     @staticmethod
     def _parse_entity_windows(payload: Dict[str, Any]) -> Dict[str, tuple]:
@@ -107,6 +107,39 @@ class SliceTaskState:
         if end and day > end:
             return False
         return True
+
+    def bind_loaded_contracts(
+        self,
+        entity_contracts: Dict[str, Any],
+        *,
+        global_data: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Consume BE-loaded contracts for the current formal window."""
+        token = id(entity_contracts)
+        if token == self._contracts_token and entity_contracts is self.entity_contracts:
+            return
+        self.entity_contracts = (
+            entity_contracts if isinstance(entity_contracts, dict) else {}
+        )
+        self._contracts_token = token
+        if global_data is not None and isinstance(global_data, dict):
+            self.global_data = global_data
+        self._refresh_ready_dates()
+
+    def _refresh_ready_dates(self) -> None:
+        if not self.entity_contracts:
+            self._ready_date_by_entity = {}
+            self._job_min_ready_date = ""
+            return
+        base_contract = self.entity_contracts.get(self._base_data_key)
+        self._ready_date_by_entity = AsOfSlice.ready_date_by_entity(
+            base_contract,
+            self.entity_ids,
+            min_required=self._min_required,
+        )
+        self._job_min_ready_date = AsOfSlice.job_min_ready_date(
+            self._ready_date_by_entity
+        )
 
     @classmethod
     def from_job_context(cls, job_context: Any) -> "SliceTaskState":
@@ -223,15 +256,24 @@ class TagSliceJobExecutor:
 
     @classmethod
     def on_before_task_start(cls, job_context: Any) -> Dict[str, Any]:
-        logger.info("%s开始：job_id=%s", cls.task_log_label, job_context.job_id)
-        loaded = JobBundleLoader.load(job_context.payload or {})
+        """Globals + business state only; per-entity IO is owned by BE orchestrator."""
+        logger.info(
+            "%s开始：job_id=%s（globals only）",
+            cls.task_log_label,
+            job_context.job_id,
+        )
+        global_data = JobBundleLoader.load_globals(job_context.payload or {})
+        loaded: Dict[str, Any] = {
+            "entity_contracts": {},
+            "global_data": global_data,
+        }
         job_context.init = loaded
         state = SliceTaskState.from_job_context(job_context)
         loaded[cls._STATE_KEY] = state
         logger.info(
-            "%s装载完成：entity_contracts=%d definitions=%d",
+            "%s就绪：global_keys=%d definitions=%d",
             cls.task_log_label,
-            len(state.entity_contracts),
+            len(global_data),
             len(state.tag_definitions),
         )
         return loaded
@@ -248,7 +290,16 @@ class TagSliceJobExecutor:
 
     @classmethod
     def on_tick(cls, job_context: Any, point: str, index: int) -> None:
+        """BE 日历点 → bind contracts → AsOfSlice → hooks。"""
+        _ = index
+        init = job_context.init
+        if not isinstance(init, dict):
+            raise TypeError("job_context.init 必须是 dict（on_before_task_start 返回值）")
         state = cls._state(job_context)
+        state.bind_loaded_contracts(
+            init.get("entity_contracts") or {},
+            global_data=init.get("global_data"),
+        )
         as_of = str(point or "").strip()
         if not as_of:
             return
@@ -384,6 +435,7 @@ class TagSliceJobExecutor:
 
     @classmethod
     def on_ticks_complete(cls, job_context: Any, timeline: Any) -> Dict[str, Any]:
+        _ = timeline
         state = cls._state(job_context)
         count = len(state.tag_values)
         logger.info(
@@ -399,4 +451,4 @@ class TagSliceJobExecutor:
         }
 
 
-__all__ = ["TagSliceJobExecutor"]
+__all__ = ["TagSliceJobExecutor", "SliceTaskState"]

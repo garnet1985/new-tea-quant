@@ -256,6 +256,49 @@ class DuckdbNamespace:
 
         return resolve_duckdb_db_path(db_path)
 
+    @staticmethod
+    def overlay_domain_paths(
+        base_config: Optional[Dict[str, Any]] = None,
+        *,
+        data: Optional[str] = None,
+        tag: Optional[str] = None,
+        strategy: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """返回一份 database 配置副本，覆盖 DuckDB 各域 ``db_path``。
+
+        相对路径仍按 ``resolve_db_path`` 解析到 ``userspace/system/db/``；
+        **绝对路径**原样使用（性能套件可把库文件放在模块 ``__performance__/`` 下）。
+        未传入的域保留 ``base_config`` / 默认配置中的值。
+        """
+        from copy import deepcopy
+
+        from core.infra.project_context import ProjectContext
+
+        if base_config is None:
+            cfg: Dict[str, Any] = deepcopy(
+                ProjectContext.config.load_database_config("duckdb")
+            )
+        else:
+            cfg = deepcopy(dict(base_config))
+
+        cfg["database_type"] = "duckdb"
+        duck = cfg.setdefault("duckdb", {})
+        if not isinstance(duck, dict):
+            raise ValueError("database config.duckdb 必须是 object")
+        domains = duck.setdefault("domains", {})
+        if not isinstance(domains, dict):
+            raise ValueError("database config.duckdb.domains 必须是 object")
+
+        overlays = {"data": data, "tag": tag, "strategy": strategy}
+        for domain, path in overlays.items():
+            if path is None:
+                continue
+            block = domains.setdefault(domain, {})
+            if not isinstance(block, dict):
+                raise ValueError(f"duckdb.domains.{domain} 必须是 object")
+            block["db_path"] = str(path)
+        return cfg
+
 
 class SqlNamespace:
     """跨后端 SQL 标识 / 表名辅助。"""

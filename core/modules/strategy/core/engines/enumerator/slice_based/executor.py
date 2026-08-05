@@ -6,12 +6,12 @@
 
 边界:
 - 负责: 经 callback 改写执行中的数据与逻辑（asof / Investment）
-- 不负责: 建 jobs；覆盖 BE 默认日历轴；平行 session / TimelineBuilder
+- 不负责: 建 jobs；覆盖 BE 默认日历轴；片窗装载 / reader / queue / 进度
+  （上述由 BE ``SliceOrchestrator`` 驱动，Strategy 只消费 ``init["entity_contracts"]``）
 """
 from __future__ import annotations
 
 import logging
-import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -45,9 +45,10 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class SliceTaskState:
-    """单 task 可变状态，存于 ``job_context.init``（BE hold 的 init）。
+    """单 task 可变业务状态，存于 ``job_context.init``（BE hold 的 init）。
 
     不是平行于 BE 的 session；仅是 Executor 在 init 袋里放的 trackers / asof 状态。
+    调度（窗宽 / reader / queue / 进度）由 BE ``SliceOrchestrator`` 持有，本类不感知。
     """
 
     entity_ids: List[str]
@@ -70,18 +71,12 @@ class SliceTaskState:
     _min_required: int = field(init=False, repr=False)
     _rebalance_period: str = field(init=False, repr=False)
     _ctx_base: Any = field(init=False, repr=False)
-    _slice_open_days: int = field(default=20, init=False, repr=False)
-    _head_sample_slices: int = field(default=0, init=False, repr=False)
-    _slice_samples: List[Dict[str, Any]] = field(default_factory=list, init=False, repr=False)
-    _baseline_rss_mb: float = field(default=0.0, init=False, repr=False)
-    _window_start_idx: int = field(default=0, init=False, repr=False)
-    _slice_index: int = field(default=0, init=False, repr=False)
-    _window_t0: float = field(default=0.0, init=False, repr=False)
     _ready_date_by_entity: Dict[str, str] = field(
         default_factory=dict, init=False, repr=False
     )
     _job_min_ready_date: str = field(default="", init=False, repr=False)
     _job_has_work: bool = field(default=True, init=False, repr=False)
+    _contracts_token: int = field(default=0, init=False, repr=False)
 
     def __post_init__(self) -> None:
         ids = [str(eid).strip() for eid in self.entity_ids if str(eid).strip()]
@@ -135,27 +130,40 @@ class SliceTaskState:
         if self.perf is not None:
             self.perf.begin("enumerate")
         self._open_dates = list(timeline.points)
-        self._slice_open_days = max(
-            1,
-            int(
-                self.payload.get("_slice_open_days")
-                or (self.payload.get("_slice_plan") or {}).get("slice_open_days")
-                or 20
-            ),
-        )
-        self._head_sample_slices = max(
-            0, int(self.payload.get("_slice_head_sample_slices") or 0)
-        )
-        self._slice_samples = []
-        self._baseline_rss_mb = self._process_rss_mb()
         self._ctx_base = StrategyContext.assemble(
             strategy_key=self.strategy_name,
             settings=self.settings,
             stock_list=list(self.entity_ids),
         )
-        self._window_start_idx = 0
-        self._slice_index = 0
-        self._window_t0 = time.perf_counter()
+        self.entity_contracts = {}
+        self._contracts_token = 0
+        if not self._open_dates:
+            self._ready_date_by_entity = {}
+            self._job_min_ready_date = ""
+            self._job_has_work = False
+
+    def bind_loaded_contracts(
+        self,
+        entity_contracts: Dict[str, Any],
+        *,
+        global_data: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Consume BE-loaded contracts for the current formal window."""
+        token = id(entity_contracts)
+        if token == self._contracts_token and entity_contracts is self.entity_contracts:
+            return
+        self.entity_contracts = entity_contracts if isinstance(entity_contracts, dict) else {}
+        self._contracts_token = token
+        if global_data is not None and isinstance(global_data, dict):
+            self.global_data = global_data
+        if self.entity_contracts:
+            self._refresh_ready_dates()
+        else:
+            self._ready_date_by_entity = {}
+            self._job_min_ready_date = ""
+            self._job_has_work = False
+
+    def _refresh_ready_dates(self) -> None:
         base_contract = self.entity_contracts.get(self._base_data_key)
         self._ready_date_by_entity = AsOfSlice.ready_date_by_entity(
             base_contract,
@@ -165,12 +173,12 @@ class SliceTaskState:
         self._job_min_ready_date = AsOfSlice.job_min_ready_date(self._ready_date_by_entity)
         self._job_has_work = bool(self._job_min_ready_date)
 
-    def on_calendar_day(self, point: str, index: int, *, is_last: bool) -> None:
-        """推进时间(point) → 切数据 → 执行业务。"""
-        as_of = point  # 唯一时钟：BE Timeline 传入的 point
+    def on_calendar_day(self, point: str, index: int) -> None:
+        """推进时间(point) → 切数据 → 执行业务（装载由 BE 完成）。"""
+        as_of = point  # 唯一时钟：BE Timeline / Orchestrator 传入的 point
         perf = self.perf
 
-        # 尽早短路：全 job 尚无任何 entity 达到 min_required → 不 until / 不 asof
+        # —— 尽早短路：全 job 尚无任何 entity 达到 min_required ——
         if (not self._job_has_work) or (
             self._job_min_ready_date and as_of < self._job_min_ready_date
         ):
@@ -182,9 +190,6 @@ class SliceTaskState:
                     as_of_slice_sec=0.0,
                     skipped_before_ready=True,
                 )
-            # 空点前缀不计入 slice window
-            self._window_start_idx = index + 1
-            self._window_t0 = time.perf_counter()
             return
 
         # —— 切数据 ——
@@ -216,15 +221,30 @@ class SliceTaskState:
             if perf is not None:
                 perf.end("enum_process_tick", accumulate=True)
 
-        stocks_ctx = self._build_stocks_context(
-            sliced_by_entity,
-            as_of=as_of,
-        )
+        # 日历优先：多数天 asof 只看 period 门闩，不必先组全宇宙 by_entity。
         calendar = self._build_calendar_view(
             as_of,
-            stocks=stocks_ctx,
+            stocks={},
             open_date_index=index,
         )
+        stocks_ctx: Dict[str, Dict[str, Any]] = {}
+        needs_by_entity = self._calendar_asof_needs_by_entity(
+            as_of=as_of, calendar=calendar
+        )
+        if needs_by_entity:
+            if perf is not None:
+                perf.begin("enum_context_fill")
+            stocks_ctx = self._build_stocks_context(
+                sliced_by_entity,
+                as_of=as_of,
+            )
+            if perf is not None:
+                perf.end("enum_context_fill", accumulate=True)
+            calendar = self._build_calendar_view(
+                as_of,
+                stocks=stocks_ctx,
+                open_date_index=index,
+            )
 
         asof_ctx = StrategyContext.fill(
             self._ctx_base,
@@ -253,6 +273,38 @@ class SliceTaskState:
             raise TypeError(
                 f"on_calendar_asof 必须返回 CalendarAsOfResult，实际: {type(asof_result).__name__}"
             )
+
+        # 声明不需要市况却返回了 stocks → 回退全量组包再调一次。
+        if (not needs_by_entity) and asof_result.stocks:
+            if perf is not None:
+                perf.begin("enum_context_fill")
+            stocks_ctx = self._build_stocks_context(
+                sliced_by_entity,
+                as_of=as_of,
+            )
+            if perf is not None:
+                perf.end("enum_context_fill", accumulate=True)
+            calendar = self._build_calendar_view(
+                as_of,
+                stocks=stocks_ctx,
+                open_date_index=index,
+            )
+            asof_ctx = StrategyContext.fill(
+                self._ctx_base,
+                now=as_of,
+                by_entity=stocks_ctx,
+                calendar=calendar,
+            )
+            if perf is not None:
+                perf.begin("enum_calendar_asof")
+            asof_result = self.hook_runtime.call("on_calendar_asof", asof_ctx)
+            if perf is not None:
+                perf.end("enum_calendar_asof", accumulate=True)
+            if not isinstance(asof_result, CalendarAsOfResult):
+                raise TypeError(
+                    f"on_calendar_asof 必须返回 CalendarAsOfResult，实际: {type(asof_result).__name__}"
+                )
+
         self._session_state = dict(asof_result.session_state)
         calendar["session_state"] = dict(self._session_state)
 
@@ -281,34 +333,6 @@ class SliceTaskState:
                 open_dates=open_dates_tuple,
             )
 
-        days_in_window = index - self._window_start_idx + 1
-        hit_window_end = days_in_window >= self._slice_open_days
-        if (
-            self._head_sample_slices > 0
-            and self._slice_index < self._head_sample_slices
-            and (hit_window_end or is_last)
-        ):
-            elapsed = max(0.0, time.perf_counter() - self._window_t0)
-            rss = self._process_rss_mb()
-            half = round(elapsed / 2.0, 4)
-            self._slice_samples.append(
-                {
-                    "slice_index": self._slice_index,
-                    "load_sec": half,
-                    "compute_sec": half,
-                    "serialize_sec": 0.0,
-                    "deserialize_sec": 0.0,
-                    "rss_after_mb": round(rss, 1),
-                    "payload_mb": round(max(0.0, rss - self._baseline_rss_mb), 1),
-                    "payload_bytes": int(
-                        max(0.0, rss - self._baseline_rss_mb) * 1024 * 1024
-                    ),
-                }
-            )
-            self._slice_index += 1
-            self._window_start_idx = index + 1
-            self._window_t0 = time.perf_counter()
-
     def finalize(self, timeline: Timeline) -> Dict[str, Any]:
         points = timeline.points
         if points:
@@ -334,16 +358,35 @@ class SliceTaskState:
             self.perf.end("enumerate")
 
         opportunities_count = self.total_investment_count()
-        logger.info("slice 执行完成：opportunities_count=%d", opportunities_count)
+        logger.info(
+            "slice 执行完成：opportunities_count=%d",
+            opportunities_count,
+        )
         return {
             "success": True,
             "opportunities_count": opportunities_count,
             "entities_with_opportunities": self.entities_with_investments(),
             "entities_count": len(self.entity_ids),
-            "performance_metrics": {
-                "calendar_slice_runtime_plan": self.slice_runtime_plan_dict(),
-            },
         }
+
+    def _calendar_asof_needs_by_entity(
+        self, *, as_of: str, calendar: Dict[str, Any]
+    ) -> bool:
+        """Decide whether to build full by_entity before on_calendar_asof."""
+        if not self.hook_runtime.is_overridden("on_calendar_asof"):
+            return False
+        probe_ctx = StrategyContext.fill(
+            self._ctx_base,
+            now=as_of,
+            by_entity={},
+            calendar=calendar,
+        )
+        try:
+            return bool(
+                self.hook_runtime.call("calendar_asof_needs_by_entity", probe_ctx)
+            )
+        except Exception:
+            return True
 
     def _scan_entity(
         self,
@@ -449,23 +492,6 @@ class SliceTaskState:
                 )
         return rows
 
-    def slice_runtime_plan_dict(self) -> Dict[str, Any]:
-        return {
-            "baseline_rss_mb": float(self._baseline_rss_mb or 0.0),
-            "slice_samples": list(self._slice_samples),
-        }
-
-    @staticmethod
-    def _process_rss_mb() -> float:
-        try:
-            import os
-
-            import psutil
-
-            return float(psutil.Process(os.getpid()).memory_info().rss) / (1024.0 * 1024.0)
-        except Exception:
-            return 0.0
-
     def _build_stocks_context(
         self,
         sliced_by_entity: Dict[str, Dict[str, Any]],
@@ -558,7 +584,7 @@ class EnumSliceJobExecutor(BaseJobExecutor):
 
     边界:
     - 负责: RunCallbacks；把 SliceTaskState 写入 ``job_context.init``
-    - 不负责: EnumSliceJobBuilder；BE Timeline.drive 循环（默认日历轴）
+    - 不负责: EnumSliceJobBuilder；BE 片窗装载 / Timeline 调度循环
     - 调用方: EnumeratorPipeline → BacktestEngine.slice_based
     """
 
@@ -567,16 +593,29 @@ class EnumSliceJobExecutor(BaseJobExecutor):
     @classmethod
     def on_before_all_tasks_start(cls, plan: Any, batches: List[Any]) -> None:
         print(
-            f"  调度: {len(batches)} batches, "
-            f"slice_open_days={getattr(plan, 'slice_open_days', '?')}, "
-            f"reader_workers={getattr(plan, 'reader_workers', '?')}",
+            f"  调度: {len(batches)} batches",
             flush=True,
         )
 
     @classmethod
     def on_before_task_start(cls, job_context: Any) -> Dict[str, Any]:
-        """加载 bundle，初始化 task 状态，挂到 BE ``init``。"""
-        loaded = cls.load_bundle_data(job_context, log_label=cls.task_log_label)
+        """Globals + business state only; per-entity IO is owned by BE orchestrator."""
+        from core.modules.strategy.core.services.entity_loader.job_bundle_loader import (
+            JobBundleLoader,
+        )
+        from core.modules.strategy.core.engines.enumerator.common.performance_tracker.performance_tracker import (
+            EnumJobPerfRecorder,
+        )
+
+        logger.info("%s开始：job_id=%s（globals only）", cls.task_log_label, job_context.job_id)
+        perf = EnumJobPerfRecorder.attach(job_context.payload)
+        perf.begin("load_data")
+        global_data = JobBundleLoader.load_globals(job_context.payload)
+        perf.end("load_data")
+        loaded: Dict[str, Any] = {
+            "entity_contracts": {},
+            "global_data": global_data,
+        }
         job_context.init = loaded
         timeline = Timeline.read_for_job(job_context.payload)
         if timeline is None:
@@ -588,19 +627,25 @@ class EnumSliceJobExecutor(BaseJobExecutor):
         state.begin(clipped)
         loaded[_STATE_KEY] = state
         loaded[_TIMELINE_KEY] = clipped
+        logger.info(
+            "%s就绪：global_keys=%d",
+            cls.task_log_label,
+            len(global_data),
+        )
         return loaded
 
     @classmethod
     def on_tick(cls, job_context: Any, point: str, index: int) -> None:
-        """BE 日历点 → asof / Investment。"""
+        """BE 日历点 → bind contracts → asof / Investment。"""
         init = job_context.init
         if not isinstance(init, dict):
             raise TypeError("job_context.init 必须是 dict（on_before_task_start 返回值）")
         state: SliceTaskState = init[_STATE_KEY]
-        timeline = init.get(_TIMELINE_KEY)
-        points = getattr(timeline, "points", ()) or ()
-        is_last = bool(points) and index == len(points) - 1
-        state.on_calendar_day(point, index, is_last=is_last)
+        state.bind_loaded_contracts(
+            init.get("entity_contracts") or {},
+            global_data=init.get("global_data"),
+        )
+        state.on_calendar_day(point, index)
 
     @classmethod
     def on_ticks_complete(cls, job_context: Any, timeline: Any) -> Dict[str, Any]:

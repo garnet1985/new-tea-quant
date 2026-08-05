@@ -93,8 +93,14 @@ class TagSlicePipeline:
             dry_run=dry_run,
             batch_size=save_batch_size,
         )
-        performance = resolve_slice_based_performance(
-            profile_calendar_slice_config(WorkerProfiles.TAG)
+        performance = dict(
+            resolve_slice_based_performance(
+                profile_calendar_slice_config(WorkerProfiles.TAG)
+            )
+        )
+        # BE lookback / slice width need tag min_required (business setting).
+        performance["min_required_records"] = int(
+            settings.data.min_required_records or 0
         )
         run_ctx = TagPipelineRunContext(
             flush=flush,

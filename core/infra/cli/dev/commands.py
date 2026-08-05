@@ -22,6 +22,9 @@ class DevCommands:
         "ssp": "sample_stock_pool",
         "pc": "pool_clear",
         "cd": "check_deps",
+        "bpe": "be_perf_entity",
+        "bps": "be_perf_slice",
+        "bpc": "be_perf_clear",
     }
 
     LONG_COMMANDS: frozenset[str] = frozenset(
@@ -41,6 +44,9 @@ class DevCommands:
             "sample_stock_pool",
             "pool_clear",
             "check_deps",
+            "be_perf_entity",
+            "be_perf_slice",
+            "be_perf_clear",
         }
     )
 

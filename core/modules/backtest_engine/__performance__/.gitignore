@@ -1,0 +1,6 @@
+# 临时库与本地报告（直接注入 DuckDB，无 CSV）
+.workdir/
+results/_local/
+
+# 旧管线残留（若仍存在可删）
+fake_data/

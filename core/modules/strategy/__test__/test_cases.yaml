@@ -147,4 +147,31 @@ cases:
         name: test_on_tick_is_noop_for_now
         description: on_tick 目前为空实现（业务后续填）
 
+  - id: 14
+    case: job_bundle_loader
+    description: JobBundleLoader 全窗 / 按窗 / globals API
+    file: test_job_bundle_loader.py
+    scenarios:
+      - id: 1
+        name: test_load_per_entity_window_overrides_payload_bounds
+        description: load_per_entity_window 覆盖 start/end
+      - id: 2
+        name: test_load_globals_skips_without_shm
+        description: 无 shm 时 globals 为空
+      - id: 3
+        name: test_load_still_uses_entity_shared_window
+        description: entity load 仍用 entity_shared 全窗
+
+  - id: 15
+    case: slice_window_load
+    description: SliceTaskState 按正式片装载与释放
+    file: test_slice_window_load.py
+    scenarios:
+      - id: 1
+        name: test_ensure_contracts_loads_with_lookback_and_counts
+        description: lookback 窗装载且同窗不重复 IO
+      - id: 2
+        name: test_complete_formal_slice_forces_next_reload
+        description: 片结束后释放并强制下一片重读
+
 ---

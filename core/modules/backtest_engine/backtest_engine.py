@@ -18,6 +18,9 @@ from core.modules.backtest_engine.core.schedule.slice_based.execute_pipeline imp
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.modules.backtest_engine.core.shared.modes import BacktestMode
 from core.modules.backtest_engine.core.shared.types import ExecuteFn, JobReport, RunCallbacks
+from core.modules.backtest_engine.core.schedule.slice_based.orchestrator import (
+    SliceWorkerExecute,
+)
 from core.modules.backtest_engine.core.timeline.timeline import Timeline, TimelineInput, TimelineWorkerExecute
 
 logger = logging.getLogger(__name__)
@@ -239,7 +242,7 @@ class BacktestEngine:
                 end=end,
                 timeline=timeline,
             )
-            worker_fn = TimelineWorkerExecute(resolved_callbacks)
+            worker_fn = SliceWorkerExecute(resolved_callbacks)
             if stamped_jobs:
                 BacktestJob.validate_many(stamped_jobs, mode=BacktestMode.SLICE_BASED)
             resolved_performance = resolve_slice_based_performance(performance)

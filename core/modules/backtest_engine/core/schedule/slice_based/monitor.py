@@ -247,23 +247,42 @@ class SliceRunMonitor:
             self._stats.mb_per_slice_payload_hat
             or plan.payload_memory_budget_mb / max(plan.queue_capacity, 1),
         )
+        mb_per_slice = max(1.0, mb_reader + mb_payload)
 
-        # Standby readers: resident ≈ preload * (reader + payload) + compute
-        in_flight_mb = preload * (mb_reader + mb_payload) + mb_compute
+        from core.modules.backtest_engine.core.schedule.slice_based.slice_width import (
+            SliceMemoryPlanner,
+        )
+
+        # Width stays fixed; only the reader queue (preload_depth) adapts.
+        recommended = SliceMemoryPlanner.refine_queue_depth(
+            budget_mb=self._available_memory_mb,
+            mb_per_slice=mb_per_slice,
+            reader_workers=readers,
+            current_queue=preload,
+            t_load_sec=self._stats.sec_per_slice_reader_hat or None,
+            t_compute_sec=self._stats.sec_per_slice_compute_hat or None,
+        )
+        self._stats.recommended_preload_depth = recommended
+        self._stats.recommended_reader_workers = readers
+
+        resident = (
+            SliceMemoryPlanner.peak_slices(
+                queue_depth=preload, reader_workers=readers
+            )
+            * mb_per_slice
+            + mb_compute
+        )
         high = self._available_memory_mb * self._config.memory_high_watermark
-
-        if in_flight_mb > high:
+        if resident > high or recommended < preload:
             self._stats.memory_pressure_detected = True
-            recommended_preload = max(1, preload - 1)
-            # Keep reader pool fixed; only recommend cutting preload_depth
-            self._stats.recommended_preload_depth = recommended_preload
-            self._stats.recommended_reader_workers = readers
             logger.info(
-                "Slice monitor: memory high (%.0fMB > %.0fMB), "
-                "recommend preload_depth=%s (readers fixed=%s)",
-                in_flight_mb,
+                "Slice monitor: adjust preload_depth %s→%s "
+                "(resident≈%.0fMB high=%.0fMB; slice_open_days fixed=%s, readers=%s)",
+                preload,
+                recommended,
+                resident,
                 high,
-                recommended_preload,
+                plan.slice_open_days,
                 readers,
             )
 

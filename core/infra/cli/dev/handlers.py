@@ -274,6 +274,83 @@ def cmd_check_deps(args: argparse.Namespace) -> int:
     return run_dependency_check(verbose=verbose)
 
 
+_PERF_CMD = (
+    REPO_ROOT
+    / "core"
+    / "modules"
+    / "backtest_engine"
+    / "__performance__"
+    / "scripts"
+    / "cmd"
+)
+
+
+def _normalize_be_perf_db(raw: str) -> str:
+    key = str(raw or "duckdb").strip().lower()
+    if key == "pgsql":
+        return "postgresql"
+    if key in {"duckdb", "mysql", "postgresql"}:
+        return key
+    raise SystemExit(f"未知 --db {raw!r}")
+
+
+def _import_be_perf_cmd():
+    cmd_dir = str(_PERF_CMD.resolve())
+    if cmd_dir not in sys.path:
+        sys.path.insert(0, cmd_dir)
+    import clean_up as clean_mod
+    import db_creation as db_mod
+    import run as run_mod
+
+    return db_mod, run_mod, clean_mod
+
+
+def _be_perf_prepare(db: str, *, mode: str) -> tuple:
+    if db != "duckdb":
+        print(
+            f"--db {db} 尚未实现（当前仅 duckdb）。"
+            " MySQL/PgSQL 建库注入仍为 stub。",
+            flush=True,
+        )
+        return 2, None
+    db_mod, run_mod, _clean_mod = _import_be_perf_cmd()
+    label = "entity" if mode == "entity_based" else "slice"
+    print(
+        f"be_perf_{label}: db=duckdb mode={mode}\n"
+        "  阶段: [1/2] 直接注入 DuckDB → [2/2] 跑基准策略\n"
+        "  长时间无输出时看子阶段进度行（[db_creation]/[test]）",
+        flush=True,
+    )
+    print("[be_perf 1/2] seed duckdb（--reuse；fingerprint 不一致则重建）…", flush=True)
+    db_mod.create_duckdb(reuse=True)
+    print(f"[be_perf 2/2] 跑基准策略（{mode}）…", flush=True)
+    return 0, run_mod
+
+
+def cmd_be_perf_entity(args: argparse.Namespace) -> int:
+    """BE entity_based 性能基准（固定策略 be_perf_entity）。"""
+    db = _normalize_be_perf_db(getattr(args, "db", "duckdb"))
+    rc, run_mod = _be_perf_prepare(db, mode="entity_based")
+    if rc != 0 or run_mod is None:
+        return int(rc)
+    return int(run_mod.main(["entity_based"]))
+
+
+def cmd_be_perf_slice(args: argparse.Namespace) -> int:
+    """BE slice_based 性能基准（固定策略 be_perf_slice）。"""
+    db = _normalize_be_perf_db(getattr(args, "db", "duckdb"))
+    rc, run_mod = _be_perf_prepare(db, mode="slice_based")
+    if rc != 0 or run_mod is None:
+        return int(rc)
+    return int(run_mod.main(["slice_based"]))
+
+
+def cmd_be_perf_clear(args: argparse.Namespace) -> int:
+    """Remove BE __performance__ generated artifacts."""
+    _ = args
+    _db_mod, _run_mod, clean_mod = _import_be_perf_cmd()
+    print("be_perf_clear: cleaning BE __performance__ (--all)", flush=True)
+    return int(clean_mod.main(["--all"]))
 def normalize_forward(rest: Sequence[str]) -> list[str]:
     rest = list(rest)
     if rest[:1] == ["--"]:

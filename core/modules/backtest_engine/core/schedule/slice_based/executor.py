@@ -229,6 +229,7 @@ class SliceExecutor:
                 on_after_task_complete=on_after_task_complete,
             )
         except Exception as exc:
+            SliceExecutor._shutdown_reader_pool(job_context)
             wall_sec = time.perf_counter() - t0
             rss_after_mb = SliceExecutor._process_rss_mb()
             return {
@@ -242,6 +243,7 @@ class SliceExecutor:
                 "peak_rss_mb": max(rss_before_mb, rss_after_mb),
             }
 
+        SliceExecutor._shutdown_reader_pool(job_context)
         wall_sec = time.perf_counter() - t0
         rss_after_mb = SliceExecutor._process_rss_mb()
         return SliceExecutor._normalize_worker_result(
@@ -250,6 +252,16 @@ class SliceExecutor:
             wall_sec=wall_sec,
             peak_rss_mb=max(rss_before_mb, rss_after_mb),
         )
+
+    @staticmethod
+    def _shutdown_reader_pool(job_context: JobContext) -> None:
+        pool = (job_context.payload or {}).get("_slice_reader_pool")
+        shutdown = getattr(pool, "shutdown", None)
+        if callable(shutdown):
+            try:
+                shutdown()
+            except Exception as exc:
+                logger.warning("SliceReaderPool shutdown failed: %s", exc)
 
     @staticmethod
     def _build_jobs_from_batches(batches: List[SliceJobBatch]) -> List[Job]:
@@ -271,6 +283,13 @@ class SliceExecutor:
         payload["_job_id"] = job.job_id
         payload["_task_name"] = context.task_name
         payload["_slice_plan"] = SliceExecutor._plan_to_dict(plan)
+        from core.modules.backtest_engine.core.schedule.slice_based.reader_pool import (
+            SliceReaderPool,
+        )
+
+        # BE owns pool lifetime; SliceOrchestrator drives load/prefetch/queue.
+        reader_pool = SliceReaderPool.from_plan(plan)
+        payload["_slice_reader_pool"] = reader_pool
         if progress_reporter is not None:
             payload["_engine_on_execute_unit_done"] = progress_reporter.make_execute_unit_hook()
         if context.business_data:
@@ -290,10 +309,12 @@ class SliceExecutor:
             "compute_memory_budget_mb": plan.compute_memory_budget_mb,
             "queue_capacity": plan.queue_capacity,
             "preload_depth": plan.preload_depth,
+            "queue_depth": plan.preload_depth,
             "slice_open_days": plan.slice_open_days,
             "dispatch_jobs": plan.dispatch_jobs,
             "memory_budget_mb": plan.memory_budget_mb,
             "oom_adjusted": plan.oom_adjusted,
+            "min_required_records": int(plan.min_required_records or 20),
         }
 
     @staticmethod

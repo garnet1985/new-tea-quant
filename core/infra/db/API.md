@@ -153,6 +153,27 @@ db = Db.manager.get_default()
 - **引入版本：** `0.5.0`
 - **描述：** 将配置中的相对/绝对 `db_path` 解析为绝对路径
 
+#### overlay_domain_paths
+
+`Db.duckdb.overlay_domain_paths(base_config=None, *, data=None, tag=None, strategy=None) -> dict`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.5.0`
+- **描述：** 返回 database 配置副本，覆盖 DuckDB 各域 `db_path`。绝对路径可指向模块 `__performance__/.workdir/` 等非默认目录。
+- **举例：**
+
+```python
+from core.infra.db import Db
+
+cfg = Db.duckdb.overlay_domain_paths(
+    data="/abs/path/perf_test_tmp.duckdb",
+    tag="/abs/path/perf_test_tmp_tag.duckdb",
+    strategy="/abs/path/perf_test_tmp_strategy.duckdb",
+)
+db = Db.manager.create(cfg)
+```
+
 #### worker_pool
 
 **描述：** 主进程在 ProcessPool 期间释放 / 恢复 DuckDB 文件锁

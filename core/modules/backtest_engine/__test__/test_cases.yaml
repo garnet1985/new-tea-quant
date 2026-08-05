@@ -152,8 +152,62 @@ cases:
     file: test_slice_executor_duckdb.py
     scenarios:
       - id: 1
-        name: test_duckdb_executor_wraps_scope_and_delegates
-        description: DuckDB scope 包装并委托 SliceExecutor
+        name: test_duckdb_scope_enables_pool_when_readers_positive
+        description: R>0 时开启 DuckDB ProcessPool scope
+      - id: 2
+        name: test_duckdb_scope_keeps_main_db_when_readers_zero
+        description: R=0 时保留主进程 DuckDB
+
+  - id: 9
+    case: slice_width
+    description: SliceMemoryPlanner 片宽 / 在飞 / 队列决议（SOT）
+    file: test_slice_width.py
+    scenarios:
+      - id: 1
+        name: test_assert_probe_fits_rejects_too_large_probe
+        description: 探针块无法双片并存时报错
+      - id: 2
+        name: test_resolve_initial_prefers_large_queue_then_width
+        description: 初始 plan 优先较大 N 且 width≥min_required
+      - id: 3
+        name: test_default_min_required_when_unset_or_nonpositive
+        description: min_required 缺省/非正时用 20
+      - id: 4
+        name: test_fail_when_min_required_cannot_fit_even_at_queue_zero
+        description: 即使 N=0 仍不够时报错
+      - id: 5
+        name: test_reader_workers_zero_on_low_core
+        description: 低核机器 R=0 合法
+      - id: 6
+        name: test_resolve_from_unit_cost_matches_probe_path
+        description: 单价路径与 probe_mb 路径一致
+      - id: 7
+        name: test_refine_queue_depth_uses_timing_clamped_by_memory
+        description: 运行中 N 用读算比并受内存裁剪
+      - id: 8
+        name: test_refine_queue_depth_memory_floor_to_zero
+        description: 紧内存可将 N 裁到 0
+
+  - id: 10
+    case: slice_preload_resolve
+    description: planner / settings 对接 SliceMemoryPlanner
+    file: test_slice_preload_resolve.py
+    scenarios:
+      - id: 1
+        name: test_refine_queue_clipped_by_memory
+        description: 紧内存下 refine 队列为 0
+      - id: 2
+        name: test_resolve_for_planning_fixes_readers_leaves_preload_auto
+        description: planning resolve 固定 R=cores-reserved-1，preload 留 auto
+      - id: 3
+        name: test_refine_plan_from_probe_sets_ran_snapshot
+        description: head 采样 refine 挂 probe 快照并按读算比调队列
+      - id: 4
+        name: test_base_plan_uses_resolved_preload_depth
+        description: base plan 使用已决议的 preload_depth
+      - id: 5
+        name: test_resolve_memory_plan_sets_width_queue_and_readers
+        description: _resolve_memory_plan 按内存决议 width / R / N
 
   - id: 8
     case: progress
@@ -170,8 +224,51 @@ cases:
         name: test_enable_progress_display_false_skips_logging
         description: enable_progress_display=False 不写 CMD 日志
       - id: 4
-        name: test_report_execute_unit_from_context_invokes_hook
-        description: slice orchestrator hook 回调
+        name: test_report_from_payload_invokes_hook
+        description: payload 注入 hook 可推进 execute unit
       - id: 5
-        name: test_report_execute_unit_from_context_ignores_missing_hook
+        name: test_report_from_payload_ignores_missing_hook
         description: 无 hook 时静默跳过
+
+  - id: 11
+    case: slice_reader_pool
+    description: SliceReaderPool sync / prefetch / ready 队列
+    file: test_slice_reader_pool.py
+    scenarios:
+      - id: 1
+        name: test_payload_for_reader_strips_hooks
+        description: reader payload 去掉不可 pickle 钩子
+      - id: 2
+        name: test_sync_load_when_readers_zero
+        description: R=0 走同步装载
+      - id: 3
+        name: test_prefetch_noop_when_queue_zero
+        description: N=0 时不 prefetch
+      - id: 4
+        name: test_prefetch_and_load_from_ready_queue
+        description: prefetch 入 ready 后 load_window 命中
+      - id: 5
+        name: test_from_plan_reads_preload_depth
+        description: from_plan 读 preload_depth
+      - id: 6
+        name: test_window_key_orders_bounds
+        description: window key 规范化起止
+      - id: 7
+        name: test_contracts_wire_roundtrip_preserves_data
+        description: worker wire 往返保留 data 并 hydrate Contract
+
+  - id: 12
+    case: slice_memory_probe
+    description: 内存探针 probe_mb 与活队列 N refine
+    file: test_slice_memory_probe.py
+    scenarios:
+      - id: 1
+        name: test_needs_memory_probe_when_both_missing
+        description: 无 probe_mb/单价时需要内存探针
+      - id: 2
+        name: test_measure_probe_mb_uses_window_and_rss_delta
+        description: 按 min_required 窗测 RSS 差
+      - id: 3
+        name: test_refine_queue_from_samples_updates_live_pool
+        description: head 采样后更新活队列 N
+

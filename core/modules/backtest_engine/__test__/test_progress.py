@@ -11,7 +11,6 @@ from core.modules.backtest_engine.core.shared.progress import (
     PHASE_PREP_WEIGHT,
     RunPhase,
     RunProgressReporter,
-    report_execute_unit_from_context,
 )
 
 
@@ -65,18 +64,18 @@ def test_enable_progress_display_false_skips_logging() -> None:
     info_mock.assert_not_called()
 
 
-def test_report_execute_unit_from_context_invokes_hook() -> None:
+def test_report_from_payload_invokes_hook() -> None:
     calls: list[int] = []
 
     def hook(completed: int) -> None:
         calls.append(completed)
 
-    report_execute_unit_from_context(
+    RunProgressReporter.report_from_payload(
         {"_engine_on_execute_unit_done": hook},
         3,
     )
     assert calls == [3]
 
 
-def test_report_execute_unit_from_context_ignores_missing_hook() -> None:
-    report_execute_unit_from_context({}, 1)
+def test_report_from_payload_ignores_missing_hook() -> None:
+    RunProgressReporter.report_from_payload({}, 1)

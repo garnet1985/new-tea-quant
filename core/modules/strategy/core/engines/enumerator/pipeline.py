@@ -326,6 +326,10 @@ class EnumeratorPipeline:
         run_result = results.pop("_run_result", None)
         if run_result is None:
             return
+        # Keep BE slice schedule metrics for callers (e.g. __performance__).
+        slice_plan = cls._slice_runtime_from_run_result(run_result)
+        if slice_plan:
+            results["calendar_slice_runtime_plan"] = slice_plan
         report_manager.finalize(
             run_result,
             entity_count=entity_count,
@@ -334,6 +338,20 @@ class EnumeratorPipeline:
                 effective_settings_obj.raw_settings
             ),
         )
+
+    @staticmethod
+    def _slice_runtime_from_run_result(run_result: Any) -> Optional[Dict[str, Any]]:
+        for job_report in list(getattr(run_result, "job_results", None) or []):
+            data = getattr(job_report, "data", None)
+            if not isinstance(data, dict):
+                continue
+            metrics = data.get("performance_metrics")
+            if not isinstance(metrics, dict):
+                continue
+            plan = metrics.get("calendar_slice_runtime_plan")
+            if isinstance(plan, dict) and plan:
+                return dict(plan)
+        return None
 
     @staticmethod
     def _count_entities_in_jobs(jobs: List[Dict[str, Any]]) -> int:
@@ -419,6 +437,9 @@ class EnumeratorPipeline:
             "failed_jobs": results.get("failed_jobs", 0),
             "elapsed_seconds": results.get("elapsed_seconds", 0.0),
         }
+        slice_plan = results.get("calendar_slice_runtime_plan")
+        if isinstance(slice_plan, dict) and slice_plan:
+            out["calendar_slice_runtime_plan"] = dict(slice_plan)
         # DB / BFF：附带 ``enumMetrics``（与 price/portfolio ``to_cache_dict`` 对齐）
         output_dir = results.get("output_dir")
         if output_dir:

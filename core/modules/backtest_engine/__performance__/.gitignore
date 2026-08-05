@@ -1,8 +1,6 @@
-# Generated fixtures & temp DBs (keep generator scripts only)
-fake_data/*.csv
-fake_data/*.txt
-fake_data/*.json
+# 临时库与本地报告（直接注入 DuckDB，无 CSV）
 .workdir/
 results/_local/
-__pycache__/
-*.pyc
+
+# 旧管线残留（若仍存在可删）
+fake_data/

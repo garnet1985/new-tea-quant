@@ -1,4 +1,9 @@
-"""Null-hook strategy for BE __performance__ enumerate baseline."""
+"""BE performance baseline — entity_based（null hooks，不产出机会）。
+
+万年基准：只改 BE / 枚举栈，不改本策略业务。
+
+``on_calendar_asof`` 返回空 stocks：测装载 + 日历推进，不是每天全宇宙 scan。
+"""
 from __future__ import annotations
 
 from typing import Optional
@@ -12,19 +17,12 @@ from core.modules.strategy.contracts import (
 
 
 class PerfNullHooks(StrategyHooks):
-    """Exercise data preload + calendar as-of; never emit opportunities.
-
-    Slice path must return the universe from ``on_calendar_asof`` so
-    ``scan_opportunity`` still runs (default asof returns stocks=[]).
-    """
+    """Exercise preload + as-of; never scan or emit opportunities."""
 
     def on_calendar_asof(self, ctx: StrategyContext) -> CalendarAsOfResult:
-        stocks = [str(sid) for sid in (ctx.data.by_entity or {}) if str(sid).strip()]
-        if not stocks:
-            stocks = [str(sid) for sid in ctx.data.stock_list if str(sid).strip()]
         return CalendarAsOfResult(
             as_of_date=str(ctx.data.now or ""),
-            stocks=stocks,
+            stocks=[],
         )
 
     def scan_opportunity(self, ctx: StrategyContext) -> Optional[Opportunity]:

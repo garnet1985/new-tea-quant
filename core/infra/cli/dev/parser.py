@@ -142,28 +142,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="取消样本股票池（恢复全量 renew）",
     ).set_defaults(handler=h.cmd_pool_clear)
 
-    p_be_perf = sub.add_parser(
-        "be_perf",
-        aliases=DevCommands.aliases_for("be_perf"),
-        help="BacktestEngine 性能套件（默认 duckdb）",
-    )
-    p_be_perf.add_argument(
-        "--db",
-        default="duckdb",
-        choices=["duckdb", "mysql", "pgsql", "postgresql"],
-        help="临时库引擎（默认 duckdb；mysql/pgsql 尚未实现）",
-    )
-    p_be_perf.add_argument(
-        "--idle",
-        action="store_true",
-        help="跑 idle 调度基线（默认跑 strategy_enumerate）",
-    )
-    p_be_perf.add_argument(
-        "--with-io",
-        action="store_true",
-        help="已废弃：默认路径为 strategy_enumerate（兼容旧命令）",
-    )
-    p_be_perf.set_defaults(handler=h.cmd_be_perf)
+    for long_name, handler, help_text in (
+        (
+            "be_perf_entity",
+            h.cmd_be_perf_entity,
+            "BE entity_based 性能基准（固定策略 be_perf_entity）",
+        ),
+        (
+            "be_perf_slice",
+            h.cmd_be_perf_slice,
+            "BE slice_based 性能基准（固定策略 be_perf_slice）",
+        ),
+    ):
+        p = sub.add_parser(
+            long_name,
+            aliases=DevCommands.aliases_for(long_name),
+            help=help_text,
+        )
+        p.add_argument(
+            "--db",
+            default="duckdb",
+            choices=["duckdb", "mysql", "pgsql", "postgresql"],
+            help="临时库引擎（默认 duckdb；mysql/pgsql 尚未实现）",
+        )
+        p.set_defaults(handler=handler)
 
     sub.add_parser(
         "be_perf_clear",

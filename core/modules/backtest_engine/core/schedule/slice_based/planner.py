@@ -151,11 +151,12 @@ class SlicePlanner(BasePlanner):
                     min_required=min_required,
                 )
             except Exception as exc:
-                logger.warning(
-                    "%s内存探针失败（%s）；回退 mb_per_open_day 默认单价",
-                    log_label,
-                    exc,
-                )
+                # Do not fall back to a tiny default MB/day — that inflates width
+                # (e.g. 5000 entities → hundreds of open days per slice).
+                logger.error("%s内存探针失败: %s", log_label, exc)
+                raise SliceWidthError(
+                    f"slice 内存探针失败，拒绝用默认单价规划片宽: {exc}"
+                ) from exc
 
         try:
             mem_plan = cls._resolve_memory_plan(

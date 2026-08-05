@@ -3,30 +3,39 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from config import (
-    CSV_CALENDAR,
-    CSV_KLINES,
-    CSV_STOCK_LIST,
-    DATASET_META,
+    DATASET_ID,
     DB_NAME_PREFIX,
-    UNIVERSE_TXT,
+    DEFAULT_END_DATE,
+    DEFAULT_KLINE_TERM,
+    DEFAULT_SEED,
+    DEFAULT_START_DATE,
+    DEFAULT_STOCK_COUNT,
 )
 
-PERF_ROOT = Path(__file__).resolve().parents[1]
+# cmd/ → scripts/ → __performance__/
+PERF_ROOT = Path(__file__).resolve().parents[2]
+# Legacy CSV dir (cleaned if present; no longer written).
 FAKE_DATA_DIR = PERF_ROOT / "fake_data"
 WORKDIR = PERF_ROOT / ".workdir"
 REGISTRY_PATH = WORKDIR / "db_registry.json"
 RESULTS_DIR = PERF_ROOT / "results"
+TEST_STRATEGIES_DIR = PERF_ROOT / "scripts" / "test_strategies"
 
 _NAME_RE = re.compile(rf"^{re.escape(DB_NAME_PREFIX)}(?:_(\d+))?$")
 
+_MODE_STRATEGY_DIR = {
+    "entity_based": "be_perf_entity",
+    "slice_based": "be_perf_slice",
+}
+
 
 def ensure_layout() -> None:
-    FAKE_DATA_DIR.mkdir(parents=True, exist_ok=True)
     WORKDIR.mkdir(parents=True, exist_ok=True)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -100,36 +109,38 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def dataset_files_present() -> bool:
-    needed = [
-        FAKE_DATA_DIR / CSV_STOCK_LIST,
-        FAKE_DATA_DIR / CSV_KLINES,
-        FAKE_DATA_DIR / CSV_CALENDAR,
-        FAKE_DATA_DIR / UNIVERSE_TXT,
-    ]
-    return all(p.is_file() for p in needed)
+def desired_dataset_meta(
+    *,
+    stock_count: int = DEFAULT_STOCK_COUNT,
+    start_date: str = DEFAULT_START_DATE,
+    end_date: str = DEFAULT_END_DATE,
+    seed: int = DEFAULT_SEED,
+    open_days: Optional[int] = None,
+    kline_rows: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Canonical dataset descriptor used for reuse fingerprint + run.py."""
+    from synthetic import open_dates, stock_ids
 
-
-def read_universe() -> List[str]:
-    path = FAKE_DATA_DIR / UNIVERSE_TXT
-    if not path.is_file():
-        raise FileNotFoundError(f"missing {path}; run data_gen.py first")
-    return [
-        line.strip()
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.strip().startswith("#")
-    ]
-
-
-def read_dataset_meta() -> Dict[str, Any]:
-    path = FAKE_DATA_DIR / DATASET_META
-    if not path.is_file():
-        return {}
-    return json.loads(path.read_text(encoding="utf-8"))
+    dates = open_dates(start_date, end_date)
+    ids = stock_ids(stock_count)
+    n_open = len(dates) if open_days is None else int(open_days)
+    n_kline = (len(ids) * n_open) if kline_rows is None else int(kline_rows)
+    return {
+        "dataset_id": DATASET_ID,
+        "seed": int(seed),
+        "stock_count": int(stock_count),
+        "start_date": str(start_date),
+        "end_date": str(end_date),
+        "open_days": n_open,
+        "kline_rows": n_kline,
+        "term": DEFAULT_KLINE_TERM,
+        "id_scheme": "continuous_000000",
+        "inject": "direct",
+    }
 
 
 def dataset_fingerprint(meta: Optional[Dict[str, Any]]) -> tuple:
-    """Stable key for fake_data ↔ imported DB matching."""
+    """Stable key for desired config ↔ seeded DB matching."""
     m = dict(meta or {})
     return (
         m.get("dataset_id"),
@@ -140,6 +151,8 @@ def dataset_fingerprint(meta: Optional[Dict[str, Any]]) -> tuple:
         m.get("open_days"),
         m.get("kline_rows"),
         m.get("term"),
+        m.get("id_scheme"),
+        m.get("inject"),
     )
 
 
@@ -152,6 +165,31 @@ def active_duckdb_entry() -> Optional[Dict[str, Any]]:
         if data and Path(data).is_file():
             return e
     return None
+
+
+def read_dataset_meta() -> Dict[str, Any]:
+    """Dataset meta from active duckdb registry entry (source of truth)."""
+    entry = active_duckdb_entry()
+    if not entry:
+        return {}
+    meta = entry.get("dataset")
+    return dict(meta) if isinstance(meta, dict) else {}
+
+
+def universe_ids_from_meta(meta: Optional[Dict[str, Any]] = None) -> List[str]:
+    from synthetic import stock_ids
+
+    m = meta if meta is not None else read_dataset_meta()
+    return stock_ids(int(m.get("stock_count") or DEFAULT_STOCK_COUNT))
+
+
+def open_dates_from_meta(meta: Optional[Dict[str, Any]] = None) -> List[str]:
+    from synthetic import open_dates
+
+    m = meta if meta is not None else read_dataset_meta()
+    start = str(m.get("start_date") or DEFAULT_START_DATE)
+    end = str(m.get("end_date") or DEFAULT_END_DATE)
+    return open_dates(start, end)
 
 
 def drop_duckdb_entry(entry: Dict[str, Any]) -> None:
@@ -185,3 +223,28 @@ def drop_duckdb_entry(entry: Dict[str, Any]) -> None:
         )
     ]
     save_registry(reg)
+
+
+def remove_legacy_fake_data() -> None:
+    """Drop leftover CSV fake_data/ from the old pipeline."""
+    if FAKE_DATA_DIR.is_dir():
+        shutil.rmtree(FAKE_DATA_DIR)
+        print(f"removed legacy {FAKE_DATA_DIR}")
+
+
+def strategy_dir_for_mode(mode: str) -> Path:
+    folder = _MODE_STRATEGY_DIR.get(mode)
+    if not folder:
+        raise ValueError(f"unknown mode: {mode!r}")
+    path = TEST_STRATEGIES_DIR / folder
+    if not path.is_dir():
+        raise FileNotFoundError(f"missing baseline strategy: {path}")
+    return path
+
+
+def repo_root() -> Path:
+    """Repository root (directory containing ``devcli.py``)."""
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "devcli.py").is_file():
+            return parent
+    raise RuntimeError("cannot locate repo root from cmd/common.py")

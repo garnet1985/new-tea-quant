@@ -8,25 +8,26 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
-_SCRIPTS = Path(__file__).resolve().parent
-_REPO = _SCRIPTS.parents[4]  # .../scripts → repo root
-if str(_REPO) not in sys.path:
-    sys.path.insert(0, str(_REPO))
-if str(_SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS))
-
+_CMD = Path(__file__).resolve().parent
+if str(_CMD) not in sys.path:
+    sys.path.insert(0, str(_CMD))
 from common import (  # noqa: E402
-    FAKE_DATA_DIR,
     REGISTRY_PATH,
     RESULTS_DIR,
     WORKDIR,
     _NAME_RE,
     ensure_layout,
     load_registry,
+    remove_legacy_fake_data,
+    repo_root,
     save_registry,
 )
+
+_REPO = repo_root()
+if str(_REPO) not in sys.path:
+    sys.path.insert(0, str(_REPO))
 from config import DB_NAME_PREFIX  # noqa: E402
 
 
@@ -34,15 +35,6 @@ def _safe_unlink(path: Path) -> None:
     if path.is_file():
         path.unlink()
         print(f"removed file {path}")
-
-
-def clean_data() -> None:
-    ensure_layout()
-    for p in FAKE_DATA_DIR.iterdir():
-        if p.name.startswith("."):
-            continue
-        if p.is_file():
-            _safe_unlink(p)
 
 
 def clean_db(*, name: Optional[str] = None) -> None:
@@ -67,7 +59,6 @@ def clean_db(*, name: Optional[str] = None) -> None:
                 if not p:
                     continue
                 path = Path(p)
-                # must stay under WORKDIR
                 try:
                     path.resolve().relative_to(WORKDIR.resolve())
                 except ValueError:
@@ -80,19 +71,16 @@ def clean_db(*, name: Optional[str] = None) -> None:
             else:
                 print(f"removed duckdb entry {ename}")
                 continue
-            # if break from refuse, entry kept already
             continue
         if eng in ("mysql", "postgresql", "pgsql"):
             print(
                 f"server db {eng}/{ename}: DROP not auto-run in this pass; "
                 f"remove registry entry only after manual DROP"
             )
-            # still remove registry if --force-registry? keep for safety
             kept.append(e)
             continue
         kept.append(e)
 
-    # also sweep orphan duckdb files matching prefix under workdir
     if name is None:
         for p in WORKDIR.glob(f"{DB_NAME_PREFIX}*.duckdb"):
             _safe_unlink(p)
@@ -100,9 +88,7 @@ def clean_db(*, name: Optional[str] = None) -> None:
 
     reg["entries"] = kept
     save_registry(reg)
-    if not kept and REGISTRY_PATH.is_file() and name is None:
-        # keep empty registry file for clarity
-        pass
+    _ = REGISTRY_PATH  # keep registry file even if empty
 
 
 def clean_local_results() -> None:
@@ -120,12 +106,16 @@ def clean_local_results() -> None:
     print(f"cleaned {local}")
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: Optional[list] = None) -> int:
     p = argparse.ArgumentParser(description="Clean BE __performance__ artifacts")
-    p.add_argument("--data", action="store_true", help="delete fake_data CSVs")
+    p.add_argument(
+        "--data",
+        action="store_true",
+        help="delete legacy fake_data/ CSV dir (no longer used)",
+    )
     p.add_argument("--db", action="store_true", help="delete registered perf_test_tmp* DBs")
     p.add_argument("--results", action="store_true", help="delete results/_local")
-    p.add_argument("--all", action="store_true", help="data + db + local results")
+    p.add_argument("--all", action="store_true", help="legacy data + db + local results")
     p.add_argument("--name", default=None, help="only clean this registry name")
     args = p.parse_args(argv)
 
@@ -135,7 +125,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 2
 
     if args.all or args.data:
-        clean_data()
+        remove_legacy_fake_data()
     if args.all or args.db:
         clean_db(name=args.name)
     if args.all or args.results:

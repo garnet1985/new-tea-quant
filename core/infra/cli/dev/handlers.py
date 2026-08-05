@@ -274,8 +274,14 @@ def cmd_check_deps(args: argparse.Namespace) -> int:
     return run_dependency_check(verbose=verbose)
 
 
-_PERF_SCRIPTS = (
-    REPO_ROOT / "core" / "modules" / "backtest_engine" / "__performance__" / "scripts"
+_PERF_CMD = (
+    REPO_ROOT
+    / "core"
+    / "modules"
+    / "backtest_engine"
+    / "__performance__"
+    / "scripts"
+    / "cmd"
 )
 
 
@@ -288,78 +294,63 @@ def _normalize_be_perf_db(raw: str) -> str:
     raise SystemExit(f"未知 --db {raw!r}")
 
 
-def _import_be_perf_scripts():
-    scripts = str(_PERF_SCRIPTS.resolve())
-    if scripts not in sys.path:
-        sys.path.insert(0, scripts)
+def _import_be_perf_cmd():
+    cmd_dir = str(_PERF_CMD.resolve())
+    if cmd_dir not in sys.path:
+        sys.path.insert(0, cmd_dir)
     import clean_up as clean_mod
-    import common as common_mod
-    import data_gen as data_gen_mod
     import db_creation as db_mod
-    import test_script as test_mod
+    import run as run_mod
 
-    return common_mod, data_gen_mod, db_mod, test_mod, clean_mod
+    return db_mod, run_mod, clean_mod
 
 
-def cmd_be_perf(args: argparse.Namespace) -> int:
-    """Run BE performance suite: gen (if needed) → import → strategy enumerate (default)."""
-    db = _normalize_be_perf_db(getattr(args, "db", "duckdb"))
-    idle = bool(getattr(args, "idle", False))
-    with_io = bool(getattr(args, "with_io", False))
-
+def _be_perf_prepare(db: str, *, mode: str) -> tuple:
     if db != "duckdb":
         print(
             f"--db {db} 尚未实现（当前仅 duckdb）。"
-            " MySQL/PgSQL 建库导入仍为 stub。",
+            " MySQL/PgSQL 建库注入仍为 stub。",
             flush=True,
         )
-        return 2
-
-    common_mod, data_gen_mod, db_mod, test_mod, _clean_mod = _import_be_perf_scripts()
-    suite = (
-        "idle schedule baseline"
-        if idle
-        else "strategy_enum_entity + strategy_enum_slice (null fixture)"
-    )
+        return 2, None
+    db_mod, run_mod, _clean_mod = _import_be_perf_cmd()
+    label = "entity" if mode == "entity_based" else "slice"
     print(
-        f"be_perf: db=duckdb suite={suite}\n"
-        "  阶段: [1/3] fake_data → [2/3] 导入 DuckDB → [3/3] 跑 cases\n"
-        "  长时间无输出时看子阶段进度行（[data_gen]/[db_creation]/[test]）",
+        f"be_perf_{label}: db=duckdb mode={mode}\n"
+        "  阶段: [1/2] 直接注入 DuckDB → [2/2] 跑基准策略\n"
+        "  长时间无输出时看子阶段进度行（[db_creation]/[test]）",
         flush=True,
     )
-    if with_io:
-        print(
-            "  note: --with-io 已废弃；默认路径为 strategy_enumerate",
-            flush=True,
-        )
-
-    print("[be_perf 1/3] fake_data", flush=True)
-    if not common_mod.dataset_files_present():
-        print("  fake_data 缺失，运行 data_gen…", flush=True)
-        rc = int(data_gen_mod.main([]))
-        if rc != 0:
-            return rc
-    else:
-        print("  复用已有 fake_data", flush=True)
-
-    print("[be_perf 2/3] 导入临时 DuckDB（--reuse；不一致则重建）…", flush=True)
+    print("[be_perf 1/2] seed duckdb（--reuse；fingerprint 不一致则重建）…", flush=True)
     db_mod.create_duckdb(reuse=True)
+    print(f"[be_perf 2/2] 跑基准策略（{mode}）…", flush=True)
+    return 0, run_mod
 
-    print(f"[be_perf 3/3] 跑 cases（{suite}）…", flush=True)
-    test_argv = ["--case", "all"]
-    if idle:
-        test_argv.append("--idle")
-    return int(test_mod.main(test_argv))
+
+def cmd_be_perf_entity(args: argparse.Namespace) -> int:
+    """BE entity_based 性能基准（固定策略 be_perf_entity）。"""
+    db = _normalize_be_perf_db(getattr(args, "db", "duckdb"))
+    rc, run_mod = _be_perf_prepare(db, mode="entity_based")
+    if rc != 0 or run_mod is None:
+        return int(rc)
+    return int(run_mod.main(["entity_based"]))
+
+
+def cmd_be_perf_slice(args: argparse.Namespace) -> int:
+    """BE slice_based 性能基准（固定策略 be_perf_slice）。"""
+    db = _normalize_be_perf_db(getattr(args, "db", "duckdb"))
+    rc, run_mod = _be_perf_prepare(db, mode="slice_based")
+    if rc != 0 or run_mod is None:
+        return int(rc)
+    return int(run_mod.main(["slice_based"]))
 
 
 def cmd_be_perf_clear(args: argparse.Namespace) -> int:
     """Remove BE __performance__ generated artifacts."""
     _ = args
-    _common_mod, _data_gen_mod, _db_mod, _test_mod, clean_mod = _import_be_perf_scripts()
+    _db_mod, _run_mod, clean_mod = _import_be_perf_cmd()
     print("be_perf_clear: cleaning BE __performance__ (--all)", flush=True)
     return int(clean_mod.main(["--all"]))
-
-
 def normalize_forward(rest: Sequence[str]) -> list[str]:
     rest = list(rest)
     if rest[:1] == ["--"]:

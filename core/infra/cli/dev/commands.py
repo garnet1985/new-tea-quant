@@ -22,7 +22,8 @@ class DevCommands:
         "ssp": "sample_stock_pool",
         "pc": "pool_clear",
         "cd": "check_deps",
-        "bp": "be_perf",
+        "bpe": "be_perf_entity",
+        "bps": "be_perf_slice",
         "bpc": "be_perf_clear",
     }
 
@@ -43,7 +44,8 @@ class DevCommands:
             "sample_stock_pool",
             "pool_clear",
             "check_deps",
-            "be_perf",
+            "be_perf_entity",
+            "be_perf_slice",
             "be_perf_clear",
         }
     )

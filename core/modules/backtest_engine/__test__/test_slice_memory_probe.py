@@ -17,7 +17,7 @@ def test_needs_memory_probe_when_both_missing() -> None:
     assert SliceProbe.needs_memory_probe({"mb_per_open_day": 1.5}) is False
 
 
-def test_measure_probe_mb_uses_window_and_rss_delta() -> None:
+def test_measure_probe_mb_uses_max_of_rss_and_payload() -> None:
     jobs = [
         {
             "id": "j",
@@ -32,16 +32,54 @@ def test_measure_probe_mb_uses_window_and_rss_delta() -> None:
     timeline = MagicMock()
     timeline.clipped.return_value.points = [f"202401{i:02d}" for i in range(1, 31)]
 
+    class _Contract:
+        def __init__(self) -> None:
+            self.data = {"rows": [{"date": "20240101", "close": 1.0}] * 50_000}
+
+    contract = _Contract()
+    payload_mb = SliceProbe.estimate_contracts_mb({"k": contract})
+    assert payload_mb > 1.0  # walked size beats tiny RSS Δ
+
     with patch(
         "core.modules.backtest_engine.core.timeline.timeline.Timeline.read_for_job",
         return_value=timeline,
     ), patch(
         "core.modules.strategy.core.services.entity_loader.job_bundle_loader.JobBundleLoader.load_per_entity_window",
-        return_value={"k": object()},
-    ), patch.object(SliceProbe, "_process_rss_mb", side_effect=[100.0, 125.5]):
+        return_value={"k": contract},
+    ), patch.object(SliceProbe, "_process_rss_mb", side_effect=[100.0, 100.5]):
         mb = SliceProbe.measure_probe_mb(jobs, min_required=20)
 
-    assert mb == pytest.approx(25.5)
+    assert mb == pytest.approx(payload_mb)
+
+
+def test_measure_probe_mb_uses_floor_when_tiny() -> None:
+    jobs = [
+        {
+            "id": "j",
+            "payload": {
+                "entity_ids": [f"e{i}" for i in range(100)],
+                "entity_specified": [{"id": f"e{i}"} for i in range(100)],
+                "entity_shared": {"k": {}},
+                "timeline_point_count": 40,
+            },
+        }
+    ]
+    timeline = MagicMock()
+    timeline.clipped.return_value.points = [f"202401{i:02d}" for i in range(1, 31)]
+
+    with patch(
+        "core.modules.backtest_engine.core.timeline.timeline.Timeline.read_for_job",
+        return_value=timeline,
+    ), patch(
+        "core.modules.strategy.core.services.entity_loader.job_bundle_loader.JobBundleLoader.load_per_entity_window",
+        return_value={"k": MagicMock(data=None)},
+    ), patch.object(SliceProbe, "_process_rss_mb", side_effect=[100.0, 100.1]), patch.object(
+        SliceProbe, "estimate_contracts_mb", return_value=0.0
+    ):
+        mb = SliceProbe.measure_probe_mb(jobs, min_required=5)
+
+    # 100 entities × 0.02 MB/entity floor
+    assert mb == pytest.approx(2.0)
 
 
 def test_refine_queue_from_samples_updates_live_pool() -> None:

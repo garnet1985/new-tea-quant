@@ -1,17 +1,16 @@
-# Minimal strategy for BE __performance__ (daily kline only; matches fake_data).
+# BE performance baseline — slice_based（正式片 IO）。
+# 窗口 / 样本池由 cmd/run.py 用 registry dataset meta 覆盖；此处 mode 固定。
 settings = {
     "is_enabled": True,
     "meta": {
-        "key": "be_perf_null",
-        "display_name": "BE perf null enumerate",
+        "key": "be_perf_slice",
+        "display_name": "BE perf slice_based baseline",
         "description": (
-            "Null-hook enumerate against synthetic DuckDB "
-            "(preload + as-of; mode set by test_script)."
+            "Fixed null-hook baseline for BacktestEngine slice_based wall-clock "
+            "(SliceOrchestrator). Do not change mode or hooks when measuring BE regressions."
         ),
-        "keywords": ["be_perf"],
+        "keywords": ["be_perf", "slice_based"],
     },
-    # core.rebalance_period used by slice_based executor (default year if absent).
-    # entity_based ignores it.
     "market_profile": "china_a_stock",
     "core": {"rebalance_period": "year"},
     "data": {
@@ -26,9 +25,9 @@ settings = {
     "simulation": {
         "retention": {"max_output_versions": 2},
         "execution": {
-            "start_date": "20240101",
-            "end_date": "20241231",
-            "mode": "entity_based",
+            "start_date": "20230101",
+            "end_date": "20260101",
+            "mode": "slice_based",
         },
         "assumption": {
             "template": "custom",

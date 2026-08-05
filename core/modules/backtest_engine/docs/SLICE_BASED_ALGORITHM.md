@@ -28,7 +28,8 @@
 ```text
 W_probe = min_required_records（缺省 20）
 装载宽 = W_probe 的一小块真实数据（全 entity）
-→ probe_mb（该块总内存）
+→ probe_mb = max(RSSΔ, walked_payload_MB, entity_floor)
+  （禁止仅用偏小的 RSSΔ；过小用保守 floor 抬高 probe_mb → 更窄片，禁止回退默认 1MB/天）
 
 若 budget * 0.8 < 2 * probe_mb → 直接 fail
   （有回溯时算侧至少 2 片；0.8 作用在预算上）

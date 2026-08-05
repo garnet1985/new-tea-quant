@@ -107,6 +107,12 @@ N       = clamp(N_ideal, 0, N_max)
 | **BE** | 探针内存门槛、§4/§5 plan、多进程按片调度、进度 |
 | **Strategy** | 按窗 load 一片 per-entity、compute；禁止全窗一次装 per-entity |
 
+Strategy 装载入口（挂在 `JobBundleLoader` 类上）：
+
+- `load_globals(payload)` — task 开头；shm 常驻  
+- `load_per_entity_window(payload, start=, end=)` — 每个正式片一次 DB 读（含 lookback）  
+- `load(payload)` — **仅** entity_based 全窗路径  
+
 算法入口：`SliceMemoryPlanner`（类方法），见 `core/schedule/slice_based/slice_width.py`。
 
 ---

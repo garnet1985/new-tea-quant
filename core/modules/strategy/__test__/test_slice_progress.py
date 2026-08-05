@@ -16,8 +16,14 @@ def _bare_state(*, head_sample_slices: int = 2) -> SliceTaskState:
     state._slice_index = 0
     state._window_start_idx = 0
     state._window_t0 = time.perf_counter()
+    state._window_load_sec = 0.05
+    state._window_compute_t0 = state._window_t0
     state._baseline_rss_mb = 0.0
     state._slice_open_days = 20
+    state._loaded_start_idx = 0
+    state._loaded_end_idx = 19
+    state.entity_contracts = {"k": object()}
+    state._per_entity_load_count = 1
     return state
 
 
@@ -34,6 +40,9 @@ def test_complete_formal_slice_invokes_progress_hook() -> None:
     assert state._slice_index == 3
     assert len(state._slice_samples) == 2  # only first N head samples
     assert state._window_start_idx == 60
+    assert state._slice_samples[0]["load_sec"] == 0.05
+    assert state.entity_contracts == {}
+    assert state._loaded_start_idx == -1
 
 
 def test_complete_formal_slice_without_hook_is_noop_progress() -> None:

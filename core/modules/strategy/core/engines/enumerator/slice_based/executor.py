@@ -78,6 +78,11 @@ class SliceTaskState:
     _window_start_idx: int = field(default=0, init=False, repr=False)
     _slice_index: int = field(default=0, init=False, repr=False)
     _window_t0: float = field(default=0.0, init=False, repr=False)
+    _window_load_sec: float = field(default=0.0, init=False, repr=False)
+    _window_compute_t0: float = field(default=0.0, init=False, repr=False)
+    _loaded_start_idx: int = field(default=-1, init=False, repr=False)
+    _loaded_end_idx: int = field(default=-1, init=False, repr=False)
+    _per_entity_load_count: int = field(default=0, init=False, repr=False)
     _ready_date_by_entity: Dict[str, str] = field(
         default_factory=dict, init=False, repr=False
     )
@@ -157,8 +162,28 @@ class SliceTaskState:
         self._window_start_idx = 0
         self._slice_index = 0
         self._window_t0 = time.perf_counter()
-        # Load finished; show 0/N so execute phase is not a silent 15% hold.
+        self._window_load_sec = 0.0
+        self._window_compute_t0 = self._window_t0
+        self._loaded_start_idx = -1
+        self._loaded_end_idx = -1
+        self._per_entity_load_count = 0
+        self.entity_contracts = {}
+        # First progress after globals; per-entity IO starts on demand per formal window.
         RunProgressReporter.report_from_payload(self.payload, 0)
+        if not self._open_dates:
+            self._ready_date_by_entity = {}
+            self._job_min_ready_date = ""
+            self._job_has_work = False
+            return
+        # Bootstrap readiness: load leading window (lookback + first formal width).
+        boot_end = min(
+            max(self._min_required, self._slice_open_days) - 1,
+            len(self._open_dates) - 1,
+        )
+        self._ensure_contracts_for_window(0, boot_end)
+        self._refresh_ready_dates()
+
+    def _refresh_ready_dates(self) -> None:
         base_contract = self.entity_contracts.get(self._base_data_key)
         self._ready_date_by_entity = AsOfSlice.ready_date_by_entity(
             base_contract,
@@ -168,12 +193,86 @@ class SliceTaskState:
         self._job_min_ready_date = AsOfSlice.job_min_ready_date(self._ready_date_by_entity)
         self._job_has_work = bool(self._job_min_ready_date)
 
+    @staticmethod
+    def _lookback_start_index(window_start_idx: int, min_required: int) -> int:
+        need = max(1, int(min_required))
+        return max(0, int(window_start_idx) - need + 1)
+
+    def _reader_pool(self) -> Any:
+        pool = getattr(self, "_slice_reader_pool", None)
+        if pool is not None:
+            return pool
+        from core.modules.backtest_engine.core.schedule.slice_based.reader_pool import (
+            SliceReaderPool,
+        )
+
+        plan = self.payload.get("_slice_plan") or {}
+        if isinstance(plan, dict):
+            pool = SliceReaderPool(
+                reader_workers=int(plan.get("reader_workers") or 0),
+                queue_depth=int(
+                    plan.get("preload_depth")
+                    or plan.get("queue_capacity")
+                    or 0
+                ),
+            )
+        else:
+            pool = SliceReaderPool.from_plan(plan)
+        self._slice_reader_pool = pool
+        return pool
+
+    def _ensure_contracts_for_window(self, window_start_idx: int, window_end_idx: int) -> None:
+        """Load per-entity data for [lookback_start, window_end] if not already covered."""
+        if not self._open_dates:
+            return
+        last = len(self._open_dates) - 1
+        ws = max(0, min(int(window_start_idx), last))
+        we = max(ws, min(int(window_end_idx), last))
+        load_start = self._lookback_start_index(ws, self._min_required)
+        if (
+            self._loaded_start_idx >= 0
+            and load_start >= self._loaded_start_idx
+            and we <= self._loaded_end_idx
+        ):
+            return
+
+        start = self._open_dates[load_start]
+        end = self._open_dates[we]
+        t0 = time.perf_counter()
+        reader = self._reader_pool()
+        self.entity_contracts = reader.load_window(
+            self.payload,
+            start=start,
+            end=end,
+            perf=self.perf,
+        )
+        load_sec = max(0.0, time.perf_counter() - t0)
+        self._window_load_sec += load_sec
+        self._loaded_start_idx = load_start
+        self._loaded_end_idx = we
+        self._per_entity_load_count += 1
+        self._window_compute_t0 = time.perf_counter()
+        logger.info(
+            "slice per-entity 窗装载：slice=%s window_idx=%s..%s "
+            "load_idx=%s..%s dates=%s..%s load_sec=%.3f loads=%s",
+            self._slice_index,
+            ws,
+            we,
+            load_start,
+            we,
+            start,
+            end,
+            load_sec,
+            self._per_entity_load_count,
+        )
+
     def on_calendar_day(self, point: str, index: int, *, is_last: bool) -> None:
-        """推进时间(point) → 切数据 → 执行业务。"""
+        """推进时间(point) → 按需按片装载 → 切数据 → 执行业务。"""
         as_of = point  # 唯一时钟：BE Timeline 传入的 point
         perf = self.perf
+        last_idx = max(0, len(self._open_dates) - 1)
 
-        # 尽早短路：全 job 尚无任何 entity 达到 min_required → 不 until / 不 asof
+        # —— 尽早短路：全 job 尚无任何 entity 达到 min_required ——
         if (not self._job_has_work) or (
             self._job_min_ready_date and as_of < self._job_min_ready_date
         ):
@@ -188,7 +287,18 @@ class SliceTaskState:
             # 空点前缀不计入 slice window
             self._window_start_idx = index + 1
             self._window_t0 = time.perf_counter()
+            self._window_load_sec = 0.0
+            self._window_compute_t0 = self._window_t0
             return
+
+        # —— 按正式窗按需装载 per-entity（N 片 ≥ N 次 DB 读）——
+        window_end_idx = min(
+            self._window_start_idx + self._slice_open_days - 1,
+            last_idx,
+        )
+        self._ensure_contracts_for_window(self._window_start_idx, window_end_idx)
+        if not self._ready_date_by_entity:
+            self._refresh_ready_dates()
 
         # —— 切数据 ——
         if perf is not None:
@@ -290,19 +400,20 @@ class SliceTaskState:
             self._complete_formal_slice(index)
 
     def _complete_formal_slice(self, index: int) -> None:
-        """Close one formal slice window: optional head sample + progress tick."""
+        """Close one formal slice window: sample timings + progress tick; drop stale contracts."""
         if (
             self._head_sample_slices > 0
             and len(self._slice_samples) < self._head_sample_slices
         ):
-            elapsed = max(0.0, time.perf_counter() - self._window_t0)
+            wall = max(0.0, time.perf_counter() - self._window_t0)
+            load_sec = round(max(0.0, self._window_load_sec), 4)
+            compute_sec = round(max(0.0, wall - load_sec), 4)
             rss = self._process_rss_mb()
-            half = round(elapsed / 2.0, 4)
             self._slice_samples.append(
                 {
                     "slice_index": len(self._slice_samples),
-                    "load_sec": half,
-                    "compute_sec": half,
+                    "load_sec": load_sec,
+                    "compute_sec": compute_sec,
                     "serialize_sec": 0.0,
                     "deserialize_sec": 0.0,
                     "rss_after_mb": round(rss, 1),
@@ -316,6 +427,12 @@ class SliceTaskState:
         self._slice_index += 1
         self._window_start_idx = index + 1
         self._window_t0 = time.perf_counter()
+        self._window_load_sec = 0.0
+        self._window_compute_t0 = self._window_t0
+        # Release per-entity contracts; next formal window issues a fresh DB read.
+        self.entity_contracts = {}
+        self._loaded_start_idx = -1
+        self._loaded_end_idx = -1
         RunProgressReporter.report_from_payload(self.payload, self._slice_index)
 
     def finalize(self, timeline: Timeline) -> Dict[str, Any]:
@@ -462,6 +579,8 @@ class SliceTaskState:
         return {
             "baseline_rss_mb": float(self._baseline_rss_mb or 0.0),
             "slice_samples": list(self._slice_samples),
+            "per_entity_load_count": int(self._per_entity_load_count),
+            "formal_slices_completed": int(self._slice_index),
         }
 
     @staticmethod
@@ -584,8 +703,23 @@ class EnumSliceJobExecutor(BaseJobExecutor):
 
     @classmethod
     def on_before_task_start(cls, job_context: Any) -> Dict[str, Any]:
-        """加载 bundle，初始化 task 状态，挂到 BE ``init``。"""
-        loaded = cls.load_bundle_data(job_context, log_label=cls.task_log_label)
+        """Globals only at task start; per-entity loads happen per formal slice."""
+        from core.modules.strategy.core.services.entity_loader.job_bundle_loader import (
+            JobBundleLoader,
+        )
+        from core.modules.strategy.core.engines.enumerator.common.performance_tracker.performance_tracker import (
+            EnumJobPerfRecorder,
+        )
+
+        logger.info("%s开始：job_id=%s（globals only）", cls.task_log_label, job_context.job_id)
+        perf = EnumJobPerfRecorder.attach(job_context.payload)
+        perf.begin("load_data")
+        global_data = JobBundleLoader.load_globals(job_context.payload)
+        perf.end("load_data")
+        loaded: Dict[str, Any] = {
+            "entity_contracts": {},
+            "global_data": global_data,
+        }
         job_context.init = loaded
         timeline = Timeline.read_for_job(job_context.payload)
         if timeline is None:
@@ -597,6 +731,12 @@ class EnumSliceJobExecutor(BaseJobExecutor):
         state.begin(clipped)
         loaded[_STATE_KEY] = state
         loaded[_TIMELINE_KEY] = clipped
+        logger.info(
+            "%s就绪：global_keys=%d bootstrap_loads=%s",
+            cls.task_log_label,
+            len(global_data),
+            state._per_entity_load_count,
+        )
         return loaded
 
     @classmethod

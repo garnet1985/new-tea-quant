@@ -163,7 +163,7 @@ def build_parser() -> argparse.ArgumentParser:
             "--db",
             default="duckdb",
             choices=["duckdb", "mysql", "pgsql", "postgresql"],
-            help="临时库引擎（默认 duckdb；mysql/pgsql 尚未实现）",
+            help="临时库引擎（默认 duckdb；mysql/pgsql 读 userspace 配置）",
         )
         p.set_defaults(handler=handler)
 

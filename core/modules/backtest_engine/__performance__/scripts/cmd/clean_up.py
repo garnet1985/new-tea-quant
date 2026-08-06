@@ -72,11 +72,25 @@ def clean_db(*, name: Optional[str] = None) -> None:
                 continue
             continue
         if eng in ("mysql", "postgresql", "pgsql"):
-            print(
-                f"server db {eng}/{ename}: DROP not auto-run in this pass; "
-                f"remove registry entry only after manual DROP"
-            )
-            kept.append(e)
+            if eng == "pgsql":
+                eng = "postgresql"
+            try:
+                if eng == "mysql":
+                    from mysql_support import drop_mysql_entry
+
+                    drop_mysql_entry(e)
+                    print(f"removed mysql database {ename}")
+                else:
+                    from postgresql_support import drop_postgresql_entry
+
+                    drop_postgresql_entry(e)
+                    print(f"removed postgresql database {ename}")
+            except SystemExit as exc:
+                print(f"skip {eng} {ename}: {exc}")
+                kept.append(e)
+            except Exception as exc:
+                print(f"failed to drop {eng} {ename}: {exc}")
+                kept.append(e)
             continue
         kept.append(e)
 

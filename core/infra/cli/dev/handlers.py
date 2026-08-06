@@ -306,23 +306,27 @@ def _import_be_perf_cmd():
 
 
 def _be_perf_prepare(db: str, *, mode: str) -> tuple:
-    if db != "duckdb":
-        print(
-            f"--db {db} 尚未实现（当前仅 duckdb）。"
-            " MySQL/PgSQL 建库注入仍为 stub。",
-            flush=True,
-        )
+    if db not in {"duckdb", "mysql", "postgresql"}:
+        print(f"--db {db} 不支持（可选 duckdb / mysql / postgresql）。", flush=True)
         return 2, None
     db_mod, run_mod, _clean_mod = _import_be_perf_cmd()
     label = "entity" if mode == "entity_based" else "slice"
     print(
-        f"be_perf_{label}: db=duckdb mode={mode}\n"
-        "  阶段: [1/2] 直接注入 DuckDB → [2/2] 跑基准策略\n"
+        f"be_perf_{label}: db={db} mode={mode}\n"
+        f"  阶段: [1/2] 注入临时库（{db}）→ [2/2] 跑基准策略\n"
         "  长时间无输出时看子阶段进度行（[db_creation]/[test]）",
         flush=True,
     )
-    print("[be_perf 1/2] seed duckdb（--reuse；fingerprint 不一致则重建）…", flush=True)
-    db_mod.create_duckdb(reuse=True)
+    print(
+        f"[be_perf 1/2] seed {db}（--reuse；数据规模不一致则重建）…",
+        flush=True,
+    )
+    if db == "duckdb":
+        db_mod.create_duckdb(reuse=True)
+    elif db == "mysql":
+        db_mod.create_mysql(reuse=True)
+    else:
+        db_mod.create_postgresql(reuse=True)
     print(f"[be_perf 2/2] 跑基准策略（{mode}）…", flush=True)
     return 0, run_mod
 
@@ -333,7 +337,7 @@ def cmd_be_perf_entity(args: argparse.Namespace) -> int:
     rc, run_mod = _be_perf_prepare(db, mode="entity_based")
     if rc != 0 or run_mod is None:
         return int(rc)
-    return int(run_mod.main(["entity_based"]))
+    return int(run_mod.main(["entity_based", "--db", db]))
 
 
 def cmd_be_perf_slice(args: argparse.Namespace) -> int:
@@ -342,7 +346,7 @@ def cmd_be_perf_slice(args: argparse.Namespace) -> int:
     rc, run_mod = _be_perf_prepare(db, mode="slice_based")
     if rc != 0 or run_mod is None:
         return int(rc)
-    return int(run_mod.main(["slice_based"]))
+    return int(run_mod.main(["slice_based", "--db", db]))
 
 
 def cmd_be_perf_clear(args: argparse.Namespace) -> int:
@@ -351,6 +355,8 @@ def cmd_be_perf_clear(args: argparse.Namespace) -> int:
     _db_mod, _run_mod, clean_mod = _import_be_perf_cmd()
     print("be_perf_clear: cleaning BE __performance__ (--all)", flush=True)
     return int(clean_mod.main(["--all"]))
+
+
 def normalize_forward(rest: Sequence[str]) -> list[str]:
     rest = list(rest)
     if rest[:1] == ["--"]:

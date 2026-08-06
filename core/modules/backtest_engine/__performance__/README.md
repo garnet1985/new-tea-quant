@@ -6,6 +6,9 @@
 |------|----------|----------|
 | `devcli.py bpe` | 按股票分包（entity） | `test_strategies/entity_based` |
 | `devcli.py bps` | 按时间切片（slice） | `test_strategies/slice_based` |
+| `… --db mysql` | 同上，改用 MySQL | 读 userspace 的 mysql 配置 |
+| `… --db pgsql` | 同上，改用 PostgreSQL | 读 userspace 的 postgresql 配置 |
+| `… --db pgsql` | 同上，改用 PostgreSQL | 读 userspace 的 postgresql 配置 |
 
 两套策略固定不变（不选股、不产生交易机会）；优化引擎后分别对比**总执行时间**才有意义。两种模式不要直接比谁更快。
 
@@ -34,7 +37,9 @@ __performance__/
 │   │   ├── entity_based/
 │   │   └── slice_based/
 │   └── cmd/
-│       ├── db_creation.py     # 建库 + 直接写入
+│       ├── db_creation.py     # 建库 + 直接写入（duckdb / mysql / postgresql）
+│       ├── mysql_support.py   # MySQL 探测 / 安全建删库
+│       ├── postgresql_support.py  # PostgreSQL 探测 / 安全建删库
 │       ├── run.py             # 跑一种模式
 │       ├── synthetic.py       # 合成行情
 │       ├── clean_up.py
@@ -46,9 +51,11 @@ __performance__/
 ## 如何运行
 
 ```bash
-python devcli.py bpe          # 按股票分包（默认 duckdb）
-python devcli.py bps          # 按时间切片
-python devcli.py bpc          # 清理临时库和本地结果
+python devcli.py bpe              # 按股票分包（默认 duckdb）
+python devcli.py bps              # 按时间切片
+python devcli.py bpe --db mysql   # MySQL（需 userspace 配置）
+python devcli.py bps --db pgsql   # PostgreSQL（需 userspace 配置）
+python devcli.py bpc              # 清理临时库和本地结果
 ```
 
 或直接：

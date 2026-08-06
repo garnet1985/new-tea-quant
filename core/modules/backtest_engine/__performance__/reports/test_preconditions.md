@@ -1,7 +1,7 @@
 # BE 性能测试前提
 
-本轮在 **macOS** 上跑。**当前能跑的只有 DuckDB**（`bpe` / `bps` 默认即此）。  
-`--db mysql` / `--db pgsql` 已在命令行预留，但建库注入尚未实现，会直接报错退出。报告里必须写明这次用的数据库类型。
+本轮在 **macOS** 上跑。默认 **DuckDB**；也可用 `--db mysql` / `--db pgsql`（读 userspace 里的连接配置）。  
+报告里必须写明这次用的数据库类型。
 
 ---
 
@@ -27,7 +27,8 @@
 | 总行数 | `1000 × 784 = 784,000` |
 | ST | 不写 |
 | 怎么入库 | 直接写入临时库（不经中间 CSV） |
-| 库文件位置 | `__performance__/.db/` |
+| DuckDB 库文件 | `__performance__/.db/` |
+| MySQL / PostgreSQL 库名 | 仅 `perf_test_tmp` / `perf_test_tmp_N`（不写业务库） |
 
 规模改动看：`scripts/cmd/config.py`。
 
@@ -42,10 +43,19 @@
 | 运行模式 | 按股票分包（entity） | 按时间切片（slice） |
 | 策略行为 | 空策略：不选股、不产生交易机会 | 同左 |
 | 怎么调度 | 多进程，股票分包一起算 | 按时间切片；算的时候一般单进程，读可以多进程帮忙 |
-| 数据库 | **仅 DuckDB**（默认） | 同左 |
+| 数据库 | 默认 DuckDB；可 `--db mysql` / `--db pgsql` | 同左 |
 
 两套策略固定不变，用来测引擎快慢，不测选股好不好。  
 entity 和 slice **分开看，不要直接比谁更快**。
+
+### MySQL / PostgreSQL 注意
+
+- 连接信息来自 `userspace/system/config/database/mysql.json` 或 `postgresql.json`（也可设 `DB_MYSQL_*` / `DB_POSTGRESQL_*`）。
+- **没有配置**：直接退出，提示「不知道连接信息」。
+- **有配置但连不上**：直接退出，提示「库没开或配置不对」。
+- **能连上**：自动创建专用测试库 `perf_test_tmp*`，注入假数据后跑测。
+- password 允许为空（本地常见）；仅拒绝占位符 `your_password_here`。
+- **绝不**写入配置里的业务库名；若同名库已存在且不在本套件登记里，会中止以免误伤。
 
 ---
 
@@ -67,21 +77,20 @@ entity 和 slice **分开看，不要直接比谁更快**。
 
 ### A. 我们故意没做的事
 
-也可以按「不同系统 × 不同数据库 × 不同数据量」做一大表。本轮 **只固定：macOS + 报告写明的数据库（默认 DuckDB）+ 上面的数据量**。换了数据库，报告里改数据库类型，不要和 DuckDB 的结果混在一张对比表里。
+也可以按「不同系统 × 不同数据库 × 不同数据量」做一大表。本轮固定机器与数据量；换了数据库，报告里改数据库类型，不要和 DuckDB 的结果混在一张对比表里。
 
 ### B. 怎么再跑一遍
 
 ```bash
-python devcli.py bpe              # entity，默认 / 仅 duckdb
-python devcli.py bps              # slice，默认 / 仅 duckdb
-python devcli.py bpe --db duckdb  # 显式写明（与默认相同）
-python devcli.py bpc              # 清理临时库和本地结果
-# python devcli.py bpe --db mysql   # 尚未实现，会退出
-# python devcli.py bps --db pgsql   # 尚未实现，会退出
+python devcli.py bpe                 # entity，默认 duckdb
+python devcli.py bps                 # slice，默认 duckdb
+python devcli.py bpe --db mysql      # entity + MySQL
+python devcli.py bps --db pgsql      # slice + PostgreSQL（也可用 --db postgresql）
+python devcli.py bpc                 # 清理临时库（含 mysql/pgsql 测试库）和本地结果
 ```
 
 ### C. 读结果时注意
 
 - 按时间切片：读数据可以几个人帮忙，按日历往前算通常仍是一个人。  
 - 测试数据是「每天每只股票都有行情」的假数据，比真实市场更「满」，会偏重一些。  
-- MySQL / PgSQL：命令行有 `--db` 入口，**建库与注入尚未实现**，不要写进正式对比。
+- 换了数据库，报告里写清数据库类型，不要和 DuckDB 结果混在一张对比表里。

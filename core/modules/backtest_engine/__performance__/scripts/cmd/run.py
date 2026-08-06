@@ -19,7 +19,7 @@ if str(_CMD) not in sys.path:
 
 from common import (  # noqa: E402
     RESULTS_DIR,
-    active_duckdb_entry,
+    active_perf_entry,
     ensure_layout,
     open_dates_from_meta,
     read_dataset_meta,
@@ -29,7 +29,10 @@ from common import (  # noqa: E402
     utc_now_iso,
 )
 from progress import step  # noqa: E402
-from workload import install_perf_worker_db_overlay  # noqa: E402
+from workload import (  # noqa: E402
+    install_perf_worker_db_overlay,
+    install_perf_worker_server_overlay,
+)
 
 _REPO = repo_root()
 if str(_REPO) not in sys.path:
@@ -46,13 +49,10 @@ _MODE_LABEL = {
 }
 
 
-def _attach_perf_duckdb() -> Dict[str, Any]:
+def _attach_perf_duckdb(entry: Dict[str, Any]) -> Dict[str, Any]:
     from core.infra.db import Db
     from core.modules.data_manager import DataManager
 
-    entry = active_duckdb_entry()
-    if not entry:
-        raise SystemExit("no perf duckdb; run db_creation.py first (direct seed)")
     paths = entry.get("paths") or {}
     cfg = Db.duckdb.overlay_domain_paths(
         data=paths.get("data"),
@@ -65,7 +65,85 @@ def _attach_perf_duckdb() -> Dict[str, Any]:
     Db.manager.set_default(db)
     DataManager.reset_instance()
     DataManager(db=db, is_verbose=False)
+    install_perf_worker_db_overlay(
+        {
+            "data": str(paths.get("data") or ""),
+            "tag": str(paths.get("tag") or ""),
+            "strategy": str(paths.get("strategy") or ""),
+        }
+    )
     return entry
+
+
+def _attach_perf_mysql(entry: Dict[str, Any]) -> Dict[str, Any]:
+    from core.infra.db import Db
+    from core.modules.data_manager import DataManager
+    from mysql_support import (
+        assert_safe_perf_db_name,
+        build_mysql_manager_config,
+        load_mysql_server_config,
+        mysql_database_exists,
+        probe_mysql_server,
+    )
+
+    name = assert_safe_perf_db_name(str(entry.get("name") or ""))
+    server_cfg = load_mysql_server_config()
+    probe_mysql_server(server_cfg)
+    if not mysql_database_exists(server_cfg, name):
+        raise SystemExit(
+            f"registry 中有 mysql/{name}，但服务器上找不到该库；"
+            "请先重新运行 db_creation（--db mysql --reuse）。"
+        )
+    mgr_cfg = build_mysql_manager_config(server_cfg, name)
+    Db.manager.reset_default()
+    db = Db.manager.create(mgr_cfg, is_verbose=False)
+    db.initialize()
+    Db.manager.set_default(db)
+    DataManager.reset_instance()
+    DataManager(db=db, is_verbose=False)
+    install_perf_worker_server_overlay(mgr_cfg)
+    return entry
+
+
+def _attach_perf_postgresql(entry: Dict[str, Any]) -> Dict[str, Any]:
+    from core.infra.db import Db
+    from core.modules.data_manager import DataManager
+    from postgresql_support import (
+        assert_safe_perf_db_name,
+        build_postgresql_manager_config,
+        load_postgresql_server_config,
+        postgresql_database_exists,
+        probe_postgresql_server,
+    )
+
+    name = assert_safe_perf_db_name(str(entry.get("name") or ""))
+    server_cfg = load_postgresql_server_config()
+    probe_postgresql_server(server_cfg)
+    if not postgresql_database_exists(server_cfg, name):
+        raise SystemExit(
+            f"registry 中有 postgresql/{name}，但服务器上找不到该库；"
+            "请先重新运行 db_creation（--db postgresql --reuse）。"
+        )
+    mgr_cfg = build_postgresql_manager_config(server_cfg, name)
+    Db.manager.reset_default()
+    db = Db.manager.create(mgr_cfg, is_verbose=False)
+    db.initialize()
+    Db.manager.set_default(db)
+    DataManager.reset_instance()
+    DataManager(db=db, is_verbose=False)
+    install_perf_worker_server_overlay(mgr_cfg)
+    return entry
+
+
+def _attach_perf_db(entry: Dict[str, Any]) -> Dict[str, Any]:
+    eng = str(entry.get("engine") or "").lower()
+    if eng == "duckdb":
+        return _attach_perf_duckdb(entry)
+    if eng == "mysql":
+        return _attach_perf_mysql(entry)
+    if eng == "postgresql":
+        return _attach_perf_postgresql(entry)
+    raise SystemExit(f"unsupported perf db engine: {eng!r}")
 
 
 def _load_baseline_strategy(mode: str):
@@ -107,7 +185,7 @@ def _extract_slice_runtime(result: Dict[str, Any]) -> Dict[str, Any]:
 def _run_one(
     ids: Sequence[str],
     *,
-    db_paths: Dict[str, Any],
+    db_entry: Dict[str, Any],
     meta: Dict[str, Any],
     mode: str,
 ) -> Dict[str, Any]:
@@ -125,13 +203,8 @@ def _run_one(
 
     case_id = _CASE_BY_MODE[mode]
     folder = strategy_dir_for_mode(mode)
-    install_perf_worker_db_overlay(
-        {
-            "data": str(db_paths.get("data") or ""),
-            "tag": str(db_paths.get("tag") or ""),
-            "strategy": str(db_paths.get("strategy") or ""),
-        }
-    )
+    # Worker overlay already installed in _attach_perf_db.
+    engine = str(db_entry.get("engine") or "duckdb")
     strategy = _load_baseline_strategy(mode)
     start = str(meta.get("start_date") or "")
     end = str(meta.get("end_date") or "")
@@ -152,8 +225,8 @@ def _run_one(
     }
     step(
         "test",
-        f"{case_id}: mode={mode} entities={len(ids)} window={start}..{end} "
-        f"strategy={folder.name}",
+        f"{case_id}: mode={mode} db={engine} entities={len(ids)} "
+        f"window={start}..{end} strategy={folder.name}",
     )
     latest = str(meta.get("end_date") or "") or (
         GlobalEntityCache.get_latest_completed_trading_date()
@@ -206,6 +279,7 @@ def _run_one(
     return {
         "case_id": case_id,
         "mode": mode,
+        "db_engine": engine,
         "strategy": folder.name,
         "workload": "strategy_baseline",
         "wall_time_s": wall,
@@ -370,7 +444,7 @@ def _write_report(case: Dict[str, Any], *, db_entry: dict) -> Path:
     ensure_layout()
     out_dir = RESULTS_DIR / "_local" / str(case["case_id"])
     out_dir.mkdir(parents=True, exist_ok=True)
-    meta = read_dataset_meta() or {}
+    meta = read_dataset_meta(engine=str(db_entry.get("engine") or "duckdb")) or {}
     mode = str(case.get("mode") or "")
     mode_label = _MODE_LABEL.get(mode, mode)
     env = _env_snapshot()
@@ -518,16 +592,29 @@ def main(argv: Optional[List[str]] = None) -> int:
         choices=["entity_based", "slice_based"],
         help="BE mode / baseline strategy to run",
     )
+    p.add_argument(
+        "--db",
+        default="duckdb",
+        choices=["duckdb", "mysql", "pgsql", "postgresql"],
+        help="perf DB engine (default: duckdb)",
+    )
     args = p.parse_args(argv)
     mode = str(args.mode)
+    engine = "postgresql" if args.db == "pgsql" else str(args.db)
+    if engine not in {"duckdb", "mysql", "postgresql"}:
+        raise SystemExit(f"--db {engine} 不支持")
 
-    entry_probe = active_duckdb_entry()
+    entry_probe = active_perf_entry(engine=engine)
     if not entry_probe:
-        raise SystemExit("no perf duckdb; run db_creation.py first (direct seed)")
+        raise SystemExit(
+            f"no perf {engine} entry; run db_creation.py --db {engine} first"
+        )
 
-    meta = read_dataset_meta()
+    meta = read_dataset_meta(engine=engine)
     if not meta:
-        raise SystemExit("perf duckdb has no dataset meta; re-run db_creation.py")
+        raise SystemExit(
+            f"perf {engine} entry has no dataset meta; re-run db_creation.py"
+        )
     ids = universe_ids_from_meta(meta)
     timeline = open_dates_from_meta(meta)
     if not timeline:
@@ -537,7 +624,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         "test",
         f"dataset stocks={meta.get('stock_count')} "
         f"open_days={meta.get('open_days')} klines={meta.get('kline_rows')} "
-        f"mode={mode}",
+        f"mode={mode} db={engine}",
     )
 
     win_start = str(meta.get("start_date") or timeline[0])
@@ -552,13 +639,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         f"timeline bounds {bounds[0]} ~ {bounds[1]} ({len(timeline)} open days)",
     )
 
-    step("test", "attach perf duckdb…")
-    db_entry = _attach_perf_duckdb()
-    step("test", f"using duckdb {db_entry.get('name')}")
+    step("test", f"attach perf {engine}…")
+    db_entry = _attach_perf_db(entry_probe)
+    step("test", f"using {engine} {db_entry.get('name')}")
 
     case = _run_one(
         ids,
-        db_paths=db_entry.get("paths") or {},
+        db_entry=db_entry,
         meta=meta,
         mode=mode,
     )

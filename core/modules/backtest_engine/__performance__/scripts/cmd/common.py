@@ -32,6 +32,17 @@ _MODE_STRATEGY_DIR = {
 }
 
 
+def assert_safe_perf_db_name(name: str) -> str:
+    """Only ``perf_test_tmp`` / ``perf_test_tmp_N`` may be created or dropped."""
+    name = str(name or "").strip()
+    if not _NAME_RE.match(name):
+        raise SystemExit(
+            f"拒绝操作非性能测试库名 {name!r} "
+            f"（仅允许 {DB_NAME_PREFIX} / {DB_NAME_PREFIX}_N）。"
+        )
+    return name
+
+
 def ensure_layout() -> None:
     DB_DIR.mkdir(parents=True, exist_ok=True)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -164,13 +175,34 @@ def active_duckdb_entry() -> Optional[Dict[str, Any]]:
     return None
 
 
-def read_dataset_meta() -> Dict[str, Any]:
-    """Dataset meta from active duckdb registry entry (source of truth)."""
-    entry = active_duckdb_entry()
+def read_dataset_meta(*, engine: Optional[str] = None) -> Dict[str, Any]:
+    """Dataset meta from active registry entry (duckdb by default, or given engine)."""
+    eng = str(engine or "duckdb").lower()
+    if eng == "pgsql":
+        eng = "postgresql"
+    entry = active_perf_entry(engine=eng)
     if not entry:
         return {}
     meta = entry.get("dataset")
     return dict(meta) if isinstance(meta, dict) else {}
+
+
+def active_perf_entry(*, engine: str) -> Optional[Dict[str, Any]]:
+    eng = str(engine or "").lower()
+    if eng == "pgsql":
+        eng = "postgresql"
+    if eng == "duckdb":
+        return active_duckdb_entry()
+    if eng == "mysql":
+        from mysql_support import active_mysql_entry
+
+        return active_mysql_entry()
+    if eng == "postgresql":
+        from postgresql_support import active_postgresql_entry
+
+        return active_postgresql_entry()
+    entries = list_registry_entries(engine=eng)
+    return entries[-1] if entries else None
 
 
 def universe_ids_from_meta(meta: Optional[Dict[str, Any]] = None) -> List[str]:

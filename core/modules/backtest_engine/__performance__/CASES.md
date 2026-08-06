@@ -45,7 +45,7 @@
 |----|------|
 | **目的** | 全段时间一次装载时的总执行时间 |
 | **命令** | `python devcli.py bpe` |
-| **结果** | `results/_local/entity_based/` |
+| **结果** | `reports/{BE版本}/entity_based/{duckdb\|mysql\|pgsql}/` |
 
 ---
 
@@ -55,5 +55,5 @@
 |----|------|
 | **目的** | 按时间片读数据、推进日历时的总执行时间 |
 | **命令** | `python devcli.py bps` |
-| **结果** | `results/_local/slice_based/` |
+| **结果** | `reports/{BE版本}/slice_based/{duckdb\|mysql\|pgsql}/` |
 | **关注** | 总执行时间、每只股票装载几次、一共切了几片、读数据进程数、预读排队深度 |

@@ -21,8 +21,17 @@ from config import (
 PERF_ROOT = Path(__file__).resolve().parents[2]
 DB_DIR = PERF_ROOT / ".db"
 REGISTRY_PATH = DB_DIR / "db_registry.json"
-RESULTS_DIR = PERF_ROOT / "results"
+RESULTS_DIR = PERF_ROOT / "results"  # legacy local scratch (gitignore)
+REPORTS_DIR = PERF_ROOT / "reports"  # versioned archives + templates
 TEST_STRATEGIES_DIR = PERF_ROOT / "scripts" / "test_strategies"
+
+# Report folder names (user-facing); keep postgresql → pgsql.
+_REPORT_ENGINE_DIR = {
+    "duckdb": "duckdb",
+    "mysql": "mysql",
+    "postgresql": "pgsql",
+    "pgsql": "pgsql",
+}
 
 _NAME_RE = re.compile(rf"^{re.escape(DB_NAME_PREFIX)}(?:_(\d+))?$")
 
@@ -46,6 +55,82 @@ def assert_safe_perf_db_name(name: str) -> str:
 def ensure_layout() -> None:
     DB_DIR.mkdir(parents=True, exist_ok=True)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def report_engine_dirname(engine: str) -> str:
+    eng = str(engine or "duckdb").strip().lower()
+    if eng == "pgsql":
+        eng = "postgresql"
+    return _REPORT_ENGINE_DIR.get(eng, eng or "duckdb")
+
+
+def read_yaml_version(path: Path) -> Optional[str]:
+    if not path.is_file():
+        return None
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        s = line.strip()
+        if s.startswith("version:"):
+            return s.split(":", 1)[1].strip().strip("\"'")
+    return None
+
+
+def be_module_version() -> str:
+    root = repo_root()
+    ver = read_yaml_version(
+        root / "core" / "modules" / "backtest_engine" / "module_info.yaml"
+    )
+    return ver or "unknown"
+
+
+def collect_perf_versions() -> Dict[str, Any]:
+    """BE + core + key dependency module versions for archive labeling."""
+    root = repo_root()
+    core_ver: Optional[str] = None
+    try:
+        from core.infra.project_context import ProjectContext
+
+        core_ver = ProjectContext.meta.core_version()
+    except Exception:
+        meta = root / "core" / "core_meta.json"
+        if meta.is_file():
+            try:
+                core_ver = str(json.loads(meta.read_text(encoding="utf-8")).get("version") or "") or None
+            except (OSError, json.JSONDecodeError, TypeError):
+                core_ver = None
+
+    modules = {
+        "backtest_engine": be_module_version(),
+        "data_manager": read_yaml_version(
+            root / "core" / "modules" / "data_manager" / "module_info.yaml"
+        ),
+        "strategy": read_yaml_version(
+            root / "core" / "modules" / "strategy" / "module_info.yaml"
+        ),
+        "data_contract": read_yaml_version(
+            root / "core" / "modules" / "data_contract" / "module_info.yaml"
+        ),
+    }
+    return {
+        "backtest_engine": modules["backtest_engine"],
+        "core": core_ver or "unknown",
+        "dependencies": {k: v for k, v in modules.items() if k != "backtest_engine"},
+    }
+
+
+def report_out_dir(*, be_version: str, mode: str, engine: str) -> Path:
+    """reports/{BE_version}/{mode}/{duckdb|mysql|pgsql}/"""
+    ver = str(be_version or "unknown").strip() or "unknown"
+    return (
+        REPORTS_DIR
+        / ver
+        / str(mode)
+        / report_engine_dirname(engine)
+    )
 
 
 def load_registry() -> Dict[str, Any]:

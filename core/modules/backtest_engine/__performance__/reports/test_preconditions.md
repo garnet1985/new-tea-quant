@@ -63,11 +63,12 @@ entity 和 slice **分开看，不要直接比谁更快**。
 
 | 产出 | 说明 |
 |------|------|
-| 摘要位置 | `results/_local/entity_based/`、`results/_local/slice_based/` |
-| 文件 | `REPORT.md`、`metrics.json` |
-| 必写 | 数据库类型、运行模式、总执行时间、股票数/交易日、是否成功 |
+| 摘要位置 | `reports/{BE版本}/{模式}/{duckdb\|mysql\|pgsql}/`，例如 `reports/0.4.0/entity_based/pgsql/` |
+| 文件 | `REPORT.md`、`metrics.json`（留档；`bpc` 默认不删版本目录） |
+| 必写 | 跑测时间、BE/core/相关模块版本、数据库类型、总执行时间、是否成功 |
+| 命令行 | 跑完打印简要摘要（版本 / 模式 / 库 / 总时间 / 速度 / 报告路径） |
 | slice 另写 | 切了几片、读数据进程数、预读排队等 |
-| 更细的时间拆分 | 策略结果目录里的 `performance.json`（系统自动生成） |
+| 更细的时间拆分 | 四大步 + 少量小项；策略结果目录里还有完整 `performance.json` |
 
 以套件里的 `REPORT.md` 为准核对总执行时间和数据库类型。字段约定见 [`REPORT_TEMPLATE.md`](./REPORT_TEMPLATE.md)。
 

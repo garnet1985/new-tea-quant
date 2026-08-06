@@ -31,7 +31,8 @@ __performance__/
 ├── CASES.md
 ├── reports/
 │   ├── test_preconditions.md  # 测试前提（机器 / 数据 / 跑法 / 报告）
-│   └── REPORT_TEMPLATE.md     # 给人看的报告字段说明
+│   ├── REPORT_TEMPLATE.md     # 给人看的报告字段说明
+│   └── {BE版本}/              # 留档：模式 × 数据库
 ├── scripts/
 │   ├── test_strategies/       # 固定空策略（勿随意改）
 │   │   ├── entity_based/
@@ -45,7 +46,7 @@ __performance__/
 │       ├── clean_up.py
 │       └── …
 ├── .db/                       # 临时库（gitignore）
-└── results/_local/            # 本地报告（gitignore）
+└── results/_local/            # 旧本地草稿（gitignore；正式报告在 reports/{版本}/）
 ```
 
 ## 如何运行

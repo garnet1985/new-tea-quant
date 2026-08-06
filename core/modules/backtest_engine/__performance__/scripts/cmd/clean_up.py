@@ -122,8 +122,8 @@ def clean_local_results() -> None:
 def main(argv: Optional[list] = None) -> int:
     p = argparse.ArgumentParser(description="Clean BE __performance__ artifacts")
     p.add_argument("--db", action="store_true", help="delete registered perf_test_tmp* DBs under .db/")
-    p.add_argument("--results", action="store_true", help="delete results/_local")
-    p.add_argument("--all", action="store_true", help="db + local results")
+    p.add_argument("--results", action="store_true", help="delete legacy results/_local only（不删 reports/{版本} 留档）")
+    p.add_argument("--all", action="store_true", help="db + legacy local results（不删版本留档）")
     p.add_argument("--name", default=None, help="only clean this registry name")
     args = p.parse_args(argv)
 

@@ -313,7 +313,7 @@ def _be_perf_prepare(db: str, *, mode: str) -> tuple:
     label = "entity" if mode == "entity_based" else "slice"
     print(
         f"be_perf_{label}: db={db} mode={mode}\n"
-        f"  阶段: [1/2] 注入临时库（{db}）→ [2/2] 跑基准策略\n"
+        f"  阶段: [1/2] 注入临时库（{db}）→ [2/2] 分档跑基准（25%/50%/100%）\n"
         "  长时间无输出时看子阶段进度行（[db_creation]/[test]）",
         flush=True,
     )
@@ -327,7 +327,7 @@ def _be_perf_prepare(db: str, *, mode: str) -> tuple:
         db_mod.create_mysql(reuse=True)
     else:
         db_mod.create_postgresql(reuse=True)
-    print(f"[be_perf 2/2] 跑基准策略（{mode}）…", flush=True)
+    print(f"[be_perf 2/2] 跑基准策略分档（{mode}）…", flush=True)
     return 0, run_mod
 
 

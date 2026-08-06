@@ -1,0 +1,232 @@
+{
+  "generated_at": "2026-08-06T08:49:00Z",
+  "be_version": "0.4.0",
+  "mode": "entity_based",
+  "engines": {
+    "duckdb": {
+      "t0": 0.9988,
+      "k": 0.001892,
+      "verdict": "越大吞吐越高（首→末 +65%）：固定成本被摊薄，或并行更吃得开",
+      "doubling": [
+        {
+          "from_n": 500,
+          "to_n": 1000,
+          "n_ratio": 2.0,
+          "wall_ratio": 1.439,
+          "throughput_pct": 39.0,
+          "vs_linear_wall": 0.719
+        },
+        {
+          "from_n": 1000,
+          "to_n": 2000,
+          "n_ratio": 2.0,
+          "wall_ratio": 1.688,
+          "throughput_pct": 18.5,
+          "vs_linear_wall": 0.844
+        }
+      ],
+      "fixed_share": [
+        {
+          "n": 500,
+          "t0_share_pct": 50.5
+        },
+        {
+          "n": 1000,
+          "t0_share_pct": 35.1
+        },
+        {
+          "n": 2000,
+          "t0_share_pct": 20.8
+        }
+      ],
+      "near_fixed": {
+        "label": "准备/规划",
+        "mean_sec": 0.0258,
+        "spread_sec": 0.0215,
+        "looks_fixed": true
+      },
+      "near_linear": {
+        "label": "读数据+推进（每股票）",
+        "mean_sec_per_stock": 0.003008,
+        "spread_sec_per_stock": 0.001451,
+        "looks_linear": false
+      },
+      "points": [
+        {
+          "n": 500,
+          "wall": 1.9763704999999998,
+          "throughput": 198343.3774183535,
+          "planning_sec": 0.0398,
+          "load_sec": 0.9065,
+          "compute_sec": 1.0095
+        },
+        {
+          "n": 1000,
+          "wall": 2.8436971250000003,
+          "throughput": 275697.4338467919,
+          "planning_sec": 0.0183,
+          "load_sec": 1.1908,
+          "compute_sec": 1.6192
+        },
+        {
+          "n": 2000,
+          "wall": 4.798865375,
+          "throughput": 326743.9024584014,
+          "planning_sec": 0.0194,
+          "load_sec": 1.8814,
+          "compute_sec": 2.88
+        }
+      ]
+    },
+    "mysql": {
+      "t0": 0.8277,
+      "k": 0.003199,
+      "verdict": "越大吞吐越高（首→末 +34%）：固定成本被摊薄，或并行更吃得开",
+      "doubling": [
+        {
+          "from_n": 500,
+          "to_n": 1000,
+          "n_ratio": 2.0,
+          "wall_ratio": 1.674,
+          "throughput_pct": 19.5,
+          "vs_linear_wall": 0.837
+        },
+        {
+          "from_n": 1000,
+          "to_n": 2000,
+          "n_ratio": 2.0,
+          "wall_ratio": 1.785,
+          "throughput_pct": 12.0,
+          "vs_linear_wall": 0.893
+        }
+      ],
+      "fixed_share": [
+        {
+          "n": 500,
+          "t0_share_pct": 34.3
+        },
+        {
+          "n": 1000,
+          "t0_share_pct": 20.5
+        },
+        {
+          "n": 2000,
+          "t0_share_pct": 11.5
+        }
+      ],
+      "near_fixed": {
+        "label": "准备/规划",
+        "mean_sec": 0.0461,
+        "spread_sec": 0.0091,
+        "looks_fixed": true
+      },
+      "near_linear": {
+        "label": "读数据+推进（每股票）",
+        "mean_sec_per_stock": 0.004083,
+        "spread_sec_per_stock": 0.001103,
+        "looks_linear": true
+      },
+      "points": [
+        {
+          "n": 500,
+          "wall": 2.4156955830000015,
+          "throughput": 162272.1019811542,
+          "planning_sec": 0.0517,
+          "load_sec": 1.3657,
+          "compute_sec": 0.975
+        },
+        {
+          "n": 1000,
+          "wall": 4.044428958999987,
+          "throughput": 193846.89605077138,
+          "planning_sec": 0.0426,
+          "load_sec": 2.3335,
+          "compute_sec": 1.6542
+        },
+        {
+          "n": 2000,
+          "wall": 7.22034908400002,
+          "throughput": 217164.01544554404,
+          "planning_sec": 0.0441,
+          "load_sec": 4.135,
+          "compute_sec": 3.0224
+        }
+      ]
+    },
+    "pgsql": {
+      "t0": 0.9044,
+      "k": 0.002818,
+      "verdict": "越大吞吐越高（首→末 +39%）：固定成本被摊薄，或并行更吃得开",
+      "doubling": [
+        {
+          "from_n": 500,
+          "to_n": 1000,
+          "n_ratio": 2.0,
+          "wall_ratio": 1.676,
+          "throughput_pct": 19.3,
+          "vs_linear_wall": 0.838
+        },
+        {
+          "from_n": 1000,
+          "to_n": 2000,
+          "n_ratio": 2.0,
+          "wall_ratio": 1.717,
+          "throughput_pct": 16.5,
+          "vs_linear_wall": 0.858
+        }
+      ],
+      "fixed_share": [
+        {
+          "n": 500,
+          "t0_share_pct": 39.9
+        },
+        {
+          "n": 1000,
+          "t0_share_pct": 23.8
+        },
+        {
+          "n": 2000,
+          "t0_share_pct": 13.9
+        }
+      ],
+      "near_fixed": {
+        "label": "准备/规划",
+        "mean_sec": 0.0531,
+        "spread_sec": 0.0281,
+        "looks_fixed": true
+      },
+      "near_linear": {
+        "label": "读数据+推进（每股票）",
+        "mean_sec_per_stock": 0.003785,
+        "spread_sec_per_stock": 0.001192,
+        "looks_linear": true
+      },
+      "points": [
+        {
+          "n": 500,
+          "wall": 2.2649071250000006,
+          "throughput": 173075.5295319228,
+          "planning_sec": 0.0395,
+          "load_sec": 1.1908,
+          "compute_sec": 1.0173
+        },
+        {
+          "n": 1000,
+          "wall": 3.795846999999995,
+          "throughput": 206541.51761122118,
+          "planning_sec": 0.0676,
+          "load_sec": 2.0171,
+          "compute_sec": 1.696
+        },
+        {
+          "n": 2000,
+          "wall": 6.516862916999997,
+          "throughput": 240606.56484114297,
+          "planning_sec": 0.0521,
+          "load_sec": 3.4037,
+          "compute_sec": 3.0449
+        }
+      ]
+    }
+  }
+}

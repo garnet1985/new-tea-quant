@@ -2,12 +2,14 @@
 
 用**固定空策略**测引擎跑得有多快（按股票分包 / 按时间切片 **分开测**）。
 
+一次 `bpe`/`bps` 会按 `config.DEFAULT_STOCK_COUNT` 自动跑 **三档**（25%/50%/100%），
+并写 `OVERALL.md`（趋势、线性、固定成本 T0）。
+
 | 命令 | 测哪一种 | 策略目录 |
 |------|----------|----------|
-| `devcli.py bpe` | 按股票分包（entity） | `test_strategies/entity_based` |
-| `devcli.py bps` | 按时间切片（slice） | `test_strategies/slice_based` |
+| `devcli.py bpe` | 按股票分包（entity）三档 | `test_strategies/entity_based` |
+| `devcli.py bps` | 按时间切片（slice）三档 | `test_strategies/slice_based` |
 | `… --db mysql` | 同上，改用 MySQL | 读 userspace 的 mysql 配置 |
-| `… --db pgsql` | 同上，改用 PostgreSQL | 读 userspace 的 postgresql 配置 |
 | `… --db pgsql` | 同上，改用 PostgreSQL | 读 userspace 的 postgresql 配置 |
 
 两套策略固定不变（不选股、不产生交易机会）；优化引擎后分别对比**总执行时间**才有意义。两种模式不要直接比谁更快。
@@ -16,10 +18,11 @@
 
 `db_creation.py` 建临时库后**直接写入**合成行情：
 
-- 股票编号：`000000` … 连续编号
+- 股票编号：`000000` … 连续编号（入库=最大股票数）
 - 日历：周末休市，工作日开市
 - K 线：固定规律价格（测快慢够用）
 - ST：不写（空表）
+- 跑测：同库截取前 N 只做分档，不反复 seed
 
 规模见 [`scripts/cmd/config.py`](./scripts/cmd/config.py)。数据规模没变时，`--reuse` 会跳过重建。
 
@@ -30,9 +33,12 @@ __performance__/
 ├── README.md
 ├── CASES.md
 ├── reports/
-│   ├── test_preconditions.md  # 测试前提（机器 / 数据 / 跑法 / 报告）
-│   ├── REPORT_TEMPLATE.md     # 给人看的报告字段说明
-│   └── {BE版本}/              # 留档：模式 × 数据库
+│   ├── test_preconditions.md
+│   ├── REPORT_TEMPLATE.md
+│   └── {BE版本}/
+│       └── {entity_based|slice_based}/
+│           ├── OVERALL.md
+│           └── N{250|500|1000}/{duckdb|mysql|pgsql}/
 ├── scripts/
 │   ├── test_strategies/       # 固定空策略（勿随意改）
 │   │   ├── entity_based/

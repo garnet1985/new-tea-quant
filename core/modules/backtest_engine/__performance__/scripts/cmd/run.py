@@ -27,11 +27,14 @@ from common import (  # noqa: E402
     report_engine_dirname,
     report_out_dir,
     repo_root,
+    scale_stock_counts,
     strategy_dir_for_mode,
     universe_ids_from_meta,
     utc_now_iso,
 )
+from config import DEFAULT_STOCK_COUNT  # noqa: E402
 from progress import step  # noqa: E402
+from scaling import write_overall_report  # noqa: E402
 from workload import (  # noqa: E402
     install_perf_worker_db_overlay,
     install_perf_worker_server_overlay,
@@ -684,7 +687,13 @@ def _write_report(case: Dict[str, Any], *, db_entry: dict) -> Path:
     )
     versions = collect_perf_versions()
     be_ver = str(versions.get("backtest_engine") or be_module_version())
-    out_dir = report_out_dir(be_version=be_ver, mode=mode, engine=engine)
+    entities = int(case.get("entities") or 0)
+    out_dir = report_out_dir(
+        be_version=be_ver,
+        mode=mode,
+        engine=engine,
+        stock_count=entities,
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
     meta = read_dataset_meta(engine=engine) or {}
     mode_label = _MODE_LABEL.get(mode, mode)
@@ -695,7 +704,6 @@ def _write_report(case: Dict[str, Any], *, db_entry: dict) -> Path:
     planner = dict(perf.get("planner") or {}) if perf else {}
     breakdown = _build_time_breakdown(mode=mode, glance=glance, perf=perf or {})
     schedule = _schedule_from_case(case, glance, planner=planner)
-    entities = int(case.get("entities") or 0)
     days = int(case.get("timeline_points") or 0)
     rows = entities * days
     wall = float(case.get("wall_time_s") or 0.0)
@@ -704,6 +712,8 @@ def _write_report(case: Dict[str, Any], *, db_entry: dict) -> Path:
     parallelism_eff = glance.get("parallelism_efficiency")
     success_label = "成功" if case.get("success") else "失败"
     eng_dir = report_engine_dirname(engine)
+    stock_max = int(case.get("stock_count_max") or meta.get("stock_count") or entities)
+    scale_frac = case.get("scale_fraction")
 
     if mode == "slice_based":
         desc = "按时间切片空策略基准：测引擎按片读数与推进日历的速度"
@@ -728,6 +738,9 @@ def _write_report(case: Dict[str, Any], *, db_entry: dict) -> Path:
         "metrics": {
             **case,
             "mode_label": mode_label,
+            "sample_size": entities,
+            "stock_count_max": stock_max,
+            "scale_fraction": scale_frac,
             "data_rows": rows,
             "throughput_entity_day_per_s": throughput,
             "schedule": schedule,
@@ -747,7 +760,7 @@ def _write_report(case: Dict[str, Any], *, db_entry: dict) -> Path:
     deps = dict(versions.get("dependencies") or {})
     dep_bits = [f"{k} {v}" for k, v in deps.items() if v]
     lines = [
-        f"# 性能测试报告 — {mode_label} · {eng_dir}",
+        f"# 性能测试报告 — {mode_label} · N{entities} · {eng_dir}",
         "",
         "## 环境",
         f"- 跑测时间: {run_at}",
@@ -763,6 +776,12 @@ def _write_report(case: Dict[str, Any], *, db_entry: dict) -> Path:
         "",
         "## 结果",
         f"- 运行模式: {mode_label}",
+        f"- 样本档: N{entities}"
+        + (
+            f"（最大 N{stock_max} 的 {float(scale_frac)*100:.0f}%）"
+            if scale_frac is not None
+            else ""
+        ),
         f"- 总执行时间（秒）: {wall:.4f}",
         f"- 股票数: {entities}",
         f"- 交易日数: {days}",
@@ -837,7 +856,8 @@ def _install_perf_timeline_bounds(start: str, end: str):
 
 def main(argv: Optional[List[str]] = None) -> int:
     p = argparse.ArgumentParser(
-        description="Run one fixed BE performance baseline strategy"
+        description="Run BE performance baselines across scale ladder "
+        "(25%/50%/100% of max stocks)"
     )
     p.add_argument(
         "mode",
@@ -849,6 +869,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         default="duckdb",
         choices=["duckdb", "mysql", "pgsql", "postgresql"],
         help="perf DB engine (default: duckdb)",
+    )
+    p.add_argument(
+        "--only-n",
+        type=int,
+        default=None,
+        help="optional: run a single sample size instead of the full ladder",
     )
     args = p.parse_args(argv)
     mode = str(args.mode)
@@ -867,16 +893,24 @@ def main(argv: Optional[List[str]] = None) -> int:
         raise SystemExit(
             f"perf {engine} entry has no dataset meta; re-run db_creation.py"
         )
-    ids = universe_ids_from_meta(meta)
+    all_ids = universe_ids_from_meta(meta)
+    stock_max = int(meta.get("stock_count") or len(all_ids) or DEFAULT_STOCK_COUNT)
+    if len(all_ids) < stock_max:
+        stock_max = len(all_ids)
     timeline = open_dates_from_meta(meta)
     if not timeline:
         raise SystemExit("no open dates for dataset window")
 
+    sizes = scale_stock_counts(stock_max)
+    if args.only_n is not None:
+        only = max(1, min(int(args.only_n), stock_max))
+        sizes = [only]
+
     step(
         "test",
-        f"dataset stocks={meta.get('stock_count')} "
-        f"open_days={meta.get('open_days')} klines={meta.get('kline_rows')} "
-        f"mode={mode} db={engine}",
+        f"dataset max_stocks={stock_max} open_days={meta.get('open_days')} "
+        f"klines={meta.get('kline_rows')} mode={mode} db={engine} "
+        f"ladder={sizes}",
     )
 
     win_start = str(meta.get("start_date") or timeline[0])
@@ -895,20 +929,44 @@ def main(argv: Optional[List[str]] = None) -> int:
     db_entry = _attach_perf_db(entry_probe)
     step("test", f"using {engine} {db_entry.get('name')}")
 
-    case = _run_one(
-        ids,
-        db_entry=db_entry,
-        meta=meta,
+    any_fail = False
+    last_path: Optional[Path] = None
+    for i, n in enumerate(sizes, start=1):
+        ids = list(all_ids[:n])
+        frac = (n / stock_max) if stock_max else 1.0
+        step(
+            "test",
+            f"scale [{i}/{len(sizes)}] N{n} "
+            f"({frac*100:.0f}% of max {stock_max})",
+        )
+        case = _run_one(
+            ids,
+            db_entry=db_entry,
+            meta=meta,
+            mode=mode,
+        )
+        case["stock_count_max"] = stock_max
+        case["scale_fraction"] = round(frac, 4)
+        path = _write_report(case, db_entry=db_entry)
+        last_path = path
+        _print_run_summary(
+            case,
+            db_entry=db_entry,
+            report_path=path,
+            versions=dict(case.get("_versions") or collect_perf_versions()),
+        )
+        if not case.get("success"):
+            any_fail = True
+
+    overall = write_overall_report(
         mode=mode,
+        mode_label=_MODE_LABEL.get(mode, mode),
+        be_version=be_module_version(),
     )
-    path = _write_report(case, db_entry=db_entry)
-    _print_run_summary(
-        case,
-        db_entry=db_entry,
-        report_path=path,
-        versions=dict(case.get("_versions") or collect_perf_versions()),
-    )
-    return 0 if case.get("success") else 1
+    print(f"总览报告: {overall}", flush=True)
+    if last_path is not None:
+        print(f"末档报告: {last_path}", flush=True)
+    return 1 if any_fail else 0
 
 
 if __name__ == "__main__":

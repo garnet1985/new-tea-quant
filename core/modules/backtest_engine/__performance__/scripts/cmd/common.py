@@ -15,6 +15,7 @@ from config import (
     DEFAULT_SEED,
     DEFAULT_START_DATE,
     DEFAULT_STOCK_COUNT,
+    SCALE_FRACTIONS,
 )
 
 # cmd/ → scripts/ → __performance__/
@@ -122,15 +123,46 @@ def collect_perf_versions() -> Dict[str, Any]:
     }
 
 
-def report_out_dir(*, be_version: str, mode: str, engine: str) -> Path:
-    """reports/{BE_version}/{mode}/{duckdb|mysql|pgsql}/"""
+def scale_stock_counts(max_stocks: int) -> List[int]:
+    """Derive run sizes from max entity count × SCALE_FRACTIONS (deduped, ascending)."""
+    n_max = max(1, int(max_stocks))
+    out: List[int] = []
+    for frac in SCALE_FRACTIONS:
+        n = max(1, int(round(float(frac) * n_max)))
+        n = min(n, n_max)
+        if n not in out:
+            out.append(n)
+    if n_max not in out:
+        out.append(n_max)
+    return sorted(out)
+
+
+def report_sample_dirname(stock_count: int) -> str:
+    return f"N{int(stock_count)}"
+
+
+def report_out_dir(
+    *,
+    be_version: str,
+    mode: str,
+    engine: str,
+    stock_count: int,
+) -> Path:
+    """reports/{BE_version}/{mode}/N{stocks}/{duckdb|mysql|pgsql}/"""
     ver = str(be_version or "unknown").strip() or "unknown"
     return (
         REPORTS_DIR
         / ver
         / str(mode)
+        / report_sample_dirname(stock_count)
         / report_engine_dirname(engine)
     )
+
+
+def report_mode_dir(*, be_version: str, mode: str) -> Path:
+    """reports/{BE_version}/{mode}/（放 OVERALL.md）"""
+    ver = str(be_version or "unknown").strip() or "unknown"
+    return REPORTS_DIR / ver / str(mode)
 
 
 def load_registry() -> Dict[str, Any]:

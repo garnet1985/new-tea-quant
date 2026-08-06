@@ -19,8 +19,8 @@ DEVCLI_COMMAND_REFERENCE = """
   python devcli.py p -core_v0.3.2          发布检查          同 pack --version 0.3.2
   python devcli.py ssp 500                 分层样本池        同 sample_stock_pool N
   python devcli.py pc                      取消样本池        同 pool_clear
-  python devcli.py bpe                     entity 性能基准（默认 duckdb）
-  python devcli.py bps                     slice 性能基准（默认 duckdb）
+  python devcli.py bpe                     entity 性能基准（三档；默认 duckdb）
+  python devcli.py bps                     slice 性能基准（三档；默认 duckdb）
   python devcli.py bpe --db mysql          entity + MySQL
   python devcli.py bps --db pgsql          slice + PostgreSQL
   python devcli.py bpc                     清理 BE 性能生成物（含 mysql/pgsql 测试库）

@@ -1,7 +1,7 @@
 {
   "case_name": "entity_based",
-  "run_at": "2026-08-06T08:06:23Z",
-  "run_date": "2026-08-06T08:06:23Z",
+  "run_at": "2026-08-06T08:46:17Z",
+  "run_date": "2026-08-06T08:46:17Z",
   "module": "modules.backtest_engine",
   "description": "按股票分包空策略基准：测引擎全段装载与计算的速度",
   "versions": {
@@ -22,80 +22,83 @@
   "dataset": {
     "dataset_id": "fake_v1_direct",
     "seed": 20260525,
-    "stock_count": 1000,
+    "stock_count": 2000,
     "start_date": "20230101",
     "end_date": "20260101",
     "open_days": 784,
-    "kline_rows": 784000,
+    "kline_rows": 1568000,
     "term": "daily",
     "id_scheme": "continuous_000000",
     "inject": "direct",
-    "generated_at": "2026-08-06T07:24:30Z"
+    "generated_at": "2026-08-06T08:46:15Z"
   },
   "db": {
-    "engine": "postgresql",
-    "engine_dir": "pgsql",
+    "engine": "mysql",
+    "engine_dir": "mysql",
     "name": "perf_test_tmp",
     "paths": null
   },
   "metrics": {
     "case_id": "entity_based",
     "mode": "entity_based",
-    "db_engine": "postgresql",
+    "db_engine": "mysql",
     "strategy": "entity_based",
     "workload": "strategy_baseline",
-    "wall_time_s": 3.6327961249999996,
-    "entities": 1000,
-    "entities_driven": 1000,
+    "wall_time_s": 2.4156955830000015,
+    "entities": 500,
+    "entities_driven": 500,
     "timeline_points": 784,
     "success": true,
-    "elapsed_seconds": 3.5638304999999995,
+    "elapsed_seconds": 2.340438917,
     "opportunities_count": 0,
-    "output_dir": "/Users/garnet/Desktop/new-tea-quant/userspace/strategies/entity_based/results/simulations/enum/9",
-    "version_id": 9,
-    "total_jobs": 50,
-    "completed_jobs": 50,
+    "output_dir": "/Users/garnet/Desktop/new-tea-quant/userspace/strategies/entity_based/results/simulations/enum/10",
+    "version_id": 10,
+    "total_jobs": 25,
+    "completed_jobs": 25,
     "failed_jobs": 0,
     "slice_runtime": null,
     "warnings": [],
+    "stock_count_max": 2000,
+    "scale_fraction": 0.25,
     "mode_label": "按股票分包（entity）",
-    "data_rows": 784000,
-    "throughput_entity_day_per_s": 215811.725465326,
+    "sample_size": 500,
+    "data_rows": 392000,
+    "throughput_entity_day_per_s": 162272.1019811542,
     "schedule": {
       "workers": 8,
-      "job_count": 50,
+      "job_count": 25,
       "entities_per_job": 20
     },
     "time_split": {
-      "planning_sec": 0.044,
-      "planning_pct": 1.2,
-      "load_sec": 1.8741,
-      "load_pct": 51.9,
-      "compute_sec": 1.69,
-      "compute_pct": 46.8,
+      "planning_sec": 0.0517,
+      "planning_pct": 2.2,
+      "load_sec": 1.3657,
+      "load_pct": 57.1,
+      "compute_sec": 0.975,
+      "compute_pct": 40.8,
       "report_sec": 0.0,
       "report_pct": 0.0,
       "planning_subs": {
-        "试跑采样（定并行）": 0.0383,
-        "正式规划": 0.0057
+        "试跑采样（定并行）": 0.0443,
+        "正式规划": 0.0074
       },
       "load_subs": {
-        "峰值内存（试跑采样）": "46.8 MB",
-        "装合约/行情": 1.8741
+        "峰值内存（试跑采样）": "72.2 MB",
+        "装合约/行情": 1.3657
       },
       "compute_subs": {
-        "填上下文": 0.55,
-        "按日 as-of": 0.5325,
-        "合约 until": 0.4889,
-        "日历 tick": 0.1186
+        "填上下文": 0.3221,
+        "按日 as-of": 0.3051,
+        "合约 until": 0.2801,
+        "日历 tick": 0.0676
       },
       "report_subs": {},
       "notes": [
         "空策略下「推进日历 / 引擎开销」主要是填上下文、按日推进、数据交接，不是选股算力。"
       ]
     },
-    "parallelism": 6.62,
-    "parallelism_efficiency": 0.8275,
-    "report_dir": "/Users/garnet/Desktop/new-tea-quant/core/modules/backtest_engine/__performance__/reports/0.4.0/entity_based/pgsql"
+    "parallelism": 5.79,
+    "parallelism_efficiency": 0.7238,
+    "report_dir": "/Users/garnet/Desktop/new-tea-quant/core/modules/backtest_engine/__performance__/reports/0.4.0/entity_based/N500/mysql"
   }
 }

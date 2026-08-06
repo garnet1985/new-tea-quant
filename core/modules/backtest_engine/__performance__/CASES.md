@@ -9,7 +9,7 @@
 用两套**固定空策略**（不选股、不产生交易机会）测引擎跑得有多快。  
 **按股票分包（entity）** 和 **按时间切片（slice）** 用不同命令分开跑；算法不同，**不要直接比谁更快**。
 
-测试数据直接写入临时库（默认 DuckDB，目录 `.db/`），不经过 CSV。规模见 `scripts/cmd/config.py`（当前约 1000 股 × 3 年）。前提全文：[`reports/test_preconditions.md`](./reports/test_preconditions.md)。
+测试数据直接写入临时库（默认 DuckDB，目录 `.db/`），不经过 CSV。规模见 `scripts/cmd/config.py`（最大约 1000 股 × 3 年；跑测自动 25%/50%/100% 三档）。前提全文：[`reports/test_preconditions.md`](./reports/test_preconditions.md)。
 
 ## 做什么 / 不做什么
 
@@ -45,7 +45,7 @@
 |----|------|
 | **目的** | 全段时间一次装载时的总执行时间 |
 | **命令** | `python devcli.py bpe` |
-| **结果** | `reports/{BE版本}/entity_based/{duckdb\|mysql\|pgsql}/` |
+| **结果** | `reports/{BE版本}/entity_based/N{股票数}/{duckdb\|mysql\|pgsql}/` + `OVERALL.md` |
 
 ---
 
@@ -55,5 +55,5 @@
 |----|------|
 | **目的** | 按时间片读数据、推进日历时的总执行时间 |
 | **命令** | `python devcli.py bps` |
-| **结果** | `reports/{BE版本}/slice_based/{duckdb\|mysql\|pgsql}/` |
+| **结果** | `reports/{BE版本}/slice_based/N{股票数}/{duckdb\|mysql\|pgsql}/` + `OVERALL.md` |
 | **关注** | 总执行时间、每只股票装载几次、一共切了几片、读数据进程数、预读排队深度 |

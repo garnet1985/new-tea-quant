@@ -20,17 +20,21 @@
 
 | 项 | 值 |
 |----|-----|
-| 股票数 | **1000**（编号 `000000` … `000999`） |
+| 最大股票数 | **1000**（`config.DEFAULT_STOCK_COUNT`；编号 `000000` …） |
+| 自动分档 | **25% / 50% / 100%** → N250 / N500 / N1000（同库截取前 N 只，不反复 seed） |
 | 时间范围 | `20230101` … `20260101`（约 3 年） |
 | 交易日 | **784** 天（周末休市） |
 | K 线 | 日线，不复权 |
-| 总行数 | `1000 × 784 = 784,000` |
+| 满档总行数 | `1000 × 784 = 784,000` |
 | ST | 不写 |
 | 怎么入库 | 直接写入临时库（不经中间 CSV） |
 | DuckDB 库文件 | `__performance__/.db/` |
 | MySQL / PostgreSQL 库名 | 仅 `perf_test_tmp` / `perf_test_tmp_N`（不写业务库） |
 
-规模改动看：`scripts/cmd/config.py`。
+规模改动看：`scripts/cmd/config.py`（改最大股票数与 `SCALE_FRACTIONS`）。
+
+报告路径：`reports/{BE版本}/{mode}/N{股票数}/{duckdb|mysql|pgsql}/`；  
+模式总览：`reports/{BE版本}/{mode}/OVERALL.md`（T0/k、翻倍吞吐变化、固定成本占比）。
 
 ---
 
@@ -63,7 +67,7 @@ entity 和 slice **分开看，不要直接比谁更快**。
 
 | 产出 | 说明 |
 |------|------|
-| 摘要位置 | `reports/{BE版本}/{模式}/{duckdb\|mysql\|pgsql}/`，例如 `reports/0.4.0/entity_based/pgsql/` |
+| 摘要位置 | `reports/{BE版本}/{模式}/N{股票数}/{duckdb\|mysql\|pgsql}/`，例如 `reports/0.4.0/entity_based/N1000/pgsql/`；总览见同模式 `OVERALL.md` |
 | 文件 | `REPORT.md`、`metrics.json`（留档；`bpc` 默认不删版本目录） |
 | 必写 | 跑测时间、BE/core/相关模块版本、数据库类型、总执行时间、是否成功 |
 | 命令行 | 跑完打印简要摘要（版本 / 模式 / 库 / 总时间 / 速度 / 报告路径） |

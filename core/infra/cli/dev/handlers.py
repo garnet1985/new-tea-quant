@@ -328,7 +328,7 @@ def _be_perf_prepare(db: str, *, mode: str) -> tuple:
 
 
 def cmd_be_perf_entity(args: argparse.Namespace) -> int:
-    """BE entity_based 性能基准（固定策略 be_perf_entity）。"""
+    """BE entity_based 性能基准（固定策略 test_strategies/entity_based）。"""
     db = _normalize_be_perf_db(getattr(args, "db", "duckdb"))
     rc, run_mod = _be_perf_prepare(db, mode="entity_based")
     if rc != 0 or run_mod is None:
@@ -337,7 +337,7 @@ def cmd_be_perf_entity(args: argparse.Namespace) -> int:
 
 
 def cmd_be_perf_slice(args: argparse.Namespace) -> int:
-    """BE slice_based 性能基准（固定策略 be_perf_slice）。"""
+    """BE slice_based 性能基准（固定策略 test_strategies/slice_based）。"""
     db = _normalize_be_perf_db(getattr(args, "db", "duckdb"))
     rc, run_mod = _be_perf_prepare(db, mode="slice_based")
     if rc != 0 or run_mod is None:

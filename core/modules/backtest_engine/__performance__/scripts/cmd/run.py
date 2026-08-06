@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """Run one BE performance baseline strategy (entity_based XOR slice_based).
 
-Uses fixed fixtures under ``scripts/test_strategies/be_perf_{entity,slice}/``.
+Uses fixed fixtures under ``scripts/test_strategies/{entity_based,slice_based}/``.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import platform
 import sys
 import time
 from pathlib import Path
@@ -35,8 +36,13 @@ if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
 _CASE_BY_MODE = {
-    "entity_based": "be_perf_entity",
-    "slice_based": "be_perf_slice",
+    "entity_based": "entity_based",
+    "slice_based": "slice_based",
+}
+
+_MODE_LABEL = {
+    "entity_based": "按股票分包（entity）",
+    "slice_based": "按时间切片（slice）",
 }
 
 
@@ -63,7 +69,7 @@ def _attach_perf_duckdb() -> Dict[str, Any]:
 
 
 def _load_baseline_strategy(mode: str):
-    """Load fixed test_strategies/be_perf_{entity,slice} (mode baked into settings)."""
+    """Load fixed test_strategies/{entity_based,slice_based} (mode baked into settings)."""
     from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
         EnabledStrategyInfo,
         StrategyDraft,
@@ -223,69 +229,268 @@ def _run_one(
     }
 
 
+def _env_snapshot() -> Dict[str, Any]:
+    mem_gb: Optional[float] = None
+    try:
+        from core.infra.machine_capacity.machine_capacity import MachineInfo
+
+        total_mb, _ = MachineInfo._virtual_memory_mb()
+        if total_mb is not None:
+            mem_gb = round(total_mb / 1024.0, 1)
+    except Exception:
+        pass
+    cpu = (platform.processor() or "").strip() or platform.machine()
+    return {
+        "os": f"{platform.system()} {platform.release()}",
+        "cpu": cpu,
+        "memory_gb": mem_gb,
+        "python": f"{sys.version_info.major}.{sys.version_info.minor}",
+    }
+
+
+def _load_performance_payload(output_dir: Any) -> Dict[str, Any]:
+    if not output_dir:
+        return {}
+    path = Path(str(output_dir)) / "performance.json"
+    if not path.is_file():
+        return {}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _bucket_sec_pct(bucket: Any) -> tuple:
+    if not isinstance(bucket, dict):
+        return None, None
+    sec = bucket.get("sec")
+    pct = bucket.get("pct")
+    try:
+        sec_f = float(sec) if sec is not None else None
+    except (TypeError, ValueError):
+        sec_f = None
+    try:
+        pct_f = float(pct) if pct is not None else None
+    except (TypeError, ValueError):
+        pct_f = None
+    return sec_f, pct_f
+
+
+def _format_sec_pct(sec: Optional[float], pct: Optional[float]) -> str:
+    if sec is None:
+        return "—"
+    if pct is None:
+        return f"{sec:.2f}s"
+    return f"{sec:.2f}s（{pct:.1f}%）"
+
+
+def _time_split_from_glance(glance: Dict[str, Any]) -> Dict[str, Any]:
+    td = dict(glance.get("time_distribution") or {})
+    planning_sec, planning_pct = _bucket_sec_pct(td.get("planning"))
+    load_raw = td.get("load_data") if "load_data" in td else td.get("read")
+    load_sec, load_pct = _bucket_sec_pct(load_raw)
+    compute_sec, compute_pct = _bucket_sec_pct(td.get("compute"))
+    report_sec, report_pct = _bucket_sec_pct(td.get("report"))
+    return {
+        "planning_sec": planning_sec,
+        "planning_pct": planning_pct,
+        "load_sec": load_sec,
+        "load_pct": load_pct,
+        "compute_sec": compute_sec,
+        "compute_pct": compute_pct,
+        "report_sec": report_sec,
+        "report_pct": report_pct,
+    }
+
+
+def _schedule_from_case(
+    case: Dict[str, Any],
+    glance: Dict[str, Any],
+    *,
+    planner: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    plan = dict(glance.get("plan") or {})
+    planner = dict(planner or {})
+    mode = str(case.get("mode") or "")
+    if mode == "slice_based":
+        sr = case.get("slice_runtime") or {}
+        return {
+            "compute_workers": int(
+                plan.get("compute_workers")
+                or planner.get("compute_workers")
+                or planner.get("compute_processes")
+                or 1
+            ),
+            "reader_workers": int(
+                plan.get("reader_workers")
+                or planner.get("reader_workers")
+                or sr.get("reader_workers")
+                or 0
+            ),
+            "queue_depth": int(
+                plan.get("max_queue")
+                or planner.get("queue_capacity")
+                or sr.get("queue_depth")
+                or 0
+            ),
+            "slice_open_days": int(
+                plan.get("slice_open_days") or planner.get("slice_open_days") or 0
+            ),
+            "formal_slices": int(
+                sr.get("formal_slices_completed")
+                or plan.get("total_slices")
+                or planner.get("total_slices")
+                or planner.get("dispatch_jobs")
+                or 0
+            ),
+            "per_entity_load_count": int(sr.get("per_entity_load_count") or 0),
+        }
+    return {
+        "workers": int(
+            plan.get("worker")
+            or planner.get("max_workers")
+            or 0
+        ),
+        "job_count": int(
+            (glance.get("job_batches") or {}).get("total")
+            or planner.get("dispatch_jobs")
+            or case.get("total_jobs")
+            or 0
+        ),
+        "entities_per_job": int(
+            plan.get("entity_per_job")
+            or planner.get("entities_per_job")
+            or 0
+        ),
+    }
+
+
 def _write_report(case: Dict[str, Any], *, db_entry: dict) -> Path:
     ensure_layout()
     out_dir = RESULTS_DIR / "_local" / str(case["case_id"])
     out_dir.mkdir(parents=True, exist_ok=True)
-    meta = read_dataset_meta()
+    meta = read_dataset_meta() or {}
     mode = str(case.get("mode") or "")
+    mode_label = _MODE_LABEL.get(mode, mode)
+    env = _env_snapshot()
+    perf = _load_performance_payload(case.get("output_dir"))
+    glance = dict(perf.get("quick_summary") or {}) if perf else {}
+    planner = dict(perf.get("planner") or {}) if perf else {}
+    time_split = _time_split_from_glance(glance) if glance else {}
+    schedule = _schedule_from_case(case, glance, planner=planner)
+    entities = int(case.get("entities") or 0)
+    days = int(case.get("timeline_points") or 0)
+    rows = entities * days
+    wall = float(case.get("wall_time_s") or 0.0)
+    throughput = (rows / wall) if wall > 0 and rows > 0 else None
+    parallelism = glance.get("parallelism")
+    parallelism_eff = glance.get("parallelism_efficiency")
+    success_label = "成功" if case.get("success") else "失败"
+
     if mode == "slice_based":
-        desc = (
-            "Baseline be_perf_slice → EnumeratorPipeline → BE slice_based "
-            "(SliceOrchestrator)"
-        )
+        desc = "按时间切片空策略基准：测引擎按片读数与推进日历的速度"
     else:
-        desc = (
-            "Baseline be_perf_entity → EnumeratorPipeline → BE entity_based "
-            "(full-window load)"
-        )
+        desc = "按股票分包空策略基准：测引擎全段装载与计算的速度"
+
     report = {
         "case_name": case["case_id"],
         "run_date": utc_now_iso(),
         "module": "modules.backtest_engine",
         "description": desc,
+        "environment": env,
         "dataset": meta,
         "db": {
             "engine": db_entry.get("engine"),
             "name": db_entry.get("name"),
             "paths": db_entry.get("paths"),
         },
-        "metrics": case,
+        "metrics": {
+            **case,
+            "mode_label": mode_label,
+            "data_rows": rows,
+            "throughput_entity_day_per_s": throughput,
+            "schedule": schedule,
+            "time_split": time_split or None,
+            "parallelism": parallelism,
+            "parallelism_efficiency": parallelism_eff,
+        },
     }
     (out_dir / "metrics.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+
+    mem = env.get("memory_gb")
+    mem_s = f"{mem} GB" if mem is not None else "—"
     lines = [
-        f"# Performance Report — {case['case_id']}",
+        f"# 性能测试报告 — {mode_label}",
         "",
-        f"- date: {report['run_date']}",
-        f"- mode: {case['mode']}",
-        f"- strategy: {case.get('strategy')}",
-        f"- wall_time_s: {case['wall_time_s']:.4f}",
-        f"- elapsed_seconds: {case.get('elapsed_seconds')}",
-        f"- entities: {case.get('entities')}",
-        f"- timeline_points: {case.get('timeline_points')}",
-        f"- opportunities_count: {case.get('opportunities_count')}",
-        f"- jobs: {case.get('completed_jobs')}/{case.get('total_jobs')} "
-        f"(failed={case.get('failed_jobs')})",
-        f"- success: {case.get('success')}",
-        f"- output_dir: {case.get('output_dir')}",
-        f"- version_id: {case.get('version_id')}",
-        f"- db: {report['db'].get('engine')} / {report['db'].get('name')}",
-        f"- warnings: {case.get('warnings') or []}",
+        "## 环境",
+        f"- 操作系统: {env.get('os')}",
+        f"- CPU: {env.get('cpu')}",
+        f"- 内存: {mem_s}",
+        f"- Python: {env.get('python')}",
+        f"- 数据库类型: {report['db'].get('engine') or 'unknown'}",
+        f"- 数据库名称: {report['db'].get('name')}",
+        "",
+        "## 结果",
+        f"- 运行模式: {mode_label}",
+        f"- 总执行时间（秒）: {wall:.4f}",
+        f"- 股票数: {entities}",
+        f"- 交易日数: {days}",
+        f"- 数据量（行）: {rows}",
+        (
+            f"- 处理速度（股票×交易日 / 秒）: {throughput:.2f}"
+            if throughput is not None
+            else "- 处理速度（股票×交易日 / 秒）: —"
+        ),
+        f"- 是否成功: {success_label}",
+        "",
+        "## 调度情况",
     ]
-    sr = case.get("slice_runtime") or {}
-    if sr:
+    if mode == "slice_based":
         lines.extend(
             [
-                f"- per_entity_load_count: {sr.get('per_entity_load_count')}",
-                f"- formal_slices_completed: {sr.get('formal_slices_completed')}",
-                f"- reader_workers: {sr.get('reader_workers')}",
-                f"- queue_depth: {sr.get('queue_depth')}",
+                f"- 计算用几个进程: {schedule.get('compute_workers')}",
+                f"- 读数据用几个进程: {schedule.get('reader_workers')}",
+                f"- 预读排队深度: {schedule.get('queue_depth')}",
+                f"- 每片多少个交易日: {schedule.get('slice_open_days') or '—'}",
+                f"- 一共切了几片: {schedule.get('formal_slices')}",
+                f"- 每只股票装载几次: {schedule.get('per_entity_load_count')}",
             ]
         )
-    lines.append("")
+    else:
+        lines.extend(
+            [
+                f"- 同时开几个进程: {schedule.get('workers') or '—'}",
+                f"- 任务包数量: {schedule.get('job_count') or '—'}",
+                f"- 每包多少只股票: {schedule.get('entities_per_job') or '—'}",
+            ]
+        )
+
+    lines.extend(
+        [
+            "",
+            "## 时间花在哪",
+            f"- 准备/规划: {_format_sec_pct(time_split.get('planning_sec'), time_split.get('planning_pct'))}",
+            f"- 读数据: {_format_sec_pct(time_split.get('load_sec'), time_split.get('load_pct'))}",
+            f"- 计算: {_format_sec_pct(time_split.get('compute_sec'), time_split.get('compute_pct'))}",
+            f"- 写报告: {_format_sec_pct(time_split.get('report_sec'), time_split.get('report_pct'))}",
+            "",
+            "## 并行效果",
+            f"- 并行效果: {parallelism if parallelism is not None else '—'}",
+            f"- 并行效率: {parallelism_eff if parallelism_eff is not None else '—'}",
+            "",
+        ]
+    )
+    notes = list(case.get("warnings") or [])
+    if notes:
+        lines.append("## 备注")
+        for note in notes:
+            lines.append(f"- {note}")
+        lines.append("")
+
     (out_dir / "REPORT.md").write_text("\n".join(lines), encoding="utf-8")
     return out_dir / "REPORT.md"
 
@@ -362,16 +567,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     sr = case.get("slice_runtime") or {}
     if sr:
         extra = (
-            f" loads={sr.get('per_entity_load_count')}"
-            f" slices={sr.get('formal_slices_completed')}"
-            f" readers={sr.get('reader_workers')}"
-            f" queue={sr.get('queue_depth')}"
+            f" 装载次数={sr.get('per_entity_load_count')}"
+            f" 片数={sr.get('formal_slices_completed')}"
+            f" 读进程={sr.get('reader_workers')}"
+            f" 预读排队={sr.get('queue_depth')}"
         )
     print(
-        f"{case['case_id']}: wall={case['wall_time_s']:.4f}s "
-        f"elapsed={case.get('elapsed_seconds')} "
-        f"opportunities={case.get('opportunities_count')} "
-        f"success={case['success']}{extra} report={path}",
+        f"{case['case_id']}: 总执行时间={case['wall_time_s']:.4f}s "
+        f"成功={case['success']}{extra} 报告={path}",
         flush=True,
     )
     return 0 if case.get("success") else 1

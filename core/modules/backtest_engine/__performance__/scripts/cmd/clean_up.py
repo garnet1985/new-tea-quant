@@ -14,13 +14,12 @@ _CMD = Path(__file__).resolve().parent
 if str(_CMD) not in sys.path:
     sys.path.insert(0, str(_CMD))
 from common import (  # noqa: E402
+    DB_DIR,
     REGISTRY_PATH,
     RESULTS_DIR,
-    WORKDIR,
     _NAME_RE,
     ensure_layout,
     load_registry,
-    remove_legacy_fake_data,
     repo_root,
     save_registry,
 )
@@ -60,9 +59,9 @@ def clean_db(*, name: Optional[str] = None) -> None:
                     continue
                 path = Path(p)
                 try:
-                    path.resolve().relative_to(WORKDIR.resolve())
+                    path.resolve().relative_to(DB_DIR.resolve())
                 except ValueError:
-                    print(f"refuse delete outside .workdir: {path}")
+                    print(f"refuse delete outside .db: {path}")
                     kept.append(e)
                     break
                 else:
@@ -82,13 +81,13 @@ def clean_db(*, name: Optional[str] = None) -> None:
         kept.append(e)
 
     if name is None:
-        for p in WORKDIR.glob(f"{DB_NAME_PREFIX}*.duckdb"):
+        for p in DB_DIR.glob(f"{DB_NAME_PREFIX}*.duckdb"):
             _safe_unlink(p)
             _safe_unlink(Path(str(p) + ".wal"))
 
     reg["entries"] = kept
     save_registry(reg)
-    _ = REGISTRY_PATH  # keep registry file even if empty
+    _ = REGISTRY_PATH
 
 
 def clean_local_results() -> None:
@@ -108,24 +107,17 @@ def clean_local_results() -> None:
 
 def main(argv: Optional[list] = None) -> int:
     p = argparse.ArgumentParser(description="Clean BE __performance__ artifacts")
-    p.add_argument(
-        "--data",
-        action="store_true",
-        help="delete legacy fake_data/ CSV dir (no longer used)",
-    )
-    p.add_argument("--db", action="store_true", help="delete registered perf_test_tmp* DBs")
+    p.add_argument("--db", action="store_true", help="delete registered perf_test_tmp* DBs under .db/")
     p.add_argument("--results", action="store_true", help="delete results/_local")
-    p.add_argument("--all", action="store_true", help="legacy data + db + local results")
+    p.add_argument("--all", action="store_true", help="db + local results")
     p.add_argument("--name", default=None, help="only clean this registry name")
     args = p.parse_args(argv)
 
-    if not (args.data or args.db or args.results or args.all):
+    if not (args.db or args.results or args.all):
         p.print_help()
-        print("\nSpecify at least one of --data/--db/--results/--all")
+        print("\nSpecify at least one of --db/--results/--all")
         return 2
 
-    if args.all or args.data:
-        remove_legacy_fake_data()
     if args.all or args.db:
         clean_db(name=args.name)
     if args.all or args.results:

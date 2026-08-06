@@ -146,12 +146,12 @@ def build_parser() -> argparse.ArgumentParser:
         (
             "be_perf_entity",
             h.cmd_be_perf_entity,
-            "BE entity_based 性能基准（固定策略 be_perf_entity）",
+            "BE entity_based 性能基准（test_strategies/entity_based）",
         ),
         (
             "be_perf_slice",
             h.cmd_be_perf_slice,
-            "BE slice_based 性能基准（固定策略 be_perf_slice）",
+            "BE slice_based 性能基准（test_strategies/slice_based）",
         ),
     ):
         p = sub.add_parser(
@@ -170,7 +170,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser(
         "be_perf_clear",
         aliases=DevCommands.aliases_for("be_perf_clear"),
-        help="清理 BE __performance__ 生成物（fake_data / 临时库 / results/_local）",
+        help="清理 BE __performance__ 生成物（.db 临时库 / results/_local）",
     ).set_defaults(handler=h.cmd_be_perf_clear)
 
     return parser

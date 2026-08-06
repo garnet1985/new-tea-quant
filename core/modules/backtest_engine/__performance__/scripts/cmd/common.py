@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -20,23 +19,21 @@ from config import (
 
 # cmd/ → scripts/ → __performance__/
 PERF_ROOT = Path(__file__).resolve().parents[2]
-# Legacy CSV dir (cleaned if present; no longer written).
-FAKE_DATA_DIR = PERF_ROOT / "fake_data"
-WORKDIR = PERF_ROOT / ".workdir"
-REGISTRY_PATH = WORKDIR / "db_registry.json"
+DB_DIR = PERF_ROOT / ".db"
+REGISTRY_PATH = DB_DIR / "db_registry.json"
 RESULTS_DIR = PERF_ROOT / "results"
 TEST_STRATEGIES_DIR = PERF_ROOT / "scripts" / "test_strategies"
 
 _NAME_RE = re.compile(rf"^{re.escape(DB_NAME_PREFIX)}(?:_(\d+))?$")
 
 _MODE_STRATEGY_DIR = {
-    "entity_based": "be_perf_entity",
-    "slice_based": "be_perf_slice",
+    "entity_based": "entity_based",
+    "slice_based": "slice_based",
 }
 
 
 def ensure_layout() -> None:
-    WORKDIR.mkdir(parents=True, exist_ok=True)
+    DB_DIR.mkdir(parents=True, exist_ok=True)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -64,14 +61,14 @@ def list_registry_entries(*, engine: Optional[str] = None) -> List[Dict[str, Any
 
 
 def allocate_duckdb_base_name() -> str:
-    """Return next free ``perf_test_tmp`` / ``perf_test_tmp_N`` under .workdir."""
+    """Return next free ``perf_test_tmp`` / ``perf_test_tmp_N`` under .db."""
     ensure_layout()
     used = set()
     for e in list_registry_entries(engine="duckdb"):
         name = str(e.get("name") or "")
         if _NAME_RE.match(name):
             used.add(name)
-    for p in WORKDIR.glob("*.duckdb"):
+    for p in DB_DIR.glob("*.duckdb"):
         stem = p.stem
         if stem.endswith("_tag"):
             stem = stem[: -len("_tag")]
@@ -88,12 +85,12 @@ def allocate_duckdb_base_name() -> str:
 
 
 def duckdb_domain_paths(base_name: str) -> Dict[str, Path]:
-    """Absolute paths for data/tag/strategy domain files under .workdir."""
+    """Absolute paths for data/tag/strategy domain files under .db."""
     ensure_layout()
     return {
-        "data": (WORKDIR / f"{base_name}.duckdb").resolve(),
-        "tag": (WORKDIR / f"{base_name}_tag.duckdb").resolve(),
-        "strategy": (WORKDIR / f"{base_name}_strategy.duckdb").resolve(),
+        "data": (DB_DIR / f"{base_name}.duckdb").resolve(),
+        "tag": (DB_DIR / f"{base_name}_tag.duckdb").resolve(),
+        "strategy": (DB_DIR / f"{base_name}_strategy.duckdb").resolve(),
     }
 
 
@@ -202,9 +199,9 @@ def drop_duckdb_entry(entry: Dict[str, Any]) -> None:
             continue
         path = Path(raw)
         try:
-            path.resolve().relative_to(WORKDIR.resolve())
+            path.resolve().relative_to(DB_DIR.resolve())
         except ValueError:
-            print(f"refuse delete outside .workdir: {path}")
+            print(f"refuse delete outside .db: {path}")
             continue
         if path.is_file():
             path.unlink()
@@ -223,13 +220,6 @@ def drop_duckdb_entry(entry: Dict[str, Any]) -> None:
         )
     ]
     save_registry(reg)
-
-
-def remove_legacy_fake_data() -> None:
-    """Drop leftover CSV fake_data/ from the old pipeline."""
-    if FAKE_DATA_DIR.is_dir():
-        shutil.rmtree(FAKE_DATA_DIR)
-        print(f"removed legacy {FAKE_DATA_DIR}")
 
 
 def strategy_dir_for_mode(mode: str) -> Path:

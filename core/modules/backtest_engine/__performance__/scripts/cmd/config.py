@@ -7,7 +7,7 @@ from __future__ import annotations
 
 # ── 合成数据集默认规模 ──
 DATASET_ID = "fake_v1_direct"
-DEFAULT_STOCK_COUNT = 500
+DEFAULT_STOCK_COUNT = 1000
 DEFAULT_START_DATE = "20230101"
 DEFAULT_END_DATE = "20260101"
 DEFAULT_SEED = 20260525  # fingerprint only；价格用固定规律，不依赖 RNG

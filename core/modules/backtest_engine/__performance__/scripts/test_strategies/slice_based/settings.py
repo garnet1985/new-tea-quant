@@ -1,15 +1,15 @@
-# BE performance baseline — entity_based（task 全窗装载）。
+# BE performance baseline — slice_based（正式片 IO）。
 # 窗口 / 样本池由 cmd/run.py 用 registry dataset meta 覆盖；此处 mode 固定。
 settings = {
     "is_enabled": True,
     "meta": {
-        "key": "be_perf_entity",
-        "display_name": "BE perf entity_based baseline",
+        "key": "slice_based",
+        "display_name": "BE perf slice_based baseline",
         "description": (
-            "Fixed null-hook baseline for BacktestEngine entity_based wall-clock. "
-            "Do not change mode or hooks when measuring BE regressions."
+            "Fixed null-hook baseline for BacktestEngine slice_based total runtime "
+            "(SliceOrchestrator). Do not change mode or hooks when measuring BE regressions."
         ),
-        "keywords": ["be_perf", "entity_based"],
+        "keywords": ["be_perf", "slice_based"],
     },
     "market_profile": "china_a_stock",
     "core": {"rebalance_period": "year"},
@@ -27,7 +27,7 @@ settings = {
         "execution": {
             "start_date": "20230101",
             "end_date": "20260101",
-            "mode": "entity_based",
+            "mode": "slice_based",
         },
         "assumption": {
             "template": "custom",

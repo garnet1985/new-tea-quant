@@ -36,5 +36,5 @@ print(CmdLayout.icon.get("success"))
 - [README.md](./README.md)
 
 ```bash
-python3 -m pytest core/infra/cmd_layout/__test__/ -q
+python3 -m pytest core/infra/cmd_layout -q
 ```

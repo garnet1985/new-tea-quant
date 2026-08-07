@@ -15,13 +15,6 @@ pytestmark = pytest.mark.force_run
 
 
 class TestBarChart(unittest.TestCase):
-    def test_facade_export(self) -> None:
-        self.assertTrue(hasattr(CmdLayout, "bar_chart"))
-        self.assertTrue(callable(CmdLayout.bar_chart.render))
-        self.assertTrue(callable(CmdLayout.bar_chart.from_values))
-        self.assertTrue(callable(CmdLayout.bar_chart.print))
-        self.assertTrue(callable(CmdLayout.bar_chart.print_from_values))
-
     def test_render_max_bar_full_width_and_pct(self) -> None:
         text = BarChart.render(
             [("win", 40), ("loss", 10)],

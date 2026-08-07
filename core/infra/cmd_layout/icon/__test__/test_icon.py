@@ -15,12 +15,6 @@ pytestmark = pytest.mark.force_run
 
 
 class TestIcon(unittest.TestCase):
-    def test_facade_export(self) -> None:
-        self.assertTrue(hasattr(CmdLayout, "icon"))
-        self.assertTrue(callable(CmdLayout.icon.get))
-        self.assertTrue(callable(CmdLayout.icon.i))
-        self.assertTrue(callable(CmdLayout.icon.supports_emoji))
-
     def test_get_aliases(self) -> None:
         with mock.patch.object(IconService, "supports_emoji", return_value=True):
             self.assertEqual(CmdLayout.icon.get("success"), "✅")

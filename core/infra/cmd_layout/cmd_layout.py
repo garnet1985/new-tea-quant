@@ -9,10 +9,10 @@ from .title.title import TitleNamespace
 class CmdLayout:
     """CmdLayout module facade for CLI report rendering helpers."""
 
-    bar_chart = BarChartNamespace()
-    title = TitleNamespace()
-    separator = SeparatorNamespace()
-    icon = IconNamespace()
+    bar_chart = BarChartNamespace
+    title = TitleNamespace
+    separator = SeparatorNamespace
+    icon = IconNamespace
 
 
 __all__ = ["CmdLayout"]

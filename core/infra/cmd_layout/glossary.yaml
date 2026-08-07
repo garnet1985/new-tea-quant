@@ -24,11 +24,24 @@ terms:
       - "命令行布局门面"
     avoid: []
 
+  namespace:
+    definition: "命名空间：挂在门面类下的分组（如 CmdLayout.title），用来按职责组织一组方法。"
+    aliases:
+      - "命名空间"
+    avoid: []
+
   CLI:
     definition: "Command Line Interface，命令行界面 / 终端输出场景。"
     aliases:
       - "命令行"
     avoid: []
+
+  present:
+    definition: "策略等报告侧把结果整理并打印到终端的呈现步骤；布局片段由 CmdLayout 提供，present 本身不是本模块 API。"
+    aliases:
+      - "报告呈现"
+    avoid:
+      - "CmdLayout.present"
 
   ASCII:
     definition: "美国信息交换标准代码；此处指条形与分割线默认只用常见英文可打印字符（如 #、-、=、*），以降低跨终端乱码风险。"
@@ -41,13 +54,27 @@ terms:
     aliases: []
     avoid: []
 
+  ASCII_fallback:
+    definition: "当 stdout 不适合 emoji（如 Windows 非 UTF-8）时，用 [OK] / [FAIL] 等方括号文本代替图标。"
+    aliases:
+      - "ascii fallback"
+      - "supports_emoji（判定是否需要回退）"
+    avoid: []
+
   bar_chart:
-    definition: "水平 ASCII 分布 / 直方图命名空间（CmdLayout.bar_chart）。"
+    definition: "水平 ASCII 分布 / 直方图命名空间（CmdLayout.bar_chart）：已分桶用 render，连续样本用 from_values。"
     aliases:
       - "条形图"
-      - "直方图（CLI）"
+      - "分布图"
     avoid:
       - "histogram widget / GUI chart"
+
+  histogram:
+    definition: "本模块语境下指 from_values 对连续样本等宽分桶后再 render 的直方图；公开入口仍挂在 bar_chart 下。"
+    aliases:
+      - "from_values 直方图"
+    avoid:
+      - "把 histogram 当成独立于 CmdLayout.bar_chart 的公开 namespace"
 
   title:
     definition: "标题命名空间：banner（主标题）/ section（小节）。"
@@ -55,16 +82,49 @@ terms:
     avoid: []
 
   separator:
-    definition: "分割线命名空间：line / thick / star / blank。"
+    definition: "分割线命名空间：line（-）/ thick（=）/ star（*）/ blank（空行）。"
     aliases:
       - "分割线"
       - "divider"
+    avoid: []
+
+  line:
+    definition: "separator.line：单行 - 分割线。"
+    aliases: []
+    avoid: []
+
+  thick:
+    definition: "separator.thick：单行 = 粗分割线。"
+    aliases: []
+    avoid: []
+
+  star:
+    definition: "separator.star：单行 * 分割线（与 banner 规则线风格一致）。"
+    aliases: []
+    avoid: []
+
+  blank:
+    definition: "separator.blank：空内容；打印时输出一个换行。"
+    aliases: []
     avoid: []
 
   icon:
     definition: "跨平台图标命名空间：get / i / supports_emoji。"
     aliases: []
     avoid: []
+
+  i:
+    definition: "CmdLayout.icon.i：get 的简写，行为完全相同。"
+    aliases:
+      - "icon.i"
+    avoid:
+      - "从包根 import i"
+
+  IconService:
+    definition: "icon 包内部实现类（双表 emoji/ASCII）；跨模块应只走 CmdLayout.icon。"
+    aliases: []
+    avoid:
+      - "from core.infra.cmd_layout.icon... import IconService（作为公开 API）"
 
   BarBucket:
     definition: "单柱数据语义：(label, value)；value 为非负计数或权重。公开调用通常传元组或 mapping，不必直接构造内部类型。"
@@ -83,6 +143,13 @@ terms:
     definition: "小节标题，形如 -- 文本 --。"
     aliases:
       - "小节"
+    avoid: []
+
+  pad:
+    definition: "banner 在未指定 width 时，在正文终端列宽之外附加的边距列数（默认模块内置）。"
+    aliases:
+      - "banner pad"
+      - "DEFAULT_BANNER_PAD"
     avoid: []
 
   bin:

@@ -1,9 +1,10 @@
 """ASCII title layouts for CLI report presentation."""
 from __future__ import annotations
 
-import sys
 import unicodedata
 from typing import Optional, TextIO
+
+from core.infra.cmd_layout.shared.stream import StreamWriter
 
 
 class Title:
@@ -11,7 +12,6 @@ class Title:
 
     DEFAULT_CHAR = "*"
     DEFAULT_SECTION_CHAR = "-"
-    # Extra columns beyond title text so the star rules read as a clear banner.
     DEFAULT_BANNER_PAD = 16
 
     @staticmethod
@@ -25,7 +25,6 @@ class Title:
                 width += 1
         return width
 
-
     @classmethod
     def banner(
         cls,
@@ -36,14 +35,6 @@ class Title:
         center: bool = False,
         pad: Optional[int] = None,
     ) -> str:
-        """Main title wrapped by rule lines.
-
-        Example::
-
-            **************************
-            这里是标题
-            **************************
-        """
         body = str(text)
         rule_char = (char or cls.DEFAULT_CHAR)[:1] or "*"
         body_width = Title.display_width(body)
@@ -67,7 +58,6 @@ class Title:
         *,
         char: str = DEFAULT_SECTION_CHAR,
     ) -> str:
-        """Section heading: ``-- 枚举汇总 --``."""
         rule_char = (char or cls.DEFAULT_SECTION_CHAR)[:1] or "-"
         body = str(text).strip()
         return f"{rule_char * 2} {body} {rule_char * 2}"
@@ -84,7 +74,7 @@ class Title:
         stream: Optional[TextIO] = None,
     ) -> str:
         out = cls.banner(text, char=char, width=width, center=center, pad=pad)
-        cls._write(out, stream=stream)
+        StreamWriter.write(out, stream=stream)
         return out
 
     @classmethod
@@ -96,17 +86,12 @@ class Title:
         stream: Optional[TextIO] = None,
     ) -> str:
         out = cls.section(text, char=char)
-        cls._write(out, stream=stream)
+        StreamWriter.write(out, stream=stream)
         return out
-
-    @staticmethod
-    def _write(text: str, *, stream: Optional[TextIO] = None) -> None:
-        out = stream or sys.stdout
-        print(text, file=out, flush=True)
 
 
 class TitleNamespace:
-    """CmdLayout.title namespace — thin wrappers over Title."""
+    """CmdLayout.title namespace."""
 
     @staticmethod
     def banner(
@@ -149,6 +134,3 @@ class TitleNamespace:
         stream: Optional[TextIO] = None,
     ) -> str:
         return Title.print_section(text, char=char, stream=stream)
-
-
-__all__ = ["Title", "TitleNamespace"]

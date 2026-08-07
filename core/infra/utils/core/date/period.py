@@ -2,89 +2,25 @@
 周期处理模块（内部使用）
 
 职责：周期的加减、比较、转换（最复杂的逻辑），所有周期值用字符串表示。
+日期/季度解析复用 ``parser``；日级加减复用 ``calculator``。
 """
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from core.infra.utils.date.constants import PERIOD_DAY, PERIOD_MONTH, PERIOD_QUARTER, PERIOD_YEAR, FMT_YYYYMMDD
-
-
-def normalize_date_str(date_str: Optional[str]) -> Optional[str]:
-    """内部辅助：标准化日期字符串"""
-    if not date_str:
-        return None
-    s = str(date_str).strip()
-    if not s:
-        return None
-    if len(s) == 8 and s.isdigit():
-        return s
-    if len(s) == 10 and s[4] == "-" and s[7] == "-":
-        try:
-            dt = datetime.strptime(s, "%Y-%m-%d")
-            return dt.strftime(FMT_YYYYMMDD)
-        except ValueError:
-            return None
-    return None
-
-
-def parse_quarter_str(quarter_str: str) -> Optional[tuple]:
-    """内部辅助：解析季度字符串"""
-    if not quarter_str:
-        return None
-    s = str(quarter_str).strip()
-    if len(s) == 6 and s[4] == "Q":
-        try:
-            y, q = int(s[:4]), int(s[5])
-            if 1 <= q <= 4:
-                return (y, q)
-        except (ValueError, IndexError):
-            pass
-    if len(s) == 8 and s[6] == "Q":
-        try:
-            y, q = int(s[:4]), int(s[7])
-            if 1 <= q <= 4:
-                return (y, q)
-        except (ValueError, IndexError):
-            pass
-    return None
-
-
-def date_to_quarter_str(date_str: str) -> str:
-    """内部辅助：日期转季度"""
-    if not date_str or len(date_str) != 8:
-        raise ValueError(f"日期格式错误: {date_str}，应为 YYYYMMDD")
-    y, m = int(date_str[:4]), int(date_str[4:6])
-    q = (m - 1) // 3 + 1
-    return f"{y}Q{q}"
-
-
-def quarter_to_date_str(quarter_str: str, is_start: bool = True) -> Optional[str]:
-    """内部辅助：季度转日期"""
-    parsed = parse_quarter_str(quarter_str)
-    if not parsed:
-        return None
-    y, q = parsed
-    start_month = {1: 1, 2: 4, 3: 7, 4: 10}[q]
-    if is_start:
-        return f"{y}{start_month:02d}01"
-    if q < 4:
-        next_y, next_q = y, q + 1
-    else:
-        next_y, next_q = y + 1, 1
-    next_start_month = {1: 1, 2: 4, 3: 7, 4: 10}[next_q]
-    first_next = datetime(next_y, next_start_month, 1)
-    last_day = first_next - timedelta(days=1)
-    return last_day.strftime(FMT_YYYYMMDD)
-
-
-def add_days_impl(date: str, days: int) -> str:
-    """内部辅助：日期加法"""
-    normalized = normalize_date_str(date)
-    if not normalized:
-        raise ValueError(f"日期格式错误: {date}")
-    dt = datetime.strptime(normalized, FMT_YYYYMMDD)
-    result = dt + timedelta(days=days)
-    return result.strftime(FMT_YYYYMMDD)
+from core.infra.utils.core.date.calculator import add_days_impl, diff_days_impl
+from core.infra.utils.core.date.constants import (
+    FMT_YYYYMMDD,
+    PERIOD_DAY,
+    PERIOD_MONTH,
+    PERIOD_QUARTER,
+    PERIOD_YEAR,
+)
+from core.infra.utils.core.date.parser import (
+    date_to_quarter_str,
+    normalize_date_str,
+    parse_quarter_str,
+    quarter_to_date_str,
+)
 
 
 def normalize_period_type(period_type: str) -> str:
@@ -298,7 +234,6 @@ def diff_periods_impl(period1: str, period2: str, period_type: str) -> int:
     period_type = normalize_period_type(period_type)
     
     if period_type == PERIOD_DAY:
-        from core.infra.utils.date.calculator import diff_days_impl
         return diff_days_impl(period1, period2)
     
     if period_type == PERIOD_MONTH:

@@ -10,17 +10,18 @@
 
 ```text
 Utils
-  ├── date   → date/date_utils.DateUtils
-  ├── types  → type_utils.TypeUtils
-  ├── io     → io/csv_io + io/file_io
-  └── math   → math/deterministic_random
-contracts    → PERIOD_* / PeriodType / ArchiveFormat
+  ├── date      → core/date/date_utils.DateUtils
+  ├── types     → core/type_utils.TypeUtils
+  ├── io        → core/io（CsvIo / FileIo）
+  ├── math      → core/math/DeterministicRandom
+  └── markdown  → core/markdown/MarkdownMgr
+contracts       → PERIOD_* / PeriodType / ArchiveFormat
 ```
 
 ## 边界
 
-**In scope：** 日期、类型判断、CSV/归档、确定性随机  
-**Out of scope：** 配置合并（`ProjectContext`）、CLI 图标（`CmdLayout`）、业务日历规则（`CalendarService`）
+**In scope：** 日期、类型判断、CSV/归档、确定性随机、MD 模版填充  
+**Out of scope：** 配置合并（`ProjectContext`）、默认业务起止日（`ProjectContext.config.get_default_start_date`）、CLI 图标（`CmdLayout`）、业务日历规则（`CalendarService`）
 
 ## 相关文档
 

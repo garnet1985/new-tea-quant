@@ -1,17 +1,21 @@
 # Utils（`infra.utils`）
 
-与业务无关的通用工具：日期、类型/DataFrame、CSV/归档 IO、确定性随机。
+与业务无关的通用工具：日期、类型/DataFrame、CSV/归档 IO、确定性随机、Markdown 模版填充。
 
 ## 布局
 
 ```text
 core/infra/utils/
 ├── utils.py            # Facade Utils
-├── type_utils.py       # Utils.types 实现
 ├── contracts.py
-├── date/ / io/ / math/ # 内部实现
+├── core/
+│   ├── date/           # Utils.date
+│   ├── type_utils.py   # Utils.types
+│   ├── io/             # Utils.io（CsvIo / FileIo）
+│   ├── math/           # Utils.math
+│   └── markdown/       # Utils.markdown
 ├── API.md / QUICKSTART.md / glossary.yaml
-├── __test__/
+├── __test__/           # 仅 test_api.py
 └── docs/
 ```
 

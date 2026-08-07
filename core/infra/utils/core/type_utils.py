@@ -1,8 +1,8 @@
 """
-通用工具模块
+类型判断、字典深合并/差异、DataFrame 薄封装。
 
-提供配置文件的加载、合并等工具方法。
-pandas 仅在操作 DataFrame/Series 的方法内按需 import，避免轻量路径（如 DateUtils）顶层依赖 pandas。
+公开入口：``Utils.types``。
+pandas 仅在 DataFrame/Series 方法内按需 import，避免轻量路径顶层依赖 pandas。
 """
 from __future__ import annotations
 

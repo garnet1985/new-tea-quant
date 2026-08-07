@@ -5,19 +5,19 @@ from pathlib import Path
 
 import pytest
 
-from core.infra.utils.markdown import MarkdownMgr, extract_tokens
+from core.infra.utils.core.markdown import MarkdownMgr
 
 pytestmark = pytest.mark.force_run
 
 
 def test_extract_tokens_ordered_unique():
     text = "A {{:name}} B {{:wall_clock_seconds}} C {{:name}}"
-    assert extract_tokens(text) == ["name", "wall_clock_seconds"]
+    assert MarkdownMgr.extract_tokens(text) == ["name", "wall_clock_seconds"]
 
 
 def test_plain_double_brace_not_token():
     text = "keep {{name}} and fill {{:name}}"
-    assert extract_tokens(text) == ["name"]
+    assert MarkdownMgr.extract_tokens(text) == ["name"]
 
 
 def test_load_template_fill_save(tmp_path: Path):

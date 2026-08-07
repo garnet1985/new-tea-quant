@@ -9,10 +9,10 @@ from datetime import datetime, date
 from typing import Any, Optional, List
 
 # 内部实现模块（别名避免与参数名 period 冲突）
-from core.infra.utils.date import calculator as date_calculator
-from core.infra.utils.date import constants as date_constants
-from core.infra.utils.date import parser as date_parser
-from core.infra.utils.date import period as date_period
+from core.infra.utils.core.date import calculator as date_calculator
+from core.infra.utils.core.date import constants as date_constants
+from core.infra.utils.core.date import parser as date_parser
+from core.infra.utils.core.date import period as date_period
 
 
 class DateUtils:
@@ -45,24 +45,13 @@ class DateUtils:
     QUERY_DATE_RANGE_MAX = date_constants.QUERY_DATE_RANGE_MAX
 
     @staticmethod
-    def _get_config_manager():
-        """延迟导入 ProjectContext 以避免循环导入"""
-        from core.infra.project_context import ProjectContext
-        return ProjectContext
-
-    @staticmethod
-    def get_default_start_date() -> str:
-        """获取默认开始日期"""
-        ProjectContext = DateUtils._get_config_manager()
-        return ProjectContext.config.get_default_start_date()
-
-    @staticmethod
     def get_query_date_range_min() -> str:
         """
         无界查询下界（YYYYMMDD）：与 `core/default_config/data.json` 中 `default_start_date` 一致；
         配置缺失或无法标准化时回退到内部兜底常量。
         """
-        ProjectContext = DateUtils._get_config_manager()
+        from core.infra.project_context import ProjectContext
+
         raw = ProjectContext.config.get_default_start_date()
         if raw:
             n = DateUtils.normalize_str(str(raw))

@@ -10,13 +10,13 @@
 
 快速开始见 [QUICKSTART.md](./QUICKSTART.md)。术语见 [glossary.yaml](./glossary.yaml)。架构见 [ARCHITECTURE.md](./docs/ARCHITECTURE.md)。
 
-**公开约定：** 包根仅导出 `Utils`；周期常量可从 [`contracts.py`](./contracts.py) 导入。
+**公开约定：** 包根仅导出 `Utils`；周期常量可从 [`contracts.py`](./contracts.py) 导入。实现位于 `core/`，禁止 deep-import。
 
 ---
 
 ## Utils
 
-**描述：** 通用无业务工具门面 — `date` / `types` / `io` / `math`
+**描述：** 通用无业务工具门面 — `date` / `types` / `io` / `math` / `markdown`
 
 ### date
 
@@ -31,7 +31,10 @@
 | `add_days` / `sub_days` / `diff_days` | 日级运算 |
 | `is_before` / `is_after` / `is_same` | 比较 |
 | `to_period_str` / `from_period_str` / `add_periods` … | 周期运算 |
+| `get_query_date_range_min` / `QUERY_DATE_RANGE_MAX` | 无界查询日期范围 |
 | `PERIOD_DAY` / `PERIOD_MONTH` / … | 周期常量 |
+
+> 业务默认开始日请用 `ProjectContext.config.get_default_start_date()`，不在本门面提供。
 
 - **状态：** `beta`
 - **举例：**

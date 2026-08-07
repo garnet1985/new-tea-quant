@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 import unittest
+
+import pytest
+
 from core.infra.utils import Utils
+
+pytestmark = pytest.mark.force_run
+
 
 class TestDeterministicUnitFloat(unittest.TestCase):
     def test_same_keys_same_value(self):

@@ -1,13 +1,17 @@
 """
 date_utils.py 单元测试
 """
-from core.infra.utils import Utils
-try:
-    import pytest
-except ImportError:
-    pytest = None
+from __future__ import annotations
 
 from datetime import datetime
+
+import pytest
+
+from core.infra.utils import Utils
+
+pytestmark = pytest.mark.force_run
+
+
 class TestDateUtils:
     """DateUtils 测试类"""
     

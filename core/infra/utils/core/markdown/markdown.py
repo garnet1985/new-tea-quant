@@ -37,21 +37,13 @@ def _normalize_token_name(token: str) -> str:
     return name
 
 
-def extract_tokens(template: str) -> List[str]:
-    """Ordered unique token names appearing in ``template``."""
-    seen: Dict[str, None] = {}
-    for m in _TOKEN_RE.finditer(template or ""):
-        seen.setdefault(m.group(1), None)
-    return list(seen.keys())
-
-
 class MarkdownMgr:
     """Load an MD template, fill ``{{:token}}`` slots, save the result."""
 
     def __init__(self, template_content: str, *, source_path: Optional[Path] = None):
         self._template_content = str(template_content if template_content is not None else "")
         self._source_path = Path(source_path).resolve() if source_path is not None else None
-        self._token_names = extract_tokens(self._template_content)
+        self._token_names = MarkdownMgr.extract_tokens(self._template_content)
         self._values: Dict[str, str] = {}
 
     # ── load template ──
@@ -69,6 +61,14 @@ class MarkdownMgr:
     def from_text(cls, template_content: str) -> "MarkdownMgr":
         """Load template from an in-memory string (no file)."""
         return cls(template_content, source_path=None)
+
+    @staticmethod
+    def extract_tokens(template: str) -> List[str]:
+        """Ordered unique token names appearing in ``template``."""
+        seen: Dict[str, None] = {}
+        for m in _TOKEN_RE.finditer(template or ""):
+            seen.setdefault(m.group(1), None)
+        return list(seen.keys())
 
     # ── inspect ──
 
@@ -136,4 +136,4 @@ class MarkdownMgr:
         return out.resolve()
 
 
-__all__ = ["MarkdownMgr", "extract_tokens"]
+__all__ = ["MarkdownMgr"]

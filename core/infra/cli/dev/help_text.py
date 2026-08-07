@@ -23,7 +23,7 @@ DEVCLI_COMMAND_REFERENCE = """
   python devcli.py bps                     slice 性能基准（三档；默认 duckdb）
   python devcli.py bpe --db mysql          entity + MySQL
   python devcli.py bps --db pgsql          slice + PostgreSQL
-  python devcli.py bpc                     清理 BE 性能生成物（含 mysql/pgsql 测试库）
+  python devcli.py bpc                     清理 BE 性能临时库 + test_strategies/*/results
 
   --verbose                                详细日志
 

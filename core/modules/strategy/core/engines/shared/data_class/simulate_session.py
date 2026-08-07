@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import List, Optional
 
 from core.modules.strategy.core.enums import SimulateKind
@@ -76,6 +77,21 @@ class SimulateSession:
         return str(
             self.strategy_info.unique_relative_path or self.strategy_info.key or ""
         )
+
+    @property
+    def strategy_folder(self) -> Path:
+        """Discovered strategy root; all on-disk strategy paths hang off this."""
+        info = self.strategy_info
+        if info is not None and getattr(info, "folder", None) is not None:
+            try:
+                return info.resolved_folder()
+            except Exception:
+                folder = Path(info.folder)
+                if folder.is_absolute():
+                    return folder
+        from core.infra.project_context.core.path_manager import PathManager
+
+        return PathManager.coerce_strategy_folder(self.strategy_key)
 
     def validate_for_run(self) -> None:
         """跑 Pipeline 前自检。"""

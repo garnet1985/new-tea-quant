@@ -108,7 +108,11 @@ class WorkbenchApplySettings:
 
     @staticmethod
     def _settings_path(strategy_name: str) -> Path:
-        return ProjectContext.path.get_strategy_settings_path(strategy_name)
+        from core.modules.strategy.core.services.discovery import DiscoveryService
+
+        return ProjectContext.path.get_strategy_settings_path(
+            DiscoveryService.resolve_strategy_folder(strategy_name)
+        )
 
     @classmethod
     def _backup_settings_file(cls, strategy_name: str) -> None:

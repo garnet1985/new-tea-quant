@@ -2,6 +2,9 @@
 .db/
 results/_local/
 
+# 基准策略跑测产物（基于 discovered folder，bpc 可清）
+scripts/test_strategies/*/results/
+
 # 旧路径残留（若存在可删）
 .workdir/
 

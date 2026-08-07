@@ -32,7 +32,25 @@ class ScanJob:
 
     @staticmethod
     def strategy_cache_key(info: EnabledStrategyInfo, fallback: str = "") -> str:
-        return str(info.key or info.unique_relative_path or fallback or "").strip()
+        """Stable id for progress / UI (not the on-disk strategy root)."""
+        return str(info.unique_relative_path or info.key or fallback or "").strip()
+
+    @staticmethod
+    def strategy_folder(info: EnabledStrategyInfo):
+        from pathlib import Path
+
+        from core.infra.project_context.core.path_manager import PathManager
+
+        resolved = getattr(info, "resolved_folder", None)
+        if callable(resolved):
+            return resolved()
+        if getattr(info, "folder", None) is not None:
+            return Path(info.folder)
+        return PathManager.coerce_strategy_folder(
+            getattr(info, "unique_relative_path", None)
+            or getattr(info, "key", None)
+            or ""
+        )
 
     @classmethod
     def resolve_strategy(
@@ -78,6 +96,7 @@ class ScanJob:
                 return {"primary_action": "run"}
 
             path_key = cls.strategy_cache_key(info, name)
+            folder = cls.strategy_folder(info)
             data_mgr = DataManager(is_verbose=False)
             kline_latest = ScanDateResolver.load_kline_latest_date(data_mgr)
             if not kline_latest:
@@ -98,14 +117,14 @@ class ScanJob:
             resolver = ScanDateResolver(data_mgr)
             scan_date, stock_ids = resolver.resolve_scan_date(use_strict=use_strict)
             csv_path = (
-                ProjectContext.path.get_strategy_scan_results_directory(path_key)
+                ProjectContext.path.get_strategy_scan_results_directory(folder)
                 / scan_date
                 / "opportunities.csv"
             )
             if not csv_path.is_file():
                 return {"primary_action": "run"}
 
-            cache = ScanCacheManager(path_key, settings.scanner.max_cache_days)
+            cache = ScanCacheManager(folder, settings.scanner.max_cache_days)
             opportunities = cache.load_opportunities(scan_date)
             stocks_with_opps = (
                 {o.stock_id for o in opportunities} if opportunities else set()
@@ -147,6 +166,7 @@ class ScanJob:
                 raise ValueError(err or "无法解析策略")
 
             path_key = cls.strategy_cache_key(info, name)
+            folder = cls.strategy_folder(info)
             data_mgr = DataManager(is_verbose=False)
 
             kline_latest = ScanDateResolver.load_kline_latest_date(data_mgr)
@@ -186,7 +206,7 @@ class ScanJob:
                 report.setdefault("strategy_key", path_key)
             prog.complete(
                 report if isinstance(report, dict) else {},
-                cache_key=path_key,
+                cache_key=str(folder),
             )
         except Exception as exc:
             logger.exception(

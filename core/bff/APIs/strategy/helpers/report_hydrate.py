@@ -100,6 +100,13 @@ def _version_dir_candidates_from_slot(
     return uniq
 
 
+def _resolve_strategy_folder(strategy_name: str) -> Path:
+    """Prefer discovered strategy folder; fall back to userspace/strategies/{name}."""
+    from core.modules.strategy.core.services.discovery import DiscoveryService
+
+    return DiscoveryService.resolve_strategy_folder(strategy_name)
+
+
 def resolve_simulation_output_dirs(
     strategy_name: str,
     *,
@@ -114,12 +121,16 @@ def resolve_simulation_output_dirs(
 
     slot = slot if isinstance(slot, dict) else {}
     names = _version_dir_candidates_from_slot(slot, workbench_version)
+    try:
+        folder = _resolve_strategy_folder(sn)
+    except ValueError:
+        return []
     if step == "enum":
-        root = ProjectContext.path.get_strategy_directory_simulation_enum(sn)
+        root = ProjectContext.path.get_strategy_directory_simulation_enum(folder)
     elif step == "price":
-        root = ProjectContext.path.get_strategy_directory_simulation_price(sn)
+        root = ProjectContext.path.get_strategy_directory_simulation_price(folder)
     elif step == "portfolio":
-        root = ProjectContext.path.get_strategy_directory_simulation_portfolio(sn)
+        root = ProjectContext.path.get_strategy_directory_simulation_portfolio(folder)
     else:
         return []
 

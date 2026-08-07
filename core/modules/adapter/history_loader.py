@@ -180,8 +180,13 @@ class HistoryLoader:
             return None
 
         from core.infra.project_context import ProjectContext
+        from core.modules.strategy.core.services.discovery import DiscoveryService
 
-        root = ProjectContext.path.get_strategy_directory_simulation_price(name)
+        try:
+            folder = DiscoveryService.resolve_strategy_folder(name)
+        except Exception:
+            folder = name
+        root = ProjectContext.path.get_strategy_directory_simulation_price(folder)
         meta_path = root / "meta.json"
         if not meta_path.is_file():
             return None

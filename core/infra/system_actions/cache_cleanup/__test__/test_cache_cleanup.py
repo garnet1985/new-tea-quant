@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -73,8 +74,8 @@ def test_run_cache_cleanup_selected_targets(userspace_layout):
         return_value=2,
     ) as mock_db, patch.object(
         CacheCleanup,
-        "_discovered_strategy_keys",
-        return_value=["demo/nested/my_strategy"],
+        "_discovered_strategy_folders",
+        return_value=[Path("demo/nested/my_strategy")],
     ):
         out = CacheCleanup.run(
             clear_db_cache=True,

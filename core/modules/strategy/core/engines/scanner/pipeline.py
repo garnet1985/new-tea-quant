@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import fields as dc_fields
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from core.modules.backtest_engine.core.performance.worker_profile import (
@@ -156,6 +157,17 @@ class ScannerPipeline:
         strategy_key = str(
             strategy_info.key or strategy_info.unique_relative_path or ""
         ).strip()
+        resolved = getattr(strategy_info, "resolved_folder", None)
+        if callable(resolved):
+            strategy_folder = resolved()
+        elif getattr(strategy_info, "folder", None) is not None:
+            strategy_folder = Path(strategy_info.folder)
+        else:
+            from core.infra.project_context.core.path_manager import PathManager
+
+            strategy_folder = PathManager.coerce_strategy_folder(
+                strategy_info.unique_relative_path or strategy_key
+            )
 
         resolver = ScanDateResolver(dm)
         use_strict = settings.scanner.use_strict_previous_trading_day
@@ -164,7 +176,7 @@ class ScannerPipeline:
         )
 
         cache = ScanCacheManager(
-            strategy_key,
+            strategy_folder,
             max_cache_days=settings.scanner.max_cache_days,
         )
         cache.cleanup_old_cache()
@@ -174,6 +186,7 @@ class ScannerPipeline:
 
         report = ReportManager.begin(
             strategy_key=strategy_key,
+            strategy_folder=strategy_folder,
             scan_date=scan_date,
             stock_ids=stock_ids,
             date_meta=date_meta,

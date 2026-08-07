@@ -17,6 +17,7 @@ from common import (  # noqa: E402
     DB_DIR,
     REGISTRY_PATH,
     RESULTS_DIR,
+    TEST_STRATEGIES_DIR,
     _NAME_RE,
     ensure_layout,
     load_registry,
@@ -106,24 +107,56 @@ def clean_db(*, name: Optional[str] = None) -> None:
 
 def clean_local_results() -> None:
     local = RESULTS_DIR / "_local"
-    if not local.is_dir():
-        return
-    for p in sorted(local.rglob("*"), reverse=True):
-        if p.is_file():
-            p.unlink()
-        elif p.is_dir():
-            try:
-                p.rmdir()
-            except OSError:
-                pass
-    print(f"cleaned {local}")
+    if local.is_dir():
+        for p in sorted(local.rglob("*"), reverse=True):
+            if p.is_file():
+                p.unlink()
+            elif p.is_dir():
+                try:
+                    p.rmdir()
+                except OSError:
+                    pass
+        print(f"cleaned {local}")
+
+    # Strategy run artifacts now live under discovered test_strategies folder.
+    for mode_dir in ("entity_based", "slice_based"):
+        results = TEST_STRATEGIES_DIR / mode_dir / "results"
+        if results.is_dir():
+            import shutil
+
+            shutil.rmtree(results)
+            print(f"cleaned {results}")
+
+    # Legacy mistaken dumps under userspace/strategies/{entity,slice}_based/
+    try:
+        from core.infra.project_context import ProjectContext
+
+        strategies_root = ProjectContext.path.get_strategies_root()
+    except Exception:
+        strategies_root = repo_root() / "userspace" / "strategies"
+    for legacy_name in ("entity_based", "slice_based"):
+        legacy = strategies_root / legacy_name
+        if not legacy.is_dir():
+            continue
+        # Only remove if it looks like our perf dump (results only / no strategy.py)
+        if (legacy / "strategy.py").is_file():
+            print(f"skip userspace strategy (has strategy.py): {legacy}")
+            continue
+        import shutil
+
+        shutil.rmtree(legacy)
+        print(f"cleaned legacy perf dump {legacy}")
 
 
 def main(argv: Optional[list] = None) -> int:
     p = argparse.ArgumentParser(description="Clean BE __performance__ artifacts")
     p.add_argument("--db", action="store_true", help="delete registered perf_test_tmp* DBs under .db/")
-    p.add_argument("--results", action="store_true", help="delete legacy results/_local only（不删 reports/{版本} 留档）")
-    p.add_argument("--all", action="store_true", help="db + legacy local results（不删版本留档）")
+    p.add_argument(
+        "--results",
+        action="store_true",
+        help="delete test_strategies/*/results + legacy local dumps（不删 reports/{版本} 留档）",
+    )
+    p.add_argument("--all", action="store_true", help="db + results（不删版本留档）")
     p.add_argument("--name", default=None, help="only clean this registry name")
     args = p.parse_args(argv)
 

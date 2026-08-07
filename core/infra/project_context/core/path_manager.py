@@ -1,6 +1,6 @@
 """Path Manager - 路径管理器"""
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 import logging
 import os
 import shutil
@@ -195,39 +195,76 @@ class PathManager:
     # ========== 策略相关路径 ==========
 
     @staticmethod
-    def get_strategy_directory(strategy_name: str) -> Path:
-        """获取指定策略的目录：userspace/strategies/{strategy_name}/"""
-        return PathManager.get_strategies_root() / strategy_name
+    def coerce_strategy_folder(strategy_folder_or_rel: Union[str, Path]) -> Path:
+        """Normalize a strategy root.
+
+        - Absolute path → discovered strategy folder (preferred after discovery).
+        - Relative name/path → ``userspace/strategies/{rel}`` (bootstrap / API id only).
+        """
+        if strategy_folder_or_rel is None:
+            raise ValueError("strategy folder/path 不能为空")
+        p = Path(strategy_folder_or_rel)
+        if p.is_absolute():
+            return p
+        rel = str(strategy_folder_or_rel).strip().replace("\\", "/").lstrip("/")
+        if not rel:
+            raise ValueError("strategy folder/path 不能为空")
+        return PathManager.get_strategies_root() / rel
 
     @staticmethod
-    def get_strategy_settings_path(strategy_name: str) -> Path:
-        """获取指定策略的配置文件：userspace/strategies/{strategy_name}/settings.py"""
-        return PathManager.get_strategy_directory(strategy_name) / "settings.py"
+    def get_strategy_directory(strategy_folder_or_rel: Union[str, Path]) -> Path:
+        """策略根目录：优先绝对 discovered folder，否则拼到 userspace/strategies/。"""
+        return PathManager.coerce_strategy_folder(strategy_folder_or_rel)
 
     @staticmethod
-    def get_strategy_results_directory(strategy_name: str) -> Path:
-        """获取指定策略的结果目录：userspace/strategies/{strategy_name}/results/"""
-        return PathManager.get_strategy_directory(strategy_name) / "results"
+    def get_strategy_settings_path(strategy_folder_or_rel: Union[str, Path]) -> Path:
+        """策略 settings.py：``{strategy_root}/settings.py``。"""
+        return PathManager.get_strategy_directory(strategy_folder_or_rel) / "settings.py"
 
     @staticmethod
-    def get_strategy_simulation_enum_directory(strategy_name: str) -> Path:
-        """获取枚举模拟结果目录：.../results/simulations/enum/"""
-        return PathManager.get_strategy_results_directory(strategy_name) / "simulations" / "enum"
+    def get_strategy_results_directory(strategy_folder_or_rel: Union[str, Path]) -> Path:
+        """策略结果目录：``{strategy_root}/results/``。"""
+        return PathManager.get_strategy_directory(strategy_folder_or_rel) / "results"
 
     @staticmethod
-    def get_strategy_simulation_price_directory(strategy_name: str) -> Path:
-        """获取价格模拟结果目录：.../results/simulations/price/"""
-        return PathManager.get_strategy_results_directory(strategy_name) / "simulations" / "price"
+    def get_strategy_simulation_enum_directory(
+        strategy_folder_or_rel: Union[str, Path],
+    ) -> Path:
+        """枚举模拟结果：``{strategy_root}/results/simulations/enum/``。"""
+        return (
+            PathManager.get_strategy_results_directory(strategy_folder_or_rel)
+            / "simulations"
+            / "enum"
+        )
 
     @staticmethod
-    def get_strategy_simulation_portfolio_directory(strategy_name: str) -> Path:
-        """获取组合模拟结果目录：.../results/simulations/portfolio/"""
-        return PathManager.get_strategy_results_directory(strategy_name) / "simulations" / "portfolio"
+    def get_strategy_simulation_price_directory(
+        strategy_folder_or_rel: Union[str, Path],
+    ) -> Path:
+        """价格模拟结果：``{strategy_root}/results/simulations/price/``。"""
+        return (
+            PathManager.get_strategy_results_directory(strategy_folder_or_rel)
+            / "simulations"
+            / "price"
+        )
 
     @staticmethod
-    def get_strategy_scan_results_directory(strategy_name: str) -> Path:
-        """获取扫描结果目录：.../results/scan/"""
-        return PathManager.get_strategy_results_directory(strategy_name) / "scan"
+    def get_strategy_simulation_portfolio_directory(
+        strategy_folder_or_rel: Union[str, Path],
+    ) -> Path:
+        """组合模拟结果：``{strategy_root}/results/simulations/portfolio/``。"""
+        return (
+            PathManager.get_strategy_results_directory(strategy_folder_or_rel)
+            / "simulations"
+            / "portfolio"
+        )
+
+    @staticmethod
+    def get_strategy_scan_results_directory(
+        strategy_folder_or_rel: Union[str, Path],
+    ) -> Path:
+        """扫描结果：``{strategy_root}/results/scan/``。"""
+        return PathManager.get_strategy_results_directory(strategy_folder_or_rel) / "scan"
 
     # ========== extensions: Tag ==========
 

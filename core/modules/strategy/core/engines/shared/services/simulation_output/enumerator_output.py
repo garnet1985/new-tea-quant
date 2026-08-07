@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 
 from core.infra.project_context import ProjectContext
 from core.modules.strategy.core.engines.shared.services.simulation_output.io import ArtifactIO
@@ -33,15 +33,18 @@ class EnumOutput:
         return cls(output_dir=Path(output_dir), version_id=str(version_id))
 
     @classmethod
-    def resolve_dir(cls, strategy_path: str, version_id: str) -> Path:
-        """``simulation/enum/{strategy_path}/{version_id}``。"""
-        path_id = str(strategy_path or "").strip()
+    def resolve_dir(
+        cls, strategy_folder_or_rel: Union[str, Path], version_id: str
+    ) -> Path:
+        """``{strategy_root}/results/simulations/enum/{version_id}``。"""
         vid = str(version_id or "").strip()
-        if not path_id:
-            raise ValueError("strategy_path 不能为空")
+        if strategy_folder_or_rel is None or not str(strategy_folder_or_rel).strip():
+            raise ValueError("strategy_folder 不能为空")
         if not vid:
             raise ValueError("enum version_id 不能为空")
-        root = ProjectContext.path.get_strategy_directory_simulation_enum(path_id)
+        root = ProjectContext.path.get_strategy_directory_simulation_enum(
+            strategy_folder_or_rel
+        )
         output_dir = root / vid
         if not output_dir.is_dir():
             raise FileNotFoundError(f"枚举 version 目录不存在: {output_dir}")

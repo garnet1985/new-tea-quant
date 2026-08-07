@@ -49,8 +49,8 @@ class EnumSource:
     end_date: str
 
     @classmethod
-    def resolve_dir(cls, strategy_path: str, version_id: str) -> Path:
-        return EnumOutput.resolve_dir(strategy_path, version_id)
+    def resolve_dir(cls, strategy_folder_or_rel, version_id: str) -> Path:
+        return EnumOutput.resolve_dir(strategy_folder_or_rel, version_id)
 
     @classmethod
     def load(cls, output_dir: Path, version_id: str) -> "EnumSource":

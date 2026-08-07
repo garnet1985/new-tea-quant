@@ -23,19 +23,51 @@ class CacheCleanup:
             path.unlink()
 
     @staticmethod
-    def _discovered_strategy_keys(*, strategy_names: Optional[Iterable[str]] = None) -> List[str]:
-        """策略 path key 列表；默认走 ``DiscoveryService`` 递归发现（与扫描/列表页一致）。"""
-        if strategy_names is not None:
-            return sorted({str(name).strip() for name in strategy_names if str(name).strip()})
-
+    def _discovered_strategy_folders(
+        *, strategy_names: Optional[Iterable[str]] = None
+    ) -> List[Path]:
+        """Discovered strategy roots (absolute). Optional filter by key or relative path."""
+        from core.infra.project_context.core.path_manager import PathManager
         from core.modules.strategy.core.services.discovery import DiscoveryService
 
-        keys: List[str] = []
+        if strategy_names is not None:
+            allowed = sorted(
+                {str(name).strip() for name in strategy_names if str(name).strip()}
+            )
+            folders: List[Path] = []
+            seen: set[str] = set()
+            infos = list(DiscoveryService.discover_strategies())
+            for name in allowed:
+                matched = False
+                for info in infos:
+                    if name in (
+                        str(info.unique_relative_path or "").strip(),
+                        str(info.key or "").strip(),
+                    ):
+                        folder = info.resolved_folder()
+                        key = str(folder)
+                        if key not in seen:
+                            seen.add(key)
+                            folders.append(folder)
+                        matched = True
+                        break
+                if not matched:
+                    folder = PathManager.coerce_strategy_folder(name)
+                    key = str(folder)
+                    if key not in seen:
+                        seen.add(key)
+                        folders.append(folder)
+            return folders
+
+        out: List[Path] = []
+        seen_all: set[str] = set()
         for info in DiscoveryService.discover_strategies():
-            key = str(info.unique_relative_path or info.key or "").strip()
-            if key:
-                keys.append(key)
-        return sorted(keys)
+            folder = info.resolved_folder()
+            key = str(folder)
+            if key not in seen_all:
+                seen_all.add(key)
+                out.append(folder)
+        return out
 
     @staticmethod
     def clear_workbench_db_cache() -> int:
@@ -53,8 +85,12 @@ class CacheCleanup:
     def clear_backtest_results_disk(*, strategy_names: Optional[Iterable[str]] = None) -> int:
         """删除各策略 ``results/simulations/``。返回删除的目录数。"""
         removed = 0
-        for name in CacheCleanup._discovered_strategy_keys(strategy_names=strategy_names):
-            sim_root = ProjectContext.path.get_strategy_results_directory(name) / "simulations"
+        for folder in CacheCleanup._discovered_strategy_folders(
+            strategy_names=strategy_names
+        ):
+            sim_root = (
+                ProjectContext.path.get_strategy_results_directory(folder) / "simulations"
+            )
             if sim_root.exists():
                 CacheCleanup._rm_tree(sim_root)
                 removed += 1
@@ -64,8 +100,10 @@ class CacheCleanup:
     def clear_scan_results_disk(*, strategy_names: Optional[Iterable[str]] = None) -> int:
         """删除各策略 ``results/scan/``。返回删除的目录数。"""
         removed = 0
-        for name in CacheCleanup._discovered_strategy_keys(strategy_names=strategy_names):
-            scan_root = ProjectContext.path.get_strategy_scan_results_directory(name)
+        for folder in CacheCleanup._discovered_strategy_folders(
+            strategy_names=strategy_names
+        ):
+            scan_root = ProjectContext.path.get_strategy_scan_results_directory(folder)
             if scan_root.exists():
                 CacheCleanup._rm_tree(scan_root)
                 removed += 1
@@ -75,8 +113,10 @@ class CacheCleanup:
     def clear_strategy_results_disk(*, strategy_names: Optional[Iterable[str]] = None) -> int:
         """删除各策略整个 ``results/``（devcli 用，含 simulations 与 scan）。"""
         removed = 0
-        for name in CacheCleanup._discovered_strategy_keys(strategy_names=strategy_names):
-            results = ProjectContext.path.get_strategy_results_directory(name)
+        for folder in CacheCleanup._discovered_strategy_folders(
+            strategy_names=strategy_names
+        ):
+            results = ProjectContext.path.get_strategy_results_directory(folder)
             if results.exists():
                 CacheCleanup._rm_tree(results)
                 removed += 1

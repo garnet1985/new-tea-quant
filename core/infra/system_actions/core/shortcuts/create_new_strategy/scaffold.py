@@ -7,7 +7,8 @@ from pathlib import Path
 
 from core.infra.project_context import ProjectContext
 from core.infra.system_actions.contracts import ScaffoldResult
-from core.infra.system_actions.shortcuts.shared import ScaffoldHelpers
+from core.infra.system_actions.core.shortcuts.shared import ScaffoldHelpers
+
 from core.modules.strategy.core.services.discovery.path_rules import StrategyPathRules
 
 STRATEGY_TEMPLATE_REL = Path("_template") / "empty_strategy"

@@ -10,13 +10,13 @@
 
 快速开始见 [QUICKSTART.md](./QUICKSTART.md)。术语见 [glossary.yaml](./glossary.yaml)。架构见 [ARCHITECTURE.md](./docs/ARCHITECTURE.md)。
 
-**公开约定：** 包根仅导出 `SystemActions`；类型从 [`contracts.py`](./contracts.py) 导入。实现位于 `cache_cleanup/`、`shortcuts/`（内部）。
+**公开约定：** 包根仅导出 `SystemActions`；类型从 [`contracts.py`](./contracts.py) 导入，或经 `SystemActions.types`。实现位于 [`core/`](./core/)。
 
 ---
 
 ## SystemActions
 
-**描述：** 系统级操作门面 — `cache` / `pipeline` / `scaffold`
+**描述：** 系统级操作门面 — `cache` / `pipeline` / `scaffold` / `types`
 
 ### cache
 
@@ -27,14 +27,44 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 按勾选项清理；pipeline 忙碌时返回 `error=pipeline_busy`
+- **描述：** 按勾选项清理；未选 → `nothing_selected`；pipeline 忙碌 → `pipeline_busy`
 
-#### clear_workbench_db / clear_backtest_results / clear_scan_results / clear_strategy_results / clear_userspace_ntq
+#### clear_workbench_db
+
+`SystemActions.cache.clear_workbench_db() -> int`
 
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 单项清理（devcli / 细粒度调用）
+- **描述：** 清空 workbench 快照表；返回删除行数
+
+#### clear_backtest_results / clear_scan_results
+
+`SystemActions.cache.clear_backtest_results(*, strategy_names=None) -> int`  
+`SystemActions.cache.clear_scan_results(*, strategy_names=None) -> int`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.0`
+- **描述：** 分别删除 `results/simulations/` 与 `results/scan/`；返回删除目录数
+
+#### clear_strategy_results
+
+`SystemActions.cache.clear_strategy_results(*, strategy_names=None) -> int`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.0`
+- **描述：** 删除整棵 `results/`（**含** simulations + scan）；细粒度请用上面两项
+
+#### clear_userspace_ntq
+
+`SystemActions.cache.clear_userspace_ntq() -> None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.0`
+- **描述：** 删除 `userspace/.ntq/`（不触碰仓库根 `.ntq/`）
 
 ### pipeline
 
@@ -45,7 +75,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 返回 idle / busy 租约快照
+- **描述：** 返回 idle / busy 租约快照（文件：`userspace/.ntq/runtime/pipeline_active.json`）
 
 #### lease
 
@@ -54,17 +84,16 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.2.0`
-- **描述：** 构造上下文管理器；忙时 `acquire` 抛 `PipelineLeaseBusyError`
+- **描述：** 构造上下文管理器；`kind` 须在 `VALID_KINDS`；忙时 `acquire` 抛 `PipelineLeaseBusyError`
 - **举例：**
 
 ```python
 from core.infra.system_actions import SystemActions
-from core.infra.system_actions.contracts import PipelineLeaseBusyError
 
 try:
     with SystemActions.pipeline.lease(kind="tag_run", job_id="j1", resource_key="demo"):
         ...
-except PipelineLeaseBusyError as exc:
+except SystemActions.types.PipelineLeaseBusyError as exc:
     print(exc.active)
 ```
 
@@ -80,6 +109,10 @@ except PipelineLeaseBusyError as exc:
 - **引入版本：** `0.1.0`
 - **描述：** 从模板复制并启用；失败抛 `ScaffoldError`
 
+### types
+
+**描述：** 与 `contracts` 同源（`Kind`、`VALID_KINDS`、`ScaffoldError`、`ScaffoldResult`、`PipelineLeaseBusyError`；`PipelineLease` 懒加载）
+
 ---
 
 ## contracts
@@ -87,5 +120,5 @@ except PipelineLeaseBusyError as exc:
 | 符号 | 说明 |
 |------|------|
 | `ScaffoldError` / `ScaffoldResult` | 脚手架异常与结果 |
-| `PipelineLeaseBusyError` / `PipelineLease` | 租约忙异常与上下文管理器 |
-| `VALID_KINDS` | 合法 pipeline kind 集合 |
+| `PipelineLeaseBusyError` / `PipelineLease` | 租约忙异常与上下文管理器（后者懒加载） |
+| `VALID_KINDS` / `Kind` | 合法 pipeline kind |

@@ -19,40 +19,44 @@ from core.infra.system_actions.contracts import (
 _LOCK = threading.Lock()
 
 
-def _lease_path() -> Path:
-    return ProjectContext.path.get_userspace_ntq_directory() / "runtime" / "pipeline_active.json"
-
-
-def _iso_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def _atomic_write(path: Path, payload: Dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with NamedTemporaryFile(
-        "w",
-        encoding="utf-8",
-        dir=path.parent,
-        delete=False,
-    ) as tmp:
-        tmp.write(json.dumps(payload, ensure_ascii=False, indent=2))
-        tmp_path = Path(tmp.name)
-    os.replace(str(tmp_path), str(path))
-
-
 class PipelineLease:
     """Context manager: acquire on enter, release on exit."""
+
+    @staticmethod
+    def lease_path() -> Path:
+        return (
+            ProjectContext.path.get_userspace_ntq_directory()
+            / "runtime"
+            / "pipeline_active.json"
+        )
+
+    @staticmethod
+    def _iso_now() -> str:
+        return datetime.now(timezone.utc).isoformat()
+
+    @staticmethod
+    def _atomic_write(path: Path, payload: Dict[str, Any]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=path.parent,
+            delete=False,
+        ) as tmp:
+            tmp.write(json.dumps(payload, ensure_ascii=False, indent=2))
+            tmp_path = Path(tmp.name)
+        os.replace(str(tmp_path), str(path))
 
     @staticmethod
     def read_status() -> Dict[str, Any]:
         """Return idle or active lease snapshot for ``GET /runtime/pipeline``."""
         with _LOCK:
-            path = _lease_path()
+            path = PipelineLease.lease_path()
             if not path.is_file():
                 return PipelineLease._idle_message()
             try:
                 raw = json.loads(path.read_text(encoding="utf-8"))
-            except Exception:
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
                 return PipelineLease._idle_message()
             if not isinstance(raw, dict) or not raw.get("job_id"):
                 return PipelineLease._idle_message()
@@ -101,11 +105,11 @@ class PipelineLease:
             raise ValueError("job_id required for pipeline lease")
 
         with _LOCK:
-            path = _lease_path()
+            path = PipelineLease.lease_path()
             if path.is_file():
                 try:
                     existing = json.loads(path.read_text(encoding="utf-8"))
-                except Exception:
+                except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
                     existing = {}
                 if isinstance(existing, dict) and existing.get("job_id"):
                     raise PipelineLeaseBusyError(existing)
@@ -116,20 +120,20 @@ class PipelineLease:
                 "resource_key": self.resource_key,
                 "label": self.label or self.resource_key or self.kind,
                 "domains": self.domains,
-                "started_at": _iso_now(),
+                "started_at": PipelineLease._iso_now(),
             }
-            _atomic_write(path, payload)
+            PipelineLease._atomic_write(path, payload)
             self._held = True
 
     def release(self) -> None:
         with _LOCK:
-            path = _lease_path()
+            path = PipelineLease.lease_path()
             if not self._held:
                 return
             if path.is_file():
                 try:
                     raw = json.loads(path.read_text(encoding="utf-8"))
-                except Exception:
+                except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError):
                     raw = {}
                 if isinstance(raw, dict) and str(raw.get("job_id") or "") == self.job_id:
                     path.unlink(missing_ok=True)

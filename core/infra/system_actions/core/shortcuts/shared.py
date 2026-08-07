@@ -88,4 +88,4 @@ class ScaffoldHelpers:
         raise ScaffoldError(f"无法在 {settings_file} 中注入 meta.key")
 
 
-__all__ = ["ScaffoldHelpers", "ScaffoldError", "ScaffoldResult"]
+__all__ = ["ScaffoldHelpers"]

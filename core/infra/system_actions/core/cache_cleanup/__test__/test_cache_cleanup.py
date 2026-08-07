@@ -1,4 +1,4 @@
-"""Tests for userspace cache cleanup."""
+"""Tests for userspace cache cleanup (经 Facade / CacheCleanup)。"""
 
 from __future__ import annotations
 
@@ -7,9 +7,10 @@ from unittest.mock import patch
 
 import pytest
 
-pytestmark = pytest.mark.force_run
+from core.infra.system_actions import SystemActions
+from core.infra.system_actions.core.cache_cleanup.cache_cleanup import CacheCleanup
 
-from core.infra.system_actions.cache_cleanup.cache_cleanup import CacheCleanup
+pytestmark = pytest.mark.force_run
 
 
 @pytest.fixture
@@ -55,10 +56,10 @@ def userspace_layout(tmp_path, monkeypatch):
 
 def test_run_cache_cleanup_rejects_when_pipeline_busy(userspace_layout):
     with patch(
-        "core.infra.system_actions.cache_cleanup.pipeline_lease.PipelineLease.read_status",
+        "core.infra.system_actions.core.cache_cleanup.pipeline_lease.PipelineLease.read_status",
         return_value={"busy": True, "label": "Tag 计算中", "kind": "tag_run"},
     ):
-        out = CacheCleanup.run(clear_userspace_ntq=True)
+        out = SystemActions.cache.run(clear_userspace_ntq=True)
     assert out["ok"] is False
     assert out["error"] == "pipeline_busy"
     assert (userspace_layout / ".ntq").exists()
@@ -66,7 +67,7 @@ def test_run_cache_cleanup_rejects_when_pipeline_busy(userspace_layout):
 
 def test_run_cache_cleanup_selected_targets(userspace_layout):
     with patch(
-        "core.infra.system_actions.cache_cleanup.pipeline_lease.PipelineLease.read_status",
+        "core.infra.system_actions.core.cache_cleanup.pipeline_lease.PipelineLease.read_status",
         return_value={"busy": False},
     ), patch.object(
         CacheCleanup,
@@ -77,7 +78,7 @@ def test_run_cache_cleanup_selected_targets(userspace_layout):
         "_discovered_strategy_folders",
         return_value=[Path("demo/nested/my_strategy")],
     ):
-        out = CacheCleanup.run(
+        out = SystemActions.cache.run(
             clear_db_cache=True,
             clear_backtest_results=True,
             clear_scan_results=True,
@@ -107,6 +108,6 @@ def test_run_cache_cleanup_selected_targets(userspace_layout):
 
 
 def test_run_cache_cleanup_nothing_selected():
-    out = CacheCleanup.run()
+    out = SystemActions.cache.run()
     assert out["ok"] is False
     assert out["error"] == "nothing_selected"

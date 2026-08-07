@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from core.infra.project_context import ProjectContext
-from core.infra.system_actions.cache_cleanup.pipeline_lease import PipelineLease
+from core.infra.system_actions.core.cache_cleanup.pipeline_lease import PipelineLease
 
 
 class CacheCleanup:
@@ -27,7 +27,6 @@ class CacheCleanup:
         *, strategy_names: Optional[Iterable[str]] = None
     ) -> List[Path]:
         """Discovered strategy roots (absolute). Optional filter by key or relative path."""
-        from core.infra.project_context import ProjectContext
         from core.modules.strategy.core.services.discovery import DiscoveryService
 
         if strategy_names is not None:
@@ -82,14 +81,17 @@ class CacheCleanup:
         return int(out.get("deleted_count") or 0)
 
     @staticmethod
-    def clear_backtest_results_disk(*, strategy_names: Optional[Iterable[str]] = None) -> int:
+    def clear_backtest_results_disk(
+        *, strategy_names: Optional[Iterable[str]] = None
+    ) -> int:
         """删除各策略 ``results/simulations/``。返回删除的目录数。"""
         removed = 0
         for folder in CacheCleanup._discovered_strategy_folders(
             strategy_names=strategy_names
         ):
             sim_root = (
-                ProjectContext.path.get_strategy_results_directory(folder) / "simulations"
+                ProjectContext.path.get_strategy_results_directory(folder)
+                / "simulations"
             )
             if sim_root.exists():
                 CacheCleanup._rm_tree(sim_root)
@@ -97,7 +99,9 @@ class CacheCleanup:
         return removed
 
     @staticmethod
-    def clear_scan_results_disk(*, strategy_names: Optional[Iterable[str]] = None) -> int:
+    def clear_scan_results_disk(
+        *, strategy_names: Optional[Iterable[str]] = None
+    ) -> int:
         """删除各策略 ``results/scan/``。返回删除的目录数。"""
         removed = 0
         for folder in CacheCleanup._discovered_strategy_folders(
@@ -110,8 +114,10 @@ class CacheCleanup:
         return removed
 
     @staticmethod
-    def clear_strategy_results_disk(*, strategy_names: Optional[Iterable[str]] = None) -> int:
-        """删除各策略整个 ``results/``（devcli 用，含 simulations 与 scan）。"""
+    def clear_strategy_results_disk(
+        *, strategy_names: Optional[Iterable[str]] = None
+    ) -> int:
+        """删除各策略整个 ``results/``（含 simulations 与 scan；devcli 一键用）。"""
         removed = 0
         for folder in CacheCleanup._discovered_strategy_folders(
             strategy_names=strategy_names
@@ -159,7 +165,9 @@ class CacheCleanup:
             return {
                 "ok": False,
                 "error": "pipeline_busy",
-                "label": str(pipeline.get("label") or pipeline.get("kind") or "").strip(),
+                "label": str(
+                    pipeline.get("label") or pipeline.get("kind") or ""
+                ).strip(),
             }
 
         if clear_db_cache:

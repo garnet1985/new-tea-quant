@@ -115,7 +115,7 @@ FED 建议：进 `/tags` 调 T1-00；任一 tag 运行中再调 T1-03；全局 `
 }
 ```
 
-**实现**：`core/infra/system_actions/cache_cleanup/pipeline_lease.py`；Tag MVP 至少写入/释放 `kind=tag_run`；Strategy scan/run、renew 后续接入同一 acquire/release。
+**实现**：`core/infra/system_actions/core/cache_cleanup/pipeline_lease.py`；Tag MVP 至少写入/释放 `kind=tag_run`；Strategy scan/run、renew 后续接入同一 acquire/release。
 
 ---
 

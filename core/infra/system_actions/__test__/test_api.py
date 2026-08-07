@@ -26,6 +26,7 @@ class TestSystemActionsApi(unittest.TestCase):
         self.assertTrue(hasattr(SystemActions, "cache"))
         self.assertTrue(hasattr(SystemActions, "pipeline"))
         self.assertTrue(hasattr(SystemActions, "scaffold"))
+        self.assertTrue(hasattr(SystemActions, "types"))
 
     def test_cache_methods(self):
         for name in (
@@ -56,16 +57,28 @@ class TestSystemActionsApi(unittest.TestCase):
         self.assertEqual(out.get("ok"), False)
         self.assertEqual(out.get("error"), "nothing_selected")
 
-    def test_contracts_symbols(self):
+    def test_contracts_and_types(self):
         self.assertTrue(issubclass(ScaffoldError, ValueError))
         self.assertTrue(issubclass(PipelineLeaseBusyError, Exception))
         self.assertTrue(VALID_KINDS)
         self.assertTrue(hasattr(ScaffoldResult, "__dataclass_fields__"))
+        self.assertIs(SystemActions.types.ScaffoldError, ScaffoldError)
+        self.assertIs(SystemActions.types.VALID_KINDS, VALID_KINDS)
+        self.assertIs(
+            SystemActions.types.PipelineLeaseBusyError, PipelineLeaseBusyError
+        )
 
-    def test_pipeline_lease_from_contracts(self):
+    def test_pipeline_lease_from_contracts_and_types(self):
         from core.infra.system_actions.contracts import PipelineLease
 
         self.assertTrue(callable(PipelineLease))
+        self.assertIs(SystemActions.types.PipelineLease, PipelineLease)
+
+    def test_pipeline_lease_construct(self):
+        lease = SystemActions.pipeline.lease(kind="tag_run", job_id="api-smoke")
+        self.assertTrue(hasattr(lease, "acquire"))
+        self.assertTrue(hasattr(lease, "release"))
+        self.assertTrue(hasattr(lease, "__enter__"))
 
 
 if __name__ == "__main__":

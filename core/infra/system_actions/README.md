@@ -8,9 +8,9 @@
 core/infra/system_actions/
 ├── system_actions.py   # Facade
 ├── contracts.py
-├── API.md / QUICKSTART.md / glossary.yaml
-├── cache_cleanup/      # 内部实现
-├── shortcuts/          # 内部实现
+├── core/
+│   ├── cache_cleanup/  # 内部实现 + __test__
+│   └── shortcuts/
 ├── __test__/
 └── docs/
 ```

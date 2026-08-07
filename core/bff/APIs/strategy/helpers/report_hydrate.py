@@ -126,11 +126,11 @@ def resolve_simulation_output_dirs(
     except ValueError:
         return []
     if step == "enum":
-        root = ProjectContext.path.get_strategy_directory_simulation_enum(folder)
+        root = ProjectContext.path.get_strategy_simulation_enum(folder)
     elif step == "price":
-        root = ProjectContext.path.get_strategy_directory_simulation_price(folder)
+        root = ProjectContext.path.get_strategy_simulation_price(folder)
     elif step == "portfolio":
-        root = ProjectContext.path.get_strategy_directory_simulation_portfolio(folder)
+        root = ProjectContext.path.get_strategy_simulation_portfolio(folder)
     else:
         return []
 

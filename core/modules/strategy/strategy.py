@@ -109,8 +109,8 @@ class Strategy:
             if not sn:
                 continue
             folder = info.resolved_folder()
-            pf_root = ProjectContext.path.get_strategy_directory_simulation_price(folder)
-            po_root = ProjectContext.path.get_strategy_directory_simulation_portfolio(
+            pf_root = ProjectContext.path.get_strategy_simulation_price(folder)
+            po_root = ProjectContext.path.get_strategy_simulation_portfolio(
                 folder
             )
             pf_latest = _latest_version_dir(pf_root)

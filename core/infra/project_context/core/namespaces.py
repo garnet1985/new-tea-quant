@@ -1,7 +1,27 @@
 """命名空间 API - 提供清晰的命名空间访问方式"""
-from typing import Dict, Any, Optional, Set, List, Callable
+from typing import Dict, Any, Optional, Set, List, Callable, Union
 from pathlib import Path
 import json
+
+from core.infra.project_context.contracts import (
+    DEFAULT_DUCKDB_DOMAINS,
+    DUCKDB_DOMAIN_FILES,
+    DiscoveredConfig,
+    MergeFn,
+    OverridableConfigNotFoundError,
+    SUPPORTED_DB_TYPES,
+)
+
+
+class TypesNamespace:
+    """与 ``contracts`` 同源的类型与常量挂载点。"""
+
+    OverridableConfigNotFoundError = OverridableConfigNotFoundError
+    DiscoveredConfig = DiscoveredConfig
+    MergeFn = MergeFn
+    DEFAULT_DUCKDB_DOMAINS = DEFAULT_DUCKDB_DOMAINS
+    DUCKDB_DOMAIN_FILES = DUCKDB_DOMAIN_FILES
+    SUPPORTED_DB_TYPES = SUPPORTED_DB_TYPES
 
 
 class PathNamespace:
@@ -62,6 +82,12 @@ class PathNamespace:
         return PathManager.get_backup_directory()
 
     @staticmethod
+    def get_backup_data_directory() -> Path:
+        """获取备份数据目录：userspace/system/backup/data/"""
+        from .path_manager import PathManager
+        return PathManager.get_backup_data_directory()
+
+    @staticmethod
     def get_updater_directory() -> Path:
         """获取 updater 目录"""
         from .path_manager import PathManager
@@ -100,27 +126,31 @@ class PathNamespace:
         return PathManager.get_strategy_directory(strategy_name)
 
     @staticmethod
+    def coerce_strategy_folder(strategy_folder_or_rel: Union[str, Path]) -> Path:
+        """Normalize strategy root: absolute discovered folder or userspace/strategies/{rel}."""
+        from .path_manager import PathManager
+        return PathManager.coerce_strategy_folder(strategy_folder_or_rel)
+
+    @staticmethod
     def get_tag_directory(tag_name: str) -> Path:
-        """获取指定 Tag scenario 的目录"""
+        """获取指定 Tag scenario 的目录（``userspace/extensions/tags/{name}/``）。"""
         from .path_manager import PathManager
         return PathManager.get_tag_scenario_directory(tag_name)
 
-    # ========== 策略路径 API ==========
-
     @staticmethod
-    def get_strategy_directory_simulation_price(strategy_name: str) -> Path:
+    def get_strategy_simulation_price_directory(strategy_name: str) -> Path:
         """获取策略模拟价格目录"""
         from .path_manager import PathManager
         return PathManager.get_strategy_simulation_price_directory(strategy_name)
 
     @staticmethod
-    def get_strategy_directory_simulation_portfolio(strategy_name: str) -> Path:
+    def get_strategy_simulation_portfolio_directory(strategy_name: str) -> Path:
         """获取策略模拟组合目录"""
         from .path_manager import PathManager
         return PathManager.get_strategy_simulation_portfolio_directory(strategy_name)
 
     @staticmethod
-    def get_strategy_directory_simulation_enum(strategy_name: str) -> Path:
+    def get_strategy_simulation_enum_directory(strategy_name: str) -> Path:
         """获取策略模拟枚举目录"""
         from .path_manager import PathManager
         return PathManager.get_strategy_simulation_enum_directory(strategy_name)
@@ -130,12 +160,6 @@ class PathNamespace:
         """获取策略扫描结果目录"""
         from .path_manager import PathManager
         return PathManager.get_strategy_scan_results_directory(strategy_name)
-
-    @staticmethod
-    def get_tag_scenario_directory(scenario_name: str) -> Path:
-        """获取 Tag scenario 目录"""
-        from .path_manager import PathManager
-        return PathManager.get_tag_scenario_directory(scenario_name)
 
     # ========== 扩展路径 API ==========
 
@@ -214,30 +238,6 @@ class PathNamespace:
         return PathManager.get_strategy_results_directory(strategy_name)
 
     @staticmethod
-    def get_strategy_simulation_price_directory(strategy_name: str) -> Path:
-        """获取策略模拟价格目录"""
-        from .path_manager import PathManager
-        return PathManager.get_strategy_simulation_price_directory(strategy_name)
-
-    @staticmethod
-    def get_strategy_simulation_portfolio_directory(strategy_name: str) -> Path:
-        """获取策略模拟组合目录"""
-        from .path_manager import PathManager
-        return PathManager.get_strategy_simulation_portfolio_directory(strategy_name)
-
-    @staticmethod
-    def get_strategy_simulation_enum_directory(strategy_name: str) -> Path:
-        """获取策略模拟枚举目录"""
-        from .path_manager import PathManager
-        return PathManager.get_strategy_simulation_enum_directory(strategy_name)
-
-    @staticmethod
-    def get_strategy_scan_results_directory(strategy_name: str) -> Path:
-        """获取策略扫描结果目录"""
-        from .path_manager import PathManager
-        return PathManager.get_strategy_scan_results_directory(strategy_name)
-
-    @staticmethod
     def get_tag_scenario_settings_path(scenario_name: str) -> Path:
         """获取 Tag scenario 配置文件路径"""
         from .path_manager import PathManager
@@ -289,7 +289,7 @@ class MetaNamespace:
         try:
             from core.system import system_meta
             return system_meta.to_dict()
-        except Exception:
+        except (ImportError, AttributeError, TypeError, ValueError):
             return None
 
 
@@ -429,6 +429,24 @@ class ConfigNamespace:
         """
         from .config_manager import ConfigManager
         return ConfigManager.load_benchmark_stock_index_list()
+
+    @staticmethod
+    def get_decimal_places() -> int:
+        """``data.json`` → ``decimal_places.default``（默认 2）。"""
+        from .config_manager import ConfigManager
+        return ConfigManager.get_decimal_places()
+
+    @staticmethod
+    def get_adj_factor_event_decimal_places() -> Dict[str, int]:
+        """``data.json`` → ``decimal_places.adj_factor_event`` 精度块。"""
+        from .config_manager import ConfigManager
+        return ConfigManager.get_adj_factor_event_decimal_places()
+
+    @staticmethod
+    def get_database_type() -> str:
+        """当前数据库类型（``postgresql`` / ``mysql`` 等）。"""
+        from .config_manager import ConfigManager
+        return ConfigManager.get_database_type()
 
     @staticmethod
     def merge_market_profile_dicts(

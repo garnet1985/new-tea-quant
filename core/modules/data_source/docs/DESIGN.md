@@ -29,7 +29,7 @@
 ## Config 发现顺序
 
 1. **`PathManager.data_source_handler(data_source_key)/config.py`**
-2. 不存在则在 **`handlers/`** 下递归查找包含该 key 的目录中的 **`config.py`**（`DiscoveryManager.find_in_tree`）
+2. 不存在则在 **`handlers/`** 下递归查找 ``**/{key}/config.py``（`Discovery.file.find_in_tree`）
 
 ---
 

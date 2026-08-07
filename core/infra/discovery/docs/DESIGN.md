@@ -46,6 +46,18 @@ DiscoveryConfig ──► ClassDiscovery ──► DiscoveryResult
 
 ---
 
+## 4b. `find_in_tree`（按目录名 key）
+
+与 `find_file`（任意深度同名文件）不同：目标路径形如 `**/{key}/{filename}`。
+
+1. 校验 `key` / `filename` 为单路径段。
+2. 先试 `base_dir / key / filename`。
+3. 再 `base_dir.rglob(f"{key}/{filename}")`，取排序后首个文件。
+
+自 `project_context.DiscoveryManager.find_in_tree` 迁入；业务（如 data_source handlers）经 `Discovery.file.find_in_tree` 调用。
+
+---
+
 ## 5. 缓存与并发
 
 - `ClassDiscovery` 实例内 `_cache`；无锁，假定串行初始化。

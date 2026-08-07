@@ -186,7 +186,7 @@ class HistoryLoader:
             folder = DiscoveryService.resolve_strategy_folder(name)
         except Exception:
             folder = name
-        root = ProjectContext.path.get_strategy_directory_simulation_price(folder)
+        root = ProjectContext.path.get_strategy_simulation_price(folder)
         meta_path = root / "meta.json"
         if not meta_path.is_file():
             return None

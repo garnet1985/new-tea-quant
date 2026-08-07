@@ -39,14 +39,14 @@ class ScanJob:
     def strategy_folder(info: EnabledStrategyInfo):
         from pathlib import Path
 
-        from core.infra.project_context.core.path_manager import PathManager
+        from core.infra.project_context import ProjectContext
 
         resolved = getattr(info, "resolved_folder", None)
         if callable(resolved):
             return resolved()
         if getattr(info, "folder", None) is not None:
             return Path(info.folder)
-        return PathManager.coerce_strategy_folder(
+        return ProjectContext.path.coerce_strategy_folder(
             getattr(info, "unique_relative_path", None)
             or getattr(info, "key", None)
             or ""

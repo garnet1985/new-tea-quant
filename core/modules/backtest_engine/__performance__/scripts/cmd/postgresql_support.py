@@ -33,9 +33,9 @@ _ENGINE = "postgresql"
 
 
 def _user_pg_config_path():
-    from core.infra.project_context.core.path_manager import PathManager
+    from core.infra.project_context import ProjectContext
 
-    return PathManager.get_user_config_root() / "database" / "postgresql.json"
+    return ProjectContext.path.get_user_config_root() / "database" / "postgresql.json"
 
 
 def _env_has_pg_credentials() -> bool:

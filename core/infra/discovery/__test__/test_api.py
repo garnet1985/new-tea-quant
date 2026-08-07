@@ -51,6 +51,7 @@ class TestApi(unittest.TestCase):
         """file namespace 包含所有文件操作 API"""
         methods = [
             'find_file',
+            'find_in_tree',
             'load_file_content',
             'load_json',
             'load_yaml',
@@ -116,6 +117,14 @@ class TestApi(unittest.TestCase):
         result = Discovery.file.find_file(nested_dir, "root.json", search_parents=True)
         self.assertIsNotNone(result)
         self.assertEqual(result, test_file)
+
+    def test_file_find_in_tree_nested(self):
+        """find_in_tree 支持分组目录嵌套"""
+        target = self.temp_path / "group" / "demo" / "config.py"
+        target.parent.mkdir(parents=True)
+        target.write_text("CONFIG = {}\n", encoding="utf-8")
+        found = Discovery.file.find_in_tree(self.temp_path, "demo", "config.py")
+        self.assertEqual(found, target.resolve())
 
     def test_file_load_json_success(self):
         """load_json 成功加载 JSON"""

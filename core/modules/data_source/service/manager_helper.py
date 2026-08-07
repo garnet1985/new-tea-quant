@@ -136,30 +136,11 @@ class DataSourceManagerHelper:
 
     @staticmethod
     def _find_handler_file_recursively(module_name: str) -> Optional[Path]:
-        """
-        递归查找 handler.py 文件
-        
-        Args:
-            module_name: 简化的模块名（如 "kline_daily"）
-        
-        Returns:
-            找到的 handler.py 文件路径，如果未找到则返回 None
-        """
+        """在 handlers 树中按目录名 module_name 定位 handler.py。"""
+        from core.infra.discovery import Discovery
+
         handlers_dir = ProjectContext.path.get_data_source_handlers_directory()
-        if not handlers_dir.exists():
-            return None
-        
-        # 递归查找所有包含 module_name 的目录下的 handler.py
-        for path in handlers_dir.rglob(f"*/{module_name}/handler.py"):
-            if path.exists() and path.is_file():
-                return path
-        
-        # 也支持查找目录名完全匹配的情况
-        for path in handlers_dir.rglob(f"{module_name}/handler.py"):
-            if path.exists() and path.is_file():
-                return path
-        
-        return None
+        return Discovery.file.find_in_tree(handlers_dir, module_name, "handler.py")
     
     @staticmethod
     def _normalize_handler_path(handler_path: str) -> str:

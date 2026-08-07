@@ -131,9 +131,9 @@ class ReportManager(BaseReportManager):
         if folder is None or not str(folder):
             if not path_id:
                 raise ValueError("strategy_folder / strategy_path / strategy_key 不能为空")
-            root = ProjectContext.path.get_strategy_directory_simulation_enum(path_id)
+            root = ProjectContext.path.get_strategy_simulation_enum_directory(path_id)
         else:
-            root = ProjectContext.path.get_strategy_directory_simulation_enum(folder)
+            root = ProjectContext.path.get_strategy_simulation_enum_directory(folder)
         output_dir, version_id = SimulationOutputRecorder.allocate_version_dir(
             path_id or str(folder),
             root,

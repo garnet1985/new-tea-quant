@@ -37,6 +37,14 @@ terms:
       - "Discovery.file"
     avoid: []
 
+  find_in_tree:
+    definition: "按目录名 key 在树中定位 {key}/{filename}（直达或嵌套分组）；公开入口 Discovery.file.find_in_tree。与 find_file（只按文件名）不同。"
+    aliases:
+      - "Discovery.file.find_in_tree"
+      - "按 key 路径发现"
+    avoid:
+      - "project_context.DiscoveryManager.find_in_tree（已迁至 Discovery.file）"
+
   FileDiscovery:
     definition: "目录树批量路径发现实现类；公开入口 Discovery.discover.files / directories / files_by_suffix。"
     aliases:

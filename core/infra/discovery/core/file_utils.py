@@ -32,6 +32,56 @@ class FileUtils:
             return FileUtils._find_in_children(start_dir, filename, max_depth)
 
     @staticmethod
+    def find_in_tree(
+        base_dir: Path,
+        key: str,
+        filename: str,
+    ) -> Optional[Path]:
+        """在目录树中按「目录名 = key」定位 ``{key}/{filename}``。
+
+        顺序：
+        1. ``{base_dir}/{key}/{filename}``（直达）
+        2. 递归匹配 ``**/{key}/{filename}``（嵌套分组目录）
+
+        ``key`` 须为单段目录名（禁止 ``/``、``\\``、``..``）。
+        """
+        key_name = str(key or "").strip()
+        file_name = str(filename or "").strip()
+        if not key_name or not file_name:
+            raise ValueError("find_in_tree 要求非空 key 与 filename")
+        if (
+            "/" in key_name
+            or "\\" in key_name
+            or key_name == ".."
+            or ".." in key_name.split("/")
+        ):
+            raise ValueError(f"非法 find_in_tree key: {key!r}")
+        if "/" in file_name or "\\" in file_name:
+            raise ValueError(f"非法 find_in_tree filename: {filename!r}")
+
+        if not base_dir.exists() or not base_dir.is_dir():
+            logger.debug("find_in_tree 基础目录不存在: %s", base_dir)
+            return None
+
+        direct = base_dir / key_name / file_name
+        if direct.is_file():
+            return direct.resolve()
+
+        matches = sorted(
+            p.resolve()
+            for p in base_dir.rglob(f"{key_name}/{file_name}")
+            if p.is_file()
+        )
+        if matches:
+            logger.debug("find_in_tree 命中: %s", matches[0])
+            return matches[0]
+
+        logger.debug(
+            "find_in_tree 未找到 %s/%s under %s", key_name, file_name, base_dir
+        )
+        return None
+
+    @staticmethod
     def _find_in_parents(start_dir: Path, filename: str, max_depth: int) -> Optional[Path]:
         """向上搜索父目录"""
         current_dir = start_dir

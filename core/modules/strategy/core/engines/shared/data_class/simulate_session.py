@@ -89,9 +89,9 @@ class SimulateSession:
                 folder = Path(info.folder)
                 if folder.is_absolute():
                     return folder
-        from core.infra.project_context.core.path_manager import PathManager
+        from core.infra.project_context import ProjectContext
 
-        return PathManager.coerce_strategy_folder(self.strategy_key)
+        return ProjectContext.path.coerce_strategy_folder(self.strategy_key)
 
     def validate_for_run(self) -> None:
         """跑 Pipeline 前自检。"""

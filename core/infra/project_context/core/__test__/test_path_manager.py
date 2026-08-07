@@ -105,20 +105,20 @@ class TestPathManager:
         # 应该返回同一个对象（缓存）
         assert root1 is root2
 
-    def test_userspace_ntq_at_root_migrates_legacy(self, tmp_path, monkeypatch):
+    def test_userspace_ntq_at_userspace_root(self, tmp_path, monkeypatch):
         from core.infra.project_context.core.path_manager import PathManager
+
         fake_root = _fake_repo_with_userspace(tmp_path, with_strategies=True)
         us = fake_root / "userspace"
-        legacy = us / "system" / ".ntq" / "tmp" / "progress"
-        legacy.mkdir(parents=True)
-        (legacy / "x.json").write_text("{}", encoding="utf-8")
+        ntq_tmp = us / ".ntq" / "tmp"
+        ntq_tmp.mkdir(parents=True)
 
         monkeypatch.setattr(PathManager, "_root_cache", fake_root)
         ProjectContext.cache.clear_userspace_cache()
         try:
             ntq = ProjectContext.path.get_userspace_ntq_directory()
             assert ntq == us / ".ntq"
-            assert (ntq / "tmp" / "progress" / "x.json").is_file()
-            assert not (us / "system" / ".ntq").exists()
+            assert ntq.is_dir()
+            assert ProjectContext.path.get_userspace_tmp_directory() == ntq / "tmp"
         finally:
             ProjectContext.cache.clear_userspace_cache()

@@ -27,7 +27,7 @@ class CacheCleanup:
         *, strategy_names: Optional[Iterable[str]] = None
     ) -> List[Path]:
         """Discovered strategy roots (absolute). Optional filter by key or relative path."""
-        from core.infra.project_context.core.path_manager import PathManager
+        from core.infra.project_context import ProjectContext
         from core.modules.strategy.core.services.discovery import DiscoveryService
 
         if strategy_names is not None:
@@ -52,7 +52,7 @@ class CacheCleanup:
                         matched = True
                         break
                 if not matched:
-                    folder = PathManager.coerce_strategy_folder(name)
+                    folder = ProjectContext.path.coerce_strategy_folder(name)
                     key = str(folder)
                     if key not in seen:
                         seen.add(key)

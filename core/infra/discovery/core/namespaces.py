@@ -23,6 +23,15 @@ class FileNamespace:
         return FileUtils.find_file(start_dir, filename, search_parents=search_parents, max_depth=max_depth)
 
     @staticmethod
+    def find_in_tree(
+        base_dir: Path,
+        key: str,
+        filename: str,
+    ) -> Optional[Path]:
+        """按目录名 ``key`` 在树中定位 ``{key}/{filename}``（直达或嵌套）。"""
+        return FileUtils.find_in_tree(base_dir, key, filename)
+
+    @staticmethod
     def load_file_content(
         file_path: Path,
         *,

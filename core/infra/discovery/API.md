@@ -39,6 +39,27 @@ from core.infra.discovery import Discovery
 p = Discovery.file.find_file(Path("."), "settings.json", search_parents=True)
 ```
 
+#### find_in_tree
+
+`Discovery.file.find_in_tree(base_dir, key, filename) -> Path | None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.4.0`
+- **描述：** 在目录树中按「目录名 = `key`」定位 `{key}/{filename}`（先直达 `base/{key}/{filename}`，再递归 `**/{key}/{filename}`）。用于 userspace 可任意建分组文件夹的场景（如 handlers / strategies 嵌套）。`key` / `filename` 须为单路径段。
+- **举例：**
+
+```python
+from pathlib import Path
+from core.infra.discovery import Discovery
+
+cfg = Discovery.file.find_in_tree(
+    Path("userspace/extensions/data_source/handlers"),
+    "kline_daily",
+    "config.py",
+)
+```
+
 #### load_json / load_yaml / load_text
 
 `Discovery.file.load_json(path) -> dict | None`  

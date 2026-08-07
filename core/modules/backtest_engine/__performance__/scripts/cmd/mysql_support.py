@@ -33,9 +33,9 @@ _MYSQL_ENV_KEYS = (
 
 
 def _user_mysql_config_path():
-    from core.infra.project_context.core.path_manager import PathManager
+    from core.infra.project_context import ProjectContext
 
-    return PathManager.get_user_config_root() / "database" / "mysql.json"
+    return ProjectContext.path.get_user_config_root() / "database" / "mysql.json"
 
 
 def _env_has_mysql_credentials() -> bool:

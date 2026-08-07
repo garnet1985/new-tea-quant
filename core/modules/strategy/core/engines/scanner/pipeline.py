@@ -163,9 +163,9 @@ class ScannerPipeline:
         elif getattr(strategy_info, "folder", None) is not None:
             strategy_folder = Path(strategy_info.folder)
         else:
-            from core.infra.project_context.core.path_manager import PathManager
+            from core.infra.project_context import ProjectContext
 
-            strategy_folder = PathManager.coerce_strategy_folder(
+            strategy_folder = ProjectContext.path.coerce_strategy_folder(
                 strategy_info.unique_relative_path or strategy_key
             )
 

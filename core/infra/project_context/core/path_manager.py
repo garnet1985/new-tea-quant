@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Optional, Union
 import logging
 import os
-import shutil
 
 logger = logging.getLogger(__name__)
 
@@ -11,15 +10,8 @@ logger = logging.getLogger(__name__)
 class PathManager:
     """路径管理器 - 提供项目常用路径的快捷访问"""
 
-    EXTENSIONS_MODULE_PREFIX = "userspace.extensions"
-
     _root_cache: Optional[Path] = None
     _userspace_cache: Optional[Path] = None
-
-    @staticmethod
-    def get_extensions_module(*parts: str) -> str:
-        """拼接 extensions 包下模块路径"""
-        return ".".join((PathManager.EXTENSIONS_MODULE_PREFIX,) + parts) if parts else PathManager.EXTENSIONS_MODULE_PREFIX
 
     @staticmethod
     def clear_userspace_cache() -> None:
@@ -56,11 +48,7 @@ class PathManager:
     @staticmethod
     def get_core_root() -> Path:
         """获取 core 目录的绝对路径"""
-        root = PathManager.get_project_root()
-        new_path = root / "core"
-        if new_path.exists():
-            return new_path
-        return new_path
+        return PathManager.get_project_root() / "core"
 
     @staticmethod
     def get_userspace_root() -> Path:
@@ -100,7 +88,7 @@ class PathManager:
                     if p.exists():
                         PathManager._userspace_cache = p
                         return p
-            except Exception:
+            except (OSError, json.JSONDecodeError, TypeError, ValueError):
                 pass
 
         new_path = root / "userspace"
@@ -156,36 +144,8 @@ class PathManager:
 
     @staticmethod
     def get_userspace_ntq_directory() -> Path:
-        """
-        获取 NTQ 内部目录：userspace/.ntq/
-
-        说明：旧路径 userspace/system/.ntq/ 若仍存在，会在首次访问时合并迁入并删除
-        """
-        canonical = PathManager.get_userspace_root() / ".ntq"
-        legacy = PathManager.get_system_root() / ".ntq"
-        if legacy.is_dir():
-            PathManager._migrate_legacy_userspace_ntq(legacy, canonical)
-        return canonical
-
-    @staticmethod
-    def _migrate_legacy_userspace_ntq(legacy: Path, canonical: Path) -> None:
-        """一次性迁移：system/.ntq → userspace/.ntq"""
-        try:
-            canonical.mkdir(parents=True, exist_ok=True)
-            for item in legacy.iterdir():
-                dest = canonical / item.name
-                if not dest.exists():
-                    shutil.move(str(item), str(dest))
-                    continue
-                if item.is_dir() and dest.is_dir():
-                    for sub in item.iterdir():
-                        sub_dest = dest / sub.name
-                        if not sub_dest.exists():
-                            shutil.move(str(sub), str(sub_dest))
-            shutil.rmtree(legacy)
-            logger.info("已合并旧路径 %s → %s", legacy, canonical)
-        except Exception as exc:
-            logger.warning("合并 legacy userspace .ntq 失败（可手动迁移）: %s", exc)
+        """获取 NTQ 内部目录：userspace/.ntq/"""
+        return PathManager.get_userspace_root() / ".ntq"
 
     @staticmethod
     def get_userspace_tmp_directory() -> Path:

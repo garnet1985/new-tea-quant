@@ -1,6 +1,13 @@
 """Project Context facade — public entry for project path / config / meta / cache / discovery."""
 
-from .core.namespaces import PathNamespace, MetaNamespace, CacheNamespace, ConfigNamespace, DiscoveryNamespace
+from .core.namespaces import (
+    PathNamespace,
+    MetaNamespace,
+    CacheNamespace,
+    ConfigNamespace,
+    DiscoveryNamespace,
+    TypesNamespace,
+)
 
 
 class ProjectContext:
@@ -12,6 +19,7 @@ class ProjectContext:
     cache = CacheNamespace()
     config = ConfigNamespace()
     discovery = DiscoveryNamespace()
+    types = TypesNamespace
 
 
 __all__ = ['ProjectContext']

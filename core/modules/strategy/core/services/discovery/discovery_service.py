@@ -126,7 +126,7 @@ class DiscoveryService:
         Falls back to ``userspace/strategies/{name}`` when not in the catalog
         (bootstrap / legacy callers).
         """
-        from core.infra.project_context.core.path_manager import PathManager
+        from core.infra.project_context import ProjectContext
 
         needle = str(key_or_name or "").strip()
         if not needle:
@@ -137,7 +137,7 @@ class DiscoveryService:
         enabled = DiscoveryService.find_strategy(needle)
         if enabled is not None:
             return enabled.resolved_folder()
-        return PathManager.coerce_strategy_folder(needle)
+        return ProjectContext.path.coerce_strategy_folder(needle)
 
     @staticmethod
     def list_enabled_keys() -> List[str]:

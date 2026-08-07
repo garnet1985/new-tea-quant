@@ -42,7 +42,7 @@ class EnumOutput:
             raise ValueError("strategy_folder 不能为空")
         if not vid:
             raise ValueError("enum version_id 不能为空")
-        root = ProjectContext.path.get_strategy_directory_simulation_enum(
+        root = ProjectContext.path.get_strategy_simulation_enum_directory(
             strategy_folder_or_rel
         )
         output_dir = root / vid

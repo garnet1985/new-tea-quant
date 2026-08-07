@@ -34,7 +34,7 @@
 |------|------|------|
 | `test_facade_export` | `test_api.py` | `__all__` + 三 namespace |
 | `test_contracts_symbols` | `test_api.py` | contracts 类型 |
-| `test_file_*` | `test_api.py` | find / load / save |
+| `test_file_*` | `test_api.py` | find / find_in_tree / load / save |
 | `test_discover_files*` / directories | `test_api.py` | 批量路径 |
 | `test_discover_subclasses_behavior` | `test_api.py` | 临时包扫子类 |
 | `test_discover_objects_behavior` | `test_api.py` | 临时包扫对象 |

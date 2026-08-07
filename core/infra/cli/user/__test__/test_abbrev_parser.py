@@ -1,15 +1,11 @@
-"""Tests for user CLI abbrev expansion and parser."""
+"""Unit tests for user CLI abbrev expansion and parser."""
 
 from __future__ import annotations
 
-from io import StringIO
-from unittest.mock import patch
-
 import pytest
 
-from core.infra.cli import Cli
 from core.infra.cli.user.abbrev import UserAbbrev
-from core.infra.cli.user.parser import parse_args
+from core.infra.cli.user.parser import UserParser
 
 pytestmark = pytest.mark.force_run
 
@@ -40,36 +36,36 @@ def test_expand_argv(raw: list[str], expected: list[str]) -> None:
 
 
 def test_parse_default_version() -> None:
-    args = parse_args([])
+    args = UserParser.parse_args([])
     assert args.command == "version"
 
 
 def test_parse_dash_v() -> None:
-    args = parse_args(["-v"])
+    args = UserParser.parse_args(["-v"])
     assert args.command == "version"
 
 
 def test_parse_sp_strategy() -> None:
-    args = parse_args(["sp", "-f", "--strategy", "demo/foo"])
+    args = UserParser.parse_args(["sp", "-f", "--strategy", "demo/foo"])
     assert args.command == "strategy_price_factor"
     assert args.force is True
     assert args.strategy == "demo/foo"
 
 
 def test_parse_global_new_strategy() -> None:
-    args = parse_args(["-n", "my_strat"])
+    args = UserParser.parse_args(["-n", "my_strat"])
     assert args.new_path == "my_strat"
     assert args.command is None
 
 
 def test_parse_tag_new() -> None:
-    args = parse_args(["t", "-n", "demo/tag"])
+    args = UserParser.parse_args(["t", "-n", "demo/tag"])
     assert args.command == "tag"
     assert args.new_path == "demo/tag"
 
 
 def test_parse_tag_list_and_dry_run() -> None:
-    args = parse_args(["tag", "--list", "--dry-run", "--entity-limit", "10"])
+    args = UserParser.parse_args(["tag", "--list", "--dry-run", "--entity-limit", "10"])
     assert args.command == "tag"
     assert args.list is True
     assert args.dry_run is True
@@ -79,32 +75,3 @@ def test_parse_tag_list_and_dry_run() -> None:
 def test_is_help_argv() -> None:
     assert UserAbbrev.is_help_argv(["-h"]) is True
     assert UserAbbrev.is_help_argv([]) is False
-
-
-def test_default_argv_prints_help_then_version() -> None:
-    buf = StringIO()
-    with patch("sys.stdout", buf):
-        code = Cli.user.main([])
-    assert code == 0
-    text = buf.getvalue()
-    assert (
-        "usage:" in text.lower()
-        or "规则:" in text
-        or "Command" in text
-        or "python cli.py" in text
-    )
-    assert "NTQ Core Version:" in text
-    help_pos = text.find("python cli.py")
-    ver_pos = text.find("NTQ Core Version:")
-    assert help_pos >= 0
-    assert ver_pos > help_pos
-
-
-def test_explicit_version_skips_help_preamble() -> None:
-    buf = StringIO()
-    with patch("sys.stdout", buf):
-        code = Cli.user.main(["version"])
-    assert code == 0
-    text = buf.getvalue()
-    assert "NTQ Core Version:" in text
-    assert text.strip().startswith("NTQ Core Version:")

@@ -34,9 +34,11 @@ core/infra/cli/
 ├── glossary.yaml
 ├── module_info.yaml
 ├── user/                  # 用户 CLI 实现（非公开 import）
+│   └── __test__/          # user abbrev / parser unit
 ├── dev/                   # 开发 CLI 实现（非公开 import）
+│   └── __test__/          # dev abbrev / parser unit
 ├── shared/                # 共用 argv 脚手架实现
-├── __test__/
+├── __test__/              # 公开 API（test_api.py）
 └── docs/
     ├── ARCHITECTURE.md
     └── DESIGN.md
@@ -55,7 +57,7 @@ cli.py / devcli.py
    Cli（门面 / Facade）
    ├── user  → UserNamespace → UserBootstrap / UserRunner → user/*
    ├── dev   → DevNamespace  → DevRunner → dev/*
-   └── shared → SharedNamespace（argv 展开 / help / 别名）
+   └── shared → SharedNamespace（argv 展开 / help / 别名）；CliEnv（环境旗标）
 ```
 
 ```mermaid

@@ -8,23 +8,14 @@ import warnings
 
 from core.infra.cli.user.abbrev import UserAbbrev
 from core.infra.cli.user.app import CliApp
-from core.infra.cli.user.handlers import execute, run_early_command
-from core.infra.cli.user.parser import build_parser, parse_args
+from core.infra.cli.user.handlers import UserHandlers
+from core.infra.cli.user.parser import UserParser
 
 logger = logging.getLogger(__name__)
 
 
 class UserRunner:
     """User CLI main dispatch."""
-
-    @staticmethod
-    def _setup_logging(verbose: bool = False) -> None:
-        level = logging.DEBUG if verbose else logging.INFO
-        logging.basicConfig(
-            level=level,
-            format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-        )
 
     @staticmethod
     def _setup_warnings() -> None:
@@ -45,22 +36,18 @@ class UserRunner:
 
         raw = list(argv if argv is not None else sys.argv[1:])
         if UserAbbrev.is_help_argv(raw):
-            build_parser().print_help()
+            UserParser.build_parser().print_help()
             return 0
 
         show_help_before_version = not raw
-        if not raw:
-            raw = []
-
-        expanded = UserAbbrev.expand_argv(raw)
         try:
-            args = parse_args(expanded)
+            args = UserParser.parse_args(raw)
         except SystemExit as exc:
             code = exc.code
             return int(code) if isinstance(code, int) else 1
 
         if show_help_before_version and args.command == "version":
-            build_parser().print_help()
+            UserParser.build_parser().print_help()
             print()
 
         try:
@@ -70,7 +57,7 @@ class UserRunner:
         except Exception:
             pass
 
-        early = run_early_command(args)
+        early = UserHandlers.run_early_command(args)
         if early is not None:
             return early
 
@@ -83,7 +70,7 @@ class UserRunner:
         except Exception:
             pass
 
-        UserRunner._setup_logging(verbose=args.verbose)
+        UserHandlers.setup_logging(verbose=args.verbose)
 
         label = args.command
         app = CliApp(is_verbose=args.verbose)
@@ -93,7 +80,7 @@ class UserRunner:
             logger.info("▶️  执行命令: %s", label)
             logger.info("=" * 60)
 
-            execute(args, app)
+            UserHandlers.execute(args, app)
 
             logger.info("")
             logger.info("=" * 60)

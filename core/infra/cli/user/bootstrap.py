@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import sys
 
+from core.infra.cli.shared.env import CliEnv
 from core.infra.cli.user.abbrev import UserAbbrev
 from core.infra.cli.user.commands import UserCommands
 
@@ -15,8 +16,7 @@ class UserBootstrap:
     @staticmethod
     def ensure_venv_for_cli(entry_file: str) -> None:
         """Re-exec into project venv when not already inside one."""
-        raw = os.environ.get("NTQ_SKIP_AUTO_VENV", "").strip().lower()
-        if raw in ("1", "true", "yes"):
+        if CliEnv.is_truthy(CliEnv.SKIP_AUTO_VENV):
             return
         if sys.prefix != sys.base_prefix:
             return
@@ -33,8 +33,7 @@ class UserBootstrap:
     @staticmethod
     def should_skip_auto_install(argv: list[str]) -> bool:
         """Skip install.py when command does not need full runtime."""
-        raw = os.environ.get("NTQ_SKIP_AUTO_INSTALL", "").strip().lower()
-        if raw in ("1", "true", "yes"):
+        if CliEnv.is_truthy(CliEnv.SKIP_AUTO_INSTALL):
             return True
 
         if not argv:

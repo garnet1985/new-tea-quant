@@ -1,11 +1,11 @@
-"""Tests for dev CLI abbrev expansion and parser."""
+"""Unit tests for dev CLI abbrev expansion and parser."""
 
 from __future__ import annotations
 
 import pytest
 
 from core.infra.cli.dev.abbrev import DevAbbrev
-from core.infra.cli.dev.parser import parse_args
+from core.infra.cli.dev.parser import DevParser
 
 pytestmark = pytest.mark.force_run
 
@@ -31,28 +31,28 @@ def test_expand_argv(raw: list[str], expected: list[str]) -> None:
 
 
 def test_parse_default_version() -> None:
-    args = parse_args([])
+    args = DevParser.parse_args([])
     assert args.command == "version"
 
 
 def test_parse_dash_v() -> None:
-    args = parse_args(["-v"])
+    args = DevParser.parse_args(["-v"])
     assert args.command == "version"
 
 
 def test_parse_csc() -> None:
-    args = parse_args(["csc"])
+    args = DevParser.parse_args(["csc"])
     assert args.command == "clear_strategy_cache"
 
 
 def test_parse_pack_core_version() -> None:
-    args = parse_args(["p", "-core_v0.3.2"])
+    args = DevParser.parse_args(["p", "-core_v0.3.2"])
     assert args.command == "pack"
     assert args.version == "0.3.2"
 
 
 def test_parse_ssp_count() -> None:
-    args = parse_args(["ssp", "500"])
+    args = DevParser.parse_args(["ssp", "500"])
     assert args.command == "sample_stock_pool"
     assert args.count == 500
 

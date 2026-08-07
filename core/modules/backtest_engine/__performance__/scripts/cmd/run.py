@@ -20,6 +20,7 @@ if str(_CMD) not in sys.path:
 from common import (  # noqa: E402
     active_perf_entry,
     be_module_version,
+    case_report_template_path,
     collect_perf_versions,
     ensure_layout,
     open_dates_from_meta,
@@ -529,11 +530,10 @@ def _build_time_breakdown(
     }
 
 
-def _append_time_section(lines: List[str], breakdown: Dict[str, Any]) -> None:
-    lines.append("## 时间花在哪")
-    lines.append(
+def _format_time_section(breakdown: Dict[str, Any]) -> str:
+    lines = [
         f"- 准备/规划: {_format_sec_pct(breakdown.get('planning_sec'), breakdown.get('planning_pct'))}"
-    )
+    ]
     for k, v in dict(breakdown.get("planning_subs") or {}).items():
         if isinstance(v, (int, float)):
             lines.append(f"  - {k}: {v:.2f}s")
@@ -560,7 +560,36 @@ def _append_time_section(lines: List[str], breakdown: Dict[str, Any]) -> None:
     )
     for note in list(breakdown.get("notes") or []):
         lines.append(f"- 说明: {note}")
+    return "\n".join(lines)
 
+
+def _format_schedule_section(mode: str, schedule: Dict[str, Any]) -> str:
+    if mode == "slice_based":
+        lines = [
+            f"- 计算用几个进程: {schedule.get('compute_workers')}",
+            f"- 读数据用几个进程: {schedule.get('reader_workers')}",
+            f"- 预读排队深度: {schedule.get('queue_depth')}",
+            f"- 每片多少个交易日: {schedule.get('slice_open_days') or '—'}",
+            f"- 一共切了几片: {schedule.get('formal_slices')}",
+            f"- 每只股票装载几次: {schedule.get('per_entity_load_count')}",
+        ]
+    else:
+        lines = [
+            f"- 同时开几个进程: {schedule.get('workers') or '—'}",
+            f"- 任务包数量: {schedule.get('job_count') or '—'}",
+            f"- 每包多少只股票: {schedule.get('entities_per_job') or '—'}",
+        ]
+    return "\n".join(lines)
+
+
+def _format_notes_section(warnings: List[str]) -> str:
+    notes = [str(n) for n in list(warnings or []) if str(n).strip()]
+    if not notes:
+        return ""
+    lines = ["", "## 备注"]
+    lines.extend(f"- {n}" for n in notes)
+    lines.append("")
+    return "\n".join(lines)
 
 def _schedule_from_case(
     case: Dict[str, Any],
@@ -759,82 +788,48 @@ def _write_report(case: Dict[str, Any], *, db_entry: dict) -> Path:
     mem_s = f"{mem} GB" if mem is not None else "—"
     deps = dict(versions.get("dependencies") or {})
     dep_bits = [f"{k} {v}" for k, v in deps.items() if v]
-    lines = [
-        f"# 性能测试报告 — {mode_label} · N{entities} · {eng_dir}",
-        "",
-        "## 环境",
-        f"- 跑测时间: {run_at}",
-        f"- 回测引擎 (BE): {be_ver}",
-        f"- core: {versions.get('core')}",
-        f"- 相关模块: {', '.join(dep_bits) if dep_bits else '—'}",
-        f"- 操作系统: {env.get('os')}",
-        f"- CPU: {env.get('cpu')}",
-        f"- 内存: {mem_s}",
-        f"- Python: {env.get('python')}",
-        f"- 数据库类型: {eng_dir} ({engine})",
-        f"- 数据库名称: {report['db'].get('name')}",
-        "",
-        "## 结果",
-        f"- 运行模式: {mode_label}",
-        f"- 样本档: N{entities}"
-        + (
-            f"（最大 N{stock_max} 的 {float(scale_frac)*100:.0f}%）"
-            if scale_frac is not None
-            else ""
-        ),
-        f"- 总执行时间（秒）: {wall:.4f}",
-        f"- 股票数: {entities}",
-        f"- 交易日数: {days}",
-        f"- 数据量（行）: {rows}",
-        (
-            f"- 处理速度（股票×交易日 / 秒）: {throughput:.2f}"
-            if throughput is not None
-            else "- 处理速度（股票×交易日 / 秒）: —"
-        ),
-        f"- 是否成功: {success_label}",
-        "",
-        "## 调度情况",
-    ]
-    if mode == "slice_based":
-        lines.extend(
-            [
-                f"- 计算用几个进程: {schedule.get('compute_workers')}",
-                f"- 读数据用几个进程: {schedule.get('reader_workers')}",
-                f"- 预读排队深度: {schedule.get('queue_depth')}",
-                f"- 每片多少个交易日: {schedule.get('slice_open_days') or '—'}",
-                f"- 一共切了几片: {schedule.get('formal_slices')}",
-                f"- 每只股票装载几次: {schedule.get('per_entity_load_count')}",
-            ]
-        )
-    else:
-        lines.extend(
-            [
-                f"- 同时开几个进程: {schedule.get('workers') or '—'}",
-                f"- 任务包数量: {schedule.get('job_count') or '—'}",
-                f"- 每包多少只股票: {schedule.get('entities_per_job') or '—'}",
-            ]
-        )
+    sample_label = f"N{entities}"
+    if scale_frac is not None:
+        sample_label += f"（最大 N{stock_max} 的 {float(scale_frac)*100:.0f}%）"
+    throughput_s = f"{throughput:.2f}" if throughput is not None else "—"
 
-    lines.append("")
-    _append_time_section(lines, breakdown)
-    lines.extend(
-        [
-            "",
-            "## 并行效果",
-            f"- 并行效果: {parallelism if parallelism is not None else '—'}",
-            f"- 并行效率: {parallelism_eff if parallelism_eff is not None else '—'}",
-            "",
-        ]
+    from core.infra.utils import Utils
+
+    mgr = Utils.markdown.load_template(case_report_template_path())
+    mgr.fill_many(
+        {
+            "mode_label": mode_label,
+            "sample_size": str(entities),
+            "engine_dir": eng_dir,
+            "run_at": run_at,
+            "be_version": be_ver,
+            "core_version": str(versions.get("core") or "—"),
+            "dependencies": ", ".join(dep_bits) if dep_bits else "—",
+            "os": str(env.get("os") or "—"),
+            "cpu": str(env.get("cpu") or "—"),
+            "memory": mem_s,
+            "python": str(env.get("python") or "—"),
+            "engine": engine,
+            "db_name": str(report["db"].get("name") or "—"),
+            "sample_label": sample_label,
+            "wall_time": f"{wall:.4f}",
+            "entities": str(entities),
+            "days": str(days),
+            "data_rows": str(rows),
+            "throughput": throughput_s,
+            "success_label": success_label,
+            "schedule_section": _format_schedule_section(mode, schedule),
+            "time_section": _format_time_section(breakdown),
+            "parallelism": (
+                str(parallelism) if parallelism is not None else "—"
+            ),
+            "parallelism_efficiency": (
+                str(parallelism_eff) if parallelism_eff is not None else "—"
+            ),
+            "notes_section": _format_notes_section(list(case.get("warnings") or [])),
+        }
     )
-    notes = list(case.get("warnings") or [])
-    if notes:
-        lines.append("## 备注")
-        for note in notes:
-            lines.append(f"- {note}")
-        lines.append("")
-
-    report_path = out_dir / "REPORT.md"
-    report_path.write_text("\n".join(lines), encoding="utf-8")
+    report_path = mgr.save(out_dir / "REPORT.md")
     # stash versions on case for CLI summary
     case["_versions"] = versions
     return report_path

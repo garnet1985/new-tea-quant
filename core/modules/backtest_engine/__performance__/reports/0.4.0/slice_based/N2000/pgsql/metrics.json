@@ -1,7 +1,7 @@
 {
   "case_name": "slice_based",
-  "run_at": "2026-08-07T06:01:26Z",
-  "run_date": "2026-08-07T06:01:26Z",
+  "run_at": "2026-08-07T06:30:23Z",
+  "run_date": "2026-08-07T06:30:23Z",
   "module": "modules.backtest_engine",
   "description": "按时间切片空策略基准：测引擎按片读数与推进日历的速度",
   "versions": {
@@ -44,15 +44,15 @@
     "db_engine": "postgresql",
     "strategy": "slice_based",
     "workload": "strategy_baseline",
-    "wall_time_s": 17.752949791000002,
+    "wall_time_s": 18.665259833,
     "entities": 2000,
     "entities_driven": 2000,
     "timeline_points": 784,
     "success": true,
-    "elapsed_seconds": 17.539345541000003,
+    "elapsed_seconds": 18.437342040999997,
     "opportunities_count": 0,
-    "output_dir": "/Users/garnet/Desktop/new-tea-quant/core/modules/backtest_engine/__performance__/scripts/test_strategies/slice_based/results/simulations/enum/6",
-    "version_id": 6,
+    "output_dir": "/Users/garnet/Desktop/new-tea-quant/core/modules/backtest_engine/__performance__/scripts/test_strategies/slice_based/results/simulations/enum/3",
+    "version_id": 3,
     "total_jobs": 1,
     "completed_jobs": 1,
     "failed_jobs": 0,
@@ -64,23 +64,23 @@
       "slice_samples": [
         {
           "slice_index": 0,
-          "load_sec": 1.1375,
-          "compute_sec": 0.4249,
+          "load_sec": 1.1424,
+          "compute_sec": 0.4121,
           "serialize_sec": 0.0,
           "deserialize_sec": 0.0,
-          "rss_after_mb": 223.5,
-          "payload_mb": 41.0,
-          "payload_bytes": 42942464
+          "rss_after_mb": 227.4,
+          "payload_mb": 44.4,
+          "payload_bytes": 46530560
         },
         {
           "slice_index": 1,
-          "load_sec": 0.8194,
-          "compute_sec": 0.5119,
+          "load_sec": 0.8112,
+          "compute_sec": 0.5177,
           "serialize_sec": 0.0,
           "deserialize_sec": 0.0,
-          "rss_after_mb": 307.8,
-          "payload_mb": 125.2,
-          "payload_bytes": 131284992
+          "rss_after_mb": 327.2,
+          "payload_mb": 144.2,
+          "payload_bytes": 151240704
         }
       ]
     },
@@ -90,7 +90,7 @@
     "mode_label": "按时间切片（slice）",
     "sample_size": 2000,
     "data_rows": 1568000,
-    "throughput_entity_day_per_s": 88323.35011699915,
+    "throughput_entity_day_per_s": 84006.33122865994,
     "schedule": {
       "compute_workers": 1,
       "reader_workers": 8,
@@ -100,25 +100,25 @@
       "per_entity_load_count": 28
     },
     "time_split": {
-      "planning_sec": 0.1898,
+      "planning_sec": 0.2028,
       "planning_pct": 1.1,
-      "load_sec": 11.8644,
-      "load_pct": 66.9,
-      "compute_sec": 5.6797,
-      "compute_pct": 32.0,
+      "load_sec": 12.4955,
+      "load_pct": 67.0,
+      "compute_sec": 5.9472,
+      "compute_pct": 31.9,
       "report_sec": 0.0,
       "report_pct": 0.0,
       "planning_subs": {
         "调度采样": "正式任务前 2 片（耗时已计入读数据/推进，不单列）"
       },
       "load_subs": {
-        "读进程峰值内存": "84.7 MB",
-        "单片读数（估）": "0.978s/片"
+        "读进程峰值内存": "97.7 MB",
+        "单片读数（估）": "0.977s/片"
       },
       "compute_subs": {
-        "计算进程峰值内存": "40.5 MB",
-        "单片推进（估）": "0.468s/片",
-        "片内推进": 5.6797
+        "计算进程峰值内存": "46.5 MB",
+        "单片推进（估）": "0.465s/片",
+        "片内推进": 5.9472
       },
       "report_subs": {},
       "notes": [

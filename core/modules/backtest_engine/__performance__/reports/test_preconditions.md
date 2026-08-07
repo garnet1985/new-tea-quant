@@ -34,7 +34,8 @@
 规模改动看：`scripts/cmd/config.py`（改最大股票数与 `SCALE_FRACTIONS`）。
 
 报告路径：`reports/{BE版本}/{mode}/N{股票数}/{duckdb|mysql|pgsql}/`；  
-模式总览：`reports/{BE版本}/{mode}/OVERALL.md`（T0/k、翻倍吞吐变化、固定成本占比）。
+模式总览：`reports/{BE版本}/{mode}/OVERALL.md`（T0/k、翻倍吞吐变化、固定成本占比）。  
+可填充模版：`reports/CASE_REPORT.md`、`reports/OVERALL_TEMPLATE.md`（`Utils.markdown` + `{{:token}}`）。
 
 ---
 

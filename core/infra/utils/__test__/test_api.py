@@ -24,6 +24,12 @@ class TestUtilsApi(unittest.TestCase):
         self.assertTrue(hasattr(Utils, "types"))
         self.assertTrue(hasattr(Utils, "io"))
         self.assertTrue(hasattr(Utils, "math"))
+        self.assertTrue(hasattr(Utils, "markdown"))
+
+    def test_markdown_template_fill(self):
+        mgr = Utils.markdown.from_text("t={{:wall_clock_seconds}}")
+        mgr.fill("wall_clock_seconds", "3s")
+        self.assertEqual(mgr.render(), "t=3s")
 
     def test_date_today_and_normalize(self):
         today = Utils.date.today()

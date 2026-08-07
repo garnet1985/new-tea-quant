@@ -165,6 +165,19 @@ def report_mode_dir(*, be_version: str, mode: str) -> Path:
     return REPORTS_DIR / ver / str(mode)
 
 
+def report_fill_templates_dir() -> Path:
+    """Human guides + machine fill templates live under reports/."""
+    return REPORTS_DIR
+
+
+def case_report_template_path() -> Path:
+    return report_fill_templates_dir() / "CASE_REPORT.md"
+
+
+def overall_report_template_path() -> Path:
+    return report_fill_templates_dir() / "OVERALL_TEMPLATE.md"
+
+
 def load_registry() -> Dict[str, Any]:
     ensure_layout()
     if not REGISTRY_PATH.is_file():

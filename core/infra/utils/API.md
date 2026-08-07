@@ -66,6 +66,29 @@ Utils.date.diff_days("20240101", "20240116")
 - **状态：** `beta`
 - **描述：** SHA-256 派生的确定性 `[0,1)` 伪随机
 
+### markdown
+
+`Utils.markdown` 绑定 `MarkdownMgr`：MD 模版 ``{{:token}}`` 填充。
+
+| 方法 | 说明 |
+|------|------|
+| `load_template(path)` | 从文件加载模版，扫描 token |
+| `from_text(text)` | 从字符串加载模版 |
+| `fill(token, content)` / `fill_many({...})` | 填值（同名后写覆盖；非 str → `""`） |
+| `save(path)` / `render()` | 未填 token 报错；写出 MD |
+| `clear()` | 清空已填值 |
+
+- **状态：** `beta`
+- **举例：**
+
+```python
+from core.infra.utils import Utils
+
+mgr = Utils.markdown.load_template("REPORT_TEMPLATE.md")
+mgr.fill("wall_clock_seconds", "3s")
+mgr.save("out/REPORT.md")
+```
+
 ---
 
 ## contracts

@@ -1,4 +1,4 @@
-"""Utils 门面 — date / types / io / math。"""
+"""Utils 门面 — date / types / io / math / markdown。"""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Literal, Mapping, Optional, Sequence
 
 from core.infra.utils.date.date_utils import DateUtils
+from core.infra.utils.markdown import MarkdownMgr
 from core.infra.utils.type_utils import TypeUtils
 
 
@@ -83,6 +84,7 @@ class Utils:
     types = TypeUtils
     io = IoNamespace()
     math = MathNamespace()
+    markdown = MarkdownMgr
 
 
 __all__ = ["Utils"]

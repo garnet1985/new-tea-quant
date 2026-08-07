@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from common import (
     REPORTS_DIR,
     be_module_version,
+    overall_report_template_path,
     report_engine_dirname,
     report_mode_dir,
     utc_now_iso,
@@ -219,6 +220,83 @@ def _fmt_thr(v: Optional[float]) -> str:
     return f"{v:.0f}"
 
 
+def _render_verdicts_section(by_engine: Dict[str, Dict[str, Any]]) -> str:
+    if not by_engine:
+        return "- 尚无分档报告（需要 `N{size}/{db}/metrics.json`）。"
+    return "\n".join(
+        f"- **{eng}**: {ana.get('verdict')}" for eng, ana in by_engine.items()
+    )
+
+
+def _render_engine_detail(eng: str, ana: Dict[str, Any]) -> str:
+    pts: List[Dict[str, Any]] = list(ana.get("points") or [])
+    lines: List[str] = [
+        f"### {eng}",
+        "",
+        "| N | 墙钟(s) | 吞吐(ed/s) | 准备 | 读数据 | 推进 |",
+        "|--:|--:|--:|--:|--:|--:|",
+    ]
+    for p in pts:
+        lines.append(
+            f"| {p['n']} | {p['wall']:.2f} | {_fmt_thr(p.get('throughput'))} | "
+            f"{(p.get('planning_sec') if p.get('planning_sec') is not None else 0):.2f} | "
+            f"{(p.get('load_sec') if p.get('load_sec') is not None else 0):.2f} | "
+            f"{(p.get('compute_sec') if p.get('compute_sec') is not None else 0):.2f} |"
+        )
+    lines.append("")
+
+    t0, k = ana.get("t0"), ana.get("k")
+    if t0 is not None and k is not None:
+        lines.append(f"- 拟合: T ≈ {t0:.3f} + {k:.5f}·N 秒")
+        share_tail = ""
+        fs = list(ana.get("fixed_share") or [])
+        if fs and fs[-1].get("t0_share_pct") is not None:
+            share_tail = f"（在 N={pts[-1]['n']} 约占 {fs[-1]['t0_share_pct']}%）"
+        lines.append(f"- 固定成本 T0: **{t0:.3f}s**{share_tail}")
+        lines.append(f"- 边际成本 k: **{k*1000:.2f} ms/股**（含该股全部交易日）")
+    else:
+        lines.append("- 拟合: 档位不足")
+
+    nf = ana.get("near_fixed")
+    if nf:
+        flag = "像固定成本" if nf.get("looks_fixed") else "随规模有波动"
+        lines.append(
+            f"- 近固定: {nf['label']} 均值 {nf['mean_sec']}s、"
+            f"极差 {nf['spread_sec']}s → {flag}"
+        )
+    nl = ana.get("near_linear")
+    if nl:
+        flag = "像按股线性" if nl.get("looks_linear") else "每股票成本不稳定"
+        lines.append(
+            f"- 近线性: {nl['label']} 均值 {nl['mean_sec_per_stock']:.4f}s/股、"
+            f"极差 {nl['spread_sec_per_stock']:.4f} → {flag}"
+        )
+
+    dubs = list(ana.get("doubling") or [])
+    if dubs:
+        lines.append("- 样本翻倍附近（吞吐变化可为负）:")
+        for d in dubs:
+            thr = d.get("throughput_pct")
+            thr_s = f"{thr:+.1f}%" if thr is not None else "—"
+            wr = d.get("wall_ratio")
+            wr_s = f"{wr:.2f}×" if wr is not None else "—"
+            lines.append(
+                f"  - N{d['from_n']}→N{d['to_n']}: "
+                f"墙钟 {wr_s}（理想线性约 {d['n_ratio']:.2f}×），"
+                f"吞吐 {thr_s}"
+            )
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _render_engines_detail_section(by_engine: Dict[str, Dict[str, Any]]) -> str:
+    if not by_engine:
+        return "_（暂无分库明细）_\n"
+    return "\n".join(
+        _render_engine_detail(eng, ana) for eng, ana in by_engine.items()
+    )
+
+
 def render_overall_markdown(
     *,
     mode: str,
@@ -226,100 +304,20 @@ def render_overall_markdown(
     be_version: str,
     by_engine: Dict[str, Dict[str, Any]],
 ) -> str:
-    lines: List[str] = [
-        f"# 性能总览 — {mode_label}",
-        "",
-        f"- 生成时间: {utc_now_iso()}",
-        f"- BE: {be_version}",
-        f"- 模式: {mode}",
-        "- 模型: 墙钟 T ≈ T0 + k·N（N=股票数，交易日固定）",
-        "",
-        "## 结论（先看这）",
-        "",
-    ]
-    if not by_engine:
-        lines.append("- 尚无分档报告（需要 `N{{size}}/{{db}}/metrics.json`）。")
-        lines.append("")
-        return "\n".join(lines)
+    from core.infra.utils import Utils
 
-    for eng, ana in by_engine.items():
-        lines.append(f"- **{eng}**: {ana.get('verdict')}")
-    lines.extend(["", "## 分库明细", ""])
-
-    for eng, ana in by_engine.items():
-        pts: List[Dict[str, Any]] = list(ana.get("points") or [])
-        lines.append(f"### {eng}")
-        lines.append("")
-        lines.append("| N | 墙钟(s) | 吞吐(ed/s) | 准备 | 读数据 | 推进 |")
-        lines.append("|--:|--:|--:|--:|--:|--:|")
-        for p in pts:
-            lines.append(
-                f"| {p['n']} | {p['wall']:.2f} | {_fmt_thr(p.get('throughput'))} | "
-                f"{(p.get('planning_sec') if p.get('planning_sec') is not None else 0):.2f} | "
-                f"{(p.get('load_sec') if p.get('load_sec') is not None else 0):.2f} | "
-                f"{(p.get('compute_sec') if p.get('compute_sec') is not None else 0):.2f} |"
-            )
-        lines.append("")
-
-        t0, k = ana.get("t0"), ana.get("k")
-        if t0 is not None and k is not None:
-            lines.append(f"- 拟合: T ≈ {t0:.3f} + {k:.5f}·N 秒")
-            share_tail = ""
-            fs = list(ana.get("fixed_share") or [])
-            if fs and fs[-1].get("t0_share_pct") is not None:
-                share_tail = (
-                    f"（在 N={pts[-1]['n']} 约占 {fs[-1]['t0_share_pct']}%）"
-                )
-            lines.append(f"- 固定成本 T0: **{t0:.3f}s**{share_tail}")
-            lines.append(
-                f"- 边际成本 k: **{k*1000:.2f} ms/股**（含该股全部交易日）"
-            )
-        else:
-            lines.append("- 拟合: 档位不足")
-
-        nf = ana.get("near_fixed")
-        if nf:
-            flag = "像固定成本" if nf.get("looks_fixed") else "随规模有波动"
-            lines.append(
-                f"- 近固定: {nf['label']} 均值 {nf['mean_sec']}s、"
-                f"极差 {nf['spread_sec']}s → {flag}"
-            )
-        nl = ana.get("near_linear")
-        if nl:
-            flag = "像按股线性" if nl.get("looks_linear") else "每股票成本不稳定"
-            lines.append(
-                f"- 近线性: {nl['label']} 均值 {nl['mean_sec_per_stock']:.4f}s/股、"
-                f"极差 {nl['spread_sec_per_stock']:.4f} → {flag}"
-            )
-
-        dubs = list(ana.get("doubling") or [])
-        if dubs:
-            lines.append("- 样本翻倍附近（吞吐变化可为负）:")
-            for d in dubs:
-                thr = d.get("throughput_pct")
-                thr_s = f"{thr:+.1f}%" if thr is not None else "—"
-                wr = d.get("wall_ratio")
-                wr_s = f"{wr:.2f}×" if wr is not None else "—"
-                lines.append(
-                    f"  - N{d['from_n']}→N{d['to_n']}: "
-                    f"墙钟 {wr_s}（理想线性约 {d['n_ratio']:.2f}×），"
-                    f"吞吐 {thr_s}"
-                )
-        lines.append("")
-
-    lines.extend(
-        [
-            "## 怎么读",
-            "",
-            "- 吞吐随 N **上升**：固定成本被摊薄（「越大越划算」）。",
-            "- 吞吐大致 **持平**：墙钟近似按股线性。",
-            "- 吞吐 **下降**：越大越慢，查调度/IO/内存/片宽。",
-            "- T0 是 sink（进程、规划、采样等）；占比随 N 变大应下降。",
-            "- entity 与 slice 分看，不要横比谁更快。",
-            "",
-        ]
+    mgr = Utils.markdown.load_template(overall_report_template_path())
+    mgr.fill_many(
+        {
+            "mode_label": mode_label,
+            "generated_at": utc_now_iso(),
+            "be_version": be_version,
+            "mode": mode,
+            "verdicts_section": _render_verdicts_section(by_engine),
+            "engines_detail_section": _render_engines_detail_section(by_engine),
+        }
     )
-    return "\n".join(lines)
+    return mgr.render()
 
 
 def write_overall_report(
@@ -337,25 +335,30 @@ def write_overall_report(
     eng_dirs = engines or ["duckdb", "mysql", "pgsql"]
     by_engine: Dict[str, Dict[str, Any]] = {}
     for eng in eng_dirs:
-        # normalize alias
         eng_dir = report_engine_dirname(eng)
         pts = _load_scale_points(mode_dir, engine_dir=eng_dir)
         if not pts:
             continue
         by_engine[eng_dir] = analyze_points(pts)
 
-    text = render_overall_markdown(
-        mode=mode,
-        mode_label=mode_label,
-        be_version=ver,
-        by_engine=by_engine,
-    )
-    out = mode_dir / "OVERALL.md"
-    out.write_text(text, encoding="utf-8")
+    from core.infra.utils import Utils
 
-    # machine-readable companion
+    mgr = Utils.markdown.load_template(overall_report_template_path())
+    generated_at = utc_now_iso()
+    mgr.fill_many(
+        {
+            "mode_label": mode_label,
+            "generated_at": generated_at,
+            "be_version": ver,
+            "mode": mode,
+            "verdicts_section": _render_verdicts_section(by_engine),
+            "engines_detail_section": _render_engines_detail_section(by_engine),
+        }
+    )
+    out = mgr.save(mode_dir / "OVERALL.md")
+
     payload = {
-        "generated_at": utc_now_iso(),
+        "generated_at": generated_at,
         "be_version": ver,
         "mode": mode,
         "engines": {

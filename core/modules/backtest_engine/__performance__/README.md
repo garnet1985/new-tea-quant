@@ -34,11 +34,13 @@ __performance__/
 ├── CASES.md
 ├── reports/
 │   ├── test_preconditions.md
-│   ├── REPORT_TEMPLATE.md
+│   ├── REPORT_TEMPLATE.md     # 字段说明
+│   ├── CASE_REPORT.md         # 单档 fill 模版（{{:token}}）
+│   ├── OVERALL_TEMPLATE.md    # 总览 fill 模版
 │   └── {BE版本}/
 │       └── {entity_based|slice_based}/
 │           ├── OVERALL.md
-│           └── N{250|500|1000}/{duckdb|mysql|pgsql}/
+│           └── N{500|1000|…}/{duckdb|mysql|pgsql}/
 ├── scripts/
 │   ├── test_strategies/       # 固定空策略（勿随意改）
 │   │   ├── entity_based/

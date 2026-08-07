@@ -313,9 +313,9 @@ def _run_one(
 def _env_snapshot() -> Dict[str, Any]:
     mem_gb: Optional[float] = None
     try:
-        from core.infra.machine_capacity.machine_capacity import MachineInfo
+        from core.infra.machine_capacity import MachineInfo
 
-        total_mb, _ = MachineInfo._virtual_memory_mb()
+        total_mb, _ = MachineInfo.virtual_memory_mb()
         if total_mb is not None:
             mem_gb = round(total_mb / 1024.0, 1)
     except Exception:

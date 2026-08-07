@@ -7,6 +7,7 @@
 容量快照类型::
 
     from core.infra.machine_capacity.contracts import MachineCapacity
+    # 或 MachineInfo.types.MachineCapacity
 """
 
 from .machine_capacity import MachineInfo

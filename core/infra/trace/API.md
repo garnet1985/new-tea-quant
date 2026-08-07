@@ -10,7 +10,7 @@
 
 快速开始见 [QUICKSTART.md](./QUICKSTART.md)。术语见 [glossary.yaml](./glossary.yaml)。架构见 [ARCHITECTURE.md](./docs/ARCHITECTURE.md)。
 
-**公开约定：** 包根仅导出 `Trace`；类型从 [`contracts.py`](./contracts.py) 导入。
+**公开约定：** 包根仅导出 `Trace`；类型从 [`contracts.py`](./contracts.py) 导入，或经 `Trace.types`。内置默认见 [`core/defaults.py`](./core/defaults.py)。
 
 ---
 
@@ -60,7 +60,7 @@
 `Trace.config.load() -> dict`
 
 - **状态：** `beta`
-- **描述：** 只读配置
+- **描述：** 只读配置（含解析后的 `target_url`）
 
 ### consent
 
@@ -73,16 +73,30 @@
 
 - **状态：** `beta`
 
-### 环境变量
+### types
 
-| 变量 | 作用 |
-|------|------|
-| `NTQ_TRACE_SKIP` | `1` 强制关闭（CI） |
-| `NTQ_TRACE_ENABLED` | `0/1` 覆盖同意状态 |
-| `NTQ_TRACE_ENDPOINT` | 覆盖 target_url |
-| `NTQ_TRACE_TIMEOUT` | POST 超时秒数 |
+**描述：** `FlushBudget` / `TraceConfig` / `TraceConsent` / `TraceEvent` / `TraceDefaults`
 
-同意文件：`userspace/system/config/trace_consent.json`
+---
+
+## 配置与目标 URL
+
+| 来源 | 优先级 | 说明 |
+|------|--------|------|
+| `NTQ_TRACE_ENDPOINT` / `NTQ_TRACE_TIMEOUT` | 最高 | 环境变量覆盖 |
+| `userspace/system/config/trace.json` | 中 | 可选 tunables（`target_url` 等）；**不含**同意开关 |
+| [`core/defaults.py`](./core/defaults.py) `TraceDefaults` | 最低 | **改内置默认地址改这里** |
+
+同意：`userspace/system/config/trace_consent.json`；另有 `NTQ_TRACE_SKIP` / `NTQ_TRACE_ENABLED`。
+
+`trace.json` 示例：
+
+```json
+{
+  "target_url": "https://staging.example/api/v1/traces",
+  "timeout_sec": 3.0
+}
+```
 
 ---
 

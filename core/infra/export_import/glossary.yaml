@@ -13,17 +13,27 @@ terms:
     aliases:
       - "门面"
     avoid:
-      - "导出 create_bundle_archive 等游离函数"
+      - "直接 import BundleArchive / ArtifactCollector 等实现类当公开 API"
+      - "create_bundle_archive 等模块级自由函数（已收成类）"
 
   ExportImport:
     definition: "本模块门面类；挂载 archive / install / types 命名空间。"
     aliases: []
     avoid: []
 
+  namespace:
+    definition: "门面下的命名空间（ExportImport.archive / install / types）。"
+    aliases:
+      - "ExportImport.archive"
+      - "ExportImport.install"
+      - "ExportImport.types"
+    avoid: []
+
   bundle:
     definition: "制品归档包（zip + manifest.json）。"
     aliases:
       - "归档包"
+      - "BundleArchive"
     avoid: []
 
   ConflictPolicy:
@@ -35,3 +45,37 @@ terms:
     definition: "单个可打包制品的规格（源目录、归档前缀、安装相对路径）。"
     aliases: []
     avoid: []
+
+  BundleManifest:
+    definition: "归档清单（format_version + entries）；文件名为 manifest.json。"
+    aliases:
+      - "ManifestEntry"
+      - "manifest.json"
+      - "BundleManifestIO"
+    avoid: []
+
+  PreflightResult:
+    definition: "安装前冲突预检结果：ok / conflicts / skipped / to_install。"
+    aliases:
+      - "ConflictItem"
+      - "ConflictChecker"
+    avoid: []
+
+  InstallResult:
+    definition: "安装结果：ok / installed / skipped / errors。"
+    aliases:
+      - "BundleInstaller"
+    avoid: []
+
+  CollectedFile:
+    definition: "归档内单文件条目（archive_path + source_path）；偏内部契约。"
+    aliases:
+      - "ArtifactCollector"
+    avoid: []
+
+  RuntimeExcludes:
+    definition: "收集时跳过的运行时目录与垃圾文件规则（results / cache / __pycache__ 等）。"
+    aliases:
+      - "runtime excludes"
+    avoid:
+      - "按 strategies/tags 路径再写特殊 skip 分支"

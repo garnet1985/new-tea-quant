@@ -24,10 +24,11 @@
 
 ```text
 core/infra/export_import/
-├── export_import.py      # 门面
+├── export_import.py      # 门面 + TypesNamespace
 ├── contracts.py          # 类型
-├── core/                 # archive / collect / conflict / install / …
-├── __test__/
+├── core/                 # BundleArchive / Collector / Installer / …
+│   └── __test__/         # 行为单测
+├── __test__/             # 公开 API + TEST_CASES.md
 └── docs/
 ```
 
@@ -37,9 +38,9 @@ core/infra/export_import/
 
 ```text
 调用方 → ExportImport
-           ├── archive.create / extract
-           └── install.preflight / install
-                 → core/* 实现
+           ├── archive.create / extract  → BundleArchive
+           ├── install.preflight / install → ConflictChecker / BundleInstaller
+           └── types → contracts
 ```
 
 ---

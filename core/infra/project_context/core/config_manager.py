@@ -531,35 +531,6 @@ class ConfigManager:
             override_fields=set()
         )
     
-    @staticmethod
-    def load_system_config() -> Dict[str, Any]:
-        """
-        加载系统配置（合并后的完整配置）
-        
-        Returns:
-            系统配置字典
-        """
-        return ConfigManager.load_core_config(
-            'system',
-            deep_merge_fields=set(),
-            override_fields=set()
-        )
-    
-    @staticmethod
-    def load_logging_config() -> Dict[str, Any]:
-        """
-        加载日志配置（合并后的完整配置）
-        
-        来源：
-        - 默认：core/default_config/logging.json
-        - 用户：userspace/config/logging.json（如存在则覆盖默认）
-        """
-        return ConfigManager.load_core_config(
-            'logging',
-            deep_merge_fields=set(),
-            override_fields=set()
-        )
-    
     # ==================== 便捷访问接口（频繁使用的配置）====================
     
     @staticmethod

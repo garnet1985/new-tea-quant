@@ -1,6 +1,6 @@
 # Database 模块设计文档
 
-**版本：** `0.4.0`
+**版本：** `0.5.0`
 
 本文档描述 `infra.db` 的模块拆分与协作细节；总览见 [ARCHITECTURE.md](./ARCHITECTURE.md)。
 
@@ -19,7 +19,7 @@
 
 ### 2.1 `DatabaseManager`（`db_manager.py`）
 
-- 解析配置 → `build_engine_meta` → `create_engine` → `engine.initialize()`。
+- 解析配置 → `Db.engine.build_meta`（`EngineConfigMeta`）→ `Db.engine.create` → `engine.initialize()`。
 - 维护 `StorageRegistry`、`schema_manager`（initialize 后与 engine 共享）。
 - 转发：查询、事务、建表、`queue_write`、`checkpoint_duckdb` 等。
 
@@ -66,7 +66,7 @@ mysql/pgsql 另含 `BatchWriteQueue`（经 `_WriteQueueHost` 挂到 engine）。
 ```text
 DataManager.initialize()
   → DatabaseManager.initialize()
-  → create_engine(meta)
+  → Db.engine.create(meta) / EngineFactory.create(meta)
   → rebuild_storage_registry()
   → (duckdb) engine.rebuild_table_file_map()
   → engine.initialize()
@@ -148,7 +148,7 @@ db.checkpoint_duckdb()
 | 8 | mysql / pgsql 平级目录 | ✅ 已实现 |
 | 9 | DbBaseModel 委托 engine | 🔶 部分（`table_operator` 路径已落地） |
 | 10 | 跨域 JOIN / 写 | 🔶 部分（跨域写 v1 仍不支持；QueryPlanner 未实现） |
-| 11 | DuckDB WritePipeline + 多进程 | 🔶 部分（WritePipeline ✅；`worker_scope` / Collector 待做） |
+| 11 | DuckDB WritePipeline + 多进程 | 🔶 部分（WritePipeline ✅；`process_pool_scope` / `Db.duckdb.worker_pool` ✅） |
 | 12 | DECIMAL 存储 + infra 统一出入库标量契约 | ✅ 已实现 |
 
 ---
@@ -159,7 +159,7 @@ db.checkpoint_duckdb()
 - **决策**：模块支持 **PostgreSQL**、**MySQL**、**DuckDB**（默认本地三域文件）。
 - **理由**：DuckDB 为 NTQ 默认嵌入式后端；server 库用于部署可选。
 - **影响**：新方言须新增 `engines/<backend>/` 包、`schema_parser`、factory 分支与测试。
-- **实现**：`engines/mysql`、`engines/pgsql`、`engines/duckdb`；配置经 `parse_database_config` + `build_engine_meta`。
+- **实现**：`engines/mysql`、`engines/pgsql`、`engines/duckdb`；配置经 `parse_database_config` + `EngineConfigMeta.from_raw_config`（公开：`Db.engine.build_meta`）。
 
 ---
 
@@ -213,10 +213,10 @@ db.checkpoint_duckdb()
 
 - **决策**：
   - `core/infra/db/core/engines/{duckdb,mysql,pgsql}/`，每包 `engine.py` 编排 `connector`、`schema_parser`、`sql_adapter`、`table_operator` 等。
-  - `DatabaseManager`：解析配置 → `create_engine` → 转发业务调用。
+  - `DatabaseManager`：解析配置 → 挂载 Engine → 转发业务调用。
   - 无胖 `BaseDatabaseEngine`；共享逻辑仅放 `engines/shared/`（无 `engine_key` 分支）。
 - **实现**：✅ 已完成（v0.3.0）；根目录 `schema_manager.py`、`migrate_manager.py`；无 `helpers/` 兼容层。
-- **详见**：[engines/ARCHITECTURE.md](../engines/ARCHITECTURE.md)
+- **详见**：[engines/ARCHITECTURE.md](../core/engines/ARCHITECTURE.md)
 
 ---
 
@@ -252,15 +252,15 @@ db.checkpoint_duckdb()
 
 ---
 
-## 决策 11：DuckDB 每域 WritePipeline + 多进程 Collector（部分）
+## 决策 11：DuckDB 每域 WritePipeline + 多进程 worker 池协作（部分）
 
 - **已实现**：
   - 每域 `WritePipeline`；`wal_policy`；批末 / SIGINT / `checkpoint_duckdb`。
   - `connector` 多域连接、`domain_catalog` 动态表→文件映射。
-- **待实现**：
-  - `duckdb/worker_scope.py`：子进程不直连写库，主进程 Collector 按域入队（见 engines 架构 §8）。
-  - Tag 多进程等场景与 Collector 的完整对接。
-- **详见**：[engines/ARCHITECTURE.md §8](../engines/ARCHITECTURE.md)、[storage-domains.md](./storage-domains.md)
+  - `duckdb/process_pool_scope.py`：多进程 worker 池期间主进程释放/恢复句柄（公开：`Db.duckdb.worker_pool`）。
+- **仍开放**：
+  - Tag 等多场景与 Collector 的完整对接（若产品仍需要独立 Collector 叙事）。
+- **详见**：[engines/ARCHITECTURE.md §8](../core/engines/ARCHITECTURE.md)、[storage-domains.md](./storage-domains.md)
 
 ---
 

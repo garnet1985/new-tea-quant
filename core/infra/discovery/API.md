@@ -39,6 +39,27 @@ from core.infra.discovery import Discovery
 p = Discovery.file.find_file(Path("."), "settings.json", search_parents=True)
 ```
 
+#### find_in_tree
+
+`Discovery.file.find_in_tree(base_dir, key, filename) -> Path | None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.4.0`
+- **描述：** 在目录树中按「目录名 = `key`」定位 `{key}/{filename}`（先直达 `base/{key}/{filename}`，再递归 `**/{key}/{filename}`）。用于 userspace 可任意建分组文件夹的场景（如 handlers / strategies 嵌套）。`key` / `filename` 须为单路径段。
+- **举例：**
+
+```python
+from pathlib import Path
+from core.infra.discovery import Discovery
+
+cfg = Discovery.file.find_in_tree(
+    Path("userspace/extensions/data_source/handlers"),
+    "kline_daily",
+    "config.py",
+)
+```
+
 #### load_json / load_yaml / load_text
 
 `Discovery.file.load_json(path) -> dict | None`  
@@ -48,7 +69,7 @@ p = Discovery.file.find_file(Path("."), "settings.json", search_parents=True)
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.3.0`
-- **描述：** 按格式加载；失败返回 `None`
+- **描述：** 按格式加载；JSON/文本失败返回 `None`；YAML 需已安装 `pyyaml`，缺失则抛 `RuntimeError`
 
 #### load_file_content
 
@@ -66,7 +87,7 @@ p = Discovery.file.find_file(Path("."), "settings.json", search_parents=True)
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.3.0`
-- **描述：** 执行 Python 文件并提取指定变量（须为 mapping）
+- **描述：** 对**受信** Python 配置文件 `exec` 后提取指定变量（须为 mapping）；勿用于不可信输入
 
 #### save_file_content / save_json / save_yaml
 
@@ -77,7 +98,7 @@ p = Discovery.file.find_file(Path("."), "settings.json", search_parents=True)
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.3.0`
-- **描述：** 写入文件；成功返回 `True`
+- **描述：** 写入文件；成功返回 `True`；YAML 需 `pyyaml`
 
 ---
 
@@ -94,7 +115,7 @@ p = Discovery.file.find_file(Path("."), "settings.json", search_parents=True)
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.3.0`
-- **描述：** 在目录树中批量发现文件或目录
+- **描述：** 在目录树中批量发现文件或目录；`files_by_suffix` 的 `suffix` 须含点（如 `.json`）
 
 #### subclasses
 

@@ -19,6 +19,7 @@
 - 策略报告业务内容与指标计算（调用方组装）
 - GUI / Web 图表组件
 - 把内部实现类（`Title`、`BarChart`、`IconService` 等）作为跨模块公开 import 面
+- 进度条产品（无 `progress` 命名空间）
 
 ---
 
@@ -32,11 +33,16 @@ core/infra/cmd_layout/
 ├── QUICKSTART.md
 ├── glossary.yaml
 ├── module_info.yaml
+├── shared/                # StreamWriter 等共用脚手架
 ├── bar_chart/
+│   └── __test__/
 ├── title/
+│   └── __test__/
 ├── separator/
+│   └── __test__/
 ├── icon/
-├── __test__/
+│   └── __test__/
+├── __test__/              # 公开 API（test_api.py）
 └── docs/
     ├── ARCHITECTURE.md
     └── DESIGN.md

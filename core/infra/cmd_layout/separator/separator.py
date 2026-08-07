@@ -1,8 +1,9 @@
 """ASCII separator / divider layouts for CLI report presentation."""
 from __future__ import annotations
 
-import sys
 from typing import Optional, TextIO
+
+from core.infra.cmd_layout.shared.stream import StreamWriter
 
 
 class Separator:
@@ -20,7 +21,6 @@ class Separator:
         char: str = LINE_CHAR,
         width: int = DEFAULT_WIDTH,
     ) -> str:
-        """Single horizontal rule, e.g. ``--------------------``."""
         rule_char = (char or cls.LINE_CHAR)[:1] or "-"
         return rule_char * max(1, int(width))
 
@@ -30,7 +30,6 @@ class Separator:
         *,
         width: int = DEFAULT_WIDTH,
     ) -> str:
-        """Thick rule using ``=``."""
         return cls.line(char=cls.THICK_CHAR, width=width)
 
     @classmethod
@@ -39,12 +38,10 @@ class Separator:
         *,
         width: int = DEFAULT_WIDTH,
     ) -> str:
-        """Star rule using ``*`` (matches title banner style)."""
         return cls.line(char=cls.STAR_CHAR, width=width)
 
     @classmethod
     def blank(cls) -> str:
-        """Empty line (one newline when printed)."""
         return ""
 
     @classmethod
@@ -56,7 +53,7 @@ class Separator:
         stream: Optional[TextIO] = None,
     ) -> str:
         out = cls.line(char=char, width=width)
-        cls._write(out, stream=stream)
+        StreamWriter.write(out, stream=stream)
         return out
 
     @classmethod
@@ -67,7 +64,7 @@ class Separator:
         stream: Optional[TextIO] = None,
     ) -> str:
         out = cls.thick(width=width)
-        cls._write(out, stream=stream)
+        StreamWriter.write(out, stream=stream)
         return out
 
     @classmethod
@@ -78,23 +75,18 @@ class Separator:
         stream: Optional[TextIO] = None,
     ) -> str:
         out = cls.star(width=width)
-        cls._write(out, stream=stream)
+        StreamWriter.write(out, stream=stream)
         return out
 
     @classmethod
     def print_blank(cls, *, stream: Optional[TextIO] = None) -> str:
         out = cls.blank()
-        cls._write(out, stream=stream)
+        StreamWriter.write(out, stream=stream)
         return out
-
-    @staticmethod
-    def _write(text: str, *, stream: Optional[TextIO] = None) -> None:
-        out = stream or sys.stdout
-        print(text, file=out, flush=True)
 
 
 class SeparatorNamespace:
-    """CmdLayout.separator namespace — thin wrappers over Separator."""
+    """CmdLayout.separator namespace."""
 
     @staticmethod
     def line(
@@ -144,6 +136,3 @@ class SeparatorNamespace:
     @staticmethod
     def print_blank(*, stream: Optional[TextIO] = None) -> str:
         return Separator.print_blank(stream=stream)
-
-
-__all__ = ["Separator", "SeparatorNamespace"]

@@ -46,7 +46,9 @@ class PipelineLeaseBusyError(Exception):
 
 def __getattr__(name: str) -> Any:
     if name == "PipelineLease":
-        from core.infra.system_actions.cache_cleanup.pipeline_lease import PipelineLease
+        from core.infra.system_actions.core.cache_cleanup.pipeline_lease import (
+            PipelineLease,
+        )
 
         return PipelineLease
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

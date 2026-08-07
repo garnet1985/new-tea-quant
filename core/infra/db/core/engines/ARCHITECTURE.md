@@ -1,10 +1,10 @@
 # Database Engines 架构（定案）
 
 **状态：** 已定案，**运行时已挂载**  
-**版本：** `1.3.0`  
-**日期：** 2026-06（Engine 为默认路径；旧 ConnectionManager/TableManager 已删除）
+**对齐模块版本：** `0.5.0`  
+**定位：** engines 子目录实现说明；模块总览以 [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) 为准。
 
-本文档记录 `core/infra/db/core/engines/` 的结构与职责边界。`DatabaseManager` 通过 `factory.create_engine` 挂载唯一 Engine，见 [../../docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md)。
+本文档记录 `core/infra/db/core/engines/` 的结构与职责边界。`DatabaseManager` 通过 `EngineFactory.create` / 公开 `Db.engine.create` 挂载唯一 Engine。
 
 ---
 
@@ -25,35 +25,36 @@ core/infra/db/core/engines/
 ├── ARCHITECTURE.md          # 本文档
 ├── meta.py                  # EngineConfigMeta（Manager 构造，Engine 只读）
 ├── factory.py               # 按 engine_key 挂载具体 Engine
-├── shared/                 # 可选：无方言、无 backend 分支的纯工具（见 §6）
+├── shared/                 # 无方言纯工具；含 mysql/pgsql 薄共享基类（见 §6）
+│   ├── server_engine.py     # ServerEngineBase（非独立 server 包）
+│   └── server_table_operator.py
 ├── duckdb/
 │   ├── engine.py            # 编排入口
 │   ├── connector.py
 │   ├── schema_parser.py
 │   ├── sql_adapter.py       # 方言化 SQL（命名可与现有 adapter 对齐）
-│   ├── table_ops.py         # 表级读写、队列等（按需）
+│   ├── table_operator.py         # 表级读写、队列等（按需）
 │   ├── write_pipeline.py    # DuckDB 特有
-│   └── worker_scope.py      # 多进程 / 只读域等（按需）
+│   ├── wal_policy.py              # DuckdbWalPolicy
+│   └── process_pool_scope.py      # DuckdbWorkerPool（多进程 / 只读域）
 ├── mysql/
-│   ├── engine.py
+│   ├── engine.py            # 薄封装 → ServerEngineBase
 │   ├── connector.py
 │   ├── schema_parser.py
 │   ├── sql_adapter.py
-│   └── table_ops.py
+│   └── table_operator.py    # 薄封装 → ServerTableOperatorBase
 └── pgsql/
-    ├── engine.py
+    ├── engine.py            # 薄封装 → ServerEngineBase
     ├── connector.py
     ├── schema_parser.py
     ├── sql_adapter.py
-    └── table_ops.py
+    └── table_operator.py
 ```
 
 **明确不做：**
 
-- 不设立 `engines/server/` 作为 mysql+pgsql 的共享 engine 层。
-- 不设立塞满 abstract 方法的胖 `BaseDatabaseEngine`，强迫三 backend 实现同一套能力（如 checkpoint、multiprocess scope 等 DuckDB 专有项）。
-
-`base_engine.py`（若仍存在）为早期草案，**不以本文档为准**；迁移完成后应删除或替换为极薄的挂载 Protocol（若有）。
+- 不设立 `engines/server/` 独立包；mysql/pgsql 共享编排放在 `shared/server_*.py`。
+- 不设立塞满 abstract 方法的胖基类，强迫三 backend 实现同一套能力（如 checkpoint、multiprocess scope 等 DuckDB 专有项）。
 
 ---
 
@@ -78,7 +79,7 @@ Engine 是**编排者**，组装本包内模块，对外提供挂载面（方法
 | **connector** | 连接池生命周期、事务/游标、**执行**已准备好的 SQL（无方言分支以外的 I/O） |
 | **sql_adapter** | **仅方言**：占位符、`?`→`%s`、exists/introspection SQL 文本、upsert 片段等（**无 I/O**） |
 | **schema_parser** | 将项目 schema 定义转为本方言 DDL / introspection |
-| **table_operator**（或 `table_ops.py`） | 表级 CRUD；调用 connector + sql_adapter / `BatchOperation(database_type=…)` |
+| **table_operator**（或 `table_operator.py`） | 表级 CRUD；调用 connector + sql_adapter / `BatchOperation(database_type=…)` |
 | **engine.py** | 编排上述模块；**不**放入 `shared/` 与其它 backend 合并 |
 | **其它（按需）** | DuckDB：`write_pipeline`、`worker_scope`；其它 backend 仅在本包内扩展 |
 
@@ -114,7 +115,7 @@ Engine **只消费** Manager 传入的 meta，**不**向上声明「我是 duckd
 
 **合并**仍在 `project_context.ConfigManager.load_database_config()`（`core/default_config` + `userspace/system/config` + env），**不在** engine 包内读 JSON。
 
-`DatabaseManager` → `config_parse.parse_database_config` → `build_engine_meta()` 解析为类型化配置：
+`DatabaseManager` → `config_parse.parse_database_config` → `EngineConfigMeta.from_raw_config()` / `Db.engine.build_meta` 解析为类型化配置：
 
 | 字段 | 说明 |
 |------|------|
@@ -122,7 +123,7 @@ Engine **只消费** Manager 传入的 meta，**不**向上声明「我是 duckd
 | `raw_config` | merge 后的完整 dict |
 | `backend` | `MysqlSettings` / `PgsqlSettings` / `DuckdbSettings`（各 engine 包内 `settings.py`） |
 | `batch_write` | `BatchWriteSettings`（`infra/db/settings/common.py`） |
-| `backend_config` | merge 后的 backend dict 视图（兼容） |
+| `backend_config` | merge 后的 backend dict 视图 |
 | `options` | 运行时开关（verbose、DuckDB checkpoint 等） |
 
 Engine / connector 优先使用 `meta.require_mysql()` 等，不再散落 `config.get(...)`。
@@ -205,7 +206,7 @@ OS 级文件锁问题主要出现在 **多进程同时 `connect` 同一 `.duckdb
 | **主进程 Collector** | 汇总 worker 结果，按目标表 **domain** 入对应 **WritePipeline** |
 | **禁止** | 多 worker 各自 `upsert` 同一 tag.duckdb（即使「排队领锁」仍低效且易死锁） |
 
-模块归属：`duckdb/worker_scope.py`（子进程禁直连契约；与 Tag `ProcessWorker` 等集成）。
+模块归属：`duckdb/process_pool_scope.py`（子进程禁直连契约；与 Tag `ProcessWorker` 等集成）。
 
 回测子进程若必须读 **data**：优先 spawn 前预加载 / 只读快照；若只读连库，须与主进程 renew 写 **错开** 或 checkpoint 后短暂开窗（仍非首选）。
 

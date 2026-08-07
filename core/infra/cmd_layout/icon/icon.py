@@ -97,4 +97,4 @@ class IconNamespace:
         return IconService.supports_emoji()
 
 
-__all__ = ["IconService", "IconNamespace"]
+__all__ = ["IconNamespace"]

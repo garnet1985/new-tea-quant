@@ -10,9 +10,9 @@
 core/infra/update/
 ├── update.py           # Facade
 ├── contracts.py
-├── API.md / QUICKSTART.md / glossary.yaml
-├── db/                 # 数据脚本注册表
-├── post_upgrade/       # 收尾动作 + CLI
+├── core/
+│   ├── db/             # 数据脚本注册表
+│   └── post_upgrade/   # 收尾动作 + CLI
 ├── __test__/
 └── docs/
 ```

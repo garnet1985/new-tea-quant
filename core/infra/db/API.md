@@ -182,6 +182,8 @@ db = Db.manager.create(cfg)
 |------|------|
 | `is_backend(data_mgr=None)` | 当前是否 DuckDB backend |
 | `should_apply(*, mode, use_process_pool, data_mgr=None)` | 是否套用 worker pool scope |
+| `CONFIG_OVERLAY_ENV` | 常量 `NTQ_DATABASE_CONFIG_JSON`：spawn 配置 overlay 环境变量名 |
+| `install_config_overlay(cfg)` | 将完整 database config 写入 overlay env（无 monkeypatch） |
 | `prepare_main(data_mgr=None)` | 池启动前：主进程释放句柄 |
 | `restore_after()` | 池结束后：恢复主进程连接 |
 | `maybe_scope(data_mgr=None, **kwargs)` | 条件 context manager |

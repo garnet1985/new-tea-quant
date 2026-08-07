@@ -7,7 +7,7 @@ import logging
 from contextlib import contextmanager
 from typing import Any, Callable, Dict, Iterator, Optional
 
-from core.infra.db.core.engines.duckdb.wal_policy import install_sigint_checkpoint_handler_for_engine
+from core.infra.db.core.engines.duckdb.wal_policy import DuckdbWalPolicy
 from core.infra.db.core.engines.abc.engine_abc import DbEngineAbc
 from core.infra.db.core.engines.abc.table_abc import DbTableAbc
 from core.infra.db.core.engines.duckdb.connector import DuckdbConnector
@@ -99,7 +99,7 @@ class DuckdbEngine(DbEngineAbc):
                 self,
                 checkpoint_after_write=self._checkpoint_after_write,
             )
-        install_sigint_checkpoint_handler_for_engine(self, self.meta.raw_config)
+        DuckdbWalPolicy.install_sigint_checkpoint_handler(self, self.meta.raw_config)
         self._initialized = True
         if self.is_verbose:
             logger.debug(

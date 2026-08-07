@@ -5,9 +5,10 @@ Cross-platform: fill/empty use plain ASCII so Windows GBK consoles stay safe.
 from __future__ import annotations
 
 import math
-import sys
 from dataclasses import dataclass
 from typing import List, Mapping, Optional, Sequence, TextIO, Tuple, Union
+
+from core.infra.cmd_layout.shared.stream import StreamWriter
 
 BucketInput = Union[
     "BarBucket",
@@ -253,11 +254,7 @@ class BarChart:
 
     @staticmethod
     def _write(text: str, *, stream: Optional[TextIO] = None) -> None:
-        out = stream or sys.stdout
-        if text:
-            print(text, file=out, flush=True)
-        else:
-            print(file=out, flush=True)
+        StreamWriter.write(text, stream=stream)
 
 
 class BarChartNamespace:

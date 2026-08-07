@@ -12,12 +12,23 @@
 
 ```text
 Update
-  ├── data_scripts  → db/registry
-  └── post_upgrade  → post_upgrade/registry + runner
-contracts           → Registered* / PostUpgradeRunResult
+  ├── data_scripts  → core/db/registry
+  ├── post_upgrade  → core/post_upgrade/registry + runner
+  └── types         → contracts
+```
 
-setup/updater ──subprocess──► python -m core.infra.update.post_upgrade run
+```text
+setup/updater ──subprocess──► python -m core.infra.update.core.post_upgrade run
 infra.db plan_executor ─────► Update.data_scripts.run
+```
+
+```text
+core/infra/update/
+├── update.py / contracts.py
+├── core/
+│   ├── db/
+│   └── post_upgrade/   # + actions/ + __main__.py + __test__/
+└── __test__/
 ```
 
 ## 相关文档

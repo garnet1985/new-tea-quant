@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -16,28 +15,167 @@ from config import (
     DEFAULT_SEED,
     DEFAULT_START_DATE,
     DEFAULT_STOCK_COUNT,
+    SCALE_FRACTIONS,
 )
 
 # cmd/ → scripts/ → __performance__/
 PERF_ROOT = Path(__file__).resolve().parents[2]
-# Legacy CSV dir (cleaned if present; no longer written).
-FAKE_DATA_DIR = PERF_ROOT / "fake_data"
-WORKDIR = PERF_ROOT / ".workdir"
-REGISTRY_PATH = WORKDIR / "db_registry.json"
-RESULTS_DIR = PERF_ROOT / "results"
+DB_DIR = PERF_ROOT / ".db"
+REGISTRY_PATH = DB_DIR / "db_registry.json"
+RESULTS_DIR = PERF_ROOT / "results"  # legacy local scratch (gitignore)
+REPORTS_DIR = PERF_ROOT / "reports"  # versioned archives + templates
 TEST_STRATEGIES_DIR = PERF_ROOT / "scripts" / "test_strategies"
+
+# Report folder names (user-facing); keep postgresql → pgsql.
+_REPORT_ENGINE_DIR = {
+    "duckdb": "duckdb",
+    "mysql": "mysql",
+    "postgresql": "pgsql",
+    "pgsql": "pgsql",
+}
 
 _NAME_RE = re.compile(rf"^{re.escape(DB_NAME_PREFIX)}(?:_(\d+))?$")
 
 _MODE_STRATEGY_DIR = {
-    "entity_based": "be_perf_entity",
-    "slice_based": "be_perf_slice",
+    "entity_based": "entity_based",
+    "slice_based": "slice_based",
 }
 
 
+def assert_safe_perf_db_name(name: str) -> str:
+    """Only ``perf_test_tmp`` / ``perf_test_tmp_N`` may be created or dropped."""
+    name = str(name or "").strip()
+    if not _NAME_RE.match(name):
+        raise SystemExit(
+            f"拒绝操作非性能测试库名 {name!r} "
+            f"（仅允许 {DB_NAME_PREFIX} / {DB_NAME_PREFIX}_N）。"
+        )
+    return name
+
+
 def ensure_layout() -> None:
-    WORKDIR.mkdir(parents=True, exist_ok=True)
+    DB_DIR.mkdir(parents=True, exist_ok=True)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def report_engine_dirname(engine: str) -> str:
+    eng = str(engine or "duckdb").strip().lower()
+    if eng == "pgsql":
+        eng = "postgresql"
+    return _REPORT_ENGINE_DIR.get(eng, eng or "duckdb")
+
+
+def read_yaml_version(path: Path) -> Optional[str]:
+    if not path.is_file():
+        return None
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        s = line.strip()
+        if s.startswith("version:"):
+            return s.split(":", 1)[1].strip().strip("\"'")
+    return None
+
+
+def be_module_version() -> str:
+    root = repo_root()
+    ver = read_yaml_version(
+        root / "core" / "modules" / "backtest_engine" / "module_info.yaml"
+    )
+    return ver or "unknown"
+
+
+def collect_perf_versions() -> Dict[str, Any]:
+    """BE + core + key dependency module versions for archive labeling."""
+    root = repo_root()
+    core_ver: Optional[str] = None
+    try:
+        from core.infra.project_context import ProjectContext
+
+        core_ver = ProjectContext.meta.core_version()
+    except Exception:
+        meta = root / "core" / "core_meta.json"
+        if meta.is_file():
+            try:
+                core_ver = str(json.loads(meta.read_text(encoding="utf-8")).get("version") or "") or None
+            except (OSError, json.JSONDecodeError, TypeError):
+                core_ver = None
+
+    modules = {
+        "backtest_engine": be_module_version(),
+        "data_manager": read_yaml_version(
+            root / "core" / "modules" / "data_manager" / "module_info.yaml"
+        ),
+        "strategy": read_yaml_version(
+            root / "core" / "modules" / "strategy" / "module_info.yaml"
+        ),
+        "data_contract": read_yaml_version(
+            root / "core" / "modules" / "data_contract" / "module_info.yaml"
+        ),
+    }
+    return {
+        "backtest_engine": modules["backtest_engine"],
+        "core": core_ver or "unknown",
+        "dependencies": {k: v for k, v in modules.items() if k != "backtest_engine"},
+    }
+
+
+def scale_stock_counts(max_stocks: int) -> List[int]:
+    """Derive run sizes from max entity count × SCALE_FRACTIONS (deduped, ascending)."""
+    n_max = max(1, int(max_stocks))
+    out: List[int] = []
+    for frac in SCALE_FRACTIONS:
+        n = max(1, int(round(float(frac) * n_max)))
+        n = min(n, n_max)
+        if n not in out:
+            out.append(n)
+    if n_max not in out:
+        out.append(n_max)
+    return sorted(out)
+
+
+def report_sample_dirname(stock_count: int) -> str:
+    return f"N{int(stock_count)}"
+
+
+def report_out_dir(
+    *,
+    be_version: str,
+    mode: str,
+    engine: str,
+    stock_count: int,
+) -> Path:
+    """reports/{BE_version}/{mode}/N{stocks}/{duckdb|mysql|pgsql}/"""
+    ver = str(be_version or "unknown").strip() or "unknown"
+    return (
+        REPORTS_DIR
+        / ver
+        / str(mode)
+        / report_sample_dirname(stock_count)
+        / report_engine_dirname(engine)
+    )
+
+
+def report_mode_dir(*, be_version: str, mode: str) -> Path:
+    """reports/{BE_version}/{mode}/（放 OVERALL.md）"""
+    ver = str(be_version or "unknown").strip() or "unknown"
+    return REPORTS_DIR / ver / str(mode)
+
+
+def report_fill_templates_dir() -> Path:
+    """Human guides + machine fill templates live under reports/."""
+    return REPORTS_DIR
+
+
+def case_report_template_path() -> Path:
+    return report_fill_templates_dir() / "CASE_REPORT.md"
+
+
+def overall_report_template_path() -> Path:
+    return report_fill_templates_dir() / "OVERALL_TEMPLATE.md"
 
 
 def load_registry() -> Dict[str, Any]:
@@ -64,14 +202,14 @@ def list_registry_entries(*, engine: Optional[str] = None) -> List[Dict[str, Any
 
 
 def allocate_duckdb_base_name() -> str:
-    """Return next free ``perf_test_tmp`` / ``perf_test_tmp_N`` under .workdir."""
+    """Return next free ``perf_test_tmp`` / ``perf_test_tmp_N`` under .db."""
     ensure_layout()
     used = set()
     for e in list_registry_entries(engine="duckdb"):
         name = str(e.get("name") or "")
         if _NAME_RE.match(name):
             used.add(name)
-    for p in WORKDIR.glob("*.duckdb"):
+    for p in DB_DIR.glob("*.duckdb"):
         stem = p.stem
         if stem.endswith("_tag"):
             stem = stem[: -len("_tag")]
@@ -88,12 +226,12 @@ def allocate_duckdb_base_name() -> str:
 
 
 def duckdb_domain_paths(base_name: str) -> Dict[str, Path]:
-    """Absolute paths for data/tag/strategy domain files under .workdir."""
+    """Absolute paths for data/tag/strategy domain files under .db."""
     ensure_layout()
     return {
-        "data": (WORKDIR / f"{base_name}.duckdb").resolve(),
-        "tag": (WORKDIR / f"{base_name}_tag.duckdb").resolve(),
-        "strategy": (WORKDIR / f"{base_name}_strategy.duckdb").resolve(),
+        "data": (DB_DIR / f"{base_name}.duckdb").resolve(),
+        "tag": (DB_DIR / f"{base_name}_tag.duckdb").resolve(),
+        "strategy": (DB_DIR / f"{base_name}_strategy.duckdb").resolve(),
     }
 
 
@@ -167,13 +305,34 @@ def active_duckdb_entry() -> Optional[Dict[str, Any]]:
     return None
 
 
-def read_dataset_meta() -> Dict[str, Any]:
-    """Dataset meta from active duckdb registry entry (source of truth)."""
-    entry = active_duckdb_entry()
+def read_dataset_meta(*, engine: Optional[str] = None) -> Dict[str, Any]:
+    """Dataset meta from active registry entry (duckdb by default, or given engine)."""
+    eng = str(engine or "duckdb").lower()
+    if eng == "pgsql":
+        eng = "postgresql"
+    entry = active_perf_entry(engine=eng)
     if not entry:
         return {}
     meta = entry.get("dataset")
     return dict(meta) if isinstance(meta, dict) else {}
+
+
+def active_perf_entry(*, engine: str) -> Optional[Dict[str, Any]]:
+    eng = str(engine or "").lower()
+    if eng == "pgsql":
+        eng = "postgresql"
+    if eng == "duckdb":
+        return active_duckdb_entry()
+    if eng == "mysql":
+        from mysql_support import active_mysql_entry
+
+        return active_mysql_entry()
+    if eng == "postgresql":
+        from postgresql_support import active_postgresql_entry
+
+        return active_postgresql_entry()
+    entries = list_registry_entries(engine=eng)
+    return entries[-1] if entries else None
 
 
 def universe_ids_from_meta(meta: Optional[Dict[str, Any]] = None) -> List[str]:
@@ -202,9 +361,9 @@ def drop_duckdb_entry(entry: Dict[str, Any]) -> None:
             continue
         path = Path(raw)
         try:
-            path.resolve().relative_to(WORKDIR.resolve())
+            path.resolve().relative_to(DB_DIR.resolve())
         except ValueError:
-            print(f"refuse delete outside .workdir: {path}")
+            print(f"refuse delete outside .db: {path}")
             continue
         if path.is_file():
             path.unlink()
@@ -223,13 +382,6 @@ def drop_duckdb_entry(entry: Dict[str, Any]) -> None:
         )
     ]
     save_registry(reg)
-
-
-def remove_legacy_fake_data() -> None:
-    """Drop leftover CSV fake_data/ from the old pipeline."""
-    if FAKE_DATA_DIR.is_dir():
-        shutil.rmtree(FAKE_DATA_DIR)
-        print(f"removed legacy {FAKE_DATA_DIR}")
 
 
 def strategy_dir_for_mode(mode: str) -> Path:

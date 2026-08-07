@@ -19,25 +19,25 @@ from .contracts import (
 from .core.namespaces import ArchiveNamespace, InstallNamespace
 
 
+class TypesNamespace:
+    """与 ``contracts`` 同源的类型挂载点。"""
+
+    ArtifactSpec = ArtifactSpec
+    BundleManifest = BundleManifest
+    CollectedFile = CollectedFile
+    ConflictItem = ConflictItem
+    ConflictPolicy = ConflictPolicy
+    InstallResult = InstallResult
+    ManifestEntry = ManifestEntry
+    PreflightResult = PreflightResult
+
+
 class ExportImport:
     """New Tea Quant（NTQ）制品导出/导入门面类（Facade）。"""
 
     archive = ArchiveNamespace
     install = InstallNamespace
-    types = type(
-        "TypesNamespace",
-        (),
-        {
-            "ArtifactSpec": ArtifactSpec,
-            "BundleManifest": BundleManifest,
-            "CollectedFile": CollectedFile,
-            "ConflictItem": ConflictItem,
-            "ConflictPolicy": ConflictPolicy,
-            "InstallResult": InstallResult,
-            "ManifestEntry": ManifestEntry,
-            "PreflightResult": PreflightResult,
-        },
-    )
+    types = TypesNamespace
 
 
 __all__ = ["ExportImport"]

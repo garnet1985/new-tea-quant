@@ -1,59 +1,59 @@
-# 性能测试用例 — Backtest Engine
+# 性能测试用例 — 回测引擎
 
-**模块：** `modules.backtest_engine`  
 **位置：** `__performance__/`
 
 ---
 
-## Scope
+## 测什么
 
-用固定 null 基准策略测 BE 墙钟。**entity / slice 分开命令**，算法不同，结果不可混比。
+用两套**固定空策略**（不选股、不产生交易机会）测引擎跑得有多快。  
+**按股票分包（entity）** 和 **按时间切片（slice）** 用不同命令分开跑；算法不同，**不要直接比谁更快**。
 
-数据由 `cmd/db_creation.py` **直接注入**临时 DuckDB（连续假 ID + 固定规律 K 线），无 CSV 中间层。
+测试数据直接写入临时库（默认 DuckDB，目录 `.db/`），不经过 CSV。规模见 `scripts/cmd/config.py`（最大约 1000 股 × 3 年；跑测自动 25%/50%/100% 三档）。前提全文：[`reports/test_preconditions.md`](./reports/test_preconditions.md)。
 
-## 边界
+## 做什么 / 不做什么
 
-**负责**
+**做**
 
-- `be_perf_entity` → `EnumeratorPipeline` → BE `entity_based`
-- `be_perf_slice` → `EnumeratorPipeline` → BE `slice_based`（`SliceOrchestrator`）
+- `bpe`：按股票分包模式
+- `bps`：按时间切片模式
 
-**不负责**
+**不做**
 
-- 策略业务正确性（机会恒为 0）
-- 功能回归（→ `__test__/`）
-- 真实行情还原
+- 不评价选股好不好（机会数恒为 0）
+- 不做功能对错回归（那是 `__test__/`）
+- 不追求还原真实行情
 
 ---
 
-## 基准策略（勿改 mode / hooks）
+## 基准策略（请勿改运行模式和空策略逻辑）
 
-| 目录 | mode | 命令 |
+| 目录 | 模式 | 命令 |
 |------|------|------|
-| `scripts/test_strategies/be_perf_entity/` | `entity_based` | `bpe` |
-| `scripts/test_strategies/be_perf_slice/` | `slice_based` | `bps` |
+| `scripts/test_strategies/entity_based/` | 按股票分包 | `bpe` |
+| `scripts/test_strategies/slice_based/` | 按时间切片 | `bps` |
 
-窗口与股票池由 `cmd/run.py` 按 registry 中的 dataset meta 注入；策略文件本身保持稳定。
+时间窗口和股票池由 `cmd/run.py` 按临时库里的数据集信息注入；策略文件本身保持稳定。
 
-基准 hooks：`on_calendar_asof` 返回空 `stocks`（测 BE 装载/切窗/tick，**不**每天全宇宙 scan）。
+空策略：每天不选任何股票，只测引擎「装数据 → 按日历往前走」的速度。
 
 ---
 
-## Scenario：`be_perf_entity`
+## 场景：按股票分包
 
 | 项 | 内容 |
 |----|------|
-| **目的** | entity_based 全窗装载墙钟 |
+| **目的** | 全段时间一次装载时的总执行时间 |
 | **命令** | `python devcli.py bpe` |
-| **结果** | `results/_local/be_perf_entity/` |
+| **结果** | `reports/{BE版本}/entity_based/N{股票数}/{duckdb\|mysql\|pgsql}/` + `OVERALL.md` |
 
 ---
 
-## Scenario：`be_perf_slice`
+## 场景：按时间切片
 
 | 项 | 内容 |
 |----|------|
-| **目的** | slice_based 按正式片 IO 墙钟 |
+| **目的** | 按时间片读数据、推进日历时的总执行时间 |
 | **命令** | `python devcli.py bps` |
-| **结果** | `results/_local/be_perf_slice/` |
-| **关注** | wall_time、`per_entity_load_count`、`formal_slices_completed`、reader/queue |
+| **结果** | `reports/{BE版本}/slice_based/N{股票数}/{duckdb\|mysql\|pgsql}/` + `OVERALL.md` |
+| **关注** | 总执行时间、每只股票装载几次、一共切了几片、读数据进程数、预读排队深度 |

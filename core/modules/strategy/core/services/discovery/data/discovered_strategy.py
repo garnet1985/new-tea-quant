@@ -125,6 +125,14 @@ class StrategyInfo(StrategyDraft):
     # 添加folder字段（从draft继承时会自动填充）
     folder: Path = field(default_factory=lambda: Path("."))
 
+    def resolved_folder(self) -> Path:
+        """Discovered strategy root on disk (absolute preferred)."""
+        folder = Path(self.folder) if self.folder is not None else Path(".")
+        if folder.is_absolute():
+            return folder
+        # Defensive: relative folder should not happen after from_draft; resolve vs cwd.
+        return folder.resolve()
+
     @classmethod
     def from_draft(cls, draft: StrategyDraft) -> Optional[StrategyInfo]:
         """从draft构建StrategyInfo（如果验证通过）。"""
@@ -155,7 +163,7 @@ class StrategyInfo(StrategyDraft):
             unique_relative_path=draft.unique_relative_path,
             strategy_file=draft.strategy_file,
             settings_file=draft.settings_file,
-            folder=draft.strategy_file.parent,  # 添加folder字段
+            folder=draft.strategy_file.parent.resolve(),
             key=str(settings_dict.get("meta", {}).get("key", "")).strip(),
             display_name=str(
                 settings_dict.get("meta", {}).get("display_name", "")

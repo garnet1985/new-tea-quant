@@ -16,7 +16,7 @@
 
 ## ProjectContext
 
-**描述：** 项目上下文门面（Facade）— `path` / `config` / `meta` / `cache` / `discovery` 命名空间
+**描述：** 项目上下文门面（Facade）— `path` / `config` / `meta` / `cache` / `discovery` / `types` 命名空间
 
 ### path
 
@@ -39,7 +39,25 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.2.0`
-- **描述：** `core/`；userspace（`NEW_TEA_QUANT_USERSPACE_ROOT` / `NTQ_USERSPACE_ROOT` 优先）
+- **描述：** `core/`；userspace（优先级：`NEW_TEA_QUANT_USERSPACE_ROOT` → `NTQ_USERSPACE_ROOT` → `{project_root}/.ntq/userspace-path.json` → `{project_root}/userspace`）
+
+#### coerce_strategy_folder
+
+`ProjectContext.path.coerce_strategy_folder(strategy_folder_or_rel: str | Path) -> Path`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.5.0`
+- **描述：** 绝对 discovered folder 原样返回；相对 id 拼到 `userspace/strategies/`
+
+#### get_backup_data_directory
+
+`ProjectContext.path.get_backup_data_directory() -> Path`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.5.0`
+- **描述：** `userspace/system/backup/data/`
 
 #### get_strategies_root / get_tags_root
 
@@ -59,7 +77,18 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.3.0`
-- **描述：** 指定策略 / Tag scenario 目录
+- **描述：** 指定策略 / Tag scenario 目录（Tag 用 `get_tag_directory`）
+
+#### 策略仿真与扫描路径
+
+`ProjectContext.path.get_strategy_simulation_price_directory(strategy_name) -> Path`  
+`ProjectContext.path.get_strategy_simulation_portfolio_directory(strategy_name) -> Path`  
+`ProjectContext.path.get_strategy_simulation_enum_directory(strategy_name) -> Path`  
+`ProjectContext.path.get_strategy_scan_results_directory(strategy_name) -> Path`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **描述：** 策略仿真与扫描结果目录（PathManager 规范命名）
 
 #### 其他 path 辅助
 
@@ -103,12 +132,12 @@ userspace = ProjectContext.path.get_userspace_root()
 - **引入版本：** `0.2.0`
 - **描述：** 加载合并后的 `data.json`
 
-#### get_default_start_date / get_as_of_latest_completed_trading_date / get_use_sample_stock_list / get_default_market_profile_key
+#### get_default_start_date / get_as_of_latest_completed_trading_date / get_use_sample_stock_list / get_default_market_profile_key / get_decimal_places / get_adj_factor_event_decimal_places / get_database_type
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.3.1`（as_of / sample）；`0.2.0`（start_date）
-- **描述：** `data.json` 常用字段访问器
+- **引入版本：** `0.3.1`（as_of / sample）；`0.2.0`（start_date）；`0.5.0`（decimal / database_type 访问器）
+- **描述：** `data.json` 与 database 常用字段访问器
 
 #### load_benchmark_stock_index_list
 
@@ -170,6 +199,7 @@ userspace = ProjectContext.path.get_userspace_root()
 - **状态：** `beta`
 - **引入版本：** `0.4.0`
 - **描述：** 加载可覆盖配置；两侧皆无有效文件时抛出 `OverridableConfigNotFoundError`
+- **注意：** 通用目录树文件发现 `find_in_tree` 已迁至 `core.infra.discovery`（`Discovery.file.find_in_tree`），不在本模块暴露。
 - **举例：**
 
 ```python
@@ -181,6 +211,25 @@ cfg = ProjectContext.discovery.load_overridable_config(
     "china_a_stock",
     merge_fn=ProjectContext.config.merge_market_profile_dicts,
 )
+```
+
+---
+
+## types
+
+**描述：** 与 `contracts` 同源的类型与常量挂载点（`TypesNamespace`）
+
+| 符号 | 说明 |
+|------|------|
+| `OverridableConfigNotFoundError` | 可覆盖配置未找到 |
+| `DiscoveredConfig` | 配置路径发现结果 dataclass |
+| `MergeFn` | 自定义合并函数类型 |
+| `DEFAULT_DUCKDB_DOMAINS` / `DUCKDB_DOMAIN_FILES` / `SUPPORTED_DB_TYPES` | DuckDB 域默认与支持类型 |
+
+```python
+from core.infra.project_context import ProjectContext
+
+err = ProjectContext.types.OverridableConfigNotFoundError
 ```
 
 ---

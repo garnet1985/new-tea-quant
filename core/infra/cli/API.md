@@ -19,6 +19,29 @@
 
 **描述：** 终端用户 CLI（`cli.py`）
 
+#### ensure_venv
+
+`Cli.user.ensure_venv(entry_file: str) -> None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.4.2`
+- **描述：** 仅做 venv 重入（轻量；入口脚本可在拉起重依赖前先调用）
+- **参数：**
+
+| 名字 | 类型 | 说明 |
+|------|------|------|
+| `entry_file` | `str` | 入口脚本路径，通常传 `__file__` |
+
+- **返回值：** `None`
+- **举例：**
+
+```python
+from core.infra.cli import Cli
+
+Cli.user.ensure_venv(__file__)
+```
+
 #### bootstrap
 
 `Cli.user.bootstrap(entry_file: str) -> None`

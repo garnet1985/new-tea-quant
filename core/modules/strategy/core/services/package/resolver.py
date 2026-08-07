@@ -39,7 +39,7 @@ def resolve_strategy_bundle_specs(strategy_name: str) -> List[ExportImport.types
     seen: Set[str] = {specs[0].normalized_archive_prefix()}
 
     for scenario in _tag_dependencies(settings):
-        tag_dir = ProjectContext.path.get_tag_scenario_directory(scenario)
+        tag_dir = ProjectContext.path.get_tag_directory(scenario)
         if not tag_dir.is_dir():
             continue
         spec = tag_artifact_spec(scenario, tag_dir)

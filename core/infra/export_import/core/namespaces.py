@@ -5,9 +5,17 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Tuple, Union
 
-from ..contracts import ArtifactSpec, BundleManifest, ConflictPolicy, InstallResult, PreflightResult
-from .archive import create_bundle_archive, extract_bundle_archive
-from .install import install_bundle, install_bundle_archive
+from ..contracts import (
+    ArtifactSpec,
+    BundleManifest,
+    ConflictPolicy,
+    InstallResult,
+    PreflightResult,
+)
+from .archive import BundleArchive
+from .conflict import ConflictChecker
+from .install import BundleInstaller
+from .manifest import BundleManifestIO
 
 
 class ArchiveNamespace:
@@ -21,7 +29,9 @@ class ArchiveNamespace:
         output_path: Path | None = None,
     ) -> Tuple[BundleManifest, Union[bytes, Path]]:
         """Create a bundle archive from artifact specs."""
-        return create_bundle_archive(specs, metadata=metadata, output_path=output_path)
+        return BundleArchive.create(
+            specs, metadata=metadata, output_path=output_path
+        )
 
     @staticmethod
     def extract(
@@ -30,7 +40,7 @@ class ArchiveNamespace:
         dest_dir: Path | None = None,
     ) -> Tuple[Path, BundleManifest]:
         """Extract bundle archive to a directory."""
-        return extract_bundle_archive(source, dest_dir=dest_dir)
+        return BundleArchive.extract(source, dest_dir=dest_dir)
 
 
 class InstallNamespace:
@@ -43,7 +53,7 @@ class InstallNamespace:
         policy: ConflictPolicy,
     ) -> InstallResult:
         """Install bundle archive into userspace."""
-        return install_bundle_archive(archive, userspace_root, policy)
+        return BundleInstaller.install_archive(archive, userspace_root, policy)
 
     @staticmethod
     def preflight(
@@ -51,13 +61,11 @@ class InstallNamespace:
         userspace_root: Path,
         policy: ConflictPolicy,
     ) -> PreflightResult:
-        """Preflight installation to detect conflicts."""
-        from .conflict import preflight_install
-        from .manifest import read_manifest
-
+        """Preflight installation (extracted root or BundleManifest)."""
         if isinstance(extracted_root, BundleManifest):
             manifest = extracted_root
         else:
-            manifest = read_manifest(extracted_root / "manifest.json")
-
-        return preflight_install(manifest, userspace_root, policy)
+            manifest = BundleManifestIO.read(
+                Path(extracted_root) / BundleManifestIO.FILENAME
+            )
+        return ConflictChecker.preflight(manifest, userspace_root, policy)

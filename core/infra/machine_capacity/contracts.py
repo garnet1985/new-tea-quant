@@ -4,6 +4,10 @@
 
     from core.infra.machine_capacity import MachineInfo
     from core.infra.machine_capacity.contracts import MachineCapacity
+
+亦可::
+
+    MachineInfo.types.MachineCapacity
 """
 
 from __future__ import annotations

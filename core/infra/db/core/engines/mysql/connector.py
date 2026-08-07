@@ -53,7 +53,6 @@ class MysqlConnector:
         self.config = settings.as_dict()
         self.is_verbose = is_verbose
         self.sql_adapter = MysqlSqlAdapter()
-        self.conn: Optional[pymysql.Connection] = None
         self._pool: Optional[LifoQueue] = None
         self._pool_lock = threading.Lock()
         self._all_connections = set()
@@ -74,8 +73,6 @@ class MysqlConnector:
         return pymysql.connect(**conn_params)
 
     def _is_connection_alive(self, conn: Optional[pymysql.Connection]) -> bool:
-        if hasattr(conn, "mysql_conn"):
-            conn = conn.mysql_conn
         if not conn:
             return False
         try:
@@ -85,8 +82,6 @@ class MysqlConnector:
             return False
 
     def _discard_connection(self, conn: Optional[pymysql.Connection]) -> None:
-        if hasattr(conn, "mysql_conn"):
-            conn = conn.mysql_conn
         if not conn:
             return
         try:
@@ -120,8 +115,7 @@ class MysqlConnector:
         return conn
 
     def _put_connection(self, conn: Optional[pymysql.Connection]) -> None:
-        if hasattr(conn, "mysql_conn"):
-            conn = conn.mysql_conn
+        """归还 raw pymysql 连接到池；调用方须先从 wrapper 取出 ``.mysql_conn``。"""
         if not conn:
             return
         if self._pool is None:
@@ -135,15 +129,11 @@ class MysqlConnector:
         except Exception:
             self._discard_connection(conn)
     
-    def connect(self, config: Dict[str, Any] = None) -> pymysql.Connection:
-        """
-        建立 MySQL 连接
-        
+    def connect(self, config: Dict[str, Any] = None) -> None:
+        """建立 MySQL 连接池。
+
         Args:
             config: 数据库配置（如果提供，会覆盖初始化时的配置）
-            
-        Returns:
-            MySQL 连接对象
         """
         if config:
             self.config = config
@@ -164,8 +154,6 @@ class MysqlConnector:
                 conn = self._create_connection()
                 self._all_connections.add(conn)
                 self._pool.put(conn)
-            # 兼容旧代码路径：保留一个主连接引用
-            self.conn = next(iter(self._all_connections), None)
             self._initialized = True
             
             if self.is_verbose:
@@ -173,8 +161,6 @@ class MysqlConnector:
                     f"✅ MySQL 连接池创建成功: {self.config['host']}:{self.config.get('port', 3306)}/{self.config['database']} "
                     f"(pool_size={self._pool_maxconn})"
                 )
-            
-            return self.conn
             
         except Exception as e:
             logger.error(f"❌ MySQL 连接失败: {e}")
@@ -189,7 +175,6 @@ class MysqlConnector:
                 pass
         self._all_connections = set()
         self._pool = None
-        self.conn = None
         self._initialized = False
         if self.is_verbose:
             logger.info("✅ MySQL 连接池已关闭")
@@ -353,8 +338,7 @@ class MysqlConnector:
         try:
             yield conn
         finally:
-            raw = getattr(conn, "mysql_conn", conn)
-            self._put_connection(raw)
+            self._put_connection(conn.mysql_conn)
 
     def get_connection(self):
         """

@@ -108,8 +108,11 @@ class Strategy:
             sn = str(info.unique_relative_path or info.key or "").strip()
             if not sn:
                 continue
-            pf_root = ProjectContext.path.get_strategy_directory_simulation_price(sn)
-            po_root = ProjectContext.path.get_strategy_directory_simulation_portfolio(sn)
+            folder = info.resolved_folder()
+            pf_root = ProjectContext.path.get_strategy_simulation_price(folder)
+            po_root = ProjectContext.path.get_strategy_simulation_portfolio(
+                folder
+            )
             pf_latest = _latest_version_dir(pf_root)
             po_latest = _latest_version_dir(po_root)
             if not pf_latest and not po_latest:

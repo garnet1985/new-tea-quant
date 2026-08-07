@@ -1,4 +1,4 @@
-# 测试用例 — `infra.cmd_layout`
+# 测试用例 — `infra.cmd_layout` 公开 API
 
 **模块：** `infra.cmd_layout`  
 **覆盖版本：** `0.4.1`  
@@ -8,21 +8,23 @@
 
 ## Scope
 
-验证门面类 `CmdLayout` 公开契约，以及 title / separator / bar_chart / icon 的核心渲染行为。
+验证门面类 `CmdLayout` 的公开业务契约（导出面与各 namespace 主路径行为）。  
+包内 unit（分桶细节、图标别名表等）有 UT 即可，不在本文索引。
 
 ## 边界
 
 **负责**
 
 - 包根仅导出 `CmdLayout`
-- 各 namespace 公开方法可调用且行为符合 API
+- title / bar_chart / separator / icon 的主路径产品行为
 
 **不负责**
 
+- 包内 helper 边界细节（→ 各包 `__test__/`）
 - 策略报告业务指标正确性
 - 真实 Windows 控制台人工验收（用 mock 覆盖 emoji 回退）
 
-**允许的测试类型（本目录）：** `api` · 各组件轻量单测
+**允许的测试类型（本目录）：** `api`
 
 ---
 
@@ -34,29 +36,12 @@
 
 ---
 
-## Scenario：bar_chart_api
+## Scenario：layout_output
 
 | Case（pytest 函数名） | 文件 | 说明 |
 |----------------------|------|------|
-| `test_bar_chart_namespace_callable` | `test_api.py` | render / from_values / print* 可调用 |
-| `test_render_max_bar_full_width_and_pct` | `test_bar_chart.py` | 最高柱铺满与占比 |
-| `test_from_values_histogram` 等 | `test_bar_chart.py` | 分桶与边界行为 |
-
----
-
-## Scenario：title_separator_api
-
-| Case（pytest 函数名） | 文件 | 说明 |
-|----------------------|------|------|
-| `test_title_namespace_callable` | `test_api.py` | banner / section / print* |
-| `test_separator_namespace_callable` | `test_api.py` | line / thick / star / blank / print* |
-| `test_banner_wraps_with_stars` 等 | `test_title_separator.py` | 标题与分割线行为 |
-
----
-
-## Scenario：icon_api
-
-| Case（pytest 函数名） | 文件 | 说明 |
-|----------------------|------|------|
-| `test_icon_namespace_callable` | `test_api.py` | get / i / supports_emoji |
-| `test_get_aliases` 等 | `test_icon.py` | 别名、ASCII 回退、未知名 |
+| `test_title_banner_and_section` | `test_api.py` | banner 星线包裹；section 形如 `-- 文本 --` |
+| `test_bar_chart_render_max_bar_and_pct` | `test_api.py` | 最高柱铺满与占比 |
+| `test_separator_line_variants` | `test_api.py` | line / thick / star / blank |
+| `test_icon_emoji_and_ascii_fallback` | `test_api.py` | emoji 与 ASCII 回退；`i` 等同 `get` |
+| `test_print_banner_to_stream` | `test_api.py` | print_* 写入指定 stream |

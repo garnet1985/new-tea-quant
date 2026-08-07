@@ -119,21 +119,30 @@ class ReportManager(BaseReportManager):
         execution_mode: str,
         market_profile: str,
         strategy_path: str = "",
+        strategy_folder: Optional[Path] = None,
     ) -> "ReportManager":
-        """分配 version 目录并写入 runtime_env.json / entity_ids.txt。"""
+        """分配 version 目录并写入 runtime_env.json / entity_ids.txt。
+
+        结果根基于 discovered ``strategy_folder``（``{folder}/results/simulations/enum``），
+        不再用相对名重拼 userspace/strategies。
+        """
         path_id = str(strategy_path or strategy_key or "").strip()
-        if not path_id:
-            raise ValueError("strategy_path / strategy_key 不能为空")
-        root = ProjectContext.path.get_strategy_directory_simulation_enum(path_id)
+        folder = Path(strategy_folder) if strategy_folder is not None else None
+        if folder is None or not str(folder):
+            if not path_id:
+                raise ValueError("strategy_folder / strategy_path / strategy_key 不能为空")
+            root = ProjectContext.path.get_strategy_simulation_enum_directory(path_id)
+        else:
+            root = ProjectContext.path.get_strategy_simulation_enum_directory(folder)
         output_dir, version_id = SimulationOutputRecorder.allocate_version_dir(
-            path_id,
+            path_id or str(folder),
             root,
         )
         manager = cls(
             output_dir=output_dir,
             strategy_key=str(strategy_key or path_id).strip(),
             version_id=int(version_id),
-            strategy_path=path_id,
+            strategy_path=path_id or str(folder),
         )
         manager.runtime.save_begin(
             entity_ids=entity_ids,

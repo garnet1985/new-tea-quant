@@ -7,12 +7,8 @@ import json
 import math
 from typing import List, Any, Tuple, Optional
 from datetime import datetime, date
-import logging
 
 from core.infra.db.core.engines.shared.query_rows import normalize_cell_value
-
-
-logger = logging.getLogger(__name__)
 
 
 class BatchOperation:
@@ -210,30 +206,8 @@ class BatchOperation:
                 update_clause=update_clause
             )
             
-            # 执行 SQL
-            try:
-                executor.execute(sql)
-                total_inserted += len(batch_values)
-            except Exception as e:
-                # 如果 ON CONFLICT 失败（unique_keys 不匹配主键/唯一索引），回退到纯 INSERT
-                if unique_keys and ("conflict target" in str(e).lower() or "unique" in str(e).lower()):
-                    logger.warning(
-                        f"表 {table_name} 的 unique_keys {unique_keys} 不匹配主键/唯一索引，"
-                        f"回退到纯 INSERT（可能产生重复数据）: {e}"
-                    )
-                    # 回退到纯 INSERT
-                    sql_fallback = BatchOperation.build_batch_insert_sql(
-                        table_name=table_name,
-                        columns=columns,
-                        values_list=formatted_values,
-                        database_type=database_type,
-                        unique_keys=None,
-                        update_clause=None
-                    )
-                    executor.execute(sql_fallback)
-                    total_inserted += len(batch_values)
-                else:
-                    # 其他错误直接抛出
-                    raise
+            # 执行 SQL；unique_keys 必须匹配真实主键/唯一索引，失败不吞、不降级为纯 INSERT
+            executor.execute(sql)
+            total_inserted += len(batch_values)
         
         return total_inserted

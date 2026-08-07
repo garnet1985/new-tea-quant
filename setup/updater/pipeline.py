@@ -180,7 +180,7 @@ def run_upgrade_pipeline(ctx: UpgradeContext) -> None:
 
 def _trigger_core_extra_actions(ctx: UpgradeContext) -> None:
     """
-    主流程结束后，子进程执行新版 ``core/infra/update/post_upgrade`` 已注册的收尾动作。
+    主流程结束后，子进程执行 ``core/infra/update/core/post_upgrade`` 已注册的收尾动作。
 
     用于 updater 在主镜像阶段无法安全完成的「反向」写盘（如同步 ``userspace/system/updater``）。
     注册表为空则跳过；结果写入 ``ctx.post_upgrade``。

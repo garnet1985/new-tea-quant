@@ -4,7 +4,7 @@ from pathlib import Path
 
 from .file_utils import FileUtils
 from .file_discovery import FileDiscovery, FileDiscoveryConfig
-from .class_discovery import ClassDiscovery, DiscoveryConfig, DiscoveryResult
+from .class_discovery import ClassDiscovery, DiscoveryConfig
 from .module_discovery import ModuleDiscovery
 
 
@@ -21,6 +21,15 @@ class FileNamespace:
     ) -> Optional[Path]:
         """查找单个文件"""
         return FileUtils.find_file(start_dir, filename, search_parents=search_parents, max_depth=max_depth)
+
+    @staticmethod
+    def find_in_tree(
+        base_dir: Path,
+        key: str,
+        filename: str,
+    ) -> Optional[Path]:
+        """按目录名 ``key`` 在树中定位 ``{key}/{filename}``（直达或嵌套）。"""
+        return FileUtils.find_in_tree(base_dir, key, filename)
 
     @staticmethod
     def load_file_content(
@@ -83,7 +92,7 @@ class DiscoverNamespace:
         pattern: str = "**/*",
         *,
         exclude_patterns: Optional[List[str]] = None,
-        max_depth: int = 10
+        max_depth: int = FileDiscovery.DEFAULT_MAX_DEPTH,
     ) -> List[Path]:
         """批量发现文件"""
         config = FileDiscoveryConfig(
@@ -91,7 +100,7 @@ class DiscoverNamespace:
             pattern=pattern,
             exclude_patterns=exclude_patterns or [],
             file_type="file",
-            max_depth=max_depth
+            max_depth=max_depth,
         )
         discovery = FileDiscovery(config)
         return discovery.discover()
@@ -102,7 +111,7 @@ class DiscoverNamespace:
         pattern: str = "**/*",
         *,
         exclude_patterns: Optional[List[str]] = None,
-        max_depth: int = 10
+        max_depth: int = FileDiscovery.DEFAULT_MAX_DEPTH,
     ) -> List[Path]:
         """批量发现目录"""
         config = FileDiscoveryConfig(
@@ -110,7 +119,7 @@ class DiscoverNamespace:
             pattern=pattern,
             exclude_patterns=exclude_patterns or [],
             file_type="dir",
-            max_depth=max_depth
+            max_depth=max_depth,
         )
         discovery = FileDiscovery(config)
         return discovery.discover()
@@ -121,16 +130,20 @@ class DiscoverNamespace:
         suffix: str,
         *,
         exclude_patterns: Optional[List[str]] = None,
-        max_depth: int = 10
+        max_depth: int = FileDiscovery.DEFAULT_MAX_DEPTH,
     ) -> List[Path]:
-        """根据扩展名批量发现文件"""
+        """根据扩展名批量发现文件；``suffix`` 须含点，如 ``.json``。"""
+        if not suffix.startswith("."):
+            raise ValueError(
+                f"files_by_suffix 要求 suffix 以 '.' 开头（如 '.json'），收到 {suffix!r}"
+            )
         pattern = f"**/*{suffix}"
         config = FileDiscoveryConfig(
             base_dir=base_dir,
             pattern=pattern,
             exclude_patterns=exclude_patterns or [],
             file_type="file",
-            max_depth=max_depth
+            max_depth=max_depth,
         )
         discovery = FileDiscovery(config)
         return discovery.discover()
@@ -159,14 +172,14 @@ class DiscoverNamespace:
         base_module_path: str,
         object_name: str,
         module_pattern: str = "{base_module}.{name}",
-        skip_modules: set = None
+        skip_modules: Optional[set] = None,
     ) -> Dict[str, Any]:
         """发现所有模块中的特定对象"""
         return ModuleDiscovery.discover_objects(
             base_module_path,
             object_name,
             module_pattern,
-            skip_modules
+            skip_modules,
         )
 
 
@@ -181,7 +194,7 @@ class ClassDiscoveryNamespace:
         class_filter: Optional[Callable[[Type], bool]] = None,
         attribute_extractors: Optional[Dict[str, Callable[[Type], Any]]] = None,
         skip_modules: Optional[set] = None,
-        skip_classes: Optional[set] = None
+        skip_classes: Optional[set] = None,
     ) -> DiscoveryConfig:
         """创建发现配置"""
         return DiscoveryConfig(
@@ -190,8 +203,12 @@ class ClassDiscoveryNamespace:
             key_extractor=key_extractor,
             class_filter=class_filter,
             attribute_extractors=attribute_extractors or {},
-            skip_modules=skip_modules or {"__pycache__", "__init__"},
-            skip_classes=skip_classes or set()
+            skip_modules=(
+                set(skip_modules)
+                if skip_modules is not None
+                else set(DiscoveryConfig.DEFAULT_SKIP_MODULES)
+            ),
+            skip_classes=set(skip_classes) if skip_classes is not None else set(),
         )
 
     @staticmethod
@@ -202,10 +219,7 @@ class ClassDiscoveryNamespace:
     @staticmethod
     def discover_class_by_path(
         class_path: str,
-        base_class: Optional[Type] = None
+        base_class: Optional[Type] = None,
     ) -> Optional[Type]:
         """通过完整路径发现单个类"""
-        return ClassDiscovery(DiscoveryConfig(
-            base_class=object,
-            module_name_pattern=""
-        )).discover_class_by_path(class_path, base_class)
+        return ClassDiscovery.discover_class_by_path(class_path, base_class)

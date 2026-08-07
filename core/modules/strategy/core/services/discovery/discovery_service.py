@@ -120,6 +120,26 @@ class DiscoveryService:
         raise FileNotFoundError(f"策略不存在: {needle!r}")
 
     @staticmethod
+    def resolve_strategy_folder(key_or_name: str) -> Path:
+        """``meta.key`` / relative path → discovered absolute strategy folder.
+
+        Falls back to ``userspace/strategies/{name}`` when not in the catalog
+        (bootstrap / legacy callers).
+        """
+        from core.infra.project_context import ProjectContext
+
+        needle = str(key_or_name or "").strip()
+        if not needle:
+            raise ValueError("strategy_key_or_name 不能为空")
+        for info in DiscoveryService.discover_strategies():
+            if info.key == needle or info.id() == needle:
+                return info.resolved_folder()
+        enabled = DiscoveryService.find_strategy(needle)
+        if enabled is not None:
+            return enabled.resolved_folder()
+        return ProjectContext.path.coerce_strategy_folder(needle)
+
+    @staticmethod
     def list_enabled_keys() -> List[str]:
         """已启用策略的 ``meta.key`` 列表（供 CLI 提示）。"""
         return [s.key for s in DiscoveryService.get_enabled_strategies() if s.key]

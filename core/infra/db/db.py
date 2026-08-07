@@ -79,11 +79,20 @@ class EngineNamespace:
 class DuckdbWorkerPoolNamespace:
     """DuckDB 多进程 worker 池协作（主进程释放 / 恢复文件锁）。"""
 
+    CONFIG_OVERLAY_ENV = "NTQ_DATABASE_CONFIG_JSON"
+
     @staticmethod
     def is_backend(data_mgr: Any = None) -> bool:
-        from core.infra.db.core.engines.duckdb import process_pool_scope as pps
+        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
 
-        return pps.is_duckdb_backend(data_mgr)
+        return DuckdbWorkerPool.is_duckdb_backend(data_mgr)
+
+    @staticmethod
+    def install_config_overlay(cfg: Dict[str, Any]) -> None:
+        """Publish database config overlay via env (spawn-safe; no monkeypatch)."""
+        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
+
+        DuckdbWorkerPool.install_config_overlay(cfg)
 
     @staticmethod
     def should_apply(
@@ -92,23 +101,23 @@ class DuckdbWorkerPoolNamespace:
         use_process_pool: bool,
         data_mgr: Optional[Any] = None,
     ) -> bool:
-        from core.infra.db.core.engines.duckdb import process_pool_scope as pps
+        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
 
-        return pps.should_apply_process_pool_scope(
+        return DuckdbWorkerPool.should_apply_process_pool_scope(
             mode=mode, use_process_pool=use_process_pool, data_mgr=data_mgr
         )
 
     @staticmethod
     def prepare_main(data_mgr: Any = None) -> None:
-        from core.infra.db.core.engines.duckdb import process_pool_scope as pps
+        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
 
-        pps.prepare_main_for_worker_pool(data_mgr)
+        DuckdbWorkerPool.prepare_main_for_worker_pool(data_mgr)
 
     @staticmethod
     def restore_after() -> None:
-        from core.infra.db.core.engines.duckdb import process_pool_scope as pps
+        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
 
-        pps.restore_after_worker_pool()
+        DuckdbWorkerPool.restore_after_worker_pool()
 
     @staticmethod
     def maybe_scope(
@@ -118,9 +127,9 @@ class DuckdbWorkerPoolNamespace:
         data_mgr: Optional[Any] = None,
         resume_main_after: bool = True,
     ) -> Iterator[Any]:
-        from core.infra.db.core.engines.duckdb import process_pool_scope as pps
+        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
 
-        return pps.maybe_duckdb_worker_pool_scope(
+        return DuckdbWorkerPool.maybe_duckdb_worker_pool_scope(
             mode=mode,
             use_process_pool=use_process_pool,
             data_mgr=data_mgr,
@@ -134,9 +143,9 @@ class DuckdbWorkerPoolNamespace:
         resume_main_after: bool = True,
         wait_children_timeout_sec: float = 30.0,
     ) -> Iterator[Any]:
-        from core.infra.db.core.engines.duckdb import process_pool_scope as pps
+        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
 
-        return pps.duckdb_worker_pool_main_process(
+        return DuckdbWorkerPool.duckdb_worker_pool_main_process(
             data_mgr,
             resume_main_after=resume_main_after,
             wait_children_timeout_sec=wait_children_timeout_sec,
@@ -144,60 +153,60 @@ class DuckdbWorkerPoolNamespace:
 
     @staticmethod
     def recover_after_interrupt(data_mgr: Any = None) -> None:
-        from core.infra.db.core.engines.duckdb import process_pool_scope as pps
+        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
 
-        pps.recover_after_worker_pool_interrupt(data_mgr)
+        DuckdbWorkerPool.recover_after_worker_pool_interrupt(data_mgr)
 
     @staticmethod
     def ensure_data_manager_restored(data_mgr: Any = None) -> Any:
-        from core.infra.db.core.engines.duckdb import process_pool_scope as pps
+        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
 
-        return pps.ensure_data_manager_restored(data_mgr)
+        return DuckdbWorkerPool.ensure_data_manager_restored(data_mgr)
 
     @staticmethod
     def wait_pool_children_done(*, timeout_sec: float = 15.0) -> None:
-        from core.infra.db.core.engines.duckdb import process_pool_scope as pps
+        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
 
-        pps.wait_pool_children_done(timeout_sec=timeout_sec)
+        DuckdbWorkerPool.wait_pool_children_done(timeout_sec=timeout_sec)
 
     @staticmethod
     def wait_for_main_end(*, timeout_sec: float = 600.0) -> None:
-        from core.infra.db.core.engines.duckdb import process_pool_scope as pps
+        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
 
-        pps.wait_for_main_duckdb_worker_pool_end(timeout_sec=timeout_sec)
+        DuckdbWorkerPool.wait_for_main_duckdb_worker_pool_end(timeout_sec=timeout_sec)
 
     @staticmethod
     def is_main_active() -> bool:
-        from core.infra.db.core.engines.duckdb import process_pool_scope as pps
+        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
 
-        return pps.is_main_duckdb_worker_pool_active()
+        return DuckdbWorkerPool.is_main_duckdb_worker_pool_active()
 
     @staticmethod
     def connect_domains(
         db: Any, *, domains: Tuple[str, ...], read_only: bool
     ) -> None:
-        from core.infra.db.core.engines.duckdb import process_pool_scope as pps
+        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
 
-        pps.connect_duckdb_domains(db, domains=domains, read_only=read_only)
+        DuckdbWorkerPool.connect_duckdb_domains(db, domains=domains, read_only=read_only)
 
     @staticmethod
     def database_config_read_only() -> dict[str, Any]:
-        from core.infra.db.core.engines.duckdb import process_pool_scope as pps
+        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
 
-        return pps.database_config_read_only()
+        return DuckdbWorkerPool.database_config_read_only()
 
     @staticmethod
     def release_worker_db_handles(data_mgr: Optional[Any] = None) -> None:
-        from core.infra.db.core.engines.duckdb import process_pool_scope as pps
+        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
 
-        pps.release_worker_db_handles(data_mgr)
+        DuckdbWorkerPool.release_worker_db_handles(data_mgr)
 
     @staticmethod
     def release_all_main_handles(data_mgr: Any) -> None:
         """关闭主进程全部 DuckDB 连接（spawn worker 前调用）。"""
-        from core.infra.db.core.engines.duckdb import process_pool_scope as pps
+        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
 
-        pps.release_all_main_db_handles(data_mgr)
+        DuckdbWorkerPool.release_all_main_db_handles(data_mgr)
 
 
 class DuckdbWalNamespace:
@@ -205,43 +214,43 @@ class DuckdbWalNamespace:
 
     @staticmethod
     def should_checkpoint_after_batch(db_config: Dict[str, Any]) -> bool:
-        from core.infra.db.core.engines.duckdb import wal_policy as wp
+        from core.infra.db.core.engines.duckdb.wal_policy import DuckdbWalPolicy
 
-        return wp.should_checkpoint_after_batch(db_config)
+        return DuckdbWalPolicy.should_checkpoint_after_batch(db_config)
 
     @staticmethod
     def should_checkpoint_after_persist(db_config: Dict[str, Any]) -> bool:
-        from core.infra.db.core.engines.duckdb import wal_policy as wp
+        from core.infra.db.core.engines.duckdb.wal_policy import DuckdbWalPolicy
 
-        return wp.should_checkpoint_after_persist(db_config)
+        return DuckdbWalPolicy.should_checkpoint_after_persist(db_config)
 
     @staticmethod
     def should_checkpoint_on_sigint(db_config: Dict[str, Any]) -> bool:
-        from core.infra.db.core.engines.duckdb import wal_policy as wp
+        from core.infra.db.core.engines.duckdb.wal_policy import DuckdbWalPolicy
 
-        return wp.should_checkpoint_on_sigint(db_config)
+        return DuckdbWalPolicy.should_checkpoint_on_sigint(db_config)
 
     @staticmethod
     def should_checkpoint_after_tag_run(db_config: Dict[str, Any]) -> bool:
-        from core.infra.db.core.engines.duckdb import wal_policy as wp
+        from core.infra.db.core.engines.duckdb.wal_policy import DuckdbWalPolicy
 
-        return wp.should_checkpoint_after_tag_run(db_config)
+        return DuckdbWalPolicy.should_checkpoint_after_tag_run(db_config)
 
     @staticmethod
     def checkpoint_engine(
         engine: Any, *, domains: Optional[list] = None
     ) -> Dict[str, bool]:
-        from core.infra.db.core.engines.duckdb import wal_policy as wp
+        from core.infra.db.core.engines.duckdb.wal_policy import DuckdbWalPolicy
 
-        return wp.checkpoint_duckdb_engine(engine, domains=domains)
+        return DuckdbWalPolicy.checkpoint_engine(engine, domains=domains)
 
     @staticmethod
     def install_sigint_checkpoint_handler(
         engine: Any, db_config: Dict[str, Any]
     ) -> None:
-        from core.infra.db.core.engines.duckdb import wal_policy as wp
+        from core.infra.db.core.engines.duckdb.wal_policy import DuckdbWalPolicy
 
-        wp.install_sigint_checkpoint_handler_for_engine(engine, db_config)
+        DuckdbWalPolicy.install_sigint_checkpoint_handler(engine, db_config)
 
 
 class DuckdbNamespace:

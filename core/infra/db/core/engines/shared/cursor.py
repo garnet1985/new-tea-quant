@@ -8,7 +8,7 @@ from core.infra.db.core.engines.shared.query_executor import DbQueryExecutor
 
 class DatabaseCursor:
     """
-    兼容不同 connector 的游标接口。
+    统一游标：封装 ``DbQueryExecutor`` 的读写分流。
 
     写操作在 execute 时立即执行；读操作在 fetchall 时执行。
     """

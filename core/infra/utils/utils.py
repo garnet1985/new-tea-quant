@@ -1,79 +1,34 @@
-"""Utils 门面 — date / types / io / math。"""
+"""Utils 门面 — date / types / io / math / markdown。"""
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any, Dict, Iterable, List, Literal, Mapping, Optional, Sequence
+from typing import Any
 
-from core.infra.utils.date.date_utils import DateUtils
-from core.infra.utils.type_utils import TypeUtils
-
-
-class IoNamespace:
-    """CSV / 归档 IO。"""
-
-    @staticmethod
-    def write_dicts_to_csv(
-        path: Path | str,
-        rows: Iterable[Mapping[str, Any]],
-        preferred_order: Optional[Sequence[str]] = None,
-    ) -> None:
-        from core.infra.utils.io.csv_io import write_dicts_to_csv
-
-        write_dicts_to_csv(path, rows, preferred_order=preferred_order)
-
-    @staticmethod
-    def read_csv_to_dicts(path: Path | str) -> List[dict]:
-        from core.infra.utils.io.csv_io import read_csv_to_dicts
-
-        return read_csv_to_dicts(path)
-
-    @staticmethod
-    def dicts_to_csv_bytes(
-        rows: Iterable[Mapping[str, Any]],
-        preferred_order: Optional[Sequence[str]] = None,
-    ) -> bytes:
-        from core.infra.utils.io.csv_io import dicts_to_csv_bytes
-
-        return dicts_to_csv_bytes(rows, preferred_order=preferred_order)
-
-    @staticmethod
-    def csv_bytes_to_dicts(data: bytes) -> List[dict]:
-        from core.infra.utils.io.csv_io import csv_bytes_to_dicts
-
-        return csv_bytes_to_dicts(data)
-
-    @staticmethod
-    def write_archive(
-        output_dir: str | Path,
-        archive_name: str,
-        files: Dict[str, bytes],
-        *,
-        format: Literal["tar.gz", "zip"] = "tar.gz",
-    ) -> Path:
-        from core.infra.utils.io.file_io import write_archive
-
-        return write_archive(output_dir, archive_name, files, format=format)
-
-    @staticmethod
-    def read_archive_files(
-        archive_path: str | Path,
-        *,
-        filter_ext: Optional[str] = None,
-    ) -> Dict[str, bytes]:
-        from core.infra.utils.io.file_io import read_archive_files
-
-        return read_archive_files(archive_path, filter_ext=filter_ext)
+from core.infra.utils.core.date.date_utils import DateUtils
+from core.infra.utils.core.io.csv_io import CsvIo
+from core.infra.utils.core.io.file_io import FileIo
+from core.infra.utils.core.markdown import MarkdownMgr
+from core.infra.utils.core.math.deterministic_random import DeterministicRandom
+from core.infra.utils.core.type_utils import TypeUtils
 
 
-class MathNamespace:
+class Io:
+    """CSV / 归档 IO（挂载 ``CsvIo`` / ``FileIo``）。"""
+
+    write_dicts_to_csv = staticmethod(CsvIo.write_dicts_to_csv)
+    read_csv_to_dicts = staticmethod(CsvIo.read_csv_to_dicts)
+    dicts_to_csv_bytes = staticmethod(CsvIo.dicts_to_csv_bytes)
+    csv_bytes_to_dicts = staticmethod(CsvIo.csv_bytes_to_dicts)
+    write_archive = staticmethod(FileIo.write_archive)
+    read_archive_files = staticmethod(FileIo.read_archive_files)
+
+
+class Math:
     """确定性随机等数值工具。"""
 
     @staticmethod
     def deterministic_unit_float(*key_parts: Any) -> float:
-        from core.infra.utils.math.deterministic_random import deterministic_unit_float
-
-        return deterministic_unit_float(*key_parts)
+        return DeterministicRandom.unit_float(*key_parts)
 
 
 class Utils:
@@ -81,8 +36,9 @@ class Utils:
 
     date = DateUtils
     types = TypeUtils
-    io = IoNamespace()
-    math = MathNamespace()
+    io = Io
+    math = Math
+    markdown = MarkdownMgr
 
 
 __all__ = ["Utils"]

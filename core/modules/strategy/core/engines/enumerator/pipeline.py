@@ -302,6 +302,7 @@ class EnumeratorPipeline:
         return ReportManager.begin(
             strategy_info.key,
             strategy_path=strategy_info.unique_relative_path,
+            strategy_folder=strategy_info.resolved_folder(),
             entity_ids=stock_ids,
             settings_fp=settings_fp,
             env_fp=env_fp,

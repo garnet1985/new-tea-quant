@@ -23,15 +23,12 @@ class TestApi(unittest.TestCase):
     """ProjectContext API 契约测试"""
 
     def test_facade_export(self):
-        """facade 导出 path / config / meta / cache / discovery namespace"""
+        """facade 导出 path / config / meta / cache / discovery / types namespace"""
         import core.infra.project_context as pkg
 
         self.assertEqual(pkg.__all__, ["ProjectContext"])
-        self.assertTrue(hasattr(ProjectContext, "path"))
-        self.assertTrue(hasattr(ProjectContext, "config"))
-        self.assertTrue(hasattr(ProjectContext, "meta"))
-        self.assertTrue(hasattr(ProjectContext, "cache"))
-        self.assertTrue(hasattr(ProjectContext, "discovery"))
+        for ns in ("path", "config", "meta", "cache", "discovery", "types"):
+            self.assertTrue(hasattr(ProjectContext, ns), f"missing namespace: {ns}")
 
     def test_path_namespace_methods(self):
         """path namespace 包含文档化路径 API"""
@@ -43,6 +40,9 @@ class TestApi(unittest.TestCase):
             "get_tags_root",
             "get_strategy_directory",
             "get_tag_directory",
+            "coerce_strategy_folder",
+            "get_backup_data_directory",
+            "get_strategy_simulation_price_directory",
         ]
         for method_name in methods:
             method = getattr(ProjectContext.path, method_name)
@@ -57,6 +57,8 @@ class TestApi(unittest.TestCase):
             "get_default_start_date",
             "get_as_of_latest_completed_trading_date",
             "get_use_sample_stock_list",
+            "get_decimal_places",
+            "get_database_type",
             "merge_market_profile_dicts",
         ]
         for method_name in methods:
@@ -73,6 +75,29 @@ class TestApi(unittest.TestCase):
     def test_discovery_namespace_methods(self):
         for method_name in ("discover_configs", "load_overridable_config"):
             self.assertTrue(callable(getattr(ProjectContext.discovery, method_name)))
+        self.assertFalse(hasattr(ProjectContext.discovery, "find_in_tree"))
+
+    def test_types_namespace_symbols(self):
+        self.assertTrue(
+            issubclass(
+                ProjectContext.types.OverridableConfigNotFoundError,
+                FileNotFoundError,
+            )
+        )
+        self.assertIn("data", ProjectContext.types.DEFAULT_DUCKDB_DOMAINS)
+        self.assertTrue(ProjectContext.types.DUCKDB_DOMAIN_FILES)
+        self.assertIn("duckdb", ProjectContext.types.SUPPORTED_DB_TYPES)
+
+    def test_path_coerce_strategy_folder(self):
+        rel = "demo/example"
+        folder = ProjectContext.path.coerce_strategy_folder(rel)
+        self.assertIsInstance(folder, Path)
+        self.assertEqual(folder, ProjectContext.path.get_strategies_root() / rel)
+
+    def test_path_get_backup_data_directory(self):
+        backup_data = ProjectContext.path.get_backup_data_directory()
+        self.assertIsInstance(backup_data, Path)
+        self.assertEqual(backup_data.parent, ProjectContext.path.get_backup_directory())
 
     def test_path_get_project_root(self):
         root = ProjectContext.path.get_project_root()
@@ -151,9 +176,9 @@ class TestContracts(unittest.TestCase):
 class TestEdgeCases(unittest.TestCase):
     """边界测试"""
 
-    def test_empty_strategy_name(self):
-        strategy_dir = ProjectContext.path.get_strategy_directory("")
-        self.assertIsInstance(strategy_dir, Path)
+    def test_empty_strategy_name_raises(self):
+        with self.assertRaises(ValueError):
+            ProjectContext.path.get_strategy_directory("")
 
     def test_empty_tag_name(self):
         tag_dir = ProjectContext.path.get_tag_directory("")

@@ -1,8 +1,8 @@
 # 存储域（Storage Domain）设计
 
-**状态：** 研究定案（待实现）  
-**日期：** 2026-05-28  
-**关联：** DuckDB 嵌入式后端、`DataManager` / `DatabaseManager` 演进
+**状态：** 已实现（v1）  
+**版本对齐：** 模块 `0.5.0`  
+**关联：** DuckDB 嵌入式后端、`StorageRegistry`、`Db.duckdb` / WritePipeline
 
 ---
 
@@ -168,7 +168,7 @@ TagWritePipeline / DataWritePipeline / …  →  batch upsert → CHECKPOINT（�
 - **跨域读**（如 strategy 域 Model 读 `sys_stock_list`）：技术上 `ATTACH` + qualify（`data.main.sys_stock_list`）；由 duckdb engine **QueryPlanner** 在 `DbBaseModel.query` 路径上自动处理（扫描注册表名 → 映射 domain → ATTACH → qualify）。无法安全解析时 **fail fast**。
 - **跨域写**（含跨文件 `INSERT … SELECT … JOIN`、`UPDATE`/`DELETE` 跨域等）：**v1 不支持**；当前无产品用例。表 Model 写操作使用单表 `upsert` / `upsert_many`；跨表复杂 JOIN 优先 **DataService**。
 - 实现前：**禁止**假设无前缀表名的裸 SQL 能跨库 JOIN；须走 engine 路由或显式 qualify。
-- 定案详见：[engines/ARCHITECTURE.md §10](../engines/ARCHITECTURE.md)、[决策 10](./DESIGN.md)。
+- 定案详见：[engines/ARCHITECTURE.md §10](../core/engines/ARCHITECTURE.md)、[决策 10](./DESIGN.md)。
 
 ### 4.4 运行时解析（定案）
 

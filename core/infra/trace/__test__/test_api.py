@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import os
 import unittest
 
 import pytest
 
 from core.infra.trace import Trace
 from core.infra.trace.contracts import FlushBudget, TraceConsent, TraceConfig, TraceEvent
+from core.infra.trace.core.defaults import TraceDefaults
 
 pytestmark = pytest.mark.force_run
 
@@ -23,6 +25,7 @@ class TestTraceApi(unittest.TestCase):
         self.assertTrue(callable(Trace.ask_permission))
         self.assertTrue(hasattr(Trace, "config"))
         self.assertTrue(hasattr(Trace, "consent"))
+        self.assertTrue(hasattr(Trace, "types"))
 
     def test_config_namespace(self) -> None:
         self.assertTrue(callable(Trace.config.is_enabled))
@@ -30,6 +33,7 @@ class TestTraceApi(unittest.TestCase):
         cfg = Trace.config.load()
         self.assertIn("enabled", cfg)
         self.assertIn("target_url", cfg)
+        self.assertTrue(str(cfg["target_url"]).startswith("http"))
 
     def test_consent_namespace(self) -> None:
         for name in (
@@ -43,11 +47,25 @@ class TestTraceApi(unittest.TestCase):
         ):
             self.assertTrue(callable(getattr(Trace.consent, name)))
 
-    def test_contracts_symbols(self) -> None:
-        self.assertTrue(issubclass(FlushBudget, str))
-        self.assertTrue(hasattr(TraceConsent, "to_dict"))
-        self.assertTrue(hasattr(TraceConfig, "__dataclass_fields__"))
-        self.assertTrue(hasattr(TraceEvent, "to_wire_dict"))
+    def test_types_and_defaults(self) -> None:
+        self.assertIs(Trace.types.FlushBudget, FlushBudget)
+        self.assertIs(Trace.types.TraceConsent, TraceConsent)
+        self.assertIs(Trace.types.TraceConfig, TraceConfig)
+        self.assertIs(Trace.types.TraceEvent, TraceEvent)
+        self.assertIs(Trace.types.TraceDefaults, TraceDefaults)
+        self.assertEqual(TraceConfig().target_url, TraceDefaults.TARGET_URL)
+
+    def test_endpoint_env_override(self) -> None:
+        prev = os.environ.get("NTQ_TRACE_ENDPOINT")
+        try:
+            os.environ["NTQ_TRACE_ENDPOINT"] = "https://override.example/api/v1/traces"
+            cfg = Trace.config.load()
+            self.assertEqual(cfg["target_url"], "https://override.example/api/v1/traces")
+        finally:
+            if prev is None:
+                os.environ.pop("NTQ_TRACE_ENDPOINT", None)
+            else:
+                os.environ["NTQ_TRACE_ENDPOINT"] = prev
 
 
 if __name__ == "__main__":

@@ -21,13 +21,13 @@ _REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-# venv 重入尽量在导入重依赖之前
-from core.infra.cli.user.bootstrap import UserBootstrap
+from core.infra.cli import Cli
 
-UserBootstrap.ensure_venv_for_cli(__file__)
+# venv 重入尽量在导入重依赖之前（Cli.user.* 为 lazy import）
+Cli.user.ensure_venv(__file__)
 
 try:
-    from core.infra.cli import Cli
+    Cli.user.bootstrap(__file__)
 except ModuleNotFoundError as exc:
     missing = getattr(exc, "name", None) or str(exc)
     sys.stderr.write(
@@ -49,8 +49,6 @@ except ModuleNotFoundError as exc:
         + "\n"
     )
     raise SystemExit(1) from exc
-
-Cli.user.bootstrap(__file__)
 
 if __name__ == "__main__":
     raise SystemExit(Cli.user.main())

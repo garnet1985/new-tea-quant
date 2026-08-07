@@ -32,7 +32,7 @@ def resolve_single_entity_spec(kind: str, name: str) -> ExportImport.types.Artif
         return strategy_artifact_spec(n, source)
 
     if k == "tag":
-        source = ProjectContext.path.get_tag_scenario_directory(n)
+        source = ProjectContext.path.get_tag_directory(n)
         if not source.is_dir():
             raise FileNotFoundError(f"tag scenario not found: {source}")
         return tag_artifact_spec(n, source)

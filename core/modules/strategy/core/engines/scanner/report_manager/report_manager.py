@@ -62,10 +62,12 @@ class ReportManager(BaseReportManager):
         adapter_names: Optional[List[str]] = None,
         max_cache_days: int = 10,
         skip_save: bool = False,
+        strategy_folder: Optional[Path] = None,
     ) -> "ReportManager":
         key = str(strategy_key or "").strip()
         day = str(scan_date or "").strip()
-        cache = ScanCacheManager(key, max_cache_days=int(max_cache_days))
+        root = strategy_folder if strategy_folder is not None else key
+        cache = ScanCacheManager(root, max_cache_days=int(max_cache_days))
         output_dir = cache.cache_base_dir / day if day else cache.cache_base_dir
         mgr = cls(
             output_dir=output_dir,

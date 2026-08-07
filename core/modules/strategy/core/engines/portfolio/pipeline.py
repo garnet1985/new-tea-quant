@@ -93,7 +93,7 @@ class PortfolioPipeline:
         if ctx.enum_version is None or not str(ctx.enum_version).strip():
             raise ValueError("SimulateSession.enum_version 不能为空")
         version_id = str(ctx.enum_version).strip()
-        output_dir = EnumSource.resolve_dir(ctx.strategy_key, version_id)
+        output_dir = EnumSource.resolve_dir(ctx.strategy_folder, version_id)
         return EnumSource.load(output_dir, version_id)
 
     @classmethod

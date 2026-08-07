@@ -27,6 +27,7 @@ python devcli.py -h
 ```python
 from core.infra.cli import Cli
 
+Cli.user.ensure_venv(__file__)
 Cli.user.bootstrap(__file__)
 raise SystemExit(Cli.user.main())
 ```
@@ -50,5 +51,5 @@ raise SystemExit(Cli.dev.main())
 - [README.md](./README.md)
 
 ```bash
-python3 -m pytest core/infra/cli/__test__/ -q
+python3 -m pytest core/infra/cli -q
 ```

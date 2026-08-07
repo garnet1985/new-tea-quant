@@ -1,37 +1,96 @@
-# glossary — infra.project_context
+# Project Context 术语表
 # Version: 0.5.0
 
-project_root:
-  description: "项目根目录"
-  recommended_terms: [project_root, 项目根目录]
-  forbidden_terms: [project_root_path, root_dir]
-  example: |
-    project_root = ProjectContext.path.get_project_root()
+terms:
+  NTQ:
+    definition: "New Tea Quant 的简称。"
+    aliases:
+      - "New Tea Quant"
+    avoid: []
 
-core_root:
-  description: "core 目录"
-  recommended_terms: [core_root, core目录]
-  forbidden_terms: [core_dir, core_path]
-  example: |
-    core_root = ProjectContext.path.get_core_root()
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面类是 ProjectContext。"
+    aliases:
+      - "门面"
+    avoid:
+      - "ProjectContextManager"
+      - "直接 import PathManager / ConfigManager"
 
-userspace_root:
-  description: "userspace 目录（可用环境变量覆盖）"
-  recommended_terms: [userspace_root, userspace目录, 用户空间]
-  forbidden_terms: [userspace_dir, user_root]
-  example: |
-    userspace_root = ProjectContext.path.get_userspace_root()
+  ProjectContext:
+    definition: "本模块门面类；提供 path / config / meta / cache / discovery / types 命名空间。"
+    aliases: []
+    avoid:
+      - "from core.infra.project_context.core.path_manager import PathManager"
 
-facade:
-  description: "对外唯一入口 ProjectContext"
-  recommended_terms: [facade, Facade, ProjectContext]
-  forbidden_terms: [ProjectContextManager, PathManager]
-  example: |
-    from core.infra.project_context import ProjectContext
+  path:
+    definition: "PathNamespace：项目根、userspace 与语义目录路径（返回 pathlib.Path）。"
+    aliases:
+      - "PathNamespace"
+    avoid:
+      - "get_strategy_directory_simulation_*（已统一为 get_strategy_simulation_*_directory）"
 
-overridable_config:
-  description: "core 默认 + userspace 覆盖的可合并配置"
-  recommended_terms: [overridable_config, 可覆盖配置]
-  forbidden_terms: []
-  example: |
-    ProjectContext.discovery.load_overridable_config("markets", "china_a_stock")
+  config:
+    definition: "ConfigNamespace：默认配置与 userspace 覆盖的加载、合并与常用字段访问器。"
+    aliases:
+      - "ConfigNamespace"
+    avoid: []
+
+  meta:
+    definition: "MetaNamespace：读取 core_meta.json（可选回退 core.system）。"
+    aliases:
+      - "MetaNamespace"
+    avoid: []
+
+  cache:
+    definition: "CacheNamespace：清理 userspace 路径缓存（clear_userspace_cache）。"
+    aliases:
+      - "CacheNamespace"
+    avoid: []
+
+  discovery:
+    definition: "DiscoveryNamespace：约定式配置发现与 load_overridable_config。"
+    aliases:
+      - "DiscoveryNamespace"
+    avoid:
+      - "ProjectContext 上的 find_in_tree（已迁至 infra.discovery）"
+
+  types:
+    definition: "TypesNamespace：与 contracts 同源的异常、常量与类型挂载点。"
+    aliases:
+      - "TypesNamespace"
+    avoid:
+      - "from core.infra.project_context import OverridableConfigNotFoundError（优先 contracts 或 ProjectContext.types）"
+
+  userspace_root:
+    definition: "userspace 目录；优先级 NEW_TEA_QUANT_USERSPACE_ROOT → NTQ_USERSPACE_ROOT → {project_root}/.ntq/userspace-path.json → {project_root}/userspace。"
+    aliases:
+      - "get_userspace_root"
+    avoid:
+      - "硬编码 userspace 相对路径"
+
+  overridable_config:
+    definition: "core/default_config 默认 + userspace/config 覆盖的可合并配置；两侧皆无有效文件时 load_overridable_config 抛 OverridableConfigNotFoundError。"
+    aliases:
+      - "可覆盖配置"
+    avoid: []
+
+  coerce_strategy_folder:
+    definition: "将策略 id 或绝对 discovered folder 规范化为策略根目录；绝对路径原样返回，相对名拼到 userspace/strategies/。"
+    aliases:
+      - "ProjectContext.path.coerce_strategy_folder"
+    avoid:
+      - "直接拼接 strategies 路径而不经 coerce"
+
+  get_tag_directory:
+    definition: "Tag scenario 目录（userspace/extensions/tags/{name}/）；PathManager 内部仍称 get_tag_scenario_directory。"
+    aliases:
+      - "get_tag_scenario_directory（PathManager 内部名）"
+    avoid:
+      - "ProjectContext.path.get_tag_scenario_directory（门面已移除）"
+
+  find_in_tree:
+    definition: "目录树文件发现；已迁至 core.infra.discovery（Discovery.file.find_in_tree），不在 ProjectContext 上暴露。"
+    aliases:
+      - "Discovery.file.find_in_tree"
+    avoid:
+      - "ProjectContext.discovery.find_in_tree"

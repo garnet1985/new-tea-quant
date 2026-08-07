@@ -4,12 +4,23 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Optional, Union
 
-from .contracts import FlushBudget
+from .contracts import FlushBudget, TraceConfig, TraceConsent, TraceEvent
+from .core.defaults import TraceDefaults
 from .core.namespaces import ConfigNamespace, ConsentNamespace
 from .core.services.drain_service import TraceDrainService
 from .core.services.flush_service import TraceFlushService
 from .core.services.permission_service import TracePermissionService
 from .core.services.track_service import TraceTrackService
+
+
+class TypesNamespace:
+    """与 ``contracts`` / ``defaults`` 同源的类型挂载点。"""
+
+    FlushBudget = FlushBudget
+    TraceConsent = TraceConsent
+    TraceConfig = TraceConfig
+    TraceEvent = TraceEvent
+    TraceDefaults = TraceDefaults
 
 
 class Trace:
@@ -23,6 +34,7 @@ class Trace:
 
     config = ConfigNamespace()
     consent = ConsentNamespace()
+    types = TypesNamespace
 
     @staticmethod
     def ask_permission(*, source: str = "cli") -> bool:

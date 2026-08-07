@@ -34,9 +34,12 @@
 |------|------|------|
 | `test_facade_exported_only` | `test_api.py` | `__all__ == ["Db"]` |
 | `test_manager_namespace` | `test_api.py` | manager |
-| `test_migration_namespace` | `test_api.py` | migration |
+| `test_migration_namespace` | `test_api.py` | migration + snapshot path |
 | `test_engine_namespace` | `test_api.py` | engine.build_meta / create |
-| `test_duckdb_namespaces` | `test_api.py` | worker_pool / wal |
+| `test_duckdb_namespaces` | `test_api.py` | worker_pool / wal 面 |
+| `test_worker_pool_should_apply_behavior` | `test_api.py` | off/on/auto 判定 |
+| `test_worker_pool_install_config_overlay` | `test_api.py` | overlay env → RO 配置 |
+| `test_wal_checkpoint_defaults` | `test_api.py` | WAL checkpoint 默认与覆盖 |
 | `test_sql_and_rows_namespaces` | `test_api.py` | sql / rows |
 | `test_contracts_symbols` | `test_api.py` | contracts 无游离工厂 |
 

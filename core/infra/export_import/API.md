@@ -27,7 +27,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.2.0`
-- **描述：** 按 `ArtifactSpec` 列表收集文件并打 zip；`output_path` 缺省则返回 bytes
+- **描述：** 按 `ArtifactSpec` 列表收集文件并打 zip（stdlib `zipfile`）；`output_path` 缺省则返回 bytes
 - **举例：**
 
 ```python
@@ -64,12 +64,12 @@ manifest, blob = ExportImport.archive.create(
 
 #### preflight
 
-`ExportImport.install.preflight(extracted_root_or_manifest, userspace_root, policy) -> PreflightResult`
+`ExportImport.install.preflight(extracted_root, userspace_root, policy) -> PreflightResult`
 
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.2.0`
-- **描述：** 安装前冲突预检（可传已解压根目录或 `BundleManifest`）
+- **描述：** 安装前冲突预检；`extracted_root` 可为已解压根目录（`Path`）或 `BundleManifest`
 
 #### install
 
@@ -84,7 +84,7 @@ manifest, blob = ExportImport.archive.create(
 
 ### types
 
-**描述：** 与 `contracts` 同源的类型挂载点（`ArtifactSpec`、`ConflictPolicy`、`BundleManifest`、`PreflightResult`、`InstallResult` 等）
+**描述：** 与 `contracts` 同源的类型挂载点（`TypesNamespace`：`ArtifactSpec`、`ConflictPolicy`、`BundleManifest`、`PreflightResult`、`InstallResult` 等）
 
 ---
 

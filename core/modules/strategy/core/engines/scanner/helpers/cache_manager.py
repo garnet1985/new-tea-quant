@@ -13,7 +13,7 @@ import logging
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
+from typing import List, Union
 
 from core.infra.project_context import ProjectContext
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
@@ -24,14 +24,26 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ScanCacheManager:
-    strategy_name: str
+    """Scan result cache under ``{strategy_root}/results/scan/``.
+
+    ``strategy_root`` must be the discovered strategy folder (absolute Path preferred).
+    Relative strings still resolve under ``userspace/strategies/`` for bootstrap.
+    """
+
+    strategy_root: Union[str, Path]
     max_cache_days: int = 10
 
     def __post_init__(self) -> None:
         self.cache_base_dir = ProjectContext.path.get_strategy_scan_results_directory(
-            self.strategy_name
+            self.strategy_root
         )
         self.cache_base_dir.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def strategy_name(self) -> str:
+        """Legacy alias (relative name or folder name) for logs / progress keys."""
+        root = Path(self.strategy_root)
+        return root.name if root.is_absolute() else str(self.strategy_root)
 
     def date_dir(self, date: str) -> Path:
         return self.cache_base_dir / str(date).strip()

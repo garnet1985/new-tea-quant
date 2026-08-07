@@ -107,35 +107,6 @@ class DiscoveryManager:
         return merge_fn(core_raw, user_raw)
 
     @staticmethod
-    def find_in_tree(
-        base_dir: Path,
-        key: str,
-        config_filename: str = "config.py",
-    ) -> Optional[Path]:
-        """
-        在任意目录树中查找配置（如 data source handlers 下的 config.py）。
-
-        1. ``{base_dir}/{key}/{config_filename}``
-        2. 递归 ``*/{key}/{config_filename}`` 与 ``{key}/{config_filename}``
-        """
-        if not base_dir.exists():
-            return None
-
-        direct_path = base_dir / key / config_filename
-        if direct_path.is_file():
-            return direct_path
-
-        for path in base_dir.rglob(f"*/{key}/{config_filename}"):
-            if path.is_file():
-                return path
-
-        for path in base_dir.rglob(f"{key}/{config_filename}"):
-            if path.is_file():
-                return path
-
-        return None
-
-    @staticmethod
     def _normalize_domain(domain: str) -> str:
         rel = str(domain or "").strip().replace("\\", "/").strip("/")
         if rel in ("", "."):

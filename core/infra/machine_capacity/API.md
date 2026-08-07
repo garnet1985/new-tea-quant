@@ -10,13 +10,17 @@
 
 快速开始见 [QUICKSTART.md](./QUICKSTART.md)。术语见 [glossary.yaml](./glossary.yaml)。架构见 [ARCHITECTURE.md](./docs/ARCHITECTURE.md)。
 
-**公开约定：** 包根仅导出 `MachineInfo`；`MachineCapacity` 从 [`contracts.py`](./contracts.py) 导入。
+**公开约定：** 包根仅导出 `MachineInfo`；`MachineCapacity` 从 [`contracts.py`](./contracts.py) 导入，或经 `MachineInfo.types`。
 
 ---
 
 ## MachineInfo
 
 **描述：** 机器容量门面类（Facade）— 从 `performance` 字典解析 CPU / 内存预算与可用 worker
+
+### types
+
+**描述：** 与 `contracts` 同源的类型挂载点（`MachineCapacity`）
 
 #### get_capacity
 
@@ -51,21 +55,25 @@ workers = MachineInfo.get_available_workers(capacity)
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 从 `performance.reserve_cores` 解析预留核（默认 1）
+- **描述：** 从 `performance.reserve_cores` 解析预留核（默认 1，非法值回落默认）
 
-#### resolve_memory_budget / resolve_memory_floor
+#### resolve_memory_budget
 
-`MachineInfo.resolve_memory_budget(performance) -> tuple[float, float]`  
-`MachineInfo.resolve_memory_floor(performance) -> float`
+`MachineInfo.resolve_memory_budget(performance: dict) -> tuple[float, float]`
 
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 预算支持 `auto`；floor 为机器保留空闲内存底线
+- **描述：** 返回 `(budget_mb, floor_mb)`；显式 `memory_budget_mb` 或 `auto`（见 DESIGN）
 
-#### get_memory_budget / get_memory_floor
+#### resolve_memory_floor
 
-便捷包装，分别只返回预算或 floor。
+`MachineInfo.resolve_memory_floor(performance: dict) -> float`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.0`
+- **描述：** 机器保留空闲内存底线；显式或 `auto`
 
 #### get_available_workers
 
@@ -83,6 +91,7 @@ workers = MachineInfo.get_available_workers(capacity)
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
+- **描述：** 进程池可用预算；对 `capacity.memory_budget_mb` 夹紧到至少 1 MB
 
 #### parse_max_parallel_jobs_cap
 
@@ -91,7 +100,16 @@ workers = MachineInfo.get_available_workers(capacity)
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 解析并行 job 上限；`None` / `"auto"` → `None`
+- **描述：** 解析并行 job 上限；`None` / `""` / `"null"` / `"auto"` / 非法 → `None`
+
+#### virtual_memory_mb
+
+`MachineInfo.virtual_memory_mb() -> tuple[float | None, float | None]`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.0`
+- **描述：** 本机 `(total_mb, available_mb)`；无 psutil 或失败时 `(None, None)`
 
 ---
 

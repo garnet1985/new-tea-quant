@@ -7,11 +7,17 @@
 ```text
 core/infra/trace/
 ├── trace.py / contracts.py
-├── API.md / QUICKSTART.md / glossary.yaml
-├── core/services/
+├── core/
+│   ├── defaults.py      # 内置 TARGET_URL 等（唯一源）
+│   ├── services/
+│   └── __test__/
 ├── __test__/
 └── docs/
 ```
+
+## 改上报地址
+
+见 [`core/defaults.py`](./core/defaults.py) 或 `NTQ_TRACE_ENDPOINT` / `userspace/system/config/trace.json`。
 
 ## 快速开始
 

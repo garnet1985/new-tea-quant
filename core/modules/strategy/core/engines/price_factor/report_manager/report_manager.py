@@ -105,14 +105,27 @@ class ReportManager(BaseReportManager):
         info = ctx.strategy_info
         strategy_key = str(getattr(info, "key", "") or "").strip()
         strategy_path = str(
-            getattr(info, "unique_relative_path", "") or ctx.strategy_key or ""
+            getattr(info, "unique_relative_path", "") or getattr(ctx, "strategy_key", "") or ""
         ).strip()
-        if not strategy_path:
-            raise ValueError("strategy_path 不能为空")
+        folder = getattr(ctx, "strategy_folder", None)
+        if folder is None:
+            resolved = getattr(info, "resolved_folder", None)
+            if callable(resolved):
+                folder = resolved()
+            elif getattr(info, "folder", None) is not None:
+                folder = Path(info.folder)
+            else:
+                from core.infra.project_context import ProjectContext
 
-        root = ProjectContext.path.get_strategy_directory_simulation_price(strategy_path)
+                folder = ProjectContext.path.coerce_strategy_folder(
+                    strategy_path or strategy_key
+                )
+        if folder is None or not str(folder):
+            raise ValueError("strategy_folder 不能为空")
+
+        root = ProjectContext.path.get_strategy_simulation_price(folder)
         output_dir, version_id = SimulationOutputRecorder.allocate_version_dir(
-            strategy_path,
+            strategy_path or strategy_key or str(folder),
             root,
         )
         entity_ids = list(data.entity_ids)

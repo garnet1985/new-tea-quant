@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from core.infra.utils.date.constants import (
+from core.infra.utils.core.date.constants import (
     PERIOD_DAY,
     PERIOD_MONTH,
     PERIOD_QUARTER,

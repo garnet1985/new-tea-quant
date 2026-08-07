@@ -58,7 +58,7 @@ def test_report_manager_finalize_writes_globals(tmp_path: Path, monkeypatch) -> 
 
     price_root = tmp_path / "price"
     monkeypatch.setattr(
-        "core.modules.strategy.core.engines.price_factor.report_manager.report_manager.ProjectContext.path.get_strategy_directory_simulation_price",
+        "core.modules.strategy.core.engines.price_factor.report_manager.report_manager.ProjectContext.path.get_strategy_simulation_price_directory",
         lambda _name: price_root,
     )
 

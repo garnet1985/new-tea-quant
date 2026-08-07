@@ -10,16 +10,16 @@
 
 快速开始见 [QUICKSTART.md](./QUICKSTART.md)。术语见 [glossary.yaml](./glossary.yaml)。架构见 [ARCHITECTURE.md](./docs/ARCHITECTURE.md)。
 
-**公开约定：** 包根仅导出 `Update`；类型从 [`contracts.py`](./contracts.py) 导入。  
+**公开约定：** 包根仅导出 `Update`；类型从 [`contracts.py`](./contracts.py) 导入，或经 `Update.types`。实现位于 [`core/`](./core/)。  
 **边界：** 版本探测与升级编排在 `setup/updater/`，不在本模块。
 
-**CLI：** `python -m core.infra.update.post_upgrade run`（内部调用 `Update.post_upgrade.run`）
+**CLI：** `python -m core.infra.update.core.post_upgrade run`（内部调用 `Update.post_upgrade.run`）
 
 ---
 
 ## Update
 
-**描述：** 升级扩展门面 — `data_scripts` / `post_upgrade`
+**描述：** 升级扩展门面 — `data_scripts` / `post_upgrade` / `types`
 
 ### data_scripts
 
@@ -58,7 +58,11 @@ Update.data_scripts.run(db, "demo_backfill")
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.4.0`（Facade 封装 `0.5.0`）
-- **描述：** 升级收尾动作；注册表为空时 `run` 返回 `skipped=True`
+- **描述：** 升级收尾动作；注册表为空时 `run` 返回 `skipped=True`（正常，非错误）
+
+### types
+
+**描述：** `RegisteredMigrationScript` / `RegisteredPostUpgradeAction` / `PostUpgradeRunResult` / `MigrationScriptFn` / `PostUpgradeFn`
 
 ---
 

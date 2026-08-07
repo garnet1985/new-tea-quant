@@ -12,6 +12,8 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any, Dict, Optional
 
+from .core.defaults import TraceDefaults
+
 
 class FlushBudget(str, Enum):
     """Flush time/count budget names."""
@@ -44,13 +46,13 @@ class TraceConfig:
     """Resolved runtime configuration for tracing."""
 
     enabled: bool = False
-    target_url: str = "https://www.new-tea.cn/api/v1/traces"
-    timeout_sec: float = 2.0
-    queue_max: int = 100
-    extreme_depth: int = 20
-    max_attempts: int = 10
-    body_max_bytes: int = 4096
-    bff_drain_interval_sec: int = 60
+    target_url: str = TraceDefaults.TARGET_URL
+    timeout_sec: float = TraceDefaults.TIMEOUT_SEC
+    queue_max: int = TraceDefaults.QUEUE_MAX
+    extreme_depth: int = TraceDefaults.EXTREME_DEPTH
+    max_attempts: int = TraceDefaults.MAX_ATTEMPTS
+    body_max_bytes: int = TraceDefaults.BODY_MAX_BYTES
+    bff_drain_interval_sec: int = TraceDefaults.BFF_DRAIN_INTERVAL_SEC
 
 
 @dataclass
@@ -85,13 +87,9 @@ class TraceEvent:
     def from_dict(cls, raw: Optional[Dict[str, Any]]) -> Optional["TraceEvent"]:
         if not isinstance(raw, dict):
             return None
-        event = raw.get("event") or raw.get("event_name") or ""
+        event = raw.get("event") or ""
         meta = raw.get("meta") if isinstance(raw.get("meta"), dict) else {}
-        body = raw.get("body")
-        if not isinstance(body, dict):
-            body = raw.get("properties") if isinstance(raw.get("properties"), dict) else {}
-            if not meta and raw.get("ntq_version"):
-                meta = {"ntq_version": str(raw.get("ntq_version"))}
+        body = raw.get("body") if isinstance(raw.get("body"), dict) else {}
         event_id = str(raw.get("event_id") or "")
         installation_id = str(raw.get("installation_id") or "")
         if not event_id or not installation_id or not event:

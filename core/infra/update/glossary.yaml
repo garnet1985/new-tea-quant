@@ -1,23 +1,44 @@
-# glossary — infra.update
+# Update 术语表
 # Version: 0.5.0
 
-data_script:
-  description: "迁移执行器按 action_id 调用的数据脚本"
-  recommended_terms: [data_script, Update.data_scripts]
-  forbidden_terms: [migration_hook]
-  example: |
-    Update.data_scripts.run(db, "my_script")
+terms:
+  NTQ:
+    definition: "New Tea Quant 的简称。"
+    aliases:
+      - "New Tea Quant"
+    avoid: []
 
-post_upgrade:
-  description: "镜像与 DB 迁移之后的收尾动作"
-  recommended_terms: [post_upgrade, Update.post_upgrade]
-  forbidden_terms: [after_update]
-  example: |
-    Update.post_upgrade.run(repo_root)
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面类是 Update。"
+    aliases:
+      - "门面"
+    avoid:
+      - "deep-import core.db / core.post_upgrade 当公开 API"
 
-updater:
-  description: "setup/updater 升级编排（非本模块）"
-  recommended_terms: [updater, setup/updater]
-  forbidden_terms: [infra.update.pipeline]
-  example: |
-    # 编排见 setup/updater/pipeline.py
+  Update:
+    definition: "本模块门面类；挂载 data_scripts / post_upgrade / types。"
+    aliases: []
+    avoid: []
+
+  data_script:
+    definition: "迁移执行器按 action_id 调用的数据脚本；公开入口 Update.data_scripts。"
+    aliases:
+      - "Update.data_scripts"
+      - "DataScriptRegistry"
+    avoid:
+      - "migration_hook"
+
+  post_upgrade:
+    definition: "镜像与 DB 迁移之后的收尾动作；公开入口 Update.post_upgrade。"
+    aliases:
+      - "Update.post_upgrade"
+      - "PostUpgradeRegistry"
+    avoid:
+      - "after_update"
+
+  updater:
+    definition: "setup/updater 升级编排（版本探测、下载、镜像）；非本模块。"
+    aliases:
+      - "setup/updater"
+    avoid:
+      - "infra.update.pipeline"

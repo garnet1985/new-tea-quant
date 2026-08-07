@@ -22,10 +22,21 @@
 
 ```text
 core/infra/machine_capacity/
-├── machine_capacity.py   # 门面 MachineInfo
+├── machine_capacity.py   # 门面 MachineInfo + TypesNamespace
 ├── contracts.py          # MachineCapacity
-├── __test__/
+├── __test__/             # 公开 API + 行为单测 + TEST_CASES.md
 └── docs/
+```
+
+---
+
+## 架构图
+
+```text
+调用方 → MachineInfo
+           ├── get_capacity / resolve_* / get_available_workers / …
+           ├── virtual_memory_mb  (optional psutil)
+           └── types → contracts.MachineCapacity
 ```
 
 ---

@@ -4,8 +4,8 @@
 
 ```python
 from core.infra.machine_capacity import MachineInfo
-from core.infra.machine_capacity.contracts import MachineCapacity
 
+MachineCapacity = MachineInfo.types.MachineCapacity
 performance = {"reserve_cores": 1, "memory_budget_mb": 4096, "memory_floor_mb": 1024}
 capacity: MachineCapacity = MachineInfo.get_capacity(performance)
 print(MachineInfo.get_available_workers(capacity), MachineInfo.worker_pool_budget_mb(capacity))

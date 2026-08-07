@@ -118,7 +118,6 @@ ENUMERATOR_STRATEGY_DISPATCH_KEYS: FrozenSet[str] = frozenset(
     {
         "memory_budget_mb",
         "memory_floor_mb",
-        "main_process_reserve_mb",
         "warmup_batch_size",
         "min_batch_size",
         "max_batch_size",

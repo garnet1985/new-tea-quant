@@ -96,7 +96,7 @@ class DuckdbSettings:
         }
 
     def as_dict(self) -> Dict[str, Any]:
-        """与 merge 后 duckdb 块兼容的 dict（供 wal_policy 等）。"""
+        """序列化为 duckdb 配置块 dict（domains + 共享项）。"""
         return {
             **self.shared_connector_dict(),
             "domains": {

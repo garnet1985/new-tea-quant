@@ -843,8 +843,11 @@ class DbBaseModel:
 
     def _clear_table_for_overwrite_import(self, cursor, target_sql: str) -> None:
         """
-        覆盖导入前清空目标表：MySQL/PostgreSQL 优先 TRUNCATE（大表远快于 DELETE），
-        失败（如外键）时回退 DELETE。
+        覆盖导入前清空目标表（显式策略，非兼容兜底）：
+
+        - DuckDB 等：``DELETE FROM``
+        - MySQL / PostgreSQL：优先 ``TRUNCATE``（大表更快）；若因外键等无法
+          TRUNCATE，则改用 ``DELETE``（同一清空语义，允许的失败分支）
         """
         db_type = db_dialect.normalize_database_type(self.db.config)
         t_clear = time.perf_counter()
@@ -867,14 +870,14 @@ class DbBaseModel:
             )
         except Exception as e:
             logger.warning(
-                "覆盖导入：TRUNCATE 失败，改用 DELETE：表=%s 原因=%s",
+                "覆盖导入：TRUNCATE 不可用，按策略改用 DELETE：表=%s 原因=%s",
                 target_sql,
                 e,
             )
             t2 = time.perf_counter()
             cursor.execute(f"DELETE FROM {target_sql}")
             logger.info(
-                "覆盖导入：目标表 %s 已清空（DELETE 回退），耗时 %.2fs",
+                "覆盖导入：目标表 %s 已清空（DELETE），耗时 %.2fs",
                 target_sql,
                 time.perf_counter() - t2,
             )
@@ -970,8 +973,11 @@ class DbBaseModel:
             if not result or len(result) == 0:
                 return 0
             row = result[0]
-            # 兼容不同驱动返回的列名（cnt / count / COUNT 等）
-            n = row.get("cnt") if "cnt" in row else row.get("count", 0)
+            if "cnt" not in row:
+                raise KeyError(
+                    f"count query must alias COUNT(*) AS cnt; got keys={list(row.keys())}"
+                )
+            n = row["cnt"]
             if n is None:
                 return 0
             return int(n)

@@ -36,11 +36,16 @@ core/infra/db/
 │   ├── migrate_manager.py
 │   ├── storage_registry.py
 │   ├── engines/          # mysql | pgsql | duckdb | shared | abc
+│   │   └── …/__test__/   # 含 pgsql 与 mysql 对称最小套件
 │   ├── migration/
 │   └── table_queriers/
 ├── __test__/             # test_api + 少量 integration
-├── core/**/__test__/     # 功能包单测（下沉）
+├── core/**/__test__/     # 功能包单测（下沉；helper 包可不索引业务 case）
 └── docs/
+    ├── ARCHITECTURE.md   # 模块总览（SSOT）
+    ├── DESIGN.md
+    ├── storage-domains.md
+    └── （engines 细部见 core/engines/ARCHITECTURE.md）
 ```
 
 ---
@@ -75,7 +80,7 @@ flowchart LR
 ```text
 配置（ProjectContext）
   → DatabaseManager.initialize
-  → create_engine → engine.initialize
+  → Db.engine.build_meta / create（或 EngineFactory）→ engine.initialize
   → 查询 / 写入 / 迁移
 ```
 

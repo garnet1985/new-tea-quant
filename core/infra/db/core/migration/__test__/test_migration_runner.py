@@ -5,14 +5,8 @@ import json
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from core.infra.db.core.migrate_manager import main as migrate_main
-from core.infra.db.core.migration.runner import (
-    build_migration_plan,
-    load_schemas_from_snapshot,
-    run_schema_migration,
-)
+from core.infra.db.core.migration.runner import MigrationRunner
 
 
 def _schema(name: str, uk: str, *, with_note: bool = False) -> dict:
@@ -52,7 +46,7 @@ def test_load_schemas_from_snapshot():
         json.dump({"sys_a": _schema("sys_a", "uk_a")}, f)
         path = Path(f.name)
     try:
-        loaded = load_schemas_from_snapshot(path)
+        loaded = MigrationRunner.load_schemas_from_snapshot(path)
         assert "sys_a" in loaded
         assert loaded["sys_a"]["update_key"] == "uk_a"
     finally:
@@ -73,7 +67,7 @@ def test_run_schema_migration_plan_only():
             json.dumps({"sys_t": _schema("sys_t", "uk_t", with_note=False)}),
             encoding="utf-8",
         )
-        result = run_schema_migration(
+        result = MigrationRunner.run(
             pre_mirror_snapshot=snap,
             tables_dir=tables,
             apply=False,
@@ -109,6 +103,6 @@ def test_migrate_cli_plan_subcommand():
 
 def test_build_migration_plan_empty_diff_skips_steps():
     s = _schema("sys_x", "uk_x")
-    diff, plan = build_migration_plan({"sys_x": s}, {"sys_x": s})
+    diff, plan = MigrationRunner.build_migration_plan({"sys_x": s}, {"sys_x": s})
     assert len(diff.non_unchanged()) == 0
     assert len(plan.steps) == 0

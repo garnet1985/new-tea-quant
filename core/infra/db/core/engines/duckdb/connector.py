@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 
 from core.infra.db.core.engines.shared.query_rows import fetch_result_to_normalized_rows
-from core.infra.db.core.engines.duckdb.wal_policy import apply_connect_settings
+from core.infra.db.core.engines.duckdb.wal_policy import DuckdbWalPolicy
 from core.infra.db.core.engines.duckdb.settings import DuckdbSettings
 from core.infra.db.core.engines.duckdb.sql_adapter import DuckdbSqlAdapter
 from core.infra.db.core.engines.duckdb.paths import resolve_duckdb_db_path
@@ -71,7 +71,7 @@ class DuckdbDomainConnection:
                 logger.debug("DuckDB PRAGMA memory_limit 跳过: %s", e)
 
         if not read_only:
-            apply_connect_settings(self._conn, self.config)
+            DuckdbWalPolicy.apply_connect_settings(self._conn, self.config)
 
         self._initialized = True
         if self.is_verbose:

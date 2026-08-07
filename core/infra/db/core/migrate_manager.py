@@ -19,14 +19,7 @@ from typing import Any, Dict, Optional
 
 from core.infra.db.core.db_manager import DatabaseManager
 from core.infra.db.core.migration.execution_plan import MigrationPlanError, ordered_plan
-from core.infra.db.core.migration.runner import (
-    MigrationRunResult,
-    build_migration_plan,
-    default_pre_mirror_snapshot_path,
-    load_current_table_schemas,
-    load_schemas_from_snapshot,
-    run_schema_migration,
-)
+from core.infra.db.core.migration.runner import MigrationRunResult, MigrationRunner
 
 logger = logging.getLogger(__name__)
 
@@ -36,11 +29,11 @@ class MigrationManager:
 
     @staticmethod
     def default_snapshot_path(repo_root: Path) -> Path:
-        return default_pre_mirror_snapshot_path(repo_root)
+        return MigrationRunner.default_pre_mirror_snapshot_path(repo_root)
 
     @staticmethod
     def load_snapshot(path: Path) -> Dict[str, Dict[str, Any]]:
-        return load_schemas_from_snapshot(path)
+        return MigrationRunner.load_schemas_from_snapshot(path)
 
     @staticmethod
     def load_current_schemas(
@@ -48,7 +41,9 @@ class MigrationManager:
         *,
         tables_dir: Optional[Path] = None,
     ) -> Dict[str, Dict[str, Any]]:
-        return load_current_table_schemas(repo_root, tables_dir=tables_dir)
+        return MigrationRunner.load_current_table_schemas(
+            repo_root, tables_dir=tables_dir
+        )
 
     @staticmethod
     def build_plan(
@@ -58,7 +53,9 @@ class MigrationManager:
         database_type: str = "postgresql",
         db: Optional[DatabaseManager] = None,
     ):
-        return build_migration_plan(old_schemas, new_schemas, database_type=database_type, db=db)
+        return MigrationRunner.build_migration_plan(
+            old_schemas, new_schemas, database_type=database_type, db=db
+        )
 
     @staticmethod
     def run(
@@ -70,7 +67,7 @@ class MigrationManager:
         against_database: bool = False,
         database_type: str = "postgresql",
     ) -> MigrationRunResult:
-        return run_schema_migration(
+        return MigrationRunner.run(
             pre_mirror_snapshot=pre_mirror_snapshot,
             repo_root=repo_root,
             tables_dir=tables_dir,

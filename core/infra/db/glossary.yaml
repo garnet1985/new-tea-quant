@@ -1,5 +1,7 @@
 # Database 术语表
 # Version: 0.5.0
+#
+# 缩写与生僻英文优先在此说明；正文首次出现宜括注或链到本表
 
 terms:
   NTQ:
@@ -17,21 +19,86 @@ terms:
       - "导出游离函数"
       - "长期把 core.infra.db.core.* 深路径当公开 API"
 
+  namespace:
+    definition: "命名空间：挂在门面类下的分组（如 Db.manager），按职责组织一组方法。"
+    aliases:
+      - "命名空间"
+    avoid: []
+
   Db:
-    definition: "本模块门面类；挂载 manager / migration / engine / duckdb / sql / rows 命名空间。"
+    definition: "本模块门面类；挂载 manager / migration / engine / duckdb / sql / rows。"
     aliases: []
     avoid: []
 
-  DatabaseManager:
-    definition: "按配置挂载一个 backend Engine 的运行时管理器；从 contracts 导入。"
-    aliases: []
+  contracts:
+    definition: "跨模块契约导入面（contracts.py）：只导出类型 / 类 / 常量，不导出行为工厂函数。"
+    aliases:
+      - "contracts.py"
     avoid:
-      - "from core.infra.db import DatabaseManager  # 已移除；用 contracts"
+      - "在 contracts 里找 create_engine / build_engine_meta（已移除）"
+
+  DatabaseManager:
+    definition: "按配置挂载一个 backend Engine 的运行时管理器；类型从 contracts 导入，实例多经 Db.manager。"
+    aliases:
+      - "Db.manager"
+      - "默认数据库管理器"
+    avoid:
+      - "from core.infra.db import DatabaseManager  # 已移除；用 contracts 或 Db.manager"
 
   Engine:
     definition: "某一数据库后端的实现包（mysql / pgsql / duckdb），含 connector、table_operator 等。"
     aliases:
       - "后端引擎"
+      - "Db.engine（配置元信息与工厂命名空间）"
+    avoid: []
+
+  EngineConfigMeta:
+    definition: "从原始 database 配置解析出的类型化引擎元信息；经 Db.engine.build_meta 得到，再交给 Db.engine.create。"
+    aliases:
+      - "engine meta"
+    avoid:
+      - "build_engine_meta 作为包根/contracts 导出名"
+
+  SchemaManager:
+    definition: "加载期望表 schema、生成/执行方言 DDL 的协作对象；多挂在 Engine / DatabaseManager 上。"
+    aliases: []
+    avoid: []
+
+  StorageRegistry:
+    definition: "按表 schema 的 storage_domain 把逻辑表路由到 DuckDB 存储域；常量 STORAGE_DOMAINS 列出合法域名。"
+    aliases:
+      - "STORAGE_DOMAINS"
+    avoid: []
+
+  storage_domain:
+    definition: "DuckDB 多文件存储域标签；v1 为 data / tag / strategy（factor 预留）。"
+    aliases:
+      - "存储域"
+      - "domain"
+    avoid:
+      - "用目录路径猜测表归属"
+
+  data_domain:
+    definition: "storage_domain=data：行情与主数据等外部抓取结果（默认 data.duckdb）。"
+    aliases:
+      - "data"
+    avoid: []
+
+  tag_domain:
+    definition: "storage_domain=tag：标签相关表（默认 tag.duckdb）。"
+    aliases:
+      - "tag"
+    avoid: []
+
+  strategy_domain:
+    definition: "storage_domain=strategy：策略运行时 DB 产出与工作台快照等（默认 strategy.duckdb）。"
+    aliases:
+      - "strategy"
+    avoid: []
+
+  overlay_domain_paths:
+    definition: "Db.duckdb.overlay_domain_paths：为性能/临时库场景覆盖各域 db_path 的配置拼装入口。"
+    aliases: []
     avoid: []
 
   DbBaseModel:
@@ -44,23 +111,77 @@ terms:
     aliases: []
     avoid: []
 
-  storage_domain:
-    definition: "DuckDB 多文件存储域（如 data / tag 等）；由 StorageRegistry 把表路由到域。"
+  WritePipeline:
+    definition: "DuckDB 每存储域异步写管道（engines/duckdb/write_pipeline）；与 mysql/pgsql 的 BatchWriteQueue 路径不同。"
     aliases:
-      - "存储域"
+      - "duckdb write pipeline"
+    avoid:
+      - "把 WritePipeline 当成 mysql/pgsql 写队列名"
+
+  BatchWriteQueue:
+    definition: "mysql/pgsql 侧批量写队列（contracts 可导入）；经 engine 挂载。"
+    aliases:
+      - "BatchOperation（队列内批量操作单元）"
+    avoid: []
+
+  worker_pool:
+    definition: "多进程 DuckDB worker 池期间，主进程释放/恢复数据库句柄的协作；实现类 DuckdbWorkerPool，公开入口 Db.duckdb.worker_pool。"
+    aliases:
+      - "process_pool_scope"
+      - "DuckdbWorkerPool"
+      - "Db.duckdb.worker_pool"
+      - "worker pool scope"
+      - "NTQ_DATABASE_CONFIG_JSON"
+      - "CONFIG_OVERLAY_ENV"
+    avoid:
+      - "直接 import process_pool_scope 模块级自由函数（已收成类）"
+      - "process_pool_module（已删除）"
+      - "NTQ_DUCKDB_CONFIG_JSON（已更名为 NTQ_DATABASE_CONFIG_JSON）"
+
+  WAL:
+    definition: "Write-Ahead Log；实现类 DuckdbWalPolicy，公开入口 Db.duckdb.wal（checkpoint / 策略开关）。"
+    aliases:
+      - "CHECKPOINT"
+      - "DuckdbWalPolicy"
+      - "Db.duckdb.wal"
+      - "wal_policy"
     avoid: []
 
   schema_migration:
-    definition: "对比期望 schema 与快照/库，生成并执行 DDL plan 的升级过程。"
+    definition: "对比期望 schema 与快照/库，生成并执行 DDL plan 的升级过程；实现类 MigrationRunner，编排入口 Db.migration → MigrationManager。"
     aliases:
       - "结构迁移"
+      - "MigrationManager"
+      - "MigrationRunner"
+      - "Db.migration"
     avoid:
       - "把 updater 编排当成 db 模块职责"
 
-  process_pool_scope:
-    definition: "多进程 DuckDB worker 池期间，主进程释放/恢复数据库句柄的协作逻辑；公开入口为 Db.duckdb.worker_pool。"
+  Db_sql:
+    definition: "Db.sql 命名空间：方言相关的 SQL 标识符辅助（如 qualify_table_name）。"
     aliases:
-      - "worker pool scope"
-      - "Db.duckdb.worker_pool"
+      - "Db.sql"
+      - "qualify_table_name"
+    avoid: []
+
+  Db_rows:
+    definition: "Db.rows 命名空间：行数据规范化辅助（如 clean_nan_in_list）。"
+    aliases:
+      - "Db.rows"
+      - "clean_nan_in_list"
+    avoid: []
+
+  create_engine:
+    definition: "历史包根/contracts 工厂名；现为 Db.engine.create(meta) / EngineFactory.create。"
+    aliases:
+      - "EngineFactory.create"
     avoid:
-      - "直接 import process_pool_scope 模块级函数"
+      - "from core.infra.db import create_engine"
+      - "from core.infra.db.contracts import create_engine"
+
+  build_engine_meta:
+    definition: "历史配置解析函数名；现为 Db.engine.build_meta / EngineConfigMeta.from_raw_config。"
+    aliases:
+      - "EngineConfigMeta.from_raw_config"
+    avoid:
+      - "从包根或 contracts 导入 build_engine_meta"

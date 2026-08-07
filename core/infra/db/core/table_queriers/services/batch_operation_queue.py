@@ -289,14 +289,19 @@ class BatchWriteQueue:
                     update_clause=update_clause
                 )
             finally:
-                # 归还连接（如果需要）
-                if hasattr(self.table_manager.adapter, '_put_connection'):
-                    if hasattr(conn, 'pg_conn'):
-                        self.table_manager.adapter._put_connection(conn.pg_conn)
-                    elif hasattr(conn, 'mysql_conn'):
-                        self.table_manager.adapter._put_connection(conn.mysql_conn)
-                    else:
-                        self.table_manager.adapter._put_connection(conn)
+                # 归还 raw 连接到池（get_connection 返回 wrapper）
+                put = getattr(self.table_manager.adapter, "_put_connection", None)
+                if put is None:
+                    return
+                if hasattr(conn, "pg_conn"):
+                    put(conn.pg_conn)
+                elif hasattr(conn, "mysql_conn"):
+                    put(conn.mysql_conn)
+                else:
+                    raise TypeError(
+                        "batch write 期望 MySQL/PgSQL connection wrapper "
+                        f"(mysql_conn/pg_conn)，收到 {type(conn).__name__}"
+                    )
             
             if callback:
                 callback(table_name, len(data_list))

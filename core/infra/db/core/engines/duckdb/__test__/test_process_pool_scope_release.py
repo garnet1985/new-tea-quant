@@ -7,10 +7,7 @@ import pytest
 
 pytestmark = pytest.mark.force_run
 
-from core.infra.db.core.engines.duckdb.process_pool_scope import (
-    _collect_db_managers_from_data_mgr,
-    release_all_main_db_handles,
-)
+from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
 
 
 def test_collect_includes_calendar_model_db():
@@ -37,7 +34,7 @@ def test_collect_includes_calendar_model_db():
     data_mgr._data_service.backup_restore = None
 
     with patch.object(DatabaseManager, "_default_instance", data_mgr.db):
-        found = _collect_db_managers_from_data_mgr(data_mgr)
+        found = DuckdbWorkerPool._collect_db_managers_from_data_mgr(data_mgr)
 
     assert data_mgr.db in found
     assert calendar_db in found
@@ -68,7 +65,7 @@ def test_release_all_closes_calendar_model_db():
     with patch.object(DatabaseManager, "_default_instance", main_db), patch.object(
         DatabaseManager, "reset_default"
     ) as reset:
-        release_all_main_db_handles(data_mgr)
+        DuckdbWorkerPool.release_all_main_db_handles(data_mgr)
 
     main_db.close.assert_called_once()
     calendar_db.close.assert_called()

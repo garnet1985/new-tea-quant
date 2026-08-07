@@ -10,8 +10,10 @@ MySQL engine（含 server-style connector 契约）单元测试。
 ## 边界
 
 **负责：** `engines/mysql`  
-**不负责：** PostgreSQL 专属行为
+**不负责：** PostgreSQL 专属行为（→ `engines/pgsql/__test__`）
+
+## Scenario：mysql_engine
 
 | Case 文件 | 说明 |
 |-----------|------|
-| `test_server_engine.py` | MysqlEngine mock 契约 |
+| `test_server_engine.py` | MysqlEngine mock：table_operator / load / count / replace / flush |

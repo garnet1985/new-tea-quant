@@ -248,8 +248,7 @@ class PgsqlConnector:
         try:
             yield conn
         finally:
-            raw = getattr(conn, "pg_conn", conn)
-            self._put_connection(raw)
+            self._put_connection(conn.pg_conn)
 
     def get_connection(self):
         """

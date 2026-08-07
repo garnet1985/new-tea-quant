@@ -5,13 +5,26 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from .contracts import (
+    MigrationScriptFn,
+    PostUpgradeFn,
+    PostUpgradeRunResult,
+    RegisteredMigrationScript,
+    RegisteredPostUpgradeAction,
+)
+
 if TYPE_CHECKING:
     from core.infra.db.contracts import DatabaseManager
-    from core.infra.update.contracts import (
-        PostUpgradeRunResult,
-        RegisteredMigrationScript,
-        RegisteredPostUpgradeAction,
-    )
+
+
+class TypesNamespace:
+    """与 ``contracts`` 同源的类型挂载点。"""
+
+    MigrationScriptFn = MigrationScriptFn
+    PostUpgradeFn = PostUpgradeFn
+    RegisteredMigrationScript = RegisteredMigrationScript
+    RegisteredPostUpgradeAction = RegisteredPostUpgradeAction
+    PostUpgradeRunResult = PostUpgradeRunResult
 
 
 class DataScriptsNamespace:
@@ -19,19 +32,19 @@ class DataScriptsNamespace:
 
     @staticmethod
     def register(action_id: str, *, description: str = ""):
-        from core.infra.update.db.registry import DataScriptRegistry
+        from core.infra.update.core.db.registry import DataScriptRegistry
 
         return DataScriptRegistry.register(action_id, description=description)
 
     @staticmethod
-    def get(action_id: str) -> Optional["RegisteredMigrationScript"]:
-        from core.infra.update.db.registry import DataScriptRegistry
+    def get(action_id: str) -> Optional[RegisteredMigrationScript]:
+        from core.infra.update.core.db.registry import DataScriptRegistry
 
         return DataScriptRegistry.get(action_id)
 
     @staticmethod
-    def list() -> Dict[str, "RegisteredMigrationScript"]:
-        from core.infra.update.db.registry import DataScriptRegistry
+    def list() -> Dict[str, RegisteredMigrationScript]:
+        from core.infra.update.core.db.registry import DataScriptRegistry
 
         return DataScriptRegistry.list()
 
@@ -42,7 +55,7 @@ class DataScriptsNamespace:
         *,
         context: Optional[dict] = None,
     ) -> None:
-        from core.infra.update.db.registry import DataScriptRegistry
+        from core.infra.update.core.db.registry import DataScriptRegistry
 
         DataScriptRegistry.run(db, action_id, context=context)
 
@@ -52,19 +65,19 @@ class PostUpgradeNamespace:
 
     @staticmethod
     def register(action_id: str, *, description: str = ""):
-        from core.infra.update.post_upgrade.registry import PostUpgradeRegistry
+        from core.infra.update.core.post_upgrade.registry import PostUpgradeRegistry
 
         return PostUpgradeRegistry.register(action_id, description=description)
 
     @staticmethod
-    def get(action_id: str) -> Optional["RegisteredPostUpgradeAction"]:
-        from core.infra.update.post_upgrade.registry import PostUpgradeRegistry
+    def get(action_id: str) -> Optional[RegisteredPostUpgradeAction]:
+        from core.infra.update.core.post_upgrade.registry import PostUpgradeRegistry
 
         return PostUpgradeRegistry.get(action_id)
 
     @staticmethod
-    def list() -> List["RegisteredPostUpgradeAction"]:
-        from core.infra.update.post_upgrade.registry import PostUpgradeRegistry
+    def list() -> List[RegisteredPostUpgradeAction]:
+        from core.infra.update.core.post_upgrade.registry import PostUpgradeRegistry
 
         return PostUpgradeRegistry.list()
 
@@ -73,8 +86,8 @@ class PostUpgradeNamespace:
         repo_root: Path,
         *,
         context: Optional[Dict[str, Any]] = None,
-    ) -> "PostUpgradeRunResult":
-        from core.infra.update.post_upgrade.runner import PostUpgradeRunner
+    ) -> PostUpgradeRunResult:
+        from core.infra.update.core.post_upgrade.runner import PostUpgradeRunner
 
         return PostUpgradeRunner.run(repo_root, context=context)
 
@@ -84,6 +97,7 @@ class Update:
 
     data_scripts = DataScriptsNamespace()
     post_upgrade = PostUpgradeNamespace()
+    types = TypesNamespace
 
 
 __all__ = ["Update"]

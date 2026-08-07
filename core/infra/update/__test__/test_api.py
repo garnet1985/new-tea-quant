@@ -15,18 +15,24 @@ from core.infra.update.contracts import (
     RegisteredMigrationScript,
     RegisteredPostUpgradeAction,
 )
-from core.infra.update.post_upgrade.registry import PostUpgradeRegistry
+from core.infra.update.core.db.registry import DataScriptRegistry
+from core.infra.update.core.post_upgrade.registry import PostUpgradeRegistry
 
 pytestmark = pytest.mark.force_run
 
 
 class TestUpdateApi(unittest.TestCase):
+    def tearDown(self) -> None:
+        DataScriptRegistry.clear()
+        PostUpgradeRegistry.clear()
+
     def test_facade_export(self):
         import core.infra.update as pkg
 
         self.assertEqual(pkg.__all__, ["Update"])
         self.assertTrue(hasattr(Update, "data_scripts"))
         self.assertTrue(hasattr(Update, "post_upgrade"))
+        self.assertTrue(hasattr(Update, "types"))
 
     def test_data_scripts_methods(self):
         for name in ("register", "get", "list", "run"):
@@ -36,10 +42,12 @@ class TestUpdateApi(unittest.TestCase):
         for name in ("register", "get", "list", "run"):
             self.assertTrue(callable(getattr(Update.post_upgrade, name)))
 
-    def test_contracts_symbols(self):
-        self.assertTrue(hasattr(RegisteredMigrationScript, "__dataclass_fields__"))
-        self.assertTrue(hasattr(RegisteredPostUpgradeAction, "__dataclass_fields__"))
-        self.assertTrue(hasattr(PostUpgradeRunResult, "__dataclass_fields__"))
+    def test_types(self):
+        self.assertIs(Update.types.RegisteredMigrationScript, RegisteredMigrationScript)
+        self.assertIs(
+            Update.types.RegisteredPostUpgradeAction, RegisteredPostUpgradeAction
+        )
+        self.assertIs(Update.types.PostUpgradeRunResult, PostUpgradeRunResult)
 
     def test_post_upgrade_run_skips_when_empty(self):
         PostUpgradeRegistry.clear()

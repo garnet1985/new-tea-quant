@@ -1273,7 +1273,7 @@ class PostUpgradeResult:
 
 def _preflight_post_upgrade_module(repo_root: Path, py: Path, env: Dict[str, str]) -> None:
     r = subprocess.run(
-        [str(py), "-c", "import core.infra.update.post_upgrade"],
+        [str(py), "-c", "import core.infra.update.core.post_upgrade"],
         cwd=str(repo_root),
         env=env,
         capture_output=True,
@@ -1282,16 +1282,16 @@ def _preflight_post_upgrade_module(repo_root: Path, py: Path, env: Dict[str, str
     if r.returncode != 0:
         detail = (r.stderr or r.stdout or "").strip()
         raise RuntimeError(
-            "NTQ updater: cannot import core.infra.update.post_upgrade "
+            "NTQ updater: cannot import core.infra.update.core.post_upgrade "
             f"(check PYTHONPATH/venv). {detail}"
         )
 
 
 def spawn_post_upgrade_actions_cli(repo_root: Path) -> PostUpgradeResult:
     """
-    子进程调用 ``python -m core.infra.update.post_upgrade run``。
+    子进程调用 ``python -m core.infra.update.core.post_upgrade run``。
 
-    执行 **新版** ``core/infra/update/post_upgrade`` 中已注册的收尾动作；注册表为空时子进程正常退出（跳过）。
+    执行 ``core/infra/update/core/post_upgrade`` 中已注册的收尾动作；注册表为空时子进程正常退出（跳过）。
     跳过整步：``NTQ_UPDATE_SKIP_POST_UPGRADE=1``。
     """
     if _env_truthy("NTQ_UPDATE_SKIP_POST_UPGRADE"):
@@ -1317,7 +1317,7 @@ def spawn_post_upgrade_actions_cli(repo_root: Path) -> PostUpgradeResult:
     cmd: List[str] = [
         str(py),
         "-m",
-        "core.infra.update.post_upgrade",
+        "core.infra.update.core.post_upgrade",
         "run",
         "--repo-root",
         str(repo_root),

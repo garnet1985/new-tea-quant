@@ -122,7 +122,7 @@ zip 下载 URL：Release 固定命名或由版本号推导；可选后续再加�
 | 8 | `_restore_exceptions` | 按 manifest 还原 lift-out |
 | 9 | `_reinstall_dependencies` | **CLI** `reinstall_runtime_dependencies_cli`（见 §6） |
 | 10 | `_run_database_migrations` | 子进程 ``python -m core.infra.db.core.migrate_manager apply``；日志 ``userspace/.ntq/update/logs/migrate-<UTC>.log``；摘要 ``cache/last_migration_result.json`` → ``ctx.database_migration``。无快照默认 **失败**；``NTQ_UPDATE_ALLOW_MISSING_SCHEMA_SNAPSHOT=1`` 可跳过；``NTQ_UPDATE_SKIP_DB_MIGRATION=1`` 跳过整步 |
-| 11 | `_trigger_core_extra_actions` | 子进程 ``python -m core.infra.update.post_upgrade run``；新版 ``core/infra/update/post_upgrade`` 注册表 **为空则跳过**；日志 ``logs/post-upgrade-<UTC>.log`` → ``ctx.post_upgrade``；``NTQ_UPDATE_SKIP_POST_UPGRADE=1`` 可跳过整步 |
+| 11 | `_trigger_core_extra_actions` | 子进程 ``python -m core.infra.update.core.post_upgrade run``；``core/infra/update/core/post_upgrade`` 注册表 **为空则跳过**；日志 ``logs/post-upgrade-<UTC>.log`` → ``ctx.post_upgrade``；``NTQ_UPDATE_SKIP_POST_UPGRADE=1`` 可跳过整步 |
 | 12 | `_cleanup_staging` | ``helper.cleanup_after_upgrade``：删 ``staging/``、``inbox`` zip、已还原的 ``lift-out/``、``pre_mirror`` 快照；**保留** ``logs/`` 与 ``last_*_result.json``；``NTQ_UPDATE_SKIP_CLEANUP=1`` 可跳过 |
 
 **禁止**：在 zip 内执行未校验脚本承担 schema 迁移；迁移与 DDL 在 **`core/infra/db`**（及受信任的子进程）内完成。

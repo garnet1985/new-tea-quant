@@ -12,7 +12,7 @@ from core.infra.update.contracts import (
     PostUpgradeRunResult,
     RegisteredPostUpgradeAction,
 )
-from core.infra.update.post_upgrade.registry import PostUpgradeRegistry
+from core.infra.update.core.post_upgrade.registry import PostUpgradeRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class PostUpgradeRunner:
     @staticmethod
     def _ensure_actions_loaded() -> None:
         """触发 ``actions`` 包 import，使装饰器完成注册。"""
-        from core.infra.update.post_upgrade import actions  # noqa: F401
+        from core.infra.update.core.post_upgrade import actions  # noqa: F401
 
     @staticmethod
     def run(

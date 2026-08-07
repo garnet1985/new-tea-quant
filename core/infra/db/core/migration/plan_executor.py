@@ -30,7 +30,7 @@ def execute_plan(
     """
     使用已初始化的 :class:`~core.infra.db.core.db_manager.DatabaseManager` 依次执行计划。
 
-    DDL 步骤走 ``get_connection``；``RUN_DATA_SCRIPT`` 走 ``core.infra.update.db`` 注册表。
+    DDL 步骤走 ``get_connection``；``RUN_DATA_SCRIPT`` 走 ``Update.data_scripts`` 注册表。
     """
     for step in ordered_plan(plan):
         if is_step_applied(db, step.step_id):

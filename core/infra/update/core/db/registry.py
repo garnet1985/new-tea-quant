@@ -16,11 +16,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_REGISTRY: Dict[str, RegisteredMigrationScript] = {}
-
 
 class DataScriptRegistry:
     """数据迁移脚本注册表（方法挂靠本类）。"""
+
+    _REGISTRY: Dict[str, RegisteredMigrationScript] = {}
 
     @staticmethod
     def register(
@@ -34,7 +34,7 @@ class DataScriptRegistry:
             key = action_id.strip()
             if not key:
                 raise ValueError("DataScriptRegistry.register: action_id 不能为空")
-            _REGISTRY[key] = RegisteredMigrationScript(
+            DataScriptRegistry._REGISTRY[key] = RegisteredMigrationScript(
                 action_id=key,
                 description=description or fn.__doc__ or "",
                 run=fn,
@@ -45,11 +45,18 @@ class DataScriptRegistry:
 
     @staticmethod
     def get(action_id: str) -> Optional[RegisteredMigrationScript]:
-        return _REGISTRY.get(action_id.strip()) if action_id else None
+        return (
+            DataScriptRegistry._REGISTRY.get(action_id.strip()) if action_id else None
+        )
 
     @staticmethod
     def list() -> Dict[str, RegisteredMigrationScript]:
-        return dict(_REGISTRY)
+        return dict(DataScriptRegistry._REGISTRY)
+
+    @staticmethod
+    def clear() -> None:
+        """仅测试使用。"""
+        DataScriptRegistry._REGISTRY.clear()
 
     @staticmethod
     def run(

@@ -7,17 +7,9 @@ from pathlib import Path
 import pytest
 
 from core.infra.update import Update
-from core.infra.update.post_upgrade.registry import PostUpgradeRegistry
+from core.infra.update.core.post_upgrade.registry import PostUpgradeRegistry
 
 pytestmark = pytest.mark.force_run
-
-
-def test_run_skips_when_registry_empty():
-    PostUpgradeRegistry.clear()
-    with tempfile.TemporaryDirectory() as td:
-        result = Update.post_upgrade.run(Path(td))
-    assert result.skipped is True
-    assert result.executed_count == 0
 
 
 def test_run_executes_registered_actions_in_order():

@@ -9,12 +9,13 @@ changelog:
       - 对齐 CORE_MODULE_STANDARDS：Facade Update（data_scripts / post_upgrade）；contracts；API.md / QUICKSTART / docs / test_api
       - 澄清与 setup/updater 边界；误放本模块的 updater 测试迁至 setup/updater/__test__
       - BREAKING：外部调用方改 Update.*；公开 API 最高 beta
+      - 实现下沉 core/；注册表类状态 + clear；Update.types；CLI 改为 -m core.infra.update.core.post_upgrade
   - version: "0.4.1"
     changes:
-      - 升级编排与 schema 快照（面向 core 0.4.x 能力）
+      - （历史）升级相关能力曾与 setup/updater 交织；现仅保留本模块扩展点
   - version: "0.4.0"
     changes:
-      - 版本探测与 managed_scope 更新计划基线
+      - （历史）注册表基线
   - version: "0.3.1"
     changes:
-      - updater 基础能力（CLI / 后续 UI 一键升级预留）
+      - （历史）updater 基础能力预留

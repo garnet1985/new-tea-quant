@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-06T08:48:46Z",
+  "generated_at": "2026-08-07T06:01:26Z",
   "be_version": "0.4.0",
   "mode": "slice_based",
   "engines": {
@@ -79,40 +79,152 @@
       ]
     },
     "mysql": {
-      "t0": null,
-      "k": null,
-      "verdict": "样本档不足（至少 2 档）",
-      "doubling": [],
-      "fixed_share": [],
-      "near_fixed": null,
-      "near_linear": null,
-      "points": [
+      "t0": 0.9605,
+      "k": 0.00992,
+      "verdict": "吞吐随规模大致持平（首→末 -0%）：接近线性边际成本",
+      "doubling": [
+        {
+          "from_n": 500,
+          "to_n": 1000,
+          "n_ratio": 2.0,
+          "wall_ratio": 2.388,
+          "throughput_pct": -16.2,
+          "vs_linear_wall": 1.194
+        },
+        {
+          "from_n": 1000,
+          "to_n": 2000,
+          "n_ratio": 2.0,
+          "wall_ratio": 1.679,
+          "throughput_pct": 19.1,
+          "vs_linear_wall": 0.84
+        }
+      ],
+      "fixed_share": [
+        {
+          "n": 500,
+          "t0_share_pct": 18.9
+        },
         {
           "n": 1000,
-          "wall": 13.789427584,
-          "throughput": 56855.15190708006,
-          "planning_sec": 0.1669,
-          "load_sec": 9.3706,
-          "compute_sec": 4.2204
+          "t0_share_pct": 7.9
+        },
+        {
+          "n": 2000,
+          "t0_share_pct": 4.7
+        }
+      ],
+      "near_fixed": {
+        "label": "准备/规划",
+        "mean_sec": 0.2014,
+        "spread_sec": 0.2163,
+        "looks_fixed": false
+      },
+      "near_linear": {
+        "label": "读数据+推进（每股票）",
+        "mean_sec_per_stock": 0.010614,
+        "spread_sec_per_stock": 0.00206,
+        "looks_linear": true
+      },
+      "points": [
+        {
+          "n": 500,
+          "wall": 5.082738666999999,
+          "throughput": 77123.77631080753,
+          "planning_sec": 0.1083,
+          "load_sec": 3.4628,
+          "compute_sec": 1.4787
+        },
+        {
+          "n": 1000,
+          "wall": 12.136309750000002,
+          "throughput": 64599.53776311616,
+          "planning_sec": 0.1714,
+          "load_sec": 8.8674,
+          "compute_sec": 3.0755
+        },
+        {
+          "n": 2000,
+          "wall": 20.38078275,
+          "throughput": 76935.21977216503,
+          "planning_sec": 0.3246,
+          "load_sec": 14.8088,
+          "compute_sec": 5.2232
         }
       ]
     },
     "pgsql": {
-      "t0": null,
-      "k": null,
-      "verdict": "样本档不足（至少 2 档）",
-      "doubling": [],
-      "fixed_share": [],
-      "near_fixed": null,
-      "near_linear": null,
-      "points": [
+      "t0": 3.2736,
+      "k": 0.007625,
+      "verdict": "越大吞吐越高（首→末 +25%）：固定成本被摊薄，或并行更吃得开",
+      "doubling": [
+        {
+          "from_n": 500,
+          "to_n": 1000,
+          "n_ratio": 2.0,
+          "wall_ratio": 2.382,
+          "throughput_pct": -16.0,
+          "vs_linear_wall": 1.191
+        },
+        {
+          "from_n": 1000,
+          "to_n": 2000,
+          "n_ratio": 2.0,
+          "wall_ratio": 1.344,
+          "throughput_pct": 48.8,
+          "vs_linear_wall": 0.672
+        }
+      ],
+      "fixed_share": [
+        {
+          "n": 500,
+          "t0_share_pct": 59.0
+        },
         {
           "n": 1000,
-          "wall": 13.176468459,
-          "throughput": 59500.00961482968,
-          "planning_sec": 0.0955,
-          "load_sec": 8.3632,
-          "compute_sec": 4.6893
+          "t0_share_pct": 24.8
+        },
+        {
+          "n": 2000,
+          "t0_share_pct": 18.4
+        }
+      ],
+      "near_fixed": {
+        "label": "准备/规划",
+        "mean_sec": 0.1456,
+        "spread_sec": 0.0982,
+        "looks_fixed": false
+      },
+      "near_linear": {
+        "label": "读数据+推进（每股票）",
+        "mean_sec_per_stock": 0.010885,
+        "spread_sec_per_stock": 0.004263,
+        "looks_linear": false
+      },
+      "points": [
+        {
+          "n": 500,
+          "wall": 5.546081375,
+          "throughput": 70680.53522745147,
+          "planning_sec": 0.0916,
+          "load_sec": 3.6569,
+          "compute_sec": 1.7678
+        },
+        {
+          "n": 1000,
+          "wall": 13.208028499999998,
+          "throughput": 59357.83678843517,
+          "planning_sec": 0.1555,
+          "load_sec": 8.5373,
+          "compute_sec": 4.4977
+        },
+        {
+          "n": 2000,
+          "wall": 17.752949791000002,
+          "throughput": 88323.35011699915,
+          "planning_sec": 0.1898,
+          "load_sec": 11.8644,
+          "compute_sec": 5.6797
         }
       ]
     }

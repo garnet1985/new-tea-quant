@@ -1,7 +1,7 @@
 {
   "case_name": "slice_based",
-  "run_at": "2026-08-07T05:59:19Z",
-  "run_date": "2026-08-07T05:59:19Z",
+  "run_at": "2026-08-07T05:59:40Z",
+  "run_date": "2026-08-07T05:59:40Z",
   "module": "modules.backtest_engine",
   "description": "按时间切片空策略基准：测引擎按片读数与推进日历的速度",
   "versions": {
@@ -44,81 +44,81 @@
     "db_engine": "mysql",
     "strategy": "slice_based",
     "workload": "strategy_baseline",
-    "wall_time_s": 12.136309750000002,
-    "entities": 1000,
-    "entities_driven": 1000,
+    "wall_time_s": 20.38078275,
+    "entities": 2000,
+    "entities_driven": 2000,
     "timeline_points": 784,
     "success": true,
-    "elapsed_seconds": 11.933732040999999,
+    "elapsed_seconds": 20.026164375,
     "opportunities_count": 0,
-    "output_dir": "/Users/garnet/Desktop/new-tea-quant/core/modules/backtest_engine/__performance__/scripts/test_strategies/slice_based/results/simulations/enum/2",
-    "version_id": 2,
+    "output_dir": "/Users/garnet/Desktop/new-tea-quant/core/modules/backtest_engine/__performance__/scripts/test_strategies/slice_based/results/simulations/enum/3",
+    "version_id": 3,
     "total_jobs": 1,
     "completed_jobs": 1,
     "failed_jobs": 0,
     "slice_runtime": {
-      "per_entity_load_count": 15,
-      "formal_slices_completed": 15,
+      "per_entity_load_count": 30,
+      "formal_slices_completed": 30,
       "reader_workers": 8,
       "queue_depth": 3,
       "slice_samples": [
         {
           "slice_index": 0,
-          "load_sec": 1.1915,
-          "compute_sec": 0.4082,
+          "load_sec": 1.2631,
+          "compute_sec": 0.4043,
           "serialize_sec": 0.0,
           "deserialize_sec": 0.0,
-          "rss_after_mb": 175.4,
-          "payload_mb": 47.0,
-          "payload_bytes": 49233920
+          "rss_after_mb": 222.9,
+          "payload_mb": 39.3,
+          "payload_bytes": 41205760
         },
         {
           "slice_index": 1,
-          "load_sec": 1.3282,
-          "compute_sec": 0.4657,
+          "load_sec": 1.1794,
+          "compute_sec": 0.4572,
           "serialize_sec": 0.0,
           "deserialize_sec": 0.0,
-          "rss_after_mb": 263.4,
-          "payload_mb": 135.0,
-          "payload_bytes": 141541376
+          "rss_after_mb": 267.1,
+          "payload_mb": 83.4,
+          "payload_bytes": 87490560
         }
       ]
     },
     "warnings": [],
     "stock_count_max": 2000,
-    "scale_fraction": 0.5,
+    "scale_fraction": 1.0,
     "mode_label": "按时间切片（slice）",
-    "sample_size": 1000,
-    "data_rows": 784000,
-    "throughput_entity_day_per_s": 64599.53776311616,
+    "sample_size": 2000,
+    "data_rows": 1568000,
+    "throughput_entity_day_per_s": 76935.21977216503,
     "schedule": {
       "compute_workers": 1,
       "reader_workers": 8,
       "queue_depth": 3,
-      "slice_open_days": 54,
-      "formal_slices": 15,
-      "per_entity_load_count": 15
+      "slice_open_days": 27,
+      "formal_slices": 30,
+      "per_entity_load_count": 30
     },
     "time_split": {
-      "planning_sec": 0.1714,
-      "planning_pct": 1.4,
-      "load_sec": 8.8674,
-      "load_pct": 73.2,
-      "compute_sec": 3.0755,
-      "compute_pct": 25.4,
+      "planning_sec": 0.3246,
+      "planning_pct": 1.6,
+      "load_sec": 14.8088,
+      "load_pct": 72.7,
+      "compute_sec": 5.2232,
+      "compute_pct": 25.7,
       "report_sec": 0.0,
       "report_pct": 0.0,
       "planning_subs": {
         "调度采样": "正式任务前 2 片（耗时已计入读数据/推进，不单列）"
       },
       "load_subs": {
-        "读进程峰值内存": "100.2 MB",
-        "单片读数（估）": "1.260s/片"
+        "读进程峰值内存": "61.7 MB",
+        "单片读数（估）": "1.221s/片"
       },
       "compute_subs": {
-        "计算进程峰值内存": "34.8 MB",
-        "单片推进（估）": "0.437s/片",
-        "片内推进": 3.0755
+        "计算进程峰值内存": "21.8 MB",
+        "单片推进（估）": "0.431s/片",
+        "片内推进": 5.2232
       },
       "report_subs": {},
       "notes": [
@@ -127,6 +127,6 @@
     },
     "parallelism": 1.0,
     "parallelism_efficiency": 0.1111,
-    "report_dir": "/Users/garnet/Desktop/new-tea-quant/core/modules/backtest_engine/__performance__/reports/0.4.0/slice_based/N1000/mysql"
+    "report_dir": "/Users/garnet/Desktop/new-tea-quant/core/modules/backtest_engine/__performance__/reports/0.4.0/slice_based/N2000/mysql"
   }
 }

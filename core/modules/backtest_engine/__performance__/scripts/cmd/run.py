@@ -654,7 +654,7 @@ def _print_run_summary(
     print("", flush=True)
     print("======== 性能测试摘要 ========", flush=True)
     print(
-        f"版本: BE {versions.get('backtest_engine')} / core {versions.get('core')}",
+        f"版本: Backtest Engine {versions.get('backtest_engine')} / core {versions.get('core')}",
         flush=True,
     )
     print(f"模式: {mode_label}", flush=True)

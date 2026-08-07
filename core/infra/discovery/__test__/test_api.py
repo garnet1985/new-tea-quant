@@ -225,44 +225,140 @@ class TestApi(unittest.TestCase):
 
     def test_discover_files_by_suffix(self):
         """discover.files_by_suffix 根据扩展名发现文件"""
-        # 创建多个JSON文件
         for i in range(3):
             test_file = self.temp_path / f"test{i}.json"
-            test_file.write_text('{}', encoding='utf-8')
+            test_file.write_text("{}", encoding="utf-8")
 
-        # 创建其他类型的文件
         txt_file = self.temp_path / "test.txt"
-        txt_file.write_text('text', encoding='utf-8')
+        txt_file.write_text("text", encoding="utf-8")
 
         result = Discovery.discover.files_by_suffix(self.temp_path, ".json")
         self.assertEqual(len(result), 3)
-        # 确保不包含txt文件
         for path in result:
             self.assertTrue(path.suffix == ".json")
 
-    def test_discover_subclasses(self):
-        """discover.subclasses 发现子类"""
-        # 注意：这个测试需要在真实环境中运行
-        # 这里只是测试方法可调用性
-        self.assertTrue(callable(Discovery.discover.subclasses))
+    def test_files_by_suffix_requires_dot(self):
+        with self.assertRaises(ValueError):
+            Discovery.discover.files_by_suffix(self.temp_path, "json")
 
-    def test_discover_objects(self):
-        """discover.objects 发现模块对象"""
-        # 注意：这个测试需要在真实环境中运行
-        # 这里只是测试方法可调用性
-        self.assertTrue(callable(Discovery.discover.objects))
+    def test_discover_subclasses_behavior(self):
+        import sys
+        import textwrap
+
+        root = self.temp_path / "api_plugins_root"
+        pkg = root / "api_plugins"
+        (pkg / "alpha").mkdir(parents=True)
+        (pkg / "__init__.py").write_text("", encoding="utf-8")
+        (pkg / "alpha" / "__init__.py").write_text("", encoding="utf-8")
+        (pkg / "alpha" / "plugin.py").write_text(
+            textwrap.dedent(
+                """
+                class BasePlugin:
+                    plugin_name = None
+
+                class AlphaPlugin(BasePlugin):
+                    plugin_name = "alpha"
+                """
+            ),
+            encoding="utf-8",
+        )
+        sys.path.insert(0, str(root))
+        try:
+            for name in list(sys.modules):
+                if name == "api_plugins" or name.startswith("api_plugins."):
+                    del sys.modules[name]
+            from api_plugins.alpha.plugin import BasePlugin
+
+            classes = Discovery.discover.subclasses(
+                BasePlugin,
+                "api_plugins",
+                module_name_pattern="{base_module}.{name}.plugin",
+                key_extractor=lambda cls: getattr(cls, "plugin_name", None),
+                class_filter=lambda cls: bool(getattr(cls, "plugin_name", None)),
+            )
+            self.assertIn("alpha", classes)
+            self.assertEqual(classes["alpha"].__name__, "AlphaPlugin")
+        finally:
+            if str(root) in sys.path:
+                sys.path.remove(str(root))
+
+    def test_discover_objects_behavior(self):
+        import sys
+        import textwrap
+
+        root = self.temp_path / "api_obj_root"
+        pkg = root / "api_objs"
+        (pkg / "alpha").mkdir(parents=True)
+        (pkg / "__init__.py").write_text("", encoding="utf-8")
+        (pkg / "alpha" / "__init__.py").write_text("", encoding="utf-8")
+        (pkg / "alpha" / "schema.py").write_text(
+            "SCHEMA = {'name': 'alpha'}\n",
+            encoding="utf-8",
+        )
+        sys.path.insert(0, str(root))
+        try:
+            for name in list(sys.modules):
+                if name == "api_objs" or name.startswith("api_objs."):
+                    del sys.modules[name]
+            objs = Discovery.discover.objects(
+                "api_objs",
+                "SCHEMA",
+                module_pattern="{base_module}.{name}.schema",
+            )
+            self.assertEqual(objs, {"alpha": {"name": "alpha"}})
+        finally:
+            if str(root) in sys.path:
+                sys.path.remove(str(root))
 
     def test_class_discovery_create_config(self):
-        """class_discovery.create_config 创建配置"""
-        # 注意：这个测试需要在真实环境中运行
-        # 这里只是测试方法可调用性
-        self.assertTrue(callable(Discovery.class_discovery.create_config))
+        class Base:
+            pass
 
-    def test_class_discovery_discover_class_by_path(self):
-        """class_discovery.discover_class_by_path 发现类"""
-        # 注意：这个测试需要在真实环境中运行
-        # 这里只是测试方法可调用性
-        self.assertTrue(callable(Discovery.class_discovery.discover_class_by_path))
+        cfg = Discovery.class_discovery.create_config(
+            Base, "{base_module}.{name}.plugin"
+        )
+        self.assertEqual(cfg.base_class, Base)
+        self.assertIn("__pycache__", cfg.skip_modules)
+
+    def test_discover_class_by_path_behavior(self):
+        import sys
+        import textwrap
+
+        root = self.temp_path / "api_path_root"
+        pkg = root / "api_path"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("", encoding="utf-8")
+        (pkg / "mod.py").write_text(
+            textwrap.dedent(
+                """
+                class Base:
+                    pass
+
+                class Thing(Base):
+                    pass
+                """
+            ),
+            encoding="utf-8",
+        )
+        sys.path.insert(0, str(root))
+        try:
+            for name in list(sys.modules):
+                if name == "api_path" or name.startswith("api_path."):
+                    del sys.modules[name]
+            from api_path.mod import Base, Thing
+
+            cls = Discovery.class_discovery.discover_class_by_path(
+                "api_path.mod.Thing", base_class=Base
+            )
+            self.assertIs(cls, Thing)
+            self.assertIsNone(
+                Discovery.class_discovery.discover_class_by_path(
+                    "api_path.mod.Missing"
+                )
+            )
+        finally:
+            if str(root) in sys.path:
+                sys.path.remove(str(root))
 
 
 class TestEdgeCases(unittest.TestCase):

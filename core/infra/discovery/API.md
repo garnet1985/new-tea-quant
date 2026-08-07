@@ -48,7 +48,7 @@ p = Discovery.file.find_file(Path("."), "settings.json", search_parents=True)
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.3.0`
-- **描述：** 按格式加载；失败返回 `None`
+- **描述：** 按格式加载；JSON/文本失败返回 `None`；YAML 需已安装 `pyyaml`，缺失则抛 `RuntimeError`
 
 #### load_file_content
 
@@ -66,7 +66,7 @@ p = Discovery.file.find_file(Path("."), "settings.json", search_parents=True)
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.3.0`
-- **描述：** 执行 Python 文件并提取指定变量（须为 mapping）
+- **描述：** 对**受信** Python 配置文件 `exec` 后提取指定变量（须为 mapping）；勿用于不可信输入
 
 #### save_file_content / save_json / save_yaml
 
@@ -77,7 +77,7 @@ p = Discovery.file.find_file(Path("."), "settings.json", search_parents=True)
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.3.0`
-- **描述：** 写入文件；成功返回 `True`
+- **描述：** 写入文件；成功返回 `True`；YAML 需 `pyyaml`
 
 ---
 
@@ -94,7 +94,7 @@ p = Discovery.file.find_file(Path("."), "settings.json", search_parents=True)
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.3.0`
-- **描述：** 在目录树中批量发现文件或目录
+- **描述：** 在目录树中批量发现文件或目录；`files_by_suffix` 的 `suffix` 须含点（如 `.json`）
 
 #### subclasses
 

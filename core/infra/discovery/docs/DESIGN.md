@@ -40,27 +40,21 @@ DiscoveryConfig ──► ClassDiscovery ──► DiscoveryResult
 
 ---
 
-## 4. `discover_modules_by_path`
+## 4. 定点加载
 
-基于文件系统目录名映射为模块路径（占位符主要是 `name`）；实现细节见 `module_discovery.py`。
-
----
-
-## 5. 定点加载与属性回退
-
-- `discover_class_by_path`：`class_path.rsplit('.', 1)` → import → `getattr`；可选 `issubclass`。
-- `discover_class_attribute`：先读类属性；否则模块上查找 `类名 + attribute_name.capitalize()`（注意 `capitalize` 语义）。
+- `ClassDiscovery.discover_class_by_path`（staticmethod）：`class_path.rsplit('.', 1)` → import → `getattr`；可选 `issubclass`。
 
 ---
 
-## 6. 缓存与并发
+## 5. 缓存与并发
 
 - `ClassDiscovery` 实例内 `_cache`；无锁，假定串行初始化。
+- `FileDiscovery` 缓存 key 含 `base_dir` / `pattern` / `file_type` / `max_depth` / `exclude` / `follow_symlinks`。
 - `ModuleDiscovery` 无状态、无缓存。
 
 ---
 
-## 7. 日志级别约定
+## 6. 日志级别约定
 
 | 场景 | 级别 |
 |------|------|
@@ -95,3 +89,7 @@ DiscoveryConfig ──► ClassDiscovery ──► DiscoveryResult
 ### D6：约定式 module_name_pattern
 
 `str.format` 占位符 `base_module` / `name`，鼓励统一目录约定。
+
+### D7：不保留模块级便捷函数与猜测性属性回退
+
+公开能力一律经 `Discovery.*`；已删除 `discover_*` 自由函数、`discover_class_attribute` 约定回退、`discover_modules_by_path`。

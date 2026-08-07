@@ -35,8 +35,9 @@ core/infra/discovery/
 │   ├── file_utils.py
 │   ├── file_discovery.py
 │   ├── class_discovery.py
-│   └── module_discovery.py
-├── __test__/
+│   ├── module_discovery.py
+│   └── __test__/         # 包内单测
+├── __test__/             # 公开 API 测试 + TEST_CASES.md
 └── docs/
 ```
 

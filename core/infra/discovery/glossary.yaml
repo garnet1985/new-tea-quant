@@ -14,7 +14,8 @@ terms:
       - "门面"
       - "门面类"
     avoid:
-      - "直接 import FileUtils / ClassDiscovery 当公开 API"
+      - "直接 import FileUtils / ClassDiscovery / ModuleDiscovery 当公开 API"
+      - "模块级 discover_* 便捷函数（已删除）"
 
   Discovery:
     definition: "本模块门面类；挂载 file / discover / class_discovery 命名空间。"
@@ -25,11 +26,47 @@ terms:
     definition: "门面下的命名空间（如 Discovery.file），把一组相关静态方法挂在一起。"
     aliases:
       - "命名空间"
+      - "Discovery.file"
+      - "Discovery.discover"
+      - "Discovery.class_discovery"
     avoid: []
+
+  FileUtils:
+    definition: "单文件查找与读写实现类（JSON / YAML / 文本 / 受信 Python 配置）；公开入口 Discovery.file。"
+    aliases:
+      - "Discovery.file"
+    avoid: []
+
+  FileDiscovery:
+    definition: "目录树批量路径发现实现类；公开入口 Discovery.discover.files / directories / files_by_suffix。"
+    aliases:
+      - "批量文件发现"
+    avoid: []
+
+  FileDiscoveryConfig:
+    definition: "FileDiscovery 的配置数据类（base_dir / pattern / max_depth / exclude 等）。"
+    aliases: []
+    avoid: []
+
+  ClassDiscovery:
+    definition: "按包路径与命名模式扫描基类子类的实现类；可缓存；公开入口 Discovery.discover.subclasses 与 Discovery.class_discovery。"
+    aliases:
+      - "类发现"
+    avoid:
+      - "discover_class_attribute（已删除的猜测性约定回退）"
+
+  ModuleDiscovery:
+    definition: "在一级子模块中收集同名对象的实现类；公开入口 Discovery.discover.objects。"
+    aliases:
+      - "模块对象发现"
+    avoid:
+      - "discover_modules_by_path（已删除）"
 
   DiscoveryConfig:
     definition: "类发现规则数据类（基类、模块路径模式、过滤与键提取等）；见 contracts。"
-    aliases: []
+    aliases:
+      - "module_name_pattern"
+      - "key_extractor"
     avoid: []
 
   DiscoveryResult:
@@ -41,4 +78,10 @@ terms:
     definition: "发现过程中单模块失败时记日志并跳过，仍返回已收集结果。"
     aliases:
       - "软失败"
+    avoid: []
+
+  load_python_config:
+    definition: "Discovery.file.load_python_config：对受信 .py 配置 exec 后提取变量；不可用于不可信输入。"
+    aliases:
+      - "exec 配置加载"
     avoid: []

@@ -2,6 +2,22 @@
 
 策略 **Scanner** 完成后，将 `Opportunity` 列表交给 userspace **adapter** 做后续处理。对外门面为 `Adapter`；基类与 `HistoryLoader` 见 `contracts`。
 
+## 布局
+
+```text
+core/modules/adapter/
+├── adapter.py          # Facade Adapter
+├── contracts.py        # BaseOpportunityAdapter / HistoryLoader
+├── core/
+│   ├── base_adapter.py
+│   ├── adapter_validator.py
+│   ├── history_loader.py
+│   └── loader.py       # userspace 动态加载（内部）
+├── API.md / QUICKSTART.md / glossary.yaml
+├── __test__/
+└── docs/
+```
+
 ## 适用场景
 
 - 设置校验阶段确认 adapter 可加载（`Adapter.validate`）

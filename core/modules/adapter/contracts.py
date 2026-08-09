@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.modules.adapter.base_adapter import BaseOpportunityAdapter
-from core.modules.adapter.history_loader import HistoryLoader
+from core.modules.adapter.core.base_adapter import BaseOpportunityAdapter
+from core.modules.adapter.core.history_loader import HistoryLoader
 
 __all__ = ["BaseOpportunityAdapter", "HistoryLoader"]

@@ -1,13 +1,12 @@
-"""Adapter Validator - Adapter 验证器。"""
+"""Adapter Validator — 校验 userspace adapter 是否可用。"""
 
 from __future__ import annotations
 
 import importlib
-import inspect
 import logging
 from typing import Tuple
 
-from core.modules.adapter.base_adapter import BaseOpportunityAdapter
+from core.modules.adapter.core.loader import AdapterLoader
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +25,7 @@ class AdapterValidator:
         if not adapter_name:
             return False, "适配器名称不能为空"
 
-        module_path = f"userspace.extensions.adapters.{adapter_name}.adapter"
+        module_path = AdapterLoader.module_path(adapter_name)
 
         try:
             module = importlib.import_module(module_path)
@@ -38,16 +37,7 @@ class AdapterValidator:
         except Exception as exc:
             return False, f"加载适配器模块异常: {exc}"
 
-        adapter_class = None
-        for _, obj in inspect.getmembers(module):
-            if (
-                inspect.isclass(obj)
-                and issubclass(obj, BaseOpportunityAdapter)
-                and obj is not BaseOpportunityAdapter
-            ):
-                adapter_class = obj
-                break
-
+        adapter_class = AdapterLoader.find_adapter_class(module)
         if adapter_class is None:
             return False, f"在模块 {module_path} 中未找到继承 BaseOpportunityAdapter 的类"
 
@@ -62,3 +52,6 @@ class AdapterValidator:
             return False, f"实例化适配器失败: {exc}"
 
         return True, ""
+
+
+__all__ = ["AdapterValidator"]

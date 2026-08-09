@@ -7,13 +7,12 @@
 
 from __future__ import annotations
 
-import importlib
-import inspect
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List
 
 from core.modules.adapter.contracts import BaseOpportunityAdapter
+from core.modules.adapter.core.loader import AdapterLoader
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
 
 logger = logging.getLogger(__name__)
@@ -34,7 +33,7 @@ class AdapterDispatcher:
             return
         success = 0
         for name in adapter_names:
-            cls = self._load_adapter_class(name)
+            cls = AdapterLoader.load_class(name)
             if cls is None:
                 continue
             try:
@@ -49,23 +48,6 @@ class AdapterDispatcher:
                 )
         if success == 0:
             BaseOpportunityAdapter.default_output(opportunities, context)
-
-    def _load_adapter_class(
-        self, adapter_name: str
-    ) -> Optional[Type[BaseOpportunityAdapter]]:
-        module_path = f"userspace.extensions.adapters.{adapter_name}.adapter"
-        try:
-            module = importlib.import_module(module_path)
-        except Exception:
-            return None
-        for _, obj in inspect.getmembers(module):
-            if (
-                inspect.isclass(obj)
-                and issubclass(obj, BaseOpportunityAdapter)
-                and obj is not BaseOpportunityAdapter
-            ):
-                return obj
-        return None
 
 
 __all__ = ["AdapterDispatcher"]

@@ -7,7 +7,7 @@
 
 快速开始见 [QUICKSTART.md](./QUICKSTART.md)。术语见 [glossary.yaml](./glossary.yaml)。
 
-**公开约定：** 包根仅导出 `Adapter`；基类与 `HistoryLoader` 从 [`contracts.py`](./contracts.py) 导入。
+**公开约定：** 包根仅导出 `Adapter`；基类与 `HistoryLoader` 从 [`contracts.py`](./contracts.py) 导入。实现位于 `core/`，禁止 deep-import。
 
 ---
 

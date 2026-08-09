@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Tuple
 
-from core.modules.adapter.adapter_validator import AdapterValidator
+from core.modules.adapter.core.adapter_validator import AdapterValidator
 
 
 class Adapter:

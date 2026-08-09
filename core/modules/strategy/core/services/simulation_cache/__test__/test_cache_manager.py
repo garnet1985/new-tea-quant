@@ -45,7 +45,8 @@ def test_get_cache_hit_returns_kind_shaped_payload():
             SimulateKind.ENUMERATE,
         )
     assert hit == {
-        SimulateKind.ENUMERATE.value: {"version_id": "v1", "success": True}
+        SimulateKind.ENUMERATE.value: {"version_id": "v1", "success": True},
+        "_workbench_version": 2,
     }
 
 
@@ -133,7 +134,8 @@ def test_get_cache_price_factor_slot():
             SimulateKind.PRICE_FACTOR,
         )
     assert hit == {
-        SimulateKind.PRICE_FACTOR.value: {"version_id": 2, "success": True}
+        SimulateKind.PRICE_FACTOR.value: {"version_id": 2, "success": True},
+        "_workbench_version": 4,
     }
 
 

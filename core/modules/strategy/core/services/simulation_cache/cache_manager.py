@@ -126,7 +126,9 @@ class SimulationCacheManager(BaseCacheManager):
                 payload.get("output_dir"),
             )
             return None
-        return {_slot_to_kind_value(slot): dict(payload)}
+        out = {_slot_to_kind_value(slot): dict(payload)}
+        out["_workbench_version"] = int(row.get("version") or 0)
+        return out
 
     @classmethod
     def set_cache(

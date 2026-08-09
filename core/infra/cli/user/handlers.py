@@ -85,23 +85,21 @@ class UserHandlers:
             name = UserHandlers._strategy_name(getattr(args, "name", None))
             if not name:
                 raise SystemExit("export_strategy 需要名称（例: cli.py ex example）")
-            from core.modules.strategy.core.services.package.package_cli import run_export
+            from core.modules.strategy.core.services.package import PackageCli
 
             UserHandlers.setup_logging(verbose=args.verbose)
             out = getattr(args, "output", None)
             output_path = str(out).strip() if out else None
-            return run_export(name, output_path=output_path or None)
+            return PackageCli.run_export(name, output_path=output_path or None)
 
         if cmd == "import_strategy":
             path = UserHandlers._strategy_name(getattr(args, "path", None))
             if not path:
                 raise SystemExit("import_strategy 需要包路径（例: cli.py im ./pkg.zip）")
-            from core.modules.strategy.core.services.package.package_cli import (
-                run_strategy_bundle_import,
-            )
+            from core.modules.strategy.core.services.package import PackageCli
 
             UserHandlers.setup_logging(verbose=args.verbose)
-            return run_strategy_bundle_import(
+            return PackageCli.run_strategy_bundle_import(
                 path,
                 force=bool(getattr(args, "force", False)),
                 skip_existing=bool(getattr(args, "skip_existing", False)),

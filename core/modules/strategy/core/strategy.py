@@ -11,16 +11,16 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional, Type, Union
 
-from .core.enums import SimulateKind
-from .core.services.discovery import DiscoveryService
-from .core.services.entity_loader.global_entity_loader import (
+from .enums import SimulateKind
+from .services.discovery import DiscoveryService
+from .services.entity_loader.global_entity_loader import (
     GlobalEntityCache,
 )
-from .core.engines.shared.data_class.simulate_session import SimulateSession
-from .core.services.simulation_cache.cache_manager import (
+from .engines.shared.data_class.simulate_session import SimulateSession
+from .services.simulation_cache.cache_manager import (
     SimulationCacheManager,
 )
-from .core.services.simulation_cache.fingerprints import (
+from .services.simulation_cache.fingerprints import (
     FingerprintCalculator,
 )
 
@@ -36,15 +36,15 @@ class BackTestPipelines:
     @classmethod
     def __class_getitem__(cls, kind: SimulateKind) -> Type[Any]:
         if kind == SimulateKind.ENUMERATE:
-            from .core.engines.enumerator import EnumeratorPipeline
+            from .engines.enumerator import EnumeratorPipeline
 
             return EnumeratorPipeline
         if kind == SimulateKind.PRICE_FACTOR:
-            from .core.engines.price_factor import PriceFactorPipeline
+            from .engines.price_factor import PriceFactorPipeline
 
             return PriceFactorPipeline
         if kind == SimulateKind.PORTFOLIO:
-            from .core.engines.portfolio import PortfolioPipeline
+            from .engines.portfolio import PortfolioPipeline
 
             return PortfolioPipeline
         raise NotImplementedError(f"Pipeline for {kind!r} 尚未接入")
@@ -74,87 +74,9 @@ class Strategy:
 
         ``session_id`` 预留，当前未使用。
         """
-        import json
-        from pathlib import Path
+        from core.modules.strategy.core.services.analyze_service import AnalyzeService
 
-        from core.infra.project_context import ProjectContext
-
-        _ = session_id
-
-        enabled = DiscoveryService.get_enabled_strategies()
-        if not enabled:
-            logger.warning("没有启用的策略可分析")
-            return
-
-        def _latest_version_dir(root: Path) -> Optional[Path]:
-            meta_path = root / "meta.json"
-            if not meta_path.is_file():
-                return None
-            try:
-                meta = json.loads(meta_path.read_text(encoding="utf-8"))
-            except Exception:
-                return None
-            try:
-                latest_id = int(meta.get("next_output_version") or 1) - 1
-            except (TypeError, ValueError):
-                return None
-            if latest_id <= 0:
-                return None
-            version_dir = root / str(latest_id)
-            return version_dir if version_dir.is_dir() else None
-
-        found = False
-        for info in enabled:
-            sn = str(info.unique_relative_path or info.key or "").strip()
-            if not sn:
-                continue
-            folder = info.resolved_folder()
-            pf_root = ProjectContext.path.get_strategy_simulation_price_directory(
-                folder
-            )
-            po_root = ProjectContext.path.get_strategy_simulation_portfolio_directory(
-                folder
-            )
-            pf_latest = _latest_version_dir(pf_root)
-            po_latest = _latest_version_dir(po_root)
-            if not pf_latest and not po_latest:
-                continue
-
-            found = True
-            logger.info("📊 strategy=%s", sn)
-
-            if pf_latest:
-                try:
-                    from core.modules.strategy.core.engines.price_factor.report_manager import (
-                        ReportManager as PriceReportManager,
-                    )
-
-                    PriceReportManager.from_output_dir(pf_latest).present()
-                except Exception as exc:
-                    logger.warning(
-                        "   price_factor: version=%s present failed: %s",
-                        pf_latest.name,
-                        exc,
-                    )
-
-            if po_latest:
-                try:
-                    from core.modules.strategy.core.engines.portfolio.report_manager import (
-                        ReportManager as PortfolioReportManager,
-                    )
-
-                    PortfolioReportManager.from_output_dir(po_latest).present()
-                except Exception as exc:
-                    logger.warning(
-                        "   portfolio: version=%s present failed: %s",
-                        po_latest.name,
-                        exc,
-                    )
-
-        if not found:
-            logger.warning(
-                "未找到可分析的 simulations 结果（请先运行 strategy_price_factor / strategy_portfolio）"
-            )
+        AnalyzeService.analyze(session_id=session_id)
 
     @staticmethod
     def enumerate(
@@ -257,17 +179,7 @@ class Strategy:
                     ctx.kind.value,
                     cache_key,
                 )
-                row = SimulationCacheManager._load_row_by_fingerprints(
-                    cache_key,
-                    ctx.fp_res.settings_fp,
-                    ctx.fp_res.env_fp,
-                    disk_settings_hash=str(
-                        getattr(ctx.fp_res, "disk_settings_hash", "") or ""
-                    ),
-                )
-                out = dict(cached)
-                out["_workbench_version"] = int((row or {}).get("version") or 0)
-                return out
+                return dict(cached)
             logger.info(
                 "simulate cache miss: kind=%s strategy=%s",
                 ctx.kind.value,
@@ -287,7 +199,7 @@ class Strategy:
     @staticmethod
     def _resolve_steps(ctx: SimulateSession) -> None:
         """按目标 kind + 指纹是否已有枚举产物，写入 ctx.steps / ctx.enum_version。"""
-        from .core.engines.enumerator import EnumeratorPipeline
+        from .engines.enumerator import EnumeratorPipeline
 
         step = ctx.kind
         if step == SimulateKind.ENUMERATE:
@@ -350,21 +262,20 @@ class Strategy:
 
     @staticmethod
     def list_strategies(*, strategies_root: Optional[str] = None) -> List[str]:
-        """返回已发现策略relative_path列表。"""
-        from pathlib import Path
+        """返回已发现策略 id（unique_relative_path）列表。
 
-        strategies_path = Path(strategies_root) if strategies_root else None
-        strategies = DiscoveryService.discover_strategies(strategies_path)
+        ``strategies_root`` 预留；当前始终使用 ProjectContext 策略根目录。
+        """
+        _ = strategies_root
+        strategies = DiscoveryService.discover_strategies()
         return [info.id() for info in strategies]
 
     @staticmethod
     def list_enabled_strategies(*, strategies_root: Optional[str] = None) -> List[str]:
-        """返回启用策略relative_path列表。"""
-        from pathlib import Path
-
-        strategies_path = Path(strategies_root) if strategies_root else None
-        strategies = DiscoveryService.discover_enabled_strategies(strategies_path)
-        return [info.relative_path for info in strategies]
+        """返回启用策略 id（unique_relative_path）列表。"""
+        _ = strategies_root
+        strategies = DiscoveryService.get_enabled_strategies()
+        return [info.id() for info in strategies]
 
     @staticmethod
     def get_strategy_info(
@@ -373,14 +284,16 @@ class Strategy:
         strategies_root: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """返回策略元数据；不存在时返回 None。"""
-        from pathlib import Path
-
-        strategies_path = Path(strategies_root) if strategies_root else None
-        strategies = DiscoveryService.discover_strategies(strategies_path)
+        _ = strategies_root
+        needle = str(strategy_name or "").strip()
+        if not needle:
+            return None
+        strategies = DiscoveryService.discover_strategies()
         for info in strategies:
-            if info.relative_path == strategy_name:
+            if info.id() == needle or info.unique_relative_path == needle:
                 return {
-                    "relative_path": info.relative_path,
+                    "relative_path": info.unique_relative_path,
+                    "unique_relative_path": info.unique_relative_path,
                     "key": info.key,
                     "is_enabled": info.is_enabled,
                     "display_name": info.display_name,

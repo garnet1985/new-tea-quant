@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from core.modules.strategy.core.enums import SimulateKind
-from core.modules.strategy.strategy import Strategy
+from core.modules.strategy.core.strategy import Strategy
 from core.modules.strategy.core.engines.shared.data_class.simulate_session import SimulateSession
 
 
@@ -63,10 +63,10 @@ def test_run_steps_writes_each_slot_and_seeds_enum_version():
     pipe.run.side_effect = [enum_res, price_res]
 
     with patch(
-        "core.modules.strategy.strategy.BackTestPipelines.__class_getitem__",
+        "core.modules.strategy.core.strategy.BackTestPipelines.__class_getitem__",
         return_value=pipe,
     ), patch(
-        "core.modules.strategy.strategy.SimulationCacheManager.set_cache"
+        "core.modules.strategy.core.strategy.SimulationCacheManager.set_cache"
     ) as set_cache:
         out = Strategy._run_steps(ctx, cache_key="demo/rsi")
 
@@ -87,23 +87,23 @@ def test_simulate_returns_price_slot_on_cache_hit():
     cached = {"price_factor": {"version_id": 9, "success": True}}
 
     with patch(
-        "core.modules.strategy.strategy.DiscoveryService.find_strategy",
+        "core.modules.strategy.core.strategy.DiscoveryService.find_strategy",
         return_value=info,
     ), patch(
-        "core.modules.strategy.strategy.GlobalEntityCache.get_stock_list",
+        "core.modules.strategy.core.strategy.GlobalEntityCache.get_stock_list",
         return_value=[],
     ), patch(
-        "core.modules.strategy.strategy.GlobalEntityCache"
+        "core.modules.strategy.core.strategy.GlobalEntityCache"
         ".get_latest_completed_trading_date",
         return_value="2024-01-01",
     ), patch(
-        "core.modules.strategy.strategy.FingerprintCalculator.calculate_fingerprints",
+        "core.modules.strategy.core.strategy.FingerprintCalculator.calculate_fingerprints",
         return_value=_fps(),
     ), patch(
-        "core.modules.strategy.strategy.SimulationCacheManager.get_cache",
+        "core.modules.strategy.core.strategy.SimulationCacheManager.get_cache",
         return_value=cached,
     ) as get_cache, patch(
-        "core.modules.strategy.strategy.Strategy._run_steps"
+        "core.modules.strategy.core.strategy.Strategy._run_steps"
     ) as run_steps:
         out = Strategy.simulate("demo/rsi", kind=SimulateKind.PRICE_FACTOR)
 

@@ -30,7 +30,7 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.strate
 from core.modules.strategy.core.hooks.base import StrategyHooks
 from core.modules.strategy.core.hooks.hook_params import StrategyContext
 from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
-from core.modules.strategy.strategy import BackTestPipelines
+from core.modules.strategy.core.strategy import BackTestPipelines
 from core.modules.strategy.core.engines.shared.data_class.simulate_session import SimulateSession
 
 

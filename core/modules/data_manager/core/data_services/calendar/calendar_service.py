@@ -20,7 +20,7 @@ import json
 
 from core.infra.project_context import ProjectContext
 
-from core.modules.data_source.core.service.provider_helper import DataSourceProviderHelper
+from core.modules.data_source import DataSourceManager
 from .. import BaseDataService
 from core.infra.utils import Utils
 
@@ -473,7 +473,7 @@ class CalendarService(BaseDataService):
             最新已完成交易日（YYYYMMDD），如果失败返回 None
         """
         try:
-            provider = DataSourceProviderHelper.get_provider("eastmoney")
+            provider = DataSourceManager.get_provider("eastmoney")
             if not provider:
                 raise ValueError("EastMoney Provider 未找到")
             
@@ -504,7 +504,7 @@ class CalendarService(BaseDataService):
             最新已完成交易日（YYYYMMDD），如果失败返回 None
         """
         try:
-            provider = DataSourceProviderHelper.get_provider("sina")
+            provider = DataSourceManager.get_provider("sina")
             if not provider:
                 raise ValueError("Sina Provider 未找到")
             

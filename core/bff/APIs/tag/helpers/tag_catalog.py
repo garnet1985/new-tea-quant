@@ -20,7 +20,7 @@ class TagCatalog:
         limit: int,
     ) -> Tuple[List[Dict[str, Any]], int, Dict[str, Any]]:
         """Paginated tag scenarios; ``page`` is 1-based, sorted by ``name``."""
-        from core.modules.data_source.core.catalog.freshness_probe import get_data_end_meta
+        from core.modules.data_source import DataSourceManager
 
         discovered = DiscoveryService.discover_tags()
         ordered = sorted(discovered, key=lambda d: str(d.id()))
@@ -34,7 +34,7 @@ class TagCatalog:
             data_manager = DataManager(is_verbose=False)
             data_manager.initialize()
             tag_svc = data_manager.stock.tags
-            data_end = get_data_end_meta(data_manager)
+            data_end = DataSourceManager.get_data_end_meta(data_manager)
             effective_end = str(data_end.get("effective_end_date") or "").strip()
             if data_end.get("is_end_date_truncated"):
                 truncation_hint = str(data_end.get("truncation_hint") or "").strip()

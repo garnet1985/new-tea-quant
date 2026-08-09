@@ -447,9 +447,9 @@ class ListService(BaseDataService):
 
     @staticmethod
     def _apply_sample_pool(stocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        from core.modules.data_source.core.service.sample_stock_list import slice_stock_list
+        from core.modules.data_source import DataSourceManager
 
-        return slice_stock_list(stocks)
+        return DataSourceManager.slice_stock_list(stocks)
 
     def _sort_stocks(self, stocks: List[Dict[str, Any]], order_by: str) -> List[Dict[str, Any]]:
         if order_by:

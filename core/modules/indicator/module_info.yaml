@@ -9,6 +9,7 @@ changelog:
       - "对齐 CORE_MODULE_STANDARDS：Facade Indicator；contracts.BatchIndicatorResult；根 API/QUICKSTART/glossary/TEST_CASES"
       - "BREAKING：包根仅导出 Indicator（原 IndicatorService）；BatchIndicatorResult 从 contracts 导入"
       - "标准化收口（不 bump）：实现下沉 core/；AVAILABLE_INDICATORS→docs/；扩 API/test_api；glossary 合规；_init_ta 短路与 DESIGN monkeypatch 说明"
+      - "依赖穿透治理（不 bump）：审计确认无外部 core 依赖；dependencies 保持空；inbound 均走 Facade"
   - version: "0.2.2"
     changes:
       - "（历史误记）changelog 曾写入 K 线 qfq 模拟算法改动；该能力属 data 管线，非本模块。本条仅保留版本占位。"

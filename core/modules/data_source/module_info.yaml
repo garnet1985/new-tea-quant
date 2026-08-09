@@ -6,6 +6,8 @@ dependencies:
   - modules.data_manager
   - infra.project_context
   - infra.discovery
+  - infra.db
+  - infra.utils
 changelog:
   - version: "0.4.0"
     changes:
@@ -17,6 +19,7 @@ changelog:
       - P1：扩 API.md / test_api；TEST_CASES 公开索引；实现测就近 service/*/__test__；glossary 补全
       - P2：实现下沉 core/；全仓库导入路径更新；文档树对齐
       - "依赖穿透（不 bump）：公开 get_data_end_meta / resolve_freshness_end_date（供 strategy scan）"
+      - "依赖穿透治理（不 bump）：module_info 补 infra.db / infra.utils；扩 contracts 与 Facade 收口 userspace/BFF/DM 深路径"
   - version: "0.3.7"
     changes:
       - 修复复权因子事件表的精度问题

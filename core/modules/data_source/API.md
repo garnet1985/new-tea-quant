@@ -51,10 +51,22 @@
 ### get_data_end_meta / resolve_freshness_end_date
 
 `DataSourceManager.get_data_end_meta(data_manager=None) -> dict`（staticmethod）  
-`DataSourceManager.resolve_freshness_end_date(data_manager=None) -> str`（staticmethod）
+`DataSourceManager.resolve_freshness_end_date(data_manager=None) -> str`（staticmethod）  
+`DataSourceManager.get_data_end_meta_light() -> dict`（staticmethod）
 
 - **状态：** `beta`
 - **描述：** 数据截断 / 有效结束日（供 scan UI）；对齐 `data.json` as_of 与交易日历。跨模块入口，勿 deep-import `catalog.freshness_probe`
+
+### catalog / provider / sample pool（跨模块辅助）
+
+- **状态：** `beta`
+- **描述：** 收口原 `catalog.*` / `sample_stock_list` 深路径；BFF、DM、devtools 请走 Facade
+- **常用：**
+  - `get_provider` / `discover_provider_classes`
+  - `evaluate_update_status` / `summarize_provider_auth` / `min_rate_limit_per_minute`
+  - `builtin_source_keys` / `default_display_names`
+  - `slice_stock_list` / `sample_pool_count` / `pool_stock_ids` / `default_sample_n` / `pool_csv_path` / `invalidate_pool_cache`
+  - `discover_mappings` / `discover_config`（实例方法）
 
 ### execute
 
@@ -86,5 +98,9 @@ mgr.renew(table_name="stock_klines", force=True)
 | `BaseProvider` | 外部 API Provider 基类 |
 | `BaseHandler` | 数据源 Handler 基类 |
 | `ApiJob` / `ApiJobBundle` | 抓取 job 契约 |
+| `DataSourceConfig` / `ApiConfig` | handler config 契约 |
+| `DataSourceField` / `DataSourceSchema` | schema 字段契约 |
+| `NormalizationHelper` | handler 规范化工具模块（`apply_field_mapping` / `result_to_records` 等） |
+| `UpdateMode` | renew 模式枚举 |
 
-Handler 阶段钩子以实现为准；生产代码勿 deep-import `service/` / `catalog/`。
+Handler 阶段钩子以实现为准；生产 / userspace 代码勿 deep-import `service/` / `catalog/`。跨模块请用 `DataSourceManager`（含 freshness / sample pool / provider / catalog 辅助）与 `contracts`。

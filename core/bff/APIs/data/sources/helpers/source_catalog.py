@@ -4,22 +4,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.modules.data_source.core.enums import UpdateMode
-from core.modules.data_source.core.catalog.builtin_keys import BUILTIN_SOURCE_KEYS
-from core.modules.data_source.core.catalog.display_names import DEFAULT_DISPLAY_NAMES
-from core.modules.data_source.core.catalog.freshness_probe import (
-    evaluate_update_status,
-    get_data_end_meta,
-    get_data_end_meta_light,
-)
-from core.modules.data_source.core.catalog.provider_probe import (
-    min_rate_limit_per_minute,
-    summarize_provider_auth,
-)
-from core.modules.data_source.core.data_class.config import DataSourceConfig
 from core.modules.data_source import DataSourceManager
+from core.modules.data_source.contracts import DataSourceConfig, UpdateMode
 from core.modules.data_manager import DataManager
-from core.modules.data_source.core.service.provider_helper import DataSourceProviderHelper
 
 _RENEW_TYPE_LABELS: Dict[str, str] = {
     UpdateMode.INCREMENTAL.value: "增量",
@@ -37,11 +24,11 @@ def _resolve_display_name(source_key: str, mapping_info: Dict[str, Any]) -> str:
     custom = str((mapping_info or {}).get("display_name") or "").strip()
     if custom:
         return custom
-    return DEFAULT_DISPLAY_NAMES.get(source_key, source_key)
+    return DataSourceManager.default_display_names().get(source_key, source_key)
 
 
 def _resolve_origin(source_key: str) -> str:
-    return "system" if source_key in BUILTIN_SOURCE_KEYS else "userspace"
+    return "system" if source_key in DataSourceManager.builtin_source_keys() else "userspace"
 
 
 def _collect_provider_names(config: DataSourceConfig) -> List[str]:
@@ -60,10 +47,12 @@ def _summary(
     provider_classes: Dict[str, Any],
 ) -> Dict[str, Any]:
     providers = _collect_provider_names(config)
-    auth = summarize_provider_auth(providers, provider_classes)
+    auth = DataSourceManager.summarize_provider_auth(providers, provider_classes)
     renew_type = config.get_renew_mode().value
     renew_interval_days = config.get_over_time_threshold()
-    rate_limit = min_rate_limit_per_minute(config.get_apis(), provider_classes)
+    rate_limit = DataSourceManager.min_rate_limit_per_minute(
+        config.get_apis(), provider_classes
+    )
     origin = _resolve_origin(source_key)
     can_renew = bool(auth["auth_ready"])
 
@@ -95,14 +84,14 @@ def fetch_data_source_catalog_page(
 ) -> Tuple[List[Dict[str, Any]], int, Dict[str, Any]]:
     """Paginated data source catalog; ``page`` is 1-based, sorted by ``name``."""
     mgr = DataSourceManager(is_verbose=False)
-    mappings = mgr._discover_mappings()
-    provider_classes = DataSourceProviderHelper.discover_provider_classes()
-    data_end = get_data_end_meta_light()
+    mappings = mgr.discover_mappings()
+    provider_classes = DataSourceManager.discover_provider_classes()
+    data_end = DataSourceManager.get_data_end_meta_light()
 
     ordered: List[Dict[str, Any]] = []
     for source_key in sorted(mappings.get_enabled().keys()):
         mapping_info = mappings.get_handler_info(source_key) or {}
-        config = mgr._discover_config(source_key)
+        config = mgr.discover_config(source_key)
         if config is None:
             continue
         ordered.append(
@@ -133,14 +122,14 @@ def fetch_data_source_freshness(
     Returns ``({source_key: status_fields}, data_end)``.
     """
     mgr = DataSourceManager(is_verbose=False)
-    mappings = mgr._discover_mappings()
+    mappings = mgr.discover_mappings()
 
     data_manager = DataManager.get_instance()
     if data_manager is None:
         data_manager = DataManager(is_verbose=False)
         data_manager.initialize()
 
-    data_end = get_data_end_meta(data_manager)
+    data_end = DataSourceManager.get_data_end_meta(data_manager)
 
     enabled_keys = sorted(mappings.get_enabled().keys())
     if source_names:
@@ -151,14 +140,16 @@ def fetch_data_source_freshness(
 
     items: Dict[str, Dict[str, Any]] = {}
     for source_key in keys:
-        config = mgr._discover_config(source_key)
+        config = mgr.discover_config(source_key)
         if config is None:
             continue
-        update_status, update_status_label, update_status_hint = evaluate_update_status(
-            source_key=source_key,
-            config=config,
-            mappings=mappings,
-            data_manager=data_manager,
+        update_status, update_status_label, update_status_hint = (
+            DataSourceManager.evaluate_update_status(
+                source_key=source_key,
+                config=config,
+                mappings=mappings,
+                data_manager=data_manager,
+            )
         )
         items[source_key] = {
             "update_status": update_status,

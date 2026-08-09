@@ -429,4 +429,137 @@ class DataSourceManager:
 
         return _resolve_freshness_end_date(data_manager)
 
+    @staticmethod
+    def get_data_end_meta_light() -> Dict[str, Any]:
+        """仅 ``data.json`` 截断元数据（不查库）。"""
+        from core.modules.data_source.core.catalog.freshness_probe import (
+            get_data_end_meta_light,
+        )
+
+        return get_data_end_meta_light()
+
+    @staticmethod
+    def get_provider(provider_name: str, config: Optional[Dict[str, Any]] = None):
+        """按名取 Provider 实例（日历 real-world 等）。"""
+        return DataSourceProviderHelper.get_provider(provider_name, config)
+
+    @staticmethod
+    def discover_provider_classes() -> Dict[str, Any]:
+        """发现全部 Provider 类（UI catalog）。"""
+        return DataSourceProviderHelper.discover_provider_classes()
+
+    @staticmethod
+    def slice_stock_list(rows: List[Any]) -> List[Any]:
+        """样本池过滤股票列表行。"""
+        from core.modules.data_source.core.service.sample_stock_list import slice_stock_list
+
+        return slice_stock_list(rows)
+
+    @staticmethod
+    def sample_pool_count():
+        from core.modules.data_source.core.service.sample_stock_list import sample_pool_count
+
+        return sample_pool_count()
+
+    @staticmethod
+    def pool_stock_ids() -> List[str]:
+        from core.modules.data_source.core.service.sample_stock_list import pool_stock_ids
+
+        return pool_stock_ids()
+
+    @staticmethod
+    def default_sample_n() -> int:
+        from core.modules.data_source.core.service.sample_stock_list import DEFAULT_SAMPLE_N
+
+        return int(DEFAULT_SAMPLE_N)
+
+    @staticmethod
+    def pool_csv_path(count: int):
+        from core.modules.data_source.core.service.sample_stock_list import pool_csv_path
+
+        return pool_csv_path(count)
+
+    @staticmethod
+    def invalidate_pool_cache() -> None:
+        from core.modules.data_source.core.service.sample_stock_list import (
+            invalidate_pool_cache,
+        )
+
+        invalidate_pool_cache()
+
+    @staticmethod
+    def filter_paired_stock_records(*args, **kwargs):
+        from core.modules.data_source.core.service.sample_stock_list import (
+            filter_paired_stock_records,
+        )
+
+        return filter_paired_stock_records(*args, **kwargs)
+
+    @staticmethod
+    def prune_stock_universe_to_sample_pool(data_manager: Any) -> int:
+        from core.modules.data_source.core.service.sample_stock_list import (
+            prune_stock_universe_to_sample_pool,
+        )
+
+        return prune_stock_universe_to_sample_pool(data_manager)
+
+    @staticmethod
+    def group_stock_list_dimension_values(raw_records: List[Dict[str, Any]]):
+        from core.modules.data_source.core.service.utils.stock_list_dimension_values import (
+            group_stock_list_dimension_values,
+        )
+
+        return group_stock_list_dimension_values(raw_records)
+
+    @staticmethod
+    def evaluate_update_status(*, source_key, config, mappings, data_manager):
+        from core.modules.data_source.core.catalog.freshness_probe import (
+            evaluate_update_status,
+        )
+
+        return evaluate_update_status(
+            source_key=source_key,
+            config=config,
+            mappings=mappings,
+            data_manager=data_manager,
+        )
+
+    @staticmethod
+    def summarize_provider_auth(providers, provider_classes):
+        from core.modules.data_source.core.catalog.provider_probe import (
+            summarize_provider_auth,
+        )
+
+        return summarize_provider_auth(providers, provider_classes)
+
+    @staticmethod
+    def min_rate_limit_per_minute(apis, provider_classes):
+        from core.modules.data_source.core.catalog.provider_probe import (
+            min_rate_limit_per_minute,
+        )
+
+        return min_rate_limit_per_minute(apis, provider_classes)
+
+    @staticmethod
+    def builtin_source_keys():
+        from core.modules.data_source.core.catalog.builtin_keys import BUILTIN_SOURCE_KEYS
+
+        return BUILTIN_SOURCE_KEYS
+
+    @staticmethod
+    def default_display_names() -> Dict[str, str]:
+        from core.modules.data_source.core.catalog.display_names import (
+            DEFAULT_DISPLAY_NAMES,
+        )
+
+        return DEFAULT_DISPLAY_NAMES
+
+    def discover_mappings(self):
+        """公开映射发现（原 ``_discover_mappings``）。"""
+        return self._discover_mappings()
+
+    def discover_config(self, data_source_key: str) -> Any:
+        """公开配置发现（原 ``_discover_config``）。"""
+        return self._discover_config(data_source_key)
+
  

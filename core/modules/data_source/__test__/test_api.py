@@ -35,6 +35,37 @@ class TestDataSourceApi(unittest.TestCase):
         self.assertTrue(callable(DataSourceManager.format_renew_targets_help))
         self.assertTrue(callable(DataSourceManager.get_data_end_meta))
         self.assertTrue(callable(DataSourceManager.resolve_freshness_end_date))
+        self.assertTrue(callable(DataSourceManager.get_data_end_meta_light))
+        self.assertTrue(callable(DataSourceManager.get_provider))
+        self.assertTrue(callable(DataSourceManager.slice_stock_list))
+        self.assertTrue(callable(DataSourceManager.discover_mappings))
+        self.assertTrue(callable(mgr.discover_mappings))
+        self.assertTrue(callable(mgr.discover_config))
+
+    def test_contracts_symbols_expanded(self):
+        from core.modules.data_source.contracts import (
+            ApiConfig,
+            ApiJob,
+            ApiJobBundle,
+            BaseHandler,
+            BaseProvider,
+            DataSourceConfig,
+            DataSourceField,
+            DataSourceSchema,
+            NormalizationHelper,
+            UpdateMode,
+        )
+
+        self.assertTrue(issubclass(BaseHandler, object))
+        self.assertTrue(issubclass(BaseProvider, object))
+        self.assertTrue(ApiJob is not None)
+        self.assertTrue(ApiJobBundle is not None)
+        self.assertTrue(DataSourceConfig is not None)
+        self.assertTrue(ApiConfig is not None)
+        self.assertTrue(DataSourceField is not None)
+        self.assertTrue(DataSourceSchema is not None)
+        self.assertTrue(hasattr(NormalizationHelper, "apply_field_mapping"))
+        self.assertEqual(UpdateMode.INCREMENTAL.value, "incremental")
 
     def test_resolve_renew_target_empty_raises(self):
         from core.modules.data_source import DataSourceManager

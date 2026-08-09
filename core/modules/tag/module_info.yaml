@@ -19,6 +19,7 @@ changelog:
       - "标准化 P0–P1（不 bump）：BOUNDARY→docs/notes/；ARCHITECTURE 0.5.0；扩 API/test_api；TEST_CASES 仅公开面；Facade 下沉 core/tag.py；glossary 补 Facade"
       - "依赖穿透治理（不 bump）：module_info 补全 modules.strategy / infra.discovery / infra.utils"
       - "依赖穿透治理（不 bump）：BE Mode/Job 改 contracts；Performance 走 Facade；strategy 协作面走 contracts/Facade；去掉 TagDataService 深路径类型注解"
+      - "依赖穿透治理（不 bump）：公开 Tag.is_valid_path（供 system_actions 脚手架）"
   - version: "0.4.2"
     changes:
       - non_time_series：TagNonTimeSeriesPipeline 主进程一次计算（不走 BE）

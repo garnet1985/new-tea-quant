@@ -6,13 +6,18 @@
 - 提供基础功能（配置加载、日志等）
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 import logging
 import importlib
 
 from core.modules.adapter.core.loader import AdapterLoader
-from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
+
+if TYPE_CHECKING:
+    # 勿在运行时 import strategy.contracts：会经 scanner→adapter 形成环
+    from core.modules.strategy.contracts import Opportunity
 
 logger = logging.getLogger(__name__)
 

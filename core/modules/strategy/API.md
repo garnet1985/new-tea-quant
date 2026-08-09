@@ -84,6 +84,21 @@
 - **状态：** `beta`
 - **描述：** key/path → 相对 path（缺失 `FileNotFoundError`）；→ 绝对目录（未入库回落 coerce）；脚手架路径段机器可读校验
 
+### load_price_entity_investments / price_overall_report_path
+
+`Strategy.load_price_entity_investments(version_dir: Path, entity_id: str) -> list`  
+`Strategy.price_overall_report_path(version_dir: Path) -> Path`
+
+- **状态：** `beta`
+- **描述：** 读取 price_factor 产物（实体 investments / overall_report 路径）；供 adapter HistoryLoader 等跨模块调用，勿 deep-import `report_manager`
+
+### present_report
+
+`Strategy.present_report(kind: SimulateKind | str, output_dir: str | Path, *, stream=None) -> None`
+
+- **状态：** `beta`
+- **描述：** 从 `output_dir` 展示 enumerate / price_factor / portfolio 终局摘要（CLI / analyze）；勿 deep-import 各引擎 `ReportManager`
+
 ### clear_workbench_cache
 
 `Strategy.clear_workbench_cache() -> int`

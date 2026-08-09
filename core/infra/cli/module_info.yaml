@@ -6,10 +6,17 @@ description: "New Tea Quant（NTQ）双入口命令行门面（Cli.user / Cli.de
 dependencies:
   - infra.project_context
   - infra.system_actions
+  - infra.db
+  - infra.trace
+  - modules.strategy
+  - modules.tag
+  - modules.data_manager
+  - modules.data_source
 changelog:
   - version: "0.4.2"
     changes:
       - 公开 API 状态按 core 0.x 规则改为最高 beta（禁止 stable）
+      - "依赖穿透治理（不 bump）：module_info 补 db/trace/strategy/tag/data_manager/data_source；CLI 终局摘要改 Strategy.present_report"
   - version: "0.4.1"
     changes:
       - 文档对齐 module-doc-standard：根目录 API.md；DECISIONS 并入 DESIGN；TEST_CASES.md 取代 test_cases.yaml；移除 api.yaml

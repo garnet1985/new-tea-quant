@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union, TextIO
 
 from .enums import SimulateKind
 from .services.discovery import DiscoveryService
@@ -356,6 +356,43 @@ class Strategy:
     def resolve_folder(key_or_id: str) -> Path:
         """``meta.key`` / path → 绝对策略目录（未入库时回落 coerce）。"""
         return DiscoveryService.resolve_strategy_folder(key_or_id)
+
+    @staticmethod
+    def load_price_entity_investments(version_dir: Path, entity_id: str):
+        """读取 price_factor version 下单实体 investments CSV（跨模块入口；勿 deep-import EntityInvestments）。"""
+        from .engines.price_factor.report_manager.investments import EntityInvestments
+
+        return EntityInvestments.load(version_dir, entity_id)
+
+    @staticmethod
+    def price_overall_report_path(version_dir: Path) -> Path:
+        """price_factor version 目录下 ``overall_report.json`` 路径。"""
+        from .engines.price_factor.report_manager.report_consts import ReportPaths
+
+        return ReportPaths.overall_report_path(version_dir)
+
+    @staticmethod
+    def present_report(
+        kind: Union[SimulateKind, str],
+        output_dir: Union[str, Path],
+        *,
+        stream: Optional[TextIO] = None,
+    ) -> None:
+        """从 ``output_dir`` 展示 enumerate / price_factor / portfolio 终局摘要（CLI 入口）。"""
+        if isinstance(kind, SimulateKind):
+            key = kind
+        else:
+            key = SimulateKind(str(kind or "").strip().lower())
+        path = Path(output_dir)
+        if key is SimulateKind.ENUMERATE:
+            from .engines.enumerator.common.report_manager import ReportManager
+        elif key is SimulateKind.PRICE_FACTOR:
+            from .engines.price_factor.report_manager import ReportManager
+        elif key is SimulateKind.PORTFOLIO:
+            from .engines.portfolio.report_manager import ReportManager
+        else:
+            raise ValueError(f"unsupported present_report kind: {kind!r}")
+        ReportManager.from_output_dir(path).present(stream=stream)
 
     @staticmethod
     def is_valid_path(relative_path: str) -> bool:

@@ -273,16 +273,17 @@ class UserHandlers:
 
         enum_result = result.get("enumerate") if isinstance(result.get("enumerate"), dict) else result
 
-        # 终局摘要统一走 ReportManager.present（entity / slice 相同契约）
+        # 终局摘要统一走 Strategy.present_report
         if enum_result.get("output_dir"):
             try:
                 from pathlib import Path
 
-                from core.modules.strategy.core.engines.enumerator.common.report_manager import (
-                    ReportManager,
-                )
+                from core.modules.strategy import Strategy
+                from core.modules.strategy.contracts import SimulateKind
 
-                ReportManager.from_output_dir(Path(enum_result["output_dir"])).present()
+                Strategy.present_report(
+                    SimulateKind.ENUMERATE, Path(enum_result["output_dir"])
+                )
             except FileNotFoundError as exc:
                 logger.warning("展示枚举汇总失败（缺产物）: %s", exc)
                 print(f"  success: {enum_result.get('success')}", flush=True)
@@ -333,14 +334,12 @@ class UserHandlers:
                 flush=True,
             )
 
-        # 终局摘要统一走 ReportManager.present
+        # 终局摘要统一走 Strategy.present_report
         if isinstance(pf, dict) and pf.get("output_dir"):
             try:
-                from core.modules.strategy.core.engines.price_factor.report_manager import (
-                    ReportManager,
-                )
+                from core.modules.strategy.contracts import SimulateKind
 
-                ReportManager.from_output_dir(Path(pf["output_dir"])).present()
+                Strategy.present_report(SimulateKind.PRICE_FACTOR, Path(pf["output_dir"]))
             except FileNotFoundError as exc:
                 logger.warning("展示价格回测汇总失败（缺产物）: %s", exc)
                 print(f"  success: {pf.get('success')}", flush=True)
@@ -387,14 +386,12 @@ class UserHandlers:
                 flush=True,
             )
 
-        # 终局摘要统一走 ReportManager.present
+        # 终局摘要统一走 Strategy.present_report
         if isinstance(pf, dict) and pf.get("output_dir"):
             try:
-                from core.modules.strategy.core.engines.portfolio.report_manager import (
-                    ReportManager,
-                )
+                from core.modules.strategy.contracts import SimulateKind
 
-                ReportManager.from_output_dir(Path(pf["output_dir"])).present()
+                Strategy.present_report(SimulateKind.PORTFOLIO, Path(pf["output_dir"]))
             except FileNotFoundError as exc:
                 logger.warning("展示组合回测汇总失败（缺产物）: %s", exc)
                 print(f"  success: {pf.get('success')}", flush=True)
@@ -494,11 +491,9 @@ class UserHandlers:
             try:
                 from pathlib import Path
 
-                from core.modules.strategy.core.engines.portfolio.report_manager import (
-                    ReportManager,
-                )
+                from core.modules.strategy.contracts import SimulateKind
 
-                ReportManager.from_output_dir(Path(po["output_dir"])).present()
+                Strategy.present_report(SimulateKind.PORTFOLIO, Path(po["output_dir"]))
             except Exception as exc:
                 logger.warning("展示组合回测汇总失败: %s", exc)
                 print(f"  portfolio success: {po.get('success')}", flush=True)

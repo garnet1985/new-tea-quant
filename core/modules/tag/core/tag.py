@@ -311,5 +311,12 @@ class Tag:
         except Exception as exc:
             logger.warning("[%s] 保存性能报告失败: %s", tag_key, exc)
 
+    @staticmethod
+    def is_valid_path(relative_path: str) -> bool:
+        """脚手架路径段是否机器可读（ASCII 标识符段）。"""
+        from .services.discovery.path_rules import TagPathRules
+
+        return TagPathRules.is_machine_readable_path(relative_path)
+
 
 __all__ = ["Tag"]

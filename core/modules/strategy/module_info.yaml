@@ -27,6 +27,8 @@ changelog:
       - "tag 依赖面（不 bump）：contracts 导出 AsOfSlice/JobBundleLoader/ProgressRecorder；Facade 增加 latest_completed_trading_date"
       - "依赖穿透治理（不 bump）：module_info 补全 adapter/market_profile/data_source 与 infra.discovery/export_import/cmd_layout/utils"
       - "依赖穿透治理（不 bump）：BE/MarketProfile/DataContract 改调用；Adapter.load_class、DS freshness、DM normalize_delist_date、BE profiler contracts"
+      - "依赖穿透治理（不 bump）：公开 load_price_entity_investments / price_overall_report_path（供 adapter HistoryLoader）"
+      - "依赖穿透治理（不 bump）：公开 present_report（CLI / AnalyzeService 收口 ReportManager.present）"
   - version: "0.6.0"
     changes:
       - 重构：Facade + namespace API设计，符合CORE_MODULE_STANDARDS.md

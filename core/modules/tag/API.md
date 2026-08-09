@@ -47,6 +47,13 @@
 - **状态：** `beta`
 - **描述：** 按路径 id 或 `meta.key` 查找；未命中缓存时再问 DiscoveryService
 
+### is_valid_path
+
+`Tag.is_valid_path(relative_path: str) -> bool`（staticmethod）
+
+- **状态：** `beta`
+- **描述：** 脚手架路径段机器可读校验；供 system_actions 等跨模块调用
+
 ### execute
 
 `tag.execute(scenario_name=None, settings=None, *, tag_key=None, on_pipeline_progress=None, dry_run=False) -> dict | None`

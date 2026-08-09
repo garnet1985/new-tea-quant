@@ -52,6 +52,10 @@ class TestTagApi(unittest.TestCase):
     def test_public_methods(self) -> None:
         for name in ("refresh", "list_ids", "list_keys", "find", "execute"):
             self.assertTrue(callable(getattr(Tag, name)), name)
+        self.assertTrue(callable(Tag.is_valid_path))
+        self.assertTrue(Tag.is_valid_path("demo/market_cap_tier"))
+        self.assertFalse(Tag.is_valid_path("demo/市值"))
+        self.assertFalse(Tag.is_valid_path(""))
 
     def test_contracts(self) -> None:
         self.assertEqual(TagUpdateMode.INCREMENTAL.value, "incremental")

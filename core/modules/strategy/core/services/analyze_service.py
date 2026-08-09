@@ -56,11 +56,10 @@ class AnalyzeService:
 
             if pf_latest:
                 try:
-                    from core.modules.strategy.core.engines.price_factor.report_manager import (
-                        ReportManager as PriceReportManager,
-                    )
+                    from core.modules.strategy import Strategy
+                    from core.modules.strategy.contracts import SimulateKind
 
-                    PriceReportManager.from_output_dir(pf_latest).present()
+                    Strategy.present_report(SimulateKind.PRICE_FACTOR, pf_latest)
                 except Exception as exc:
                     logger.warning(
                         "   price_factor: version=%s present failed: %s",
@@ -70,11 +69,10 @@ class AnalyzeService:
 
             if po_latest:
                 try:
-                    from core.modules.strategy.core.engines.portfolio.report_manager import (
-                        ReportManager as PortfolioReportManager,
-                    )
+                    from core.modules.strategy import Strategy
+                    from core.modules.strategy.contracts import SimulateKind
 
-                    PortfolioReportManager.from_output_dir(po_latest).present()
+                    Strategy.present_report(SimulateKind.PORTFOLIO, po_latest)
                 except Exception as exc:
                     logger.warning(
                         "   portfolio: version=%s present failed: %s",

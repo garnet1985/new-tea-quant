@@ -45,11 +45,9 @@ class HistoryLoader:
             if version_dir is None:
                 return None
 
-            from core.modules.strategy.core.engines.price_factor.report_manager.investments import (
-                EntityInvestments,
-            )
+            from core.modules.strategy import Strategy
 
-            rows = EntityInvestments.load(version_dir, stock_id)
+            rows = Strategy.load_price_entity_investments(version_dir, stock_id)
             if not rows:
                 return None
 
@@ -158,11 +156,9 @@ class HistoryLoader:
             if version_dir is None:
                 return None
 
-            from core.modules.strategy.core.engines.price_factor.report_manager.report_consts import (
-                ReportPaths,
-            )
+            from core.modules.strategy import Strategy
 
-            summary_file = ReportPaths.overall_report_path(version_dir)
+            summary_file = Strategy.price_overall_report_path(version_dir)
             if not summary_file.is_file():
                 return None
 
@@ -180,10 +176,10 @@ class HistoryLoader:
             return None
 
         from core.infra.project_context import ProjectContext
-        from core.modules.strategy.core.services.discovery import DiscoveryService
+        from core.modules.strategy import Strategy
 
         try:
-            folder = DiscoveryService.resolve_strategy_folder(name)
+            folder = Strategy.resolve_folder(name)
         except Exception:
             folder = name
         root = ProjectContext.path.get_strategy_simulation_price_directory(folder)

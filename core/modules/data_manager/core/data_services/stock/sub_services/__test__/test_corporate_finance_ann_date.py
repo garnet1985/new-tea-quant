@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import unittest
 
-from core.modules.data_manager.data_services.stock.sub_services.corporate_finance_service import (
+from core.modules.data_manager.core.data_services.stock.sub_services.corporate_finance_service import (
     CorporateFinanceService,
 )
 

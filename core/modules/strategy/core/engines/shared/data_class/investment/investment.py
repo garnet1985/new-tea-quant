@@ -726,7 +726,7 @@ class Investment(Opportunity):
         if not stock_meta or not trade_date:
             return False
         # 与 ListService 一致：Tushare 等源的 0 / 0.0 视为无退市日
-        from core.modules.data_manager.data_services.stock.sub_services.list_service import (
+        from core.modules.data_manager.core.data_services.stock.sub_services.list_service import (
             ListService,
         )
 

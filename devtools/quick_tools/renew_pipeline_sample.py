@@ -51,7 +51,7 @@ def _apply_sample_env(n: int, offset: int) -> None:
 
 
 def _stock_list_count() -> int:
-    from core.modules.data_manager.data_manager import DataManager
+    from core.modules.data_manager import DataManager
 
     dm = DataManager.get_instance()
     if dm is None:

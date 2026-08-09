@@ -210,7 +210,7 @@ class DataManager:
                 # 4. 初始化 DataService（跨service协调器）
                 if self.is_verbose:
                     logger.info("🔧 初始化 DataService...")
-                from core.modules.data_manager.data_services import DataService
+                from core.modules.data_manager.core.data_services import DataService
                 self._data_service = DataService(self)
                 try:
                     self._data_service.index.sync_list_from_config()

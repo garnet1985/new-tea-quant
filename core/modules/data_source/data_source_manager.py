@@ -4,7 +4,7 @@ import logging
 
 
 
-from core.modules.data_manager.data_manager import DataManager
+from core.modules.data_manager import DataManager
 from core.modules.data_source.base_class.base_provider import BaseProvider
 from core.modules.data_source.data_class.handler_mapping import HandlerMapping
 from core.modules.data_source.execution_scheduler import DataSourceExecutionScheduler

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import unittest
 
-from core.modules.data_manager.data_manager import DataManager
-from core.modules.data_manager.data_services.stock.sub_services.kline_service import (
+from core.modules.data_manager import DataManager
+from core.modules.data_manager.core.data_services.stock.sub_services.kline_service import (
     KlineService,
 )
 

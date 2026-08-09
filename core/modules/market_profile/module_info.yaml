@@ -6,8 +6,9 @@ dependencies: []
 changelog:
   - version: "0.2.0"
     changes:
-      - "对齐 CORE_MODULE_STANDARDS：根 API/QUICKSTART/glossary/README/TEST_CASES；contracts.MarketBaseRules"
-      - "BREAKING：删除遗留自由函数入口文档；测试改走 MarketRulesProxy"
+      - 对齐 CORE_MODULE_STANDARDS：根 API/QUICKSTART/glossary/README/TEST_CASES；contracts.MarketBaseRules
+      - BREAKING：删除遗留自由函数入口文档；测试改走 MarketRulesProxy
   - version: "0.1.0"
     changes:
-      - MarketRulesProxy 与多市场规则实现
+      - china_a_stock 等内置 market profile；userspace 可覆盖/扩展
+      - 涨跌停、最小申报单位、板块手数规则供 enum/capital 查询

@@ -18,7 +18,7 @@ from core.modules.data_source.catalog.provider_probe import (
 )
 from core.modules.data_source.data_class.config import DataSourceConfig
 from core.modules.data_source.data_source_manager import DataSourceManager
-from core.modules.data_manager.data_manager import DataManager
+from core.modules.data_manager import DataManager
 from core.modules.data_source.service.provider_helper import DataSourceProviderHelper
 
 _RENEW_TYPE_LABELS: Dict[str, str] = {

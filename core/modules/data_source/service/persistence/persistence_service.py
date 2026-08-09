@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 import logging
 
 from core.modules.data_source.data_class.config import DataSourceConfig
-from core.modules.data_manager.data_manager import DataManager
+from core.modules.data_manager import DataManager
 from core.infra.db import Db
 
 

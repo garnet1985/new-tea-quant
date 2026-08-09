@@ -306,7 +306,7 @@ class DuckdbWorkerPool:
     def _attach_data_manager_db(data_mgr: Any, db: Any) -> None:
         from core.infra.db.core.db_manager import DatabaseManager
         from core.modules.data_manager import DataManager
-        from core.modules.data_manager.data_services import DataService
+        from core.modules.data_manager.core.data_services import DataService
 
         data_mgr.db = db
         if not getattr(data_mgr, "_table_cache", None):
@@ -444,7 +444,7 @@ class DuckdbWorkerPool:
             if not getattr(dm, "_table_cache", None):
                 dm._discover_tables()
             if getattr(dm, "_data_service", None) is None:
-                from core.modules.data_manager.data_services import DataService
+                from core.modules.data_manager.core.data_services import DataService
 
                 dm._data_service = DataService(dm)
             dm._initialized = True

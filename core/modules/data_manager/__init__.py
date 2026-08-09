@@ -11,6 +11,6 @@
     klines = data_mgr.stock.kline.load("000001.SZ", term="daily", adjust="qfq")
 """
 
-from .data_manager import DataManager
+from core.modules.data_manager.core.data_manager import DataManager
 
 __all__ = ["DataManager"]

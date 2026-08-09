@@ -18,7 +18,7 @@ from core.modules.tag.core.engines.shared.services.report_save_buffer import (
 )
 
 if TYPE_CHECKING:
-    from core.modules.data_manager.data_services.stock.sub_services.tag_service import (
+    from core.modules.data_manager.core.data_services.stock.sub_services.tag_service import (
         TagDataService,
     )
 

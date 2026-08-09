@@ -411,7 +411,6 @@ class KlineService(BaseDataService):
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         adjust: str = 'qfq',
-        filter_negative: bool = True,
     ) -> Dict[str, List[Dict[str, Any]]]:
         """
         批量加载多个股票的K线数据（优化：一次查询所有股票）
@@ -422,7 +421,6 @@ class KlineService(BaseDataService):
             start_date: 开始日期（YYYYMMDD）
             end_date: 结束日期（YYYYMMDD）
             adjust: 复权方式（qfq前复权/hfq后复权/none不复权）
-            filter_negative: 是否过滤负值（默认True）
             
         Returns:
             Dict[stock_id, List[Dict]]: 每只股票的K线数据字典
@@ -591,11 +589,10 @@ class KlineService(BaseDataService):
         start_date: Optional[str] = None, 
         end_date: Optional[str] = None,
         adjust: str = 'qfq', 
-        filter_negative: bool = True,
         as_dataframe: bool = False
     ) -> Union[List[Dict], Any]:
         """
-        加载K线数据（兼容接口）
+        加载K线数据（``qfq`` → ``load_qfq``，否则 ``load_raw``）。
         
         Args:
             stock_id: 股票代码
@@ -603,7 +600,6 @@ class KlineService(BaseDataService):
             start_date: 开始日期（YYYYMMDD）
             end_date: 结束日期（YYYYMMDD）
             adjust: 复权方式（qfq前复权/hfq后复权/none不复权）
-            filter_negative: 是否过滤负值（默认True，暂不支持）
             as_dataframe: 是否返回DataFrame（默认False返回List[Dict]）
             
         Returns:

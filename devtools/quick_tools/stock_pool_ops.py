@@ -8,7 +8,7 @@ from typing import Tuple
 
 from core.infra.project_context import ProjectContext
 from core.infra.utils import Utils
-from core.modules.data_manager.data_manager import DataManager
+from core.modules.data_manager import DataManager
 from core.modules.data_source.service.sample_stock_list import (
     invalidate_pool_cache,
     pool_csv_path,

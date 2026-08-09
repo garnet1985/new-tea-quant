@@ -16,9 +16,14 @@ changelog:
   - version: "0.3.1"
     changes:
       - 新增 as_of_latest_completed_trading_date 和 use_sample_stock_list 配置
+      - 更改 decimal_places 配置结构
   - version: "0.3.0"
     changes:
-      - userspace 目录重组与配置合并统一
+      - userspace 目录重组与 PathManager 引用更新
+      - ConfigManager 统一 default_config / userspace/config 合并（含 worker.json）
+  - version: "0.2.1"
+    changes:
+      - 职责边界收紧：路径发现与配置加载与业务模块解耦
   - version: "0.2.0"
     changes:
-      - ProjectContext、userspace 根路径与配置发现基线
+      - ProjectContextManager、userspace 根路径与配置发现基线

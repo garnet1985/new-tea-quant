@@ -1,7 +1,7 @@
 """ListService 全局样本池过滤。"""
 from unittest.mock import MagicMock
 
-from core.modules.data_manager.data_services.stock.sub_services.list_service import (
+from core.modules.data_manager.core.data_services.stock.sub_services.list_service import (
     ListService,
 )
 from core.modules.data_source.service import sample_stock_list as mod

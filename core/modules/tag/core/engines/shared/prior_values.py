@@ -10,7 +10,7 @@ import logging
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from core.modules.data_manager.data_services.stock.sub_services.tag_service import (
+    from core.modules.data_manager.core.data_services.stock.sub_services.tag_service import (
         TagDataService,
     )
 

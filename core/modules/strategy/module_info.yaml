@@ -15,10 +15,38 @@ changelog:
       - 根 API.md / QUICKSTART / TEST_CASES；docs/ARCHITECTURE + DESIGN；删除 api.yaml
   - version: "0.6.0"
     changes:
-      - Facade + namespace API；contracts.py；api.yaml
+      - 重构：Facade + namespace API设计，符合CORE_MODULE_STANDARDS.md
+      - 创建strategy.py作为Facade，使用namespace API（scan/simulate/analyze/discovery）
+      - 创建api.yaml定义公开API契约
+      - 创建contracts.py定义公开类型（ExecutionMode/SellReason/SimulateKind）
+      - 工作台 / CLI / package / progress 在本模块 services；UI snapshot/hydrate 在 BFF helpers
+      - 简化__init__.py导出，只导出Strategy和contracts类型
+  - version: "0.5.1"
+    changes:
+      - 对 AggregateProfiler 运行时注入元数据
+      - 重新定义了策略的指纹缓存系统，现在db里的指纹是由diff生成而不是snapshot，同时bff给UI的设置变成了物理硬盘的设置+缓存diff的方式
   - version: "0.5.0"
     changes:
       - 支持多股并行的切片式回测
+      - 枚举器目录重组：shared / stock_based / calendar_sliced 双 flow + router
+  - version: "0.4.1"
+    changes:
+      - 模拟产物 latest 按数字 id 解析（enum/price/capital），修复字典序导致引用旧枚举目录、env_fp 与 DbCache 错位
+      - price/capital 写 DbCache 时从磁盘补全缺失 enum 槽（与 CLI/UI 同一 execution_manager，无读侧兼容）
   - version: "0.4.0"
     changes:
-      - 回测/标签数据加载走 data_contract
+      - 策略交流包 services/package：依赖解析、export/preview/import（基于 infra.export_import）
+      - 枚举/价格 performance 与 dispatch 参数迁出策略 settings，改由 worker.json profile
+      - settings 指纹剔除调度键；price entities_per_job 默认改由 profile 提供
+      - 回测/标签数据加载走 data_contract，去除硬编码数据源
+      - 价格因子 bulk dispatch（entities_per_job）与 JobPipeline profile 集成
+  - version: "0.3.3"
+    changes:
+      - 交易日历与风险时段集成；资金回测交易量限制
+      - 枚举 metadata.stock_status_at_trigger；dev-cli py39 检查
+  - version: "0.3.2"
+    changes:
+      - simulation 模板与 market_profile 集成；工作台进度与版本指纹改进
+  - version: "0.3.0"
+    changes:
+      - 策略工作台与 UI 联动；settings 校验与指纹体系基线

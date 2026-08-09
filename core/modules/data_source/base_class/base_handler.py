@@ -14,7 +14,7 @@ from core.modules.data_source.service.handler_helper import DataSourceHandlerHel
 from core.modules.data_source.data_class.api_job import ApiJob
 from core.modules.data_source.data_class.api_job_bundle import ApiJobBundle
 from core.modules.data_source.data_class.config import DataSourceConfig
-from core.modules.data_manager.data_manager import DataManager
+from core.modules.data_manager import DataManager
 
 
 logger = logging.getLogger(__name__)

@@ -72,4 +72,4 @@ open_dates = dm.calendar.load_open_dates("20240101", "20241231")
 
 | 符号 | 说明 |
 |------|------|
-| `BaseTableNames` | 基础表名枚举（扩展/对照用；运行时以 discovery 注册名为准） |
+| `BaseTableNames` | 与 `core/tables` schema.name 对齐的 `sys_*` 枚举（运行时以 discovery 为准） |

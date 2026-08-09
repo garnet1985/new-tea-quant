@@ -1,7 +1,7 @@
 """CalendarService latest completed 推导与 data.json as-of。"""
 from unittest.mock import MagicMock, patch
 
-from core.modules.data_manager.data_services.calendar.calendar_service import CalendarService
+from core.modules.data_manager.core.data_services.calendar.calendar_service import CalendarService
 
 
 def _service_with_calendar(calendar_model) -> CalendarService:
@@ -45,7 +45,7 @@ def test_resolve_prefers_trade_calendar_over_real_world():
 
 
 @patch(
-    "core.modules.data_manager.data_services.calendar.calendar_service.ConfigManager.get_as_of_latest_completed_trading_date",
+    "core.modules.data_manager.core.data_services.calendar.calendar_service.ConfigManager.get_as_of_latest_completed_trading_date",
     return_value="20260101",
 )
 def test_get_latest_completed_uses_data_json_override(_mock_cfg):
@@ -57,7 +57,7 @@ def test_get_latest_completed_uses_data_json_override(_mock_cfg):
 
 
 @patch(
-    "core.modules.data_manager.data_services.calendar.calendar_service.ConfigManager.get_as_of_latest_completed_trading_date",
+    "core.modules.data_manager.core.data_services.calendar.calendar_service.ConfigManager.get_as_of_latest_completed_trading_date",
     return_value=None,
 )
 def test_get_latest_completed_falls_back_without_config(_mock_cfg):

@@ -46,7 +46,7 @@ def _connect_duckdb_data_domain_readonly(db: Any) -> None:
 def create_worker_data_manager() -> Any:
     """子进程专用 DataManager：DuckDB 只读 data 域，或 MySQL 等完整 initialize。"""
     from core.modules.data_manager import DataManager
-    from core.modules.data_manager.data_services import DataService
+    from core.modules.data_manager.core.data_services import DataService
 
     db = DatabaseManager(
         config=Db.duckdb.worker_pool.database_config_read_only(), is_verbose=False

@@ -1,7 +1,7 @@
 """ListService period 查询 survivorship 模式。"""
 from unittest.mock import MagicMock
 
-from core.modules.data_manager.data_services.stock.sub_services.list_service import (
+from core.modules.data_manager.core.data_services.stock.sub_services.list_service import (
     SURVIVORSHIP_PIT,
     SURVIVORSHIP_SURVIVOR,
     ListService,

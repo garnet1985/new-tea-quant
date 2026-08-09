@@ -2,7 +2,7 @@
 
 **模块：** `modules.data_manager` · **版本：** `0.4.0`
 
-API 以根目录 [API.md](../API.md) 为准。实现以 `data_manager.py` 为准。
+API 以根目录 [API.md](../API.md) 为准。实现以 `core/data_manager.py` 为准。
 
 ---
 

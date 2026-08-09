@@ -30,7 +30,7 @@ from core.modules.tag.core.enums import TagUpdateMode
 from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
 
 if TYPE_CHECKING:
-    from core.modules.data_manager.data_services.stock.sub_services.tag_service import (
+    from core.modules.data_manager.core.data_services.stock.sub_services.tag_service import (
         TagDataService,
     )
 

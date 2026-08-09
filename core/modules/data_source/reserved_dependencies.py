@@ -44,7 +44,7 @@ def _resolve_latest_completed_trading_date() -> List[dict]:
     通过 CalendarService.get_latest_completed_trading_date 解析最新已完成交易日。
     返回 [{"date": "YYYYMMDD"}]。
     """
-    from core.modules.data_manager.data_manager import DataManager
+    from core.modules.data_manager import DataManager
 
     data_manager = DataManager.get_instance()
     if not data_manager or not getattr(data_manager, "service", None):

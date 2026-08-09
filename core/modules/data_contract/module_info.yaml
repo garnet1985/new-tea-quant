@@ -16,10 +16,30 @@ changelog:
       - P2：contracts 不再 re-export ContractIssuer；统一 key 包布局（可选 contract.py）；导出 StockStPeriodsContract
   - version: "0.5.0"
     changes:
-      - contracts.py 仅导出类/枚举；issue/load 拆分
+      - DataContracts Facade：cache 黑盒（不可注入 ContractCacheManager）；issue/load 拆分与 should_load_initially
+      - until、时间窗 helper 上 Facade；PER_ENTITY 禁止用户显式 cache override
+      - contracts.py 仅导出类/枚举；删除 docs/API.md，契约以 api.yaml 为准
+      - Strategy / Tag / legacy 下游迁移至 DataContracts() + shared_cache()
   - version: "0.4.0"
     changes:
-      - 按 CORE_MODULE_STANDARDS 建立 core/ 五层结构
+      - 按 CORE_MODULE_STANDARDS 建立 core/ 五层结构（registry/issue/contract/load/cache）
+      - 新增 DataContracts Facade、contracts.py、api.yaml、glossary.yaml
+  - version: "0.3.6"
+    changes:
+      - 给 base loader 加入 load_batch 方法，支持批量加载
+  - version: "0.3.5"
+    changes:
+      - 增加对BFF的支持
+  - version: "0.3.4"
+    changes:
+      - 将Klines按照term拆分成3个数据契约
+  - version: "0.3.3"
+    changes:
+      - Strategy 枚举/回测路径接入 issue + load_batch
+      - PER_ENTITY plural、IssueResult 信封；entity_ids 糖化
   - version: "0.3.0"
     changes:
-      - DataKey 白名单、ContractIssuer、GLOBAL/PER_ENTITY 路由
+      - DataKey 白名单、ContractIssuer、GLOBAL/PER_ENTITY 路由与 Loader 注册
+  - version: "0.2.0"
+    changes:
+      - 模块初版：DataSpec 与 issue 基线

@@ -29,8 +29,12 @@ def test_facade_export() -> None:
     assert BacktestEngine is not None
     assert hasattr(BacktestEngine, "entity_based")
     assert hasattr(BacktestEngine, "slice_based")
+    assert hasattr(BacktestEngine, "Performance")
     assert BacktestEngine.Mode.ENTITY_BASED.value == "entity_based"
     assert BacktestEngine.Mode.SLICE_BASED.value == "slice_based"
+    assert BacktestEngine.Performance.Profiles.TAG == "tag"
+    assert callable(BacktestEngine.Performance.resolve_entity_based_for_profile)
+    assert callable(BacktestEngine.Performance.calendar_slice_config)
 
 
 def test_mode_normalize() -> None:

@@ -6,7 +6,10 @@ dependencies:
   - modules.data_manager
   - modules.data_contract
   - modules.backtest_engine
+  - modules.strategy
   - infra.project_context
+  - infra.discovery
+  - infra.utils
 changelog:
   - version: "0.5.0"
     changes:
@@ -14,6 +17,8 @@ changelog:
       - 根 API.md / QUICKSTART / TEST_CASES；删除 api.yaml、docs/API.md
       - docs/DESIGN 吸收 DECISIONS；删除 docs/DECISIONS.md
       - "标准化 P0–P1（不 bump）：BOUNDARY→docs/notes/；ARCHITECTURE 0.5.0；扩 API/test_api；TEST_CASES 仅公开面；Facade 下沉 core/tag.py；glossary 补 Facade"
+      - "依赖穿透治理（不 bump）：module_info 补全 modules.strategy / infra.discovery / infra.utils"
+      - "依赖穿透治理（不 bump）：BE Mode/Job 改 contracts；Performance 走 Facade；strategy 协作面走 contracts/Facade；去掉 TagDataService 深路径类型注解"
   - version: "0.4.2"
     changes:
       - non_time_series：TagNonTimeSeriesPipeline 主进程一次计算（不走 BE）

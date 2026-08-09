@@ -57,20 +57,47 @@
 - **状态：** `beta`
 - **描述：** 读取各启用策略下 price / portfolio 最新 version 摘要并 present；`session_id` 预留未用
 
-### list_strategies / list_enabled_strategies
+### list_strategies / list_enabled_strategies / list_enabled_keys / list_strategy_infos
 
 `Strategy.list_strategies(*, strategies_root: str | None = None) -> list[str]`  
-`Strategy.list_enabled_strategies(*, strategies_root: str | None = None) -> list[str]`
+`Strategy.list_enabled_strategies(*, strategies_root: str | None = None) -> list[str]`  
+`Strategy.list_enabled_keys() -> list[str]`  
+`Strategy.list_strategy_infos(*, enabled_only: bool = False) -> list[dict]`
 
 - **状态：** `beta`
-- **描述：** 已发现 / 已启用策略 id（`unique_relative_path`）列表；`strategies_root` 预留，当前用 ProjectContext 策略根
+- **描述：** 已发现 / 已启用策略 id（`unique_relative_path`）列表；`list_enabled_keys` 为启用策略的 `meta.key`；`list_strategy_infos` 一次返回元数据字典（含 `folder` / `key` / `is_enabled` 等）。`strategies_root` 预留，当前用 ProjectContext 策略根
 
-### get_strategy_info
+### find / get_strategy_info
 
+`Strategy.find(key_or_id: str, *, enabled_only: bool = False) -> dict | None`  
 `Strategy.get_strategy_info(strategy_name: str, *, strategies_root: str | None = None) -> dict | None`
 
 - **状态：** `beta`
-- **描述：** 策略元数据；不存在返回 `None`（含 `relative_path` / `unique_relative_path` / `key` / `is_enabled` / `display_name` / `folder` / `settings`）
+- **描述：** 按 `meta.key` 或相对路径查找元数据；不存在返回 `None`。`get_strategy_info` 等价于 `find(..., enabled_only=False)`（含 `relative_path` / `unique_relative_path` / `key` / `is_enabled` / `display_name` / `folder` / `settings`）
+
+### resolve / resolve_folder / is_valid_path
+
+`Strategy.resolve(key_or_id: str) -> str`  
+`Strategy.resolve_folder(key_or_id: str) -> Path`  
+`Strategy.is_valid_path(relative_path: str) -> bool`
+
+- **状态：** `beta`
+- **描述：** key/path → 相对 path（缺失 `FileNotFoundError`）；→ 绝对目录（未入库回落 coerce）；脚手架路径段机器可读校验
+
+### clear_workbench_cache
+
+`Strategy.clear_workbench_cache() -> int`
+
+- **状态：** `beta`
+- **描述：** 清空 `sys_strategy_workbench_snapshot`；失败 `RuntimeError`；成功返回删除行数
+
+### export_package / import_package
+
+`Strategy.export_package(target: str, *, output_path: str | None = None) -> int`  
+`Strategy.import_package(package_path: str, *, force: bool = False, skip_existing: bool = False, dry_run: bool = False) -> int`
+
+- **状态：** `beta`
+- **描述：** 策略交流包导出 / bundle 导入（退出码）；供 CLI / system shell 使用，勿 deep-import `PackageCli`
 
 **举例：**
 
@@ -79,6 +106,7 @@ from core.modules.strategy import Strategy
 from core.modules.strategy.contracts import SimulateKind
 
 names = Strategy.list_strategies()
+info = Strategy.find("demo_strategy", enabled_only=True)
 Strategy.scan("demo_strategy")
 Strategy.simulate("demo/random/random_v1_null_baseline", kind=SimulateKind.ENUMERATE)
 ```
@@ -91,4 +119,12 @@ Strategy.simulate("demo/random/random_v1_null_baseline", kind=SimulateKind.ENUME
 |------|------|
 | `StrategyHooks` / `StrategyContext` / `StrategyData` / `StrategyInfo` | userspace hook 契约 |
 | `Opportunity` / `Investment` / `CalendarAsOfResult` | 引擎共享数据类 |
+| `AsOfSlice` / `JobBundleLoader` / `ProgressRecorder` | 跨模块协作面（tag / BE 数据装载与进度落盘） |
 | `ExecutionMode` / `SellReason` / `SimulateKind` / `WorkbenchStep` | 公开枚举 |
+
+### latest_completed_trading_date
+
+`Strategy.latest_completed_trading_date() -> str`
+
+- **状态：** `beta`
+- **描述：** 系统最新已收盘交易日（calculation 默认 end 等）

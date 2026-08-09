@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Union
 
 from .enums import SimulateKind
@@ -261,21 +262,80 @@ class Strategy:
         return consolidated
 
     @staticmethod
+    def latest_completed_trading_date() -> str:
+        """系统最新已收盘交易日（供 calculation 默认 end_date 等）。"""
+        from .services.entity_loader.global_entity_loader import GlobalEntityCache
+
+        return GlobalEntityCache.load_latest_completed_trading_date()
+
+    @staticmethod
+    def _to_info_dict(info: Any) -> Dict[str, Any]:
+        folder = info.resolved_folder() if hasattr(info, "resolved_folder") else info.folder
+        return {
+            "relative_path": info.unique_relative_path,
+            "unique_relative_path": info.unique_relative_path,
+            "key": info.key,
+            "is_enabled": bool(getattr(info, "is_enabled", False)),
+            "display_name": info.display_name,
+            "folder": str(folder),
+            "settings": info.settings,
+        }
+
+    @staticmethod
     def list_strategies(*, strategies_root: Optional[str] = None) -> List[str]:
         """返回已发现策略 id（unique_relative_path）列表。
 
         ``strategies_root`` 预留；当前始终使用 ProjectContext 策略根目录。
         """
         _ = strategies_root
-        strategies = DiscoveryService.discover_strategies()
-        return [info.id() for info in strategies]
+        return [d["unique_relative_path"] for d in Strategy.list_strategy_infos()]
 
     @staticmethod
     def list_enabled_strategies(*, strategies_root: Optional[str] = None) -> List[str]:
         """返回启用策略 id（unique_relative_path）列表。"""
         _ = strategies_root
-        strategies = DiscoveryService.get_enabled_strategies()
-        return [info.id() for info in strategies]
+        return [
+            d["unique_relative_path"]
+            for d in Strategy.list_strategy_infos(enabled_only=True)
+        ]
+
+    @staticmethod
+    def list_enabled_keys() -> List[str]:
+        """已启用策略的 ``meta.key`` 列表（CLI 提示用）。"""
+        return [
+            str(d["key"])
+            for d in Strategy.list_strategy_infos(enabled_only=True)
+            if d.get("key")
+        ]
+
+    @staticmethod
+    def list_strategy_infos(*, enabled_only: bool = False) -> List[Dict[str, Any]]:
+        """返回策略元数据列表（一次 discovery，供清理/目录类调用方批量使用）。"""
+        strategies = (
+            DiscoveryService.get_enabled_strategies()
+            if enabled_only
+            else DiscoveryService.discover_strategies()
+        )
+        return [Strategy._to_info_dict(info) for info in strategies]
+
+    @staticmethod
+    def find(
+        key_or_id: str,
+        *,
+        enabled_only: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """按 ``meta.key`` 或相对路径查找；未命中返回 ``None``。"""
+        needle = str(key_or_id or "").strip()
+        if not needle:
+            return None
+        for info in Strategy.list_strategy_infos(enabled_only=enabled_only):
+            if needle in (
+                str(info.get("key") or "").strip(),
+                str(info.get("unique_relative_path") or "").strip(),
+                str(info.get("relative_path") or "").strip(),
+            ):
+                return info
+        return None
 
     @staticmethod
     def get_strategy_info(
@@ -283,24 +343,65 @@ class Strategy:
         *,
         strategies_root: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        """返回策略元数据；不存在时返回 None。"""
+        """返回策略元数据（认 key / 相对路径）；不存在时返回 None。"""
         _ = strategies_root
-        needle = str(strategy_name or "").strip()
-        if not needle:
-            return None
-        strategies = DiscoveryService.discover_strategies()
-        for info in strategies:
-            if info.id() == needle or info.unique_relative_path == needle:
-                return {
-                    "relative_path": info.unique_relative_path,
-                    "unique_relative_path": info.unique_relative_path,
-                    "key": info.key,
-                    "is_enabled": info.is_enabled,
-                    "display_name": info.display_name,
-                    "folder": str(info.folder),
-                    "settings": info.settings,
-                }
-        return None
+        return Strategy.find(strategy_name, enabled_only=False)
+
+    @staticmethod
+    def resolve(key_or_id: str) -> str:
+        """``meta.key`` 或 path → userspace 相对 path（含未启用）。不存在则 ``FileNotFoundError``。"""
+        return DiscoveryService.resolve_strategy_path(key_or_id)
+
+    @staticmethod
+    def resolve_folder(key_or_id: str) -> Path:
+        """``meta.key`` / path → 绝对策略目录（未入库时回落 coerce）。"""
+        return DiscoveryService.resolve_strategy_folder(key_or_id)
+
+    @staticmethod
+    def is_valid_path(relative_path: str) -> bool:
+        """脚手架路径段是否机器可读（ASCII 标识符段）。"""
+        from .services.discovery.path_rules import StrategyPathRules
+
+        return StrategyPathRules.is_machine_readable_path(relative_path)
+
+    @staticmethod
+    def clear_workbench_cache() -> int:
+        """清空 ``sys_strategy_workbench_snapshot``；失败抛 ``RuntimeError``，成功返回删除行数。"""
+        from .services.workbench_cache_clear import WorkbenchCacheClear
+
+        out = WorkbenchCacheClear.clear_all()
+        if not out.get("ok"):
+            raise RuntimeError(str(out.get("error") or "存储不可用"))
+        return int(out.get("deleted_count") or 0)
+
+    @staticmethod
+    def export_package(
+        target: str,
+        *,
+        output_path: Optional[str] = None,
+    ) -> int:
+        """导出策略包（bundle / 单实体语法同 CLI）；返回进程退出码。"""
+        from .services.package import PackageCli
+
+        return PackageCli.run_export(target, output_path=output_path)
+
+    @staticmethod
+    def import_package(
+        package_path: str,
+        *,
+        force: bool = False,
+        skip_existing: bool = False,
+        dry_run: bool = False,
+    ) -> int:
+        """导入策略 bundle；返回进程退出码。"""
+        from .services.package import PackageCli
+
+        return PackageCli.run_strategy_bundle_import(
+            package_path,
+            force=force,
+            skip_existing=skip_existing,
+            dry_run=dry_run,
+        )
 
 
 __all__ = ["Strategy", "BackTestPipelines"]

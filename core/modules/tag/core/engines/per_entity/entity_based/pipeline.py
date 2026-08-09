@@ -7,14 +7,10 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, Optional
 
 from core.modules.backtest_engine import BacktestEngine
 from core.modules.backtest_engine.contracts import RunCallbacks
-from core.modules.backtest_engine.core.performance.worker_profile import (
-    WorkerProfiles,
-    resolve_entity_based_performance_for_profile,
-)
 from core.modules.tag.core.data_class.scenario import Scenario
 from core.modules.tag.core.engines.per_entity.entity_based.executor import TagEntityJobExecutor
 from core.modules.tag.core.engines.per_entity.entity_based.job_builder import TagEntityJobBuilder
@@ -29,11 +25,6 @@ from core.modules.tag.core.engines.shared.tag_settings.tag_settings import TagSe
 from core.modules.tag.core.enums import TagUpdateMode
 from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
 
-if TYPE_CHECKING:
-    from core.modules.data_manager.core.data_services.stock.sub_services.tag_service import (
-        TagDataService,
-    )
-
 logger = logging.getLogger(__name__)
 
 
@@ -47,7 +38,7 @@ class TagEntityPipeline:
         tag_info: DiscoveredTagInfo,
         scenario: Scenario,
         entity_ids: List[str],
-        tag_data_service: Optional["TagDataService"] = None,
+        tag_data_service: Optional[Any] = None,
         dry_run: bool = False,
         save_batch_size: int = 500,
         on_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
@@ -85,8 +76,8 @@ class TagEntityPipeline:
             dry_run=dry_run,
             batch_size=save_batch_size,
         )
-        performance = resolve_entity_based_performance_for_profile(
-            WorkerProfiles.TAG
+        performance = BacktestEngine.Performance.resolve_entity_based_for_profile(
+            BacktestEngine.Performance.Profiles.TAG
         )
         run_ctx = TagPipelineRunContext(
             flush=flush,

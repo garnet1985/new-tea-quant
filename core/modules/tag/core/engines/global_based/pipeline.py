@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, Optional
 
 from core.modules.backtest_engine.contracts import Timeline
 from core.modules.tag.core.data_class.scenario import Scenario
@@ -33,11 +33,6 @@ from core.modules.tag.core.engines.shared.tag_settings.tag_settings import (
 from core.modules.tag.core.enums import TagUpdateMode
 from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
 
-if TYPE_CHECKING:
-    from core.modules.data_manager.core.data_services.stock.sub_services.tag_service import (
-        TagDataService,
-    )
-
 logger = logging.getLogger(__name__)
 
 
@@ -51,7 +46,7 @@ class TagGlobalPipeline:
         tag_info: DiscoveredTagInfo,
         scenario: Scenario,
         entity_ids: Optional[List[str]] = None,
-        tag_data_service: Optional["TagDataService"] = None,
+        tag_data_service: Optional[Any] = None,
         dry_run: bool = False,
         save_batch_size: int = 500,
         on_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
@@ -285,7 +280,7 @@ class TagGlobalPipeline:
     @classmethod
     def _load_priors(
         cls,
-        tag_data_service: Optional["TagDataService"],
+        tag_data_service: Optional[Any],
         *,
         scenario: Scenario,
         entity_id: str,

@@ -11,6 +11,7 @@ changelog:
       - 删除 api.yaml、OVERVIEW.md、docs/DECISIONS.md；包根仍仅 BacktestEngine
       - 文档对齐真实 run 签名（无 execute_fn；callbacks + timeline）；ARCHITECTURE 目录树与 TEST_CASES 公开范围
       - 移除 SliceProbe.build_probe_jobs / build_probe_payload；glossary 澄清 Timeline vs 废弃模式别名
+      - "依赖穿透（不 bump）：公开 BacktestEngine.Performance（profile / resolve_*）；供 tag 等跨模块调用"
   - version: "0.3.0"
     changes:
       - 内部包 entity_based / slice_based 与公开模式名一致

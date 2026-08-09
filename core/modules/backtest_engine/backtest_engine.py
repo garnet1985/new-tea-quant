@@ -9,6 +9,11 @@ from core.modules.backtest_engine.core.performance.settings import (
     resolve_entity_based_performance,
     resolve_slice_based_performance,
 )
+from core.modules.backtest_engine.core.performance.worker_profile import (
+    WorkerProfiles,
+    profile_calendar_slice_config,
+    resolve_entity_based_performance_for_profile,
+)
 from core.modules.backtest_engine.core.schedule.entity_based.execute_pipeline import (
     EntityExecutePipeline,
 )
@@ -303,6 +308,36 @@ class BacktestEngine:
                 enable_progress_display=enable_progress_display,
             )
         raise ValueError(f"unknown backtest mode: {mode!r}")
+
+    class Performance:
+        """worker.json profile / performance 解析（跨模块入口；勿 deep-import ``core.performance``）。"""
+
+        Profiles = WorkerProfiles
+
+        @staticmethod
+        def resolve_entity_based(
+            performance: Optional[Dict[str, Any]] = None,
+        ) -> Dict[str, Any]:
+            return resolve_entity_based_performance(performance)
+
+        @staticmethod
+        def resolve_slice_based(
+            performance: Optional[Dict[str, Any]] = None,
+        ) -> Dict[str, Any]:
+            return resolve_slice_based_performance(performance)
+
+        @staticmethod
+        def resolve_entity_based_for_profile(
+            worker_id: str = WorkerProfiles.ENUMERATOR,
+            override: Optional[Dict[str, Any]] = None,
+        ) -> Dict[str, Any]:
+            return resolve_entity_based_performance_for_profile(worker_id, override)
+
+        @staticmethod
+        def calendar_slice_config(
+            worker_id: str = WorkerProfiles.ENUMERATOR,
+        ) -> Dict[str, Any]:
+            return profile_calendar_slice_config(worker_id)
 
 
 __all__ = ["BacktestEngine"]

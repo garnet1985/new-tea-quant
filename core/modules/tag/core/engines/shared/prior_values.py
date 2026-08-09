@@ -7,12 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from core.modules.data_manager.core.data_services.stock.sub_services.tag_service import (
-        TagDataService,
-    )
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +33,7 @@ class TagPriorValues:
     @classmethod
     def fetch_batch(
         cls,
-        tag_service: "TagDataService",
+        tag_service: Any,
         *,
         entity_ids: List[str],
         tag_definition_ids: List[int],

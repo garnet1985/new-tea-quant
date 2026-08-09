@@ -85,21 +85,21 @@ class UserHandlers:
             name = UserHandlers._strategy_name(getattr(args, "name", None))
             if not name:
                 raise SystemExit("export_strategy 需要名称（例: cli.py ex example）")
-            from core.modules.strategy.core.services.package import PackageCli
+            from core.modules.strategy import Strategy
 
             UserHandlers.setup_logging(verbose=args.verbose)
             out = getattr(args, "output", None)
             output_path = str(out).strip() if out else None
-            return PackageCli.run_export(name, output_path=output_path or None)
+            return Strategy.export_package(name, output_path=output_path or None)
 
         if cmd == "import_strategy":
             path = UserHandlers._strategy_name(getattr(args, "path", None))
             if not path:
                 raise SystemExit("import_strategy 需要包路径（例: cli.py im ./pkg.zip）")
-            from core.modules.strategy.core.services.package import PackageCli
+            from core.modules.strategy import Strategy
 
             UserHandlers.setup_logging(verbose=args.verbose)
-            return PackageCli.run_strategy_bundle_import(
+            return Strategy.import_package(
                 path,
                 force=bool(getattr(args, "force", False)),
                 skip_existing=bool(getattr(args, "skip_existing", False)),
@@ -207,19 +207,20 @@ class UserHandlers:
 
     @staticmethod
     def _resolve_strategy_key(name: Optional[str]) -> str:
-        from core.modules.strategy.core.services.discovery.discovery_service import DiscoveryService
+        from core.modules.strategy import Strategy
 
         explicit = UserHandlers._strategy_name(name)
         if explicit:
-            if DiscoveryService.find_strategy(explicit) is None:
-                keys = DiscoveryService.list_enabled_keys()
+            info = Strategy.find(explicit, enabled_only=True)
+            if info is None:
+                keys = Strategy.list_enabled_keys()
                 logger.error("策略不存在或未启用: %s", explicit)
                 if keys:
                     logger.error("可用 meta.key: %s", ", ".join(sorted(keys)))
                 raise SystemExit(1)
-            return explicit
+            return str(info.get("key") or explicit)
 
-        enabled = DiscoveryService.get_enabled_strategies()
+        enabled = Strategy.list_strategy_infos(enabled_only=True)
         if not enabled:
             logger.error(
                 "未指定 --strategy，且 userspace/strategies 下没有 is_enabled=True 的合法策略。"
@@ -229,10 +230,10 @@ class UserHandlers:
         if len(enabled) > 1:
             logger.warning(
                 "多个启用策略，默认使用 key=%s（%s）；可用 --strategy <meta.key> 指定",
-                enabled[0].key,
-                enabled[0].unique_relative_path,
+                enabled[0].get("key"),
+                enabled[0].get("unique_relative_path"),
             )
-        return enabled[0].key
+        return str(enabled[0].get("key") or enabled[0].get("unique_relative_path"))
 
     @staticmethod
     def _run_strategy_enumerate(args: argparse.Namespace) -> None:

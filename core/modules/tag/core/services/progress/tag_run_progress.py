@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from core.modules.strategy.core.services.progress import ProgressRecorder
+from core.modules.strategy.contracts import ProgressRecorder
 
 
 class TagRunProgress:

@@ -82,3 +82,25 @@ result = BacktestEngine.entity_based.run(
 | `Timeline` / `TimelineInput` | 日历轴发布与读取 |
 
 Job 校验：`BacktestJob.validate_many(jobs, mode=...)` — entity_based 需 `entity_specified`；slice_based 需 `entity_ids` + `timeline_point_count`。
+
+---
+
+## BacktestEngine.Performance
+
+**状态：** `beta`  
+**描述：** worker.json `job_pipeline` profile 与 performance 字典解析（跨模块入口；禁止 deep-import `core.performance`）。
+
+| 符号 | 说明 |
+|------|------|
+| `Profiles` | profile id 常量（含 `TAG` / `ENUMERATOR` 等） |
+| `resolve_entity_based(performance=None)` | 校验/补全 entity_based performance |
+| `resolve_slice_based(performance=None)` | 校验/补全 slice_based performance |
+| `resolve_entity_based_for_profile(worker_id, override=None)` | 按 profile 合并后再 resolve |
+| `calendar_slice_config(worker_id)` | 该 profile 的 calendar-slice 默认 performance 片段 |
+
+```python
+from core.modules.backtest_engine import BacktestEngine
+
+perf = BacktestEngine.Performance
+performance = perf.resolve_entity_based_for_profile(perf.Profiles.TAG)
+```

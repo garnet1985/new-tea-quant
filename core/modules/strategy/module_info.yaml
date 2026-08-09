@@ -16,6 +16,8 @@ changelog:
       - "标准化 P0（不 bump）：删遗留 test_cases*.yaml；BOUNDARY→docs/notes/；API 全 beta 并补签名；glossary 合规；README 对齐；落地 test_api；修复 list_*/get_strategy_info 与 DiscoveryService 脱节"
       - "标准化 P1（不 bump）：Facade 下沉 core/strategy.py；ARCHITECTURE 补齐；根 UT 下沉 engines/services；TEST_CASES 仅公开面"
       - "标准化 P2 低风险（不 bump）：AnalyzeService；get_cache 带回 workbench version；PackageCli 收口 CLI 自由函数"
+      - "穿透小步（不 bump）：Strategy 发现/包/清缓存公开面（find/list_strategy_infos/resolve/is_valid_path/clear_workbench_cache/export_package/import_package）；infra CLI + system_actions 改走 Facade"
+      - "tag 依赖面（不 bump）：contracts 导出 AsOfSlice/JobBundleLoader/ProgressRecorder；Facade 增加 latest_completed_trading_date"
   - version: "0.6.0"
     changes:
       - 重构：Facade + namespace API设计，符合CORE_MODULE_STANDARDS.md

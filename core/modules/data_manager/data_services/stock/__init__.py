@@ -8,7 +8,6 @@
     - tag_service.py        - 标签数据服务
     - corporate_finance_service.py  - 财务数据服务
     - list_service.py       - 股票列表服务
-- helpers/              - 辅助工具（暂无）
 """
 
 from .stock_service import StockService

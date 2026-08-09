@@ -14,24 +14,22 @@
 
 架构：
 - DataManager: 数据访问层入口，管理 DB 和 DataServices
-- DataServices: 数据服务层（stock, macro, calendar, ui_transit）
+- DataServices: 数据服务层（stock, macro, calendar, index, db_cache, backup_restore）
   - StockService: 股票数据服务（K线、股票列表、标签、财务等）
   - MacroService: 宏观经济数据服务
   - CalendarService: 交易日历服务
   - CorporateFinanceService: 企业财务数据服务（StockService 的子服务）
 """
-from typing import Dict, List, Any, Optional, Union, Type
+from typing import Dict, Any, Optional, Type
 import logging
 import threading
 import importlib
 import importlib.util
-import pkgutil
 import inspect
 from pathlib import Path
 
 from core.infra.db.contracts import DatabaseManager
 from core.infra.discovery import Discovery
-from core.infra.utils import Utils
 
 # Loaders 已废弃，不再导入
 # 所有功能已迁移到 data_services
@@ -48,7 +46,7 @@ class DataManager:
     - 唯一持有和管理 DatabaseManager
     - 初始化数据库、连接池、表结构（Base Tables + 策略表）
     - 提供统一的数据访问 API（get_table 等；表名即发现并注册后的实际表名）
-    - 协调各 DataService（stock, macro, calendar, ui_transit）
+    - 协调各 DataService（stock, macro, calendar, index, db_cache, backup_restore）
     - 预留 Repository / 策略表 Model 的注册与访问能力（新架构方向）
 
     单例模式：

@@ -11,6 +11,9 @@ changelog:
       - 对齐 CORE_MODULE_STANDARDS：包根仅 DataManager；contracts.py（BaseTableNames）
       - 根 API.md / QUICKSTART / glossary / TEST_CASES / test_api
       - CalendarService 不再包根导出；经 DataManager.calendar 访问
+      - P0：API 状态改为 beta；ARCHITECTURE/DESIGN/README 对齐 0.4.0 与链接；补全公开属性面
+      - 删除过时 ui_transit（旧 UI 投资台账占位，无表无调用）
+      - 删除未使用 helpers/FilteringHelper
   - version: "0.3.6"
     changes:
       - dispatch_planner entities_per_job 约束优化

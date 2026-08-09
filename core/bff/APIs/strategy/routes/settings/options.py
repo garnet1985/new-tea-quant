@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from core.modules.market_profile.core.markets import get_available_markets
+from core.modules.market_profile import MarketRulesProxy
 from core.modules.strategy.core.engines.shared.services.strategy_settings.portfolio_settings import (
     _VALID_MODES,
 )
@@ -93,7 +93,7 @@ class StrategySettingsOptions:
     def items_market_rules(cls) -> List[Dict[str, Any]]:
         """根级 ``market_profile`` 可选值。"""
         out: List[Dict[str, Any]] = []
-        for pid in get_available_markets():
+        for pid in MarketRulesProxy.available_ids():
             out.append(
                 {
                     "value": pid,

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from core.modules.backtest_engine.contracts import RunCallbacks
-from core.modules.market_profile.core.markets import create_market_rules
+from core.modules.market_profile import MarketRulesProxy
 from core.modules.strategy.core.engines.shared.services.simulation_output import (
     GoalAchievementRow,
     GoalAchievementCsv,
@@ -186,10 +186,10 @@ class PriceFactorJobExecutor:
             or _DEFAULT_MARKET_PROFILE
         )
         try:
-            market_rules = create_market_rules(market_profile)
+            market_rules = MarketRulesProxy.for_market(market_profile)
         except Exception as exc:
             logger.warning(
-                "create_market_rules(%s) 失败，跌停重试仅信 enum 标记: %s",
+                "MarketRulesProxy.for_market(%s) 失败，跌停重试仅信 enum 标记: %s",
                 market_profile,
                 exc,
             )

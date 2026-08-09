@@ -1,6 +1,6 @@
 name: modules.market_profile
 version: 0.2.0
-compatible_core_versions: ">=0.4.0"
+compatible_core_versions: ">=0.4.1"
 description: "市场制度规则（涨跌幅、整手、交收等）：MarketRulesProxy 统一挂载与查询。"
 dependencies: []
 changelog:
@@ -8,7 +8,8 @@ changelog:
     changes:
       - 对齐 CORE_MODULE_STANDARDS：根 API/QUICKSTART/glossary/README/TEST_CASES；contracts.MarketBaseRules
       - BREAKING：删除遗留自由函数入口文档；测试改走 MarketRulesProxy
+      - "标准化收口（不 bump）：实现下沉 core/；for_market 工厂；懒加载；glossary/ARCHITECTURE；迁走 create_market_rules deep-import；contracts 导出 LotSizeResolved；修 matching 测"
   - version: "0.1.0"
     changes:
-      - china_a_stock 等内置 market profile；userspace 可覆盖/扩展
+      - china_a_stock 等内置 market profile 注册
       - 涨跌停、最小申报单位、板块手数规则供 enum/capital 查询

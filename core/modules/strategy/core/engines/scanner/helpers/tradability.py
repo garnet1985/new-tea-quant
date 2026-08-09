@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from core.modules.market_profile.core.markets import create_market_rules
+from core.modules.market_profile import MarketRulesProxy
 from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import SafeBarValue
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
 
@@ -50,7 +50,7 @@ def annotate_enter_at_limit(
 
     profile = str(market_profile or "").strip() or "china_a_stock"
     try:
-        rules = create_market_rules(profile)
+        rules = MarketRulesProxy.for_market(profile)
         at_up = bool(rules.is_at_limit_up(ref, prev, entity_id))
     except Exception:
         at_up = False

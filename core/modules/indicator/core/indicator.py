@@ -1,21 +1,15 @@
 #!/usr/bin/env python3
 """
-Indicator Service - 技术指标计算服务
+Indicator — 技术指标计算 Facade（实现位于 ``core/indicator.py``）
 
 职责：
 - 作为 pandas-ta-classic 的 proxy
 - 转换数据格式（List[Dict] <-> DataFrame）
-- 提供便捷 API（常用指标）
-- 支持通用调用（所有 150+ 指标）
-
-设计：
-- 静态工具类
-- 不缓存（按需计算）
-- 轻量级（只做数据转换和代理）
+- 提供便捷 API（常用指标）与通用 calculate / compute / compute_batch
 """
 
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 import logging
 
 from core.modules.indicator.contracts import BatchIndicatorResult
@@ -288,16 +282,20 @@ class Indicator:
         return cls._ta_on_ohlcv("stoch", klines, k=k, d=d, smooth_k=smooth_k)
     
     @classmethod
-    def adx(cls, klines: List[Dict[str, Any]], length: int = 14) -> Optional[List[float]]:
+    def adx(
+        cls, klines: List[Dict[str, Any]], length: int = 14
+    ) -> Optional[Dict[str, List[float]]]:
         """
         平均趋向指数（ADX）
-        
+
+        pandas-ta 返回多列（ADX / DMP / DMN），故为 dict 而非单列 list。
+
         Args:
             klines: K线数据
             length: 周期（默认14）
-        
+
         Returns:
-            List[float]: ADX值列表
+            Dict[str, List[float]]: 如 ``ADX_14`` / ``DMP_14`` / ``DMN_14``
         """
         return cls._ta_on_ohlcv("adx", klines, length=length)
     
@@ -616,7 +614,9 @@ class Indicator:
 
     @classmethod
     def _init_ta(cls):
-        """延迟加载 pandas-ta-classic"""
+        """延迟加载 pandas-ta-classic（进程内只加载一次）。"""
+        if cls._ta is not None:
+            return
         try:
             import pandas_ta_classic as ta
 
@@ -741,51 +741,3 @@ class Indicator:
         
         indicator_func = getattr(cls._ta, indicator_name)
         return indicator_func.__doc__ or "无文档"
-
-
-# =========================================================================
-# 使用示例
-# =========================================================================
-
-if __name__ == "__main__":
-    # 示例 K线数据
-    klines = [
-        {'date': '20251201', 'open': 10.0, 'high': 10.5, 'low': 9.8, 'close': 10.2, 'volume': 1000},
-        {'date': '20251202', 'open': 10.2, 'high': 10.8, 'low': 10.0, 'close': 10.6, 'volume': 1200},
-        {'date': '20251203', 'open': 10.6, 'high': 11.0, 'low': 10.4, 'close': 10.8, 'volume': 1500},
-        # ... 更多数据（需要至少 30-50 条数据）
-    ]
-    
-    print("=" * 60)
-    print("Indicator 使用示例")
-    print("=" * 60)
-    print(f"导入: from core.modules.indicator import Indicator")
-    print()
-    
-    # 方式1: 便捷API
-    print("方式1: 便捷API（推荐）")
-    print("-" * 60)
-    ma20 = Indicator.ma(klines, length=20)
-    print(f"MA20: {ma20[-5:] if ma20 else 'None'}")
-    
-    rsi = Indicator.rsi(klines, length=14)
-    print(f"RSI: {rsi[-5:] if rsi else 'None'}")
-    
-    macd = Indicator.macd(klines)
-    print(f"MACD 字段: {list(macd.keys()) if macd else 'None'}")
-    print()
-    
-    # 方式2: 通用API（支持所有指标）
-    print("方式2: 通用API（支持所有 150+ 指标）")
-    print("-" * 60)
-    cci = Indicator.calculate('cci', klines, length=20)
-    print(f"CCI: {cci[-5:] if cci else 'None'}")
-    print()
-    
-    # 列出所有指标
-    print("工具方法:")
-    print("-" * 60)
-    all_indicators = Indicator.list_indicators()
-    print(f"可用指标数量: {len(all_indicators)}")
-    print(f"前10个: {all_indicators[:10]}")
-    print("=" * 60)

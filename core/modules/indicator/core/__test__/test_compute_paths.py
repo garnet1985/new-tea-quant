@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
+"""Indicator compute / calculate 路径单测（实现细节，非公开 API 契约）。"""
+
+from __future__ import annotations
+
 import unittest
+
+import pytest
 
 from core.modules.indicator import Indicator
 
+pytestmark = pytest.mark.force_run
 
-class TestIndicatorService(unittest.TestCase):
+
+class TestComputePaths(unittest.TestCase):
     def test_trim_klines_for_calculate_keeps_ochlv_only(self):
         rows = [
             {

@@ -6,7 +6,7 @@ import pytest
 
 pytestmark = pytest.mark.force_run
 
-from core.modules.market_profile.core.markets import create_market_rules
+from core.modules.market_profile import MarketRulesProxy
 from core.modules.strategy.core.engines.portfolio.allocation_strategy import (
     AllocationStrategy,
 )
@@ -115,7 +115,7 @@ def _allocation(liquidity: LiquidityConfig) -> AllocationStrategy:
     settings.apply_defaults()
     return AllocationStrategy.create(
         settings=settings,
-        market_rules=create_market_rules("china_a_stock"),
+        market_rules=MarketRulesProxy.for_market("china_a_stock"),
         fee_calculator=FeeCalculator(
             commission_rate=0.0,
             min_commission=0.0,

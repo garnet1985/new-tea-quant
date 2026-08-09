@@ -5,7 +5,7 @@ from typing import Any, Dict, List
 
 import pytest
 
-from core.modules.market_profile.core.markets import create_market_rules
+from core.modules.market_profile import MarketRulesProxy
 from core.modules.strategy.core.engines.shared.services.simulation_output import (
     InvestmentRow,
 )
@@ -63,7 +63,7 @@ def _settings(**edge_overrides) -> StrategySettings:
 
 
 def test_retry_deferred_fills_on_next_non_limit_bar() -> None:
-    rules = create_market_rules("china_a_stock")
+    rules = MarketRulesProxy.for_market("china_a_stock")
     skipped = [
         {
             "date": "20240110",
@@ -194,7 +194,7 @@ def test_replay_stuck_at_limit_locks_until_end() -> None:
             "pre_close": 8.1,
         },
     ]
-    rules = create_market_rules("china_a_stock")
+    rules = MarketRulesProxy.for_market("china_a_stock")
 
     def _loader(_sid: str, *, start_date: str, end_date: str, **_kw) -> List[Dict[str, Any]]:
         _ = (start_date, end_date)

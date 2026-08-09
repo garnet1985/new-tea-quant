@@ -17,8 +17,11 @@ _FALLBACK: Dict[str, Any] = {
     "version": "0.4.3",
     "release_date": "2026-06-25",
     "description": "版本发布",
-    "python": {"minimum": [3, 9]},
-                                        "new_features": [
+    "python": {
+        "minimum": [3, 9]
+    },
+    "new_features": [
+        "支持了python3.13",
         "修复了windows找不到文件的问题，现在windows能够正常运行了",
         "修复了python3.13的依赖问题",
         "修复了枚举UI上会显示没有机会的单个股票的bug",

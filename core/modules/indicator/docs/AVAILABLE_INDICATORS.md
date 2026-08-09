@@ -5,7 +5,7 @@
 ## 命名原则
 
 - 指标名直接使用 `pandas-ta-classic` 原生函数名（例如 `sma`、`rsi`、`macd`）。
-- 参数直接透传给 `IndicatorService.calculate(name, klines, **params)`。
+- 参数直接透传给 `Indicator.compute(name, klines, **params)`（或 `calculate`）。
 - 优先使用 `length` 参数名（与 ta-classic 一致）；不再推荐 `period`。
 
 ## 高频常用指标（推荐优先使用）
@@ -28,7 +28,7 @@
 | `mfi` | `length` | `List[float]` | 资金流量指数 |
 | `bbands` | `length, std` | `Dict[str, List[float]]` | 布林带 |
 | `atr` | `length` | `List[float]` | 平均真实波动 |
-| `adx` | `length` | `List[float]` | 趋势强度 |
+| `adx` | `length` | `Dict[str, List[float]]` | 趋势强度（含 ADX/DMP/DMN） |
 | `supertrend` | `length, multiplier` | `Dict[str, List[float]]` | 超级趋势 |
 | `psar` | `af0, af, max_af` | `Dict[str, List[float]]` | 抛物线转向 |
 | `obv` | 无（或默认） | `List[float]` | 能量潮 |
@@ -85,12 +85,12 @@
 
 ## 全量指标清单（自动导出）
 
-`IndicatorService` 会直接代理 `pandas-ta-classic`，理论上可用其公开函数全集。建议在安装依赖后执行以下命令导出当前环境的完整清单：
+`Indicator` 会直接代理 `pandas-ta-classic`，理论上可用其公开函数全集。建议在安装依赖后执行以下命令导出当前环境的完整清单：
 
 ```bash
 python3 - <<'PY'
-from core.modules.indicator import IndicatorService
-for name in IndicatorService.list_indicators():
+from core.modules.indicator import Indicator
+for name in Indicator.list_indicators():
     print(name)
 PY
 ```
@@ -99,8 +99,8 @@ PY
 
 ```bash
 python3 - <<'PY' > indicator_names.txt
-from core.modules.indicator import IndicatorService
-for name in IndicatorService.list_indicators():
+from core.modules.indicator import Indicator
+for name in Indicator.list_indicators():
     print(name)
 PY
 ```

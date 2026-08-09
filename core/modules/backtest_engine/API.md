@@ -80,6 +80,8 @@ result = BacktestEngine.entity_based.run(
 | `RunCallbacks` | `on_tick` / `on_before_task_start` / `on_task_result` 等 |
 | `RunProgress` / `JobReport` | 进度与单 job 报告 |
 | `Timeline` / `TimelineInput` | 日历轴发布与读取 |
+| `EntityMonitorStats` / `WorkerTaskPerf` | 调度监控与 worker 性能快照类型 |
+| `ENGINE_PERF_KEY` / `ENUM_PERF_KEY` | performance.json 键名常量 |
 
 Job 校验：`BacktestJob.validate_many(jobs, mode=...)` — entity_based 需 `entity_specified`；slice_based 需 `entity_ids` + `timeline_point_count`。
 

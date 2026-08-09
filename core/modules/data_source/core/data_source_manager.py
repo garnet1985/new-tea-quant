@@ -413,4 +413,20 @@ class DataSourceManager:
 
         return providers
 
+    @staticmethod
+    def get_data_end_meta(data_manager=None) -> Dict[str, Any]:
+        """数据截断 / 有效结束日摘要（供 scan UI / catalog）。"""
+        from core.modules.data_source.core.catalog.freshness_probe import get_data_end_meta
+
+        return get_data_end_meta(data_manager)
+
+    @staticmethod
+    def resolve_freshness_end_date(data_manager=None) -> str:
+        """有效 freshness 结束日（对齐 ``data.json`` as_of 与交易日历）。"""
+        from core.modules.data_source.core.catalog.freshness_probe import (
+            _resolve_freshness_end_date,
+        )
+
+        return _resolve_freshness_end_date(data_manager)
+
  

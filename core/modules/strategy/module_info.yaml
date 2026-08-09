@@ -7,7 +7,14 @@ dependencies:
   - modules.data_contract
   - modules.indicator
   - modules.backtest_engine
+  - modules.adapter
+  - modules.market_profile
+  - modules.data_source
   - infra.project_context
+  - infra.discovery
+  - infra.export_import
+  - infra.cmd_layout
+  - infra.utils
 changelog:
   - version: "0.7.0"
     changes:
@@ -18,6 +25,8 @@ changelog:
       - "标准化 P2 低风险（不 bump）：AnalyzeService；get_cache 带回 workbench version；PackageCli 收口 CLI 自由函数"
       - "穿透小步（不 bump）：Strategy 发现/包/清缓存公开面（find/list_strategy_infos/resolve/is_valid_path/clear_workbench_cache/export_package/import_package）；infra CLI + system_actions 改走 Facade"
       - "tag 依赖面（不 bump）：contracts 导出 AsOfSlice/JobBundleLoader/ProgressRecorder；Facade 增加 latest_completed_trading_date"
+      - "依赖穿透治理（不 bump）：module_info 补全 adapter/market_profile/data_source 与 infra.discovery/export_import/cmd_layout/utils"
+      - "依赖穿透治理（不 bump）：BE/MarketProfile/DataContract 改调用；Adapter.load_class、DS freshness、DM normalize_delist_date、BE profiler contracts"
   - version: "0.6.0"
     changes:
       - 重构：Facade + namespace API设计，符合CORE_MODULE_STANDARDS.md

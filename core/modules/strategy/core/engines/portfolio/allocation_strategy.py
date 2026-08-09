@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-from core.modules.market_profile.core.base.market_base_rules import MarketBaseRules
+from core.modules.market_profile.contracts import MarketBaseRules
 from core.modules.strategy.core.engines.portfolio.data_class.account import Account
 from core.modules.strategy.core.engines.portfolio.fee_calculator import FeeCalculator
 from core.modules.strategy.core.engines.shared.services.strategy_settings.portfolio_settings import (

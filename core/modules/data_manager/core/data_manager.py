@@ -405,6 +405,15 @@ class DataManager:
         # MySQL：目前直接返回逻辑名；后续如有表名前缀等需求再扩展
         return logical_name
 
+    @staticmethod
+    def normalize_delist_date(raw: Any) -> Optional[str]:
+        """将源数据中的占位退市日（0 / 0.0）视为未退市；跨模块入口。"""
+        from core.modules.data_manager.core.data_services.stock.sub_services.list_service import (
+            ListService,
+        )
+
+        return ListService._normalize_delist_date(raw)
+
     # ------------------------------------------------------------------
     # DataService 属性访问
     # ------------------------------------------------------------------

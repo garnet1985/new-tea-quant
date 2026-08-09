@@ -16,6 +16,7 @@ changelog:
       - 删除未使用 helpers/FilteringHelper
       - P1：实现下沉 core/；BaseTableNames 对齐 sys_*；扩 test_api / TEST_CASES / 文档树
       - P2：移除 Kline 无效 filter_negative 参数；恢复被 standardize 冲掉的 0.3.3–0.3.5 changelog
+      - "依赖穿透（不 bump）：公开 DataManager.normalize_delist_date"
   - version: "0.3.6"
     changes:
       - 优化 dispatch_planner 中的 entities_per_job 约束问题，效率最高提升约15%

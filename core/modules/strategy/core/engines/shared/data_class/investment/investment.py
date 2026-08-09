@@ -726,11 +726,9 @@ class Investment(Opportunity):
         if not stock_meta or not trade_date:
             return False
         # 与 ListService 一致：Tushare 等源的 0 / 0.0 视为无退市日
-        from core.modules.data_manager.core.data_services.stock.sub_services.list_service import (
-            ListService,
-        )
+        from core.modules.data_manager import DataManager
 
-        delist = ListService._normalize_delist_date(
+        delist = DataManager.normalize_delist_date(
             stock_meta.get("delist_date") or stock_meta.get("delisted_date")
         )
         if not delist:

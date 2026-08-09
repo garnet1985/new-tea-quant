@@ -3,6 +3,14 @@
 引擎职责: job 调度 / 时间推进 / 性能监控。
 数据装载（JobBundleLoader 等）由使用方经 on_before_task_start 注入，不在此导出。
 """
+from core.modules.backtest_engine.core.performance.profiler import (
+    ENGINE_PERF_KEY,
+    ENUM_PERF_KEY,
+    WorkerTaskPerf,
+)
+from core.modules.backtest_engine.core.schedule.entity_based.monitor import (
+    EntityMonitorStats,
+)
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 from core.modules.backtest_engine.core.shared.modes import BacktestMode
 from core.modules.backtest_engine.core.shared.types import (
@@ -29,6 +37,9 @@ from core.modules.backtest_engine.core.timeline import (
 __all__ = [
     "BacktestJob",
     "BacktestMode",
+    "ENGINE_PERF_KEY",
+    "ENUM_PERF_KEY",
+    "EntityMonitorStats",
     "ExecuteFn",
     "JobContext",
     "JobFailure",
@@ -45,4 +56,5 @@ __all__ = [
     "Timeline",
     "TimelineInput",
     "TimelineWorkerExecute",
+    "WorkerTaskPerf",
 ]

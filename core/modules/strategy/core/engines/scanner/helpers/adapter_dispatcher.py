@@ -11,8 +11,8 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
+from core.modules.adapter import Adapter
 from core.modules.adapter.contracts import BaseOpportunityAdapter
-from core.modules.adapter.core.loader import AdapterLoader
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ class AdapterDispatcher:
             return
         success = 0
         for name in adapter_names:
-            cls = AdapterLoader.load_class(name)
+            cls = Adapter.load_class(name)
             if cls is None:
                 continue
             try:

@@ -9,8 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List
 
-from core.modules.backtest_engine.contracts import Timeline
-from core.modules.backtest_engine.core.shared.jobs import BacktestJob
+from core.modules.backtest_engine.contracts import BacktestJob, Timeline
 from core.modules.strategy.core.engines.enumerator.common.base_job_builder import (
     BaseJobBuilder,
 )

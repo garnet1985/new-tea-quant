@@ -16,6 +16,7 @@ changelog:
       - P0：恢复 sample_stock_list.DEFAULT_SAMPLE_N（供 renew_pipeline_sample）
       - P1：扩 API.md / test_api；TEST_CASES 公开索引；实现测就近 service/*/__test__；glossary 补全
       - P2：实现下沉 core/；全仓库导入路径更新；文档树对齐
+      - "依赖穿透（不 bump）：公开 get_data_end_meta / resolve_freshness_end_date（供 strategy scan）"
   - version: "0.3.7"
     changes:
       - 修复复权因子事件表的精度问题

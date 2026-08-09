@@ -7,7 +7,7 @@ from typing import Dict, List, Set
 
 from core.infra.export_import import ExportImport
 from core.infra.project_context import ProjectContext
-from core.modules.data_contract.core.data_contracts.data_keys import SYS_DATA_KEY
+from core.modules.data_contract.contracts import SYS_DATA_KEY
 
 from .paths import (
     BUILTIN_ADAPTERS_SKIP_EXPORT,

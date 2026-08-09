@@ -33,6 +33,8 @@ class TestDataSourceApi(unittest.TestCase):
         ):
             self.assertTrue(callable(getattr(mgr, name)), name)
         self.assertTrue(callable(DataSourceManager.format_renew_targets_help))
+        self.assertTrue(callable(DataSourceManager.get_data_end_meta))
+        self.assertTrue(callable(DataSourceManager.resolve_freshness_end_date))
 
     def test_resolve_renew_target_empty_raises(self):
         from core.modules.data_source import DataSourceManager

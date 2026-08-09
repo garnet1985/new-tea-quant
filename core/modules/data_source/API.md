@@ -48,6 +48,14 @@
 - **状态：** `beta`
 - **描述：** 格式化可选表名 / key，供 CLI 报错提示
 
+### get_data_end_meta / resolve_freshness_end_date
+
+`DataSourceManager.get_data_end_meta(data_manager=None) -> dict`（staticmethod）  
+`DataSourceManager.resolve_freshness_end_date(data_manager=None) -> str`（staticmethod）
+
+- **状态：** `beta`
+- **描述：** 数据截断 / 有效结束日（供 scan UI）；对齐 `data.json` as_of 与交易日历。跨模块入口，勿 deep-import `catalog.freshness_probe`
+
 ### execute
 
 `DataSourceManager.execute(sources=None, *, force=False)`

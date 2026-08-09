@@ -44,6 +44,13 @@
 - **状态：** `beta`
 - **描述：** 逻辑名 → 物理名（如 PostgreSQL `schema.table`）
 
+### normalize_delist_date
+
+`DataManager.normalize_delist_date(raw) -> str | None`（staticmethod）
+
+- **状态：** `beta`
+- **描述：** 将源数据占位退市日（`0` / `0.0`）视为未退市；跨模块入口
+
 ### 领域服务（属性）
 
 | 属性 | 说明 |

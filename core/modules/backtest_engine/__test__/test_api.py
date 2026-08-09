@@ -12,6 +12,10 @@ from core.modules.backtest_engine.contracts import (
     RunCallbacks,
     RunProgress,
     Timeline,
+    EntityMonitorStats,
+    ENGINE_PERF_KEY,
+    ENUM_PERF_KEY,
+    WorkerTaskPerf,
 )
 from core.modules.backtest_engine.core.schedule.entity_based.execute_pipeline import (
     EntityExecutePipeline,
@@ -35,6 +39,10 @@ def test_facade_export() -> None:
     assert BacktestEngine.Performance.Profiles.TAG == "tag"
     assert callable(BacktestEngine.Performance.resolve_entity_based_for_profile)
     assert callable(BacktestEngine.Performance.calendar_slice_config)
+    assert ENGINE_PERF_KEY == "engine_perf"
+    assert ENUM_PERF_KEY == "enum_perf"
+    assert EntityMonitorStats is not None
+    assert WorkerTaskPerf is not None
 
 
 def test_mode_normalize() -> None:

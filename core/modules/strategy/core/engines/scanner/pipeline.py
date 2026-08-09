@@ -12,10 +12,6 @@ from dataclasses import fields as dc_fields
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from core.modules.backtest_engine.core.performance.worker_profile import (
-    WorkerProfiles,
-    resolve_entity_based_performance_for_profile,
-)
 from core.modules.backtest_engine import BacktestEngine
 from core.modules.data_manager import DataManager
 from core.modules.strategy.core.engines.scanner.executor import ScannerJobExecutor
@@ -243,8 +239,8 @@ class ScannerPipeline:
         if not jobs:
             return None
 
-        performance = resolve_entity_based_performance_for_profile(
-            WorkerProfiles.SCANNER
+        performance = BacktestEngine.Performance.resolve_entity_based_for_profile(
+            BacktestEngine.Performance.Profiles.SCANNER
         )
         run_result = BacktestEngine.entity_based.run(
             jobs=jobs,

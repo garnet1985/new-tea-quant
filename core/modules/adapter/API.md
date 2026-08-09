@@ -25,6 +25,14 @@
 - **描述：** 校验 `userspace.extensions.adapters.<name>.adapter` 可加载且含合法 `BaseOpportunityAdapter` 子类
 - **返回值：** `(ok, error_message)`；成功时 message 为空串
 
+#### load_class
+
+`Adapter.load_class(adapter_name: str) -> type | None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **描述：** 按名加载 adapter 类；失败返回 ``None``（跨模块入口；勿 deep-import ``AdapterLoader``）
+
 ---
 
 ## contracts

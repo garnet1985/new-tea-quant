@@ -11,13 +11,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Tuple, Type
 
-from core.modules.backtest_engine.core.performance.worker_profile import (
-    WorkerProfiles,
-    profile_calendar_slice_config,
-    resolve_entity_based_performance_for_profile,
-)
 from core.infra.project_context import ProjectContext
-from core.modules.backtest_engine.core.performance.settings import resolve_slice_based_performance
+from core.modules.backtest_engine import BacktestEngine
 from core.modules.strategy.core.engines.enumerator.common.report_manager import ReportManager
 from core.modules.strategy.core.engines.enumerator.common.report_manager.report_output import (
     ReportOutput,
@@ -268,9 +263,10 @@ class EnumeratorPipeline:
     ) -> Dict[str, Any]:
         raw = effective_settings.raw_settings or {}
         cls._warn_ignore_settings_performance(raw)
+        perf = BacktestEngine.Performance
         if execution_mode == _MODE_SLICE:
             override: Dict[str, Any] = dict(
-                profile_calendar_slice_config(WorkerProfiles.ENUMERATOR)
+                perf.calendar_slice_config(perf.Profiles.ENUMERATOR)
             )
             calendar_slice = raw.get("calendar_slice")
             if isinstance(calendar_slice, dict):
@@ -285,8 +281,8 @@ class EnumeratorPipeline:
                 override["min_required_records"] = int(
                     data.get("min_required_records") or 0
                 )
-            return resolve_slice_based_performance(override)
-        return resolve_entity_based_performance_for_profile(WorkerProfiles.ENUMERATOR)
+            return perf.resolve_slice_based(override)
+        return perf.resolve_entity_based_for_profile(perf.Profiles.ENUMERATOR)
 
     @classmethod
     def _step_to_begin_report_manager(

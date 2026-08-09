@@ -45,6 +45,13 @@ class TestDataManagerApi(unittest.TestCase):
         physical = dm.get_physical_table_name(BaseTableNames.STOCK_LIST.value)
         self.assertTrue(str(physical))
 
+    def test_normalize_delist_date(self):
+        from core.modules.data_manager import DataManager
+
+        self.assertIsNone(DataManager.normalize_delist_date("0"))
+        self.assertIsNone(DataManager.normalize_delist_date(0.0))
+        self.assertEqual(DataManager.normalize_delist_date("20200101"), "20200101")
+
     def test_contracts_base_table_names(self):
         from core.modules.data_manager.contracts import BaseTableNames
 

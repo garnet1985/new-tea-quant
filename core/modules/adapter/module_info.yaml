@@ -11,6 +11,7 @@ changelog:
       - "BREAKING：包根仅导出 Adapter；validate 挂靠 Adapter.validate；基类/HistoryLoader 从 contracts 导入"
       - "实现下沉 core/；AdapterLoader 统一加载；文档对齐 userspace.extensions.adapters.*"
       - "修复 HistoryLoader 错误调用 get_strategy_simulation_price（应为 *_directory）"
+      - "依赖穿透（不 bump）：Adapter.load_class 公开面（供 strategy scanner 分发）"
   - version: "0.2.0"
     changes:
       - Scanner adapter 发现与 console 等 userspace 扩展点

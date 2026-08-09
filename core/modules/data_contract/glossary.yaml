@@ -1,109 +1,161 @@
 # Data Contract 术语表
-# Version: 0.5.0
+# Version: 0.6.0
 
 terms:
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面类是 ContractIssuer。"
+    aliases:
+      - "门面"
+    avoid:
+      - "deep-import core.discovery / core.base / core.data_contracts"
+
+  ContractIssuer:
+    definition: "发现与签发 Facade；推荐 ContractIssuer.issue(...)。"
+    aliases:
+      - "Issuer"
+    avoid:
+      - "DataContracts"
+      - "DataContractManager"
+
   DataContract:
-    definition: "一个数据契约，一个用来声明我需要什么数据的合约，里边包括了这个数据契约的基本属性。签发的时候可以是空契约，只有基本信息，只填充数据以后才能变成一个带有数据的契约。"
-    aliases: []
+    definition: "已签发的数据契约句柄（BaseDataContract）：含 meta/runtime/specific，可选已填充 data。"
+    aliases:
+      - "BaseDataContract"
+      - "契约实例"
     avoid: []
 
   DataKey:
-    definition: "数据契约的唯一标识字符串，在外部模块使用的时候需要声明的唯一标识。注意，相同的数据契约，无论什么情况下data key都是一样的，但是issue过后的契约contract id会不同。"
-    aliases: ["data key", "contract key", "key"]
-    avoid: ["data contract id", "contract id", "数据契约id"]
+    definition: "数据契约的唯一标识字符串；同一 key 多次 issue 会得到不同 contract_id。"
+    aliases:
+      - "DATA_KEY"
+      - "data key"
+      - "contract key"
+    avoid:
+      - "data contract id"
+      - "contract id"
 
   ContractId:
-    definition: "数据契约发行以后的唯一标识字符串。一个相同的数据契约发行多次以后会产生不同的 contract id，但contract里的 data key 是不变的。"
-    aliases: ["contract id", "数据契约id"]
-    avoid: ["contract key", "data key", "数据契约key"]
+    definition: "单次签发后的唯一实例 id；data key 不变，contract_id 每次不同。"
+    aliases:
+      - "contract id"
+      - "数据契约id"
+    avoid:
+      - "data key"
 
-  DataContractMeta:
-    definition: "数据契约的基本信息存放的数据集"
-    aliases: ["数据契约元数据"]
+  ContractMeta:
+    definition: "声明期元数据：key、type、scope、loader、list_data_key 等。"
+    aliases:
+      - "meta"
+      - "数据契约元数据"
     avoid: []
 
-  DataContractScope:
-    definition: "数据契约的范围，分为全局(Global)和局部(PER_ENTITY)。具体见GLOBAL和PER_ENTITY定义。"
-    aliases: ["签发"]
-    avoid: []
+  ContractScope:
+    definition: "GLOBAL（共享）或 PER_ENTITY（按实体分片）。"
+    aliases:
+      - "scope"
+    avoid:
+      - "用「签发」指代 scope"
 
   GLOBAL:
-    definition: "全局数据契约，所有实体都共享。比如GDP数据。"
-    aliases: ["全局数据"]
-    avoid: ["局部数据"]
+    definition: "全局数据契约，所有实体共享（如 GDP、股票列表）。"
+    aliases:
+      - "全局数据"
+    avoid:
+      - "局部数据"
 
   PER_ENTITY:
-    definition: "局部数据契约，每个实体都有自己的数据。比如公司财务数据。per_entity 必须声明 list_data_key，指向实体所属的 GLOBAL list（如 stock.list）。"
-    aliases: ["局部数据"]
-    avoid: ["全局数据"]
+    definition: "按实体分片的契约；须声明 list_data_key 指向所属 GLOBAL list。"
+    aliases:
+      - "局部数据"
+    avoid:
+      - "全局数据"
 
   list_data_key:
-    definition: "per_entity contract meta 字段：该系列数据所属实体宇宙的 GLOBAL list data_key（如 stock.kline.daily → stock.list，index.kline.daily → index.list）。"
-    aliases: ["entity list data key", "实体列表 data_key"]
-    avoid: ["entity_list_data_id"]
+    definition: "PER_ENTITY meta 字段：所属实体宇宙的 GLOBAL list data_key。"
+    aliases:
+      - "entity list data key"
+    avoid:
+      - "entity_list_data_id"
 
   Entity:
-    definition: "实体：股票、指数等；具体宇宙由 per_entity 的 list_data_key 指向的 list 决定。"
-    aliases: ["stock", "index", "company"]
+    definition: "实体：股票、指数等；宇宙由 list_data_key 指向的 list 决定。"
+    aliases:
+      - "stock"
+      - "index"
     avoid: []
 
-  DataContractType:
-    definition: "数据契约的种类，分为时序和非时序，详细请见TimeSeries和NonTimeSeries定义。"
+  ContractType:
+    definition: "TIME_SERIES 或 NON_TIME_SERIES。"
     aliases: []
     avoid: []
 
   TimeSeries:
-    definition: "时序，是指所有的数据是按照一个时间轴展现的。比如股票价格数据，GDP，CPI等等"
-    aliases: ["时间序列"]
+    definition: "按时间轴组织的数据（行情、宏观等）。"
+    aliases:
+      - "时间序列"
     avoid: []
 
   NonTimeSeries:
-    definition: "非时序，是指一个没有时间概念的数据。比如市场分类（虽然也会随时间变化，但基本是不变的）"
-    aliases: ["非时间序列"]
+    definition: "无统一时间轴的清单/映射类数据。"
+    aliases:
+      - "非时间序列"
     avoid: []
 
   TimeWindow:
-    definition: "时间窗口，就是时间范围，起始时间和结束时间以及他们中间的所有时间点。"
-    aliases: ["时间范围"]
-    avoid: []
-
-  TimeWindowEdge:
-    definition: "时间窗口的边缘，就是起始时间和结束时间。"
-    aliases: ["起始时间", "结束时间"]
+    definition: "时间范围：起止及中间时间点。"
+    aliases:
+      - "时间范围"
     avoid: []
 
   TimeAxisField:
-    definition: "当前数据契约里的哪个字段用来作为主时间轴使用，举个例子，公司财务有披露起始时间和实际公布时间等多个时间字段，这里就是数据产生是按照哪个字段来展现的"
-    aliases: ["时间轴字段"]
+    definition: "契约主时间轴字段名（如 date / ann_date）。"
+    aliases:
+      - "时间轴字段"
     avoid: []
 
   TimeAxisFormat:
-    definition: "时间轴的时间格式，模块中默认时间格式为 YYYYMMDD。模块中指的是TimeAxisField的时间格式。"
-    aliases: ["时间格式"]
-    avoid: []
-
-  NormalizedTimeAxis:
-    definition: "统一的时间轴格式。把一些其他时间格式比如季度（YYYYQ1-4）转换为统一的时间格式 YYYYMMDD。"
-    aliases: ["归一化时间轴"]
+    definition: "时间轴格式；默认常见为 YYYYMMDD。"
+    aliases:
+      - "时间格式"
     avoid: []
 
   AsOfDate:
-    definition: "当前暴露数据的时间截止点，比如我们是2023年全年的数据契约，data cursor指向2023年5月1日，那么这个5月1日就是游标位置，是回测当中用来按照时间点截取可见数据的重要参数"
-    aliases: ["当前时间点", "时间位置"]
+    definition: "PIT 截止时间点；until(as_of) 推进可见数据上界。"
+    aliases:
+      - "当前时间点"
     avoid: []
 
   DataCursor:
-    definition: "概念上的时间游标：记录时序契约推进到时间窗口的哪个位置（AsOfDate）。实现上为 BaseTimeSeriesContract 内的 CursorState，由 until(as_of) 推进；已无独立 data_cursor 模块。"
-    aliases: ["CursorState"]
-    avoid: ["modules.data_cursor", "DataCursor 独立包"]
+    definition: "时序游标概念；实现为 BaseTimeSeriesContract 内 CursorState。"
+    aliases:
+      - "CursorState"
+    avoid:
+      - "modules.data_cursor"
+      - "DataCursor 独立包"
 
   Fill_in_Data:
-    definition: "对数据契约填充数据。"
-    aliases: []
+    definition: "对契约调用 loader 填充 data。"
+    aliases:
+      - "fill_in_data"
     avoid: []
 
   Until:
-    definition: "让累积的数据推进到xx时间点的。"
-    aliases: []
+    definition: "将时序可见数据推进到指定 as_of。"
+    aliases:
+      - "until"
     avoid: []
 
+  contract_class:
+    definition: "declaration.meta 可选字段：指向自定义 BaseDataContract 子类（通常放在同 key 包的 contract.py）。"
+    aliases:
+      - "自定义契约类"
+      - "contract.py"
+    avoid:
+      - "从 contracts 导入 ContractIssuer"
+
+  StockStPeriodsContract:
+    definition: "stock.st_periods 专用时序契约；经 contracts 导出，提供 ST/*ST 查询 API。"
+    aliases:
+      - "ST 区间契约"
+    avoid:
+      - "deep-import core.data_contracts.stock_st_periods.contract"

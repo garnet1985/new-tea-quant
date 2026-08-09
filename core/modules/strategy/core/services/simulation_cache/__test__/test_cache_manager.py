@@ -4,6 +4,10 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+pytestmark = pytest.mark.force_run
+
 from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.services.simulation_cache.cache_manager import (
     SimulationCacheManager,
@@ -131,6 +135,57 @@ def test_get_cache_price_factor_slot():
     assert hit == {
         SimulateKind.PRICE_FACTOR.value: {"version_id": 2, "success": True}
     }
+
+
+def test_get_cache_miss_when_output_dir_artifacts_missing(tmp_path):
+    missing = tmp_path / "price" / "18"
+    model = MagicMock()
+    model.list_by_strategy_fingerprints.return_value = [
+        {
+            "version": 4,
+            "result_report": {
+                "price_factor": {
+                    "version_id": 18,
+                    "success": True,
+                    "output_dir": str(missing),
+                },
+            },
+        }
+    ]
+    with patch.object(SimulationCacheManager, "_table", return_value=model):
+        hit = SimulationCacheManager.get_cache(
+            "demo/strategy",
+            _fps(),
+            SimulateKind.PRICE_FACTOR,
+        )
+    assert hit is None
+
+
+def test_get_cache_hit_when_output_dir_has_runtime_env(tmp_path):
+    output_dir = tmp_path / "price" / "18"
+    output_dir.mkdir(parents=True)
+    (output_dir / "runtime_env.json").write_text("{}", encoding="utf-8")
+    model = MagicMock()
+    model.list_by_strategy_fingerprints.return_value = [
+        {
+            "version": 4,
+            "result_report": {
+                "price_factor": {
+                    "version_id": 18,
+                    "success": True,
+                    "output_dir": str(output_dir),
+                },
+            },
+        }
+    ]
+    with patch.object(SimulationCacheManager, "_table", return_value=model):
+        hit = SimulationCacheManager.get_cache(
+            "demo/strategy",
+            _fps(),
+            SimulateKind.PRICE_FACTOR,
+        )
+    assert hit is not None
+    assert hit[SimulateKind.PRICE_FACTOR.value]["version_id"] == 18
 
 
 def test_set_cache_price_factor_merges_without_clearing_enum():

@@ -8,9 +8,13 @@ from __future__ import annotations
 
 import logging
 from enum import Enum
+from pathlib import Path
 from typing import Any, ClassVar, Dict, List, Optional, Tuple, Union
 
 from core.modules.strategy.core.enums import SimulateKind
+from core.modules.strategy.core.engines.shared.services.simulation_output.file_names import (
+    RUNTIME_ENV_FILE,
+)
 from core.modules.strategy.core.services.simulation_cache.base_cache_manager import (
     BaseCacheManager,
 )
@@ -114,6 +118,14 @@ class SimulationCacheManager(BaseCacheManager):
         payload = reports.get(slot.value)
         if not isinstance(payload, dict) or not payload:
             return None
+        if not cls._artifacts_present(payload):
+            logger.warning(
+                "simulate cache stale (artifacts missing): kind=%s strategy=%s output_dir=%s",
+                slot.value,
+                strategy_name,
+                payload.get("output_dir"),
+            )
+            return None
         return {_slot_to_kind_value(slot): dict(payload)}
 
     @classmethod
@@ -197,6 +209,15 @@ class SimulationCacheManager(BaseCacheManager):
         return str(version_id)
 
     # --- simulation-specific ----------------------------------------------
+
+    @classmethod
+    def _artifacts_present(cls, payload: Dict[str, Any]) -> bool:
+        """有 ``output_dir`` 时要求目录与 ``runtime_env.json`` 仍在；否则视为可命中元数据。"""
+        raw = payload.get("output_dir")
+        if raw is None or str(raw).strip() == "":
+            return True
+        output_dir = Path(str(raw))
+        return output_dir.is_dir() and (output_dir / RUNTIME_ENV_FILE).is_file()
 
     @classmethod
     def _extract_slots(

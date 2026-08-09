@@ -10,7 +10,10 @@ changelog:
     changes:
       - 对齐 CORE_MODULE_STANDARDS：包根仅 ContractIssuer；DATA_KEY / 基类仅 contracts.py
       - 根 API.md / QUICKSTART / TEST_CASES；删除 api.yaml；修正 DataContracts 文档漂移
+      - 文档对齐 ContractIssuer（删 OVERVIEW/ROADMAP）；API 最高 beta；补 issue 契约测与 glossary 0.6.0
+      - UT 下沉：公开 test_api 仅 issue；discovery/base 实现测就近 core/*/__test__
       - 下游 DATA_KEY / ContractScope 等改从 contracts 导入
+      - P2：contracts 不再 re-export ContractIssuer；统一 key 包布局（可选 contract.py）；导出 StockStPeriodsContract
   - version: "0.5.0"
     changes:
       - contracts.py 仅导出类/枚举；issue/load 拆分

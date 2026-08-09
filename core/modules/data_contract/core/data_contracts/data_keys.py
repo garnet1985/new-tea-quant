@@ -1,46 +1,27 @@
 """Data Keys Registry（数据契约键值注册表）。
 
 设计理念：
-- 使用枚举常量（类属性）的形式，IDE友好且避免拼写错误
-- 系统和用户分别定义各自的 data_keys
-- 在 data_contract/__init__.py 中合并为 DATA_KEY
+- 使用类属性常量，IDE 友好且避免拼写错误
+- 系统与用户分别定义 data_keys；discovery 时合并进可用 key 集
+- 对外合并视图：``contracts.DATA_KEY``（包装 ``SYS_DATA_KEY`` + 用户侧）
 
-使用方式：
-    # 系统 contract
+使用方式::
+
+    from core.modules.data_contract import ContractIssuer
     from core.modules.data_contract.contracts import DATA_KEY
+
     contract = ContractIssuer.issue(DATA_KEY.STOCK_LIST)
-    
-    # declaration 中使用
-    meta: {
-        key: DATA_KEY.STOCK_LIST,  # 使用常量，避免硬字符串
-        ...
-    }
 
-新增系统 contract 流程：
-    1. 在 data_contracts/<key>/ 目录下创建 declaration.py 和 loader.py
-    2. 在此文件中添加对应的 key（作为 SYS_DATA_KEY 类属性）
-    3. declaration.py 中的 meta.key 必须使用 SYS_DATA_KEY.xxx
+    # declaration 中使用常量，避免硬编码字符串
+    meta = {"key": SYS_DATA_KEY.STOCK_LIST, ...}
 
-用户扩展：
-    用户需要在 userspace/data_keys.py 中定义 USER_DATA_KEY 类。
-    
-    示例代码结构：
-        class USER_DATA_KEY:
-            MY_CUSTOM_DATA = "my.custom.data"
-            MY_FINANCE_DATA = "my.finance.data"
-            
-            @classmethod
-            def all_keys(cls) -> list:
-                return [cls.MY_CUSTOM_DATA, cls.MY_FINANCE_DATA]
-    
-    新增用户 contract 流程：
-    1. 在 userspace/data_contracts/<key>/ 目录下创建 declaration.py 和 loader.py
-    2. 在 userspace/data_keys.py 中添加对应的 key（作为 USER_DATA_KEY 类属性）
-    3. declaration.py 中的 meta.key 必须使用 USER_DATA_KEY.xxx
-    
-    注意：
-    - 如果用户 contract 的 key 没有在 USER_DATA_KEY 中枚举注册，discovery 时会报错
-    - 报错信息会提示用户需要在 USER_DATA_KEY 中添加对应的常量
+新增系统 contract：
+1. ``core/data_contracts/<key>/declaration.py`` + ``loader.py``
+2. 在本文件 ``SYS_DATA_KEY`` 增加常量
+3. declaration 的 ``meta.key`` 使用该常量
+
+用户扩展：在 userspace 定义 ``USER_DATA_KEY``，并提供对应 declaration/loader；
+未在 USER_DATA_KEY 注册的 key，discovery 会报错并提示补常量。
 """
 
 class SYS_DATA_KEY:

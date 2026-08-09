@@ -18,6 +18,9 @@ data = contract.get_data()
 
 - [API.md](./API.md)
 - [QUICKSTART.md](./QUICKSTART.md)
+- [glossary.yaml](./glossary.yaml)
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+- [docs/DESIGN.md](./docs/DESIGN.md)
+- [docs/CONCEPTS.md](./docs/CONCEPTS.md)
 
-包根仅 `ContractIssuer`；`DATA_KEY` 与基类从 `contracts.py` 导入。
+包根仅 `ContractIssuer`；`DATA_KEY`、基类与专用子类从 `contracts.py` 导入（Issuer 不经 `contracts` re-export）。

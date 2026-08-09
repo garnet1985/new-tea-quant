@@ -1,20 +1,16 @@
 """Data contract public types — classes only (cross-module import entry).
 
-新实现导出（meta/runtime/specific 三层结构）：
-- ContractIssuer：发现和管理 contract（包根 Facade re-export）
-- BaseDataContract：基类（meta/runtime/specific）
-- DATA_KEY / SYS_DATA_KEY：契约键值常量
-
-使用方式::
+包根 Facade::
 
     from core.modules.data_contract import ContractIssuer
+
+类型与 DATA_KEY::
+
     from core.modules.data_contract.contracts import DATA_KEY, BaseDataContract
 
     contract = ContractIssuer.issue(DATA_KEY.STOCK_LIST, fill_in_data=True)
     stock_list = contract.get_data()
 """
-
-from core.modules.data_contract.core.discovery.contract_issuer import ContractIssuer
 
 from core.modules.data_contract.core.base.base_contract import (
     BaseDataContract,
@@ -36,13 +32,16 @@ from core.modules.data_contract.core.base.base_loader import (
     BaseDataContractLoader,
 )
 from core.modules.data_contract.core.data_contracts.data_keys import SYS_DATA_KEY
+from core.modules.data_contract.core.data_contracts.stock_st_periods.contract import (
+    StockStPeriodsContract,
+)
 
 
 class DATA_KEY:
     """数据契约键值（合并系统 + 用户）。
 
     系统 key（SYS_DATA_KEY）在 discovery 时自动合并；
-    用户 key（USER_DATA_KEY）在 userspace/data_keys.py 中定义。
+    用户 key（USER_DATA_KEY）在 userspace data_keys 中定义。
     """
 
     STOCK_LIST = SYS_DATA_KEY.STOCK_LIST
@@ -72,9 +71,6 @@ class DATA_KEY:
 
 
 __all__ = [
-    # Discovery
-    "ContractIssuer",
-
     # Data keys
     "SYS_DATA_KEY",
     "DATA_KEY",
@@ -97,4 +93,7 @@ __all__ = [
 
     # Loader
     "BaseDataContractLoader",
+
+    # Specialized contracts (optional contract.py under a key package)
+    "StockStPeriodsContract",
 ]

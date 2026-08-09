@@ -210,8 +210,7 @@ class DataManager:
                 # 4. 初始化 DataService（跨service协调器）
                 if self.is_verbose:
                     logger.info("🔧 初始化 DataService...")
-                from core.modules.data_manager.core.data_services import DataService
-                self._data_service = DataService(self)
+                self.attach_data_service()
                 try:
                     self._data_service.index.sync_list_from_config()
                 except Exception as e:
@@ -413,6 +412,13 @@ class DataManager:
         )
 
         return ListService._normalize_delist_date(raw)
+
+    def attach_data_service(self) -> Any:
+        """绑定 / 重建 DataService（worker 子进程、DuckDB pool resume）。勿 deep-import DataService。"""
+        from core.modules.data_manager.core.data_services import DataService
+
+        self._data_service = DataService(self)
+        return self._data_service
 
     # ------------------------------------------------------------------
     # DataService 属性访问

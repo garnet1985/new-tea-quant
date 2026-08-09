@@ -52,6 +52,15 @@ class TestDataManagerApi(unittest.TestCase):
         self.assertIsNone(DataManager.normalize_delist_date(0.0))
         self.assertEqual(DataManager.normalize_delist_date("20200101"), "20200101")
 
+    def test_attach_data_service(self):
+        from core.modules.data_manager import DataManager
+
+        dm = DataManager(force_new=True, is_verbose=False)
+        svc = dm.attach_data_service()
+        self.assertIsNotNone(svc)
+        self.assertIs(dm.service, svc)
+        self.assertTrue(hasattr(svc, "stock"))
+
     def test_contracts_base_table_names(self):
         from core.modules.data_manager.contracts import BaseTableNames
 

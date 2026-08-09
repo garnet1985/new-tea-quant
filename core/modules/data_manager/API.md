@@ -51,6 +51,13 @@
 - **状态：** `beta`
 - **描述：** 将源数据占位退市日（`0` / `0.0`）视为未退市；跨模块入口
 
+### attach_data_service
+
+`DataManager.attach_data_service() -> DataService`
+
+- **状态：** `beta`
+- **描述：** 绑定 / 重建领域 `DataService`（worker 子进程、DuckDB pool resume）。跨模块勿 deep-import `core.data_services.DataService`
+
 ### 领域服务（属性）
 
 | 属性 | 说明 |

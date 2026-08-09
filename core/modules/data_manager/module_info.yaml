@@ -5,6 +5,9 @@ description: "统一数据访问门面：DatabaseManager、core/tables + userspa
 dependencies:
   - infra.db
   - infra.project_context
+  - infra.discovery
+  - infra.utils
+  - modules.data_source
 changelog:
   - version: "0.4.0"
     changes:
@@ -17,6 +20,7 @@ changelog:
       - P1：实现下沉 core/；BaseTableNames 对齐 sys_*；扩 test_api / TEST_CASES / 文档树
       - P2：移除 Kline 无效 filter_negative 参数；恢复被 standardize 冲掉的 0.3.3–0.3.5 changelog
       - "依赖穿透（不 bump）：公开 DataManager.normalize_delist_date"
+      - "依赖穿透治理（不 bump）：module_info 补 infra.discovery / infra.utils / modules.data_source；公开 attach_data_service 收口 DataService 深路径"
   - version: "0.3.6"
     changes:
       - 优化 dispatch_planner 中的 entities_per_job 约束问题，效率最高提升约15%

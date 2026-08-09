@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional
 from core.infra.system_actions import SystemActions
 from core.infra.system_actions.contracts import PipelineLeaseBusyError
 from core.modules.strategy import Strategy
-from core.modules.strategy.core.enums import WorkbenchStep
+from core.modules.strategy.contracts import WorkbenchStep
 from core.modules.strategy.core.services.discovery import DiscoveryService
 from core.modules.strategy.core.services.progress import PipelineProgress
 

@@ -271,6 +271,13 @@ class Strategy:
     @staticmethod
     def _to_info_dict(info: Any) -> Dict[str, Any]:
         folder = info.resolved_folder() if hasattr(info, "resolved_folder") else info.folder
+        hooks_class = getattr(info, "hooks_class", None)
+        hooks_name = ""
+        if hooks_class is not None:
+            try:
+                hooks_name = str(getattr(hooks_class, "__name__", "") or "")
+            except Exception:
+                hooks_name = ""
         return {
             "relative_path": info.unique_relative_path,
             "unique_relative_path": info.unique_relative_path,
@@ -279,6 +286,7 @@ class Strategy:
             "display_name": info.display_name,
             "folder": str(folder),
             "settings": info.settings,
+            "hooks_class_name": hooks_name,
         }
 
     @staticmethod

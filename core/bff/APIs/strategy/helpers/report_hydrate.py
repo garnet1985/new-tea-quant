@@ -102,9 +102,9 @@ def _version_dir_candidates_from_slot(
 
 def _resolve_strategy_folder(strategy_name: str) -> Path:
     """Prefer discovered strategy folder; fall back to userspace/strategies/{name}."""
-    from core.modules.strategy.core.services.discovery import DiscoveryService
+    from core.modules.strategy import Strategy
 
-    return DiscoveryService.resolve_strategy_folder(strategy_name)
+    return Strategy.resolve_folder(strategy_name)
 
 
 def resolve_simulation_output_dirs(

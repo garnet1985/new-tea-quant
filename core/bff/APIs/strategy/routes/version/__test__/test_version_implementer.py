@@ -26,7 +26,7 @@ def test_fetch_latest_merges_ui_flags():
     impl._WorkbenchSnapshots = snaps
 
     with patch(
-        "core.bff.APIs.strategy.routes.version.implementer.DiscoveryService.resolve_strategy_path",
+        "core.bff.APIs.strategy.routes.version.implementer.Strategy.resolve",
         return_value="demo/x",
     ):
         out_row, out_flags = impl.fetch_latest("demo-key")
@@ -41,7 +41,7 @@ def test_fetch_by_version_invalid_id():
     impl = StrategyVersionImplementer()
     impl._WorkbenchSnapshots = MagicMock()
     with patch(
-        "core.bff.APIs.strategy.routes.version.implementer.DiscoveryService.resolve_strategy_path",
+        "core.bff.APIs.strategy.routes.version.implementer.Strategy.resolve",
         return_value="demo/x",
     ):
         with pytest.raises(ValueError, match="version_id"):
@@ -54,7 +54,7 @@ def test_fetch_by_version_missing_row():
     snaps.fetch_by_version.return_value = None
     impl._WorkbenchSnapshots = snaps
     with patch(
-        "core.bff.APIs.strategy.routes.version.implementer.DiscoveryService.resolve_strategy_path",
+        "core.bff.APIs.strategy.routes.version.implementer.Strategy.resolve",
         return_value="demo/x",
     ):
         with pytest.raises(FileNotFoundError, match="快照不存在"):
@@ -67,7 +67,7 @@ def test_list_versions_resolves_name():
     snaps.list_dropdown.return_value = [{"version_id": "v1", "version": 1}]
     impl._WorkbenchSnapshots = snaps
     with patch(
-        "core.bff.APIs.strategy.routes.version.implementer.DiscoveryService.resolve_strategy_path",
+        "core.bff.APIs.strategy.routes.version.implementer.Strategy.resolve",
         return_value="demo/x",
     ):
         items = impl.list_versions("k")

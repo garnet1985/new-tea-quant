@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.modules.strategy.core.helpers.version_id import WorkbenchVersionId
-from core.modules.strategy.core.services.discovery import DiscoveryService
+from core.modules.strategy import Strategy
 
 
 class StrategyVersionImplementer:
@@ -34,7 +34,7 @@ class StrategyVersionImplementer:
     ) -> Tuple[Optional[Dict[str, Any]], Dict[str, bool]]:
         """Latest row (or cold-start synthetic) + V2-01 ``ui_flags``."""
         assert self._WorkbenchSnapshots is not None
-        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
+        name = Strategy.resolve(strategy_key_or_name)
         row = self._WorkbenchSnapshots.fetch_latest(name)
         if row is None:
             return None, {}
@@ -43,14 +43,14 @@ class StrategyVersionImplementer:
 
     def list_versions(self, strategy_key_or_name: str) -> List[Dict[str, Any]]:
         assert self._WorkbenchSnapshots is not None
-        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
+        name = Strategy.resolve(strategy_key_or_name)
         return self._WorkbenchSnapshots.list_dropdown(name)
 
     def fetch_by_version(
         self, *, strategy_key_or_name: str, version_id: str
     ) -> Dict[str, Any]:
         assert self._WorkbenchSnapshots is not None
-        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
+        name = Strategy.resolve(strategy_key_or_name)
         sid = WorkbenchVersionId.parse(version_id)
         if sid is None:
             raise ValueError("version_id 无效")
@@ -67,7 +67,7 @@ class StrategyVersionImplementer:
         self, *, strategy_key_or_name: str, version_id: str
     ) -> Dict[str, Any]:
         assert self._WorkbenchCacheClear is not None
-        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
+        name = Strategy.resolve(strategy_key_or_name)
         sid = WorkbenchVersionId.parse(version_id)
         if sid is None:
             raise ValueError("version_id 无效")

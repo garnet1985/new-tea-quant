@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.modules.strategy.core.helpers.version_id import WorkbenchVersionId
-from core.modules.strategy.core.services.discovery import DiscoveryService
+from core.modules.strategy import Strategy
 
 
 class StrategySettingsImplementer:
@@ -52,7 +52,7 @@ class StrategySettingsImplementer:
         pretty: bool = False,
     ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
         assert self._Apply is not None
-        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
+        name = Strategy.resolve(strategy_key_or_name)
         sid = WorkbenchVersionId.parse(version_id)
         if sid is None:
             return None, "version_id 无效"

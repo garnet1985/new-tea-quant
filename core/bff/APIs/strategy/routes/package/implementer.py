@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-from core.modules.strategy.core.services.discovery import DiscoveryService
+from core.modules.strategy import Strategy
 
 
 class StrategyPackageImplementer:
@@ -45,7 +45,7 @@ class StrategyPackageImplementer:
     @staticmethod
     def resolve_strategy_name(key_or_name: str) -> str:
         """``meta.key`` 或 path name → userspace 相对 path（package API 入参）。"""
-        return DiscoveryService.resolve_strategy_path(key_or_name)
+        return Strategy.resolve(key_or_name)
 
     def export_zip(self, strategy_key_or_name: str, scope: str) -> Tuple[bytes, str]:
         """Return ``(zip_bytes, download_filename)``.
@@ -53,7 +53,7 @@ class StrategyPackageImplementer:
         ``strategy_key_or_name``: ``settings.meta.key`` 或 path name。
         """
         assert self._pkg is not None
-        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
+        name = Strategy.resolve(strategy_key_or_name)
         scope_norm = str(scope or "bundle").strip().lower() or "bundle"
 
         if scope_norm == "bundle":

@@ -108,10 +108,10 @@ class WorkbenchApplySettings:
 
     @staticmethod
     def _settings_path(strategy_name: str) -> Path:
-        from core.modules.strategy.core.services.discovery import DiscoveryService
+        from core.modules.strategy import Strategy
 
         return ProjectContext.path.get_strategy_settings_path(
-            DiscoveryService.resolve_strategy_folder(strategy_name)
+            Strategy.resolve_folder(strategy_name)
         )
 
     @classmethod

@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, Dict, Optional
 from unittest.mock import patch
 
 from core.bff.APIs.strategy.routes.catalog.implementer import StrategyCatalogImplementer
-from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
-    StrategyInfo,
-)
 
 
 def _info(
@@ -19,24 +15,21 @@ def _info(
     is_enabled: bool = True,
     settings: Optional[Dict[str, Any]] = None,
     hooks_name: str = "DemoHooks",
-) -> StrategyInfo:
-    hooks = type(hooks_name, (), {})
-    return StrategyInfo(
-        unique_relative_path=path,
-        strategy_file=Path(f"/tmp/{path}/strategy.py"),
-        settings_file=Path(f"/tmp/{path}/settings.py"),
-        folder=Path(f"/tmp/{path}"),
-        key=path.replace("/", "_"),
-        display_name=display_name,
-        is_enabled=is_enabled,
-        settings=settings or {},
-        hooks_class=hooks,
-        hooks_module_path="mod",
-    )
+) -> Dict[str, Any]:
+    return {
+        "unique_relative_path": path,
+        "relative_path": path,
+        "key": path.replace("/", "_"),
+        "display_name": display_name,
+        "is_enabled": is_enabled,
+        "folder": f"/tmp/{path}",
+        "settings": settings or {},
+        "hooks_class_name": hooks_name,
+    }
 
 
 @patch(
-    "core.modules.strategy.core.services.discovery.DiscoveryService.discover_strategies",
+    "core.bff.APIs.strategy.routes.catalog.implementer.Strategy.list_strategy_infos",
     return_value=[],
 )
 def test_list_strategies_empty(_mock_discover):
@@ -47,7 +40,7 @@ def test_list_strategies_empty(_mock_discover):
 
 
 @patch(
-    "core.modules.strategy.core.services.discovery.DiscoveryService.discover_strategies"
+    "core.bff.APIs.strategy.routes.catalog.implementer.Strategy.list_strategy_infos"
 )
 def test_list_strategies_pagination_and_summary(mock_discover):
     mock_discover.return_value = [
@@ -70,7 +63,7 @@ def test_list_strategies_pagination_and_summary(mock_discover):
     assert total == 2
     assert len(items) == 1
     assert items[0]["name"] == "demo/a"
-    assert items[0]["key"] == ""  # no meta.key in fixture unless set
+    assert items[0]["key"] == "demo_a"
     assert items[0]["display_name"] == "A"
     assert items[0]["is_enabled"] is False
     assert items[0]["worker_class_name"] == "DemoHooks"

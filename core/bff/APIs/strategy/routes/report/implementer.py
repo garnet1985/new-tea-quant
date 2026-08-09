@@ -7,9 +7,9 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from core.modules.strategy.core.enums import WorkbenchStep
+from core.modules.strategy.contracts import WorkbenchStep
 from core.modules.strategy.core.helpers.version_id import WorkbenchVersionId
-from core.modules.strategy.core.services.discovery import DiscoveryService
+from core.modules.strategy import Strategy
 
 
 class StrategyReportImplementer:
@@ -36,7 +36,7 @@ class StrategyReportImplementer:
         version_id: str,
     ) -> Dict[str, Any]:
         assert self._WorkbenchReports is not None
-        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
+        name = Strategy.resolve(strategy_key_or_name)
         norm = WorkbenchStep.parse(step).value
         sid = WorkbenchVersionId.parse(version_id)
         if sid is None:
@@ -58,7 +58,7 @@ class StrategyReportImplementer:
         version_id: str,
     ) -> Dict[str, Any]:
         assert self._WorkbenchReports is not None
-        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
+        name = Strategy.resolve(strategy_key_or_name)
         norm = WorkbenchStep.parse(step).value
         sid = WorkbenchVersionId.parse(version_id)
         if sid is None:
@@ -81,7 +81,7 @@ class StrategyReportImplementer:
         stock_id: str,
     ) -> Dict[str, Any]:
         assert self._WorkbenchStockDetail is not None
-        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
+        name = Strategy.resolve(strategy_key_or_name)
         norm = WorkbenchStep.parse(step).value
         sid = WorkbenchVersionId.parse(version_id)
         if sid is None:

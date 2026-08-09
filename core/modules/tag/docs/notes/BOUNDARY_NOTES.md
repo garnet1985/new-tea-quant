@@ -18,15 +18,16 @@
 
 ```text
 tag/
-  tag.py              # Facade（对外；按 data.base 分发）
+  __init__.py         # 导出 Tag
   contracts.py        # hooks / 公开类型
-  api.yaml / glossary.yaml / module_info.yaml
+  API.md / glossary.yaml / module_info.yaml
   core/
+    tag.py            # Facade 实现（按 data.base 分发）
     engines/
       per_entity/     # BE：entity_based / slice_based + shared
       global_based/   # 轻量主进程（包名不可用 global 关键字）
       non_time_series/
-    services/         # discovery / metadata_ensure / entity_list
+    services/         # discovery / metadata_ensure / entity_list / progress
     data_class/       # Scenario / TagDefinition
 ```
 

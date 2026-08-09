@@ -13,6 +13,7 @@ changelog:
       - 对齐 CORE_MODULE_STANDARDS：包根仅 Tag；类型仅 contracts.py
       - 根 API.md / QUICKSTART / TEST_CASES；删除 api.yaml、docs/API.md
       - docs/DESIGN 吸收 DECISIONS；删除 docs/DECISIONS.md
+      - "标准化 P0–P1（不 bump）：BOUNDARY→docs/notes/；ARCHITECTURE 0.5.0；扩 API/test_api；TEST_CASES 仅公开面；Facade 下沉 core/tag.py；glossary 补 Facade"
   - version: "0.4.2"
     changes:
       - non_time_series：TagNonTimeSeriesPipeline 主进程一次计算（不走 BE）

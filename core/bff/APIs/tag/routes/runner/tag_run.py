@@ -11,7 +11,7 @@ from core.infra.system_actions import SystemActions
 from core.infra.system_actions.contracts import PipelineLeaseBusyError
 from core.modules.tag.core.services.discovery import DiscoveryService
 from core.modules.tag.core.services.progress import TagRunProgress
-from core.modules.tag.tag import Tag
+from core.modules.tag import Tag
 
 logger = logging.getLogger(__name__)
 

@@ -59,3 +59,6 @@ changelog:
   - version: "0.2.0"
     changes:
       - Scenario 发现、TagWorker 多进程、DataContract + DataCursor as_of 切片落库
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能

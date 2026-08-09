@@ -37,3 +37,6 @@ changelog:
   - version: "0.3.0"
     changes:
       - DataService 门面与 userspace 表发现基线
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能

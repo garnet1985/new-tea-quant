@@ -69,3 +69,9 @@ class TestContractIssuerIssue:
         finally:
             ContractIssuer._discovered = prev_discovered
             ContractIssuer._declarations_cache = prev_cache
+
+    def test_system_registry_source_path(self):
+        path = ContractIssuer.system_registry_source_path()
+        assert path is not None
+        assert path.name == "data_keys.py"
+        assert path.is_file()

@@ -64,3 +64,6 @@ changelog:
   - version: "0.3.0"
     changes:
       - 策略工作台与 UI 联动；settings 校验与指纹体系基线
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能

@@ -33,3 +33,6 @@ changelog:
       - 明确职责边界和Input/Output定义
       - 支持MQ迁移（配置切换）
       - Worker生命周期钩子管理
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能

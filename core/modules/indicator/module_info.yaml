@@ -19,3 +19,6 @@ changelog:
   - version: "0.2.0"
     changes:
       - IndicatorService、pandas-ta-classic 代理与 AVAILABLE_INDICATORS 注册
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能

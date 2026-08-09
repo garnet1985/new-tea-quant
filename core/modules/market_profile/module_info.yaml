@@ -14,3 +14,6 @@ changelog:
     changes:
       - china_a_stock 等内置 market profile 注册
       - 涨跌停、最小申报单位、板块手数规则供 enum/capital 查询
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能

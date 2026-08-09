@@ -53,7 +53,7 @@ kline = ContractIssuer.issue(
 
 - **状态：** `beta`
 
-常用：`get_contract`、`list_available_keys`、`list_system_keys`、`is_available`、`get_list_data_key`、`register_custom_declaration`。
+常用：`get_contract`、`list_available_keys`、`list_system_keys`、`is_available`、`get_list_data_key`、`register_custom_declaration`、`get_declaration`、`system_registry_source_path`。
 
 ---
 

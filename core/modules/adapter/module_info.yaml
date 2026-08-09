@@ -16,3 +16,6 @@ changelog:
     changes:
       - Scanner adapter 发现与 console 等 userspace 扩展点
       - HistoryLoader 读取策略历史模拟统计
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能

@@ -839,5 +839,16 @@ class ContractIssuer:
 
         return list(cls._declarations_cache.keys())
 
+    @staticmethod
+    def system_registry_source_path():
+        """系统契约注册指纹源文件（``data_keys``）；供仿真缓存 fingerprint，勿 deep-import core。"""
+        import inspect
+        from pathlib import Path
+
+        from core.modules.data_contract.core.data_contracts import data_keys as mod
+
+        src = inspect.getsourcefile(mod)
+        return Path(src) if src else None
+
 
 __all__ = ['ContractIssuer']

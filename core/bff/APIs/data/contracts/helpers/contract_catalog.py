@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Any, Dict, List, Tuple
 
 from core.infra.project_context import ProjectContext
-from core.modules.data_contract.core.base.base_contract import ContractScope, ContractType
-from core.modules.data_contract.core.discovery.contract_issuer import ContractIssuer
+from core.modules.data_contract import ContractIssuer
+from core.modules.data_contract.contracts import ContractScope, ContractType
 
 
 def _origin_label(is_customized: bool) -> str:
@@ -33,7 +33,9 @@ def _catalog_entries() -> List[Tuple[str, Dict[str, Any]]]:
     issuer = ContractIssuer()
     # Truthy path enables userspace discovery; root comes from ProjectContext.
     issuer.discover(user_space_path=ProjectContext.path.get_data_contract_root())
-    entries = [(key, decl) for key, decl in issuer._declarations.items()]
+    entries = [
+        (key, issuer.get_declaration(key)) for key in issuer.list_available_keys()
+    ]
     entries.sort(key=lambda item: item[0])
     return entries
 

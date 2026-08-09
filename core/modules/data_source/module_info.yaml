@@ -32,3 +32,6 @@ changelog:
   - version: "0.3.0"
     changes:
       - 配置驱动 handler 管线与依赖拓扑调度（基线）
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能

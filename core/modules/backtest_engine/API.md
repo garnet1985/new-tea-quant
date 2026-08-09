@@ -85,6 +85,8 @@ result = BacktestEngine.entity_based.run(
 
 Job 校验：`BacktestJob.validate_many(jobs, mode=...)` — entity_based 需 `entity_specified`；slice_based 需 `entity_ids` + `timeline_point_count`。
 
+**依赖说明：** slice_based 探针/预读经 `strategy.contracts.JobBundleLoader` 装数（`module_info` 已声明 `modules.strategy`）。
+
 ---
 
 ## BacktestEngine.Performance

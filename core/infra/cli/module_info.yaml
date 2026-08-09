@@ -27,3 +27,6 @@ changelog:
   - version: "0.2.0"
     changes:
       - 重写 CLI：策略/标签/数据扫描/更新/模拟/分析/管理
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能

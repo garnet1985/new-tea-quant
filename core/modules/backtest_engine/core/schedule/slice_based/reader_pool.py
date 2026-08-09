@@ -389,9 +389,7 @@ class SliceReaderPool:
         end: str,
         perf: Any = None,
     ) -> Dict[str, Any]:
-        from core.modules.strategy.core.services.entity_loader.job_bundle_loader import (
-            JobBundleLoader,
-        )
+        from core.modules.strategy.contracts import JobBundleLoader
 
         return JobBundleLoader.load_per_entity_window(
             payload,
@@ -410,9 +408,7 @@ class SliceReaderPool:
         from core.modules.backtest_engine.core.shared.worker_data_runtime import (
             bootstrap_worker_data_manager,
         )
-        from core.modules.strategy.core.services.entity_loader.job_bundle_loader import (
-            JobBundleLoader,
-        )
+        from core.modules.strategy.contracts import JobBundleLoader
 
         bootstrap_worker_data_manager()
         t0 = time.perf_counter()

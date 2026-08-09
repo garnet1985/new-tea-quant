@@ -27,3 +27,6 @@ changelog:
   - version: "0.2.0"
     changes:
       - ProjectContextManager、userspace 根路径与配置发现基线
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能

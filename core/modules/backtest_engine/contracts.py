@@ -1,7 +1,7 @@
 """BacktestEngine 对外执行契约（跨模块 import 入口）。
 
 引擎职责: job 调度 / 时间推进 / 性能监控。
-数据装载（JobBundleLoader 等）由使用方经 on_before_task_start 注入，不在此导出。
+slice_based 探针/预读经 ``strategy.contracts.JobBundleLoader`` 装数（勿 deep-import strategy.core）。
 """
 from core.modules.backtest_engine.core.performance.profiler import (
     ENGINE_PERF_KEY,

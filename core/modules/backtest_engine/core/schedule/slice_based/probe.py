@@ -71,9 +71,7 @@ class SliceProbe:
         start, end, width = cls._probe_window_bounds(payload, min_required=min_required)
         entity_n = cls._entity_count(payload)
 
-        from core.modules.strategy.core.services.entity_loader.job_bundle_loader import (
-            JobBundleLoader,
-        )
+        from core.modules.strategy.contracts import JobBundleLoader
 
         gc.collect()
         rss0 = cls._process_rss_mb()

@@ -6,7 +6,6 @@ Backtest Engine - Slice-based Probe
 """
 from __future__ import annotations
 
-import copy
 import gc
 import logging
 import time
@@ -14,7 +13,6 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
-from core.infra.machine_capacity.contracts import MachineCapacity
 
 logger = logging.getLogger(__name__)
 
@@ -359,82 +357,6 @@ class SliceProbe:
             peak_rss_mb_reader=float(metrics["peak_rss_mb_reader"]),
             peak_rss_mb_compute=float(metrics["peak_rss_mb_compute"]),
         )
-
-    # --- legacy names kept as thin wrappers for older call sites / tests ---
-
-    @staticmethod
-    def build_probe_jobs(
-        jobs: List[Dict[str, Any]],
-        capacity: MachineCapacity,
-        performance: Dict[str, Any],
-    ) -> List[Dict[str, Any]]:
-        """Deprecated throwaway path — prefer annotate + continuous execute."""
-        _ = capacity
-        if not jobs:
-            return []
-        probe_payload = SliceProbe.build_probe_payload(jobs, performance)
-        job_id = str(probe_payload.pop("_probe_job_id", "slice_probe"))
-        return [{"id": job_id, "payload": probe_payload}]
-
-    @staticmethod
-    def build_probe_payload(
-        jobs: List[Dict[str, Any]],
-        performance: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        """Build head-window payload: full entities, formal slice width × N.
-
-        Kept for tests/helpers. Pipeline uses annotate_payload_for_head_sampling
-        on the full calendar instead of this truncated calendar.
-        """
-        parsed = BacktestJob.from_dict(jobs[0])
-        job_id, payload = parsed.id, parsed.payload
-        probe = copy.deepcopy(payload)
-
-        slice_days = max(
-            1,
-            int(
-                performance.get("slice_open_days")
-                if performance.get("slice_open_days") not in (None, "", "auto")
-                else 20
-            ),
-        )
-        probe_slice_count = SliceProbe.head_slice_count(performance)
-        needed_open_days = probe_slice_count * slice_days
-        original_count = probe.get(BacktestJob.TIMELINE_POINT_COUNT_KEY)
-        if not isinstance(original_count, int) or original_count <= 0:
-            raise ValueError(
-                f"slice probe 需要正整数 {BacktestJob.TIMELINE_POINT_COUNT_KEY!r}"
-            )
-        probe[BacktestJob.TIMELINE_POINT_COUNT_KEY] = min(
-            original_count, needed_open_days
-        )
-
-        entity_ids = probe.get(BacktestJob.SLICE_BASED_ENTITY_KEY)
-        if not isinstance(entity_ids, list) or not entity_ids:
-            raise ValueError(
-                f"slice probe 需要非空 {BacktestJob.SLICE_BASED_ENTITY_KEY!r}"
-            )
-        entity_n = len(entity_ids)
-
-        probe = SliceProbe.annotate_payload_for_head_sampling(
-            probe,
-            slice_open_days=slice_days,
-            probe_slice_count=probe_slice_count,
-            sample_enabled=True,
-        )
-        probe["_probe_job_id"] = f"{job_id}_probe"
-        probe["slice_open_days"] = slice_days
-
-        logger.info(
-            "Slice head payload: job=%s slices=%s slice_days=%s entities=%s "
-            "timeline_point_count=%s",
-            job_id,
-            probe_slice_count,
-            slice_days,
-            entity_n,
-            probe[BacktestJob.TIMELINE_POINT_COUNT_KEY],
-        )
-        return probe
 
     @staticmethod
     def _extract_metrics_from_plan(

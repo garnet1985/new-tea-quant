@@ -9,6 +9,8 @@ changelog:
     changes:
       - 对齐 CORE_MODULE_STANDARDS：根 API.md / QUICKSTART / README / TEST_CASES；docs/DESIGN.md 合并 DECISIONS
       - 删除 api.yaml、OVERVIEW.md、docs/DECISIONS.md；包根仍仅 BacktestEngine
+      - 文档对齐真实 run 签名（无 execute_fn；callbacks + timeline）；ARCHITECTURE 目录树与 TEST_CASES 公开范围
+      - 移除 SliceProbe.build_probe_jobs / build_probe_payload；glossary 澄清 Timeline vs 废弃模式别名
   - version: "0.3.0"
     changes:
       - 内部包 entity_based / slice_based 与公开模式名一致

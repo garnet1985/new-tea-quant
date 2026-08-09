@@ -119,11 +119,11 @@ cases:
         name: test_should_run_respects_dispatch_probe_flag
         description: dispatch_probe/slice_probe=False 跳过 head 采样
       - id: 3
-        name: test_build_probe_payload_keeps_all_entities
-        description: head payload 保留全 entity；日历=probe_slice_count×slice_open_days
+        name: test_annotate_keeps_all_entities_and_full_calendar
+        description: annotate 保留全 entity 与完整日历，只打 head 采样标记
       - id: 4
-        name: test_annotate_preserves_full_calendar
-        description: annotate 保留完整日历，只打 head 采样标记
+        name: test_annotate_preserves_point_count
+        description: annotate 保留 timeline_point_count
       - id: 5
         name: test_extract_slice_probe_metrics_from_runtime_plan
         description: 从 runtime plan 提取 head 片指标

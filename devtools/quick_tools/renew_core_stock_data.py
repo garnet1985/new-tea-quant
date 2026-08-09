@@ -138,7 +138,7 @@ def _recreate_modified_tables() -> None:
 
 def _execute_sources(keys: tuple[str, ...], *, force: bool = False) -> None:
     from core.modules.data_manager import DataManager
-    from core.modules.data_source.data_source_manager import DataSourceManager
+    from core.modules.data_source import DataSourceManager
 
     DataManager(is_verbose=True).initialize()
     mgr = DataSourceManager(is_verbose=True)

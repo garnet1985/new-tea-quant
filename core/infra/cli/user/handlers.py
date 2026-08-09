@@ -191,7 +191,7 @@ class UserHandlers:
         force = bool(getattr(args, "force", False))
 
         if source and source.lower() == "list":
-            from core.modules.data_source.data_source_manager import DataSourceManager
+            from core.modules.data_source import DataSourceManager
 
             logger.info("%s", DataSourceManager.format_renew_targets_help())
             return

@@ -66,7 +66,7 @@ class ScanJob:
 
     @classmethod
     def page_context(cls) -> Dict[str, Any]:
-        from core.modules.data_source.catalog.freshness_probe import get_data_end_meta
+        from core.modules.data_source.core.catalog.freshness_probe import get_data_end_meta
 
         data_end: Dict[str, Any] = {}
         demo_scan_cutoff_date = ""

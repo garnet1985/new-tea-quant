@@ -29,7 +29,7 @@ if str(REPO_ROOT) not in sys.path:
 
 logger = logging.getLogger(__name__)
 
-from core.modules.data_source.service.sample_stock_list import DEFAULT_SAMPLE_N
+from core.modules.data_source.core.service.sample_stock_list import DEFAULT_SAMPLE_N
 
 DEFAULT_SOURCE = "stock_klines"
 
@@ -42,7 +42,7 @@ def _configure_logging(verbose: bool) -> None:
     )
     if verbose:
         logging.getLogger("core.modules.data_source").setLevel(logging.INFO)
-        logging.getLogger("core.modules.data_source.service.pipeline").setLevel(logging.INFO)
+        logging.getLogger("core.modules.data_source.core.service.pipeline").setLevel(logging.INFO)
 
 
 def _apply_sample_env(n: int, offset: int) -> None:
@@ -90,7 +90,7 @@ def main() -> int:
     _configure_logging(args.verbose)
     _apply_sample_env(args.n, args.offset)
 
-    from core.modules.data_source.data_source_manager import DataSourceManager
+    from core.modules.data_source import DataSourceManager
 
     mgr = DataSourceManager(is_verbose=args.verbose)
     count = _stock_list_count()

@@ -20,7 +20,7 @@ import json
 
 from core.infra.project_context import ProjectContext
 
-from core.modules.data_source.service.provider_helper import DataSourceProviderHelper
+from core.modules.data_source.core.service.provider_helper import DataSourceProviderHelper
 from .. import BaseDataService
 from core.infra.utils import Utils
 

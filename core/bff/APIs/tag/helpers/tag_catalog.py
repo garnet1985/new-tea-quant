@@ -20,7 +20,7 @@ class TagCatalog:
         limit: int,
     ) -> Tuple[List[Dict[str, Any]], int, Dict[str, Any]]:
         """Paginated tag scenarios; ``page`` is 1-based, sorted by ``name``."""
-        from core.modules.data_source.catalog.freshness_probe import get_data_end_meta
+        from core.modules.data_source.core.catalog.freshness_probe import get_data_end_meta
 
         discovered = DiscoveryService.discover_tags()
         ordered = sorted(discovered, key=lambda d: str(d.id()))

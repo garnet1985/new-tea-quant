@@ -81,7 +81,7 @@ class ScanDateResolver:
                     f"（get_real_world_latest_completed_trading_date → {raw_anchor or '空'}）"
                 )
             else:
-                from core.modules.data_source.catalog.freshness_probe import (
+                from core.modules.data_source.core.catalog.freshness_probe import (
                     _resolve_freshness_end_date,
                 )
 

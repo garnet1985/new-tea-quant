@@ -488,7 +488,7 @@ class DataAdjFactorEventModel(DbBaseModel):
         import pandas as pd
 
         from core.infra.project_context import ProjectContext
-        from core.modules.data_source.service.sample_stock_list import (
+        from core.modules.data_source.core.service.sample_stock_list import (
             pool_stock_ids,
             sample_pool_count,
         )

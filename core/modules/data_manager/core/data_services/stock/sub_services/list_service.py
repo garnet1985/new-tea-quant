@@ -447,7 +447,7 @@ class ListService(BaseDataService):
 
     @staticmethod
     def _apply_sample_pool(stocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        from core.modules.data_source.service.sample_stock_list import slice_stock_list
+        from core.modules.data_source.core.service.sample_stock_list import slice_stock_list
 
         return slice_stock_list(stocks)
 

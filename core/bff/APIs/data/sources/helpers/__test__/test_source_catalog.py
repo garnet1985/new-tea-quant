@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.modules.data_source.catalog.provider_probe import (
+from core.modules.data_source.core.catalog.provider_probe import (
     min_rate_limit_per_minute,
     probe_provider_auth_configured,
     resolve_api_rate_limit_per_minute,

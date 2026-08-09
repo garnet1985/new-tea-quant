@@ -1,53 +1,45 @@
 # Data Source 架构文档
 
-**版本：** `0.3.6`
+**模块：** `modules.data_source` · **版本：** `0.4.0`
 
 ---
 
 ## 模块介绍
 
-`modules.data_source` 将「抓取第三方数据并落入项目表」拆为：**配置发现**（`DataSourceManager`）→ **Provider 池**（userspace 包扫描）→ **Handler 实例**（每 key 一个实现类）→ **执行调度**（`DataSourceExecutionScheduler`：拓扑序、依赖注入、失败重试）。单表 schema 以 **`DataManager`** 绑定表的 **`load_schema()`** 为唯一来源。
+将「抓取第三方数据并落入项目表」拆为：**配置发现**（`DataSourceManager`）→ **Provider 池** → **Handler 实例** → **执行调度**（拓扑序、依赖注入）。单表 schema 以 **`DataManager`** 绑定表的 **`load_schema()`** 为唯一来源。
+
+公开 Facade：**`DataSourceManager`**。
 
 ---
 
-## 模块目标
+## 分层结构
 
-- 用 **mapping + CONFIG** 描述启用项与 handler 路径，避免硬编码列表。
-- **串行满足跨数据源依赖**；单数据源内部可有 **ApiJob** 拓扑与限流执行（见 `service/`）。
-- 与 **DB 表** 强绑定，输出字段与类型可校验。
+```text
+modules.data_source/
+├── __init__.py                 # 仅 DataSourceManager
+├── contracts.py                # BaseProvider / BaseHandler / ApiJob*
+├── core/
+│   ├── data_source_manager.py  # Facade 实现
+│   ├── execution_scheduler.py
+│   ├── enums.py / reserved_dependencies.py
+│   ├── base_class / data_class / catalog / service / dev /
+│   └── **/__test__/            # 实现测就近
+├── docs/
+└── __test__/                   # 公开 API 契约测
+```
 
----
+| 层 | 职责 |
+| --- | --- |
+| Facade | `DataSourceManager`：renew / execute / 发现 |
+| 调度 | `DataSourceExecutionScheduler`：拓扑序执行 |
+| Handler / Provider | userspace 实现 + `core/base_class` |
+| service | 日期范围、管线、持久化、样本池等 |
 
-## 工作拆分
-
-- **`DataSourceManager`**：发现 mapping、加载各 `config.py`、解析 schema、反射加载 Handler 类并 `create_handler_instance`、发现全部 Provider。
-- **`DataSourceExecutionScheduler`**：对 handler 列表拓扑排序、按序 `execute`、合并依赖数据源返回值、失败收集与后处理。
-- **`BaseHandler`**：同步管线（`on_before_run`、预处理、执行 API 批次、标准化、保存等，见源码）。
-- **`BaseProvider`**：第三方 API 封装与认证、声明式限流元数据。
-- **`service/`**：`manager_helper`、`provider_helper`、`handler_helper`、`api_job_executor`（单 bundle 内 ApiJob）、`pipeline/`（多 bundle → 私有线程队列）、**renew** 子包等。
-
----
-
-## 依赖说明
-
-见 `module_info.yaml`。
-
----
-
-## 模块职责与边界
-
-**职责（In scope）**
-
-- 配置发现、handler/provider 生命周期、调度与持久化钩子。
-
-**边界（Out of scope）**
-
-- 不负责 **`DataKey` 契约**（见 **`modules.data_contract`**）。
-- 不实现具体券商/实盘下单。
+日期范围由 **`DateRangeService` + `date_range_helper` + `RenewCommonHelper`** 计算。
 
 ---
 
-## 架构 / 流程图
+## 流程
 
 ```mermaid
 flowchart TB
@@ -64,8 +56,15 @@ flowchart TB
 
 ---
 
+## 边界
+
+**In scope：** 配置发现、handler/provider 生命周期、调度与持久化钩子  
+**Out of scope：** `DataKey` 契约（`data_contract`）；实盘下单
+
+---
+
 ## 相关文档
 
-- [DESIGN.md](DESIGN.md)
-- [API.md](API.md)
-- [DECISIONS.md](DECISIONS.md)
+- [DESIGN.md](./DESIGN.md)
+- [API.md](../API.md)
+- [glossary.yaml](../glossary.yaml)

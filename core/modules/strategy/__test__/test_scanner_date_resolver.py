@@ -70,7 +70,7 @@ def test_anchor_clamps_to_kline_latest(monkeypatch: pytest.MonkeyPatch) -> None:
         return "20240110"
 
     monkeypatch.setattr(
-        "core.modules.data_source.catalog.freshness_probe._resolve_freshness_end_date",
+        "core.modules.data_source.core.catalog.freshness_probe._resolve_freshness_end_date",
         _fake_freshness,
     )
     meta = ScanDateResolver.resolve_anchor_meta(dm, use_strict=False)
@@ -93,7 +93,7 @@ def test_non_strict_meta_mentions_data_json(monkeypatch: pytest.MonkeyPatch) -> 
         return "20240110"
 
     monkeypatch.setattr(
-        "core.modules.data_source.catalog.freshness_probe._resolve_freshness_end_date",
+        "core.modules.data_source.core.catalog.freshness_probe._resolve_freshness_end_date",
         _fake_freshness,
     )
     monkeypatch.setattr(

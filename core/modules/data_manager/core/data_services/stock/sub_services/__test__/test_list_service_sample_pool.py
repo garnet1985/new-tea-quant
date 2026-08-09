@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 from core.modules.data_manager.core.data_services.stock.sub_services.list_service import (
     ListService,
 )
-from core.modules.data_source.service import sample_stock_list as mod
+from core.modules.data_source.core.service import sample_stock_list as mod
 
 
 def test_load_all_applies_sample_pool(monkeypatch, tmp_path):

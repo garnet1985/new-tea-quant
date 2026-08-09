@@ -4,22 +4,22 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.modules.data_source.enums import UpdateMode
-from core.modules.data_source.catalog.builtin_keys import BUILTIN_SOURCE_KEYS
-from core.modules.data_source.catalog.display_names import DEFAULT_DISPLAY_NAMES
-from core.modules.data_source.catalog.freshness_probe import (
+from core.modules.data_source.core.enums import UpdateMode
+from core.modules.data_source.core.catalog.builtin_keys import BUILTIN_SOURCE_KEYS
+from core.modules.data_source.core.catalog.display_names import DEFAULT_DISPLAY_NAMES
+from core.modules.data_source.core.catalog.freshness_probe import (
     evaluate_update_status,
     get_data_end_meta,
     get_data_end_meta_light,
 )
-from core.modules.data_source.catalog.provider_probe import (
+from core.modules.data_source.core.catalog.provider_probe import (
     min_rate_limit_per_minute,
     summarize_provider_auth,
 )
-from core.modules.data_source.data_class.config import DataSourceConfig
-from core.modules.data_source.data_source_manager import DataSourceManager
+from core.modules.data_source.core.data_class.config import DataSourceConfig
+from core.modules.data_source import DataSourceManager
 from core.modules.data_manager import DataManager
-from core.modules.data_source.service.provider_helper import DataSourceProviderHelper
+from core.modules.data_source.core.service.provider_helper import DataSourceProviderHelper
 
 _RENEW_TYPE_LABELS: Dict[str, str] = {
     UpdateMode.INCREMENTAL.value: "增量",

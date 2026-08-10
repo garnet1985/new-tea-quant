@@ -14,7 +14,7 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TextIO
+from typing import Any, Dict, List, Mapping, Optional, TextIO
 
 from core.infra.cmd_layout import CmdLayout
 from core.infra.project_context import ProjectContext
@@ -216,7 +216,132 @@ class ReportManager(BaseReportManager):
             performance_path=performance_path,
         )
         self._saved_artifacts = artifacts
+        self._trace_feature_run()
         return artifacts
+
+    def _trace_feature_run(self) -> None:
+        snap = self.profiler._snapshot
+        if snap is None:
+            return
+        mode = str(getattr(snap.dispatch, "mode", "") or "").strip().lower()
+        if mode not in {"entity_based", "slice_based"}:
+            try:
+                mode = (
+                    str(RuntimeEnv.load(self.output_dir).execution_mode or "")
+                    .strip()
+                    .lower()
+                    or "unknown"
+                )
+            except Exception:
+                mode = "unknown"
+        success = True
+        if self._finalize_run_result is not None:
+            success = bool(getattr(self._finalize_run_result, "success", True))
+
+        glance: Dict[str, Any] = {}
+        planner: Dict[str, Any] = {}
+        try:
+            perf = self.profiler.load()
+            glance = dict(perf.get("quick_summary") or {})
+            planner = dict(perf.get("planner") or {})
+        except Exception:
+            pass
+
+        dispatch = self._trace_dispatch_fields(mode=mode, planner=planner, snap=snap)
+        time_dist = self._trace_time_distribution(glance.get("time_distribution"))
+        capacity = glance.get("process_capacity")
+        if not isinstance(capacity, dict):
+            capacity = None
+
+        self.trace_feature_run(
+            action="strategy.enumerate",
+            key=str(self.strategy_key or ""),
+            mode=mode,
+            success=success,
+            elapsed_seconds=float(snap.elapsed_seconds or 0.0),
+            entity_count=int(snap.entity_count or 0),
+            job_count=int(snap.completed_jobs or snap.total_jobs or 0),
+            execute_elapsed_seconds=float(snap.execute_elapsed_seconds or 0.0),
+            parallelism=glance.get("parallelism"),
+            parallelism_efficiency=glance.get("parallelism_efficiency"),
+            process_capacity=capacity,
+            time_distribution=time_dist,
+            dispatch=dispatch,
+        )
+
+    @staticmethod
+    def _trace_time_distribution(raw: Any) -> Optional[Dict[str, Any]]:
+        if not isinstance(raw, dict):
+            return None
+        out: Dict[str, Any] = {}
+        for key in ("planning", "read", "load_data", "compute", "report"):
+            block = raw.get(key)
+            if not isinstance(block, dict):
+                continue
+            try:
+                sec = float(block.get("sec") or 0.0)
+                pct = float(block.get("pct") or 0.0)
+            except (TypeError, ValueError):
+                continue
+            out[key] = {"sec": round(sec, 4), "pct": round(pct, 2)}
+        return out or None
+
+    @staticmethod
+    def _trace_dispatch_fields(
+        *,
+        mode: str,
+        planner: Mapping[str, Any],
+        snap: Any,
+    ) -> Dict[str, Any]:
+        plan = planner if isinstance(planner, Mapping) else {}
+        disp = getattr(snap, "dispatch", None)
+        out: Dict[str, Any] = {}
+        if mode == "slice_based":
+            out["reader_workers"] = int(
+                plan.get("reader_workers")
+                or getattr(disp, "reader_workers", 0)
+                or 0
+            )
+            out["compute_workers"] = int(
+                plan.get("compute_workers")
+                or plan.get("compute_processes")
+                or getattr(disp, "compute_processes", 0)
+                or 0
+            )
+            out["slice_count"] = int(
+                plan.get("total_slices")
+                or plan.get("dispatch_jobs")
+                or getattr(disp, "dispatch_jobs", 0)
+                or 0
+            )
+            out["queue_capacity"] = int(
+                plan.get("max_queue")
+                or plan.get("queue_capacity")
+                or getattr(disp, "queue_capacity", 0)
+                or 0
+            )
+            out["slice_open_days"] = int(
+                plan.get("slice_open_days")
+                or getattr(disp, "slice_open_days", 0)
+                or 0
+            )
+        else:
+            out["workers"] = int(
+                plan.get("max_workers") or getattr(disp, "max_workers", 0) or 0
+            )
+            out["entities_per_job"] = int(
+                plan.get("entities_per_job")
+                or getattr(disp, "entities_per_job", 0)
+                or 0
+            )
+            out["job_batches"] = int(
+                plan.get("dispatch_jobs") or getattr(disp, "dispatch_jobs", 0) or 0
+            )
+        probe = plan.get("probe") if isinstance(plan.get("probe"), Mapping) else {}
+        binding = str(probe.get("binding_constraint") or "").strip()
+        if binding:
+            out["binding"] = binding[:32]
+        return out
 
     def finalize(
         self,

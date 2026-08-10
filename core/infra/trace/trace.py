@@ -4,19 +4,19 @@ from __future__ import annotations
 
 from typing import Any, Mapping, Optional, Union
 
-from .contracts import FlushBudget, TraceConfig, TraceConsent, TraceEvent
+from .contracts import SendBudget, TraceConfig, TraceConsent, TraceEvent
 from .core.defaults import TraceDefaults
 from .core.namespaces import ConfigNamespace, ConsentNamespace
 from .core.services.drain_service import TraceDrainService
-from .core.services.flush_service import TraceFlushService
 from .core.services.permission_service import TracePermissionService
+from .core.services.send_service import TraceSendService
 from .core.services.track_service import TraceTrackService
 
 
 class TypesNamespace:
     """与 ``contracts`` / ``defaults`` 同源的类型挂载点。"""
 
-    FlushBudget = FlushBudget
+    SendBudget = SendBudget
     TraceConsent = TraceConsent
     TraceConfig = TraceConfig
     TraceEvent = TraceEvent
@@ -51,17 +51,22 @@ class Trace:
 
     @staticmethod
     def track(event: str, body: Optional[Mapping[str, Any]] = None) -> None:
-        """Enqueue one event to the local file queue (no network I/O)."""
+        """Build one event and POST immediately; on failure enqueue for retry."""
         TraceTrackService.track(event, body)
 
     @staticmethod
-    def flush(*, budget: Optional[Union[str, FlushBudget]] = None) -> int:
+    def queue(event: str, body: Optional[Mapping[str, Any]] = None) -> None:
+        """Enqueue one event to the local file queue (no network I/O)."""
+        TraceTrackService.queue(event, body)
+
+    @staticmethod
+    def send(*, budget: Optional[Union[str, SendBudget]] = None) -> int:
         """
         Drain the local queue under a time/count budget.
 
         budget: ``standard`` (1s/5), ``extreme`` (2s/10), or ``None``/``auto``.
         """
-        return TraceFlushService.flush(budget=budget)
+        return TraceSendService.send(budget=budget)
 
     @staticmethod
     def start_background_drain() -> None:

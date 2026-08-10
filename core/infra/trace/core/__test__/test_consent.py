@@ -55,6 +55,35 @@ def test_track_is_noop_without_consent(
     consent_env: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from core.infra.trace import Trace
+    from core.infra.trace.core.services import client_service, queue_service
+
+    posts = []
+    enqueued = []
+    monkeypatch.setattr(
+        client_service.TraceClientService,
+        "post",
+        staticmethod(lambda *a, **k: posts.append(True) or True),
+    )
+    monkeypatch.setattr(
+        queue_service.TraceQueueService,
+        "enqueue",
+        staticmethod(lambda event, **kwargs: enqueued.append(event) or True),
+    )
+
+    Trace.track("install.complete", {"success": True})
+    assert posts == []
+    assert enqueued == []
+
+    Trace.consent.grant(source="test")
+    Trace.track("install.complete", {"success": True})
+    assert len(posts) == 1
+    assert enqueued == []
+
+
+def test_queue_enqueues_with_consent(
+    consent_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from core.infra.trace import Trace
     from core.infra.trace.core.services import queue_service
 
     enqueued = []
@@ -64,11 +93,8 @@ def test_track_is_noop_without_consent(
         staticmethod(lambda event, **kwargs: enqueued.append(event) or True),
     )
 
-    Trace.track("install.complete", {"success": True})
-    assert enqueued == []
-
     Trace.consent.grant(source="test")
-    Trace.track("install.complete", {"success": True})
+    Trace.queue("install.complete", {"success": True})
     assert len(enqueued) == 1
 
 

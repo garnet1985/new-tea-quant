@@ -53,7 +53,7 @@ class UserRunner:
         try:
             from core.infra.trace import Trace
 
-            Trace.flush(budget="auto")
+            Trace.send(budget="auto")
         except Exception:
             pass
 

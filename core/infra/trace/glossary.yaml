@@ -54,7 +54,9 @@ terms:
     avoid: []
 
   budget:
-    definition: "flush 时间与条数上限；standard=1s/5，extreme=2s/10。"
+    definition: "send 时间与条数上限；standard=1s/5，extreme=2s/10。"
     aliases:
+      - "SendBudget"
+    avoid:
       - "FlushBudget"
-    avoid: []
+      - "flush"

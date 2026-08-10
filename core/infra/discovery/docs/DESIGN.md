@@ -1,6 +1,6 @@
 # Discovery 详细设计
 
-**版本：** `0.4.0`
+**版本：** `0.2.1`
 
 实现向细节；鸟瞰与边界见 [ARCHITECTURE.md](./ARCHITECTURE.md)。公开入口见根目录 [API.md](../API.md)。
 

@@ -1,6 +1,6 @@
 # CLI API 文档
 
-**版本：** `0.4.2`  
+**版本：** `0.3.0`  
 **最低支持核心版本：** `>=0.4.1`
 
 > 须与 `module_info.yaml` 的 `version` / `compatible_core_versions` 一致。  

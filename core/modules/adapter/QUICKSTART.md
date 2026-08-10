@@ -1,6 +1,6 @@
 # Adapter — 快速开始
 
-**模块：** `modules.adapter` · **版本：** `0.3.0`
+**模块：** `modules.adapter` · **版本：** `0.2.0`
 
 ---
 

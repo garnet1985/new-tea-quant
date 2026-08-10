@@ -1,6 +1,6 @@
 # Discovery — 架构
 
-**版本：** `0.4.0`
+**版本：** `0.2.1`
 
 统一发现基础设施：门面 `Discovery` + 实现包 `core/`。词条见 [glossary.yaml](../glossary.yaml)。
 

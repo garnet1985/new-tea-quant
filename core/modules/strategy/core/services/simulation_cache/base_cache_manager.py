@@ -117,7 +117,7 @@ class BaseCacheManager(ABC):
         sn = str(strategy_name or "").strip()
         if not sn or model is None:
             return
-        cap = int(cls.max_rows)
+        cap = int(cls.resolve_max_rows())
         try:
             rows = model.list_versions_asc(sn, limit=cap + 50)
         except Exception:
@@ -136,6 +136,13 @@ class BaseCacheManager(ABC):
                 )
                 break
             rows = rows[1:]
+
+    @classmethod
+    def resolve_max_rows(cls) -> int:
+        """保留行数：读 ``data.json`` retention.workbench_db_max_versions（缺则报错）。"""
+        from core.infra.project_context import ProjectContext
+
+        return ProjectContext.config.get_workbench_db_max_versions()
 
 
 __all__ = ["BaseCacheManager"]

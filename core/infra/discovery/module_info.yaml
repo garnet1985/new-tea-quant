@@ -1,22 +1,20 @@
 # 模块元数据
 name: infra.discovery
-version: "0.4.0"
+version: "0.2.1"
 compatible_core_versions: ">=0.4.0"
-description: "扩展发现基础设施：门面 Discovery（file / discover / class_discovery）；契约在 contracts。"
+description: "发现模块：自动发现一些带有特征的文件/类/文件夹的模块，用来服务于用户自定义的功能文件和类。"
 dependencies: []
 changelog:
-  - version: "0.4.0"
+  - version: "0.2.1"
     changes:
-      - 文档对齐 module-doc-standard：根 API.md / QUICKSTART / TEST_CASES.md；contracts.py
-      - 删除 api.yaml、docs/API.md、docs/DECISIONS.md（决策并入 DESIGN）；公开 API 状态最高 beta
-  - version: "0.3.0"
+      - 标准化模块，标准化文档以及对外API
+      - 修改了暴露的API参数，函数，防止外部模块直接调用包内非公开接口
+      - 正式版本之前所有API标注beta状态
+  - version: "0.1.1"
     changes:
       - 新增 FileUtils（单个文件操作）
       - 新增 FileDiscovery（批量文件发现）
-      - 完善架构：Utils（原子）→ Discovery（批量）；门面 namespace API
-  - version: "0.2.0"
-    changes:
-      - ClassDiscovery 包扫描；data_source Provider / handler 发现基线
   - version: "0.1.0"
     changes:
       - 初始化模块，完成基础功能
+      - 快捷发现文件/类/文件夹等，方便外部调用

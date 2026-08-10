@@ -1,6 +1,6 @@
 # Data Manager 设计说明
 
-**模块：** `modules.data_manager` · **版本：** `0.4.0`
+**模块：** `modules.data_manager` · **版本：** `0.2.0`
 
 API 以根目录 [API.md](../API.md) 为准。实现以 `core/data_manager.py` 为准。
 

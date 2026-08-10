@@ -1,6 +1,6 @@
 # 命令行布局 — 设计
 
-**版本：** `0.4.1`
+**版本：** `0.1.2`
 
 记录跨平台 ASCII 默认、门面导出与图标回退等选型。术语见 [glossary.yaml](../glossary.yaml)。相关：[ARCHITECTURE.md](./ARCHITECTURE.md)
 

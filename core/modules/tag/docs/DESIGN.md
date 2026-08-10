@@ -1,6 +1,6 @@
 # Tag 设计说明
 
-**模块：** `modules.tag` · **版本：** `0.5.0`
+**模块：** `modules.tag` · **版本：** `0.4.0`
 
 硬约束摘要见下文；更长边界笔记见 [notes/BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)。
 

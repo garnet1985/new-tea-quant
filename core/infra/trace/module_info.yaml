@@ -1,21 +1,16 @@
 name: infra.trace
-version: 0.2.0
+version: 0.1.0
 compatible_core_versions: ">=0.4.1"
-description: "匿名 usage trace：本地文件队列 + 预算 flush，向 New Tea 接收端上报。"
+description: "使用追踪模块：追踪一些重要事件的模块，用于改善用户体验，统计分析错误的模块。"
 dependencies:
   - infra.project_context
 changelog:
-  - version: "0.2.0"
-    changes:
-      - 对齐 CORE_MODULE_STANDARDS：根 API.md / QUICKSTART / TEST_CASES.md；contracts __all__
-      - 删除 api.yaml、docs/API.md、docs/DECISIONS.md（并入 DESIGN.md）；公开 API 最高 beta
-  - version: "0.1.1"
-    changes:
-      - "整理为 contracts + core/services；仅导出 Facade Trace（静态 API）"
-  - version: "0.1.0"
-    changes:
-      - "初始 Trace Facade：track / flush / config / BFF background drain"
-      - "本地 queue + installation_id；敏感字段白名单；失败静默"
   - version: "0.1.0"
     changes:
       - 初始化模块，完成基础功能
+      - 标准化模块，标准化文档以及对外API
+      - 修改了暴露的API参数，函数，防止外部模块直接调用包内非公开接口
+      - 正式版本之前所有API标注beta状态
+      - 提供trace.track()用于追踪一些重要事件
+      - 提供trace.flush()用于将追踪事件上报到服务器
+      - 提供trace.config()用于配置追踪相关参数

@@ -420,6 +420,37 @@ class Strategy:
         return int(out.get("deleted_count") or 0)
 
     @staticmethod
+    def prune_simulation_results(
+        key_or_id: str,
+        *,
+        kind: Optional[str] = None,
+        max_versions: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """按 retention 清理策略 ``results/simulations/{kind}/`` 旧版本目录。
+
+        ``kind`` 为 ``enum`` / ``price`` / ``portfolio``（或 enumerate/price_factor）；
+        ``None`` 表示三步都 prune。上限默认读 ``data.json`` retention。
+        """
+        from .services.results_retention import ResultsRetention
+
+        return ResultsRetention.prune_simulation_results(
+            key_or_id, kind=kind, max_versions=max_versions
+        )
+
+    @staticmethod
+    def prune_scan_results(
+        key_or_id: str,
+        *,
+        max_versions: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """按 retention 清理策略 ``results/scan/`` 旧日期版本。"""
+        from .services.results_retention import ResultsRetention
+
+        return ResultsRetention.prune_scan_results(
+            key_or_id, max_versions=max_versions
+        )
+
+    @staticmethod
     def export_package(
         target: str,
         *,

@@ -13,7 +13,7 @@ import logging
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Union
+from typing import List, Optional, Union
 
 from core.infra.project_context import ProjectContext
 from core.modules.strategy.core.engines.shared.data_class.opportunity import Opportunity
@@ -28,12 +28,24 @@ class ScanCacheManager:
 
     ``strategy_root`` must be the discovered strategy folder (absolute Path preferred).
     Relative strings still resolve under ``userspace/strategies/`` for bootstrap.
+
+    ``max_cache_days``：保留的日期版本数上限。``None`` 时读
+    ``data.json`` ``retention.scan_results_max_versions``（缺则报错）。
     """
 
     strategy_root: Union[str, Path]
-    max_cache_days: int = 10
+    max_cache_days: Optional[int] = None
 
     def __post_init__(self) -> None:
+        if self.max_cache_days is None:
+            self.max_cache_days = (
+                ProjectContext.config.get_scan_results_max_versions()
+            )
+        else:
+            value = int(self.max_cache_days)
+            if value < 1:
+                raise ValueError(f"max_cache_days 必须 >= 1，收到: {value}")
+            self.max_cache_days = value
         self.cache_base_dir = ProjectContext.path.get_strategy_scan_results_directory(
             self.strategy_root
         )

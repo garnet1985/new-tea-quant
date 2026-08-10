@@ -1,6 +1,6 @@
 # Data Contract 架构文档
 
-**模块：** `modules.data_contract` · **版本：** `0.6.0`
+**模块：** `modules.data_contract` · **版本：** `0.4.0`
 
 ---
 

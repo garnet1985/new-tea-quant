@@ -1,6 +1,6 @@
 # Adapter 设计说明
 
-**版本：** `0.3.0`
+**版本：** `0.2.0`
 
 userspace 扩展布局、动态加载、`process` 上下文，以及与 `AdapterDispatcher` 的协作。
 

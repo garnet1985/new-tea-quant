@@ -86,7 +86,7 @@ class SimulationCacheManager(BaseCacheManager):
     """
 
     table_name: ClassVar[str] = "sys_strategy_workbench_snapshot"
-    max_rows: ClassVar[int] = 50
+    max_rows: ClassVar[int] = 50  # 仅作文档/历史；prune 一律读 data.json retention
 
     @classmethod
     def get_cache(

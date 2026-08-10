@@ -1,6 +1,6 @@
 # Data Source 设计说明
 
-**模块：** `modules.data_source` · **版本：** `0.4.0`
+**模块：** `modules.data_source` · **版本：** `0.2.0`
 
 API 以根目录 [API.md](../API.md) 为准。实现以 `core/data_source_manager.py`、`core/service/manager_helper.py` 为准。
 

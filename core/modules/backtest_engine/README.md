@@ -1,6 +1,6 @@
 # Backtest Engine
 
-**模块：** `modules.backtest_engine` · **版本：** `0.4.0`
+**模块：** `modules.backtest_engine` · **版本：** `0.2.0`
 
 回测调度 Facade：对 tag / strategy 提供 **probe → plan → execute → monitor** 流水线。数据装载由调用方经 `RunCallbacks` 注入，engine 不读业务 DB。
 

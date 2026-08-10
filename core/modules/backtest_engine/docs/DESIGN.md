@@ -1,6 +1,6 @@
 # Backtest Engine — 设计说明
 
-**模块：** `modules.backtest_engine` · **版本：** `0.4.0`
+**模块：** `modules.backtest_engine` · **版本：** `0.2.0`
 
 API 与行为以根目录 [API.md](../API.md) 为准。
 

@@ -61,6 +61,8 @@ TaskCompleteFn = Callable[["JobContext"], None]
 TickFn = Callable[["JobContext", str, int], None]
 TicksCompleteFn = Callable[["JobContext", Any], Any]
 ExecuteFn = Callable[["JobContext"], Any]
+# slice_based 探针/预读装数（由调用方注入；BE 不依赖 strategy）
+LoadPerEntityWindowFn = Callable[..., Dict[str, Any]]
 
 
 @dataclass
@@ -71,6 +73,9 @@ class RunCallbacks:
 
     日历推进：``on_tick`` 可选（缺省空转 + warning 一次）；
     ``on_ticks_complete`` 可选（全部 tick 后结算，返回 dict 并入 worker 结果）。
+
+    slice_based：须注入 ``load_per_entity_window``（探针 + SliceReaderPool）；
+    entity_based 可忽略。
     """
 
     # ── 主进程 ──
@@ -85,6 +90,9 @@ class RunCallbacks:
     # ── 日历推进 ──
     on_tick: Optional[TickFn] = None
     on_ticks_complete: Optional[TicksCompleteFn] = None
+
+    # ── slice 数据面（调用方提供，如 JobBundleLoader.load_per_entity_window）──
+    load_per_entity_window: Optional[LoadPerEntityWindowFn] = None
 
 
 @dataclass

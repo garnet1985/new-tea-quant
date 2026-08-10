@@ -59,24 +59,31 @@ class SliceProbe:
         jobs: List[Dict[str, Any]],
         *,
         min_required: int,
+        load_per_entity_window: Any = None,
     ) -> float:
         """Load W_probe open days for all entities; return ``probe_mb``.
 
         Uses ``max(RSS Δ, walked payload MB)``. Timings are logged only —
         never used for initial N (SOT §2).
+
+        ``load_per_entity_window`` 由调用方注入（通常
+        ``JobBundleLoader.load_per_entity_window``）。
         """
         if not jobs:
             raise ValueError("measure_probe_mb requires non-empty jobs")
+        if load_per_entity_window is None:
+            raise ValueError(
+                "measure_probe_mb requires load_per_entity_window "
+                "(via RunCallbacks.load_per_entity_window)"
+            )
         payload = BacktestJob.from_dict(jobs[0]).payload
         start, end, width = cls._probe_window_bounds(payload, min_required=min_required)
         entity_n = cls._entity_count(payload)
 
-        from core.modules.strategy.contracts import JobBundleLoader
-
         gc.collect()
         rss0 = cls._process_rss_mb()
         t0 = time.perf_counter()
-        contracts = JobBundleLoader.load_per_entity_window(
+        contracts = load_per_entity_window(
             payload,
             start=start,
             end=end,

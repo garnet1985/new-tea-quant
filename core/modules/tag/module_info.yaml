@@ -20,6 +20,7 @@ changelog:
       - "依赖穿透治理（不 bump）：module_info 补全 modules.strategy / infra.discovery / infra.utils"
       - "依赖穿透治理（不 bump）：BE Mode/Job 改 contracts；Performance 走 Facade；strategy 协作面走 contracts/Facade；去掉 TagDataService 深路径类型注解"
       - "依赖穿透治理（不 bump）：公开 Tag.is_valid_path（供 system_actions 脚手架）"
+      - "打破 BE↔strategy 循环（不 bump）：slice RunCallbacks 注入 load_per_entity_window"
   - version: "0.4.2"
     changes:
       - non_time_series：TagNonTimeSeriesPipeline 主进程一次计算（不走 BE）

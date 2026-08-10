@@ -77,7 +77,8 @@ result = BacktestEngine.entity_based.run(
 |------|------|
 | `BacktestJob` / `BacktestMode` | job 契约与模式枚举 |
 | `JobContext` | 单次 task 作用域 |
-| `RunCallbacks` | `on_tick` / `on_before_task_start` / `on_task_result` 等 |
+| `RunCallbacks` | `on_tick` / `on_before_task_start` / `on_task_result`；slice 另需 `load_per_entity_window` |
+| `LoadPerEntityWindowFn` | slice 按窗装数回调类型 |
 | `RunProgress` / `JobReport` | 进度与单 job 报告 |
 | `Timeline` / `TimelineInput` | 日历轴发布与读取 |
 | `EntityMonitorStats` / `WorkerTaskPerf` | 调度监控与 worker 性能快照类型 |
@@ -85,7 +86,7 @@ result = BacktestEngine.entity_based.run(
 
 Job 校验：`BacktestJob.validate_many(jobs, mode=...)` — entity_based 需 `entity_specified`；slice_based 需 `entity_ids` + `timeline_point_count`。
 
-**依赖说明：** slice_based 探针/预读经 `strategy.contracts.JobBundleLoader` 装数（`module_info` 已声明 `modules.strategy`）。
+**依赖说明：** slice_based 探针/预读装数由调用方经 `RunCallbacks.load_per_entity_window` 注入（如 strategy/tag 的 `JobBundleLoader.load_per_entity_window`）；BE 不依赖 `modules.strategy`。
 
 ---
 

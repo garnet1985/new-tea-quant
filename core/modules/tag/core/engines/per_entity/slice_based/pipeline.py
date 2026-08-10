@@ -106,6 +106,7 @@ class TagSlicePipeline:
                 on_tick=base_cb.on_tick,
                 on_ticks_complete=base_cb.on_ticks_complete,
                 on_task_result=TagPipelineHooks.on_task_result,
+                load_per_entity_window=base_cb.load_per_entity_window,
             )
 
             logger.info(

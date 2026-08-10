@@ -11,7 +11,11 @@ from core.modules.backtest_engine.core.shared.context import ExecutionContext
 from core.modules.backtest_engine.core.shared.duckdb_executor_scope import (
     execute_with_duckdb_process_pool_scope,
 )
-from core.modules.backtest_engine.core.shared.types import TaskCompleteFn, TaskStartFn
+from core.modules.backtest_engine.core.shared.types import (
+    LoadPerEntityWindowFn,
+    TaskCompleteFn,
+    TaskStartFn,
+)
 from core.modules.backtest_engine.core.schedule.slice_based.executor import SliceExecutor
 from core.modules.backtest_engine.core.schedule.slice_based.planner import (
     SliceDispatchPlan,
@@ -35,6 +39,7 @@ class SliceExecutorDuckDB(SliceExecutor):
         *,
         data_mgr: Optional[Any] = None,
         progress_reporter: Optional[Any] = None,
+        load_per_entity_window: Optional[LoadPerEntityWindowFn] = None,
         duckdb_process_pool_scope: str = "auto",
         duckdb_resume_main_after_pool: bool = True,
     ) -> SliceExecutor.ExecutionResult:
@@ -56,6 +61,7 @@ class SliceExecutorDuckDB(SliceExecutor):
             on_after_task_complete=on_after_task_complete,
             log_label=log_label,
             progress_reporter=progress_reporter,
+            load_per_entity_window=load_per_entity_window,
         )
 
 

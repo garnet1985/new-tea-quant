@@ -12,6 +12,7 @@ from core.modules.backtest_engine.core.shared.modes import BacktestMode
 from core.modules.backtest_engine.core.shared.progress import RunPhase, RunProgressReporter
 from core.modules.backtest_engine.core.shared.types import (
     JobReport,
+    LoadPerEntityWindowFn,
     RunProgress,
     TaskCompleteFn,
     TaskStartFn,
@@ -66,6 +67,7 @@ class SliceExecutePipeline:
         on_after_task_complete: Optional[TaskCompleteFn] = None,
         on_after_all_tasks_complete: Optional[Callable[[List[JobReport]], None]] = None,
         on_task_result: Optional[SliceExecutor.OnResultHook] = None,
+        load_per_entity_window: Optional[LoadPerEntityWindowFn] = None,
         enable_progress_display: bool = True,
     ) -> SliceExecutePipeline.Result:
         label = task_name or self._log_label
@@ -88,6 +90,7 @@ class SliceExecutePipeline:
             performance,
             execute_fn=execute_fn,
             log_label=self._log_label,
+            load_per_entity_window=load_per_entity_window,
         )
         execute_units = plan.dispatch_jobs if plan.dispatch_jobs > 0 else len(batches)
         progress.set_execute_total(execute_units)
@@ -144,6 +147,7 @@ class SliceExecutePipeline:
             on_after_task_complete=on_after_task_complete,
             log_label=self._log_label,
             progress_reporter=progress,
+            load_per_entity_window=load_per_entity_window,
             duckdb_process_pool_scope=str(
                 performance.get("duckdb_process_pool_scope", "auto")
             ),

@@ -80,6 +80,11 @@ def test_entity_based_empty_jobs_returns_success() -> None:
     assert result.total_jobs == 0
 
 
+def _stub_load_per_entity_window(payload, *, start, end, perf=None):
+    _ = (payload, start, end, perf)
+    return {}
+
+
 def test_slice_based_bulk_job_embeds_slice_plan() -> None:
     jobs = [
         {
@@ -97,7 +102,11 @@ def test_slice_based_bulk_job_embeds_slice_plan() -> None:
             start="20240102",
             end="20240103",
             timeline=["20240102", "20240103"],
-            callbacks=RunCallbacks(on_tick=_noop_on_tick),
+            performance={"probe_mb": 12.0},
+            callbacks=RunCallbacks(
+                on_tick=_noop_on_tick,
+                load_per_entity_window=_stub_load_per_entity_window,
+            ),
         )
     assert result.success is True
     assert result.total_jobs == 1

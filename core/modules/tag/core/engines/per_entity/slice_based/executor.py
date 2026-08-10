@@ -249,6 +249,7 @@ class TagSliceJobExecutor:
             on_before_task_start=cls.on_before_task_start,
             on_tick=cls.on_tick,
             on_ticks_complete=cls.on_ticks_complete,
+            load_per_entity_window=JobBundleLoader.load_per_entity_window,
         )
 
     @classmethod

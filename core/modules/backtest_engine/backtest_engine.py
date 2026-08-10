@@ -263,6 +263,7 @@ class BacktestEngine:
                 on_after_task_complete=resolved_callbacks.on_after_task_complete,
                 on_after_all_tasks_complete=resolved_callbacks.on_after_all_tasks_complete,
                 on_task_result=resolved_callbacks.on_task_result,
+                load_per_entity_window=resolved_callbacks.load_per_entity_window,
                 enable_progress_display=enable_progress_display,
             )
             return BacktestEngine.RunResult.from_slice_based(pipeline_result)

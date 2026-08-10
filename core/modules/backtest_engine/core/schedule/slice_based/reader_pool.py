@@ -12,9 +12,11 @@ import time
 from collections import OrderedDict
 from concurrent.futures import Future, ProcessPoolExecutor
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+LoadPerEntityWindowFn = Callable[..., Dict[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -42,9 +44,11 @@ class SliceReaderPool:
         *,
         reader_workers: int,
         queue_depth: int,
+        load_per_entity_window: Optional[LoadPerEntityWindowFn] = None,
     ) -> None:
         self.reader_workers = max(0, int(reader_workers))
         self.queue_depth = max(0, int(queue_depth))
+        self._load_per_entity_window = load_per_entity_window
         self._executor: Optional[ProcessPoolExecutor] = None
         self._loading: Dict[str, Future] = {}
         self._ready: "OrderedDict[str, SliceWindowResult]" = OrderedDict()
@@ -52,7 +56,12 @@ class SliceReaderPool:
         self._shutdown = False
 
     @classmethod
-    def from_plan(cls, plan: Any) -> "SliceReaderPool":
+    def from_plan(
+        cls,
+        plan: Any,
+        *,
+        load_per_entity_window: Optional[LoadPerEntityWindowFn] = None,
+    ) -> "SliceReaderPool":
         return cls(
             reader_workers=int(getattr(plan, "reader_workers", 0) or 0),
             queue_depth=int(
@@ -60,7 +69,16 @@ class SliceReaderPool:
                 or getattr(plan, "queue_capacity", 0)
                 or 0
             ),
+            load_per_entity_window=load_per_entity_window,
         )
+
+    def _require_loader(self) -> LoadPerEntityWindowFn:
+        if self._load_per_entity_window is None:
+            raise RuntimeError(
+                "SliceReaderPool 未注入 load_per_entity_window "
+                "(via RunCallbacks.load_per_entity_window)"
+            )
+        return self._load_per_entity_window
 
     @property
     def uses_process_pool(self) -> bool:
@@ -237,11 +255,13 @@ class SliceReaderPool:
     def _submit(self, payload: Dict[str, Any], key: SliceWindowKey) -> Future:
         assert self._executor is not None
         reader_payload = self.payload_for_reader(payload)
+        load_fn = self._require_loader()
         fut = self._executor.submit(
             SliceReaderPool._worker_load,
             reader_payload,
             key.start,
             key.end,
+            load_fn,
         )
         self._loading[key.as_id()] = fut
         return fut
@@ -380,18 +400,15 @@ class SliceReaderPool:
             out[str(data_key)] = contract
         return out
 
-    @classmethod
     def _load_sync(
-        cls,
+        self,
         payload: Dict[str, Any],
         *,
         start: str,
         end: str,
         perf: Any = None,
     ) -> Dict[str, Any]:
-        from core.modules.strategy.contracts import JobBundleLoader
-
-        return JobBundleLoader.load_per_entity_window(
+        return self._require_loader()(
             payload,
             start=start,
             end=end,
@@ -403,17 +420,17 @@ class SliceReaderPool:
         payload: Dict[str, Any],
         start: str,
         end: str,
+        load_per_entity_window: LoadPerEntityWindowFn,
     ) -> Dict[str, Any]:
         """Process-pool entry: bootstrap RO DataManager → load window → wire blob."""
         from core.modules.backtest_engine.core.shared.worker_data_runtime import (
             bootstrap_worker_data_manager,
         )
-        from core.modules.strategy.contracts import JobBundleLoader
 
         bootstrap_worker_data_manager()
         t0 = time.perf_counter()
         try:
-            contracts = JobBundleLoader.load_per_entity_window(
+            contracts = load_per_entity_window(
                 payload,
                 start=start,
                 end=end,

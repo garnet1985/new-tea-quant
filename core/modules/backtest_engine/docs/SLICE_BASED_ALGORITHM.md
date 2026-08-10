@@ -106,13 +106,13 @@ N       = clamp(N_ideal, 0, N_max)
 
 | 谁 | 职责 |
 |----|------|
-| **BE** | 探针、§4/§5 plan、`SliceReaderPool`、`SliceOrchestrator`（窗切分 / lookback 装载 / prefetch / 进度 / 活队列 N）、多进程按片调度 |
-| **Strategy** | task 开头 `load_globals`；按日业务 / asof；只消费 `init["entity_contracts"]`；**不**驱动装载 / reader / queue / 进度 |
+| **BE** | 探针、§4/§5 plan、`SliceReaderPool`、`SliceOrchestrator`（窗切分 / lookback 装载 / prefetch / 进度 / 活队列 N）、多进程按片调度；装数经注入回调 |
+| **Strategy / Tag** | 经 `RunCallbacks.load_per_entity_window` 注入按片装数；task 开头 `load_globals`；按日业务 / asof；只消费 `init["entity_contracts"]`；**不**驱动 reader / queue / 进度 |
 
-Strategy 装载入口（挂在 `JobBundleLoader` 类上，供 BE reader 调用）：
+调用方装载入口（常见实现：`JobBundleLoader`，经 `RunCallbacks` 注入 BE）：
 
-- `load_globals(payload)` — task 开头；shm 常驻  
-- `load_per_entity_window(payload, start=, end=)` — 每个正式片一次 DB 读（含 lookback）；由 BE `SliceReaderPool` 调用  
+- `load_globals(payload)` — task 开头；shm 常驻（callback / executor）  
+- `load_per_entity_window(payload, start=, end=)` — 每个正式片一次 DB 读（含 lookback）；由 BE `SliceReaderPool` 调用注入函数  
 - `load(payload)` — **仅** entity_based 全窗路径  
 
 算法入口：`SliceMemoryPlanner`（类方法），见 `core/schedule/slice_based/slice_width.py`。  

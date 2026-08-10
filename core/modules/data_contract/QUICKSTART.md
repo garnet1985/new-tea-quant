@@ -16,5 +16,5 @@ data = contract.get_data()
 ```
 
 ```bash
-NTQ_TESTS_ENABLED=1 python -m pytest core/modules/data_contract/__test__/test_api.py -q
+python3 -m pytest core/modules/data_contract/__test__/test_api.py -q
 ```

@@ -2,7 +2,7 @@
 
 from .bundle import export_strategy_bundle, import_strategy_bundle, preview_strategy_bundle_import
 from .filenames import bundle_filename, parse_export_target, single_entity_filename
-from .package_cli import run_export, run_strategy_bundle_import
+from .package_cli import PackageCli
 from .resolver import resolve_strategy_bundle_specs
 from .single import export_single_entity, resolve_single_entity_spec
 
@@ -15,7 +15,6 @@ __all__ = [
     "preview_strategy_bundle_import",
     "resolve_single_entity_spec",
     "resolve_strategy_bundle_specs",
-    "run_export",
-    "run_strategy_bundle_import",
+    "PackageCli",
     "single_entity_filename",
 ]

@@ -17,7 +17,7 @@ from core.modules.strategy.core.engines.shared.services.simulation_output.file_n
 from core.modules.strategy.core.engines.shared.services.simulation_output.paths import (
     ArtifactPaths,
 )
-from core.modules.strategy.core.enums import WorkbenchStep
+from core.modules.strategy.contracts import WorkbenchStep
 from core.bff.APIs.strategy.helpers.report_hydrate import (
     attach_enum_opportunities_field,
     hydrate_enum_slot,

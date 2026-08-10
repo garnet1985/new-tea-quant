@@ -27,7 +27,7 @@ class CacheCleanup:
         *, strategy_names: Optional[Iterable[str]] = None
     ) -> List[Path]:
         """Discovered strategy roots (absolute). Optional filter by key or relative path."""
-        from core.modules.strategy.core.services.discovery import DiscoveryService
+        from core.modules.strategy import Strategy
 
         if strategy_names is not None:
             allowed = sorted(
@@ -35,15 +35,15 @@ class CacheCleanup:
             )
             folders: List[Path] = []
             seen: set[str] = set()
-            infos = list(DiscoveryService.discover_strategies())
+            infos = Strategy.list_strategy_infos()
             for name in allowed:
                 matched = False
                 for info in infos:
                     if name in (
-                        str(info.unique_relative_path or "").strip(),
-                        str(info.key or "").strip(),
+                        str(info.get("unique_relative_path") or "").strip(),
+                        str(info.get("key") or "").strip(),
                     ):
-                        folder = info.resolved_folder()
+                        folder = Path(str(info["folder"]))
                         key = str(folder)
                         if key not in seen:
                             seen.add(key)
@@ -51,7 +51,7 @@ class CacheCleanup:
                         matched = True
                         break
                 if not matched:
-                    folder = ProjectContext.path.coerce_strategy_folder(name)
+                    folder = Strategy.resolve_folder(name)
                     key = str(folder)
                     if key not in seen:
                         seen.add(key)
@@ -60,8 +60,8 @@ class CacheCleanup:
 
         out: List[Path] = []
         seen_all: set[str] = set()
-        for info in DiscoveryService.discover_strategies():
-            folder = info.resolved_folder()
+        for info in Strategy.list_strategy_infos():
+            folder = Path(str(info["folder"]))
             key = str(folder)
             if key not in seen_all:
                 seen_all.add(key)
@@ -71,14 +71,9 @@ class CacheCleanup:
     @staticmethod
     def clear_workbench_db_cache() -> int:
         """清空 ``sys_strategy_workbench_snapshot`` 表。返回删除行数。"""
-        from core.modules.strategy.core.services.workbench_cache_clear import (
-            WorkbenchCacheClear,
-        )
+        from core.modules.strategy import Strategy
 
-        out = WorkbenchCacheClear.clear_all()
-        if not out.get("ok"):
-            raise RuntimeError(str(out.get("error") or "存储不可用"))
-        return int(out.get("deleted_count") or 0)
+        return Strategy.clear_workbench_cache()
 
     @staticmethod
     def clear_backtest_results_disk(

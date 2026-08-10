@@ -16,7 +16,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Dict, FrozenSet, List, Tuple
 
-from core.modules.backtest_engine.core.shared.modes import BacktestMode
+from core.modules.backtest_engine.contracts import BacktestMode
 from .meta_settings import MetaSettings
 from .data_settings import DataSettings
 from .sampling_settings import SamplingSettings

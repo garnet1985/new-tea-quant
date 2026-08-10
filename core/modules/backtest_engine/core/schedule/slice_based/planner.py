@@ -111,6 +111,7 @@ class SlicePlanner(BasePlanner):
         execute_fn: Optional[Callable[[JobContext], Dict[str, Any]]] = None,
         executor: Optional[str] = None,
         log_label: str = "切片调度",
+        load_per_entity_window: Optional[Callable[..., Dict[str, Any]]] = None,
     ) -> Tuple[SliceDispatchPlan, List[SliceJobBatch], SliceMonitorConfig]:
         """Skeleton plan before execute.
 
@@ -145,18 +146,23 @@ class SlicePlanner(BasePlanner):
                 resolved_performance[key] = performance[key]
 
         if SliceProbe.needs_memory_probe(resolved_performance):
-            try:
-                resolved_performance["probe_mb"] = SliceProbe.measure_probe_mb(
-                    jobs,
-                    min_required=min_required,
-                )
-            except Exception as exc:
-                # Do not fall back to a tiny default MB/day — that inflates width
-                # (e.g. 5000 entities → hundreds of open days per slice).
-                logger.error("%s内存探针失败: %s", log_label, exc)
-                raise SliceWidthError(
-                    f"slice 内存探针失败，拒绝用默认单价规划片宽: {exc}"
-                ) from exc
+            if not jobs:
+                # 无 job 时不探针；后续走默认 mb_per_open_day
+                pass
+            else:
+                try:
+                    resolved_performance["probe_mb"] = SliceProbe.measure_probe_mb(
+                        jobs,
+                        min_required=min_required,
+                        load_per_entity_window=load_per_entity_window,
+                    )
+                except Exception as exc:
+                    # Do not fall back to a tiny default MB/day — that inflates width
+                    # (e.g. 5000 entities → hundreds of open days per slice).
+                    logger.error("%s内存探针失败: %s", log_label, exc)
+                    raise SliceWidthError(
+                        f"slice 内存探针失败，拒绝用默认单价规划片宽: {exc}"
+                    ) from exc
 
         try:
             mem_plan = cls._resolve_memory_plan(

@@ -1,17 +1,31 @@
 # glossary — modules.adapter
 # Version: 0.3.0
 
-Adapter:
-  description: "模块 Facade：校验 userspace opportunity adapter"
-  recommended_terms: [Adapter, Facade]
-  forbidden_terms: [validate_adapter]
-  example: |
-    from core.modules.adapter import Adapter
-    Adapter.validate("console")
+terms:
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面类是 Adapter。"
+    aliases:
+      - "门面"
+    avoid:
+      - "deep-import core.base_adapter / core.adapter_validator"
 
-BaseOpportunityAdapter:
-  description: "userspace adapter 须继承的基类"
-  recommended_terms: [BaseOpportunityAdapter]
-  forbidden_terms: []
-  example: |
-    from core.modules.adapter.contracts import BaseOpportunityAdapter
+  Adapter:
+    definition: "本模块门面类；公开静态方法 validate / load_class。"
+    aliases: []
+    avoid:
+      - "validate_adapter"
+
+  BaseOpportunityAdapter:
+    definition: "userspace adapter 须继承的基类；须实现 process(opportunities, context)。"
+    aliases:
+      - "contracts.BaseOpportunityAdapter"
+    avoid:
+      - "自行回读 strategy 模拟产物"
+
+  userspace_adapter_path:
+    definition: "userspace/extensions/adapters/<name>/adapter.py；导入路径 userspace.extensions.adapters.<name>.adapter。"
+    aliases:
+      - "AdapterLoader"
+    avoid:
+      - "userspace.adapters.*"
+      - "userspace/adapters/"

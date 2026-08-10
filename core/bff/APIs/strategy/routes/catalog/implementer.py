@@ -1,30 +1,26 @@
 """Catalog implementer: discovery → page DTO for FED.
 
-Calls ``DiscoveryService.discover_strategies`` (strategy core); pagination / row
-shaping stay in BFF.
+Calls ``Strategy.list_strategy_infos``; pagination / row shaping stay in BFF.
 """
 
 from __future__ import annotations
 
 from typing import Any, Dict, List, Sequence, Tuple
 
+from core.modules.strategy import Strategy
+
 
 class StrategyCatalogImplementer:
-    def __init__(self) -> None:
-        self._DiscoveryService = None
-
     def lazy_load(self) -> "StrategyCatalogImplementer":
-        if self._DiscoveryService is None:
-            from core.modules.strategy.core.services.discovery import DiscoveryService
-            self._DiscoveryService = DiscoveryService
         return self
 
     def list_strategies(
         self, page: int, limit: int
     ) -> Tuple[List[Dict[str, Any]], int]:
-        assert self._DiscoveryService is not None
-        discovered = self._DiscoveryService.discover_strategies()
-        ordered = sorted(discovered, key=lambda info: str(info.id()))
+        discovered = Strategy.list_strategy_infos(enabled_only=False)
+        ordered = sorted(
+            discovered, key=lambda info: str(info.get("unique_relative_path") or "")
+        )
         total = len(ordered)
         if total == 0:
             return [], 0
@@ -35,10 +31,9 @@ class StrategyCatalogImplementer:
         chunk = ordered[start : start + limit]
         return [self._summary(info) for info in chunk], total
 
-    def _summary(self, info: Any) -> Dict[str, Any]:
-        meta = info.settings.get("meta") if isinstance(info.settings, dict) else {}
-        if not isinstance(meta, dict):
-            meta = {}
+    def _summary(self, info: Dict[str, Any]) -> Dict[str, Any]:
+        settings = info.get("settings") if isinstance(info.get("settings"), dict) else {}
+        meta = settings.get("meta") if isinstance(settings.get("meta"), dict) else {}
 
         details = None
         raw_details = meta.get("details")
@@ -55,14 +50,13 @@ class StrategyCatalogImplementer:
                 if not details["entry"]:
                     details = None
 
-        hooks_class = info.hooks_class
         return {
-            "key": str(info.key or "").strip(),
-            "name": str(info.id()),
-            "display_name": str(info.display_name or "").strip(),
-            "is_enabled": bool(info.is_enabled),
-            "worker_class_name": hooks_class.__name__ if hooks_class is not None else "",
-            "folder": str(info.folder),
+            "key": str(info.get("key") or "").strip(),
+            "name": str(info.get("unique_relative_path") or "").strip(),
+            "display_name": str(info.get("display_name") or "").strip(),
+            "is_enabled": bool(info.get("is_enabled")),
+            "worker_class_name": str(info.get("hooks_class_name") or "").strip(),
+            "folder": str(info.get("folder") or "").strip(),
             "description": self._coerce_meta_text(meta.get("description")),
             "keywords": self._keywords(meta.get("keywords")),
             "details": details,

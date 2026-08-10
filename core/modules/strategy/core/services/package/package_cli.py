@@ -1,4 +1,4 @@
-"""CLI helpers for strategy share bundle export / import."""
+"""策略交流包 CLI 入口（类方法；供 infra.cli 调用）。"""
 
 from __future__ import annotations
 
@@ -21,219 +21,227 @@ from .single import export_single_entity
 logger = logging.getLogger(__name__)
 
 
-def default_export_dir() -> Path:
-    """Prefer userspace/; fall back to project root when userspace is absent."""
-    us = ProjectContext.path.get_userspace_root()
-    if us.is_dir():
-        return us
-    return ProjectContext.path.get_project_root()
+class PackageCli:
+    """策略包导出 / 导入 CLI 编排。"""
 
+    @staticmethod
+    def default_export_dir() -> Path:
+        """Prefer userspace/; fall back to project root when userspace is absent."""
+        us = ProjectContext.path.get_userspace_root()
+        if us.is_dir():
+            return us
+        return ProjectContext.path.get_project_root()
 
-def default_export_path(mode: str, name: str) -> Path:
-    if mode == "bundle":
-        filename = bundle_filename(name)
-    else:
-        filename = single_entity_filename(mode, name)
-    return default_export_dir() / filename
+    @staticmethod
+    def default_export_path(mode: str, name: str) -> Path:
+        if mode == "bundle":
+            filename = bundle_filename(name)
+        else:
+            filename = single_entity_filename(mode, name)
+        return PackageCli.default_export_dir() / filename
 
+    @staticmethod
+    def resolve_import_policy(
+        *, force: bool, skip_existing: bool
+    ) -> ExportImport.types.ConflictPolicy:
+        if force and skip_existing:
+            raise ValueError("cannot combine -f with --skip-existing")
+        if force:
+            return ExportImport.types.ConflictPolicy.OVERWRITE
+        if skip_existing:
+            return ExportImport.types.ConflictPolicy.SKIP_EXISTING
+        return ExportImport.types.ConflictPolicy.REJECT
 
-def resolve_import_policy(
-    *, force: bool, skip_existing: bool
-) -> ExportImport.types.ConflictPolicy:
-    if force and skip_existing:
-        raise ValueError("cannot combine -f with --skip-existing")
-    if force:
-        return ExportImport.types.ConflictPolicy.OVERWRITE
-    if skip_existing:
-        return ExportImport.types.ConflictPolicy.SKIP_EXISTING
-    return ExportImport.types.ConflictPolicy.REJECT
+    @staticmethod
+    def run_export(
+        target: str,
+        output_path: Optional[Union[str, Path]] = None,
+    ) -> int:
+        """Dispatch bundle or single-entity export based on target syntax."""
+        try:
+            mode, name = parse_export_target(target)
+        except ValueError as exc:
+            logger.error("导出失败：%s", exc)
+            return 1
 
+        if mode == "bundle":
+            return PackageCli.run_strategy_bundle_export(name, output_path=output_path)
+        return PackageCli.run_single_entity_export(mode, name, output_path=output_path)
 
-def _finalize_export_output(out: Path, manifest, payload) -> None:
-    if not isinstance(payload, Path):
-        out.write_bytes(bytes(payload))
-    elif payload.resolve() != out.resolve():
-        out.write_bytes(payload.read_bytes())
-    _clear_macos_xattrs(out)
-    kinds = ", ".join(sorted({e.kind for e in manifest.entries}))
-    logger.info("已导出: %s", out.resolve())
-    logger.info("制品: %s | 条目数: %d", kinds, len(manifest.entries))
-    logger.info(
-        "提示: 请用 ``cli.py -i <文件>`` 或 ``unzip -l <文件>`` 查看/导入；"
-        "勿在 Finder 里双击 zip（iCloud 桌面下 Archive Utility 易异常）。"
-    )
+    @staticmethod
+    def run_strategy_bundle_export(
+        strategy_name: str,
+        output_path: Optional[Union[str, Path]] = None,
+    ) -> int:
+        """Export strategy share bundle (strategy + resolved dependencies)."""
+        name = str(strategy_name or "").strip()
+        if not name:
+            logger.error("导出失败：请提供策略名称（例: cli.py -e example）")
+            return 1
 
-
-def run_strategy_bundle_export(
-    strategy_name: str,
-    output_path: Optional[Union[str, Path]] = None,
-) -> int:
-    """Export strategy share bundle (strategy + resolved dependencies)."""
-    name = str(strategy_name or "").strip()
-    if not name:
-        logger.error("导出失败：请提供策略名称（例: cli.py -e example）")
-        return 1
-
-    out = Path(output_path) if output_path else default_export_path("bundle", name)
-    try:
-        manifest, payload = export_strategy_bundle(name, output_path=out)
-    except FileNotFoundError as exc:
-        logger.error("导出失败：%s", exc)
-        return 1
-    except ValueError as exc:
-        logger.error("导出失败：%s", exc)
-        return 1
-    except Exception as exc:
-        logger.error("导出失败：%s", exc)
-        return 1
-
-    _finalize_export_output(out, manifest, payload)
-    logger.info("策略包: %s", name)
-    return 0
-
-
-def run_single_entity_export(
-    kind: str,
-    name: str,
-    output_path: Optional[Union[str, Path]] = None,
-) -> int:
-    """Export a single strategy, tag, or adapter directory."""
-    out = Path(output_path) if output_path else default_export_path(kind, name)
-    try:
-        manifest, payload = export_single_entity(kind, name, output_path=out)
-    except FileNotFoundError as exc:
-        logger.error("导出失败：%s", exc)
-        return 1
-    except ValueError as exc:
-        logger.error("导出失败：%s", exc)
-        return 1
-    except Exception as exc:
-        logger.error("导出失败：%s", exc)
-        return 1
-
-    _finalize_export_output(out, manifest, payload)
-    logger.info("单实体: %s:%s", kind, name)
-    return 0
-
-
-def run_export(
-    target: str,
-    output_path: Optional[Union[str, Path]] = None,
-) -> int:
-    """Dispatch bundle or single-entity export based on target syntax."""
-    try:
-        mode, name = parse_export_target(target)
-    except ValueError as exc:
-        logger.error("导出失败：%s", exc)
-        return 1
-
-    if mode == "bundle":
-        return run_strategy_bundle_export(name, output_path=output_path)
-    return run_single_entity_export(mode, name, output_path=output_path)
-
-
-def _log_import_preview(preview: dict) -> None:
-    strategy_name = preview.get("strategy_name") or preview.get("entity_name") or "?"
-    bundle_type = preview.get("bundle_type") or "?"
-    logger.info(
-        "包类型: %s | 主实体: %s | 策略: %s",
-        bundle_type,
-        preview.get("entity_name"),
-        strategy_name,
-    )
-    logger.info("冲突策略: %s", preview.get("policy"))
-
-    for row in preview.get("items") or []:
-        status = row.get("status")
-        label = f"{row.get('kind')} {row.get('name')}"
-        if status == "will_install":
-            logger.info("  将安装: %s", label)
-        elif status == "exists_skip":
-            logger.info("  已存在，跳过: %s", label)
-        elif status == "conflict":
-            logger.error("  冲突: %s → userspace/%s", label, row.get("target_relative"))
-
-
-def run_strategy_bundle_import(
-    package_path: Union[str, Path],
-    *,
-    force: bool = False,
-    skip_existing: bool = False,
-    dry_run: bool = False,
-) -> int:
-    """Import a bundle archive. Returns process exit code."""
-    path = Path(package_path)
-    if not path.is_file():
-        logger.error("导入失败：找不到包文件 %s", path)
-        return 1
-
-    try:
-        policy = resolve_import_policy(force=force, skip_existing=skip_existing)
-    except ValueError as exc:
-        logger.error("导入失败：%s", exc)
-        return 1
-
-    try:
-        blob = path.read_bytes()
-        preview = preview_strategy_bundle_import(blob, policy=policy)
-    except Exception as exc:
-        logger.error("导入失败：无法读取或解析包 — %s", exc)
-        return 1
-
-    _log_import_preview(preview)
-
-    if dry_run:
-        if preview.get("ok"):
-            logger.info("预览完成（--dry-run，未写入磁盘）")
-            return 0
-        logger.error("预览失败：存在冲突（可用 -f 覆盖或 --skip-existing 跳过已有）")
-        return 1
-
-    if not preview.get("ok"):
-        logger.error("导入失败：目标路径已存在（使用 -f 覆盖或 --skip-existing 跳过）")
-        return 1
-
-    try:
-        result = import_strategy_bundle(blob, policy)
-    except Exception as exc:
-        logger.error("导入失败：%s", exc)
-        return 1
-
-    if not result.ok:
-        for err in result.errors:
-            logger.error("  %s", err)
-        return 1
-
-    name = preview.get("strategy_name") or preview.get("entity_name") or "?"
-    logger.info(
-        "导入完成: %s → %s",
-        name,
-        ProjectContext.path.get_userspace_root().resolve(),
-    )
-    if result.skipped:
-        skipped = ", ".join(f"{e.kind}:{e.name}" for e in result.skipped)
-        logger.info("已跳过（本机已存在）: %s", skipped)
-    return 0
-
-
-def _clear_macos_xattrs(path: Path) -> None:
-    """Remove Finder metadata xattrs that can confuse Archive Utility on local zips."""
-    try:
-        subprocess.run(
-            ["xattr", "-c", str(path)],
-            check=False,
-            capture_output=True,
+        out = (
+            Path(output_path)
+            if output_path
+            else PackageCli.default_export_path("bundle", name)
         )
-    except Exception:
-        pass
+        try:
+            manifest, payload = export_strategy_bundle(name, output_path=out)
+        except FileNotFoundError as exc:
+            logger.error("导出失败：%s", exc)
+            return 1
+        except ValueError as exc:
+            logger.error("导出失败：%s", exc)
+            return 1
+        except Exception as exc:
+            logger.error("导出失败：%s", exc)
+            return 1
+
+        PackageCli._finalize_export_output(out, manifest, payload)
+        logger.info("策略包: %s", name)
+        return 0
+
+    @staticmethod
+    def run_single_entity_export(
+        kind: str,
+        name: str,
+        output_path: Optional[Union[str, Path]] = None,
+    ) -> int:
+        """Export a single strategy, tag, or adapter directory."""
+        out = (
+            Path(output_path)
+            if output_path
+            else PackageCli.default_export_path(kind, name)
+        )
+        try:
+            manifest, payload = export_single_entity(kind, name, output_path=out)
+        except FileNotFoundError as exc:
+            logger.error("导出失败：%s", exc)
+            return 1
+        except ValueError as exc:
+            logger.error("导出失败：%s", exc)
+            return 1
+        except Exception as exc:
+            logger.error("导出失败：%s", exc)
+            return 1
+
+        PackageCli._finalize_export_output(out, manifest, payload)
+        logger.info("单实体: %s:%s", kind, name)
+        return 0
+
+    @staticmethod
+    def run_strategy_bundle_import(
+        package_path: Union[str, Path],
+        *,
+        force: bool = False,
+        skip_existing: bool = False,
+        dry_run: bool = False,
+    ) -> int:
+        """Import a bundle archive. Returns process exit code."""
+        path = Path(package_path)
+        if not path.is_file():
+            logger.error("导入失败：找不到包文件 %s", path)
+            return 1
+
+        try:
+            policy = PackageCli.resolve_import_policy(
+                force=force, skip_existing=skip_existing
+            )
+        except ValueError as exc:
+            logger.error("导入失败：%s", exc)
+            return 1
+
+        try:
+            blob = path.read_bytes()
+            preview = preview_strategy_bundle_import(blob, policy=policy)
+        except Exception as exc:
+            logger.error("导入失败：无法读取或解析包 — %s", exc)
+            return 1
+
+        PackageCli._log_import_preview(preview)
+
+        if dry_run:
+            if preview.get("ok"):
+                logger.info("预览完成（--dry-run，未写入磁盘）")
+                return 0
+            logger.error("预览失败：存在冲突（可用 -f 覆盖或 --skip-existing 跳过已有）")
+            return 1
+
+        if not preview.get("ok"):
+            logger.error("导入失败：目标路径已存在（使用 -f 覆盖或 --skip-existing 跳过）")
+            return 1
+
+        try:
+            result = import_strategy_bundle(blob, policy)
+        except Exception as exc:
+            logger.error("导入失败：%s", exc)
+            return 1
+
+        if not result.ok:
+            for err in result.errors:
+                logger.error("  %s", err)
+            return 1
+
+        name = preview.get("strategy_name") or preview.get("entity_name") or "?"
+        logger.info(
+            "导入完成: %s → %s",
+            name,
+            ProjectContext.path.get_userspace_root().resolve(),
+        )
+        if result.skipped:
+            skipped = ", ".join(f"{e.kind}:{e.name}" for e in result.skipped)
+            logger.info("已跳过（本机已存在）: %s", skipped)
+        return 0
+
+    @staticmethod
+    def _finalize_export_output(out: Path, manifest, payload) -> None:
+        if not isinstance(payload, Path):
+            out.write_bytes(bytes(payload))
+        elif payload.resolve() != out.resolve():
+            out.write_bytes(payload.read_bytes())
+        PackageCli._clear_macos_xattrs(out)
+        kinds = ", ".join(sorted({e.kind for e in manifest.entries}))
+        logger.info("已导出: %s", out.resolve())
+        logger.info("制品: %s | 条目数: %d", kinds, len(manifest.entries))
+        logger.info(
+            "提示: 请用 ``cli.py -i <文件>`` 或 ``unzip -l <文件>`` 查看/导入；"
+            "勿在 Finder 里双击 zip（iCloud 桌面下 Archive Utility 易异常）。"
+        )
+
+    @staticmethod
+    def _log_import_preview(preview: dict) -> None:
+        strategy_name = preview.get("strategy_name") or preview.get("entity_name") or "?"
+        bundle_type = preview.get("bundle_type") or "?"
+        logger.info(
+            "包类型: %s | 主实体: %s | 策略: %s",
+            bundle_type,
+            preview.get("entity_name"),
+            strategy_name,
+        )
+        logger.info("冲突策略: %s", preview.get("policy"))
+
+        for row in preview.get("items") or []:
+            status = row.get("status")
+            label = f"{row.get('kind')} {row.get('name')}"
+            if status == "will_install":
+                logger.info("  将安装: %s", label)
+            elif status == "exists_skip":
+                logger.info("  已存在，跳过: %s", label)
+            elif status == "conflict":
+                logger.error(
+                    "  冲突: %s → userspace/%s", label, row.get("target_relative")
+                )
+
+    @staticmethod
+    def _clear_macos_xattrs(path: Path) -> None:
+        """Remove Finder metadata xattrs that can confuse Archive Utility on local zips."""
+        try:
+            subprocess.run(
+                ["xattr", "-c", str(path)],
+                check=False,
+                capture_output=True,
+            )
+        except Exception:
+            pass
 
 
-__all__ = [
-    "default_export_dir",
-    "default_export_path",
-    "resolve_import_policy",
-    "run_export",
-    "run_single_entity_export",
-    "run_strategy_bundle_export",
-    "run_strategy_bundle_import",
-]
+__all__ = ["PackageCli"]

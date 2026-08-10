@@ -117,15 +117,13 @@ class ReportManager(BaseReportManager):
             elif getattr(info, "folder", None) is not None:
                 folder = Path(info.folder)
             else:
-                from core.infra.project_context import ProjectContext
-
                 folder = ProjectContext.path.coerce_strategy_folder(
                     strategy_path or strategy_key
                 )
         if folder is None or not str(folder):
             raise ValueError("strategy_folder 不能为空")
 
-        root = ProjectContext.path.get_strategy_simulation_portfolio(folder)
+        root = ProjectContext.path.get_strategy_simulation_portfolio_directory(folder)
         output_dir, version_id = SimulationOutputRecorder.allocate_version_dir(
             strategy_path or strategy_key or str(folder),
             root,

@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from core.modules.data_manager import DataManager
 from core.modules.indicator import Indicator
-from core.modules.strategy.core.enums import WorkbenchStep
+from core.modules.strategy.contracts import WorkbenchStep
 from core.infra.utils import Utils
 from core.modules.strategy.core.engines.price_factor.report_manager.investments import (
     EntityInvestments,

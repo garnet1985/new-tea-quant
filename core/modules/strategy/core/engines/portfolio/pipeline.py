@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
-from core.modules.market_profile.core.markets import create_market_rules
+from core.modules.market_profile import MarketRulesProxy
 from core.modules.strategy.core.engines.shared.services.simulation_output import (
     EntityInvestmentCsv,
 )
@@ -177,7 +177,7 @@ class PortfolioPipeline:
         ).apply(events, opportunities)
 
         fee_calculator = FeeCalculator.from_fees(settings)
-        market_rules = create_market_rules(report.market_profile)
+        market_rules = MarketRulesProxy.for_market(report.market_profile)
         allocation = AllocationStrategy.create(
             settings=settings,
             market_rules=market_rules,

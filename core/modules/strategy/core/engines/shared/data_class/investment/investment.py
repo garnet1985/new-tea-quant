@@ -143,7 +143,7 @@ class Investment(Opportunity):
     ) -> "Investment":
         """从机会创建 Investment，初始 ``PENDING_TO_ENTER``（尚未成交）。"""
         from core.infra.project_context import ProjectContext
-        from core.modules.market_profile.core.markets import create_market_rules
+        from core.modules.market_profile import MarketRulesProxy
 
         profile = str(
             opportunity.market_profile or ProjectContext.config.get_default_market_profile_key()
@@ -151,7 +151,7 @@ class Investment(Opportunity):
         opportunity.market_profile = profile
         opportunity.stamp_status_at_trigger(status_tags_provider=status_tags_provider)
         settings.apply_defaults()
-        market_rules = create_market_rules(profile)
+        market_rules = MarketRulesProxy.for_market(profile)
         holding = HoldingState()
         expiration = settings.goal.expiration
         if expiration is not None:
@@ -726,11 +726,9 @@ class Investment(Opportunity):
         if not stock_meta or not trade_date:
             return False
         # 与 ListService 一致：Tushare 等源的 0 / 0.0 视为无退市日
-        from core.modules.data_manager.data_services.stock.sub_services.list_service import (
-            ListService,
-        )
+        from core.modules.data_manager import DataManager
 
-        delist = ListService._normalize_delist_date(
+        delist = DataManager.normalize_delist_date(
             stock_meta.get("delist_date") or stock_meta.get("delisted_date")
         )
         if not delist:

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from core.modules.strategy.core.enums import WorkbenchStep
-from core.modules.strategy.core.services.discovery import DiscoveryService
+from core.modules.strategy import Strategy
+from core.modules.strategy.contracts import WorkbenchStep
 
 
 class StrategyRunnerImplementer:
@@ -37,7 +37,7 @@ class StrategyRunnerImplementer:
 
     @staticmethod
     def resolve_strategy_name(strategy_key_or_name: str) -> str:
-        return DiscoveryService.resolve_strategy_path(strategy_key_or_name)
+        return Strategy.resolve(strategy_key_or_name)
 
     @staticmethod
     def normalize_step(step: str) -> Optional[str]:
@@ -53,7 +53,7 @@ class StrategyRunnerImplementer:
         force_refresh: bool,
     ) -> Dict[str, Any]:
         assert self._WorkbenchRunLauncher is not None
-        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
+        name = Strategy.resolve(strategy_key_or_name)
         return self._WorkbenchRunLauncher.submit(
             strategy_name=name,
             step=step,
@@ -65,7 +65,7 @@ class StrategyRunnerImplementer:
         self, *, strategy_key_or_name: str, job_id: str
     ) -> Optional[Dict[str, Any]]:
         assert self._WorkbenchRunLauncher is not None
-        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
+        name = Strategy.resolve(strategy_key_or_name)
         return self._WorkbenchRunLauncher.get_run_progress(
             strategy_name=name, job_id=job_id
         )
@@ -78,7 +78,7 @@ class StrategyRunnerImplementer:
         job_id: str,
     ) -> Optional[Dict[str, Any]]:
         assert self._WorkbenchRunLauncher is not None
-        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
+        name = Strategy.resolve(strategy_key_or_name)
         norm = StrategyRunnerImplementer.normalize_step(step)
         if norm is None:
             raise ValueError("step 须为 enum / price / portfolio")
@@ -96,14 +96,14 @@ class StrategyRunnerImplementer:
         self, *, strategy_key_or_name: str, demo: bool
     ) -> Dict[str, Any]:
         assert self._get_scan_readiness is not None
-        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
+        name = Strategy.resolve(strategy_key_or_name)
         return self._get_scan_readiness(strategy_name=name, demo=bool(demo))
 
     def trigger_scan(
         self, *, strategy_key_or_name: str, demo: bool, force: bool
     ) -> Dict[str, Any]:
         assert self._trigger_strategy_scan_run is not None
-        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
+        name = Strategy.resolve(strategy_key_or_name)
         return self._trigger_strategy_scan_run(
             strategy_name=name, demo=bool(demo), force=bool(force)
         )
@@ -112,7 +112,7 @@ class StrategyRunnerImplementer:
         self, *, strategy_key_or_name: str, job_id: str
     ) -> Optional[Dict[str, Any]]:
         assert self._get_scan_progress is not None
-        name = DiscoveryService.resolve_strategy_path(strategy_key_or_name)
+        name = Strategy.resolve(strategy_key_or_name)
         return self._get_scan_progress(strategy_name=name, job_id=job_id)
 
 

@@ -66,14 +66,14 @@ class ScanJob:
 
     @classmethod
     def page_context(cls) -> Dict[str, Any]:
-        from core.modules.data_source.catalog.freshness_probe import get_data_end_meta
+        from core.modules.data_source import DataSourceManager
 
         data_end: Dict[str, Any] = {}
         demo_scan_cutoff_date = ""
         try:
             data_mgr = DataManager(is_verbose=False)
             data_mgr.initialize()
-            data_end = get_data_end_meta(data_mgr)
+            data_end = DataSourceManager.get_data_end_meta(data_mgr)
             demo_scan_cutoff_date = ScanDateResolver.resolve_anchor_date(
                 data_mgr,
                 use_strict=False,

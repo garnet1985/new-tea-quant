@@ -1,10 +1,12 @@
 # Data Contract 架构文档
 
+**模块：** `modules.data_contract` · **版本：** `0.6.0`
+
 ---
 
 ## 模块介绍
 
-`modules.data_contract` 将「策略/标签声明的数据依赖」收敛为 **`DATA_KEY` → declaration/loader`**，经 **发现 → 签发 → 填充 → PIT 游标** 交付。PIT 前缀推进由时序基类 **`BaseTimeSeriesContract.until`** 完成（`CursorState` 内置，不再依赖独立 `data_cursor` 模块）。
+将「策略/标签声明的数据依赖」收敛为 **`DATA_KEY` → declaration + loader`**，经 **发现 → 签发 → 填充 →（时序）PIT 游标** 交付。公开 Facade 为 **`ContractIssuer`**。
 
 ---
 
@@ -12,60 +14,50 @@
 
 ```text
 modules.data_contract/
-├── __init__.py           # ContractIssuer / DATA_KEY
-├── contracts.py          # 跨模块公开类型
+├── __init__.py              # 仅 ContractIssuer（Facade）
+├── contracts.py             # DATA_KEY / 基类 / 专用子类（无 Issuer）
 ├── core/
-│   ├── discovery/        # ContractIssuer
-│   ├── base/             # Base*Contract（until / CursorState）
-│   └── data_contracts/   # 各 key 的 declaration / loader / contract
+│   ├── discovery/           # ContractIssuer 实现
+│   ├── base/                # Base*Contract、Loader、CursorState
+│   └── data_contracts/<key>/
+│       ├── declaration.py   # 必需
+│       ├── loader.py        # 必需（除非 contract 自管取数）
+│       └── contract.py      # 可选：meta.contract_class 自定义子类
 ├── docs/
-└── __test__/
+└── __test__/                # 公开 API 契约测
 ```
 
-| 层 | 包 | 核心类型 | 职责 |
-| --- | --- | --- | --- |
-| **发现/签发** | `core/discovery/` | `ContractIssuer` | discover、`issue`、`fill_in_data` |
-| **基类** | `core/base/` | `BaseTimeSeriesContract` | 时间窗、`until` / `reset_cursor` |
-| **契约实现** | `core/data_contracts/` | 各 DATA_KEY | declaration + loader |
+| 层 | 包 | 职责 |
+| --- | --- | --- |
+| Facade | 包根 / `ContractIssuer` | `issue`、discover、get_contract |
+| 类型 | `contracts.py` | `DATA_KEY`、基类、专用子类（如 `StockStPeriodsContract`） |
+| 基类 | `core/base/` | meta/runtime/specific；`until` / `fill_in_data` |
+| 实现 | `core/data_contracts/<key>/` | declaration + loader；可选 `contract.py` |
 
 ---
 
-## 架构 / 流程图
+## 流程
 
 ```mermaid
-flowchart TB
-  subgraph Issue [ContractIssuer]
-    F[issue / fill_in_data]
-  end
-  subgraph TS [BaseTimeSeriesContract]
-    DC[data + CursorState]
-    UNT[until as_of]
-  end
-  subgraph Load [loaders]
-    L[BaseDataContractLoader]
-  end
-  F --> L
-  F --> DC
-  DC --> UNT
+flowchart LR
+  K[DATA_KEY] --> I[ContractIssuer.issue]
+  I --> C[BaseDataContract]
+  C --> F[fill_in_data / loader]
+  F --> U[until as_of 可选]
 ```
 
 ---
 
-## 模块职责与边界
+## 边界
 
-**职责（In scope）**
-
-- DATA_KEY 发现与签发、loader 取数、时序 PIT 游标（`until`）。
-
-**边界（Out of scope）**
-
-- DB schema / SQL（**`modules.data_manager`**）。
-- 策略/标签编排与进度落盘（各自模块）。
+**In scope：** DATA_KEY 白名单、签发、loader 取数、时序 `until`  
+**Out of scope：** DB schema/SQL（`data_manager`）；策略/标签编排
 
 ---
 
 ## 相关文档
 
-- [OVERVIEW.md](../OVERVIEW.md)
-- [DESIGN.md](DESIGN.md)
-- [DECISIONS.md](DECISIONS.md)
+- [DESIGN.md](./DESIGN.md)
+- [CONCEPTS.md](./CONCEPTS.md)
+- [API.md](../API.md)
+- [glossary.yaml](../glossary.yaml)

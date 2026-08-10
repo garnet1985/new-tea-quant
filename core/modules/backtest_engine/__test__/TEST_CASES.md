@@ -5,11 +5,10 @@
 
 ## Scope
 
-验证门面 `BacktestEngine` 与 contracts（对齐 `API.md`）。
+验证门面 `BacktestEngine` 与 contracts 公开逻辑（对齐 `API.md`）。
 
 | 文件 | 说明 |
 |------|------|
-| `test_api.py` | 公开 API 契约（`force_run`） |
-| `test_cases.yaml` | 单元测试索引 |
+| `test_api.py` | 公开 API 契约（`force_run`）：Mode、`run` / `entity_based` / `slice_based`、Timeline、`RunCallbacks` |
 
-编排与 planner/executor 细节见各 `test_*.py` 文件。
+内部 planner / executor / probe 等实现测仍放在同目录其它 `test_*.py`，登记见 [`test_cases.yaml`](./test_cases.yaml)，**不纳入本公开索引**。

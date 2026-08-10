@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from core.modules.backtest_engine.core.shared.modes import BacktestMode
+from core.modules.backtest_engine.contracts import BacktestMode
 from core.modules.tag.core.data_class.tag_definition import TagDefinition
 from core.modules.tag.core.enums import TagExecutionMode, TagUpdateMode
 

@@ -4,18 +4,41 @@ compatible_core_versions: ">=0.4.0"
 description: "回测引擎：entity_based / slice_based 两种调度模式（probe → plan → execute → monitor）"
 dependencies:
   - infra.project_context
+  - infra.db
+  - infra.machine_capacity
+  - modules.data_manager
+  - modules.data_contract
 changelog:
   - version: "0.4.0"
     changes:
       - 对齐 CORE_MODULE_STANDARDS：根 API.md / QUICKSTART / README / TEST_CASES；docs/DESIGN.md 合并 DECISIONS
       - 删除 api.yaml、OVERVIEW.md、docs/DECISIONS.md；包根仍仅 BacktestEngine
+      - 文档对齐真实 run 签名（无 execute_fn；callbacks + timeline）；ARCHITECTURE 目录树与 TEST_CASES 公开范围
+      - 移除 SliceProbe.build_probe_jobs / build_probe_payload；glossary 澄清 Timeline vs 废弃模式别名
+      - "依赖穿透（不 bump）：公开 BacktestEngine.Performance（profile / resolve_*）；供 tag 等跨模块调用"
+      - "依赖穿透（不 bump）：contracts 导出 EntityMonitorStats / WorkerTaskPerf / ENGINE_PERF_KEY / ENUM_PERF_KEY"
+      - "依赖穿透治理（不 bump）：module_info 补 infra.db / machine_capacity / data_manager / data_contract"
+      - "打破 BE↔strategy 循环（不 bump）：slice 装数改经 RunCallbacks.load_per_entity_window 注入；去掉 modules.strategy"
   - version: "0.3.0"
     changes:
       - 内部包 entity_based / slice_based 与公开模式名一致
-      - RunCallbacks 聚合 on_*；performance dataclass、dispatch.yaml 应用层配置
+      - RunCallbacks 聚合 on_*；parameters 区分 positional / keyword_only
+      - performance dataclass、dispatch.yaml 应用层配置、RunProgressReporter
+      - 文档：OVERVIEW.md + docs/ARCHITECTURE.md / docs/DECISIONS.md（现状）
+      - worker.json job_pipeline profile 解析迁入 core.performance.worker_profile
   - version: "0.2.0"
     changes:
       - 模块标准化：glossary.yaml、api.yaml 对齐实际 Facade API
+      - 探针内收：plan 阶段复用调用方 execute_fn，无 ProbeRegistry
+      - 根目录对外仅 BacktestEngine + contracts.py
+      - MachineInfo 迁至 core.infra.machine_capacity
+      - sliced bulk job 判定改为通用 open_dates + bulk entity 启发式
   - version: "0.1.0"
     changes:
       - 创建回测引擎模块架构
+      - 明确职责边界和Input/Output定义
+      - 支持MQ迁移（配置切换）
+      - Worker生命周期钩子管理
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能

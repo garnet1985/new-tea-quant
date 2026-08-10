@@ -72,6 +72,9 @@ class ScanDateResolver:
 
         try:
             if use_strict:
+                from core.modules.data_source import DataSourceManager
+
+                DataSourceManager.ensure_calendar_real_world_fetcher_registered()
                 raw_anchor = str(
                     cal_svc.get_real_world_latest_completed_trading_date() or ""
                 ).strip()
@@ -81,11 +84,11 @@ class ScanDateResolver:
                     f"（get_real_world_latest_completed_trading_date → {raw_anchor or '空'}）"
                 )
             else:
-                from core.modules.data_source.catalog.freshness_probe import (
-                    _resolve_freshness_end_date,
-                )
+                from core.modules.data_source import DataSourceManager
 
-                raw_anchor = str(_resolve_freshness_end_date(data_manager) or "").strip()
+                raw_anchor = str(
+                    DataSourceManager.resolve_freshness_end_date(data_manager) or ""
+                ).strip()
                 if configured_as_of:
                     source = "data_json_as_of"
                     source_detail = (

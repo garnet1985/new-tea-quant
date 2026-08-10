@@ -23,6 +23,7 @@ from core.modules.backtest_engine.core.shared.types import (
     JobFailure,
     JobFailurePhase,
     JobReport,
+    LoadPerEntityWindowFn,
     RunProgress,
     TaskCompleteFn,
     TaskStartFn,
@@ -69,6 +70,7 @@ class SliceExecutor:
         on_after_task_complete: Optional[TaskCompleteFn] = None,
         log_label: str = "切片执行",
         progress_reporter: Optional[RunProgressReporter] = None,
+        load_per_entity_window: Optional[LoadPerEntityWindowFn] = None,
     ) -> SliceExecutor.ExecutionResult:
         """Run calendar-slice orchestrator in the current (non-daemon) process."""
         if not batches:
@@ -109,6 +111,7 @@ class SliceExecutor:
                     context,
                     plan,
                     progress_reporter=progress_reporter,
+                    load_per_entity_window=load_per_entity_window,
                 )
                 try:
                     raw_result = SliceExecutor._invoke_worker(
@@ -277,6 +280,7 @@ class SliceExecutor:
         plan: SliceDispatchPlan,
         *,
         progress_reporter: Optional[RunProgressReporter] = None,
+        load_per_entity_window: Optional[LoadPerEntityWindowFn] = None,
     ) -> JobContext:
         payload = dict(job.payload)
         payload["_executor"] = context.executor
@@ -288,8 +292,13 @@ class SliceExecutor:
         )
 
         # BE owns pool lifetime; SliceOrchestrator drives load/prefetch/queue.
-        reader_pool = SliceReaderPool.from_plan(plan)
+        reader_pool = SliceReaderPool.from_plan(
+            plan,
+            load_per_entity_window=load_per_entity_window,
+        )
         payload["_slice_reader_pool"] = reader_pool
+        if load_per_entity_window is not None:
+            payload["_load_per_entity_window"] = load_per_entity_window
         if progress_reporter is not None:
             payload["_engine_on_execute_unit_done"] = progress_reporter.make_execute_unit_hook()
         if context.business_data:

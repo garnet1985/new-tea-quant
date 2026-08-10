@@ -12,6 +12,10 @@ from core.modules.backtest_engine.contracts import (
     RunCallbacks,
     RunProgress,
     Timeline,
+    EntityMonitorStats,
+    ENGINE_PERF_KEY,
+    ENUM_PERF_KEY,
+    WorkerTaskPerf,
 )
 from core.modules.backtest_engine.core.schedule.entity_based.execute_pipeline import (
     EntityExecutePipeline,
@@ -29,8 +33,16 @@ def test_facade_export() -> None:
     assert BacktestEngine is not None
     assert hasattr(BacktestEngine, "entity_based")
     assert hasattr(BacktestEngine, "slice_based")
+    assert hasattr(BacktestEngine, "Performance")
     assert BacktestEngine.Mode.ENTITY_BASED.value == "entity_based"
     assert BacktestEngine.Mode.SLICE_BASED.value == "slice_based"
+    assert BacktestEngine.Performance.Profiles.TAG == "tag"
+    assert callable(BacktestEngine.Performance.resolve_entity_based_for_profile)
+    assert callable(BacktestEngine.Performance.calendar_slice_config)
+    assert ENGINE_PERF_KEY == "engine_perf"
+    assert ENUM_PERF_KEY == "enum_perf"
+    assert EntityMonitorStats is not None
+    assert WorkerTaskPerf is not None
 
 
 def test_mode_normalize() -> None:
@@ -68,6 +80,11 @@ def test_entity_based_empty_jobs_returns_success() -> None:
     assert result.total_jobs == 0
 
 
+def _stub_load_per_entity_window(payload, *, start, end, perf=None):
+    _ = (payload, start, end, perf)
+    return {}
+
+
 def test_slice_based_bulk_job_embeds_slice_plan() -> None:
     jobs = [
         {
@@ -85,7 +102,11 @@ def test_slice_based_bulk_job_embeds_slice_plan() -> None:
             start="20240102",
             end="20240103",
             timeline=["20240102", "20240103"],
-            callbacks=RunCallbacks(on_tick=_noop_on_tick),
+            performance={"probe_mb": 12.0},
+            callbacks=RunCallbacks(
+                on_tick=_noop_on_tick,
+                load_per_entity_window=_stub_load_per_entity_window,
+            ),
         )
     assert result.success is True
     assert result.total_jobs == 1

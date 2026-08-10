@@ -1,7 +1,7 @@
 """Project-wide pytest hooks.
 
-UT is frozen during strategy / enumerator refactor. Test files and
-``test_cases.yaml`` registries are kept; execution is skipped until refactor stabilizes.
+UT is frozen during strategy / enumerator refactor. Test files are kept;
+execution is skipped until refactor stabilizes.
 
 Re-enable: ``NTQ_TESTS_ENABLED=1 python -m pytest ...``
 Or mark a test with ``@pytest.mark.force_run``.
@@ -14,7 +14,7 @@ import pytest
 
 FREEZE_REASON = (
     "UT disabled during strategy module refactor "
-    "(cases preserved in __test__/test_cases.yaml). "
+    "(see module __test__/TEST_CASES.md for public index). "
     "Set NTQ_TESTS_ENABLED=1 to run."
 )
 

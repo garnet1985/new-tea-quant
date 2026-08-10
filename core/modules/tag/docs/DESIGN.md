@@ -2,6 +2,8 @@
 
 **模块：** `modules.tag` · **版本：** `0.5.0`
 
+硬约束摘要见下文；更长边界笔记见 [notes/BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)。
+
 ---
 
 ## Scenario 与目录约定
@@ -98,3 +100,11 @@ per_entity → BacktestEngine；global / non_time_series → Tag 轻量主进程
 ### Tag 表字段单一真相
 
 `attach_to_data_key` SOT = `sys_tag_scenario`；progress 水位用 `last_calculated_end`。
+
+---
+
+## 相关文档
+
+- [ARCHITECTURE.md](./ARCHITECTURE.md)
+- [API.md](../API.md)
+- [BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)

@@ -8,8 +8,7 @@ from pathlib import Path
 from core.infra.project_context import ProjectContext
 from core.infra.system_actions.contracts import ScaffoldResult
 from core.infra.system_actions.core.shortcuts.shared import ScaffoldHelpers
-
-from core.modules.tag.core.services.discovery.path_rules import TagPathRules
+from core.modules.tag import Tag
 
 TAG_TEMPLATE_REL = Path("_template") / "empty_scenario"
 
@@ -24,7 +23,7 @@ class TagScaffold:
         dest, key = ScaffoldHelpers.resolve_dest(
             root=root,
             raw_path=raw_path,
-            path_validator=TagPathRules.is_machine_readable_path,
+            path_validator=Tag.is_valid_path,
         )
         template = (root / TAG_TEMPLATE_REL).resolve()
         ScaffoldHelpers.copy_template(template=template, dest=dest)

@@ -11,17 +11,10 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, Optional
 
 from core.modules.backtest_engine import BacktestEngine
 from core.modules.backtest_engine.contracts import RunCallbacks
-from core.modules.backtest_engine.core.performance.settings import (
-    resolve_slice_based_performance,
-)
-from core.modules.backtest_engine.core.performance.worker_profile import (
-    WorkerProfiles,
-    profile_calendar_slice_config,
-)
 from core.modules.tag.core.data_class.scenario import Scenario
 from core.modules.tag.core.engines.per_entity.shared.pipeline_hooks import (
     TagPipelineHooks,
@@ -36,11 +29,6 @@ from core.modules.tag.core.engines.per_entity.slice_based.job_builder import Tag
 from core.modules.tag.core.enums import TagUpdateMode
 from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
 
-if TYPE_CHECKING:
-    from core.modules.data_manager.data_services.stock.sub_services.tag_service import (
-        TagDataService,
-    )
-
 logger = logging.getLogger(__name__)
 
 
@@ -54,7 +42,7 @@ class TagSlicePipeline:
         tag_info: DiscoveredTagInfo,
         scenario: Scenario,
         entity_ids: List[str],
-        tag_data_service: Optional["TagDataService"] = None,
+        tag_data_service: Optional[Any] = None,
         dry_run: bool = False,
         save_batch_size: int = 5000,
         on_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
@@ -93,9 +81,10 @@ class TagSlicePipeline:
             dry_run=dry_run,
             batch_size=save_batch_size,
         )
+        perf = BacktestEngine.Performance
         performance = dict(
-            resolve_slice_based_performance(
-                profile_calendar_slice_config(WorkerProfiles.TAG)
+            perf.resolve_slice_based(
+                perf.calendar_slice_config(perf.Profiles.TAG)
             )
         )
         # BE lookback / slice width need tag min_required (business setting).
@@ -117,6 +106,7 @@ class TagSlicePipeline:
                 on_tick=base_cb.on_tick,
                 on_ticks_complete=base_cb.on_ticks_complete,
                 on_task_result=TagPipelineHooks.on_task_result,
+                load_per_entity_window=base_cb.load_per_entity_window,
             )
 
             logger.info(

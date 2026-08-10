@@ -18,17 +18,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional
 
 from core.modules.tag.core.data_class.scenario import Scenario
 from core.modules.tag.core.engines.shared.tag_settings.tag_settings import TagSettings
 from core.modules.tag.core.enums import TagUpdateMode
 from core.infra.utils import Utils
-if TYPE_CHECKING:
-    from core.modules.data_manager.data_services.stock.sub_services.tag_service import (
-        TagDataService,
-    )
-
 logger = logging.getLogger(__name__)
 
 
@@ -69,7 +64,7 @@ class TagCalcWindowResolver:
         scenario: Scenario,
         settings: TagSettings,
         entity_ids: List[str],
-        tag_data_service: Optional["TagDataService"] = None,
+        tag_data_service: Optional[Any] = None,
     ) -> TagCalcWindows:
         period = settings.resolve_period()
         default_start = str(period.start_date or "").strip()
@@ -142,7 +137,7 @@ class TagCalcWindowResolver:
     @classmethod
     def _load_progress_map(
         cls,
-        tag_data_service: Optional["TagDataService"],
+        tag_data_service: Optional[Any],
         scenario_name: str,
     ) -> Dict[str, str]:
         if tag_data_service is None:

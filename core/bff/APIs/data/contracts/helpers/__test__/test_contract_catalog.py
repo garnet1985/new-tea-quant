@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.modules.data_contract.core.data_contracts.data_keys import SYS_DATA_KEY
+from core.modules.data_contract.contracts import SYS_DATA_KEY
 from core.bff.APIs.data.contracts.helpers.contract_catalog import (
     fetch_data_contract_catalog_page,
 )

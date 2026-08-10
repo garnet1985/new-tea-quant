@@ -1,6 +1,6 @@
 """entity_based EnumEntityJobExecutor — BE RunCallbacks；日业务与 per-task 状态。
 
-本文件（entity 两件套之一，与 EnumEntityJobBuilder；见 ``BOUNDARY_NOTES.md``「与 BE 的关系」）:
+本文件（entity 两件套之一，与 EnumEntityJobBuilder；见 ``docs/notes/BOUNDARY_NOTES.md``「与 BE 的关系」）:
 - EnumEntityJobExecutor: on_before_task_start / on_tick / on_ticks_complete / flush
 - EntityTaskState: 挂在 ``job_context.init`` 的可变袋（**不是**第二套 BE session）
 

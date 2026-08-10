@@ -9,7 +9,7 @@ from core.infra.project_context import ProjectContext
 from core.infra.system_actions.contracts import ScaffoldResult
 from core.infra.system_actions.core.shortcuts.shared import ScaffoldHelpers
 
-from core.modules.strategy.core.services.discovery.path_rules import StrategyPathRules
+from core.modules.strategy import Strategy
 
 STRATEGY_TEMPLATE_REL = Path("_template") / "empty_strategy"
 
@@ -24,7 +24,7 @@ class StrategyScaffold:
         dest, key = ScaffoldHelpers.resolve_dest(
             root=root,
             raw_path=raw_path,
-            path_validator=StrategyPathRules.is_machine_readable_path,
+            path_validator=Strategy.is_valid_path,
         )
         template = (root / STRATEGY_TEMPLATE_REL).resolve()
         ScaffoldHelpers.copy_template(template=template, dest=dest)

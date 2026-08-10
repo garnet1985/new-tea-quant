@@ -8,21 +8,30 @@
 from core.modules.backtest_engine import BacktestEngine
 from core.modules.backtest_engine.contracts import JobContext, RunCallbacks
 
-def execute_fn(ctx: JobContext) -> dict:
-    return {"success": True, "job_id": ctx.job_id}
+def on_tick(ctx: JobContext, point: str, index: int) -> None:
+    _ = (ctx, point, index)  # 业务按日推进
 
-jobs = [{"id": "000001.SZ", "payload": {"entity_specified": [{"id": "000001.SZ"}]}}]
+jobs = [
+    {
+        "id": "000001.SZ",
+        "payload": {"entity_specified": [{"id": "000001.SZ"}]},
+    }
+]
 
 result = BacktestEngine.entity_based.run(
     jobs,
-    execute_fn=execute_fn,
+    start="20240102",
+    end="20240103",
+    timeline=["20240102", "20240103"],
     task_name="demo",
-    callbacks=RunCallbacks(on_task_result=lambda r, p: None),
+    callbacks=RunCallbacks(on_tick=on_tick),
 )
-print(result.success, result.completed_jobs)
+print(result.success, result.mode, result.completed_jobs)
 ```
 
-**预期结果：** 空或有效 jobs 时返回 `RunResult`，`mode == "entity_based"`。
+**预期结果：** 返回 `RunResult`，`mode == "entity_based"`。空 `jobs` 时可不传 window，直接成功。
+
+> 不要传 `execute_fn=`：引擎内置 worker，业务挂在 `RunCallbacks`（尤其 `on_tick` / `on_before_task_start`）。
 
 ## 下一步
 
@@ -30,5 +39,5 @@ print(result.success, result.completed_jobs)
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 
 ```bash
-NTQ_TESTS_ENABLED=1 python -m pytest core/modules/backtest_engine/__test__/test_api.py -q
+python3 -m pytest core/modules/backtest_engine/__test__/test_api.py -q
 ```

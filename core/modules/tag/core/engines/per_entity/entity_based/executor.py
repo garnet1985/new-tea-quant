@@ -14,10 +14,7 @@ from dataclasses import dataclass, field
 from typing import Any, ClassVar, Dict, List
 
 from core.modules.backtest_engine.contracts import RunCallbacks
-from core.modules.strategy.core.engines.shared.services.as_of_slice import AsOfSlice
-from core.modules.strategy.core.services.entity_loader.job_bundle_loader import (
-    JobBundleLoader,
-)
+from core.modules.strategy.contracts import AsOfSlice, JobBundleLoader
 from core.modules.tag.core.data_class.tag_definition import TagDefinition
 from core.modules.tag.core.engines.shared.hooks.hook_params import TagContext
 from core.modules.tag.core.engines.shared.hooks.runtime import TagHookRuntime

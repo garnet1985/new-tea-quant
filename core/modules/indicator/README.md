@@ -2,7 +2,7 @@
 
 为 New Tea Quant（简称 **NTQ**）提供技术指标计算。对外门面为 `Indicator`（pandas-ta-classic 薄代理）；结果类型见 `contracts`。词条见 [glossary.yaml](./glossary.yaml)。
 
-策略里 `settings.data.indicators` 的命名与参数约定见 [AVAILABLE_INDICATORS.md](./AVAILABLE_INDICATORS.md)。
+策略里 `settings.data.indicators` 的命名与参数约定见 [docs/AVAILABLE_INDICATORS.md](./docs/AVAILABLE_INDICATORS.md)。
 
 ## 适用场景
 

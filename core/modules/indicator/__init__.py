@@ -9,6 +9,6 @@
     from core.modules.indicator.contracts import BatchIndicatorResult
 """
 
-from .indicator import Indicator
+from core.modules.indicator.core.indicator import Indicator
 
 __all__ = ["Indicator"]

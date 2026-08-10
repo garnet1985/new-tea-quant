@@ -11,16 +11,11 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional
 
 from core.modules.tag.core.engines.shared.services.report_save_buffer import (
     TagReportSaveBuffer,
 )
-
-if TYPE_CHECKING:
-    from core.modules.data_manager.data_services.stock.sub_services.tag_service import (
-        TagDataService,
-    )
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +25,7 @@ class TagValueFlushService:
 
     def __init__(
         self,
-        tag_data_service: Optional["TagDataService"],
+        tag_data_service: Optional[Any],
         *,
         dry_run: bool = False,
         batch_size: int = 5000,

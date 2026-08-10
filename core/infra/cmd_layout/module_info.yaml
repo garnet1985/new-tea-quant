@@ -25,3 +25,6 @@ changelog:
       - 新增 CmdLayout facade 与 bar_chart namespace
       - 支持已分桶 render / 连续样本 from_values 直方图
       - 纯 ASCII 条形图，兼容 Windows / Linux / macOS 终端
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能

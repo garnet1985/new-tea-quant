@@ -8,11 +8,8 @@ from typing import Tuple
 
 from core.infra.project_context import ProjectContext
 from core.infra.utils import Utils
-from core.modules.data_manager.data_manager import DataManager
-from core.modules.data_source.service.sample_stock_list import (
-    invalidate_pool_cache,
-    pool_csv_path,
-)
+from core.modules.data_manager import DataManager
+from core.modules.data_source import DataSourceManager
 from devtools.demo_exporter.config import (
     LIST_STATUS_LABELS,
     MIN_PER_STRATUM,
@@ -29,6 +26,14 @@ logger = logging.getLogger(__name__)
 
 _DATA_JSON = ProjectContext.path.get_user_config_root() / "data.json"
 _POOL_KEY = "use_sample_stock_list"
+
+
+def _invalidate_pool_cache() -> None:
+    DataSourceManager.invalidate_pool_cache()
+
+
+def _pool_csv_path(count: int) -> Path:
+    return DataSourceManager.pool_csv_path(count)
 
 
 def _read_data_json() -> dict:
@@ -49,7 +54,7 @@ def set_use_sample_stock_list(count: int | None) -> None:
     else:
         data[_POOL_KEY] = int(count)
     _write_data_json(data)
-    invalidate_pool_cache()
+    _invalidate_pool_cache()
 
 
 def _rows_for_ids(universe, stock_ids):
@@ -97,7 +102,7 @@ def generate_stratified_pool_files(
     )
     log_sampling_report(report, status_labels=LIST_STATUS_LABELS)
 
-    out = Path(output) if output else pool_csv_path(count)
+    out = Path(output) if output else _pool_csv_path(count)
     out.parent.mkdir(parents=True, exist_ok=True)
     rows = _rows_for_ids(universe, stock_ids)
     Utils.io.write_dicts_to_csv(

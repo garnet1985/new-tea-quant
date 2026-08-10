@@ -11,20 +11,14 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional
 
-from core.modules.backtest_engine.contracts import Timeline
-from core.modules.backtest_engine.core.shared.jobs import BacktestJob
+from core.modules.backtest_engine.contracts import BacktestJob, Timeline
 from core.modules.tag.core.data_class.scenario import Scenario
 from core.modules.tag.core.engines.shared.calc_window import TagCalcWindowResolver
 from core.modules.tag.core.engines.per_entity.shared.job_payload import TagJobPayloadBuilder
 from core.modules.tag.core.engines.shared.tag_settings.tag_settings import TagSettings
 from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
-
-if TYPE_CHECKING:
-    from core.modules.data_manager.data_services.stock.sub_services.tag_service import (
-        TagDataService,
-    )
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +33,7 @@ class TagSliceJobBuilder:
         scenario: Scenario,
         entity_ids: List[str],
         *,
-        tag_data_service: Optional["TagDataService"] = None,
+        tag_data_service: Optional[Any] = None,
     ) -> List[Dict[str, Any]]:
         settings = TagSettings.from_dict(
             dict(scenario.settings or {}),

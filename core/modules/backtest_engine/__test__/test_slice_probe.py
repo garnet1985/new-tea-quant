@@ -6,6 +6,8 @@ import pytest
 from core.modules.backtest_engine.core.schedule.slice_based.probe import SliceProbe
 from core.modules.backtest_engine.core.shared.jobs import BacktestJob
 
+pytestmark = pytest.mark.force_run
+
 
 def _sample_orchestrator_result() -> dict:
     return {
@@ -78,28 +80,23 @@ def test_should_run_respects_dispatch_probe_flag() -> None:
     assert SliceProbe.should_run(jobs, {"preload_depth": "auto"}) is True
 
 
-def test_build_probe_payload_keeps_all_entities() -> None:
-    jobs = [
-        {
-            "id": "tag_calendar_slice",
-            "payload": {
-                "entity_ids": ["a", "b", "c", "d"],
-                "timeline_point_count": 30,
-                "strategy_info": {"hooks_module_path": "x.hooks"},
-            },
-        }
-    ]
-    payload = SliceProbe.build_probe_payload(
-        jobs,
-        {
-            "probe_slice_count": 2,
-            "slice_open_days": 5,
-        },
+def test_annotate_keeps_all_entities_and_full_calendar() -> None:
+    """正式路径：annotate 保留全 entity 与完整 timeline_point_count。"""
+    payload = {
+        "entity_ids": ["a", "b", "c", "d"],
+        "timeline_point_count": 30,
+        "strategy_info": {"hooks_module_path": "x.hooks"},
+    }
+    out = SliceProbe.annotate_payload_for_head_sampling(
+        payload,
+        slice_open_days=5,
+        probe_slice_count=2,
+        sample_enabled=True,
     )
-    assert payload["entity_ids"] == ["a", "b", "c", "d"]
-    assert payload[BacktestJob.TIMELINE_POINT_COUNT_KEY] == 10  # 2 * 5
-    assert payload["_slice_head_sample_slices"] == 2
-    assert payload["_slice_open_days"] == 5
+    assert out["entity_ids"] == ["a", "b", "c", "d"]
+    assert out[BacktestJob.TIMELINE_POINT_COUNT_KEY] == 30
+    assert out["_slice_head_sample_slices"] == 2
+    assert out["_slice_open_days"] == 5
 
 
 def test_annotate_preserves_point_count() -> None:

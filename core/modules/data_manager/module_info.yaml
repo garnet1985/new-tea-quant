@@ -1,19 +1,43 @@
 name: modules.data_manager
 version: 0.4.0
 compatible_core_versions: ">=0.4.1"
-description: "统一数据访问门面：DatabaseManager、core/userspace 表发现、各领域 DataService（stock/macro/calendar/index/db_cache）。"
+description: "统一数据访问门面：DatabaseManager、core/tables + userspace/extensions/tables 发现、各领域 DataService（stock/macro/calendar/index/db_cache/backup_restore）。"
 dependencies:
   - infra.db
   - infra.project_context
+  - infra.discovery
+  - infra.utils
 changelog:
   - version: "0.4.0"
     changes:
       - 对齐 CORE_MODULE_STANDARDS：包根仅 DataManager；contracts.py（BaseTableNames）
       - 根 API.md / QUICKSTART / glossary / TEST_CASES / test_api
       - CalendarService 不再包根导出；经 DataManager.calendar 访问
+      - P0：API 状态改为 beta；ARCHITECTURE/DESIGN/README 对齐 0.4.0 与链接；补全公开属性面
+      - 删除过时 ui_transit（旧 UI 投资台账占位，无表无调用）
+      - 删除未使用 helpers/FilteringHelper
+      - P1：实现下沉 core/；BaseTableNames 对齐 sys_*；扩 test_api / TEST_CASES / 文档树
+      - P2：移除 Kline 无效 filter_negative 参数；恢复被 standardize 冲掉的 0.3.3–0.3.5 changelog
+      - "依赖穿透（不 bump）：公开 DataManager.normalize_delist_date"
+      - "依赖穿透治理（不 bump）：module_info 补 infra.discovery / infra.utils；公开 attach_data_service 收口 DataService 深路径"
+      - "打破 DM↔DS 循环（不 bump）：去掉 ListService 样本池读过滤与 Calendar→DS；公开 register_calendar_real_world_fetcher"
+      - "依赖穿透治理（不 bump）：向 infra.db 注册 DuckDB pool holder resolver；公开 ensure_restored_after_worker_pool / bind_as_default_instance"
   - version: "0.3.6"
     changes:
-      - dispatch_planner entities_per_job 约束优化
+      - 优化 dispatch_planner 中的 entities_per_job 约束问题，效率最高提升约15%
+  - version: "0.3.5"
+    changes:
+      - 修改K线qfq的模拟算法，使误差更小，更贴近外部认可的数据来源
+  - version: "0.3.4"
+    changes:
+      - K 线加载查询优化（回测路径显著提速）
+      - 配合 DuckDB 域路由与 data_contract 批量取数
+  - version: "0.3.3"
+    changes:
+      - 交易日历、风险时段表与服务；全量股票列表（含退市）
   - version: "0.3.0"
     changes:
       - DataService 门面与 userspace 表发现基线
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能

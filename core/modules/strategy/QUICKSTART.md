@@ -19,5 +19,5 @@ print(result.get("total_opportunities"))
 ```
 
 ```bash
-NTQ_TESTS_ENABLED=1 python -m pytest core/modules/strategy/__test__/test_api.py -q
+python3 -m pytest core/modules/strategy/__test__/test_api.py -q
 ```

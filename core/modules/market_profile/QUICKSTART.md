@@ -5,11 +5,17 @@
 ```python
 from core.modules.market_profile import MarketRulesProxy
 
-proxy = MarketRulesProxy()
-rules = proxy.current
+# 推荐：单市场
+rules = MarketRulesProxy.for_market("china_a_stock")
 print(rules.profile_id, rules.get_limit_ratio())
+
+# 或挂载式 Proxy
+proxy = MarketRulesProxy()
+print(proxy.current.get_settlement_period())
 ```
 
 ```bash
 python3 -m pytest core/modules/market_profile/__test__/test_api.py -q
 ```
+
+下一步：[API.md](./API.md) · [glossary.yaml](./glossary.yaml)

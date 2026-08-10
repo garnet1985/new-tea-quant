@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict
 
-from core.modules.backtest_engine.core.shared.modes import BacktestMode
+from core.modules.backtest_engine.contracts import BacktestMode
 from core.modules.tag.core.enums import TagExecutionMode, TagUpdateMode
 
 from .settings_base import SettingsBase
@@ -164,14 +164,12 @@ class ExecutionSettings(SettingsBase):
     def resolve_period(self) -> CalculationPeriod:
         """把 execution.start/end 空值补成系统默认（与 strategy.simulation.execution 对齐）。"""
         from core.infra.project_context import ProjectContext
-        from core.modules.strategy.core.services.entity_loader.global_entity_loader import (
-            GlobalEntityCache,
-        )
+        from core.modules.strategy import Strategy
 
         start_date = self.start_date
         end_date = self.end_date
         if not end_date:
-            end_date = GlobalEntityCache.load_latest_completed_trading_date()
+            end_date = Strategy.latest_completed_trading_date()
         if not start_date:
             start_date = ProjectContext.config.get_default_start_date()
         return CalculationPeriod(start_date=start_date, end_date=end_date)

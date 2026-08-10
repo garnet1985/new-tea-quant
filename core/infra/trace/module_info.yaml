@@ -16,3 +16,6 @@ changelog:
     changes:
       - "初始 Trace Facade：track / flush / config / BFF background drain"
       - "本地 queue + installation_id；敏感字段白名单；失败静默"
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能

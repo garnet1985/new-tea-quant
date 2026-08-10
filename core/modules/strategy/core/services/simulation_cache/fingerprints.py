@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import hashlib
-import importlib
 import inspect
 import json
 from dataclasses import dataclass
@@ -245,12 +244,11 @@ class FingerprintCalculator:
     def _get_data_contract_mapping_hash() -> str:
         core_mapping_hash = ""
         try:
-            dc_mapping_module = importlib.import_module(
-                "core.modules.data_contract.core.registry.mapping"
-            )
-            dc_mapping_file = inspect.getsourcefile(dc_mapping_module)
-            if dc_mapping_file:
-                core_mapping_hash = FingerprintCalculator._hash_file(Path(dc_mapping_file))
+            from core.modules.data_contract import ContractIssuer
+
+            src = ContractIssuer.system_registry_source_path()
+            if src is not None:
+                core_mapping_hash = FingerprintCalculator._hash_file(Path(src))
         except Exception:
             core_mapping_hash = ""
 

@@ -7,7 +7,7 @@ import os
 from typing import Optional
 
 from core.modules.data_manager import DataManager
-from core.modules.data_source.data_source_manager import DataSourceManager
+from core.modules.data_source import DataSourceManager
 
 logger = logging.getLogger(__name__)
 

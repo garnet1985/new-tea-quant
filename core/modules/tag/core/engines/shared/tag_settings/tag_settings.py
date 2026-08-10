@@ -13,7 +13,7 @@ import copy
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
-from core.modules.backtest_engine.core.shared.modes import BacktestMode
+from core.modules.backtest_engine.contracts import BacktestMode
 from core.modules.tag.core.enums import TagUpdateMode
 
 from .calculation_settings import CalculationPeriod, CalculationSettings

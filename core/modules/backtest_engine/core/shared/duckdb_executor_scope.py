@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable, TypeVar
 
+from core.modules.data_manager import DataManager
 from core.infra.db import Db
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ def execute_with_duckdb_process_pool_scope(
     pass ``True``. Slice serial (R=0) loads on main — pass ``False`` so the
     main DuckDB connection is not released.
     """
+    DataManager.ensure_duckdb_pool_holder_resolver()
     log_label = str(inner_kwargs.get("log_label", "执行"))
     use_scope = Db.duckdb.worker_pool.should_apply(
         mode=duckdb_process_pool_scope,  # type: ignore[arg-type]

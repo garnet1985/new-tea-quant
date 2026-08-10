@@ -12,7 +12,7 @@ JobPipeline 样本 renew：从 DB 的 stock_list 顺序截取 N 只股票，试�
 
 环境变量（脚本会设置，也可自行 export）::
 
-    NTQ_DS_SAMPLE_N=80   # 默认见 sample_stock_list.DEFAULT_SAMPLE_N
+    NTQ_DS_SAMPLE_N=80   # 默认见 DataSourceManager.default_sample_n()
     NTQ_DS_SAMPLE_OFFSET=0
 """
 from __future__ import annotations
@@ -29,7 +29,7 @@ if str(REPO_ROOT) not in sys.path:
 
 logger = logging.getLogger(__name__)
 
-from core.modules.data_source.service.sample_stock_list import DEFAULT_SAMPLE_N
+from core.modules.data_source import DataSourceManager
 
 DEFAULT_SOURCE = "stock_klines"
 
@@ -42,7 +42,7 @@ def _configure_logging(verbose: bool) -> None:
     )
     if verbose:
         logging.getLogger("core.modules.data_source").setLevel(logging.INFO)
-        logging.getLogger("core.modules.data_source.service.pipeline").setLevel(logging.INFO)
+        logging.getLogger("core.modules.data_source.core.service.pipeline").setLevel(logging.INFO)
 
 
 def _apply_sample_env(n: int, offset: int) -> None:
@@ -51,7 +51,7 @@ def _apply_sample_env(n: int, offset: int) -> None:
 
 
 def _stock_list_count() -> int:
-    from core.modules.data_manager.data_manager import DataManager
+    from core.modules.data_manager import DataManager
 
     dm = DataManager.get_instance()
     if dm is None:
@@ -65,8 +65,8 @@ def main() -> int:
     parser.add_argument(
         "--n",
         type=int,
-        default=DEFAULT_SAMPLE_N,
-        help=f"从 stock_list 截取只数（默认 {DEFAULT_SAMPLE_N}）",
+        default=DataSourceManager.default_sample_n(),
+        help=f"从 stock_list 截取只数（默认 {DataSourceManager.default_sample_n()}）",
     )
     parser.add_argument(
         "--offset",
@@ -90,7 +90,7 @@ def main() -> int:
     _configure_logging(args.verbose)
     _apply_sample_env(args.n, args.offset)
 
-    from core.modules.data_source.data_source_manager import DataSourceManager
+    from core.modules.data_source import DataSourceManager
 
     mgr = DataSourceManager(is_verbose=args.verbose)
     count = _stock_list_count()

@@ -1,107 +1,175 @@
-#!/usr/bin/env python3
-"""Strategy API contract tests (骨架).
-
-遵循 CORE_MODULE_STANDARDS.md 规范：
-- test_cases.yaml 定义测试注册表
-- 覆盖 api.yaml 中定义的稳定 API
-- 当前只定义测试类和方法名，不实现测试逻辑
-"""
+"""API contract tests for modules.strategy Facade（对齐 API.md）。"""
 
 from __future__ import annotations
 
 import unittest
+from unittest.mock import MagicMock, patch
 
 import pytest
+
+from core.modules.strategy import Strategy
+from core.modules.strategy.contracts import (
+    AsOfSlice,
+    CalendarAsOfResult,
+    ExecutionMode,
+    Investment,
+    JobBundleLoader,
+    Opportunity,
+    ProgressRecorder,
+    SellReason,
+    SimulateKind,
+    StrategyContext,
+    StrategyHooks,
+    WorkbenchStep,
+)
 
 pytestmark = pytest.mark.force_run
 
 
-class TestApi(unittest.TestCase):
-    """Strategy API 契约测试"""
+class TestStrategyApi(unittest.TestCase):
+    def test_facade_export(self) -> None:
+        import core.modules.strategy as pkg
 
-    def test_facade_export(self):
-        """facade 导出 Strategy 类"""
-        # TODO: 实现测试逻辑
-        pass
+        self.assertEqual(pkg.__all__, ["Strategy"])
+        self.assertFalse(hasattr(pkg, "BackTestPipelines"))
+        self.assertFalse(hasattr(pkg, "DiscoveryService"))
 
-    def test_scan_api(self):
-        """scan API 可调用且参数正确（实现见 test_scanner_api.py）。"""
-        from core.modules.strategy import Strategy
+    def test_public_methods(self) -> None:
+        for name in (
+            "scan",
+            "analyze",
+            "enumerate",
+            "price_factor",
+            "portfolio",
+            "simulate",
+            "list_strategies",
+            "list_enabled_strategies",
+            "list_enabled_keys",
+            "list_strategy_infos",
+            "find",
+            "get_strategy_info",
+            "resolve",
+            "resolve_folder",
+            "load_price_entity_investments",
+            "price_overall_report_path",
+            "present_report",
+            "is_valid_path",
+            "clear_workbench_cache",
+            "export_package",
+            "import_package",
+            "latest_completed_trading_date",
+        ):
+            self.assertTrue(callable(getattr(Strategy, name)), name)
 
-        self.assertTrue(callable(Strategy.scan))
-
-    def test_enumerate_api(self):
-        """enumerate API 可调用且参数正确"""
-        # TODO: 实现测试逻辑
-        pass
-
-    def test_analyze_api(self):
-        """analyze API 可调用且参数正确"""
-        from core.modules.strategy import Strategy
-
-        self.assertTrue(callable(Strategy.analyze))
-
-    def test_list_strategies_api(self):
-        """list_strategies API 可调用"""
-        # TODO: 实现测试逻辑
-        pass
-
-    def test_get_strategy_info_api(self):
-        """get_strategy_info API 可调用且参数正确"""
-        # TODO: 实现测试逻辑
-        pass
-
-
-class TestContracts(unittest.TestCase):
-    """Strategy contracts 类型与枚举"""
-
-    def test_execution_mode_enum(self):
-        """ExecutionMode 枚举定义正确"""
-        # TODO: 实现测试逻辑
-        pass
-
-    def test_sell_reason_enum(self):
-        """SellReason 枚举定义正确"""
-        # TODO: 实现测试逻辑
-        pass
-
-    def test_simulate_kind_enum(self) -> None:
-        """SimulateKind 枚举定义正确"""
-        from core.modules.strategy.contracts import SimulateKind
-
+    def test_contracts_enums(self) -> None:
         self.assertEqual(SimulateKind.ENUMERATE.value, "enumerate")
+        self.assertEqual(SimulateKind.PRICE_FACTOR.value, "price_factor")
+        self.assertEqual(SimulateKind.PORTFOLIO.value, "portfolio")
+        self.assertEqual(ExecutionMode.SCAN.value, "scan")
+        self.assertEqual(SellReason.STOP_LOSS.value, "stop_loss")
+        self.assertEqual(WorkbenchStep.ENUM.value, "enum")
+        self.assertEqual(
+            WorkbenchStep.PRICE.to_simulate_kind(), SimulateKind.PRICE_FACTOR
+        )
 
-    def test_hook_types_exported_from_contracts(self) -> None:
-        """hooks 契约与数据类型均从 contracts 公开"""
-        from core.modules.strategy import Strategy
-        from core.modules.strategy.contracts import StrategyContext, StrategyHooks
-        from core.modules.strategy.contracts import CalendarAsOfResult, Opportunity
-
+    def test_contracts_hook_and_data_types(self) -> None:
         self.assertTrue(issubclass(StrategyHooks, object))
         self.assertEqual(StrategyContext.__name__, "StrategyContext")
         opp = Opportunity(stock={}, record_of_today={"close": 1.0})
         self.assertEqual(opp.trigger_price, 1.0)
         result = CalendarAsOfResult(as_of_date="20240102", stocks=[])
         self.assertEqual(result.session_state, {})
+        self.assertTrue(Investment is not None)
+        self.assertTrue(hasattr(AsOfSlice, "ready_date_by_entity"))
+        self.assertTrue(hasattr(AsOfSlice, "slice_contracts"))
+        self.assertTrue(hasattr(JobBundleLoader, "load"))
+        self.assertTrue(hasattr(ProgressRecorder, "for_tag_run"))
 
+    def test_list_strategies_delegates_to_discovery(self) -> None:
+        info = MagicMock()
+        info.id.return_value = "demo/x"
+        info.unique_relative_path = "demo/x"
+        info.key = "x"
+        info.is_enabled = True
+        info.display_name = "X"
+        info.settings = {}
+        info.resolved_folder.return_value = "/tmp/x"
+        with patch(
+            "core.modules.strategy.core.strategy.DiscoveryService.discover_strategies",
+            return_value=[info],
+        ) as discover:
+            names = Strategy.list_strategies()
+        discover.assert_called_once()
+        self.assertEqual(names, ["demo/x"])
 
-class TestIntegration(unittest.TestCase):
-    """Strategy facade 集成验证"""
+    def test_list_enabled_strategies_delegates(self) -> None:
+        info = MagicMock()
+        info.id.return_value = "demo/y"
+        info.unique_relative_path = "demo/y"
+        info.key = "y"
+        info.is_enabled = True
+        info.display_name = "Y"
+        info.settings = {}
+        info.resolved_folder.return_value = "/tmp/y"
+        with patch(
+            "core.modules.strategy.core.strategy.DiscoveryService.get_enabled_strategies",
+            return_value=[info],
+        ) as discover:
+            names = Strategy.list_enabled_strategies()
+            keys = Strategy.list_enabled_keys()
+        discover.assert_called()
+        self.assertEqual(names, ["demo/y"])
+        self.assertEqual(keys, ["y"])
 
-    def test_strategy_scan_api(self):
-        """Strategy.scan() 可调用"""
-        # TODO: 实现测试逻辑
-        pass
+    def test_get_strategy_info_found_and_missing(self) -> None:
+        info = MagicMock()
+        info.id.return_value = "demo/z"
+        info.unique_relative_path = "demo/z"
+        info.key = "z"
+        info.is_enabled = True
+        info.display_name = "Z"
+        info.folder = "/tmp/z"
+        info.settings = {"a": 1}
+        info.resolved_folder.return_value = "/tmp/z"
+        with patch(
+            "core.modules.strategy.core.strategy.DiscoveryService.discover_strategies",
+            return_value=[info],
+        ):
+            found = Strategy.get_strategy_info("demo/z")
+            by_key = Strategy.find("z")
+            missing = Strategy.get_strategy_info("nope")
+        self.assertEqual(found["key"], "z")
+        self.assertEqual(found["unique_relative_path"], "demo/z")
+        self.assertEqual(found["display_name"], "Z")
+        self.assertEqual(by_key["key"], "z")
+        self.assertIsNone(missing)
+        with patch(
+            "core.modules.strategy.core.strategy.DiscoveryService.get_enabled_strategies",
+            return_value=[info],
+        ):
+            enabled = Strategy.find("z", enabled_only=True)
+        self.assertEqual(enabled["key"], "z")
 
-    def test_strategy_enumerate_api(self):
-        """Strategy.enumerate() 可调用"""
-        # TODO: 实现测试逻辑
-        pass
+    def test_is_valid_path(self) -> None:
+        self.assertTrue(Strategy.is_valid_path("demo/random_v1"))
+        self.assertFalse(Strategy.is_valid_path("demo/市值"))
+        self.assertFalse(Strategy.is_valid_path(""))
 
-    def test_strategy_list_strategies_api(self):
-        """Strategy discovery 列表可用"""
-        # TODO: 实现测试逻辑
-        pass
+    def test_clear_workbench_cache_raises_on_failure(self) -> None:
+        with patch(
+            "core.modules.strategy.core.services.workbench_cache_clear.WorkbenchCacheClear.clear_all",
+            return_value={"ok": False, "error": "存储不可用"},
+        ):
+            with self.assertRaises(RuntimeError):
+                Strategy.clear_workbench_cache()
+
+    def test_simulate_full_raises(self) -> None:
+        with patch(
+            "core.modules.strategy.core.strategy.DiscoveryService.find_strategy",
+            return_value=MagicMock(),
+        ):
+            with self.assertRaises(ValueError):
+                Strategy.simulate("any", kind=SimulateKind.FULL)
 
 
 if __name__ == "__main__":

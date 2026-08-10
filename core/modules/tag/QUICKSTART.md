@@ -18,5 +18,5 @@ Tag().execute(scenario_name="demo/market_cap_tier")
 - userspace 场景：`userspace/extensions/tags/<path>/settings.py` + `tag.py`
 
 ```bash
-NTQ_TESTS_ENABLED=1 python -m pytest core/modules/tag/__test__/test_api.py -q
+python3 -m pytest core/modules/tag/__test__/test_api.py -q
 ```

@@ -4,12 +4,18 @@ compatible_core_versions: ">=0.4.2"
 description: "系统级别操作：从模板新建策略/Tag、清理缓存与模拟产物、全局 pipeline 租约。"
 dependencies:
   - infra.project_context
+  - modules.strategy
+  - modules.tag
 changelog:
   - version: "0.2.0"
     changes:
       - 对齐 CORE_MODULE_STANDARDS：Facade SystemActions（cache / pipeline / scaffold）；根 __init__ 仅导出 Facade
       - 新增 contracts.py、API.md / QUICKSTART.md / docs、根 __test__/test_api.py；公开 API 最高 beta
       - BREAKING：调用方改 Facade + contracts，不再 deep-import cache_cleanup.* / shortcuts
+      - "依赖穿透治理（不 bump）：module_info 补 strategy/tag；Tag 脚手架改 Tag.is_valid_path"
   - version: "0.1.0"
     changes:
       - 目录：cache_cleanup（清缓存、pipeline 租约）、shortcuts/create_new_strategy、shortcuts/create_new_tag
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能

@@ -1108,10 +1108,10 @@ module_name/
 ```python
 # 测试文件：test_calendar_service.py
 import pytest
-from core.modules.data_manager.data_services.calendar.calendar_service import CalendarService
+from core.modules.data_manager import DataManager
 
 class TestCalendarService:
-    """日历服务测试"""
+    """日历服务测试（经 DataManager.calendar；实现测可 deep-import）"""
 
     def test_get_latest_trading_date_success(self):
         """测试获取最新交易日 - 成功场景"""

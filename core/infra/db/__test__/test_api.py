@@ -90,6 +90,8 @@ class TestDbApi(unittest.TestCase):
             "maybe_scope",
             "main_process",
             "recover_after_interrupt",
+            "set_holder_resolver",
+            "ensure_holder_restored",
             "ensure_data_manager_restored",
             "wait_pool_children_done",
             "wait_for_main_end",

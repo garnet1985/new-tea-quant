@@ -10,6 +10,8 @@ from core.modules.backtest_engine.core.schedule.slice_based.reader_pool import (
     SliceReaderPool,
 )
 
+pytestmark = pytest.mark.force_run
+
 
 def test_needs_memory_probe_when_both_missing() -> None:
     assert SliceProbe.needs_memory_probe({}) is True
@@ -40,14 +42,19 @@ def test_measure_probe_mb_uses_max_of_rss_and_payload() -> None:
     payload_mb = SliceProbe.estimate_contracts_mb({"k": contract})
     assert payload_mb > 1.0  # walked size beats tiny RSS Δ
 
+    def _load(_payload, *, start, end, perf=None):
+        _ = start, end, perf
+        return {"k": contract}
+
     with patch(
         "core.modules.backtest_engine.core.timeline.timeline.Timeline.read_for_job",
         return_value=timeline,
-    ), patch(
-        "core.modules.strategy.core.services.entity_loader.job_bundle_loader.JobBundleLoader.load_per_entity_window",
-        return_value={"k": contract},
     ), patch.object(SliceProbe, "_process_rss_mb", side_effect=[100.0, 100.5]):
-        mb = SliceProbe.measure_probe_mb(jobs, min_required=20)
+        mb = SliceProbe.measure_probe_mb(
+            jobs,
+            min_required=20,
+            load_per_entity_window=_load,
+        )
 
     assert mb == pytest.approx(payload_mb)
 
@@ -67,16 +74,21 @@ def test_measure_probe_mb_uses_floor_when_tiny() -> None:
     timeline = MagicMock()
     timeline.clipped.return_value.points = [f"202401{i:02d}" for i in range(1, 31)]
 
+    def _load(_payload, *, start, end, perf=None):
+        _ = start, end, perf
+        return {"k": MagicMock(data=None)}
+
     with patch(
         "core.modules.backtest_engine.core.timeline.timeline.Timeline.read_for_job",
         return_value=timeline,
-    ), patch(
-        "core.modules.strategy.core.services.entity_loader.job_bundle_loader.JobBundleLoader.load_per_entity_window",
-        return_value={"k": MagicMock(data=None)},
     ), patch.object(SliceProbe, "_process_rss_mb", side_effect=[100.0, 100.1]), patch.object(
         SliceProbe, "estimate_contracts_mb", return_value=0.0
     ):
-        mb = SliceProbe.measure_probe_mb(jobs, min_required=5)
+        mb = SliceProbe.measure_probe_mb(
+            jobs,
+            min_required=5,
+            load_per_entity_window=_load,
+        )
 
     # 100 entities × 0.02 MB/entity floor
     assert mb == pytest.approx(2.0)

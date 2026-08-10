@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from unittest.mock import MagicMock, patch
 
-from core.modules.backtest_engine.core.shared.jobs import BacktestJob
+from core.modules.backtest_engine.contracts import BacktestJob
 from core.modules.backtest_engine.core.shared.types import JobContext
 from core.modules.tag.core.data_class import Scenario, TagDefinition
 from core.modules.tag.core.engines.shared.data_class import TagCalendarAsOfResult

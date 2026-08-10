@@ -12,3 +12,6 @@ changelog:
   - version: "0.1.0"
     changes:
       - 从单文件提升为 infra 子模块（MachineCapacity / MachineInfo）
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能

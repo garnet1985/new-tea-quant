@@ -48,6 +48,9 @@ class BaseJobExecutor:
     @classmethod
     def build_run_callbacks(cls, ctx: ExecutorHooksContext) -> Any:
         from core.modules.backtest_engine.contracts import RunCallbacks
+        from core.modules.strategy.core.services.entity_loader.job_bundle_loader import (
+            JobBundleLoader,
+        )
 
         cls._hooks_ctx = ctx
         return RunCallbacks(
@@ -58,6 +61,7 @@ class BaseJobExecutor:
             on_task_result=cls._dispatch_task_result,
             on_tick=cls.on_tick,
             on_ticks_complete=cls.on_ticks_complete,
+            load_per_entity_window=JobBundleLoader.load_per_entity_window,
         )
 
     @classmethod

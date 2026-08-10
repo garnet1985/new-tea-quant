@@ -2,15 +2,22 @@
 # Version: 0.4.0
 
 terms:
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面类是 BacktestEngine。"
+    aliases:
+      - "门面"
+    avoid:
+      - "deep-import core.schedule / core.performance 当公开 API"
+
   BacktestEngine:
-    definition: "回测调度 Facade：probe → plan → split → execute → monitor"
+    definition: "回测调度 Facade：probe → plan → execute → monitor；业务经 RunCallbacks 注入。"
     aliases: ["backtest_engine", "回测引擎"]
     avoid: ["BacktestScheduler", "JobPipeline"]
 
   entity_based:
     definition: "执行模式：每 entity（或 entity batch）独立并行；slice 边界内无 cross-entity 编排交互"
     aliases: ["entity parallel", "embarrassingly parallel jobs"]
-    avoid: ["timeline", "stock_based only"]
+    avoid: ["把模式名写成 timeline", "stock_based only"]
 
   slice_based:
     definition: >-
@@ -34,10 +41,17 @@ terms:
     aliases: ["queue_capacity", "预读深度"]
     avoid: ["靠一次读满消除等待"]
 
-  timeline:
-    definition: "已废弃别名 → entity_based（迁移期代码/文档）"
+  Timeline:
+    definition: >-
+      日历轴：simulation window / open dates 的发布与按 job 推进（contracts.Timeline）。
+      与已废弃的执行模式别名「timeline」不是同一概念。
+    aliases: ["日历轴", "contracts.Timeline"]
+    avoid: ["把 Timeline 当成 entity_based 的旧模式名"]
+
+  timeline_mode_alias:
+    definition: "已废弃的执行模式别名，曾指向 entity_based；BacktestMode.normalize 会拒绝。"
     aliases: []
-    avoid: ["作为新模式名使用"]
+    avoid: ["作为新模式名使用", "与 contracts.Timeline 混用"]
 
   sliced:
     definition: "已废弃别名 → slice_based（迁移期代码/文档）"
@@ -65,17 +79,17 @@ terms:
     avoid: ["run_name", "log_label"]
 
   RunCallbacks:
-    definition: "单次 run 的可选回调集合（on_result、on_release 等）"
+    definition: "单次 run 的可选回调集合（on_tick、on_before_task_start、on_task_result 等）"
     aliases: ["hooks", "callbacks"]
-    avoid: ["run 上平铺多个 on_* 参数"]
+    avoid: ["run 上平铺多个 on_* 参数", "对外传 execute_fn="]
 
   execute_fn:
-    definition: "子进程 job 执行函数：(JobContext) -> dict"
+    definition: "引擎内部 worker 入口类型 (JobContext) -> dict；由 TimelineWorkerExecute / SliceWorkerExecute 实现，非 run 公开参数"
     aliases: ["worker entry"]
-    avoid: ["Executor class"]
+    avoid: ["BacktestEngine.run(..., execute_fn=)"]
 
   probe:
-    definition: "engine 内部：plan 前用 execute_fn 试跑小样本（调用方不可见）"
+    definition: "engine 内部：plan 前用内置 worker 试跑小样本（调用方不可见）"
     aliases: []
     avoid: ["ProbeRegistry"]
 
@@ -85,7 +99,7 @@ terms:
     avoid: ["DispatchResult"]
 
   JobContext:
-    definition: "execute_fn 收到的作用域：job_id + payload + task_name"
+    definition: "worker 收到的作用域：job_id + payload + task_name"
     aliases: []
     avoid: ["WorkerContext"]
 

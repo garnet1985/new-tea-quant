@@ -24,7 +24,7 @@ rsi = Indicator.rsi(klines, length=14)
 ## 下一步
 
 - [API.md](./API.md)
-- [AVAILABLE_INDICATORS.md](./AVAILABLE_INDICATORS.md)
+- [docs/AVAILABLE_INDICATORS.md](./docs/AVAILABLE_INDICATORS.md)
 
 ```bash
 python3 -m pytest core/modules/indicator/__test__/test_api.py -q

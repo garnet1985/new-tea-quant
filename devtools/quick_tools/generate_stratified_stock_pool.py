@@ -20,7 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from core.modules.data_source.service.sample_stock_list import pool_csv_path
+from core.modules.data_source import DataSourceManager
 from devtools.demo_exporter.config import SAMPLE_RANDOM_SEED, TARGET_STOCK_COUNT
 from devtools.quick_tools.stock_pool_ops import generate_stratified_pool_files
 
@@ -40,7 +40,7 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        out = args.output or pool_csv_path(args.count)
+        out = args.output or DataSourceManager.pool_csv_path(args.count)
         generate_stratified_pool_files(
             count=args.count,
             seed=args.seed,

@@ -14,7 +14,7 @@ from typing import Any, Dict, Optional
 from core.infra.system_actions import SystemActions
 from core.infra.system_actions.contracts import PipelineLeaseBusyError
 from core.modules.strategy import Strategy
-from core.modules.strategy.core.enums import WorkbenchStep
+from core.modules.strategy.contracts import WorkbenchStep
 from core.modules.strategy.core.services.discovery import DiscoveryService
 from core.modules.strategy.core.services.progress import PipelineProgress
 
@@ -255,7 +255,9 @@ class WorkbenchRunLauncher:
             if not wp.is_backend():
                 return
             wp.wait_pool_children_done(timeout_sec=30.0)
-            wp.ensure_data_manager_restored()
+            from core.modules.data_manager import DataManager
+
+            DataManager.ensure_restored_after_worker_pool()
         except Exception as exc:
             logger.warning("Workbench DuckDB finalize: %s", exc)
 

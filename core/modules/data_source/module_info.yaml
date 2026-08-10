@@ -1,19 +1,38 @@
 name: modules.data_source
 version: 0.4.0
-compatible_core_versions: ">=0.3.3"
+compatible_core_versions: ">=0.4.1"
 description: "配置驱动的数据抓取：mapping + handler config、Provider 发现、BaseHandler 执行管线、调度器按依赖拓扑执行并写回绑定表。"
 dependencies:
   - modules.data_manager
   - infra.project_context
   - infra.discovery
+  - infra.db
+  - infra.utils
 changelog:
   - version: "0.4.0"
     changes:
       - 对齐 CORE_MODULE_STANDARDS：包根仅 DataSourceManager；contracts.py
       - 根 API.md / QUICKSTART / glossary / TEST_CASES / test_api；删除 docs/API.md
+      - P0：API 状态改为 beta；ARCHITECTURE/DESIGN/README 对齐 0.4.0；compatible_core >=0.4.1
+      - P0：删除未接入的 RenewManager 与三模式 RenewService；保留 RenewCommonHelper
+      - P0：恢复 sample_stock_list.DEFAULT_SAMPLE_N（供 renew_pipeline_sample）
+      - P1：扩 API.md / test_api；TEST_CASES 公开索引；实现测就近 service/*/__test__；glossary 补全
+      - P2：实现下沉 core/；全仓库导入路径更新；文档树对齐
+      - "依赖穿透（不 bump）：公开 get_data_end_meta / resolve_freshness_end_date（供 strategy scan）"
+      - "依赖穿透治理（不 bump）：module_info 补 infra.db / infra.utils；扩 contracts 与 Facade 收口 userspace/BFF/DM 深路径"
+      - "打破 DM↔DS 循环（不 bump）：公开 fetch_real_world_latest_completed_trading_date 并注入 CalendarService"
   - version: "0.3.7"
     changes:
-      - 多 bundle 并行迁入私有 job_pipeline
+      - 修复复权因子事件表的精度问题
+      - 清理了不需要的代码
+      - 多 bundle 并行迁入私有 service.pipeline.job_pipeline；移除 infra.job_pipeline 依赖
+  - version: "0.3.6"
+    changes:
+      - 修复批量写入路径；SaveBatchAutoSizer 按内存动态调整抓取批次
+      - JobPipeline 集成 handler 并行执行
   - version: "0.3.0"
     changes:
       - 配置驱动 handler 管线与依赖拓扑调度（基线）
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能

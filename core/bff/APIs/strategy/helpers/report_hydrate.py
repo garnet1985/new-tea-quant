@@ -102,9 +102,9 @@ def _version_dir_candidates_from_slot(
 
 def _resolve_strategy_folder(strategy_name: str) -> Path:
     """Prefer discovered strategy folder; fall back to userspace/strategies/{name}."""
-    from core.modules.strategy.core.services.discovery import DiscoveryService
+    from core.modules.strategy import Strategy
 
-    return DiscoveryService.resolve_strategy_folder(strategy_name)
+    return Strategy.resolve_folder(strategy_name)
 
 
 def resolve_simulation_output_dirs(
@@ -126,11 +126,11 @@ def resolve_simulation_output_dirs(
     except ValueError:
         return []
     if step == "enum":
-        root = ProjectContext.path.get_strategy_simulation_enum(folder)
+        root = ProjectContext.path.get_strategy_simulation_enum_directory(folder)
     elif step == "price":
-        root = ProjectContext.path.get_strategy_simulation_price(folder)
+        root = ProjectContext.path.get_strategy_simulation_price_directory(folder)
     elif step == "portfolio":
-        root = ProjectContext.path.get_strategy_simulation_portfolio(folder)
+        root = ProjectContext.path.get_strategy_simulation_portfolio_directory(folder)
     else:
         return []
 

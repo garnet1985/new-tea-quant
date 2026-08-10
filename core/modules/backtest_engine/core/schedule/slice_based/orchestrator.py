@@ -304,6 +304,9 @@ class SliceOrchestrator:
             queue_depth=int(
                 plan.get("preload_depth") or plan.get("queue_capacity") or 0
             ),
+            load_per_entity_window=(job_context.payload or {}).get(
+                "_load_per_entity_window"
+            ),
         )
 
     @staticmethod

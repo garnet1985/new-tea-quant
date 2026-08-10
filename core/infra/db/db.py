@@ -158,10 +158,23 @@ class DuckdbWorkerPoolNamespace:
         DuckdbWorkerPool.recover_after_worker_pool_interrupt(data_mgr)
 
     @staticmethod
-    def ensure_data_manager_restored(data_mgr: Any = None) -> Any:
+    def set_holder_resolver(resolver) -> None:
+        """注册应用层 holder 解析（通常由 DataManager 注册）。"""
         from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
 
-        return DuckdbWorkerPool.ensure_data_manager_restored(data_mgr)
+        DuckdbWorkerPool.set_holder_resolver(resolver)
+
+    @staticmethod
+    def ensure_holder_restored(data_mgr: Any = None) -> Any:
+        """恢复 pool 后主进程 holder/DB（duck-type）。应用层首选 DataManager.ensure_restored_after_worker_pool。"""
+        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
+
+        return DuckdbWorkerPool.ensure_holder_restored(data_mgr)
+
+    @staticmethod
+    def ensure_data_manager_restored(data_mgr: Any = None) -> Any:
+        """兼容旧名 → ensure_holder_restored。"""
+        return DuckdbWorkerPoolNamespace.ensure_holder_restored(data_mgr)
 
     @staticmethod
     def wait_pool_children_done(*, timeout_sec: float = 15.0) -> None:

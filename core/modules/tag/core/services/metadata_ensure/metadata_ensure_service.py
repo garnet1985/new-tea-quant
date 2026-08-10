@@ -10,16 +10,11 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
 from core.modules.tag.core.data_class.scenario import Scenario
 from core.modules.tag.core.data_class.tag_definition import TagDefinition
 from core.modules.tag.core.enums import TagUpdateMode
-
-if TYPE_CHECKING:
-    from core.modules.data_manager.data_services.stock.sub_services.tag_service import (
-        TagDataService,
-    )
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +22,7 @@ logger = logging.getLogger(__name__)
 class MetadataEnsureService:
     """确保 scenario / tag_definition 元数据存在且与 settings 对齐。"""
 
-    def __init__(self, tag_data_service: "TagDataService") -> None:
+    def __init__(self, tag_data_service: Any) -> None:
         if tag_data_service is None:
             raise ValueError("tag_data_service is required")
         self._tags = tag_data_service

@@ -34,4 +34,11 @@ class DevRunner:
             DevParser.build_parser().print_help()
             print()
 
+        try:
+            from setup.trace_events import SetupTrace
+
+            SetupTrace.app_start(entry="devcli")
+        except Exception:
+            pass
+
         return int(handler(args))

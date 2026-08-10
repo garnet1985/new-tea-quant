@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Literal, Optional
 
 InstallEntry = Literal["ui", "cli"]
+AppEntry = Literal["ui", "cli", "devcli"]
 
 
 class SetupTrace:
@@ -29,6 +30,16 @@ class SetupTrace:
                 # Stable codes only (step id / stage name); never exception text.
                 body["error_code"] = str(error_code)[:128]
             Trace.track("install.complete", body)
+        except Exception:
+            pass
+
+    @staticmethod
+    def app_start(*, entry: AppEntry) -> None:
+        """Emit ``app.start`` when launcher / cli / devcli is used."""
+        try:
+            from core.infra.trace import Trace
+
+            Trace.track("app.start", {"entry": entry})
         except Exception:
             pass
 

@@ -70,6 +70,13 @@ class UserRunner:
         except Exception:
             pass
 
+        try:
+            from setup.trace_events import SetupTrace
+
+            SetupTrace.app_start(entry="cli")
+        except Exception:
+            pass
+
         UserHandlers.setup_logging(verbose=args.verbose)
 
         label = args.command

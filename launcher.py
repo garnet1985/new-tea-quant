@@ -64,6 +64,13 @@ def main(argv: list[str] | None = None) -> int:
         print("依赖已就绪", flush=True)
 
     try:
+        from setup.trace_events import SetupTrace
+
+        SetupTrace.app_start(entry="ui")
+    except Exception:
+        pass
+
+    try:
         launch_ui_stack()
     except Exception as e:
         print(f"❌ 启动失败: {e}", flush=True)

@@ -70,6 +70,36 @@ class TestCliApi(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("NTQ Core Version:", buf.getvalue())
 
+    def test_dev_default_argv_prints_help_then_version(self) -> None:
+        from core.infra.cli import Cli
+
+        buf = StringIO()
+        with patch("sys.stdout", buf):
+            code = Cli.dev.main([])
+        self.assertEqual(code, 0)
+        text = buf.getvalue()
+        self.assertTrue(
+            "usage:" in text.lower()
+            or "规则:" in text
+            or "python devcli.py" in text
+        )
+        self.assertIn("NTQ Core Version:", text)
+        help_pos = text.find("python devcli.py")
+        ver_pos = text.find("NTQ Core Version:")
+        self.assertGreaterEqual(help_pos, 0)
+        self.assertGreater(ver_pos, help_pos)
+
+    def test_dev_explicit_version_skips_help_preamble(self) -> None:
+        from core.infra.cli import Cli
+
+        buf = StringIO()
+        with patch("sys.stdout", buf):
+            code = Cli.dev.main(["version"])
+        self.assertEqual(code, 0)
+        text = buf.getvalue()
+        self.assertIn("NTQ Core Version:", text)
+        self.assertTrue(text.strip().startswith("NTQ Core Version:"))
+
     def test_shared_expand_argv(self) -> None:
         from core.infra.cli import Cli
 

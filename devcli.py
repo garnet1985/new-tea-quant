@@ -3,6 +3,7 @@
 #
 # 规则: xx=命令  -v=版本  --xx=对象参数
 #
+# python devcli.py                         先帮助，再版本
 # python devcli.py ui                      启动 UI
 # python devcli.py csc                     清策略模拟缓存
 # python devcli.py p -core_v0.3.2          发布检查

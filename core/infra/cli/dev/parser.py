@@ -7,21 +7,25 @@ import argparse
 from core.infra.cli.dev.handlers import DevHandlers
 from core.infra.cli.dev.commands import DevCommands
 from core.infra.cli.dev.help_text import DEVCLI_COMMAND_REFERENCE
+from core.infra.cli.shared.help_format import HelpTextOnlyParser
 
 class DevParser:
     """Dev CLI argparse builder / parser."""
 
     @staticmethod
     def build_parser() -> argparse.ArgumentParser:
-        parser = argparse.ArgumentParser(
+        parser = HelpTextOnlyParser(
             prog="devcli.py",
-            description="New Tea Quant 开发命令",
-            formatter_class=argparse.RawDescriptionHelpFormatter,
-            epilog=DevParser._epilog(),
+            help_text=DEVCLI_COMMAND_REFERENCE,
         )
         parser.add_argument("--verbose", action="store_true", help="详细日志（DEBUG）")
 
-        sub = parser.add_subparsers(dest="command", required=False)
+        sub = parser.add_subparsers(
+            dest="command",
+            required=False,
+            metavar="COMMAND",
+            parser_class=argparse.ArgumentParser,
+        )
 
         sub.add_parser("version", help="显示 core 版本").set_defaults(handler=DevHandlers.cmd_version)
 
@@ -177,10 +181,6 @@ class DevParser:
         ).set_defaults(handler=DevHandlers.cmd_be_perf_clear)
 
         return parser
-
-    @staticmethod
-    def _epilog() -> str:
-        return "\n" + DEVCLI_COMMAND_REFERENCE + "\n"
 
     @staticmethod
     def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

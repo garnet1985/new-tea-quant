@@ -55,3 +55,5 @@ abbrev / parser / shared 脚手架等 helper 有 UT 即可，不在本文索引�
 |----------------------|------|------|
 | `test_dev_help_returns_zero` | `test_api.py` | `-h` 退出码 0 且打印帮助 |
 | `test_dev_version_returns_zero` | `test_api.py` | `version` 退出码 0 且打印版本 |
+| `test_dev_default_argv_prints_help_then_version` | `test_api.py` | 空 argv：先帮助再版本 |
+| `test_dev_explicit_version_skips_help_preamble` | `test_api.py` | 显式 `version` 不打印帮助前缀 |

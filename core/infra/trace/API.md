@@ -34,11 +34,20 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 写入本地队列（无网络 I/O）
+- **描述：** 构造事件后立刻 POST；失败则写入本地 queue 待重试
 
-#### flush
+#### queue
 
-`Trace.flush(*, budget: str | FlushBudget | None = None) -> int`
+`Trace.queue(event: str, body: Mapping | None = None) -> None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.0`
+- **描述：** 仅写入本地队列（无网络 I/O）
+
+#### send
+
+`Trace.send(*, budget: str | SendBudget | None = None) -> int`
 
 - **类型：** `static`
 - **状态：** `beta`
@@ -75,7 +84,7 @@
 
 ### types
 
-**描述：** `FlushBudget` / `TraceConfig` / `TraceConsent` / `TraceEvent` / `TraceDefaults`
+**描述：** `SendBudget` / `TraceConfig` / `TraceConsent` / `TraceEvent` / `TraceDefaults`
 
 ---
 
@@ -104,5 +113,5 @@
 
 | 符号 | 说明 |
 |------|------|
-| `FlushBudget` | `standard` / `extreme` / `auto` |
+| `SendBudget` | `standard` / `extreme` / `auto` |
 | `TraceConsent` / `TraceConfig` / `TraceEvent` | 同意、配置、事件 schema |

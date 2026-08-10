@@ -1,10 +1,13 @@
 # 模块元数据
 name: infra.machine_capacity
-version: "0.2.0"
+version: "0.2.1"
 compatible_core_versions: ">=0.4.0"
 description: "机器能力探测模块：获取当前用户机器的能力信息的模块，用于给大性能需求的任务提供规划信息。"
 dependencies: []
 changelog:
+  - version: "0.2.1"
+    changes:
+      - 新增 MachineInfo.get_disk_type：探测硬盘类型 ssd/hdd/unknown
   - version: "0.2.0"
     changes:
       - 标准化模块，标准化文档以及对外API

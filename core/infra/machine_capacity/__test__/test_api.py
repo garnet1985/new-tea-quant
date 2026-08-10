@@ -48,6 +48,10 @@ class TestMachineCapacityApi(unittest.TestCase):
         self.assertIsNone(MachineInfo.parse_max_parallel_jobs_cap("auto"))
         self.assertEqual(MachineInfo.parse_max_parallel_jobs_cap(4), 4)
 
+    def test_get_disk_type_returns_known_token(self) -> None:
+        kind = MachineInfo.get_disk_type()
+        self.assertIn(kind, {"ssd", "hdd", "unknown"})
+
 
 if __name__ == "__main__":
     unittest.main()

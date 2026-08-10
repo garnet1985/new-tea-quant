@@ -24,8 +24,8 @@
 
 | Case | 文件 | 说明 |
 |------|------|------|
-| `test_trace_facade_exported` | `test_api.py` | `__all__` + 方法 |
+| `test_trace_facade_exported` | `test_api.py` | `__all__` + track/queue/send；无 flush |
 | `test_config_namespace` | `test_api.py` | load 含 target_url |
 | `test_consent_namespace` | `test_api.py` | consent API |
-| `test_types_and_defaults` | `test_api.py` | types ≡ contracts；Defaults 单源 |
+| `test_types_and_defaults` | `test_api.py` | types ≡ contracts；SendBudget；Defaults 单源 |
 | `test_endpoint_env_override` | `test_api.py` | NTQ_TRACE_ENDPOINT |

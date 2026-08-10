@@ -63,3 +63,11 @@ def test_virtual_memory_mb_shape() -> None:
         assert available is not None
         assert total > 0
         assert available >= 0
+
+
+def test_linux_block_name() -> None:
+    assert MachineInfo._linux_block_name("/dev/sda1") == "sda"
+    assert MachineInfo._linux_block_name("/dev/nvme0n1p2") == "nvme0n1"
+    assert MachineInfo._linux_block_name("/dev/nvme0n1") == "nvme0n1"
+    assert MachineInfo._linux_block_name("/dev/mapper/root") == ""
+    assert MachineInfo._linux_block_name("") == ""

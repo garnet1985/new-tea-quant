@@ -18,6 +18,7 @@ class DevRunner:
             DevParser.build_parser().print_help()
             return 0
 
+        show_help_before_version = not raw
         try:
             args = DevParser.parse_args(raw)
         except SystemExit as exc:
@@ -28,5 +29,16 @@ class DevRunner:
         if handler is None:
             DevParser.build_parser().print_help()
             return 0
+
+        if show_help_before_version and args.command == "version":
+            DevParser.build_parser().print_help()
+            print()
+
+        try:
+            from setup.trace_events import SetupTrace
+
+            SetupTrace.app_start(entry="devcli")
+        except Exception:
+            pass
 
         return int(handler(args))

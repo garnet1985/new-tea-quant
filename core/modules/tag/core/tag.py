@@ -242,24 +242,46 @@ class Tag:
 
         if route == "global":
             result = TagGlobalPipeline.run(**run_kwargs)
-            self._save_performance_report(result, scenario, tag_key, "global")
+            self._save_performance_report(
+                result,
+                scenario,
+                tag_key,
+                "global",
+                entity_count=len(entity_ids),
+            )
             return result
 
         if route == "non_time_series":
             result = TagNonTimeSeriesPipeline.run(**run_kwargs)
             self._save_performance_report(
-                result, scenario, tag_key, "non_time_series"
+                result,
+                scenario,
+                tag_key,
+                "non_time_series",
+                entity_count=len(entity_ids),
             )
             return result
 
         mode = scenario.execution_mode
         if mode == TagExecutionMode.SLICE_BASED.value:
             result = TagSlicePipeline.run(**run_kwargs)
-            self._save_performance_report(result, scenario, tag_key, "slice_based")
+            self._save_performance_report(
+                result,
+                scenario,
+                tag_key,
+                "slice_based",
+                entity_count=len(entity_ids),
+            )
             return result
 
         result = TagEntityPipeline.run(**run_kwargs)
-        self._save_performance_report(result, scenario, tag_key, "entity_based")
+        self._save_performance_report(
+            result,
+            scenario,
+            tag_key,
+            "entity_based",
+            entity_count=len(entity_ids),
+        )
         return result
 
     def _save_performance_report(
@@ -268,6 +290,8 @@ class Tag:
         scenario: Scenario,
         tag_key: str,
         execution_mode: str,
+        *,
+        entity_count: int = 0,
     ) -> None:
         if not result:
             return
@@ -289,6 +313,7 @@ class Tag:
                     "tag_values_count": result.get("tag_values_count", 0),
                     "saved_tag_values": result.get("saved_tag_values", 0),
                     "dry_run": bool(result.get("dry_run")),
+                    "entity_count": int(entity_count or 0),
                 },
             }
             tags_root = ProjectContext.path.get_tags_root()
@@ -310,6 +335,48 @@ class Tag:
             )
         except Exception as exc:
             logger.warning("[%s] 保存性能报告失败: %s", tag_key, exc)
+
+        self._trace_feature_run(
+            result,
+            tag_key=tag_key,
+            execution_mode=execution_mode,
+            entity_count=entity_count,
+        )
+
+    @staticmethod
+    def _trace_feature_run(
+        result: Optional[Dict[str, Any]],
+        *,
+        tag_key: str,
+        execution_mode: str,
+        entity_count: int = 0,
+    ) -> None:
+        """After performance report is written — emit usage event (best-effort)."""
+        if not result:
+            return
+        try:
+            from core.infra.trace import Trace
+
+            mode = str(execution_mode or "").strip().lower() or "unknown"
+            entities = int(entity_count or 0)
+            if entities <= 0:
+                raw_ids = result.get("entity_ids")
+                if isinstance(raw_ids, list):
+                    entities = len(raw_ids)
+            Trace.track(
+                "feature.run",
+                {
+                    "action": f"tag.{mode}",
+                    "key": str(tag_key or "")[:64] or "unknown",
+                    "mode": mode,
+                    "success": bool(result.get("success")),
+                    "elapsed_seconds": float(result.get("elapsed_seconds") or 0.0),
+                    "entity_count": entities,
+                    "job_count": int(result.get("ok") or result.get("jobs") or 0),
+                },
+            )
+        except Exception:
+            return
 
     @staticmethod
     def is_valid_path(relative_path: str) -> bool:

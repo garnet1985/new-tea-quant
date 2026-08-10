@@ -1,11 +1,11 @@
-"""Dev CLI command reference (``devcli.py -h`` epilog)."""
+"""Dev CLI command reference (``devcli.py -h`` help text template)."""
 
 from __future__ import annotations
 
 DEVCLI_COMMAND_REFERENCE = """
 规则:  xx=命令  -v=版本  --xx=对象参数
 
-  python devcli.py                         显示版本和帮助（默认）  同 -v / --version / -h
+  python devcli.py                         先显示帮助，再显示版本（默认）  同 version / -v / --version
   python devcli.py ui                      启动 UI（launcher -d）
   python devcli.py uk                      结束 UI 端口（8000 + 8888）  同 ui_kill [--ntq-only]
   python devcli.py ic                      import 冒烟       同 check_import

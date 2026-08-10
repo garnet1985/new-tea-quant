@@ -15,6 +15,7 @@ dependencies:
   - infra.export_import
   - infra.cmd_layout
   - infra.utils
+  - infra.trace
 changelog:
   - version: "0.6.0"
     changes:

@@ -1,4 +1,4 @@
-"""Unit tests for sanitize / queue / flush (mocked HTTP)."""
+"""Unit tests for sanitize / queue / send / track (mocked HTTP)."""
 
 from __future__ import annotations
 
@@ -101,6 +101,42 @@ def test_meta_excludes_ip_and_hostname() -> None:
     assert out == {"os": "darwin", "python_version": "3.9"}
 
 
+def test_build_client_meta_includes_machine_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from core.infra.trace.core.services.sanitize_service import TraceSanitizeService
+
+    monkeypatch.setattr(
+        TraceSanitizeService,
+        "_cpu_cores",
+        staticmethod(lambda: 8),
+    )
+    monkeypatch.setattr(
+        TraceSanitizeService,
+        "_memory_mb",
+        staticmethod(lambda: 16384),
+    )
+    monkeypatch.setattr(
+        TraceSanitizeService,
+        "_database_type",
+        staticmethod(lambda: "duckdb"),
+    )
+    monkeypatch.setattr(
+        TraceSanitizeService,
+        "_disk_type",
+        staticmethod(lambda: "ssd"),
+    )
+
+    out = TraceSanitizeService.build_client_meta(ntq_version="0.4.3")
+    assert out["os"]
+    assert out["python_version"]
+    assert out["cpu_cores"] == 8
+    assert out["memory_mb"] == 16384
+    assert out["db"] == "duckdb"
+    assert out["disk_type"] == "ssd"
+    assert out["ntq_version"] == "0.4.3"
+
+
 def test_queue_drops_oldest(trace_dirs: Path) -> None:
     from core.infra.trace.core.services.queue_service import TraceQueueService
 
@@ -118,7 +154,7 @@ def test_queue_drops_oldest(trace_dirs: Path) -> None:
     assert len(files) == 3
 
 
-def test_track_and_flush_mocked(trace_dirs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_queue_and_send_mocked(trace_dirs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from core.infra.trace import Trace
     from core.infra.trace.core.services import client_service, queue_service
 
@@ -138,18 +174,61 @@ def test_track_and_flush_mocked(trace_dirs: Path, monkeypatch: pytest.MonkeyPatc
 
     monkeypatch.setattr(client_service.TraceClientService, "post", staticmethod(fake_post))
 
-    Trace.track(
+    Trace.queue(
         "install.complete",
         {"success": True, "source": "manual_test", "secret": "x"},
     )
     assert queue_service.TraceQueueService.depth() == 1
-    n = Trace.flush(budget="standard")
+    n = Trace.send(budget="standard")
     assert n == 1
     assert queue_service.TraceQueueService.depth() == 0
     assert calls and calls[0]["event"] == "install.complete"
     assert "secret" not in calls[0]["body"]
     assert "os" in calls[0]["meta"]
     assert calls[0]["body"].get("success") is True
+
+
+def test_track_posts_immediately(trace_dirs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from core.infra.trace import Trace
+    from core.infra.trace.core.services import client_service, queue_service
+
+    calls = []
+
+    def fake_post(
+        url: str,
+        event: Union[TraceEvent, Dict[str, Any]],
+        *,
+        timeout_sec: float,
+    ) -> bool:
+        if isinstance(event, TraceEvent):
+            calls.append(event.to_wire_dict())
+        else:
+            calls.append(event)
+        return True
+
+    monkeypatch.setattr(client_service.TraceClientService, "post", staticmethod(fake_post))
+
+    Trace.track("install.complete", {"success": True, "secret": "x"})
+    assert queue_service.TraceQueueService.depth() == 0
+    assert calls and calls[0]["event"] == "install.complete"
+    assert "secret" not in calls[0]["body"]
+    assert calls[0]["body"].get("success") is True
+
+
+def test_track_enqueues_when_post_fails(
+    trace_dirs: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from core.infra.trace import Trace
+    from core.infra.trace.core.services import client_service, queue_service
+
+    monkeypatch.setattr(
+        client_service.TraceClientService,
+        "post",
+        staticmethod(lambda *a, **k: False),
+    )
+
+    Trace.track("install.complete", {"success": False, "error_code": "pip_bff"})
+    assert queue_service.TraceQueueService.depth() == 1
 
 
 def test_claim_atomic(trace_dirs: Path) -> None:

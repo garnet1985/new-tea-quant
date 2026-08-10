@@ -1,9 +1,9 @@
-"""跨模块契约：FlushBudget / TraceEvent / TraceConfig / TraceConsent。
+"""跨模块契约：SendBudget / TraceEvent / TraceConfig / TraceConsent。
 
 推荐::
 
     from core.infra.trace import Trace
-    from core.infra.trace.contracts import FlushBudget
+    from core.infra.trace.contracts import SendBudget
 """
 
 from __future__ import annotations
@@ -15,8 +15,8 @@ from typing import Any, Dict, Optional
 from .core.defaults import TraceDefaults
 
 
-class FlushBudget(str, Enum):
-    """Flush time/count budget names."""
+class SendBudget(str, Enum):
+    """Send time/count budget names."""
 
     STANDARD = "standard"
     EXTREME = "extreme"
@@ -107,7 +107,7 @@ class TraceEvent:
 
 
 __all__ = [
-    "FlushBudget",
+    "SendBudget",
     "TraceConsent",
     "TraceConfig",
     "TraceEvent",

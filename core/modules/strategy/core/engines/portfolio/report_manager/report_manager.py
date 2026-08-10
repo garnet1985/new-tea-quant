@@ -203,7 +203,43 @@ class ReportManager(BaseReportManager):
             performance_path=performance_path,
         )
         self._saved_artifacts = artifacts
+        self._trace_feature_run()
         return artifacts
+
+    def _trace_feature_run(self) -> None:
+        snap = self.performance._report
+        if snap is None:
+            return
+        mode = "unknown"
+        entity_count = 0
+        try:
+            runtime = PortfolioRuntimeEnv.load(self.output_dir)
+            entity_count = len(runtime.entity_ids or [])
+            enum_dir = str(runtime.enum_output_dir or "").strip()
+            if enum_dir:
+                from core.modules.strategy.core.engines.enumerator.common.artifacts.runtime_env import (
+                    RuntimeEnv,
+                )
+
+                mode = (
+                    str(RuntimeEnv.load(Path(enum_dir)).execution_mode or "")
+                    .strip()
+                    .lower()
+                    or "unknown"
+                )
+        except Exception:
+            pass
+        success = True
+        if self._sim is not None:
+            success = bool(getattr(self._sim, "success", True))
+        self.trace_feature_run(
+            action="strategy.portfolio",
+            key=str(self.strategy_key or ""),
+            mode=mode,
+            success=success,
+            elapsed_seconds=float(snap.elapsed_seconds or 0.0),
+            entity_count=int(entity_count),
+        )
 
     def finalize(
         self,

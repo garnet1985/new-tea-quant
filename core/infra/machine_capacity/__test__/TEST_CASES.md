@@ -1,7 +1,7 @@
 # 测试用例 — `infra.machine_capacity`（模块根）
 
 **模块：** `infra.machine_capacity`  
-**覆盖版本：** `0.2.0`  
+**覆盖版本：** `0.2.1`  
 **本文件位置：** `__test__/`
 
 ---
@@ -34,6 +34,8 @@
 | `test_types_machine_capacity` | `test_api.py` | types ≡ contracts |
 | `test_get_capacity_explicit_budget` | `test_api.py` | 显式预算快照 |
 | `test_parse_max_parallel_jobs_cap` | `test_api.py` | None / auto / 数值 |
+| `test_get_disk_type_returns_known_token` | `test_api.py` | ssd/hdd/unknown |
+| `test_linux_block_name` | `test_machine_capacity.py` | sysfs block 名解析 |
 
 ## Scenario：capacity_resolve
 

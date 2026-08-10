@@ -2,7 +2,7 @@
 
 **模块：** `infra.trace` · **版本：** `0.1.0`
 
-最短路径：询问同意后上报一条事件。
+最短路径：询问同意后立刻上报一条事件。
 
 ---
 
@@ -13,10 +13,16 @@ from core.infra.trace import Trace
 
 Trace.ask_permission(source="cli")
 Trace.track("install.complete", {"success": True})
-print(Trace.flush(budget="standard"))
 ```
 
-**预期结果：** 同意后事件入队并尝试发送；返回成功条数（整数）。
+**预期结果：** 同意后事件立刻 POST；失败则入本地 queue，可由 `Trace.send` 或后台 drain 重试。
+
+入队后再发送：
+
+```python
+Trace.queue("app.session_start", {})
+print(Trace.send(budget="standard"))
+```
 
 ---
 

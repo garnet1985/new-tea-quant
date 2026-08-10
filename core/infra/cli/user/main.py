@@ -53,7 +53,7 @@ class UserRunner:
         try:
             from core.infra.trace import Trace
 
-            Trace.flush(budget="auto")
+            Trace.send(budget="auto")
         except Exception:
             pass
 
@@ -67,6 +67,13 @@ class UserRunner:
             Trace.ask_permission(source="cli")
         except KeyboardInterrupt:
             return 0
+        except Exception:
+            pass
+
+        try:
+            from setup.trace_events import SetupTrace
+
+            SetupTrace.app_start(entry="cli")
         except Exception:
             pass
 

@@ -55,9 +55,21 @@ def test_track_is_noop_without_consent(
     consent_env: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from core.infra.trace import Trace
-    from core.infra.trace.core.services import queue_service
+    from core.infra.trace.contracts import TraceEvent
+    from core.infra.trace.core.services import client_service, queue_service
 
+    posts = []
     enqueued = []
+
+    def fake_post(url, event, *, timeout_sec):
+        posts.append(event.to_wire_dict() if isinstance(event, TraceEvent) else event)
+        return True
+
+    monkeypatch.setattr(
+        client_service.TraceClientService,
+        "post",
+        staticmethod(fake_post),
+    )
     monkeypatch.setattr(
         queue_service.TraceQueueService,
         "enqueue",
@@ -65,16 +77,136 @@ def test_track_is_noop_without_consent(
     )
 
     Trace.track("install.complete", {"success": True})
+    assert posts == []
     assert enqueued == []
 
     Trace.consent.grant(source="test")
+    assert len(posts) == 1
+    assert posts[0]["event"] == "track.decision"
+    assert enqueued == []
+
     Trace.track("install.complete", {"success": True})
-    assert len(enqueued) == 1
+    assert len(posts) == 2
+    assert posts[1]["event"] == "install.complete"
+    assert enqueued == []
 
 
-def test_skip_env_overrides_consent(
+def test_queue_enqueues_with_consent(
     consent_env: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from core.infra.trace import Trace
+    from core.infra.trace.contracts import TraceEvent
+    from core.infra.trace.core.services import client_service, queue_service
+
+    posts = []
+    enqueued = []
+
+    def fake_post(url, event, *, timeout_sec):
+        posts.append(event.to_wire_dict() if isinstance(event, TraceEvent) else event)
+        return True
+
+    monkeypatch.setattr(
+        client_service.TraceClientService,
+        "post",
+        staticmethod(fake_post),
+    )
+    monkeypatch.setattr(
+        queue_service.TraceQueueService,
+        "enqueue",
+        staticmethod(lambda event, **kwargs: enqueued.append(event) or True),
+    )
+
+    Trace.consent.grant(source="test")
+    assert len(posts) == 1
+    assert posts[0]["event"] == "track.decision"
+    assert enqueued == []
+
+    Trace.queue("install.complete", {"success": True})
+    assert len(enqueued) == 1
+    assert enqueued[0].event == "install.complete"
+
+
+def test_grant_emits_track_decision(
+    consent_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from core.infra.trace import Trace
+    from core.infra.trace.core.services import client_service
+
+    posts = []
+
+    def fake_post(url, event, *, timeout_sec):
+        from core.infra.trace.contracts import TraceEvent
+
+        posts.append(event.to_wire_dict() if isinstance(event, TraceEvent) else event)
+        return True
+
+    monkeypatch.setattr(
+        client_service.TraceClientService, "post", staticmethod(fake_post)
+    )
+
+    assert Trace.consent.grant(source="cli_install") is True
+    assert len(posts) == 1
+    assert posts[0]["event"] == "track.decision"
+    assert posts[0]["body"] == {"enabled": True, "source": "cli_install"}
+
+
+def test_revoke_emits_track_decision_even_when_disabled(
+    consent_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from core.infra.trace import Trace
+    from core.infra.trace.core.services import client_service
+
+    posts = []
+
+    def fake_post(url, event, *, timeout_sec):
+        from core.infra.trace.contracts import TraceEvent
+
+        posts.append(event.to_wire_dict() if isinstance(event, TraceEvent) else event)
+        return True
+
+    monkeypatch.setattr(
+        client_service.TraceClientService, "post", staticmethod(fake_post)
+    )
+
+    Trace.consent.grant(source="cli")
+    posts.clear()
+    assert Trace.consent.revoke(source="ui") is True
+    assert len(posts) == 1
+    assert posts[0]["event"] == "track.decision"
+    assert posts[0]["body"] == {"enabled": False, "source": "ui"}
+
+
+def test_ask_noop_does_not_reemit_decision(
+    consent_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from core.infra.trace import Trace
+    from core.infra.trace.core.services import client_service, permission_service
+
+    posts = []
+
+    def fake_post(url, event, *, timeout_sec):
+        from core.infra.trace.contracts import TraceEvent
+
+        posts.append(event.to_wire_dict() if isinstance(event, TraceEvent) else event)
+        return True
+
+    monkeypatch.setattr(
+        client_service.TraceClientService, "post", staticmethod(fake_post)
+    )
+    monkeypatch.setattr(
+        permission_service.TracePermissionService,
+        "_can_prompt",
+        staticmethod(lambda: True),
+    )
+    monkeypatch.setattr("builtins.input", lambda _prompt="": "y")
+
+    assert Trace.ask_permission(source="cli") is True
+    assert sum(1 for p in posts if p["event"] == "track.decision") == 1
+
+    posts.clear()
+    assert Trace.ask_permission(source="cli") is True
+    assert posts == []
+
     from core.infra.trace.core.services.config_service import TraceConfigService
     from core.infra.trace.core.services.consent_service import TraceConsentService
 

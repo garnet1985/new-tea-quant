@@ -28,6 +28,7 @@ from setup.install_runtime import (
     sha256_file,
     ui_dev_mode,
 )
+from setup.trace_events import SetupTrace
 
 FED_ROOT = UI_FED_ROOT
 BFF_REQUIREMENTS = UI_BFF_REQUIREMENTS
@@ -111,37 +112,68 @@ def install_ui_runtime(force: bool = False) -> None:
         print("安装检查通过，跳过依赖安装。", flush=True)
         return
 
-    _bootstrap_pip()
-    _pip_install_bff()
+    traced_failure = False
 
-    fingerprints: dict = {
-        "python": {
-            "uiRequirementsHash": sha256_file(BFF_REQUIREMENTS),
-            "lastInstallAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        },
-    }
+    def _fail(error_code: str) -> None:
+        nonlocal traced_failure
+        mark_runtime("ui", success=False, failed_step_id=error_code)
+        SetupTrace.install_complete(success=False, entry="ui", error_code=error_code)
+        traced_failure = True
 
-    if ui_dev_mode():
-        print("安装 UI 开发依赖（BFF + node_modules）…", flush=True)
-        _npm_install_fed()
-        fingerprints["node"] = {
-            "fedLockHash": sha256_file(FED_LOCKFILE),
-            "lastInstallAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        }
-    else:
-        print("安装 UI 运行依赖（BFF + fed/build）…", flush=True)
-        if not fed_build_ready():
-            if not _node_toolchain_available():
-                raise RuntimeError("缺少 fed/build 且未检测到 Node.js")
-            _npm_install_fed()
-            _npm_build_fed()
-        fingerprints["fedBuild"] = {
-            "buildFingerprint": fed_build_fingerprint(),
-            "lastInstallAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    try:
+        _bootstrap_pip()
+        try:
+            _pip_install_bff()
+        except Exception:
+            _fail("pip_bff")
+            raise
+
+        fingerprints: dict = {
+            "python": {
+                "uiRequirementsHash": sha256_file(BFF_REQUIREMENTS),
+                "lastInstallAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            },
         }
 
-    mark_runtime("ui", success=True, fingerprints=fingerprints)
-    print("UI 运行依赖安装完成。", flush=True)
+        if ui_dev_mode():
+            print("安装 UI 开发依赖（BFF + node_modules）…", flush=True)
+            try:
+                _npm_install_fed()
+            except Exception:
+                _fail("npm_fed")
+                raise
+            fingerprints["node"] = {
+                "fedLockHash": sha256_file(FED_LOCKFILE),
+                "lastInstallAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+        else:
+            print("安装 UI 运行依赖（BFF + fed/build）…", flush=True)
+            if not fed_build_ready():
+                if not _node_toolchain_available():
+                    _fail("missing_node")
+                    raise RuntimeError("缺少 fed/build 且未检测到 Node.js")
+                try:
+                    _npm_install_fed()
+                except Exception:
+                    _fail("npm_fed")
+                    raise
+                try:
+                    _npm_build_fed()
+                except Exception:
+                    _fail("fed_build")
+                    raise
+            fingerprints["fedBuild"] = {
+                "buildFingerprint": fed_build_fingerprint(),
+                "lastInstallAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
+
+        mark_runtime("ui", success=True, fingerprints=fingerprints)
+        SetupTrace.install_complete(success=True, entry="ui")
+        print("UI 运行依赖安装完成。", flush=True)
+    except Exception:
+        if not traced_failure:
+            _fail("unknown")
+        raise
 
 
 def _pids_listening_on(port: int) -> list[int]:

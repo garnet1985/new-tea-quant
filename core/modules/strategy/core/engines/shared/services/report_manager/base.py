@@ -48,5 +48,36 @@ class BaseReportManager(ABC):
         saved = self.save()
         return saved if saved is not None else summary
 
+    def trace_feature_run(
+        self,
+        *,
+        action: str,
+        key: str,
+        mode: str = "unknown",
+        success: bool = True,
+        elapsed_seconds: float = 0.0,
+        entity_count: int = 0,
+        **extra: Any,
+    ) -> None:
+        """Best-effort ``feature.run`` after performance is written."""
+        try:
+            from core.infra.trace import Trace
+
+            body: dict[str, Any] = {
+                "action": str(action or "").strip() or "unknown",
+                "key": str(key or "").strip()[:64] or "unknown",
+                "mode": str(mode or "").strip().lower() or "unknown",
+                "success": bool(success),
+                "elapsed_seconds": float(elapsed_seconds or 0.0),
+                "entity_count": int(entity_count or 0),
+            }
+            for name, value in extra.items():
+                if value is None:
+                    continue
+                body[str(name)] = value
+            Trace.track("feature.run", body)
+        except Exception:
+            return
+
 
 __all__ = ["BaseReportManager"]

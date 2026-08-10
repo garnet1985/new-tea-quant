@@ -8,7 +8,7 @@ import unittest
 import pytest
 
 from core.infra.trace import Trace
-from core.infra.trace.contracts import FlushBudget, TraceConsent, TraceConfig, TraceEvent
+from core.infra.trace.contracts import SendBudget, TraceConsent, TraceConfig, TraceEvent
 from core.infra.trace.core.defaults import TraceDefaults
 
 pytestmark = pytest.mark.force_run
@@ -20,9 +20,11 @@ class TestTraceApi(unittest.TestCase):
 
         self.assertEqual(pkg.__all__, ["Trace"])
         self.assertTrue(callable(Trace.track))
-        self.assertTrue(callable(Trace.flush))
+        self.assertTrue(callable(Trace.queue))
+        self.assertTrue(callable(Trace.send))
         self.assertTrue(callable(Trace.start_background_drain))
         self.assertTrue(callable(Trace.ask_permission))
+        self.assertFalse(hasattr(Trace, "flush"))
         self.assertTrue(hasattr(Trace, "config"))
         self.assertTrue(hasattr(Trace, "consent"))
         self.assertTrue(hasattr(Trace, "types"))
@@ -48,11 +50,12 @@ class TestTraceApi(unittest.TestCase):
             self.assertTrue(callable(getattr(Trace.consent, name)))
 
     def test_types_and_defaults(self) -> None:
-        self.assertIs(Trace.types.FlushBudget, FlushBudget)
+        self.assertIs(Trace.types.SendBudget, SendBudget)
         self.assertIs(Trace.types.TraceConsent, TraceConsent)
         self.assertIs(Trace.types.TraceConfig, TraceConfig)
         self.assertIs(Trace.types.TraceEvent, TraceEvent)
         self.assertIs(Trace.types.TraceDefaults, TraceDefaults)
+        self.assertFalse(hasattr(Trace.types, "FlushBudget"))
         self.assertEqual(TraceConfig().target_url, TraceDefaults.TARGET_URL)
 
     def test_endpoint_env_override(self) -> None:

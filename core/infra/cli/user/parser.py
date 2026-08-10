@@ -6,6 +6,7 @@ import argparse
 
 from core.infra.cli.user.commands import UserCommands
 from core.infra.cli.user.help_text import CLI_COMMAND_REFERENCE
+from core.infra.cli.shared.help_format import HelpTextOnlyParser
 
 class UserParser:
     """User CLI argparse builder / parser."""
@@ -31,16 +32,19 @@ class UserParser:
 
     @staticmethod
     def build_parser() -> argparse.ArgumentParser:
-        parser = argparse.ArgumentParser(
+        parser = HelpTextOnlyParser(
             prog="cli.py",
-            description="NTQ — 数据更新、策略扫描、模拟、分析",
-            formatter_class=argparse.RawDescriptionHelpFormatter,
-            epilog=UserParser._epilog(),
+            help_text=CLI_COMMAND_REFERENCE,
             parents=[UserParser._GLOBAL_FLAGS],
         )
         parser.add_argument("--verbose", action="store_true", help="详细日志（DEBUG）")
 
-        sub = parser.add_subparsers(dest="command", required=False)
+        sub = parser.add_subparsers(
+            dest="command",
+            required=False,
+            metavar="COMMAND",
+            parser_class=argparse.ArgumentParser,
+        )
 
         UserParser._p_scan(sub)
         UserParser._p_strategy_enumerate(sub)
@@ -201,10 +205,6 @@ class UserParser:
     @staticmethod
     def _p_version(sub: argparse._SubParsersAction) -> None:
         sub.add_parser("version", aliases=UserCommands.aliases_for("version"), help="显示 core 版本")
-
-    @staticmethod
-    def _epilog() -> str:
-        return "\n" + CLI_COMMAND_REFERENCE + "\n"
 
     @staticmethod
     def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

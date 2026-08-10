@@ -1,4 +1,4 @@
-"""CLI command reference (``cli.py -h`` epilog)."""
+"""CLI command reference (``cli.py -h`` help text template)."""
 
 from __future__ import annotations
 

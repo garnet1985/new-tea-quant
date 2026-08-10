@@ -4,8 +4,9 @@
 池文件位于 ``core/modules/data_source/core/dev/stock_pool/``（进 Git 的 dev 名单）。
 
 全局约束（下游无感）：
-- ``ListService`` 读路径经 ``slice_stock_list`` 过滤；
+- 抓取侧：entity / dependencies 经 ``slice_stock_list`` 截断；
 - ``PersistenceService`` 写 per-stock 表前经 ``filter_records_by_sample_pool`` 过滤。
+- ``ListService`` 读路径信任 DB，不感知样本池。
 """
 from __future__ import annotations
 

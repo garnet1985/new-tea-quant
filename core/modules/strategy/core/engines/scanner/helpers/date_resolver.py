@@ -72,6 +72,9 @@ class ScanDateResolver:
 
         try:
             if use_strict:
+                from core.modules.data_source import DataSourceManager
+
+                DataSourceManager.ensure_calendar_real_world_fetcher_registered()
                 raw_anchor = str(
                     cal_svc.get_real_world_latest_completed_trading_date() or ""
                 ).strip()

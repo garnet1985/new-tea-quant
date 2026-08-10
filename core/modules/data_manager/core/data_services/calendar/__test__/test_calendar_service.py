@@ -1,7 +1,11 @@
 """CalendarService latest completed 推导与 data.json as-of。"""
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from core.modules.data_manager.core.data_services.calendar.calendar_service import CalendarService
+
+pytestmark = pytest.mark.force_run
 
 
 def _service_with_calendar(calendar_model) -> CalendarService:
@@ -44,25 +48,46 @@ def test_resolve_prefers_trade_calendar_over_real_world():
     rw.assert_not_called()
 
 
-@patch(
-    "core.modules.data_manager.core.data_services.calendar.calendar_service.ConfigManager.get_as_of_latest_completed_trading_date",
-    return_value="20260101",
-)
-def test_get_latest_completed_uses_data_json_override(_mock_cfg):
+def test_get_latest_completed_uses_data_json_override():
     cal = MagicMock()
     cal.load_db_latest_completed_trading_date.return_value = "20260610"
     svc = _service_with_calendar(cal)
 
-    assert svc.get_latest_completed_trading_date(as_of_date="20260611") == "20260101"
+    with patch(
+        "core.modules.data_manager.core.data_services.calendar.calendar_service.ProjectContext.config.get_as_of_latest_completed_trading_date",
+        return_value="20260101",
+    ):
+        assert svc.get_latest_completed_trading_date(as_of_date="20260611") == "20260101"
 
 
-@patch(
-    "core.modules.data_manager.core.data_services.calendar.calendar_service.ConfigManager.get_as_of_latest_completed_trading_date",
-    return_value=None,
-)
-def test_get_latest_completed_falls_back_without_config(_mock_cfg):
+def test_get_latest_completed_falls_back_without_config():
     cal = MagicMock()
     cal.load_db_latest_completed_trading_date.return_value = "20250520"
     svc = _service_with_calendar(cal)
 
-    assert svc.get_latest_completed_trading_date(as_of_date="20250524") == "20250520"
+    with patch(
+        "core.modules.data_manager.core.data_services.calendar.calendar_service.ProjectContext.config.get_as_of_latest_completed_trading_date",
+        return_value=None,
+    ):
+        assert svc.get_latest_completed_trading_date(as_of_date="20250524") == "20250520"
+
+
+def test_fetch_with_fallback_uses_registered_fetcher():
+    cal = MagicMock()
+    svc = _service_with_calendar(cal)
+    CalendarService.register_real_world_fetcher(lambda: ("20250519", "sina"))
+    try:
+        date, provider = svc._fetch_with_fallback()
+        assert date == "20250519"
+        assert provider == "sina"
+    finally:
+        CalendarService.register_real_world_fetcher(None)
+
+
+def test_fetch_with_fallback_guesses_without_fetcher():
+    cal = MagicMock()
+    svc = _service_with_calendar(cal)
+    CalendarService.register_real_world_fetcher(None)
+    date, provider = svc._fetch_with_fallback()
+    assert provider == "guess"
+    assert len(date) == 8

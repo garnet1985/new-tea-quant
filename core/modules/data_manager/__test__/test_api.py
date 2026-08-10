@@ -52,6 +52,19 @@ class TestDataManagerApi(unittest.TestCase):
         self.assertIsNone(DataManager.normalize_delist_date(0.0))
         self.assertEqual(DataManager.normalize_delist_date("20200101"), "20200101")
 
+    def test_register_calendar_real_world_fetcher(self):
+        from core.modules.data_manager import DataManager
+        from core.modules.data_manager.core.data_services.calendar.calendar_service import (
+            CalendarService,
+        )
+
+        def _fetcher():
+            return ("20250520", "test")
+
+        DataManager.register_calendar_real_world_fetcher(_fetcher)
+        self.assertIs(CalendarService._real_world_fetcher, _fetcher)
+        DataManager.register_calendar_real_world_fetcher(None)
+
     def test_attach_data_service(self):
         from core.modules.data_manager import DataManager
 

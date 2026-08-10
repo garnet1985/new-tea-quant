@@ -51,6 +51,13 @@
 - **状态：** `beta`
 - **描述：** 将源数据占位退市日（`0` / `0.0`）视为未退市；跨模块入口
 
+### register_calendar_real_world_fetcher
+
+`DataManager.register_calendar_real_world_fetcher(fetcher) -> None`（staticmethod）
+
+- **状态：** `beta`
+- **描述：** 注入日历 real-world 网络探测（`Callable[[], tuple[date, provider] | None]`）。通常由 `DataSourceManager` 在导入/构造时注册；DM 不依赖 DS
+
 ### attach_data_service
 
 `DataManager.attach_data_service() -> DataService`

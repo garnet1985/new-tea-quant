@@ -20,6 +20,7 @@ changelog:
       - P2：实现下沉 core/；全仓库导入路径更新；文档树对齐
       - "依赖穿透（不 bump）：公开 get_data_end_meta / resolve_freshness_end_date（供 strategy scan）"
       - "依赖穿透治理（不 bump）：module_info 补 infra.db / infra.utils；扩 contracts 与 Facade 收口 userspace/BFF/DM 深路径"
+      - "打破 DM↔DS 循环（不 bump）：公开 fetch_real_world_latest_completed_trading_date 并注入 CalendarService"
   - version: "0.3.7"
     changes:
       - 修复复权因子事件表的精度问题

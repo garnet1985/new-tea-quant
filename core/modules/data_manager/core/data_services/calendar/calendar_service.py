@@ -10,22 +10,24 @@
   （优先 ``data.json`` 的 ``as_of_latest_completed_trading_date``；否则 DB 日历 → real-world → K 线 MAX → 猜测）
 
 网络侧（Scanner 严格模式 / unified API fallback）：
-- ``get_real_world_latest_completed_trading_date()``：新浪/东财 K 线，不读 ``sys_trade_calendar``
+- ``get_real_world_latest_completed_trading_date()``：经注入的 fetcher（通常由 DS 注册）探测；
+  无 fetcher 或失败时周末猜测。不读 ``sys_trade_calendar``。
 """
 from datetime import datetime, timedelta
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 import logging
 import threading
 import json
 
 from core.infra.project_context import ProjectContext
 
-from core.modules.data_source import DataSourceManager
 from .. import BaseDataService
 from core.infra.utils import Utils
 
 
 logger = logging.getLogger(__name__)
+
+RealWorldFetcher = Callable[[], Optional[Tuple[str, str]]]
 
 
 class CalendarService(BaseDataService):
@@ -44,6 +46,12 @@ class CalendarService(BaseDataService):
         "lock": threading.Lock()         # 线程锁
     }
     _configured_as_of_logged = False
+    _real_world_fetcher: Optional[RealWorldFetcher] = None
+
+    @classmethod
+    def register_real_world_fetcher(cls, fetcher: Optional[RealWorldFetcher]) -> None:
+        """注入网络侧探测（由 DS 等组合根注册；DM 自身不依赖 DS）。"""
+        cls._real_world_fetcher = fetcher
 
     def __init__(self, data_manager):
         """
@@ -417,159 +425,25 @@ class CalendarService(BaseDataService):
     
     def _fetch_with_fallback(self) -> Tuple[str, str]:
         """
-        使用多fallback机制获取最新交易日
-        
-        Fallback 优先级：
-        1. 新浪财经API - 查询上证指数K线，取最后2根判断
-        2. 东方财富API - 查询上证指数K线，取最后2根判断
-        3. 系统猜测 - 从昨天开始排除周末
-        
-        Returns:
-            Tuple[最新交易日（YYYYMMDD）, 数据来源（provider名称）]
+        使用多 fallback 获取最新交易日。
+
+        1. 已注册的 real-world fetcher（通常新浪 → 东财）
+        2. 系统猜测（排除周末）
         """
-        # Fallback 1: 新浪财经API（首选，端点稳定）
-        latest_date = self._try_fetch_from_provider('新浪财经', self._fetch_from_sina)
-        if latest_date:
-            return latest_date, 'sina'
-        
-        # Fallback 2: 东方财富API
-        latest_date = self._try_fetch_from_provider('东方财富', self._fetch_from_eastmoney)
-        if latest_date:
-            return latest_date, 'eastmoney'
-        
-        # Fallback 3: 系统猜测（排除周末）
-        logger.warning("⚠️  所有API都失败，使用系统猜测（排除周末）")
-        latest_date = self._guess_latest_trading_date()
-        return latest_date, 'guess'
-    
-    def _try_fetch_from_provider(self, provider_name: str, fetch_func) -> Optional[str]:
-        """
-        尝试从指定provider获取最新交易日
-        
-        Args:
-            provider_name: Provider名称（用于日志）
-            fetch_func: 获取函数
-        
-        Returns:
-            最新交易日（YYYYMMDD），如果失败或日期是今天返回 None
-        """
-        today = Utils.date.today()
-        try:
-            latest_date = fetch_func()
-            if latest_date and latest_date != today:
-                logger.info(f"✅ 从{provider_name}API获取最新交易日: {latest_date}")
-                return latest_date
-        except Exception as e:
-            logger.warning(f"⚠️  {provider_name}API失败: {e}")
-        return None
-    
-    def _fetch_from_eastmoney(self) -> Optional[str]:
-        """
-        从东方财富API获取最新交易日
-        
-        查询上证指数（000001.SH）的K线数据，取最后2根K线
-        
-        Returns:
-            最新已完成交易日（YYYYMMDD），如果失败返回 None
-        """
-        try:
-            provider = DataSourceManager.get_provider("eastmoney")
-            if not provider:
-                raise ValueError("EastMoney Provider 未找到")
-            
-            # 上证指数在东方财富的代码格式：1.000001（沪市指数）
-            result = provider.get_qfq_kline(secid="1.000001", limit=2)
-            
-            if not result or 'data' not in result:
-                raise ValueError("东方财富API返回数据格式错误")
-            
-            klines = result.get('data', {}).get('klines', [])
-            if not klines or len(klines) < 1:
-                raise ValueError("未获取到K线数据")
-            
-            # 解析K线数据（格式：字符串数组，每个元素为 "日期,收盘价,..."）
-            return self._extract_latest_date_from_klines(klines, is_eastmoney=True)
-            
-        except Exception as e:
-            logger.error(f"❌ 从东方财富API获取最新交易日失败: {e}")
-            raise
-    
-    def _fetch_from_sina(self) -> Optional[str]:
-        """
-        从新浪财经API获取最新交易日
-        
-        查询上证指数（sh000001）的K线数据，取最后2根K线
-        
-        Returns:
-            最新已完成交易日（YYYYMMDD），如果失败返回 None
-        """
-        try:
-            provider = DataSourceManager.get_provider("sina")
-            if not provider:
-                raise ValueError("Sina Provider 未找到")
-            
-            # 上证指数在新浪财经的代码格式：sh000001
-            result = provider.get_daily_kline(symbol="sh000001", datalen=2)
-            
-            if not result or 'data' not in result:
-                raise ValueError("新浪财经API返回数据格式错误")
-            
-            klines = result.get('data', [])
-            if not klines or len(klines) < 1:
-                raise ValueError("未获取到K线数据")
-            
-            # 解析K线数据（格式：数组，每个元素为 ["日期", "开盘", "最高", "最低", "收盘", "成交量"]）
-            return self._extract_latest_date_from_klines(klines, is_eastmoney=False)
-            
-        except Exception as e:
-            logger.error(f"❌ 从新浪财经API获取最新交易日失败: {e}")
-            raise
-    
-    def _extract_latest_date_from_klines(self, klines: list, is_eastmoney: bool) -> str:
-        """
-        从K线数据中提取最新已完成交易日
-        
-        逻辑：
-        - 取最后2根K线
-        - 如果最后一根的日期 == 今天，使用倒数第二根的日期
-        - 否则使用最后一根的日期
-        
-        Args:
-            klines: K线数据列表
-                - 东方财富格式：字符串数组，每个元素为 "日期,收盘价,..."
-                - 新浪财经格式：数组，每个元素为 ["日期", "开盘", "最高", "最低", "收盘", "成交量"]
-            is_eastmoney: 是否为东方财富格式
-        
-        Returns:
-            最新已完成交易日（YYYYMMDD）
-        """
-        # 取最后2根
-        last_two = klines[-2:] if len(klines) >= 2 else [klines[-1]]
-        today = Utils.date.today()
-        
-        # 解析最后一根K线的日期
-        last_kline = last_two[-1]
-        if is_eastmoney:
-            # 东方财富格式：字符串 "日期,收盘价,..."
-            last_date_str = last_kline.split(',')[0]
-        else:
-            # 新浪财经格式：数组 ["日期", ...]
-            last_date_str = last_kline[0]
-        
-        last_date = Utils.date.normalize_str(last_date_str)
-        
-        # 如果最后一根是今天，使用倒数第二根
-        if last_date == today and len(last_two) >= 2:
-            second_last_kline = last_two[-2]
-            if is_eastmoney:
-                second_last_date_str = second_last_kline.split(',')[0]
-            else:
-                second_last_date_str = second_last_kline[0]
-            return Utils.date.normalize_str(second_last_date_str)
-        
-        # 否则使用最后一根
-        return last_date
-    
+        fetcher = CalendarService._real_world_fetcher
+        if fetcher is not None:
+            try:
+                result = fetcher()
+                if result:
+                    date, provider = result
+                    if date:
+                        return str(date), str(provider or "network")
+            except Exception as e:
+                logger.warning("⚠️  real-world fetcher 失败: %s", e)
+
+        logger.warning("⚠️  网络探测不可用或失败，使用系统猜测（排除周末）")
+        return self._guess_latest_trading_date(), "guess"
+
     def _guess_latest_trading_date(self) -> str:
         """
         系统猜测最新交易日（最后兜底方案）

@@ -84,11 +84,7 @@ class ListService(BaseDataService):
     # ---------- 单股 ----------
 
     def load_single(self, stock_id: str) -> Optional[Dict[str, Any]]:
-        row = self._stock_list.load_by_id(stock_id)
-        if not row:
-            return None
-        filtered = self._apply_sample_pool([row])
-        return filtered[0] if filtered else None
+        return self._stock_list.load_by_id(stock_id)
 
     def load_meta(self, stock_id: str) -> Optional[Dict[str, Any]]:
         row = self.load_single(stock_id)
@@ -445,12 +441,6 @@ class ListService(BaseDataService):
                     r["is_alive"] = 0
                 model.upsert(rows_all, unique_keys)
 
-    @staticmethod
-    def _apply_sample_pool(stocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        from core.modules.data_source import DataSourceManager
-
-        return DataSourceManager.slice_stock_list(stocks)
-
     def _sort_stocks(self, stocks: List[Dict[str, Any]], order_by: str) -> List[Dict[str, Any]]:
         if order_by:
             try:
@@ -458,4 +448,4 @@ class ListService(BaseDataService):
             except Exception as e:
                 logger.warning("排序失败，使用默认排序: %s", e)
                 stocks.sort(key=lambda x: x.get("id", ""))
-        return self._apply_sample_pool(stocks)
+        return stocks

@@ -37,6 +37,12 @@ class TestDataSourceApi(unittest.TestCase):
         self.assertTrue(callable(DataSourceManager.resolve_freshness_end_date))
         self.assertTrue(callable(DataSourceManager.get_data_end_meta_light))
         self.assertTrue(callable(DataSourceManager.get_provider))
+        self.assertTrue(
+            callable(DataSourceManager.fetch_real_world_latest_completed_trading_date)
+        )
+        self.assertTrue(
+            callable(DataSourceManager.ensure_calendar_real_world_fetcher_registered)
+        )
         self.assertTrue(callable(DataSourceManager.slice_stock_list))
         self.assertTrue(callable(DataSourceManager.discover_mappings))
         self.assertTrue(callable(mgr.discover_mappings))

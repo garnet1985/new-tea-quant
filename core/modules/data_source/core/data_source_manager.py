@@ -36,6 +36,7 @@ class DataSourceManager:
         self._all_valid_handlers_cache: Dict[str, Any] = {}
 
         self._execution_scheduler = DataSourceExecutionScheduler()
+        DataSourceManager.ensure_calendar_real_world_fetcher_registered()
 
     def renew(
         self,
@@ -440,8 +441,26 @@ class DataSourceManager:
 
     @staticmethod
     def get_provider(provider_name: str, config: Optional[Dict[str, Any]] = None):
-        """按名取 Provider 实例（日历 real-world 等）。"""
+        """按名取 Provider 实例。"""
         return DataSourceProviderHelper.get_provider(provider_name, config)
+
+    @staticmethod
+    def fetch_real_world_latest_completed_trading_date() -> Optional[Tuple[str, str]]:
+        """新浪 → 东财探测真实世界最新已完成交易日；失败返回 None。"""
+        from core.modules.data_source.core.service.real_world_trading_date import (
+            fetch_real_world_latest_completed_trading_date,
+        )
+
+        return fetch_real_world_latest_completed_trading_date()
+
+    @staticmethod
+    def ensure_calendar_real_world_fetcher_registered() -> None:
+        """把网络探测注入 DataManager.CalendarService（幂等；打破 DM↔DS 循环依赖）。"""
+        from core.modules.data_manager import DataManager
+
+        DataManager.register_calendar_real_world_fetcher(
+            DataSourceManager.fetch_real_world_latest_completed_trading_date
+        )
 
     @staticmethod
     def discover_provider_classes() -> Dict[str, Any]:

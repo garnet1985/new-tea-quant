@@ -413,6 +413,19 @@ class DataManager:
 
         return ListService._normalize_delist_date(raw)
 
+    @staticmethod
+    def register_calendar_real_world_fetcher(fetcher) -> None:
+        """
+        注入日历 real-world 网络探测（通常由 DataSource 注册）。
+
+        DM 不 import DS；组合根把 ``Callable[[], tuple[date, provider] | None]`` 注入 CalendarService。
+        """
+        from core.modules.data_manager.core.data_services.calendar.calendar_service import (
+            CalendarService,
+        )
+
+        CalendarService.register_real_world_fetcher(fetcher)
+
     def attach_data_service(self) -> Any:
         """绑定 / 重建 DataService（worker 子进程、DuckDB pool resume）。勿 deep-import DataService。"""
         from core.modules.data_manager.core.data_services import DataService

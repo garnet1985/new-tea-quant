@@ -2,4 +2,6 @@
 
 from core.modules.data_source.core.data_source_manager import DataSourceManager
 
+DataSourceManager.ensure_calendar_real_world_fetcher_registered()
+
 __all__ = ["DataSourceManager"]

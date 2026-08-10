@@ -63,6 +63,7 @@
 - **描述：** 收口原 `catalog.*` / `sample_stock_list` 深路径；BFF、DM、devtools 请走 Facade
 - **常用：**
   - `get_provider` / `discover_provider_classes`
+  - `fetch_real_world_latest_completed_trading_date` / `ensure_calendar_real_world_fetcher_registered`
   - `evaluate_update_status` / `summarize_provider_auth` / `min_rate_limit_per_minute`
   - `builtin_source_keys` / `default_display_names`
   - `slice_stock_list` / `sample_pool_count` / `pool_stock_ids` / `default_sample_n` / `pool_csv_path` / `invalidate_pool_cache`

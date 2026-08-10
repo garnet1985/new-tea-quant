@@ -85,6 +85,16 @@ class TraceConsentService:
             logger.debug("trace consent write failed: %s", exc)
             return False
 
+        try:
+            from .track_service import TraceTrackService
+
+            TraceTrackService.track_decision(
+                enabled=bool(enabled),
+                source=str(source or ""),
+            )
+        except Exception as exc:
+            logger.debug("track.decision emit failed: %s", exc)
+
         if not enabled:
             try:
                 from .queue_service import TraceQueueService

@@ -4,6 +4,7 @@ compatible_core_versions: ">=0.4.1"
 description: "使用追踪模块：追踪一些重要事件的模块，用于改善用户体验，统计分析错误的模块。"
 dependencies:
   - infra.project_context
+  - infra.machine_capacity
 changelog:
   - version: "0.1.0"
     changes:

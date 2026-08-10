@@ -71,3 +71,12 @@ terms:
       - "psutil fallback"
     avoid:
       - "MachineInfo._virtual_memory_mb（已改为公开 virtual_memory_mb）"
+
+  disk_type:
+    definition: "路径所在卷介质：ssd / hdd / unknown；由 MachineInfo.get_disk_type 探测。"
+    aliases:
+      - "get_disk_type"
+      - "ssd"
+      - "hdd"
+    avoid:
+      - "把磁盘序列号或设备路径上报到 Trace"

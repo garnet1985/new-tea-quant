@@ -50,9 +50,82 @@ class TraceSanitizeService:
             "python_version": platform.python_version(),
             "arch": platform.machine() or "",
         }
+        cpu_cores = TraceSanitizeService._cpu_cores()
+        if cpu_cores is not None:
+            meta["cpu_cores"] = cpu_cores
+        memory_mb = TraceSanitizeService._memory_mb()
+        if memory_mb is not None:
+            meta["memory_mb"] = memory_mb
+        db = TraceSanitizeService._database_type()
+        if db:
+            meta["db"] = db
+        disk = TraceSanitizeService._disk_type()
+        if disk:
+            meta["disk_type"] = disk
         if ntq_version:
             meta["ntq_version"] = str(ntq_version)[:32]
         return meta
+
+    @staticmethod
+    def _cpu_cores() -> Optional[int]:
+        try:
+            from core.infra.machine_capacity import MachineInfo
+
+            return max(1, int(MachineInfo.get_cpu_count()))
+        except Exception:
+            try:
+                import os
+
+                n = os.cpu_count()
+                return max(1, int(n)) if n else None
+            except Exception:
+                return None
+
+    @staticmethod
+    def _memory_mb() -> Optional[int]:
+        try:
+            from core.infra.machine_capacity import MachineInfo
+
+            total_mb, _available = MachineInfo.virtual_memory_mb()
+            if total_mb is None:
+                return None
+            return max(1, int(round(float(total_mb))))
+        except Exception:
+            return None
+
+    @staticmethod
+    def _database_type() -> Optional[str]:
+        try:
+            from core.infra.project_context import ProjectContext
+
+            raw = str(ProjectContext.config.get_database_type() or "").strip().lower()
+            if raw in {"duckdb", "mysql", "postgresql"}:
+                return raw
+            if raw in {"pgsql", "postgres"}:
+                return "postgresql"
+            return "unknown" if raw else None
+        except Exception:
+            return None
+
+    @staticmethod
+    def _disk_type() -> Optional[str]:
+        try:
+            from core.infra.machine_capacity import MachineInfo
+            from core.infra.project_context import ProjectContext
+
+            root = ProjectContext.path.get_userspace_root()
+            kind = str(MachineInfo.get_disk_type(root) or "").strip().lower()
+            if kind in {"ssd", "hdd", "unknown"}:
+                return kind
+            return "unknown"
+        except Exception:
+            try:
+                from core.infra.machine_capacity import MachineInfo
+
+                kind = str(MachineInfo.get_disk_type() or "").strip().lower()
+                return kind if kind in {"ssd", "hdd", "unknown"} else "unknown"
+            except Exception:
+                return None
 
     @staticmethod
     def body(

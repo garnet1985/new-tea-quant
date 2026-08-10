@@ -1,6 +1,6 @@
 # Machine Capacity API 文档
 
-**版本：** `0.2.0`  
+**版本：** `0.2.1`  
 **最低支持核心版本：** `>=0.4.0`
 
 > 须与 `module_info.yaml` 一致。  
@@ -110,6 +110,22 @@ workers = MachineInfo.get_available_workers(capacity)
 - **状态：** `beta`
 - **引入版本：** `0.2.0`
 - **描述：** 本机 `(total_mb, available_mb)`；无 psutil 或失败时 `(None, None)`
+
+#### get_disk_type
+
+`MachineInfo.get_disk_type(path: str | Path | None = None) -> str`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.1`
+- **描述：** 探测 `path` 所在卷介质，返回 `ssd` / `hdd` / `unknown`（默认 cwd；失败为 `unknown`）
+- **举例：**
+
+```python
+from core.infra.machine_capacity import MachineInfo
+
+kind = MachineInfo.get_disk_type()  # "ssd" | "hdd" | "unknown"
+```
 
 ---
 

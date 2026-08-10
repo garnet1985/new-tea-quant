@@ -17,6 +17,8 @@ from .sanitize_service import TraceSanitizeService
 class TraceTrackService:
     """Build usage events; ``track`` POSTs immediately, ``queue`` enqueues only."""
 
+    _DECISION_EVENT = "track.decision"
+
     @staticmethod
     def track(event: str, body: Optional[Mapping[str, Any]] = None) -> None:
         """Build one event and POST immediately; on failure enqueue for retry."""
@@ -24,14 +26,7 @@ class TraceTrackService:
             cfg = TraceConfigService.load()
             if not cfg.enabled:
                 return
-            built = TraceTrackService._build_event(event, body, cfg=cfg)
-            if built is None:
-                return
-            url = str(cfg.target_url or "")
-            timeout = float(cfg.timeout_sec or 2.0)
-            if url and TraceClientService.post(url, built, timeout_sec=timeout):
-                return
-            TraceQueueService.enqueue(built, queue_max=cfg.queue_max)
+            TraceTrackService._emit(event, body, cfg=cfg, enqueue_on_fail=True)
         except Exception:
             return
 
@@ -48,6 +43,50 @@ class TraceTrackService:
             TraceQueueService.enqueue(built, queue_max=cfg.queue_max)
         except Exception:
             return
+
+    @staticmethod
+    def track_decision(*, enabled: bool, source: str = "") -> None:
+        """
+        Report a consent decision.
+
+        Bypasses ``consent.enabled`` so denials are still visible; still respects
+        ``NTQ_TRACE_SKIP``. On POST failure, enqueues only when ``enabled`` is True
+        (revoke purges the queue immediately after).
+        """
+        try:
+            if TraceConfigService._env_truthy("NTQ_TRACE_SKIP") is True:
+                return
+            cfg = TraceConfigService.load()
+            body = {
+                "enabled": bool(enabled),
+                "source": str(source or "")[:32],
+            }
+            TraceTrackService._emit(
+                TraceTrackService._DECISION_EVENT,
+                body,
+                cfg=cfg,
+                enqueue_on_fail=bool(enabled),
+            )
+        except Exception:
+            return
+
+    @staticmethod
+    def _emit(
+        event: str,
+        body: Optional[Mapping[str, Any]],
+        *,
+        cfg: Any,
+        enqueue_on_fail: bool,
+    ) -> None:
+        built = TraceTrackService._build_event(event, body, cfg=cfg)
+        if built is None:
+            return
+        url = str(cfg.target_url or "")
+        timeout = float(cfg.timeout_sec or 2.0)
+        if url and TraceClientService.post(url, built, timeout_sec=timeout):
+            return
+        if enqueue_on_fail:
+            TraceQueueService.enqueue(built, queue_max=cfg.queue_max)
 
     @staticmethod
     def _build_event(

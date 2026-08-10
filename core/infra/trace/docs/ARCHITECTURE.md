@@ -45,14 +45,16 @@ Trace.send(budget="standard")
 
 ## 数据流
 
-0. 未取得同意 → `track` / `queue` / `send` 直接返回
-1. `track`：sanitize → POST；失败 → 本地 queue
-2. `queue`：sanitize → 本地 queue
-3. `send`：claim → POST `target_url` → 成功删 / 失败回队
-4. CLI 退出可 `send`；BFF 后台 drain 调 `send`
+0. 未取得同意 → 普通 `track` / `queue` / `send` 直接返回（`track.decision` 除外）
+1. 用户做出同意决定 → `consent.set` 落盘后发出 `track.decision`（`enabled` + `source`）
+2. `track`：sanitize → POST；失败 → 本地 queue
+3. `queue`：sanitize → 本地 queue
+4. `send`：claim → POST `target_url` → 成功删 / 失败回队
+5. CLI 退出可 `send`；BFF 后台 drain 调 `send`
 
 ## 边界
 
 - 不采集主机名、真实用户 ID、策略/行情内容
+- 每条事件 `meta` 含：`os` / `cpu_cores` / `memory_mb` / `db` / `disk_type` / `python_version` / `arch` / `ntq_version`
 - 失败静默；不阻塞业务
 - 与 UI `traceId`（请求排障）无关

@@ -6,11 +6,18 @@ from __future__ import annotations
 
 import logging
 import multiprocessing as mp
-from typing import Any, Dict, Optional, Tuple
+import os
+import platform
+import re
+import subprocess
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple, Union
 
 from core.infra.machine_capacity.contracts import MachineCapacity
 
 logger = logging.getLogger(__name__)
+
+DiskType = str  # "ssd" | "hdd" | "unknown"
 
 
 class TypesNamespace:
@@ -152,6 +159,150 @@ class MachineInfo:
         except (AttributeError, OSError, TypeError, ValueError) as exc:
             logger.debug("virtual_memory_mb unavailable: %s", exc)
             return None, None
+
+    @staticmethod
+    def get_disk_type(path: Optional[Union[str, Path]] = None) -> DiskType:
+        """探测 ``path`` 所在卷的介质：``ssd`` / ``hdd`` / ``unknown``。
+
+        ``path`` 默认当前工作目录。探测失败或无法判定时返回 ``unknown``。
+        """
+        try:
+            target = MachineInfo._resolve_probe_path(path)
+            system = (platform.system() or "").lower()
+            if system == "linux":
+                return MachineInfo._disk_type_linux(target)
+            if system == "darwin":
+                return MachineInfo._disk_type_darwin(target)
+            if system == "windows":
+                return MachineInfo._disk_type_windows(target)
+            return "unknown"
+        except Exception as exc:
+            logger.debug("get_disk_type failed: %s", exc)
+            return "unknown"
+
+    @staticmethod
+    def _resolve_probe_path(path: Optional[Union[str, Path]]) -> Path:
+        if path is None or str(path).strip() == "":
+            return Path.cwd().resolve()
+        p = Path(path).expanduser()
+        try:
+            if p.exists():
+                return p.resolve()
+        except OSError:
+            pass
+        return Path.cwd().resolve()
+
+    @staticmethod
+    def _longest_mount_for(path: Path) -> Optional[Any]:
+        try:
+            import psutil
+        except ImportError:
+            return None
+        try:
+            needle = str(path.resolve())
+        except OSError:
+            needle = str(path)
+        best = None
+        best_len = -1
+        for part in psutil.disk_partitions(all=False):
+            mount = str(part.mountpoint or "")
+            if not mount:
+                continue
+            if needle == mount or needle.startswith(mount.rstrip("/\\") + os.sep):
+                if len(mount) > best_len:
+                    best = part
+                    best_len = len(mount)
+        return best
+
+    @staticmethod
+    def _disk_type_linux(path: Path) -> DiskType:
+        part = MachineInfo._longest_mount_for(path)
+        device = str(getattr(part, "device", "") or "")
+        name = MachineInfo._linux_block_name(device)
+        if not name:
+            return "unknown"
+        rotational = Path(f"/sys/block/{name}/queue/rotational")
+        try:
+            raw = rotational.read_text(encoding="utf-8").strip()
+        except OSError:
+            return "unknown"
+        if raw == "0":
+            return "ssd"
+        if raw == "1":
+            return "hdd"
+        return "unknown"
+
+    @staticmethod
+    def _linux_block_name(device: str) -> str:
+        """``/dev/sda1`` / ``/dev/nvme0n1p2`` → sysfs block 名；mapper/loop/md → 空。"""
+        dev = str(device or "").strip()
+        if not dev.startswith("/dev/"):
+            return ""
+        if "/mapper/" in dev or "/loop" in dev:
+            return ""
+        base = Path(dev).name
+        if base.startswith("nvme") and "p" in base:
+            return re.sub(r"p\d+$", "", base)
+        if re.match(r"^.+\d+$", base) and not base.startswith("nvme"):
+            return re.sub(r"\d+$", "", base)
+        if base.startswith(("dm-", "loop", "md")):
+            return ""
+        return base
+
+    @staticmethod
+    def _disk_type_darwin(path: Path) -> DiskType:
+        try:
+            proc = subprocess.run(
+                ["diskutil", "info", str(path)],
+                capture_output=True,
+                text=True,
+                timeout=3.0,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return "unknown"
+        text = (proc.stdout or "") + "\n" + (proc.stderr or "")
+        for line in text.splitlines():
+            if "Solid State" in line or "SolidState" in line.replace(" ", ""):
+                low = line.lower()
+                if "yes" in low or "true" in low:
+                    return "ssd"
+                if "no" in low or "false" in low:
+                    return "hdd"
+        if re.search(r"Protocol:\s*Apple Fabric|Protocol:\s*PCI-Express|NVMe", text):
+            return "ssd"
+        return "unknown"
+
+    @staticmethod
+    def _disk_type_windows(path: Path) -> DiskType:
+        try:
+            proc = subprocess.run(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    "(Get-PhysicalDisk | Select-Object -ExpandProperty MediaType) -join ','",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5.0,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return "unknown"
+        text = (proc.stdout or "").strip().lower()
+        if not text:
+            return "unknown"
+        kinds = {p.strip() for p in text.split(",") if p.strip()}
+        if kinds == {"ssd"}:
+            return "ssd"
+        if kinds == {"hdd"}:
+            return "hdd"
+        if "ssd" in kinds and "hdd" not in kinds:
+            return "ssd"
+        if "hdd" in kinds and "ssd" not in kinds:
+            return "hdd"
+        return "unknown"
 
 
 __all__ = ["MachineInfo"]

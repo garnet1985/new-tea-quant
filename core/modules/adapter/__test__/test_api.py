@@ -7,7 +7,7 @@ import unittest
 import pytest
 
 from core.modules.adapter import Adapter
-from core.modules.adapter.contracts import BaseOpportunityAdapter, HistoryLoader
+from core.modules.adapter.contracts import BaseOpportunityAdapter
 
 pytestmark = pytest.mark.force_run
 
@@ -30,7 +30,7 @@ class TestAdapterApi(unittest.TestCase):
 
     def test_contracts(self) -> None:
         self.assertTrue(issubclass(BaseOpportunityAdapter, object))
-        self.assertTrue(callable(HistoryLoader.load_stock_history))
+        self.assertTrue(callable(BaseOpportunityAdapter.default_output))
 
 
 if __name__ == "__main__":

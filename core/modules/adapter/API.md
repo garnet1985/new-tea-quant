@@ -7,7 +7,9 @@
 
 快速开始见 [QUICKSTART.md](./QUICKSTART.md)。术语见 [glossary.yaml](./glossary.yaml)。
 
-**公开约定：** 包根仅导出 `Adapter`；基类与 `HistoryLoader` 从 [`contracts.py`](./contracts.py) 导入。实现位于 `core/`，禁止 deep-import。
+**公开约定：** 包根仅导出 `Adapter`；基类从 [`contracts.py`](./contracts.py) 导入。实现位于 `core/`，禁止 deep-import。
+
+Scan 额外信息（如 price 历史统计）由 **strategy** 经 `context` 推送，本模块不回读模拟产物。
 
 ---
 
@@ -39,5 +41,4 @@
 
 | 符号 | 说明 |
 |------|------|
-| `BaseOpportunityAdapter` | userspace adapter 基类（须实现 `process`） |
-| `HistoryLoader` | 读取 price_factor 历史模拟统计 |
+| `BaseOpportunityAdapter` | userspace adapter 基类（须实现 `process(opportunities, context)`） |

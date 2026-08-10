@@ -1,19 +1,18 @@
 name: modules.adapter
 version: 0.3.0
 compatible_core_versions: ">=0.4.0"
-description: "策略 Scanner 扫描结果的后续处理：基类、userspace 动态加载约定、校验与历史模拟统计加载（HistoryLoader）。"
+description: "策略 Scanner 扫描结果的后续处理：基类、userspace 动态加载约定与校验。"
 dependencies:
-  - modules.strategy
   - infra.project_context
 changelog:
   - version: "0.3.0"
     changes:
       - "对齐 CORE_MODULE_STANDARDS：Facade Adapter；contracts；根 API/QUICKSTART/glossary/TEST_CASES"
-      - "BREAKING：包根仅导出 Adapter；validate 挂靠 Adapter.validate；基类/HistoryLoader 从 contracts 导入"
+      - "BREAKING：包根仅导出 Adapter；validate 挂靠 Adapter.validate；基类从 contracts 导入"
       - "实现下沉 core/；AdapterLoader 统一加载；文档对齐 userspace.extensions.adapters.*"
-      - "修复 HistoryLoader 错误调用 get_strategy_simulation_price（应为 *_directory）"
       - "依赖穿透（不 bump）：Adapter.load_class 公开面（供 strategy scanner 分发）"
-      - "依赖穿透治理（不 bump）：module_info 补 infra.project_context；改走 Strategy.resolve_folder / Opportunity contracts / Strategy price 产物 API"
+      - "依赖穿透治理（不 bump）：module_info 补 infra.project_context"
+      - "打破 adapter↔strategy 循环（不 bump）：移除 HistoryLoader 与 modules.strategy；price 历史由 strategy 经 context 推送"
   - version: "0.2.0"
     changes:
       - Scanner adapter 发现与 console 等 userspace 扩展点

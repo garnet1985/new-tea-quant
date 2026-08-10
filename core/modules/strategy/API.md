@@ -90,7 +90,7 @@
 `Strategy.price_overall_report_path(version_dir: Path) -> Path`
 
 - **状态：** `beta`
-- **描述：** 读取 price_factor 产物（实体 investments / overall_report 路径）；供 adapter HistoryLoader 等跨模块调用，勿 deep-import `report_manager`
+- **描述：** 读取 price_factor 产物（实体 investments / overall_report 路径）。Scan 分发时由内部 enrichment 组装 `context["price_history"]` 推给 adapter；跨模块勿 deep-import `report_manager`
 
 ### present_report
 

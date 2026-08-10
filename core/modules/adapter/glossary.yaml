@@ -10,22 +10,17 @@ terms:
       - "deep-import core.base_adapter / core.adapter_validator"
 
   Adapter:
-    definition: "本模块门面类；公开静态方法 validate。"
+    definition: "本模块门面类；公开静态方法 validate / load_class。"
     aliases: []
     avoid:
       - "validate_adapter"
 
   BaseOpportunityAdapter:
-    definition: "userspace adapter 须继承的基类；须实现 process。"
+    definition: "userspace adapter 须继承的基类；须实现 process(opportunities, context)。"
     aliases:
       - "contracts.BaseOpportunityAdapter"
-    avoid: []
-
-  HistoryLoader:
-    definition: "读取 price_factor 历史模拟统计；从 contracts 导入。"
-    aliases:
-      - "contracts.HistoryLoader"
-    avoid: []
+    avoid:
+      - "自行回读 strategy 模拟产物"
 
   userspace_adapter_path:
     definition: "userspace/extensions/adapters/<name>/adapter.py；导入路径 userspace.extensions.adapters.<name>.adapter。"

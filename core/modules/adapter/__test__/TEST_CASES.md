@@ -10,4 +10,3 @@
 | 文件 | 说明 |
 |------|------|
 | `test_api.py` | 公开 API 契约（`force_run`） |
-| `../core/__test__/test_history_loader.py` | HistoryLoader 统计 / 版本目录解析 |

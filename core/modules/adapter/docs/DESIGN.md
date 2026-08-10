@@ -38,21 +38,19 @@ scanner 段使用 `adapters`（字符串或列表）。校验经 `Adapter.valida
 process(opportunities: List[Opportunity], context: Dict[str, Any]) -> None
 ```
 
-常见 `context` 键：`date` / `strategy_name` / `scan_summary` / `date_meta`。
+常见 `context` 键：
+
+- `date` / `strategy_name` / `scan_summary` / `date_meta`
+- `price_history`：`{ "session_summary": dict|None, "by_stock": {stock_id: stats} }`（由 strategy 推送）
 
 ---
 
 ## 运行时行为（AdapterDispatcher）
 
-1. `adapter_names` 为空 → `BaseOpportunityAdapter.default_output`
-2. 非空 → 按名 `AdapterLoader.load_class`，实例化后 `process`
-3. 全部失败 → `default_output`
-
----
-
-## HistoryLoader
-
-定位 `results/simulations/price/{version}` 最新版本目录（`meta.json` 的 `next_output_version - 1`），再经 strategy 的 `EntityInvestments` / `ReportPaths` 读单股统计与 `overall_report.json`。无文件返回 `None`。
+1. 组装 / 保留 `context["price_history"]`
+2. `adapter_names` 为空 → `BaseOpportunityAdapter.default_output`
+3. 非空 → 按名 `Adapter.load_class`，实例化后 `process`
+4. 全部失败 → `default_output`
 
 ---
 
@@ -66,9 +64,9 @@ process(opportunities: List[Opportunity], context: Dict[str, Any]) -> None
 
 鼓励每个 `adapter.py` 只放一个主类；多子类时依赖枚举顺序。
 
-### 3. HistoryLoader 放在 adapter 包内
+### 3. 额外信息由 strategy 推送
 
-展示侧常用；对 `modules.strategy` 有硬依赖，无结果时返回 `None`。
+adapter 只消费标准机会列表 + context；不 import strategy、不读模拟产物目录。
 
 ### 4. 分发与兜底放在 strategy.Scanner
 

@@ -4,9 +4,9 @@
 
     from core.modules.adapter import Adapter
 
-基类与 HistoryLoader::
+基类::
 
-    from core.modules.adapter.contracts import BaseOpportunityAdapter, HistoryLoader
+    from core.modules.adapter.contracts import BaseOpportunityAdapter
 """
 
 from .adapter import Adapter

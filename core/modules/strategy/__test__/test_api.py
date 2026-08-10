@@ -55,6 +55,8 @@ class TestStrategyApi(unittest.TestCase):
             "present_report",
             "is_valid_path",
             "clear_workbench_cache",
+            "prune_simulation_results",
+            "prune_scan_results",
             "export_package",
             "import_package",
             "latest_completed_trading_date",

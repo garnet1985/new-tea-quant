@@ -31,6 +31,7 @@ changelog:
       - "依赖穿透治理（不 bump）：公开 present_report（CLI / AnalyzeService 收口 ReportManager.present）"
       - "打破 adapter↔strategy 循环（不 bump）：scan 分发时推送 context.price_history；adapter 不再回读产物"
       - "打破 BE↔strategy 循环（不 bump）：经 RunCallbacks.load_per_entity_window 向 BE 注入装数"
+      - "中间值保留（不 bump）：data.json retention；simulations/scan 磁盘 keep-N；workbench DB 读配置；Facade prune_simulation_results / prune_scan_results"
   - version: "0.6.0"
     changes:
       - 重构：Facade + namespace API设计，符合CORE_MODULE_STANDARDS.md

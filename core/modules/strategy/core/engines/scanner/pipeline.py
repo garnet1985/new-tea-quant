@@ -148,6 +148,8 @@ class ScannerPipeline:
         data_manager: Any = None,
     ) -> Dict[str, Any]:
         """单策略扫描（日期 → cache / BE → ReportManager）。"""
+        from core.infra.project_context import ProjectContext
+
         settings.apply_defaults()
         dm = data_manager if data_manager is not None else DataManager()
         strategy_key = str(
@@ -159,8 +161,6 @@ class ScannerPipeline:
         elif getattr(strategy_info, "folder", None) is not None:
             strategy_folder = Path(strategy_info.folder)
         else:
-            from core.infra.project_context import ProjectContext
-
             strategy_folder = ProjectContext.path.coerce_strategy_folder(
                 strategy_info.unique_relative_path or strategy_key
             )
@@ -171,9 +171,10 @@ class ScannerPipeline:
             use_strict=use_strict
         )
 
+        scan_max = ProjectContext.config.get_scan_results_max_versions()
         cache = ScanCacheManager(
             strategy_folder,
-            max_cache_days=settings.scanner.max_cache_days,
+            max_cache_days=scan_max,
         )
         cache.cleanup_old_cache()
 
@@ -187,7 +188,7 @@ class ScannerPipeline:
             stock_ids=stock_ids,
             date_meta=date_meta,
             adapter_names=list(settings.scanner.adapter_names or []),
-            max_cache_days=settings.scanner.max_cache_days,
+            max_cache_days=scan_max,
             skip_save=use_cache,
         )
 

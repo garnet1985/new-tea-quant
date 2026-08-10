@@ -3,6 +3,12 @@
   "default_start_date": "20080101",
   "as_of_latest_completed_trading_date": null,
   "use_sample_stock_list": null,
+  "retention": {
+    "_comment": "中间值/缓存保留上限（按版本数）。userspace/config/data.json 可用同名键覆盖。simulation 的 enum/price/portfolio 各自独立计数；workbench_db 为快照行；scan 以日期目录为版本。",
+    "simulation_results_max_versions": 10,
+    "workbench_db_max_versions": 50,
+    "scan_results_max_versions": 10
+  },
   "decimal_places": {
     "default": 2,
     "adj_factor_event": {

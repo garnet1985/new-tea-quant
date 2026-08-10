@@ -106,6 +106,14 @@
 - **状态：** `beta`
 - **描述：** 清空 `sys_strategy_workbench_snapshot`；失败 `RuntimeError`；成功返回删除行数
 
+### prune_simulation_results / prune_scan_results
+
+`Strategy.prune_simulation_results(key_or_id: str, *, kind: str | None = None, max_versions: int | None = None) -> dict`  
+`Strategy.prune_scan_results(key_or_id: str, *, max_versions: int | None = None) -> dict`
+
+- **状态：** `beta`
+- **描述：** 磁盘中间值 keep-N（与 workbench DB 独立）。默认上限来自 `data.json` → `retention`（`simulation_results_max_versions` / `scan_results_max_versions`，可被 `userspace/config/data.json` 同名覆盖）。`kind` 为 `enum` / `price` / `portfolio`；`None` 表示三步都清。写入新 version 时也会自动 prune。
+
 ### export_package / import_package
 
 `Strategy.export_package(target: str, *, output_path: str | None = None) -> int`  

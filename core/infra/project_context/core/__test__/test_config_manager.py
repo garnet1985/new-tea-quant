@@ -89,6 +89,26 @@ class TestConfigManagerInternal:
         assert isinstance(db_type, str)
         assert db_type in ("postgresql", "mysql", "duckdb")
 
+    @pytest.mark.force_run
+    def test_retention_defaults(self):
+        assert ConfigManager.get_simulation_results_max_versions() == 10
+        assert ConfigManager.get_workbench_db_max_versions() == 50
+        assert ConfigManager.get_scan_results_max_versions() == 10
+        assert ProjectContext.config.get_simulation_results_max_versions() == 10
+        assert "retention" in ProjectContext.config.load_data_config()
+
+    @pytest.mark.force_run
+    def test_retention_missing_key_raises(self):
+        from unittest.mock import patch
+
+        with patch.object(
+            ConfigManager,
+            "load_data_config",
+            return_value={"retention": {}},
+        ):
+            with pytest.raises(KeyError, match="simulation_results_max_versions"):
+                ConfigManager.get_simulation_results_max_versions()
+
     def test_load_with_defaults(self):
         """测试加载配置（默认+用户）"""
         # 创建临时配置文件

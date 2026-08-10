@@ -449,6 +449,24 @@ class ConfigNamespace:
         return ConfigManager.get_database_type()
 
     @staticmethod
+    def get_simulation_results_max_versions() -> int:
+        """``data.json`` → ``retention.simulation_results_max_versions``（默认 10）。"""
+        from .config_manager import ConfigManager
+        return ConfigManager.get_simulation_results_max_versions()
+
+    @staticmethod
+    def get_workbench_db_max_versions() -> int:
+        """``data.json`` → ``retention.workbench_db_max_versions``（默认 50）。"""
+        from .config_manager import ConfigManager
+        return ConfigManager.get_workbench_db_max_versions()
+
+    @staticmethod
+    def get_scan_results_max_versions() -> int:
+        """``data.json`` → ``retention.scan_results_max_versions``（默认 10）。"""
+        from .config_manager import ConfigManager
+        return ConfigManager.get_scan_results_max_versions()
+
+    @staticmethod
     def merge_market_profile_dicts(
         core: Dict[str, Any],
         user: Dict[str, Any],

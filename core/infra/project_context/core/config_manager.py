@@ -527,7 +527,7 @@ class ConfigManager:
         """
         return ConfigManager.load_core_config(
             'data',
-            deep_merge_fields={'decimal_places'},
+            deep_merge_fields={'decimal_places', 'retention'},
             override_fields=set()
         )
     
@@ -651,3 +651,50 @@ class ConfigManager:
         """
         db_config = ConfigManager.load_database_config()
         return db_config.get('database_type', 'postgresql')
+
+    # ==================== retention（data.json）====================
+
+    @staticmethod
+    def _retention_block() -> Dict[str, Any]:
+        data_config = ConfigManager.load_data_config()
+        raw = data_config.get("retention")
+        if not isinstance(raw, dict):
+            raise KeyError(
+                "data.json 缺少 retention 对象（见 core/default_config/data.json）"
+            )
+        return dict(raw)
+
+    @staticmethod
+    def _retention_positive_int(key: str) -> int:
+        block = ConfigManager._retention_block()
+        if key not in block:
+            raise KeyError(f"data.json retention 缺少必填键: {key}")
+        raw = block[key]
+        try:
+            value = int(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"data.json retention.{key} 必须是正整数，收到: {raw!r}"
+            ) from exc
+        if value < 1:
+            raise ValueError(
+                f"data.json retention.{key} 必须 >= 1，收到: {value}"
+            )
+        return value
+
+    @staticmethod
+    def get_simulation_results_max_versions() -> int:
+        """``data.json`` → ``retention.simulation_results_max_versions``（缺省/非法则报错）。"""
+        return ConfigManager._retention_positive_int(
+            "simulation_results_max_versions"
+        )
+
+    @staticmethod
+    def get_workbench_db_max_versions() -> int:
+        """``data.json`` → ``retention.workbench_db_max_versions``（缺省/非法则报错）。"""
+        return ConfigManager._retention_positive_int("workbench_db_max_versions")
+
+    @staticmethod
+    def get_scan_results_max_versions() -> int:
+        """``data.json`` → ``retention.scan_results_max_versions``（缺省/非法则报错）。"""
+        return ConfigManager._retention_positive_int("scan_results_max_versions")

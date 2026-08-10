@@ -48,10 +48,20 @@ class ScannerSettings(SettingsBase):
 
     @property
     def max_cache_days(self) -> int:
+        """Scan 日期版本保留上限；默认取 ``data.json`` retention.scan_results_max_versions。"""
+        default = self._system_scan_max_versions()
+        if "max_cache_days" not in self._block():
+            return default
         try:
-            return max(int(self._block().get("max_cache_days", 10)), 1)
+            return max(int(self._block().get("max_cache_days")), 1)
         except (TypeError, ValueError):
-            return 10
+            return default
+
+    @staticmethod
+    def _system_scan_max_versions() -> int:
+        from core.infra.project_context import ProjectContext
+
+        return ProjectContext.config.get_scan_results_max_versions()
 
     @property
     def watch_list(self) -> str:
@@ -65,7 +75,7 @@ class ScannerSettings(SettingsBase):
         s = self._block()
         s.setdefault("adapters", ["console"])
         s.setdefault("use_strict_previous_trading_day", True)
-        s.setdefault("max_cache_days", 10)
+        s.setdefault("max_cache_days", self._system_scan_max_versions())
         s.setdefault("watch_list", "")
         self._normalize_fields()
 
@@ -104,10 +114,11 @@ class ScannerSettings(SettingsBase):
         ust = s.get("use_strict_previous_trading_day", True)
         s["use_strict_previous_trading_day"] = ust if isinstance(ust, bool) else True
 
+        default_max = self._system_scan_max_versions()
         try:
-            s["max_cache_days"] = max(int(s.get("max_cache_days", 10)), 1)
+            s["max_cache_days"] = max(int(s.get("max_cache_days", default_max)), 1)
         except (TypeError, ValueError):
-            s["max_cache_days"] = 10
+            s["max_cache_days"] = default_max
 
         wl = s.get("watch_list", "")
         s["watch_list"] = "" if wl is None else str(wl)

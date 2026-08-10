@@ -9,6 +9,7 @@ changelog:
       - 对齐 CORE_MODULE_STANDARDS：根目录 API.md / QUICKSTART.md / TEST_CASES.md；删除 api.yaml 与 docs/DECISIONS.md
       - 公开 API 状态最高 beta；contracts 扩展 DiscoveredConfig、DuckDB 默认常量、merge_market_profile_dicts
       - 删除失效的 core/project_context_manager.py；BFF 改为从 contracts 导入 database defaults
+      - "retention 访问器（不 bump）：data.json retention.*_max_versions → ProjectContext.config"
   - version: "0.4.0"
     changes:
       - Facade + namespace（path / config / meta / cache / discovery）

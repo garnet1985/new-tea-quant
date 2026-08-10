@@ -1,6 +1,6 @@
 # Data Contract 术语与概念
 
-**版本：** `0.6.0`
+**版本：** `0.4.0`
 
 与 [glossary.yaml](../glossary.yaml) 对齐；实现以仓库代码为准。
 

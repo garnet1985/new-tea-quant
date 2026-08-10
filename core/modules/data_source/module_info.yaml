@@ -1,7 +1,7 @@
 name: modules.data_source
-version: 0.4.0
+version: "0.2.0"
 compatible_core_versions: ">=0.4.1"
-description: "配置驱动的数据抓取：mapping + handler config、Provider 发现、BaseHandler 执行管线、调度器按依赖拓扑执行并写回绑定表。"
+description: "数据源模块：提供配置驱动的数据抓取，支持按照不同模式和不同数据供应商请求并加载数据。"
 dependencies:
   - modules.data_manager
   - infra.project_context
@@ -9,30 +9,27 @@ dependencies:
   - infra.db
   - infra.utils
 changelog:
-  - version: "0.4.0"
+  - version: "0.2.0"
     changes:
-      - 对齐 CORE_MODULE_STANDARDS：包根仅 DataSourceManager；contracts.py
-      - 根 API.md / QUICKSTART / glossary / TEST_CASES / test_api；删除 docs/API.md
-      - P0：API 状态改为 beta；ARCHITECTURE/DESIGN/README 对齐 0.4.0；compatible_core >=0.4.1
-      - P0：删除未接入的 RenewManager 与三模式 RenewService；保留 RenewCommonHelper
-      - P0：恢复 sample_stock_list.DEFAULT_SAMPLE_N（供 renew_pipeline_sample）
-      - P1：扩 API.md / test_api；TEST_CASES 公开索引；实现测就近 service/*/__test__；glossary 补全
-      - P2：实现下沉 core/；全仓库导入路径更新；文档树对齐
-      - "依赖穿透（不 bump）：公开 get_data_end_meta / resolve_freshness_end_date（供 strategy scan）"
-      - "依赖穿透治理（不 bump）：module_info 补 infra.db / infra.utils；扩 contracts 与 Facade 收口 userspace/BFF/DM 深路径"
-      - "打破 DM↔DS 循环（不 bump）：公开 fetch_real_world_latest_completed_trading_date 并注入 CalendarService"
-  - version: "0.3.7"
+      - 标准化模块，标准化文档以及对外API
+      - 修改了暴露的API参数，函数，防止外部模块直接调用包内非公开接口
+      - 正式版本之前所有API标注beta状态
+      - 删除了没有使用的services
+  - version: "0.1.3"
     changes:
       - 修复复权因子事件表的精度问题
-      - 清理了不需要的代码
-      - 多 bundle 并行迁入私有 service.pipeline.job_pipeline；移除 infra.job_pipeline 依赖
-  - version: "0.3.6"
+      - 清理了不需要的代码，优化了代码结构
+      - 多 bundle 并行迁入私有 service.pipeline.job_pipeline，移除了对 infra.job_pipeline 的依赖
+  - version: "0.1.2"
     changes:
-      - 修复批量写入路径；SaveBatchAutoSizer 按内存动态调整抓取批次
-      - JobPipeline 集成 handler 并行执行
-  - version: "0.3.0"
+      - 修复了批量写入路径
+      - 支持了按内存动态调整抓取批次，防止内存占用过高
+      - 集成了handler并行执行，支持了并行IO
+  - version: "0.1.1"
     changes:
-      - 配置驱动 handler 管线与依赖拓扑调度（基线）
+      - 配置驱动 handler 管线与依赖拓扑调度
   - version: "0.1.0"
     changes:
       - 初始化模块，完成基础功能
+      - 支持按照不同模式和不同数据供应商请求并加载数据
+      - 提供数据源基类，暴露生命周期中的钩子函数，让上层应用可以进行扩展

@@ -1,5 +1,5 @@
 name: modules.tag
-version: 0.5.0
+version: "0.4.0"
 compatible_core_versions: ">=0.4.4"
 description: "标签资产层：按 data.base 路由；per_entity 经 BacktestEngine；global / non_time_series 主进程推进器。UI catalog/run 在 BFF；进度落盘 TagRunProgress。"
 dependencies:
@@ -11,56 +11,36 @@ dependencies:
   - infra.discovery
   - infra.utils
 changelog:
-  - version: "0.5.0"
-    changes:
-      - 对齐 CORE_MODULE_STANDARDS：包根仅 Tag；类型仅 contracts.py
-      - 根 API.md / QUICKSTART / TEST_CASES；删除 api.yaml、docs/API.md
-      - docs/DESIGN 吸收 DECISIONS；删除 docs/DECISIONS.md
-      - "标准化 P0–P1（不 bump）：BOUNDARY→docs/notes/；ARCHITECTURE 0.5.0；扩 API/test_api；TEST_CASES 仅公开面；Facade 下沉 core/tag.py；glossary 补 Facade"
-      - "依赖穿透治理（不 bump）：module_info 补全 modules.strategy / infra.discovery / infra.utils"
-      - "依赖穿透治理（不 bump）：BE Mode/Job 改 contracts；Performance 走 Facade；strategy 协作面走 contracts/Facade；去掉 TagDataService 深路径类型注解"
-      - "依赖穿透治理（不 bump）：公开 Tag.is_valid_path（供 system_actions 脚手架）"
-      - "打破 BE↔strategy 循环（不 bump）：slice RunCallbacks 注入 load_per_entity_window"
-  - version: "0.4.2"
-    changes:
-      - non_time_series：TagNonTimeSeriesPipeline 主进程一次计算（不走 BE）
-      - DataSettings 放开纯非时序 base；落库 as_of 取计算窗 end_date
-  - version: "0.4.1"
-    changes:
-      - data.base 路由：per_entity / global / non_time_series
-      - per_entity contract meta.list_data_key → 实体池（含 index.list）
-      - global 时序：TagGlobalPipeline 主进程推进（不走 BE）；哨兵 __global__
-      - engines 包布局：per_entity / global_based / non_time_series
   - version: "0.4.0"
     changes:
-      - 标准模块根契约：tag.py Facade、api.yaml、contracts.py、glossary.yaml
-      - UI catalog/run 薄壳在 BFF；进度落盘 TagRunProgress（core services）
-      - incremental 水位改为 last_calculated_end（非 max(as_of)）
-      - 删除旧 engines/timeline/sliced/BaseTagWorker 路径
+      - 标准化模块，标准化文档以及对外API
+      - 修改了暴露的API参数，函数，防止外部模块直接调用包内非公开接口
+      - 正式版本之前所有API标注beta状态
+      - 提供更多API防止外部模块直接调用包内非公开接口
   - version: "0.3.2"
     changes:
-      - Tag timeline / calendar_slice 执行迁移至 BacktestEngine
-      - calendar_slice 主进程按 slice 阶段性 save_batch 落库
-      - 移除 JobPipeline 执行路径；调度配置改读 BacktestEngine TimelineConfig / SliceConfig
+      - 更好地支持非时序数据的标签计算（不走回测引擎）
   - version: "0.3.1"
     changes:
-      - 增强tag的profiler，帮助性能测试收集必要的数据
-      - 新增 dry-run 模式：运行计算但不写入数据库
-      - 加入data cursor计算到calendar_slice模式中，让回测速度提高6-9倍
+      - 引入新的数据契约，使用契约内的数据游标，让贴标签速度提高6-9倍
   - version: "0.3.0"
     changes:
-      - 支持sliced块状切片
-      - engines 目录重组：shared / timeline / sliced + router
-      - TagManager 精简为发现与调度入口
-      - Tag calendar_slice 一等 API on_calendar_asof + session_state + entity_tags fan-out
-      - Tag 控制台 launcher + BFF（T1-00…03）；全局 pipeline 租约
+      - 迁移到backtest engine，淘汰老的标签模块
+      - 支持切片运行（因为回测引擎支持了）
+      - 支持dry-run模式，只计算不入库
+      - 加入profiler收集运行的性能数据
+      - 移除 JobPipeline，不再需要单独的job调度器
   - version: "0.2.1"
     changes:
-      - Tag 调度并行度改读 job_pipeline profile（tag profile）
-      - dispatch 调优文档与 JobPipeline worker_profile 对齐
+      - 支持交易日历推进
+      - 支持UI显示，增加了BFF launcher
   - version: "0.2.0"
     changes:
-      - Scenario 发现、TagWorker 多进程、DataContract + DataCursor as_of 切片落库
+      - Tag 调度集成 job_pipeline
+      - 优化文档
   - version: "0.1.0"
     changes:
       - 初始化模块，完成基础功能
+      - 场景（Scenario） 发现
+      - TagWorker 多进程
+      - 支持增量式标签计算

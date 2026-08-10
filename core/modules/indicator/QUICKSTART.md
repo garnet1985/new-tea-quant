@@ -1,6 +1,6 @@
 # Indicator — 快速开始
 
-**模块：** `modules.indicator` · **版本：** `0.3.0`
+**模块：** `modules.indicator` · **版本：** `0.2.0`
 
 最短路径：对 K 线算 MA / RSI。
 

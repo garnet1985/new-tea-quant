@@ -1,6 +1,6 @@
 # Tag（`modules.tag`）
 
-**版本：** `0.5.0` · 兼容 core `>=0.4.4`
+**版本：** `0.4.0` · 兼容 core `>=0.4.4`
 
 标签资产层：按 `data.base` 路由到 per_entity（BacktestEngine）或 global / non_time_series 主进程推进器。对外门面为 `Tag`；hooks / 枚举见 `contracts`。
 

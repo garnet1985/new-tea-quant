@@ -1,5 +1,5 @@
 name: modules.strategy
-version: 0.7.0
+version: "0.6.0"
 compatible_core_versions: ">=0.4.4"
 description: "策略执行模块：Strategy facade 提供 scan / simulate / analyze / discovery namespace API。"
 dependencies:
@@ -16,59 +16,79 @@ dependencies:
   - infra.cmd_layout
   - infra.utils
 changelog:
-  - version: "0.7.0"
-    changes:
-      - 对齐 CORE_MODULE_STANDARDS：包根仅 Strategy；枚举迁入 contracts.py
-      - 根 API.md / QUICKSTART / TEST_CASES；docs/ARCHITECTURE + DESIGN；删除 api.yaml
-      - "标准化 P0（不 bump）：删遗留 test_cases*.yaml；BOUNDARY→docs/notes/；API 全 beta 并补签名；glossary 合规；README 对齐；落地 test_api；修复 list_*/get_strategy_info 与 DiscoveryService 脱节"
-      - "标准化 P1（不 bump）：Facade 下沉 core/strategy.py；ARCHITECTURE 补齐；根 UT 下沉 engines/services；TEST_CASES 仅公开面"
-      - "标准化 P2 低风险（不 bump）：AnalyzeService；get_cache 带回 workbench version；PackageCli 收口 CLI 自由函数"
-      - "穿透小步（不 bump）：Strategy 发现/包/清缓存公开面（find/list_strategy_infos/resolve/is_valid_path/clear_workbench_cache/export_package/import_package）；infra CLI + system_actions 改走 Facade"
-      - "tag 依赖面（不 bump）：contracts 导出 AsOfSlice/JobBundleLoader/ProgressRecorder；Facade 增加 latest_completed_trading_date"
-      - "依赖穿透治理（不 bump）：module_info 补全 adapter/market_profile/data_source 与 infra.discovery/export_import/cmd_layout/utils"
-      - "依赖穿透治理（不 bump）：BE/MarketProfile/DataContract 改调用；Adapter.load_class、DS freshness、DM normalize_delist_date、BE profiler contracts"
-      - "依赖穿透治理（不 bump）：公开 load_price_entity_investments / price_overall_report_path（供 adapter HistoryLoader）"
-      - "依赖穿透治理（不 bump）：公开 present_report（CLI / AnalyzeService 收口 ReportManager.present）"
-      - "打破 adapter↔strategy 循环（不 bump）：scan 分发时推送 context.price_history；adapter 不再回读产物"
-      - "打破 BE↔strategy 循环（不 bump）：经 RunCallbacks.load_per_entity_window 向 BE 注入装数"
-      - "中间值保留（不 bump）：data.json retention；simulations/scan 磁盘 keep-N；workbench DB 读配置；Facade prune_simulation_results / prune_scan_results"
   - version: "0.6.0"
     changes:
-      - 重构：Facade + namespace API设计，符合CORE_MODULE_STANDARDS.md
-      - 创建strategy.py作为Facade，使用namespace API（scan/simulate/analyze/discovery）
-      - 创建api.yaml定义公开API契约
-      - 创建contracts.py定义公开类型（ExecutionMode/SellReason/SimulateKind）
-      - 工作台 / CLI / package / progress 在本模块 services；UI snapshot/hydrate 在 BFF helpers
-      - 简化__init__.py导出，只导出Strategy和contracts类型
+      - 标准化模块，标准化文档以及对外API
+      - 修改了暴露的API参数，函数，防止外部模块直接调用包内非公开接口
+      - 正式版本之前所有API标注beta状态
+      - 提供更多API防止外部模块直接调用包内非公开接口
+  - version: "0.5.3"
+    changes:
+      - 正式更名capital allocation回测步骤为portfolio，投资组合的名称更加语义化
+      - 为portfolio提供了选择机会投资的钩子函数，不再是先到先得机制
+      - 对投资组合依赖的模拟结果记录了股票的裸价格而不再光是复权价格，这样机会的真实投资价格变成了实际股票的价格，提高了回测准确性。
+      - 修改并实现了“复权价仅产生信号，裸价格进行实际交易”的双轨机制
+  - version: "0.5.2"
+    changes:
+      - 对切片模式进行优化，进行读算分离，并且由回测引擎（backtest engine）自动计划实施。
+      - 彻底淘汰老的回测引擎，不再使用预处理，执行和后期处理三个步骤。
+      - 用户所有的钩子函数不再挂载在子进程里，而是用一个全局Hook基类进行声明和注入，这样用户也可以参与主进程内的回测干预。
   - version: "0.5.1"
     changes:
-      - 对 AggregateProfiler 运行时注入元数据
+      - 对策略和回测引擎加入profiler功能，方便调试性能瓶颈
       - 重新定义了策略的指纹缓存系统，现在db里的指纹是由diff生成而不是snapshot，同时bff给UI的设置变成了物理硬盘的设置+缓存diff的方式
   - version: "0.5.0"
     changes:
       - 支持多股并行的切片式回测
-      - 枚举器目录重组：shared / stock_based / calendar_sliced 双 flow + router
+      - 对entity based和slice based两种回测模式进行代码重组，提取公用
+      - 废弃job pipeline，重新将job build职责还给strategy
+      - 抽象backtest engine，让回测推进与任务规划分开，这样标签（tag）模块可以复用回测引擎以及切片模式。
   - version: "0.4.1"
     changes:
-      - 模拟产物 latest 按数字 id 解析（enum/price/capital），修复字典序导致引用旧枚举目录、env_fp 与 DbCache 错位
-      - price/capital 写 DbCache 时从磁盘补全缺失 enum 槽（与 CLI/UI 同一 execution_manager，无读侧兼容）
+      - 重定义标准模拟产物格式（enum/price/capital）
+      - 修复UI和对应的模拟中间值的映射错误
   - version: "0.4.0"
     changes:
-      - 策略交流包 services/package：依赖解析、export/preview/import（基于 infra.export_import）
-      - 枚举/价格 performance 与 dispatch 参数迁出策略 settings，改由 worker.json profile
-      - settings 指纹剔除调度键；price entities_per_job 默认改由 profile 提供
-      - 回测/标签数据加载走 data_contract，去除硬编码数据源
-      - 价格因子 bulk dispatch（entities_per_job）与 JobPipeline profile 集成
+      - 引入数据契约，真正实现可配置动态数据源
+      - JobPipeline加强，让每个进程并行执行多个股票回测，减小数据库请求次数，大大增加了回测速度
+  - version: "0.3.4"
+    changes:
+      - 支持策略导入导出
+      - 性能配置移出用户配置，支持auto的性能配置，使用探针完成自动最优（不一定最优但安全）配置
+      - 将股票任务调度抽象成独立模块JobPipeline
   - version: "0.3.3"
     changes:
-      - 交易日历与风险时段集成；资金回测交易量限制
-      - 枚举 metadata.stock_status_at_trigger；dev-cli py39 检查
+      - 股票推进不再按照有记录的日期推进，而是按照真实的交易日历推进，使目标中的过期时间更加准确
+      - 引入股票风险时段数据，为将来风险规避设置提供数据依据
+      - 引入资金回测交易量限制，因为太多交易量会直接导致市场流动性不足，从而让模拟失真。
   - version: "0.3.2"
     changes:
-      - simulation 模板与 market_profile 集成；工作台进度与版本指纹改进
+      - simulation 模板与 market_profile 集成；
+      - 工作台进度与版本指纹改进
+  - version: "0.3.1"
+    changes:
+      - 重构BFF，让core不再反向依赖BFF
   - version: "0.3.0"
     changes:
-      - 策略工作台与 UI 联动；settings 校验与指纹体系基线
+      - 支持UI，提供了UI launcher提供BFF所需要的功能
+      - 引入指纹概念，对设计变化产生的结果进行数据库缓存
+  - version: "0.2.2"
+    changes:
+      - 收紧枚举范围，不再全量枚举所有股票而是按需枚举
+  - version: "0.2.1"
+    changes:
+      - 引入价格回测概念，支持了真实资金投资模拟
+  - version: "0.2.0"
+    changes:
+      - 重构了核心模拟器的代码，将整个声明周期分成了预处理，执行和后期处理三个部分
+      - 对回测进行了业务分层，使用全局枚举对后期回测进行数据缓存和复用
+  - version: "0.1.1"
+    changes:
+      - 加入目标配置，支持动态止损和保护性止盈
+      - 引入股票抽样机制
   - version: "0.1.0"
     changes:
       - 初始化模块，完成基础功能
+      - 提供了可以按照K线数据进行回测的功能，提供了用户需要自定义策略的接口
+      - 提供了声明式回测设置，让回测大部分步骤可以配置
+      - 提供多进程回测，每个进程处理一只股票

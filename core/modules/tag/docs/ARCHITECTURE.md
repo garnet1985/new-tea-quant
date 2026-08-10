@@ -1,6 +1,6 @@
 # Tag — 架构
 
-**版本：** `0.5.0`
+**版本：** `0.4.0`
 
 `modules.tag` 将 userspace 场景编排为标签计算：Discovery → settings 校验 → metadata ensure → 按 **`data.base` 路由** → flush。对外仅暴露 **`Tag`**。
 

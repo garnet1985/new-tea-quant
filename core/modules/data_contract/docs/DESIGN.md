@@ -1,6 +1,6 @@
 # Data Contract 设计说明
 
-**模块：** `modules.data_contract` · **版本：** `0.6.0`
+**模块：** `modules.data_contract` · **版本：** `0.4.0`
 
 API 以根目录 [API.md](../API.md) 为准。名词见 [CONCEPTS.md](./CONCEPTS.md) / [glossary.yaml](../glossary.yaml)。
 

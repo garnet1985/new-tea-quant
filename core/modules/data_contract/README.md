@@ -1,6 +1,6 @@
 # Data Contract
 
-**模块：** `modules.data_contract` · **版本：** `0.6.0`
+**模块：** `modules.data_contract` · **版本：** `0.4.0`
 
 DataKey 白名单与契约签发：meta / runtime / specific 三层结构。
 

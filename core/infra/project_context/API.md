@@ -1,6 +1,6 @@
 # Project Context API 文档
 
-**版本：** `0.5.0`  
+**版本：** `0.2.0`  
 **最低支持核心版本：** `>=0.4.0`
 
 > 须与 `module_info.yaml` 一致。  
@@ -137,7 +137,7 @@ userspace = ProjectContext.path.get_userspace_root()
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.3.1`（as_of / sample）；`0.2.0`（start_date）；`0.5.0`（decimal / database_type 访问器）；`0.5.0`（retention 访问器，不 bump）
-- **描述：** `data.json` 与 database 常用字段访问器；retention 三项分别为仿真磁盘 / workbench DB / scan 日期版本 keep-N（缺键或非法值报错，不在代码里再给默认）
+- **描述：** `data.json` 与 database 常用字段访问器；必填键缺省/非法值报错（`as_of` / `use_sample_stock_list` 允许 null）。retention 三项分别为仿真磁盘 / workbench DB / scan 日期版本 keep-N
 
 #### load_benchmark_stock_index_list
 

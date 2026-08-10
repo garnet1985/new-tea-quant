@@ -47,17 +47,19 @@ class DateUtils:
     @staticmethod
     def get_query_date_range_min() -> str:
         """
-        无界查询下界（YYYYMMDD）：与 `core/default_config/data.json` 中 `default_start_date` 一致；
-        配置缺失或无法标准化时回退到内部兜底常量。
+        无界查询下界（YYYYMMDD）：与 `core/default_config/data.json` 中 `default_start_date` 一致。
+
+        配置缺失或无法标准化时直接报错（不在代码里再给兜底日期）。
         """
         from core.infra.project_context import ProjectContext
 
         raw = ProjectContext.config.get_default_start_date()
-        if raw:
-            n = DateUtils.normalize_str(str(raw))
-            if n:
-                return n
-        return date_constants.QUERY_DATE_RANGE_FALLBACK_MIN
+        n = DateUtils.normalize_str(str(raw))
+        if not n:
+            raise ValueError(
+                f"default_start_date 无法标准化为 YYYYMMDD，收到: {raw!r}"
+            )
+        return n
 
     # ==================== 格式转换（通用方法）====================
     

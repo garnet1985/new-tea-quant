@@ -1,22 +1,17 @@
 name: infra.export_import
-version: 0.3.0
+version: 0.2.0
 compatible_core_versions: ">=0.4.0"
-description: "Userspace 制品打包与安装：门面 ExportImport；契约在 contracts。"
+description: "导入导出模块：打包，压缩等等对批量或者单个文件的操作模块，主要服务于文件导入导出功能。"
 dependencies: []
 changelog:
-  - version: "0.3.0"
-    changes:
-      - 文档对齐 module-doc-standard：根 API.md / QUICKSTART / docs / TEST_CASES.md
-      - types.py 重命名为 contracts.py；删除 api.yaml；公开 API 状态最高 beta
   - version: "0.2.0"
     changes:
-      - 重构为 Facade：ExportImport.archive / install / types
-      - 核心实现移到 core/
-  - version: "0.1.0"
-    changes:
-      - ArtifactSpec / BundleManifest 与 ConflictPolicy
-      - 目录收集（运行时目录排除）、zip 打包与解压
-      - 安装前冲突预检与 reject / skip_existing / overwrite 落盘
+      - 标准化模块，标准化文档以及对外API
+      - 修改了暴露的API参数，函数，防止外部模块直接调用包内非公开接口
+      - 正式版本之前所有API标注beta状态
   - version: "0.1.0"
     changes:
       - 初始化模块，完成基础功能
+      - 支持目录收集（运行时目录排除）
+      - 支持zip打包和解压
+      - 支持安装前冲突预检，支持 拒绝/跳过/复写 行为

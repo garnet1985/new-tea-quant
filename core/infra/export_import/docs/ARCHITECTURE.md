@@ -1,6 +1,6 @@
 # Export / Import — 架构
 
-**版本：** `0.3.0`
+**版本：** `0.2.0`
 
 门面 `ExportImport` + 实现包 `core/`。词条见 [glossary.yaml](../glossary.yaml)。
 

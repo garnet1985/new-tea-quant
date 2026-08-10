@@ -1,6 +1,6 @@
 # Discovery — 快速开始
 
-**模块：** `infra.discovery` · **版本：** `0.4.0`
+**模块：** `infra.discovery` · **版本：** `0.2.1`
 
 最短路径：用门面 `Discovery` 找文件或扫子类。
 

@@ -109,6 +109,40 @@ class TestConfigManagerInternal:
             with pytest.raises(KeyError, match="simulation_results_max_versions"):
                 ConfigManager.get_simulation_results_max_versions()
 
+    @pytest.mark.force_run
+    def test_required_data_keys_from_defaults(self):
+        start = ConfigManager.get_default_start_date()
+        assert isinstance(start, str) and len(start) == 8 and start.isdigit()
+        assert ConfigManager.get_default_market_profile_key()
+        assert ConfigManager.get_decimal_places() >= 0
+        places = ConfigManager.get_adj_factor_event_decimal_places()
+        assert set(places) == {"factor_places", "price_places", "diff_places"}
+        assert ConfigManager.get_database_type() in ("postgresql", "mysql", "duckdb")
+
+    @pytest.mark.force_run
+    def test_missing_default_start_date_raises(self):
+        from unittest.mock import patch
+
+        with patch.object(ConfigManager, "load_data_config", return_value={}):
+            with pytest.raises(KeyError, match="default_start_date"):
+                ConfigManager.get_default_start_date()
+
+    @pytest.mark.force_run
+    def test_missing_market_profile_key_raises(self):
+        from unittest.mock import patch
+
+        with patch.object(ConfigManager, "load_data_config", return_value={}):
+            with pytest.raises(KeyError, match="default_market_profile_key"):
+                ConfigManager.get_default_market_profile_key()
+
+    @pytest.mark.force_run
+    def test_missing_decimal_places_raises(self):
+        from unittest.mock import patch
+
+        with patch.object(ConfigManager, "load_data_config", return_value={}):
+            with pytest.raises(KeyError, match="decimal_places"):
+                ConfigManager.get_decimal_places()
+
     def test_load_with_defaults(self):
         """测试加载配置（默认+用户）"""
         # 创建临时配置文件

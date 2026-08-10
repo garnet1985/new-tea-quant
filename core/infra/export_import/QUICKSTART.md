@@ -1,6 +1,6 @@
 # Export / Import — 快速开始
 
-**模块：** `infra.export_import` · **版本：** `0.3.0`
+**模块：** `infra.export_import` · **版本：** `0.2.0`
 
 最短路径：打一个制品包并预检安装。
 

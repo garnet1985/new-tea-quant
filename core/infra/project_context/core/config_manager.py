@@ -342,16 +342,25 @@ class ConfigManager:
         common_default_path = PathManager.get_default_config_root() / "database" / "common.json"
         common_default = ConfigManager.load_json_file(common_default_path) or {}
         
-        # 2. 确定数据库类型（优先级：参数 > 用户 common > 默认 common > 默认值）
+        # 2. 确定数据库类型（优先级：参数 > 用户 common > 默认 common；缺则报错）
         if database_type is None:
             # 先检查用户配置
             common_user_path = PathManager.get_user_config_root() / "database" / "common.json"
             common_user = ConfigManager.load_json_file(common_user_path) or {}
             database_type = (
-                common_user.get('database_type') or 
-                common_default.get('database_type') or 
-                'postgresql'
-            ).lower()
+                common_user.get("database_type")
+                or common_default.get("database_type")
+            )
+            if database_type is None or str(database_type).strip() == "":
+                raise KeyError(
+                    "database 配置缺少必填键: database_type"
+                    "（见 core/default_config/database/common.json）"
+                )
+            database_type = str(database_type).strip().lower()
+        else:
+            database_type = str(database_type).strip().lower()
+            if not database_type:
+                raise ValueError("database_type 不能为空")
         
         # 3. 加载数据库专用配置（默认）
         db_default_path = PathManager.get_default_config_root() / "database" / f"{database_type}.json"
@@ -532,40 +541,62 @@ class ConfigManager:
         )
     
     # ==================== 便捷访问接口（频繁使用的配置）====================
+
+    @staticmethod
+    def _require_data_key(key: str) -> Any:
+        data_config = ConfigManager.load_data_config()
+        if key not in data_config:
+            raise KeyError(
+                f"data.json 缺少必填键: {key}（见 core/default_config/data.json）"
+            )
+        return data_config[key]
     
     @staticmethod
     def get_default_start_date() -> str:
         """
-        获取默认开始日期
-        
-        Returns:
-            默认开始日期字符串（格式：YYYYMMDD）
+        获取默认开始日期（``data.json`` → ``default_start_date``）。
+
+        缺键 / 空 / 非法格式 → 报错（不在代码里再给默认）。
         """
-        data_config = ConfigManager.load_data_config()
-        return data_config.get('default_start_date')
+        raw = ConfigManager._require_data_key("default_start_date")
+        s = str(raw or "").strip().replace("-", "")[:8]
+        if len(s) != 8 or not s.isdigit():
+            raise ValueError(
+                f"data.json default_start_date 必须是 YYYYMMDD，收到: {raw!r}"
+            )
+        return s
 
     @staticmethod
     def get_default_market_profile_key() -> str:
-        """``data.json`` → ``default_market_profile_key``（全系统默认市场 profile）。"""
-        data_config = ConfigManager.load_data_config()
-        key = str(data_config.get("default_market_profile_key") or "china_a_stock").strip()
-        return key or "china_a_stock"
+        """``data.json`` → ``default_market_profile_key``（缺键/空则报错）。"""
+        raw = ConfigManager._require_data_key("default_market_profile_key")
+        key = str(raw or "").strip()
+        if not key:
+            raise ValueError(
+                f"data.json default_market_profile_key 不能为空，收到: {raw!r}"
+            )
+        return key
 
     @staticmethod
     def get_as_of_latest_completed_trading_date() -> Optional[str]:
         """
         data.json ``as_of_latest_completed_trading_date``（全系统 as-of 权威）。
 
-        配置后 ``CalendarService.get_latest_completed_trading_date`` 直接返回该值。
+        配置为 ``null`` / 缺省时返回 ``None``（允许未截断）；非空但非法则报错。
         """
         data_config = ConfigManager.load_data_config()
+        if "as_of_latest_completed_trading_date" not in data_config:
+            return None
         raw = data_config.get("as_of_latest_completed_trading_date")
-        if raw is None:
+        if raw is None or str(raw).strip() == "":
             return None
         s = str(raw).strip().replace("-", "")[:8]
-        if len(s) == 8 and s.isdigit():
-            return s
-        return None
+        if len(s) != 8 or not s.isdigit():
+            raise ValueError(
+                "data.json as_of_latest_completed_trading_date 必须是 YYYYMMDD "
+                f"或 null，收到: {raw!r}"
+            )
+        return s
 
     @staticmethod
     def get_use_sample_stock_list() -> Optional[int]:
@@ -573,84 +604,132 @@ class ConfigManager:
         开发样本股票池规模（``core/modules/data_source/dev/stock_pool/stratified_N.csv``）。
 
         - 正整数 ``N`` → 使用 ``stratified_N.csv``
-        - 未配置 / 空 / 非正数 → 全市场
+        - ``null`` / 未配置 / 空 → 全市场
+        - 其它非法类型 → 报错
         """
         data_config = ConfigManager.load_data_config()
+        if "use_sample_stock_list" not in data_config:
+            return None
         raw = data_config.get("use_sample_stock_list")
-        if raw is None:
+        if raw is None or raw == "":
             return None
         if isinstance(raw, bool):
-            return None
+            raise ValueError(
+                "data.json use_sample_stock_list 必须是正整数或 null，"
+                f"收到 bool: {raw!r}"
+            )
         if isinstance(raw, int):
-            return raw if raw > 0 else None
+            if raw > 0:
+                return raw
+            raise ValueError(
+                f"data.json use_sample_stock_list 必须是正整数或 null，收到: {raw!r}"
+            )
         if isinstance(raw, str):
             s = raw.strip()
+            if not s:
+                return None
             if s.isdigit():
                 n = int(s)
-                return n if n > 0 else None
-        return None
+                if n > 0:
+                    return n
+            raise ValueError(
+                f"data.json use_sample_stock_list 必须是正整数或 null，收到: {raw!r}"
+            )
+        raise ValueError(
+            f"data.json use_sample_stock_list 必须是正整数或 null，收到: {raw!r}"
+        )
     
     @staticmethod
     def _decimal_places_block() -> Dict[str, Any]:
         """``data.json`` → ``decimal_places`` 块（兼容历史顶层 int）。"""
-        data_config = ConfigManager.load_data_config()
-        raw = data_config.get("decimal_places", 2)
+        raw = ConfigManager._require_data_key("decimal_places")
         if isinstance(raw, int):
             return {"default": raw}
         if isinstance(raw, dict):
             return raw
-        return {"default": 2}
+        raise ValueError(
+            f"data.json decimal_places 必须是对象或 int，收到: {type(raw).__name__}"
+        )
 
     @staticmethod
     def get_decimal_places() -> int:
         """
         获取默认小数位数（``decimal_places.default``）。
-        
-        Returns:
-            小数位数（默认 2）
+
+        缺键 / 非法 → 报错。
         """
         block = ConfigManager._decimal_places_block()
+        if "default" not in block:
+            raise KeyError("data.json decimal_places 缺少必填键: default")
+        raw = block["default"]
         try:
-            return max(0, int(block.get("default", 2)))
-        except (TypeError, ValueError):
-            return 2
+            value = int(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"data.json decimal_places.default 必须是整数，收到: {raw!r}"
+            ) from exc
+        if value < 0:
+            raise ValueError(
+                f"data.json decimal_places.default 必须 >= 0，收到: {value}"
+            )
+        return value
 
     @staticmethod
     def get_adj_factor_event_decimal_places() -> Dict[str, int]:
         """
         adj_factor_event 爬取舍入精度（``decimal_places.adj_factor_event``）。
 
-        Returns:
-            ``factor_places`` / ``price_places`` / ``diff_places``
+        缺键 / 非法 → 报错。
         """
         block = ConfigManager._decimal_places_block()
-        adj = block.get("adj_factor_event")
-        if isinstance(adj, dict) and adj:
+        if "adj_factor_event" not in block:
+            raise KeyError(
+                "data.json decimal_places 缺少必填键: adj_factor_event"
+            )
+        adj = block["adj_factor_event"]
+        if not isinstance(adj, dict):
+            raise ValueError(
+                "data.json decimal_places.adj_factor_event 必须是对象，"
+                f"收到: {type(adj).__name__}"
+            )
+        out: Dict[str, int] = {}
+        for key in ("factor_places", "price_places", "diff_places"):
+            if key not in adj:
+                raise KeyError(
+                    f"data.json decimal_places.adj_factor_event 缺少必填键: {key}"
+                )
+            raw = adj[key]
             try:
-                factor = max(0, int(adj.get("factor_places", 4)))
-                price = max(0, int(adj.get("price_places", 3)))
-                diff = max(0, int(adj.get("diff_places", 4)))
-            except (TypeError, ValueError):
-                factor, price, diff = 4, 3, 4
-        else:
-            dp = ConfigManager.get_decimal_places()
-            factor, price, diff = 4, max(2, dp), 4
-        return {
-            "factor_places": factor,
-            "price_places": price,
-            "diff_places": diff,
-        }
+                value = int(raw)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"data.json decimal_places.adj_factor_event.{key} "
+                    f"必须是整数，收到: {raw!r}"
+                ) from exc
+            if value < 0:
+                raise ValueError(
+                    f"data.json decimal_places.adj_factor_event.{key} "
+                    f"必须 >= 0，收到: {value}"
+                )
+            out[key] = value
+        return out
     
     @staticmethod
     def get_database_type() -> str:
         """
-        获取当前使用的数据库类型
-        
-        Returns:
-            数据库类型（'postgresql', 'mysql'）
+        获取当前使用的数据库类型（``database/common.json`` → ``database_type``）。
+
+        缺键 / 空 → 报错。
         """
         db_config = ConfigManager.load_database_config()
-        return db_config.get('database_type', 'postgresql')
+        raw = db_config.get("database_type")
+        value = str(raw or "").strip().lower()
+        if not value:
+            raise KeyError(
+                "database 配置缺少必填键: database_type"
+                "（见 core/default_config/database/common.json）"
+            )
+        return value
 
     # ==================== retention（data.json）====================
 

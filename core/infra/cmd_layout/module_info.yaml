@@ -1,30 +1,21 @@
 # 模块元数据
 name: infra.cmd_layout
-version: "0.4.1"
+version: "0.1.2"
 compatible_core_versions: ">=0.4.0"
-description: "命令行布局助手：标题、分割线、跨平台图标与 ASCII 条形图；门面 CmdLayout。"
+description: "命令行UI模块：给命令行工具提供一套通用的UI组件，方便其他模块展示结果。"
 dependencies: []
 changelog:
-  - version: "0.4.1"
-    changes:
-      - 公开 API 状态按 core 0.x 规则改为最高 beta（禁止 stable）
-  - version: "0.4.0"
-    changes:
-      - 文档对齐 module-doc-standard：根目录 API.md / README / QUICKSTART / docs；移除 api.yaml
-      - __init__ 仅导出 CmdLayout；IconService / i 不再从包根导出（改走 CmdLayout.icon）
-  - version: "0.3.0"
+  - version: "0.1.2"
     changes:
       - 将 IconService 收入 cmd_layout.icon（CmdLayout.icon.get / i）
       - 删除 core.infra.utils.icon；调用方统一走 infra.cmd_layout
-  - version: "0.2.0"
+      - 标准化模块文档和对外API
+      - 公开 API 状态按 core 0.x 规则改为最高 beta（禁止 stable）
+  - version: "0.1.1"
     changes:
-      - 新增 title namespace（banner / section）
-      - 新增 separator namespace（line / thick / star / blank）
-  - version: "0.1.0"
-    changes:
-      - 新增 CmdLayout facade 与 bar_chart namespace
-      - 支持已分桶 render / 连续样本 from_values 直方图
-      - 纯 ASCII 条形图，兼容 Windows / Linux / macOS 终端
+      - 增加纯 ASCII 条形图，兼容 Windows / Linux / macOS 终端
   - version: "0.1.0"
     changes:
       - 初始化模块，完成基础功能
+      - 增加几种简单的图标接口，方便外部调用
+

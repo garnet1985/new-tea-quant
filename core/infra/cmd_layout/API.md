@@ -1,6 +1,6 @@
 # 命令行布局 API 文档
 
-**版本：** `0.4.1`  
+**版本：** `0.1.2`  
 **最低支持核心版本：** `>=0.4.0`
 
 > 须与 `module_info.yaml` 的 `version` / `compatible_core_versions` 一致。  

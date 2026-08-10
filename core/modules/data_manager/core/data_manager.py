@@ -150,6 +150,7 @@ class DataManager:
         
         # 自动初始化（幂等，多次调用只执行一次）
         self.initialize()
+        DataManager.ensure_duckdb_pool_holder_resolver()
     
     def initialize(self):
         """
@@ -432,6 +433,33 @@ class DataManager:
 
         self._data_service = DataService(self)
         return self._data_service
+
+    def bind_as_default_instance(self) -> None:
+        """DuckDB pool resume 后把本实例挂回进程单例（供 infra duck-type 调用）。"""
+        DataManager._instance = self
+
+    @classmethod
+    def ensure_duckdb_pool_holder_resolver(cls) -> None:
+        """向 infra.db 注册 holder 解析，避免 infra import DataManager。"""
+        from core.infra.db import Db
+
+        def _resolve(*, allow_create: bool = False):
+            inst = cls.get_instance()
+            if inst is not None:
+                return inst
+            if allow_create:
+                return cls(is_verbose=False)
+            return None
+
+        Db.duckdb.worker_pool.set_holder_resolver(_resolve)
+
+    @classmethod
+    def ensure_restored_after_worker_pool(cls, data_mgr: Optional[Any] = None) -> Any:
+        """ProcessPool / 中断后恢复主进程 DM + DB（应用层入口）。"""
+        cls.ensure_duckdb_pool_holder_resolver()
+        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
+
+        return DuckdbWorkerPool.ensure_holder_restored(data_mgr)
 
     # ------------------------------------------------------------------
     # DataService 属性访问

@@ -22,11 +22,14 @@ import os
 import time
 from contextlib import contextmanager
 from copy import deepcopy
-from typing import Any, Iterator, Literal, Optional, Tuple
+from typing import Any, Callable, Iterator, Literal, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 DuckdbProcessPoolScopeMode = Literal["auto", "on", "off"]
+
+# 由上层（通常 DataManager）注册：resolve(*, allow_create: bool) -> holder | None
+_HolderResolver = Callable[..., Any]
 
 
 class DuckdbWorkerPool:
@@ -34,6 +37,26 @@ class DuckdbWorkerPool:
 
     CONFIG_OVERLAY_ENV = "NTQ_DATABASE_CONFIG_JSON"
     _main_suspend_depth = 0
+    _holder_resolver: Optional[_HolderResolver] = None
+
+    @staticmethod
+    def set_holder_resolver(resolver: Optional[_HolderResolver]) -> None:
+        """注册应用层 holder 解析（如 DataManager 单例）。infra 不 import modules。"""
+        DuckdbWorkerPool._holder_resolver = resolver
+
+    @staticmethod
+    def resolve_holder(
+        data_mgr: Optional[Any] = None,
+        *,
+        allow_create: bool = False,
+    ) -> Any:
+        """解析 pool 协作对象（须有 ``.db`` 等 duck-type 面）。"""
+        if data_mgr is not None:
+            return data_mgr
+        fn = DuckdbWorkerPool._holder_resolver
+        if fn is None:
+            return None
+        return fn(allow_create=allow_create)
 
     @staticmethod
     def is_main_duckdb_worker_pool_active() -> bool:
@@ -58,11 +81,11 @@ class DuckdbWorkerPool:
     def is_duckdb_backend(data_mgr: Any = None) -> bool:
         """True when the live DB (or ProjectContext) is DuckDB.
 
-        Prefer an attached ``DataManager`` / ``db`` over ProjectContext so overlays
+        Prefer an attached holder / ``db`` over ProjectContext so overlays
         (e.g. BE ``__performance__`` temp DuckDB while userspace is MySQL) still
         enable ProcessPool file-lock scope.
         """
-        dm = data_mgr if data_mgr is not None else DuckdbWorkerPool.resolve_data_manager(None)
+        dm = data_mgr if data_mgr is not None else DuckdbWorkerPool.resolve_holder(None)
         if dm is not None:
             db = getattr(dm, "db", None)
             if db is not None:
@@ -71,24 +94,6 @@ class DuckdbWorkerPool:
 
         cfg = ProjectContext.config.load_database_config()
         return str(cfg.get("database_type") or "").lower() == "duckdb"
-
-
-    @staticmethod
-    def resolve_data_manager(
-        data_mgr: Optional[Any] = None,
-        *,
-        allow_create: bool = False,
-    ) -> Any:
-        from core.modules.data_manager import DataManager
-
-        if data_mgr is not None:
-            return data_mgr
-        inst = DataManager.get_instance()
-        if inst is not None:
-            return inst
-        if allow_create:
-            return DataManager(is_verbose=False)
-        return None
 
 
     @staticmethod
@@ -278,23 +283,24 @@ class DuckdbWorkerPool:
 
     @staticmethod
     def release_all_process_duckdb_handles(data_mgr: Any = None) -> None:
-        """进程内所有 DataManager / DatabaseManager 句柄（BFF refresh / 并发工作台）。"""
+        """进程内 holder / DatabaseManager 句柄（BFF refresh / 并发工作台）。"""
         from core.infra.db.core.db_manager import DatabaseManager
-        from core.modules.data_manager import DataManager
 
         DuckdbWorkerPool.wait_pool_children_done(timeout_sec=30.0)
-        inst = DataManager.get_instance()
-        if inst is not None:
-            DuckdbWorkerPool.release_all_main_db_handles(inst)
-        if data_mgr is not None and inst is not data_mgr:
-            DuckdbWorkerPool.release_all_main_db_handles(data_mgr)
+        holders: list[Any] = []
+        if data_mgr is not None:
+            holders.append(data_mgr)
+        resolved = DuckdbWorkerPool.resolve_holder(None, allow_create=False)
+        if resolved is not None and all(resolved is not h for h in holders):
+            holders.append(resolved)
+        for holder in holders:
+            DuckdbWorkerPool.release_all_main_db_handles(holder)
         if DatabaseManager._default_instance is not None:
             try:
                 DatabaseManager._default_instance.close()
             except Exception as exc:
                 logger.debug("release_all_process default db.close: %s", exc)
             DatabaseManager.reset_default()
-        DataManager.reset_instance()
 
 
     @staticmethod
@@ -303,18 +309,23 @@ class DuckdbWorkerPool:
 
 
     @staticmethod
-    def _attach_data_manager_db(data_mgr: Any, db: Any) -> None:
+    def _attach_holder_db(data_mgr: Any, db: Any) -> None:
+        """把 ``db`` 挂回 holder（duck-type；可选 ``bind_as_default_instance``）。"""
         from core.infra.db.core.db_manager import DatabaseManager
-        from core.modules.data_manager import DataManager
 
         data_mgr.db = db
         if not getattr(data_mgr, "_table_cache", None):
-            data_mgr._discover_tables()
-        data_mgr.attach_data_service()
+            discover = getattr(data_mgr, "_discover_tables", None)
+            if callable(discover):
+                discover()
+        attach = getattr(data_mgr, "attach_data_service", None)
+        if callable(attach):
+            attach()
         data_mgr._initialized = True
         DatabaseManager.set_default(db)
-        DataManager._instance = data_mgr
-
+        bind = getattr(data_mgr, "bind_as_default_instance", None)
+        if callable(bind):
+            bind()
 
     @staticmethod
     def resume_main_database(data_mgr: Any) -> None:
@@ -326,7 +337,7 @@ class DuckdbWorkerPool:
 
         db = DatabaseManager(is_verbose=bool(getattr(data_mgr, "is_verbose", False)))
         db.initialize()
-        DuckdbWorkerPool._attach_data_manager_db(data_mgr, db)
+        DuckdbWorkerPool._attach_holder_db(data_mgr, db)
 
 
     @staticmethod
@@ -358,7 +369,7 @@ class DuckdbWorkerPool:
             )
         DuckdbWorkerPool.connect_duckdb_domains(db, domains=("tag",), read_only=False)
         db._initialized = True
-        DuckdbWorkerPool._attach_data_manager_db(data_mgr, db)
+        DuckdbWorkerPool._attach_holder_db(data_mgr, db)
 
 
     @staticmethod
@@ -370,17 +381,16 @@ class DuckdbWorkerPool:
         tag_write_only: bool = False,
     ) -> None:
         """worker 退出后偶发仍占 DuckDB 锁，短暂重试 resume。"""
-        from core.modules.data_manager import DataManager
-
-        dm = data_mgr
+        dm = DuckdbWorkerPool.resolve_holder(data_mgr, allow_create=True)
         if dm is None:
-            dm = DataManager.get_instance()
-        if dm is None:
-            dm = DataManager(is_verbose=False)
+            raise RuntimeError(
+                "resume_main_database_with_retry 需要 holder "
+                "（传入 data_mgr 或注册 set_holder_resolver）"
+            )
         resume_fn = (
-            resume_main_database_tag_write_only
+            DuckdbWorkerPool.resume_main_database_tag_write_only
             if tag_write_only
-            else resume_main_database
+            else DuckdbWorkerPool.resume_main_database
         )
         last_exc: Optional[BaseException] = None
         for attempt in range(1, attempts + 1):
@@ -423,33 +433,41 @@ class DuckdbWorkerPool:
 
 
     @staticmethod
-    def ensure_data_manager_restored(data_mgr: Any = None) -> Any:
+    def ensure_holder_restored(data_mgr: Any = None) -> Any:
         """
-        ProcessPool 或 Ctrl+C 后恢复主进程 DatabaseManager + DataManager 表缓存。
+        ProcessPool 或 Ctrl+C 后恢复主进程 DatabaseManager + holder 表缓存。
 
-        若 ``data_mgr`` 已有可写连接则仅补全 ``_table_cache`` / DataService。
+        若 ``data_mgr`` 已有可写连接则仅补全 ``_table_cache`` / DataService（duck-type）。
+        应用层首选 ``DataManager.ensure_restored_after_worker_pool``。
         """
         if not DuckdbWorkerPool.is_duckdb_backend(data_mgr):
-            return DuckdbWorkerPool.resolve_data_manager(data_mgr, allow_create=True)
+            return DuckdbWorkerPool.resolve_holder(data_mgr, allow_create=True)
 
-        from core.modules.data_manager import DataManager
-
-        dm = DuckdbWorkerPool.resolve_data_manager(data_mgr, allow_create=False)
+        dm = DuckdbWorkerPool.resolve_holder(data_mgr, allow_create=True)
         if dm is None:
-            return DataManager(is_verbose=False)
+            return None
 
         db = getattr(dm, "db", None)
         if db is not None and getattr(db, "_initialized", False):
             if not getattr(dm, "_table_cache", None):
-                dm._discover_tables()
+                discover = getattr(dm, "_discover_tables", None)
+                if callable(discover):
+                    discover()
             if getattr(dm, "_data_service", None) is None:
-                dm.attach_data_service()
+                attach = getattr(dm, "attach_data_service", None)
+                if callable(attach):
+                    attach()
             dm._initialized = True
-            DataManager._instance = dm
+            bind = getattr(dm, "bind_as_default_instance", None)
+            if callable(bind):
+                bind()
             return dm
 
         DuckdbWorkerPool.resume_main_database_with_retry(dm)
         return dm
+
+    # 兼容旧名
+    ensure_data_manager_restored = ensure_holder_restored
 
 
     @staticmethod
@@ -567,15 +585,15 @@ class DuckdbWorkerPool:
         """
         
         if not DuckdbWorkerPool.is_duckdb_backend(data_mgr):
-            yield DuckdbWorkerPool.resolve_data_manager(data_mgr, allow_create=True)
+            yield DuckdbWorkerPool.resolve_holder(data_mgr, allow_create=True)
             return
 
-        dm = data_mgr if data_mgr is not None else DuckdbWorkerPool.resolve_data_manager(None)
+        dm = data_mgr if data_mgr is not None else DuckdbWorkerPool.resolve_holder(None)
 
         if DuckdbWorkerPool._main_suspend_depth > 0:
             DuckdbWorkerPool._main_suspend_depth += 1
             try:
-                yield dm if dm is not None else DuckdbWorkerPool.resolve_data_manager(None, allow_create=True)
+                yield dm if dm is not None else DuckdbWorkerPool.resolve_holder(None, allow_create=True)
             finally:
                 DuckdbWorkerPool._main_suspend_depth -= 1
             return
@@ -583,7 +601,7 @@ class DuckdbWorkerPool:
         DuckdbWorkerPool.prepare_main_for_worker_pool(dm)
         DuckdbWorkerPool._main_suspend_depth = 1
         try:
-            yield dm if dm is not None else DuckdbWorkerPool.resolve_data_manager(None, allow_create=True)
+            yield dm if dm is not None else DuckdbWorkerPool.resolve_holder(None, allow_create=True)
         finally:
             DuckdbWorkerPool._finalize_worker_pool_main_process(
                 dm,
@@ -607,7 +625,7 @@ class DuckdbWorkerPool:
             use_process_pool=use_process_pool,
             data_mgr=data_mgr,
         ):
-            yield DuckdbWorkerPool.resolve_data_manager(data_mgr, allow_create=True)
+            yield DuckdbWorkerPool.resolve_holder(data_mgr, allow_create=True)
             return
         with DuckdbWorkerPool.duckdb_worker_pool_main_process(
             data_mgr,

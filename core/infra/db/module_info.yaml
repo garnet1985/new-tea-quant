@@ -11,6 +11,7 @@ changelog:
       - "BREAKING：包根仅导出 Db；contracts 仅类型/类/常量，不再导出 create_engine / build_engine_meta"
       - "BREAKING：去掉包根过渡期 re-export（DatabaseManager 等改从 contracts 导入）"
       - "Db 加厚：engine / duckdb.worker_pool / duckdb.wal / sql / rows；删除 process_pool_module()"
+      - "依赖穿透治理（不 bump）：process_pool_scope 去掉 DataManager import；set_holder_resolver / ensure_holder_restored（duck-type）；ensure_data_manager_restored 兼容别名"
   - version: "0.4.0"
     changes:
       - 实现下沉至 core/；包根增加 Db 门面与 contracts.py；文档对齐 module-doc-standard

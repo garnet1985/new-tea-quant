@@ -94,6 +94,15 @@ class TestDataManagerApi(unittest.TestCase):
         DataManager.reset_instance()
         self.assertIsNone(DataManager.get_instance())
 
+    def test_duckdb_pool_holder_resolver_and_restore_api(self):
+        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
+        from core.modules.data_manager import DataManager
+
+        DataManager.ensure_duckdb_pool_holder_resolver()
+        self.assertTrue(callable(DuckdbWorkerPool._holder_resolver))
+        self.assertTrue(callable(DataManager.ensure_restored_after_worker_pool))
+        self.assertTrue(callable(DataManager.bind_as_default_instance))
+
 
 if __name__ == "__main__":
     unittest.main()

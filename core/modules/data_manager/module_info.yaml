@@ -21,6 +21,7 @@ changelog:
       - "依赖穿透（不 bump）：公开 DataManager.normalize_delist_date"
       - "依赖穿透治理（不 bump）：module_info 补 infra.discovery / infra.utils；公开 attach_data_service 收口 DataService 深路径"
       - "打破 DM↔DS 循环（不 bump）：去掉 ListService 样本池读过滤与 Calendar→DS；公开 register_calendar_real_world_fetcher"
+      - "依赖穿透治理（不 bump）：向 infra.db 注册 DuckDB pool holder resolver；公开 ensure_restored_after_worker_pool / bind_as_default_instance"
   - version: "0.3.6"
     changes:
       - 优化 dispatch_planner 中的 entities_per_job 约束问题，效率最高提升约15%

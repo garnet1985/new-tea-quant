@@ -65,6 +65,27 @@
 - **状态：** `beta`
 - **描述：** 绑定 / 重建领域 `DataService`（worker 子进程、DuckDB pool resume）。跨模块勿 deep-import `core.data_services.DataService`
 
+### ensure_duckdb_pool_holder_resolver
+
+`DataManager.ensure_duckdb_pool_holder_resolver() -> None`（classmethod）
+
+- **状态：** `beta`
+- **描述：** 向 `infra.db` 注册 holder 解析（单例 / 可选新建），避免 infra import `DataManager`。包导入与构造时自动调用
+
+### ensure_restored_after_worker_pool
+
+`DataManager.ensure_restored_after_worker_pool(data_mgr=None) -> DataManager | Any`（classmethod）
+
+- **状态：** `beta`
+- **描述：** ProcessPool / 中断后恢复主进程 DM + DB 的应用层入口
+
+### bind_as_default_instance
+
+`DataManager.bind_as_default_instance() -> None`
+
+- **状态：** `beta`
+- **描述：** DuckDB pool resume 后把本实例挂回进程单例（供 infra duck-type 调用）
+
 ### 领域服务（属性）
 
 | 属性 | 说明 |

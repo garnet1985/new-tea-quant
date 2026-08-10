@@ -189,7 +189,9 @@ db = Db.manager.create(cfg)
 | `maybe_scope(data_mgr=None, **kwargs)` | 条件 context manager |
 | `main_process(data_mgr=None, **kwargs)` | 强制 context manager |
 | `recover_after_interrupt(data_mgr=None)` | 中断后恢复 |
-| `ensure_data_manager_restored(data_mgr=None)` | 确保 DataManager 已恢复 |
+| `set_holder_resolver(resolver)` | 注册应用层 holder 解析（通常由 DataManager 注册；infra 不 import modules） |
+| `ensure_holder_restored(data_mgr=None)` | 恢复 pool 后主进程 holder/DB（duck-type）；应用层首选 `DataManager.ensure_restored_after_worker_pool` |
+| `ensure_data_manager_restored(data_mgr=None)` | 兼容旧名 → `ensure_holder_restored` |
 | `wait_pool_children_done(*, timeout_sec=15)` | 等待子进程结束 |
 | `wait_for_main_end(*, timeout_sec=600)` | 等待主进程 suspend 结束 |
 | `is_main_active()` | 主进程是否处于 suspend |

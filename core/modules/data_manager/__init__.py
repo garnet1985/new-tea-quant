@@ -13,4 +13,6 @@
 
 from core.modules.data_manager.core.data_manager import DataManager
 
+DataManager.ensure_duckdb_pool_holder_resolver()
+
 __all__ = ["DataManager"]

@@ -82,7 +82,11 @@ function ScanPage() {
   const [detailStrategyId, setDetailStrategyId] = useState('');
 
   const pollRef = useRef({ timeoutId: null });
+  const readinessReqRef = useRef(0);
   const running = Boolean(runningStrategyId) && Boolean(runningJobId);
+  /** 列表加载，或（非扫描中的）readiness 校验；扫描中不挡进度条 */
+  const gridLoading = loading || (readinessLoading && !running);
+  const pageBusy = loading || readinessLoading;
 
   const reportPayload = useMemo(() => results?.[reportStrategyId] || null, [results, reportStrategyId]);
   const detailPayload = useMemo(() => results?.[detailStrategyId] || null, [results, detailStrategyId]);
@@ -94,6 +98,8 @@ function ScanPage() {
 
   const load = useCallback(() => {
     setLoading(true);
+    setReadinessLoading(true);
+    readinessReqRef.current += 1;
     setLoadError('');
     Promise.all([
       fetchStrategyList(),
@@ -109,6 +115,7 @@ function ScanPage() {
         setDataEnd({});
         setDemoScanCutoffDate('');
         setLoadError(e?.message || '加载策略列表失败');
+        setReadinessLoading(false);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -121,15 +128,23 @@ function ScanPage() {
     return '—';
   }, [demoScanCutoffDate, dataEnd?.effective_end_date]);
 
-  const refreshScanPrimaryActions = useCallback(() => {
+  const refreshScanPrimaryActions = useCallback((options = {}) => {
+    const silent = Boolean(options.silent);
     const demo = mode === 'demo';
     const list = Array.isArray(rows) ? rows.filter((r) => r?.name) : [];
+    const reqId = readinessReqRef.current + 1;
+    readinessReqRef.current = reqId;
+    if (!silent) setReadinessLoading(true);
+
     if (list.length === 0) {
+      if (readinessReqRef.current !== reqId) return;
       setScanPrimaryById({});
       setScanGateById({});
       setStrictBlockReason('');
+      if (!silent) setReadinessLoading(false);
       return;
     }
+
     Promise.all(
       list.map((r) => fetchStrategyScanReadiness(r.name, { demo }).then((x) => ({
         id: r.id,
@@ -140,6 +155,7 @@ function ScanPage() {
       }))),
     )
       .then((pairs) => {
+        if (readinessReqRef.current !== reqId) return;
         const next = {};
         const gates = {};
         let sharedBlock = '';
@@ -170,9 +186,14 @@ function ScanPage() {
         });
       })
       .catch(() => {
+        if (readinessReqRef.current !== reqId) return;
         setScanPrimaryById({});
         setScanGateById({});
         setStrictBlockReason('');
+      })
+      .finally(() => {
+        if (readinessReqRef.current !== reqId) return;
+        if (!silent) setReadinessLoading(false);
       });
   }, [rows, mode]);
 
@@ -369,7 +390,7 @@ function ScanPage() {
             setRunningStrategyId('');
             setRunningJobId('');
             window.setTimeout(() => {
-              refreshScanPrimaryActions();
+              refreshScanPrimaryActions({ silent: true });
             }, 0);
             return;
           }
@@ -410,9 +431,9 @@ function ScanPage() {
       )}
       bannerRightSlot={(
         <Chip
-          label={running ? '扫描中…' : '就绪'}
+          label={running ? '扫描中…' : (pageBusy ? '加载中…' : '就绪')}
           color={running ? 'warning' : 'default'}
-          variant={running ? 'filled' : 'outlined'}
+          variant={running || pageBusy ? 'filled' : 'outlined'}
         />
       )}
     >
@@ -423,10 +444,15 @@ function ScanPage() {
             <Typography variant="subtitle1" fontWeight={700}>扫描模式</Typography>
             <Typography variant="caption" color="text.secondary">接入数据服务后由服务端校验</Typography>
           </Stack>
-          <FormControl component="fieldset">
+          <FormControl component="fieldset" disabled={running}>
             <RadioGroup
               value={mode}
-              onChange={(e) => setMode(e.target.value)}
+              onChange={(e) => {
+                setMode(e.target.value);
+                setRunError('');
+                setStrictBlockReason('');
+                setReadinessLoading(true);
+              }}
               aria-label="扫描模式"
               className="scan-mode-options"
             >
@@ -457,8 +483,8 @@ function ScanPage() {
                     <Typography variant="body2" color="text.secondary">
                       以数据集中已有最新日期作为扫描截止日（当前：
                       {' '}
-                      <strong>{demoCutoffLabel}</strong>
-                      {dataEnd.is_end_date_truncated ? '，受 data.json 截至日约束' : ''}
+                      <strong>{loading ? '…' : demoCutoffLabel}</strong>
+                      {!loading && dataEnd.is_end_date_truncated ? '，受 data.json 截至日约束' : ''}
                       ），用于演示链路，不代表实时市场。
                     </Typography>
                   </Box>
@@ -487,7 +513,7 @@ function ScanPage() {
             <Stack direction="row" alignItems="center" spacing={1.25} flexWrap="wrap">
               <Button
                 variant="outlined"
-                disabled={running}
+                disabled={running || pageBusy}
                 onClick={load}
               >
                 刷新策略列表
@@ -500,7 +526,7 @@ function ScanPage() {
 
           {loadError ? <Alert severity="error" sx={{ mb: 1.5 }}>{loadError}</Alert> : null}
           <DataEndTruncationAlert dataEnd={dataEnd} className="scan-list-alert" />
-          {mode === 'strict' && strictBlockReason ? (
+          {!gridLoading && mode === 'strict' && strictBlockReason ? (
             <Alert severity="warning" sx={{ mb: 1.5 }}>
               {strictBlockReason}
             </Alert>
@@ -522,29 +548,37 @@ function ScanPage() {
             </Box>
           ) : null}
 
-          <Box sx={{ width: '100%' }}>
-            <DataGrid
-              autoHeight
-              rows={rows}
-              columns={columns}
-              loading={loading}
-              getRowHeight={() => 'auto'}
-              slots={NTQ_DATA_GRID_LOADING_SLOTS}
-              localeText={zhCN}
-              disableRowSelectionOnClick
-              sx={{
-                '& .MuiDataGrid-cell': {
-                  py: 1.25,
-                  alignItems: 'flex-start',
-                  whiteSpace: 'normal',
-                  lineHeight: 1.5,
-                },
-              }}
-              pageSizeOptions={[10]}
-              initialState={{
-                pagination: { paginationModel: { page: 0, pageSize: 10 } },
-              }}
-            />
+          <Box sx={{ width: '100%', minHeight: gridLoading ? 160 : undefined }}>
+            {gridLoading ? (
+              <InlineLoadingState
+                block
+                compact
+                message={loading ? '正在加载策略列表…' : '正在校验扫描就绪状态…'}
+              />
+            ) : (
+              <DataGrid
+                autoHeight
+                rows={rows}
+                columns={columns}
+                loading={false}
+                getRowHeight={() => 'auto'}
+                slots={NTQ_DATA_GRID_LOADING_SLOTS}
+                localeText={zhCN}
+                disableRowSelectionOnClick
+                sx={{
+                  '& .MuiDataGrid-cell': {
+                    py: 1.25,
+                    alignItems: 'flex-start',
+                    whiteSpace: 'normal',
+                    lineHeight: 1.5,
+                  },
+                }}
+                pageSizeOptions={[10]}
+                initialState={{
+                  pagination: { paginationModel: { page: 0, pageSize: 10 } },
+                }}
+              />
+            )}
           </Box>
         </CardContent>
       </Card>

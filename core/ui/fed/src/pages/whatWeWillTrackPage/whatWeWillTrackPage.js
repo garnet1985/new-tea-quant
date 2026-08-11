@@ -8,12 +8,12 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import './telemetryPage.scss';
+import './whatWeWillTrackPage.scss';
 
 function Section({ title, children }) {
   return (
-    <Box className="telemetry-page__section">
-      <Typography variant="h6" component="h2" className="telemetry-page__section-title">
+    <Box className="what-we-will-track-page__section">
+      <Typography variant="h6" component="h2" className="what-we-will-track-page__section-title">
         {title}
       </Typography>
       {children}
@@ -21,10 +21,10 @@ function Section({ title, children }) {
   );
 }
 
-function TelemetryPage() {
+function WhatWeWillTrackPage() {
   return (
-    <Box className="telemetry-page">
-      <Container maxWidth="md" className="telemetry-page__inner">
+    <Box className="what-we-will-track-page">
+      <Container maxWidth="md" className="what-we-will-track-page__inner">
         <Stack spacing={1} sx={{ mb: 3 }}>
           <Typography variant="h4" component="h1" fontWeight={700}>
             使用统计说明
@@ -41,7 +41,7 @@ function TelemetryPage() {
 
         <Section title="我们不会收集">
           <Typography variant="body2" color="text.secondary" component="div">
-            <ul className="telemetry-page__list">
+            <ul className="what-we-will-track-page__list">
               <li>策略源码、参数原文或回测/扫描结果明细</li>
               <li>股票池内容、持仓、订单或交易记录</li>
               <li>姓名、邮箱、账号、IP 或其它可直接识别个人的信息</li>
@@ -55,7 +55,7 @@ function TelemetryPage() {
             用于判断兼容性与资源画像，不含业务数据：
           </Typography>
           <Typography variant="body2" color="text.secondary" component="div">
-            <ul className="telemetry-page__list">
+            <ul className="what-we-will-track-page__list">
               <li>匿名安装 ID（本机生成，与账号无关）</li>
               <li>操作系统、CPU 架构、Python 版本、NTQ 版本</li>
               <li>CPU 核心数、内存容量（MB）、磁盘类型、数据库类型</li>
@@ -71,7 +71,7 @@ function TelemetryPage() {
             安装与启动
           </Typography>
           <Typography variant="body2" color="text.secondary" component="div">
-            <ul className="telemetry-page__list">
+            <ul className="what-we-will-track-page__list">
               <li>
                 <code>install.complete</code>
                 ：安装是否成功、入口（UI / CLI）、稳定错误码（不含异常原文）
@@ -96,7 +96,7 @@ function TelemetryPage() {
             策略或标签跑完并写出性能报告后发送，用于了解耗时与规模，不含结果数据。
           </Typography>
           <Typography variant="body2" color="text.secondary" component="div">
-            <ul className="telemetry-page__list">
+            <ul className="what-we-will-track-page__list">
               <li>
                 公共字段：
                 <code>action</code>
@@ -128,7 +128,7 @@ function TelemetryPage() {
               设置 → 使用统计
             </Link>
             {' '}
-            即可开启或关闭。删除本地同意记录后，下次启动会再次询问（全屏询问将在后续版本提供）。
+            即可开启或关闭。删除本地同意记录后，下次进入应用会再次询问。
           </Typography>
         </Section>
       </Container>
@@ -136,4 +136,4 @@ function TelemetryPage() {
   );
 }
 
-export default TelemetryPage;
+export default WhatWeWillTrackPage;

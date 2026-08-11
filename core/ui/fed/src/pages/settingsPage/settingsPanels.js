@@ -456,7 +456,7 @@ export function SettingsTracePanel() {
         可选的匿名使用数据，用于改进 New Tea Quant。不包含策略代码、回测结果、账户或个人身份信息。
         详见
         {' '}
-        <Link component={RouterLink} to="/telemetry" underline="hover">
+        <Link component={RouterLink} to="/what-we-will-track" underline="hover">
           我们收集哪些信息
         </Link>
         。

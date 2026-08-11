@@ -116,13 +116,17 @@ export async function fetchTraceSettings() {
 }
 
 /**
- * @param {{ enabled: boolean }} body
+ * @param {{ enabled: boolean, source?: string }} body
  * @returns {Promise<{ decided: boolean, enabled: boolean, needs_ask: boolean, decided_at: string, source: string }>}
  */
 export async function saveTraceSettings(body) {
+  const source = String(body?.source || 'settings_ui').trim().slice(0, 32) || 'settings_ui';
   const json = await requestJson(API_SETTINGS_TRACE, {
     method: 'POST',
-    body: JSON.stringify({ enabled: Boolean(body?.enabled) }),
+    body: JSON.stringify({
+      enabled: Boolean(body?.enabled),
+      source,
+    }),
   });
   const m = json?.message || {};
   return {

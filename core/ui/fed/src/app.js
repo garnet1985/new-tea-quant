@@ -5,6 +5,7 @@ import { CssBaseline } from '@mui/material';
 import { zhCN as muiZhCN } from '@mui/material/locale';
 import SetupPage from './pages/setupPage';
 import SetupGuard from 'components/setupGuard';
+import TraceConsentGuard from 'components/traceConsentGuard';
 import MainLayout from './layouts/mainLayout';
 import StrategyListPage from './pages/strategyListPage';
 import StrategyWorkbenchPage from './pages/strategyWorkbenchPage';
@@ -14,7 +15,7 @@ import TagListPage from './pages/tagPage';
 import DataContractListPage from './pages/dataContractPage';
 import DataSourceListPage from './pages/dataSourcePage';
 import SettingsPage from './pages/settingsPage';
-import TelemetryPage from './pages/telemetryPage';
+import WhatWeWillTrackPage from './pages/whatWeWillTrackPage';
 
 /** iOS 风格 Switch：改总宽时只改 `SWITCH_ROOT_WIDTH_PX`，滑块行程 = 轨宽 − 球径 − 左右 padding */
 const SWITCH_ROOT_WIDTH_PX = 36;
@@ -147,11 +148,13 @@ function App() {
       <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           <Route path="/setup" element={<SetupPage />} />
-          <Route path="/telemetry" element={<TelemetryPage />} />
+          <Route path="/what-we-will-track" element={<WhatWeWillTrackPage />} />
           <Route
             element={(
               <SetupGuard>
-                <MainLayout />
+                <TraceConsentGuard>
+                  <MainLayout />
+                </TraceConsentGuard>
               </SetupGuard>
             )}
           >

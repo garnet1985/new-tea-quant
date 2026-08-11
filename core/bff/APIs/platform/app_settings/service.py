@@ -235,7 +235,8 @@ def save_trace_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any
 
     from core.infra.trace import Trace
 
-    ok_set = Trace.consent.set(enabled, source="settings_ui")
+    source = str(payload.get("source") or "settings_ui").strip()[:32] or "settings_ui"
+    ok_set = Trace.consent.set(enabled, source=source)
     if not ok_set:
         return None, "保存使用统计偏好失败"
     return get_trace_settings(), None

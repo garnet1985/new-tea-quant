@@ -34,6 +34,7 @@ import {
 import PageLayout from '../../components/pageLayout/pageLayout';
 import DataEndTruncationAlert from '../../components/dataEndTruncationAlert/dataEndTruncationAlert';
 import StrategyDescriptionText from '../../components/strategyDescriptionText/strategyDescriptionText';
+import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
 import './scanPage.scss';
 
@@ -55,6 +56,7 @@ function ScanPage() {
   const [demoScanCutoffDate, setDemoScanCutoffDate] = useState('');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [readinessLoading, setReadinessLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
 
   const [runningStrategyId, setRunningStrategyId] = useState('');
@@ -72,6 +74,9 @@ function ScanPage() {
 
   /** run | rerun — 与 GET …/scan 的 `primary_action` 对齐，仅影响按钮文案 */
   const [scanPrimaryById, setScanPrimaryById] = useState({});
+  /** 严格模式数据门禁：策略 id → 是否可扫 / 阻断原因 */
+  const [scanGateById, setScanGateById] = useState({});
+  const [strictBlockReason, setStrictBlockReason] = useState('');
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailStrategyId, setDetailStrategyId] = useState('');
@@ -121,6 +126,8 @@ function ScanPage() {
     const list = Array.isArray(rows) ? rows.filter((r) => r?.name) : [];
     if (list.length === 0) {
       setScanPrimaryById({});
+      setScanGateById({});
+      setStrictBlockReason('');
       return;
     }
     Promise.all(
@@ -128,21 +135,35 @@ function ScanPage() {
         id: r.id,
         action: x.primary_action === 'rerun' ? 'rerun' : 'run',
         report: x.report,
+        canScan: x.can_scan !== false,
+        blockReason: String(x.block_reason || '').trim(),
       }))),
     )
       .then((pairs) => {
         const next = {};
-        pairs.forEach(({ id, action }) => {
+        const gates = {};
+        let sharedBlock = '';
+        pairs.forEach(({ id, action, canScan, blockReason }) => {
           next[id] = action;
+          gates[id] = { canScan, blockReason };
+          if (!demo && !sharedBlock && blockReason) sharedBlock = blockReason;
         });
         setScanPrimaryById(next);
+        setScanGateById(gates);
+        setStrictBlockReason(sharedBlock);
+        if (sharedBlock) setRunError('');
         setResults((prev) => {
           const o = { ...(prev || {}) };
           pairs.forEach(({ id, action, report }) => {
             if (report && typeof report === 'object') {
               o[id] = report;
             } else if (action === 'run') {
-              delete o[id];
+              // 未落盘才清空；保留内存中已有的合法 0 机会结果，避免闪回「—」
+              const existing = o[id];
+              const keptZero = existing
+                && typeof existing === 'object'
+                && Number.isFinite(Number(existing.total_opportunities ?? existing.totalOpportunities));
+              if (!keptZero) delete o[id];
             }
           });
           return o;
@@ -150,6 +171,8 @@ function ScanPage() {
       })
       .catch(() => {
         setScanPrimaryById({});
+        setScanGateById({});
+        setStrictBlockReason('');
       });
   }, [rows, mode]);
 
@@ -246,7 +269,9 @@ function ScanPage() {
         const id = params.row.id;
         const isThisRunning = running && id === runningStrategyId;
         const isRerun = scanPrimaryById[id] === 'rerun';
-        const disableRun = !enabled || running;
+        const gate = scanGateById[id] || {};
+        const blocked = mode === 'strict' && gate.canScan === false;
+        const disableRun = !enabled || running || blocked;
         return (
           <Stack direction="row" spacing={1} alignItems="center">
             <Button
@@ -254,13 +279,15 @@ function ScanPage() {
               variant="contained"
               disabled={disableRun}
               title={
-                isRerun
-                  ? '将全量重新扫描并忽略已保存的扫描结果'
-                  : '尚无已保存结果时全量扫描；按住 Shift 再点击可强制重新扫描'
+                blocked
+                  ? (gate.blockReason || '严格模式数据未就绪，无法扫描')
+                  : (isRerun
+                    ? '将全量重新扫描并忽略已保存的扫描结果'
+                    : '尚无已保存结果时全量扫描；按住 Shift 再点击可强制重新扫描')
               }
               onClick={(e) => {
                 e.stopPropagation();
-                if (!enabled || running) return;
+                if (!enabled || running || blocked) return;
                 const force = isRerun || e.shiftKey;
                 setRunError('');
                 setReportVisible(false);
@@ -276,7 +303,14 @@ function ScanPage() {
                     setReportDemo(Boolean(res?.demo));
                   })
                   .catch((err) => {
-                    setRunError(err?.message || '启动扫描失败');
+                    const msg = err?.message || '启动扫描失败';
+                    // 严格门禁已有顶部提示时，不再重复打一条 error
+                    if (mode === 'strict' && (gate.blockReason || msg.includes('严格模式'))) {
+                      if (msg.includes('严格模式')) setStrictBlockReason(msg);
+                      setRunError('');
+                      return;
+                    }
+                    setRunError(msg);
                   });
               }}
             >
@@ -300,7 +334,7 @@ function ScanPage() {
         );
       },
     },
-  ]), [mode, openDetail, progress.pct, results, running, runningStrategyId, scanPrimaryById]);
+  ]), [mode, openDetail, progress.pct, results, running, runningStrategyId, scanGateById, scanPrimaryById]);
 
   useEffect(() => {
     if (!running) return undefined;
@@ -466,7 +500,14 @@ function ScanPage() {
 
           {loadError ? <Alert severity="error" sx={{ mb: 1.5 }}>{loadError}</Alert> : null}
           <DataEndTruncationAlert dataEnd={dataEnd} className="scan-list-alert" />
-          {runError ? <Alert severity="error" sx={{ mb: 1.5 }}>{runError}</Alert> : null}
+          {mode === 'strict' && strictBlockReason ? (
+            <Alert severity="warning" sx={{ mb: 1.5 }}>
+              {strictBlockReason}
+            </Alert>
+          ) : null}
+          {runError && runError !== strictBlockReason ? (
+            <Alert severity="error" sx={{ mb: 1.5 }}>{runError}</Alert>
+          ) : null}
 
           {running ? (
             <Box sx={{ mb: 1.5 }}>
@@ -616,7 +657,12 @@ function ScanPage() {
                       headerName: '触发价格',
                       minWidth: 120,
                       flex: 0.5,
-                      valueFormatter: (v) => (v?.value === '' || v?.value == null ? '—' : String(v.value)),
+                      valueFormatter: (v) => {
+                        const raw = v?.value;
+                        if (raw === '' || raw == null) return '—';
+                        const n = Number(raw);
+                        return Number.isFinite(n) ? n.toFixed(2) : String(raw);
+                      },
                     },
                     {
                       field: 'extra_fields',
@@ -626,7 +672,16 @@ function ScanPage() {
                       valueGetter: (params) => {
                         const v = params?.row?.extra_fields;
                         if (!v || (typeof v === 'object' && Object.keys(v).length === 0)) return '';
-                        return typeof v === 'string' ? v : JSON.stringify(v);
+                        if (typeof v === 'string') return v;
+                        const rounded = {};
+                        Object.entries(v).forEach(([k, val]) => {
+                          if (typeof val === 'number' && Number.isFinite(val)) {
+                            rounded[k] = Number(val.toFixed(2));
+                          } else {
+                            rounded[k] = val;
+                          }
+                        });
+                        return JSON.stringify(rounded);
                       },
                       renderCell: (params) => (
                         <Typography

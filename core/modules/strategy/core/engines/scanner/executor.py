@@ -199,7 +199,7 @@ class ScannerJobExecutor:
                 opportunity = scanned
                 stock_info = (runtime.get("stock_info") or {}).get(eid, {"id": eid})
                 opportunity.bind_scan_context(
-                    strategy_key=str(hook_runtime.strategy_name or ""),
+                    strategy_name=str(hook_runtime.strategy_name or ""),
                     stock_id=eid,
                     stock_info=stock_info,
                     trigger_date=as_of,

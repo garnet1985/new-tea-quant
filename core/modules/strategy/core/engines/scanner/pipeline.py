@@ -18,6 +18,7 @@ from core.modules.strategy.core.engines.scanner.executor import ScannerJobExecut
 from core.modules.strategy.core.engines.scanner.helpers import (
     ScanCacheManager,
     ScanDateResolver,
+    ScannerCalendarAsof,
 )
 from core.modules.strategy.core.engines.scanner.job_builder import ScannerJobBuilder
 from core.modules.strategy.core.engines.scanner.report_manager import ReportManager
@@ -55,6 +56,11 @@ class ScannerPipeline:
             return {}
 
         dm = data_manager if data_manager is not None else DataManager()
+        if not demo:
+            block = ScanDateResolver.strict_data_block_reason(dm)
+            if block:
+                raise ValueError(block)
+
         kline_latest = ScanDateResolver.load_kline_latest_date(dm)
         if not kline_latest:
             logger.error("无法解析 K 线最新日期（sys_stock_klines 可能为空）")
@@ -67,11 +73,9 @@ class ScannerPipeline:
             settings.apply_defaults()
             if demo:
                 settings.scanner.set_use_strict_previous_trading_day(False)
-
-            if not demo and not cls._passes_strict_anchor_gate(
-                dm, settings=settings, kline_latest=kline_latest, strategy_name=name
-            ):
-                continue
+            else:
+                # 与 UI/API 严格模式一致：强制真实交易日对齐
+                settings.scanner.set_use_strict_previous_trading_day(True)
 
             try:
                 results[name] = cls.run(
@@ -114,29 +118,6 @@ class ScannerPipeline:
             logger.warning("没有可扫描的策略")
         return sorted(enabled, key=lambda x: str(x.key or x.unique_relative_path or ""))
 
-    @staticmethod
-    def _passes_strict_anchor_gate(
-        data_manager: Any,
-        *,
-        settings: StrategySettings,
-        kline_latest: str,
-        strategy_name: str,
-    ) -> bool:
-        """非 demo：锚点须与库内 K 线最新日一致，否则跳过该策略。"""
-        anchor = ScanDateResolver.resolve_anchor_date(
-            data_manager,
-            use_strict=settings.scanner.use_strict_previous_trading_day,
-        )
-        if anchor and anchor != kline_latest:
-            logger.warning(
-                "跳过扫描 %s：锚点 %s ≠ K 线最新 %s（demo=True 可放宽）",
-                strategy_name,
-                anchor,
-                kline_latest,
-            )
-            return False
-        return True
-
     @classmethod
     def run(
         cls,
@@ -178,8 +159,18 @@ class ScannerPipeline:
         )
         cache.cleanup_old_cache()
 
-        csv_path = cache.opportunities_csv_path(scan_date)
-        use_cache = (not force) and csv_path.is_file()
+        summary_path = cache.scan_summary_path(scan_date)
+        use_cache = (not force) and summary_path.is_file()
+
+        # 横截面策略：先 asof 选股再扫，避免 scan_opportunity 对全宇宙放行
+        if not use_cache:
+            stock_ids = ScannerCalendarAsof.filter_stock_ids(
+                strategy_info=strategy_info,
+                settings=settings,
+                stock_ids=stock_ids,
+                scan_date=scan_date,
+                data_manager=dm,
+            )
 
         report = ReportManager.begin(
             strategy_key=strategy_key,

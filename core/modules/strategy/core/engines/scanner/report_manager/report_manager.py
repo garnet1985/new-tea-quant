@@ -148,8 +148,8 @@ class ReportManager(BaseReportManager):
             self.strategy_key, max_cache_days=self.max_cache_days
         )
         summary_path = cache.save_scan_summary(self.scan_date, self.to_report_dict())
-        if self.opportunities:
-            cache.save_opportunities(self.scan_date, self.opportunities)
+        # 始终调用：有机会写 CSV；0 机会清掉陈旧 CSV
+        cache.save_opportunities(self.scan_date, self.opportunities)
         return summary_path
 
     def present(self, stream: Optional[TextIO] = None) -> None:

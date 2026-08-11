@@ -81,9 +81,15 @@ export async function fetchStrategyScanReadiness(strategyName, { demo = false } 
   const json = await requestJson(`${apiStrategyPath(strategyName)}/scan?${params.toString()}`, { method: 'GET' });
   const m = json?.message || {};
   const report = m.report && typeof m.report === 'object' ? m.report : null;
+  const blockReason = String(m.block_reason || m.blockReason || '').trim();
+  const canScan = m.can_scan === undefined && m.canScan === undefined
+    ? !blockReason
+    : Boolean(m.can_scan ?? m.canScan);
   return {
     primary_action: m.primary_action === 'rerun' ? 'rerun' : 'run',
     report,
+    can_scan: canScan,
+    block_reason: blockReason,
   };
 }
 

@@ -81,9 +81,15 @@ export async function fetchStrategyScanReadiness(strategyName, { demo = false } 
   const json = await requestJson(`${apiStrategyPath(strategyName)}/scan?${params.toString()}`, { method: 'GET' });
   const m = json?.message || {};
   const report = m.report && typeof m.report === 'object' ? m.report : null;
+  const blockReason = String(m.block_reason || m.blockReason || '').trim();
+  const canScan = m.can_scan === undefined && m.canScan === undefined
+    ? !blockReason
+    : Boolean(m.can_scan ?? m.canScan);
   return {
     primary_action: m.primary_action === 'rerun' ? 'rerun' : 'run',
     report,
+    can_scan: canScan,
+    block_reason: blockReason,
   };
 }
 
@@ -360,7 +366,7 @@ export async function fetchStrategyStepReportRef(strategyKeyOrName, step, versio
 }
 
 /**
- * V2-06b：整次 run 编排进度（``steps[]``），不依赖路径 ``step``。
+ * V2-06b：整次 run 进度（``strategy_pipeline_v1``）。
  * @param {string} strategyName
  * @param {string} jobId
  */
@@ -373,82 +379,82 @@ export async function fetchStrategyRunProgress(strategyName, jobId) {
 }
 
 /**
- * 将 ``GET …/run/progress`` 正文映射为执行面板 ``applyStatus`` 所需字段。
+ * 将 ``GET …/run/progress``（``strategy_pipeline_v1``）映射为执行面板字段。
  * @param {object|null} envelope
  */
 export function mapWorkbenchRunProgressToPanel(envelope) {
-  const steps = Array.isArray(envelope?.steps) ? envelope.steps : [];
-  const phase = String(envelope?.phase || '').toLowerCase();
-  const runProgress = envelope?.run_progress && typeof envelope.run_progress === 'object'
-    ? envelope.run_progress
-    : null;
+  if (!envelope || typeof envelope !== 'object') {
+    return {
+      run_id: '',
+      step_status_merge: {},
+      step_progress: {},
+      running_step: '',
+      progress_pct: 0,
+      progress_label: '',
+      progress_stage_label: '',
+      progress_counter_text: '',
+      state: 'failed',
+      version_id: '',
+      fail_reason: '无编排进度数据',
+    };
+  }
+
+  const pipeline = String(envelope.pipeline_name || '').trim();
+  const status = String(envelope.status || envelope.phase || '').trim().toLowerCase();
+  const pctRaw = Number(envelope.progress);
+  const pct = Number.isFinite(pctRaw) ? Math.min(100, Math.max(0, pctRaw)) : 0;
+
+  let panelStatus = 'idle';
+  if (status === 'queued' || status === 'pending') panelStatus = 'pending';
+  else if (status === 'running') panelStatus = 'running';
+  else if (status === 'completed') panelStatus = 'done';
+  else if (status === 'failed' || status === 'cancelled') panelStatus = 'failed';
 
   const step_status_merge = {};
   const step_progress = {};
-  steps.forEach((row) => {
-    const k = String(row.step_name || '').trim();
-    if (k !== 'enum' && k !== 'price' && k !== 'portfolio') return;
-    const st = String(row.status || '').toLowerCase();
-    if (st === 'pending') step_status_merge[k] = 'pending';
-    else if (st === 'running') step_status_merge[k] = 'running';
-    else if (st === 'completed') step_status_merge[k] = 'done';
-    else if (st === 'failed') step_status_merge[k] = 'failed';
-    else step_status_merge[k] = 'idle';
-    step_progress[k] = Number(row.progress ?? 0);
-  });
+  if (pipeline === 'enum' || pipeline === 'price' || pipeline === 'portfolio') {
+    step_status_merge[pipeline] = panelStatus;
+    step_progress[pipeline] = pct;
+  }
 
-  const anyFailed = steps.some((r) => String(r.status || '').toLowerCase() === 'failed') || phase === 'failed';
-  const allDone =
-    steps.length > 0
-    && steps.every((r) => String(r.status || '').toLowerCase() === 'completed');
   let state = 'running';
-  if (anyFailed) state = 'failed';
-  else if (allDone || phase === 'completed') state = 'done';
+  if (panelStatus === 'failed') state = 'failed';
+  else if (panelStatus === 'done') state = 'done';
 
-  let running_step = '';
-  ['enum', 'price', 'portfolio'].forEach((k) => {
-    if (step_status_merge[k] === 'running') running_step = k;
-  });
-  if (!running_step && runProgress?.substep) {
-    running_step = String(runProgress.substep).trim();
-  }
-
-  let progress_pct = 0;
-  if (runProgress && runProgress.pct != null) {
-    progress_pct = Number(runProgress.pct);
-  } else if (running_step) {
-    progress_pct = Number(step_progress[running_step] ?? 0);
-  } else if (state === 'done') {
-    progress_pct = 100;
-  }
-
-  const progress_label = typeof runProgress?.label === 'string' ? runProgress.label.trim() : '';
-  const progress_stage_label = typeof runProgress?.substep_stage_label === 'string'
-    ? runProgress.substep_stage_label.trim()
-    : '';
-  const progress_counter_text = typeof runProgress?.counter_text === 'string'
-    ? runProgress.counter_text.trim()
+  const curStep = envelope.step && typeof envelope.step === 'object' ? envelope.step : null;
+  const progress_label = String(envelope.pipeline_description || '').trim()
+    || ({
+      enum: '枚举',
+      price: '价格回测',
+      portfolio: '资金模拟',
+    }[pipeline] || '');
+  const progress_stage_label = curStep
+    ? String(curStep.description || curStep.name || '').trim()
     : '';
 
-  let version_id = '';
-  steps.forEach((row) => {
-    const vid = row?.result?.version_id;
-    if (typeof vid === 'string' && vid.trim()) version_id = vid.trim();
-  });
+  let progress_counter_text = '';
+  const counters = curStep?.counters;
+  if (counters && typeof counters === 'object') {
+    const done = counters.done;
+    const total = counters.total;
+    if (done != null && total != null && String(total) !== '') {
+      progress_counter_text = `${done}/${total}`;
+    }
+  }
 
+  const result = envelope.result && typeof envelope.result === 'object' ? envelope.result : {};
+  const version_id = typeof result.version_id === 'string' ? result.version_id.trim() : '';
   let fail_reason = '';
   if (state === 'failed') {
-    const failedRow = steps.find((r) => String(r.status || '').toLowerCase() === 'failed');
-    const msg = failedRow?.result?.message;
-    fail_reason = typeof msg === 'string' && msg.trim() ? msg.trim() : '';
+    fail_reason = String(envelope.error || result.message || '').trim();
   }
 
   return {
-    run_id: envelope?.run_id || '',
+    run_id: String(envelope.run_id || envelope.pipeline_id || envelope.job_id || '').trim(),
     step_status_merge,
     step_progress,
-    running_step,
-    progress_pct,
+    running_step: (panelStatus === 'running' || panelStatus === 'pending') ? pipeline : '',
+    progress_pct: state === 'done' ? 100 : pct,
     progress_label,
     progress_stage_label,
     progress_counter_text,
@@ -459,7 +465,7 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
 }
 
 /**
- * V2-06b：轮询整次 run 进度（内部聚合 ``steps``）。
+ * 轮询 run 进度（``strategy_pipeline_v1``）。
  * 第三参 ``step`` 已废弃，保留签名以兼容旧调用。
  * @param {string} strategyName
  * @param {string} jobId

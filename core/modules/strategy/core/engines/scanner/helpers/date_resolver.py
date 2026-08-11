@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +136,9 @@ class ScanDateResolver:
     ) -> Dict[str, Any]:
         day = str(scan_date or "").strip()
         clamped = False
-        if day and kline_latest and day > kline_latest:
+        # 非严格：锚点晚于库内 K 线时可截断到最新有数据日（演示便利）。
+        # 严格：禁止截断——真实交易日无本地数据时由上层硬失败。
+        if (not use_strict) and day and kline_latest and day > kline_latest:
             logger.warning(
                 "扫描锚点 %s 晚于库内 K 线最新日 %s，按 %s 执行扫描",
                 day,
@@ -163,6 +165,55 @@ class ScanDateResolver:
             "source": source,
             "source_detail": source_detail,
         }
+
+    @staticmethod
+    def strict_data_block_reason(
+        data_manager: Any,
+        *,
+        meta: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """严格模式数据门禁：不满足则返回中文原因，满足返回空串。
+
+        条件：能解析真实世界最新已完成交易日，且本地 K 线最新日与之对齐、
+        该日有股票行情。不满足时应拒绝扫描并提示 renew。
+        """
+        resolved = meta if isinstance(meta, dict) else None
+        if resolved is None:
+            resolved = ScanDateResolver.resolve_anchor_meta(
+                data_manager, use_strict=True
+            )
+        raw = str(resolved.get("raw_anchor") or resolved.get("scan_date") or "").strip()
+        kline_latest = str(
+            resolved.get("kline_latest")
+            or ScanDateResolver.load_kline_latest_date(data_manager)
+            or ""
+        ).strip()
+        if not raw:
+            detail = str(resolved.get("source_detail") or "").strip()
+            suffix = f"（{detail}）" if detail else ""
+            return (
+                "严格模式：无法解析真实世界最新已完成交易日"
+                f"{suffix}。请检查日历/网络后重试，或改用「扫描演示」。"
+            )
+        if not kline_latest:
+            return (
+                "严格模式：本地无 K 线数据。"
+                "请先 renew 全部行情数据后再扫描。"
+            )
+        if raw != kline_latest:
+            return (
+                f"严格模式：真实交易日 {raw} 的本地行情尚未就绪"
+                f"（库内 K 线最新仅至 {kline_latest}）。"
+                "请先更新全部数据后再进行扫描，或改用「扫描演示」模式。"
+            )
+        ids = ScanDateResolver(data_manager).stocks_with_kline(raw)
+        if not ids:
+            return (
+                f"严格模式：交易日 {raw} 无可用股票 K 线。"
+                "请先更新行情数据后再进行扫描。"
+            )
+        return ""
+
 
     def resolve_scan_date(self, *, use_strict: bool) -> Tuple[str, List[str]]:
         day, ids, _meta = self.resolve_scan_date_with_meta(use_strict=use_strict)

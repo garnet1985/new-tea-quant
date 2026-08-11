@@ -66,6 +66,11 @@ def trigger_strategy_scan_run(
     if not name:
         return {"is_triggered": False, "reason": "strategy_name 无效"}
 
+    # 严格模式：启动线程前先做数据门禁，避免先跑进度再失败
+    block = ScanJob.strict_block_reason(demo=bool(demo))
+    if block:
+        return {"is_triggered": False, "reason": block}
+
     global _ACTIVE_JOB_ID  # noqa: PLW0603
     with _LOCK:
         if _has_active_scan_locked():

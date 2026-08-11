@@ -65,3 +65,21 @@ def post_cache_clear():
             return error(msg, 409)
         return error(err, 400)
     return ok({"cleared": True, "message": str(out.get("message") or "缓存已经全部清理")})
+
+
+@settings_api_bp.route("/v1/settings/trace", methods=["GET"])
+def get_trace_settings():
+    """读取使用统计（匿名遥测）同意状态。"""
+    return ok(settings_service.get_trace_settings())
+
+
+@settings_api_bp.route("/v1/settings/trace", methods=["POST"])
+def post_trace_settings():
+    """写入使用统计同意（``enabled`` 布尔值）。"""
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return error("请求体须为 JSON 对象", 400)
+    body, err = settings_service.save_trace_settings(payload)
+    if err:
+        return error(err, 400)
+    return ok(body)

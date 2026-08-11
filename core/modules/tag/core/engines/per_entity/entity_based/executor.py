@@ -162,13 +162,13 @@ class TagEntityJobExecutor:
     @classmethod
     def build_run_callbacks(cls) -> RunCallbacks:
         return RunCallbacks(
-            on_before_task_start=cls.on_before_task_start,
+            on_task_start=cls.on_task_start,
             on_tick=cls.on_tick,
-            on_ticks_complete=cls.on_ticks_complete,
+            on_task_complete=cls.on_task_complete,
         )
 
     @classmethod
-    def on_before_task_start(cls, job_context: Any) -> Dict[str, Any]:
+    def on_task_start(cls, job_context: Any) -> Dict[str, Any]:
         logger.info("%s开始：job_id=%s", cls.task_log_label, job_context.job_id)
         loaded = JobBundleLoader.load(job_context.payload or {})
         job_context.init = loaded
@@ -255,7 +255,7 @@ class TagEntityJobExecutor:
                     )
 
     @classmethod
-    def on_ticks_complete(cls, job_context: Any, timeline: Any) -> Dict[str, Any]:
+    def on_task_complete(cls, job_context: Any) -> Dict[str, Any]:
         state = cls._state(job_context)
         count = len(state.tag_values)
         logger.info(

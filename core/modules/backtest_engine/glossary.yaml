@@ -79,7 +79,9 @@ terms:
     avoid: ["run_name", "log_label"]
 
   RunCallbacks:
-    definition: "单次 run 的可选回调集合（on_tick、on_before_task_start、on_task_result 等）"
+    definition: "单次 run 的生命周期钩子。Task 寄生主体：entity=一次 worker 提交；slice=一片正式 slice。字段含 on_task_start / on_tick / on_task_complete；跨进程收包用 on_receive_task_result（slice 默认不调）。BE 只提供时间点，不暗示业务动作。"
+  Task:
+    definition: "run 内的 partial work。entity_based 寄生于一个 worker 进程内的一次提交；slice_based 寄生于一片正式日历 slice 的 compute。"
     aliases: ["hooks", "callbacks"]
     avoid: ["run 上平铺多个 on_* 参数", "对外传 execute_fn="]
 

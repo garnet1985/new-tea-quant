@@ -6,7 +6,7 @@
 
 ## 定位
 
-回测调度 Facade：对 tag / strategy 提供统一的 **probe → plan → execute → monitor** 流水线。业务语义经 `RunCallbacks`（`on_tick`、`on_before_task_start` 等）注入；engine 只管并发、内存预算与执行编排。
+回测调度 Facade：对 tag / strategy 提供统一的 **probe → plan → execute → monitor** 流水线。业务语义经 `RunCallbacks`（`on_task_start` / `on_tick` / `on_task_complete` 等）注入；engine 只管并发、内存预算与执行编排。钩子只表示时间点，不暗示业务动作。
 
 ---
 

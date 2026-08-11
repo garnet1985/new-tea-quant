@@ -422,9 +422,8 @@ class Timeline:
         job_context: "JobContext",
         *,
         on_tick: Optional["TickFn"] = None,
-        on_ticks_complete: Optional[Any] = None,
     ) -> Dict[str, Any]:
-        """读 job 上已发布的轴并推进。"""
+        """读 job 上已发布的轴并推进（仅 on_tick；task complete 由外层生命周期负责）。"""
         timeline = cls.read_for_job(job_context.payload)
         if timeline is None:
             raise ValueError(
@@ -435,7 +434,6 @@ class Timeline:
             job_context,
             timeline,
             on_tick=on_tick,
-            on_ticks_complete=on_ticks_complete,
         )
 
     @classmethod
@@ -445,7 +443,6 @@ class Timeline:
         timeline: "Timeline",
         *,
         on_tick: Optional["TickFn"] = None,
-        on_ticks_complete: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """按 timeline.points 调 on_tick；缺省空转 + warning 一次。"""
         clipped = timeline.clipped()
@@ -456,17 +453,11 @@ class Timeline:
                 timeline.start,
                 timeline.end,
             )
-            result: Dict[str, Any] = {"success": True}
-        else:
-            for index, point in enumerate(clipped.points):
-                cls._dispatch_tick(job_context, point, index, on_tick=on_tick)
-            result = {"success": True}
+            return {"success": True}
 
-        if on_ticks_complete is not None:
-            extra = on_ticks_complete(job_context, clipped)
-            if isinstance(extra, dict):
-                result = {**result, **extra}
-        return result
+        for index, point in enumerate(clipped.points):
+            cls._dispatch_tick(job_context, point, index, on_tick=on_tick)
+        return {"success": True}
 
     @classmethod
     def _dispatch_tick(
@@ -575,7 +566,10 @@ class Timeline:
 
 
 class TimelineWorkerExecute:
-    """可 pickle 的 process-pool 入口：``Timeline.drive_for_job`` + callbacks。"""
+    """可 pickle 的 process-pool 入口：``Timeline.drive_for_job`` + on_tick。
+
+    Task start/complete 由 EntityExecutor 生命周期包裹，不在此调用。
+    """
 
     def __init__(self, callbacks: Optional["RunCallbacks"] = None) -> None:
         from core.modules.backtest_engine.core.shared.types import RunCallbacks
@@ -586,7 +580,6 @@ class TimelineWorkerExecute:
         return Timeline.drive_for_job(
             job_context,
             on_tick=self.callbacks.on_tick,
-            on_ticks_complete=self.callbacks.on_ticks_complete,
         )
 
 

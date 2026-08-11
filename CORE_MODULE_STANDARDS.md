@@ -141,7 +141,7 @@
 **实践：**
 - 进度始终计算（分阶段权重 + execute 单元计数）
 - API 参数如 `enable_progress_display` 仅控制 CMD/日志输出，不影响内部计数
-- slice 等细粒度进度通过 engine 注入的 hook（如 `_engine_on_execute_unit_done`）由 orchestrator 回调，不重复在业务层拼 percent
+- slice 等细粒度：BE 在每片 `on_task_complete` 时间点回调；业务自行更新 `PipelineProgress`。CMD 百分比仍可由 BE 内部 `RunProgressReporter` 计算（与业务钩子分离）
 
 ---
 

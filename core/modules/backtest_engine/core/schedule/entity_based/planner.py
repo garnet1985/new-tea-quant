@@ -71,8 +71,8 @@ class EntityPlanner(BasePlanner):
         performance: Dict[str, Any],
         *,
         execute_fn: Optional[Callable[[JobContext], Dict[str, Any]]] = None,
-        on_before_task_start: Optional[TaskStartFn] = None,
-        on_after_task_complete: Optional[TaskCompleteFn] = None,
+        on_task_start: Optional[TaskStartFn] = None,
+        on_task_complete: Optional[TaskCompleteFn] = None,
         executor: Optional[str] = None,
         log_label: str = "调度",
     ) -> Tuple[DispatchPlan, List[JobBatch], EntityMonitorConfig]:
@@ -101,8 +101,8 @@ class EntityPlanner(BasePlanner):
             capacity,
             performance,
             execute_fn,
-            on_before_task_start,
-            on_after_task_complete,
+            on_task_start,
+            on_task_complete,
             log_label,
         )
         plan = cls._settle_plan(
@@ -145,8 +145,8 @@ class EntityPlanner(BasePlanner):
         capacity: MachineCapacity,
         performance: Dict[str, Any],
         execute_fn: Optional[Callable[[JobContext], Dict[str, Any]]],
-        on_before_task_start: Optional[TaskStartFn],
-        on_after_task_complete: Optional[TaskCompleteFn],
+        on_task_start: Optional[TaskStartFn],
+        on_task_complete: Optional[TaskCompleteFn],
         log_label: str,
     ) -> ProbeResult:
         """
@@ -157,8 +157,8 @@ class EntityPlanner(BasePlanner):
             capacity: 机器容量
             performance: 配置字典
             execute_fn: 执行函数
-            on_before_task_start: job初始化回调
-            on_after_task_complete: job释放回调
+            on_task_start: task 初始化回调
+            on_task_complete: task 完成回调
             log_label: 日志标签
 
         Returns:
@@ -193,8 +193,8 @@ class EntityPlanner(BasePlanner):
             probe_jobs,
             performance,
             execute_fn,
-            on_before_task_start=on_before_task_start,
-            on_after_task_complete=on_after_task_complete,
+            on_task_start=on_task_start,
+            on_task_complete=on_task_complete,
             log_label=log_label,
         )
     

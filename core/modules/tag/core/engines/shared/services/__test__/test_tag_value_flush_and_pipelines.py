@@ -200,23 +200,24 @@ class TestTagSlicePipeline:
 
         def fake_run(jobs, **kwargs):
             cb = kwargs.get("callbacks")
-            if cb and cb.on_task_result:
-                cb.on_task_result(
-                    JobReport(
-                        job_id="tag_run",
-                        success=True,
-                        data={
-                            "tag_values": [
-                                {
-                                    "entity_id": "e1",
-                                    "as_of_date": "20240102",
-                                    "tag_definition_id": 9,
-                                    "value": "mid",
-                                }
-                            ]
-                        },
-                    ),
-                    RunProgress(finished=1, total=1, ok=1, fail=0),
+            if cb and cb.on_after_all_tasks_complete:
+                cb.on_after_all_tasks_complete(
+                    [
+                        JobReport(
+                            job_id="tag_run",
+                            success=True,
+                            data={
+                                "tag_values": [
+                                    {
+                                        "entity_id": "e1",
+                                        "as_of_date": "20240102",
+                                        "tag_definition_id": 9,
+                                        "value": "mid",
+                                    }
+                                ]
+                            },
+                        )
+                    ]
                 )
             return MagicMock()
 
@@ -254,14 +255,15 @@ class TestTagSlicePipeline:
 
         def fake_run(jobs, **kwargs):
             cb = kwargs.get("callbacks")
-            if cb and cb.on_task_result:
-                cb.on_task_result(
-                    JobReport(
-                        job_id="tag_run",
-                        success=True,
-                        data={"tag_values": []},
-                    ),
-                    RunProgress(finished=1, total=1, ok=1, fail=0),
+            if cb and cb.on_after_all_tasks_complete:
+                cb.on_after_all_tasks_complete(
+                    [
+                        JobReport(
+                            job_id="tag_run",
+                            success=True,
+                            data={"tag_values": []},
+                        )
+                    ]
                 )
             return MagicMock()
 

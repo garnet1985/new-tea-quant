@@ -57,6 +57,21 @@ function equityAxisMinMax(equityCurveValues) {
   };
 }
 
+/** 纵轴「万」刻度：区间窄时加小数，避免多档都显示成同一个 3w */
+function formatEquityAxisWan(value, yMin, yMax) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '';
+  const span = (
+    Number.isFinite(yMin) && Number.isFinite(yMax)
+      ? Math.abs(yMax - yMin)
+      : Math.abs(n)
+  );
+  const wan = n / 10000;
+  if (span < 10000) return `${wan.toFixed(2)}w`;
+  if (span < 80000) return `${wan.toFixed(1)}w`;
+  return `${Math.round(wan)}w`;
+}
+
 function buildEquityCurveOption(metrics) {
   const values = metrics.equityCurveValues || [];
   const positive = equityResultIsPositive(metrics);
@@ -85,7 +100,7 @@ function buildEquityCurveOption(metrics) {
       axisTick: { show: false },
       axisLabel: {
         ...REPORT_CHART_AXIS_LABEL,
-        formatter: (value) => `${(value / 10000).toFixed(0)}w`,
+        formatter: (value) => formatEquityAxisWan(value, yMin, yMax),
       },
       splitLine: REPORT_CHART_SPLIT_LINE,
     },

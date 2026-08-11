@@ -31,7 +31,7 @@ print(result.success, result.mode, result.completed_jobs)
 
 **预期结果：** 返回 `RunResult`，`mode == "entity_based"`。空 `jobs` 时可不传 window，直接成功。
 
-> 不要传 `execute_fn=`：引擎内置 worker，业务挂在 `RunCallbacks`（尤其 `on_tick` / `on_before_task_start`）。
+> 不要传 `execute_fn=`：引擎内置 worker，业务挂在 `RunCallbacks`（尤其 `on_tick` / `on_task_start` / `on_task_complete`）。
 
 ## 下一步
 

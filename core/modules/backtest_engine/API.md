@@ -76,10 +76,10 @@ result = BacktestEngine.entity_based.run(
 | 符号 | 说明 |
 |------|------|
 | `BacktestJob` / `BacktestMode` | job 契约与模式枚举 |
-| `JobContext` | 单次 task 作用域 |
-| `RunCallbacks` | `on_tick` / `on_before_task_start` / `on_task_result`；slice 另需 `load_per_entity_window` |
-| `LoadPerEntityWindowFn` | slice 按窗装数回调类型 |
-| `RunProgress` / `JobReport` | 进度与单 job 报告 |
+| `JobContext` | 当前 task 作用域 |
+| `RunCallbacks` | 见下节「RunCallbacks 生命周期」 |
+| `LoadPerEntityWindowFn` | slice 按窗装数回调类型（数据面，非生命周期） |
+| `RunProgress` / `JobReport` | 主进程收包进度与单 task/job 报告 |
 | `Timeline` / `TimelineInput` | 日历轴发布与读取 |
 | `EntityMonitorStats` / `WorkerTaskPerf` | 调度监控与 worker 性能快照类型 |
 | `ENGINE_PERF_KEY` / `ENUM_PERF_KEY` | performance.json 键名常量 |
@@ -87,6 +87,50 @@ result = BacktestEngine.entity_based.run(
 Job 校验：`BacktestJob.validate_many(jobs, mode=...)` — entity_based 需 `entity_specified`；slice_based 需 `entity_ids` + `timeline_point_count`。
 
 **依赖说明：** slice_based 探针/预读装数由调用方经 `RunCallbacks.load_per_entity_window` 注入（如 strategy/tag 的 `JobBundleLoader.load_per_entity_window`）；BE 不依赖 `modules.strategy`。
+
+### RunCallbacks 生命周期
+
+BE **只提供时间点**；钩子名不暗示业务动作（settle / flush / 进度等）。业务在钩子内自行安排。
+
+**Task** = run 内的 partial work（不是整个 run）。寄生主体：
+
+| 模式 | Task 寄生主体 | `on_task_start` / `on_task_complete` |
+|------|---------------|--------------------------------------|
+| `entity_based` | 一个 worker 进程内的一次 ProcessPool 提交 | 每次提交各 1 次 |
+| `slice_based` | 一片正式日历 slice 的 compute | 每片各 1 次 |
+
+| 字段 | 哪边 | 何时 |
+|------|------|------|
+| `on_before_all_tasks_start` | 主 | plan 后、开跑前 |
+| `on_task_start` | task 侧 | 该 task 开始前 |
+| `on_tick` | task 侧 | 日历点推进 |
+| `on_task_complete` | task 侧 | 该 task 结束后；可返回 `dict` 并入结果 |
+| `on_receive_task_result` | 主 | 主进程收到**跨进程** task 结果后（entity）；slice 同进程默认**不调用** |
+| `on_after_all_tasks_complete` | 主 | 全部 task 结束 |
+| `load_per_entity_window` | 数据面 | slice 装数（非生命周期） |
+
+```python
+from core.modules.backtest_engine.contracts import JobContext, RunCallbacks
+
+class DemoHooks:
+    @classmethod
+    def on_task_start(cls, ctx: JobContext):
+        return {}
+
+    @classmethod
+    def on_tick(cls, ctx: JobContext, point: str, index: int) -> None:
+        ...
+
+    @classmethod
+    def on_task_complete(cls, ctx: JobContext):
+        return None
+
+callbacks = RunCallbacks(
+    on_task_start=DemoHooks.on_task_start,
+    on_tick=DemoHooks.on_tick,
+    on_task_complete=DemoHooks.on_task_complete,
+)
+```
 
 ---
 

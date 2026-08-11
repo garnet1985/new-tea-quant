@@ -215,10 +215,10 @@ class BacktestEngine:
                 execute_fn=worker_fn,
                 task_name=label,
                 on_before_all_tasks_start=resolved_callbacks.on_before_all_tasks_start,
-                on_before_task_start=resolved_callbacks.on_before_task_start,
-                on_after_task_complete=resolved_callbacks.on_after_task_complete,
+                on_task_start=resolved_callbacks.on_task_start,
+                on_task_complete=resolved_callbacks.on_task_complete,
                 on_after_all_tasks_complete=resolved_callbacks.on_after_all_tasks_complete,
-                on_task_result=resolved_callbacks.on_task_result,
+                on_receive_task_result=resolved_callbacks.on_receive_task_result,
                 enable_progress_display=enable_progress_display,
             )
             return BacktestEngine.RunResult.from_entity_based(pipeline_result)
@@ -259,10 +259,7 @@ class BacktestEngine:
                 execute_fn=worker_fn,
                 task_name=label,
                 on_before_all_tasks_start=resolved_callbacks.on_before_all_tasks_start,
-                on_before_task_start=resolved_callbacks.on_before_task_start,
-                on_after_task_complete=resolved_callbacks.on_after_task_complete,
                 on_after_all_tasks_complete=resolved_callbacks.on_after_all_tasks_complete,
-                on_task_result=resolved_callbacks.on_task_result,
                 load_per_entity_window=resolved_callbacks.load_per_entity_window,
                 enable_progress_display=enable_progress_display,
             )

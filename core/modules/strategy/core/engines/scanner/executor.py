@@ -46,12 +46,11 @@ class ScannerJobExecutor:
     def build_run_callbacks(cls) -> RunCallbacks:
         return RunCallbacks(
             on_before_all_tasks_start=cls.on_before_all_tasks_start,
-            on_before_task_start=cls.on_before_task_start,
-            on_after_task_complete=cls.on_after_task_complete,
+            on_task_start=cls.on_task_start,
+            on_task_complete=cls.on_task_complete,
             on_after_all_tasks_complete=cls.on_after_all_tasks_complete,
-            on_task_result=cls.on_task_result,
+            on_receive_task_result=cls.on_receive_task_result,
             on_tick=cls.on_tick,
-            on_ticks_complete=cls.on_ticks_complete,
         )
 
     @classmethod
@@ -63,7 +62,7 @@ class ScannerJobExecutor:
         )
 
     @classmethod
-    def on_before_task_start(cls, job_context: Any) -> Dict[str, Any]:
+    def on_task_start(cls, job_context: Any) -> Dict[str, Any]:
         payload = job_context.payload or {}
         meta = ScannerJobBuilder.scanner_meta(payload)
         scan_date = str(meta.get("scan_date") or "").strip()
@@ -200,7 +199,7 @@ class ScannerJobExecutor:
                 opportunity = scanned
                 stock_info = (runtime.get("stock_info") or {}).get(eid, {"id": eid})
                 opportunity.bind_scan_context(
-                    strategy_key=str(hook_runtime.strategy_name or ""),
+                    strategy_name=str(hook_runtime.strategy_name or ""),
                     stock_id=eid,
                     stock_info=stock_info,
                     trigger_date=as_of,
@@ -242,8 +241,7 @@ class ScannerJobExecutor:
         runtime["scanned"] = True
 
     @classmethod
-    def on_ticks_complete(cls, job_context: Any, timeline: Any) -> Dict[str, Any]:
-        _ = timeline
+    def on_task_complete(cls, job_context: Any) -> Dict[str, Any]:
         init = job_context.init if isinstance(job_context.init, dict) else {}
         runtime = init.get(_CTX_KEY) if isinstance(init.get(_CTX_KEY), dict) else {}
         opportunities = list(runtime.get("opportunities") or [])
@@ -255,15 +253,11 @@ class ScannerJobExecutor:
         }
 
     @classmethod
-    def on_after_task_complete(cls, job_context: Any) -> None:
-        _ = job_context
-
-    @classmethod
     def on_after_all_tasks_complete(cls, job_reports: List[Any]) -> None:
         logger.info("scanner 全部 task 完成：total=%d", len(job_reports))
 
     @classmethod
-    def on_task_result(cls, report: Any, progress: Any) -> None:
+    def on_receive_task_result(cls, report: Any, progress: Any) -> None:
         logger.info(
             "scanner 进度：%s/%s (ok=%s, fail=%s) job_id=%s success=%s",
             progress.finished,

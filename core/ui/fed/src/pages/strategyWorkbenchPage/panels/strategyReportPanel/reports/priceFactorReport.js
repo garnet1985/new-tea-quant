@@ -145,8 +145,11 @@ function PriceFactorReport({
     executionSkips: false,
   };
 
-  const roiTruncatedNote = metrics?.roiTruncatedExitCount > 0
-    ? PRICE_CHART_TIPS.roiBucketTruncatedNote(metrics.roiTruncatedExitCount)
+  const roiTruncatedCount = Number(metrics?.roiTruncatedExitCount) || 0;
+  const roiSampleCount = Number(metrics?.roiDistributionSampleCount) || 0;
+  const roiAllTruncated = roiTruncatedCount > 0 && roiSampleCount <= 0;
+  const roiTruncatedNote = roiTruncatedCount > 0
+    ? PRICE_CHART_TIPS.roiBucketTruncatedNote(roiTruncatedCount)
     : null;
 
   const derivedStockRows = useMemo(() => (
@@ -198,7 +201,8 @@ function PriceFactorReport({
       valueFormatter: (params) => {
         const v = Number(params.value);
         if (!Number.isFinite(v)) return '—';
-        return `${v > 0 ? '+' : ''}${v}%`;
+        const signed = v > 0 ? '+' : '';
+        return `${signed}${v.toFixed(2)}%`;
       },
     },
     {
@@ -404,9 +408,11 @@ function PriceFactorReport({
         {!avail.roiPercentileViz ? (
           <Box sx={{ mt: avail.profitBasics ? 1 : 0 }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-              {PRICE_CHART_TIPS.roiPercentileUnavailable}
+              {roiAllTruncated
+                ? PRICE_CHART_TIPS.roiPercentileUnavailableAllTruncated(roiTruncatedCount)
+                : PRICE_CHART_TIPS.roiPercentileUnavailable}
             </Typography>
-            <ReportUnavailableHint />
+            {roiAllTruncated ? null : <ReportUnavailableHint />}
           </Box>
         ) : (
           <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.75, mt: 1 }}>
@@ -432,9 +438,11 @@ function PriceFactorReport({
         {!avail.roiBucketViz ? (
           <Box sx={{ mt: 1 }}>
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-              {PRICE_CHART_TIPS.roiBucketUnavailable}
+              {roiAllTruncated
+                ? PRICE_CHART_TIPS.roiBucketUnavailableAllTruncated(roiTruncatedCount)
+                : PRICE_CHART_TIPS.roiBucketUnavailable}
             </Typography>
-            <ReportUnavailableHint />
+            {roiAllTruncated ? null : <ReportUnavailableHint />}
           </Box>
         ) : (
           <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, p: 0.75, mt: 1 }}>

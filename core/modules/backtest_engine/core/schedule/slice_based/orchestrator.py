@@ -68,7 +68,7 @@ class SliceOrchestrator:
             ),
             memory_budget_mb=float(plan.get("memory_budget_mb") or 0.0),
             reader_pool=pool,
-            baseline_rss_mb=cls._process_rss_mb(),
+            baseline_rss_mb=0.0,
         )
 
         init = job_context.init if isinstance(job_context.init, dict) else {}
@@ -76,29 +76,59 @@ class SliceOrchestrator:
         init.setdefault("entity_contracts", {})
         init.setdefault("global_data", {})
 
+        result: Dict[str, Any] = {"success": True}
+
         if not points:
             logger.warning("SliceOrchestrator: timeline 无 points")
-            return cls._finish(job_context, clipped, callbacks, sched)
+            return cls._finish(job_context, clipped, sched, result)
 
         RunProgressReporter.report_from_payload(job_context.payload, 0)
         windows = cls.split_windows(len(points), sched.slice_open_days)
         on_tick = callbacks.on_tick
+        on_task_start = callbacks.on_task_start
+        on_task_complete = callbacks.on_task_complete
+        task_total = len(windows)
+
+        # Run-scoped prep (globals/state) before RSS baseline — same footing as
+        # legacy job-level on_task_start, so payload_mb = rss - baseline excludes
+        # globals. Per-slice on_task_start below may no-op once state exists.
+        if on_task_start is not None:
+            started = on_task_start(job_context)
+            if started is not None:
+                job_context.init = started
+        sched.baseline_rss_mb = cls._process_rss_mb()
 
         for slice_index, (start_idx, end_idx) in enumerate(windows):
+            # One Task = one formal slice compute.
             sched.slice_index = slice_index
             sched.window_t0 = time.perf_counter()
             sched.window_load_sec = 0.0
             cls._load_window(job_context, sched, start_idx, end_idx)
             cls._prefetch_ahead(job_context, sched, after_end_idx=end_idx)
 
+            if on_task_start is not None:
+                started = on_task_start(job_context)
+                if started is not None:
+                    job_context.init = started
+
             for index in range(start_idx, end_idx + 1):
                 point = points[index]
                 if on_tick is not None:
                     on_tick(job_context, point, index)
 
+            task_init = job_context.init if isinstance(job_context.init, dict) else {}
+            job_context.init = task_init
+            task_init["_task_index"] = slice_index + 1
+            task_init["_task_total"] = task_total
+
+            if on_task_complete is not None:
+                extra = on_task_complete(job_context)
+                if isinstance(extra, dict):
+                    result = {**result, **extra}
+
             cls._complete_window(job_context, sched, end_idx)
 
-        return cls._finish(job_context, clipped, callbacks, sched)
+        return cls._finish(job_context, clipped, sched, result)
 
     @classmethod
     def split_windows(
@@ -262,15 +292,9 @@ class SliceOrchestrator:
         cls,
         job_context: JobContext,
         timeline: Timeline,
-        callbacks: RunCallbacks,
         sched: SliceScheduleState,
+        result: Dict[str, Any],
     ) -> Dict[str, Any]:
-        result: Dict[str, Any] = {"success": True}
-        if callbacks.on_ticks_complete is not None:
-            extra = callbacks.on_ticks_complete(job_context, timeline)
-            if isinstance(extra, dict):
-                result = {**result, **extra}
-
         metrics = result.get("performance_metrics")
         if not isinstance(metrics, dict):
             metrics = {}

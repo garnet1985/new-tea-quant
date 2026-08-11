@@ -34,8 +34,9 @@ class BaseJobExecutor:
 
     边界:
     - 负责: RunCallbacks 组装、bundle load、flush、进度
-    - 日业务: 子类覆盖 ``on_before_task_start`` / ``on_tick`` / ``on_ticks_complete``，
+    - 日业务: 子类覆盖 ``on_task_start`` / ``on_tick`` / ``on_task_complete``，
       可变状态挂在 BE ``job_context.init``
+    - Task 寄生主体由 BE 定义：entity=一次 worker 提交；slice=一片正式 slice
     - 调用方: entity_based / slice_based JobExecutor
     """
 
@@ -55,12 +56,11 @@ class BaseJobExecutor:
         cls._hooks_ctx = ctx
         return RunCallbacks(
             on_before_all_tasks_start=cls.on_before_all_tasks_start,
-            on_before_task_start=cls.on_before_task_start,
-            on_after_task_complete=cls.on_after_task_complete,
+            on_task_start=cls.on_task_start,
+            on_task_complete=cls.on_task_complete,
             on_after_all_tasks_complete=cls._dispatch_after_all_tasks_complete,
-            on_task_result=cls._dispatch_task_result,
+            on_receive_task_result=cls._dispatch_receive_task_result,
             on_tick=cls.on_tick,
-            on_ticks_complete=cls.on_ticks_complete,
             load_per_entity_window=JobBundleLoader.load_per_entity_window,
         )
 
@@ -71,10 +71,10 @@ class BaseJobExecutor:
         cls.on_after_all_tasks_complete(job_reports, cache)
 
     @classmethod
-    def _dispatch_task_result(cls, report: Any, progress: Any) -> None:
+    def _dispatch_receive_task_result(cls, report: Any, progress: Any) -> None:
         ctx = cls._hooks_ctx
         report_manager = ctx.report_manager if ctx is not None else None
-        cls.on_task_result(report, progress, report_manager=report_manager)
+        cls.on_receive_task_result(report, progress, report_manager=report_manager)
 
     @classmethod
     def on_before_all_tasks_start(cls, plan: Any, batches: List[Any]) -> None:
@@ -85,20 +85,18 @@ class BaseJobExecutor:
         )
 
     @classmethod
-    def on_before_task_start(cls, job_context: Any) -> Dict[str, Any]:
+    def on_task_start(cls, job_context: Any) -> Dict[str, Any]:
         return cls.load_bundle_data(job_context, log_label=cls.task_log_label)
-
-    @classmethod
-    def on_after_task_complete(cls, job_context: Any) -> None:
-        cls.flush_job_investments(job_context)
 
     @classmethod
     def on_tick(cls, job_context: Any, point: str, index: int) -> None:
         raise NotImplementedError(f"{cls.__name__} 须覆盖 on_tick")
 
     @classmethod
-    def on_ticks_complete(cls, job_context: Any, timeline: Any) -> Dict[str, Any]:
-        raise NotImplementedError(f"{cls.__name__} 须覆盖 on_ticks_complete")
+    def on_task_complete(cls, job_context: Any) -> Any:
+        """Task 侧结束；子类可返回 dict 并入结果。默认 flush investments。"""
+        cls.flush_job_investments(job_context)
+        return None
 
     @classmethod
     def load_bundle_data(cls, job_context: Any, *, log_label: str) -> Dict[str, Any]:
@@ -137,13 +135,14 @@ class BaseJobExecutor:
         perf.end("flush_csv")
 
     @classmethod
-    def on_task_result(
+    def on_receive_task_result(
         cls,
         report: Any,
         progress: Any,
         *,
         report_manager: Optional[Any] = None,
     ) -> None:
+        """主进程收到跨进程 task 结果后（entity）；slice 默认不会调到这里。"""
         if report_manager is not None:
             report_manager.profiler.collect(report)
 

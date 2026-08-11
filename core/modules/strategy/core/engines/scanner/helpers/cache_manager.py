@@ -81,10 +81,17 @@ class ScanCacheManager:
         return path
 
     def save_opportunities(self, date: str, opportunities: List[Opportunity]) -> None:
-        if not opportunities:
-            return
         day = str(date or "").strip()
         if not day:
+            return
+        # 0 机会：删除陈旧 CSV，避免 readiness 误读上一轮全量结果
+        if not opportunities:
+            csv_path = self.opportunities_csv_path(day)
+            if csv_path.is_file():
+                try:
+                    csv_path.unlink()
+                except OSError as exc:
+                    logger.warning("删除空扫描 opportunities.csv 失败: %s", exc)
             return
         date_dir = self.date_dir(day)
         date_dir.mkdir(parents=True, exist_ok=True)
@@ -103,6 +110,17 @@ class ScanCacheManager:
         if rows:
             all_keys = {k for row in rows for k in row.keys()}
             Utils.io.write_dicts_to_csv(csv_path, rows, preferred_order=sorted(all_keys))
+
+    def load_scan_summary(self, date: str) -> Optional[dict]:
+        path = self.scan_summary_path(date)
+        if not path.is_file():
+            return None
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            logger.debug("读取 scan_summary 失败 date=%s: %s", date, exc)
+            return None
+        return raw if isinstance(raw, dict) else None
 
     def load_opportunities(self, date: str) -> List[Opportunity]:
         csv_path = self.opportunities_csv_path(date)

@@ -33,7 +33,8 @@ class ExitReason(str, Enum):
     TAKE_PROFIT = "take_profit"
     PROTECT_LOSS = "protect_loss"
     DYNAMIC_LOSS = "dynamic_loss"
-    SIMULATE_END = "simulate_end"
+    PERIOD_END = "period_end"  # 换仓周期末清仓（策略计划退出）
+    SIMULATE_END = "simulate_end"  # 回测/枚举样本边界强平
 
 
 class InvestmentResult(str, Enum):

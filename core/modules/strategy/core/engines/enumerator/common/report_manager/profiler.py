@@ -769,7 +769,7 @@ class _ProfilerCollectSession:
     """主进程侧 job 性能采集会话。
 
     边界:
-    - 负责: 累积 on_task_result 的 JobPerformance；交给 ProfilerPerformance.build
+    - 负责: 累积 on_receive_task_result 的 JobPerformance；交给 ProfilerPerformance.build
     - 不负责: 落盘、quick_summary 组装
     - 调用方: ProfilerReport
     """

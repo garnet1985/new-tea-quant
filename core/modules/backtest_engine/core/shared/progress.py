@@ -30,7 +30,7 @@ class RunProgressSnapshot:
 
 
 class RunProgressReporter:
-    """Compute phased run progress; optionally display to CMD."""
+    """Compute phased run progress; optionally display to CMD (BE-internal)."""
 
     def __init__(
         self,
@@ -102,7 +102,7 @@ class RunProgressReporter:
 
     @staticmethod
     def report_from_payload(payload: dict, completed: int) -> None:
-        """Orchestrator: invoke engine-injected ``_engine_on_execute_unit_done``."""
+        """Orchestrator: invoke engine-injected ``_engine_on_execute_unit_done`` (CMD)."""
         hook = payload.get("_engine_on_execute_unit_done")
         if callable(hook):
             hook(completed)

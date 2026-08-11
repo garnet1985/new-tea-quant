@@ -209,3 +209,34 @@ def run_cache_clear(payload: Dict[str, Any]) -> Dict[str, Any]:
         clear_scan_results=_flag("clear_scan_results"),
         clear_userspace_ntq=_flag("clear_userspace_ntq"),
     )
+
+
+def get_trace_settings() -> Dict[str, Any]:
+    """Current usage-telemetry consent state (``Trace.consent``)."""
+    from core.infra.trace import Trace
+
+    raw = Trace.consent.read()
+    return {
+        "decided": bool(raw.get("decided")),
+        "enabled": bool(raw.get("enabled")),
+        "needs_ask": bool(Trace.consent.needs_ask()),
+        "decided_at": str(raw.get("decided_at") or ""),
+        "source": str(raw.get("source") or ""),
+    }
+
+
+def save_trace_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """Persist consent via ``Trace.consent.set``; return ``(body, error)``."""
+    if "enabled" not in payload:
+        return None, "缺少 enabled 字段"
+    enabled = payload.get("enabled")
+    if not isinstance(enabled, bool):
+        return None, "enabled 须为布尔值"
+
+    from core.infra.trace import Trace
+
+    source = str(payload.get("source") or "settings_ui").strip()[:32] or "settings_ui"
+    ok_set = Trace.consent.set(enabled, source=source)
+    if not ok_set:
+        return None, "保存使用统计偏好失败"
+    return get_trace_settings(), None

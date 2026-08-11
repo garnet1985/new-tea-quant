@@ -1,7 +1,7 @@
 """entity_based EnumEntityJobExecutor — BE RunCallbacks；日业务与 per-task 状态。
 
 本文件（entity 两件套之一，与 EnumEntityJobBuilder；见 ``docs/notes/BOUNDARY_NOTES.md``「与 BE 的关系」）:
-- EnumEntityJobExecutor: on_before_task_start / on_tick / on_ticks_complete / flush
+- EnumEntityJobExecutor: on_task_start / on_tick / on_task_complete / flush
 - EntityTaskState: 挂在 ``job_context.init`` 的可变袋（**不是**第二套 BE session）
 
 边界:
@@ -385,7 +385,7 @@ class EnumEntityJobExecutor(BaseJobExecutor):
         )
 
     @classmethod
-    def on_before_task_start(cls, job_context: Any) -> Dict[str, Any]:
+    def on_task_start(cls, job_context: Any) -> Dict[str, Any]:
         """加载 bundle，初始化 task 状态，挂到 BE ``init``。"""
         loaded = cls.load_bundle_data(job_context, log_label=cls.task_log_label)
         job_context.init = loaded
@@ -406,7 +406,7 @@ class EnumEntityJobExecutor(BaseJobExecutor):
         """BE 日历点 → AsOfSlice / scan / Investment。"""
         init = job_context.init
         if not isinstance(init, dict):
-            raise TypeError("job_context.init 必须是 dict（on_before_task_start 返回值）")
+            raise TypeError("job_context.init 必须是 dict（on_task_start 返回值）")
         state: EntityTaskState = init[_STATE_KEY]
         timeline = init.get(_TIMELINE_KEY)
         points = getattr(timeline, "points", ()) or ()
@@ -414,19 +414,17 @@ class EnumEntityJobExecutor(BaseJobExecutor):
         state.on_calendar_day(point, index, is_last=is_last)
 
     @classmethod
-    def on_ticks_complete(cls, job_context: Any, timeline: Any) -> Dict[str, Any]:
-        """task 日历跑完 → settle + 缓冲机会。"""
+    def on_task_complete(cls, job_context: Any) -> Dict[str, Any]:
+        """Task 结束：settle 并入结果；非探针时 flush。"""
         init = job_context.init
         if not isinstance(init, dict):
-            raise TypeError("job_context.init 必须是 dict（on_before_task_start 返回值）")
+            raise TypeError("job_context.init 必须是 dict（on_task_start 返回值）")
         state: EntityTaskState = init[_STATE_KEY]
-        return state.finalize(timeline)
-
-    @classmethod
-    def on_after_task_complete(cls, job_context: Any) -> None:
-        if job_context.payload.get("_dispatch_probe"):
-            return
-        cls.flush_job_investments(job_context)
+        timeline = init.get(_TIMELINE_KEY)
+        out = state.finalize(timeline)
+        if not job_context.payload.get("_dispatch_probe"):
+            cls.flush_job_investments(job_context)
+        return out if isinstance(out, dict) else {}
 
 
 __all__ = ["ExecutorHooksContext", "EntityTaskState", "EnumEntityJobExecutor"]

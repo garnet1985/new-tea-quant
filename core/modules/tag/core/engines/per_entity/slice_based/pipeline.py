@@ -102,10 +102,10 @@ class TagSlicePipeline:
         try:
             base_cb = TagSliceJobExecutor.build_run_callbacks()
             callbacks = RunCallbacks(
-                on_before_task_start=base_cb.on_before_task_start,
+                on_task_start=base_cb.on_task_start,
                 on_tick=base_cb.on_tick,
-                on_ticks_complete=base_cb.on_ticks_complete,
-                on_task_result=TagPipelineHooks.on_task_result,
+                on_task_complete=base_cb.on_task_complete,
+                on_after_all_tasks_complete=TagPipelineHooks.on_after_all_tasks_complete,
                 load_per_entity_window=base_cb.load_per_entity_window,
             )
 

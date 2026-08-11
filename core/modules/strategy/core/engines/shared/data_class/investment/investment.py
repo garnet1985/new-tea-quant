@@ -973,24 +973,36 @@ class Investment(Opportunity):
             return None
         return self.settings.simulation.tradability.slippage.apply_exit(exit_price)
 
-    def settle(self, as_of: str, bar: Dict[str, Any]) -> bool:
-        """Force-close at simulate end. Returns ``False`` (stop tracking).
+    def settle(
+        self,
+        as_of: str,
+        bar: Dict[str, Any],
+        *,
+        reason: Optional[str] = None,
+    ) -> bool:
+        """Force-close unfinished position. Returns ``False`` (stop tracking).
+
+        ``reason`` 默认 ``simulate_end``（样本/回测边界）；换仓周期末应传
+        ``period_end``，避免与边界强平混淆。
 
         ``PENDING_TO_ENTER`` + ``enter_price=next_open`` 且再无下一 tick 时：
         - ``no_next_tick=skip_trade``：放弃进场（COMPLETE，无成交）
-        - ``no_next_tick=use_last_close``：用信号日 close 进场，再按模拟结束强平
+        - ``no_next_tick=use_last_close``：用信号日 close 进场，再按给定 reason 强平
         """
         if self.lifecycle == Lifecycle.COMPLETE:
             return False
         as_of = str(as_of or "").strip()
+        exit_reason = str(reason or ExitReason.SIMULATE_END.value).strip() or (
+            ExitReason.SIMULATE_END.value
+        )
         if self.lifecycle == Lifecycle.PENDING_TO_ENTER:
             if not self._apply_no_next_tick_enter(as_of, bar):
                 self.lifecycle = Lifecycle.COMPLETE
                 return False
         self.pending_exit = PendingExit(
-            reason=ExitReason.SIMULATE_END.value,
+            reason=exit_reason,
             exit_ratio=1.0,
-            goal_name="simulate_end",
+            goal_name=exit_reason,
         )
         if self.lifecycle in (Lifecycle.OPEN, Lifecycle.PENDING_TO_EXIT):
             # 强平不受贴板政策拦截

@@ -129,7 +129,7 @@ class WorkbenchApplySettings:
     ) -> None:
         settings_file = cls._settings_path(strategy_name)
         if pretty:
-            literal = pprint.pformat(dict(settings or {}), width=100, sort_dicts=True)
+            literal = pprint.pformat(dict(settings or {}), width=88, sort_dicts=False)
         else:
             literal = repr(dict(settings or {}))
         content = (
@@ -137,7 +137,24 @@ class WorkbenchApplySettings:
             "# Manual edits are allowed; next save from Workbench may reformat this file.\n\n"
             f"settings = {literal}\n"
         )
+        if pretty:
+            content = cls._format_settings_py(content)
         cls._atomic_write_text(settings_file, content)
+
+    @staticmethod
+    def _format_settings_py(content: str) -> str:
+        """Best-effort Black format so Workbench writes match hand-edited settings style."""
+        try:
+            import black
+        except Exception:
+            return content
+        try:
+            return black.format_str(
+                content,
+                mode=black.Mode(line_length=100, string_normalization=True),
+            )
+        except Exception:
+            return content
 
     @staticmethod
     def _atomic_write_text(

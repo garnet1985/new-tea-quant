@@ -3,7 +3,7 @@
 消费者: TagSlicePipeline
 
 本文件:
-- TagSliceJobExecutor: on_before_task_start / on_tick / on_ticks_complete
+- TagSliceJobExecutor: on_task_start / on_tick / on_task_complete
 - SliceTaskState: 挂在 ``job_context.init`` 的可变袋
 
 边界:
@@ -246,14 +246,14 @@ class TagSliceJobExecutor:
     @classmethod
     def build_run_callbacks(cls) -> RunCallbacks:
         return RunCallbacks(
-            on_before_task_start=cls.on_before_task_start,
+            on_task_start=cls.on_task_start,
             on_tick=cls.on_tick,
-            on_ticks_complete=cls.on_ticks_complete,
+            on_task_complete=cls.on_task_complete,
             load_per_entity_window=JobBundleLoader.load_per_entity_window,
         )
 
     @classmethod
-    def on_before_task_start(cls, job_context: Any) -> Dict[str, Any]:
+    def on_task_start(cls, job_context: Any) -> Dict[str, Any]:
         """Globals + business state only; per-entity IO is owned by BE orchestrator."""
         logger.info(
             "%s开始：job_id=%s（globals only）",
@@ -292,7 +292,7 @@ class TagSliceJobExecutor:
         _ = index
         init = job_context.init
         if not isinstance(init, dict):
-            raise TypeError("job_context.init 必须是 dict（on_before_task_start 返回值）")
+            raise TypeError("job_context.init 必须是 dict（on_task_start 返回值）")
         state = cls._state(job_context)
         state.bind_loaded_contracts(
             init.get("entity_contracts") or {},
@@ -432,8 +432,12 @@ class TagSliceJobExecutor:
         return out
 
     @classmethod
-    def on_ticks_complete(cls, job_context: Any, timeline: Any) -> Dict[str, Any]:
-        _ = timeline
+    def on_task_complete(cls, job_context: Any) -> Dict[str, Any]:
+        init = job_context.init if isinstance(job_context.init, dict) else {}
+        done = int(init.get("_task_index") or 0)
+        total = int(init.get("_task_total") or 0)
+        if total > 0 and done < total:
+            return {}
         state = cls._state(job_context)
         count = len(state.tag_values)
         logger.info(

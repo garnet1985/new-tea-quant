@@ -14,8 +14,6 @@ from core.modules.backtest_engine.core.shared.types import (
     JobReport,
     LoadPerEntityWindowFn,
     RunProgress,
-    TaskCompleteFn,
-    TaskStartFn,
 )
 from core.modules.backtest_engine.core.schedule.slice_based.executor import SliceExecutor
 from core.modules.backtest_engine.core.schedule.slice_based.executor_duckdb import (
@@ -63,13 +61,13 @@ class SliceExecutePipeline:
         execute_fn: SliceExecutor.ExecuteFn,
         task_name: str = "",
         on_before_all_tasks_start: Optional[Callable[[Any, List[Any]], None]] = None,
-        on_before_task_start: Optional[TaskStartFn] = None,
-        on_after_task_complete: Optional[TaskCompleteFn] = None,
         on_after_all_tasks_complete: Optional[Callable[[List[JobReport]], None]] = None,
-        on_task_result: Optional[SliceExecutor.OnResultHook] = None,
         load_per_entity_window: Optional[LoadPerEntityWindowFn] = None,
         enable_progress_display: bool = True,
     ) -> SliceExecutePipeline.Result:
+        """Task 钩子（on_task_start/complete/tick）经 execute_fn 内 RunCallbacks 到达 orchestrator；
+        本 pipeline 只编排 plan/monitor/after_all。slice 同进程不调 on_receive_task_result。
+        """
         label = task_name or self._log_label
         wall_t0 = time.perf_counter()
         phase_marks: Dict[str, float] = {"prep": wall_t0}
@@ -130,10 +128,8 @@ class SliceExecutePipeline:
             performance=performance,
         )
 
-        def monitored_on_task_result(report: JobReport, run_progress: RunProgress) -> None:
+        def monitor_job_report(report: JobReport, _run_progress: RunProgress) -> None:
             monitor.record_from_job_report(report)
-            if on_task_result is not None:
-                on_task_result(report, run_progress)
 
         phase_marks["execute"] = time.perf_counter()
         progress.mark_phase(RunPhase.EXECUTE)
@@ -142,9 +138,7 @@ class SliceExecutePipeline:
             batches,
             context,
             execute_fn,
-            on_result=monitored_on_task_result,
-            on_before_task_start=on_before_task_start,
-            on_after_task_complete=on_after_task_complete,
+            on_result=monitor_job_report,
             log_label=self._log_label,
             progress_reporter=progress,
             load_per_entity_window=load_per_entity_window,

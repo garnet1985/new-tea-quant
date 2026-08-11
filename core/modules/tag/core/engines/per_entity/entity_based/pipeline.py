@@ -90,10 +90,10 @@ class TagEntityPipeline:
         try:
             base_cb = TagEntityJobExecutor.build_run_callbacks()
             callbacks = RunCallbacks(
-                on_before_task_start=base_cb.on_before_task_start,
+                on_task_start=base_cb.on_task_start,
                 on_tick=base_cb.on_tick,
-                on_ticks_complete=base_cb.on_ticks_complete,
-                on_task_result=TagPipelineHooks.on_task_result,
+                on_task_complete=base_cb.on_task_complete,
+                on_receive_task_result=TagPipelineHooks.on_receive_task_result,
             )
 
             logger.info(

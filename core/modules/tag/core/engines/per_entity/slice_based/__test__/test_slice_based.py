@@ -242,7 +242,7 @@ class TestTagSliceJobExecutor:
         state.bind_loaded_contracts({"stock.kline.daily": contract})
         assert "stock.kline.daily" in state.entity_contracts
 
-    def test_on_before_task_start_globals_only(self):
+    def test_on_task_start_globals_only(self):
         payload = {
             "entity_specified": [{"id": "e1", "start_date": "20240102", "end_date": "20240105"}],
             "settings": _settings_dict(),
@@ -271,7 +271,7 @@ class TestTagSliceJobExecutor:
         ) as load_full, patch.object(
             TagHookRuntime, "from_tag_info", return_value=(runtime, None)
         ):
-            loaded = TagSliceJobExecutor.on_before_task_start(job_context)
+            loaded = TagSliceJobExecutor.on_task_start(job_context)
 
         load_globals.assert_called_once()
         load_full.assert_not_called()

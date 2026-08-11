@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable, ClassVar, Dict, Optional
+from typing import Any, Callable, ClassVar, Dict, List, Optional
 
 from core.modules.backtest_engine.contracts import JobReport, RunProgress
 from core.modules.tag.core.engines.shared.services.tag_value_flush import (
@@ -31,7 +31,7 @@ class TagPipelineRunContext:
 
 
 class TagPipelineHooks:
-    """主进程 on_task_result 分派（可 pickle 的 classmethod）。"""
+    """主进程 on_receive_task_result / on_after_all_tasks_complete 分派（可 pickle）。"""
 
     _ctx: ClassVar[Optional[TagPipelineRunContext]] = None
 
@@ -44,7 +44,7 @@ class TagPipelineHooks:
         cls._ctx = None
 
     @classmethod
-    def on_task_result(cls, report: JobReport, progress: RunProgress) -> None:
+    def _apply_report(cls, report: JobReport) -> None:
         ctx = cls._ctx
         if ctx is None:
             return
@@ -57,17 +57,34 @@ class TagPipelineHooks:
         rows = data.get("tag_values") or []
         if rows:
             ctx.tag_values_count += ctx.flush.extend(rows)
-        if ctx.on_progress is not None:
-            total = max(int(ctx.total_jobs), 1)
-            ctx.on_progress(
-                {
-                    "finished": ctx.finished,
-                    "total": total,
-                    "ok": ctx.ok,
-                    "fail": ctx.fail,
-                    "progress_pct": min(100.0, ctx.finished / total * 100.0),
-                }
-            )
+
+    @classmethod
+    def _emit_progress(cls) -> None:
+        ctx = cls._ctx
+        if ctx is None or ctx.on_progress is None:
+            return
+        total = max(int(ctx.total_jobs), 1)
+        ctx.on_progress(
+            {
+                "finished": ctx.finished,
+                "total": total,
+                "ok": ctx.ok,
+                "fail": ctx.fail,
+                "progress_pct": min(100.0, ctx.finished / total * 100.0),
+            }
+        )
+
+    @classmethod
+    def on_receive_task_result(cls, report: JobReport, progress: RunProgress) -> None:
+        _ = progress
+        cls._apply_report(report)
+        cls._emit_progress()
+
+    @classmethod
+    def on_after_all_tasks_complete(cls, job_reports: List[JobReport]) -> None:
+        for report in job_reports or []:
+            cls._apply_report(report)
+        cls._emit_progress()
 
 
 __all__ = ["TagPipelineHooks", "TagPipelineRunContext"]

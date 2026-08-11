@@ -77,12 +77,13 @@ class WorkerTaskProfiler:
             self.execute_sec = time.perf_counter() - t0
             return None, exc
 
-    def run_complete(self, callback: Optional[Callable[[Any], None]], job_context: Any) -> None:
+    def run_complete(self, callback: Optional[Callable[[Any], Any]], job_context: Any) -> Any:
         if callback is None:
-            return
+            return None
         t0 = time.perf_counter()
-        callback(job_context)
+        extra = callback(job_context)
         self.complete_sec = time.perf_counter() - t0
+        return extra
 
     def attach(self, out: Dict[str, Any], *, enum_perf: Any = None) -> Dict[str, Any]:
         wall_sec = time.perf_counter() - self._wall_t0

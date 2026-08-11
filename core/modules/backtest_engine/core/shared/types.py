@@ -50,16 +50,17 @@ class JobStatus(str, Enum):
 
 @dataclass(frozen=True)
 class Job:
-    """任务单元：job_id + payload（业务自定 shape）。"""
+    """调度提交单元：job_id + payload（业务自定 shape）。"""
 
     job_id: str
     payload: Dict[str, Any] = field(default_factory=dict)
 
 
+# Task 侧钩子类型（寄生主体见 RunCallbacks 文档）
 TaskStartFn = Callable[["JobContext"], Any]
-TaskCompleteFn = Callable[["JobContext"], None]
+#: 可返回 Optional[dict]，并入该 task 结果；失败路径返回值可忽略。
+TaskCompleteFn = Callable[["JobContext"], Any]
 TickFn = Callable[["JobContext", str, int], None]
-TicksCompleteFn = Callable[["JobContext", Any], Any]
 ExecuteFn = Callable[["JobContext"], Any]
 # slice_based 探针/预读装数（由调用方注入；BE 不依赖 strategy）
 LoadPerEntityWindowFn = Callable[..., Dict[str, Any]]
@@ -69,35 +70,48 @@ LoadPerEntityWindowFn = Callable[..., Dict[str, Any]]
 class RunCallbacks:
     """BacktestEngine run 生命周期钩子（entity / slice 共用）。
 
-    task = 最小工作单元（entity: 子进程 job；slice: 一个 slice 计算单元）。
+    Task = run 内的 partial work（不是整个 run）。寄生主体：
 
-    日历推进：``on_tick`` 可选（缺省空转 + warning 一次）；
-    ``on_ticks_complete`` 可选（全部 tick 后结算，返回 dict 并入 worker 结果）。
+    - ``entity_based``：一个 worker 进程内的一次 ProcessPool 提交
+    - ``slice_based``：一片正式日历 slice 的 compute
+
+    BE 只提供时间点；钩子名不暗示业务动作（settle / flush / 进度等）。
+    业务在钩子内自行安排。
+
+    调用顺序（概念）：
+
+    - 主：``on_before_all_tasks_start``
+    - task 侧：``on_task_start`` → ``on_tick`` × N → ``on_task_complete``
+    - 主（仅跨进程收回结果时）：``on_receive_task_result``
+    - 主：``on_after_all_tasks_complete``
+
+    ``on_receive_task_result``：entity 主进程收 worker 结果时调用；
+    slice 同进程跑 task 时默认不调用。
 
     slice_based：须注入 ``load_per_entity_window``（探针 + SliceReaderPool）；
     entity_based 可忽略。
     """
 
-    # ── 主进程 ──
+    # ── 主进程（run 级）──
     on_before_all_tasks_start: Optional[Callable[[Any, List[Any]], None]] = None
     on_after_all_tasks_complete: Optional[Callable[[List["JobReport"]], None]] = None
-    on_task_result: Optional[Callable[["JobReport", "RunProgress"], None]] = None
+    #: 主进程收到跨进程 task 结果后（entity）；slice 默认不调。
+    on_receive_task_result: Optional[Callable[["JobReport", "RunProgress"], None]] = None
 
-    # ── 工作单元侧（worker / slice 计算）──
-    on_before_task_start: Optional[TaskStartFn] = None
-    on_after_task_complete: Optional[TaskCompleteFn] = None
+    # ── Task 侧（寄生主体内）──
+    on_task_start: Optional[TaskStartFn] = None
+    on_task_complete: Optional[TaskCompleteFn] = None
 
-    # ── 日历推进 ──
+    # ── 日历推进（task 内）──
     on_tick: Optional[TickFn] = None
-    on_ticks_complete: Optional[TicksCompleteFn] = None
 
-    # ── slice 数据面（调用方提供，如 JobBundleLoader.load_per_entity_window）──
+    # ── slice 数据面（调用方提供；非生命周期）──
     load_per_entity_window: Optional[LoadPerEntityWindowFn] = None
 
 
 @dataclass
 class JobContext:
-    """execute 收到的当前 task 作用域（由 Dispatcher 注入 job_id / task_name）。"""
+    """当前 task 作用域（由执行器注入 job_id / task_name）。"""
 
     job_id: str
     payload: Dict[str, Any]
@@ -107,7 +121,7 @@ class JobContext:
 
 @dataclass
 class JobReport:
-    """Worker execute 返回的报告（pickle 友好，无 DB IO）。"""
+    """Worker / task 返回的报告（pickle 友好，无 DB IO）。"""
 
     job_id: str
     success: bool
@@ -127,7 +141,7 @@ class JobResult:
 
 @dataclass
 class RunProgress:
-    """单次 run 的进度快照，传给 on_task_result。"""
+    """主进程侧已完成 task 计数快照（传给 on_receive_task_result）。"""
 
     finished: int
     total: int
@@ -171,5 +185,5 @@ __all__ = [
     "TaskStartFn",
     "TaskCompleteFn",
     "TickFn",
-    "TicksCompleteFn",
+    "LoadPerEntityWindowFn",
 ]

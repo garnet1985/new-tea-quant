@@ -128,14 +128,14 @@ def test_slice_based_empty_jobs_returns_success() -> None:
     assert result.total_jobs == 0
 
 
-def test_run_callbacks_forward_on_before_task_start_and_complete() -> None:
+def test_job_lifecycle_task_start_and_complete() -> None:
     phases: list[str] = []
 
-    def on_before_task_start(context: JobContext) -> str:
+    def on_task_start(context: JobContext) -> str:
         phases.append("init")
         return "session"
 
-    def on_after_task_complete(context: JobContext) -> None:
+    def on_task_complete(context: JobContext) -> None:
         phases.append("release")
         assert context.init == "session"
 
@@ -144,22 +144,22 @@ def test_run_callbacks_forward_on_before_task_start_and_complete() -> None:
         assert context.init == "session"
         return {"success": True}
 
-    from core.modules.backtest_engine.core.shared.job_lifecycle import run_job_lifecycle
+    from core.modules.backtest_engine.core.shared.job_lifecycle import JobLifecycle
 
     ctx = JobContext(job_id="j1", payload={"entity_id": "000001.SZ"})
-    run_job_lifecycle(
+    JobLifecycle.run(
         execute,
         ctx,
-        on_before_task_start=on_before_task_start,
-        on_after_task_complete=on_after_task_complete,
+        on_task_start=on_task_start,
+        on_task_complete=on_task_complete,
     )
     assert phases == ["init", "execute", "release"]
 
 
-def test_run_callbacks_forward_on_task_result() -> None:
+def test_run_callbacks_forward_on_receive_task_result() -> None:
     seen: list[str] = []
 
-    def on_task_result(report, progress) -> None:
+    def on_receive_task_result(report, progress) -> None:
         seen.append(report.job_id)
 
     mock_execution = EntityExecutor.ExecutionResult(
@@ -188,7 +188,7 @@ def test_run_callbacks_forward_on_task_result() -> None:
     ]
 
     def fake_run(_self, _jobs, _performance, **kwargs):
-        hook = kwargs.get("on_task_result")
+        hook = kwargs.get("on_receive_task_result")
         if hook is not None:
             hook(
                 JobReport(job_id="job-1", success=True),
@@ -204,7 +204,7 @@ def test_run_callbacks_forward_on_task_result() -> None:
                 end="20240102",
                 timeline=["20240102"],
                 task_name="demo",
-                callbacks=RunCallbacks(on_task_result=on_task_result),
+                callbacks=RunCallbacks(on_receive_task_result=on_receive_task_result),
             )
 
     assert seen == ["job-1"]

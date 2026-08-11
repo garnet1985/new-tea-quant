@@ -48,7 +48,7 @@ class PriceFactorJobExecutor:
 
     说明:
     - 回放为 event-driven（信任枚举 entry；exit 遇跌停挡板时顺延重试），在
-      ``on_after_task_complete`` 执行；``on_tick`` 暂 noop。
+      ``on_task_complete`` 执行；``on_tick`` 暂 noop。
     - 勿为减少日历空转而先加 Timeline 复写；等回放迁到 on_tick 再议（BOUNDARY_NOTES）。
     """
 
@@ -58,10 +58,10 @@ class PriceFactorJobExecutor:
     def build_run_callbacks(cls) -> RunCallbacks:
         return RunCallbacks(
             on_before_all_tasks_start=cls.on_before_all_tasks_start,
-            on_before_task_start=cls.on_before_task_start,
-            on_after_task_complete=cls.on_after_task_complete,
+            on_task_start=cls.on_task_start,
+            on_task_complete=cls.on_task_complete,
             on_after_all_tasks_complete=cls.on_after_all_tasks_complete,
-            on_task_result=cls.on_task_result,
+            on_receive_task_result=cls.on_receive_task_result,
             on_tick=cls.on_tick,
         )
 
@@ -75,11 +75,11 @@ class PriceFactorJobExecutor:
         )
 
     @classmethod
-    def on_before_task_start(cls, job_context: Any) -> Dict[str, Any]:
+    def on_task_start(cls, job_context: Any) -> Dict[str, Any]:
         return cls._load_batch_enum_data(job_context)
 
     @classmethod
-    def on_after_task_complete(cls, job_context: Any) -> None:
+    def on_task_complete(cls, job_context: Any) -> None:
         cls._replay_and_save_batch(job_context)
 
     @classmethod
@@ -87,7 +87,7 @@ class PriceFactorJobExecutor:
         logger.info("price_factor 全部 task 完成：total=%d", len(job_reports))
 
     @classmethod
-    def on_task_result(cls, report: Any, progress: Any) -> None:
+    def on_receive_task_result(cls, report: Any, progress: Any) -> None:
         try:
             from core.modules.strategy.core.services.progress import PipelineProgress
 

@@ -1,7 +1,7 @@
 """slice_based EnumSliceJobExecutor — BE RunCallbacks；日业务与 per-task 状态。
 
 本文件（slice 两件套之一，与 EnumSliceJobBuilder；见 ``docs/notes/BOUNDARY_NOTES.md``「与 BE 的关系」）:
-- EnumSliceJobExecutor: on_before_task_start / on_tick / on_ticks_complete / flush
+- EnumSliceJobExecutor: on_task_start / on_tick / on_task_complete / flush
 - SliceTaskState: 挂在 ``job_context.init`` 的可变袋（**不是**第二套 BE session）
 
 边界:
@@ -598,8 +598,12 @@ class EnumSliceJobExecutor(BaseJobExecutor):
         )
 
     @classmethod
-    def on_before_task_start(cls, job_context: Any) -> Dict[str, Any]:
-        """Globals + business state only; per-entity IO is owned by BE orchestrator."""
+    def on_task_start(cls, job_context: Any) -> Dict[str, Any]:
+        """Task / run 准备：首次装 globals + state；之后复用 init。
+
+        BE 会在正式片循环前先调一次（contracts 可能仍空），以便 RSS baseline
+        不含 globals；每片 load 后再调一次（已有 state 则直接返回）。
+        """
         from core.modules.strategy.core.services.entity_loader.job_bundle_loader import (
             JobBundleLoader,
         )
@@ -607,13 +611,17 @@ class EnumSliceJobExecutor(BaseJobExecutor):
             EnumJobPerfRecorder,
         )
 
+        init = job_context.init if isinstance(job_context.init, dict) else {}
+        if _STATE_KEY in init:
+            return init
+
         logger.info("%s开始：job_id=%s（globals only）", cls.task_log_label, job_context.job_id)
         perf = EnumJobPerfRecorder.attach(job_context.payload)
         perf.begin("load_data")
         global_data = JobBundleLoader.load_globals(job_context.payload)
         perf.end("load_data")
         loaded: Dict[str, Any] = {
-            "entity_contracts": {},
+            "entity_contracts": dict(init.get("entity_contracts") or {}),
             "global_data": global_data,
         }
         job_context.init = loaded
@@ -639,7 +647,7 @@ class EnumSliceJobExecutor(BaseJobExecutor):
         """BE 日历点 → bind contracts → asof / Investment。"""
         init = job_context.init
         if not isinstance(init, dict):
-            raise TypeError("job_context.init 必须是 dict（on_before_task_start 返回值）")
+            raise TypeError("job_context.init 必须是 dict（on_task_start 返回值）")
         state: SliceTaskState = init[_STATE_KEY]
         state.bind_loaded_contracts(
             init.get("entity_contracts") or {},
@@ -648,13 +656,33 @@ class EnumSliceJobExecutor(BaseJobExecutor):
         state.on_calendar_day(point, index)
 
     @classmethod
-    def on_ticks_complete(cls, job_context: Any, timeline: Any) -> Dict[str, Any]:
-        """task 日历跑完 → settle + 缓冲机会。"""
+    def on_task_complete(cls, job_context: Any) -> Any:
+        """每片 task 结束：更新进度；最后一片 settle + flush。"""
         init = job_context.init
         if not isinstance(init, dict):
-            raise TypeError("job_context.init 必须是 dict（on_before_task_start 返回值）")
+            raise TypeError("job_context.init 必须是 dict（on_task_start 返回值）")
+
+        try:
+            from core.modules.strategy.core.services.progress import PipelineProgress
+
+            if PipelineProgress.drives_pipeline(cls.progress_pipeline_name or ""):
+                done = int(init.get("_task_index") or 0)
+                total = int(init.get("_task_total") or 0)
+                PipelineProgress.tick_execute_bound(done, total)
+        except Exception:
+            logger.exception("PipelineProgress.tick_execute_bound failed (slice)")
+
+        done = int(init.get("_task_index") or 0)
+        total = int(init.get("_task_total") or 0)
+        is_last = total > 0 and done >= total
+        if not is_last:
+            return None
+
         state: SliceTaskState = init[_STATE_KEY]
-        return state.finalize(timeline)
+        timeline = init.get(_TIMELINE_KEY)
+        out = state.finalize(timeline)
+        cls.flush_job_investments(job_context)
+        return out if isinstance(out, dict) else {}
 
 
 __all__ = ["ExecutorHooksContext", "SliceTaskState", "EnumSliceJobExecutor"]

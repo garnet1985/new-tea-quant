@@ -19,7 +19,7 @@
 
 ```text
 *JobBuilder  → 组装 BE jobs（payload 含**按片**数据装载契约；slice 另写 timeline_point_count 供规划）
-*JobExecutor → RunCallbacks（on_before_task_start / on_tick / …）；**禁止** task 开头全窗一次 JobBundleLoader
+*JobExecutor → RunCallbacks（on_task_start / on_tick / on_task_complete / …）；**禁止** task 开头全窗一次 JobBundleLoader
 Pipeline    → 周边编排（采样、BE.run、ReportManager）
 ```
 
@@ -54,7 +54,7 @@ N 正式片 ⇒ 至少 N 次按片 DB 读；峰值由 `peak_slices = compute + q
 | 引擎 | Timeline 复写？ |
 |------|----------------|
 | **enumerator** | 不需要 |
-| **price_factor** | 现状：`run(start,end)` + 默认日历；真业务在 after_task 事件回放，`on_tick` noop。**不要**为「少空转」先加 TimelineBuilder；等回放迁到 `on_tick` 再议 event 轴 |
+| **price_factor** | 现状：`run(start,end)` + 默认日历；真业务在 on_task_complete 事件回放，`on_tick` noop。**不要**为「少空转」先加 TimelineBuilder；等回放迁到 `on_tick` 再议 event 轴 |
 | **portfolio** | **不用 BE**；enum → `PortfolioEvent` 排序 → 进程内模拟。不要为组合套 `Timeline.drive` |
 
 ### 进程内传对象
@@ -204,7 +204,7 @@ UI 工作台 **submit / 读进度** 在 ``core.bff.APIs.strategy.routes.runner``
 | Discovery 校验副作用 | `discovery` → `StrategyHooksLoader` | 发现阶段 exec 用户 `strategy.py`；失败策略仍可能进 list |
 | 空壳 / 薄目录 | `core/services/data/` 仅 recorder；`discovery/__test__/` 空 | 可随手清 |
 | shared `Investment` 体量 | `data_class/investment/` | #6 曾跳过拆分；与入场风控一起再拆更合适 |
-| price_factor `on_tick` noop | `price_factor/executor.py` | 回放仍在 after_task；迁 `on_tick` 后再议 event 轴（勿先加 TimelineBuilder） |
+| price_factor `on_tick` noop | `price_factor/executor.py` | 回放仍在 on_task_complete；迁 `on_tick` 后再议 event 轴（勿先加 TimelineBuilder） |
 
 ### 命名 / 易混（低优先级）
 

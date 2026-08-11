@@ -25,8 +25,6 @@ from core.modules.backtest_engine.core.shared.types import (
     JobReport,
     LoadPerEntityWindowFn,
     RunProgress,
-    TaskCompleteFn,
-    TaskStartFn,
 )
 from core.modules.backtest_engine.core.schedule.slice_based.planner import (
     SliceDispatchPlan,
@@ -66,8 +64,6 @@ class SliceExecutor:
         context: ExecutionContext,
         execute_fn: ExecuteFn,
         on_result: Optional[SliceExecutor.OnResultHook] = None,
-        on_before_task_start: Optional[TaskStartFn] = None,
-        on_after_task_complete: Optional[TaskCompleteFn] = None,
         log_label: str = "切片执行",
         progress_reporter: Optional[RunProgressReporter] = None,
         load_per_entity_window: Optional[LoadPerEntityWindowFn] = None,
@@ -114,12 +110,7 @@ class SliceExecutor:
                     load_per_entity_window=load_per_entity_window,
                 )
                 try:
-                    raw_result = SliceExecutor._invoke_worker(
-                        execute_fn,
-                        job_context,
-                        on_before_task_start=on_before_task_start,
-                        on_after_task_complete=on_after_task_complete,
-                    )
+                    raw_result = SliceExecutor._invoke_worker(execute_fn, job_context)
                     report = SliceExecutor._normalize_report(job.job_id, raw_result)
                     if not report.success:
                         failures.append(
@@ -212,11 +203,8 @@ class SliceExecutor:
     def _invoke_worker(
         execute_fn: ExecuteFn,
         job_context: JobContext,
-        on_before_task_start: Optional[TaskStartFn] = None,
-        on_after_task_complete: Optional[TaskCompleteFn] = None,
     ) -> Dict[str, Any]:
-        """Task 入口: before_start → execute_fn → after_complete。"""
-        from core.modules.backtest_engine.core.shared.job_lifecycle import run_job_lifecycle
+        """Job 入口: bootstrap → orchestrator execute_fn（task 钩子在 orchestrator 内）。"""
         from core.modules.backtest_engine.core.shared.worker_data_runtime import (
             bootstrap_worker_data_manager,
         )
@@ -225,12 +213,7 @@ class SliceExecutor:
         rss_before_mb = SliceExecutor._process_rss_mb()
         t0 = time.perf_counter()
         try:
-            raw = run_job_lifecycle(
-                execute_fn,
-                job_context,
-                on_before_task_start=on_before_task_start,
-                on_after_task_complete=on_after_task_complete,
-            )
+            raw = execute_fn(job_context)
         except Exception as exc:
             SliceExecutor._shutdown_reader_pool(job_context)
             wall_sec = time.perf_counter() - t0

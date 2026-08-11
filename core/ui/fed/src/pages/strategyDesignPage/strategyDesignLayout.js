@@ -1,10 +1,8 @@
 import React, { useMemo } from 'react';
 import { Box } from '@mui/material';
 import { Navigate, useParams } from 'react-router-dom';
-import {
-  getStrategyDesignPath,
-  getStrategyDisplayLabel,
-} from '../../api/apis/strategyApi';
+import { getStrategyDesignPath } from '../../api/apis/strategyApi';
+import StrategyDesignBreadcrumbCurrent from './components/strategyDesignBreadcrumbCurrent';
 import StrategyDesignMetaBar from './components/strategyDesignMetaBar';
 import StrategyDesignMetaDialogs from './components/strategyDesignMetaDialogs';
 import { STRATEGY_DESIGN_DEFAULT_STEP } from './constants/strategyDesignSteps';
@@ -34,8 +32,6 @@ function StrategyDesignLayout() {
     return <Navigate to={getStrategyDesignPath(strategyName, target)} replace />;
   }
 
-  const displayLabel = getStrategyDisplayLabel({ name: strategyName });
-
   return (
     <StrategyDesignProvider strategyName={strategyName} initialStep={step}>
       <StrategyDesignWorkbenchProvider>
@@ -44,7 +40,7 @@ function StrategyDesignLayout() {
             { label: '制定策略', to: '/strategy-design' },
             { label: '选择策略', to: '/strategy-design' },
           ]}
-          breadcrumbsCurrent={displayLabel || strategyName}
+          breadcrumbsCurrent={<StrategyDesignBreadcrumbCurrent />}
         >
           <StrategyDesignMetaBar />
           <StrategyDesignMetaDialogs />

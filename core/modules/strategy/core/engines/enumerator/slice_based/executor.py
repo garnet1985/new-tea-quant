@@ -29,6 +29,7 @@ from core.modules.strategy.core.engines.shared.services.as_of_slice import AsOfS
 from core.modules.strategy.core.engines.enumerator.common.state.investment_tracker import (
     InvestmentTracker,
 )
+from core.modules.strategy.core.engines.shared.data_class.investment import ExitReason
 from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import SafeBarValue
 from core.modules.strategy.core.services.entity_loader.strategy_data_resolver import (
     StrategyDataResolver,
@@ -316,7 +317,11 @@ class SliceTaskState:
                 bar = self._last_bar_by_entity.get(entity_id)
                 if bar is None:
                     continue
-                tracker.settle_incomplete(as_of, bar)
+                tracker.settle_incomplete(
+                    as_of,
+                    bar,
+                    reason=ExitReason.PERIOD_END.value,
+                )
 
         open_dates_tuple = tuple(self._open_dates)
         for stock_id in asof_result.stocks:

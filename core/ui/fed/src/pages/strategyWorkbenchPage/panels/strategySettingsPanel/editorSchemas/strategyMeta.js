@@ -36,6 +36,28 @@ export function extractStrategyDisplayName(settings) {
   return String(meta.display_name || '').trim();
 }
 
+/** 从 settings 取出 ``meta.key``（短 ID，如 ``low_price_v1``）。 */
+export function extractStrategyKey(settings) {
+  if (!settings || typeof settings !== 'object') return '';
+  const meta = settings.meta && typeof settings.meta === 'object' ? settings.meta : {};
+  return String(meta.key || '').trim();
+}
+
+/**
+ * 面包屑 / 短标题：优先 display_name → key → 路径末段。
+ * @param {{ displayName?: string, key?: string, name?: string }} parts
+ */
+export function resolveStrategyShortLabel({ displayName, key, name } = {}) {
+  const dn = String(displayName || '').trim();
+  if (dn) return dn;
+  const k = String(key || '').trim();
+  if (k) return k;
+  const path = String(name || '').trim();
+  if (!path) return '';
+  const parts = path.split('/').filter(Boolean);
+  return parts[parts.length - 1] || path;
+}
+
 const DEFAULT_MARKET_PROFILE_OPTIONS = [
   { label: '中国A股市场规则', value: 'china_a_stock' },
 ];

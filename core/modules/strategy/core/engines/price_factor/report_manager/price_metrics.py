@@ -79,7 +79,6 @@ class RoiDistribution:
             "enumeration_end",
             "backtest_end",
             "simulate_end",
-            "period_end",
             "max_holding",
         }
     )

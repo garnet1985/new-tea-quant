@@ -148,15 +148,25 @@ class InvestmentTracker:
         self.pending_enter.append(investment)
         return investment
 
-    def settle_incomplete(self, as_of: str, bar: Dict[str, Any]) -> None:
-        """强制平仓：换仓日 / 模拟结束，对未完结分桶 settle → completed。"""
+    def settle_incomplete(
+        self,
+        as_of: str,
+        bar: Dict[str, Any],
+        *,
+        reason: str | None = None,
+    ) -> None:
+        """强制平仓：换仓日 / 模拟结束，对未完结分桶 settle → completed。
+
+        ``reason`` 透传给 ``Investment.settle``；换仓传 ``period_end``，
+        样本边界默认 ``simulate_end``。
+        """
         as_of = str(as_of or "").strip()
         live = list(self.pending_enter) + list(self.open) + list(self.pending_exit)
         self.pending_enter.clear()
         self.open.clear()
         self.pending_exit.clear()
         for investment in live:
-            investment.settle(as_of, bar)
+            investment.settle(as_of, bar, reason=reason)
             self.completed.append(investment)
 
     def investments_as_dicts(self) -> List[Dict[str, Any]]:

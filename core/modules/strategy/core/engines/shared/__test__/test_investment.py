@@ -985,6 +985,34 @@ class TestInvestmentMultiStageGoals(unittest.TestCase):
         self.assertEqual(inv.completed_goals[0]["reason"], "stop_loss")
         self.assertAlmostEqual(inv.completed_goals[0]["exit_ratio"], 0.5)
 
+    def test_settle_period_end_reason(self) -> None:
+        """换仓清仓应标 period_end，默认 settle 仍为 simulate_end。"""
+        from core.modules.strategy.core.engines.shared.data_class.investment import (
+            ExitReason,
+        )
+
+        settings = _settings(simulation={"enter_price": "close", "exit_price": "close"})
+        settings.apply_defaults()
+        opp = Opportunity(
+            stock=StockInfo(id="600000.SH"),
+            record_of_today=_bar("20240102", o=10, h=11, l=9, c=10),
+            trigger_date="20240102",
+            trigger_price=10.0,
+        )
+        inv = _inv(opp, settings)
+        self.assertTrue(_react(inv, _tick("20240102", o=10, h=11, l=9, c=10)))
+        self.assertEqual(inv.lifecycle, Lifecycle.OPEN)
+        self.assertFalse(
+            inv.settle(*_tick("20240103", o=10, h=11, l=9, c=11), reason=ExitReason.PERIOD_END.value)
+        )
+        self.assertEqual(inv.lifecycle, Lifecycle.COMPLETE)
+        self.assertEqual(inv.exit_info.reason, "period_end")
+
+        inv2 = _inv(opp, settings)
+        self.assertTrue(_react(inv2, _tick("20240102", o=10, h=11, l=9, c=10)))
+        self.assertFalse(inv2.settle(*_tick("20240103", o=10, h=11, l=9, c=11)))
+        self.assertEqual(inv2.exit_info.reason, "simulate_end")
+
 
 if __name__ == "__main__":
     unittest.main()

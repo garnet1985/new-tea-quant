@@ -176,17 +176,26 @@ export const PRICE_METRIC_TIPS = {
 
 export const PRICE_CHART_TIPS = {
   roiPercentileUnavailable: '暂无收益率分位数据，请重新执行价格回测。',
+  roiPercentileUnavailableAllTruncated: (count) => (
+    `当前 ${count} 笔已平仓均为回测区间结束强平，未计入分位图`
+    + '（换仓周期末与 goal 退出会计入）。设置 goal / 换仓规则后重新回测即可看到分位。'
+  ),
   roiPercentileCaption:
     '横轴为 10%～90% 分位，纵轴为该分位的收益率（ROI）水平。'
-    + '仅统计按 goal 规则退出的交易（止损/止盈/到期等），回测区间结束强制平仓不计入。'
+    + '计入 goal 退出（止损/止盈/到期等）与换仓周期末清仓（period_end）；'
+    + '仅回测区间结束强制平仓（simulate_end）不计入。'
     + '整体偏上且负值分位较短，分布较健康；若极少数分位极高，需警惕少数大单拉高。'
     + '宜结合胜率与平均收益率一并判断。',
   roiBucketUnavailable: '暂无收益率区间分布数据，请重新执行价格回测。',
+  roiBucketUnavailableAllTruncated: (count) => (
+    `当前 ${count} 笔已平仓均为回测区间结束强平，未计入区间分布`
+    + '（换仓周期末与 goal 退出会计入）。设置 goal / 换仓规则后重新回测即可看到分布。'
+  ),
   roiBucketCaption:
     '各笔 ROI 按固定档位统计：负侧 6 档（封顶 -100%），正侧含 0–5%、…、50–100% 与 >100%；'
     + '负区间红柱、正区间青柱。'
-    + '仅含按 goal 规则退出的交易；若设置了止损/止盈，主峰应落在对应档位附近。'
-    + '另有「区间结束强平」的仓位单独计数，不计入本图（避免与风控档位混淆）。'
+    + '计入 goal 退出与换仓周期末清仓；若设置了止损/止盈，主峰应落在对应档位附近。'
+    + '另有「回测区间结束强平」的仓位单独计数，不计入本图。'
     + '重新执行价格回测后更新。',
   roiBucketTruncatedNote: (count) => (
     `另有 ${count} 笔因回测区间结束强制平仓，未计入上图。`

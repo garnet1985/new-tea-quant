@@ -12,6 +12,7 @@ import {
   extractStrategyDescription,
   extractStrategyDisplayName,
   extractStrategyEntryConditions,
+  extractStrategyKey,
   normalizeMeta,
 } from '../../strategyWorkbenchPage/panels/strategySettingsPanel/editorSchemas/strategyMeta';
 import {
@@ -95,6 +96,7 @@ export function useStrategyDesignWorkbench() {
   const [userspaceApplyOk, setUserspaceApplyOk] = useState('');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [strategyDisplayName, setStrategyDisplayName] = useState('');
+  const [strategyKey, setStrategyKey] = useState('');
   const [strategyDescription, setStrategyDescription] = useState('');
   const [strategyEntryConditions, setStrategyEntryConditions] = useState([]);
   const [initialSettings, setInitialSettings] = useState(() => buildMergeBaseSettings());
@@ -157,6 +159,7 @@ export function useStrategyDesignWorkbench() {
     setStrategyDescription('');
     setStrategyEntryConditions([]);
     setStrategyDisplayName('');
+    setStrategyKey('');
     setIsLoadingSettings(true);
     setSettingsError('');
     patchSession({ workbenchSnapshot: emptyWorkbenchSnapshot() });
@@ -185,7 +188,8 @@ export function useStrategyDesignWorkbench() {
             meta: normalizeMeta(incomingMeta, serverSettings),
           });
           setInitialSettings(nextSettings);
-          setStrategyDisplayName(extractStrategyDisplayName(nextSettings) || strategyName);
+          setStrategyDisplayName(extractStrategyDisplayName(nextSettings));
+          setStrategyKey(extractStrategyKey(nextSettings));
           setStrategyDescription(extractStrategyDescription(nextSettings));
           setStrategyEntryConditions(extractStrategyEntryConditions(nextSettings));
           setSettingsError('');
@@ -193,6 +197,7 @@ export function useStrategyDesignWorkbench() {
           setInitialSettings(mergeBase);
           setStrategyDescription('');
           setStrategyEntryConditions([]);
+          setStrategyKey('');
           setSettingsError('未返回有效策略配置（settings 为空）。');
         }
 
@@ -458,6 +463,8 @@ export function useStrategyDesignWorkbench() {
         const wb = wbVerRestore || restoreMeta?.version_id || '';
         suppressDraftDrivenPanelResetRef.current = true;
         setInitialSettings(mergedSettings);
+        setStrategyDisplayName(extractStrategyDisplayName(mergedSettings));
+        setStrategyKey(extractStrategyKey(mergedSettings));
         setStrategyDescription(extractStrategyDescription(mergedSettings));
         setStrategyEntryConditions(extractStrategyEntryConditions(mergedSettings));
         setDraftSettings(deepClone(mergedSettings));
@@ -525,6 +532,7 @@ export function useStrategyDesignWorkbench() {
     handleDraftDrivenReset,
     suppressDraftDrivenPanelResetRef,
     strategyDisplayName,
+    strategyKey,
     strategyDescription,
     strategyEntryConditions,
     marketProfileLabel,

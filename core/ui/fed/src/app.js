@@ -147,12 +147,19 @@ function App() {
       <CssBaseline />
       <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
-          <Route path="/setup" element={<SetupPage />} />
+          <Route
+            path="/setup"
+            element={(
+              <TraceConsentGuard source="setup_ui">
+                <SetupPage />
+              </TraceConsentGuard>
+            )}
+          />
           <Route path="/what-we-will-track" element={<WhatWeWillTrackPage />} />
           <Route
             element={(
               <SetupGuard>
-                <TraceConsentGuard>
+                <TraceConsentGuard source="ask_ui">
                   <MainLayout />
                 </TraceConsentGuard>
               </SetupGuard>

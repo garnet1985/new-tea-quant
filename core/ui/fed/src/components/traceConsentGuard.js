@@ -4,8 +4,8 @@ import { fetchTraceSettings, saveTraceSettings } from '../api/apis/settingsApi';
 import TraceConsentAskOverlay from './traceConsentAskOverlay';
 
 /**
- * 已进入主 UI 且尚未决定使用统计时，全屏询问（挡住下方）。
- * Overlay 本身可复用；安装向导可直接挂 TraceConsentAskOverlay。
+ * 尚未决定使用统计时全屏询问（挡住下方）。
+ * 用于主 UI（已安装用户）与 /setup 安装向导（首次打开）。
  */
 function TraceConsentGuard({ children, source }) {
   const [needsAsk, setNeedsAsk] = useState(false);

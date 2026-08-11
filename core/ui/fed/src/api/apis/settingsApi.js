@@ -4,6 +4,7 @@ import { API_VERSION_PREFIX } from '../conf/apiConfig';
 const API_SETTINGS_DB = `${API_VERSION_PREFIX}/settings/database`;
 const API_SETTINGS_DATA = `${API_VERSION_PREFIX}/settings/data`;
 const API_SETTINGS_CACHE_CLEAR = `${API_VERSION_PREFIX}/settings/cache/clear`;
+const API_SETTINGS_TRACE = `${API_VERSION_PREFIX}/settings/trace`;
 
 const SUPPORTED_DB_TYPES = new Set(['postgresql', 'mysql', 'duckdb']);
 
@@ -96,6 +97,40 @@ export async function saveDataSettings(body) {
       : null,
     use_sample_stock_list: sample != null && sample !== '' ? Number(sample) : null,
     config_path: String(m.config_path || '').trim(),
+  };
+}
+
+/**
+ * @returns {Promise<{ decided: boolean, enabled: boolean, needs_ask: boolean, decided_at: string, source: string }>}
+ */
+export async function fetchTraceSettings() {
+  const json = await requestJson(API_SETTINGS_TRACE, { method: 'GET' });
+  const m = json?.message || {};
+  return {
+    decided: Boolean(m.decided),
+    enabled: Boolean(m.enabled),
+    needs_ask: Boolean(m.needs_ask),
+    decided_at: String(m.decided_at || '').trim(),
+    source: String(m.source || '').trim(),
+  };
+}
+
+/**
+ * @param {{ enabled: boolean }} body
+ * @returns {Promise<{ decided: boolean, enabled: boolean, needs_ask: boolean, decided_at: string, source: string }>}
+ */
+export async function saveTraceSettings(body) {
+  const json = await requestJson(API_SETTINGS_TRACE, {
+    method: 'POST',
+    body: JSON.stringify({ enabled: Boolean(body?.enabled) }),
+  });
+  const m = json?.message || {};
+  return {
+    decided: Boolean(m.decided),
+    enabled: Boolean(m.enabled),
+    needs_ask: Boolean(m.needs_ask),
+    decided_at: String(m.decided_at || '').trim(),
+    source: String(m.source || '').trim(),
   };
 }
 

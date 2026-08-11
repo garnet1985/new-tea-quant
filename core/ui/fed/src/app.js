@@ -14,6 +14,7 @@ import TagListPage from './pages/tagPage';
 import DataContractListPage from './pages/dataContractPage';
 import DataSourceListPage from './pages/dataSourcePage';
 import SettingsPage from './pages/settingsPage';
+import TelemetryPage from './pages/telemetryPage';
 
 /** iOS 风格 Switch：改总宽时只改 `SWITCH_ROOT_WIDTH_PX`，滑块行程 = 轨宽 − 球径 − 左右 padding */
 const SWITCH_ROOT_WIDTH_PX = 36;
@@ -146,6 +147,7 @@ function App() {
       <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           <Route path="/setup" element={<SetupPage />} />
+          <Route path="/telemetry" element={<TelemetryPage />} />
           <Route
             element={(
               <SetupGuard>

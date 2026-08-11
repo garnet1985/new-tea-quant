@@ -1,0 +1,36 @@
+.telemetry-page {
+  min-height: 100vh;
+  padding: 32px 0 64px;
+  box-sizing: border-box;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(34, 211, 238, 0.12), transparent),
+    #060612;
+}
+
+.telemetry-page__inner {
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.telemetry-page__section {
+  margin-bottom: 28px;
+}
+
+.telemetry-page__section-title {
+  margin-bottom: 8px !important;
+  font-weight: 700 !important;
+}
+
+.telemetry-page__list {
+  margin: 0;
+  padding-left: 1.25rem;
+
+  li + li {
+    margin-top: 0.35rem;
+  }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.85em;
+    color: rgba(34, 211, 238, 0.95);
+  }
+}

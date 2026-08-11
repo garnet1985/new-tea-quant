@@ -13,6 +13,7 @@ import {
   SettingsDataPanel,
   SettingsDatabasePanel,
   SettingsSystemPanel,
+  SettingsTracePanel,
 } from './settingsPanels';
 import './settingsPage.scss';
 
@@ -21,6 +22,7 @@ const SETTINGS_TABS = [
   { id: 'database', label: '数据库', path: 'database' },
   { id: 'data', label: '数据范围', path: 'data' },
   { id: 'cache', label: '缓存管理', path: 'cache' },
+  { id: 'trace', label: '使用统计', path: 'trace' },
 ];
 
 function useSettingsSection() {
@@ -141,7 +143,7 @@ function SettingsPage() {
       breadcrumbsItems={[{ label: '制定策略', to: '/strategy-design' }]}
       breadcrumbsCurrent="设置"
       bannerTitle="设置"
-      bannerDescription="系统安装、数据库连接、data.json 数据范围与缓存清理。"
+      bannerDescription="系统安装、数据库连接、数据范围、缓存清理与使用统计。"
     >
       <Box className="settings-page-layout">
         <Paper className="settings-page-nav" elevation={0}>
@@ -201,6 +203,7 @@ function SettingsPage() {
               )}
             />
             <Route path="cache" element={<SettingsCachePanel />} />
+            <Route path="trace" element={<SettingsTracePanel />} />
             <Route path="*" element={<Navigate to="system" replace />} />
           </Routes>
         </Paper>

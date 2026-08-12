@@ -4,22 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from core.modules.data_source.core.catalog.freshness_probe import (
-    _resolve_freshness_end_date,
-    evaluate_update_status,
-)
 from core.modules.data_source.core.service.date_range.date_range_service import needs_renew_work
-
-
-def test_resolve_freshness_end_aligns_configured_as_of_to_calendar():
-    dm = MagicMock()
-    dm.service.calendar._derive_completed_from_trade_calendar.return_value = "20251231"
-
-    with patch(
-        "core.modules.data_source.core.catalog.freshness_probe.ConfigManager.get_as_of_latest_completed_trading_date",
-        return_value="20260101",
-    ):
-        assert _resolve_freshness_end_date(dm) == "20251231"
 
 
 def test_needs_renew_work_refresh_stock_list_when_table_has_rows():

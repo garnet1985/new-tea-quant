@@ -1,31 +1,25 @@
-# Testing (refactor freeze)
+# Testing
 
-Strategy / enumerator refactor in progress. **All pytest cases are skipped by default.**
-
-## What stays
-
-- Test source files under `**/__test__/`
-- Case registries: `**/__test__/test_cases.yaml` (scenario inventory for re-enable)
-
-## Run tests manually
+Default CI / local suite: `core/infra` + `core/modules` + `setup` (see `pytest.ini`).
 
 ```bash
-NTQ_TESTS_ENABLED=1 python -m pytest core/modules/strategy/__test__/ -v
-NTQ_TESTS_ENABLED=1 python -m pytest -v   # full suite (slow)
+python -m pytest -v
 ```
 
-Single test during refactor:
+## Skip policy
+
+**Skip only when the case cannot run in this repo’s CLI / GitHub CI because of missing external environment** (live MySQL/PgSQL server, proprietary dumps, interactive TTY, hardware, etc.).
 
 ```python
-@pytest.mark.force_run
-def test_something(): ...
+@pytest.mark.skipif(not shutil.which("mysql"), reason="needs local mysql client")
+def test_live_mysql(): ...
 ```
 
-## Re-enable globally
+Do **not** skip for stale / outdated APIs — delete those tests (or rewrite them).
 
-Remove or narrow the skip hook in `/conftest.py` when the refactor stabilizes.
+`@pytest.mark.force_run` is a no-op leftover from the old refactor freeze; safe to leave or delete on touch.
 
-## Strategy module — pending cases (not yet in yaml)
+## Strategy module — pending cases (not yet covered)
 
 | Area | Case |
 |------|------|
@@ -34,5 +28,3 @@ Remove or narrow the skip hook in `/conftest.py` when the refactor stabilizes.
 | `StrategySettings` | `resolve`, `execution_mode`, `fingerprint_hash` |
 | `EnumeratorPipeline` | 统一编排：settings → jobs → BE → report；按 mode 选用 JobBuilder/Executor |
 | Facade | `Strategy.enumerate` only discovery + engine |
-
-See also `core/modules/strategy/__test__/test_cases.yaml`.

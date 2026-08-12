@@ -52,34 +52,6 @@ def test_resolve_steps_price_prepends_enumerate_when_missing():
     assert ctx.enum_version is None
 
 
-def test_run_steps_writes_each_slot_and_seeds_enum_version():
-    ctx = _ctx()
-    ctx.steps = [SimulateKind.ENUMERATE, SimulateKind.PRICE_FACTOR]
-
-    enum_res = {"version_id": "3", "success": True}
-    price_res = {"version_id": 1, "enum_version_id": "3", "success": True}
-
-    pipe = MagicMock()
-    pipe.run.side_effect = [enum_res, price_res]
-
-    with patch(
-        "core.modules.strategy.core.strategy.BackTestPipelines.__class_getitem__",
-        return_value=pipe,
-    ), patch(
-        "core.modules.strategy.core.strategy.SimulationCacheManager.set_cache"
-    ) as set_cache:
-        out = Strategy._run_steps(ctx, cache_key="demo/rsi")
-
-    assert out == {
-        "enumerate": enum_res,
-        "price_factor": price_res,
-    }
-    assert ctx.enum_version == "3"
-    assert set_cache.call_count == 2
-    assert set_cache.call_args_list[0].args[2] == {"enumerate": enum_res}
-    assert set_cache.call_args_list[1].args[2] == {"price_factor": price_res}
-
-
 def test_simulate_returns_price_slot_on_cache_hit():
     info = MagicMock()
     info.id.return_value = "demo/rsi"

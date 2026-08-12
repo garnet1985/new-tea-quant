@@ -51,20 +51,38 @@ class DependencyRisk:
     is_fixable: bool = False
 
 
-# 已知需要编译的包及其安全替代方案
+# 已知可能需要本地编译的包（仅作提示；若已在 ONLY_BINARY_INSTALL 中则降级为已缓解）
 COMPILATION_REQUIRED_PACKAGES = {
-    "cffi": "使用 cffi 的纯 Python 替代或确保有预编译版",
+    "cffi": "传递依赖常见；须用预编译 wheel",
     "cython": "检查是否真的需要 Cython，很多情况可用纯 Python",
     "numpy": "通常有预编译版，但旧版本可能需要编译",
     "scipy": "同 numpy",
-    "lxml": "使用预编译版: pip install lxml --only-binary lxml",
-    "Pillow": "使用预编译版: pip install Pillow --only-binary Pillow",
+    "lxml": "通常有预编译版",
+    "Pillow": "通常有预编译版",
     "Levenshtein": "使用 python-Levenshtein（预编译版）",
     "python-levenshtein": "已废弃，换用 Levenshtein 或 rapidfuzz",
     "rapidfuzz": "纯 Python + 可选 C 加速",
     "uvloop": "仅 Unix，Windows 不支持",
-    "cryptography": "使用预编译版或 cryptography<39（更易编译）",
+    "cryptography": "通常有预编译版",
+    "curl-cffi": "akshare 传递依赖；须用预编译 wheel",
 }
+
+# 与 setup/steps/resolve_deps、ui_runtime、updater 的 pip --only-binary 列表对齐
+ONLY_BINARY_INSTALL = {
+    "numpy",
+    "pandas",
+    "duckdb",
+    "psycopg2-binary",
+    "cffi",
+    "curl-cffi",
+    "lxml",
+    "mini-racer",
+    "psutil",
+    "Pillow",
+    "cryptography",
+    "scipy",
+}
+
 
 # 项目核心依赖（即使未直接 import 也必须保留）
 CORE_DEPENDENCIES = {
@@ -179,20 +197,37 @@ class DependencyRiskDetector:
         for pkg_name, suggestion in COMPILATION_REQUIRED_PACKAGES.items():
             # 匹配包名（可能带版本号）
             pattern = rf"^{re.escape(pkg_name)}[=<>!]"
-            if re.search(pattern, content, re.MULTILINE | re.IGNORECASE):
-                # 检查是否有 binary 版本可用
-                has_binary_variant = pkg_name.lower() in ["numpy", "scipy", "lxml", "pillow", "cryptography"]
+            if not re.search(pattern, content, re.MULTILINE | re.IGNORECASE):
+                continue
 
-                level = RiskLevel.HIGH if has_binary_variant else RiskLevel.CRITICAL
-
+            key = pkg_name.lower()
+            if key in ONLY_BINARY_INSTALL:
+                # 安装脚本已 --only-binary：无 wheel 则安装失败，不会回退到本地编译
                 self.risks.append(DependencyRisk(
                     package=pkg_name,
-                    risk_level=level,
-                    message=f"可能需要 C 编译器 ({suggestion})",
-                    suggestion=f"使用预编译版: pip install {pkg_name} --only-binary {pkg_name}" if has_binary_variant else suggestion,
-                    is_fixable=True
+                    risk_level=RiskLevel.INFO,
+                    message="含原生扩展，但安装路径已用 --only-binary 强制 wheel（风险已缓解）",
+                    suggestion="保持 setup/steps/resolve_deps 等处的 only-binary 列表；勿在裸 pip install 时省略",
+                    is_fixable=False,
                 ))
-                print(f"   ⚠️  {pkg_name}: 可能需要编译")
+                print(f"   ℹ️  {pkg_name}: 已 only-binary 缓解")
+                continue
+
+            has_binary_variant = key in {
+                "numpy", "scipy", "lxml", "pillow", "cryptography", "cffi", "curl-cffi",
+            }
+            level = RiskLevel.HIGH if has_binary_variant else RiskLevel.CRITICAL
+            self.risks.append(DependencyRisk(
+                package=pkg_name,
+                risk_level=level,
+                message=f"可能需要 C 编译器 ({suggestion})",
+                suggestion=(
+                    f"将 {pkg_name} 加入安装脚本 --only-binary 列表，"
+                    f"或 pip install {pkg_name} --only-binary {pkg_name}"
+                ),
+                is_fixable=True,
+            ))
+            print(f"   ⚠️  {pkg_name}: 可能需要编译")
 
     def _check_unused_dependencies(self) -> None:
         """检查未使用的依赖"""
@@ -363,6 +398,10 @@ class DependencyRiskDetector:
             report_lines.append(f"   🔄 发现 {high} 个高风险项，建议尽快处理")
         if medium > 0:
             report_lines.append(f"   👀 发现 {medium} 个中等风险项，可在下个迭代处理")
+        if critical == 0 and high == 0 and medium == 0:
+            report_lines.append("   ✅ 无未缓解的 Critical/High/Medium 项")
+            if info > 0 or low > 0:
+                report_lines.append("   （Info/Low 为提示，不阻塞 pack）")
 
         report_lines.append(f"\n✨ 自动修复命令:")
         report_lines.append(f"   python -m devtools.quick_tools.dependency_risk --fix")

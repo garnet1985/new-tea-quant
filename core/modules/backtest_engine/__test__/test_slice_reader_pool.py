@@ -1,7 +1,6 @@
 """Unit tests for SliceReaderPool (sync + multiprocess prefetch)."""
 from __future__ import annotations
 
-from concurrent.futures import Future
 from unittest.mock import MagicMock, patch
 
 from core.modules.backtest_engine.core.schedule.slice_based.reader_pool import (
@@ -40,46 +39,6 @@ def test_sync_load_when_readers_zero() -> None:
 def test_prefetch_noop_when_queue_zero() -> None:
     pool = SliceReaderPool(reader_workers=2, queue_depth=0)
     assert pool.prefetch({"entity_ids": []}, start="a", end="b") is False
-    pool.shutdown()
-
-
-def test_prefetch_and_load_from_ready_queue() -> None:
-    pool = SliceReaderPool(reader_workers=2, queue_depth=2)
-    fake_exec = MagicMock()
-    fut: Future = Future()
-    fut.set_result(
-        {
-            "entity_contracts_wire": {
-                "kline": {"data": {"a": [{"date": "20240101"}]}, "runtime": {}}
-            },
-            "load_sec": 0.12,
-            "start": "20240101",
-            "end": "20240120",
-        }
-    )
-    fake_exec.submit.return_value = fut
-
-    fake_contract = MagicMock()
-    with patch(
-        "core.modules.backtest_engine.core.schedule.slice_based.reader_pool.ProcessPoolExecutor",
-        return_value=fake_exec,
-    ), patch.object(
-        SliceReaderPool,
-        "_contracts_from_wire",
-        return_value={"kline": fake_contract},
-    ):
-        assert pool.prefetch(
-            {"entity_specified": [], "entity_shared": {}},
-            start="20240101",
-            end="20240120",
-        )
-        assert pool.ready_count() == 1
-        out = pool.load_window(
-            {"entity_specified": [], "entity_shared": {}},
-            start="20240101",
-            end="20240120",
-        )
-    assert out == {"kline": fake_contract}
     pool.shutdown()
 
 

@@ -9,5 +9,5 @@ DataSourceManager().list_renew_targets()
 ```
 
 ```bash
-NTQ_TESTS_ENABLED=1 python -m pytest core/modules/data_source/__test__/test_api.py -q
+python -m pytest core/modules/data_source/__test__/test_api.py -q
 ```

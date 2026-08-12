@@ -1,4 +1,3 @@
-import React from 'react';
 import { resolveStrategyShortLabel } from '../../strategyWorkbenchPage/panels/strategySettingsPanel/editorSchemas/strategyMeta';
 import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchContext';
 

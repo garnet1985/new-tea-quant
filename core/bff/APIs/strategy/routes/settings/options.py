@@ -70,9 +70,14 @@ class StrategySettingsOptions:
     @classmethod
     def items_simulation(cls) -> List[Dict[str, Any]]:
         """``simulation.assumption.template`` 可选值；``defaults`` 为嵌套 tradability。"""
-        ordered = ("standard", "strict", "ideal", "extreme", "none", "custom")
+        ordered = ("standard", "strict", "ideal", "extreme", "custom")
+        # none 仍被引擎识别（兼容旧 settings），但不作为 UI 可选项
         keys = [k for k in ordered if k in AssumptionTemplate.KNOWN]
-        rest = sorted(k for k in AssumptionTemplate.KNOWN if k not in keys)
+        rest = sorted(
+            k
+            for k in AssumptionTemplate.KNOWN
+            if k not in keys and k != AssumptionTemplate.NONE
+        )
         out: List[Dict[str, Any]] = []
         for key in keys + rest:
             meta = SIMULATION_TEMPLATE_META.get(key)

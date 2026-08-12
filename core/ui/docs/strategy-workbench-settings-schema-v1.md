@@ -67,12 +67,11 @@
 
 | fieldPath (item) | displayNameZh | type | editable | 说明 |
 |---|---|---|---|---|
-| `name` | 阶段名称 | text | true | 必填 |
-| `ratio` | 触发比例 | number | true | 必填，止损通常为负数 |
+| `ratio` | 触发比例 | number | true | 必填，止损为负数；运行期名按 ratio 推断（-0.1→`loss10%`） |
 | `close_invest` | 触发清仓 | switch | true | 与 `sell_ratio` 二选一 |
 | `sell_ratio` | 卖出比例 | number | true | 可选，0~1 |
 
-> 支持动态新增/删除 stage。
+> 无 `name` 字段（不由 settings 配置）。支持动态新增/删除 stage。
 
 ### 3) take_profit.stages（数组）
 
@@ -82,13 +81,12 @@
 
 | fieldPath (item) | displayNameZh | type | editable | 说明 |
 |---|---|---|---|---|
-| `name` | 阶段名称 | text | true | 必填 |
-| `ratio` | 触发比例 | number | true | 必填，止盈通常为正数 |
+| `ratio` | 触发比例 | number | true | 必填，止盈为正数；运行期名按 ratio 推断（0.1→`win10%`） |
 | `close_invest` | 触发清仓 | switch | true | 与 `sell_ratio` 二选一 |
 | `sell_ratio` | 卖出比例 | number | true | 可选，0~1 |
 | `actions` | 触发动作 | select(multi) | true | 可选值：`set_protect_loss`、`set_dynamic_loss` |
 
-> 支持动态新增/删除 stage。
+> 无 `name` 字段（不由 settings 配置）。支持动态新增/删除 stage。
 
 ### 4) protect_loss / dynamic_loss（自动块）
 

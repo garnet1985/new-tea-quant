@@ -51,12 +51,47 @@ function normalizeExpirationMode(expiration) {
   return 'open_day';
 }
 
+/** settings 不写 name；运行期按 ratio 推断（-0.1→loss10%，0.1→win10%）。 */
+function stripStageName(stage) {
+  if (!stage || typeof stage !== 'object') return stage;
+  const next = { ...stage };
+  delete next.name;
+  delete next._inferredName;
+  return next;
+}
+
+/** 与 GoalSettings._to_stage_name 对齐（Python `{pct:g}`）。 */
+function formatPctG(value) {
+  if (!Number.isFinite(value)) return '';
+  return String(Number(value.toPrecision(12)));
+}
+
+export function inferStageName(ratio, kind = 'stop_loss') {
+  if (ratio === '' || ratio === null || ratio === undefined) return '';
+  const n = Number(ratio);
+  if (!Number.isFinite(n)) return '';
+  const pct = formatPctG(Math.abs(n) * 100);
+  if (kind === 'take_profit' || n > 0) return `win${pct}%`;
+  if (n < 0) return `loss${pct}%`;
+  return `level${pct}%`;
+}
+
+function inferredNameField(kind) {
+  return {
+    key: '_inferredName',
+    type: 'display',
+    label: '阶段名称',
+    tooltip: '由触发比例自动推断（settings 不写 name），不可编辑。',
+    placeholder: ' ',
+    resolve: ({ item }) => inferStageName(item?.ratio, kind),
+  };
+}
+
 function normalizeStage(stage) {
   const exitRatio = stage?.exit_ratio !== undefined
     ? stage.exit_ratio
     : stage?.sell_ratio;
   return {
-    name: stage?.name || '',
     ratio: toNumberOrEmpty(stage?.ratio, ''),
     close_invest: Boolean(stage?.close_invest),
     exit_ratio: toNumberOrEmpty(exitRatio, ''),
@@ -163,7 +198,7 @@ export function applyGoalActions(goal) {
       ...next.take_profit,
       stages: next.take_profit.stages.map((stage) => {
         const { action, ...rest } = stage;
-        return { ...rest, actions: takeProfitActionsFromAction(action) };
+        return stripStageName({ ...rest, actions: takeProfitActionsFromAction(action) });
       }),
     };
   }
@@ -171,7 +206,7 @@ export function applyGoalActions(goal) {
   if (next.stop_loss?.stages) {
     next.stop_loss = {
       ...next.stop_loss,
-      stages: next.stop_loss.stages.map(({ action, ...rest }) => rest),
+      stages: next.stop_loss.stages.map(({ action, ...rest }) => stripStageName(rest)),
     };
   }
 
@@ -241,25 +276,19 @@ const goalStageSchemas = [
     title: '止损阶段（stop_loss.stages）',
     name: 'stop_loss.stages',
     initValue: () => ({
-      name: '',
       ratio: '',
       close_invest: false,
       exit_ratio: '',
       actions: [],
     }),
     template: [
-      {
-        key: 'name',
-        type: 'text',
-        label: '阶段名称',
-        tooltip: '给这个阶段起个可读的名字',
-      },
+      inferredNameField('stop_loss'),
       {
         key: 'ratio',
         type: 'number',
         label: '触发比例',
         tooltip:
-          '当持仓相对买入价的盈亏达到该比例时触发本阶段（止损填负数，如 -0.1 表示亏损 10%）',
+          '当持仓相对买入价的盈亏达到该比例时触发本阶段（止损填负数，如 -0.1 表示亏损 10%；上方名称自动推断为 loss10%）',
         parse: (raw) => toNumberOrEmpty(raw, ''),
       },
       {
@@ -278,7 +307,6 @@ const goalStageSchemas = [
     title: '止盈阶段（take_profit.stages）',
     name: 'take_profit.stages',
     initValue: () => ({
-      name: '',
       ratio: '',
       close_invest: false,
       exit_ratio: '',
@@ -286,18 +314,13 @@ const goalStageSchemas = [
       action: ACTION_NONE,
     }),
     template: [
-      {
-        key: 'name',
-        type: 'text',
-        label: '阶段名称',
-        tooltip: '给这个阶段起个可读的名字',
-      },
+      inferredNameField('take_profit'),
       {
         key: 'ratio',
         type: 'number',
         label: '触发比例',
         tooltip:
-          '当持仓相对买入价的盈亏达到该比例时触发本阶段（止盈填正数，如 0.1 表示盈利 10%）',
+          '当持仓相对买入价的盈亏达到该比例时触发本阶段（止盈填正数，如 0.1 表示盈利 10%；上方名称自动推断为 win10%）',
         parse: (raw) => toNumberOrEmpty(raw, ''),
       },
       {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   applyStrategySettingsToUserspace,
   downloadStrategyPackage,
@@ -29,6 +30,11 @@ import {
 } from '../lib/workbenchPageState';
 import { clearDesignActiveRun } from '../lib/strategyDesignActiveRunPersistence';
 import { useStrategyDesignSession } from '../strategyDesignContext';
+import {
+  readCachedStrategyLabel,
+  readStrategyLabelFromLocationState,
+  writeCachedStrategyLabel,
+} from '../strategyDesignSessionState';
 import { useStrategyDesignExecution } from './useStrategyDesignExecution';
 
 function deepClone(value) {
@@ -86,6 +92,16 @@ export function useStrategyDesignWorkbench() {
     resetSessionForDraftChange,
     setSession,
   } = useStrategyDesignSession();
+  const location = useLocation();
+
+  const labelSeed = useMemo(() => {
+    const fromNav = readStrategyLabelFromLocationState(location.state);
+    const fromCache = readCachedStrategyLabel(strategyName);
+    return {
+      displayName: fromNav.displayName || fromCache.displayName || '',
+      key: fromNav.key || fromCache.key || '',
+    };
+  }, [location.state, strategyName]);
 
   const [configVersions, setConfigVersions] = useState([]);
   const [hasPersistedSnapshot, setHasPersistedSnapshot] = useState(false);
@@ -95,8 +111,8 @@ export function useStrategyDesignWorkbench() {
   const [saveError, setSaveError] = useState('');
   const [userspaceApplyOk, setUserspaceApplyOk] = useState('');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
-  const [strategyDisplayName, setStrategyDisplayName] = useState('');
-  const [strategyKey, setStrategyKey] = useState('');
+  const [strategyDisplayName, setStrategyDisplayName] = useState(() => labelSeed.displayName);
+  const [strategyKey, setStrategyKey] = useState(() => labelSeed.key);
   const [strategyDescription, setStrategyDescription] = useState('');
   const [strategyEntryConditions, setStrategyEntryConditions] = useState([]);
   const [initialSettings, setInitialSettings] = useState(() => buildMergeBaseSettings());
@@ -158,8 +174,9 @@ export function useStrategyDesignWorkbench() {
 
     setStrategyDescription('');
     setStrategyEntryConditions([]);
-    setStrategyDisplayName('');
-    setStrategyKey('');
+    // 用导航 state / session 种子，加载完成前不闪路径名
+    setStrategyDisplayName(labelSeed.displayName);
+    setStrategyKey(labelSeed.key);
     setIsLoadingSettings(true);
     setSettingsError('');
     patchSession({ workbenchSnapshot: emptyWorkbenchSnapshot() });
@@ -187,9 +204,15 @@ export function useStrategyDesignWorkbench() {
             ...serverSettings,
             meta: normalizeMeta(incomingMeta, serverSettings),
           });
+          const nextDisplayName = extractStrategyDisplayName(nextSettings);
+          const nextKey = extractStrategyKey(nextSettings);
           setInitialSettings(nextSettings);
-          setStrategyDisplayName(extractStrategyDisplayName(nextSettings));
-          setStrategyKey(extractStrategyKey(nextSettings));
+          setStrategyDisplayName(nextDisplayName);
+          setStrategyKey(nextKey);
+          writeCachedStrategyLabel(strategyName, {
+            displayName: nextDisplayName,
+            key: nextKey,
+          });
           setStrategyDescription(extractStrategyDescription(nextSettings));
           setStrategyEntryConditions(extractStrategyEntryConditions(nextSettings));
           setSettingsError('');
@@ -197,7 +220,6 @@ export function useStrategyDesignWorkbench() {
           setInitialSettings(mergeBase);
           setStrategyDescription('');
           setStrategyEntryConditions([]);
-          setStrategyKey('');
           setSettingsError('未返回有效策略配置（settings 为空）。');
         }
 
@@ -245,7 +267,7 @@ export function useStrategyDesignWorkbench() {
     return () => {
       isCancelled = true;
     };
-  }, [patchSession, strategyName]);
+  }, [labelSeed.displayName, labelSeed.key, patchSession, strategyName]);
 
   useEffect(() => {
     if (!strategyName || isLoadingSettings) return undefined;
@@ -463,8 +485,14 @@ export function useStrategyDesignWorkbench() {
         const wb = wbVerRestore || restoreMeta?.version_id || '';
         suppressDraftDrivenPanelResetRef.current = true;
         setInitialSettings(mergedSettings);
-        setStrategyDisplayName(extractStrategyDisplayName(mergedSettings));
-        setStrategyKey(extractStrategyKey(mergedSettings));
+        const restoredDisplayName = extractStrategyDisplayName(mergedSettings);
+        const restoredKey = extractStrategyKey(mergedSettings);
+        setStrategyDisplayName(restoredDisplayName);
+        setStrategyKey(restoredKey);
+        writeCachedStrategyLabel(strategyName, {
+          displayName: restoredDisplayName,
+          key: restoredKey,
+        });
         setStrategyDescription(extractStrategyDescription(mergedSettings));
         setStrategyEntryConditions(extractStrategyEntryConditions(mergedSettings));
         setDraftSettings(deepClone(mergedSettings));

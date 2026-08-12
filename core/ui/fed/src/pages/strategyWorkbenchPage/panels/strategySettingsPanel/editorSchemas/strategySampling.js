@@ -117,7 +117,7 @@ export function buildStrategySamplingSchema(samplingStrategyOptions = DEFAULT_SA
         name: 'use_sampling',
         type: 'switch',
         label: '是否使用采样',
-        tooltip: '开启后按下方规则缩小回测股票池；关闭时使用全市场（或策略默认）候选池。回测时间窗在「回测执行假设」中配置。',
+        tooltip: '开启后按下方规则缩小回测股票池；关闭时使用全市场（或策略默认）候选池。回测时间窗在「回测设置 → 回测时间设置」中配置。',
       },
       {
         name: 'strategy',

@@ -25,6 +25,7 @@ import StrategyPackageImportDialog from '../../components/strategyPackageImportD
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
 import NtqIcon from '../../components/ntqIcon/ntqIcon';
 import StrategyDescriptionText from '../../components/strategyDescriptionText/strategyDescriptionText';
+import { buildStrategyDesignNavState } from '../strategyDesignPage/strategyDesignSessionState';
 import './strategyListPage.scss';
 
 /**
@@ -109,6 +110,10 @@ function StrategyListPage({
     }
   }, [exportingName]);
 
+  const enterNavState = useCallback((row) => (
+    isDesignFlow ? buildStrategyDesignNavState(row) : undefined
+  ), [isDesignFlow]);
+
   const columns = [
     {
       field: 'display_name',
@@ -120,6 +125,7 @@ function StrategyListPage({
         <Link
           component={RouterLink}
           to={getEnterPath(params.row.name)}
+          state={enterNavState(params.row)}
           underline="hover"
           onClick={(e) => e.stopPropagation()}
         >
@@ -152,6 +158,7 @@ function StrategyListPage({
             <Link
               component={RouterLink}
               to={getEnterPath(name)}
+              state={enterNavState(params.row)}
               underline="hover"
               onClick={(e) => e.stopPropagation()}
             >
@@ -294,7 +301,9 @@ function StrategyListPage({
               },
             }}
             onRowDoubleClick={(params) => {
-              navigate(getEnterPath(params.row.name));
+              navigate(getEnterPath(params.row.name), {
+                state: enterNavState(params.row),
+              });
             }}
             // 仅 [10]：MUI TablePagination 在仅一项时不渲染 “Rows per page” 与下拉（避免英文标签）
             pageSizeOptions={[10]}

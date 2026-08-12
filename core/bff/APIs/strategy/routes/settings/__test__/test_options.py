@@ -31,7 +31,9 @@ def test_risk_control_tags():
 def test_simulation_template_defaults_are_nested_tradability():
     items = StrategySettingsOptions.items_simulation()
     by_value = {row["value"]: row for row in items}
-    assert set(AssumptionTemplate.KNOWN).issubset(by_value.keys())
+    assert "none" not in by_value
+    assert AssumptionTemplate.NAMED.issubset(by_value.keys())
+    assert "custom" in by_value
 
     standard = by_value["standard"]["defaults"]
     assert "tradability" in standard
@@ -41,8 +43,6 @@ def test_simulation_template_defaults_are_nested_tradability():
 
     custom = by_value["custom"]["defaults"]
     assert custom == {}
-    none = by_value["none"]["defaults"]
-    assert none == {}
 
 
 def test_market_rules_non_empty():

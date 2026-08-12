@@ -85,14 +85,22 @@
 - 代码清理：所有模块之前穿透contract或API的引用都已经清理，现在模块间的引用都只在contract和API里暴露
 - 代码清理：将工具类模块（Utils）模块迁入infra下
 - 代码清理：将BFF和（用户界面）UI独立放入core的根目录下，不再是modules里的一部分
+- 代码清理：淘汰了老的job pipeline模块，职责分配到原来的业务模块中
 - 模块重构：重构BFF，取消了原来在模块中的launcher，将BFF专有逻辑迁移到BFF中。
 - 模块重构：将data cursor（数据游标）重置入data contract (数据契约)模块，并将时间推进功能从strategy（策略模块）挪入data contract（数据契约）模块
 - 模块重构：抽取了tag（标签模块）和strategy（策略模块）公共底层模块，独立成backtest engine（回测引擎）模块
+- 新模块：回测引擎（Backtest Engine或BE）新的回测调度执行器，是tag和strategy模块的基础，负责根据可用系统资源重组，执行，监控回测执行。Strategy和Tag模块的功能精简为提供任务，提供用户执行逻辑。
+- 为新的回测引擎加入一套完成性能测试基准和devcli的入口。
 - 新模块：加入trace模块，记录用户使用方式反馈，以便提供更好的服务（需用户同意），并且在UI上放置了随时开启或关闭trace的开关
+- 新模块：单机能力（machine capacity）模块，用来随时探测一些本机基础CPU和最大/可用内存的工具类
 - 策略模块（strategy）：暴露了新的on_pick_portfolio_member接口, 可以通过代码选择投资的机会了
 - 策略模块（strategy）：新的报告模式，兼容windows，UI和后端统一
+- 策略模块（strategy）：更新了第三层回测的名字，从capital allocation（资金分配）变成了portfolio（投资组合）
+- 策略模块（strategy）：将用户自定义钩子函数挂在了新的hooks基类上，这样用户的钩子函数不但可以参与底层子进程任务，也可以通过钩子参与主进程工作
 - 标签模块（tag）：新引入tag计算的进度表，可以让tag支持更好的增量计算
 - 标签模块（tag）：修改tag的其他三张表，去掉了一些冗余字段
+- 标签模块（tag）：将用户自定义钩子函数挂在了新的hooks基类上，这样用户的钩子函数不但可以参与底层子进程任务，也可以通过钩子参与主进程工作
+- 标签模块（tag）：现在支持全局标签模式，完全支持给无时序（比如股票分类），或者全局时序（比如GDP）目标动态添加标签
 - 在策略UI上增加策略文件快捷链接
 - 在策略UI上增加版本清除功能
 - 修复了requirements发生变化会强制安装和重新import数据的危险bug

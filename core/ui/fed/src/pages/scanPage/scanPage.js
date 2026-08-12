@@ -28,7 +28,7 @@ import {
   fetchStrategyScanProgress,
   fetchStrategyScanReadiness,
   getStrategyDisplayLabel,
-  getStrategyWorkbenchPath,
+  getStrategyDesignPath,
   startStrategyScan,
 } from '../../api/apis/strategyApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
@@ -36,6 +36,7 @@ import DataEndTruncationAlert from '../../components/dataEndTruncationAlert/data
 import StrategyDescriptionText from '../../components/strategyDescriptionText/strategyDescriptionText';
 import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
+import { buildStrategyDesignNavState } from '../strategyDesignPage/strategyDesignSessionState';
 import './scanPage.scss';
 
 const SHOW_REPORT_GENERATED_AT = false;
@@ -150,7 +151,7 @@ function ScanPage() {
         id: r.id,
         action: x.primary_action === 'rerun' ? 'rerun' : 'run',
         report: x.report,
-        canScan: x.can_scan !== false,
+        canScan: x.can_scan === true,
         blockReason: String(x.block_reason || '').trim(),
       }))),
     )
@@ -339,7 +340,8 @@ function ScanPage() {
             </Button>
             <Link
               component={RouterLink}
-              to={getStrategyWorkbenchPath(params.row.name)}
+              to={getStrategyDesignPath(params.row.name)}
+              state={buildStrategyDesignNavState(params.row)}
               underline="hover"
               onClick={(e) => e.stopPropagation()}
               sx={{ fontSize: 13 }}

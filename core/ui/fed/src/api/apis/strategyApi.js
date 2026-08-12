@@ -49,7 +49,8 @@ export async function fetchStrategyList() {
       id: item.name,
       name: item.name,
       key: String(item.key || '').trim(),
-      display_name: getStrategyDisplayLabel(item),
+      // 保留服务端原值；展示时用 getStrategyDisplayLabel，勿把路径写进 display_name
+      display_name: String(item.display_name || '').trim(),
       description: coerceMetaDescription(item.description),
       keywords: Array.isArray(item.keywords) ? item.keywords : [],
       details: item.details && typeof item.details === 'object' ? item.details : null,
@@ -82,14 +83,14 @@ export async function fetchStrategyScanReadiness(strategyName, { demo = false } 
   const m = json?.message || {};
   const report = m.report && typeof m.report === 'object' ? m.report : null;
   const blockReason = String(m.block_reason || m.blockReason || '').trim();
-  const canScan = m.can_scan === undefined && m.canScan === undefined
-    ? !blockReason
-    : Boolean(m.can_scan ?? m.canScan);
+  // 缺省 can_scan 视为不可扫，避免「未定义 = 允许」的障眼法
+  const canScanRaw = m.can_scan ?? m.canScan;
+  const canScan = typeof canScanRaw === 'boolean' ? canScanRaw : false;
   return {
     primary_action: m.primary_action === 'rerun' ? 'rerun' : 'run',
     report,
     can_scan: canScan,
-    block_reason: blockReason,
+    block_reason: blockReason || (canScanRaw === undefined ? '扫描就绪状态未知' : ''),
   };
 }
 
@@ -120,13 +121,7 @@ export async function fetchStrategyScanProgress(strategyName, jobId) {
   return json?.message || {};
 }
 
-/** 构建单策略策略工作台（调试）页路径（与路由定义保持一致） */
-export function getStrategyWorkbenchPath(strategyName) {
-  const encoded = encodeStrategyPathSegments(strategyName);
-  return `/strategy-workbench/${encoded}`;
-}
-
-/** 制定策略：单策略调试页路径（可选 step：enum | price | portfolio） */
+/** 构建制定策略页路径（可选 step：enum | price | portfolio） */
 export function getStrategyDesignPath(strategyName, step = '') {
   const encoded = encodeStrategyPathSegments(strategyName);
   const base = `/strategy-design/${encoded}`;
@@ -249,16 +244,6 @@ export async function restoreStrategyVersion(strategyKeyOrName, versionId) {
 }
 
 /**
- * 固化快照：V2 暂无对应接口（占位）。
- */
-export async function createStrategyVersion(strategyName, settings, source = 'manual_apply') {
-  void strategyName;
-  void settings;
-  void source;
-  throw new Error('createStrategyVersion：当前 V2 契约未提供该接口');
-}
-
-/**
  * V2-05：启动 run（路径上的 ``step`` 为用户点击步；实际子步骤链见响应 ``steps`` / ``resolved_chain``，由后端 ``plan_schema`` 规划）。
  * @param {string} strategyName
  * @param {'enum'|'price'|'portfolio'} targetStep
@@ -291,34 +276,6 @@ export async function startStrategyRun(strategyName, targetStep, settings, optio
 }
 
 /**
- * 枚举复用预判：前端不对缓存感知；占位返回。
- */
-export async function fetchEnumeratorReusePreview(strategyName) {
-  void strategyName;
-  return {};
-}
-
-/**
- * V2-07：按路径 ``version_id`` 读取该步 ``report`` 槽位 JSON。
- * GET /api/v1/strategy/:strategy_key_or_name/report/:step/:version_id
- * @param {string} strategyKeyOrName ``settings.meta.key``（推荐）或 path name
- * @param {'enum'|'price'|'portfolio'} step
- * @param {string} versionId 如 ``v3`` / ``3``
- */
-export async function fetchStrategyStepReport(strategyKeyOrName, step, versionId) {
-  const base = apiStrategyPath(strategyKeyOrName);
-  const vid = encodeURIComponent(String(versionId || '').trim());
-  if (!base || !vid) {
-    throw new Error('缺少 strategy_key_or_name 或 version_id');
-  }
-  const json = await requestJson(
-    `${base}/report/${encodeURIComponent(step)}/${vid}`,
-    { method: 'GET' },
-  );
-  return json?.message || {};
-}
-
-/**
  * V2-07b：枚举逐股 ref（``entity_list.json``）。成功时 ``message.stock_ref`` 可为 ``null``（磁盘已清理），
  * 此时 ``stock_ref_available === false``；仅快照不存在时 HTTP 非 2xx。
  * GET /api/v1/strategy/:strategy_key_or_name/report/:step/:version_id/ref
@@ -347,7 +304,7 @@ export async function fetchStrategyStepReportRef(strategyKeyOrName, step, versio
   const base = apiStrategyPath(strategyKeyOrName);
   const vid = encodeURIComponent(String(versionId || '').trim());
   if (!base || !vid) {
-    return null;
+    throw new Error('缺少 strategy_key_or_name 或 version_id');
   }
   const url = `${base}/report/${encodeURIComponent(step)}/${vid}/ref`;
   const response = await fetch(url, {
@@ -357,12 +314,13 @@ export async function fetchStrategyStepReportRef(strategyKeyOrName, step, versio
   try {
     json = await response.json();
   } catch {
-    return null;
+    throw new Error('报告 ref 响应不是合法 JSON');
   }
   if (!response.ok || json?.status !== 'ok') {
-    return null;
+    const detail = String(json?.message || json?.error || '').trim();
+    throw new Error(detail || `读取报告 ref 失败（HTTP ${response.status}）`);
   }
-  return json?.message || null;
+  return json?.message || {};
 }
 
 /**
@@ -466,13 +424,10 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
 
 /**
  * 轮询 run 进度（``strategy_pipeline_v1``）。
- * 第三参 ``step`` 已废弃，保留签名以兼容旧调用。
  * @param {string} strategyName
  * @param {string} jobId
- * @param {'enum'|'price'|'portfolio'} [_step]
  */
-export async function fetchStrategyRunStatus(strategyName, jobId, _step = 'enum') {
-  void _step;
+export async function fetchStrategyRunStatus(strategyName, jobId) {
   const envelope = await fetchStrategyRunProgress(strategyName, jobId);
   if (!envelope) {
     return {
@@ -488,57 +443,7 @@ export async function fetchStrategyRunStatus(strategyName, jobId, _step = 'enum'
 }
 
 /**
- * 执行摘要（旧 SWB）：暂无 V2；占位。
- */
-export async function fetchStrategyRunResults(strategyName, runId) {
-  void strategyName;
-  void runId;
-  return {};
-}
-
-/**
- * 工作台快照版本标识列表（含 latest），供下拉等选用（基于 V2-03）。
- * @param {string} strategyKeyOrName
- * @returns {Promise<{ versions: string[] }>}
- */
-export async function fetchStrategyVersionHistory(strategyKeyOrName) {
-  const { versions } = await fetchStrategyVersions(strategyKeyOrName);
-  const ids = versions
-    .map((row) => (typeof row.version_id === 'string' ? row.version_id.trim() : ''))
-    .filter(Boolean);
-  return { versions: ids.length ? ['latest', ...ids] : ['latest'] };
-}
-
-/**
- * SWB-13：读取单股票 K 线与买卖点。
- * @param {string} strategyName
- * @param {string} runId
- * @param {string} stockId
- */
-/** @deprecated 使用 ``fetchStrategyStockDetail`` */
-export async function fetchStrategyReportStockKline(strategyName, runId, stockId) {
-  void strategyName;
-  void runId;
-  void stockId;
-  return {};
-}
-
-/**
- * SWB-02：资金分配模式选项（`portfolio.allocation.mode`）
- * @returns {Promise<StrategySettingOption[]>}
- */
-export async function fetchCapitalAllocationModeOptions() {
-  const json = await requestJson(API_SETTINGS_PORTFOLIO, { method: 'GET' });
-  const items = json?.message?.items ?? [];
-  return items.map((row) => ({
-    value: row.value,
-    label: row.label,
-    tooltip: row.tooltip || '',
-  }));
-}
-
-/**
- * SWB-02：资金分配模式选项 + 联动字段 profile。
+ * 资金分配模式选项 + 联动字段 profile（`portfolio.allocation.mode`）。
  * @returns {Promise<{ options: StrategySettingOption[], profiles: Record<string, StrategySettingProfile> }>}
  */
 export async function fetchCapitalAllocationModeConfig() {
@@ -555,21 +460,7 @@ export async function fetchCapitalAllocationModeConfig() {
 }
 
 /**
- * SWB-03：股票采样策略选项（`sampling.strategy`）
- * @returns {Promise<StrategySettingOption[]>}
- */
-export async function fetchSamplingStrategyOptions() {
-  const json = await requestJson(API_SETTINGS_SAMPLING, { method: 'GET' });
-  const items = json?.message?.items ?? [];
-  return items.map((row) => ({
-    value: row.value,
-    label: row.label,
-    tooltip: row.tooltip || '',
-  }));
-}
-
-/**
- * SWB-03：采样策略选项 + 联动字段 profile。
+ * 采样策略选项 + 联动字段 profile（`sampling.strategy`）。
  * @returns {Promise<{ options: StrategySettingOption[], profiles: Record<string, StrategySettingProfile> }>}
  */
 export async function fetchSamplingStrategyConfig() {
@@ -586,21 +477,7 @@ export async function fetchSamplingStrategyConfig() {
 }
 
 /**
- * SWB：回测执行模板选项（`simulation.assumption.template`）
- * @returns {Promise<StrategySettingOption[]>}
- */
-export async function fetchSimulationTemplateOptions() {
-  const json = await requestJson(API_SETTINGS_SIMULATION, { method: 'GET' });
-  const items = json?.message?.items ?? [];
-  return items.map((row) => ({
-    value: row.value,
-    label: row.label,
-    tooltip: row.tooltip || '',
-  }));
-}
-
-/**
- * SWB：回测模板选项 + defaults（嵌套 ``{ tradability: {...} }``，供 assumption 合并）。
+ * 回测模板选项 + defaults（嵌套 ``{ tradability: {...} }``，供 assumption 合并）。
  * @returns {Promise<{ options: StrategySettingOption[], profiles: Record<string, object> }>}
  */
 export async function fetchSimulationTemplateConfig() {

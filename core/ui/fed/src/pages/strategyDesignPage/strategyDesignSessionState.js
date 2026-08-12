@@ -9,6 +9,33 @@ export function strategyDesignSessionStorageKey(strategyName) {
   return `${STRATEGY_DESIGN_SESSION_STORAGE_PREFIX}:${String(strategyName || '').trim()}`;
 }
 
+function readSessionBlob(strategyName) {
+  const sn = String(strategyName || '').trim();
+  if (!sn) return null;
+  try {
+    const raw = sessionStorage.getItem(strategyDesignSessionStorageKey(sn));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionBlob(strategyName, patch) {
+  const sn = String(strategyName || '').trim();
+  if (!sn || !patch || typeof patch !== 'object') return;
+  try {
+    const prev = readSessionBlob(sn) || {};
+    sessionStorage.setItem(
+      strategyDesignSessionStorageKey(sn),
+      JSON.stringify({ ...prev, ...patch, savedAt: Date.now() }),
+    );
+  } catch {
+    /* ignore quota */
+  }
+}
+
 /**
  * 制定策略 Layout 层持有的会话状态（后续接 API / 持久化）。
  * @param {string} strategyName
@@ -41,31 +68,59 @@ export function createEmptyStrategyDesignSession(strategyName, activeStep = STRA
  * @param {string} strategyName
  */
 export function readCachedStrategyDesignStep(strategyName) {
-  const sn = String(strategyName || '').trim();
-  if (!sn) return STRATEGY_DESIGN_DEFAULT_STEP;
-  try {
-    const raw = sessionStorage.getItem(strategyDesignSessionStorageKey(sn));
-    if (!raw) return STRATEGY_DESIGN_DEFAULT_STEP;
-    const parsed = JSON.parse(raw);
-    const step = String(parsed?.activeStep || '').trim();
-    if (step === 'enum' || step === 'price' || step === 'portfolio') return step;
-  } catch {
-    /* ignore */
-  }
+  const parsed = readSessionBlob(strategyName);
+  const step = String(parsed?.activeStep || '').trim();
+  if (step === 'enum' || step === 'price' || step === 'portfolio') return step;
   return STRATEGY_DESIGN_DEFAULT_STEP;
 }
 
 /** @param {string} strategyName @param {string} activeStep */
 export function writeCachedStrategyDesignStep(strategyName, activeStep) {
-  const sn = String(strategyName || '').trim();
   const step = String(activeStep || '').trim();
-  if (!sn || !step) return;
-  try {
-    sessionStorage.setItem(
-      strategyDesignSessionStorageKey(sn),
-      JSON.stringify({ activeStep: step, savedAt: Date.now() }),
-    );
-  } catch {
-    /* ignore quota */
-  }
+  if (!step) return;
+  writeSessionBlob(strategyName, { activeStep: step });
+}
+
+/**
+ * 面包屑短名缓存（避免 settings 返回前用路径名闪一下）。
+ * @returns {{ displayName: string, key: string }}
+ */
+export function readCachedStrategyLabel(strategyName) {
+  const parsed = readSessionBlob(strategyName);
+  return {
+    displayName: String(parsed?.displayName || '').trim(),
+    key: String(parsed?.key || '').trim(),
+  };
+}
+
+/** @param {string} strategyName @param {{ displayName?: string, key?: string }} label */
+export function writeCachedStrategyLabel(strategyName, label = {}) {
+  const displayName = String(label.displayName || '').trim();
+  const key = String(label.key || '').trim();
+  if (!displayName && !key) return;
+  writeSessionBlob(strategyName, {
+    ...(displayName ? { displayName } : {}),
+    ...(key ? { key } : {}),
+  });
+}
+
+/** 列表/扫描页进入制定策略时写入的 location.state。 */
+export function buildStrategyDesignNavState(row) {
+  if (!row || typeof row !== 'object') return undefined;
+  const displayName = String(row.display_name || '').trim();
+  const key = String(row.key || '').trim();
+  if (!displayName && !key) return undefined;
+  return {
+    ...(displayName ? { displayName } : {}),
+    ...(key ? { strategyKey: key } : {}),
+  };
+}
+
+/** 从 location.state 取进入时的展示名种子（写入约定：displayName / strategyKey）。 */
+export function readStrategyLabelFromLocationState(state) {
+  if (!state || typeof state !== 'object') return { displayName: '', key: '' };
+  return {
+    displayName: String(state.displayName || '').trim(),
+    key: String(state.strategyKey || '').trim(),
+  };
 }

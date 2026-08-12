@@ -10,7 +10,7 @@ function ComingSoonPage({ title, description }) {
   return (
     <PageLayout
       className="coming-soon-page"
-      breadcrumbsItems={[{ label: '策略实验室', to: '/strategy-workbench' }]}
+      breadcrumbsItems={[{ label: '制定策略', to: '/strategy-design' }]}
       breadcrumbsCurrent={title}
       bannerTitle={title}
       bannerDescription={desc}

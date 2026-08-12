@@ -95,28 +95,34 @@ export function useStrategyReportRemoteData({
       return undefined;
     }
     setEnumRefStatus('loading');
-    fetchStrategyStepReportRef(strategyName, 'enum', versionIdForReport).then((msg) => {
-      if (cancelled) return;
-      const raw = msg?.stock_ref;
-      const available = msg?.stock_ref_available !== false;
-      if (
-        available
-        && raw
-        && typeof raw === 'object'
-        && Object.keys(raw).length > 0
-      ) {
-        const mapped = sortMappedEnumRows(
-          mapStockRefToRows(raw),
-          ENUM_REF_DEFAULT_SORT.sortBy,
-          ENUM_REF_DEFAULT_SORT.order,
-        );
-        setEnumRefRows(mapped);
-        setEnumRefStatus('ok');
-        return;
-      }
-      setEnumRefRows([]);
-      setEnumRefStatus('missing');
-    });
+    fetchStrategyStepReportRef(strategyName, 'enum', versionIdForReport)
+      .then((msg) => {
+        if (cancelled) return;
+        const raw = msg?.stock_ref;
+        const available = msg?.stock_ref_available !== false;
+        if (
+          available
+          && raw
+          && typeof raw === 'object'
+          && Object.keys(raw).length > 0
+        ) {
+          const mapped = sortMappedEnumRows(
+            mapStockRefToRows(raw),
+            ENUM_REF_DEFAULT_SORT.sortBy,
+            ENUM_REF_DEFAULT_SORT.order,
+          );
+          setEnumRefRows(mapped);
+          setEnumRefStatus('ok');
+          return;
+        }
+        setEnumRefRows([]);
+        setEnumRefStatus('missing');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setEnumRefRows([]);
+        setEnumRefStatus('error');
+      });
     return () => {
       cancelled = true;
     };
@@ -130,28 +136,34 @@ export function useStrategyReportRemoteData({
       return undefined;
     }
     setPriceRefStatus('loading');
-    fetchStrategyStepReportRef(strategyName, 'price', versionIdForReport).then((msg) => {
-      if (cancelled) return;
-      const raw = msg?.stock_ref;
-      const available = msg?.stock_ref_available !== false;
-      if (
-        available
-        && raw
-        && typeof raw === 'object'
-        && Object.keys(raw).length > 0
-      ) {
-        const mapped = sortMappedPriceRows(
-          mapPriceStockRefToRows(raw),
-          PRICE_REF_DEFAULT_SORT.sortBy,
-          PRICE_REF_DEFAULT_SORT.order,
-        );
-        setPriceRefRows(mapped);
-        setPriceRefStatus('ok');
-        return;
-      }
-      setPriceRefRows([]);
-      setPriceRefStatus('missing');
-    });
+    fetchStrategyStepReportRef(strategyName, 'price', versionIdForReport)
+      .then((msg) => {
+        if (cancelled) return;
+        const raw = msg?.stock_ref;
+        const available = msg?.stock_ref_available !== false;
+        if (
+          available
+          && raw
+          && typeof raw === 'object'
+          && Object.keys(raw).length > 0
+        ) {
+          const mapped = sortMappedPriceRows(
+            mapPriceStockRefToRows(raw),
+            PRICE_REF_DEFAULT_SORT.sortBy,
+            PRICE_REF_DEFAULT_SORT.order,
+          );
+          setPriceRefRows(mapped);
+          setPriceRefStatus('ok');
+          return;
+        }
+        setPriceRefRows([]);
+        setPriceRefStatus('missing');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPriceRefRows([]);
+        setPriceRefStatus('error');
+      });
     return () => {
       cancelled = true;
     };

@@ -292,7 +292,7 @@ export function stripLegacyStrategySettingsForRun(settings) {
   if (out.price_simulator) {
     out.price_simulator = stripKeysFromBlock(out.price_simulator, PRICE_SIMULATOR_DISPATCH_KEYS);
   }
-  delete out.scanner;
+  // scanner 仍是正式 settings 块（adapters / strict day / cache / watch_list），勿剥离。
 
   return out;
 }

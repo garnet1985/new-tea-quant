@@ -262,7 +262,7 @@ function StrategyDesignSettingsPanel({
           context={editorContext}
         />
       </SectionAccordion>
-      <SectionAccordion title="回测执行假设">
+      <SectionAccordion title="回测设置">
         <SimulationSettingsEditor
           simulation={settings?.simulation}
           onSimulationChange={onSimulationChange}

@@ -139,7 +139,7 @@ FED 建议：进 `/tags` 调 T1-00；任一 tag 运行中再调 T1-03；全局 `
 | `is_enabled` | boolean | settings 顶层 `is_enabled` |
 | `description` | string | `meta.description`，可空 |
 | `tag_definitions` | array | settings `tags[]` 摘要，见下表 |
-| `last_computed_as_of` | string \| null | **列表「最后更新」主字段**：`sys_tag_value` 上该 scenario 的 **MAX(as_of_date)**，统一 **8 位 `YYYYMMDD`**；从未计算为 `null`（见 `tag_service.get_max_as_of_date`） |
+| `last_computed_as_of` | string \| null | **列表「最后计算至」**：`sys_tag_calc_progress` 上该 scenario 各实体 `last_calculated_end` 的 **最小值**（保守水位；**不是** `MAX(as_of)`）。统一 **8 位 `YYYYMMDD`**；从未写过 progress 为 `null` |
 | `scenario_updated_at` | string \| null | `sys_tag_scenario.updated_at`（ISO）；**仅元数据/registry 变更**，增量计算不写；DuckDB 下常等于创建时间，勿当作计算完成时间 |
 | `execution_mode` | string | `calculation.execution_mode` 规范化值（如 `entity_timeline`、`calendar_slice`）；仅展示，MVP 不可改 |
 | `update_mode` | string | `calculation.update_mode`：`incremental` \| `refresh`（默认 `incremental`） |

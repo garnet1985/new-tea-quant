@@ -205,8 +205,9 @@ class GoalSettings(SettingsBase):
         if "ratio" not in item:
             raise ValueError(f"{field_path} 缺少 ratio")
         ratio = float(item["ratio"])
+        # settings 不写 name；运行期按 ratio 推断（-0.1→loss10%，0.1→win10%）。
+        # 若旧配置仍带 name，仅在非空时沿用，否则一律推断。
         raw_name = str(item.get("name") or "").strip()
-        # label 用 field_path 前缀推断命名
         label_hint = field_path.rsplit(".stages", 1)[0]
         name = raw_name or cls._to_stage_name(label=label_hint, ratio=ratio)
 

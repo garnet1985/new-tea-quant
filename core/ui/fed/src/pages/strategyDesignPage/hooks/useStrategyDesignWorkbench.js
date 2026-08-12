@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   applyStrategySettingsToUserspace,
   downloadStrategyPackage,
@@ -8,6 +9,7 @@ import {
   fetchStrategyVersions,
   restoreStrategyVersion,
 } from '../../../api/apis/strategyApi';
+import { stripLegacyStrategySettingsForRun } from '../../../utils/stripLegacyStrategySettings';
 import {
   extractStrategyDescription,
   extractStrategyDisplayName,
@@ -29,6 +31,11 @@ import {
 } from '../lib/workbenchPageState';
 import { clearDesignActiveRun } from '../lib/strategyDesignActiveRunPersistence';
 import { useStrategyDesignSession } from '../strategyDesignContext';
+import {
+  readCachedStrategyLabel,
+  readStrategyLabelFromLocationState,
+  writeCachedStrategyLabel,
+} from '../strategyDesignSessionState';
 import { useStrategyDesignExecution } from './useStrategyDesignExecution';
 
 function deepClone(value) {
@@ -86,24 +93,35 @@ export function useStrategyDesignWorkbench() {
     resetSessionForDraftChange,
     setSession,
   } = useStrategyDesignSession();
+  const location = useLocation();
+
+  const labelSeed = useMemo(() => {
+    const fromNav = readStrategyLabelFromLocationState(location.state);
+    const fromCache = readCachedStrategyLabel(strategyName);
+    return {
+      displayName: fromNav.displayName || fromCache.displayName || '',
+      key: fromNav.key || fromCache.key || '',
+    };
+  }, [location.state, strategyName]);
 
   const [configVersions, setConfigVersions] = useState([]);
   const [hasPersistedSnapshot, setHasPersistedSnapshot] = useState(false);
   const [hasOtherVersions, setHasOtherVersions] = useState(false);
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  const [hasValidSettings, setHasValidSettings] = useState(false);
   const [settingsError, setSettingsError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [userspaceApplyOk, setUserspaceApplyOk] = useState('');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
-  const [strategyDisplayName, setStrategyDisplayName] = useState('');
-  const [strategyKey, setStrategyKey] = useState('');
+  const [strategyDisplayName, setStrategyDisplayName] = useState(() => labelSeed.displayName);
+  const [strategyKey, setStrategyKey] = useState(() => labelSeed.key);
   const [strategyDescription, setStrategyDescription] = useState('');
   const [strategyEntryConditions, setStrategyEntryConditions] = useState([]);
   const [initialSettings, setInitialSettings] = useState(() => buildMergeBaseSettings());
   const [draftSettings, setDraftSettings] = useState(() => buildMergeBaseSettings());
   const [appliedSettings, setAppliedSettings] = useState(() => buildMergeBaseSettings());
   const [selectedConfigVersion, setSelectedConfigVersion] = useState('');
-  const [appliedVersionId, setAppliedVersionId] = useState('userspace');
+  const [appliedVersionId, setAppliedVersionId] = useState('');
   const [marketProfileOptions, setMarketProfileOptions] = useState([]);
 
   const [deployConfirmOpen, setDeployConfirmOpen] = useState(false);
@@ -158,9 +176,11 @@ export function useStrategyDesignWorkbench() {
 
     setStrategyDescription('');
     setStrategyEntryConditions([]);
-    setStrategyDisplayName('');
-    setStrategyKey('');
+    // 用导航 state / session 种子，加载完成前不闪路径名
+    setStrategyDisplayName(labelSeed.displayName);
+    setStrategyKey(labelSeed.key);
     setIsLoadingSettings(true);
+    setHasValidSettings(false);
     setSettingsError('');
     patchSession({ workbenchSnapshot: emptyWorkbenchSnapshot() });
 
@@ -187,17 +207,24 @@ export function useStrategyDesignWorkbench() {
             ...serverSettings,
             meta: normalizeMeta(incomingMeta, serverSettings),
           });
+          const nextDisplayName = extractStrategyDisplayName(nextSettings);
+          const nextKey = extractStrategyKey(nextSettings);
           setInitialSettings(nextSettings);
-          setStrategyDisplayName(extractStrategyDisplayName(nextSettings));
-          setStrategyKey(extractStrategyKey(nextSettings));
+          setStrategyDisplayName(nextDisplayName);
+          setStrategyKey(nextKey);
+          writeCachedStrategyLabel(strategyName, {
+            displayName: nextDisplayName,
+            key: nextKey,
+          });
           setStrategyDescription(extractStrategyDescription(nextSettings));
           setStrategyEntryConditions(extractStrategyEntryConditions(nextSettings));
+          setHasValidSettings(true);
           setSettingsError('');
         } else {
           setInitialSettings(mergeBase);
           setStrategyDescription('');
           setStrategyEntryConditions([]);
-          setStrategyKey('');
+          setHasValidSettings(false);
           setSettingsError('未返回有效策略配置（settings 为空）。');
         }
 
@@ -205,7 +232,7 @@ export function useStrategyDesignWorkbench() {
         const hydration = buildWorkbenchExecutionHydrationFromSnapshot(strategyName, snapshot);
         const wbVer = snapshot.versionId;
         setSelectedConfigVersion(wbVer);
-        setAppliedVersionId(wbVer !== '' ? wbVer : 'userspace');
+        setAppliedVersionId(wbVer);
         lastRunSyncedVersionRef.current = hydration.lastCompletedWorkbenchVersionId;
 
         patchSession({
@@ -235,6 +262,7 @@ export function useStrategyDesignWorkbench() {
         setHasPersistedSnapshot(false);
         setHasOtherVersions(false);
         setConfigVersions([]);
+        setHasValidSettings(false);
         setSettingsError(err?.message || '读取策略配置失败');
         patchSession({ workbenchSnapshot: emptyWorkbenchSnapshot() });
       })
@@ -245,7 +273,7 @@ export function useStrategyDesignWorkbench() {
     return () => {
       isCancelled = true;
     };
-  }, [patchSession, strategyName]);
+  }, [labelSeed.displayName, labelSeed.key, patchSession, strategyName]);
 
   useEffect(() => {
     if (!strategyName || isLoadingSettings) return undefined;
@@ -336,23 +364,19 @@ export function useStrategyDesignWorkbench() {
   );
 
   const currentVersionDisplay = useMemo(() => {
-    const workspaceVersionLabel = selectedConfigVersion || '（尚无快照）';
-    if (appliedVersionId === 'userspace') return 'settings文件';
-    return String(appliedVersionId || '').trim() || workspaceVersionLabel;
-  }, [appliedVersionId, selectedConfigVersion]);
+    const applied = String(appliedVersionId || '').trim();
+    if (!applied) return 'settings文件';
+    return applied;
+  }, [appliedVersionId]);
 
   const marketProfileLabel = useMemo(() => {
-    const mp = draftSettings?.market_profile
-      || draftSettings?.meta?.market_profile
-      || initialSettings?.market_profile
-      || initialSettings?.meta?.market_profile
-      || '';
+    const mp = draftSettings?.market_profile || initialSettings?.market_profile || '';
     const row = marketProfileOptions.find((o) => o.value === mp);
     return row?.label || mp || '—';
   }, [draftSettings, initialSettings, marketProfileOptions]);
 
   const getDraftSettingsForSubmit = useCallback(
-    () => deepClone(draftSettings),
+    () => stripLegacyStrategySettingsForRun(deepClone(draftSettings)),
     [draftSettings],
   );
 
@@ -373,12 +397,12 @@ export function useStrategyDesignWorkbench() {
     getExecutionState,
   });
 
-  const disableMetaActions = isSavingSettings || isLoadingSettings || !strategyName || executionBusy;
+  const disableMetaActions = isSavingSettings || isLoadingSettings || !hasValidSettings || !strategyName || executionBusy;
 
   const handleDraftDrivenReset = useCallback(() => {
     if (strategyName) clearDesignActiveRun(strategyName);
     setSelectedConfigVersion('');
-    setAppliedVersionId('userspace');
+    setAppliedVersionId('');
     lastRunSyncedVersionRef.current = '';
     resetSessionForDraftChange();
   }, [resetSessionForDraftChange, strategyName]);
@@ -463,14 +487,21 @@ export function useStrategyDesignWorkbench() {
         const wb = wbVerRestore || restoreMeta?.version_id || '';
         suppressDraftDrivenPanelResetRef.current = true;
         setInitialSettings(mergedSettings);
-        setStrategyDisplayName(extractStrategyDisplayName(mergedSettings));
-        setStrategyKey(extractStrategyKey(mergedSettings));
+        const restoredDisplayName = extractStrategyDisplayName(mergedSettings);
+        const restoredKey = extractStrategyKey(mergedSettings);
+        setStrategyDisplayName(restoredDisplayName);
+        setStrategyKey(restoredKey);
+        writeCachedStrategyLabel(strategyName, {
+          displayName: restoredDisplayName,
+          key: restoredKey,
+        });
         setStrategyDescription(extractStrategyDescription(mergedSettings));
         setStrategyEntryConditions(extractStrategyEntryConditions(mergedSettings));
+        setHasValidSettings(true);
         setDraftSettings(deepClone(mergedSettings));
         setSelectedConfigVersion(wb);
         setAppliedSettings(deepClone(mergedSettings));
-        setAppliedVersionId(typeof wb === 'string' && wb.trim() !== '' ? wb.trim() : 'userspace');
+        setAppliedVersionId(typeof wb === 'string' ? wb.trim() : '');
         patchSession({
           workbenchSnapshot: snapshot,
           draftSettings: deepClone(mergedSettings),
@@ -547,6 +578,7 @@ export function useStrategyDesignWorkbench() {
     packageExportError,
     setPackageExportError,
     isLoadingSettings,
+    hasValidSettings,
     settingsError,
     saveError,
     userspaceApplyOk,

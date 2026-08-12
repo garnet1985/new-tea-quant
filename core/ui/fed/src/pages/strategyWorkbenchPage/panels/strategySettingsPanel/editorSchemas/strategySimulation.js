@@ -23,10 +23,6 @@ const SIMULATION_TEMPLATE_META = {
     label: '极值压力',
     tooltip: '压力测试；进场用次日开盘等更乐观口径，结果通常更差。',
   },
-  none: {
-    label: '无预设',
-    tooltip: '不使用命名预设，完全按下方显式 tradability 配置。',
-  },
   custom: {
     label: '自定义',
     tooltip: '自行配置盯价 / 进出价 / 滑点 / 贴板等；熟悉成交假设时使用。',
@@ -54,14 +50,14 @@ const KNOWN_STATUS_TAGS = new Set(['st', 'star_st']);
 
 const EXECUTION_MODE_OPTIONS = [
   {
-    label: '按实体推进',
+    label: '各股独立推进',
     value: 'entity_based',
-    tooltip: '每个股票独立时间轴推进（entity_based）。',
+    tooltip: '股票之间没有依赖关系，比如只是回溯或者对比自己的历史数据。股票可以各自独立推进（entity_based）。',
   },
   {
-    label: '按日历切片',
+    label: '所有股票统一日历推进',
     value: 'slice_based',
-    tooltip: '全市场统一日历轴推进（slice_based）；适合截面依赖场景。',
+    tooltip: '股票之间有依赖，比如需要全市场排序，股票对比等等行为，需要按统一日历推进（slice_based）。',
   },
 ];
 
@@ -143,21 +139,23 @@ function resolveTemplateOptions(simulationTemplateOptions) {
   const raw = Array.isArray(simulationTemplateOptions) && simulationTemplateOptions.length > 0
     ? simulationTemplateOptions
     : DEFAULT_SIMULATION_TEMPLATE_OPTIONS;
-  return raw.map((row) => {
-    const meta = SIMULATION_TEMPLATE_META[row.value];
-    if (meta) {
+  return raw
+    .filter((row) => row?.value && row.value !== 'none')
+    .map((row) => {
+      const meta = SIMULATION_TEMPLATE_META[row.value];
+      if (meta) {
+        return {
+          value: row.value,
+          label: meta.label,
+          tooltip: row.tooltip || meta.tooltip,
+        };
+      }
       return {
         value: row.value,
-        label: meta.label,
-        tooltip: row.tooltip || meta.tooltip,
+        label: row.label,
+        tooltip: row.tooltip || '',
       };
-    }
-    return {
-      value: row.value,
-      label: row.label,
-      tooltip: row.tooltip || '',
-    };
-  });
+    });
 }
 
 export function normalizeSkipEnterWhen(raw) {
@@ -172,9 +170,6 @@ export function normalizeSkipEnterWhen(raw) {
   });
   return out;
 }
-
-/** @deprecated 旧名；请用 normalizeSkipEnterWhen */
-export const normalizeSkipInvestmentWhen = normalizeSkipEnterWhen;
 
 function resolveSkipEnterWhenOptions(skipEnterWhenOptions) {
   const raw = Array.isArray(skipEnterWhenOptions) && skipEnterWhenOptions.length > 0
@@ -220,17 +215,17 @@ function resolveTemplateDefaults(template, simulationTemplateProfiles) {
   return profiles[tpl] || profiles.standard || {};
 }
 
-/** named 模板只读展示；none/custom 可编辑显式 tradability */
+/** named 模板只读展示；custom（及历史 none）可编辑显式 tradability */
 export const isExplicitTradabilityTemplate = (values) => {
   const template = values?.assumption?.template || TEMPLATE_DEFAULT;
   return template === 'custom' || template === 'none';
 };
 
-/** @deprecated 兼容旧调用名 */
-export const isCustomSimulationTemplate = (values) => {
-  if (values?.assumption) return isExplicitTradabilityTemplate(values);
-  return (values?.template || TEMPLATE_DEFAULT) === 'custom';
-};
+/** UI 不再暴露 none；旧配置读入时归一成 custom。 */
+function coerceUiTemplate(template) {
+  const tpl = String(template || '').trim() || TEMPLATE_DEFAULT;
+  return tpl === 'none' ? 'custom' : tpl;
+}
 
 function ensureExplicitTradability(tradability) {
   const next = ensureDict(tradability);
@@ -282,7 +277,7 @@ function normalizeForceExitWhen(raw) {
       return status ? { status, close_invest: true, exit_ratio: '' } : null;
     }
     if (!item || typeof item !== 'object') return null;
-    const status = String(item.status || item.name || '').trim().toLowerCase();
+    const status = String(item.status || '').trim().toLowerCase();
     if (!status) return null;
     const closeInvest = item.close_invest !== false;
     return {
@@ -290,7 +285,7 @@ function normalizeForceExitWhen(raw) {
       close_invest: closeInvest,
       exit_ratio: closeInvest
         ? ''
-        : (item.exit_ratio !== undefined ? item.exit_ratio : item.sell_ratio ?? ''),
+        : (item.exit_ratio !== undefined ? item.exit_ratio : ''),
     };
   }).filter(Boolean);
 }
@@ -331,9 +326,10 @@ export function normalizeSimulationSettings(simulation, simulationTemplateProfil
   const riskControl = ensureDict(src.risk_control);
 
   if (!assumption.template) assumption.template = TEMPLATE_DEFAULT;
+  assumption.template = coerceUiTemplate(assumption.template);
   if (!execution.mode) execution.mode = 'entity_based';
 
-  const explicit = assumption.template === 'custom' || assumption.template === 'none';
+  const explicit = assumption.template === 'custom';
   if (explicit) {
     assumption.tradability = ensureExplicitTradability(assumption.tradability);
   } else {
@@ -345,9 +341,7 @@ export function normalizeSimulationSettings(simulation, simulationTemplateProfil
     );
   }
 
-  riskControl.skip_enter_when = normalizeSkipEnterWhen(
-    riskControl.skip_enter_when || src.skip_investment_when,
-  );
+  riskControl.skip_enter_when = normalizeSkipEnterWhen(riskControl.skip_enter_when);
 
   const forceDraft = forceExitDraftFromList(riskControl.force_exit_when);
   Object.keys(forceDraft).forEach((status) => {
@@ -386,6 +380,7 @@ export function cleanupSimulationByTemplate(simulation) {
   const riskControl = ensureDict(next.risk_control);
 
   if (!assumption.template) assumption.template = TEMPLATE_DEFAULT;
+  assumption.template = coerceUiTemplate(assumption.template);
 
   const out = {
     execution: {
@@ -451,177 +446,206 @@ export function buildStrategySimulationSchema(
     label: '',
     children: [
       {
-        name: 'simulation.dateRange',
-        label: '回测时间窗',
-        tooltip: 'enum / price / portfolio 共用的行情区间（YYYYMMDD）。开始或结束留空表示由系统按 data.json 边界推断。',
-        type: 'dateRange',
-        layout: 'vertical',
-        startName: 'execution.start_date',
-        endName: 'execution.end_date',
-        startLabel: '开始日期',
-        endLabel: '结束日期',
+        name: 'simulation.execution',
+        type: 'fieldGroup',
+        label: '回测时间设置',
+        plain: true,
+        tooltip: 'enum / price / portfolio 共用的行情区间与执行调度模式。',
+        children: [
+          {
+            name: 'simulation.dateRange',
+            label: '时间窗口',
+            tooltip: '开始或结束留空表示由系统按 data.json 边界推断（YYYYMMDD）。',
+            type: 'dateRange',
+            layout: 'vertical',
+            startName: 'execution.start_date',
+            endName: 'execution.end_date',
+            startLabel: '开始日期',
+            endLabel: '结束日期',
+          },
+          {
+            name: 'execution.mode',
+            type: 'select',
+            label: '执行模式',
+            tooltip: 'entity_based：股票各自独立推进；slice_based：股票按统一日历推进。',
+            options: EXECUTION_MODE_OPTIONS,
+          },
+        ],
       },
+      { name: 'simulation.divider.execution_risk', type: 'divider' },
       {
-        name: 'execution.mode',
-        type: 'select',
-        label: '执行模式',
-        tooltip: 'entity_based：逐实体推进；slice_based：统一日历切片。',
-        options: EXECUTION_MODE_OPTIONS,
+        name: 'simulation.riskControl',
+        type: 'fieldGroup',
+        label: '风险管控',
+        plain: true,
+        tooltip: '主观风控：是否进场、持仓遇状态是否强平；不决定成交价。',
+        children: [
+          {
+            name: 'risk_control.skip_enter_when',
+            type: 'checkboxGroup',
+            label: '跳过进场如果股票是：',
+            tooltip:
+              '勾选后，价格/资金回测在触发日处于对应股票状态时跳过进场；枚举机会仍会保留。',
+            options: skipOptions,
+          },
+          {
+            name: 'risk_control.force_exit_when_draft.st.enabled',
+            type: 'switch',
+            label: '持仓遇 ST 强制出场',
+            tooltip: '持仓期间进入 ST（含 SST）时触发强平规则。',
+          },
+          {
+            name: 'risk_control.force_exit_when_draft.st.close_invest',
+            type: 'switch',
+            label: 'ST 触发清仓',
+            tooltip: '开启后触发时全部卖出；关闭后可填写部分平仓比例。',
+            visibleWhen: ({ values }) => Boolean(
+              values?.risk_control?.force_exit_when_draft?.st?.enabled,
+            ),
+          },
+          {
+            name: 'risk_control.force_exit_when_draft.st.exit_ratio',
+            type: 'number',
+            label: 'ST 平仓比例',
+            tooltip: '部分卖出比例（0～1）；开启「触发清仓」时不可编辑。',
+            parse: parseNumber,
+            visibleWhen: ({ values }) => Boolean(
+              values?.risk_control?.force_exit_when_draft?.st?.enabled,
+            ),
+            readonlyWhen: ({ values }) => Boolean(
+              values?.risk_control?.force_exit_when_draft?.st?.close_invest,
+            ),
+          },
+          {
+            name: 'risk_control.force_exit_when_draft.star_st.enabled',
+            type: 'switch',
+            label: '持仓遇 *ST 强制出场',
+            tooltip: '持仓期间进入 *ST（含 S*ST）时触发强平规则。',
+          },
+          {
+            name: 'risk_control.force_exit_when_draft.star_st.close_invest',
+            type: 'switch',
+            label: '*ST 触发清仓',
+            visibleWhen: ({ values }) => Boolean(
+              values?.risk_control?.force_exit_when_draft?.star_st?.enabled,
+            ),
+          },
+          {
+            name: 'risk_control.force_exit_when_draft.star_st.exit_ratio',
+            type: 'number',
+            label: '*ST 平仓比例',
+            parse: parseNumber,
+            visibleWhen: ({ values }) => Boolean(
+              values?.risk_control?.force_exit_when_draft?.star_st?.enabled,
+            ),
+            readonlyWhen: ({ values }) => Boolean(
+              values?.risk_control?.force_exit_when_draft?.star_st?.close_invest,
+            ),
+          },
+        ],
       },
+      { name: 'simulation.divider.risk_assumption', type: 'divider' },
       {
-        name: 'assumption.template',
-        type: 'select',
-        label: '成交假设模板',
-        tooltip: '快捷选择 assumption.tradability；除「自定义 / 无预设」外，下方参数只读展示模板默认值。',
-        options: templateOptions,
-      },
-      {
-        name: 'assumption.tradability.monitor_price',
-        type: 'select',
-        label: '盯盘价',
-        tooltip: '持仓期间用于止盈、止损、到期等目标比较的每日价格口径。',
-        options: MONITOR_PRICE_OPTIONS,
-        readonlyWhen: readonlyUnlessExplicit,
-      },
-      {
-        name: 'assumption.tradability.enter_price',
-        type: 'select',
-        label: '进场价',
-        tooltip: '执行进场时，从 K 线按何种价格语义取理论成交价。',
-        options: ENTER_PRICE_OPTIONS,
-        readonlyWhen: readonlyUnlessExplicit,
-      },
-      {
-        name: 'assumption.tradability.exit_price',
-        type: 'select',
-        label: '出场价',
-        tooltip: '执行出场时，从 K 线按何种价格语义取理论成交价。',
-        options: EXIT_PRICE_OPTIONS,
-        readonlyWhen: readonlyUnlessExplicit,
-      },
-      {
-        name: 'assumption.tradability.slippage.enter_bps',
-        type: 'number',
-        label: '进场滑点',
-        tooltip: '在理论进场价上叠加滑点，单位为基点（bps）。',
-        parse: parseNumber,
-        readonlyWhen: readonlyUnlessExplicit,
-      },
-      {
-        name: 'assumption.tradability.slippage.exit_bps',
-        type: 'number',
-        label: '出场滑点',
-        tooltip: '在理论出场价上叠加滑点，单位为基点（bps）。',
-        parse: parseNumber,
-        readonlyWhen: readonlyUnlessExplicit,
-      },
-      {
-        name: 'assumption.tradability.edges.no_next_tick',
-        type: 'select',
-        label: '样本末日无下一 tick',
-        tooltip: '采样区间最后一根 K 线无法取得「次日」价格时的处理方式。',
-        options: NO_NEXT_TICK_OPTIONS,
-        readonlyWhen: readonlyUnlessExplicit,
-      },
-      {
-        name: 'assumption.tradability.edges.allow_enter_at_limit_up',
-        type: 'switch',
-        label: '涨停日允许进场',
-        tooltip: '关闭后，遇到涨停且无法按规则进场时将跳过该笔。',
-        readonlyWhen: readonlyUnlessExplicit,
-      },
-      {
-        name: 'assumption.tradability.edges.allow_exit_at_limit_down',
-        type: 'switch',
-        label: '跌停日允许出场',
-        tooltip: '关闭后，遇到跌停且无法按规则出场时将跳过该笔。',
-        readonlyWhen: readonlyUnlessExplicit,
-      },
-      {
-        name: 'assumption.tradability.liquidity.max_participation_rate',
-        type: 'number',
-        label: '最大参与率',
-        tooltip: '单笔成交不超过当日 tick 成交量（股）的该比例；默认 0.1 即 10%。',
-        parse: parseNumber,
-        readonlyWhen: readonlyUnlessExplicit,
-      },
-      {
-        name: 'assumption.tradability.liquidity.participation_on_exceed',
-        type: 'select',
-        label: '超参与率时',
-        tooltip: '计划股数超过当日成交量×参与率时的处理方式。',
-        options: PARTICIPATION_ON_EXCEED_OPTIONS,
-        readonlyWhen: readonlyUnlessExplicit,
-      },
-      {
-        name: 'assumption.tradability.delisted_exit_price',
-        type: 'select',
-        label: '退市强平定价',
-        tooltip: '退市强平时使用哪根 tick 定价（是否强平由风控/引擎决定）。',
-        options: DELISTED_EXIT_PRICE_OPTIONS,
-        readonlyWhen: readonlyUnlessExplicit,
-      },
-      {
-        name: 'risk_control.skip_enter_when',
-        type: 'checkboxGroup',
-        label: '跳过进场如果股票是：',
-        tooltip:
-          '勾选后，价格/资金回测在触发日处于对应股票状态时跳过进场；枚举机会仍会保留。',
-        options: skipOptions,
-      },
-      {
-        name: 'risk_control.force_exit_when_draft.st.enabled',
-        type: 'switch',
-        label: '持仓遇 ST 强制出场',
-        tooltip: '持仓期间进入 ST（含 SST）时触发强平规则。',
-      },
-      {
-        name: 'risk_control.force_exit_when_draft.st.close_invest',
-        type: 'switch',
-        label: 'ST 触发清仓',
-        tooltip: '开启后触发时全部卖出；关闭后可填写部分平仓比例。',
-        visibleWhen: ({ values }) => Boolean(
-          values?.risk_control?.force_exit_when_draft?.st?.enabled,
-        ),
-      },
-      {
-        name: 'risk_control.force_exit_when_draft.st.exit_ratio',
-        type: 'number',
-        label: 'ST 平仓比例',
-        tooltip: '部分卖出比例（0～1）；开启「触发清仓」时不可编辑。',
-        parse: parseNumber,
-        visibleWhen: ({ values }) => Boolean(
-          values?.risk_control?.force_exit_when_draft?.st?.enabled,
-        ),
-        readonlyWhen: ({ values }) => Boolean(
-          values?.risk_control?.force_exit_when_draft?.st?.close_invest,
-        ),
-      },
-      {
-        name: 'risk_control.force_exit_when_draft.star_st.enabled',
-        type: 'switch',
-        label: '持仓遇 *ST 强制出场',
-        tooltip: '持仓期间进入 *ST（含 S*ST）时触发强平规则。',
-      },
-      {
-        name: 'risk_control.force_exit_when_draft.star_st.close_invest',
-        type: 'switch',
-        label: '*ST 触发清仓',
-        visibleWhen: ({ values }) => Boolean(
-          values?.risk_control?.force_exit_when_draft?.star_st?.enabled,
-        ),
-      },
-      {
-        name: 'risk_control.force_exit_when_draft.star_st.exit_ratio',
-        type: 'number',
-        label: '*ST 平仓比例',
-        parse: parseNumber,
-        visibleWhen: ({ values }) => Boolean(
-          values?.risk_control?.force_exit_when_draft?.star_st?.enabled,
-        ),
-        readonlyWhen: ({ values }) => Boolean(
-          values?.risk_control?.force_exit_when_draft?.star_st?.close_invest,
-        ),
+        name: 'simulation.assumption',
+        type: 'fieldGroup',
+        label: '回测执行假设',
+        plain: true,
+        tooltip: '成交假设模板与 tradability（盯盘/进出场价、滑点、涨跌停与流动性等）。',
+        children: [
+          {
+            name: 'assumption.template',
+            type: 'select',
+            label: '成交假设模板',
+            tooltip: '快捷选择 assumption.tradability；选「自定义」后下方参数可编辑，命名模板下只读预览。',
+            options: templateOptions,
+          },
+          {
+            name: 'assumption.tradability.monitor_price',
+            type: 'select',
+            label: '盯盘价',
+            tooltip: '持仓期间用于止盈、止损、到期等目标比较的每日价格口径。',
+            options: MONITOR_PRICE_OPTIONS,
+            readonlyWhen: readonlyUnlessExplicit,
+          },
+          {
+            name: 'assumption.tradability.enter_price',
+            type: 'select',
+            label: '进场价',
+            tooltip: '执行进场时，从 K 线按何种价格语义取理论成交价。',
+            options: ENTER_PRICE_OPTIONS,
+            readonlyWhen: readonlyUnlessExplicit,
+          },
+          {
+            name: 'assumption.tradability.exit_price',
+            type: 'select',
+            label: '出场价',
+            tooltip: '执行出场时，从 K 线按何种价格语义取理论成交价。',
+            options: EXIT_PRICE_OPTIONS,
+            readonlyWhen: readonlyUnlessExplicit,
+          },
+          {
+            name: 'assumption.tradability.slippage.enter_bps',
+            type: 'number',
+            label: '进场滑点',
+            tooltip: '在理论进场价上叠加滑点，单位为基点（bps）。',
+            parse: parseNumber,
+            readonlyWhen: readonlyUnlessExplicit,
+          },
+          {
+            name: 'assumption.tradability.slippage.exit_bps',
+            type: 'number',
+            label: '出场滑点',
+            tooltip: '在理论出场价上叠加滑点，单位为基点（bps）。',
+            parse: parseNumber,
+            readonlyWhen: readonlyUnlessExplicit,
+          },
+          {
+            name: 'assumption.tradability.edges.no_next_tick',
+            type: 'select',
+            label: '样本末日无下一 tick',
+            tooltip: '采样区间最后一根 K 线无法取得「次日」价格时的处理方式。',
+            options: NO_NEXT_TICK_OPTIONS,
+            readonlyWhen: readonlyUnlessExplicit,
+          },
+          {
+            name: 'assumption.tradability.edges.allow_enter_at_limit_up',
+            type: 'switch',
+            label: '涨停日允许进场',
+            tooltip: '关闭后，遇到涨停且无法按规则进场时将跳过该笔。',
+            readonlyWhen: readonlyUnlessExplicit,
+          },
+          {
+            name: 'assumption.tradability.edges.allow_exit_at_limit_down',
+            type: 'switch',
+            label: '跌停日允许出场',
+            tooltip: '关闭后，遇到跌停且无法按规则出场时将跳过该笔。',
+            readonlyWhen: readonlyUnlessExplicit,
+          },
+          {
+            name: 'assumption.tradability.liquidity.max_participation_rate',
+            type: 'number',
+            label: '最大参与率',
+            tooltip: '单笔成交不超过当日 tick 成交量（股）的该比例；默认 0.1 即 10%。',
+            parse: parseNumber,
+            readonlyWhen: readonlyUnlessExplicit,
+          },
+          {
+            name: 'assumption.tradability.liquidity.participation_on_exceed',
+            type: 'select',
+            label: '超参与率时',
+            tooltip: '计划股数超过当日成交量×参与率时的处理方式。',
+            options: PARTICIPATION_ON_EXCEED_OPTIONS,
+            readonlyWhen: readonlyUnlessExplicit,
+          },
+          {
+            name: 'assumption.tradability.delisted_exit_price',
+            type: 'select',
+            label: '退市强平定价',
+            tooltip: '退市强平时使用哪根 tick 定价（是否强平由风控/引擎决定）。',
+            options: DELISTED_EXIT_PRICE_OPTIONS,
+            readonlyWhen: readonlyUnlessExplicit,
+          },
+        ],
       },
     ],
   };

@@ -1,4 +1,4 @@
-// 轻量分组：标题 + 边框内容区（比 MUI Paper 更疏朗）
+// 轻量分组：区块标题 + 字段区（可比 MUI Paper 更疏朗）
 .ntq-editor-field-group {
 
   &:last-child {
@@ -9,12 +9,17 @@
     margin-bottom: 0;
   }
 
-  &__label {
-    margin: 0 0 6px;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.45;
-    color: var(--ntq-text);
+  &__title {
+    margin: 0 0 12px;
+  }
+
+  &__title-text {
+    margin: 0 !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    line-height: 1.35 !important;
+    letter-spacing: 0.01em;
+    color: var(--ntq-text, rgba(255, 255, 255, 0.92));
   }
 
   &__body {
@@ -33,4 +38,14 @@
     border-radius: 0;
     background: transparent;
   }
+}
+
+.ntq-editor-divider {
+  border: none !important;
+  border-top: 1px solid transparent !important;
+  height: 0 !important;
+  margin: 20px 0 !important;
+  // 比默认 MUI Divider / white-12 更醒目
+  border-top-color: var(--ntq-white-42, rgba(255, 255, 255, 0.42)) !important;
+  opacity: 1 !important;
 }

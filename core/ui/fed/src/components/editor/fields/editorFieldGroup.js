@@ -1,11 +1,12 @@
 import React from 'react';
 import PropTypes from 'prop-types';
-import EditorFieldLabel from './editorFieldLabel';
+import NtqHelpTooltip from '../../ntqHelpTooltip/ntqHelpTooltip';
+import { Stack, Typography } from '@mui/material';
 import './editorFieldGroup.scss';
 
 /**
- * 编辑器内轻量分组：标题在框外，字段在带边框的内容区里。
- * 比通用 Paper 更留白，用于「到期设置」等逻辑相关的字段簇。
+ * 编辑器内轻量分组：区块标题在上，字段在下。
+ * 默认字段区带边框；`plain` 时不画框、不额外 padding（仅纵向间距）。
  */
 export default function EditorFieldGroup({
   label,
@@ -26,14 +27,22 @@ export default function EditorFieldGroup({
     plain ? 'ntq-editor-field-group__body--plain' : '',
   ].filter(Boolean).join(' ');
 
+  const shine = Boolean(context?.defaultTooltipShine);
+
   return (
     <div className={rootClass}>
-      {label && !plain ? (
-        <EditorFieldLabel
-          field={{ label, tooltip: tooltip || '' }}
-          context={context}
-          sx={{ mb: 1 }}
-        />
+      {label ? (
+        <Stack
+          direction="row"
+          spacing={0.5}
+          alignItems="center"
+          className="ntq-editor-field-group__title"
+        >
+          <Typography component="h3" className="ntq-editor-field-group__title-text">
+            {label}
+          </Typography>
+          {tooltip ? <NtqHelpTooltip title={tooltip} shine={shine} /> : null}
+        </Stack>
       ) : null}
       <div className={bodyClass}>{children}</div>
     </div>
@@ -45,7 +54,7 @@ EditorFieldGroup.propTypes = {
   tooltip: PropTypes.string,
   context: PropTypes.object,
   children: PropTypes.node,
-  /** 无标题容器：仅保留子项纵向间距，不画框 */
+  /** 无边框：仅保留子项纵向间距，不画框、不额外 padding */
   plain: PropTypes.bool,
   className: PropTypes.string,
 };

@@ -345,6 +345,16 @@ function StrategyReportPanel({
             </Stack>
           </Box>
         );
+      } else if (activeWorkbenchVersionId && enumRefStatus === 'error') {
+        stockGridOverlay = (
+          <Box className="ntq-stock-grid-overlay ntq-stock-grid-overlay--static">
+            <Stack spacing={1} alignItems="center">
+              <Typography variant="body2" color="error">
+                逐股明细加载失败（网络或服务异常），请稍后重试。
+              </Typography>
+            </Stack>
+          </Box>
+        );
       }
       return renderReportByTab(
         'enum',

@@ -20,7 +20,7 @@ _FALLBACK: Dict[str, Any] = {
     "python": {
         "minimum": [3, 9]
     },
-        "new_features": [
+            "new_features": [
         "标准化模块：所有模块统一格式，根目录下是同名模块入口层，另外还有contract（接口契约）来提供额外可能对外的API",
         "标准化模块：所有模块统一文档，一个api，一个readme，与原有的module info合并成完整的使用文档",
         "代码清理：删除logging（日志）模块 (技术债)",

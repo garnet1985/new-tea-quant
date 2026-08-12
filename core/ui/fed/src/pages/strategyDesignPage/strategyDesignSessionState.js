@@ -116,11 +116,11 @@ export function buildStrategyDesignNavState(row) {
   };
 }
 
-/** 从 location.state 取进入时的展示名种子。 */
+/** 从 location.state 取进入时的展示名种子（写入约定：displayName / strategyKey）。 */
 export function readStrategyLabelFromLocationState(state) {
   if (!state || typeof state !== 'object') return { displayName: '', key: '' };
   return {
-    displayName: String(state.displayName || state.display_name || '').trim(),
-    key: String(state.strategyKey || state.key || '').trim(),
+    displayName: String(state.displayName || '').trim(),
+    key: String(state.strategyKey || '').trim(),
   };
 }

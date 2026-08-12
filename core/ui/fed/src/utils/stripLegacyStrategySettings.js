@@ -296,3 +296,34 @@ export function stripLegacyStrategySettingsForRun(settings) {
 
   return out;
 }
+
+/** 检测仍带旧字段的 settings（加载后提示；不阻断，迁移仍由 migrate 负责）。 */
+export function detectLegacyStrategySettings(settings) {
+  if (!settings || typeof settings !== 'object') return [];
+  const hits = [];
+  if (settings.capital_simulator) hits.push('capital_simulator→portfolio');
+  if (settings.skip_investment_when) hits.push('skip_investment_when→risk_control.skip_enter_when');
+  if (settings.performance) hits.push('performance（应剥离）');
+  if (settings.scanner) hits.push('scanner（应剥离）');
+  const goal = settings.goal;
+  if (goal?.expiration && Object.prototype.hasOwnProperty.call(goal.expiration, 'is_trading_days')) {
+    hits.push('goal.expiration.is_trading_days→mode');
+  }
+  const stages = [
+    ...(Array.isArray(goal?.stop_loss?.stages) ? goal.stop_loss.stages : []),
+    ...(Array.isArray(goal?.take_profit?.stages) ? goal.take_profit.stages : []),
+  ];
+  if (stages.some((s) => s && Object.prototype.hasOwnProperty.call(s, 'sell_ratio'))) {
+    hits.push('goal.*.sell_ratio→exit_ratio');
+  }
+  const sim = settings.simulation;
+  if (sim && typeof sim === 'object') {
+    if (sim.template && !sim.assumption) hits.push('simulation 扁平 template→assumption');
+    if (sim.start_date != null || sim.end_date != null) hits.push('simulation.start/end_date→execution');
+  }
+  const sampling = settings.sampling;
+  if (sampling && (sampling.start_date != null || sampling.end_date != null)) {
+    hits.push('sampling.start/end_date→simulation.execution');
+  }
+  return hits;
+}

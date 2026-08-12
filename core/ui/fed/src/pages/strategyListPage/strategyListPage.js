@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -18,7 +18,6 @@ import {
   fetchStrategyList,
   getStrategyDesignPath,
   getStrategyDisplayLabel,
-  getStrategyWorkbenchPath,
 } from '../../api/apis/strategyApi';
 import PageLayout from '../../components/pageLayout/pageLayout';
 import StrategyPackageImportDialog from '../../components/strategyPackageImportDialog/strategyPackageImportDialog';
@@ -30,30 +29,24 @@ import './strategyListPage.scss';
 
 /**
  * @param {object} props
- * @param {string} props.listBasePath 列表页路由（面包屑）
- * @param {(name: string) => string} props.getEnterPath 进入单策略调试页
- * @param {string} props.navLabel 主导航/面包屑标签
- * @param {string} props.bannerTitle
- * @param {string} props.bannerDescription
+ * @param {string} [props.listBasePath] 列表页路由（面包屑）
+ * @param {(name: string) => string} [props.getEnterPath] 进入单策略调试页
+ * @param {string} [props.navLabel] 主导航/面包屑标签
+ * @param {string} [props.bannerTitle]
+ * @param {string} [props.bannerDescription]
  */
 const STRATEGY_LIST_BANNER_TITLE = '选择一个策略';
 const STRATEGY_LIST_BANNER_DESCRIPTION =
   '请从表格中选择一个策略；支持按名称搜索。进入后可调参数、分步回测并对比版本。';
 
 function StrategyListPage({
-  listBasePath: listBasePathProp,
-  getEnterPath: getEnterPathProp,
-  navLabel: navLabelProp,
+  listBasePath = '/strategy-design',
+  getEnterPath = getStrategyDesignPath,
+  navLabel = '制定策略',
   bannerTitle = STRATEGY_LIST_BANNER_TITLE,
   bannerDescription = STRATEGY_LIST_BANNER_DESCRIPTION,
 }) {
   const navigate = useNavigate();
-  const location = useLocation();
-  const isDesignFlow = location.pathname.startsWith('/strategy-design');
-
-  const listBasePath = listBasePathProp ?? (isDesignFlow ? '/strategy-design' : '/strategy-workbench');
-  const getEnterPath = getEnterPathProp ?? (isDesignFlow ? getStrategyDesignPath : getStrategyWorkbenchPath);
-  const navLabel = navLabelProp ?? (isDesignFlow ? '制定策略' : '策略实验室');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -110,9 +103,7 @@ function StrategyListPage({
     }
   }, [exportingName]);
 
-  const enterNavState = useCallback((row) => (
-    isDesignFlow ? buildStrategyDesignNavState(row) : undefined
-  ), [isDesignFlow]);
+  const enterNavState = useCallback((row) => buildStrategyDesignNavState(row), []);
 
   const columns = [
     {

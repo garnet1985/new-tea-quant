@@ -7,7 +7,7 @@ import {
   fetchSkipInvestmentWhenOptions,
 } from '../../../api/apis/strategyApi';
 
-/** 制定策略设置面板：下拉/模板等选项（与策略实验室同源）。 */
+/** 制定策略设置面板：下拉/模板等选项。 */
 export function useStrategyDesignSettingsOptions() {
   const [allocationModeOptions, setAllocationModeOptions] = useState([]);
   const [samplingStrategyOptions, setSamplingStrategyOptions] = useState([]);

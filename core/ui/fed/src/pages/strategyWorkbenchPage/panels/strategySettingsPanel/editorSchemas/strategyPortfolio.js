@@ -117,9 +117,6 @@ export function buildStrategyPortfolioSchema(allocationModeOptions = DEFAULT_ALL
   };
 }
 
-/** @deprecated 使用 buildStrategyPortfolioSchema */
-export const buildStrategyCapitalSimulatorSchema = buildStrategyPortfolioSchema;
-
 const strategyPortfolioSchema = buildStrategyPortfolioSchema();
 
 export default strategyPortfolioSchema;

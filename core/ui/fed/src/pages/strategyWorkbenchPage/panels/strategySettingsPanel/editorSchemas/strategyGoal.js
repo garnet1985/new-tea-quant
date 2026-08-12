@@ -46,8 +46,6 @@ function toNumberOrEmpty(value, fallback = '') {
 function normalizeExpirationMode(expiration) {
   if (!expiration || typeof expiration !== 'object') return 'open_day';
   if (expiration.mode) return String(expiration.mode);
-  if (expiration.is_trading_days === false) return 'natural_day';
-  if (expiration.is_trading_days === true) return 'trading_day';
   return 'open_day';
 }
 
@@ -88,9 +86,7 @@ function inferredNameField(kind) {
 }
 
 function normalizeStage(stage) {
-  const exitRatio = stage?.exit_ratio !== undefined
-    ? stage.exit_ratio
-    : stage?.sell_ratio;
+  const exitRatio = stage?.exit_ratio;
   return {
     ratio: toNumberOrEmpty(stage?.ratio, ''),
     close_invest: Boolean(stage?.close_invest),
@@ -108,13 +104,15 @@ export function normalizeGoalSettings(goal) {
   const expirationEnabled = hasGoalExpiration(goal);
   return {
     expirationEnabled,
-    expiration: {
-      fixed_window_in_days: toNumberOrEmpty(
-        expirationEnabled ? goal.expiration.fixed_window_in_days : undefined,
-        30,
-      ),
-      mode: expirationEnabled ? normalizeExpirationMode(goal.expiration) : 'open_day',
-    },
+    expiration: expirationEnabled
+      ? {
+          fixed_window_in_days: toNumberOrEmpty(goal.expiration.fixed_window_in_days, ''),
+          mode: normalizeExpirationMode(goal.expiration),
+        }
+      : {
+          fixed_window_in_days: '',
+          mode: 'open_day',
+        },
     stop_loss: {
       stages: Array.isArray(goal?.stop_loss?.stages)
         ? goal.stop_loss.stages.map(normalizeStage)

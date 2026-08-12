@@ -9,6 +9,7 @@ import {
   fetchStrategyVersions,
   restoreStrategyVersion,
 } from '../../../api/apis/strategyApi';
+import { stripLegacyStrategySettingsForRun } from '../../../utils/stripLegacyStrategySettings';
 import {
   extractStrategyDescription,
   extractStrategyDisplayName,
@@ -107,6 +108,7 @@ export function useStrategyDesignWorkbench() {
   const [hasPersistedSnapshot, setHasPersistedSnapshot] = useState(false);
   const [hasOtherVersions, setHasOtherVersions] = useState(false);
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  const [hasValidSettings, setHasValidSettings] = useState(false);
   const [settingsError, setSettingsError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [userspaceApplyOk, setUserspaceApplyOk] = useState('');
@@ -119,7 +121,7 @@ export function useStrategyDesignWorkbench() {
   const [draftSettings, setDraftSettings] = useState(() => buildMergeBaseSettings());
   const [appliedSettings, setAppliedSettings] = useState(() => buildMergeBaseSettings());
   const [selectedConfigVersion, setSelectedConfigVersion] = useState('');
-  const [appliedVersionId, setAppliedVersionId] = useState('userspace');
+  const [appliedVersionId, setAppliedVersionId] = useState('');
   const [marketProfileOptions, setMarketProfileOptions] = useState([]);
 
   const [deployConfirmOpen, setDeployConfirmOpen] = useState(false);
@@ -178,6 +180,7 @@ export function useStrategyDesignWorkbench() {
     setStrategyDisplayName(labelSeed.displayName);
     setStrategyKey(labelSeed.key);
     setIsLoadingSettings(true);
+    setHasValidSettings(false);
     setSettingsError('');
     patchSession({ workbenchSnapshot: emptyWorkbenchSnapshot() });
 
@@ -215,11 +218,13 @@ export function useStrategyDesignWorkbench() {
           });
           setStrategyDescription(extractStrategyDescription(nextSettings));
           setStrategyEntryConditions(extractStrategyEntryConditions(nextSettings));
+          setHasValidSettings(true);
           setSettingsError('');
         } else {
           setInitialSettings(mergeBase);
           setStrategyDescription('');
           setStrategyEntryConditions([]);
+          setHasValidSettings(false);
           setSettingsError('未返回有效策略配置（settings 为空）。');
         }
 
@@ -227,7 +232,7 @@ export function useStrategyDesignWorkbench() {
         const hydration = buildWorkbenchExecutionHydrationFromSnapshot(strategyName, snapshot);
         const wbVer = snapshot.versionId;
         setSelectedConfigVersion(wbVer);
-        setAppliedVersionId(wbVer !== '' ? wbVer : 'userspace');
+        setAppliedVersionId(wbVer);
         lastRunSyncedVersionRef.current = hydration.lastCompletedWorkbenchVersionId;
 
         patchSession({
@@ -257,6 +262,7 @@ export function useStrategyDesignWorkbench() {
         setHasPersistedSnapshot(false);
         setHasOtherVersions(false);
         setConfigVersions([]);
+        setHasValidSettings(false);
         setSettingsError(err?.message || '读取策略配置失败');
         patchSession({ workbenchSnapshot: emptyWorkbenchSnapshot() });
       })
@@ -358,23 +364,19 @@ export function useStrategyDesignWorkbench() {
   );
 
   const currentVersionDisplay = useMemo(() => {
-    const workspaceVersionLabel = selectedConfigVersion || '（尚无快照）';
-    if (appliedVersionId === 'userspace') return 'settings文件';
-    return String(appliedVersionId || '').trim() || workspaceVersionLabel;
-  }, [appliedVersionId, selectedConfigVersion]);
+    const applied = String(appliedVersionId || '').trim();
+    if (!applied) return 'settings文件';
+    return applied;
+  }, [appliedVersionId]);
 
   const marketProfileLabel = useMemo(() => {
-    const mp = draftSettings?.market_profile
-      || draftSettings?.meta?.market_profile
-      || initialSettings?.market_profile
-      || initialSettings?.meta?.market_profile
-      || '';
+    const mp = draftSettings?.market_profile || initialSettings?.market_profile || '';
     const row = marketProfileOptions.find((o) => o.value === mp);
     return row?.label || mp || '—';
   }, [draftSettings, initialSettings, marketProfileOptions]);
 
   const getDraftSettingsForSubmit = useCallback(
-    () => deepClone(draftSettings),
+    () => stripLegacyStrategySettingsForRun(deepClone(draftSettings)),
     [draftSettings],
   );
 
@@ -395,12 +397,12 @@ export function useStrategyDesignWorkbench() {
     getExecutionState,
   });
 
-  const disableMetaActions = isSavingSettings || isLoadingSettings || !strategyName || executionBusy;
+  const disableMetaActions = isSavingSettings || isLoadingSettings || !hasValidSettings || !strategyName || executionBusy;
 
   const handleDraftDrivenReset = useCallback(() => {
     if (strategyName) clearDesignActiveRun(strategyName);
     setSelectedConfigVersion('');
-    setAppliedVersionId('userspace');
+    setAppliedVersionId('');
     lastRunSyncedVersionRef.current = '';
     resetSessionForDraftChange();
   }, [resetSessionForDraftChange, strategyName]);
@@ -495,10 +497,11 @@ export function useStrategyDesignWorkbench() {
         });
         setStrategyDescription(extractStrategyDescription(mergedSettings));
         setStrategyEntryConditions(extractStrategyEntryConditions(mergedSettings));
+        setHasValidSettings(true);
         setDraftSettings(deepClone(mergedSettings));
         setSelectedConfigVersion(wb);
         setAppliedSettings(deepClone(mergedSettings));
-        setAppliedVersionId(typeof wb === 'string' && wb.trim() !== '' ? wb.trim() : 'userspace');
+        setAppliedVersionId(typeof wb === 'string' ? wb.trim() : '');
         patchSession({
           workbenchSnapshot: snapshot,
           draftSettings: deepClone(mergedSettings),
@@ -575,6 +578,7 @@ export function useStrategyDesignWorkbench() {
     packageExportError,
     setPackageExportError,
     isLoadingSettings,
+    hasValidSettings,
     settingsError,
     saveError,
     userspaceApplyOk,

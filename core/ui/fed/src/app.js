@@ -8,7 +8,6 @@ import SetupGuard from 'components/setupGuard';
 import TraceConsentGuard from 'components/traceConsentGuard';
 import MainLayout from './layouts/mainLayout';
 import StrategyListPage from './pages/strategyListPage';
-import StrategyWorkbenchPage from './pages/strategyWorkbenchPage';
 import { StrategyDesignLayout } from './pages/strategyDesignPage';
 import ScanPage from './pages/scanPage';
 import TagListPage from './pages/tagPage';
@@ -165,8 +164,14 @@ function App() {
               </SetupGuard>
             )}
           >
-            <Route path="/strategy-workbench/*" element={<StrategyWorkbenchPage />} />
-            <Route path="/strategy-workbench" element={<StrategyListPage />} />
+            <Route
+              path="/strategy-workbench/*"
+              element={<Navigate to="/strategy-design" replace />}
+            />
+            <Route
+              path="/strategy-workbench"
+              element={<Navigate to="/strategy-design" replace />}
+            />
             <Route path="/strategy-design">
               <Route index element={<StrategyListPage />} />
               <Route path="*" element={<StrategyDesignLayout />} />

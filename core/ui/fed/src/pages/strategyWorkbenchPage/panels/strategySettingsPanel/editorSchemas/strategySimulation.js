@@ -171,9 +171,6 @@ export function normalizeSkipEnterWhen(raw) {
   return out;
 }
 
-/** @deprecated 旧名；请用 normalizeSkipEnterWhen */
-export const normalizeSkipInvestmentWhen = normalizeSkipEnterWhen;
-
 function resolveSkipEnterWhenOptions(skipEnterWhenOptions) {
   const raw = Array.isArray(skipEnterWhenOptions) && skipEnterWhenOptions.length > 0
     ? skipEnterWhenOptions
@@ -230,12 +227,6 @@ function coerceUiTemplate(template) {
   return tpl === 'none' ? 'custom' : tpl;
 }
 
-/** @deprecated 兼容旧调用名 */
-export const isCustomSimulationTemplate = (values) => {
-  if (values?.assumption) return isExplicitTradabilityTemplate(values);
-  return (values?.template || TEMPLATE_DEFAULT) === 'custom';
-};
-
 function ensureExplicitTradability(tradability) {
   const next = ensureDict(tradability);
   if (!next.monitor_price) next.monitor_price = 'close';
@@ -286,7 +277,7 @@ function normalizeForceExitWhen(raw) {
       return status ? { status, close_invest: true, exit_ratio: '' } : null;
     }
     if (!item || typeof item !== 'object') return null;
-    const status = String(item.status || item.name || '').trim().toLowerCase();
+    const status = String(item.status || '').trim().toLowerCase();
     if (!status) return null;
     const closeInvest = item.close_invest !== false;
     return {
@@ -294,7 +285,7 @@ function normalizeForceExitWhen(raw) {
       close_invest: closeInvest,
       exit_ratio: closeInvest
         ? ''
-        : (item.exit_ratio !== undefined ? item.exit_ratio : item.sell_ratio ?? ''),
+        : (item.exit_ratio !== undefined ? item.exit_ratio : ''),
     };
   }).filter(Boolean);
 }
@@ -350,9 +341,7 @@ export function normalizeSimulationSettings(simulation, simulationTemplateProfil
     );
   }
 
-  riskControl.skip_enter_when = normalizeSkipEnterWhen(
-    riskControl.skip_enter_when || src.skip_investment_when,
-  );
+  riskControl.skip_enter_when = normalizeSkipEnterWhen(riskControl.skip_enter_when);
 
   const forceDraft = forceExitDraftFromList(riskControl.force_exit_when);
   Object.keys(forceDraft).forEach((status) => {

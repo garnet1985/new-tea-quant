@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { Alert, Box, Grid, Stack } from '@mui/material';
 import StrategyDesignExecutionPanel from './components/strategyDesignExecutionPanel';
 import StrategyDesignReportPanel from './components/strategyDesignReportPanel';
@@ -9,11 +9,16 @@ import StrategyDesignDraftChangeBridge from './components/strategyDesignDraftCha
 import StrategyDesignSettingsPanel from './components/strategyDesignSettingsPanel';
 import { useStrategyDesignSettingsOptions } from './hooks/useStrategyDesignSettingsOptions';
 import { useStrategyDesignWorkbenchContext } from './strategyDesignWorkbenchContext';
+import { detectLegacyStrategySettings } from '../../utils/stripLegacyStrategySettings';
 import './strategyDesignStepPage.scss';
 
 function StrategyDesignStepPage() {
   const wb = useStrategyDesignWorkbenchContext();
   const options = useStrategyDesignSettingsOptions();
+  const legacyHits = useMemo(
+    () => detectLegacyStrategySettings(wb.initialSettings),
+    [wb.initialSettings],
+  );
 
   const handleDraftSync = useCallback((nextDraft) => {
     wb.setDraftSettings(nextDraft);
@@ -27,13 +32,25 @@ function StrategyDesignStepPage() {
     );
   }
 
+  if (!wb.hasValidSettings) {
+    return (
+      <Box className="ntq-design-step-page">
+        <Alert severity="error" sx={{ mb: 1.5 }}>
+          {wb.settingsError || '策略配置不可用，无法打开设置编辑器。'}
+        </Alert>
+      </Box>
+    );
+  }
+
   return (
     <Box className="ntq-design-step-page">
-      {wb.settingsError ? (
-        <Alert severity="warning" sx={{ mb: 1.5 }}>{wb.settingsError}</Alert>
-      ) : null}
       {options.optionsError ? (
-        <Alert severity="warning" sx={{ mb: 1.5 }}>{options.optionsError}</Alert>
+        <Alert severity="error" sx={{ mb: 1.5 }}>{options.optionsError}</Alert>
+      ) : null}
+      {legacyHits.length > 0 ? (
+        <Alert severity="info" sx={{ mb: 1.5 }}>
+          检测到旧版 settings 字段（已自动迁移到新结构）：{legacyHits.join('；')}。保存后将按新结构写入。
+        </Alert>
       ) : null}
       <StrategySettingsContainer initialSettings={wb.initialSettings}>
         {({

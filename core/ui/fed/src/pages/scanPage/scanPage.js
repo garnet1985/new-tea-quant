@@ -151,7 +151,7 @@ function ScanPage() {
         id: r.id,
         action: x.primary_action === 'rerun' ? 'rerun' : 'run',
         report: x.report,
-        canScan: x.can_scan !== false,
+        canScan: x.can_scan === true,
         blockReason: String(x.block_reason || '').trim(),
       }))),
     )

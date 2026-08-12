@@ -1,6 +1,8 @@
 """
 批量更新所有使用 PathManager 旧方法名的文件
 """
+from core.infra.cmd_layout import i
+
 import re
 from pathlib import Path
 
@@ -46,13 +48,13 @@ def update_file(file_path: Path) -> bool:
 
         if content != original_content:
             file_path.write_text(content, encoding='utf-8')
-            print(f"✅ Updated: {file_path}")
+            print(f"{i('success')} Updated: {file_path}")
             return True
         else:
             return False
 
     except Exception as e:
-        print(f"❌ Error updating {file_path}: {e}")
+        print(f"{i('error')} Error updating {file_path}: {e}")
         return False
 
 
@@ -77,7 +79,7 @@ def batch_update_all_files():
             if update_file(file_path):
                 updated_count += 1
 
-    print(f"\n✅ Total updated: {updated_count} files")
+    print(f"\n{i('success')} Total updated: {updated_count} files")
 
 
 if __name__ == "__main__":

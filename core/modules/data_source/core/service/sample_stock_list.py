@@ -9,6 +9,7 @@
 - ``ListService`` 读路径信任 DB，不感知样本池。
 """
 from __future__ import annotations
+from core.infra.cmd_layout import i
 
 import csv
 import logging
@@ -186,7 +187,7 @@ def filter_records_by_sample_pool(
     dropped = len(records) - len(out)
     if dropped:
         logger.info(
-            "📎 use_sample_stock_list=%s: 写入过滤 %s → %s 行（丢弃池外 %s 行，field=%s）",
+            i('attach') + " use_sample_stock_list=%s: 写入过滤 %s → %s 行（丢弃池外 %s 行，field=%s）",
             sample_pool_count(),
             len(records),
             len(out),
@@ -210,7 +211,7 @@ def slice_stock_list(rows: List[Any]) -> List[Any]:
     if not _LOGGED:
         _LOGGED = True
         logger.info(
-            "📎 use_sample_stock_list=%s: 全量 %s 只 → 池内 %s 只 (file=%s)",
+            i('attach') + " use_sample_stock_list=%s: 全量 %s 只 → 池内 %s 只 (file=%s)",
             sample_pool_count(),
             len(rows),
             len(sliced),

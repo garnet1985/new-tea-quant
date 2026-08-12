@@ -3,6 +3,8 @@
 批量更新api.yaml的示例代码，改为类方法调用方式
 """
 
+from core.infra.cmd_layout import i
+
 import re
 from pathlib import Path
 
@@ -31,7 +33,7 @@ def update_api_yaml():
     
     # 写回文件
     API_YAML_FILE.write_text(content, encoding="utf-8")
-    print("✅ 已更新 api.yaml")
+    print(f"{i('success')} 已更新 api.yaml")
 
 if __name__ == "__main__":
     update_api_yaml()

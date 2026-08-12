@@ -6,6 +6,8 @@
 3. 版本号从0.5.0改为0.4.0
 """
 
+from core.infra.cmd_layout import i
+
 import os
 import re
 from pathlib import Path
@@ -29,7 +31,7 @@ def fix_indent_test_file(file_path: Path):
     lines = content.split("\n")
     fixed_lines = []
     
-    for i, line in enumerate(lines):
+    for _idx, line in enumerate(lines):
         # 检查是否是方法定义
         if line.strip().startswith("def test_"):
             fixed_lines.append(line)
@@ -49,7 +51,7 @@ def fix_indent_test_file(file_path: Path):
     
     content = "\n".join(fixed_lines)
     file_path.write_text(content, encoding="utf-8")
-    print(f"✅ 已修复缩进：{file_path.relative_to(PROJECT_ROOT)}")
+    print(f"{i('success')} 已修复缩进：{file_path.relative_to(PROJECT_ROOT)}")
 
 def fix_indent_yaml_file(file_path: Path):
     """修复api.yaml的缩进"""
@@ -61,7 +63,7 @@ def fix_indent_yaml_file(file_path: Path):
     fixed_lines = []
     
     in_example = False
-    for i, line in enumerate(lines):
+    for _idx, line in enumerate(lines):
         # 检查是否进入example字段
         if "example:" in line:
             in_example = True
@@ -83,7 +85,7 @@ def fix_indent_yaml_file(file_path: Path):
     
     content = "\n".join(fixed_lines)
     file_path.write_text(content, encoding="utf-8")
-    print(f"✅ 已修复缩进：{file_path.relative_to(PROJECT_ROOT)}")
+    print(f"{i('success')} 已修复缩进：{file_path.relative_to(PROJECT_ROOT)}")
 
 def rename_project_context_manager():
     """重命名ProjectContextManager为ProjectContext"""
@@ -107,7 +109,7 @@ def rename_project_context_manager():
             file_path.write_text(content, encoding="utf-8")
             renamed_count += 1
     
-    print(f"✅ 已重命名 {renamed_count} 个文件（ProjectContextManager → ProjectContext）")
+    print(f"{i('success')} 已重命名 {renamed_count} 个文件（ProjectContextManager → ProjectContext）")
 
 def update_version_to_0_4_0():
     """将版本号从0.5.0改为0.4.0"""
@@ -127,28 +129,28 @@ def update_version_to_0_4_0():
         content = content.replace("0.5.1", "0.4.0")
         
         file_path.write_text(content, encoding="utf-8")
-        print(f"✅ 已更新版本号：{file_path.relative_to(PROJECT_ROOT)}")
+        print(f"{i('success')} 已更新版本号：{file_path.relative_to(PROJECT_ROOT)}")
 
 def main():
     """主函数"""
     import os
     
-    print("🚀 开始批量修复问题...")
+    print(f"{i('rocket')} 开始批量修复问题...")
     
     # 1. 修复缩进问题
-    print("\n📁 修复缩进问题...")
+    print(f"\n{i('folder')} 修复缩进问题...")
     fix_indent_test_file(FIX_INDENT_FILES[0])
     fix_indent_yaml_file(FIX_INDENT_FILES[1])
     
     # 2. 重命名ProjectContextManager为ProjectContext
-    print("\n📝 重命名...")
+    print(f"\n{i('memo')} 重命名...")
     rename_project_context_manager()
     
     # 3. 更新版本号
-    print("\n🔢 更新版本号...")
+    print(f"\n{i('numbers')} 更新版本号...")
     update_version_to_0_4_0()
     
-    print("\n🎉 批量修复完成！")
+    print(f"\n{i('celebrate')} 批量修复完成！")
 
 if __name__ == "__main__":
     main()

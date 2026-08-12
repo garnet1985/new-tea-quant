@@ -8,6 +8,8 @@
 3. 删除多余的导入（PathManager、FileManager、ConfigManager、DiscoveryManager）
 """
 
+from core.infra.cmd_layout import i
+
 import os
 import re
 from pathlib import Path
@@ -106,10 +108,10 @@ def refactor_file(file_path: Path) -> Tuple[bool, str]:
 
 def main():
     """主函数"""
-    print("🚀 开始批量重构 ProjectContextManager 为类方法...")
+    print(f"{i('rocket')} 开始批量重构 ProjectContextManager 为类方法...")
     
     python_files = find_python_files()
-    print(f"📁 找到 {len(python_files)} 个Python文件")
+    print(f"{i('folder')} 找到 {len(python_files)} 个Python文件")
     
     updated_files = []
     error_files = []
@@ -122,18 +124,18 @@ def main():
             error_files.append(message)
     
     # 输出结果
-    print(f"\n✅ 成功更新 {len(updated_files)} 个文件：")
+    print(f"\n{i('success')} 成功更新 {len(updated_files)} 个文件：")
     for msg in updated_files[:10]:  # 只显示前10个
         print(f"  {msg}")
     if len(updated_files) > 10:
         print(f"  ... 还有 {len(updated_files) - 10} 个文件")
     
     if error_files:
-        print(f"\n❌ 错误文件：")
+        print(f"\n{i('error')} 错误文件：")
         for msg in error_files:
             print(f"  {msg}")
     
-    print(f"\n🎉 批量重构完成！")
+    print(f"\n{i('celebrate')} 批量重构完成！")
 
 
 if __name__ == "__main__":

@@ -3,6 +3,8 @@
 更新yaml文件中的命名：ProjectContextManager → ProjectContext
 """
 
+from core.infra.cmd_layout import i
+
 import re
 from pathlib import Path
 import os
@@ -29,9 +31,9 @@ def update_yaml_files():
             # 重命名
             content = content.replace("ProjectContextManager", "ProjectContext")
             file_path.write_text(content, encoding="utf-8")
-            print(f"✅ 已更新：{file_path.relative_to(PROJECT_ROOT)}")
+            print(f"{i('success')} 已更新：{file_path.relative_to(PROJECT_ROOT)}")
 
 if __name__ == "__main__":
-    print("🚀 开始更新yaml文件...")
+    print(f"{i('rocket')} 开始更新yaml文件...")
     update_yaml_files()
-    print("🎉 更新完成！")
+    print(f"{i('celebrate')} 更新完成！")

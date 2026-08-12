@@ -6,6 +6,7 @@ Rate limiter & API 限流相关助手。
 - 聚合每个 ApiJob 的限流信息（优先 config，再看 provider，最后默认值）；
 - 对外只暴露与 ApiJob / provider 相关的纯函数，不依赖具体执行器。
 """
+from core.infra.cmd_layout import i
 
 import threading
 import time
@@ -68,7 +69,7 @@ class RateLimiter:
                                 f" | {progress.format_short()}" if progress else ""
                             )
                             logger.info(
-                                "⏸️  %s: 滑动窗口内已达 %s/%s，等待 %.1fs%s",
+                                i('pause') + "  %s: 滑动窗口内已达 %s/%s，等待 %.1fs%s",
                                 self.api_name,
                                 len(self._timestamps),
                                 self.max_per_minute,
@@ -138,7 +139,7 @@ def get_rate_limiter(
             existing = _RATE_LIMITERS[limiter_key]
             if existing.max_per_minute != buffered_limit:
                 logger.warning(
-                    f"⚠️ RateLimiter {limiter_key} 已存在但限流值不一致: "
+                    f"{i('warning')} RateLimiter {limiter_key} 已存在但限流值不一致: "
                     f"现有={existing.max_per_minute}, 请求={buffered_limit}"
                 )
 

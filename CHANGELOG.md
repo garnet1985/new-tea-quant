@@ -96,6 +96,7 @@
 - 策略模块（strategy）：暴露了新的on_pick_portfolio_member接口, 可以通过代码选择投资的机会了
 - 策略模块（strategy）：新的报告模式，兼容windows，UI和后端统一
 - 策略模块（strategy）：更新了第三层回测的名字，从capital allocation（资金分配）变成了portfolio（投资组合）
+- 策略模块（strategy）：最后一层portfolio（投资组合）模拟采用复权价格作为信号，实际价格成交的双轨价格进行回测，增加了仓位管理的准确性。
 - 策略模块（strategy）：将用户自定义钩子函数挂在了新的hooks基类上，这样用户的钩子函数不但可以参与底层子进程任务，也可以通过钩子参与主进程工作
 - 标签模块（tag）：新引入tag计算的进度表，可以让tag支持更好的增量计算
 - 标签模块（tag）：修改tag的其他三张表，去掉了一些冗余字段

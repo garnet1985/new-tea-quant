@@ -13,6 +13,7 @@
 - ``get_real_world_latest_completed_trading_date()``：经注入的 fetcher（通常由 DS 注册）探测；
   无 fetcher 或失败时周末猜测。不读 ``sys_trade_calendar``。
 """
+from core.infra.cmd_layout import i
 from datetime import datetime, timedelta
 from typing import Callable, List, Optional, Tuple
 import logging
@@ -85,7 +86,7 @@ class CalendarService(BaseDataService):
             if not CalendarService._configured_as_of_logged:
                 CalendarService._configured_as_of_logged = True
                 logger.info(
-                    "📌 latest completed trading date 使用 data.json 配置: %s",
+                    i('pin') + " latest completed trading date 使用 data.json 配置: %s",
                     configured,
                 )
             return configured
@@ -270,7 +271,7 @@ class CalendarService(BaseDataService):
         # 4. 记录交易日变化（如果有）
         old_cached_date = self._get_cache_from_memory()
         if old_cached_date and new_trading_date != old_cached_date:
-            logger.info(f"📅 交易日更新: {old_cached_date} -> {new_trading_date} (来源: {provider})")
+            logger.info(f"{i('calendar')} 交易日更新: {old_cached_date} -> {new_trading_date} (来源: {provider})")
         
         # 5. 更新缓存（内存 + 数据库）
         self._save_to_memory_cache(new_trading_date)
@@ -392,7 +393,7 @@ class CalendarService(BaseDataService):
         """
         today = Utils.date.today()
         
-        logger.info("🔄 强制刷新最新交易日（忽略缓存）...")
+        logger.info(f"{i('ongoing')} 强制刷新最新交易日（忽略缓存）...")
         new_trading_date, provider = self._fetch_with_fallback()
         
         # 更新缓存
@@ -439,9 +440,9 @@ class CalendarService(BaseDataService):
                     if date:
                         return str(date), str(provider or "network")
             except Exception as e:
-                logger.warning("⚠️  real-world fetcher 失败: %s", e)
+                logger.warning(i('warning') + "  real-world fetcher 失败: %s", e)
 
-        logger.warning("⚠️  网络探测不可用或失败，使用系统猜测（排除周末）")
+        logger.warning(f"{i('warning')}  网络探测不可用或失败，使用系统猜测（排除周末）")
         return self._guess_latest_trading_date(), "guess"
 
     def _guess_latest_trading_date(self) -> str:
@@ -464,7 +465,7 @@ class CalendarService(BaseDataService):
             weekday = current.weekday()
             if weekday < 5:  # 周一到周五（0-4）
                 date_str = current.strftime('%Y%m%d')
-                logger.warning(f"⚠️  使用系统猜测的最新交易日: {date_str}（可能不准确，未排除节假日）")
+                logger.warning(f"{i('warning')}  使用系统猜测的最新交易日: {date_str}（可能不准确，未排除节假日）")
                 return date_str
             
             # 往前推一天
@@ -472,5 +473,5 @@ class CalendarService(BaseDataService):
         
         # 如果7天内都没找到，返回昨天（虽然可能是周末）
         yesterday = (today - timedelta(days=1)).strftime('%Y%m%d')
-        logger.warning(f"⚠️  系统猜测失败，使用昨天: {yesterday}")
+        logger.warning(f"{i('warning')}  系统猜测失败，使用昨天: {yesterday}")
         return yesterday

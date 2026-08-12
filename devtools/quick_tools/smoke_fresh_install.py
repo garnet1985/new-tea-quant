@@ -10,6 +10,8 @@ CI 会先 ``git archive`` 解压到临时目录再调用本脚本。
 """
 from __future__ import annotations
 
+from core.infra.cmd_layout import i
+
 import argparse
 import subprocess
 import sys
@@ -34,7 +36,7 @@ def _run(cmd: list[str], *, cwd: Path, label: str) -> int:
     print(f"[smoke] {label}: {' '.join(cmd)}", flush=True)
     proc = subprocess.run(cmd, cwd=str(cwd))
     if proc.returncode != 0:
-        print(f"[smoke] ❌ {label} 失败 (exit={proc.returncode})", flush=True)
+        print(f"[smoke] {i('error')} {label} 失败 (exit={proc.returncode})", flush=True)
     return int(proc.returncode)
 
 
@@ -46,10 +48,10 @@ def smoke_fresh_install(
 ) -> int:
     root = repo_root.resolve()
     if not (root / "install.py").is_file():
-        print(f"[smoke] ❌ 不是项目根目录（缺少 install.py）: {root}", flush=True)
+        print(f"[smoke] {i('error')} 不是项目根目录（缺少 install.py）: {root}", flush=True)
         return 1
     if not (root / "setup" / "init_data" / "data_demo.zip").is_file():
-        print("[smoke] ❌ 缺少 setup/init_data/data_demo.zip", flush=True)
+        print(f"[smoke] {i('error')} 缺少 setup/init_data/data_demo.zip", flush=True)
         return 1
 
     py = install_python or sys.executable
@@ -65,7 +67,7 @@ def smoke_fresh_install(
         label=f"策略枚举 ({strategy})",
     )
     if code == 0:
-        print("[smoke] ✅ 冷启动冒烟通过", flush=True)
+        print(f"[smoke] {i('success')} 冷启动冒烟通过", flush=True)
     return code
 
 

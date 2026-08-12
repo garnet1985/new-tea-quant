@@ -1,6 +1,7 @@
 """Dispatch parsed CLI commands to domain services."""
 
 from __future__ import annotations
+from core.infra.cmd_layout import i
 
 import argparse
 import asyncio
@@ -126,12 +127,12 @@ class UserHandlers:
             else:
                 result = SystemActions.scaffold.create_strategy(path)
                 label = "策略"
-            logger.info("✅ 已新建 %s: %s", label, result.key)
+            logger.info(i('success') + " 已新建 %s: %s", label, result.key)
             logger.info("   目录: %s", result.dest)
             logger.info("   请编辑 settings.py 与 worker，然后运行回测或打标。")
             return 0
         except ScaffoldError as exc:
-            logger.error("❌ %s", exc)
+            logger.error(i('error') + " %s", exc)
             return 1
 
     @staticmethod
@@ -143,7 +144,7 @@ class UserHandlers:
             return
 
         if cmd == "export_adj_factor":
-            logger.info("📤 手动导出复权因子事件季度 CSV...")
+            logger.info(f"{i('upload')} 手动导出复权因子事件季度 CSV...")
             app.export_adj_factor_csv(base_date=getattr(args, "base_date", None))
             return
 
@@ -159,10 +160,10 @@ class UserHandlers:
                 for name in names:
                     print(f"  - {name}")
                 return
-            logger.info("🏷️  执行标签计算...")
+            logger.info(f"{i('tag')}  执行标签计算...")
             dry_run = getattr(args, "dry_run", False)
             if dry_run:
-                logger.info("⚠️  DRY RUN 模式：计算结果不会写入数据库")
+                logger.info(f"{i('warning')}  DRY RUN 模式：计算结果不会写入数据库")
             app.tag(
                 scenario_name=getattr(args, "scenario", None),
                 dry_run=dry_run,
@@ -195,14 +196,14 @@ class UserHandlers:
             return
 
         if source:
-            logger.info("🔄 更新数据: %s%s", source, " [force refresh]" if force else "")
+            logger.info(i('ongoing') + " 更新数据: %s%s", source, " [force refresh]" if force else "")
         else:
-            logger.info("🔄 更新全部已启用数据源%s", " [force]" if force else "")
+            logger.info(i('ongoing') + " 更新全部已启用数据源%s", " [force]" if force else "")
 
         try:
             asyncio.run(app.renew_data(table_name=source, force=force))
         except ValueError as exc:
-            logger.error("❌ %s", exc)
+            logger.error(i('error') + " %s", exc)
             raise SystemExit(1) from exc
 
     @staticmethod
@@ -252,7 +253,7 @@ class UserHandlers:
                 "sampling_amount": int(stock_count),
             }
 
-        print("🔢 枚举投资机会…", flush=True)
+        print(f"{i('numbers')} 枚举投资机会…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         if stock_count is not None:
             print(f"  采样: {stock_count} 只股票", flush=True)
@@ -313,7 +314,7 @@ class UserHandlers:
         strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
         force = bool(getattr(args, "force", False))
 
-        print("💹 价格因子回测…", flush=True)
+        print(f"{i('market')} 价格因子回测…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         if force:
             print("  --force: 忽略缓存重跑", flush=True)
@@ -365,7 +366,7 @@ class UserHandlers:
         strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
         force = bool(getattr(args, "force", False))
 
-        print("💰 组合回测（portfolio）…", flush=True)
+        print(f"{i('money')} 组合回测（portfolio）…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         if force:
             print("  --force: 忽略缓存重跑", flush=True)
@@ -414,7 +415,7 @@ class UserHandlers:
         name = UserHandlers._strategy_name(getattr(args, "strategy", None))
         demo = bool(getattr(args, "demo", False))
 
-        print("🔍 扫描投资机会…", flush=True)
+        print(f"{i('search')} 扫描投资机会…", flush=True)
         if name:
             print(f"  策略: {name}", flush=True)
         else:
@@ -459,7 +460,7 @@ class UserHandlers:
         strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
         force = bool(getattr(args, "force", False))
 
-        print("🎮 模拟链路 · PriceFactor → Portfolio …", flush=True)
+        print(f"{i('game')} 模拟链路 · PriceFactor → Portfolio …", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         if force:
             print("  --force: 忽略缓存重跑", flush=True)
@@ -511,7 +512,7 @@ class UserHandlers:
     def _run_strategy_analyse(args: argparse.Namespace) -> None:
         from core.modules.strategy import Strategy
 
-        logger.info("📊 分析模拟结果...")
+        logger.info(f"{i('bar_chart')} 分析模拟结果...")
         Strategy.analyze(session_id=getattr(args, "session", None))
 
     @staticmethod

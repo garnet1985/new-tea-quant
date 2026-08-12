@@ -3,6 +3,8 @@
 全面检查 ProjectContext 的使用情况
 """
 
+from core.infra.cmd_layout import i
+
 import os
 import re
 from pathlib import Path
@@ -90,41 +92,41 @@ def check_project_context_usage() -> Dict[str, List[str]]:
 
 def main():
     """主函数"""
-    print("🚀 开始全面检查 ProjectContext 使用情况...")
+    print(f"{i('rocket')} 开始全面检查 ProjectContext 使用情况...")
     
     results = check_project_context_usage()
     
-    print(f"\n📊 检查结果：")
-    print(f"  ❌ 旧API使用：{len(results['old_api_usage'])} 个文件")
-    print(f"  ❌ 还在创建ctx实例：{len(results['ctx_instance'])} 个文件")
-    print(f"  ❌ 导入错误：{len(results['import_errors'])} 个文件")
-    print(f"  ❌ 缩进错误：{len(results['indent_errors'])} 个文件")
-    print(f"  ✅ 正确使用：{len(results['correct_usage'])} 个文件")
+    print(f"\n{i('bar_chart')} 检查结果：")
+    print(f"  {i('error')} 旧API使用：{len(results['old_api_usage'])} 个文件")
+    print(f"  {i('error')} 还在创建ctx实例：{len(results['ctx_instance'])} 个文件")
+    print(f"  {i('error')} 导入错误：{len(results['import_errors'])} 个文件")
+    print(f"  {i('error')} 缩进错误：{len(results['indent_errors'])} 个文件")
+    print(f"  {i('success')} 正确使用：{len(results['correct_usage'])} 个文件")
     
     if results['old_api_usage']:
-        print(f"\n❌ 旧API使用：")
+        print(f"\n{i('error')} 旧API使用：")
         for item in results['old_api_usage'][:10]:
             print(f"  {item}")
         if len(results['old_api_usage']) > 10:
             print(f"  ... 还有 {len(results['old_api_usage']) - 10} 个")
     
     if results['ctx_instance']:
-        print(f"\n❌ 还在创建ctx实例：")
+        print(f"\n{i('error')} 还在创建ctx实例：")
         for item in results['ctx_instance'][:10]:
             print(f"  {item}")
     
     if results['import_errors']:
-        print(f"\n❌ 导入错误：")
+        print(f"\n{i('error')} 导入错误：")
         for item in results['import_errors'][:10]:
             print(f"  {item}")
     
     if results['indent_errors']:
-        print(f"\n❌ 缩进错误：")
+        print(f"\n{i('error')} 缩进错误：")
         for item in results['indent_errors'][:10]:
             print(f"  {item}")
     
     if results['correct_usage']:
-        print(f"\n✅ 正确使用（前10个）：")
+        print(f"\n{i('success')} 正确使用（前10个）：")
         for item in results['correct_usage'][:10]:
             print(f"  {item}")
 

@@ -8,6 +8,8 @@ Indicator — 技术指标计算 Facade（实现位于 ``core/indicator.py``）
 - 提供便捷 API（常用指标）与通用 calculate / compute / compute_batch
 """
 
+from core.infra.cmd_layout import i
+
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Union
 import logging
@@ -622,10 +624,10 @@ class Indicator:
 
             cls._patch_pandas_ta_verify_series()
             cls._ta = ta
-            logger.info("✅ pandas-ta-classic 加载成功")
+            logger.info(f"{i('success')} pandas-ta-classic 加载成功")
         except ImportError as e:
             logger.error(
-                "❌ pandas-ta-classic 未安装，请运行: "
+                f"{i('error')} pandas-ta-classic 未安装，请运行: "
                 "pip install pandas-ta-classic"
             )
             raise ImportError(

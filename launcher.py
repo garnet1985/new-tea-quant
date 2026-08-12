@@ -7,6 +7,8 @@ UI 启动入口。
 """
 from __future__ import annotations
 
+from core.infra.cmd_layout import i
+
 import sys
 
 # Windows GBK 编码兼容：强制 UTF-8 输出，保留 emoji 符号
@@ -50,7 +52,7 @@ def main(argv: list[str] | None = None) -> int:
 
     ok, msg = check_runtime_prerequisites()
     if not ok:
-        print(f"❌ {msg}", flush=True)
+        print(f"{i('error')} {msg}", flush=True)
         return 1
 
     if needs_install("ui"):
@@ -58,7 +60,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             install_ui_runtime(force=True)
         except Exception as e:
-            print(f"❌ 安装失败: {e}", flush=True)
+            print(f"{i('error')} 安装失败: {e}", flush=True)
             return 1
     else:
         print("依赖已就绪", flush=True)
@@ -73,7 +75,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         launch_ui_stack()
     except Exception as e:
-        print(f"❌ 启动失败: {e}", flush=True)
+        print(f"{i('error')} 启动失败: {e}", flush=True)
         print("若页面仍能打开但 /api 报错，请执行: python devcli.py uk", flush=True)
         return 1
     return 0

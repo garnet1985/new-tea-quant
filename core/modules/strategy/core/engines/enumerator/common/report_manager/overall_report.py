@@ -270,14 +270,14 @@ class OverallReport:
 
         CmdLayout.title.print_section(f"{icon('warning')} 可交易性", stream=out)
         print(
-            f"🔺 涨停无法买入: {tradability.buy_at_limit_up_count}/"
+            f"{icon('triangle_up')} 涨停无法买入: {tradability.buy_at_limit_up_count}/"
             f"{tradability.buy_tradability_sample_count} "
             f"({tradability.limit_up_buy_ratio}%)",
             file=out,
             flush=True,
         )
         print(
-            f"🔻 跌停无法卖出: {tradability.sell_at_limit_down_count}/"
+            f"{icon('triangle_down')} 跌停无法卖出: {tradability.sell_at_limit_down_count}/"
             f"{tradability.sell_tradability_sample_count} "
             f"({tradability.limit_down_sell_ratio}%)",
             file=out,
@@ -286,17 +286,17 @@ class OverallReport:
 
         CmdLayout.title.print_section(f"{icon('clock')} 节奏与分散度", stream=out)
         print(
-            f"⏱️ 平均每股机会间隔: {timing.mean_gap} 天",
+            f"{icon('timer')} 平均每股机会间隔: {timing.mean_gap} 天",
             file=out,
             flush=True,
         )
         print(
-            f"⌛ 平均每股机会持续: {timing.mean_duration} 天",
+            f"{icon('hourglass')} 平均每股机会持续: {timing.mean_duration} 天",
             file=out,
             flush=True,
         )
         print(
-            f"📏 机会分散度: SD {timing.std_gap} 天 · CV {timing.cv} · "
+            f"{icon('ruler')} 机会分散度: SD {timing.std_gap} 天 · CV {timing.cv} · "
             f"{timing.dispersion_conclusion or '—'}",
             file=out,
             flush=True,

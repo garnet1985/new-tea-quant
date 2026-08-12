@@ -3,6 +3,8 @@
 清理test_api.py中的fixture和ctx参数（因为改为类方法）
 """
 
+from core.infra.cmd_layout import i
+
 import re
 from pathlib import Path
 
@@ -44,7 +46,7 @@ def clean_test_api():
     
     # 写回文件
     TEST_API_FILE.write_text(content, encoding="utf-8")
-    print("✅ 已清理 test_api.py")
+    print(f"{i('success')} 已清理 test_api.py")
 
 if __name__ == "__main__":
     clean_test_api()

@@ -6,6 +6,8 @@
 - 添加模块级别实例：- 替换所有方法调用为 ctx 实例方法
 - 处理特殊导入（merge_market_profile_dicts 等辅助函数）
 """
+from core.infra.cmd_layout import i
+
 import re
 from pathlib import Path
 
@@ -107,13 +109,13 @@ def full_refactor_file(file_path: Path) -> bool:
 
         if content != original_content:
             file_path.write_text(content, encoding='utf-8')
-            print(f"✅ Refactored: {file_path}")
+            print(f"{i('success')} Refactored: {file_path}")
             return True
         else:
             return False
 
     except Exception as e:
-        print(f"❌ Error refactoring {file_path}: {e}")
+        print(f"{i('error')} Error refactoring {file_path}: {e}")
         return False
 
 
@@ -156,8 +158,8 @@ def batch_refactor_all_files():
             if full_refactor_file(file_path):
                 refactored_count += 1
 
-    print(f"\n✅ Total refactored: {refactored_count} files")
-    print(f"❌ Failed or no changes: {len(files_to_refactor) - refactored_count} files")
+    print(f"\n{i('success')} Total refactored: {refactored_count} files")
+    print(f"{i('error')} Failed or no changes: {len(files_to_refactor) - refactored_count} files")
 
 
 if __name__ == "__main__":

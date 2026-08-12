@@ -33,7 +33,14 @@ def main() -> int:
         try:
             install_cli_runtime()
         except Exception as e:
-            print(f"❌ CLI 安装失败: {e}", flush=True)
+            # 安装失败时 core 可能尚未可用，回退 ASCII
+            try:
+                from core.infra.cmd_layout import i
+
+                mark = i("error")
+            except Exception:
+                mark = "[FAIL]"
+            print(f"{mark} CLI 安装失败: {e}", flush=True)
             return 1
     else:
         print("CLI 安装状态已就绪。", flush=True)

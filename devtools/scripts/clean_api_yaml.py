@@ -3,6 +3,8 @@
 
 删除所有 stability: deprecated 的API定义
 """
+from core.infra.cmd_layout import i
+
 import re
 from pathlib import Path
 
@@ -28,7 +30,7 @@ def clean_api_yaml():
 
     api_yaml_path.write_text(cleaned_content, encoding='utf-8')
 
-    print(f"✅ Cleaned {api_yaml_path}")
+    print(f"{i('success')} Cleaned {api_yaml_path}")
 
 
 if __name__ == "__main__":

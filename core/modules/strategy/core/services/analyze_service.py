@@ -6,6 +6,7 @@
 """
 
 from __future__ import annotations
+from core.infra.cmd_layout import i
 
 import json
 import logging
@@ -52,7 +53,7 @@ class AnalyzeService:
                 continue
 
             found = True
-            logger.info("📊 strategy=%s", sn)
+            logger.info(i('bar_chart') + " strategy=%s", sn)
 
             if pf_latest:
                 try:

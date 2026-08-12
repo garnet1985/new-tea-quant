@@ -5,6 +5,7 @@
 避免 DM → DS 模块依赖。
 """
 from __future__ import annotations
+from core.infra.cmd_layout import i
 
 import logging
 from typing import Optional, Tuple
@@ -37,10 +38,10 @@ def _try_fetch(provider_name: str, fetch_func) -> Optional[str]:
     try:
         latest_date = fetch_func()
         if latest_date and latest_date != today:
-            logger.info("✅ 从%sAPI获取最新交易日: %s", provider_name, latest_date)
+            logger.info(i('success') + " 从%sAPI获取最新交易日: %s", provider_name, latest_date)
             return latest_date
     except Exception as e:
-        logger.warning("⚠️  %sAPI失败: %s", provider_name, e)
+        logger.warning(i('warning') + "  %sAPI失败: %s", provider_name, e)
     return None
 
 
@@ -60,7 +61,7 @@ def _fetch_from_eastmoney() -> Optional[str]:
 
         return _extract_latest_date_from_klines(klines, is_eastmoney=True)
     except Exception as e:
-        logger.error("❌ 从东方财富API获取最新交易日失败: %s", e)
+        logger.error(i('error') + " 从东方财富API获取最新交易日失败: %s", e)
         raise
 
 
@@ -80,7 +81,7 @@ def _fetch_from_sina() -> Optional[str]:
 
         return _extract_latest_date_from_klines(klines, is_eastmoney=False)
     except Exception as e:
-        logger.error("❌ 从新浪财经API获取最新交易日失败: %s", e)
+        logger.error(i('error') + " 从新浪财经API获取最新交易日失败: %s", e)
         raise
 
 

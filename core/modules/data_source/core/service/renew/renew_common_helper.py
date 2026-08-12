@@ -3,6 +3,8 @@ Renew Common Helper
 
 提供所有 renew service 共用的工具方法（静态方法）。
 """
+from core.infra.cmd_layout import i
+
 from typing import Dict, Any, Tuple, Optional
 import logging
 
@@ -233,7 +235,7 @@ class RenewCommonHelper:
                     date_field=date_field, group_fields=group_fields
                 )
                 if not latest_records:
-                    logger.warning(f"⚠️ [query_latest_date] load_latests 返回空结果: table={table_name}, group_fields={group_fields}")
+                    logger.warning(f"{i('warning')} [query_latest_date] load_latests 返回空结果: table={table_name}, group_fields={group_fields}")
                     return None
 
                 # 判断是单字段还是多字段分组
@@ -243,7 +245,7 @@ class RenewCommonHelper:
                 for record in latest_records:
                     latest_date = record.get(date_field)
                     if not latest_date:
-                        logger.debug(f"⚠️ [query_latest_date] 记录缺少日期字段: {record}")
+                        logger.debug(f"{i('warning')} [query_latest_date] 记录缺少日期字段: {record}")
                         continue
                     
                     if is_multi_field:

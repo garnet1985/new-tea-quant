@@ -1,6 +1,8 @@
 """
 批量更新测试文件中的 PathManager 方法名
 """
+from core.infra.cmd_layout import i
+
 import re
 from pathlib import Path
 
@@ -45,13 +47,13 @@ def update_test_file(file_path: Path) -> bool:
 
         if content != original_content:
             file_path.write_text(content, encoding='utf-8')
-            print(f"✅ Updated: {file_path}")
+            print(f"{i('success')} Updated: {file_path}")
             return True
         else:
             return False
 
     except Exception as e:
-        print(f"❌ Error updating {file_path}: {e}")
+        print(f"{i('error')} Error updating {file_path}: {e}")
         return False
 
 
@@ -74,7 +76,7 @@ def batch_update_test_files():
             if update_test_file(file_path):
                 updated_count += 1
 
-    print(f"\n✅ Total updated: {updated_count} test files")
+    print(f"\n{i('success')} Total updated: {updated_count} test files")
 
 
 if __name__ == "__main__":

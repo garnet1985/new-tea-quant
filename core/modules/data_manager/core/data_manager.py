@@ -20,6 +20,7 @@
   - CalendarService: 交易日历服务
   - CorporateFinanceService: 企业财务数据服务（StockService 的子服务）
 """
+from core.infra.cmd_layout import i
 from typing import Dict, Any, Optional, Type
 import logging
 import threading
@@ -185,7 +186,7 @@ class DataManager:
                 # 1. 初始化 DatabaseManager（只初始化连接池，不创建表）
                 if self.db is None:
                     if self.is_verbose:
-                        logger.info("🔧 初始化 DatabaseManager...")
+                        logger.info(f"{i('gear')} 初始化 DatabaseManager...")
 
                     self.db = DatabaseManager(is_verbose=self.is_verbose)
                     self.db.initialize()
@@ -193,24 +194,24 @@ class DataManager:
                     DatabaseManager.set_default(self.db)
                 else:
                     if self.is_verbose:
-                        logger.info("🔧 使用已提供的 DatabaseManager 实例...")
+                        logger.info(f"{i('gear')} 使用已提供的 DatabaseManager 实例...")
 
                 # 2. 创建所有 Base Tables（业务逻辑）
                 if self.db:
                     if self.is_verbose:
-                        logger.info("🔧 创建 Base Tables...")
+                        logger.info(f"{i('gear')} 创建 Base Tables...")
                     self.db.create_all_base_tables()
                 elif self.is_verbose:
-                    logger.info("ℹ️  只读模式，跳过 Base Tables 创建")
+                    logger.info(f"{i('info')}  只读模式，跳过 Base Tables 创建")
 
                 # 3. 自动发现并缓存表（core/tables -> sys_*，userspace/extensions/tables -> cust_*）
                 if self.is_verbose:
-                    logger.info("🔧 自动发现表（core/tables + userspace/extensions/tables）...")
+                    logger.info(f"{i('gear')} 自动发现表（core/tables + userspace/extensions/tables）...")
                 self._discover_tables()
 
                 # 4. 初始化 DataService（跨service协调器）
                 if self.is_verbose:
-                    logger.info("🔧 初始化 DataService...")
+                    logger.info(f"{i('gear')} 初始化 DataService...")
                 self.attach_data_service()
                 try:
                     self._data_service.index.sync_list_from_config()
@@ -222,10 +223,10 @@ class DataManager:
                 self._initialized = True
 
                 if self.is_verbose:
-                    logger.info("✅ DataManager 初始化完成")
+                    logger.info(f"{i('success')} DataManager 初始化完成")
 
             except Exception as e:
-                logger.error("❌ DataManager 初始化失败: %s", e)
+                logger.error(i('error') + " DataManager 初始化失败: %s", e)
                 raise
 
     # ------------------------------------------------------------------
@@ -255,13 +256,13 @@ class DataManager:
                 table_folder = Path.cwd() / table_folder
             
             if not table_folder.exists() or not table_folder.is_dir():
-                logger.error(f"❌ 表文件夹不存在: {table_folder_path}")
+                logger.error(f"{i('error')} 表文件夹不存在: {table_folder_path}")
                 return None
             
             # 1. 加载 schema（仅 schema.py）
             schema_py = table_folder / "schema.py"
             if not schema_py.exists():
-                logger.error(f"❌ 表文件夹中未找到 schema.py: {table_folder_path}")
+                logger.error(f"{i('error')} 表文件夹中未找到 schema.py: {table_folder_path}")
                 return None
             if self.db is not None and getattr(self.db, "schema_manager", None) is not None:
                 schema = self.db.schema_manager.load_schema_from_python(str(schema_py))
@@ -279,11 +280,11 @@ class DataManager:
 
             table_name = schema.get("name")
             if not table_name:
-                logger.error(f"❌ schema 中未找到 name: {table_folder_path}")
+                logger.error(f"{i('error')} schema 中未找到 name: {table_folder_path}")
                 return None
             if from_core and not table_name.startswith("sys_"):
                 if self.is_verbose:
-                    logger.debug(f"⏭️  跳过 core 表（非 sys_ 前缀）: {table_name} ({table_folder_path})")
+                    logger.debug(f"{i('skip')}  跳过 core 表（非 sys_ 前缀）: {table_name} ({table_folder_path})")
                 return None
 
             if self.db is not None:
@@ -292,13 +293,13 @@ class DataManager:
             # 2. 查找并加载 model.py
             model_file_path = Discovery.file.find_file(table_folder, "model.py")
             if not model_file_path:
-                logger.error(f"❌ 表文件夹中未找到 model.py: {table_folder_path}")
+                logger.error(f"{i('error')} 表文件夹中未找到 model.py: {table_folder_path}")
                 return None
             
             try:
                 spec = importlib.util.spec_from_file_location("table_model", model_file_path)
                 if spec is None or spec.loader is None:
-                    logger.error(f"❌ 无法加载模块: {model_file_path}")
+                    logger.error(f"{i('error')} 无法加载模块: {model_file_path}")
                     return None
                 model_module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(model_module)
@@ -309,23 +310,23 @@ class DataManager:
                         model_class = obj
                         break
                 if model_class is None:
-                    logger.error(f"❌ 模块中未找到继承自 DbBaseModel 的类: {model_file_path}")
+                    logger.error(f"{i('error')} 模块中未找到继承自 DbBaseModel 的类: {model_file_path}")
                     return None
                 
                 if table_name in self._table_cache and self._table_cache[table_name] != model_class:
                     logger.warning(
-                        f"⚠️  覆盖已存在的 Table '{table_name}': "
+                        f"{i('warning')}  覆盖已存在的 Table '{table_name}': "
                         f"{self._table_cache[table_name].__name__} -> {model_class.__name__}"
                     )
                 self._table_cache[table_name] = model_class
                 if self.is_verbose:
-                    logger.info(f"✅ 注册 Table: {table_name} -> {model_class.__name__} ({table_folder_path})")
+                    logger.info(f"{i('success')} 注册 Table: {table_name} -> {model_class.__name__} ({table_folder_path})")
                 return model_class
             except Exception as e:
-                logger.error(f"❌ 加载模块失败: {model_file_path}, error={e}")
+                logger.error(f"{i('error')} 加载模块失败: {model_file_path}, error={e}")
                 return None
         except Exception as e:
-            logger.error(f"❌ 注册 Table 失败: {table_folder_path}, error={e}")
+            logger.error(f"{i('error')} 注册 Table 失败: {table_folder_path}, error={e}")
             return None
     
     def _discover_tables(self):
@@ -354,9 +355,9 @@ class DataManager:
                     self.register_table(str(table_folder), from_core=False)
 
             if self.is_verbose:
-                logger.info(f"✅ 自动发现并缓存了 {len(self._table_cache)} 个表")
+                logger.info(f"{i('success')} 自动发现并缓存了 {len(self._table_cache)} 个表")
         except Exception as e:
-            logger.error(f"❌ 自动发现表失败: {e}")
+            logger.error(f"{i('error')} 自动发现表失败: {e}")
             raise
     
     # ------------------------------------------------------------------
@@ -378,7 +379,7 @@ class DataManager:
         model_class = self._table_cache.get(table_name)
 
         if not model_class:
-            logger.warning(f"⚠️  表 '{table_name}' 没有对应的 Model 类（可能未注册）")
+            logger.warning(f"{i('warning')}  表 '{table_name}' 没有对应的 Model 类（可能未注册）")
             return None
 
         return model_class()

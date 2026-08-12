@@ -4,6 +4,8 @@ normalization_helper - 标准化阶段相关的底层工具函数。
 原本这些逻辑集中在 DataSourceHandlerHelper 中，这里抽出一份独立实现，
 便于 NormalizationService 等按职责依赖，逐步减轻 handler_helper 的体积。
 """
+from core.infra.cmd_layout import i
+
 from typing import Any, Dict, Iterable, List, Optional
 import logging
 
@@ -335,7 +337,7 @@ def normalize_fetched_data(context: Dict[str, Any], fetched_data: Dict[str, Any]
         return {"data": []}
 
     normalized_records = apply_schema(mapped_records, schema)
-    logger.info(f"✅ 默认标准化完成，记录数={len(normalized_records)}")
+    logger.info(f"{i('success')} 默认标准化完成，记录数={len(normalized_records)}")
     return build_normalized_payload(normalized_records)
 
 

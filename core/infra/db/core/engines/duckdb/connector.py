@@ -4,6 +4,7 @@ DuckdbConnector — 三 storage_domain 连接与执行。
 每域一个 ``DuckdbDomainConnection``（单文件 + 线程锁）；方言见 ``sql_adapter``。
 """
 from __future__ import annotations
+from core.infra.cmd_layout import i
 
 import logging
 import threading
@@ -76,7 +77,7 @@ class DuckdbDomainConnection:
         self._initialized = True
         if self.is_verbose:
             logger.info(
-                "✅ DuckDB 域 %s 已连接: %s (read_only=%s)",
+                i('success') + " DuckDB 域 %s 已连接: %s (read_only=%s)",
                 self.domain,
                 resolved,
                 read_only,

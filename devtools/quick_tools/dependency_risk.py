@@ -23,6 +23,8 @@
     devcli.py check-deps                                       # 快捷命令
 """
 
+from core.infra.cmd_layout import i
+
 import argparse
 import re
 import subprocess
@@ -34,11 +36,11 @@ from typing import List, Dict, Set, Optional, Tuple
 
 
 class RiskLevel(Enum):
-    CRITICAL = "🔴"   # 阻塞性问题（如需编译器）
-    HIGH = "🟠"       # 高风险（可能失败）
-    MEDIUM = "🟡"     # 中等风险（警告）
-    LOW = "🟢"        # 低风险（信息）
-    INFO = "ℹ️"       # 信息提示
+    CRITICAL = "red_dot"   # 阻塞性问题（如需编译器）
+    HIGH = "orange_dot"       # 高风险（可能失败）
+    MEDIUM = "yellow_dot"     # 中等风险（警告）
+    LOW = "green_dot"        # 低风险（信息）
+    INFO = "info"       # 信息提示
 
 
 @dataclass
@@ -111,8 +113,8 @@ class DependencyRiskDetector:
 
     def detect_all(self) -> List[DependencyRisk]:
         """执行所有检测"""
-        print(f"🔍 开始检测依赖风险...")
-        print(f"📁 项目根目录: {self.project_root}")
+        print(f"{i('search')} 开始检测依赖风险...")
+        print(f"{i('folder')} 项目根目录: {self.project_root}")
         print()
 
         # 1. 检查需要编译的包
@@ -180,7 +182,7 @@ class DependencyRiskDetector:
 
     def _check_compilation_required_packages(self) -> None:
         """检查需要 C 编译的包"""
-        print("1️⃣  检查需要编译的包...")
+        print("1.  检查需要编译的包...")
 
         if not self.requirements_txt.exists():
             self.risks.append(DependencyRisk(
@@ -210,7 +212,7 @@ class DependencyRiskDetector:
                     suggestion="保持 setup/steps/resolve_deps 等处的 only-binary 列表；勿在裸 pip install 时省略",
                     is_fixable=False,
                 ))
-                print(f"   ℹ️  {pkg_name}: 已 only-binary 缓解")
+                print(f"   {i('info')}  {pkg_name}: 已 only-binary 缓解")
                 continue
 
             has_binary_variant = key in {
@@ -227,11 +229,11 @@ class DependencyRiskDetector:
                 ),
                 is_fixable=True,
             ))
-            print(f"   ⚠️  {pkg_name}: 可能需要编译")
+            print(f"   {i('warning')}  {pkg_name}: 可能需要编译")
 
     def _check_unused_dependencies(self) -> None:
         """检查未使用的依赖"""
-        print("2️⃣  检查未使用的依赖...")
+        print("2.  检查未使用的依赖...")
 
         if not self.requirements_in.exists():
             return
@@ -274,14 +276,14 @@ class DependencyRiskDetector:
                         line_number=line_num,
                         is_fixable=True
                     ))
-                    print(f"   🔍 {pkg_name}: 可能未使用 (第{line_num}行)")
+                    print(f"   {i('search')} {pkg_name}: 可能未使用 (第{line_num}行)")
 
         if unused_count == 0:
-            print("   ✅ 所有依赖都已使用")
+            print(f"   {i('success')} 所有依赖都已使用")
 
     def _check_version_constraints(self) -> None:
         """检查版本约束问题"""
-        print("3️⃣  检查版本约束...")
+        print("3.  检查版本约束...")
 
         if not self.requirements_txt.exists():
             return
@@ -305,11 +307,11 @@ class DependencyRiskDetector:
                         suggestion="考虑使用兼容性版本范围（如 >=1.0,<2.0）"
                     ))
 
-        print("   ✅ 版本约束检查完成")
+        print(f"   {i('success')} 版本约束检查完成")
 
     def _check_windows_compatibility(self) -> None:
         """检查 Windows 兼容性"""
-        print("4️⃣  检查 Windows 兼容性...")
+        print("4.  检查 Windows 兼容性...")
 
         windows_incompatible = ["uvloop", "pyev", "gevent"]
 
@@ -325,11 +327,11 @@ class DependencyRiskDetector:
                         is_fixable=True
                     ))
 
-        print("   ✅ Windows 兼容性检查完成")
+        print(f"   {i('success')} Windows 兼容性检查完成")
 
     def _check_circular_dependencies(self) -> None:
         """检查潜在的循环依赖"""
-        print("5️⃣  检查循环依赖风险...")
+        print("5.  检查循环依赖风险...")
 
         # 简化版：只检查明显的相互依赖
         known_conflicts = [
@@ -345,13 +347,13 @@ class DependencyRiskDetector:
                     # 这是正常的，只是记录一下
                     pass
 
-        print("   ✅ 循环依赖检查完成")
+        print(f"   {i('success')} 循环依赖检查完成")
 
     def generate_report(self, risks: List[DependencyRisk], verbose: bool = False) -> str:
         """生成检测报告"""
         report_lines = []
         report_lines.append("\n" + "=" * 80)
-        report_lines.append("📊 依赖安装风险检测报告")
+        report_lines.append(f"{i('bar_chart')} 依赖安装风险检测报告")
         report_lines.append("=" * 80)
 
         # 统计
@@ -361,49 +363,49 @@ class DependencyRiskDetector:
         low = sum(1 for r in risks if r.risk_level == RiskLevel.LOW)
         info = sum(1 for r in risks if r.risk_level == RiskLevel.INFO)
 
-        report_lines.append(f"\n📈 风险统计:")
-        report_lines.append(f"   🔴 关键 (Critical): {critical}")
-        report_lines.append(f"   🟠 高危 (High):      {high}")
-        report_lines.append(f"   🟡 中等 (Medium):    {medium}")
-        report_lines.append(f"   🟢 低危 (Low):       {low}")
-        report_lines.append(f"   ℹ️  信息 (Info):      {info}")
+        report_lines.append(f"\n{i('line_chart')} 风险统计:")
+        report_lines.append(f"   {i('red_dot')} 关键 (Critical): {critical}")
+        report_lines.append(f"   {i('orange_dot')} 高危 (High):      {high}")
+        report_lines.append(f"   {i('yellow_dot')} 中等 (Medium):    {medium}")
+        report_lines.append(f"   {i('green_dot')} 低危 (Low):       {low}")
+        report_lines.append(f"   {i('info')}  信息 (Info):      {info}")
         report_lines.append(f"   ─────────────────────")
-        report_lines.append(f"   📊 总计:             {len(risks)}")
+        report_lines.append(f"   {i('bar_chart')} 总计:             {len(risks)}")
 
         # 详细列表
         if risks:
-            report_lines.append(f"\n🔍 详细问题列表:")
+            report_lines.append(f"\n{i('search')} 详细问题列表:")
             report_lines.append("-" * 80)
 
-            for i, risk in enumerate(risks, 1):
-                icon = risk.risk_level.value
-                report_lines.append(f"\n{i}. [{icon}] {risk.package}")
+            for n, risk in enumerate(risks, 1):
+                icon = i(risk.risk_level.value)
+                report_lines.append(f"\n{n}. [{icon}] {risk.package}")
                 report_lines.append(f"   问题: {risk.message}")
                 report_lines.append(f"   建议: {risk.suggestion}")
                 if risk.line_number > 0:
                     report_lines.append(f"   位置: requirements.in 第 {risk.line_number} 行")
                 if risk.is_fixable:
-                    report_lines.append(f"   状态: ✅ 可自动修复")
+                    report_lines.append(f"   状态: {i('success')} 可自动修复")
 
                 if verbose:
-                    report_lines.append(f"\n   📝 详细信息:")
+                    report_lines.append(f"\n   {i('memo')} 详细信息:")
                     report_lines.append(f"   - 风险等级: {risk.risk_level.name}")
 
         # 建议
-        report_lines.append(f"\n💡 建议操作:")
+        report_lines.append(f"\n{i('tip')} 建议操作:")
         if critical > 0:
-            report_lines.append(f"   ⚠️  发现 {critical} 个关键问题，必须立即处理！")
+            report_lines.append(f"   {i('warning')}  发现 {critical} 个关键问题，必须立即处理！")
             report_lines.append(f"   → 可能导致 Windows 安装失败")
         if high > 0:
-            report_lines.append(f"   🔄 发现 {high} 个高风险项，建议尽快处理")
+            report_lines.append(f"   {i('ongoing')} 发现 {high} 个高风险项，建议尽快处理")
         if medium > 0:
-            report_lines.append(f"   👀 发现 {medium} 个中等风险项，可在下个迭代处理")
+            report_lines.append(f"   {i('eyes')} 发现 {medium} 个中等风险项，可在下个迭代处理")
         if critical == 0 and high == 0 and medium == 0:
-            report_lines.append("   ✅ 无未缓解的 Critical/High/Medium 项")
+            report_lines.append(f"   {i('success')} 无未缓解的 Critical/High/Medium 项")
             if info > 0 or low > 0:
                 report_lines.append("   （Info/Low 为提示，不阻塞 pack）")
 
-        report_lines.append(f"\n✨ 自动修复命令:")
+        report_lines.append(f"\n{i('sparkle')} 自动修复命令:")
         report_lines.append(f"   python -m devtools.quick_tools.dependency_risk --fix")
 
         report_lines.append("\n" + "=" * 80)
@@ -458,7 +460,7 @@ def main():
 
     # 输出修复建议
     if args.fix and risks:
-        print("\n🔧 修复建议:")
+        print(f"\n{i('gear')} 修复建议:")
         print("-" * 80)
         for risk in risks:
             if risk.is_fixable:
@@ -478,13 +480,13 @@ def main():
         high_count = sum(1 for r in risks if r.risk_level == RiskLevel.HIGH)
 
         if critical_count > 0:
-            print(f"\n❌ CI 检测失败: 发现 {critical_count} 个关键问题")
+            print(f"\n{i('error')} CI 检测失败: 发现 {critical_count} 个关键问题")
             sys.exit(1)
         elif high_count > 0:
-            print(f"\n⚠️  CI 警告: 发现 {high_count} 个高风险项")
+            print(f"\n{i('warning')}  CI 警告: 发现 {high_count} 个高风险项")
             sys.exit(2)
         else:
-            print(f"\n✅ CI 检测通过: 无关键或高风险问题")
+            print(f"\n{i('success')} CI 检测通过: 无关键或高风险问题")
             sys.exit(0)
 
     return 0

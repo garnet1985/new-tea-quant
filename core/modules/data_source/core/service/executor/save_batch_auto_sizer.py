@@ -4,6 +4,7 @@ save_batch_size=auto 时的内存感知写入批次（data_source 内置，不�
 逻辑与原先 save_batch_size=auto 的内存感知路径一致，实现在本模块内，renew 长跑不依赖其它调度包。
 """
 from __future__ import annotations
+from core.infra.cmd_layout import i
 
 import logging
 import os
@@ -85,9 +86,9 @@ class SaveBatchAutoSizer:
         self._smooth_factor = 0.3
         self._summary_weight = 0.2
 
-        self._log.info("📊 自动计算内存预算: %.1f MB", budget)
+        self._log.info(f"{i('bar_chart')} 自动计算内存预算: %.1f MB", budget)
         self._log.info(
-            "📊 自动计算 batch sizes: warmup=%s, min=%s, max=%s",
+            i('bar_chart') + " 自动计算 batch sizes: warmup=%s, min=%s, max=%s",
             warmup,
             min_size,
             self.max_batch_size,

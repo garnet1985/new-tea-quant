@@ -18,7 +18,7 @@ class TestCmdLayoutApi(unittest.TestCase):
         from core.infra.cmd_layout import CmdLayout
         import core.infra.cmd_layout as pkg
 
-        self.assertEqual(pkg.__all__, ["CmdLayout"])
+        self.assertEqual(pkg.__all__, ["CmdLayout", "i"])
         for name in ("bar_chart", "title", "separator", "icon"):
             self.assertTrue(hasattr(CmdLayout, name))
 

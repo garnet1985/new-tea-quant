@@ -5,6 +5,8 @@ MysqlConnector — MySQL 连接池、事务、SQL 执行。
 """
 from __future__ import annotations
 
+from core.infra.cmd_layout import i
+
 import logging
 import threading
 from contextlib import contextmanager
@@ -158,12 +160,12 @@ class MysqlConnector:
             
             if self.is_verbose:
                 logger.info(
-                    f"✅ MySQL 连接池创建成功: {self.config['host']}:{self.config.get('port', 3306)}/{self.config['database']} "
+                    f"{i('success')} MySQL 连接池创建成功: {self.config['host']}:{self.config.get('port', 3306)}/{self.config['database']} "
                     f"(pool_size={self._pool_maxconn})"
                 )
             
         except Exception as e:
-            logger.error(f"❌ MySQL 连接失败: {e}")
+            logger.error(f"{i('error')} MySQL 连接失败: {e}")
             raise
     
     def close(self):
@@ -177,7 +179,7 @@ class MysqlConnector:
         self._pool = None
         self._initialized = False
         if self.is_verbose:
-            logger.info("✅ MySQL 连接池已关闭")
+            logger.info(f"{i('success')} MySQL 连接池已关闭")
     
     def execute_query(self, query: str, params: Any = None) -> List[Dict[str, Any]]:
         """

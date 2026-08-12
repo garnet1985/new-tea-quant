@@ -3,6 +3,8 @@
 
 将所有旧方法名替换为新方法名
 """
+from core.infra.cmd_layout import i
+
 import re
 from pathlib import Path
 import logging
@@ -95,13 +97,13 @@ def update_file(file_path: Path) -> bool:
 
         if content != original_content:
             file_path.write_text(content, encoding='utf-8')
-            logger.info(f"✅ Updated: {file_path}")
+            logger.info(f"{i('success')} Updated: {file_path}")
             return True
         else:
             return False
 
     except Exception as e:
-        logger.error(f"❌ Error updating {file_path}: {e}")
+        logger.error(f"{i('error')} Error updating {file_path}: {e}")
         return False
 
 
@@ -168,8 +170,8 @@ def batch_update_files():
             if update_file(file_path):
                 updated_count += 1
 
-    logger.info(f"\n✅ Total updated: {updated_count} files")
-    logger.info(f"❌ Failed or no changes: {len(files_to_update) - updated_count} files")
+    logger.info(f"\n{i('success')} Total updated: {updated_count} files")
+    logger.info(f"{i('error')} Failed or no changes: {len(files_to_update) - updated_count} files")
 
 
 if __name__ == "__main__":

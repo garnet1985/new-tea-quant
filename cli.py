@@ -9,6 +9,8 @@
 #
 from __future__ import annotations
 
+from core.infra.cmd_layout import i
+
 import sys
 
 # Windows GBK 编码兼容：强制 UTF-8 输出，保留 emoji 符号
@@ -33,7 +35,7 @@ except ModuleNotFoundError as exc:
     sys.stderr.write(
         "\n".join(
             [
-                f"❌ 缺少依赖包: {missing}",
+                f"{i('error')} 缺少依赖包: {missing}",
                 "",
                 "建议：在仓库根目录先执行一次安装（会创建 venv/ 并安装 requirements.txt）：",
                 "  python3 install.py",

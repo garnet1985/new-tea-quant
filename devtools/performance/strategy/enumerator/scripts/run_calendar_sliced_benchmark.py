@@ -27,6 +27,9 @@ Calendar-Sliced (slice_based) 枚举器性能基准测试
 
 from __future__ import annotations
 
+from core.infra.cmd_layout import i
+
+
 import argparse
 import json
 import shutil
@@ -291,7 +294,7 @@ def _extract_metrics(report_path: Path) -> Dict[str, Any]:
         # 打印顶层 key 用于调试
         print(f"[DEBUG] 报告顶层 keys: {list(report.keys())}")
         if "calendar_slice_runtime_plan" in report:
-            print(f"[DEBUG] ✅ 找到 calendar_slice_runtime_plan (顶层)")
+            print(f"[DEBUG] {i('success')} 找到 calendar_slice_runtime_plan (顶层)")
         elif "metadata" in report and isinstance(report["metadata"], dict):
             print(f"[DEBUG] metadata keys: {list(report['metadata'].keys())}")
         elif "summary" in report and isinstance(report["summary"], dict):
@@ -460,11 +463,11 @@ def generate_analysis_md(result: BenchmarkResult, output_path: Path) -> None:
 
 **测试 ID**: {result.test_id}
 **时间**: {result.timestamp}
-**状态**: {'✅ 成功' if result.success else '❌ 失败'}
+**状态**: {(i("success") + " 成功") if result.success else (i("error") + " 失败")}
 
 ---
 
-## 📊 测试配置
+## {i('bar_chart')} 测试配置
 
 | 参数 | 值 |
 |------|-----|
@@ -476,7 +479,7 @@ def generate_analysis_md(result: BenchmarkResult, output_path: Path) -> None:
 
 ---
 
-## ⏱️ 性能指标
+## {i('clock')} 性能指标
 
 ### 核心时间指标
 
@@ -517,7 +520,7 @@ def generate_analysis_md(result: BenchmarkResult, output_path: Path) -> None:
 
 ---
 
-## 📈 切片模式架构与性能分析
+## {i('line_chart')} 切片模式架构与性能分析
 
 ### 架构配置
 
@@ -535,13 +538,13 @@ def generate_analysis_md(result: BenchmarkResult, output_path: Path) -> None:
 
 ### Per-Slice 时序细分
 
-{'#### ✅ 有完整的 Per-Slice 数据' if result.slice_samples else '#### ⚠️ 无 Per-Slice 数据 (需要增强 profiler)'}
+{(("#### " + i("success") + " 有完整的 Per-Slice 数据") if result.slice_samples else ("#### " + i("warning") + " 无 Per-Slice 数据 (需要增强 profiler)"))}
 
 {_build_slice_table(result) if result.slice_samples else '*需要重新运行测试以获取此数据*'}
 
 ### IO / Compute 比例分析
 
-{'#### ✅ 有 IO/Compute 统计' if result.total_io_sec > 0 or result.total_compute_sec > 0 else '#### ⚠️ 无 IO/Compute 统计'}
+{(("#### " + i("success") + " 有 IO/Compute 统计") if result.total_io_sec > 0 or result.total_compute_sec > 0 else ("#### " + i("warning") + " 无 IO/Compute 统计"))}
 
 {_build_io_compute_table(result) if (result.total_io_sec > 0 or result.total_compute_sec > 0) else '*需要重新运行测试以获取此数据*'}
 
@@ -555,28 +558,28 @@ def generate_analysis_md(result: BenchmarkResult, output_path: Path) -> None:
 ### 架构优势
 
 切片模式的 Reader ∥ Compute 双进程架构：
-- ✅ **IO 与计算分离**: Reader 专注读 DB，Compute 专注算策略
-- ✅ **Pipeline 重叠**: 可预取下一片，隐藏 IO 延迟
-- ✅ **内存可控**: 按 slice 分批，不一次性加载全量数据
-- ✅ **天然并行**: 不同时间切片相互独立
+- {i('success')} **IO 与计算分离**: Reader 专注读 DB，Compute 专注算策略
+- {i('success')} **Pipeline 重叠**: 可预取下一片，隐藏 IO 延迟
+- {i('success')} **内存可控**: 按 slice 分批，不一次性加载全量数据
+- {i('success')} **天然并行**: 不同时间切片相互独立
 
 ---
 
-## 🔍 与 Stock-Based 模式对比
+## {i('search')} 与 Stock-Based 模式对比
 
 | 维度 | Calendar-Sliced | Stock-Based (基准) |
 |------|-----------------|---------------------|
 | **适用场景** | 横截面选股、因子研究 | 逐股信号、事件驱动 |
 | **数据访问模式** | 按时间切片批量加载 | 按股票逐个或批量加载 |
-| **并行度潜力** | ⭐⭐⭐⭐ 高 (天然可并行) | ⭐⭐ 中 (受限于 entities_per_job) |
-| **内存占用** | ⭐⭐⭐ 低 (分批处理) | ⭐⭐ 中等 |
-| **实现复杂度** | ⭐⭐ 较高 | ⭐⭐⭐ 较低 |
+| **并行度潜力** | {i('star')}{i('star')}{i('star')}{i('star')} 高 (天然可并行) | {i('star')}{i('star')} 中 (受限于 entities_per_job) |
+| **内存占用** | {i('star')}{i('star')}{i('star')} 低 (分批处理) | {i('star')}{i('star')} 中等 |
+| **实现复杂度** | {i('star')}{i('star')} 较高 | {i('star')}{i('star')}{i('star')} 较低 |
 
 ---
 
-## 💡 结论与建议
+## {i('tip')} 结论与建议
 
-{'✅ 测试成功' if result.success else '❌ 测试失败: ' + result.error_message}
+{(i("success") + " 测试成功") if result.success else (i("error") + " 测试失败: " + result.error_message)}
 
 ### 性能评级
 
@@ -587,20 +590,20 @@ def generate_analysis_md(result: BenchmarkResult, output_path: Path) -> None:
 
 ### 适用场景建议
 
-✅ **推荐使用 calendar-sliced 的场景**:
+{i('success')} **推荐使用 calendar-sliced 的场景**:
 - 因子模型回测 (多因子横截面选股)
 - 行业轮动策略
 - 定期再平衡组合
 - 大规模股票池筛选 (>2000 股票)
 
-⚠️ **考虑 stock-based 的场景**:
+{i('warning')} **考虑 stock-based 的场景**:
 - 事件驱动策略 (财报、公告)
 - 技术信号跟踪 (突破、形态)
 - 需要完整历史路径的策略
 
 ---
 
-## 📝 备注
+## {i('memo')} 备注
 
 - 测试环境: macOS, MySQL 远程数据库
 - 股票池: A 股市场全量 (PIT 过滤)
@@ -655,7 +658,7 @@ def main():
     print("=" * 70)
     print("  Calendar-Sliced 枚举器性能基准测试")
     print("=" * 70)
-    print(f"\n📋 配置:")
+    print(f"\n{i('clipboard')} 配置:")
     print(f"   执行模式:     calendar_slice")
     print(f"   股票池大小:   {args.sample_size:,}")
     print(f"   输出目录:     {output_base}")
@@ -663,7 +666,7 @@ def main():
     
     # 运行基准测试
     test_id = f"cs_baseline_{args.sample_size}"
-    print(f"▶️  开始测试: {test_id}")
+    print(f"{i('play')}  开始测试: {test_id}")
     print("-" * 70)
     
     result = run_benchmark(
@@ -677,8 +680,8 @@ def main():
     
     # 输出结果摘要
     if result.success:
-        print(f"\n✅ 测试成功!")
-        print(f"\n📊 核心指标:")
+        print(f"\n{i('success')} 测试成功!")
+        print(f"\n{i('bar_chart')} 核心指标:")
         print(f"   Wall Time:       {result.wall_clock_seconds:.2f}s ({result.wall_clock_minutes:.2f}min)")
         print(f"   Parallelism:     {result.parallelism_factor:.2f}x")
         print(f"   Total Stocks:    {result.total_stocks:,}")
@@ -690,14 +693,14 @@ def main():
         result_json = output_base / "baseline.json"
         with open(result_json, "w", encoding="utf-8") as f:
             json.dump(asdict(result), f, indent=2, ensure_ascii=False)
-        print(f"\n💾 结果已保存: {result_json}")
+        print(f"\n{i('disk')} 结果已保存: {result_json}")
         
         # 生成分析报告
         analysis_md = output_base / "analysis.md"
         generate_analysis_md(result, analysis_md)
         
     else:
-        print(f"\n❌ 测试失败!")
+        print(f"\n{i('error')} 测试失败!")
         print(f"   错误: {result.error_message}")
         sys.exit(1)
 

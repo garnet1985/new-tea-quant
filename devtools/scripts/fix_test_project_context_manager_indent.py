@@ -3,6 +3,8 @@
 重新修复test_project_context_manager.py的缩进问题
 """
 
+from core.infra.cmd_layout import i
+
 from pathlib import Path
 
 TEST_FILE = Path("/Users/garnet/Desktop/new-tea-quant/core/infra/project_context/__test__/test_project_context_manager.py")
@@ -47,7 +49,7 @@ def fix_indent():
     content = re.sub(r"ctx", "", content)
     
     TEST_FILE.write_text(content, encoding="utf-8")
-    print("✅ 已修复 test_project_context_manager.py 的缩进问题")
+    print(f"{i('success')} 已修复 test_project_context_manager.py 的缩进问题")
 
 if __name__ == "__main__":
     fix_indent()

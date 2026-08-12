@@ -26,7 +26,6 @@ from core.modules.tag.core.engines.shared.services.tag_value_flush import (
 from core.modules.tag.core.engines.shared.tag_settings.tag_settings import TagSettings
 from core.modules.tag.core.engines.per_entity.slice_based.executor import TagSliceJobExecutor
 from core.modules.tag.core.engines.per_entity.slice_based.job_builder import TagSliceJobBuilder
-from core.modules.tag.core.enums import TagUpdateMode
 from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
 
 logger = logging.getLogger(__name__)
@@ -133,12 +132,8 @@ class TagSlicePipeline:
 
         elapsed = time.monotonic() - t0
         success = run_ctx.fail == 0
-        if (
-            success
-            and (not dry_run)
-            and scenario.effective_update_mode() == TagUpdateMode.INCREMENTAL.value
-        ):
-            # slice：本跑实体批量推进到同一业务 end
+        if success and (not dry_run):
+            # slice：本跑实体批量推进到同一业务 end（incremental / refresh 都写）
             entity_ends: Dict[str, str] = {}
             for item in payload0.get("entity_specified") or []:
                 if not isinstance(item, dict):
@@ -152,14 +147,15 @@ class TagSlicePipeline:
                     scenario.name, entity_ends
                 )
                 logger.info(
-                    "incremental progress saved: scenario=%s entities=%d end≈%s",
+                    "calc progress saved: scenario=%s entities=%d end≈%s mode=%s",
                     scenario.name,
                     len(entity_ends),
                     run_end,
+                    scenario.effective_update_mode(),
                 )
             elif entity_ends and tag_data_service is None:
                 logger.warning(
-                    "incremental progress skipped (no tag_data_service): scenario=%s",
+                    "calc progress skipped (no tag_data_service): scenario=%s",
                     scenario.name,
                 )
         return {

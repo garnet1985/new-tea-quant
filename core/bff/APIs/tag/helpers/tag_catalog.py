@@ -77,6 +77,11 @@ class TagCatalog:
         display_name = str(meta.get("display_name") or "").strip()
         description = str(meta.get("description") or "").strip()
         last_computed_as_of = cls._last_computed_as_of(tag_key, tag_svc)
+        # 水位可能标成 data.json 配置日（非交易日）；展示/状态按有效交易日截断对齐
+        end = str(effective_end or "").strip()
+        last = str(last_computed_as_of or "").strip()
+        if end and last and last > end:
+            last_computed_as_of = end
         compute_status, compute_status_label, compute_status_hint = cls._compute_status(
             last_computed_as_of,
             effective_end,
@@ -156,22 +161,40 @@ class TagCatalog:
 
     @classmethod
     def _last_computed_as_of(cls, tag_key: str, tag_svc: Any) -> Optional[str]:
+        """列表「最后计算至」：优先 ``sys_tag_calc_progress``，不是 MAX(as_of)。
+
+        变化日写入的 tag（如利率 stance）可能很久才落一条 value；用 max(as_of)
+        会误报「需要更新」。取各实体 ``last_calculated_end`` 的最小值作为保守 frontier。
+
+        progress 为空时（旧 refresh 跑完未写水位）回退 ``MAX(as_of)``，避免列表永久「需要更新」。
+        """
         if tag_svc is None:
             return None
+        try:
+            progress = tag_svc.get_entity_calc_progress(tag_key) or {}
+        except Exception:
+            progress = {}
+        ends = [str(v).strip() for v in progress.values() if str(v or "").strip()]
+        if ends:
+            return min(ends)
+        return cls._max_as_of_fallback(tag_key, tag_svc)
+
+    @classmethod
+    def _max_as_of_fallback(cls, tag_key: str, tag_svc: Any) -> Optional[str]:
         scenario = tag_svc.load_scenario(tag_key)
-        if not scenario:
-            return None
-        scenario_id = scenario.get("id")
-        if scenario_id is None:
+        if not scenario or scenario.get("id") is None:
             return None
         try:
-            defs = tag_svc.get_tag_definitions(int(scenario_id))
+            defs = tag_svc.get_tag_definitions(int(scenario["id"]))
         except Exception:
             return None
         def_ids = [int(d["id"]) for d in defs if d.get("id") is not None]
         if not def_ids:
             return None
-        return tag_svc.get_max_as_of_date(def_ids)
+        try:
+            return tag_svc.get_max_as_of_date(def_ids)
+        except Exception:
+            return None
 
     @classmethod
     def _compute_status(

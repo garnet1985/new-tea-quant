@@ -32,7 +32,6 @@ from core.modules.tag.core.engines.shared.services.tag_value_flush import (
 from core.modules.tag.core.engines.shared.tag_settings.tag_settings import (
     TagSettings,
 )
-from core.modules.tag.core.enums import TagUpdateMode
 from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
 
 logger = logging.getLogger(__name__)
@@ -232,18 +231,19 @@ class TagNonTimeSeriesPipeline:
         if (
             success
             and (not dry_run)
-            and scenario.effective_update_mode() == TagUpdateMode.INCREMENTAL.value
             and tag_data_service is not None
             and run_end
         ):
+            # 成功跑完即写水位（incremental / refresh 都需要；UI freshness 依赖此表）
             tag_data_service.mark_entity_calc_progress(
                 scenario.name, {entity_id: run_end}
             )
             logger.info(
-                "incremental progress saved: scenario=%s entity=%s end=%s",
+                "calc progress saved: scenario=%s entity=%s end=%s mode=%s",
                 scenario.name,
                 entity_id,
                 run_end,
+                scenario.effective_update_mode(),
             )
 
         if on_progress:

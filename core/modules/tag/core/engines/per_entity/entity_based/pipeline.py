@@ -22,7 +22,6 @@ from core.modules.tag.core.engines.shared.services.tag_value_flush import (
     TagValueFlushService,
 )
 from core.modules.tag.core.engines.shared.tag_settings.tag_settings import TagSettings
-from core.modules.tag.core.enums import TagUpdateMode
 from core.modules.tag.core.services.discovery.data.discovered_tag import DiscoveredTagInfo
 
 logger = logging.getLogger(__name__)
@@ -120,12 +119,8 @@ class TagEntityPipeline:
 
         elapsed = time.monotonic() - t0
         success = run_ctx.fail == 0
-        if (
-            success
-            and (not dry_run)
-            and scenario.effective_update_mode() == TagUpdateMode.INCREMENTAL.value
-        ):
-            # incremental 水位 = 本次成功算到的业务 end（非 max(as_of)）
+        if success and (not dry_run):
+            # 成功跑完即写水位（incremental / refresh 都需要；UI freshness 依赖此表）
             entity_ends: Dict[str, str] = {}
             for item in jobs[0]["payload"].get("entity_specified") or []:
                 if not isinstance(item, dict):
@@ -139,14 +134,15 @@ class TagEntityPipeline:
                     scenario.name, entity_ends
                 )
                 logger.info(
-                    "incremental progress saved: scenario=%s entities=%d end≈%s",
+                    "calc progress saved: scenario=%s entities=%d end≈%s mode=%s",
                     scenario.name,
                     len(entity_ends),
                     run_end,
+                    scenario.effective_update_mode(),
                 )
             elif entity_ends and tag_data_service is None:
                 logger.warning(
-                    "incremental progress skipped (no tag_data_service): scenario=%s",
+                    "calc progress skipped (no tag_data_service): scenario=%s",
                     scenario.name,
                 )
         return {

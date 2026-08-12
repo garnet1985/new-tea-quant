@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback } from 'react';
 import { Alert, Box, Grid, Stack } from '@mui/material';
 import StrategyDesignExecutionPanel from './components/strategyDesignExecutionPanel';
 import StrategyDesignReportPanel from './components/strategyDesignReportPanel';
@@ -9,16 +9,11 @@ import StrategyDesignDraftChangeBridge from './components/strategyDesignDraftCha
 import StrategyDesignSettingsPanel from './components/strategyDesignSettingsPanel';
 import { useStrategyDesignSettingsOptions } from './hooks/useStrategyDesignSettingsOptions';
 import { useStrategyDesignWorkbenchContext } from './strategyDesignWorkbenchContext';
-import { detectLegacyStrategySettings } from '../../utils/stripLegacyStrategySettings';
 import './strategyDesignStepPage.scss';
 
 function StrategyDesignStepPage() {
   const wb = useStrategyDesignWorkbenchContext();
   const options = useStrategyDesignSettingsOptions();
-  const legacyHits = useMemo(
-    () => detectLegacyStrategySettings(wb.initialSettings),
-    [wb.initialSettings],
-  );
 
   const handleDraftSync = useCallback((nextDraft) => {
     wb.setDraftSettings(nextDraft);
@@ -46,11 +41,6 @@ function StrategyDesignStepPage() {
     <Box className="ntq-design-step-page">
       {options.optionsError ? (
         <Alert severity="error" sx={{ mb: 1.5 }}>{options.optionsError}</Alert>
-      ) : null}
-      {legacyHits.length > 0 ? (
-        <Alert severity="info" sx={{ mb: 1.5 }}>
-          检测到旧版 settings 字段（已自动迁移到新结构）：{legacyHits.join('；')}。保存后将按新结构写入。
-        </Alert>
       ) : null}
       <StrategySettingsContainer initialSettings={wb.initialSettings}>
         {({

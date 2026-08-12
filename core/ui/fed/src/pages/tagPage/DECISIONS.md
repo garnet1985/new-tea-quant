@@ -112,4 +112,4 @@ Setup 完成 `import_data` 后，用户可在 Tag 列表触发计算；与 setup
    - 已存在且 meta 不变：**直接 `_set_meta(scenario_metadata)`，不写库**
 4. **计算阶段**：`save_batch` 只写 `sys_tag_value`，**不 touch** `sys_tag_scenario.updated_at`。
 
-结论：该字段 **不是**「最后一次 tag 计算完成时间」；列表用 `get_max_as_of_date` / value 聚合（`tag_service.get_tag_value_last_update_info`）。
+结论：该字段 **不是**「最后一次 tag 计算完成时间」。列表「最后计算至 / 数据状态」读 **`sys_tag_calc_progress.last_calculated_end`**（各实体最小值），**不要**用 `MAX(as_of)`——变化日写入的 tag 的 as_of 不等于计算推进水位。

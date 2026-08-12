@@ -37,7 +37,7 @@ Tag 配置编辑、tag 结果预览等均 **不在 MVP**。
 
 - 列表形态参考 `StrategyListPage` + **V2-02** `GET /strategy/catalog/{page}/{limit}`。
 - 运行形态参考 **机会扫描**：`POST …/run` → `job_id` → `GET …/progress`（见 `scanPage` + `strategy_scan` BFF）。
-- API 编号采用 **T1-xx**（Tag 控制台 MVP）；契约写法与 `strategyWorkbenchPage/mocks/API.md` 一致。
+- API 编号采用 **T1-xx**（Tag 控制台 MVP）；契约写法对齐策略 V2 族（见 `core/bff/docs/routes/strategy.md`）。
 
 ## 列表「最后更新」用哪个字段？
 

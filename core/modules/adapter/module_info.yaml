@@ -1,6 +1,6 @@
 name: modules.adapter
 version: "0.2.0"
-compatible_core_versions: ">=0.4.0"
+compatible_core_versions: ">=0.4.4"
 description: "适配器模块：对策略模块扫描出的机会进行后续操作的扩展模块。"
 dependencies:
   - infra.project_context

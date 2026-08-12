@@ -1,6 +1,8 @@
-# 策略域 BFF：`routes/` 编排层
+# 策略域 BFF：`routes/` 编排
 
-契约与语义以 [`core/ui/fed/src/pages/strategyWorkbenchPage/mocks/API.md`](../../../ui/fed/src/pages/strategyWorkbenchPage/mocks/API.md) 为准。
+**版本：** 0.1.0
+
+FED 侧尚无独立 `strategy*/API.md`（原 `strategyWorkbenchPage/mocks/API.md` 已移除）；本文件为策略 HTTP 路由与编排的当前 SSOT，字段语义以工作台 / 设计页前端消费为准。
 
 ## 目录
 
@@ -26,7 +28,7 @@ core/bff/APIs/strategy/
 - **Snapshot**：前端概念（多 version settings）；读模型在 ``helpers/workbench_snapshots``。后端 run 只认指纹缓存写表。
 - 不再保留独立的 ``cache`` 路由模块；快照 DbCache 清理挂在 **version**。
 - BFF 不做缓存命中判断。
-- 工作台三步 ``enum | price | portfolio`` 与核心共用 ``WorkbenchStep``（``core.modules.strategy.core.enums``）。
+- 工作台三步 ``enum | price | portfolio`` 与核心共用 ``WorkbenchStep``（``core.modules.strategy.contracts``）。
 
 ## V2 路由 × 文件
 

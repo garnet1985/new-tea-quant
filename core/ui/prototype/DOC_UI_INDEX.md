@@ -26,9 +26,9 @@
 |------|------|-----|
 | Tag 列表 / 运行 | `fed/src/pages/tagPage/DECISIONS.md` | `fed/src/pages/tagPage/API.md`（T1-xx） |
 | Data Source（Phase 2） | `fed/src/pages/dataSourcePage/DECISIONS.md` | `fed/src/pages/dataSourcePage/API.md`（T2 草案） |
-| BFF 编排 | — | `bff/APIs/tag/ROUTES_ORCHESTRATION.md` |
+| BFF 编排 | — | `core/bff/docs/routes/tag.md` |
 
 ## 建议交接方式
 - React：按 `tagPage/DECISIONS.md` 路由 `/tags` + 列表 DataGrid，运行对齐 scan 页轮询。
-- BFF：按 `tagPage/API.md` T1-01～03 与 `ROUTES_ORCHESTRATION.md` 实现。
+- BFF：按 `tagPage/API.md` T1-01～03 与 `core/bff/docs/routes/tag.md` 实现。
 - 对“非主流程页”（如 `tag-preview`、`run-center`、`backtest`）仍低优先级。

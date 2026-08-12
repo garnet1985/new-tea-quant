@@ -1,6 +1,6 @@
 name: modules.backtest_engine
 version: "0.2.0"
-compatible_core_versions: ">=0.4.0"
+compatible_core_versions: ">=0.4.4"
 description: "回测引擎模块：对上层应用提供的任务进行规划，重组和按时间推进。"
 dependencies:
   - infra.project_context

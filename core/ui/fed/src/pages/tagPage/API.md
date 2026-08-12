@@ -1,6 +1,6 @@
 # Tag 控制台 API（T1）
 
-本文档描述 Tag 列表与运行（MVP）的 BFF 契约。实现编排见 `core/bff/APIs/tag/ROUTES_ORCHESTRATION.md`。
+本文档描述 Tag 列表与运行（MVP）的 BFF 契约。实现编排见 `core/bff/docs/routes/tag.md`。
 
 ## HTTP 前缀
 

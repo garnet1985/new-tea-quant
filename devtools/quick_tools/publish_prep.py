@@ -30,13 +30,14 @@ README_FILES = (REPO_ROOT / "README.md", REPO_ROOT / "README_en.md")
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 BADGE_ANCHOR = "https://img.shields.io/badge/version-"
 
-# ``core/modules/*``、``core/infra/*`` 每个子包；``core/ui`` 仅顶层模块（不含 bff/fed 子目录）
+# ``core/modules/*``、``core/infra/*`` 每个子包；``core/ui`` / ``core/bff`` 为顶层特殊模块
 _MODULE_PACKAGE_ROOTS: Tuple[Tuple[str, Path], ...] = (
     ("core/modules", REPO_ROOT / "core" / "modules"),
     ("core/infra", REPO_ROOT / "core" / "infra"),
 )
 _SINGLE_MODULE_ROOTS: Tuple[Tuple[str, Path], ...] = (
     ("core/ui", REPO_ROOT / "core" / "ui"),
+    ("core/bff", REPO_ROOT / "core" / "bff"),
 )
 
 
@@ -252,7 +253,7 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
             print(f"  {CmdLayout.icon.i('error')} {line}", flush=True)
     else:
         print(
-            f"  {CmdLayout.icon.i('success')} core/modules/*、core/infra/*、core/ui 均已具备 module_info.yaml",
+            f"  {CmdLayout.icon.i('success')} core/modules/*、core/infra/*、core/ui、core/bff 均已具备 module_info.yaml",
             flush=True,
         )
 

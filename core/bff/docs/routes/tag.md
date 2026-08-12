@@ -1,4 +1,6 @@
-# Tag 控制台 BFF：`routes` 编排约定
+# Tag 控制台 BFF：`routes` 编排
+
+**版本：** 0.1.0
 
 契约与字段语义以 [`core/ui/fed/src/pages/tagPage/API.md`](../../../ui/fed/src/pages/tagPage/API.md) 为准。
 
@@ -16,7 +18,6 @@ core/bff/APIs/tag/
   routes/
     catalog/     # T1-01
     runner/      # T1-02/03 + tag_run 薄壳
-  ROUTES_ORCHESTRATION.md
 ```
 
 进度落盘：``TagRunProgress``（``modules.tag.core.services.progress``）；BFF `tag_run.py` 只做锁 / lease / 线程。

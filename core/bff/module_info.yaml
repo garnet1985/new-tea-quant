@@ -1,0 +1,26 @@
+name: bff
+version: "0.2.0"
+compatible_core_versions: ">=0.4.4"
+description: "FED 的 Flask BFF：HTTP 编排与 DTO；领域执行在 core.modules / core.infra。"
+dependencies:
+  - modules.strategy
+  - modules.tag
+  - modules.data_manager
+  - modules.data_source
+  - modules.data_contract
+  - modules.indicator
+  - modules.market_profile
+  - infra.project_context
+  - infra.system_actions
+  - infra.discovery
+  - infra.trace
+  - infra.db
+  - ui
+changelog:
+  - version: "0.2.0"
+    changes:
+      - 从 core/ui 独立为顶层模块；取消 modules 内 launcher，BFF 专有逻辑收口到本目录
+      - 按 platform / data / strategy / tag 分域注册 Flask blueprint
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能

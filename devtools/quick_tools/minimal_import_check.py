@@ -23,8 +23,9 @@ from pathlib import Path
 
 from core.infra.cmd_layout import CmdLayout
 from devtools.quick_tools._paths import REPO_ROOT
+from setup.install_runtime import UI_BFF_REQUIREMENTS
 
-BFF_REQUIREMENTS = REPO_ROOT / "core" / "ui" / "bff" / "requirements.txt"
+BFF_REQUIREMENTS = UI_BFF_REQUIREMENTS
 DEFAULT_VENV_DIR = REPO_ROOT / ".ntq" / "ci-minimal-venv"
 
 

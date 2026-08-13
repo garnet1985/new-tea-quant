@@ -210,10 +210,10 @@ class TraceNamespace:
         SetupTrace.install_complete(success=success, entry=entry, error_code=error_code)
 
     @staticmethod
-    def app_start(*, entry: AppEntry) -> None:
+    def app_start(*, entry: AppEntry, command: Optional[str] = None) -> None:
         from core.infra.setup.core.trace_events import SetupTrace
 
-        SetupTrace.app_start(entry=entry)
+        SetupTrace.app_start(entry=entry, command=command)
 
 
 class Setup:

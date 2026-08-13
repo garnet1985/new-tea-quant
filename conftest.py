@@ -19,6 +19,14 @@ class TraceHttpBlock:
         return True
 
 
+class FeedbackHttpBlock:
+    """pytest 下 Feedback 上报一律视为成功，不打真实网络。"""
+
+    @staticmethod
+    def post(*args, **kwargs) -> bool:
+        return True
+
+
 def pytest_configure(config: pytest.Config) -> None:
     # Kept for backward compatibility with existing ``force_run`` markers.
     config.addinivalue_line(
@@ -32,4 +40,8 @@ def ntq_block_trace_http(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "core.infra.trace.core.services.client_service.TraceClientService.post",
         staticmethod(TraceHttpBlock.post),
+    )
+    monkeypatch.setattr(
+        "core.infra.feedback.core.services.client_service.FeedbackClientService.post",
+        staticmethod(FeedbackHttpBlock.post),
     )

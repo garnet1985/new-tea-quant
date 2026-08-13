@@ -41,6 +41,18 @@ class UserCommands:
         }
     )
 
+    # CLI ``app.start``：仅这些「跑策略 / 跑 Tag」命令会上报（避免 version/renew 等噪声）。
+    TRACE_RUN_COMMANDS: frozenset[str] = frozenset(
+        {
+            "scan",
+            "strategy_enumerate",
+            "strategy_price_factor",
+            "strategy_portfolio",
+            "strategy_simulate",
+            "tag",
+        }
+    )
+
     EARLY_COMMANDS: frozenset[str] = frozenset(
         {
             "update",

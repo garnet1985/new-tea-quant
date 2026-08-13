@@ -6,6 +6,7 @@ import { zhCN as muiZhCN } from '@mui/material/locale';
 import SetupPage from './pages/setupPage';
 import SetupGuard from 'components/setupGuard';
 import TraceConsentGuard from 'components/traceConsentGuard';
+import FeedbackPromptGuard from 'components/feedbackPromptGuard';
 import MainLayout from './layouts/mainLayout';
 import StrategyListPage from './pages/strategyListPage';
 import { StrategyDesignLayout } from './pages/strategyDesignPage';
@@ -159,7 +160,9 @@ function App() {
             element={(
               <SetupGuard>
                 <TraceConsentGuard source="ask_ui">
-                  <MainLayout />
+                  <FeedbackPromptGuard>
+                    <MainLayout />
+                  </FeedbackPromptGuard>
                 </TraceConsentGuard>
               </SetupGuard>
             )}

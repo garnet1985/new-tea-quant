@@ -34,3 +34,5 @@ Trace.track("install.complete", {"success": True})
 
 - [API.md](./API.md)
 - [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+- [docs/FEEDBACK.md](./docs/FEEDBACK.md)（应用内软反馈；**不**经 Trace.consent）
+

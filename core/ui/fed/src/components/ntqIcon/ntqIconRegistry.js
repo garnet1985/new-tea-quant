@@ -11,6 +11,8 @@ import { ReactComponent as RadioUncheckedIcon } from './icons/radio_button_unche
 import { ReactComponent as RefreshIcon } from './icons/refresh.svg';
 import { ReactComponent as RemoveIcon } from './icons/remove.svg';
 import { ReactComponent as SearchIcon } from './icons/search.svg';
+import { ReactComponent as SentimentDissatisfiedIcon } from './icons/sentiment_dissatisfied.svg';
+import { ReactComponent as SentimentSatisfiedIcon } from './icons/sentiment_satisfied.svg';
 import { ReactComponent as SuccessIcon } from './icons/success.svg';
 import { ReactComponent as SyncAltIcon } from './icons/sync_alt.svg';
 import { ReactComponent as UploadFileIcon } from './icons/upload_file.svg';
@@ -33,6 +35,8 @@ export const NTQ_ICON_MAP = {
   refresh: RefreshIcon,
   remove: RemoveIcon,
   search: SearchIcon,
+  sentimentDissatisfied: SentimentDissatisfiedIcon,
+  sentimentSatisfied: SentimentSatisfiedIcon,
   success: SuccessIcon,
   syncAlt: SyncAltIcon,
   uploadFile: UploadFileIcon,

@@ -83,3 +83,54 @@ def post_trace_settings():
     if err:
         return error(err, 400)
     return ok(body)
+
+
+@settings_api_bp.route("/v1/settings/feedback", methods=["GET"])
+def get_feedback_settings():
+    """读取应用内反馈弹窗偏好（与 Trace.consent 无关）。"""
+    return ok(settings_service.get_feedback_settings())
+
+
+@settings_api_bp.route("/v1/settings/feedback", methods=["POST"])
+def post_feedback_settings():
+    """写入是否关闭反馈弹窗（``prompts_disabled``）。"""
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return error("请求体须为 JSON 对象", 400)
+    body, err = settings_service.save_feedback_settings(payload)
+    if err:
+        return error(err, 400)
+    return ok(body)
+
+
+@settings_api_bp.route("/v1/feedback/task-success", methods=["POST"])
+def post_feedback_task_success():
+    """任务成功后记录一次；可能返回 should_prompt。"""
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        payload = {}
+    return ok(settings_service.note_feedback_task_success(payload))
+
+
+@settings_api_bp.route("/v1/feedback", methods=["POST"])
+def post_feedback_submit():
+    """用户主动提交 thumbs + 可选短文（无需 Trace consent）。"""
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return error("请求体须为 JSON 对象", 400)
+    body, err = settings_service.submit_feedback(payload)
+    if err:
+        return error(err, 400)
+    return ok(body)
+
+
+@settings_api_bp.route("/v1/feedback/prompt", methods=["POST"])
+def post_feedback_prompt_action():
+    """弹窗动作：snooze / disable。"""
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return error("请求体须为 JSON 对象", 400)
+    body, err = settings_service.feedback_prompt_action(payload)
+    if err:
+        return error(err, 400)
+    return ok(body)

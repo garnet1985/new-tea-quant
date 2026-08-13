@@ -198,6 +198,16 @@ function AppNavigation() {
                   </Button>
                 );
               })}
+              <Button
+                component="a"
+                href="https://new-tea.cn/zh-hans/contact?from=ntq_app"
+                target="_blank"
+                rel="noopener noreferrer"
+                variant="text"
+                className="ntq-nav-btn"
+              >
+                反馈
+              </Button>
             </Stack>
           </Box>
         </Box>

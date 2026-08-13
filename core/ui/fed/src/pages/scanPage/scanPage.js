@@ -37,6 +37,7 @@ import StrategyDescriptionText from '../../components/strategyDescriptionText/st
 import InlineLoadingState from '../../components/inlineLoadingState/inlineLoadingState';
 import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../components/dataGridLoadingOverlay/dataGridLoadingOverlay';
 import { buildStrategyDesignNavState } from '../strategyDesignPage/strategyDesignSessionState';
+import { notifyTaskSuccess } from '../../utils/feedbackPromptBus';
 import './scanPage.scss';
 
 const SHOW_REPORT_GENERATED_AT = false;
@@ -394,6 +395,7 @@ function ScanPage() {
             window.setTimeout(() => {
               refreshScanPrimaryActions({ silent: true });
             }, 0);
+            notifyTaskSuccess('scan');
             return;
           }
           if (status === 'failed') {

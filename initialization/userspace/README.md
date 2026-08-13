@@ -4,9 +4,9 @@
 
 | 文件 | 说明 |
 |------|------|
-| `userspace.zip` | **固定文件名**，`python dev-cli.py -userspace` 每次覆盖 |
+| `userspace.zip` | **固定文件名**，`python devcli.py pu` 每次覆盖 |
 | `userspace.meta.json` | 记录打包时的 core 版本、zip 大小、git rev（便于核对） |
-| `userspace/` | 可编辑源树（开发时可指向，不必每次打 zip） |
+| `userspace/` | 打包/本地开发用的可编辑源树（**gitignore**；由 `devcli pu` 从仓库根 `userspace/` 再生） |
 
 ## 维护 zip 源树
 

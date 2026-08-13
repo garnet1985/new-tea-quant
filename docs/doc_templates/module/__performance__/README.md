@@ -2,7 +2,7 @@
 
 <!--
   可选：无正式 bench 时删除整个 __performance__/ 目录。
-  CI 短冒烟仍放 __test__/test_performance_*.py；e2e → devtools/performance/。
+  CI 短冒烟仍放 __test__/test_performance_*.py。
 -->
 
 **模块：** `<namespace.module_name>`  

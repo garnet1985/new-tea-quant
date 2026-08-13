@@ -108,6 +108,27 @@ klines = dm.stock.kline.load("000001.SZ", term="daily", adjust="qfq")
 open_dates = dm.calendar.load_open_dates("20240101", "20241231")
 ```
 
+### sample_universe（嵌套）
+
+`DataManager.sample_universe`（namespace；实现类不从包根导出）
+
+- **状态：** `beta`
+- **描述：** 开发样本股票宇宙。由 `data.json` 的 `use_sample_stock_list` 开关 + `core/dev/sample_stock_list/stratified_N.csv` 决定系统内保留哪些股票。抓取侧与写库过滤消费此宇宙；`ListService` 读路径信任 DB。
+- **常用：**
+  - `count()` / `ids()` / `is_active()` / `csv_path(count)` / `directory()` / `invalidate_cache()`
+  - `slice_stock_list(rows)` / `slice_stock_list_in_dependencies(deps)`
+  - `filter_records(records, schema)` / `filter_paired(main, raw)` / `prune(data_manager)`
+  - `DEFAULT_COUNT`（分层 CSV 默认规模）
+
+**举例：**
+
+```python
+from core.modules.data_manager import DataManager
+
+rows = DataManager.sample_universe.slice_stock_list(full_list)
+ids = DataManager.sample_universe.ids()
+```
+
 ---
 
 ## contracts

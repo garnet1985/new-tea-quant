@@ -21,6 +21,8 @@ modules.data_manager/
 ├── core/
 │   ├── data_manager.py      # Facade 实现
 │   ├── enums.py
+│   ├── sample_universe/     # 开发样本股票宇宙
+│   ├── dev/sample_stock_list/  # 分层抽样 CSV（进 Git）
 │   └── data_services/       # stock / macro / calendar / …
 ├── docs/
 └── __test__/                # 公开 API 契约测
@@ -53,7 +55,7 @@ flowchart TB
 
 ## 边界
 
-**In scope：** 已落地表读写、领域查询、Model 实例化  
+**In scope：** 已落地表读写、领域查询、Model 实例化、开发样本股票宇宙  
 **Out of scope：** 抓取（`data_source`）；`DataKey` 签发（`data_contract`）
 
 ---

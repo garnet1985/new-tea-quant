@@ -18,7 +18,7 @@ core/modules/data_source/
 ├── core/                       # 实现层
 │   ├── data_source_manager.py
 │   ├── execution_scheduler.py
-│   ├── base_class / data_class / catalog / service / dev /
+│   ├── base_class / data_class / catalog / service /
 │   └── **/__test__/
 ├── __test__/                   # 公开 API 契约测
 └── docs/

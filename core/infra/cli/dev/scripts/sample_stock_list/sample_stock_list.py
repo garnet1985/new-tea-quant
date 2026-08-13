@@ -9,7 +9,6 @@ from typing import Tuple
 from core.infra.project_context import ProjectContext
 from core.infra.utils import Utils
 from core.modules.data_manager import DataManager
-from core.modules.data_source import DataSourceManager
 from core.infra.setup.core.scripts.init_data.config import (
     LIST_STATUS_LABELS,
     MIN_PER_STRATUM,
@@ -33,11 +32,11 @@ class SampleStockList:
 
     @staticmethod
     def _invalidate_cache() -> None:
-        DataSourceManager.invalidate_pool_cache()
+        DataManager.sample_universe.invalidate_cache()
 
     @staticmethod
     def _csv_path(count: int) -> Path:
-        return DataSourceManager.pool_csv_path(count)
+        return DataManager.sample_universe.csv_path(count)
 
     @staticmethod
     def _read_data_json() -> dict:

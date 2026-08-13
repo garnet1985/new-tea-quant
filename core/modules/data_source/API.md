@@ -57,16 +57,15 @@
 - **状态：** `beta`
 - **描述：** 数据截断 / 有效结束日（供 scan UI）；对齐 `data.json` as_of 与交易日历。跨模块入口，勿 deep-import `catalog.freshness_probe`
 
-### catalog / provider / sample pool（跨模块辅助）
+### catalog / provider（跨模块辅助）
 
 - **状态：** `beta`
-- **描述：** 收口原 `catalog.*` / `sample_stock_list` 深路径；BFF、DM、devtools 请走 Facade
+- **描述：** 收口原 `catalog.*` 深路径；BFF、devtools 请走 Facade。样本股票宇宙见 `DataManager.sample_universe`
 - **常用：**
   - `get_provider` / `discover_provider_classes`
   - `fetch_real_world_latest_completed_trading_date` / `ensure_calendar_real_world_fetcher_registered`
   - `evaluate_update_status` / `summarize_provider_auth` / `min_rate_limit_per_minute`
   - `builtin_source_keys` / `default_display_names`
-  - `slice_stock_list` / `sample_pool_count` / `pool_stock_ids` / `default_sample_n` / `pool_csv_path` / `invalidate_pool_cache`
   - `discover_mappings` / `discover_config`（实例方法）
 
 ### execute

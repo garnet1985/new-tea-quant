@@ -43,7 +43,6 @@ class TestDataSourceApi(unittest.TestCase):
         self.assertTrue(
             callable(DataSourceManager.ensure_calendar_real_world_fetcher_registered)
         )
-        self.assertTrue(callable(DataSourceManager.slice_stock_list))
         self.assertTrue(callable(DataSourceManager.discover_mappings))
         self.assertTrue(callable(mgr.discover_mappings))
         self.assertTrue(callable(mgr.discover_config))

@@ -16,7 +16,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from core.modules.data_source import DataSourceManager
+from core.modules.data_manager import DataManager
 from core.infra.setup.core.scripts.init_data.config import SAMPLE_RANDOM_SEED, TARGET_STOCK_COUNT
 
 from .sample_stock_list import SampleStockList
@@ -31,13 +31,13 @@ def main() -> int:
         "--output",
         type=Path,
         default=None,
-        help="输出 CSV 路径（默认 core/modules/data_source/dev/stock_pool/stratified_{count}.csv）",
+        help="输出 CSV 路径（默认 core/modules/data_manager/core/dev/sample_stock_list/stratified_{count}.csv）",
     )
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
 
     try:
-        out = args.output or DataSourceManager.pool_csv_path(args.count)
+        out = args.output or DataManager.sample_universe.csv_path(args.count)
         SampleStockList.generate(
             count=args.count,
             seed=args.seed,

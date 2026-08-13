@@ -18,7 +18,7 @@
 
 **不负责**
 
-- `<跨模块 e2e（→ devtools/performance）；功能正确性（→ __test__）>`
+- `<跨模块场景用相关模块 __performance__/` 或 `devcli.py bpe/bps`；功能正确性（→ `__test__`）`
 
 ---
 

@@ -356,7 +356,7 @@ class ConfigNamespace:
     @staticmethod
     def get_use_sample_stock_list() -> Optional[int]:
         """
-        开发样本股票池规模（``core/modules/data_source/dev/stock_pool/stratified_N.csv``）。
+        开发样本股票池规模（``core/modules/data_manager/core/dev/sample_stock_list/stratified_N.csv``）。
 
         - 正整数 ``N`` → 使用 ``stratified_N.csv``
         - 未配置 / 空 / 非正数 → 全市场

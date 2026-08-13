@@ -137,9 +137,8 @@ new-tea-quant/
 │   ├── adapters/                  # 扫描输出适配器
 │   ├── backup/                    # 备份数据目录（多为生成物，见该目录 README）
 │   └── config/                    # 用户项目配置（覆盖 core/default_config）
-├── setup/                         # 安装、初始化数据包等
-├── devtools/                      # 维护用：Docker 说明、自动化脚本等（非运行时核心）
-├── tools/                         # 临时/一次性工具脚本（DB 比对、演示导出等）
+├── initialization/                # 安装、初始化所需要的数据包等
+├── devtools/                      # 维护用：Docker 说明、尚未收口的本地脚本（非运行时核心）
 └── docs/                          # 仓库文档
 ```
 

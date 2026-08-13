@@ -105,6 +105,6 @@
     }
   ],
   "use_sample_stock_list": 500,
-  "dev_pool_file": "core/modules/data_source/dev/stock_pool/stratified_500.csv",
-  "renew_hint": "data.json use_sample_stock_list；python dev-cli.py -sample_stock_list -clear 取消"
+  "dev_pool_file": "core/modules/data_manager/core/dev/sample_stock_list/stratified_500.csv",
+  "renew_hint": "data.json use_sample_stock_list；python devcli.py pc 取消"
 }

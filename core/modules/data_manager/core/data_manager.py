@@ -35,6 +35,7 @@ from core.infra.discovery import Discovery
 # Loaders 已废弃，不再导入
 # 所有功能已迁移到 data_services
 from core.infra.project_context import ProjectContext
+from core.modules.data_manager.core.sample_universe.sample_universe import SampleUniverse
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,8 @@ class DataManager:
         data_mgr = DataManager(is_verbose=True, force_new=True)
     """
     
+    sample_universe = SampleUniverse
+
     # 单例实例（每个进程独立）
     _instance: Optional['DataManager'] = None
     _lock = threading.Lock()  # 单例 __new__ 锁

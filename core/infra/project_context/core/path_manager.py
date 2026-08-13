@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Optional, Union
 import logging
 import os
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,42 @@ class PathManager:
         fallback_root = current_dir.parent.parent.parent.parent.parent
         PathManager._root_cache = fallback_root
         return fallback_root
+
+    @staticmethod
+    def get_venv_python() -> Path:
+        """项目 ``venv`` 解释器路径（文件未必存在；不 ``resolve()``）。"""
+        root = PathManager.get_project_root()
+        if os.name == "nt":
+            return root / "venv" / "Scripts" / "python.exe"
+        return root / "venv" / "bin" / "python"
+
+    @staticmethod
+    def get_sys_python() -> Path:
+        """系统解释器（venv 外的 base interpreter；不在 venv 内时即当前进程）。"""
+        base_exe = getattr(sys, "_base_executable", "") or ""
+        if base_exe:
+            p = Path(base_exe)
+            if p.is_file():
+                return p
+        prefix = Path(sys.base_prefix)
+        if os.name == "nt":
+            candidates = (prefix / "python.exe", prefix / "Scripts" / "python.exe")
+        else:
+            candidates = (prefix / "bin" / "python3", prefix / "bin" / "python")
+        for candidate in candidates:
+            if candidate.is_file():
+                return candidate
+        return Path(sys.executable)
+
+    @staticmethod
+    def get_python(*, allow_sys_fallback: bool = True) -> Path:
+        """可执行解释器：优先 ``venv``；没有则按 ``allow_sys_fallback`` 回退系统解释器。"""
+        vpy = PathManager.get_venv_python()
+        if vpy.is_file():
+            return vpy
+        if allow_sys_fallback:
+            return PathManager.get_sys_python()
+        raise FileNotFoundError(f"venv python not found: {vpy}")
 
     @staticmethod
     def get_core_root() -> Path:

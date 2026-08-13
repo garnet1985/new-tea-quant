@@ -11,6 +11,26 @@
 
 ---
 
+## 包级短入口
+
+### i
+
+`from core.infra.cmd_layout import i`
+
+- **类型：** `function`（`CmdLayout.icon.i` 的别名）
+- **状态：** `beta`
+- **引入版本：** `0.1.2`
+- **描述：** 跨平台图标短入口；等价于 `CmdLayout.icon.get` / `CmdLayout.icon.i`
+- **举例：**
+
+```python
+from core.infra.cmd_layout import i
+
+print(f"{i('success')} 完成")  # ✅ 或 [OK]
+```
+
+---
+
 ## CmdLayout
 
 **描述：** 命令行布局门面类（Facade）— 下挂 `bar_chart` / `title` / `separator` / `icon` 命名空间（namespace）

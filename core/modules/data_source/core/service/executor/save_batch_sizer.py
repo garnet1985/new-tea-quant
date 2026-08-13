@@ -2,6 +2,7 @@
 SaveBatchSizer - batch 模式下的写入批次大小（固定值或内存感知 auto）。
 """
 from __future__ import annotations
+from core.infra.cmd_layout import i
 
 import logging
 from typing import Any, List, Optional
@@ -70,7 +71,7 @@ class SaveBatchSizer:
             finished_jobs=self._saved_bundles,
         )
         logger.info(
-            "📊 [save_batch_size=auto] 下一批写入阈值: %s（已写入 %s/%s bundles）",
+            i('bar_chart') + " [save_batch_size=auto] 下一批写入阈值: %s（已写入 %s/%s bundles）",
             self.current_size(),
             self._saved_bundles,
             self._scheduler.total_jobs,

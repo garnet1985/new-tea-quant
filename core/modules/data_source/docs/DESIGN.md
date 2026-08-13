@@ -63,6 +63,10 @@ API 以根目录 [API.md](../API.md) 为准。实现以 `core/data_source_manage
 
 **决策：** 由 `DateRangeService` / `date_range_helper` / `RenewCommonHelper` 统一计算；已删除未接入的 RenewManager 与三模式 RenewService 占位实现。
 
+### 决策 7：样本股票宇宙不在本模块
+
+**决策：** 系统内保留哪些股票由 `DataManager.sample_universe` 决定。本模块只在抓取切片与写库过滤时消费，不持有名单文件或 Facade API。
+
 ---
 
 ## 相关文档

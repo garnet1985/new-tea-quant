@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.4.3-8A2BE2"></a>&nbsp;
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.4.4-8A2BE2"></a>&nbsp;
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
   <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
@@ -30,9 +30,10 @@
 
 **v0.4.4**
 
-- 回测器与标签计算器支持**多股并行、日历切片**式计算。
-- UI 新增**高级功能**入口：特征标签、数据契约和数据源（更新尚未完成）。
-- 再增加2个演示策略 - 低价股策略（仅演示目的）
+- 策略投资组合使用**复权价格**（连续价格）作为信号，**实际价格作**为成交价格的双轨回测，增加了投资组合的准确性。
+- 在投资组合回测过程中新增加了当出现多个机会，选择哪个机会进行投资的接口，让投资可干预性更强。
+- UI 新增**高级功能**入口：特征标签、数据契约和数据源。
+- 所有模块进行了标准化重构，统一API文档，使用说明，架构说明等等。
 - 更多更新请参照 [CHANGELOG.md](CHANGELOG.md)。
 
 ## NTQ 是什么？
@@ -202,7 +203,7 @@ NTQ会自带下边资产用来演示：
 
 ### 数据说明
  
-1. **（注意，这一步暂时不可用，正在修复中）** 如果您想**获取更多（约 3 年，全 A 股市场）演示数据包**：用于更完整的策略验证/回测，请在 **[new-tea.cn](https://new-tea.cn)** 注册后下载，**清空** `setup/init_data/` 后只放入 **1 个** zip，再执行 `python setup/steps/import_data/install.py`（如果是清空再安装，需要在命令最后加入 `--force` 参数）。  
+1. **（注意，这一步暂时不可用，正在修复中）** 如果您想**获取更多（约 3 年，全 A 股市场）演示数据包**：用于更完整的策略验证/回测，请在 **[new-tea.cn](https://new-tea.cn)** 注册后下载，**清空** `initialization/data/` 后只放入 **1 个** zip，再执行 `python core/infra/setup/core/steps/import_data/install.py`（如果是清空再安装，需要在命令最后加入 `--force` 参数）。  
 2. **自有数据源**：也可自行接入（例如 Tushare），详见 [userspace/extensions/data_source/README.md](userspace/extensions/data_source/README.md)。
 3. 演示数据与 demo 策略仅供学习研究，请勿用于实盘或商用。
 
@@ -305,7 +306,7 @@ python cli.py t  --scenario demo/market_cap_tier                              # 
 
 **分支：** `master` 发布；从 `dev` 拉 `feature/*` / `bugfix/*`；`hotfix/*` 仅从 rc 拉。勿直接向 `master` 提 PR。
 
-**开发：** `python devcli.py -h`（`ui` 开发 UI · `uk` 释放端口 · `csc` 清缓存）· Docker：[devtools/docker/README.md](devtools/docker/README.md)
+**开发：** `python devcli.py -h`（`ui` 开发 UI · `uk` 释放端口 · `csc` 清缓存）· Docker：[docs/docker.md](docs/docker.md)
 
 **测试 / 依赖：**
 

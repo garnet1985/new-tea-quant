@@ -31,6 +31,20 @@
 - **引入版本：** `0.2.0`
 - **描述：** 推断并缓存项目根目录
 
+#### get_venv_python / get_sys_python / get_python
+
+`ProjectContext.path.get_venv_python() -> Path`  
+`ProjectContext.path.get_sys_python() -> Path`  
+`ProjectContext.path.get_python(*, allow_sys_fallback: bool = True) -> Path`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.0`
+- **描述：**
+  - `get_venv_python`：项目 `venv` 解释器路径（Windows `venv/Scripts/python.exe`，其它 `venv/bin/python`）。路径约定，文件未必存在；不 `resolve()`，避免 macOS venv 符号链接丢 site-packages。
+  - `get_sys_python`：系统解释器（`sys._base_executable` / `base_prefix`；当前不在 venv 内时即本进程解释器）。
+  - `get_python`：优先已存在的 venv 解释器。`allow_sys_fallback=True`（默认）时回退 `get_sys_python()`；`False` 且 venv 不存在时抛 `FileNotFoundError`。
+
 #### get_core_root / get_userspace_root
 
 `ProjectContext.path.get_core_root() -> Path`  

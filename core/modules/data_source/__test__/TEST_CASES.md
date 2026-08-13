@@ -22,7 +22,6 @@
 | `../core/service/normalization/__test__/test_normalization_helper.py` | 标准化 |
 | `../core/service/pipeline/__test__/test_*.py` | JobPipeline / runner / buffer |
 | `../core/service/executor/__test__/test_*.py` | save batch / fetched helper |
-| `../core/service/__test__/test_*.py` | rate limiter / sample pool |
+| `../core/service/__test__/test_*.py` | rate limiter / real-world date |
 | `../core/service/utils/__test__/test_stock_list_dimension_fields.py` | 维度字段 |
 | `../core/catalog/__test__/test_freshness_probe.py` | freshness |
-| `../core/dev/__test__/test_stock_pool_paths.py` | 样本池路径 |

@@ -37,3 +37,14 @@ terms:
     aliases: []
     avoid:
       - "使用无 sys_ 前缀的旧枚举值"
+
+  sample_universe:
+    definition: "开发样本股票宇宙（data.json use_sample_stock_list + DataManager.sample_universe + core/dev/sample_stock_list）。"
+    aliases:
+      - "样本宇宙"
+      - "样本池"
+      - "use_sample_stock_list"
+    avoid:
+      - "从 data_source 取样本名单"
+      - "包根导出 SampleUniverse"
+      - "在业务路径硬编码股票列表"

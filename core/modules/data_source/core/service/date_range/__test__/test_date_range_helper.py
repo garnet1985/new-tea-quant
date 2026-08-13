@@ -81,59 +81,6 @@ class TestDateRangeHelper:
 
         assert start == "20000101"
 
-    def test_calc_last_update_incremental_from_last_update_plus_one(self):
-        """
-        incremental 模式：
-        - 当有 last_update 时，应该从 last_update 的后一个周期开始。
-        这里通过 patch DateUtils 保证行为可预测。
-        """
-        from core.modules.data_source.core.service.date_range import date_range_helper as drh
-        from core.modules.data_source.core.enums import UpdateMode
-
-        config = Mock()
-        config.get_renew_mode.return_value = UpdateMode.INCREMENTAL
-        config.get_date_format.return_value = "day"
-
-        ctx = {"config": config, "data_manager": Mock()}
-
-        with patch(
-            "core.modules.data_source.core.service.date_range.date_range_helper.RenewCommonHelper.get_default_date_range",
-            return_value=("19990101", "19990102"),
-        ), patch(
-            "core.modules.data_source.core.service.date_range.date_range_helper.DateUtils"
-        ) as MockDU:
-            MockDU.normalize_period_type.return_value = "day"
-
-            # last_update="20240101" → add_periods(...,1,"day") 返回 "20240102"
-            MockDU.add_periods.return_value = "20240102"
-            MockDU.from_period_str.return_value = "2024-01-02"
-
-            start = drh.calc_last_update_based_on_renew_mode(
-                ctx,
-                last_update="20240101",
-            )
-
-        assert start == "2024-01-02"
-
-    def test_validate_data_config_rejects_top_level_indicators(self):
-        from core.modules.strategy.engines.shared.data_classes.strategy_settings.dict_view_settings import (
-            StrategySettingsView,
-        )
-
-        try:
-            StrategySettingsView.validate_data_config(
-                {
-                    "base_required_data": {
-                        "data_id": "stock.kline.daily",
-                        "params": {"adjust": "qfq"},
-                    },
-                    "indicators": {"rsi": [{"length": 14}]},
-                }
-            )
-        except ValueError:
-            return
-        raise AssertionError("expected ValueError for top-level data.indicators")
-
     def test_compute_entity_date_ranges_merges_config_terms_when_db_has_subset(self):
         """
         多字段分组：DB 仅有 daily 记录时，仍应为 job_execution.terms 中的 weekly 等生成日期范围。
@@ -174,4 +121,44 @@ class TestDateRangeHelper:
 
         assert "000001.SZ::daily" in ranges
         assert "000001.SZ::weekly" in ranges
+
+    def test_calc_last_update_empty_context_returns_none(self):
+        from core.modules.data_source.core.service.date_range import date_range_helper as drh
+
+        assert drh.calc_last_update_based_on_renew_mode({}, last_update="20240101") is None
+
+    def test_calc_last_update_incremental_advances_one_period(self):
+        """INCREMENTAL：起点 = last_update 的下一周期。"""
+        from core.modules.data_source.core.service.date_range import date_range_helper as drh
+        from core.modules.data_source.core.enums import UpdateMode
+
+        config = Mock()
+        config.get_renew_mode.return_value = UpdateMode.INCREMENTAL
+        config.get_date_format.return_value = "day"
+        ctx = {"config": config, "data_manager": Mock()}
+
+        with patch(
+            "core.modules.data_source.core.service.date_range.date_range_helper.RenewCommonHelper.get_default_date_range",
+            return_value=("20000101", "20001231"),
+        ):
+            start = drh.calc_last_update_based_on_renew_mode(ctx, last_update="20240101")
+
+        assert start == "20240102"
+
+    def test_calc_last_update_incremental_missing_last_uses_default(self):
+        from core.modules.data_source.core.service.date_range import date_range_helper as drh
+        from core.modules.data_source.core.enums import UpdateMode
+
+        config = Mock()
+        config.get_renew_mode.return_value = UpdateMode.INCREMENTAL
+        config.get_date_format.return_value = "day"
+        ctx = {"config": config, "data_manager": Mock()}
+
+        with patch(
+            "core.modules.data_source.core.service.date_range.date_range_helper.RenewCommonHelper.get_default_date_range",
+            return_value=("19990101", "20001231"),
+        ):
+            start = drh.calc_last_update_based_on_renew_mode(ctx, last_update=None)
+
+        assert start == "19990101"
 

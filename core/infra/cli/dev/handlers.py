@@ -9,20 +9,27 @@ import time
 from pathlib import Path
 from typing import Iterable, Sequence
 
+from core.infra.project_context import ProjectContext
+
 
 class DevHandlers:
     """Dev CLI command implementations."""
 
-    REPO_ROOT = Path(__file__).resolve().parents[4]
-    _PERF_CMD = (
-        Path(__file__).resolve().parents[4]
-        / "core"
-        / "modules"
-        / "backtest_engine"
-        / "__performance__"
-        / "scripts"
-        / "cmd"
-    )
+    @staticmethod
+    def _repo_root() -> Path:
+        return ProjectContext.path.get_project_root()
+
+    @staticmethod
+    def _perf_cmd_dir() -> Path:
+        return (
+            ProjectContext.path.get_project_root()
+            / "core"
+            / "modules"
+            / "backtest_engine"
+            / "__performance__"
+            / "scripts"
+            / "cmd"
+        )
 
     @staticmethod
     def _pids_listening_on(port: int) -> list[int]:
@@ -59,8 +66,9 @@ class DevHandlers:
     ) -> int:
         from core.ui.process_cleanup import kill_process_group
 
-        fed_root = str((DevHandlers.REPO_ROOT / "core" / "ui" / "fed").resolve())
-        repo_s = str(DevHandlers.REPO_ROOT)
+        root = DevHandlers._repo_root()
+        fed_root = str((root / "core" / "ui" / "fed").resolve())
+        repo_s = str(root)
         ntq_markers = (
             "core.bff.app",
             "react-scripts",
@@ -115,7 +123,7 @@ class DevHandlers:
 
     @staticmethod
     def cmd_ui(args: argparse.Namespace) -> int:
-        launcher = DevHandlers.REPO_ROOT / "launcher.py"
+        launcher = DevHandlers._repo_root() / "launcher.py"
         if not launcher.is_file():
             print(f"缺少 {launcher}", file=sys.stderr)
             return 1
@@ -126,57 +134,71 @@ class DevHandlers:
         cmd = [sys.executable, str(launcher), "-d", *args.forward]
         print("启动: " + " ".join(cmd), flush=True)
         try:
-            return subprocess.run(cmd, cwd=str(DevHandlers.REPO_ROOT)).returncode
+            return subprocess.run(cmd, cwd=str(DevHandlers._repo_root())).returncode
         except KeyboardInterrupt:
             return 130
 
     @staticmethod
     def cmd_check_import(args: argparse.Namespace) -> int:
-        cmd = [sys.executable, "-m", "devtools.quick_tools.minimal_import_check", *args.forward]
-        return subprocess.run(cmd, cwd=str(DevHandlers.REPO_ROOT)).returncode
+        cmd = [sys.executable, "-m", "core.infra.cli.dev.scripts.minimal_import_check", *args.forward]
+        return subprocess.run(cmd, cwd=str(DevHandlers._repo_root())).returncode
 
     @staticmethod
     def cmd_clear_global_cache(_args: argparse.Namespace) -> int:
-        from devtools.quick_tools.dev_cache import clear_userspace_ntq_dir
+        from core.infra.cli.dev.scripts.temp_cleanup import TempCleanup
 
-        clear_userspace_ntq_dir()
+        TempCleanup.clear_userspace_ntq_dir()
         print("userspace/.ntq 已清理。", flush=True)
         return 0
 
     @staticmethod
     def cmd_clear_strategy_cache(_args: argparse.Namespace) -> int:
-        from devtools.quick_tools.dev_cache import clear_simulation_cache_all
+        from core.infra.cli.dev.scripts.temp_cleanup import TempCleanup
 
-        clear_simulation_cache_all()
+        TempCleanup.clear_strategy_results_disk()
+        TempCleanup.clear_workbench_db_cache()
         print("物理模拟 results/ 与 DB 工作台快照已清理。", flush=True)
         return 0
 
     @staticmethod
     def cmd_cache_clear_db(_args: argparse.Namespace) -> int:
-        from devtools.quick_tools.dev_cache import clear_workbench_db_cache
+        from core.infra.cli.dev.scripts.temp_cleanup import TempCleanup
 
-        clear_workbench_db_cache()
+        TempCleanup.clear_workbench_db_cache()
         print("DB 工作台快照已清理。", flush=True)
         return 0
 
     @staticmethod
     def cmd_cache_clear_disk(_args: argparse.Namespace) -> int:
-        from devtools.quick_tools.dev_cache import clear_simulation_disk_cache
+        from core.infra.cli.dev.scripts.temp_cleanup import TempCleanup
 
-        clear_simulation_disk_cache()
+        TempCleanup.clear_strategy_results_disk()
         print("物理模拟 results/ 已清理。", flush=True)
         return 0
 
     @staticmethod
     def cmd_data_export_init(args: argparse.Namespace) -> int:
-        cmd = [sys.executable, "-m", "devtools.demo_exporter.demo_data_exporter", *args.forward]
-        return subprocess.run(cmd, cwd=str(DevHandlers.REPO_ROOT)).returncode
+        from core.infra.setup import Setup
+
+        return Setup.artifacts.export_demo_data(list(getattr(args, "forward", None) or []))
 
     @staticmethod
     def cmd_userspace_package(args: argparse.Namespace) -> int:
-        from devtools.quick_tools.package_init_userspace import package_init_userspace
+        return DevHandlers._package_userspace_with_updater(
+            write_zip=not getattr(args, "no_zip", False)
+        )
 
-        return package_init_userspace(write_zip=not getattr(args, "no_zip", False))
+    @staticmethod
+    def _package_userspace_with_updater(*, write_zip: bool) -> int:
+        from core.infra.project_context import ProjectContext
+        from core.infra.updater import Updater
+        from core.infra.setup import Setup
+
+        dest = ProjectContext.path.get_updater_directory()
+        notes = Updater.runtime.sync_orchestrator(dest)
+        for line in notes:
+            print(f"  · sync updater → {line}", flush=True)
+        return Setup.artifacts.package_userspace(write_zip=write_zip)
 
     @staticmethod
     def cmd_db_checkpoint(args: argparse.Namespace) -> int:
@@ -248,20 +270,20 @@ class DevHandlers:
 
     @staticmethod
     def cmd_sample_stock_pool(args: argparse.Namespace) -> int:
-        from devtools.quick_tools.stock_pool_ops import activate_stratified_pool
+        from core.infra.cli.dev.scripts.sample_stock_list import SampleStockList
 
         verbose = bool(getattr(args, "verbose", False))
-        return activate_stratified_pool(int(args.count), verbose=verbose)
+        return SampleStockList.activate(int(args.count), verbose=verbose)
 
     @staticmethod
     def cmd_pool_clear(_args: argparse.Namespace) -> int:
-        from devtools.quick_tools.stock_pool_ops import deactivate_stratified_pool
+        from core.infra.cli.dev.scripts.sample_stock_list import SampleStockList
 
-        return deactivate_stratified_pool()
+        return SampleStockList.deactivate()
 
     @staticmethod
     def cmd_pack(args: argparse.Namespace) -> int:
-        from devtools.quick_tools.publish_prep import PublishPrepOptions, run_publish_prep
+        from core.infra.cli.dev.scripts.publish_prep import PublishPrepOptions, run_publish_prep
 
         return run_publish_prep(
             PublishPrepOptions(
@@ -273,13 +295,14 @@ class DevHandlers:
                 skip_py39=args.skip_py39,
                 package_userspace=getattr(args, "package_userspace", False),
                 skip_dep_check=getattr(args, "skip_dep_check", False),
+                skip_icon_check=getattr(args, "skip_icon_check", False),
             )
         )
 
     @staticmethod
     def cmd_check_deps(args: argparse.Namespace) -> int:
         """依赖风险检测命令（可独立运行）"""
-        from devtools.quick_tools.dependency_risk import run_dependency_check
+        from core.infra.cli.dev.scripts.dependency_risk import run_dependency_check
 
         verbose = getattr(args, 'verbose', False)
         return run_dependency_check(verbose=verbose)
@@ -295,7 +318,7 @@ class DevHandlers:
 
     @staticmethod
     def _import_be_perf_cmd():
-        cmd_dir = str(DevHandlers._PERF_CMD.resolve())
+        cmd_dir = str(DevHandlers._perf_cmd_dir().resolve())
         if cmd_dir not in sys.path:
             sys.path.insert(0, cmd_dir)
         import clean_up as clean_mod

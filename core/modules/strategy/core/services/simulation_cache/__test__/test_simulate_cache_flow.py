@@ -4,6 +4,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from core.modules.strategy.core.enums import SimulateKind
 from core.modules.strategy.core.strategy import Strategy
 from core.modules.strategy.core.engines.shared.data_class.simulate_session import SimulateSession
@@ -17,7 +19,7 @@ def _fps():
         settings_diff={},
         effective_settings=SimpleNamespace(),
         entity_ids=[],
-        global_entity_cache=None,
+        global_entity_cache=MagicMock(),
     )
 
 
@@ -52,34 +54,6 @@ def test_resolve_steps_price_prepends_enumerate_when_missing():
     assert ctx.enum_version is None
 
 
-def test_run_steps_writes_each_slot_and_seeds_enum_version():
-    ctx = _ctx()
-    ctx.steps = [SimulateKind.ENUMERATE, SimulateKind.PRICE_FACTOR]
-
-    enum_res = {"version_id": "3", "success": True}
-    price_res = {"version_id": 1, "enum_version_id": "3", "success": True}
-
-    pipe = MagicMock()
-    pipe.run.side_effect = [enum_res, price_res]
-
-    with patch(
-        "core.modules.strategy.core.strategy.BackTestPipelines.__class_getitem__",
-        return_value=pipe,
-    ), patch(
-        "core.modules.strategy.core.strategy.SimulationCacheManager.set_cache"
-    ) as set_cache:
-        out = Strategy._run_steps(ctx, cache_key="demo/rsi")
-
-    assert out == {
-        "enumerate": enum_res,
-        "price_factor": price_res,
-    }
-    assert ctx.enum_version == "3"
-    assert set_cache.call_count == 2
-    assert set_cache.call_args_list[0].args[2] == {"enumerate": enum_res}
-    assert set_cache.call_args_list[1].args[2] == {"price_factor": price_res}
-
-
 def test_simulate_returns_price_slot_on_cache_hit():
     info = MagicMock()
     info.id.return_value = "demo/rsi"
@@ -110,3 +84,77 @@ def test_simulate_returns_price_slot_on_cache_hit():
     assert out == cached
     get_cache.assert_called_once()
     run_steps.assert_not_called()
+
+
+def test_resolve_steps_enumerate_is_single_step() -> None:
+    ctx = _ctx(kind=SimulateKind.ENUMERATE)
+    Strategy._resolve_steps(ctx)
+    assert ctx.steps == [SimulateKind.ENUMERATE]
+    assert ctx.enum_version is None
+
+
+def test_strategy_enumerate_delegates_to_simulate() -> None:
+    with patch.object(Strategy, "simulate", return_value={"ok": True}) as sim:
+        out = Strategy.enumerate("demo/rsi", ignore_cache=True, runtime_settings={"a": 1})
+    assert out == {"ok": True}
+    sim.assert_called_once_with(
+        "demo/rsi",
+        kind=SimulateKind.ENUMERATE,
+        ignore_cache=True,
+        runtime_settings={"a": 1},
+    )
+
+
+def test_simulate_missing_strategy_raises() -> None:
+    with patch(
+        "core.modules.strategy.core.strategy.DiscoveryService.find_strategy",
+        return_value=None,
+    ):
+        with pytest.raises(ValueError, match="不存在或未启用"):
+            Strategy.simulate("missing", kind=SimulateKind.ENUMERATE)
+
+
+def test_simulate_enumerate_cache_miss_runs_enumerator_pipeline() -> None:
+    """Facade 主线：cache miss → resolve enumerate → Pipeline.run → 写 cache。"""
+    info = MagicMock()
+    info.id.return_value = "demo/rsi"
+    info.unique_relative_path = "demo/rsi"
+    info.key = "demo/rsi"
+    info.relative_path = "demo/rsi"
+    step_res = {"success": True, "version_id": "3", "opportunities_count": 0}
+
+    with patch(
+        "core.modules.strategy.core.strategy.DiscoveryService.find_strategy",
+        return_value=info,
+    ), patch(
+        "core.modules.strategy.core.strategy.GlobalEntityCache.get_stock_list",
+        return_value=["000001.SZ"],
+    ), patch(
+        "core.modules.strategy.core.strategy.GlobalEntityCache"
+        ".get_latest_completed_trading_date",
+        return_value="20240110",
+    ), patch(
+        "core.modules.strategy.core.strategy.FingerprintCalculator.calculate_fingerprints",
+        return_value=_fps(),
+    ), patch(
+        "core.modules.strategy.core.strategy.SimulationCacheManager.get_cache",
+        return_value=None,
+    ), patch(
+        "core.modules.strategy.core.engines.enumerator.EnumeratorPipeline.run",
+        return_value=step_res,
+    ) as run, patch(
+        "core.modules.strategy.core.strategy.SimulationCacheManager.set_cache",
+        return_value=11,
+    ) as set_cache:
+        out = Strategy.simulate("demo/rsi", kind=SimulateKind.ENUMERATE)
+
+    assert out["enumerate"]["version_id"] == "3"
+    assert out["_workbench_version"] == 11
+    run.assert_called_once()
+    set_cache.assert_called_once()
+
+
+def test_simulate_session_validate_for_run_requires_steps() -> None:
+    ctx = _ctx(kind=SimulateKind.ENUMERATE)
+    with pytest.raises(ValueError, match="steps"):
+        ctx.validate_for_run()

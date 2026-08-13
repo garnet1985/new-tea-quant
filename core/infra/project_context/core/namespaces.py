@@ -34,6 +34,24 @@ class PathNamespace:
         return PathManager.get_project_root()
 
     @staticmethod
+    def get_venv_python() -> Path:
+        """项目 ``venv`` 解释器路径（文件未必存在）。"""
+        from .path_manager import PathManager
+        return PathManager.get_venv_python()
+
+    @staticmethod
+    def get_sys_python() -> Path:
+        """系统解释器（venv 外）。"""
+        from .path_manager import PathManager
+        return PathManager.get_sys_python()
+
+    @staticmethod
+    def get_python(*, allow_sys_fallback: bool = True) -> Path:
+        """可执行解释器：优先 venv；可选回退系统解释器。"""
+        from .path_manager import PathManager
+        return PathManager.get_python(allow_sys_fallback=allow_sys_fallback)
+
+    @staticmethod
     def get_core_root() -> Path:
         """获取 core 目录"""
         from .path_manager import PathManager
@@ -338,7 +356,7 @@ class ConfigNamespace:
     @staticmethod
     def get_use_sample_stock_list() -> Optional[int]:
         """
-        开发样本股票池规模（``core/modules/data_source/dev/stock_pool/stratified_N.csv``）。
+        开发样本股票池规模（``core/modules/data_manager/core/dev/sample_stock_list/stratified_N.csv``）。
 
         - 正整数 ``N`` → 使用 ``stratified_N.csv``
         - 未配置 / 空 / 非正数 → 全市场

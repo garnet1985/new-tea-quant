@@ -103,6 +103,26 @@ class TestDataManagerApi(unittest.TestCase):
         self.assertTrue(callable(DataManager.ensure_restored_after_worker_pool))
         self.assertTrue(callable(DataManager.bind_as_default_instance))
 
+    def test_sample_universe_namespace(self):
+        from core.modules.data_manager import DataManager
+
+        su = DataManager.sample_universe
+        for name in (
+            "count",
+            "ids",
+            "csv_path",
+            "directory",
+            "invalidate_cache",
+            "is_active",
+            "slice_stock_list",
+            "slice_stock_list_in_dependencies",
+            "filter_records",
+            "filter_paired",
+            "prune",
+        ):
+            self.assertTrue(callable(getattr(su, name)), name)
+        self.assertEqual(su.DEFAULT_COUNT, 500)
+
 
 if __name__ == "__main__":
     unittest.main()

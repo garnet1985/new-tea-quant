@@ -59,11 +59,3 @@ terms:
     aliases:
       - "mapping"
     avoid: []
-
-  sample_stock_list:
-    definition: "开发样本股票池（data.json use_sample_stock_list + dev/stock_pool）。"
-    aliases:
-      - "样本池"
-      - "DEFAULT_SAMPLE_N"
-    avoid:
-      - "在业务路径硬编码股票列表"

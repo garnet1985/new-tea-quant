@@ -1,3 +1,5 @@
+from core.infra.cmd_layout import i
+
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 import logging
 
@@ -141,7 +143,7 @@ class DataSourceHandlerHelper:
             context["start_date"] = start_str
             context["end_date"] = end_str
             logger.info(
-                f"📅 自动设置季度范围: {start_str} → {end_str} "
+                f"{i('calendar')} 自动设置季度范围: {start_str} → {end_str} "
                 f"(renew_mode={renew_mode or 'unknown'})"
             )
             return
@@ -155,7 +157,7 @@ class DataSourceHandlerHelper:
         context["start_date"] = start_str
         context["end_date"] = end_str
         logger.info(
-            f"📅 自动设置日期范围: {start_str} → {end_str} "
+            f"{i('calendar')} 自动设置日期范围: {start_str} → {end_str} "
             f"(renew_mode={renew_mode or 'unknown'}, years={years})"
         )
 

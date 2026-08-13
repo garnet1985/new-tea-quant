@@ -1,5 +1,5 @@
 # New Tea Quant — 运行环境镜像（仓库根目录构建）
-# 用法见 devtools/docker/README.md
+# 用法见 docs/docker.md
 
 FROM python:3.9-slim-bookworm
 

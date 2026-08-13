@@ -5,6 +5,8 @@ PgsqlConnector — PostgreSQL 连接池、事务、SQL 执行。
 """
 from __future__ import annotations
 
+from core.infra.cmd_layout import i
+
 import logging
 from contextlib import contextmanager
 from typing import Any, Dict, Iterator, List, Optional
@@ -71,12 +73,12 @@ class PgsqlConnector:
             self._initialized = True
             
             if self.is_verbose:
-                logger.info(f"✅ PostgreSQL 连接池创建成功: {self.config['database']} (pool_size={maxconn})")
+                logger.info(f"{i('success')} PostgreSQL 连接池创建成功: {self.config['database']} (pool_size={maxconn})")
             
             return self._connection_pool
             
         except Exception as e:
-            logger.error(f"❌ PostgreSQL 连接失败: {e}")
+            logger.error(f"{i('error')} PostgreSQL 连接失败: {e}")
             raise
     
     def close(self):
@@ -86,7 +88,7 @@ class PgsqlConnector:
             self._connection_pool = None
             self._initialized = False
             if self.is_verbose:
-                logger.info("✅ PostgreSQL 连接池已关闭")
+                logger.info(f"{i('success')} PostgreSQL 连接池已关闭")
     
     def _get_connection(self):
         """从连接池获取连接"""

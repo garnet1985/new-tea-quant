@@ -162,19 +162,17 @@ class BaseHandler:
         group_by_entity_list_name = (config.get_group_by_entity_list_name() if config else None) or ""
 
         if group_by_entity_list_name == "stock_list":
-            from core.modules.data_source.core.service.sample_stock_list import slice_stock_list
-
             # 优先使用 context 中的 stock_list（handler 可能在 on_prepare_context 中修改了）
             if "stock_list" in self.context:
                 entity_list = self.context["stock_list"]
-                return slice_stock_list(entity_list or [])
+                return DataManager.sample_universe.slice_stock_list(entity_list or [])
 
             # 回退到 dependencies
             deps = self.context.get("dependencies") or {}
             entity_list = deps.get("stock_list")
             if entity_list is None:
                 return []
-            return slice_stock_list(entity_list or [])
+            return DataManager.sample_universe.slice_stock_list(entity_list or [])
         if group_by_entity_list_name:
             # 其他 list 名（如 index_list）：从 dependencies 或 context 获取，由 handler 在 on_prepare_context 中注入
             deps = self.context.get("dependencies") or {}
@@ -314,12 +312,8 @@ class BaseHandler:
 
     def _inject_dependencies(self, dependencies_data):
         """注入依赖数据；无依赖时设为空字典，避免后续 .get 报错。"""
-        from core.modules.data_source.core.service.sample_stock_list import (
-            slice_stock_list_in_dependencies,
-        )
-
         deps = dependencies_data if dependencies_data is not None else {}
-        deps = slice_stock_list_in_dependencies(deps)
+        deps = DataManager.sample_universe.slice_stock_list_in_dependencies(deps)
         self.context["dependencies"] = deps
         exec_meta = deps.get("_execution")
         self.context["force_refresh"] = (

@@ -1,3 +1,5 @@
+from core.infra.cmd_layout import i
+
 # DataSourceExecutionScheduler
 
 # 职责对象：所有enabled & valid 的data sources
@@ -87,7 +89,7 @@ class DataSourceExecutionScheduler:
             topological_sorted_handler_instances = self._topological_sort_handlers(handler_instances)
             return topological_sorted_handler_instances
         except ValueError as e:
-            logger.error(f"❌ 数据源依赖关系错误: {e}")
+            logger.error(f"{i('error')} 数据源依赖关系错误: {e}")
             raise
 
     def _topological_sort_handlers(self, handlers: List[BaseHandler]) -> List[BaseHandler]:
@@ -177,12 +179,12 @@ class DataSourceExecutionScheduler:
         4. 最后重试失败的 handler
         """
         total = len(sorted_handler_instances)
-        logger.info(f"🚀 开始执行 {total} 个数据源")
+        logger.info(f"{i('rocket')} 开始执行 {total} 个数据源")
         
         for idx, handler_instance in enumerate(sorted_handler_instances):
             try:
                 data_source_key = handler_instance.get_key()
-                logger.info(f"📊 [{idx+1}/{total}] 执行数据源: {data_source_key}")
+                logger.info(f"{i('bar_chart')} [{idx+1}/{total}] 执行数据源: {data_source_key}")
                 dependencies_data = self._get_dependencies_data(data_source_key)
                 if getattr(self, "_force_refresh", False):
                     dependencies_data = dict(dependencies_data or {})
@@ -190,7 +192,7 @@ class DataSourceExecutionScheduler:
                 normalized_data = handler_instance.execute(dependencies_data)
                 if self.mappings.is_dependency_for_downstream(data_source_key):
                     self._cache_result(data_source_key, normalized_data)
-                logger.info(f"✅ [{idx+1}/{total}] 数据源 {data_source_key} 执行完成")
+                logger.info(f"{i('success')} [{idx+1}/{total}] 数据源 {data_source_key} 执行完成")
                 # 只在成功执行后才清理不再需要的依赖缓存
                 self._clean_up_dependency_cache_if_no_longer_required(sorted_handler_instances, idx)
             except Exception as e:
@@ -247,7 +249,7 @@ class DataSourceExecutionScheduler:
         注意：handler_instance.get_key() 不会返回 None（已验证），因此不需要检查
         """
         data_source_key = handler_instance.get_key()
-        logger.error(f"❌ 数据源 {data_source_key} 执行失败: {error}")
+        logger.error(f"{i('error')} 数据源 {data_source_key} 执行失败: {error}")
         self._failed_data_sources.append((data_source_key, handler_instance, error))
 
     def _retry_failed_data_sources(self):
@@ -263,7 +265,7 @@ class DataSourceExecutionScheduler:
         if not self._failed_data_sources:
             return
         
-        logger.info(f"🔄 开始重试 {len(self._failed_data_sources)} 个失败的数据源")
+        logger.info(f"{i('ongoing')} 开始重试 {len(self._failed_data_sources)} 个失败的数据源")
         retry_failed = []
         
         for data_source_key, handler_instance, _ in self._failed_data_sources:
@@ -279,20 +281,20 @@ class DataSourceExecutionScheduler:
                 if self.mappings.is_dependency_for_downstream(data_source_key):
                     self._cache_result(data_source_key, normalized_data)
                 
-                logger.info(f"✅ 数据源 {data_source_key} 重试成功")
+                logger.info(f"{i('success')} 数据源 {data_source_key} 重试成功")
             except ValueError as e:
                 # 依赖数据缺失的情况
-                logger.warning(f"⚠️  数据源 {data_source_key} 重试失败：依赖数据缺失 - {e}")
+                logger.warning(f"{i('warning')}  数据源 {data_source_key} 重试失败：依赖数据缺失 - {e}")
                 retry_failed.append((data_source_key, handler_instance, e))
             except Exception as e:
                 # 其他执行错误
-                logger.error(f"❌ 数据源 {data_source_key} 重试仍然失败: {e}")
+                logger.error(f"{i('error')} 数据源 {data_source_key} 重试仍然失败: {e}")
                 retry_failed.append((data_source_key, handler_instance, e))
         
         # 更新失败列表
         self._failed_data_sources = retry_failed
         if retry_failed:
-            logger.warning(f"⚠️  仍有 {len(retry_failed)} 个数据源重试失败")
+            logger.warning(f"{i('warning')}  仍有 {len(retry_failed)} 个数据源重试失败")
 
     def _clean_up_dependency_cache_if_no_longer_required(self, sorted_handler_instances: List[BaseHandler], idx: int):
         """
@@ -332,7 +334,7 @@ class DataSourceExecutionScheduler:
         for dep_name in dependencies_to_remove:
             del self._dependency_cache[dep_name]
             if self.is_verbose:
-                logger.debug(f"🗑️  清理不再需要的依赖缓存: {dep_name}")
+                logger.debug(f"{i('trash')}  清理不再需要的依赖缓存: {dep_name}")
 
     # ================================
     # postprocess stage

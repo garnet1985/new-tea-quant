@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.4.3-8A2BE2"></a>&nbsp;
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.4.4-8A2BE2"></a>&nbsp;
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
   <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
@@ -196,7 +196,7 @@ Next, have fun ^_^
 
 ### Data Notes
  
-1. **(Note: This step is temporarily unavailable and is being fixed)** If you want to **get more (about 3 years, full A-share market) demo data packages**: for more complete strategy validation/backtesting, please register at **[new-tea.cn](https://new-tea.cn)** to download. **Empty** `setup/init_data/` and put **only 1** zip file in it, then execute `python setup/steps/import_data/install.py` (If you are emptying and reinstalling, you need to add the `--force` parameter at the end of the command).  
+1. **(Note: This step is temporarily unavailable and is being fixed)** If you want to **get more (about 3 years, full A-share market) demo data packages**: for more complete strategy validation/backtesting, please register at **[new-tea.cn](https://new-tea.cn)** to download. **Empty** `initialization/data/` and put **only 1** zip file in it, then execute `python core/infra/setup/core/steps/import_data/install.py` (If you are emptying and reinstalling, you need to add the `--force` parameter at the end of the command).  
 2. **Bring Your Own Data Source**: You can also connect your own (e.g., Tushare), see [userspace/extensions/data_source/README.md](userspace/extensions/data_source/README.md).
 3. Demo data and demo strategies are for learning and research only, do not use for live trading or commercial purposes.
 
@@ -298,7 +298,7 @@ It is recommended to explicitly specify `--strategy`; add `-f` when a forced rec
 
 **Branches:** `master` for releases; pull `feature/*` / `bugfix/*` from `dev`; `hotfix/*` only from `rc`. Do not submit PRs directly to `master`.
 
-**Development:** `python devcli.py -h` (`ui` for UI dev · `uk` to release ports · `csc` to clear cache) · Docker: [devtools/docker/README.md](devtools/docker/README.md)
+**Development:** `python devcli.py -h` (`ui` for UI dev · `uk` to release ports · `csc` to clear cache) · Docker: [docs/docker.md](docs/docker.md)
 
 **Testing / Dependencies:**
 

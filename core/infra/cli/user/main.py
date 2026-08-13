@@ -1,6 +1,7 @@
 """CLI entry orchestration."""
 
 from __future__ import annotations
+from core.infra.cmd_layout import i
 
 import logging
 import sys
@@ -71,9 +72,9 @@ class UserRunner:
             pass
 
         try:
-            from setup.trace_events import SetupTrace
+            from core.infra.setup import Setup
 
-            SetupTrace.app_start(entry="cli")
+            Setup.trace.app_start(entry="cli")
         except Exception:
             pass
 
@@ -84,18 +85,18 @@ class UserRunner:
 
         try:
             logger.info("=" * 60)
-            logger.info("▶️  执行命令: %s", label)
+            logger.info(i('play') + "  执行命令: %s", label)
             logger.info("=" * 60)
 
             UserHandlers.execute(args, app)
 
             logger.info("")
             logger.info("=" * 60)
-            logger.info("✅ 命令执行完成")
+            logger.info(f"{i('success')} 命令执行完成")
             logger.info("=" * 60)
             return 0
         except KeyboardInterrupt:
-            logger.warning("\n⚠️  用户中断执行")
+            logger.warning(f"\n{i('warning')}  用户中断执行")
             try:
                 from core.infra.db import Db
 
@@ -107,7 +108,7 @@ class UserRunner:
             code = exc.code
             return int(code) if isinstance(code, int) else 1
         except Exception as exc:
-            logger.error("❌ 执行失败: %s", exc)
+            logger.error(i('error') + " 执行失败: %s", exc)
             if args.verbose:
                 import traceback
 

@@ -7,7 +7,7 @@
 新版本更新清单：
 ``python devcli.py p -core_vx.x.x``
 
-[] (已自动化)同步 ``core/system.json`` / ``core/system.py`` 中的版本与 ``new_features``（自 CHANGELOG 对应版本段落读取）
+[] (已自动化)同步 ``core/system.json`` 中的版本与 ``new_features``（自 CHANGELOG 对应版本段落读取）
 [] (已自动化)同步版本徽章
 [] (已自动化)确保所有test都能跑过
 [] (已自动化)检查安装依赖的数据是不是齐全，是不是足够新
@@ -44,15 +44,15 @@
 ### v0.6.x (TBD)
 
 目标：多市场支持，多种功能支持
-- 正式推出API进入module info，为锁定API做好准备
+- （Done）正式推出API进入module info，为锁定API做好准备
 - 统一代码风格，注释变成中英文
 
-- 加入港股的market profile
-- 让框架支持T+0交易
-- 让框架支持退市处理
+- （Done）加入港股的market profile
+- （Done partial）让框架支持T+0交易
+- （Done）让框架支持退市处理
 - 让框架支持做空策略
 
-- 修改console adapter变成command line作为扫描输出的标准展示形式
+- （Done）修改console adapter变成command line作为扫描输出的标准展示形式
 - 增加ntq ui adapter变成UI作为扫描输出的标准展示形式
 - 在UI对策略，标签和扫描机会归类
 
@@ -63,9 +63,8 @@
 ### v0.5.x (TBD)
 
 目标，决策者模式
-- 加入on select investment回调函数（capital allocation超出最大持股的回调函数）
 - 提供决策者模式的UI界面
-- 加入多策略并行 on portfolio 选股时的决策函数
+- （Done）加入多策略并行 on portfolio 选股时的决策函数
 - 提供多策略并行的UI界面
 - 将500股1年的数据变成200股3年的数据，跨度更大
 - 更多演示用例
@@ -88,6 +87,7 @@
 - 代码清理：淘汰了老的job pipeline模块，职责分配到原来的业务模块中
 - 模块重构：重构BFF，取消了原来在模块中的launcher，将BFF专有逻辑迁移到BFF中。
 - 模块重构：将data cursor（数据游标）重置入data contract (数据契约)模块，并将时间推进功能从strategy（策略模块）挪入data contract（数据契约）模块
+- 模块重构：收敛了quick tools，dev tools。system action模块收敛成了task_gard模块
 - 模块重构：抽取了tag（标签模块）和strategy（策略模块）公共底层模块，独立成backtest engine（回测引擎）模块
 - 新模块：回测引擎（Backtest Engine或BE）新的回测调度执行器，是tag和strategy模块的基础，负责根据可用系统资源重组，执行，监控回测执行。Strategy和Tag模块的功能精简为提供任务，提供用户执行逻辑。
 - 为新的回测引擎加入一套完成性能测试基准和devcli的入口。
@@ -96,6 +96,7 @@
 - 策略模块（strategy）：暴露了新的on_pick_portfolio_member接口, 可以通过代码选择投资的机会了
 - 策略模块（strategy）：新的报告模式，兼容windows，UI和后端统一
 - 策略模块（strategy）：更新了第三层回测的名字，从capital allocation（资金分配）变成了portfolio（投资组合）
+- 策略模块（strategy）：最后一层portfolio（投资组合）模拟采用复权价格作为信号，实际价格成交的双轨价格进行回测，增加了仓位管理的准确性。
 - 策略模块（strategy）：将用户自定义钩子函数挂在了新的hooks基类上，这样用户的钩子函数不但可以参与底层子进程任务，也可以通过钩子参与主进程工作
 - 标签模块（tag）：新引入tag计算的进度表，可以让tag支持更好的增量计算
 - 标签模块（tag）：修改tag的其他三张表，去掉了一些冗余字段
@@ -108,6 +109,7 @@
 - 修复了UI界面上扫描页面如果扫描出的机会是0个会重置扫描状态的bug
 - 修复了UI界面上扫描页面如果严格模式并且不符合要求的时候仍然能执行扫描的bug
 - 修复了UI策略和标签进度显示和后端不一致的问题
+- 补充了更多的核心测试用例，总覆盖率约63%
 
 ---
 

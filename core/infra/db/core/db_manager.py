@@ -5,6 +5,7 @@ DatabaseManager — 挂载 per-backend Engine，对外统一转发。
 - ``schema_manager``：initialize 后与 engine 共享
 - ``storage_registry``：表 → storage_domain（DuckDB 多文件）
 """
+from core.infra.cmd_layout import i
 from typing import Optional, Dict, List, Any, Callable
 from contextlib import contextmanager
 from pathlib import Path
@@ -59,7 +60,7 @@ class DatabaseManager:
     @classmethod
     def set_default(cls, instance: "DatabaseManager"):
         cls._default_instance = instance
-        logger.debug("✅ DatabaseManager 已设置为默认实例")
+        logger.debug(f"{i('success')} DatabaseManager 已设置为默认实例")
 
     @classmethod
     def get_default(cls, auto_init: bool = True) -> "DatabaseManager":
@@ -120,11 +121,11 @@ class DatabaseManager:
 
             if self.is_verbose:
                 logger.debug(
-                    "✅ DatabaseManager 初始化完成（%s Engine）",
+                    i('success') + " DatabaseManager 初始化完成（%s Engine）",
                     self.database_type,
                 )
         except Exception as e:
-            logger.error("❌ DatabaseManager 初始化失败: %s", e)
+            logger.error(i('error') + " DatabaseManager 初始化失败: %s", e)
             raise
 
     @property

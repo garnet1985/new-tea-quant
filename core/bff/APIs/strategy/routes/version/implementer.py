@@ -18,7 +18,7 @@ class StrategyVersionImplementer:
 
     def lazy_load(self) -> "StrategyVersionImplementer":
         if self._WorkbenchSnapshots is None:
-            from core.modules.strategy.core.services.workbench_cache_clear import (
+            from core.modules.strategy.core.services.workbench_cache import (
                 WorkbenchCacheClear,
             )
             from core.bff.APIs.strategy.helpers.workbench_snapshots import (

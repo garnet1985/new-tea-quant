@@ -4,7 +4,7 @@
 
 - **模块根 `__test__/`**：`test_api.py`（必须）+ 可选 `test_integration_*.py`
 - **功能包 `__test__/`**：实现单测，见 `core/**/__test__/`
-- updater 迁移子进程测试在 `setup/updater/__test__/`（不属于本模块）
+- updater 迁移子进程测试在 `core/infra/updater/core/orchestrator/__test__/`（不属于本模块）
 
 ## 运行
 

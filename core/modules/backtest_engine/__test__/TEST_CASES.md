@@ -11,4 +11,4 @@
 |------|------|
 | `test_api.py` | 公开 API 契约（`force_run`）：Mode、`run` / `entity_based` / `slice_based`、Timeline、`RunCallbacks` |
 
-内部 planner / executor / probe 等实现测仍放在同目录其它 `test_*.py`，登记见 [`test_cases.yaml`](./test_cases.yaml)，**不纳入本公开索引**。
+内部 planner / executor / probe 等实现测仍放在同目录其它 `test_*.py`，**不纳入本公开索引**（以各 `test_*.py` 为准）。

@@ -1,10 +1,5 @@
-"""Scanner summary / cache-hit / tradability 标注。"""
+"""Scanner summary / tradability 标注。"""
 from __future__ import annotations
-
-from pathlib import Path
-from types import SimpleNamespace
-from typing import Any, Dict, List
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -13,13 +8,9 @@ from core.modules.strategy.core.engines.scanner.helpers.tradability import (
     opportunity_enter_at_limit,
 )
 from core.modules.strategy.core.engines.scanner.report_manager import ScanSummary
-from core.modules.strategy.core.engines.scanner.pipeline import ScannerPipeline
 from core.modules.strategy.core.engines.shared.data_class.opportunity import (
     Opportunity,
     StockInfo,
-)
-from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
-    StrategySettings,
 )
 
 pytestmark = pytest.mark.force_run
@@ -80,74 +71,3 @@ def test_annotate_enter_at_limit_sets_metadata() -> None:
         scan_date="20240110",
     )
     assert opportunity_enter_at_limit(opp) is True
-
-
-def test_pipeline_cache_hit_skips_be(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(
-        "core.modules.strategy.core.engines.scanner.helpers.cache_manager.ProjectContext.path.get_strategy_scan_results_directory",
-        lambda _name: tmp_path / "scan",
-    )
-
-    from core.modules.strategy.core.engines.scanner.helpers.cache_manager import (
-        ScanCacheManager,
-    )
-
-    cache = ScanCacheManager("demo_key", max_cache_days=10)
-    cache.save_opportunities("20240110", [_opp("600000.SH", at_limit=False)])
-
-    class _Resolver:
-        def __init__(self, *_a: Any, **_k: Any) -> None:
-            pass
-
-        def resolve_scan_date(self, *, use_strict: bool):
-            _ = use_strict
-            return "20240110", ["600000.SH", "000001.SZ"]
-
-        def resolve_scan_date_with_meta(self, *, use_strict: bool):
-            day, ids = self.resolve_scan_date(use_strict=use_strict)
-            return (
-                day,
-                ids,
-                {
-                    "scan_date": day,
-                    "use_strict": use_strict,
-                    "mode": "strict" if use_strict else "non_strict",
-                    "mode_label": "严格模式" if use_strict else "非严格模式",
-                    "source_detail": "test fixture",
-                },
-            )
-
-    monkeypatch.setattr(
-        "core.modules.strategy.core.engines.scanner.pipeline.ScanDateResolver",
-        _Resolver,
-    )
-    scan_stocks = MagicMock(return_value=None)
-    monkeypatch.setattr(ScannerPipeline, "_run_backtest", scan_stocks)
-    monkeypatch.setattr(
-        "core.modules.strategy.core.engines.scanner.report_manager.report_manager.AdapterDispatcher.dispatch",
-        lambda *a, **k: None,
-    )
-
-    settings = StrategySettings.from_dict(
-        {
-            "data": {"base": {"data_key": "stock.kline.daily", "params": {}}},
-            "scanner": {"adapters": ["console"]},
-            "simulation": {"execution": {"mode": "entity_based"}},
-        }
-    )
-    info = SimpleNamespace(
-        key="demo_key",
-        unique_relative_path="demo/path",
-        settings={},
-        hooks_class=None,
-        hooks_module_path="",
-        strategy_file=Path("."),
-    )
-    # ScannerPipeline.run expects EnabledStrategyInfo-like; JobBuilder not called on cache hit
-    report = ScannerPipeline.run(info, settings, force=False)  # type: ignore[arg-type]
-    scan_stocks.assert_not_called()
-    assert report["date"] == "20240110"
-    assert report["total_opportunities"] == 1
-    assert report["total_stocks"] == 2

@@ -1,0 +1,14 @@
+name: infra.updater
+version: 0.1.0
+compatible_core_versions: ">=0.4.1"
+description: "应用升级：编排源码、数据迁移脚本注册表、post-upgrade 收尾、同步 userspace updater。"
+dependencies: []
+changelog:
+  - version: "0.1.0"
+    changes:
+      - 初始化模块，完成基础功能
+      - 标准化模块，标准化文档以及对外API
+      - 修改了暴露的API参数，函数，防止外部模块直接调用包内非公开接口
+      - 正式版本之前所有API标注beta状态
+      - 编排源码迁入 core/orchestrator；Setup 不再包含 updater
+      - 增加 Updater.runtime.sync_orchestrator 与内置 post-upgrade sync_userspace_updater

@@ -1,6 +1,6 @@
 name: modules.data_contract
 version: "0.4.0"
-compatible_core_versions: ">=0.4.1"
+compatible_core_versions: ">=0.4.4"
 description: "数据契约模块：提供一套可扩展的数据声明到数据加载的契约，主要目的是为了实现回测过程中的声明式数据注入。"
 dependencies:
   - modules.data_manager

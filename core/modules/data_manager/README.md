@@ -23,6 +23,8 @@ core/modules/data_manager/
 ├── core/
 │   ├── data_manager.py
 │   ├── enums.py
+│   ├── sample_universe/
+│   ├── dev/sample_stock_list/
 │   └── data_services/
 ├── __test__/
 └── docs/

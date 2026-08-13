@@ -80,46 +80,6 @@ def test_entity_based_empty_jobs_returns_success() -> None:
     assert result.total_jobs == 0
 
 
-def _stub_load_per_entity_window(payload, *, start, end, perf=None):
-    _ = (payload, start, end, perf)
-    return {}
-
-
-def test_slice_based_bulk_job_embeds_slice_plan() -> None:
-    jobs = [
-        {
-            "id": "tag_calendar_slice",
-            "payload": {
-                "tag_execution_mode": "calendar_slice",
-                "entity_ids": ["000001.SZ"],
-                "timeline_point_count": 40,
-            },
-        }
-    ]
-    with patch.object(Timeline, "validate_window", side_effect=lambda s, e: (s, e)):
-        result = BacktestEngine.slice_based.run(
-            jobs,
-            start="20240102",
-            end="20240103",
-            timeline=["20240102", "20240103"],
-            performance={"probe_mb": 12.0},
-            callbacks=RunCallbacks(
-                on_tick=_noop_on_tick,
-                load_per_entity_window=_stub_load_per_entity_window,
-            ),
-        )
-    assert result.success is True
-    assert result.total_jobs == 1
-    assert result.completed_jobs == 1
-    assert result.plan is not None
-    assert result.plan.slice_open_days >= 20
-    assert result.plan.dispatch_jobs == max(
-        1, (40 + result.plan.slice_open_days - 1) // result.plan.slice_open_days
-    )
-    assert result.plan.reader_workers >= 0
-    assert result.plan.preload_depth == result.plan.queue_capacity
-
-
 def test_slice_based_empty_jobs_returns_success() -> None:
     result = BacktestEngine.slice_based.run([])
     assert isinstance(result, BacktestEngine.RunResult)

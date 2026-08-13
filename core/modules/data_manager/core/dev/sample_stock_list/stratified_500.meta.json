@@ -1,0 +1,110 @@
+{
+  "sample_size": 500,
+  "target_n": 500,
+  "seed": 20250525,
+  "stratification": "list_status × board × market",
+  "universe_size": 5850,
+  "status_counts_universe": {
+    "L": 5525,
+    "D": 325
+  },
+  "status_counts_sample": {
+    "D": 28,
+    "L": 472
+  },
+  "strata": [
+    {
+      "list_status": "D",
+      "board": "主板",
+      "market": "SSE",
+      "universe": 137,
+      "sample": 11,
+      "universe_pct": 2.34,
+      "sample_pct": 2.2
+    },
+    {
+      "list_status": "D",
+      "board": "主板",
+      "market": "SZSE",
+      "universe": 142,
+      "sample": 12,
+      "universe_pct": 2.43,
+      "sample_pct": 2.4
+    },
+    {
+      "list_status": "D",
+      "board": "创业板",
+      "market": "SZSE",
+      "universe": 40,
+      "sample": 3,
+      "universe_pct": 0.68,
+      "sample_pct": 0.6
+    },
+    {
+      "list_status": "D",
+      "board": "北交所",
+      "market": "BSE",
+      "universe": 4,
+      "sample": 1,
+      "universe_pct": 0.07,
+      "sample_pct": 0.2
+    },
+    {
+      "list_status": "D",
+      "board": "科创板",
+      "market": "SSE",
+      "universe": 2,
+      "sample": 1,
+      "universe_pct": 0.03,
+      "sample_pct": 0.2
+    },
+    {
+      "list_status": "L",
+      "board": "主板",
+      "market": "SSE",
+      "universe": 1705,
+      "sample": 146,
+      "universe_pct": 29.15,
+      "sample_pct": 29.2
+    },
+    {
+      "list_status": "L",
+      "board": "主板",
+      "market": "SZSE",
+      "universe": 1495,
+      "sample": 128,
+      "universe_pct": 25.56,
+      "sample_pct": 25.6
+    },
+    {
+      "list_status": "L",
+      "board": "创业板",
+      "market": "SZSE",
+      "universe": 1398,
+      "sample": 119,
+      "universe_pct": 23.9,
+      "sample_pct": 23.8
+    },
+    {
+      "list_status": "L",
+      "board": "北交所",
+      "market": "BSE",
+      "universe": 317,
+      "sample": 27,
+      "universe_pct": 5.42,
+      "sample_pct": 5.4
+    },
+    {
+      "list_status": "L",
+      "board": "科创板",
+      "market": "SSE",
+      "universe": 610,
+      "sample": 52,
+      "universe_pct": 10.43,
+      "sample_pct": 10.4
+    }
+  ],
+  "use_sample_stock_list": 500,
+  "dev_pool_file": "core/modules/data_manager/core/dev/sample_stock_list/stratified_500.csv",
+  "renew_hint": "data.json use_sample_stock_list；python devcli.py pc 取消"
+}

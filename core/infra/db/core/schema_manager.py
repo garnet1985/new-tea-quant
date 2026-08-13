@@ -7,6 +7,7 @@ SchemaManager - Schema 管理和表初始化
 - 创建表和索引
 - 管理策略自定义表的注册
 """
+from core.infra.cmd_layout import i
 import importlib.util
 import json
 import logging
@@ -114,7 +115,7 @@ class SchemaManager:
         """
         tables_path = Path(self.tables_dir)
         if not tables_path.exists():
-            logger.warning(f"⚠️  Schema 目录不存在: {self.tables_dir}")
+            logger.warning(f"{i('warning')}  Schema 目录不存在: {self.tables_dir}")
             return {}
         
         schemas = {}
@@ -128,7 +129,7 @@ class SchemaManager:
                     schemas[table_name] = schema
                     self._schema_cache[table_name] = schema
             except Exception as e:
-                logger.error(f"❌ 加载 schema 失败 {schema_py}: {e}")
+                logger.error(f"{i('error')} 加载 schema 失败 {schema_py}: {e}")
         
         self._assert_unique_update_keys(schemas)
         return schemas
@@ -279,9 +280,9 @@ class SchemaManager:
                 with get_connection_func() as conn:
                     execute_ddl(conn, alter_sql)
                 added.append(str(col))
-                logger.info("✅ 表 '%s' 已补齐列: %s", table_name, col)
+                logger.info(i('success') + " 表 '%s' 已补齐列: %s", table_name, col)
             except Exception as e:
-                logger.error("❌ 表 '%s' 补齐列 '%s' 失败: %s", table_name, col, e)
+                logger.error(i('error') + " 表 '%s' 补齐列 '%s' 失败: %s", table_name, col, e)
         return added
     
     # ==================== 表创建 ====================
@@ -317,7 +318,7 @@ class SchemaManager:
         with get_connection_func() as conn:
             execute_ddl(conn, create_sql)
         
-        logger.debug(f"✅ 表 '{table_name}' 创建成功")
+        logger.debug(f"{i('success')} 表 '{table_name}' 创建成功")
 
         # 旧库仅有早期 CREATE TABLE：先补列再建索引
         self.sync_missing_columns(schema, get_connection_func)
@@ -359,7 +360,7 @@ class SchemaManager:
                 missing = [f for f in index_fields if f not in existing_cols]
                 if missing:
                     logger.warning(
-                        "⏭️  跳过索引 '%s'：列 %s 不存在于表 '%s'（请先 sync 列或跑 migrate）",
+                        i('skip') + "  跳过索引 '%s'：列 %s 不存在于表 '%s'（请先 sync 列或跑 migrate）",
                         index.get("name"),
                         missing,
                         table_name,
@@ -369,9 +370,9 @@ class SchemaManager:
                 index_sql = self.generate_create_index_sql(table_name, index)
                 with get_connection_func() as conn:
                     conn.execute(index_sql)
-                logger.debug(f"✅ 索引 '{index['name']}' 创建成功")
+                logger.debug(f"{i('success')} 索引 '{index['name']}' 创建成功")
             except Exception as e:
-                logger.error(f"❌ 创建索引失败 '{index['name']}': {e}")
+                logger.error(f"{i('error')} 创建索引失败 '{index['name']}': {e}")
     
     def create_table_with_indexes(self, schema: Dict, get_connection_func: Callable):
         """
@@ -395,7 +396,7 @@ class SchemaManager:
             try:
                 self.create_table_with_indexes(schema, get_connection_func)
             except Exception as e:
-                logger.error(f"❌ 创建表失败 '{table_name}': {e}")
+                logger.error(f"{i('error')} 创建表失败 '{table_name}': {e}")
     
     # ==================== 表注册和查询 ====================
     
@@ -408,7 +409,7 @@ class SchemaManager:
             schema: 表的 schema 定义
         """
         self.registered_tables[table_name] = schema
-        logger.debug(f"✅ 表 '{table_name}' 已注册")
+        logger.debug(f"{i('success')} 表 '{table_name}' 已注册")
     
     def create_registered_tables(self, get_connection_func: Callable):
         """
@@ -421,7 +422,7 @@ class SchemaManager:
             try:
                 self.create_table_with_indexes(schema, get_connection_func)
             except Exception as e:
-                logger.error(f"❌ 创建注册表失败 '{table_name}': {e}")
+                logger.error(f"{i('error')} 创建注册表失败 '{table_name}': {e}")
     
     def is_table_exists(self, table_name: str, adapter) -> bool:
         """

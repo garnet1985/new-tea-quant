@@ -9,13 +9,14 @@
 
 | 文件 | 说明 |
 |------|------|
-| `test_api.py` | 公开 API：导出、领域属性、`get_table`、contracts（`force_run`） |
+| `test_api.py` | 公开 API：导出、领域属性、`get_table`、`sample_universe`、contracts（`force_run`） |
 
 ## 实现测（不纳入公开索引）
 
 | 文件 | 说明 |
 |------|------|
 | `test_data_manager_concurrent_init.py` | 单例并发 initialize |
+| `../core/sample_universe/__test__/test_sample_universe.py` | 样本宇宙切片 / 过滤 / 路径 |
 | `../core/data_services/calendar/__test__/test_calendar_service.py` | 交易日历 |
 | `../core/data_services/stock/__test__/test_kline_load_output.py` | K 线 load 输出 |
 | `../core/data_services/stock/sub_services/__test__/test_list_service_*.py` | 列表/抽样/存活 |

@@ -1,251 +1,185 @@
-# 系统架构概览
+# New Tea Quant — 项目概览
 
-## 我们在解决什么问题？
+> **定位**：面向 A 股量化研究与回测的本地优先平台。数据落盘、策略可插拔、回测可复现；CLI / HTTP API / 工作台同一套 core。
 
-New Tea Quant 是一个**面向研究和回测的量化框架**，希望帮用户把下面几件事拆清楚、做好用：
-
-- **拿数据**：标准化地从各种数据源拉取并存好。
-- **算东西**：技术指标、标签、策略信号等批量计算。
-- **做实验**：从机会枚举，到价格层验证，再到带资金约束的回测。
-- **管理工程复杂度**：路径、配置、并发、数据库、版本管理都由框架兜底。
-
-整体设计遵循三条主线：
-
-- **框架与用户空间分离**：`core/` 是框架核心，`userspace/` 是用户代码和配置。
-- **Infra 打地基，Core Modules 做业务能力**：Infra 负责「项目 & 运行环境」，Core Modules 负责「量化业务能力」。
-- **配置驱动 + 插件化**：通过配置文件与目录约定扩展，而不是到处写硬编码。
+**相关入口：** [仓库 README](../README.md) · [模块文档标准](./module-doc-standard.md) · [Docker](./docker.md) · [CI smoke](../ci/README.md)
 
 ---
 
-## 项目的亮点
+## 1. 这是什么
 
-- **完整的框架结构**
-  - 从数据接入到数据库管理，从策略模拟到策略发现。
-  - 覆盖了做系统性量化研究所需的完整基建。
+**New Tea Quant（NTQ）** 在本地完成：
 
-- **配置驱动，低代码，低技术门槛**
-  - 核心模块全部采用配置驱动，绝大部分调整都只需要修改配置而非修改代码。
+1. **行情与衍生数据**：拉取、校验、按合同表结构入库  
+2. **标签与策略**：可插拔扩展，CLI / 工作台触发  
+3. **回测**：统一时间轴与执行语义，结果可复现、可导出  
 
-- **更现代化的工程架构**
-  - 高度模块化集成，高可扩展性。
-  - 内核与用户空间分离，升级时保留 `userspace/`，其他用新版本覆盖即可。
-
-- **枚举器 + 双模拟器的分层回测模式**
-  - 把传统 on-bar 回测拆成「机会枚举 → 价格验证 → 资金回测」三步。
-  - 机会枚举器产出标准格式的 枚举输出数据，既是回测缓存层，又天然对机器学习与分析友好。
-
-- **标签资产层**
-  - Tag 系统可以对任何通用数据进行标签化，一个数据可以多场景，每个场景可以多标签，每个标签可以带自己的信息。
-  - 标签既是「一次计算、多次复用、可追溯、跨策略」的资产层，也可视作加速回测的缓存层。
-
-- **弹性多线程 / 多进程执行**
-  - 在计算量大或 I/O 重的任务中，默认使用多线程或多进程，充分利用机器性能。
-  - 队列大小可以自动调节，紧密控制内存使用，避免数据量大时内存溢出。
-  - 搭配监控能力，可以对异常情况进行预警。
+**不是**云 SaaS、不是券商交易终端；默认不连实盘下单。
 
 ---
 
-## 这个项目能提供什么？
-
-面向「想做系统性量化研究和回测」的用户，New Tea Quant 提供的是一套**工程化的基础设施 + 业务框架**：
-
-- **项目与配置管理**
-  - 统一的路径管理（项目根、数据、日志、结果、配置等）。
-  - `core/default_config` + `userspace/system/config` + 环境变量 的组合配置机制。
-  - 针对不同环境（本地 / 服务器 / 生产）的可迁移项目结构。
-
-- **数据获取与存储**
-  - 基于配置的 DataSource 扩展点，方便对接多种外部数据源。
-  - 统一的 schema 约定和数据库访问层（DataManager + DB infra）。
-
-- **批量计算与资产沉淀**
-  - 指标计算代理（Indicator）和标签资产层（Tag）。
-  - 一次计算、多次复用、可追溯的标签和指标结果，支持多策略共享和后续分析 / ML。
-
-- **策略研发与回测框架**
-  - 从机会枚举（枚举器 枚举输出结果）到价格回测，再到带资金约束的回测的完整链路。
-  - 多进程 / 多线程 / Orchestrator 支持高性能运行。
-  - 版本管理与结构化结果输出，方便对比不同实验。
-
-- **实时策略的扫描工具**
-  - 当你已经有固定好的策略需要用于实战时，可以基于数据库最新数据进行全市场扫描。
-  - 策略扫描器对全股票进行全策略扫描并生成机会对象。
-  - Adapter 分发器为用户提供了对扫描出的机会进行下一步操作的入口（你可以接入第三方或自己定义的程序进行通知、机器学习、产生交易信号等）。
-
-简而言之：**你专注于「策略逻辑、研究思路」，项目帮你兜住「工程地基」，同时也为你把策略用起来铺好了必要的底座**。
-
-## 这个项目不打算做什么？
-
-为了让边界清晰，有一些东西是刻意不做、或者只做很薄的一层：
-
-- **框架不内置交易系统，如果需要得自行接入**
-  - 不内置交易系统，但提供对最新数据的实时策略机会的扫描。
-
-- **不做交易撮合 / 实盘执行引擎**
-  - 本项目聚焦在研究与回测阶段，不直接对接券商或交易系统。
-  - 如果需要实盘，可以在此之上绑定自己的交易执行层。
-
-- **不做「一键自动赚钱」的黑盒策略**
-  - 框架不内置黑盒策略，只提供构建和评估策略的能力。
-  - 框架自带的交易策略是为了用户评估自己策略的一组bench mark
-
-- **不做基础设施的巨人**
-  - 倾向于只提供基础的底层数据核心，以后的扩展不会很大。
-  - 不提供数据供应商，需要用户自己接入。默认的数据provider是免费或者无token的，需要用户自行购买
-
-## 在路上的
-
-- **更多可视化插件**
-  - 回测结果现在已经默认支持策略结果的分析，但可视化还很薄弱，以后会陆续加强
-  - 整个项目还没有上线UI（其实已经有了，还在测试试运行阶段，会在稳定版里推出）
-
-- **更强大的机器学习能力**
-  - 框架已经内置机器学习的能力，只是非常初级，之后的版本会不断加强
-
-- **更通用的分析能力**
-  - 框架将来会内置更多金融的默认统计和分布方法，帮助用户快速通过配置得到丰富的金融结果
-
----
-
-## 顶层目录结构（project 视角）
+## 2. 仓库地图（顶层）
 
 ```text
 new-tea-quant/
-├── core/                          # 框架核心（你尽量不要改）
-│   ├── modules/                   # 核心业务模块
-│   │   ├── strategy/              # 策略 & 回测框架（枚举器 + 双模拟器）
-│   │   ├── data_manager/          # 数据管理器（读写数据库）
-│   │   ├── data_source/           # 数据源系统（抓数据）
-│   │   ├── tag/                   # 标签系统（一次算好，多次复用）
-│   │   ├── indicator/             # 技术指标（对 pandas-ta 的代理）
-│   │   ├── data_contract/         # DATA_KEY、契约签发与 until PIT 游标
-│   │   └── adapter/               # 扫描结果适配器（userspace 扩展）
-│   ├── infra/                     # 基础设施
-│   │   ├── db/                    # 数据库连接 & Schema 管理
-│   │   ├── worker/                # 多进程 / 多线程 / Orchestrator
-│   │   ├── discovery/             # 自动发现模块和类
-│   │   ├── logging/               # 日志初始化（标准库 logging 配置入口）
-│   │   └── project_context/       # 路径、配置、文件、环境
-│   ├── tables/                    # 内置表 schema / model（sys_*）
-│   └── default_config/            # 框架默认配置（不可变基线）
-├── userspace/                     # 用户空间（你真正工作的地方）
-│   ├── strategies/                # 用户策略
-│   ├── data_source/               # 用户自定义数据源
-│   ├── data_contract/             # Data Contract 扩展
-│   ├── tables/                    # 用户自定义表（可选）
-│   ├── tags/                      # 用户标签场景
-│   ├── adapters/                  # 扫描输出适配器
-│   ├── backup/                    # 备份数据目录（多为生成物，见该目录 README）
-│   └── config/                    # 用户项目配置（覆盖 core/default_config）
-├── setup/                         # 安装、初始化数据包等
-├── devtools/                      # 维护用：Docker 说明、自动化脚本等（非运行时核心）
-├── tools/                         # 临时/一次性工具脚本（DB 比对、演示导出等）
-└── docs/                          # 仓库文档
+├── cli.py / devcli.py / install.py / launcher.py
+├── Dockerfile / docker-compose.yml / .dockerignore
+├── ci/                     # CI 专用（如 smoke_fresh_install）；非产品 runtime
+├── docs/                   # 仓库级文档（本目录）
+├── core/
+│   ├── infra/              # 基础设施（DB、CLI、TaskGuard、trace…）
+│   ├── modules/            # 业务模块（数据、标签、策略、回测…）
+│   ├── bff/                # Flask BFF（HTTP 编排；托管 FED build）
+│   ├── ui/                 # 工作台前端（fed/：React）
+│   ├── system.json         # 发行元数据 SSOT（SystemMeta 只读此文件）
+│   └── default_config/     # 默认配置 JSON
+├── userspace/              # 用户数据与配置（gitignore 大部）
+│   ├── system/             # config / db / backup / updater 等
+│   ├── strategies/         # 用户策略包
+│   └── extensions/         # 用户扩展（tags / data_source / adapters…）
+└── experiments/            # 实验与草稿（非产品路径）
 ```
 
----
-
-## 从「项目」视角看整体运行流程
-
-### 1. 项目与环境：ProjectContext + DefaultConfig
-
-- `core/infra/project_context/` 负责：
-  - **PathManager**：统一管理所有路径（项目根目录、数据目录、日志目录、配置目录等）。
-  - **ConfigManager**：把 `core/default_config/`、`userspace/system/config/` 和环境变量组合成一份最终配置。
-  - **FileManager` 等**：对文件和目录的通用操作封装。
-- `core/default_config/` + `userspace/system/config/` 共同定义：
-  - 默认行为（框架给出的「推荐值」）。
-  - 每个项目的差异化配置（只写差异，默认值自动补全）。
-
-**效果**：项目级别的「路径、配置、环境」问题统一由一套机制解决，用户不需要到处硬编码路径，也不需要手写一堆 config 解析代码。
-
-### 2. 数据层：DataSource + DataManager + DB
-
-- `core/modules/data_source/`：
-  - 根据配置（和 discovery）找到对应的 Handler / Provider。
-  - 拉取原始数据、标准化、落地成统一 schema。
-- `core/infra/db/`：
-  - 提供数据库连接、连接池、迁移 / Schema 管理等能力。
-- `core/modules/data_manager/`：
-  - 在上面这些 infra 之上提供「领域化的数据访问 API」，比如：
-    - 取 K 线、取复权数据、取财报数据、取交易日历等。
-
-**效果**：数据获取与存储是一个完整闭环：**配置驱动的数据抓取 → 结构化入库 → 通过 DataManager 以领域 API 方式取出**。
-
-### 3. 计算层一：Indicator + Tag（把「可复用资产」先算好）
-
-- `core/modules/indicator/`：
-  - 基于 `pandas-ta-classic` 做一层代理，统一指标调用方式。
-  - 提供方便的高层 API，也暴露通用的低层接口。
-- `core/modules/tag/`：
-  - 把「一段逻辑在某个场景下的计算结果」当成**标签资产**，写入 JSON：
-    - **一次计算，多次复用，可追溯，跨策略**。
-  - 使用 `worker` infra 做多进程计算，支持增量更新与全量刷新。
-
-**效果**：大量重复使用、计算代价高的东西（指标、标签）可以先算好、存好，再被策略和下游分析多次使用，而不是每次回测都现算一遍。
-
-### 4. 计算层二：Strategy（从枚举，到价格验证，再到资金回测）
-
-`core/modules/strategy/` 的核心是一个**四层架构**：
-
-- **Layer 0：OpportunityEnumeratorFlow（底层枚举器 / 枚举输出结果 / 缓存层）**
-  - 全市场、全周期地枚举所有潜在机会，生成 CSV 双表（opportunities + targets）。
-  - 这是整个框架的**底层事实表**，同时也是「回测缓存层」：
-    - 一次枚举，多次复用，方便分析软件和机器学习使用。
-    - 可追溯：任何一条机会都能追到具体股票、具体日期、具体触发条件。
-- **Layer 1：Scanner**
-  - 针对最新一日做扫描，产出实时机会（active Opportunity），用于实盘提示。
-- **Layer 2：PriceFactorFlow（价格回测）**
-  - 在不考虑资金约束的前提下，基于枚举器的 枚举输出结果快速验证「价格层策略是否有 alpha」。
-  - 速度非常快，适合频繁调参与因子实验。
-- **Layer 3：CapitalAllocationFlow（带资金的回测）**
-  - 在价格层策略被证明有效后，进一步引入资金约束、多股票、费用等，模拟真实交易过程。
-  - 仍然复用同一份 枚举输出结果 枚举结果，只是在其上叠加资金管理逻辑。
-
-**效果**：策略研发被拆成多个清晰阶段：**机会枚举 → 价格验证 → 资金回测**，再配合 Worker 和版本管理，用户可以快速迭代策略而不被工程复杂度拖慢。
-
-### 5. 并发与运行：Worker + Orchestrator
-
-- `core/infra/worker/` 提供：
-  - 传统的 `ProcessWorker` / `MultiThreadWorker`（多进程 / 多线程执行器）。
-  - 模块化的 Orchestrator（Executor + JobSource + Monitor + Scheduler + Aggregator + ErrorHandler）。
-  - 内存感知调度等高级特性。
-- 上层模块（DataSource / Tag / Strategy）只需描述「有哪些 Job 要跑」，并选择合适的 Worker 组合，具体的并发执行和资源控制由 Worker 层负责。
-
-**效果**：CPU 密集 / I/O 密集的任务都能以统一方式并发执行，而不用在每个模块里重复造轮子。
+**运行时（通常不入库）：** `userspace/.ntq/`（如 TaskGuard 租约、trace 等）。
 
 ---
 
+## 3. 分层怎么理解
 
-## 想看某个模块的细节？
+自上而下：
 
-本文件只是 project 级别的「总览图」。已迁移模块以各目录 **`README.md`** 与 **`docs/`** 为准；尚未迁移的模块仍可在 `docs/core_modules/<name>/` 下查阅。
+| 层 | 目录 | 职责 |
+|----|------|------|
+| 展示 | `core/ui/fed/` | 工作台 UI（React） |
+| 接入 | `core/bff/`、`cli.py`、`launcher.py` | HTTP / CLI / 一键启动 |
+| 业务模块 | `core/modules/` | 数据、标签、策略、回测、适配器… |
+| 基础设施 | `core/infra/` | DB、CLI 框架、发现、TaskGuard、trace、updater… |
+| 用户落盘 | `userspace/` | 配置、库文件、策略与扩展源码 |
 
-- **核心业务模块（Core Modules）**
-  - [`modules/strategy`](../core/modules/strategy/README.md)（模块内 [`docs/`](../core/modules/strategy/docs/)，组件见 [`docs/components/`](../core/modules/strategy/docs/components/README.md)）
-  - [`modules/tag`](../core/modules/tag/README.md)（模块内 [`docs/`](../core/modules/tag/docs/)）
-  - [`modules/adapter`](../core/modules/adapter/README.md)（模块内 [`docs/`](../core/modules/adapter/docs/)）
-  - [`modules/data_contract`](../core/modules/data_contract/README.md)（模块内 [`docs/`](../core/modules/data_contract/docs/)）
-  - [`modules/data_manager`](../core/modules/data_manager/README.md)（模块内 [`docs/`](../core/modules/data_manager/docs/)）
-  - [`modules/data_source`](../core/modules/data_source/README.md)（模块内 [`docs/`](../core/modules/data_source/docs/)）
-  - [`modules/indicator`](../core/modules/indicator/README.md)（模块内 [`docs/`](../core/modules/indicator/docs/)）
+**依赖方向（硬约束）：** 上层可依赖下层；**infra 不得依赖 modules**；modules 之间只经公开门面与 `module_info.yaml` 声明依赖。细则见根目录 [`CORE_MODULE_STANDARDS.md`](../CORE_MODULE_STANDARDS.md)。
 
-- **基础设施（Infra）+ 默认配置**
-  - [`infra/project_context`](../core/infra/project_context/README.md)（模块内 [`docs/`](../core/infra/project_context/docs/)；含配置加载）
-  - [`infra/worker`](../core/infra/worker/README.md)（模块内 [`docs/`](../core/infra/worker/docs/)）
-  - [`infra/db`](../core/infra/db/README.md)（模块内 [`docs/`](../core/infra/db/docs/)）
-  - [`infra/discovery`](../core/infra/discovery/README.md)（模块内 [`docs/`](../core/infra/discovery/docs/)）
-  - [`infra/logging`](../core/infra/logging/README.md)（模块内 [`docs/`](../core/infra/logging/docs/)）
-  - `core/default_config/`（框架默认 JSON）
+`core/bff` / `core/ui` 是顶层特殊模块（非 `core/modules` 形态），经 Facade / HTTP 调用 modules 与 infra。
 
-安装与上手，请参见：
+---
 
-- `../getting-started/installation.md`
-- `../getting-started/configuration.md`
-- `../getting-started/venv-usage.md`
+## 4. `core/infra`（基础设施）
 
-开发与维护相关内容，请参见：
+| 包 | 一句话 |
+|----|--------|
+| [`cli`](../core/infra/cli/) | 用户 CLI（`cli.py`）与开发 CLI（`devcli.py`） |
+| [`cmd_layout`](../core/infra/cmd_layout/) | 命令布局 / 帮助结构 |
+| [`db`](../core/infra/db/) | 数据库连接与访问约定 |
+| [`discovery`](../core/infra/discovery/) | 模块 / 命令发现 |
+| [`export_import`](../core/infra/export_import/) | 导出导入 |
+| [`machine_capacity`](../core/infra/machine_capacity/) | 机器能力探测（如并行度建议） |
+| [`project_context`](../core/infra/project_context/) | 仓库根、userspace 路径等上下文 |
+| [`setup`](../core/infra/setup/) | 安装 / 首次配置（`install.py`） |
+| [`task_guard`](../core/infra/task_guard/) | 单活跃长任务租约（`TaskGuard` / `TaskLease`） |
+| [`trace`](../core/infra/trace/) | 运行时 trace 上报客户端 |
+| [`updater`](../core/infra/updater/) | 更新流程 |
+| [`utils`](../core/infra/utils/) | 跨模块小工具 |
 
-- `../development/testing.md`
-- `../development/coverage.md`
-- `../development/road-map.md`
+并发与 worker 池属于 **`modules.backtest_engine`** 的执行面，**不是**独立 `infra.worker` / `infra.logging` 包。
+
+---
+
+## 5. `core/modules`（业务模块）
+
+| 模块 | 一句话 | 文档入口 |
+|------|--------|----------|
+| [`data_contract`](../core/modules/data_contract/) | 表结构 / 合同定义 | [README](../core/modules/data_contract/README.md) |
+| [`data_manager`](../core/modules/data_manager/) | 读路径、样本股池（`sample_universe`）等 | [README](../core/modules/data_manager/README.md) |
+| [`data_source`](../core/modules/data_source/) | 拉取与落库编排 | [README](../core/modules/data_source/README.md) |
+| [`indicator`](../core/modules/indicator/) | 指标计算 | [README](../core/modules/indicator/README.md) |
+| [`tag`](../core/modules/tag/) | 标签扫描与结果 | [README](../core/modules/tag/README.md) |
+| [`strategy`](../core/modules/strategy/) | 策略发现与模拟（scan / enumerate / price_factor / portfolio） | [README](../core/modules/strategy/README.md) |
+| [`backtest_engine`](../core/modules/backtest_engine/) | 回测时间轴与执行引擎 | [README](../core/modules/backtest_engine/README.md) |
+| [`market_profile`](../core/modules/market_profile/) | 市场画像相关 | [README](../core/modules/market_profile/README.md) |
+| [`adapter`](../core/modules/adapter/) | `Strategy.scan` 机会列表的后处理回调（userspace adapters） | [README](../core/modules/adapter/README.md) |
+
+策略扩展约定：`userspace/strategies/<name>/` + `StrategyHooks`；scan 后处理见 `userspace/extensions/adapters/`。细节以各模块 README 与 `docs/` 为准。
+
+---
+
+## 6. 典型数据流（简图）
+
+两条线分开看：**行情怎么进库 / 怎么被用**，以及 **scan 结果怎么交给 adapter**。  
+（`modules.adapter` **不是**行情入口；它是 scan 产出的 callbacks。）
+
+**① 数据路径（落库 → 读取 → 计算）**
+
+```text
+外部行情 Provider（handler 配置驱动）
+        │
+        ▼
+  DataSource（拉取、校验、按合同写入）
+        │
+        ▼
+  userspace DB（合同表）
+        │
+        ▼
+  DataManager（统一读路径）
+        │
+        ├──► Indicator / Tag
+        └──► Strategy + BacktestEngine（simulate / 回测等）
+                    │
+                    ▼
+              结果落盘 / 导出
+```
+
+**② Scan → Adapter（机会后处理）**
+
+```text
+Strategy.scan（Scanner）
+        │
+        ▼
+  Opportunity 列表 + context
+        │
+        ▼
+  Adapter（按 scanner.adapters 依次 process）
+        │
+        ▼
+  console / webhook / 自定义 userspace adapter …
+```
+
+**③ 入口（同一套 Facade）**
+
+```text
+CLI / BFF（工作台） / launcher
+        │
+        ▼
+  modules.* 门面（DataSource、DataManager、Tag、Strategy、Adapter…）
+```
+
+长任务（数据续期、标签跑批、策略跑批等）经 **`TaskGuard`** 互斥；HTTP 对外状态路径仍为 `GET /api/v1/runtime/pipeline`（实现已切到 TaskGuard，见 `task_guard` 文档）。
+
+---
+
+## 7. 本地怎么跑（入口）
+
+以仓库根目录 [`README.md`](../README.md) 的安装与命令为准。常见入口：
+
+| 入口 | 用途 |
+|------|------|
+| `python install.py` | 安装 / 初始化 |
+| `python cli.py` | 用户 CLI |
+| `python launcher.py` | UI 安装引导 / 启动 |
+| `python -m core.bff.app` | 单独起 BFF（可托管 FED build） |
+| `python devcli.py` | 维护者工具（pack / 检查等） |
+| `ci/smoke_fresh_install.py` | **仅 CI** 新鲜安装冒烟（勿当日常开发工具） |
+
+Docker 说明见 [`docker.md`](./docker.md)。
+
+---
+
+## 8. 文档怎么找
+
+| 想了解… | 去哪 |
+|---------|------|
+| 仓库级约定 / 模块文档规范 | [`docs/README.md`](./README.md)、[`module-doc-standard.md`](./module-doc-standard.md) |
+| 某个模块 API / 架构 | 该模块根下 `README.md`、`API.md`、`docs/` |
+| 新建模块骨架 | [`docs/doc_templates/`](./doc_templates/) |
+| 模块边界硬约束 | [`CORE_MODULE_STANDARDS.md`](../CORE_MODULE_STANDARDS.md) |
+| userspace 用户指南 | [`strategies`](../userspace/strategies/USER_GUIDE.md)、[`extensions/tags`](../userspace/extensions/tags/USER_GUIDE.md)、[`extensions/data_source`](../userspace/extensions/data_source/USER_GUIDE.md) |
+
+本文件只做**地图**；表结构、命令细节、设计取舍以各模块文档与代码为准。

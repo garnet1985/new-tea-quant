@@ -53,6 +53,10 @@ Loader 经 **`DataManager`** 取 raw 行；契约 / `DataKey` / `until` 在 data
 
 **决策：** 经 `stock` / `macro` / `calendar` / … 属性访问，不包根导出各 Service 类。
 
+### 决策 4：样本股票宇宙属于 DataManager
+
+**决策：** `use_sample_stock_list` 决定系统内保留哪些股票，经 `DataManager.sample_universe` 访问。data_source 只消费该宇宙（抓取切片 / 写库过滤），不持有名单文件或 API。
+
 ---
 
 ## 相关文档

@@ -204,11 +204,9 @@ class DataSourceManager:
             for k in keys
         )
         if need_list and "stock_list" not in keys:
-            from core.modules.data_source.core.service.sample_stock_list import is_sample_active
-
             rows = dm.stock.list.load_all()
             scheduler._dependency_cache["stock_list"] = rows
-            suffix = "（样本）" if is_sample_active() else ""
+            suffix = "（样本）" if DataManager.sample_universe.is_active() else ""
             logger.info("从 DB 注入 stock_list 依赖：%s 只%s", len(rows), suffix)
 
         handlers_for_topo = [by_key[k] for k in keys]
@@ -466,61 +464,6 @@ class DataSourceManager:
     def discover_provider_classes() -> Dict[str, Any]:
         """发现全部 Provider 类（UI catalog）。"""
         return DataSourceProviderHelper.discover_provider_classes()
-
-    @staticmethod
-    def slice_stock_list(rows: List[Any]) -> List[Any]:
-        """样本池过滤股票列表行。"""
-        from core.modules.data_source.core.service.sample_stock_list import slice_stock_list
-
-        return slice_stock_list(rows)
-
-    @staticmethod
-    def sample_pool_count():
-        from core.modules.data_source.core.service.sample_stock_list import sample_pool_count
-
-        return sample_pool_count()
-
-    @staticmethod
-    def pool_stock_ids() -> List[str]:
-        from core.modules.data_source.core.service.sample_stock_list import pool_stock_ids
-
-        return pool_stock_ids()
-
-    @staticmethod
-    def default_sample_n() -> int:
-        from core.modules.data_source.core.service.sample_stock_list import DEFAULT_SAMPLE_N
-
-        return int(DEFAULT_SAMPLE_N)
-
-    @staticmethod
-    def pool_csv_path(count: int):
-        from core.modules.data_source.core.service.sample_stock_list import pool_csv_path
-
-        return pool_csv_path(count)
-
-    @staticmethod
-    def invalidate_pool_cache() -> None:
-        from core.modules.data_source.core.service.sample_stock_list import (
-            invalidate_pool_cache,
-        )
-
-        invalidate_pool_cache()
-
-    @staticmethod
-    def filter_paired_stock_records(*args, **kwargs):
-        from core.modules.data_source.core.service.sample_stock_list import (
-            filter_paired_stock_records,
-        )
-
-        return filter_paired_stock_records(*args, **kwargs)
-
-    @staticmethod
-    def prune_stock_universe_to_sample_pool(data_manager: Any) -> int:
-        from core.modules.data_source.core.service.sample_stock_list import (
-            prune_stock_universe_to_sample_pool,
-        )
-
-        return prune_stock_universe_to_sample_pool(data_manager)
 
     @staticmethod
     def group_stock_list_dimension_values(raw_records: List[Dict[str, Any]]):

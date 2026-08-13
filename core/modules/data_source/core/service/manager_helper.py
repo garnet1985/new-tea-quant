@@ -1,3 +1,5 @@
+from core.infra.cmd_layout import i
+
 import importlib.util
 import importlib
 from pathlib import Path
@@ -47,7 +49,7 @@ class DataSourceManagerHelper:
     def discover_mappings(mapping_path: Path):
         """发现并加载 mapping.py 中的 DATA_SOURCES。"""
         if not mapping_path.exists():
-            logger.error(f"❌ 数据源配置文件不存在: {mapping_path}")
+            logger.error(f"{i('error')} 数据源配置文件不存在: {mapping_path}")
             raise FileNotFoundError(f"data source mapping not found: {mapping_path}")
 
         if mapping_path.suffix != ".py":
@@ -61,10 +63,10 @@ class DataSourceManagerHelper:
         # 轻度校验：每个 data source 至少要有 handler 字段
         for name, cfg in data_sources.items():
             if not isinstance(cfg, dict):
-                logger.error(f"❌ data source '{name}' 的配置必须是对象(dict)，当前类型: {type(cfg)}")
+                logger.error(f"{i('error')} data source '{name}' 的配置必须是对象(dict)，当前类型: {type(cfg)}")
                 raise ValueError(f"invalid config for data source '{name}'")
             if "handler" not in cfg:
-                logger.error(f"❌ data source '{name}' 缺少必需字段 'handler'")
+                logger.error(f"{i('error')} data source '{name}' 缺少必需字段 'handler'")
                 raise ValueError(f"data source '{name}' must define 'handler'")
 
         return data_sources

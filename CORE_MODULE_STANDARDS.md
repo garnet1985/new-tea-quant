@@ -125,9 +125,9 @@
 - 性能调优由基准测试得出，不应暴露给用户随意改动
 - engine 入口一次 validate，内部不再散落 `"auto"` 判断
 
-**实践（以 backtest_engine 为参考）：**
-- engine：`EntityBasedPerformance.base()` + 应用方 override → `validate()` → `resolve_for_planning()`
-- 应用层：模块内 `settings/dispatch.yaml`（或等价常量），run 前 load 并传入 `BacktestEngine.run(performance=...)`
+**实践（调度类模块；写法对齐模板与文档规范，勿以某一业务模块为 SSOT）：**
+- engine：`…Performance.base()` + 应用方 override → `validate()` → `resolve_for_planning()`（命名随模块；骨架见 [`docs/doc_templates/module/`](docs/doc_templates/module/)）
+- 应用层：模块内 `settings/dispatch.yaml`（或等价常量），run 前 load 并传入 Facade（如 `BacktestEngine.run(performance=...)`）
 - 用户 settings：只含业务字段（如 `update_mode`、`run_options.dry_run`），**禁止** `settings["performance"]`
 - engine **不**读取 `core/default_config/worker.json` 的 dispatch 段
 - infra 能力（如 `MachineInfo`）直接从 `core.infra.*` 导入，**禁止**在模块内建 re-export 空壳文件
@@ -179,7 +179,7 @@
 |------|--------|----------|
 | `<module>/__test__/` | **`test_api.py`（必须）**；可选 `test_integration_*.py`、**薄** `test_performance_*.py`（CI 冒烟）；`TEST_CASES.md` | 正式 bench 的大输入/历史结果（→ `__performance__/`）；包内细单测 |
 | `<package>/__test__/` | 该包 **unit** + `TEST_CASES.md` | 超出该包职责；测其他模块行为 |
-| `<module>/__performance__/` | 本模块正式性能：固定输入、脚本、分版本结果、`CASES.md` | e2e/跨模块（→ `devtools/performance/`）；普通 API 单测 |
+| `<module>/__performance__/` | 本模块正式性能：固定输入、脚本、分版本结果、`CASES.md` | 跨模块 e2e（分别在相关模块 `__performance__/`，或 `devcli.py bpe/bps`）；普通 API 单测 |
 
 ```text
 <module_root>/
@@ -217,7 +217,7 @@
 
 | 子路径 | 内容 |
 |--------|------|
-| `README.md` | 如何运行、环境/机器假设、指标含义、与 `devtools/performance` 的边界 |
+| `README.md` | 如何运行、环境/机器假设、指标含义 |
 | `CASES.md` | 性能场景与 case；对应 `scripts/`；模板见上 |
 | `inputs/` | 固定输入数据，或「生成脚本 + 来源/校验和」说明（避免无说明的巨型二进制进库） |
 | `scripts/` | 正式 benchmark 入口（非 pytest 冒烟） |
@@ -234,8 +234,7 @@
 | 放哪里 | 判据 |
 |--------|------|
 | `__test__/test_performance_*.py` | CI 可承受的短冒烟 |
-| `__performance__/` | 本模块正式 bench：固定输入 + 脚本 + 分版本结果；仅依赖本模块公开 API（+ 本地 fixture） |
-| `devtools/performance/` | e2e、跨模块、或强依赖全栈/多模块场景 |
+| `__performance__/` | 本模块正式 bench：固定输入 + 脚本 + 分版本结果；仅依赖本模块公开 API（+ 本地 fixture）。跨模块场景用 `devcli.py bpe/bps`（backtest_engine `__performance__/`） |
 
 **CI：** 默认跑 `__test__/`；`__performance__/` 为手动或 nightly，不拖慢常规 PR（除非模块自行约定）。
 
@@ -260,7 +259,7 @@
 | 与 API 对齐 | 根目录 API suite 须能映射到 `API.md` |
 | 性能正式 case | 写在 `__performance__/CASES.md`；根 `TEST_CASES` 可仅链接，不复制大段 |
 
-**遗留：** 存量 `__test__/test_cases.yaml` 迁移为 `TEST_CASES.md` 后删除；模块专属旧 bench 从 `devtools/performance/<module>/` 迁入该模块 `__performance__/`。
+**遗留：** 禁止新增 `__test__/test_cases.yaml`；索引一律用模板形的 `TEST_CASES.md`（见 [`docs/doc_templates/module/__test__/TEST_CASES.md`](docs/doc_templates/module/__test__/TEST_CASES.md)）。
 
 ---
 
@@ -704,7 +703,7 @@ else:
 
 ---
 
-**最后更新：** 2026-08-01  
+**最后更新：** 2026-08-13  
 **维护者：** NTQ Team
 
-**模块参考（迁移目标态，非全部已达标）：** `core/modules/backtest_engine`、`core/modules/data_contract`、`core/infra/db`（整改时以本文 + [模块文档规范](docs/module-doc-standard.md) + 模板为准）
+**整改时 SSOT：** 本文 + [`docs/module-doc-standard.md`](docs/module-doc-standard.md) + 整棵 copy [`docs/doc_templates/module/`](docs/doc_templates/module/)（见 [`docs/doc_templates/README.md`](docs/doc_templates/README.md)）。**不要**以某一业务模块目录当文档模板。

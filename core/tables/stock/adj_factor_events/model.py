@@ -488,7 +488,7 @@ class DataAdjFactorEventModel(DbBaseModel):
         import pandas as pd
 
         from core.infra.project_context import ProjectContext
-        from core.modules.data_source import DataSourceManager
+        from core.modules.data_manager import DataManager
         from core.tables.stock.adj_factor_events.csv_import import (
             CsvImportRejected,
             log_csv_import_report,
@@ -506,8 +506,8 @@ class DataAdjFactorEventModel(DbBaseModel):
         default_start = ProjectContext.config.get_default_start_date() or ""
         as_of = ProjectContext.config.get_as_of_latest_completed_trading_date()
         pool_ids: Optional[Set[str]] = None
-        if DataSourceManager.sample_pool_count():
-            pool_ids = set(DataSourceManager.pool_stock_ids())
+        if DataManager.sample_universe.count():
+            pool_ids = set(DataManager.sample_universe.ids())
 
         raw_rows = df.to_dict("records")
         stock_ids = {

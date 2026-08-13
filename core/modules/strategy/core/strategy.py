@@ -75,7 +75,7 @@ class Strategy:
 
         ``session_id`` 预留，当前未使用。
         """
-        from core.modules.strategy.core.services.analyze_service import AnalyzeService
+        from core.modules.strategy.core.services.analyze import AnalyzeService
 
         AnalyzeService.analyze(session_id=session_id)
 
@@ -412,7 +412,7 @@ class Strategy:
     @staticmethod
     def clear_workbench_cache() -> int:
         """清空 ``sys_strategy_workbench_snapshot``；失败抛 ``RuntimeError``，成功返回删除行数。"""
-        from .services.workbench_cache_clear import WorkbenchCacheClear
+        from .services.workbench_cache import WorkbenchCacheClear
 
         out = WorkbenchCacheClear.clear_all()
         if not out.get("ok"):

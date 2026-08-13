@@ -9,8 +9,8 @@ from core.infra.project_context import ProjectContext
 from core.modules.data_source.core.data_class.config import DataSourceConfig
 from core.modules.data_source.core.data_class.handler_mapping import HandlerMapping
 from core.modules.data_source.core.service.date_range.date_range_service import needs_renew_work
+from core.modules.data_manager import DataManager
 from core.modules.data_source.core.service.renew.renew_common_helper import RenewCommonHelper
-from core.modules.data_source.core.service.sample_stock_list import slice_stock_list
 
 
 def _format_yyyy_mm_dd(value: str) -> str:
@@ -101,7 +101,7 @@ def _build_freshness_context(
         elif dep == "stock_list":
             try:
                 rows = data_manager.stock.list.load_all()
-                dependencies[dep] = slice_stock_list(rows or [])
+                dependencies[dep] = DataManager.sample_universe.slice_stock_list(rows or [])
             except Exception:
                 dependencies[dep] = []
         elif dep == "index_list":

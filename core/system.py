@@ -1,91 +1,82 @@
 """
 Core 版本与运行环境元信息。
 
-**单一事实来源**：与本文件同目录的 ``system.json``（便于脚本/Updater 直接读取比对，无需 import Python）。
-``SystemMeta`` 在运行时从该 JSON 加载；若文件缺失或损坏则回退到内置默认值并 ``warnings.warn``。
+**单一事实来源**：与本文件同目录的 ``system.json``。
+``SystemMeta`` 在运行时从该 JSON 加载；文件缺失、损坏或必填字段无效时直接报错（无静默回退）。
 """
 from __future__ import annotations
 
 import json
-import warnings
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 _DATA_PATH = Path(__file__).resolve().with_name("system.json")
 
-_FALLBACK: Dict[str, Any] = {
-    "version": "0.4.3",
-    "release_date": "2026-06-25",
-    "description": "版本发布",
-    "python": {
-        "minimum": [3, 9]
-    },
-    "new_features": [
-        "支持了python3.13",
-        "修复了windows找不到文件的问题，现在windows能够正常运行了",
-        "修复了python3.13的依赖问题",
-        "修复了枚举UI上会显示没有机会的单个股票的bug",
-        "增强了tag和strategy的profiler，帮助性能测试收集必要的数据",
-        "推出了一套NTQ的基线性能指标",
-        "对tag模块的切片模式增加了数据游标，性能测试6-9倍提升，且数据量越大提升越明显",
-        "修复了UI进度显示不准确的问题",
-        "重新定义了回测的缓存指纹，提高了效率和可靠性，让tag和strategy使用同一套指纹逻辑",
-        "修复了UI上修改参数后会产生2个缓存版本的bug",
-    ],
-}
+
+def _require_str(data: Dict[str, Any], key: str) -> str:
+    raw = data.get(key)
+    if not isinstance(raw, str) or not raw.strip():
+        raise ValueError(f"{_DATA_PATH.name} 缺少有效字符串字段 {key!r}")
+    return raw.strip()
+
+
+def _require_str_list(data: Dict[str, Any], key: str) -> List[str]:
+    raw = data.get(key)
+    if not isinstance(raw, list) or not all(isinstance(x, str) for x in raw):
+        raise ValueError(f"{_DATA_PATH.name} 字段 {key!r} 须为字符串数组")
+    return list(raw)
+
+
+def _require_python_minimum(data: Dict[str, Any]) -> Dict[str, List[int]]:
+    py = data.get("python")
+    if not isinstance(py, dict):
+        raise ValueError(f"{_DATA_PATH.name} 缺少 object 字段 python")
+    lo = py.get("minimum")
+    if not (isinstance(lo, list) and len(lo) >= 2):
+        raise ValueError(f"{_DATA_PATH.name} python.minimum 须为 [major, minor]")
+    try:
+        major, minor = int(lo[0]), int(lo[1])
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{_DATA_PATH.name} python.minimum 须为整数对") from exc
+    return {"minimum": [major, minor]}
+
+
+def _require_update_plan(data: Dict[str, Any]) -> Tuple[List[str], List[str]]:
+    plan = data.get("update_plan")
+    if not isinstance(plan, dict):
+        raise ValueError(f"{_DATA_PATH.name} 缺少 object 字段 update_plan")
+    managed = plan.get("managed_scope")
+    ignored = plan.get("update_ignored_paths")
+    if not (isinstance(managed, list) and all(isinstance(x, str) for x in managed)):
+        raise ValueError(f"{_DATA_PATH.name} update_plan.managed_scope 须为字符串数组")
+    if not (isinstance(ignored, list) and all(isinstance(x, str) for x in ignored)):
+        raise ValueError(
+            f"{_DATA_PATH.name} update_plan.update_ignored_paths 须为字符串数组"
+        )
+    return list(managed), list(ignored)
 
 
 def _load_payload() -> Dict[str, Any]:
     if not _DATA_PATH.is_file():
-        warnings.warn(f"缺少 {_DATA_PATH.name}，使用内置回退版本信息", UserWarning, stacklevel=2)
-        return dict(_FALLBACK)
+        raise FileNotFoundError(f"缺少核心元数据文件: {_DATA_PATH}")
     try:
         raw = json.loads(_DATA_PATH.read_text(encoding="utf-8"))
-    except Exception as exc:  # pragma: no cover - defensive
-        warnings.warn(f"无法解析 {_DATA_PATH}: {exc}；使用内置回退", UserWarning, stacklevel=2)
-        return dict(_FALLBACK)
-    if not isinstance(raw, dict) or not isinstance(raw.get("version"), str):
-        warnings.warn(f"{_DATA_PATH.name} 结构无效；使用内置回退", UserWarning, stacklevel=2)
-        return dict(_FALLBACK)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"无法解析 {_DATA_PATH}: {exc}") from exc
+    if not isinstance(raw, dict):
+        raise ValueError(f"{_DATA_PATH.name} 根须为 JSON object")
     return raw
 
 
 class SystemMeta:
     def __init__(self) -> None:
         data = _load_payload()
-        self._version = str(data.get("version", _FALLBACK["version"]))
-        self._release_date = str(data.get("release_date", _FALLBACK["release_date"]))
-        self._description = str(data.get("description", _FALLBACK["description"]))
-
-        py = data.get("python") if isinstance(data.get("python"), dict) else {}
-        lo = py.get("minimum")
-        if isinstance(lo, list) and len(lo) >= 2:
-            self.python = {"minimum": [int(lo[0]), int(lo[1])]}
-        else:
-            self.python = dict(_FALLBACK["python"])
-
-        nf = data.get("new_features")
-        if isinstance(nf, list) and all(isinstance(x, str) for x in nf):
-            self.new_features: List[str] = list(nf)
-        else:
-            self.new_features = list(_FALLBACK["new_features"])
-
-        plan = data.get("update_plan") if isinstance(data.get("update_plan"), dict) else {}
-        ms = plan.get("managed_scope")
-        if not (isinstance(ms, list) and all(isinstance(x, str) for x in ms)):
-            ms = data.get("managed_scope")
-        if isinstance(ms, list) and all(isinstance(x, str) for x in ms):
-            self.managed_scope: List[str] = list(ms)
-        else:
-            self.managed_scope = []
-
-        ig = plan.get("update_ignored_paths")
-        if not (isinstance(ig, list) and all(isinstance(x, str) for x in ig)):
-            ig = data.get("update_ignored_paths")
-        if isinstance(ig, list) and all(isinstance(x, str) for x in ig):
-            self.update_ignored_paths: List[str] = list(ig)
-        else:
-            self.update_ignored_paths = []
+        self._version = _require_str(data, "version")
+        self._release_date = _require_str(data, "release_date")
+        self._description = _require_str(data, "description")
+        self.python = _require_python_minimum(data)
+        self.new_features = _require_str_list(data, "new_features")
+        self.managed_scope, self.update_ignored_paths = _require_update_plan(data)
 
     @property
     def version(self) -> str:

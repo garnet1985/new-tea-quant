@@ -22,7 +22,7 @@ modules.data_source/
 │   ├── data_source_manager.py  # Facade 实现
 │   ├── execution_scheduler.py
 │   ├── enums.py / reserved_dependencies.py
-│   ├── base_class / data_class / catalog / service / dev /
+│   ├── base_class / data_class / catalog / service /
 │   └── **/__test__/            # 实现测就近
 ├── docs/
 └── __test__/                   # 公开 API 契约测
@@ -33,7 +33,7 @@ modules.data_source/
 | Facade | `DataSourceManager`：renew / execute / 发现 |
 | 调度 | `DataSourceExecutionScheduler`：拓扑序执行 |
 | Handler / Provider | userspace 实现 + `core/base_class` |
-| service | 日期范围、管线、持久化、样本池等 |
+| service | 日期范围、管线、持久化等 |
 
 日期范围由 **`DateRangeService` + `date_range_helper` + `RenewCommonHelper`** 计算。
 
@@ -59,7 +59,7 @@ flowchart TB
 ## 边界
 
 **In scope：** 配置发现、handler/provider 生命周期、调度与持久化钩子  
-**Out of scope：** `DataKey` 契约（`data_contract`）；实盘下单
+**Out of scope：** `DataKey` 契约（`data_contract`）；实盘下单；样本股票宇宙（`DataManager.sample_universe`）
 
 ---
 

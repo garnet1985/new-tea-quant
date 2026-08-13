@@ -8,7 +8,7 @@
 > **模块规则（代码 / 测试结构 / 版本 / Facade 等）：** [`CORE_MODULE_STANDARDS.md`](../CORE_MODULE_STANDARDS.md)  
 > **可 copy 骨架：** [`docs/doc_templates/module/`](doc_templates/module/)（与真实模块同结构；整棵 copy 后替换 `<xxx>`，删除不需要的可选文件）
 
-**命名迁移：** `OVERVIEW` → `docs/CONCEPTS.md`；`DECISIONS` → `docs/DESIGN.md`；glossary 在模块根；临时笔记 → `docs/notes/`；用例索引 → `__test__/TEST_CASES.md`；本模块正式性能 → `__performance__/`（e2e 仍在 `devtools/performance`）。
+**命名迁移：** `OVERVIEW` → `docs/CONCEPTS.md`；`DECISIONS` → `docs/DESIGN.md`；glossary 在模块根；临时笔记 → `docs/notes/`；用例索引 → `__test__/TEST_CASES.md`；本模块正式性能 → `__performance__/`。
 
 ---
 
@@ -287,7 +287,7 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 
 | 文件 | 内容 |
 |------|------|
-| `README.md` | 如何运行、环境/机器假设、指标含义、与 `devtools/performance` 的边界 |
+| `README.md` | 如何运行、环境/机器假设、指标含义 |
 | `CASES.md` | 性能场景与 case；对应 `scripts/` |
 
 ---

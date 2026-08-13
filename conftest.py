@@ -1,44 +1,35 @@
 """Project-wide pytest hooks.
 
-UT is frozen during strategy / enumerator refactor. Test files are kept;
-execution is skipped until refactor stabilizes.
+Refactor freeze has been lifted: tests run by default.
 
-Re-enable: ``NTQ_TESTS_ENABLED=1 python -m pytest ...``
-Or mark a test with ``@pytest.mark.force_run``.
+Environment-dependent or intentionally deferred cases should use
+``pytest.mark.skip`` / ``skipif`` with an explicit reason (missing
+tools/data on CI, STALE API, etc.).
 """
 from __future__ import annotations
 
-import os
-
 import pytest
 
-FREEZE_REASON = (
-    "UT disabled during strategy module refactor "
-    "(see module __test__/TEST_CASES.md for public index). "
-    "Set NTQ_TESTS_ENABLED=1 to run."
-)
+
+class TraceHttpBlock:
+    """pytest 下 Trace 上报一律视为成功，不打真实网络。"""
+
+    @staticmethod
+    def post(*args, **kwargs) -> bool:
+        return True
 
 
 def pytest_configure(config: pytest.Config) -> None:
+    # Kept for backward compatibility with existing ``force_run`` markers.
     config.addinivalue_line(
         "markers",
-        "force_run: run during refactor freeze (see root conftest.py)",
+        "force_run: historical opt-in during refactor freeze (no longer required)",
     )
 
 
-def _tests_enabled() -> bool:
-    return os.environ.get("NTQ_TESTS_ENABLED", "").strip().lower() in (
-        "1",
-        "true",
-        "yes",
+@pytest.fixture(autouse=True)
+def ntq_block_trace_http(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "core.infra.trace.core.services.client_service.TraceClientService.post",
+        staticmethod(TraceHttpBlock.post),
     )
-
-
-def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    if _tests_enabled():
-        return
-
-    skip = pytest.mark.skip(reason=FREEZE_REASON)
-    for item in items:
-        if "force_run" not in item.keywords:
-            item.add_marker(skip)

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
@@ -411,13 +411,13 @@ export function SettingsTracePanel() {
   const [decided, setDecided] = useState(false);
   const [decidedAt, setDecidedAt] = useState('');
 
-  const applyState = (r) => {
+  const applyState = useCallback((r) => {
     setEnabled(Boolean(r.enabled));
     setDecided(Boolean(r.decided));
     setDecidedAt(formatTraceDecidedAt(r.decided_at));
-  };
+  }, []);
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoadError('');
     setLoading(true);
     fetchTraceSettings()
@@ -426,11 +426,11 @@ export function SettingsTracePanel() {
         setLoadError(e?.message || '读取使用统计设置失败');
       })
       .finally(() => setLoading(false));
-  };
+  }, [applyState]);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const handleToggle = (_event, next) => {
     setSaveError('');

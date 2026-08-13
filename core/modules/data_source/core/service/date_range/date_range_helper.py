@@ -13,6 +13,8 @@ handler 以及测试等直接调用。`DataSourceHandlerHelper` 中同名方法
 目前作为薄壳代理，后续可以逐步移除。
 """
 
+from core.infra.cmd_layout import i
+
 from typing import Any, Dict, List, Optional, Tuple
 import logging
 
@@ -110,7 +112,7 @@ def compute_last_update_map(context: Dict[str, Any]) -> Dict[str, Optional[str]]
     if not latest_dates_dict:
         # 表为空或查询失败：所有实体视为没有 last_update
         logger.warning(
-            f"⚠️ [compute_last_update_map] 查询 {table_name} 的最新日期返回空结果，可能表为空或查询失败"
+            f"{i('warning')} [compute_last_update_map] 查询 {table_name} 的最新日期返回空结果，可能表为空或查询失败"
         )
         return {}
 
@@ -348,7 +350,7 @@ def compute_entity_date_ranges(
                     renew_gate_map[k] = normalize_date_value(v) if v else None
                 if not last_update_map:
                     logger.info(
-                        f"📋 [renew_if_over_days] last_update_map 为空，已单独查询 gate_field={gate_field}，"
+                        f"{i('clipboard')} [renew_if_over_days] last_update_map 为空，已单独查询 gate_field={gate_field}，"
                         f"得到 {len(renew_gate_map)} 条用于过滤"
                     )
                     # 注入 context 供 handler 使用（如 on_after_single_api_job_bundle_complete 中的 last_check）

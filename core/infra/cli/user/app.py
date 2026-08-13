@@ -1,6 +1,7 @@
 """Application facade used by CLI handlers."""
 
 from __future__ import annotations
+from core.infra.cmd_layout import i
 
 import logging
 import os
@@ -80,8 +81,8 @@ class CliApp:
                 adj_model.csv_dir,
                 f"adj_factor_events_{resolved_start or 'earliest'}_{end or 'latest'}.csv",
             )
-        logger.info("📤 导出复权因子事件 CSV: %s .. %s -> %s", resolved_start, end or "?", out)
+        logger.info(i('upload') + " 导出复权因子事件 CSV: %s .. %s -> %s", resolved_start, end or "?", out)
         exported = adj_model.export_to_csv(
             file_path=out, start_date=start_date, end_date=end_date
         )
-        logger.info("✅ 导出完成: %s 条 -> %s", exported, out)
+        logger.info(i('success') + " 导出完成: %s 条 -> %s", exported, out)

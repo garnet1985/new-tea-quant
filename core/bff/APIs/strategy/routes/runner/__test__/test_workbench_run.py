@@ -64,7 +64,7 @@ def test_pipeline_progress_roundtrip_via_launcher(tmp_path, monkeypatch):
 
 
 @patch(
-    "core.infra.system_actions.system_actions.PipelineNamespace.read_status",
+    "core.infra.task_guard.task_guard.TaskGuard.read_status",
     return_value={"busy": False},
 )
 @patch(
@@ -84,13 +84,13 @@ def test_submit_unknown_strategy(_find_any, _find, _pipe):
 
 
 @patch(
-    "core.infra.system_actions.system_actions.PipelineNamespace.read_status",
+    "core.infra.task_guard.task_guard.TaskGuard.read_status",
     return_value={"busy": True, "kind": "tag_run"},
 )
 @patch(
     "core.bff.APIs.strategy.routes.runner.workbench_run.DiscoveryService.find_strategy",
 )
-def test_submit_pipeline_busy(mock_find, _pipe):
+def test_submit_task_busy(mock_find, _pipe):
     mock_find.return_value = MagicMock()
     out = WorkbenchRunLauncher.submit(
         strategy_name="demo/x",

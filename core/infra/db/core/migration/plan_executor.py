@@ -30,7 +30,7 @@ def execute_plan(
     """
     使用已初始化的 :class:`~core.infra.db.core.db_manager.DatabaseManager` 依次执行计划。
 
-    DDL 步骤走 ``get_connection``；``RUN_DATA_SCRIPT`` 走 ``Update.data_scripts`` 注册表。
+    DDL 步骤走 ``get_connection``；``RUN_DATA_SCRIPT`` 走 ``Updater.data_scripts`` 注册表。
     """
     for step in ordered_plan(plan):
         if is_step_applied(db, step.step_id):
@@ -41,9 +41,9 @@ def execute_plan(
 
         if step.kind == MigrationStepKind.RUN_DATA_SCRIPT:
             script_id = step.script_action_id or step.action_id
-            from core.infra.update import Update
+            from core.infra.updater import Updater
 
-            Update.data_scripts.run(db, script_id, context=script_context)
+            Updater.data_scripts.run(db, script_id, context=script_context)
         else:
             if not step.sql.strip():
                 raise RuntimeError(f"迁移步骤 {step.step_id!r} 缺少 SQL")

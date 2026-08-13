@@ -8,8 +8,8 @@
 ## 用法
 
 ```bash
-# 例：新建 modules/foo
-cp -R docs/doc_templates/module/ modules/foo/
+# 例：新建 core/modules/foo
+cp -R docs/doc_templates/module/ core/modules/foo/
 # 然后：替换 <占位>；不需要的可选文件/目录整份删除（并去掉 README 里对应链接）
 ```
 
@@ -32,8 +32,7 @@ cp -R docs/doc_templates/module/ modules/foo/
 |------|------|
 | `<module>/__test__/` | **必须** `test_api.py` + `TEST_CASES.md`；可选 integration、**短** performance 冒烟 |
 | `<package>/__test__/` | 该包 unit + `TEST_CASES.md`（可从模块根 `__test__/TEST_CASES.md` 再 copy 一份改 Scope） |
-| `<module>/__performance__/` | 正式单模块 bench（固定输入、脚本、按版本结果、CASES） |
-| `devtools/performance/` | e2e / 跨模块 |
+| `<module>/__performance__/` | 正式单模块 bench（固定输入、脚本、按版本结果、CASES）；跨模块用 `devcli.py bpe/bps` |
 
 默认 CI 跑 `__test__/`；`__performance__/` 手动或 nightly。
 

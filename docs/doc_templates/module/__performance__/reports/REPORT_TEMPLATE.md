@@ -72,7 +72,7 @@
 
 ## 与业界产品对比
 
-参照 [`devtools/performance/BENCHMARKS.md`](../../../devtools/performance/BENCHMARKS.md) 中有记录的数据；条件差很多时注明，勿强行对齐。
+参照 backtest_engine `__performance__/` 中有记录的数据；条件差很多时注明，勿强行对齐。
 
 | 产品 | 吞吐量 | 相对本 case | 备注 |
 |------|--------|-------------|------|

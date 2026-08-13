@@ -1,3 +1,5 @@
+from core.infra.cmd_layout import i
+
 from typing import Any, Dict, Type, Optional
 import threading
 import logging
@@ -59,7 +61,7 @@ class DataSourceProviderHelper:
         try:
             return provider_class(None)
         except Exception as e:
-            logger.error(f"❌ 初始化 Provider '{provider_name}' 失败: {e}")
+            logger.error(f"{i('error')} 初始化 Provider '{provider_name}' 失败: {e}")
             return None
 
     @classmethod

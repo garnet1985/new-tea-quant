@@ -10,8 +10,6 @@ import pytest
 from core.infra.system_actions import SystemActions
 from core.infra.system_actions.contracts import (
     PipelineLeaseBusyError,
-    ScaffoldError,
-    ScaffoldResult,
     VALID_KINDS,
 )
 
@@ -24,16 +22,12 @@ class TestSystemActionsApi(unittest.TestCase):
 
         self.assertEqual(pkg.__all__, ["SystemActions"])
         self.assertTrue(hasattr(SystemActions, "pipeline"))
-        self.assertTrue(hasattr(SystemActions, "scaffold"))
         self.assertTrue(hasattr(SystemActions, "types"))
+        self.assertFalse(hasattr(SystemActions, "scaffold"))
 
     def test_pipeline_methods(self):
         self.assertTrue(callable(SystemActions.pipeline.read_status))
         self.assertTrue(callable(SystemActions.pipeline.lease))
-
-    def test_scaffold_methods(self):
-        self.assertTrue(callable(SystemActions.scaffold.create_strategy))
-        self.assertTrue(callable(SystemActions.scaffold.create_tag))
 
     def test_pipeline_read_status_shape(self):
         status = SystemActions.pipeline.read_status()
@@ -41,15 +35,13 @@ class TestSystemActionsApi(unittest.TestCase):
         self.assertIn("busy", status)
 
     def test_contracts_and_types(self):
-        self.assertTrue(issubclass(ScaffoldError, ValueError))
         self.assertTrue(issubclass(PipelineLeaseBusyError, Exception))
         self.assertTrue(VALID_KINDS)
-        self.assertTrue(hasattr(ScaffoldResult, "__dataclass_fields__"))
-        self.assertIs(SystemActions.types.ScaffoldError, ScaffoldError)
         self.assertIs(SystemActions.types.VALID_KINDS, VALID_KINDS)
         self.assertIs(
             SystemActions.types.PipelineLeaseBusyError, PipelineLeaseBusyError
         )
+        self.assertFalse(hasattr(SystemActions.types, "ScaffoldError"))
 
     def test_pipeline_lease_from_contracts_and_types(self):
         from core.infra.system_actions.contracts import PipelineLease

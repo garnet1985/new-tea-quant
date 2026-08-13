@@ -22,9 +22,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from core.infra.cmd_layout import CmdLayout
-from core.infra.cli.dev.services.paths import REPO_ROOT
+from core.infra.project_context import ProjectContext
 from core.infra.setup import Setup
 
+REPO_ROOT = ProjectContext.path.get_project_root()
 BFF_REQUIREMENTS = Setup.env.ui_bff_requirements()
 DEFAULT_VENV_DIR = REPO_ROOT / ".ntq" / "ci-minimal-venv"
 

@@ -108,23 +108,22 @@ class UserHandlers:
         if not path:
             raise SystemExit(f"new_{kind} 需要目标路径")
 
-        from core.infra.system_actions import SystemActions
-        from core.infra.system_actions.contracts import ScaffoldError
+        from core.infra.cli.user.scripts.create_from_template import CreateFromTemplate
 
         UserHandlers.setup_logging(verbose=args.verbose)
 
         try:
             if kind == "tag":
-                result = SystemActions.scaffold.create_tag(path)
+                result = CreateFromTemplate.create_tag(path)
                 label = "Tag 场景"
             else:
-                result = SystemActions.scaffold.create_strategy(path)
+                result = CreateFromTemplate.create_strategy(path)
                 label = "策略"
             logger.info(i('success') + " 已新建 %s: %s", label, result.key)
             logger.info("   目录: %s", result.dest)
             logger.info("   请编辑 settings.py 与 worker，然后运行回测或打标。")
             return 0
-        except ScaffoldError as exc:
+        except CreateFromTemplate.Error as exc:
             logger.error(i('error') + " %s", exc)
             return 1
 

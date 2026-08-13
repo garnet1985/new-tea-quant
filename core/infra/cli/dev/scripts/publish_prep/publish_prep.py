@@ -21,9 +21,10 @@ from core.infra.cli.dev.scripts.publish_prep.changelog_sync import (
     compare_system_new_features,
     sync_version_metadata_from_changelog,
 )
-from core.infra.cli.dev.services.paths import REPO_ROOT, repo_python
+from core.infra.project_context import ProjectContext
 from core.infra.setup import Setup
 
+REPO_ROOT = ProjectContext.path.get_project_root()
 SYSTEM_JSON = REPO_ROOT / "core" / "system.json"
 SYSTEM_PY = REPO_ROOT / "core" / "system.py"
 README_FILES = (REPO_ROOT / "README.md", REPO_ROOT / "README_en.md")
@@ -151,17 +152,13 @@ def run_minimal_import_check() -> int:
 
 def run_pytest() -> int:
     print("\n[检查] pytest…", flush=True)
-    py = repo_python()
+    py = ProjectContext.path.get_python()
     try:
         py_label = py.relative_to(REPO_ROOT).as_posix()
     except ValueError:
         py_label = str(py)
     print(f"  解释器: {py_label}", flush=True)
-    if os.name == "nt":
-        venv_marker = REPO_ROOT / "venv" / "Scripts" / "python.exe"
-    else:
-        venv_marker = REPO_ROOT / "venv" / "bin" / "python"
-    if not venv_marker.is_file():
+    if not ProjectContext.path.get_venv_python().is_file():
         print(
             f"  {CmdLayout.icon.i('warning')} 未找到 venv/，当前 Python 可能缺少 Flask；"
             "建议先运行 setup/install.py 或 pip install -r requirements-dev.txt",

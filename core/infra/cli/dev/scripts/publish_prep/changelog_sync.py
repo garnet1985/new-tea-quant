@@ -8,8 +8,9 @@ import re
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from core.infra.cli.dev.services.paths import REPO_ROOT
+from core.infra.project_context import ProjectContext
 
+REPO_ROOT = ProjectContext.path.get_project_root()
 CHANGELOG_PATH = REPO_ROOT / "CHANGELOG.md"
 SYSTEM_JSON = REPO_ROOT / "core" / "system.json"
 SYSTEM_PY = REPO_ROOT / "core" / "system.py"

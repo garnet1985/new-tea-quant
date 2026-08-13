@@ -1,6 +1,6 @@
-"""SystemActions 门面 — pipeline / scaffold。
+"""SystemActions 门面 — pipeline。
 
-方法内懒导入，避免包 import 时拉起 strategy/tag 重链。
+方法内懒导入，避免包 import 时拉起重链。
 """
 
 from __future__ import annotations
@@ -9,10 +9,7 @@ from typing import Any, Optional
 
 from .contracts import (
     VALID_KINDS,
-    Kind,
     PipelineLeaseBusyError,
-    ScaffoldError,
-    ScaffoldResult,
 )
 
 
@@ -22,10 +19,7 @@ class TypesNamespace:
     ``PipelineLease`` 经 ``__getattr__`` 懒加载（与 contracts 一致）。
     """
 
-    Kind = Kind
     VALID_KINDS = VALID_KINDS
-    ScaffoldError = ScaffoldError
-    ScaffoldResult = ScaffoldResult
     PipelineLeaseBusyError = PipelineLeaseBusyError
 
     def __getattr__(self, name: str) -> Any:
@@ -72,31 +66,10 @@ class PipelineNamespace:
         )
 
 
-class ScaffoldNamespace:
-    """从模板新建策略 / Tag。"""
-
-    @staticmethod
-    def create_strategy(raw_path: str):
-        from core.infra.system_actions.core.shortcuts.create_new_strategy.scaffold import (
-            StrategyScaffold,
-        )
-
-        return StrategyScaffold.create(raw_path)
-
-    @staticmethod
-    def create_tag(raw_path: str):
-        from core.infra.system_actions.core.shortcuts.create_new_tag.scaffold import (
-            TagScaffold,
-        )
-
-        return TagScaffold.create(raw_path)
-
-
 class SystemActions:
     """系统级操作门面（Facade）。"""
 
     pipeline = PipelineNamespace()
-    scaffold = ScaffoldNamespace()
     types = TypesNamespace()
 
 

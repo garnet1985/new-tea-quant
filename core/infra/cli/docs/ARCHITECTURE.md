@@ -14,10 +14,12 @@
 - 仓库根入口脚本 `cli.py` / `devcli.py` 分发到门面类
 - user / dev 各自的短别名与命令注册表
 - 用户侧虚拟环境 / 安装的启动前检查（bootstrap）
+- 从模板新建策略 / Tag（`user/scripts/create_from_template`，`cli.py -n`）
+- 临时文件清理（`dev/scripts/temp_cleanup`）
 
 **不负责**
 
-- 具体业务动作的实现（交给 `infra.setup`、`infra.updater`、各业务模块等；临时文件清理在 `dev/scripts/temp_cleanup`）
+- 具体业务动作的实现（交给 `infra.setup`、`infra.updater`、各业务模块等）
 - 把 `user/`、`dev/`、`shared/` 作为跨模块公开 import 面（设置页清理走 `dev/scripts/temp_cleanup` 除外）
 - 合成单一 CLI 二进制（见 [DESIGN.md](./DESIGN.md)）
 
@@ -34,6 +36,7 @@ core/infra/cli/
 ├── glossary.yaml
 ├── module_info.yaml
 ├── user/                  # 用户 CLI 实现（非公开 import）
+│   ├── scripts/           # 用户命令实现（create_from_template 等）
 │   └── __test__/          # user abbrev / parser unit
 ├── dev/                   # 开发 CLI 实现（非公开 import）
 │   └── __test__/          # dev abbrev / parser unit
@@ -87,7 +90,7 @@ argv
 ## 依赖（结论）
 
 - `infra.project_context`：项目根与路径
-- `infra.system_actions`：pipeline / scaffold
+- `infra.system_actions`：pipeline 租约
 - `infra.setup`：安装
 - `infra.updater`：应用升级
 

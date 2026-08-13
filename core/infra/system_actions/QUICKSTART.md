@@ -17,7 +17,8 @@ print(status["busy"])
 
 **预期结果：** 无长任务时 `busy` 为 `False`。
 
-临时文件清理见 `devcli.py cgc/csc/cdc/cmc` 或 `core.infra.cli.dev.scripts.temp_cleanup`。
+临时文件清理见 `devcli.py cgc/csc/cdc/cmc` 或 `core.infra.cli.dev.scripts.temp_cleanup`。  
+从模板新建策略 / Tag 见 `cli.py -n` / `cli.py t -n`。
 
 ---
 

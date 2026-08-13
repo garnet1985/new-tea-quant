@@ -143,7 +143,7 @@ class DevParser:
         p_ssp = sub.add_parser(
             "sample_stock_pool",
             aliases=DevCommands.aliases_for("sample_stock_pool"),
-            help="分层抽样 N 只股票并激活样本池",
+            help="分层抽样 N 只股票并激活样本名单",
         )
         p_ssp.add_argument("count", type=int)
         p_ssp.set_defaults(handler=DevHandlers.cmd_sample_stock_pool)
@@ -151,7 +151,7 @@ class DevParser:
         sub.add_parser(
             "pool_clear",
             aliases=DevCommands.aliases_for("pool_clear"),
-            help="取消样本股票池（恢复全量 renew）",
+            help="取消样本股票名单（恢复全量 renew）",
         ).set_defaults(handler=DevHandlers.cmd_pool_clear)
 
         for long_name, handler, help_text in (

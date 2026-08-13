@@ -34,6 +34,9 @@ class TestApi(unittest.TestCase):
         """path namespace 包含文档化路径 API"""
         methods = [
             "get_project_root",
+            "get_venv_python",
+            "get_sys_python",
+            "get_python",
             "get_core_root",
             "get_userspace_root",
             "get_strategies_root",
@@ -104,6 +107,24 @@ class TestApi(unittest.TestCase):
         self.assertIsInstance(root, Path)
         self.assertTrue(root.is_absolute())
         self.assertTrue(root.exists())
+
+    def test_path_get_python_resolvers(self):
+        venv_py = ProjectContext.path.get_venv_python()
+        sys_py = ProjectContext.path.get_sys_python()
+        chosen = ProjectContext.path.get_python()
+        self.assertIsInstance(venv_py, Path)
+        self.assertIsInstance(sys_py, Path)
+        self.assertTrue(sys_py.is_file())
+        if venv_py.is_file():
+            self.assertEqual(chosen, venv_py)
+            self.assertEqual(
+                ProjectContext.path.get_python(allow_sys_fallback=False),
+                venv_py,
+            )
+        else:
+            self.assertEqual(chosen, sys_py)
+            with self.assertRaises(FileNotFoundError):
+                ProjectContext.path.get_python(allow_sys_fallback=False)
 
     def test_path_get_core_root(self):
         core_root = ProjectContext.path.get_core_root()

@@ -37,6 +37,26 @@ class TestPathManager:
         
         # 验证根目录包含项目标记文件
         assert (root / "README.md").exists() or (root / ".git").exists()
+
+    def test_get_python_resolvers(self):
+        import os
+
+        venv_py = ProjectContext.path.get_venv_python()
+        sys_py = ProjectContext.path.get_sys_python()
+        root = ProjectContext.path.get_project_root()
+        expected_venv = root / "venv" / (
+            "Scripts/python.exe" if os.name == "nt" else "bin/python"
+        )
+        assert venv_py == expected_venv
+        assert isinstance(sys_py, Path)
+        assert sys_py.is_file()
+        if venv_py.is_file():
+            assert ProjectContext.path.get_python() == venv_py
+            assert ProjectContext.path.get_python(allow_sys_fallback=False) == venv_py
+        else:
+            assert ProjectContext.path.get_python() == sys_py
+            with pytest.raises(FileNotFoundError):
+                ProjectContext.path.get_python(allow_sys_fallback=False)
     
     def test_core(self):
         """测试获取 core 目录"""

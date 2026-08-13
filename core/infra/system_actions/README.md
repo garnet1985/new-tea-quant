@@ -1,6 +1,6 @@
 # System Actions（`infra.system_actions`）
 
-系统级操作：全局 pipeline 租约、从模板新建策略 / Tag。
+系统级操作：全局 pipeline 租约。
 
 ## 布局
 
@@ -9,8 +9,7 @@ core/infra/system_actions/
 ├── system_actions.py   # Facade
 ├── contracts.py
 ├── core/
-│   ├── pipeline_lease/  # 内部实现 + __test__
-│   └── shortcuts/
+│   └── pipeline_lease/  # 内部实现 + __test__
 ├── __test__/
 └── docs/
 ```
@@ -24,6 +23,8 @@ from core.infra.system_actions import SystemActions
 
 SystemActions.pipeline.read_status()
 ```
+
+从模板新建策略 / Tag：`cli.py -n`（`core.infra.cli.user.scripts.create_from_template`）。
 
 ## 相关文档
 

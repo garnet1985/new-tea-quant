@@ -8,7 +8,7 @@
 > core 仍为 `0.x`：公开入口状态最高 **`beta`**（禁止 `stable`）。  
 > 所列门面入口须有 `__test__/test_api.py` 覆盖。
 
-快速开始见 [QUICKSTART.md](./QUICKSTART.md)。术语见 [glossary.yaml](./glossary.yaml)。架构见 [ARCHITECTURE.md](./docs/ARCHITECTURE.md)。
+快速开始见 [QUICKSTART.md](./QUICKSTART.md)。术语见 [glossary.yaml](./glossary.yaml)。架构见 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)。
 
 **公开约定：** 包根仅导出 `SystemActions`；类型从 [`contracts.py`](./contracts.py) 导入，或经 `SystemActions.types`。实现位于 [`core/`](./core/)。
 
@@ -16,9 +16,10 @@
 
 ## SystemActions
 
-**描述：** 系统级操作门面 — `pipeline` / `scaffold` / `types`
+**描述：** 系统级操作门面 — `pipeline` / `types`
 
-临时文件 / 运行时产物清理已迁至 `core.infra.cli.dev.scripts.temp_cleanup`（devcli + 设置页）。
+临时文件 / 运行时产物清理见 `core.infra.cli.dev.scripts.temp_cleanup`。  
+从模板新建策略 / Tag 见 `core.infra.cli.user.scripts.create_from_template`（`cli.py -n`）。
 
 ### pipeline
 
@@ -51,21 +52,9 @@ except SystemActions.types.PipelineLeaseBusyError as exc:
     print(exc.active)
 ```
 
-### scaffold
-
-#### create_strategy / create_tag
-
-`SystemActions.scaffold.create_strategy(raw_path: str) -> ScaffoldResult`  
-`SystemActions.scaffold.create_tag(raw_path: str) -> ScaffoldResult`
-
-- **类型：** `static`
-- **状态：** `beta`
-- **引入版本：** `0.1.0`
-- **描述：** 从模板复制并启用；失败抛 `ScaffoldError`
-
 ### types
 
-**描述：** 与 `contracts` 同源（`Kind`、`VALID_KINDS`、`ScaffoldError`、`ScaffoldResult`、`PipelineLeaseBusyError`；`PipelineLease` 懒加载）
+**描述：** 与 `contracts` 同源（`VALID_KINDS`、`PipelineLeaseBusyError`；`PipelineLease` 懒加载）
 
 ---
 
@@ -73,6 +62,5 @@ except SystemActions.types.PipelineLeaseBusyError as exc:
 
 | 符号 | 说明 |
 |------|------|
-| `ScaffoldError` / `ScaffoldResult` | 脚手架异常与结果 |
 | `PipelineLeaseBusyError` / `PipelineLease` | 租约忙异常与上下文管理器（后者懒加载） |
-| `VALID_KINDS` / `Kind` | 合法 pipeline kind |
+| `VALID_KINDS` | 合法 pipeline kind |

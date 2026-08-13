@@ -9,20 +9,27 @@ import time
 from pathlib import Path
 from typing import Iterable, Sequence
 
+from core.infra.project_context import ProjectContext
+
 
 class DevHandlers:
     """Dev CLI command implementations."""
 
-    REPO_ROOT = Path(__file__).resolve().parents[4]
-    _PERF_CMD = (
-        Path(__file__).resolve().parents[4]
-        / "core"
-        / "modules"
-        / "backtest_engine"
-        / "__performance__"
-        / "scripts"
-        / "cmd"
-    )
+    @staticmethod
+    def _repo_root() -> Path:
+        return ProjectContext.path.get_project_root()
+
+    @staticmethod
+    def _perf_cmd_dir() -> Path:
+        return (
+            ProjectContext.path.get_project_root()
+            / "core"
+            / "modules"
+            / "backtest_engine"
+            / "__performance__"
+            / "scripts"
+            / "cmd"
+        )
 
     @staticmethod
     def _pids_listening_on(port: int) -> list[int]:
@@ -59,8 +66,9 @@ class DevHandlers:
     ) -> int:
         from core.ui.process_cleanup import kill_process_group
 
-        fed_root = str((DevHandlers.REPO_ROOT / "core" / "ui" / "fed").resolve())
-        repo_s = str(DevHandlers.REPO_ROOT)
+        root = DevHandlers._repo_root()
+        fed_root = str((root / "core" / "ui" / "fed").resolve())
+        repo_s = str(root)
         ntq_markers = (
             "core.bff.app",
             "react-scripts",
@@ -115,7 +123,7 @@ class DevHandlers:
 
     @staticmethod
     def cmd_ui(args: argparse.Namespace) -> int:
-        launcher = DevHandlers.REPO_ROOT / "launcher.py"
+        launcher = DevHandlers._repo_root() / "launcher.py"
         if not launcher.is_file():
             print(f"缺少 {launcher}", file=sys.stderr)
             return 1
@@ -126,14 +134,14 @@ class DevHandlers:
         cmd = [sys.executable, str(launcher), "-d", *args.forward]
         print("启动: " + " ".join(cmd), flush=True)
         try:
-            return subprocess.run(cmd, cwd=str(DevHandlers.REPO_ROOT)).returncode
+            return subprocess.run(cmd, cwd=str(DevHandlers._repo_root())).returncode
         except KeyboardInterrupt:
             return 130
 
     @staticmethod
     def cmd_check_import(args: argparse.Namespace) -> int:
         cmd = [sys.executable, "-m", "core.infra.cli.dev.scripts.minimal_import_check", *args.forward]
-        return subprocess.run(cmd, cwd=str(DevHandlers.REPO_ROOT)).returncode
+        return subprocess.run(cmd, cwd=str(DevHandlers._repo_root())).returncode
 
     @staticmethod
     def cmd_clear_global_cache(_args: argparse.Namespace) -> int:
@@ -262,16 +270,16 @@ class DevHandlers:
 
     @staticmethod
     def cmd_sample_stock_pool(args: argparse.Namespace) -> int:
-        from core.infra.cli.dev.scripts.stock_pool import activate_stratified_pool
+        from core.infra.cli.dev.scripts.sample_stock_list import SampleStockList
 
         verbose = bool(getattr(args, "verbose", False))
-        return activate_stratified_pool(int(args.count), verbose=verbose)
+        return SampleStockList.activate(int(args.count), verbose=verbose)
 
     @staticmethod
     def cmd_pool_clear(_args: argparse.Namespace) -> int:
-        from core.infra.cli.dev.scripts.stock_pool import deactivate_stratified_pool
+        from core.infra.cli.dev.scripts.sample_stock_list import SampleStockList
 
-        return deactivate_stratified_pool()
+        return SampleStockList.deactivate()
 
     @staticmethod
     def cmd_pack(args: argparse.Namespace) -> int:
@@ -310,7 +318,7 @@ class DevHandlers:
 
     @staticmethod
     def _import_be_perf_cmd():
-        cmd_dir = str(DevHandlers._PERF_CMD.resolve())
+        cmd_dir = str(DevHandlers._perf_cmd_dir().resolve())
         if cmd_dir not in sys.path:
             sys.path.insert(0, cmd_dir)
         import clean_up as clean_mod

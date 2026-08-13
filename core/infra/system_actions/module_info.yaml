@@ -1,11 +1,9 @@
 name: infra.system_actions
 version: 0.2.0
 compatible_core_versions: ">=0.4.2"
-description: "系统操作模块：提供一些系统级别操作的API的模块。例如 pipeline 租约、复制文件模版等等。"
+description: "系统操作模块：全局 pipeline 租约。"
 dependencies:
   - infra.project_context
-  - modules.strategy
-  - modules.tag
 changelog:
   - version: "0.2.0"
     changes:

@@ -1,1 +1,1 @@
-"""System Actions 内部实现（pipeline_lease / shortcuts）。"""
+"""System Actions 内部实现（pipeline_lease）。"""

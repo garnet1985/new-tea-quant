@@ -17,8 +17,8 @@ DEVCLI_COMMAND_REFERENCE = """
   python devcli.py ex                      演示数据 zip      同 data_export_init
   python devcli.py pu                      打包 userspace    同 userspace_package [--no-zip]
   python devcli.py p -core_v0.3.2          发布检查          同 pack --version 0.3.2
-  python devcli.py ssp 500                 分层样本池        同 sample_stock_pool N
-  python devcli.py pc                      取消样本池        同 pool_clear
+  python devcli.py ssp 500                 分层抽样样本名单  同 sample_stock_pool N
+  python devcli.py pc                      取消样本名单      同 pool_clear
   python devcli.py cd                      依赖安装风险检测  同 check_deps [--verbose]
   python devcli.py bpe                     entity 性能基准（三档；默认 duckdb）
   python devcli.py bps                     slice 性能基准（三档；默认 duckdb）

@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from core.infra.cli.dev.services.paths import REPO_ROOT
+from core.infra.project_context import ProjectContext
 
 CHECK_MODULE = "core.infra.cli.dev.scripts.minimal_import_check"
 
@@ -28,7 +28,7 @@ def test_ui_minimal_import_smoke() -> None:
 
     proc = subprocess.run(
         [sys.executable, "-m", CHECK_MODULE],
-        cwd=str(REPO_ROOT),
+        cwd=str(ProjectContext.path.get_project_root()),
         capture_output=True,
         text=True,
     )

@@ -52,7 +52,7 @@
 `Tag.is_valid_path(relative_path: str) -> bool`（staticmethod）
 
 - **状态：** `beta`
-- **描述：** 脚手架路径段机器可读校验；供 system_actions 等跨模块调用
+- **描述：** 脚手架路径段机器可读校验；供 CLI 从模板新建等调用
 
 ### execute
 

@@ -15,7 +15,9 @@ from pathlib import Path
 from typing import Iterable, List, Sequence, Tuple
 
 from core.infra.cmd_layout import i
-from core.infra.cli.dev.services.paths import REPO_ROOT
+from core.infra.project_context import ProjectContext
+
+REPO_ROOT = ProjectContext.path.get_project_root()
 
 # CLI / 日志常见状态图标（刻意白名单，避免误杀注释里的 ↔ 等符号）
 _STATUS_EMOJIS: Tuple[str, ...] = (

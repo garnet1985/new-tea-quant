@@ -13,18 +13,17 @@ terms:
     aliases:
       - "门面"
     avoid:
-      - "deep-import pipeline_lease / shortcuts 当公开 API"
+      - "deep-import pipeline_lease 当公开 API"
 
   SystemActions:
-    definition: "本模块门面类；挂载 pipeline / scaffold / types。"
+    definition: "本模块门面类；挂载 pipeline / types。"
     aliases: []
     avoid: []
 
   namespace:
-    definition: "门面下的命名空间（pipeline / scaffold / types）。"
+    definition: "门面下的命名空间（pipeline / types）。"
     aliases:
       - "SystemActions.pipeline"
-      - "SystemActions.scaffold"
       - "SystemActions.types"
     avoid: []
 
@@ -44,15 +43,5 @@ terms:
 
   VALID_KINDS:
     definition: "合法 pipeline kind 集合：tag_run / strategy_scan / strategy_run / data_renew。"
-    aliases:
-      - "Kind"
+    aliases: []
     avoid: []
-
-  scaffold:
-    definition: "从 _template 复制新建策略或 Tag。"
-    aliases:
-      - "SystemActions.scaffold"
-      - "ScaffoldResult"
-      - "ScaffoldError"
-    avoid:
-      - "create_new（包路径仅内部）"

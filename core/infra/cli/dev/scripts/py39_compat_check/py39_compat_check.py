@@ -25,7 +25,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Iterator, List, Optional, Sequence, Tuple
 
-from core.infra.cli.dev.services.paths import REPO_ROOT
+from core.infra.project_context import ProjectContext
+
+REPO_ROOT = ProjectContext.path.get_project_root()
 
 _SKIP_DIR_NAMES = frozenset(
     {

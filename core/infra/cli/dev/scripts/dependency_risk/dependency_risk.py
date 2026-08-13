@@ -500,9 +500,9 @@ def run_dependency_check(verbose: bool = False) -> int:
     Returns:
         int: 0=通过, 1=有关键问题, 2=有高危问题
     """
-    from core.infra.cli.dev.services.paths import REPO_ROOT
+    from core.infra.project_context import ProjectContext
 
-    detector = DependencyRiskDetector(REPO_ROOT)
+    detector = DependencyRiskDetector(ProjectContext.path.get_project_root())
     risks = detector.detect_all()
     
     if verbose or risks:

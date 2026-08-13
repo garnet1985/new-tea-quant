@@ -14,7 +14,7 @@
 ## 边界
 
 **负责：** 公开 namespace API；contracts 异常与常量  
-**不负责：** 策略/Tag 业务执行
+**不负责：** 策略/Tag 业务执行；从模板新建（见 CLI `create_from_template`）
 
 **允许的测试类型（本目录）：** `api`
 
@@ -24,7 +24,7 @@
 
 | Case | 文件 | 说明 |
 |------|------|------|
-| `test_facade_export` | `test_api.py` | `__all__` + pipeline / scaffold / types |
-| `test_pipeline_*` / `scaffold_*` | `test_api.py` | 方法存在与抽检 |
+| `test_facade_export` | `test_api.py` | `__all__` + pipeline / types（无 scaffold） |
+| `test_pipeline_*` | `test_api.py` | 方法存在与抽检 |
 | `test_contracts_and_types` | `test_api.py` | contracts ≡ types |
 | `test_pipeline_lease_construct` | `test_api.py` | lease 返回上下文管理器 |

@@ -14,14 +14,14 @@
 
 ```bash
 python dev-cli.py -ex
-git add init_data/data_demo.zip init_data/data_demo.meta.json
+git add initialization/data/data_demo.zip initialization/data/data_demo.meta.json
 git commit -m "chore: refresh demo data"
 ```
 
 若曾把 `data_v*.zip` 提交进仓库，先从索引移除（不删本地文件）：
 
 ```bash
-git rm --cached init_data/data_v*.zip 2>/dev/null || true
+git rm --cached initialization/data/data_v*.zip 2>/dev/null || true
 ```
 
 ## 安装
@@ -37,7 +37,7 @@ python core/infra/setup/core/steps/import_data/install.py
 Git 会保留历史里的旧 blob；要缩小 clone 体积需一次性清理历史（与协作者协调后 force push）：
 
 ```bash
-git filter-repo --path-glob 'init_data/data_v*.zip' --invert-paths
+git filter-repo --path-glob 'initialization/data/data_v*.zip' --invert-paths
 ```
 
 之后只维护 `data_demo.zip` 即可；每次重打包仍会在**新提交**里换一个 zip blob（约 8MB），但不会像多个文件名那样叠 N 份。

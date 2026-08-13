@@ -17,8 +17,9 @@ ENV/
 env.bak/
 venv.bak/
 
-# User data directory (all ignored)
-userspace/
+# Live userspace at repo root only. Do not use a bare `userspace/` —
+# that also ignores initialization/userspace (the install template).
+/userspace/
 
 ########################
 # Data & Cache
@@ -28,12 +29,12 @@ backup
 .pytest_cache/
 .ntq/
 
-# init_data：固定名 data_demo.zip 进库（每次 -ex 覆盖）；带版本号的 data_v*.zip 勿提交
-init_data/*
-!init_data/README.md
-!init_data/data_demo.zip
-!init_data/data_demo.meta.json
-!init_data/example_*.zip
+# initialization/data：固定名 data_demo.zip 进库（每次 -ex 覆盖）；带版本号的 data_v*.zip 勿提交
+initialization/data/*
+!initialization/data/README.md
+!initialization/data/data_demo.zip
+!initialization/data/data_demo.meta.json
+!initialization/data/example_*.zip
 
 ########################
 # Strategy Results

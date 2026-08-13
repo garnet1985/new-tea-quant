@@ -22,7 +22,7 @@ NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="导入 init_data 初始化数据")
+    parser = argparse.ArgumentParser(description="导入 initialization/data 初始化数据")
     parser.add_argument("--force", action="store_true", help="忽略清单并全量重导")
     return parser.parse_args()
 

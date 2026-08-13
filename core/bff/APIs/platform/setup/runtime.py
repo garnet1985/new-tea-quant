@@ -103,7 +103,7 @@ class SetupRuntimeManager:
         }
 
     def get_import_data_progress(self) -> Dict[str, Any]:
-        progress_file = REPO_ROOT / "init_data" / ".import_progress.json"
+        progress_file = REPO_ROOT / "initialization" / "data" / ".import_progress.json"
         if not progress_file.is_file():
             return {
                 "status": "ok",

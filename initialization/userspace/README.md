@@ -1,4 +1,4 @@
-# init_userspace
+# initialization/userspace
 
 在这里放置干净的 userspace 初始化包（zip）。
 
@@ -18,7 +18,7 @@
 
 ```bash
 # 方式 1：环境变量（推荐，可写入 shell 配置）
-export NTQ_USERSPACE_ROOT="$(git rev-parse --show-toplevel)/init_userspace/userspace"
+export NTQ_USERSPACE_ROOT="$(git rev-parse --show-toplevel)/initialization/userspace/userspace"
 
 # 方式 2：写入仓库根 .ntq/userspace-path.json（见 userspace-path.dev.example.json，该目录通常 gitignore）
 ```

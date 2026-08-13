@@ -2,7 +2,7 @@
 Init Data 导入流程（必跑步骤的执行体）。
 
 约定：
-- 数据包目录：init_data
+- 数据包目录：initialization/data
 - 导入逻辑目录：core/infra/setup/core/steps/import_data
 - 导入方式：目标表 DELETE 再 INSERT（沿用现有 import_data 逻辑）
 """
@@ -26,7 +26,7 @@ from .archives import collect_table_archives
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_INIT_SUBDIR = "init_data"
+DEFAULT_INIT_SUBDIR = "initialization/data"
 EXTRACT_SUBDIR = "_extract"
 DEFAULT_TABLE_PREFIX = ""
 PROGRESS_FILE = ".import_progress.json"
@@ -35,12 +35,12 @@ PROGRESS_FILE = ".import_progress.json"
 def default_init_data_dir() -> Path:
     from core.infra.setup.core.env import NewTeaQuantSetup
 
-    return NewTeaQuantSetup.repo_root / "init_data"
+    return NewTeaQuantSetup.init_data_dir
 
 
 def resolve_init_data_dir_with_subdir(base: Path, subdir: str) -> Path:
     """
-    将数据目录限制为 base / subdir，避免 init_data 根目录下多个 zip（demo + 正式）被一并导入。
+    将数据目录限制为 base / subdir，避免 initialization/data 下多个 zip（demo + 正式）被一并导入。
 
     subdir 不得含 .. 或绝对路径；结果必须仍在 base 之下。
     """
@@ -107,7 +107,7 @@ class SetupDataInstaller:
             return zips
         names = ", ".join(p.name for p in zips)
         raise RuntimeError(
-            f"{CmdLayout.icon.get('error')} 为避免混包导入，init_data/ 下只允许存在 1 个 .zip 初始化数据包。\n"
+            f"{CmdLayout.icon.get('error')} 为避免混包导入，initialization/data/ 下只允许存在 1 个 .zip 初始化数据包。\n"
             f"当前发现 {len(zips)} 个：{names}\n"
             "请保留您需要导入的zip数据文件，另一个zip数据文件移走/改后缀后重新运行install.py。"
         )
@@ -199,7 +199,7 @@ class SetupDataInstaller:
             NewTeaQuantSetup.print_check_item("warn", f"未发现任何初始化数据包: {data_dir}")
             NewTeaQuantSetup.print_check_item(
                 "warn",
-                "请将 zip 数据包放到 init_data 后重跑: python3 install.py",
+                "请将 zip 数据包放到 initialization/data 后重跑: python3 install.py",
             )
             return
 

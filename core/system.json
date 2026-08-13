@@ -69,11 +69,11 @@
       "cli.py",
       "devcli.py",
       "SUPPORT.md",
-      "init_userspace"
+      "initialization"
     ],
     "update_ignored_paths": [
       "userspace",
-      "init_data"
+      "initialization/data"
     ]
   }
 }

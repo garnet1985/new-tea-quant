@@ -11,5 +11,5 @@ changelog:
     changes:
       - 标准化模块：公开门面 Setup（env / runtime / artifacts / meta / trace / types）
       - 约定 CLI 只调用 Setup，不拥有安装逻辑；安装步骤与产物工厂留在 setup/
-      - 迁入 core/infra/setup；产物 init_userspace / init_data 留在仓库根
+      - 迁入 core/infra/setup；产物 initialization/userspace / initialization/data 留在仓库根
       - 正式版本之前所有 API 标注 beta 状态

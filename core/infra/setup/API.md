@@ -137,7 +137,7 @@
 
 ### artifacts
 
-**描述：** 安装产物工厂（写入 `init_userspace/`、`init_data/`）
+**描述：** 安装产物工厂（写入 `initialization/userspace/`、`initialization/data/`）
 
 #### package_userspace
 
@@ -146,7 +146,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 同步仓库 `userspace/` → `init_userspace/` 并可选写 zip；`0` 成功
+- **描述：** 同步仓库 `userspace/` → `initialization/userspace/` 并可选写 zip；`0` 成功
 
 #### export_demo_data
 
@@ -155,7 +155,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 导出演示数据包到 `init_data/`；`argv` 同 `python -m core.infra.setup.core.scripts.init_data`
+- **描述：** 导出演示数据包到 `initialization/data/`；`argv` 同 `python -m core.infra.setup.core.scripts.init_data`
 
 ---
 

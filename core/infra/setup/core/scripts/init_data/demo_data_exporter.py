@@ -251,7 +251,7 @@ def export_demo_data_package(
         f"，跳过 {len(skipped)} 张未注册表" if skipped else "",
     )
     logger.info(
-        "导入：将 zip 单独放入 init_data/ 后执行 "
+        "导入：将 zip 单独放入 initialization/data/ 后执行 "
         "python core/infra/setup/core/steps/import_data/install.py"
     )
     return output_zip
@@ -279,7 +279,7 @@ def _write_data_meta(
 
 
 def _prune_stale_init_data_packages(keep_zip: Path) -> None:
-    """删除 init_data 下旧的 data_v* 等副本，只保留固定 data_demo.zip（及 example_*）。"""
+    """删除 initialization/data 下旧的 data_v* 等副本，只保留固定 data_demo.zip（及 example_*）。"""
     if not INIT_DATA_DIR.is_dir():
         return
     keep = keep_zip.resolve()
@@ -309,7 +309,7 @@ def _warn_init_data_zip_conflict(target: Path) -> None:
     if others:
         names = ", ".join(p.name for p in others)
         logger.warning(
-            "init_data/ 下已有其它 zip（%s）。"
+            "initialization/data/ 下已有其它 zip（%s）。"
             "安装导入时该目录只能保留 1 个非 example 包，请先移走多余文件。",
             names,
         )
@@ -454,7 +454,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 logger.info("已额外写入带版本号文件 %s（勿提交 Git）", tagged_name)
             logger.info(
                 "提交 Git 时请只 add %s 与 %s；若曾提交过 data_v*.zip，执行: "
-                "git rm --cached init_data/data_v*.zip",
+                "git rm --cached initialization/data/data_v*.zip",
                 GIT_DATA_ZIP_NAME,
                 GIT_DATA_META_NAME,
             )

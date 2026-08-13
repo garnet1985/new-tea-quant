@@ -784,8 +784,8 @@ def ignored_paths_under_managed_scope(
     """
     返回 ``update_ignored_paths`` 中落在任一 ``managed_scope`` 前缀下的相对路径（posix）。
 
-    与 README「管辖内镜像会动到子树」一致：例如 ``setup`` 在 map 内且 ``init_data`` 在忽略名单，
-    则需在镜像前 lift-out ``init_data``。
+    与 README「管辖内镜像会动到子树」一致：例如 ``initialization`` 在 map 内且 ``initialization/data`` 在忽略名单，
+    则需在镜像前 lift-out ``initialization/data``。
     """
     scopes = [_norm_rel_posix(x) for x in managed_scope if _norm_rel_posix(x)]
     out: List[str] = []

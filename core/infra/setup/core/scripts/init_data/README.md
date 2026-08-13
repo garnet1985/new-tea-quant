@@ -9,9 +9,9 @@ python devcli.py ex
 python -m core.infra.setup.core.scripts.init_data --help
 ```
 
-默认写入 **`init_data/data_demo.zip`**（固定名，供安装 + 提交 Git，每次覆盖）。
+默认写入 **`initialization/data/data_demo.zip`**（固定名，供安装 + 提交 Git，每次覆盖）。
 
-可选 `python dev-cli.py -ex -- --tagged` 额外生成 `data_v*.zip` 副本（已 ignore，勿 commit）。详见 `init_data/README.md`。
+可选 `python dev-cli.py -ex -- --tagged` 额外生成 `data_v*.zip` 副本（已 ignore，勿 commit）。详见 `initialization/data/README.md`。
 
 ## 默认参数
 

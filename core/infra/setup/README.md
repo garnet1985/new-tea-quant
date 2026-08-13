@@ -5,7 +5,7 @@
 **公开入口：** `from core.infra.setup import Setup`  
 CLI / `install.py` / `launcher.py` / BFF **只调用门面**。应用升级见 `core.infra.updater`。
 
-产物 zip 在仓库根 `init_userspace/`、`init_data/`（方便找到，不进本模块）。
+产物 zip 在 `initialization/userspace/`、`initialization/data/`（方便找到，不进本模块）。
 
 ## 布局
 

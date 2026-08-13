@@ -6,7 +6,7 @@ from core.modules.data_manager.core.data_services.stock.sub_services.kline_servi
     KlineService,
 )
 
-# 与 init_data/data_demo.zip 日期窗对齐（20250101–20260101）
+# 与 initialization/data/data_demo.zip 日期窗对齐（20250101–20260101）
 _DEMO_STOCK = "000019.SZ"
 _DEMO_START = "20250102"
 _DEMO_END = "20250110"

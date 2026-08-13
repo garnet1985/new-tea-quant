@@ -33,6 +33,8 @@ class NewTeaQuantSetup:
 
     repo_root: ClassVar[Path] = discover_repo_root()
     venv_dir: ClassVar[Path] = repo_root / "venv"
+    init_userspace_dir: ClassVar[Path] = repo_root / "initialization" / "userspace"
+    init_data_dir: ClassVar[Path] = repo_root / "initialization" / "data"
 
     @classmethod
     def ensure_sys_path(cls) -> None:

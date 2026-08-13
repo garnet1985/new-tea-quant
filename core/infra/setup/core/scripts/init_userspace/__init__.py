@@ -1,4 +1,4 @@
-"""将仓库根 ``userspace/`` 同步到 ``init_userspace/`` 并生成 zip。"""
+"""将仓库根 ``userspace/`` 同步到 ``initialization/userspace/`` 并生成 zip。"""
 
 from .package import package_init_userspace
 

@@ -50,8 +50,8 @@ def smoke_fresh_install(
     if not (root / "install.py").is_file():
         print(f"[smoke] {i('error')} 不是项目根目录（缺少 install.py）: {root}", flush=True)
         return 1
-    if not (root / "init_data" / "data_demo.zip").is_file():
-        print(f"[smoke] {i('error')} 缺少 init_data/data_demo.zip", flush=True)
+    if not (root / "initialization" / "data" / "data_demo.zip").is_file():
+        print(f"[smoke] {i('error')} 缺少 initialization/data/data_demo.zip", flush=True)
         return 1
 
     py = install_python or sys.executable

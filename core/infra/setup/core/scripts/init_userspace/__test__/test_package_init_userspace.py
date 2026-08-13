@@ -140,7 +140,7 @@ def test_write_userspace_meta(tmp_path: Path, monkeypatch):
         json.dumps({"version": "0.4.1"}),
         encoding="utf-8",
     )
-    init_dir = repo / "init_userspace"
+    init_dir = repo / "initialization" / "userspace"
     init_dir.mkdir(parents=True)
     zip_path = init_dir / "userspace.zip"
     zip_path.write_bytes(b"fake")

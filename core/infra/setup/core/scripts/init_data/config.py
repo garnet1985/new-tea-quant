@@ -5,7 +5,7 @@
 - 股票池：``TARGET_STOCK_COUNT > 0`` 时分层抽样（默认 **300**）；``<= 0`` 为全市场
 - 时序日期窗：**20250101** ~ **20260101**（``DEFAULT_START_DATE`` / ``DEFAULT_END_DATE``）
 - 季度窗：**2025Q1** ~ **2025Q4**（财报等季度表）
-- 输出（进 Git / 安装）：``init_data/data_demo.zip``（固定名，每次覆盖）
+- 输出（进 Git / 安装）：``initialization/data/data_demo.zip``（固定名，每次覆盖）
 - 可选 ``--tagged``：额外写一份带版本号的 ``data_v*`` 副本（不提交 Git）
 - 仅导出行情/财报/宏观等**数据表**；不含 cache、meta、tag、工作台快照等运行时生成表
 """
@@ -18,7 +18,7 @@ from typing import Dict, Optional, Tuple
 # 仓库根（config 位于 core/infra/setup/core/scripts/init_data/）
 from core.infra.setup.core.install_runtime import REPO_ROOT
 SYSTEM_JSON = REPO_ROOT / "core" / "system.json"
-INIT_DATA_DIR = REPO_ROOT / "init_data"
+INIT_DATA_DIR = REPO_ROOT / "initialization" / "data"
 # 可选：``--export-dir devtools/export_output`` 时写入
 ALT_EXPORT_DIR = REPO_ROOT / "devtools" / "export_output"
 

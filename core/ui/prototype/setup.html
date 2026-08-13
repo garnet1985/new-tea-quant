@@ -119,7 +119,7 @@
             </div>
             <span class="status status-idle" id="step-data-status">未开始</span>
           </div>
-          <p class="muted setup-step-note">默认自动导入 `setup/init_data` 下数据包；完成后自动进入安装完成界面。</p>
+          <p class="muted setup-step-note">默认自动导入 `initialization/data` 下数据包；完成后自动进入安装完成界面。</p>
           <div class="setup-inline-grid">
             <div><span class="muted">数据包</span><strong id="data-package-state">未检测</strong></div>
             <div><span class="muted">导入进度</span><strong id="data-progress-state">0%</strong></div>
@@ -302,7 +302,7 @@
         autoStepStarted.data = true;
         statusEls.data.className = "status warn";
         statusEls.data.textContent = "导入中";
-        dataPkg.textContent = "已检测到 setup/init_data/demo.zip（占位）";
+        dataPkg.textContent = "已检测到 initialization/data/demo.zip（占位）";
         dataLast.textContent = "开始导入";
         runProgress(
           dataFill,

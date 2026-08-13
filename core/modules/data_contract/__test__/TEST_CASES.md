@@ -17,4 +17,3 @@
 |------|------|
 | `../core/discovery/__test__/test_contract_issuer.py` | discover / get_contract / register |
 | `../core/base/__test__/test_base_contract.py` | fill_in_data / until / to_df / clear 等 |
-| `test_cases.yaml` | 历史场景登记（可选对照） |

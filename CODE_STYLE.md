@@ -15,7 +15,7 @@
 - [6. API 契约规范](#6-api-契约规范)
 - [7. 错误处理](#7-错误处理)
 - [8. 测试规范](#8-测试规范)
-  - [8.4 test_cases.yaml 测试注册表](#84-test_casesyaml-测试注册表)
+  - [8.4 TEST_CASES.md 测试索引](#84-test_casesmd-测试索引)
 - [9. 文档规范](#9-文档规范)
 - [10. 导入规范](#10-导入规范)
 - [11. 版本管理规范](#11-版本管理规范)
@@ -1142,29 +1142,22 @@ class TestCalendarService:
 - **异常测试**：测试所有异常分支
 - **集成测试**：测试模块间交互（业务模块 `__test__`；核心模块保持纯单元测试）
 
-### 8.4 test_cases.yaml 测试注册表
+### 8.4 TEST_CASES.md 测试索引
 
-核心模块推荐在 `__test__/test_cases.yaml` 维护测试索引，作为 UT 的单一事实来源：
+核心模块在每个 `__test__/` 维护一份 `TEST_CASES.md`（**取代**已废弃的 `test_cases.yaml`），并与 pytest 对齐。
 
-```yaml
-cases:
-  - id: 1
-    case: api
-    description: "公开 API 与 Mode 枚举"
-    file: test_api.py
-    scenarios:
-      - id: 1
-        name: test_facade_export
-        description: "..."
-```
+| 用途 | 去哪 |
+|------|------|
+| 结构 / 章节 / 规则（文档 SSOT） | [`docs/module-doc-standard.md`](docs/module-doc-standard.md) §4 |
+| 可 copy 骨架 | [`docs/doc_templates/module/__test__/TEST_CASES.md`](docs/doc_templates/module/__test__/TEST_CASES.md) |
+| 测试目录职责（api / 包内 unit / `__performance__`） | [`CORE_MODULE_STANDARDS.md`](CORE_MODULE_STANDARDS.md) 指标 2、14 |
+| 模板总览 | [`docs/doc_templates/README.md`](docs/doc_templates/README.md) |
 
-**规则：**
-- 一个 `case` 对应一个大类，通常映射一个 `test_*.py` 文件
-- `scenarios[].name` 与 pytest 函数名一致
-- 无对应 test 文件的 case 可不写 `file`（仅文档/手工 case）
-- 不要测其他层职责（如 `MachineInfo` 属于 `core/infra`，不应出现在 engine 的 case 里）
-
-**参考：** `core/modules/backtest_engine/__test__/test_cases.yaml`
+**规则（摘要，细则以文档规范为准）：**
+- Case 名 = pytest 函数名，并落到具体 `test_*.py`
+- 模块根 `__test__/TEST_CASES.md` 索引公开 API（对齐 `API.md`）
+- 包内 suite 只测本包；不测他模块职责
+- 不要再新增 `test_cases.yaml`
 
 ---
 

@@ -125,9 +125,9 @@
 - 性能调优由基准测试得出，不应暴露给用户随意改动
 - engine 入口一次 validate，内部不再散落 `"auto"` 判断
 
-**实践（以 backtest_engine 为参考）：**
-- engine：`EntityBasedPerformance.base()` + 应用方 override → `validate()` → `resolve_for_planning()`
-- 应用层：模块内 `settings/dispatch.yaml`（或等价常量），run 前 load 并传入 `BacktestEngine.run(performance=...)`
+**实践（调度类模块；写法对齐模板与文档规范，勿以某一业务模块为 SSOT）：**
+- engine：`…Performance.base()` + 应用方 override → `validate()` → `resolve_for_planning()`（命名随模块；骨架见 [`docs/doc_templates/module/`](docs/doc_templates/module/)）
+- 应用层：模块内 `settings/dispatch.yaml`（或等价常量），run 前 load 并传入 Facade（如 `BacktestEngine.run(performance=...)`）
 - 用户 settings：只含业务字段（如 `update_mode`、`run_options.dry_run`），**禁止** `settings["performance"]`
 - engine **不**读取 `core/default_config/worker.json` 的 dispatch 段
 - infra 能力（如 `MachineInfo`）直接从 `core.infra.*` 导入，**禁止**在模块内建 re-export 空壳文件
@@ -259,7 +259,7 @@
 | 与 API 对齐 | 根目录 API suite 须能映射到 `API.md` |
 | 性能正式 case | 写在 `__performance__/CASES.md`；根 `TEST_CASES` 可仅链接，不复制大段 |
 
-**遗留：** 存量 `__test__/test_cases.yaml` 迁移为 `TEST_CASES.md` 后删除。
+**遗留：** 禁止新增 `__test__/test_cases.yaml`；索引一律用模板形的 `TEST_CASES.md`（见 [`docs/doc_templates/module/__test__/TEST_CASES.md`](docs/doc_templates/module/__test__/TEST_CASES.md)）。
 
 ---
 
@@ -703,7 +703,7 @@ else:
 
 ---
 
-**最后更新：** 2026-08-01  
+**最后更新：** 2026-08-13  
 **维护者：** NTQ Team
 
-**模块参考（迁移目标态，非全部已达标）：** `core/modules/backtest_engine`、`core/modules/data_contract`、`core/infra/db`（整改时以本文 + [模块文档规范](docs/module-doc-standard.md) + 模板为准）
+**整改时 SSOT：** 本文 + [`docs/module-doc-standard.md`](docs/module-doc-standard.md) + 整棵 copy [`docs/doc_templates/module/`](docs/doc_templates/module/)（见 [`docs/doc_templates/README.md`](docs/doc_templates/README.md)）。**不要**以某一业务模块目录当文档模板。

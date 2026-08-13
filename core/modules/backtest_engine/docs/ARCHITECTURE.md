@@ -81,7 +81,7 @@ backtest_engine/
 │   ├── ARCHITECTURE.md
 │   ├── DESIGN.md
 │   └── SLICE_BASED_ALGORITHM.md  # slice_based 算法 SOT（硬约束）
-├── __test__/                # 含 test_api.py；内部测登记见 test_cases.yaml
+├── __test__/                # 含 test_api.py；用例索引见 TEST_CASES.md
 └── __performance__/         # 调度空转性能基线（非公开 API）
 ```
 

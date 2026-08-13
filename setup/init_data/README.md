@@ -29,7 +29,7 @@ git rm --cached setup/init_data/data_v*.zip 2>/dev/null || true
 本目录内**只能有 1 个**非 `example_*` 的 zip 参与导入（即 `data_demo.zip`）。然后：
 
 ```bash
-python setup/steps/import_data/install.py
+python setup/core/steps/import_data/install.py
 ```
 
 ## 远端仓库已经因多个 zip 变大

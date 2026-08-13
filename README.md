@@ -203,7 +203,7 @@ NTQ会自带下边资产用来演示：
 
 ### 数据说明
  
-1. **（注意，这一步暂时不可用，正在修复中）** 如果您想**获取更多（约 3 年，全 A 股市场）演示数据包**：用于更完整的策略验证/回测，请在 **[new-tea.cn](https://new-tea.cn)** 注册后下载，**清空** `setup/init_data/` 后只放入 **1 个** zip，再执行 `python setup/steps/import_data/install.py`（如果是清空再安装，需要在命令最后加入 `--force` 参数）。  
+1. **（注意，这一步暂时不可用，正在修复中）** 如果您想**获取更多（约 3 年，全 A 股市场）演示数据包**：用于更完整的策略验证/回测，请在 **[new-tea.cn](https://new-tea.cn)** 注册后下载，**清空** `setup/init_data/` 后只放入 **1 个** zip，再执行 `python setup/core/steps/import_data/install.py`（如果是清空再安装，需要在命令最后加入 `--force` 参数）。  
 2. **自有数据源**：也可自行接入（例如 Tushare），详见 [userspace/extensions/data_source/README.md](userspace/extensions/data_source/README.md)。
 3. 演示数据与 demo 策略仅供学习研究，请勿用于实盘或商用。
 

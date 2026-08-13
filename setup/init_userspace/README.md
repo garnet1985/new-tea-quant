@@ -33,12 +33,12 @@ python dev-cli.py -userspace
 python dev-cli.py -p -v0.4.0 -userspace
 ```
 
-会从仓库根 `userspace/` 复制到本目录 `userspace/`，删除数据库连接、数据源 token、`.ntq`、策略 `results/`、`extensions/data_source/handlers/` 下运行时 `.csv` 等，并同步 `setup/updater/` 到 `userspace/system/updater/`，最后写入 `userspace.zip` 与 `userspace.meta.json`。
+会从仓库根 `userspace/` 复制到本目录 `userspace/`，删除数据库连接、数据源 token、`.ntq`、策略 `results/`、`extensions/data_source/handlers/` 下运行时 `.csv` 等，并同步 `setup/core/updater/` 到 `userspace/system/updater/`，最后写入 `userspace.zip` 与 `userspace.meta.json`。
 
 ### ``updater/``（升级 bootstrap）
 
-**版本库源树**：仓库根下 **`setup/updater/`**（可编辑、可跑 pytest；**不要**把 ``__test__`` 打进 zip）。
+**版本库源树**：仓库根下 **`setup/core/updater/`**（可编辑、可跑 pytest；**不要**把 ``__test__`` 打进 zip）。
 
-打 **init userspace zip** 时，将 ``setup/updater/`` 下的运行时文件（``pipeline.py``、``helper.py``、``run_apply.py``、``README.md``）放进包内 ``updater/``，解压后为 **`userspace/updater/`**。应用升级会替换 ``core/``、``setup/`` 等，**不能把升级编排放在那些路径**；运行时说明见解压后的 **`userspace/updater/README.md`**。
+打 **init userspace zip** 时，将 ``setup/core/updater/`` 下的运行时文件（``pipeline.py``、``helper.py``、``run_apply.py``、``README.md``）放进包内 ``updater/``，解压后为 **`userspace/updater/`**。应用升级会替换 ``core/``、``setup/`` 等，**不能把升级编排放在那些路径**；运行时说明见解压后的 **`userspace/updater/README.md`**。
 
-**测试**：在 **`core/infra/db/__test__/test_updater_migration_spawn.py`**（``pytest`` 的 ``testpaths=core`` 会收集），导入 ``setup/updater/helper.py``。
+**测试**：在 **`core/infra/db/__test__/test_updater_migration_spawn.py`**（``pytest`` 的 ``testpaths=core`` 会收集），导入 ``setup/core/updater/helper.py``。

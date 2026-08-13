@@ -31,10 +31,10 @@ jobs:
 
       - name: Bootstrap DuckDB demo data for integration tests
         run: |
-          python setup/steps/init_userspace/install.py
+          python setup/core/steps/init_userspace/install.py
           mkdir -p userspace/system/config/database
           printf '%s\n' '{"database_type": "duckdb"}' > userspace/system/config/database/common.json
-          python setup/steps/import_data/install.py --force
+          python setup/core/steps/import_data/install.py --force
 
       - name: Smoke test - import core modules
         run: |
@@ -73,7 +73,7 @@ jobs:
           python-version: "3.9"
 
       - name: UI minimal import smoke
-        run: python -m devtools.quick_tools.minimal_import_check
+        run: python -m core.infra.cli.dev.scripts.minimal_import_check
 
   # 确保 Dockerfile 可构建（不跑完整 install，避免 CI 时间过长）
   docker-build:

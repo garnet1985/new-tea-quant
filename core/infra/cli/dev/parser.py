@@ -125,6 +125,11 @@ class DevParser:
             action="store_true",
             help="跳过依赖安装风险检测（Windows 兼容性、未使用依赖等）",
         )
+        p_pack.add_argument(
+            "--skip-icon-check",
+            action="store_true",
+            help="跳过裸状态 emoji 扫描（应使用 IconService / i()）",
+        )
         p_pack.set_defaults(handler=DevHandlers.cmd_pack)
 
         p_cd = sub.add_parser(

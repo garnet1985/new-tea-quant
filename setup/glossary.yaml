@@ -1,0 +1,45 @@
+# Setup 术语表
+# Version: 0.1.0
+
+terms:
+  NTQ:
+    definition: "New Tea Quant 的简称。"
+    aliases:
+      - "New Tea Quant"
+    avoid: []
+
+  Facade:
+    definition: "门面：对外统一入口类。本模块门面类是 Setup。"
+    aliases:
+      - "门面"
+    avoid:
+      - "跨模块直接 import NewTeaQuantSetup / install_cli_runtime 当公开 API"
+
+  Setup:
+    definition: "本模块门面类；挂载 env / runtime / artifacts / meta / trace / types。"
+    aliases: []
+    avoid: []
+
+  namespace:
+    definition: "门面下的命名空间（env / runtime / artifacts / meta / trace / types）。"
+    aliases: []
+    avoid: []
+
+  install_profile:
+    definition: "安装画像：cli 或 ui。needs_install / mark 按 profile 读写状态。"
+    aliases:
+      - "InstallProfileName"
+    avoid: []
+
+  artifacts:
+    definition: "安装产物工厂：打包 init userspace zip、导出演示数据包。"
+    aliases:
+      - "Setup.artifacts"
+    avoid:
+      - "在 CLI 内实现打包逻辑"
+
+  steps:
+    definition: "setup/core/steps/ 下的安装步骤（sys_req_check、resolve_deps、init_userspace、db_connection、import_data）。"
+    aliases: []
+    avoid:
+      - "把步骤脚本放到 cli 模块"

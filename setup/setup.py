@@ -1,182 +1,227 @@
-"""
-安装流程共用工具（供根目录 install.py 与各 setup/*/install.py 使用）。
+"""Setup 门面 — env / runtime / artifacts / meta / trace / types。
 
-职责：仓库路径、sys.path、虚拟环境、打印、环境变量读取、单步子进程调用。
-不包含：安装步骤顺序与编排（由根目录 install.py 负责）。
-
-各子目录 install.py 负责该步的具体逻辑。
+方法内懒导入，避免 ``from setup import Setup`` 拉起 UI 启动链。
+CLI / install.py / launcher.py / BFF 只应依赖本门面，不深挖 steps/scripts。
 """
 from __future__ import annotations
 
-import os
-import subprocess
-import sys
 from pathlib import Path
-from typing import ClassVar, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
-from core.infra.cmd_layout import CmdLayout
+from setup.contracts import (
+    AppEntry,
+    CliInstallScope,
+    InstallEntry,
+    InstallProfileName,
+)
 
 
-class NewTeaQuantSetup:
-    """安装共用：路径、venv、打印、环境约定；不定义「要跑哪些步骤」。"""
+class TypesNamespace:
+    InstallProfileName = InstallProfileName
+    CliInstallScope = CliInstallScope
+    InstallEntry = InstallEntry
+    AppEntry = AppEntry
 
-    repo_root: ClassVar[Path] = Path(__file__).resolve().parent.parent
-    venv_dir: ClassVar[Path] = repo_root / "venv"
 
-    @classmethod
-    def ensure_sys_path(cls) -> None:
-        """将仓库根加入 sys.path，便于导入 core（幂等）。"""
-        r = str(cls.repo_root)
-        if r not in sys.path:
-            sys.path.insert(0, r)
+class EnvNamespace:
+    """仓库路径、venv、工作目录（安装引导）。"""
 
-    @classmethod
-    def venv_python(cls) -> Path:
-        if os.name == "nt":
-            return cls.venv_dir / "Scripts" / "python.exe"
-        return cls.venv_dir / "bin" / "python"
+    @staticmethod
+    def repo_root() -> Path:
+        from setup.core.env import NewTeaQuantSetup
+
+        return NewTeaQuantSetup.repo_root
+
+    @staticmethod
+    def venv_python() -> Path:
+        from setup.core.env import NewTeaQuantSetup
+
+        return NewTeaQuantSetup.venv_python()
 
     @staticmethod
     def in_virtualenv() -> bool:
-        """标准库 venv：prefix 与 base_prefix 不同即视为在虚拟环境中。"""
-        return sys.prefix != sys.base_prefix
+        from setup.core.env import NewTeaQuantSetup
 
-    @classmethod
-    def _resolve_entry_script(cls, entry_script: str | Path | None) -> Path:
-        """解析入口脚本路径（``launcher.py`` / ``install.py`` 等，而非固定 install.py）。"""
-        if entry_script is not None:
-            return Path(entry_script).resolve()
-        raw = Path(sys.argv[0])
-        if raw.is_absolute():
-            return raw.resolve()
-        return (cls.repo_root / raw).resolve()
-
-    @classmethod
-    def ensure_venv(cls, entry_script: str | Path | None = None) -> None:
-        """
-        未在 venv 中时创建 venv/ 并用其解释器替换当前进程。
-
-        重启时保留**当前入口脚本**（``sys.argv[0]``），避免 ``launcher.py`` 被误换成 ``install.py``。
-        """
-        if cls.in_virtualenv():
-            print(f"使用虚拟环境解释器: {sys.executable}", flush=True)
-            return
-        raw = os.environ.get("NTQ_SKIP_AUTO_VENV", "").strip().lower()
-        if raw in ("1", "true", "yes"):
-            print(f"已跳过自动 venv，当前解释器: {sys.executable}", flush=True)
-            return
-
-        vpy = cls.venv_python()
-        if not vpy.is_file():
-            print("正在创建虚拟环境 venv/ …", flush=True)
-            subprocess.run(
-                [sys.executable, "-m", "venv", str(cls.venv_dir)],
-                cwd=str(cls.repo_root),
-                check=True,
-            )
-        else:
-            print(f"检测到已有虚拟环境: {vpy}", flush=True)
-        entry = cls._resolve_entry_script(entry_script)
-        print(f"切换到虚拟环境解释器: {vpy}", flush=True)
-        argv = [str(vpy), str(entry)] + sys.argv[1:]
-        os.execv(str(vpy), argv)
-
-    @classmethod
-    def ensure_venv_for_setup_step(cls, script_path: str | Path) -> None:
-        """
-        setup/*/install.py 直接执行时，也默认切到项目 venv 解释器。
-
-        - 与 ensure_venv() 相同：均重启当前入口脚本；本方法用于 setup 子步骤路径解析。
-        - 目的：避免用户只跑某一步时把依赖装到系统 Python，或运行时缺少依赖（如 pandas）。
-        - 可用 NTQ_SKIP_AUTO_VENV=1 关闭该行为。
-        """
-        if cls.in_virtualenv():
-            return
-        raw = os.environ.get("NTQ_SKIP_AUTO_VENV", "").strip().lower()
-        if raw in ("1", "true", "yes"):
-            return
-
-        vpy = cls.venv_python()
-        if not vpy.is_file():
-            # 尽量自给自足：没有 venv 时先创建，再重启到 venv
-            print("正在创建虚拟环境 venv/ …", flush=True)
-            subprocess.run(
-                [sys.executable, "-m", "venv", str(cls.venv_dir)],
-                cwd=str(cls.repo_root),
-                check=True,
-            )
-        sp = Path(script_path).resolve()
-        argv = [str(vpy), str(sp)] + sys.argv[1:]
-        os.execv(str(vpy), argv)
-
-    @classmethod
-    def to_root_dir(cls) -> None:
-        os.chdir(cls.repo_root)
-
-    @classmethod
-    def print_info(cls, title: str, msg: str, icon: str = None) -> None:
-        icon_map = {
-            "success": CmdLayout.icon.get("success"),
-            "green_dot": CmdLayout.icon.get("green_dot"),
-            "failed": CmdLayout.icon.get("error"),
-            "ongoing": CmdLayout.icon.get("ongoing"),
-        }
-        icon_text = icon_map.get(icon, "")
-        if icon:
-            print(f"\n{icon_text} {title}: {msg}")
-        else:
-            print(f"\n{title}: {msg}")
-
-    @classmethod
-    def print_heading(cls, title: str, *, done: bool = False) -> None:
-        line = "=" * 60
-        prefix = "\n" if done else ""
-        print(f"{prefix}{line}")
-        print(f"  {title}")
-        print(f"{line}\n")
+        return NewTeaQuantSetup.in_virtualenv()
 
     @staticmethod
-    def print_check_item(status: str, msg: str) -> None:
-        marks = {
-            "running": CmdLayout.icon.get("ongoing"),
-            "done": CmdLayout.icon.get("success"),
-            "warn": CmdLayout.icon.get("warning"),
-            "skip": "[SKIP]",
-            "fail": CmdLayout.icon.get("error"),
-        }
-        mark = marks.get(status, CmdLayout.icon.get("info"))
-        print(f"{mark} {msg}", flush=True)
+    def ensure_sys_path() -> None:
+        from setup.core.env import NewTeaQuantSetup
+
+        NewTeaQuantSetup.ensure_sys_path()
 
     @staticmethod
-    def print_check_ok(msg: str) -> None:
-        print(f"{CmdLayout.icon.get('success')} {msg}", flush=True)
+    def to_root_dir() -> None:
+        from setup.core.env import NewTeaQuantSetup
+
+        NewTeaQuantSetup.to_root_dir()
 
     @staticmethod
-    def print_check_fail(msg: str) -> None:
-        print(f"{CmdLayout.icon.get('error')} {msg}", flush=True)
+    def ensure_venv(entry_script: str | Path | None = None) -> None:
+        from setup.core.env import NewTeaQuantSetup
+
+        NewTeaQuantSetup.ensure_venv(entry_script=entry_script)
 
     @staticmethod
-    def print_check_info(msg: str) -> None:
-        print(f"[info] -> {msg}", flush=True)
+    def ensure_venv_for_setup_step(script_path: str | Path) -> None:
+        from setup.core.env import NewTeaQuantSetup
 
-    @classmethod
-    def check_file_exists(cls, path: Path, ok_msg: str, fail_msg: str) -> bool:
-        if path.is_file():
-            cls.print_check_ok(ok_msg)
-            return True
-        cls.print_check_fail(f"{fail_msg}: {path}")
-        return False
+        NewTeaQuantSetup.ensure_venv_for_setup_step(script_path)
 
-    @classmethod
-    def install_script_path(cls, step_name: str) -> Path:
-        return cls.repo_root / "setup" / "steps" / step_name / "install.py"
+    @staticmethod
+    def requirements_txt() -> Path:
+        from setup.core.install_runtime import REQUIREMENTS
 
-    @classmethod
-    def run_install_script(cls, step_name: str, script_args: Sequence[str] = ()) -> int:
-        script = cls.install_script_path(step_name)
-        if not script.is_file():
-            cls.print_check_item("fail", f"未找到步骤脚本: {script}")
-            return 1
-        cmd = [sys.executable, str(script), *script_args]
-        r = subprocess.run(cmd, cwd=str(cls.repo_root), env=os.environ.copy())
-        return int(r.returncode)
+        return REQUIREMENTS
+
+    @staticmethod
+    def ui_bff_requirements() -> Path:
+        from setup.core.install_runtime import UI_BFF_REQUIREMENTS
+
+        return UI_BFF_REQUIREMENTS
+
+    @staticmethod
+    def ui_fed_root() -> Path:
+        from setup.core.install_runtime import UI_FED_ROOT
+
+        return UI_FED_ROOT
+
+
+class RuntimeNamespace:
+    """安装状态判断与 CLI/UI 安装编排。"""
+
+    @staticmethod
+    def needs_install(profile: InstallProfileName) -> bool:
+        from setup.core.install_runtime import needs_install
+
+        return needs_install(profile)
+
+    @staticmethod
+    def cli_install_scope() -> CliInstallScope:
+        from setup.core.install_runtime import cli_install_scope
+
+        return cli_install_scope()
+
+    @staticmethod
+    def install_cli(*, force: bool = False) -> None:
+        from setup.core.cli_runtime import install_cli_runtime
+
+        install_cli_runtime(force=force)
+
+    @staticmethod
+    def ensure_cli_install() -> int:
+        """通过根目录 ``install.py`` 执行 CLI 安装（user CLI 自动触发）。"""
+        from setup.core.cli_runtime import ensure_cli_install_via_install_py
+
+        return ensure_cli_install_via_install_py()
+
+    @staticmethod
+    def install_ui(*, force: bool = False) -> None:
+        from setup.core.ui_runtime import install_ui_runtime
+
+        install_ui_runtime(force=force)
+
+    @staticmethod
+    def check_ui_prerequisites() -> tuple[bool, str]:
+        from setup.core.ui_runtime import check_runtime_prerequisites
+
+        return check_runtime_prerequisites()
+
+    @staticmethod
+    def launch_ui() -> None:
+        from setup.core.ui_runtime import launch_ui_stack
+
+        launch_ui_stack()
+
+    @staticmethod
+    def set_ui_dev_mode(enabled: bool) -> None:
+        from setup.core.install_runtime import set_ui_dev_mode
+
+        set_ui_dev_mode(enabled)
+
+    @staticmethod
+    def fed_build_ready() -> bool:
+        from setup.core.install_runtime import fed_build_ready
+
+        return fed_build_ready()
+
+    @staticmethod
+    def userspace_ready() -> bool:
+        from setup.core.install_runtime import userspace_ready
+
+        return userspace_ready()
+
+    @staticmethod
+    def mark(
+        profile: InstallProfileName,
+        *,
+        success: bool,
+        failed_step_id: str = "",
+        fingerprints: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        from setup.core.install_runtime import mark_runtime
+
+        mark_runtime(
+            profile,
+            success=success,
+            failed_step_id=failed_step_id,
+            fingerprints=fingerprints,
+        )
+
+
+class ArtifactsNamespace:
+    """安装产物工厂（userspace zip / 演示数据包）。"""
+
+    @staticmethod
+    def package_userspace(*, write_zip: bool = True) -> int:
+        from setup.core.scripts.init_userspace import package_init_userspace
+
+        return package_init_userspace(write_zip=write_zip)
+
+    @staticmethod
+    def export_demo_data(argv: Optional[Sequence[str]] = None) -> int:
+        from setup.core.scripts.init_data.demo_data_exporter import main
+
+        return main(list(argv) if argv is not None else None)
+
+
+class MetaNamespace:
+    """安装步骤元数据（UI wizard / CLI 步骤序）。"""
+
+    @staticmethod
+    def load_step_meta(*, ui_only: bool = True) -> List[Dict[str, Any]]:
+        from setup.core.meta_loader import load_setup_step_meta
+
+        return load_setup_step_meta(ui_only=ui_only)
+
+
+class TraceNamespace:
+    """安装 / 启动埋点（失败不影响安装结果）。"""
+
+    @staticmethod
+    def install_complete(
+        *,
+        success: bool,
+        entry: InstallEntry,
+        error_code: Optional[str] = None,
+    ) -> None:
+        from setup.core.trace_events import SetupTrace
+
+        SetupTrace.install_complete(success=success, entry=entry, error_code=error_code)
+
+    @staticmethod
+    def app_start(*, entry: AppEntry) -> None:
+        from setup.core.trace_events import SetupTrace
+
+        SetupTrace.app_start(entry=entry)
+
+
+class Setup:
+    """安装域门面（Facade）。静态 API，勿实例化。"""
+
+    env = EnvNamespace
+    runtime = RuntimeNamespace
+    artifacts = ArtifactsNamespace
+    meta = MetaNamespace
+    trace = TraceNamespace
+    types = TypesNamespace

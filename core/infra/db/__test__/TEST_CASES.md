@@ -22,7 +22,7 @@
 **不负责**
 
 - 单包细单测（见 `core/**/__test__`）
-- updater 编排（见 `setup/updater/__test__`）
+- updater 编排（见 `setup/core/updater/__test__`）
 
 **允许的测试类型（本目录）：** `api` · `integration`
 

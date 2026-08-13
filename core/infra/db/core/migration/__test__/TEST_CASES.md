@@ -10,7 +10,7 @@ schema 迁移管线：history、plan prune、migrate_manager CLI runner。
 ## 边界
 
 **负责：** migration 子包行为与 migrate_manager 门面 CLI  
-**不负责：** updater 子进程编排（见 `setup/updater/__test__`）
+**不负责：** updater 子进程编排（见 `setup/core/updater/__test__`）
 
 | Case 文件 | 说明 |
 |-----------|------|

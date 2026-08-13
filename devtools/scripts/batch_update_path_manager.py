@@ -146,7 +146,7 @@ def batch_update_files():
         "core/modules/strategy/execution_manager/workbench_resolve.py",
         "core/modules/strategy/engines/shared/helpers/strategy_runtime.py",
         "core/infra/project_context/__test__/test_config_manager.py",
-        "setup/steps/db_connection/install.py",
+        "setup/core/steps/db_connection/install.py",
         "core/bff/APIs/setup/runtime.py",
         "core/bff/APIs/setup/service.py",
         "core/modules/strategy/services/data/output/simulation_output_retention.py",

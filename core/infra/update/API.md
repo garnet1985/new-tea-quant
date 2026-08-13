@@ -11,7 +11,7 @@
 快速开始见 [QUICKSTART.md](./QUICKSTART.md)。术语见 [glossary.yaml](./glossary.yaml)。架构见 [ARCHITECTURE.md](./docs/ARCHITECTURE.md)。
 
 **公开约定：** 包根仅导出 `Update`；类型从 [`contracts.py`](./contracts.py) 导入，或经 `Update.types`。实现位于 [`core/`](./core/)。  
-**边界：** 版本探测与升级编排在 `setup/updater/`，不在本模块。
+**边界：** 版本探测与升级编排在 `setup/core/updater/`，不在本模块。
 
 **CLI：** `python -m core.infra.update.core.post_upgrade run`（内部调用 `Update.post_upgrade.run`）
 

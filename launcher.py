@@ -18,13 +18,7 @@ if sys.platform == "win32" and sys.stdout.encoding != "utf-8":
 import argparse
 
 from core.ui.ports import UI_BFF_PORT, UI_DEV_PORT
-from setup.setup import NewTeaQuantSetup
-from setup.install_runtime import needs_install, set_ui_dev_mode
-from setup.ui_runtime import (
-    check_runtime_prerequisites,
-    install_ui_runtime,
-    launch_ui_stack,
-)
+from setup import Setup
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -42,23 +36,23 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
-    set_ui_dev_mode(args.dev)
+    Setup.runtime.set_ui_dev_mode(args.dev)
 
-    NewTeaQuantSetup.to_root_dir()
-    NewTeaQuantSetup.ensure_venv(entry_script=NewTeaQuantSetup.repo_root / "launcher.py")
+    Setup.env.to_root_dir()
+    Setup.env.ensure_venv(entry_script=Setup.env.repo_root() / "launcher.py")
 
     mode = "开发" if args.dev else "生产"
     print(f"UI {mode}模式", flush=True)
 
-    ok, msg = check_runtime_prerequisites()
+    ok, msg = Setup.runtime.check_ui_prerequisites()
     if not ok:
         print(f"{i('error')} {msg}", flush=True)
         return 1
 
-    if needs_install("ui"):
+    if Setup.runtime.needs_install("ui"):
         print("正在安装 UI 依赖…", flush=True)
         try:
-            install_ui_runtime(force=True)
+            Setup.runtime.install_ui(force=True)
         except Exception as e:
             print(f"{i('error')} 安装失败: {e}", flush=True)
             return 1
@@ -66,14 +60,12 @@ def main(argv: list[str] | None = None) -> int:
         print("依赖已就绪", flush=True)
 
     try:
-        from setup.trace_events import SetupTrace
-
-        SetupTrace.app_start(entry="ui")
+        Setup.trace.app_start(entry="ui")
     except Exception:
         pass
 
     try:
-        launch_ui_stack()
+        Setup.runtime.launch_ui()
     except Exception as e:
         print(f"{i('error')} 启动失败: {e}", flush=True)
         print("若页面仍能打开但 /api 报错，请执行: python devcli.py uk", flush=True)

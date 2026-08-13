@@ -19,7 +19,7 @@
 {
   "id": "db_connection",
   "name": "DB 配置检查/填写",
-  "description": "对应 setup/steps/db_connection 的前置配置检查。",
+  "description": "对应 setup/core/steps/db_connection 的前置配置检查。",
   "requiredUserInputs": [
     {
       "key": "dbType",
@@ -97,13 +97,13 @@
       {
         "id": "resolve_deps",
         "name": "依赖安装",
-        "description": "对应 setup/steps/resolve_deps 步骤。",
+        "description": "对应 setup/core/steps/resolve_deps 步骤。",
         "requiredUserInputs": []
       },
       {
         "id": "init_userspace",
         "name": "Init Userspace",
-        "description": "对应 setup/steps/init_userspace 步骤。",
+        "description": "对应 setup/core/steps/init_userspace 步骤。",
         "requiredUserInputs": [
           { "key": "userspaceTargetPath", "label": "Userspace Target Path", "type": "text", "required": false }
         ]
@@ -111,7 +111,7 @@
       {
         "id": "db_connection",
         "name": "DB 配置检查/填写",
-        "description": "对应 setup/steps/db_connection 的前置配置检查。",
+        "description": "对应 setup/core/steps/db_connection 的前置配置检查。",
         "requiredUserInputs": [
           { "key": "dbType", "label": "Database Type", "type": "select", "required": true, "defaultValue": "postgresql", "options": [{ "label": "postgresql", "value": "postgresql" }, { "label": "mysql", "value": "mysql" }] },
           { "key": "host", "label": "Host", "type": "text", "required": true },
@@ -125,7 +125,7 @@
       {
         "id": "import_data",
         "name": "Init Data Import",
-        "description": "对应 setup/steps/import_data 步骤。",
+        "description": "对应 setup/core/steps/import_data 步骤。",
         "requiredUserInputs": []
       }
     ]

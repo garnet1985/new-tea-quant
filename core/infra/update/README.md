@@ -2,7 +2,7 @@
 
 升级扩展：DB 数据迁移脚本注册表、post-upgrade 收尾动作注册表与 CLI。
 
-编排 / 下载 / 版本探测见仓库 `setup/updater/`。
+编排 / 下载 / 版本探测见仓库 `setup/core/updater/`。
 
 ## 布局
 

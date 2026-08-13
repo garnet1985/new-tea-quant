@@ -57,20 +57,18 @@ class UserBootstrap:
             return
 
         try:
-            from setup.install_runtime import cli_install_scope, needs_install
+            from setup import Setup
         except ModuleNotFoundError:
             return
 
-        if not needs_install("cli"):
+        if not Setup.runtime.needs_install("cli"):
             return
 
-        scope = cli_install_scope()
+        scope = Setup.runtime.cli_install_scope()
         if scope == "deps_only":
             print("检测到 requirements.txt 变更，正在更新依赖 …", flush=True)
         else:
             print("检测到应用尚未完成安装，正在运行 install.py …", flush=True)
-        from setup.cli_runtime import ensure_cli_install_via_install_py
-
-        code = ensure_cli_install_via_install_py()
+        code = Setup.runtime.ensure_cli_install()
         if code != 0:
             raise SystemExit(code)

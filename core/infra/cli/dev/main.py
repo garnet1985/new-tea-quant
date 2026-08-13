@@ -35,9 +35,9 @@ class DevRunner:
             print()
 
         try:
-            from setup.trace_events import SetupTrace
+            from setup import Setup
 
-            SetupTrace.app_start(entry="devcli")
+            Setup.trace.app_start(entry="devcli")
         except Exception:
             pass
 

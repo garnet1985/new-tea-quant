@@ -6,7 +6,7 @@
 
 `infra.update` 提供升级**扩展点**：数据迁移脚本注册表（供 `infra.db` 执行器调用）与 post-upgrade 收尾（供 `setup/updater` 子进程调用）。
 
-**不负责：** 版本探测、下载、managed_scope 镜像、schema 快照编排（均在 `setup/updater/`）。
+**不负责：** 版本探测、下载、managed_scope 镜像、schema 快照编排（均在 `setup/core/updater/`）。
 
 ## 架构
 

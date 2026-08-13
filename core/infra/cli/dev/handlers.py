@@ -132,12 +132,12 @@ class DevHandlers:
 
     @staticmethod
     def cmd_check_import(args: argparse.Namespace) -> int:
-        cmd = [sys.executable, "-m", "devtools.quick_tools.minimal_import_check", *args.forward]
+        cmd = [sys.executable, "-m", "core.infra.cli.dev.scripts.minimal_import_check", *args.forward]
         return subprocess.run(cmd, cwd=str(DevHandlers.REPO_ROOT)).returncode
 
     @staticmethod
     def cmd_clear_global_cache(_args: argparse.Namespace) -> int:
-        from devtools.quick_tools.dev_cache import clear_userspace_ntq_dir
+        from core.infra.cli.dev.scripts.cache import clear_userspace_ntq_dir
 
         clear_userspace_ntq_dir()
         print("userspace/.ntq 已清理。", flush=True)
@@ -145,7 +145,7 @@ class DevHandlers:
 
     @staticmethod
     def cmd_clear_strategy_cache(_args: argparse.Namespace) -> int:
-        from devtools.quick_tools.dev_cache import clear_simulation_cache_all
+        from core.infra.cli.dev.scripts.cache import clear_simulation_cache_all
 
         clear_simulation_cache_all()
         print("物理模拟 results/ 与 DB 工作台快照已清理。", flush=True)
@@ -153,7 +153,7 @@ class DevHandlers:
 
     @staticmethod
     def cmd_cache_clear_db(_args: argparse.Namespace) -> int:
-        from devtools.quick_tools.dev_cache import clear_workbench_db_cache
+        from core.infra.cli.dev.scripts.cache import clear_workbench_db_cache
 
         clear_workbench_db_cache()
         print("DB 工作台快照已清理。", flush=True)
@@ -161,7 +161,7 @@ class DevHandlers:
 
     @staticmethod
     def cmd_cache_clear_disk(_args: argparse.Namespace) -> int:
-        from devtools.quick_tools.dev_cache import clear_simulation_disk_cache
+        from core.infra.cli.dev.scripts.cache import clear_simulation_disk_cache
 
         clear_simulation_disk_cache()
         print("物理模拟 results/ 已清理。", flush=True)
@@ -169,14 +169,15 @@ class DevHandlers:
 
     @staticmethod
     def cmd_data_export_init(args: argparse.Namespace) -> int:
-        cmd = [sys.executable, "-m", "devtools.demo_exporter.demo_data_exporter", *args.forward]
-        return subprocess.run(cmd, cwd=str(DevHandlers.REPO_ROOT)).returncode
+        from setup import Setup
+
+        return Setup.artifacts.export_demo_data(list(getattr(args, "forward", None) or []))
 
     @staticmethod
     def cmd_userspace_package(args: argparse.Namespace) -> int:
-        from devtools.quick_tools.package_init_userspace import package_init_userspace
+        from setup import Setup
 
-        return package_init_userspace(write_zip=not getattr(args, "no_zip", False))
+        return Setup.artifacts.package_userspace(write_zip=not getattr(args, "no_zip", False))
 
     @staticmethod
     def cmd_db_checkpoint(args: argparse.Namespace) -> int:
@@ -248,20 +249,20 @@ class DevHandlers:
 
     @staticmethod
     def cmd_sample_stock_pool(args: argparse.Namespace) -> int:
-        from devtools.quick_tools.stock_pool_ops import activate_stratified_pool
+        from core.infra.cli.dev.scripts.stock_pool import activate_stratified_pool
 
         verbose = bool(getattr(args, "verbose", False))
         return activate_stratified_pool(int(args.count), verbose=verbose)
 
     @staticmethod
     def cmd_pool_clear(_args: argparse.Namespace) -> int:
-        from devtools.quick_tools.stock_pool_ops import deactivate_stratified_pool
+        from core.infra.cli.dev.scripts.stock_pool import deactivate_stratified_pool
 
         return deactivate_stratified_pool()
 
     @staticmethod
     def cmd_pack(args: argparse.Namespace) -> int:
-        from devtools.quick_tools.publish_prep import PublishPrepOptions, run_publish_prep
+        from core.infra.cli.dev.scripts.publish_prep import PublishPrepOptions, run_publish_prep
 
         return run_publish_prep(
             PublishPrepOptions(
@@ -273,13 +274,14 @@ class DevHandlers:
                 skip_py39=args.skip_py39,
                 package_userspace=getattr(args, "package_userspace", False),
                 skip_dep_check=getattr(args, "skip_dep_check", False),
+                skip_icon_check=getattr(args, "skip_icon_check", False),
             )
         )
 
     @staticmethod
     def cmd_check_deps(args: argparse.Namespace) -> int:
         """依赖风险检测命令（可独立运行）"""
-        from devtools.quick_tools.dependency_risk import run_dependency_check
+        from core.infra.cli.dev.scripts.dependency_risk import run_dependency_check
 
         verbose = getattr(args, 'verbose', False)
         return run_dependency_check(verbose=verbose)

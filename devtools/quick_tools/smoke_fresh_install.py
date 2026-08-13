@@ -21,7 +21,7 @@ _REPO = Path(__file__).resolve().parents[2]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
-from devtools.quick_tools._paths import REPO_ROOT
+REPO_ROOT = _REPO
 
 DEFAULT_STRATEGY = "demo/random/random_v1_null_baseline"
 

@@ -30,6 +30,7 @@ DEVCLI_COMMAND_REFERENCE = """
 
   例: python devcli.py p -core_v0.3.2 --check-only
       同 python devcli.py pack --version 0.3.2 --check-only
+      python -m core.infra.cli.dev.scripts.raw_icon_scan   # 裸状态 emoji 扫描（pack 默认会跑）
       python devcli.py bpe
       python devcli.py bps --db mysql
       python devcli.py bpe --db pgsql

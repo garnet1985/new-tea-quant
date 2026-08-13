@@ -72,9 +72,9 @@ class UserRunner:
             pass
 
         try:
-            from setup.trace_events import SetupTrace
+            from setup import Setup
 
-            SetupTrace.app_start(entry="cli")
+            Setup.trace.app_start(entry="cli")
         except Exception:
             pass
 
